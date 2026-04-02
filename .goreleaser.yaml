@@ -11,13 +11,14 @@ version: 2
 before:
   hooks:
     # You may remove this if you don't use go modules.
-    - go mod tidy
+    - sh -c "cd admin && go mod tidy"
     # you may remove this if you don't need go generate
     #- go generate ./...
-    - go test -v -run TestGetVersionInfo ./util/system_test.go ./util/system.go ./util/variable.go
+    - sh -c "cd admin && go test -v -run TestGetVersionInfo ./util/system_test.go ./util/system.go ./util/variable.go ./util/path.go"
 
 builds:
-  - env:
+  - dir: admin
+    env:
       - CGO_ENABLED=0
     goos:
       - linux
@@ -42,9 +43,9 @@ archives:
       - goos: windows
         format: zip
     files:
-      - src: 'web/build'
+      - src: 'web-admin/build'
         dst: './web/build'
-      - src: 'conf/app.conf'
+      - src: 'deploy/app.conf'
         dst: './conf/app.conf'
 
 changelog:

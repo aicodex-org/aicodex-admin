@@ -170,7 +170,12 @@ func GetVersionInfo() (*VersionInfo, error) {
 
 	_, filename, _, _ := runtime.Caller(0)
 	rootPath := path.Dir(path.Dir(filename))
-	r, err := git.PlainOpen(rootPath)
+	repoRoot := FindAncestorWithEntry(rootPath, ".git")
+	if repoRoot == "" {
+		repoRoot = rootPath
+	}
+
+	r, err := git.PlainOpen(repoRoot)
 	if err != nil {
 		return res, err
 	}

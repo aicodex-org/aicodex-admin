@@ -122,7 +122,7 @@ func parseAllWords(category string) *I18nData {
 	if category == "backend" {
 		paths = getAllFilePathsInFolder("../", ".go")
 	} else {
-		paths = getAllFilePathsInFolder("../web/src", ".js")
+		paths = getAllFilePathsInFolder("../../web-admin/src", ".js")
 	}
 
 	allWords := []string{}

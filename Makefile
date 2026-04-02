@@ -1,11 +1,13 @@
 
 # Image URL to use all building/pushing image targets
 REGISTRY ?= casbin
-IMG ?= casdoor
+IMG ?= aicodex-admin
 IMG_TAG ?=$(shell git --no-pager log -1 --format="%ad" --date=format:"%Y%m%d")-$(shell git describe --tags --always --dirty --abbrev=6)
 NAMESPACE ?= casdoor
 APP ?= casdoor
 HOST ?= test.com
+GO_DIR ?= admin
+FRONTEND_DIR ?= web-admin
 
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
@@ -45,42 +47,42 @@ help: ## Display this help.
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.
-	go fmt ./...
+	cd $(GO_DIR) && go fmt ./...
 
 .PHONY: vet
 vet: ## Run go vet against code.
-	go vet ./...
+	cd $(GO_DIR) && go vet ./...
 
 .PHONY: ut
 ut: ## UT test
-	go test -v -cover -coverprofile=coverage.out ./...
-	go tool cover -func=coverage.out
+	cd $(GO_DIR) && go test -v -cover -coverprofile=coverage.out ./...
+	cd $(GO_DIR) && go tool cover -func=coverage.out
 
 ##@ Build
 
 .PHONY: backend
 backend: fmt vet ## Build backend binary.
-	go build -o bin/manager main.go
+	cd $(GO_DIR) && go build -o ../bin/manager main.go
 
 .PHONY: backend-vendor
 backend-vendor: vendor fmt vet ## Build backend binary with vendor.
-	go build -mod=vendor -o bin/manager main.go
+	cd $(GO_DIR) && go build -mod=vendor -o ../bin/manager main.go
 
 .PHONY: frontend
 frontend: ## Build backend binary.
-	cd web/ && yarn && yarn run build && cd -
+	cd $(FRONTEND_DIR) && yarn && yarn run build
 
 .PHONY: vendor
 vendor: ## Update vendor.
-	go mod vendor
+	cd $(GO_DIR) && go mod vendor
 
 .PHONY: run
 run: fmt vet ## Run backend in local 
-	go run ./main.go
+	cd $(GO_DIR) && go run ./main.go
 
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
-	docker build -t ${REGISTRY}/${IMG}:${IMG_TAG} .
+	docker build -f deploy/Dockerfile -t ${REGISTRY}/${IMG}:${IMG_TAG} .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
@@ -91,11 +93,11 @@ deps: ## Run dependencies for local development
 
 lint-install: ## Install golangci-lint
 	@# Keep the local golangci-lint version aligned with CI. Both local and CI lint run the gofumpt-only ruleset from .golangci.yml.
-	GOTOOLCHAIN=go1.25.8 go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4
+	cd $(GO_DIR) && GOTOOLCHAIN=go1.25.8 go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4
 
 lint: vendor ## Run golangci-lint
 	@echo "---lint---"
-	golangci-lint run ./...
+	cd $(GO_DIR) && golangci-lint run ./...
 
 ##@ Deployment
 

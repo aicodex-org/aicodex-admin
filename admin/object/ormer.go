@@ -19,6 +19,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
@@ -51,13 +52,13 @@ var (
 
 func InitFlag() {
 	createDatabasePtr := flag.Bool("createDatabase", false, "true if you need to create database")
-	configPathPtr := flag.String("config", defaultConfigPath, "set it to \"/your/path/app.conf\" if your config file is not in: \"/conf/app.conf\"")
+	configPathPtr := flag.String("config", defaultConfigPath, "set it to \"/your/path/app.conf\" if your config file is not in the default search paths (for example /conf/app.conf or deploy/app.conf)")
 	exportDataPtr := flag.Bool("export", false, "export database to JSON file and exit (use -exportPath to specify custom location)")
 	exportFilePathPtr := flag.String("exportPath", defaultExportFilePath, "path to the exported data file (used with -export)")
 	flag.Parse()
 
 	createDatabase = *createDatabasePtr
-	configPath = *configPathPtr
+	configPath = resolveConfigPath(*configPathPtr)
 	exportData = *exportDataPtr
 	exportFilePath = *exportFilePathPtr
 
@@ -77,7 +78,7 @@ func GetExportFilePath() string {
 }
 
 func InitConfig() {
-	err := web.LoadAppConfig("ini", "../conf/app.conf")
+	err := web.LoadAppConfig("ini", "../../deploy/app.conf")
 	if err != nil {
 		panic(err)
 	}
@@ -96,7 +97,7 @@ func InitAdapter() {
 				panic(err)
 			}
 			dir = strings.ReplaceAll(dir, "\\", "/")
-			panic(fmt.Sprintf("The Casdoor config file: \"app.conf\" was not found, it should be placed at: \"%s/conf/app.conf\"", dir))
+			panic(fmt.Sprintf("The Casdoor config file: %q was not found, current working directory: %q", configPath, dir))
 		}
 	}
 
@@ -116,6 +117,25 @@ func InitAdapter() {
 	tableNamePrefix := conf.GetConfigString("tableNamePrefix")
 	tbMapper := names.NewPrefixMapper(names.SnakeMapper{}, tableNamePrefix)
 	ormer.Engine.SetTableMapper(tbMapper)
+}
+
+func resolveConfigPath(path string) string {
+	if filepath.IsAbs(path) || util.FileExist(path) {
+		return path
+	}
+
+	candidates := []string{
+		"../deploy/app.conf",
+		"deploy/app.conf",
+		"../../deploy/app.conf",
+	}
+	for _, candidate := range candidates {
+		if util.FileExist(candidate) {
+			return candidate
+		}
+	}
+
+	return path
 }
 
 func CreateTables() {

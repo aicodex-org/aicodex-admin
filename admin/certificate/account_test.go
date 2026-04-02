@@ -27,7 +27,7 @@ import (
 )
 
 func TestGetClient(t *testing.T) {
-	err := web.LoadAppConfig("ini", "../conf/app.conf")
+	err := web.LoadAppConfig("ini", "../../deploy/app.conf")
 	if err != nil {
 		panic(err)
 	}

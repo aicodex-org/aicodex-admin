@@ -40,17 +40,28 @@ var (
 )
 
 func getWebBuildFolder() string {
-	path := "web/build"
-	if util.FileExist(filepath.Join(path, "index.html")) || frontendBaseDir == "" {
-		return path
+	candidates := []string{
+		"web/build",
+		"../web-admin/build",
+		"../web/build",
+		"web-admin/build",
+	}
+
+	for _, path := range candidates {
+		if util.FileExist(filepath.Join(path, "index.html")) {
+			return path
+		}
+	}
+
+	if frontendBaseDir == "" {
+		return "web/build"
 	}
 
 	if util.FileExist(filepath.Join(frontendBaseDir, "index.html")) {
 		return frontendBaseDir
 	}
 
-	path = filepath.Join(frontendBaseDir, "web/build")
-	return path
+	return filepath.Join(frontendBaseDir, "web/build")
 }
 
 func fastAutoSignin(ctx *context.Context) (string, error) {

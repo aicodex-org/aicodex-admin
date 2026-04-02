@@ -81,7 +81,7 @@ For casdoor, if you have any questions, you can give Issues, or you can also dir
 
 ### I18n translation
 
-If you are contributing to casdoor, please note that we use [Crowdin](https://crowdin.com/project/casdoor-site) as translating platform and i18next as translating tool. When you add some words using i18next in the `web/` directory, please remember to add what you have added to the `web/src/locales/en/data.json` file.
+If you are contributing to casdoor, please note that we use [Crowdin](https://crowdin.com/project/casdoor-site) as translating platform and i18next as translating tool. When you add some words using i18next in the `web-admin/` directory, please remember to add what you have added to the `web-admin/src/locales/en/data.json` file.
 
 ## License
 

@@ -1,0 +1,30 @@
+version: '3.1'
+services:
+  casdoor:
+    restart: always
+    network_mode: host
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      target: standard
+    entrypoint: /bin/sh -c './server --createDatabase=true'
+    depends_on:
+      - db
+    environment:
+      RUNNING_IN_DOCKER: "true"
+      driverName: postgres
+      dbName: casdoor
+      dataSourceName: user=postgres password=123456 host=127.0.0.1 port=5432 sslmode=disable dbname=casdoor
+    volumes:
+      - ./app.conf:/conf/app.conf
+  db:
+    restart: always
+    network_mode: host
+    image: postgres:18
+    platform: linux/amd64
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: casdoor
+    volumes:
+      - /usr/local/docker/postgres:/var/lib/postgresql/data

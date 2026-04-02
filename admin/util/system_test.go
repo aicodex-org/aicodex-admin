@@ -82,7 +82,12 @@ func TestGetVersionInfo(t *testing.T) {
 func TestGetVersion(t *testing.T) {
 	_, filename, _, _ := runtime.Caller(0)
 	root := path.Dir(path.Dir(filename))
-	r, err := git.PlainOpen(root)
+	repoRoot := FindAncestorWithEntry(root, ".git")
+	if repoRoot == "" {
+		repoRoot = root
+	}
+
+	r, err := git.PlainOpen(repoRoot)
 	if err != nil {
 		t.Log(err)
 	}

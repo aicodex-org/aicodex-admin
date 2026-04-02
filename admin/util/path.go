@@ -22,6 +22,21 @@ import (
 	"strings"
 )
 
+func FindAncestorWithEntry(startDir string, entry string) string {
+	current := filepath.Clean(startDir)
+	for {
+		if FileExist(filepath.Join(current, entry)) {
+			return current
+		}
+
+		parent := filepath.Dir(current)
+		if parent == current {
+			return ""
+		}
+		current = parent
+	}
+}
+
 func FileExist(path string) bool {
 	_, err := os.Stat(path)
 	if os.IsNotExist(err) {

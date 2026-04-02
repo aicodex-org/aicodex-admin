@@ -27,11 +27,11 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: ./go.mod
+          cache-dependency-path: ./admin/go.mod
       - name: Tests
         run: |
           go test -v $(go list ./...) -tags skipCi
-        working-directory: ./
+        working-directory: ./admin
 
   frontend:
     name: Front-end
@@ -43,15 +43,15 @@ jobs:
         with:
           node-version: 20
           cache: "yarn"
-          cache-dependency-path: ./web/yarn.lock
+          cache-dependency-path: ./web-admin/yarn.lock
       - run: yarn install && CI=false yarn run build
-        working-directory: ./web
+        working-directory: ./web-admin
       - name: Upload build artifacts
         if: github.repository == 'casdoor/casdoor' && github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build-${{ github.run_id }}
-          path: ./web/build
+          path: ./web-admin/build
 
   backend:
     name: Back-end
@@ -62,12 +62,12 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: ./go.mod
+          cache-dependency-path: ./admin/go.mod
       - run: go version
       - name: Build
         run: |
           go build -race -ldflags "-extldflags '-static'"
-        working-directory: ./
+        working-directory: ./admin
 
   linter:
     name: Go-Linter
@@ -82,13 +82,15 @@ jobs:
 
       - name: Sync vendor tree
         run: go mod vendor
+        working-directory: ./admin
 
       # CI and local `make lint` both use the repo's gofumpt-only golangci-lint config.
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9.2.0
         with:
           version: v2.11.4
-          args: --config .golangci.yml ./...
+          args: --config ../.golangci.yml ./...
+          working-directory: admin
 
   e2e:
     name: e2e-test
@@ -108,10 +110,10 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: ./go.mod
+          cache-dependency-path: ./admin/go.mod
       - name: start backend
         run: nohup go run ./main.go > /tmp/backend.log 2>&1 &
-        working-directory: ./
+        working-directory: ./admin
       - name: Wait for backend to be ready
         run: |
           echo "Waiting for backend server to start on port 8000..."
@@ -133,27 +135,27 @@ jobs:
         with:
           node-version: 20
           cache: "yarn"
-          cache-dependency-path: ./web/yarn.lock
+          cache-dependency-path: ./web-admin/yarn.lock
       - run: yarn install
-        working-directory: ./web
+        working-directory: ./web-admin
       - uses: cypress-io/github-action@v5
         with:
           browser: chrome
           start: yarn start
-          wait-on: "http://localhost:7001"
+          wait-on: "http://localhost:7002"
           wait-on-timeout: 210
-          working-directory: ./web
+          working-directory: ./web-admin
 
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: cypress-screenshots
-          path: ./web/cypress/screenshots
+          path: ./web-admin/cypress/screenshots
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: cypress-videos
-          path: ./web/cypress/videos
+          path: ./web-admin/cypress/videos
 
   tag-release:
     name: Create Tag
@@ -193,7 +195,7 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: ./go.mod
+          cache-dependency-path: ./admin/go.mod
 
       - name: Free disk space
         uses: jlumbroso/free-disk-space@v1.3.1
@@ -209,7 +211,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: frontend-build-${{ github.run_id }}
-          path: ./web/build
+          path: ./web-admin/build
 
       - name: Prepare Go caches
         run: |

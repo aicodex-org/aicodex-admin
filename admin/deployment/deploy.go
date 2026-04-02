@@ -52,7 +52,7 @@ func deployStaticFiles(provider *object.Provider) {
 }
 
 func uploadFolder(storageProvider oss.StorageInterface, folder string) {
-	path := fmt.Sprintf("../web/build/static/%s/", folder)
+	path := fmt.Sprintf("../../web-admin/build/static/%s/", folder)
 	filenames := util.ListFiles(path)
 
 	for _, filename := range filenames {
@@ -76,7 +76,7 @@ func uploadFolder(storageProvider oss.StorageInterface, folder string) {
 }
 
 func updateHtml(domainPath string) {
-	htmlPath := "../web/build/index.html"
+	htmlPath := "../../web-admin/build/index.html"
 	html := util.ReadStringFromPath(htmlPath)
 	html = strings.Replace(html, "\"/static/", fmt.Sprintf("\"%s", domainPath), -1)
 	util.WriteStringToPath(html, htmlPath)
