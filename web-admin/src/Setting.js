@@ -83,11 +83,35 @@ export function getAlgorithmNames(themeData) {
 }
 
 export function getLogo(themes) {
-  if (themes.includes("dark")) {
-    return `${StaticBaseUrl}/img/casdoor-logo_1185x256_dark.png`;
-  } else {
-    return `${StaticBaseUrl}/img/casdoor-logo_1185x256.png`;
+  return Conf.BrandLogo;
+}
+
+export function getBrandIcon() {
+  return Conf.BrandIcon;
+}
+
+export function getBrandFavicon() {
+  return Conf.BrandFavicon;
+}
+
+export function isLegacyBrandAsset(url) {
+  if (!url) {
+    return false;
   }
+
+  const normalized = url.toLowerCase();
+  return normalized.includes("casdoor") ||
+    normalized.includes("casbin.svg") ||
+    normalized.includes("/img/favicon") ||
+    normalized.includes("cdn.casdoor.com/static/favicon");
+}
+
+export function getPreferredBrandAsset(url, fallback) {
+  if (!url || isLegacyBrandAsset(url)) {
+    return fallback;
+  }
+
+  return url;
 }
 
 export const OtherProviderInfo = {
@@ -1443,15 +1467,17 @@ export function renderLogo(application) {
     return null;
   }
 
+  const loginLogo = Conf.LoginBrandLogo;
+
   if (application.homepageUrl !== "") {
     return (
       <a target="_blank" rel="noreferrer" href={application.homepageUrl}>
-        <img className="panel-logo" width={250} src={application.logo} alt={application.displayName} />
+        <img className="panel-logo" width={320} src={loginLogo} alt={application.displayName} />
       </a>
     );
   } else {
     return (
-      <img className="panel-logo" width={250} src={application.logo} alt={application.displayName} />
+      <img className="panel-logo" width={320} src={loginLogo} alt={application.displayName} />
     );
   }
 }
@@ -1957,7 +1983,7 @@ export function getUserCommonFields() {
 }
 
 export function getDefaultFooterContent() {
-  return `Powered by <a target="_blank" href="https://casdoor.org" rel="noreferrer"><img style="padding-bottom: 3px" height="20" alt="Casdoor" src="${StaticBaseUrl}/img/casdoor-logo_1185x256.png"/></a>`;
+  return `Powered by <a target="_blank" href="${Conf.BrandUrl}" rel="noreferrer"><img style="padding-bottom: 3px" height="20" alt="${Conf.BrandName}" src="${Conf.BrandLogo}"/></a>`;
 }
 
 export function getEmptyFooterContent() {
@@ -1988,8 +2014,8 @@ export function getDefaultHtmlEmailContent() {
 <body>
 <div class="email-container">
   <div class="header">
-        <h3>Casbin Organization</h3>
-        <img src="${StaticBaseUrl}/img/casdoor-logo_1185x256.png" alt="Casdoor Logo" width="300">
+        <h3>${Conf.BrandName}</h3>
+        <img src="${Conf.BrandLogo}" alt="${Conf.BrandName} Logo" width="300">
     </div>
     <p><strong>%{user.friendlyName}</strong>, here is your verification code</p>
     <p>Use this code for your transaction. It's valid for 5 minutes</p>
@@ -2002,10 +2028,10 @@ export function getDefaultHtmlEmailContent() {
       </div>
     </reset-link>
     <p>Thanks</p>
-    <p>Casbin Team</p>
+    <p>${Conf.BrandName} Team</p>
     <hr>
     <div class="footer">
-        <p>Casdoor is a brand operated by Casbin organization. For more info please refer to <a href="https://casdoor.org">https://casdoor.org</a></p>
+        <p>${Conf.BrandName} account services</p>
     </div>
 </div>
 </body>
@@ -2031,10 +2057,10 @@ export function getDefaultInvitationHtmlEmailContent() {
 <body>
 <div class="email-container">
   <div class="header">
-        <h3>Casbin Organization</h3>
-        <img src="${StaticBaseUrl}/img/casdoor-logo_1185x256.png" alt="Casdoor Logo" width="300">
+        <h3>${Conf.BrandName}</h3>
+        <img src="${Conf.BrandLogo}" alt="${Conf.BrandName} Logo" width="300">
     </div>
-    <p>You have been invited into Casdoor</p>
+    <p>You have been invited into ${Conf.BrandName}</p>
     <div class="code">
         %code
     </div>
@@ -2044,10 +2070,10 @@ export function getDefaultInvitationHtmlEmailContent() {
       </div>
     </reset-link>
     <p>Thanks</p>
-    <p>Casbin Team</p>
+    <p>${Conf.BrandName} Team</p>
     <hr>
     <div class="footer">
-        <p>Casdoor is a brand operated by Casbin organization. For more info please refer to <a href="https://casdoor.org">https://casdoor.org</a></p>
+        <p>${Conf.BrandName} account services</p>
     </div>
 </div>
 </body>

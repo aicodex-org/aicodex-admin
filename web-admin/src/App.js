@@ -463,12 +463,8 @@ class App extends Component {
           account = res.data;
           account.organization = res.data2;
           accessToken = res.data.accessToken;
-
-          if (!localStorage.getItem("language")) {
-            this.setLanguage(account);
-          }
           this.setTheme(Setting.getThemeData(account.organization), Conf.InitThemeAlgorithm);
-          setTourLogo(account.organization.logo);
+          setTourLogo(Setting.getPreferredBrandAsset(account.organization.logo, Conf.BrandLogo));
           setOrgIsTourVisible(account.organization.enableTour);
         } else {
           if (res.data !== "Please login first") {
@@ -491,6 +487,7 @@ class App extends Component {
 
   renderFooter(logo, footerHtml) {
     logo = logo ?? this.state.logo;
+    logo = Setting.getPreferredBrandAsset(logo, Conf.BrandLogo);
     footerHtml = footerHtml ?? this.state.application?.footerHtml;
     return (
       <React.Fragment>
@@ -509,7 +506,7 @@ class App extends Component {
               : (
                 Conf.CustomFooter !== null ? Conf.CustomFooter : (
                   <React.Fragment>
-                    Powered by <a target="_blank" href="https://casdoor.org" rel="noreferrer"><img style={{paddingBottom: "3px"}} height={"20px"} alt={"Casdoor"} src={logo} /></a>
+                    Powered by <a href={Conf.BrandUrl}><img style={{paddingBottom: "3px"}} height={"20px"} alt={Conf.BrandName} src={logo} /></a>
                   </React.Fragment>
                 )
               )
@@ -526,7 +523,7 @@ class App extends Component {
           <React.Fragment>
             <Tooltip title="Want to deploy your own AI assistant? Click to learn more!">
               <a target="_blank" rel="noreferrer" href={"https://casdoor.com"}>
-                <img style={{width: "20px", marginRight: "10px", marginBottom: "2px"}} alt="help" src="https://casbin.org/img/casbin.svg" />
+                <img style={{width: "20px", marginRight: "10px", marginBottom: "2px"}} alt={Conf.BrandName} src={Conf.BrandIcon} />
                 AI Assistant
               </a>
             </Tooltip>
@@ -745,11 +742,14 @@ class App extends Component {
       <React.Fragment>
         {(this.state.account === undefined || this.state.account === null) ?
           <Helmet>
-            <link rel="icon" href={"https://cdn.casdoor.com/static/favicon.png"} />
+            <title>{Conf.BrandName}</title>
+            <link rel="icon" href={Conf.BrandFavicon} />
+            <link rel="apple-touch-icon" href={Conf.BrandTouchIcon} />
           </Helmet> :
           <Helmet>
             <title>{this.state.account.organization?.displayName}</title>
-            <link rel="icon" href={this.state.account.organization?.favicon} />
+            <link rel="icon" href={Setting.getPreferredBrandAsset(this.state.account.organization?.favicon, Conf.BrandFavicon)} />
+            <link rel="apple-touch-icon" href={Conf.BrandTouchIcon} />
           </Helmet>
         }
         <ConfigProvider

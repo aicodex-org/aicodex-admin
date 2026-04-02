@@ -1,6 +1,7 @@
 .github
 .vscode
 .codex
+openspec/changes
 
 node_modules
 web/node_modules

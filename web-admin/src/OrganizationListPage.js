@@ -17,6 +17,7 @@ import {Link} from "react-router-dom";
 import {Button, Switch, Table} from "antd";
 import moment from "moment";
 import * as Setting from "./Setting";
+import * as Conf from "./Conf";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
@@ -32,7 +33,7 @@ class OrganizationListPage extends BaseListPage {
       createdTime: moment().format(),
       displayName: `New Organization - ${randomName}`,
       websiteUrl: "https://door.casdoor.com",
-      favicon: `${Setting.StaticBaseUrl}/img/favicon.png`,
+      favicon: Conf.BrandFavicon,
       passwordType: "bcrypt",
       PasswordSalt: "",
       passwordOptions: ["AtLeast6"],
@@ -40,7 +41,7 @@ class OrganizationListPage extends BaseListPage {
       passwordObfuscatorKey: "",
       passwordExpireDays: 0,
       countryCodes: ["US"],
-      defaultAvatar: `${Setting.StaticBaseUrl}/img/casbin.svg`,
+      defaultAvatar: Conf.BrandIcon,
       defaultApplication: "",
       tags: [],
       languages: Setting.Countries.map(item => item.key),

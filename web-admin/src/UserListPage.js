@@ -19,6 +19,7 @@ import {UploadOutlined} from "@ant-design/icons";
 import moment from "moment";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as Setting from "./Setting";
+import * as Conf from "./Conf";
 import * as UserBackend from "./backend/UserBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
@@ -71,7 +72,7 @@ class UserListPage extends BaseListPage {
       password: "123",
       passwordSalt: "",
       displayName: `New User - ${randomName}`,
-      avatar: this.state.organization.defaultAvatar ?? `${Setting.StaticBaseUrl}/img/casbin.svg`,
+      avatar: this.state.organization.defaultAvatar ?? Conf.BrandIcon,
       email: `${randomName}@example.com`,
       phone: Setting.getRandomNumber(),
       countryCode: this.state.organization.countryCodes?.length > 0 ? this.state.organization.countryCodes[0] : "",

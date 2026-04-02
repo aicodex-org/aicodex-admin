@@ -1,5 +1,5 @@
 import React from "react";
-import * as Setting from "./Setting";
+import * as Conf from "./Conf";
 
 export const TourObj = {
   home: [
@@ -8,8 +8,8 @@ export const TourObj = {
       description: "You can learn more about the use of CasDoor at https://casdoor.org/.",
       cover: (
         <img
-          alt="casdoor.png"
-          src={`${Setting.StaticBaseUrl}/img/casdoor-logo_1185x256.png`}
+          alt={Conf.BrandName}
+          src={Conf.BrandLogo}
         />
       ),
     },

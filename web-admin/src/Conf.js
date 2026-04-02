@@ -20,7 +20,16 @@ export let ShowGithubCorner = false;
 export let IsDemoMode = false;
 
 export let ForceLanguage = "";
-export let DefaultLanguage = "en";
+export let DefaultLanguage = "zh";
+
+export const BrandName = "AICodeX";
+export const AdminCenterName = "认证中心";
+export const BrandUrl = "/";
+export const BrandIcon = `${process.env.PUBLIC_URL || ""}/branding/icon-only.svg`;
+export const BrandLogo = `${process.env.PUBLIC_URL || ""}/branding/logo-full-aligned.svg`;
+export const LoginBrandLogo = `${process.env.PUBLIC_URL || ""}/branding/联软灵犀AI-icon.svg`;
+export const BrandFavicon = `${process.env.PUBLIC_URL || ""}/branding/favicon-32.png`;
+export const BrandTouchIcon = `${process.env.PUBLIC_URL || ""}/branding/app-icon-512.png`;
 
 export let StaticBaseUrl = "https://cdn.casbin.org";
 

@@ -1,0 +1,141 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 400" width="960" height="400">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="960" y2="400" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0e0b22"/>
+      <stop offset="100%" stop-color="#060412"/>
+    </linearGradient>
+
+    <linearGradient id="body" x1="80" y1="40" x2="240" y2="340" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#818cf8"/>
+      <stop offset="50%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#4f46e5"/>
+    </linearGradient>
+
+    <radialGradient id="bodyHL" cx="130" cy="160" r="100" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#a5b4fc" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#a5b4fc" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="belly" cx="160" cy="240" r="70" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#e0e7ff" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#c7d2fe" stop-opacity="0"/>
+    </radialGradient>
+
+    <linearGradient id="earFill" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#a5b4fc"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+
+    <radialGradient id="earInner" cx="50%" cy="45%" r="45%">
+      <stop offset="0%" stop-color="#c4b5fd" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#7c3aed" stop-opacity="0.3"/>
+    </radialGradient>
+
+    <radialGradient id="blush" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#c084fc" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#c084fc" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="iris" cx="45%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#c4b5fd"/>
+      <stop offset="60%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#4c1d95"/>
+    </radialGradient>
+
+    <radialGradient id="aura" cx="160" cy="180" r="150" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#7c3aed" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#7c3aed" stop-opacity="0"/>
+    </radialGradient>
+
+    <linearGradient id="textGrad" x1="400" y1="140" x2="900" y2="280" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#c4b5fd"/>
+      <stop offset="100%" stop-color="#818cf8"/>
+    </linearGradient>
+
+    <filter id="gs"><feGaussianBlur stdDeviation="1.8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="shadow"><feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#030210" flood-opacity="0.5"/></filter>
+  </defs>
+
+  <!-- 背景 -->
+  <rect width="960" height="400" rx="32" ry="32" fill="url(#bg)"/>
+  <circle cx="160" cy="180" r="150" fill="url(#aura)"/>
+
+  <!-- ===== 角色 (缩放到左侧，居中) ===== -->
+  <g transform="translate(-38, -28) scale(0.72)">
+    <!-- 耳朵 -->
+    <ellipse cx="188" cy="190" rx="38" ry="48" transform="rotate(-15 188 190)" fill="url(#earFill)"/>
+    <ellipse cx="188" cy="190" rx="24" ry="32" transform="rotate(-15 188 190)" fill="url(#earInner)"/>
+    <ellipse cx="324" cy="190" rx="38" ry="48" transform="rotate(15 324 190)" fill="url(#earFill)"/>
+    <ellipse cx="324" cy="190" rx="24" ry="32" transform="rotate(15 324 190)" fill="url(#earInner)"/>
+
+    <!-- 身体 -->
+    <g filter="url(#shadow)">
+      <path d="M 256 185 C 215 200, 140 255, 130 330 C 122 390, 150 440, 200 458 C 225 468, 248 472, 256 472 C 264 472, 287 468, 312 458 C 362 440, 390 390, 382 330 C 372 255, 297 200, 256 185 Z" fill="url(#body)"/>
+    </g>
+    <path d="M 256 185 C 215 200, 140 255, 130 330 C 122 390, 150 440, 200 458 C 225 468, 248 472, 256 472 C 264 472, 287 468, 312 458 C 362 440, 390 390, 382 330 C 372 255, 297 200, 256 185 Z" fill="url(#bodyHL)"/>
+    <ellipse cx="256" cy="365" rx="85" ry="78" fill="url(#belly)"/>
+
+    <!-- 流动光纹 -->
+    <g opacity="0.12" fill="none" stroke-linecap="round">
+      <path d="M 256 195 C 232 220, 178 285, 160 360" stroke="#a5b4fc" stroke-width="1.8"/>
+      <path d="M 256 195 C 280 220, 334 285, 352 360" stroke="#c4b5fd" stroke-width="1.8"/>
+    </g>
+
+    <!-- 光点 -->
+    <g filter="url(#gs)" opacity="0.3">
+      <circle cx="198" cy="295" r="2.5" fill="#a5b4fc"/>
+      <circle cx="314" cy="295" r="2.5" fill="#c4b5fd"/>
+      <circle cx="178" cy="345" r="2" fill="#818cf8"/>
+      <circle cx="334" cy="345" r="2" fill="#a78bfa"/>
+    </g>
+
+    <!-- 眉毛 -->
+    <path d="M 200 268 Q 220 258 242 265" stroke="#c4b5fd" stroke-width="3.5" fill="none" stroke-linecap="round" opacity="0.8"/>
+    <path d="M 312 268 Q 292 258 270 265" stroke="#c4b5fd" stroke-width="3.5" fill="none" stroke-linecap="round" opacity="0.8"/>
+
+    <!-- 左眼 -->
+    <ellipse cx="222" cy="305" rx="28" ry="30" fill="#0f0825"/>
+    <circle cx="224" cy="303" r="20" fill="#1a1040"/>
+    <circle cx="226" cy="300" r="14" fill="url(#iris)"/>
+    <circle cx="228" cy="298" r="8" fill="#0f0825"/>
+    <circle cx="234" cy="292" r="7" fill="white" opacity="0.95"/>
+    <circle cx="218" cy="308" r="3.5" fill="white" opacity="0.4"/>
+
+    <!-- 右眼 -->
+    <ellipse cx="290" cy="305" rx="28" ry="30" fill="#0f0825"/>
+    <circle cx="292" cy="303" r="20" fill="#1a1040"/>
+    <circle cx="294" cy="300" r="14" fill="url(#iris)"/>
+    <circle cx="296" cy="298" r="8" fill="#0f0825"/>
+    <circle cx="302" cy="292" r="7" fill="white" opacity="0.95"/>
+    <circle cx="286" cy="308" r="3.5" fill="white" opacity="0.4"/>
+
+    <!-- 嘴巴 -->
+    <path d="M 244 348 Q 250 358 256 358 Q 262 358 268 348" stroke="#2e1f6f" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+
+    <!-- 腮红 -->
+    <ellipse cx="192" cy="325" rx="20" ry="13" fill="url(#blush)"/>
+    <ellipse cx="320" cy="325" rx="20" ry="13" fill="url(#blush)"/>
+
+    <!-- 小手 -->
+    <path d="M 150 360 C 135 355, 118 360, 115 372 C 113 382, 121 390, 135 388 L 150 380" fill="url(#body)" opacity="0.85"/>
+    <path d="M 362 360 C 377 355, 394 360, 397 372 C 399 382, 391 390, 377 388 L 362 380" fill="url(#body)" opacity="0.85"/>
+
+    <!-- 小脚 -->
+    <ellipse cx="225" cy="468" rx="26" ry="13" fill="#4338ca"/>
+    <ellipse cx="287" cy="468" rx="26" ry="13" fill="#4338ca"/>
+  </g>
+
+  <!-- ===== 文字部分 ===== -->
+  <!-- 中文：联软灵犀AI -->
+  <text x="390" y="195" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','STHeiti',sans-serif" font-size="56" font-weight="600" fill="url(#textGrad)">联软灵犀AI</text>
+
+  <!-- 英文：AICODEX -->
+  <text x="392" y="248" font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif" font-size="26" font-weight="300" fill="#64748b" letter-spacing="8">AICODEX</text>
+
+  <!-- 分隔线 -->
+  <line x1="390" y1="260" x2="620" y2="260" stroke="#4f46e5" stroke-width="1" opacity="0.2"/>
+
+  <!-- 副标题 -->
+  <text x="392" y="290" font-family="'PingFang SC','Hiragino Sans GB','STHeiti',sans-serif" font-size="16" fill="#64748b" opacity="0.6">灵犀AI助手 · 心有灵犀一点通</text>
+
+</svg>

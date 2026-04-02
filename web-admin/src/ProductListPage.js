@@ -17,6 +17,7 @@ import {Link} from "react-router-dom";
 import {Button, Col, List, Row, Table, Tooltip} from "antd";
 import moment from "moment";
 import * as Setting from "./Setting";
+import * as Conf from "./Conf";
 import * as ProductBackend from "./backend/ProductBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
@@ -32,7 +33,7 @@ class ProductListPage extends BaseListPage {
       name: `product_${randomName}`,
       createdTime: moment().format(),
       displayName: `New Product - ${randomName}`,
-      image: `${Setting.StaticBaseUrl}/img/casdoor-logo_1185x256.png`,
+      image: Conf.BrandLogo,
       tag: "Casdoor Summit 2022",
       currency: "USD",
       price: 300,

@@ -18,6 +18,7 @@ import {Button, Col, List, Row, Table, Tooltip} from "antd";
 import {EditOutlined} from "@ant-design/icons";
 import moment from "moment";
 import * as Setting from "./Setting";
+import * as Conf from "./Conf";
 import * as ApplicationBackend from "./backend/ApplicationBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
@@ -41,7 +42,7 @@ class ApplicationListPage extends BaseListPage {
       category: "Default",
       type: "All",
       scopes: [],
-      logo: `${Setting.StaticBaseUrl}/img/casdoor-logo_1185x256.png`,
+      logo: Conf.BrandLogo,
       enablePassword: true,
       enableSignUp: true,
       disableSignin: false,

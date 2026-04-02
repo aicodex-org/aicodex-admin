@@ -18,6 +18,7 @@ import {LinkOutlined} from "@ant-design/icons";
 import * as WebhookBackend from "./backend/WebhookBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as Setting from "./Setting";
+import * as Conf from "./Conf";
 import i18next from "i18next";
 import WebhookHeaderTable from "./table/WebhookHeaderTable";
 
@@ -31,7 +32,7 @@ const applicationTemplate = {
   organization: "built-in",
   createdTime: "2022-01-01T01:03:42+08:00",
   displayName: "New Application - 123",
-  logo: `${Setting.StaticBaseUrl}/img/casdoor-logo_1185x256.png`,
+  logo: Conf.BrandLogo,
   enablePassword: true,
   enableSignUp: true,
   disableSignin: false,

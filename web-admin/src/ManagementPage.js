@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import * as Setting from "./Setting";
-import {Avatar, Button, Card, Drawer, Dropdown, Menu, Result, Tooltip} from "antd";
+import {Avatar, Button, Card, Drawer, Dropdown, Layout, Menu, Result, Tooltip} from "antd";
 import EnableMfaNotification from "./common/notifaction/EnableMfaNotification";
 import {Link, Redirect, Route, Switch, withRouter} from "react-router-dom";
-import React, {useState} from "react";
+import React, {useEffect, useState} from "react";
 import i18next from "i18next";
 import {
   AppstoreTwoTone,
@@ -97,7 +97,6 @@ import ThemeSelect from "./common/select/ThemeSelect";
 import OpenTour from "./common/OpenTour";
 import OrganizationSelect from "./common/select/OrganizationSelect";
 import AccountAvatar from "./account/AccountAvatar";
-import {Content, Header} from "antd/es/layout/layout";
 import * as AuthBackend from "./auth/AuthBackend";
 import {clearWeb3AuthToken} from "./auth/Web3Auth";
 import TransactionListPage from "./TransactionListPage";
@@ -119,8 +118,43 @@ import SiteEditPage from "./SiteEditPage";
 import RuleListPage from "./RuleListPage";
 import RuleEditPage from "./RuleEditPage";
 
+const {Content, Header, Sider} = Layout;
+
+function matchMenuItem(uri, item) {
+  if (typeof item.matcher === "function") {
+    return item.matcher(uri);
+  }
+
+  return item.matchPrefixes.some((prefix) => {
+    if (prefix === "/") {
+      return uri === "/";
+    }
+
+    return uri === prefix || uri.startsWith(`${prefix}/`);
+  });
+}
+
+function findNavigationSelection(uri, groups) {
+  for (const group of groups) {
+    for (const item of group.children) {
+      if (matchMenuItem(uri, item)) {
+        return {
+          groupKey: group.key,
+          itemKey: item.key,
+        };
+      }
+    }
+  }
+
+  return {
+    groupKey: undefined,
+    itemKey: undefined,
+  };
+}
+
 function ManagementPage(props) {
   const [menuVisible, setMenuVisible] = useState(false);
+  const [openKeys, setOpenKeys] = useState([]);
   const organization = props.account?.organization;
   const navItems = Setting.isLocalAdminUser(props.account) ? organization?.navItems : (organization?.userNavItems ?? []);
   const widgetItems = organization?.widgetItems;
@@ -226,10 +260,6 @@ function ManagementPage(props) {
     return !Array.isArray(widgetItems) || !!widgetItems?.includes("all");
   }
 
-  function isSpecialMenuItem(item) {
-    return item.key === "#" || item.key === "logo";
-  }
-
   function renderWidgets() {
     const widgets = [
       Setting.getItem(<ThemeSelect themeAlgorithm={props.themeAlgorithm} onChange={props.setLogoAndThemeAlgorithm} />, "theme"),
@@ -281,175 +311,167 @@ function ManagementPage(props) {
     }
   }
 
-  function getMenuItems() {
-    const res = [];
+  function getBrandLogo() {
+    if (!props.account?.organization) {
+      return props.logo || Conf.BrandLogo;
+    }
 
+    if (props.themeAlgorithm.includes("dark") && props.account.organization.logoDark) {
+      return Setting.getPreferredBrandAsset(props.account.organization.logoDark, Conf.BrandLogo);
+    }
+
+    return Setting.getPreferredBrandAsset(props.account.organization.logo, Setting.getLogo(props.themeAlgorithm));
+  }
+
+  function getNavigationGroups() {
     if (props.account === null || props.account === undefined) {
       return [];
     }
 
-    let textColor = "black";
     const twoToneColor = props.themeData.colorPrimary;
-
-    let logo = props.account.organization.logo ? props.account.organization.logo : Setting.getLogo(props.themeAlgorithm);
-    if (props.themeAlgorithm.includes("dark")) {
-      if (props.account.organization.logoDark) {
-        logo = props.account.organization.logoDark;
-      }
-      textColor = "white";
-    }
-
-    !Setting.isMobile() ? res.push({
-      label:
-        <Link to="/">
-          <img className="logo" src={logo ?? props.logo} alt="logo" />
-        </Link>,
-      disabled: true, key: "logo",
-      style: {
-        padding: 0,
-        height: "auto",
+    const isLocalAdmin = Setting.isLocalAdminUser(props.account);
+    const isAdmin = Setting.isAdminUser(props.account);
+    const groups = [
+      {
+        key: "/home",
+        label: i18next.t("general:Home"),
+        icon: <HomeTwoTone twoToneColor={twoToneColor} />,
+        children: [
+          {key: "/", label: i18next.t("general:Dashboard"), to: "/", matchPrefixes: ["/"]},
+          {key: "/shortcuts", label: i18next.t("general:Shortcuts"), to: "/shortcuts", matchPrefixes: ["/shortcuts"]},
+          {key: "/apps", label: i18next.t("general:Apps"), to: "/apps", matchPrefixes: ["/apps"]},
+        ],
       },
-    }) : null;
+      {
+        key: "/orgs",
+        label: i18next.t("general:User Management"),
+        icon: <AppstoreTwoTone twoToneColor={twoToneColor} />,
+        children: [
+          {key: "/organizations", label: i18next.t("general:Organizations"), to: "/organizations", matchPrefixes: ["/organizations"], matcher: (uri) => uri === "/organizations" || uri.startsWith("/organizations/") && !uri.includes("/users")},
+          {key: "/groups", label: i18next.t("general:Groups"), to: "/groups", matchPrefixes: ["/groups", "/trees"]},
+          {key: "/users", label: i18next.t("general:Users"), to: "/users", matchPrefixes: ["/users"], matcher: (uri) => uri === "/users" || uri.startsWith("/users/") || uri.includes("/users")},
+          {key: "/invitations", label: i18next.t("general:Invitations"), to: "/invitations", matchPrefixes: ["/invitations"]},
+        ],
+      },
+      {
+        key: "/identity",
+        label: i18next.t("general:Identity"),
+        icon: <LockTwoTone twoToneColor={twoToneColor} />,
+        children: [
+          {key: "/applications", label: i18next.t("general:Applications"), to: "/applications", matchPrefixes: ["/applications"]},
+          {key: "/providers", label: i18next.t("application:Providers"), to: "/providers", matchPrefixes: ["/providers"]},
+          {key: "/resources", label: i18next.t("general:Resources"), to: "/resources", matchPrefixes: ["/resources"]},
+          {key: "/certs", label: i18next.t("general:Certs"), to: "/certs", matchPrefixes: ["/certs"]},
+          {key: "/keys", label: i18next.t("general:Keys"), to: "/keys", matchPrefixes: ["/keys"]},
+        ],
+      },
+      {
+        key: "/auth",
+        label: i18next.t("general:Authorization"),
+        icon: <SafetyCertificateTwoTone twoToneColor={twoToneColor} />,
+        children: [
+          {key: "/roles", label: i18next.t("general:Roles"), to: "/roles", matchPrefixes: ["/roles"]},
+          {key: "/permissions", label: i18next.t("general:Permissions"), to: "/permissions", matchPrefixes: ["/permissions"]},
+          {key: "/models", label: i18next.t("general:Models"), to: "/models", matchPrefixes: ["/models"], visible: isLocalAdmin},
+          {key: "/adapters", label: i18next.t("general:Adapters"), to: "/adapters", matchPrefixes: ["/adapters"], visible: isLocalAdmin},
+          {key: "/enforcers", label: i18next.t("general:Enforcers"), to: "/enforcers", matchPrefixes: ["/enforcers"], visible: isLocalAdmin},
+        ],
+      },
+      {
+        key: "/gateway",
+        label: i18next.t("general:LLM AI"),
+        icon: <CheckCircleTwoTone twoToneColor={twoToneColor} />,
+        children: [
+          {key: "/agents", label: i18next.t("general:Agents"), to: "/agents", matchPrefixes: ["/agents"]},
+          {key: "/servers", label: i18next.t("general:MCP Servers"), to: "/servers", matchPrefixes: ["/servers"]},
+          {key: "/server-store", label: i18next.t("general:MCP Store"), to: "/server-store", matchPrefixes: ["/server-store"]},
+          {key: "/entries", label: i18next.t("general:Entries"), to: "/entries", matchPrefixes: ["/entries"]},
+          {key: "/sites", label: i18next.t("general:Sites"), to: "/sites", matchPrefixes: ["/sites"]},
+          {key: "/rules", label: i18next.t("general:Rules"), to: "/rules", matchPrefixes: ["/rules"]},
+        ],
+      },
+      {
+        key: "/logs",
+        label: i18next.t("general:Logging & Auditing"),
+        icon: <WalletTwoTone twoToneColor={twoToneColor} />,
+        children: [
+          {key: "/sessions", label: i18next.t("general:Sessions"), to: "/sessions", matchPrefixes: ["/sessions"]},
+          {key: "/records", label: i18next.t("general:Records"), to: "/records", matchPrefixes: ["/records"]},
+          {key: "/tokens", label: i18next.t("general:Tokens"), to: "/tokens", matchPrefixes: ["/tokens"]},
+          {key: "/verifications", label: i18next.t("general:Verifications"), to: "/verifications", matchPrefixes: ["/verifications"]},
+        ],
+      },
+      {
+        key: "/business",
+        label: i18next.t("general:Business & Payments"),
+        icon: <DollarTwoTone twoToneColor={twoToneColor} />,
+        children: [
+          {key: "/product-store", label: i18next.t("general:Product Store"), to: "/product-store", matchPrefixes: ["/product-store"]},
+          {key: "/products", label: i18next.t("general:Products"), to: "/products", matchPrefixes: ["/products"]},
+          {key: "/cart", label: i18next.t("general:Cart"), to: "/cart", matchPrefixes: ["/cart"]},
+          {key: "/orders", label: i18next.t("general:Orders"), to: "/orders", matchPrefixes: ["/orders"]},
+          {key: "/payments", label: i18next.t("general:Payments"), to: "/payments", matchPrefixes: ["/payments"]},
+          {key: "/plans", label: i18next.t("general:Plans"), to: "/plans", matchPrefixes: ["/plans"]},
+          {key: "/pricings", label: i18next.t("general:Pricings"), to: "/pricings", matchPrefixes: ["/pricings"]},
+          {key: "/subscriptions", label: i18next.t("general:Subscriptions"), to: "/subscriptions", matchPrefixes: ["/subscriptions"]},
+          {key: "/transactions", label: i18next.t("general:Transactions"), to: "/transactions", matchPrefixes: ["/transactions"]},
+        ],
+      },
+      {
+        key: "/admin",
+        label: i18next.t("general:Admin"),
+        icon: <SettingTwoTone twoToneColor={twoToneColor} />,
+        children: [
+          {key: "/sysinfo", label: i18next.t("general:System Info"), to: "/sysinfo", matchPrefixes: ["/sysinfo"], visible: isAdmin},
+          {key: "/forms", label: i18next.t("general:Forms"), to: "/forms", matchPrefixes: ["/forms"]},
+          {key: "/syncers", label: i18next.t("general:Syncers"), to: "/syncers", matchPrefixes: ["/syncers"]},
+          {key: "/webhooks", label: i18next.t("general:Webhooks"), to: "/webhooks", matchPrefixes: ["/webhooks"]},
+          {key: "/webhook-events", label: i18next.t("general:Webhook Events"), to: "/webhook-events", matchPrefixes: ["/webhook-events"]},
+          {key: "/tickets", label: i18next.t("general:Tickets"), to: "/tickets", matchPrefixes: ["/tickets"]},
+          {key: "/swagger", label: i18next.t("general:Swagger"), external: true, href: Setting.isLocalhost() ? `${Setting.ServerUrl}/swagger` : "/swagger", matchPrefixes: ["/swagger"], visible: isAdmin},
+        ],
+      },
+    ];
 
-    res.push(Setting.getItem(<Link style={{color: textColor}} to="/">{i18next.t("general:Home")}</Link>, "/home", <HomeTwoTone twoToneColor={twoToneColor} />, [
-      Setting.getItem(<Link to="/">{i18next.t("general:Dashboard")}</Link>, "/"),
-      Setting.getItem(<Link to="/shortcuts">{i18next.t("general:Shortcuts")}</Link>, "/shortcuts"),
-      Setting.getItem(<Link to="/apps">{i18next.t("general:Apps")}</Link>, "/apps"),
-    ]));
+    const allowedItems = navItemsIsAll() ? null : new Set(navItems);
 
-    if (Setting.isLocalAdminUser(props.account) && Conf.ShowGithubCorner) {
-      res.push(Setting.getItem(<a href={"https://casdoor.com"}>
-        <span style={{fontWeight: "bold", backgroundColor: "rgba(87,52,211,0.4)", marginTop: "12px", paddingLeft: "5px", paddingRight: "5px", display: "flex", alignItems: "center", height: "40px", borderRadius: "5px"}}>
-          🚀 SaaS Hosting 🔥
-        </span>
-      </a>, "#"));
-    }
+    return groups
+      .map((group) => ({
+        ...group,
+        children: group.children.filter((item) => {
+          if (item.visible === false) {
+            return false;
+          }
 
-    res.push(Setting.getItem(<Link style={{color: textColor}} to="/organizations">{i18next.t("general:User Management")}</Link>, "/orgs", <AppstoreTwoTone twoToneColor={twoToneColor} />, [
-      Setting.getItem(<Link to="/organizations">{i18next.t("general:Organizations")}</Link>, "/organizations"),
-      Setting.getItem(<Link to="/groups">{i18next.t("general:Groups")}</Link>, "/groups"),
-      Setting.getItem(<Link to="/users">{i18next.t("general:Users")}</Link>, "/users"),
-      Setting.getItem(<Link to="/invitations">{i18next.t("general:Invitations")}</Link>, "/invitations"),
-    ]));
+          if (allowedItems === null) {
+            return true;
+          }
 
-    res.push(Setting.getItem(<Link style={{color: textColor}} to="/applications">{i18next.t("general:Identity")}</Link>, "/identity", <LockTwoTone twoToneColor={twoToneColor} />, [
-      Setting.getItem(<Link to="/applications">{i18next.t("general:Applications")}</Link>, "/applications"),
-      Setting.getItem(<Link to="/providers">{i18next.t("application:Providers")}</Link>, "/providers"),
-      Setting.getItem(<Link to="/resources">{i18next.t("general:Resources")}</Link>, "/resources"),
-      Setting.getItem(<Link to="/certs">{i18next.t("general:Certs")}</Link>, "/certs"),
-      Setting.getItem(<Link to="/keys">{i18next.t("general:Keys")}</Link>, "/keys"),
-    ]));
-
-    res.push(Setting.getItem(<Link style={{color: textColor}} to="/roles">{i18next.t("general:Authorization")}</Link>, "/auth", <SafetyCertificateTwoTone twoToneColor={twoToneColor} />, [
-      Setting.getItem(<Link to="/roles">{i18next.t("general:Roles")}</Link>, "/roles"),
-      Setting.getItem(<Link to="/permissions">{i18next.t("general:Permissions")}</Link>, "/permissions"),
-      Setting.getItem(<Link to="/models">{i18next.t("general:Models")}</Link>, "/models"),
-      Setting.getItem(<Link to="/adapters">{i18next.t("general:Adapters")}</Link>, "/adapters"),
-      Setting.getItem(<Link to="/enforcers">{i18next.t("general:Enforcers")}</Link>, "/enforcers"),
-    ].filter(item => {
-      if (!Setting.isLocalAdminUser(props.account) && ["/models", "/adapters", "/enforcers"].includes(item.key)) {
-        return false;
-      } else {
-        return true;
-      }
-    })));
-
-    res.push(Setting.getItem(<Link style={{color: textColor}} to="/sites">{i18next.t("general:LLM AI")}</Link>, "/gateway", <CheckCircleTwoTone twoToneColor={twoToneColor} />, [
-      Setting.getItem(<Link to="/agents">{i18next.t("general:Agents")}</Link>, "/agents"),
-      Setting.getItem(<Link to="/servers">{i18next.t("general:MCP Servers")}</Link>, "/servers"),
-      Setting.getItem(<Link to="/server-store">{i18next.t("general:MCP Store")}</Link>, "/server-store"),
-      Setting.getItem(<Link to="/entries">{i18next.t("general:Entries")}</Link>, "/entries"),
-      Setting.getItem(<Link to="/sites">{i18next.t("general:Sites")}</Link>, "/sites"),
-      Setting.getItem(<Link to="/rules">{i18next.t("general:Rules")}</Link>, "/rules"),
-    ]));
-
-    res.push(Setting.getItem(<Link style={{color: textColor}} to="/sessions">{i18next.t("general:Logging & Auditing")}</Link>, "/logs", <WalletTwoTone twoToneColor={twoToneColor} />, [
-      Setting.getItem(<Link to="/sessions">{i18next.t("general:Sessions")}</Link>, "/sessions"),
-      Setting.getItem(<Link to="/records">{i18next.t("general:Records")}</Link>, "/records"),
-      Setting.getItem(<Link to="/tokens">{i18next.t("general:Tokens")}</Link>, "/tokens"),
-      Setting.getItem(<Link to="/verifications">{i18next.t("general:Verifications")}</Link>, "/verifications"),
-    ]));
-
-    res.push(Setting.getItem(<Link style={{color: textColor}} to="/products">{i18next.t("general:Business & Payments")}</Link>, "/business", <DollarTwoTone twoToneColor={twoToneColor} />, [
-      Setting.getItem(<Link to="/product-store">{i18next.t("general:Product Store")}</Link>, "/product-store"),
-      Setting.getItem(<Link to="/products">{i18next.t("general:Products")}</Link>, "/products"),
-      Setting.getItem(<Link to="/cart">{i18next.t("general:Cart")}</Link>, "/cart"),
-      Setting.getItem(<Link to="/orders">{i18next.t("general:Orders")}</Link>, "/orders"),
-      Setting.getItem(<Link to="/payments">{i18next.t("general:Payments")}</Link>, "/payments"),
-      Setting.getItem(<Link to="/plans">{i18next.t("general:Plans")}</Link>, "/plans"),
-      Setting.getItem(<Link to="/pricings">{i18next.t("general:Pricings")}</Link>, "/pricings"),
-      Setting.getItem(<Link to="/subscriptions">{i18next.t("general:Subscriptions")}</Link>, "/subscriptions"),
-      Setting.getItem(<Link to="/transactions">{i18next.t("general:Transactions")}</Link>, "/transactions"),
-    ]));
-
-    if (Setting.isAdminUser(props.account)) {
-      res.push(Setting.getItem(<Link style={{color: textColor}} to="/sysinfo">{i18next.t("general:Admin")}</Link>, "/admin", <SettingTwoTone twoToneColor={twoToneColor} />, [
-        Setting.getItem(<Link to="/sysinfo">{i18next.t("general:System Info")}</Link>, "/sysinfo"),
-        Setting.getItem(<Link to="/forms">{i18next.t("general:Forms")}</Link>, "/forms"),
-        Setting.getItem(<Link to="/syncers">{i18next.t("general:Syncers")}</Link>, "/syncers"),
-        Setting.getItem(<Link to="/webhooks">{i18next.t("general:Webhooks")}</Link>, "/webhooks"),
-        Setting.getItem(<Link to="/webhook-events">{i18next.t("general:Webhook Events")}</Link>, "/webhook-events"),
-        Setting.getItem(<Link to="/tickets">{i18next.t("general:Tickets")}</Link>, "/tickets"),
-        Setting.getItem(<a target="_blank" rel="noreferrer" href={Setting.isLocalhost() ? `${Setting.ServerUrl}/swagger` : "/swagger"}>{i18next.t("general:Swagger")}</a>, "/swagger")]));
-    } else {
-      res.push(Setting.getItem(<Link style={{color: textColor}} to="/syncers">{i18next.t("general:Admin")}</Link>, "/admin", <SettingTwoTone twoToneColor={twoToneColor} />, [
-        Setting.getItem(<Link to="/forms">{i18next.t("general:Forms")}</Link>, "/forms"),
-        Setting.getItem(<Link to="/syncers">{i18next.t("general:Syncers")}</Link>, "/syncers"),
-        Setting.getItem(<Link to="/webhooks">{i18next.t("general:Webhooks")}</Link>, "/webhooks"),
-        Setting.getItem(<Link to="/webhook-events">{i18next.t("general:Webhook Events")}</Link>, "/webhook-events"),
-        Setting.getItem(<Link to="/tickets">{i18next.t("general:Tickets")}</Link>, "/tickets")]));
-    }
-
-    if (navItemsIsAll()) {
-      return res;
-    }
-
-    const resFiltered = res.map(item => {
-      if (!Array.isArray(item.children)) {
-        return item;
-      }
-      const filteredChildren = [];
-      item.children.forEach(itemChild => {
-        if (navItems.includes(itemChild.key)) {
-          filteredChildren.push(itemChild);
-        }
-      });
-
-      item.children = filteredChildren;
-      return item;
-    });
-
-    const filteredResult = resFiltered.filter(item => {
-      if (isSpecialMenuItem(item)) {return true;}
-      return Array.isArray(item.children) && item.children.length > 0;
-    });
-
-    // Count total end items (leaf nodes)
-    let totalEndItems = 0;
-    filteredResult.forEach(item => {
-      if (Array.isArray(item.children)) {
-        totalEndItems += item.children.length;
-      }
-    });
-
-    // If total end items <= MaxItemsForFlatMenu, flatten the menu (show only one level)
-    if (totalEndItems <= Conf.MaxItemsForFlatMenu) {
-      const flattenedResult = [];
-      filteredResult.forEach(item => {
-        if (isSpecialMenuItem(item)) {
-          flattenedResult.push(item);
-        } else if (Array.isArray(item.children)) {
-          // Add children directly without parent group
-          item.children.forEach(child => {
-            flattenedResult.push(child);
-          });
-        }
-      });
-      return flattenedResult;
-    }
-
-    return filteredResult;
+          return allowedItems.has(item.key);
+        }),
+      }))
+      .filter((group) => group.children.length > 0);
   }
+
+  function getSidebarMenuItems(groups) {
+    return groups.map((group) => Setting.getItem(group.label, group.key, group.icon, group.children.map((item) => {
+      if (item.external) {
+        return Setting.getItem(<a target="_blank" rel="noreferrer" href={item.href}>{item.label}</a>, item.key);
+      }
+
+      return Setting.getItem(<Link to={item.to}>{item.label}</Link>, item.key);
+    })));
+  }
+
+  const navigationGroups = getNavigationGroups();
+  const navigationSelection = findNavigationSelection(props.uri || window.location.pathname, navigationGroups);
+  const sidebarMenuItems = getSidebarMenuItems(navigationGroups);
+
+  useEffect(() => {
+    if (navigationSelection.groupKey) {
+      setOpenKeys([navigationSelection.groupKey]);
+    }
+  }, [navigationSelection.groupKey]);
 
   function renderLoginIfNotLoggedIn(component) {
     if (props.account === null) {
@@ -583,49 +605,60 @@ function ManagementPage(props) {
   return (
     <React.Fragment>
       <EnableMfaNotification account={props.account} />
-      <Header style={{display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0", marginBottom: "4px", backgroundColor: props.themeAlgorithm.includes("dark") ? "black" : "white"}} >
-        {
-          props.requiredEnableMfa || (Setting.isMobile() ? (
-            <React.Fragment>
-              <Drawer title={i18next.t("general:Close")} placement="left" open={menuVisible} onClose={onClose}>
-                <Menu
-                  items={getMenuItems()}
-                  mode={"inline"}
-                  selectedKeys={[props.selectedMenuKey]}
-                  style={{lineHeight: "64px"}}
-                  onClick={onClose}
-                >
-                </Menu>
-              </Drawer>
-              <Button icon={<BarsOutlined />} onClick={showMenu} type="text">
-                {i18next.t("general:Menu")}
-              </Button>
-            </React.Fragment>
-          ) : (
-            // Padding 1px for Menu Item Highlight border
-            <div style={{flex: 1, overflow: "hidden", paddingBottom: "1px"}}>
-              <Menu
-                onClick={onClose}
-                items={getMenuItems()}
-                mode={"horizontal"}
-                selectedKeys={[props.selectedMenuKey]}
-                style={{backgroundColor: props.themeAlgorithm.includes("dark") ? "black" : "white"}}
-              />
+      <Drawer title={Conf.AdminCenterName} placement="left" open={menuVisible} onClose={onClose}>
+        <Menu
+          items={sidebarMenuItems}
+          mode="inline"
+          selectedKeys={navigationSelection.itemKey ? [navigationSelection.itemKey] : []}
+          openKeys={openKeys}
+          onOpenChange={setOpenKeys}
+          onClick={onClose}
+          style={{height: "100%", borderInlineEnd: 0}}
+        />
+      </Drawer>
+      <Header className="admin-shell-header" style={{backgroundColor: props.themeAlgorithm.includes("dark") ? "black" : "white"}}>
+        <div className="admin-shell-header-left">
+          <Link to="/" className="admin-shell-brand">
+            <img className="logo admin-shell-logo" src={getBrandLogo() ?? props.logo} alt={Conf.BrandName} />
+          </Link>
+          {!Setting.isMobile() && (
+            <div className="admin-shell-entry">
+              <SafetyCertificateTwoTone twoToneColor={props.themeData.colorPrimary} />
+              <span>{Conf.AdminCenterName}</span>
             </div>
-          ))
-        }
-        <div style={{flexShrink: 0}}>
+          )}
+          {!props.requiredEnableMfa && Setting.isMobile() && (
+            <Button icon={<BarsOutlined />} onClick={showMenu} type="text">
+              {Conf.AdminCenterName}
+            </Button>
+          )}
+        </div>
+        <div className="admin-shell-header-right">
           {renderAccountMenu()}
         </div>
       </Header>
-      <Content style={{display: "flex", flexDirection: "column"}} >
-        {isWithoutCard() ?
-          renderRouter() :
-          <Card className="content-warp-card">
-            {renderRouter()}
-          </Card>
-        }
-      </Content>
+      <Layout className="admin-shell-body">
+        {!props.requiredEnableMfa && !Setting.isMobile() && (
+          <Sider width={264} theme="light" className="admin-shell-sider">
+            <Menu
+              mode="inline"
+              items={sidebarMenuItems}
+              selectedKeys={navigationSelection.itemKey ? [navigationSelection.itemKey] : []}
+              openKeys={openKeys}
+              onOpenChange={setOpenKeys}
+              style={{height: "100%", borderInlineEnd: 0}}
+            />
+          </Sider>
+        )}
+        <Content className="admin-shell-content">
+          {isWithoutCard() ?
+            renderRouter() :
+            <Card className="content-warp-card">
+              {renderRouter()}
+            </Card>
+          }
+        </Content>
+      </Layout>
     </React.Fragment>
   );
 }

@@ -31,7 +31,6 @@ import SelfLoginButton from "./SelfLoginButton";
 import i18next from "i18next";
 import CustomGithubCorner from "../common/CustomGithubCorner";
 import {SendCodeInput} from "../common/SendCodeInput";
-import LanguageSelect from "../common/select/LanguageSelect";
 import {CaptchaModal, CaptchaRule} from "../common/modal/CaptchaModal";
 import RedirectForm from "../common/RedirectForm";
 import {RequiredMfa} from "./mfa/MfaAuthVerifyForm";
@@ -692,19 +691,8 @@ class LoginPage extends React.Component {
         if (Setting.getLanguage() !== language) {
           Setting.setLanguage(language);
         }
-        return null;
       }
-
-      return (
-        <div key={resultItemKey} className="login-languages">
-          <div dangerouslySetInnerHTML={{__html: ("<style>" + signinItem.customCss?.replaceAll("<style>", "").replaceAll("</style>", "") + "</style>")}} />
-          <LanguageSelect
-            languages={application.organizationObj.languages}
-            mode={signinItem.rule}
-            onClick={key => {this.setState({userLang: key});}}
-          />
-        </div>
-      );
+      return null;
     } else if (signinItem.name === "Signin methods") {
       return (
         <div key={resultItemKey}>
