@@ -9,6 +9,7 @@ IMAGE_NAME=${1:-aicodex-admin}
 IMAGE_TAG=${2:-latest}
 
 docker build \
+  --no-cache \
   -f "${SCRIPT_DIR}/Dockerfile" \
   --target standard \
   -t "${IMAGE_NAME}:${IMAGE_TAG}" \
