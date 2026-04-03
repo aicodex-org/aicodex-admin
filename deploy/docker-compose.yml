@@ -1,10 +1,7 @@
 services:
   casdoor:
     restart: always
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile
-      target: standard
+    image: aicodex-admin:latest
     entrypoint: /bin/sh -c './server --createDatabase=true'
     depends_on:
       db:
