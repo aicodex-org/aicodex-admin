@@ -464,7 +464,7 @@ class App extends Component {
           account.organization = res.data2;
           accessToken = res.data.accessToken;
           this.setTheme(Setting.getThemeData(account.organization), Conf.InitThemeAlgorithm);
-          setTourLogo(Setting.getPreferredBrandAsset(account.organization.logo, Conf.BrandLogo));
+          setTourLogo(Setting.getPreferredBrandAsset(account.organization.logo, Conf.BrandIcon));
           setOrgIsTourVisible(account.organization.enableTour);
         } else {
           if (res.data !== "Please login first") {
@@ -487,7 +487,7 @@ class App extends Component {
 
   renderFooter(logo, footerHtml) {
     logo = logo ?? this.state.logo;
-    logo = Setting.getPreferredBrandAsset(logo, Conf.BrandLogo);
+    logo = Setting.getPreferredBrandAsset(logo, Conf.BrandIcon);
     footerHtml = footerHtml ?? this.state.application?.footerHtml;
     return (
       <React.Fragment>
@@ -506,7 +506,7 @@ class App extends Component {
               : (
                 Conf.CustomFooter !== null ? Conf.CustomFooter : (
                   <React.Fragment>
-                    Powered by <a href={Conf.BrandUrl}><img style={{paddingBottom: "3px"}} height={"20px"} alt={Conf.BrandName} src={logo} /></a>
+                    Powered by <a href={Conf.BrandUrl}><img style={{paddingBottom: "3px"}} height={"18px"} alt={Conf.BrandName} src={logo} /></a>
                   </React.Fragment>
                 )
               )

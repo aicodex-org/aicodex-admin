@@ -313,14 +313,14 @@ function ManagementPage(props) {
 
   function getBrandLogo() {
     if (!props.account?.organization) {
-      return props.logo || Conf.BrandLogo;
+      return props.logo || Conf.BrandIcon;
     }
 
     if (props.themeAlgorithm.includes("dark") && props.account.organization.logoDark) {
-      return Setting.getPreferredBrandAsset(props.account.organization.logoDark, Conf.BrandLogo);
+      return Setting.getPreferredBrandAsset(props.account.organization.logoDark, Conf.BrandIcon);
     }
 
-    return Setting.getPreferredBrandAsset(props.account.organization.logo, Setting.getLogo(props.themeAlgorithm));
+    return Setting.getPreferredBrandAsset(props.account.organization.logo, Conf.BrandIcon);
   }
 
   function getNavigationGroups() {

@@ -10,6 +10,7 @@ export const TourObj = {
         <img
           alt={Conf.BrandName}
           src={Conf.BrandLogo}
+          style={{width: 84, height: 84, objectFit: "contain"}}
         />
       ),
     },

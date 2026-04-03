@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import React from "react";
-import {Button, Card, Col, Input, Row, Select, Switch} from "antd";
+import {Alert, Button, Card, Col, Input, Row, Select, Switch} from "antd";
 import {LinkOutlined} from "@ant-design/icons";
 import * as ProviderBackend from "./backend/ProviderBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
@@ -32,6 +32,7 @@ import {renderWeb3ProviderFields} from "./provider/Web3ProviderFields";
 import {renderStorageProviderFields} from "./provider/StorageProviderFields";
 import {renderFaceIdProviderFields} from "./provider/FaceIDProviderFields";
 import {renderIDVerificationProviderFields} from "./provider/IDVerificationProviderFields";
+import {getWeComRequiredFields, validateWeComProviderFields} from "./provider/WeComProviderUtils";
 
 const {Option} = Select;
 const {TextArea} = Input;
@@ -176,9 +177,72 @@ class ProviderEditPage extends React.Component {
       }
     }
 
+    if (provider["type"] === "WeCom") {
+      if (!provider["subType"]) {
+        provider["subType"] = "Internal";
+      }
+      if (!provider["method"]) {
+        provider["method"] = "Normal";
+      }
+      if (!provider["scopes"]) {
+        provider["scopes"] = "snsapi_privateinfo";
+      }
+    }
+
     this.setState({
       provider: provider,
     });
+  }
+
+  getWeComCallbackUrl() {
+    return `${window.location.origin}/callback`;
+  }
+
+  getWeComRequiredFields(provider) {
+    return getWeComRequiredFields(provider);
+  }
+
+  validateWeComProvider(provider) {
+    return validateWeComProviderFields(provider);
+  }
+
+  renderWeComGuide(provider) {
+    if (provider.type !== "WeCom") {
+      return null;
+    }
+
+    const recommendedMode = provider.subType === "Internal"
+      ? "Internal + Normal"
+      : `${provider.subType} + ${provider.method}`;
+
+    return (
+      <React.Fragment>
+        <Row style={{marginTop: "20px"}}>
+          <Col span={24}>
+            <Alert
+              type="info"
+              showIcon
+              message={i18next.t("provider:WeCom web login setup")}
+              description={(
+                <div>
+                  <div>{i18next.t("provider:Homepage QR login currently targets Internal + Normal mode first")}</div>
+                  <div>{i18next.t("provider:Recommended mode")}: {recommendedMode}</div>
+                  <div>{i18next.t("provider:Configure the callback URL and trusted domain in WeCom admin before testing")}</div>
+                </div>
+              )}
+            />
+          </Col>
+        </Row>
+        <Row style={{marginTop: "20px"}}>
+          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+            {Setting.getLabel(i18next.t("provider:Callback URL"), i18next.t("provider:Callback URL - Tooltip"))} :
+          </Col>
+          <Col span={22}>
+            <Input readOnly value={this.getWeComCallbackUrl()} />
+          </Col>
+        </Row>
+      </React.Fragment>
+    );
   }
 
   updateUserMappingField(key, value) {
@@ -759,6 +823,10 @@ class ProviderEditPage extends React.Component {
               } else if (value === "Custom HTTP Email") {
                 this.updateProviderField("endpoint", "https://example.com/send-custom-http-email");
                 this.updateProviderField("method", "POST");
+              } else if (value === "WeCom") {
+                this.updateProviderField("subType", "Internal");
+                this.updateProviderField("method", "Normal");
+                this.updateProviderField("scopes", "snsapi_privateinfo");
               } else if (value === "Custom HTTP") {
                 this.updateProviderField("method", "GET");
                 this.updateProviderField("title", "");
@@ -840,6 +908,7 @@ class ProviderEditPage extends React.Component {
             </React.Fragment>
           )
         }
+        {this.renderWeComGuide(this.state.provider)}
         {
           this.state.provider.category === "OAuth" ? renderOAuthProviderFields(
             this.state.provider,
@@ -997,6 +1066,11 @@ class ProviderEditPage extends React.Component {
 
   submitProviderEdit(exitAfterSave) {
     const provider = Setting.deepCopy(this.state.provider);
+    const validationError = this.validateWeComProvider(provider);
+    if (validationError) {
+      Setting.showMessage("error", validationError);
+      return;
+    }
     ProviderBackend.updateProvider(this.state.owner, this.state.providerName, provider)
       .then((res) => {
         if (res.status === "ok") {

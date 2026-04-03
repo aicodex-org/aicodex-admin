@@ -26,6 +26,8 @@ tmpFiles/
 *.tmp
 logs/
 files/
+.gocache/
+.gomodcache/
 lastupdate.tmp
 commentsRouter*.go
 

@@ -73,6 +73,7 @@ class SigninMethodTable extends React.Component {
       {name: "LDAP", displayName: i18next.t("login:LDAP")},
       {name: "Face ID", displayName: i18next.t("login:Face ID")},
       {name: "WeChat", displayName: i18next.t("login:WeChat")},
+      {name: "WeCom", displayName: i18next.t("login:WeCom")},
     ];
     const columns = [
       {
@@ -96,7 +97,7 @@ class SigninMethodTable extends React.Component {
                 this.updateField(table, index, "displayName", value);
                 if (value === "Verification code" || value === "Password") {
                   this.updateField(table, index, "rule", "All");
-                } else if (value === "WeChat") {
+                } else if (value === "WeChat" || value === "WeCom") {
                   this.updateField(table, index, "rule", "Tab");
                 } else {
                   this.updateField(table, index, "rule", "None");
@@ -141,7 +142,7 @@ class SigninMethodTable extends React.Component {
               {id: "Non-LDAP", name: i18next.t("general:Non-LDAP")},
               {id: "Hide password", name: i18next.t("general:Hide password")},
             ];
-          } else if (record.name === "WeChat") {
+          } else if (record.name === "WeChat" || record.name === "WeCom") {
             options = [
               {id: "Tab", name: i18next.t("general:Tab")},
               {id: "Login page", name: i18next.t("general:Login page")},

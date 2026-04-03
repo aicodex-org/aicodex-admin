@@ -42,7 +42,7 @@ class ApplicationListPage extends BaseListPage {
       category: "Default",
       type: "All",
       scopes: [],
-      logo: Conf.BrandLogo,
+      logo: Conf.BrandIcon,
       enablePassword: true,
       enableSignUp: true,
       disableSignin: false,

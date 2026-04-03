@@ -1510,6 +1510,10 @@ export function isFaceIdEnabled(application) {
   return isSigninMethodEnabled(application, "Face ID");
 }
 
+export function isWeComEnabled(application) {
+  return isSigninMethodEnabled(application, "WeCom");
+}
+
 export function getLoginLink(application) {
   let url;
   if (application === null) {
@@ -1983,7 +1987,7 @@ export function getUserCommonFields() {
 }
 
 export function getDefaultFooterContent() {
-  return `Powered by <a target="_blank" href="${Conf.BrandUrl}" rel="noreferrer"><img style="padding-bottom: 3px" height="20" alt="${Conf.BrandName}" src="${Conf.BrandLogo}"/></a>`;
+  return `Powered by <a target="_blank" href="${Conf.BrandUrl}" rel="noreferrer"><img style="padding-bottom: 3px" height="18" alt="${Conf.BrandName}" src="${Conf.BrandIcon}"/></a>`;
 }
 
 export function getEmptyFooterContent() {
@@ -2015,7 +2019,7 @@ export function getDefaultHtmlEmailContent() {
 <div class="email-container">
   <div class="header">
         <h3>${Conf.BrandName}</h3>
-        <img src="${Conf.BrandLogo}" alt="${Conf.BrandName} Logo" width="300">
+        <img src="${Conf.BrandIcon}" alt="${Conf.BrandName} Logo" width="108" height="108" style="object-fit: contain">
     </div>
     <p><strong>%{user.friendlyName}</strong>, here is your verification code</p>
     <p>Use this code for your transaction. It's valid for 5 minutes</p>
@@ -2058,7 +2062,7 @@ export function getDefaultInvitationHtmlEmailContent() {
 <div class="email-container">
   <div class="header">
         <h3>${Conf.BrandName}</h3>
-        <img src="${Conf.BrandLogo}" alt="${Conf.BrandName} Logo" width="300">
+        <img src="${Conf.BrandIcon}" alt="${Conf.BrandName} Logo" width="108" height="108" style="object-fit: contain">
     </div>
     <p>You have been invited into ${Conf.BrandName}</p>
     <div class="code">

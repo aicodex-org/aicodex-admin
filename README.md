@@ -70,6 +70,31 @@ https://casdoor.org/docs/how-to-connect/overview
 
 https://casdoor.org/docs/category/integrations
 
+## WeCom Web Login Notes
+
+- Homepage QR sign-in in this repo is designed around the internal WeCom web login flow: `WeCom + Internal + Normal`.
+- In the provider settings, configure `Corp ID`, `Secret`, and `Agent ID`, and use the callback URL: `/callback` under the actual login origin.
+- Before testing, make sure the same origin is configured in WeCom admin as the trusted domain / callback domain for web login.
+- `Third-party` and `Silent` modes are kept for compatibility, but the primary homepage QR login path is the internal normal flow.
+
+### Current support matrix
+
+- `Internal + Normal`: primary homepage QR login path, recommended for rollout.
+- `Internal + Silent`: configuration is supported, but it is not the homepage QR-login path in this iteration.
+- `Third-party + Normal`: compatibility is retained, but homepage QR rendering is not the primary acceptance path.
+- `Third-party + Silent`: compatibility only; do not treat it as a rollout-default mode.
+
+### Manual validation checklist
+
+1. In the application settings, add `WeCom` to `Signin methods`.
+2. In the provider settings, create or update a `WeCom` OAuth provider with `Sub type = Internal` and `Method = Normal`.
+3. Fill `Corp ID`, `Secret`, `Agent ID`, and keep the callback URL at `https://<your-login-origin>/callback`.
+4. In WeCom admin, configure the same login origin as the trusted domain / callback domain for web login.
+5. Bind the provider to the target application and make sure the provider is visible for sign-in.
+6. Open the login page and confirm the WeCom entry appears either as a tab or as a dedicated login-page panel.
+7. Scan the QR code with WeCom and verify the callback returns to `/callback` with `auth_code` and successfully lands in the authenticated page.
+8. If QR rendering fails, confirm the fallback warning appears and the provider configuration matches `Internal + Normal`.
+
 ## How to contact?
 
 - Discord: https://discord.gg/5rPsrAzK7S

@@ -15,6 +15,7 @@
 package idp
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -102,10 +103,13 @@ func (idp *WeComInternalIdProvider) GetToken(code string) (*oauth2.Token, error)
 }
 
 type WecomInternalUserResp struct {
-	Errcode int    `json:"errcode"`
-	Errmsg  string `json:"errmsg"`
-	UserId  string `json:"UserId"`
-	OpenId  string `json:"OpenId"`
+	Errcode    int    `json:"errcode"`
+	Errmsg     string `json:"errmsg"`
+	UserId     string `json:"UserId"`
+	OpenId     string `json:"OpenId"`
+	Userid     string `json:"userid"`
+	Openid     string `json:"openid"`
+	UserTicket string `json:"user_ticket"`
 }
 
 type WecomInternalUserInfo struct {
@@ -118,11 +122,14 @@ type WecomInternalUserInfo struct {
 	UserId  string `json:"userid"`
 }
 
+type WecomInternalUserDetailRequest struct {
+	UserTicket string `json:"user_ticket"`
+}
+
 func (idp *WeComInternalIdProvider) GetUserInfo(token *oauth2.Token) (*UserInfo, error) {
-	// Get userid first
 	accessToken := token.AccessToken
 	code := token.Extra("code").(string)
-	resp, err := idp.Client.Get(fmt.Sprintf("https://qyapi.weixin.qq.com/cgi-bin/user/getuserinfo?access_token=%s&code=%s", accessToken, code))
+	resp, err := idp.Client.Get(fmt.Sprintf("https://qyapi.weixin.qq.com/cgi-bin/auth/getuserinfo?access_token=%s&code=%s", accessToken, code))
 	if err != nil {
 		return nil, err
 	}
@@ -139,29 +146,60 @@ func (idp *WeComInternalIdProvider) GetUserInfo(token *oauth2.Token) (*UserInfo,
 	if userResp.Errcode != 0 {
 		return nil, fmt.Errorf("userIdResp.Errcode = %d, userIdResp.Errmsg = %s", userResp.Errcode, userResp.Errmsg)
 	}
-	if userResp.OpenId != "" {
+	openID := firstNonEmpty(userResp.OpenId, userResp.Openid)
+	if openID != "" {
 		return nil, fmt.Errorf("not an internal user")
 	}
-	// Use userid and accesstoken to get user information
-	resp, err = idp.Client.Get(fmt.Sprintf("https://qyapi.weixin.qq.com/cgi-bin/user/get?access_token=%s&userid=%s", accessToken, userResp.UserId))
-	if err != nil {
-		return nil, err
+
+	userID := firstNonEmpty(userResp.UserId, userResp.Userid)
+	infoResp := &WecomInternalUserInfo{}
+
+	if userResp.UserTicket != "" {
+		requestBody, err := json.Marshal(&WecomInternalUserDetailRequest{UserTicket: userResp.UserTicket})
+		if err != nil {
+			return nil, err
+		}
+		resp, err = idp.Client.Post(
+			fmt.Sprintf("https://qyapi.weixin.qq.com/cgi-bin/auth/getuserdetail?access_token=%s", accessToken),
+			"application/json;charset=UTF-8",
+			bytes.NewReader(requestBody),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		data, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+		err = json.Unmarshal(data, infoResp)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	data, err = io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	infoResp := &WecomInternalUserInfo{}
-	err = json.Unmarshal(data, infoResp)
-	if err != nil {
-		return nil, err
+	if infoResp.UserId == "" && userID != "" {
+		resp, err = idp.Client.Get(fmt.Sprintf("https://qyapi.weixin.qq.com/cgi-bin/user/get?access_token=%s&userid=%s", accessToken, userID))
+		if err != nil {
+			return nil, err
+		}
+
+		data, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+		err = json.Unmarshal(data, infoResp)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if infoResp.Errcode != 0 {
 		return nil, fmt.Errorf("userInfoResp.errcode = %d, userInfoResp.errmsg = %s", infoResp.Errcode, infoResp.Errmsg)
 	}
+
+	resolvedUserID := firstNonEmpty(infoResp.UserId, userID)
 	userInfo := UserInfo{
-		Id:          infoResp.UserId,
+		Id:          resolvedUserID,
 		Username:    infoResp.Name,
 		DisplayName: infoResp.Name,
 		Email:       infoResp.Email,
@@ -177,4 +215,14 @@ func (idp *WeComInternalIdProvider) GetUserInfo(token *oauth2.Token) (*UserInfo,
 	}
 
 	return &userInfo, nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+
+	return ""
 }

@@ -38,6 +38,7 @@ import {GoogleOneTapLoginVirtualButton} from "./GoogleLoginButton";
 import * as ProviderButton from "./ProviderButton";
 import {createFormAndSubmit, goToLink} from "../Setting";
 import WeChatLoginPanel from "./WeChatLoginPanel";
+import WeComLoginPanel from "./WeComLoginPanel";
 import {CountryCodeSelect} from "../common/select/CountryCodeSelect";
 const FaceRecognitionCommonModal = lazy(() => import("../common/modal/FaceRecognitionCommonModal"));
 const FaceRecognitionModal = lazy(() => import("../common/modal/FaceRecognitionModal"));
@@ -257,6 +258,7 @@ class LoginPage extends React.Component {
       case "WebAuthn": return "webAuthn";
       case "LDAP": return "ldap";
       case "Face ID": return "faceId";
+      case "WeCom": return "wecom";
       }
     }
 
@@ -274,6 +276,8 @@ class LoginPage extends React.Component {
       return "LDAP";
     } else if (this.state.loginMethod === "faceId") {
       return "Face ID";
+    } else if (this.state.loginMethod === "wecom") {
+      return "WeCom";
     } else {
       return "Password";
     }
@@ -706,6 +710,10 @@ class LoginPage extends React.Component {
         return (<WeChatLoginPanel application={application} loginMethod={this.state.loginMethod} />);
       }
 
+      if (this.state.loginMethod === "wecom") {
+        return (<WeComLoginPanel application={application} loginMethod={this.state.loginMethod} />);
+      }
+
       if (this.state.loginMethod === "verificationCodePhone") {
         return <Form.Item className="signin-phone" required={true}>
           <Input.Group compact>
@@ -856,11 +864,13 @@ class LoginPage extends React.Component {
         <div key={resultItemKey}>
           <div dangerouslySetInnerHTML={{__html: ("<style>" + signinItem.customCss?.replaceAll("<style>", "").replaceAll("</style>", "") + "</style>")}} />
           <div className="login-forget-password">
-            <Form.Item name="autoSignin" valuePropName="checked" noStyle>
-              <Checkbox style={{float: "left"}}>
-                {i18next.t("login:Auto sign in")}
-              </Checkbox>
-            </Form.Item>
+            {this.state.loginMethod === "wecom" ? null : (
+              <Form.Item name="autoSignin" valuePropName="checked" noStyle>
+                <Checkbox style={{float: "left"}}>
+                  {i18next.t("login:Auto sign in")}
+                </Checkbox>
+              </Form.Item>
+            )}
             {
               signinItem.visible ? Setting.renderForgetLink(application, signinItem.label ? signinItem.label : i18next.t("login:Forgot password?")) : null
             }
@@ -870,7 +880,7 @@ class LoginPage extends React.Component {
     } else if (signinItem.name === "Agreement") {
       return AgreementModal.isAgreementRequired(application) ? AgreementModal.renderAgreementFormItem(application, true, {}, this) : null;
     } else if (signinItem.name === "Login button") {
-      if (this.state.loginMethod === "wechat") {
+      if (this.state.loginMethod === "wechat" || this.state.loginMethod === "wecom") {
         return null;
       }
       return (
@@ -1019,7 +1029,7 @@ class LoginPage extends React.Component {
       );
     }
 
-    const showForm = Setting.isPasswordEnabled(application) || Setting.isCodeSigninEnabled(application) || Setting.isWebAuthnEnabled(application) || Setting.isLdapEnabled(application) || Setting.isFaceIdEnabled(application);
+    const showForm = Setting.isPasswordEnabled(application) || Setting.isCodeSigninEnabled(application) || Setting.isWebAuthnEnabled(application) || Setting.isLdapEnabled(application) || Setting.isFaceIdEnabled(application) || Setting.isWeComEnabled(application);
     if (showForm) {
       let loginWidth = 320;
       if (Setting.getLanguage() === "fr") {
@@ -1418,6 +1428,8 @@ class LoginPage extends React.Component {
       [generateItemKey("Face ID", "None"), {label: i18next.t("login:Face ID"), key: "faceId"}],
       [generateItemKey("WeChat", "Tab"), {label: i18next.t("login:WeChat"), key: "wechat"}],
       [generateItemKey("WeChat", "None"), {label: i18next.t("login:WeChat"), key: "wechat"}],
+      [generateItemKey("WeCom", "Tab"), {label: i18next.t("login:WeCom"), key: "wecom"}],
+      [generateItemKey("WeCom", "None"), {label: i18next.t("login:WeCom"), key: "wecom"}],
     ]);
 
     application?.signinMethods?.forEach((signinMethod) => {
@@ -1572,7 +1584,7 @@ class LoginPage extends React.Component {
     }
 
     const visibleOAuthProviderItems = (application.providers === null) ? [] : application.providers.filter(providerItem => this.isProviderVisible(providerItem) && providerItem.provider?.category !== "SAML");
-    if (this.props.preview !== "auto" && !Setting.isPasswordEnabled(application) && !Setting.isCodeSigninEnabled(application) && !Setting.isWebAuthnEnabled(application) && !Setting.isLdapEnabled(application) && visibleOAuthProviderItems.length === 1) {
+    if (this.props.preview !== "auto" && !Setting.isPasswordEnabled(application) && !Setting.isCodeSigninEnabled(application) && !Setting.isWebAuthnEnabled(application) && !Setting.isLdapEnabled(application) && !Setting.isWeComEnabled(application) && visibleOAuthProviderItems.length === 1 && visibleOAuthProviderItems[0].provider?.type !== "WeCom") {
       Setting.goToLink(Provider.getAuthUrl(application, visibleOAuthProviderItems[0].provider, "signup"));
       return (
         <div style={{display: "flex", justifyContent: "center", alignItems: "center", width: "100%"}}>
@@ -1582,6 +1594,9 @@ class LoginPage extends React.Component {
     }
 
     const wechatSigninMethods = application.signinMethods?.filter(method => method.name === "WeChat" && method.rule === "Login page");
+    const wecomSigninMethods = application.signinMethods?.filter(method => method.name === "WeCom" && method.rule === "Login page");
+    const loginPageWeComProvider = visibleOAuthProviderItems.find(providerItem => providerItem.provider?.type === "WeCom" && providerItem.provider?.subType === "Internal" && providerItem.provider?.method === "Normal")
+      || visibleOAuthProviderItems.find(providerItem => providerItem.provider?.type === "WeCom");
 
     return (
       <React.Fragment>
@@ -1607,6 +1622,20 @@ class LoginPage extends React.Component {
                   <WeChatLoginPanel application={application} loginMethod={this.state.loginMethod} />
                 </div>
               </div>
+              ) : null
+            }
+            {
+              wecomSigninMethods?.length > 0 ? (
+                <div style={{display: "flex", justifyContent: "center", alignItems: "center"}}>
+                  <div>
+                    <h3 style={{textAlign: "center", width: 320}}>{i18next.t("login:Use WeCom to scan the QR code and sign in")}</h3>
+                    <WeComLoginPanel
+                      application={application}
+                      loginMethod={this.state.loginMethod}
+                      providerId={loginPageWeComProvider ? `${loginPageWeComProvider.provider.owner}/${loginPageWeComProvider.provider.name}` : null}
+                    />
+                  </div>
+                </div>
               ) : null
             }
           </div>
