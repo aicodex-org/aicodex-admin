@@ -20,9 +20,9 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/casdoor/casdoor/form"
-	"github.com/casdoor/casdoor/object"
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/form"
+	"git.leagsoft.com/aicodex/aicodex-admin/object"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 )

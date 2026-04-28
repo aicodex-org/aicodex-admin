@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/likexian/whois"
 	whoisparser "github.com/likexian/whois-parser"
 )

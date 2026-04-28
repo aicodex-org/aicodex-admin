@@ -20,9 +20,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/casdoor/casdoor/ip"
-	"github.com/casdoor/casdoor/object"
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/ip"
+	"git.leagsoft.com/aicodex/aicodex-admin/object"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 )
 
 type IpRule struct{}

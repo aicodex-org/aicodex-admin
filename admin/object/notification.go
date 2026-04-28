@@ -21,8 +21,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/casdoor/casdoor/notification"
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/notification"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	notify "github.com/casdoor/notify2"
 )
 

@@ -402,7 +402,7 @@ class SiteEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={2}>
-            {i18next.t("site:Casdoor app")}:
+            {i18next.t("site:aicodex-admin app")}:
           </Col>
           <Col span={22} >
             <Select virtual={false} style={{width: "100%"}} showSearch value={this.state.site.casdoorApplication} onChange={(value => {

@@ -26,9 +26,9 @@ import (
 	"sync"
 	"time"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/i18n"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/beevik/etree"
-	"github.com/casdoor/casdoor/i18n"
-	"github.com/casdoor/casdoor/util"
 	dsig "github.com/russellhaering/goxmldsig"
 )
 

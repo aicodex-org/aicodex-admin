@@ -19,11 +19,11 @@ import (
 	"strings"
 	"time"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/mcpself"
+	"git.leagsoft.com/aicodex/aicodex-admin/object"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/beego/beego/v2/core/logs"
 	"github.com/beego/beego/v2/server/web"
-	"github.com/casdoor/casdoor/mcpself"
-	"github.com/casdoor/casdoor/object"
-	"github.com/casdoor/casdoor/util"
 )
 
 // ApiController

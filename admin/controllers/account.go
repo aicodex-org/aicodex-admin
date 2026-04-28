@@ -21,10 +21,10 @@ import (
 	"net/http"
 	"strings"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/form"
+	"git.leagsoft.com/aicodex/aicodex-admin/object"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/beego/beego/v2/core/logs"
-	"github.com/casdoor/casdoor/form"
-	"github.com/casdoor/casdoor/object"
-	"github.com/casdoor/casdoor/util"
 )
 
 const (
@@ -368,7 +368,7 @@ func (c *ApiController) Logout() {
 	user := c.GetSessionUsername()
 
 	if accessToken == "" && redirectUri == "" {
-		// TODO https://github.com/casdoor/casdoor/pull/1494#discussion_r1095675265
+		// TODO: preserve upstream behavior from pull request 1494.
 		if user == "" {
 			c.ResponseOk()
 			return
@@ -390,7 +390,7 @@ func (c *ApiController) Logout() {
 		c.ResponseOk(user, application.HomepageUrl)
 		return
 	} else {
-		// "post_logout_redirect_uri" has been made optional, see: https://github.com/casdoor/casdoor/issues/2151
+		// "post_logout_redirect_uri" has been made optional for compatibility.
 		// if redirectUri == "" {
 		// 	c.ResponseError(c.T("general:Missing parameter") + ": post_logout_redirect_uri")
 		// 	return
@@ -421,7 +421,7 @@ func (c *ApiController) Logout() {
 		c.ClearUserSession()
 		c.ClearTokenSession()
 
-		// TODO https://github.com/casdoor/casdoor/pull/1494#discussion_r1095675265
+		// TODO: preserve upstream behavior from pull request 1494.
 		if err := c.deleteUserSession(user); err != nil {
 			c.ResponseError(err.Error())
 			return
@@ -775,7 +775,7 @@ func (c *ApiController) deleteUserSession(user string) error {
 		return err
 	}
 
-	// Casdoor session ID derived from owner, username, and application
+	// aicodex-admin session ID derived from owner, username, and application
 	sessionId := util.GetSessionId(owner, username, object.CasdoorApplication)
 
 	// Explicitly get the Beego session ID from the context

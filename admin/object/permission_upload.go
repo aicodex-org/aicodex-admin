@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/casdoor/casdoor/xlsx"
+	"git.leagsoft.com/aicodex/aicodex-admin/xlsx"
 )
 
 func getPermissionMap(owner string) (map[string]*Permission, error) {

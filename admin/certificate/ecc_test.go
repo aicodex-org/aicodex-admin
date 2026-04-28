@@ -20,7 +20,7 @@ package certificate
 import (
 	"testing"
 
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/stretchr/testify/assert"
 )
 

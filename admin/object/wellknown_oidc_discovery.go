@@ -21,8 +21,8 @@ import (
 	"net"
 	"strings"
 
-	"github.com/casdoor/casdoor/conf"
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/conf"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/go-jose/go-jose/v4"
 )
 
@@ -82,7 +82,7 @@ func getOriginFromHostInternal(host string) (string, string) {
 	}
 
 	isDev := conf.GetConfigString("runmode") == "dev"
-	// "door.casdoor.com"
+	// "aicodex-admin.local"
 	protocol := "https://"
 	if !strings.Contains(host, ".") {
 		// "localhost:8000" or "computer-name:80"

@@ -20,11 +20,11 @@ import (
 	"fmt"
 	"strings"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/captcha"
+	"git.leagsoft.com/aicodex/aicodex-admin/form"
+	"git.leagsoft.com/aicodex/aicodex-admin/object"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/beego/beego/v2/core/utils/pagination"
-	"github.com/casdoor/casdoor/captcha"
-	"github.com/casdoor/casdoor/form"
-	"github.com/casdoor/casdoor/object"
-	"github.com/casdoor/casdoor/util"
 )
 
 const (

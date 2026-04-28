@@ -18,8 +18,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/casdoor/casdoor/i18n"
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/i18n"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/xorm-io/core"
 	"golang.org/x/crypto/ssh"
 )

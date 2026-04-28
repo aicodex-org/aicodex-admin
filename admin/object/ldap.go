@@ -15,7 +15,7 @@
 package object
 
 import (
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 )
 
 type Ldap struct {

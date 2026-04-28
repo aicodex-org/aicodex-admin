@@ -18,7 +18,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/casdoor/casdoor/object"
+	"git.leagsoft.com/aicodex/aicodex-admin/object"
 )
 
 func TestIpRateRule_checkRule(t *testing.T) {

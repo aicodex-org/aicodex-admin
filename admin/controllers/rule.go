@@ -20,9 +20,9 @@ import (
 	"net"
 	"strings"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/object"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/beego/beego/v2/server/web/pagination"
-	"github.com/casdoor/casdoor/object"
-	"github.com/casdoor/casdoor/util"
 	"github.com/hsluoyz/modsecurity-go/seclang/parser"
 )
 

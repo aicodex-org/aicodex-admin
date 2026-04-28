@@ -24,7 +24,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 )
 
 type GcPaymentProvider struct {

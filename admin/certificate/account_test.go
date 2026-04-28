@@ -20,9 +20,9 @@ package certificate
 import (
 	"testing"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/proxy"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/beego/beego/v2/server/web"
-	"github.com/casdoor/casdoor/proxy"
-	"github.com/casdoor/casdoor/util"
 	"github.com/stretchr/testify/assert"
 )
 

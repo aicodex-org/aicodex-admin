@@ -104,19 +104,26 @@
     "the adapter: %s is not found": "adapter: %s nie został znaleziony"
   },
   "general": {
+    "Application cannot be empty": "Application cannot be empty",
     "Failed to import groups": "Nie udało się zaimportować grup",
     "Failed to import users": "Nie udało się zaimportować użytkowników",
+    "Granted scopes cannot be empty": "Granted scopes cannot be empty",
     "Insufficient balance: new balance %v would be below credit limit %v": "Niewystarczające saldo: nowe saldo %v byłoby poniżej limitu kredytowego %v",
     "Insufficient balance: new organization balance %v would be below credit limit %v": "Niewystarczające saldo: nowe saldo organizacji %v byłoby poniżej limitu kredytowego %v",
+    "Invalid application": "Invalid application",
+    "Invalid client_id": "Invalid client_id",
     "Missing parameter": "Brakujący parametr",
+    "Multiple captcha providers are not allowed in the same application: %s": "Multiple captcha providers are not allowed in the same application: %s",
     "Only admin user can specify user": "Tylko administrator może wskazać użytkownika",
     "Please login first": "Najpierw się zaloguj",
     "The LDAP: %s does not exist": "LDAP: %s nie istnieje",
     "The organization: %s should have one application at least": "Organizacja: %s powinna mieć co najmniej jedną aplikację",
     "The syncer: %s does not exist": "Synchronizer: %s nie istnieje",
+    "The user doesn't exist": "The user doesn't exist",
     "The user: %s doesn't exist": "Użytkownik: %s nie istnieje",
     "The user: %s is not found": "Użytkownik: %s nie został znaleziony",
     "User is required for User category transaction": "Użytkownik jest wymagany do transakcji kategorii użytkownika",
+    "User not found": "User not found",
     "Wrong userId": "Nieprawidłowy userId",
     "don't support captchaProvider: ": "nie obsługuje captchaProvider: ",
     "this operation is not allowed in demo mode": "ta operacja nie jest dozwolona w trybie demo",
@@ -140,7 +147,7 @@
     "Only admin can modify the %s.": "Tylko administrator może modyfikować %s.",
     "The %s is immutable.": "%s jest niezmienny.",
     "Unknown modify rule %s.": "Nieznana reguła modyfikacji %s.",
-    "adding a new user to the 'built-in' organization is currently disabled. Please note: all users in the 'built-in' organization are global administrators in Casdoor. Refer to the docs: https://casdoor.org/docs/basic/core-concepts#how-does-casdoor-manage-itself. If you still wish to create a user for the 'built-in' organization, go to the organization's settings page and enable the 'Has privilege consent' option.": "Dodawanie nowego użytkownika do organizacji „built-in' (wbudowanej) jest obecnie wyłączone. Należy zauważyć, że wszyscy użytkownicy w organizacji „built-in' są globalnymi administratorami w Casdoor. Zobacz dokumentację: https://casdoor.org/docs/basic/core-concepts#how-does-casdoor-manage-itself. Jeśli nadal chcesz utworzyć użytkownika dla organizacji „built-in', przejdź do strony ustawień organizacji i włącz opcję „Ma zgodę na uprawnienia'."
+    "adding a new user to the 'built-in' organization is currently disabled. Please note: all users in the 'built-in' organization are global administrators in aicodex-admin. Refer to the docs: https://git.leagsoft.com/aicodex/aicodex-admin. If you still wish to create a user for the 'built-in' organization, go to the organization's settings page and enable the 'Has privilege consent' option.": "Dodawanie nowego użytkownika do organizacji „built-in' (wbudowanej) jest obecnie wyłączone. Należy zauważyć, że wszyscy użytkownicy w organizacji „built-in' są globalnymi administratorami w aicodex-admin. Zobacz dokumentację: https://git.leagsoft.com/aicodex/aicodex-admin. Jeśli nadal chcesz utworzyć użytkownika dla organizacji „built-in', przejdź do strony ustawień organizacji i włącz opcję „Ma zgodę na uprawnienia'."
   },
   "permission": {
     "The permission: \"%s\" doesn't exist": "Uprawnienie: \"%s\" nie istnieje"
@@ -187,6 +194,7 @@
     "Grant_type: %s is not supported in this application": "Grant_type: %s nie jest obsługiwany w tej aplikacji",
     "Invalid application or wrong clientSecret": "Nieprawidłowa aplikacja lub błędny clientSecret",
     "Invalid client_id": "Nieprawidłowy client_id",
+    "Invalid scope": "Invalid scope",
     "Redirect URI: %s doesn't exist in the allowed Redirect URI list": "Redirect URI: %s nie istnieje na liście dozwolonych Redirect URI",
     "Token not found, invalid accessToken": "Token nie znaleziony, nieprawidłowy accessToken"
   },

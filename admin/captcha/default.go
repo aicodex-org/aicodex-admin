@@ -14,7 +14,7 @@
 
 package captcha
 
-import "github.com/casdoor/casdoor/object"
+import "git.leagsoft.com/aicodex/aicodex-admin/object"
 
 type DefaultCaptchaProvider struct{}
 

@@ -17,7 +17,7 @@ package object
 import (
 	"errors"
 
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 )
 
 type SmsMfa struct {

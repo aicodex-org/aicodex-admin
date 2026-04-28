@@ -17,10 +17,10 @@ package authz
 import (
 	"strings"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/conf"
+	"git.leagsoft.com/aicodex/aicodex-admin/object"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/casbin/casbin/v2"
-	"github.com/casdoor/casdoor/conf"
-	"github.com/casdoor/casdoor/object"
-	"github.com/casdoor/casdoor/util"
 	stringadapter "github.com/qiangmzsx/string-adapter/v2"
 )
 

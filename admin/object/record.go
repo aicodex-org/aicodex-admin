@@ -21,9 +21,9 @@ import (
 	"regexp"
 	"strings"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/conf"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/beego/beego/v2/server/web/context"
-	"github.com/casdoor/casdoor/conf"
-	"github.com/casdoor/casdoor/util"
 )
 
 var (

@@ -15,8 +15,8 @@
 package object
 
 import (
-	"github.com/casdoor/casdoor/conf"
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/conf"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 )
 
 type InitData struct {

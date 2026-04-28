@@ -20,7 +20,7 @@ import (
 	"net"
 	"strings"
 
-	"github.com/casdoor/casdoor/i18n"
+	"git.leagsoft.com/aicodex/aicodex-admin/i18n"
 )
 
 func CheckEntryIp(clientIp string, user *User, application *Application, organization *Organization, lang string) error {

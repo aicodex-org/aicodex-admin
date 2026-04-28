@@ -17,9 +17,9 @@ package routers
 import (
 	"fmt"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/object"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/beego/beego/v2/server/web/context"
-	"github.com/casdoor/casdoor/object"
-	"github.com/casdoor/casdoor/util"
 )
 
 func getUser(ctx *context.Context) (username string) {

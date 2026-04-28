@@ -19,9 +19,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/casdoor/casdoor/i18n"
-	"github.com/casdoor/casdoor/util"
-	"github.com/casdoor/casdoor/xlsx"
+	"git.leagsoft.com/aicodex/aicodex-admin/i18n"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/xlsx"
 )
 
 func getUserMap(owner string) (map[string]*User, error) {

@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/casdoor/casdoor/i18n"
+	"git.leagsoft.com/aicodex/aicodex-admin/i18n"
 )
 
 // ConsentRecord represents the data for OAuth consent API requests/responses

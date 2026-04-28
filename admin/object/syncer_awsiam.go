@@ -19,11 +19,11 @@ import (
 	"fmt"
 	"time"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/iam"
-	"github.com/casdoor/casdoor/util"
 )
 
 // AwsIamSyncerProvider implements SyncerProvider for AWS IAM API-based syncers

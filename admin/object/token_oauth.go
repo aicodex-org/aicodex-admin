@@ -25,9 +25,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/casdoor/casdoor/i18n"
-	"github.com/casdoor/casdoor/idp"
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/i18n"
+	"git.leagsoft.com/aicodex/aicodex-admin/idp"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/google/uuid"
 	"github.com/xorm-io/core"
 )

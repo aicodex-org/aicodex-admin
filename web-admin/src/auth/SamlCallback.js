@@ -34,12 +34,12 @@ class SamlCallback extends React.Component {
 
   getResponseType(redirectUri) {
     const authServerUrl = authConfig.serverUrl;
-    // Casdoor's own login page, so "code" is not necessary
+    // aicodex-admin's own login page, so "code" is not necessary
     if (redirectUri === "null") {
       return "login";
     }
     const realRedirectUrl = new URL(redirectUri).origin;
-    // For Casdoor itself, we use "login" directly
+    // For aicodex-admin itself, we use "login" directly
     if (authServerUrl === realRedirectUrl) {
       return "login";
     } else {

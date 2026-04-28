@@ -17,8 +17,8 @@ package object
 import (
 	"fmt"
 
-	"github.com/casdoor/casdoor/pp"
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/pp"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/xorm-io/core"
 )
 

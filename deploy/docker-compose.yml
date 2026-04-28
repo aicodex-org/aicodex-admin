@@ -1,5 +1,5 @@
 services:
-  casdoor:
+  aicodex-admin:
     restart: always
     image: aicodex-admin:latest
     entrypoint: /bin/sh -c './server --createDatabase=true'
@@ -9,8 +9,8 @@ services:
     environment:
       RUNNING_IN_DOCKER: "true"
       driverName: postgres
-      dbName: casdoor
-      dataSourceName: user=postgres password=123456 host=db port=5432 sslmode=disable dbname=casdoor
+      dbName: aicodex_admin
+      dataSourceName: user=postgres password=123456 host=db port=5432 sslmode=disable dbname=aicodex_admin
     ports:
       - "8000:8000"
   db:
@@ -20,9 +20,9 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: 123456
-      POSTGRES_DB: casdoor
+      POSTGRES_DB: aicodex_admin
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d casdoor"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d aicodex_admin"]
       interval: 5s
       timeout: 5s
       retries: 12

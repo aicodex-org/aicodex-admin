@@ -17,11 +17,11 @@ package certificate
 import (
 	"crypto"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/proxy"
 	"github.com/casbin/lego/v4/acme"
 	"github.com/casbin/lego/v4/certcrypto"
 	"github.com/casbin/lego/v4/lego"
 	"github.com/casbin/lego/v4/registration"
-	"github.com/casdoor/casdoor/proxy"
 )
 
 type Account struct {

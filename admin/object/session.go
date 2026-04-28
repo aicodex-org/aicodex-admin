@@ -19,8 +19,8 @@ import (
 	"fmt"
 	"slices"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/beego/beego/v2/server/web"
-	"github.com/casdoor/casdoor/util"
 	"github.com/xorm-io/core"
 )
 

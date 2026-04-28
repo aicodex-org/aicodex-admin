@@ -19,9 +19,9 @@ import (
 	"net/http"
 	"net/url"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/object"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/casdoor/casdoor-go-sdk/casdoorsdk"
-	"github.com/casdoor/casdoor/object"
-	"github.com/casdoor/casdoor/util"
 )
 
 func getSigninUrl(casdoorClient *casdoorsdk.Client, callbackUrl string, originalPath string) string {
@@ -79,7 +79,7 @@ func handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cookie := &http.Cookie{
-		Name:  "casdoor_access_token",
+		Name:  "aicodex_admin_access_token",
 		Value: token.AccessToken,
 		Path:  "/",
 	}

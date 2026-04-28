@@ -104,19 +104,26 @@
     "the adapter: %s is not found": "bağdaştırıcı: %s bulunamadı"
   },
   "general": {
+    "Application cannot be empty": "Application cannot be empty",
     "Failed to import groups": "Gruplar içe aktarılamadı",
     "Failed to import users": "Kullanıcılar içe aktarılamadı",
+    "Granted scopes cannot be empty": "Granted scopes cannot be empty",
     "Insufficient balance: new balance %v would be below credit limit %v": "Yetersiz bakiye: yeni bakiye %v kredi limitinin altında olacak %v",
     "Insufficient balance: new organization balance %v would be below credit limit %v": "Yetersiz bakiye: yeni organizasyon bakiyesi %v kredi limitinin altında olacak %v",
+    "Invalid application": "Invalid application",
+    "Invalid client_id": "Invalid client_id",
     "Missing parameter": "Eksik parametre",
+    "Multiple captcha providers are not allowed in the same application: %s": "Multiple captcha providers are not allowed in the same application: %s",
     "Only admin user can specify user": "Yalnızca yönetici kullanıcı kullanıcı belirleyebilir",
     "Please login first": "Lütfen önce giriş yapın",
     "The LDAP: %s does not exist": "LDAP: %s mevcut değil",
     "The organization: %s should have one application at least": "Organizasyon: %s en az bir uygulamaya sahip olmalı",
     "The syncer: %s does not exist": "Senkronizasyon: %s mevcut değil",
+    "The user doesn't exist": "The user doesn't exist",
     "The user: %s doesn't exist": "Kullanıcı: %s bulunamadı",
     "The user: %s is not found": "Kullanıcı: %s bulunamadı",
     "User is required for User category transaction": "Kullanıcı kategorisi işlemi için kullanıcı gerekli",
+    "User not found": "User not found",
     "Wrong userId": "Yanlış kullanıcı kimliği",
     "don't support captchaProvider: ": "captchaProvider desteklenmiyor: ",
     "this operation is not allowed in demo mode": "bu işlem demo modunda izin verilmiyor",
@@ -140,7 +147,7 @@
     "Only admin can modify the %s.": "Yalnızca yönetici %s değiştirebilir.",
     "The %s is immutable.": "%s değiştirilemez.",
     "Unknown modify rule %s.": "Bilinmeyen değiştirme kuralı %s.",
-    "adding a new user to the 'built-in' organization is currently disabled. Please note: all users in the 'built-in' organization are global administrators in Casdoor. Refer to the docs: https://casdoor.org/docs/basic/core-concepts#how-does-casdoor-manage-itself. If you still wish to create a user for the 'built-in' organization, go to the organization's settings page and enable the 'Has privilege consent' option.": "'built-in' (yerleşik) organizasyona yeni bir kullanıcı ekleme şu anda devre dışı bırakılmıştır. Not: 'built-in' organizasyonundaki tüm kullanıcılar Casdoor'da genel yöneticilerdir. Belgelere bakın: https://casdoor.org/docs/basic/core-concepts#how-does-casdoor-manage-itself. Hala 'built-in' organizasyonu için bir kullanıcı oluşturmak isterseniz, organizasyonun ayarları sayfasına gidin ve 'Yetki onayı var' seçeneğini etkinleştirin."
+    "adding a new user to the 'built-in' organization is currently disabled. Please note: all users in the 'built-in' organization are global administrators in aicodex-admin. Refer to the docs: https://git.leagsoft.com/aicodex/aicodex-admin. If you still wish to create a user for the 'built-in' organization, go to the organization's settings page and enable the 'Has privilege consent' option.": "'built-in' (yerleşik) organizasyona yeni bir kullanıcı ekleme şu anda devre dışı bırakılmıştır. Not: 'built-in' organizasyonundaki tüm kullanıcılar aicodex-admin'da genel yöneticilerdir. Belgelere bakın: https://git.leagsoft.com/aicodex/aicodex-admin. Hala 'built-in' organizasyonu için bir kullanıcı oluşturmak isterseniz, organizasyonun ayarları sayfasına gidin ve 'Yetki onayı var' seçeneğini etkinleştirin."
   },
   "permission": {
     "The permission: \"%s\" doesn't exist": "İzin: \"%s\" mevcut değil"
@@ -187,6 +194,7 @@
     "Grant_type: %s is not supported in this application": "Grant_type: %s bu uygulamada desteklenmiyor",
     "Invalid application or wrong clientSecret": "Geçersiz uygulama veya yanlış clientSecret",
     "Invalid client_id": "Geçersiz client_id",
+    "Invalid scope": "Invalid scope",
     "Redirect URI: %s doesn't exist in the allowed Redirect URI list": "Redirect URI: %s izin verilen Redirect URI listesinde yok",
     "Token not found, invalid accessToken": "Token bulunamadı, geçersiz accessToken"
   },

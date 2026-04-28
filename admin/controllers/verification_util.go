@@ -17,7 +17,7 @@ package controllers
 import (
 	"fmt"
 
-	"github.com/casdoor/casdoor/object"
+	"git.leagsoft.com/aicodex/aicodex-admin/object"
 )
 
 func (c *ApiController) checkOrgMasterVerificationCode(user *object.User, code string) (bool, error) {

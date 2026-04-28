@@ -17,7 +17,7 @@ package email
 import (
 	"crypto/tls"
 
-	"github.com/casdoor/casdoor/conf"
+	"git.leagsoft.com/aicodex/aicodex-admin/conf"
 	"github.com/casdoor/gomail/v2"
 )
 

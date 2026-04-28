@@ -14,7 +14,7 @@
 
 package object
 
-import "github.com/casdoor/casdoor/util"
+import "git.leagsoft.com/aicodex/aicodex-admin/util"
 
 func DumpToFile(filePath string) error {
 	return writeInitDataToFile(filePath)

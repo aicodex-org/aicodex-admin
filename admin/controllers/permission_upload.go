@@ -18,8 +18,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/casdoor/casdoor/object"
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/object"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 )
 
 func (c *ApiController) UploadPermissions() {

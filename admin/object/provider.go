@@ -20,12 +20,12 @@ import (
 	"regexp"
 	"strings"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/i18n"
+	"git.leagsoft.com/aicodex/aicodex-admin/idp"
+	"git.leagsoft.com/aicodex/aicodex-admin/idv"
+	"git.leagsoft.com/aicodex/aicodex-admin/pp"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/beego/beego/v2/server/web/context"
-	"github.com/casdoor/casdoor/i18n"
-	"github.com/casdoor/casdoor/idp"
-	"github.com/casdoor/casdoor/idv"
-	"github.com/casdoor/casdoor/pp"
-	"github.com/casdoor/casdoor/util"
 	"github.com/xorm-io/core"
 )
 

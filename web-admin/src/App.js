@@ -128,7 +128,7 @@ class App extends Component {
     Setting.initWebConfig();
     Auth.initAuthWithConfig({
       serverUrl: Setting.ServerUrl,
-      appName: Conf.DefaultApplication, // the application used in Casdoor root path: "/"
+      appName: Conf.DefaultApplication, // the application used in aicodex-admin root path: "/"
     });
   }
 
@@ -517,12 +517,16 @@ class App extends Component {
   }
 
   renderAiAssistant() {
+    if (!Conf.AiAssistantUrl) {
+      return null;
+    }
+
     return (
       <Drawer
         title={
           <React.Fragment>
             <Tooltip title="Want to deploy your own AI assistant? Click to learn more!">
-              <a target="_blank" rel="noreferrer" href={"https://casdoor.com"}>
+              <a target="_blank" rel="noreferrer" href={Conf.BrandUrl}>
                 <img style={{width: "20px", marginRight: "10px", marginBottom: "2px"}} alt={Conf.BrandName} src={Conf.BrandIcon} />
                 AI Assistant
               </a>
@@ -728,8 +732,8 @@ class App extends Component {
           &nbsp;&nbsp;
           {i18next.t("general:Found some texts still not translated? Please help us translate at")}
           &nbsp;
-          <a target="_blank" rel="noreferrer" href={"https://crowdin.com/project/casdoor-site"}>
-            Crowdin
+          <a target="_blank" rel="noreferrer" href={"https://git.leagsoft.com/aicodex/aicodex-admin"}>
+            aicodex-admin
           </a>
           &nbsp;!&nbsp;🙏
         </div>

@@ -14,7 +14,7 @@
 
 package controllers
 
-import "github.com/casdoor/casdoor/object"
+import "git.leagsoft.com/aicodex/aicodex-admin/object"
 
 // GetDashboard
 // @Title GetDashboard

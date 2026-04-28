@@ -22,9 +22,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/casdoor/casdoor/conf"
-	"github.com/casdoor/casdoor/i18n"
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/conf"
+	"git.leagsoft.com/aicodex/aicodex-admin/i18n"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	goldap "github.com/go-ldap/ldap/v3"
 	"github.com/nyaruka/phonenumbers"
 	"github.com/thanhpk/randstr"

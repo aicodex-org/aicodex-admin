@@ -14,19 +14,19 @@
 
 // Package routers
 // @APIVersion 1.503.0
-// @Title Casdoor RESTful API
-// @Description Swagger Docs of Casdoor Backend API
-// @Contact casbin@googlegroups.com
+// @Title aicodex-admin RESTful API
+// @Description Swagger Docs of aicodex-admin Backend API
+// @Contact admin@leagsoft.com
 // @SecurityDefinition AccessToken apiKey Authorization header
 // @Schemes https,http
-// @ExternalDocs Find out more about Casdoor
-// @ExternalDocsUrl https://casdoor.org/
+// @ExternalDocs Find out more about aicodex-admin
+// @ExternalDocsUrl https://git.leagsoft.com/aicodex/aicodex-admin
 package routers
 
 import (
+	"git.leagsoft.com/aicodex/aicodex-admin/controllers"
+	"git.leagsoft.com/aicodex/aicodex-admin/mcpself"
 	"github.com/beego/beego/v2/server/web"
-	"github.com/casdoor/casdoor/controllers"
-	"github.com/casdoor/casdoor/mcpself"
 )
 
 func InitAPI() {

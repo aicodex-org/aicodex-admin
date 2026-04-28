@@ -18,8 +18,8 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/casdoor/casdoor/mcp"
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/mcp"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/xorm-io/core"
 )

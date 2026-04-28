@@ -112,5 +112,5 @@
     <ellipse cx="287" cy="468" rx="26" ry="13" fill="#4338ca"/>
   </g>
 
-  <text x="390" y="195" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','STHeiti',sans-serif" font-size="56" font-weight="600" fill="url(#textGrad)">联软灵犀</text>
+  <text x="390" y="195" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','STHeiti',sans-serif" font-size="56" font-weight="600" fill="url(#textGrad)">aicodex-admin</text>
 </svg>

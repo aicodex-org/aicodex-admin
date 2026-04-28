@@ -17,7 +17,7 @@ package form
 import (
 	"strings"
 
-	"github.com/casdoor/casdoor/i18n"
+	"git.leagsoft.com/aicodex/aicodex-admin/i18n"
 )
 
 type VerificationForm struct {

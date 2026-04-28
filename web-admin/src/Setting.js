@@ -174,7 +174,7 @@ export const OtherProviderInfo = {
     },
     "Custom HTTP SMS": {
       logo: `${StaticBaseUrl}/img/social_default.png`,
-      url: "https://casdoor.org/docs/provider/sms/overview",
+      url: "",
     },
     "Mock SMS": {
       logo: `${StaticBaseUrl}/img/social_default.png`,
@@ -204,7 +204,7 @@ export const OtherProviderInfo = {
     },
     "Custom HTTP Email": {
       logo: `${StaticBaseUrl}/img/social_default.png`,
-      url: "https://casdoor.org/docs/provider/email/overview",
+      url: "",
     },
     "Resend": {
       logo: `${StaticBaseUrl}/img/email_resend.png`,
@@ -250,7 +250,7 @@ export const OtherProviderInfo = {
     },
     "Casdoor": {
       logo: `${StaticBaseUrl}/img/casdoor.png`,
-      url: "https://casdoor.org/docs/provider/storage/overview",
+      url: "",
     },
     "CUCloud OSS": {
       logo: `${StaticBaseUrl}/img/social_cucloud.png`,
@@ -268,7 +268,7 @@ export const OtherProviderInfo = {
     },
     "Custom": {
       logo: `${StaticBaseUrl}/img/social_custom.png`,
-      url: "https://door.casdoor.com/",
+      url: "",
     },
   },
   Payment: {
@@ -382,7 +382,7 @@ export const OtherProviderInfo = {
     },
     "Custom HTTP": {
       logo: `${StaticBaseUrl}/img/email_default.png`,
-      url: "https://casdoor.org/docs/provider/notification/overview",
+      url: "",
     },
     "DingTalk": {
       logo: `${StaticBaseUrl}/img/social_dingtalk.png`,
@@ -2500,8 +2500,8 @@ function getOriginalName(name) {
 
 export function getRepoUrl(name) {
   name = getOriginalName(name);
-  if (name === "casdoor") {
-    return "https://github.com/casdoor/casdoor";
+  if (name === "aicodex-admin") {
+    return "https://git.leagsoft.com/aicodex/aicodex-admin";
   } else {
     return `https://github.com/casbin/${name}`;
   }

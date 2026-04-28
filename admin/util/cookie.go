@@ -17,8 +17,8 @@ package util
 import (
 	"encoding/json"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/conf"
 	"github.com/beego/beego/v2/server/web/context"
-	"github.com/casdoor/casdoor/conf"
 )
 
 func AppendWebConfigCookie(ctx *context.Context) error {

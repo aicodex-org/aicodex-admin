@@ -15,7 +15,7 @@
 package object
 
 import (
-	"github.com/casdoor/casdoor/xlsx"
+	"git.leagsoft.com/aicodex/aicodex-admin/xlsx"
 )
 
 func getGroupMap(owner string) (map[string]*Group, error) {

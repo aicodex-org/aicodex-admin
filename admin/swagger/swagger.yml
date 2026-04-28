@@ -1,10 +1,10 @@
 swagger: "2.0"
 info:
-  title: Casdoor RESTful API
-  description: Swagger Docs of Casdoor Backend API
+  title: aicodex-admin RESTful API
+  description: Swagger Docs of aicodex-admin Backend API
   version: 1.503.0
   contact:
-    email: casbin@googlegroups.com
+    email: admin@leagsoft.com
 basePath: /
 schemes:
 - https
@@ -2877,7 +2877,7 @@ paths:
     get:
       tags:
       - System API
-      description: get version info like Casdoor release version and commit ID
+      description: get version info like aicodex-admin release version and commit ID
       operationId: ApiController.GetVersionInfo
       responses:
         "200":
@@ -3403,7 +3403,7 @@ paths:
     post:
       tags:
       - Service API
-      description: This API is not for Casdoor frontend to call, it is for Casdoor SDKs.
+      description: This API is not for aicodex-admin frontend to call; it is for compatible SDK clients.
       operationId: ApiController.SendEmail
       parameters:
       - in: query
@@ -3456,7 +3456,7 @@ paths:
     post:
       tags:
       - Service API
-      description: This API is not for Casdoor frontend to call, it is for Casdoor SDKs.
+      description: This API is not for aicodex-admin frontend to call; it is for compatible SDK clients.
       operationId: ApiController.SendNotification
       parameters:
       - in: body
@@ -3474,7 +3474,7 @@ paths:
     post:
       tags:
       - Service API
-      description: This API is not for Casdoor frontend to call, it is for Casdoor SDKs.
+      description: This API is not for aicodex-admin frontend to call; it is for compatible SDK clients.
       operationId: ApiController.SendSms
       parameters:
       - in: query

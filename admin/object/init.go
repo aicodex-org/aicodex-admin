@@ -18,7 +18,7 @@ import (
 	"encoding/gob"
 	"os"
 
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/go-webauthn/webauthn/webauthn"
 )
 
@@ -204,12 +204,12 @@ func initBuiltInApplication() {
 		Owner:          "admin",
 		Name:           "app-built-in",
 		CreatedTime:    util.GetCurrentTime(),
-		DisplayName:    "AICodeX",
+		DisplayName:    "aicodex-admin",
 		Category:       "Default",
 		Type:           "All",
 		Scopes:         []*ScopeItem{},
 		Logo:           "/branding/logo-full-aligned.svg",
-		HomepageUrl:    "https://casdoor.org",
+		HomepageUrl:    "https://git.leagsoft.com/aicodex/aicodex-admin",
 		Organization:   "built-in",
 		Cert:           "cert-built-in",
 		EnablePassword: true,

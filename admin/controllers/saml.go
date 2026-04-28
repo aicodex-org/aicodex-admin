@@ -19,7 +19,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/casdoor/casdoor/object"
+	"git.leagsoft.com/aicodex/aicodex-admin/object"
 )
 
 func (c *ApiController) GetSamlMeta() {

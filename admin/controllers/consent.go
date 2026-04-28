@@ -17,7 +17,7 @@ package controllers
 import (
 	"encoding/json"
 
-	"github.com/casdoor/casdoor/object"
+	"git.leagsoft.com/aicodex/aicodex-admin/object"
 )
 
 // RevokeConsent revokes a consent record

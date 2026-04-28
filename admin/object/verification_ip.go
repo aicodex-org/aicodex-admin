@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/casdoor/casdoor/i18n"
+	"git.leagsoft.com/aicodex/aicodex-admin/i18n"
 )
 
 // Hard-coded thresholds for OTP / verification-code brute force protection (per IP + dest).

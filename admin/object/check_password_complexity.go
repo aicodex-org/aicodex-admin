@@ -17,8 +17,8 @@ package object
 import (
 	"regexp"
 
-	"github.com/casdoor/casdoor/cred"
-	"github.com/casdoor/casdoor/i18n"
+	"git.leagsoft.com/aicodex/aicodex-admin/cred"
+	"git.leagsoft.com/aicodex/aicodex-admin/i18n"
 )
 
 type ValidatorFunc func(password string, lang string) string

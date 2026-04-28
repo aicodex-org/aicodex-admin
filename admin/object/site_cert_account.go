@@ -17,13 +17,13 @@ package object
 import (
 	"fmt"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/certificate"
+	"git.leagsoft.com/aicodex/aicodex-admin/conf"
+	"git.leagsoft.com/aicodex/aicodex-admin/proxy"
 	"github.com/casbin/lego/v4/acme"
 	"github.com/casbin/lego/v4/certcrypto"
 	"github.com/casbin/lego/v4/lego"
 	"github.com/casbin/lego/v4/registration"
-	"github.com/casdoor/casdoor/certificate"
-	"github.com/casdoor/casdoor/conf"
-	"github.com/casdoor/casdoor/proxy"
 )
 
 func getLegoClientAndAccount(email string, privateKey string, devMode bool, useProxy bool) (*lego.Client, *certificate.Account, error) {

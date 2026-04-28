@@ -19,8 +19,8 @@ import (
 	"fmt"
 	"strings"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/conf"
 	"github.com/PaddleHQ/paddle-go-sdk"
-	"github.com/casdoor/casdoor/conf"
 )
 
 type PaddlePaymentProvider struct {

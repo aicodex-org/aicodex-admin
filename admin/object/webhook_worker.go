@@ -20,8 +20,8 @@ import (
 	"sync"
 	"time"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/beego/beego/v2/core/logs"
-	"github.com/casdoor/casdoor/util"
 )
 
 var (

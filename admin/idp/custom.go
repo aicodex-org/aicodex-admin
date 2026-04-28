@@ -22,7 +22,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/oauth2"
 )

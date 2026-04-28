@@ -24,10 +24,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/casdoor/casdoor/idp"
+	"git.leagsoft.com/aicodex/aicodex-admin/idp"
 	"github.com/mitchellh/mapstructure"
 
-	"github.com/casdoor/casdoor/i18n"
+	"git.leagsoft.com/aicodex/aicodex-admin/i18n"
 	saml2 "github.com/russellhaering/gosaml2"
 	dsig "github.com/russellhaering/goxmldsig"
 )

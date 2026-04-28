@@ -22,13 +22,13 @@ import (
 	"strings"
 	"time"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/controllers"
+	"git.leagsoft.com/aicodex/aicodex-admin/object"
 	"github.com/beego/beego/v2/core/logs"
-	"github.com/casdoor/casdoor/controllers"
-	"github.com/casdoor/casdoor/object"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/authz"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/beego/beego/v2/server/web/context"
-	"github.com/casdoor/casdoor/authz"
-	"github.com/casdoor/casdoor/util"
 )
 
 type Object struct {

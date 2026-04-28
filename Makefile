@@ -1,13 +1,14 @@
 
 # Image URL to use all building/pushing image targets
-REGISTRY ?= casbin
+REGISTRY ?= leagsoft
 IMG ?= aicodex-admin
 IMG_TAG ?=$(shell git --no-pager log -1 --format="%ad" --date=format:"%Y%m%d")-$(shell git describe --tags --always --dirty --abbrev=6)
-NAMESPACE ?= casdoor
-APP ?= casdoor
+NAMESPACE ?= aicodex-admin
+APP ?= aicodex-admin
 HOST ?= test.com
 GO_DIR ?= admin
 FRONTEND_DIR ?= web-admin
+CHART ?= manifests/aicodex-admin
 
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
@@ -103,13 +104,13 @@ lint: vendor ## Run golangci-lint
 
 .PHONY: deploy
 deploy:  ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	helm upgrade --install ${APP} manifests/casdoor --create-namespace --set ingress.enabled=true \
+	helm upgrade --install ${APP} ${CHART} --create-namespace --set ingress.enabled=true \
 	--set "ingress.hosts[0].host=${HOST},ingress.hosts[0].paths[0].path=/,ingress.hosts[0].paths[0].pathType=ImplementationSpecific" \
 	--set image.tag=${IMG_TAG} --set image.repository=${REGISTRY} --set image.name=${IMG} --version ${IMG_TAG} -n ${NAMESPACE}
 
 .PHONY: dry-run
 dry-run: ## Dry run for helm install
-	helm upgrade --install ${APP} manifests/casdoor --set ingress.enabled=true \
+	helm upgrade --install ${APP} ${CHART} --set ingress.enabled=true \
 	--set "ingress.hosts[0].host=${HOST},ingress.hosts[0].paths[0].path=/,ingress.hosts[0].paths[0].pathType=ImplementationSpecific" \
 	--set image.tag=${IMG_TAG} --set image.repository=${REGISTRY} --set image.name=${IMG} --version ${IMG_TAG} -n ${NAMESPACE} --dry-run
 

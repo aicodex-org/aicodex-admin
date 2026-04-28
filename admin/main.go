@@ -18,24 +18,24 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/authz"
+	"git.leagsoft.com/aicodex/aicodex-admin/conf"
+	"git.leagsoft.com/aicodex/aicodex-admin/controllers"
+	"git.leagsoft.com/aicodex/aicodex-admin/ldap"
+	"git.leagsoft.com/aicodex/aicodex-admin/object"
+	"git.leagsoft.com/aicodex/aicodex-admin/proxy"
+	"git.leagsoft.com/aicodex/aicodex-admin/radius"
+	"git.leagsoft.com/aicodex/aicodex-admin/routers"
+	"git.leagsoft.com/aicodex/aicodex-admin/service"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/beego/beego/v2/core/logs"
 	"github.com/beego/beego/v2/server/web"
 	_ "github.com/beego/beego/v2/server/web/session/redis"
-	"github.com/casdoor/casdoor/authz"
-	"github.com/casdoor/casdoor/conf"
-	"github.com/casdoor/casdoor/controllers"
-	"github.com/casdoor/casdoor/ldap"
-	"github.com/casdoor/casdoor/object"
-	"github.com/casdoor/casdoor/proxy"
-	"github.com/casdoor/casdoor/radius"
-	"github.com/casdoor/casdoor/routers"
-	"github.com/casdoor/casdoor/service"
-	"github.com/casdoor/casdoor/util"
 )
 
 func main() {
 	web.BConfig.WebConfig.Session.SessionOn = true
-	web.BConfig.WebConfig.Session.SessionName = "casdoor_session_id"
+	web.BConfig.WebConfig.Session.SessionName = "aicodex_admin_session_id"
 	if conf.GetConfigString("redisEndpoint") == "" {
 		web.BConfig.WebConfig.Session.SessionProvider = "file"
 		web.BConfig.WebConfig.Session.SessionProviderConfig = "./tmp"

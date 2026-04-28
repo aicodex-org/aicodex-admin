@@ -129,11 +129,11 @@
 
   <!-- ===== 文字部分 ===== -->
   <g transform="translate(108, 0)">
-    <!-- 中文：联软灵犀 -->
-    <text x="390" y="195" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','STHeiti',sans-serif" font-size="56" font-weight="600" fill="url(#textGrad)">联软灵犀</text>
+    <!-- Project: aicodex-admin -->
+    <text x="390" y="195" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','STHeiti',sans-serif" font-size="56" font-weight="600" fill="url(#textGrad)">aicodex-admin</text>
 
-    <!-- 英文：AICODEX -->
-    <text x="510" y="248" text-anchor="middle" font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif" font-size="26" font-weight="300" fill="#64748b" letter-spacing="10">AICODEX</text>
+    <!-- Subtitle: ADMIN CONSOLE -->
+    <text x="510" y="248" text-anchor="middle" font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif" font-size="26" font-weight="300" fill="#64748b" letter-spacing="10">ADMIN CONSOLE</text>
   </g>
 
 </svg>

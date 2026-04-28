@@ -24,9 +24,9 @@ import (
 	"runtime"
 	"strings"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/conf"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/beego/beego/v2/server/web"
-	"github.com/casdoor/casdoor/conf"
-	"github.com/casdoor/casdoor/util"
 	xormadapter "github.com/casdoor/xorm-adapter/v3"
 	_ "github.com/go-sql-driver/mysql"  // db = mysql
 	_ "github.com/lib/pq"               // db = postgres

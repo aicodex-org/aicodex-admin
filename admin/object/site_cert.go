@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 )
 
 func (site *Site) populateCert() error {
@@ -184,7 +184,7 @@ func (site *Site) checkCerts() error {
 	}
 
 	for _, domain := range domains {
-		if site.Owner == "admin" || strings.HasSuffix(domain, ".casdoor.com") {
+		if site.Owner == "admin" || strings.HasSuffix(domain, ".aicodex-admin.local") {
 			continue
 		}
 

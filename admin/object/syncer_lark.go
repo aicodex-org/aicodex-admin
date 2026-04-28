@@ -23,7 +23,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 )
 
 // LarkSyncerProvider implements SyncerProvider for Lark API-based syncers

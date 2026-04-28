@@ -22,7 +22,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/casdoor/casdoor/proxy"
+	"git.leagsoft.com/aicodex/aicodex-admin/proxy"
 )
 
 type HttpEmailProvider struct {

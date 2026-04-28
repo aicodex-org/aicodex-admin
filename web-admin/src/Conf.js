@@ -22,7 +22,7 @@ export let IsDemoMode = false;
 export let ForceLanguage = "";
 export let DefaultLanguage = "zh";
 
-export const BrandName = "AICodeX";
+export const BrandName = "aicodex-admin";
 export const AdminCenterName = "认证中心";
 export const BrandUrl = "/";
 export const BrandIcon = `${process.env.PUBLIC_URL || ""}/branding/icon-only-transparent.svg`;
@@ -44,7 +44,7 @@ export const ThemeDefault = {
 export const CustomFooter = null;
 
 // Blank or null to hide Ai Assistant button
-export let AiAssistantUrl = "https://ai.casbin.com";
+export let AiAssistantUrl = "";
 
 // Maximum number of navbar items before switching from flat to grouped menu
 export let MaxItemsForFlatMenu = 7;

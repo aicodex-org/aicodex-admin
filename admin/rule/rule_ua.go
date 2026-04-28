@@ -20,7 +20,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/casdoor/casdoor/object"
+	"git.leagsoft.com/aicodex/aicodex-admin/object"
 )
 
 type UaRule struct{}

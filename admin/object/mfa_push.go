@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/casdoor/casdoor/notification"
+	"git.leagsoft.com/aicodex/aicodex-admin/notification"
 	"github.com/google/uuid"
 )
 

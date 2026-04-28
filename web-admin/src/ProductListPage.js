@@ -34,7 +34,7 @@ class ProductListPage extends BaseListPage {
       createdTime: moment().format(),
       displayName: `New Product - ${randomName}`,
       image: Conf.BrandIcon,
-      tag: "Casdoor Summit 2022",
+      tag: "aicodex-admin Summit 2026",
       currency: "USD",
       price: 300,
       quantity: 99,

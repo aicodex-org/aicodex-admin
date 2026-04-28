@@ -19,8 +19,8 @@ import (
 	"fmt"
 	"strings"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/object"
 	"github.com/beego/beego/v2/server/web/context"
-	"github.com/casdoor/casdoor/object"
 )
 
 type OrganizationThemeCookie struct {

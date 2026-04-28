@@ -24,11 +24,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/conf"
+	"git.leagsoft.com/aicodex/aicodex-admin/object"
+	"git.leagsoft.com/aicodex/aicodex-admin/rule"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/beego/beego/v2/core/logs"
-	"github.com/casdoor/casdoor/conf"
-	"github.com/casdoor/casdoor/object"
-	"github.com/casdoor/casdoor/rule"
-	"github.com/casdoor/casdoor/util"
 )
 
 func forwardHandler(targetUrl string, writer http.ResponseWriter, request *http.Request) {
@@ -159,7 +159,7 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if strings.HasSuffix(r.Host, ".casdoor.com") && r.RequestURI == "/health-ping" {
+		if strings.HasSuffix(r.Host, ".aicodex-admin.local") && r.RequestURI == "/health-ping" {
 			w.WriteHeader(http.StatusOK)
 			_, err := fmt.Fprintf(w, "OK")
 			if err != nil {
@@ -217,7 +217,7 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 	// oAuth proxy
 	if site.CasdoorApplication != "" {
 		// handle oAuth proxy
-		cookie, err := r.Cookie("casdoor_access_token")
+		cookie, err := r.Cookie("aicodex_admin_access_token")
 		if err != nil && err.Error() != "http: named cookie not present" {
 			panic(err)
 		}

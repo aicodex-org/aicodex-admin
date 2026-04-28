@@ -1,42 +1,42 @@
-# this is only an EXAMPLE of deploying casddor in kubernetes
+# this is only an EXAMPLE of deploying aicodex-admin in Kubernetes
 # please modify this file according to your requirements
 apiVersion: v1
 kind: Service
 metadata:
-  #EDIT IT: if you don't want to run casdoor in default namespace, please modify this field
-  #namespace: casdoor
-  name: casdoor-svc
+  #EDIT IT: if you don't want to run aicodex-admin in default namespace, please modify this field
+  #namespace: aicodex-admin
+  name: aicodex-admin-svc
   labels:
-    app: casdoor
+    app: aicodex-admin
 spec:
-  #EDIT IT: if you don't want to run casdoor in default namespace, please modify this filed
+  #EDIT IT: if you don't want to run aicodex-admin in default namespace, please modify this filed
   type: NodePort
   ports:
     - port: 8000
   selector:
-    app: casdoor
+    app: aicodex-admin
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  #EDIT IT: if you don't want to run casdoor in default namespace, please modify this field
-  #namespace: casdoor
-  name: casdoor-deployment
+  #EDIT IT: if you don't want to run aicodex-admin in default namespace, please modify this field
+  #namespace: aicodex-admin
+  name: aicodex-admin-deployment
   labels:
-    app: casdoor
+    app: aicodex-admin
 spec:
-  #EDIT IT: if you don't use redis, casdoor should not have multiple replicas
+  #EDIT IT: if you don't use redis, aicodex-admin should not have multiple replicas
   replicas: 1
   selector:
     matchLabels:
-      app: casdoor
+      app: aicodex-admin
   template:
     metadata:
       labels:
-        app: casdoor
+        app: aicodex-admin
     spec:
       containers:
-        - name: casdoor-container
+        - name: aicodex-admin-container
           image: aicodex-admin:latest
           imagePullPolicy: Always
           ports:

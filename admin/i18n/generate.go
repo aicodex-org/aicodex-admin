@@ -22,7 +22,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 )
 
 type I18nData map[string]map[string]string

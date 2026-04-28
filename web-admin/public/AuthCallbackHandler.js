@@ -323,7 +323,7 @@
       }
 
       if (casService === "") {
-        setStatus("Logged in successfully. Now you can visit apps protected by Casdoor.", false);
+        setStatus("Logged in successfully. Now you can visit apps protected by aicodex-admin.", false);
         return;
       }
 

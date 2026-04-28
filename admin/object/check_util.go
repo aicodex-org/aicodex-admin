@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/casdoor/casdoor/i18n"
+	"git.leagsoft.com/aicodex/aicodex-admin/i18n"
 )
 
 var reRealName *regexp.Regexp

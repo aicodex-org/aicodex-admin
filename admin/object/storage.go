@@ -22,10 +22,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/casdoor/casdoor/conf"
-	"github.com/casdoor/casdoor/i18n"
-	"github.com/casdoor/casdoor/storage"
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/conf"
+	"git.leagsoft.com/aicodex/aicodex-admin/i18n"
+	"git.leagsoft.com/aicodex/aicodex-admin/storage"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/casdoor/oss"
 )
 
@@ -93,7 +93,7 @@ func GetUploadFileUrl(provider *Provider, fullFilePath string, hasTimestamp bool
 		// provider.Domain = "https://cdn.casbin.com/casdoor/"
 		host = util.GetUrlHost(provider.Domain)
 	} else {
-		// provider.Domain = "http://localhost:8000" or "https://door.casdoor.com"
+		// provider.Domain = "http://localhost:8000" or "https://aicodex-admin.local"
 		host = util.UrlJoin(provider.Domain, "/files")
 	}
 	if provider.Type == ProviderTypeAzureBlob || provider.Type == ProviderTypeGoogleCloudStorage {

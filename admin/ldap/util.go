@@ -19,8 +19,8 @@ import (
 	"log"
 	"strings"
 
-	"github.com/casdoor/casdoor/object"
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/object"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/lor00x/goldap/message"
 
 	ldap "github.com/casdoor/ldapserver"

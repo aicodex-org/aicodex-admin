@@ -18,8 +18,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/casdoor/casdoor/i18n"
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/i18n"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 )
 
 func checkPasswordExpired(user *User, lang string) error {

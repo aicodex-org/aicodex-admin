@@ -16,7 +16,7 @@
 
 package object
 
-import "github.com/casdoor/casdoor/email"
+import "git.leagsoft.com/aicodex/aicodex-admin/email"
 
 // TestSmtpServer Test the SMTP server
 func TestSmtpServer(provider *Provider) error {

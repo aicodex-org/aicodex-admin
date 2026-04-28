@@ -18,12 +18,12 @@ import (
 	"fmt"
 	"strings"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/conf"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/casbin/casbin/v2"
 	"github.com/casbin/casbin/v2/config"
 	"github.com/casbin/casbin/v2/log"
 	"github.com/casbin/casbin/v2/model"
-	"github.com/casdoor/casdoor/conf"
-	"github.com/casdoor/casdoor/util"
 	xormadapter "github.com/casdoor/xorm-adapter/v3"
 )
 

@@ -20,8 +20,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/casdoor/casdoor/conf"
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/conf"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/golang-jwt/jwt/v5"
 )
 

@@ -18,9 +18,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/casdoor/casdoor/idp"
-	"github.com/casdoor/casdoor/pp"
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/idp"
+	"git.leagsoft.com/aicodex/aicodex-admin/pp"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 )
 
 func PlaceOrder(owner string, reqProductInfos []ProductInfo, user *User) (*Order, error) {

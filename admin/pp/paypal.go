@@ -19,7 +19,7 @@ import (
 	"errors"
 	"strconv"
 
-	"github.com/casdoor/casdoor/conf"
+	"git.leagsoft.com/aicodex/aicodex-admin/conf"
 
 	"github.com/go-pay/gopay"
 	"github.com/go-pay/gopay/paypal"

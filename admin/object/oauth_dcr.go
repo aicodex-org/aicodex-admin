@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 )
 
 // DynamicClientRegistrationRequest represents an RFC 7591 client registration request

@@ -21,9 +21,9 @@ import (
 	"net/http"
 	"strings"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/conf"
+	"git.leagsoft.com/aicodex/aicodex-admin/object"
 	"github.com/casdoor/casdoor-go-sdk/casdoorsdk"
-	"github.com/casdoor/casdoor/conf"
-	"github.com/casdoor/casdoor/object"
 )
 
 func joinPath(a string, b string) string {

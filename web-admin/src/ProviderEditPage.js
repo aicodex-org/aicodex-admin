@@ -752,7 +752,7 @@ class ProviderEditPage extends React.Component {
                 this.updateProviderField("host", "smtp.example.com");
                 this.updateProviderField("port", 465);
                 this.updateProviderField("sslMode", "Auto");
-                this.updateProviderField("title", "Casdoor Verification Code");
+                this.updateProviderField("title", "aicodex-admin Verification Code");
                 this.updateProviderField("content", Setting.getDefaultHtmlEmailContent());
                 this.updateProviderField("metadata", Setting.getDefaultInvitationHtmlEmailContent());
                 this.updateProviderField("receiver", this.props.account.email);
@@ -812,10 +812,11 @@ class ProviderEditPage extends React.Component {
               if (value === "Local File System") {
                 this.updateProviderField("domain", Setting.getFullServerUrl());
               } else if (value.startsWith("Custom") && this.state.provider.category === "OAuth") {
-                this.updateProviderField("customAuthUrl", "https://door.casdoor.com/login/oauth/authorize");
+                const serverUrl = Setting.getFullServerUrl();
+                this.updateProviderField("customAuthUrl", `${serverUrl}/login/oauth/authorize`);
                 this.updateProviderField("scopes", "openid profile email");
-                this.updateProviderField("customTokenUrl", "https://door.casdoor.com/api/login/oauth/access_token");
-                this.updateProviderField("customUserInfoUrl", "https://door.casdoor.com/api/userinfo");
+                this.updateProviderField("customTokenUrl", `${serverUrl}/api/login/oauth/access_token`);
+                this.updateProviderField("customUserInfoUrl", `${serverUrl}/api/userinfo`);
               } else if (value === "Custom HTTP SMS") {
                 this.updateProviderField("endpoint", "https://example.com/send-custom-http-sms");
                 this.updateProviderField("method", "GET");

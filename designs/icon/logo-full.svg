@@ -126,16 +126,16 @@
   </g>
 
   <!-- ===== 文字部分 ===== -->
-  <!-- 中文：联软灵犀AI -->
-  <text x="390" y="195" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','STHeiti',sans-serif" font-size="56" font-weight="600" fill="url(#textGrad)">联软灵犀AI</text>
+  <!-- Project: aicodex-admin -->
+  <text x="390" y="195" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','STHeiti',sans-serif" font-size="56" font-weight="600" fill="url(#textGrad)">aicodex-admin</text>
 
-  <!-- 英文：AICODEX -->
-  <text x="392" y="248" font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif" font-size="26" font-weight="300" fill="#64748b" letter-spacing="8">AICODEX</text>
+  <!-- Subtitle: ADMIN CONSOLE -->
+  <text x="392" y="248" font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif" font-size="26" font-weight="300" fill="#64748b" letter-spacing="8">ADMIN CONSOLE</text>
 
   <!-- 分隔线 -->
   <line x1="390" y1="260" x2="620" y2="260" stroke="#4f46e5" stroke-width="1" opacity="0.2"/>
 
   <!-- 副标题 -->
-  <text x="392" y="290" font-family="'PingFang SC','Hiragino Sans GB','STHeiti',sans-serif" font-size="16" fill="#64748b" opacity="0.6">灵犀AI助手 · 心有灵犀一点通</text>
+  <text x="392" y="290" font-family="'PingFang SC','Hiragino Sans GB','STHeiti',sans-serif" font-size="16" fill="#64748b" opacity="0.6">identity and operations console</text>
 
 </svg>

@@ -23,7 +23,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 )
 
 // WecomSyncerProvider implements SyncerProvider for WeCom (WeChat Work) API-based syncers

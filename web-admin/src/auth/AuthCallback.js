@@ -69,7 +69,7 @@ class AuthCallback extends React.Component {
     const handleCasLogin = (res) => {
       let msg = "Logged in successfully.";
       if (casService === "") {
-        msg += "Now you can visit apps protected by Casdoor.";
+        msg += "Now you can visit apps protected by aicodex-admin.";
       }
       Setting.showMessage("success", msg);
 
@@ -184,7 +184,7 @@ class AuthCallback extends React.Component {
     const method = innerParams.get("method");
     if (method === "signup") {
       const realRedirectUri = innerParams.get("redirect_uri");
-      // Casdoor's own login page, so "code" is not necessary
+      // aicodex-admin's own login page, so "code" is not necessary
       if (realRedirectUri === null) {
         const samlRequest = innerParams.get("SAMLRequest");
         // cas don't use 'redirect_url', it is called 'service'
@@ -199,7 +199,7 @@ class AuthCallback extends React.Component {
 
       const realRedirectUrl = new URL(realRedirectUri).origin;
 
-      // For Casdoor itself, we use "login" directly
+      // For aicodex-admin itself, we use "login" directly
       if (authServerUrl === realRedirectUrl) {
         return "login";
       } else {

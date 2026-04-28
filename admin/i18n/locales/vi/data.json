@@ -104,19 +104,26 @@
     "the adapter: %s is not found": "không tìm thấy adapter: %s"
   },
   "general": {
+    "Application cannot be empty": "Application cannot be empty",
     "Failed to import groups": "Không thể nhập nhóm",
     "Failed to import users": "Không thể nhập người dùng",
+    "Granted scopes cannot be empty": "Granted scopes cannot be empty",
     "Insufficient balance: new balance %v would be below credit limit %v": "Số dư không đủ: số dư mới %v sẽ thấp hơn giới hạn tín dụng %v",
     "Insufficient balance: new organization balance %v would be below credit limit %v": "Số dư không đủ: số dư tổ chức mới %v sẽ thấp hơn giới hạn tín dụng %v",
+    "Invalid application": "Invalid application",
+    "Invalid client_id": "Invalid client_id",
     "Missing parameter": "Thiếu tham số",
+    "Multiple captcha providers are not allowed in the same application: %s": "Multiple captcha providers are not allowed in the same application: %s",
     "Only admin user can specify user": "Chỉ người dùng quản trị mới có thể chỉ định người dùng",
     "Please login first": "Vui lòng đăng nhập trước",
     "The LDAP: %s does not exist": "LDAP: %s không tồn tại",
     "The organization: %s should have one application at least": "Tổ chức: %s cần có ít nhất một ứng dụng",
     "The syncer: %s does not exist": "Bộ đồng bộ: %s không tồn tại",
+    "The user doesn't exist": "The user doesn't exist",
     "The user: %s doesn't exist": "Người dùng: %s không tồn tại",
     "The user: %s is not found": "Người dùng: %s không được tìm thấy",
     "User is required for User category transaction": "Người dùng được yêu cầu cho giao dịch danh mục Người dùng",
+    "User not found": "User not found",
     "Wrong userId": "ID người dùng sai",
     "don't support captchaProvider: ": "không hỗ trợ captchaProvider: ",
     "this operation is not allowed in demo mode": "thao tác này không được phép trong chế độ demo",
@@ -140,7 +147,7 @@
     "Only admin can modify the %s.": "Chỉ những người quản trị mới có thể sửa đổi %s.",
     "The %s is immutable.": "%s không thể thay đổi được.",
     "Unknown modify rule %s.": "Quy tắc thay đổi không xác định %s.",
-    "adding a new user to the 'built-in' organization is currently disabled. Please note: all users in the 'built-in' organization are global administrators in Casdoor. Refer to the docs: https://casdoor.org/docs/basic/core-concepts#how-does-casdoor-manage-itself. If you still wish to create a user for the 'built-in' organization, go to the organization's settings page and enable the 'Has privilege consent' option.": "Thêm người dùng mới vào tổ chức 'built-in' (tích hợp sẵn) hiện đang bị vô hiệu hóa. Lưu ý: Tất cả người dùng trong tổ chức 'built-in' đều là quản trị viên toàn cầu trong Casdoor. Xem tài liệu: https://casdoor.org/docs/basic/core-concepts#how-does-casdoor-manage-itself. Nếu bạn vẫn muốn tạo người dùng cho tổ chức 'built-in', hãy truy cập trang cài đặt của tổ chức và bật tùy chọn 'Có đồng ý quyền đặc biệt'."
+    "adding a new user to the 'built-in' organization is currently disabled. Please note: all users in the 'built-in' organization are global administrators in aicodex-admin. Refer to the docs: https://git.leagsoft.com/aicodex/aicodex-admin. If you still wish to create a user for the 'built-in' organization, go to the organization's settings page and enable the 'Has privilege consent' option.": "Thêm người dùng mới vào tổ chức 'built-in' (tích hợp sẵn) hiện đang bị vô hiệu hóa. Lưu ý: Tất cả người dùng trong tổ chức 'built-in' đều là quản trị viên toàn cầu trong aicodex-admin. Xem tài liệu: https://git.leagsoft.com/aicodex/aicodex-admin. Nếu bạn vẫn muốn tạo người dùng cho tổ chức 'built-in', hãy truy cập trang cài đặt của tổ chức và bật tùy chọn 'Có đồng ý quyền đặc biệt'."
   },
   "permission": {
     "The permission: \"%s\" doesn't exist": "Quyền: \"%s\" không tồn tại"
@@ -187,6 +194,7 @@
     "Grant_type: %s is not supported in this application": "Loại cấp phép: %s không được hỗ trợ trong ứng dụng này",
     "Invalid application or wrong clientSecret": "Đơn đăng ký không hợp lệ hoặc sai clientSecret",
     "Invalid client_id": "Client_id không hợp lệ",
+    "Invalid scope": "Invalid scope",
     "Redirect URI: %s doesn't exist in the allowed Redirect URI list": "Đường dẫn chuyển hướng URI: %s không tồn tại trong danh sách URI được phép chuyển hướng",
     "Token not found, invalid accessToken": "Token không tìm thấy, accessToken không hợp lệ"
   },

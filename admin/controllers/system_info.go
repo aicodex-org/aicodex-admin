@@ -17,7 +17,7 @@ package controllers
 import (
 	"errors"
 
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/go-git/go-git/v5"
 )
 
@@ -45,7 +45,7 @@ func (c *ApiController) GetSystemInfo() {
 // GetVersionInfo
 // @Title GetVersionInfo
 // @Tag System API
-// @Description get version info like Casdoor release version and commit ID
+// @Description get version info like aicodex-admin release version and commit ID
 // @Success 200 {object} util.VersionInfo The Response object
 // @router /get-version-info [get]
 func (c *ApiController) GetVersionInfo() {

@@ -19,8 +19,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/object"
 	"github.com/beego/beego/v2/server/web"
-	"github.com/casdoor/casdoor/object"
 )
 
 // MCP JSON-RPC 2.0 structures

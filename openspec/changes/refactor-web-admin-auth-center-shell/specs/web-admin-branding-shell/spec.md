@@ -1,11 +1,11 @@
 ## ADDED Requirements
 
-### Requirement: Admin shell SHALL use AICodeX branding
-`web-admin/` 管理后台在管理员可见的主壳层中 SHALL 展示 AICodeX 品牌，而不是 Casdoor 品牌。
+### Requirement: Admin shell SHALL use aicodex-admin branding
+`web-admin/` 管理后台在管理员可见的主壳层中 SHALL 展示 aicodex-admin 品牌，而不是 旧项目品牌。
 
-#### Scenario: Brand surfaces render with AICodeX identity
+#### Scenario: Brand surfaces render with aicodex-admin identity
 - **WHEN** 管理员打开 `web-admin/` 中任意后台页面
-- **THEN** 页面标题、主 Logo、页脚品牌文案和默认品牌描述必须使用 AICodeX 命名
+- **THEN** 页面标题、主 Logo、页脚品牌文案和默认品牌描述必须使用 aicodex-admin 命名
 
 #### Scenario: Theme-aware logo remains supported
 - **WHEN** 管理后台切换浅色或深色主题

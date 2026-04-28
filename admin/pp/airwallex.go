@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/casdoor/casdoor/conf"
+	"git.leagsoft.com/aicodex/aicodex-admin/conf"
 )
 
 type AirwallexPaymentProvider struct {

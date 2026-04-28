@@ -39,7 +39,7 @@ var (
 	cliVersionMutex sync.RWMutex
 )
 
-// cleanOldMEIFolders cleans up old _MEIXXX folders from the Casdoor temp directory
+// cleanOldMEIFolders cleans up old _MEIXXX folders from the aicodex-admin temp directory
 // that are older than 24 hours. These folders are created by PyInstaller when
 // executing casbin-python-cli and can accumulate over time.
 func cleanOldMEIFolders() {
@@ -186,7 +186,7 @@ func (c *ApiController) RunCasbinCommand() {
 	}
 
 	// RBAC model & policy example:
-	// https://door.casdoor.com/api/run-casbin-command?language=go&args=["enforce", "-m", "[request_definition]\nr = sub, obj, act\n\n[policy_definition]\np = sub, obj, act\n\n[role_definition]\ng = _, _\n\n[policy_effect]\ne = some(where (p.eft == allow))\n\n[matchers]\nm = g(r.sub, p.sub) %26%26 r.obj == p.obj %26%26 r.act == p.act", "-p", "p, alice, data1, read\np, bob, data2, write\np, data2_admin, data2, read\np, data2_admin, data2, write\ng, alice, data2_admin", "alice", "data1", "read"]
+	// http://localhost:8000/api/run-casbin-command?language=go&args=["enforce", "-m", "[request_definition]\nr = sub, obj, act\n\n[policy_definition]\np = sub, obj, act\n\n[role_definition]\ng = _, _\n\n[policy_effect]\ne = some(where (p.eft == allow))\n\n[matchers]\nm = g(r.sub, p.sub) %26%26 r.obj == p.obj %26%26 r.act == p.act", "-p", "p, alice, data1, read\np, bob, data2, write\np, data2_admin, data2, read\np, data2_admin, data2, write\ng, alice, data2_admin", "alice", "data1", "read"]
 	// Casbin CLI usage:
 	// https://github.com/jcasbin/casbin-java-cli?tab=readme-ov-file#get-started
 	var args []string

@@ -1,4 +1,4 @@
-module github.com/casdoor/casdoor
+module git.leagsoft.com/aicodex/aicodex-admin
 
 go 1.25.0
 

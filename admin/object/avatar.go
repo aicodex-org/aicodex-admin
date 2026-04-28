@@ -19,8 +19,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/casdoor/casdoor/conf"
-	"github.com/casdoor/casdoor/proxy"
+	"git.leagsoft.com/aicodex/aicodex-admin/conf"
+	"git.leagsoft.com/aicodex/aicodex-admin/proxy"
 )
 
 var defaultStorageProvider *Provider = nil

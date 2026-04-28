@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 )
 
 func GetDirectResources(owner string, user string, provider *Provider, prefix string, lang string) ([]*Resource, error) {

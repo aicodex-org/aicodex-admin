@@ -25,11 +25,11 @@ import (
 	"strings"
 	"time"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/conf"
+	"git.leagsoft.com/aicodex/aicodex-admin/object"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/beego/beego/v2/core/logs"
 	"github.com/beego/beego/v2/server/web/context"
-	"github.com/casdoor/casdoor/conf"
-	"github.com/casdoor/casdoor/object"
-	"github.com/casdoor/casdoor/util"
 )
 
 var (
@@ -210,8 +210,8 @@ func StaticFilter(ctx *context.Context) {
 		}
 		dir = strings.ReplaceAll(dir, "\\", "/")
 		ctx.ResponseWriter.WriteHeader(http.StatusNotFound)
-		errorText := fmt.Sprintf("The Casdoor frontend HTML file: \"index.html\" was not found, it should be placed at: \"%s/web/build/index.html\". For more information, see: https://casdoor.org/docs/basic/server-installation/#frontend-1", dir)
-		http.ServeContent(ctx.ResponseWriter, ctx.Request, "Casdoor frontend has encountered error...", time.Now(), strings.NewReader(errorText))
+		errorText := fmt.Sprintf("The aicodex-admin frontend HTML file: \"index.html\" was not found, it should be placed at: \"%s/web/build/index.html\".", dir)
+		http.ServeContent(ctx.ResponseWriter, ctx.Request, "aicodex-admin frontend has encountered error...", time.Now(), strings.NewReader(errorText))
 		return
 	}
 
@@ -238,7 +238,7 @@ func serveFileWithReplace(w http.ResponseWriter, r *http.Request, name string, o
 	newContent := oldContent
 	if organizationThemeCookie != nil {
 		newContent = strings.ReplaceAll(newContent, "https://cdn.casbin.org/img/favicon.png", organizationThemeCookie.Favicon)
-		newContent = strings.ReplaceAll(newContent, "<title>Casdoor</title>", fmt.Sprintf("<title>%s</title>", organizationThemeCookie.DisplayName))
+		newContent = strings.ReplaceAll(newContent, "<title>aicodex-admin</title>", fmt.Sprintf("<title>%s</title>", organizationThemeCookie.DisplayName))
 	}
 
 	newContent = strings.ReplaceAll(newContent, oldStaticBaseUrl, newStaticBaseUrl)

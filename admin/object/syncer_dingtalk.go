@@ -24,7 +24,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 )
 
 // DingtalkSyncerProvider implements SyncerProvider for DingTalk API-based syncers

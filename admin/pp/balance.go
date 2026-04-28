@@ -17,7 +17,7 @@ package pp
 import (
 	"fmt"
 
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 )
 
 type BalancePaymentProvider struct{}

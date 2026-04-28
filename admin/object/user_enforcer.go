@@ -6,8 +6,8 @@ import (
 
 	"github.com/casbin/casbin/v2/errors"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/casbin/casbin/v2"
-	"github.com/casdoor/casdoor/util"
 )
 
 type UserGroupEnforcer struct {

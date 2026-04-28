@@ -17,8 +17,8 @@ package routers
 import (
 	"encoding/json"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/beego/beego/v2/server/web/context"
-	"github.com/casdoor/casdoor/util"
 )
 
 // applicationStub is a lightweight struct for extracting owner/name from application data

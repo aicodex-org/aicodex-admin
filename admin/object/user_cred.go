@@ -15,8 +15,8 @@
 package object
 
 import (
-	"github.com/casdoor/casdoor/cred"
-	"github.com/casdoor/casdoor/util"
+	"git.leagsoft.com/aicodex/aicodex-admin/cred"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 )
 
 func calculateHash(user *User) (string, error) {

@@ -5,7 +5,7 @@ export const TourObj = {
   home: [
     {
       title: "Welcome to casdoor",
-      description: "You can learn more about the use of CasDoor at https://casdoor.org/.",
+      description: "You can learn more about aicodex-admin at https://git.leagsoft.com/aicodex/aicodex-admin.",
       cover: (
         <img
           alt={Conf.BrandName}
@@ -59,7 +59,7 @@ export const TourObj = {
       id: "throughput-card",
     },
     {
-      title: "About Casdoor",
+      title: "About aicodex-admin",
       description: "You can get more Casdoor information in this card.",
       id: "about-card",
     },
@@ -194,7 +194,7 @@ export const TourObj = {
   applications: [
     {
       title: "Application List",
-      description: "If you want to use Casdoor to provide login service for your web Web APPs, you can add them as Casdoor applications. Users can access all applications in their organizations without login twice.",
+      description: "If you want to use aicodex-admin to provide login service for your web apps, you can add them as aicodex-admin applications. Users can access all applications in their organizations without logging in twice.",
     },
   ],
 };

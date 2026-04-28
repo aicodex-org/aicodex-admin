@@ -45,7 +45,7 @@ class SiteListPage extends BaseListPage {
       name: `site_${randomName}`,
       createdTime: moment().format(),
       displayName: `New Site - ${randomName}`,
-      domain: "door.casdoor.com",
+      domain: "aicodex-admin.local",
       otherDomains: [],
       needRedirect: false,
       disableVerbose: false,
@@ -371,7 +371,7 @@ class SiteListPage extends BaseListPage {
         },
       },
       // {
-      //   title: i18next.t("site:Casdoor app"),
+      //   title: i18next.t("site:aicodex-admin app"),
       //   dataIndex: "casdoorApplication",
       //   key: "casdoorApplication",
       //   width: "140px",

@@ -19,10 +19,10 @@ import (
 	"fmt"
 	"strings"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/mcpself"
+	"git.leagsoft.com/aicodex/aicodex-admin/object"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/beego/beego/v2/server/web/context"
-	"github.com/casdoor/casdoor/mcpself"
-	"github.com/casdoor/casdoor/object"
-	"github.com/casdoor/casdoor/util"
 )
 
 func AutoSigninFilter(ctx *context.Context) {

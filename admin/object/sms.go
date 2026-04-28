@@ -18,7 +18,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/casdoor/casdoor/conf"
+	"git.leagsoft.com/aicodex/aicodex-admin/conf"
 	sender "github.com/casdoor/go-sms-sender"
 )
 
