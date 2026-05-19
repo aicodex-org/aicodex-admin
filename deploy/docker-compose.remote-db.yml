@@ -1,0 +1,12 @@
+services:
+  aicodex-admin:
+    restart: always
+    image: ${AICODEX_ADMIN_IMAGE:-aicodex-admin:latest}
+    entrypoint: /bin/sh -c 'exec ./server --createDatabase=${AICODEX_CREATE_DATABASE:-false}'
+    environment:
+      RUNNING_IN_DOCKER: "true"
+      driverName: ${AICODEX_DB_DRIVER:-postgres}
+      dbName: ${AICODEX_DB_NAME:-aicodex_admin}
+      dataSourceName: "user=${AICODEX_DB_USER:?set AICODEX_DB_USER in env file} password=${AICODEX_DB_PASSWORD:?set AICODEX_DB_PASSWORD in env file} host=${AICODEX_DB_HOST:?set AICODEX_DB_HOST in env file} port=${AICODEX_DB_PORT:-5432} sslmode=${AICODEX_DB_SSLMODE:-disable} dbname=${AICODEX_DB_NAME:-aicodex_admin} ${AICODEX_DB_EXTRA_OPTIONS:-}"
+    ports:
+      - "${AICODEX_ADMIN_HTTP_PORT:-8000}:8000"

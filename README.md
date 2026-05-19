@@ -48,6 +48,14 @@ Docker Compose example:
 docker compose -f deploy/docker-compose.yml up -d
 ```
 
+Docker Compose with remote PostgreSQL, without starting a local database:
+
+```bash
+cp deploy/.env.ex deploy/.env
+# edit deploy/.env with the remote database host, user, password, and database name
+docker compose --env-file deploy/.env -f deploy/docker-compose.remote-db.yml up -d
+```
+
 Kubernetes example manifests are available in `deploy/k8s.yaml`. Update image registry, ingress, storage, and database settings for the target environment before production deployment.
 
 ## WeCom Web Login Notes
