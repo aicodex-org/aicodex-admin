@@ -15,12 +15,77 @@
 package controllers
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
 
 	"git.leagsoft.com/aicodex/aicodex-admin/object"
+	"git.leagsoft.com/aicodex/aicodex-admin/proxy"
 	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/beego/beego/v2/server/web/pagination"
 )
+
+const mcpRegistryServersURL = "https://registry.modelcontextprotocol.io/v0/servers"
+
+type mcpRegistryResponse struct {
+	Servers []mcpRegistryServerItem `json:"servers"`
+}
+
+type mcpRegistryServerItem struct {
+	Server mcpRegistryServer `json:"server"`
+	Meta   struct {
+		Official struct {
+			Status   string `json:"status"`
+			IsLatest bool   `json:"isLatest"`
+		} `json:"io.modelcontextprotocol.registry/official"`
+	} `json:"_meta"`
+}
+
+type mcpRegistryServer struct {
+	Name        string               `json:"name"`
+	Title       string               `json:"title"`
+	Description string               `json:"description"`
+	Version     string               `json:"version"`
+	WebsiteURL  string               `json:"websiteUrl"`
+	Repository  mcpRegistryURLHolder `json:"repository"`
+	Remotes     []mcpRegistryRemote  `json:"remotes"`
+}
+
+type mcpRegistryURLHolder struct {
+	URL string `json:"url"`
+}
+
+type mcpRegistryRemote struct {
+	Type    string                   `json:"type"`
+	URL     string                   `json:"url"`
+	Headers []map[string]interface{} `json:"headers"`
+}
+
+type onlineServerResponse struct {
+	Servers []*onlineServer `json:"servers"`
+}
+
+type onlineServer struct {
+	ID             string                  `json:"id"`
+	Name           string                  `json:"name"`
+	Description    string                  `json:"description"`
+	Tags           []string                `json:"tags"`
+	Endpoints      map[string]string       `json:"endpoints"`
+	Authentication *onlineServerAuth       `json:"authentication,omitempty"`
+	Maintainer     *onlineServerMaintainer `json:"maintainer,omitempty"`
+}
+
+type onlineServerAuth struct {
+	Type string `json:"type"`
+}
+
+type onlineServerMaintainer struct {
+	Website string `json:"website"`
+}
 
 // GetServers
 // @Title GetServers
@@ -67,6 +132,135 @@ func (c *ApiController) GetServers() {
 	}
 
 	c.ResponseOk(servers, paginator.Nums())
+}
+
+// GetOnlineServers
+// @Title GetOnlineServers
+// @Tag Server API
+// @Description get online servers from the MCP registry
+// @Success 200 {object} onlineServerResponse The Response object
+// @router /get-online-servers [get]
+func (c *ApiController) GetOnlineServers() {
+	ctx, cancel := context.WithTimeout(c.Ctx.Request.Context(), 15*time.Second)
+	defer cancel()
+
+	servers, err := getOnlineServers(ctx)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+
+	c.ResponseOk(&onlineServerResponse{Servers: servers})
+}
+
+func getOnlineServers(ctx context.Context) ([]*onlineServer, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, mcpRegistryServersURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+
+	client := proxy.GetHttpClient(mcpRegistryServersURL)
+	if client == nil {
+		client = http.DefaultClient
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("failed to get MCP registry servers: %s", resp.Status)
+	}
+
+	var registryResponse mcpRegistryResponse
+	if err = json.NewDecoder(resp.Body).Decode(&registryResponse); err != nil {
+		return nil, err
+	}
+
+	servers := []*onlineServer{}
+	for _, item := range registryResponse.Servers {
+		if !item.Meta.Official.IsLatest {
+			continue
+		}
+
+		server := normalizeOnlineServer(item)
+		if server != nil {
+			servers = append(servers, server)
+		}
+	}
+
+	return servers, nil
+}
+
+func normalizeOnlineServer(item mcpRegistryServerItem) *onlineServer {
+	remote := getProductionRemote(item.Server.Remotes)
+	if remote.URL == "" {
+		return nil
+	}
+
+	name := item.Server.Title
+	if name == "" {
+		name = item.Server.Name
+	}
+
+	tags := []string{}
+	if remote.Type != "" {
+		tags = append(tags, remote.Type)
+	}
+	if item.Meta.Official.Status != "" {
+		tags = append(tags, item.Meta.Official.Status)
+	}
+	if item.Server.Version != "" {
+		tags = append(tags, item.Server.Version)
+	}
+
+	website := item.Server.WebsiteURL
+	if website == "" {
+		website = item.Server.Repository.URL
+	}
+
+	authenticationType := "none"
+	if len(remote.Headers) != 0 {
+		authenticationType = "header"
+	}
+
+	return &onlineServer{
+		ID:          item.Server.Name,
+		Name:        name,
+		Description: item.Server.Description,
+		Tags:        tags,
+		Endpoints: map[string]string{
+			"production": remote.URL,
+		},
+		Authentication: &onlineServerAuth{Type: authenticationType},
+		Maintainer:     &onlineServerMaintainer{Website: normalizeWebsiteHost(website)},
+	}
+}
+
+func getProductionRemote(remotes []mcpRegistryRemote) mcpRegistryRemote {
+	for _, remote := range remotes {
+		if strings.HasPrefix(remote.URL, "http://") || strings.HasPrefix(remote.URL, "https://") {
+			return remote
+		}
+	}
+
+	return mcpRegistryRemote{}
+}
+
+func normalizeWebsiteHost(rawURL string) string {
+	if rawURL == "" {
+		return ""
+	}
+
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil || parsedURL.Host == "" {
+		return rawURL
+	}
+
+	return parsedURL.Host
 }
 
 // GetServer
