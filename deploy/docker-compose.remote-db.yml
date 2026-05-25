@@ -8,5 +8,9 @@ services:
       driverName: ${AICODEX_DB_DRIVER:-postgres}
       dbName: ${AICODEX_DB_NAME:-aicodex_admin}
       dataSourceName: "user=${AICODEX_DB_USER:?set AICODEX_DB_USER in env file} password=${AICODEX_DB_PASSWORD:?set AICODEX_DB_PASSWORD in env file} host=${AICODEX_DB_HOST:?set AICODEX_DB_HOST in env file} port=${AICODEX_DB_PORT:-5432} sslmode=${AICODEX_DB_SSLMODE:-disable} dbname=${AICODEX_DB_NAME:-aicodex_admin} ${AICODEX_DB_EXTRA_OPTIONS:-}"
+      # Insight provider 校验 bearer token 时使用这些白名单，生产环境必须显式配置 audience。
+      insightProviderAllowedAudiences: ${AICODEX_INSIGHT_PROVIDER_ALLOWED_AUDIENCES:-}
+      insightProviderAllowedIssuers: ${AICODEX_INSIGHT_PROVIDER_ALLOWED_ISSUERS:-}
+      insightProviderRequiredScopes: ${AICODEX_INSIGHT_PROVIDER_REQUIRED_SCOPES:-}
     ports:
       - "${AICODEX_ADMIN_HTTP_PORT:-8000}:8000"
