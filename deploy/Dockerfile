@@ -45,6 +45,7 @@ COPY --from=back --chown=$USER:$USER /go/src/aicodex-admin/admin/server_${BUILDX
 COPY --from=back --chown=$USER:$USER /go/src/aicodex-admin/admin/swagger ./swagger
 COPY ./deploy/app.conf ./conf/app.conf
 COPY --from=front --chown=$USER:$USER /web-admin/build ./web/build
+COPY --chown=$USER:$USER ./WW_verify_iqXz8cc49VDcBNB0.txt ./web/build/WW_verify_iqXz8cc49VDcBNB0.txt
 
 ENTRYPOINT ["/server"]
 
@@ -66,6 +67,7 @@ COPY --from=back /go/src/aicodex-admin/admin/swagger ./swagger
 COPY --from=back /go/src/aicodex-admin/admin/docker-entrypoint.sh /docker-entrypoint.sh
 COPY ./deploy/app.conf ./conf/app.conf
 COPY --from=front /web-admin/build ./web/build
+COPY ./WW_verify_iqXz8cc49VDcBNB0.txt ./web/build/WW_verify_iqXz8cc49VDcBNB0.txt
 
 ENTRYPOINT ["/bin/bash"]
 CMD ["/docker-entrypoint.sh"]
