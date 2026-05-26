@@ -1,0 +1,94 @@
+{
+    email mt21625457@163.com
+}
+
+(security_headers) {
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Frame-Options "DENY"
+        X-Content-Type-Options "nosniff"
+        -Server
+    }
+}
+
+(long_http_transport) {
+    transport http {
+        read_timeout 300s
+        write_timeout 300s
+        dial_timeout 30s
+    }
+}
+
+ai.leagsoft.com {
+    tls /etc/caddy/certs/leagsoft.crt /etc/caddy/certs/leagsoft.key
+
+    # /aicodex-docs 统一跳转到 /aicodex-docs/
+    handle /aicodex-docs {
+        redir /aicodex-docs/ 302
+    }
+
+    # 文档站点：剥离 /aicodex-docs 前缀后转发到本机 8999
+    handle_path /aicodex-docs/* {
+        reverse_proxy 127.0.0.1:8999 {
+            flush_interval -1
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # 仅当请求来自 Cloudflare 源站 IP 时才信任 CF-Connecting-IP
+    @cf {
+        header CF-Connecting-IP *
+        remote_ip 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+    }
+
+    # Cloudflare 来源请求：使用 CF-Connecting-IP 作为真实客户端 IP
+    handle @cf {
+        reverse_proxy 127.0.0.1:9068 {
+            flush_interval -1
+            header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+            header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+            header_up X-Forwarded-Proto {scheme}
+            import long_http_transport
+        }
+    }
+
+    # 直连请求：使用 remote_host 作为真实客户端 IP
+    handle {
+        reverse_proxy 127.0.0.1:9068 {
+            flush_interval -1
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+            import long_http_transport
+        }
+    }
+
+    import security_headers
+}
+
+auth.leagsoft.com:8000 {
+    tls /etc/caddy/certs/leagsoft.crt /etc/caddy/certs/leagsoft.key
+
+    # API 请求反代到后端服务，保留 /api 前缀
+    @api path /api /api/*
+    handle @api {
+        reverse_proxy http://10.18.80.69:8000 {
+            flush_interval -1
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+            import long_http_transport
+        }
+    }
+
+    # 其他请求返回前端静态资源，支持 SPA 路由
+    handle {
+        root * /etc/aicrs/web/dist
+        try_files {path} {path}/ /index.html
+        file_server
+    }
+
+    import security_headers
+}
