@@ -20,3 +20,9 @@ AICODEX_DB_SSLMODE=disable
 
 # Optional lib/pq connection options, for example: connect_timeout=10 or search_path=public.
 AICODEX_DB_EXTRA_OPTIONS=connect_timeout=10
+
+# Insight provider bearer token validation.
+# These values are passed to lower-camel config keys used by the Go service.
+AICODEX_INSIGHT_PROVIDER_ALLOWED_AUDIENCES=aicodex-insight
+AICODEX_INSIGHT_PROVIDER_ALLOWED_ISSUERS=https://admin.example.test
+AICODEX_INSIGHT_PROVIDER_REQUIRED_SCOPES=profile insight.scope.read

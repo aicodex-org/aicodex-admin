@@ -11,6 +11,10 @@ services:
       driverName: postgres
       dbName: aicodex_admin
       dataSourceName: user=postgres password=123456 host=db port=5432 sslmode=disable dbname=aicodex_admin
+      # Insight provider 校验 bearer token 时使用这些白名单，生产环境必须显式配置 audience。
+      insightProviderAllowedAudiences: ${AICODEX_INSIGHT_PROVIDER_ALLOWED_AUDIENCES:-}
+      insightProviderAllowedIssuers: ${AICODEX_INSIGHT_PROVIDER_ALLOWED_ISSUERS:-}
+      insightProviderRequiredScopes: ${AICODEX_INSIGHT_PROVIDER_REQUIRED_SCOPES:-}
     ports:
       - "8000:8000"
   db:

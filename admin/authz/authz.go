@@ -53,6 +53,9 @@ p, *, *, POST, /api/device-auth, *, *
 p, *, *, GET, /api/get-account, *, *
 p, *, *, GET, /api/userinfo, *, *
 p, *, *, GET, /api/user, *, *
+p, *, *, GET, /api/admin-provider/insight/v1/current-user, *, *
+p, *, *, GET, /api/admin-provider/insight/v1/current-user/scope, *, *
+p, *, *, GET, /api/admin-provider/insight/v1/current-user/organization-tree, *, *
 p, *, *, GET, /api/health, *, *
 p, *, *, *, /api/webhook, *, *
 p, *, *, GET, /api/get-qrcode, *, *
