@@ -265,7 +265,7 @@ func calculateInsightScopeForOrganization(currentUser *object.User, organization
 }
 
 func buildInsightAllCompanyScope(adminUserId string, organization string, apiOrganizationId string, users []*object.User, generatedAt time.Time) (*InsightScopeResponse, *InsightProviderError) {
-	adminUserIds, apiUserIds, mappingStatus := mapInsightUsersToUsageIds(users)
+	adminUserIds, apiUserIds, mappingStatus := mapInsightQueryableUsersToUsageIds(users)
 	if mappingStatus != MappingStatusOK {
 		return nil, newInsightProviderError(InsightProviderErrorAuthorizationFailed, "usage user mapping is not deterministic", "", mappingStatus)
 	}
@@ -299,9 +299,12 @@ func buildInsightDepartmentTreeScope(adminUserId string, organization string, ap
 			continue
 		}
 
-		adminUserIds, apiUserIds, mappingStatus := mapInsightUsersToUsageIds(departmentUsers)
+		adminUserIds, apiUserIds, mappingStatus := mapInsightQueryableUsersToUsageIds(departmentUsers)
 		if mappingStatus != MappingStatusOK {
 			return nil, newInsightProviderError(InsightProviderErrorAuthorizationFailed, "usage user mapping is not deterministic", "", mappingStatus)
+		}
+		if len(adminUserIds) == 0 || len(apiUserIds) == 0 {
+			continue
 		}
 
 		departmentId := group.GetId()
@@ -717,6 +720,14 @@ func isPositiveInsightAPIUserID(value string) bool {
 }
 
 func mapInsightUsersToUsageIds(users []*object.User) ([]string, []string, string) {
+	return mapInsightUsersToUsageIdsWithPolicy(users, false)
+}
+
+func mapInsightQueryableUsersToUsageIds(users []*object.User) ([]string, []string, string) {
+	return mapInsightUsersToUsageIdsWithPolicy(users, true)
+}
+
+func mapInsightUsersToUsageIdsWithPolicy(users []*object.User, skipMissing bool) ([]string, []string, string) {
 	adminUserIds := []string{}
 	apiUserIds := []string{}
 	adminToApiUserId := map[string]string{}
@@ -726,6 +737,10 @@ func mapInsightUsersToUsageIds(users []*object.User) ([]string, []string, string
 			continue
 		}
 		identity := resolveInsightUsageIdentity(user)
+		if identity.MappingStatus == MappingStatusMissing && skipMissing {
+			// 企业微信组织同步会先带来组织成员，再逐步补齐 API 用户映射；聚合范围只包含已映射成员，避免未绑定成员阻断整个部门或全公司视图。
+			continue
+		}
 		if identity.MappingStatus != MappingStatusOK {
 			return nil, nil, identity.MappingStatus
 		}

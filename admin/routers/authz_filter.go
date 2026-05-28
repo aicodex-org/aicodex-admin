@@ -99,6 +99,11 @@ func getObject(ctx *context.Context) (string, string, error) {
 		return getMcpObject(ctx)
 	}
 
+	queryOrganization := resolveModuleOrganizationQuery(path, ctx.Input.Query("organization"), getCurrentUserIdFromContext(ctx))
+	if owner, name, ok := getModuleOrganizationObject(path, method, queryOrganization, ctx.Input.RequestBody); ok {
+		return owner, name, nil
+	}
+
 	if strings.HasPrefix(path, "/api/server/") {
 		return ctx.Input.Param(":owner"), ctx.Input.Param(":name"), nil
 	}
@@ -177,6 +182,48 @@ func getObject(ctx *context.Context) (string, string, error) {
 
 		return obj.Owner, obj.Name, nil
 	}
+}
+
+func getModuleOrganizationObject(path string, method string, queryOrganization string, body []byte) (string, string, bool) {
+	if path == "/api/org-management-scope/current" {
+		return strings.TrimSpace(queryOrganization), "", true
+	}
+
+	if !strings.HasPrefix(path, "/api/wecom-org-sync/") {
+		return "", "", false
+	}
+
+	if method == http.MethodGet {
+		return strings.TrimSpace(queryOrganization), "", true
+	}
+
+	var obj ObjectWithOrg
+	if err := json.Unmarshal(body, &obj); err != nil {
+		return "", "", true
+	}
+	return strings.TrimSpace(obj.Organization), "", true
+}
+
+func resolveModuleOrganizationQuery(path string, queryOrganization string, currentUserId string) string {
+	organization := strings.TrimSpace(queryOrganization)
+	if organization != "" || path != "/api/org-management-scope/current" {
+		return organization
+	}
+
+	owner, _, err := util.GetOwnerAndNameFromIdWithError(currentUserId)
+	if err != nil {
+		return ""
+	}
+	return owner
+}
+
+func getCurrentUserIdFromContext(ctx *context.Context) string {
+	currentUserId := ctx.Input.GetData("currentUserId")
+	if currentUserId == nil {
+		return ""
+	}
+	userId, _ := currentUserId.(string)
+	return userId
 }
 
 func willLog(subOwner string, subName string, method string, urlPath string, objOwner string, objName string) bool {

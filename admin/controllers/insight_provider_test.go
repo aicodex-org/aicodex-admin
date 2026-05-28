@@ -69,6 +69,7 @@ func TestInsightScopeForOrganizationAdminStaysInOwnOrganization(t *testing.T) {
 	users := []*object.User{
 		currentUser,
 		{Owner: "org-a", Name: "member", Properties: map[string]string{"aicodexApiUserId": "101"}},
+		{Owner: "org-a", Name: "unmapped"},
 		{Owner: "org-b", Name: "outside", Properties: map[string]string{"aicodexApiUserId": "999"}},
 	}
 
@@ -90,6 +91,9 @@ func TestInsightScopeForOrganizationAdminStaysInOwnOrganization(t *testing.T) {
 	}
 	if containsString(got.AdminUserIds, "org-b/outside") || containsString(got.ApiUserIds, "999") {
 		t.Fatalf("organization admin scope crossed organization boundary: %+v", got)
+	}
+	if containsString(got.AdminUserIds, "org-a/unmapped") {
+		t.Fatalf("organization admin scope should skip users without usage mapping: %+v", got)
 	}
 }
 
@@ -161,7 +165,7 @@ func TestInsightScopeRequiresAuthenticatedCurrentUser(t *testing.T) {
 	}
 }
 
-func TestInsightScopeReturnsAuthorizationFailedForMissingDepartmentMapping(t *testing.T) {
+func TestInsightScopeSkipsUsersWithoutDepartmentUsageMapping(t *testing.T) {
 	generatedAt := time.Date(2026, 5, 21, 8, 0, 0, 0, time.UTC)
 	currentUser := &object.User{
 		Owner: "org-a",
@@ -173,20 +177,25 @@ func TestInsightScopeReturnsAuthorizationFailedForMissingDepartmentMapping(t *te
 	users := []*object.User{
 		currentUser,
 		{Owner: "org-a", Name: "missing", Groups: []string{"org-a/dev"}},
+		{Owner: "org-a", Name: "mapped", Groups: []string{"org-a/dev"}, Properties: map[string]string{"aicodexApiUserId": "201"}},
 	}
 	groups := []*object.Group{
 		{Owner: "org-a", Name: "dev", DisplayName: "Dev", Manager: "org-a/lead"},
 	}
 
 	got, providerErr := calculateInsightScope(currentUser, users, groups, generatedAt)
-	if providerErr == nil {
-		t.Fatalf("calculateInsightScope returned scope %+v, want AUTHORIZATION_FAILED", got)
+	if providerErr != nil {
+		t.Fatalf("calculateInsightScope returned error: %+v", providerErr)
 	}
-	if providerErr.Code != InsightProviderErrorAuthorizationFailed || providerErr.MappingStatus != MappingStatusMissing {
-		t.Fatalf("providerErr = %+v, want AUTHORIZATION_FAILED with MISSING mapping", providerErr)
+	if got.ScopeType != ScopeTypeDepartmentTree || len(got.Departments) != 1 {
+		t.Fatalf("scope = %+v, want department scope with queryable users", got)
 	}
-	if got != nil && got.ScopeType == ScopeTypeEmpty {
-		t.Fatalf("mapping failure must not be downgraded to EMPTY scope: %+v", got)
+	dept := got.Departments[0]
+	if containsString(dept.AdminUserIds, "org-a/missing") || containsString(got.AdminUserIds, "org-a/missing") {
+		t.Fatalf("department scope should skip users without usage mapping: %+v", got)
+	}
+	if !containsString(dept.AdminUserIds, "org-a/mapped") || !containsString(dept.ApiUserIds, "201") {
+		t.Fatalf("department scope lost mapped user: %+v", got)
 	}
 }
 

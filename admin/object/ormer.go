@@ -18,11 +18,13 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
+	"time"
 
 	"git.leagsoft.com/aicodex/aicodex-admin/conf"
 	"git.leagsoft.com/aicodex/aicodex-admin/util"
@@ -177,6 +179,9 @@ func finalizer(a *Ormer) {
 func NewAdapter(driverName string, dataSourceName string, dbName string) (*Ormer, error) {
 	a := &Ormer{}
 	a.driverName = driverName
+	if driverName == "postgres" {
+		dataSourceName = ensurePostgresDataSourceNameUsesUTCTimeZone(dataSourceName)
+	}
 	a.dataSourceName = dataSourceName
 	a.dbName = dbName
 
@@ -196,6 +201,9 @@ func NewAdapter(driverName string, dataSourceName string, dbName string) (*Ormer
 func NewAdapterFromDb(driverName string, dataSourceName string, dbName string, db *sql.DB) (*Ormer, error) {
 	a := &Ormer{}
 	a.driverName = driverName
+	if driverName == "postgres" {
+		dataSourceName = ensurePostgresDataSourceNameUsesUTCTimeZone(dataSourceName)
+	}
 	a.dataSourceName = dataSourceName
 	a.dbName = dbName
 	a.Db = db
@@ -213,12 +221,81 @@ func NewAdapterFromDb(driverName string, dataSourceName string, dbName string, d
 }
 
 func refineDataSourceNameForPostgres(dataSourceName string) string {
-	reg := regexp.MustCompile(`dbname=[^ ]+\s*`)
+	reg := regexp.MustCompile(`dbname=[^ ]+`)
 	return reg.ReplaceAllString(dataSourceName, "dbname=postgres")
+}
+
+func ensurePostgresDataSourceNameUsesUTCTimeZone(dataSourceName string) string {
+	trimmedDataSourceName := strings.TrimSpace(dataSourceName)
+	if trimmedDataSourceName == "" || getPostgresDataSourceNameTimeZone(trimmedDataSourceName) != "" {
+		return dataSourceName
+	}
+
+	if postgresURL, ok := parsePostgresDataSourceNameURL(trimmedDataSourceName); ok {
+		query := postgresURL.Query()
+		query.Set("timezone", "UTC")
+		postgresURL.RawQuery = query.Encode()
+		return postgresURL.String()
+	}
+
+	// lib/pq 使用 timezone 启动参数设置 PostgreSQL session 时区；默认 UTC 可避免 timestamptz 被 Xorm 按本地时区二次解释。
+	return trimmedDataSourceName + " timezone=UTC"
+}
+
+func getPostgresDataSourceNameTimeZone(dataSourceName string) string {
+	if postgresURL, ok := parsePostgresDataSourceNameURL(dataSourceName); ok {
+		for key, values := range postgresURL.Query() {
+			if strings.EqualFold(key, "timezone") && len(values) > 0 {
+				return strings.Trim(values[0], `'"`)
+			}
+		}
+	}
+
+	for _, field := range strings.Fields(dataSourceName) {
+		key, value, ok := strings.Cut(field, "=")
+		if !ok || !strings.EqualFold(key, "timezone") {
+			continue
+		}
+		return strings.Trim(value, `'"`)
+	}
+
+	return ""
+}
+
+func parsePostgresDataSourceNameURL(dataSourceName string) (*url.URL, bool) {
+	postgresURL, err := url.Parse(dataSourceName)
+	if err != nil {
+		return nil, false
+	}
+
+	switch postgresURL.Scheme {
+	case "postgres", "postgresql":
+		return postgresURL, true
+	default:
+		return nil, false
+	}
+}
+
+func configurePostgresEngineTimeZone(engine *xorm.Engine, dataSourceName string) error {
+	timeZoneName := getPostgresDataSourceNameTimeZone(dataSourceName)
+	if timeZoneName == "" {
+		timeZoneName = "UTC"
+	}
+
+	databaseTimeZone, err := time.LoadLocation(timeZoneName)
+	if err != nil {
+		return fmt.Errorf("invalid postgres timezone %q: %w", timeZoneName, err)
+	}
+
+	engine.SetTZDatabase(databaseTimeZone)
+	engine.SetTZLocation(time.UTC)
+	return nil
 }
 
 func createDatabaseForPostgres(driverName string, dataSourceName string, dbName string) error {
 	if driverName == "postgres" {
+		dataSourceName = ensurePostgresDataSourceNameUsesUTCTimeZone(dataSourceName)
+
 		db, err := sql.Open(driverName, refineDataSourceNameForPostgres(dataSourceName))
 		if err != nil {
 			return err
@@ -280,6 +357,10 @@ func (a *Ormer) open() error {
 	}
 
 	if a.driverName == "postgres" {
+		err = configurePostgresEngineTimeZone(engine, dataSourceName)
+		if err != nil {
+			return err
+		}
 		schema := util.GetValueFromDataSourceName("search_path", dataSourceName)
 		if schema != "" {
 			engine.SetSchema(schema)
@@ -304,6 +385,10 @@ func (a *Ormer) openFromDb(db *sql.DB) error {
 	}
 
 	if a.driverName == "postgres" {
+		err = configurePostgresEngineTimeZone(engine, dataSourceName)
+		if err != nil {
+			return err
+		}
 		schema := util.GetValueFromDataSourceName("search_path", dataSourceName)
 		if schema != "" {
 			engine.SetSchema(schema)
@@ -439,6 +524,41 @@ func (a *Ormer) createTable() {
 	}
 
 	err = a.Engine.Sync2(new(Syncer))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(WecomOrganizationSyncConfig))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(WecomOrganizationSyncRun))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(WecomDepartmentMapping))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(WecomUserMapping))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(WecomUserDepartment))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(WecomDepartmentLeader))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(WecomUserDirectLeader))
 	if err != nil {
 		panic(err)
 	}

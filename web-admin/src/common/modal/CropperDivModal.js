@@ -34,6 +34,7 @@ export const CropperDivModal = (props) => {
   const {user} = props;
   const {buttonText} = props;
   const {organization} = props;
+  const {application} = props;
   let uploadButton;
 
   const onChange = (e) => {
@@ -63,7 +64,8 @@ export const CropperDivModal = (props) => {
       // Setting.showMessage("success", "uploading...");
       const extension = image.substring(image.indexOf("/") + 1, image.indexOf(";base64"));
       const fullFilePath = `${tag}/${user.owner}/${user.name}.${extension}`;
-      ResourceBackend.uploadResource(user.owner, user.name, tag, "CropperDivModal", fullFilePath, blob)
+      // 头像属于被编辑用户，上传时应使用该用户所属应用的 Storage Provider，而不是后台默认 app-built-in。
+      ResourceBackend.uploadResource(user.owner, user.name, tag, "CropperDivModal", fullFilePath, blob, application?.name || user.signupApplication)
         .then((res) => {
           if (res.status === "ok") {
             window.location.href = window.location.pathname;

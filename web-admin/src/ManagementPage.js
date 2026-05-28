@@ -84,6 +84,7 @@ import FormListPage from "./FormListPage";
 import FormEditPage from "./FormEditPage";
 import SyncerListPage from "./SyncerListPage";
 import SyncerEditPage from "./SyncerEditPage";
+import WecomOrganizationSyncPage from "./WecomOrganizationSyncPage";
 import WebhookListPage from "./WebhookListPage";
 import WebhookEventListPage from "./WebhookEventListPage";
 import WebhookEditPage from "./WebhookEditPage";
@@ -425,6 +426,7 @@ function ManagementPage(props) {
           {key: "/sysinfo", label: i18next.t("general:System Info"), to: "/sysinfo", matchPrefixes: ["/sysinfo"], visible: isAdmin},
           {key: "/forms", label: i18next.t("general:Forms"), to: "/forms", matchPrefixes: ["/forms"]},
           {key: "/syncers", label: i18next.t("general:Syncers"), to: "/syncers", matchPrefixes: ["/syncers"]},
+          {key: "/wecom-org-sync", label: "企业微信同步", to: "/wecom-org-sync", matchPrefixes: ["/wecom-org-sync"]},
           {key: "/webhooks", label: i18next.t("general:Webhooks"), to: "/webhooks", matchPrefixes: ["/webhooks"]},
           {key: "/webhook-events", label: i18next.t("general:Webhook Events"), to: "/webhook-events", matchPrefixes: ["/webhook-events"]},
           {key: "/tickets", label: i18next.t("general:Tickets"), to: "/tickets", matchPrefixes: ["/tickets"]},
@@ -573,6 +575,7 @@ function ManagementPage(props) {
         <Route exact path="/forms/:formName" render={(props) => renderLoginIfNotLoggedIn(<FormEditPage account={account} {...props} />)} />
         <Route exact path="/syncers" render={(props) => renderLoginIfNotLoggedIn(<SyncerListPage account={account} {...props} />)} />
         <Route exact path="/syncers/:syncerName" render={(props) => renderLoginIfNotLoggedIn(<SyncerEditPage account={account} {...props} />)} />
+        <Route exact path="/wecom-org-sync" render={(props) => renderLoginIfNotLoggedIn(<WecomOrganizationSyncPage account={account} {...props} />)} />
         <Route exact path="/transactions" render={(props) => renderLoginIfNotLoggedIn(<TransactionListPage account={account} {...props} />)} />
         <Route exact path="/transactions/:organizationName/:transactionName" render={(props) => renderLoginIfNotLoggedIn(<TransactionEditPage account={account} {...props} />)} />
         <Route exact path="/webhooks" render={(props) => renderLoginIfNotLoggedIn(<WebhookListPage account={account} {...props} />)} />

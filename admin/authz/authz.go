@@ -118,6 +118,7 @@ p, *, *, GET, /api/get-organization-names, *, *
 p, *, *, GET, /api/get-all-objects, *, *
 p, *, *, GET, /api/get-all-actions, *, *
 p, *, *, GET, /api/get-all-roles, *, *
+p, *, *, GET, /api/org-management-scope/current, *, *
 p, *, *, GET, /api/run-casbin-command, *, *
 p, *, *, POST, /api/refresh-engines, *, *
 p, *, *, GET, /api/get-invitation-info, *, *

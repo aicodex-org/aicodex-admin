@@ -1333,7 +1333,7 @@ class UserEditPage extends React.Component {
         }
         {
           (this.props.account === null) ? null : (
-            <CropperDivModal disabled={disabled} tag={tag} setTitle={set} buttonText={`${title}...`} title={title} user={this.state.user} organization={this.getUserOrganization()} />
+            <CropperDivModal disabled={disabled} tag={tag} setTitle={set} buttonText={`${title}...`} title={title} user={this.state.user} organization={this.getUserOrganization()} application={this.state.application} />
           )
         }
       </Col>

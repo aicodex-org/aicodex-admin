@@ -229,6 +229,29 @@ func (c *ApiController) GetProviderFromContext(category string) (*object.Provide
 		return provider, nil
 	}
 
+	applicationName := c.Ctx.Input.Query("application")
+	if applicationName != "" {
+		if _, ok := c.RequireSignedIn(); !ok {
+			return nil, errors.New(c.T("general:Please login first"))
+		}
+		application, err := object.GetApplication(util.GetId("admin", applicationName))
+		if err != nil {
+			return nil, err
+		}
+		if application == nil {
+			return nil, fmt.Errorf(c.T("auth:The application: %s does not exist"), applicationName)
+		}
+		// 资源上传等接口会显式传入目标应用；优先按目标应用选择 Provider，避免跨组织用户落到当前登录应用。
+		provider, err := application.GetProviderByCategory(category)
+		if err != nil {
+			return nil, err
+		}
+		if provider == nil {
+			return nil, fmt.Errorf(c.T("util:No provider for category: %s is found for application: %s"), category, application.Name)
+		}
+		return provider, nil
+	}
+
 	userId, ok := c.RequireSignedIn()
 	if !ok {
 		return nil, errors.New(c.T("general:Please login first"))

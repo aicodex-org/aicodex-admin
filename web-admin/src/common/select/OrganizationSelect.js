@@ -19,9 +19,15 @@ import * as OrganizationBackend from "../../backend/OrganizationBackend";
 import * as Setting from "../../Setting";
 
 function OrganizationSelect(props) {
-  const {onChange, initValue, style, onSelect, withAll, className} = props;
+  const {onChange, initValue, style, onSelect, withAll, className, excludedOrganizations = []} = props;
   const [organizations, setOrganizations] = React.useState([]);
   const [value, setValue] = React.useState(initValue);
+
+  React.useEffect(() => {
+    if (initValue !== undefined) {
+      setValue(currentValue => currentValue === initValue ? currentValue : initValue);
+    }
+  }, [initValue]);
 
   React.useEffect(() => {
     if (props.organizations === undefined) {
@@ -38,9 +44,10 @@ function OrganizationSelect(props) {
       .then((res) => {
         if (res.status === "ok") {
           setOrganizations(res.data);
-          const selectedValueExist = res.data.filter(organization => organization.name === value).length > 0;
+          const items = getOrganizationItems(res.data);
+          const selectedValueExist = items.filter(organization => organization.value === value).length > 0;
           if (initValue === undefined || !selectedValueExist) {
-            handleOnChange(getOrganizationItems().length > 0 ? getOrganizationItems()[0].value : "");
+            handleOnChange(items.length > 0 ? items[0].value : "");
           }
         }
       });
@@ -51,10 +58,13 @@ function OrganizationSelect(props) {
     onChange?.(value);
   };
 
-  const getOrganizationItems = () => {
+  const getOrganizationItems = (sourceOrganizations = organizations) => {
     const items = [];
 
-    organizations.forEach((organization) => items.push(Setting.getOption(organization.displayName, organization.name)));
+    // 部分业务页面不能把系统内置组织作为可选业务组织，例如企业微信通讯录同步目标。
+    sourceOrganizations
+      .filter(organization => !excludedOrganizations.includes(organization.name))
+      .forEach((organization) => items.push(Setting.getOption(organization.displayName, organization.name)));
 
     if (withAll) {
       items.unshift({

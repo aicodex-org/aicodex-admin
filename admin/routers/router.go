@@ -310,6 +310,14 @@ func InitAPI() {
 	web.Router("/api/run-syncer", &controllers.ApiController{}, "GET:RunSyncer")
 	web.Router("/api/test-syncer-db", &controllers.ApiController{}, "POST:TestSyncerDb")
 
+	web.Router("/api/wecom-org-sync/config", &controllers.ApiController{}, "GET:GetWecomOrganizationSyncConfig")
+	web.Router("/api/wecom-org-sync/config", &controllers.ApiController{}, "POST:SaveWecomOrganizationSyncConfig")
+	web.Router("/api/wecom-org-sync/config/test", &controllers.ApiController{}, "POST:TestWecomOrganizationSyncConfig")
+	web.Router("/api/wecom-org-sync/runs", &controllers.ApiController{}, "POST:StartWecomOrganizationSyncRun")
+	web.Router("/api/wecom-org-sync/runs", &controllers.ApiController{}, "GET:GetWecomOrganizationSyncRuns")
+	web.Router("/api/wecom-org-sync/runs/:runId", &controllers.ApiController{}, "GET:GetWecomOrganizationSyncRun")
+	web.Router("/api/org-management-scope/current", &controllers.ApiController{}, "GET:GetCurrentOrganizationManagementScope")
+
 	web.Router("/api/get-webhooks", &controllers.ApiController{}, "GET:GetWebhooks")
 	web.Router("/api/get-webhook", &controllers.ApiController{}, "GET:GetWebhook")
 	web.Router("/api/update-webhook", &controllers.ApiController{}, "POST:UpdateWebhook")

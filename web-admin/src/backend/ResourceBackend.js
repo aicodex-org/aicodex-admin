@@ -71,8 +71,8 @@ export function deleteResource(resource, provider = "") {
   }).then(res => res.json());
 }
 
-export function uploadResource(owner, user, tag, parent, fullFilePath, file, provider = "") {
-  const application = Conf.DefaultApplication;
+export function uploadResource(owner, user, tag, parent, fullFilePath, file, application = Conf.DefaultApplication, provider = "") {
+  application = application || Conf.DefaultApplication;
   const formData = new FormData();
   formData.append("file", file);
   return fetch(`${Setting.ServerUrl}/api/upload-resource?owner=${owner}&user=${user}&application=${application}&tag=${tag}&parent=${parent}&fullFilePath=${encodeURIComponent(fullFilePath)}&provider=${provider}`, {

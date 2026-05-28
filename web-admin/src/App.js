@@ -179,7 +179,7 @@ class App extends Component {
       "/agents", "/servers", "/server-store", "/entries", "/sites", "/rules", // LLM AI
       "/sessions", "/records", "/tokens", "/verifications", // Logging & Auditing
       "/products", "/orders", "/payments", "/plans", "/pricings", "/subscriptions", "/transactions", // Business
-      "/sysinfo", "/forms", "/syncers", "/webhooks", "/webhook-events", "/tickets", "/swagger", // Admin
+      "/sysinfo", "/forms", "/syncers", "/wecom-org-sync", "/webhooks", "/webhook-events", "/tickets", "/swagger", // Admin
     ];
 
     const count = navItems.filter(item => validMenuItems.includes(item)).length;
@@ -270,13 +270,15 @@ class App extends Component {
       } else if (uri.includes("/transactions")) {
         return "/transactions";
       }
-    } else if (uri.includes("/sysinfo") || uri.includes("/forms") || uri.includes("/syncers") || uri.includes("/webhooks") || uri.includes("/webhook-events") || uri.includes("/tickets")) {
+    } else if (uri.includes("/sysinfo") || uri.includes("/forms") || uri.includes("/syncers") || uri.includes("/wecom-org-sync") || uri.includes("/webhooks") || uri.includes("/webhook-events") || uri.includes("/tickets")) {
       if (uri.includes("/sysinfo")) {
         return "/sysinfo";
       } else if (uri.includes("/forms")) {
         return "/forms";
       } else if (uri.includes("/syncers")) {
         return "/syncers";
+      } else if (uri.includes("/wecom-org-sync")) {
+        return "/wecom-org-sync";
       } else if (uri.includes("/webhook-events")) {
         return "/webhook-events";
       } else if (uri.includes("/webhooks") || uri.includes("/webhook-events")) {
@@ -322,7 +324,7 @@ class App extends Component {
       this.setState({selectedMenuKey: "/logs"});
     } else if (uri.includes("/product-store") || uri.includes("/products") || uri.includes("/orders") || uri.includes("/payments") || uri.includes("/plans") || uri.includes("/pricings") || uri.includes("/subscriptions") || uri.includes("/transactions")) {
       this.setState({selectedMenuKey: "/business"});
-    } else if (uri.includes("/sysinfo") || uri.includes("/forms") || uri.includes("/syncers") || uri.includes("/webhooks") || uri.includes("/webhook-events") || uri.includes("/tickets")) {
+    } else if (uri.includes("/sysinfo") || uri.includes("/forms") || uri.includes("/syncers") || uri.includes("/wecom-org-sync") || uri.includes("/webhooks") || uri.includes("/webhook-events") || uri.includes("/tickets")) {
       this.setState({selectedMenuKey: "/admin"});
     } else if (uri.includes("/signup")) {
       this.setState({selectedMenuKey: "/signup"});
