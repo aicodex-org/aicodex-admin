@@ -1,0 +1,30 @@
+active_profile = "remote"
+
+[profiles.remote.postgres]
+host = "your-postgres-host.example.com"
+port = 5432
+user = "aicodex_admin"
+password = "replace_with_remote_postgres_password"
+database = "aicodex_admin"
+sslmode = "disable"
+extra_options = "connect_timeout=10"
+
+# You can provide a full lib/pq DSN instead. When set, dsn takes precedence.
+# dsn = "user=aicodex_admin password='replace_with_remote_postgres_password' host=your-postgres-host.example.com port=5432 sslmode=disable dbname=aicodex_admin connect_timeout=10"
+
+[profiles.remote.redis]
+# Redis is optional. Keep enabled = false to use local file session storage.
+enabled = false
+host = ""
+port = 6379
+password = ""
+database = 0
+
+# You can provide the Beego redis session endpoint directly. When set, endpoint takes precedence.
+# Format: host:port,poolSize,password,db,idleTimeoutSeconds
+# endpoint = "your-redis-host.example.com:6379,100,replace_with_remote_redis_password,0,30"
+
+[env]
+# Local backend runtime overrides. Keep real secrets only in local-dev/runtime.toml.
+origin = "http://localhost:8000"
+originFrontend = "http://localhost:7002"

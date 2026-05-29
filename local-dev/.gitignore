@@ -1,0 +1,13 @@
+run/
+logs/
+data/
+tmp/
+cache/
+runtime.toml
+*.log
+*.pid
+*.db
+*.db-journal
+*.zip
+.env
+.env.*
