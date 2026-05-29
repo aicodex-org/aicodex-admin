@@ -18,6 +18,18 @@
 
 ## Development
 
+### Local Dev Workflow
+
+Windows local development can use the repository-local helper scripts:
+
+```powershell
+Copy-Item .\local-dev\runtime.toml.example .\local-dev\runtime.toml
+# edit local-dev/runtime.toml with remote PostgreSQL settings
+.\local-dev\start-windows-local-dev.ps1 start
+```
+
+The helper runs the Go backend on `http://localhost:8000` and the React dev server on `http://localhost:7002`. See `local-dev/README.md` for runtime profile details, status, logs, and troubleshooting commands.
+
 ### Backend
 
 ```bash
