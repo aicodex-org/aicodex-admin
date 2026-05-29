@@ -17,10 +17,30 @@ import {Col, Input, Radio, Row, Switch} from "antd";
 import {LinkOutlined} from "@ant-design/icons";
 import * as Setting from "../Setting";
 import i18next from "i18next";
+import {getLarkProviderEndpointModeInfo, isLarkProvider} from "./LarkProviderUtils";
 
 const {TextArea} = Input;
 
 export function renderOAuthProviderFields(provider, updateProviderField, renderUserMappingInput) {
+  const renderLarkEndpointModeInfo = provider => {
+    if (!isLarkProvider(provider)) {
+      return null;
+    }
+
+    const endpointModeInfo = getLarkProviderEndpointModeInfo(provider);
+
+    return (
+      <Col span={21}>
+        <div style={{lineHeight: "22px", color: "rgba(0, 0, 0, 0.65)"}}>
+          <div>{`${i18next.t("provider:Selected endpoint mode")}: ${i18next.t(`provider:${endpointModeInfo.modeName}`)}`}</div>
+          <div>{`${i18next.t("provider:Authorization domain")}: ${endpointModeInfo.authDomain}`}</div>
+          <div>{`${i18next.t("provider:API domain")}: ${endpointModeInfo.apiDomain}`}</div>
+          <div>{`${i18next.t("provider:App ID and App Secret must come from")}: ${i18next.t(`provider:${endpointModeInfo.credentialPlatform}`)}`}</div>
+        </div>
+      </Col>
+    );
+  };
+
   const getDomainLabel = provider => {
     switch (provider.category) {
     case "OAuth":
@@ -110,13 +130,14 @@ export function renderOAuthProviderFields(provider, updateProviderField, renderU
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
               {provider.type === "Google" ?
                 Setting.getLabel(i18next.t("provider:Get phone number"), i18next.t("provider:Get phone number - Tooltip"))
-                : Setting.getLabel(i18next.t("provider:Use global endpoint"), i18next.t("provider:Use global endpoint - Tooltip"))} :
+                : Setting.getLabel(i18next.t("provider:Endpoint mode"), i18next.t("provider:Lark endpoint mode - Tooltip"))} :
             </Col>
             <Col span={1} >
               <Switch disabled={!provider.clientId} checked={provider.disableSsl} onChange={checked => {
                 updateProviderField("disableSsl", checked);
               }} />
             </Col>
+            {renderLarkEndpointModeInfo(provider)}
           </Row>
         )
       }

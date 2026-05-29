@@ -47,6 +47,16 @@ func (application *Application) GetProviderItemByType(providerType string) *Prov
 	return nil
 }
 
+// IsProviderVisibleForLogin checks application binding visibility without assuming the ProviderItem exists.
+func (application *Application) IsProviderVisibleForLogin(providerName string) bool {
+	if application == nil {
+		return false
+	}
+
+	providerItem := application.GetProviderItem(providerName)
+	return providerItem != nil && providerItem.IsProviderVisible()
+}
+
 func (pi *ProviderItem) IsProviderVisible() bool {
 	if pi.Provider == nil {
 		return false

@@ -168,6 +168,11 @@ func (c *ApiController) HandleLoggedIn(application *object.Application, user *ob
 			return
 		}
 
+		if msg := object.ValidateOAuthClientRequestForApplication(application, clientId, responseType, redirectUri, scope, state, c.GetAcceptLanguage()); msg != "" {
+			resp = &Response{Status: "error", Msg: msg, Data: ""}
+			return
+		}
+
 		consentRequired, err := object.CheckConsentRequired(user, application, scope)
 		if err != nil {
 			c.ResponseError(err.Error())
@@ -193,11 +198,21 @@ func (c *ApiController) HandleLoggedIn(application *object.Application, user *ob
 			c.SetSessionUsername(userId)
 		}
 	} else if form.Type == ResponseTypeToken || form.Type == ResponseTypeIdToken { // implicit flow
+		clientId := c.Ctx.Input.Query("clientId")
+		responseType := c.Ctx.Input.Query("responseType")
+		redirectUri := c.Ctx.Input.Query("redirectUri")
+		scope := c.Ctx.Input.Query("scope")
+		state := c.Ctx.Input.Query("state")
+		nonce := c.Ctx.Input.Query("nonce")
+
+		if msg := object.ValidateOAuthClientRequestForApplication(application, clientId, responseType, redirectUri, scope, state, c.GetAcceptLanguage()); msg != "" {
+			resp = &Response{Status: "error", Msg: msg, Data: ""}
+			return
+		}
+
 		if !object.IsGrantTypeValid(form.Type, application.GrantTypes) {
 			resp = &Response{Status: "error", Msg: fmt.Sprintf("error: grant_type: %s is not supported in this application", form.Type), Data: ""}
 		} else {
-			scope := c.Ctx.Input.Query("scope")
-			nonce := c.Ctx.Input.Query("nonce")
 			expandedScope, valid := object.IsScopeValidAndExpand(scope, application)
 			if !valid {
 				resp = &Response{Status: "error", Msg: "error: invalid_scope", Data: ""}
@@ -791,7 +806,7 @@ func (c *ApiController) Login() {
 		}
 
 		providerItem := application.GetProviderItem(provider.Name)
-		if !providerItem.IsProviderVisible() {
+		if !application.IsProviderVisibleForLogin(provider.Name) {
 			c.ResponseError(fmt.Sprintf(c.T("auth:The provider: %s is not enabled for the application"), provider.Name))
 			return
 		}
@@ -871,7 +886,11 @@ func (c *ApiController) Login() {
 					return
 				}
 			} else if provider.Category == "OAuth" || provider.Category == "Web3" {
-				user, err = object.GetUserByField(application.Organization, provider.Type, userInfo.Id)
+				if provider.Type == "Lark" {
+					user, _, err = object.FindLarkUserByIdentifiers(application.Organization, userInfo)
+				} else {
+					user, err = object.GetUserByField(application.Organization, provider.Type, userInfo.Id)
+				}
 				if err != nil {
 					c.ResponseError(err.Error())
 					return
@@ -1057,7 +1076,11 @@ func (c *ApiController) Login() {
 			}
 
 			var oldUser *object.User
-			oldUser, err = object.GetUserByField(application.Organization, provider.Type, userInfo.Id)
+			if provider.Type == "Lark" {
+				oldUser, _, err = object.FindLarkUserByIdentifiers(application.Organization, userInfo)
+			} else {
+				oldUser, err = object.GetUserByField(application.Organization, provider.Type, userInfo.Id)
+			}
 			if err != nil {
 				c.ResponseError(err.Error())
 				return

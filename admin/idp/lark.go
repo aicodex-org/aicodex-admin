@@ -15,11 +15,11 @@
 package idp
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/nyaruka/phonenumbers"
@@ -53,7 +53,7 @@ func (idp *LarkIdProvider) SetHttpClient(client *http.Client) {
 // getConfig return a point of Config, which describes a typical 3-legged OAuth2 flow
 func (idp *LarkIdProvider) getConfig(clientId string, clientSecret string, redirectUrl string) *oauth2.Config {
 	endpoint := oauth2.Endpoint{
-		TokenURL: idp.LarkDomain + "/open-apis/auth/v3/tenant_access_token/internal",
+		TokenURL: idp.LarkDomain + "/open-apis/authen/v2/oauth/token",
 	}
 
 	config := &oauth2.Config{
@@ -67,29 +67,29 @@ func (idp *LarkIdProvider) getConfig(clientId string, clientSecret string, redir
 	return config
 }
 
-/*
-{
-    "code": 0,
-    "msg": "success",
-    "tenant_access_token": "t-caecc734c2e3328a62489fe0648c4b98779515d3",
-    "expire": 7140
-}
-*/
-
 type LarkAccessToken struct {
-	Code              int    `json:"code"`
-	Msg               string `json:"msg"`
-	TenantAccessToken string `json:"tenant_access_token"`
-	Expire            int    `json:"expire"`
+	Code                  interface{} `json:"code"`
+	Msg                   string      `json:"msg"`
+	Error                 string      `json:"error"`
+	ErrorDescription      string      `json:"error_description"`
+	AccessToken           string      `json:"access_token"`
+	TokenType             string      `json:"token_type"`
+	ExpiresIn             int         `json:"expires_in"`
+	RefreshToken          string      `json:"refresh_token"`
+	RefreshTokenExpiresIn int         `json:"refresh_token_expires_in"`
+	Scope                 string      `json:"scope"`
 }
 
 func (idp *LarkIdProvider) GetToken(code string) (*oauth2.Token, error) {
 	params := &struct {
-		AppID     string `json:"app_id"`
-		AppSecret string `json:"app_secret"`
-	}{idp.Config.ClientID, idp.Config.ClientSecret}
+		GrantType    string `json:"grant_type"`
+		ClientID     string `json:"client_id"`
+		ClientSecret string `json:"client_secret"`
+		Code         string `json:"code"`
+		RedirectURI  string `json:"redirect_uri,omitempty"`
+	}{"authorization_code", idp.Config.ClientID, idp.Config.ClientSecret, code, idp.Config.RedirectURL}
 
-	data, err := idp.postWithBody(params, idp.Config.Endpoint.TokenURL)
+	data, statusCode, err := idp.postWithBody(params, idp.Config.Endpoint.TokenURL)
 	if err != nil {
 		return nil, err
 	}
@@ -100,20 +100,54 @@ func (idp *LarkIdProvider) GetToken(code string) (*oauth2.Token, error) {
 		return nil, err
 	}
 
-	if appToken.Code != 0 {
-		return nil, fmt.Errorf("GetToken() error, appToken.Code: %d, appToken.Msg: %s", appToken.Code, appToken.Msg)
+	if statusCode >= http.StatusBadRequest || !isLarkTokenCodeSuccess(appToken.Code) || appToken.AccessToken == "" {
+		return nil, fmt.Errorf("Lark GetToken() error, status: %d, code: %s, msg: %s, error: %s, error_description: %s", statusCode, formatLarkTokenCode(appToken.Code), appToken.Msg, appToken.Error, appToken.ErrorDescription)
 	}
 
 	t := &oauth2.Token{
-		AccessToken: appToken.TenantAccessToken,
-		TokenType:   "Bearer",
-		Expiry:      time.Unix(time.Now().Unix()+int64(appToken.Expire), 0),
+		AccessToken:  appToken.AccessToken,
+		TokenType:    appToken.TokenType,
+		RefreshToken: appToken.RefreshToken,
+	}
+	if t.TokenType == "" {
+		t.TokenType = "Bearer"
+	}
+	if appToken.ExpiresIn > 0 {
+		t.Expiry = time.Unix(time.Now().Unix()+int64(appToken.ExpiresIn), 0)
 	}
 
 	raw := make(map[string]interface{})
 	raw["code"] = code
+	raw["scope"] = appToken.Scope
+	raw["refresh_token_expires_in"] = appToken.RefreshTokenExpiresIn
 	t = t.WithExtra(raw)
 	return t, nil
+}
+
+func isLarkTokenCodeSuccess(code interface{}) bool {
+	switch value := code.(type) {
+	case nil:
+		return true
+	case float64:
+		return value == 0
+	case string:
+		return value == "" || value == "0"
+	default:
+		return false
+	}
+}
+
+func formatLarkTokenCode(code interface{}) string {
+	switch value := code.(type) {
+	case nil:
+		return ""
+	case float64:
+		return fmt.Sprintf("%.0f", value)
+	case string:
+		return value
+	default:
+		return fmt.Sprintf("%v", value)
+	}
 }
 
 /*
@@ -169,31 +203,20 @@ type LarkUserInfo struct {
 }
 
 func (idp *LarkIdProvider) GetUserInfo(token *oauth2.Token) (*UserInfo, error) {
-	body := &struct {
-		GrantType string `json:"grant_type"`
-		Code      string `json:"code"`
-	}{"authorization_code", token.Extra("code").(string)}
-
-	data, err := json.Marshal(body)
+	req, err := http.NewRequest("GET", idp.LarkDomain+"/open-apis/authen/v1/user_info", nil)
 	if err != nil {
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", idp.LarkDomain+"/open-apis/authen/v1/access_token", strings.NewReader(string(data)))
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Content-Type", "application/json;charset=UTF-8")
 	req.Header.Set("Authorization", "Bearer "+token.AccessToken)
 
-	resp, err := idp.Client.Do(req)
+	resp, err := idp.getHttpClient().Do(req)
 	if err != nil {
 		return nil, err
 	}
 
 	defer resp.Body.Close()
-	data, err = io.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -202,6 +225,9 @@ func (idp *LarkIdProvider) GetUserInfo(token *oauth2.Token) (*UserInfo, error) {
 	err = json.Unmarshal(data, &larkUserInfo)
 	if err != nil {
 		return nil, err
+	}
+	if resp.StatusCode >= http.StatusBadRequest || larkUserInfo.Code != 0 {
+		return nil, fmt.Errorf("Lark GetUserInfo() error, status: %d, code: %d, msg: %s", resp.StatusCode, larkUserInfo.Code, larkUserInfo.Msg)
 	}
 
 	// Use enterprise_email as fallback when email is empty
@@ -231,39 +257,48 @@ func (idp *LarkIdProvider) GetUserInfo(token *oauth2.Token) (*UserInfo, error) {
 	}
 
 	userInfo := UserInfo{
-		Id:          larkUserInfo.Data.OpenId,
+		Id:          username,
 		DisplayName: larkUserInfo.Data.Name,
 		Username:    username,
+		UnionId:     larkUserInfo.Data.UnionId,
 		Email:       email,
 		AvatarUrl:   larkUserInfo.Data.AvatarUrl,
 		Phone:       phoneNumber,
 		CountryCode: countryCode,
+		Extra: map[string]string{
+			"user_id":    larkUserInfo.Data.UserId,
+			"open_id":    larkUserInfo.Data.OpenId,
+			"union_id":   larkUserInfo.Data.UnionId,
+			"tenant_key": larkUserInfo.Data.TenantKey,
+		},
 	}
 	return &userInfo, nil
 }
 
-func (idp *LarkIdProvider) postWithBody(body interface{}, url string) ([]byte, error) {
+func (idp *LarkIdProvider) postWithBody(body interface{}, url string) ([]byte, int, error) {
 	bs, err := json.Marshal(body)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	r := strings.NewReader(string(bs))
-	resp, err := idp.Client.Post(url, "application/json;charset=UTF-8", r)
+	resp, err := idp.getHttpClient().Post(url, "application/json;charset=UTF-8", bytes.NewReader(bs))
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
+	defer resp.Body.Close()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, resp.StatusCode, err
 	}
 
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			return
-		}
-	}(resp.Body)
-	return data, nil
+	return data, resp.StatusCode, nil
+}
+
+func (idp *LarkIdProvider) getHttpClient() *http.Client {
+	if idp.Client != nil {
+		return idp.Client
+	}
+
+	return http.DefaultClient
 }

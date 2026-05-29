@@ -213,6 +213,10 @@ func SetUserOAuthProperties(organization *Organization, user *User, providerType
 		user.OriginalRefreshToken = token.RefreshToken
 	}
 
+	if providerType == "Lark" {
+		ApplyLarkOAuthIdentifierProperties(user, userInfo)
+	}
+
 	if userInfo.Id != "" {
 		propertyName := fmt.Sprintf("oauth_%s_id", providerType)
 		setUserProperty(user, propertyName, userInfo.Id)
@@ -290,6 +294,92 @@ func SetUserOAuthProperties(organization *Organization, user *User, providerType
 	}
 
 	return UpdateUserForAllFields(user.GetId(), user)
+}
+
+// GetLarkIdentifierCandidates returns Lark user identifiers in the match order used to avoid duplicate local accounts.
+func GetLarkIdentifierCandidates(userInfo *idp.UserInfo) []string {
+	if userInfo == nil {
+		return nil
+	}
+
+	candidates := []string{
+		userInfo.Extra["user_id"],
+		userInfo.Extra["open_id"],
+		userInfo.Extra["union_id"],
+	}
+	if len(userInfo.Extra) == 0 {
+		candidates = []string{userInfo.Id, userInfo.UnionId}
+	}
+
+	seen := map[string]bool{}
+	res := []string{}
+	for _, candidate := range candidates {
+		candidate = strings.TrimSpace(candidate)
+		if candidate == "" || seen[candidate] {
+			continue
+		}
+		seen[candidate] = true
+		res = append(res, candidate)
+	}
+
+	return res
+}
+
+// ResolveLarkUserByIdentifierCandidates returns one matched user, or rejects conflicting matches across Lark identifiers.
+func ResolveLarkUserByIdentifierCandidates(candidates []string, findUser func(identifier string) (*User, error)) (*User, string, error) {
+	var matchedUser *User
+	matchedIdentifier := ""
+
+	for _, candidate := range candidates {
+		user, err := findUser(candidate)
+		if err != nil {
+			return nil, "", err
+		}
+		if user == nil {
+			continue
+		}
+
+		if matchedUser != nil && matchedUser.GetId() != user.GetId() {
+			return nil, "", fmt.Errorf("multiple Lark identifiers match different users: %s and %s", matchedUser.GetId(), user.GetId())
+		}
+
+		if matchedUser == nil {
+			matchedUser = user
+			matchedIdentifier = candidate
+		}
+	}
+
+	return matchedUser, matchedIdentifier, nil
+}
+
+// FindLarkUserByIdentifiers finds a local user through user_id, open_id, or union_id stored in User.Lark.
+func FindLarkUserByIdentifiers(organizationName string, userInfo *idp.UserInfo) (*User, string, error) {
+	return ResolveLarkUserByIdentifierCandidates(GetLarkIdentifierCandidates(userInfo), func(identifier string) (*User, error) {
+		return GetUserByField(organizationName, "Lark", identifier)
+	})
+}
+
+// ApplyLarkOAuthIdentifierProperties preserves raw Lark identifiers and backfills User.Lark to user_id when available.
+func ApplyLarkOAuthIdentifierProperties(user *User, userInfo *idp.UserInfo) {
+	if user == nil || userInfo == nil || userInfo.Extra == nil {
+		return
+	}
+
+	rawPropertyKeys := map[string]string{
+		"user_id":    "oauth_Lark_userId",
+		"open_id":    "oauth_Lark_openId",
+		"union_id":   "oauth_Lark_unionId",
+		"tenant_key": "oauth_Lark_tenantKey",
+	}
+	for rawKey, propertyKey := range rawPropertyKeys {
+		if value := strings.TrimSpace(userInfo.Extra[rawKey]); value != "" {
+			setUserProperty(user, propertyKey, value)
+		}
+	}
+
+	if userId := strings.TrimSpace(userInfo.Extra["user_id"]); userId != "" {
+		user.Lark = userId
+	}
 }
 
 // syncOAuthAvatarToPermanentStorage ensures the user's avatar is stored in permanent storage.

@@ -27,6 +27,7 @@ import * as phoneNumber from "libphonenumber-js";
 import moment from "moment";
 import {MfaAuthVerifyForm, NextMfa, RequiredMfa} from "./auth/mfa/MfaAuthVerifyForm";
 import {EmailMfaType, SmsMfaType, TotpMfaType} from "./auth/MfaSetupPage";
+import {getLarkProviderBrand, isLarkProvider} from "./provider/LarkProviderUtils";
 
 const {Option} = Select;
 
@@ -1207,6 +1208,9 @@ export function getProviderLogoURL(provider) {
     return provider.customLogo;
   }
   if (provider.category === "OAuth") {
+    if (isLarkProvider(provider)) {
+      return `${StaticBaseUrl}${getLarkProviderBrand(provider).socialLogoPath}`;
+    }
     const type = provider.type.startsWith("Custom") ? "Custom" : provider.type;
     return `${StaticBaseUrl}/img/social_${type.toLowerCase()}.png`;
   } else {
