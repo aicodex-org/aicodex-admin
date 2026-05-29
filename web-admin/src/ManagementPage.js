@@ -118,6 +118,7 @@ import SiteListPage from "./SiteListPage";
 import SiteEditPage from "./SiteEditPage";
 import RuleListPage from "./RuleListPage";
 import RuleEditPage from "./RuleEditPage";
+import {getAdminLoginRedirectPath} from "./adminLoginRouting";
 
 const {Content, Header, Sider} = Layout;
 
@@ -477,13 +478,8 @@ function ManagementPage(props) {
 
   function renderLoginIfNotLoggedIn(component) {
     if (props.account === null) {
-      const lastLoginOrg = localStorage.getItem("lastLoginOrg");
       sessionStorage.setItem("from", window.location.pathname);
-      if (lastLoginOrg) {
-        return <Redirect to={`/login/${lastLoginOrg}`} />;
-      } else {
-        return <Redirect to="/login" />;
-      }
+      return <Redirect to={getAdminLoginRedirectPath()} />;
     } else if (props.account === undefined) {
       return null;
     } else if (props.account.needUpdatePassword) {
