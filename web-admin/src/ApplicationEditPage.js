@@ -175,6 +175,11 @@ class ApplicationEditPage extends React.Component {
           application.tags = [];
         }
 
+        if (application.providers === null || application.providers === undefined) {
+          // 后端空切片可能序列化为 null，编辑页统一按空数组处理，避免空表格操作崩溃。
+          application.providers = [];
+        }
+
         this.setState({
           application: application,
         });

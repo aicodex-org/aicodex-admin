@@ -44,10 +44,8 @@ class ProviderTable extends React.Component {
   }
 
   addRow(table) {
+    table = Array.isArray(table) ? table : [];
     const row = {name: Setting.getNewRowNameForTable(table, "Please select a provider"), canSignUp: true, canSignIn: true, canUnlink: true, prompted: false, signupGroup: "", rule: "None"};
-    if (table === undefined) {
-      table = [];
-    }
     table = Setting.addRow(table, row);
     this.updateTable(table);
   }
@@ -68,6 +66,7 @@ class ProviderTable extends React.Component {
   }
 
   renderTable(table) {
+    table = Array.isArray(table) ? table : [];
     let columns = [
       {
         title: i18next.t("general:Name"),

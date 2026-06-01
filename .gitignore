@@ -28,6 +28,7 @@ logs/
 files/
 .gocache/
 .gomodcache/
+.playwright-mcp/
 lastupdate.tmp
 commentsRouter*.go
 deploy/.env

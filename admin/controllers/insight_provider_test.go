@@ -55,6 +55,22 @@ func TestInsightCurrentUserResponseUsesWhitelistAndRedactsSensitiveFields(t *tes
 	}
 }
 
+func TestInsightCurrentUserDisplayNamePrefersOrganizationDisplayName(t *testing.T) {
+	user := &object.User{
+		Owner:       "org-a",
+		Name:        "wecom-user-huangfanli",
+		DisplayName: "黄凡力",
+		FirstName:   "Fanley",
+		LastName:    "Huang",
+	}
+
+	got := buildInsightCurrentUserResponse(user, nil, nil, time.Date(2026, 5, 29, 8, 0, 0, 0, time.UTC))
+
+	if got.DisplayName != "黄凡力" {
+		t.Fatalf("DisplayName = %q, want organization display name", got.DisplayName)
+	}
+}
+
 func TestInsightScopeForOrganizationAdminStaysInOwnOrganization(t *testing.T) {
 	generatedAt := time.Date(2026, 5, 21, 8, 0, 0, 0, time.UTC)
 	currentUser := &object.User{
@@ -196,6 +212,31 @@ func TestInsightScopeSkipsUsersWithoutDepartmentUsageMapping(t *testing.T) {
 	}
 	if !containsString(dept.AdminUserIds, "org-a/mapped") || !containsString(dept.ApiUserIds, "201") {
 		t.Fatalf("department scope lost mapped user: %+v", got)
+	}
+}
+
+func TestInsightQueryableScopeSkipsResolverMissingUsers(t *testing.T) {
+	users := []*object.User{
+		{Owner: "org-a", Name: "mapped", Id: "subject-mapped"},
+		{Owner: "org-a", Name: "missing", Id: "subject-missing"},
+	}
+	resolver := &stubInsightUsageIdentityResolver{results: []insightUsageIdentityResolveResult{
+		{RequestId: "org-a/mapped", MappingStatus: MappingStatusOK, ApiUserId: 201},
+		{RequestId: "org-a/missing", MappingStatus: MappingStatusMissing},
+	}}
+
+	adminUserIds, apiUserIds, mappingStatus, providerErr := mapInsightQueryableUsersToUsageIdsWithResolver(users, resolver, "trace-skip-missing")
+	if providerErr != nil {
+		t.Fatalf("mapInsightQueryableUsersToUsageIdsWithResolver returned error: %+v", providerErr)
+	}
+	if mappingStatus != MappingStatusOK {
+		t.Fatalf("mappingStatus = %q, want OK when resolver reports missing queryable users", mappingStatus)
+	}
+	if !containsString(adminUserIds, "org-a/mapped") || !containsString(apiUserIds, "201") {
+		t.Fatalf("mapped user was not retained: adminUserIds=%+v apiUserIds=%+v", adminUserIds, apiUserIds)
+	}
+	if containsString(adminUserIds, "org-a/missing") {
+		t.Fatalf("resolver missing user should be skipped for queryable scopes: %+v", adminUserIds)
 	}
 }
 

@@ -11,10 +11,18 @@ services:
       driverName: postgres
       dbName: aicodex_admin
       dataSourceName: user=postgres password=123456 host=db port=5432 sslmode=disable dbname=aicodex_admin
+      # 默认语言只影响首次访问或无痕窗口，用户仍可在页面上手动切换语言。
+      defaultLanguage: ${AICODEX_ADMIN_DEFAULT_LANGUAGE:-zh}
       # Insight provider 校验 bearer token 时使用这些白名单，生产环境必须显式配置 audience。
       insightProviderAllowedAudiences: ${AICODEX_INSIGHT_PROVIDER_ALLOWED_AUDIENCES:-}
       insightProviderAllowedIssuers: ${AICODEX_INSIGHT_PROVIDER_ALLOWED_ISSUERS:-}
       insightProviderRequiredScopes: ${AICODEX_INSIGHT_PROVIDER_REQUIRED_SCOPES:-}
+      # Insight 用量身份 resolver；endpoint/token 为空时保持现有手工映射行为。
+      insightUsageIdentityResolverEndpoint: ${AICODEX_INSIGHT_USAGE_IDENTITY_RESOLVER_ENDPOINT:-}
+      insightUsageIdentityResolverToken: ${AICODEX_INSIGHT_USAGE_IDENTITY_RESOLVER_TOKEN:-}
+      insightUsageIdentityResolverCaller: ${AICODEX_INSIGHT_USAGE_IDENTITY_RESOLVER_CALLER:-aicodex-admin}
+      insightUsageIdentityResolverMaxItems: ${AICODEX_INSIGHT_USAGE_IDENTITY_RESOLVER_MAX_ITEMS:-200}
+      insightUsageIdentityResolverTimeoutMs: ${AICODEX_INSIGHT_USAGE_IDENTITY_RESOLVER_TIMEOUT_MS:-5000}
     ports:
       - "8000:8000"
     volumes:

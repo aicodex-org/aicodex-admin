@@ -1491,6 +1491,13 @@ func TestWecomOrganizationSyncServiceApplyUserUpsertsKeepsSensitiveProfileWhenWe
 	}
 }
 
+func TestWecomOrganizationSyncServiceSaveUserColumnsIncludeSignupApplication(t *testing.T) {
+	// 真实数据库保存已有企业微信用户时使用列白名单；这里必须包含应用字段，否则旧用户无法补齐所属企业微信应用。
+	if !stringSliceContains(wecomUserSaveColumns(), "signup_application") {
+		t.Fatalf("SaveUser update columns must include signup_application")
+	}
+}
+
 func TestWecomOrganizationSyncServiceApplyUserUpsertsRecordsPossibleDuplicateUsers(t *testing.T) {
 	now := time.Date(2026, 5, 19, 12, 0, 0, 0, time.UTC)
 	store := newMemoryWecomOrganizationObjectStore()

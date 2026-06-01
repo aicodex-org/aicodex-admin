@@ -9,6 +9,7 @@ TBD - created by archiving change add-insight-admin-provider-wrapper. Update Pur
 #### Scenario: 已认证用户读取当前身份
 - **WHEN** `aicodex-insight` 使用有效的 admin 用户访问令牌请求 current-user provider
 - **THEN** 系统 MUST 返回当前用户的 `adminUserId`、`username`、`displayName`、`organization`、`roles`、`groups`、`usageIdentity` 和 `generatedAt`
+- **THEN** 企业微信同步用户的 `displayName` MUST 优先使用组织同步的展示名，而不是通用账号友好名
 - **THEN** 当当前用户配置了 `aicodex-api` 用量组织映射时，系统 MUST 返回 `apiOrganizationId`，且该字段表示用量侧组织 UUID 而不是 admin 权限域名称
 - **THEN** 响应 MUST NOT 返回密码、访问令牌、刷新令牌、密钥、手机号明文或邮箱明文等敏感字段
 
@@ -45,8 +46,14 @@ TBD - created by archiving change add-insight-admin-provider-wrapper. Update Pur
 - **THEN** 系统 MUST 返回 `scopeType=EMPTY`
 - **THEN** 系统 MUST NOT 通过空列表隐式表达 `ALL_COMPANY`
 
-#### Scenario: 用量用户映射缺失时拒绝报表 scope
-- **WHEN** 当前用户或 scope 内必要用户缺少确定的 `aicodex-api` 用量用户 ID 映射，或映射存在一对多歧义
+#### Scenario: 部门或全公司 scope 跳过缺失成员
+- **WHEN** `DEPARTMENT_TREE`、`ALL_COMPANY` 或 `ORGANIZATION` scope 内部分成员缺少确定的 `aicodex-api` 用量用户 ID 映射
+- **THEN** 系统 MUST 从返回给 insight 的 `apiUserIds` 中排除缺失成员
+- **THEN** 系统 MUST 保留已成功映射成员的 `apiUserIds`
+- **THEN** 系统 MUST NOT 因单个缺失成员拒绝整个部门或全公司 scope
+
+#### Scenario: 精确 scope 映射缺失时拒绝报表 scope
+- **WHEN** 当前用户的 `SELF` scope 或显式 `CUSTOM_USERS` scope 内必要用户缺少确定的 `aicodex-api` 用量用户 ID 映射，或映射存在一对多歧义
 - **THEN** 系统 MUST 返回稳定错误码 `AUTHORIZATION_FAILED`
 - **THEN** 系统 MUST 返回 `mappingStatus=MISSING` 或 `mappingStatus=AMBIGUOUS`
 - **THEN** 系统 MUST NOT 将映射问题返回为 `scopeType=EMPTY`
@@ -102,3 +109,36 @@ TBD - created by archiving change add-insight-admin-provider-wrapper. Update Pur
 - **THEN** 系统 MUST 写入结构化审计日志
 - **THEN** 日志 MUST 至少包含 `traceId`、`adminUserId`、`organization`、`scopeType`、`groupCount`、`adminUserCount`、`apiUserCount`、`mappingStatus`、`status` 和 `errorCode`
 
+### Requirement: provider 必须支持企业微信稳定身份解析用量用户
+Insight admin provider MUST 在现有手工 `aicodexApiUserId` 映射之外，支持通过企业微信稳定身份批量解析 aicodex-api 用量用户 ID。该能力 MUST 保持 admin provider 作为 scope 授权边界，MUST NOT 要求 Insight 直接参与身份映射。
+
+#### Scenario: current-user 返回企业微信解析后的用量身份
+- **WHEN** 当前 admin 用户没有手工用量 ID，但存在企业微信稳定身份且 api resolver 返回唯一用量用户
+- **THEN** current-user provider MUST 返回 `usageIdentity.apiUserId`
+- **THEN** current-user provider MUST 返回 `usageIdentity.mappingStatus=OK`
+- **THEN** current-user provider MUST 记录映射来源为企业微信 resolver
+- **THEN** current-user provider MUST 优先使用企业微信组织同步的 `displayName` 作为返回给 Insight 的 `displayName`
+
+#### Scenario: scope 返回企业微信解析后的部门用量用户
+- **WHEN** scope provider 计算 `DEPARTMENT_TREE` 且部门成员存在企业微信稳定身份
+- **THEN** scope provider MUST 通过 api resolver 解析成员用量用户 ID
+- **THEN** scope provider MUST 返回 `departments[].apiUserIds`
+- **THEN** 顶层 `apiUserIds` MUST 是所有已授权部门成员 `apiUserIds` 的去重并集
+
+#### Scenario: 部门或全公司 scope 跳过缺失成员
+- **WHEN** `DEPARTMENT_TREE`、`ALL_COMPANY` 或 `ORGANIZATION` scope 中部分成员解析结果为 `MISSING`
+- **THEN** provider MUST 从下发给 Insight 的 `apiUserIds` 中排除缺失成员
+- **THEN** provider MUST 保留已成功解析成员的 `apiUserIds`
+- **THEN** provider MUST NOT 因单个缺失成员拒绝整个部门或全公司 scope
+
+#### Scenario: 精确 scope 缺失映射不降级
+- **WHEN** `SELF` 或 `CUSTOM_USERS` scope 的必要用户解析结果为 `MISSING`
+- **THEN** provider MUST 返回 `AUTHORIZATION_FAILED`
+- **THEN** provider MUST 返回可诊断的 `mappingStatus`
+- **THEN** provider MUST NOT 将该场景返回为 `scopeType=EMPTY`
+
+#### Scenario: 企业微信解析异常不降级为空 scope
+- **WHEN** 企业微信稳定身份解析因歧义、非法或 resolver 不可用而无法完成必要用户映射
+- **THEN** provider MUST 返回 `AUTHORIZATION_FAILED` 或 `PROVIDER_UNAVAILABLE`
+- **THEN** provider MUST 返回可诊断的 `mappingStatus`
+- **THEN** provider MUST NOT 将该场景返回为 `scopeType=EMPTY`
