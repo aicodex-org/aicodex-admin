@@ -1,3 +1,5 @@
+/* eslint-env jest */
+
 // Copyright 2026 The AICodex Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {getApiPaths} from "./Setting";
+import {StaticBaseUrl, getApiPaths, getProviderLogoURL, isProviderVisibleForSignIn, isProviderVisibleForSignUp} from "./Setting";
 
 test("includes module-based WeCom organization API paths", () => {
   const paths = getApiPaths();
@@ -21,4 +23,34 @@ test("includes module-based WeCom organization API paths", () => {
   expect(paths).toContain("wecom-org-sync/config/test");
   expect(paths).toContain("wecom-org-sync/runs");
   expect(paths).toContain("org-management-scope/current");
+});
+
+test("uses shared Lark/Feishu logo for domestic Lark OAuth provider", () => {
+  expect(getProviderLogoURL({category: "OAuth", type: "Lark", disableSsl: false})).toBe(`${StaticBaseUrl}/img/social_lark.png`);
+});
+
+test("uses Lark logo for global Lark OAuth provider", () => {
+  expect(getProviderLogoURL({category: "OAuth", type: "Lark", disableSsl: true})).toBe(`${StaticBaseUrl}/img/social_lark.png`);
+});
+
+test("keeps hidden Lark provider out of sign-in and sign-up provider entries", () => {
+  const hiddenLarkProviderItem = {
+    canSignIn: false,
+    canSignUp: false,
+    provider: {category: "OAuth", type: "Lark"},
+  };
+
+  expect(isProviderVisibleForSignIn(hiddenLarkProviderItem)).toBe(false);
+  expect(isProviderVisibleForSignUp(hiddenLarkProviderItem)).toBe(false);
+});
+
+test("keeps existing OAuth and WeCom provider visibility rules unchanged", () => {
+  expect(isProviderVisibleForSignIn({
+    canSignIn: true,
+    provider: {category: "OAuth", type: "GitHub"},
+  })).toBe(true);
+  expect(isProviderVisibleForSignIn({
+    canSignIn: true,
+    provider: {category: "OAuth", type: "WeCom"},
+  })).toBe(true);
 });

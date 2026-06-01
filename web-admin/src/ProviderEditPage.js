@@ -33,6 +33,8 @@ import {renderStorageProviderFields} from "./provider/StorageProviderFields";
 import {renderFaceIdProviderFields} from "./provider/FaceIDProviderFields";
 import {renderIDVerificationProviderFields} from "./provider/IDVerificationProviderFields";
 import {getWeComRequiredFields, validateWeComProviderFields} from "./provider/WeComProviderUtils";
+import {renderLarkProviderGuide} from "./provider/LarkProviderGuide";
+import {validateLarkProviderFields} from "./provider/LarkProviderUtils";
 
 const {Option} = Select;
 const {TextArea} = Input;
@@ -204,6 +206,14 @@ class ProviderEditPage extends React.Component {
 
   validateWeComProvider(provider) {
     return validateWeComProviderFields(provider);
+  }
+
+  validateLarkProvider(provider) {
+    return validateLarkProviderFields(provider);
+  }
+
+  renderLarkGuide(provider) {
+    return renderLarkProviderGuide(provider);
   }
 
   renderWeComGuide(provider) {
@@ -910,6 +920,7 @@ class ProviderEditPage extends React.Component {
           )
         }
         {this.renderWeComGuide(this.state.provider)}
+        {this.renderLarkGuide(this.state.provider)}
         {
           this.state.provider.category === "OAuth" ? renderOAuthProviderFields(
             this.state.provider,
@@ -1067,7 +1078,7 @@ class ProviderEditPage extends React.Component {
 
   submitProviderEdit(exitAfterSave) {
     const provider = Setting.deepCopy(this.state.provider);
-    const validationError = this.validateWeComProvider(provider);
+    const validationError = this.validateWeComProvider(provider) || this.validateLarkProvider(provider);
     if (validationError) {
       Setting.showMessage("error", validationError);
       return;

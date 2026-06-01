@@ -165,6 +165,27 @@ func CheckOAuthLogin(clientId string, responseType string, redirectUri string, s
 	return "", application, nil
 }
 
+// ValidateOAuthClientRequestForApplication revalidates a restored OAuth/OIDC client request against the application that exposed the upstream Provider.
+func ValidateOAuthClientRequestForApplication(application *Application, clientId string, responseType string, redirectUri string, scope string, state string, lang string) string {
+	if responseType != "code" && responseType != "token" && responseType != "id_token" {
+		return fmt.Sprintf(i18n.Translate(lang, "token:Grant_type: %s is not supported in this application"), responseType)
+	}
+
+	if application == nil || application.ClientId != clientId {
+		return i18n.Translate(lang, "token:Invalid client_id")
+	}
+
+	if !application.IsRedirectUriValid(redirectUri) {
+		return fmt.Sprintf(i18n.Translate(lang, "token:Redirect URI: %s doesn't exist in the allowed Redirect URI list"), redirectUri)
+	}
+
+	if !IsScopeValid(scope, application) {
+		return i18n.Translate(lang, "token:Invalid scope")
+	}
+
+	return ""
+}
+
 func GetOAuthCode(userId string, clientId string, provider string, signinMethod string, responseType string, redirectUri string, scope string, state string, nonce string, challenge string, resource string, host string, lang string) (*Code, error) {
 	user, err := GetUser(userId)
 	if err != nil {

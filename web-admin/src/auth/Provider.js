@@ -17,6 +17,7 @@ import {Tooltip} from "antd";
 import CryptoJS from "crypto-js";
 import * as Util from "./Util";
 import * as Setting from "../Setting";
+import {getLarkProviderEndpoint} from "../provider/LarkProviderUtils";
 
 // PKCE helper functions
 function generateCodeVerifier() {
@@ -105,7 +106,7 @@ const authInfo = {
   },
   Lark: {
     // scope: "email",
-    endpoint: "https://open.feishu.cn/open-apis/authen/v1/index",
+    endpoint: "https://accounts.feishu.cn/open-apis/authen/v1/authorize",
     endpoint2: "https://accounts.larksuite.com/open-apis/authen/v1/authorize",
   },
   GitLab: {
@@ -465,8 +466,8 @@ export function getAuthUrl(application, provider, method, code) {
     if (provider.domain) {
       endpoint = `${provider.domain}/apps/oauth2/authorize`;
     }
-  } else if (provider.type === "Lark" && provider.disableSsl) {
-    endpoint = authInfo[provider.type].endpoint2;
+  } else if (provider.type === "Lark") {
+    endpoint = getLarkProviderEndpoint(provider).authUrl;
   }
 
   if (provider.type === "Google" || provider.type === "GitHub" || provider.type === "Facebook"
@@ -521,10 +522,13 @@ export function getAuthUrl(application, provider, method, code) {
       return `https://error:not-supported-provider-sub-type:${provider.subType}`;
     }
   } else if (provider.type === "Lark") {
-    if (provider.disableSsl) {
-      redirectUri = encodeURIComponent(redirectUri);
-    }
-    return `${endpoint}?app_id=${provider.clientId}&redirect_uri=${redirectUri}&state=${state}`;
+    const query = new URLSearchParams({
+      client_id: provider.clientId,
+      redirect_uri: redirectUri,
+      response_type: "code",
+      state: state,
+    });
+    return `${endpoint}?${query.toString()}`;
   } else if (provider.type === "ADFS") {
     return `${provider.domain}/adfs/oauth2/authorize?client_id=${provider.clientId}&redirect_uri=${redirectUri}&state=${state}&response_type=code&nonce=casdoor&scope=openid`;
   } else if (provider.type === "Baidu") {

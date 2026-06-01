@@ -41,3 +41,5 @@ server
 !manifests/casdoor
 
 node_modules/
+
+.playwright-mcp
