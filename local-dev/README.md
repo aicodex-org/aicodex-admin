@@ -68,6 +68,7 @@ Copy-Item .\local-dev\runtime.toml.example .\local-dev\runtime.toml
 - 前端源码目录：`web-admin/`
 - 前端启动命令：优先 `yarn start`，未安装 Yarn 时回退 `npm run start`
 - 前端本机端口：`7002`
+- 非跟随模式的脚本动作会打印 `Run started` 和 `Run completed`，包含 `started_at`、`completed_at` 与 `duration`，用于确认最近一次启动或重启时间。
 
 脚本启动前会读取 `local-dev/runtime.toml`，并预检远端 PostgreSQL 的 TCP 连通性。Redis 只有在显式启用时才会预检。后端不使用 `go run` 临时 exe 启动，避免 Windows 防火墙或 SmartScreen 因每次生成不同 exe 而反复弹确认。
 

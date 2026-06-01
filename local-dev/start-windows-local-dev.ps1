@@ -78,6 +78,9 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+$ScriptStartedAt = Get-Date
+$ScriptCompleted = $false
+
 # 所有路径都从脚本位置反推，保证无论从仓库根目录还是其它目录调用都能定位正确。
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $AdminDir = Join-Path $RepoRoot 'admin'
@@ -104,6 +107,43 @@ function Write-Step {
   param([string]$Message)
   Write-Host ''
   Write-Host "==> $Message"
+}
+
+function Format-RunTimestamp {
+  param([datetime]$Time)
+  return $Time.ToString('yyyy-MM-dd HH:mm:ss zzz')
+}
+
+function Format-RunDuration {
+  param([timespan]$Duration)
+  $totalHours = [Math]::Floor($Duration.TotalHours)
+  $totalMinutes = [Math]::Floor($Duration.TotalMinutes)
+
+  if ($Duration.TotalHours -ge 1) {
+    return '{0:00}:{1:00}:{2:00}' -f $totalHours, $Duration.Minutes, $Duration.Seconds
+  }
+  return '{0:00}:{1:00}' -f $totalMinutes, $Duration.Seconds
+}
+
+function Write-RunStarted {
+  Write-Step 'Run started'
+  Write-Host ("action:     {0}" -f $Action)
+  Write-Host ("started_at: {0}" -f (Format-RunTimestamp $ScriptStartedAt))
+}
+
+function Write-RunCompleted {
+  param([bool]$Succeeded)
+
+  $completedAt = Get-Date
+  $status = if ($Succeeded) { 'success' } else { 'failed' }
+  Write-Step 'Run completed'
+  Write-Host ("status:       {0}" -f $status)
+  Write-Host ("completed_at: {0}" -f (Format-RunTimestamp $completedAt))
+  Write-Host ("duration:     {0}" -f (Format-RunDuration ($completedAt - $ScriptStartedAt)))
+}
+
+function Should-WriteRunCompleted {
+  return -not ($Action -eq 'logs' -and $Follow)
 }
 
 function Ensure-LocalDevDirectories {
@@ -529,21 +569,29 @@ function Show-Logs {
   }
 }
 
-switch ($Action) {
-  'start' {
-    Start-LocalDev
+Write-RunStarted
+try {
+  switch ($Action) {
+    'start' {
+      Start-LocalDev
+    }
+    'stop' {
+      Stop-LocalDev
+    }
+    'restart' {
+      Stop-LocalDev
+      Start-LocalDev
+    }
+    'status' {
+      Show-Status
+    }
+    'logs' {
+      Show-Logs
+    }
   }
-  'stop' {
-    Stop-LocalDev
-  }
-  'restart' {
-    Stop-LocalDev
-    Start-LocalDev
-  }
-  'status' {
-    Show-Status
-  }
-  'logs' {
-    Show-Logs
+  $ScriptCompleted = $true
+} finally {
+  if (Should-WriteRunCompleted) {
+    Write-RunCompleted $ScriptCompleted
   }
 }

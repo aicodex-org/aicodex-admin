@@ -51,6 +51,11 @@
 - **THEN** 脚本必须展示后端和前端的运行状态
 - **THEN** 脚本必须能够输出或跟随对应日志，帮助开发者定位启动失败或运行期错误
 
+#### Scenario: Run actions report execution timing
+- **WHEN** 开发者执行 `start`、`stop`、`restart`、`status` 或非跟随模式的 `logs`
+- **THEN** 脚本必须打印本次动作的开始时间、完成时间、最终状态和耗时
+- **THEN** `logs -Follow` 不应打印完成时间，避免在持续跟随日志时产生误导
+
 ### Requirement: Startup workflow SHALL fail fast on missing or unreachable remote dependencies
 本地启动入口 SHALL 在启动应用进程前检查必需配置和远端依赖可达性，避免在应用半启动状态下才暴露基础配置错误。
 

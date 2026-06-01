@@ -171,4 +171,23 @@ Describe 'local-dev Windows start script' {
     $scriptText | Should Not Match 'Get-CimInstance\s+Win32_Process'
     $scriptText | Should Not Match 'taskkill\.exe'
   }
+
+  It 'prints run start and completion timestamps around actions' {
+    $scriptText | Should Match '\$ScriptStartedAt\s*=\s*Get-Date'
+    $scriptText | Should Match 'function Format-RunTimestamp'
+    $scriptText | Should Match 'function Format-RunDuration'
+    $scriptText | Should Match 'function Write-RunStarted'
+    $scriptText | Should Match 'function Write-RunCompleted'
+    $scriptText | Should Match 'Write-Step ''Run started'''
+    $scriptText | Should Match 'Write-Step ''Run completed'''
+    $scriptText | Should Match 'started_at:'
+    $scriptText | Should Match 'completed_at:'
+    $scriptText | Should Match 'duration:'
+    $scriptText | Should Match '\[Math\]::Floor\(\$Duration\.TotalMinutes\)'
+    $scriptText | Should Match '\[Math\]::Floor\(\$Duration\.TotalHours\)'
+    $scriptText | Should Not Match '\[int\]\$Duration\.TotalMinutes'
+    $scriptText | Should Not Match '\[int\]\$Duration\.TotalHours'
+    $scriptText | Should Match 'try\s*\{[\s\S]*switch \(\$Action\)[\s\S]*finally\s*\{'
+    $scriptText | Should Match 'Should-WriteRunCompleted'
+  }
 }
