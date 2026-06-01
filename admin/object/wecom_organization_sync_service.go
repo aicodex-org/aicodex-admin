@@ -2003,6 +2003,12 @@ func GetWecomUserFullExternalId(corpId string, userId string) string {
 	return "wecom:" + corpId + ":" + userId
 }
 
+// GetWecomUserMapping 返回已同步企业微信成员与本地用户的稳定映射。
+// Insight 用量身份解析只读取该映射中的 ExternalId，不修改同步状态。
+func GetWecomUserMapping(organization string, corpId string, wecomUserId string) (*WecomUserMapping, error) {
+	return defaultWecomOrganizationObjectStore{}.GetWecomUserMapping(organization, corpId, wecomUserId)
+}
+
 // GetLengthSafeWecomUserExternalId 返回可安全写入 User.ExternalId 的企业微信身份标识。
 // 完整标识超出 User.ExternalId 长度时改写为 sha256，完整值仍保存在 WecomUserMapping.ExternalId。
 func GetLengthSafeWecomUserExternalId(corpId string, userId string) string {
@@ -2249,7 +2255,12 @@ func (s defaultWecomOrganizationObjectStore) SaveUser(user *User) error {
 	if user.CreatedTime == "" {
 		user.CreatedTime = existing.CreatedTime
 	}
-	_, err = updateUser(user.GetId(), user, []string{
+	_, err = updateUser(user.GetId(), user, wecomUserSaveColumns())
+	return err
+}
+
+func wecomUserSaveColumns() []string {
+	return []string{
 		"external_id",
 		"display_name",
 		"avatar",
@@ -2258,11 +2269,11 @@ func (s defaultWecomOrganizationObjectStore) SaveUser(user *User) error {
 		"title",
 		"type",
 		"wecom",
+		"signup_application",
 		"properties",
 		"is_forbidden",
 		"updated_time",
-	})
-	return err
+	}
 }
 
 func (s defaultWecomOrganizationObjectStore) SaveUserGroups(user *User) error {
@@ -2275,6 +2286,9 @@ func (s defaultWecomOrganizationObjectStore) SaveUserGroups(user *User) error {
 
 func (s defaultWecomOrganizationObjectStore) GetWecomUserMapping(organization string, corpId string, wecomUserId string) (*WecomUserMapping, error) {
 	if organization == "" || corpId == "" || wecomUserId == "" {
+		return nil, nil
+	}
+	if ormer == nil || ormer.Engine == nil {
 		return nil, nil
 	}
 
