@@ -14,6 +14,8 @@
 
 package conf
 
+import "strings"
+
 type WebConfig struct {
 	ShowGithubCorner    bool   `json:"showGithubCorner"`
 	ForceLanguage       string `json:"forceLanguage"`
@@ -29,7 +31,8 @@ func GetWebConfig() *WebConfig {
 	config := &WebConfig{}
 
 	config.ShowGithubCorner = GetConfigBool("showGithubCorner")
-	config.ForceLanguage = GetLanguage(GetConfigString("forceLanguage"))
+	// forceLanguage 是显式强制语言开关；空配置必须保持为空，不能被 GetLanguage 兜底成英文。
+	config.ForceLanguage = getOptionalLanguage(GetConfigString("forceLanguage"))
 	config.DefaultLanguage = GetLanguage(GetConfigString("defaultLanguage"))
 	config.IsDemoMode = IsDemoMode()
 	config.StaticBaseUrl = GetConfigString("staticBaseUrl")
@@ -46,4 +49,12 @@ func GetWebConfig() *WebConfig {
 	config.MaxItemsForFlatMenu = maxItemsForFlatMenu
 
 	return config
+}
+
+func getOptionalLanguage(language string) string {
+	language = strings.TrimSpace(language)
+	if language == "" || language == "*" {
+		return ""
+	}
+	return GetLanguage(language)
 }

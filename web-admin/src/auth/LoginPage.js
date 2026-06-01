@@ -40,6 +40,7 @@ import {createFormAndSubmit, goToLink} from "../Setting";
 import WeChatLoginPanel from "./WeChatLoginPanel";
 import WeComLoginPanel from "./WeComLoginPanel";
 import {CountryCodeSelect} from "../common/select/CountryCodeSelect";
+import {getSigninLanguageOverride} from "./LoginLanguage";
 const FaceRecognitionCommonModal = lazy(() => import("../common/modal/FaceRecognitionCommonModal"));
 const FaceRecognitionModal = lazy(() => import("../common/modal/FaceRecognitionModal"));
 
@@ -690,8 +691,8 @@ class LoginPage extends React.Component {
       );
     } else if (signinItem.name === "Languages") {
       const languages = application.organizationObj.languages;
-      if (languages.length <= 1) {
-        const language = (languages.length === 1) ? languages[0] : "en";
+      const language = getSigninLanguageOverride(languages);
+      if (language !== "") {
         if (Setting.getLanguage() !== language) {
           Setting.setLanguage(language);
         }
