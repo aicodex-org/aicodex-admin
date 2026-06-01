@@ -113,6 +113,49 @@ func TestInsightScopeForOrganizationAdminStaysInOwnOrganization(t *testing.T) {
 	}
 }
 
+func TestInsightAllCompanyScopeIncludesDepartmentUsageMappings(t *testing.T) {
+	generatedAt := time.Date(2026, 5, 21, 8, 0, 0, 0, time.UTC)
+	currentUser := &object.User{
+		Owner:   "org-a",
+		Name:    "owner",
+		IsAdmin: true,
+		Properties: map[string]string{
+			"aicodexApiUserId":         "100",
+			"aicodexApiOrganizationId": "00000000-0000-7000-8000-000000000123",
+		},
+	}
+	users := []*object.User{
+		currentUser,
+		{Owner: "org-a", Name: "dev-a", Groups: []string{"org-a/dev"}, Properties: map[string]string{"aicodexApiUserId": "101"}},
+		{Owner: "org-a", Name: "dev-b", Groups: []string{"org-a/dev"}, Properties: map[string]string{"aicodexApiUserId": "102"}},
+		{Owner: "org-a", Name: "qa-a", Groups: []string{"org-a/qa"}, Properties: map[string]string{"aicodexApiUserId": "201"}},
+		{Owner: "org-a", Name: "missing", Groups: []string{"org-a/dev"}},
+	}
+	groups := []*object.Group{
+		{Owner: "org-a", Name: "dev", DisplayName: "Dev"},
+		{Owner: "org-a", Name: "qa", DisplayName: "QA"},
+	}
+
+	got, providerErr := calculateInsightScope(currentUser, users, groups, generatedAt)
+	if providerErr != nil {
+		t.Fatalf("calculateInsightScope returned error: %+v", providerErr)
+	}
+	if got.ScopeType != ScopeTypeAllCompany {
+		t.Fatalf("ScopeType = %q, want %q", got.ScopeType, ScopeTypeAllCompany)
+	}
+	if len(got.Departments) != 2 {
+		t.Fatalf("departments len = %d, want 2: %+v", len(got.Departments), got.Departments)
+	}
+	dev := findInsightDepartmentScope(got.Departments, "org-a/dev")
+	if dev == nil || !containsString(dev.ApiUserIds, "101") || !containsString(dev.ApiUserIds, "102") || containsString(dev.AdminUserIds, "org-a/missing") {
+		t.Fatalf("dev department mapping = %+v, want only mapped direct members", dev)
+	}
+	qa := findInsightDepartmentScope(got.Departments, "org-a/qa")
+	if qa == nil || !containsString(qa.ApiUserIds, "201") {
+		t.Fatalf("qa department mapping = %+v, want mapped qa member", qa)
+	}
+}
+
 func TestInsightScopeRejectsForbiddenOrDeletedCurrentUser(t *testing.T) {
 	generatedAt := time.Date(2026, 5, 21, 8, 0, 0, 0, time.UTC)
 	for _, currentUser := range []*object.User{
@@ -490,4 +533,13 @@ func containsString(values []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func findInsightDepartmentScope(departments []InsightDepartmentScope, departmentId string) *InsightDepartmentScope {
+	for i := range departments {
+		if departments[i].DepartmentId == departmentId {
+			return &departments[i]
+		}
+	}
+	return nil
 }

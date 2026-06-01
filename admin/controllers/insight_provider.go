@@ -278,7 +278,7 @@ func calculateInsightScopeForOrganizationWithResolver(currentUser *object.User, 
 	orgGroups := filterInsightGroupsByOwner(groups, organization)
 
 	if currentUser.IsGlobalAdmin() || currentUser.IsAdmin {
-		return buildInsightAllCompanyScope(currentUser.GetId(), organization, apiOrganizationId, orgUsers, generatedAt, resolver, traceId)
+		return buildInsightAllCompanyScope(currentUser.GetId(), organization, apiOrganizationId, orgUsers, orgGroups, generatedAt, resolver, traceId)
 	}
 
 	managedGroups := getInsightManagedGroups(currentUser, orgGroups)
@@ -294,13 +294,18 @@ func calculateInsightScopeForOrganizationWithResolver(currentUser *object.User, 
 	return buildInsightSelfScope(currentUser.GetId(), organization, apiOrganizationId, currentUser, generatedAt, resolver, traceId)
 }
 
-func buildInsightAllCompanyScope(adminUserId string, organization string, apiOrganizationId string, users []*object.User, generatedAt time.Time, resolver insightUsageIdentityResolver, traceId string) (*InsightScopeResponse, *InsightProviderError) {
-	adminUserIds, apiUserIds, mappingStatus, providerErr := mapInsightQueryableUsersToUsageIdsWithResolver(users, resolver, traceId)
+func buildInsightAllCompanyScope(adminUserId string, organization string, apiOrganizationId string, users []*object.User, groups []*object.Group, generatedAt time.Time, resolver insightUsageIdentityResolver, traceId string) (*InsightScopeResponse, *InsightProviderError) {
+	userIdentityCache := newInsightUsageIdentityCache(resolver, traceId)
+	adminUserIds, apiUserIds, mappingStatus, providerErr := mapInsightQueryableUsersToUsageIdsWithCache(users, userIdentityCache)
 	if providerErr != nil {
 		return nil, providerErr
 	}
 	if mappingStatus != MappingStatusOK {
 		return nil, newInsightProviderError(InsightProviderErrorAuthorizationFailed, "usage user mapping is not deterministic", "", mappingStatus)
+	}
+	departmentIds, departments, providerErr := buildInsightAllCompanyDepartmentScopes(users, groups, userIdentityCache)
+	if providerErr != nil {
+		return nil, providerErr
 	}
 
 	return &InsightScopeResponse{
@@ -308,14 +313,51 @@ func buildInsightAllCompanyScope(adminUserId string, organization string, apiOrg
 		ScopeType:               ScopeTypeAllCompany,
 		Organization:            organization,
 		ApiOrganizationId:       apiOrganizationId,
+		DepartmentIds:           departmentIds,
 		AdminUserIds:            adminUserIds,
 		ApiUserIds:              apiUserIds,
-		Departments:             []InsightDepartmentScope{},
+		Departments:             departments,
 		IncludeChildDepartments: true,
 		MappingStatus:           MappingStatusOK,
 		GeneratedAt:             formatInsightTime(generatedAt),
 		ScopeVersion:            insightProviderScopeVersion,
 	}, nil
+}
+
+func buildInsightAllCompanyDepartmentScopes(users []*object.User, groups []*object.Group, cache *insightUsageIdentityCache) ([]string, []InsightDepartmentScope, *InsightProviderError) {
+	departmentIds := []string{}
+	departments := []InsightDepartmentScope{}
+	for _, group := range groups {
+		if group == nil {
+			continue
+		}
+		// 全公司组织用量按用户直接所属部门生成映射，避免父子部门同时展开时重复累计同一批成员。
+		departmentUsers := filterInsightUsersByDirectGroup(users, group)
+		if len(departmentUsers) == 0 {
+			continue
+		}
+		adminUserIds, apiUserIds, mappingStatus, providerErr := mapInsightQueryableUsersToUsageIdsWithCache(departmentUsers, cache)
+		if providerErr != nil {
+			return nil, nil, providerErr
+		}
+		if mappingStatus != MappingStatusOK {
+			return nil, nil, newInsightProviderError(InsightProviderErrorAuthorizationFailed, "usage user mapping is not deterministic", "", mappingStatus)
+		}
+		if len(adminUserIds) == 0 || len(apiUserIds) == 0 {
+			continue
+		}
+		departmentId := group.GetId()
+		departmentIds = append(departmentIds, departmentId)
+		departments = append(departments, InsightDepartmentScope{
+			DepartmentId:            departmentId,
+			AdminUserIds:            adminUserIds,
+			ApiUserIds:              apiUserIds,
+			IncludeChildDepartments: false,
+			MappingStatus:           MappingStatusOK,
+		})
+	}
+	sortInsightDepartmentScopes(departments)
+	return deduplicateStrings(departmentIds), departments, nil
 }
 
 func buildInsightDepartmentTreeScope(adminUserId string, organization string, apiOrganizationId string, users []*object.User, groups []*object.Group, managedGroups []*object.Group, generatedAt time.Time, resolver insightUsageIdentityResolver, traceId string) (*InsightScopeResponse, *InsightProviderError) {
@@ -1155,6 +1197,28 @@ func filterInsightUsersByGroups(users []*object.User, groupNames map[string]bool
 		for _, groupRef := range user.Groups {
 			_, groupName := util.GetOwnerAndNameFromIdNoCheck(groupRef)
 			if groupNames[groupName] || groupNames[groupRef] {
+				result = append(result, user)
+				break
+			}
+		}
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].GetId() < result[j].GetId() })
+	return result
+}
+
+func filterInsightUsersByDirectGroup(users []*object.User, group *object.Group) []*object.User {
+	if group == nil {
+		return []*object.User{}
+	}
+	result := []*object.User{}
+	departmentId := group.GetId()
+	for _, user := range users {
+		if user == nil {
+			continue
+		}
+		for _, groupRef := range user.Groups {
+			_, groupName := util.GetOwnerAndNameFromIdNoCheck(groupRef)
+			if groupRef == departmentId || groupName == group.Name {
 				result = append(result, user)
 				break
 			}
