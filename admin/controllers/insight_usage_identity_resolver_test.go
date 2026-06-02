@@ -431,6 +431,62 @@ func TestInsightDepartmentScopeBatchesResolverCandidatesAcrossDepartments(t *tes
 	}
 }
 
+func TestInsightAllCompanyScopeReusesResolverCacheAcrossDepartments(t *testing.T) {
+	generatedAt := time.Date(2026, 5, 29, 8, 0, 0, 0, time.UTC)
+	currentUser := &object.User{Owner: "org-a", Name: "admin", IsAdmin: true, Properties: map[string]string{"aicodexApiUserId": "200"}}
+	users := []*object.User{
+		currentUser,
+		{Owner: "org-a", Name: "member-a", Id: "subject-a", Groups: []string{"org-a/dev"}, Wecom: "member-a", Properties: map[string]string{object.WecomUserPropertyCorpId: "ww123", object.WecomUserPropertyUserId: "member-a"}},
+		{Owner: "org-a", Name: "member-b", Id: "subject-b", Groups: []string{"org-a/ops"}, Wecom: "member-b", Properties: map[string]string{object.WecomUserPropertyCorpId: "ww123", object.WecomUserPropertyUserId: "member-b"}},
+	}
+	groups := []*object.Group{
+		{Owner: "org-a", Name: "dev", DisplayName: "Dev"},
+		{Owner: "org-a", Name: "ops", DisplayName: "Ops"},
+	}
+	resolver := &stubInsightUsageIdentityResolver{results: []insightUsageIdentityResolveResult{
+		{RequestId: "org-a/member-a", MappingStatus: MappingStatusOK, ApiUserId: 201},
+		{RequestId: "org-a/member-b", MappingStatus: MappingStatusOK, ApiUserId: 202},
+	}}
+
+	got, providerErr := calculateInsightScopeForOrganizationWithResolver(currentUser, "org-a", users, groups, generatedAt, resolver, "trace-all-company")
+	if providerErr != nil {
+		t.Fatalf("calculateInsightScopeForOrganizationWithResolver returned error: %+v", providerErr)
+	}
+	if got.ScopeType != ScopeTypeAllCompany || len(got.Departments) != 2 {
+		t.Fatalf("scope = %+v, want all-company scope with two departments", got)
+	}
+	if resolver.callCount != 1 || len(resolver.capturedItems) != 2 {
+		t.Fatalf("resolver calls = %d items=%+v, want one preheated batch reused by departments", resolver.callCount, resolver.capturedItems)
+	}
+}
+
+func TestInsightDepartmentScopeReusesResolverMissingCacheAcrossDepartments(t *testing.T) {
+	generatedAt := time.Date(2026, 5, 29, 8, 0, 0, 0, time.UTC)
+	currentUser := &object.User{Owner: "org-a", Name: "lead", Properties: map[string]string{"aicodexApiUserId": "200"}}
+	users := []*object.User{
+		currentUser,
+		{Owner: "org-a", Name: "member-a", Id: "subject-a", Groups: []string{"org-a/backend"}, Wecom: "member-a", Properties: map[string]string{object.WecomUserPropertyCorpId: "ww123", object.WecomUserPropertyUserId: "member-a"}},
+	}
+	groups := []*object.Group{
+		{Owner: "org-a", Name: "dev", DisplayName: "Dev", Manager: "org-a/lead"},
+		{Owner: "org-a", Name: "backend", DisplayName: "Backend", ParentId: "dev", Manager: "org-a/lead"},
+	}
+	resolver := &stubInsightUsageIdentityResolver{results: []insightUsageIdentityResolveResult{
+		{RequestId: "org-a/member-a", MappingStatus: MappingStatusMissing},
+	}}
+
+	got, providerErr := calculateInsightScopeForOrganizationWithResolver(currentUser, "org-a", users, groups, generatedAt, resolver, "trace-missing-cache")
+	if providerErr != nil {
+		t.Fatalf("calculateInsightScopeForOrganizationWithResolver returned error: %+v", providerErr)
+	}
+	if got.ScopeType != ScopeTypeEmpty {
+		t.Fatalf("scope = %+v, want empty scope when only missing mappings exist", got)
+	}
+	if resolver.callCount != 1 || len(resolver.capturedItems) != 1 {
+		t.Fatalf("resolver calls = %d items=%+v, want one preheated missing mapping reused by departments", resolver.callCount, resolver.capturedItems)
+	}
+}
+
 func TestInsightDepartmentScopeDeduplicatesOverlappingResolverCandidates(t *testing.T) {
 	generatedAt := time.Date(2026, 5, 29, 8, 0, 0, 0, time.UTC)
 	currentUser := &object.User{Owner: "org-a", Name: "lead", Properties: map[string]string{"aicodexApiUserId": "200"}}

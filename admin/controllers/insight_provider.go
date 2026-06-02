@@ -988,7 +988,7 @@ func mapInsightUsersToUsageIdsWithPolicyAndCache(users []*object.User, skipMissi
 		if !ok {
 			identity = resolveInsightManualUsageIdentity(user)
 		}
-		if identity.MappingStatus == MappingStatusMissing && resolverEnabled {
+		if identity.MappingStatus == MappingStatusMissing && resolverEnabled && !ok {
 			if item, ok := buildInsightUsageIdentityResolveItem(user); ok {
 				if pendingAdminUserIds[adminUserId] {
 					// 同一 scope 内可能因父子部门重叠重复收集成员，resolver 请求必须按 admin 用户去重。
@@ -1002,6 +1002,7 @@ func mapInsightUsersToUsageIdsWithPolicyAndCache(users []*object.User, skipMissi
 		}
 		if identity.MappingStatus == MappingStatusMissing && skipMissing {
 			// 企业微信组织同步会先带来组织成员，再逐步补齐 API 用户映射；聚合范围只包含已映射成员，避免未绑定成员阻断整个部门或全公司视图。
+			// 缓存命中的 MISSING 已经代表 resolver 解析过，不能在父子部门循环中反复请求 api provider。
 			continue
 		}
 		if identity.MappingStatus != MappingStatusOK {
