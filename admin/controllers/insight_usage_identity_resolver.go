@@ -18,6 +18,7 @@ const (
 	insightUsageIdentityResolverDefaultCaller    = "aicodex-admin"
 	insightUsageIdentityResolverDefaultMaxItems  = 200
 	insightUsageIdentityResolverDefaultTimeoutMs = 5000
+	insightUsageIdentityResolverTransportRetries = 1
 )
 
 type insightUsageIdentityResolverConfig struct {
@@ -97,7 +98,7 @@ func newInsightUsageIdentityResolverFromConfig() insightUsageIdentityResolver {
 	if !ok {
 		return nil
 	}
-	return insightUsageIdentityHTTPResolver{config: config}
+	return insightUsageIdentityHTTPResolver{config: config, client: newInsightUsageIdentityResolverHTTPClient(config.LookupTimeout)}
 }
 
 func (r insightUsageIdentityHTTPResolver) Enabled() bool {
@@ -143,40 +144,49 @@ func (r insightUsageIdentityHTTPResolver) resolveBatch(traceId string, items []i
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, r.config.Endpoint, bytes.NewReader(body))
-	if err != nil {
-		return nil, newInsightProviderError(InsightProviderErrorUnavailable, err.Error(), traceId, "")
-	}
-	req.Header.Set("Authorization", "Bearer "+r.config.Token)
-	req.Header.Set("Content-Type", "application/json")
-
 	client := r.client
 	if client == nil {
-		client = &http.Client{Timeout: timeout}
+		client = newInsightUsageIdentityResolverHTTPClient(timeout)
 	}
-	resp, err := client.Do(req)
-	if err != nil {
-		r.writeAudit(traceId, len(items), nil, InsightProviderErrorUnavailable, startedAt)
-		return nil, newInsightProviderError(InsightProviderErrorUnavailable, err.Error(), traceId, "")
-	}
-	defer resp.Body.Close()
 
-	envelope := insightUsageIdentityResolveEnvelope{}
-	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
-		r.writeAudit(traceId, len(items), nil, InsightProviderErrorUnavailable, startedAt)
-		return nil, newInsightProviderError(InsightProviderErrorUnavailable, err.Error(), traceId, "")
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 || !envelope.Success {
-		message := fmt.Sprintf("usage identity resolver returned status %d", resp.StatusCode)
-		if envelope.Error != nil && envelope.Error.Message != "" {
-			message = envelope.Error.Message
+	for attempt := 0; attempt <= insightUsageIdentityResolverTransportRetries; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, r.config.Endpoint, bytes.NewReader(body))
+		if err != nil {
+			return nil, newInsightProviderError(InsightProviderErrorUnavailable, err.Error(), traceId, "")
 		}
-		r.writeAudit(traceId, len(items), envelope.Data.Results, InsightProviderErrorUnavailable, startedAt)
-		return nil, newInsightProviderError(InsightProviderErrorUnavailable, message, traceId, "")
-	}
+		req.Header.Set("Authorization", "Bearer "+r.config.Token)
+		req.Header.Set("Content-Type", "application/json")
+		// resolver 是内网只读批量解析接口，关闭连接复用可降低服务端主动断开空闲连接后产生 EOF 的概率。
+		req.Close = true
 
-	r.writeAudit(traceId, len(items), envelope.Data.Results, "", startedAt)
-	return envelope.Data.Results, nil
+		resp, err := client.Do(req)
+		if err != nil {
+			if shouldRetryInsightUsageIdentityResolverTransportError(ctx, attempt) {
+				continue
+			}
+			r.writeAudit(traceId, len(items), nil, InsightProviderErrorUnavailable, startedAt)
+			return nil, newInsightProviderError(InsightProviderErrorUnavailable, err.Error(), traceId, "")
+		}
+		defer resp.Body.Close()
+
+		envelope := insightUsageIdentityResolveEnvelope{}
+		if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+			r.writeAudit(traceId, len(items), nil, InsightProviderErrorUnavailable, startedAt)
+			return nil, newInsightProviderError(InsightProviderErrorUnavailable, err.Error(), traceId, "")
+		}
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 || !envelope.Success {
+			message := fmt.Sprintf("usage identity resolver returned status %d", resp.StatusCode)
+			if envelope.Error != nil && envelope.Error.Message != "" {
+				message = envelope.Error.Message
+			}
+			r.writeAudit(traceId, len(items), envelope.Data.Results, InsightProviderErrorUnavailable, startedAt)
+			return nil, newInsightProviderError(InsightProviderErrorUnavailable, message, traceId, "")
+		}
+
+		r.writeAudit(traceId, len(items), envelope.Data.Results, "", startedAt)
+		return envelope.Data.Results, nil
+	}
+	return nil, newInsightProviderError(InsightProviderErrorUnavailable, "usage identity resolver transport retry exhausted", traceId, "")
 }
 
 func (r insightUsageIdentityHTTPResolver) writeAudit(traceId string, batchSize int, results []insightUsageIdentityResolveResult, errorCode string, startedAt time.Time) {
@@ -205,6 +215,24 @@ func countInsightUsageIdentityResolveStatuses(results []insightUsageIdentityReso
 		}
 	}
 	return okCount, missingCount, ambiguousCount, invalidCount
+}
+
+func newInsightUsageIdentityResolverHTTPClient(timeout time.Duration) *http.Client {
+	if timeout <= 0 {
+		timeout = time.Duration(insightUsageIdentityResolverDefaultTimeoutMs) * time.Millisecond
+	}
+	transport := http.DefaultTransport
+	if defaultTransport, ok := http.DefaultTransport.(*http.Transport); ok {
+		cloned := defaultTransport.Clone()
+		// provider 调用每次请求量较小，稳定性优先于连接池复用带来的微小性能收益。
+		cloned.DisableKeepAlives = true
+		transport = cloned
+	}
+	return &http.Client{Timeout: timeout, Transport: transport}
+}
+
+func shouldRetryInsightUsageIdentityResolverTransportError(ctx context.Context, attempt int) bool {
+	return attempt < insightUsageIdentityResolverTransportRetries && ctx.Err() == nil
 }
 
 func getInsightUsageIdentityResolverIntConfig(key string, fallback int) int {

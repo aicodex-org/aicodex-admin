@@ -1,7 +1,10 @@
 package controllers
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -16,6 +19,12 @@ type stubInsightUsageIdentityResolver struct {
 	providerErr   *InsightProviderError
 	capturedItems []insightUsageIdentityResolveItem
 	callCount     int
+}
+
+type insightUsageIdentityResolverRoundTripFunc func(req *http.Request) (*http.Response, error)
+
+func (f insightUsageIdentityResolverRoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }
 
 func (s *stubInsightUsageIdentityResolver) Enabled() bool {
@@ -109,6 +118,59 @@ func TestInsightUsageIdentityResolverClientReturnsUnavailableForProtocolError(t 
 	}
 	if providerErr == nil || providerErr.Code != InsightProviderErrorUnavailable {
 		t.Fatalf("providerErr = %+v, want PROVIDER_UNAVAILABLE", providerErr)
+	}
+}
+
+func TestInsightUsageIdentityResolverClientRetriesTransportErrorOnce(t *testing.T) {
+	calls := 0
+	resolver := insightUsageIdentityHTTPResolver{
+		config: insightUsageIdentityResolverConfig{
+			Endpoint:      "http://api.example.test/api/usage-identity-provider/v1/wecom/resolve",
+			Token:         "identity-secret",
+			Caller:        "aicodex-admin",
+			MaxItems:      50,
+			LookupTimeout: time.Second,
+		},
+		client: &http.Client{Transport: insightUsageIdentityResolverRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			calls++
+			if calls == 1 {
+				return nil, errors.New("simulated EOF")
+			}
+			if !req.Close {
+				t.Fatalf("req.Close = false, want true to avoid reusing stale provider connections")
+			}
+			var body insightUsageIdentityResolveRequest
+			if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+				t.Fatalf("decode retry request failed: %v", err)
+			}
+			responseBody := bytes.NewBuffer(nil)
+			_ = json.NewEncoder(responseBody).Encode(insightUsageIdentityResolveEnvelope{
+				Success: true,
+				TraceId: body.TraceId,
+				Data: insightUsageIdentityResolveResponse{Results: []insightUsageIdentityResolveResult{
+					{RequestId: "u1", MappingStatus: MappingStatusOK, ApiUserId: 101},
+				}},
+			})
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(responseBody),
+				Request:    req,
+			}, nil
+		})},
+	}
+
+	results, providerErr := resolver.Resolve("trace-client-retry", []insightUsageIdentityResolveItem{
+		{RequestId: "u1", AdminSubject: "subject-1"},
+	})
+	if providerErr != nil {
+		t.Fatalf("Resolve returned provider error after retry: %+v", providerErr)
+	}
+	if calls != 2 {
+		t.Fatalf("calls = %d, want retry once", calls)
+	}
+	if len(results) != 1 || results[0].ApiUserId != 101 {
+		t.Fatalf("unexpected results: %+v", results)
 	}
 }
 
