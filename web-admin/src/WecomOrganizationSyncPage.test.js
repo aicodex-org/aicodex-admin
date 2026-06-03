@@ -54,6 +54,7 @@ beforeEach(() => {
     writable: true,
     value: mockMatchMedia,
   });
+  localStorage.removeItem("organization");
   jest.spyOn(Setting, "showMessage").mockImplementation(() => {});
   mockConfig();
   WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns.mockResolvedValue({status: "ok", data: [], data2: 0});
@@ -103,6 +104,46 @@ test("renders localized WeCom organization sync configuration entry", async() =>
   expect(screen.getByText("通讯录读取权限要求")).toBeInTheDocument();
   expect(screen.getByText("开始全量同步")).toBeInTheDocument();
   expect(Setting.showMessage).not.toHaveBeenCalled();
+});
+
+test("refreshes after account organization is loaded", async() => {
+  mockConfig({organization: "built-in"});
+  const {rerender} = render(<WecomOrganizationSyncPage account={{owner: "", isAdmin: true}} />);
+
+  expect(screen.queryByText("企业微信组织架构同步")).not.toBeInTheDocument();
+  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncConfig).not.toHaveBeenCalled();
+
+  rerender(<WecomOrganizationSyncPage account={{owner: "built-in", isAdmin: true}} />);
+
+  expect(await screen.findByText("企业微信组织架构同步")).toBeInTheDocument();
+  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncConfig).toHaveBeenCalledWith("built-in");
+  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns).toHaveBeenCalledWith("built-in", 1, 10);
+});
+
+test("refreshes when account object is filled in place", async() => {
+  mockConfig({organization: "built-in"});
+  const account = {owner: "", isAdmin: true};
+  const {rerender} = render(<WecomOrganizationSyncPage account={account} />);
+
+  account.owner = "built-in";
+  rerender(<WecomOrganizationSyncPage account={account} />);
+
+  expect(await screen.findByText("企业微信组织架构同步")).toBeInTheDocument();
+  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncConfig).toHaveBeenCalledWith("built-in");
+  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns).toHaveBeenCalledWith("built-in", 1, 10);
+});
+
+test("falls back to account owner when stored organization is blank", async() => {
+  localStorage.setItem("organization", "");
+  mockConfig({organization: "built-in"});
+
+  render(<WecomOrganizationSyncPage account={{owner: "built-in", isAdmin: true}} />);
+
+  expect(await screen.findByText("企业微信组织架构同步")).toBeInTheDocument();
+  expect(screen.queryByTestId("organization-select")).not.toBeInTheDocument();
+  expect(screen.getByDisplayValue("保存后按 Corp ID 自动创建或切换业务组织")).toBeInTheDocument();
+  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncConfig).toHaveBeenCalledWith("built-in");
+  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns).toHaveBeenCalledWith("built-in", 1, 10);
 });
 
 test("navigates to organization list when creating sync target organization", async() => {

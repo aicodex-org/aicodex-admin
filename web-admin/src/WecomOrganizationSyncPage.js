@@ -25,7 +25,7 @@ const {Text} = Typography;
 class WecomOrganizationSyncPage extends React.Component {
   constructor(props) {
     super(props);
-    const organization = Setting.getRequestOrganization(props.account);
+    const organization = this.getAccountOrganization(props.account);
     this.state = {
       organization,
       config: null,
@@ -41,6 +41,25 @@ class WecomOrganizationSyncPage extends React.Component {
 
   componentDidMount() {
     this.refresh(this.state.organization);
+  }
+
+  componentDidUpdate() {
+    if (this.state.organization) {
+      return;
+    }
+
+    const organization = this.getAccountOrganization(this.props.account);
+    if (organization) {
+      this.changeOrganization(organization);
+    }
+  }
+
+  getAccountOrganization(account) {
+    // 管理页账号信息异步加载时可能先传入 owner 为空的占位对象，避免页面永久停留在空白态。
+    if (!account?.owner) {
+      return "";
+    }
+    return Setting.getRequestOrganization(account) || account.owner;
   }
 
   refresh(organization) {
@@ -316,12 +335,17 @@ class WecomOrganizationSyncPage extends React.Component {
           <Text strong>同步目标组织</Text>
         </Space>
         <Space.Compact style={{width: "100%"}}>
-          <OrganizationSelect
-            initValue={this.state.organization}
-            onChange={organization => this.changeOrganization(organization)}
-            excludedOrganizations={["built-in"]}
-            style={{minWidth: 280, width: "100%"}}
-          />
+          {isBuiltIn ? (
+            // built-in 不在业务组织下拉中；这里用只读输入避免下拉组件自动切到空组织后触发刷新循环。
+            <Input value="保存后按 Corp ID 自动创建或切换业务组织" disabled style={{minWidth: 280, width: "100%"}} />
+          ) : (
+            <OrganizationSelect
+              initValue={this.state.organization}
+              onChange={organization => this.changeOrganization(organization)}
+              excludedOrganizations={["built-in"]}
+              style={{minWidth: 280, width: "100%"}}
+            />
+          )}
           <Button icon={<PlusOutlined />} onClick={() => this.goToOrganizationList()}>
             新建组织
           </Button>
