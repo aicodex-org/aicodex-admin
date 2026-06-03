@@ -46,8 +46,8 @@ function OrganizationSelect(props) {
           setOrganizations(res.data);
           const items = getOrganizationItems(res.data);
           const selectedValueExist = items.filter(organization => organization.value === value).length > 0;
-          if (initValue === undefined || !selectedValueExist) {
-            handleOnChange(items.length > 0 ? items[0].value : "");
+          if ((initValue === undefined || !selectedValueExist) && items.length > 0) {
+            handleOnChange(items[0].value);
           }
         }
       });

@@ -1,3 +1,4 @@
+/* eslint-env jest */
 // Copyright 2026 The AICodex Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +14,7 @@
 // limitations under the License.
 
 import React from "react";
-import {fireEvent, render, screen} from "@testing-library/react";
+import {fireEvent, render, screen, wait} from "@testing-library/react";
 import * as OrganizationBackend from "../../backend/OrganizationBackend";
 import OrganizationSelect from "./OrganizationSelect";
 
@@ -79,4 +80,19 @@ test("excludes organizations from selectable options", async() => {
   expect(await screen.findByText("WeCom ww123")).toBeInTheDocument();
   expect(screen.queryByText("Built-in Organization")).not.toBeInTheDocument();
   expect(handleChange).toHaveBeenCalledWith("wecom-ww123");
+});
+
+test("does not emit blank organization when all options are excluded", async() => {
+  OrganizationBackend.getOrganizationNames.mockResolvedValueOnce({
+    status: "ok",
+    data: [
+      {name: "built-in", displayName: "Built-in Organization"},
+    ],
+  });
+  const handleChange = jest.fn();
+
+  render(<OrganizationSelect initValue="built-in" excludedOrganizations={["built-in"]} onChange={handleChange} />);
+
+  await wait(() => expect(OrganizationBackend.getOrganizationNames).toHaveBeenCalled());
+  expect(handleChange).not.toHaveBeenCalled();
 });

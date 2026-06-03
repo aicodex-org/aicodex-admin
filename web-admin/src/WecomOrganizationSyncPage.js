@@ -335,17 +335,12 @@ class WecomOrganizationSyncPage extends React.Component {
           <Text strong>同步目标组织</Text>
         </Space>
         <Space.Compact style={{width: "100%"}}>
-          {isBuiltIn ? (
-            // built-in 不在业务组织下拉中；这里用只读输入避免下拉组件自动切到空组织后触发刷新循环。
-            <Input value="保存后按 Corp ID 自动创建或切换业务组织" disabled style={{minWidth: 280, width: "100%"}} />
-          ) : (
-            <OrganizationSelect
-              initValue={this.state.organization}
-              onChange={organization => this.changeOrganization(organization)}
-              excludedOrganizations={["built-in"]}
-              style={{minWidth: 280, width: "100%"}}
-            />
-          )}
+          <OrganizationSelect
+            initValue={this.state.organization}
+            onChange={organization => this.changeOrganization(organization)}
+            excludedOrganizations={["built-in"]}
+            style={{minWidth: 280, width: "100%"}}
+          />
           <Button icon={<PlusOutlined />} onClick={() => this.goToOrganizationList()}>
             新建组织
           </Button>

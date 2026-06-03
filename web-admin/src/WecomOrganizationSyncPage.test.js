@@ -1,3 +1,4 @@
+/* eslint-env jest */
 // Copyright 2026 The AICodex Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -140,8 +141,7 @@ test("falls back to account owner when stored organization is blank", async() =>
   render(<WecomOrganizationSyncPage account={{owner: "built-in", isAdmin: true}} />);
 
   expect(await screen.findByText("企业微信组织架构同步")).toBeInTheDocument();
-  expect(screen.queryByTestId("organization-select")).not.toBeInTheDocument();
-  expect(screen.getByDisplayValue("保存后按 Corp ID 自动创建或切换业务组织")).toBeInTheDocument();
+  expect(screen.getByTestId("organization-select")).toBeInTheDocument();
   expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncConfig).toHaveBeenCalledWith("built-in");
   expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns).toHaveBeenCalledWith("built-in", 1, 10);
 });
