@@ -210,7 +210,11 @@ class WecomOrganizationSyncPage extends React.Component {
     return <Tag color={colorMap[status] || "default"}>{labelMap[status] || status || "-"}</Tag>;
   }
 
-  getStageText(stage) {
+  getStageText(stage, status) {
+    if (status === "succeeded") {
+      return "已完成";
+    }
+
     const labelMap = {
       fetching: "拉取数据",
       fetch: "拉取数据",
@@ -270,7 +274,8 @@ class WecomOrganizationSyncPage extends React.Component {
         dataIndex: "stage",
         key: "stage",
         width: 120,
-        render: stage => this.getStageText(stage),
+        // 成功记录显示“已完成”；失败或部分成功保留最后阶段，便于定位卡在哪一步。
+        render: (stage, record) => this.getStageText(stage, record.status),
       },
       {
         title: "执行人",

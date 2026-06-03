@@ -173,9 +173,9 @@ test("renders sync run history with status, counts, and safe error summary", asy
         finishedAt: "0001-01-01T00:00:00Z",
         errorText: "safe summary",
       },
-      {name: "run-succeeded", status: "succeeded"},
-      {name: "run-failed", status: "failed"},
-      {name: "run-partial", status: "partial"},
+      {name: "run-succeeded", status: "succeeded", stage: "finalizing"},
+      {name: "run-failed", status: "failed", stage: "applying"},
+      {name: "run-partial", status: "partial", stage: "planning"},
     ],
     data2: 4,
   });
@@ -187,6 +187,10 @@ test("renders sync run history with status, counts, and safe error summary", asy
   expect(screen.getByText("成功")).toBeInTheDocument();
   expect(screen.getByText("失败")).toBeInTheDocument();
   expect(screen.getByText("部分成功")).toBeInTheDocument();
+  expect(screen.getByText("已完成")).toBeInTheDocument();
+  expect(screen.getByText("应用变更")).toBeInTheDocument();
+  expect(screen.getByText("计算差异")).toBeInTheDocument();
+  expect(screen.queryByText("收尾处理")).not.toBeInTheDocument();
   expect(screen.getByText("1/2/3")).toBeInTheDocument();
   expect(screen.getByText("4/5/6")).toBeInTheDocument();
   expect(screen.getByText("safe summary")).toBeInTheDocument();
