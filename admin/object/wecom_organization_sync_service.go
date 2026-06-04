@@ -110,6 +110,13 @@ type WecomOrganizationObjectStore interface {
 	SaveWecomDepartmentLeader(leader *WecomDepartmentLeader) error
 	GetWecomUserDirectLeader(organization string, corpId string, wecomUserId string, leaderWecomUserId string) (*WecomUserDirectLeader, error)
 	SaveWecomUserDirectLeader(leader *WecomUserDirectLeader) error
+	SaveSourceConnection(connection *SourceConnection) error
+	SavePlatformDepartment(department *PlatformDepartment) error
+	SavePlatformUser(user *PlatformUser) error
+	SavePlatformMembership(membership *PlatformMembership) error
+	SaveExternalIdentity(identity *ExternalIdentity) error
+	SaveLifecycleEvent(event *LifecycleEvent) error
+	SaveOrgSyncBatch(batch *OrgSyncBatch) error
 	GetWecomOrganizationSyncExistingState(organization string, corpId string) (*WecomOrganizationSyncExistingState, error)
 }
 
@@ -289,7 +296,10 @@ func (s *WecomOrganizationSyncService) FinishRunSucceeded(run *WecomOrganization
 	run.UpdatedAt = now
 	run.ErrorCode = ""
 	run.ErrorText = ""
-	return s.runStore().UpdateWecomOrganizationSyncRun(run)
+	if err := s.runStore().UpdateWecomOrganizationSyncRun(run); err != nil {
+		return err
+	}
+	return s.projectWecomOrgSyncBatch(run)
 }
 
 // FinishRunFailed 将同步执行记录置为失败终态。
@@ -307,7 +317,10 @@ func (s *WecomOrganizationSyncService) FinishRunFailed(run *WecomOrganizationSyn
 	run.UpdatedAt = now
 	run.ErrorCode = errorCode
 	run.ErrorText = errorText
-	return s.runStore().UpdateWecomOrganizationSyncRun(run)
+	if err := s.runStore().UpdateWecomOrganizationSyncRun(run); err != nil {
+		return err
+	}
+	return s.projectWecomOrgSyncBatch(run)
 }
 
 // FinishRunPartial 将同步执行记录置为部分失败终态。
@@ -325,7 +338,10 @@ func (s *WecomOrganizationSyncService) FinishRunPartial(run *WecomOrganizationSy
 	run.UpdatedAt = now
 	run.ErrorCode = errorCode
 	run.ErrorText = errorText
-	return s.runStore().UpdateWecomOrganizationSyncRun(run)
+	if err := s.runStore().UpdateWecomOrganizationSyncRun(run); err != nil {
+		return err
+	}
+	return s.projectWecomOrgSyncBatch(run)
 }
 
 // FinalizeRun 根据同步终态统一收口运行记录和缺失数据软禁用策略。
@@ -761,6 +777,9 @@ func (s *WecomOrganizationSyncService) ApplyDepartmentUpserts(plan *WecomOrganiz
 
 	store := s.objectStore()
 	now := s.now().UTC()
+	if err := s.projectWecomSourceConnection(store, plan, now); err != nil {
+		return err
+	}
 	for _, department := range plan.DepartmentUpserts {
 		if department.Id == "" {
 			continue
@@ -829,6 +848,9 @@ func (s *WecomOrganizationSyncService) ApplyDepartmentUpserts(plan *WecomOrganiz
 		if err := store.SaveWecomDepartmentMapping(mapping); err != nil {
 			return err
 		}
+		if err := s.projectWecomPlatformDepartment(store, plan, mapping, now); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -848,6 +870,9 @@ func (s *WecomOrganizationSyncService) ApplyUserUpserts(plan *WecomOrganizationS
 
 	store := s.objectStore()
 	now := s.now().UTC()
+	if err := s.projectWecomSourceConnection(store, plan, now); err != nil {
+		return err
+	}
 	for _, snapshot := range plan.UserUpserts {
 		if snapshot.UserId == "" {
 			continue
@@ -907,6 +932,9 @@ func (s *WecomOrganizationSyncService) ApplyUserUpserts(plan *WecomOrganizationS
 		if err := store.SaveWecomUserMapping(mapping); err != nil {
 			return err
 		}
+		if err := s.projectWecomPlatformUserAndIdentity(store, plan, mapping, user, now); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -926,6 +954,9 @@ func (s *WecomOrganizationSyncService) ApplyUserDepartmentRelationships(plan *We
 
 	store := s.objectStore()
 	now := s.now().UTC()
+	if err := s.projectWecomSourceConnection(store, plan, now); err != nil {
+		return err
+	}
 	// 先处理失效关系，再处理本次快照中的启用关系。
 	// 如果用户从 A 部门调整到 B 部门，这个顺序能先移除旧企业微信部门组，再补上新部门组。
 	for _, membership := range plan.UserDepartmentDisables {
@@ -960,6 +991,9 @@ func (s *WecomOrganizationSyncService) ApplyDepartmentLeaderRelationships(plan *
 
 	store := s.objectStore()
 	now := s.now().UTC()
+	if err := s.projectWecomSourceConnection(store, plan, now); err != nil {
+		return err
+	}
 	for _, leader := range plan.DepartmentLeaderDisables {
 		if err := s.disableWecomDepartmentLeader(store, plan, leader, now); err != nil {
 			return err
@@ -992,6 +1026,9 @@ func (s *WecomOrganizationSyncService) ApplyDirectLeaderRelationships(plan *Weco
 
 	store := s.objectStore()
 	now := s.now().UTC()
+	if err := s.projectWecomSourceConnection(store, plan, now); err != nil {
+		return err
+	}
 	for _, leader := range plan.DirectLeaderDisables {
 		if err := s.disableWecomDirectLeader(store, plan, leader, now); err != nil {
 			return err
@@ -1020,6 +1057,9 @@ func (s *WecomOrganizationSyncService) ApplyMissingDataDisables(plan *WecomOrgan
 
 	store := s.objectStore()
 	now := s.now().UTC()
+	if err := s.projectWecomSourceConnection(store, plan, now); err != nil {
+		return err
+	}
 	for _, department := range plan.DepartmentDisables {
 		if err := s.disableMissingWecomDepartment(store, plan, department, now); err != nil {
 			return err
@@ -1129,6 +1169,286 @@ func (s *WecomOrganizationSyncService) objectStore() WecomOrganizationObjectStor
 		return s.ObjectStore
 	}
 	return defaultWecomOrganizationObjectStore{}
+}
+
+// projectWecomSourceConnection 把企业微信配置和同步批次投影为平台来源连接。
+// 企业微信 CorpId 只作为 source tenant lineage 保存，不能替代平台 organizationId。
+func (s *WecomOrganizationSyncService) projectWecomSourceConnection(store WecomOrganizationObjectStore, plan *WecomOrganizationSyncPlan, now time.Time) error {
+	if store == nil || plan == nil || plan.Organization == "" || plan.CorpId == "" {
+		return nil
+	}
+	sourceConnectionId := GetSourceConnectionId(plan.Organization, SourceTypeWecom, plan.CorpId)
+	metadata := marshalPlatformLineage(map[string]string{
+		"sourceType":     SourceTypeWecom,
+		"sourceTenantId": plan.CorpId,
+	})
+	return store.SaveSourceConnection(&SourceConnection{
+		Owner:              plan.Organization,
+		Name:               sourceConnectionId,
+		OrganizationId:     plan.Organization,
+		SourceConnectionId: sourceConnectionId,
+		SourceType:         SourceTypeWecom,
+		SourceTenantId:     plan.CorpId,
+		Status:             SourceConnectionStatusActive,
+		Freshness:          PlatformFreshnessFresh,
+		Metadata:           metadata,
+		ConfigRef:          "wecom:" + plan.CorpId,
+		LastSeenBatchId:    plan.RunId,
+		UpdatedAt:          now,
+	})
+}
+
+// projectWecomPlatformDepartment 将企业微信部门映射投影为平台部门和外部身份。
+// provider 后续读取 SourceConnection、ExternalIdentity、lifecycle 和 orgVersion 来判断来源和可见性。
+func (s *WecomOrganizationSyncService) projectWecomPlatformDepartment(store WecomOrganizationObjectStore, plan *WecomOrganizationSyncPlan, mapping *WecomDepartmentMapping, now time.Time) error {
+	if store == nil || plan == nil || mapping == nil || mapping.DepartmentId == "" {
+		return nil
+	}
+	sourceConnectionId := GetSourceConnectionId(plan.Organization, SourceTypeWecom, plan.CorpId)
+	departmentId := getWecomLocalId(firstNonEmpty(mapping.GroupOwner, plan.Organization), mapping.GroupName)
+	if departmentId == "" {
+		departmentId = getWecomLocalId(plan.Organization, GetWecomDepartmentGroupName(plan.CorpId, mapping.DepartmentId))
+	}
+	parentDepartmentId := ""
+	if mapping.ParentGroupOwner != "" && mapping.ParentGroupName != "" {
+		parentDepartmentId = getWecomLocalId(mapping.ParentGroupOwner, mapping.ParentGroupName)
+	}
+	lifecycleStatus := PlatformLifecycleStatusActive
+	if !mapping.IsEnabled {
+		lifecycleStatus = PlatformLifecycleStatusDisabled
+	}
+	version := NewPlatformVersionMetadata(plan.Organization, sourceConnectionId, plan.RunId, now, "")
+	if err := store.SavePlatformDepartment(&PlatformDepartment{
+		Owner:                plan.Organization,
+		Name:                 GetPlatformDepartmentName(plan.Organization, departmentId),
+		OrganizationId:       plan.Organization,
+		DepartmentId:         departmentId,
+		ParentDepartmentId:   parentDepartmentId,
+		DisplayName:          mapping.DisplayName,
+		LifecycleStatus:      lifecycleStatus,
+		SourceConnectionId:   sourceConnectionId,
+		ExternalDepartmentId: mapping.DepartmentId,
+		OrgVersion:           version.OrgVersion,
+		UpdatedAt:            now,
+	}); err != nil {
+		return err
+	}
+	return store.SaveExternalIdentity(&ExternalIdentity{
+		Owner:               plan.Organization,
+		Name:                GetExternalIdentityName(sourceConnectionId, PlatformSubjectTypeDepartment, mapping.DepartmentId),
+		OrganizationId:      plan.Organization,
+		SourceConnectionId:  sourceConnectionId,
+		ExternalSubjectType: PlatformSubjectTypeDepartment,
+		ExternalSubjectId:   mapping.DepartmentId,
+		PlatformSubjectType: PlatformSubjectTypeDepartment,
+		PlatformSubject:     departmentId,
+		MappingStatus:       platformMappingStatusFromEnabled(mapping.IsEnabled),
+		Lineage:             marshalWecomProjectionLineage(plan, mapping.DepartmentId),
+		LastSeenBatchId:     plan.RunId,
+		UpdatedAt:           now,
+	})
+}
+
+// projectWecomPlatformUserAndIdentity 用已落库本地用户生成平台用户主体和 confirmed 外部身份。
+func (s *WecomOrganizationSyncService) projectWecomPlatformUserAndIdentity(store WecomOrganizationObjectStore, plan *WecomOrganizationSyncPlan, mapping *WecomUserMapping, user *User, now time.Time) error {
+	if user == nil || mapping == nil {
+		return nil
+	}
+	return s.saveWecomPlatformUserAndIdentity(store, plan, mapping, getWecomLocalId(user.Owner, user.Name), user.DisplayName, mapping.IsEnabled, now)
+}
+
+// projectWecomPlatformUserFromMapping 在软禁用路径中用既有映射回补平台用户主体，避免缺失 User 对象时丢失 lifecycle 投影。
+func (s *WecomOrganizationSyncService) projectWecomPlatformUserFromMapping(store WecomOrganizationObjectStore, plan *WecomOrganizationSyncPlan, mapping *WecomUserMapping, now time.Time) error {
+	if mapping == nil {
+		return nil
+	}
+	return s.saveWecomPlatformUserAndIdentity(store, plan, mapping, getWecomLocalId(mapping.UserOwner, mapping.UserName), "", mapping.IsEnabled, now)
+}
+
+// saveWecomPlatformUserAndIdentity 只使用企业微信 userid 与 adminSubject 建立稳定身份映射。
+// 手机号、邮箱、姓名等弱标识不会写入自动 join 键，只能作为展示或重复候选诊断信息。
+func (s *WecomOrganizationSyncService) saveWecomPlatformUserAndIdentity(store WecomOrganizationObjectStore, plan *WecomOrganizationSyncPlan, mapping *WecomUserMapping, adminSubject string, displayName string, enabled bool, now time.Time) error {
+	if store == nil || plan == nil || mapping == nil || mapping.WecomUserId == "" || adminSubject == "" {
+		return nil
+	}
+	sourceConnectionId := GetSourceConnectionId(plan.Organization, SourceTypeWecom, plan.CorpId)
+	version := NewPlatformVersionMetadata(plan.Organization, sourceConnectionId, plan.RunId, now, "")
+	lifecycleStatus := PlatformLifecycleStatusActive
+	if !enabled {
+		lifecycleStatus = PlatformLifecycleStatusDisabled
+	}
+	if err := store.SavePlatformUser(&PlatformUser{
+		Owner:           plan.Organization,
+		Name:            prefixedStableHash("puser-", plan.Organization, adminSubject),
+		OrganizationId:  plan.Organization,
+		AdminSubject:    adminSubject,
+		UserOwner:       mapping.UserOwner,
+		UserName:        mapping.UserName,
+		DisplayName:     displayName,
+		LifecycleStatus: lifecycleStatus,
+		MappingStatus:   platformMappingStatusFromEnabled(enabled),
+		OrgVersion:      version.OrgVersion,
+		LastSeenBatchId: plan.RunId,
+		UpdatedAt:       now,
+	}); err != nil {
+		return err
+	}
+	return store.SaveExternalIdentity(&ExternalIdentity{
+		Owner:               plan.Organization,
+		Name:                GetExternalIdentityName(sourceConnectionId, PlatformSubjectTypeUser, mapping.WecomUserId),
+		OrganizationId:      plan.Organization,
+		SourceConnectionId:  sourceConnectionId,
+		ExternalSubjectType: PlatformSubjectTypeUser,
+		ExternalSubjectId:   mapping.WecomUserId,
+		PlatformSubjectType: PlatformSubjectTypeUser,
+		PlatformSubject:     adminSubject,
+		MappingStatus:       platformMappingStatusFromEnabled(enabled),
+		Lineage:             marshalWecomProjectionLineage(plan, mapping.WecomUserId),
+		LastSeenBatchId:     plan.RunId,
+		UpdatedAt:           now,
+	})
+}
+
+// projectWecomPlatformMembership 将成员部门关系投影为平台 membership 权威事实。
+// disabled 关系必须清掉 main/manager 标记，避免 scope 继续把已失效关系当负责人或主部门使用。
+func (s *WecomOrganizationSyncService) projectWecomPlatformMembership(store WecomOrganizationObjectStore, plan *WecomOrganizationSyncPlan, membership *WecomUserDepartment, now time.Time, lifecycleStatus string) error {
+	if store == nil || plan == nil || membership == nil || membership.WecomUserId == "" || membership.DepartmentId == "" {
+		return nil
+	}
+	adminSubject := getWecomLocalId(membership.UserOwner, membership.UserName)
+	departmentId := getWecomLocalId(membership.GroupOwner, membership.GroupName)
+	if adminSubject == "" || departmentId == "" {
+		return nil
+	}
+	sourceConnectionId := GetSourceConnectionId(plan.Organization, SourceTypeWecom, plan.CorpId)
+	version := NewPlatformVersionMetadata(plan.Organization, sourceConnectionId, plan.RunId, now, "")
+	return store.SavePlatformMembership(&PlatformMembership{
+		Owner:              plan.Organization,
+		Name:               GetPlatformMembershipName(plan.Organization, adminSubject, departmentId),
+		OrganizationId:     plan.Organization,
+		AdminSubject:       adminSubject,
+		DepartmentId:       departmentId,
+		IsMain:             lifecycleStatus == PlatformLifecycleStatusActive && membership.IsMain,
+		IsManager:          lifecycleStatus == PlatformLifecycleStatusActive && membership.IsLeader,
+		LifecycleStatus:    lifecycleStatus,
+		SourceConnectionId: sourceConnectionId,
+		OrgVersion:         version.OrgVersion,
+		UpdatedAt:          now,
+	})
+}
+
+// projectWecomDepartmentLeaderMembership 将部门负责人关系折叠为 membership manager 语义。
+// 负责人事实仍来自企业微信 leader 快照，不从部门层级或用户排序推断。
+func (s *WecomOrganizationSyncService) projectWecomDepartmentLeaderMembership(store WecomOrganizationObjectStore, plan *WecomOrganizationSyncPlan, leader *WecomDepartmentLeader, now time.Time, lifecycleStatus string) error {
+	if leader == nil {
+		return nil
+	}
+	membership := &WecomUserDepartment{
+		Organization:  leader.Organization,
+		CorpId:        leader.CorpId,
+		WecomUserId:   leader.LeaderWecomUserId,
+		DepartmentId:  leader.DepartmentId,
+		UserOwner:     leader.LeaderUserOwner,
+		UserName:      leader.LeaderUserName,
+		GroupOwner:    leader.GroupOwner,
+		GroupName:     leader.GroupName,
+		IsLeader:      lifecycleStatus == PlatformLifecycleStatusActive,
+		IsEnabled:     lifecycleStatus == PlatformLifecycleStatusActive,
+		LastSeenRunId: leader.LastSeenRunId,
+	}
+	return s.projectWecomPlatformMembership(store, plan, membership, now, lifecycleStatus)
+}
+
+// projectWecomLifecycleEvent 记录会影响 org/scope version 的主体生命周期变更。
+func (s *WecomOrganizationSyncService) projectWecomLifecycleEvent(store WecomOrganizationObjectStore, plan *WecomOrganizationSyncPlan, subjectType string, subject string, lifecycleStatus string, reason string, now time.Time) error {
+	if store == nil || plan == nil || subject == "" {
+		return nil
+	}
+	return store.SaveLifecycleEvent(&LifecycleEvent{
+		Owner:           plan.Organization,
+		Name:            GetLifecycleEventName(plan.Organization, subjectType, subject, plan.RunId, now),
+		OrganizationId:  plan.Organization,
+		SubjectType:     subjectType,
+		Subject:         subject,
+		LifecycleStatus: lifecycleStatus,
+		Reason:          reason,
+		BatchId:         plan.RunId,
+		OccurredAt:      now,
+		UpdatedAt:       now,
+	})
+}
+
+// projectWecomOrgSyncBatch 把同步 run 收口为 provider 可读的版本和新鲜度批次记录。
+// insight 只消费这些 admin provider 元数据，不能把它当 gateway runtime authorization fact。
+func (s *WecomOrganizationSyncService) projectWecomOrgSyncBatch(run *WecomOrganizationSyncRun) error {
+	if run == nil || run.Organization == "" || run.CorpId == "" || run.Name == "" {
+		return nil
+	}
+	store := s.objectStore()
+	sourceConnectionId := GetSourceConnectionId(run.Organization, SourceTypeWecom, run.CorpId)
+	finishedAt := run.FinishedAt
+	if finishedAt.IsZero() {
+		finishedAt = s.now().UTC()
+	}
+	version := NewPlatformVersionMetadata(run.Organization, sourceConnectionId, run.Name, finishedAt, "")
+	status, freshness := platformOrgSyncBatchStatus(run.Status)
+	return store.SaveOrgSyncBatch(&OrgSyncBatch{
+		Owner:              run.Organization,
+		Name:               run.Name,
+		OrganizationId:     run.Organization,
+		SourceConnectionId: sourceConnectionId,
+		BatchId:            run.Name,
+		Status:             status,
+		StartedAt:          run.StartedAt,
+		FinishedAt:         finishedAt,
+		OrgVersion:         version.OrgVersion,
+		Freshness:          freshness,
+		ErrorCode:          run.ErrorCode,
+		ErrorText:          run.ErrorText,
+		UpdatedAt:          finishedAt,
+	})
+}
+
+// platformOrgSyncBatchStatus 将同步终态映射为 provider 新鲜度。
+// partial 只能表示 stale，failed 表示 unavailable，调用方据此 fail-closed 或提示数据不可用。
+func platformOrgSyncBatchStatus(status WecomOrganizationSyncRunStatus) (string, string) {
+	switch status {
+	case WecomOrganizationSyncRunStatusSucceeded:
+		return OrgSyncBatchStatusSucceeded, PlatformFreshnessFresh
+	case WecomOrganizationSyncRunStatusPartial:
+		return OrgSyncBatchStatusPartial, PlatformFreshnessStale
+	case WecomOrganizationSyncRunStatusFailed:
+		return OrgSyncBatchStatusFailed, PlatformFreshnessUnavailable
+	default:
+		return OrgSyncBatchStatusRunning, PlatformFreshnessUnknown
+	}
+}
+
+func platformMappingStatusFromEnabled(enabled bool) string {
+	if enabled {
+		return PlatformMappingStatusConfirmed
+	}
+	return PlatformMappingStatusDisabled
+}
+
+func marshalWecomProjectionLineage(plan *WecomOrganizationSyncPlan, externalSubjectId string) string {
+	if plan == nil {
+		return "{}"
+	}
+	return marshalPlatformLineage(map[string]string{
+		"sourceType":        SourceTypeWecom,
+		"sourceTenantId":    plan.CorpId,
+		"externalSubjectId": externalSubjectId,
+		"batchId":           plan.RunId,
+	})
+}
+
+func marshalPlatformLineage(values map[string]string) string {
+	raw, err := json.Marshal(values)
+	if err != nil {
+		return "{}"
+	}
+	return string(raw)
 }
 
 func (s *WecomOrganizationSyncService) organizationStore() WecomBusinessOrganizationStore {
@@ -1349,6 +1669,9 @@ func (s *WecomOrganizationSyncService) upsertWecomUserDepartmentMembership(store
 	if err := store.SaveWecomUserDepartment(membership); err != nil {
 		return err
 	}
+	if err := s.projectWecomPlatformMembership(store, plan, membership, now, PlatformLifecycleStatusActive); err != nil {
+		return err
+	}
 
 	groupId := getWecomGroupId(membership.GroupOwner, membership.GroupName)
 	if groupId != "" {
@@ -1387,6 +1710,12 @@ func (s *WecomOrganizationSyncService) disableWecomUserDepartmentMembership(stor
 	membership.MissingSinceRunId = plan.RunId
 	membership.LastSyncedAt = now
 	if err := store.SaveWecomUserDepartment(membership); err != nil {
+		return err
+	}
+	if err := s.projectWecomPlatformMembership(store, plan, membership, now, PlatformLifecycleStatusDisabled); err != nil {
+		return err
+	}
+	if err := s.projectWecomLifecycleEvent(store, plan, PlatformSubjectTypeUser, getWecomLocalId(membership.UserOwner, membership.UserName), PlatformLifecycleStatusDisabled, "wecom_membership_disabled", now); err != nil {
 		return err
 	}
 
@@ -1494,6 +1823,9 @@ func (s *WecomOrganizationSyncService) upsertWecomDepartmentLeader(store WecomOr
 	if err := store.SaveWecomDepartmentLeader(leader); err != nil {
 		return err
 	}
+	if err := s.projectWecomDepartmentLeaderMembership(store, plan, leader, now, PlatformLifecycleStatusActive); err != nil {
+		return err
+	}
 
 	leaderLocalId := getWecomLocalId(leader.LeaderUserOwner, leader.LeaderUserName)
 	if isPrimary {
@@ -1538,6 +1870,9 @@ func (s *WecomOrganizationSyncService) disableWecomDepartmentLeader(store WecomO
 	leader.MissingSinceRunId = plan.RunId
 	leader.LastSyncedAt = now
 	if err := store.SaveWecomDepartmentLeader(leader); err != nil {
+		return err
+	}
+	if err := s.projectWecomDepartmentLeaderMembership(store, plan, leader, now, PlatformLifecycleStatusDisabled); err != nil {
 		return err
 	}
 
@@ -1722,6 +2057,9 @@ func (s *WecomOrganizationSyncService) disableMissingWecomDepartment(store Wecom
 	if err := store.SaveWecomDepartmentMapping(mapping); err != nil {
 		return err
 	}
+	if err := s.projectWecomPlatformDepartment(store, plan, mapping, now); err != nil {
+		return err
+	}
 
 	groupOwner := firstNonEmpty(mapping.GroupOwner, stale.GroupOwner)
 	groupName := firstNonEmpty(mapping.GroupName, stale.GroupName)
@@ -1766,6 +2104,9 @@ func (s *WecomOrganizationSyncService) disableMissingWecomUser(store WecomOrgani
 	mapping.MissingSinceRunId = keepFirstMissingRunId(mapping.MissingSinceRunId, plan.RunId)
 	mapping.LastSyncedAt = now
 	if err := store.SaveWecomUserMapping(mapping); err != nil {
+		return err
+	}
+	if err := s.projectWecomPlatformUserFromMapping(store, plan, mapping, now); err != nil {
 		return err
 	}
 
@@ -2191,6 +2532,8 @@ func (s defaultWecomOrganizationObjectStore) FindUserByWecomIdentity(organizatio
 	return nil, nil
 }
 
+// FindPossibleDuplicateUsers 只提供弱标识重复候选，不能驱动自动绑定。
+// 自动 join 仍必须依赖 sourceConnectionId、externalSubjectId 和 adminSubject 这类稳定身份字段。
 func (s defaultWecomOrganizationObjectStore) FindPossibleDuplicateUsers(organization string, corpId string, wecomUserId string, fullExternalId string, displayName string, phone string, email string) ([]string, error) {
 	organization = strings.TrimSpace(organization)
 	displayName = strings.TrimSpace(displayName)
@@ -2439,6 +2782,75 @@ func (s defaultWecomOrganizationObjectStore) SaveWecomUserDirectLeader(leader *W
 	leader.Owner = existing.Owner
 	leader.Name = existing.Name
 	_, err = ormer.Engine.ID(core.PK{leader.Owner, leader.Name}).AllCols().Update(leader)
+	return err
+}
+
+func (s defaultWecomOrganizationObjectStore) SaveSourceConnection(connection *SourceConnection) error {
+	if connection == nil {
+		return nil
+	}
+	return savePlatformRecord(connection.Owner, connection.Name, connection, &SourceConnection{})
+}
+
+func (s defaultWecomOrganizationObjectStore) SavePlatformDepartment(department *PlatformDepartment) error {
+	if department == nil {
+		return nil
+	}
+	return savePlatformRecord(department.Owner, department.Name, department, &PlatformDepartment{})
+}
+
+func (s defaultWecomOrganizationObjectStore) SavePlatformUser(user *PlatformUser) error {
+	if user == nil {
+		return nil
+	}
+	return savePlatformRecord(user.Owner, user.Name, user, &PlatformUser{})
+}
+
+func (s defaultWecomOrganizationObjectStore) SavePlatformMembership(membership *PlatformMembership) error {
+	if membership == nil {
+		return nil
+	}
+	return savePlatformRecord(membership.Owner, membership.Name, membership, &PlatformMembership{})
+}
+
+func (s defaultWecomOrganizationObjectStore) SaveExternalIdentity(identity *ExternalIdentity) error {
+	if identity == nil {
+		return nil
+	}
+	return savePlatformRecord(identity.Owner, identity.Name, identity, &ExternalIdentity{})
+}
+
+func (s defaultWecomOrganizationObjectStore) SaveLifecycleEvent(event *LifecycleEvent) error {
+	if event == nil {
+		return nil
+	}
+	return savePlatformRecord(event.Owner, event.Name, event, &LifecycleEvent{})
+}
+
+func (s defaultWecomOrganizationObjectStore) SaveOrgSyncBatch(batch *OrgSyncBatch) error {
+	if batch == nil {
+		return nil
+	}
+	return savePlatformRecord(batch.Owner, batch.Name, batch, &OrgSyncBatch{})
+}
+
+// savePlatformRecord 按 owner/name 幂等 upsert 平台投影记录，保证重复同步覆盖同一主键快照而不是追加副本。
+func savePlatformRecord(owner string, name string, model any, existing any) error {
+	if owner == "" || name == "" || model == nil || existing == nil {
+		return nil
+	}
+	if ormer == nil || ormer.Engine == nil {
+		return nil
+	}
+	existed, err := ormer.Engine.ID(core.PK{owner, name}).Get(existing)
+	if err != nil {
+		return err
+	}
+	if !existed {
+		_, err = ormer.Engine.Insert(model)
+		return err
+	}
+	_, err = ormer.Engine.ID(core.PK{owner, name}).AllCols().Update(model)
 	return err
 }
 

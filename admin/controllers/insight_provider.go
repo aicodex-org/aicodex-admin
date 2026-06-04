@@ -50,10 +50,15 @@ type InsightProviderError struct {
 	MappingStatus string `json:"mappingStatus,omitempty"`
 }
 
+// InsightUsageIdentity 是 insight 查询 api 用量时需要的 admin-to-api 用户映射。
+// 该结构只服务报表范围消费，不代表 gateway 运行时授权事实。
 type InsightUsageIdentity struct {
-	ApiUserId     string `json:"apiUserId,omitempty"`
-	MappingStatus string `json:"mappingStatus"`
-	MappingSource string `json:"mappingSource,omitempty"`
+	ApiUserId          string `json:"apiUserId,omitempty"`
+	MappingStatus      string `json:"mappingStatus"`
+	MappingSource      string `json:"mappingSource,omitempty"`
+	SourceConnectionId string `json:"sourceConnectionId,omitempty"`
+	SourceType         string `json:"sourceType,omitempty"`
+	ExternalSubjectId  string `json:"externalSubjectId,omitempty"`
 }
 
 type InsightProviderGroup struct {
@@ -72,11 +77,17 @@ type InsightCurrentUserResponse struct {
 	Groups            []InsightProviderGroup `json:"groups"`
 	UsageIdentity     InsightUsageIdentity   `json:"usageIdentity"`
 	GeneratedAt       string                 `json:"generatedAt"`
+	OrgVersion        string                 `json:"orgVersion"`
+	ScopeVersion      string                 `json:"scopeVersion"`
+	Freshness         string                 `json:"freshness"`
 }
 
+// InsightScopeResponse 描述 admin provider 已计算完成的 insight 报表范围。
+// DepartmentIds/AdminUserIds/ApiUserIds 是报表查询输入，不应被 api 侧当作 gateway 授权矩阵。
 type InsightScopeResponse struct {
 	// AdminUserId 表示本次 provider 调用的当前 admin 用户，用于 insight/api 跨服务审计。
 	AdminUserId             string                   `json:"adminUserId"`
+	TraceId                 string                   `json:"traceId,omitempty"`
 	ScopeType               string                   `json:"scopeType"`
 	Organization            string                   `json:"organization"`
 	ApiOrganizationId       string                   `json:"apiOrganizationId,omitempty"`
@@ -88,6 +99,8 @@ type InsightScopeResponse struct {
 	MappingStatus           string                   `json:"mappingStatus"`
 	GeneratedAt             string                   `json:"generatedAt"`
 	ScopeVersion            string                   `json:"scopeVersion"`
+	OrgVersion              string                   `json:"orgVersion"`
+	Freshness               string                   `json:"freshness"`
 }
 
 type InsightDepartmentScope struct {
@@ -96,6 +109,9 @@ type InsightDepartmentScope struct {
 	ApiUserIds              []string `json:"apiUserIds"`
 	IncludeChildDepartments bool     `json:"includeChildDepartments"`
 	MappingStatus           string   `json:"mappingStatus"`
+	LifecycleStatus         string   `json:"lifecycleStatus"`
+	SourceType              string   `json:"sourceType"`
+	SourceConnectionId      string   `json:"sourceConnectionId,omitempty"`
 }
 
 type InsightOrganizationTreeNode struct {
@@ -105,7 +121,17 @@ type InsightOrganizationTreeNode struct {
 	DepartmentPath     string `json:"departmentPath"`
 	HasChildren        bool   `json:"hasChildren"`
 	SourceType         string `json:"sourceType"`
+	SourceConnectionId string `json:"sourceConnectionId,omitempty"`
+	LifecycleStatus    string `json:"lifecycleStatus"`
 }
+
+type insightDepartmentSourceMetadata struct {
+	SourceType         string
+	SourceConnectionId string
+	LifecycleStatus    string
+}
+
+type insightDepartmentSourceMetadataIndex map[string]insightDepartmentSourceMetadata
 
 type insightProviderAuditEvent struct {
 	TraceId        string
@@ -171,13 +197,14 @@ func (c *ApiController) GetInsightCurrentUserScope() {
 	}
 
 	organization := c.getInsightProviderScopeOrganization(user)
-	users, groups, err := getInsightProviderScopeSource(organization)
+	users, groups, platformDepartments, err := getInsightProviderScopeSource(organization)
 	if err != nil {
 		c.writeInsightProviderError(http.StatusInternalServerError, newInsightProviderError(InsightProviderErrorUnavailable, err.Error(), traceId, ""), insightProviderAuditEvent{TraceId: traceId, AdminUserId: user.GetId(), Organization: organization, Status: "error", ErrorCode: InsightProviderErrorUnavailable})
 		return
 	}
 
-	data, providerErr := calculateInsightScopeForOrganizationWithResolver(user, organization, users, groups, generatedAt, newInsightUsageIdentityResolverFromConfig(), traceId)
+	departmentMetadata := buildInsightDepartmentSourceMetadataIndex(platformDepartments)
+	data, providerErr := calculateInsightScopeForOrganizationWithResolverAndDepartmentMetadata(user, organization, users, groups, generatedAt, newInsightUsageIdentityResolverFromConfig(), traceId, departmentMetadata)
 	if providerErr != nil {
 		providerErr.TraceId = traceId
 		c.writeInsightProviderError(getInsightProviderHTTPStatus(providerErr), providerErr, insightProviderAuditEvent{TraceId: traceId, AdminUserId: user.GetId(), Organization: organization, MappingStatus: providerErr.MappingStatus, Status: "error", ErrorCode: providerErr.Code})
@@ -212,8 +239,14 @@ func (c *ApiController) GetInsightCurrentUserOrganizationTree() {
 		c.writeInsightProviderError(http.StatusInternalServerError, newInsightProviderError(InsightProviderErrorUnavailable, err.Error(), traceId, ""), insightProviderAuditEvent{TraceId: traceId, AdminUserId: user.GetId(), Organization: organization, Status: "error", ErrorCode: InsightProviderErrorUnavailable})
 		return
 	}
+	platformDepartments, err := object.GetPlatformDepartments(organization)
+	if err != nil {
+		c.writeInsightProviderError(http.StatusInternalServerError, newInsightProviderError(InsightProviderErrorUnavailable, err.Error(), traceId, ""), insightProviderAuditEvent{TraceId: traceId, AdminUserId: user.GetId(), Organization: organization, Status: "error", ErrorCode: InsightProviderErrorUnavailable})
+		return
+	}
 
-	data := buildInsightOrganizationTreeForOrganization(user, organization, groups)
+	departmentMetadata := buildInsightDepartmentSourceMetadataIndex(platformDepartments)
+	data := buildInsightOrganizationTreeForOrganizationWithDepartmentMetadata(user, organization, groups, departmentMetadata)
 	c.writeInsightProviderSuccess(traceId, data, insightProviderAuditEvent{
 		TraceId:       traceId,
 		AdminUserId:   user.GetId(),
@@ -234,6 +267,7 @@ func buildInsightCurrentUserResponseWithResolver(user *object.User, roles []stri
 	if providerErr != nil {
 		return nil, providerErr
 	}
+	version := buildInsightProviderVersionMetadata(user.Owner, generatedAt, traceId)
 	return &InsightCurrentUserResponse{
 		AdminUserId:       user.GetId(),
 		Username:          user.Name,
@@ -244,6 +278,9 @@ func buildInsightCurrentUserResponseWithResolver(user *object.User, roles []stri
 		Groups:            groups,
 		UsageIdentity:     usageIdentity,
 		GeneratedAt:       formatInsightTime(generatedAt),
+		OrgVersion:        version.OrgVersion,
+		ScopeVersion:      version.ScopeVersion,
+		Freshness:         version.Freshness,
 	}, nil
 }
 
@@ -268,6 +305,12 @@ func calculateInsightScopeForOrganization(currentUser *object.User, organization
 }
 
 func calculateInsightScopeForOrganizationWithResolver(currentUser *object.User, organization string, users []*object.User, groups []*object.Group, generatedAt time.Time, resolver insightUsageIdentityResolver, traceId string) (*InsightScopeResponse, *InsightProviderError) {
+	return calculateInsightScopeForOrganizationWithResolverAndDepartmentMetadata(currentUser, organization, users, groups, generatedAt, resolver, traceId, nil)
+}
+
+// calculateInsightScopeForOrganizationWithResolverAndDepartmentMetadata 按全局管理员、组织管理员、部门负责人、自定义范围、自身范围依次降级。
+// 每个分支都必须在用户身份映射不确定时 fail-closed，避免 insight 展示超出 admin 已确认的用量主体。
+func calculateInsightScopeForOrganizationWithResolverAndDepartmentMetadata(currentUser *object.User, organization string, users []*object.User, groups []*object.Group, generatedAt time.Time, resolver insightUsageIdentityResolver, traceId string, departmentMetadata insightDepartmentSourceMetadataIndex) (*InsightScopeResponse, *InsightProviderError) {
 	if providerErr := validateInsightProviderActiveUser(currentUser, ""); providerErr != nil {
 		return nil, providerErr
 	}
@@ -278,12 +321,12 @@ func calculateInsightScopeForOrganizationWithResolver(currentUser *object.User, 
 	orgGroups := filterInsightGroupsByOwner(groups, organization)
 
 	if currentUser.IsGlobalAdmin() || currentUser.IsAdmin {
-		return buildInsightAllCompanyScope(currentUser.GetId(), organization, apiOrganizationId, orgUsers, orgGroups, generatedAt, resolver, traceId)
+		return buildInsightAllCompanyScope(currentUser.GetId(), organization, apiOrganizationId, orgUsers, orgGroups, generatedAt, resolver, traceId, departmentMetadata)
 	}
 
 	managedGroups := getInsightManagedGroups(currentUser, orgGroups)
 	if len(managedGroups) > 0 {
-		return buildInsightDepartmentTreeScope(currentUser.GetId(), organization, apiOrganizationId, orgUsers, orgGroups, managedGroups, generatedAt, resolver, traceId)
+		return buildInsightDepartmentTreeScope(currentUser.GetId(), organization, apiOrganizationId, orgUsers, orgGroups, managedGroups, generatedAt, resolver, traceId, departmentMetadata)
 	}
 
 	customUsers := getInsightCustomScopeUsers(currentUser, orgUsers)
@@ -294,7 +337,7 @@ func calculateInsightScopeForOrganizationWithResolver(currentUser *object.User, 
 	return buildInsightSelfScope(currentUser.GetId(), organization, apiOrganizationId, currentUser, generatedAt, resolver, traceId)
 }
 
-func buildInsightAllCompanyScope(adminUserId string, organization string, apiOrganizationId string, users []*object.User, groups []*object.Group, generatedAt time.Time, resolver insightUsageIdentityResolver, traceId string) (*InsightScopeResponse, *InsightProviderError) {
+func buildInsightAllCompanyScope(adminUserId string, organization string, apiOrganizationId string, users []*object.User, groups []*object.Group, generatedAt time.Time, resolver insightUsageIdentityResolver, traceId string, departmentMetadata insightDepartmentSourceMetadataIndex) (*InsightScopeResponse, *InsightProviderError) {
 	userIdentityCache := newInsightUsageIdentityCache(resolver, traceId)
 	adminUserIds, apiUserIds, mappingStatus, providerErr := mapInsightQueryableUsersToUsageIdsWithCache(users, userIdentityCache)
 	if providerErr != nil {
@@ -303,13 +346,15 @@ func buildInsightAllCompanyScope(adminUserId string, organization string, apiOrg
 	if mappingStatus != MappingStatusOK {
 		return nil, newInsightProviderError(InsightProviderErrorAuthorizationFailed, "usage user mapping is not deterministic", "", mappingStatus)
 	}
-	departmentIds, departments, providerErr := buildInsightAllCompanyDepartmentScopes(users, groups, userIdentityCache)
+	departmentIds, departments, providerErr := buildInsightAllCompanyDepartmentScopesWithMetadata(users, groups, userIdentityCache, departmentMetadata)
 	if providerErr != nil {
 		return nil, providerErr
 	}
+	version := buildInsightProviderVersionMetadata(organization, generatedAt, traceId)
 
 	return &InsightScopeResponse{
 		AdminUserId:             adminUserId,
+		TraceId:                 traceId,
 		ScopeType:               ScopeTypeAllCompany,
 		Organization:            organization,
 		ApiOrganizationId:       apiOrganizationId,
@@ -321,10 +366,16 @@ func buildInsightAllCompanyScope(adminUserId string, organization string, apiOrg
 		MappingStatus:           MappingStatusOK,
 		GeneratedAt:             formatInsightTime(generatedAt),
 		ScopeVersion:            insightProviderScopeVersion,
+		OrgVersion:              version.OrgVersion,
+		Freshness:               version.Freshness,
 	}, nil
 }
 
 func buildInsightAllCompanyDepartmentScopes(users []*object.User, groups []*object.Group, cache *insightUsageIdentityCache) ([]string, []InsightDepartmentScope, *InsightProviderError) {
+	return buildInsightAllCompanyDepartmentScopesWithMetadata(users, groups, cache, nil)
+}
+
+func buildInsightAllCompanyDepartmentScopesWithMetadata(users []*object.User, groups []*object.Group, cache *insightUsageIdentityCache, departmentMetadata insightDepartmentSourceMetadataIndex) ([]string, []InsightDepartmentScope, *InsightProviderError) {
 	departmentIds := []string{}
 	departments := []InsightDepartmentScope{}
 	for _, group := range groups {
@@ -347,6 +398,7 @@ func buildInsightAllCompanyDepartmentScopes(users []*object.User, groups []*obje
 			continue
 		}
 		departmentId := group.GetId()
+		sourceMetadata := getInsightDepartmentSourceMetadata(group, departmentMetadata)
 		departmentIds = append(departmentIds, departmentId)
 		departments = append(departments, InsightDepartmentScope{
 			DepartmentId:            departmentId,
@@ -354,13 +406,16 @@ func buildInsightAllCompanyDepartmentScopes(users []*object.User, groups []*obje
 			ApiUserIds:              apiUserIds,
 			IncludeChildDepartments: false,
 			MappingStatus:           MappingStatusOK,
+			LifecycleStatus:         sourceMetadata.LifecycleStatus,
+			SourceType:              sourceMetadata.SourceType,
+			SourceConnectionId:      sourceMetadata.SourceConnectionId,
 		})
 	}
 	sortInsightDepartmentScopes(departments)
 	return deduplicateStrings(departmentIds), departments, nil
 }
 
-func buildInsightDepartmentTreeScope(adminUserId string, organization string, apiOrganizationId string, users []*object.User, groups []*object.Group, managedGroups []*object.Group, generatedAt time.Time, resolver insightUsageIdentityResolver, traceId string) (*InsightScopeResponse, *InsightProviderError) {
+func buildInsightDepartmentTreeScope(adminUserId string, organization string, apiOrganizationId string, users []*object.User, groups []*object.Group, managedGroups []*object.Group, generatedAt time.Time, resolver insightUsageIdentityResolver, traceId string, departmentMetadata insightDepartmentSourceMetadataIndex) (*InsightScopeResponse, *InsightProviderError) {
 	groupByName := indexInsightGroupsByName(groups)
 	allDepartmentIds := []string{}
 	departments := []InsightDepartmentScope{}
@@ -385,7 +440,7 @@ func buildInsightDepartmentTreeScope(adminUserId string, organization string, ap
 	}
 
 	if len(departmentCandidates) == 0 {
-		return buildInsightEmptyScope(adminUserId, organization, apiOrganizationId, generatedAt), nil
+		return buildInsightEmptyScope(adminUserId, organization, apiOrganizationId, generatedAt, traceId), nil
 	}
 
 	// 部门负责人可能同时管理多个部门；先按整个 scope 预热解析缓存，避免按部门循环调用 api resolver。
@@ -411,6 +466,7 @@ func buildInsightDepartmentTreeScope(adminUserId string, organization string, ap
 		}
 
 		departmentId := group.GetId()
+		sourceMetadata := getInsightDepartmentSourceMetadata(group, departmentMetadata)
 		allDepartmentIds = append(allDepartmentIds, departmentId)
 		departments = append(departments, InsightDepartmentScope{
 			DepartmentId:            departmentId,
@@ -418,6 +474,9 @@ func buildInsightDepartmentTreeScope(adminUserId string, organization string, ap
 			ApiUserIds:              apiUserIds,
 			IncludeChildDepartments: true,
 			MappingStatus:           MappingStatusOK,
+			LifecycleStatus:         sourceMetadata.LifecycleStatus,
+			SourceType:              sourceMetadata.SourceType,
+			SourceConnectionId:      sourceMetadata.SourceConnectionId,
 		})
 		for _, id := range adminUserIds {
 			scopeAdminUserIdSet[id] = true
@@ -428,12 +487,14 @@ func buildInsightDepartmentTreeScope(adminUserId string, organization string, ap
 	}
 
 	if len(departments) == 0 {
-		return buildInsightEmptyScope(adminUserId, organization, apiOrganizationId, generatedAt), nil
+		return buildInsightEmptyScope(adminUserId, organization, apiOrganizationId, generatedAt, traceId), nil
 	}
 
 	sortInsightDepartmentScopes(departments)
+	version := buildInsightProviderVersionMetadata(organization, generatedAt, traceId)
 	return &InsightScopeResponse{
 		AdminUserId:             adminUserId,
+		TraceId:                 traceId,
 		ScopeType:               ScopeTypeDepartmentTree,
 		Organization:            organization,
 		ApiOrganizationId:       apiOrganizationId,
@@ -445,6 +506,8 @@ func buildInsightDepartmentTreeScope(adminUserId string, organization string, ap
 		MappingStatus:           MappingStatusOK,
 		GeneratedAt:             formatInsightTime(generatedAt),
 		ScopeVersion:            insightProviderScopeVersion,
+		OrgVersion:              version.OrgVersion,
+		Freshness:               version.Freshness,
 	}, nil
 }
 
@@ -456,8 +519,10 @@ func buildInsightCustomUsersScope(adminUserId string, organization string, apiOr
 	if mappingStatus != MappingStatusOK {
 		return nil, newInsightProviderError(InsightProviderErrorAuthorizationFailed, "usage user mapping is not deterministic", "", mappingStatus)
 	}
+	version := buildInsightProviderVersionMetadata(organization, generatedAt, traceId)
 	return &InsightScopeResponse{
 		AdminUserId:       adminUserId,
+		TraceId:           traceId,
 		ScopeType:         ScopeTypeCustomUsers,
 		Organization:      organization,
 		ApiOrganizationId: apiOrganizationId,
@@ -467,6 +532,8 @@ func buildInsightCustomUsersScope(adminUserId string, organization string, apiOr
 		MappingStatus:     MappingStatusOK,
 		GeneratedAt:       formatInsightTime(generatedAt),
 		ScopeVersion:      insightProviderScopeVersion,
+		OrgVersion:        version.OrgVersion,
+		Freshness:         version.Freshness,
 	}, nil
 }
 
@@ -478,8 +545,10 @@ func buildInsightSelfScope(adminUserId string, organization string, apiOrganizat
 	if mappingStatus != MappingStatusOK {
 		return nil, newInsightProviderError(InsightProviderErrorAuthorizationFailed, "current user usage mapping is not deterministic", "", mappingStatus)
 	}
+	version := buildInsightProviderVersionMetadata(organization, generatedAt, traceId)
 	return &InsightScopeResponse{
 		AdminUserId:       adminUserId,
+		TraceId:           traceId,
 		ScopeType:         ScopeTypeSelf,
 		Organization:      organization,
 		ApiOrganizationId: apiOrganizationId,
@@ -489,12 +558,16 @@ func buildInsightSelfScope(adminUserId string, organization string, apiOrganizat
 		MappingStatus:     MappingStatusOK,
 		GeneratedAt:       formatInsightTime(generatedAt),
 		ScopeVersion:      insightProviderScopeVersion,
+		OrgVersion:        version.OrgVersion,
+		Freshness:         version.Freshness,
 	}, nil
 }
 
-func buildInsightEmptyScope(adminUserId string, organization string, apiOrganizationId string, generatedAt time.Time) *InsightScopeResponse {
+func buildInsightEmptyScope(adminUserId string, organization string, apiOrganizationId string, generatedAt time.Time, traceId string) *InsightScopeResponse {
+	version := buildInsightProviderVersionMetadata(organization, generatedAt, traceId)
 	return &InsightScopeResponse{
 		AdminUserId:       adminUserId,
+		TraceId:           traceId,
 		ScopeType:         ScopeTypeEmpty,
 		Organization:      organization,
 		ApiOrganizationId: apiOrganizationId,
@@ -504,6 +577,8 @@ func buildInsightEmptyScope(adminUserId string, organization string, apiOrganiza
 		MappingStatus:     MappingStatusOK,
 		GeneratedAt:       formatInsightTime(generatedAt),
 		ScopeVersion:      insightProviderScopeVersion,
+		OrgVersion:        version.OrgVersion,
+		Freshness:         version.Freshness,
 	}
 }
 
@@ -513,6 +588,10 @@ func buildInsightOrganizationTree(currentUser *object.User, groups []*object.Gro
 }
 
 func buildInsightOrganizationTreeForOrganization(currentUser *object.User, organization string, groups []*object.Group) []InsightOrganizationTreeNode {
+	return buildInsightOrganizationTreeForOrganizationWithDepartmentMetadata(currentUser, organization, groups, nil)
+}
+
+func buildInsightOrganizationTreeForOrganizationWithDepartmentMetadata(currentUser *object.User, organization string, groups []*object.Group, departmentMetadata insightDepartmentSourceMetadataIndex) []InsightOrganizationTreeNode {
 	if currentUser == nil {
 		return []InsightOrganizationTreeNode{}
 	}
@@ -543,13 +622,16 @@ func buildInsightOrganizationTreeForOrganization(currentUser *object.User, organ
 		if visibleNames[group.ParentId] {
 			parentDepartmentId = util.GetId(group.Owner, group.ParentId)
 		}
+		sourceMetadata := getInsightDepartmentSourceMetadata(group, departmentMetadata)
 		nodes = append(nodes, InsightOrganizationTreeNode{
 			DepartmentId:       group.GetId(),
 			DepartmentName:     getInsightGroupDisplayName(group),
 			ParentDepartmentId: parentDepartmentId,
 			DepartmentPath:     getInsightDepartmentPath(group, groupByName, visibleNames),
 			HasChildren:        hasInsightVisibleChild(group.Name, orgGroups, visibleNames),
-			SourceType:         "group",
+			SourceType:         sourceMetadata.SourceType,
+			SourceConnectionId: sourceMetadata.SourceConnectionId,
+			LifecycleStatus:    sourceMetadata.LifecycleStatus,
 		})
 	}
 
@@ -560,6 +642,101 @@ func buildInsightOrganizationTreeForOrganization(currentUser *object.User, organ
 		return nodes[i].DepartmentPath < nodes[j].DepartmentPath
 	})
 	return nodes
+}
+
+// buildInsightProviderVersionMetadata 生成 insight provider 的 admin scope 快照版本。
+// 这里使用字符串哈希版本，不能和 api gateway projection 的 int64 版本混用。
+func buildInsightProviderVersionMetadata(organization string, generatedAt time.Time, traceId string) object.PlatformVersionMetadata {
+	return object.NewPlatformVersionMetadata(organization, "", insightProviderScopeVersion, generatedAt, traceId)
+}
+
+// buildInsightDepartmentSourceMetadataIndex 汇总平台部门元数据，供旧 Group 树补足来源连接和 lifecycle。
+func buildInsightDepartmentSourceMetadataIndex(platformDepartments []*object.PlatformDepartment) insightDepartmentSourceMetadataIndex {
+	if len(platformDepartments) == 0 {
+		return nil
+	}
+	index := insightDepartmentSourceMetadataIndex{}
+	for _, department := range platformDepartments {
+		if department == nil {
+			continue
+		}
+		departmentId := strings.TrimSpace(department.DepartmentId)
+		if departmentId == "" {
+			continue
+		}
+		metadata := insightDepartmentSourceMetadata{
+			SourceConnectionId: strings.TrimSpace(department.SourceConnectionId),
+			LifecycleStatus:    strings.TrimSpace(department.LifecycleStatus),
+		}
+		if metadata.SourceConnectionId == "" && metadata.LifecycleStatus == "" {
+			continue
+		}
+		index[departmentId] = metadata
+	}
+	if len(index) == 0 {
+		return nil
+	}
+	return index
+}
+
+// getInsightDepartmentSourceMetadata 优先使用平台部门覆盖旧 Group 派生元数据。
+// 这样 provider 输出的 sourceConnection/lifecycle 与组织主模型保持一致。
+func getInsightDepartmentSourceMetadata(group *object.Group, departmentMetadata insightDepartmentSourceMetadataIndex) insightDepartmentSourceMetadata {
+	metadata := insightDepartmentSourceMetadata{
+		SourceType:         getInsightGroupSourceType(group),
+		SourceConnectionId: getInsightGroupSourceConnectionId(group),
+		LifecycleStatus:    getInsightGroupLifecycleStatus(group),
+	}
+	if group == nil || departmentMetadata == nil {
+		return metadata
+	}
+	if override, ok := departmentMetadata[group.GetId()]; ok {
+		if override.SourceConnectionId != "" {
+			metadata.SourceConnectionId = override.SourceConnectionId
+		}
+		if override.LifecycleStatus != "" {
+			metadata.LifecycleStatus = override.LifecycleStatus
+		}
+	}
+	return metadata
+}
+
+func getInsightGroupSourceType(group *object.Group) string {
+	if group != nil && group.Type == object.WecomDepartmentGroupType {
+		return object.SourceTypeWecom
+	}
+	return "group"
+}
+
+func getInsightGroupSourceConnectionId(group *object.Group) string {
+	if group == nil || group.Type != object.WecomDepartmentGroupType {
+		return ""
+	}
+	corpId := getInsightWecomCorpIdFromDepartmentGroupName(group.Name)
+	if corpId == "" {
+		return ""
+	}
+	return object.GetSourceConnectionId(group.Owner, object.SourceTypeWecom, corpId)
+}
+
+func getInsightWecomCorpIdFromDepartmentGroupName(groupName string) string {
+	name := strings.TrimSpace(groupName)
+	if !strings.HasPrefix(name, object.WecomDepartmentGroupNamePrefix) {
+		return ""
+	}
+	remainder := strings.TrimPrefix(name, object.WecomDepartmentGroupNamePrefix)
+	lastSeparator := strings.LastIndex(remainder, "-")
+	if lastSeparator <= 0 || lastSeparator == len(remainder)-1 {
+		return ""
+	}
+	return strings.TrimSpace(remainder[:lastSeparator])
+}
+
+func getInsightGroupLifecycleStatus(group *object.Group) string {
+	if group != nil && group.Type == object.WecomDepartmentGroupType && !group.IsEnabled {
+		return object.PlatformLifecycleStatusDisabled
+	}
+	return object.PlatformLifecycleStatusActive
 }
 
 func (c *ApiController) requireInsightProviderUser(traceId string) (*object.User, *InsightProviderError) {
@@ -727,6 +904,7 @@ func (c *ApiController) getInsightProviderTraceId() string {
 	return util.GenerateId()
 }
 
+// getInsightProviderScopeOrganization 只允许全局管理员显式选择组织；普通用户始终被限制在自身 Owner。
 func (c *ApiController) getInsightProviderScopeOrganization(user *object.User) string {
 	if user != nil && user.IsGlobalAdmin() {
 		if organization := strings.TrimSpace(c.Ctx.Input.Query("organization")); organization != "" {
@@ -739,16 +917,20 @@ func (c *ApiController) getInsightProviderScopeOrganization(user *object.User) s
 	return user.Owner
 }
 
-func getInsightProviderScopeSource(organization string) ([]*object.User, []*object.Group, error) {
+func getInsightProviderScopeSource(organization string) ([]*object.User, []*object.Group, []*object.PlatformDepartment, error) {
 	users, err := object.GetUsers(organization)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	groups, err := object.GetGroups(organization)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return users, groups, nil
+	platformDepartments, err := object.GetPlatformDepartments(organization)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return users, groups, platformDepartments, nil
 }
 
 func getInsightProviderRoleIds(user *object.User) ([]string, error) {
@@ -797,14 +979,16 @@ func resolveInsightUsageIdentity(user *object.User) InsightUsageIdentity {
 	return identity
 }
 
+// resolveInsightUsageIdentityWithResolver 先尊重 admin 手工 apiUserId 映射，再按确认的外部身份调用 api resolver。
+// resolver 不可用、返回异常或映射不确定时由调用方 fail-closed，而不是猜测用量主体。
 func resolveInsightUsageIdentityWithResolver(user *object.User, resolver insightUsageIdentityResolver, traceId string) (InsightUsageIdentity, *InsightProviderError) {
 	identity := resolveInsightManualUsageIdentity(user)
 	if identity.MappingStatus != MappingStatusMissing || !isInsightUsageIdentityResolverEnabled(resolver) {
-		return identity, nil
+		return withInsightSourceIdentity(identity, user), nil
 	}
 	item, ok := buildInsightUsageIdentityResolveItem(user)
 	if !ok {
-		return InsightUsageIdentity{MappingStatus: MappingStatusMissing}, nil
+		return withInsightSourceIdentity(InsightUsageIdentity{MappingStatus: MappingStatusMissing}, user), nil
 	}
 	results, providerErr := resolver.Resolve(traceId, []insightUsageIdentityResolveItem{item})
 	if providerErr != nil {
@@ -816,9 +1000,9 @@ func resolveInsightUsageIdentityWithResolver(user *object.User, resolver insight
 	}
 	result, ok := resultByRequestId[item.RequestId]
 	if !ok {
-		return InsightUsageIdentity{MappingStatus: MappingStatusMissing}, nil
+		return withInsightSourceIdentity(InsightUsageIdentity{MappingStatus: MappingStatusMissing}, user), nil
 	}
-	return insightUsageIdentityFromResolverResult(result), nil
+	return withInsightSourceIdentity(insightUsageIdentityFromResolverResult(result), user), nil
 }
 
 func resolveInsightManualUsageIdentity(user *object.User) InsightUsageIdentity {
@@ -857,8 +1041,13 @@ func insightUsageIdentityFromResolverResult(result insightUsageIdentityResolveRe
 	return InsightUsageIdentity{ApiUserId: strconv.Itoa(result.ApiUserId), MappingStatus: MappingStatusOK, MappingSource: "wecom.resolver"}
 }
 
+// buildInsightUsageIdentityResolveItem 只向 api resolver 发送稳定来源身份和兼容企业微信外部 ID。
+// mappingStatus 未确认或本地映射已禁用时不发起解析，避免弱身份被自动绑定。
 func buildInsightUsageIdentityResolveItem(user *object.User) (insightUsageIdentityResolveItem, bool) {
 	if user == nil {
+		return insightUsageIdentityResolveItem{}, false
+	}
+	if !isInsightExternalIdentityConfirmed(user) {
 		return insightUsageIdentityResolveItem{}, false
 	}
 	requestId := user.GetId()
@@ -868,20 +1057,66 @@ func buildInsightUsageIdentityResolveItem(user *object.User) (insightUsageIdenti
 	}
 	corpId, wecomUserId := getInsightUserWecomIdentity(user)
 	wecomExternalId := ""
+	sourceConnectionId := ""
+	sourceType := ""
+	externalSubjectId := ""
 	if corpId != "" && wecomUserId != "" {
+		sourceConnectionId = object.GetSourceConnectionId(user.Owner, object.SourceTypeWecom, corpId)
+		sourceType = object.SourceTypeWecom
+		externalSubjectId = wecomUserId
 		wecomExternalId = object.GetWecomUserFullExternalId(corpId, wecomUserId)
-		if mapping, err := getInsightWecomUserMappingFunc(user.Owner, corpId, wecomUserId); err == nil && mapping != nil && mapping.IsEnabled && strings.TrimSpace(mapping.ExternalId) != "" {
-			wecomExternalId = strings.TrimSpace(mapping.ExternalId)
+		if mapping, err := getInsightWecomUserMappingFunc(user.Owner, corpId, wecomUserId); err == nil && mapping != nil {
+			if !mapping.IsEnabled {
+				return insightUsageIdentityResolveItem{}, false
+			}
+			if strings.TrimSpace(mapping.ExternalId) != "" {
+				wecomExternalId = strings.TrimSpace(mapping.ExternalId)
+			}
 		}
 	}
 	item := insightUsageIdentityResolveItem{
-		RequestId:       requestId,
-		AdminSubject:    adminSubject,
-		WecomExternalId: wecomExternalId,
-		WecomCorpId:     corpId,
-		WecomUserId:     wecomUserId,
+		RequestId:          requestId,
+		AdminSubject:       adminSubject,
+		SourceConnectionId: sourceConnectionId,
+		SourceType:         sourceType,
+		ExternalSubjectId:  externalSubjectId,
+		WecomExternalId:    wecomExternalId,
+		WecomCorpId:        corpId,
+		WecomUserId:        wecomUserId,
 	}
 	return item, item.AdminSubject != "" || item.WecomExternalId != ""
+}
+
+func withInsightSourceIdentity(identity InsightUsageIdentity, user *object.User) InsightUsageIdentity {
+	if user == nil || !isInsightExternalIdentityConfirmed(user) {
+		return identity
+	}
+	corpId, wecomUserId := getInsightUserWecomIdentity(user)
+	if corpId == "" || wecomUserId == "" {
+		return identity
+	}
+	identity.SourceConnectionId = object.GetSourceConnectionId(user.Owner, object.SourceTypeWecom, corpId)
+	identity.SourceType = object.SourceTypeWecom
+	identity.ExternalSubjectId = wecomUserId
+	return identity
+}
+
+// isInsightExternalIdentityConfirmed 兼容旧数据空状态，但显式非 confirmed 状态必须 fail-closed。
+func isInsightExternalIdentityConfirmed(user *object.User) bool {
+	status := getInsightExternalIdentityMappingStatus(user)
+	return status == "" || strings.EqualFold(status, object.PlatformMappingStatusConfirmed)
+}
+
+func getInsightExternalIdentityMappingStatus(user *object.User) string {
+	if user == nil || user.Properties == nil {
+		return ""
+	}
+	for _, key := range []string{"externalIdentityMappingStatus", "external_identity_mapping_status", "mappingStatus"} {
+		if value := strings.TrimSpace(user.Properties[key]); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func getInsightUserWecomIdentity(user *object.User) (string, string) {
@@ -967,6 +1202,8 @@ func mapInsightUsersToUsageIdsWithPolicyAndResolver(users []*object.User, skipMi
 	return mapInsightUsersToUsageIdsWithPolicyAndCache(users, skipMissing, newInsightUsageIdentityCache(resolver, traceId))
 }
 
+// mapInsightUsersToUsageIdsWithPolicyAndCache 将 admin 用户集合映射为 api 用量用户集合。
+// skipMissing 只用于部门/全公司聚合范围；SELF/CUSTOM 必须严格要求每个用户都有确定映射。
 func mapInsightUsersToUsageIdsWithPolicyAndCache(users []*object.User, skipMissing bool, cache *insightUsageIdentityCache) ([]string, []string, string, *InsightProviderError) {
 	adminUserIds := []string{}
 	apiUserIds := []string{}

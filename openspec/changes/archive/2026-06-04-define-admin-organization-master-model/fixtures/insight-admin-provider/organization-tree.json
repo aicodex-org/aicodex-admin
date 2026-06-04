@@ -1,0 +1,26 @@
+{
+  "status": "ok",
+  "traceId": "trace-fixture-organization-tree",
+  "data": [
+    {
+      "departmentId": "org-a/dev",
+      "departmentName": "Development",
+      "parentDepartmentId": "",
+      "departmentPath": "Development",
+      "hasChildren": true,
+      "sourceType": "group",
+      "sourceConnectionId": "",
+      "lifecycleStatus": "ACTIVE"
+    },
+    {
+      "departmentId": "org-a/platform",
+      "departmentName": "Platform",
+      "parentDepartmentId": "org-a/dev",
+      "departmentPath": "Development/Platform",
+      "hasChildren": false,
+      "sourceType": "group",
+      "sourceConnectionId": "",
+      "lifecycleStatus": "ACTIVE"
+    }
+  ]
+}

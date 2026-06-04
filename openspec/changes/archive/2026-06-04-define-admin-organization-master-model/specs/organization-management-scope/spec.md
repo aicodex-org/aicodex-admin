@@ -1,8 +1,5 @@
-# organization-management-scope Specification
+## MODIFIED Requirements
 
-## Purpose
-定义当前用户可管理范围的后端计算与响应契约，为后续用量洞察等下游服务提供基于企业微信组织关系的权限过滤依据。
-## Requirements
 ### Requirement: Current user management scope API
 The system SHALL provide an authenticated API that returns the current user's manageable organization scope based on local organization, platform organization master data, lifecycle state, and explicit source-derived relationship records for user-department, department manager, and direct leader relationships.
 
@@ -77,33 +74,3 @@ The system SHALL calculate management scope on the backend from platform organiz
 #### Scenario: Conflicted scope data fails closed
 - **WHEN** a user, department, membership, manager relationship, or direct leader relationship is in `CONFLICTED` or non-confirmed mapping state
 - **THEN** the system SHALL NOT use that record to expand report scope
-
-### Requirement: Management scope traversal rules
-The system SHALL compute management scope using explicit synced relationships and SHALL guard against duplicate results and relationship cycles.
-
-#### Scenario: Department descendants are included
-- **WHEN** a user manages a synced WeCom department
-- **THEN** the system includes enabled descendant departments and enabled users in those departments by querying enabled user-department relationships
-
-#### Scenario: Recursive subordinates are included
-- **WHEN** a user has synced direct subordinates who also have synced direct subordinates
-- **THEN** the system includes enabled direct and indirect subordinate users
-
-#### Scenario: Cycles do not break traversal
-- **WHEN** malformed direct leader data creates a cycle
-- **THEN** the system de-duplicates visited users and returns a finite scope response without infinite traversal
-
-#### Scenario: Combined scope is de-duplicated
-- **WHEN** the same user is visible through both department manager scope and direct leader scope
-- **THEN** the system returns that user only once in the visible user list
-
-### Requirement: Downstream report filter contract
-The system SHALL expose enough scope filter data for downstream services such as `aicodex-insight` to filter AI usage by permitted users and departments.
-
-#### Scenario: Return filter-ready user identifiers
-- **WHEN** a downstream service requests or receives the current user's management scope
-- **THEN** the response includes a filter-ready list of permitted user identifiers suitable for joining with downstream usage records
-
-#### Scenario: Empty scope remains explicit
-- **WHEN** the current user has no valid local account mapping or no visible scope
-- **THEN** the system returns an explicit empty scope rather than falling back to all users

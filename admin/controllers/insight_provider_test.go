@@ -42,6 +42,9 @@ func TestInsightCurrentUserResponseUsesWhitelistAndRedactsSensitiveFields(t *tes
 	if got.ApiOrganizationId != "00000000-0000-7000-8000-000000000123" {
 		t.Fatalf("ApiOrganizationId = %q, want configured aicodex-api organization", got.ApiOrganizationId)
 	}
+	if got.OrgVersion == "" || got.ScopeVersion == "" || got.Freshness != object.PlatformFreshnessFresh {
+		t.Fatalf("current-user version/freshness = orgVersion:%q scopeVersion:%q freshness:%q", got.OrgVersion, got.ScopeVersion, got.Freshness)
+	}
 
 	raw, err := json.Marshal(got)
 	if err != nil {
@@ -89,7 +92,7 @@ func TestInsightScopeForOrganizationAdminStaysInOwnOrganization(t *testing.T) {
 		{Owner: "org-b", Name: "outside", Properties: map[string]string{"aicodexApiUserId": "999"}},
 	}
 
-	got, providerErr := calculateInsightScope(currentUser, users, nil, generatedAt)
+	got, providerErr := calculateInsightScopeForOrganizationWithResolver(currentUser, "org-a", users, nil, generatedAt, nil, "trace-admin-scope")
 	if providerErr != nil {
 		t.Fatalf("calculateInsightScope returned error: %+v", providerErr)
 	}
@@ -101,6 +104,9 @@ func TestInsightScopeForOrganizationAdminStaysInOwnOrganization(t *testing.T) {
 	}
 	if got.AdminUserId != "org-a/owner" {
 		t.Fatalf("AdminUserId = %q, want current admin user", got.AdminUserId)
+	}
+	if got.TraceId == "" || got.OrgVersion == "" || got.Freshness != object.PlatformFreshnessFresh {
+		t.Fatalf("scope trace/version/freshness not set: %+v", got)
 	}
 	if got.ApiOrganizationId != "00000000-0000-7000-8000-000000000123" {
 		t.Fatalf("ApiOrganizationId = %q, want configured aicodex-api organization", got.ApiOrganizationId)
@@ -153,6 +159,48 @@ func TestInsightAllCompanyScopeIncludesDepartmentUsageMappings(t *testing.T) {
 	qa := findInsightDepartmentScope(got.Departments, "org-a/qa")
 	if qa == nil || !containsString(qa.ApiUserIds, "201") {
 		t.Fatalf("qa department mapping = %+v, want mapped qa member", qa)
+	}
+}
+
+func TestInsightProviderUsesPlatformDepartmentSourceMetadataForWecomGroups(t *testing.T) {
+	generatedAt := time.Date(2026, 5, 21, 8, 0, 0, 0, time.UTC)
+	sourceConnectionId := object.GetSourceConnectionId("org-a", object.SourceTypeWecom, "ww123")
+	currentUser := &object.User{
+		Owner:   "org-a",
+		Name:    "owner",
+		IsAdmin: true,
+		Properties: map[string]string{
+			"aicodexApiUserId": "100",
+		},
+	}
+	users := []*object.User{
+		currentUser,
+		{Owner: "org-a", Name: "member", Groups: []string{"org-a/wecom-dept-2"}, Properties: map[string]string{"aicodexApiUserId": "101"}},
+	}
+	groups := []*object.Group{
+		{Owner: "org-a", Name: "wecom-dept-2", DisplayName: "研发", Type: object.WecomDepartmentGroupType, IsEnabled: true},
+	}
+	departmentMetadata := buildInsightDepartmentSourceMetadataIndex([]*object.PlatformDepartment{
+		{
+			OrganizationId:     "org-a",
+			DepartmentId:       "org-a/wecom-dept-2",
+			SourceConnectionId: sourceConnectionId,
+			LifecycleStatus:    object.PlatformLifecycleStatusActive,
+		},
+	})
+
+	scope, providerErr := calculateInsightScopeForOrganizationWithResolverAndDepartmentMetadata(currentUser, "org-a", users, groups, generatedAt, nil, "trace-source-metadata", departmentMetadata)
+	if providerErr != nil {
+		t.Fatalf("calculateInsightScope returned error: %+v", providerErr)
+	}
+	dept := findInsightDepartmentScope(scope.Departments, "org-a/wecom-dept-2")
+	if dept == nil || dept.SourceType != object.SourceTypeWecom || dept.SourceConnectionId != sourceConnectionId {
+		t.Fatalf("department source metadata = %+v, want wecom source connection %q", dept, sourceConnectionId)
+	}
+
+	tree := buildInsightOrganizationTreeForOrganizationWithDepartmentMetadata(currentUser, "org-a", groups, departmentMetadata)
+	if len(tree) != 1 || tree[0].SourceType != object.SourceTypeWecom || tree[0].SourceConnectionId != sourceConnectionId {
+		t.Fatalf("tree source metadata = %+v, want wecom source connection %q", tree, sourceConnectionId)
 	}
 }
 
@@ -409,6 +457,9 @@ func TestInsightDepartmentTreeReturnsPerDepartmentMappings(t *testing.T) {
 	if dept.DepartmentId != "org-a/dev" || !dept.IncludeChildDepartments || dept.MappingStatus != MappingStatusOK {
 		t.Fatalf("department mapping = %+v, want dev subtree with OK mapping", dept)
 	}
+	if dept.LifecycleStatus != object.PlatformLifecycleStatusActive || dept.SourceType != "group" {
+		t.Fatalf("department lifecycle/source metadata = %+v, want active group metadata", dept)
+	}
 	for _, want := range []string{"org-a/member", "org-a/child"} {
 		if !containsString(dept.AdminUserIds, want) {
 			t.Fatalf("department adminUserIds = %+v, missing %s", dept.AdminUserIds, want)
@@ -491,6 +542,9 @@ func TestInsightOrganizationTreeOnlyReturnsManageableGroupNodes(t *testing.T) {
 	root := got[0]
 	if root.DepartmentId != "org-a/dev" || root.DepartmentPath != "Dev" || !root.HasChildren || root.SourceType != "group" {
 		t.Fatalf("root node = %+v, want dev node with path and children", root)
+	}
+	if root.LifecycleStatus != object.PlatformLifecycleStatusActive {
+		t.Fatalf("root lifecycle status = %q, want ACTIVE", root.LifecycleStatus)
 	}
 	child := got[1]
 	if child.DepartmentId != "org-a/platform" || child.ParentDepartmentId != "org-a/dev" || child.DepartmentPath != "Dev/Platform" || child.HasChildren {

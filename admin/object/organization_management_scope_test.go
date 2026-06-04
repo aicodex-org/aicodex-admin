@@ -104,6 +104,43 @@ func TestOrganizationManagementScopeServiceFallsBackToSelfScope(t *testing.T) {
 	}
 }
 
+func TestOrganizationManagementScopeServiceUsesPlatformMasterDataWhenAvailable(t *testing.T) {
+	service := &OrganizationManagementScopeService{Store: &memoryOrganizationManagementScopeStore{data: map[string]*OrganizationManagementScopeData{
+		"org-a": {
+			PlatformDepartments: []PlatformDepartment{
+				{OrganizationId: "org-a", DepartmentId: "org-a/dev", DisplayName: "Dev", LifecycleStatus: PlatformLifecycleStatusActive},
+				{OrganizationId: "org-a", DepartmentId: "org-a/platform", ParentDepartmentId: "org-a/dev", DisplayName: "Platform", LifecycleStatus: PlatformLifecycleStatusActive},
+				{OrganizationId: "org-a", DepartmentId: "org-a/disabled", DisplayName: "Disabled", LifecycleStatus: PlatformLifecycleStatusDisabled},
+			},
+			PlatformUsers: []PlatformUser{
+				{OrganizationId: "org-a", AdminSubject: "org-a/lead", UserOwner: "org-a", UserName: "lead", LifecycleStatus: PlatformLifecycleStatusActive, MappingStatus: PlatformMappingStatusConfirmed},
+				{OrganizationId: "org-a", AdminSubject: "org-a/member", UserOwner: "org-a", UserName: "member", LifecycleStatus: PlatformLifecycleStatusActive, MappingStatus: PlatformMappingStatusConfirmed},
+				{OrganizationId: "org-a", AdminSubject: "org-a/disabled", UserOwner: "org-a", UserName: "disabled", LifecycleStatus: PlatformLifecycleStatusDisabled, MappingStatus: PlatformMappingStatusConfirmed},
+			},
+			PlatformMemberships: []PlatformMembership{
+				{OrganizationId: "org-a", AdminSubject: "org-a/lead", DepartmentId: "org-a/dev", IsManager: true, LifecycleStatus: PlatformLifecycleStatusActive},
+				{OrganizationId: "org-a", AdminSubject: "org-a/member", DepartmentId: "org-a/platform", LifecycleStatus: PlatformLifecycleStatusActive},
+				{OrganizationId: "org-a", AdminSubject: "org-a/disabled", DepartmentId: "org-a/disabled", LifecycleStatus: PlatformLifecycleStatusActive},
+			},
+		},
+	}}}
+
+	scope, err := service.GetCurrentScope(&User{Owner: "org-a", Name: "lead"}, "org-a", false)
+	if err != nil {
+		t.Fatalf("GetCurrentScope() error = %v", err)
+	}
+
+	if scope.ScopeType != OrganizationManagementScopeTypeDepartmentManager {
+		t.Fatalf("scope type = %q, want department-manager", scope.ScopeType)
+	}
+	if got := scopeDepartmentIds(scope); !reflect.DeepEqual(got, []string{"org-a/dev", "org-a/platform"}) {
+		t.Fatalf("department ids = %#v, want platform department subtree", got)
+	}
+	if got := scopeUserIds(scope); !reflect.DeepEqual(got, []string{"org-a/lead", "org-a/member"}) {
+		t.Fatalf("user ids = %#v, want active platform users only", got)
+	}
+}
+
 func newScopeStoreWithData() *memoryOrganizationManagementScopeStore {
 	return &memoryOrganizationManagementScopeStore{
 		data: map[string]*OrganizationManagementScopeData{
@@ -154,6 +191,14 @@ func scopeWecomUserIds(scope *OrganizationManagementScope) []string {
 	ids := make([]string, 0, len(scope.Users))
 	for _, user := range scope.Users {
 		ids = append(ids, user.WecomUserId)
+	}
+	return ids
+}
+
+func scopeUserIds(scope *OrganizationManagementScope) []string {
+	ids := make([]string, 0, len(scope.Users))
+	for _, user := range scope.Users {
+		ids = append(ids, user.UserId)
 	}
 	return ids
 }

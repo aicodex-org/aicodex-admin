@@ -206,6 +206,9 @@ func TestInsightCurrentUserUsesWecomResolverWhenManualMappingMissing(t *testing.
 	if item.RequestId != "org-a/huangfanli" || item.AdminSubject != "admin-subject-huangfanli" || item.WecomExternalId != "wecom:ww123:huangfanli" {
 		t.Fatalf("resolver item = %+v, want admin subject and WeCom external identity", item)
 	}
+	if item.SourceConnectionId != object.GetSourceConnectionId("org-a", object.SourceTypeWecom, "ww123") || item.SourceType != object.SourceTypeWecom || item.ExternalSubjectId != "huangfanli" {
+		t.Fatalf("resolver item source-neutral fields = %+v", item)
+	}
 }
 
 func TestInsightCurrentUserRejectsUnexpectedResolverRequestId(t *testing.T) {
@@ -265,6 +268,26 @@ func TestInsightUsageIdentityResolveItemPrefersWecomMappingExternalID(t *testing
 	}
 	if item.WecomExternalId != "wecom:ww123:external-from-mapping" {
 		t.Fatalf("WecomExternalId = %q, want mapping external id", item.WecomExternalId)
+	}
+	if item.SourceConnectionId != object.GetSourceConnectionId("org-a", object.SourceTypeWecom, "ww123") || item.ExternalSubjectId != "huangfanli" {
+		t.Fatalf("source-neutral resolver item = %+v", item)
+	}
+}
+
+func TestInsightUsageIdentityResolveItemRejectsNonConfirmedExternalIdentityStatus(t *testing.T) {
+	item, ok := buildInsightUsageIdentityResolveItem(&object.User{
+		Owner: "org-a",
+		Name:  "huangfanli",
+		Id:    "admin-subject-huangfanli",
+		Wecom: "huangfanli",
+		Properties: map[string]string{
+			object.WecomUserPropertyCorpId:  "ww123",
+			object.WecomUserPropertyUserId:  "huangfanli",
+			"externalIdentityMappingStatus": object.PlatformMappingStatusConflicted,
+		},
+	})
+	if ok {
+		t.Fatalf("resolver item = %+v, want rejected non-confirmed external identity", item)
 	}
 }
 

@@ -54,6 +54,13 @@ type memoryWecomOrganizationObjectStore struct {
 	userDepartments     map[string]*WecomUserDepartment
 	departmentLeaders   map[string]*WecomDepartmentLeader
 	directLeaders       map[string]*WecomUserDirectLeader
+	sourceConnections   map[string]*SourceConnection
+	platformDepartments map[string]*PlatformDepartment
+	platformUsers       map[string]*PlatformUser
+	platformMemberships map[string]*PlatformMembership
+	externalIdentities  map[string]*ExternalIdentity
+	lifecycleEvents     []*LifecycleEvent
+	orgSyncBatches      map[string]*OrgSyncBatch
 	savedGroupNames     []string
 	savedUserNames      []string
 	savedUserMappingIds []string
@@ -62,14 +69,20 @@ type memoryWecomOrganizationObjectStore struct {
 
 func newMemoryWecomOrganizationObjectStore() *memoryWecomOrganizationObjectStore {
 	return &memoryWecomOrganizationObjectStore{
-		groups:             map[string]*Group{},
-		departmentMappings: map[string]*WecomDepartmentMapping{},
-		users:              map[string]*User{},
-		userMappings:       map[string]*WecomUserMapping{},
-		userDepartments:    map[string]*WecomUserDepartment{},
-		departmentLeaders:  map[string]*WecomDepartmentLeader{},
-		directLeaders:      map[string]*WecomUserDirectLeader{},
-		saveGroupErrors:    map[string]error{},
+		groups:              map[string]*Group{},
+		departmentMappings:  map[string]*WecomDepartmentMapping{},
+		users:               map[string]*User{},
+		userMappings:        map[string]*WecomUserMapping{},
+		userDepartments:     map[string]*WecomUserDepartment{},
+		departmentLeaders:   map[string]*WecomDepartmentLeader{},
+		directLeaders:       map[string]*WecomUserDirectLeader{},
+		sourceConnections:   map[string]*SourceConnection{},
+		platformDepartments: map[string]*PlatformDepartment{},
+		platformUsers:       map[string]*PlatformUser{},
+		platformMemberships: map[string]*PlatformMembership{},
+		externalIdentities:  map[string]*ExternalIdentity{},
+		orgSyncBatches:      map[string]*OrgSyncBatch{},
+		saveGroupErrors:     map[string]error{},
 	}
 }
 
@@ -222,6 +235,48 @@ func (s *memoryWecomOrganizationObjectStore) SaveWecomUserDirectLeader(leader *W
 	return nil
 }
 
+func (s *memoryWecomOrganizationObjectStore) SaveSourceConnection(connection *SourceConnection) error {
+	copied := *connection
+	s.sourceConnections[connection.SourceConnectionId] = &copied
+	return nil
+}
+
+func (s *memoryWecomOrganizationObjectStore) SavePlatformDepartment(department *PlatformDepartment) error {
+	copied := *department
+	s.platformDepartments[department.OrganizationId+"|"+department.DepartmentId] = &copied
+	return nil
+}
+
+func (s *memoryWecomOrganizationObjectStore) SavePlatformUser(user *PlatformUser) error {
+	copied := *user
+	s.platformUsers[user.OrganizationId+"|"+user.AdminSubject] = &copied
+	return nil
+}
+
+func (s *memoryWecomOrganizationObjectStore) SavePlatformMembership(membership *PlatformMembership) error {
+	copied := *membership
+	s.platformMemberships[membership.OrganizationId+"|"+membership.AdminSubject+"|"+membership.DepartmentId] = &copied
+	return nil
+}
+
+func (s *memoryWecomOrganizationObjectStore) SaveExternalIdentity(identity *ExternalIdentity) error {
+	copied := *identity
+	s.externalIdentities[identity.SourceConnectionId+"|"+identity.ExternalSubjectId] = &copied
+	return nil
+}
+
+func (s *memoryWecomOrganizationObjectStore) SaveLifecycleEvent(event *LifecycleEvent) error {
+	copied := *event
+	s.lifecycleEvents = append(s.lifecycleEvents, &copied)
+	return nil
+}
+
+func (s *memoryWecomOrganizationObjectStore) SaveOrgSyncBatch(batch *OrgSyncBatch) error {
+	copied := *batch
+	s.orgSyncBatches[batch.BatchId] = &copied
+	return nil
+}
+
 func (s *memoryWecomOrganizationObjectStore) GetWecomOrganizationSyncExistingState(organization string, corpId string) (*WecomOrganizationSyncExistingState, error) {
 	state := &WecomOrganizationSyncExistingState{}
 	for _, department := range s.departmentMappings {
@@ -310,6 +365,189 @@ func copyStringSlice(values []string) []string {
 	copied := make([]string, len(values))
 	copy(copied, values)
 	return copied
+}
+
+func TestWecomOrganizationSyncServiceApplyDepartmentUpsertsProjectsPlatformDepartment(t *testing.T) {
+	now := time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC)
+	store := newMemoryWecomOrganizationObjectStore()
+	service := &WecomOrganizationSyncService{
+		ObjectStore: store,
+		Now:         func() time.Time { return now },
+	}
+	plan := &WecomOrganizationSyncPlan{
+		Organization: "org-a",
+		CorpId:       "ww123",
+		RunId:        "run-platform-1",
+		DepartmentUpserts: []WecomDepartmentSnapshot{
+			{Id: "2", ParentId: "0", Name: "Engineering", DepartmentLeader: []string{"zhangsan"}},
+		},
+	}
+
+	if err := service.ApplyDepartmentUpserts(plan); err != nil {
+		t.Fatalf("ApplyDepartmentUpserts() error = %v", err)
+	}
+
+	sourceConnectionId := GetSourceConnectionId("org-a", SourceTypeWecom, "ww123")
+	connection := store.sourceConnections[sourceConnectionId]
+	if connection == nil {
+		t.Fatalf("expected source connection %s to be saved", sourceConnectionId)
+	}
+	if connection.OrganizationId != "org-a" || connection.SourceType != SourceTypeWecom || connection.SourceTenantId != "ww123" || connection.Status != SourceConnectionStatusActive {
+		t.Fatalf("unexpected source connection: %+v", connection)
+	}
+
+	departmentId := getWecomLocalId("org-a", GetWecomDepartmentGroupName("ww123", "2"))
+	department := store.platformDepartments["org-a|"+departmentId]
+	if department == nil {
+		t.Fatalf("expected platform department %s to be saved", departmentId)
+	}
+	if department.ExternalDepartmentId != "2" || department.SourceConnectionId != sourceConnectionId || department.DisplayName != "Engineering" {
+		t.Fatalf("unexpected platform department: %+v", department)
+	}
+	if department.LifecycleStatus != PlatformLifecycleStatusActive || department.OrgVersion == "" {
+		t.Fatalf("platform department should be active with org version: %+v", department)
+	}
+}
+
+func TestWecomOrganizationSyncServiceApplyUserUpsertsProjectsExternalIdentityWithoutWeakJoinKeys(t *testing.T) {
+	now := time.Date(2026, 6, 4, 9, 10, 0, 0, time.UTC)
+	store := newMemoryWecomOrganizationObjectStore()
+	service := &WecomOrganizationSyncService{
+		ObjectStore: store,
+		Now:         func() time.Time { return now },
+	}
+	plan := &WecomOrganizationSyncPlan{
+		Organization: "org-a",
+		CorpId:       "ww123",
+		RunId:        "run-platform-2",
+		UserUpserts: []WecomUserSnapshot{
+			{UserId: "zhangsan", Name: "张三", Mobile: "13800000000", Email: "zhangsan@example.com", MainDepartmentId: "2", Status: 1},
+		},
+	}
+
+	if err := service.ApplyUserUpserts(plan); err != nil {
+		t.Fatalf("ApplyUserUpserts() error = %v", err)
+	}
+
+	mapping := store.userMappings["org-a|ww123|zhangsan"]
+	if mapping == nil {
+		t.Fatalf("expected WeCom user mapping to stay saved")
+	}
+	adminSubject := getWecomLocalId(mapping.UserOwner, mapping.UserName)
+	platformUser := store.platformUsers["org-a|"+adminSubject]
+	if platformUser == nil {
+		t.Fatalf("expected platform user %s to be saved", adminSubject)
+	}
+	if platformUser.MappingStatus != PlatformMappingStatusConfirmed || platformUser.LifecycleStatus != PlatformLifecycleStatusActive {
+		t.Fatalf("unexpected platform user status: %+v", platformUser)
+	}
+
+	sourceConnectionId := GetSourceConnectionId("org-a", SourceTypeWecom, "ww123")
+	identity := store.externalIdentities[sourceConnectionId+"|zhangsan"]
+	if identity == nil {
+		t.Fatalf("expected external identity for zhangsan")
+	}
+	if identity.PlatformSubject != adminSubject || identity.MappingStatus != PlatformMappingStatusConfirmed {
+		t.Fatalf("unexpected external identity: %+v", identity)
+	}
+	for _, weakValue := range []string{"13800000000", "zhangsan@example.com", "张三"} {
+		if strings.Contains(identity.Lineage, weakValue) {
+			t.Fatalf("external identity lineage leaked weak join/display value %q: %s", weakValue, identity.Lineage)
+		}
+	}
+}
+
+func TestWecomOrganizationSyncServiceApplyRelationshipsProjectsMembershipAndLifecycle(t *testing.T) {
+	now := time.Date(2026, 6, 4, 9, 20, 0, 0, time.UTC)
+	store := newMemoryWecomOrganizationObjectStore()
+	store.users["org-a/wecom-user-zhangsan"] = &User{Owner: "org-a", Name: "wecom-user-zhangsan"}
+	store.userMappings["org-a|ww123|zhangsan"] = &WecomUserMapping{
+		Organization: "org-a",
+		CorpId:       "ww123",
+		WecomUserId:  "zhangsan",
+		UserOwner:    "org-a",
+		UserName:     "wecom-user-zhangsan",
+		IsEnabled:    true,
+	}
+	store.departmentMappings["org-a|ww123|2"] = &WecomDepartmentMapping{
+		Organization: "org-a",
+		CorpId:       "ww123",
+		DepartmentId: "2",
+		GroupOwner:   "org-a",
+		GroupName:    "wecom-dept-2",
+		IsEnabled:    true,
+	}
+	service := &WecomOrganizationSyncService{
+		ObjectStore: store,
+		Now:         func() time.Time { return now },
+	}
+	plan := &WecomOrganizationSyncPlan{
+		Organization: "org-a",
+		CorpId:       "ww123",
+		RunId:        "run-platform-3",
+		UserDepartmentUpserts: []WecomSnapshotUserDepartment{
+			{WecomUserId: "zhangsan", DepartmentId: "2", IsMain: true, IsLeader: true},
+		},
+		UserDepartmentDisables: []WecomUserDepartment{
+			{Organization: "org-a", CorpId: "ww123", WecomUserId: "zhangsan", DepartmentId: "old", UserOwner: "org-a", UserName: "wecom-user-zhangsan", GroupOwner: "org-a", GroupName: "wecom-dept-old"},
+		},
+	}
+
+	if err := service.ApplyUserDepartmentRelationships(plan); err != nil {
+		t.Fatalf("ApplyUserDepartmentRelationships() error = %v", err)
+	}
+
+	adminSubject := getWecomLocalId("org-a", "wecom-user-zhangsan")
+	departmentId := getWecomLocalId("org-a", "wecom-dept-2")
+	membership := store.platformMemberships["org-a|"+adminSubject+"|"+departmentId]
+	if membership == nil {
+		t.Fatalf("expected platform membership for %s in %s", adminSubject, departmentId)
+	}
+	if !membership.IsMain || !membership.IsManager || membership.LifecycleStatus != PlatformLifecycleStatusActive {
+		t.Fatalf("unexpected platform membership: %+v", membership)
+	}
+	if len(store.lifecycleEvents) == 0 {
+		t.Fatalf("expected disabled stale membership to produce lifecycle event")
+	}
+	if store.lifecycleEvents[0].LifecycleStatus != PlatformLifecycleStatusDisabled || store.lifecycleEvents[0].BatchId != "run-platform-3" {
+		t.Fatalf("unexpected lifecycle event: %+v", store.lifecycleEvents[0])
+	}
+}
+
+func TestWecomOrganizationSyncServiceFinalizeRunProjectsOrgSyncBatch(t *testing.T) {
+	now := time.Date(2026, 6, 4, 9, 30, 0, 0, time.UTC)
+	objectStore := newMemoryWecomOrganizationObjectStore()
+	runStore := &memoryWecomOrganizationSyncRunStore{}
+	service := &WecomOrganizationSyncService{
+		Store:       runStore,
+		ObjectStore: objectStore,
+		Now:         func() time.Time { return now },
+	}
+	run := &WecomOrganizationSyncRun{
+		Owner:        "org-a",
+		Name:         "run-platform-4",
+		Organization: "org-a",
+		CorpId:       "ww123",
+		Status:       WecomOrganizationSyncRunStatusRunning,
+		Stage:        WecomOrganizationSyncRunStageApplying,
+		StartedAt:    now.Add(-time.Minute),
+	}
+	plan := &WecomOrganizationSyncPlan{Organization: "org-a", CorpId: "ww123", RunId: "run-platform-4"}
+
+	if err := service.FinalizeRunWithOptions(run, plan, WecomOrganizationSyncRunStatusSucceeded, "", "", false); err != nil {
+		t.Fatalf("FinalizeRunWithOptions() error = %v", err)
+	}
+
+	batch := objectStore.orgSyncBatches["run-platform-4"]
+	if batch == nil {
+		t.Fatalf("expected org sync batch to be saved")
+	}
+	if batch.OrganizationId != "org-a" || batch.SourceConnectionId != GetSourceConnectionId("org-a", SourceTypeWecom, "ww123") || batch.Status != OrgSyncBatchStatusSucceeded {
+		t.Fatalf("unexpected org sync batch: %+v", batch)
+	}
+	if batch.OrgVersion == "" || batch.Freshness != PlatformFreshnessFresh || batch.StartedAt != now.Add(-time.Minute) || batch.FinishedAt != now {
+		t.Fatalf("unexpected batch version/freshness/timestamps: %+v", batch)
+	}
 }
 
 func TestWecomOrganizationSyncServiceStartRunRejectsActiveRunningRun(t *testing.T) {

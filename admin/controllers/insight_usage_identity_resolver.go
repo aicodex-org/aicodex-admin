@@ -35,12 +35,17 @@ type insightUsageIdentityResolveRequest struct {
 	Items   []insightUsageIdentityResolveItem `json:"items"`
 }
 
+// insightUsageIdentityResolveItem 是 admin provider 调 api resolver 的最小身份契约。
+// 字段只包含稳定 admin/source/wecom 标识，不携带手机号、邮箱、姓名等弱身份。
 type insightUsageIdentityResolveItem struct {
-	RequestId       string `json:"requestId"`
-	AdminSubject    string `json:"adminSubject,omitempty"`
-	WecomExternalId string `json:"wecomExternalId,omitempty"`
-	WecomCorpId     string `json:"wecomCorpId,omitempty"`
-	WecomUserId     string `json:"wecomUserId,omitempty"`
+	RequestId          string `json:"requestId"`
+	AdminSubject       string `json:"adminSubject,omitempty"`
+	SourceConnectionId string `json:"sourceConnectionId,omitempty"`
+	SourceType         string `json:"sourceType,omitempty"`
+	ExternalSubjectId  string `json:"externalSubjectId,omitempty"`
+	WecomExternalId    string `json:"wecomExternalId,omitempty"`
+	WecomCorpId        string `json:"wecomCorpId,omitempty"`
+	WecomUserId        string `json:"wecomUserId,omitempty"`
 }
 
 type insightUsageIdentityResolveResponse struct {
@@ -105,6 +110,8 @@ func (r insightUsageIdentityHTTPResolver) Enabled() bool {
 	return strings.TrimSpace(r.config.Endpoint) != "" && strings.TrimSpace(r.config.Token) != ""
 }
 
+// Resolve 按 maxItems 拆分批量解析请求；任一批次异常都向 provider 返回 unavailable。
+// 调用方会据此 fail-closed，避免用不完整映射继续生成报表范围。
 func (r insightUsageIdentityHTTPResolver) Resolve(traceId string, items []insightUsageIdentityResolveItem) ([]insightUsageIdentityResolveResult, *InsightProviderError) {
 	if !r.Enabled() || len(items) == 0 {
 		return []insightUsageIdentityResolveResult{}, nil
@@ -125,6 +132,8 @@ func (r insightUsageIdentityHTTPResolver) Resolve(traceId string, items []insigh
 	return results, nil
 }
 
+// resolveBatch 使用短超时和 bearer service token 调用 api resolver。
+// HTTP 状态、协议 envelope 或 JSON 解析异常都视为 provider unavailable，而不是降级为成功。
 func (r insightUsageIdentityHTTPResolver) resolveBatch(traceId string, items []insightUsageIdentityResolveItem) ([]insightUsageIdentityResolveResult, *InsightProviderError) {
 	startedAt := time.Now()
 	requestBody := insightUsageIdentityResolveRequest{
