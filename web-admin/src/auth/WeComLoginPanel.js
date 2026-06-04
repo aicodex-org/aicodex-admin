@@ -128,6 +128,7 @@ class WeComLoginPanel extends React.Component {
         agentid: parsedUrl.searchParams.get("agentid") || provider.appId,
         redirectUri: parsedUrl.searchParams.get("redirect_uri") || `${window.location.origin}/callback`,
         state: parsedUrl.searchParams.get("state") || "",
+        scope: parsedUrl.searchParams.get("scope") || provider.scopes || "",
       },
     };
   }
@@ -168,14 +169,19 @@ class WeComLoginPanel extends React.Component {
       }
 
       mountPoint.innerHTML = "";
-      new widgetFactory({
+      const widgetOptions = {
         id: this.mountId,
         appid: widget.appid,
         agentid: widget.agentid,
         redirect_uri: widget.redirectUri,
         state: widget.state,
         self_redirect: false,
-      });
+      };
+      if (widget.scope) {
+        // 企业微信敏感资料授权依赖 scope=snsapi_privateinfo，内嵌扫码组件也必须显式携带。
+        widgetOptions.scope = widget.scope;
+      }
+      new widgetFactory(widgetOptions);
 
       this.setState({
         status: "active",

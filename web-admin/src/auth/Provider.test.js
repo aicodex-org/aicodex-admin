@@ -59,3 +59,50 @@ describe("Provider.getAuthUrl Lark authorization URL", () => {
     expect(url.searchParams.get("state")).toBe("state value");
   });
 });
+
+describe("Provider.getAuthUrl WeCom authorization URL", () => {
+  beforeEach(() => {
+    Object.defineProperty(global, "crypto", {
+      value: {
+        getRandomValues: array => {
+          array.fill(1);
+          return array;
+        },
+      },
+      configurable: true,
+    });
+    jest.spyOn(Util, "getStateFromQueryParams").mockReturnValue("state value");
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test("keeps provider scope for internal normal QR login", () => {
+    const application = {
+      name: "aicodex-web",
+      organization: "built-in",
+      forcedRedirectOrigin: "https://auth.example.com",
+    };
+    const provider = {
+      category: "OAuth",
+      type: "WeCom",
+      subType: "Internal",
+      method: "Normal",
+      name: "wecom-provider",
+      clientId: "ww-corp-id",
+      appId: "1000002",
+      scopes: "snsapi_privateinfo",
+    };
+
+    const authUrl = getAuthUrl(application, provider, "signup");
+    const url = new URL(authUrl);
+
+    expect(`${url.origin}${url.pathname}`).toBe("https://login.work.weixin.qq.com/wwlogin/sso/login");
+    expect(url.searchParams.get("login_type")).toBe("CorpApp");
+    expect(url.searchParams.get("appid")).toBe("ww-corp-id");
+    expect(url.searchParams.get("agentid")).toBe("1000002");
+    expect(url.searchParams.get("scope")).toBe("snsapi_privateinfo");
+  });
+});

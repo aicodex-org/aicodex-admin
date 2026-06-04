@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/beego/beego/v2/core/logs"
 	"golang.org/x/oauth2"
 )
 
@@ -117,6 +118,8 @@ type WecomInternalUserInfo struct {
 	Errmsg  string `json:"errmsg"`
 	Name    string `json:"name"`
 	Email   string `json:"email"`
+	BizMail string `json:"biz_mail"`
+	Mobile  string `json:"mobile"`
 	Avatar  string `json:"avatar"`
 	OpenId  string `json:"open_userid"`
 	UserId  string `json:"userid"`
@@ -147,11 +150,11 @@ func (idp *WeComInternalIdProvider) GetUserInfo(token *oauth2.Token) (*UserInfo,
 		return nil, fmt.Errorf("userIdResp.Errcode = %d, userIdResp.Errmsg = %s", userResp.Errcode, userResp.Errmsg)
 	}
 	openID := firstNonEmpty(userResp.OpenId, userResp.Openid)
+	userID := firstNonEmpty(userResp.UserId, userResp.Userid)
 	if openID != "" {
 		return nil, fmt.Errorf("not an internal user")
 	}
 
-	userID := firstNonEmpty(userResp.UserId, userResp.Userid)
 	infoResp := &WecomInternalUserInfo{}
 
 	if userResp.UserTicket != "" {
@@ -178,23 +181,26 @@ func (idp *WeComInternalIdProvider) GetUserInfo(token *oauth2.Token) (*UserInfo,
 		}
 	}
 
-	if infoResp.UserId == "" && userID != "" {
-		resp, err = idp.Client.Get(fmt.Sprintf("https://qyapi.weixin.qq.com/cgi-bin/user/get?access_token=%s&userid=%s", accessToken, userID))
-		if err != nil {
-			return nil, err
-		}
-
-		data, err = io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, err
-		}
-		err = json.Unmarshal(data, infoResp)
-		if err != nil {
-			return nil, err
-		}
-	}
 	if infoResp.Errcode != 0 {
 		return nil, fmt.Errorf("userInfoResp.errcode = %d, userInfoResp.errmsg = %s", infoResp.Errcode, infoResp.Errmsg)
+	}
+
+	if userID != "" && shouldFetchWeComContactUserInfo(infoResp) {
+		contactResp, err := idp.getContactUserInfo(accessToken, userID)
+		if err != nil {
+			logs.Warning("wecom internal contact supplement failed: userid=%s error=%s", userID, err.Error())
+			if infoResp.UserId == "" {
+				return nil, err
+			}
+		} else if contactResp.Errcode != 0 {
+			logs.Warning("wecom internal contact supplement failed: userid=%s errcode=%d errmsg=%s", userID, contactResp.Errcode, contactResp.Errmsg)
+			if infoResp.UserId == "" {
+				return nil, fmt.Errorf("contactUserInfoResp.errcode = %d, contactUserInfoResp.errmsg = %s", contactResp.Errcode, contactResp.Errmsg)
+			}
+		} else {
+			// 敏感授权接口可能只返回 userid，不返回手机号/邮箱；通讯录详情可作为同源应用的非空补充。
+			mergeWeComInternalUserInfo(infoResp, contactResp)
+		}
 	}
 
 	resolvedUserID := firstNonEmpty(infoResp.UserId, userID)
@@ -202,8 +208,10 @@ func (idp *WeComInternalIdProvider) GetUserInfo(token *oauth2.Token) (*UserInfo,
 		Id:          resolvedUserID,
 		Username:    infoResp.Name,
 		DisplayName: infoResp.Name,
-		Email:       infoResp.Email,
-		AvatarUrl:   infoResp.Avatar,
+		// 企业微信可能只返回企业邮箱 biz_mail，这里作为登录邮箱兜底。
+		Email:     firstNonEmpty(infoResp.Email, infoResp.BizMail),
+		Phone:     infoResp.Mobile,
+		AvatarUrl: infoResp.Avatar,
 	}
 
 	if userInfo.Id == "" {
@@ -215,6 +223,47 @@ func (idp *WeComInternalIdProvider) GetUserInfo(token *oauth2.Token) (*UserInfo,
 	}
 
 	return &userInfo, nil
+}
+
+func (idp *WeComInternalIdProvider) getContactUserInfo(accessToken string, userID string) (*WecomInternalUserInfo, error) {
+	resp, err := idp.Client.Get(fmt.Sprintf("https://qyapi.weixin.qq.com/cgi-bin/user/get?access_token=%s&userid=%s", accessToken, userID))
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	infoResp := &WecomInternalUserInfo{}
+	err = json.Unmarshal(data, infoResp)
+	if err != nil {
+		return nil, err
+	}
+	return infoResp, nil
+}
+
+// 企业微信授权详情可能只返回 userid；缺少展示名、联系方式或头像时再尝试通讯录详情补齐。
+func shouldFetchWeComContactUserInfo(infoResp *WecomInternalUserInfo) bool {
+	if infoResp == nil || infoResp.UserId == "" {
+		return true
+	}
+	return infoResp.Name == "" || infoResp.Mobile == "" || firstNonEmpty(infoResp.Email, infoResp.BizMail) == "" || infoResp.Avatar == ""
+}
+
+// 只用通讯录详情中的非空字段补充登录详情，避免空值覆盖已拿到的授权字段。
+func mergeWeComInternalUserInfo(target *WecomInternalUserInfo, supplement *WecomInternalUserInfo) {
+	if target == nil || supplement == nil {
+		return
+	}
+	target.UserId = firstNonEmpty(target.UserId, supplement.UserId)
+	target.Name = firstNonEmpty(target.Name, supplement.Name)
+	target.Email = firstNonEmpty(target.Email, supplement.Email)
+	target.BizMail = firstNonEmpty(target.BizMail, supplement.BizMail)
+	target.Mobile = firstNonEmpty(target.Mobile, supplement.Mobile)
+	target.Avatar = firstNonEmpty(target.Avatar, supplement.Avatar)
+	target.OpenId = firstNonEmpty(target.OpenId, supplement.OpenId)
 }
 
 func firstNonEmpty(values ...string) string {

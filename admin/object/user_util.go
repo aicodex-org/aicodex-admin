@@ -217,39 +217,7 @@ func SetUserOAuthProperties(organization *Organization, user *User, providerType
 		ApplyLarkOAuthIdentifierProperties(user, userInfo)
 	}
 
-	if userInfo.Id != "" {
-		propertyName := fmt.Sprintf("oauth_%s_id", providerType)
-		setUserProperty(user, propertyName, userInfo.Id)
-	}
-	if userInfo.Username != "" {
-		propertyName := fmt.Sprintf("oauth_%s_username", providerType)
-		setUserProperty(user, propertyName, userInfo.Username)
-	}
-	if userInfo.DisplayName != "" {
-		propertyName := fmt.Sprintf("oauth_%s_displayName", providerType)
-		setUserProperty(user, propertyName, userInfo.DisplayName)
-		if user.DisplayName == "" {
-			user.DisplayName = userInfo.DisplayName
-		}
-	} else if user.DisplayName == "" {
-		if userInfo.Username != "" {
-			user.DisplayName = userInfo.Username
-		} else {
-			user.DisplayName = userInfo.Id
-		}
-	}
-	if userInfo.Email != "" {
-		propertyName := fmt.Sprintf("oauth_%s_email", providerType)
-		setUserProperty(user, propertyName, userInfo.Email)
-		if user.Email == "" {
-			user.Email = userInfo.Email
-		}
-	}
-
-	if userInfo.UnionId != "" {
-		propertyName := fmt.Sprintf("oauth_%s_unionId", providerType)
-		setUserProperty(user, propertyName, userInfo.UnionId)
-	}
+	applyUserOAuthProfileProperties(user, providerType, userInfo)
 
 	if userInfo.AvatarUrl != "" {
 		propertyName := fmt.Sprintf("oauth_%s_avatarUrl", providerType)
@@ -294,6 +262,55 @@ func SetUserOAuthProperties(organization *Organization, user *User, providerType
 	}
 
 	return UpdateUserForAllFields(user.GetId(), user)
+}
+
+func applyUserOAuthProfileProperties(user *User, providerType string, userInfo *idp.UserInfo) {
+	if user == nil || userInfo == nil {
+		return
+	}
+
+	if userInfo.Id != "" {
+		propertyName := fmt.Sprintf("oauth_%s_id", providerType)
+		setUserProperty(user, propertyName, userInfo.Id)
+	}
+	if userInfo.Username != "" {
+		propertyName := fmt.Sprintf("oauth_%s_username", providerType)
+		setUserProperty(user, propertyName, userInfo.Username)
+	}
+	if userInfo.DisplayName != "" {
+		propertyName := fmt.Sprintf("oauth_%s_displayName", providerType)
+		setUserProperty(user, propertyName, userInfo.DisplayName)
+		if user.DisplayName == "" {
+			user.DisplayName = userInfo.DisplayName
+		}
+	} else if user.DisplayName == "" {
+		if userInfo.Username != "" {
+			user.DisplayName = userInfo.Username
+		} else {
+			user.DisplayName = userInfo.Id
+		}
+	}
+
+	if userInfo.Email != "" {
+		propertyName := fmt.Sprintf("oauth_%s_email", providerType)
+		setUserProperty(user, propertyName, userInfo.Email)
+		if user.Email == "" {
+			user.Email = userInfo.Email
+		}
+	}
+	if userInfo.Phone != "" {
+		propertyName := fmt.Sprintf("oauth_%s_phone", providerType)
+		setUserProperty(user, propertyName, userInfo.Phone)
+		if user.Phone == "" {
+			// OAuth 资料只补空值，避免覆盖后台或通讯录同步维护的手机号。
+			user.Phone = userInfo.Phone
+		}
+	}
+
+	if userInfo.UnionId != "" {
+		propertyName := fmt.Sprintf("oauth_%s_unionId", providerType)
+		setUserProperty(user, propertyName, userInfo.UnionId)
+	}
 }
 
 // GetLarkIdentifierCandidates returns Lark user identifiers in the match order used to avoid duplicate local accounts.

@@ -252,7 +252,7 @@
 
         if (provider.method === "Normal") {
           endpoint = authInfo[provider.type].internalEndpoint;
-          return endpoint + "?login_type=CorpApp&appid=" + provider.clientId + "&agentid=" + provider.appId + "&redirect_uri=" + redirectUri + "&state=" + state;
+          return endpoint + "?login_type=CorpApp&appid=" + provider.clientId + "&agentid=" + provider.appId + "&redirect_uri=" + redirectUri + "&state=" + state + "&scope=" + scope;
         }
 
         return "https://error:not-supported-provider-method:" + provider.method;
@@ -266,7 +266,7 @@
 
         if (provider.method === "Normal") {
           endpoint = authInfo[provider.type].endpoint;
-          return endpoint + "?login_type=ServiceApp&appid=" + provider.clientId + "&redirect_uri=" + redirectUri + "&state=" + state;
+          return endpoint + "?login_type=ServiceApp&appid=" + provider.clientId + "&redirect_uri=" + redirectUri + "&state=" + state + "&scope=" + scope;
         }
 
         return "https://error:not-supported-provider-method:" + provider.method;
