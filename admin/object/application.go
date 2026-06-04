@@ -23,6 +23,7 @@ import (
 	"git.leagsoft.com/aicodex/aicodex-admin/i18n"
 	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/xorm-io/core"
+	"github.com/xorm-io/xorm"
 )
 
 type SigninMethod struct {
@@ -850,20 +851,31 @@ func (application *Application) GetId() string {
 }
 
 func (application *Application) IsRedirectUriValid(redirectUri string) bool {
-	isValid, err := util.IsValidOrigin(redirectUri)
-	if err != nil {
-		panic(err)
-	}
-	if isValid {
-		return true
-	}
-
+	hasConfiguredRedirectUri := false
 	for _, targetUri := range application.RedirectUris {
+		targetUri = strings.TrimSpace(targetUri)
 		if targetUri == "" {
 			continue
 		}
-		targetUriRegex := regexp.MustCompile(targetUri)
-		if targetUriRegex.MatchString(redirectUri) || strings.Contains(redirectUri, targetUri) {
+		hasConfiguredRedirectUri = true
+		if redirectUri == targetUri {
+			return true
+		}
+		if !strings.HasPrefix(targetUri, "^") {
+			continue
+		}
+		targetUriRegex, err := regexp.Compile(targetUri)
+		if err == nil && targetUriRegex.MatchString(redirectUri) {
+			return true
+		}
+	}
+
+	if !hasConfiguredRedirectUri {
+		isValid, err := util.IsValidOrigin(redirectUri)
+		if err != nil {
+			panic(err)
+		}
+		if isValid {
 			return true
 		}
 	}
@@ -1003,10 +1015,18 @@ func applicationChangeTrigger(oldName string, newName string) error {
 	if err != nil {
 		return err
 	}
+	if err := applicationChangeTriggerWithSession(session, oldName, newName); err != nil {
+		_ = session.Rollback()
+		return err
+	}
 
+	return session.Commit()
+}
+
+func applicationChangeTriggerWithSession(session *xorm.Session, oldName string, newName string) error {
 	organization := new(Organization)
 	organization.DefaultApplication = newName
-	_, err = session.Where("default_application=?", oldName).Update(organization)
+	_, err := session.Where("default_application=?", oldName).Update(organization)
 	if err != nil {
 		return err
 	}
@@ -1044,5 +1064,5 @@ func applicationChangeTrigger(oldName string, newName string) error {
 		}
 	}
 
-	return session.Commit()
+	return nil
 }

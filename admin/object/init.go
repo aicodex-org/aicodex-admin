@@ -32,6 +32,7 @@ func InitDb() {
 		initBuiltInCert()
 		initBuiltInLdap()
 	}
+	initAICodexDesktopApplication()
 
 	existed = initBuiltInApiModel()
 	if !existed {

@@ -320,6 +320,7 @@ func (c *ApiController) Signup() {
 	scope := c.Ctx.Input.Query("scope")
 	state := c.Ctx.Input.Query("state")
 	nonce := c.Ctx.Input.Query("nonce")
+	codeChallengeMethod := c.Ctx.Input.Query("code_challenge_method")
 	codeChallenge := c.Ctx.Input.Query("code_challenge")
 
 	// If OAuth parameters are present, generate OAuth code and return it
@@ -335,7 +336,7 @@ func (c *ApiController) Signup() {
 			return
 		}
 
-		code, err := object.GetOAuthCode(userId, clientId, "", "password", responseType, redirectUri, scope, state, nonce, codeChallenge, "", c.Ctx.Request.Host, c.GetAcceptLanguage())
+		code, err := object.GetOAuthCode(userId, clientId, "", "password", responseType, redirectUri, scope, state, nonce, codeChallengeMethod, codeChallenge, "", c.Ctx.Request.Host, c.GetAcceptLanguage())
 		if err != nil {
 			c.ResponseError(err.Error(), nil)
 			return

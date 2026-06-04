@@ -60,6 +60,8 @@ type WebFingerLink struct {
 	Href string `json:"href"`
 }
 
+var getApplicationForOidcDiscovery = GetApplication
+
 func isIpAddress(host string) bool {
 	// Attempt to split the host and port, ignoring the error
 	hostWithoutPort, _, err := net.SplitHostPort(host)
@@ -131,7 +133,7 @@ func GetOidcDiscovery(host string, applicationName string) OidcDiscovery {
 	// Merge application-specific custom scopes if application is provided
 	if applicationName != "" {
 		applicationId := util.GetId("admin", applicationName)
-		application, err := GetApplication(applicationId)
+		application, err := getApplicationForOidcDiscovery(applicationId)
 		if err == nil && application != nil && len(application.Scopes) > 0 {
 			for _, scope := range application.Scopes {
 				// Add custom scope names to the scopes list
@@ -181,7 +183,7 @@ func GetJsonWebKeySet(applicationName string) (jose.JSONWebKeySet, error) {
 	if applicationName != "" {
 		// Try to get application-specific cert (owner is always "admin")
 		applicationId := util.GetId("admin", applicationName)
-		application, err := GetApplication(applicationId)
+		application, err := getApplicationForOidcDiscovery(applicationId)
 		if err == nil && application != nil && application.Cert != "" {
 			certId := util.GetId(application.Owner, application.Cert)
 			cert, err := GetCert(certId)

@@ -185,7 +185,7 @@ func (c *ApiController) HandleLoggedIn(application *object.Application, user *ob
 			return
 		}
 
-		code, err := object.GetOAuthCode(userId, clientId, form.Provider, form.SigninMethod, responseType, redirectUri, scope, state, nonce, codeChallenge, resource, c.Ctx.Request.Host, c.GetAcceptLanguage())
+		code, err := object.GetOAuthCode(userId, clientId, form.Provider, form.SigninMethod, responseType, redirectUri, scope, state, nonce, challengeMethod, codeChallenge, resource, c.Ctx.Request.Host, c.GetAcceptLanguage())
 		if err != nil {
 			c.ResponseError(err.Error(), nil)
 			return

@@ -43,6 +43,13 @@ const (
 	EndpointError        = "endpoint_error"
 )
 
+const (
+	authorizationCodeInvalidErrorDescription = "authorization code is invalid"
+	authorizationCodeUsedErrorDescription    = "authorization code has already been used"
+	authorizationCodeWrongClientDescription  = "authorization code is invalid for client"
+	codeVerifierInvalidErrorDescription      = "code verifier is invalid"
+)
+
 var DeviceAuthMap = sync.Map{}
 
 type Code struct {
@@ -186,7 +193,7 @@ func ValidateOAuthClientRequestForApplication(application *Application, clientId
 	return ""
 }
 
-func GetOAuthCode(userId string, clientId string, provider string, signinMethod string, responseType string, redirectUri string, scope string, state string, nonce string, challenge string, resource string, host string, lang string) (*Code, error) {
+func GetOAuthCode(userId string, clientId string, provider string, signinMethod string, responseType string, redirectUri string, scope string, state string, nonce string, challengeMethod string, challenge string, resource string, host string, lang string) (*Code, error) {
 	user, err := GetUser(userId)
 	if err != nil {
 		return nil, err
@@ -235,6 +242,19 @@ func GetOAuthCode(userId string, clientId string, provider string, signinMethod 
 		}, nil
 	}
 
+	if challenge == "null" {
+		challenge = ""
+	}
+	if message := validateAICodexDesktopPkceRequest(application, challengeMethod, challenge); message != "" {
+		return &Code{
+			Message: message,
+			Code:    "",
+		}, nil
+	}
+	if isAICodexDesktopApplication(application) {
+		challenge = strings.TrimSpace(challenge)
+	}
+
 	err = ExtendUserWithRolesAndPermissions(user)
 	if err != nil {
 		return nil, err
@@ -242,10 +262,6 @@ func GetOAuthCode(userId string, clientId string, provider string, signinMethod 
 	accessToken, refreshToken, tokenName, err := generateJwtToken(application, user, provider, signinMethod, nonce, scope, resource, host)
 	if err != nil {
 		return nil, err
-	}
-
-	if challenge == "null" {
-		challenge = ""
 	}
 
 	token := &Token{
@@ -421,6 +437,12 @@ func RefreshToken(application *Application, grantType string, refreshToken strin
 			ErrorDescription: "refresh token is invalid or revoked",
 		}, nil
 	}
+	if !isRefreshTokenBoundToApplication(token, application) {
+		return &TokenError{
+			Error:            InvalidGrant,
+			ErrorDescription: "refresh token is invalid for client",
+		}, nil
+	}
 
 	// check if the token has been invalidated (e.g., by SSO logout)
 	if token.ExpiresIn <= 0 {
@@ -528,6 +550,13 @@ func RefreshToken(application *Application, grantType string, refreshToken strin
 		Scope:        newToken.Scope,
 	}
 	return tokenWrapper, nil
+}
+
+func isRefreshTokenBoundToApplication(token *Token, application *Application) bool {
+	if token == nil || application == nil {
+		return false
+	}
+	return token.Owner == application.Owner && token.Application == application.Name
 }
 
 // PkceChallenge: base64-URL-encoded SHA256 hash of verifier, per rfc 7636
@@ -794,7 +823,7 @@ func GetAuthorizationCodeToken(application *Application, clientSecret string, co
 	if token == nil {
 		return nil, &TokenError{
 			Error:            InvalidGrant,
-			ErrorDescription: fmt.Sprintf("authorization code: [%s] is invalid", code),
+			ErrorDescription: authorizationCodeInvalidErrorDescription,
 		}, nil
 	}
 
@@ -802,8 +831,32 @@ func GetAuthorizationCodeToken(application *Application, clientSecret string, co
 		// anti replay attacks
 		return nil, &TokenError{
 			Error:            InvalidGrant,
-			ErrorDescription: fmt.Sprintf("authorization code has been used for token: [%s]", token.GetId()),
+			ErrorDescription: authorizationCodeUsedErrorDescription,
 		}, nil
+	}
+
+	if !isAuthorizationCodeBoundToApplication(token, application) {
+		return nil, &TokenError{
+			Error:            InvalidGrant,
+			ErrorDescription: authorizationCodeWrongClientDescription,
+		}, nil
+	}
+
+	if isAICodexDesktopPkceChallengeMissing(application, token.CodeChallenge) {
+		return nil, &TokenError{
+			Error:            InvalidRequest,
+			ErrorDescription: aicodexDesktopPkceRequiredMessage,
+		}, nil
+	}
+
+	if message := validateAICodexDesktopPkceVerifier(application, verifier); message != "" {
+		return nil, &TokenError{
+			Error:            InvalidGrant,
+			ErrorDescription: message,
+		}, nil
+	}
+	if isAICodexDesktopApplication(application) {
+		verifier = strings.TrimSpace(verifier)
 	}
 
 	if token.CodeChallenge != "" {
@@ -811,7 +864,7 @@ func GetAuthorizationCodeToken(application *Application, clientSecret string, co
 		if challengeAnswer != token.CodeChallenge {
 			return nil, &TokenError{
 				Error:            InvalidGrant,
-				ErrorDescription: fmt.Sprintf("verifier is invalid, challengeAnswer: [%s], token.CodeChallenge: [%s]", challengeAnswer, token.CodeChallenge),
+				ErrorDescription: codeVerifierInvalidErrorDescription,
 			}, nil
 		}
 	}
@@ -822,23 +875,16 @@ func GetAuthorizationCodeToken(application *Application, clientSecret string, co
 		if token.CodeChallenge == "" {
 			return nil, &TokenError{
 				Error:            InvalidClient,
-				ErrorDescription: fmt.Sprintf("client_secret is invalid for application: [%s], token.CodeChallenge: empty", application.GetId()),
+				ErrorDescription: fmt.Sprintf("client_secret is invalid for application: [%s]", application.GetId()),
 			}, nil
 		} else {
 			if clientSecret != "" {
 				return nil, &TokenError{
 					Error:            InvalidClient,
-					ErrorDescription: fmt.Sprintf("client_secret is invalid for application: [%s], token.CodeChallenge: [%s]", application.GetId(), token.CodeChallenge),
+					ErrorDescription: fmt.Sprintf("client_secret is invalid for application: [%s]", application.GetId()),
 				}, nil
 			}
 		}
-	}
-
-	if application.Name != token.Application {
-		return nil, &TokenError{
-			Error:            InvalidGrant,
-			ErrorDescription: fmt.Sprintf("the token is for wrong application (client_id), application.Name: [%s], token.Application: [%s]", application.Name, token.Application),
-		}, nil
 	}
 
 	// RFC 8707: Validate resource parameter matches the one in the authorization request
@@ -858,6 +904,13 @@ func GetAuthorizationCodeToken(application *Application, clientSecret string, co
 		}, nil
 	}
 	return token, nil, nil
+}
+
+func isAuthorizationCodeBoundToApplication(token *Token, application *Application) bool {
+	if token == nil || application == nil {
+		return false
+	}
+	return token.Owner == application.Owner && token.Application == application.Name
 }
 
 // GetPasswordToken
