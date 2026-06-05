@@ -122,14 +122,15 @@ type WecomOrganizationObjectStore interface {
 
 // WecomOrganizationSyncService 编排运行锁、快照拉取、差异计划和后续落库步骤。
 type WecomOrganizationSyncService struct {
-	Store             WecomOrganizationSyncRunStore
-	ConfigStore       WecomOrganizationSyncConfigLastSyncStore
-	ObjectStore       WecomOrganizationObjectStore
-	OrganizationStore WecomBusinessOrganizationStore
-	Now               func() time.Time
-	LeaseDuration     time.Duration
-	SyncTimeout       time.Duration
-	NewSnapshotClient func(corpId string, addressBookSecret string) WecomOrganizationSnapshotClient
+	Store                    WecomOrganizationSyncRunStore
+	ConfigStore              WecomOrganizationSyncConfigLastSyncStore
+	ObjectStore              WecomOrganizationObjectStore
+	OrganizationStore        WecomBusinessOrganizationStore
+	Now                      func() time.Time
+	LeaseDuration            time.Duration
+	SyncTimeout              time.Duration
+	NewSnapshotClient        func(corpId string, addressBookSecret string) WecomOrganizationSnapshotClient
+	GatewayProjectionService GatewayProjectionOrganizationPublisher
 }
 
 // defaultWecomOrganizationObjectStore 是当前同步服务的 Xorm 默认实现。
@@ -485,6 +486,7 @@ func (s *WecomOrganizationSyncService) ExecuteManualRun(ctx context.Context, con
 		// 最近同步信息只服务配置页展示和排障；数据同步已经成功时，不反向改写 run 终态。
 		logs.Warning(fmt.Sprintf("wecom organization sync config last sync update failed for %s/%s: %v", run.Owner, run.Name, err))
 	}
+	s.publishGatewayProjectionAfterSuccessfulSync(ctx, config, run)
 	return nil
 }
 
@@ -1169,6 +1171,40 @@ func (s *WecomOrganizationSyncService) objectStore() WecomOrganizationObjectStor
 		return s.ObjectStore
 	}
 	return defaultWecomOrganizationObjectStore{}
+}
+
+func (s *WecomOrganizationSyncService) gatewayProjectionService() GatewayProjectionOrganizationPublisher {
+	if s != nil && s.GatewayProjectionService != nil {
+		return s.GatewayProjectionService
+	}
+	return &GatewayProjectionService{}
+}
+
+// publishGatewayProjectionAfterSuccessfulSync 是 WeCom 同步后的可配置触发点。
+// 默认关闭；即使开启后发布失败，也只依赖 publisher 脱敏审计和 warning，不反向改写已成功的同步 run。
+func (s *WecomOrganizationSyncService) publishGatewayProjectionAfterSuccessfulSync(ctx context.Context, config *WecomOrganizationSyncConfig, run *WecomOrganizationSyncRun) {
+	publisherConfig := GetGatewayProjectionPublisherConfig()
+	if !publisherConfig.Enabled || config == nil || run == nil || normalizeGatewayProjectionString(config.Organization) == "" {
+		return
+	}
+	result, err := s.gatewayProjectionService().BuildAndPublishOrganization(ctx, config.Organization, run.Name)
+	if err != nil {
+		logs.Warning(fmt.Sprintf("gateway projection publish failed after wecom sync organization=%s run=%s errorCode=%s attempts=%d statusCode=%d",
+			config.Organization, run.Name, gatewayProjectionPublishFailureCode(result), result.Publish.Attempts, result.Publish.StatusCode))
+		return
+	}
+	if !result.Publish.Success {
+		logs.Warning(fmt.Sprintf("gateway projection publish rejected after wecom sync organization=%s run=%s errorCode=%s",
+			config.Organization, run.Name, gatewayProjectionPublishFailureCode(result)))
+	}
+}
+
+// gatewayProjectionPublishFailureCode 将发布失败收敛为脱敏分类，避免 transport error 泄漏完整 endpoint。
+func gatewayProjectionPublishFailureCode(result GatewayProjectionServiceResult) string {
+	if result.Publish.ErrorCode != "" {
+		return result.Publish.ErrorCode
+	}
+	return "gateway_projection_failed"
 }
 
 // projectWecomSourceConnection 把企业微信配置和同步批次投影为平台来源连接。
