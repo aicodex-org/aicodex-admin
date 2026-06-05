@@ -415,6 +415,161 @@ class LoginPage extends React.Component {
     }
   }
 
+  getWeComProfileConsentLoginContext() {
+    const baseContext = {
+      type: this.state.type || "login",
+      method: "signup",
+      signinMethod: "wecom",
+      language: this.state.userLang ?? "",
+    };
+
+    if (this.state.type === "cas") {
+      const casParams = Util.getCasParameters();
+      return {
+        ...baseContext,
+        type: "cas",
+        service: casParams.service,
+      };
+    }
+
+    const oAuthParams = Util.getOAuthGetParameters();
+    if (oAuthParams === null || oAuthParams === undefined) {
+      return baseContext;
+    }
+
+    const responseType = oAuthParams.responseType || this.state.type || "code";
+    return {
+      ...baseContext,
+      type: responseType,
+      clientId: oAuthParams.clientId,
+      responseType: responseType,
+      redirectUri: oAuthParams.redirectUri,
+      scope: oAuthParams.scope,
+      state: oAuthParams.state,
+      nonce: oAuthParams.nonce,
+      codeChallenge: oAuthParams.codeChallenge,
+      challengeMethod: oAuthParams.challengeMethod,
+      resource: oAuthParams.resource,
+    };
+  }
+
+  handleCasLoginResponse(res, values, casParams, shouldRefreshCaptcha = false) {
+    const loginHandler = (res) => {
+      let msg = "Logged in successfully. ";
+      if (casParams.service === "") {
+        // If service was not specified, aicodex-admin must display a message notifying the client that it has successfully initiated a single sign-on session.
+        msg += "Now you can visit apps protected by aicodex-admin.";
+      }
+      Setting.showMessage("success", msg);
+
+      if (casParams.service !== "") {
+        const st = res.data;
+        const newUrl = new URL(casParams.service);
+        newUrl.searchParams.append("ticket", st);
+        window.location.href = newUrl.toString();
+      }
+    };
+
+    if (res.status === "ok") {
+      Setting.checkLoginMfa(res, values, casParams, loginHandler, this);
+    } else {
+      Setting.showMessage("error", `${i18next.t("application:Failed to sign in")}: ${res.msg}`);
+      if (shouldRefreshCaptcha) {
+        this.refreshInlineCaptcha();
+      }
+    }
+  }
+
+  handleOAuthLoginResponse(res, values, oAuthParams, shouldRefreshCaptcha = false) {
+    const loginHandler = (res) => {
+      const responseType = values["type"];
+      const responseTypes = responseType.split(" ");
+      const responseMode = oAuthParams?.responseMode || "query";
+      if (responseType === "login") {
+        if (res.data3) {
+          sessionStorage.setItem("signinUrl", window.location.pathname + window.location.search);
+          Setting.goToLinkSoft(this, "/account");
+          return;
+        }
+        Setting.showMessage("success", i18next.t("application:Logged in successfully"));
+        this.props.onLoginSuccess();
+      } else if (responseType === "code") {
+        this.postCodeLoginAction(res);
+      } else if (responseType === "device") {
+        Setting.showMessage("success", "Successful login");
+        this.setState({
+          userCodeStatus: "success",
+        });
+      } else if (responseTypes.includes("token") || responseTypes.includes("id_token")) {
+        if (res.data3) {
+          sessionStorage.setItem("signinUrl", window.location.pathname + window.location.search);
+          Setting.goToLinkSoft(this, "/account");
+          return;
+        }
+        const amendatoryResponseType = responseType === "token" ? "access_token" : responseType;
+        const accessToken = res.data;
+        if (responseMode === "form_post") {
+          const params = {
+            token: responseTypes.includes("token") ? res.data : null,
+            id_token: responseTypes.includes("id_token") ? res.data : null,
+            token_type: "bearer",
+            state: oAuthParams?.state,
+          };
+          createFormAndSubmit(oAuthParams?.redirectUri, params);
+        } else {
+          Setting.goToLink(`${oAuthParams.redirectUri}#${amendatoryResponseType}=${accessToken}&state=${oAuthParams.state}&token_type=bearer`);
+        }
+      } else if (responseType === "saml") {
+        if (res.data === RequiredMfa) {
+          this.props.onLoginSuccess(window.location.href);
+          return;
+        }
+        if (res.data3) {
+          sessionStorage.setItem("signinUrl", window.location.pathname + window.location.search);
+          Setting.goToLinkSoft(this, "/account");
+          return;
+        }
+        if (res.data2.method === "POST") {
+          this.setState({
+            samlResponse: res.data,
+            redirectUrl: res.data2.redirectUrl,
+            relayState: oAuthParams.relayState,
+          });
+        } else {
+          const SAMLResponse = res.data;
+          const redirectUri = res.data2.redirectUrl;
+          Setting.goToLink(`${redirectUri}${redirectUri.includes("?") ? "&" : "?"}SAMLResponse=${encodeURIComponent(SAMLResponse)}&RelayState=${encodeURIComponent(oAuthParams.relayState)}`);
+        }
+      }
+    };
+
+    if (res.status === "ok") {
+      Setting.checkLoginMfa(res, values, oAuthParams, loginHandler, this);
+    } else {
+      Setting.showMessage("error", `${i18next.t("application:Failed to sign in")}: ${res.msg}`);
+      if (shouldRefreshCaptcha) {
+        this.refreshInlineCaptcha();
+      }
+    }
+  }
+
+  handleWeComProfileConsentLoginResponse(res) {
+    const values = {
+      language: this.state.userLang ?? "",
+    };
+
+    if (this.state.type === "cas") {
+      values["signinMethod"] = this.getCurrentLoginMethod();
+      values["type"] = this.state.type;
+      this.handleCasLoginResponse(res, values, Util.getCasParameters());
+      return;
+    }
+
+    const oAuthParams = Util.getOAuthGetParameters();
+    this.populateOauthValues(values);
+    this.handleOAuthLoginResponse(res, values, oAuthParams);
+  }
+
   onFinish(values) {
     this.setState({loginLoading: true});
     if (this.state.loginMethod === "webAuthn") {
@@ -501,30 +656,7 @@ class LoginPage extends React.Component {
       values["signinMethod"] = this.getCurrentLoginMethod();
       values["type"] = this.state.type;
       AuthBackend.loginCas(values, casParams).then((res) => {
-        const loginHandler = (res) => {
-          let msg = "Logged in successfully. ";
-          if (casParams.service === "") {
-            // If service was not specified, aicodex-admin must display a message notifying the client that it has successfully initiated a single sign-on session.
-            msg += "Now you can visit apps protected by aicodex-admin.";
-          }
-          Setting.showMessage("success", msg);
-
-          if (casParams.service !== "") {
-            const st = res.data;
-            const newUrl = new URL(casParams.service);
-            newUrl.searchParams.append("ticket", st);
-            window.location.href = newUrl.toString();
-          }
-        };
-
-        if (res.status === "ok") {
-          Setting.checkLoginMfa(res, values, casParams, loginHandler, this);
-        } else {
-          Setting.showMessage("error", `${i18next.t("application:Failed to sign in")}: ${res.msg}`);
-          if (shouldRefreshCaptcha) {
-            this.refreshInlineCaptcha();
-          }
-        }
+        this.handleCasLoginResponse(res, values, casParams, shouldRefreshCaptcha);
       }).finally(() => {
         this.setState({loginLoading: false});
       });
@@ -534,76 +666,7 @@ class LoginPage extends React.Component {
       this.populateOauthValues(values);
       AuthBackend.login(values, oAuthParams)
         .then((res) => {
-          const loginHandler = (res) => {
-            const responseType = values["type"];
-            const responseTypes = responseType.split(" ");
-            const responseMode = oAuthParams?.responseMode || "query";
-            if (responseType === "login") {
-              if (res.data3) {
-                sessionStorage.setItem("signinUrl", window.location.pathname + window.location.search);
-                Setting.goToLinkSoft(this, "/account");
-                return;
-              }
-              Setting.showMessage("success", i18next.t("application:Logged in successfully"));
-              this.props.onLoginSuccess();
-            } else if (responseType === "code") {
-              this.postCodeLoginAction(res);
-            } else if (responseType === "device") {
-              Setting.showMessage("success", "Successful login");
-              this.setState({
-                userCodeStatus: "success",
-              });
-            } else if (responseTypes.includes("token") || responseTypes.includes("id_token")) {
-              if (res.data3) {
-                sessionStorage.setItem("signinUrl", window.location.pathname + window.location.search);
-                Setting.goToLinkSoft(this, "/account");
-                return;
-              }
-              const amendatoryResponseType = responseType === "token" ? "access_token" : responseType;
-              const accessToken = res.data;
-              if (responseMode === "form_post") {
-                const params = {
-                  token: responseTypes.includes("token") ? res.data : null,
-                  id_token: responseTypes.includes("id_token") ? res.data : null,
-                  token_type: "bearer",
-                  state: oAuthParams?.state,
-                };
-                createFormAndSubmit(oAuthParams?.redirectUri, params);
-              } else {
-                Setting.goToLink(`${oAuthParams.redirectUri}#${amendatoryResponseType}=${accessToken}&state=${oAuthParams.state}&token_type=bearer`);
-              }
-            } else if (responseType === "saml") {
-              if (res.data === RequiredMfa) {
-                this.props.onLoginSuccess(window.location.href);
-                return;
-              }
-              if (res.data3) {
-                sessionStorage.setItem("signinUrl", window.location.pathname + window.location.search);
-                Setting.goToLinkSoft(this, "/account");
-                return;
-              }
-              if (res.data2.method === "POST") {
-                this.setState({
-                  samlResponse: res.data,
-                  redirectUrl: res.data2.redirectUrl,
-                  relayState: oAuthParams.relayState,
-                });
-              } else {
-                const SAMLResponse = res.data;
-                const redirectUri = res.data2.redirectUrl;
-                Setting.goToLink(`${redirectUri}${redirectUri.includes("?") ? "&" : "?"}SAMLResponse=${encodeURIComponent(SAMLResponse)}&RelayState=${encodeURIComponent(oAuthParams.relayState)}`);
-              }
-            }
-          };
-
-          if (res.status === "ok") {
-            Setting.checkLoginMfa(res, values, oAuthParams, loginHandler, this);
-          } else {
-            Setting.showMessage("error", `${i18next.t("application:Failed to sign in")}: ${res.msg}`);
-            if (shouldRefreshCaptcha) {
-              this.refreshInlineCaptcha();
-            }
-          }
+          this.handleOAuthLoginResponse(res, values, oAuthParams, shouldRefreshCaptcha);
         }).finally(() => {
           localStorage.setItem("lastLoginOrg", values?.organization || "");
           this.setState({loginLoading: false});
@@ -712,7 +775,14 @@ class LoginPage extends React.Component {
       }
 
       if (this.state.loginMethod === "wecom") {
-        return (<WeComLoginPanel application={application} loginMethod={this.state.loginMethod} />);
+        return (
+          <WeComLoginPanel
+            application={application}
+            loginMethod={this.state.loginMethod}
+            getLoginContext={() => this.getWeComProfileConsentLoginContext()}
+            onLoginResponse={(res) => this.handleWeComProfileConsentLoginResponse(res)}
+          />
+        );
       }
 
       if (this.state.loginMethod === "verificationCodePhone") {
@@ -1634,6 +1704,8 @@ class LoginPage extends React.Component {
                       application={application}
                       loginMethod={this.state.loginMethod}
                       providerId={loginPageWeComProvider ? `${loginPageWeComProvider.provider.owner}/${loginPageWeComProvider.provider.name}` : null}
+                      getLoginContext={() => this.getWeComProfileConsentLoginContext()}
+                      onLoginResponse={(res) => this.handleWeComProfileConsentLoginResponse(res)}
                     />
                   </div>
                 </div>

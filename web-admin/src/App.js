@@ -683,6 +683,7 @@ class App extends Component {
                 logo={this.state.logo}
                 onChangeTheme={this.setTheme}
                 onClick={this.onClick}
+                onUpdateAccount={(account) => this.onUpdateAccount(account)}
                 onfinish={() => {
                   this.setState({requiredEnableMfa: false});
                 }}

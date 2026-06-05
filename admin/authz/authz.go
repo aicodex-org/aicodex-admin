@@ -44,6 +44,10 @@ p, *, *, POST, /api/signup, *, *
 p, *, *, GET, /api/get-email-and-phone, *, *
 p, *, *, POST, /api/login, *, *
 p, *, *, GET, /api/get-app-login, *, *
+p, *, *, POST, /api/wecom-profile-consent/login-intents, *, *
+p, *, *, GET, /api/wecom-profile-consent/callback, *, *
+p, *, *, GET, /api/wecom-profile-consent/intents/:intentId, *, *
+p, *, *, POST, /api/wecom-profile-consent/intents/:intentId/complete, *, *
 p, *, *, POST, /api/logout, *, *
 p, *, *, GET, /api/logout, *, *
 p, *, *, POST, /api/sso-logout, *, *

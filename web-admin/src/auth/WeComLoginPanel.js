@@ -13,9 +13,11 @@
 // limitations under the License.
 
 import React from "react";
-import {Alert, Button, Spin} from "antd";
+import {Alert, Button, QRCode, Spin} from "antd";
 import i18next from "i18next";
+import * as AuthBackend from "./AuthBackend";
 import * as Provider from "./Provider";
+import {MfaAuthVerifyForm, NextMfa} from "./mfa/MfaAuthVerifyForm";
 
 const WeComWidgetScript = "https://wwcdn.weixin.qq.com/node/wework/wwopen/js/wwLogin-1.2.7.js";
 
@@ -49,31 +51,45 @@ class WeComLoginPanel extends React.Component {
     this.state = {
       status: "loading",
       authUrl: "",
+      expiresAt: "",
+      intentId: "",
+      pollToken: "",
       errorMessage: "",
+      fallbackMode: false,
+      fallbackStatus: "idle",
+      fallbackErrorMessage: "",
+      mfaProps: null,
+      selectedMfaProp: null,
     };
     this.mountId = `wecom-login-widget-${Math.random().toString(36).slice(2, 10)}`;
+    this.pollingTimer = null;
+    this.pollInFlight = false;
+    this.completing = false;
+    this.intentRequestSeq = 0;
   }
 
   componentDidMount() {
-    this.prepareWidget();
+    this.prepareConsentIntent();
   }
 
   componentDidUpdate(prevProps) {
     if (this.props.loginMethod === "wecom" && prevProps.loginMethod !== "wecom") {
-      this.prepareWidget();
+      this.prepareConsentIntent();
       return;
     }
 
     if (prevProps.application !== this.props.application || prevProps.providerId !== this.props.providerId) {
-      this.prepareWidget();
+      this.prepareConsentIntent();
     }
 
     if (prevProps.loginMethod === "wecom" && this.props.loginMethod !== "wecom") {
+      this.clearPolling();
       this.clearWidget();
     }
   }
 
   componentWillUnmount() {
+    this.clearPolling();
     this.clearWidget();
   }
 
@@ -89,6 +105,64 @@ class WeComLoginPanel extends React.Component {
     return visibleProviders.find(item => item.provider?.subType === "Internal" && item.provider?.method === "Normal")
       || visibleProviders[0]
       || null;
+  }
+
+  getProviderId(providerItem) {
+    if (!providerItem?.provider) {
+      return "";
+    }
+    return `${providerItem.provider.owner}/${providerItem.provider.name}`;
+  }
+
+  getConsentProviderError(providerItem) {
+    if (!providerItem?.provider) {
+      return i18next.t("login:WeCom login is not configured for the current application");
+    }
+
+    const provider = providerItem.provider;
+    if (provider.subType !== "Internal" || provider.method !== "Normal") {
+      return i18next.t("login:Homepage WeCom QR login currently supports Internal + Normal mode only");
+    }
+
+    if (!provider.clientId || !provider.clientSecret || !provider.appId) {
+      return i18next.t("login:WeCom login configuration is incomplete. Please check Corp ID, Secret and Agent ID");
+    }
+
+    return "";
+  }
+
+  getLoginContext() {
+    if (this.props.getLoginContext) {
+      return this.props.getLoginContext() || {};
+    }
+
+    return {
+      type: "login",
+      method: "signup",
+      signinMethod: "wecom",
+    };
+  }
+
+  getReturnUrl() {
+    if (this.props.getReturnUrl) {
+      return this.props.getReturnUrl();
+    }
+    return window.location.pathname + window.location.search;
+  }
+
+  getIntentPayload(providerItem) {
+    const loginContext = {
+      method: "signup",
+      signinMethod: "wecom",
+      ...this.getLoginContext(),
+    };
+    return {
+      application: this.props.application?.name || "",
+      provider: this.getProviderId(providerItem),
+      method: loginContext.method || "signup",
+      returnUrl: this.getReturnUrl(),
+      loginContext,
+    };
   }
 
   getWidgetParams(providerItem) {
@@ -133,6 +207,13 @@ class WeComLoginPanel extends React.Component {
     };
   }
 
+  clearPolling() {
+    if (this.pollingTimer) {
+      clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
+    }
+  }
+
   clearWidget() {
     const mountPoint = document.getElementById(this.mountId);
     if (mountPoint) {
@@ -140,14 +221,192 @@ class WeComLoginPanel extends React.Component {
     }
   }
 
+  async prepareConsentIntent() {
+    const requestSeq = ++this.intentRequestSeq;
+    this.clearPolling();
+    this.clearWidget();
+    const providerItem = this.getWeComProviderItem();
+    const errorMessage = this.getConsentProviderError(providerItem);
+    if (errorMessage) {
+      this.setState({
+        status: "failed",
+        authUrl: "",
+        expiresAt: "",
+        intentId: "",
+        pollToken: "",
+        errorMessage,
+        fallbackMode: false,
+        fallbackStatus: "idle",
+        fallbackErrorMessage: "",
+        mfaProps: null,
+        selectedMfaProp: null,
+      });
+      return;
+    }
+
+    this.setState({
+      status: "loading",
+      authUrl: "",
+      expiresAt: "",
+      intentId: "",
+      pollToken: "",
+      errorMessage: "",
+      fallbackMode: false,
+      fallbackStatus: "idle",
+      fallbackErrorMessage: "",
+      mfaProps: null,
+      selectedMfaProp: null,
+    });
+
+    try {
+      const res = await AuthBackend.createWecomProfileConsentLoginIntent(this.getIntentPayload(providerItem));
+      if (requestSeq !== this.intentRequestSeq) {
+        return;
+      }
+      if (res.status !== "ok" || !res.data?.intentId || !res.data?.authUrl || !res.data?.pollToken) {
+        this.setState({
+          status: "failed",
+          errorMessage: res.msg || i18next.t("login:Failed to create WeCom authorization QR code"),
+        });
+        return;
+      }
+
+      this.setState({
+        status: "pending",
+        authUrl: res.data.authUrl,
+        expiresAt: res.data.expiresAt,
+        intentId: res.data.intentId,
+        pollToken: res.data.pollToken,
+        errorMessage: "",
+      }, () => this.startPolling());
+    } catch (error) {
+      if (requestSeq !== this.intentRequestSeq) {
+        return;
+      }
+      this.setState({
+        status: "failed",
+        errorMessage: error?.message || i18next.t("login:Failed to create WeCom authorization QR code"),
+      });
+    }
+  }
+
+  startPolling() {
+    this.clearPolling();
+    this.pollingTimer = setInterval(() => this.pollIntent(), 1500);
+  }
+
+  async pollIntent() {
+    if (this.pollInFlight || !this.state.intentId || !this.state.pollToken) {
+      return;
+    }
+
+    this.pollInFlight = true;
+    try {
+      const res = await AuthBackend.getWecomProfileConsentIntentStatus(this.state.intentId, this.state.pollToken);
+      if (res.status !== "ok") {
+        this.clearPolling();
+        this.setState({
+          status: "failed",
+          errorMessage: res.msg || i18next.t("login:WeCom authorization failed. Please retry"),
+        });
+        return;
+      }
+
+      const nextStatus = res.data?.status || "pending";
+      if (nextStatus === "authorized") {
+        this.clearPolling();
+        this.setState({status: "authorized", errorMessage: ""});
+        await this.completeIntent({});
+      } else if (nextStatus === "expired" || nextStatus === "failed") {
+        this.clearPolling();
+        this.setState({
+          status: nextStatus,
+          errorMessage: res.data?.errorText || "",
+        });
+      } else if (nextStatus === "completed") {
+        this.clearPolling();
+        this.setState({status: "completed", errorMessage: ""});
+      } else {
+        this.setState({status: "pending", errorMessage: ""});
+      }
+    } catch (error) {
+      this.clearPolling();
+      this.setState({
+        status: "failed",
+        errorMessage: error?.message || i18next.t("login:WeCom authorization failed. Please retry"),
+      });
+    } finally {
+      this.pollInFlight = false;
+    }
+  }
+
+  getPreferredMfaProp(mfaProps) {
+    if (!Array.isArray(mfaProps) || mfaProps.length === 0) {
+      return null;
+    }
+    return mfaProps.find(mfa => mfa.isPreferred) || mfaProps[0];
+  }
+
+  async completeIntent(values = {}) {
+    if (this.completing) {
+      return null;
+    }
+
+    this.completing = true;
+    this.setState({status: "authorized"});
+    try {
+      const res = await AuthBackend.completeWecomProfileConsentLoginIntent(this.state.intentId, this.state.pollToken, values);
+      if (res.status !== "ok") {
+        this.setState({
+          status: "failed",
+          errorMessage: res.msg || i18next.t("login:WeCom authorization failed. Please retry"),
+        });
+        return res;
+      }
+
+      if (res.data === NextMfa) {
+        this.setState({
+          status: "mfa_pending",
+          mfaProps: res.data2 || [],
+          selectedMfaProp: this.getPreferredMfaProp(res.data2),
+          errorMessage: "",
+        });
+        return res;
+      }
+
+      this.setState({status: "completed", errorMessage: ""});
+      this.props.onLoginResponse?.(res);
+      return res;
+    } catch (error) {
+      this.setState({
+        status: "failed",
+        errorMessage: error?.message || i18next.t("login:WeCom authorization failed. Please retry"),
+      });
+      return {status: "error", msg: error?.message};
+    } finally {
+      this.completing = false;
+    }
+  }
+
+  submitMfa(values) {
+    return AuthBackend.completeWecomProfileConsentLoginIntent(this.state.intentId, this.state.pollToken, values);
+  }
+
   async prepareWidget() {
+    // 切到兼容网页登录时废弃仍在飞行中的敏感授权意图创建结果，避免后台继续轮询旧二维码。
+    this.intentRequestSeq++;
+    this.clearPolling();
     const providerItem = this.getWeComProviderItem();
     const {authUrl, widget, errorMessage} = this.getWidgetParams(providerItem);
 
     this.setState({
-      status: widget ? "loading" : "error",
-      authUrl: authUrl || "",
-      errorMessage: errorMessage || "",
+      fallbackMode: true,
+      fallbackStatus: widget ? "loading" : "error",
+      fallbackErrorMessage: errorMessage || "",
+      intentId: "",
+      pollToken: "",
+      mfaProps: null,
+      selectedMfaProp: null,
     });
 
     this.clearWidget();
@@ -184,18 +443,38 @@ class WeComLoginPanel extends React.Component {
       new widgetFactory(widgetOptions);
 
       this.setState({
-        status: "active",
-        errorMessage: "",
+        authUrl: authUrl || this.state.authUrl,
+        fallbackStatus: "active",
+        fallbackErrorMessage: "",
       });
     } catch (error) {
       this.setState({
-        status: "error",
-        errorMessage: error?.message || i18next.t("login:Failed to load WeCom QR code widget"),
+        fallbackStatus: "error",
+        fallbackErrorMessage: error?.message || i18next.t("login:Failed to load WeCom QR code widget"),
       });
     }
   }
 
   renderHint() {
+    if (this.state.fallbackMode) {
+      if (this.state.fallbackErrorMessage) {
+        return (
+          <Alert
+            type="warning"
+            showIcon
+            message={this.state.fallbackErrorMessage}
+            style={{textAlign: "left", marginBottom: 16}}
+          />
+        );
+      }
+
+      return (
+        <div style={{textAlign: "center", color: "rgba(0, 0, 0, 0.65)", marginBottom: 12}}>
+          {i18next.t("login:Compatible WeCom web login only verifies identity and may not sync phone, email, or avatar")}
+        </div>
+      );
+    }
+
     if (this.state.errorMessage) {
       return (
         <Alert
@@ -209,7 +488,124 @@ class WeComLoginPanel extends React.Component {
 
     return (
       <div style={{textAlign: "center", color: "rgba(0, 0, 0, 0.65)", marginBottom: 12}}>
-        {i18next.t("login:Use WeCom to scan the QR code and sign in")}
+        {this.renderStatusText()}
+      </div>
+    );
+  }
+
+  renderStatusText() {
+    if (this.state.status === "authorized") {
+      return i18next.t("login:Authorization completed. Finishing sign-in");
+    }
+    if (this.state.status === "mfa_pending") {
+      return i18next.t("login:Complete MFA to finish WeCom sign-in");
+    }
+    if (this.state.status === "expired") {
+      return i18next.t("login:WeCom QR code has expired");
+    }
+    return i18next.t("login:Use WeCom to scan the QR code and consent to sign in");
+  }
+
+  renderQRCodeStatus() {
+    if (this.state.status === "loading") {
+      return "loading";
+    }
+    if (this.state.status === "expired" || this.state.status === "failed") {
+      return "expired";
+    }
+    if (this.state.status === "authorized" || this.state.status === "completed") {
+      return "scanned";
+    }
+    return "active";
+  }
+
+  renderMfaPanel() {
+    const selectedMfaProp = this.state.selectedMfaProp;
+    if (!selectedMfaProp) {
+      return null;
+    }
+
+    const loginContext = this.getLoginContext();
+    return (
+      <div style={{textAlign: "left"}}>
+        <MfaAuthVerifyForm
+          mfaProps={selectedMfaProp}
+          formValues={{type: loginContext.type || "login"}}
+          authParams={null}
+          application={this.props.application}
+          verifyAuth={(values) => this.submitMfa(values)}
+          recoverAuth={(values) => this.submitMfa(values)}
+          onFail={(errorMessage) => this.setState({errorMessage})}
+          onSuccess={(res) => {
+            this.setState({status: "completed", errorMessage: ""});
+            this.props.onLoginResponse?.(res);
+          }}
+        />
+        {Array.isArray(this.state.mfaProps) ? this.state.mfaProps.map(mfa => {
+          if (selectedMfaProp.mfaType === mfa.mfaType) {
+            return null;
+          }
+          return (
+            <Button
+              key={mfa.mfaType}
+              type="link"
+              onClick={() => this.setState({selectedMfaProp: mfa})}
+            >
+              {mfa.mfaType}
+            </Button>
+          );
+        }) : null}
+      </div>
+    );
+  }
+
+  renderScanPanel() {
+    if (this.state.status === "mfa_pending") {
+      return this.renderMfaPanel();
+    }
+
+    if (this.state.fallbackMode) {
+      return (
+        <>
+          {this.state.fallbackStatus === "loading" ? <Spin /> : null}
+          <div id={this.mountId} style={{display: this.state.fallbackStatus === "active" ? "block" : "none"}} />
+        </>
+      );
+    }
+
+    return (
+      <QRCode
+        style={{margin: "auto"}}
+        bordered={false}
+        status={this.renderQRCodeStatus()}
+        value={this.state.authUrl || " "}
+        size={230}
+      />
+    );
+  }
+
+  renderActions() {
+    if (this.state.fallbackMode) {
+      return (
+        <div style={{marginTop: 12, display: "flex", justifyContent: "center", gap: 12}}>
+          <Button onClick={() => this.prepareWidget()}>
+            {i18next.t("login:Refresh")}
+          </Button>
+          <Button onClick={() => this.prepareConsentIntent()}>
+            {i18next.t("login:Return to authorization login")}
+          </Button>
+        </div>
+      );
+    }
+
+    return (
+      <div style={{marginTop: 12, display: "flex", justifyContent: "center", gap: 12}}>
+        <Button onClick={() => this.prepareConsentIntent()}>
+          {i18next.t("login:Refresh")}
+        </Button>
+        <Button onClick={() => this.prepareWidget()}>
+          {i18next.t("login:Use compatible web login")}
+        </Button>
       </div>
     );
   }
@@ -222,7 +618,7 @@ class WeComLoginPanel extends React.Component {
         {this.renderHint()}
         <div
           style={{
-            minHeight: 240,
+            minHeight: this.state.status === "mfa_pending" ? 350 : 240,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -230,19 +626,9 @@ class WeComLoginPanel extends React.Component {
             background: "#ffffff",
           }}
         >
-          {this.state.status === "loading" ? <Spin /> : null}
-          <div id={this.mountId} style={{display: this.state.status === "active" ? "block" : "none"}} />
+          {this.renderScanPanel()}
         </div>
-        <div style={{marginTop: 12, display: "flex", justifyContent: "center", gap: 12}}>
-          <Button onClick={() => this.prepareWidget()}>
-            {i18next.t("login:Refresh")}
-          </Button>
-          {this.state.authUrl ? (
-            <Button type="primary" onClick={() => window.location.assign(this.state.authUrl)}>
-              {i18next.t("login:Launch WeCom login")}
-            </Button>
-          ) : null}
-        </div>
+        {this.renderActions()}
       </div>
     );
   }

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/beego/beego/v2/core/logs"
@@ -129,6 +130,19 @@ type WecomInternalUserDetailRequest struct {
 	UserTicket string `json:"user_ticket"`
 }
 
+const (
+	WeComInternalExtraHasUserTicket        = "wecom_has_user_ticket"
+	WeComInternalExtraProfileDetailSource  = "wecom_profile_detail_source"
+	weComInternalDetailSourceIdentityOnly  = "identity_only"
+	weComInternalDetailSourceSensitive     = "sensitive_detail"
+	weComInternalDetailSourceContact       = "contact_supplement"
+	weComInternalDetailSourceSensitivePlus = "sensitive_detail_contact_supplement"
+)
+
+func HasWeComInternalUserTicket(userInfo *UserInfo) bool {
+	return userInfo != nil && userInfo.Extra != nil && userInfo.Extra[WeComInternalExtraHasUserTicket] == "true"
+}
+
 func (idp *WeComInternalIdProvider) GetUserInfo(token *oauth2.Token) (*UserInfo, error) {
 	accessToken := token.AccessToken
 	code := token.Extra("code").(string)
@@ -156,8 +170,9 @@ func (idp *WeComInternalIdProvider) GetUserInfo(token *oauth2.Token) (*UserInfo,
 	}
 
 	infoResp := &WecomInternalUserInfo{}
+	hasUserTicket := userResp.UserTicket != ""
 
-	if userResp.UserTicket != "" {
+	if hasUserTicket {
 		requestBody, err := json.Marshal(&WecomInternalUserDetailRequest{UserTicket: userResp.UserTicket})
 		if err != nil {
 			return nil, err
@@ -185,7 +200,13 @@ func (idp *WeComInternalIdProvider) GetUserInfo(token *oauth2.Token) (*UserInfo,
 		return nil, fmt.Errorf("userInfoResp.errcode = %d, userInfoResp.errmsg = %s", infoResp.Errcode, infoResp.Errmsg)
 	}
 
+	detailFields := wecomInternalProfileFieldNames(infoResp)
+	contactSupplementAttempted := false
+	contactSupplementSucceeded := false
+	contactFields := ""
+
 	if userID != "" && shouldFetchWeComContactUserInfo(infoResp) {
+		contactSupplementAttempted = true
 		contactResp, err := idp.getContactUserInfo(accessToken, userID)
 		if err != nil {
 			logs.Warning("wecom internal contact supplement failed: userid=%s error=%s", userID, err.Error())
@@ -199,9 +220,29 @@ func (idp *WeComInternalIdProvider) GetUserInfo(token *oauth2.Token) (*UserInfo,
 			}
 		} else {
 			// 敏感授权接口可能只返回 userid，不返回手机号/邮箱；通讯录详情可作为同源应用的非空补充。
+			contactSupplementSucceeded = true
+			contactFields = wecomInternalProfileFieldNames(contactResp)
 			mergeWeComInternalUserInfo(infoResp, contactResp)
 		}
 	}
+
+	detailSource := weComInternalDetailSourceIdentityOnly
+	if hasUserTicket {
+		detailSource = weComInternalDetailSourceSensitive
+		if contactSupplementSucceeded {
+			detailSource = weComInternalDetailSourceSensitivePlus
+		}
+	} else if contactSupplementSucceeded {
+		detailSource = weComInternalDetailSourceContact
+	}
+	logs.Info("wecom internal profile diagnostics: has_user_ticket=%t detail_fields=%s contact_supplement_attempted=%t contact_supplement_succeeded=%t contact_fields=%s resolved_fields=%s",
+		hasUserTicket,
+		detailFields,
+		contactSupplementAttempted,
+		contactSupplementSucceeded,
+		contactFields,
+		wecomInternalProfileFieldNames(infoResp),
+	)
 
 	resolvedUserID := firstNonEmpty(infoResp.UserId, userID)
 	userInfo := UserInfo{
@@ -212,6 +253,14 @@ func (idp *WeComInternalIdProvider) GetUserInfo(token *oauth2.Token) (*UserInfo,
 		Email:     firstNonEmpty(infoResp.Email, infoResp.BizMail),
 		Phone:     infoResp.Mobile,
 		AvatarUrl: infoResp.Avatar,
+		Extra: map[string]string{
+			"corp_id":                             idp.Config.ClientID,
+			"userid":                              resolvedUserID,
+			"biz_mail":                            infoResp.BizMail,
+			"open_userid":                         infoResp.OpenId,
+			WeComInternalExtraHasUserTicket:       fmt.Sprintf("%t", hasUserTicket),
+			WeComInternalExtraProfileDetailSource: detailSource,
+		},
 	}
 
 	if userInfo.Id == "" {
@@ -223,6 +272,26 @@ func (idp *WeComInternalIdProvider) GetUserInfo(token *oauth2.Token) (*UserInfo,
 	}
 
 	return &userInfo, nil
+}
+
+func wecomInternalProfileFieldNames(info *WecomInternalUserInfo) string {
+	if info == nil {
+		return ""
+	}
+	fields := []string{}
+	addField := func(name string, value string) {
+		if strings.TrimSpace(value) != "" {
+			fields = append(fields, name)
+		}
+	}
+	addField("userid", info.UserId)
+	addField("name", info.Name)
+	addField("mobile", info.Mobile)
+	addField("email", info.Email)
+	addField("biz_mail", info.BizMail)
+	addField("avatar", info.Avatar)
+	addField("open_userid", info.OpenId)
+	return strings.Join(fields, ",")
 }
 
 func (idp *WeComInternalIdProvider) getContactUserInfo(accessToken string, userID string) (*WecomInternalUserInfo, error) {

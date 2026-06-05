@@ -78,6 +78,12 @@ func TestWeComInternalIdProviderGetUserInfoMapsSensitiveProfileFields(t *testing
 	if userInfo.Email != "zhangsan@example.com" {
 		t.Fatalf("expected biz_mail fallback, got %q", userInfo.Email)
 	}
+	if userInfo.Extra["corp_id"] != "corp-id" || userInfo.Extra["userid"] != "zhangsan" || userInfo.Extra["biz_mail"] != "zhangsan@example.com" {
+		t.Fatalf("expected WeCom boundary extra fields, got %#v", userInfo.Extra)
+	}
+	if !HasWeComInternalUserTicket(userInfo) || userInfo.Extra[WeComInternalExtraProfileDetailSource] != weComInternalDetailSourceSensitive {
+		t.Fatalf("expected sensitive detail source with user ticket, got %#v", userInfo.Extra)
+	}
 }
 
 func TestWeComInternalIdProviderGetUserInfoSupplementsMissingSensitiveFieldsFromContact(t *testing.T) {
@@ -136,5 +142,62 @@ func TestWeComInternalIdProviderGetUserInfoSupplementsMissingSensitiveFieldsFrom
 	}
 	if userInfo.Phone != "13800000000" || userInfo.Email != "zhangsan@example.com" || userInfo.DisplayName != "张三" {
 		t.Fatalf("expected profile fields from contact supplement, got phone=%q email=%q displayName=%q", userInfo.Phone, userInfo.Email, userInfo.DisplayName)
+	}
+	if userInfo.Extra["corp_id"] != "corp-id" || userInfo.Extra["userid"] != "zhangsan" {
+		t.Fatalf("expected supplemented WeCom extra fields, got %#v", userInfo.Extra)
+	}
+	if !HasWeComInternalUserTicket(userInfo) || userInfo.Extra[WeComInternalExtraProfileDetailSource] != weComInternalDetailSourceSensitivePlus {
+		t.Fatalf("expected sensitive detail plus contact supplement source, got %#v", userInfo.Extra)
+	}
+}
+
+func TestWeComInternalIdProviderGetUserInfoMarksContactOnlySupplementWithoutUserTicket(t *testing.T) {
+	requestedPaths := []string{}
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requestedPaths = append(requestedPaths, req.URL.Path)
+		switch req.URL.Path {
+		case "/cgi-bin/auth/getuserinfo":
+			return newJsonResponse(`{
+				"errcode": 0,
+				"errmsg": "ok",
+				"userid": "zhangsan"
+			}`), nil
+		case "/cgi-bin/user/get":
+			return newJsonResponse(`{
+				"errcode": 0,
+				"errmsg": "ok",
+				"userid": "zhangsan",
+				"name": "张三",
+				"mobile": "13800000000",
+				"email": "zhangsan@example.com"
+			}`), nil
+		default:
+			t.Fatalf("unexpected request path: %s", req.URL.Path)
+			return nil, nil
+		}
+	})}
+
+	provider := NewWeComInternalIdProvider("corp-id", "secret", "https://auth.example.com/callback", true)
+	provider.SetHttpClient(client)
+
+	userInfo, err := provider.GetUserInfo((&oauth2.Token{AccessToken: "access-token"}).WithExtra(map[string]interface{}{"code": "auth-code"}))
+	if err != nil {
+		t.Fatalf("GetUserInfo() returned error: %v", err)
+	}
+
+	expectedPaths := []string{"/cgi-bin/auth/getuserinfo", "/cgi-bin/user/get"}
+	if len(requestedPaths) != len(expectedPaths) {
+		t.Fatalf("unexpected request paths: %#v", requestedPaths)
+	}
+	for i, expectedPath := range expectedPaths {
+		if requestedPaths[i] != expectedPath {
+			t.Fatalf("request path %d = %q, want %q; all paths = %#v", i, requestedPaths[i], expectedPath, requestedPaths)
+		}
+	}
+	if HasWeComInternalUserTicket(userInfo) {
+		t.Fatalf("expected missing user ticket marker, got %#v", userInfo.Extra)
+	}
+	if userInfo.Extra[WeComInternalExtraProfileDetailSource] != weComInternalDetailSourceContact {
+		t.Fatalf("expected contact supplement source, got %#v", userInfo.Extra)
 	}
 }

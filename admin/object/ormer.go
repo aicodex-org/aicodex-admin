@@ -578,6 +578,11 @@ func (a *Ormer) createTable() {
 		panic(err)
 	}
 
+	err = a.Engine.Sync2(new(WecomProfileConsentIntent))
+	if err != nil {
+		panic(err)
+	}
+
 	err = a.Engine.Sync2(new(WecomDepartmentMapping))
 	if err != nil {
 		panic(err)
