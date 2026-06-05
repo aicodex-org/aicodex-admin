@@ -44,3 +44,6 @@ server
 node_modules/
 
 .playwright-mcp
+
+# Bruno 本机私有环境，不能提交真实账号、密码或 cookie。
+api-tests/bruno/**/environments/*-private.yml

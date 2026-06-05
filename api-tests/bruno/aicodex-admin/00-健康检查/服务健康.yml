@@ -1,0 +1,28 @@
+info:
+  name: 服务健康
+  type: http
+  seq: 1
+  tags:
+    - smoke
+    - health
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/health"
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        const status = res.getStatus()
+        const body = res.getBody()
+        const json = typeof body === "string" ? JSON.parse(body) : body
+        if (status !== 200 || json?.status !== "ok") {
+          throw new Error(`admin 健康检查响应异常。status=${status} body=${JSON.stringify(json)}`)
+        }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

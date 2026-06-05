@@ -1,0 +1,47 @@
+name: local
+variables:
+  - name: baseUrl
+    value: http://127.0.0.1:8000
+    enabled: true
+    secret: false
+    type: text
+  - name: adminUsername
+    value: ""
+    enabled: true
+    secret: true
+    type: text
+  - name: adminPassword
+    value: ""
+    enabled: true
+    secret: true
+    type: text
+  - name: adminOrganization
+    value: built-in
+    enabled: true
+    secret: false
+    type: text
+  - name: adminApplication
+    value: app-built-in
+    enabled: true
+    secret: false
+    type: text
+  - name: adminOwner
+    value: admin
+    enabled: true
+    secret: false
+    type: text
+  - name: wecomOrganization
+    value: ""
+    enabled: true
+    secret: false
+    type: text
+  - name: wecomSyncWriteEnabled
+    value: "false"
+    enabled: true
+    secret: false
+    type: text
+  - name: wecomSyncRunId
+    value: ""
+    enabled: true
+    secret: false
+    type: text
