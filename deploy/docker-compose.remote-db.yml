@@ -1,3 +1,9 @@
+x-logging-defaults: &logging-defaults
+  driver: json-file
+  options:
+    max-size: "100m"
+    max-file: "5"
+
 services:
   aicodex-admin:
     restart: always
@@ -25,3 +31,4 @@ services:
     volumes:
       # 本地文件系统 Storage Provider 会把头像等上传资源写入容器内 /files。
       - ${AICODEX_ADMIN_UPLOAD_DIR:-./data/upload-files}:/files
+    logging: *logging-defaults
