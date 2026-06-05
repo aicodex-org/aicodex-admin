@@ -25,6 +25,7 @@ tmp/
 tmpFiles/
 *.tmp
 logs/
+runtime/
 files/
 .gocache/
 .gomodcache/
