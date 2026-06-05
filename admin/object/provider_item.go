@@ -31,7 +31,9 @@ type ProviderItem struct {
 
 func (application *Application) GetProviderItem(providerName string) *ProviderItem {
 	for _, providerItem := range application.Providers {
-		if providerItem.Name == providerName {
+		if providerItem.Name == providerName ||
+			(providerItem.Owner != "" && providerItem.Owner+"/"+providerItem.Name == providerName) ||
+			(providerItem.Provider != nil && providerItem.Provider.Owner+"/"+providerItem.Provider.Name == providerName) {
 			return providerItem
 		}
 	}
