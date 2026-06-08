@@ -22,9 +22,14 @@
 - **WHEN** 当前用户是全局管理员，或当前用户在所属 `organization/owner` 下 `IsAdmin=true`
 - **THEN** 系统 MUST 返回该用户被授权组织范围内的 `scopeType=ALL_COMPANY`
 - **THEN** 系统 MUST 在 scope 顶层返回当前调用人的 `adminUserId`，用于 insight 和 usage provider 审计
-- **THEN** 系统 MUST 显式返回 `organization`、`includeChildDepartments=true`、`generatedAt`、`scopeVersion` 或 `orgVersion`、`freshness`
+- **THEN** 系统 MUST 显式返回 `organization`、`includeChildDepartments=true`、`lifecycleStatus`、`generatedAt`、`scopeVersion` 或 `orgVersion`、`freshness`
 - **THEN** 当当前用户配置了 `aicodex-api` 用量组织映射时，系统 MUST 在 scope 中返回 `apiOrganizationId`
 - **THEN** 组织管理员 scope MUST NOT 覆盖到其他 organization
+
+#### Scenario: 成功 scope 顶层返回调用人生命周期
+- **WHEN** scope provider 返回任意成功的 `ALL_COMPANY`、`DEPARTMENT_TREE`、`SELF`、`CUSTOM_USERS` 或 `EMPTY` scope
+- **THEN** 系统 MUST 在 scope 顶层返回当前调用人的 `lifecycleStatus`
+- **THEN** 非 `ACTIVE` 或不可判定 lifecycle MUST NOT 被降级为更宽 scope
 
 #### Scenario: 分组负责人获得部门树 scope
 - **WHEN** 当前用户是一个或多个平台部门的负责人，且这些部门存在可查询成员

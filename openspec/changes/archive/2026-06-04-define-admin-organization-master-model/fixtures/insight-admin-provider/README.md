@@ -11,3 +11,4 @@
 - api/insight 如果发现字段不足，先提出 contract gap，不私自扩展字段。
 - admin 修改字段、错误码、`version/freshness/mappingStatus` 语义时，需要同步 api 和 insight。
 - 这些 scope fixture 只用于 insight 报表范围，不是 gateway runtime authorization fact。
+- `scope-department-tree.json` 的顶层 `lifecycleStatus=ACTIVE` 表示当前调用人的 scope 生命周期可用于报表查询；部门条目的 `lifecycleStatus` 只表示该部门关系自身状态。

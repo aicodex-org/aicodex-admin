@@ -67,3 +67,16 @@
   - 自检：已验证 PowerShell 解析、无配置失败路径，以及使用已批准测试环境运行 `-SkipWecomSync` 的 provider 冒烟；结果为 `success=true`，`current-user`、`scope`、`organization-tree` 均返回 `status=ok`。
 
 环境记录要求：验证记录不得包含环境 IP、Cookie、访问令牌、密码、客户端密钥、数据库凭据或生产/共享环境探测结果。
+
+### 2026-06-08 test 分支 60 环境复核
+
+- 60 测试环境已从正式 `test` 分支重新部署 `aicodex-admin`，不再依赖临时 feature 分支镜像。
+  - 运行提交：`5e4224ff`。
+  - 结果：镜像构建、容器启动和 admin 健康检查通过。
+- 使用已登录测试管理员会话复核 `GET /api/admin-provider/insight/v1/current-user/scope`。
+  - 结果：HTTP `200`，`status=ok`。
+  - 顶层 `lifecycleStatus=ACTIVE`。
+  - `freshness=FRESH`。
+  - `mappingStatus=OK`。
+  - `scopeVersion` 和 `orgVersion` 均已返回。
+- 已同步更新可重复验证脚本和 scope fixture，将顶层 `lifecycleStatus=ACTIVE` 固定为 Insight scope provider 契约检查点。

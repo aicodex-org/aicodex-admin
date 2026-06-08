@@ -286,6 +286,7 @@ function Test-ProviderContracts {
       status = $scope.Body.status
       scopeType = $scopeData.scopeType
       mappingStatus = $scopeData.mappingStatus
+      lifecycleStatus = $scopeData.lifecycleStatus
       departmentCount = $departments.Count
       departmentsWithLifecycle = @($departments | Where-Object { -not [string]::IsNullOrWhiteSpace($_.lifecycleStatus) }).Count
       departmentsWithSourceTypeWecom = @($departments | Where-Object { $_.sourceType -eq 'wecom' }).Count
@@ -308,8 +309,8 @@ function Test-ProviderContracts {
   if ($checks.currentUser.usageMappingStatus -ne 'OK' -or -not $checks.currentUser.hasApiUserId -or -not $checks.currentUser.hasSourceConnectionId) {
     throw 'current-user provider contract failed: usage mapping or source identity missing'
   }
-  if ($checks.scope.mappingStatus -ne 'OK' -or -not $checks.scope.hasOrgVersion -or -not $checks.scope.hasScopeVersion -or $checks.scope.departmentsWithSourceConnection -lt 1) {
-    throw 'scope provider contract failed: mapping, version, or sourceConnection metadata missing'
+  if ($checks.scope.mappingStatus -ne 'OK' -or $checks.scope.lifecycleStatus -ne 'ACTIVE' -or -not $checks.scope.hasOrgVersion -or -not $checks.scope.hasScopeVersion -or $checks.scope.departmentsWithSourceConnection -lt 1) {
+    throw 'scope provider contract failed: mapping, lifecycle, version, or sourceConnection metadata missing'
   }
   if ($checks.organizationTree.nodeCount -lt 1 -or $checks.organizationTree.nodesWithSourceConnection -ne $checks.organizationTree.nodeCount) {
     throw 'organization-tree provider contract failed: node sourceConnection metadata missing'
