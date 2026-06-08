@@ -124,6 +124,12 @@ func TestBuildGatewayProjectionBatchFailsClosedForMappingsAndLifecycle(t *testin
 			LifecycleStatus: PlatformLifecycleStatusStale,
 			MappingStatus:   PlatformMappingStatusConfirmed,
 		},
+		PlatformUser{
+			OrganizationId:  "org-a",
+			AdminSubject:    "empty-platform-mapping",
+			LifecycleStatus: PlatformLifecycleStatusActive,
+			MappingStatus:   "",
+		},
 	)
 	input.ExternalIdentities = append(input.ExternalIdentities,
 		ExternalIdentity{
@@ -146,6 +152,16 @@ func TestBuildGatewayProjectionBatchFailsClosedForMappingsAndLifecycle(t *testin
 			MappingStatus:       PlatformMappingStatusConfirmed,
 			Lineage:             `{"apiSubjectId":"10003"}`,
 		},
+		ExternalIdentity{
+			OrganizationId:      "org-a",
+			SourceConnectionId:  "src-a",
+			ExternalSubjectType: PlatformSubjectTypeUser,
+			ExternalSubjectId:   "empty-platform-mapping",
+			PlatformSubjectType: PlatformSubjectTypeUser,
+			PlatformSubject:     "empty-platform-mapping",
+			MappingStatus:       PlatformMappingStatusConfirmed,
+			Lineage:             `{"apiSubjectId":"10004"}`,
+		},
 	)
 
 	result, err := BuildGatewayProjectionBatch(input)
@@ -163,6 +179,9 @@ func TestBuildGatewayProjectionBatchFailsClosedForMappingsAndLifecycle(t *testin
 	if _, ok := subjectByStableID["pending-api"]; ok {
 		t.Fatalf("untrusted external identity must not be published: %#v", result.Request.Subjects)
 	}
+	if _, ok := subjectByStableID["empty-platform-mapping"]; ok {
+		t.Fatalf("empty PlatformUser mappingStatus must not be published even with confirmed ExternalIdentity: %#v", result.Request.Subjects)
+	}
 	stale := subjectByStableID["stale-user"]
 	if stale.APISubjectID != "10003" || stale.LifecycleStatus != "unknown" {
 		t.Fatalf("stale lifecycle should publish fail-closed unknown when api subject is known: %#v", stale)
@@ -170,7 +189,7 @@ func TestBuildGatewayProjectionBatchFailsClosedForMappingsAndLifecycle(t *testin
 	if result.Summary.SkippedByReason[GatewayProjectionSkipMappingMissing] != 1 {
 		t.Fatalf("mapping_missing summary = %#v", result.Summary.SkippedByReason)
 	}
-	if result.Summary.SkippedByReason[GatewayProjectionSkipMappingUntrusted] != 1 {
+	if result.Summary.SkippedByReason[GatewayProjectionSkipMappingUntrusted] != 2 {
 		t.Fatalf("mapping_untrusted summary = %#v", result.Summary.SkippedByReason)
 	}
 }

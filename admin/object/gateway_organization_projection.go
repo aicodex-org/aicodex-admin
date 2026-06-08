@@ -463,11 +463,11 @@ func gatewayProjectionPlatformUserID(user PlatformUser, organizationID string) s
 	return ""
 }
 
-// gatewayProjectionMappingTrusted 对历史空 mappingStatus 保持兼容，但拒绝非 confirmed 状态。
-// 这样可以避免把待确认、冲突或失效的外部身份误投影成 gateway 授权事实。
+// gatewayProjectionMappingTrusted 只信任显式确认的 mappingStatus。
+// 空值代表历史或脏数据，不能进入 gateway 授权投影。
 func gatewayProjectionMappingTrusted(mappingStatus string) bool {
 	status := normalizeGatewayProjectionString(mappingStatus)
-	return status == "" || IsConfirmedExternalIdentityMappingStatus(status)
+	return IsConfirmedExternalIdentityMappingStatus(status)
 }
 
 // gatewayProjectionLifecycleStatus 把 admin 大写 lifecycle 映射为 api contract 的小写枚举。
