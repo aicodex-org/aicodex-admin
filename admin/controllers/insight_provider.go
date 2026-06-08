@@ -101,6 +101,7 @@ type InsightScopeResponse struct {
 	ScopeVersion            string                   `json:"scopeVersion"`
 	OrgVersion              string                   `json:"orgVersion"`
 	Freshness               string                   `json:"freshness"`
+	LifecycleStatus         string                   `json:"lifecycleStatus"`
 }
 
 type InsightDepartmentScope struct {
@@ -368,6 +369,7 @@ func buildInsightAllCompanyScope(adminUserId string, organization string, apiOrg
 		ScopeVersion:            insightProviderScopeVersion,
 		OrgVersion:              version.OrgVersion,
 		Freshness:               version.Freshness,
+		LifecycleStatus:         object.PlatformLifecycleStatusActive,
 	}, nil
 }
 
@@ -508,6 +510,7 @@ func buildInsightDepartmentTreeScope(adminUserId string, organization string, ap
 		ScopeVersion:            insightProviderScopeVersion,
 		OrgVersion:              version.OrgVersion,
 		Freshness:               version.Freshness,
+		LifecycleStatus:         object.PlatformLifecycleStatusActive,
 	}, nil
 }
 
@@ -534,6 +537,7 @@ func buildInsightCustomUsersScope(adminUserId string, organization string, apiOr
 		ScopeVersion:      insightProviderScopeVersion,
 		OrgVersion:        version.OrgVersion,
 		Freshness:         version.Freshness,
+		LifecycleStatus:   object.PlatformLifecycleStatusActive,
 	}, nil
 }
 
@@ -560,6 +564,7 @@ func buildInsightSelfScope(adminUserId string, organization string, apiOrganizat
 		ScopeVersion:      insightProviderScopeVersion,
 		OrgVersion:        version.OrgVersion,
 		Freshness:         version.Freshness,
+		LifecycleStatus:   object.PlatformLifecycleStatusActive,
 	}, nil
 }
 
@@ -579,6 +584,7 @@ func buildInsightEmptyScope(adminUserId string, organization string, apiOrganiza
 		ScopeVersion:      insightProviderScopeVersion,
 		OrgVersion:        version.OrgVersion,
 		Freshness:         version.Freshness,
+		LifecycleStatus:   object.PlatformLifecycleStatusActive,
 	}
 }
 

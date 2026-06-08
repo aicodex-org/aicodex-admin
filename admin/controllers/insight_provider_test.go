@@ -105,8 +105,8 @@ func TestInsightScopeForOrganizationAdminStaysInOwnOrganization(t *testing.T) {
 	if got.AdminUserId != "org-a/owner" {
 		t.Fatalf("AdminUserId = %q, want current admin user", got.AdminUserId)
 	}
-	if got.TraceId == "" || got.OrgVersion == "" || got.Freshness != object.PlatformFreshnessFresh {
-		t.Fatalf("scope trace/version/freshness not set: %+v", got)
+	if got.TraceId == "" || got.OrgVersion == "" || got.Freshness != object.PlatformFreshnessFresh || got.LifecycleStatus != object.PlatformLifecycleStatusActive {
+		t.Fatalf("scope trace/version/freshness/lifecycle not set: %+v", got)
 	}
 	if got.ApiOrganizationId != "00000000-0000-7000-8000-000000000123" {
 		t.Fatalf("ApiOrganizationId = %q, want configured aicodex-api organization", got.ApiOrganizationId)
