@@ -20,6 +20,7 @@ import i18next from "i18next";
 import * as Setting from "./Setting";
 import * as TourConfig from "./TourConfig";
 import * as FormBackend from "./backend/FormBackend";
+import {getTablePaginationProps as buildTablePaginationProps, getDefaultTablePagination} from "./common/table/TablePagination";
 
 class BaseListPage extends React.Component {
   constructor(props) {
@@ -28,10 +29,7 @@ class BaseListPage extends React.Component {
       classes: props,
       organizationName: this.props.match?.params.organizationName || Setting.getRequestOrganization(this.props.account),
       data: [],
-      pagination: {
-        current: 1,
-        pageSize: 10,
-      },
+      pagination: getDefaultTablePagination(),
       loading: false,
       searchText: "",
       searchedColumn: "",
@@ -197,6 +195,10 @@ class BaseListPage extends React.Component {
       searchText: this.state.searchText,
       searchedColumn: this.state.searchedColumn,
     });
+  };
+
+  getTablePaginationProps = (overrides = {}) => {
+    return buildTablePaginationProps(this.state.pagination, overrides);
   };
 
   setIsTourVisible = () => {

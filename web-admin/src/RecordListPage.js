@@ -220,13 +220,7 @@ class RecordListPage extends BaseListPage {
       columns = columns.filter(column => column.key !== "name");
     }
 
-    const paginationProps = {
-      total: this.state.pagination.total,
-      pageSize: this.state.pagination.pageSize,
-      showQuickJumper: true,
-      showSizeChanger: true,
-      showTotal: () => i18next.t("general:{total} in total").replace("{total}", this.state.pagination.total),
-    };
+    const paginationProps = this.getTablePaginationProps();
 
     return (
       <div>

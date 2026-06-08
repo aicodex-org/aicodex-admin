@@ -18,6 +18,7 @@ import {CloudSyncOutlined, PlayCircleOutlined, PlusOutlined, ReloadOutlined, Sav
 import * as Setting from "./Setting";
 import * as WecomOrganizationSyncBackend from "./backend/WecomOrganizationSyncBackend";
 import OrganizationSelect from "./common/select/OrganizationSelect";
+import {getDefaultTablePagination, getTablePaginationProps} from "./common/table/TablePagination";
 import i18next from "i18next";
 
 const {Text} = Typography;
@@ -34,6 +35,7 @@ class WecomOrganizationSyncPage extends React.Component {
       config: null,
       runs: [],
       runCount: 0,
+      pagination: getDefaultTablePagination(),
       loading: false,
       lastRunsRefreshAt: "",
       runRefreshError: "",
@@ -109,15 +111,21 @@ class WecomOrganizationSyncPage extends React.Component {
     this.clearRunRefreshTimer();
   }
 
-  refreshRuns(organization, refreshConfig = false) {
+  refreshRuns(organization, options = {}) {
     if (!organization) {
       return Promise.resolve();
     }
 
+    const {
+      refreshConfig = false,
+      pagination = this.state.pagination,
+    } = options;
+    const nextPagination = getDefaultTablePagination(pagination);
+
     this.clearRunRefreshTimer();
     this.setState({loading: true});
 
-    const runsRequest = WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns(organization, 1, 10);
+    const runsRequest = WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns(organization, nextPagination.current, nextPagination.pageSize);
     const configRequest = refreshConfig
       ? WecomOrganizationSyncBackend.getWecomOrganizationSyncConfig(organization)
       : Promise.resolve(null);
@@ -144,6 +152,10 @@ class WecomOrganizationSyncPage extends React.Component {
       if (runsRes.status === "ok") {
         nextState.runs = runsRes.data || [];
         nextState.runCount = runsRes.data2 || 0;
+        nextState.pagination = {
+          ...nextPagination,
+          total: runsRes.data2 || 0,
+        };
         nextState.lastRunsRefreshAt = Setting.getFormattedDate(new Date().toISOString());
         nextState.runRefreshError = "";
       } else {
@@ -167,7 +179,7 @@ class WecomOrganizationSyncPage extends React.Component {
     if (!organization) {
       return;
     }
-    this.refreshRuns(organization, true).catch(() => {});
+    this.refreshRuns(organization, {refreshConfig: true, pagination: getDefaultTablePagination()}).catch(() => {});
   }
 
   normalizeConfig(organization, config) {
@@ -199,7 +211,13 @@ class WecomOrganizationSyncPage extends React.Component {
 
   changeOrganization(organization) {
     this.clearRunRefreshTimer();
-    this.setState({organization, config: null, runs: [], runCount: 0}, () => this.refresh(organization));
+    this.setState({
+      organization,
+      config: null,
+      runs: [],
+      runCount: 0,
+      pagination: getDefaultTablePagination(),
+    }, () => this.refresh(organization));
   }
 
   goToOrganizationList() {
@@ -269,10 +287,10 @@ class WecomOrganizationSyncPage extends React.Component {
         this.setState({syncing: false});
         if (res.status === "ok") {
           Setting.showMessage("success", "同步任务已启动");
-          this.refreshRuns(this.state.organization).catch(() => {});
+          this.refresh(this.state.organization);
         } else if (this.isDuplicateRunningStartError(res.msg)) {
           Setting.showMessage("info", "已有同步任务在运行，已刷新同步记录。");
-          this.refreshRuns(this.state.organization).catch(() => {});
+          this.refresh(this.state.organization);
         } else {
           Setting.showMessage("error", `同步失败：${res.msg}`);
         }
@@ -414,7 +432,8 @@ class WecomOrganizationSyncPage extends React.Component {
         columns={columns}
         dataSource={this.state.runs}
         scroll={{x: 1300}}
-        pagination={{pageSize: 10, total: this.state.runCount || this.state.runs.length}}
+        pagination={getTablePaginationProps({...this.state.pagination, total: this.state.runCount || this.state.runs.length})}
+        onChange={this.handleRunsTableChange}
       />
     );
   }
@@ -425,9 +444,11 @@ class WecomOrganizationSyncPage extends React.Component {
       return {type: "danger", text: `${this.state.runRefreshError}${lastRefreshText ? ` ${lastRefreshText}` : ""}`};
     }
 
-    const statusText = this.hasRunningRuns(this.state.runs)
-      ? `检测到运行中任务，自动每 ${syncRunPollIntervalMs / 1000} 秒刷新。`
-      : "当前无运行中任务，可手动刷新同步记录。";
+    const statusText = this.state.pagination.current > 1
+      ? "当前正在查看历史分页，可手动刷新同步记录。返回第 1 页可观察最新运行状态。"
+      : this.hasRunningRuns(this.state.runs)
+        ? `检测到运行中任务，自动每 ${syncRunPollIntervalMs / 1000} 秒刷新。`
+        : "当前无运行中任务，可手动刷新同步记录。";
 
     return {
       type: "secondary",
@@ -500,6 +521,16 @@ class WecomOrganizationSyncPage extends React.Component {
       </div>
     );
   }
+
+  handleRunsTableChange = (pagination) => {
+    this.refreshRuns(this.state.organization, {
+      pagination: {
+        ...this.state.pagination,
+        current: pagination.current,
+        pageSize: pagination.pageSize,
+      },
+    }).catch(() => {});
+  };
 
   render() {
     const config = this.state.config;

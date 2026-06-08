@@ -278,6 +278,32 @@ test("refreshes sync runs when refresh button is clicked", async() => {
   expect(screen.getByText(/当前无运行中任务，可手动刷新同步记录/)).toBeInTheDocument();
 });
 
+test("loads the selected history page when pagination changes", async() => {
+  mockConfig({isEnabled: true});
+  WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns
+    .mockResolvedValueOnce({
+      status: "ok",
+      data: Array.from({length: 10}, (_, index) => ({name: `run-page-1-${index}`, status: "succeeded", stage: "finalizing"})),
+      data2: 11,
+    })
+    .mockResolvedValueOnce({
+      status: "ok",
+      data: [{name: "run-page-2-0", status: "succeeded", stage: "finalizing"}],
+      data2: 11,
+    });
+
+  const {container} = render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+
+  expect(await screen.findByText("run-page-1-0")).toBeInTheDocument();
+
+  const page2Item = container.querySelector(".ant-pagination-item-2");
+  fireEvent.click(page2Item.querySelector("a") || page2Item);
+
+  await flushPromises();
+  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns).toHaveBeenNthCalledWith(2, "engineering", 2, 10);
+  expect(await screen.findByText("run-page-2-0")).toBeInTheDocument();
+});
+
 test("auto refreshes while a sync run is running and stops after terminal status", async() => {
   jest.useFakeTimers();
   mockConfig({isEnabled: true});
