@@ -14,7 +14,7 @@
 // limitations under the License.
 
 import React from "react";
-import {fireEvent, render, screen} from "@testing-library/react";
+import {act, fireEvent, render, screen} from "@testing-library/react";
 import * as Setting from "./Setting";
 import * as WecomOrganizationSyncBackend from "./backend/WecomOrganizationSyncBackend";
 import WecomOrganizationSyncPage from "./WecomOrganizationSyncPage";
@@ -64,6 +64,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  jest.useRealTimers();
   Setting.showMessage.mockRestore();
   jest.clearAllMocks();
 });
@@ -90,6 +91,11 @@ function flushPromises() {
   return new Promise(resolve => setTimeout(resolve, 0));
 }
 
+async function flushMicrotasks() {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 test("renders localized WeCom organization sync configuration entry", async() => {
   render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
@@ -111,7 +117,8 @@ test("refreshes after account organization is loaded", async() => {
   mockConfig({organization: "built-in"});
   const {rerender} = render(<WecomOrganizationSyncPage account={{owner: "", isAdmin: true}} />);
 
-  expect(screen.queryByText("企业微信组织架构同步")).not.toBeInTheDocument();
+  expect(screen.getByText("企业微信组织架构同步")).toBeInTheDocument();
+  expect(screen.getByText("正在加载企业微信同步页面...")).toBeInTheDocument();
   expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncConfig).not.toHaveBeenCalled();
 
   rerender(<WecomOrganizationSyncPage account={{owner: "built-in", isAdmin: true}} />);
@@ -187,14 +194,20 @@ test("renders sync run history with status, counts, and safe error summary", asy
   expect(screen.getByText("成功")).toBeInTheDocument();
   expect(screen.getByText("失败")).toBeInTheDocument();
   expect(screen.getByText("部分成功")).toBeInTheDocument();
+  expect(screen.getByText("状态")).toBeInTheDocument();
+  expect(screen.queryByText("Status")).not.toBeInTheDocument();
+  expect(screen.getByText("部门（新增 / 更新 / 禁用）")).toBeInTheDocument();
+  expect(screen.getByText("用户（新增 / 更新 / 禁用）")).toBeInTheDocument();
   expect(screen.getByText("已完成")).toBeInTheDocument();
   expect(screen.getByText("应用变更")).toBeInTheDocument();
   expect(screen.getByText("计算差异")).toBeInTheDocument();
   expect(screen.queryByText("收尾处理")).not.toBeInTheDocument();
-  expect(screen.getByText("1/2/3")).toBeInTheDocument();
-  expect(screen.getByText("4/5/6")).toBeInTheDocument();
+  expect(screen.getByText("新 1 / 更 2 / 禁 3")).toBeInTheDocument();
+  expect(screen.getByText("新 4 / 更 5 / 禁 6")).toBeInTheDocument();
   expect(screen.getByText("safe summary")).toBeInTheDocument();
+  expect(screen.getByText(/检测到运行中任务，自动每 3 秒刷新/)).toBeInTheDocument();
   expect(screen.queryByText(/0001-01-01/)).not.toBeInTheDocument();
+  expect(screen.queryByText("新增 / 更新 / 禁用")).not.toBeInTheDocument();
 });
 
 test("shows address book permission result after connection test", async() => {
@@ -226,6 +239,85 @@ test("starts full sync when config is enabled", async() => {
   expect(Setting.showMessage).toHaveBeenCalledWith("success", "同步任务已启动");
 });
 
+test("disables start sync action while a run is already active", async() => {
+  mockConfig({isEnabled: true});
+  WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns.mockResolvedValue({
+    status: "ok",
+    data: [{name: "run-running", status: "running", stage: "fetching"}],
+    data2: 1,
+  });
+
+  render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+
+  const syncButtonLabel = await screen.findByText("同步进行中");
+  expect(syncButtonLabel.closest("button")).toBeDisabled();
+  expect(WecomOrganizationSyncBackend.startWecomOrganizationSyncRun).not.toHaveBeenCalled();
+});
+
+test("refreshes sync runs when refresh button is clicked", async() => {
+  mockConfig({isEnabled: true});
+  let resolveRefresh;
+  const refreshPromise = new Promise(resolve => {
+    resolveRefresh = resolve;
+  });
+  WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns
+    .mockResolvedValueOnce({status: "ok", data: [], data2: 0})
+    .mockReturnValueOnce(refreshPromise);
+
+  render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+
+  const refreshButton = await screen.findByText("刷新");
+  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns).toHaveBeenCalledTimes(1);
+
+  fireEvent.click(refreshButton);
+  expect(refreshButton.closest("button")).toHaveClass("ant-btn-loading");
+
+  resolveRefresh({status: "ok", data: [], data2: 0});
+  await flushPromises();
+  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns).toHaveBeenCalledTimes(2);
+  expect(screen.getByText(/当前无运行中任务，可手动刷新同步记录/)).toBeInTheDocument();
+});
+
+test("auto refreshes while a sync run is running and stops after terminal status", async() => {
+  jest.useFakeTimers();
+  mockConfig({isEnabled: true});
+  WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns
+    .mockResolvedValueOnce({
+      status: "ok",
+      data: [{name: "run-running", status: "running", stage: "fetching"}],
+      data2: 1,
+    })
+    .mockResolvedValueOnce({
+      status: "ok",
+      data: [{name: "run-running", status: "succeeded", stage: "finalizing"}],
+      data2: 1,
+    });
+
+  render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+
+  await act(async() => {
+    await flushMicrotasks();
+  });
+  expect(screen.getByText("run-running")).toBeInTheDocument();
+  expect(screen.getByText(/检测到运行中任务，自动每 3 秒刷新/)).toBeInTheDocument();
+  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns).toHaveBeenCalledTimes(1);
+
+  await act(async() => {
+    jest.advanceTimersByTime(3000);
+    await flushMicrotasks();
+  });
+
+  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns).toHaveBeenCalledTimes(2);
+  expect(screen.getByText(/当前无运行中任务，可手动刷新同步记录/)).toBeInTheDocument();
+
+  await act(async() => {
+    jest.advanceTimersByTime(3000);
+    await flushMicrotasks();
+  });
+
+  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns).toHaveBeenCalledTimes(2);
+});
+
 test("switches to resolved business organization after saving built-in config", async() => {
   mockConfig({organization: "built-in", corpId: "ww123", addressBookSecret: "secret"});
   WecomOrganizationSyncBackend.saveWecomOrganizationSyncConfig.mockResolvedValue({
@@ -251,16 +343,25 @@ test("switches to resolved business organization after saving built-in config", 
   expect(Setting.showMessage).toHaveBeenCalledWith("success", expect.stringContaining("wecom-ww123"));
 });
 
-test("shows duplicate running error returned by backend", async() => {
+test("refreshes runs and shows info when backend reports a duplicate running sync", async() => {
   mockConfig({isEnabled: true});
+  WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns
+    .mockResolvedValueOnce({status: "ok", data: [], data2: 0})
+    .mockResolvedValueOnce({
+      status: "ok",
+      data: [{name: "run-running", status: "running", stage: "fetching"}],
+      data2: 1,
+    });
   WecomOrganizationSyncBackend.startWecomOrganizationSyncRun.mockResolvedValue({
     status: "error",
-    msg: "sync already running",
+    msg: "wecom organization sync run is already running",
   });
 
   render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
   fireEvent.click(await screen.findByText("开始全量同步"));
 
   await flushPromises();
-  expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("sync already running"));
+  expect(Setting.showMessage).toHaveBeenCalledWith("info", "已有同步任务在运行，已刷新同步记录。");
+  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns).toHaveBeenCalledTimes(2);
+  expect(screen.getByText(/检测到运行中任务，自动每 3 秒刷新/)).toBeInTheDocument();
 });

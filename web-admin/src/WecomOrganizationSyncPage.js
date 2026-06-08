@@ -14,17 +14,20 @@
 
 import React from "react";
 import {Alert, Button, Col, Divider, Input, Row, Space, Switch, Table, Tag, Typography} from "antd";
-import {CloudSyncOutlined, PlayCircleOutlined, PlusOutlined, SaveOutlined, ToolOutlined} from "@ant-design/icons";
+import {CloudSyncOutlined, PlayCircleOutlined, PlusOutlined, ReloadOutlined, SaveOutlined, ToolOutlined} from "@ant-design/icons";
 import * as Setting from "./Setting";
 import * as WecomOrganizationSyncBackend from "./backend/WecomOrganizationSyncBackend";
 import OrganizationSelect from "./common/select/OrganizationSelect";
 import i18next from "i18next";
 
 const {Text} = Typography;
+const syncRunPollIntervalMs = 3000;
 
 class WecomOrganizationSyncPage extends React.Component {
   constructor(props) {
     super(props);
+    this.runRefreshTimer = null;
+    this.isUnmounted = false;
     const organization = this.getAccountOrganization(props.account);
     this.state = {
       organization,
@@ -32,6 +35,8 @@ class WecomOrganizationSyncPage extends React.Component {
       runs: [],
       runCount: 0,
       loading: false,
+      lastRunsRefreshAt: "",
+      runRefreshError: "",
       saving: false,
       testing: false,
       syncing: false,
@@ -41,6 +46,11 @@ class WecomOrganizationSyncPage extends React.Component {
 
   componentDidMount() {
     this.refresh(this.state.organization);
+  }
+
+  componentWillUnmount() {
+    this.isUnmounted = true;
+    this.clearRunRefreshTimer();
   }
 
   componentDidUpdate() {
@@ -62,32 +72,102 @@ class WecomOrganizationSyncPage extends React.Component {
     return Setting.getRequestOrganization(account) || account.owner;
   }
 
-  refresh(organization) {
-    if (!organization) {
+  clearRunRefreshTimer() {
+    if (this.runRefreshTimer !== null) {
+      clearTimeout(this.runRefreshTimer);
+      this.runRefreshTimer = null;
+    }
+  }
+
+  hasRunningRuns(runs) {
+    return (runs || []).some(run => run?.status === "running");
+  }
+
+  scheduleRunRefresh(organization) {
+    if (!organization || this.runRefreshTimer !== null) {
       return;
     }
+
+    this.runRefreshTimer = setTimeout(() => {
+      this.runRefreshTimer = null;
+      this.refreshRuns(organization, false);
+    }, syncRunPollIntervalMs);
+  }
+
+  syncRunRefreshLoop(organization, runs) {
+    // 自动刷新只服务当前组织上下文，切组织或组件卸载后必须立即失效。
+    if (this.state.organization !== organization) {
+      this.clearRunRefreshTimer();
+      return;
+    }
+
+    if (this.hasRunningRuns(runs)) {
+      this.scheduleRunRefresh(organization);
+      return;
+    }
+
+    this.clearRunRefreshTimer();
+  }
+
+  refreshRuns(organization, refreshConfig = false) {
+    if (!organization) {
+      return Promise.resolve();
+    }
+
+    this.clearRunRefreshTimer();
     this.setState({loading: true});
-    Promise.all([
-      WecomOrganizationSyncBackend.getWecomOrganizationSyncConfig(organization),
-      WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns(organization, 1, 10),
-    ]).then(([configRes, runsRes]) => {
-      if (configRes.status === "error") {
+
+    const runsRequest = WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns(organization, 1, 10);
+    const configRequest = refreshConfig
+      ? WecomOrganizationSyncBackend.getWecomOrganizationSyncConfig(organization)
+      : Promise.resolve(null);
+
+    // 手动刷新和自动轮询默认只关心同步记录；只有整页初始化时才顺带刷新配置表单。
+    return Promise.all([configRequest, runsRequest]).then(([configRes, runsRes]) => {
+      if (configRes?.status === "error") {
         Setting.showMessage("error", configRes.msg);
       }
       if (runsRes.status === "error") {
         Setting.showMessage("error", runsRes.msg);
       }
-      this.setState({
-        config: this.normalizeConfig(organization, configRes.data?.config),
-        runs: runsRes.data || [],
-        runCount: runsRes.data2 || 0,
-        testResult: null,
+      if (this.isUnmounted || this.state.organization !== organization) {
+        return;
+      }
+
+      const nextState = {
         loading: false,
-      });
+      };
+      if (configRes !== null) {
+        nextState.config = this.normalizeConfig(organization, configRes?.data?.config);
+        nextState.testResult = null;
+      }
+      if (runsRes.status === "ok") {
+        nextState.runs = runsRes.data || [];
+        nextState.runCount = runsRes.data2 || 0;
+        nextState.lastRunsRefreshAt = Setting.getFormattedDate(new Date().toISOString());
+        nextState.runRefreshError = "";
+      } else {
+        nextState.runRefreshError = "同步记录刷新失败，请手动刷新重试。";
+      }
+      this.setState(nextState, () => this.syncRunRefreshLoop(organization, nextState.runs || this.state.runs));
     }).catch(error => {
-      this.setState({config: this.normalizeConfig(organization, null), loading: false});
+      this.clearRunRefreshTimer();
+      if (this.isUnmounted || this.state.organization !== organization) {
+        return;
+      }
+      this.setState({
+        loading: false,
+        runRefreshError: "自动刷新已暂停，请手动刷新重试。",
+      });
       Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
     });
+  }
+
+  refresh(organization) {
+    if (!organization) {
+      return;
+    }
+    this.refreshRuns(organization, true).catch(() => {});
   }
 
   normalizeConfig(organization, config) {
@@ -104,6 +184,10 @@ class WecomOrganizationSyncPage extends React.Component {
     };
   }
 
+  isDuplicateRunningStartError(message) {
+    return typeof message === "string" && message.toLowerCase().includes("already running");
+  }
+
   updateConfigField(key, value) {
     this.setState({
       config: {
@@ -114,6 +198,7 @@ class WecomOrganizationSyncPage extends React.Component {
   }
 
   changeOrganization(organization) {
+    this.clearRunRefreshTimer();
     this.setState({organization, config: null, runs: [], runCount: 0}, () => this.refresh(organization));
   }
 
@@ -184,7 +269,10 @@ class WecomOrganizationSyncPage extends React.Component {
         this.setState({syncing: false});
         if (res.status === "ok") {
           Setting.showMessage("success", "同步任务已启动");
-          this.refresh(this.state.organization);
+          this.refreshRuns(this.state.organization).catch(() => {});
+        } else if (this.isDuplicateRunningStartError(res.msg)) {
+          Setting.showMessage("info", "已有同步任务在运行，已刷新同步记录。");
+          this.refreshRuns(this.state.organization).catch(() => {});
         } else {
           Setting.showMessage("error", `同步失败：${res.msg}`);
         }
@@ -263,7 +351,7 @@ class WecomOrganizationSyncPage extends React.Component {
         ellipsis: true,
       },
       {
-        title: i18next.t("general:Status"),
+        title: "状态",
         dataIndex: "status",
         key: "status",
         width: 120,
@@ -298,16 +386,16 @@ class WecomOrganizationSyncPage extends React.Component {
         render: text => this.formatRunTime(text),
       },
       {
-        title: "部门",
+        title: "部门（新增 / 更新 / 禁用）",
         key: "departments",
-        width: 130,
-        render: (_, record) => `${record.departmentCreatedCount || 0}/${record.departmentUpdatedCount || 0}/${record.departmentDisabledCount || 0}`,
+        width: 180,
+        render: (_, record) => `新 ${record.departmentCreatedCount || 0} / 更 ${record.departmentUpdatedCount || 0} / 禁 ${record.departmentDisabledCount || 0}`,
       },
       {
-        title: "用户",
+        title: "用户（新增 / 更新 / 禁用）",
         key: "users",
-        width: 130,
-        render: (_, record) => `${record.userCreatedCount || 0}/${record.userUpdatedCount || 0}/${record.userDisabledCount || 0}`,
+        width: 180,
+        render: (_, record) => `新 ${record.userCreatedCount || 0} / 更 ${record.userUpdatedCount || 0} / 禁 ${record.userDisabledCount || 0}`,
       },
       {
         title: "错误摘要",
@@ -328,6 +416,34 @@ class WecomOrganizationSyncPage extends React.Component {
         scroll={{x: 1300}}
         pagination={{pageSize: 10, total: this.state.runCount || this.state.runs.length}}
       />
+    );
+  }
+
+  getRunRefreshHint() {
+    const lastRefreshText = this.state.lastRunsRefreshAt ? `上次刷新：${this.state.lastRunsRefreshAt}` : "";
+    if (this.state.runRefreshError) {
+      return {type: "danger", text: `${this.state.runRefreshError}${lastRefreshText ? ` ${lastRefreshText}` : ""}`};
+    }
+
+    const statusText = this.hasRunningRuns(this.state.runs)
+      ? `检测到运行中任务，自动每 ${syncRunPollIntervalMs / 1000} 秒刷新。`
+      : "当前无运行中任务，可手动刷新同步记录。";
+
+    return {
+      type: "secondary",
+      text: `${statusText}${lastRefreshText ? ` ${lastRefreshText}` : ""}`,
+    };
+  }
+
+  renderLoadingState() {
+    return (
+      <div>
+        <Space style={{marginBottom: 16}}>
+          <CloudSyncOutlined />
+          <Text strong>企业微信组织架构同步</Text>
+        </Space>
+        <Text type="secondary">正在加载企业微信同步页面...</Text>
+      </div>
     );
   }
 
@@ -388,8 +504,12 @@ class WecomOrganizationSyncPage extends React.Component {
   render() {
     const config = this.state.config;
     if (config === null) {
-      return null;
+      return this.renderLoadingState();
     }
+
+    const runRefreshHint = this.getRunRefreshHint();
+    const hasRunningRuns = this.hasRunningRuns(this.state.runs);
+    const syncButtonLabel = hasRunningRuns ? "同步进行中" : "开始全量同步";
 
     return (
       <div>
@@ -431,15 +551,33 @@ class WecomOrganizationSyncPage extends React.Component {
           <Button icon={<ToolOutlined />} loading={this.state.testing} onClick={() => this.testConfig()}>
             测试连接
           </Button>
-          <Button icon={<PlayCircleOutlined />} loading={this.state.syncing} onClick={() => this.startSync()} disabled={!config.isEnabled}>
-            开始全量同步
+          <Button
+            icon={<PlayCircleOutlined />}
+            loading={this.state.syncing}
+            onClick={() => this.startSync()}
+            disabled={!config.isEnabled || hasRunningRuns}
+          >
+            {syncButtonLabel}
           </Button>
         </Space>
 
         <Divider />
         <Row align="middle" justify="space-between" style={{marginBottom: 12}}>
-          <Col><Text strong>同步记录</Text></Col>
-          <Col><Text type="secondary">新增 / 更新 / 禁用</Text></Col>
+          <Col>
+            <Space direction="vertical" size={2}>
+              <Text strong>同步记录</Text>
+              <Text type={runRefreshHint.type}>{runRefreshHint.text}</Text>
+            </Space>
+          </Col>
+          <Col>
+            <Button
+              icon={<ReloadOutlined />}
+              loading={this.state.loading}
+              onClick={() => this.refreshRuns(this.state.organization).catch(() => {})}
+            >
+              刷新
+            </Button>
+          </Col>
         </Row>
         {this.renderRuns()}
       </div>
