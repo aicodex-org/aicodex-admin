@@ -24,6 +24,18 @@ api-tests/bruno/aicodex-admin/environments/local-private.yml
 git diff -- api-tests/bruno/aicodex-admin/environments
 ```
 
+## 远端测试私有环境
+
+`remote-test.yml` 用于远端测试环境，包含真实地址、账号或 cookie 时按本机私有配置处理，不提交到 Git：
+
+```text
+api-tests/bruno/aicodex-admin/environments/remote-test.yml
+```
+
+仓库只提供 Bruno collection 和无密环境模板；个人或 CI 的远端测试配置需要在各自环境中维护。多工作区共享、hardlink、备份和冲突处理属于本机运维配置，不是仓库前提；如果本机另有私有同步工具，按该工具自己的 README 操作。
+
+如需团队共享变量名或调用方式，只提交无密模板、README 字段说明或 Bruno 请求本身，不提交真实 `remote-test.yml`。
+
 ## CLI 示例
 
 ```powershell

@@ -1,4 +1,5 @@
 # Bruno 本机私有环境，不能提交真实账号、密码或 cookie。
+bruno/**/environments/remote-test.yml
 bruno/**/environments/*-private.yml
 bruno/**/.env
 bruno/**/.env.*
