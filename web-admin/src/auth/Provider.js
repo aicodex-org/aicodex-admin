@@ -442,7 +442,7 @@ export function getAuthUrl(application, provider, method, code) {
   if (provider.scopes && provider.scopes.trim() !== "") {
     scope = provider.scopes;
   }
-  const isShortState = (provider.type === "WeChat" && navigator.userAgent.includes("MicroMessenger")) || (provider.type === "Twitter");
+  const isShortState = (provider.type === "WeChat" && navigator.userAgent.includes("MicroMessenger")) || (provider.type === "Twitter") || (provider.type === "WeCom");
   let applicationName = application.name;
   if (application?.isShared) {
     applicationName = `${application.name}-org-${application.organization}`;
@@ -498,23 +498,53 @@ export function getAuthUrl(application, provider, method, code) {
       return `${endpoint}?appid=${provider.clientId}&redirect_uri=${redirectUri}&scope=${scope}&response_type=code&state=${state}#wechat_redirect`;
     }
   } else if (provider.type === "WeCom") {
+    const buildWeComAuthUrl = (baseUrl, params, fragment = "") => {
+      const query = new URLSearchParams(params);
+      return `${baseUrl}?${query.toString()}${fragment}`;
+    };
+
     if (provider.subType === "Internal") {
       if (provider.method === "Silent") {
         endpoint = authInfo[provider.type].silentEndpoint;
-        return `${endpoint}?appid=${provider.clientId}&redirect_uri=${redirectUri}&state=${state}&scope=${scope}&response_type=code#wechat_redirect`;
+        return buildWeComAuthUrl(endpoint, {
+          appid: provider.clientId,
+          redirect_uri: redirectUri,
+          state: state,
+          scope: scope,
+          response_type: "code",
+        }, "#wechat_redirect");
       } else if (provider.method === "Normal") {
         endpoint = authInfo[provider.type].internalEndpoint;
-        return `${endpoint}?login_type=CorpApp&appid=${provider.clientId}&agentid=${provider.appId}&redirect_uri=${redirectUri}&state=${state}&scope=${scope}`;
+        return buildWeComAuthUrl(endpoint, {
+          login_type: "CorpApp",
+          appid: provider.clientId,
+          agentid: provider.appId,
+          redirect_uri: redirectUri,
+          state: state,
+          scope: scope,
+        });
       } else {
         return `https://error:not-supported-provider-method:${provider.method}`;
       }
     } else if (provider.subType === "Third-party") {
       if (provider.method === "Silent") {
         endpoint = authInfo[provider.type].silentEndpoint;
-        return `${endpoint}?appid=${provider.clientId}&redirect_uri=${redirectUri}&state=${state}&scope=${scope}&response_type=code#wechat_redirect`;
+        return buildWeComAuthUrl(endpoint, {
+          appid: provider.clientId,
+          redirect_uri: redirectUri,
+          state: state,
+          scope: scope,
+          response_type: "code",
+        }, "#wechat_redirect");
       } else if (provider.method === "Normal") {
         endpoint = authInfo[provider.type].endpoint;
-        return `${endpoint}?login_type=ServiceApp&appid=${provider.clientId}&redirect_uri=${redirectUri}&state=${state}&scope=${scope}`;
+        return buildWeComAuthUrl(endpoint, {
+          login_type: "ServiceApp",
+          appid: provider.clientId,
+          redirect_uri: redirectUri,
+          state: state,
+          scope: scope,
+        });
       } else {
         return `https://error:not-supported-provider-method:${provider.method}`;
       }

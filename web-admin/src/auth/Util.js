@@ -20,6 +20,92 @@ import * as Setting from "../Setting";
 import * as Provider from "./Provider";
 import * as AuthBackend from "./AuthBackend";
 
+const ShortOAuthStatePrefix = "casdoorOauth";
+const ShortOAuthStateStoragePrefix = "casdoor.oauth.shortState.";
+const ShortOAuthStateTtl = 10 * 60 * 1000;
+
+function getBrowserStorage(name) {
+  try {
+    return window?.[name] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function generateShortOAuthState() {
+  const alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+  const values = new Uint8Array(24);
+  const cryptoObject = window?.crypto;
+
+  if (cryptoObject?.getRandomValues) {
+    cryptoObject.getRandomValues(values);
+  } else {
+    for (let i = 0; i < values.length; i += 1) {
+      values[i] = Math.floor(Math.random() * 256);
+    }
+  }
+
+  let token = ShortOAuthStatePrefix;
+  values.forEach(value => {
+    token += alphabet[value % alphabet.length];
+  });
+  return token;
+}
+
+function isGeneratedShortOAuthState(state) {
+  return typeof state === "string" && state.startsWith(ShortOAuthStatePrefix);
+}
+
+function storeShortOAuthState(state, query) {
+  const session = getBrowserStorage("sessionStorage");
+  const local = getBrowserStorage("localStorage");
+
+  try {
+    session?.setItem(state, query);
+  } catch {
+    // Ignore storage failures; the base64 state fallback remains available for non-short states.
+  }
+
+  try {
+    local?.setItem(`${ShortOAuthStateStoragePrefix}${state}`, JSON.stringify({
+      query: query,
+      expiresAt: Date.now() + ShortOAuthStateTtl,
+    }));
+  } catch {
+    // localStorage is a cross-tab fallback only.
+  }
+}
+
+function getStoredShortOAuthState(state) {
+  const session = getBrowserStorage("sessionStorage");
+  const local = getBrowserStorage("localStorage");
+
+  try {
+    const query = session?.getItem(state);
+    if (query !== null && query !== undefined) {
+      return query;
+    }
+  } catch {
+    // Continue with localStorage fallback.
+  }
+
+  try {
+    const key = `${ShortOAuthStateStoragePrefix}${state}`;
+    const raw = local?.getItem(key);
+    if (raw === null || raw === undefined) {
+      return null;
+    }
+    const payload = JSON.parse(raw);
+    if (payload?.expiresAt < Date.now()) {
+      local?.removeItem(key);
+      return null;
+    }
+    return payload?.query ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function renderMessage(msg) {
   if (msg !== null) {
     return (
@@ -177,19 +263,23 @@ export function getStateFromQueryParams(applicationName, providerName, method, i
   if (!isShortState) {
     return btoa(query);
   } else {
-    const state = providerName;
-    sessionStorage.setItem(state, query);
+    const state = generateShortOAuthState();
+    storeShortOAuthState(state, query);
     return state;
   }
 }
 
 export function getQueryParamsFromState(state) {
-  const query = sessionStorage.getItem(state);
-  if (query === null) {
-    return atob(state);
-  } else {
+  const query = getStoredShortOAuthState(state);
+  if (query !== null) {
     return query;
   }
+
+  if (isGeneratedShortOAuthState(state)) {
+    return "";
+  }
+
+  return atob(state);
 }
 
 export function getEvent(application, provider, ticket, method) {

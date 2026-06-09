@@ -103,6 +103,9 @@ describe("Provider.getAuthUrl WeCom authorization URL", () => {
     expect(url.searchParams.get("login_type")).toBe("CorpApp");
     expect(url.searchParams.get("appid")).toBe("ww-corp-id");
     expect(url.searchParams.get("agentid")).toBe("1000002");
+    expect(url.searchParams.get("redirect_uri")).toBe("https://auth.example.com/callback");
+    expect(url.searchParams.get("state")).toBe("state value");
     expect(url.searchParams.get("scope")).toBe("snsapi_privateinfo");
+    expect(Util.getStateFromQueryParams).toHaveBeenCalledWith("aicodex-web", "wecom-provider", "signup", true);
   });
 });
