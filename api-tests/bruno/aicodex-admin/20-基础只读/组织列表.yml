@@ -1,0 +1,32 @@
+info:
+  name: 组织列表
+  type: http
+  seq: 1
+  tags:
+    - smoke
+    - readonly
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/get-organizations?owner={{adminOwner}}&pageSize=10&p=1"
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        const status = res.getStatus()
+        const body = res.getBody()
+        const json = typeof body === "string" ? JSON.parse(body) : body
+        if (status !== 200 || json?.status !== "ok" || !Array.isArray(json?.data)) {
+          throw new Error(`admin 组织列表响应异常。status=${status} body=${JSON.stringify(json)}`)
+        }
+        const wecomOrg = json.data.find((item) => typeof item?.name === "string" && item.name.startsWith("wecom-"))
+        if (wecomOrg?.name && !bru.getVar("wecomOrganization") && !bru.getEnvVar("wecomOrganization")) {
+          bru.setVar("wecomOrganization", String(wecomOrg.name))
+        }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

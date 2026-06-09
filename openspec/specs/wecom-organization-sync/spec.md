@@ -2,18 +2,19 @@
 
 ## Purpose
 定义企业微信通讯录组织架构同步能力，包括同步配置、业务组织绑定、部门/成员/关系映射、同步执行审计、软禁用策略和后台管理接口。
-
 ## Requirements
 ### Requirement: WeCom organization sync configuration
-The system SHALL allow an authorized administrator to configure one active WeCom organization sync source for a target organization, including `corpId`, a self-built application secret with readable address book scope, target organization, sync enablement, and soft-disable behavior.
+The system SHALL allow an authorized administrator to configure one active WeCom organization sync source for a target organization, including `corpId`, a self-built application secret with readable address book scope, target organization, sync enablement, and soft-disable behavior; the configuration SHALL be represented as or linked to an admin SourceConnection for the target platform organization.
 
 #### Scenario: Save valid sync configuration
 - **WHEN** an authorized administrator saves a configuration with required WeCom credentials and target organization
 - **THEN** the system persists the configuration and masks sensitive secret values in subsequent responses
+- **AND** the system creates or reuses a stable SourceConnection with `sourceType=wecom` and `sourceTenantId` derived from the Corp ID
 
 #### Scenario: Bind configuration to authorized target organization
 - **WHEN** an administrator saves, reads, tests, runs, or inspects WeCom organization sync data
 - **THEN** the system resolves exactly one target organization from request parameters or authenticated organization context and verifies the caller is allowed to manage that organization
+- **AND** the system keeps the platform organization identity separate from the WeCom Corp ID
 
 #### Scenario: Reject incomplete sync configuration
 - **WHEN** an authorized administrator saves a configuration without required WeCom credentials or target organization
@@ -24,6 +25,7 @@ The system SHALL allow an authorized administrator to configure one active WeCom
 - **THEN** the system derives or finds a stable business organization such as `wecom-<CorpID短码>`
 - **AND** persists the sync configuration against that business organization instead of `built-in`
 - **AND** returns the resolved organization in the API response
+- **AND** records the Corp ID as SourceConnection metadata instead of treating it as the platform organization ID
 
 #### Scenario: Reject built-in sync execution
 - **WHEN** a sync run is requested for a configuration whose target organization is `built-in`
@@ -61,31 +63,38 @@ The system SHALL initialize or reuse a non-built-in business organization for We
 - **THEN** later full sync runs SHALL NOT overwrite that manual display name
 
 ### Requirement: WeCom sync mapping persistence
-The system SHALL persist WeCom-specific department and user mapping data outside the core Group and User fields, and SHALL persist authorization-relevant relationships in queryable relationship records instead of serialized text arrays.
+The system SHALL persist WeCom-specific department and user mapping data outside the core Group and User fields, SHALL persist authorization-relevant relationships in queryable relationship records instead of serialized text arrays, and SHALL write normalized platform organization master data for cross-service provider consumption.
 
 #### Scenario: Persist department mapping
 - **WHEN** a WeCom department is synced
 - **THEN** the system stores its corp ID, department ID, local group owner/name, parent department mapping, primary manager cache, enabled state, last seen run, and `last_synced_at` timestamp in a WeCom department mapping record
+- **AND** the system creates or updates the corresponding PlatformDepartment record with SourceConnection lineage
 
 #### Scenario: Persist user mapping
 - **WHEN** a WeCom user is synced
 - **THEN** the system stores its corp ID, userid, local user owner/name, external ID, main department ID, status, enabled state, last seen run, and `last_synced_at` timestamp in a WeCom user mapping record
+- **AND** the system creates or updates ExternalIdentity using `sourceConnectionId + userid`
+- **AND** the system maps the ExternalIdentity to the stable PlatformUser when matching is confirmed
 
 #### Scenario: Persist user department relationships
 - **WHEN** a WeCom user belongs to one or more departments
 - **THEN** the system stores each user-department relationship with organization, corp ID, userid, department ID, local user owner/name, local group owner/name, main-department flag, leader-in-department flag, enabled state, last seen run, and `last_synced_at`
+- **AND** the system creates or updates the corresponding Membership records with source lineage and lifecycle status
 
 #### Scenario: Persist department manager relationships
 - **WHEN** a WeCom department has one or more managers or leader users
 - **THEN** the system stores each department-manager relationship with organization, corp ID, department ID, local group owner/name, leader userid, leader user owner/name, primary flag, enabled state, last seen run, and `last_synced_at`
+- **AND** the system projects the relationship into platform Membership or manager relationship records used by report scope calculation
 
 #### Scenario: Persist direct leader relationships
 - **WHEN** a WeCom user response includes direct leader userids
 - **THEN** the system stores each user-direct-leader relationship with organization, corp ID, userid, local user owner/name, leader userid, leader user owner/name, enabled state, last seen run, and `last_synced_at`
+- **AND** the system records lineage so later source-neutral scope calculation does not need to read WeCom raw semantics
 
 #### Scenario: Preserve core object compatibility
 - **WHEN** WeCom-specific mapping data is updated
 - **THEN** the system keeps Group and User compatible with existing local behavior and does not require Group to store arbitrary WeCom properties
+- **AND** the system treats WeCom-specific tables as adapter internal state, migration input, or compatibility cache rather than cross-service authority
 
 ### Requirement: WeCom organization sync persistence schema
 The system SHALL define Xorm-managed persistence objects for WeCom organization sync configuration, sync runs, department mappings, user mappings, and core relationship tables with typed timestamp fields for audit and sync times.
@@ -378,3 +387,59 @@ The system SHALL support the core organization change scenarios expected in the 
 #### Scenario: Manager and direct leader changes are synchronized
 - **WHEN** WeCom department managers or user direct leaders change
 - **THEN** the next successful full differential sync updates the corresponding relationship records used by management scope calculation
+
+### Requirement: WeCom sync run monitoring UI
+The system SHALL provide a self-describing sync run monitoring view in the WeCom organization sync admin page so administrators can understand run statistics directly from the table and continue observing active runs without refreshing the whole page.
+
+#### Scenario: Show self-describing department and user statistics
+- **WHEN** the admin page renders sync run records
+- **THEN** the department and user statistic columns MUST expose the meaning of `created`, `updated`, and `disabled` counts in the table header or cell content itself
+- **AND** an administrator MUST be able to understand each statistic row without relying on a detached legend outside the table
+
+#### Scenario: Auto refresh while a run is active
+- **WHEN** the current organization's sync record list contains at least one run whose status is `running`
+- **THEN** the admin page MUST automatically refresh the sync record list at a bounded interval
+- **AND** the page MUST stop automatic refresh after all visible runs enter terminal states such as `succeeded`, `failed`, or `partial`
+
+#### Scenario: Show refresh observation status in page
+- **WHEN** the admin page has loaded the sync record section
+- **THEN** the page MUST show whether it is currently auto refreshing because of a `running` record or waiting for manual refresh
+- **AND** the page MUST expose the latest successful sync record refresh time in the page itself instead of relying only on transient toast messages
+
+#### Scenario: Keep the first screen visible while config is still loading
+- **WHEN** the account organization or sync config has not finished resolving yet
+- **THEN** the page MUST render a visible in-page loading state instead of a blank screen
+- **AND** the loading state MUST keep the admin page context recognizable
+
+#### Scenario: Provide manual refresh action
+- **WHEN** an administrator is viewing the sync record section
+- **THEN** the page MUST provide an explicit manual refresh action near the sync record area
+- **AND** triggering that action MUST fetch the latest sync record data for the current organization without requiring a full page reload
+- **AND** the refresh action MUST expose an in-progress state while the request is outstanding
+
+#### Scenario: Browse paged sync run history
+- **WHEN** the administrator changes the sync record table page or page size
+- **THEN** the page MUST request the selected `page/pageSize` from `/api/wecom-org-sync/runs`
+- **AND** the table MUST render the returned history records for that selected page instead of keeping the first page frozen
+- **AND** the total count shown in pagination MUST stay consistent with the backend response
+
+#### Scenario: Explain historical page viewing mode
+- **WHEN** the administrator is browsing page 2 or later of the sync record table
+- **THEN** the page MUST present that state as historical browsing rather than the primary live run observation view
+- **AND** the page MUST guide the administrator to return to page 1 when they need to observe the latest run status
+
+#### Scenario: Avoid duplicate start actions while a run is already active
+- **WHEN** the sync record section already shows at least one `running` run for the current organization
+- **THEN** the page MUST NOT continue exposing the manual full sync start action as an immediately clickable operation
+- **AND** the start area MUST make the in-progress state recognizable to the administrator
+
+#### Scenario: Treat stale duplicate-start conflicts as refresh guidance
+- **WHEN** an administrator attempts to start a manual sync and the backend responds that a sync run is already running
+- **THEN** the page MUST show a non-failure hint that an existing sync is in progress
+- **AND** the page MUST refresh the sync record list for the current organization so the running state becomes visible in-page
+- **AND** the page MUST NOT present this conflict as a brand new sync failure
+
+#### Scenario: Clear refresh loop on page context change
+- **WHEN** the administrator leaves the page or switches to another organization
+- **THEN** the page MUST stop any existing automatic refresh loop for the previous page context
+- **AND** it MUST NOT continue updating the previous organization view after the context has changed

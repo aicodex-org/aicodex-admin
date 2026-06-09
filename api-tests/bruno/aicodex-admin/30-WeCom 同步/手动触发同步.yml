@@ -1,0 +1,48 @@
+info:
+  name: 手动触发同步
+  type: http
+  seq: 3
+  tags:
+    - wecom-sync
+    - write
+
+http:
+  method: POST
+  url: "{{baseUrl}}/api/wecom-org-sync/runs"
+  headers:
+    - name: Content-Type
+      value: application/json
+      enabled: true
+  body:
+    type: json
+    data: |-
+      {
+        "organization": "{{wecomOrganization}}"
+      }
+
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        const writeEnabled = String(bru.getVar("wecomSyncWriteEnabled") || bru.getEnvVar("wecomSyncWriteEnabled") || "").toLowerCase()
+        if (writeEnabled !== "true") {
+          throw new Error("这是会创建 WeCom 同步 run 的请求。请设置 wecomSyncWriteEnabled=true 后再执行。")
+        }
+        if (!bru.getVar("wecomOrganization") && !bru.getEnvVar("wecomOrganization")) {
+          throw new Error("请先设置 wecomOrganization。")
+        }
+    - type: after-response
+      code: |-
+        const status = res.getStatus()
+        const body = res.getBody()
+        const json = typeof body === "string" ? JSON.parse(body) : body
+        if (status !== 200 || json?.status !== "ok" || !json?.data?.runId) {
+          throw new Error(`admin 手动触发 WeCom 同步响应异常。status=${status} body=${JSON.stringify(json)}`)
+        }
+        bru.setVar("wecomSyncRunId", String(json.data.runId))
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

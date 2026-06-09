@@ -1,0 +1,33 @@
+{
+  "status": "ok",
+  "traceId": "trace-fixture-scope",
+  "data": {
+    "adminUserId": "org-a/lead",
+    "traceId": "trace-fixture-scope",
+    "scopeType": "DEPARTMENT_TREE",
+    "organization": "org-a",
+    "apiOrganizationId": "00000000-0000-7000-8000-000000000123",
+    "departmentIds": ["org-a/dev"],
+    "adminUserIds": ["org-a/member-a", "org-a/member-b"],
+    "apiUserIds": ["201", "202"],
+    "departments": [
+      {
+        "departmentId": "org-a/dev",
+        "adminUserIds": ["org-a/member-a", "org-a/member-b"],
+        "apiUserIds": ["201", "202"],
+        "includeChildDepartments": true,
+        "mappingStatus": "OK",
+        "lifecycleStatus": "ACTIVE",
+        "sourceType": "group",
+        "sourceConnectionId": ""
+      }
+    ],
+    "includeChildDepartments": true,
+    "mappingStatus": "OK",
+    "lifecycleStatus": "ACTIVE",
+    "generatedAt": "2026-06-04T09:00:00Z",
+    "scopeVersion": "scopev-fixture-20260604",
+    "orgVersion": "orgv-fixture-20260604",
+    "freshness": "FRESH"
+  }
+}

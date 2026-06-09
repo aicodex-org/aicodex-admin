@@ -1,0 +1,29 @@
+info:
+  name: 当前账号
+  type: http
+  seq: 2
+  tags:
+    - auth
+    - login-flow
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/get-account"
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        const status = res.getStatus()
+        const body = res.getBody()
+        const json = typeof body === "string" ? JSON.parse(body) : body
+        if (status !== 200 || json?.status !== "ok" || !json?.sub || !json?.data?.name) {
+          throw new Error(`admin 当前账号响应异常。status=${status} body=${JSON.stringify(json)}`)
+        }
+        bru.setVar("adminUserId", String(json.sub))
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

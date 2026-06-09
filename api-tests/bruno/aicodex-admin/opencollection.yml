@@ -1,0 +1,44 @@
+opencollection: 1.0.0
+
+info:
+  name: aicodex-admin
+config:
+  proxy:
+    inherit: true
+    config:
+      protocol: http
+      hostname: ""
+      port: ""
+      auth:
+        username: ""
+        password: ""
+      bypassProxy: ""
+
+request:
+  variables:
+    - name: adminUsername
+      value: ""
+    - name: adminPassword
+      value: ""
+    - name: adminOrganization
+      value: "built-in"
+    - name: adminApplication
+      value: "app-built-in"
+    - name: adminOwner
+      value: "admin"
+    - name: adminUserId
+      value: ""
+    - name: wecomOrganization
+      value: ""
+    - name: wecomSyncWriteEnabled
+      value: "false"
+    - name: wecomSyncRunId
+      value: ""
+
+bundled: false
+extensions:
+  bruno:
+    ignore:
+      - node_modules
+      - .git
+      - tmp

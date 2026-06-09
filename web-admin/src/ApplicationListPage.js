@@ -321,12 +321,7 @@ class ApplicationListPage extends BaseListPage {
     ];
 
     const filteredColumns = Setting.filterTableColumns(columns, this.props.formItems ?? this.state.formItems);
-    const paginationProps = {
-      total: this.state.pagination.total,
-      showQuickJumper: true,
-      showSizeChanger: true,
-      showTotal: () => i18next.t("general:{total} in total").replace("{total}", this.state.pagination.total),
-    };
+    const paginationProps = this.getTablePaginationProps();
 
     return (
       <div>

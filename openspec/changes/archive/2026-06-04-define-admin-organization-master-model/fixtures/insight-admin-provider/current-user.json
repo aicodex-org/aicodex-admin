@@ -1,0 +1,31 @@
+{
+  "status": "ok",
+  "traceId": "trace-fixture-current-user",
+  "data": {
+    "adminUserId": "org-a/lead",
+    "username": "lead",
+    "displayName": "Lead User",
+    "organization": "org-a",
+    "apiOrganizationId": "00000000-0000-7000-8000-000000000123",
+    "roles": ["admin"],
+    "groups": [
+      {
+        "departmentId": "org-a/dev",
+        "departmentName": "Development",
+        "parentDepartmentId": ""
+      }
+    ],
+    "usageIdentity": {
+      "apiUserId": "200",
+      "mappingStatus": "OK",
+      "mappingSource": "properties.aicodexApiUserId",
+      "sourceConnectionId": "src-1ae8d46ad2f39bef72440afbbd6ad3ba7ac2e37a2e17df0022621ec13e32ca44",
+      "sourceType": "wecom",
+      "externalSubjectId": "lead"
+    },
+    "generatedAt": "2026-06-04T09:00:00Z",
+    "orgVersion": "orgv-fixture-20260604",
+    "scopeVersion": "scopev-fixture-20260604",
+    "freshness": "FRESH"
+  }
+}

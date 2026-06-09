@@ -528,12 +528,57 @@ func (a *Ormer) createTable() {
 		panic(err)
 	}
 
+	err = a.Engine.Sync2(new(PlatformOrganization))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(PlatformUser))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(PlatformDepartment))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(PlatformMembership))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(SourceConnection))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(ExternalIdentity))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(LifecycleEvent))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(OrgSyncBatch))
+	if err != nil {
+		panic(err)
+	}
+
 	err = a.Engine.Sync2(new(WecomOrganizationSyncConfig))
 	if err != nil {
 		panic(err)
 	}
 
 	err = a.Engine.Sync2(new(WecomOrganizationSyncRun))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(WecomProfileConsentIntent))
 	if err != nil {
 		panic(err)
 	}

@@ -1,0 +1,55 @@
+info:
+  name: 登录
+  type: http
+  seq: 1
+  tags:
+    - auth
+    - login-flow
+
+http:
+  method: POST
+  url: "{{baseUrl}}/api/login"
+  headers:
+    - name: Content-Type
+      value: application/json
+      enabled: true
+  body:
+    type: json
+    data: |-
+      {
+        "type": "login",
+        "signinMethod": "Password",
+        "organization": "{{adminOrganization}}",
+        "application": "{{adminApplication}}",
+        "username": "{{adminUsername}}",
+        "password": "{{adminPassword}}"
+      }
+
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        if (!bru.getEnvVar("adminUsername") || !bru.getEnvVar("adminPassword")) {
+          throw new Error("请先在当前 Bruno 环境中设置 adminUsername 和 adminPassword。")
+        }
+        if (!bru.getEnvVar("adminOrganization") || !bru.getEnvVar("adminApplication")) {
+          throw new Error("请先设置 adminOrganization 和 adminApplication。")
+        }
+    - type: after-response
+      code: |-
+        const status = res.getStatus()
+        const body = res.getBody()
+        const json = typeof body === "string" ? JSON.parse(body) : body
+        if (status !== 200 || json?.status !== "ok") {
+          throw new Error(`admin 登录失败。status=${status} body=${JSON.stringify(json)}`)
+        }
+        if (typeof json.data !== "string" || !json.data.includes("/")) {
+          throw new Error(`admin 登录响应缺少用户 id。body=${JSON.stringify(json)}`)
+        }
+        bru.setVar("adminUserId", json.data)
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

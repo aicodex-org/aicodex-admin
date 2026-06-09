@@ -25,6 +25,7 @@ tmp/
 tmpFiles/
 *.tmp
 logs/
+runtime/
 files/
 .gocache/
 .gomodcache/
@@ -43,3 +44,4 @@ server
 node_modules/
 
 .playwright-mcp
+.playwright-cli

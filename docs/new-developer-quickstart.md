@@ -126,7 +126,7 @@ flowchart LR
 - [`admin/idp/`](../admin/idp)
 - [`admin/controllers/auth.go`](../admin/controllers/auth.go)
 
-企业微信当前主交付路径是 `WeCom + Internal + Normal`。后台 Provider 里需要配置 `Corp ID`、`Secret`、`Agent ID`，登录源回调 URL 使用实际登录域名下的 `/callback`。
+企业微信当前主交付路径是 `WeCom + Internal + Normal` 的 OAuth2 `snsapi_privateinfo` 敏感授权二维码。后台 Provider 里需要配置 `Corp ID`、`Secret`、`Agent ID`，主链路回调使用实际登录域名下的 `/api/wecom-profile-consent/callback`；旧 PC Web 登录组件仅作为兼容 fallback，不承诺返回手机号、邮箱或头像。
 
 ### 4.2 用户、组织、应用管理
 
@@ -282,7 +282,7 @@ Compose 会启动：
 
 选一条你后续最可能维护的真实链路完整走一遍：
 
-- 企业微信登录：`LoginPage -> Provider -> AuthCallback -> controllers/auth -> idp/wecom_* -> object/provider`
+- 企业微信登录：`LoginPage -> WeComLoginPanel -> /api/wecom-profile-consent/* -> controllers/wecom_profile_consent.go -> idp/wecom_internal.go -> object/wecom_profile_consent*.go`
 - 用户管理：`UserListPage -> backend/UserBackend -> controllers/user -> object/user`
 - 应用接入：`ApplicationListPage -> ApplicationEditPage -> controllers/application -> object/application`
 - 权限管理：`Role/Permission/Enforcer 页面 -> controllers -> authz/object`

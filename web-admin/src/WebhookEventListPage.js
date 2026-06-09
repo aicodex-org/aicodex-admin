@@ -19,6 +19,7 @@ import i18next from "i18next";
 import * as Setting from "./Setting";
 import * as WebhookEventBackend from "./backend/WebhookEventBackend";
 import Editor from "./common/Editor";
+import {getDefaultTablePagination, getTablePaginationProps} from "./common/table/TablePagination";
 
 class WebhookEventListPage extends React.Component {
   constructor(props) {
@@ -33,13 +34,7 @@ class WebhookEventListPage extends React.Component {
       sortOrder: "",
       detailShow: false,
       detailRecord: null,
-      pagination: {
-        current: 1,
-        pageSize: 10,
-        showQuickJumper: true,
-        showSizeChanger: true,
-        total: 0,
-      },
+      pagination: getDefaultTablePagination({total: 0}),
     };
   }
 
@@ -278,10 +273,7 @@ class WebhookEventListPage extends React.Component {
         columns={columns}
         dataSource={this.state.data}
         loading={this.state.loading}
-        pagination={{
-          ...this.state.pagination,
-          showTotal: (total) => i18next.t("general:{total} in total").replace("{total}", total),
-        }}
+        pagination={getTablePaginationProps(this.state.pagination)}
         scroll={{x: "max-content"}}
         size="middle"
         bordered

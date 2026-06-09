@@ -1,0 +1,28 @@
+info:
+  name: 应用列表
+  type: http
+  seq: 2
+  tags:
+    - smoke
+    - readonly
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/get-applications?owner={{adminOwner}}&pageSize=10&p=1"
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        const status = res.getStatus()
+        const body = res.getBody()
+        const json = typeof body === "string" ? JSON.parse(body) : body
+        if (status !== 200 || json?.status !== "ok" || !Array.isArray(json?.data)) {
+          throw new Error(`admin 应用列表响应异常。status=${status} body=${JSON.stringify(json)}`)
+        }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

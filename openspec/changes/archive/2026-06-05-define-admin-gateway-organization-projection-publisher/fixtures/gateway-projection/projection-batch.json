@@ -1,0 +1,52 @@
+{
+  "traceId": "trace-admin-gateway-projection-fixture-001",
+  "caller": "aicodex-admin",
+  "projectionBatchId": "admin-gateway-projection-fixture-001",
+  "orgVersion": 202606050900,
+  "generatedAt": "2030-01-01T09:00:00Z",
+  "freshness": {
+    "expiresAt": "2030-01-01T10:00:00Z"
+  },
+  "lineage": {
+    "sourceService": "aicodex-admin",
+    "sourceVersion": "orgv-fixture-20260605",
+    "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "subjects": [
+    {
+      "stableSubjectId": "admin-user-fixture-001",
+      "apiSubjectId": "10001",
+      "subjectType": "user",
+      "organizationId": "org-fixture-admin",
+      "departmentIds": [
+        "dept-fixture-engineering",
+        "dept-fixture-platform"
+      ],
+      "roleIds": [
+        "role-fixture-admin"
+      ],
+      "positionIds": [
+        "position-fixture-manager"
+      ],
+      "lifecycleStatus": "active",
+      "projectionVersion": "pv-fixture-user-001",
+      "orgVersion": 202606050900,
+      "freshnessExpiresAt": "2030-01-01T10:00:00Z"
+    },
+    {
+      "stableSubjectId": "admin-user-fixture-002",
+      "apiSubjectId": "10002",
+      "subjectType": "user",
+      "organizationId": "org-fixture-admin",
+      "departmentIds": [
+        "dept-fixture-support"
+      ],
+      "roleIds": [],
+      "positionIds": [],
+      "lifecycleStatus": "disabled",
+      "projectionVersion": "pv-fixture-user-002",
+      "orgVersion": 202606050900,
+      "freshnessExpiresAt": "2030-01-01T10:00:00Z"
+    }
+  ]
+}

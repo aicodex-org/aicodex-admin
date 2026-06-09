@@ -1,0 +1,38 @@
+info:
+  name: 同步 runs
+  type: http
+  seq: 2
+  tags:
+    - smoke
+    - wecom-sync
+    - readonly
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/wecom-org-sync/runs?organization={{wecomOrganization}}&pageSize=5&p=1"
+
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        if (!bru.getVar("wecomOrganization") && !bru.getEnvVar("wecomOrganization")) {
+          throw new Error("请先设置 wecomOrganization，或先执行 20-基础只读/组织列表.yml 自动发现 wecom-* 组织。")
+        }
+    - type: after-response
+      code: |-
+        const status = res.getStatus()
+        const body = res.getBody()
+        const json = typeof body === "string" ? JSON.parse(body) : body
+        if (status !== 200 || json?.status !== "ok" || !Array.isArray(json?.data)) {
+          throw new Error(`admin WeCom 同步 runs 响应异常。status=${status} body=${JSON.stringify(json)}`)
+        }
+        const first = json.data[0]
+        if (first?.runId && !bru.getVar("wecomSyncRunId") && !bru.getEnvVar("wecomSyncRunId")) {
+          bru.setVar("wecomSyncRunId", String(first.runId))
+        }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

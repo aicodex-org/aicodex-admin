@@ -1,3 +1,9 @@
+x-logging-defaults: &logging-defaults
+  driver: json-file
+  options:
+    max-size: "100m"
+    max-file: "5"
+
 services:
   aicodex-admin:
     restart: always
@@ -28,6 +34,10 @@ services:
     volumes:
       # 本地文件系统 Storage Provider 会把头像等上传资源写入容器内 /files。
       - ${AICODEX_ADMIN_UPLOAD_DIR:-./data/upload-files}:/files
+      # 应用文件日志和临时文件落到运行目录，避免容器重建后丢失应用日志。
+      - ${AICODEX_ADMIN_LOG_DIR:-./runtime/logs}:/logs
+      - ${AICODEX_ADMIN_TMP_DIR:-./runtime/tmp}:/tmp
+    logging: *logging-defaults
   db:
     restart: always
     image: postgres:18
@@ -46,6 +56,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
+    logging: *logging-defaults
 
 volumes:
   postgres_data:

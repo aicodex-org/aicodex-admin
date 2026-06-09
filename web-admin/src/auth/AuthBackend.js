@@ -146,6 +146,54 @@ export function loginWithSaml(values, param) {
   }).then(res => res.json());
 }
 
+export function createWecomProfileConsentLoginIntent(values) {
+  return fetch(`${authConfig.serverUrl}/api/wecom-profile-consent/login-intents`, {
+    method: "POST",
+    credentials: "include",
+    body: JSON.stringify(values),
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+      "Content-Type": "application/json",
+    },
+  }).then(res => res.json());
+}
+
+export function createWecomProfileConsentProfileSyncIntent(values) {
+  return fetch(`${authConfig.serverUrl}/api/wecom-profile-consent/profile-sync-intents`, {
+    method: "POST",
+    credentials: "include",
+    body: JSON.stringify(values),
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+      "Content-Type": "application/json",
+    },
+  }).then(res => res.json());
+}
+
+export function getWecomProfileConsentIntentStatus(intentId, pollToken) {
+  return fetch(`${authConfig.serverUrl}/api/wecom-profile-consent/intents/${encodeURIComponent(intentId)}`, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+      "X-WeCom-Profile-Consent-Poll-Token": pollToken,
+    },
+  }).then(res => res.json());
+}
+
+export function completeWecomProfileConsentLoginIntent(intentId, pollToken, values = {}) {
+  return fetch(`${authConfig.serverUrl}/api/wecom-profile-consent/intents/${encodeURIComponent(intentId)}/complete`, {
+    method: "POST",
+    credentials: "include",
+    body: JSON.stringify(values),
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+      "Content-Type": "application/json",
+      "X-WeCom-Profile-Consent-Poll-Token": pollToken,
+    },
+  }).then(res => res.json());
+}
+
 export function getWechatMessageEvent(ticket) {
   return fetch(`${Setting.ServerUrl}/api/get-webhook-event?ticket=${ticket}`, {
     method: "GET",

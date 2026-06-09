@@ -37,6 +37,10 @@ type OrganizationManagementScopeData struct {
 	UserDepartments   []WecomUserDepartment
 	DepartmentLeaders []WecomDepartmentLeader
 	DirectLeaders     []WecomUserDirectLeader
+
+	PlatformDepartments []PlatformDepartment
+	PlatformUsers       []PlatformUser
+	PlatformMemberships []PlatformMembership
 }
 
 type OrganizationManagementScopeDepartment struct {
@@ -78,6 +82,8 @@ type OrganizationManagementScopeService struct {
 
 type defaultOrganizationManagementScopeStore struct{}
 
+// GetCurrentScope 优先使用平台组织主模型计算范围；仅在主模型尚未投影时兼容企业微信旧表。
+// 这样 scope 的权威来源可以逐步切到 source-neutral 主模型，而不改变既有计算器的部门树语义。
 func (s *OrganizationManagementScopeService) GetCurrentScope(user *User, organization string, isAdmin bool) (*OrganizationManagementScope, error) {
 	organization = strings.TrimSpace(organization)
 	if organization == "" && user != nil {
@@ -93,6 +99,9 @@ func (s *OrganizationManagementScopeService) GetCurrentScope(user *User, organiz
 	}
 	if data == nil {
 		data = &OrganizationManagementScopeData{}
+	}
+	if hasPlatformOrganizationManagementScopeData(data) {
+		data = convertPlatformOrganizationManagementScopeData(organization, data)
 	}
 
 	calculator := newOrganizationManagementScopeCalculator(organization, data)
@@ -127,7 +136,94 @@ func (s defaultOrganizationManagementScopeStore) GetOrganizationManagementScopeD
 	if err := ormer.Engine.Where("organization = ?", organization).And("is_enabled = ?", true).Find(&data.DirectLeaders); err != nil {
 		return nil, err
 	}
+	if err := ormer.Engine.Where("organization_id = ?", organization).Find(&data.PlatformDepartments); err != nil {
+		return nil, err
+	}
+	if err := ormer.Engine.Where("organization_id = ?", organization).Find(&data.PlatformUsers); err != nil {
+		return nil, err
+	}
+	if err := ormer.Engine.Where("organization_id = ?", organization).Find(&data.PlatformMemberships); err != nil {
+		return nil, err
+	}
 	return data, nil
+}
+
+func hasPlatformOrganizationManagementScopeData(data *OrganizationManagementScopeData) bool {
+	return data != nil && (len(data.PlatformDepartments) > 0 || len(data.PlatformUsers) > 0 || len(data.PlatformMemberships) > 0)
+}
+
+// convertPlatformOrganizationManagementScopeData 将平台主模型转换成旧企业微信形状的最小计算输入。
+// 转换时只接纳 active 且 confirmed 的用户和 active 部门/成员关系，避免未确认映射进入管理范围。
+func convertPlatformOrganizationManagementScopeData(organization string, data *OrganizationManagementScopeData) *OrganizationManagementScopeData {
+	converted := &OrganizationManagementScopeData{}
+	activeDepartments := map[string]PlatformDepartment{}
+	for _, department := range data.PlatformDepartments {
+		if department.OrganizationId != organization || department.DepartmentId == "" || !IsPlatformLifecycleStatusUsableForScope(department.LifecycleStatus) {
+			continue
+		}
+		activeDepartments[department.DepartmentId] = department
+		converted.Departments = append(converted.Departments, WecomDepartmentMapping{
+			Organization:       organization,
+			DepartmentId:       department.DepartmentId,
+			ParentDepartmentId: department.ParentDepartmentId,
+			GroupOwner:         organization,
+			GroupName:          department.DepartmentId,
+			DisplayName:        department.DisplayName,
+			IsEnabled:          true,
+		})
+	}
+
+	activeUsers := map[string]PlatformUser{}
+	for _, user := range data.PlatformUsers {
+		if user.OrganizationId != organization || user.AdminSubject == "" || !IsPlatformLifecycleStatusUsableForScope(user.LifecycleStatus) || !IsConfirmedExternalIdentityMappingStatus(user.MappingStatus) {
+			continue
+		}
+		activeUsers[user.AdminSubject] = user
+		converted.Users = append(converted.Users, WecomUserMapping{
+			Organization: organization,
+			WecomUserId:  user.AdminSubject,
+			UserOwner:    firstNonEmpty(user.UserOwner, organization),
+			UserName:     firstNonEmpty(user.UserName, user.AdminSubject),
+			ExternalId:   user.AdminSubject,
+			IsEnabled:    true,
+		})
+	}
+
+	for _, membership := range data.PlatformMemberships {
+		if membership.OrganizationId != organization || membership.AdminSubject == "" || membership.DepartmentId == "" || !IsPlatformLifecycleStatusUsableForScope(membership.LifecycleStatus) {
+			continue
+		}
+		user, userOK := activeUsers[membership.AdminSubject]
+		department, departmentOK := activeDepartments[membership.DepartmentId]
+		if !userOK || !departmentOK {
+			continue
+		}
+		converted.UserDepartments = append(converted.UserDepartments, WecomUserDepartment{
+			Organization: organization,
+			WecomUserId:  membership.AdminSubject,
+			DepartmentId: membership.DepartmentId,
+			UserOwner:    firstNonEmpty(user.UserOwner, organization),
+			UserName:     firstNonEmpty(user.UserName, membership.AdminSubject),
+			GroupOwner:   organization,
+			GroupName:    department.DepartmentId,
+			IsMain:       membership.IsMain,
+			IsLeader:     membership.IsManager,
+			IsEnabled:    true,
+		})
+		if membership.IsManager {
+			converted.DepartmentLeaders = append(converted.DepartmentLeaders, WecomDepartmentLeader{
+				Organization:      organization,
+				DepartmentId:      membership.DepartmentId,
+				LeaderWecomUserId: membership.AdminSubject,
+				LeaderUserOwner:   firstNonEmpty(user.UserOwner, organization),
+				LeaderUserName:    firstNonEmpty(user.UserName, membership.AdminSubject),
+				GroupOwner:        organization,
+				GroupName:         department.DepartmentId,
+				IsEnabled:         true,
+			})
+		}
+	}
+	return converted
 }
 
 type organizationManagementScopeCalculator struct {

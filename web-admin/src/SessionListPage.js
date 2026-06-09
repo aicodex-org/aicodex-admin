@@ -138,12 +138,7 @@ class SessionListPage extends BaseListPage {
       },
     ];
 
-    const paginationProps = {
-      total: this.state.pagination.total,
-      showQuickJumper: true,
-      showSizeChanger: true,
-      showTotal: () => i18next.t("general:{total} in total").replace("{total}", this.state.pagination.total),
-    };
+    const paginationProps = this.getTablePaginationProps();
 
     return (
       <div>

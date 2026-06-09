@@ -22,6 +22,7 @@ import {TotpMfaType} from "./auth/MfaSetupPage";
 import * as GroupBackend from "./backend/GroupBackend";
 import * as UserBackend from "./backend/UserBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
+import * as AuthBackend from "./auth/AuthBackend";
 import EnableMfaModal from "./common/modal/EnableMfaModal";
 import * as Setting from "./Setting";
 import i18next from "i18next";
@@ -50,6 +51,7 @@ import MfaTable from "./table/MfaTable";
 import TransactionTable from "./table/TransactionTable";
 import CartTable from "./table/CartTable";
 import * as TransactionBackend from "./backend/TransactionBackend";
+import WeComProfileSyncPanel from "./account/WeComProfileSyncPanel";
 import ConsentTable from "./table/ConsentTable";
 import {Content, Header} from "antd/es/layout/layout";
 import Sider from "antd/es/layout/Sider";
@@ -324,6 +326,37 @@ class UserEditPage extends React.Component {
         }
       });
   };
+
+  handleWeComProfileSynced() {
+    this.getUser();
+    if (!this.props.onUpdateAccount) {
+      return;
+    }
+
+    AuthBackend.getAccount()
+      .then((res) => {
+        if (res.status !== "ok") {
+          return;
+        }
+        const account = res.data;
+        account.organization = res.data2;
+        this.props.onUpdateAccount(account);
+      });
+  }
+
+  renderWeComProfileSyncPanel() {
+    if (!this.isSelf() || this.state.mode === "add" || this.state.application === null) {
+      return null;
+    }
+
+    return (
+      <WeComProfileSyncPanel
+        application={this.state.application}
+        style={{marginLeft: "20px"}}
+        onSynced={() => this.handleWeComProfileSynced()}
+      />
+    );
+  }
 
   renderAccountItem(accountItem) {
     const isAdmin = Setting.isLocalAdminUser(this.props.account);
@@ -1495,6 +1528,7 @@ class UserEditPage extends React.Component {
               {this.state.mode === "add" ? i18next.t("user:New User") : (this.isSelf() ? i18next.t("account:My Account") : i18next.t("user:Edit User"))}&nbsp;&nbsp;&nbsp;&nbsp;
               <Button onClick={() => this.submitUserEdit(false)}>{i18next.t("general:Save")}</Button>
               <Button style={{marginLeft: "20px"}} type="primary" onClick={() => this.submitUserEdit(true)}>{i18next.t("general:Save & Exit")}</Button>
+              {this.renderWeComProfileSyncPanel()}
               {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteUser()}>{i18next.t("general:Cancel")}</Button> : null}
             </div>
           )
