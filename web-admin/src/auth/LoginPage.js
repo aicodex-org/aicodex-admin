@@ -41,6 +41,7 @@ import WeChatLoginPanel from "./WeChatLoginPanel";
 import WeComLoginPanel from "./WeComLoginPanel";
 import {CountryCodeSelect} from "../common/select/CountryCodeSelect";
 import {getSigninLanguageOverride} from "./LoginLanguage";
+import {getSigninMethodChoiceItems} from "./SigninMethodChoice";
 const FaceRecognitionCommonModal = lazy(() => import("../common/modal/FaceRecognitionCommonModal"));
 const FaceRecognitionModal = lazy(() => import("../common/modal/FaceRecognitionModal"));
 
@@ -1482,47 +1483,13 @@ class LoginPage extends React.Component {
 
   renderMethodChoiceBox() {
     const application = this.getApplicationObj();
-    const items = [];
-
-    const generateItemKey = (name, rule) => {
-      return `${name}-${rule}`;
-    };
-
-    const itemsMap = new Map([
-      [generateItemKey("Password", "All"), {label: i18next.t("general:Password"), key: "password"}],
-      [generateItemKey("Password", "Non-LDAP"), {label: i18next.t("general:Password"), key: "password"}],
-      [generateItemKey("Verification code", "All"), {label: i18next.t("login:Verification code"), key: "verificationCode"}],
-      [generateItemKey("Verification code", "Email only"), {label: i18next.t("login:Verification code"), key: "verificationCodeEmail"}],
-      [generateItemKey("Verification code", "Phone only"), {label: i18next.t("login:Verification code"), key: "verificationCodePhone"}],
-      [generateItemKey("WebAuthn", "None"), {label: i18next.t("login:WebAuthn"), key: "webAuthn"}],
-      [generateItemKey("LDAP", "None"), {label: i18next.t("login:LDAP"), key: "ldap"}],
-      [generateItemKey("Face ID", "None"), {label: i18next.t("login:Face ID"), key: "faceId"}],
-      [generateItemKey("WeChat", "Tab"), {label: i18next.t("login:WeChat"), key: "wechat"}],
-      [generateItemKey("WeChat", "None"), {label: i18next.t("login:WeChat"), key: "wechat"}],
-      [generateItemKey("WeCom", "Tab"), {label: i18next.t("login:WeCom"), key: "wecom"}],
-      [generateItemKey("WeCom", "None"), {label: i18next.t("login:WeCom"), key: "wecom"}],
-    ]);
-
-    application?.signinMethods?.forEach((signinMethod) => {
-      if (signinMethod.rule === "Hide password") {
-        return;
-      }
-      const item = itemsMap.get(generateItemKey(signinMethod.name, signinMethod.rule));
-      if (item) {
-        let label = signinMethod.name === signinMethod.displayName ? item.label : signinMethod.displayName;
-
-        if (application?.signinMethods?.length >= 4 && label === "Verification code") {
-          label = "Code";
-        }
-
-        items.push({label: label, key: item.key});
-      }
-    });
+    const items = getSigninMethodChoiceItems(application?.signinMethods, key => i18next.t(key));
+    const activeKey = items.some(item => item.key === this.state.loginMethod) ? this.state.loginMethod : items[0]?.key;
 
     if (items.length > 1) {
       return (
         <div>
-          <Tabs className="signin-methods" items={items} size={"small"} activeKey={this.state.loginMethod} onChange={(key) => {
+          <Tabs className="signin-methods" items={items} size={"small"} activeKey={activeKey} onChange={(key) => {
             this.setState({loginMethod: key});
           }} centered>
           </Tabs>
