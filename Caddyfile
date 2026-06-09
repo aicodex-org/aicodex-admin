@@ -19,6 +19,22 @@
     }
 }
 
+(auth_center_backend_proxy) {
+    reverse_proxy http://10.18.80.69:8000 {
+        flush_interval -1
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        import long_http_transport
+    }
+}
+
+(auth_center_frontend_files) {
+    root * /etc/aicrs/web/dist
+    try_files {path} {path}/ /index.html
+    file_server
+}
+
 ai.leagsoft.com {
     tls /etc/caddy/certs/leagsoft.crt /etc/caddy/certs/leagsoft.key
 
@@ -35,6 +51,28 @@ ai.leagsoft.com {
             header_up X-Forwarded-For {remote_host}
             header_up X-Forwarded-Proto {scheme}
         }
+    }
+
+    # AICodex 认证中心 OIDC/登录页经 Gateway 域名转发，避免桌面端混用独立 auth 域名。
+    @auth_center_well_known path /.well-known /.well-known/*
+    handle @auth_center_well_known {
+        import auth_center_backend_proxy
+    }
+
+    @auth_center_api {
+        path /api/get-app-login /api/login /api/logout /api/signup /api/get-account /api/userinfo
+        path /api/get-email-and-phone /api/send-verification-code /api/verify-code /api/verify-captcha /api/get-captcha /api/get-captcha-status
+        path /api/get-saml-login /api/get-qrcode /api/get-webhook-event /api/verify-identification
+        path /api/callback /api/device-auth /api/faceid-signin-begin /api/grant-consent /api/revoke-consent /api/oauth/register
+        path /api/login/oauth/* /api/webauthn/signin/* /api/webauthn/signup/* /api/mfa/setup/*
+    }
+    handle @auth_center_api {
+        import auth_center_backend_proxy
+    }
+
+    @auth_center_frontend path /login /login/* /signup /signup/* /callback /callback/* /consent /consent/* /prompt /prompt/* /forget /forget/* /static/* /branding/* /AuthCallbackHandler.js /ProviderHintRedirect.js
+    handle @auth_center_frontend {
+        import auth_center_frontend_files
     }
 
     # 仅当请求来自 Cloudflare 源站 IP 时才信任 CF-Connecting-IP
