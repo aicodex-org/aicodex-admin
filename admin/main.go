@@ -134,6 +134,7 @@ func main() {
 
 	// Start webhook delivery worker
 	object.StartWebhookDeliveryWorker()
+	object.StartGatewayProjectionRefreshWorker()
 
 	if len(object.SiteMap) != 0 {
 		service.Start()
