@@ -153,7 +153,7 @@ func BuildGatewayProjectionBatch(input GatewayProjectionBuildInput) (GatewayProj
 	activeDepartments, hasDepartmentSnapshot := buildGatewayProjectionActiveDepartments(input.Departments, organizationID)
 	membershipsBySubject := buildGatewayProjectionMemberships(input.Memberships, organizationID, activeDepartments, hasDepartmentSnapshot)
 	users := filterGatewayProjectionUsers(input.Users, organizationID)
-	confirmedMappings, untrustedMappings := buildGatewayProjectionSubjectMappings(input.ExternalIdentities, organizationID)
+	confirmedMappings, tombstoneMappings, untrustedMappings := buildGatewayProjectionSubjectMappings(input.ExternalIdentities, organizationID)
 	mergeGatewayProjectionAdminUserMappings(confirmedMappings, untrustedMappings, input.AdminUsers, users, organizationID)
 
 	subjects := make([]GatewayProjectedSubject, 0, len(users))
@@ -163,16 +163,16 @@ func BuildGatewayProjectionBatch(input GatewayProjectionBuildInput) (GatewayProj
 			summary.addSkip(GatewayProjectionSkipSourceDataInvalid)
 			continue
 		}
-		if !gatewayProjectionMappingTrusted(user.MappingStatus) {
-			summary.addSkip(GatewayProjectionSkipMappingUntrusted)
-			continue
-		}
 		lifecycleStatus, ok := gatewayProjectionLifecycleStatus(user.LifecycleStatus)
 		if !ok {
 			summary.addSkip(GatewayProjectionSkipLifecycleInvalid)
 			continue
 		}
-		mapping, ok := confirmedMappings[stableSubjectID]
+		if !gatewayProjectionMappingTrustedForLifecycle(user.MappingStatus, lifecycleStatus) {
+			summary.addSkip(GatewayProjectionSkipMappingUntrusted)
+			continue
+		}
+		mapping, ok := gatewayProjectionSubjectMappingForLifecycle(stableSubjectID, lifecycleStatus, confirmedMappings, tombstoneMappings)
 		if !ok || mapping.apiSubjectID == "" {
 			if untrustedMappings[stableSubjectID] {
 				summary.addSkip(GatewayProjectionSkipMappingUntrusted)
@@ -275,10 +275,11 @@ func gatewayProjectionSourceVersion(input GatewayProjectionBuildInput, organizat
 	return ""
 }
 
-// buildGatewayProjectionSubjectMappings 只接受已确认的 ExternalIdentity -> apiSubjectId 映射。
-// 同一平台主体出现冲突映射时标记为 untrusted，让后续 builder fail closed 跳过该主体。
-func buildGatewayProjectionSubjectMappings(identities []ExternalIdentity, organizationID string) (map[string]gatewayProjectionSubjectMapping, map[string]bool) {
+// buildGatewayProjectionSubjectMappings 分开记录 active 和 tombstone 可用的 apiSubjectId 映射。
+// active 只接受 CONFIRMED；DISABLED 只能作为非 active lifecycle 的 tombstone 映射来源。
+func buildGatewayProjectionSubjectMappings(identities []ExternalIdentity, organizationID string) (map[string]gatewayProjectionSubjectMapping, map[string]gatewayProjectionSubjectMapping, map[string]bool) {
 	confirmed := map[string]gatewayProjectionSubjectMapping{}
+	tombstone := map[string]gatewayProjectionSubjectMapping{}
 	untrusted := map[string]bool{}
 	for _, identity := range identities {
 		if identity.OrganizationId != organizationID || identity.PlatformSubjectType != PlatformSubjectTypeUser {
@@ -288,7 +289,7 @@ func buildGatewayProjectionSubjectMappings(identities []ExternalIdentity, organi
 		if stableSubjectID == "" {
 			continue
 		}
-		if !IsConfirmedExternalIdentityMappingStatus(identity.MappingStatus) {
+		if !gatewayProjectionIdentityMappingUsableForTombstone(identity.MappingStatus) {
 			untrusted[stableSubjectID] = true
 			continue
 		}
@@ -296,14 +297,23 @@ func buildGatewayProjectionSubjectMappings(identities []ExternalIdentity, organi
 		if !ok || mapping.apiSubjectID == "" {
 			continue
 		}
-		if existing, exists := confirmed[stableSubjectID]; exists && existing.apiSubjectID != mapping.apiSubjectID {
-			delete(confirmed, stableSubjectID)
+		if existing, exists := tombstone[stableSubjectID]; exists && existing.apiSubjectID != mapping.apiSubjectID {
+			delete(tombstone, stableSubjectID)
 			untrusted[stableSubjectID] = true
 			continue
 		}
-		confirmed[stableSubjectID] = mapping
+		tombstone[stableSubjectID] = mapping
+		if IsConfirmedExternalIdentityMappingStatus(identity.MappingStatus) {
+			if existing, exists := confirmed[stableSubjectID]; exists && existing.apiSubjectID != mapping.apiSubjectID {
+				delete(confirmed, stableSubjectID)
+				delete(tombstone, stableSubjectID)
+				untrusted[stableSubjectID] = true
+				continue
+			}
+			confirmed[stableSubjectID] = mapping
+		}
 	}
-	return confirmed, untrusted
+	return confirmed, tombstone, untrusted
 }
 
 // parseGatewayProjectionIdentityLineage 从 lineage JSON 中提取 api 侧主体映射。
@@ -463,11 +473,31 @@ func gatewayProjectionPlatformUserID(user PlatformUser, organizationID string) s
 	return ""
 }
 
-// gatewayProjectionMappingTrusted 只信任显式确认的 mappingStatus。
-// 空值代表历史或脏数据，不能进入 gateway 授权投影。
-func gatewayProjectionMappingTrusted(mappingStatus string) bool {
+// gatewayProjectionMappingTrustedForLifecycle 对 active 和 tombstone 使用不同信任门槛。
+// active 必须 CONFIRMED；非 active tombstone 可使用 DISABLED 映射来显式撤销 gateway 主体。
+func gatewayProjectionMappingTrustedForLifecycle(mappingStatus string, lifecycleStatus string) bool {
 	status := normalizeGatewayProjectionString(mappingStatus)
-	return IsConfirmedExternalIdentityMappingStatus(status)
+	if IsConfirmedExternalIdentityMappingStatus(status) {
+		return true
+	}
+	return lifecycleStatus != "active" && strings.EqualFold(status, PlatformMappingStatusDisabled)
+}
+
+func gatewayProjectionIdentityMappingUsableForTombstone(mappingStatus string) bool {
+	status := normalizeGatewayProjectionString(mappingStatus)
+	return IsConfirmedExternalIdentityMappingStatus(status) || strings.EqualFold(status, PlatformMappingStatusDisabled)
+}
+
+func gatewayProjectionSubjectMappingForLifecycle(stableSubjectID string, lifecycleStatus string, confirmedMappings map[string]gatewayProjectionSubjectMapping, tombstoneMappings map[string]gatewayProjectionSubjectMapping) (gatewayProjectionSubjectMapping, bool) {
+	if lifecycleStatus == "active" {
+		mapping, ok := confirmedMappings[stableSubjectID]
+		return mapping, ok
+	}
+	if mapping, ok := confirmedMappings[stableSubjectID]; ok {
+		return mapping, true
+	}
+	mapping, ok := tombstoneMappings[stableSubjectID]
+	return mapping, ok
 }
 
 // gatewayProjectionLifecycleStatus 把 admin 大写 lifecycle 映射为 api contract 的小写枚举。

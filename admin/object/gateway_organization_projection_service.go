@@ -17,6 +17,7 @@ package object
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -155,12 +156,36 @@ func (s defaultGatewayProjectionSnapshotStore) GetGatewayProjectionSnapshot(orga
 		return nil, err
 	}
 	batches := []OrgSyncBatch{}
-	if err := ormer.Engine.Where("organization_id = ?", organizationID).Desc("finished_at").Limit(1).Find(&batches); err != nil {
+	if err := ormer.Engine.Where("organization_id = ? AND org_version <> ?", organizationID, "").
+		In("status", OrgSyncBatchStatusSucceeded, OrgSyncBatchStatusPartial).
+		Desc("finished_at").
+		Find(&batches); err != nil {
 		return nil, err
 	}
-	if len(batches) > 0 {
-		batch := batches[0]
-		snapshot.SyncBatch = &batch
-	}
+	snapshot.SyncBatch = latestGatewayProjectionUsableSyncBatch(batches)
 	return snapshot, nil
+}
+
+// latestGatewayProjectionUsableSyncBatch 只选择能代表来源快照版本的最新同步批次。
+// 失败或运行中的批次只是诊断状态，不能覆盖上一次可用 orgVersion，否则 refresh 会用错误版本续期 freshness。
+func latestGatewayProjectionUsableSyncBatch(batches []OrgSyncBatch) *OrgSyncBatch {
+	var selected *OrgSyncBatch
+	for _, batch := range batches {
+		if !gatewayProjectionSyncBatchUsable(batch) {
+			continue
+		}
+		if selected == nil || batch.FinishedAt.After(selected.FinishedAt) {
+			candidate := batch
+			selected = &candidate
+		}
+	}
+	return selected
+}
+
+func gatewayProjectionSyncBatchUsable(batch OrgSyncBatch) bool {
+	status := strings.ToUpper(normalizeGatewayProjectionString(batch.Status))
+	if status != OrgSyncBatchStatusSucceeded && status != OrgSyncBatchStatusPartial {
+		return false
+	}
+	return normalizeGatewayProjectionString(batch.OrgVersion) != "" && !batch.FinishedAt.IsZero()
 }

@@ -130,6 +130,12 @@ func TestBuildGatewayProjectionBatchFailsClosedForMappingsAndLifecycle(t *testin
 			LifecycleStatus: PlatformLifecycleStatusActive,
 			MappingStatus:   "",
 		},
+		PlatformUser{
+			OrganizationId:  "org-a",
+			AdminSubject:    "disabled-active-mapping",
+			LifecycleStatus: PlatformLifecycleStatusActive,
+			MappingStatus:   PlatformMappingStatusDisabled,
+		},
 	)
 	input.ExternalIdentities = append(input.ExternalIdentities,
 		ExternalIdentity{
@@ -162,6 +168,16 @@ func TestBuildGatewayProjectionBatchFailsClosedForMappingsAndLifecycle(t *testin
 			MappingStatus:       PlatformMappingStatusConfirmed,
 			Lineage:             `{"apiSubjectId":"10004"}`,
 		},
+		ExternalIdentity{
+			OrganizationId:      "org-a",
+			SourceConnectionId:  "src-a",
+			ExternalSubjectType: PlatformSubjectTypeUser,
+			ExternalSubjectId:   "disabled-active-mapping",
+			PlatformSubjectType: PlatformSubjectTypeUser,
+			PlatformSubject:     "disabled-active-mapping",
+			MappingStatus:       PlatformMappingStatusDisabled,
+			Lineage:             `{"apiSubjectId":"10005"}`,
+		},
 	)
 
 	result, err := BuildGatewayProjectionBatch(input)
@@ -182,6 +198,9 @@ func TestBuildGatewayProjectionBatchFailsClosedForMappingsAndLifecycle(t *testin
 	if _, ok := subjectByStableID["empty-platform-mapping"]; ok {
 		t.Fatalf("empty PlatformUser mappingStatus must not be published even with confirmed ExternalIdentity: %#v", result.Request.Subjects)
 	}
+	if _, ok := subjectByStableID["disabled-active-mapping"]; ok {
+		t.Fatalf("active subject must still require confirmed PlatformUser mappingStatus: %#v", result.Request.Subjects)
+	}
 	stale := subjectByStableID["stale-user"]
 	if stale.APISubjectID != "10003" || stale.LifecycleStatus != "unknown" {
 		t.Fatalf("stale lifecycle should publish fail-closed unknown when api subject is known: %#v", stale)
@@ -189,7 +208,7 @@ func TestBuildGatewayProjectionBatchFailsClosedForMappingsAndLifecycle(t *testin
 	if result.Summary.SkippedByReason[GatewayProjectionSkipMappingMissing] != 1 {
 		t.Fatalf("mapping_missing summary = %#v", result.Summary.SkippedByReason)
 	}
-	if result.Summary.SkippedByReason[GatewayProjectionSkipMappingUntrusted] != 2 {
+	if result.Summary.SkippedByReason[GatewayProjectionSkipMappingUntrusted] != 3 {
 		t.Fatalf("mapping_untrusted summary = %#v", result.Summary.SkippedByReason)
 	}
 }
@@ -277,6 +296,110 @@ func TestBuildGatewayProjectionBatchGeneratesStableDigestAndSubjectVersion(t *te
 	}
 	if changedResult.Request.Subjects[0].ProjectionVersion == firstResult.Request.Subjects[0].ProjectionVersion {
 		t.Fatalf("projectionVersion should change when subject departmentIds change")
+	}
+}
+
+func TestBuildGatewayProjectionBatchRefreshKeepsOrgVersionAndRenewsFreshness(t *testing.T) {
+	finishedAt := time.Date(2026, 6, 5, 9, 30, 0, 0, time.UTC)
+	first := gatewayProjectionTestInput(time.Date(2026, 6, 5, 10, 0, 0, 0, time.UTC), finishedAt)
+	second := gatewayProjectionTestInput(time.Date(2026, 6, 5, 10, 15, 0, 0, time.UTC), finishedAt)
+
+	firstResult, err := BuildGatewayProjectionBatch(first)
+	if err != nil {
+		t.Fatalf("first refresh build error = %v", err)
+	}
+	secondResult, err := BuildGatewayProjectionBatch(second)
+	if err != nil {
+		t.Fatalf("second refresh build error = %v", err)
+	}
+
+	if firstResult.Request.OrgVersion != secondResult.Request.OrgVersion {
+		t.Fatalf("refresh must keep orgVersion for unchanged source snapshot: first=%d second=%d", firstResult.Request.OrgVersion, secondResult.Request.OrgVersion)
+	}
+	if firstResult.Request.ProjectionBatchID == secondResult.Request.ProjectionBatchID {
+		t.Fatalf("refresh should create a new projectionBatchId when freshness moves: %s", firstResult.Request.ProjectionBatchID)
+	}
+	if firstResult.Request.Subjects[0].ProjectionVersion == secondResult.Request.Subjects[0].ProjectionVersion {
+		t.Fatalf("refresh should create a new subject projectionVersion when freshness moves")
+	}
+	if !secondResult.Request.Freshness.ExpiresAt.After(firstResult.Request.Freshness.ExpiresAt) {
+		t.Fatalf("refresh freshness should move forward: first=%s second=%s", firstResult.Request.Freshness.ExpiresAt, secondResult.Request.Freshness.ExpiresAt)
+	}
+}
+
+func TestBuildGatewayProjectionBatchPublishesLifecycleTombstoneSubjects(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 5, 11, 30, 0, 0, time.UTC)
+	finishedAt := generatedAt.Add(5 * time.Minute)
+	input := gatewayProjectionTestInput(generatedAt, finishedAt)
+	input.Users = append(input.Users,
+		PlatformUser{
+			OrganizationId:  "org-a",
+			AdminSubject:    "disabled-user",
+			LifecycleStatus: PlatformLifecycleStatusDisabled,
+			MappingStatus:   PlatformMappingStatusDisabled,
+		},
+		PlatformUser{
+			OrganizationId:  "org-a",
+			AdminSubject:    "deleted-user",
+			LifecycleStatus: PlatformLifecycleStatusDeleted,
+			MappingStatus:   PlatformMappingStatusConfirmed,
+		},
+		PlatformUser{
+			OrganizationId:  "org-a",
+			AdminSubject:    "conflicted-user",
+			LifecycleStatus: PlatformLifecycleStatusConflicted,
+			MappingStatus:   PlatformMappingStatusConfirmed,
+		},
+	)
+	input.ExternalIdentities = append(input.ExternalIdentities,
+		ExternalIdentity{
+			OrganizationId:      "org-a",
+			SourceConnectionId:  "src-a",
+			ExternalSubjectType: PlatformSubjectTypeUser,
+			ExternalSubjectId:   "disabled-user",
+			PlatformSubjectType: PlatformSubjectTypeUser,
+			PlatformSubject:     "disabled-user",
+			MappingStatus:       PlatformMappingStatusDisabled,
+			Lineage:             `{"apiSubjectId":"10002"}`,
+		},
+		ExternalIdentity{
+			OrganizationId:      "org-a",
+			SourceConnectionId:  "src-a",
+			ExternalSubjectType: PlatformSubjectTypeUser,
+			ExternalSubjectId:   "deleted-user",
+			PlatformSubjectType: PlatformSubjectTypeUser,
+			PlatformSubject:     "deleted-user",
+			MappingStatus:       PlatformMappingStatusConfirmed,
+			Lineage:             `{"apiSubjectId":"10003"}`,
+		},
+		ExternalIdentity{
+			OrganizationId:      "org-a",
+			SourceConnectionId:  "src-a",
+			ExternalSubjectType: PlatformSubjectTypeUser,
+			ExternalSubjectId:   "conflicted-user",
+			PlatformSubjectType: PlatformSubjectTypeUser,
+			PlatformSubject:     "conflicted-user",
+			MappingStatus:       PlatformMappingStatusConfirmed,
+			Lineage:             `{"apiSubjectId":"10004"}`,
+		},
+	)
+
+	result, err := BuildGatewayProjectionBatch(input)
+	if err != nil {
+		t.Fatalf("BuildGatewayProjectionBatch() error = %v", err)
+	}
+	lifecycleBySubject := map[string]string{}
+	for _, subject := range result.Request.Subjects {
+		lifecycleBySubject[subject.StableSubjectID] = subject.LifecycleStatus
+	}
+	expected := map[string]string{
+		"admin-user-1":    "active",
+		"disabled-user":   "disabled",
+		"deleted-user":    "deleted",
+		"conflicted-user": "conflicted",
+	}
+	if !reflect.DeepEqual(lifecycleBySubject, expected) {
+		t.Fatalf("full projection must include active and tombstone subjects: got %#v want %#v", lifecycleBySubject, expected)
 	}
 }
 

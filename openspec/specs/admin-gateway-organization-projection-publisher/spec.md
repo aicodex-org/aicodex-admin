@@ -38,13 +38,14 @@
 - **AND** builder SHALL 在 summary 或审计日志中记录 `mapping_missing`
 - **AND** publisher SHALL NOT 将缺失用户扩大为全公司、部门或默认 allow 事实
 
-#### Scenario: 外部身份不可信
-- **WHEN** ExternalIdentity mappingStatus 为 `PENDING_REVIEW`、`DUPLICATE`、`CONFLICTED` 或 `DISABLED`
-- **THEN** builder SHALL NOT 将该身份作为自动 join 或 gateway subject 映射依据
+#### Scenario: active 外部身份不可信
+- **WHEN** PlatformUser lifecycle 为 `ACTIVE`
+- **AND** ExternalIdentity mappingStatus 为 `PENDING_REVIEW`、`DUPLICATE`、`CONFLICTED` 或 `DISABLED`
+- **THEN** builder SHALL NOT 将该身份作为自动 join 或 active gateway subject 映射依据
 - **AND** builder SHALL 记录对应 skipped reason
 
-### Requirement: PlatformUser mappingStatus 必须显式 confirmed
-系统 MUST 仅在 `PlatformUser.MappingStatus=CONFIRMED` 时，将平台用户纳入 gateway organization projection 的候选主体。空值、未知值、待确认、重复、冲突或禁用状态 MUST fail closed，并记录 `mapping_untrusted` 或等价的跳过原因。
+### Requirement: PlatformUser mappingStatus 必须按 lifecycle 判定可信边界
+系统 MUST 在 `PlatformUser.LifecycleStatus=ACTIVE` 时仅接受 `PlatformUser.MappingStatus=CONFIRMED`，将平台用户纳入 active gateway organization projection 候选主体。空值、未知值、待确认、重复、冲突或禁用状态 MUST fail closed，并记录 `mapping_untrusted` 或等价的跳过原因。对非 active lifecycle tombstone subject，系统 MAY 使用 `DISABLED` mapping 中已有的确定 `apiSubjectId` 表达撤销或收敛；其他非 confirmed/disabled mappingStatus MUST fail closed。
 
 #### Scenario: 空 PlatformUser mappingStatus 不发布 subject
 - **WHEN** PlatformUser lifecycle 为 `ACTIVE`，且存在 confirmed ExternalIdentity 可解析出 `apiSubjectId`
@@ -57,6 +58,13 @@
 - **AND** 缺少确定的 `apiSubjectId`
 - **THEN** builder MUST NOT 猜测 gateway subject
 - **AND** builder MUST 记录 `mapping_missing`
+
+#### Scenario: disabled PlatformUser mappingStatus 只可发布非 active tombstone
+- **WHEN** PlatformUser lifecycle 为 `DISABLED`、`DELETED`、`CONFLICTED`、`UNKNOWN` 或 `STALE`
+- **AND** PlatformUser 的 `MappingStatus=DISABLED`
+- **AND** ExternalIdentity 中存在确定 `apiSubjectId`
+- **THEN** builder MAY 发布对应 lifecycle tombstone subject
+- **AND** builder SHALL NOT 将该主体发布为 active subject
 
 ### Requirement: Lifecycle 和 freshness 必须驱动投影安全边界
 系统 SHALL 将 admin lifecycle 映射为 gateway lifecycle，并 SHALL 为 batch 与 subject 输出一致的 freshness 过期时间。不可判定 lifecycle MUST NOT 被映射为 active。
@@ -93,6 +101,55 @@
 - **THEN** publisher MAY 在同一 `projectionBatchId` 和 `orgVersion` 下有限重试
 - **AND** publisher SHALL 保持请求幂等
 - **AND** publisher SHALL 在重试耗尽后报告 provider unavailable 或等价失败状态
+
+#### Scenario: WeCom 同步成功后触发发布
+- **WHEN** WeCom organization sync run 成功完成并且 gateway projection publisher 已启用
+- **THEN** admin SHALL 基于当前平台组织主模型调用 gateway projection publisher
+- **AND** 发布失败 SHALL 只记录脱敏 warning 或审计事件，不反向改写已成功的 WeCom sync run 终态
+
+### Requirement: Admin 必须周期刷新 gateway projection freshness
+系统 SHALL 提供可配置的 gateway projection refresh worker，周期性基于当前 admin 平台组织主模型重新发布 organization projection，使 gateway runtime projection freshness 在配置 TTL 内保持新鲜。
+
+#### Scenario: refresh worker 启动门控
+- **WHEN** `gatewayOrganizationProjectionEnabled=true` 且 refresh worker 已启用
+- **THEN** admin SHALL 在进程启动后启动 gateway projection refresh worker
+- **AND** worker SHALL 使用服务间 projection endpoint/token，不使用用户 session、Insight provider token 或 Cookie
+- **AND** worker SHALL 在 endpoint/token 缺失时不执行发布，并记录脱敏配置错误
+
+#### Scenario: refresh 周期小于 freshness TTL
+- **WHEN** admin 读取 `gatewayOrganizationProjectionRefreshIntervalSeconds` 和 `gatewayOrganizationProjectionFreshnessTTLSeconds`
+- **THEN** refresh interval SHALL 小于 freshness TTL
+- **AND** 默认 refresh interval SHALL 不大于 900 秒
+- **AND** 若配置的 interval 大于或等于 freshness TTL，系统 SHALL 使用安全默认值或拒绝启动 worker，并记录脱敏 warning
+
+#### Scenario: 周期刷新当前组织 projection
+- **WHEN** refresh worker 到达下一轮刷新时间
+- **THEN** admin SHALL 枚举存在同步批次来源版本的 organizationId
+- **AND** 对每个 organizationId 调用既有 `GatewayProjectionService.BuildAndPublishOrganization`
+- **AND** organization source snapshot 未变化时，projection batch SHALL 保持同一个 gateway 专用 int64 `orgVersion`
+- **AND** refresh batch SHALL 生成新的 `projectionBatchId`、`generatedAt`、`freshness.expiresAt`、subject `projectionVersion`、`lineage` 和 `subjects[]`
+- **AND** admin SHALL NOT 从 Insight report scope、API 源库、gateway projection store 或外部组织原始表补算 projection
+
+#### Scenario: 全量 refresh 包含 tombstone subjects
+- **WHEN** admin 对当前组织执行全量 refresh
+- **THEN** projection SHALL 包含全部具有可信 gateway subject 映射的 active subjects
+- **AND** projection SHALL 对离职、删除、禁用、冲突或未知生命周期主体输出 lifecycle tombstone subject
+- **AND** active subject SHALL 只接受 `CONFIRMED` mapping
+- **AND** 非 active tombstone subject MAY 使用 `DISABLED` mapping 中已有的确定 `apiSubjectId` 表达撤销或收敛
+- **AND** admin SHALL NOT 通过从 `subjects[]` 中省略主体来表达删除、禁用或离职
+- **AND** 缺少可信 mapping 的主体 SHALL fail closed 并进入 skipped summary，而不是被猜测为 gateway subject
+
+#### Scenario: refresh 幂等和不写授权事实
+- **WHEN** worker 对同一 organizationId 周期性刷新 projection
+- **THEN** admin SHALL 只发布 gateway organization projection 输入
+- **AND** admin SHALL NOT 创建、更新或删除 gateway resource authorization facts
+- **AND** admin SHALL NOT 写入权限矩阵或 runtime authorization audit
+- **AND** 重复 publish SHALL 依赖 projection batch contract 和 gateway ingestion 幂等处理，不扩大授权范围
+
+#### Scenario: refresh 运行日志脱敏
+- **WHEN** worker 启动、跳过、成功、失败或完成一轮 refresh
+- **THEN** 日志 SHALL 包含 traceId、organizationId、状态、错误码、accepted/idempotent 或统计摘要
+- **AND** 日志 SHALL NOT 包含 projection token、Cookie、完整认证头、私有 URL、手机号、个人邮箱或完整敏感响应体
 
 ### Requirement: Contract fixture 和验证记录必须脱敏
 系统 SHALL 提供 gateway projection contract fixture 和可重复验证脚本，供 api agent 执行 contract test 和联调。fixture、脚本说明和 verification 记录 MUST NOT 包含真实环境 IP、私有 URL、token、Cookie、密码、客户端密钥、手机号、个人邮箱或客户真实数据。
