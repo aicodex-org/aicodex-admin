@@ -86,6 +86,7 @@ func (s *memoryWecomOrganizationSyncConfigStore) GetWecomOrganizationSyncConfigB
 func (s *memoryWecomOrganizationSyncConfigStore) SaveWecomOrganizationSyncConfig(config *WecomOrganizationSyncConfig) (bool, error) {
 	copied := *config
 	s.saved = &copied
+	s.config = &copied
 	return true, nil
 }
 
@@ -159,6 +160,93 @@ func TestWecomOrganizationSyncConfigServiceSavePreservesMaskedSecretAndRunMetada
 	}
 	if config.AddressBookSecret != WecomOrganizationSyncMaskedSecret {
 		t.Fatalf("returned config should be masked, got %q", config.AddressBookSecret)
+	}
+}
+
+func TestWecomOrganizationSyncConfigServiceSavesAndReadsScheduleSettings(t *testing.T) {
+	configStore := &memoryWecomOrganizationSyncConfigStore{}
+	scheduleStore := newMemoryOrganizationSyncScheduleStore()
+	service := &WecomOrganizationSyncConfigService{
+		Store:         configStore,
+		ScheduleStore: scheduleStore,
+	}
+
+	config, _, err := service.SaveConfig(&WecomOrganizationSyncConfig{
+		Organization:           "engineering",
+		CorpId:                 "ww123",
+		AddressBookSecret:      "real-secret",
+		IsEnabled:              true,
+		SoftDisableMissingData: true,
+		ScheduleEnabled:        true,
+		ScheduleCron:           "*/15 * * * *",
+		ScheduleTimezone:       "UTC",
+	}, true)
+	if err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	if !config.ScheduleEnabled || config.ScheduleCron != "*/15 * * * *" || config.ScheduleTimezone != "UTC" {
+		t.Fatalf("returned schedule fields = enabled:%v cron:%q timezone:%q", config.ScheduleEnabled, config.ScheduleCron, config.ScheduleTimezone)
+	}
+	schedule := scheduleStore.schedules[organizationSyncScheduleIdentityKey(OrganizationSyncProviderWeCom, OrganizationSyncJobTypeFullDifferential, "engineering")]
+	if schedule == nil {
+		t.Fatalf("expected generic schedule to be saved")
+	}
+	if !schedule.IsEnabled || schedule.CronExpression != "*/15 * * * *" || schedule.Timezone != "UTC" {
+		t.Fatalf("unexpected saved schedule: %#v", schedule)
+	}
+
+	readConfig, err := service.GetConfig("engineering", true)
+	if err != nil {
+		t.Fatalf("GetConfig() error = %v", err)
+	}
+	if !readConfig.ScheduleEnabled || readConfig.ScheduleCron != "*/15 * * * *" || readConfig.ScheduleTimezone != "UTC" {
+		t.Fatalf("read schedule fields = enabled:%v cron:%q timezone:%q", readConfig.ScheduleEnabled, readConfig.ScheduleCron, readConfig.ScheduleTimezone)
+	}
+}
+
+func TestWecomOrganizationSyncConfigServiceSaveSchedulePreservesDispatchMetadata(t *testing.T) {
+	lastFireAt := time.Date(2026, 6, 9, 1, 0, 0, 0, time.UTC)
+	configStore := &memoryWecomOrganizationSyncConfigStore{
+		config: &WecomOrganizationSyncConfig{
+			Owner:             "engineering",
+			Name:              "wecom-org-sync-config",
+			Organization:      "engineering",
+			CorpId:            "ww123",
+			AddressBookSecret: "real-secret",
+			IsEnabled:         true,
+		},
+	}
+	scheduleStore := newMemoryOrganizationSyncScheduleStore()
+	existingSchedule := newEnabledOrganizationSyncSchedule("engineering", "0 2 * * *")
+	existingSchedule.LastFireAt = lastFireAt
+	existingSchedule.LastRunId = "run-scheduled"
+	existingSchedule.LastStatus = string(OrganizationSyncScheduleFireStatusDispatched)
+	_, _ = scheduleStore.SaveOrganizationSyncSchedule(existingSchedule)
+	service := &WecomOrganizationSyncConfigService{
+		Store:         configStore,
+		ScheduleStore: scheduleStore,
+	}
+
+	_, _, err := service.SaveConfig(&WecomOrganizationSyncConfig{
+		Organization:      "engineering",
+		CorpId:            "ww123",
+		AddressBookSecret: WecomOrganizationSyncMaskedSecret,
+		IsEnabled:         true,
+		ScheduleEnabled:   true,
+		ScheduleCron:      "*/30 * * * *",
+		ScheduleTimezone:  "UTC",
+	}, true)
+	if err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	schedule := scheduleStore.schedules[organizationSyncScheduleIdentityKey(OrganizationSyncProviderWeCom, OrganizationSyncJobTypeFullDifferential, "engineering")]
+	if schedule.LastFireAt != lastFireAt || schedule.LastRunId != "run-scheduled" || schedule.LastStatus != string(OrganizationSyncScheduleFireStatusDispatched) {
+		t.Fatalf("schedule dispatch metadata should be preserved when editing settings: %#v", schedule)
+	}
+	if schedule.CronExpression != "*/30 * * * *" || schedule.Timezone != "UTC" {
+		t.Fatalf("schedule settings should still be updated: %#v", schedule)
 	}
 }
 

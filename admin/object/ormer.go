@@ -588,6 +588,16 @@ func (a *Ormer) createTable() {
 		panic(err)
 	}
 
+	err = a.Engine.Sync2(new(OrganizationSyncSchedule))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(OrganizationSyncScheduleFire))
+	if err != nil {
+		panic(err)
+	}
+
 	err = a.Engine.Sync2(new(WecomProfileConsentIntent))
 	if err != nil {
 		panic(err)

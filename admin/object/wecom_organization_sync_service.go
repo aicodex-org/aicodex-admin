@@ -66,6 +66,11 @@ type WecomOrganizationSyncRunStartStore interface {
 	StartWecomOrganizationSyncRun(config *WecomOrganizationSyncConfig, actor string, now time.Time, leaseDuration time.Duration) (*WecomOrganizationSyncStartRunResult, error)
 }
 
+// WecomOrganizationSyncRunTriggerStartStore 允许仓储在同一事务化运行锁内写入具体触发来源。
+type WecomOrganizationSyncRunTriggerStartStore interface {
+	StartWecomOrganizationSyncRunWithTrigger(config *WecomOrganizationSyncConfig, actor string, triggerType WecomOrganizationSyncTriggerType, now time.Time, leaseDuration time.Duration) (*WecomOrganizationSyncStartRunResult, error)
+}
+
 // WecomOrganizationSyncConfigLastSyncStore 写回配置上的最近成功同步信息，供后台配置页展示和排障。
 type WecomOrganizationSyncConfigLastSyncStore interface {
 	UpdateWecomOrganizationSyncConfigLastSync(config *WecomOrganizationSyncConfig, run *WecomOrganizationSyncRun, syncedAt time.Time) error
@@ -211,9 +216,12 @@ func (s *WecomOrganizationSyncService) StartManualRun(config *WecomOrganizationS
 	return result.Run, nil
 }
 
-func (s *WecomOrganizationSyncService) startManualRunWithStore(store WecomOrganizationSyncRunStore, config *WecomOrganizationSyncConfig, actor string) (*WecomOrganizationSyncStartRunResult, error) {
+func (s *WecomOrganizationSyncService) startRunWithStore(store WecomOrganizationSyncRunStore, config *WecomOrganizationSyncConfig, actor string, triggerType WecomOrganizationSyncTriggerType) (*WecomOrganizationSyncStartRunResult, error) {
 	if err := validateWecomOrganizationSyncRunExecutionConfig(config); err != nil {
 		return nil, err
+	}
+	if triggerType == "" {
+		triggerType = WecomOrganizationSyncTriggerManual
 	}
 
 	now := s.now().UTC()
@@ -238,7 +246,7 @@ func (s *WecomOrganizationSyncService) startManualRunWithStore(store WecomOrgani
 		Organization:   config.Organization,
 		ConfigName:     config.Name,
 		CorpId:         config.CorpId,
-		TriggerType:    WecomOrganizationSyncTriggerManual,
+		TriggerType:    triggerType,
 		Actor:          actor,
 		Status:         WecomOrganizationSyncRunStatusRunning,
 		Stage:          WecomOrganizationSyncRunStageFetching,
@@ -389,6 +397,25 @@ func (s *WecomOrganizationSyncService) StartManualRunAsync(config *WecomOrganiza
 	configCopy := *config
 	if result.Config != nil {
 		// 使用创建 run 时锁定的配置快照，避免并发保存配置后 run 记录与实际调用 Corp ID/Secret 不一致。
+		configCopy = *result.Config
+	}
+	go s.executeManualRunInBackground(&configCopy, &run)
+	return result, nil
+}
+
+// StartScheduledRunAsync 创建 scheduled run 后复用现有全量差异同步后台执行路径。
+func (s *WecomOrganizationSyncService) StartScheduledRunAsync(config *WecomOrganizationSyncConfig, actor string) (*WecomOrganizationSyncStartRunResult, error) {
+	result, err := s.StartScheduledRunWithResult(config, actor)
+	if err != nil {
+		return nil, err
+	}
+	if result == nil || result.Run == nil {
+		return result, nil
+	}
+
+	run := *result.Run
+	configCopy := *config
+	if result.Config != nil {
 		configCopy = *result.Config
 	}
 	go s.executeManualRunInBackground(&configCopy, &run)

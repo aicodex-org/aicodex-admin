@@ -108,9 +108,54 @@ test("renders localized WeCom organization sync configuration entry", async() =>
   expect(screen.getByText("自建应用 Secret")).toBeInTheDocument();
   expect(screen.getByText("同步选项")).toBeInTheDocument();
   expect(screen.getByText("启用同步")).toBeInTheDocument();
+  expect(screen.getByText("定时同步")).toBeInTheDocument();
+  expect(screen.getByText("启用定时同步")).toBeInTheDocument();
+  expect(screen.getByText("Cron 表达式")).toBeInTheDocument();
+  expect(screen.getByText("时区")).toBeInTheDocument();
   expect(screen.getByText("通讯录读取权限要求")).toBeInTheDocument();
   expect(screen.getByText("开始全量同步")).toBeInTheDocument();
   expect(Setting.showMessage).not.toHaveBeenCalled();
+});
+
+test("saves scheduled sync settings from the config form", async() => {
+  mockConfig({
+    isEnabled: true,
+    scheduleEnabled: false,
+    scheduleCron: "0 2 * * *",
+    scheduleTimezone: "Asia/Shanghai",
+  });
+  WecomOrganizationSyncBackend.saveWecomOrganizationSyncConfig.mockResolvedValue({
+    status: "ok",
+    data: {
+      organization: "engineering",
+      config: {
+        organization: "engineering",
+        corpId: "",
+        addressBookSecret: "",
+        isEnabled: true,
+        softDisableMissingData: true,
+        scheduleEnabled: true,
+        scheduleCron: "*/15 * * * *",
+        scheduleTimezone: "UTC",
+      },
+    },
+  });
+
+  render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+
+  await screen.findByText("定时同步");
+  const scheduleSwitch = screen.getByText("启用定时同步").closest(".ant-space").querySelector("button");
+  fireEvent.click(scheduleSwitch);
+  fireEvent.change(screen.getByDisplayValue("0 2 * * *"), {target: {value: "*/15 * * * *"}});
+  fireEvent.change(screen.getByDisplayValue("Asia/Shanghai"), {target: {value: "UTC"}});
+  fireEvent.click(screen.getByText("保存"));
+
+  await flushPromises();
+  expect(WecomOrganizationSyncBackend.saveWecomOrganizationSyncConfig).toHaveBeenCalledWith(expect.objectContaining({
+    scheduleEnabled: true,
+    scheduleCron: "*/15 * * * *",
+    scheduleTimezone: "UTC",
+  }));
 });
 
 test("refreshes after account organization is loaded", async() => {
@@ -170,6 +215,7 @@ test("renders sync run history with status, counts, and safe error summary", asy
         name: "run-running",
         status: "running",
         stage: "fetch",
+        triggerType: "manual",
         actor: "admin",
         departmentCreatedCount: 1,
         departmentUpdatedCount: 2,
@@ -180,7 +226,7 @@ test("renders sync run history with status, counts, and safe error summary", asy
         finishedAt: "0001-01-01T00:00:00Z",
         errorText: "safe summary",
       },
-      {name: "run-succeeded", status: "succeeded", stage: "finalizing"},
+      {name: "run-succeeded", status: "succeeded", stage: "finalizing", triggerType: "scheduled"},
       {name: "run-failed", status: "failed", stage: "applying"},
       {name: "run-partial", status: "partial", stage: "planning"},
     ],
@@ -195,6 +241,9 @@ test("renders sync run history with status, counts, and safe error summary", asy
   expect(screen.getByText("失败")).toBeInTheDocument();
   expect(screen.getByText("部分成功")).toBeInTheDocument();
   expect(screen.getByText("状态")).toBeInTheDocument();
+  expect(screen.getByText("触发方式")).toBeInTheDocument();
+  expect(screen.getByText("手动")).toBeInTheDocument();
+  expect(screen.getByText("定时")).toBeInTheDocument();
   expect(screen.queryByText("Status")).not.toBeInTheDocument();
   expect(screen.getByText("部门（新增 / 更新 / 禁用）")).toBeInTheDocument();
   expect(screen.getByText("用户（新增 / 更新 / 禁用）")).toBeInTheDocument();

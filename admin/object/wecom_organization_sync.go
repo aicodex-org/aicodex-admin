@@ -69,6 +69,18 @@ type WecomOrganizationSyncConfig struct {
 	SoftDisableMissingData bool      `xorm:"bool" json:"softDisableMissingData"`
 	LastRunId              string    `xorm:"varchar(100) index" json:"lastRunId"`
 	LastSyncedAt           time.Time `xorm:"timestampz" json:"lastSyncedAt"`
+
+	// Schedule* 字段仅用于企业微信配置 API/页面读写，持久化来源是通用 OrganizationSyncSchedule 表。
+	ScheduleEnabled  bool   `xorm:"-" json:"scheduleEnabled"`
+	ScheduleCron     string `xorm:"-" json:"scheduleCron"`
+	ScheduleTimezone string `xorm:"-" json:"scheduleTimezone"`
+
+	// ScheduleLast* 字段展示最近一次调度派发摘要，不代表企业微信同步 run 的最终状态。
+	ScheduleLastFireAt    time.Time `xorm:"-" json:"scheduleLastFireAt"`
+	ScheduleLastRunId     string    `xorm:"-" json:"scheduleLastRunId"`
+	ScheduleLastStatus    string    `xorm:"-" json:"scheduleLastStatus"`
+	ScheduleLastErrorCode string    `xorm:"-" json:"scheduleLastErrorCode"`
+	ScheduleLastErrorText string    `xorm:"-" json:"scheduleLastErrorText"`
 }
 
 // WecomOrganizationSyncRun 记录一次企业微信组织架构同步执行。

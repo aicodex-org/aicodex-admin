@@ -15,6 +15,7 @@
 package object
 
 import (
+	"context"
 	"testing"
 	"time"
 )
@@ -114,6 +115,88 @@ func TestWecomOrganizationSyncServiceStartManualRunRejectsMaskedSecret(t *testin
 	}
 	if store.createdRun != nil {
 		t.Fatalf("masked secret must not create run: %#v", store.createdRun)
+	}
+}
+
+func TestWecomOrganizationSyncServiceStartScheduledRunUsesScheduledTrigger(t *testing.T) {
+	now := time.Date(2026, 6, 9, 1, 30, 0, 0, time.UTC)
+	store := &memoryWecomOrganizationSyncRunStore{}
+	service := &WecomOrganizationSyncService{
+		Store:         store,
+		Now:           func() time.Time { return now },
+		LeaseDuration: 10 * time.Minute,
+	}
+
+	result, err := service.StartScheduledRunWithResult(&WecomOrganizationSyncConfig{
+		Owner:             "engineering",
+		Name:              "config",
+		Organization:      "engineering",
+		CorpId:            "ww123",
+		AddressBookSecret: "secret",
+	}, "scheduler:node-a")
+	if err != nil {
+		t.Fatalf("StartScheduledRunWithResult() error = %v", err)
+	}
+
+	if result == nil || result.Run == nil {
+		t.Fatalf("expected scheduled run result, got %#v", result)
+	}
+	if result.Run.TriggerType != WecomOrganizationSyncTriggerScheduled {
+		t.Fatalf("trigger type = %s, want scheduled", result.Run.TriggerType)
+	}
+	if result.Run.Actor != "scheduler:node-a" {
+		t.Fatalf("actor = %q, want scheduler actor", result.Run.Actor)
+	}
+}
+
+func TestWecomOrganizationScheduledSyncExecutorSkipsAlreadyRunningRun(t *testing.T) {
+	now := time.Date(2026, 6, 9, 1, 30, 0, 0, time.UTC)
+	configStore := &memoryWecomOrganizationSyncConfigStore{
+		config: &WecomOrganizationSyncConfig{
+			Owner:             "engineering",
+			Name:              "config",
+			Organization:      "engineering",
+			CorpId:            "ww123",
+			AddressBookSecret: "secret",
+			IsEnabled:         true,
+		},
+	}
+	runStore := &memoryWecomOrganizationSyncRunStore{
+		runningRun: &WecomOrganizationSyncRun{
+			Owner:          "engineering",
+			Name:           "run-active",
+			Organization:   "engineering",
+			Status:         WecomOrganizationSyncRunStatusRunning,
+			LeaseExpiresAt: now.Add(5 * time.Minute),
+		},
+	}
+	executor := &WecomOrganizationScheduledSyncExecutor{
+		ConfigStore: configStore,
+		SyncService: &WecomOrganizationSyncService{
+			Store: runStore,
+			Now:   func() time.Time { return now },
+		},
+	}
+
+	result, err := executor.ExecuteOrganizationSync(context.Background(), OrganizationSyncDispatchRequest{
+		Schedule: &OrganizationSyncSchedule{
+			Provider:     OrganizationSyncProviderWeCom,
+			JobType:      OrganizationSyncJobTypeFullDifferential,
+			Organization: "engineering",
+		},
+		WindowStart: now.Truncate(time.Minute),
+		NodeID:      "node-a",
+		Actor:       "scheduler:node-a",
+	})
+	if err != nil {
+		t.Fatalf("ExecuteOrganizationSync() error = %v", err)
+	}
+
+	if result == nil || result.Status != OrganizationSyncScheduleFireStatusSkipped || result.ErrorCode != OrganizationSyncScheduleFireErrorAlreadyRunning || result.RunId != "run-active" {
+		t.Fatalf("already running should return skipped result with active run id: %#v", result)
+	}
+	if runStore.createdRun != nil {
+		t.Fatalf("already running should not create duplicate run: %#v", runStore.createdRun)
 	}
 }
 

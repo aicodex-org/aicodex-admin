@@ -312,6 +312,7 @@ func newWecomOrganizationSyncConfigResponse(organization string, config *object.
 			Name:         object.WecomOrganizationSyncDefaultConfigName,
 			Organization: organization,
 		}
+		object.AttachWecomOrganizationSyncScheduleFieldsForResponse(config, nil)
 		return &wecomOrganizationSyncConfigResponse{
 			Organization: organization,
 			IsConfigured: false,

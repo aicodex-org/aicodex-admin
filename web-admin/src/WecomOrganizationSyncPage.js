@@ -192,6 +192,9 @@ class WecomOrganizationSyncPage extends React.Component {
       addressBookSecret: "",
       isEnabled: false,
       softDisableMissingData: true,
+      scheduleEnabled: false,
+      scheduleCron: "0 2 * * *",
+      scheduleTimezone: "Asia/Shanghai",
       ...(config || {}),
     };
   }
@@ -316,6 +319,20 @@ class WecomOrganizationSyncPage extends React.Component {
     return <Tag color={colorMap[status] || "default"}>{labelMap[status] || status || "-"}</Tag>;
   }
 
+  getTriggerTag(triggerType) {
+    const colorMap = {
+      manual: "blue",
+      scheduled: "cyan",
+      callback: "purple",
+    };
+    const labelMap = {
+      manual: "手动",
+      scheduled: "定时",
+      callback: "回调",
+    };
+    return <Tag color={colorMap[triggerType] || "default"}>{labelMap[triggerType] || triggerType || "-"}</Tag>;
+  }
+
   getStageText(stage, status) {
     if (status === "succeeded") {
       return "已完成";
@@ -376,6 +393,13 @@ class WecomOrganizationSyncPage extends React.Component {
         render: status => this.getStatusTag(status),
       },
       {
+        title: "触发方式",
+        dataIndex: "triggerType",
+        key: "triggerType",
+        width: 110,
+        render: triggerType => this.getTriggerTag(triggerType),
+      },
+      {
         title: "阶段",
         dataIndex: "stage",
         key: "stage",
@@ -431,7 +455,7 @@ class WecomOrganizationSyncPage extends React.Component {
         loading={this.state.loading}
         columns={columns}
         dataSource={this.state.runs}
-        scroll={{x: 1300}}
+        scroll={{x: 1420}}
         pagination={getTablePaginationProps({...this.state.pagination, total: this.state.runCount || this.state.runs.length})}
         onChange={this.handleRunsTableChange}
       />
@@ -522,6 +546,42 @@ class WecomOrganizationSyncPage extends React.Component {
     );
   }
 
+  renderScheduleOptions(config) {
+    return (
+      <div>
+        <div style={{marginBottom: 8}}>定时同步</div>
+        <Space direction="vertical" size={8} style={{width: "100%"}}>
+          <Space>
+            <Switch checked={config.scheduleEnabled} onChange={checked => this.updateConfigField("scheduleEnabled", checked)} />
+            <span>启用定时同步</span>
+          </Space>
+          <div>
+            <div style={{marginBottom: 4}}>Cron 表达式</div>
+            <Input
+              value={config.scheduleCron}
+              onChange={event => this.updateConfigField("scheduleCron", event.target.value)}
+              placeholder="0 2 * * *"
+            />
+          </div>
+          <div>
+            <div style={{marginBottom: 4}}>时区</div>
+            <Input
+              value={config.scheduleTimezone}
+              onChange={event => this.updateConfigField("scheduleTimezone", event.target.value)}
+              placeholder="Asia/Shanghai"
+            />
+          </div>
+          {config.scheduleLastFireAt && (
+            <Text type="secondary">最近调度：{this.formatRunTime(config.scheduleLastFireAt)}</Text>
+          )}
+          {config.scheduleLastStatus && (
+            <Text type="secondary">最近结果：{config.scheduleLastStatus}{config.scheduleLastErrorText ? `，${config.scheduleLastErrorText}` : ""}</Text>
+          )}
+        </Space>
+      </div>
+    );
+  }
+
   handleRunsTableChange = (pagination) => {
     this.refreshRuns(this.state.organization, {
       pagination: {
@@ -563,6 +623,9 @@ class WecomOrganizationSyncPage extends React.Component {
           </Col>
           <Col xs={24} md={12}>
             {this.renderSyncOptions(config)}
+          </Col>
+          <Col xs={24} md={12}>
+            {this.renderScheduleOptions(config)}
           </Col>
         </Row>
 
