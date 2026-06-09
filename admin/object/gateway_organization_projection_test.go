@@ -137,46 +137,30 @@ func TestBuildGatewayProjectionBatchFailsClosedForMappingsAndLifecycle(t *testin
 			MappingStatus:   PlatformMappingStatusDisabled,
 		},
 	)
-	input.ExternalIdentities = append(input.ExternalIdentities,
-		ExternalIdentity{
-			OrganizationId:      "org-a",
-			SourceConnectionId:  "src-a",
-			ExternalSubjectType: PlatformSubjectTypeUser,
-			ExternalSubjectId:   "pending-api",
-			PlatformSubjectType: PlatformSubjectTypeUser,
-			PlatformSubject:     "pending-api",
-			MappingStatus:       PlatformMappingStatusPendingReview,
-			Lineage:             `{"apiSubjectId":"10002"}`,
+	input.ApiUserMappings = append(input.ApiUserMappings,
+		PlatformApiUserMapping{
+			OrganizationId: "org-a",
+			AdminSubject:   "pending-api",
+			ApiUserId:      "10002",
+			MappingStatus:  PlatformMappingStatusPendingReview,
 		},
-		ExternalIdentity{
-			OrganizationId:      "org-a",
-			SourceConnectionId:  "src-a",
-			ExternalSubjectType: PlatformSubjectTypeUser,
-			ExternalSubjectId:   "stale-user",
-			PlatformSubjectType: PlatformSubjectTypeUser,
-			PlatformSubject:     "stale-user",
-			MappingStatus:       PlatformMappingStatusConfirmed,
-			Lineage:             `{"apiSubjectId":"10003"}`,
+		PlatformApiUserMapping{
+			OrganizationId: "org-a",
+			AdminSubject:   "stale-user",
+			ApiUserId:      "10003",
+			MappingStatus:  PlatformMappingStatusConfirmed,
 		},
-		ExternalIdentity{
-			OrganizationId:      "org-a",
-			SourceConnectionId:  "src-a",
-			ExternalSubjectType: PlatformSubjectTypeUser,
-			ExternalSubjectId:   "empty-platform-mapping",
-			PlatformSubjectType: PlatformSubjectTypeUser,
-			PlatformSubject:     "empty-platform-mapping",
-			MappingStatus:       PlatformMappingStatusConfirmed,
-			Lineage:             `{"apiSubjectId":"10004"}`,
+		PlatformApiUserMapping{
+			OrganizationId: "org-a",
+			AdminSubject:   "empty-platform-mapping",
+			ApiUserId:      "10004",
+			MappingStatus:  PlatformMappingStatusConfirmed,
 		},
-		ExternalIdentity{
-			OrganizationId:      "org-a",
-			SourceConnectionId:  "src-a",
-			ExternalSubjectType: PlatformSubjectTypeUser,
-			ExternalSubjectId:   "disabled-active-mapping",
-			PlatformSubjectType: PlatformSubjectTypeUser,
-			PlatformSubject:     "disabled-active-mapping",
-			MappingStatus:       PlatformMappingStatusDisabled,
-			Lineage:             `{"apiSubjectId":"10005"}`,
+		PlatformApiUserMapping{
+			OrganizationId: "org-a",
+			AdminSubject:   "disabled-active-mapping",
+			ApiUserId:      "10005",
+			MappingStatus:  PlatformMappingStatusDisabled,
 		},
 	)
 
@@ -193,10 +177,10 @@ func TestBuildGatewayProjectionBatchFailsClosedForMappingsAndLifecycle(t *testin
 		t.Fatalf("missing apiSubjectId must not be published: %#v", result.Request.Subjects)
 	}
 	if _, ok := subjectByStableID["pending-api"]; ok {
-		t.Fatalf("untrusted external identity must not be published: %#v", result.Request.Subjects)
+		t.Fatalf("untrusted api user mapping must not be published: %#v", result.Request.Subjects)
 	}
 	if _, ok := subjectByStableID["empty-platform-mapping"]; ok {
-		t.Fatalf("empty PlatformUser mappingStatus must not be published even with confirmed ExternalIdentity: %#v", result.Request.Subjects)
+		t.Fatalf("empty PlatformUser mappingStatus must not be published even with confirmed api user mapping: %#v", result.Request.Subjects)
 	}
 	if _, ok := subjectByStableID["disabled-active-mapping"]; ok {
 		t.Fatalf("active subject must still require confirmed PlatformUser mappingStatus: %#v", result.Request.Subjects)
@@ -213,29 +197,16 @@ func TestBuildGatewayProjectionBatchFailsClosedForMappingsAndLifecycle(t *testin
 	}
 }
 
-func TestBuildGatewayProjectionBatchUsesExplicitAdminUserMapping(t *testing.T) {
+func TestBuildGatewayProjectionBatchUsesPlatformApiUserMapping(t *testing.T) {
 	generatedAt := time.Date(2026, 6, 5, 10, 30, 0, 0, time.UTC)
 	finishedAt := generatedAt.Add(5 * time.Minute)
 	input := gatewayProjectionTestInput(generatedAt, finishedAt)
-	input.ExternalIdentities = []ExternalIdentity{
+	input.ApiUserMappings = []PlatformApiUserMapping{
 		{
-			OrganizationId:      "org-a",
-			SourceConnectionId:  "src-a",
-			ExternalSubjectType: PlatformSubjectTypeUser,
-			ExternalSubjectId:   "external-user-1",
-			PlatformSubjectType: PlatformSubjectTypeUser,
-			PlatformSubject:     "admin-user-1",
-			MappingStatus:       PlatformMappingStatusConfirmed,
-			Lineage:             `{"sourceType":"wecom","externalSubjectId":"external-user-1"}`,
-		},
-	}
-	input.AdminUsers = []User{
-		{
-			Owner: "org-a",
-			Name:  "local-user-1",
-			Properties: map[string]string{
-				"aicodexApiUserId": "10009",
-			},
+			OrganizationId: "org-a",
+			AdminSubject:   "admin-user-1",
+			ApiUserId:      "10009",
+			MappingStatus:  PlatformMappingStatusConfirmed,
 		},
 	}
 
@@ -247,7 +218,37 @@ func TestBuildGatewayProjectionBatchUsesExplicitAdminUserMapping(t *testing.T) {
 		t.Fatalf("subjects = %#v, want one mapped subject", result.Request.Subjects)
 	}
 	if result.Request.Subjects[0].APISubjectID != "10009" {
-		t.Fatalf("apiSubjectId should come from explicit admin user mapping, got %#v", result.Request.Subjects[0])
+		t.Fatalf("apiSubjectId should come from PlatformApiUserMapping, got %#v", result.Request.Subjects[0])
+	}
+}
+
+func TestBuildGatewayProjectionBatchDoesNotUseLegacyIdentityLineageAtRuntime(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 5, 10, 45, 0, 0, time.UTC)
+	finishedAt := generatedAt.Add(5 * time.Minute)
+	input := gatewayProjectionTestInput(generatedAt, finishedAt)
+	input.ApiUserMappings = nil
+	input.ExternalIdentities = []ExternalIdentity{
+		{
+			OrganizationId:      "org-a",
+			SourceConnectionId:  "src-a",
+			ExternalSubjectType: PlatformSubjectTypeUser,
+			ExternalSubjectId:   "external-user-1",
+			PlatformSubjectType: PlatformSubjectTypeUser,
+			PlatformSubject:     "admin-user-1",
+			MappingStatus:       PlatformMappingStatusConfirmed,
+			Lineage:             `{"apiSubjectId":"10001"}`,
+		},
+	}
+
+	result, err := BuildGatewayProjectionBatch(input)
+	if err != nil {
+		t.Fatalf("BuildGatewayProjectionBatch() error = %v", err)
+	}
+	if len(result.Request.Subjects) != 0 {
+		t.Fatalf("legacy ExternalIdentity lineage must not publish api subject at runtime: %#v", result.Request.Subjects)
+	}
+	if result.Summary.SkippedByReason[GatewayProjectionSkipMappingMissing] != 1 {
+		t.Fatalf("missing first-class mapping should be reported as mapping_missing: %#v", result.Summary.SkippedByReason)
 	}
 }
 
@@ -351,36 +352,24 @@ func TestBuildGatewayProjectionBatchPublishesLifecycleTombstoneSubjects(t *testi
 			MappingStatus:   PlatformMappingStatusConfirmed,
 		},
 	)
-	input.ExternalIdentities = append(input.ExternalIdentities,
-		ExternalIdentity{
-			OrganizationId:      "org-a",
-			SourceConnectionId:  "src-a",
-			ExternalSubjectType: PlatformSubjectTypeUser,
-			ExternalSubjectId:   "disabled-user",
-			PlatformSubjectType: PlatformSubjectTypeUser,
-			PlatformSubject:     "disabled-user",
-			MappingStatus:       PlatformMappingStatusDisabled,
-			Lineage:             `{"apiSubjectId":"10002"}`,
+	input.ApiUserMappings = append(input.ApiUserMappings,
+		PlatformApiUserMapping{
+			OrganizationId: "org-a",
+			AdminSubject:   "disabled-user",
+			ApiUserId:      "10002",
+			MappingStatus:  PlatformMappingStatusDisabled,
 		},
-		ExternalIdentity{
-			OrganizationId:      "org-a",
-			SourceConnectionId:  "src-a",
-			ExternalSubjectType: PlatformSubjectTypeUser,
-			ExternalSubjectId:   "deleted-user",
-			PlatformSubjectType: PlatformSubjectTypeUser,
-			PlatformSubject:     "deleted-user",
-			MappingStatus:       PlatformMappingStatusConfirmed,
-			Lineage:             `{"apiSubjectId":"10003"}`,
+		PlatformApiUserMapping{
+			OrganizationId: "org-a",
+			AdminSubject:   "deleted-user",
+			ApiUserId:      "10003",
+			MappingStatus:  PlatformMappingStatusConfirmed,
 		},
-		ExternalIdentity{
-			OrganizationId:      "org-a",
-			SourceConnectionId:  "src-a",
-			ExternalSubjectType: PlatformSubjectTypeUser,
-			ExternalSubjectId:   "conflicted-user",
-			PlatformSubjectType: PlatformSubjectTypeUser,
-			PlatformSubject:     "conflicted-user",
-			MappingStatus:       PlatformMappingStatusConfirmed,
-			Lineage:             `{"apiSubjectId":"10004"}`,
+		PlatformApiUserMapping{
+			OrganizationId: "org-a",
+			AdminSubject:   "conflicted-user",
+			ApiUserId:      "10004",
+			MappingStatus:  PlatformMappingStatusConfirmed,
 		},
 	)
 
@@ -426,6 +415,15 @@ func gatewayProjectionTestInput(generatedAt time.Time, finishedAt time.Time) Gat
 				UserName:        "local-user-1",
 				LifecycleStatus: PlatformLifecycleStatusActive,
 				MappingStatus:   PlatformMappingStatusConfirmed,
+			},
+		},
+		ApiUserMappings: []PlatformApiUserMapping{
+			{
+				OrganizationId: "org-a",
+				AdminSubject:   "admin-user-1",
+				ApiUserId:      "10001",
+				MappingStatus:  PlatformMappingStatusConfirmed,
+				Lineage:        `{"roleIds":["role-b","role-a","role-b"],"positionIds":["pos-b","pos-a"]}`,
 			},
 		},
 		Departments: []PlatformDepartment{
@@ -691,14 +689,16 @@ func TestGatewayProjectionPublisherKeepsRequestContextUntilResponseBodyRead(t *t
 func TestGatewayProjectionServiceBuildsAndPublishesOrganization(t *testing.T) {
 	generatedAt := time.Date(2026, 6, 5, 13, 0, 0, 0, time.UTC)
 	finishedAt := generatedAt.Add(10 * time.Minute)
+	input := gatewayProjectionTestInput(generatedAt, finishedAt)
 	store := &memoryGatewayProjectionSnapshotStore{
 		snapshot: GatewayProjectionSnapshot{
 			SourceConnections:  []SourceConnection{{OrganizationId: "org-a", SourceConnectionId: "src-a", SourceType: SourceTypeWecom, Status: SourceConnectionStatusActive}},
-			Users:              gatewayProjectionTestInput(generatedAt, finishedAt).Users,
-			Departments:        gatewayProjectionTestInput(generatedAt, finishedAt).Departments,
-			Memberships:        gatewayProjectionTestInput(generatedAt, finishedAt).Memberships,
-			ExternalIdentities: gatewayProjectionTestInput(generatedAt, finishedAt).ExternalIdentities,
-			SyncBatch:          gatewayProjectionTestInput(generatedAt, finishedAt).SyncBatch,
+			Users:              input.Users,
+			Departments:        input.Departments,
+			Memberships:        input.Memberships,
+			ExternalIdentities: input.ExternalIdentities,
+			ApiUserMappings:    input.ApiUserMappings,
+			SyncBatch:          input.SyncBatch,
 		},
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -78,11 +78,12 @@ func fastAutoSignin(ctx *context.Context) (string, error) {
 	nonce := ctx.Input.Query("nonce")
 	codeChallengeMethod := ctx.Input.Query("code_challenge_method")
 	codeChallenge := ctx.Input.Query("code_challenge")
+	organization := ctx.Input.Query("organization")
 	if clientId == "" || responseType != "code" || redirectUri == "" {
 		return "", nil
 	}
 
-	application, err := object.GetApplicationByClientId(clientId)
+	application, err := object.GetApplicationByClientIdForOrganization(clientId, organization)
 	if err != nil {
 		return "", err
 	}
@@ -120,7 +121,7 @@ func fastAutoSignin(ctx *context.Context) (string, error) {
 		return "", nil
 	}
 
-	code, err := object.GetOAuthCode(userId, clientId, "", "autoSignin", responseType, redirectUri, scope, state, nonce, codeChallengeMethod, codeChallenge, "", ctx.Request.Host, getAcceptLanguage(ctx))
+	code, err := object.GetOAuthCode(userId, clientId, "", "autoSignin", responseType, redirectUri, scope, state, nonce, codeChallengeMethod, codeChallenge, "", organization, ctx.Request.Host, getAcceptLanguage(ctx))
 	if err != nil {
 		return "", err
 	} else if code.Message != "" {

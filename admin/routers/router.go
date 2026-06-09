@@ -120,6 +120,11 @@ func InitAPI() {
 	web.Router("/api/add-application", &controllers.ApiController{}, "POST:AddApplication")
 	web.Router("/api/delete-application", &controllers.ApiController{}, "POST:DeleteApplication")
 
+	web.Router("/api/get-platform-api-organization-mappings", &controllers.ApiController{}, "GET:GetPlatformApiOrganizationMappings")
+	web.Router("/api/update-platform-api-organization-mapping", &controllers.ApiController{}, "POST:UpdatePlatformApiOrganizationMapping")
+	web.Router("/api/get-platform-api-user-mappings", &controllers.ApiController{}, "GET:GetPlatformApiUserMappings")
+	web.Router("/api/update-platform-api-user-mapping", &controllers.ApiController{}, "POST:UpdatePlatformApiUserMapping")
+
 	web.Router("/api/get-providers", &controllers.ApiController{}, "GET:GetProviders")
 	web.Router("/api/get-provider", &controllers.ApiController{}, "GET:GetProvider")
 	web.Router("/api/get-global-providers", &controllers.ApiController{}, "GET:GetGlobalProviders")

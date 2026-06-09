@@ -1,0 +1,35 @@
+{
+  "issuer": "https://admin.example.invalid",
+  "authorization_request": {
+    "mode": "shared_application",
+    "client_id": "client-api-synthetic",
+    "organization": "org-alpha",
+    "redirect_uri": "https://app.example.invalid/callback",
+    "scope": "openid profile email"
+  },
+  "id_token_claims": {
+    "iss": "https://admin.example.invalid",
+    "sub": "org-alpha/alice",
+    "aud": ["client-api-synthetic"],
+    "azp": "client-api-synthetic",
+    "client_id": "client-api-synthetic",
+    "organization": "org-alpha",
+    "scope": "openid profile email"
+  },
+  "access_token_claims": {
+    "iss": "https://admin.example.invalid",
+    "sub": "org-alpha/alice",
+    "aud": ["client-api-synthetic"],
+    "client_id": "client-api-synthetic",
+    "organization": "org-alpha",
+    "scope": "openid profile email"
+  },
+  "userinfo": {
+    "iss": "https://admin.example.invalid",
+    "sub": "org-alpha/alice",
+    "aud": "client-api-synthetic",
+    "client_id": "client-api-synthetic",
+    "organization": "org-alpha",
+    "email": "alice@example.invalid"
+  }
+}

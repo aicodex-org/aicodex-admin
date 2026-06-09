@@ -1581,7 +1581,7 @@ export function renderSignupLink(application, text) {
     if (application.signupUrl === "") {
       url = `/signup/${application.name}`;
       if (application.isShared) {
-        url = `/signup/${application.name}-org-${application.organization}`;
+        url = `/signup/${application.name}`;
       }
     } else {
       url = application.signupUrl;
@@ -1592,7 +1592,13 @@ export function renderSignupLink(application, text) {
     sessionStorage.setItem("signinUrl", window.location.pathname + window.location.search);
   };
 
-  return renderLink(url + window.location.search, text, storeSigninUrl);
+  let query = window.location.search;
+  if (application?.isShared && application?.organization) {
+    const params = new URLSearchParams(query);
+    params.set("organization", application.organization);
+    query = `?${params.toString()}`;
+  }
+  return renderLink(url + query, text, storeSigninUrl);
 }
 
 export function renderForgetLink(application, text) {
@@ -1713,13 +1719,7 @@ export function getTag(color, text, icon) {
 }
 
 export function getApplicationName(application) {
-  let name = `${application?.owner}/${application?.name}`;
-
-  if (application?.isShared && application?.organization) {
-    name += `-org-${application.organization}`;
-  }
-
-  return name;
+  return `${application?.owner}/${application?.name}`;
 }
 
 export function getApplicationDisplayName(application) {
@@ -2459,6 +2459,12 @@ export function getApiPaths() {
   // 模块化 API 路径需要显式加入，否则权限资源下拉只覆盖旧的 get/update 风格接口。
   res.push("wecom-org-sync/config", "wecom-org-sync/config/test", "wecom-org-sync/runs");
   res.push("org-management-scope/current");
+  res.push(
+    "get-platform-api-organization-mappings",
+    "update-platform-api-organization-mapping",
+    "get-platform-api-user-mappings",
+    "update-platform-api-user-mapping"
+  );
 
   // Monitoring and health APIs
   res.push("health", "metrics");

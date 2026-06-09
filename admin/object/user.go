@@ -248,6 +248,8 @@ type Userinfo struct {
 	Sub           string   `json:"sub"`
 	Iss           string   `json:"iss"`
 	Aud           string   `json:"aud"`
+	ClientId      string   `json:"client_id,omitempty"`
+	Organization  string   `json:"organization,omitempty"`
 	Name          string   `json:"preferred_username,omitempty"`
 	DisplayName   string   `json:"name,omitempty"`
 	Email         string   `json:"email,omitempty"`
@@ -1187,9 +1189,11 @@ func GetUserInfo(user *User, scope string, aud string, host string) (*Userinfo, 
 	_, originBackend := getOriginFromHost(host)
 
 	resp := Userinfo{
-		Sub: user.Id,
-		Iss: originBackend,
-		Aud: aud,
+		Sub:          getStableAdminSubject(user),
+		Iss:          originBackend,
+		Aud:          aud,
+		ClientId:     aud,
+		Organization: user.Owner,
 	}
 
 	if strings.Contains(scope, "profile") {

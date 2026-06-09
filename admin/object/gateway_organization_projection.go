@@ -52,6 +52,7 @@ type GatewayProjectionBuildInput struct {
 	SourceConnections  []SourceConnection
 	AdminUsers         []User
 	Users              []PlatformUser
+	ApiUserMappings    []PlatformApiUserMapping
 	Departments        []PlatformDepartment
 	Memberships        []PlatformMembership
 	ExternalIdentities []ExternalIdentity
@@ -153,8 +154,7 @@ func BuildGatewayProjectionBatch(input GatewayProjectionBuildInput) (GatewayProj
 	activeDepartments, hasDepartmentSnapshot := buildGatewayProjectionActiveDepartments(input.Departments, organizationID)
 	membershipsBySubject := buildGatewayProjectionMemberships(input.Memberships, organizationID, activeDepartments, hasDepartmentSnapshot)
 	users := filterGatewayProjectionUsers(input.Users, organizationID)
-	confirmedMappings, tombstoneMappings, untrustedMappings := buildGatewayProjectionSubjectMappings(input.ExternalIdentities, organizationID)
-	mergeGatewayProjectionAdminUserMappings(confirmedMappings, untrustedMappings, input.AdminUsers, users, organizationID)
+	confirmedMappings, tombstoneMappings, untrustedMappings := buildGatewayProjectionSubjectMappings(input.ApiUserMappings, organizationID)
 
 	subjects := make([]GatewayProjectedSubject, 0, len(users))
 	for _, user := range users {
@@ -275,35 +275,42 @@ func gatewayProjectionSourceVersion(input GatewayProjectionBuildInput, organizat
 	return ""
 }
 
-// buildGatewayProjectionSubjectMappings 分开记录 active 和 tombstone 可用的 apiSubjectId 映射。
-// active 只接受 CONFIRMED；DISABLED 只能作为非 active lifecycle 的 tombstone 映射来源。
-func buildGatewayProjectionSubjectMappings(identities []ExternalIdentity, organizationID string) (map[string]gatewayProjectionSubjectMapping, map[string]gatewayProjectionSubjectMapping, map[string]bool) {
+// buildGatewayProjectionSubjectMappings 只接受已确认的一等 admin -> api user 映射。
+// active 只接受 CONFIRMED；非 active tombstone 可使用 DISABLED 映射显式撤销 gateway 主体。
+// 同一平台主体出现冲突映射时标记为 untrusted，让后续 builder fail closed 跳过该主体。
+func buildGatewayProjectionSubjectMappings(mappings []PlatformApiUserMapping, organizationID string) (map[string]gatewayProjectionSubjectMapping, map[string]gatewayProjectionSubjectMapping, map[string]bool) {
 	confirmed := map[string]gatewayProjectionSubjectMapping{}
 	tombstone := map[string]gatewayProjectionSubjectMapping{}
 	untrusted := map[string]bool{}
-	for _, identity := range identities {
-		if identity.OrganizationId != organizationID || identity.PlatformSubjectType != PlatformSubjectTypeUser {
+	for _, apiMapping := range mappings {
+		if apiMapping.OrganizationId != organizationID {
 			continue
 		}
-		stableSubjectID := normalizeGatewayProjectionString(identity.PlatformSubject)
+		stableSubjectID := normalizeGatewayProjectionString(apiMapping.AdminSubject)
 		if stableSubjectID == "" {
 			continue
 		}
-		if !gatewayProjectionIdentityMappingUsableForTombstone(identity.MappingStatus) {
+		if !gatewayProjectionApiMappingUsableForTombstone(apiMapping.MappingStatus) {
 			untrusted[stableSubjectID] = true
 			continue
 		}
-		mapping, ok := parseGatewayProjectionIdentityLineage(identity.Lineage)
-		if !ok || mapping.apiSubjectID == "" {
+		apiSubjectID := normalizeGatewayProjectionString(apiMapping.ApiUserId)
+		if apiSubjectID == "" {
 			continue
 		}
-		if existing, exists := tombstone[stableSubjectID]; exists && existing.apiSubjectID != mapping.apiSubjectID {
+		mapping := gatewayProjectionSubjectMapping{
+			apiSubjectID: apiSubjectID,
+			roleIDs:      sortedUniqueGatewayProjectionStrings(gatewayProjectionLineageStringValues(apiMapping.Lineage, "roleIds")),
+			positionIDs:  sortedUniqueGatewayProjectionStrings(gatewayProjectionLineageStringValues(apiMapping.Lineage, "positionIds")),
+		}
+		if existing, exists := tombstone[stableSubjectID]; exists && existing.apiSubjectID != apiSubjectID {
 			delete(tombstone, stableSubjectID)
+			delete(confirmed, stableSubjectID)
 			untrusted[stableSubjectID] = true
 			continue
 		}
 		tombstone[stableSubjectID] = mapping
-		if IsConfirmedExternalIdentityMappingStatus(identity.MappingStatus) {
+		if IsConfirmedPlatformApiMappingStatus(apiMapping.MappingStatus) {
 			if existing, exists := confirmed[stableSubjectID]; exists && existing.apiSubjectID != mapping.apiSubjectID {
 				delete(confirmed, stableSubjectID)
 				delete(tombstone, stableSubjectID)
@@ -316,88 +323,12 @@ func buildGatewayProjectionSubjectMappings(identities []ExternalIdentity, organi
 	return confirmed, tombstone, untrusted
 }
 
-// parseGatewayProjectionIdentityLineage 从 lineage JSON 中提取 api 侧主体映射。
-// 只有恰好一个 apiSubjectId 时才可信；多个候选值可能代表脏数据或歧义映射，必须跳过。
-func parseGatewayProjectionIdentityLineage(lineage string) (gatewayProjectionSubjectMapping, bool) {
+func gatewayProjectionLineageStringValues(lineage string, key string) []string {
 	values := map[string]any{}
 	if err := json.Unmarshal([]byte(lineage), &values); err != nil {
-		return gatewayProjectionSubjectMapping{}, false
+		return nil
 	}
-	apiSubjectIDs := []string{}
-	for _, key := range []string{"apiSubjectId", "api_subject_id", "aicodexApiUserId", "aicodex_api_user_id", "apiUserId", "api_user_id"} {
-		apiSubjectIDs = append(apiSubjectIDs, gatewayProjectionStringValues(values[key])...)
-	}
-	apiSubjectIDs = sortedUniqueGatewayProjectionStrings(apiSubjectIDs)
-	if len(apiSubjectIDs) != 1 {
-		return gatewayProjectionSubjectMapping{}, false
-	}
-	return gatewayProjectionSubjectMapping{
-		apiSubjectID: apiSubjectIDs[0],
-		roleIDs:      sortedUniqueGatewayProjectionStrings(gatewayProjectionStringValues(values["roleIds"])),
-		positionIDs:  sortedUniqueGatewayProjectionStrings(gatewayProjectionStringValues(values["positionIds"])),
-	}, true
-}
-
-// mergeGatewayProjectionAdminUserMappings 兼容 admin 用户属性上的显式 apiSubjectId。
-// 这是人工或 resolver 写入的补充锚点；若与 ExternalIdentity 冲突，统一降级为 untrusted。
-func mergeGatewayProjectionAdminUserMappings(confirmed map[string]gatewayProjectionSubjectMapping, untrusted map[string]bool, adminUsers []User, platformUsers []PlatformUser, organizationID string) {
-	usersByID := map[string]User{}
-	for _, user := range adminUsers {
-		if user.Owner != organizationID || normalizeGatewayProjectionString(user.Name) == "" {
-			continue
-		}
-		usersByID[user.GetId()] = user
-	}
-	for _, platformUser := range platformUsers {
-		stableSubjectID := gatewayProjectionStableSubjectID(platformUser, organizationID)
-		if stableSubjectID == "" {
-			continue
-		}
-		userID := gatewayProjectionPlatformUserID(platformUser, organizationID)
-		user, ok := usersByID[userID]
-		if !ok {
-			continue
-		}
-		mapping, found, trusted := parseGatewayProjectionAdminUserMapping(user.Properties)
-		if !found {
-			continue
-		}
-		if !trusted {
-			delete(confirmed, stableSubjectID)
-			untrusted[stableSubjectID] = true
-			continue
-		}
-		if existing, exists := confirmed[stableSubjectID]; exists && existing.apiSubjectID != mapping.apiSubjectID {
-			delete(confirmed, stableSubjectID)
-			untrusted[stableSubjectID] = true
-			continue
-		}
-		if existing, exists := confirmed[stableSubjectID]; exists {
-			mapping.roleIDs = existing.roleIDs
-			mapping.positionIDs = existing.positionIDs
-		}
-		confirmed[stableSubjectID] = mapping
-	}
-}
-
-// parseGatewayProjectionAdminUserMapping 只读取 admin 用户上显式维护的 api subject 字段。
-// 这些字段是人工或 resolver 已确认映射；多个值视为不可信，不能降级猜测。
-func parseGatewayProjectionAdminUserMapping(properties map[string]string) (gatewayProjectionSubjectMapping, bool, bool) {
-	if properties == nil {
-		return gatewayProjectionSubjectMapping{}, false, true
-	}
-	apiSubjectIDs := []string{}
-	for _, key := range []string{"aicodexApiUserId", "aicodex_api_user_id", "apiUserId", "api_user_id"} {
-		apiSubjectIDs = append(apiSubjectIDs, splitGatewayProjectionList(properties[key])...)
-	}
-	apiSubjectIDs = sortedUniqueGatewayProjectionStrings(apiSubjectIDs)
-	if len(apiSubjectIDs) == 0 {
-		return gatewayProjectionSubjectMapping{}, false, true
-	}
-	if len(apiSubjectIDs) != 1 {
-		return gatewayProjectionSubjectMapping{}, true, false
-	}
-	return gatewayProjectionSubjectMapping{apiSubjectID: apiSubjectIDs[0]}, true, true
+	return gatewayProjectionStringValues(values[key])
 }
 
 func buildGatewayProjectionActiveDepartments(departments []PlatformDepartment, organizationID string) (map[string]bool, bool) {
@@ -483,9 +414,9 @@ func gatewayProjectionMappingTrustedForLifecycle(mappingStatus string, lifecycle
 	return lifecycleStatus != "active" && strings.EqualFold(status, PlatformMappingStatusDisabled)
 }
 
-func gatewayProjectionIdentityMappingUsableForTombstone(mappingStatus string) bool {
+func gatewayProjectionApiMappingUsableForTombstone(mappingStatus string) bool {
 	status := normalizeGatewayProjectionString(mappingStatus)
-	return IsConfirmedExternalIdentityMappingStatus(status) || strings.EqualFold(status, PlatformMappingStatusDisabled)
+	return IsConfirmedPlatformApiMappingStatus(status) || strings.EqualFold(status, PlatformMappingStatusDisabled)
 }
 
 func gatewayProjectionSubjectMappingForLifecycle(stableSubjectID string, lifecycleStatus string, confirmedMappings map[string]gatewayProjectionSubjectMapping, tombstoneMappings map[string]gatewayProjectionSubjectMapping) (gatewayProjectionSubjectMapping, bool) {

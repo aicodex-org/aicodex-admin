@@ -27,6 +27,7 @@ type GatewayProjectionSnapshot struct {
 	SourceConnections  []SourceConnection
 	AdminUsers         []User
 	Users              []PlatformUser
+	ApiUserMappings    []PlatformApiUserMapping
 	Departments        []PlatformDepartment
 	Memberships        []PlatformMembership
 	ExternalIdentities []ExternalIdentity
@@ -84,6 +85,7 @@ func (s *GatewayProjectionService) BuildAndPublishOrganization(ctx context.Conte
 		SourceConnections:  snapshot.SourceConnections,
 		AdminUsers:         snapshot.AdminUsers,
 		Users:              snapshot.Users,
+		ApiUserMappings:    snapshot.ApiUserMappings,
 		Departments:        snapshot.Departments,
 		Memberships:        snapshot.Memberships,
 		ExternalIdentities: snapshot.ExternalIdentities,
@@ -144,6 +146,9 @@ func (s defaultGatewayProjectionSnapshotStore) GetGatewayProjectionSnapshot(orga
 		return nil, err
 	}
 	if err := ormer.Engine.Where("organization_id = ?", organizationID).Find(&snapshot.Users); err != nil {
+		return nil, err
+	}
+	if err := ormer.Engine.Where("organization_id = ?", organizationID).Find(&snapshot.ApiUserMappings); err != nil {
 		return nil, err
 	}
 	if err := ormer.Engine.Where("organization_id = ?", organizationID).Find(&snapshot.Departments); err != nil {

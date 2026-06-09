@@ -125,6 +125,7 @@ func (c *ApiController) GrantConsent() {
 		ChallengeMethod string   `json:"challengeMethod"`
 		Challenge       string   `json:"challenge"`
 		Resource        string   `json:"resource"`
+		Organization    string   `json:"organization"`
 	}
 
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &request)
@@ -134,7 +135,7 @@ func (c *ApiController) GrantConsent() {
 	}
 
 	// Validate application by clientId
-	application, err := object.GetApplicationByClientId(request.ClientId)
+	application, err := object.GetApplicationByClientIdForOrganization(request.ClientId, request.Organization)
 	if err != nil {
 		c.ResponseError(err.Error())
 		return
@@ -216,6 +217,7 @@ func (c *ApiController) GrantConsent() {
 		request.ChallengeMethod,
 		request.Challenge,
 		request.Resource,
+		request.Organization,
 		c.Ctx.Request.Host,
 		c.GetAcceptLanguage(),
 	)

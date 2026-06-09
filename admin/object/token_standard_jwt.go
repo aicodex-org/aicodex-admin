@@ -33,6 +33,8 @@ type ClaimsStandard struct {
 	Scope               string      `json:"scope,omitempty"`
 	Address             OIDCAddress `json:"address,omitempty"`
 	Azp                 string      `json:"azp,omitempty"`
+	ClientId            string      `json:"client_id,omitempty"`
+	Organization        string      `json:"organization,omitempty"`
 	Provider            string      `json:"provider,omitempty"`
 
 	jwt.RegisteredClaims
@@ -55,6 +57,8 @@ func getStandardClaims(claims Claims) ClaimsStandard {
 		Scope:            claims.Scope,
 		RegisteredClaims: claims.RegisteredClaims,
 		Azp:              claims.Azp,
+		ClientId:         claims.ClientId,
+		Organization:     claims.Organization,
 		Provider:         claims.Provider,
 	}
 

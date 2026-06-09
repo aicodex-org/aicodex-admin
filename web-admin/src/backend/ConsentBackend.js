@@ -28,6 +28,7 @@ export function grantConsent(consent, oAuthParams) {
     challengeMethod: oAuthParams.challengeMethod || "",
     challenge: oAuthParams.codeChallenge || "",
     resource: "",
+    organization: oAuthParams.organization || "",
   };
   return fetch(`${Setting.ServerUrl}/api/grant-consent`, {
     method: "POST",

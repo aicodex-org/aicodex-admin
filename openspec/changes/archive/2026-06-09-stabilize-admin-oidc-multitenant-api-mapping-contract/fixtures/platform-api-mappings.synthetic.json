@@ -1,0 +1,36 @@
+{
+  "organization_mappings": [
+    {
+      "organizationId": "org-alpha",
+      "apiOrganizationId": "api-org-alpha-synthetic",
+      "mappingStatus": "CONFIRMED",
+      "mappingSource": "MANUAL",
+      "lineage": "{\"source\":\"synthetic-fixture\"}"
+    },
+    {
+      "organizationId": "org-beta",
+      "apiOrganizationId": "",
+      "mappingStatus": "PENDING_REVIEW",
+      "mappingSource": "MIGRATION",
+      "lineage": "{\"source\":\"legacyUserProperties\",\"values\":[\"api-org-beta-candidate\"]}"
+    }
+  ],
+  "user_mappings": [
+    {
+      "organizationId": "org-alpha",
+      "adminSubject": "org-alpha/alice",
+      "apiUserId": "api-user-alice-synthetic",
+      "mappingStatus": "CONFIRMED",
+      "mappingSource": "MANUAL",
+      "lineage": "{\"source\":\"synthetic-fixture\",\"roleIds\":[\"role-developer\"]}"
+    },
+    {
+      "organizationId": "org-alpha",
+      "adminSubject": "org-alpha/bob",
+      "apiUserId": "",
+      "mappingStatus": "CONFLICTED",
+      "mappingSource": "MIGRATION",
+      "lineage": "{\"source\":\"legacyUserPropertiesOrExternalIdentityLineage\",\"values\":[\"api-user-bob-1\",\"api-user-bob-2\"]}"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "cases": [
+    {
+      "name": "shared_application_missing_organization",
+      "request": {
+        "client_id": "client-api-synthetic"
+      },
+      "expected_error": "shared application requires explicit organization"
+    },
+    {
+      "name": "shared_application_denied_organization",
+      "request": {
+        "client_id": "client-api-synthetic",
+        "organization": "org-denied"
+      },
+      "expected_error": "shared application organization is not explicitly allowed"
+    },
+    {
+      "name": "api_organization_mapping_missing",
+      "request": {
+        "client_id": "client-api-synthetic",
+        "organization": "org-beta"
+      },
+      "expected_error": "confirmed api organization mapping is missing"
+    },
+    {
+      "name": "api_user_mapping_untrusted",
+      "request": {
+        "client_id": "client-api-synthetic",
+        "organization": "org-alpha",
+        "adminSubject": "org-alpha/bob"
+      },
+      "expected_error": "api user mapping is not confirmed"
+    }
+  ]
+}
