@@ -703,8 +703,7 @@ class LoginPage extends React.Component {
 
     const clientId = searchParams.get("client_id");
     if (clientId) {
-      const clientIdSplited = clientId.split("-org-");
-      searchParams.set("client_id", `${clientIdSplited[0]}-org-${name}`);
+      searchParams.set("organization", name);
 
       Setting.goToLink(`/login/oauth/authorize?${searchParams.toString()}`);
       return;

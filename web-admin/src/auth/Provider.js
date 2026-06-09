@@ -443,10 +443,7 @@ export function getAuthUrl(application, provider, method, code) {
     scope = provider.scopes;
   }
   const isShortState = (provider.type === "WeChat" && navigator.userAgent.includes("MicroMessenger")) || (provider.type === "Twitter");
-  let applicationName = application.name;
-  if (application?.isShared) {
-    applicationName = `${application.name}-org-${application.organization}`;
-  }
+  const applicationName = application.name;
   const state = Util.getStateFromQueryParams(applicationName, provider.name, method, isShortState);
 
   // Generate PKCE code verifier and challenge dynamically

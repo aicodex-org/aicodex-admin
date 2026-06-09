@@ -147,7 +147,11 @@ type insightProviderAuditEvent struct {
 	ErrorCode      string
 }
 
-var getInsightWecomUserMappingFunc = object.GetWecomUserMapping
+var (
+	getInsightWecomUserMappingFunc                     = object.GetWecomUserMapping
+	getInsightPlatformApiOrganizationMappingFunc       = object.GetConfirmedPlatformApiOrganizationMapping
+	getInsightPlatformApiUserMappingByAdminSubjectFunc = object.GetConfirmedPlatformApiUserMapping
+)
 
 // GetInsightCurrentUser 返回 insight 只读消费的当前 admin 用户白名单字段。
 func (c *ApiController) GetInsightCurrentUser() {
@@ -170,7 +174,7 @@ func (c *ApiController) GetInsightCurrentUser() {
 		return
 	}
 
-	data, providerErr := buildInsightCurrentUserResponseWithResolver(user, roles, groups, generatedAt, newInsightUsageIdentityResolverFromConfig(), traceId)
+	data, providerErr := buildInsightCurrentUserResponseWithTrace(user, roles, groups, generatedAt, traceId)
 	if providerErr != nil {
 		c.writeInsightProviderError(getInsightProviderHTTPStatus(providerErr), providerErr, insightProviderAuditEvent{TraceId: traceId, AdminUserId: user.GetId(), Organization: user.Owner, MappingStatus: providerErr.MappingStatus, Status: "error", ErrorCode: providerErr.Code})
 		return
@@ -205,7 +209,7 @@ func (c *ApiController) GetInsightCurrentUserScope() {
 	}
 
 	departmentMetadata := buildInsightDepartmentSourceMetadataIndex(platformDepartments)
-	data, providerErr := calculateInsightScopeForOrganizationWithResolverAndDepartmentMetadata(user, organization, users, groups, generatedAt, newInsightUsageIdentityResolverFromConfig(), traceId, departmentMetadata)
+	data, providerErr := calculateInsightScopeForOrganizationWithDepartmentMetadata(user, organization, users, groups, generatedAt, traceId, departmentMetadata)
 	if providerErr != nil {
 		providerErr.TraceId = traceId
 		c.writeInsightProviderError(getInsightProviderHTTPStatus(providerErr), providerErr, insightProviderAuditEvent{TraceId: traceId, AdminUserId: user.GetId(), Organization: organization, MappingStatus: providerErr.MappingStatus, Status: "error", ErrorCode: providerErr.Code})
@@ -259,12 +263,12 @@ func (c *ApiController) GetInsightCurrentUserOrganizationTree() {
 }
 
 func buildInsightCurrentUserResponse(user *object.User, roles []string, groups []InsightProviderGroup, generatedAt time.Time) *InsightCurrentUserResponse {
-	data, _ := buildInsightCurrentUserResponseWithResolver(user, roles, groups, generatedAt, nil, "")
+	data, _ := buildInsightCurrentUserResponseWithTrace(user, roles, groups, generatedAt, "")
 	return data
 }
 
-func buildInsightCurrentUserResponseWithResolver(user *object.User, roles []string, groups []InsightProviderGroup, generatedAt time.Time, resolver insightUsageIdentityResolver, traceId string) (*InsightCurrentUserResponse, *InsightProviderError) {
-	usageIdentity, providerErr := resolveInsightUsageIdentityWithResolver(user, resolver, traceId)
+func buildInsightCurrentUserResponseWithTrace(user *object.User, roles []string, groups []InsightProviderGroup, generatedAt time.Time, traceId string) (*InsightCurrentUserResponse, *InsightProviderError) {
+	usageIdentity, providerErr := resolveInsightUsageIdentityWithTrace(user, traceId)
 	if providerErr != nil {
 		return nil, providerErr
 	}
@@ -302,44 +306,44 @@ func calculateInsightScope(currentUser *object.User, users []*object.User, group
 }
 
 func calculateInsightScopeForOrganization(currentUser *object.User, organization string, users []*object.User, groups []*object.Group, generatedAt time.Time) (*InsightScopeResponse, *InsightProviderError) {
-	return calculateInsightScopeForOrganizationWithResolver(currentUser, organization, users, groups, generatedAt, newInsightUsageIdentityResolverFromConfig(), "")
+	return calculateInsightScopeForOrganizationWithTrace(currentUser, organization, users, groups, generatedAt, "")
 }
 
-func calculateInsightScopeForOrganizationWithResolver(currentUser *object.User, organization string, users []*object.User, groups []*object.Group, generatedAt time.Time, resolver insightUsageIdentityResolver, traceId string) (*InsightScopeResponse, *InsightProviderError) {
-	return calculateInsightScopeForOrganizationWithResolverAndDepartmentMetadata(currentUser, organization, users, groups, generatedAt, resolver, traceId, nil)
+func calculateInsightScopeForOrganizationWithTrace(currentUser *object.User, organization string, users []*object.User, groups []*object.Group, generatedAt time.Time, traceId string) (*InsightScopeResponse, *InsightProviderError) {
+	return calculateInsightScopeForOrganizationWithDepartmentMetadata(currentUser, organization, users, groups, generatedAt, traceId, nil)
 }
 
-// calculateInsightScopeForOrganizationWithResolverAndDepartmentMetadata 按全局管理员、组织管理员、部门负责人、自定义范围、自身范围依次降级。
+// calculateInsightScopeForOrganizationWithDepartmentMetadata 按全局管理员、组织管理员、部门负责人、自定义范围、自身范围依次降级。
 // 每个分支都必须在用户身份映射不确定时 fail-closed，避免 insight 展示超出 admin 已确认的用量主体。
-func calculateInsightScopeForOrganizationWithResolverAndDepartmentMetadata(currentUser *object.User, organization string, users []*object.User, groups []*object.Group, generatedAt time.Time, resolver insightUsageIdentityResolver, traceId string, departmentMetadata insightDepartmentSourceMetadataIndex) (*InsightScopeResponse, *InsightProviderError) {
+func calculateInsightScopeForOrganizationWithDepartmentMetadata(currentUser *object.User, organization string, users []*object.User, groups []*object.Group, generatedAt time.Time, traceId string, departmentMetadata insightDepartmentSourceMetadataIndex) (*InsightScopeResponse, *InsightProviderError) {
 	if providerErr := validateInsightProviderActiveUser(currentUser, ""); providerErr != nil {
 		return nil, providerErr
 	}
 
 	organization = normalizeInsightScopeOrganization(currentUser, organization)
-	apiOrganizationId := resolveInsightAPIOrganizationID(currentUser)
+	apiOrganizationId := resolveInsightAPIOrganizationIDForOrganization(organization)
 	orgUsers := filterInsightUsersByOwner(users, organization)
 	orgGroups := filterInsightGroupsByOwner(groups, organization)
 
 	if currentUser.IsGlobalAdmin() || currentUser.IsAdmin {
-		return buildInsightAllCompanyScope(currentUser.GetId(), organization, apiOrganizationId, orgUsers, orgGroups, generatedAt, resolver, traceId, departmentMetadata)
+		return buildInsightAllCompanyScope(currentUser.GetId(), organization, apiOrganizationId, orgUsers, orgGroups, generatedAt, traceId, departmentMetadata)
 	}
 
 	managedGroups := getInsightManagedGroups(currentUser, orgGroups)
 	if len(managedGroups) > 0 {
-		return buildInsightDepartmentTreeScope(currentUser.GetId(), organization, apiOrganizationId, orgUsers, orgGroups, managedGroups, generatedAt, resolver, traceId, departmentMetadata)
+		return buildInsightDepartmentTreeScope(currentUser.GetId(), organization, apiOrganizationId, orgUsers, orgGroups, managedGroups, generatedAt, traceId, departmentMetadata)
 	}
 
 	customUsers := getInsightCustomScopeUsers(currentUser, orgUsers)
 	if len(customUsers) > 0 {
-		return buildInsightCustomUsersScope(currentUser.GetId(), organization, apiOrganizationId, customUsers, generatedAt, resolver, traceId)
+		return buildInsightCustomUsersScope(currentUser.GetId(), organization, apiOrganizationId, customUsers, generatedAt, traceId)
 	}
 
-	return buildInsightSelfScope(currentUser.GetId(), organization, apiOrganizationId, currentUser, generatedAt, resolver, traceId)
+	return buildInsightSelfScope(currentUser.GetId(), organization, apiOrganizationId, currentUser, generatedAt, traceId)
 }
 
-func buildInsightAllCompanyScope(adminUserId string, organization string, apiOrganizationId string, users []*object.User, groups []*object.Group, generatedAt time.Time, resolver insightUsageIdentityResolver, traceId string, departmentMetadata insightDepartmentSourceMetadataIndex) (*InsightScopeResponse, *InsightProviderError) {
-	userIdentityCache := newInsightUsageIdentityCache(resolver, traceId)
+func buildInsightAllCompanyScope(adminUserId string, organization string, apiOrganizationId string, users []*object.User, groups []*object.Group, generatedAt time.Time, traceId string, departmentMetadata insightDepartmentSourceMetadataIndex) (*InsightScopeResponse, *InsightProviderError) {
+	userIdentityCache := newInsightUsageIdentityCache()
 	adminUserIds, apiUserIds, mappingStatus, providerErr := mapInsightQueryableUsersToUsageIdsWithCache(users, userIdentityCache)
 	if providerErr != nil {
 		return nil, providerErr
@@ -417,13 +421,13 @@ func buildInsightAllCompanyDepartmentScopesWithMetadata(users []*object.User, gr
 	return deduplicateStrings(departmentIds), departments, nil
 }
 
-func buildInsightDepartmentTreeScope(adminUserId string, organization string, apiOrganizationId string, users []*object.User, groups []*object.Group, managedGroups []*object.Group, generatedAt time.Time, resolver insightUsageIdentityResolver, traceId string, departmentMetadata insightDepartmentSourceMetadataIndex) (*InsightScopeResponse, *InsightProviderError) {
+func buildInsightDepartmentTreeScope(adminUserId string, organization string, apiOrganizationId string, users []*object.User, groups []*object.Group, managedGroups []*object.Group, generatedAt time.Time, traceId string, departmentMetadata insightDepartmentSourceMetadataIndex) (*InsightScopeResponse, *InsightProviderError) {
 	groupByName := indexInsightGroupsByName(groups)
 	allDepartmentIds := []string{}
 	departments := []InsightDepartmentScope{}
 	scopeAdminUserIdSet := map[string]bool{}
 	scopeApiUserIdSet := map[string]bool{}
-	userIdentityCache := newInsightUsageIdentityCache(resolver, traceId)
+	userIdentityCache := newInsightUsageIdentityCache()
 	type insightDepartmentCandidate struct {
 		group *object.Group
 		users []*object.User
@@ -445,7 +449,7 @@ func buildInsightDepartmentTreeScope(adminUserId string, organization string, ap
 		return buildInsightEmptyScope(adminUserId, organization, apiOrganizationId, generatedAt, traceId), nil
 	}
 
-	// 部门负责人可能同时管理多个部门；先按整个 scope 预热解析缓存，避免按部门循环调用 api resolver。
+	// 部门负责人可能同时管理多个部门；先按整个 scope 预热映射缓存，避免按部门重复查询。
 	_, _, mappingStatus, providerErr := mapInsightQueryableUsersToUsageIdsWithCache(scopeCandidateUsers, userIdentityCache)
 	if providerErr != nil {
 		return nil, providerErr
@@ -514,11 +518,8 @@ func buildInsightDepartmentTreeScope(adminUserId string, organization string, ap
 	}, nil
 }
 
-func buildInsightCustomUsersScope(adminUserId string, organization string, apiOrganizationId string, users []*object.User, generatedAt time.Time, resolver insightUsageIdentityResolver, traceId string) (*InsightScopeResponse, *InsightProviderError) {
-	adminUserIds, apiUserIds, mappingStatus, providerErr := mapInsightUsersToUsageIdsWithResolver(users, resolver, traceId)
-	if providerErr != nil {
-		return nil, providerErr
-	}
+func buildInsightCustomUsersScope(adminUserId string, organization string, apiOrganizationId string, users []*object.User, generatedAt time.Time, traceId string) (*InsightScopeResponse, *InsightProviderError) {
+	adminUserIds, apiUserIds, mappingStatus := mapInsightUsersToUsageIds(users)
 	if mappingStatus != MappingStatusOK {
 		return nil, newInsightProviderError(InsightProviderErrorAuthorizationFailed, "usage user mapping is not deterministic", "", mappingStatus)
 	}
@@ -541,11 +542,8 @@ func buildInsightCustomUsersScope(adminUserId string, organization string, apiOr
 	}, nil
 }
 
-func buildInsightSelfScope(adminUserId string, organization string, apiOrganizationId string, currentUser *object.User, generatedAt time.Time, resolver insightUsageIdentityResolver, traceId string) (*InsightScopeResponse, *InsightProviderError) {
-	adminUserIds, apiUserIds, mappingStatus, providerErr := mapInsightUsersToUsageIdsWithResolver([]*object.User{currentUser}, resolver, traceId)
-	if providerErr != nil {
-		return nil, providerErr
-	}
+func buildInsightSelfScope(adminUserId string, organization string, apiOrganizationId string, currentUser *object.User, generatedAt time.Time, traceId string) (*InsightScopeResponse, *InsightProviderError) {
+	adminUserIds, apiUserIds, mappingStatus := mapInsightUsersToUsageIds([]*object.User{currentUser})
 	if mappingStatus != MappingStatusOK {
 		return nil, newInsightProviderError(InsightProviderErrorAuthorizationFailed, "current user usage mapping is not deterministic", "", mappingStatus)
 	}
@@ -981,70 +979,32 @@ func getInsightProviderUserGroups(user *object.User) ([]InsightProviderGroup, er
 }
 
 func resolveInsightUsageIdentity(user *object.User) InsightUsageIdentity {
-	identity, _ := resolveInsightUsageIdentityWithResolver(user, nil, "")
+	identity, _ := resolveInsightUsageIdentityWithTrace(user, "")
 	return identity
 }
 
-// resolveInsightUsageIdentityWithResolver 先尊重 admin 手工 apiUserId 映射，再按确认的外部身份调用 api resolver。
-// resolver 不可用、返回异常或映射不确定时由调用方 fail-closed，而不是猜测用量主体。
-func resolveInsightUsageIdentityWithResolver(user *object.User, resolver insightUsageIdentityResolver, traceId string) (InsightUsageIdentity, *InsightProviderError) {
+// resolveInsightUsageIdentityWithTrace 只读取 admin/api 一等映射对象。
+// 旧属性只能作为迁移输入，运行时 provider 不再用弱标识或散落属性推断用量主体。
+func resolveInsightUsageIdentityWithTrace(user *object.User, traceId string) (InsightUsageIdentity, *InsightProviderError) {
 	identity := resolveInsightManualUsageIdentity(user)
-	if identity.MappingStatus != MappingStatusMissing || !isInsightUsageIdentityResolverEnabled(resolver) {
-		return withInsightSourceIdentity(identity, user), nil
-	}
-	item, ok := buildInsightUsageIdentityResolveItem(user)
-	if !ok {
-		return withInsightSourceIdentity(InsightUsageIdentity{MappingStatus: MappingStatusMissing}, user), nil
-	}
-	results, providerErr := resolver.Resolve(traceId, []insightUsageIdentityResolveItem{item})
-	if providerErr != nil {
-		return InsightUsageIdentity{}, providerErr
-	}
-	resultByRequestId, providerErr := mapInsightUsageIdentityResultsByRequestId(results, map[string]bool{item.RequestId: true}, traceId)
-	if providerErr != nil {
-		return InsightUsageIdentity{}, providerErr
-	}
-	result, ok := resultByRequestId[item.RequestId]
-	if !ok {
-		return withInsightSourceIdentity(InsightUsageIdentity{MappingStatus: MappingStatusMissing}, user), nil
-	}
-	return withInsightSourceIdentity(insightUsageIdentityFromResolverResult(result), user), nil
+	return withInsightSourceIdentity(identity, user), nil
 }
 
 func resolveInsightManualUsageIdentity(user *object.User) InsightUsageIdentity {
 	if user == nil {
 		return InsightUsageIdentity{MappingStatus: MappingStatusMissing}
 	}
-	values := []string{}
-	if user.Properties != nil {
-		for _, key := range []string{"aicodexApiUserId", "aicodex_api_user_id", "apiUserId"} {
-			for _, value := range splitInsightCsv(user.Properties[key]) {
-				values = append(values, value)
-			}
-		}
-	}
-
-	values = deduplicateStrings(values)
-	if len(values) == 0 {
+	mapping, err := getInsightPlatformApiUserMappingByAdminSubjectFunc(user.Owner, user.GetId())
+	if err != nil {
 		return InsightUsageIdentity{MappingStatus: MappingStatusMissing}
 	}
-	if len(values) > 1 {
-		return InsightUsageIdentity{MappingStatus: MappingStatusAmbiguous}
+	if mapping == nil {
+		return InsightUsageIdentity{MappingStatus: MappingStatusMissing}
 	}
-	if !isPositiveInsightAPIUserID(values[0]) {
+	if !isPositiveInsightAPIUserID(mapping.ApiUserId) {
 		return InsightUsageIdentity{MappingStatus: MappingStatusInvalid}
 	}
-	return InsightUsageIdentity{ApiUserId: values[0], MappingStatus: MappingStatusOK, MappingSource: "properties.aicodexApiUserId"}
-}
-
-func insightUsageIdentityFromResolverResult(result insightUsageIdentityResolveResult) InsightUsageIdentity {
-	if result.MappingStatus != MappingStatusOK {
-		return InsightUsageIdentity{MappingStatus: firstNonEmptyInsightString(result.MappingStatus, MappingStatusMissing), MappingSource: "wecom.resolver"}
-	}
-	if result.ApiUserId <= 0 {
-		return InsightUsageIdentity{MappingStatus: MappingStatusInvalid, MappingSource: "wecom.resolver"}
-	}
-	return InsightUsageIdentity{ApiUserId: strconv.Itoa(result.ApiUserId), MappingStatus: MappingStatusOK, MappingSource: "wecom.resolver"}
+	return InsightUsageIdentity{ApiUserId: mapping.ApiUserId, MappingStatus: MappingStatusOK, MappingSource: mapping.MappingSource}
 }
 
 // buildInsightUsageIdentityResolveItem 只向 api resolver 发送稳定来源身份和兼容企业微信外部 ID。
@@ -1141,22 +1101,18 @@ func getInsightUserWecomIdentity(user *object.User) (string, string) {
 }
 
 func resolveInsightAPIOrganizationID(user *object.User) string {
-	if user == nil || user.Properties == nil {
+	if user == nil {
 		return ""
 	}
-	values := []string{}
-	for _, key := range []string{"aicodexApiOrganizationId", "aicodex_api_organization_id", "apiOrganizationId", "api_organization_id"} {
-		for _, value := range splitInsightCsv(user.Properties[key]) {
-			values = append(values, value)
-		}
-	}
+	return resolveInsightAPIOrganizationIDForOrganization(user.Owner)
+}
 
-	values = deduplicateStrings(values)
-	if len(values) != 1 {
+func resolveInsightAPIOrganizationIDForOrganization(organizationId string) string {
+	mapping, err := getInsightPlatformApiOrganizationMappingFunc(organizationId)
+	if err != nil || mapping == nil {
 		return ""
 	}
-	// aicodex-api provider 使用独立组织 UUID；admin 仍保留自身 organization 名称用于权限计算。
-	return values[0]
+	return mapping.ApiOrganizationId
 }
 
 func isPositiveInsightAPIUserID(value string) bool {
@@ -1175,37 +1131,23 @@ func mapInsightQueryableUsersToUsageIds(users []*object.User) ([]string, []strin
 }
 
 func mapInsightUsersToUsageIdsWithPolicy(users []*object.User, skipMissing bool) ([]string, []string, string) {
-	adminUserIds, apiUserIds, mappingStatus, _ := mapInsightUsersToUsageIdsWithPolicyAndResolver(users, skipMissing, nil, "")
+	adminUserIds, apiUserIds, mappingStatus, _ := mapInsightUsersToUsageIdsWithPolicyAndCache(users, skipMissing, nil)
 	return adminUserIds, apiUserIds, mappingStatus
 }
 
-func mapInsightUsersToUsageIdsWithResolver(users []*object.User, resolver insightUsageIdentityResolver, traceId string) ([]string, []string, string, *InsightProviderError) {
-	return mapInsightUsersToUsageIdsWithPolicyAndResolver(users, false, resolver, traceId)
-}
-
-func mapInsightQueryableUsersToUsageIdsWithResolver(users []*object.User, resolver insightUsageIdentityResolver, traceId string) ([]string, []string, string, *InsightProviderError) {
-	return mapInsightUsersToUsageIdsWithPolicyAndResolver(users, true, resolver, traceId)
-}
-
 type insightUsageIdentityCache struct {
-	resolver insightUsageIdentityResolver
-	traceId  string
-	items    map[string]InsightUsageIdentity
+	items map[string]InsightUsageIdentity
 }
 
-func newInsightUsageIdentityCache(resolver insightUsageIdentityResolver, traceId string) *insightUsageIdentityCache {
-	return &insightUsageIdentityCache{resolver: resolver, traceId: traceId, items: map[string]InsightUsageIdentity{}}
+func newInsightUsageIdentityCache() *insightUsageIdentityCache {
+	return &insightUsageIdentityCache{items: map[string]InsightUsageIdentity{}}
 }
 
 func mapInsightQueryableUsersToUsageIdsWithCache(users []*object.User, cache *insightUsageIdentityCache) ([]string, []string, string, *InsightProviderError) {
 	if cache == nil {
-		return mapInsightUsersToUsageIdsWithPolicyAndResolver(users, true, nil, "")
+		return mapInsightUsersToUsageIdsWithPolicyAndCache(users, true, nil)
 	}
 	return mapInsightUsersToUsageIdsWithPolicyAndCache(users, true, cache)
-}
-
-func mapInsightUsersToUsageIdsWithPolicyAndResolver(users []*object.User, skipMissing bool, resolver insightUsageIdentityResolver, traceId string) ([]string, []string, string, *InsightProviderError) {
-	return mapInsightUsersToUsageIdsWithPolicyAndCache(users, skipMissing, newInsightUsageIdentityCache(resolver, traceId))
 }
 
 // mapInsightUsersToUsageIdsWithPolicyAndCache 将 admin 用户集合映射为 api 用量用户集合。
@@ -1215,10 +1157,6 @@ func mapInsightUsersToUsageIdsWithPolicyAndCache(users []*object.User, skipMissi
 	apiUserIds := []string{}
 	adminToApiUserId := map[string]string{}
 	apiToAdminUserId := map[string]string{}
-	resolverEnabled := cache != nil && isInsightUsageIdentityResolverEnabled(cache.resolver)
-	pendingUsers := []*object.User{}
-	pendingItems := []insightUsageIdentityResolveItem{}
-	pendingAdminUserIds := map[string]bool{}
 	for _, user := range users {
 		if user == nil {
 			continue
@@ -1231,21 +1169,11 @@ func mapInsightUsersToUsageIdsWithPolicyAndCache(users []*object.User, skipMissi
 		if !ok {
 			identity = resolveInsightManualUsageIdentity(user)
 		}
-		if identity.MappingStatus == MappingStatusMissing && resolverEnabled && !ok {
-			if item, ok := buildInsightUsageIdentityResolveItem(user); ok {
-				if pendingAdminUserIds[adminUserId] {
-					// 同一 scope 内可能因父子部门重叠重复收集成员，resolver 请求必须按 admin 用户去重。
-					continue
-				}
-				pendingAdminUserIds[adminUserId] = true
-				pendingUsers = append(pendingUsers, user)
-				pendingItems = append(pendingItems, item)
-				continue
-			}
+		if cache != nil {
+			cache.items[adminUserId] = identity
 		}
 		if identity.MappingStatus == MappingStatusMissing && skipMissing {
-			// 企业微信组织同步会先带来组织成员，再逐步补齐 API 用户映射；聚合范围只包含已映射成员，避免未绑定成员阻断整个部门或全公司视图。
-			// 缓存命中的 MISSING 已经代表 resolver 解析过，不能在父子部门循环中反复请求 api provider。
+			// 企业微信组织同步会先带来组织成员，再逐步补齐一等 API 用户映射；聚合范围只包含已确认映射成员。
 			continue
 		}
 		if identity.MappingStatus != MappingStatusOK {
@@ -1253,40 +1181,6 @@ func mapInsightUsersToUsageIdsWithPolicyAndCache(users []*object.User, skipMissi
 		}
 		if mappingStatus := appendInsightUsageMapping(adminUserId, identity.ApiUserId, adminToApiUserId, apiToAdminUserId, &adminUserIds, &apiUserIds); mappingStatus != MappingStatusOK {
 			return nil, nil, mappingStatus, nil
-		}
-	}
-
-	if len(pendingItems) > 0 {
-		results, providerErr := cache.resolver.Resolve(cache.traceId, pendingItems)
-		if providerErr != nil {
-			return nil, nil, "", providerErr
-		}
-		expectedRequestIds := map[string]bool{}
-		for _, item := range pendingItems {
-			expectedRequestIds[item.RequestId] = true
-		}
-		resultByRequestId, providerErr := mapInsightUsageIdentityResultsByRequestId(results, expectedRequestIds, cache.traceId)
-		if providerErr != nil {
-			return nil, nil, "", providerErr
-		}
-		for _, user := range pendingUsers {
-			adminUserId := user.GetId()
-			result, ok := resultByRequestId[adminUserId]
-			if !ok {
-				return nil, nil, MappingStatusMissing, nil
-			}
-			identity := insightUsageIdentityFromResolverResult(result)
-			cache.items[adminUserId] = identity
-			if identity.MappingStatus == MappingStatusMissing && skipMissing {
-				// 部门/全公司聚合只统计已经完成用量身份映射的成员；企业微信同步成员可能先于 API 账号绑定到达。
-				continue
-			}
-			if identity.MappingStatus != MappingStatusOK {
-				return nil, nil, identity.MappingStatus, nil
-			}
-			if mappingStatus := appendInsightUsageMapping(adminUserId, identity.ApiUserId, adminToApiUserId, apiToAdminUserId, &adminUserIds, &apiUserIds); mappingStatus != MappingStatusOK {
-				return nil, nil, mappingStatus, nil
-			}
 		}
 	}
 	return deduplicateStrings(adminUserIds), deduplicateStrings(apiUserIds), MappingStatusOK, nil
@@ -1305,36 +1199,6 @@ func appendInsightUsageMapping(adminUserId string, apiUserId string, adminToApiU
 	*adminUserIds = append(*adminUserIds, adminUserId)
 	*apiUserIds = append(*apiUserIds, apiUserId)
 	return MappingStatusOK
-}
-
-func mapInsightUsageIdentityResultsByRequestId(results []insightUsageIdentityResolveResult, expectedRequestIds map[string]bool, traceId string) (map[string]insightUsageIdentityResolveResult, *InsightProviderError) {
-	resultByRequestId := map[string]insightUsageIdentityResolveResult{}
-	for _, result := range results {
-		requestId := strings.TrimSpace(result.RequestId)
-		if requestId == "" {
-			return nil, newInsightProviderError(InsightProviderErrorUnavailable, "usage identity resolver returned empty requestId", traceId, "")
-		}
-		if len(expectedRequestIds) > 0 && !expectedRequestIds[requestId] {
-			return nil, newInsightProviderError(InsightProviderErrorUnavailable, "usage identity resolver returned unexpected requestId", traceId, "")
-		}
-		if _, exists := resultByRequestId[requestId]; exists {
-			return nil, newInsightProviderError(InsightProviderErrorUnavailable, "usage identity resolver returned duplicate requestId", traceId, "")
-		}
-		// resolver 返回必须和本次请求一一对应，避免异常响应把其他用户的用量身份串到当前 scope。
-		result.RequestId = requestId
-		resultByRequestId[requestId] = result
-	}
-	for requestId := range expectedRequestIds {
-		if _, ok := resultByRequestId[requestId]; !ok {
-			// 缺少本次请求的结果属于 provider 协议异常，不能误判为用户映射缺失。
-			return nil, newInsightProviderError(InsightProviderErrorUnavailable, "usage identity resolver omitted expected requestId", traceId, "")
-		}
-	}
-	return resultByRequestId, nil
-}
-
-func isInsightUsageIdentityResolverEnabled(resolver insightUsageIdentityResolver) bool {
-	return resolver != nil && resolver.Enabled()
 }
 
 func getInsightScopeOrganization(currentUser *object.User, users []*object.User) string {

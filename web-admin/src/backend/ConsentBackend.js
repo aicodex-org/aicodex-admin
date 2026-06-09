@@ -27,6 +27,7 @@ export function grantConsent(consent, oAuthParams) {
     nonce: oAuthParams.nonce || "",
     challenge: oAuthParams.codeChallenge || "",
     resource: "",
+    organization: oAuthParams.organization || "",
   };
   return fetch(`${Setting.ServerUrl}/api/grant-consent`, {
     method: "POST",

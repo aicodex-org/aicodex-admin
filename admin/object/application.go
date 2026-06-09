@@ -22,6 +22,7 @@ import (
 
 	"git.leagsoft.com/aicodex/aicodex-admin/i18n"
 	"git.leagsoft.com/aicodex/aicodex-admin/util"
+	"github.com/beego/beego/v2/core/logs"
 	"github.com/xorm-io/core"
 )
 
@@ -122,6 +123,10 @@ type Application struct {
 	SamlAttributes               []*SamlItem     `xorm:"varchar(1000)" json:"samlAttributes"`
 	SamlHashAlgorithm            string          `xorm:"varchar(20)" json:"samlHashAlgorithm"`
 	IsShared                     bool            `json:"isShared"`
+	OrganizationResolutionMode   string          `xorm:"varchar(50)" json:"organizationResolutionMode"`
+	AllowedOrganizations         []string        `xorm:"mediumtext" json:"allowedOrganizations"`
+	AllowedOrganizationStatus    string          `xorm:"varchar(50)" json:"allowedOrganizationStatus"`
+	ApiMappingRequired           bool            `json:"apiMappingRequired"`
 	IpRestriction                string          `json:"ipRestriction"`
 
 	ClientId                string     `xorm:"varchar(100)" json:"clientId"`
@@ -169,14 +174,30 @@ type Application struct {
 	CertObj *Cert `xorm:"-"`
 }
 
+const (
+	ApplicationOrganizationResolutionModeOrganizationBound = "organization_bound"
+	ApplicationOrganizationResolutionModeSharedApplication = "shared_application"
+
+	ApplicationAllowedOrganizationStatusConfirmed     = PlatformMappingStatusConfirmed
+	ApplicationAllowedOrganizationStatusPendingReview = PlatformMappingStatusPendingReview
+)
+
+var (
+	ErrSharedApplicationOrganizationRequired = errors.New("shared application requires explicit organization")
+	ErrSharedApplicationOrganizationDenied   = errors.New("shared application organization is not explicitly allowed")
+)
+
 func GetApplicationCount(owner, field, value string) (int64, error) {
 	session := GetSession(owner, -1, -1, field, value, "", "")
 	return session.Count(&Application{})
 }
 
 func GetOrganizationApplicationCount(owner, organization, field, value string) (int64, error) {
-	session := GetSession(owner, -1, -1, field, value, "", "")
-	return session.Where("organization = ? or is_shared = ? ", organization, true).Count(&Application{})
+	applications, err := GetOrganizationApplications(owner, organization)
+	if err != nil {
+		return 0, err
+	}
+	return int64(len(applications)), nil
 }
 
 func GetApplications(owner string) ([]*Application, error) {
@@ -191,12 +212,12 @@ func GetApplications(owner string) ([]*Application, error) {
 
 func GetOrganizationApplications(owner string, organization string) ([]*Application, error) {
 	applications := []*Application{}
-	err := ormer.Engine.Desc("created_time").Where("organization = ? or is_shared = ? ", organization, true).Find(&applications, &Application{})
+	err := ormer.Engine.Desc("created_time").Find(&applications, &Application{Owner: owner})
 	if err != nil {
 		return applications, err
 	}
 
-	return applications, nil
+	return filterApplicationsForOrganization(applications, organization), nil
 }
 
 func GetPaginationApplications(owner string, offset, limit int, field, value, sortField, sortOrder string) ([]*Application, error) {
@@ -213,12 +234,12 @@ func GetPaginationApplications(owner string, offset, limit int, field, value, so
 func GetPaginationOrganizationApplications(owner, organization string, offset, limit int, field, value, sortField, sortOrder string) ([]*Application, error) {
 	applications := []*Application{}
 	session := GetSession(owner, offset, limit, field, value, sortField, sortOrder)
-	err := session.Where("organization = ? or is_shared = ? ", organization, true).Find(&applications, &Application{})
+	err := session.Find(&applications, &Application{})
 	if err != nil {
 		return applications, err
 	}
 
-	return applications, nil
+	return filterApplicationsForOrganization(applications, organization), nil
 }
 
 func getProviderMap(owner string) (m map[string]*Provider, err error) {
@@ -254,6 +275,163 @@ func extendApplicationWithOrg(application *Application) (err error) {
 	organization, err := getOrganization(application.Owner, application.Organization)
 	application.OrganizationObj = organization
 	return
+}
+
+func (application *Application) normalizeOrganizationResolutionPolicy() {
+	if application == nil {
+		return
+	}
+	application.OrganizationResolutionMode = application.GetOrganizationResolutionMode()
+	application.AllowedOrganizations = normalizeAllowedOrganizations(application.AllowedOrganizations)
+	if application.IsSharedApplication() && application.AllowedOrganizationStatus == "" {
+		application.AllowedOrganizationStatus = ApplicationAllowedOrganizationStatusPendingReview
+	}
+}
+
+func (application *Application) GetOrganizationResolutionMode() string {
+	if application == nil {
+		return ApplicationOrganizationResolutionModeOrganizationBound
+	}
+	switch strings.TrimSpace(application.OrganizationResolutionMode) {
+	case ApplicationOrganizationResolutionModeOrganizationBound:
+		return ApplicationOrganizationResolutionModeOrganizationBound
+	case ApplicationOrganizationResolutionModeSharedApplication:
+		return ApplicationOrganizationResolutionModeSharedApplication
+	}
+	if application.IsShared {
+		return ApplicationOrganizationResolutionModeSharedApplication
+	}
+	return ApplicationOrganizationResolutionModeOrganizationBound
+}
+
+func (application *Application) IsSharedApplication() bool {
+	return application != nil && application.GetOrganizationResolutionMode() == ApplicationOrganizationResolutionModeSharedApplication
+}
+
+func (application *Application) IsOrganizationAllowed(organization string) bool {
+	if application == nil {
+		return false
+	}
+	organization = strings.TrimSpace(organization)
+	if organization == "" {
+		return false
+	}
+	for _, allowed := range normalizeAllowedOrganizations(application.AllowedOrganizations) {
+		if allowed == organization {
+			return true
+		}
+	}
+	return false
+}
+
+func (application *Application) RequiresApiMappingGate() bool {
+	return application != nil && application.ApiMappingRequired
+}
+
+// ResolveApplicationLoginOrganization 按 application 组织解析模式确定本次登录 organization。
+// shared application 必须显式传入 organization 并命中 confirmed allowed policy；旧 IsShared 只能迁移为待确认策略。
+func ResolveApplicationLoginOrganization(application *Application, requestedOrganization string) error {
+	if application == nil {
+		return nil
+	}
+	requestedOrganization = strings.TrimSpace(requestedOrganization)
+	application.normalizeOrganizationResolutionPolicy()
+
+	switch application.GetOrganizationResolutionMode() {
+	case ApplicationOrganizationResolutionModeOrganizationBound:
+		if application.Organization == "" {
+			err := fmt.Errorf("organization-bound application %s has no bound organization", application.GetId())
+			writeApplicationOrganizationResolutionAudit(application, requestedOrganization, "error", "ORGANIZATION_BOUND_MISSING")
+			return err
+		}
+		if requestedOrganization != "" && requestedOrganization != application.Organization {
+			err := fmt.Errorf("organization-bound application %s does not allow organization override", application.GetId())
+			writeApplicationOrganizationResolutionAudit(application, requestedOrganization, "error", "ORGANIZATION_OVERRIDE_DENIED")
+			return err
+		}
+		return extendApplicationWithOrg(application)
+	case ApplicationOrganizationResolutionModeSharedApplication:
+		if requestedOrganization == "" {
+			writeApplicationOrganizationResolutionAudit(application, requestedOrganization, "error", "SHARED_ORGANIZATION_REQUIRED")
+			return ErrSharedApplicationOrganizationRequired
+		}
+		if application.AllowedOrganizationStatus != ApplicationAllowedOrganizationStatusConfirmed {
+			writeApplicationOrganizationResolutionAudit(application, requestedOrganization, "error", "SHARED_ORGANIZATION_POLICY_UNCONFIRMED")
+			return ErrSharedApplicationOrganizationDenied
+		}
+		if !application.IsOrganizationAllowed(requestedOrganization) {
+			writeApplicationOrganizationResolutionAudit(application, requestedOrganization, "error", "SHARED_ORGANIZATION_DENIED")
+			return ErrSharedApplicationOrganizationDenied
+		}
+		organization, err := getOrganization("admin", requestedOrganization)
+		if err != nil {
+			writeApplicationOrganizationResolutionAudit(application, requestedOrganization, "error", "ORGANIZATION_LOOKUP_FAILED")
+			return err
+		}
+		if organization == nil || organization.DisableSignin {
+			writeApplicationOrganizationResolutionAudit(application, requestedOrganization, "error", "ORGANIZATION_DISABLED_OR_MISSING")
+			return ErrSharedApplicationOrganizationDenied
+		}
+		application.Organization = requestedOrganization
+		application.OrganizationObj = organization
+		return nil
+	default:
+		return fmt.Errorf("unsupported organization resolution mode: %s", application.OrganizationResolutionMode)
+	}
+}
+
+// writeApplicationOrganizationResolutionAudit 记录 shared/organization-bound 解析拒绝原因，不输出 token、cookie 或账号凭据。
+func writeApplicationOrganizationResolutionAudit(application *Application, requestedOrganization string, status string, errorCode string) {
+	applicationId := ""
+	clientId := ""
+	mode := ""
+	allowedStatus := ""
+	if application != nil {
+		applicationId = application.GetId()
+		clientId = strings.TrimSpace(application.ClientId)
+		mode = application.GetOrganizationResolutionMode()
+		allowedStatus = strings.TrimSpace(application.AllowedOrganizationStatus)
+	}
+	logs.Info("application_organization_resolution_audit applicationId=%s clientId=%s mode=%s requestedOrganization=%s allowedOrganizationStatus=%s status=%s errorCode=%s",
+		applicationId, clientId, mode, strings.TrimSpace(requestedOrganization), allowedStatus, status, errorCode)
+}
+
+func normalizeAllowedOrganizations(organizations []string) []string {
+	result := []string{}
+	seen := map[string]bool{}
+	for _, organization := range organizations {
+		organization = strings.TrimSpace(organization)
+		if organization == "" || seen[organization] {
+			continue
+		}
+		seen[organization] = true
+		result = append(result, organization)
+	}
+	return result
+}
+
+func filterApplicationsForOrganization(applications []*Application, organization string) []*Application {
+	organization = strings.TrimSpace(organization)
+	if organization == "" {
+		return applications
+	}
+	result := []*Application{}
+	for _, application := range applications {
+		if application == nil {
+			continue
+		}
+		application.normalizeOrganizationResolutionPolicy()
+		if application.GetOrganizationResolutionMode() == ApplicationOrganizationResolutionModeOrganizationBound && application.Organization == organization {
+			result = append(result, application)
+			continue
+		}
+		if application.GetOrganizationResolutionMode() == ApplicationOrganizationResolutionModeSharedApplication &&
+			application.AllowedOrganizationStatus == ApplicationAllowedOrganizationStatusConfirmed &&
+			application.IsOrganizationAllowed(organization) {
+			result = append(result, application)
+		}
+	}
+	return result
 }
 
 func extendApplicationWithSigninItems(application *Application) (err error) {
@@ -412,19 +590,14 @@ func getApplication(owner string, name string) (*Application, error) {
 		return nil, nil
 	}
 
-	realApplicationName, sharedOrg := util.GetSharedOrgFromApp(name)
-
-	application := Application{Owner: owner, Name: realApplicationName}
+	application := Application{Owner: owner, Name: name}
 	existed, err := ormer.Engine.Get(&application)
 	if err != nil {
 		return nil, err
 	}
 
-	if application.IsShared && sharedOrg != "" {
-		application.Organization = sharedOrg
-	}
-
 	if existed {
+		application.normalizeOrganizationResolutionPolicy()
 		err = extendApplicationWithProviders(&application)
 		if err != nil {
 			return nil, err
@@ -513,18 +686,13 @@ func GetApplicationByUserId(userId string) (application *Application, err error)
 func GetApplicationByClientId(clientId string) (*Application, error) {
 	application := Application{}
 
-	realClientId, sharedOrg := util.GetSharedOrgFromApp(clientId)
-
-	existed, err := ormer.Engine.Where("client_id=?", realClientId).Get(&application)
+	existed, err := ormer.Engine.Where("client_id=?", strings.TrimSpace(clientId)).Get(&application)
 	if err != nil {
 		return nil, err
 	}
 
-	if application.IsShared && sharedOrg != "" {
-		application.Organization = sharedOrg
-	}
-
 	if existed {
+		application.normalizeOrganizationResolutionPolicy()
 		err = extendApplicationWithProviders(&application)
 		if err != nil {
 			return nil, err
@@ -549,6 +717,16 @@ func GetApplicationByClientId(clientId string) (*Application, error) {
 	} else {
 		return nil, nil
 	}
+}
+
+// GetApplicationByClientIdForOrganization 在 client 查询后立即应用组织解析策略，供 authorize/login 上下文使用。
+func GetApplicationByClientIdForOrganization(clientId string, organization string) (*Application, error) {
+	application, err := GetApplicationByClientId(clientId)
+	if err != nil || application == nil {
+		return application, err
+	}
+	err = ResolveApplicationLoginOrganization(application, organization)
+	return application, err
 }
 
 func GetApplication(id string) (*Application, error) {
@@ -745,6 +923,7 @@ func UpdateApplication(id string, application *Application, isGlobalAdmin bool, 
 	if application.IsShared == true && application.Organization != "built-in" {
 		return false, fmt.Errorf("only applications belonging to built-in organization can be shared")
 	}
+	application.normalizeOrganizationResolutionPolicy()
 
 	err = checkMultipleCaptchaProviders(application, lang)
 	if err != nil {
@@ -785,6 +964,7 @@ func AddApplication(application *Application) (bool, error) {
 	if application.ClientSecret == "" {
 		application.ClientSecret = util.GenerateClientSecret()
 	}
+	application.normalizeOrganizationResolutionPolicy()
 
 	app, err := GetApplicationByClientId(application.ClientId)
 	if err != nil {

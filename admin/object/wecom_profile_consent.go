@@ -53,6 +53,7 @@ type WecomProfileConsentLoginContext struct {
 	Method          string `json:"method,omitempty"`
 	SigninMethod    string `json:"signinMethod,omitempty"`
 	ClientID        string `json:"clientId,omitempty"`
+	Organization    string `json:"organization,omitempty"`
 	ResponseType    string `json:"responseType,omitempty"`
 	RedirectURI     string `json:"redirectUri,omitempty"`
 	Scope           string `json:"scope,omitempty"`
@@ -378,6 +379,9 @@ func ValidateWecomProfileConsentLoginContext(application *Application, loginCont
 		)
 		if msg != "" {
 			return errors.New(msg)
+		}
+		if err := ResolveApplicationLoginOrganization(application, strings.TrimSpace(loginContext.Organization)); err != nil {
+			return err
 		}
 		return nil
 	case "cas":

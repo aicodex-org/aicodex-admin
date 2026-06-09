@@ -1,0 +1,582 @@
+// Copyright 2026 The AICodex Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import React from "react";
+import {Alert, Button, Card, Input, Select, Space, Table, Tabs, Tag, Typography} from "antd";
+import {PlusOutlined, ReloadOutlined, SaveOutlined} from "@ant-design/icons";
+import * as Setting from "./Setting";
+import * as PlatformApiMappingBackend from "./backend/PlatformApiMappingBackend";
+import OrganizationSelect from "./common/select/OrganizationSelect";
+import {getDefaultTablePagination, getTablePaginationProps} from "./common/table/TablePagination";
+import i18next from "i18next";
+
+const {Text} = Typography;
+const {Search} = Input;
+const mappingStatuses = ["CONFIRMED", "PENDING_REVIEW", "CONFLICTED", "DUPLICATE", "DISABLED"];
+const mappingSources = ["MANUAL", "MIGRATION", "RESOLVER"];
+const mappingStatusLabels = {
+  CONFIRMED: "已确认",
+  PENDING_REVIEW: "待复核",
+  CONFLICTED: "冲突",
+  DUPLICATE: "重复",
+  DISABLED: "已停用",
+};
+const mappingSourceLabels = {
+  MANUAL: "手工维护",
+  MIGRATION: "迁移导入",
+  RESOLVER: "解析器生成",
+};
+const titleTips = {
+  platformApiMappings: "维护认证中心组织/账号到 aicodex-api 业务组织、网关账号和用量身份的权威映射。",
+  organizationMapping: "维护平台组织到 aicodex-api 业务组织 UUID 的一等映射。只有“已确认”才会作为运行时权威来源。",
+  userMapping: "维护同一组织内平台主体到 aicodex-api 用户 ID 的一等映射。只有“已确认”才会作为运行时权威来源。",
+  organizationId: "技术字段：organizationId。aicodex-admin 平台组织 ID，表示本次登录和映射归属的租户上下文。",
+  apiOrganizationId: "技术字段：apiOrganizationId。aicodex-api 业务组织 UUID。只有“已确认”状态才会进入授权、投影和报表链路。",
+  adminSubject: "技术字段：adminSubject。稳定 admin 主体，一般由组织和用户稳定键组成，用于跨组织唯一识别平台用户。",
+  apiUserId: "技术字段：apiUserId。aicodex-api 业务用户 ID，必须在同一 organizationId 内与 adminSubject 一一映射。",
+  mappingStatus: "技术字段：mappingStatus。只有“已确认”生效；“待复核”“冲突”“重复”“已停用”都会在授权入口拒绝继续登录。",
+  mappingSource: "技术字段：mappingSource。用于审计和排查，保存值为 MANUAL、MIGRATION 或 RESOLVER。",
+};
+
+function normalizeMappingStatus(status) {
+  return status || "PENDING_REVIEW";
+}
+
+function normalizeMappingSource(source) {
+  return source || "MANUAL";
+}
+
+function getMappingStatusLabel(status) {
+  const normalizedStatus = normalizeMappingStatus(status);
+  return mappingStatusLabels[normalizedStatus] || normalizedStatus;
+}
+
+function getMappingSourceLabel(source) {
+  const normalizedSource = normalizeMappingSource(source);
+  return mappingSourceLabels[normalizedSource] || normalizedSource;
+}
+
+function getMappingStatusOptions() {
+  return mappingStatuses.map(status => Setting.getOption(getMappingStatusLabel(status), status));
+}
+
+function getMappingSourceOptions(source) {
+  const normalizedSource = normalizeMappingSource(source);
+  const options = mappingSources.map(item => Setting.getOption(getMappingSourceLabel(item), item));
+  if (!mappingSources.includes(normalizedSource)) {
+    options.push(Setting.getOption(normalizedSource, normalizedSource));
+  }
+  return options;
+}
+
+class PlatformApiMappingPage extends React.Component {
+  constructor(props) {
+    super(props);
+    const organization = this.getAccountOrganization(props.account);
+    this.state = {
+      organization,
+      activeTabKey: "organization",
+      organizationMappings: [],
+      userMappings: [],
+      organizationLoading: false,
+      userLoading: false,
+      savingKey: "",
+      userKeyword: "",
+      userPagination: getDefaultTablePagination(),
+      userMappingsLoaded: false,
+    };
+  }
+
+  componentDidMount() {
+    this.refreshOrganizationMappings(this.state.organization);
+  }
+
+  componentDidUpdate() {
+    if (this.state.organization) {
+      return;
+    }
+
+    const organization = this.getAccountOrganization(this.props.account);
+    if (organization) {
+      this.changeOrganization(organization);
+    }
+  }
+
+  getAccountOrganization(account) {
+    if (!account?.owner) {
+      return "";
+    }
+    return Setting.getRequestOrganization(account) || account.owner;
+  }
+
+  refresh(organization = this.state.organization) {
+    if (this.state.activeTabKey === "user") {
+      return this.refreshUserMappings(organization);
+    }
+    return this.refreshOrganizationMappings(organization);
+  }
+
+  refreshOrganizationMappings(organization = this.state.organization) {
+    if (!organization) {
+      return Promise.resolve();
+    }
+
+    this.setState({organizationLoading: true});
+    return PlatformApiMappingBackend.getPlatformApiOrganizationMappings(organization).then((organizationRes) => {
+      if (organizationRes.status === "error") {
+        Setting.showMessage("error", organizationRes.msg);
+      }
+      this.setState({
+        organizationLoading: false,
+        organizationMappings: organizationRes.status === "ok" ? (organizationRes.data || []) : [],
+      });
+    }).catch(error => {
+      this.setState({organizationLoading: false});
+      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+    });
+  }
+
+  refreshUserMappings(organization = this.state.organization, options = {}) {
+    if (!organization) {
+      return Promise.resolve();
+    }
+
+    const pagination = {
+      ...this.state.userPagination,
+      ...(options.pagination || {}),
+    };
+    const keyword = options.keyword !== undefined ? options.keyword : this.state.userKeyword;
+
+    this.setState({userLoading: true});
+    return PlatformApiMappingBackend.getPlatformApiUserMappings(organization, {
+      current: pagination.current,
+      pageSize: pagination.pageSize,
+      keyword,
+    }).then((userRes) => {
+      if (userRes.status === "error") {
+        Setting.showMessage("error", userRes.msg);
+      }
+      this.setState({
+        userLoading: false,
+        userMappings: userRes.status === "ok" ? (userRes.data || []) : [],
+        userKeyword: keyword,
+        userPagination: {
+          ...pagination,
+          total: userRes.status === "ok" ? (userRes.data2 || 0) : pagination.total,
+        },
+        userMappingsLoaded: true,
+      });
+    }).catch(error => {
+      this.setState({userLoading: false});
+      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+    });
+  }
+
+  changeOrganization(organization) {
+    this.setState({
+      organization,
+      organizationMappings: [],
+      userMappings: [],
+      userKeyword: "",
+      userPagination: getDefaultTablePagination(),
+      userMappingsLoaded: false,
+    }, () => {
+      this.refreshOrganizationMappings(organization);
+      if (this.state.activeTabKey === "user") {
+        this.refreshUserMappings(organization, {
+          pagination: getDefaultTablePagination(),
+          keyword: "",
+        });
+      }
+    });
+  }
+
+  changeTab(activeTabKey) {
+    this.setState({activeTabKey}, () => {
+      if (activeTabKey === "user" && !this.state.userMappingsLoaded) {
+        this.refreshUserMappings();
+      }
+    });
+  }
+
+  getActiveLoading() {
+    return this.state.activeTabKey === "user" ? this.state.userLoading : this.state.organizationLoading;
+  }
+
+  updateOrganizationMapping(index, field, value) {
+    const organizationMappings = [...this.state.organizationMappings];
+    organizationMappings[index] = {
+      ...organizationMappings[index],
+      [field]: value,
+    };
+    this.setState({organizationMappings});
+  }
+
+  updateUserMapping(index, field, value) {
+    const userMappings = [...this.state.userMappings];
+    userMappings[index] = {
+      ...userMappings[index],
+      [field]: value,
+    };
+    this.setState({userMappings});
+  }
+
+  addOrganizationMapping() {
+    const organization = this.state.organization;
+    if (!organization) {
+      return;
+    }
+    this.setState({
+      organizationMappings: [
+        {
+          owner: organization,
+          organizationId: organization,
+          apiOrganizationId: "",
+          mappingStatus: "PENDING_REVIEW",
+          mappingSource: "MANUAL",
+        },
+        ...this.state.organizationMappings,
+      ],
+    });
+  }
+
+  addUserMapping() {
+    const organization = this.state.organization;
+    if (!organization) {
+      return;
+    }
+    this.setState({
+      userMappings: [
+        {
+          owner: organization,
+          organizationId: organization,
+          adminSubject: "",
+          apiUserId: "",
+          mappingStatus: "PENDING_REVIEW",
+          mappingSource: "MANUAL",
+        },
+        ...this.state.userMappings,
+      ],
+    });
+  }
+
+  saveOrganizationMapping(mapping, index) {
+    if (!mapping.organizationId) {
+      Setting.showMessage("error", "平台组织 ID（organizationId）不能为空");
+      return;
+    }
+    const savingKey = `org-${index}`;
+    this.setState({savingKey});
+    PlatformApiMappingBackend.updatePlatformApiOrganizationMapping(mapping).then((res) => {
+      this.setState({savingKey: ""});
+      if (res.status === "ok") {
+        Setting.showMessage("success", i18next.t("general:Successfully saved"));
+        this.refresh();
+      } else {
+        Setting.showMessage("error", `${i18next.t("general:Failed to save")}: ${res.msg}`);
+      }
+    }).catch(error => {
+      this.setState({savingKey: ""});
+      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+    });
+  }
+
+  saveUserMapping(mapping, index) {
+    if (!mapping.organizationId || !mapping.adminSubject) {
+      Setting.showMessage("error", "平台组织 ID（organizationId）和平台主体（adminSubject）不能为空");
+      return;
+    }
+    const savingKey = `user-${index}`;
+    this.setState({savingKey});
+    PlatformApiMappingBackend.updatePlatformApiUserMapping(mapping).then((res) => {
+      this.setState({savingKey: ""});
+      if (res.status === "ok") {
+        Setting.showMessage("success", i18next.t("general:Successfully saved"));
+        this.refreshUserMappings();
+      } else {
+        Setting.showMessage("error", `${i18next.t("general:Failed to save")}: ${res.msg}`);
+      }
+    }).catch(error => {
+      this.setState({savingKey: ""});
+      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+    });
+  }
+
+  renderStatus(value) {
+    const status = normalizeMappingStatus(value);
+    const color = status === "CONFIRMED" ? "green" : status === "DISABLED" ? "default" : "orange";
+    return <Tag color={color}>{getMappingStatusLabel(status)}</Tag>;
+  }
+
+  renderTitleWithTip(title, tooltip) {
+    return (
+      <span style={{display: "inline-flex", alignItems: "center", whiteSpace: "nowrap"}}>
+        {Setting.getLabel(title, tooltip)}
+      </span>
+    );
+  }
+
+  renderOrganizationMappingTable() {
+    const columns = [
+      {
+        title: this.renderTitleWithTip("平台组织 ID", titleTips.organizationId),
+        dataIndex: "organizationId",
+        width: 220,
+        render: (text, record, index) => (
+          <Input value={text} onChange={e => this.updateOrganizationMapping(index, "organizationId", e.target.value)} />
+        ),
+      },
+      {
+        title: this.renderTitleWithTip("AICodex API 组织 UUID", titleTips.apiOrganizationId),
+        dataIndex: "apiOrganizationId",
+        width: 260,
+        render: (text, record, index) => (
+          <Input value={text} placeholder="AICodex API 组织 UUID" onChange={e => this.updateOrganizationMapping(index, "apiOrganizationId", e.target.value)} />
+        ),
+      },
+      {
+        title: this.renderTitleWithTip("映射状态", titleTips.mappingStatus),
+        dataIndex: "mappingStatus",
+        width: 220,
+        render: (text, record, index) => (
+          <Select
+            value={normalizeMappingStatus(text)}
+            options={getMappingStatusOptions()}
+            onChange={value => this.updateOrganizationMapping(index, "mappingStatus", value)}
+            style={{width: "100%"}}
+          />
+        ),
+      },
+      {
+        title: this.renderTitleWithTip("映射来源", titleTips.mappingSource),
+        dataIndex: "mappingSource",
+        width: 210,
+        render: (text, record, index) => (
+          <Select
+            value={normalizeMappingSource(text)}
+            options={getMappingSourceOptions(text)}
+            onChange={value => this.updateOrganizationMapping(index, "mappingSource", value)}
+            style={{width: "100%"}}
+          />
+        ),
+      },
+      {
+        title: i18next.t("general:Action"),
+        width: 110,
+        render: (text, record, index) => (
+          <Button
+            type="primary"
+            icon={<SaveOutlined />}
+            loading={this.state.savingKey === `org-${index}`}
+            onClick={() => this.saveOrganizationMapping(record, index)}
+          >
+            {i18next.t("general:Save")}
+          </Button>
+        ),
+      },
+    ];
+    return (
+      <Table
+        rowKey={(record) => record.name || `${record.organizationId || "new"}-${record.apiOrganizationId || ""}`}
+        columns={columns}
+        dataSource={this.state.organizationMappings}
+        pagination={false}
+        loading={this.state.organizationLoading}
+        scroll={{x: 1000}}
+      />
+    );
+  }
+
+  handleUserTableChange = (pagination) => {
+    this.refreshUserMappings(this.state.organization, {
+      pagination: {
+        ...this.state.userPagination,
+        current: pagination.current,
+        pageSize: pagination.pageSize,
+      },
+    });
+  };
+
+  searchUserMappings(keyword) {
+    this.refreshUserMappings(this.state.organization, {
+      keyword: (keyword || "").trim(),
+      pagination: {
+        ...this.state.userPagination,
+        current: 1,
+      },
+    });
+  }
+
+  renderUserMappingTable() {
+    const columns = [
+      {
+        title: this.renderTitleWithTip("平台主体", titleTips.adminSubject),
+        dataIndex: "adminSubject",
+        width: 260,
+        render: (text, record, index) => (
+          <Input value={text} placeholder={`${this.state.organization}/user-name`} onChange={e => this.updateUserMapping(index, "adminSubject", e.target.value)} />
+        ),
+      },
+      {
+        title: this.renderTitleWithTip("AICodex API 用户 ID", titleTips.apiUserId),
+        dataIndex: "apiUserId",
+        width: 220,
+        render: (text, record, index) => (
+          <Input value={text} placeholder="AICodex API 用户 ID" onChange={e => this.updateUserMapping(index, "apiUserId", e.target.value)} />
+        ),
+      },
+      {
+        title: this.renderTitleWithTip("映射状态", titleTips.mappingStatus),
+        dataIndex: "mappingStatus",
+        width: 220,
+        render: (text, record, index) => (
+          <Select
+            value={normalizeMappingStatus(text)}
+            options={getMappingStatusOptions()}
+            onChange={value => this.updateUserMapping(index, "mappingStatus", value)}
+            style={{width: "100%"}}
+          />
+        ),
+      },
+      {
+        title: this.renderTitleWithTip("映射来源", titleTips.mappingSource),
+        dataIndex: "mappingSource",
+        width: 210,
+        render: (text, record, index) => (
+          <Select
+            value={normalizeMappingSource(text)}
+            options={getMappingSourceOptions(text)}
+            onChange={value => this.updateUserMapping(index, "mappingSource", value)}
+            style={{width: "100%"}}
+          />
+        ),
+      },
+      {
+        title: i18next.t("general:Action"),
+        width: 110,
+        render: (text, record, index) => (
+          <Button
+            type="primary"
+            icon={<SaveOutlined />}
+            loading={this.state.savingKey === `user-${index}`}
+            onClick={() => this.saveUserMapping(record, index)}
+          >
+            {i18next.t("general:Save")}
+          </Button>
+        ),
+      },
+    ];
+    return (
+      <Table
+        rowKey={(record) => record.name || `${record.organizationId || "new"}-${record.adminSubject || record.apiUserId || ""}`}
+        columns={columns}
+        dataSource={this.state.userMappings}
+        pagination={getTablePaginationProps(this.state.userPagination)}
+        loading={this.state.userLoading}
+        scroll={{x: 1000}}
+        onChange={this.handleUserTableChange}
+      />
+    );
+  }
+
+  renderOrganizationMappingTab() {
+    return (
+      <Card
+        type="inner"
+        title={this.renderTitleWithTip("平台组织映射", titleTips.organizationMapping)}
+        extra={<Button icon={<PlusOutlined />} onClick={() => this.addOrganizationMapping()}>{i18next.t("general:Add")}</Button>}
+      >
+        {this.state.organizationMappings.length > 0 && this.renderStatus(this.state.organizationMappings[0]?.mappingStatus)}
+        <div style={{marginTop: 12}}>
+          {this.renderOrganizationMappingTable()}
+        </div>
+      </Card>
+    );
+  }
+
+  renderUserMappingTab() {
+    return (
+      <Card
+        type="inner"
+        title={this.renderTitleWithTip("用户映射", titleTips.userMapping)}
+        extra={
+          <Space wrap>
+            <Search
+              allowClear
+              placeholder="搜索平台主体或 API 用户 ID"
+              style={{width: 320}}
+              onSearch={value => this.searchUserMappings(value)}
+            />
+            <Button icon={<PlusOutlined />} onClick={() => this.addUserMapping()}>{i18next.t("general:Add")}</Button>
+          </Space>
+        }
+      >
+        {this.renderUserMappingTable()}
+      </Card>
+    );
+  }
+
+  render() {
+    return (
+      <Card
+        title={
+          <Space wrap>
+            {this.renderTitleWithTip("AICodex API 组织与账号映射", titleTips.platformApiMappings)}
+            {this.state.organization && <Text type="secondary">{this.state.organization}</Text>}
+          </Space>
+        }
+        extra={
+          <Space wrap>
+            <OrganizationSelect
+              initValue={this.state.organization}
+              style={{width: 240}}
+              excludedOrganizations={["built-in"]}
+              onChange={value => this.changeOrganization(value)}
+            />
+            <Button icon={<ReloadOutlined />} onClick={() => this.refresh()} loading={this.getActiveLoading()}>
+              刷新
+            </Button>
+          </Space>
+        }
+      >
+        <Alert
+          type="info"
+          showIcon
+          style={{marginBottom: 16}}
+          message="认证中心到 AICodex API 的网关身份映射"
+          description="维护认证中心组织/账号到 aicodex-api 业务组织、网关账号和用量身份的权威映射。只有“已确认”状态的映射会被授权入口、用户信息接口、Insight 数据接口和网关投影作为权威来源。"
+        />
+
+        <Tabs
+          activeKey={this.state.activeTabKey}
+          onChange={key => this.changeTab(key)}
+          items={[
+            {
+              key: "organization",
+              label: "平台组织映射",
+              children: this.renderOrganizationMappingTab(),
+            },
+            {
+              key: "user",
+              label: "用户映射",
+              children: this.renderUserMappingTab(),
+            },
+          ]}
+        />
+      </Card>
+    );
+  }
+}
+
+export default PlatformApiMappingPage;

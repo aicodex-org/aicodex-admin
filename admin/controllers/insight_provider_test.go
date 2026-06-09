@@ -23,11 +23,8 @@ func TestInsightCurrentUserResponseUsesWhitelistAndRedactsSensitiveFields(t *tes
 		OriginalRefreshToken: "refresh-token-value",
 		Phone:                "13800000000",
 		Email:                "alice@example.com",
-		Properties: map[string]string{
-			"aicodexApiUserId":         "101",
-			"aicodexApiOrganizationId": "00000000-0000-7000-8000-000000000123",
-		},
 	}
+	installInsightPlatformApiMappingFixtures(t, "org-a", "00000000-0000-7000-8000-000000000123", map[string]string{"org-a/alice": "101"})
 
 	got := buildInsightCurrentUserResponse(user, []string{"admin"}, []InsightProviderGroup{
 		{DepartmentId: "org-a/dev", DepartmentName: "Dev"},
@@ -80,19 +77,19 @@ func TestInsightScopeForOrganizationAdminStaysInOwnOrganization(t *testing.T) {
 		Owner:   "org-a",
 		Name:    "owner",
 		IsAdmin: true,
-		Properties: map[string]string{
-			"aicodexApiUserId":         "100",
-			"aicodexApiOrganizationId": "00000000-0000-7000-8000-000000000123",
-		},
 	}
 	users := []*object.User{
 		currentUser,
-		{Owner: "org-a", Name: "member", Properties: map[string]string{"aicodexApiUserId": "101"}},
+		{Owner: "org-a", Name: "member"},
 		{Owner: "org-a", Name: "unmapped"},
-		{Owner: "org-b", Name: "outside", Properties: map[string]string{"aicodexApiUserId": "999"}},
+		{Owner: "org-b", Name: "outside"},
 	}
+	installInsightPlatformApiMappingFixtures(t, "org-a", "00000000-0000-7000-8000-000000000123", map[string]string{
+		"org-a/owner":  "100",
+		"org-a/member": "101",
+	})
 
-	got, providerErr := calculateInsightScopeForOrganizationWithResolver(currentUser, "org-a", users, nil, generatedAt, nil, "trace-admin-scope")
+	got, providerErr := calculateInsightScopeForOrganizationWithTrace(currentUser, "org-a", users, nil, generatedAt, "trace-admin-scope")
 	if providerErr != nil {
 		t.Fatalf("calculateInsightScope returned error: %+v", providerErr)
 	}
@@ -125,22 +122,24 @@ func TestInsightAllCompanyScopeIncludesDepartmentUsageMappings(t *testing.T) {
 		Owner:   "org-a",
 		Name:    "owner",
 		IsAdmin: true,
-		Properties: map[string]string{
-			"aicodexApiUserId":         "100",
-			"aicodexApiOrganizationId": "00000000-0000-7000-8000-000000000123",
-		},
 	}
 	users := []*object.User{
 		currentUser,
-		{Owner: "org-a", Name: "dev-a", Groups: []string{"org-a/dev"}, Properties: map[string]string{"aicodexApiUserId": "101"}},
-		{Owner: "org-a", Name: "dev-b", Groups: []string{"org-a/dev"}, Properties: map[string]string{"aicodexApiUserId": "102"}},
-		{Owner: "org-a", Name: "qa-a", Groups: []string{"org-a/qa"}, Properties: map[string]string{"aicodexApiUserId": "201"}},
+		{Owner: "org-a", Name: "dev-a", Groups: []string{"org-a/dev"}},
+		{Owner: "org-a", Name: "dev-b", Groups: []string{"org-a/dev"}},
+		{Owner: "org-a", Name: "qa-a", Groups: []string{"org-a/qa"}},
 		{Owner: "org-a", Name: "missing", Groups: []string{"org-a/dev"}},
 	}
 	groups := []*object.Group{
 		{Owner: "org-a", Name: "dev", DisplayName: "Dev"},
 		{Owner: "org-a", Name: "qa", DisplayName: "QA"},
 	}
+	installInsightPlatformApiMappingFixtures(t, "org-a", "00000000-0000-7000-8000-000000000123", map[string]string{
+		"org-a/owner": "100",
+		"org-a/dev-a": "101",
+		"org-a/dev-b": "102",
+		"org-a/qa-a":  "201",
+	})
 
 	got, providerErr := calculateInsightScope(currentUser, users, groups, generatedAt)
 	if providerErr != nil {
@@ -169,17 +168,18 @@ func TestInsightProviderUsesPlatformDepartmentSourceMetadataForWecomGroups(t *te
 		Owner:   "org-a",
 		Name:    "owner",
 		IsAdmin: true,
-		Properties: map[string]string{
-			"aicodexApiUserId": "100",
-		},
 	}
 	users := []*object.User{
 		currentUser,
-		{Owner: "org-a", Name: "member", Groups: []string{"org-a/wecom-dept-2"}, Properties: map[string]string{"aicodexApiUserId": "101"}},
+		{Owner: "org-a", Name: "member", Groups: []string{"org-a/wecom-dept-2"}},
 	}
 	groups := []*object.Group{
 		{Owner: "org-a", Name: "wecom-dept-2", DisplayName: "研发", Type: object.WecomDepartmentGroupType, IsEnabled: true},
 	}
+	installInsightPlatformApiMappingFixtures(t, "org-a", "00000000-0000-7000-8000-000000000123", map[string]string{
+		"org-a/owner":  "100",
+		"org-a/member": "101",
+	})
 	departmentMetadata := buildInsightDepartmentSourceMetadataIndex([]*object.PlatformDepartment{
 		{
 			OrganizationId:     "org-a",
@@ -189,7 +189,7 @@ func TestInsightProviderUsesPlatformDepartmentSourceMetadataForWecomGroups(t *te
 		},
 	})
 
-	scope, providerErr := calculateInsightScopeForOrganizationWithResolverAndDepartmentMetadata(currentUser, "org-a", users, groups, generatedAt, nil, "trace-source-metadata", departmentMetadata)
+	scope, providerErr := calculateInsightScopeForOrganizationWithDepartmentMetadata(currentUser, "org-a", users, groups, generatedAt, "trace-source-metadata", departmentMetadata)
 	if providerErr != nil {
 		t.Fatalf("calculateInsightScope returned error: %+v", providerErr)
 	}
@@ -207,8 +207,8 @@ func TestInsightProviderUsesPlatformDepartmentSourceMetadataForWecomGroups(t *te
 func TestInsightScopeRejectsForbiddenOrDeletedCurrentUser(t *testing.T) {
 	generatedAt := time.Date(2026, 5, 21, 8, 0, 0, 0, time.UTC)
 	for _, currentUser := range []*object.User{
-		{Owner: "org-a", Name: "forbidden", IsForbidden: true, Properties: map[string]string{"aicodexApiUserId": "102"}},
-		{Owner: "org-a", Name: "deleted", IsDeleted: true, Properties: map[string]string{"aicodexApiUserId": "103"}},
+		{Owner: "org-a", Name: "forbidden", IsForbidden: true},
+		{Owner: "org-a", Name: "deleted", IsDeleted: true},
 	} {
 		got, providerErr := calculateInsightScope(currentUser, []*object.User{currentUser}, nil, generatedAt)
 		if got != nil {
@@ -222,13 +222,19 @@ func TestInsightScopeRejectsForbiddenOrDeletedCurrentUser(t *testing.T) {
 
 func TestInsightScopeExcludesForbiddenAndDeletedUsers(t *testing.T) {
 	generatedAt := time.Date(2026, 5, 21, 8, 0, 0, 0, time.UTC)
-	currentUser := &object.User{Owner: "org-a", Name: "owner", IsAdmin: true, Properties: map[string]string{"aicodexApiUserId": "100"}}
+	currentUser := &object.User{Owner: "org-a", Name: "owner", IsAdmin: true}
 	users := []*object.User{
 		currentUser,
-		{Owner: "org-a", Name: "member", Properties: map[string]string{"aicodexApiUserId": "101"}},
-		{Owner: "org-a", Name: "forbidden", IsForbidden: true, Properties: map[string]string{"aicodexApiUserId": "102"}},
-		{Owner: "org-a", Name: "deleted", IsDeleted: true, Properties: map[string]string{"aicodexApiUserId": "103"}},
+		{Owner: "org-a", Name: "member"},
+		{Owner: "org-a", Name: "forbidden", IsForbidden: true},
+		{Owner: "org-a", Name: "deleted", IsDeleted: true},
 	}
+	installInsightPlatformApiMappingFixtures(t, "org-a", "", map[string]string{
+		"org-a/owner":     "100",
+		"org-a/member":    "101",
+		"org-a/forbidden": "102",
+		"org-a/deleted":   "103",
+	})
 
 	got, providerErr := calculateInsightScope(currentUser, users, nil, generatedAt)
 	if providerErr != nil {
@@ -277,18 +283,19 @@ func TestInsightScopeSkipsUsersWithoutDepartmentUsageMapping(t *testing.T) {
 	currentUser := &object.User{
 		Owner: "org-a",
 		Name:  "lead",
-		Properties: map[string]string{
-			"aicodexApiUserId": "200",
-		},
 	}
 	users := []*object.User{
 		currentUser,
 		{Owner: "org-a", Name: "missing", Groups: []string{"org-a/dev"}},
-		{Owner: "org-a", Name: "mapped", Groups: []string{"org-a/dev"}, Properties: map[string]string{"aicodexApiUserId": "201"}},
+		{Owner: "org-a", Name: "mapped", Groups: []string{"org-a/dev"}},
 	}
 	groups := []*object.Group{
 		{Owner: "org-a", Name: "dev", DisplayName: "Dev", Manager: "org-a/lead"},
 	}
+	installInsightPlatformApiMappingFixtures(t, "org-a", "", map[string]string{
+		"org-a/lead":   "200",
+		"org-a/mapped": "201",
+	})
 
 	got, providerErr := calculateInsightScope(currentUser, users, groups, generatedAt)
 	if providerErr != nil {
@@ -306,32 +313,26 @@ func TestInsightScopeSkipsUsersWithoutDepartmentUsageMapping(t *testing.T) {
 	}
 }
 
-func TestInsightQueryableScopeSkipsResolverMissingUsers(t *testing.T) {
+func TestInsightQueryableScopeSkipsMissingPlatformApiUserMappings(t *testing.T) {
 	users := []*object.User{
 		{Owner: "org-a", Name: "mapped", Id: "subject-mapped"},
 		{Owner: "org-a", Name: "missing", Id: "subject-missing"},
 	}
-	resolver := &stubInsightUsageIdentityResolver{results: []insightUsageIdentityResolveResult{
-		{RequestId: "org-a/mapped", MappingStatus: MappingStatusOK, ApiUserId: 201},
-		{RequestId: "org-a/missing", MappingStatus: MappingStatusMissing},
-	}}
+	installInsightPlatformApiMappingFixtures(t, "org-a", "", map[string]string{"org-a/mapped": "201"})
 
-	adminUserIds, apiUserIds, mappingStatus, providerErr := mapInsightQueryableUsersToUsageIdsWithResolver(users, resolver, "trace-skip-missing")
-	if providerErr != nil {
-		t.Fatalf("mapInsightQueryableUsersToUsageIdsWithResolver returned error: %+v", providerErr)
-	}
+	adminUserIds, apiUserIds, mappingStatus := mapInsightQueryableUsersToUsageIds(users)
 	if mappingStatus != MappingStatusOK {
-		t.Fatalf("mappingStatus = %q, want OK when resolver reports missing queryable users", mappingStatus)
+		t.Fatalf("mappingStatus = %q, want OK when missing queryable users are skipped", mappingStatus)
 	}
 	if !containsString(adminUserIds, "org-a/mapped") || !containsString(apiUserIds, "201") {
 		t.Fatalf("mapped user was not retained: adminUserIds=%+v apiUserIds=%+v", adminUserIds, apiUserIds)
 	}
 	if containsString(adminUserIds, "org-a/missing") {
-		t.Fatalf("resolver missing user should be skipped for queryable scopes: %+v", adminUserIds)
+		t.Fatalf("missing user should be skipped for queryable scopes: %+v", adminUserIds)
 	}
 }
 
-func TestInsightScopeReturnsAuthorizationFailedForAmbiguousMapping(t *testing.T) {
+func TestInsightScopeIgnoresLegacyAmbiguousPropertyWithoutFirstClassMapping(t *testing.T) {
 	generatedAt := time.Date(2026, 5, 21, 8, 0, 0, 0, time.UTC)
 	currentUser := &object.User{
 		Owner: "org-a",
@@ -345,11 +346,11 @@ func TestInsightScopeReturnsAuthorizationFailedForAmbiguousMapping(t *testing.T)
 	if providerErr == nil {
 		t.Fatalf("calculateInsightScope returned scope %+v, want AUTHORIZATION_FAILED", got)
 	}
-	if providerErr.Code != InsightProviderErrorAuthorizationFailed || providerErr.MappingStatus != MappingStatusAmbiguous {
-		t.Fatalf("providerErr = %+v, want AUTHORIZATION_FAILED with AMBIGUOUS mapping", providerErr)
+	if providerErr.Code != InsightProviderErrorAuthorizationFailed || providerErr.MappingStatus != MappingStatusMissing {
+		t.Fatalf("providerErr = %+v, want AUTHORIZATION_FAILED with MISSING first-class mapping", providerErr)
 	}
 	if got != nil && got.ScopeType == ScopeTypeEmpty {
-		t.Fatalf("ambiguous mapping must not be downgraded to EMPTY scope: %+v", got)
+		t.Fatalf("legacy property must not be downgraded to EMPTY scope: %+v", got)
 	}
 }
 
@@ -358,10 +359,8 @@ func TestInsightScopeReturnsAuthorizationFailedForInvalidAPIUserID(t *testing.T)
 	currentUser := &object.User{
 		Owner: "org-a",
 		Name:  "member",
-		Properties: map[string]string{
-			"aicodexApiUserId": "api-user-member",
-		},
 	}
+	installInsightPlatformApiMappingFixtures(t, "org-a", "", map[string]string{"org-a/member": "api-user-member"})
 
 	got, providerErr := calculateInsightScope(currentUser, []*object.User{currentUser}, nil, generatedAt)
 	if providerErr == nil {
@@ -381,14 +380,15 @@ func TestInsightScopeReturnsAuthorizationFailedForDuplicateAPIUserID(t *testing.
 		Owner:   "org-a",
 		Name:    "owner",
 		IsAdmin: true,
-		Properties: map[string]string{
-			"aicodexApiUserId": "201",
-		},
 	}
 	users := []*object.User{
 		currentUser,
-		{Owner: "org-a", Name: "member", Properties: map[string]string{"aicodexApiUserId": "201"}},
+		{Owner: "org-a", Name: "member"},
 	}
+	installInsightPlatformApiMappingFixtures(t, "org-a", "", map[string]string{
+		"org-a/owner":  "201",
+		"org-a/member": "201",
+	})
 
 	got, providerErr := calculateInsightScope(currentUser, users, nil, generatedAt)
 	if providerErr == nil {
@@ -404,9 +404,6 @@ func TestInsightScopeReturnsEmptyWhenManagedDepartmentHasNoQueryableUsers(t *tes
 	currentUser := &object.User{
 		Owner: "org-a",
 		Name:  "lead",
-		Properties: map[string]string{
-			"aicodexApiUserId": "200",
-		},
 	}
 	groups := []*object.Group{
 		{Owner: "org-a", Name: "dev", DisplayName: "Dev", Manager: "org-a/lead"},
@@ -429,19 +426,20 @@ func TestInsightDepartmentTreeReturnsPerDepartmentMappings(t *testing.T) {
 	currentUser := &object.User{
 		Owner: "org-a",
 		Name:  "lead",
-		Properties: map[string]string{
-			"aicodexApiUserId": "200",
-		},
 	}
 	users := []*object.User{
 		currentUser,
-		{Owner: "org-a", Name: "member", Groups: []string{"org-a/dev"}, Properties: map[string]string{"aicodexApiUserId": "201"}},
-		{Owner: "org-a", Name: "child", Groups: []string{"org-a/platform"}, Properties: map[string]string{"aicodexApiUserId": "202"}},
+		{Owner: "org-a", Name: "member", Groups: []string{"org-a/dev"}},
+		{Owner: "org-a", Name: "child", Groups: []string{"org-a/platform"}},
 	}
 	groups := []*object.Group{
 		{Owner: "org-a", Name: "dev", DisplayName: "Dev", Manager: "lead"},
 		{Owner: "org-a", Name: "platform", DisplayName: "Platform", ParentId: "dev"},
 	}
+	installInsightPlatformApiMappingFixtures(t, "org-a", "", map[string]string{
+		"org-a/member": "201",
+		"org-a/child":  "202",
+	})
 
 	got, providerErr := calculateInsightScope(currentUser, users, groups, generatedAt)
 	if providerErr != nil {
@@ -596,4 +594,48 @@ func findInsightDepartmentScope(departments []InsightDepartmentScope, department
 		}
 	}
 	return nil
+}
+
+func installInsightPlatformApiMappingFixtures(t *testing.T, organizationId string, apiOrganizationId string, userMappings map[string]string) {
+	t.Helper()
+	originalOrgLookup := getInsightPlatformApiOrganizationMappingFunc
+	originalUserLookup := getInsightPlatformApiUserMappingByAdminSubjectFunc
+
+	orgMappings := map[string]*object.PlatformApiOrganizationMapping{}
+	if organizationId != "" && apiOrganizationId != "" {
+		orgMappings[organizationId] = &object.PlatformApiOrganizationMapping{
+			OrganizationId:    organizationId,
+			ApiOrganizationId: apiOrganizationId,
+			MappingStatus:     object.PlatformMappingStatusConfirmed,
+			MappingSource:     object.PlatformApiMappingSourceManual,
+		}
+	}
+
+	userMappingByKey := map[string]*object.PlatformApiUserMapping{}
+	for adminSubject, apiUserId := range userMappings {
+		userMappingByKey[organizationId+"\x00"+adminSubject] = &object.PlatformApiUserMapping{
+			OrganizationId: organizationId,
+			AdminSubject:   adminSubject,
+			ApiUserId:      apiUserId,
+			MappingStatus:  object.PlatformMappingStatusConfirmed,
+			MappingSource:  object.PlatformApiMappingSourceManual,
+		}
+	}
+
+	getInsightPlatformApiOrganizationMappingFunc = func(organizationId string) (*object.PlatformApiOrganizationMapping, error) {
+		if mapping := orgMappings[organizationId]; mapping != nil {
+			return mapping, nil
+		}
+		return nil, object.ErrPlatformApiOrganizationMappingMissing
+	}
+	getInsightPlatformApiUserMappingByAdminSubjectFunc = func(organizationId string, adminSubject string) (*object.PlatformApiUserMapping, error) {
+		if mapping := userMappingByKey[organizationId+"\x00"+adminSubject]; mapping != nil {
+			return mapping, nil
+		}
+		return nil, object.ErrPlatformApiUserMappingMissing
+	}
+	t.Cleanup(func() {
+		getInsightPlatformApiOrganizationMappingFunc = originalOrgLookup
+		getInsightPlatformApiUserMappingByAdminSubjectFunc = originalUserLookup
+	})
 }
