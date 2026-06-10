@@ -42,10 +42,11 @@ import WeComLoginPanel from "./WeComLoginPanel";
 import {CountryCodeSelect} from "../common/select/CountryCodeSelect";
 import {getSigninLanguageOverride} from "./LoginLanguage";
 import {getSigninMethodChoiceItems} from "./SigninMethodChoice";
+import {shouldHidePasswordRecoveryForLoginMethod} from "./LoginPageVisibility";
 const FaceRecognitionCommonModal = lazy(() => import("../common/modal/FaceRecognitionCommonModal"));
 const FaceRecognitionModal = lazy(() => import("../common/modal/FaceRecognitionModal"));
 
-class LoginPage extends React.Component {
+export class LoginPage extends React.Component {
   constructor(props) {
     super(props);
     this.captchaRef = React.createRef();
@@ -931,17 +932,19 @@ class LoginPage extends React.Component {
         </div>
       );
     } else if (signinItem.name === "Forgot password?") {
+      if (shouldHidePasswordRecoveryForLoginMethod(this.state.loginMethod)) {
+        return null;
+      }
+
       return (
         <div key={resultItemKey}>
           <div dangerouslySetInnerHTML={{__html: ("<style>" + signinItem.customCss?.replaceAll("<style>", "").replaceAll("</style>", "") + "</style>")}} />
           <div className="login-forget-password">
-            {this.state.loginMethod === "wecom" ? null : (
-              <Form.Item name="autoSignin" valuePropName="checked" noStyle>
-                <Checkbox style={{float: "left"}}>
-                  {i18next.t("login:Auto sign in")}
-                </Checkbox>
-              </Form.Item>
-            )}
+            <Form.Item name="autoSignin" valuePropName="checked" noStyle>
+              <Checkbox style={{float: "left"}}>
+                {i18next.t("login:Auto sign in")}
+              </Checkbox>
+            </Form.Item>
             {
               signinItem.visible ? Setting.renderForgetLink(application, signinItem.label ? signinItem.label : i18next.t("login:Forgot password?")) : null
             }
