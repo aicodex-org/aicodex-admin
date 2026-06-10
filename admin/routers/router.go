@@ -50,6 +50,7 @@ func InitAPI() {
 	web.Router("/api/wecom-profile-consent/login-intents", &controllers.ApiController{}, "POST:CreateWecomProfileConsentLoginIntent")
 	web.Router("/api/wecom-profile-consent/profile-sync-intents", &controllers.ApiController{}, "POST:CreateWecomProfileConsentProfileSyncIntent")
 	web.Router("/api/wecom-profile-consent/callback", &controllers.ApiController{}, "GET:HandleWecomProfileConsentCallback")
+	web.Router("/api/wecom-profile-consent/intents/:intentId/authorize", &controllers.ApiController{}, "GET:AuthorizeWecomProfileConsentIntent")
 	web.Router("/api/wecom-profile-consent/intents/:intentId", &controllers.ApiController{}, "GET:GetWecomProfileConsentIntentStatus")
 	web.Router("/api/wecom-profile-consent/intents/:intentId/complete", &controllers.ApiController{}, "POST:CompleteWecomProfileConsentLoginIntent")
 	web.Router("/api/get-dashboard", &controllers.ApiController{}, "GET:GetDashboard")

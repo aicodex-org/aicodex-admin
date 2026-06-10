@@ -17,6 +17,7 @@ package controllers
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -84,10 +85,11 @@ type wecomProfileConsentProfileSyncIntentRequest struct {
 }
 
 type wecomProfileConsentLoginIntentResponse struct {
-	IntentId  string `json:"intentId"`
-	AuthURL   string `json:"authUrl"`
-	ExpiresAt string `json:"expiresAt"`
-	PollToken string `json:"pollToken"`
+	IntentId     string `json:"intentId"`
+	AuthURL      string `json:"authUrl"`
+	ShortAuthURL string `json:"shortAuthUrl,omitempty"`
+	ExpiresAt    string `json:"expiresAt"`
+	PollToken    string `json:"pollToken"`
 }
 
 type wecomProfileConsentIntentStatusResponse struct {
@@ -234,11 +236,77 @@ func (c *ApiController) CreateWecomProfileConsentLoginIntent() {
 	}
 
 	c.ResponseOk(wecomProfileConsentLoginIntentResponse{
-		IntentId:  result.Intent.Name,
-		AuthURL:   result.AuthURL,
-		ExpiresAt: result.Intent.ExpiresAt.UTC().Format(time.RFC3339),
-		PollToken: result.Secrets.PollToken,
+		IntentId:     result.Intent.Name,
+		AuthURL:      result.AuthURL,
+		ShortAuthURL: object.BuildWecomProfileConsentAuthorizeURL(c.Ctx.Request.Host, result.Intent.Name, result.Secrets.State),
+		ExpiresAt:    result.Intent.ExpiresAt.UTC().Format(time.RFC3339),
+		PollToken:    result.Secrets.PollToken,
 	})
+}
+
+// AuthorizeWecomProfileConsentIntent 处理企业微信敏感授权二维码短链接跳转。
+// @Title AuthorizeWecomProfileConsentIntent
+// @Tag Login API
+// @Description 校验短链接中的登录意图和 state 后，重定向到完整企业微信 OAuth2 授权 URL
+// @Success 302 {string} string "企业微信 OAuth2 跳转"
+// @router /wecom-profile-consent/intents/:intentId/authorize [get]
+func (c *ApiController) AuthorizeWecomProfileConsentIntent() {
+	intentId := strings.TrimSpace(c.Ctx.Input.Param(":intentId"))
+	rawState := strings.TrimSpace(c.Ctx.Input.Query("state"))
+	if intentId == "" || rawState == "" {
+		c.ResponseError("wecom profile consent intent is invalid")
+		return
+	}
+
+	stateIntentName, _, err := object.ParseWecomProfileConsentState(rawState)
+	if err != nil || stateIntentName != intentId {
+		c.ResponseError("wecom profile consent intent is invalid")
+		return
+	}
+	intent, err := getWecomProfileConsentIntentByName(intentId)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	if intent == nil || !intent.MatchesState(rawState) {
+		c.ResponseError("wecom profile consent intent is invalid")
+		return
+	}
+	if refreshed, _, err := expireWecomProfileConsentIntentIfNeeded(intent.Name, time.Now().UTC()); err != nil {
+		c.ResponseError(err.Error())
+		return
+	} else if refreshed != nil {
+		intent = refreshed
+	}
+	if intent.Status != object.WecomProfileConsentIntentStatusPending || intent.IntentType != object.WecomProfileConsentIntentTypeLogin {
+		c.ResponseError("wecom profile consent intent is invalid")
+		return
+	}
+
+	providerOwner := firstNonEmptyWecomProfileConsentValue(intent.ProviderOwner, "admin")
+	provider, err := getWecomProfileConsentProvider(util.GetId(providerOwner, intent.ProviderName))
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	if provider == nil {
+		c.ResponseError("wecom profile consent provider is invalid")
+		return
+	}
+	if intent.CorpId != "" && intent.CorpId != provider.ClientId {
+		c.ResponseError("wecom profile consent corp boundary mismatch")
+		return
+	}
+	if intent.AgentId != "" && intent.AgentId != provider.AppId {
+		c.ResponseError("wecom profile consent agent boundary mismatch")
+		return
+	}
+	authURL, err := object.BuildWecomProfileConsentOAuth2AuthURL(provider, object.BuildWecomProfileConsentCallbackURL(c.Ctx.Request.Host), rawState)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.Redirect(authURL, http.StatusFound)
 }
 
 // CreateWecomProfileConsentProfileSyncIntent ...

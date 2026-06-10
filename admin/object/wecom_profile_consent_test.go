@@ -125,6 +125,17 @@ func TestBuildWecomProfileConsentAuthURLUsesSensitiveScopeAndCallback(t *testing
 	}
 }
 
+func TestBuildWecomProfileConsentAuthorizeURLUsesShortAbsoluteURL(t *testing.T) {
+	shortURL := BuildWecomProfileConsentAuthorizeURL("door.example.com", "intent/with slash", "state+with+plus")
+
+	if !strings.HasPrefix(shortURL, "https://door.example.com/api/wecom-profile-consent/intents/intent%2Fwith%20slash/authorize?") {
+		t.Fatalf("shortURL = %q, want absolute short authorize URL", shortURL)
+	}
+	if !strings.Contains(shortURL, "state=state%2Bwith%2Bplus") {
+		t.Fatalf("shortURL = %q, want escaped state", shortURL)
+	}
+}
+
 func TestParseWecomProfileConsentStateRoundTrip(t *testing.T) {
 	rawState := BuildWecomProfileConsentState("intent-1", "nonce-1")
 

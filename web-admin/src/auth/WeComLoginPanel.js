@@ -277,7 +277,7 @@ class WeComLoginPanel extends React.Component {
 
       this.setState({
         status: "pending",
-        authUrl: res.data.authUrl,
+        authUrl: res.data.shortAuthUrl || res.data.authUrl,
         expiresAt: res.data.expiresAt,
         intentId: res.data.intentId,
         pollToken: res.data.pollToken,

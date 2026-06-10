@@ -154,6 +154,7 @@ describe("WeComLoginPanel", () => {
       data: {
         intentId: "intent-1",
         authUrl: "https://open.weixin.qq.com/connect/oauth2/authorize?scope=snsapi_privateinfo",
+        shortAuthUrl: "/api/wecom-profile-consent/intents/intent-1/authorize?state=short-state",
         expiresAt: "2026-06-04T12:05:00Z",
         pollToken: "poll-token-1",
       },
@@ -182,8 +183,30 @@ describe("WeComLoginPanel", () => {
       },
     });
     expect(getByText("Use WeCom to scan the QR code and consent to sign in")).toBeInTheDocument();
-    expect(getByTestId("wecom-oauth-qrcode")).toHaveAttribute("data-value", "https://open.weixin.qq.com/connect/oauth2/authorize?scope=snsapi_privateinfo");
+    expect(getByTestId("wecom-oauth-qrcode")).toHaveAttribute("data-value", "/api/wecom-profile-consent/intents/intent-1/authorize?state=short-state");
     expect(window.WwLogin).toBeUndefined();
+  });
+
+  test("falls back to the full OAuth2 URL when short authorization URL is unavailable", async() => {
+    AuthBackend.createWecomProfileConsentLoginIntent.mockResolvedValue({
+      status: "ok",
+      data: {
+        intentId: "intent-1",
+        authUrl: "https://open.weixin.qq.com/connect/oauth2/authorize?scope=snsapi_privateinfo",
+        expiresAt: "2026-06-04T12:05:00Z",
+        pollToken: "poll-token-1",
+      },
+    });
+
+    const {getByTestId} = render(
+      <WeComLoginPanel
+        application={internalWeComApplication}
+        loginMethod="wecom"
+      />
+    );
+
+    await flushEffects();
+    expect(getByTestId("wecom-oauth-qrcode")).toHaveAttribute("data-value", "https://open.weixin.qq.com/connect/oauth2/authorize?scope=snsapi_privateinfo");
   });
 
   test("uses the selected WeCom provider and return URL override when creating an intent", async() => {

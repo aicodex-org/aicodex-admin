@@ -42,7 +42,7 @@ import WeComLoginPanel from "./WeComLoginPanel";
 import {CountryCodeSelect} from "../common/select/CountryCodeSelect";
 import {getSigninLanguageOverride} from "./LoginLanguage";
 import {getSigninMethodChoiceItems} from "./SigninMethodChoice";
-import {shouldHidePasswordRecoveryForLoginMethod} from "./LoginPageVisibility";
+import {getLoginPanelClassName, shouldHidePasswordRecoveryForLoginMethod} from "./LoginPageVisibility";
 const FaceRecognitionCommonModal = lazy(() => import("../common/modal/FaceRecognitionCommonModal"));
 const FaceRecognitionModal = lazy(() => import("../common/modal/FaceRecognitionModal"));
 
@@ -1644,7 +1644,7 @@ export class LoginPage extends React.Component {
         <div className="login-content" style={{margin: this.props.preview ?? this.parseOffset(application.formOffset)}}>
           {Setting.inIframe() || Setting.isMobile() ? null : <div dangerouslySetInnerHTML={{__html: application.formCss}} />}
           {Setting.inIframe() || !Setting.isMobile() ? null : <div dangerouslySetInnerHTML={{__html: application.formCssMobile}} />}
-          <div className={Setting.isDarkTheme(this.props.themeAlgorithm) ? "login-panel-dark" : "login-panel"}>
+          <div className={getLoginPanelClassName(Setting.isDarkTheme(this.props.themeAlgorithm), this.state.loginMethod)}>
             <div className="side-image" style={{display: application.formOffset !== 4 ? "none" : null}}>
               <div dangerouslySetInnerHTML={{__html: application.formSideHtml}} />
             </div>

@@ -16,6 +16,7 @@ package object
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -116,6 +117,16 @@ func UpdateWecomProfileConsentIntent(intent *WecomProfileConsentIntent) error {
 func BuildWecomProfileConsentCallbackURL(host string) string {
 	_, originBackend := getOriginFromHost(strings.TrimSpace(host))
 	return strings.TrimRight(originBackend, "/") + WecomProfileConsentCallbackPath
+}
+
+// BuildWecomProfileConsentAuthorizeURL 构造写入桌面二维码的本地短授权链接。
+// 短授权入口会先校验登录意图和 state，再跳转到完整企业微信 OAuth2 授权 URL。
+func BuildWecomProfileConsentAuthorizeURL(host string, intentName string, state string) string {
+	_, originBackend := getOriginFromHost(strings.TrimSpace(host))
+	path := "/api/wecom-profile-consent/intents/" + url.PathEscape(strings.TrimSpace(intentName)) + "/authorize"
+	query := url.Values{}
+	query.Set("state", strings.TrimSpace(state))
+	return strings.TrimRight(originBackend, "/") + path + "?" + query.Encode()
 }
 
 func (s *WecomProfileConsentIntentIssuer) now() time.Time {
