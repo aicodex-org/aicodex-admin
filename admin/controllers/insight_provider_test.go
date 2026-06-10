@@ -489,6 +489,110 @@ func TestInsightBearerTokenAudienceMismatchReturnsAuthorizationFailed(t *testing
 	}
 }
 
+func TestFindInsightUserBySubjectMatchesStableAdminUserId(t *testing.T) {
+	users := []*object.User{
+		{Owner: "built-in", Name: "aicodex-admin-dev", Id: "def793d3-0a95-4e1b-957d-4e9ed3f7e689"},
+	}
+
+	got := findInsightUserBySubject(users, "built-in/aicodex-admin-dev")
+
+	if got != users[0] {
+		t.Fatalf("matched user = %+v, want stable owner/name subject", got)
+	}
+}
+
+func TestFindInsightUserBySubjectKeepsLegacyUuidMatch(t *testing.T) {
+	users := []*object.User{
+		{Owner: "built-in", Name: "aicodex-admin-dev", Id: "def793d3-0a95-4e1b-957d-4e9ed3f7e689"},
+	}
+
+	got := findInsightUserBySubject(users, "def793d3-0a95-4e1b-957d-4e9ed3f7e689")
+
+	if got != users[0] {
+		t.Fatalf("matched user = %+v, want legacy UUID subject", got)
+	}
+}
+
+func TestParseInsightProviderClaimsAcceptsStandardJwtAccessToken(t *testing.T) {
+	oldStandardParser := parseInsightStandardJwtTokenByApplication
+	oldLegacyParser := parseInsightJwtTokenByApplication
+	t.Cleanup(func() {
+		parseInsightStandardJwtTokenByApplication = oldStandardParser
+		parseInsightJwtTokenByApplication = oldLegacyParser
+	})
+
+	parseInsightStandardJwtTokenByApplication = func(token string, application *object.Application) (*object.ClaimsStandard, error) {
+		if token != "standard-token" || application.ClientId != "aicodex-insight-dev" {
+			t.Fatalf("standard parser input token=%q application=%+v", token, application)
+		}
+		return &object.ClaimsStandard{
+			TokenType: "access-token",
+			Scope:     "openid profile insight.scope.read",
+			RegisteredClaims: jwt.RegisteredClaims{
+				Issuer:   "http://localhost:8000",
+				Subject:  "built-in/aicodex-admin-dev",
+				Audience: jwt.ClaimStrings{"aicodex-insight-dev"},
+			},
+		}, nil
+	}
+	parseInsightJwtTokenByApplication = func(token string, application *object.Application) (*object.Claims, error) {
+		t.Fatalf("legacy parser should not be used for JWT-Standard")
+		return nil, nil
+	}
+
+	got, err := parseInsightProviderClaimsByApplication("standard-token", &object.Application{
+		ClientId:    "aicodex-insight-dev",
+		TokenFormat: "JWT-Standard",
+	})
+	if err != nil {
+		t.Fatalf("parseInsightProviderClaimsByApplication returned error: %v", err)
+	}
+	if got.TokenType != "access-token" || got.Scope != "openid profile insight.scope.read" || got.Subject != "built-in/aicodex-admin-dev" {
+		t.Fatalf("claims = %+v, want standard access-token claims", got)
+	}
+	if len(got.Audience) != 1 || got.Audience[0] != "aicodex-insight-dev" || got.Issuer != "http://localhost:8000" {
+		t.Fatalf("registered claims = aud:%+v iss:%q, want standard OIDC claims", got.Audience, got.Issuer)
+	}
+}
+
+func TestParseInsightProviderClaimsKeepsLegacyJwtAccessTokenPath(t *testing.T) {
+	oldStandardParser := parseInsightStandardJwtTokenByApplication
+	oldLegacyParser := parseInsightJwtTokenByApplication
+	t.Cleanup(func() {
+		parseInsightStandardJwtTokenByApplication = oldStandardParser
+		parseInsightJwtTokenByApplication = oldLegacyParser
+	})
+
+	parseInsightStandardJwtTokenByApplication = func(token string, application *object.Application) (*object.ClaimsStandard, error) {
+		t.Fatalf("standard parser should not be used for legacy JWT")
+		return nil, nil
+	}
+	parseInsightJwtTokenByApplication = func(token string, application *object.Application) (*object.Claims, error) {
+		if token != "legacy-token" || application.ClientId != "legacy-insight-client" {
+			t.Fatalf("legacy parser input token=%q application=%+v", token, application)
+		}
+		return &object.Claims{
+			TokenType: "access-token",
+			Scope:     "insight.scope.read",
+			RegisteredClaims: jwt.RegisteredClaims{
+				Subject:  "legacy-user-uuid",
+				Audience: jwt.ClaimStrings{"legacy-insight-client"},
+			},
+		}, nil
+	}
+
+	got, err := parseInsightProviderClaimsByApplication("legacy-token", &object.Application{
+		ClientId:    "legacy-insight-client",
+		TokenFormat: "JWT",
+	})
+	if err != nil {
+		t.Fatalf("parseInsightProviderClaimsByApplication returned error: %v", err)
+	}
+	if got.Subject != "legacy-user-uuid" || got.Scope != "insight.scope.read" {
+		t.Fatalf("claims = %+v, want legacy JWT claims", got)
+	}
+}
+
 func TestInsightAllowedAudienceSelectionOnlyUsesConfiguredAudiences(t *testing.T) {
 	t.Setenv("insightProviderAllowedAudiences", "insight-client")
 

@@ -151,6 +151,8 @@ var (
 	getInsightWecomUserMappingFunc                     = object.GetWecomUserMapping
 	getInsightPlatformApiOrganizationMappingFunc       = object.GetConfirmedPlatformApiOrganizationMapping
 	getInsightPlatformApiUserMappingByAdminSubjectFunc = object.GetConfirmedPlatformApiUserMapping
+	parseInsightJwtTokenByApplication                  = object.ParseJwtTokenByApplication
+	parseInsightStandardJwtTokenByApplication          = object.ParseStandardJwtTokenByApplication
 )
 
 // GetInsightCurrentUser 返回 insight 只读消费的当前 admin 用户白名单字段。
@@ -786,7 +788,7 @@ func getInsightProviderUserByBearerToken(token string, host string, traceId stri
 	}
 
 	// 生产路径校验签名、issuer/audience/expiry/scope；scope/audience 的具体值通过配置收紧。
-	claims, err := object.ParseJwtTokenByApplication(token, application)
+	claims, err := parseInsightProviderClaimsByApplication(token, application)
 	if err != nil {
 		return nil, newInsightProviderError(InsightProviderErrorUnauthenticated, "invalid bearer token signature or expiry", traceId, "")
 	}
@@ -816,6 +818,46 @@ func getInsightProviderUserByBearerToken(token string, host string, traceId stri
 	return user, nil
 }
 
+func parseInsightProviderClaimsByApplication(token string, application *object.Application) (*object.Claims, error) {
+	if application != nil && application.TokenFormat == "JWT-Standard" {
+		standardClaims, err := parseInsightStandardJwtTokenByApplication(token, application)
+		if err != nil {
+			return nil, err
+		}
+		return insightClaimsFromStandardClaims(standardClaims), nil
+	}
+	return parseInsightJwtTokenByApplication(token, application)
+}
+
+func insightClaimsFromStandardClaims(standardClaims *object.ClaimsStandard) *object.Claims {
+	if standardClaims == nil {
+		return nil
+	}
+	var user *object.User
+	if standardClaims.UserStandard != nil {
+		user = &object.User{
+			Owner:         standardClaims.Owner,
+			Name:          standardClaims.Name,
+			Id:            standardClaims.Id,
+			DisplayName:   standardClaims.DisplayName,
+			Avatar:        standardClaims.Avatar,
+			Email:         standardClaims.Email,
+			EmailVerified: standardClaims.EmailVerified,
+			Phone:         standardClaims.Phone,
+		}
+	}
+	return &object.Claims{
+		User:             user,
+		TokenType:        standardClaims.TokenType,
+		Scope:            standardClaims.Scope,
+		Azp:              standardClaims.Azp,
+		ClientId:         standardClaims.ClientId,
+		Organization:     standardClaims.Organization,
+		Provider:         standardClaims.Provider,
+		RegisteredClaims: standardClaims.RegisteredClaims,
+	}
+}
+
 func getInsightUserFromClaims(claims *object.Claims, application *object.Application) (*object.User, error) {
 	if claims.User != nil && claims.User.Owner != "" && claims.User.Name != "" {
 		return object.GetUser(claims.User.GetId())
@@ -835,12 +877,19 @@ func getInsightUserFromClaims(claims *object.Claims, application *object.Applica
 	if err != nil {
 		return nil, err
 	}
+	return findInsightUserBySubject(users, claims.Subject), nil
+}
+
+func findInsightUserBySubject(users []*object.User, subject string) *object.User {
 	for _, user := range users {
-		if user.Id == claims.Subject {
-			return user, nil
+		if user == nil {
+			continue
+		}
+		if user.GetId() == subject || user.Id == subject {
+			return user
 		}
 	}
-	return nil, nil
+	return nil
 }
 
 func (c *ApiController) writeInsightProviderSuccess(traceId string, data interface{}, audit insightProviderAuditEvent) {
