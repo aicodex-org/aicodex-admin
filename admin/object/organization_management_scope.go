@@ -174,11 +174,13 @@ func convertPlatformOrganizationManagementScopeData(organization string, data *O
 	}
 
 	activeUsers := map[string]PlatformUser{}
+	convertedUserIndexes := map[string]int{}
 	for _, user := range data.PlatformUsers {
 		if user.OrganizationId != organization || user.AdminSubject == "" || !IsPlatformLifecycleStatusUsableForScope(user.LifecycleStatus) || !IsConfirmedExternalIdentityMappingStatus(user.MappingStatus) {
 			continue
 		}
 		activeUsers[user.AdminSubject] = user
+		convertedUserIndexes[user.AdminSubject] = len(converted.Users)
 		converted.Users = append(converted.Users, WecomUserMapping{
 			Organization: organization,
 			WecomUserId:  user.AdminSubject,
@@ -197,6 +199,9 @@ func convertPlatformOrganizationManagementScopeData(organization string, data *O
 		department, departmentOK := activeDepartments[membership.DepartmentId]
 		if !userOK || !departmentOK {
 			continue
+		}
+		if index, ok := convertedUserIndexes[membership.AdminSubject]; ok && (membership.IsMain || converted.Users[index].MainDepartmentId == "") {
+			converted.Users[index].MainDepartmentId = membership.DepartmentId
 		}
 		converted.UserDepartments = append(converted.UserDepartments, WecomUserDepartment{
 			Organization: organization,
@@ -223,7 +228,51 @@ func convertPlatformOrganizationManagementScopeData(organization string, data *O
 			})
 		}
 	}
+	converted.DirectLeaders = convertPlatformOrganizationDirectLeaders(organization, data.DirectLeaders, activeUsers)
 	return converted
+}
+
+// convertPlatformOrganizationDirectLeaders 在平台主模型迁移期保留已同步的直属上级事实。
+// 关系两端都必须能解析为 active platform user，避免旧来源关系扩大到未确认主体。
+func convertPlatformOrganizationDirectLeaders(organization string, directLeaders []WecomUserDirectLeader, activeUsers map[string]PlatformUser) []WecomUserDirectLeader {
+	converted := []WecomUserDirectLeader{}
+	for _, relation := range directLeaders {
+		if relation.Organization != organization || !relation.IsEnabled {
+			continue
+		}
+		subordinate := resolvePlatformOrganizationDirectLeaderSubject(relation.WecomUserId, relation.UserOwner, relation.UserName, activeUsers)
+		leader := resolvePlatformOrganizationDirectLeaderSubject(relation.LeaderWecomUserId, relation.LeaderUserOwner, relation.LeaderUserName, activeUsers)
+		if subordinate == "" || leader == "" {
+			continue
+		}
+		converted = append(converted, WecomUserDirectLeader{
+			Organization:      organization,
+			WecomUserId:       subordinate,
+			LeaderWecomUserId: leader,
+			UserOwner:         activeUsers[subordinate].UserOwner,
+			UserName:          activeUsers[subordinate].UserName,
+			LeaderUserOwner:   activeUsers[leader].UserOwner,
+			LeaderUserName:    activeUsers[leader].UserName,
+			IsEnabled:         true,
+		})
+	}
+	return converted
+}
+
+func resolvePlatformOrganizationDirectLeaderSubject(rawSubject string, userOwner string, userName string, activeUsers map[string]PlatformUser) string {
+	candidates := []string{
+		getWecomLocalId(userOwner, userName),
+		strings.TrimSpace(rawSubject),
+	}
+	for _, candidate := range candidates {
+		if candidate == "" {
+			continue
+		}
+		if _, ok := activeUsers[candidate]; ok {
+			return candidate
+		}
+	}
+	return ""
 }
 
 type organizationManagementScopeCalculator struct {
