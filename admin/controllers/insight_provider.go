@@ -1,6 +1,8 @@
 package controllers
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"sort"
@@ -34,6 +36,14 @@ const (
 
 	insightProviderScopeVersion          = "2026-05-21"
 	insightProviderDefaultRequiredScopes = "profile insight.scope.read"
+
+	insightOrganizationTreeReadModelSourcePlatform = "platform_department"
+	insightOrganizationTreeReadModelSourceMixed    = "mixed_platform_group"
+	insightOrganizationTreeReadModelSourceCompat   = "compat_group"
+
+	insightOrganizationTreeVisibilityAdmin             = "admin"
+	insightOrganizationTreeVisibilityDepartmentManager = "department_manager"
+	insightOrganizationTreeVisibilityDirectLeader      = "direct_leader"
 )
 
 type InsightProviderEnvelope struct {
@@ -115,15 +125,65 @@ type InsightDepartmentScope struct {
 	SourceConnectionId      string   `json:"sourceConnectionId,omitempty"`
 }
 
+// InsightOrganizationTreeNode 是 organization-tree provider 对外暴露的扁平部门节点。
+// DepartmentId/ParentDepartmentId 是下游过滤和组树的稳定键；DepartmentName/DepartmentPath 只用于展示。
 type InsightOrganizationTreeNode struct {
-	DepartmentId       string `json:"departmentId"`
-	DepartmentName     string `json:"departmentName"`
-	ParentDepartmentId string `json:"parentDepartmentId"`
-	DepartmentPath     string `json:"departmentPath"`
-	HasChildren        bool   `json:"hasChildren"`
-	SourceType         string `json:"sourceType"`
+	DepartmentId       string                             `json:"departmentId"`
+	DepartmentName     string                             `json:"departmentName"`
+	ParentDepartmentId string                             `json:"parentDepartmentId"`
+	DepartmentPath     string                             `json:"departmentPath"`
+	HasChildren        bool                               `json:"hasChildren"`
+	SourceType         string                             `json:"sourceType"`
+	SourceConnectionId string                             `json:"sourceConnectionId,omitempty"`
+	LifecycleStatus    string                             `json:"lifecycleStatus"`
+	VisibilitySource   string                             `json:"visibilitySource,omitempty"`
+	Lineage            InsightOrganizationTreeNodeLineage `json:"lineage,omitempty"`
+}
+
+// InsightOrganizationTreeResponse 是 organization-tree provider 的版本化 read model。
+// Nodes 是新契约字段；List 保持 Insight 旧 adapter 对 `{list:[]}` 的兼容读取。
+type InsightOrganizationTreeResponse struct {
+	Organization    string                         `json:"organization"`
+	Nodes           []InsightOrganizationTreeNode  `json:"nodes"`
+	List            []InsightOrganizationTreeNode  `json:"list"`
+	OrgVersion      string                         `json:"orgVersion"`
+	ScopeVersion    string                         `json:"scopeVersion"`
+	Freshness       string                         `json:"freshness"`
+	GeneratedAt     string                         `json:"generatedAt"`
+	Lineage         InsightOrganizationTreeLineage `json:"lineage"`
+	ReadModelSource string                         `json:"readModelSource"`
+	MappingStatus   string                         `json:"mappingStatus"`
+	LifecycleStatus string                         `json:"lifecycleStatus"`
+}
+
+// InsightOrganizationTreeLineage 只暴露可诊断的脱敏来源摘要。
+type InsightOrganizationTreeLineage struct {
+	SourceService      string `json:"sourceService"`
+	SourceType         string `json:"sourceType,omitempty"`
 	SourceConnectionId string `json:"sourceConnectionId,omitempty"`
-	LifecycleStatus    string `json:"lifecycleStatus"`
+	BatchId            string `json:"batchId,omitempty"`
+	SourceOrgVersion   string `json:"sourceOrgVersion,omitempty"`
+	ReadModelSource    string `json:"readModelSource"`
+	Digest             string `json:"digest"`
+}
+
+// InsightOrganizationTreeNodeLineage 是单节点脱敏血缘摘要，用于排障而不是下游授权或 join key。
+type InsightOrganizationTreeNodeLineage struct {
+	SourceType         string `json:"sourceType,omitempty"`
+	SourceConnectionId string `json:"sourceConnectionId,omitempty"`
+	SourceOrgVersion   string `json:"sourceOrgVersion,omitempty"`
+	Digest             string `json:"digest,omitempty"`
+}
+
+type insightOrganizationTreeReadModelInput struct {
+	CurrentUser         *object.User
+	Organization        string
+	GeneratedAt         time.Time
+	Scope               *object.OrganizationManagementScope
+	PlatformDepartments []object.PlatformDepartment
+	Groups              []*object.Group
+	SourceConnections   []object.SourceConnection
+	SyncBatches         []object.OrgSyncBatch
 }
 
 type insightDepartmentSourceMetadata struct {
@@ -135,16 +195,20 @@ type insightDepartmentSourceMetadata struct {
 type insightDepartmentSourceMetadataIndex map[string]insightDepartmentSourceMetadata
 
 type insightProviderAuditEvent struct {
-	TraceId        string
-	AdminUserId    string
-	Organization   string
-	ScopeType      string
-	GroupCount     int
-	AdminUserCount int
-	ApiUserCount   int
-	MappingStatus  string
-	Status         string
-	ErrorCode      string
+	TraceId         string
+	AdminUserId     string
+	Organization    string
+	ScopeType       string
+	GroupCount      int
+	NodeCount       int
+	AdminUserCount  int
+	ApiUserCount    int
+	MappingStatus   string
+	ReadModelSource string
+	OrgVersion      string
+	Freshness       string
+	Status          string
+	ErrorCode       string
 }
 
 var (
@@ -231,7 +295,7 @@ func (c *ApiController) GetInsightCurrentUserScope() {
 	})
 }
 
-// GetInsightCurrentUserOrganizationTree 返回当前用户可管理的 group/部门树节点。
+// GetInsightCurrentUserOrganizationTree 返回当前用户可管理的版本化平台组织树 read model。
 func (c *ApiController) GetInsightCurrentUserOrganizationTree() {
 	traceId := c.getInsightProviderTraceId()
 	user, providerErr := c.requireInsightProviderUser(traceId)
@@ -241,6 +305,11 @@ func (c *ApiController) GetInsightCurrentUserOrganizationTree() {
 	}
 
 	organization := c.getInsightProviderScopeOrganization(user)
+	scope, err := (&object.OrganizationManagementScopeService{}).GetCurrentScope(user, organization, user.IsGlobalAdmin() || user.IsAdmin)
+	if err != nil {
+		c.writeInsightProviderError(http.StatusInternalServerError, newInsightProviderError(InsightProviderErrorUnavailable, err.Error(), traceId, ""), insightProviderAuditEvent{TraceId: traceId, AdminUserId: user.GetId(), Organization: organization, Status: "error", ErrorCode: InsightProviderErrorUnavailable})
+		return
+	}
 	groups, err := object.GetGroups(organization)
 	if err != nil {
 		c.writeInsightProviderError(http.StatusInternalServerError, newInsightProviderError(InsightProviderErrorUnavailable, err.Error(), traceId, ""), insightProviderAuditEvent{TraceId: traceId, AdminUserId: user.GetId(), Organization: organization, Status: "error", ErrorCode: InsightProviderErrorUnavailable})
@@ -251,16 +320,39 @@ func (c *ApiController) GetInsightCurrentUserOrganizationTree() {
 		c.writeInsightProviderError(http.StatusInternalServerError, newInsightProviderError(InsightProviderErrorUnavailable, err.Error(), traceId, ""), insightProviderAuditEvent{TraceId: traceId, AdminUserId: user.GetId(), Organization: organization, Status: "error", ErrorCode: InsightProviderErrorUnavailable})
 		return
 	}
+	sourceConnections, err := object.GetSourceConnections(organization)
+	if err != nil {
+		c.writeInsightProviderError(http.StatusInternalServerError, newInsightProviderError(InsightProviderErrorUnavailable, err.Error(), traceId, ""), insightProviderAuditEvent{TraceId: traceId, AdminUserId: user.GetId(), Organization: organization, Status: "error", ErrorCode: InsightProviderErrorUnavailable})
+		return
+	}
+	syncBatches, err := object.GetOrgSyncBatches(organization)
+	if err != nil {
+		c.writeInsightProviderError(http.StatusInternalServerError, newInsightProviderError(InsightProviderErrorUnavailable, err.Error(), traceId, ""), insightProviderAuditEvent{TraceId: traceId, AdminUserId: user.GetId(), Organization: organization, Status: "error", ErrorCode: InsightProviderErrorUnavailable})
+		return
+	}
 
-	departmentMetadata := buildInsightDepartmentSourceMetadataIndex(platformDepartments)
-	data := buildInsightOrganizationTreeForOrganizationWithDepartmentMetadata(user, organization, groups, departmentMetadata)
+	data := buildInsightOrganizationTreeReadModel(insightOrganizationTreeReadModelInput{
+		CurrentUser:         user,
+		Organization:        organization,
+		GeneratedAt:         time.Now().UTC(),
+		Scope:               scope,
+		PlatformDepartments: dereferenceInsightPlatformDepartments(platformDepartments),
+		Groups:              groups,
+		SourceConnections:   dereferenceInsightSourceConnections(sourceConnections),
+		SyncBatches:         dereferenceInsightOrgSyncBatches(syncBatches),
+	})
 	c.writeInsightProviderSuccess(traceId, data, insightProviderAuditEvent{
-		TraceId:       traceId,
-		AdminUserId:   user.GetId(),
-		Organization:  organization,
-		GroupCount:    len(data),
-		MappingStatus: MappingStatusOK,
-		Status:        "ok",
+		TraceId:         traceId,
+		AdminUserId:     user.GetId(),
+		Organization:    organization,
+		ScopeType:       string(scope.ScopeType),
+		GroupCount:      len(data.Nodes),
+		NodeCount:       len(data.Nodes),
+		MappingStatus:   MappingStatusOK,
+		ReadModelSource: data.ReadModelSource,
+		OrgVersion:      data.OrgVersion,
+		Freshness:       data.Freshness,
+		Status:          "ok",
 	})
 }
 
@@ -650,6 +742,325 @@ func buildInsightOrganizationTreeForOrganizationWithDepartmentMetadata(currentUs
 	return nodes
 }
 
+// buildInsightOrganizationTreeReadModel 从平台部门和后端 scope 计算组织树 read model。
+// 旧 Group 只在缺少平台部门主模型时作为兼容投影来源，避免继续充当跨服务权威组织事实。
+func buildInsightOrganizationTreeReadModel(input insightOrganizationTreeReadModelInput) InsightOrganizationTreeResponse {
+	generatedAt := input.GeneratedAt
+	if generatedAt.IsZero() {
+		generatedAt = time.Now().UTC()
+	}
+	organization := normalizeInsightScopeOrganization(input.CurrentUser, input.Organization)
+	if organization == "" && input.Scope != nil {
+		organization = strings.TrimSpace(input.Scope.Organization)
+	}
+
+	sourceConnections := indexInsightOrganizationTreeSourceConnections(input.SourceConnections)
+	latestBatch := latestInsightOrganizationTreeUsableSyncBatch(input.SyncBatches)
+	orgVersion := insightOrganizationTreeOrgVersion(latestBatch, input.PlatformDepartments, organization)
+	freshness := object.PlatformFreshnessUnknown
+	if latestBatch != nil && strings.TrimSpace(latestBatch.Freshness) != "" {
+		freshness = strings.TrimSpace(latestBatch.Freshness)
+	} else if orgVersion != "" {
+		freshness = object.PlatformFreshnessFresh
+	}
+
+	readModelSource := insightOrganizationTreeReadModelSource(input.PlatformDepartments, input.Groups, organization)
+	visibleDepartments, visibilitySources := visibleInsightOrganizationTreeDepartmentIds(input.Scope, input.CurrentUser)
+	nodes := buildInsightPlatformOrganizationTreeNodes(organization, input.PlatformDepartments, visibleDepartments, visibilitySources, sourceConnections, orgVersion)
+	if len(nodes) == 0 && readModelSource == insightOrganizationTreeReadModelSourceCompat {
+		nodes = buildInsightOrganizationTreeForOrganization(input.CurrentUser, organization, input.Groups)
+		for i := range nodes {
+			nodes[i].VisibilitySource = insightOrganizationTreeVisibilityDepartmentManager
+		}
+	}
+
+	lineage := buildInsightOrganizationTreeLineage(readModelSource, latestBatch, sourceConnections, orgVersion, nodes)
+	scopeVersion := ""
+	if orgVersion != "" {
+		scopeVersion = insightStableHash("scopev-", organization, orgVersion, string(input.ScopeType()), lineage.Digest)
+	}
+	return InsightOrganizationTreeResponse{
+		Organization:    organization,
+		Nodes:           nodes,
+		List:            nodes,
+		OrgVersion:      orgVersion,
+		ScopeVersion:    scopeVersion,
+		Freshness:       freshness,
+		GeneratedAt:     formatInsightTime(generatedAt),
+		Lineage:         lineage,
+		ReadModelSource: readModelSource,
+		MappingStatus:   MappingStatusOK,
+		LifecycleStatus: object.PlatformLifecycleStatusActive,
+	}
+}
+
+func (input insightOrganizationTreeReadModelInput) ScopeType() object.OrganizationManagementScopeType {
+	if input.Scope == nil {
+		return object.OrganizationManagementScopeTypeSelf
+	}
+	return input.Scope.ScopeType
+}
+
+func indexInsightOrganizationTreeSourceConnections(connections []object.SourceConnection) map[string]object.SourceConnection {
+	index := map[string]object.SourceConnection{}
+	for _, connection := range connections {
+		if strings.TrimSpace(connection.SourceConnectionId) == "" {
+			continue
+		}
+		index[connection.SourceConnectionId] = connection
+	}
+	return index
+}
+
+// latestInsightOrganizationTreeUsableSyncBatch 只接受已完成且带版本的批次，避免 RUNNING/FAILED 覆盖可用组织版本。
+func latestInsightOrganizationTreeUsableSyncBatch(batches []object.OrgSyncBatch) *object.OrgSyncBatch {
+	var selected *object.OrgSyncBatch
+	for _, batch := range batches {
+		status := strings.ToUpper(strings.TrimSpace(batch.Status))
+		if status != object.OrgSyncBatchStatusSucceeded && status != object.OrgSyncBatchStatusPartial {
+			continue
+		}
+		if strings.TrimSpace(batch.OrgVersion) == "" || batch.FinishedAt.IsZero() {
+			continue
+		}
+		if selected == nil || batch.FinishedAt.After(selected.FinishedAt) {
+			candidate := batch
+			selected = &candidate
+		}
+	}
+	return selected
+}
+
+// insightOrganizationTreeOrgVersion 优先使用同步批次版本；没有可用批次时退到平台部门快照版本。
+func insightOrganizationTreeOrgVersion(batch *object.OrgSyncBatch, departments []object.PlatformDepartment, organization string) string {
+	if batch != nil && strings.TrimSpace(batch.OrgVersion) != "" {
+		return strings.TrimSpace(batch.OrgVersion)
+	}
+	versions := map[string]bool{}
+	for _, department := range departments {
+		if department.OrganizationId != organization || !object.IsPlatformLifecycleStatusUsableForScope(department.LifecycleStatus) {
+			continue
+		}
+		version := strings.TrimSpace(department.OrgVersion)
+		if version != "" {
+			versions[version] = true
+		}
+	}
+	for _, version := range sortedBoolMapKeys(versions) {
+		return version
+	}
+	return ""
+}
+
+func insightOrganizationTreeReadModelSource(departments []object.PlatformDepartment, groups []*object.Group, organization string) string {
+	hasPlatform := false
+	for _, department := range departments {
+		if department.OrganizationId == organization && strings.TrimSpace(department.DepartmentId) != "" {
+			hasPlatform = true
+			break
+		}
+	}
+	if hasPlatform && len(groups) > 0 {
+		return insightOrganizationTreeReadModelSourcePlatform
+	}
+	if hasPlatform {
+		return insightOrganizationTreeReadModelSourcePlatform
+	}
+	if len(groups) > 0 {
+		return insightOrganizationTreeReadModelSourceCompat
+	}
+	return insightOrganizationTreeReadModelSourcePlatform
+}
+
+// visibleInsightOrganizationTreeDepartmentIds 复用后端管理范围结果裁剪组织树。
+// 直属上级只看到下属所在 enabled 部门，不在这里扩展成整棵部门子树。
+func visibleInsightOrganizationTreeDepartmentIds(scope *object.OrganizationManagementScope, currentUser *object.User) (map[string]bool, map[string]string) {
+	visible := map[string]bool{}
+	sources := map[string]string{}
+	if scope == nil {
+		return visible, sources
+	}
+	if scope.ScopeType == object.OrganizationManagementScopeTypeAdmin || (currentUser != nil && (currentUser.IsGlobalAdmin() || currentUser.IsAdmin)) {
+		for _, department := range scope.Departments {
+			if strings.TrimSpace(department.DepartmentId) == "" {
+				continue
+			}
+			visible[department.DepartmentId] = true
+			sources[department.DepartmentId] = insightOrganizationTreeVisibilityAdmin
+		}
+		return visible, sources
+	}
+	scopeType := string(scope.ScopeType)
+	if strings.Contains(scopeType, string(object.OrganizationManagementScopeTypeDepartmentManager)) {
+		for _, department := range scope.Departments {
+			if strings.TrimSpace(department.DepartmentId) == "" {
+				continue
+			}
+			visible[department.DepartmentId] = true
+			sources[department.DepartmentId] = insightOrganizationTreeVisibilityDepartmentManager
+		}
+	}
+	if strings.Contains(scopeType, string(object.OrganizationManagementScopeTypeDirectLeader)) {
+		for _, user := range scope.Users {
+			departmentId := strings.TrimSpace(user.MainDepartmentId)
+			if departmentId == "" || visible[departmentId] {
+				continue
+			}
+			visible[departmentId] = true
+			sources[departmentId] = insightOrganizationTreeVisibilityDirectLeader
+		}
+	}
+	return visible, sources
+}
+
+// buildInsightPlatformOrganizationTreeNodes 从平台部门主模型构建可见节点；disabled/deleted/conflicted 节点不会进入结果。
+// 对来源同步产生的部门，SourceConnection 也必须可信，避免失效来源继续扩大可见组织树。
+func buildInsightPlatformOrganizationTreeNodes(organization string, departments []object.PlatformDepartment, visible map[string]bool, visibilitySources map[string]string, sourceConnections map[string]object.SourceConnection, orgVersion string) []InsightOrganizationTreeNode {
+	departmentByID := map[string]object.PlatformDepartment{}
+	activeIDs := map[string]bool{}
+	for _, department := range departments {
+		if department.OrganizationId != organization || strings.TrimSpace(department.DepartmentId) == "" || !object.IsPlatformLifecycleStatusUsableForScope(department.LifecycleStatus) {
+			continue
+		}
+		if !isInsightOrganizationTreeDepartmentSourceUsable(department, sourceConnections) {
+			continue
+		}
+		departmentByID[department.DepartmentId] = department
+		activeIDs[department.DepartmentId] = true
+	}
+	nodes := make([]InsightOrganizationTreeNode, 0, len(visible))
+	for departmentId := range visible {
+		department, ok := departmentByID[departmentId]
+		if !ok {
+			continue
+		}
+		sourceType := "platform"
+		if connection, ok := sourceConnections[department.SourceConnectionId]; ok && strings.TrimSpace(connection.SourceType) != "" {
+			sourceType = strings.TrimSpace(connection.SourceType)
+		}
+		parentDepartmentId := ""
+		if visible[department.ParentDepartmentId] && activeIDs[department.ParentDepartmentId] {
+			parentDepartmentId = department.ParentDepartmentId
+		}
+		node := InsightOrganizationTreeNode{
+			DepartmentId:       department.DepartmentId,
+			DepartmentName:     firstNonEmptyInsightString(department.DisplayName, department.DepartmentId),
+			ParentDepartmentId: parentDepartmentId,
+			DepartmentPath:     insightOrganizationTreeDepartmentPath(department.DepartmentId, departmentByID, visible),
+			HasChildren:        insightOrganizationTreeHasVisibleChild(department.DepartmentId, departments, visible, activeIDs),
+			SourceType:         sourceType,
+			SourceConnectionId: strings.TrimSpace(department.SourceConnectionId),
+			LifecycleStatus:    department.LifecycleStatus,
+			VisibilitySource:   visibilitySources[department.DepartmentId],
+			Lineage: InsightOrganizationTreeNodeLineage{
+				SourceType:         sourceType,
+				SourceConnectionId: strings.TrimSpace(department.SourceConnectionId),
+				SourceOrgVersion:   firstNonEmptyInsightString(strings.TrimSpace(department.OrgVersion), orgVersion),
+				Digest:             insightStableHash("sha256:", organization, department.DepartmentId, department.ParentDepartmentId, department.DisplayName, department.LifecycleStatus, department.SourceConnectionId, orgVersion),
+			},
+		}
+		nodes = append(nodes, node)
+	}
+	sort.Slice(nodes, func(i, j int) bool {
+		if nodes[i].DepartmentPath == nodes[j].DepartmentPath {
+			return nodes[i].DepartmentId < nodes[j].DepartmentId
+		}
+		return nodes[i].DepartmentPath < nodes[j].DepartmentPath
+	})
+	return nodes
+}
+
+func isInsightOrganizationTreeDepartmentSourceUsable(department object.PlatformDepartment, sourceConnections map[string]object.SourceConnection) bool {
+	sourceConnectionId := strings.TrimSpace(department.SourceConnectionId)
+	if sourceConnectionId == "" {
+		return true
+	}
+	connection, ok := sourceConnections[sourceConnectionId]
+	if !ok {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(connection.Status), object.SourceConnectionStatusActive) &&
+		strings.EqualFold(strings.TrimSpace(connection.Freshness), object.PlatformFreshnessFresh)
+}
+
+// insightOrganizationTreeDepartmentPath 只沿可见父链生成展示路径，并用 visited 防护异常 cycle。
+func insightOrganizationTreeDepartmentPath(departmentId string, departments map[string]object.PlatformDepartment, visible map[string]bool) string {
+	parts := []string{}
+	visited := map[string]bool{}
+	currentId := departmentId
+	for currentId != "" {
+		if visited[currentId] || !visible[currentId] {
+			break
+		}
+		visited[currentId] = true
+		department, ok := departments[currentId]
+		if !ok {
+			break
+		}
+		parts = append([]string{firstNonEmptyInsightString(department.DisplayName, department.DepartmentId)}, parts...)
+		currentId = department.ParentDepartmentId
+	}
+	return strings.Join(parts, "/")
+}
+
+func insightOrganizationTreeHasVisibleChild(departmentId string, departments []object.PlatformDepartment, visible map[string]bool, activeIDs map[string]bool) bool {
+	for _, department := range departments {
+		if department.ParentDepartmentId == departmentId && visible[department.DepartmentId] && activeIDs[department.DepartmentId] {
+			return true
+		}
+	}
+	return false
+}
+
+// buildInsightOrganizationTreeLineage 汇总顶层脱敏 lineage，不暴露来源密钥、原始响应或个人敏感字段。
+func buildInsightOrganizationTreeLineage(readModelSource string, batch *object.OrgSyncBatch, sourceConnections map[string]object.SourceConnection, orgVersion string, nodes []InsightOrganizationTreeNode) InsightOrganizationTreeLineage {
+	lineage := InsightOrganizationTreeLineage{
+		SourceService:    "aicodex-admin",
+		SourceOrgVersion: orgVersion,
+		ReadModelSource:  readModelSource,
+	}
+	if batch != nil {
+		lineage.SourceConnectionId = strings.TrimSpace(batch.SourceConnectionId)
+		lineage.BatchId = strings.TrimSpace(batch.BatchId)
+		if strings.TrimSpace(batch.OrgVersion) != "" {
+			lineage.SourceOrgVersion = strings.TrimSpace(batch.OrgVersion)
+		}
+	}
+	if connection, ok := sourceConnections[lineage.SourceConnectionId]; ok {
+		lineage.SourceType = strings.TrimSpace(connection.SourceType)
+	}
+	if lineage.SourceType == "" {
+		for _, node := range nodes {
+			if node.SourceType != "" && node.SourceType != "platform" {
+				lineage.SourceType = node.SourceType
+				break
+			}
+		}
+	}
+	lineage.Digest = insightStableHash("sha256:", lineage.SourceService, lineage.SourceType, lineage.SourceConnectionId, lineage.BatchId, lineage.SourceOrgVersion, lineage.ReadModelSource, strconv.Itoa(len(nodes)))
+	return lineage
+}
+
+func insightStableHash(prefix string, parts ...string) string {
+	normalized := make([]string, len(parts))
+	for i, part := range parts {
+		normalized[i] = strings.TrimSpace(part)
+	}
+	sum := sha256.Sum256([]byte(strings.Join(normalized, "\x1f")))
+	return prefix + hex.EncodeToString(sum[:])
+}
+
+func sortedBoolMapKeys(values map[string]bool) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		if strings.TrimSpace(key) != "" {
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+	return keys
+}
+
 // buildInsightProviderVersionMetadata 生成 insight provider 的 admin scope 快照版本。
 // 这里使用字符串哈希版本，不能和 api gateway projection 的 int64 版本混用。
 func buildInsightProviderVersionMetadata(organization string, generatedAt time.Time, traceId string) object.PlatformVersionMetadata {
@@ -910,8 +1321,8 @@ func (c *ApiController) writeInsightProviderError(status int, providerErr *Insig
 
 func writeInsightProviderAudit(event insightProviderAuditEvent) {
 	// 审计日志只输出稳定诊断字段，避免 token、手机号、邮箱等敏感值进入日志。
-	logs.Info("insight_admin_provider_audit traceId=%s adminUserId=%s organization=%s scopeType=%s groupCount=%d adminUserCount=%d apiUserCount=%d mappingStatus=%s status=%s errorCode=%s",
-		event.TraceId, event.AdminUserId, event.Organization, event.ScopeType, event.GroupCount, event.AdminUserCount, event.ApiUserCount, event.MappingStatus, event.Status, event.ErrorCode)
+	logs.Info("insight_admin_provider_audit traceId=%s adminUserId=%s organization=%s scopeType=%s groupCount=%d nodeCount=%d adminUserCount=%d apiUserCount=%d mappingStatus=%s readModelSource=%s orgVersion=%s freshness=%s status=%s errorCode=%s",
+		event.TraceId, event.AdminUserId, event.Organization, event.ScopeType, event.GroupCount, event.NodeCount, event.AdminUserCount, event.ApiUserCount, event.MappingStatus, event.ReadModelSource, event.OrgVersion, event.Freshness, event.Status, event.ErrorCode)
 }
 
 func newInsightProviderError(code string, message string, traceId string, mappingStatus string) *InsightProviderError {
@@ -984,6 +1395,36 @@ func getInsightProviderScopeSource(organization string) ([]*object.User, []*obje
 		return nil, nil, nil, err
 	}
 	return users, groups, platformDepartments, nil
+}
+
+func dereferenceInsightPlatformDepartments(values []*object.PlatformDepartment) []object.PlatformDepartment {
+	result := make([]object.PlatformDepartment, 0, len(values))
+	for _, value := range values {
+		if value != nil {
+			result = append(result, *value)
+		}
+	}
+	return result
+}
+
+func dereferenceInsightSourceConnections(values []*object.SourceConnection) []object.SourceConnection {
+	result := make([]object.SourceConnection, 0, len(values))
+	for _, value := range values {
+		if value != nil {
+			result = append(result, *value)
+		}
+	}
+	return result
+}
+
+func dereferenceInsightOrgSyncBatches(values []*object.OrgSyncBatch) []object.OrgSyncBatch {
+	result := make([]object.OrgSyncBatch, 0, len(values))
+	for _, value := range values {
+		if value != nil {
+			result = append(result, *value)
+		}
+	}
+	return result
 }
 
 func getInsightProviderRoleIds(user *object.User) ([]string, error) {

@@ -15,10 +15,13 @@
 package object
 
 import (
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xorm-io/xorm"
 )
 
 func TestPlatformOrganizationMasterModelsExposeStableContractFields(t *testing.T) {
@@ -161,6 +164,63 @@ func TestPlatformOrganizationStableNamesAreSourceNeutralAndBounded(t *testing.T)
 	}
 }
 
+func TestPlatformOrganizationSnapshotGettersReturnEmptyForBlankOrganization(t *testing.T) {
+	departments, err := GetPlatformDepartments("")
+	if err != nil || len(departments) != 0 {
+		t.Fatalf("GetPlatformDepartments blank = len:%d err:%v, want empty nil error", len(departments), err)
+	}
+	memberships, err := GetPlatformMemberships("")
+	if err != nil || len(memberships) != 0 {
+		t.Fatalf("GetPlatformMemberships blank = len:%d err:%v, want empty nil error", len(memberships), err)
+	}
+	connections, err := GetSourceConnections("")
+	if err != nil || len(connections) != 0 {
+		t.Fatalf("GetSourceConnections blank = len:%d err:%v, want empty nil error", len(connections), err)
+	}
+	batches, err := GetOrgSyncBatches("")
+	if err != nil || len(batches) != 0 {
+		t.Fatalf("GetOrgSyncBatches blank = len:%d err:%v, want empty nil error", len(batches), err)
+	}
+}
+
+func TestPlatformOrganizationSnapshotGettersQueryByOrganization(t *testing.T) {
+	setupPlatformOrganizationSnapshotTestOrmer(t)
+
+	sourceConnectionId := GetSourceConnectionId("org-a", SourceTypeWecom, "ww123")
+	records := []any{
+		&PlatformDepartment{Owner: "admin", Name: GetPlatformDepartmentName("org-a", "org-a/dev"), OrganizationId: "org-a", DepartmentId: "org-a/dev", DisplayName: "Dev", LifecycleStatus: PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-a"},
+		&PlatformDepartment{Owner: "admin", Name: GetPlatformDepartmentName("org-b", "org-b/finance"), OrganizationId: "org-b", DepartmentId: "org-b/finance", DisplayName: "Finance", LifecycleStatus: PlatformLifecycleStatusActive, OrgVersion: "orgv-b"},
+		&PlatformMembership{Owner: "admin", Name: GetPlatformMembershipName("org-a", "org-a/alice", "org-a/dev"), OrganizationId: "org-a", AdminSubject: "org-a/alice", DepartmentId: "org-a/dev", LifecycleStatus: PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-a"},
+		&SourceConnection{Owner: "admin", Name: sourceConnectionId, OrganizationId: "org-a", SourceConnectionId: sourceConnectionId, SourceType: SourceTypeWecom, Status: SourceConnectionStatusActive, Freshness: PlatformFreshnessFresh},
+		&OrgSyncBatch{Owner: "admin", Name: "batch-a", OrganizationId: "org-a", SourceConnectionId: sourceConnectionId, BatchId: "batch-a", Status: OrgSyncBatchStatusSucceeded, OrgVersion: "orgv-a", Freshness: PlatformFreshnessFresh, FinishedAt: time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)},
+	}
+	if _, err := ormer.Engine.Insert(records...); err != nil {
+		t.Fatalf("insert platform snapshot records error = %v", err)
+	}
+
+	departments, err := GetPlatformDepartments("org-a")
+	if err != nil || len(departments) != 1 || departments[0].DepartmentId != "org-a/dev" {
+		t.Fatalf("GetPlatformDepartments org-a = %+v err=%v, want only org-a/dev", departments, err)
+	}
+	memberships, err := GetPlatformMemberships("org-a")
+	if err != nil || len(memberships) != 1 || memberships[0].AdminSubject != "org-a/alice" {
+		t.Fatalf("GetPlatformMemberships org-a = %+v err=%v, want alice membership", memberships, err)
+	}
+	connections, err := GetSourceConnections("org-a")
+	if err != nil || len(connections) != 1 || connections[0].SourceConnectionId != sourceConnectionId {
+		t.Fatalf("GetSourceConnections org-a = %+v err=%v, want source connection", connections, err)
+	}
+	batches, err := GetOrgSyncBatches("org-a")
+	if err != nil || len(batches) != 1 || batches[0].BatchId != "batch-a" {
+		t.Fatalf("GetOrgSyncBatches org-a = %+v err=%v, want batch-a", batches, err)
+	}
+
+	orgBConnections, err := GetSourceConnections("org-b")
+	if err != nil || len(orgBConnections) != 0 {
+		t.Fatalf("GetSourceConnections org-b = %+v err=%v, want no cross-organization source connection", orgBConnections, err)
+	}
+}
+
 func TestPlatformOrganizationWeakFieldsAreNeverAutomaticJoinKeys(t *testing.T) {
 	for _, field := range []string{"name", "displayName", "nickName", "phone", "email", "avatar", "mobile"} {
 		if IsAllowedExternalIdentityAutoJoinField(field) {
@@ -203,4 +263,23 @@ func hasJSONField(modelType reflect.Type, jsonName string) bool {
 		}
 	}
 	return false
+}
+
+func setupPlatformOrganizationSnapshotTestOrmer(t *testing.T) {
+	t.Helper()
+
+	engine, err := xorm.NewEngine("sqlite", filepath.Join(t.TempDir(), "platform-organization-snapshot.db"))
+	if err != nil {
+		t.Fatalf("new sqlite engine error = %v", err)
+	}
+	if err := engine.Sync2(new(PlatformDepartment), new(PlatformMembership), new(SourceConnection), new(OrgSyncBatch)); err != nil {
+		t.Fatalf("sync platform organization snapshot tables error = %v", err)
+	}
+
+	oldOrmer := ormer
+	ormer = &Ormer{Engine: engine}
+	t.Cleanup(func() {
+		_ = engine.Close()
+		ormer = oldOrmer
+	})
 }

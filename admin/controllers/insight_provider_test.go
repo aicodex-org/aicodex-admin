@@ -204,6 +204,265 @@ func TestInsightProviderUsesPlatformDepartmentSourceMetadataForWecomGroups(t *te
 	}
 }
 
+func TestInsightOrganizationTreeReadModelBuildsPlatformEnvelopeForAdmin(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
+	sourceConnectionId := object.GetSourceConnectionId("org-a", object.SourceTypeWecom, "ww123")
+	currentUser := &object.User{Owner: "org-a", Name: "owner", IsAdmin: true}
+
+	got := buildInsightOrganizationTreeReadModel(insightOrganizationTreeReadModelInput{
+		CurrentUser:  currentUser,
+		Organization: "org-a",
+		GeneratedAt:  generatedAt,
+		Scope: &object.OrganizationManagementScope{
+			Organization: "org-a",
+			ScopeType:    object.OrganizationManagementScopeTypeAdmin,
+			Departments: []object.OrganizationManagementScopeDepartment{
+				{DepartmentId: "org-a/dev"},
+				{DepartmentId: "org-a/platform"},
+			},
+		},
+		PlatformDepartments: []object.PlatformDepartment{
+			{OrganizationId: "org-a", DepartmentId: "org-a/dev", DisplayName: "Dev", LifecycleStatus: object.PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-tree-1"},
+			{OrganizationId: "org-a", DepartmentId: "org-a/platform", ParentDepartmentId: "org-a/dev", DisplayName: "Platform", LifecycleStatus: object.PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-tree-1"},
+			{OrganizationId: "org-a", DepartmentId: "org-a/disabled", DisplayName: "Disabled", LifecycleStatus: object.PlatformLifecycleStatusDisabled, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-tree-1"},
+		},
+		SourceConnections: []object.SourceConnection{
+			{OrganizationId: "org-a", SourceConnectionId: sourceConnectionId, SourceType: object.SourceTypeWecom, Status: object.SourceConnectionStatusActive, Freshness: object.PlatformFreshnessFresh},
+		},
+		SyncBatches: []object.OrgSyncBatch{
+			{OrganizationId: "org-a", SourceConnectionId: sourceConnectionId, BatchId: "batch-1", Status: object.OrgSyncBatchStatusSucceeded, OrgVersion: "orgv-tree-1", Freshness: object.PlatformFreshnessFresh, FinishedAt: generatedAt.Add(-time.Minute)},
+		},
+	})
+
+	if got.Organization != "org-a" || got.ReadModelSource != "platform_department" {
+		t.Fatalf("tree metadata = %+v, want org-a platform_department", got)
+	}
+	if got.OrgVersion != "orgv-tree-1" || got.Freshness != object.PlatformFreshnessFresh || got.GeneratedAt != formatInsightTime(generatedAt) {
+		t.Fatalf("version metadata = %+v, want latest platform org version and freshness", got)
+	}
+	if got.Lineage.SourceService != "aicodex-admin" || got.Lineage.SourceType != object.SourceTypeWecom || got.Lineage.SourceConnectionId != sourceConnectionId || got.Lineage.BatchId != "batch-1" {
+		t.Fatalf("lineage = %+v, want redacted source metadata", got.Lineage)
+	}
+	if len(got.Nodes) != 2 || len(got.List) != 2 {
+		t.Fatalf("nodes/list len = %d/%d, want 2 active platform nodes", len(got.Nodes), len(got.List))
+	}
+	root := got.Nodes[0]
+	if root.DepartmentId != "org-a/dev" || root.DepartmentPath != "Dev" || !root.HasChildren || root.VisibilitySource != "admin" {
+		t.Fatalf("root node = %+v, want admin-visible Dev root", root)
+	}
+	child := got.Nodes[1]
+	if child.DepartmentId != "org-a/platform" || child.ParentDepartmentId != "org-a/dev" || child.DepartmentPath != "Dev/Platform" || child.SourceType != object.SourceTypeWecom {
+		t.Fatalf("child node = %+v, want Platform child with source metadata", child)
+	}
+	for _, node := range got.Nodes {
+		if strings.Contains(strings.ToLower(node.Lineage.Digest), "token") || strings.Contains(node.DepartmentName, "13800000000") {
+			t.Fatalf("node lineage/display leaked sensitive data: %+v", node)
+		}
+	}
+}
+
+func TestInsightOrganizationTreeReadModelUsesLatestUsableSyncBatchForVersion(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
+	currentUser := &object.User{Owner: "org-a", Name: "owner", IsAdmin: true}
+
+	got := buildInsightOrganizationTreeReadModel(insightOrganizationTreeReadModelInput{
+		CurrentUser:  currentUser,
+		Organization: "org-a",
+		GeneratedAt:  generatedAt,
+		Scope: &object.OrganizationManagementScope{
+			Organization: "org-a",
+			ScopeType:    object.OrganizationManagementScopeTypeAdmin,
+			Departments:  []object.OrganizationManagementScopeDepartment{{DepartmentId: "org-a/dev"}},
+		},
+		PlatformDepartments: []object.PlatformDepartment{
+			{OrganizationId: "org-a", DepartmentId: "org-a/dev", DisplayName: "Dev", LifecycleStatus: object.PlatformLifecycleStatusActive, OrgVersion: "orgv-department"},
+		},
+		SyncBatches: []object.OrgSyncBatch{
+			{OrganizationId: "org-a", BatchId: "failed-newer", Status: object.OrgSyncBatchStatusFailed, OrgVersion: "orgv-failed", Freshness: object.PlatformFreshnessUnavailable, FinishedAt: generatedAt.Add(time.Minute)},
+			{OrganizationId: "org-a", BatchId: "running-newer", Status: object.OrgSyncBatchStatusRunning, OrgVersion: "orgv-running", Freshness: object.PlatformFreshnessUnknown, FinishedAt: generatedAt.Add(2 * time.Minute)},
+			{OrganizationId: "org-a", BatchId: "success-usable", Status: object.OrgSyncBatchStatusSucceeded, OrgVersion: "orgv-success", Freshness: object.PlatformFreshnessFresh, FinishedAt: generatedAt.Add(-time.Minute)},
+			{OrganizationId: "org-a", BatchId: "partial-empty-version", Status: object.OrgSyncBatchStatusPartial, Freshness: object.PlatformFreshnessStale, FinishedAt: generatedAt},
+		},
+	})
+
+	if got.OrgVersion != "orgv-success" || got.Freshness != object.PlatformFreshnessFresh || got.Lineage.BatchId != "success-usable" {
+		t.Fatalf("version metadata = %+v lineage=%+v, want latest usable succeeded batch", got, got.Lineage)
+	}
+	if strings.Contains(got.OrgVersion, "2026-06-10T08") {
+		t.Fatalf("orgVersion must not be derived from request time: %+v", got)
+	}
+}
+
+func TestInsightOrganizationTreeReadModelFailClosedForUntrustedSourceConnection(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
+	currentUser := &object.User{Owner: "org-a", Name: "owner", IsAdmin: true}
+	activeConnectionId := object.GetSourceConnectionId("org-a", object.SourceTypeWecom, "ww-active")
+	disabledConnectionId := object.GetSourceConnectionId("org-a", object.SourceTypeWecom, "ww-disabled")
+
+	got := buildInsightOrganizationTreeReadModel(insightOrganizationTreeReadModelInput{
+		CurrentUser:  currentUser,
+		Organization: "org-a",
+		GeneratedAt:  generatedAt,
+		Scope: &object.OrganizationManagementScope{
+			Organization: "org-a",
+			ScopeType:    object.OrganizationManagementScopeTypeAdmin,
+			Departments: []object.OrganizationManagementScopeDepartment{
+				{DepartmentId: "org-a/active"},
+				{DepartmentId: "org-a/disabled-source"},
+			},
+		},
+		PlatformDepartments: []object.PlatformDepartment{
+			{OrganizationId: "org-a", DepartmentId: "org-a/active", DisplayName: "Active", LifecycleStatus: object.PlatformLifecycleStatusActive, SourceConnectionId: activeConnectionId, OrgVersion: "orgv-tree-1"},
+			{OrganizationId: "org-a", DepartmentId: "org-a/disabled-source", DisplayName: "Disabled Source", LifecycleStatus: object.PlatformLifecycleStatusActive, SourceConnectionId: disabledConnectionId, OrgVersion: "orgv-tree-1"},
+		},
+		SourceConnections: []object.SourceConnection{
+			{OrganizationId: "org-a", SourceConnectionId: activeConnectionId, SourceType: object.SourceTypeWecom, Status: object.SourceConnectionStatusActive, Freshness: object.PlatformFreshnessFresh},
+			{OrganizationId: "org-a", SourceConnectionId: disabledConnectionId, SourceType: object.SourceTypeWecom, Status: object.SourceConnectionStatusDisabled, Freshness: object.PlatformFreshnessStale},
+		},
+	})
+
+	if len(got.Nodes) != 1 || got.Nodes[0].DepartmentId != "org-a/active" {
+		t.Fatalf("nodes = %+v, want only department from ACTIVE/FRESH source connection", got.Nodes)
+	}
+}
+
+func TestInsightOrganizationTreeReadModelDirectLeaderDoesNotExpandDepartmentTree(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
+	currentUser := &object.User{Owner: "org-a", Name: "lead"}
+
+	got := buildInsightOrganizationTreeReadModel(insightOrganizationTreeReadModelInput{
+		CurrentUser:  currentUser,
+		Organization: "org-a",
+		GeneratedAt:  generatedAt,
+		Scope: &object.OrganizationManagementScope{
+			Organization: "org-a",
+			ScopeType:    object.OrganizationManagementScopeTypeDirectLeader,
+			Users: []object.OrganizationManagementScopeUser{
+				{UserId: "org-a/member", MainDepartmentId: "org-a/dev"},
+			},
+		},
+		PlatformDepartments: []object.PlatformDepartment{
+			{OrganizationId: "org-a", DepartmentId: "org-a/root", DisplayName: "Root", LifecycleStatus: object.PlatformLifecycleStatusActive},
+			{OrganizationId: "org-a", DepartmentId: "org-a/dev", ParentDepartmentId: "org-a/root", DisplayName: "Dev", LifecycleStatus: object.PlatformLifecycleStatusActive},
+			{OrganizationId: "org-a", DepartmentId: "org-a/platform", ParentDepartmentId: "org-a/dev", DisplayName: "Platform", LifecycleStatus: object.PlatformLifecycleStatusActive},
+		},
+		SyncBatches: []object.OrgSyncBatch{
+			{OrganizationId: "org-a", BatchId: "batch-1", Status: object.OrgSyncBatchStatusSucceeded, OrgVersion: "orgv-tree-1", Freshness: object.PlatformFreshnessFresh, FinishedAt: generatedAt.Add(-time.Minute)},
+		},
+	})
+
+	if len(got.Nodes) != 1 {
+		t.Fatalf("direct leader visible nodes = %+v, want only subordinate's department", got.Nodes)
+	}
+	if got.Nodes[0].DepartmentId != "org-a/dev" || got.Nodes[0].ParentDepartmentId != "" || got.Nodes[0].HasChildren || got.Nodes[0].VisibilitySource != "direct_leader" {
+		t.Fatalf("direct leader node = %+v, want only direct subordinate department without ancestor/descendant expansion", got.Nodes[0])
+	}
+}
+
+func TestInsightOrganizationTreeReadModelDepartmentManagerUsesScopeDepartments(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
+	currentUser := &object.User{Owner: "org-a", Name: "lead"}
+
+	got := buildInsightOrganizationTreeReadModel(insightOrganizationTreeReadModelInput{
+		CurrentUser:  currentUser,
+		Organization: "org-a",
+		GeneratedAt:  generatedAt,
+		Scope: &object.OrganizationManagementScope{
+			Organization: "org-a",
+			ScopeType:    object.OrganizationManagementScopeTypeDepartmentManager,
+			Departments: []object.OrganizationManagementScopeDepartment{
+				{DepartmentId: "org-a/dev"},
+				{DepartmentId: "org-a/platform"},
+			},
+		},
+		PlatformDepartments: []object.PlatformDepartment{
+			{OrganizationId: "org-a", DepartmentId: "org-a/dev", DisplayName: "Dev", LifecycleStatus: object.PlatformLifecycleStatusActive},
+			{OrganizationId: "org-a", DepartmentId: "org-a/platform", ParentDepartmentId: "org-a/dev", DisplayName: "Platform", LifecycleStatus: object.PlatformLifecycleStatusActive},
+			{OrganizationId: "org-a", DepartmentId: "org-a/finance", DisplayName: "Finance", LifecycleStatus: object.PlatformLifecycleStatusActive},
+		},
+	})
+
+	if len(got.Nodes) != 2 {
+		t.Fatalf("department manager visible nodes = %+v, want managed subtree only", got.Nodes)
+	}
+	for _, node := range got.Nodes {
+		if node.VisibilitySource != "department_manager" {
+			t.Fatalf("node visibilitySource = %+v, want department_manager", got.Nodes)
+		}
+		if node.DepartmentId == "org-a/finance" {
+			t.Fatalf("unauthorized sibling leaked into organization tree: %+v", got.Nodes)
+		}
+	}
+}
+
+func TestInsightOrganizationTreeReadModelGuardsDepartmentCycles(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
+	currentUser := &object.User{Owner: "org-a", Name: "owner", IsAdmin: true}
+
+	got := buildInsightOrganizationTreeReadModel(insightOrganizationTreeReadModelInput{
+		CurrentUser:  currentUser,
+		Organization: "org-a",
+		GeneratedAt:  generatedAt,
+		Scope: &object.OrganizationManagementScope{
+			Organization: "org-a",
+			ScopeType:    object.OrganizationManagementScopeTypeAdmin,
+			Departments: []object.OrganizationManagementScopeDepartment{
+				{DepartmentId: "org-a/a"},
+				{DepartmentId: "org-a/b"},
+			},
+		},
+		PlatformDepartments: []object.PlatformDepartment{
+			{OrganizationId: "org-a", DepartmentId: "org-a/a", ParentDepartmentId: "org-a/b", DisplayName: "A", LifecycleStatus: object.PlatformLifecycleStatusActive},
+			{OrganizationId: "org-a", DepartmentId: "org-a/b", ParentDepartmentId: "org-a/a", DisplayName: "B", LifecycleStatus: object.PlatformLifecycleStatusActive},
+		},
+	})
+
+	if len(got.Nodes) != 2 {
+		t.Fatalf("cycle nodes = %+v, want finite two-node result", got.Nodes)
+	}
+	for _, node := range got.Nodes {
+		if node.DepartmentPath == "" {
+			t.Fatalf("cycle node should still have diagnostic path: %+v", node)
+		}
+	}
+}
+
+func TestInsightOrganizationTreeReadModelUsesCompatGroupWhenPlatformMissing(t *testing.T) {
+	currentUser := &object.User{Owner: "org-a", Name: "lead"}
+
+	got := buildInsightOrganizationTreeReadModel(insightOrganizationTreeReadModelInput{
+		CurrentUser:  currentUser,
+		Organization: "org-a",
+		Groups: []*object.Group{
+			{Owner: "org-a", Name: "dev", DisplayName: "Dev", Manager: "org-a/lead"},
+			{Owner: "org-a", Name: "platform", ParentId: "dev", DisplayName: "Platform"},
+		},
+	})
+
+	if got.ReadModelSource != "compat_group" || len(got.Nodes) != 2 || len(got.List) != 2 {
+		t.Fatalf("compat tree = %+v, want group fallback with compatible list", got)
+	}
+	if got.Freshness != object.PlatformFreshnessUnknown {
+		t.Fatalf("compat freshness = %q, want UNKNOWN without platform snapshot version", got.Freshness)
+	}
+}
+
+func TestInsightOrganizationTreeReadModelReturnsEmptyWithoutScope(t *testing.T) {
+	currentUser := &object.User{Owner: "org-a", Name: "member"}
+
+	got := buildInsightOrganizationTreeReadModel(insightOrganizationTreeReadModelInput{
+		CurrentUser:  currentUser,
+		Organization: "",
+		PlatformDepartments: []object.PlatformDepartment{
+			{OrganizationId: "org-a", DepartmentId: "org-a/dev", DisplayName: "Dev", LifecycleStatus: object.PlatformLifecycleStatusActive},
+		},
+	})
+
+	if got.Organization != "org-a" || len(got.Nodes) != 0 || got.ReadModelSource != "platform_department" {
+		t.Fatalf("empty scope tree = %+v, want org-a platform envelope with no visible nodes", got)
+	}
+}
+
 func TestInsightScopeRejectsForbiddenOrDeletedCurrentUser(t *testing.T) {
 	generatedAt := time.Date(2026, 5, 21, 8, 0, 0, 0, time.UTC)
 	for _, currentUser := range []*object.User{
