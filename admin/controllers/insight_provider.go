@@ -331,7 +331,7 @@ func (c *ApiController) GetInsightCurrentUserOrganizationTree() {
 		return
 	}
 
-	data := buildInsightOrganizationTreeReadModel(insightOrganizationTreeReadModelInput{
+	input := insightOrganizationTreeReadModelInput{
 		CurrentUser:         user,
 		Organization:        organization,
 		GeneratedAt:         time.Now().UTC(),
@@ -340,7 +340,13 @@ func (c *ApiController) GetInsightCurrentUserOrganizationTree() {
 		Groups:              groups,
 		SourceConnections:   dereferenceInsightSourceConnections(sourceConnections),
 		SyncBatches:         dereferenceInsightOrgSyncBatches(syncBatches),
-	})
+	}
+	data := buildInsightOrganizationTreeReadModel(input)
+	if providerErr := validateInsightOrganizationTreeReadModelTrusted(input, data); providerErr != nil {
+		providerErr.TraceId = traceId
+		c.writeInsightProviderError(getInsightProviderHTTPStatus(providerErr), providerErr, insightProviderAuditEvent{TraceId: traceId, AdminUserId: user.GetId(), Organization: organization, MappingStatus: providerErr.MappingStatus, ReadModelSource: data.ReadModelSource, OrgVersion: data.OrgVersion, Freshness: data.Freshness, Status: "error", ErrorCode: providerErr.Code})
+		return
+	}
 	c.writeInsightProviderSuccess(traceId, data, insightProviderAuditEvent{
 		TraceId:         traceId,
 		AdminUserId:     user.GetId(),
@@ -778,6 +784,8 @@ func buildInsightOrganizationTreeReadModel(input insightOrganizationTreeReadMode
 	scopeVersion := ""
 	if orgVersion != "" {
 		scopeVersion = insightStableHash("scopev-", organization, orgVersion, string(input.ScopeType()), lineage.Digest)
+	} else {
+		scopeVersion = insightStableHash("scopev-", organization, string(input.ScopeType()), readModelSource, freshness, strings.Join(sortedBoolMapKeys(visibleDepartments), ","), lineage.Digest)
 	}
 	return InsightOrganizationTreeResponse{
 		Organization:    organization,
@@ -792,6 +800,19 @@ func buildInsightOrganizationTreeReadModel(input insightOrganizationTreeReadMode
 		MappingStatus:   MappingStatusOK,
 		LifecycleStatus: object.PlatformLifecycleStatusActive,
 	}
+}
+
+// validateInsightOrganizationTreeReadModelTrusted 区分业务空树和不可信 read model。
+// scope 已确认有可见部门但平台 read model 最终为空时，不能返回 status=ok 空树掩盖来源或生命周期问题。
+func validateInsightOrganizationTreeReadModelTrusted(input insightOrganizationTreeReadModelInput, data InsightOrganizationTreeResponse) *InsightProviderError {
+	if len(data.Nodes) > 0 || data.ReadModelSource == insightOrganizationTreeReadModelSourceCompat {
+		return nil
+	}
+	visibleDepartments, _ := visibleInsightOrganizationTreeDepartmentIds(input.Scope, input.CurrentUser)
+	if len(visibleDepartments) == 0 {
+		return nil
+	}
+	return newInsightProviderError(InsightProviderErrorUnavailable, "organization tree read model unavailable", "", "")
 }
 
 func (input insightOrganizationTreeReadModelInput) ScopeType() object.OrganizationManagementScopeType {
