@@ -1,0 +1,52 @@
+info:
+  name: 运行态观测
+  type: http
+  seq: 1
+  tags:
+    - smoke
+    - gateway-projection
+    - readonly
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/gateway-projection/observability"
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        const status = res.getStatus()
+        const body = res.getBody()
+        const json = typeof body === "string" ? JSON.parse(body) : body
+        const data = json?.data
+        if (status !== 200 || json?.status !== "ok" || !data?.publisher || !data?.refresh) {
+          throw new Error(`admin gateway projection observability 响应异常。status=${status} statusField=${json?.status}`)
+        }
+        if (typeof data.publisher.enabled !== "boolean" || typeof data.publisher.configured !== "boolean") {
+          throw new Error("publisher 诊断缺少 enabled/configured")
+        }
+        if (typeof data.publisher.freshnessTtlSeconds !== "number" || data.publisher.freshnessTtlSeconds <= 0) {
+          throw new Error("publisher 诊断缺少 freshnessTtlSeconds")
+        }
+        if (typeof data.refresh.enabled !== "boolean" || typeof data.refresh.intervalLessThanTtl !== "boolean") {
+          throw new Error("refresh 诊断缺少 enabled/intervalLessThanTtl")
+        }
+        if (data.refresh.enabled && !data.refresh.intervalLessThanTtl) {
+          throw new Error("refresh interval 未小于 projection freshness TTL")
+        }
+        const serialized = JSON.stringify(data).toLowerCase()
+        for (const forbidden of ["authorization", "bearer ", "cookie", "token"]) {
+          if (serialized.includes(forbidden)) {
+            throw new Error(`projection observability 响应包含疑似敏感字段: ${forbidden}`)
+          }
+        }
+        const requireLatest = String(bru.getVar("gatewayProjectionRequireLatestAudit") || bru.getEnvVar("gatewayProjectionRequireLatestAudit") || "").toLowerCase()
+        if (requireLatest === "true" && !data.latestPublish?.projectionBatchId) {
+          throw new Error("projection observability 缺少 latest publish audit；请先触发受控 projection publish 或 refresh")
+        }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

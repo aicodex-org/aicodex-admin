@@ -63,6 +63,7 @@ type defaultGatewayProjectionSnapshotStore struct{}
 // BuildAndPublishOrganization 从当前 admin 主模型读取组织快照，构建并推送 gateway projection batch。
 // 该服务方法是后端和脚本共用入口；是否自动触发由上层配置门控决定。
 func (s *GatewayProjectionService) BuildAndPublishOrganization(ctx context.Context, organizationID string, traceID string) (GatewayProjectionServiceResult, error) {
+	startedAt := time.Now()
 	organizationID = normalizeGatewayProjectionString(organizationID)
 	if organizationID == "" {
 		return GatewayProjectionServiceResult{}, errors.New("gateway projection organization is required")
@@ -100,6 +101,7 @@ func (s *GatewayProjectionService) BuildAndPublishOrganization(ctx context.Conte
 		publisher.Config = config
 	}
 	publish, err := publisher.Publish(ctx, build.Request)
+	recordGatewayProjectionServiceObservability(build, publish, snapshot.SourceConnections, time.Since(startedAt).Milliseconds())
 	return GatewayProjectionServiceResult{Build: build, Publish: publish}, err
 }
 

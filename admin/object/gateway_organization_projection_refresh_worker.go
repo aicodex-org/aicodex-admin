@@ -159,8 +159,12 @@ func StopGatewayProjectionRefreshWorker() {
 
 // RunOnce 执行一轮 projection refresh。它在本进程内非重入，避免慢请求导致同一轮堆叠。
 func (w *GatewayProjectionRefreshWorker) RunOnce(ctx context.Context) (GatewayProjectionRefreshRunResult, error) {
+	runAt := w.now()
 	result := GatewayProjectionRefreshRunResult{TraceID: w.buildTraceID("run")}
 	config := w.normalizedConfig()
+	defer func() {
+		recordGatewayProjectionRefreshObservability(config, result, runAt)
+	}()
 	if !config.Enabled {
 		result.Skipped = 1
 		result.ErrorCode = config.DisabledReason

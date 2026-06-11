@@ -165,3 +165,39 @@
 - **THEN** verification SHALL 使用环境别名、占位符或环境变量形式表达 endpoint 和凭据
 - **AND** verification SHALL 只记录路径、状态码、脱敏错误码、accepted/idempotent 结果和审计信号
 - **AND** verification SHALL NOT 写入真实环境地址或敏感凭据
+
+### Requirement: Admin MUST expose sanitized projection producer observability
+系统 SHALL 提供 admin-only 诊断面，用于排查 gateway organization projection producer 的运行态 readiness。诊断面 SHALL 汇总 publisher 配置状态、refresh worker 状态、最近 publish audit、最近 refresh run、freshness window、lineage、subject counts 和 skip reason summary，且不得暴露凭据或原始下游响应。
+
+#### Scenario: Projection observability returns sanitized readiness summary
+- **WHEN** 具备权限的 admin operator 查询 projection producer observability
+- **THEN** 响应 SHALL 包含 publisher 和 refresh worker 是否启用
+- **AND** 响应 SHALL 包含 refresh interval、freshness TTL 以及 interval 是否小于 TTL
+- **AND** 在存在最近发布记录时，响应 SHALL 包含 `projectionBatchId`、`orgVersion`、`lineage.sourceVersion`、`generatedAt`、`freshness.expiresAt`、subject counts、skip reason summary、status、stable error category、attempts、idempotency signal 和 `durationMs`
+- **AND** 在存在最近 refresh run 时，响应 SHALL 包含 `lastRunAt`、`nextRunAt` 或 interval、`lastSuccessAt`、`lastFailureAt`、`lastFailureCategory`、published/failed/skipped counts 和 current freshness window
+- **AND** 响应 SHALL NOT 包含 projection token、Authorization header、Cookie、私有 URL、手机号、个人邮箱、原始 gateway response body 或完整组织明细
+
+#### Scenario: Projection observability stays within owner boundaries
+- **WHEN** Admin UI、smoke script 或 runbook 查询 projection observability
+- **THEN** Admin SHALL 只报告 admin-owned projection publishing 的 producer diagnostics
+- **AND** Admin SHALL NOT 写入或推断 gateway resource authorization facts
+- **AND** Admin SHALL NOT 将 admin 管理页面组织树 JSON 暴露为 API/gateway 授权输入
+- **AND** Insight SHALL NOT 使用该诊断输出在本地计算 projection 或 authorization facts
+
+### Requirement: Projection publish and refresh failures MUST use stable diagnostic categories
+系统 SHALL 将 publisher、builder、source 和 refresh worker 失败映射为稳定、脱敏的诊断分类，供 smoke 和 handoff 排障使用。
+
+#### Scenario: Failure category mapping is stable
+- **WHEN** publisher config 缺失、gateway 不可用、gateway 拒绝 contract input、source data stale 或 disabled、mapping 不可信、lifecycle 不可信、lineage 无效、没有可发布主体或发生未知错误
+- **THEN** diagnostics SHALL 报告 `projection_token_missing`、`gateway_unavailable`、`gateway_contract_mismatch`、`source_connection_stale`、`source_connection_disabled`、`mapping_untrusted`、`lifecycle_untrusted`、`lineage_invalid`、`no_publishable_subjects` 或 `unknown` 之一
+- **AND** 日志和诊断响应 SHALL 只保留脱敏 code/category、status 和 counts
+- **AND** 日志和诊断响应 SHALL NOT 包含原始凭据、私有 endpoint 或完整敏感 payload
+
+### Requirement: Projection observability smoke MUST be repeatable and sanitized
+系统 SHALL 提供可重复的 smoke asset 或 runbook，用于 projection observability readiness 验证。
+
+#### Scenario: Smoke validates readiness without leaking environment data
+- **WHEN** 测试人员在已批准的测试环境运行 projection observability smoke
+- **THEN** smoke SHALL 验证 service health、projection observability response shape、publisher/refresh enabled state、interval-vs-TTL diagnostic、latest audit visibility when available 和 sanitized field absence
+- **AND** smoke SHALL 将 disabled/missing config 或 missing latest audit 记录为 runtime gap，而不是伪造成成功
+- **AND** verification records SHALL 使用环境别名和变量名，不写具体环境地址、凭据或真实组织明细

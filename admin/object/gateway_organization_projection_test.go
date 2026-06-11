@@ -483,6 +483,7 @@ func gatewayProjectionTestInput(generatedAt time.Time, finishedAt time.Time) Gat
 }
 
 func TestGatewayProjectionPublisherSendsBearerAndTreatsAcceptedOrIdempotentAsSuccess(t *testing.T) {
+	resetGatewayProjectionObservabilityForTest()
 	request := gatewayProjectionPublishTestRequest()
 	calls := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -533,6 +534,119 @@ func TestGatewayProjectionPublisherSendsBearerAndTreatsAcceptedOrIdempotentAsSuc
 	}
 	if !second.Success || !second.Accepted || !second.Idempotent || second.Attempts != 1 {
 		t.Fatalf("unexpected second result: %#v", second)
+	}
+	snapshot := GetGatewayProjectionObservabilitySnapshot(time.Date(2026, 6, 11, 10, 0, 0, 0, time.UTC))
+	if snapshot.Latest == nil || snapshot.Latest.ProjectionBatchID != "batch-publish-1" {
+		t.Fatalf("latest publish observability missing batch: %#v", snapshot.Latest)
+	}
+	if snapshot.Latest.SourceVersion != "orgv-publish-1" || snapshot.Latest.FreshnessExpiresAt == "" || snapshot.Latest.SubjectCount != 1 {
+		t.Fatalf("latest publish observability missing sanitized projection fields: %#v", snapshot.Latest)
+	}
+	if snapshot.Latest.FailureCategory != "" || snapshot.Latest.Status != "ok" {
+		t.Fatalf("successful latest publish should not expose failure category: %#v", snapshot.Latest)
+	}
+}
+
+func TestGatewayProjectionServiceObservabilityIncludesBuildSummary(t *testing.T) {
+	resetGatewayProjectionObservabilityForTest()
+	generatedAt := time.Date(2026, 6, 11, 9, 0, 0, 0, time.UTC)
+	finishedAt := generatedAt.Add(5 * time.Minute)
+	input := gatewayProjectionTestInput(generatedAt, finishedAt)
+	input.Users = append(input.Users, PlatformUser{
+		OrganizationId:  "org-a",
+		AdminSubject:    "missing-api",
+		LifecycleStatus: PlatformLifecycleStatusActive,
+		MappingStatus:   PlatformMappingStatusConfirmed,
+	})
+
+	build, err := BuildGatewayProjectionBatch(input)
+	if err != nil {
+		t.Fatalf("BuildGatewayProjectionBatch() error = %v", err)
+	}
+	recordGatewayProjectionServiceObservability(build, GatewayProjectionPublishResult{Success: true, Accepted: true, Attempts: 1}, input.SourceConnections, 12)
+
+	snapshot := GetGatewayProjectionObservabilitySnapshot(generatedAt)
+	if snapshot.Latest == nil {
+		t.Fatalf("expected latest publish observability")
+	}
+	if snapshot.Latest.SkippedSubjectCount == 0 || snapshot.Latest.SkippedByReason[GatewayProjectionSkipMappingMissing] == 0 {
+		t.Fatalf("latest publish should include build skip summary: %#v", snapshot.Latest)
+	}
+	if snapshot.Latest.SourceConnectionStatus != SourceConnectionStatusActive {
+		t.Fatalf("source connection status = %q", snapshot.Latest.SourceConnectionStatus)
+	}
+}
+
+func TestGatewayProjectionServiceObservabilityClassifiesDisabledSourceConnection(t *testing.T) {
+	resetGatewayProjectionObservabilityForTest()
+	generatedAt := time.Date(2026, 6, 11, 9, 30, 0, 0, time.UTC)
+	finishedAt := generatedAt.Add(5 * time.Minute)
+	input := gatewayProjectionTestInput(generatedAt, finishedAt)
+	input.SourceConnections[0].Status = SourceConnectionStatusDisabled
+
+	build, err := BuildGatewayProjectionBatch(input)
+	if err != nil {
+		t.Fatalf("BuildGatewayProjectionBatch() error = %v", err)
+	}
+	recordGatewayProjectionServiceObservability(build, GatewayProjectionPublishResult{Success: false, Attempts: 1}, input.SourceConnections, 10)
+
+	snapshot := GetGatewayProjectionObservabilitySnapshot(generatedAt)
+	if snapshot.Latest == nil || snapshot.Latest.FailureCategory != GatewayProjectionFailureSourceConnectionDisabled {
+		t.Fatalf("disabled source connection should be visible as stable category: %#v", snapshot.Latest)
+	}
+}
+
+func TestGatewayProjectionObservabilitySnapshotReportsMissingProjectionConfig(t *testing.T) {
+	resetGatewayProjectionObservabilityForTest()
+	t.Setenv("gatewayOrganizationProjectionEnabled", "true")
+	t.Setenv("gatewayOrganizationProjectionEndpoint", "")
+	t.Setenv("gatewayOrganizationProjectionToken", "")
+	t.Setenv("gatewayOrganizationProjectionRefreshEnabled", "true")
+	t.Setenv("gatewayOrganizationProjectionFreshnessTTLSeconds", "1800")
+
+	now := time.Date(2026, 6, 11, 10, 0, 0, 0, time.UTC)
+	snapshot := GetGatewayProjectionObservabilitySnapshot(now)
+	if !snapshot.Publisher.Enabled || snapshot.Publisher.Configured {
+		t.Fatalf("publisher config readiness mismatch: %#v", snapshot.Publisher)
+	}
+	if snapshot.Publisher.DisabledReason != GatewayProjectionFailureProjectionTokenMissing {
+		t.Fatalf("publisher disabled reason = %q", snapshot.Publisher.DisabledReason)
+	}
+	if snapshot.Refresh.Enabled || snapshot.Refresh.DisabledReason != GatewayProjectionRefreshErrorInvalidConfig {
+		t.Fatalf("refresh should report invalid config without projection credentials: %#v", snapshot.Refresh)
+	}
+}
+
+func TestGatewayProjectionObservabilityHelpersHandleEmptyInputs(t *testing.T) {
+	resetGatewayProjectionObservabilityForTest()
+	recordGatewayProjectionLatestPublish(nil)
+	if got := summarizeGatewayProjectionSourceConnections(nil); got != "missing" {
+		t.Fatalf("empty source connections summary = %q", got)
+	}
+	if got := formatGatewayProjectionObservabilityTime(time.Time{}); got != "" {
+		t.Fatalf("zero time should format as empty string, got %q", got)
+	}
+}
+
+func TestGatewayProjectionFailureCategoryMapping(t *testing.T) {
+	tests := []struct {
+		code string
+		want string
+	}{
+		{code: GatewayProjectionPublishErrorInvalidConfig, want: GatewayProjectionFailureProjectionTokenMissing},
+		{code: GatewayProjectionPublishErrorProviderUnavailable, want: GatewayProjectionFailureGatewayUnavailable},
+		{code: "invalid_argument", want: GatewayProjectionFailureGatewayContractMismatch},
+		{code: GatewayProjectionSkipMappingUntrusted, want: GatewayProjectionFailureMappingUntrusted},
+		{code: GatewayProjectionSkipLifecycleInvalid, want: GatewayProjectionFailureLifecycleUntrusted},
+		{code: GatewayProjectionSkipSourceDataInvalid, want: GatewayProjectionFailureSourceConnectionStale},
+		{code: "unexpected", want: GatewayProjectionFailureUnknown},
+	}
+	for _, tt := range tests {
+		t.Run(tt.code, func(t *testing.T) {
+			if got := GatewayProjectionFailureCategory(tt.code); got != tt.want {
+				t.Fatalf("GatewayProjectionFailureCategory(%q) = %q, want %q", tt.code, got, tt.want)
+			}
+		})
 	}
 }
 

@@ -78,13 +78,15 @@ func TestNormalizeGatewayProjectionRefreshIntervalStaysBelowFreshnessTTL(t *test
 }
 
 func TestGatewayProjectionRefreshWorkerPublishesUniqueOrganizations(t *testing.T) {
+	resetGatewayProjectionObservabilityForTest()
+	now := time.Date(2026, 6, 9, 10, 0, 0, 0, time.UTC)
 	worker := &GatewayProjectionRefreshWorker{
 		Config: GatewayProjectionRefreshConfig{Enabled: true, Interval: 15 * time.Minute, BatchSize: 10},
 		Store:  &memoryGatewayProjectionRefreshOrganizationStore{organizations: []string{"org-b", "org-a", "org-a", "", "built-in"}},
 		Publisher: &fakeGatewayProjectionRefreshPublisher{
 			result: GatewayProjectionServiceResult{Publish: GatewayProjectionPublishResult{Success: true, Accepted: true, Attempts: 1}},
 		},
-		Now: func() time.Time { return time.Date(2026, 6, 9, 10, 0, 0, 0, time.UTC) },
+		Now: func() time.Time { return now },
 	}
 	publisher := worker.Publisher.(*fakeGatewayProjectionRefreshPublisher)
 
@@ -100,6 +102,13 @@ func TestGatewayProjectionRefreshWorkerPublishesUniqueOrganizations(t *testing.T
 	}
 	if publisher.traces[0] == publisher.traces[1] || publisher.traces[0] == "" {
 		t.Fatalf("each organization should get a stable diagnostic trace, got %#v", publisher.traces)
+	}
+	snapshot := GetGatewayProjectionObservabilitySnapshot(now)
+	if snapshot.Refresh.LastRunAt == "" || snapshot.Refresh.LastSuccessAt == "" || snapshot.Refresh.NextRunAt == "" {
+		t.Fatalf("refresh observability should record run/success/next times: %#v", snapshot.Refresh)
+	}
+	if snapshot.Refresh.LastPublished != 2 || snapshot.Refresh.LastFailed != 0 || !snapshot.Refresh.IntervalLessThanTTL {
+		t.Fatalf("refresh observability counts mismatch: %#v", snapshot.Refresh)
 	}
 }
 
