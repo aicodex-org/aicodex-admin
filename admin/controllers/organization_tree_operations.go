@@ -19,6 +19,7 @@ import (
 	"errors"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,6 +33,8 @@ const (
 	organizationTreeEmptyClassUntrusted       = "untrusted_read_model"
 	organizationTreeOperationRefreshStatus    = "refresh_status"
 	organizationTreeOperationRefreshReadModel = "refresh_read_model"
+	organizationTreeOperationsDefaultPageSize = 20
+	organizationTreeOperationsMaxPageSize     = 100
 )
 
 var (
@@ -48,6 +51,13 @@ type organizationTreeOperationsDiagnosticRequest struct {
 	SourceConnectionStatus string
 	Freshness              string
 	ReadModelSource        string
+}
+
+type organizationTreeOperationsMemberRequest struct {
+	Organization string
+	DepartmentId string
+	Page         int
+	PageSize     int
 }
 
 // OrganizationTreeOperationsDiagnosticResponse 是 admin 内部组织树运营诊断视图。
@@ -84,19 +94,70 @@ type OrganizationTreeOperationsSummary struct {
 // OrganizationTreeOperationsNode 是运营页可展示的组织树节点。
 // display/path 类字段只用于展示和搜索，授权与 join 仍以平台稳定标识和后端 scope 计算为准。
 type OrganizationTreeOperationsNode struct {
-	DepartmentId              string                             `json:"departmentId"`
-	DepartmentName            string                             `json:"departmentName"`
-	ParentDepartmentId        string                             `json:"parentDepartmentId"`
-	DepartmentPath            string                             `json:"departmentPath"`
-	HasChildren               bool                               `json:"hasChildren"`
-	SourceType                string                             `json:"sourceType"`
-	SourceConnectionId        string                             `json:"sourceConnectionId,omitempty"`
-	SourceConnectionStatus    string                             `json:"sourceConnectionStatus,omitempty"`
-	SourceConnectionFreshness string                             `json:"sourceConnectionFreshness,omitempty"`
-	LifecycleStatus           string                             `json:"lifecycleStatus"`
-	VisibilitySource          string                             `json:"visibilitySource,omitempty"`
-	ReadModelSource           string                             `json:"readModelSource"`
-	Lineage                   InsightOrganizationTreeNodeLineage `json:"lineage,omitempty"`
+	DepartmentId              string                                  `json:"departmentId"`
+	DepartmentName            string                                  `json:"departmentName"`
+	ParentDepartmentId        string                                  `json:"parentDepartmentId"`
+	DepartmentPath            string                                  `json:"departmentPath"`
+	HasChildren               bool                                    `json:"hasChildren"`
+	SourceType                string                                  `json:"sourceType"`
+	SourceConnectionId        string                                  `json:"sourceConnectionId,omitempty"`
+	SourceConnectionStatus    string                                  `json:"sourceConnectionStatus,omitempty"`
+	SourceConnectionFreshness string                                  `json:"sourceConnectionFreshness,omitempty"`
+	LifecycleStatus           string                                  `json:"lifecycleStatus"`
+	VisibilitySource          string                                  `json:"visibilitySource,omitempty"`
+	ReadModelSource           string                                  `json:"readModelSource"`
+	Lineage                   InsightOrganizationTreeNodeLineage      `json:"lineage,omitempty"`
+	MemberSummary             OrganizationTreeOperationsMemberSummary `json:"memberSummary"`
+}
+
+// OrganizationTreeOperationsMemberSummary 是部门维度成员诊断摘要。
+// 摘要可以随部门树返回；成员明细必须通过按部门分页接口懒加载。
+type OrganizationTreeOperationsMemberSummary struct {
+	MemberCount           int `json:"memberCount"`
+	ActiveMemberCount     int `json:"activeMemberCount"`
+	DisabledMemberCount   int `json:"disabledMemberCount"`
+	ConflictedMemberCount int `json:"conflictedMemberCount"`
+	MappingIssueCount     int `json:"mappingIssueCount"`
+	StaleMemberCount      int `json:"staleMemberCount"`
+}
+
+// OrganizationTreeOperationsMemberListResponse 是按部门懒加载的成员诊断分页结果。
+// 该响应只服务 admin 管理页诊断，不能作为 Insight/API/gateway 跨服务合同。
+type OrganizationTreeOperationsMemberListResponse struct {
+	Organization string                                 `json:"organization"`
+	DepartmentId string                                 `json:"departmentId"`
+	Page         int                                    `json:"page"`
+	PageSize     int                                    `json:"pageSize"`
+	Total        int                                    `json:"total"`
+	Members      []OrganizationTreeOperationsMemberItem `json:"members"`
+}
+
+// OrganizationTreeOperationsMemberItem 是单个成员的脱敏诊断项。
+// StableSubjectId 是 adminSubject 的短哈希，displayName 只用于展示，不能作为 join 或授权 key。
+type OrganizationTreeOperationsMemberItem struct {
+	StableSubjectId    string                                  `json:"stableSubjectId"`
+	DisplayName        string                                  `json:"displayName,omitempty"`
+	DepartmentId       string                                  `json:"departmentId"`
+	LifecycleStatus    string                                  `json:"lifecycleStatus"`
+	MappingStatus      string                                  `json:"mappingStatus"`
+	SourceType         string                                  `json:"sourceType"`
+	SourceConnectionId string                                  `json:"sourceConnectionId,omitempty"`
+	ReadModelSource    string                                  `json:"readModelSource"`
+	Freshness          string                                  `json:"freshness,omitempty"`
+	Reason             string                                  `json:"reason"`
+	IsMain             bool                                    `json:"isMain"`
+	IsManager          bool                                    `json:"isManager"`
+	IsDirectLeader     bool                                    `json:"isDirectLeader"`
+	Lineage            OrganizationTreeOperationsMemberLineage `json:"lineage"`
+}
+
+// OrganizationTreeOperationsMemberLineage 汇总成员来源血缘，不包含外部 subject 明文或 API 用户 ID。
+type OrganizationTreeOperationsMemberLineage struct {
+	SourceType         string `json:"sourceType,omitempty"`
+	SourceConnectionId string `json:"sourceConnectionId,omitempty"`
+	SourceOrgVersion   string `json:"sourceOrgVersion,omitempty"`
+	LastSeenBatchId    string `json:"lastSeenBatchId,omitempty"`
+	Digest             string `json:"digest,omitempty"`
 }
 
 // OrganizationTreeOperationsDiagnosticItem 描述被 fail closed 或需要关注的脱敏异常项。
@@ -196,6 +257,39 @@ func (c *ApiController) GetOrganizationTreeOperationsDiagnostics() {
 	c.ResponseOk(diagnostics)
 }
 
+// GetOrganizationTreeOperationsMembers
+// @Title GetOrganizationTreeOperationsMembers
+// @Tag Organization Tree Operations API
+// @Description 按部门分页获取 admin-only 成员诊断列表，默认不随组织树全量展开成员。
+// @Param   organization     query    string  true        "目标组织"
+// @Param   departmentId     query    string  true        "平台部门 ID"
+// @Success 200 {object} controllers.OrganizationTreeOperationsMemberListResponse "部门成员诊断分页响应"
+// @router /organization-tree-operations/members [get]
+func (c *ApiController) GetOrganizationTreeOperationsMembers() {
+	request := organizationTreeOperationsMemberRequest{
+		Organization: c.Ctx.Input.Query("organization"),
+		DepartmentId: c.Ctx.Input.Query("departmentId"),
+		Page:         parseOrganizationTreeOperationsIntQuery(c.Ctx.Input.Query("page")),
+		PageSize:     parseOrganizationTreeOperationsIntQuery(c.Ctx.Input.Query("pageSize")),
+	}
+	organization, user, isAdminScope, ok := c.resolveOrganizationTreeOperationsTarget(request.Organization)
+	if !ok {
+		return
+	}
+	request.Organization = organization
+	if strings.TrimSpace(request.DepartmentId) == "" {
+		c.ResponseError("departmentId is required")
+		return
+	}
+
+	members, err := c.buildOrganizationTreeOperationsDepartmentMembers(user, isAdminScope, request)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(members)
+}
+
 // RefreshOrganizationTreeOperations
 // @Title RefreshOrganizationTreeOperations
 // @Tag Organization Tree Operations API
@@ -268,44 +362,81 @@ func (c *ApiController) resolveOrganizationTreeOperationsTarget(explicitOrganiza
 }
 
 func (c *ApiController) buildOrganizationTreeOperationsDiagnostics(user *object.User, isAdminScope bool, request organizationTreeOperationsDiagnosticRequest) (*OrganizationTreeOperationsDiagnosticResponse, error) {
-	scope, err := (&object.OrganizationManagementScopeService{}).GetCurrentScope(user, request.Organization, isAdminScope)
+	input, err := c.buildOrganizationTreeOperationsReadModelInput(user, isAdminScope, request.Organization)
 	if err != nil {
 		return nil, err
-	}
-	groups, err := object.GetGroups(request.Organization)
-	if err != nil {
-		return nil, err
-	}
-	platformDepartments, err := object.GetPlatformDepartments(request.Organization)
-	if err != nil {
-		return nil, err
-	}
-	sourceConnections, err := object.GetSourceConnections(request.Organization)
-	if err != nil {
-		return nil, err
-	}
-	syncBatches, err := object.GetOrgSyncBatches(request.Organization)
-	if err != nil {
-		return nil, err
-	}
-	input := insightOrganizationTreeReadModelInput{
-		CurrentUser:         user,
-		Organization:        request.Organization,
-		GeneratedAt:         time.Now().UTC(),
-		Scope:               scope,
-		PlatformDepartments: dereferenceInsightPlatformDepartments(platformDepartments),
-		Groups:              groups,
-		SourceConnections:   dereferenceInsightSourceConnections(sourceConnections),
-		SyncBatches:         dereferenceInsightOrgSyncBatches(syncBatches),
 	}
 	return buildOrganizationTreeOperationsDiagnosticsFromInput(input, request), nil
+}
+
+func (c *ApiController) buildOrganizationTreeOperationsDepartmentMembers(user *object.User, isAdminScope bool, request organizationTreeOperationsMemberRequest) (*OrganizationTreeOperationsMemberListResponse, error) {
+	input, err := c.buildOrganizationTreeOperationsReadModelInput(user, isAdminScope, request.Organization)
+	if err != nil {
+		return nil, err
+	}
+	return buildOrganizationTreeOperationsDepartmentMembersFromInput(input, request), nil
+}
+
+func (c *ApiController) buildOrganizationTreeOperationsReadModelInput(user *object.User, isAdminScope bool, organization string) (insightOrganizationTreeReadModelInput, error) {
+	scope, err := (&object.OrganizationManagementScopeService{}).GetCurrentScope(user, organization, isAdminScope)
+	if err != nil {
+		return insightOrganizationTreeReadModelInput{}, err
+	}
+	groups, err := object.GetGroups(organization)
+	if err != nil {
+		return insightOrganizationTreeReadModelInput{}, err
+	}
+	platformDepartments, err := object.GetPlatformDepartments(organization)
+	if err != nil {
+		return insightOrganizationTreeReadModelInput{}, err
+	}
+	platformUsers, err := object.GetPlatformUsers(organization)
+	if err != nil {
+		return insightOrganizationTreeReadModelInput{}, err
+	}
+	platformMemberships, err := object.GetPlatformMemberships(organization)
+	if err != nil {
+		return insightOrganizationTreeReadModelInput{}, err
+	}
+	externalIdentities, err := object.GetExternalIdentities(organization)
+	if err != nil {
+		return insightOrganizationTreeReadModelInput{}, err
+	}
+	platformApiUserMappings, err := object.GetPlatformApiUserMappings(organization)
+	if err != nil {
+		return insightOrganizationTreeReadModelInput{}, err
+	}
+	sourceConnections, err := object.GetSourceConnections(organization)
+	if err != nil {
+		return insightOrganizationTreeReadModelInput{}, err
+	}
+	syncBatches, err := object.GetOrgSyncBatches(organization)
+	if err != nil {
+		return insightOrganizationTreeReadModelInput{}, err
+	}
+	input := insightOrganizationTreeReadModelInput{
+		CurrentUser:             user,
+		Organization:            organization,
+		GeneratedAt:             time.Now().UTC(),
+		Scope:                   scope,
+		PlatformDepartments:     dereferenceInsightPlatformDepartments(platformDepartments),
+		PlatformUsers:           dereferenceOrganizationTreeOperationsPlatformUsers(platformUsers),
+		PlatformMemberships:     dereferenceOrganizationTreeOperationsPlatformMemberships(platformMemberships),
+		ExternalIdentities:      dereferenceOrganizationTreeOperationsExternalIdentities(externalIdentities),
+		PlatformApiUserMappings: dereferenceOrganizationTreeOperationsPlatformApiUserMappings(platformApiUserMappings),
+		Groups:                  groups,
+		SourceConnections:       dereferenceInsightSourceConnections(sourceConnections),
+		SyncBatches:             dereferenceInsightOrgSyncBatches(syncBatches),
+	}
+	return input, nil
 }
 
 func buildOrganizationTreeOperationsDiagnosticsFromInput(input insightOrganizationTreeReadModelInput, request organizationTreeOperationsDiagnosticRequest) *OrganizationTreeOperationsDiagnosticResponse {
 	readModel := buildInsightOrganizationTreeReadModel(input)
 	providerErr := validateInsightOrganizationTreeReadModelTrusted(input, readModel)
 	connectionIndex := indexInsightOrganizationTreeSourceConnections(input.SourceConnections)
-	nodes := buildOrganizationTreeOperationsNodes(readModel, connectionIndex)
+	memberSummaries := buildOrganizationTreeOperationsMemberSummaries(input, readModel.ReadModelSource, connectionIndex)
+	nodes := buildOrganizationTreeOperationsNodes(readModel, connectionIndex, memberSummaries)
 	diagnostics := buildOrganizationTreeOperationsDiagnosticItems(input, readModel, connectionIndex, providerErr)
 	nodes, diagnostics = filterOrganizationTreeOperationsResults(nodes, diagnostics, request)
 	emptyClass, reason := classifyOrganizationTreeOperationsEmptyTree(input, readModel, providerErr)
@@ -342,7 +473,7 @@ func buildOrganizationTreeOperationsDiagnosticsFromInput(input insightOrganizati
 	}
 }
 
-func buildOrganizationTreeOperationsNodes(readModel InsightOrganizationTreeResponse, connections map[string]object.SourceConnection) []OrganizationTreeOperationsNode {
+func buildOrganizationTreeOperationsNodes(readModel InsightOrganizationTreeResponse, connections map[string]object.SourceConnection, memberSummaries map[string]OrganizationTreeOperationsMemberSummary) []OrganizationTreeOperationsNode {
 	nodes := make([]OrganizationTreeOperationsNode, 0, len(readModel.Nodes))
 	for _, node := range readModel.Nodes {
 		sourceStatus := ""
@@ -365,9 +496,389 @@ func buildOrganizationTreeOperationsNodes(readModel InsightOrganizationTreeRespo
 			VisibilitySource:          node.VisibilitySource,
 			ReadModelSource:           readModel.ReadModelSource,
 			Lineage:                   node.Lineage,
+			MemberSummary:             memberSummaries[node.DepartmentId],
 		})
 	}
 	return nodes
+}
+
+func buildOrganizationTreeOperationsDepartmentMembersFromInput(input insightOrganizationTreeReadModelInput, request organizationTreeOperationsMemberRequest) *OrganizationTreeOperationsMemberListResponse {
+	readModel := buildInsightOrganizationTreeReadModel(input)
+	connectionIndex := indexInsightOrganizationTreeSourceConnections(input.SourceConnections)
+	request = normalizeOrganizationTreeOperationsMemberRequest(request)
+	departmentId := strings.TrimSpace(request.DepartmentId)
+	// 成员诊断必须先落在当前 read model 可见部门内，避免通过分页接口扩大管理范围。
+	if !organizationTreeOperationsReadModelContainsDepartment(readModel, departmentId) {
+		return &OrganizationTreeOperationsMemberListResponse{
+			Organization: readModel.Organization,
+			DepartmentId: departmentId,
+			Page:         request.Page,
+			PageSize:     request.PageSize,
+			Total:        0,
+			Members:      []OrganizationTreeOperationsMemberItem{},
+		}
+	}
+	items := buildOrganizationTreeOperationsMemberItems(input, readModel.ReadModelSource, connectionIndex, departmentId)
+	total := len(items)
+	start := (request.Page - 1) * request.PageSize
+	if start > total {
+		start = total
+	}
+	end := start + request.PageSize
+	if end > total {
+		end = total
+	}
+	return &OrganizationTreeOperationsMemberListResponse{
+		Organization: readModel.Organization,
+		DepartmentId: departmentId,
+		Page:         request.Page,
+		PageSize:     request.PageSize,
+		Total:        total,
+		Members:      items[start:end],
+	}
+}
+
+func organizationTreeOperationsReadModelContainsDepartment(readModel InsightOrganizationTreeResponse, departmentId string) bool {
+	departmentId = strings.TrimSpace(departmentId)
+	if departmentId == "" {
+		return false
+	}
+	for _, node := range readModel.Nodes {
+		if strings.TrimSpace(node.DepartmentId) == departmentId {
+			return true
+		}
+	}
+	return false
+}
+
+func buildOrganizationTreeOperationsMemberSummaries(input insightOrganizationTreeReadModelInput, readModelSource string, connections map[string]object.SourceConnection) map[string]OrganizationTreeOperationsMemberSummary {
+	summaries := map[string]OrganizationTreeOperationsMemberSummary{}
+	for _, item := range buildOrganizationTreeOperationsMemberItems(input, readModelSource, connections, "") {
+		summary := summaries[item.DepartmentId]
+		summary.MemberCount++
+		if item.Reason == "ok" {
+			summary.ActiveMemberCount++
+		}
+		normalizedLifecycle := strings.ToLower(strings.TrimSpace(item.LifecycleStatus))
+		switch normalizedLifecycle {
+		case strings.ToLower(object.PlatformLifecycleStatusDisabled), strings.ToLower(object.PlatformLifecycleStatusDeleted):
+			summary.DisabledMemberCount++
+		case strings.ToLower(object.PlatformLifecycleStatusConflicted):
+			summary.ConflictedMemberCount++
+		case strings.ToLower(object.PlatformLifecycleStatusStale):
+			summary.StaleMemberCount++
+		}
+		if item.MappingStatus != MappingStatusOK {
+			summary.MappingIssueCount++
+			if strings.EqualFold(item.MappingStatus, object.PlatformMappingStatusConflicted) {
+				summary.ConflictedMemberCount++
+			}
+		}
+		if normalizedLifecycle != strings.ToLower(object.PlatformLifecycleStatusStale) && (strings.Contains(item.Reason, "source_connection_freshness") || strings.EqualFold(item.Freshness, object.PlatformFreshnessStale) || strings.EqualFold(item.Freshness, object.PlatformFreshnessUnknown) || strings.EqualFold(item.Freshness, object.PlatformFreshnessUnavailable)) {
+			summary.StaleMemberCount++
+		}
+		summaries[item.DepartmentId] = summary
+	}
+	return summaries
+}
+
+func buildOrganizationTreeOperationsMemberItems(input insightOrganizationTreeReadModelInput, readModelSource string, connections map[string]object.SourceConnection, departmentId string) []OrganizationTreeOperationsMemberItem {
+	organization := normalizeInsightScopeOrganization(input.CurrentUser, input.Organization)
+	if organization == "" && input.Scope != nil {
+		organization = strings.TrimSpace(input.Scope.Organization)
+	}
+	departmentId = strings.TrimSpace(departmentId)
+	usersBySubject := indexOrganizationTreeOperationsPlatformUsers(input.PlatformUsers)
+	identitiesBySubject := indexOrganizationTreeOperationsExternalIdentities(input.ExternalIdentities)
+	apiMappingsBySubject := indexOrganizationTreeOperationsPlatformApiUserMappings(input.PlatformApiUserMappings)
+	batchesBySource := indexOrganizationTreeOperationsBatchesBySource(input.SyncBatches)
+	items := []OrganizationTreeOperationsMemberItem{}
+	for _, membership := range input.PlatformMemberships {
+		if membership.OrganizationId != organization || strings.TrimSpace(membership.AdminSubject) == "" || strings.TrimSpace(membership.DepartmentId) == "" {
+			continue
+		}
+		if departmentId != "" && membership.DepartmentId != departmentId {
+			continue
+		}
+		user := usersBySubject[membership.AdminSubject]
+		identity := selectOrganizationTreeOperationsExternalIdentity(identitiesBySubject[membership.AdminSubject], membership.SourceConnectionId)
+		apiMapping := apiMappingsBySubject[membership.AdminSubject]
+		item := buildOrganizationTreeOperationsMemberItem(organization, membership, user, identity, apiMapping, connections, batchesBySource, readModelSource)
+		items = append(items, item)
+	}
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].DisplayName == items[j].DisplayName {
+			return items[i].StableSubjectId < items[j].StableSubjectId
+		}
+		return items[i].DisplayName < items[j].DisplayName
+	})
+	return items
+}
+
+func buildOrganizationTreeOperationsMemberItem(organization string, membership object.PlatformMembership, user *object.PlatformUser, identity *object.ExternalIdentity, apiMapping *object.PlatformApiUserMapping, connections map[string]object.SourceConnection, batches map[string]object.OrgSyncBatch, readModelSource string) OrganizationTreeOperationsMemberItem {
+	sourceConnectionId := strings.TrimSpace(membership.SourceConnectionId)
+	sourceType := "platform"
+	freshness := ""
+	if connection, ok := connections[sourceConnectionId]; ok {
+		sourceType = firstNonEmptyInsightString(strings.TrimSpace(connection.SourceType), sourceType)
+		freshness = strings.TrimSpace(connection.Freshness)
+	}
+	if freshness == "" {
+		if batch, ok := batches[sourceConnectionId]; ok {
+			freshness = strings.TrimSpace(batch.Freshness)
+		}
+	}
+	lifecycleStatus := organizationTreeOperationsMemberLifecycleStatus(membership, user)
+	mappingStatus := organizationTreeOperationsMemberMappingStatus(membership, user, identity, apiMapping)
+	reason := organizationTreeOperationsMemberReason(lifecycleStatus, mappingStatus, sourceConnectionId, connections)
+	sourceOrgVersion := strings.TrimSpace(membership.OrgVersion)
+	if sourceOrgVersion == "" && user != nil {
+		sourceOrgVersion = strings.TrimSpace(user.OrgVersion)
+	}
+	lastSeenBatchId := ""
+	if user != nil {
+		lastSeenBatchId = strings.TrimSpace(user.LastSeenBatchId)
+	}
+	if identity != nil && strings.TrimSpace(identity.LastSeenBatchId) != "" {
+		lastSeenBatchId = strings.TrimSpace(identity.LastSeenBatchId)
+	}
+	if lastSeenBatchId == "" {
+		if batch, ok := batches[sourceConnectionId]; ok {
+			lastSeenBatchId = strings.TrimSpace(batch.BatchId)
+		}
+	}
+	displayName := ""
+	if user != nil {
+		displayName = strings.TrimSpace(user.DisplayName)
+	}
+	return OrganizationTreeOperationsMemberItem{
+		StableSubjectId:    insightStableHash("subj-", organization, membership.AdminSubject)[:21],
+		DisplayName:        displayName,
+		DepartmentId:       strings.TrimSpace(membership.DepartmentId),
+		LifecycleStatus:    lifecycleStatus,
+		MappingStatus:      mappingStatus,
+		SourceType:         sourceType,
+		SourceConnectionId: sourceConnectionId,
+		ReadModelSource:    readModelSource,
+		Freshness:          freshness,
+		Reason:             reason,
+		IsMain:             membership.IsMain,
+		IsManager:          membership.IsManager,
+		IsDirectLeader:     membership.IsDirectLeader,
+		Lineage: OrganizationTreeOperationsMemberLineage{
+			SourceType:         sourceType,
+			SourceConnectionId: sourceConnectionId,
+			SourceOrgVersion:   sourceOrgVersion,
+			LastSeenBatchId:    lastSeenBatchId,
+			Digest:             insightStableHash("sha256:", organization, membership.DepartmentId, membership.AdminSubject, lifecycleStatus, mappingStatus, sourceConnectionId, sourceOrgVersion, lastSeenBatchId),
+		},
+	}
+}
+
+func organizationTreeOperationsMemberLifecycleStatus(membership object.PlatformMembership, user *object.PlatformUser) string {
+	membershipStatus := strings.TrimSpace(membership.LifecycleStatus)
+	if membershipStatus != "" && !object.IsPlatformLifecycleStatusUsableForScope(membershipStatus) {
+		return membershipStatus
+	}
+	if user != nil && strings.TrimSpace(user.LifecycleStatus) != "" {
+		return strings.TrimSpace(user.LifecycleStatus)
+	}
+	if membershipStatus != "" {
+		return membershipStatus
+	}
+	return object.PlatformLifecycleStatusUnknown
+}
+
+func organizationTreeOperationsMemberMappingStatus(membership object.PlatformMembership, user *object.PlatformUser, identity *object.ExternalIdentity, apiMapping *object.PlatformApiUserMapping) string {
+	if user == nil {
+		return MappingStatusMissing
+	}
+	if strings.TrimSpace(membership.SourceConnectionId) != "" && identity == nil {
+		return MappingStatusMissing
+	}
+	if apiMapping == nil {
+		return MappingStatusMissing
+	}
+	for _, status := range []string{user.MappingStatus, identityMappingStatus(identity), apiMapping.MappingStatus} {
+		status = strings.TrimSpace(status)
+		if status == "" {
+			continue
+		}
+		if !object.IsConfirmedPlatformApiMappingStatus(status) {
+			return status
+		}
+	}
+	if strings.TrimSpace(apiMapping.ApiUserId) == "" {
+		return MappingStatusInvalid
+	}
+	return MappingStatusOK
+}
+
+func identityMappingStatus(identity *object.ExternalIdentity) string {
+	if identity == nil {
+		return ""
+	}
+	return strings.TrimSpace(identity.MappingStatus)
+}
+
+func organizationTreeOperationsMemberReason(lifecycleStatus string, mappingStatus string, sourceConnectionId string, connections map[string]object.SourceConnection) string {
+	if reason := organizationTreeOperationsSourceReason(sourceConnectionId, connections); reason != "" {
+		return reason
+	}
+	if !object.IsPlatformLifecycleStatusUsableForScope(lifecycleStatus) {
+		return "lifecycle_" + strings.ToLower(strings.TrimSpace(lifecycleStatus))
+	}
+	if mappingStatus != MappingStatusOK {
+		if mappingStatus == MappingStatusMissing {
+			return "mapping_missing"
+		}
+		return "mapping_" + strings.ToLower(strings.TrimSpace(mappingStatus))
+	}
+	return "ok"
+}
+
+func organizationTreeOperationsSourceReason(sourceConnectionId string, connections map[string]object.SourceConnection) string {
+	sourceConnectionId = strings.TrimSpace(sourceConnectionId)
+	if sourceConnectionId == "" {
+		return ""
+	}
+	connection, ok := connections[sourceConnectionId]
+	if !ok {
+		return "source_connection_missing"
+	}
+	if !strings.EqualFold(strings.TrimSpace(connection.Status), object.SourceConnectionStatusActive) {
+		return "source_connection_" + strings.ToLower(strings.TrimSpace(connection.Status))
+	}
+	if !strings.EqualFold(strings.TrimSpace(connection.Freshness), object.PlatformFreshnessFresh) {
+		return "source_connection_freshness_" + strings.ToLower(strings.TrimSpace(connection.Freshness))
+	}
+	return ""
+}
+
+func normalizeOrganizationTreeOperationsMemberRequest(request organizationTreeOperationsMemberRequest) organizationTreeOperationsMemberRequest {
+	if request.Page <= 0 {
+		request.Page = 1
+	}
+	if request.PageSize <= 0 {
+		request.PageSize = organizationTreeOperationsDefaultPageSize
+	}
+	if request.PageSize > organizationTreeOperationsMaxPageSize {
+		request.PageSize = organizationTreeOperationsMaxPageSize
+	}
+	return request
+}
+
+func parseOrganizationTreeOperationsIntQuery(value string) int {
+	parsed, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil {
+		return 0
+	}
+	return parsed
+}
+
+func indexOrganizationTreeOperationsPlatformUsers(users []object.PlatformUser) map[string]*object.PlatformUser {
+	index := map[string]*object.PlatformUser{}
+	for i := range users {
+		user := &users[i]
+		adminSubject := strings.TrimSpace(user.AdminSubject)
+		if adminSubject == "" {
+			continue
+		}
+		index[adminSubject] = user
+	}
+	return index
+}
+
+func indexOrganizationTreeOperationsExternalIdentities(identities []object.ExternalIdentity) map[string][]object.ExternalIdentity {
+	index := map[string][]object.ExternalIdentity{}
+	for _, identity := range identities {
+		if identity.PlatformSubjectType != object.PlatformSubjectTypeUser || strings.TrimSpace(identity.PlatformSubject) == "" {
+			continue
+		}
+		index[identity.PlatformSubject] = append(index[identity.PlatformSubject], identity)
+	}
+	return index
+}
+
+func selectOrganizationTreeOperationsExternalIdentity(identities []object.ExternalIdentity, sourceConnectionId string) *object.ExternalIdentity {
+	sourceConnectionId = strings.TrimSpace(sourceConnectionId)
+	for i := range identities {
+		if sourceConnectionId != "" && strings.TrimSpace(identities[i].SourceConnectionId) == sourceConnectionId {
+			return &identities[i]
+		}
+	}
+	if len(identities) == 0 {
+		return nil
+	}
+	return &identities[0]
+}
+
+func indexOrganizationTreeOperationsPlatformApiUserMappings(mappings []object.PlatformApiUserMapping) map[string]*object.PlatformApiUserMapping {
+	index := map[string]*object.PlatformApiUserMapping{}
+	for i := range mappings {
+		mapping := &mappings[i]
+		adminSubject := strings.TrimSpace(mapping.AdminSubject)
+		if adminSubject == "" {
+			continue
+		}
+		index[adminSubject] = mapping
+	}
+	return index
+}
+
+func indexOrganizationTreeOperationsBatchesBySource(batches []object.OrgSyncBatch) map[string]object.OrgSyncBatch {
+	index := map[string]object.OrgSyncBatch{}
+	for _, batch := range batches {
+		sourceConnectionId := strings.TrimSpace(batch.SourceConnectionId)
+		if sourceConnectionId == "" {
+			continue
+		}
+		existing, ok := index[sourceConnectionId]
+		if !ok || batch.FinishedAt.After(existing.FinishedAt) || batch.StartedAt.After(existing.StartedAt) {
+			index[sourceConnectionId] = batch
+		}
+	}
+	return index
+}
+
+func dereferenceOrganizationTreeOperationsPlatformUsers(values []*object.PlatformUser) []object.PlatformUser {
+	result := make([]object.PlatformUser, 0, len(values))
+	for _, value := range values {
+		if value != nil {
+			result = append(result, *value)
+		}
+	}
+	return result
+}
+
+func dereferenceOrganizationTreeOperationsPlatformMemberships(values []*object.PlatformMembership) []object.PlatformMembership {
+	result := make([]object.PlatformMembership, 0, len(values))
+	for _, value := range values {
+		if value != nil {
+			result = append(result, *value)
+		}
+	}
+	return result
+}
+
+func dereferenceOrganizationTreeOperationsExternalIdentities(values []*object.ExternalIdentity) []object.ExternalIdentity {
+	result := make([]object.ExternalIdentity, 0, len(values))
+	for _, value := range values {
+		if value != nil {
+			result = append(result, *value)
+		}
+	}
+	return result
+}
+
+func dereferenceOrganizationTreeOperationsPlatformApiUserMappings(values []*object.PlatformApiUserMapping) []object.PlatformApiUserMapping {
+	result := make([]object.PlatformApiUserMapping, 0, len(values))
+	for _, value := range values {
+		if value != nil {
+			result = append(result, *value)
+		}
+	}
+	return result
 }
 
 func buildOrganizationTreeOperationsDiagnosticItems(input insightOrganizationTreeReadModelInput, readModel InsightOrganizationTreeResponse, connections map[string]object.SourceConnection, providerErr *InsightProviderError) []OrganizationTreeOperationsDiagnosticItem {

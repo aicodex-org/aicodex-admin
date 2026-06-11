@@ -36,6 +36,20 @@ export function getOrganizationTreeOperationsDiagnostics(organization, filters =
   }).then(res => res.json());
 }
 
+export function getOrganizationTreeOperationsMembers(organization, departmentId, page = 1, pageSize = 10) {
+  const params = new URLSearchParams();
+  params.set("organization", organization);
+  params.set("departmentId", departmentId);
+  params.set("page", page);
+  params.set("pageSize", pageSize);
+
+  return fetch(`${Setting.ServerUrl}/api/organization-tree-operations/members?${params.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
 export function refreshOrganizationTreeOperations(organization, triggerType) {
   return fetch(`${Setting.ServerUrl}/api/organization-tree-operations/refresh`, {
     method: "POST",

@@ -15,6 +15,7 @@
 package controllers
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -67,6 +68,200 @@ func TestOrganizationTreeOperationsDiagnosticsSummarizesTrustedTree(t *testing.T
 	}
 	if !containsOrganizationTreeDiagnosticReason(got.Diagnostics, "lifecycle_disabled") {
 		t.Fatalf("diagnostics = %+v, want disabled lifecycle reason", got.Diagnostics)
+	}
+}
+
+func TestOrganizationTreeOperationsDiagnosticsAddsMemberSummaryWithoutReturningMemberList(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 11, 8, 0, 0, 0, time.UTC)
+	sourceConnectionId := object.GetSourceConnectionId("org-a", object.SourceTypeWecom, "ww123")
+	input := insightOrganizationTreeReadModelInput{
+		CurrentUser:  &object.User{Owner: "org-a", Name: "owner", IsAdmin: true},
+		Organization: "org-a",
+		GeneratedAt:  generatedAt,
+		Scope: &object.OrganizationManagementScope{
+			Organization: "org-a",
+			ScopeType:    object.OrganizationManagementScopeTypeAdmin,
+			Departments:  []object.OrganizationManagementScopeDepartment{{DepartmentId: "org-a/dev"}},
+		},
+		PlatformDepartments: []object.PlatformDepartment{
+			{OrganizationId: "org-a", DepartmentId: "org-a/dev", DisplayName: "Dev", LifecycleStatus: object.PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-1"},
+		},
+		PlatformUsers: []object.PlatformUser{
+			{OrganizationId: "org-a", AdminSubject: "org-a/member-ok", DisplayName: "Member OK", LifecycleStatus: object.PlatformLifecycleStatusActive, MappingStatus: object.PlatformMappingStatusConfirmed, OrgVersion: "orgv-1", LastSeenBatchId: "batch-1"},
+			{OrganizationId: "org-a", AdminSubject: "org-a/member-disabled", DisplayName: "Member Disabled", LifecycleStatus: object.PlatformLifecycleStatusDisabled, MappingStatus: object.PlatformMappingStatusConfirmed, OrgVersion: "orgv-1", LastSeenBatchId: "batch-1"},
+			{OrganizationId: "org-a", AdminSubject: "org-a/member-mapping", DisplayName: "Member Mapping", LifecycleStatus: object.PlatformLifecycleStatusActive, MappingStatus: object.PlatformMappingStatusPendingReview, OrgVersion: "orgv-1", LastSeenBatchId: "batch-1"},
+		},
+		PlatformMemberships: []object.PlatformMembership{
+			{OrganizationId: "org-a", AdminSubject: "org-a/member-ok", DepartmentId: "org-a/dev", LifecycleStatus: object.PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-1"},
+			{OrganizationId: "org-a", AdminSubject: "org-a/member-disabled", DepartmentId: "org-a/dev", LifecycleStatus: object.PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-1"},
+			{OrganizationId: "org-a", AdminSubject: "org-a/member-mapping", DepartmentId: "org-a/dev", LifecycleStatus: object.PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-1"},
+		},
+		ExternalIdentities: []object.ExternalIdentity{
+			{OrganizationId: "org-a", SourceConnectionId: sourceConnectionId, ExternalSubjectType: object.PlatformSubjectTypeUser, ExternalSubjectId: "external-ok", PlatformSubjectType: object.PlatformSubjectTypeUser, PlatformSubject: "org-a/member-ok", MappingStatus: object.PlatformMappingStatusConfirmed, LastSeenBatchId: "batch-1"},
+			{OrganizationId: "org-a", SourceConnectionId: sourceConnectionId, ExternalSubjectType: object.PlatformSubjectTypeUser, ExternalSubjectId: "external-disabled", PlatformSubjectType: object.PlatformSubjectTypeUser, PlatformSubject: "org-a/member-disabled", MappingStatus: object.PlatformMappingStatusConfirmed, LastSeenBatchId: "batch-1"},
+			{OrganizationId: "org-a", SourceConnectionId: sourceConnectionId, ExternalSubjectType: object.PlatformSubjectTypeUser, ExternalSubjectId: "external-mapping", PlatformSubjectType: object.PlatformSubjectTypeUser, PlatformSubject: "org-a/member-mapping", MappingStatus: object.PlatformMappingStatusPendingReview, LastSeenBatchId: "batch-1"},
+		},
+		PlatformApiUserMappings: []object.PlatformApiUserMapping{
+			{OrganizationId: "org-a", AdminSubject: "org-a/member-ok", ApiUserId: "101", MappingStatus: object.PlatformMappingStatusConfirmed},
+			{OrganizationId: "org-a", AdminSubject: "org-a/member-disabled", ApiUserId: "102", MappingStatus: object.PlatformMappingStatusConfirmed},
+			{OrganizationId: "org-a", AdminSubject: "org-a/member-mapping", ApiUserId: "103", MappingStatus: object.PlatformMappingStatusPendingReview},
+		},
+		SourceConnections: []object.SourceConnection{
+			{OrganizationId: "org-a", SourceConnectionId: sourceConnectionId, SourceType: object.SourceTypeWecom, Status: object.SourceConnectionStatusActive, Freshness: object.PlatformFreshnessFresh, LastSeenBatchId: "batch-1"},
+		},
+		SyncBatches: []object.OrgSyncBatch{
+			{OrganizationId: "org-a", SourceConnectionId: sourceConnectionId, BatchId: "batch-1", Status: object.OrgSyncBatchStatusSucceeded, OrgVersion: "orgv-1", Freshness: object.PlatformFreshnessFresh, FinishedAt: generatedAt.Add(-time.Minute)},
+		},
+	}
+
+	got := buildOrganizationTreeOperationsDiagnosticsFromInput(input, organizationTreeOperationsDiagnosticRequest{Organization: "org-a"})
+
+	if len(got.Nodes) != 1 {
+		t.Fatalf("nodes = %+v, want one department node", got.Nodes)
+	}
+	summary := got.Nodes[0].MemberSummary
+	if summary.MemberCount != 3 || summary.ActiveMemberCount != 1 || summary.DisabledMemberCount != 1 || summary.MappingIssueCount != 1 {
+		t.Fatalf("member summary = %+v, want total/active/disabled/mapping issue counts", summary)
+	}
+	raw, err := json.Marshal(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(raw)
+	for _, forbidden := range []string{"members", "external-ok", "101", "phone", "email"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("diagnostics summary leaked member list or sensitive field %q: %s", forbidden, body)
+		}
+	}
+}
+
+func TestOrganizationTreeOperationsDepartmentMembersArePagedAndFailClosed(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 11, 8, 0, 0, 0, time.UTC)
+	activeConnectionId := object.GetSourceConnectionId("org-a", object.SourceTypeWecom, "ww-active")
+	staleConnectionId := object.GetSourceConnectionId("org-a", object.SourceTypeWecom, "ww-stale")
+	input := insightOrganizationTreeReadModelInput{
+		CurrentUser:  &object.User{Owner: "org-a", Name: "owner", IsAdmin: true},
+		Organization: "org-a",
+		GeneratedAt:  generatedAt,
+		Scope: &object.OrganizationManagementScope{
+			Organization: "org-a",
+			ScopeType:    object.OrganizationManagementScopeTypeAdmin,
+			Departments:  []object.OrganizationManagementScopeDepartment{{DepartmentId: "org-a/dev"}},
+		},
+		PlatformDepartments: []object.PlatformDepartment{
+			{OrganizationId: "org-a", DepartmentId: "org-a/dev", DisplayName: "Dev", LifecycleStatus: object.PlatformLifecycleStatusActive, SourceConnectionId: activeConnectionId, OrgVersion: "orgv-1"},
+		},
+		PlatformUsers: []object.PlatformUser{
+			{OrganizationId: "org-a", AdminSubject: "org-a/member-active", DisplayName: "Active Member", LifecycleStatus: object.PlatformLifecycleStatusActive, MappingStatus: object.PlatformMappingStatusConfirmed, OrgVersion: "orgv-1", LastSeenBatchId: "batch-1"},
+			{OrganizationId: "org-a", AdminSubject: "org-a/member-stale", DisplayName: "Stale Member", LifecycleStatus: object.PlatformLifecycleStatusActive, MappingStatus: object.PlatformMappingStatusConfirmed, OrgVersion: "orgv-stale", LastSeenBatchId: "batch-stale"},
+			{OrganizationId: "org-a", AdminSubject: "org-a/member-missing", DisplayName: "Missing Mapping", LifecycleStatus: object.PlatformLifecycleStatusActive, MappingStatus: object.PlatformMappingStatusPendingReview, OrgVersion: "orgv-1", LastSeenBatchId: "batch-1"},
+		},
+		PlatformMemberships: []object.PlatformMembership{
+			{OrganizationId: "org-a", AdminSubject: "org-a/member-active", DepartmentId: "org-a/dev", LifecycleStatus: object.PlatformLifecycleStatusActive, SourceConnectionId: activeConnectionId, OrgVersion: "orgv-1", IsMain: true},
+			{OrganizationId: "org-a", AdminSubject: "org-a/member-stale", DepartmentId: "org-a/dev", LifecycleStatus: object.PlatformLifecycleStatusActive, SourceConnectionId: staleConnectionId, OrgVersion: "orgv-stale"},
+			{OrganizationId: "org-a", AdminSubject: "org-a/member-missing", DepartmentId: "org-a/dev", LifecycleStatus: object.PlatformLifecycleStatusActive, SourceConnectionId: activeConnectionId, OrgVersion: "orgv-1"},
+		},
+		ExternalIdentities: []object.ExternalIdentity{
+			{OrganizationId: "org-a", SourceConnectionId: activeConnectionId, ExternalSubjectType: object.PlatformSubjectTypeUser, ExternalSubjectId: "external-active", PlatformSubjectType: object.PlatformSubjectTypeUser, PlatformSubject: "org-a/member-active", MappingStatus: object.PlatformMappingStatusConfirmed, LastSeenBatchId: "batch-1"},
+			{OrganizationId: "org-a", SourceConnectionId: staleConnectionId, ExternalSubjectType: object.PlatformSubjectTypeUser, ExternalSubjectId: "external-stale", PlatformSubjectType: object.PlatformSubjectTypeUser, PlatformSubject: "org-a/member-stale", MappingStatus: object.PlatformMappingStatusConfirmed, LastSeenBatchId: "batch-stale"},
+		},
+		PlatformApiUserMappings: []object.PlatformApiUserMapping{
+			{OrganizationId: "org-a", AdminSubject: "org-a/member-active", ApiUserId: "201", MappingStatus: object.PlatformMappingStatusConfirmed},
+			{OrganizationId: "org-a", AdminSubject: "org-a/member-stale", ApiUserId: "202", MappingStatus: object.PlatformMappingStatusConfirmed},
+		},
+		SourceConnections: []object.SourceConnection{
+			{OrganizationId: "org-a", SourceConnectionId: activeConnectionId, SourceType: object.SourceTypeWecom, Status: object.SourceConnectionStatusActive, Freshness: object.PlatformFreshnessFresh, LastSeenBatchId: "batch-1"},
+			{OrganizationId: "org-a", SourceConnectionId: staleConnectionId, SourceType: object.SourceTypeWecom, Status: object.SourceConnectionStatusActive, Freshness: object.PlatformFreshnessStale, LastSeenBatchId: "batch-stale"},
+		},
+		SyncBatches: []object.OrgSyncBatch{
+			{OrganizationId: "org-a", SourceConnectionId: activeConnectionId, BatchId: "batch-1", Status: object.OrgSyncBatchStatusSucceeded, OrgVersion: "orgv-1", Freshness: object.PlatformFreshnessFresh, FinishedAt: generatedAt.Add(-time.Minute)},
+			{OrganizationId: "org-a", SourceConnectionId: staleConnectionId, BatchId: "batch-stale", Status: object.OrgSyncBatchStatusSucceeded, OrgVersion: "orgv-stale", Freshness: object.PlatformFreshnessStale, FinishedAt: generatedAt.Add(-2 * time.Minute)},
+		},
+	}
+
+	got := buildOrganizationTreeOperationsDepartmentMembersFromInput(input, organizationTreeOperationsMemberRequest{
+		Organization: "org-a",
+		DepartmentId: "org-a/dev",
+		Page:         1,
+		PageSize:     2,
+	})
+
+	if got.Total != 3 || got.Page != 1 || got.PageSize != 2 || len(got.Members) != 2 {
+		t.Fatalf("paged members = total:%d page:%d pageSize:%d len:%d", got.Total, got.Page, got.PageSize, len(got.Members))
+	}
+	if got.Members[0].StableSubjectId == "org-a/member-active" || !strings.HasPrefix(got.Members[0].StableSubjectId, "subj-") {
+		t.Fatalf("stable subject short id = %q, want redacted stable id", got.Members[0].StableSubjectId)
+	}
+	if got.Members[0].MappingStatus != MappingStatusOK || got.Members[0].LifecycleStatus != object.PlatformLifecycleStatusActive || got.Members[0].Reason != "ok" {
+		t.Fatalf("active member = %+v, want OK active diagnostic", got.Members[0])
+	}
+
+	fullPage := buildOrganizationTreeOperationsDepartmentMembersFromInput(input, organizationTreeOperationsMemberRequest{
+		Organization: "org-a",
+		DepartmentId: "org-a/dev",
+		Page:         1,
+		PageSize:     3,
+	})
+	staleMember := findOrganizationTreeMemberByDisplayName(fullPage.Members, "Stale Member")
+	if staleMember == nil || staleMember.Reason != "source_connection_freshness_stale" || staleMember.Freshness != object.PlatformFreshnessStale {
+		t.Fatalf("stale member = %+v, want stale source fail-closed diagnostic", staleMember)
+	}
+	missingMember := findOrganizationTreeMemberByDisplayName(fullPage.Members, "Missing Mapping")
+	if missingMember == nil || missingMember.MappingStatus != MappingStatusMissing || missingMember.Reason != "mapping_missing" {
+		t.Fatalf("missing mapping member = %+v, want missing mapping diagnostic", missingMember)
+	}
+	raw, err := json.Marshal(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, forbidden := range []string{"org-a/member-active", "external-active", "201", "phone", "email"} {
+		if strings.Contains(string(raw), forbidden) {
+			t.Fatalf("member diagnostics leaked sensitive or authority-only field %q: %s", forbidden, raw)
+		}
+	}
+}
+
+func TestOrganizationTreeOperationsDepartmentMembersFailClosedForInvisibleDepartment(t *testing.T) {
+	sourceConnectionId := object.GetSourceConnectionId("org-a", object.SourceTypeWecom, "ww123")
+	input := insightOrganizationTreeReadModelInput{
+		CurrentUser:  &object.User{Owner: "org-a", Name: "owner"},
+		Organization: "org-a",
+		GeneratedAt:  time.Date(2026, 6, 11, 8, 0, 0, 0, time.UTC),
+		Scope: &object.OrganizationManagementScope{
+			Organization: "org-a",
+			ScopeType:    object.OrganizationManagementScopeTypeDepartmentManager,
+			Departments:  []object.OrganizationManagementScopeDepartment{{DepartmentId: "org-a/visible"}},
+		},
+		PlatformDepartments: []object.PlatformDepartment{
+			{OrganizationId: "org-a", DepartmentId: "org-a/visible", DisplayName: "Visible", LifecycleStatus: object.PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId},
+			{OrganizationId: "org-a", DepartmentId: "org-a/hidden", DisplayName: "Hidden", LifecycleStatus: object.PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId},
+		},
+		PlatformUsers: []object.PlatformUser{
+			{OrganizationId: "org-a", AdminSubject: "org-a/hidden-user", DisplayName: "Hidden User", LifecycleStatus: object.PlatformLifecycleStatusActive, MappingStatus: object.PlatformMappingStatusConfirmed},
+		},
+		PlatformMemberships: []object.PlatformMembership{
+			{OrganizationId: "org-a", AdminSubject: "org-a/hidden-user", DepartmentId: "org-a/hidden", LifecycleStatus: object.PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId},
+		},
+		ExternalIdentities: []object.ExternalIdentity{
+			{OrganizationId: "org-a", SourceConnectionId: sourceConnectionId, ExternalSubjectType: object.PlatformSubjectTypeUser, ExternalSubjectId: "external-hidden", PlatformSubjectType: object.PlatformSubjectTypeUser, PlatformSubject: "org-a/hidden-user", MappingStatus: object.PlatformMappingStatusConfirmed},
+		},
+		PlatformApiUserMappings: []object.PlatformApiUserMapping{
+			{OrganizationId: "org-a", AdminSubject: "org-a/hidden-user", ApiUserId: "301", MappingStatus: object.PlatformMappingStatusConfirmed},
+		},
+		SourceConnections: []object.SourceConnection{
+			{OrganizationId: "org-a", SourceConnectionId: sourceConnectionId, SourceType: object.SourceTypeWecom, Status: object.SourceConnectionStatusActive, Freshness: object.PlatformFreshnessFresh},
+		},
+	}
+
+	got := buildOrganizationTreeOperationsDepartmentMembersFromInput(input, organizationTreeOperationsMemberRequest{
+		Organization: "org-a",
+		DepartmentId: "org-a/hidden",
+		Page:         1,
+		PageSize:     10,
+	})
+
+	if got.Total != 0 || len(got.Members) != 0 {
+		t.Fatalf("invisible department members = %+v, want fail-closed empty page", got)
 	}
 }
 
@@ -385,4 +580,13 @@ func containsOrganizationTreeDiagnosticReason(items []OrganizationTreeOperations
 		}
 	}
 	return false
+}
+
+func findOrganizationTreeMemberByDisplayName(items []OrganizationTreeOperationsMemberItem, displayName string) *OrganizationTreeOperationsMemberItem {
+	for i := range items {
+		if items[i].DisplayName == displayName {
+			return &items[i]
+		}
+	}
+	return nil
 }

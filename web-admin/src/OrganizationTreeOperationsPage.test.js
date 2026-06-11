@@ -21,6 +21,7 @@ import OrganizationTreeOperationsPage from "./OrganizationTreeOperationsPage";
 
 jest.mock("./backend/OrganizationTreeOperationsBackend", () => ({
   getOrganizationTreeOperationsDiagnostics: jest.fn(),
+  getOrganizationTreeOperationsMembers: jest.fn(),
   refreshOrganizationTreeOperations: jest.fn(),
 }));
 
@@ -73,6 +74,14 @@ function buildDiagnostics(overrides = {}) {
         batchId: "batch-1",
         sourceOrgVersion: "orgv-1",
       },
+      memberSummary: {
+        memberCount: 2,
+        activeMemberCount: 1,
+        disabledMemberCount: 1,
+        conflictedMemberCount: 0,
+        mappingIssueCount: 1,
+        staleMemberCount: 0,
+      },
     }],
     diagnostics: [{
       subjectType: "department",
@@ -117,6 +126,55 @@ beforeEach(() => {
   OrganizationTreeOperationsBackend.getOrganizationTreeOperationsDiagnostics.mockResolvedValue({
     status: "ok",
     data: buildDiagnostics(),
+  });
+  OrganizationTreeOperationsBackend.getOrganizationTreeOperationsMembers.mockResolvedValue({
+    status: "ok",
+    data: {
+      organization: "org-alpha",
+      departmentId: "dept-root",
+      page: 1,
+      pageSize: 10,
+      total: 2,
+      members: [
+        {
+          stableSubjectId: "subj-active",
+          displayName: "Active Member",
+          departmentId: "dept-root",
+          lifecycleStatus: "ACTIVE",
+          mappingStatus: "OK",
+          sourceType: "wecom",
+          sourceConnectionId: "source-1",
+          readModelSource: "platform_department",
+          freshness: "FRESH",
+          reason: "ok",
+          isMain: true,
+          lineage: {
+            sourceConnectionId: "source-1",
+            sourceOrgVersion: "orgv-1",
+            lastSeenBatchId: "batch-1",
+            digest: "sha256:active",
+          },
+        },
+        {
+          stableSubjectId: "subj-disabled",
+          displayName: "Disabled Member",
+          departmentId: "dept-root",
+          lifecycleStatus: "DISABLED",
+          mappingStatus: "MISSING",
+          sourceType: "wecom",
+          sourceConnectionId: "source-1",
+          readModelSource: "platform_department",
+          freshness: "FRESH",
+          reason: "mapping_missing",
+          lineage: {
+            sourceConnectionId: "source-1",
+            sourceOrgVersion: "orgv-1",
+            lastSeenBatchId: "batch-1",
+            digest: "sha256:disabled",
+          },
+        },
+      ],
+    },
   });
   OrganizationTreeOperationsBackend.refreshOrganizationTreeOperations.mockResolvedValue({
     status: "ok",
@@ -203,6 +261,41 @@ test("defaults to collapsible tree view and keeps list view available", async() 
 
   expect(await screen.findByText("部门")).toBeInTheDocument();
   expect(screen.getByText("子部门")).toBeInTheDocument();
+});
+
+test("lazy loads paged members only after selecting a department in member view", async() => {
+  render(<OrganizationTreeOperationsPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  expect(await screen.findByText("树视图")).toBeInTheDocument();
+  expect(OrganizationTreeOperationsBackend.getOrganizationTreeOperationsMembers).not.toHaveBeenCalled();
+
+  fireEvent.click(screen.getByText("成员视图"));
+
+  expect(await screen.findByText("选择部门查看成员诊断")).toBeInTheDocument();
+  expect(OrganizationTreeOperationsBackend.getOrganizationTreeOperationsMembers).not.toHaveBeenCalled();
+
+  fireEvent.click(screen.getAllByText("根部门")[0]);
+
+  await wait(() => expect(OrganizationTreeOperationsBackend.getOrganizationTreeOperationsMembers).toHaveBeenCalledWith("org-alpha", "dept-root", 1, 10));
+  expect(await screen.findByText("Active Member")).toBeInTheDocument();
+  expect(screen.getByText("Disabled Member")).toBeInTheDocument();
+  expect(screen.getAllByText("新鲜").length).toBeGreaterThan(0);
+  expect(screen.getByText("成员 2")).toBeInTheDocument();
+  expect(screen.getByText("异常 1")).toBeInTheDocument();
+});
+
+test("opens member detail drawer with diagnostics metadata", async() => {
+  render(<OrganizationTreeOperationsPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  await screen.findByText("树视图");
+  fireEvent.click(screen.getByText("成员视图"));
+  fireEvent.click(screen.getAllByText("根部门")[0]);
+  fireEvent.click(await screen.findByText("Active Member"));
+
+  expect(await screen.findByText("成员详情")).toBeInTheDocument();
+  expect(screen.getByText("subj-active")).toBeInTheDocument();
+  expect(screen.getByText("mappingStatus")).toBeInTheDocument();
+  expect(screen.getByText("lineageDigest")).toBeInTheDocument();
 });
 
 test("passes stable search and filters to diagnostics endpoint", async() => {

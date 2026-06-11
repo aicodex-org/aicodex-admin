@@ -176,14 +176,18 @@ type InsightOrganizationTreeNodeLineage struct {
 }
 
 type insightOrganizationTreeReadModelInput struct {
-	CurrentUser         *object.User
-	Organization        string
-	GeneratedAt         time.Time
-	Scope               *object.OrganizationManagementScope
-	PlatformDepartments []object.PlatformDepartment
-	Groups              []*object.Group
-	SourceConnections   []object.SourceConnection
-	SyncBatches         []object.OrgSyncBatch
+	CurrentUser             *object.User
+	Organization            string
+	GeneratedAt             time.Time
+	Scope                   *object.OrganizationManagementScope
+	PlatformDepartments     []object.PlatformDepartment
+	PlatformUsers           []object.PlatformUser
+	PlatformMemberships     []object.PlatformMembership
+	ExternalIdentities      []object.ExternalIdentity
+	PlatformApiUserMappings []object.PlatformApiUserMapping
+	Groups                  []*object.Group
+	SourceConnections       []object.SourceConnection
+	SyncBatches             []object.OrgSyncBatch
 }
 
 type insightDepartmentSourceMetadata struct {

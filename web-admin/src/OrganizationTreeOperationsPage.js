@@ -14,7 +14,7 @@
 
 import React from "react";
 import {Alert, Button, Card, Col, Descriptions, Drawer, Empty, Input, Row, Segmented, Select, Space, Table, Tag, Tooltip, Tree, Typography} from "antd";
-import {ReloadOutlined, SyncOutlined, ToolOutlined} from "@ant-design/icons";
+import {ReloadOutlined, SyncOutlined, TeamOutlined, ToolOutlined} from "@ant-design/icons";
 import * as Setting from "./Setting";
 import * as OrganizationTreeOperationsBackend from "./backend/OrganizationTreeOperationsBackend";
 import OrganizationSelect from "./common/select/OrganizationSelect";
@@ -35,9 +35,11 @@ const lifecycleStatusLabels = {
 
 const freshnessLabels = {
   current: "当前",
+  fresh: "新鲜",
   stale: "陈旧",
   expired: "过期",
   unknown: "未知",
+  unavailable: "不可用",
 };
 
 const emptyTreeClassLabels = {
@@ -83,7 +85,7 @@ function renderStatusTag(value, labels = {}) {
     return <Tag>-</Tag>;
   }
   const normalized = String(value).toLowerCase();
-  const color = normalized === "ok" || normalized === "active" || normalized === "current" || normalized === "accepted"
+  const color = normalized === "ok" || normalized === "active" || normalized === "current" || normalized === "fresh" || normalized === "accepted"
     ? "green"
     : normalized === "stale" || normalized === "running" || normalized === "test_data_gap"
       ? "orange"
@@ -117,6 +119,13 @@ class OrganizationTreeOperationsPage extends React.Component {
       },
       nodeViewMode: "tree",
       selectedNode: null,
+      selectedMemberDepartment: null,
+      memberLoading: false,
+      memberPage: 1,
+      memberPageSize: 10,
+      memberTotal: 0,
+      members: [],
+      selectedMember: null,
     };
   }
 
@@ -155,6 +164,13 @@ class OrganizationTreeOperationsPage extends React.Component {
         readModelSource: "",
       },
       nodeViewMode: "tree",
+      selectedMemberDepartment: null,
+      memberLoading: false,
+      memberPage: 1,
+      memberPageSize: 10,
+      memberTotal: 0,
+      members: [],
+      selectedMember: null,
     }, () => this.refreshDiagnostics());
   }
 
@@ -227,6 +243,42 @@ class OrganizationTreeOperationsPage extends React.Component {
     });
   }
 
+  loadDepartmentMembers(departmentId, page = 1, pageSize = this.state.memberPageSize) {
+    const organization = this.state.organization;
+    if (!organization || !departmentId) {
+      return Promise.resolve();
+    }
+    this.setState({
+      memberLoading: true,
+      selectedMemberDepartment: departmentId,
+      selectedMember: null,
+    });
+    return OrganizationTreeOperationsBackend.getOrganizationTreeOperationsMembers(organization, departmentId, page, pageSize).then(res => {
+      if (res.status === "error") {
+        Setting.showMessage("error", res.msg);
+      }
+      const payload = res.data || {};
+      this.setState({
+        memberLoading: false,
+        members: res.status === "ok" ? (payload.members || []) : [],
+        memberPage: res.status === "ok" ? (payload.page || page) : page,
+        memberPageSize: res.status === "ok" ? (payload.pageSize || pageSize) : pageSize,
+        memberTotal: res.status === "ok" ? (payload.total || 0) : 0,
+      });
+    }).catch(error => {
+      this.setState({memberLoading: false, members: [], memberTotal: 0});
+      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+    });
+  }
+
+  selectNode(node) {
+    if (this.state.nodeViewMode === "members") {
+      return this.loadDepartmentMembers(node.departmentId, 1, this.state.memberPageSize);
+    }
+    this.setState({selectedNode: node, selectedMember: null});
+    return Promise.resolve();
+  }
+
   getSummaryCards() {
     const summary = this.state.diagnostics?.summary || {};
     const source = this.state.diagnostics?.sourceConnections || [];
@@ -283,6 +335,22 @@ class OrganizationTreeOperationsPage extends React.Component {
     ];
   }
 
+  getMemberColumns() {
+    return [
+      {title: "成员", dataIndex: "displayName", key: "displayName", render: (text, record) => (
+        <Space direction="vertical" size={0}>
+          <Button type="link" style={{padding: 0}} onClick={() => this.setState({selectedMember: record, selectedNode: null})}>{renderText(text)}</Button>
+          <Text type="secondary">{renderCompactIdentifier(record.departmentId, {head: 16, tail: 8})}</Text>
+        </Space>
+      )},
+      {title: "生命周期", dataIndex: "lifecycleStatus", key: "lifecycleStatus", width: 120, render: value => renderStatusTag(value, lifecycleStatusLabels)},
+      {title: "映射状态", dataIndex: "mappingStatus", key: "mappingStatus", width: 120, render: renderText},
+      {title: "来源", dataIndex: "sourceType", key: "sourceType", width: 110, render: renderText},
+      {title: "新鲜度", dataIndex: "freshness", key: "freshness", width: 120, render: value => renderStatusTag(value, freshnessLabels)},
+      {title: "原因", dataIndex: "reason", key: "reason", render: renderText},
+    ];
+  }
+
   buildTreeData(nodes = []) {
     const records = new Map();
     nodes.forEach(node => {
@@ -307,13 +375,21 @@ class OrganizationTreeOperationsPage extends React.Component {
   }
 
   renderTreeNodeTitle(node) {
+    const memberSummary = node.memberSummary || {};
+    const issueCount = (memberSummary.conflictedMemberCount || 0) + (memberSummary.mappingIssueCount || 0) + (memberSummary.staleMemberCount || 0);
     return (
       <Space wrap size={8}>
-        <Button type="link" style={{padding: 0, height: "auto"}} onClick={() => this.setState({selectedNode: node})}>
+        <Button type="link" style={{padding: 0, height: "auto"}} onClick={() => this.selectNode(node)}>
           {renderText(node.departmentName)}
         </Button>
         {renderStatusTag(node.lifecycleStatus, lifecycleStatusLabels)}
         {renderStatusTag(node.sourceConnectionFreshness, freshnessLabels)}
+        {this.state.nodeViewMode === "members" ? (
+          <>
+            <Tag icon={<TeamOutlined />}>成员 {memberSummary.memberCount || 0}</Tag>
+            <Tag color={issueCount > 0 ? "orange" : "default"}>异常 {issueCount}</Tag>
+          </>
+        ) : null}
         <Text type="secondary">{renderText(node.readModelSource)}</Text>
       </Space>
     );
@@ -372,6 +448,44 @@ class OrganizationTreeOperationsPage extends React.Component {
         treeData={this.buildTreeData(nodes)}
         defaultExpandedKeys={nodes.slice(0, 3).map(node => node.departmentId)}
       />
+    );
+  }
+
+  renderMemberView() {
+    const nodes = this.state.diagnostics?.nodes || [];
+    if (nodes.length === 0) {
+      return <Empty description="当前筛选下无可见组织树节点" />;
+    }
+    return (
+      <Row gutter={[16, 16]}>
+        <Col xs={24} lg={10} xl={8}>
+          <Tree
+            blockNode
+            showLine
+            treeData={this.buildTreeData(nodes)}
+            defaultExpandedKeys={nodes.slice(0, 3).map(node => node.departmentId)}
+          />
+        </Col>
+        <Col xs={24} lg={14} xl={16}>
+          {this.state.selectedMemberDepartment ? (
+            <Table
+              size="small"
+              rowKey={record => record.stableSubjectId}
+              loading={this.state.memberLoading}
+              dataSource={this.state.members}
+              columns={this.getMemberColumns()}
+              locale={{emptyText: <Empty description="该部门暂无成员诊断数据" />}}
+              pagination={{
+                current: this.state.memberPage,
+                pageSize: this.state.memberPageSize,
+                total: this.state.memberTotal,
+                showSizeChanger: true,
+                onChange: (page, pageSize) => this.loadDepartmentMembers(this.state.selectedMemberDepartment, page, pageSize),
+              }}
+            />
+          ) : <Empty description="选择部门查看成员诊断" />}
+        </Col>
+      </Row>
     );
   }
 
@@ -444,6 +558,32 @@ class OrganizationTreeOperationsPage extends React.Component {
   }
 
   renderDetailDrawer() {
+    const member = this.state.selectedMember;
+    if (member) {
+      return (
+        <Drawer
+          title="成员详情"
+          width={560}
+          open={!!member}
+          onClose={() => this.setState({selectedMember: null})}
+        >
+          <Descriptions column={1} size="small" bordered>
+            <Descriptions.Item label="stableSubjectId">{renderText(member.stableSubjectId)}</Descriptions.Item>
+            <Descriptions.Item label="displayName">{renderText(member.displayName)}</Descriptions.Item>
+            <Descriptions.Item label="departmentId">{renderText(member.departmentId)}</Descriptions.Item>
+            <Descriptions.Item label="lifecycleStatus">{renderStatusTag(member.lifecycleStatus, lifecycleStatusLabels)}</Descriptions.Item>
+            <Descriptions.Item label="mappingStatus">{renderText(member.mappingStatus)}</Descriptions.Item>
+            <Descriptions.Item label="sourceType">{renderText(member.sourceType)}</Descriptions.Item>
+            <Descriptions.Item label="sourceConnectionId">{renderText(member.sourceConnectionId)}</Descriptions.Item>
+            <Descriptions.Item label="readModelSource">{renderText(member.readModelSource)}</Descriptions.Item>
+            <Descriptions.Item label="freshness">{renderStatusTag(member.freshness, freshnessLabels)}</Descriptions.Item>
+            <Descriptions.Item label="reason">{renderText(member.reason)}</Descriptions.Item>
+            <Descriptions.Item label="lastSeenBatchId">{renderText(member.lineage?.lastSeenBatchId)}</Descriptions.Item>
+            <Descriptions.Item label="lineageDigest">{renderText(member.lineage?.digest)}</Descriptions.Item>
+          </Descriptions>
+        </Drawer>
+      );
+    }
     const node = this.state.selectedNode;
     return (
       <Drawer
@@ -506,10 +646,11 @@ class OrganizationTreeOperationsPage extends React.Component {
                   options={[
                     {label: "树视图", value: "tree"},
                     {label: "列表视图", value: "list"},
+                    {label: "成员视图", value: "members"},
                   ]}
                 />
               </Space>
-              {this.state.nodeViewMode === "tree" ? this.renderNodeTree() : (
+              {this.state.nodeViewMode === "members" ? this.renderMemberView() : this.state.nodeViewMode === "tree" ? this.renderNodeTree() : (
                 <Table
                   size="small"
                   rowKey={record => record.departmentId}

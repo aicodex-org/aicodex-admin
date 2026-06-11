@@ -173,6 +173,14 @@ func TestPlatformOrganizationSnapshotGettersReturnEmptyForBlankOrganization(t *t
 	if err != nil || len(memberships) != 0 {
 		t.Fatalf("GetPlatformMemberships blank = len:%d err:%v, want empty nil error", len(memberships), err)
 	}
+	users, err := GetPlatformUsers("")
+	if err != nil || len(users) != 0 {
+		t.Fatalf("GetPlatformUsers blank = len:%d err:%v, want empty nil error", len(users), err)
+	}
+	identities, err := GetExternalIdentities("")
+	if err != nil || len(identities) != 0 {
+		t.Fatalf("GetExternalIdentities blank = len:%d err:%v, want empty nil error", len(identities), err)
+	}
 	connections, err := GetSourceConnections("")
 	if err != nil || len(connections) != 0 {
 		t.Fatalf("GetSourceConnections blank = len:%d err:%v, want empty nil error", len(connections), err)
@@ -190,7 +198,10 @@ func TestPlatformOrganizationSnapshotGettersQueryByOrganization(t *testing.T) {
 	records := []any{
 		&PlatformDepartment{Owner: "admin", Name: GetPlatformDepartmentName("org-a", "org-a/dev"), OrganizationId: "org-a", DepartmentId: "org-a/dev", DisplayName: "Dev", LifecycleStatus: PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-a"},
 		&PlatformDepartment{Owner: "admin", Name: GetPlatformDepartmentName("org-b", "org-b/finance"), OrganizationId: "org-b", DepartmentId: "org-b/finance", DisplayName: "Finance", LifecycleStatus: PlatformLifecycleStatusActive, OrgVersion: "orgv-b"},
+		&PlatformUser{Owner: "admin", Name: "platform-user-org-a-alice", OrganizationId: "org-a", AdminSubject: "org-a/alice", UserOwner: "org-a", UserName: "alice", DisplayName: "Alice", LifecycleStatus: PlatformLifecycleStatusActive, MappingStatus: PlatformMappingStatusConfirmed, OrgVersion: "orgv-a", LastSeenBatchId: "batch-a"},
+		&PlatformUser{Owner: "admin", Name: "platform-user-org-b-bob", OrganizationId: "org-b", AdminSubject: "org-b/bob", UserOwner: "org-b", UserName: "bob", DisplayName: "Bob", LifecycleStatus: PlatformLifecycleStatusActive, MappingStatus: PlatformMappingStatusConfirmed, OrgVersion: "orgv-b"},
 		&PlatformMembership{Owner: "admin", Name: GetPlatformMembershipName("org-a", "org-a/alice", "org-a/dev"), OrganizationId: "org-a", AdminSubject: "org-a/alice", DepartmentId: "org-a/dev", LifecycleStatus: PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-a"},
+		&ExternalIdentity{Owner: "admin", Name: GetExternalIdentityName(sourceConnectionId, PlatformSubjectTypeUser, "external-alice"), OrganizationId: "org-a", SourceConnectionId: sourceConnectionId, ExternalSubjectType: PlatformSubjectTypeUser, ExternalSubjectId: "external-alice", PlatformSubjectType: PlatformSubjectTypeUser, PlatformSubject: "org-a/alice", MappingStatus: PlatformMappingStatusConfirmed, LastSeenBatchId: "batch-a"},
 		&SourceConnection{Owner: "admin", Name: sourceConnectionId, OrganizationId: "org-a", SourceConnectionId: sourceConnectionId, SourceType: SourceTypeWecom, Status: SourceConnectionStatusActive, Freshness: PlatformFreshnessFresh},
 		&OrgSyncBatch{Owner: "admin", Name: "batch-a", OrganizationId: "org-a", SourceConnectionId: sourceConnectionId, BatchId: "batch-a", Status: OrgSyncBatchStatusSucceeded, OrgVersion: "orgv-a", Freshness: PlatformFreshnessFresh, FinishedAt: time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)},
 	}
@@ -206,6 +217,14 @@ func TestPlatformOrganizationSnapshotGettersQueryByOrganization(t *testing.T) {
 	if err != nil || len(memberships) != 1 || memberships[0].AdminSubject != "org-a/alice" {
 		t.Fatalf("GetPlatformMemberships org-a = %+v err=%v, want alice membership", memberships, err)
 	}
+	users, err := GetPlatformUsers("org-a")
+	if err != nil || len(users) != 1 || users[0].AdminSubject != "org-a/alice" {
+		t.Fatalf("GetPlatformUsers org-a = %+v err=%v, want alice user", users, err)
+	}
+	identities, err := GetExternalIdentities("org-a")
+	if err != nil || len(identities) != 1 || identities[0].PlatformSubject != "org-a/alice" {
+		t.Fatalf("GetExternalIdentities org-a = %+v err=%v, want alice external identity", identities, err)
+	}
 	connections, err := GetSourceConnections("org-a")
 	if err != nil || len(connections) != 1 || connections[0].SourceConnectionId != sourceConnectionId {
 		t.Fatalf("GetSourceConnections org-a = %+v err=%v, want source connection", connections, err)
@@ -218,6 +237,10 @@ func TestPlatformOrganizationSnapshotGettersQueryByOrganization(t *testing.T) {
 	orgBConnections, err := GetSourceConnections("org-b")
 	if err != nil || len(orgBConnections) != 0 {
 		t.Fatalf("GetSourceConnections org-b = %+v err=%v, want no cross-organization source connection", orgBConnections, err)
+	}
+	orgBIdentities, err := GetExternalIdentities("org-b")
+	if err != nil || len(orgBIdentities) != 0 {
+		t.Fatalf("GetExternalIdentities org-b = %+v err=%v, want no cross-organization external identity", orgBIdentities, err)
 	}
 }
 
@@ -272,7 +295,7 @@ func setupPlatformOrganizationSnapshotTestOrmer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new sqlite engine error = %v", err)
 	}
-	if err := engine.Sync2(new(PlatformDepartment), new(PlatformMembership), new(SourceConnection), new(OrgSyncBatch)); err != nil {
+	if err := engine.Sync2(new(PlatformDepartment), new(PlatformUser), new(PlatformMembership), new(ExternalIdentity), new(SourceConnection), new(OrgSyncBatch)); err != nil {
 		t.Fatalf("sync platform organization snapshot tables error = %v", err)
 	}
 
