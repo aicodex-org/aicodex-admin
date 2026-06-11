@@ -86,6 +86,7 @@ TBD - created by archiving change add-insight-admin-provider-wrapper. Update Pur
 - **WHEN** organization-tree provider 成功返回
 - **THEN** 响应 MUST 保持现有 `InsightProviderEnvelope` 传输层
 - **AND** 成功响应的 `data` MUST 提供组织树 read model envelope，包含 `organization`、`nodes[]`、`orgVersion` 或 `scopeVersion`、`freshness`、`generatedAt`、lineage metadata 和 `readModelSource`
+- **AND** `orgVersion` 和 `scopeVersion` MUST 位于成功响应的 `data` 内，smoke 和 consumer MUST NOT 从顶层 envelope 读取这些字段
 - **AND** `readModelSource` MUST 能区分 `platform_department`、`mixed_platform_group` 或 `compat_group`
 - **AND** 响应 MUST NOT 暴露访问令牌、刷新令牌、密钥、手机号明文、邮箱明文或来源系统敏感配置
 
@@ -105,6 +106,13 @@ TBD - created by archiving change add-insight-admin-provider-wrapper. Update Pur
 - **THEN** 系统 MUST 返回空列表或空 `nodes[]`
 - **THEN** 系统 MUST 将该场景作为业务空结果处理，而不是 provider 失败
 - **AND** 该业务空结果 MUST 只用于 scope 已确定且无可见节点的场景，不能掩盖生命周期、映射、来源连接或 read model 不可信错误
+
+#### Scenario: 业务空树仍返回可诊断版本 envelope
+- **WHEN** 当前用户 scope 已可信确定且没有可管理组织树节点
+- **THEN** provider MAY 返回空 `nodes[]` 和空 `list[]`
+- **AND** 成功响应的 `data` MUST 仍包含非空 `scopeVersion` 或 `orgVersion`
+- **AND** 成功响应的 `data` MUST 仍包含 `freshness`、`generatedAt`、`lineage.digest` 和 `readModelSource`
+- **AND** 该空树结果 MUST NOT 被用作非空组织树能力 smoke 的通过依据
 
 #### Scenario: 不可信组织树数据 fail closed
 - **WHEN** 当前用户、部门、父子关系、成员关系、负责人关系、ExternalIdentity 或来源连接处于 disabled、deleted、conflicted、stale 或不可判定状态

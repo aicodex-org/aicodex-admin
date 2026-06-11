@@ -261,6 +261,40 @@ func TestInsightOrganizationTreeReadModelBuildsPlatformEnvelopeForAdmin(t *testi
 	}
 }
 
+func TestInsightOrganizationTreeEnvelopeKeepsVersionInsideData(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
+	got := buildInsightOrganizationTreeReadModel(insightOrganizationTreeReadModelInput{
+		CurrentUser:  &object.User{Owner: "org-a", Name: "member"},
+		Organization: "org-a",
+		GeneratedAt:  generatedAt,
+		Scope: &object.OrganizationManagementScope{
+			Organization: "org-a",
+			ScopeType:    object.OrganizationManagementScopeTypeSelf,
+		},
+	})
+	payload, err := json.Marshal(InsightProviderEnvelope{Status: "ok", TraceId: "trace-redacted", Data: got})
+	if err != nil {
+		t.Fatalf("marshal organization-tree envelope: %v", err)
+	}
+	var envelope map[string]any
+	if err := json.Unmarshal(payload, &envelope); err != nil {
+		t.Fatalf("unmarshal organization-tree envelope: %v", err)
+	}
+	if _, ok := envelope["orgVersion"]; ok {
+		t.Fatalf("top-level orgVersion found in envelope: %s", payload)
+	}
+	data, ok := envelope["data"].(map[string]any)
+	if !ok {
+		t.Fatalf("data envelope missing: %s", payload)
+	}
+	if data["orgVersion"] == nil || data["scopeVersion"] == nil {
+		t.Fatalf("data version fields missing: %s", payload)
+	}
+	if data["orgVersion"] == "" && data["scopeVersion"] == "" {
+		t.Fatalf("data version fields empty: %s", payload)
+	}
+}
+
 func TestInsightOrganizationTreeReadModelUsesLatestUsableSyncBatchForVersion(t *testing.T) {
 	generatedAt := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
 	currentUser := &object.User{Owner: "org-a", Name: "owner", IsAdmin: true}
@@ -323,6 +357,94 @@ func TestInsightOrganizationTreeReadModelFailClosedForUntrustedSourceConnection(
 
 	if len(got.Nodes) != 1 || got.Nodes[0].DepartmentId != "org-a/active" {
 		t.Fatalf("nodes = %+v, want only department from ACTIVE/FRESH source connection", got.Nodes)
+	}
+}
+
+func TestInsightOrganizationTreeReadModelRejectsUntrustedSuccessfulEmptyTree(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
+	currentUser := &object.User{Owner: "org-a", Name: "owner", IsAdmin: true}
+	disabledConnectionId := object.GetSourceConnectionId("org-a", object.SourceTypeWecom, "ww-disabled")
+	input := insightOrganizationTreeReadModelInput{
+		CurrentUser:  currentUser,
+		Organization: "org-a",
+		GeneratedAt:  generatedAt,
+		Scope: &object.OrganizationManagementScope{
+			Organization: "org-a",
+			ScopeType:    object.OrganizationManagementScopeTypeAdmin,
+			Departments:  []object.OrganizationManagementScopeDepartment{{DepartmentId: "org-a/disabled-source"}},
+		},
+		PlatformDepartments: []object.PlatformDepartment{
+			{OrganizationId: "org-a", DepartmentId: "org-a/disabled-source", DisplayName: "Disabled Source", LifecycleStatus: object.PlatformLifecycleStatusActive, SourceConnectionId: disabledConnectionId, OrgVersion: "orgv-tree-1"},
+		},
+		SourceConnections: []object.SourceConnection{
+			{OrganizationId: "org-a", SourceConnectionId: disabledConnectionId, SourceType: object.SourceTypeWecom, Status: object.SourceConnectionStatusDisabled, Freshness: object.PlatformFreshnessStale},
+		},
+	}
+	got := buildInsightOrganizationTreeReadModel(input)
+
+	providerErr := validateInsightOrganizationTreeReadModelTrusted(input, got)
+
+	if providerErr == nil || providerErr.Code != InsightProviderErrorUnavailable {
+		t.Fatalf("providerErr = %+v, want provider unavailable for untrusted empty tree", providerErr)
+	}
+}
+
+func TestInsightOrganizationTreeReadModelTrustAllowsBusinessEmptyTree(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
+	input := insightOrganizationTreeReadModelInput{
+		CurrentUser:  &object.User{Owner: "org-a", Name: "member"},
+		Organization: "org-a",
+		GeneratedAt:  generatedAt,
+		Scope: &object.OrganizationManagementScope{
+			Organization: "org-a",
+			ScopeType:    object.OrganizationManagementScopeTypeSelf,
+		},
+	}
+	got := buildInsightOrganizationTreeReadModel(input)
+
+	if providerErr := validateInsightOrganizationTreeReadModelTrusted(input, got); providerErr != nil {
+		t.Fatalf("providerErr = %+v, want business empty tree to stay status=ok", providerErr)
+	}
+}
+
+func TestInsightOrganizationTreeReadModelTrustAllowsNonEmptyTree(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
+	sourceConnectionId := object.GetSourceConnectionId("org-a", object.SourceTypeWecom, "ww123")
+	input := insightOrganizationTreeReadModelInput{
+		CurrentUser:  &object.User{Owner: "org-a", Name: "owner", IsAdmin: true},
+		Organization: "org-a",
+		GeneratedAt:  generatedAt,
+		Scope: &object.OrganizationManagementScope{
+			Organization: "org-a",
+			ScopeType:    object.OrganizationManagementScopeTypeAdmin,
+			Departments:  []object.OrganizationManagementScopeDepartment{{DepartmentId: "org-a/dev"}},
+		},
+		PlatformDepartments: []object.PlatformDepartment{
+			{OrganizationId: "org-a", DepartmentId: "org-a/dev", DisplayName: "Dev", LifecycleStatus: object.PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-tree-1"},
+		},
+		SourceConnections: []object.SourceConnection{
+			{OrganizationId: "org-a", SourceConnectionId: sourceConnectionId, SourceType: object.SourceTypeWecom, Status: object.SourceConnectionStatusActive, Freshness: object.PlatformFreshnessFresh},
+		},
+	}
+	got := buildInsightOrganizationTreeReadModel(input)
+
+	if providerErr := validateInsightOrganizationTreeReadModelTrusted(input, got); providerErr != nil {
+		t.Fatalf("providerErr = %+v, want non-empty trusted tree to stay status=ok", providerErr)
+	}
+}
+
+func TestInsightOrganizationTreeReadModelTrustAllowsCompatGroupTree(t *testing.T) {
+	input := insightOrganizationTreeReadModelInput{
+		CurrentUser:  &object.User{Owner: "org-a", Name: "lead"},
+		Organization: "org-a",
+		Groups: []*object.Group{
+			{Owner: "org-a", Name: "dev", DisplayName: "Dev", Manager: "org-a/lead"},
+		},
+	}
+	got := buildInsightOrganizationTreeReadModel(input)
+
+	if providerErr := validateInsightOrganizationTreeReadModelTrusted(input, got); providerErr != nil {
+		t.Fatalf("providerErr = %+v, want compat group tree to stay status=ok", providerErr)
 	}
 }
 
@@ -460,6 +582,12 @@ func TestInsightOrganizationTreeReadModelReturnsEmptyWithoutScope(t *testing.T) 
 
 	if got.Organization != "org-a" || len(got.Nodes) != 0 || got.ReadModelSource != "platform_department" {
 		t.Fatalf("empty scope tree = %+v, want org-a platform envelope with no visible nodes", got)
+	}
+	if got.OrgVersion == "" && got.ScopeVersion == "" {
+		t.Fatalf("empty scope tree version = org:%q scope:%q, want at least one version for status=ok", got.OrgVersion, got.ScopeVersion)
+	}
+	if got.Freshness == "" || got.GeneratedAt == "" || got.Lineage.Digest == "" || got.ReadModelSource == "" {
+		t.Fatalf("empty scope tree diagnostics = %+v, want freshness/generatedAt/lineage/readModelSource", got)
 	}
 }
 
