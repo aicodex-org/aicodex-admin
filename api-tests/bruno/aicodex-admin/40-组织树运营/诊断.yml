@@ -1,0 +1,50 @@
+info:
+  name: 诊断
+  type: http
+  seq: 1
+  tags:
+    - smoke
+    - organization-tree-operations
+    - readonly
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/organization-tree-operations/diagnostics?organization={{organizationTreeOperationsOrganization}}"
+
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        const organization = bru.getVar("organizationTreeOperationsOrganization") || bru.getEnvVar("organizationTreeOperationsOrganization") || bru.getVar("wecomOrganization") || bru.getEnvVar("wecomOrganization")
+        if (!organization) {
+          throw new Error("请设置 organizationTreeOperationsOrganization 或 wecomOrganization。60 smoke 必须使用已知具备非空组织树的测试账号或受控 fixture。")
+        }
+        bru.setVar("organizationTreeOperationsOrganization", String(organization))
+    - type: after-response
+      code: |-
+        const status = res.getStatus()
+        const body = res.getBody()
+        const json = typeof body === "string" ? JSON.parse(body) : body
+        const data = json?.data
+        if (status !== 200 || json?.status !== "ok" || !data?.summary) {
+          throw new Error(`admin 组织树运营诊断响应异常。status=${status} statusField=${json?.status}`)
+        }
+        if (!data.summary.orgVersion && !data.summary.scopeVersion) {
+          throw new Error("admin 组织树运营诊断缺少 orgVersion/scopeVersion")
+        }
+        if (!data.summary.freshness || !data.summary.generatedAt || !data.summary.readModelSource) {
+          throw new Error("admin 组织树运营诊断缺少 freshness/generatedAt/readModelSource")
+        }
+        if (!Array.isArray(data.nodes) || !Array.isArray(data.diagnostics) || !Array.isArray(data.sourceConnections)) {
+          throw new Error("admin 组织树运营诊断缺少稳定列表字段")
+        }
+        const requireNonEmpty = String(bru.getVar("organizationTreeOperationsRequireNonEmpty") || bru.getEnvVar("organizationTreeOperationsRequireNonEmpty") || "").toLowerCase()
+        if (requireNonEmpty === "true" && data.nodes.length === 0) {
+          throw new Error(`admin 组织树运营诊断节点为空。emptyTreeClass=${data.emptyTreeClass || ""}`)
+        }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

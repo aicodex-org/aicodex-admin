@@ -62,6 +62,8 @@ func InitAPI() {
 	web.Router("/api/admin-provider/insight/v1/current-user", &controllers.ApiController{}, "GET:GetInsightCurrentUser")
 	web.Router("/api/admin-provider/insight/v1/current-user/scope", &controllers.ApiController{}, "GET:GetInsightCurrentUserScope")
 	web.Router("/api/admin-provider/insight/v1/current-user/organization-tree", &controllers.ApiController{}, "GET:GetInsightCurrentUserOrganizationTree")
+	web.Router("/api/organization-tree-operations/diagnostics", &controllers.ApiController{}, "GET:GetOrganizationTreeOperationsDiagnostics")
+	web.Router("/api/organization-tree-operations/refresh", &controllers.ApiController{}, "POST:RefreshOrganizationTreeOperations")
 	web.Router("/api/unlink", &controllers.ApiController{}, "POST:Unlink")
 	web.Router("/api/get-saml-login", &controllers.ApiController{}, "GET:GetSamlLogin")
 	web.Router("/api/acs", &controllers.ApiController{}, "POST:HandleSamlLogin")

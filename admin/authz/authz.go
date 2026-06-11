@@ -61,6 +61,8 @@ p, *, *, GET, /api/user, *, *
 p, *, *, GET, /api/admin-provider/insight/v1/current-user, *, *
 p, *, *, GET, /api/admin-provider/insight/v1/current-user/scope, *, *
 p, *, *, GET, /api/admin-provider/insight/v1/current-user/organization-tree, *, *
+p, *, *, GET, /api/organization-tree-operations/diagnostics, *, *
+p, *, *, POST, /api/organization-tree-operations/refresh, *, *
 p, *, *, GET, /api/health, *, *
 p, *, *, *, /api/webhook, *, *
 p, *, *, GET, /api/get-qrcode, *, *

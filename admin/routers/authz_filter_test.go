@@ -50,6 +50,25 @@ func TestGetOrganizationManagementScopeObjectUsesOrganizationQuery(t *testing.T)
 	}
 }
 
+func TestGetOrganizationTreeOperationsObjectUsesOrganization(t *testing.T) {
+	owner, name, ok := getModuleOrganizationObject("/api/organization-tree-operations/diagnostics", http.MethodGet, "engineering", nil)
+	if !ok {
+		t.Fatalf("expected organization tree operations object to be parsed")
+	}
+	if owner != "engineering" || name != "" {
+		t.Fatalf("diagnostics object = %q/%q, want engineering/<empty>", owner, name)
+	}
+
+	body := []byte(`{"organization":"engineering","triggerType":"refresh_status"}`)
+	owner, name, ok = getModuleOrganizationObject("/api/organization-tree-operations/refresh", http.MethodPost, "", body)
+	if !ok {
+		t.Fatalf("expected organization tree refresh object to be parsed")
+	}
+	if owner != "engineering" || name != "" {
+		t.Fatalf("refresh object = %q/%q, want engineering/<empty>", owner, name)
+	}
+}
+
 func TestResolveModuleOrganizationQueryFallsBackToCurrentUserOwnerForScopeAudit(t *testing.T) {
 	organization := resolveModuleOrganizationQuery("/api/org-management-scope/current", "", "engineering/alice")
 	if organization != "engineering" {

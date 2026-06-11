@@ -189,6 +189,18 @@ func getModuleOrganizationObject(path string, method string, queryOrganization s
 		return strings.TrimSpace(queryOrganization), "", true
 	}
 
+	if strings.HasPrefix(path, "/api/organization-tree-operations/") {
+		if method == http.MethodGet {
+			return strings.TrimSpace(queryOrganization), "", true
+		}
+
+		var obj ObjectWithOrg
+		if err := json.Unmarshal(body, &obj); err != nil {
+			return "", "", true
+		}
+		return strings.TrimSpace(obj.Organization), "", true
+	}
+
 	if !strings.HasPrefix(path, "/api/wecom-org-sync/") {
 		return "", "", false
 	}

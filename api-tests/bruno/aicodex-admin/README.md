@@ -8,6 +8,7 @@
 - `10-认证/`：本地账号登录和当前账号校验。
 - `20-基础只读/`：组织、应用等后台基础只读接口。
 - `30-WeCom 同步/`：企业微信组织同步配置和 run 查询；手动同步请求默认关闭。
+- `40-组织树运营/`：组织树运营诊断和只读刷新状态 smoke；不触发 read model 重建。
 - `environments/`：本地和远端占位环境，真实账号、密码和 cookie 不得提交。
 
 ## 本机私有环境
@@ -44,6 +45,9 @@ bru run "00-健康检查" -r --env local
 bru run "10-认证/登录.yml" "10-认证/当前账号.yml" --env local-private
 bru run "10-认证/登录.yml" "20-基础只读/组织列表.yml" "20-基础只读/应用列表.yml" --env local-private
 bru run "10-认证/登录.yml" "30-WeCom 同步/同步配置.yml" "30-WeCom 同步/同步 runs.yml" --env local-private
+bru run "10-认证/登录.yml" "40-组织树运营/诊断.yml" "40-组织树运营/刷新状态.yml" --env local-private
 ```
 
 WeCom 同步读接口需要 `wecomOrganization`。`30-WeCom 同步/手动触发同步.yml` 会创建后台同步 run，必须显式设置 `wecomSyncWriteEnabled=true` 才能执行。
+
+组织树运营 smoke 优先使用 `organizationTreeOperationsOrganization`，未设置时复用 `wecomOrganization`。如果要把“非空组织树能力”作为通过条件，还需要设置 `organizationTreeOperationsRequireNonEmpty=true`，并使用已知具备可管理组织树的测试账号或受控 fixture。
