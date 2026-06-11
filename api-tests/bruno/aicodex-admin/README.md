@@ -9,6 +9,7 @@
 - `20-基础只读/`：组织、应用等后台基础只读接口。
 - `30-WeCom 同步/`：企业微信组织同步配置和 run 查询；手动同步请求默认关闭。
 - `40-组织树运营/`：组织树运营诊断和只读刷新状态 smoke；不触发 read model 重建。
+- `50-Gateway Projection 观测/`：admin-to-gateway projection producer 只读运行态观测；不触发 publish，不写 gateway 授权事实。
 - `environments/`：本地和远端占位环境，真实账号、密码和 cookie 不得提交。
 
 ## 本机私有环境
@@ -46,6 +47,7 @@ bru run "10-认证/登录.yml" "10-认证/当前账号.yml" --env local-private
 bru run "10-认证/登录.yml" "20-基础只读/组织列表.yml" "20-基础只读/应用列表.yml" --env local-private
 bru run "10-认证/登录.yml" "30-WeCom 同步/同步配置.yml" "30-WeCom 同步/同步 runs.yml" --env local-private
 bru run "10-认证/登录.yml" "40-组织树运营/诊断.yml" "40-组织树运营/刷新状态.yml" --env local-private
+bru run "10-认证/登录.yml" "50-Gateway Projection 观测/运行态观测.yml" --env local-private
 ```
 
 WeCom 同步读接口需要 `wecomOrganization`。`30-WeCom 同步/手动触发同步.yml` 会创建后台同步 run，必须显式设置 `wecomSyncWriteEnabled=true` 才能执行。
@@ -59,3 +61,11 @@ organizationTreeOperationsRebuildEnabled=true
 ```
 
 验证记录只能写入脱敏结果摘要，例如 health 通过、诊断字段存在、节点非空、`refresh_status` 返回 `traceId`、`refresh_read_model` 返回 `accepted/running/unavailable/error` 等；不得记录真实地址、token、Cookie、账号、手机号、邮箱、完整组织结构或完整响应体。
+
+Gateway projection 观测 smoke 只读取 `/api/gateway-projection/observability`，用于确认 publisher/refresh worker 的启用状态、TTL/interval 关系和 latest publish audit 摘要。默认不要求 latest audit 存在；如果要把“发布链路最近确实执行过”作为通过条件，在私有环境设置：
+
+```text
+gatewayProjectionRequireLatestAudit=true
+```
+
+该接口和 smoke 只服务 admin producer 排障，不是 gateway authorization facts，也不允许 Insight 或 API 以此本地补算 projection。
