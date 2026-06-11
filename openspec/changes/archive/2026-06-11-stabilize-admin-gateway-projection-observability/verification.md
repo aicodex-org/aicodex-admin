@@ -50,9 +50,19 @@
 
 ### 60 smoke
 
-- 未执行真实 60 smoke。
-- 已新增 Bruno 只读 smoke：`api-tests/bruno/aicodex-admin/50-Gateway Projection 观测/运行态观测.yml`。
-- 运行时应使用私有环境变量配置登录态和测试环境地址；验证记录只能写脱敏摘要。默认不要求 latest audit 存在，如需证明最近发布链路执行过，设置 `gatewayProjectionRequireLatestAudit=true`。
+- 2026-06-11 post-merge 60 只读 smoke 已执行。
+- admin 部署提交：`b05903aa`。
+- Bruno 命令：`bru run "00-健康检查" "10-认证/登录.yml" "10-认证/当前账号.yml" "50-Gateway Projection 观测/运行态观测.yml" --env remote-test`
+  - 结果：通过，4 个请求均返回 `200 OK`。
+  - 说明：`remote-test` 为本机私有环境，验证记录不写真实地址、账号、密码、Cookie 或完整响应。
+- observability 脱敏摘要：
+  - `publisher.enabled=true`，`publisher.configured=true`，`freshnessTtlSeconds=1800`，`maxRetries=1`。
+  - `refresh.enabled=true`，`intervalSeconds=900`，`intervalLessThanTtl=true`，`lastRunAt/nextRunAt/lastSuccessAt` 均可判定，`lastFailureCategory` 为空。
+  - 最近 refresh 统计：`lastOrganizations=1`，`lastPublished=1`，`lastFailed=0`，`lastSkipped=0`。
+  - `latestPublish` 存在，`projectionBatchId/orgVersion/sourceVersion/generatedAt/freshnessExpiresAt` 均可判定。
+  - 最近 publish 摘要：`subjectCount=0`，`activeSubjectCount=0`，`tombstoneSubjectCount=0`，`skippedSubjectCount=1049`，skip reason 为 `mapping_missing`，`status=ok`，`statusCode=200`，`accepted=true`，`idempotent=false`，`failureCategory=no_publishable_subjects`。
+  - 响应敏感字段扫描未发现 `Authorization`、`Bearer`、`Cookie` 或 `token` 标记。
+- 结论：60 已证明 admin producer observability 接口可只读访问，publisher/refresh worker 状态、latest audit、freshness、lineage 和 skip reason 可诊断；但当前测试数据没有可发布 subject，不能把本次结果解读为“有 active/tombstone subject 的完整 projection 业务成功”。
 
 ### Diff 检查
 
