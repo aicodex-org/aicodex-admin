@@ -1,0 +1,55 @@
+info:
+  name: 重建 read model
+  type: http
+  seq: 3
+  tags:
+    - smoke
+    - organization-tree-operations
+    - gated-write
+
+http:
+  method: POST
+  url: "{{baseUrl}}/api/organization-tree-operations/refresh"
+  headers:
+    - name: Content-Type
+      value: application/json
+      enabled: true
+  body:
+    type: json
+    data: |-
+      {
+        "organization": "{{organizationTreeOperationsOrganization}}",
+        "triggerType": "refresh_read_model"
+      }
+
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        const enabled = String(bru.getVar("organizationTreeOperationsRebuildEnabled") || bru.getEnvVar("organizationTreeOperationsRebuildEnabled") || "").toLowerCase()
+        if (enabled !== "true") {
+          throw new Error("refresh_read_model smoke 默认关闭。仅在受控 60 验证窗口设置 organizationTreeOperationsRebuildEnabled=true 后执行。")
+        }
+        const organization = bru.getVar("organizationTreeOperationsOrganization") || bru.getEnvVar("organizationTreeOperationsOrganization") || bru.getVar("wecomOrganization") || bru.getEnvVar("wecomOrganization")
+        if (!organization) {
+          throw new Error("请设置 organizationTreeOperationsOrganization 或 wecomOrganization。该请求会触发受控 read model 刷新路径。")
+        }
+        bru.setVar("organizationTreeOperationsOrganization", String(organization))
+    - type: after-response
+      code: |-
+        const status = res.getStatus()
+        const body = res.getBody()
+        const json = typeof body === "string" ? JSON.parse(body) : body
+        const data = json?.data
+        if (status !== 200 || json?.status !== "ok" || data?.triggerType !== "refresh_read_model") {
+          throw new Error(`admin 组织树运营 read model 重建响应异常。status=${status} statusField=${json?.status}`)
+        }
+        if (!data.traceId || !["accepted", "running", "unavailable", "error"].includes(data.status)) {
+          throw new Error(`admin 组织树运营 read model 重建未返回稳定状态。operationStatus=${data?.status || ""}`)
+        }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

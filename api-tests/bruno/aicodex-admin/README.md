@@ -51,3 +51,11 @@ bru run "10-认证/登录.yml" "40-组织树运营/诊断.yml" "40-组织树运�
 WeCom 同步读接口需要 `wecomOrganization`。`30-WeCom 同步/手动触发同步.yml` 会创建后台同步 run，必须显式设置 `wecomSyncWriteEnabled=true` 才能执行。
 
 组织树运营 smoke 优先使用 `organizationTreeOperationsOrganization`，未设置时复用 `wecomOrganization`。如果要把“非空组织树能力”作为通过条件，还需要设置 `organizationTreeOperationsRequireNonEmpty=true`，并使用已知具备可管理组织树的测试账号或受控 fixture。
+
+`40-组织树运营/重建read-model.yml` 会触发受控 read model 刷新路径，默认被脚本阻断。只有在明确的测试窗口、已确认测试账号/fixture、并接受可能创建来源同步 run 时，才在私有环境设置：
+
+```text
+organizationTreeOperationsRebuildEnabled=true
+```
+
+验证记录只能写入脱敏结果摘要，例如 health 通过、诊断字段存在、节点非空、`refresh_status` 返回 `traceId`、`refresh_read_model` 返回 `accepted/running/unavailable/error` 等；不得记录真实地址、token、Cookie、账号、手机号、邮箱、完整组织结构或完整响应体。
