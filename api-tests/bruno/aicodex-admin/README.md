@@ -68,4 +68,31 @@ Gateway projection 观测 smoke 只读取 `/api/gateway-projection/observability
 gatewayProjectionRequireLatestAudit=true
 ```
 
+如果要把“60 已具备可发布 subject fixture”作为通过条件，必须先由 operator 在私有测试窗口准备脱敏测试主体，并显式设置：
+
+```text
+gatewayProjectionRequireLatestAudit=true
+gatewayProjectionMinSubjectCount=1
+```
+
+active subject fixture 的 admin 前置条件：
+
+- `PlatformUser.OrganizationId` 指向目标测试组织。
+- `PlatformUser.AdminSubject` 稳定且非空；不得用展示名、手机号或邮箱作为 join key。
+- `PlatformUser.LifecycleStatus=ACTIVE`。
+- `PlatformUser.MappingStatus=CONFIRMED`。
+- 存在同 `organizationId + adminSubject` 的 `PlatformApiUserMapping`。
+- `PlatformApiUserMapping.MappingStatus=CONFIRMED`，且 `ApiUserId` 非空。
+- 组织快照有可用 `OrgSyncBatch.OrgVersion/FinishedAt` 或等价 source version，保证 lineage 可判定。
+
+如需验证 tombstone subject，再准备一个非 active lifecycle 测试主体，并设置：
+
+```text
+gatewayProjectionMinTombstoneSubjectCount=1
+```
+
+tombstone subject 必须仍有确定 `ApiUserId`。`PlatformUser.MappingStatus=DISABLED` 只能用于 `DISABLED/DELETED/CONFLICTED/UNKNOWN/STALE` 等非 active lifecycle 的撤销或收敛，不允许发布 active subject。
+
+旧 `ExternalIdentity.Lineage.apiSubjectId`、`User.Properties.apiUserId` 或 `User.Properties.aicodexApiUserId` 只能作为迁移候选来源，不能作为 runtime projection 的直接发布依据。真实 60 fixture 写入、数据库明细查询或清理动作需要用户明确授权；验证记录只能写入脱敏摘要，不得记录真实账号、手机号、邮箱、完整组织结构、token、Cookie 或完整 gateway 响应。
+
 该接口和 smoke 只服务 admin producer 排障，不是 gateway authorization facts，也不允许 Insight 或 API 以此本地补算 projection。

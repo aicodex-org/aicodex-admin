@@ -44,6 +44,26 @@ runtime:
         if (requireLatest === "true" && !data.latestPublish?.projectionBatchId) {
           throw new Error("projection observability 缺少 latest publish audit；请先触发受控 projection publish 或 refresh")
         }
+        const minSubjectCountRaw = bru.getVar("gatewayProjectionMinSubjectCount") || bru.getEnvVar("gatewayProjectionMinSubjectCount")
+        const minSubjectCount = Number(minSubjectCountRaw || 0)
+        if (minSubjectCount > 0) {
+          if (!data.latestPublish?.projectionBatchId) {
+            throw new Error("启用 subject count 断言时必须存在 latest publish audit")
+          }
+          if (typeof data.latestPublish.subjectCount !== "number" || data.latestPublish.subjectCount < minSubjectCount) {
+            throw new Error(`projection publishable subject fixture 未就绪。subjectCount=${data.latestPublish?.subjectCount} min=${minSubjectCount}`)
+          }
+        }
+        const minTombstoneCountRaw = bru.getVar("gatewayProjectionMinTombstoneSubjectCount") || bru.getEnvVar("gatewayProjectionMinTombstoneSubjectCount")
+        const minTombstoneCount = Number(minTombstoneCountRaw || 0)
+        if (minTombstoneCount > 0) {
+          if (!data.latestPublish?.projectionBatchId) {
+            throw new Error("启用 tombstone count 断言时必须存在 latest publish audit")
+          }
+          if (typeof data.latestPublish.tombstoneSubjectCount !== "number" || data.latestPublish.tombstoneSubjectCount < minTombstoneCount) {
+            throw new Error(`projection tombstone fixture 未就绪。tombstoneSubjectCount=${data.latestPublish?.tombstoneSubjectCount} min=${minTombstoneCount}`)
+          }
+        }
 
 settings:
   encodeUrl: true
