@@ -39,6 +39,24 @@ func (c *ApiController) GetOrganizations() {
 	sortOrder := c.Ctx.Input.Query("sortOrder")
 	organizationName := c.Ctx.Input.Query("organizationName")
 
+	if auth := c.getOrganizationSyncApiKeyAuth(); auth != nil {
+		if owner != "" && owner != "admin" {
+			c.ResponseError("organization sync api key is not allowed to read this organization")
+			return
+		}
+		organization, err := object.GetMaskedOrganization(object.GetOrganization(util.GetId("admin", auth.Organization)))
+		if err != nil {
+			c.ResponseError(err.Error())
+			return
+		}
+		if organization == nil {
+			c.ResponseError("organization does not exist: " + auth.Organization)
+			return
+		}
+		c.ResponseOk([]*object.Organization{organization})
+		return
+	}
+
 	isGlobalAdmin := c.IsGlobalAdmin()
 	if limit == "" || page == "" {
 		var organizations []*object.Organization

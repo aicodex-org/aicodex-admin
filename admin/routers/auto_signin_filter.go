@@ -53,6 +53,16 @@ func AutoSigninFilter(ctx *context.Context) {
 	}
 
 	if accessToken != "" {
+		if object.IsOrganizationSyncApiKeySecret(accessToken) {
+			auth, err := object.AuthenticateOrganizationSyncApiKey(accessToken, util.GetClientIpFromRequest(ctx.Request), ctx.Request.UserAgent())
+			if err != nil {
+				responseError(ctx, err.Error())
+				return
+			}
+			ctx.Input.SetData(object.OrganizationSyncApiKeyContextKey, auth)
+			return
+		}
+
 		token, err := object.GetTokenByAccessToken(accessToken)
 		if err != nil {
 			responseError(ctx, err.Error())

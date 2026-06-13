@@ -49,6 +49,7 @@ import CertListPage from "./CertListPage";
 import CertEditPage from "./CertEditPage";
 import KeyListPage from "./KeyListPage";
 import KeyEditPage from "./KeyEditPage";
+import OrganizationSyncApiKeyListPage from "./OrganizationSyncApiKeyListPage";
 import RoleListPage from "./RoleListPage";
 import RoleEditPage from "./RoleEditPage";
 import PermissionListPage from "./PermissionListPage";
@@ -428,6 +429,7 @@ function ManagementPage(props) {
           {key: "/forms", label: i18next.t("general:Forms"), to: "/forms", matchPrefixes: ["/forms"]},
           {key: "/syncers", label: i18next.t("general:Syncers"), to: "/syncers", matchPrefixes: ["/syncers"]},
           {key: "/wecom-org-sync", label: "企业微信同步", to: "/wecom-org-sync", matchPrefixes: ["/wecom-org-sync"]},
+          {key: "/organization-sync-api-keys", label: "组织同步密钥", to: "/organization-sync-api-keys", matchPrefixes: ["/organization-sync-api-keys"]},
           {key: "/webhooks", label: i18next.t("general:Webhooks"), to: "/webhooks", matchPrefixes: ["/webhooks"]},
           {key: "/webhook-events", label: i18next.t("general:Webhook Events"), to: "/webhook-events", matchPrefixes: ["/webhook-events"]},
           {key: "/tickets", label: i18next.t("general:Tickets"), to: "/tickets", matchPrefixes: ["/tickets"]},
@@ -572,6 +574,7 @@ function ManagementPage(props) {
         <Route exact path="/syncers" render={(props) => renderLoginIfNotLoggedIn(<SyncerListPage account={account} {...props} />)} />
         <Route exact path="/syncers/:syncerName" render={(props) => renderLoginIfNotLoggedIn(<SyncerEditPage account={account} {...props} />)} />
         <Route exact path="/wecom-org-sync" render={(props) => renderLoginIfNotLoggedIn(<WecomOrganizationSyncPage account={account} {...props} />)} />
+        <Route exact path="/organization-sync-api-keys" render={(props) => renderLoginIfNotLoggedIn(<OrganizationSyncApiKeyListPage account={account} {...props} />)} />
         <Route exact path="/transactions" render={(props) => renderLoginIfNotLoggedIn(<TransactionListPage account={account} {...props} />)} />
         <Route exact path="/transactions/:organizationName/:transactionName" render={(props) => renderLoginIfNotLoggedIn(<TransactionEditPage account={account} {...props} />)} />
         <Route exact path="/webhooks" render={(props) => renderLoginIfNotLoggedIn(<WebhookListPage account={account} {...props} />)} />

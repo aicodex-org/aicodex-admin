@@ -2459,6 +2459,7 @@ export function getApiPaths() {
   // 模块化 API 路径需要显式加入，否则权限资源下拉只覆盖旧的 get/update 风格接口。
   res.push("wecom-org-sync/config", "wecom-org-sync/config/test", "wecom-org-sync/runs");
   res.push("org-management-scope/current");
+  res.push("organization-sync-api-keys", "organization-sync-api-keys/rotate", "organization-sync-api-keys/disable", "organization-sync-api-keys/delete", "organization-sync/export");
 
   // Monitoring and health APIs
   res.push("health", "metrics");

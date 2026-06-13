@@ -173,6 +173,24 @@ func (c *ApiController) GetOrganizationApplications() {
 		return
 	}
 
+	if c.isOrganizationSyncApiKeyRequest() {
+		if owner != "" && owner != "admin" {
+			c.ResponseError("organization sync api key is not allowed to read this organization")
+			return
+		}
+		organization, ok := c.requireOrganizationSyncApiKeyOrganization(organization)
+		if !ok {
+			return
+		}
+		applications, err := object.GetOrganizationApplications("admin", organization)
+		if err != nil {
+			c.ResponseError(err.Error())
+			return
+		}
+		c.ResponseOk(object.GetMaskedApplications(applications, ""))
+		return
+	}
+
 	if limit == "" || page == "" {
 		applications, err := object.GetOrganizationApplications(owner, organization)
 		if err != nil {

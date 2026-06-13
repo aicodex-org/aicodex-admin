@@ -184,6 +184,13 @@ func InitAPI() {
 	web.Router("/api/add-key", &controllers.ApiController{}, "POST:AddKey")
 	web.Router("/api/delete-key", &controllers.ApiController{}, "POST:DeleteKey")
 
+	web.Router("/api/organization-sync-api-keys", &controllers.ApiController{}, "GET:GetOrganizationSyncApiKeys")
+	web.Router("/api/organization-sync-api-keys", &controllers.ApiController{}, "POST:AddOrganizationSyncApiKey")
+	web.Router("/api/organization-sync-api-keys/rotate", &controllers.ApiController{}, "POST:RotateOrganizationSyncApiKey")
+	web.Router("/api/organization-sync-api-keys/disable", &controllers.ApiController{}, "POST:DisableOrganizationSyncApiKey")
+	web.Router("/api/organization-sync-api-keys/delete", &controllers.ApiController{}, "POST:DeleteOrganizationSyncApiKey")
+	web.Router("/api/organization-sync/export", &controllers.ApiController{}, "GET:ExportOrganizationSyncSnapshot")
+
 	web.Router("/api/get-roles", &controllers.ApiController{}, "GET:GetRoles")
 	web.Router("/api/get-role", &controllers.ApiController{}, "GET:GetRole")
 	web.Router("/api/update-role", &controllers.ApiController{}, "POST:UpdateRole")
