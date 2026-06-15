@@ -301,6 +301,91 @@ img {
   margin-top: 12px;
 }
 
+.application-access-center {
+  margin-bottom: 16px;
+}
+
+.application-access-center-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.application-access-center-header h3 {
+  margin-bottom: 0 !important;
+}
+
+.application-access-center-alert {
+  margin-bottom: 16px;
+}
+
+.application-access-center-metric,
+.application-access-center-card,
+.application-access-center-panel {
+  border: 1px solid rgb(235 237 242);
+  border-radius: 8px;
+}
+
+.application-access-center-card .ant-card-body {
+  min-height: 270px;
+}
+
+.application-access-center-card-body,
+.application-access-center-risk-list {
+  width: 100%;
+}
+
+.application-access-center-card-title {
+  min-height: 44px;
+}
+
+.application-access-center-card-title .ant-typography {
+  overflow-wrap: anywhere;
+}
+
+.application-access-center-card-actions {
+  min-height: 24px;
+}
+
+.application-access-center-section {
+  margin-top: 16px;
+}
+
+.application-access-center-risk-item {
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgb(235 237 242);
+}
+
+.application-access-center-risk-item:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.application-access-center-link-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.application-access-center-link-grid a {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid rgb(235 237 242);
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+}
+
+.application-access-center-loading {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+}
+
 @media screen and (max-width: 768px) {
   .identity-console-overview {
     padding: 12px;
@@ -320,6 +405,18 @@ img {
 
   .auth-source-center-card .ant-card-body {
     min-height: auto;
+  }
+
+  .application-access-center-header {
+    flex-direction: column;
+  }
+
+  .application-access-center-card .ant-card-body {
+    min-height: auto;
+  }
+
+  .application-access-center-link-grid {
+    grid-template-columns: 1fr;
   }
 }
 

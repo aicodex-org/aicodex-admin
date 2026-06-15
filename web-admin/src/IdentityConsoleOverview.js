@@ -81,8 +81,8 @@ function buildStatusCards(dashboardData) {
       value: applicationCount,
       suffix: resourceCount === null ? "资源待巡检" : `资源 ${resourceCount}`,
       status: applicationCount === null || applicationCount === 0 ? "待接入" : "运行中",
-      to: "/platform-api-mappings",
-      action: "进入 API 映射",
+      to: "/applications",
+      action: "进入应用接入",
     },
     {
       title: "Gateway 投影",
@@ -118,8 +118,8 @@ function buildRiskItems(hasError) {
       title: "应用变更审计",
       description: "核对应用、API 映射、Webhook 和令牌相关变更。",
       icon: <AuditOutlined />,
-      to: "/platform-api-mappings",
-      action: "进入 API 映射",
+      to: "/applications",
+      action: "进入应用接入",
       tone: "default",
     },
   ];

@@ -1,8 +1,5 @@
-# admin-enterprise-identity-console-shell Specification
+## MODIFIED Requirements
 
-## Purpose
-定义 Admin 企业认证中心 Shell 的首页、导航信息架构、只读状态入口和安全降级边界，使管理员能够从首屏理解组织、认证源、应用接入、Gateway 投影和审计运维的当前状态与下一步入口。
-## Requirements
 ### Requirement: 身份治理总览首页
 Admin 管理员访问根路径 `/` 时，系统 SHALL 展示企业认证中心的身份治理总览，而不是营销落地页或旧后台趋势图优先的首页。
 
@@ -38,29 +35,3 @@ Admin 左侧导航 SHALL 以企业认证中心语义组织既有页面入口，�
 #### Scenario: 移动端导航复用同一信息架构
 - **WHEN** 用户在窄屏或移动端打开 Admin 菜单抽屉
 - **THEN** 抽屉中的分组、叶子入口和权限过滤与桌面侧栏一致
-
-### Requirement: Shell 边界与安全降级
-企业认证中心 Shell SHALL 只做只读总览、导航重组和既有入口聚合，不得触发认证、同步、Gateway projection publish、重试或真实环境探测等写入/执行行为。
-
-#### Scenario: 总览展示同步与投影状态
-- **WHEN** 总览展示企业微信、飞书、OIDC、API 映射或 Gateway 投影相关状态
-- **THEN** 页面仅展示只读状态、巡检提示或跳转入口
-- **AND** 不调用会改变认证链路、组织同步或 projection publish 状态的接口
-
-#### Scenario: 无权限或无数据
-- **WHEN** 当前账号无权访问某些企业认证中心入口或相关数据为空
-- **THEN** 页面展示无权限/无数据状态
-- **AND** 不暴露隐藏入口、真实组织树、真实用户明细或敏感环境信息
-
-### Requirement: 企业 SaaS 管理台视觉
-企业认证中心 Shell SHALL 使用安静、专业、信息密度合理的管理台视觉，避免大 hero、装饰渐变、营销式介绍和卡片套卡片。
-
-#### Scenario: 桌面端首屏
-- **WHEN** 管理员在桌面端打开总览
-- **THEN** 首屏展示可扫描的状态区、风险区和入口区
-- **AND** 文案服务于操作决策
-
-#### Scenario: 窄屏展示
-- **WHEN** 管理员在窄屏或移动端打开总览
-- **THEN** 文本、按钮和状态卡片不发生重叠或不可读溢出
-- **AND** 关键入口仍可触达

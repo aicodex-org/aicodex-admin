@@ -24,6 +24,7 @@ import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
 import {SignupTableDefaultCssMap} from "./table/SignupTable";
+import ApplicationAccessCenter from "./ApplicationAccessCenter";
 
 class ApplicationListPage extends BaseListPage {
   constructor(props) {
@@ -325,6 +326,7 @@ class ApplicationListPage extends BaseListPage {
 
     return (
       <div>
+        <ApplicationAccessCenter applications={applications} loading={this.state.loading} />
         <Table scroll={{x: "max-content"}} columns={filteredColumns} dataSource={applications} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
           title={() => (
             <div>

@@ -94,7 +94,7 @@ export function buildEnterpriseNavigationGroups({account, themeData}) {
       label: "应用接入",
       icon: <ApiTwoTone twoToneColor={twoToneColor} />,
       children: [
-        {key: "/applications", label: i18next.t("general:Applications"), to: "/applications", matchPrefixes: ["/applications"]},
+        {key: "/applications", label: "应用接入中心", to: "/applications", matchPrefixes: ["/applications"]},
         {key: "/resources", label: i18next.t("general:Resources"), to: "/resources", matchPrefixes: ["/resources"]},
         {key: "/certs", label: i18next.t("general:Certs"), to: "/certs", matchPrefixes: ["/certs"]},
         {key: "/keys", label: i18next.t("general:Keys"), to: "/keys", matchPrefixes: ["/keys"]},

@@ -1,3 +1,4 @@
+/* eslint-env jest */
 import React from "react";
 import {MemoryRouter} from "react-router-dom";
 import {render, screen} from "@testing-library/react";
@@ -51,7 +52,8 @@ describe("IdentityConsoleOverview", () => {
     expect(screen.getByText("应用接入 / API 映射")).toBeInTheDocument();
     expect(screen.getAllByText("Gateway 投影").length).toBeGreaterThan(0);
     expect(screen.getByText("最近失败 / 待处理风险")).toBeInTheDocument();
-    expect(screen.getAllByText("进入 API 映射").some(item => item.closest("a")?.getAttribute("href") === "/platform-api-mappings")).toBe(true);
+    expect(screen.getAllByText("进入应用接入").some(item => item.closest("a")?.getAttribute("href") === "/applications")).toBe(true);
+    expect(screen.getByText("API 网关映射").closest("a")).toHaveAttribute("href", "/platform-api-mappings");
   });
 
   test("keeps entry links available when dashboard data fails", async() => {
