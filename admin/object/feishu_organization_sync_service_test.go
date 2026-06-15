@@ -928,6 +928,7 @@ func setupFeishuOrganizationSyncSqlite(t *testing.T) {
 		new(FeishuDepartmentMapping),
 		new(FeishuUserMapping),
 		new(FeishuUserDepartment),
+		new(FeishuOrganizationSyncRun),
 		new(SourceConnection),
 		new(PlatformDepartment),
 		new(PlatformUser),

@@ -45,6 +45,7 @@ func TestFeishuOrganizationSyncTargetAuthorizationRules(t *testing.T) {
 	}{
 		{name: "global admin can target explicit org", organization: "org-b", user: &object.User{Owner: "org-a", Name: "root", IsAdmin: true}, globalAdmin: true, wantOrg: "org-b", wantAdmin: true},
 		{name: "organization admin defaults to owner", user: &object.User{Owner: "org-a", Name: "admin", IsAdmin: true}, wantOrg: "org-a", wantAdmin: true},
+		{name: "organization admin cannot manage another org", organization: "org-b", user: &object.User{Owner: "org-a", Name: "admin", IsAdmin: true}, wantOrg: "org-b", wantAdmin: false},
 		{name: "member is not sync admin", organization: "org-a", user: &object.User{Owner: "org-a", Name: "member"}, wantOrg: "org-a", wantAdmin: false},
 		{name: "missing organization fails", user: &object.User{Owner: "", Name: "admin", IsAdmin: true}, wantErr: true},
 	}

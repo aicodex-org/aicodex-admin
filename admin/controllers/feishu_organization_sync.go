@@ -24,6 +24,10 @@ type feishuOrganizationSyncRunRequest struct {
 	Organization string `json:"organization"`
 }
 
+type feishuOrganizationSyncDryRunPreviewRequest struct {
+	Organization string `json:"organization"`
+}
+
 type feishuOrganizationSyncRunStartResponse struct {
 	RunId             string                            `json:"runId"`
 	Run               *object.FeishuOrganizationSyncRun `json:"run"`
@@ -134,6 +138,38 @@ func (c *ApiController) StartFeishuOrganizationSyncRun() {
 		return
 	}
 	c.ResponseOk(newFeishuOrganizationSyncRunStartResponse(result, config.AppSecret))
+}
+
+// DryRunFeishuOrganizationSyncPreview
+// @router /feishu-org-sync/dry-run-preview [post]
+func (c *ApiController) DryRunFeishuOrganizationSyncPreview() {
+	var request feishuOrganizationSyncDryRunPreviewRequest
+	if err := json.Unmarshal(c.Ctx.Input.RequestBody, &request); err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	organization, ok := c.resolveFeishuOrganizationSyncTarget(request.Organization)
+	if !ok {
+		return
+	}
+	if !c.requireFeishuOrganizationSyncAdmin(organization) {
+		return
+	}
+	config, err := object.GetFeishuOrganizationSyncConfigByOrganization(organization)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	if config == nil {
+		c.ResponseError("feishu organization sync config is not configured")
+		return
+	}
+	preview, err := (&object.FeishuOrganizationSyncDryRunPreviewService{}).Preview(c.Ctx.Request.Context(), config)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(preview)
 }
 
 // GetFeishuOrganizationSyncRuns

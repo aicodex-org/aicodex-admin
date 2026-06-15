@@ -36,6 +36,15 @@ export function testFeishuOrganizationSyncConfig(config) {
   }).then(res => res.json());
 }
 
+export function dryRunFeishuOrganizationSyncPreview(organization) {
+  return fetch(`${Setting.ServerUrl}/api/feishu-org-sync/dry-run-preview`, {
+    method: "POST",
+    credentials: "include",
+    body: JSON.stringify({organization}),
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
 export function startFeishuOrganizationSyncRun(organization) {
   return fetch(`${Setting.ServerUrl}/api/feishu-org-sync/runs`, {
     method: "POST",

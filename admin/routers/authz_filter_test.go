@@ -71,6 +71,17 @@ func TestGetFeishuOrganizationSyncObjectUsesOrganizationBody(t *testing.T) {
 	}
 }
 
+func TestGetFeishuOrganizationSyncDryRunPreviewObjectUsesOrganizationBody(t *testing.T) {
+	body := []byte(`{"organization":"engineering"}`)
+	owner, name, ok := getModuleOrganizationObject("/api/feishu-org-sync/dry-run-preview", http.MethodPost, "", body)
+	if !ok {
+		t.Fatalf("expected dry-run preview organization object to be parsed")
+	}
+	if owner != "engineering" || name != "" {
+		t.Fatalf("dry-run object = %q/%q, want engineering/<empty>", owner, name)
+	}
+}
+
 func TestGetOrganizationManagementScopeObjectUsesOrganizationQuery(t *testing.T) {
 	owner, name, ok := getModuleOrganizationObject("/api/org-management-scope/current", http.MethodGet, "engineering", nil)
 	if !ok {

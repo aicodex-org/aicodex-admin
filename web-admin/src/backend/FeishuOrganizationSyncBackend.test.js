@@ -30,6 +30,15 @@ test("calls Feishu organization sync run endpoints", async() => {
   expect(global.fetch).toHaveBeenNthCalledWith(3, "/api/feishu-org-sync/runs/run-1?organization=engineering", expect.objectContaining({method: "GET"}));
 });
 
+test("calls Feishu organization sync dry-run preview endpoint", async() => {
+  await FeishuOrganizationSyncBackend.dryRunFeishuOrganizationSyncPreview("engineering");
+
+  expect(global.fetch).toHaveBeenCalledWith("/api/feishu-org-sync/dry-run-preview", expect.objectContaining({
+    method: "POST",
+    body: JSON.stringify({organization: "engineering"}),
+  }));
+});
+
 test("passes Feishu organization sync diagnostics payload through run detail", async() => {
   global.fetch = jest.fn(() => Promise.resolve({
     json: () => Promise.resolve({

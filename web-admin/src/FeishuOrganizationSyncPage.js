@@ -70,8 +70,11 @@ class FeishuOrganizationSyncPage extends React.Component {
       runRefreshError: "",
       saving: false,
       testing: false,
+      previewing: false,
       syncing: false,
       testResult: null,
+      previewResult: null,
+      previewError: "",
     };
   }
 
@@ -162,6 +165,8 @@ class FeishuOrganizationSyncPage extends React.Component {
       if (configRes !== null) {
         nextState.config = this.normalizeConfig(organization, configRes?.data?.config);
         nextState.testResult = null;
+        nextState.previewResult = null;
+        nextState.previewError = "";
       }
       if (runsRes.status === "ok") {
         nextState.runs = runsRes.data || [];
@@ -219,6 +224,8 @@ class FeishuOrganizationSyncPage extends React.Component {
       runs: [],
       runCount: 0,
       pagination: getDefaultTablePagination(),
+      previewResult: null,
+      previewError: "",
     }, () => this.refresh(organization));
   }
 
@@ -232,6 +239,8 @@ class FeishuOrganizationSyncPage extends React.Component {
             saving: false,
             organization: resolvedOrganization,
             config: this.normalizeConfig(resolvedOrganization, res.data?.config),
+            previewResult: null,
+            previewError: "",
           });
           Setting.showMessage("success", i18next.t("general:Successfully saved"));
         } else {
@@ -261,6 +270,26 @@ class FeishuOrganizationSyncPage extends React.Component {
       });
   }
 
+  previewSyncImpact() {
+    this.setState({previewing: true, previewError: ""});
+    FeishuOrganizationSyncBackend.dryRunFeishuOrganizationSyncPreview(this.state.organization)
+      .then(res => {
+        this.setState({previewing: false});
+        if (res.status === "ok") {
+          this.setState({previewResult: res.data, previewError: ""});
+          if (res.data?.status === "failed") {
+            Setting.showMessage("warning", "Dry-run 预览未通过，请查看诊断信息。");
+          }
+        } else {
+          this.setState({previewError: res.msg || "Dry-run 预览失败"});
+          Setting.showMessage("error", `Dry-run 预览失败：${res.msg}`);
+        }
+      }).catch(error => {
+        this.setState({previewing: false, previewError: `${i18next.t("general:Failed to connect to server")}: ${error}`});
+        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      });
+  }
+
   startSync() {
     this.setState({syncing: true});
     FeishuOrganizationSyncBackend.startFeishuOrganizationSyncRun(this.state.organization)
@@ -279,6 +308,66 @@ class FeishuOrganizationSyncPage extends React.Component {
         this.setState({syncing: false});
         Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
       });
+  }
+
+  formatPreviewCounts(counts = {}) {
+    return `新增 ${counts.toCreate || 0} / 更新 ${counts.toUpdate || 0} / 软禁 ${counts.toSoftDisable || 0} / 冲突 ${counts.conflict || 0} / 无效 ${counts.invalid || 0}`;
+  }
+
+  renderPreviewReasonCounts(reasonCounts) {
+    const entries = Object.entries(reasonCounts || {}).filter(([, value]) => Number(value || 0) > 0);
+    if (entries.length === 0) {
+      return <Text type="secondary">无风险原因计数</Text>;
+    }
+    return (
+      <Space size={4} wrap>
+        {entries.map(([reason, count]) => <Tag key={reason}>{reason}: {count}</Tag>)}
+      </Space>
+    );
+  }
+
+  renderDryRunPreview() {
+    const preview = this.state.previewResult;
+    if (!preview && !this.state.previewError) {
+      return null;
+    }
+    if (this.state.previewError) {
+      return (
+        <Alert
+          style={{marginTop: 16}}
+          type="error"
+          showIcon
+          message="Dry-run 预览"
+          description={this.state.previewError}
+        />
+      );
+    }
+    const source = preview?.source || {};
+    const stats = preview?.snapshotStats || {};
+    const diff = preview?.diff || {};
+    const diagnostics = preview?.diagnostics || {};
+    const sourceAlias = [source.appAlias, source.tenantAlias].filter(Boolean).join(" / ") || "-";
+    const previewStatus = preview?.status === "failed" ? "warning" : "success";
+    return (
+      <Alert
+        style={{marginTop: 16}}
+        type={previewStatus}
+        showIcon
+        message="Dry-run 预览"
+        description={
+          <Space direction="vertical" size={6}>
+            <Text>{sourceAlias}</Text>
+            <Text type="secondary">{`预览时间 ${this.formatRunTime(source.previewedAt)}`}</Text>
+            <Text>{`部门 ${stats.departmentCount || 0} / 用户 ${stats.userCount || 0} / 关系 ${stats.membershipCount || 0}`}</Text>
+            <Space size={8}><Text type="secondary">部门</Text><Text>{this.formatPreviewCounts(diff.departments)}</Text></Space>
+            <Space size={8}><Text type="secondary">用户</Text><Text>{this.formatPreviewCounts(diff.users)}</Text></Space>
+            <Space size={8}><Text type="secondary">关系</Text><Text>{this.formatPreviewCounts(diff.memberships)}</Text></Space>
+            {this.renderPreviewReasonCounts(preview?.reasonCounts)}
+            {diagnostics.safeSummary && <Text type={preview?.status === "failed" ? "danger" : "secondary"}>{diagnostics.safeSummary}</Text>}
+          </Space>
+        }
+      />
+    );
   }
 
   formatRunTime(text) {
@@ -508,10 +597,12 @@ class FeishuOrganizationSyncPage extends React.Component {
           description="请使用与 endpoint 模式匹配的飞书/Lark 自建应用凭证，并确保应用已获得 Contact v3 部门和用户读取权限；扫码登录可用不代表通讯录同步权限足够。"
         />
         {this.renderTestResult()}
+        {this.renderDryRunPreview()}
 
         <Space style={{marginTop: 16}}>
           <Button icon={<SaveOutlined />} type="primary" loading={this.state.saving} onClick={() => this.saveConfig()}>{i18next.t("general:Save")}</Button>
           <Button icon={<ToolOutlined />} loading={this.state.testing} onClick={() => this.testConfig()}>测试连接</Button>
+          <Button icon={<CloudSyncOutlined />} loading={this.state.previewing} disabled={!config.isEnabled} onClick={() => this.previewSyncImpact()}>预览影响</Button>
           <Button icon={<PlayCircleOutlined />} loading={this.state.syncing} disabled={!config.isEnabled || hasRunningRuns} onClick={() => this.startSync()}>{hasRunningRuns ? "同步进行中" : "开始全量同步"}</Button>
         </Space>
 
