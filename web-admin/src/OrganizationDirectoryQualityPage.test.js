@@ -24,6 +24,7 @@ jest.mock("./backend/PlatformApiMappingBackend", () => ({
   getOrganizationDirectoryRemediationPlan: jest.fn(),
   getOrganizationDirectoryRemediationActionDrafts: jest.fn(),
   getOrganizationDirectoryRemediationPreflight: jest.fn(),
+  getOrganizationDirectoryRemediationApprovalPreview: jest.fn(),
 }));
 
 jest.mock("./common/select/OrganizationSelect", () => (props) => (
@@ -192,6 +193,49 @@ beforeEach(() => {
       },
     },
   });
+  PlatformApiMappingBackend.getOrganizationDirectoryRemediationApprovalPreview.mockResolvedValue({
+    status: "ok",
+    data: {
+      organizationId: "org-alpha",
+      totalApprovalPreviewCount: 1,
+      boundary: "organization directory remediation approval preview 是 Admin producer 只读诊断。",
+      approvalPreviews: [{
+        approvalPreviewId: "approval-preview:sample",
+        approvalPreviewHash: "sha256:approval-preview",
+        draftId: "sha256:draft",
+        actionAlias: "mapping_review",
+        entityType: "user",
+        executionMode: "manual_review_only",
+        autoExecutionAllowed: false,
+        readyForApproval: true,
+        affectedCount: 1,
+        riskLevel: "medium",
+        preconditions: ["确认目标 API user 映射来源可信"],
+        blockedReasons: [],
+        requiredApprovals: ["organization_directory_owner", "api_mapping_owner"],
+        operatorChecklist: ["确认审批预览仅用于 manual review，P0 不允许自动执行"],
+        safeSummary: "mapping_review/user approval preview covers 1 Admin-owned records; manual review only, no remediation execution.",
+        sampleStableHashes: ["sha256:sample"],
+        exportSummary: {
+          approvalPreviewHash: "sha256:approval-preview",
+          executionMode: "manual_review_only",
+          autoExecutionAllowed: false,
+          sampleStableHashes: ["sha256:sample"],
+        },
+      }],
+      exportSummary: {
+        approvalPreviews: [{
+          approvalPreviewHash: "sha256:approval-preview",
+          actionAlias: "mapping_review",
+          executionMode: "manual_review_only",
+          autoExecutionAllowed: false,
+          readyForApproval: true,
+          riskLevel: "medium",
+          sampleStableHashes: ["sha256:sample"],
+        }],
+      },
+    },
+  });
   global.Blob = jest.fn((parts, options) => ({parts, options}));
   global.URL.createObjectURL = jest.fn(() => "blob:remediation-plan");
   global.URL.revokeObjectURL = jest.fn();
@@ -286,6 +330,83 @@ test("runs sanitized read-only preflight from action draft drawer", async() => {
   expect(exportedBlob.parts.join("")).toContain("manual_review_only");
   expect(exportedBlob.parts.join("")).toContain("user:6f2c9d8e1a0b");
   expect(exportedBlob.parts.join("")).not.toContain("org-alpha/alice");
+});
+
+test("opens sanitized approval preview from preflight without repair actions", async() => {
+  render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  await screen.findAllByText("mapping_review");
+  fireEvent.click(screen.getByText("草案"));
+  expect(await screen.findByText("manual_review_only")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("预检"));
+  expect(await screen.findByText("readyForManualReview: true")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("审批预览"));
+
+  expect(await screen.findByText("readyForApproval: true")).toBeInTheDocument();
+  expect(screen.getByText("riskLevel: medium")).toBeInTheDocument();
+  expect(screen.getByText("organization_directory_owner")).toBeInTheDocument();
+  expect(screen.getByText("api_mapping_owner")).toBeInTheDocument();
+  expect(screen.getByText("确认审批预览仅用于 manual review，P0 不允许自动执行")).toBeInTheDocument();
+  expect(screen.getByText("sha256:sample")).toBeInTheDocument();
+  expect(screen.queryByText("执行修复")).not.toBeInTheDocument();
+  expect(PlatformApiMappingBackend.getOrganizationDirectoryRemediationApprovalPreview).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+    draftId: "sha256:draft",
+    actionAlias: "mapping_review",
+    entityType: "user",
+    topN: 20,
+  }));
+
+  fireEvent.click(screen.getByText("复制审批预览"));
+  await wait(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("approval-preview")));
+
+  fireEvent.click(screen.getByText("导出审批预览"));
+  const exportedBlob = global.URL.createObjectURL.mock.calls[0][0];
+  expect(exportedBlob.parts.join("")).toContain("manual_review_only");
+  expect(exportedBlob.parts.join("")).toContain("sha256:sample");
+  expect(exportedBlob.parts.join("")).not.toContain("org-alpha/alice");
+});
+
+test("shows blocked approval preview and fails closed on approval preview errors", async() => {
+  PlatformApiMappingBackend.getOrganizationDirectoryRemediationApprovalPreview.mockResolvedValueOnce({
+    status: "ok",
+    data: {
+      organizationId: "org-alpha",
+      totalApprovalPreviewCount: 1,
+      approvalPreviews: [{
+        approvalPreviewId: "approval-preview:blocked",
+        approvalPreviewHash: "sha256:blocked",
+        draftId: "sha256:draft",
+        actionAlias: "mapping_review",
+        executionMode: "manual_review_only",
+        autoExecutionAllowed: false,
+        readyForApproval: false,
+        affectedCount: 0,
+        riskLevel: "blocked",
+        blockedReasons: ["missing_preflight_samples"],
+        requiredApprovals: ["organization_directory_owner"],
+        operatorChecklist: ["确认 autoExecutionAllowed=false 且没有执行/修复入口"],
+        safeSummary: "blocked",
+        sampleStableHashes: [],
+      }],
+      exportSummary: {approvalPreviews: []},
+    },
+  }).mockResolvedValueOnce({status: "error", msg: "approval failed"});
+
+  render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  await screen.findAllByText("mapping_review");
+  fireEvent.click(screen.getByText("草案"));
+  expect(await screen.findByText("manual_review_only")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("预检"));
+  expect(await screen.findByText("readyForManualReview: true")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("审批预览"));
+  expect(await screen.findByText("readyForApproval: false")).toBeInTheDocument();
+  expect(screen.getByText("riskLevel: blocked")).toBeInTheDocument();
+  expect(screen.getByText("missing_preflight_samples")).toBeInTheDocument();
+  expect(screen.queryByText("执行修复")).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByText("审批预览"));
+  await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "approval failed"));
 });
 
 test("shows blocked preflight errors without repair actions", async() => {

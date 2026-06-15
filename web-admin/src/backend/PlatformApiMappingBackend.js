@@ -246,6 +246,47 @@ export function getOrganizationDirectoryRemediationPreflight(organization, optio
   }).then(res => res.json());
 }
 
+export function getOrganizationDirectoryRemediationApprovalPreview(organization, options = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.draftId) {
+    query.set("draftId", options.draftId);
+  }
+  if (options.actionAlias) {
+    query.set("actionAlias", options.actionAlias);
+  }
+  if (options.entityType) {
+    query.set("entityType", options.entityType);
+  }
+  if (options.keyword) {
+    query.set("keyword", options.keyword);
+  }
+  if (options.sourceType) {
+    query.set("sourceType", options.sourceType);
+  }
+  if (options.sourceConnectionIdHash) {
+    query.set("sourceConnectionIdHash", options.sourceConnectionIdHash);
+  }
+  if (options.qualityStatus) {
+    query.set("qualityStatus", options.qualityStatus);
+  }
+  if (options.reasonCode) {
+    query.set("reasonCode", options.reasonCode);
+  }
+  if (options.limit) {
+    query.set("limit", options.limit);
+  }
+  if (options.topN) {
+    query.set("topN", options.topN);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/organization-master-data-quality/remediation-approval-preview?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
 export function publishGatewayProjectionManually(organization, options = {}) {
   return fetch(`${Setting.ServerUrl}/api/gateway-projection/manual-publish`, {
     method: "POST",

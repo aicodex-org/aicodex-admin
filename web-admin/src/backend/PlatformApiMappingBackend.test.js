@@ -10,6 +10,7 @@ import {
   getGatewayProjectionRunReadiness,
   getOrganizationDirectoryQuality,
   getOrganizationDirectoryRemediationActionDrafts,
+  getOrganizationDirectoryRemediationApprovalPreview,
   getOrganizationDirectoryRemediationPlan,
   getOrganizationDirectoryRemediationPreflight,
   getOrganizationMasterDataQualityReadiness,
@@ -328,6 +329,30 @@ test("updates platform api mappings with json body and no sensitive fields", asy
         "Accept-Language": "en",
         "Content-Type": "application/json",
       }),
+    })
+  );
+});
+
+test("loads organization directory remediation approval preview with safe filters", async() => {
+  await getOrganizationDirectoryRemediationApprovalPreview("org-a", {
+    draftId: "sha256:draft",
+    actionAlias: "mapping_review",
+    entityType: "user",
+    keyword: "alice",
+    sourceType: "wecom",
+    sourceConnectionIdHash: "sha256:source",
+    qualityStatus: "blocked",
+    reasonCode: "mapping_missing",
+    limit: 30,
+    topN: 10,
+  });
+
+  expect(global.fetch).toHaveBeenCalledWith(
+    "https://admin.example.invalid/api/organization-master-data-quality/remediation-approval-preview?organization=org-a&draftId=sha256%3Adraft&actionAlias=mapping_review&entityType=user&keyword=alice&sourceType=wecom&sourceConnectionIdHash=sha256%3Asource&qualityStatus=blocked&reasonCode=mapping_missing&limit=30&topN=10",
+    expect.objectContaining({
+      method: "GET",
+      credentials: "include",
+      headers: expect.objectContaining({"Accept-Language": "en"}),
     })
   );
 });

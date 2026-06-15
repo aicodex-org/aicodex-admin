@@ -133,3 +133,32 @@ func TestNewOrganizationDirectoryRemediationPreflightQueryParsesOperatorFilters(
 		t.Fatalf("query = %+v, want parsed remediation preflight filters", query)
 	}
 }
+
+func TestNewOrganizationDirectoryRemediationApprovalPreviewQueryParsesOperatorFilters(t *testing.T) {
+	query := newOrganizationDirectoryRemediationApprovalPreviewQuery(map[string]string{
+		"organization":           "org-a",
+		"draftId":                "sha256:draft",
+		"actionAlias":            object.OrganizationDirectoryRemediationActionMappingReview,
+		"entityType":             object.OrganizationDirectoryQualityEntityUser,
+		"keyword":                "alice",
+		"sourceType":             "wecom",
+		"sourceConnectionIdHash": "sha256:source",
+		"qualityStatus":          object.OrganizationMasterDataQualityStatusBlocked,
+		"reasonCode":             object.OrganizationMasterDataQualityReasonMappingMissing,
+		"limit":                  "30",
+		"topN":                   "10",
+	})
+	if query.OrganizationId != "org-a" ||
+		query.DraftId != "sha256:draft" ||
+		query.ActionAlias != object.OrganizationDirectoryRemediationActionMappingReview ||
+		query.EntityType != object.OrganizationDirectoryQualityEntityUser ||
+		query.Keyword != "alice" ||
+		query.SourceType != "wecom" ||
+		query.SourceConnectionIdHash != "sha256:source" ||
+		query.QualityStatus != object.OrganizationMasterDataQualityStatusBlocked ||
+		query.ReasonCode != object.OrganizationMasterDataQualityReasonMappingMissing ||
+		query.Limit != 30 ||
+		query.TopN != 10 {
+		t.Fatalf("query = %+v, want parsed remediation approval preview filters", query)
+	}
+}

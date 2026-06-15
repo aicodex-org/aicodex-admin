@@ -75,12 +75,14 @@ export default function OrganizationDirectoryQualityPage(props) {
   const [planLoading, setPlanLoading] = useState(false);
   const [draftLoading, setDraftLoading] = useState(false);
   const [preflightLoading, setPreflightLoading] = useState(false);
+  const [approvalPreviewLoading, setApprovalPreviewLoading] = useState(false);
   const [data, setData] = useState(null);
   const [planData, setPlanData] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [draftData, setDraftData] = useState(null);
   const [preflightData, setPreflightData] = useState(null);
+  const [approvalPreviewData, setApprovalPreviewData] = useState(null);
 
   const currentPlanOptions = () => ({
     entityType,
@@ -136,6 +138,7 @@ export default function OrganizationDirectoryQualityPage(props) {
     setSelectedPlan(plan);
     setDraftData(null);
     setPreflightData(null);
+    setApprovalPreviewData(null);
     setDraftLoading(true);
     return PlatformApiMappingBackend.getOrganizationDirectoryRemediationActionDrafts(organization, {
       ...currentPlanOptions(),
@@ -155,6 +158,7 @@ export default function OrganizationDirectoryQualityPage(props) {
 
   const loadPreflight = (draft) => {
     setPreflightData(null);
+    setApprovalPreviewData(null);
     setPreflightLoading(true);
     return PlatformApiMappingBackend.getOrganizationDirectoryRemediationPreflight(organization, {
       ...currentPlanOptions(),
@@ -172,6 +176,27 @@ export default function OrganizationDirectoryQualityPage(props) {
       }
       setPreflightData(res.data);
     }).finally(() => setPreflightLoading(false));
+  };
+
+  const loadApprovalPreview = (preflight) => {
+    setApprovalPreviewData(null);
+    setApprovalPreviewLoading(true);
+    return PlatformApiMappingBackend.getOrganizationDirectoryRemediationApprovalPreview(organization, {
+      ...currentPlanOptions(),
+      draftId: preflight.draftId,
+      actionAlias: preflight.actionAlias || selectedPlan?.actionAlias,
+      entityType: preflight.entityType || entityType,
+      reasonCode: (selectedPlan?.reasonCodes || [])[0] || reasonCode,
+      limit: 100,
+      topN: 20,
+    }).then((res) => {
+      if (res.status !== "ok") {
+        Setting.showMessage("error", res.msg || "加载组织目录修复审批预览失败");
+        setApprovalPreviewData(null);
+        return;
+      }
+      setApprovalPreviewData(res.data);
+    }).finally(() => setApprovalPreviewLoading(false));
   };
 
   const loadAll = (nextPagination = pagination) => Promise.all([
@@ -373,6 +398,42 @@ export default function OrganizationDirectoryQualityPage(props) {
   };
 
   const selectedPreflight = preflightData?.preflights?.[0];
+  const approvalPreviewExportPayload = approvalPreviewData?.exportSummary || {
+    organizationId: approvalPreviewData?.organizationId,
+    boundary: approvalPreviewData?.boundary,
+    approvalPreviews: approvalPreviewData?.approvalPreviews || [],
+  };
+
+  const copyApprovalPreview = () => {
+    const content = JSON.stringify(approvalPreviewExportPayload, null, 2);
+    if (!navigator.clipboard?.writeText) {
+      Setting.showMessage("error", "当前浏览器不支持复制审批预览");
+      return;
+    }
+    navigator.clipboard.writeText(content).then(() => {
+      Setting.showMessage("success", "已复制脱敏审批预览");
+    }).catch(() => {
+      Setting.showMessage("error", "复制脱敏审批预览失败");
+    });
+  };
+
+  const exportApprovalPreview = () => {
+    if (!approvalPreviewData?.approvalPreviews || approvalPreviewData.approvalPreviews.length === 0) {
+      Setting.showMessage("warning", "暂无可导出的审批预览");
+      return;
+    }
+    const blob = new Blob([JSON.stringify(approvalPreviewExportPayload, null, 2)], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `organization-directory-remediation-approval-preview-${organization || "empty"}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const selectedApprovalPreview = approvalPreviewData?.approvalPreviews?.[0];
 
   return (
     <div style={{padding: 24}}>
@@ -482,6 +543,7 @@ export default function OrganizationDirectoryQualityPage(props) {
           setSelectedPlan(null);
           setDraftData(null);
           setPreflightData(null);
+          setApprovalPreviewData(null);
         }}
       >
         <Space direction="vertical" size={16} style={{width: "100%"}}>
@@ -578,7 +640,10 @@ export default function OrganizationDirectoryQualityPage(props) {
                     {selectedPreflight && <Tag color="blue">{selectedPreflight.executionMode}</Tag>}
                     <Text type="secondary">{preflightData?.boundary || "Admin producer preflight only."}</Text>
                   </Space>
-                  <Button icon={<DownloadOutlined />} onClick={exportPreflight} disabled={!preflightData?.preflights?.length}>导出预检</Button>
+                  <Space wrap>
+                    <Button onClick={() => loadApprovalPreview(selectedPreflight)} disabled={!selectedPreflight}>审批预览</Button>
+                    <Button icon={<DownloadOutlined />} onClick={exportPreflight} disabled={!preflightData?.preflights?.length}>导出预检</Button>
+                  </Space>
                 </Space>
                 {preflightLoading && <Text type="secondary">加载预检中</Text>}
                 {selectedPreflight && (
@@ -626,6 +691,44 @@ export default function OrganizationDirectoryQualityPage(props) {
                         },
                       ]}
                     />
+                    {(approvalPreviewLoading || approvalPreviewData) && (
+                      <div style={{border: "1px solid #f0f0f0", borderRadius: 6, padding: 12}}>
+                        <Space direction="vertical" size={12} style={{width: "100%"}}>
+                          <Space align="center" wrap style={{justifyContent: "space-between", width: "100%"}}>
+                            <Space align="center" wrap>
+                              <Title level={5} style={{margin: 0}}>审批包预览</Title>
+                              {selectedApprovalPreview && <Tag color={selectedApprovalPreview.readyForApproval ? "green" : "red"}>{selectedApprovalPreview.riskLevel}</Tag>}
+                              <Text type="secondary">{approvalPreviewData?.boundary || "Admin producer approval preview only."}</Text>
+                            </Space>
+                            <Space wrap>
+                              <Button onClick={copyApprovalPreview} disabled={!approvalPreviewData?.approvalPreviews?.length}>复制审批预览</Button>
+                              <Button icon={<DownloadOutlined />} onClick={exportApprovalPreview} disabled={!approvalPreviewData?.approvalPreviews?.length}>导出审批预览</Button>
+                            </Space>
+                          </Space>
+                          {approvalPreviewLoading && <Text type="secondary">加载审批预览中</Text>}
+                          {!approvalPreviewLoading && approvalPreviewData && !selectedApprovalPreview && <Empty description="暂无审批预览" />}
+                          {selectedApprovalPreview && (
+                            <Space direction="vertical" size={8} style={{width: "100%"}}>
+                              <Space wrap>
+                                <Text>readyForApproval: {String(selectedApprovalPreview.readyForApproval)}</Text>
+                                <Text>autoExecutionAllowed: {String(selectedApprovalPreview.autoExecutionAllowed)}</Text>
+                                <Text>riskLevel: {selectedApprovalPreview.riskLevel}</Text>
+                                <Text>affectedCount: {selectedApprovalPreview.affectedCount || 0}</Text>
+                              </Space>
+                              <Descriptions column={1} size="small" bordered>
+                                <Descriptions.Item label="审批预览 Hash">{selectedApprovalPreview.approvalPreviewHash || "-"}</Descriptions.Item>
+                                <Descriptions.Item label="前置条件">{renderTags(selectedApprovalPreview.preconditions, "blue")}</Descriptions.Item>
+                                <Descriptions.Item label="阻塞原因">{renderTags(selectedApprovalPreview.blockedReasons, "red")}</Descriptions.Item>
+                                <Descriptions.Item label="Required approvals">{renderTags(selectedApprovalPreview.requiredApprovals, "purple")}</Descriptions.Item>
+                                <Descriptions.Item label="Operator checklist">{renderTags(selectedApprovalPreview.operatorChecklist, "geekblue")}</Descriptions.Item>
+                                <Descriptions.Item label="安全摘要">{selectedApprovalPreview.safeSummary || "-"}</Descriptions.Item>
+                                <Descriptions.Item label="Sample stable hashes">{renderTags(selectedApprovalPreview.sampleStableHashes, "cyan")}</Descriptions.Item>
+                              </Descriptions>
+                            </Space>
+                          )}
+                        </Space>
+                      </div>
+                    )}
                   </Space>
                 )}
               </Space>

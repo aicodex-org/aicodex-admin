@@ -142,6 +142,7 @@ func InitAPI() {
 	web.Router("/api/organization-master-data-quality/remediation-plan", &controllers.ApiController{}, "GET:GetOrganizationDirectoryRemediationPlan")
 	web.Router("/api/organization-master-data-quality/remediation-action-drafts", &controllers.ApiController{}, "GET:GetOrganizationDirectoryRemediationActionDrafts")
 	web.Router("/api/organization-master-data-quality/remediation-preflight", &controllers.ApiController{}, "GET:GetOrganizationDirectoryRemediationPreflights")
+	web.Router("/api/organization-master-data-quality/remediation-approval-preview", &controllers.ApiController{}, "GET:GetOrganizationDirectoryRemediationApprovalPreviews")
 	web.Router("/api/update-platform-api-user-mapping", &controllers.ApiController{}, "POST:UpdatePlatformApiUserMapping")
 
 	web.Router("/api/get-providers", &controllers.ApiController{}, "GET:GetProviders")
