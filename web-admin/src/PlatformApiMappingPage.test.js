@@ -21,6 +21,7 @@ import PlatformApiMappingPage from "./PlatformApiMappingPage";
 
 jest.mock("./backend/PlatformApiMappingBackend", () => ({
   getPlatformApiOrganizationMappings: jest.fn(),
+  getOrganizationMasterDataQualityReadiness: jest.fn(),
   getPlatformApiUserMappingReadiness: jest.fn(),
   getGatewayProjectionRunReadiness: jest.fn(),
   updatePlatformApiOrganizationMapping: jest.fn(),
@@ -139,6 +140,35 @@ beforeEach(() => {
       lastFailureAlias: "gateway_unavailable",
     },
   });
+  PlatformApiMappingBackend.getOrganizationMasterDataQualityReadiness.mockResolvedValue({
+    status: "ok",
+    data: {
+      status: "warning",
+      reasonAliases: ["mapping_missing"],
+      counts: {
+        sourceConnectionCount: 1,
+        departmentCount: 2,
+        userCount: 1,
+        membershipCount: 1,
+        publishableSubjectCount: 1,
+        unmappedSubjectCount: 0,
+        untrustedMappingCount: 0,
+      },
+      sourceConnectionSummary: {
+        hasStaleFreshness: false,
+        hasUnavailableFreshness: false,
+      },
+      syncBatch: {
+        hasUsableLineage: true,
+      },
+      qualityChecks: [{
+        alias: "mapping_missing",
+        status: "warning",
+        count: 1,
+        summary: "存在未映射主体",
+      }],
+    },
+  });
   PlatformApiMappingBackend.updatePlatformApiOrganizationMapping.mockResolvedValue({status: "ok"});
   PlatformApiMappingBackend.updatePlatformApiUserMapping.mockResolvedValue({status: "ok"});
   PlatformApiMappingBackend.publishGatewayProjectionManually.mockResolvedValue({
@@ -205,7 +235,11 @@ test("separates organization and user mapping tabs and loads user mappings on de
     mappingStatus: "",
   })));
   await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionRunReadiness).toHaveBeenCalledWith("org-alpha", expect.any(Object)));
+  await wait(() => expect(PlatformApiMappingBackend.getOrganizationMasterDataQualityReadiness).toHaveBeenCalledWith("org-alpha"));
   expect(await screen.findByDisplayValue("org-alpha/user-one")).toBeInTheDocument();
+  expect(screen.getByText("组织主数据质量 readiness")).toBeInTheDocument();
+  expect(screen.getByText("质量状态：")).toBeInTheDocument();
+  expect(screen.getAllByText("mapping_missing").length).toBeGreaterThan(0);
   expect(screen.getByText("可发布主体 readiness")).toBeInTheDocument();
   expect(screen.getByText("Gateway projection run readiness")).toBeInTheDocument();
   expect(screen.getByText(/Retry action: 可安全重试/)).toBeInTheDocument();

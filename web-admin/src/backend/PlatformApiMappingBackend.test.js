@@ -2,6 +2,7 @@
 
 import {
   getGatewayProjectionRunReadiness,
+  getOrganizationMasterDataQualityReadiness,
   getPlatformApiOrganizationMappings,
   getPlatformApiUserMappingReadiness,
   getPlatformApiUserMappings,
@@ -38,6 +39,7 @@ test("loads platform api mappings with explicit organization query", async() => 
     traceId: "trace-synthetic",
     projectionBatchId: "batch-synthetic",
   });
+  await getOrganizationMasterDataQualityReadiness("org-a");
   await publishGatewayProjectionManually("org-a", {traceId: "trace-synthetic", reason: "operator-check"});
 
   expect(global.fetch).toHaveBeenNthCalledWith(
@@ -78,6 +80,15 @@ test("loads platform api mappings with explicit organization query", async() => 
   );
   expect(global.fetch).toHaveBeenNthCalledWith(
     5,
+    "https://admin.example.invalid/api/get-organization-master-data-quality-readiness?organization=org-a",
+    expect.objectContaining({
+      method: "GET",
+      credentials: "include",
+      headers: expect.objectContaining({"Accept-Language": "en"}),
+    })
+  );
+  expect(global.fetch).toHaveBeenNthCalledWith(
+    6,
     "https://admin.example.invalid/api/gateway-projection/manual-publish",
     expect.objectContaining({
       method: "POST",

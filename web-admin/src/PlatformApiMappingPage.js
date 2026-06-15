@@ -68,6 +68,7 @@ const titleTips = {
   organizationMapping: "维护平台组织到 aicodex-api 业务组织 UUID 的一等映射。只有“已确认”才会作为运行时权威来源。",
   userMapping: "维护同一组织内平台主体到 aicodex-api 用户 ID 的一等映射。只有“已确认”才会作为运行时权威来源。",
   readiness: "只读诊断当前组织是否存在可发布 active/tombstone subject；该结果只用于 Admin operator 排障，不是 gateway authorization facts。",
+  masterDataQuality: "只读诊断当前 Admin 组织主数据是否满足 projection 生产前置条件；只显示脱敏 counts 和 reason aliases，不触发 publish。",
   organizationId: "技术字段：organizationId。aicodex-admin 平台组织 ID，表示本次登录和映射归属的租户上下文。",
   apiOrganizationId: "技术字段：apiOrganizationId。aicodex-api 业务组织 UUID。只有“已确认”状态才会进入授权、投影和报表链路。",
   adminSubject: "技术字段：adminSubject。稳定 admin 主体，一般由组织和用户稳定键组成，用于跨组织唯一识别平台用户。",
@@ -131,6 +132,7 @@ class PlatformApiMappingPage extends React.Component {
       userLoading: false,
       readinessLoading: false,
       runReadinessLoading: false,
+      masterDataQualityLoading: false,
       manualPublishing: false,
       savingKey: "",
       userKeyword: "",
@@ -138,6 +140,7 @@ class PlatformApiMappingPage extends React.Component {
       readinessMappingStatus: "",
       readiness: null,
       runReadiness: null,
+      masterDataQuality: null,
       manualPublishResult: null,
       userPagination: getDefaultTablePagination(),
       userMappingsLoaded: false,
@@ -210,6 +213,7 @@ class PlatformApiMappingPage extends React.Component {
       readinessCategory: this.state.readinessCategory,
       mappingStatus: this.state.readinessMappingStatus,
     });
+    const masterDataQualityPromise = this.refreshOrganizationMasterDataQuality(organization);
     return PlatformApiMappingBackend.getPlatformApiUserMappings(organization, {
       current: pagination.current,
       pageSize: pagination.pageSize,
@@ -228,7 +232,7 @@ class PlatformApiMappingPage extends React.Component {
         },
         userMappingsLoaded: true,
       });
-      return readinessPromise;
+      return Promise.all([readinessPromise, masterDataQualityPromise]);
     }).catch(error => {
       this.setState({userLoading: false});
       Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
@@ -285,6 +289,25 @@ class PlatformApiMappingPage extends React.Component {
     });
   }
 
+  refreshOrganizationMasterDataQuality(organization = this.state.organization) {
+    if (!organization) {
+      return Promise.resolve();
+    }
+    this.setState({masterDataQualityLoading: true});
+    return PlatformApiMappingBackend.getOrganizationMasterDataQualityReadiness(organization).then((res) => {
+      if (res.status === "error") {
+        Setting.showMessage("error", res.msg);
+      }
+      this.setState({
+        masterDataQualityLoading: false,
+        masterDataQuality: res.status === "ok" ? res.data : null,
+      });
+    }).catch(error => {
+      this.setState({masterDataQualityLoading: false});
+      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+    });
+  }
+
   changeOrganization(organization) {
     this.setState({
       organization,
@@ -293,6 +316,7 @@ class PlatformApiMappingPage extends React.Component {
       userKeyword: "",
       readiness: null,
       runReadiness: null,
+      masterDataQuality: null,
       manualPublishResult: null,
       readinessCategory: "",
       readinessMappingStatus: "",
@@ -692,6 +716,86 @@ class PlatformApiMappingPage extends React.Component {
     );
   }
 
+  renderOrganizationMasterDataQuality() {
+    const quality = this.state.masterDataQuality;
+    const counts = quality?.counts || {};
+    const status = quality?.status || "unknown";
+    const statusColor = status === "ready" ? "green" : status === "blocked" ? "red" : "orange";
+    const alertType = status === "ready" ? "success" : status === "blocked" ? "error" : "warning";
+    const checks = quality?.qualityChecks || [];
+    const columns = [
+      {
+        title: "Alias",
+        dataIndex: "alias",
+        width: 260,
+      },
+      {
+        title: "状态",
+        dataIndex: "status",
+        width: 120,
+        render: value => <Tag color={value === "ready" ? "green" : value === "blocked" ? "red" : "orange"}>{value}</Tag>,
+      },
+      {
+        title: "数量",
+        dataIndex: "count",
+        width: 100,
+      },
+      {
+        title: "摘要",
+        dataIndex: "summary",
+      },
+    ];
+
+    return (
+      <Card
+        type="inner"
+        title={this.renderTitleWithTip("组织主数据质量 readiness", titleTips.masterDataQuality)}
+        style={{marginBottom: 12}}
+        extra={
+          <Button icon={<ReloadOutlined />} loading={this.state.masterDataQualityLoading} onClick={() => this.refreshOrganizationMasterDataQuality()}>
+            {i18next.t("general:Refresh")}
+          </Button>
+        }
+      >
+        <Alert
+          type={alertType}
+          showIcon
+          message={<span>质量状态：<Tag color={statusColor}>{status}</Tag></span>}
+          description="该摘要只服务 Admin producer 前置排障，不写 gateway 授权事实，也不证明 API/Gateway/Insight 授权成功。"
+          style={{marginBottom: 12}}
+        />
+        <Space wrap style={{marginBottom: 12}}>
+          <Tag>source: {counts.sourceConnectionCount || 0}</Tag>
+          <Tag>departments: {counts.departmentCount || 0}</Tag>
+          <Tag>subjects: {counts.userCount || 0}</Tag>
+          <Tag>memberships: {counts.membershipCount || 0}</Tag>
+          <Tag color={(counts.publishableSubjectCount || 0) > 0 ? "green" : "orange"}>publishable: {counts.publishableSubjectCount || 0}</Tag>
+          <Tag>unmapped: {counts.unmappedSubjectCount || 0}</Tag>
+          <Tag>untrusted: {counts.untrustedMappingCount || 0}</Tag>
+        </Space>
+        {(quality?.reasonAliases || []).length > 0 && (
+          <Space wrap style={{marginBottom: 12}}>
+            {(quality.reasonAliases || []).map(alias => <Tag key={alias} color={status === "blocked" ? "red" : "orange"}>{alias}</Tag>)}
+          </Space>
+        )}
+        <Space wrap style={{marginBottom: 12}}>
+          <Tag>syncLineage: {String(!!quality?.syncBatch?.hasUsableLineage)}</Tag>
+          <Tag>sourceFreshnessStale: {String(!!quality?.sourceConnectionSummary?.hasStaleFreshness)}</Tag>
+          <Tag>sourceFreshnessUnavailable: {String(!!quality?.sourceConnectionSummary?.hasUnavailableFreshness)}</Tag>
+        </Space>
+        <Table
+          rowKey={(record) => record.alias}
+          columns={columns}
+          dataSource={checks}
+          pagination={false}
+          loading={this.state.masterDataQualityLoading}
+          size="small"
+          scroll={{x: 900}}
+        />
+      </Card>
+    );
+  }
+
   renderReadinessGuidance() {
     const guidance = this.getDisplayedReadinessGuidance();
     if (guidance.length === 0) {
@@ -916,6 +1020,7 @@ class PlatformApiMappingPage extends React.Component {
           </Space>
         }
       >
+        {this.renderOrganizationMasterDataQuality()}
         {this.renderReadinessSummary()}
         {this.renderGatewayProjectionRunReadiness()}
         {this.renderManualPublishConsole()}

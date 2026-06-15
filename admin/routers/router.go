@@ -131,6 +131,7 @@ func InitAPI() {
 	web.Router("/api/update-platform-api-organization-mapping", &controllers.ApiController{}, "POST:UpdatePlatformApiOrganizationMapping")
 	web.Router("/api/get-platform-api-user-mappings", &controllers.ApiController{}, "GET:GetPlatformApiUserMappings")
 	web.Router("/api/get-platform-api-user-mapping-readiness", &controllers.ApiController{}, "GET:GetPlatformApiUserMappingReadiness")
+	web.Router("/api/get-organization-master-data-quality-readiness", &controllers.ApiController{}, "GET:GetOrganizationMasterDataQualityReadiness")
 	web.Router("/api/update-platform-api-user-mapping", &controllers.ApiController{}, "POST:UpdatePlatformApiUserMapping")
 
 	web.Router("/api/get-providers", &controllers.ApiController{}, "GET:GetProviders")

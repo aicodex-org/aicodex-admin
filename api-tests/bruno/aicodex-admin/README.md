@@ -966,6 +966,20 @@ readiness 响应会返回 `remediationGuidance`。验证记录只写 `category`�
 - `lineage_freshness_unavailable` / `lineage_freshness_unavailable_requires_org_version_and_batch`：检查 `PlatformUser.OrgVersion`、`LastSeenBatchId`、`OrgSyncBatch.OrgVersion` 和 freshness 元数据，修复或等待 Admin source 同步后重新读取 readiness。
 - `active_publishable` / `tombstone_publishable`：只表示 Admin producer 具备对应 subject 前置条件。它不是 API/Insight 授权成功证明，也不能替代受控 smoke 的 subject count gate。
 
+### Organization master data quality readiness
+
+`/api/get-organization-master-data-quality-readiness` 是 Admin-only 只读诊断接口，用于 operator 在手动 publish 或后续 projection diagnostics 前检查 Admin 组织主数据质量。它只读取 Admin-owned `SourceConnection`、`OrgSyncBatch`、`PlatformDepartment`、`PlatformMembership`、`PlatformUser` 和 `PlatformApiUserMapping` 快照，不触发 publish，不写 fixture，不查询 API/Gateway/Insight 内部库。
+
+建议只记录这些脱敏字段：
+
+- `status`: `ready` / `warning` / `blocked`
+- `reasonAliases`: 稳定 alias，例如 `source_connection_disabled`、`sync_lineage_missing`、`mapping_missing`、`no_publishable_subject`
+- `counts`: source、department、subject、membership、publishable、unmapped、untrusted、orphan、duplicate、missing-reference 等计数
+- `sourceConnectionSummary`: status/freshness 计数和 stale/unavailable 布尔信号
+- `syncBatch.hasUsableLineage`
+
+该 readiness 只是 Admin producer 前置质量信号，不是 gateway authorization facts，不能证明 API/Gateway/Insight 成功，也不能替代真实 `subjectCount>=1` 或 gateway ingestion smoke。验证记录不得写真实地址、token、Cookie、账号、手机号、邮箱、完整 organizationId、完整组织树、完整 source metadata、完整用户明细或完整响应体。
+
 ### Gateway projection manual publish console
 
 `/api/gateway-projection/manual-publish` 是 Admin-only 受控手动 publish 入口，用于 operator 在 source readiness、mapping readiness 和 freshness 前置条件检查后触发一次 `BuildAndPublishOrganization` attempt。该入口会复用服务间 projection publisher 配置，返回脱敏 result envelope；它不会维护 mapping，不写 gateway resource authorization facts，不写权限矩阵，也不证明 API/Gateway/Insight 授权成功。

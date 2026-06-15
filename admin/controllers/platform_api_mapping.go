@@ -118,6 +118,22 @@ func (c *ApiController) GetPlatformApiUserMappingReadiness() {
 	c.ResponseOk(readiness)
 }
 
+// GetOrganizationMasterDataQualityReadiness
+// @Title GetOrganizationMasterDataQualityReadiness
+// @Tag Platform API Mapping API
+// @Description 获取 Admin 组织主数据质量 readiness；该响应只用于 producer 排障，不是 gateway 授权事实。
+// @router /get-organization-master-data-quality-readiness [get]
+func (c *ApiController) GetOrganizationMasterDataQualityReadiness() {
+	readiness, err := object.GetOrganizationMasterDataQualityReadiness(object.OrganizationMasterDataQualityQuery{
+		OrganizationId: c.Ctx.Input.Query("organization"),
+	})
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(readiness)
+}
+
 // UpdatePlatformApiUserMapping
 // @Title UpdatePlatformApiUserMapping
 // @Tag Platform API Mapping API

@@ -28,6 +28,7 @@ test("includes module-based WeCom organization API paths", () => {
   expect(paths).toContain("org-management-scope/current");
   expect(paths).toContain("gateway-projection/observability");
   expect(paths).toContain("gateway-projection/manual-publish");
+  expect(paths).toContain("get-organization-master-data-quality-readiness");
   expect(paths).toContain("get-platform-api-organization-mappings");
   expect(paths).toContain("update-platform-api-organization-mapping");
   expect(paths).toContain("get-platform-api-user-mappings");

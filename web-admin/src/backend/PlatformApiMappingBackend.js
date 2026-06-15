@@ -85,6 +85,14 @@ export function getPlatformApiUserMappingReadiness(organization, options = {}) {
   }).then(res => res.json());
 }
 
+export function getOrganizationMasterDataQualityReadiness(organization) {
+  return fetch(`${Setting.ServerUrl}/api/get-organization-master-data-quality-readiness?organization=${encodeURIComponent(organization || "")}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
 export function publishGatewayProjectionManually(organization, options = {}) {
   return fetch(`${Setting.ServerUrl}/api/gateway-projection/manual-publish`, {
     method: "POST",
