@@ -19,14 +19,11 @@ import {Link, Redirect, Route, Switch, withRouter} from "react-router-dom";
 import React, {useEffect, useState} from "react";
 import i18next from "i18next";
 import {
-  AppstoreTwoTone,
-  BarsOutlined, CheckCircleTwoTone, DeploymentUnitOutlined, DollarTwoTone, DownOutlined,
-  HomeTwoTone,
-  LockTwoTone, LogoutOutlined,
-  SafetyCertificateTwoTone, SettingOutlined, SettingTwoTone,
-  WalletTwoTone
+  BarsOutlined, DeploymentUnitOutlined, DownOutlined,
+  LogoutOutlined,
+  SafetyCertificateTwoTone, SettingOutlined
 } from "@ant-design/icons";
-import Dashboard from "./basic/Dashboard";
+import IdentityConsoleOverview from "./IdentityConsoleOverview";
 import AppListPage from "./basic/AppListPage";
 import ShortcutsPage from "./basic/ShortcutsPage";
 import AccountPage from "./account/AccountPage";
@@ -123,46 +120,14 @@ import SiteEditPage from "./SiteEditPage";
 import RuleListPage from "./RuleListPage";
 import RuleEditPage from "./RuleEditPage";
 import {getAdminLoginRedirectPath} from "./adminLoginRouting";
+import {buildEnterpriseNavigationGroups, findNavigationSelection} from "./enterpriseNavigation";
 
 const {Content, Header, Sider} = Layout;
-
-function matchMenuItem(uri, item) {
-  if (typeof item.matcher === "function") {
-    return item.matcher(uri);
-  }
-
-  return item.matchPrefixes.some((prefix) => {
-    if (prefix === "/") {
-      return uri === "/";
-    }
-
-    return uri === prefix || uri.startsWith(`${prefix}/`);
-  });
-}
-
-function findNavigationSelection(uri, groups) {
-  for (const group of groups) {
-    for (const item of group.children) {
-      if (matchMenuItem(uri, item)) {
-        return {
-          groupKey: group.key,
-          itemKey: item.key,
-        };
-      }
-    }
-  }
-
-  return {
-    groupKey: undefined,
-    itemKey: undefined,
-  };
-}
 
 function ManagementPage(props) {
   const [menuVisible, setMenuVisible] = useState(false);
   const [openKeys, setOpenKeys] = useState([]);
   const organization = props.account?.organization;
-  const navItems = Setting.isLocalAdminUser(props.account) ? organization?.navItems : (organization?.userNavItems ?? []);
   const widgetItems = organization?.widgetItems;
 
   function logout() {
@@ -258,10 +223,6 @@ function ManagementPage(props) {
     );
   }
 
-  function navItemsIsAll() {
-    return !Array.isArray(navItems) || !!navItems?.includes("all");
-  }
-
   function widgetItemsIsAll() {
     return !Array.isArray(widgetItems) || !!widgetItems?.includes("all");
   }
@@ -330,138 +291,10 @@ function ManagementPage(props) {
   }
 
   function getNavigationGroups() {
-    if (props.account === null || props.account === undefined) {
-      return [];
-    }
-
-    const twoToneColor = props.themeData.colorPrimary;
-    const isLocalAdmin = Setting.isLocalAdminUser(props.account);
-    const isAdmin = Setting.isAdminUser(props.account);
-    const groups = [
-      {
-        key: "/home",
-        label: i18next.t("general:Home"),
-        icon: <HomeTwoTone twoToneColor={twoToneColor} />,
-        children: [
-          {key: "/", label: i18next.t("general:Dashboard"), to: "/", matchPrefixes: ["/"]},
-          {key: "/shortcuts", label: i18next.t("general:Shortcuts"), to: "/shortcuts", matchPrefixes: ["/shortcuts"]},
-          {key: "/apps", label: i18next.t("general:Apps"), to: "/apps", matchPrefixes: ["/apps"]},
-        ],
-      },
-      {
-        key: "/orgs",
-        label: i18next.t("general:User Management"),
-        icon: <AppstoreTwoTone twoToneColor={twoToneColor} />,
-        children: [
-          {key: "/organizations", label: i18next.t("general:Organizations"), to: "/organizations", matchPrefixes: ["/organizations"], matcher: (uri) => uri === "/organizations" || uri.startsWith("/organizations/") && !uri.includes("/users")},
-          {key: "/groups", label: i18next.t("general:Groups"), to: "/groups", matchPrefixes: ["/groups", "/trees"]},
-          {key: "/users", label: i18next.t("general:Users"), to: "/users", matchPrefixes: ["/users"], matcher: (uri) => uri === "/users" || uri.startsWith("/users/") || uri.includes("/users")},
-          {key: "/invitations", label: i18next.t("general:Invitations"), to: "/invitations", matchPrefixes: ["/invitations"]},
-        ],
-      },
-      {
-        key: "/identity",
-        label: i18next.t("general:Identity"),
-        icon: <LockTwoTone twoToneColor={twoToneColor} />,
-        children: [
-          {key: "/applications", label: i18next.t("general:Applications"), to: "/applications", matchPrefixes: ["/applications"]},
-          {key: "/providers", label: i18next.t("application:Providers"), to: "/providers", matchPrefixes: ["/providers"]},
-          {key: "/resources", label: i18next.t("general:Resources"), to: "/resources", matchPrefixes: ["/resources"]},
-          {key: "/certs", label: i18next.t("general:Certs"), to: "/certs", matchPrefixes: ["/certs"]},
-          {key: "/keys", label: i18next.t("general:Keys"), to: "/keys", matchPrefixes: ["/keys"]},
-        ],
-      },
-      {
-        key: "/auth",
-        label: i18next.t("general:Authorization"),
-        icon: <SafetyCertificateTwoTone twoToneColor={twoToneColor} />,
-        children: [
-          {key: "/roles", label: i18next.t("general:Roles"), to: "/roles", matchPrefixes: ["/roles"]},
-          {key: "/permissions", label: i18next.t("general:Permissions"), to: "/permissions", matchPrefixes: ["/permissions"]},
-          {key: "/models", label: i18next.t("general:Models"), to: "/models", matchPrefixes: ["/models"], visible: isLocalAdmin},
-          {key: "/adapters", label: i18next.t("general:Adapters"), to: "/adapters", matchPrefixes: ["/adapters"], visible: isLocalAdmin},
-          {key: "/enforcers", label: i18next.t("general:Enforcers"), to: "/enforcers", matchPrefixes: ["/enforcers"], visible: isLocalAdmin},
-        ],
-      },
-      {
-        key: "/gateway",
-        label: i18next.t("general:LLM AI"),
-        icon: <CheckCircleTwoTone twoToneColor={twoToneColor} />,
-        children: [
-          {key: "/agents", label: i18next.t("general:Agents"), to: "/agents", matchPrefixes: ["/agents"]},
-          {key: "/servers", label: i18next.t("general:MCP Servers"), to: "/servers", matchPrefixes: ["/servers"]},
-          {key: "/server-store", label: i18next.t("general:MCP Store"), to: "/server-store", matchPrefixes: ["/server-store"]},
-          {key: "/entries", label: i18next.t("general:Entries"), to: "/entries", matchPrefixes: ["/entries"]},
-          {key: "/sites", label: i18next.t("general:Sites"), to: "/sites", matchPrefixes: ["/sites"]},
-          {key: "/rules", label: i18next.t("general:Rules"), to: "/rules", matchPrefixes: ["/rules"]},
-        ],
-      },
-      {
-        key: "/logs",
-        label: i18next.t("general:Logging & Auditing"),
-        icon: <WalletTwoTone twoToneColor={twoToneColor} />,
-        children: [
-          {key: "/sessions", label: i18next.t("general:Sessions"), to: "/sessions", matchPrefixes: ["/sessions"]},
-          {key: "/records", label: i18next.t("general:Records"), to: "/records", matchPrefixes: ["/records"]},
-          {key: "/tokens", label: i18next.t("general:Tokens"), to: "/tokens", matchPrefixes: ["/tokens"]},
-          {key: "/verifications", label: i18next.t("general:Verifications"), to: "/verifications", matchPrefixes: ["/verifications"]},
-        ],
-      },
-      {
-        key: "/business",
-        label: i18next.t("general:Business & Payments"),
-        icon: <DollarTwoTone twoToneColor={twoToneColor} />,
-        children: [
-          {key: "/product-store", label: i18next.t("general:Product Store"), to: "/product-store", matchPrefixes: ["/product-store"]},
-          {key: "/products", label: i18next.t("general:Products"), to: "/products", matchPrefixes: ["/products"]},
-          {key: "/cart", label: i18next.t("general:Cart"), to: "/cart", matchPrefixes: ["/cart"]},
-          {key: "/orders", label: i18next.t("general:Orders"), to: "/orders", matchPrefixes: ["/orders"]},
-          {key: "/payments", label: i18next.t("general:Payments"), to: "/payments", matchPrefixes: ["/payments"]},
-          {key: "/plans", label: i18next.t("general:Plans"), to: "/plans", matchPrefixes: ["/plans"]},
-          {key: "/pricings", label: i18next.t("general:Pricings"), to: "/pricings", matchPrefixes: ["/pricings"]},
-          {key: "/subscriptions", label: i18next.t("general:Subscriptions"), to: "/subscriptions", matchPrefixes: ["/subscriptions"]},
-          {key: "/transactions", label: i18next.t("general:Transactions"), to: "/transactions", matchPrefixes: ["/transactions"]},
-        ],
-      },
-      {
-        key: "/admin",
-        label: i18next.t("general:Admin"),
-        icon: <SettingTwoTone twoToneColor={twoToneColor} />,
-        children: [
-          {key: "/sysinfo", label: i18next.t("general:System Info"), to: "/sysinfo", matchPrefixes: ["/sysinfo"], visible: isAdmin},
-          {key: "/forms", label: i18next.t("general:Forms"), to: "/forms", matchPrefixes: ["/forms"]},
-          {key: "/syncers", label: i18next.t("general:Syncers"), to: "/syncers", matchPrefixes: ["/syncers"]},
-          {key: "/wecom-org-sync", label: "企业微信同步", to: "/wecom-org-sync", matchPrefixes: ["/wecom-org-sync"]},
-          {key: "/feishu-org-sync", label: "飞书同步", to: "/feishu-org-sync", matchPrefixes: ["/feishu-org-sync"]},
-          {key: "/organization-tree-operations", label: "组织树运营", to: "/organization-tree-operations", matchPrefixes: ["/organization-tree-operations"], visible: isAdmin},
-          {key: "/organization-directory-quality", label: "组织目录质量", to: "/organization-directory-quality", matchPrefixes: ["/organization-directory-quality"], visible: isAdmin},
-          {key: "/platform-api-mappings", label: "API 网关映射", to: "/platform-api-mappings", matchPrefixes: ["/platform-api-mappings"], visible: isAdmin},
-          {key: "/webhooks", label: i18next.t("general:Webhooks"), to: "/webhooks", matchPrefixes: ["/webhooks"]},
-          {key: "/webhook-events", label: i18next.t("general:Webhook Events"), to: "/webhook-events", matchPrefixes: ["/webhook-events"]},
-          {key: "/tickets", label: i18next.t("general:Tickets"), to: "/tickets", matchPrefixes: ["/tickets"]},
-          {key: "/swagger", label: i18next.t("general:Swagger"), external: true, href: Setting.isLocalhost() ? `${Setting.ServerUrl}/swagger` : "/swagger", matchPrefixes: ["/swagger"], visible: isAdmin},
-        ],
-      },
-    ];
-
-    const allowedItems = navItemsIsAll() ? null : new Set(navItems);
-
-    return groups
-      .map((group) => ({
-        ...group,
-        children: group.children.filter((item) => {
-          if (item.visible === false) {
-            return false;
-          }
-
-          if (allowedItems === null) {
-            return true;
-          }
-
-          return allowedItems.has(item.key);
-        }),
-      }))
-      .filter((group) => group.children.length > 0);
+    return buildEnterpriseNavigationGroups({
+      account: props.account,
+      themeData: props.themeData,
+    });
   }
 
   function getSidebarMenuItems(groups) {
@@ -507,7 +340,7 @@ function ManagementPage(props) {
     const onfinish = props.onfinish;
     return (
       <Switch>
-        <Route exact path="/" render={(props) => renderLoginIfNotLoggedIn(<Dashboard account={account} {...props} />)} />
+        <Route exact path="/" render={(props) => renderLoginIfNotLoggedIn(<IdentityConsoleOverview account={account} {...props} />)} />
         <Route exact path="/apps" render={(props) => renderLoginIfNotLoggedIn(<AppListPage account={account} {...props} />)} />
         <Route exact path="/shortcuts" render={(props) => renderLoginIfNotLoggedIn(<ShortcutsPage account={account} {...props} />)} />
         <Route exact path="/account" render={(routeProps) => renderLoginIfNotLoggedIn(<AccountPage account={account} onUpdateAccount={props.onUpdateAccount} {...routeProps} />)} />
@@ -602,7 +435,7 @@ function ManagementPage(props) {
   }
 
   function isWithoutCard() {
-    return Setting.isMobile() || window.location.pathname.startsWith("/trees");
+    return Setting.isMobile() || window.location.pathname === "/" || window.location.pathname.startsWith("/trees");
   }
 
   const onClose = () => {
