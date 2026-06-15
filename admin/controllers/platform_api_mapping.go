@@ -261,6 +261,38 @@ func (c *ApiController) GetOrganizationDirectoryRemediationApprovalPreviews() {
 	c.ResponseOk(result)
 }
 
+// GetOrganizationDirectoryRemediationApprovalPacketAudits
+// @Title GetOrganizationDirectoryRemediationApprovalPacketAudits
+// @Tag Platform API Mapping API
+// @Description 获取 Admin 组织目录质量 remediation approval packet audit；该响应只读、非持久化派生，且不执行修复。
+// @router /organization-master-data-quality/remediation-approval-packet-audit [get]
+func (c *ApiController) GetOrganizationDirectoryRemediationApprovalPacketAudits() {
+	result, err := object.GetOrganizationDirectoryRemediationApprovalPacketAudits(newOrganizationDirectoryRemediationApprovalPacketAuditQuery(map[string]string{
+		"organization":           c.Ctx.Input.Query("organization"),
+		"packetAuditId":          c.Ctx.Input.Query("packetAuditId"),
+		"packetHash":             c.Ctx.Input.Query("packetHash"),
+		"approvalPreviewId":      c.Ctx.Input.Query("approvalPreviewId"),
+		"approvalPreviewHash":    c.Ctx.Input.Query("approvalPreviewHash"),
+		"draftId":                c.Ctx.Input.Query("draftId"),
+		"actionAlias":            c.Ctx.Input.Query("actionAlias"),
+		"entityType":             c.Ctx.Input.Query("entityType"),
+		"keyword":                c.Ctx.Input.Query("keyword"),
+		"sourceType":             c.Ctx.Input.Query("sourceType"),
+		"sourceConnectionIdHash": c.Ctx.Input.Query("sourceConnectionIdHash"),
+		"qualityStatus":          c.Ctx.Input.Query("qualityStatus"),
+		"reasonCode":             c.Ctx.Input.Query("reasonCode"),
+		"riskLevel":              c.Ctx.Input.Query("riskLevel"),
+		"packetStatus":           c.Ctx.Input.Query("packetStatus"),
+		"limit":                  c.Ctx.Input.Query("limit"),
+		"topN":                   c.Ctx.Input.Query("topN"),
+	}))
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(result)
+}
+
 func newOrganizationDirectoryQualityQuery(values map[string]string) object.OrganizationDirectoryQualityQuery {
 	return object.OrganizationDirectoryQualityQuery{
 		OrganizationId:         values["organization"],
@@ -333,6 +365,28 @@ func newOrganizationDirectoryRemediationApprovalPreviewQuery(values map[string]s
 		SourceConnectionIdHash: values["sourceConnectionIdHash"],
 		QualityStatus:          values["qualityStatus"],
 		ReasonCode:             values["reasonCode"],
+		Limit:                  util.ParseInt(values["limit"]),
+		TopN:                   util.ParseInt(values["topN"]),
+	}
+}
+
+func newOrganizationDirectoryRemediationApprovalPacketAuditQuery(values map[string]string) object.OrganizationDirectoryRemediationApprovalPacketAuditQuery {
+	return object.OrganizationDirectoryRemediationApprovalPacketAuditQuery{
+		OrganizationId:         values["organization"],
+		PacketAuditId:          values["packetAuditId"],
+		PacketHash:             values["packetHash"],
+		ApprovalPreviewId:      values["approvalPreviewId"],
+		ApprovalPreviewHash:    values["approvalPreviewHash"],
+		DraftId:                values["draftId"],
+		ActionAlias:            values["actionAlias"],
+		EntityType:             values["entityType"],
+		Keyword:                values["keyword"],
+		SourceType:             values["sourceType"],
+		SourceConnectionIdHash: values["sourceConnectionIdHash"],
+		QualityStatus:          values["qualityStatus"],
+		ReasonCode:             values["reasonCode"],
+		RiskLevel:              values["riskLevel"],
+		PacketStatus:           values["packetStatus"],
 		Limit:                  util.ParseInt(values["limit"]),
 		TopN:                   util.ParseInt(values["topN"]),
 	}

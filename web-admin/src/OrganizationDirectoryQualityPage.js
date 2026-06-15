@@ -76,6 +76,7 @@ export default function OrganizationDirectoryQualityPage(props) {
   const [draftLoading, setDraftLoading] = useState(false);
   const [preflightLoading, setPreflightLoading] = useState(false);
   const [approvalPreviewLoading, setApprovalPreviewLoading] = useState(false);
+  const [approvalPacketAuditLoading, setApprovalPacketAuditLoading] = useState(false);
   const [data, setData] = useState(null);
   const [planData, setPlanData] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -83,6 +84,7 @@ export default function OrganizationDirectoryQualityPage(props) {
   const [draftData, setDraftData] = useState(null);
   const [preflightData, setPreflightData] = useState(null);
   const [approvalPreviewData, setApprovalPreviewData] = useState(null);
+  const [approvalPacketAuditData, setApprovalPacketAuditData] = useState(null);
 
   const currentPlanOptions = () => ({
     entityType,
@@ -139,6 +141,7 @@ export default function OrganizationDirectoryQualityPage(props) {
     setDraftData(null);
     setPreflightData(null);
     setApprovalPreviewData(null);
+    setApprovalPacketAuditData(null);
     setDraftLoading(true);
     return PlatformApiMappingBackend.getOrganizationDirectoryRemediationActionDrafts(organization, {
       ...currentPlanOptions(),
@@ -159,6 +162,7 @@ export default function OrganizationDirectoryQualityPage(props) {
   const loadPreflight = (draft) => {
     setPreflightData(null);
     setApprovalPreviewData(null);
+    setApprovalPacketAuditData(null);
     setPreflightLoading(true);
     return PlatformApiMappingBackend.getOrganizationDirectoryRemediationPreflight(organization, {
       ...currentPlanOptions(),
@@ -180,6 +184,7 @@ export default function OrganizationDirectoryQualityPage(props) {
 
   const loadApprovalPreview = (preflight) => {
     setApprovalPreviewData(null);
+    setApprovalPacketAuditData(null);
     setApprovalPreviewLoading(true);
     return PlatformApiMappingBackend.getOrganizationDirectoryRemediationApprovalPreview(organization, {
       ...currentPlanOptions(),
@@ -197,6 +202,31 @@ export default function OrganizationDirectoryQualityPage(props) {
       }
       setApprovalPreviewData(res.data);
     }).finally(() => setApprovalPreviewLoading(false));
+  };
+
+  const loadApprovalPacketAudit = (approvalPreview) => {
+    setApprovalPacketAuditData(null);
+    setApprovalPacketAuditLoading(true);
+    return PlatformApiMappingBackend.getOrganizationDirectoryRemediationApprovalPacketAudit(organization, {
+      ...currentPlanOptions(),
+      approvalPreviewId: approvalPreview.approvalPreviewId,
+      approvalPreviewHash: approvalPreview.approvalPreviewHash,
+      draftId: approvalPreview.draftId,
+      actionAlias: approvalPreview.actionAlias || selectedPlan?.actionAlias,
+      entityType: approvalPreview.entityType || entityType,
+      riskLevel: approvalPreview.riskLevel,
+      packetStatus: approvalPreview.readyForApproval ? "ready_for_approval" : "blocked",
+      reasonCode: (selectedPlan?.reasonCodes || [])[0] || reasonCode,
+      limit: 100,
+      topN: 20,
+    }).then((res) => {
+      if (res.status !== "ok") {
+        Setting.showMessage("error", res.msg || "加载审批包审计失败");
+        setApprovalPacketAuditData(null);
+        return;
+      }
+      setApprovalPacketAuditData(res.data);
+    }).finally(() => setApprovalPacketAuditLoading(false));
   };
 
   const loadAll = (nextPagination = pagination) => Promise.all([
@@ -434,6 +464,44 @@ export default function OrganizationDirectoryQualityPage(props) {
   };
 
   const selectedApprovalPreview = approvalPreviewData?.approvalPreviews?.[0];
+  const approvalPacketAuditExportPayload = approvalPacketAuditData?.exportSummary || {
+    organizationId: approvalPacketAuditData?.organizationId,
+    boundary: approvalPacketAuditData?.boundary,
+    storageScope: approvalPacketAuditData?.exportSummary?.storageScope || "derived_non_persistent",
+    retentionPolicy: approvalPacketAuditData?.exportSummary?.retentionPolicy || "not_persisted",
+    packetAudits: approvalPacketAuditData?.packetAudits || [],
+  };
+
+  const copyApprovalPacketAudit = () => {
+    const content = JSON.stringify(approvalPacketAuditExportPayload, null, 2);
+    if (!navigator.clipboard?.writeText) {
+      Setting.showMessage("error", "当前浏览器不支持复制审批包审计");
+      return;
+    }
+    navigator.clipboard.writeText(content).then(() => {
+      Setting.showMessage("success", "已复制脱敏审批包审计");
+    }).catch(() => {
+      Setting.showMessage("error", "复制脱敏审批包审计失败");
+    });
+  };
+
+  const exportApprovalPacketAudit = () => {
+    if (!approvalPacketAuditData?.packetAudits || approvalPacketAuditData.packetAudits.length === 0) {
+      Setting.showMessage("warning", "暂无可导出的审批包审计");
+      return;
+    }
+    const blob = new Blob([JSON.stringify(approvalPacketAuditExportPayload, null, 2)], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `organization-directory-remediation-approval-packet-audit-${organization || "empty"}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const selectedApprovalPacketAudit = approvalPacketAuditData?.packetAudits?.[0];
 
   return (
     <div style={{padding: 24}}>
@@ -544,6 +612,7 @@ export default function OrganizationDirectoryQualityPage(props) {
           setDraftData(null);
           setPreflightData(null);
           setApprovalPreviewData(null);
+          setApprovalPacketAuditData(null);
         }}
       >
         <Space direction="vertical" size={16} style={{width: "100%"}}>
@@ -701,6 +770,7 @@ export default function OrganizationDirectoryQualityPage(props) {
                               <Text type="secondary">{approvalPreviewData?.boundary || "Admin producer approval preview only."}</Text>
                             </Space>
                             <Space wrap>
+                              <Button onClick={() => loadApprovalPacketAudit(selectedApprovalPreview)} disabled={!selectedApprovalPreview}>审批包审计</Button>
                               <Button onClick={copyApprovalPreview} disabled={!approvalPreviewData?.approvalPreviews?.length}>复制审批预览</Button>
                               <Button icon={<DownloadOutlined />} onClick={exportApprovalPreview} disabled={!approvalPreviewData?.approvalPreviews?.length}>导出审批预览</Button>
                             </Space>
@@ -724,6 +794,40 @@ export default function OrganizationDirectoryQualityPage(props) {
                                 <Descriptions.Item label="安全摘要">{selectedApprovalPreview.safeSummary || "-"}</Descriptions.Item>
                                 <Descriptions.Item label="Sample stable hashes">{renderTags(selectedApprovalPreview.sampleStableHashes, "cyan")}</Descriptions.Item>
                               </Descriptions>
+                              {(approvalPacketAuditLoading || approvalPacketAuditData) && (
+                                <div style={{border: "1px solid #f0f0f0", borderRadius: 6, padding: 12}}>
+                                  <Space direction="vertical" size={12} style={{width: "100%"}}>
+                                    <Space align="center" wrap style={{justifyContent: "space-between", width: "100%"}}>
+                                      <Space align="center" wrap>
+                                        <Title level={5} style={{margin: 0}}>审批包审计</Title>
+                                        {selectedApprovalPacketAudit && <Tag color={selectedApprovalPacketAudit.packetStatus === "ready_for_approval" ? "green" : "red"}>{selectedApprovalPacketAudit.packetStatus}</Tag>}
+                                        <Text type="secondary">{approvalPacketAuditData?.boundary || "Admin producer approval packet audit only."}</Text>
+                                      </Space>
+                                      <Space wrap>
+                                        <Button onClick={copyApprovalPacketAudit} disabled={!approvalPacketAuditData?.packetAudits?.length}>复制审批包审计</Button>
+                                        <Button icon={<DownloadOutlined />} onClick={exportApprovalPacketAudit} disabled={!approvalPacketAuditData?.packetAudits?.length}>导出审批包审计</Button>
+                                      </Space>
+                                    </Space>
+                                    {approvalPacketAuditLoading && <Text type="secondary">加载审批包审计中</Text>}
+                                    {!approvalPacketAuditLoading && approvalPacketAuditData && !selectedApprovalPacketAudit && <Empty description="暂无审批包审计" />}
+                                    {selectedApprovalPacketAudit && (
+                                      <Descriptions column={1} size="small" bordered>
+                                        <Descriptions.Item label="Packet Hash">{selectedApprovalPacketAudit.packetHash || "-"}</Descriptions.Item>
+                                        <Descriptions.Item label="Approval Preview Hash">{selectedApprovalPacketAudit.approvalPreviewHash || "-"}</Descriptions.Item>
+                                        <Descriptions.Item label="Storage">{selectedApprovalPacketAudit.storageScope || "-"} / {selectedApprovalPacketAudit.retentionPolicy || "-"}</Descriptions.Item>
+                                        <Descriptions.Item label="Execution">{selectedApprovalPacketAudit.executionMode || "-"} / autoExecutionAllowed={String(selectedApprovalPacketAudit.autoExecutionAllowed)}</Descriptions.Item>
+                                        <Descriptions.Item label="Events">{renderTags(selectedApprovalPacketAudit.eventTypes, "blue")}</Descriptions.Item>
+                                        <Descriptions.Item label="Risk">{selectedApprovalPacketAudit.riskLevel || "-"} / affected {selectedApprovalPacketAudit.affectedCount || 0}</Descriptions.Item>
+                                        <Descriptions.Item label="Blocked reasons">{renderTags(selectedApprovalPacketAudit.blockedReasons, "red")}</Descriptions.Item>
+                                        <Descriptions.Item label="Required approvals">{renderTags(selectedApprovalPacketAudit.requiredApprovals, "purple")}</Descriptions.Item>
+                                        <Descriptions.Item label="Checklist digest">{renderTags(selectedApprovalPacketAudit.operatorChecklistDigest, "geekblue")}</Descriptions.Item>
+                                        <Descriptions.Item label="Sample stable hashes">{renderTags(selectedApprovalPacketAudit.sampleStableHashes, "cyan")}</Descriptions.Item>
+                                        <Descriptions.Item label="安全摘要">{selectedApprovalPacketAudit.safeSummary || "-"}</Descriptions.Item>
+                                      </Descriptions>
+                                    )}
+                                  </Space>
+                                </div>
+                              )}
                             </Space>
                           )}
                         </Space>

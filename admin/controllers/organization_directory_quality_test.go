@@ -162,3 +162,43 @@ func TestNewOrganizationDirectoryRemediationApprovalPreviewQueryParsesOperatorFi
 		t.Fatalf("query = %+v, want parsed remediation approval preview filters", query)
 	}
 }
+
+func TestNewOrganizationDirectoryRemediationApprovalPacketAuditQueryParsesOperatorFilters(t *testing.T) {
+	query := newOrganizationDirectoryRemediationApprovalPacketAuditQuery(map[string]string{
+		"organization":           "org-a",
+		"packetAuditId":          "approval-packet-audit:packet",
+		"packetHash":             "",
+		"approvalPreviewId":      "approval-preview:preview",
+		"approvalPreviewHash":    "sha256:preview",
+		"draftId":                "sha256:draft",
+		"actionAlias":            object.OrganizationDirectoryRemediationActionMappingReview,
+		"entityType":             object.OrganizationDirectoryQualityEntityUser,
+		"keyword":                "alice",
+		"sourceType":             "wecom",
+		"sourceConnectionIdHash": "sha256:source",
+		"qualityStatus":          object.OrganizationMasterDataQualityStatusBlocked,
+		"reasonCode":             object.OrganizationMasterDataQualityReasonMappingMissing,
+		"riskLevel":              object.OrganizationDirectoryRemediationApprovalRiskMedium,
+		"packetStatus":           object.OrganizationDirectoryRemediationApprovalPacketStatusReadyForApproval,
+		"limit":                  "30",
+		"topN":                   "10",
+	})
+	if query.OrganizationId != "org-a" ||
+		query.PacketAuditId != "approval-packet-audit:packet" ||
+		query.ApprovalPreviewId != "approval-preview:preview" ||
+		query.ApprovalPreviewHash != "sha256:preview" ||
+		query.DraftId != "sha256:draft" ||
+		query.ActionAlias != object.OrganizationDirectoryRemediationActionMappingReview ||
+		query.EntityType != object.OrganizationDirectoryQualityEntityUser ||
+		query.Keyword != "alice" ||
+		query.SourceType != "wecom" ||
+		query.SourceConnectionIdHash != "sha256:source" ||
+		query.QualityStatus != object.OrganizationMasterDataQualityStatusBlocked ||
+		query.ReasonCode != object.OrganizationMasterDataQualityReasonMappingMissing ||
+		query.RiskLevel != object.OrganizationDirectoryRemediationApprovalRiskMedium ||
+		query.PacketStatus != object.OrganizationDirectoryRemediationApprovalPacketStatusReadyForApproval ||
+		query.Limit != 30 ||
+		query.TopN != 10 {
+		t.Fatalf("query = %+v, want parsed remediation approval packet audit filters", query)
+	}
+}

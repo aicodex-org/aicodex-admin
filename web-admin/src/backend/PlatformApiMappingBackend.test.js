@@ -10,6 +10,7 @@ import {
   getGatewayProjectionRunReadiness,
   getOrganizationDirectoryQuality,
   getOrganizationDirectoryRemediationActionDrafts,
+  getOrganizationDirectoryRemediationApprovalPacketAudit,
   getOrganizationDirectoryRemediationApprovalPreview,
   getOrganizationDirectoryRemediationPlan,
   getOrganizationDirectoryRemediationPreflight,
@@ -349,6 +350,35 @@ test("loads organization directory remediation approval preview with safe filter
 
   expect(global.fetch).toHaveBeenCalledWith(
     "https://admin.example.invalid/api/organization-master-data-quality/remediation-approval-preview?organization=org-a&draftId=sha256%3Adraft&actionAlias=mapping_review&entityType=user&keyword=alice&sourceType=wecom&sourceConnectionIdHash=sha256%3Asource&qualityStatus=blocked&reasonCode=mapping_missing&limit=30&topN=10",
+    expect.objectContaining({
+      method: "GET",
+      credentials: "include",
+      headers: expect.objectContaining({"Accept-Language": "en"}),
+    })
+  );
+});
+
+test("loads organization directory remediation approval packet audit with safe filters", async() => {
+  await getOrganizationDirectoryRemediationApprovalPacketAudit("org-a", {
+    packetAuditId: "approval-packet-audit:packet",
+    approvalPreviewId: "approval-preview:preview",
+    approvalPreviewHash: "sha256:preview",
+    draftId: "sha256:draft",
+    actionAlias: "mapping_review",
+    entityType: "user",
+    keyword: "alice",
+    sourceType: "wecom",
+    sourceConnectionIdHash: "sha256:source",
+    qualityStatus: "blocked",
+    reasonCode: "mapping_missing",
+    riskLevel: "medium",
+    packetStatus: "ready_for_approval",
+    limit: 30,
+    topN: 10,
+  });
+
+  expect(global.fetch).toHaveBeenCalledWith(
+    "https://admin.example.invalid/api/organization-master-data-quality/remediation-approval-packet-audit?organization=org-a&packetAuditId=approval-packet-audit%3Apacket&approvalPreviewId=approval-preview%3Apreview&approvalPreviewHash=sha256%3Apreview&draftId=sha256%3Adraft&actionAlias=mapping_review&entityType=user&keyword=alice&sourceType=wecom&sourceConnectionIdHash=sha256%3Asource&qualityStatus=blocked&reasonCode=mapping_missing&riskLevel=medium&packetStatus=ready_for_approval&limit=30&topN=10",
     expect.objectContaining({
       method: "GET",
       credentials: "include",
