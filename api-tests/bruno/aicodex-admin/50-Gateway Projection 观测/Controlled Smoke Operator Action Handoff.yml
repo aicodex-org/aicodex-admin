@@ -1,0 +1,61 @@
+info:
+  name: Controlled Smoke Operator Action Handoff
+  type: http
+  seq: 14
+  tags:
+    - smoke
+    - gateway-projection
+    - controlled-smoke
+    - operator-action
+    - readonly
+    - local-only
+
+http:
+  method: GET
+  url: "{{baseUrl}}/__local_only__/gateway-projection/controlled-smoke/operator-action-handoff"
+
+runtime:
+  scripts:
+    - type: pre-request
+      code: |-
+        function loadControlledSmokeOperatorActionHandoff() {
+          try {
+            return require("../scripts/gatewayProjectionControlledSmokeOperatorActionHandoff")
+          } catch (error) {
+            return require("./scripts/gatewayProjectionControlledSmokeOperatorActionHandoff")
+          }
+        }
+
+        function parseJsonVar(name) {
+          const raw = bru.getVar(name) || bru.getEnvVar(name)
+          if (!raw) {
+            return undefined
+          }
+          return typeof raw === "string" ? JSON.parse(raw) : raw
+        }
+
+        function boolVar(name) {
+          return String(bru.getVar(name) || bru.getEnvVar(name) || "").toLowerCase() === "true"
+        }
+
+        const {createGatewayProjectionControlledSmokeOperatorActionHandoff} = loadControlledSmokeOperatorActionHandoff()
+        const handoff = createGatewayProjectionControlledSmokeOperatorActionHandoff({
+          operatorDecisionHandoffSummary: parseJsonVar("gatewayProjectionControlledSmokeOperatorDecisionHandoff"),
+          operatorMetadata: parseJsonVar("gatewayProjectionControlledSmokeOperatorActionMetadata"),
+          operatorNote: bru.getVar("gatewayProjectionControlledSmokeOperatorActionNote") || bru.getEnvVar("gatewayProjectionControlledSmokeOperatorActionNote"),
+        }, {
+          sourceAlias: bru.getVar("gatewayProjectionControlledSmokeOperatorActionSourceAlias") || bru.getEnvVar("gatewayProjectionControlledSmokeOperatorActionSourceAlias") || "bruno-controlled-smoke-operator-action-handoff",
+        })
+
+        console.log(JSON.stringify(handoff, null, 2))
+        if (handoff.actionStatus !== "ready-for-operator-action" && boolVar("gatewayProjectionRequireControlledSmokeOperatorActionReady")) {
+          throw new Error(`projection controlled smoke operator action handoff blocked status=${handoff.actionStatus} blocker=${handoff.blockerAlias}`)
+        }
+
+        throw new Error("local-only controlled smoke operator action handoff completed before network request; copy the sanitized console output")
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

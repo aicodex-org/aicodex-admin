@@ -1,0 +1,66 @@
+info:
+  name: Controlled Smoke Evidence Readiness
+  type: http
+  seq: 6
+  tags:
+    - smoke
+    - gateway-projection
+    - controlled-smoke
+    - evidence-readiness
+    - readonly
+    - local-only
+
+http:
+  method: GET
+  url: "{{baseUrl}}/__local_only__/gateway-projection/controlled-smoke/evidence-readiness"
+
+runtime:
+  scripts:
+    - type: pre-request
+      code: |-
+        function loadEvidenceReadiness() {
+          try {
+            return require("../scripts/gatewayProjectionControlledSmokeEvidenceReadiness")
+          } catch (error) {
+            return require("./scripts/gatewayProjectionControlledSmokeEvidenceReadiness")
+          }
+        }
+
+        function parseJsonVar(name) {
+          const raw = bru.getVar(name) || bru.getEnvVar(name)
+          if (!raw) {
+            return undefined
+          }
+          return typeof raw === "string" ? JSON.parse(raw) : raw
+        }
+
+        function boolVar(name) {
+          return String(bru.getVar(name) || bru.getEnvVar(name) || "").toLowerCase() === "true"
+        }
+
+        const {createGatewayProjectionControlledSmokeEvidenceReadiness} = loadEvidenceReadiness()
+        const readiness = createGatewayProjectionControlledSmokeEvidenceReadiness({
+          adminReleaseDecision: parseJsonVar("gatewayProjectionAdminReleaseDecisionHandoff"),
+          controlledSmokePreflight: parseJsonVar("gatewayProjectionControlledSmokePreflightHandoff"),
+          controlledSmokeReleaseRunbook: parseJsonVar("gatewayProjectionControlledSmokeReleaseRunbook"),
+          apiDiagnostics: parseJsonVar("gatewayProjectionApiDiagnosticsEvidence"),
+          redactionSignal: bru.getVar("gatewayProjectionControlledSmokeEvidenceRedactionSignal") || bru.getEnvVar("gatewayProjectionControlledSmokeEvidenceRedactionSignal"),
+          blockingAlias: bru.getVar("gatewayProjectionControlledSmokeEvidenceBlockingAlias") || bru.getEnvVar("gatewayProjectionControlledSmokeEvidenceBlockingAlias"),
+          operatorMetadata: parseJsonVar("gatewayProjectionControlledSmokeEvidenceOperatorMetadata"),
+          operatorNote: bru.getVar("gatewayProjectionControlledSmokeEvidenceOperatorNote") || bru.getEnvVar("gatewayProjectionControlledSmokeEvidenceOperatorNote"),
+        }, {
+          sourceAlias: bru.getVar("gatewayProjectionControlledSmokeEvidenceReadinessSourceAlias") || bru.getEnvVar("gatewayProjectionControlledSmokeEvidenceReadinessSourceAlias") || "bruno-controlled-smoke-evidence-readiness",
+        })
+
+        console.log(JSON.stringify(readiness, null, 2))
+        if (readiness.status !== "ready-for-controlled-smoke-evidence-review" && boolVar("gatewayProjectionRequireControlledSmokeEvidenceReadinessReady")) {
+          throw new Error(`projection controlled smoke evidence readiness blocked status=${readiness.status} blockers=${[...(readiness.hardRedLineFlags || []), ...(readiness.redactionFlags || []), ...(readiness.missingPrerequisites || [])].join("|") || "none"}`)
+        }
+
+        throw new Error("local-only controlled smoke evidence readiness completed before network request; copy the sanitized console output")
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -1,0 +1,139 @@
+info:
+  name: Controlled Smoke Release Runbook
+  type: http
+  seq: 5
+  tags:
+    - smoke
+    - gateway-projection
+    - controlled-smoke
+    - release-runbook
+    - readonly
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/gateway-projection/observability"
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        function loadRunbook() {
+          try {
+            return require("../scripts/gatewayProjectionControlledSmokeReleaseRunbook")
+          } catch (error) {
+            return require("./scripts/gatewayProjectionControlledSmokeReleaseRunbook")
+          }
+        }
+
+        function loadControlledSmokeHandoff() {
+          try {
+            return require("../scripts/gatewayProjectionControlledSmokePreflightHandoff")
+          } catch (error) {
+            return require("./scripts/gatewayProjectionControlledSmokePreflightHandoff")
+          }
+        }
+
+        function loadReleaseDecision() {
+          try {
+            return require("../scripts/gatewayProjectionReleaseDecision")
+          } catch (error) {
+            return require("./scripts/gatewayProjectionReleaseDecision")
+          }
+        }
+
+        function loadReadinessSummary() {
+          try {
+            return require("../scripts/gatewayProjectionReadinessSummary")
+          } catch (error) {
+            return require("./scripts/gatewayProjectionReadinessSummary")
+          }
+        }
+
+        function parseJsonVar(name) {
+          const raw = bru.getVar(name) || bru.getEnvVar(name)
+          if (!raw) {
+            return undefined
+          }
+          return typeof raw === "string" ? JSON.parse(raw) : raw
+        }
+
+        function boolVar(name) {
+          return String(bru.getVar(name) || bru.getEnvVar(name) || "").toLowerCase() === "true"
+        }
+
+        const status = res.getStatus()
+        const body = res.getBody()
+        const observabilityResponse = typeof body === "string" ? JSON.parse(body) : body
+        if (status !== 200) {
+          throw new Error(`admin gateway projection controlled smoke release runbook 响应异常。status=${status} statusField=${observabilityResponse?.status}`)
+        }
+
+        const mappingReadinessResponse = parseJsonVar("gatewayProjectionMappingReadinessResponse")
+        const releaseDecisionHandoff = parseJsonVar("gatewayProjectionAdminReleaseDecisionHandoff")
+          || loadReleaseDecision().createGatewayProjectionReleaseDecisionHandoff({
+            observabilityResponse,
+            mappingReadinessResponse,
+          }, {
+            requireLatestAudit: boolVar("gatewayProjectionRequireLatestAudit"),
+            requireMappingReadiness: boolVar("gatewayProjectionRequireMappingReadiness"),
+            minSubjectCount: bru.getVar("gatewayProjectionMinSubjectCount") || bru.getEnvVar("gatewayProjectionMinSubjectCount"),
+            minTombstoneSubjectCount: bru.getVar("gatewayProjectionMinTombstoneSubjectCount") || bru.getEnvVar("gatewayProjectionMinTombstoneSubjectCount"),
+            sourceAlias: "bruno-controlled-smoke-release-runbook-admin-release",
+          })
+        const adminReadinessSummary = parseJsonVar("gatewayProjectionAdminReadinessSummary")
+          || loadReadinessSummary().evaluateGatewayProjectionReadinessSummary({
+            observabilityResponse,
+            mappingReadinessResponse,
+          }, {
+            requireLatestAudit: boolVar("gatewayProjectionRequireLatestAudit"),
+            minSubjectCount: bru.getVar("gatewayProjectionMinSubjectCount") || bru.getEnvVar("gatewayProjectionMinSubjectCount"),
+            minTombstoneSubjectCount: bru.getVar("gatewayProjectionMinTombstoneSubjectCount") || bru.getEnvVar("gatewayProjectionMinTombstoneSubjectCount"),
+          })
+        const controlledSmokePreflightHandoff = parseJsonVar("gatewayProjectionControlledSmokePreflightHandoff")
+          || loadControlledSmokeHandoff().createGatewayProjectionControlledSmokePreflightHandoff({
+            adminReleaseDecisionHandoff: releaseDecisionHandoff,
+            adminReadinessSummary,
+            apiDiagnosticsDecision: parseJsonVar("gatewayProjectionApiDiagnosticsDecision"),
+          }, {
+            sourceAlias: "bruno-controlled-smoke-release-runbook-preflight",
+          })
+        const evidenceSummary = parseJsonVar("gatewayProjectionControlledSmokeReleaseRunbookEvidenceSummary") || {
+          sourceAlias: bru.getVar("gatewayProjectionControlledSmokeReleaseRunbookSourceAlias") || bru.getEnvVar("gatewayProjectionControlledSmokeReleaseRunbookSourceAlias") || "bruno-controlled-smoke-release-runbook",
+          evidenceHints: [{
+            sourceAlias: "admin-release",
+            status: releaseDecisionHandoff.status,
+            decision: releaseDecisionHandoff.decision,
+            alias: releaseDecisionHandoff.aliases?.[0] || releaseDecisionHandoff.decision,
+            owner: releaseDecisionHandoff.ownerHandoffs?.[0]?.owner,
+            minimumUnblockCondition: releaseDecisionHandoff.ownerHandoffs?.[0]?.minimumUnblockCondition,
+          }, {
+            sourceAlias: "controlled-smoke-preflight",
+            status: controlledSmokePreflightHandoff.status,
+            decision: controlledSmokePreflightHandoff.decision,
+            alias: controlledSmokePreflightHandoff.aliases?.[0] || controlledSmokePreflightHandoff.decision,
+            owner: controlledSmokePreflightHandoff.ownerHandoffs?.[0]?.owner,
+            minimumUnblockCondition: controlledSmokePreflightHandoff.ownerHandoffs?.[0]?.minimumUnblockCondition,
+          }],
+        }
+
+        const {createGatewayProjectionControlledSmokeReleaseRunbook} = loadRunbook()
+        const runbook = createGatewayProjectionControlledSmokeReleaseRunbook({
+          releaseDecisionAlias: bru.getVar("gatewayProjectionReleaseDecisionAlias") || bru.getEnvVar("gatewayProjectionReleaseDecisionAlias") || releaseDecisionHandoff.decision,
+          controlledSmokePreflightAlias: bru.getVar("gatewayProjectionControlledSmokePreflightAlias") || bru.getEnvVar("gatewayProjectionControlledSmokePreflightAlias") || controlledSmokePreflightHandoff.decision,
+          releaseDecisionHandoff,
+          controlledSmokePreflightHandoff,
+          evidenceSummary,
+        }, {
+          sourceAlias: bru.getVar("gatewayProjectionControlledSmokeReleaseRunbookSourceAlias") || bru.getEnvVar("gatewayProjectionControlledSmokeReleaseRunbookSourceAlias") || "bruno-controlled-smoke-release-runbook",
+        })
+
+        console.log(JSON.stringify(runbook, null, 2))
+        if (runbook.status !== "ready" && boolVar("gatewayProjectionRequireControlledSmokeReleaseRunbookReady")) {
+          throw new Error(`projection controlled smoke release runbook blocked reason=${runbook.reason} blockers=${[...(runbook.hardRedLineFlags || []), ...(runbook.missingPrerequisites || [])].join("|") || "none"}`)
+        }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

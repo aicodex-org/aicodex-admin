@@ -1,0 +1,62 @@
+info:
+  name: Controlled Smoke Operator Triage Handoff
+  type: http
+  seq: 12
+  tags:
+    - smoke
+    - gateway-projection
+    - controlled-smoke
+    - operator-triage
+    - readonly
+    - local-only
+
+http:
+  method: GET
+  url: "{{baseUrl}}/__local_only__/gateway-projection/controlled-smoke/operator-triage-handoff"
+
+runtime:
+  scripts:
+    - type: pre-request
+      code: |-
+        function loadControlledSmokeOperatorTriageHandoff() {
+          try {
+            return require("../scripts/gatewayProjectionControlledSmokeOperatorTriageHandoff")
+          } catch (error) {
+            return require("./scripts/gatewayProjectionControlledSmokeOperatorTriageHandoff")
+          }
+        }
+
+        function parseJsonVar(name) {
+          const raw = bru.getVar(name) || bru.getEnvVar(name)
+          if (!raw) {
+            return undefined
+          }
+          return typeof raw === "string" ? JSON.parse(raw) : raw
+        }
+
+        function boolVar(name) {
+          return String(bru.getVar(name) || bru.getEnvVar(name) || "").toLowerCase() === "true"
+        }
+
+        const {createGatewayProjectionControlledSmokeOperatorTriageHandoff} = loadControlledSmokeOperatorTriageHandoff()
+        const handoff = createGatewayProjectionControlledSmokeOperatorTriageHandoff({
+          releaseSummaryHandoffSummary: parseJsonVar("gatewayProjectionControlledSmokeReleaseSummaryHandoff"),
+          resultEvidenceHandoffSummary: parseJsonVar("gatewayProjectionControlledSmokeResultEvidenceHandoff"),
+          operatorMetadata: parseJsonVar("gatewayProjectionControlledSmokeOperatorTriageMetadata"),
+          operatorNote: bru.getVar("gatewayProjectionControlledSmokeOperatorTriageNote") || bru.getEnvVar("gatewayProjectionControlledSmokeOperatorTriageNote"),
+        }, {
+          sourceAlias: bru.getVar("gatewayProjectionControlledSmokeOperatorTriageSourceAlias") || bru.getEnvVar("gatewayProjectionControlledSmokeOperatorTriageSourceAlias") || "bruno-controlled-smoke-operator-triage-handoff",
+        })
+
+        console.log(JSON.stringify(handoff, null, 2))
+        if (handoff.status !== "ready-for-operator-triage-handoff" && boolVar("gatewayProjectionRequireControlledSmokeOperatorTriageReady")) {
+          throw new Error(`projection controlled smoke operator triage handoff blocked status=${handoff.status} blocker=${handoff.blockerAlias}`)
+        }
+
+        throw new Error("local-only controlled smoke operator triage handoff completed before network request; copy the sanitized console output")
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

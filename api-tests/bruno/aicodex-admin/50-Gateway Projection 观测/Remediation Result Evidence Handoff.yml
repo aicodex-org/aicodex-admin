@@ -1,0 +1,78 @@
+info:
+  name: Remediation Result Evidence Handoff
+  type: http
+  seq: 8
+  tags:
+    - smoke
+    - gateway-projection
+    - remediation-result
+    - evidence-handoff
+    - readonly
+    - local-only
+
+http:
+  method: GET
+  url: "{{baseUrl}}/__local_only__/gateway-projection/remediation-result-evidence-handoff"
+
+runtime:
+  scripts:
+    - type: pre-request
+      code: |-
+        function loadRemediationResultEvidenceHandoff() {
+          try {
+            return require("../scripts/gatewayProjectionRemediationResultEvidenceHandoff")
+          } catch (error) {
+            return require("./scripts/gatewayProjectionRemediationResultEvidenceHandoff")
+          }
+        }
+
+        function parseJsonVar(name) {
+          const raw = bru.getVar(name) || bru.getEnvVar(name)
+          if (!raw) {
+            return undefined
+          }
+          return typeof raw === "string" ? JSON.parse(raw) : raw
+        }
+
+        function boolVar(name) {
+          return String(bru.getVar(name) || bru.getEnvVar(name) || "").toLowerCase() === "true"
+        }
+
+        function arrayVar(name) {
+          const parsed = parseJsonVar(name)
+          if (Array.isArray(parsed)) {
+            return parsed
+          }
+          const raw = bru.getVar(name) || bru.getEnvVar(name)
+          if (!raw) {
+            return []
+          }
+          return String(raw).split(/[,\s|]+/).map((item) => item.trim()).filter(Boolean)
+        }
+
+        const {createGatewayProjectionRemediationResultEvidenceHandoff} = loadRemediationResultEvidenceHandoff()
+        const handoff = createGatewayProjectionRemediationResultEvidenceHandoff({
+          mappingRemediationResult: parseJsonVar("gatewayProjectionMappingRemediationResult"),
+          sourceFreshnessRemediationResult: parseJsonVar("gatewayProjectionSourceFreshnessRemediationResult"),
+          deployRuntimeResult: parseJsonVar("gatewayProjectionDeployRuntimeResult"),
+          fixtureAuthorizationResult: parseJsonVar("gatewayProjectionFixtureAuthorizationResult"),
+          controlledSmokeEvidenceResult: parseJsonVar("gatewayProjectionControlledSmokeEvidenceResult"),
+          resultAliases: arrayVar("gatewayProjectionRemediationResultAliases"),
+          operatorMetadata: parseJsonVar("gatewayProjectionRemediationResultOperatorMetadata"),
+          operatorNote: bru.getVar("gatewayProjectionRemediationResultOperatorNote") || bru.getEnvVar("gatewayProjectionRemediationResultOperatorNote"),
+        }, {
+          sourceAlias: bru.getVar("gatewayProjectionRemediationResultSourceAlias") || bru.getEnvVar("gatewayProjectionRemediationResultSourceAlias") || "bruno-remediation-result-evidence-handoff",
+        })
+
+        console.log(JSON.stringify(handoff, null, 2))
+        if (handoff.status !== "ready-for-controlled-smoke-evidence-review" && boolVar("gatewayProjectionRequireRemediationResultReady")) {
+          throw new Error(`projection remediation result evidence handoff blocked status=${handoff.status} reason=${handoff.reason}`)
+        }
+
+        throw new Error("local-only remediation result evidence handoff completed before network request; copy the sanitized console output")
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

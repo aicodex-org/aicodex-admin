@@ -1,0 +1,61 @@
+info:
+  name: Controlled Smoke Operator Readiness Handoff
+  type: http
+  seq: 15
+  tags:
+    - smoke
+    - gateway-projection
+    - controlled-smoke
+    - operator-readiness
+    - readonly
+    - local-only
+
+http:
+  method: GET
+  url: "{{baseUrl}}/__local_only__/gateway-projection/controlled-smoke/operator-readiness-handoff"
+
+runtime:
+  scripts:
+    - type: pre-request
+      code: |-
+        function loadControlledSmokeOperatorReadinessHandoff() {
+          try {
+            return require("../scripts/gatewayProjectionControlledSmokeOperatorReadinessHandoff")
+          } catch (error) {
+            return require("./scripts/gatewayProjectionControlledSmokeOperatorReadinessHandoff")
+          }
+        }
+
+        function parseJsonVar(name) {
+          const raw = bru.getVar(name) || bru.getEnvVar(name)
+          if (!raw) {
+            return undefined
+          }
+          return typeof raw === "string" ? JSON.parse(raw) : raw
+        }
+
+        function boolVar(name) {
+          return String(bru.getVar(name) || bru.getEnvVar(name) || "").toLowerCase() === "true"
+        }
+
+        const {createGatewayProjectionControlledSmokeOperatorReadinessHandoff} = loadControlledSmokeOperatorReadinessHandoff()
+        const handoff = createGatewayProjectionControlledSmokeOperatorReadinessHandoff({
+          operatorActionHandoffSummary: parseJsonVar("gatewayProjectionControlledSmokeOperatorActionHandoff"),
+          operatorMetadata: parseJsonVar("gatewayProjectionControlledSmokeOperatorReadinessMetadata"),
+          operatorNote: bru.getVar("gatewayProjectionControlledSmokeOperatorReadinessNote") || bru.getEnvVar("gatewayProjectionControlledSmokeOperatorReadinessNote"),
+        }, {
+          sourceAlias: bru.getVar("gatewayProjectionControlledSmokeOperatorReadinessSourceAlias") || bru.getEnvVar("gatewayProjectionControlledSmokeOperatorReadinessSourceAlias") || "bruno-controlled-smoke-operator-readiness-handoff",
+        })
+
+        console.log(JSON.stringify(handoff, null, 2))
+        if (handoff.readinessStatus !== "ready-for-operator-readiness-handoff" && boolVar("gatewayProjectionRequireControlledSmokeOperatorReadinessReady")) {
+          throw new Error(`projection controlled smoke operator readiness handoff blocked status=${handoff.readinessStatus} blocker=${handoff.blockedAlias}`)
+        }
+
+        throw new Error("local-only controlled smoke operator readiness handoff completed before network request; copy the sanitized console output")
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -15,54 +15,29 @@ runtime:
   scripts:
     - type: after-response
       code: |-
+        function loadPreflight() {
+          try {
+            return require("../scripts/gatewayProjectionObservabilityPreflight")
+          } catch (error) {
+            return require("./scripts/gatewayProjectionObservabilityPreflight")
+          }
+        }
+
         const status = res.getStatus()
         const body = res.getBody()
         const json = typeof body === "string" ? JSON.parse(body) : body
-        const data = json?.data
-        if (status !== 200 || json?.status !== "ok" || !data?.publisher || !data?.refresh) {
+        if (status !== 200) {
           throw new Error(`admin gateway projection observability 响应异常。status=${status} statusField=${json?.status}`)
         }
-        if (typeof data.publisher.enabled !== "boolean" || typeof data.publisher.configured !== "boolean") {
-          throw new Error("publisher 诊断缺少 enabled/configured")
-        }
-        if (typeof data.publisher.freshnessTtlSeconds !== "number" || data.publisher.freshnessTtlSeconds <= 0) {
-          throw new Error("publisher 诊断缺少 freshnessTtlSeconds")
-        }
-        if (typeof data.refresh.enabled !== "boolean" || typeof data.refresh.intervalLessThanTtl !== "boolean") {
-          throw new Error("refresh 诊断缺少 enabled/intervalLessThanTtl")
-        }
-        if (data.refresh.enabled && !data.refresh.intervalLessThanTtl) {
-          throw new Error("refresh interval 未小于 projection freshness TTL")
-        }
-        const serialized = JSON.stringify(data).toLowerCase()
-        for (const forbidden of ["authorization", "bearer ", "cookie", "token"]) {
-          if (serialized.includes(forbidden)) {
-            throw new Error(`projection observability 响应包含疑似敏感字段: ${forbidden}`)
-          }
-        }
+        const {evaluateGatewayProjectionObservabilityPreflight} = loadPreflight()
         const requireLatest = String(bru.getVar("gatewayProjectionRequireLatestAudit") || bru.getEnvVar("gatewayProjectionRequireLatestAudit") || "").toLowerCase()
-        if (requireLatest === "true" && !data.latestPublish?.projectionBatchId) {
-          throw new Error("projection observability 缺少 latest publish audit；请先触发受控 projection publish 或 refresh")
-        }
-        const minSubjectCountRaw = bru.getVar("gatewayProjectionMinSubjectCount") || bru.getEnvVar("gatewayProjectionMinSubjectCount")
-        const minSubjectCount = Number(minSubjectCountRaw || 0)
-        if (minSubjectCount > 0) {
-          if (!data.latestPublish?.projectionBatchId) {
-            throw new Error("启用 subject count 断言时必须存在 latest publish audit")
-          }
-          if (typeof data.latestPublish.subjectCount !== "number" || data.latestPublish.subjectCount < minSubjectCount) {
-            throw new Error(`projection publishable subject fixture 未就绪。subjectCount=${data.latestPublish?.subjectCount} min=${minSubjectCount}`)
-          }
-        }
-        const minTombstoneCountRaw = bru.getVar("gatewayProjectionMinTombstoneSubjectCount") || bru.getEnvVar("gatewayProjectionMinTombstoneSubjectCount")
-        const minTombstoneCount = Number(minTombstoneCountRaw || 0)
-        if (minTombstoneCount > 0) {
-          if (!data.latestPublish?.projectionBatchId) {
-            throw new Error("启用 tombstone count 断言时必须存在 latest publish audit")
-          }
-          if (typeof data.latestPublish.tombstoneSubjectCount !== "number" || data.latestPublish.tombstoneSubjectCount < minTombstoneCount) {
-            throw new Error(`projection tombstone fixture 未就绪。tombstoneSubjectCount=${data.latestPublish?.tombstoneSubjectCount} min=${minTombstoneCount}`)
-          }
+        const result = evaluateGatewayProjectionObservabilityPreflight(json, {
+          requireLatestAudit: requireLatest === "true",
+          minSubjectCount: bru.getVar("gatewayProjectionMinSubjectCount") || bru.getEnvVar("gatewayProjectionMinSubjectCount"),
+          minTombstoneSubjectCount: bru.getVar("gatewayProjectionMinTombstoneSubjectCount") || bru.getEnvVar("gatewayProjectionMinTombstoneSubjectCount"),
+        })
+        if (result.status !== "ok") {
+          throw new Error(`projection observability preflight blocked alias=${result.alias} reason=${result.reason}`)
         }
 
 settings:

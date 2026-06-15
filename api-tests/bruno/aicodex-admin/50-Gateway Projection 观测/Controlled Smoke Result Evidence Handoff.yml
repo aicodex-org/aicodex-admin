@@ -1,0 +1,79 @@
+info:
+  name: Controlled Smoke Result Evidence Handoff
+  type: http
+  seq: 10
+  tags:
+    - smoke
+    - gateway-projection
+    - controlled-smoke
+    - result-evidence
+    - readonly
+    - local-only
+
+http:
+  method: GET
+  url: "{{baseUrl}}/__local_only__/gateway-projection/controlled-smoke/result-evidence-handoff"
+
+runtime:
+  scripts:
+    - type: pre-request
+      code: |-
+        function loadControlledSmokeResultEvidenceHandoff() {
+          try {
+            return require("../scripts/gatewayProjectionControlledSmokeResultEvidenceHandoff")
+          } catch (error) {
+            return require("./scripts/gatewayProjectionControlledSmokeResultEvidenceHandoff")
+          }
+        }
+
+        function parseJsonVar(name) {
+          const raw = bru.getVar(name) || bru.getEnvVar(name)
+          if (!raw) {
+            return undefined
+          }
+          return typeof raw === "string" ? JSON.parse(raw) : raw
+        }
+
+        function boolVar(name) {
+          return String(bru.getVar(name) || bru.getEnvVar(name) || "").toLowerCase() === "true"
+        }
+
+        function arrayVar(name) {
+          const parsed = parseJsonVar(name)
+          if (Array.isArray(parsed)) {
+            return parsed
+          }
+          const raw = bru.getVar(name) || bru.getEnvVar(name)
+          if (!raw) {
+            return []
+          }
+          return String(raw).split(/[,\s|]+/).map((item) => item.trim()).filter(Boolean)
+        }
+
+        const {createGatewayProjectionControlledSmokeResultEvidenceHandoff} = loadControlledSmokeResultEvidenceHandoff()
+        const handoff = createGatewayProjectionControlledSmokeResultEvidenceHandoff({
+          executionHandoffSummary: parseJsonVar("gatewayProjectionControlledSmokeExecutionHandoff"),
+          resultStatus: bru.getVar("gatewayProjectionControlledSmokeResultStatus") || bru.getEnvVar("gatewayProjectionControlledSmokeResultStatus"),
+          resultAliases: arrayVar("gatewayProjectionControlledSmokeResultAliases"),
+          resultCounts: parseJsonVar("gatewayProjectionControlledSmokeResultCounts"),
+          redactionCategory: bru.getVar("gatewayProjectionControlledSmokeResultRedactionCategory") || bru.getEnvVar("gatewayProjectionControlledSmokeResultRedactionCategory"),
+          riskCategory: bru.getVar("gatewayProjectionControlledSmokeResultRiskCategory") || bru.getEnvVar("gatewayProjectionControlledSmokeResultRiskCategory"),
+          operatorNextAction: bru.getVar("gatewayProjectionControlledSmokeResultOperatorNextAction") || bru.getEnvVar("gatewayProjectionControlledSmokeResultOperatorNextAction"),
+          operatorMetadata: parseJsonVar("gatewayProjectionControlledSmokeResultOperatorMetadata"),
+          operatorNote: bru.getVar("gatewayProjectionControlledSmokeResultOperatorNote") || bru.getEnvVar("gatewayProjectionControlledSmokeResultOperatorNote"),
+        }, {
+          sourceAlias: bru.getVar("gatewayProjectionControlledSmokeResultSourceAlias") || bru.getEnvVar("gatewayProjectionControlledSmokeResultSourceAlias") || "bruno-controlled-smoke-result-evidence-handoff",
+        })
+
+        console.log(JSON.stringify(handoff, null, 2))
+        if (handoff.status !== "ready-for-result-evidence-handoff" && boolVar("gatewayProjectionRequireControlledSmokeResultReady")) {
+          throw new Error(`projection controlled smoke result evidence handoff blocked status=${handoff.status} blocker=${handoff.blockerAlias}`)
+        }
+
+        throw new Error("local-only controlled smoke result evidence handoff completed before network request; copy the sanitized console output")
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -1,0 +1,65 @@
+info:
+  name: Readiness Summary
+  type: http
+  seq: 2
+  tags:
+    - smoke
+    - gateway-projection
+    - readiness
+    - readonly
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/gateway-projection/observability"
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        function loadSummary() {
+          try {
+            return require("../scripts/gatewayProjectionReadinessSummary")
+          } catch (error) {
+            return require("./scripts/gatewayProjectionReadinessSummary")
+          }
+        }
+
+        function parseJsonVar(name) {
+          const raw = bru.getVar(name) || bru.getEnvVar(name)
+          if (!raw) {
+            return undefined
+          }
+          return typeof raw === "string" ? JSON.parse(raw) : raw
+        }
+
+        function boolVar(name) {
+          return String(bru.getVar(name) || bru.getEnvVar(name) || "").toLowerCase() === "true"
+        }
+
+        const status = res.getStatus()
+        const body = res.getBody()
+        const observabilityResponse = typeof body === "string" ? JSON.parse(body) : body
+        if (status !== 200) {
+          throw new Error(`admin gateway projection readiness summary 响应异常。status=${status} statusField=${observabilityResponse?.status}`)
+        }
+
+        const {evaluateGatewayProjectionReadinessSummary} = loadSummary()
+        const summary = evaluateGatewayProjectionReadinessSummary({
+          observabilityResponse,
+          mappingReadinessResponse: parseJsonVar("gatewayProjectionMappingReadinessResponse"),
+        }, {
+          requireLatestAudit: boolVar("gatewayProjectionRequireLatestAudit"),
+          minSubjectCount: bru.getVar("gatewayProjectionMinSubjectCount") || bru.getEnvVar("gatewayProjectionMinSubjectCount"),
+          minTombstoneSubjectCount: bru.getVar("gatewayProjectionMinTombstoneSubjectCount") || bru.getEnvVar("gatewayProjectionMinTombstoneSubjectCount"),
+        })
+
+        console.log(JSON.stringify(summary, null, 2))
+        if (summary.status === "blocked" || (summary.mappingReadiness.status === "not_checked" && boolVar("gatewayProjectionRequireMappingReadiness"))) {
+          throw new Error(`projection readiness summary blocked status=${summary.status} aliases=${summary.aliases.join("|") || "none"} mapping=${summary.mappingReadiness.status}`)
+        }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -1,0 +1,79 @@
+info:
+  name: Controlled Smoke Release Summary Handoff
+  type: http
+  seq: 11
+  tags:
+    - smoke
+    - gateway-projection
+    - controlled-smoke
+    - release-summary
+    - readonly
+    - local-only
+
+http:
+  method: GET
+  url: "{{baseUrl}}/__local_only__/gateway-projection/controlled-smoke/release-summary-handoff"
+
+runtime:
+  scripts:
+    - type: pre-request
+      code: |-
+        function loadControlledSmokeReleaseSummaryHandoff() {
+          try {
+            return require("../scripts/gatewayProjectionControlledSmokeReleaseSummaryHandoff")
+          } catch (error) {
+            return require("./scripts/gatewayProjectionControlledSmokeReleaseSummaryHandoff")
+          }
+        }
+
+        function parseJsonVar(name) {
+          const raw = bru.getVar(name) || bru.getEnvVar(name)
+          if (!raw) {
+            return undefined
+          }
+          return typeof raw === "string" ? JSON.parse(raw) : raw
+        }
+
+        function boolVar(name) {
+          return String(bru.getVar(name) || bru.getEnvVar(name) || "").toLowerCase() === "true"
+        }
+
+        function arrayVar(name) {
+          const parsed = parseJsonVar(name)
+          if (Array.isArray(parsed)) {
+            return parsed
+          }
+          const raw = bru.getVar(name) || bru.getEnvVar(name)
+          if (!raw) {
+            return []
+          }
+          return String(raw).split(/[,\s|]+/).map((item) => item.trim()).filter(Boolean)
+        }
+
+        const {createGatewayProjectionControlledSmokeReleaseSummaryHandoff} = loadControlledSmokeReleaseSummaryHandoff()
+        const handoff = createGatewayProjectionControlledSmokeReleaseSummaryHandoff({
+          resultEvidenceHandoffSummary: parseJsonVar("gatewayProjectionControlledSmokeResultEvidenceHandoff"),
+          releaseSummaryStatus: bru.getVar("gatewayProjectionControlledSmokeReleaseSummaryStatus") || bru.getEnvVar("gatewayProjectionControlledSmokeReleaseSummaryStatus"),
+          releaseSummaryAliases: arrayVar("gatewayProjectionControlledSmokeReleaseSummaryAliases"),
+          releaseSummaryCounts: parseJsonVar("gatewayProjectionControlledSmokeReleaseSummaryCounts"),
+          redactionCategory: bru.getVar("gatewayProjectionControlledSmokeReleaseSummaryRedactionCategory") || bru.getEnvVar("gatewayProjectionControlledSmokeReleaseSummaryRedactionCategory"),
+          riskCategory: bru.getVar("gatewayProjectionControlledSmokeReleaseSummaryRiskCategory") || bru.getEnvVar("gatewayProjectionControlledSmokeReleaseSummaryRiskCategory"),
+          operatorNextAction: bru.getVar("gatewayProjectionControlledSmokeReleaseSummaryOperatorNextAction") || bru.getEnvVar("gatewayProjectionControlledSmokeReleaseSummaryOperatorNextAction"),
+          operatorMetadata: parseJsonVar("gatewayProjectionControlledSmokeReleaseSummaryOperatorMetadata"),
+          operatorNote: bru.getVar("gatewayProjectionControlledSmokeReleaseSummaryOperatorNote") || bru.getEnvVar("gatewayProjectionControlledSmokeReleaseSummaryOperatorNote"),
+        }, {
+          sourceAlias: bru.getVar("gatewayProjectionControlledSmokeReleaseSummarySourceAlias") || bru.getEnvVar("gatewayProjectionControlledSmokeReleaseSummarySourceAlias") || "bruno-controlled-smoke-release-summary-handoff",
+        })
+
+        console.log(JSON.stringify(handoff, null, 2))
+        if (handoff.status !== "ready-for-release-summary-handoff" && boolVar("gatewayProjectionRequireControlledSmokeReleaseSummaryReady")) {
+          throw new Error(`projection controlled smoke release summary handoff blocked status=${handoff.status} blocker=${handoff.blockerAlias}`)
+        }
+
+        throw new Error("local-only controlled smoke release summary handoff completed before network request; copy the sanitized console output")
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
