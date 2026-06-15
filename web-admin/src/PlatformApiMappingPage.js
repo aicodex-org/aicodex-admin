@@ -25,6 +25,15 @@ const {Text} = Typography;
 const {Search} = Input;
 const mappingStatuses = ["CONFIRMED", "PENDING_REVIEW", "CONFLICTED", "DUPLICATE", "DISABLED"];
 const mappingSources = ["MANUAL", "MIGRATION", "RESOLVER"];
+const readinessCategories = [
+  "active_publishable",
+  "tombstone_publishable",
+  "mapping_missing",
+  "mapping_untrusted",
+  "lifecycle_not_publishable",
+  "source_metadata_unavailable",
+  "lineage_freshness_unavailable",
+];
 const mappingStatusLabels = {
   CONFIRMED: "已确认",
   PENDING_REVIEW: "待复核",
@@ -37,10 +46,20 @@ const mappingSourceLabels = {
   MIGRATION: "迁移导入",
   RESOLVER: "解析器生成",
 };
+const readinessCategoryLabels = {
+  active_publishable: "Active 可发布",
+  tombstone_publishable: "Tombstone 可发布",
+  mapping_missing: "缺少映射",
+  mapping_untrusted: "映射不可信",
+  lifecycle_not_publishable: "生命周期不可发布",
+  source_metadata_unavailable: "来源元数据不可用",
+  lineage_freshness_unavailable: "血缘/新鲜度不可用",
+};
 const titleTips = {
   platformApiMappings: "维护认证中心组织/账号到 aicodex-api 业务组织、网关账号和用量身份的权威映射。",
   organizationMapping: "维护平台组织到 aicodex-api 业务组织 UUID 的一等映射。只有“已确认”才会作为运行时权威来源。",
   userMapping: "维护同一组织内平台主体到 aicodex-api 用户 ID 的一等映射。只有“已确认”才会作为运行时权威来源。",
+  readiness: "只读诊断当前组织是否存在可发布 active/tombstone subject；该结果只用于 Admin operator 排障，不是 gateway authorization facts。",
   organizationId: "技术字段：organizationId。aicodex-admin 平台组织 ID，表示本次登录和映射归属的租户上下文。",
   apiOrganizationId: "技术字段：apiOrganizationId。aicodex-api 业务组织 UUID。只有“已确认”状态才会进入授权、投影和报表链路。",
   adminSubject: "技术字段：adminSubject。稳定 admin 主体，一般由组织和用户稳定键组成，用于跨组织唯一识别平台用户。",
@@ -51,6 +70,17 @@ const titleTips = {
 
 function normalizeMappingStatus(status) {
   return status || "PENDING_REVIEW";
+}
+
+function getReadinessCategoryLabel(category) {
+  return readinessCategoryLabels[category] || category || "-";
+}
+
+function getReadinessCategoryOptions() {
+  return [
+    Setting.getOption("全部 readiness", ""),
+    ...readinessCategories.map(category => Setting.getOption(getReadinessCategoryLabel(category), category)),
+  ];
 }
 
 function normalizeMappingSource(source) {
@@ -91,8 +121,12 @@ class PlatformApiMappingPage extends React.Component {
       userMappings: [],
       organizationLoading: false,
       userLoading: false,
+      readinessLoading: false,
       savingKey: "",
       userKeyword: "",
+      readinessCategory: "",
+      readinessMappingStatus: "",
+      readiness: null,
       userPagination: getDefaultTablePagination(),
       userMappingsLoaded: false,
     };
@@ -159,6 +193,11 @@ class PlatformApiMappingPage extends React.Component {
     const keyword = options.keyword !== undefined ? options.keyword : this.state.userKeyword;
 
     this.setState({userLoading: true});
+    const readinessPromise = this.refreshUserMappingReadiness(organization, {
+      keyword,
+      readinessCategory: this.state.readinessCategory,
+      mappingStatus: this.state.readinessMappingStatus,
+    });
     return PlatformApiMappingBackend.getPlatformApiUserMappings(organization, {
       current: pagination.current,
       pageSize: pagination.pageSize,
@@ -177,8 +216,39 @@ class PlatformApiMappingPage extends React.Component {
         },
         userMappingsLoaded: true,
       });
+      return readinessPromise;
     }).catch(error => {
       this.setState({userLoading: false});
+      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+    });
+  }
+
+  refreshUserMappingReadiness(organization = this.state.organization, options = {}) {
+    if (!organization) {
+      return Promise.resolve();
+    }
+    const keyword = options.keyword !== undefined ? options.keyword : this.state.userKeyword;
+    const readinessCategory = options.readinessCategory !== undefined ? options.readinessCategory : this.state.readinessCategory;
+    const mappingStatus = options.mappingStatus !== undefined ? options.mappingStatus : this.state.readinessMappingStatus;
+
+    this.setState({readinessLoading: true});
+    return PlatformApiMappingBackend.getPlatformApiUserMappingReadiness(organization, {
+      keyword,
+      readinessCategory,
+      mappingStatus,
+      limit: 20,
+    }).then((res) => {
+      if (res.status === "error") {
+        Setting.showMessage("error", res.msg);
+      }
+      this.setState({
+        readinessLoading: false,
+        readiness: res.status === "ok" ? res.data : null,
+        readinessCategory,
+        readinessMappingStatus: mappingStatus,
+      });
+    }).catch(error => {
+      this.setState({readinessLoading: false});
       Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
     });
   }
@@ -189,6 +259,9 @@ class PlatformApiMappingPage extends React.Component {
       organizationMappings: [],
       userMappings: [],
       userKeyword: "",
+      readiness: null,
+      readinessCategory: "",
+      readinessMappingStatus: "",
       userPagination: getDefaultTablePagination(),
       userMappingsLoaded: false,
     }, () => {
@@ -418,6 +491,61 @@ class PlatformApiMappingPage extends React.Component {
     });
   }
 
+  changeReadinessFilter(field, value) {
+    this.setState({[field]: value}, () => {
+      this.refreshUserMappingReadiness(this.state.organization, {
+        keyword: this.state.userKeyword,
+        readinessCategory: this.state.readinessCategory,
+        mappingStatus: this.state.readinessMappingStatus,
+      });
+    });
+  }
+
+  getDisplayedReadinessGuidance() {
+    const guidance = this.state.readiness?.remediationGuidance || [];
+    if (!this.state.readinessCategory) {
+      return guidance;
+    }
+    return guidance.filter(item => item.category === this.state.readinessCategory);
+  }
+
+  renderReadinessGuidance() {
+    const guidance = this.getDisplayedReadinessGuidance();
+    if (guidance.length === 0) {
+      return null;
+    }
+
+    return (
+      <div style={{marginBottom: 12}}>
+        {guidance.map(item => (
+          <div
+            key={item.category}
+            style={{
+              border: "1px solid #d9d9d9",
+              borderRadius: 6,
+              padding: 12,
+              marginBottom: 8,
+              background: "#fff",
+            }}
+          >
+            <Space wrap style={{marginBottom: 8}}>
+              <Tag color="blue">{getReadinessCategoryLabel(item.category)}</Tag>
+              <Text strong>{item.summary}</Text>
+              <Text type="secondary">{item.code}</Text>
+            </Space>
+            <ul style={{margin: 0, paddingLeft: 20}}>
+              {(item.operatorActions || []).map(action => (
+                <li key={action}>{action}</li>
+              ))}
+              <li>最小解除条件：{item.minimumUnblockCondition}</li>
+              <li>边界：{item.boundary}</li>
+            </ul>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   renderUserMappingTable() {
     const columns = [
       {
@@ -490,6 +618,89 @@ class PlatformApiMappingPage extends React.Component {
     );
   }
 
+  renderReadinessSummary() {
+    const readiness = this.state.readiness;
+    const counts = readiness?.counts || {};
+    const candidates = readiness?.candidates || [];
+    const columns = [
+      {
+        title: "平台主体",
+        dataIndex: "adminSubject",
+        width: 260,
+      },
+      {
+        title: "Readiness",
+        dataIndex: "readinessCategory",
+        width: 210,
+        render: value => <Tag color={value === "active_publishable" || value === "tombstone_publishable" ? "green" : "orange"}>{getReadinessCategoryLabel(value)}</Tag>,
+      },
+      {
+        title: "映射状态",
+        dataIndex: "platformMappingStatus",
+        width: 160,
+        render: value => this.renderStatus(value),
+      },
+      {
+        title: "API 用户 ID",
+        dataIndex: "apiUserId",
+        width: 180,
+        render: value => value || <Text type="secondary">未确认</Text>,
+      },
+    ];
+
+    return (
+      <Card
+        type="inner"
+        title={this.renderTitleWithTip("可发布主体 readiness", titleTips.readiness)}
+        style={{marginBottom: 12}}
+        extra={
+          <Space wrap>
+            <Select
+              value={this.state.readinessCategory}
+              options={getReadinessCategoryOptions()}
+              style={{width: 210}}
+              onChange={value => this.changeReadinessFilter("readinessCategory", value)}
+            />
+            <Select
+              value={this.state.readinessMappingStatus}
+              options={[Setting.getOption("全部映射状态", ""), ...getMappingStatusOptions()]}
+              style={{width: 160}}
+              onChange={value => this.changeReadinessFilter("readinessMappingStatus", value)}
+            />
+            <Button icon={<ReloadOutlined />} loading={this.state.readinessLoading} onClick={() => this.refreshUserMappingReadiness()}>
+              {i18next.t("general:Refresh")}
+            </Button>
+          </Space>
+        }
+      >
+        <Alert
+          type="info"
+          showIcon
+          message="subjectCount=0 且 mapping_missing 只表示没有可发布主体 fixture，不代表完整 projection 业务成功。"
+          style={{marginBottom: 12}}
+        />
+        <Space wrap style={{marginBottom: 12}}>
+          {readinessCategories.map(category => (
+            <Tag key={category} color={counts[category] > 0 ? "blue" : "default"}>
+              {getReadinessCategoryLabel(category)}: {counts[category] || 0}
+            </Tag>
+          ))}
+          <Tag>总主体: {readiness?.totalSubjectCount || 0}</Tag>
+        </Space>
+        {this.renderReadinessGuidance()}
+        <Table
+          rowKey={(record) => record.adminSubject}
+          columns={columns}
+          dataSource={candidates}
+          pagination={false}
+          loading={this.state.readinessLoading}
+          size="small"
+          scroll={{x: 800}}
+        />
+      </Card>
+    );
+  }
+
   renderOrganizationMappingTab() {
     return (
       <Card
@@ -522,6 +733,7 @@ class PlatformApiMappingPage extends React.Component {
           </Space>
         }
       >
+        {this.renderReadinessSummary()}
         {this.renderUserMappingTable()}
       </Card>
     );

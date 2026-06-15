@@ -98,6 +98,26 @@ func (c *ApiController) GetPlatformApiUserMappings() {
 	c.ResponseOk(mappings, paginator.Nums())
 }
 
+// GetPlatformApiUserMappingReadiness
+// @Title GetPlatformApiUserMappingReadiness
+// @Tag Platform API Mapping API
+// @Description 获取 Platform API 用户映射的只读可发布主体 readiness 诊断
+// @router /get-platform-api-user-mapping-readiness [get]
+func (c *ApiController) GetPlatformApiUserMappingReadiness() {
+	readiness, err := object.GetPlatformApiUserMappingReadiness(object.PlatformApiUserMappingReadinessQuery{
+		OrganizationId:     c.Ctx.Input.Query("organization"),
+		Keyword:            c.Ctx.Input.Query("keyword"),
+		ReadinessCategory:  c.Ctx.Input.Query("readinessCategory"),
+		UserMappingStatus:  c.Ctx.Input.Query("mappingStatus"),
+		MaxCandidateResult: util.ParseInt(c.Ctx.Input.Query("limit")),
+	})
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(readiness)
+}
+
 // UpdatePlatformApiUserMapping
 // @Title UpdatePlatformApiUserMapping
 // @Tag Platform API Mapping API

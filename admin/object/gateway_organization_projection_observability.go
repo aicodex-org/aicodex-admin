@@ -70,28 +70,40 @@ type GatewayProjectionRefreshObservability struct {
 }
 
 type GatewayProjectionLatestPublishObservability struct {
-	TraceID                string         `json:"traceId,omitempty"`
-	Caller                 string         `json:"caller,omitempty"`
-	ProjectionBatchID      string         `json:"projectionBatchId,omitempty"`
-	OrgVersion             int64          `json:"orgVersion,omitempty"`
-	SourceVersion          string         `json:"sourceVersion,omitempty"`
-	GeneratedAt            string         `json:"generatedAt,omitempty"`
-	FreshnessExpiresAt     string         `json:"freshnessExpiresAt,omitempty"`
-	SourceConnectionStatus string         `json:"sourceConnectionStatus,omitempty"`
-	SubjectCount           int            `json:"subjectCount"`
-	ActiveSubjectCount     int            `json:"activeSubjectCount"`
-	TombstoneSubjectCount  int            `json:"tombstoneSubjectCount"`
-	SkippedSubjectCount    int            `json:"skippedSubjectCount"`
-	SkippedByReason        map[string]int `json:"skippedByReason,omitempty"`
-	Status                 string         `json:"status"`
-	StatusCode             int            `json:"statusCode,omitempty"`
-	ErrorCode              string         `json:"errorCode,omitempty"`
-	FailureCategory        string         `json:"failureCategory,omitempty"`
-	Attempts               int            `json:"attempts"`
-	Accepted               bool           `json:"accepted"`
-	Idempotent             bool           `json:"idempotent"`
-	Retryable              bool           `json:"retryable"`
-	DurationMs             int64          `json:"durationMs"`
+	TraceID                 string                                   `json:"traceId,omitempty"`
+	Caller                  string                                   `json:"caller,omitempty"`
+	ProjectionBatchID       string                                   `json:"projectionBatchId,omitempty"`
+	OrgVersion              int64                                    `json:"orgVersion,omitempty"`
+	SourceVersion           string                                   `json:"sourceVersion,omitempty"`
+	GeneratedAt             string                                   `json:"generatedAt,omitempty"`
+	FreshnessExpiresAt      string                                   `json:"freshnessExpiresAt,omitempty"`
+	SourceConnectionStatus  string                                   `json:"sourceConnectionStatus,omitempty"`
+	SourceConnectionSummary GatewayProjectionSourceConnectionSummary `json:"sourceConnectionSummary"`
+	SubjectCount            int                                      `json:"subjectCount"`
+	ActiveSubjectCount      int                                      `json:"activeSubjectCount"`
+	TombstoneSubjectCount   int                                      `json:"tombstoneSubjectCount"`
+	SkippedSubjectCount     int                                      `json:"skippedSubjectCount"`
+	SkippedByReason         map[string]int                           `json:"skippedByReason,omitempty"`
+	Status                  string                                   `json:"status"`
+	StatusCode              int                                      `json:"statusCode,omitempty"`
+	ErrorCode               string                                   `json:"errorCode,omitempty"`
+	FailureCategory         string                                   `json:"failureCategory,omitempty"`
+	Attempts                int                                      `json:"attempts"`
+	Accepted                bool                                     `json:"accepted"`
+	Idempotent              bool                                     `json:"idempotent"`
+	Retryable               bool                                     `json:"retryable"`
+	DurationMs              int64                                    `json:"durationMs"`
+}
+
+// GatewayProjectionSourceConnectionSummary 只保留 source connection 的脱敏状态和 freshness 计数。
+// 该摘要用于 Admin producer 排障，不暴露 source tenant、metadata、configRef、secretRef 或下游授权事实。
+type GatewayProjectionSourceConnectionSummary struct {
+	Total                   int            `json:"total"`
+	StatusCounts            map[string]int `json:"statusCounts,omitempty"`
+	FreshnessCounts         map[string]int `json:"freshnessCounts,omitempty"`
+	HasStaleFreshness       bool           `json:"hasStaleFreshness"`
+	HasUnavailableFreshness bool           `json:"hasUnavailableFreshness"`
+	HasUnknownFreshness     bool           `json:"hasUnknownFreshness"`
 }
 
 type gatewayProjectionObservabilityState struct {
@@ -166,13 +178,18 @@ func recordGatewayProjectionServiceObservability(build GatewayProjectionBuildRes
 	latest.SkippedSubjectCount = build.Summary.SkippedSubjectCount
 	latest.SkippedByReason = cloneGatewayProjectionSkipSummary(build.Summary.SkippedByReason)
 	latest.SourceConnectionStatus = summarizeGatewayProjectionSourceConnections(sourceConnections)
+	latest.SourceConnectionSummary = buildGatewayProjectionSourceConnectionSummary(sourceConnections)
+	sourceFailureCategory := gatewayProjectionSourceConnectionFailureCategory(latest.SourceConnectionSummary)
 	if latest.FailureCategory == "" {
-		if strings.Contains(strings.ToUpper(latest.SourceConnectionStatus), SourceConnectionStatusDisabled) {
-			latest.FailureCategory = GatewayProjectionFailureSourceConnectionDisabled
+		if sourceFailureCategory != GatewayProjectionFailureUnknown {
+			latest.FailureCategory = sourceFailureCategory
 		}
 	}
 	if latest.FailureCategory == "" {
 		latest.FailureCategory = gatewayProjectionBuildFailureCategory(build)
+	}
+	if latest.FailureCategory == "" {
+		latest.FailureCategory = sourceFailureCategory
 	}
 	recordGatewayProjectionLatestPublish(latest)
 }
@@ -246,25 +263,27 @@ func buildGatewayProjectionLatestPublish(request GatewayProjectionBatchRequest, 
 		status = "ok"
 	}
 	return &GatewayProjectionLatestPublishObservability{
-		TraceID:               request.TraceID,
-		Caller:                request.Caller,
-		ProjectionBatchID:     request.ProjectionBatchID,
-		OrgVersion:            request.OrgVersion,
-		SourceVersion:         request.Lineage.SourceVersion,
-		GeneratedAt:           formatGatewayProjectionObservabilityTime(request.GeneratedAt),
-		FreshnessExpiresAt:    formatGatewayProjectionObservabilityTime(request.Freshness.ExpiresAt),
-		SubjectCount:          len(request.Subjects),
-		ActiveSubjectCount:    active,
-		TombstoneSubjectCount: tombstone,
-		Status:                status,
-		StatusCode:            result.StatusCode,
-		ErrorCode:             result.ErrorCode,
-		FailureCategory:       GatewayProjectionFailureCategory(result.ErrorCode),
-		Attempts:              result.Attempts,
-		Accepted:              result.Accepted,
-		Idempotent:            result.Idempotent,
-		Retryable:             result.Retryable,
-		DurationMs:            durationMs,
+		TraceID:                 request.TraceID,
+		Caller:                  request.Caller,
+		ProjectionBatchID:       request.ProjectionBatchID,
+		OrgVersion:              request.OrgVersion,
+		SourceVersion:           request.Lineage.SourceVersion,
+		GeneratedAt:             formatGatewayProjectionObservabilityTime(request.GeneratedAt),
+		FreshnessExpiresAt:      formatGatewayProjectionObservabilityTime(request.Freshness.ExpiresAt),
+		SourceConnectionStatus:  summarizeGatewayProjectionSourceConnections(nil),
+		SourceConnectionSummary: buildGatewayProjectionSourceConnectionSummary(nil),
+		SubjectCount:            len(request.Subjects),
+		ActiveSubjectCount:      active,
+		TombstoneSubjectCount:   tombstone,
+		Status:                  status,
+		StatusCode:              result.StatusCode,
+		ErrorCode:               result.ErrorCode,
+		FailureCategory:         GatewayProjectionFailureCategory(result.ErrorCode),
+		Attempts:                result.Attempts,
+		Accepted:                result.Accepted,
+		Idempotent:              result.Idempotent,
+		Retryable:               result.Retryable,
+		DurationMs:              durationMs,
 	}
 }
 
@@ -319,6 +338,59 @@ func summarizeGatewayProjectionSourceConnections(connections []SourceConnection)
 	return strings.Join(statuses, ",")
 }
 
+// buildGatewayProjectionSourceConnectionSummary 汇总 status/freshness 计数而不携带任何 source 明细。
+// 空连接使用 missing 计数保持 JSON shape 稳定，避免 smoke 误判字段缺失。
+func buildGatewayProjectionSourceConnectionSummary(connections []SourceConnection) GatewayProjectionSourceConnectionSummary {
+	summary := GatewayProjectionSourceConnectionSummary{
+		Total:           len(connections),
+		StatusCounts:    map[string]int{},
+		FreshnessCounts: map[string]int{},
+	}
+	if len(connections) == 0 {
+		summary.StatusCounts["missing"] = 1
+		summary.FreshnessCounts["missing"] = 1
+		summary.HasUnknownFreshness = true
+		return summary
+	}
+	for _, connection := range connections {
+		status := normalizeGatewayProjectionString(connection.Status)
+		if status == "" {
+			status = "unknown"
+		}
+		summary.StatusCounts[status]++
+
+		freshness := normalizeGatewayProjectionString(connection.Freshness)
+		if freshness == "" {
+			freshness = "unknown"
+		}
+		summary.FreshnessCounts[freshness]++
+		switch strings.ToUpper(freshness) {
+		case PlatformFreshnessStale:
+			summary.HasStaleFreshness = true
+		case PlatformFreshnessUnavailable:
+			summary.HasUnavailableFreshness = true
+		case PlatformFreshnessUnknown:
+			summary.HasUnknownFreshness = true
+		}
+	}
+	return summary
+}
+
+// gatewayProjectionSourceConnectionFailureCategory 只根据脱敏 summary 给出 source 侧分类。
+// unknown freshness 只作为兜底分类，调用方会先保留 publish/build 更具体的错误。
+func gatewayProjectionSourceConnectionFailureCategory(summary GatewayProjectionSourceConnectionSummary) string {
+	if summary.StatusCounts[SourceConnectionStatusDisabled] > 0 {
+		return GatewayProjectionFailureSourceConnectionDisabled
+	}
+	if summary.HasStaleFreshness || summary.HasUnavailableFreshness {
+		return GatewayProjectionFailureSourceConnectionStale
+	}
+	if summary.HasUnknownFreshness {
+		return GatewayProjectionFailureUnknown
+	}
+	return ""
+}
+
 func countGatewayProjectionSubjectLifecycle(subjects []GatewayProjectedSubject) (int, int) {
 	active := 0
 	tombstone := 0
@@ -348,7 +420,15 @@ func cloneGatewayProjectionLatestPublish(latest *GatewayProjectionLatestPublishO
 	}
 	cloned := *latest
 	cloned.SkippedByReason = cloneGatewayProjectionSkipSummary(latest.SkippedByReason)
+	cloned.SourceConnectionSummary = cloneGatewayProjectionSourceConnectionSummary(latest.SourceConnectionSummary)
 	return &cloned
+}
+
+func cloneGatewayProjectionSourceConnectionSummary(summary GatewayProjectionSourceConnectionSummary) GatewayProjectionSourceConnectionSummary {
+	cloned := summary
+	cloned.StatusCounts = cloneGatewayProjectionSkipSummary(summary.StatusCounts)
+	cloned.FreshnessCounts = cloneGatewayProjectionSkipSummary(summary.FreshnessCounts)
+	return cloned
 }
 
 func cloneGatewayProjectionSkipSummary(summary map[string]int) map[string]int {

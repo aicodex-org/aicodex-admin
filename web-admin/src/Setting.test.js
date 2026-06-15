@@ -26,6 +26,7 @@ test("includes module-based WeCom organization API paths", () => {
   expect(paths).toContain("get-platform-api-organization-mappings");
   expect(paths).toContain("update-platform-api-organization-mapping");
   expect(paths).toContain("get-platform-api-user-mappings");
+  expect(paths).toContain("get-platform-api-user-mapping-readiness");
   expect(paths).toContain("update-platform-api-user-mapping");
 });
 

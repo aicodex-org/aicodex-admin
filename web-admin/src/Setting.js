@@ -2463,6 +2463,7 @@ export function getApiPaths() {
     "get-platform-api-organization-mappings",
     "update-platform-api-organization-mapping",
     "get-platform-api-user-mappings",
+    "get-platform-api-user-mapping-readiness",
     "update-platform-api-user-mapping"
   );
 

@@ -37,6 +37,14 @@ const (
 	PlatformApiMappingDefaultLineageAction  = "manual-update"
 	PlatformApiMappingDefaultLineageReason  = "operator-maintained"
 	PlatformApiMappingDefaultLineageVersion = 1
+
+	PlatformApiMappingReadinessActivePublishable           = "active_publishable"
+	PlatformApiMappingReadinessTombstonePublishable        = "tombstone_publishable"
+	PlatformApiMappingReadinessMappingMissing              = "mapping_missing"
+	PlatformApiMappingReadinessMappingUntrusted            = "mapping_untrusted"
+	PlatformApiMappingReadinessLifecycleNotPublishable     = "lifecycle_not_publishable"
+	PlatformApiMappingReadinessSourceMetadataUnavailable   = "source_metadata_unavailable"
+	PlatformApiMappingReadinessLineageFreshnessUnavailable = "lineage_freshness_unavailable"
 )
 
 var (
@@ -73,6 +81,59 @@ type PlatformApiUserMapping struct {
 	MappingStatus  string `xorm:"varchar(50) index" json:"mappingStatus"`
 	MappingSource  string `xorm:"varchar(100) index" json:"mappingSource"`
 	Lineage        string `xorm:"text" json:"lineage"`
+}
+
+// PlatformApiUserMappingReadinessQuery 限定 operator 只读 readiness 的组织和筛选条件。
+// 这些筛选只影响诊断结果，不会创建、更新或确认任何 API user mapping。
+type PlatformApiUserMappingReadinessQuery struct {
+	OrganizationId     string
+	Keyword            string
+	ReadinessCategory  string
+	UserMappingStatus  string
+	MaxCandidateResult int
+}
+
+// PlatformApiUserMappingReadiness 是 Admin owner 内部的 publishable subject readiness 汇总。
+// 它只用于 operator 诊断 mapping gap，不是 gateway authorization facts。
+type PlatformApiUserMappingReadiness struct {
+	OrganizationId      string                                    `json:"organizationId"`
+	GeneratedAt         time.Time                                 `json:"generatedAt"`
+	TotalSubjectCount   int                                       `json:"totalSubjectCount"`
+	ReturnedCount       int                                       `json:"returnedCount"`
+	Counts              map[string]int                            `json:"counts"`
+	BlockedReasonCount  map[string]int                            `json:"blockedReasonCount"`
+	Filters             PlatformApiUserMappingReadinessFilters    `json:"filters"`
+	RemediationGuidance []PlatformApiUserMappingReadinessGuidance `json:"remediationGuidance"`
+	Candidates          []PlatformApiUserMappingReadinessSubject  `json:"candidates"`
+}
+
+type PlatformApiUserMappingReadinessFilters struct {
+	Keyword           string `json:"keyword,omitempty"`
+	ReadinessCategory string `json:"readinessCategory,omitempty"`
+	UserMappingStatus string `json:"userMappingStatus,omitempty"`
+}
+
+// PlatformApiUserMappingReadinessGuidance 把稳定 readiness category 映射为 operator 可执行的只读排障步骤。
+type PlatformApiUserMappingReadinessGuidance struct {
+	Category                string   `json:"category"`
+	Code                    string   `json:"code"`
+	Summary                 string   `json:"summary"`
+	OperatorActions         []string `json:"operatorActions"`
+	MinimumUnblockCondition string   `json:"minimumUnblockCondition"`
+	Boundary                string   `json:"boundary"`
+}
+
+type PlatformApiUserMappingReadinessSubject struct {
+	AdminSubject           string `json:"adminSubject"`
+	DisplayName            string `json:"displayName,omitempty"`
+	ApiUserId              string `json:"apiUserId,omitempty"`
+	LifecycleStatus        string `json:"lifecycleStatus"`
+	PlatformMappingStatus  string `json:"platformMappingStatus"`
+	ApiMappingStatus       string `json:"apiMappingStatus,omitempty"`
+	MappingSource          string `json:"mappingSource,omitempty"`
+	ReadinessCategory      string `json:"readinessCategory"`
+	BlockedReason          string `json:"blockedReason,omitempty"`
+	LineageFreshnessStatus string `json:"lineageFreshnessStatus,omitempty"`
 }
 
 // PlatformApiMappingMigrationPlan 描述从旧属性/lineage 提取出的待确认 api 映射候选集合。
@@ -348,6 +409,250 @@ func getPlatformApiUserMappingListSession(organizationId string, keyword string)
 		session = session.And("(LOWER(admin_subject) LIKE ? OR LOWER(api_user_id) LIKE ? OR LOWER(mapping_status) LIKE ? OR LOWER(mapping_source) LIKE ?)", keywordLike, keywordLike, keywordLike, keywordLike)
 	}
 	return session
+}
+
+// GetPlatformApiUserMappingReadiness 汇总同组织内 platform user 到 API user mapping 的可发布前置条件。
+// 该函数只读 Admin 主模型和一等映射，不能把 displayName、手机号、邮箱或旧 lineage 当作 runtime join key。
+func GetPlatformApiUserMappingReadiness(query PlatformApiUserMappingReadinessQuery) (*PlatformApiUserMappingReadiness, error) {
+	organizationId := strings.TrimSpace(query.OrganizationId)
+	readiness := &PlatformApiUserMappingReadiness{
+		OrganizationId:     organizationId,
+		GeneratedAt:        time.Now().UTC(),
+		Counts:             map[string]int{},
+		BlockedReasonCount: map[string]int{},
+		Filters: PlatformApiUserMappingReadinessFilters{
+			Keyword:           strings.TrimSpace(query.Keyword),
+			ReadinessCategory: strings.TrimSpace(query.ReadinessCategory),
+			UserMappingStatus: strings.TrimSpace(query.UserMappingStatus),
+		},
+		RemediationGuidance: buildPlatformApiUserMappingReadinessGuidance(),
+		Candidates:          []PlatformApiUserMappingReadinessSubject{},
+	}
+	if organizationId == "" || ormer == nil || ormer.Engine == nil {
+		return readiness, nil
+	}
+
+	users, err := GetPlatformUsers(organizationId)
+	if err != nil {
+		return nil, err
+	}
+	mappings, err := GetPlatformApiUserMappings(organizationId)
+	if err != nil {
+		return nil, err
+	}
+	mappingsBySubject := map[string]*PlatformApiUserMapping{}
+	for _, mapping := range mappings {
+		if mapping == nil {
+			continue
+		}
+		mappingsBySubject[strings.TrimSpace(mapping.AdminSubject)] = mapping
+	}
+
+	keyword := strings.ToLower(readiness.Filters.Keyword)
+	categoryFilter := strings.TrimSpace(readiness.Filters.ReadinessCategory)
+	mappingStatusFilter := strings.TrimSpace(readiness.Filters.UserMappingStatus)
+	maxCandidates := query.MaxCandidateResult
+	if maxCandidates <= 0 {
+		maxCandidates = 100
+	}
+
+	for _, user := range users {
+		if user == nil {
+			continue
+		}
+		mapping := mappingsBySubject[strings.TrimSpace(user.AdminSubject)]
+		candidate := buildPlatformApiUserMappingReadinessSubject(user, mapping)
+		readiness.TotalSubjectCount++
+		readiness.Counts[candidate.ReadinessCategory]++
+		if candidate.BlockedReason != "" {
+			readiness.BlockedReasonCount[candidate.BlockedReason]++
+		}
+		if !matchesPlatformApiMappingReadinessKeyword(candidate, keyword) {
+			continue
+		}
+		if categoryFilter != "" && !strings.EqualFold(candidate.ReadinessCategory, categoryFilter) {
+			continue
+		}
+		if mappingStatusFilter != "" && !strings.EqualFold(candidate.PlatformMappingStatus, mappingStatusFilter) {
+			continue
+		}
+		if len(readiness.Candidates) < maxCandidates {
+			readiness.Candidates = append(readiness.Candidates, candidate)
+		}
+	}
+	readiness.ReturnedCount = len(readiness.Candidates)
+	return readiness, nil
+}
+
+func buildPlatformApiUserMappingReadinessSubject(user *PlatformUser, mapping *PlatformApiUserMapping) PlatformApiUserMappingReadinessSubject {
+	candidate := PlatformApiUserMappingReadinessSubject{
+		AdminSubject:          strings.TrimSpace(user.AdminSubject),
+		DisplayName:           strings.TrimSpace(user.DisplayName),
+		LifecycleStatus:       strings.TrimSpace(user.LifecycleStatus),
+		PlatformMappingStatus: strings.TrimSpace(user.MappingStatus),
+	}
+	if mapping != nil {
+		candidate.ApiUserId = strings.TrimSpace(mapping.ApiUserId)
+		candidate.ApiMappingStatus = strings.TrimSpace(mapping.MappingStatus)
+		candidate.MappingSource = strings.TrimSpace(mapping.MappingSource)
+	}
+
+	category := classifyPlatformApiUserMappingReadiness(user, mapping)
+	candidate.ReadinessCategory = category
+	if category != PlatformApiMappingReadinessActivePublishable && category != PlatformApiMappingReadinessTombstonePublishable {
+		candidate.BlockedReason = category
+	}
+	if strings.TrimSpace(user.OrgVersion) == "" || strings.TrimSpace(user.LastSeenBatchId) == "" {
+		candidate.LineageFreshnessStatus = PlatformApiMappingReadinessLineageFreshnessUnavailable
+	}
+	return candidate
+}
+
+func classifyPlatformApiUserMappingReadiness(user *PlatformUser, mapping *PlatformApiUserMapping) string {
+	if user == nil {
+		return PlatformApiMappingReadinessSourceMetadataUnavailable
+	}
+	lifecycleStatus := strings.TrimSpace(user.LifecycleStatus)
+	platformMappingStatus := strings.TrimSpace(user.MappingStatus)
+	if strings.EqualFold(lifecycleStatus, PlatformLifecycleStatusActive) {
+		if !strings.EqualFold(platformMappingStatus, PlatformMappingStatusConfirmed) {
+			return PlatformApiMappingReadinessMappingUntrusted
+		}
+		if mapping == nil || strings.TrimSpace(mapping.ApiUserId) == "" {
+			return PlatformApiMappingReadinessMappingMissing
+		}
+		if !IsConfirmedPlatformApiMappingStatus(mapping.MappingStatus) {
+			return PlatformApiMappingReadinessMappingUntrusted
+		}
+		if strings.TrimSpace(user.OrgVersion) == "" || strings.TrimSpace(user.LastSeenBatchId) == "" {
+			return PlatformApiMappingReadinessLineageFreshnessUnavailable
+		}
+		return PlatformApiMappingReadinessActivePublishable
+	}
+	if !isPlatformApiMappingTombstoneLifecycle(lifecycleStatus) {
+		return PlatformApiMappingReadinessLifecycleNotPublishable
+	}
+	if mapping == nil || strings.TrimSpace(mapping.ApiUserId) == "" {
+		return PlatformApiMappingReadinessMappingMissing
+	}
+	if !IsConfirmedPlatformApiMappingStatus(mapping.MappingStatus) && !strings.EqualFold(strings.TrimSpace(mapping.MappingStatus), PlatformMappingStatusDisabled) {
+		return PlatformApiMappingReadinessMappingUntrusted
+	}
+	if strings.TrimSpace(user.OrgVersion) == "" || strings.TrimSpace(user.LastSeenBatchId) == "" {
+		return PlatformApiMappingReadinessLineageFreshnessUnavailable
+	}
+	return PlatformApiMappingReadinessTombstonePublishable
+}
+
+func isPlatformApiMappingTombstoneLifecycle(lifecycleStatus string) bool {
+	switch strings.ToUpper(strings.TrimSpace(lifecycleStatus)) {
+	case PlatformLifecycleStatusDisabled, PlatformLifecycleStatusDeleted, PlatformLifecycleStatusConflicted, PlatformLifecycleStatusUnknown, PlatformLifecycleStatusStale:
+		return true
+	default:
+		return false
+	}
+}
+
+func matchesPlatformApiMappingReadinessKeyword(candidate PlatformApiUserMappingReadinessSubject, keyword string) bool {
+	if keyword == "" {
+		return true
+	}
+	values := []string{
+		candidate.AdminSubject,
+		candidate.DisplayName,
+		candidate.ApiUserId,
+		candidate.ApiMappingStatus,
+		candidate.MappingSource,
+		candidate.ReadinessCategory,
+		candidate.BlockedReason,
+	}
+	for _, value := range values {
+		if strings.Contains(strings.ToLower(value), keyword) {
+			return true
+		}
+	}
+	return false
+}
+
+func buildPlatformApiUserMappingReadinessGuidance() []PlatformApiUserMappingReadinessGuidance {
+	return []PlatformApiUserMappingReadinessGuidance{
+		{
+			Category: PlatformApiMappingReadinessActivePublishable,
+			Code:     "active_publishable_ready",
+			Summary:  "active subject 已具备发布前置条件。",
+			OperatorActions: []string{
+				"记录脱敏 counts 和 category；如需作为 smoke gate，另行确认受控 fixture 和 subject count 断言。",
+			},
+			MinimumUnblockCondition: "无需解除阻断；保持 PlatformUser.LifecycleStatus=ACTIVE、PlatformUser.MappingStatus=CONFIRMED、PlatformApiUserMapping.ApiUserId 非空且 mapping confirmed。",
+			Boundary:                "readiness 只是 Admin producer 诊断，不是 gateway authorization facts，不能外推为 API/Insight 运行态授权成功。",
+		},
+		{
+			Category: PlatformApiMappingReadinessTombstonePublishable,
+			Code:     "tombstone_publishable_ready",
+			Summary:  "tombstone subject 已具备撤销或收敛发布前置条件。",
+			OperatorActions: []string{
+				"确认非 active lifecycle 仍有 deterministic ApiUserId，并只记录脱敏 tombstone counts。",
+			},
+			MinimumUnblockCondition: "无需解除阻断；保持非 active lifecycle 且 PlatformApiUserMapping.ApiUserId 非空，mapping status 为 CONFIRMED 或 DISABLED。",
+			Boundary:                "不得通过 subject 缺失表达删除，也不得把 tombstone readiness 当作 active allow 事实。",
+		},
+		{
+			Category: PlatformApiMappingReadinessMappingMissing,
+			Code:     "mapping_missing_requires_confirmed_api_user_mapping",
+			Summary:  "缺少一等 API user mapping，当前 subject 不能成为可发布主体。",
+			OperatorActions: []string{
+				"在 Admin 映射页定位同一 organizationId + adminSubject。",
+				"由具备授权的 operator 维护一等 PlatformApiUserMapping.ApiUserId，并显式确认 mappingStatus。",
+				"完成受控 fixture 后重新读取 readiness counts，不记录完整响应体。",
+			},
+			MinimumUnblockCondition: "存在同一 organizationId + adminSubject 的 PlatformApiUserMapping.ApiUserId，且 mappingStatus=CONFIRMED。",
+			Boundary:                "display name、phone、email、legacy lineage 或 User.Properties 只能作为诊断或迁移候选，不能作为 runtime projection join key。",
+		},
+		{
+			Category: PlatformApiMappingReadinessMappingUntrusted,
+			Code:     "mapping_untrusted_requires_confirmed_status",
+			Summary:  "平台用户或 API mapping 状态不可信，必须 fail closed。",
+			OperatorActions: []string{
+				"检查 PlatformUser.MappingStatus 和 PlatformApiUserMapping.MappingStatus。",
+				"解决 PENDING_REVIEW、DUPLICATE、CONFLICTED 或 DISABLED 状态后重新读取 readiness。",
+			},
+			MinimumUnblockCondition: "active subject 必须同时满足 PlatformUser.MappingStatus=CONFIRMED 和 PlatformApiUserMapping.MappingStatus=CONFIRMED；非 active tombstone 只允许 confirmed 或 disabled mapping 携带确定 ApiUserId。",
+			Boundary:                "不得把待确认、重复、冲突或禁用状态降级为成功，也不得绕过 Admin 一等 mapping。",
+		},
+		{
+			Category: PlatformApiMappingReadinessLifecycleNotPublishable,
+			Code:     "lifecycle_not_publishable_requires_supported_state",
+			Summary:  "主体 lifecycle 不属于 active 发布或 tombstone 发布支持范围。",
+			OperatorActions: []string{
+				"检查 Admin 主模型中的 PlatformUser.LifecycleStatus。",
+				"等待或触发已授权的 Admin source 同步，让 lifecycle 收敛到 ACTIVE 或受支持的 tombstone 状态。",
+			},
+			MinimumUnblockCondition: "PlatformUser.LifecycleStatus 为 ACTIVE，或为 DISABLED、DELETED、CONFLICTED、UNKNOWN、STALE 之一且满足 tombstone mapping 条件。",
+			Boundary:                "不可把空值、未知来源状态或展示字段推断为 active。",
+		},
+		{
+			Category: PlatformApiMappingReadinessSourceMetadataUnavailable,
+			Code:     "source_metadata_unavailable_requires_admin_source_snapshot",
+			Summary:  "Admin-owned source metadata 不足，无法证明该主体来自可诊断的组织快照。",
+			OperatorActions: []string{
+				"检查 Admin source connection、OrgSyncBatch 和平台主模型是否已有目标组织快照。",
+				"只使用 Admin-owned source metadata 排查，不查询 API/Insight/gateway stores。",
+			},
+			MinimumUnblockCondition: "目标组织存在 Admin-owned source snapshot、source version 或等价 source metadata，可支撑 projection lineage。",
+			Boundary:                "source metadata guidance 只服务 Admin producer 排障，不写 gateway authorization facts，也不让 API/Insight 本地补算 projection。",
+		},
+		{
+			Category: PlatformApiMappingReadinessLineageFreshnessUnavailable,
+			Code:     "lineage_freshness_unavailable_requires_org_version_and_batch",
+			Summary:  "lineage 或 freshness 元数据不足，当前 subject 不能证明 projection freshness。",
+			OperatorActions: []string{
+				"检查 PlatformUser.OrgVersion、LastSeenBatchId、OrgSyncBatch.OrgVersion 和 freshness 相关 Admin 元数据。",
+				"修复或等待 Admin source 同步后重新读取 readiness counts。",
+			},
+			MinimumUnblockCondition: "Admin 主模型具备 OrgVersion、sourceVersion/batch 和 freshness 可判定元数据。",
+			Boundary:                "不得查询 API/Insight/gateway store 推断 freshness，也不得把旧响应 shape 记录为完整 projection 业务成功。",
+		},
+	}
 }
 
 // GetConfirmedPlatformApiUserMapping 只返回可作为运行时权威来源的 confirmed 用户映射。

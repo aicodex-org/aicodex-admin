@@ -2,6 +2,7 @@
 
 import {
   getPlatformApiOrganizationMappings,
+  getPlatformApiUserMappingReadiness,
   getPlatformApiUserMappings,
   updatePlatformApiOrganizationMapping,
   updatePlatformApiUserMapping
@@ -25,6 +26,12 @@ afterEach(() => {
 test("loads platform api mappings with explicit organization query", async() => {
   await getPlatformApiOrganizationMappings("org-a");
   await getPlatformApiUserMappings("org-a", {current: 2, pageSize: 20, keyword: "alice"});
+  await getPlatformApiUserMappingReadiness("org-a", {
+    keyword: "alice",
+    readinessCategory: "mapping_missing",
+    mappingStatus: "CONFIRMED",
+    limit: 20,
+  });
 
   expect(global.fetch).toHaveBeenNthCalledWith(
     1,
@@ -38,6 +45,15 @@ test("loads platform api mappings with explicit organization query", async() => 
   expect(global.fetch).toHaveBeenNthCalledWith(
     2,
     "https://admin.example.invalid/api/get-platform-api-user-mappings?organization=org-a&p=2&pageSize=20&keyword=alice",
+    expect.objectContaining({
+      method: "GET",
+      credentials: "include",
+      headers: expect.objectContaining({"Accept-Language": "en"}),
+    })
+  );
+  expect(global.fetch).toHaveBeenNthCalledWith(
+    3,
+    "https://admin.example.invalid/api/get-platform-api-user-mapping-readiness?organization=org-a&keyword=alice&readinessCategory=mapping_missing&mappingStatus=CONFIRMED&limit=20",
     expect.objectContaining({
       method: "GET",
       credentials: "include",

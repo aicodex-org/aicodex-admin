@@ -62,6 +62,29 @@ export function getPlatformApiUserMappings(organization, options = {}) {
   }).then(res => res.json());
 }
 
+export function getPlatformApiUserMappingReadiness(organization, options = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.keyword) {
+    query.set("keyword", options.keyword);
+  }
+  if (options.readinessCategory) {
+    query.set("readinessCategory", options.readinessCategory);
+  }
+  if (options.mappingStatus) {
+    query.set("mappingStatus", options.mappingStatus);
+  }
+  if (options.limit) {
+    query.set("limit", options.limit);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/get-platform-api-user-mapping-readiness?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
 export function updatePlatformApiUserMapping(mapping) {
   return fetch(`${Setting.ServerUrl}/api/update-platform-api-user-mapping`, {
     method: "POST",

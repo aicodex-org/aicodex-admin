@@ -542,6 +542,12 @@ func TestGatewayProjectionPublisherSendsBearerAndTreatsAcceptedOrIdempotentAsSuc
 	if snapshot.Latest.SourceVersion != "orgv-publish-1" || snapshot.Latest.FreshnessExpiresAt == "" || snapshot.Latest.SubjectCount != 1 {
 		t.Fatalf("latest publish observability missing sanitized projection fields: %#v", snapshot.Latest)
 	}
+	if snapshot.Latest.SourceConnectionSummary.Total != 0 || snapshot.Latest.SourceConnectionSummary.StatusCounts["missing"] != 1 || snapshot.Latest.SourceConnectionSummary.FreshnessCounts["missing"] != 1 {
+		t.Fatalf("direct publisher audit should expose sanitized missing source summary shape: %#v", snapshot.Latest.SourceConnectionSummary)
+	}
+	if snapshot.Latest.SourceConnectionStatus != "missing" {
+		t.Fatalf("direct publisher audit sourceConnectionStatus = %q, want missing", snapshot.Latest.SourceConnectionStatus)
+	}
 	if snapshot.Latest.FailureCategory != "" || snapshot.Latest.Status != "ok" {
 		t.Fatalf("successful latest publish should not expose failure category: %#v", snapshot.Latest)
 	}
@@ -577,6 +583,77 @@ func TestGatewayProjectionServiceObservabilityIncludesBuildSummary(t *testing.T)
 	}
 }
 
+func TestGatewayProjectionServiceObservabilityIncludesSourceFreshnessSummary(t *testing.T) {
+	resetGatewayProjectionObservabilityForTest()
+	generatedAt := time.Date(2026, 6, 11, 9, 15, 0, 0, time.UTC)
+	finishedAt := generatedAt.Add(5 * time.Minute)
+	input := gatewayProjectionTestInput(generatedAt, finishedAt)
+	input.SourceConnections = []SourceConnection{
+		{
+			OrganizationId:     "org-a",
+			SourceConnectionId: "src-fresh",
+			SourceTenantId:     "tenant-secret",
+			Status:             SourceConnectionStatusActive,
+			Freshness:          PlatformFreshnessFresh,
+			Metadata:           `{"contact":"operator@example.invalid"}`,
+			ConfigRef:          "config-sensitive",
+			SecretRef:          "secret-sensitive",
+		},
+		{
+			OrganizationId:     "org-a",
+			SourceConnectionId: "src-stale",
+			Status:             SourceConnectionStatusActive,
+			Freshness:          PlatformFreshnessStale,
+		},
+		{
+			OrganizationId:     "org-a",
+			SourceConnectionId: "src-unavailable",
+			Status:             SourceConnectionStatusDisabled,
+			Freshness:          PlatformFreshnessUnavailable,
+		},
+		{
+			OrganizationId:     "org-a",
+			SourceConnectionId: "src-unknown",
+			Status:             "",
+			Freshness:          "",
+		},
+	}
+
+	build, err := BuildGatewayProjectionBatch(input)
+	if err != nil {
+		t.Fatalf("BuildGatewayProjectionBatch() error = %v", err)
+	}
+	recordGatewayProjectionServiceObservability(build, GatewayProjectionPublishResult{Success: true, Accepted: true, Attempts: 1}, input.SourceConnections, 10)
+
+	snapshot := GetGatewayProjectionObservabilitySnapshot(generatedAt)
+	if snapshot.Latest == nil {
+		t.Fatalf("expected latest publish observability")
+	}
+	summary := snapshot.Latest.SourceConnectionSummary
+	if summary.Total != 4 {
+		t.Fatalf("source connection total = %d, want 4", summary.Total)
+	}
+	if summary.StatusCounts[SourceConnectionStatusActive] != 2 || summary.StatusCounts[SourceConnectionStatusDisabled] != 1 || summary.StatusCounts["unknown"] != 1 {
+		t.Fatalf("status counts = %#v", summary.StatusCounts)
+	}
+	if summary.FreshnessCounts[PlatformFreshnessFresh] != 1 || summary.FreshnessCounts[PlatformFreshnessStale] != 1 || summary.FreshnessCounts[PlatformFreshnessUnavailable] != 1 || summary.FreshnessCounts["unknown"] != 1 {
+		t.Fatalf("freshness counts = %#v", summary.FreshnessCounts)
+	}
+	if !summary.HasStaleFreshness || !summary.HasUnavailableFreshness || !summary.HasUnknownFreshness {
+		t.Fatalf("freshness flags = %#v", summary)
+	}
+	raw, err := json.Marshal(snapshot.Latest)
+	if err != nil {
+		t.Fatalf("marshal latest observability: %v", err)
+	}
+	serialized := strings.ToLower(string(raw))
+	for _, forbidden := range []string{"tenant-secret", "operator@example.invalid", "config-sensitive", "secret-sensitive"} {
+		if strings.Contains(serialized, forbidden) {
+			t.Fatalf("source diagnostics leaked sensitive source metadata %q: %s", forbidden, string(raw))
+		}
+	}
+}
+
 func TestGatewayProjectionServiceObservabilityClassifiesDisabledSourceConnection(t *testing.T) {
 	resetGatewayProjectionObservabilityForTest()
 	generatedAt := time.Date(2026, 6, 11, 9, 30, 0, 0, time.UTC)
@@ -593,6 +670,75 @@ func TestGatewayProjectionServiceObservabilityClassifiesDisabledSourceConnection
 	snapshot := GetGatewayProjectionObservabilitySnapshot(generatedAt)
 	if snapshot.Latest == nil || snapshot.Latest.FailureCategory != GatewayProjectionFailureSourceConnectionDisabled {
 		t.Fatalf("disabled source connection should be visible as stable category: %#v", snapshot.Latest)
+	}
+}
+
+func TestGatewayProjectionServiceObservabilityClassifiesSourceFreshness(t *testing.T) {
+	tests := []struct {
+		name        string
+		connections []SourceConnection
+		want        string
+	}{
+		{
+			name: "fresh",
+			connections: []SourceConnection{
+				{OrganizationId: "org-a", SourceConnectionId: "src-a", Status: SourceConnectionStatusActive, Freshness: PlatformFreshnessFresh},
+			},
+			want: "",
+		},
+		{
+			name: "stale",
+			connections: []SourceConnection{
+				{OrganizationId: "org-a", SourceConnectionId: "src-a", Status: SourceConnectionStatusActive, Freshness: PlatformFreshnessStale},
+			},
+			want: GatewayProjectionFailureSourceConnectionStale,
+		},
+		{
+			name: "unavailable",
+			connections: []SourceConnection{
+				{OrganizationId: "org-a", SourceConnectionId: "src-a", Status: SourceConnectionStatusActive, Freshness: PlatformFreshnessUnavailable},
+			},
+			want: GatewayProjectionFailureSourceConnectionStale,
+		},
+		{
+			name: "unknown",
+			connections: []SourceConnection{
+				{OrganizationId: "org-a", SourceConnectionId: "src-a", Status: SourceConnectionStatusActive, Freshness: ""},
+			},
+			want: GatewayProjectionFailureUnknown,
+		},
+		{
+			name:        "missing",
+			connections: nil,
+			want:        GatewayProjectionFailureUnknown,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resetGatewayProjectionObservabilityForTest()
+			generatedAt := time.Date(2026, 6, 11, 9, 45, 0, 0, time.UTC)
+			finishedAt := generatedAt.Add(5 * time.Minute)
+			input := gatewayProjectionTestInput(generatedAt, finishedAt)
+			input.SourceConnections = tt.connections
+
+			build, err := BuildGatewayProjectionBatch(input)
+			if err != nil {
+				t.Fatalf("BuildGatewayProjectionBatch() error = %v", err)
+			}
+			recordGatewayProjectionServiceObservability(build, GatewayProjectionPublishResult{Success: true, Accepted: true, Attempts: 1}, input.SourceConnections, 10)
+
+			snapshot := GetGatewayProjectionObservabilitySnapshot(generatedAt)
+			if snapshot.Latest == nil {
+				t.Fatalf("expected latest publish observability")
+			}
+			if snapshot.Latest.FailureCategory != tt.want {
+				t.Fatalf("failure category = %q, want %q; latest=%#v", snapshot.Latest.FailureCategory, tt.want, snapshot.Latest)
+			}
+			if tt.name == "missing" && snapshot.Latest.SourceConnectionSummary.Total != 0 {
+				t.Fatalf("missing source total = %d, want 0", snapshot.Latest.SourceConnectionSummary.Total)
+			}
+		})
 	}
 }
 

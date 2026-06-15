@@ -21,6 +21,7 @@ import PlatformApiMappingPage from "./PlatformApiMappingPage";
 
 jest.mock("./backend/PlatformApiMappingBackend", () => ({
   getPlatformApiOrganizationMappings: jest.fn(),
+  getPlatformApiUserMappingReadiness: jest.fn(),
   updatePlatformApiOrganizationMapping: jest.fn(),
   getPlatformApiUserMappings: jest.fn(),
   updatePlatformApiUserMapping: jest.fn(),
@@ -73,6 +74,33 @@ beforeEach(() => {
     }],
     data2: 1,
   });
+  PlatformApiMappingBackend.getPlatformApiUserMappingReadiness.mockResolvedValue({
+    status: "ok",
+    data: {
+      totalSubjectCount: 1,
+      counts: {
+        active_publishable: 1,
+        mapping_missing: 0,
+      },
+      candidates: [{
+        adminSubject: "org-alpha/user-one",
+        apiUserId: "api-user-1",
+        readinessCategory: "active_publishable",
+        platformMappingStatus: "CONFIRMED",
+      }],
+      remediationGuidance: [{
+        category: "mapping_missing",
+        code: "mapping_missing_requires_confirmed_api_user_mapping",
+        summary: "缺少一等 API user mapping",
+        operatorActions: [
+          "补齐同一 organizationId + adminSubject 的 PlatformApiUserMapping.ApiUserId",
+          "重新读取 readiness counts",
+        ],
+        minimumUnblockCondition: "存在 confirmed PlatformApiUserMapping.ApiUserId",
+        boundary: "display/phone/email/legacy lineage 只能作为诊断候选",
+      }],
+    },
+  });
   PlatformApiMappingBackend.updatePlatformApiOrganizationMapping.mockResolvedValue({status: "ok"});
   PlatformApiMappingBackend.updatePlatformApiUserMapping.mockResolvedValue({status: "ok"});
 });
@@ -121,7 +149,26 @@ test("separates organization and user mapping tabs and loads user mappings on de
     pageSize: 10,
     keyword: "",
   })));
+  await wait(() => expect(PlatformApiMappingBackend.getPlatformApiUserMappingReadiness).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+    keyword: "",
+    readinessCategory: "",
+    mappingStatus: "",
+  })));
   expect(await screen.findByDisplayValue("org-alpha/user-one")).toBeInTheDocument();
+  expect(screen.getByText("可发布主体 readiness")).toBeInTheDocument();
+  expect(screen.getAllByText(/mapping_missing/).length).toBeGreaterThan(0);
   expect(screen.getByText("迁移导入")).toBeInTheDocument();
   expect(screen.getByPlaceholderText("搜索平台主体或 API 用户 ID")).toBeInTheDocument();
+});
+
+test("renders read-only remediation guidance for readiness categories", async() => {
+  render(<PlatformApiMappingPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  fireEvent.click(await screen.findByText("用户映射"));
+
+  expect(await screen.findByText("缺少一等 API user mapping")).toBeInTheDocument();
+  expect(screen.getByText("补齐同一 organizationId + adminSubject 的 PlatformApiUserMapping.ApiUserId")).toBeInTheDocument();
+  expect(screen.getByText(/confirmed PlatformApiUserMapping.ApiUserId/)).toBeInTheDocument();
+  expect(screen.getByText(/display\/phone\/email\/legacy lineage/)).toBeInTheDocument();
+  expect(screen.queryByText("自动修复")).not.toBeInTheDocument();
 });
