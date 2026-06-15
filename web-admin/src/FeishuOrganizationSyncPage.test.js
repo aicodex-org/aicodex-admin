@@ -12,6 +12,7 @@ jest.mock("./backend/FeishuOrganizationSyncBackend", () => ({
   dryRunFeishuOrganizationSyncPreview: jest.fn(),
   getFeishuOrganizationSyncDryRunHistories: jest.fn(),
   getFeishuOrganizationSyncDryRunHistory: jest.fn(),
+  getFeishuOrganizationSyncUserBindingConflicts: jest.fn(),
   startFeishuOrganizationSyncRun: jest.fn(),
   getFeishuOrganizationSyncRuns: jest.fn(),
 }));
@@ -93,6 +94,46 @@ beforeEach(() => {
       retentionDays: 90,
       redactionApplied: true,
       redactionVersion: "feishu-dry-run-history-redaction-v1",
+    },
+  });
+  FeishuOrganizationSyncBackend.getFeishuOrganizationSyncUserBindingConflicts.mockResolvedValue({
+    status: "ok",
+    data: {
+      organization: "engineering",
+      status: "blocked",
+      riskLevel: "critical",
+      sourceConnectionIdHash: "source-abcdef",
+      configured: true,
+      enabled: true,
+      endpointMode: "feishu",
+      appAlias: "app-safe",
+      tenantAlias: "tenant-safe",
+      counts: {
+        total: 1,
+        duplicateUserIdBinding: 1,
+        localUserMultiTenant: 0,
+        legacyIdentifierSplit: 0,
+        missingTenantKey: 0,
+        endpointModeMismatch: 0,
+      },
+      issues: [{
+        id: "binding-1",
+        type: "duplicate_user_id_binding",
+        riskLevel: "critical",
+        safeSummary: "同一飞书 user_id 命中多个本地用户 user_id=***",
+        recommendedAction: "confirm_primary_user",
+        blockedReason: "duplicate_user_id_binding_blocks_safe_sync",
+        sourceConnectionIdHash: "source-abcdef",
+        stableHashes: {issue: "issue-abcdef"},
+        sampleAliases: ["sample-a", "sample-b"],
+        latestRun: {id: "run-1", status: "failed", createdAt: "2026-06-15T11:00:00Z"},
+        latestDryRunHistory: {id: "history-1", status: "failed", createdAt: "2026-06-15T10:10:00Z"},
+      }],
+      latestRun: {id: "run-1", status: "failed", createdAt: "2026-06-15T11:00:00Z"},
+      latestDryRunHistory: {id: "history-1", status: "failed", createdAt: "2026-06-15T10:10:00Z"},
+      redaction: {applied: true, version: "feishu-user-binding-conflict-redaction-v1"},
+      generatedAt: "2026-06-15T12:00:00Z",
+      safeSummary: "发现 1 个飞书用户绑定风险，最高风险级别为 critical，建议先处理后再正式同步。",
     },
   });
   FeishuOrganizationSyncBackend.dryRunFeishuOrganizationSyncPreview.mockResolvedValue({
@@ -199,4 +240,46 @@ test("renders dry-run history and opens safe detail drawer", async() => {
   expect(screen.getByText("contact_permission_missing: 1")).toBeInTheDocument();
   expect(screen.queryByText(/alice@example\.test/)).not.toBeInTheDocument();
   expect(screen.queryByText(/13800138000/)).not.toBeInTheDocument();
+});
+
+test("renders user binding diagnostics and opens redacted detail drawer", async() => {
+  render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+
+  expect(await screen.findByText("绑定冲突 / 身份匹配诊断")).toBeInTheDocument();
+  expect(FeishuOrganizationSyncBackend.getFeishuOrganizationSyncUserBindingConflicts).toHaveBeenCalledWith("engineering", {limit: 20});
+  expect(screen.getByText("阻断")).toBeInTheDocument();
+  expect(screen.getAllByText("严重").length).toBeGreaterThan(0);
+  expect(screen.getByText("user_id 多用户")).toBeInTheDocument();
+  expect(screen.getByText("确认主账号")).toBeInTheDocument();
+  expect(screen.getByText("sample-a")).toBeInTheDocument();
+  expect(screen.queryByText(/alice@example\\.test/)).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByLabelText("binding-diagnostics-detail-binding-1"));
+
+  expect(await screen.findByText("绑定诊断详情")).toBeInTheDocument();
+  expect(screen.getAllByText(/duplicate_user_id_binding_blocks_safe_sync/).length).toBeGreaterThan(0);
+  expect(screen.getAllByText(/source-abcdef/).length).toBeGreaterThan(0);
+  expect(screen.queryByText(/ou-shared/)).not.toBeInTheDocument();
+});
+
+test("renders disabled user binding diagnostics state", async() => {
+  FeishuOrganizationSyncBackend.getFeishuOrganizationSyncUserBindingConflicts.mockResolvedValue({
+    status: "ok",
+    data: {
+      organization: "engineering",
+      status: "disabled",
+      riskLevel: "none",
+      counts: {total: 0},
+      issues: [],
+      generatedAt: "2026-06-15T12:00:00Z",
+      safeSummary: "飞书组织同步未配置或未启用，绑定诊断未执行。",
+      redaction: {applied: true, version: "feishu-user-binding-conflict-redaction-v1"},
+    },
+  });
+
+  render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+
+  expect(await screen.findByText("绑定冲突 / 身份匹配诊断")).toBeInTheDocument();
+  expect(screen.getByText("未启用")).toBeInTheDocument();
+  expect(screen.getAllByText("飞书组织同步未配置或未启用，绑定诊断未执行。").length).toBeGreaterThan(0);
 });

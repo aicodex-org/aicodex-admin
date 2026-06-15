@@ -92,6 +92,16 @@ func TestGetFeishuOrganizationSyncDryRunHistoryObjectUsesOrganizationQuery(t *te
 	}
 }
 
+func TestGetFeishuOrganizationSyncUserBindingConflictObjectUsesOrganizationQuery(t *testing.T) {
+	owner, name, ok := getModuleOrganizationObject("/api/feishu-org-sync/user-binding-conflicts", http.MethodGet, "engineering", nil)
+	if !ok {
+		t.Fatalf("expected user binding conflict organization object to be parsed")
+	}
+	if owner != "engineering" || name != "" {
+		t.Fatalf("user binding conflict object = %q/%q, want engineering/<empty>", owner, name)
+	}
+}
+
 func TestGetOrganizationManagementScopeObjectUsesOrganizationQuery(t *testing.T) {
 	owner, name, ok := getModuleOrganizationObject("/api/org-management-scope/current", http.MethodGet, "engineering", nil)
 	if !ok {

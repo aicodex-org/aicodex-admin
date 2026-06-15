@@ -35,6 +35,10 @@ type feishuOrganizationSyncRunStartResponse struct {
 	RecoveredStaleRun *object.FeishuOrganizationSyncRun `json:"recoveredStaleRun,omitempty"`
 }
 
+var getFeishuOrganizationSyncUserBindingConflictDiagnostics = func(filter object.FeishuUserBindingConflictDiagnosticsFilter) (*object.FeishuUserBindingConflictDiagnostics, error) {
+	return (&object.FeishuOrganizationSyncUserBindingConflictService{}).GetDiagnostics(filter)
+}
+
 // GetFeishuOrganizationSyncConfig
 // @router /feishu-org-sync/config [get]
 func (c *ApiController) GetFeishuOrganizationSyncConfig() {
@@ -221,6 +225,24 @@ func (c *ApiController) GetFeishuOrganizationSyncDryRunHistory() {
 	c.ResponseOk(history)
 }
 
+// GetFeishuOrganizationSyncUserBindingConflicts
+// @router /feishu-org-sync/user-binding-conflicts [get]
+func (c *ApiController) GetFeishuOrganizationSyncUserBindingConflicts() {
+	organization, ok := c.resolveFeishuOrganizationSyncTarget(c.Ctx.Input.Query("organization"))
+	if !ok {
+		return
+	}
+	if !c.requireFeishuOrganizationSyncAdmin(organization) {
+		return
+	}
+	diagnostics, err := getFeishuOrganizationSyncUserBindingConflictDiagnostics(c.getFeishuOrganizationSyncUserBindingConflictFilter(organization))
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(diagnostics)
+}
+
 // GetFeishuOrganizationSyncRuns
 // @router /feishu-org-sync/runs [get]
 func (c *ApiController) GetFeishuOrganizationSyncRuns() {
@@ -389,6 +411,23 @@ func (c *ApiController) getFeishuOrganizationSyncDryRunHistoryFilter(organizatio
 		return filter, err
 	}
 	return filter, nil
+}
+
+func (c *ApiController) getFeishuOrganizationSyncUserBindingConflictFilter(organization string) object.FeishuUserBindingConflictDiagnosticsFilter {
+	return object.FeishuUserBindingConflictDiagnosticsFilter{
+		Organization: organization,
+		Limit:        util.ParseInt(c.Ctx.Input.Query("limit")),
+		IncludeOk:    parseFeishuOrganizationSyncBoolQuery(c.Ctx.Input.Query("includeOk")),
+	}
+}
+
+func parseFeishuOrganizationSyncBoolQuery(text string) bool {
+	switch strings.ToLower(strings.TrimSpace(text)) {
+	case "1", "true", "yes", "y", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 func parseFeishuDryRunHistoryTime(text string) (time.Time, error) {

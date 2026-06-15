@@ -4,7 +4,7 @@
 
 import React from "react";
 import {Alert, Button, Col, Divider, Drawer, Input, Row, Select, Space, Switch, Table, Tag, Typography} from "antd";
-import {CloudSyncOutlined, PlayCircleOutlined, ReloadOutlined, SaveOutlined, ToolOutlined} from "@ant-design/icons";
+import {CloudSyncOutlined, CopyOutlined, DownloadOutlined, PlayCircleOutlined, ReloadOutlined, SaveOutlined, ToolOutlined} from "@ant-design/icons";
 import * as Setting from "./Setting";
 import * as FeishuOrganizationSyncBackend from "./backend/FeishuOrganizationSyncBackend";
 import OrganizationSelect from "./common/select/OrganizationSelect";
@@ -52,6 +52,34 @@ const diagnosticRetryLabels = {
   not_ready: "先处理",
   unknown: "待确认",
 };
+const bindingRiskLabels = {
+  none: "无风险",
+  low: "低",
+  medium: "中",
+  high: "高",
+  critical: "严重",
+};
+const bindingStatusLabels = {
+  disabled: "未启用",
+  empty: "无数据",
+  ok: "正常",
+  warning: "需关注",
+  blocked: "阻断",
+};
+const bindingIssueTypeLabels = {
+  duplicate_user_id_binding: "user_id 多用户",
+  local_user_multi_tenant_binding: "本地用户多租户",
+  legacy_identifier_split: "历史标识分裂",
+  missing_tenant_key: "缺少 tenant_key",
+  endpoint_mode_mismatch: "Endpoint 不一致",
+};
+const bindingActionLabels = {
+  inspect_mapping: "检查映射",
+  confirm_primary_user: "确认主账号",
+  backfill_tenant_key: "补 tenant_key",
+  align_endpoint_mode: "对齐 endpoint",
+  no_action: "无需处理",
+};
 
 class FeishuOrganizationSyncPage extends React.Component {
   constructor(props) {
@@ -82,6 +110,11 @@ class FeishuOrganizationSyncPage extends React.Component {
       dryRunHistoryDetailOpen: false,
       dryRunHistoryDetailLoading: false,
       dryRunHistoryDetailError: "",
+      bindingDiagnostics: null,
+      bindingDiagnosticsLoading: false,
+      bindingDiagnosticsError: "",
+      bindingDiagnosticsDetail: null,
+      bindingDiagnosticsDetailOpen: false,
     };
   }
 
@@ -155,11 +188,12 @@ class FeishuOrganizationSyncPage extends React.Component {
     this.setState({loading: true});
     const runsRequest = FeishuOrganizationSyncBackend.getFeishuOrganizationSyncRuns(organization, nextPagination.current, nextPagination.pageSize);
     const dryRunHistoryRequest = FeishuOrganizationSyncBackend.getFeishuOrganizationSyncDryRunHistories(organization, {topN: 10});
+    const bindingDiagnosticsRequest = FeishuOrganizationSyncBackend.getFeishuOrganizationSyncUserBindingConflicts(organization, {limit: 20});
     const configRequest = refreshConfig
       ? FeishuOrganizationSyncBackend.getFeishuOrganizationSyncConfig(organization)
       : Promise.resolve(null);
 
-    return Promise.all([configRequest, runsRequest, dryRunHistoryRequest]).then(([configRes, runsRes, dryRunHistoryRes]) => {
+    return Promise.all([configRequest, runsRequest, dryRunHistoryRequest, bindingDiagnosticsRequest]).then(([configRes, runsRes, dryRunHistoryRes, bindingDiagnosticsRes]) => {
       if (configRes?.status === "error") {
         Setting.showMessage("error", configRes.msg);
       }
@@ -168,6 +202,9 @@ class FeishuOrganizationSyncPage extends React.Component {
       }
       if (dryRunHistoryRes.status === "error") {
         Setting.showMessage("error", dryRunHistoryRes.msg);
+      }
+      if (bindingDiagnosticsRes.status === "error") {
+        Setting.showMessage("error", bindingDiagnosticsRes.msg);
       }
       if (this.isUnmounted || this.state.organization !== organization) {
         return;
@@ -193,6 +230,12 @@ class FeishuOrganizationSyncPage extends React.Component {
         nextState.dryRunHistoryError = "";
       } else {
         nextState.dryRunHistoryError = "Dry-run 历史刷新失败，请手动刷新重试。";
+      }
+      if (bindingDiagnosticsRes.status === "ok") {
+        nextState.bindingDiagnostics = bindingDiagnosticsRes.data || null;
+        nextState.bindingDiagnosticsError = "";
+      } else {
+        nextState.bindingDiagnosticsError = "绑定冲突诊断刷新失败，请手动刷新重试。";
       }
       this.setState(nextState, () => this.syncRunRefreshLoop(organization, nextState.runs || this.state.runs));
     }).catch(error => {
@@ -225,6 +268,29 @@ class FeishuOrganizationSyncPage extends React.Component {
           return;
         }
         this.setState({dryRunHistoryLoading: false, dryRunHistoryError: `${i18next.t("general:Failed to connect to server")}: ${error}`});
+      });
+  }
+
+  refreshBindingDiagnostics(organization = this.state.organization) {
+    if (!organization) {
+      return Promise.resolve();
+    }
+    this.setState({bindingDiagnosticsLoading: true});
+    return FeishuOrganizationSyncBackend.getFeishuOrganizationSyncUserBindingConflicts(organization, {limit: 20})
+      .then(res => {
+        if (this.isUnmounted || this.state.organization !== organization) {
+          return;
+        }
+        if (res.status === "ok") {
+          this.setState({bindingDiagnosticsLoading: false, bindingDiagnostics: res.data || null, bindingDiagnosticsError: ""});
+        } else {
+          this.setState({bindingDiagnosticsLoading: false, bindingDiagnosticsError: res.msg || "绑定冲突诊断刷新失败"});
+        }
+      }).catch(error => {
+        if (this.isUnmounted || this.state.organization !== organization) {
+          return;
+        }
+        this.setState({bindingDiagnosticsLoading: false, bindingDiagnosticsError: `${i18next.t("general:Failed to connect to server")}: ${error}`});
       });
   }
 
@@ -271,6 +337,10 @@ class FeishuOrganizationSyncPage extends React.Component {
       dryRunHistoryDetail: null,
       dryRunHistoryDetailOpen: false,
       dryRunHistoryDetailError: "",
+      bindingDiagnostics: null,
+      bindingDiagnosticsError: "",
+      bindingDiagnosticsDetail: null,
+      bindingDiagnosticsDetailOpen: false,
     }, () => this.refresh(organization));
   }
 
@@ -323,6 +393,7 @@ class FeishuOrganizationSyncPage extends React.Component {
         if (res.status === "ok") {
           this.setState({previewResult: res.data, previewError: ""});
           this.refreshDryRunHistory(this.state.organization).catch(() => {});
+          this.refreshBindingDiagnostics(this.state.organization).catch(() => {});
           if (res.data?.status === "failed") {
             Setting.showMessage("warning", "Dry-run 预览未通过，请查看诊断信息。");
           }
@@ -403,6 +474,198 @@ class FeishuOrganizationSyncPage extends React.Component {
         }
         this.setState({dryRunHistoryDetailLoading: false, dryRunHistoryDetailError: `${i18next.t("general:Failed to connect to server")}: ${error}`});
       });
+  }
+
+  getBindingRiskTag(riskLevel) {
+    const colorMap = {none: "green", low: "lime", medium: "orange", high: "volcano", critical: "red"};
+    return <Tag color={colorMap[riskLevel] || "default"}>{bindingRiskLabels[riskLevel] || riskLevel || "-"}</Tag>;
+  }
+
+  getBindingStatusTag(status) {
+    const colorMap = {disabled: "default", empty: "default", ok: "green", warning: "orange", blocked: "red"};
+    return <Tag color={colorMap[status] || "default"}>{bindingStatusLabels[status] || status || "-"}</Tag>;
+  }
+
+  getBindingIssueTypeLabel(type) {
+    return bindingIssueTypeLabels[type] || type || "-";
+  }
+
+  getBindingActionLabel(action) {
+    return bindingActionLabels[action] || action || "-";
+  }
+
+  getBindingDiagnosticsJson(payload = this.state.bindingDiagnostics) {
+    return JSON.stringify(payload || {}, null, 2);
+  }
+
+  copyBindingDiagnosticsJson(payload) {
+    const text = this.getBindingDiagnosticsJson(payload);
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(text)
+        .then(() => Setting.showMessage("success", "已复制脱敏 JSON"))
+        .catch(error => Setting.showMessage("error", `复制失败：${error}`));
+      return;
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    document.body.removeChild(textarea);
+    Setting.showMessage("success", "已复制脱敏 JSON");
+  }
+
+  exportBindingDiagnosticsJson(payload = this.state.bindingDiagnostics) {
+    const blob = new Blob([this.getBindingDiagnosticsJson(payload)], {type: "application/json;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const generatedAt = (payload?.generatedAt || new Date().toISOString()).replace(/[:.]/g, "-");
+    link.href = url;
+    link.download = `feishu-user-binding-diagnostics-${generatedAt}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  openBindingDiagnosticsDetail(issue) {
+    this.setState({bindingDiagnosticsDetail: issue, bindingDiagnosticsDetailOpen: true});
+  }
+
+  renderBindingCounts(counts = {}) {
+    const entries = [
+      ["总数", counts.total],
+      ["user_id 多用户", counts.duplicateUserIdBinding],
+      ["本地多租户", counts.localUserMultiTenant],
+      ["历史标识", counts.legacyIdentifierSplit],
+      ["缺 tenant_key", counts.missingTenantKey],
+      ["Endpoint", counts.endpointModeMismatch],
+    ].filter(([, value]) => Number(value || 0) > 0);
+    if (entries.length === 0) {
+      return <Tag>风险 0</Tag>;
+    }
+    return (
+      <Space size={4} wrap>
+        {entries.map(([label, value]) => <Tag key={label}>{label}: {value}</Tag>)}
+      </Space>
+    );
+  }
+
+  renderBindingLinkage(linkage, prefix) {
+    if (!linkage?.id) {
+      return null;
+    }
+    return <Tag>{`${prefix}: ${linkage.id}`}</Tag>;
+  }
+
+  renderBindingDiagnostics() {
+    const diagnostics = this.state.bindingDiagnostics || {};
+    const issues = diagnostics.issues || [];
+    const columns = [
+      {title: "风险", dataIndex: "riskLevel", key: "riskLevel", width: 90, render: risk => this.getBindingRiskTag(risk)},
+      {title: "类型", dataIndex: "type", key: "type", width: 150, render: type => this.getBindingIssueTypeLabel(type)},
+      {title: "摘要", dataIndex: "safeSummary", key: "safeSummary", width: 320, render: text => <Typography.Paragraph style={{marginBottom: 0}} ellipsis={{rows: 2, expandable: true}}>{text || "-"}</Typography.Paragraph>},
+      {title: "样本", dataIndex: "sampleAliases", key: "sampleAliases", width: 210, render: aliases => (
+        <Space size={4} wrap>{(aliases || []).map(alias => <Tag key={alias}>{alias}</Tag>)}</Space>
+      )},
+      {title: "建议动作", dataIndex: "recommendedAction", key: "recommendedAction", width: 130, render: action => this.getBindingActionLabel(action)},
+      {title: "关联", key: "linkage", width: 230, render: (_, record) => (
+        <Space size={4} wrap>
+          {this.renderBindingLinkage(record.latestRun, "run")}
+          {this.renderBindingLinkage(record.latestDryRunHistory, "history")}
+        </Space>
+      )},
+      {title: "操作", key: "action", width: 90, render: (_, record) => <Button size="small" aria-label={`binding-diagnostics-detail-${record.id}`} onClick={() => this.openBindingDiagnosticsDetail(record)}>详情</Button>},
+    ];
+    const statusType = diagnostics.status === "blocked" ? "error" : diagnostics.status === "warning" ? "warning" : diagnostics.status === "ok" ? "success" : "info";
+    return (
+      <>
+        <Row align="middle" justify="space-between" style={{marginBottom: 12}}>
+          <Col>
+            <Space direction="vertical" size={2}>
+              <Text strong>绑定冲突 / 身份匹配诊断</Text>
+              <Text type={this.state.bindingDiagnosticsError ? "danger" : "secondary"}>
+                {this.state.bindingDiagnosticsError || diagnostics.safeSummary || "仅展示脱敏绑定风险摘要。"}
+              </Text>
+            </Space>
+          </Col>
+          <Col>
+            <Space>
+              <Button icon={<CopyOutlined />} disabled={!diagnostics.generatedAt} onClick={() => this.copyBindingDiagnosticsJson(diagnostics)}>复制 JSON</Button>
+              <Button icon={<DownloadOutlined />} disabled={!diagnostics.generatedAt} onClick={() => this.exportBindingDiagnosticsJson(diagnostics)}>导出 JSON</Button>
+              <Button icon={<ReloadOutlined />} loading={this.state.bindingDiagnosticsLoading} onClick={() => this.refreshBindingDiagnostics().catch(() => {})}>刷新</Button>
+            </Space>
+          </Col>
+        </Row>
+        {diagnostics.status && (
+          <Alert
+            style={{marginBottom: 12}}
+            type={statusType}
+            showIcon
+            message={<Space wrap>{this.getBindingStatusTag(diagnostics.status)}{this.getBindingRiskTag(diagnostics.riskLevel)}{this.renderBindingCounts(diagnostics.counts)}</Space>}
+            description={
+              <Space direction="vertical" size={4}>
+                <Text>{diagnostics.safeSummary || "-"}</Text>
+                <Space size={4} wrap>
+                  {diagnostics.sourceConnectionIdHash && <Tag>{diagnostics.sourceConnectionIdHash}</Tag>}
+                  {this.renderBindingLinkage(diagnostics.latestRun, "run")}
+                  {this.renderBindingLinkage(diagnostics.latestDryRunHistory, "history")}
+                  {diagnostics.redaction?.applied && <Tag color="green">{diagnostics.redaction.version || "已脱敏"}</Tag>}
+                </Space>
+              </Space>
+            }
+          />
+        )}
+        <Table
+          rowKey="id"
+          size="middle"
+          bordered
+          loading={this.state.loading || this.state.bindingDiagnosticsLoading}
+          columns={columns}
+          dataSource={issues}
+          locale={{emptyText: this.state.bindingDiagnosticsError || (diagnostics.status === "disabled" ? "飞书组织同步未启用" : "暂无绑定冲突")}}
+          scroll={{x: 1220}}
+          pagination={false}
+        />
+        {this.renderBindingDiagnosticsDetailDrawer()}
+      </>
+    );
+  }
+
+  renderBindingDiagnosticsDetailDrawer() {
+    const detail = this.state.bindingDiagnosticsDetail || this.state.bindingDiagnostics || {};
+    return (
+      <Drawer
+        title="绑定诊断详情"
+        width={560}
+        open={this.state.bindingDiagnosticsDetailOpen}
+        onClose={() => this.setState({bindingDiagnosticsDetailOpen: false})}
+      >
+        <Space direction="vertical" size={10} style={{width: "100%"}}>
+          <Space wrap>
+            {detail.riskLevel && this.getBindingRiskTag(detail.riskLevel)}
+            {detail.type && <Tag>{this.getBindingIssueTypeLabel(detail.type)}</Tag>}
+            {detail.recommendedAction && <Tag color="blue">{this.getBindingActionLabel(detail.recommendedAction)}</Tag>}
+          </Space>
+          <Typography.Paragraph ellipsis={{rows: 4, expandable: true}}>
+            {detail.safeSummary || "-"}
+          </Typography.Paragraph>
+          {detail.blockedReason && <Text type="danger">{`阻断原因：${detail.blockedReason}`}</Text>}
+          <Space size={4} wrap>
+            {detail.sourceConnectionIdHash && <Tag>{detail.sourceConnectionIdHash}</Tag>}
+            {this.renderBindingLinkage(detail.latestRun, "run")}
+            {this.renderBindingLinkage(detail.latestDryRunHistory, "history")}
+          </Space>
+          <Space>
+            <Button icon={<CopyOutlined />} onClick={() => this.copyBindingDiagnosticsJson(detail)}>复制 JSON</Button>
+            <Button icon={<DownloadOutlined />} onClick={() => this.exportBindingDiagnosticsJson(detail)}>导出 JSON</Button>
+          </Space>
+          <pre style={{whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 420, overflow: "auto", background: "#f5f5f5", padding: 12, borderRadius: 4}}>
+            {this.getBindingDiagnosticsJson(detail)}
+          </pre>
+        </Space>
+      </Drawer>
+    );
   }
 
   renderDryRunHistory() {
@@ -765,6 +1028,9 @@ class FeishuOrganizationSyncPage extends React.Component {
           <Button icon={<CloudSyncOutlined />} loading={this.state.previewing} disabled={!config.isEnabled} onClick={() => this.previewSyncImpact()}>预览影响</Button>
           <Button icon={<PlayCircleOutlined />} loading={this.state.syncing} disabled={!config.isEnabled || hasRunningRuns} onClick={() => this.startSync()}>{hasRunningRuns ? "同步进行中" : "开始全量同步"}</Button>
         </Space>
+
+        <Divider />
+        {this.renderBindingDiagnostics()}
 
         <Divider />
         {this.renderDryRunHistory()}

@@ -54,6 +54,15 @@ test("calls Feishu organization sync dry-run history endpoints", async() => {
   expect(global.fetch).toHaveBeenNthCalledWith(2, "/api/feishu-org-sync/dry-run-history/history-1?organization=engineering", expect.objectContaining({method: "GET"}));
 });
 
+test("calls Feishu organization sync user binding conflict diagnostics endpoint", async() => {
+  await FeishuOrganizationSyncBackend.getFeishuOrganizationSyncUserBindingConflicts("engineering", {
+    limit: 5,
+    includeOk: true,
+  });
+
+  expect(global.fetch).toHaveBeenCalledWith("/api/feishu-org-sync/user-binding-conflicts?organization=engineering&limit=5&includeOk=true", expect.objectContaining({method: "GET"}));
+});
+
 test("passes Feishu organization sync diagnostics payload through run detail", async() => {
   global.fetch = jest.fn(() => Promise.resolve({
     json: () => Promise.resolve({

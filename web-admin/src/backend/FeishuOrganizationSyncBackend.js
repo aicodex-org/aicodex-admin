@@ -68,6 +68,21 @@ export function getFeishuOrganizationSyncDryRunHistory(organization, historyId) 
   }).then(res => res.json());
 }
 
+export function getFeishuOrganizationSyncUserBindingConflicts(organization, filters = {}) {
+  const params = new URLSearchParams();
+  params.set("organization", organization || "");
+  ["limit", "includeOk"].forEach(key => {
+    if (filters[key] !== undefined && filters[key] !== null && filters[key] !== "") {
+      params.set(key, filters[key]);
+    }
+  });
+  return fetch(`${Setting.ServerUrl}/api/feishu-org-sync/user-binding-conflicts?${params.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
 export function startFeishuOrganizationSyncRun(organization) {
   return fetch(`${Setting.ServerUrl}/api/feishu-org-sync/runs`, {
     method: "POST",
