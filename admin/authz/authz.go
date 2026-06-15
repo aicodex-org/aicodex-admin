@@ -70,6 +70,8 @@ p, *, *, GET, /api/gateway-projection/publish-attempts/:attemptId, *, *
 p, *, *, GET, /api/gateway-projection/publish-attempt-retention-readiness, *, *
 p, *, *, GET, /api/gateway-projection/publish-attempt-retention-cleanup-dry-run, *, *
 p, *, *, GET, /api/gateway-projection/publish-attempt-retention-cleanup-execute-readiness, *, *
+p, *, *, GET, /api/gateway-projection/publish-attempt-retention-cleanup-approval-audit-trail, *, *
+p, *, *, POST, /api/gateway-projection/publish-attempt-retention-cleanup-approval-audit-trail, *, *
 p, *, *, GET, /api/health, *, *
 p, *, *, *, /api/webhook, *, *
 p, *, *, GET, /api/get-qrcode, *, *

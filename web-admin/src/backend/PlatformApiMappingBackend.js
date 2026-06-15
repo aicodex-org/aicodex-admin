@@ -489,6 +489,38 @@ export function getGatewayProjectionPublishAttemptCleanupExecuteReadiness(organi
   }).then(res => res.json());
 }
 
+export function getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail(organization, options = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.action) {
+    query.set("action", options.action);
+  }
+  if (options.approvalState) {
+    query.set("approvalState", options.approvalState);
+  }
+  if (options.readinessHash) {
+    query.set("readinessHash", options.readinessHash);
+  }
+  if (options.limit) {
+    query.set("limit", options.limit);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/gateway-projection/publish-attempt-retention-cleanup-approval-audit-trail?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
+export function recordGatewayProjectionPublishAttemptCleanupApprovalAuditTrail(payload = {}) {
+  return fetch(`${Setting.ServerUrl}/api/gateway-projection/publish-attempt-retention-cleanup-approval-audit-trail`, {
+    method: "POST",
+    credentials: "include",
+    body: JSON.stringify(payload),
+    headers: getJsonHeaders(),
+  }).then(res => res.json());
+}
+
 export function getGatewayProjectionRunReadiness(organization, options = {}) {
   const query = new URLSearchParams();
   query.set("organization", organization || "");

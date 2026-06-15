@@ -73,6 +73,7 @@ func InitAPI() {
 	web.Router("/api/gateway-projection/publish-attempt-retention-readiness", &controllers.ApiController{}, "GET:GetGatewayProjectionPublishAttemptRetentionReadiness")
 	web.Router("/api/gateway-projection/publish-attempt-retention-cleanup-dry-run", &controllers.ApiController{}, "GET:GetGatewayProjectionPublishAttemptRetentionCleanupDryRun")
 	web.Router("/api/gateway-projection/publish-attempt-retention-cleanup-execute-readiness", &controllers.ApiController{}, "GET:GetGatewayProjectionPublishAttemptRetentionCleanupExecuteReadiness")
+	web.Router("/api/gateway-projection/publish-attempt-retention-cleanup-approval-audit-trail", &controllers.ApiController{}, "GET:GetGatewayProjectionPublishAttemptRetentionCleanupApprovalAuditTrail;POST:RecordGatewayProjectionPublishAttemptRetentionCleanupApprovalAuditTrail")
 	web.Router("/api/gateway-projection/manual-publish", &controllers.ApiController{}, "POST:PublishGatewayProjectionManually")
 	web.Router("/api/unlink", &controllers.ApiController{}, "POST:Unlink")
 	web.Router("/api/get-saml-login", &controllers.ApiController{}, "GET:GetSamlLogin")

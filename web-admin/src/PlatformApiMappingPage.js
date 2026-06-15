@@ -170,6 +170,8 @@ class PlatformApiMappingPage extends React.Component {
       retentionReadinessLoading: false,
       cleanupDryRunLoading: false,
       cleanupExecuteReadinessLoading: false,
+      cleanupApprovalAuditLoading: false,
+      cleanupApprovalAuditRecording: false,
       attemptDetailLoading: false,
       savingKey: "",
       userKeyword: "",
@@ -184,6 +186,7 @@ class PlatformApiMappingPage extends React.Component {
       retentionReadiness: null,
       cleanupDryRun: null,
       cleanupExecuteReadiness: null,
+      cleanupApprovalAuditTrail: null,
       attemptSource: "",
       attemptStatus: "",
       attemptTimeWindow: "",
@@ -364,6 +367,7 @@ class PlatformApiMappingPage extends React.Component {
       this.refreshGatewayProjectionPublishAttemptRetentionReadiness(organization, {source, status, timeWindow});
       this.refreshGatewayProjectionPublishAttemptCleanupDryRun(organization, {source, status});
       this.refreshGatewayProjectionPublishAttemptCleanupExecuteReadiness(organization, {source, status});
+      this.refreshGatewayProjectionPublishAttemptCleanupApprovalAuditTrail(organization);
     }).catch(error => {
       this.setState({attemptsLoading: false});
       Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
@@ -444,8 +448,37 @@ class PlatformApiMappingPage extends React.Component {
         cleanupExecuteReadinessLoading: false,
         cleanupExecuteReadiness: res.status === "ok" ? res.data : null,
       });
+      if (res.status === "ok") {
+        this.refreshGatewayProjectionPublishAttemptCleanupApprovalAuditTrail(organization, {
+          readinessHash: res.data?.dryRunHash,
+        });
+      }
     }).catch(error => {
       this.setState({cleanupExecuteReadinessLoading: false});
+      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+    });
+  }
+
+  refreshGatewayProjectionPublishAttemptCleanupApprovalAuditTrail(organization = this.state.organization, options = {}) {
+    if (!organization) {
+      return Promise.resolve();
+    }
+    const readinessHash = options.readinessHash !== undefined ? options.readinessHash : this.state.cleanupExecuteReadiness?.dryRunHash;
+
+    this.setState({cleanupApprovalAuditLoading: true});
+    return PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail(organization, {
+      readinessHash,
+      limit: 20,
+    }).then((res) => {
+      if (res.status === "error") {
+        Setting.showMessage("error", res.msg);
+      }
+      this.setState({
+        cleanupApprovalAuditLoading: false,
+        cleanupApprovalAuditTrail: res.status === "ok" ? res.data : null,
+      });
+    }).catch(error => {
+      this.setState({cleanupApprovalAuditLoading: false});
       Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
     });
   }
@@ -823,7 +856,7 @@ class PlatformApiMappingPage extends React.Component {
     this.setState({attemptDetailVisible: false});
   }
 
-  copyCleanupExecuteReadinessExport() {
+  copyCleanupExecuteReadinessExport(action = "copy") {
     const readiness = this.state.cleanupExecuteReadiness;
     if (!readiness) {
       Setting.showMessage("warning", "cleanup execute readiness 尚未加载");
@@ -846,14 +879,73 @@ class PlatformApiMappingPage extends React.Component {
     };
     const text = JSON.stringify(exportPayload, null, 2);
     if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(text).then(() => {
+      Promise.resolve(navigator.clipboard.writeText(text)).then(() => {
         Setting.showMessage("success", "已复制脱敏 readiness JSON");
+        this.recordCleanupApprovalAuditAction(action);
       }).catch(error => {
         Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
       });
       return;
     }
     Setting.showMessage("warning", "当前浏览器不支持自动复制，请从只读响应中导出");
+  }
+
+  copyCleanupApprovalAuditTrailExport() {
+    const trail = this.state.cleanupApprovalAuditTrail;
+    if (!trail) {
+      Setting.showMessage("warning", "cleanup approval audit trail 尚未加载");
+      return;
+    }
+    const text = JSON.stringify(trail.export || {
+      generatedAt: trail.generatedAt,
+      storageScope: trail.storageScope,
+      filters: trail.filters || {},
+      summary: trail.summary || {},
+      records: trail.records || [],
+    }, null, 2);
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      Promise.resolve(navigator.clipboard.writeText(text)).then(() => {
+        Setting.showMessage("success", "已复制脱敏 approval audit JSON");
+        this.recordCleanupApprovalAuditAction("export");
+      }).catch(error => {
+        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      });
+      return;
+    }
+    Setting.showMessage("warning", "当前浏览器不支持自动复制，请从只读响应中导出");
+  }
+
+  recordCleanupApprovalAuditAction(action) {
+    const readiness = this.state.cleanupExecuteReadiness;
+    if (!this.state.organization || !readiness) {
+      Setting.showMessage("warning", "cleanup execute readiness 尚未加载");
+      return Promise.resolve();
+    }
+    this.setState({cleanupApprovalAuditRecording: true});
+    return PlatformApiMappingBackend.recordGatewayProjectionPublishAttemptCleanupApprovalAuditTrail({
+      organizationId: this.state.organization,
+      action,
+      readinessHash: readiness.dryRunHash,
+      dryRunId: readiness.dryRunId,
+      retentionPolicyVersion: readiness.retentionPolicyVersion,
+      candidateCount: readiness.candidateCount || 0,
+      blockedCount: readiness.blockedCount || 0,
+      disabledReasons: readiness.disabledReasons || [],
+      safeNextAction: readiness.safeNextAction || "",
+    }).then((res) => {
+      this.setState({cleanupApprovalAuditRecording: false});
+      if (res.status === "error") {
+        Setting.showMessage("error", res.msg);
+        return;
+      }
+      Setting.showMessage("success", `已记录 ${action} 审计动作`);
+      this.refreshGatewayProjectionPublishAttemptCleanupApprovalAuditTrail(this.state.organization, {
+        readinessHash: readiness.dryRunHash,
+      });
+    }).catch(error => {
+      this.setState({cleanupApprovalAuditRecording: false});
+      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+    });
   }
 
   getManualPublishDisabledReasons() {
@@ -1063,6 +1155,7 @@ class PlatformApiMappingPage extends React.Component {
     const retentionReadiness = this.state.retentionReadiness;
     const cleanupDryRun = this.state.cleanupDryRun;
     const cleanupExecuteReadiness = this.state.cleanupExecuteReadiness;
+    const cleanupApprovalAuditTrail = this.state.cleanupApprovalAuditTrail || {};
     const reasonCounts = retentionReadiness?.reasonCounts || {};
     const cleanupReasonCounts = cleanupDryRun?.reasonCounts || {};
     const cleanupGuardrail = cleanupDryRun?.executeGuardrail || {};
@@ -1071,6 +1164,10 @@ class PlatformApiMappingPage extends React.Component {
     const executeFreshness = cleanupExecuteReadiness?.lastDryRunFreshness || {};
     const executeApproval = cleanupExecuteReadiness?.operatorApproval || {};
     const executeGuardrail = cleanupExecuteReadiness?.executeGuardrail || {};
+    const auditSummary = cleanupApprovalAuditTrail.summary || {};
+    const auditActionCounts = auditSummary.actionCounts || {};
+    const auditStateCounts = auditSummary.approvalStateCounts || {};
+    const auditRecords = cleanupApprovalAuditTrail.records || [];
     const detail = this.state.attemptDetail || {};
     const detailRetention = detail.retention || {};
     const receiptHint = detail.receiptQueryHint || {};
@@ -1160,6 +1257,37 @@ class PlatformApiMappingPage extends React.Component {
         title: i18next.t("general:Action"),
         width: 100,
         render: (_, record) => <Button onClick={() => this.openPublishAttemptDetail(record)}>详情</Button>,
+      },
+    ];
+    const auditColumns = [
+      {
+        title: "动作",
+        dataIndex: "action",
+        width: 110,
+        render: value => <Tag>{value || "-"}</Tag>,
+      },
+      {
+        title: "审批状态",
+        dataIndex: "approvalState",
+        width: 150,
+        render: value => <Tag color="blue">{value || "-"}</Tag>,
+      },
+      {
+        title: "候选/阻断",
+        width: 120,
+        render: (_, record) => `${record.candidateCount || 0}/${record.blockedCount || 0}`,
+      },
+      {
+        title: "safeNextAction",
+        dataIndex: "safeNextAction",
+        width: 180,
+        render: value => value || "-",
+      },
+      {
+        title: "时间",
+        dataIndex: "createdAt",
+        width: 180,
+        render: value => value ? new Date(value).toLocaleString() : "-",
       },
     ];
 
@@ -1324,6 +1452,78 @@ class PlatformApiMappingPage extends React.Component {
             <Tag>approvalStatus: {executeApproval.status || "unknown"}</Tag>
             {(executeApproval.missingEvidenceAliases || []).map(item => <Tag key={item}>{item}</Tag>)}
           </Space>
+        </Card>
+        <Card
+          type="inner"
+          size="small"
+          title="Cleanup approval audit trail"
+          style={{marginBottom: 12}}
+          extra={
+            <Space wrap>
+              <Button
+                icon={<ReloadOutlined />}
+                loading={this.state.cleanupApprovalAuditLoading}
+                onClick={() => this.refreshGatewayProjectionPublishAttemptCleanupApprovalAuditTrail()}
+              >
+                刷新审计
+              </Button>
+              <Button
+                loading={this.state.cleanupApprovalAuditRecording}
+                disabled={!cleanupExecuteReadiness}
+                onClick={() => this.recordCleanupApprovalAuditAction("approve")}
+              >
+                记录 approve 预览
+              </Button>
+              <Button
+                loading={this.state.cleanupApprovalAuditRecording}
+                disabled={!cleanupExecuteReadiness}
+                onClick={() => this.recordCleanupApprovalAuditAction("reject")}
+              >
+                记录 reject 预览
+              </Button>
+              <Button
+                loading={this.state.cleanupApprovalAuditRecording}
+                disabled={!cleanupExecuteReadiness}
+                onClick={() => this.recordCleanupApprovalAuditAction("refresh")}
+              >
+                记录 refresh
+              </Button>
+              <Button disabled={!cleanupExecuteReadiness} onClick={() => this.copyCleanupExecuteReadinessExport("copy")}>
+                复制 readiness JSON
+              </Button>
+              <Button disabled={!cleanupApprovalAuditTrail.records} onClick={() => this.copyCleanupApprovalAuditTrailExport()}>
+                导出审计 JSON
+              </Button>
+            </Space>
+          }
+        >
+          <Alert
+            type="info"
+            showIcon
+            message={`Approval audit storage: ${cleanupApprovalAuditTrail.storageScope || "admin_cleanup_approval_audit_trail.v1"}`}
+            description="审批审计只记录 Admin producer 安全动作，不执行 cleanup，不写 Gateway facts，也不是 runtime authorization success。"
+            style={{marginBottom: 12}}
+          />
+          <Space wrap style={{marginBottom: 8}}>
+            <Tag>total: {cleanupApprovalAuditTrail.total || 0}</Tag>
+            <Tag>candidateTotal: {auditSummary.candidateCount || 0}</Tag>
+            <Tag>blockedTotal: {auditSummary.blockedCount || 0}</Tag>
+            <Tag>disabledReasonAliases: {auditSummary.disabledReasonCount || 0}</Tag>
+            {auditSummary.latestActionAt && <Tag>latest: {auditSummary.latestActionAt}</Tag>}
+          </Space>
+          <div style={{marginBottom: 8}}>
+            {Object.entries(auditActionCounts).map(([key, value]) => <Tag key={key}>{key}: {value}</Tag>)}
+            {Object.entries(auditStateCounts).map(([key, value]) => <Tag key={key} color="blue">{key}: {value}</Tag>)}
+          </div>
+          <Table
+            rowKey={(record) => record.auditId}
+            columns={auditColumns}
+            dataSource={auditRecords}
+            pagination={false}
+            loading={this.state.cleanupApprovalAuditLoading}
+            size="small"
+            locale={{emptyText: "暂无 cleanup approval audit trail"}}
+          />
         </Card>
         <Table
           rowKey={(record) => record.attemptId}

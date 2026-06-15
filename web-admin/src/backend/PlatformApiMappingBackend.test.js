@@ -3,6 +3,7 @@
 import {
   getGatewayProjectionIngestionStatus,
   getGatewayProjectionPublishAttempt,
+  getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail,
   getGatewayProjectionPublishAttemptCleanupDryRun,
   getGatewayProjectionPublishAttemptCleanupExecuteReadiness,
   getGatewayProjectionPublishAttemptRetentionReadiness,
@@ -19,6 +20,7 @@ import {
   getPlatformApiUserMappingReadiness,
   getPlatformApiUserMappings,
   publishGatewayProjectionManually,
+  recordGatewayProjectionPublishAttemptCleanupApprovalAuditTrail,
   updatePlatformApiOrganizationMapping,
   updatePlatformApiUserMapping
 } from "./PlatformApiMappingBackend";
@@ -286,6 +288,44 @@ test("loads platform api mappings with explicit organization query", async() => 
         "Accept-Language": "en",
         "Content-Type": "application/json",
       }),
+    })
+  );
+});
+
+test("loads and records gateway projection cleanup approval audit trail", async() => {
+  await getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail("org-a", {
+    action: "approve",
+    approvalState: "approved_preview",
+    readinessHash: "dryrun-hash-a",
+    limit: 20,
+  });
+  await recordGatewayProjectionPublishAttemptCleanupApprovalAuditTrail({
+    organizationId: "org-a",
+    action: "reject",
+    readinessHash: "dryrun-hash-a",
+    candidateCount: 3,
+    blockedCount: 1,
+    disabledReasons: ["cleanup_execution_not_enabled"],
+    safeNextAction: "collect_approval_package",
+  });
+
+  expect(global.fetch).toHaveBeenNthCalledWith(
+    1,
+    "https://admin.example.invalid/api/gateway-projection/publish-attempt-retention-cleanup-approval-audit-trail?organization=org-a&action=approve&approvalState=approved_preview&readinessHash=dryrun-hash-a&limit=20",
+    expect.objectContaining({
+      method: "GET",
+      credentials: "include",
+      headers: expect.objectContaining({"Accept-Language": "en"}),
+    })
+  );
+  expect(global.fetch).toHaveBeenNthCalledWith(
+    2,
+    "https://admin.example.invalid/api/gateway-projection/publish-attempt-retention-cleanup-approval-audit-trail",
+    expect.objectContaining({
+      method: "POST",
+      credentials: "include",
+      body: expect.stringContaining("\"action\":\"reject\""),
+      headers: expect.objectContaining({"Content-Type": "application/json"}),
     })
   );
 });

@@ -463,6 +463,174 @@ func TestGatewayProjectionPublishAttemptCleanupExecuteReadinessReadyForApproval(
 	}
 }
 
+func TestGatewayProjectionCleanupApprovalAuditTrailRecordsSafeActions(t *testing.T) {
+	now := time.Date(2026, 6, 15, 15, 30, 0, 0, time.UTC)
+	attemptStore := &memoryGatewayProjectionPublishAttemptStore{
+		records: []*GatewayProjectionPublishAttempt{{
+			AttemptId:         "attempt-ready",
+			OrganizationId:    "org-a",
+			Status:            "error",
+			ProjectionBatchId: "batch-ready",
+			SourceVersion:     "orgv-ready",
+			FailureCategory:   "gateway_unavailable",
+			CreatedAt:         now.Add(-35 * 24 * time.Hour),
+		}},
+	}
+	service := GatewayProjectionPublishAttemptHistoryService{Store: attemptStore, Now: func() time.Time { return now }}
+	readiness, err := service.CleanupExecuteReadiness(GatewayProjectionPublishAttemptCleanupExecuteReadinessQuery{
+		OrganizationId:          "org-a",
+		OlderThan:               now.Add(-30 * 24 * time.Hour),
+		ApprovalEvidenceAliases: allGatewayProjectionCleanupApprovalEvidenceAliases(),
+		Limit:                   20,
+	})
+	if err != nil {
+		t.Fatalf("CleanupExecuteReadiness() error = %v", err)
+	}
+	for _, action := range []string{"approve", "reject", "copy", "export", "refresh"} {
+		record, err := service.RecordCleanupApprovalAuditTrail(GatewayProjectionCleanupApprovalAuditTrailRequest{
+			OrganizationId: "org-a",
+			Action:         action,
+			Readiness:      readiness,
+			DisabledReasons: []string{
+				"cleanup_execution_not_enabled",
+				"https://gateway.example.invalid/rawGatewayResponse?token=projection-secret",
+			},
+		})
+		if err != nil {
+			t.Fatalf("RecordCleanupApprovalAuditTrail(%s) error = %v", action, err)
+		}
+		if record.StorageScope != GatewayProjectionCleanupApprovalAuditTrailStorageScope || record.ExecuteEnabled || !record.DryRunOnly {
+			t.Fatalf("record guardrail = %#v, want fixed storage scope and disabled dry-run-only guardrail", record)
+		}
+	}
+
+	trail, err := service.ListCleanupApprovalAuditTrail(GatewayProjectionCleanupApprovalAuditTrailQuery{
+		OrganizationId: "org-a",
+		ReadinessHash:  readiness.DryRunHash,
+		Limit:          20,
+	})
+	if err != nil {
+		t.Fatalf("ListCleanupApprovalAuditTrail() error = %v", err)
+	}
+	if trail.StorageScope != GatewayProjectionCleanupApprovalAuditTrailStorageScope || trail.Total != 5 {
+		t.Fatalf("trail = %#v, want five records with storage scope", trail)
+	}
+	if trail.Summary.ActionCounts["approve"] != 1 || trail.Summary.ActionCounts["reject"] != 1 || trail.Summary.ActionCounts["copy"] != 1 || trail.Summary.ActionCounts["export"] != 1 || trail.Summary.ActionCounts["refresh"] != 1 {
+		t.Fatalf("action counts = %#v, want all safe actions counted", trail.Summary.ActionCounts)
+	}
+	if trail.ExecuteGuardrail.Enabled || !trail.ExecuteGuardrail.DryRunOnly {
+		t.Fatalf("trail guardrail = %#v, want disabled dry-run-only guardrail", trail.ExecuteGuardrail)
+	}
+	if len(attemptStore.records) != 1 || attemptStore.records[0].AttemptId != "attempt-ready" {
+		t.Fatalf("approval audit mutated publish attempts: %#v", attemptStore.records)
+	}
+	raw, err := json.Marshal(trail)
+	if err != nil {
+		t.Fatalf("marshal trail: %v", err)
+	}
+	assertDoesNotContainAny(t, string(raw), "projection-secret", "Authorization", "Cookie", "gateway.example.invalid", "rawGatewayResponse")
+}
+
+func TestGatewayProjectionCleanupApprovalAuditTrailFiltersAndDefensiveBranches(t *testing.T) {
+	setupGatewayProjectionPublishAttemptTestOrmer(t)
+	now := time.Date(2026, 6, 15, 15, 40, 0, 0, time.UTC)
+	service := GatewayProjectionPublishAttemptHistoryService{Now: func() time.Time { return now }}
+	if _, err := service.RecordCleanupApprovalAuditTrail(GatewayProjectionCleanupApprovalAuditTrailRequest{}); err == nil {
+		t.Fatalf("RecordCleanupApprovalAuditTrail(empty org) error = nil, want fail-closed organization requirement")
+	}
+	if _, err := service.RecordCleanupApprovalAuditTrail(GatewayProjectionCleanupApprovalAuditTrailRequest{OrganizationId: "org-a", Action: "delete"}); err == nil {
+		t.Fatalf("RecordCleanupApprovalAuditTrail(delete) error = nil, want invalid action")
+	}
+	if _, err := service.RecordCleanupApprovalAuditTrail(GatewayProjectionCleanupApprovalAuditTrailRequest{
+		OrganizationId: "org-a",
+		Action:         "approve",
+		ApprovalState:  "approved preview",
+		ReadinessHash:  "dryrun-hash-a",
+		CandidateCount: 3,
+		BlockedCount:   1,
+		DisabledReasons: []string{
+			"approval_evidence_missing",
+			"Cookie: secret",
+			"approval_evidence_missing",
+		},
+		SafeNextAction: "collect approval package",
+	}); err != nil {
+		t.Fatalf("RecordCleanupApprovalAuditTrail(approve) error = %v", err)
+	}
+	if _, err := service.RecordCleanupApprovalAuditTrail(GatewayProjectionCleanupApprovalAuditTrailRequest{
+		OrganizationId: "org-a",
+		Action:         "reject",
+		ReadinessHash:  "dryrun-hash-b",
+		CandidateCount: 2,
+	}); err != nil {
+		t.Fatalf("RecordCleanupApprovalAuditTrail(reject) error = %v", err)
+	}
+
+	filtered, err := service.ListCleanupApprovalAuditTrail(GatewayProjectionCleanupApprovalAuditTrailQuery{
+		OrganizationId: "org-a",
+		Action:         "approve",
+		ApprovalState:  "approved_preview",
+		ReadinessHash:  "dryrun-hash-a",
+		Limit:          500,
+	})
+	if err != nil {
+		t.Fatalf("ListCleanupApprovalAuditTrail(filtered) error = %v", err)
+	}
+	if filtered.Total != 1 || filtered.Filters.Limit != maxGatewayProjectionPublishAttemptLimit || filtered.Records[0].ApprovalState != "approved_preview" {
+		t.Fatalf("filtered = %#v, want capped one approved preview record", filtered)
+	}
+	if filtered.Summary.CandidateCount != 3 || filtered.Summary.BlockedCount != 1 || filtered.Summary.DisabledReasonCount != 2 {
+		t.Fatalf("summary = %#v, want candidate/block/unique disabled reason counts", filtered.Summary)
+	}
+	raw, err := json.Marshal(filtered.Export)
+	if err != nil {
+		t.Fatalf("marshal filtered export: %v", err)
+	}
+	assertDoesNotContainAny(t, string(raw), "projection-secret", "Authorization", "Cookie", "gateway.example.invalid", "rawGatewayResponse")
+
+	if _, err := service.ListCleanupApprovalAuditTrail(GatewayProjectionCleanupApprovalAuditTrailQuery{}); err == nil {
+		t.Fatalf("ListCleanupApprovalAuditTrail(empty org) error = nil, want organization required")
+	}
+	if _, err := service.ListCleanupApprovalAuditTrail(GatewayProjectionCleanupApprovalAuditTrailQuery{OrganizationId: "org-a", Action: "delete"}); err == nil {
+		t.Fatalf("ListCleanupApprovalAuditTrail(invalid action) error = nil, want invalid action")
+	}
+	if _, err := (GatewayProjectionPublishAttemptHistoryService{Store: failingGatewayProjectionPublishAttemptStore{}}).ListCleanupApprovalAuditTrail(GatewayProjectionCleanupApprovalAuditTrailQuery{OrganizationId: "org-a"}); err == nil {
+		t.Fatalf("ListCleanupApprovalAuditTrail(failing store) error = nil, want store error")
+	}
+	if _, err := (GatewayProjectionPublishAttemptHistoryService{Store: failingGatewayProjectionPublishAttemptStore{}}).RecordCleanupApprovalAuditTrail(GatewayProjectionCleanupApprovalAuditTrailRequest{OrganizationId: "org-a", Action: "approve"}); err == nil {
+		t.Fatalf("RecordCleanupApprovalAuditTrail(failing store) error = nil, want store error")
+	}
+	if err := (defaultGatewayProjectionPublishAttemptStore{}).RecordGatewayProjectionCleanupApprovalAuditRecord(nil); err != nil {
+		t.Fatalf("default record nil error = %v, want nil", err)
+	}
+	if got := cloneGatewayProjectionCleanupApprovalAuditRecord(nil); got != nil {
+		t.Fatalf("clone nil approval audit = %#v, want nil", got)
+	}
+	nilRecord := (*GatewayProjectionCleanupApprovalAuditRecord)(nil)
+	decodeGatewayProjectionCleanupApprovalAuditRecord(nilRecord)
+	decoded := &GatewayProjectionCleanupApprovalAuditRecord{DisabledReasonsJSON: `["cleanup_execution_not_enabled"]`}
+	decodeGatewayProjectionCleanupApprovalAuditRecord(decoded)
+	if decoded.StorageScope != GatewayProjectionCleanupApprovalAuditTrailStorageScope || !decoded.DryRunOnly || decoded.DisabledReasons[0] != "cleanup_execution_not_enabled" {
+		t.Fatalf("decoded = %#v, want defaults and decoded disabled reason", decoded)
+	}
+	if got := normalizeGatewayProjectionCleanupAuditAlias("   "); got != "" {
+		t.Fatalf("empty alias = %q, want empty", got)
+	}
+	if got := sanitizeGatewayProjectionCleanupAuditIdentifier("", "readiness-hash"); got != "" {
+		t.Fatalf("empty identifier = %q, want empty", got)
+	}
+	longID := strings.Repeat("a", 130)
+	if got := sanitizeGatewayProjectionCleanupAuditIdentifier(longID, "readiness-hash"); !strings.HasPrefix(got, "readiness-hash-") {
+		t.Fatalf("long identifier = %q, want hashed readiness-hash prefix", got)
+	}
+	if got := firstNonEmptyStringSlice(nil, []string{"fallback"}); len(got) != 1 || got[0] != "fallback" {
+		t.Fatalf("first non-empty slice = %#v, want fallback", got)
+	}
+	if got := firstNonEmptyStringSlice(nil, nil); got != nil {
+		t.Fatalf("empty slices = %#v, want nil", got)
+	}
+}
+
 func TestGatewayProjectionPublishAttemptHistoryHandlesLimitsMissingAndRecordFailure(t *testing.T) {
 	setupGatewayProjectionPublishAttemptTestOrmer(t)
 	generatedAt := time.Date(2026, 6, 15, 13, 30, 0, 0, time.UTC)
@@ -663,6 +831,9 @@ func setupGatewayProjectionPublishAttemptTestOrmer(t *testing.T) {
 	if err := engine.Sync2(new(GatewayProjectionPublishAttempt)); err != nil {
 		t.Fatalf("sync attempt table error = %v", err)
 	}
+	if err := engine.Sync2(new(GatewayProjectionCleanupApprovalAuditRecord)); err != nil {
+		t.Fatalf("sync cleanup approval audit table error = %v", err)
+	}
 
 	oldOrmer := ormer
 	ormer = &Ormer{Engine: engine}
@@ -673,7 +844,8 @@ func setupGatewayProjectionPublishAttemptTestOrmer(t *testing.T) {
 }
 
 type memoryGatewayProjectionPublishAttemptStore struct {
-	records []*GatewayProjectionPublishAttempt
+	records         []*GatewayProjectionPublishAttempt
+	approvalRecords []*GatewayProjectionCleanupApprovalAuditRecord
 }
 
 type failingGatewayProjectionPublishAttemptStore struct{}
@@ -687,6 +859,14 @@ func (f failingGatewayProjectionPublishAttemptStore) ListGatewayProjectionPublis
 }
 
 func (f failingGatewayProjectionPublishAttemptStore) GetGatewayProjectionPublishAttempt(query GatewayProjectionPublishAttemptQuery) (*GatewayProjectionPublishAttempt, error) {
+	return nil, errors.New("assert history store failure")
+}
+
+func (f failingGatewayProjectionPublishAttemptStore) RecordGatewayProjectionCleanupApprovalAuditRecord(record *GatewayProjectionCleanupApprovalAuditRecord) error {
+	return errors.New("assert history store failure")
+}
+
+func (f failingGatewayProjectionPublishAttemptStore) ListGatewayProjectionCleanupApprovalAuditRecords(query GatewayProjectionCleanupApprovalAuditTrailQuery) ([]*GatewayProjectionCleanupApprovalAuditRecord, error) {
 	return nil, errors.New("assert history store failure")
 }
 
@@ -731,6 +911,35 @@ func (s *memoryGatewayProjectionPublishAttemptStore) GetGatewayProjectionPublish
 		}
 	}
 	return nil, nil
+}
+
+func (s *memoryGatewayProjectionPublishAttemptStore) RecordGatewayProjectionCleanupApprovalAuditRecord(record *GatewayProjectionCleanupApprovalAuditRecord) error {
+	s.approvalRecords = append(s.approvalRecords, cloneGatewayProjectionCleanupApprovalAuditRecord(record))
+	return nil
+}
+
+func (s *memoryGatewayProjectionPublishAttemptStore) ListGatewayProjectionCleanupApprovalAuditRecords(query GatewayProjectionCleanupApprovalAuditTrailQuery) ([]*GatewayProjectionCleanupApprovalAuditRecord, error) {
+	result := []*GatewayProjectionCleanupApprovalAuditRecord{}
+	for i := len(s.approvalRecords) - 1; i >= 0; i-- {
+		record := s.approvalRecords[i]
+		if query.OrganizationId != "" && record.OrganizationId != query.OrganizationId {
+			continue
+		}
+		if query.Action != "" && record.Action != query.Action {
+			continue
+		}
+		if query.ApprovalState != "" && record.ApprovalState != query.ApprovalState {
+			continue
+		}
+		if query.ReadinessHash != "" && record.ReadinessHash != query.ReadinessHash {
+			continue
+		}
+		result = append(result, cloneGatewayProjectionCleanupApprovalAuditRecord(record))
+		if query.Limit > 0 && len(result) >= query.Limit {
+			break
+		}
+	}
+	return result, nil
 }
 
 func assertDoesNotContainAny(t *testing.T, value string, forbidden ...string) {

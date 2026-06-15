@@ -32,6 +32,8 @@ jest.mock("./backend/PlatformApiMappingBackend", () => ({
   getGatewayProjectionPublishAttemptRetentionReadiness: jest.fn(),
   getGatewayProjectionPublishAttemptCleanupDryRun: jest.fn(),
   getGatewayProjectionPublishAttemptCleanupExecuteReadiness: jest.fn(),
+  getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail: jest.fn(),
+  recordGatewayProjectionPublishAttemptCleanupApprovalAuditTrail: jest.fn(),
   updatePlatformApiOrganizationMapping: jest.fn(),
   getPlatformApiUserMappings: jest.fn(),
   publishGatewayProjectionManually: jest.fn(),
@@ -278,6 +280,54 @@ beforeEach(() => {
       },
     },
   });
+  PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail.mockResolvedValue({
+    status: "ok",
+    data: {
+      generatedAt: "2026-06-15T13:06:00Z",
+      storageScope: "admin_cleanup_approval_audit_trail.v1",
+      total: 1,
+      summary: {
+        actionCounts: {approve: 1},
+        approvalStateCounts: {approved_preview: 1},
+        candidateCount: 1,
+        blockedCount: 0,
+        disabledReasonCount: 2,
+        latestActionAt: "2026-06-15T13:06:00Z",
+      },
+      records: [{
+        auditId: "gcaa-synthetic",
+        action: "approve",
+        approvalState: "approved_preview",
+        readinessHash: "dryrun-hash-synthetic",
+        candidateCount: 1,
+        blockedCount: 0,
+        disabledReasons: ["approval_evidence_missing", "cleanup_execution_not_enabled"],
+        safeNextAction: "collect_approval_package",
+        storageScope: "admin_cleanup_approval_audit_trail.v1",
+        executeEnabled: false,
+        dryRunOnly: true,
+        createdAt: "2026-06-15T13:06:00Z",
+      }],
+      executeGuardrail: {
+        enabled: false,
+        dryRunOnly: true,
+      },
+      export: {
+        storageScope: "admin_cleanup_approval_audit_trail.v1",
+        records: [],
+      },
+    },
+  });
+  PlatformApiMappingBackend.recordGatewayProjectionPublishAttemptCleanupApprovalAuditTrail.mockResolvedValue({
+    status: "ok",
+    data: {
+      auditId: "gcaa-recorded",
+      action: "approve",
+      storageScope: "admin_cleanup_approval_audit_trail.v1",
+      executeEnabled: false,
+      dryRunOnly: true,
+    },
+  });
   PlatformApiMappingBackend.getGatewayProjectionPublishAttempt.mockResolvedValue({
     status: "ok",
     data: {
@@ -457,6 +507,9 @@ test("separates organization and user mapping tabs and loads user mappings on de
     status: "",
     limit: 100,
   })));
+  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+    limit: 20,
+  })));
   await wait(() => expect(PlatformApiMappingBackend.getOrganizationMasterDataQualityReadiness).toHaveBeenCalledWith("org-alpha"));
   await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionIngestionStatus).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     latest: true,
@@ -482,15 +535,32 @@ test("separates organization and user mapping tabs and loads user mappings on de
   expect(screen.getByText("cleanupEligible: 0")).toBeInTheDocument();
   expect(screen.getByText("Cleanup dry-run guardrails")).toBeInTheDocument();
   expect(screen.getByText(/Dry-run: cleanup_candidates_ready_for_future_execute_gate/)).toBeInTheDocument();
-  expect(screen.getByText("candidate: 1")).toBeInTheDocument();
+  expect(screen.getAllByText("candidate: 1").length).toBeGreaterThan(0);
   expect(screen.getByText("Cleanup execute readiness")).toBeInTheDocument();
   expect(screen.getByText(/Execute readiness: approval_required/)).toBeInTheDocument();
   expect(screen.getByText(/safeNextAction: collect_approval_package/)).toBeInTheDocument();
   expect(screen.getByText("dryRunId: dryrun-synthetic")).toBeInTheDocument();
   expect(screen.getByText("dryRunHash: dryrun-hash-synthetic")).toBeInTheDocument();
   expect(screen.getByText("approvalStatus: missing")).toBeInTheDocument();
-  expect(screen.getByText("executeEnabled: false")).toBeInTheDocument();
-  expect(screen.getByText("dryRunOnly: true")).toBeInTheDocument();
+  expect(screen.getAllByText("executeEnabled: false").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("dryRunOnly: true").length).toBeGreaterThan(0);
+  expect(screen.getByText("Cleanup approval audit trail")).toBeInTheDocument();
+  expect(screen.getByText(/Approval audit storage: admin_cleanup_approval_audit_trail.v1/)).toBeInTheDocument();
+  expect(screen.getByText("candidateTotal: 1")).toBeInTheDocument();
+  expect(screen.getByText("disabledReasonAliases: 2")).toBeInTheDocument();
+  expect(screen.getByText("approved_preview")).toBeInTheDocument();
+  expect(screen.getByText("记录 refresh")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("记录 approve 预览"));
+  await wait(() => expect(PlatformApiMappingBackend.recordGatewayProjectionPublishAttemptCleanupApprovalAuditTrail).toHaveBeenCalledWith(expect.objectContaining({
+    organizationId: "org-alpha",
+    action: "approve",
+    readinessHash: "dryrun-hash-synthetic",
+    dryRunId: "dryrun-synthetic",
+    retentionPolicyVersion: "gateway_projection_publish_attempt_retention.v1",
+    candidateCount: 1,
+    blockedCount: 0,
+    safeNextAction: "collect_approval_package",
+  })));
   expect(screen.getAllByText("保留期内").length).toBeGreaterThan(0);
   expect(screen.getByText("gateway_unavailable")).toBeInTheDocument();
   expect(screen.getByText("321 ms")).toBeInTheDocument();

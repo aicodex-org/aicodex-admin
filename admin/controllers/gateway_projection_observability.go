@@ -267,6 +267,58 @@ func (c *ApiController) GetGatewayProjectionPublishAttemptRetentionCleanupExecut
 	c.ResponseOk(result)
 }
 
+// GetGatewayProjectionPublishAttemptRetentionCleanupApprovalAuditTrail
+// @Title GetGatewayProjectionPublishAttemptRetentionCleanupApprovalAuditTrail
+// @Tag Gateway Projection Observability API
+// @Description 获取 admin-to-gateway projection cleanup execute readiness 的审批审计 trail；该响应不执行 cleanup，也不代表下游授权成功。
+// @Param organization query string true "Admin 组织 ID"
+// @Param action query string false "approve/reject/copy/export/refresh"
+// @Param approvalState query string false "审批状态 alias"
+// @Param readinessHash query string false "脱敏 readiness hash"
+// @Param limit query int false "最大返回数量"
+// @Success 200 {object} object.GatewayProjectionCleanupApprovalAuditTrail "projection cleanup approval audit trail"
+// @router /gateway-projection/publish-attempt-retention-cleanup-approval-audit-trail [get]
+func (c *ApiController) GetGatewayProjectionPublishAttemptRetentionCleanupApprovalAuditTrail() {
+	organization := strings.TrimSpace(c.Ctx.Input.Query("organization"))
+	if organization == "" {
+		c.ResponseError("gateway projection organization is required")
+		return
+	}
+	result, err := (object.GatewayProjectionPublishAttemptHistoryService{}).ListCleanupApprovalAuditTrail(object.GatewayProjectionCleanupApprovalAuditTrailQuery{
+		OrganizationId: organization,
+		Action:         c.Ctx.Input.Query("action"),
+		ApprovalState:  c.Ctx.Input.Query("approvalState"),
+		ReadinessHash:  c.Ctx.Input.Query("readinessHash"),
+		Limit:          parseGatewayProjectionQueryInt(c.Ctx.Input.Query("limit")),
+	})
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(result)
+}
+
+// RecordGatewayProjectionPublishAttemptRetentionCleanupApprovalAuditTrail
+// @Title RecordGatewayProjectionPublishAttemptRetentionCleanupApprovalAuditTrail
+// @Tag Gateway Projection Observability API
+// @Description 记录 cleanup execute readiness 的安全 operator action；P0 不执行 cleanup、不删除或更新 publish attempt。
+// @Param body body object.GatewayProjectionCleanupApprovalAuditTrailRequest true "安全 action 审计请求"
+// @Success 200 {object} object.GatewayProjectionCleanupApprovalAuditRecord "projection cleanup approval audit record"
+// @router /gateway-projection/publish-attempt-retention-cleanup-approval-audit-trail [post]
+func (c *ApiController) RecordGatewayProjectionPublishAttemptRetentionCleanupApprovalAuditTrail() {
+	request := object.GatewayProjectionCleanupApprovalAuditTrailRequest{}
+	if err := json.Unmarshal(c.Ctx.Input.RequestBody, &request); err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	result, err := (object.GatewayProjectionPublishAttemptHistoryService{}).RecordCleanupApprovalAuditTrail(request)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(result)
+}
+
 // PublishGatewayProjectionManually
 // @Title PublishGatewayProjectionManually
 // @Tag Gateway Projection Observability API

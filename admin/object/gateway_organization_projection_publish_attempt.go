@@ -34,6 +34,8 @@ const (
 	defaultGatewayProjectionCleanupDryRunMaxAge           = 15 * time.Minute
 
 	gatewayProjectionCleanupRetentionPolicyVersion = "gateway_projection_publish_attempt_retention.v1"
+
+	GatewayProjectionCleanupApprovalAuditTrailStorageScope = "admin_cleanup_approval_audit_trail.v1"
 )
 
 // GatewayProjectionPublishAttempt 是 Admin producer 的脱敏发布尝试台账。
@@ -275,10 +277,107 @@ type GatewayProjectionCleanupExecuteReadinessExport struct {
 	Samples                []GatewayProjectionPublishAttemptRetentionSample `json:"samples,omitempty"`
 }
 
+// GatewayProjectionCleanupApprovalAuditRecord 是 cleanup 执行开放前的 Admin-owned 安全动作审计。
+// P0 只记录 approve/reject/copy/export/refresh 等预览动作，不表示 cleanup 已获准或已执行。
+type GatewayProjectionCleanupApprovalAuditRecord struct {
+	Owner     string    `xorm:"varchar(100) notnull pk" json:"owner"`
+	Name      string    `xorm:"varchar(100) notnull pk" json:"name"`
+	CreatedAt time.Time `xorm:"timestampz created index" json:"createdAt"`
+	UpdatedAt time.Time `xorm:"timestampz updated" json:"updatedAt"`
+
+	AuditId                string   `xorm:"varchar(100) notnull index" json:"auditId"`
+	OrganizationId         string   `xorm:"varchar(100) notnull index" json:"organizationId"`
+	Action                 string   `xorm:"varchar(50) index" json:"action"`
+	ApprovalState          string   `xorm:"varchar(80) index" json:"approvalState"`
+	ReadinessHash          string   `xorm:"varchar(120) index" json:"readinessHash,omitempty"`
+	DryRunId               string   `xorm:"varchar(120) index" json:"dryRunId,omitempty"`
+	RetentionPolicyVersion string   `xorm:"varchar(120) index" json:"retentionPolicyVersion"`
+	CandidateCount         int      `json:"candidateCount"`
+	BlockedCount           int      `json:"blockedCount"`
+	DisabledReasons        []string `xorm:"-" json:"disabledReasons,omitempty"`
+	DisabledReasonsJSON    string   `xorm:"text 'disabled_reasons'" json:"-"`
+	SafeNextAction         string   `xorm:"varchar(120)" json:"safeNextAction,omitempty"`
+	StorageScope           string   `xorm:"varchar(120) index" json:"storageScope"`
+	ExecuteEnabled         bool     `json:"executeEnabled"`
+	DryRunOnly             bool     `json:"dryRunOnly"`
+	SafetySummary          string   `xorm:"varchar(160)" json:"safetySummary"`
+}
+
+// GatewayProjectionCleanupApprovalAuditTrailQuery 限定 approval audit trail 的只读查询范围。
+// 组织是必填条件，避免 operator 无意中跨组织查看审计记录。
+type GatewayProjectionCleanupApprovalAuditTrailQuery struct {
+	OrganizationId string
+	Action         string
+	ApprovalState  string
+	ReadinessHash  string
+	Limit          int
+}
+
+// GatewayProjectionCleanupApprovalAuditTrailRequest 是 P0 安全 action 记录请求。
+// 即使包含 readiness 摘要，service 也只提取 hash、计数、reason alias 等脱敏字段。
+type GatewayProjectionCleanupApprovalAuditTrailRequest struct {
+	OrganizationId         string                                                  `json:"organizationId"`
+	Action                 string                                                  `json:"action"`
+	ApprovalState          string                                                  `json:"approvalState"`
+	ReadinessHash          string                                                  `json:"readinessHash"`
+	DryRunId               string                                                  `json:"dryRunId"`
+	RetentionPolicyVersion string                                                  `json:"retentionPolicyVersion"`
+	CandidateCount         int                                                     `json:"candidateCount"`
+	BlockedCount           int                                                     `json:"blockedCount"`
+	DisabledReasons        []string                                                `json:"disabledReasons"`
+	SafeNextAction         string                                                  `json:"safeNextAction"`
+	Readiness              *GatewayProjectionPublishAttemptCleanupExecuteReadiness `json:"readiness,omitempty"`
+}
+
+// GatewayProjectionCleanupApprovalAuditTrail 是 operator 查看 approval audit 的脱敏响应。
+// ExecuteGuardrail 始终保持 disabled/dry-run-only，防止 UI 或调用方误解为真实 cleanup gate。
+type GatewayProjectionCleanupApprovalAuditTrail struct {
+	GeneratedAt      string                                            `json:"generatedAt"`
+	StorageScope     string                                            `json:"storageScope"`
+	Filters          GatewayProjectionCleanupApprovalAuditTrailFilters `json:"filters"`
+	Total            int                                               `json:"total"`
+	Summary          GatewayProjectionCleanupApprovalAuditTrailSummary `json:"summary"`
+	Records          []*GatewayProjectionCleanupApprovalAuditRecord    `json:"records"`
+	Export           GatewayProjectionCleanupApprovalAuditTrailExport  `json:"export"`
+	ExecuteGuardrail GatewayProjectionAttemptCleanupExecuteGuardrail   `json:"executeGuardrail"`
+}
+
+// GatewayProjectionCleanupApprovalAuditTrailFilters 回显本次只读查询条件。
+type GatewayProjectionCleanupApprovalAuditTrailFilters struct {
+	OrganizationId string `json:"organizationId,omitempty"`
+	Action         string `json:"action,omitempty"`
+	ApprovalState  string `json:"approvalState,omitempty"`
+	ReadinessHash  string `json:"readinessHash,omitempty"`
+	Limit          int    `json:"limit"`
+}
+
+// GatewayProjectionCleanupApprovalAuditTrailSummary 汇总安全 action 和审批状态计数。
+// 这些计数只服务 Admin producer accountability，不表示下游已授权或已执行 cleanup。
+type GatewayProjectionCleanupApprovalAuditTrailSummary struct {
+	ActionCounts        map[string]int `json:"actionCounts"`
+	ApprovalStateCounts map[string]int `json:"approvalStateCounts"`
+	CandidateCount      int            `json:"candidateCount"`
+	BlockedCount        int            `json:"blockedCount"`
+	LatestActionAt      string         `json:"latestActionAt,omitempty"`
+	DisabledReasonCount int            `json:"disabledReasonCount"`
+}
+
+// GatewayProjectionCleanupApprovalAuditTrailExport 是复制/导出用脱敏审计包。
+// 它不包含 raw Gateway response、subject 明细、凭据或可直连下游地址。
+type GatewayProjectionCleanupApprovalAuditTrailExport struct {
+	GeneratedAt  string                                            `json:"generatedAt"`
+	StorageScope string                                            `json:"storageScope"`
+	Filters      GatewayProjectionCleanupApprovalAuditTrailFilters `json:"filters"`
+	Summary      GatewayProjectionCleanupApprovalAuditTrailSummary `json:"summary"`
+	Records      []*GatewayProjectionCleanupApprovalAuditRecord    `json:"records"`
+}
+
 type GatewayProjectionPublishAttemptStore interface {
 	RecordGatewayProjectionPublishAttempt(attempt *GatewayProjectionPublishAttempt) error
 	ListGatewayProjectionPublishAttempts(query GatewayProjectionPublishAttemptQuery) ([]*GatewayProjectionPublishAttempt, error)
 	GetGatewayProjectionPublishAttempt(query GatewayProjectionPublishAttemptQuery) (*GatewayProjectionPublishAttempt, error)
+	RecordGatewayProjectionCleanupApprovalAuditRecord(record *GatewayProjectionCleanupApprovalAuditRecord) error
+	ListGatewayProjectionCleanupApprovalAuditRecords(query GatewayProjectionCleanupApprovalAuditTrailQuery) ([]*GatewayProjectionCleanupApprovalAuditRecord, error)
 }
 
 type GatewayProjectionPublishAttemptHistoryService struct {
@@ -542,6 +641,60 @@ func (s GatewayProjectionPublishAttemptHistoryService) CleanupExecuteReadiness(q
 	}, nil
 }
 
+// RecordCleanupApprovalAuditTrail 只记录 cleanup execute readiness 的安全操作预览。
+// 该方法不执行 cleanup、不更新 publish attempt、不写 Gateway facts。
+func (s GatewayProjectionPublishAttemptHistoryService) RecordCleanupApprovalAuditTrail(request GatewayProjectionCleanupApprovalAuditTrailRequest) (*GatewayProjectionCleanupApprovalAuditRecord, error) {
+	record, err := normalizeGatewayProjectionCleanupApprovalAuditRecord(request, s.now())
+	if err != nil {
+		return nil, err
+	}
+	if err := s.store().RecordGatewayProjectionCleanupApprovalAuditRecord(record); err != nil {
+		return nil, err
+	}
+	return cloneGatewayProjectionCleanupApprovalAuditRecord(record), nil
+}
+
+func (s GatewayProjectionPublishAttemptHistoryService) ListCleanupApprovalAuditTrail(query GatewayProjectionCleanupApprovalAuditTrailQuery) (*GatewayProjectionCleanupApprovalAuditTrail, error) {
+	normalized, err := normalizeGatewayProjectionCleanupApprovalAuditTrailQuery(query)
+	if err != nil {
+		return nil, err
+	}
+	records, err := s.store().ListGatewayProjectionCleanupApprovalAuditRecords(normalized)
+	if err != nil {
+		return nil, err
+	}
+	cloned := make([]*GatewayProjectionCleanupApprovalAuditRecord, 0, len(records))
+	for _, record := range records {
+		cloned = append(cloned, cloneGatewayProjectionCleanupApprovalAuditRecord(record))
+	}
+	summary := buildGatewayProjectionCleanupApprovalAuditTrailSummary(cloned)
+	filters := GatewayProjectionCleanupApprovalAuditTrailFilters{
+		OrganizationId: normalized.OrganizationId,
+		Action:         normalized.Action,
+		ApprovalState:  normalized.ApprovalState,
+		ReadinessHash:  normalized.ReadinessHash,
+		Limit:          normalized.Limit,
+	}
+	generatedAt := formatGatewayProjectionObservabilityTime(s.now())
+	export := GatewayProjectionCleanupApprovalAuditTrailExport{
+		GeneratedAt:  generatedAt,
+		StorageScope: GatewayProjectionCleanupApprovalAuditTrailStorageScope,
+		Filters:      filters,
+		Summary:      summary,
+		Records:      cloned,
+	}
+	return &GatewayProjectionCleanupApprovalAuditTrail{
+		GeneratedAt:      generatedAt,
+		StorageScope:     GatewayProjectionCleanupApprovalAuditTrailStorageScope,
+		Filters:          filters,
+		Total:            len(cloned),
+		Summary:          summary,
+		Records:          cloned,
+		Export:           export,
+		ExecuteGuardrail: buildGatewayProjectionAttemptCleanupExecuteGuardrail(gatewayProjectionAttemptCleanupSafetyChecklist()),
+	}, nil
+}
+
 func (s GatewayProjectionPublishAttemptHistoryService) store() GatewayProjectionPublishAttemptStore {
 	if s.Store != nil {
 		return s.Store
@@ -611,6 +764,39 @@ func (s defaultGatewayProjectionPublishAttemptStore) GetGatewayProjectionPublish
 	return attempt, nil
 }
 
+func (s defaultGatewayProjectionPublishAttemptStore) RecordGatewayProjectionCleanupApprovalAuditRecord(record *GatewayProjectionCleanupApprovalAuditRecord) error {
+	if record == nil || ormer == nil || ormer.Engine == nil {
+		return nil
+	}
+	_, err := ormer.Engine.Insert(record)
+	return err
+}
+
+func (s defaultGatewayProjectionPublishAttemptStore) ListGatewayProjectionCleanupApprovalAuditRecords(query GatewayProjectionCleanupApprovalAuditTrailQuery) ([]*GatewayProjectionCleanupApprovalAuditRecord, error) {
+	records := []*GatewayProjectionCleanupApprovalAuditRecord{}
+	if ormer == nil || ormer.Engine == nil {
+		return records, nil
+	}
+	session := ormer.Engine.Desc("created_at").Where("organization_id = ?", query.OrganizationId)
+	if query.Action != "" {
+		session = session.And("action = ?", query.Action)
+	}
+	if query.ApprovalState != "" {
+		session = session.And("approval_state = ?", query.ApprovalState)
+	}
+	if query.ReadinessHash != "" {
+		session = session.And("readiness_hash = ?", query.ReadinessHash)
+	}
+	if query.Limit > 0 {
+		session = session.Limit(query.Limit)
+	}
+	err := session.Find(&records)
+	for _, record := range records {
+		decodeGatewayProjectionCleanupApprovalAuditRecord(record)
+	}
+	return records, err
+}
+
 func normalizeGatewayProjectionPublishAttempt(attempt *GatewayProjectionPublishAttempt, now time.Time) *GatewayProjectionPublishAttempt {
 	copied := *attempt
 	copied.OrganizationId = normalizeGatewayProjectionString(copied.OrganizationId)
@@ -676,6 +862,179 @@ func normalizeGatewayProjectionPublishAttemptCleanupDryRunQuery(query GatewayPro
 	return query, nil
 }
 
+func normalizeGatewayProjectionCleanupApprovalAuditTrailQuery(query GatewayProjectionCleanupApprovalAuditTrailQuery) (GatewayProjectionCleanupApprovalAuditTrailQuery, error) {
+	query.OrganizationId = normalizeGatewayProjectionString(query.OrganizationId)
+	if query.OrganizationId == "" {
+		return query, errors.New("gateway projection organization is required")
+	}
+	if query.Action != "" {
+		action, _, err := normalizeGatewayProjectionCleanupApprovalAction(query.Action, "")
+		if err != nil {
+			return query, err
+		}
+		query.Action = action
+	}
+	query.ApprovalState = normalizeGatewayProjectionCleanupAuditAlias(query.ApprovalState)
+	query.ReadinessHash = sanitizeGatewayProjectionCleanupAuditIdentifier(query.ReadinessHash, "readiness-hash")
+	if query.Limit <= 0 {
+		query.Limit = defaultGatewayProjectionPublishAttemptLimit
+	}
+	if query.Limit > maxGatewayProjectionPublishAttemptLimit {
+		query.Limit = maxGatewayProjectionPublishAttemptLimit
+	}
+	return query, nil
+}
+
+func normalizeGatewayProjectionCleanupApprovalAuditRecord(request GatewayProjectionCleanupApprovalAuditTrailRequest, now time.Time) (*GatewayProjectionCleanupApprovalAuditRecord, error) {
+	organizationID := normalizeGatewayProjectionString(request.OrganizationId)
+	if organizationID == "" {
+		return nil, errors.New("gateway projection organization is required")
+	}
+	if request.Readiness != nil {
+		request.ReadinessHash = firstNonEmpty(request.ReadinessHash, request.Readiness.DryRunHash)
+		request.DryRunId = firstNonEmpty(request.DryRunId, request.Readiness.DryRunId)
+		request.RetentionPolicyVersion = firstNonEmpty(request.RetentionPolicyVersion, request.Readiness.RetentionPolicyVersion)
+		request.CandidateCount = firstNonZeroInt(request.CandidateCount, request.Readiness.CandidateCount)
+		request.BlockedCount = firstNonZeroInt(request.BlockedCount, request.Readiness.BlockedCount)
+		request.DisabledReasons = firstNonEmptyStringSlice(request.DisabledReasons, request.Readiness.DisabledReasons)
+		request.SafeNextAction = firstNonEmpty(request.SafeNextAction, request.Readiness.SafeNextAction)
+	}
+	action, defaultApprovalState, err := normalizeGatewayProjectionCleanupApprovalAction(request.Action, request.ApprovalState)
+	if err != nil {
+		return nil, err
+	}
+	approvalState := normalizeGatewayProjectionCleanupAuditAlias(firstNonEmpty(request.ApprovalState, defaultApprovalState))
+	readinessHash := sanitizeGatewayProjectionCleanupAuditIdentifier(request.ReadinessHash, "readiness-hash")
+	dryRunID := sanitizeGatewayProjectionCleanupAuditIdentifier(request.DryRunId, "dryrun")
+	retentionPolicyVersion := normalizeGatewayProjectionCleanupAuditAlias(firstNonEmpty(request.RetentionPolicyVersion, gatewayProjectionCleanupRetentionPolicyVersion))
+	disabledReasons := normalizeGatewayProjectionCleanupAuditAliasSlice(request.DisabledReasons)
+	if request.CandidateCount < 0 {
+		request.CandidateCount = 0
+	}
+	if request.BlockedCount < 0 {
+		request.BlockedCount = 0
+	}
+	createdAt := now.UTC()
+	auditID := prefixedStableHash("gcaa-", organizationID, action, approvalState, readinessHash, dryRunID, createdAt.Format(time.RFC3339Nano), strconv.FormatInt(time.Now().UTC().UnixNano(), 10))
+	record := &GatewayProjectionCleanupApprovalAuditRecord{
+		Owner:                  organizationID,
+		Name:                   auditID,
+		CreatedAt:              createdAt,
+		AuditId:                auditID,
+		OrganizationId:         organizationID,
+		Action:                 action,
+		ApprovalState:          approvalState,
+		ReadinessHash:          readinessHash,
+		DryRunId:               dryRunID,
+		RetentionPolicyVersion: retentionPolicyVersion,
+		CandidateCount:         request.CandidateCount,
+		BlockedCount:           request.BlockedCount,
+		DisabledReasons:        disabledReasons,
+		DisabledReasonsJSON:    gatewayProjectionAttemptStringSliceJSON(disabledReasons),
+		SafeNextAction:         normalizeGatewayProjectionCleanupAuditAlias(request.SafeNextAction),
+		StorageScope:           GatewayProjectionCleanupApprovalAuditTrailStorageScope,
+		ExecuteEnabled:         false,
+		DryRunOnly:             true,
+		SafetySummary:          "safe_action_recorded_no_cleanup_execution",
+	}
+	return record, nil
+}
+
+func normalizeGatewayProjectionCleanupApprovalAction(action string, approvalState string) (string, string, error) {
+	action = strings.ToLower(strings.TrimSpace(action))
+	switch action {
+	case "approve":
+		return action, "approved_preview", nil
+	case "reject":
+		return action, "rejected_preview", nil
+	case "copy":
+		return action, "copied", nil
+	case "export":
+		return action, "exported", nil
+	case "refresh":
+		return action, "refreshed", nil
+	default:
+		return "", "", errors.New("gateway projection cleanup approval action is invalid")
+	}
+}
+
+func normalizeGatewayProjectionCleanupAuditAlias(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return ""
+	}
+	if gatewayProjectionCleanupAuditLooksSensitive(value) {
+		return "redacted_sensitive_alias"
+	}
+	builder := strings.Builder{}
+	for _, item := range value {
+		if (item >= 'a' && item <= 'z') || (item >= '0' && item <= '9') || item == '_' || item == '-' {
+			builder.WriteRune(item)
+			continue
+		}
+		if item == ' ' || item == '.' || item == ':' || item == '/' || item == '\\' {
+			builder.WriteRune('_')
+		}
+	}
+	alias := strings.Trim(builder.String(), "_-")
+	if alias == "" || gatewayProjectionCleanupAuditLooksSensitive(alias) {
+		return "redacted_sensitive_alias"
+	}
+	if len(alias) > 120 {
+		alias = alias[:120]
+	}
+	return alias
+}
+
+func normalizeGatewayProjectionCleanupAuditAliasSlice(values []string) []string {
+	result := []string{}
+	seen := map[string]bool{}
+	for _, value := range values {
+		alias := normalizeGatewayProjectionCleanupAuditAlias(value)
+		if alias == "" || seen[alias] {
+			continue
+		}
+		seen[alias] = true
+		result = append(result, alias)
+	}
+	return result
+}
+
+func sanitizeGatewayProjectionCleanupAuditIdentifier(value string, fallbackPrefix string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	if gatewayProjectionCleanupAuditLooksSensitive(value) {
+		return prefixedStableHash(fallbackPrefix+"-", "redacted", value)
+	}
+	if len(value) > 120 {
+		return prefixedStableHash(fallbackPrefix+"-", value)
+	}
+	return value
+}
+
+func gatewayProjectionCleanupAuditLooksSensitive(value string) bool {
+	lower := strings.ToLower(strings.TrimSpace(value))
+	if lower == "" {
+		return false
+	}
+	for _, marker := range []string{"://", "authorization", "cookie", "token", "secret", "password", "rawgatewayresponse", "raw_gateway_response", "gateway.example", "private"} {
+		if strings.Contains(lower, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func gatewayProjectionAttemptStringSliceJSON(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	raw, _ := json.Marshal(values)
+	return string(raw)
+}
+
 func normalizeGatewayProjectionAttemptSource(source string) string {
 	source = strings.ToLower(strings.TrimSpace(source))
 	if source == GatewayProjectionPublishAttemptSourceManual {
@@ -730,6 +1089,59 @@ func cloneGatewayProjectionPublishAttempt(attempt *GatewayProjectionPublishAttem
 		_ = json.Unmarshal([]byte(attempt.MetadataJSON), &cloned.Metadata)
 	}
 	return &cloned
+}
+
+func cloneGatewayProjectionCleanupApprovalAuditRecord(record *GatewayProjectionCleanupApprovalAuditRecord) *GatewayProjectionCleanupApprovalAuditRecord {
+	if record == nil {
+		return nil
+	}
+	cloned := *record
+	decodeGatewayProjectionCleanupApprovalAuditRecord(&cloned)
+	cloned.DisabledReasons = append([]string(nil), cloned.DisabledReasons...)
+	return &cloned
+}
+
+func decodeGatewayProjectionCleanupApprovalAuditRecord(record *GatewayProjectionCleanupApprovalAuditRecord) {
+	if record == nil {
+		return
+	}
+	if len(record.DisabledReasons) == 0 && strings.TrimSpace(record.DisabledReasonsJSON) != "" {
+		_ = json.Unmarshal([]byte(record.DisabledReasonsJSON), &record.DisabledReasons)
+	}
+	record.DisabledReasons = normalizeGatewayProjectionCleanupAuditAliasSlice(record.DisabledReasons)
+	record.StorageScope = GatewayProjectionCleanupApprovalAuditTrailStorageScope
+	record.ExecuteEnabled = false
+	record.DryRunOnly = true
+	if record.SafetySummary == "" {
+		record.SafetySummary = "safe_action_recorded_no_cleanup_execution"
+	}
+}
+
+func buildGatewayProjectionCleanupApprovalAuditTrailSummary(records []*GatewayProjectionCleanupApprovalAuditRecord) GatewayProjectionCleanupApprovalAuditTrailSummary {
+	summary := GatewayProjectionCleanupApprovalAuditTrailSummary{
+		ActionCounts:        map[string]int{},
+		ApprovalStateCounts: map[string]int{},
+	}
+	var latest time.Time
+	disabledReasons := map[string]bool{}
+	for _, record := range records {
+		if record == nil {
+			continue
+		}
+		summary.ActionCounts[record.Action]++
+		summary.ApprovalStateCounts[record.ApprovalState]++
+		summary.CandidateCount += record.CandidateCount
+		summary.BlockedCount += record.BlockedCount
+		for _, reason := range record.DisabledReasons {
+			disabledReasons[reason] = true
+		}
+		if !record.CreatedAt.IsZero() && (latest.IsZero() || record.CreatedAt.After(latest)) {
+			latest = record.CreatedAt
+		}
+	}
+	summary.LatestActionAt = formatGatewayProjectionObservabilityTime(latest)
+	summary.DisabledReasonCount = len(disabledReasons)
+	return summary
 }
 
 func enrichGatewayProjectionPublishAttempt(attempt *GatewayProjectionPublishAttempt, organizationID string, now time.Time) *GatewayProjectionPublishAttempt {
@@ -985,6 +1397,24 @@ func cloneGatewayProjectionAttemptMetadata(values map[string]string) map[string]
 		cloned[key] = value
 	}
 	return cloned
+}
+
+func firstNonZeroInt(values ...int) int {
+	for _, value := range values {
+		if value != 0 {
+			return value
+		}
+	}
+	return 0
+}
+
+func firstNonEmptyStringSlice(values ...[]string) []string {
+	for _, value := range values {
+		if len(value) > 0 {
+			return append([]string(nil), value...)
+		}
+	}
+	return nil
 }
 
 func buildGatewayProjectionPublishAttemptFromResult(source string, organizationID string, result GatewayProjectionServiceResult, sourceConnections []SourceConnection, startedAt time.Time, durationMs int64, auditHash string) *GatewayProjectionPublishAttempt {
