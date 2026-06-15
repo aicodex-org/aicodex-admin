@@ -126,6 +126,101 @@
 - **AND** Insight SHALL 继续只读消费 admin/API provider
 - **AND** 系统 SHALL NOT 要求这些下游直接消费 admin 管理页面组织树 JSON 或 smoke 响应
 
+### Requirement: Organization tree operations smoke summary guardrail
+系统 SHALL 为 admin 组织树运营 smoke 提供只读 readiness summary guardrail，用于把诊断、刷新状态和可选组织树响应汇总为脱敏、可重复、fail-closed 的 operator summary。
+
+#### Scenario: Summary reports ready only for trusted non-empty admin tree
+- **WHEN** smoke summary 接收到可信的 admin 组织树诊断、可用刷新状态和受控非空组织树响应
+- **THEN** summary SHALL 返回整体 `status=ready`
+- **AND** summary SHALL 标记关键检查为 `ready`
+- **AND** summary SHALL 包含脱敏 counts、稳定 owner handoff、最小解除条件和不能外推边界
+- **AND** summary SHALL NOT 输出完整组织树、完整 organizationId、真实账号、手机号、邮箱、token、Cookie、source tenant metadata 或完整来源响应体
+
+#### Scenario: Empty or missing non-empty fixture blocks non-empty capability claim
+- **WHEN** 诊断或可选组织树响应显示节点为空，或者 operator 未提供受控非空 fixture/响应证明
+- **THEN** summary SHALL 返回 `status=blocked` 或对应检查 `status=not_checked`
+- **AND** summary SHALL 使用 `empty_tree` 或 `non_empty_fixture_missing` 稳定 alias
+- **AND** summary SHALL NOT 将普通空树、consumer-only 结果或 Insight fallback 记录为 Admin 非空组织树能力通过
+
+#### Scenario: Untrusted read model and stale source remain fail closed
+- **WHEN** 诊断显示 read model source 不可信、SourceConnection stale/disabled/unavailable、lineage 缺失、freshness 不可判定或 consumer-only/Insight fallback 信号
+- **THEN** summary SHALL 返回 `status=blocked`
+- **AND** summary SHALL 使用 `read_model_untrusted`、`source_connection_stale`、`lineage_missing` 或等价稳定 alias
+- **AND** summary SHALL 给出最小解除条件，要求回到 Admin-owned source/read model/lineage 路径修复
+- **AND** summary SHALL NOT 建议 API、Gateway 或 Insight 本地补算组织树、scope 或授权事实
+
+#### Scenario: Refresh status is optional but explicit
+- **WHEN** operator 未提供刷新状态响应
+- **THEN** summary SHALL 将刷新状态检查标记为 `not_checked`
+- **AND** summary SHALL NOT 因刷新状态未检查而声明完整 `ready`
+- **WHEN** 刷新状态响应不可用、失败或缺少稳定状态
+- **THEN** summary SHALL 返回 `refresh_status_unavailable` 稳定 alias
+
+#### Scenario: Sanitization failure blocks summary
+- **WHEN** summary 输入包含疑似 token、Cookie、Authorization、secret/config ref、source tenant metadata、手机号、邮箱或完整组织树敏感内容
+- **THEN** summary SHALL 返回 `status=blocked`
+- **AND** summary SHALL 使用 `sanitization_failed` 稳定 alias
+- **AND** summary SHALL 只提示删除敏感输入后重跑，不输出敏感字段值
+
+#### Scenario: Smoke summary assets do not become cross-service contracts
+- **WHEN** API/gateway 或 Insight 需要组织、scope、projection 或授权数据
+- **THEN** API/gateway SHALL 继续消费 admin-to-gateway projection contract
+- **AND** Insight SHALL 继续只读消费 admin provider
+- **AND** 系统 SHALL NOT 要求这些下游直接消费 admin 管理页面组织树 JSON、Bruno smoke 响应或 smoke summary 输出
+
+### Requirement: Organization tree operations evidence snapshot guardrail
+系统 SHALL 为 admin 组织树运营 smoke 提供只读 evidence snapshot guardrail，用于把诊断、只读刷新状态、可选组织树响应或 operator 粘贴的受控响应整理为脱敏、可提交、可回传的最小证据包。
+
+#### Scenario: Evidence snapshot summarizes only safe fields
+- **WHEN** evidence snapshot 接收到可信诊断、只读刷新状态和受控非空组织树证明
+- **THEN** snapshot SHALL 返回 `status`、稳定 alias、counts、检查状态、owner handoff、最小解除条件和不能外推边界
+- **AND** snapshot SHALL NOT 输出 token、Cookie、Authorization、私有 URL、真实账号、手机号、邮箱、完整 organizationId、完整组织树节点列表、完整诊断响应或完整来源响应体
+
+#### Scenario: Evidence snapshot remains useful for blocked states
+- **WHEN** 诊断显示 `empty_tree`、`non_empty_fixture_missing`、`read_model_untrusted`、`source_connection_stale`、`lineage_missing` 或 `refresh_status_unavailable`
+- **THEN** snapshot SHALL 保留稳定 alias、owner handoff 和最小解除条件
+- **AND** snapshot SHALL NOT 将普通空树、consumer-only 结果、Insight fallback 或 summary 输出外推为 Admin 非空组织树运营成功
+
+#### Scenario: Evidence snapshot sanitization fails closed
+- **WHEN** snapshot 输入包含疑似 token、Cookie、Bearer、私有 URL、邮箱、手机号、真实账号、source tenant metadata、完整组织树节点列表或完整响应体迹象
+- **THEN** snapshot SHALL 返回 `status=blocked`
+- **AND** snapshot SHALL 使用 `organization_tree_evidence_sanitization_failed` 稳定 alias
+- **AND** snapshot SHALL 只保留最小排障字段和删除敏感输入后重跑的解除条件
+
+#### Scenario: Evidence snapshot does not become a cross-service contract
+- **WHEN** API/gateway 或 Insight 需要组织、scope、projection 或授权数据
+- **THEN** API/gateway SHALL 继续消费 admin-to-gateway projection contract
+- **AND** Insight SHALL 继续只读消费 admin provider
+- **AND** 系统 SHALL NOT 要求这些下游直接消费 evidence snapshot、Bruno smoke 响应或 admin 管理页面组织树 JSON
+
+### Requirement: Organization tree operations handoff summary wrapper
+系统 SHALL 为 admin 组织树运营 smoke 和 evidence snapshot 提供只读 handoff summary wrapper，用于将 Admin-owned 证据结果转换为协调层或 operator 可复制的最小交接摘要。
+
+#### Scenario: Handoff summary exposes only release-safe fields
+- **WHEN** handoff summary 接收到可信 readiness summary 或 evidence snapshot
+- **THEN** handoff SHALL 返回 `status`、`release`、`localBlockerCategory`、稳定 alias、脱敏 counts、owner handoff、最小解除条件、`doNotDispatchUntil` 和不能外推边界
+- **AND** `release=release_after_report` 只表示该 handoff 可交给协调层继续判断
+- **AND** handoff SHALL NOT 输出完整检查明细、完整诊断响应、完整来源响应体、完整组织树节点列表、完整 organizationId、token、Cookie、Bearer、私有 URL、真实账号、手机号或邮箱
+
+#### Scenario: Blocked or not checked evidence stays non-releasable
+- **WHEN** readiness summary 或 evidence snapshot 为 `blocked` 或 `not_checked`
+- **THEN** handoff SHALL 返回 `release=hold`
+- **AND** handoff SHALL 保留稳定 alias、owner handoff、最小解除条件和 `doNotDispatchUntil`
+- **AND** handoff SHALL 使用本地 blocker 分类区分 `local_evidence_not_checked`、`fixture_or_local_check_blocked`、`admin_source_or_read_model_blocked` 或等价稳定分类
+- **AND** handoff SHALL NOT 将空树、consumer-only、Insight fallback、not checked 或 evidence snapshot 结果写成 full-success
+
+#### Scenario: Handoff summary sanitization fails closed
+- **WHEN** handoff 输入或 operator metadata 包含疑似 token、Cookie、Bearer、私有 URL、邮箱、手机号、账号、source tenant metadata、完整组织树节点列表或完整响应体迹象
+- **THEN** handoff SHALL 返回 `status=blocked` 和 `release=hold`
+- **AND** handoff SHALL 使用 `organization_tree_handoff_sanitization_failed` 稳定 alias
+- **AND** handoff SHALL 只保留删除敏感输入后重跑的最小解除条件，且不得回显敏感内容
+
+#### Scenario: Handoff summary does not replace controlled validation
+- **WHEN** operator 或协调层读取 handoff summary
+- **THEN** handoff SHALL 明确不能证明 `subjectCount>=1`
+- **AND** handoff SHALL 明确不能替代受控 60 smoke、真实 fixture 授权、真实 read model 重建或数据库核验
+- **AND** handoff SHALL NOT 成为 API/Gateway/Insight 授权事实或跨服务 contract
+
 ### Requirement: Member diagnostics view
 系统 SHALL 在 admin 组织树运营能力中提供只读成员诊断视图，用于管理员排查部门成员归属、生命周期、mapping 状态和来源连接质量。
 

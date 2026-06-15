@@ -1,0 +1,79 @@
+info:
+  name: Handoff Summary
+  type: http
+  seq: 5
+  tags:
+    - smoke
+    - organization-tree-operations
+    - handoff
+    - readonly
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/organization-tree-operations/diagnostics?organization={{organizationTreeOperationsOrganization}}"
+
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        const organization = bru.getVar("organizationTreeOperationsOrganization") || bru.getEnvVar("organizationTreeOperationsOrganization") || bru.getVar("wecomOrganization") || bru.getEnvVar("wecomOrganization")
+        if (!organization) {
+          throw new Error("请设置 organizationTreeOperationsOrganization 或 wecomOrganization。handoff summary 只读诊断，不触发 read model 重建。")
+        }
+        bru.setVar("organizationTreeOperationsOrganization", String(organization))
+    - type: after-response
+      code: |-
+        function loadModule(name) {
+          try {
+            return require(`../scripts/${name}`)
+          } catch (error) {
+            return require(`./scripts/${name}`)
+          }
+        }
+
+        function parseJsonVar(name) {
+          const raw = bru.getVar(name) || bru.getEnvVar(name)
+          if (!raw) {
+            return undefined
+          }
+          return typeof raw === "string" ? JSON.parse(raw) : raw
+        }
+
+        function boolVar(name) {
+          return String(bru.getVar(name) || bru.getEnvVar(name) || "").toLowerCase() === "true"
+        }
+
+        const status = res.getStatus()
+        const body = res.getBody()
+        const diagnosticsResponse = typeof body === "string" ? JSON.parse(body) : body
+        if (status !== 200) {
+          throw new Error(`admin 组织树 handoff summary 诊断响应异常。status=${status} statusField=${diagnosticsResponse?.status}`)
+        }
+
+        const {createOrganizationTreeOperationsEvidenceSnapshot} = loadModule("organizationTreeOperationsEvidenceSnapshot")
+        const {createOrganizationTreeOperationsHandoffSummary} = loadModule("organizationTreeOperationsHandoffSummary")
+        const snapshot = createOrganizationTreeOperationsEvidenceSnapshot({
+          diagnosticsResponse,
+          refreshStatusResponse: parseJsonVar("organizationTreeOperationsRefreshStatusResponse"),
+          organizationTreeResponse: parseJsonVar("organizationTreeOperationsTreeResponse"),
+        }, {
+          requireNonEmptyTree: boolVar("organizationTreeOperationsRequireNonEmpty"),
+          requireRefreshStatus: boolVar("organizationTreeOperationsRequireRefreshStatus"),
+          requireTreeResponse: boolVar("organizationTreeOperationsRequireTreeResponse"),
+        })
+        const handoff = createOrganizationTreeOperationsHandoffSummary({
+          evidenceSnapshot: snapshot,
+        }, {
+          sourceAlias: bru.getVar("organizationTreeOperationsHandoffSourceAlias") || bru.getEnvVar("organizationTreeOperationsHandoffSourceAlias") || "bruno-readonly",
+        })
+
+        console.log(JSON.stringify(handoff, null, 2))
+        if (boolVar("organizationTreeOperationsRequireHandoffRelease") && handoff.release !== "release_after_report") {
+          throw new Error(`organization tree handoff summary not releasable status=${handoff.status} aliases=${handoff.aliases.join("|") || "none"}`)
+        }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

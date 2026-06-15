@@ -1,0 +1,73 @@
+info:
+  name: Readiness Summary
+  type: http
+  seq: 3
+  tags:
+    - smoke
+    - organization-tree-operations
+    - readiness
+    - readonly
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/organization-tree-operations/diagnostics?organization={{organizationTreeOperationsOrganization}}"
+
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        const organization = bru.getVar("organizationTreeOperationsOrganization") || bru.getEnvVar("organizationTreeOperationsOrganization") || bru.getVar("wecomOrganization") || bru.getEnvVar("wecomOrganization")
+        if (!organization) {
+          throw new Error("请设置 organizationTreeOperationsOrganization 或 wecomOrganization。readiness summary 只读诊断，不触发 read model 重建。")
+        }
+        bru.setVar("organizationTreeOperationsOrganization", String(organization))
+    - type: after-response
+      code: |-
+        function loadSummary() {
+          try {
+            return require("../scripts/organizationTreeOperationsSmokeSummary")
+          } catch (error) {
+            return require("./scripts/organizationTreeOperationsSmokeSummary")
+          }
+        }
+
+        function parseJsonVar(name) {
+          const raw = bru.getVar(name) || bru.getEnvVar(name)
+          if (!raw) {
+            return undefined
+          }
+          return typeof raw === "string" ? JSON.parse(raw) : raw
+        }
+
+        function boolVar(name) {
+          return String(bru.getVar(name) || bru.getEnvVar(name) || "").toLowerCase() === "true"
+        }
+
+        const status = res.getStatus()
+        const body = res.getBody()
+        const diagnosticsResponse = typeof body === "string" ? JSON.parse(body) : body
+        if (status !== 200) {
+          throw new Error(`admin 组织树 readiness summary 诊断响应异常。status=${status} statusField=${diagnosticsResponse?.status}`)
+        }
+
+        const {evaluateOrganizationTreeOperationsSmokeSummary} = loadSummary()
+        const summary = evaluateOrganizationTreeOperationsSmokeSummary({
+          diagnosticsResponse,
+          refreshStatusResponse: parseJsonVar("organizationTreeOperationsRefreshStatusResponse"),
+          organizationTreeResponse: parseJsonVar("organizationTreeOperationsTreeResponse"),
+        }, {
+          requireNonEmptyTree: boolVar("organizationTreeOperationsRequireNonEmpty"),
+          requireRefreshStatus: boolVar("organizationTreeOperationsRequireRefreshStatus"),
+          requireTreeResponse: boolVar("organizationTreeOperationsRequireTreeResponse"),
+        })
+
+        console.log(JSON.stringify(summary, null, 2))
+        if (summary.status === "blocked" || (summary.status === "not_checked" && boolVar("organizationTreeOperationsRequireSummaryReady"))) {
+          throw new Error(`organization tree readiness summary blocked status=${summary.status} aliases=${summary.aliases.join("|") || "none"}`)
+        }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
