@@ -31,6 +31,28 @@ func (c *ApiController) GetGatewayProjectionObservability() {
 	c.ResponseOk(object.GetGatewayProjectionObservabilitySnapshot(time.Now().UTC()))
 }
 
+// GetGatewayProjectionRunReadiness
+// @Title GetGatewayProjectionRunReadiness
+// @Tag Gateway Projection Observability API
+// @Description 获取最近一次 admin-to-gateway projection publish run 的脱敏 diff 与 retry readiness；该响应不作为 gateway 授权事实来源。
+// @Param organization query string true "Admin 组织 ID"
+// @Param traceId query string false "可选 latest run traceId 校验"
+// @Param projectionBatchId query string false "可选 latest run projectionBatchId 校验"
+// @Success 200 {object} object.GatewayProjectionRunReadinessSummary "projection run retry readiness 脱敏摘要"
+// @router /gateway-projection/run-readiness [get]
+func (c *ApiController) GetGatewayProjectionRunReadiness() {
+	result, err := (object.GatewayProjectionRunReadinessService{}).GetReadiness(object.GatewayProjectionRunReadinessQuery{
+		OrganizationID:    c.Ctx.Input.Query("organization"),
+		TraceID:           c.Ctx.Input.Query("traceId"),
+		ProjectionBatchID: c.Ctx.Input.Query("projectionBatchId"),
+	})
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(result)
+}
+
 // PublishGatewayProjectionManually
 // @Title PublishGatewayProjectionManually
 // @Tag Gateway Projection Observability API

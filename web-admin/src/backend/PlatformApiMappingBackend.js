@@ -98,6 +98,23 @@ export function publishGatewayProjectionManually(organization, options = {}) {
   }).then(res => res.json());
 }
 
+export function getGatewayProjectionRunReadiness(organization, options = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.traceId) {
+    query.set("traceId", options.traceId);
+  }
+  if (options.projectionBatchId) {
+    query.set("projectionBatchId", options.projectionBatchId);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/gateway-projection/run-readiness?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
 export function updatePlatformApiUserMapping(mapping) {
   return fetch(`${Setting.ServerUrl}/api/update-platform-api-user-mapping`, {
     method: "POST",

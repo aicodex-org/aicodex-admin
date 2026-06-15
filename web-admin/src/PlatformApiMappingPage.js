@@ -55,6 +55,14 @@ const readinessCategoryLabels = {
   source_metadata_unavailable: "来源元数据不可用",
   lineage_freshness_unavailable: "血缘/新鲜度不可用",
 };
+const retryReadinessLabels = {
+  safe_retry: "可安全重试",
+  wait_source_refresh: "等待来源刷新",
+  fix_mapping_or_subject: "修复映射/主体",
+  fix_publisher_config: "修复发布配置",
+  inspect_gateway_contract: "检查网关契约",
+  unknown: "需要复查",
+};
 const titleTips = {
   platformApiMappings: "维护认证中心组织/账号到 aicodex-api 业务组织、网关账号和用量身份的权威映射。",
   organizationMapping: "维护平台组织到 aicodex-api 业务组织 UUID 的一等映射。只有“已确认”才会作为运行时权威来源。",
@@ -122,12 +130,14 @@ class PlatformApiMappingPage extends React.Component {
       organizationLoading: false,
       userLoading: false,
       readinessLoading: false,
+      runReadinessLoading: false,
       manualPublishing: false,
       savingKey: "",
       userKeyword: "",
       readinessCategory: "",
       readinessMappingStatus: "",
       readiness: null,
+      runReadiness: null,
       manualPublishResult: null,
       userPagination: getDefaultTablePagination(),
       userMappingsLoaded: false,
@@ -255,6 +265,26 @@ class PlatformApiMappingPage extends React.Component {
     });
   }
 
+  refreshGatewayProjectionRunReadiness(organization = this.state.organization, options = {}) {
+    if (!organization) {
+      return Promise.resolve();
+    }
+
+    this.setState({runReadinessLoading: true});
+    return PlatformApiMappingBackend.getGatewayProjectionRunReadiness(organization, options).then((res) => {
+      if (res.status === "error") {
+        Setting.showMessage("error", res.msg);
+      }
+      this.setState({
+        runReadinessLoading: false,
+        runReadiness: res.status === "ok" ? res.data : null,
+      });
+    }).catch(error => {
+      this.setState({runReadinessLoading: false});
+      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+    });
+  }
+
   changeOrganization(organization) {
     this.setState({
       organization,
@@ -262,6 +292,7 @@ class PlatformApiMappingPage extends React.Component {
       userMappings: [],
       userKeyword: "",
       readiness: null,
+      runReadiness: null,
       manualPublishResult: null,
       readinessCategory: "",
       readinessMappingStatus: "",
@@ -274,6 +305,7 @@ class PlatformApiMappingPage extends React.Component {
           pagination: getDefaultTablePagination(),
           keyword: "",
         });
+        this.refreshGatewayProjectionRunReadiness(organization);
       }
     });
   }
@@ -282,6 +314,7 @@ class PlatformApiMappingPage extends React.Component {
     this.setState({activeTabKey}, () => {
       if (activeTabKey === "user" && !this.state.userMappingsLoaded) {
         this.refreshUserMappings();
+        this.refreshGatewayProjectionRunReadiness();
       }
     });
   }
@@ -549,10 +582,71 @@ class PlatformApiMappingPage extends React.Component {
         Setting.showMessage("warning", `gateway projection 手动发布未完成：${res.msg || res.data?.failureCategory || "unknown"}`);
       }
       this.refreshUserMappingReadiness();
+      this.refreshGatewayProjectionRunReadiness();
     }).catch(error => {
       this.setState({manualPublishing: false});
       Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
     });
+  }
+
+  renderGatewayProjectionRunReadiness() {
+    const summary = this.state.runReadiness;
+    const retry = summary?.retry || {};
+    const current = summary?.current || {};
+    const diff = summary?.diff || {};
+    const source = summary?.source || {};
+    const target = summary?.target || {};
+    const actionLabel = retryReadinessLabels[retry.readiness] || retry.readiness || "未加载";
+    const changed = [
+      diff.sourceVersionChanged && "sourceVersion",
+      diff.orgVersionChanged && "orgVersion",
+      diff.projectionBatchChanged && "projectionBatchId",
+      diff.subjectCountChanged && "subjectCount",
+      diff.activeCountChanged && "active",
+      diff.tombstoneCountChanged && "tombstone",
+    ].filter(Boolean);
+
+    return (
+      <Card
+        type="inner"
+        title="Gateway projection run readiness"
+        style={{marginBottom: 12}}
+        extra={
+          <Button icon={<ReloadOutlined />} loading={this.state.runReadinessLoading} onClick={() => this.refreshGatewayProjectionRunReadiness()}>
+            {i18next.t("general:Refresh")}
+          </Button>
+        }
+      >
+        <Alert
+          type={retry.safeToRetry ? "success" : "warning"}
+          showIcon
+          message={`Retry action: ${actionLabel}`}
+          description={retry.operatorAction || "该摘要只基于 Admin producer 视角，不代表 Gateway/API/Insight 授权成功。"}
+          style={{marginBottom: 12}}
+        />
+        <Space wrap style={{marginBottom: 8}}>
+          <Tag color={retry.safeToRetry ? "green" : "orange"}>{retry.readiness || "unknown"}</Tag>
+          {summary?.lastFailureAlias && <Tag color="red">lastFailure: {summary.lastFailureAlias}</Tag>}
+          <Tag>sourceVersion: {source.sourceVersion || "-"}</Tag>
+          <Tag>orgVersion: {source.orgVersion || 0}</Tag>
+          <Tag>contract: {target.contractVersionStatus || "-"}</Tag>
+          <Tag>projectionVersions: {target.projectionVersionCount || 0}</Tag>
+        </Space>
+        <Space wrap style={{marginBottom: 8}}>
+          <Tag>subjects: {current.subjectCount || 0}</Tag>
+          <Tag>active: {current.activeSubjectCount || 0}</Tag>
+          <Tag>tombstone: {current.tombstoneSubjectCount || 0}</Tag>
+          <Tag>unmapped: {current.unmappedSubjectCount || 0}</Tag>
+          <Tag>invalid: {current.invalidSubjectCount || 0}</Tag>
+          <Tag>runRef: {summary?.runReference?.storageScope || "latest_in_process_observability"}</Tag>
+        </Space>
+        <div>
+          {(changed.length > 0 ? changed : ["no-count-diff"]).map(item => (
+            <Tag key={item} color={changed.length > 0 ? "blue" : "default"}>{item}</Tag>
+          ))}
+        </div>
+      </Card>
+    );
   }
 
   renderManualPublishConsole() {
@@ -823,6 +917,7 @@ class PlatformApiMappingPage extends React.Component {
         }
       >
         {this.renderReadinessSummary()}
+        {this.renderGatewayProjectionRunReadiness()}
         {this.renderManualPublishConsole()}
         {this.renderUserMappingTable()}
       </Card>
