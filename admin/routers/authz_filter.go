@@ -189,7 +189,7 @@ func getModuleOrganizationObject(path string, method string, queryOrganization s
 		return strings.TrimSpace(queryOrganization), "", true
 	}
 
-	if path == "/api/organization-master-data-quality/directory" || path == "/api/organization-master-data-quality/remediation-plan" || path == "/api/organization-master-data-quality/remediation-action-drafts" {
+	if path == "/api/organization-master-data-quality/directory" || path == "/api/organization-master-data-quality/remediation-plan" || path == "/api/organization-master-data-quality/remediation-action-drafts" || path == "/api/organization-master-data-quality/remediation-preflight" {
 		return strings.TrimSpace(queryOrganization), "", true
 	}
 

@@ -151,6 +151,16 @@ func TestGetOrganizationDirectoryRemediationActionDraftObjectUsesOrganizationQue
 	}
 }
 
+func TestGetOrganizationDirectoryRemediationPreflightObjectUsesOrganizationQuery(t *testing.T) {
+	owner, name, ok := getModuleOrganizationObject("/api/organization-master-data-quality/remediation-preflight", http.MethodGet, "engineering", nil)
+	if !ok {
+		t.Fatalf("expected organization directory remediation preflight object to be parsed")
+	}
+	if owner != "engineering" || name != "" {
+		t.Fatalf("remediation preflight object = %q/%q, want engineering/<empty>", owner, name)
+	}
+}
+
 func TestGetModuleOrganizationObjectIgnoresUnscopedApi(t *testing.T) {
 	owner, name, ok := getModuleOrganizationObject("/api/get-providers", http.MethodGet, "engineering", nil)
 	if ok || owner != "" || name != "" {

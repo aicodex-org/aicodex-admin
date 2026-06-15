@@ -74,11 +74,13 @@ export default function OrganizationDirectoryQualityPage(props) {
   const [loading, setLoading] = useState(false);
   const [planLoading, setPlanLoading] = useState(false);
   const [draftLoading, setDraftLoading] = useState(false);
+  const [preflightLoading, setPreflightLoading] = useState(false);
   const [data, setData] = useState(null);
   const [planData, setPlanData] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [draftData, setDraftData] = useState(null);
+  const [preflightData, setPreflightData] = useState(null);
 
   const currentPlanOptions = () => ({
     entityType,
@@ -133,6 +135,7 @@ export default function OrganizationDirectoryQualityPage(props) {
   const loadActionDrafts = (plan) => {
     setSelectedPlan(plan);
     setDraftData(null);
+    setPreflightData(null);
     setDraftLoading(true);
     return PlatformApiMappingBackend.getOrganizationDirectoryRemediationActionDrafts(organization, {
       ...currentPlanOptions(),
@@ -148,6 +151,27 @@ export default function OrganizationDirectoryQualityPage(props) {
       }
       setDraftData(res.data);
     }).finally(() => setDraftLoading(false));
+  };
+
+  const loadPreflight = (draft) => {
+    setPreflightData(null);
+    setPreflightLoading(true);
+    return PlatformApiMappingBackend.getOrganizationDirectoryRemediationPreflight(organization, {
+      ...currentPlanOptions(),
+      draftId: draft.draftId,
+      actionAlias: draft.actionAlias || selectedPlan?.actionAlias,
+      entityType: draft.entityType || entityType,
+      reasonCode: (selectedPlan?.reasonCodes || [])[0] || reasonCode,
+      limit: 100,
+      topN: 20,
+    }).then((res) => {
+      if (res.status !== "ok") {
+        Setting.showMessage("error", res.msg || "加载组织目录修复预检失败");
+        setPreflightData(null);
+        return;
+      }
+      setPreflightData(res.data);
+    }).finally(() => setPreflightLoading(false));
   };
 
   const loadAll = (nextPagination = pagination) => Promise.all([
@@ -326,6 +350,30 @@ export default function OrganizationDirectoryQualityPage(props) {
     URL.revokeObjectURL(url);
   };
 
+  const preflightExportPayload = preflightData?.exportSummary || {
+    organizationId: preflightData?.organizationId,
+    boundary: preflightData?.boundary,
+    preflights: preflightData?.preflights || [],
+  };
+
+  const exportPreflight = () => {
+    if (!preflightData?.preflights || preflightData.preflights.length === 0) {
+      Setting.showMessage("warning", "暂无可导出的预检");
+      return;
+    }
+    const blob = new Blob([JSON.stringify(preflightExportPayload, null, 2)], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `organization-directory-remediation-preflight-${organization || "empty"}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const selectedPreflight = preflightData?.preflights?.[0];
+
   return (
     <div style={{padding: 24}}>
       <Space direction="vertical" size={16} style={{width: "100%"}}>
@@ -433,6 +481,7 @@ export default function OrganizationDirectoryQualityPage(props) {
         onClose={() => {
           setSelectedPlan(null);
           setDraftData(null);
+          setPreflightData(null);
         }}
       >
         <Space direction="vertical" size={16} style={{width: "100%"}}>
@@ -494,12 +543,17 @@ export default function OrganizationDirectoryQualityPage(props) {
                 dataIndex: "samples",
                 render: values => (
                   <Space direction="vertical" size={0}>
-                    {(values || []).slice(0, 5).map(sample => (
-                      <Text key={sample.entityHash} type="secondary">
-                        {sample.displaySafeLabel || sample.entityHash} / {sample.sourceType || "-"} / {sample.qualityStatus || "-"}
-                      </Text>
-                    ))}
-                    {(!values || values.length === 0) && <Text type="secondary">-</Text>}
+                    {preflightData && <Text type="secondary">查看下方预检样例</Text>}
+                    {!preflightData && (
+                      <>
+                        {(values || []).slice(0, 5).map(sample => (
+                          <Text key={sample.entityHash} type="secondary">
+                            {sample.displaySafeLabel || sample.entityHash} / {sample.sourceType || "-"} / {sample.qualityStatus || "-"}
+                          </Text>
+                        ))}
+                        {(!values || values.length === 0) && <Text type="secondary">-</Text>}
+                      </>
+                    )}
                   </Space>
                 ),
               },
@@ -508,8 +562,75 @@ export default function OrganizationDirectoryQualityPage(props) {
                 dataIndex: "blockedReason",
                 render: value => value ? <Text type="danger">{value}</Text> : <Text type="secondary">-</Text>,
               },
+              {
+                title: "操作",
+                width: 90,
+                render: (_, record) => <Button type="link" onClick={() => loadPreflight(record)}>预检</Button>,
+              },
             ]}
           />
+          {(preflightLoading || preflightData) && (
+            <div style={{border: "1px solid #f0f0f0", borderRadius: 6, padding: 12}}>
+              <Space direction="vertical" size={12} style={{width: "100%"}}>
+                <Space align="center" wrap style={{justifyContent: "space-between", width: "100%"}}>
+                  <Space align="center" wrap>
+                    <Title level={5} style={{margin: 0}}>预检</Title>
+                    {selectedPreflight && <Tag color="blue">{selectedPreflight.executionMode}</Tag>}
+                    <Text type="secondary">{preflightData?.boundary || "Admin producer preflight only."}</Text>
+                  </Space>
+                  <Button icon={<DownloadOutlined />} onClick={exportPreflight} disabled={!preflightData?.preflights?.length}>导出预检</Button>
+                </Space>
+                {preflightLoading && <Text type="secondary">加载预检中</Text>}
+                {selectedPreflight && (
+                  <Space direction="vertical" size={8} style={{width: "100%"}}>
+                    <Space wrap>
+                      <Text>readyForManualReview: {String(selectedPreflight.readyForManualReview)}</Text>
+                      <Text>autoExecutionAllowed: {String(selectedPreflight.autoExecutionAllowed)}</Text>
+                    </Space>
+                    <Descriptions column={1} size="small" bordered>
+                      <Descriptions.Item label="阻塞原因">{renderTags(selectedPreflight.blockedReasons, "red")}</Descriptions.Item>
+                      <Descriptions.Item label="前置条件">{renderTags(selectedPreflight.preconditions, "blue")}</Descriptions.Item>
+                      <Descriptions.Item label="安全清单">{renderTags(selectedPreflight.safetyChecklist, "purple")}</Descriptions.Item>
+                      <Descriptions.Item label="影响范围">
+                        <Space wrap>
+                          {Object.entries(selectedPreflight.affectedCounts || {}).map(([key, value]) => <Tag key={key}>{key}: {value}</Tag>)}
+                          {Object.keys(selectedPreflight.affectedCounts || {}).length === 0 && <Text type="secondary">-</Text>}
+                        </Space>
+                      </Descriptions.Item>
+                      <Descriptions.Item label="下一步">{renderTags(selectedPreflight.operatorNextSteps, "geekblue")}</Descriptions.Item>
+                    </Descriptions>
+                    <Table
+                      rowKey={(record) => record.entityHash || record.displaySafeLabel}
+                      size="small"
+                      pagination={false}
+                      dataSource={selectedPreflight.sampleDigests || []}
+                      locale={{emptyText: <Empty description="暂无脱敏样例" />}}
+                      columns={[
+                        {
+                          title: "脱敏样例",
+                          render: (_, sample) => (
+                            <Space direction="vertical" size={0}>
+                              <Text>{sample.displaySafeLabel || sample.entityHash}</Text>
+                              <Text type="secondary">{sample.sourceType || "-"} / {sample.qualityStatus || "-"} / {sample.lifecycleStatus || "-"}</Text>
+                            </Space>
+                          ),
+                        },
+                        {
+                          title: "原因",
+                          dataIndex: "reasonCodes",
+                          render: values => renderTags(values, "volcano"),
+                        },
+                        {
+                          title: "版本",
+                          render: (_, sample) => <Text type="secondary">{compactText(sample.orgVersion)} / {compactText(sample.sourceVersion)}</Text>,
+                        },
+                      ]}
+                    />
+                  </Space>
+                )}
+              </Space>
+            </div>
+          )}
         </Space>
       </Drawer>
     </div>

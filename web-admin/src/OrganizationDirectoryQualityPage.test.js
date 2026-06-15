@@ -23,6 +23,7 @@ jest.mock("./backend/PlatformApiMappingBackend", () => ({
   getOrganizationDirectoryQuality: jest.fn(),
   getOrganizationDirectoryRemediationPlan: jest.fn(),
   getOrganizationDirectoryRemediationActionDrafts: jest.fn(),
+  getOrganizationDirectoryRemediationPreflight: jest.fn(),
 }));
 
 jest.mock("./common/select/OrganizationSelect", () => (props) => (
@@ -149,6 +150,48 @@ beforeEach(() => {
       },
     },
   });
+  PlatformApiMappingBackend.getOrganizationDirectoryRemediationPreflight.mockResolvedValue({
+    status: "ok",
+    data: {
+      organizationId: "org-alpha",
+      totalPreflightCount: 1,
+      boundary: "organization directory remediation preflight 是 Admin producer 只读诊断。",
+      preflights: [{
+        preflightId: "sha256:preflight",
+        draftId: "sha256:draft",
+        actionAlias: "mapping_review",
+        entityType: "user",
+        executionMode: "manual_review_only",
+        readyForManualReview: true,
+        autoExecutionAllowed: false,
+        blockedReasons: [],
+        preconditions: ["确认目标 API user 映射来源可信"],
+        safetyChecklist: ["确认当前草案仅用于 manual review，不允许自动执行"],
+        affectedCounts: {user: 1, total: 1},
+        operatorNextSteps: ["导出 preflight JSON 供修复 owner 人工复核"],
+        sampleDigests: [{
+          entityHash: "sha256:sample",
+          displaySafeLabel: "user:6f2c9d8e1a0b",
+          entityType: "user",
+          sourceType: "wecom",
+          qualityStatus: "blocked",
+          reasonCodes: ["mapping_missing"],
+          lifecycleStatus: "ACTIVE",
+          sourceConnectionIdHash: "sha256:source",
+          orgVersion: "orgv-1",
+          sourceVersion: "orgv-1",
+        }],
+      }],
+      exportSummary: {
+        preflights: [{
+          preflightId: "sha256:preflight",
+          executionMode: "manual_review_only",
+          autoExecutionAllowed: false,
+          sampleDigests: [{entityHash: "sha256:sample", displaySafeLabel: "user:6f2c9d8e1a0b"}],
+        }],
+      },
+    },
+  });
   global.Blob = jest.fn((parts, options) => ({parts, options}));
   global.URL.createObjectURL = jest.fn(() => "blob:remediation-plan");
   global.URL.revokeObjectURL = jest.fn();
@@ -216,6 +259,46 @@ test("opens sanitized manual-review action draft drawer from remediation plan", 
   const exportedBlob = global.URL.createObjectURL.mock.calls[0][0];
   expect(exportedBlob.parts.join("")).toContain("user:6f2c9d8e1a0b");
   expect(exportedBlob.parts.join("")).not.toContain("org-alpha/alice");
+});
+
+test("runs sanitized read-only preflight from action draft drawer", async() => {
+  render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  await screen.findAllByText("mapping_review");
+  fireEvent.click(screen.getByText("草案"));
+  expect(await screen.findByText("manual_review_only")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("预检"));
+
+  expect(await screen.findByText("readyForManualReview: true")).toBeInTheDocument();
+  expect(screen.getByText("autoExecutionAllowed: false")).toBeInTheDocument();
+  expect(screen.getByText("确认当前草案仅用于 manual review，不允许自动执行")).toBeInTheDocument();
+  expect(screen.getByText("导出 preflight JSON 供修复 owner 人工复核")).toBeInTheDocument();
+  expect(screen.getByText(/user:6f2c9d8e1a0b/)).toBeInTheDocument();
+  expect(PlatformApiMappingBackend.getOrganizationDirectoryRemediationPreflight).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+    draftId: "sha256:draft",
+    actionAlias: "mapping_review",
+    entityType: "user",
+    topN: 20,
+  }));
+
+  fireEvent.click(screen.getByText("导出预检"));
+  const exportedBlob = global.URL.createObjectURL.mock.calls[0][0];
+  expect(exportedBlob.parts.join("")).toContain("manual_review_only");
+  expect(exportedBlob.parts.join("")).toContain("user:6f2c9d8e1a0b");
+  expect(exportedBlob.parts.join("")).not.toContain("org-alpha/alice");
+});
+
+test("shows blocked preflight errors without repair actions", async() => {
+  PlatformApiMappingBackend.getOrganizationDirectoryRemediationPreflight.mockResolvedValueOnce({status: "error", msg: "preflight failed"});
+  render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  await screen.findAllByText("mapping_review");
+  fireEvent.click(screen.getByText("草案"));
+  expect(await screen.findByText("manual_review_only")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("预检"));
+
+  await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "preflight failed"));
+  expect(screen.queryByText("执行修复")).not.toBeInTheDocument();
 });
 
 test("refreshes directory quality with selected filters", async() => {

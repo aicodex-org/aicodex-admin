@@ -209,6 +209,32 @@ func (c *ApiController) GetOrganizationDirectoryRemediationActionDrafts() {
 	c.ResponseOk(result)
 }
 
+// GetOrganizationDirectoryRemediationPreflights
+// @Title GetOrganizationDirectoryRemediationPreflights
+// @Tag Platform API Mapping API
+// @Description 获取 Admin 组织目录质量 remediation preflight；该响应只读且只用于人工复核前检查，不执行修复。
+// @router /organization-master-data-quality/remediation-preflight [get]
+func (c *ApiController) GetOrganizationDirectoryRemediationPreflights() {
+	result, err := object.GetOrganizationDirectoryRemediationPreflights(newOrganizationDirectoryRemediationPreflightQuery(map[string]string{
+		"organization":           c.Ctx.Input.Query("organization"),
+		"draftId":                c.Ctx.Input.Query("draftId"),
+		"actionAlias":            c.Ctx.Input.Query("actionAlias"),
+		"entityType":             c.Ctx.Input.Query("entityType"),
+		"keyword":                c.Ctx.Input.Query("keyword"),
+		"sourceType":             c.Ctx.Input.Query("sourceType"),
+		"sourceConnectionIdHash": c.Ctx.Input.Query("sourceConnectionIdHash"),
+		"qualityStatus":          c.Ctx.Input.Query("qualityStatus"),
+		"reasonCode":             c.Ctx.Input.Query("reasonCode"),
+		"limit":                  c.Ctx.Input.Query("limit"),
+		"topN":                   c.Ctx.Input.Query("topN"),
+	}))
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(result)
+}
+
 func newOrganizationDirectoryQualityQuery(values map[string]string) object.OrganizationDirectoryQualityQuery {
 	return object.OrganizationDirectoryQualityQuery{
 		OrganizationId:         values["organization"],
@@ -242,6 +268,22 @@ func newOrganizationDirectoryRemediationPlanQuery(values map[string]string) obje
 func newOrganizationDirectoryRemediationActionDraftQuery(values map[string]string) object.OrganizationDirectoryRemediationActionDraftQuery {
 	return object.OrganizationDirectoryRemediationActionDraftQuery{
 		OrganizationId:         values["organization"],
+		ActionAlias:            values["actionAlias"],
+		EntityType:             values["entityType"],
+		Keyword:                values["keyword"],
+		SourceType:             values["sourceType"],
+		SourceConnectionIdHash: values["sourceConnectionIdHash"],
+		QualityStatus:          values["qualityStatus"],
+		ReasonCode:             values["reasonCode"],
+		Limit:                  util.ParseInt(values["limit"]),
+		TopN:                   util.ParseInt(values["topN"]),
+	}
+}
+
+func newOrganizationDirectoryRemediationPreflightQuery(values map[string]string) object.OrganizationDirectoryRemediationPreflightQuery {
+	return object.OrganizationDirectoryRemediationPreflightQuery{
+		OrganizationId:         values["organization"],
+		DraftId:                values["draftId"],
 		ActionAlias:            values["actionAlias"],
 		EntityType:             values["entityType"],
 		Keyword:                values["keyword"],
