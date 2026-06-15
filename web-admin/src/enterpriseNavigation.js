@@ -83,7 +83,7 @@ export function buildEnterpriseNavigationGroups({account, themeData}) {
       label: "认证源",
       icon: <LockTwoTone twoToneColor={twoToneColor} />,
       children: [
-        {key: "/providers", label: i18next.t("application:Providers"), to: "/providers", matchPrefixes: ["/providers"]},
+        {key: "/providers", label: "认证源中心", to: "/providers", matchPrefixes: ["/providers"]},
         {key: "/wecom-org-sync", label: "企业微信同步", to: "/wecom-org-sync", matchPrefixes: ["/wecom-org-sync"]},
         {key: "/feishu-org-sync", label: "飞书同步", to: "/feishu-org-sync", matchPrefixes: ["/feishu-org-sync"]},
         {key: "/syncers", label: i18next.t("general:Syncers"), to: "/syncers", matchPrefixes: ["/syncers"]},

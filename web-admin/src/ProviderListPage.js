@@ -22,6 +22,7 @@ import * as Provider from "./auth/Provider";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
+import AuthSourceCenter from "./AuthSourceCenter";
 
 class ProviderListPage extends BaseListPage {
   constructor(props) {
@@ -235,6 +236,7 @@ class ProviderListPage extends BaseListPage {
 
     return (
       <div>
+        <AuthSourceCenter providers={providers} loading={this.state.loading} />
         <Table scroll={{x: "max-content"}} columns={filteredColumns} dataSource={providers} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
           title={() => (
             <div>

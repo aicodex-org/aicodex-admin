@@ -234,6 +234,73 @@ img {
   border-bottom: 0;
 }
 
+.auth-source-center {
+  margin-bottom: 16px;
+}
+
+.auth-source-center-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.auth-source-center-header h3 {
+  margin-bottom: 0 !important;
+}
+
+.auth-source-center-alert {
+  margin-bottom: 16px;
+}
+
+.auth-source-center-card,
+.auth-source-center-panel {
+  border: 1px solid rgb(235 237 242);
+  border-radius: 8px;
+}
+
+.auth-source-center-card .ant-card-body {
+  min-height: 250px;
+}
+
+.auth-source-center-card-body,
+.auth-source-center-diagnostic-list {
+  width: 100%;
+}
+
+.auth-source-center-card-title {
+  min-height: 48px;
+}
+
+.auth-source-center-card-title .ant-typography {
+  overflow-wrap: anywhere;
+}
+
+.auth-source-center-card-actions {
+  min-height: 24px;
+}
+
+.auth-source-center-section {
+  margin-top: 16px;
+}
+
+.auth-source-center-diagnostic-item {
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgb(235 237 242);
+}
+
+.auth-source-center-diagnostic-item:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.auth-source-center-loading {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+}
+
 @media screen and (max-width: 768px) {
   .identity-console-overview {
     padding: 12px;
@@ -245,6 +312,14 @@ img {
 
   .identity-console-link-grid {
     grid-template-columns: 1fr;
+  }
+
+  .auth-source-center-header {
+    flex-direction: column;
+  }
+
+  .auth-source-center-card .ant-card-body {
+    min-height: auto;
   }
 }
 

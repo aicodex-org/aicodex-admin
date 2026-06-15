@@ -26,6 +26,8 @@ describe("enterprise identity navigation", () => {
     ]);
     expect(groups.find(group => group.key === "/identity-sources").children.map(item => item.key))
       .toEqual(expect.arrayContaining(["/providers", "/wecom-org-sync", "/feishu-org-sync", "/syncers"]));
+    expect(groups.find(group => group.key === "/identity-sources").children.find(item => item.key === "/providers").label)
+      .toBe("认证源中心");
     expect(groups.find(group => group.key === "/application-access").children.map(item => item.key))
       .toEqual(expect.arrayContaining(["/applications", "/platform-api-mappings", "/webhooks"]));
   });
