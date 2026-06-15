@@ -1,6 +1,7 @@
 /* eslint-env jest */
 
 import {
+  getGatewayProjectionIngestionStatus,
   getGatewayProjectionRunReadiness,
   getOrganizationMasterDataQualityReadiness,
   getPlatformApiOrganizationMappings,
@@ -40,6 +41,12 @@ test("loads platform api mappings with explicit organization query", async() => 
     projectionBatchId: "batch-synthetic",
   });
   await getOrganizationMasterDataQualityReadiness("org-a");
+  await getGatewayProjectionIngestionStatus("org-a", {
+    latest: true,
+    projectionBatchId: "batch-synthetic",
+    orgVersion: 202606151200,
+    sourceVersion: "orgv-synthetic",
+  });
   await publishGatewayProjectionManually("org-a", {traceId: "trace-synthetic", reason: "operator-check"});
 
   expect(global.fetch).toHaveBeenNthCalledWith(
@@ -89,6 +96,15 @@ test("loads platform api mappings with explicit organization query", async() => 
   );
   expect(global.fetch).toHaveBeenNthCalledWith(
     6,
+    "https://admin.example.invalid/api/gateway-projection/ingestion-status?organization=org-a&latest=true&projectionBatchId=batch-synthetic&orgVersion=202606151200&sourceVersion=orgv-synthetic",
+    expect.objectContaining({
+      method: "GET",
+      credentials: "include",
+      headers: expect.objectContaining({"Accept-Language": "en"}),
+    })
+  );
+  expect(global.fetch).toHaveBeenNthCalledWith(
+    7,
     "https://admin.example.invalid/api/gateway-projection/manual-publish",
     expect.objectContaining({
       method: "POST",

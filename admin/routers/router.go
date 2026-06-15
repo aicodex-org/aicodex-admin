@@ -67,6 +67,7 @@ func InitAPI() {
 	web.Router("/api/organization-tree-operations/refresh", &controllers.ApiController{}, "POST:RefreshOrganizationTreeOperations")
 	web.Router("/api/gateway-projection/observability", &controllers.ApiController{}, "GET:GetGatewayProjectionObservability")
 	web.Router("/api/gateway-projection/run-readiness", &controllers.ApiController{}, "GET:GetGatewayProjectionRunReadiness")
+	web.Router("/api/gateway-projection/ingestion-status", &controllers.ApiController{}, "GET:GetGatewayProjectionIngestionStatus")
 	web.Router("/api/gateway-projection/manual-publish", &controllers.ApiController{}, "POST:PublishGatewayProjectionManually")
 	web.Router("/api/unlink", &controllers.ApiController{}, "POST:Unlink")
 	web.Router("/api/get-saml-login", &controllers.ApiController{}, "GET:GetSamlLogin")

@@ -24,6 +24,7 @@ jest.mock("./backend/PlatformApiMappingBackend", () => ({
   getOrganizationMasterDataQualityReadiness: jest.fn(),
   getPlatformApiUserMappingReadiness: jest.fn(),
   getGatewayProjectionRunReadiness: jest.fn(),
+  getGatewayProjectionIngestionStatus: jest.fn(),
   updatePlatformApiOrganizationMapping: jest.fn(),
   getPlatformApiUserMappings: jest.fn(),
   publishGatewayProjectionManually: jest.fn(),
@@ -169,6 +170,33 @@ beforeEach(() => {
       }],
     },
   });
+  PlatformApiMappingBackend.getGatewayProjectionIngestionStatus.mockResolvedValue({
+    status: "ok",
+    data: {
+      success: true,
+      status: "applied",
+      statusAlias: "applied",
+      reasonCode: "projection_applied",
+      subjectCounts: {
+        total: 3,
+        active: 2,
+        tombstone: 1,
+        unmapped: 0,
+        invalid: 0,
+      },
+      lineage: {
+        sourceVersion: "orgv-ingestion-1",
+        orgVersion: 202606151200,
+        projectionBatchId: "batch-ingestion-1",
+      },
+      receivedAt: "2026-06-15T12:00:00Z",
+      appliedAt: "2026-06-15T12:00:02Z",
+      durationMs: 2000,
+      query: {
+        latest: true,
+      },
+    },
+  });
   PlatformApiMappingBackend.updatePlatformApiOrganizationMapping.mockResolvedValue({status: "ok"});
   PlatformApiMappingBackend.updatePlatformApiUserMapping.mockResolvedValue({status: "ok"});
   PlatformApiMappingBackend.publishGatewayProjectionManually.mockResolvedValue({
@@ -236,6 +264,9 @@ test("separates organization and user mapping tabs and loads user mappings on de
   })));
   await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionRunReadiness).toHaveBeenCalledWith("org-alpha", expect.any(Object)));
   await wait(() => expect(PlatformApiMappingBackend.getOrganizationMasterDataQualityReadiness).toHaveBeenCalledWith("org-alpha"));
+  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionIngestionStatus).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+    latest: true,
+  })));
   expect(await screen.findByDisplayValue("org-alpha/user-one")).toBeInTheDocument();
   expect(screen.getByText("组织主数据质量 readiness")).toBeInTheDocument();
   expect(screen.getByText("质量状态：")).toBeInTheDocument();
@@ -245,6 +276,10 @@ test("separates organization and user mapping tabs and loads user mappings on de
   expect(screen.getByText(/Retry action: 可安全重试/)).toBeInTheDocument();
   expect(screen.getByText("lastFailure: gateway_unavailable")).toBeInTheDocument();
   expect(screen.getByText("contract: not_declared_by_gateway_contract")).toBeInTheDocument();
+  expect(screen.getByText("Gateway ingestion status")).toBeInTheDocument();
+  expect(screen.getByText(/Gateway status: 已应用/)).toBeInTheDocument();
+  expect(screen.getByText("reason: projection_applied")).toBeInTheDocument();
+  expect(screen.getByText("sourceVersion: orgv-ingestion-1")).toBeInTheDocument();
   expect(screen.getByText("Gateway projection 手动发布")).toBeInTheDocument();
   expect(screen.getAllByText(/mapping_missing/).length).toBeGreaterThan(0);
   expect(screen.getByText("迁移导入")).toBeInTheDocument();
@@ -264,7 +299,8 @@ test("allows operator to trigger manual gateway projection publish when readines
   expect(await screen.findByText("accepted: true")).toBeInTheDocument();
   expect(screen.getByText("batch-synthetic")).toBeInTheDocument();
   await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionRunReadiness).toHaveBeenCalled());
-  expect(screen.queryByText(/projection-secret|gateway.example.invalid/)).not.toBeInTheDocument();
+  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionIngestionStatus).toHaveBeenCalled());
+  expect(screen.queryByText(/projection-secret|gateway.example.invalid|rawGatewayResponse/)).not.toBeInTheDocument();
 });
 
 test("renders read-only remediation guidance for readiness categories", async() => {

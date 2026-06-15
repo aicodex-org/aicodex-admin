@@ -42,13 +42,14 @@ const (
 // GatewayProjectionPublisherConfig 是 admin 到 gateway projection ingestion 的私有服务间配置。
 // Token/Endpoint 只能来自环境或私有配置，不应写入 OpenSpec 验证记录。
 type GatewayProjectionPublisherConfig struct {
-	Enabled      bool
-	Endpoint     string
-	Token        string
-	Caller       string
-	Timeout      time.Duration
-	FreshnessTTL time.Duration
-	MaxRetries   int
+	Enabled        bool
+	Endpoint       string
+	StatusEndpoint string
+	Token          string
+	Caller         string
+	Timeout        time.Duration
+	FreshnessTTL   time.Duration
+	MaxRetries     int
 }
 
 // GatewayProjectionPublisher 封装 gateway projection HTTP push 行为和脱敏审计出口。
@@ -110,13 +111,14 @@ func GetGatewayProjectionPublisherConfig() GatewayProjectionPublisherConfig {
 	timeoutMs := gatewayProjectionIntConfig("gatewayOrganizationProjectionTimeoutMs", gatewayProjectionPublisherDefaultTimeoutMs)
 	freshnessSeconds := gatewayProjectionIntConfig("gatewayOrganizationProjectionFreshnessTTLSeconds", int(GatewayProjectionDefaultFreshnessTTL/time.Second))
 	return GatewayProjectionPublisherConfig{
-		Enabled:      conf.GetConfigBool("gatewayOrganizationProjectionEnabled"),
-		Endpoint:     strings.TrimSpace(conf.GetConfigString("gatewayOrganizationProjectionEndpoint")),
-		Token:        strings.TrimSpace(conf.GetConfigString("gatewayOrganizationProjectionToken")),
-		Caller:       firstNonEmpty(conf.GetConfigString("gatewayOrganizationProjectionCaller"), GatewayProjectionDefaultCaller),
-		Timeout:      time.Duration(timeoutMs) * time.Millisecond,
-		FreshnessTTL: time.Duration(freshnessSeconds) * time.Second,
-		MaxRetries:   gatewayProjectionIntConfig("gatewayOrganizationProjectionMaxRetries", gatewayProjectionPublisherDefaultRetries),
+		Enabled:        conf.GetConfigBool("gatewayOrganizationProjectionEnabled"),
+		Endpoint:       strings.TrimSpace(conf.GetConfigString("gatewayOrganizationProjectionEndpoint")),
+		StatusEndpoint: strings.TrimSpace(conf.GetConfigString("gatewayOrganizationProjectionStatusEndpoint")),
+		Token:          strings.TrimSpace(conf.GetConfigString("gatewayOrganizationProjectionToken")),
+		Caller:         firstNonEmpty(conf.GetConfigString("gatewayOrganizationProjectionCaller"), GatewayProjectionDefaultCaller),
+		Timeout:        time.Duration(timeoutMs) * time.Millisecond,
+		FreshnessTTL:   time.Duration(freshnessSeconds) * time.Second,
+		MaxRetries:     gatewayProjectionIntConfig("gatewayOrganizationProjectionMaxRetries", gatewayProjectionPublisherDefaultRetries),
 	}
 }
 

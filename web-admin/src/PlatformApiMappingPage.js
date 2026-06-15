@@ -63,6 +63,19 @@ const retryReadinessLabels = {
   inspect_gateway_contract: "检查网关契约",
   unknown: "需要复查",
 };
+const ingestionStatusLabels = {
+  accepted: "已接收",
+  applied: "已应用",
+  stale: "已过期",
+  conflict: "版本冲突",
+  lineage_invalid: "血缘无效",
+  unmapped_subjects: "主体未映射",
+  not_found: "未找到",
+  provider_unavailable: "Gateway 不可用",
+  invalid_config: "配置缺失",
+  invalid_response: "响应无效",
+  unknown: "未知",
+};
 const titleTips = {
   platformApiMappings: "维护认证中心组织/账号到 aicodex-api 业务组织、网关账号和用量身份的权威映射。",
   organizationMapping: "维护平台组织到 aicodex-api 业务组织 UUID 的一等映射。只有“已确认”才会作为运行时权威来源。",
@@ -133,6 +146,7 @@ class PlatformApiMappingPage extends React.Component {
       readinessLoading: false,
       runReadinessLoading: false,
       masterDataQualityLoading: false,
+      ingestionStatusLoading: false,
       manualPublishing: false,
       savingKey: "",
       userKeyword: "",
@@ -141,6 +155,7 @@ class PlatformApiMappingPage extends React.Component {
       readiness: null,
       runReadiness: null,
       masterDataQuality: null,
+      ingestionStatus: null,
       manualPublishResult: null,
       userPagination: getDefaultTablePagination(),
       userMappingsLoaded: false,
@@ -308,6 +323,29 @@ class PlatformApiMappingPage extends React.Component {
     });
   }
 
+  refreshGatewayProjectionIngestionStatus(organization = this.state.organization, options = {}) {
+    if (!organization) {
+      return Promise.resolve();
+    }
+
+    this.setState({ingestionStatusLoading: true});
+    return PlatformApiMappingBackend.getGatewayProjectionIngestionStatus(organization, {
+      latest: true,
+      ...options,
+    }).then((res) => {
+      if (res.status === "error") {
+        Setting.showMessage("error", res.msg);
+      }
+      this.setState({
+        ingestionStatusLoading: false,
+        ingestionStatus: res.status === "ok" ? res.data : (res.data || null),
+      });
+    }).catch(error => {
+      this.setState({ingestionStatusLoading: false});
+      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+    });
+  }
+
   changeOrganization(organization) {
     this.setState({
       organization,
@@ -317,6 +355,7 @@ class PlatformApiMappingPage extends React.Component {
       readiness: null,
       runReadiness: null,
       masterDataQuality: null,
+      ingestionStatus: null,
       manualPublishResult: null,
       readinessCategory: "",
       readinessMappingStatus: "",
@@ -330,6 +369,7 @@ class PlatformApiMappingPage extends React.Component {
           keyword: "",
         });
         this.refreshGatewayProjectionRunReadiness(organization);
+        this.refreshGatewayProjectionIngestionStatus(organization);
       }
     });
   }
@@ -339,6 +379,7 @@ class PlatformApiMappingPage extends React.Component {
       if (activeTabKey === "user" && !this.state.userMappingsLoaded) {
         this.refreshUserMappings();
         this.refreshGatewayProjectionRunReadiness();
+        this.refreshGatewayProjectionIngestionStatus();
       }
     });
   }
@@ -607,10 +648,61 @@ class PlatformApiMappingPage extends React.Component {
       }
       this.refreshUserMappingReadiness();
       this.refreshGatewayProjectionRunReadiness();
+      this.refreshGatewayProjectionIngestionStatus();
     }).catch(error => {
       this.setState({manualPublishing: false});
       Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
     });
+  }
+
+  renderGatewayProjectionIngestionStatus() {
+    const status = this.state.ingestionStatus;
+    const query = status?.query || {};
+    const counts = status?.subjectCounts || {};
+    const lineage = status?.lineage || {};
+    const statusAlias = status?.statusAlias || status?.status || "unknown";
+    const statusLabel = ingestionStatusLabels[statusAlias] || statusAlias;
+    const success = status?.success === true;
+
+    return (
+      <Card
+        type="inner"
+        title="Gateway ingestion status"
+        style={{marginBottom: 12}}
+        extra={
+          <Button icon={<ReloadOutlined />} loading={this.state.ingestionStatusLoading} onClick={() => this.refreshGatewayProjectionIngestionStatus()}>
+            {i18next.t("general:Refresh")}
+          </Button>
+        }
+      >
+        <Alert
+          type={success ? "success" : "warning"}
+          showIcon
+          message={`Gateway status: ${statusLabel}`}
+          description="该状态来自 Gateway owner ingestion-status contract，只表示 receipt/apply 状态，不证明 Insight/API 授权查询成功。"
+          style={{marginBottom: 12}}
+        />
+        <Space wrap style={{marginBottom: 8}}>
+          <Tag color={success ? "green" : "orange"}>{statusAlias}</Tag>
+          {status?.reasonCode && <Tag>reason: {status.reasonCode}</Tag>}
+          {status?.failureCategory && <Tag color="red">failure: {status.failureCategory}</Tag>}
+          <Tag>latest: {String(!!query.latest)}</Tag>
+          {query.projectionBatchId && <Tag>batch: {query.projectionBatchId}</Tag>}
+          {lineage.sourceVersion && <Tag>sourceVersion: {lineage.sourceVersion}</Tag>}
+          {lineage.orgVersion && <Tag>orgVersion: {lineage.orgVersion}</Tag>}
+        </Space>
+        <Space wrap>
+          <Tag>subjects: {counts.total || 0}</Tag>
+          <Tag>active: {counts.active || 0}</Tag>
+          <Tag>tombstone: {counts.tombstone || 0}</Tag>
+          <Tag>unmapped: {counts.unmapped || 0}</Tag>
+          <Tag>invalid: {counts.invalid || 0}</Tag>
+          {status?.receivedAt && <Tag>received: {status.receivedAt}</Tag>}
+          {status?.appliedAt && <Tag>applied: {status.appliedAt}</Tag>}
+          {status?.durationMs > 0 && <Tag>durationMs: {status.durationMs}</Tag>}
+        </Space>
+      </Card>
+    );
   }
 
   renderGatewayProjectionRunReadiness() {
@@ -1023,6 +1115,7 @@ class PlatformApiMappingPage extends React.Component {
         {this.renderOrganizationMasterDataQuality()}
         {this.renderReadinessSummary()}
         {this.renderGatewayProjectionRunReadiness()}
+        {this.renderGatewayProjectionIngestionStatus()}
         {this.renderManualPublishConsole()}
         {this.renderUserMappingTable()}
       </Card>

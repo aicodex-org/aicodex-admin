@@ -53,6 +53,47 @@ func (c *ApiController) GetGatewayProjectionRunReadiness() {
 	c.ResponseOk(result)
 }
 
+// GetGatewayProjectionIngestionStatus
+// @Title GetGatewayProjectionIngestionStatus
+// @Tag Gateway Projection Observability API
+// @Description 只读查询 Gateway owner projection ingestion status；该响应不触发 publish，也不代表 Insight/API 授权成功。
+// @Param organization query string true "Admin 组织 ID"
+// @Param latest query bool false "是否查询 latest"
+// @Param projectionBatchId query string false "projection batch id"
+// @Param orgVersion query int false "gateway org version"
+// @Param sourceVersion query string false "Admin source version"
+// @Success 200 {object} object.GatewayProjectionIngestionStatusResult "Gateway ingestion status 脱敏摘要"
+// @router /gateway-projection/ingestion-status [get]
+func (c *ApiController) GetGatewayProjectionIngestionStatus() {
+	query := object.GatewayProjectionIngestionStatusQuery{
+		OrganizationID:    c.Ctx.Input.Query("organization"),
+		Latest:            c.Ctx.Input.Query("latest") == "true",
+		ProjectionBatchID: c.Ctx.Input.Query("projectionBatchId"),
+		SourceVersion:     c.Ctx.Input.Query("sourceVersion"),
+	}
+	if orgVersion, err := c.GetInt64("orgVersion"); err == nil {
+		query.OrgVersion = orgVersion
+	}
+	result, err := (object.GatewayProjectionIngestionStatusService{}).GetStatus(c.Ctx.Request.Context(), query)
+	if err != nil {
+		c.ResponseError(gatewayProjectionIngestionStatusErrorMessage(result), result)
+		return
+	}
+	c.ResponseOk(result)
+}
+
+func gatewayProjectionIngestionStatusErrorMessage(result object.GatewayProjectionIngestionStatusResult) string {
+	category := result.FailureCategory
+	if category == "" {
+		category = result.Status
+	}
+	if category == "" {
+		category = object.GatewayProjectionIngestionStatusProviderUnavailable
+	}
+	// 下游网络错误可能包含私有 endpoint；operator API 只返回稳定分类。
+	return "gateway projection ingestion status query failed: " + category
+}
+
 // PublishGatewayProjectionManually
 // @Title PublishGatewayProjectionManually
 // @Tag Gateway Projection Observability API
