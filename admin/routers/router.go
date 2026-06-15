@@ -346,6 +346,8 @@ func InitAPI() {
 	web.Router("/api/feishu-org-sync/config", &controllers.ApiController{}, "POST:SaveFeishuOrganizationSyncConfig")
 	web.Router("/api/feishu-org-sync/config/test", &controllers.ApiController{}, "POST:TestFeishuOrganizationSyncConfig")
 	web.Router("/api/feishu-org-sync/dry-run-preview", &controllers.ApiController{}, "POST:DryRunFeishuOrganizationSyncPreview")
+	web.Router("/api/feishu-org-sync/dry-run-history", &controllers.ApiController{}, "GET:GetFeishuOrganizationSyncDryRunHistories")
+	web.Router("/api/feishu-org-sync/dry-run-history/:historyId", &controllers.ApiController{}, "GET:GetFeishuOrganizationSyncDryRunHistory")
 	web.Router("/api/feishu-org-sync/runs", &controllers.ApiController{}, "POST:StartFeishuOrganizationSyncRun")
 	web.Router("/api/feishu-org-sync/runs", &controllers.ApiController{}, "GET:GetFeishuOrganizationSyncRuns")
 	web.Router("/api/feishu-org-sync/runs/:runId", &controllers.ApiController{}, "GET:GetFeishuOrganizationSyncRun")

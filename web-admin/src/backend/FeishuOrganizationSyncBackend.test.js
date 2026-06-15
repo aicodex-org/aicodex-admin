@@ -39,6 +39,21 @@ test("calls Feishu organization sync dry-run preview endpoint", async() => {
   }));
 });
 
+test("calls Feishu organization sync dry-run history endpoints", async() => {
+  await FeishuOrganizationSyncBackend.getFeishuOrganizationSyncDryRunHistories("engineering", {
+    sourceConnectionIdHash: "source-a",
+    status: "failed",
+    diagnosticAlias: "contact_permission_missing",
+    createdFrom: "2026-06-15T00:00:00Z",
+    createdTo: "2026-06-15T23:59:59Z",
+    topN: 5,
+  });
+  await FeishuOrganizationSyncBackend.getFeishuOrganizationSyncDryRunHistory("engineering", "history-1");
+
+  expect(global.fetch).toHaveBeenNthCalledWith(1, "/api/feishu-org-sync/dry-run-history?organization=engineering&sourceConnectionIdHash=source-a&status=failed&diagnosticAlias=contact_permission_missing&createdFrom=2026-06-15T00%3A00%3A00Z&createdTo=2026-06-15T23%3A59%3A59Z&topN=5", expect.objectContaining({method: "GET"}));
+  expect(global.fetch).toHaveBeenNthCalledWith(2, "/api/feishu-org-sync/dry-run-history/history-1?organization=engineering", expect.objectContaining({method: "GET"}));
+});
+
 test("passes Feishu organization sync diagnostics payload through run detail", async() => {
   global.fetch = jest.fn(() => Promise.resolve({
     json: () => Promise.resolve({

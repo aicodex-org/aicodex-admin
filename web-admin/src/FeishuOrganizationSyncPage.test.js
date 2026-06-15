@@ -10,6 +10,8 @@ jest.mock("./backend/FeishuOrganizationSyncBackend", () => ({
   saveFeishuOrganizationSyncConfig: jest.fn(),
   testFeishuOrganizationSyncConfig: jest.fn(),
   dryRunFeishuOrganizationSyncPreview: jest.fn(),
+  getFeishuOrganizationSyncDryRunHistories: jest.fn(),
+  getFeishuOrganizationSyncDryRunHistory: jest.fn(),
   startFeishuOrganizationSyncRun: jest.fn(),
   getFeishuOrganizationSyncRuns: jest.fn(),
 }));
@@ -48,6 +50,51 @@ beforeEach(() => {
     },
   });
   FeishuOrganizationSyncBackend.getFeishuOrganizationSyncRuns.mockResolvedValue({status: "ok", data: [], data2: 0});
+  FeishuOrganizationSyncBackend.getFeishuOrganizationSyncDryRunHistories.mockResolvedValue({
+    status: "ok",
+    data: [{
+      name: "history-1",
+      status: "failed",
+      createdAt: "2026-06-15T10:10:00Z",
+      appAlias: "app-history",
+      tenantAlias: "tenant-history",
+      snapshotDepartmentCount: 1,
+      snapshotUserCount: 2,
+      snapshotMembershipCount: 3,
+      departmentToCreate: 1,
+      userToUpdate: 2,
+      membershipToSoftDisable: 1,
+      diagnosticAlias: "contact_permission_missing",
+      safeSummary: "permission denied user_id=***",
+      retentionDays: 90,
+      redactionApplied: true,
+      redactionVersion: "feishu-dry-run-history-redaction-v1",
+    }],
+  });
+  FeishuOrganizationSyncBackend.getFeishuOrganizationSyncDryRunHistory.mockResolvedValue({
+    status: "ok",
+    data: {
+      name: "history-1",
+      status: "failed",
+      createdAt: "2026-06-15T10:10:00Z",
+      appAlias: "app-history",
+      tenantAlias: "tenant-history",
+      requestMarker: "request-abcdef",
+      operatorHash: "operator-abcdef",
+      reasonCounts: {contact_permission_missing: 1},
+      diagnostics: {
+        failedStage: "tenant_token",
+        failureCategory: "permission",
+        retryReadiness: "not_ready",
+        operatorAction: "grant_contact_scope",
+        safeSummary: "permission denied user_id=***",
+      },
+      safeSummary: "permission denied user_id=***",
+      retentionDays: 90,
+      redactionApplied: true,
+      redactionVersion: "feishu-dry-run-history-redaction-v1",
+    },
+  });
   FeishuOrganizationSyncBackend.dryRunFeishuOrganizationSyncPreview.mockResolvedValue({
     status: "ok",
     data: {
@@ -128,9 +175,28 @@ test("runs dry-run preview and renders compact diff summary", async() => {
   expect(FeishuOrganizationSyncBackend.dryRunFeishuOrganizationSyncPreview).toHaveBeenCalledWith("engineering");
   expect(await screen.findByText("Dry-run 预览")).toBeInTheDocument();
   expect(screen.getByText("app-abc / tenant-def")).toBeInTheDocument();
-  expect(screen.getByText(/预览时间/)).toBeInTheDocument();
+  expect(screen.getAllByText(/预览时间/).length).toBeGreaterThan(0);
   expect(screen.getByText("部门 2 / 用户 3 / 关系 4")).toBeInTheDocument();
   expect(screen.getByText("新增 1 / 更新 1 / 软禁 0 / 冲突 0 / 无效 0")).toBeInTheDocument();
   expect(screen.getByText("新增 2 / 更新 0 / 软禁 1 / 冲突 0 / 无效 0")).toBeInTheDocument();
   expect(screen.getByText("would_soft_disable: 2")).toBeInTheDocument();
+});
+
+test("renders dry-run history and opens safe detail drawer", async() => {
+  render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+
+  expect(await screen.findByText("Dry-run 历史")).toBeInTheDocument();
+  expect(screen.getByText("history-1")).toBeInTheDocument();
+  expect(screen.getByText("app-history / tenant-history")).toBeInTheDocument();
+  expect(screen.getByText("permission denied user_id=***")).toBeInTheDocument();
+
+  fireEvent.click(screen.getByLabelText("dry-run-history-detail-history-1"));
+
+  expect(FeishuOrganizationSyncBackend.getFeishuOrganizationSyncDryRunHistory).toHaveBeenCalledWith("engineering", "history-1");
+  expect(await screen.findByText("Dry-run 详情")).toBeInTheDocument();
+  expect(screen.getByText(/request-abcdef/)).toBeInTheDocument();
+  expect(screen.getByText(/operator-abcdef/)).toBeInTheDocument();
+  expect(screen.getByText("contact_permission_missing: 1")).toBeInTheDocument();
+  expect(screen.queryByText(/alice@example\.test/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/13800138000/)).not.toBeInTheDocument();
 });

@@ -3,7 +3,7 @@
 // Licensed under the Apache License, Version 2.0 (the "License");
 
 import React from "react";
-import {Alert, Button, Col, Divider, Input, Row, Select, Space, Switch, Table, Tag, Typography} from "antd";
+import {Alert, Button, Col, Divider, Drawer, Input, Row, Select, Space, Switch, Table, Tag, Typography} from "antd";
 import {CloudSyncOutlined, PlayCircleOutlined, ReloadOutlined, SaveOutlined, ToolOutlined} from "@ant-design/icons";
 import * as Setting from "./Setting";
 import * as FeishuOrganizationSyncBackend from "./backend/FeishuOrganizationSyncBackend";
@@ -75,6 +75,13 @@ class FeishuOrganizationSyncPage extends React.Component {
       testResult: null,
       previewResult: null,
       previewError: "",
+      dryRunHistories: [],
+      dryRunHistoryLoading: false,
+      dryRunHistoryError: "",
+      dryRunHistoryDetail: null,
+      dryRunHistoryDetailOpen: false,
+      dryRunHistoryDetailLoading: false,
+      dryRunHistoryDetailError: "",
     };
   }
 
@@ -147,16 +154,20 @@ class FeishuOrganizationSyncPage extends React.Component {
     this.clearRunRefreshTimer();
     this.setState({loading: true});
     const runsRequest = FeishuOrganizationSyncBackend.getFeishuOrganizationSyncRuns(organization, nextPagination.current, nextPagination.pageSize);
+    const dryRunHistoryRequest = FeishuOrganizationSyncBackend.getFeishuOrganizationSyncDryRunHistories(organization, {topN: 10});
     const configRequest = refreshConfig
       ? FeishuOrganizationSyncBackend.getFeishuOrganizationSyncConfig(organization)
       : Promise.resolve(null);
 
-    return Promise.all([configRequest, runsRequest]).then(([configRes, runsRes]) => {
+    return Promise.all([configRequest, runsRequest, dryRunHistoryRequest]).then(([configRes, runsRes, dryRunHistoryRes]) => {
       if (configRes?.status === "error") {
         Setting.showMessage("error", configRes.msg);
       }
       if (runsRes.status === "error") {
         Setting.showMessage("error", runsRes.msg);
+      }
+      if (dryRunHistoryRes.status === "error") {
+        Setting.showMessage("error", dryRunHistoryRes.msg);
       }
       if (this.isUnmounted || this.state.organization !== organization) {
         return;
@@ -177,6 +188,12 @@ class FeishuOrganizationSyncPage extends React.Component {
       } else {
         nextState.runRefreshError = "同步记录刷新失败，请手动刷新重试。";
       }
+      if (dryRunHistoryRes.status === "ok") {
+        nextState.dryRunHistories = dryRunHistoryRes.data || [];
+        nextState.dryRunHistoryError = "";
+      } else {
+        nextState.dryRunHistoryError = "Dry-run 历史刷新失败，请手动刷新重试。";
+      }
       this.setState(nextState, () => this.syncRunRefreshLoop(organization, nextState.runs || this.state.runs));
     }).catch(error => {
       this.clearRunRefreshTimer();
@@ -186,6 +203,29 @@ class FeishuOrganizationSyncPage extends React.Component {
       this.setState({loading: false, runRefreshError: "自动刷新已暂停，请手动刷新重试。"});
       Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
     });
+  }
+
+  refreshDryRunHistory(organization = this.state.organization) {
+    if (!organization) {
+      return Promise.resolve();
+    }
+    this.setState({dryRunHistoryLoading: true});
+    return FeishuOrganizationSyncBackend.getFeishuOrganizationSyncDryRunHistories(organization, {topN: 10})
+      .then(res => {
+        if (this.isUnmounted || this.state.organization !== organization) {
+          return;
+        }
+        if (res.status === "ok") {
+          this.setState({dryRunHistoryLoading: false, dryRunHistories: res.data || [], dryRunHistoryError: ""});
+        } else {
+          this.setState({dryRunHistoryLoading: false, dryRunHistoryError: res.msg || "Dry-run 历史刷新失败"});
+        }
+      }).catch(error => {
+        if (this.isUnmounted || this.state.organization !== organization) {
+          return;
+        }
+        this.setState({dryRunHistoryLoading: false, dryRunHistoryError: `${i18next.t("general:Failed to connect to server")}: ${error}`});
+      });
   }
 
   refresh(organization) {
@@ -226,6 +266,11 @@ class FeishuOrganizationSyncPage extends React.Component {
       pagination: getDefaultTablePagination(),
       previewResult: null,
       previewError: "",
+      dryRunHistories: [],
+      dryRunHistoryError: "",
+      dryRunHistoryDetail: null,
+      dryRunHistoryDetailOpen: false,
+      dryRunHistoryDetailError: "",
     }, () => this.refresh(organization));
   }
 
@@ -277,6 +322,7 @@ class FeishuOrganizationSyncPage extends React.Component {
         this.setState({previewing: false});
         if (res.status === "ok") {
           this.setState({previewResult: res.data, previewError: ""});
+          this.refreshDryRunHistory(this.state.organization).catch(() => {});
           if (res.data?.status === "failed") {
             Setting.showMessage("warning", "Dry-run 预览未通过，请查看诊断信息。");
           }
@@ -323,6 +369,120 @@ class FeishuOrganizationSyncPage extends React.Component {
       <Space size={4} wrap>
         {entries.map(([reason, count]) => <Tag key={reason}>{reason}: {count}</Tag>)}
       </Space>
+    );
+  }
+
+  formatDryRunDiff(record = {}) {
+    return `部 ${record.departmentToCreate || 0}/${record.departmentToUpdate || 0}/${record.departmentToSoftDisable || 0} · 人 ${record.userToCreate || 0}/${record.userToUpdate || 0}/${record.userToSoftDisable || 0} · 关系 ${record.membershipToCreate || 0}/${record.membershipToUpdate || 0}/${record.membershipToSoftDisable || 0}`;
+  }
+
+  getDryRunSourceAlias(record = {}) {
+    return [record.appAlias, record.tenantAlias].filter(Boolean).join(" / ") || "-";
+  }
+
+  openDryRunHistoryDetail(record) {
+    this.setState({
+      dryRunHistoryDetailOpen: true,
+      dryRunHistoryDetailLoading: true,
+      dryRunHistoryDetail: record,
+      dryRunHistoryDetailError: "",
+    });
+    FeishuOrganizationSyncBackend.getFeishuOrganizationSyncDryRunHistory(this.state.organization, record.name)
+      .then(res => {
+        if (this.isUnmounted) {
+          return;
+        }
+        if (res.status === "ok") {
+          this.setState({dryRunHistoryDetailLoading: false, dryRunHistoryDetail: res.data, dryRunHistoryDetailError: ""});
+        } else {
+          this.setState({dryRunHistoryDetailLoading: false, dryRunHistoryDetailError: res.msg || "Dry-run 详情加载失败"});
+        }
+      }).catch(error => {
+        if (this.isUnmounted) {
+          return;
+        }
+        this.setState({dryRunHistoryDetailLoading: false, dryRunHistoryDetailError: `${i18next.t("general:Failed to connect to server")}: ${error}`});
+      });
+  }
+
+  renderDryRunHistory() {
+    const columns = [
+      {title: "记录 ID", dataIndex: "name", key: "name", width: 190, ellipsis: true},
+      {title: "状态", dataIndex: "status", key: "status", width: 100, render: status => this.getStatusTag(status)},
+      {title: "预览时间", dataIndex: "createdAt", key: "createdAt", width: 180, render: text => this.formatRunTime(text)},
+      {title: "来源别名", key: "source", width: 230, ellipsis: true, render: (_, record) => this.getDryRunSourceAlias(record)},
+      {title: "快照", key: "snapshot", width: 150, render: (_, record) => `部 ${record.snapshotDepartmentCount || 0} / 人 ${record.snapshotUserCount || 0} / 关系 ${record.snapshotMembershipCount || 0}`},
+      {title: "Diff（新增/更新/软禁）", key: "diff", width: 280, render: (_, record) => this.formatDryRunDiff(record)},
+      {title: "诊断", dataIndex: "diagnosticAlias", key: "diagnosticAlias", width: 190, ellipsis: true},
+      {title: "摘要", dataIndex: "safeSummary", key: "safeSummary", width: 260, ellipsis: true},
+      {title: "保留/脱敏", key: "retention", width: 160, render: (_, record) => (
+        <Space size={4} wrap>
+          <Tag>{`${record.retentionDays || 0} 天`}</Tag>
+          <Tag color={record.redactionApplied ? "green" : "default"}>{record.redactionApplied ? "已脱敏" : "未标记"}</Tag>
+        </Space>
+      )},
+      {title: "操作", key: "action", width: 90, render: (_, record) => <Button size="small" aria-label={`dry-run-history-detail-${record.name}`} onClick={() => this.openDryRunHistoryDetail(record)}>详情</Button>},
+    ];
+    return (
+      <>
+        <Row align="middle" justify="space-between" style={{marginBottom: 12}}>
+          <Col>
+            <Space direction="vertical" size={2}>
+              <Text strong>Dry-run 历史</Text>
+              <Text type={this.state.dryRunHistoryError ? "danger" : "secondary"}>
+                {this.state.dryRunHistoryError || "最近 10 次预览摘要，仅展示脱敏聚合信息。"}
+              </Text>
+            </Space>
+          </Col>
+          <Col><Button icon={<ReloadOutlined />} loading={this.state.dryRunHistoryLoading} onClick={() => this.refreshDryRunHistory().catch(() => {})}>刷新</Button></Col>
+        </Row>
+        <Table
+          rowKey="name"
+          size="middle"
+          bordered
+          loading={this.state.loading || this.state.dryRunHistoryLoading}
+          columns={columns}
+          dataSource={this.state.dryRunHistories}
+          locale={{emptyText: this.state.dryRunHistoryError || "暂无 Dry-run 历史"}}
+          scroll={{x: 1830}}
+          pagination={false}
+        />
+        {this.renderDryRunHistoryDetailDrawer()}
+      </>
+    );
+  }
+
+  renderDryRunHistoryDetailDrawer() {
+    const detail = this.state.dryRunHistoryDetail || {};
+    const diagnostics = detail.diagnostics || {};
+    return (
+      <Drawer
+        title="Dry-run 详情"
+        width={520}
+        open={this.state.dryRunHistoryDetailOpen}
+        onClose={() => this.setState({dryRunHistoryDetailOpen: false})}
+      >
+        {this.state.dryRunHistoryDetailError && <Alert type="error" showIcon style={{marginBottom: 12}} message={this.state.dryRunHistoryDetailError} />}
+        <Space direction="vertical" size={10} style={{width: "100%"}}>
+          <Text strong>{detail.name || "-"}</Text>
+          <Text type="secondary">{this.getDryRunSourceAlias(detail)}</Text>
+          <Space wrap>{this.getStatusTag(detail.status)}{detail.diagnosticAlias && <Tag>{detail.diagnosticAlias}</Tag>}</Space>
+          <Text>{`预览时间 ${this.formatRunTime(detail.createdAt)}`}</Text>
+          <Text>{`快照：部门 ${detail.snapshotDepartmentCount || 0} / 用户 ${detail.snapshotUserCount || 0} / 关系 ${detail.snapshotMembershipCount || 0}`}</Text>
+          <Text>{`Diff：${this.formatDryRunDiff(detail)}`}</Text>
+          {this.renderPreviewReasonCounts(detail.reasonCounts)}
+          <Typography.Paragraph ellipsis={{rows: 3, expandable: true}}>
+            {diagnostics.safeSummary || detail.safeSummary || "-"}
+          </Typography.Paragraph>
+          <Text>{`Request marker：${detail.requestMarker || "-"}`}</Text>
+          <Text>{`Operator：${detail.operatorHash || "-"}`}</Text>
+          <Space wrap>
+            <Tag>{`保留 ${detail.retentionDays || 0} 天`}</Tag>
+            <Tag color={detail.redactionApplied ? "green" : "default"}>{detail.redactionApplied ? "已脱敏" : "未标记"}</Tag>
+            {detail.redactionVersion && <Tag>{detail.redactionVersion}</Tag>}
+          </Space>
+        </Space>
+      </Drawer>
     );
   }
 
@@ -605,6 +765,9 @@ class FeishuOrganizationSyncPage extends React.Component {
           <Button icon={<CloudSyncOutlined />} loading={this.state.previewing} disabled={!config.isEnabled} onClick={() => this.previewSyncImpact()}>预览影响</Button>
           <Button icon={<PlayCircleOutlined />} loading={this.state.syncing} disabled={!config.isEnabled || hasRunningRuns} onClick={() => this.startSync()}>{hasRunningRuns ? "同步进行中" : "开始全量同步"}</Button>
         </Space>
+
+        <Divider />
+        {this.renderDryRunHistory()}
 
         <Divider />
         <Row align="middle" justify="space-between" style={{marginBottom: 12}}>

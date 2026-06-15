@@ -82,6 +82,16 @@ func TestGetFeishuOrganizationSyncDryRunPreviewObjectUsesOrganizationBody(t *tes
 	}
 }
 
+func TestGetFeishuOrganizationSyncDryRunHistoryObjectUsesOrganizationQuery(t *testing.T) {
+	owner, name, ok := getModuleOrganizationObject("/api/feishu-org-sync/dry-run-history/history-1", http.MethodGet, "engineering", nil)
+	if !ok {
+		t.Fatalf("expected dry-run history organization object to be parsed")
+	}
+	if owner != "engineering" || name != "" {
+		t.Fatalf("dry-run history object = %q/%q, want engineering/<empty>", owner, name)
+	}
+}
+
 func TestGetOrganizationManagementScopeObjectUsesOrganizationQuery(t *testing.T) {
 	owner, name, ok := getModuleOrganizationObject("/api/org-management-scope/current", http.MethodGet, "engineering", nil)
 	if !ok {

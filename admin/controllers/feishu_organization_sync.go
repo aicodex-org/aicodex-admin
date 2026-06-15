@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 
 	"git.leagsoft.com/aicodex/aicodex-admin/object"
 	"git.leagsoft.com/aicodex/aicodex-admin/util"
@@ -164,12 +165,60 @@ func (c *ApiController) DryRunFeishuOrganizationSyncPreview() {
 		c.ResponseError("feishu organization sync config is not configured")
 		return
 	}
-	preview, err := (&object.FeishuOrganizationSyncDryRunPreviewService{}).Preview(c.Ctx.Request.Context(), config)
+	preview, err := (&object.FeishuOrganizationSyncDryRunPreviewService{
+		Operator:      c.GetSessionUsername(),
+		RequestMarker: c.getFeishuOrganizationSyncRequestMarker(),
+	}).Preview(c.Ctx.Request.Context(), config)
 	if err != nil {
 		c.ResponseError(err.Error())
 		return
 	}
 	c.ResponseOk(preview)
+}
+
+// GetFeishuOrganizationSyncDryRunHistories
+// @router /feishu-org-sync/dry-run-history [get]
+func (c *ApiController) GetFeishuOrganizationSyncDryRunHistories() {
+	organization, ok := c.resolveFeishuOrganizationSyncTarget(c.Ctx.Input.Query("organization"))
+	if !ok {
+		return
+	}
+	if !c.requireFeishuOrganizationSyncAdmin(organization) {
+		return
+	}
+	filter, err := c.getFeishuOrganizationSyncDryRunHistoryFilter(organization)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	histories, count, err := (&object.FeishuOrganizationSyncDryRunHistoryService{}).GetHistories(filter)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	if filter.Limit > 0 && c.Ctx.Input.Query("p") != "" {
+		c.ResponseOk(histories, count)
+		return
+	}
+	c.ResponseOk(histories)
+}
+
+// GetFeishuOrganizationSyncDryRunHistory
+// @router /feishu-org-sync/dry-run-history/:historyId [get]
+func (c *ApiController) GetFeishuOrganizationSyncDryRunHistory() {
+	organization, ok := c.resolveFeishuOrganizationSyncTarget(c.Ctx.Input.Query("organization"))
+	if !ok {
+		return
+	}
+	if !c.requireFeishuOrganizationSyncAdmin(organization) {
+		return
+	}
+	history, err := (&object.FeishuOrganizationSyncDryRunHistoryService{}).GetHistory(organization, c.Ctx.Input.Param(":historyId"))
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(history)
 }
 
 // GetFeishuOrganizationSyncRuns
@@ -302,4 +351,54 @@ func (c *ApiController) getFeishuOrganizationSyncSecretForMasking(organization s
 		return ""
 	}
 	return config.AppSecret
+}
+
+func (c *ApiController) getFeishuOrganizationSyncRequestMarker() string {
+	for _, header := range []string{"X-Request-Id", "X-Codex-Request-Id", "X-Trace-Id"} {
+		if value := strings.TrimSpace(c.Ctx.Request.Header.Get(header)); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func (c *ApiController) getFeishuOrganizationSyncDryRunHistoryFilter(organization string) (object.FeishuOrganizationSyncDryRunHistoryFilter, error) {
+	filter := object.FeishuOrganizationSyncDryRunHistoryFilter{
+		Organization:           organization,
+		SourceConnectionIdHash: strings.TrimSpace(c.Ctx.Input.Query("sourceConnectionIdHash")),
+		Status:                 strings.TrimSpace(c.Ctx.Input.Query("status")),
+		DiagnosticAlias:        strings.TrimSpace(c.Ctx.Input.Query("diagnosticAlias")),
+		Limit:                  util.ParseInt(c.Ctx.Input.Query("pageSize")),
+		TopN:                   util.ParseInt(c.Ctx.Input.Query("topN")),
+		SortField:              strings.TrimSpace(c.Ctx.Input.Query("sortField")),
+		SortOrder:              strings.TrimSpace(c.Ctx.Input.Query("sortOrder")),
+	}
+	if filter.Limit == 0 {
+		filter.Limit = util.ParseInt(c.Ctx.Input.Query("limit"))
+	}
+	if page := util.ParseInt(c.Ctx.Input.Query("p")); page > 0 && filter.Limit > 0 {
+		filter.Offset = (page - 1) * filter.Limit
+	} else {
+		filter.Offset = 0
+	}
+	var err error
+	if filter.CreatedFrom, err = parseFeishuDryRunHistoryTime(c.Ctx.Input.Query("createdFrom")); err != nil {
+		return filter, err
+	}
+	if filter.CreatedTo, err = parseFeishuDryRunHistoryTime(c.Ctx.Input.Query("createdTo")); err != nil {
+		return filter, err
+	}
+	return filter, nil
+}
+
+func parseFeishuDryRunHistoryTime(text string) (time.Time, error) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return time.Time{}, nil
+	}
+	value, err := time.Parse(time.RFC3339Nano, text)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return value.UTC(), nil
 }

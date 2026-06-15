@@ -36,12 +36,13 @@ const (
 // FeishuOrganizationSyncDryRunPreview 是 dry-run preview API 返回的脱敏聚合视图。
 // 它不包含完整 Contact payload 或外部身份明细，只承载 operator 决策所需的规模和风险计数。
 type FeishuOrganizationSyncDryRunPreview struct {
-	Status        string                                    `json:"status"`
-	Source        FeishuOrganizationSyncDryRunSource        `json:"source"`
-	SnapshotStats FeishuOrganizationSyncDryRunSnapshotStats `json:"snapshotStats"`
-	Diff          FeishuOrganizationSyncDryRunDiff          `json:"diff"`
-	ReasonCounts  map[string]int                            `json:"reasonCounts"`
-	Diagnostics   *FeishuOrganizationSyncRunDiagnostics     `json:"diagnostics,omitempty"`
+	Status         string                                    `json:"status"`
+	Source         FeishuOrganizationSyncDryRunSource        `json:"source"`
+	SnapshotStats  FeishuOrganizationSyncDryRunSnapshotStats `json:"snapshotStats"`
+	Diff           FeishuOrganizationSyncDryRunDiff          `json:"diff"`
+	ReasonCounts   map[string]int                            `json:"reasonCounts"`
+	Diagnostics    *FeishuOrganizationSyncRunDiagnostics     `json:"diagnostics,omitempty"`
+	HistoryWarning string                                    `json:"historyWarning,omitempty"`
 }
 
 // FeishuOrganizationSyncDryRunSource 描述 dry-run 使用的来源别名。
@@ -83,13 +84,18 @@ type FeishuOrganizationSyncDryRunDiffCounts struct {
 type FeishuOrganizationSyncDryRunPreviewService struct {
 	Now               func() time.Time
 	NewSnapshotClient func(appId string, appSecret string, endpointMode string) FeishuOrganizationSnapshotClient
+	HistoryStore      FeishuOrganizationSyncDryRunHistoryStore
+	Operator          string
+	RequestMarker     string
 }
 
 // Preview 拉取一次 normalized snapshot 并返回脱敏聚合 diff。
 func (s *FeishuOrganizationSyncDryRunPreviewService) Preview(ctx context.Context, config *FeishuOrganizationSyncConfig) (*FeishuOrganizationSyncDryRunPreview, error) {
 	prepared, err := prepareFeishuOrganizationSyncDryRunConfig(config)
 	if err != nil {
-		return s.failedPreview(config, FeishuOrganizationSyncDiagnosticStageConfigValidation, classifyFeishuDryRunFailureReason(err), err.Error()), nil
+		preview := s.failedPreview(config, FeishuOrganizationSyncDiagnosticStageConfigValidation, classifyFeishuDryRunFailureReason(err), err.Error())
+		s.recordHistory(preview)
+		return preview, nil
 	}
 	syncService := &FeishuOrganizationSyncService{
 		Now: s.now,
@@ -101,9 +107,16 @@ func (s *FeishuOrganizationSyncDryRunPreviewService) Preview(ctx context.Context
 	if err != nil {
 		stage := classifyFeishuDiagnosticStage(&FeishuOrganizationSyncRun{ErrorCode: feishuSyncErrorCodeFromError(err, "runtime_authorization_required")})
 		reason := classifyFeishuDryRunFailureReason(err)
-		return s.failedPreview(prepared, stage, reason, err.Error()), nil
+		preview := s.failedPreview(prepared, stage, reason, err.Error())
+		s.recordHistory(preview)
+		return preview, nil
 	}
-	return s.buildPreview(prepared, snapshot, firstNonEmpty(sourceTenantId, prepared.TenantKey, prepared.AppId))
+	preview, err := s.buildPreview(prepared, snapshot, firstNonEmpty(sourceTenantId, prepared.TenantKey, prepared.AppId))
+	if err != nil {
+		return nil, err
+	}
+	s.recordHistory(preview)
+	return preview, nil
 }
 
 func (s *FeishuOrganizationSyncDryRunPreviewService) buildPreview(config *FeishuOrganizationSyncConfig, snapshot *FeishuOrganizationFullSnapshot, sourceTenantId string) (*FeishuOrganizationSyncDryRunPreview, error) {
@@ -476,6 +489,45 @@ func (s *FeishuOrganizationSyncDryRunPreviewService) now() time.Time {
 		return s.Now().UTC()
 	}
 	return time.Now().UTC()
+}
+
+func (s *FeishuOrganizationSyncDryRunPreviewService) historyStore() FeishuOrganizationSyncDryRunHistoryStore {
+	if s != nil && s.HistoryStore != nil {
+		return s.HistoryStore
+	}
+	return defaultFeishuOrganizationSyncDryRunHistoryStore{}
+}
+
+func (s *FeishuOrganizationSyncDryRunPreviewService) recordHistory(preview *FeishuOrganizationSyncDryRunPreview) {
+	if preview == nil {
+		return
+	}
+	if s == nil || s.HistoryStore == nil {
+		if ormer == nil || ormer.Engine == nil {
+			return
+		}
+	}
+	history := newFeishuDryRunHistoryFromPreview(preview, s.operator(), s.requestMarker(), s.now().UTC())
+	if history == nil || history.Organization == "" {
+		return
+	}
+	if err := s.historyStore().CreateFeishuOrganizationSyncDryRunHistory(history); err != nil {
+		preview.HistoryWarning = FeishuOrganizationSyncDryRunHistoryWarning
+	}
+}
+
+func (s *FeishuOrganizationSyncDryRunPreviewService) operator() string {
+	if s == nil {
+		return ""
+	}
+	return s.Operator
+}
+
+func (s *FeishuOrganizationSyncDryRunPreviewService) requestMarker() string {
+	if s == nil {
+		return ""
+	}
+	return s.RequestMarker
 }
 
 func duplicateFeishuDepartmentSnapshotIds(departments []FeishuDepartmentSnapshot) map[string]bool {
