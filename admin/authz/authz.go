@@ -67,6 +67,7 @@ p, *, *, POST, /api/organization-tree-operations/refresh, *, *
 p, *, *, GET, /api/gateway-projection/observability, *, *
 p, *, *, GET, /api/gateway-projection/publish-attempts, *, *
 p, *, *, GET, /api/gateway-projection/publish-attempts/:attemptId, *, *
+p, *, *, GET, /api/gateway-projection/publish-attempt-retention-readiness, *, *
 p, *, *, GET, /api/health, *, *
 p, *, *, *, /api/webhook, *, *
 p, *, *, GET, /api/get-qrcode, *, *

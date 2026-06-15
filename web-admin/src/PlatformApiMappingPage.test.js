@@ -29,6 +29,7 @@ jest.mock("./backend/PlatformApiMappingBackend", () => ({
   getGatewayProjectionIngestionStatus: jest.fn(),
   getGatewayProjectionPublishAttempts: jest.fn(),
   getGatewayProjectionPublishAttempt: jest.fn(),
+  getGatewayProjectionPublishAttemptRetentionReadiness: jest.fn(),
   updatePlatformApiOrganizationMapping: jest.fn(),
   getPlatformApiUserMappings: jest.fn(),
   publishGatewayProjectionManually: jest.fn(),
@@ -167,6 +168,40 @@ beforeEach(() => {
         retryable: true,
         durationMs: 321,
         createdAt: "2026-06-15T13:00:00Z",
+        retention: {
+          windowSeconds: 2592000,
+          expiresAt: "2026-07-15T13:00:00Z",
+          cleanupEligible: false,
+          cleanupReason: "within_retention_window",
+        },
+        receiptQueryHint: {
+          available: true,
+          organizationId: "org-alpha",
+          projectionBatchId: "batch-synthetic",
+          orgVersion: 202606151300,
+          sourceVersion: "orgv-run-1",
+        },
+      }],
+    },
+  });
+  PlatformApiMappingBackend.getGatewayProjectionPublishAttemptRetentionReadiness.mockResolvedValue({
+    status: "ok",
+    data: {
+      total: 1,
+      cleanupEligibleCount: 0,
+      blockedCount: 1,
+      retentionWindowSeconds: 2592000,
+      reasonCounts: {
+        within_retention_window: 1,
+      },
+      samples: [{
+        attemptId: "attempt-synthetic",
+        source: "manual",
+        status: "error",
+        cleanupEligible: false,
+        cleanupReason: "within_retention_window",
+        projectionBatchId: "batch-synthetic",
+        sourceVersion: "orgv-run-1",
       }],
     },
   });
@@ -189,6 +224,19 @@ beforeEach(() => {
       retryable: true,
       attempts: 2,
       durationMs: 321,
+      retention: {
+        windowSeconds: 2592000,
+        expiresAt: "2026-07-15T13:00:00Z",
+        cleanupEligible: false,
+        cleanupReason: "within_retention_window",
+      },
+      receiptQueryHint: {
+        available: true,
+        organizationId: "org-alpha",
+        projectionBatchId: "batch-synthetic",
+        orgVersion: 202606151300,
+        sourceVersion: "orgv-run-1",
+      },
       metadata: {
         readinessPublishable: "1",
       },
@@ -321,6 +369,11 @@ test("separates organization and user mapping tabs and loads user mappings on de
     status: "",
     limit: 20,
   })));
+  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptRetentionReadiness).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+    source: "",
+    status: "",
+    limit: 100,
+  })));
   await wait(() => expect(PlatformApiMappingBackend.getOrganizationMasterDataQualityReadiness).toHaveBeenCalledWith("org-alpha"));
   await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionIngestionStatus).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     latest: true,
@@ -341,11 +394,41 @@ test("separates organization and user mapping tabs and loads user mappings on de
   expect(screen.getByText("Gateway projection 手动发布")).toBeInTheDocument();
   expect(screen.getByText("Gateway projection publish attempt history")).toBeInTheDocument();
   expect(screen.getByText("Attempt history 只记录 Admin producer 脱敏诊断，不是 gateway authorization facts。")).toBeInTheDocument();
+  expect(screen.getByText("Publish attempt retention readiness")).toBeInTheDocument();
+  expect(screen.getByText("只读展示 cleanup readiness，不执行删除。")).toBeInTheDocument();
+  expect(screen.getByText("cleanupEligible: 0")).toBeInTheDocument();
+  expect(screen.getAllByText("保留期内").length).toBeGreaterThan(0);
   expect(screen.getByText("gateway_unavailable")).toBeInTheDocument();
   expect(screen.getByText("321 ms")).toBeInTheDocument();
   expect(screen.getAllByText(/mapping_missing/).length).toBeGreaterThan(0);
   expect(screen.getByText("迁移导入")).toBeInTheDocument();
   expect(screen.getByPlaceholderText("搜索平台主体或 API 用户 ID")).toBeInTheDocument();
+});
+
+test("uses attempt receipt query hint to refresh gateway ingestion status", () => {
+  const page = new PlatformApiMappingPage({account: {owner: "org-alpha", isAdmin: true}});
+  page.state = {organization: "org-alpha"};
+  page.refreshGatewayProjectionIngestionStatus = jest.fn();
+  page.setState = jest.fn();
+
+  page.queryGatewayReceiptFromAttempt({
+    receiptQueryHint: {
+      available: true,
+      organizationId: "org-alpha",
+      latest: false,
+      projectionBatchId: "batch-synthetic",
+      orgVersion: 202606151300,
+      sourceVersion: "orgv-run-1",
+    },
+  });
+
+  expect(page.refreshGatewayProjectionIngestionStatus).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+    latest: false,
+    projectionBatchId: "batch-synthetic",
+    orgVersion: 202606151300,
+    sourceVersion: "orgv-run-1",
+  }));
+  expect(page.setState).toHaveBeenCalledWith({attemptDetailVisible: false});
 });
 
 test("allows operator to trigger manual gateway projection publish when readiness is available", async() => {
@@ -363,6 +446,7 @@ test("allows operator to trigger manual gateway projection publish when readines
   await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionRunReadiness).toHaveBeenCalled());
   await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionIngestionStatus).toHaveBeenCalled());
   await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttempts).toHaveBeenCalled());
+  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptRetentionReadiness).toHaveBeenCalled());
   expect(screen.queryByText(/projection-secret|gateway.example.invalid|rawGatewayResponse/)).not.toBeInTheDocument();
 });
 

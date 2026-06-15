@@ -27,8 +27,9 @@ const (
 	GatewayProjectionPublishAttemptSourceManual    = "manual"
 	GatewayProjectionPublishAttemptSourceScheduled = "scheduled"
 
-	defaultGatewayProjectionPublishAttemptLimit = 20
-	maxGatewayProjectionPublishAttemptLimit     = 100
+	defaultGatewayProjectionPublishAttemptLimit           = 20
+	maxGatewayProjectionPublishAttemptLimit               = 100
+	defaultGatewayProjectionPublishAttemptRetentionWindow = 30 * 24 * time.Hour
 )
 
 // GatewayProjectionPublishAttempt 是 Admin producer 的脱敏发布尝试台账。
@@ -39,34 +40,36 @@ type GatewayProjectionPublishAttempt struct {
 	CreatedAt time.Time `xorm:"timestampz created index" json:"createdAt"`
 	UpdatedAt time.Time `xorm:"timestampz updated" json:"updatedAt"`
 
-	AttemptId             string            `xorm:"varchar(100) notnull index unique" json:"attemptId"`
-	OrganizationId        string            `xorm:"varchar(100) notnull index" json:"organizationId"`
-	Source                string            `xorm:"varchar(50) index" json:"source"`
-	Status                string            `xorm:"varchar(50) index" json:"status"`
-	TraceId               string            `xorm:"varchar(255) index" json:"traceId,omitempty"`
-	Caller                string            `xorm:"varchar(100)" json:"caller,omitempty"`
-	ProjectionBatchId     string            `xorm:"varchar(255) index" json:"projectionBatchId,omitempty"`
-	OrgVersion            int64             `json:"orgVersion,omitempty"`
-	SourceVersion         string            `xorm:"varchar(255) index" json:"sourceVersion,omitempty"`
-	GeneratedAt           time.Time         `xorm:"timestampz" json:"generatedAt,omitempty"`
-	FreshnessExpiresAt    time.Time         `xorm:"timestampz" json:"freshnessExpiresAt,omitempty"`
-	SubjectCount          int               `json:"subjectCount"`
-	ActiveSubjectCount    int               `json:"activeSubjectCount"`
-	TombstoneSubjectCount int               `json:"tombstoneSubjectCount"`
-	SkippedSubjectCount   int               `json:"skippedSubjectCount"`
-	SkippedByReasonJSON   string            `xorm:"text 'skipped_by_reason'" json:"-"`
-	SkippedByReason       map[string]int    `xorm:"-" json:"skippedByReason,omitempty"`
-	ErrorCode             string            `xorm:"varchar(100) index" json:"errorCode,omitempty"`
-	FailureCategory       string            `xorm:"varchar(100) index" json:"failureCategory,omitempty"`
-	Attempts              int               `json:"attempts"`
-	StatusCode            int               `json:"statusCode,omitempty"`
-	Accepted              bool              `json:"accepted"`
-	Idempotent            bool              `json:"idempotent"`
-	Retryable             bool              `json:"retryable"`
-	DurationMs            int64             `json:"durationMs"`
-	AuditHash             string            `xorm:"varchar(100)" json:"auditHash,omitempty"`
-	Metadata              map[string]string `xorm:"-" json:"metadata,omitempty"`
-	MetadataJSON          string            `xorm:"text 'metadata'" json:"-"`
+	AttemptId             string                                   `xorm:"varchar(100) notnull index unique" json:"attemptId"`
+	OrganizationId        string                                   `xorm:"varchar(100) notnull index" json:"organizationId"`
+	Source                string                                   `xorm:"varchar(50) index" json:"source"`
+	Status                string                                   `xorm:"varchar(50) index" json:"status"`
+	TraceId               string                                   `xorm:"varchar(255) index" json:"traceId,omitempty"`
+	Caller                string                                   `xorm:"varchar(100)" json:"caller,omitempty"`
+	ProjectionBatchId     string                                   `xorm:"varchar(255) index" json:"projectionBatchId,omitempty"`
+	OrgVersion            int64                                    `json:"orgVersion,omitempty"`
+	SourceVersion         string                                   `xorm:"varchar(255) index" json:"sourceVersion,omitempty"`
+	GeneratedAt           time.Time                                `xorm:"timestampz" json:"generatedAt,omitempty"`
+	FreshnessExpiresAt    time.Time                                `xorm:"timestampz" json:"freshnessExpiresAt,omitempty"`
+	SubjectCount          int                                      `json:"subjectCount"`
+	ActiveSubjectCount    int                                      `json:"activeSubjectCount"`
+	TombstoneSubjectCount int                                      `json:"tombstoneSubjectCount"`
+	SkippedSubjectCount   int                                      `json:"skippedSubjectCount"`
+	SkippedByReasonJSON   string                                   `xorm:"text 'skipped_by_reason'" json:"-"`
+	SkippedByReason       map[string]int                           `xorm:"-" json:"skippedByReason,omitempty"`
+	ErrorCode             string                                   `xorm:"varchar(100) index" json:"errorCode,omitempty"`
+	FailureCategory       string                                   `xorm:"varchar(100) index" json:"failureCategory,omitempty"`
+	Attempts              int                                      `json:"attempts"`
+	StatusCode            int                                      `json:"statusCode,omitempty"`
+	Accepted              bool                                     `json:"accepted"`
+	Idempotent            bool                                     `json:"idempotent"`
+	Retryable             bool                                     `json:"retryable"`
+	DurationMs            int64                                    `json:"durationMs"`
+	AuditHash             string                                   `xorm:"varchar(100)" json:"auditHash,omitempty"`
+	Metadata              map[string]string                        `xorm:"-" json:"metadata,omitempty"`
+	MetadataJSON          string                                   `xorm:"text 'metadata'" json:"-"`
+	Retention             GatewayProjectionPublishAttemptRetention `xorm:"-" json:"retention"`
+	ReceiptQueryHint      GatewayProjectionReceiptQueryHint        `xorm:"-" json:"receiptQueryHint"`
 }
 
 // GatewayProjectionPublishAttemptQuery 限定 history 查询范围和筛选条件。
@@ -94,6 +97,50 @@ type GatewayProjectionPublishAttemptFilters struct {
 	From           string `json:"from,omitempty"`
 	To             string `json:"to,omitempty"`
 	Limit          int    `json:"limit"`
+}
+
+// GatewayProjectionPublishAttemptRetention 是只读保留期诊断，不代表已经执行 cleanup。
+type GatewayProjectionPublishAttemptRetention struct {
+	WindowSeconds   int64  `json:"windowSeconds"`
+	ExpiresAt       string `json:"expiresAt,omitempty"`
+	CleanupEligible bool   `json:"cleanupEligible"`
+	CleanupReason   string `json:"cleanupReason"`
+}
+
+// GatewayProjectionReceiptQueryHint 是 operator 查询 Gateway ingestion status 的脱敏条件提示。
+// 它只描述可用于只读 receipt 查询的键，不代表 Gateway 已成功应用或授权成功。
+type GatewayProjectionReceiptQueryHint struct {
+	Available         bool   `json:"available"`
+	UnavailableReason string `json:"unavailableReason,omitempty"`
+	OrganizationId    string `json:"organizationId,omitempty"`
+	Latest            bool   `json:"latest"`
+	ProjectionBatchId string `json:"projectionBatchId,omitempty"`
+	OrgVersion        int64  `json:"orgVersion,omitempty"`
+	SourceVersion     string `json:"sourceVersion,omitempty"`
+}
+
+type GatewayProjectionPublishAttemptRetentionReadiness struct {
+	GeneratedAt            string                                           `json:"generatedAt"`
+	Filters                GatewayProjectionPublishAttemptFilters           `json:"filters"`
+	RetentionWindowSeconds int64                                            `json:"retentionWindowSeconds"`
+	Total                  int                                              `json:"total"`
+	CleanupEligibleCount   int                                              `json:"cleanupEligibleCount"`
+	BlockedCount           int                                              `json:"blockedCount"`
+	ReasonCounts           map[string]int                                   `json:"reasonCounts"`
+	OldestAttemptAt        string                                           `json:"oldestAttemptAt,omitempty"`
+	NewestAttemptAt        string                                           `json:"newestAttemptAt,omitempty"`
+	Samples                []GatewayProjectionPublishAttemptRetentionSample `json:"samples,omitempty"`
+}
+
+type GatewayProjectionPublishAttemptRetentionSample struct {
+	AttemptId         string `json:"attemptId"`
+	Source            string `json:"source"`
+	Status            string `json:"status"`
+	CreatedAt         string `json:"createdAt,omitempty"`
+	CleanupEligible   bool   `json:"cleanupEligible"`
+	CleanupReason     string `json:"cleanupReason"`
+	ProjectionBatchId string `json:"projectionBatchId,omitempty"`
+	SourceVersion     string `json:"sourceVersion,omitempty"`
 }
 
 type GatewayProjectionPublishAttemptStore interface {
@@ -128,7 +175,7 @@ func (s GatewayProjectionPublishAttemptHistoryService) List(query GatewayProject
 		return nil, err
 	}
 	for i := range attempts {
-		attempts[i] = cloneGatewayProjectionPublishAttempt(attempts[i])
+		attempts[i] = enrichGatewayProjectionPublishAttempt(cloneGatewayProjectionPublishAttempt(attempts[i]), query.OrganizationId, s.now())
 	}
 	return &GatewayProjectionPublishAttemptList{
 		GeneratedAt: formatGatewayProjectionObservabilityTime(s.now()),
@@ -151,7 +198,67 @@ func (s GatewayProjectionPublishAttemptHistoryService) Detail(query GatewayProje
 	if err != nil || attempt == nil {
 		return attempt, err
 	}
-	return cloneGatewayProjectionPublishAttempt(attempt), nil
+	return enrichGatewayProjectionPublishAttempt(cloneGatewayProjectionPublishAttempt(attempt), query.OrganizationId, s.now()), nil
+}
+
+func (s GatewayProjectionPublishAttemptHistoryService) RetentionReadiness(query GatewayProjectionPublishAttemptQuery) (*GatewayProjectionPublishAttemptRetentionReadiness, error) {
+	query = normalizeGatewayProjectionPublishAttemptQuery(query)
+	attempts, err := s.store().ListGatewayProjectionPublishAttempts(query)
+	if err != nil {
+		return nil, err
+	}
+	now := s.now()
+	reasonCounts := map[string]int{}
+	samples := []GatewayProjectionPublishAttemptRetentionSample{}
+	var oldest time.Time
+	var newest time.Time
+	cleanupEligibleCount := 0
+	for _, raw := range attempts {
+		attempt := enrichGatewayProjectionPublishAttempt(cloneGatewayProjectionPublishAttempt(raw), query.OrganizationId, now)
+		reasonCounts[attempt.Retention.CleanupReason]++
+		if attempt.Retention.CleanupEligible {
+			cleanupEligibleCount++
+		}
+		if !attempt.CreatedAt.IsZero() {
+			if oldest.IsZero() || attempt.CreatedAt.Before(oldest) {
+				oldest = attempt.CreatedAt
+			}
+			if newest.IsZero() || attempt.CreatedAt.After(newest) {
+				newest = attempt.CreatedAt
+			}
+		}
+		if len(samples) < 5 {
+			samples = append(samples, GatewayProjectionPublishAttemptRetentionSample{
+				AttemptId:         attempt.AttemptId,
+				Source:            attempt.Source,
+				Status:            attempt.Status,
+				CreatedAt:         formatGatewayProjectionObservabilityTime(attempt.CreatedAt),
+				CleanupEligible:   attempt.Retention.CleanupEligible,
+				CleanupReason:     attempt.Retention.CleanupReason,
+				ProjectionBatchId: attempt.ProjectionBatchId,
+				SourceVersion:     attempt.SourceVersion,
+			})
+		}
+	}
+	return &GatewayProjectionPublishAttemptRetentionReadiness{
+		GeneratedAt: formatGatewayProjectionObservabilityTime(now),
+		Filters: GatewayProjectionPublishAttemptFilters{
+			OrganizationId: query.OrganizationId,
+			Source:         query.Source,
+			Status:         query.Status,
+			From:           formatGatewayProjectionObservabilityTime(query.From),
+			To:             formatGatewayProjectionObservabilityTime(query.To),
+			Limit:          query.Limit,
+		},
+		RetentionWindowSeconds: int64(defaultGatewayProjectionPublishAttemptRetentionWindow / time.Second),
+		Total:                  len(attempts),
+		CleanupEligibleCount:   cleanupEligibleCount,
+		BlockedCount:           len(attempts) - cleanupEligibleCount,
+		ReasonCounts:           reasonCounts,
+		OldestAttemptAt:        formatGatewayProjectionObservabilityTime(oldest),
+		NewestAttemptAt:        formatGatewayProjectionObservabilityTime(newest),
+		Samples:                samples,
+	}, nil
 }
 
 func (s GatewayProjectionPublishAttemptHistoryService) store() GatewayProjectionPublishAttemptStore {
@@ -311,6 +418,55 @@ func cloneGatewayProjectionPublishAttempt(attempt *GatewayProjectionPublishAttem
 		_ = json.Unmarshal([]byte(attempt.MetadataJSON), &cloned.Metadata)
 	}
 	return &cloned
+}
+
+func enrichGatewayProjectionPublishAttempt(attempt *GatewayProjectionPublishAttempt, organizationID string, now time.Time) *GatewayProjectionPublishAttempt {
+	if attempt == nil {
+		return nil
+	}
+	attempt.Retention = buildGatewayProjectionPublishAttemptRetention(*attempt, now)
+	attempt.ReceiptQueryHint = buildGatewayProjectionReceiptQueryHint(*attempt, organizationID)
+	return attempt
+}
+
+func buildGatewayProjectionPublishAttemptRetention(attempt GatewayProjectionPublishAttempt, now time.Time) GatewayProjectionPublishAttemptRetention {
+	retention := GatewayProjectionPublishAttemptRetention{
+		WindowSeconds: int64(defaultGatewayProjectionPublishAttemptRetentionWindow / time.Second),
+		CleanupReason: "within_retention_window",
+	}
+	if attempt.CreatedAt.IsZero() {
+		retention.CleanupReason = "created_at_missing"
+		return retention
+	}
+	expiresAt := attempt.CreatedAt.UTC().Add(defaultGatewayProjectionPublishAttemptRetentionWindow)
+	retention.ExpiresAt = formatGatewayProjectionObservabilityTime(expiresAt)
+	if now.UTC().Before(expiresAt) {
+		return retention
+	}
+	// 过期记录仍需要保留可排障线索；缺少 receipt 查询键和失败分类时只标记 blocked，不给 cleanup 候选。
+	if attempt.ProjectionBatchId == "" && attempt.OrgVersion <= 0 && attempt.SourceVersion == "" && attempt.FailureCategory == "" && attempt.ErrorCode == "" {
+		retention.CleanupReason = "retention_expired_missing_diagnostic_summary"
+		return retention
+	}
+	retention.CleanupEligible = true
+	retention.CleanupReason = "retention_expired_with_diagnostic_summary"
+	return retention
+}
+
+func buildGatewayProjectionReceiptQueryHint(attempt GatewayProjectionPublishAttempt, organizationID string) GatewayProjectionReceiptQueryHint {
+	organizationID = firstNonEmpty(normalizeGatewayProjectionString(organizationID), normalizeGatewayProjectionString(attempt.OrganizationId))
+	hint := GatewayProjectionReceiptQueryHint{
+		OrganizationId:    organizationID,
+		ProjectionBatchId: normalizeGatewayProjectionString(attempt.ProjectionBatchId),
+		OrgVersion:        attempt.OrgVersion,
+		SourceVersion:     normalizeGatewayProjectionString(attempt.SourceVersion),
+	}
+	hint.Available = hint.ProjectionBatchId != "" || hint.OrgVersion > 0 || hint.SourceVersion != ""
+	if !hint.Available {
+		hint.Latest = true
+		hint.UnavailableReason = "projection_lineage_missing"
+	}
+	return hint
 }
 
 func cloneGatewayProjectionAttemptMetadata(values map[string]string) map[string]string {

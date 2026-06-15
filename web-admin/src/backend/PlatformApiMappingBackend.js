@@ -217,6 +217,32 @@ export function getGatewayProjectionPublishAttempt(organization, attemptId) {
   }).then(res => res.json());
 }
 
+export function getGatewayProjectionPublishAttemptRetentionReadiness(organization, options = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.source) {
+    query.set("source", options.source);
+  }
+  if (options.status) {
+    query.set("status", options.status);
+  }
+  if (options.from) {
+    query.set("from", options.from);
+  }
+  if (options.to) {
+    query.set("to", options.to);
+  }
+  if (options.limit) {
+    query.set("limit", options.limit);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/gateway-projection/publish-attempt-retention-readiness?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
 export function getGatewayProjectionRunReadiness(organization, options = {}) {
   const query = new URLSearchParams();
   query.set("organization", organization || "");

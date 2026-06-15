@@ -158,6 +158,39 @@ func (c *ApiController) GetGatewayProjectionPublishAttempt() {
 	c.ResponseOk(result)
 }
 
+// GetGatewayProjectionPublishAttemptRetentionReadiness
+// @Title GetGatewayProjectionPublishAttemptRetentionReadiness
+// @Tag Gateway Projection Observability API
+// @Description 获取 admin-to-gateway projection publish attempt retention 只读 readiness；该响应不执行 cleanup。
+// @Param organization query string true "Admin 组织 ID"
+// @Param source query string false "manual 或 scheduled"
+// @Param status query string false "ok 或 error"
+// @Param from query string false "RFC3339 开始时间"
+// @Param to query string false "RFC3339 结束时间"
+// @Param limit query int false "最大统计数量"
+// @Success 200 {object} object.GatewayProjectionPublishAttemptRetentionReadiness "projection publish attempt retention readiness 脱敏摘要"
+// @router /gateway-projection/publish-attempt-retention-readiness [get]
+func (c *ApiController) GetGatewayProjectionPublishAttemptRetentionReadiness() {
+	organization := strings.TrimSpace(c.Ctx.Input.Query("organization"))
+	if organization == "" {
+		c.ResponseError("gateway projection organization is required")
+		return
+	}
+	result, err := (object.GatewayProjectionPublishAttemptHistoryService{}).RetentionReadiness(object.GatewayProjectionPublishAttemptQuery{
+		OrganizationId: organization,
+		Source:         c.Ctx.Input.Query("source"),
+		Status:         c.Ctx.Input.Query("status"),
+		From:           parseGatewayProjectionQueryTime(c.Ctx.Input.Query("from")),
+		To:             parseGatewayProjectionQueryTime(c.Ctx.Input.Query("to")),
+		Limit:          parseGatewayProjectionQueryInt(c.Ctx.Input.Query("limit")),
+	})
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(result)
+}
+
 // PublishGatewayProjectionManually
 // @Title PublishGatewayProjectionManually
 // @Tag Gateway Projection Observability API

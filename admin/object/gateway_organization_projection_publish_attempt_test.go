@@ -77,6 +77,12 @@ func TestGatewayProjectionPublishAttemptHistoryRecordsAndFilters(t *testing.T) {
 	if list.Total != 1 || list.Attempts[0].TraceId != "trace-a" || list.Attempts[0].SkippedByReason[GatewayProjectionSkipMappingMissing] != 3 {
 		t.Fatalf("List() = %#v, want one manual ok attempt with skipped summary", list)
 	}
+	if !list.Attempts[0].ReceiptQueryHint.Available || list.Attempts[0].ReceiptQueryHint.ProjectionBatchId != "batch-a" {
+		t.Fatalf("receipt hint = %#v, want available hint from projection identifiers", list.Attempts[0].ReceiptQueryHint)
+	}
+	if list.Attempts[0].Retention.WindowSeconds == 0 || list.Attempts[0].Retention.CleanupReason == "" {
+		t.Fatalf("retention = %#v, want populated read-only retention metadata", list.Attempts[0].Retention)
+	}
 
 	detail, err := service.Detail(GatewayProjectionPublishAttemptQuery{AttemptId: list.Attempts[0].AttemptId, OrganizationId: "org-a"})
 	if err != nil {
@@ -90,6 +96,77 @@ func TestGatewayProjectionPublishAttemptHistoryRecordsAndFilters(t *testing.T) {
 		t.Fatalf("marshal detail: %v", err)
 	}
 	assertDoesNotContainAny(t, string(raw), "projection-secret", "Authorization", "Cookie", "gateway.example.invalid")
+}
+
+func TestGatewayProjectionPublishAttemptRetentionReadinessSummarizesCleanupCandidates(t *testing.T) {
+	now := time.Date(2026, 6, 15, 13, 20, 0, 0, time.UTC)
+	attemptStore := &memoryGatewayProjectionPublishAttemptStore{
+		records: []*GatewayProjectionPublishAttempt{
+			{
+				AttemptId:         "attempt-old",
+				OrganizationId:    "org-a",
+				Source:            GatewayProjectionPublishAttemptSourceManual,
+				Status:            "ok",
+				ProjectionBatchId: "batch-old",
+				OrgVersion:        1001,
+				SourceVersion:     "orgv-old",
+				CreatedAt:         now.Add(-31 * 24 * time.Hour),
+			},
+			{
+				AttemptId:      "attempt-new",
+				OrganizationId: "org-a",
+				Source:         GatewayProjectionPublishAttemptSourceScheduled,
+				Status:         "error",
+				CreatedAt:      now.Add(-time.Hour),
+			},
+			{
+				AttemptId:      "attempt-expired-missing-summary",
+				OrganizationId: "org-a",
+				Source:         GatewayProjectionPublishAttemptSourceScheduled,
+				Status:         "ok",
+				CreatedAt:      now.Add(-32 * 24 * time.Hour),
+			},
+			{
+				AttemptId:      "attempt-other-org",
+				OrganizationId: "org-b",
+				Source:         GatewayProjectionPublishAttemptSourceManual,
+				Status:         "ok",
+				CreatedAt:      now.Add(-31 * 24 * time.Hour),
+			},
+		},
+	}
+	service := GatewayProjectionPublishAttemptHistoryService{Store: attemptStore, Now: func() time.Time { return now }}
+	readiness, err := service.RetentionReadiness(GatewayProjectionPublishAttemptQuery{OrganizationId: "org-a", Limit: 20})
+	if err != nil {
+		t.Fatalf("RetentionReadiness() error = %v", err)
+	}
+	if readiness.Total != 3 || readiness.CleanupEligibleCount != 1 || readiness.BlockedCount != 2 {
+		t.Fatalf("readiness counts = %#v, want total=3 eligible=1 blocked=2", readiness)
+	}
+	if readiness.ReasonCounts["retention_expired_with_diagnostic_summary"] != 1 ||
+		readiness.ReasonCounts["within_retention_window"] != 1 ||
+		readiness.ReasonCounts["retention_expired_missing_diagnostic_summary"] != 1 {
+		t.Fatalf("reason counts = %#v, want expired eligible, expired blocked and within window", readiness.ReasonCounts)
+	}
+	if len(readiness.Samples) != 3 || readiness.Samples[0].AttemptId == "" {
+		t.Fatalf("samples = %#v, want sanitized samples", readiness.Samples)
+	}
+	raw, err := json.Marshal(readiness)
+	if err != nil {
+		t.Fatalf("marshal readiness: %v", err)
+	}
+	assertDoesNotContainAny(t, string(raw), "projection-secret", "Authorization", "Cookie", "gateway.example.invalid")
+}
+
+func TestGatewayProjectionPublishAttemptReceiptHintHandlesMissingLineage(t *testing.T) {
+	hint := buildGatewayProjectionReceiptQueryHint(GatewayProjectionPublishAttempt{OrganizationId: "org-a"}, "")
+	if hint.Available || !hint.Latest || hint.UnavailableReason != "projection_lineage_missing" {
+		t.Fatalf("hint = %#v, want unavailable latest fallback", hint)
+	}
+	retention := buildGatewayProjectionPublishAttemptRetention(GatewayProjectionPublishAttempt{}, time.Now().UTC())
+	if retention.CleanupEligible || retention.CleanupReason != "created_at_missing" {
+		t.Fatalf("retention = %#v, want missing created_at blocked", retention)
+	}
 }
 
 func TestGatewayProjectionPublishAttemptHistoryHandlesLimitsMissingAndRecordFailure(t *testing.T) {
@@ -152,6 +229,9 @@ func TestGatewayProjectionPublishAttemptHelpersCoverDefensiveBranches(t *testing
 	}
 	if got := cloneGatewayProjectionPublishAttempt(nil); got != nil {
 		t.Fatalf("clone nil = %#v, want nil", got)
+	}
+	if got := enrichGatewayProjectionPublishAttempt(nil, "org-a", time.Now()); got != nil {
+		t.Fatalf("enrich nil = %#v, want nil", got)
 	}
 	cloned := cloneGatewayProjectionPublishAttempt(&GatewayProjectionPublishAttempt{
 		SkippedByReasonJSON: `{"mapping_missing":2}`,

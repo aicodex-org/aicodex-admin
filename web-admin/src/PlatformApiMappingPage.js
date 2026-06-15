@@ -84,6 +84,12 @@ const publishAttemptStatusLabels = {
   ok: "成功",
   error: "失败",
 };
+const publishAttemptCleanupReasonLabels = {
+  within_retention_window: "保留期内",
+  retention_expired_with_diagnostic_summary: "保留期已过且有脱敏摘要",
+  retention_expired_missing_diagnostic_summary: "保留期已过但缺少排障摘要",
+  created_at_missing: "缺少创建时间",
+};
 const titleTips = {
   platformApiMappings: "维护认证中心组织/账号到 aicodex-api 业务组织、网关账号和用量身份的权威映射。",
   organizationMapping: "维护平台组织到 aicodex-api 业务组织 UUID 的一等映射。只有“已确认”才会作为运行时权威来源。",
@@ -111,6 +117,10 @@ function getReadinessCategoryOptions() {
     Setting.getOption("全部 readiness", ""),
     ...readinessCategories.map(category => Setting.getOption(getReadinessCategoryLabel(category), category)),
   ];
+}
+
+function getPublishAttemptCleanupReasonLabel(reason) {
+  return publishAttemptCleanupReasonLabels[reason] || reason || "-";
 }
 
 function normalizeMappingSource(source) {
@@ -157,6 +167,7 @@ class PlatformApiMappingPage extends React.Component {
       ingestionStatusLoading: false,
       manualPublishing: false,
       attemptsLoading: false,
+      retentionReadinessLoading: false,
       attemptDetailLoading: false,
       savingKey: "",
       userKeyword: "",
@@ -168,6 +179,7 @@ class PlatformApiMappingPage extends React.Component {
       ingestionStatus: null,
       manualPublishResult: null,
       publishAttempts: [],
+      retentionReadiness: null,
       attemptSource: "",
       attemptStatus: "",
       attemptTimeWindow: "",
@@ -345,8 +357,37 @@ class PlatformApiMappingPage extends React.Component {
         attemptStatus: status,
         attemptTimeWindow: timeWindow,
       });
+      this.refreshGatewayProjectionPublishAttemptRetentionReadiness(organization, {source, status, timeWindow});
     }).catch(error => {
       this.setState({attemptsLoading: false});
+      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+    });
+  }
+
+  refreshGatewayProjectionPublishAttemptRetentionReadiness(organization = this.state.organization, options = {}) {
+    if (!organization) {
+      return Promise.resolve();
+    }
+    const source = options.source !== undefined ? options.source : this.state.attemptSource;
+    const status = options.status !== undefined ? options.status : this.state.attemptStatus;
+    const timeWindow = options.timeWindow !== undefined ? options.timeWindow : this.state.attemptTimeWindow;
+
+    this.setState({retentionReadinessLoading: true});
+    return PlatformApiMappingBackend.getGatewayProjectionPublishAttemptRetentionReadiness(organization, {
+      source,
+      status,
+      from: this.getAttemptFromTime(timeWindow),
+      limit: 100,
+    }).then((res) => {
+      if (res.status === "error") {
+        Setting.showMessage("error", res.msg);
+      }
+      this.setState({
+        retentionReadinessLoading: false,
+        retentionReadiness: res.status === "ok" ? res.data : null,
+      });
+    }).catch(error => {
+      this.setState({retentionReadinessLoading: false});
       Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
     });
   }
@@ -405,6 +446,7 @@ class PlatformApiMappingPage extends React.Component {
       ingestionStatus: null,
       manualPublishResult: null,
       publishAttempts: [],
+      retentionReadiness: null,
       attemptSource: "",
       attemptStatus: "",
       attemptTimeWindow: "",
@@ -706,6 +748,21 @@ class PlatformApiMappingPage extends React.Component {
     });
   }
 
+  queryGatewayReceiptFromAttempt(detail = this.state.attemptDetail || {}) {
+    const hint = detail.receiptQueryHint || {};
+    if (!hint.available) {
+      return;
+    }
+
+    this.refreshGatewayProjectionIngestionStatus(hint.organizationId || this.state.organization, {
+      latest: hint.latest,
+      projectionBatchId: hint.projectionBatchId,
+      orgVersion: hint.orgVersion,
+      sourceVersion: hint.sourceVersion,
+    });
+    this.setState({attemptDetailVisible: false});
+  }
+
   getManualPublishDisabledReasons() {
     const readiness = this.state.readiness;
     const counts = readiness?.counts || {};
@@ -746,6 +803,7 @@ class PlatformApiMappingPage extends React.Component {
       this.refreshGatewayProjectionRunReadiness();
       this.refreshGatewayProjectionIngestionStatus();
       this.refreshGatewayProjectionPublishAttempts();
+      this.refreshGatewayProjectionPublishAttemptRetentionReadiness();
     }).catch(error => {
       this.setState({manualPublishing: false});
       Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
@@ -907,7 +965,11 @@ class PlatformApiMappingPage extends React.Component {
 
   renderPublishAttemptHistory() {
     const attempts = this.state.publishAttempts || [];
+    const retentionReadiness = this.state.retentionReadiness;
+    const reasonCounts = retentionReadiness?.reasonCounts || {};
     const detail = this.state.attemptDetail || {};
+    const detailRetention = detail.retention || {};
+    const receiptHint = detail.receiptQueryHint || {};
     const skippedByReason = detail.skippedByReason || {};
     const metadata = detail.metadata || {};
     const columns = [
@@ -975,6 +1037,22 @@ class PlatformApiMappingPage extends React.Component {
         render: value => `${value || 0} ms`,
       },
       {
+        title: "Retention",
+        width: 240,
+        render: (_, record) => {
+          const retention = record.retention || {};
+          return (
+            <Space direction="vertical" size={0}>
+              <Text type={retention.cleanupEligible ? "warning" : "secondary"}>
+                cleanupEligible: {String(!!retention.cleanupEligible)}
+              </Text>
+              <Text type="secondary">{getPublishAttemptCleanupReasonLabel(retention.cleanupReason)}</Text>
+              {retention.expiresAt && <Text type="secondary">expiresAt: {retention.expiresAt}</Text>}
+            </Space>
+          );
+        },
+      },
+      {
         title: i18next.t("general:Action"),
         width: 100,
         render: (_, record) => <Button onClick={() => this.openPublishAttemptDetail(record)}>详情</Button>,
@@ -1030,6 +1108,24 @@ class PlatformApiMappingPage extends React.Component {
           message="Attempt history 只记录 Admin producer 脱敏诊断，不是 gateway authorization facts。"
           style={{marginBottom: 12}}
         />
+        <Alert
+          type={retentionReadiness?.cleanupEligibleCount > 0 ? "warning" : "info"}
+          showIcon
+          message="Publish attempt retention readiness"
+          description={
+            <Space wrap>
+              <Tag>total: {retentionReadiness?.total || 0}</Tag>
+              <Tag color="orange">cleanupEligible: {retentionReadiness?.cleanupEligibleCount || 0}</Tag>
+              <Tag>blocked: {retentionReadiness?.blockedCount || 0}</Tag>
+              <Tag>windowSeconds: {retentionReadiness?.retentionWindowSeconds || 0}</Tag>
+              {Object.entries(reasonCounts).map(([key, value]) => (
+                <Tag key={key}>{getPublishAttemptCleanupReasonLabel(key)}: {value}</Tag>
+              ))}
+              <Text type="secondary">只读展示 cleanup readiness，不执行删除。</Text>
+            </Space>
+          }
+          style={{marginBottom: 12}}
+        />
         <Table
           rowKey={(record) => record.attemptId}
           columns={columns}
@@ -1037,7 +1133,7 @@ class PlatformApiMappingPage extends React.Component {
           pagination={false}
           loading={this.state.attemptsLoading}
           size="small"
-          scroll={{x: 1500}}
+          scroll={{x: 1750}}
         />
         <Drawer
           width={560}
@@ -1071,6 +1167,38 @@ class PlatformApiMappingPage extends React.Component {
               <Tag>tombstone: {detail.tombstoneSubjectCount || 0}</Tag>
               <Tag>skipped: {detail.skippedSubjectCount || 0}</Tag>
             </Space>
+            <div>
+              <Text strong>Retention</Text>
+              <div style={{marginTop: 8}}>
+                <Space wrap>
+                  <Tag>cleanupEligible: {String(!!detailRetention.cleanupEligible)}</Tag>
+                  <Tag>{getPublishAttemptCleanupReasonLabel(detailRetention.cleanupReason)}</Tag>
+                  <Tag>windowSeconds: {detailRetention.windowSeconds || 0}</Tag>
+                  {detailRetention.expiresAt && <Tag>expiresAt: {detailRetention.expiresAt}</Tag>}
+                </Space>
+              </div>
+            </div>
+            <div>
+              <Text strong>Gateway receipt query hint</Text>
+              <div style={{marginTop: 8}}>
+                <Space wrap>
+                  <Tag color={receiptHint.available ? "green" : "orange"}>available: {String(!!receiptHint.available)}</Tag>
+                  <Tag>latest: {String(!!receiptHint.latest)}</Tag>
+                  {receiptHint.projectionBatchId && <Tag>batch: {receiptHint.projectionBatchId}</Tag>}
+                  {receiptHint.orgVersion && <Tag>orgVersion: {receiptHint.orgVersion}</Tag>}
+                  {receiptHint.sourceVersion && <Tag>sourceVersion: {receiptHint.sourceVersion}</Tag>}
+                  {receiptHint.unavailableReason && <Tag>{receiptHint.unavailableReason}</Tag>}
+                  <Button
+                    size="small"
+                    disabled={!receiptHint.available}
+                    onClick={() => this.queryGatewayReceiptFromAttempt(detail)}
+                  >
+                    查询 Gateway receipt
+                  </Button>
+                </Space>
+              </div>
+              <Text type="secondary">Receipt query hint 仅用于查询 Gateway owner 诊断，不代表 Admin 已确认运行时授权成功。</Text>
+            </div>
             <div>
               <Text strong>Skipped reasons</Text>
               <div style={{marginTop: 8}}>
