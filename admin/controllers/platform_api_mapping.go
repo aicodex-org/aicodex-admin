@@ -134,6 +134,46 @@ func (c *ApiController) GetOrganizationMasterDataQualityReadiness() {
 	c.ResponseOk(readiness)
 }
 
+// GetOrganizationDirectoryQuality
+// @Title GetOrganizationDirectoryQuality
+// @Tag Platform API Mapping API
+// @Description 获取 Admin 组织目录质量明细；该响应只用于 producer 排障，不是 gateway 授权事实。
+// @router /organization-master-data-quality/directory [get]
+func (c *ApiController) GetOrganizationDirectoryQuality() {
+	result, err := object.GetOrganizationDirectoryQuality(newOrganizationDirectoryQualityQuery(map[string]string{
+		"organization":           c.Ctx.Input.Query("organization"),
+		"entityType":             c.Ctx.Input.Query("entityType"),
+		"keyword":                c.Ctx.Input.Query("keyword"),
+		"sourceType":             c.Ctx.Input.Query("sourceType"),
+		"sourceConnectionIdHash": c.Ctx.Input.Query("sourceConnectionIdHash"),
+		"qualityStatus":          c.Ctx.Input.Query("qualityStatus"),
+		"reasonCode":             c.Ctx.Input.Query("reasonCode"),
+		"lifecycleStatus":        c.Ctx.Input.Query("lifecycleStatus"),
+		"p":                      c.Ctx.Input.Query("p"),
+		"pageSize":               c.Ctx.Input.Query("pageSize"),
+	}))
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(result)
+}
+
+func newOrganizationDirectoryQualityQuery(values map[string]string) object.OrganizationDirectoryQualityQuery {
+	return object.OrganizationDirectoryQualityQuery{
+		OrganizationId:         values["organization"],
+		EntityType:             values["entityType"],
+		Keyword:                values["keyword"],
+		SourceType:             values["sourceType"],
+		SourceConnectionIdHash: values["sourceConnectionIdHash"],
+		QualityStatus:          values["qualityStatus"],
+		ReasonCode:             values["reasonCode"],
+		LifecycleStatus:        values["lifecycleStatus"],
+		Page:                   util.ParseInt(values["p"]),
+		PageSize:               util.ParseInt(values["pageSize"]),
+	}
+}
+
 // UpdatePlatformApiUserMapping
 // @Title UpdatePlatformApiUserMapping
 // @Tag Platform API Mapping API

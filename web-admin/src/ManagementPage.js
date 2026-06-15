@@ -87,6 +87,7 @@ import SyncerEditPage from "./SyncerEditPage";
 import WecomOrganizationSyncPage from "./WecomOrganizationSyncPage";
 import FeishuOrganizationSyncPage from "./FeishuOrganizationSyncPage";
 import OrganizationTreeOperationsPage from "./OrganizationTreeOperationsPage";
+import OrganizationDirectoryQualityPage from "./OrganizationDirectoryQualityPage";
 import PlatformApiMappingPage from "./PlatformApiMappingPage";
 import WebhookListPage from "./WebhookListPage";
 import WebhookEventListPage from "./WebhookEventListPage";
@@ -433,6 +434,7 @@ function ManagementPage(props) {
           {key: "/wecom-org-sync", label: "企业微信同步", to: "/wecom-org-sync", matchPrefixes: ["/wecom-org-sync"]},
           {key: "/feishu-org-sync", label: "飞书同步", to: "/feishu-org-sync", matchPrefixes: ["/feishu-org-sync"]},
           {key: "/organization-tree-operations", label: "组织树运营", to: "/organization-tree-operations", matchPrefixes: ["/organization-tree-operations"], visible: isAdmin},
+          {key: "/organization-directory-quality", label: "组织目录质量", to: "/organization-directory-quality", matchPrefixes: ["/organization-directory-quality"], visible: isAdmin},
           {key: "/platform-api-mappings", label: "API 网关映射", to: "/platform-api-mappings", matchPrefixes: ["/platform-api-mappings"], visible: isAdmin},
           {key: "/webhooks", label: i18next.t("general:Webhooks"), to: "/webhooks", matchPrefixes: ["/webhooks"]},
           {key: "/webhook-events", label: i18next.t("general:Webhook Events"), to: "/webhook-events", matchPrefixes: ["/webhook-events"]},
@@ -580,6 +582,7 @@ function ManagementPage(props) {
         <Route exact path="/wecom-org-sync" render={(props) => renderLoginIfNotLoggedIn(<WecomOrganizationSyncPage account={account} {...props} />)} />
         <Route exact path="/feishu-org-sync" render={(props) => renderLoginIfNotLoggedIn(<FeishuOrganizationSyncPage account={account} {...props} />)} />
         <Route exact path="/organization-tree-operations" render={(props) => renderLoginIfNotLoggedIn(<OrganizationTreeOperationsPage account={account} {...props} />)} />
+        <Route exact path="/organization-directory-quality" render={(props) => renderLoginIfNotLoggedIn(<OrganizationDirectoryQualityPage account={account} {...props} />)} />
         <Route exact path="/platform-api-mappings" render={(props) => renderLoginIfNotLoggedIn(<PlatformApiMappingPage account={account} {...props} />)} />
         <Route exact path="/transactions" render={(props) => renderLoginIfNotLoggedIn(<TransactionListPage account={account} {...props} />)} />
         <Route exact path="/transactions/:organizationName/:transactionName" render={(props) => renderLoginIfNotLoggedIn(<TransactionEditPage account={account} {...props} />)} />

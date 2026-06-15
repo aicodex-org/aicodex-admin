@@ -100,6 +100,16 @@ func TestGetOrganizationTreeOperationsObjectUsesOrganization(t *testing.T) {
 	}
 }
 
+func TestGetOrganizationDirectoryQualityObjectUsesOrganizationQuery(t *testing.T) {
+	owner, name, ok := getModuleOrganizationObject("/api/organization-master-data-quality/directory", http.MethodGet, "engineering", nil)
+	if !ok {
+		t.Fatalf("expected organization directory quality object to be parsed")
+	}
+	if owner != "engineering" || name != "" {
+		t.Fatalf("directory quality object = %q/%q, want engineering/<empty>", owner, name)
+	}
+}
+
 func TestResolveModuleOrganizationQueryFallsBackToCurrentUserOwnerForScopeAudit(t *testing.T) {
 	organization := resolveModuleOrganizationQuery("/api/org-management-scope/current", "", "engineering/alice")
 	if organization != "engineering" {

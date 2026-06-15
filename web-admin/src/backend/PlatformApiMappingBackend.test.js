@@ -3,6 +3,7 @@
 import {
   getGatewayProjectionIngestionStatus,
   getGatewayProjectionRunReadiness,
+  getOrganizationDirectoryQuality,
   getOrganizationMasterDataQualityReadiness,
   getPlatformApiOrganizationMappings,
   getPlatformApiUserMappingReadiness,
@@ -41,6 +42,17 @@ test("loads platform api mappings with explicit organization query", async() => 
     projectionBatchId: "batch-synthetic",
   });
   await getOrganizationMasterDataQualityReadiness("org-a");
+  await getOrganizationDirectoryQuality("org-a", {
+    entityType: "user",
+    keyword: "alice",
+    sourceType: "wecom",
+    sourceConnectionIdHash: "sha256:source",
+    qualityStatus: "blocked",
+    reasonCode: "mapping_missing",
+    lifecycleStatus: "ACTIVE",
+    current: 3,
+    pageSize: 50,
+  });
   await getGatewayProjectionIngestionStatus("org-a", {
     latest: true,
     projectionBatchId: "batch-synthetic",
@@ -96,7 +108,7 @@ test("loads platform api mappings with explicit organization query", async() => 
   );
   expect(global.fetch).toHaveBeenNthCalledWith(
     6,
-    "https://admin.example.invalid/api/gateway-projection/ingestion-status?organization=org-a&latest=true&projectionBatchId=batch-synthetic&orgVersion=202606151200&sourceVersion=orgv-synthetic",
+    "https://admin.example.invalid/api/organization-master-data-quality/directory?organization=org-a&entityType=user&keyword=alice&sourceType=wecom&sourceConnectionIdHash=sha256%3Asource&qualityStatus=blocked&reasonCode=mapping_missing&lifecycleStatus=ACTIVE&p=3&pageSize=50",
     expect.objectContaining({
       method: "GET",
       credentials: "include",
@@ -105,6 +117,15 @@ test("loads platform api mappings with explicit organization query", async() => 
   );
   expect(global.fetch).toHaveBeenNthCalledWith(
     7,
+    "https://admin.example.invalid/api/gateway-projection/ingestion-status?organization=org-a&latest=true&projectionBatchId=batch-synthetic&orgVersion=202606151200&sourceVersion=orgv-synthetic",
+    expect.objectContaining({
+      method: "GET",
+      credentials: "include",
+      headers: expect.objectContaining({"Accept-Language": "en"}),
+    })
+  );
+  expect(global.fetch).toHaveBeenNthCalledWith(
+    8,
     "https://admin.example.invalid/api/gateway-projection/manual-publish",
     expect.objectContaining({
       method: "POST",

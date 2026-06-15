@@ -93,6 +93,42 @@ export function getOrganizationMasterDataQualityReadiness(organization) {
   }).then(res => res.json());
 }
 
+export function getOrganizationDirectoryQuality(organization, options = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.entityType) {
+    query.set("entityType", options.entityType);
+  }
+  if (options.keyword) {
+    query.set("keyword", options.keyword);
+  }
+  if (options.sourceType) {
+    query.set("sourceType", options.sourceType);
+  }
+  if (options.sourceConnectionIdHash) {
+    query.set("sourceConnectionIdHash", options.sourceConnectionIdHash);
+  }
+  if (options.qualityStatus) {
+    query.set("qualityStatus", options.qualityStatus);
+  }
+  if (options.reasonCode) {
+    query.set("reasonCode", options.reasonCode);
+  }
+  if (options.lifecycleStatus) {
+    query.set("lifecycleStatus", options.lifecycleStatus);
+  }
+  if (options.current !== undefined && options.pageSize !== undefined) {
+    query.set("p", options.current);
+    query.set("pageSize", options.pageSize);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/organization-master-data-quality/directory?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
 export function publishGatewayProjectionManually(organization, options = {}) {
   return fetch(`${Setting.ServerUrl}/api/gateway-projection/manual-publish`, {
     method: "POST",

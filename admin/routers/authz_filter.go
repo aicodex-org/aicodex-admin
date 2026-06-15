@@ -189,6 +189,10 @@ func getModuleOrganizationObject(path string, method string, queryOrganization s
 		return strings.TrimSpace(queryOrganization), "", true
 	}
 
+	if path == "/api/organization-master-data-quality/directory" {
+		return strings.TrimSpace(queryOrganization), "", true
+	}
+
 	if strings.HasPrefix(path, "/api/organization-tree-operations/") {
 		if method == http.MethodGet {
 			return strings.TrimSpace(queryOrganization), "", true
