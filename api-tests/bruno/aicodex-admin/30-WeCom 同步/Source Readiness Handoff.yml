@@ -1,0 +1,87 @@
+info:
+  name: Source Readiness Handoff
+  type: http
+  seq: 3
+  tags:
+    - smoke
+    - wecom-sync
+    - source-readiness
+    - handoff
+    - readonly
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/wecom-org-sync/config?organization={{wecomOrganization}}"
+
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        if (!bru.getVar("wecomOrganization") && !bru.getEnvVar("wecomOrganization")) {
+          throw new Error("请先设置 wecomOrganization，或先执行 20-基础只读/组织列表.yml 自动发现 wecom-* 组织。")
+        }
+    - type: after-response
+      code: |-
+        function loadSourceReadinessHandoff() {
+          try {
+            return require("../scripts/wecomSourceReadinessHandoff")
+          } catch (error) {
+            return require("./scripts/wecomSourceReadinessHandoff")
+          }
+        }
+
+        function parseJsonVar(name) {
+          const raw = bru.getVar(name) || bru.getEnvVar(name)
+          if (!raw) {
+            return undefined
+          }
+          return typeof raw === "string" ? JSON.parse(raw) : raw
+        }
+
+        function boolVar(name) {
+          return String(bru.getVar(name) || bru.getEnvVar(name) || "").toLowerCase() === "true"
+        }
+
+        function sanitizeConfigResponse(json) {
+          const config = json?.data?.config || {}
+          return {
+            status: json?.status,
+            data: {
+              organization: json?.data?.organization ? "present" : "",
+              isConfigured: json?.data?.isConfigured === true,
+              config: {
+                organization: config.organization ? "present" : "",
+                corpId: config.corpId ? "present" : "",
+                addressBookSecret: config.addressBookSecret ? "***" : "",
+                isEnabled: config.isEnabled === true,
+              },
+            },
+          }
+        }
+
+        const status = res.getStatus()
+        const body = res.getBody()
+        const json = typeof body === "string" ? JSON.parse(body) : body
+        if (status !== 200 || json?.status !== "ok") {
+          throw new Error(`admin WeCom source readiness 配置响应异常。status=${status} statusField=${json?.status}`)
+        }
+
+        const {createWecomSourceReadinessHandoff} = loadSourceReadinessHandoff()
+        const handoff = createWecomSourceReadinessHandoff({
+          configResponse: sanitizeConfigResponse(json),
+          runsResponse: parseJsonVar("wecomSourceReadinessRunsResponse"),
+          connectionTestResponse: parseJsonVar("wecomSourceReadinessConnectionTestResponse"),
+        }, {
+          recentSuccessWindowHours: bru.getVar("wecomSourceReadinessRecentSuccessWindowHours") || bru.getEnvVar("wecomSourceReadinessRecentSuccessWindowHours"),
+        })
+
+        console.log(JSON.stringify(handoff, null, 2))
+        if (handoff.status !== "ready" && boolVar("wecomSourceReadinessRequireReady")) {
+          throw new Error(`wecom source readiness blocked aliases=${handoff.aliases.join("|") || "none"}`)
+        }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

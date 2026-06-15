@@ -1,0 +1,66 @@
+info:
+  name: Controlled Smoke Operator Decision Handoff
+  type: http
+  seq: 11
+  tags:
+    - smoke
+    - wecom-sync
+    - source-readiness
+    - controlled-smoke
+    - operator-decision
+    - readonly
+    - local-only
+
+http:
+  method: GET
+  url: "http://127.0.0.1/__local_only_wecom_source_controlled_smoke_operator_decision_handoff__"
+
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        function loadControlledSmokeOperatorDecisionHandoff() {
+          try {
+            return require("../scripts/wecomSourceControlledSmokeOperatorDecisionHandoff")
+          } catch (error) {
+            return require("./scripts/wecomSourceControlledSmokeOperatorDecisionHandoff")
+          }
+        }
+
+        function parseJsonVar(name) {
+          const raw = bru.getVar(name) || bru.getEnvVar(name)
+          if (!raw) {
+            return undefined
+          }
+          return typeof raw === "string" ? JSON.parse(raw) : raw
+        }
+
+        function boolVar(name) {
+          return String(bru.getVar(name) || bru.getEnvVar(name) || "").toLowerCase() === "true"
+        }
+
+        const {createWecomSourceControlledSmokeOperatorDecisionHandoff} = loadControlledSmokeOperatorDecisionHandoff()
+        const handoff = createWecomSourceControlledSmokeOperatorDecisionHandoff({
+          preflightSummary: parseJsonVar("wecomSourceControlledSmokeOperatorDecisionPreflightSummary"),
+          executionHandoffSummary: parseJsonVar("wecomSourceControlledSmokeOperatorDecisionExecutionHandoff"),
+          resultEvidenceHandoffSummary: parseJsonVar("wecomSourceControlledSmokeOperatorDecisionResultEvidenceHandoff"),
+          operatorRemediationHandoffSummary: parseJsonVar("wecomSourceControlledSmokeOperatorDecisionRemediationHandoff"),
+          operatorTriageHandoffSummary: parseJsonVar("wecomSourceControlledSmokeOperatorDecisionTriageHandoff"),
+          operatorMetadata: parseJsonVar("wecomSourceControlledSmokeOperatorDecisionMetadata"),
+          operatorNote: bru.getVar("wecomSourceControlledSmokeOperatorDecisionNote") || bru.getEnvVar("wecomSourceControlledSmokeOperatorDecisionNote"),
+        }, {
+          sourceAlias: bru.getVar("wecomSourceControlledSmokeOperatorDecisionSourceAlias") || bru.getEnvVar("wecomSourceControlledSmokeOperatorDecisionSourceAlias") || "bruno-wecom-source-controlled-smoke-operator-decision-handoff",
+        })
+
+        console.log(JSON.stringify(handoff, null, 2))
+        if (handoff.status !== "ready-for-operator-decision-handoff" && boolVar("wecomSourceControlledSmokeOperatorDecisionRequireReady")) {
+          throw new Error(`wecom source controlled smoke operator decision handoff blocked status=${handoff.status} blocker=${handoff.blockerAlias}`)
+        }
+
+        throw new Error(`local-only WeCom source controlled smoke operator decision handoff completed status=${handoff.status}; HTTP request intentionally aborted`)
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: false
+  maxRedirects: 0

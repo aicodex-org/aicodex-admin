@@ -1,0 +1,63 @@
+info:
+  name: Controlled Smoke Operator Triage Handoff
+  type: http
+  seq: 10
+  tags:
+    - smoke
+    - wecom-sync
+    - source-readiness
+    - controlled-smoke
+    - operator-triage
+    - readonly
+    - local-only
+
+http:
+  method: GET
+  url: "http://127.0.0.1/__local_only_wecom_source_controlled_smoke_operator_triage_handoff__"
+
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        function loadControlledSmokeOperatorTriageHandoff() {
+          try {
+            return require("../scripts/wecomSourceControlledSmokeOperatorTriageHandoff")
+          } catch (error) {
+            return require("./scripts/wecomSourceControlledSmokeOperatorTriageHandoff")
+          }
+        }
+
+        function parseJsonVar(name) {
+          const raw = bru.getVar(name) || bru.getEnvVar(name)
+          if (!raw) {
+            return undefined
+          }
+          return typeof raw === "string" ? JSON.parse(raw) : raw
+        }
+
+        function boolVar(name) {
+          return String(bru.getVar(name) || bru.getEnvVar(name) || "").toLowerCase() === "true"
+        }
+
+        const {createWecomSourceControlledSmokeOperatorTriageHandoff} = loadControlledSmokeOperatorTriageHandoff()
+        const handoff = createWecomSourceControlledSmokeOperatorTriageHandoff({
+          resultEvidenceHandoffSummary: parseJsonVar("wecomSourceControlledSmokeOperatorTriageResultEvidenceHandoff"),
+          operatorRemediationHandoffSummary: parseJsonVar("wecomSourceControlledSmokeOperatorTriageRemediationHandoff"),
+          operatorMetadata: parseJsonVar("wecomSourceControlledSmokeOperatorTriageMetadata"),
+          operatorNote: bru.getVar("wecomSourceControlledSmokeOperatorTriageNote") || bru.getEnvVar("wecomSourceControlledSmokeOperatorTriageNote"),
+        }, {
+          sourceAlias: bru.getVar("wecomSourceControlledSmokeOperatorTriageSourceAlias") || bru.getEnvVar("wecomSourceControlledSmokeOperatorTriageSourceAlias") || "bruno-wecom-source-controlled-smoke-operator-triage-handoff",
+        })
+
+        console.log(JSON.stringify(handoff, null, 2))
+        if (handoff.status !== "ready-for-operator-triage-handoff" && boolVar("wecomSourceControlledSmokeOperatorTriageRequireReady")) {
+          throw new Error(`wecom source controlled smoke operator triage handoff blocked status=${handoff.status} blocker=${handoff.blockerAlias}`)
+        }
+
+        throw new Error(`local-only WeCom source controlled smoke operator triage handoff completed status=${handoff.status}; HTTP request intentionally aborted`)
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: false
+  maxRedirects: 0

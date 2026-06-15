@@ -488,3 +488,343 @@ The system SHALL expose scheduled sync settings and recent dispatch metadata in 
 #### Scenario: Show scheduled trigger in run history
 - **WHEN** the sync run history contains a scheduled run
 - **THEN** the run history MUST allow an administrator to distinguish scheduled runs from manual runs
+
+### Requirement: WeCom source readiness handoff
+The system SHALL provide an Admin-owned, read-only WeCom source readiness handoff that lets an operator classify whether the WeCom organization sync source has the minimum readiness evidence needed before organization tree or projection follow-up work.
+
+#### Scenario: Produce sanitized source readiness handoff
+- **WHEN** an operator runs the WeCom source readiness handoff with sanitized config and runs evidence
+- **THEN** the handoff output MUST only include `status`, `aliases`, `ownerHandoffs`, `minimumUnblockConditions`, `safeNextActions`, and `evidenceShapeVersion`
+- **AND** it MUST classify evidence using stable aliases including `wecom_config_missing`, `wecom_config_disabled`, `wecom_credential_not_verified`, `wecom_latest_run_failed`, `wecom_no_recent_success`, `wecom_run_active`, and `wecom_source_ready`
+
+#### Scenario: Keep handoff read-only
+- **WHEN** the source readiness handoff runs
+- **THEN** it MUST NOT trigger manual sync, create a sync run, update sync configuration, write fixtures, query or write a real database directly, or read API, Insight, or Gateway data
+- **AND** it MUST rely only on Admin-owned read-only WeCom config/runs evidence and optional sanitized credential-verification summary
+
+#### Scenario: Fail closed on sensitive evidence
+- **WHEN** the handoff input contains unmasked secrets, tokens, cookies, private URLs, account identifiers, phone numbers, emails, full organization trees, full organization IDs, source tenant metadata, or raw response bodies
+- **THEN** the handoff MUST return a blocked sanitization alias without echoing the sensitive values
+
+#### Scenario: Do not overstate downstream readiness
+- **WHEN** the handoff returns `wecom_source_ready`
+- **THEN** operators MUST treat it only as Admin WeCom source readiness evidence
+- **AND** they MUST NOT record it as proof of non-empty organization tree readiness, Gateway projection readiness, authorization report readiness, controlled smoke success, or full-success
+
+### Requirement: WeCom source release decision guardrail
+The system SHALL provide an Admin-owned, read-only WeCom source release decision guardrail that consumes sanitized WeCom source readiness handoff evidence and produces the minimum operator-facing release decision for later organization tree read-only readiness or controlled smoke preparation.
+
+#### Scenario: Produce ready decision from sanitized source readiness handoff
+- **WHEN** the release decision guardrail receives a sanitized source readiness handoff with `wecom_source_ready`
+- **THEN** the output MUST include `decision=ready_for_org_tree_readiness`, `reasonAlias=wecom_source_ready`, `safeNextSteps`, `minimumUnblockConditions`, and `doNotProceedReasons`
+- **AND** `release=release_after_report` MUST only permit later owner read-only readiness or controlled smoke preparation
+
+#### Scenario: Preserve blocking source readiness aliases
+- **WHEN** the release decision guardrail receives `wecom_config_missing`, `wecom_config_disabled`, `wecom_credential_not_verified`, `wecom_latest_run_failed`, `wecom_no_recent_success`, `wecom_run_active`, or `sanitization_failed`
+- **THEN** the output MUST keep `decision=blocked` and preserve the stable alias as `reasonAlias`
+- **AND** it MUST expose owner handoff and minimum unblock conditions without triggering manual sync, creating sync runs, writing fixtures, querying real databases, or reading API, Insight, or Gateway data
+
+#### Scenario: Fail closed on sensitive or downstream evidence
+- **WHEN** the release decision input contains unmasked secrets, tokens, cookies, private URLs, account identifiers, phone numbers, emails, full organization trees, full organization IDs, source tenant metadata, raw response bodies, real fixture/DB details, or Gateway/API/Insight/full-success assertions
+- **THEN** the output MUST return `decision=blocked` with `reasonAlias=sanitization_failed`
+- **AND** it MUST NOT echo the sensitive or downstream values
+
+#### Scenario: Do not overstate downstream success
+- **WHEN** the release decision returns `ready_for_org_tree_readiness`
+- **THEN** operators MUST NOT record it as proof that the organization tree is non-empty, Gateway projection is publishable, authorization facts are active, API or Insight success exists, real fixtures are ready, real database state is valid, or the system is full-success
+
+### Requirement: WeCom source controlled smoke preflight MUST fail closed
+The system SHALL provide an Admin-owned, local, read-only controlled smoke preflight for WeCom source evidence before any controlled smoke attempt. The preflight SHALL consume only sanitized summary aliases for source readiness, release decision, source connection freshness/state, redaction signal, blocking alias, and operator scope.
+
+#### Scenario: Ready preflight is explicitly bounded
+- **WHEN** the preflight receives `sourceReadinessAlias=wecom_source_ready`, `releaseDecisionAlias=wecom_source_ready`, fresh source connection evidence, a redacted signal, no blocking alias, and local read-only operator scope
+- **THEN** the preflight status SHALL be `ready-for-wecom-controlled-smoke-preflight`
+- **AND** the output SHALL state that this only proves Admin WeCom source controlled smoke preparation, not non-empty organization tree readiness, Gateway/API/Insight success, authorization facts, real WeCom sync success, production readiness, or full-success
+
+#### Scenario: Missing source readiness handoff fails closed
+- **WHEN** the preflight does not receive a source readiness alias
+- **THEN** the preflight status SHALL be `missing-readiness-handoff`
+- **AND** the output SHALL direct the operator to run the Admin-owned Source Readiness Handoff before continuing
+
+#### Scenario: Missing release decision fails closed
+- **WHEN** the preflight receives source readiness evidence but no release decision alias
+- **THEN** the preflight status SHALL be `missing-release-decision`
+- **AND** the output SHALL direct the operator to run the Admin-owned Source Release Decision before continuing
+
+#### Scenario: Stale source freshness blocks controlled smoke preflight
+- **WHEN** source connection freshness/state evidence is stale, unknown, missing, disabled, failed, or otherwise not fresh
+- **THEN** the preflight status SHALL be `source-not-fresh`
+- **AND** the output SHALL direct the operator back to Admin-owned source freshness remediation without querying real databases or downstream stores
+
+#### Scenario: Redaction gaps fail closed
+- **WHEN** the input contains unmasked secrets, tokens, cookies, private URLs, account identifiers, phone numbers, emails, full organization trees, full organization IDs, source tenant metadata, raw response bodies, or explicit redaction-required aliases
+- **THEN** the preflight status SHALL be `redaction-required`
+- **AND** the output SHALL NOT echo sensitive values
+
+#### Scenario: Red line blockers stop preflight
+- **WHEN** the input contains a blocking alias, red-line alias, or an operator scope outside local read-only preflight
+- **THEN** the preflight status SHALL be `red-line-blocked`
+- **AND** the output SHALL provide owner/fallback guidance without triggering sync, writing fixtures, querying real databases, or reading API, Insight, or Gateway data
+
+#### Scenario: Downstream or full-success overclaim is rejected
+- **WHEN** the input claims real WeCom sync success, real DB state, non-empty organization tree, Gateway/API/Insight success, authorization facts, fixture readiness, publish success, production readiness, or full-success
+- **THEN** the preflight status SHALL be `overclaim-full-success`
+- **AND** the output SHALL require removing the overclaim and rerunning with sanitized source-only evidence
+
+### Requirement: WeCom source controlled smoke evidence handoff MUST fail closed
+The system SHALL provide an Admin-owned, local, read-only controlled smoke evidence handoff for WeCom source evidence. The handoff SHALL consume only sanitized readiness, release decision, and controlled smoke preflight summaries and SHALL NOT execute real controlled smoke.
+
+#### Scenario: Ready evidence handoff is explicitly bounded
+- **WHEN** the handoff receives sanitized source readiness evidence with `wecom_source_ready`, release decision evidence with `wecom_source_ready` or `ready_for_org_tree_readiness`, preflight evidence with `ready-for-wecom-controlled-smoke-preflight`, a redacted signal, no blocking alias, and local read-only evidence handoff scope
+- **THEN** the handoff status SHALL be `ready-for-controlled-smoke-evidence-handoff`
+- **AND** the output SHALL include operator next actions, empty missing prerequisites, redaction checks, hard red-line flags, and do-not-proceed reasons
+- **AND** the output SHALL state that this only proves Admin WeCom source controlled-smoke evidence handoff readiness, not non-empty organization tree readiness, Gateway/API/Insight success, authorization facts, real WeCom sync success, production readiness, or full-success
+
+#### Scenario: Missing readiness summary fails closed
+- **WHEN** the handoff does not receive a source readiness summary
+- **THEN** the handoff status SHALL be `missing-readiness-summary`
+- **AND** the output SHALL direct the operator to run the Admin-owned Source Readiness Handoff before continuing
+
+#### Scenario: Missing release summary fails closed
+- **WHEN** the handoff receives source readiness evidence but no release decision summary
+- **THEN** the handoff status SHALL be `missing-release-summary`
+- **AND** the output SHALL direct the operator to run the Admin-owned Source Release Decision before continuing
+
+#### Scenario: Missing preflight summary fails closed
+- **WHEN** the handoff receives source readiness and release decision evidence but no controlled smoke preflight summary
+- **THEN** the handoff status SHALL be `missing-preflight-summary`
+- **AND** the output SHALL direct the operator to run the Admin-owned Controlled Smoke Preflight before continuing
+
+#### Scenario: Redaction gaps fail closed
+- **WHEN** the input contains unmasked secrets, tokens, cookies, private URLs, account identifiers, phone numbers, emails, full organization trees, full organization IDs, source tenant metadata, raw response bodies, or explicit redaction-required aliases
+- **THEN** the handoff status SHALL be `redaction-required`
+- **AND** the output SHALL NOT echo sensitive values
+
+#### Scenario: Hard red-line signals stop handoff
+- **WHEN** the input contains a blocking alias, red-line alias, real environment write signal, or an operator scope outside local read-only evidence handoff
+- **THEN** the handoff status SHALL be `hard-red-line-blocked`
+- **AND** the output SHALL provide owner/fallback guidance without triggering sync, writing fixtures, querying real databases, or reading API, Insight, or Gateway data
+
+#### Scenario: Downstream or full-success overclaim is rejected
+- **WHEN** the input claims real WeCom sync success, real DB state, non-empty organization tree, Gateway/API/Insight success, authorization facts, fixture readiness, publish success, production readiness, or full-success
+- **THEN** the handoff status SHALL be `overclaim-full-success`
+- **AND** the output SHALL require removing the overclaim and rerunning with sanitized source-only evidence
+
+### Requirement: WeCom source controlled smoke operator triage handoff MUST fail closed
+The system SHALL provide an Admin-owned, local, read-only controlled smoke operator triage handoff for WeCom source evidence. The handoff SHALL consume only sanitized result evidence handoff summary, operator remediation handoff summary, operator note, and operator metadata, and SHALL output an operator-executable triage package without triggering real WeCom sync, real fixture or DB writes, provider token access, Gateway/API/Insight reads, authorization fact changes, production-like gates, or destructive data operations.
+
+#### Scenario: Sanitized result and remediation evidence allow operator triage handoff
+- **WHEN** result evidence handoff summary has `status=passed`
+- **AND** operator remediation handoff summary has `status=ready`
+- **AND** input contains only sanitized status, stable alias, counts, owner handoff limits, risk/redaction categories, and non-extrapolation boundaries
+- **THEN** the handoff SHALL return `status=ready-for-operator-triage-handoff`
+- **AND** it SHALL include `nextSteps`, `ownerHandoffLimits`, `minimumUnblockConditions`, `triagePackageMetadata`, `doNotDispatchUntil`, and `cannotInferBoundaries`
+- **AND** `cannotInferBoundaries` SHALL state that this triage package does not prove real WeCom sync success, non-empty organization tree readiness, Gateway/API/Insight success, authorization facts, production readiness, controlled smoke pass, or full-success
+
+#### Scenario: Blocked or partial result evidence remains blocked
+- **WHEN** result evidence handoff summary is missing, `partial-handoff`, blocked, failed, unknown, or otherwise not `passed`
+- **THEN** the handoff SHALL return `status=blocked`
+- **AND** it SHALL preserve stable upstream alias, owner handoff, and minimum unblock condition when available
+- **AND** it SHALL request only local sanitized result evidence collection or Admin owner remediation
+
+#### Scenario: Needs user action is preserved for operator
+- **WHEN** result evidence handoff or operator remediation handoff indicates missing prerequisites or `needs-user-action`
+- **THEN** the handoff SHALL return `status=needs-user-action`
+- **AND** it SHALL preserve stable `blockerAlias`, `remediationAlias`, owner handoff, and minimum unblock condition
+- **AND** it SHALL NOT downgrade the state to ready or claim controlled smoke success
+
+#### Scenario: Hard red-line inputs stop operator triage
+- **WHEN** input summaries, operator note, or metadata contain real WeCom sync, real controlled smoke, real fixture or DB detail, synthetic audit/projection data, Gateway/API/Insight success, authorization facts, production-like endpoint, provider token, real gate, credential-like data, or full-success claims
+- **THEN** the handoff SHALL return `status=hard-red-line`
+- **AND** `redLineFlags` SHALL include stable aliases such as `real_sync_signal`, `real_controlled_smoke_signal`, `real_fixture_signal`, `real_db_write_signal`, `synthetic_audit_projection_signal`, `downstream_success_overclaim`, `authorization_facts_overclaim`, `production_readiness_overclaim`, or `full_success_overclaim`
+- **AND** the handoff SHALL NOT trigger any real network request, sync run, fixture/DB write, gate, Gateway ingestion, API/Insight/Gateway read, provider token access, or authorization fact change
+
+#### Scenario: Sensitive values are never echoed
+- **WHEN** input contains token, Cookie, private endpoint, real account, phone, email, complete organization tree, complete organizationId, source tenant metadata, configRef, secretRef, raw response body, full diagnostics response, or other credential-like data
+- **THEN** the handoff SHALL return `status=blocked` or `status=hard-red-line`
+- **AND** it SHALL expose only stable redaction aliases, owner guidance, and minimum unblock conditions
+- **AND** it SHALL NOT echo the sensitive value or complete response
+
+#### Scenario: Unknown triage aliases remain owner scoped
+- **WHEN** sanitized input contains an unrecognized result evidence, remediation, blocker, or owner handoff alias
+- **THEN** the handoff SHALL keep the result blocked
+- **AND** owner SHALL be `admin_operator`
+- **AND** minimum unblock conditions SHALL require replacing the unknown alias with a stable Admin WeCom source handoff alias
+- **AND** the handoff SHALL NOT infer organization tree readiness, Gateway/API/Insight authorization facts, production readiness, or full-success
+
+### Requirement: WeCom source controlled smoke operator decision handoff MUST fail closed
+The system SHALL provide an Admin-owned, local, read-only controlled smoke operator decision handoff for WeCom source evidence. The handoff SHALL consume only sanitized preflight, execution, result evidence, operator remediation, operator triage, operator note, and operator metadata summaries, and SHALL output a bounded operator decision package without triggering real WeCom sync, real controlled smoke, real fixture or DB writes, provider token access, Gateway/API/Insight reads, authorization fact changes, production-like gates, or destructive data operations.
+
+#### Scenario: Sanitized ready evidence allows operator decision handoff
+- **WHEN** preflight summary has `status=ready-for-wecom-controlled-smoke-preflight`
+- **AND** execution handoff summary has `status=ready-for-controlled-smoke-execution-handoff`
+- **AND** result evidence handoff summary has `status=passed`
+- **AND** operator remediation handoff summary has `status=ready`
+- **AND** operator triage handoff summary has `status=ready-for-operator-triage-handoff`
+- **AND** all summaries are sanitized, local-only, and free of red-line flags
+- **THEN** the handoff status SHALL be `ready-for-operator-decision-handoff`
+- **AND** the output SHALL include `decisionStatus=ready-for-operator-release-decision`, decision options, next options, redaction metadata, owner handoff limits, minimum unblock conditions, and non-extrapolation boundaries
+- **AND** the output SHALL state that this only proves an Admin WeCom source local decision package can be handed off, not real WeCom sync success, non-empty organization tree readiness, Gateway/API/Insight success, authorization facts, production readiness, controlled smoke pass, or full-success
+
+#### Scenario: Missing decision prerequisites need user action
+- **WHEN** the handoff lacks preflight, execution, result evidence, operator remediation, or operator triage summary
+- **THEN** the handoff status SHALL be `needs-user-action`
+- **AND** it SHALL name the missing prerequisite and direct the operator to the corresponding local-only helper before continuing
+- **AND** it SHALL NOT trigger sync, execute controlled smoke, query real databases, write fixtures, or call Gateway/API/Insight
+
+#### Scenario: Non-ready upstream evidence blocks decision handoff
+- **WHEN** any upstream summary is blocked, partial, not ready, unknown, or carries a blocker alias
+- **THEN** the handoff status SHALL be `blocked` unless the upstream status is `needs-user-action` or `hard-red-line`
+- **AND** it SHALL preserve a stable blocker alias, remediation alias, owner handoff limit, and minimum unblock condition for the upstream local-only helper
+- **AND** it SHALL NOT downgrade the state to ready or claim controlled smoke success
+
+#### Scenario: Hard red-line inputs stop operator decision handoff
+- **WHEN** input summaries, operator note, or metadata contain real WeCom sync, real controlled smoke, real fixture or DB detail, synthetic audit/projection data, Gateway/API/Insight success, authorization facts, production-like endpoint, provider token, real gate, credential-like data, controlled smoke pass, production readiness, or full-success claims
+- **THEN** the handoff status SHALL be `hard-red-line`
+- **AND** it SHALL include red-line flags and require removing the signal or obtaining owner authorization before any dispatch, publish, fixture, DB, Gateway ingestion, downstream validation, or release decision step
+
+#### Scenario: Sensitive decision evidence is rejected without echoing values
+- **WHEN** input contains unmasked secrets, tokens, cookies, private URLs, real account identifiers, phone numbers, emails, full organization trees, full organization IDs, source tenant metadata, raw response bodies, real DB/fixture/audit/projection data, or credential-like fields
+- **THEN** the output status SHALL be `blocked`
+- **AND** the output SHALL include redaction metadata and `blockerAlias=sanitization_failed`
+- **AND** the output SHALL NOT echo the sensitive values or sensitive field names
+
+#### Scenario: Unknown sanitized aliases remain blocked
+- **WHEN** sanitized input contains an unrecognized preflight, execution, result, remediation, triage, blocker, or owner handoff alias
+- **THEN** the handoff status SHALL be `blocked`
+- **AND** the output SHALL require replacing the unknown alias with a stable Admin WeCom source handoff alias before operator decision handoff can be marked ready
+
+### Requirement: WeCom source controlled smoke operator action handoff MUST fail closed
+The system SHALL provide an Admin-owned, local, read-only controlled smoke operator action handoff for WeCom source evidence. The handoff SHALL consume only a sanitized operator decision handoff summary, sanitized operator metadata, and sanitized operator notes, and SHALL output a bounded operator action package without triggering real WeCom sync, real controlled smoke, real fixture or DB writes, provider token access, Gateway/API/Insight reads, authorization fact changes, production-like gates, organization tree rebuilds, or destructive data operations.
+
+#### Scenario: Sanitized ready decision allows operator action handoff
+- **WHEN** operator decision handoff summary has `status=ready-for-operator-decision-handoff`
+- **AND** `release=release_after_report`
+- **AND** all inputs are sanitized, local-only, and free of red-line flags
+- **THEN** the handoff action status SHALL be `ready-for-operator-action`
+- **AND** the output SHALL include `nextAction`, stable blocker/remediation aliases, owner handoff limits, minimum unblock conditions, action package metadata, and non-extrapolation boundaries
+- **AND** the output SHALL state that this only proves an Admin WeCom source local action package can be handed off, not real WeCom sync success, non-empty organization tree readiness, Gateway/API/Insight success, authorization facts, production readiness, controlled smoke pass, or full-success
+
+#### Scenario: Missing or non-ready decision remains blocked
+- **WHEN** the handoff lacks operator decision handoff summary or the summary is blocked, partial, not ready, unknown, or has `release=hold`
+- **THEN** the handoff action status SHALL be `blocked` unless the upstream status is `needs-user-action` or `hard-red-line`
+- **AND** it SHALL preserve a stable blocker alias, remediation alias, owner handoff limit, and minimum unblock condition for the upstream local-only helper
+- **AND** it SHALL NOT downgrade the state to ready or claim controlled smoke success
+
+#### Scenario: Needs user action is preserved
+- **WHEN** the operator decision handoff summary indicates `needs-user-action`
+- **THEN** the handoff action status SHALL be `needs-user-action`
+- **AND** it SHALL preserve the upstream blocker/remediation alias and direct the operator to collect only sanitized local action evidence
+
+#### Scenario: Hard red-line inputs stop operator action handoff
+- **WHEN** input summaries, operator note, or metadata contain real WeCom sync, real controlled smoke, real fixture or DB detail, synthetic audit/projection data, Gateway/API/Insight success, authorization facts, production-like endpoint, provider token, real gate, organization tree rebuild, credential-like data, controlled smoke pass, production readiness, or full-success claims
+- **THEN** the handoff action status SHALL be `hard-red-line`
+- **AND** it SHALL include red-line flags and require removing the signal or obtaining owner authorization before any dispatch, publish, fixture, DB, Gateway ingestion, downstream validation, organization tree rebuild, or release action step
+
+#### Scenario: Sensitive action evidence is rejected without echoing values
+- **WHEN** input contains unmasked secrets, tokens, cookies, private URLs, real account identifiers, phone numbers, emails, full organization trees, full organization IDs, source tenant metadata, raw response bodies, real DB/fixture/audit/projection data, or credential-like fields
+- **THEN** the output action status SHALL be `blocked`
+- **AND** the output SHALL include `blockerAlias=sanitization_failed`
+- **AND** the output SHALL NOT echo the sensitive values or sensitive field names
+
+#### Scenario: Unknown sanitized aliases remain blocked
+- **WHEN** sanitized input contains an unrecognized decision, blocker, remediation, result, or owner handoff alias
+- **THEN** the handoff action status SHALL be `blocked`
+- **AND** the output SHALL require replacing the unknown alias with a stable Admin WeCom source handoff alias before operator action handoff can be marked ready
+
+### Requirement: WeCom source controlled smoke result evidence handoff MUST fail closed
+The system SHALL provide an Admin-owned, local, read-only controlled smoke result evidence handoff for WeCom source result evidence. The handoff SHALL consume only sanitized execution handoff summary, result aliases/counts, deployment summary, authorization summary, redaction signal, and risk category, and SHALL NOT execute real controlled smoke or write real evidence.
+
+#### Scenario: Passed result evidence handoff is explicitly bounded
+- **WHEN** the handoff receives a sanitized execution handoff with `ready-for-controlled-smoke-execution-handoff`, a result status of `passed` or `passed-with-observations`, stable passed result aliases, matching passed counts, deployed and authorized summary aliases, a redacted signal, local read-only result evidence scope, and handoff-only result mode
+- **THEN** the handoff status SHALL be `passed`
+- **AND** the output SHALL include `release=release_after_report`, result aliases/counts, empty missing prerequisites, owner handoff limits, operator actions, and non-extrapolation boundaries
+- **AND** the output SHALL state that this only proves Admin WeCom source controlled-smoke result evidence handoff readiness, not real WeCom sync success, non-empty organization tree readiness, Gateway/API/Insight success, authorization facts, production readiness, or full-success
+
+#### Scenario: Partial result evidence remains limited
+- **WHEN** the handoff receives sanitized result evidence with `partial-handoff` or partial counts but no failed, blocked, missing, or unauthorized counts
+- **THEN** the handoff status SHALL be `partial-handoff`
+- **AND** the output SHALL preserve the partial alias and direct the operator to either collect missing local evidence or hand off with explicit owner limits
+
+#### Scenario: Missing result prerequisites need user action
+- **WHEN** the handoff lacks execution handoff summary, result status, result aliases, result counts, deployment summary, authorization summary, redaction signal, or risk category
+- **THEN** the handoff status SHALL be `needs-user-action`
+- **AND** the output SHALL name the missing prerequisite and direct the operator to the matching local-only WeCom source helper or Admin owner evidence preparation step before continuing
+
+#### Scenario: Undeployed or unauthorized result evidence blocks handoff
+- **WHEN** deployment summary is not deployed, authorization summary is not authorized, result aliases are unknown, or result counts include failed, blocked, missing, unauthorized, or inconsistent passed totals
+- **THEN** the handoff status SHALL be `blocked`
+- **AND** the output SHALL include stable blocker alias, owner handoff limits, and minimum unblock conditions without triggering sync, writing fixtures, querying real databases, or reading API, Insight, or Gateway data
+
+#### Scenario: Sensitive result evidence is rejected without echoing values
+- **WHEN** the input contains unmasked secrets, tokens, cookies, private URLs, real account identifiers, phone numbers, emails, full organization trees, full organization IDs, source tenant metadata, raw response bodies, real DB/fixture/audit/projection data, or credential-like fields
+- **THEN** the output status SHALL be `blocked`
+- **AND** the output SHALL NOT echo the sensitive values
+
+#### Scenario: Hard red-line result claims stop handoff
+- **WHEN** the input claims real WeCom sync success, real DB state, real fixture or synthetic audit/projection data, non-empty organization tree, Gateway/API/Insight success, authorization facts, publish success, production readiness, full-success, or contains a real execution/write signal
+- **THEN** the handoff status SHALL be `blocked`
+- **AND** it SHALL include red-line flags and require removing the signal or obtaining owner authorization before any controlled smoke, publish, fixture, DB, Gateway ingestion, or downstream validation step
+
+### Requirement: WeCom source operator remediation handoff MUST fail closed
+The system SHALL provide an Admin-owned, local, read-only operator remediation handoff for WeCom source readiness and controlled smoke preparation evidence. The handoff SHALL consume only sanitized readiness, release decision, controlled smoke preflight, and evidence handoff summaries, and SHALL output stable remediation aliases, owner-scoped next actions, missing prerequisites, red-line flags, minimum unblock conditions, and non-extrapolation boundaries.
+
+#### Scenario: Blocked source evidence maps to owner remediation
+- **WHEN** the handoff receives sanitized source summaries containing stable blockers such as `wecom_config_missing`, `wecom_credential_not_verified`, `wecom_latest_run_failed`, `wecom_no_recent_success`, or `wecom_run_active`
+- **THEN** the output status SHALL be `blocked`
+- **AND** it SHALL preserve the blocker as a stable remediation alias with owner, next action, missing prerequisite, and minimum unblock condition
+- **AND** it SHALL NOT trigger real WeCom sync, write fixtures, query real databases, or read API, Insight, or Gateway data
+
+#### Scenario: Missing prerequisite summaries need user action
+- **WHEN** the handoff lacks source readiness, release decision, controlled smoke preflight, or evidence handoff summary
+- **THEN** the output status SHALL be `needs-user-action`
+- **AND** it SHALL name the missing prerequisite and direct the operator to the matching local-only WeCom source helper before continuing
+
+#### Scenario: Hard red-line evidence stops remediation handoff
+- **WHEN** the input contains a real environment write signal, non-local operator scope, downstream success assertion, full-success assertion, real fixture or DB detail, publish, gateway ingestion, authorization facts, or a hard red-line alias
+- **THEN** the output status SHALL be `hard-red-line`
+- **AND** it SHALL include red-line flags and require removing the signal or obtaining owner authorization before any controlled smoke or manual execution
+
+#### Scenario: Sensitive evidence is rejected without echoing values
+- **WHEN** the input contains unmasked secrets, tokens, cookies, private URLs, real account identifiers, phone numbers, emails, full organization trees, full organization IDs, source tenant metadata, or raw response bodies
+- **THEN** the output status SHALL be `hard-red-line`
+- **AND** the output SHALL NOT echo the sensitive values
+
+#### Scenario: Ready remediation handoff remains bounded
+- **WHEN** all sanitized summaries are ready, no blocking alias is present, redaction is confirmed, and operator scope is local read-only
+- **THEN** the output status SHALL be `ready`
+- **AND** it SHALL state that readiness only means the operator remediation handoff is clear, not that controlled smoke passed, organization tree is non-empty, Gateway/API/Insight succeeded, authorization facts are active, production is ready, or full-success exists
+
+### Requirement: WeCom source controlled smoke execution handoff MUST fail closed
+The system SHALL provide an Admin-owned, local, read-only controlled smoke execution handoff for WeCom source evidence before any real controlled smoke execution. The handoff SHALL consume only sanitized controlled smoke preflight, controlled smoke evidence handoff, and operator remediation handoff summaries, and SHALL NOT execute real controlled smoke.
+
+#### Scenario: Ready execution handoff is explicitly bounded
+- **WHEN** the handoff receives sanitized preflight evidence with `ready-for-wecom-controlled-smoke-preflight`, evidence handoff evidence with `ready-for-controlled-smoke-evidence-handoff`, operator remediation evidence with `ready`, a redacted signal, no blocking alias, local read-only execution handoff scope, and handoff-only execution mode
+- **THEN** the handoff status SHALL be `ready-for-controlled-smoke-execution-handoff`
+- **AND** the output SHALL include `decision=handoff-ready`, reference summaries, empty blocker reasons, empty minimum unblock conditions, operator next actions, and non-extrapolation boundaries
+- **AND** the output SHALL state that this only proves Admin WeCom source controlled-smoke execution handoff readiness, not real WeCom sync success, non-empty organization tree readiness, Gateway/API/Insight success, authorization facts, production readiness, or full-success
+
+#### Scenario: Missing execution prerequisites fail closed
+- **WHEN** the handoff lacks controlled smoke preflight, controlled smoke evidence handoff, or operator remediation handoff summary
+- **THEN** the output status SHALL name the missing prerequisite summary
+- **AND** the output SHALL direct the operator to run the matching local-only WeCom source helper before continuing
+
+#### Scenario: Unresolved prerequisite blockers stop execution handoff
+- **WHEN** the preflight, evidence handoff, or remediation handoff summary contains missing prerequisites, remediations, red-line flags, or a non-ready status
+- **THEN** the output status SHALL be `blocked-prerequisite`
+- **AND** it SHALL preserve the blocker as stable alias evidence with owner, next action, and minimum unblock condition
+
+#### Scenario: Redaction gaps fail closed
+- **WHEN** the input contains unmasked secrets, tokens, cookies, private URLs, account identifiers, phone numbers, emails, full organization trees, full organization IDs, source tenant metadata, raw response bodies, or explicit redaction-required aliases
+- **THEN** the handoff status SHALL be `redaction-required`
+- **AND** the output SHALL NOT echo the sensitive values
+
+#### Scenario: Hard red-line signals stop execution handoff
+- **WHEN** the input contains a real execution signal, blocking alias, red-line alias, or an operator scope outside local read-only execution handoff
+- **THEN** the handoff status SHALL be `hard-red-line-blocked`
+- **AND** the output SHALL provide owner/fallback guidance without triggering sync, executing controlled smoke, writing fixtures, querying real databases, or reading API, Insight, or Gateway data
+
+#### Scenario: Downstream or full-success overclaim is rejected
+- **WHEN** the input claims real WeCom sync success, real DB state, non-empty organization tree, Gateway/API/Insight success, authorization facts, fixture readiness, publish success, production readiness, or full-success
+- **THEN** the handoff status SHALL be `overclaim-full-success`
+- **AND** the output SHALL require removing the overclaim and rerunning with sanitized source-only evidence
