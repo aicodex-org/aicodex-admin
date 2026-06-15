@@ -17,10 +17,12 @@ import React from "react";
 import {fireEvent, render, screen, wait} from "@testing-library/react";
 import * as PlatformApiMappingBackend from "./backend/PlatformApiMappingBackend";
 import OrganizationDirectoryQualityPage from "./OrganizationDirectoryQualityPage";
+import * as Setting from "./Setting";
 
 jest.mock("./backend/PlatformApiMappingBackend", () => ({
   getOrganizationDirectoryQuality: jest.fn(),
   getOrganizationDirectoryRemediationPlan: jest.fn(),
+  getOrganizationDirectoryRemediationActionDrafts: jest.fn(),
 }));
 
 jest.mock("./common/select/OrganizationSelect", () => (props) => (
@@ -107,14 +109,61 @@ beforeEach(() => {
       },
     },
   });
+  PlatformApiMappingBackend.getOrganizationDirectoryRemediationActionDrafts.mockResolvedValue({
+    status: "ok",
+    data: {
+      organizationId: "org-alpha",
+      totalDraftCount: 1,
+      boundary: "organization directory remediation action drafts are Admin producer manual review only.",
+      drafts: [{
+        draftId: "sha256:draft",
+        actionAlias: "mapping_review",
+        priority: "P1",
+        entityType: "user",
+        affectedCount: 1,
+        safeSummary: "人工核对 API user mapping owner 后补齐 confirmed mapping。",
+        blockedReason: "需要 mapping owner 人工确认",
+        executionMode: "manual_review_only",
+        preconditions: ["确认目标 API user 映射来源可信"],
+        operatorSteps: ["导出脱敏样例给 mapping owner 复核", "在修复系统人工提交 mapping 变更"],
+        samples: [{
+          entityHash: "sha256:sample",
+          displaySafeLabel: "user:6f2c9d8e1a0b",
+          entityType: "user",
+          sourceType: "wecom",
+          qualityStatus: "blocked",
+          reasonCodes: ["mapping_missing"],
+          lifecycleStatus: "ACTIVE",
+          sourceConnectionIdHash: "sha256:source",
+          orgVersion: "orgv-1",
+          sourceVersion: "orgv-1",
+        }],
+      }],
+      exportSummary: {
+        drafts: [{
+          draftId: "sha256:draft",
+          actionAlias: "mapping_review",
+          executionMode: "manual_review_only",
+          samples: [{entityHash: "sha256:sample", displaySafeLabel: "user:6f2c9d8e1a0b"}],
+        }],
+      },
+    },
+  });
   global.Blob = jest.fn((parts, options) => ({parts, options}));
   global.URL.createObjectURL = jest.fn(() => "blob:remediation-plan");
   global.URL.revokeObjectURL = jest.fn();
   HTMLAnchorElement.prototype.click = jest.fn();
+  Object.assign(navigator, {
+    clipboard: {
+      writeText: jest.fn(() => Promise.resolve()),
+    },
+  });
+  jest.spyOn(Setting, "showMessage").mockImplementation(() => {});
 });
 
 afterEach(() => {
   jest.clearAllMocks();
+  jest.restoreAllMocks();
 });
 
 test("renders organization directory quality list and details without leaking source ids", async() => {
@@ -143,6 +192,32 @@ test("renders organization directory quality list and details without leaking so
   expect(screen.getByText("sha256:external")).toBeInTheDocument();
 });
 
+test("opens sanitized manual-review action draft drawer from remediation plan", async() => {
+  render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  await screen.findAllByText("mapping_review");
+  fireEvent.click(screen.getByText("草案"));
+
+  expect(await screen.findByText("manual_review_only")).toBeInTheDocument();
+  expect(screen.getByText("确认目标 API user 映射来源可信")).toBeInTheDocument();
+  expect(screen.getByText("导出脱敏样例给 mapping owner 复核")).toBeInTheDocument();
+  expect(screen.getByText(/user:6f2c9d8e1a0b/)).toBeInTheDocument();
+  expect(PlatformApiMappingBackend.getOrganizationDirectoryRemediationActionDrafts).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+    actionAlias: "mapping_review",
+    entityType: "user",
+    reasonCode: "mapping_missing",
+    topN: 20,
+  }));
+
+  fireEvent.click(screen.getByText("复制草案"));
+  await wait(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("manual_review_only")));
+
+  fireEvent.click(screen.getByText("导出草案"));
+  const exportedBlob = global.URL.createObjectURL.mock.calls[0][0];
+  expect(exportedBlob.parts.join("")).toContain("user:6f2c9d8e1a0b");
+  expect(exportedBlob.parts.join("")).not.toContain("org-alpha/alice");
+});
+
 test("refreshes directory quality with selected filters", async() => {
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
@@ -152,6 +227,60 @@ test("refreshes directory quality with selected filters", async() => {
 
   await wait(() => expect(PlatformApiMappingBackend.getOrganizationDirectoryQuality).toHaveBeenCalledTimes(2));
   await wait(() => expect(PlatformApiMappingBackend.getOrganizationDirectoryRemediationPlan).toHaveBeenCalledTimes(2));
+});
+
+test("fails closed when directory quality or remediation plan loading fails", async() => {
+  PlatformApiMappingBackend.getOrganizationDirectoryQuality.mockResolvedValueOnce({status: "error", msg: "quality failed"});
+  PlatformApiMappingBackend.getOrganizationDirectoryRemediationPlan.mockResolvedValueOnce({status: "error", msg: "plan failed"});
+
+  render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "quality failed"));
+  expect(Setting.showMessage).toHaveBeenCalledWith("error", "plan failed");
+  expect(screen.getByText("暂无待处理修复计划")).toBeInTheDocument();
+});
+
+test("handles empty plan export and action draft load failure without writes", async() => {
+  PlatformApiMappingBackend.getOrganizationDirectoryRemediationPlan.mockResolvedValueOnce({
+    status: "ok",
+    data: {
+      organizationId: "org-alpha",
+      totalPlanCount: 1,
+      boundary: "organization directory remediation plan 是 Admin producer 只读诊断。",
+      plans: [{
+        planId: "sha256:plan",
+        planKey: "mapping_review",
+        priority: "P1",
+        actionAlias: "mapping_review",
+        reasonCodes: ["mapping_missing"],
+        affectedCounts: {total: 1},
+        safeSummary: "用户到 API 主体的一等映射缺失或不可信，需要 mapping owner 确认。",
+      }],
+      exportSummary: null,
+    },
+  });
+  PlatformApiMappingBackend.getOrganizationDirectoryRemediationActionDrafts.mockResolvedValueOnce({status: "error", msg: "draft failed"});
+
+  render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  await screen.findAllByText("mapping_review");
+  fireEvent.click(screen.getByText("导出计划"));
+  expect(Setting.showMessage).toHaveBeenCalledWith("warning", "暂无可导出的修复计划");
+
+  fireEvent.click(screen.getByText("草案"));
+  await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "draft failed"));
+});
+
+test("keeps copy action fail-closed when clipboard is unavailable", async() => {
+  Object.defineProperty(navigator, "clipboard", {value: {}, configurable: true});
+  render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  await screen.findAllByText("mapping_review");
+  fireEvent.click(screen.getByText("草案"));
+  expect(await screen.findByText("manual_review_only")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("复制草案"));
+
+  expect(Setting.showMessage).toHaveBeenCalledWith("error", "当前浏览器不支持复制草案");
 });
 
 test("exports sanitized remediation plan summary on the client", async() => {

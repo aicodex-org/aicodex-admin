@@ -184,6 +184,31 @@ func (c *ApiController) GetOrganizationDirectoryRemediationPlan() {
 	c.ResponseOk(result)
 }
 
+// GetOrganizationDirectoryRemediationActionDrafts
+// @Title GetOrganizationDirectoryRemediationActionDrafts
+// @Tag Platform API Mapping API
+// @Description 获取 Admin 组织目录质量 remediation action drafts；该响应只读且只支持人工复核，不执行修复。
+// @router /organization-master-data-quality/remediation-action-drafts [get]
+func (c *ApiController) GetOrganizationDirectoryRemediationActionDrafts() {
+	result, err := object.GetOrganizationDirectoryRemediationActionDrafts(newOrganizationDirectoryRemediationActionDraftQuery(map[string]string{
+		"organization":           c.Ctx.Input.Query("organization"),
+		"actionAlias":            c.Ctx.Input.Query("actionAlias"),
+		"entityType":             c.Ctx.Input.Query("entityType"),
+		"keyword":                c.Ctx.Input.Query("keyword"),
+		"sourceType":             c.Ctx.Input.Query("sourceType"),
+		"sourceConnectionIdHash": c.Ctx.Input.Query("sourceConnectionIdHash"),
+		"qualityStatus":          c.Ctx.Input.Query("qualityStatus"),
+		"reasonCode":             c.Ctx.Input.Query("reasonCode"),
+		"limit":                  c.Ctx.Input.Query("limit"),
+		"topN":                   c.Ctx.Input.Query("topN"),
+	}))
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(result)
+}
+
 func newOrganizationDirectoryQualityQuery(values map[string]string) object.OrganizationDirectoryQualityQuery {
 	return object.OrganizationDirectoryQualityQuery{
 		OrganizationId:         values["organization"],
@@ -209,6 +234,21 @@ func newOrganizationDirectoryRemediationPlanQuery(values map[string]string) obje
 		QualityStatus:          values["qualityStatus"],
 		ReasonCode:             values["reasonCode"],
 		LifecycleStatus:        values["lifecycleStatus"],
+		Limit:                  util.ParseInt(values["limit"]),
+		TopN:                   util.ParseInt(values["topN"]),
+	}
+}
+
+func newOrganizationDirectoryRemediationActionDraftQuery(values map[string]string) object.OrganizationDirectoryRemediationActionDraftQuery {
+	return object.OrganizationDirectoryRemediationActionDraftQuery{
+		OrganizationId:         values["organization"],
+		ActionAlias:            values["actionAlias"],
+		EntityType:             values["entityType"],
+		Keyword:                values["keyword"],
+		SourceType:             values["sourceType"],
+		SourceConnectionIdHash: values["sourceConnectionIdHash"],
+		QualityStatus:          values["qualityStatus"],
+		ReasonCode:             values["reasonCode"],
 		Limit:                  util.ParseInt(values["limit"]),
 		TopN:                   util.ParseInt(values["topN"]),
 	}

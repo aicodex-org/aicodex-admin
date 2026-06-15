@@ -73,9 +73,12 @@ export default function OrganizationDirectoryQualityPage(props) {
   const [pagination, setPagination] = useState({current: 1, pageSize: 10});
   const [loading, setLoading] = useState(false);
   const [planLoading, setPlanLoading] = useState(false);
+  const [draftLoading, setDraftLoading] = useState(false);
   const [data, setData] = useState(null);
   const [planData, setPlanData] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
+  const [selectedPlan, setSelectedPlan] = useState(null);
+  const [draftData, setDraftData] = useState(null);
 
   const currentPlanOptions = () => ({
     entityType,
@@ -125,6 +128,26 @@ export default function OrganizationDirectoryQualityPage(props) {
       }
       setPlanData(res.data);
     }).finally(() => setPlanLoading(false));
+  };
+
+  const loadActionDrafts = (plan) => {
+    setSelectedPlan(plan);
+    setDraftData(null);
+    setDraftLoading(true);
+    return PlatformApiMappingBackend.getOrganizationDirectoryRemediationActionDrafts(organization, {
+      ...currentPlanOptions(),
+      actionAlias: plan.actionAlias,
+      reasonCode: (plan.reasonCodes || [])[0] || reasonCode,
+      limit: 100,
+      topN: 20,
+    }).then((res) => {
+      if (res.status !== "ok") {
+        Setting.showMessage("error", res.msg || "加载组织目录修复草案失败");
+        setDraftData(null);
+        return;
+      }
+      setDraftData(res.data);
+    }).finally(() => setDraftLoading(false));
   };
 
   const loadAll = (nextPagination = pagination) => Promise.all([
@@ -237,6 +260,11 @@ export default function OrganizationDirectoryQualityPage(props) {
         </Space>
       ),
     },
+    {
+      title: "操作",
+      width: 90,
+      render: (_, record) => <Button type="link" onClick={() => loadActionDrafts(record)}>草案</Button>,
+    },
   ];
 
   const tableLocale = {
@@ -257,6 +285,41 @@ export default function OrganizationDirectoryQualityPage(props) {
     const link = document.createElement("a");
     link.href = url;
     link.download = `organization-directory-remediation-plan-${organization || "empty"}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const draftExportPayload = draftData?.exportSummary || {
+    organizationId: draftData?.organizationId,
+    boundary: draftData?.boundary,
+    drafts: draftData?.drafts || [],
+  };
+
+  const copyActionDraft = () => {
+    const content = JSON.stringify(draftExportPayload, null, 2);
+    if (!navigator.clipboard?.writeText) {
+      Setting.showMessage("error", "当前浏览器不支持复制草案");
+      return;
+    }
+    navigator.clipboard.writeText(content).then(() => {
+      Setting.showMessage("success", "已复制脱敏草案");
+    }).catch(() => {
+      Setting.showMessage("error", "复制脱敏草案失败");
+    });
+  };
+
+  const exportActionDraft = () => {
+    if (!draftData?.drafts || draftData.drafts.length === 0) {
+      Setting.showMessage("warning", "暂无可导出的修复草案");
+      return;
+    }
+    const blob = new Blob([JSON.stringify(draftExportPayload, null, 2)], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `organization-directory-remediation-action-drafts-${organization || "empty"}.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -362,6 +425,92 @@ export default function OrganizationDirectoryQualityPage(props) {
             </div>
           </Space>
         )}
+      </Drawer>
+      <Drawer
+        title={selectedPlan ? `${selectedPlan.actionAlias} 草案` : "修复草案"}
+        open={!!selectedPlan}
+        width={720}
+        onClose={() => {
+          setSelectedPlan(null);
+          setDraftData(null);
+        }}
+      >
+        <Space direction="vertical" size={16} style={{width: "100%"}}>
+          <Space wrap>
+            <Button icon={<DownloadOutlined />} onClick={exportActionDraft} disabled={!draftData?.drafts?.length}>导出草案</Button>
+            <Button onClick={copyActionDraft} disabled={!draftData?.drafts?.length}>复制草案</Button>
+          </Space>
+          <Text type="secondary">{draftData?.boundary || "Admin producer manual review only."}</Text>
+          <Table
+            rowKey={(record) => record.draftId}
+            size="small"
+            loading={draftLoading}
+            dataSource={draftData?.drafts || []}
+            pagination={false}
+            locale={{emptyText: draftLoading ? "加载中" : <Empty description="暂无可生成的修复草案" />}}
+            columns={[
+              {
+                title: "草案",
+                dataIndex: "actionAlias",
+                width: 170,
+                render: (_, record) => (
+                  <Space direction="vertical" size={0}>
+                    <Text strong>{record.actionAlias}</Text>
+                    {priorityTag(record.priority)}
+                    <Tag color="blue">{record.executionMode}</Tag>
+                  </Space>
+                ),
+              },
+              {
+                title: "范围",
+                width: 140,
+                render: (_, record) => (
+                  <Space direction="vertical" size={0}>
+                    <Text>{record.entityType}</Text>
+                    <Text type="secondary">影响 {record.affectedCount || 0}</Text>
+                  </Space>
+                ),
+              },
+              {
+                title: "执行前置",
+                dataIndex: "preconditions",
+                render: values => (
+                  <Space direction="vertical" size={0}>
+                    {(values || []).map(value => <Text key={value}>{value}</Text>)}
+                  </Space>
+                ),
+              },
+              {
+                title: "操作步骤",
+                dataIndex: "operatorSteps",
+                render: values => (
+                  <Space direction="vertical" size={0}>
+                    {(values || []).map(value => <Text key={value}>{value}</Text>)}
+                  </Space>
+                ),
+              },
+              {
+                title: "脱敏样例",
+                dataIndex: "samples",
+                render: values => (
+                  <Space direction="vertical" size={0}>
+                    {(values || []).slice(0, 5).map(sample => (
+                      <Text key={sample.entityHash} type="secondary">
+                        {sample.displaySafeLabel || sample.entityHash} / {sample.sourceType || "-"} / {sample.qualityStatus || "-"}
+                      </Text>
+                    ))}
+                    {(!values || values.length === 0) && <Text type="secondary">-</Text>}
+                  </Space>
+                ),
+              },
+              {
+                title: "阻塞",
+                dataIndex: "blockedReason",
+                render: value => value ? <Text type="danger">{value}</Text> : <Text type="secondary">-</Text>,
+              },
+            ]}
+          />
+        </Space>
       </Drawer>
     </div>
   );
