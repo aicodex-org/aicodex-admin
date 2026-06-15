@@ -30,6 +30,7 @@ jest.mock("./backend/PlatformApiMappingBackend", () => ({
   getGatewayProjectionPublishAttempts: jest.fn(),
   getGatewayProjectionPublishAttempt: jest.fn(),
   getGatewayProjectionPublishAttemptRetentionReadiness: jest.fn(),
+  getGatewayProjectionPublishAttemptCleanupDryRun: jest.fn(),
   updatePlatformApiOrganizationMapping: jest.fn(),
   getPlatformApiUserMappings: jest.fn(),
   publishGatewayProjectionManually: jest.fn(),
@@ -205,6 +206,38 @@ beforeEach(() => {
       }],
     },
   });
+  PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupDryRun.mockResolvedValue({
+    status: "ok",
+    data: {
+      total: 1,
+      candidateCount: 1,
+      blockedCount: 0,
+      retentionWindowSeconds: 2592000,
+      reasonCounts: {
+        retention_expired_with_diagnostic_summary: 1,
+      },
+      diagnosticCompleteness: {
+        completeCount: 1,
+        missingCount: 0,
+      },
+      receiptHintCoverage: {
+        availableCount: 1,
+        unavailableCount: 0,
+      },
+      operatorActionSummary: "cleanup_candidates_ready_for_future_execute_gate",
+      safetyChecklist: [
+        "organization_scope_required",
+        "dry_run_only_no_db_delete_or_update",
+      ],
+      executeGuardrail: {
+        enabled: false,
+        dryRunOnly: true,
+        irreversible: false,
+        disabledReason: "cleanup_execution_not_enabled",
+        requiredConfirmation: "not_available_in_p0",
+      },
+    },
+  });
   PlatformApiMappingBackend.getGatewayProjectionPublishAttempt.mockResolvedValue({
     status: "ok",
     data: {
@@ -374,6 +407,11 @@ test("separates organization and user mapping tabs and loads user mappings on de
     status: "",
     limit: 100,
   })));
+  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupDryRun).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+    source: "",
+    status: "",
+    limit: 100,
+  })));
   await wait(() => expect(PlatformApiMappingBackend.getOrganizationMasterDataQualityReadiness).toHaveBeenCalledWith("org-alpha"));
   await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionIngestionStatus).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     latest: true,
@@ -397,6 +435,11 @@ test("separates organization and user mapping tabs and loads user mappings on de
   expect(screen.getByText("Publish attempt retention readiness")).toBeInTheDocument();
   expect(screen.getByText("只读展示 cleanup readiness，不执行删除。")).toBeInTheDocument();
   expect(screen.getByText("cleanupEligible: 0")).toBeInTheDocument();
+  expect(screen.getByText("Cleanup dry-run guardrails")).toBeInTheDocument();
+  expect(screen.getByText(/Dry-run: cleanup_candidates_ready_for_future_execute_gate/)).toBeInTheDocument();
+  expect(screen.getByText("candidate: 1")).toBeInTheDocument();
+  expect(screen.getByText("executeEnabled: false")).toBeInTheDocument();
+  expect(screen.getByText("dryRunOnly: true")).toBeInTheDocument();
   expect(screen.getAllByText("保留期内").length).toBeGreaterThan(0);
   expect(screen.getByText("gateway_unavailable")).toBeInTheDocument();
   expect(screen.getByText("321 ms")).toBeInTheDocument();
@@ -447,6 +490,7 @@ test("allows operator to trigger manual gateway projection publish when readines
   await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionIngestionStatus).toHaveBeenCalled());
   await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttempts).toHaveBeenCalled());
   await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptRetentionReadiness).toHaveBeenCalled());
+  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupDryRun).toHaveBeenCalled());
   expect(screen.queryByText(/projection-secret|gateway.example.invalid|rawGatewayResponse/)).not.toBeInTheDocument();
 });
 

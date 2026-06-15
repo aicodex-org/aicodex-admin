@@ -71,6 +71,7 @@ func InitAPI() {
 	web.Router("/api/gateway-projection/publish-attempts", &controllers.ApiController{}, "GET:GetGatewayProjectionPublishAttempts")
 	web.Router("/api/gateway-projection/publish-attempts/:attemptId", &controllers.ApiController{}, "GET:GetGatewayProjectionPublishAttempt")
 	web.Router("/api/gateway-projection/publish-attempt-retention-readiness", &controllers.ApiController{}, "GET:GetGatewayProjectionPublishAttemptRetentionReadiness")
+	web.Router("/api/gateway-projection/publish-attempt-retention-cleanup-dry-run", &controllers.ApiController{}, "GET:GetGatewayProjectionPublishAttemptRetentionCleanupDryRun")
 	web.Router("/api/gateway-projection/manual-publish", &controllers.ApiController{}, "POST:PublishGatewayProjectionManually")
 	web.Router("/api/unlink", &controllers.ApiController{}, "POST:Unlink")
 	web.Router("/api/get-saml-login", &controllers.ApiController{}, "GET:GetSamlLogin")

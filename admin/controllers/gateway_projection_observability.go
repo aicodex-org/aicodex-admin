@@ -103,6 +103,7 @@ func gatewayProjectionIngestionStatusErrorMessage(result object.GatewayProjectio
 // @Param organization query string true "Admin 组织 ID"
 // @Param source query string false "manual 或 scheduled"
 // @Param status query string false "ok 或 error"
+// @Param failureCategory query string false "稳定失败分类 alias"
 // @Param from query string false "RFC3339 开始时间"
 // @Param to query string false "RFC3339 结束时间"
 // @Param limit query int false "最大返回数量"
@@ -115,12 +116,13 @@ func (c *ApiController) GetGatewayProjectionPublishAttempts() {
 		return
 	}
 	result, err := (object.GatewayProjectionPublishAttemptHistoryService{}).List(object.GatewayProjectionPublishAttemptQuery{
-		OrganizationId: organization,
-		Source:         c.Ctx.Input.Query("source"),
-		Status:         c.Ctx.Input.Query("status"),
-		From:           parseGatewayProjectionQueryTime(c.Ctx.Input.Query("from")),
-		To:             parseGatewayProjectionQueryTime(c.Ctx.Input.Query("to")),
-		Limit:          parseGatewayProjectionQueryInt(c.Ctx.Input.Query("limit")),
+		OrganizationId:  organization,
+		Source:          c.Ctx.Input.Query("source"),
+		Status:          c.Ctx.Input.Query("status"),
+		FailureCategory: c.Ctx.Input.Query("failureCategory"),
+		From:            parseGatewayProjectionQueryTime(c.Ctx.Input.Query("from")),
+		To:              parseGatewayProjectionQueryTime(c.Ctx.Input.Query("to")),
+		Limit:           parseGatewayProjectionQueryInt(c.Ctx.Input.Query("limit")),
 	})
 	if err != nil {
 		c.ResponseError(err.Error())
@@ -165,6 +167,7 @@ func (c *ApiController) GetGatewayProjectionPublishAttempt() {
 // @Param organization query string true "Admin 组织 ID"
 // @Param source query string false "manual 或 scheduled"
 // @Param status query string false "ok 或 error"
+// @Param failureCategory query string false "稳定失败分类 alias"
 // @Param from query string false "RFC3339 开始时间"
 // @Param to query string false "RFC3339 结束时间"
 // @Param limit query int false "最大统计数量"
@@ -177,12 +180,46 @@ func (c *ApiController) GetGatewayProjectionPublishAttemptRetentionReadiness() {
 		return
 	}
 	result, err := (object.GatewayProjectionPublishAttemptHistoryService{}).RetentionReadiness(object.GatewayProjectionPublishAttemptQuery{
-		OrganizationId: organization,
-		Source:         c.Ctx.Input.Query("source"),
-		Status:         c.Ctx.Input.Query("status"),
-		From:           parseGatewayProjectionQueryTime(c.Ctx.Input.Query("from")),
-		To:             parseGatewayProjectionQueryTime(c.Ctx.Input.Query("to")),
-		Limit:          parseGatewayProjectionQueryInt(c.Ctx.Input.Query("limit")),
+		OrganizationId:  organization,
+		Source:          c.Ctx.Input.Query("source"),
+		Status:          c.Ctx.Input.Query("status"),
+		FailureCategory: c.Ctx.Input.Query("failureCategory"),
+		From:            parseGatewayProjectionQueryTime(c.Ctx.Input.Query("from")),
+		To:              parseGatewayProjectionQueryTime(c.Ctx.Input.Query("to")),
+		Limit:           parseGatewayProjectionQueryInt(c.Ctx.Input.Query("limit")),
+	})
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(result)
+}
+
+// GetGatewayProjectionPublishAttemptRetentionCleanupDryRun
+// @Title GetGatewayProjectionPublishAttemptRetentionCleanupDryRun
+// @Tag Gateway Projection Observability API
+// @Description 生成 admin-to-gateway projection publish attempt retention cleanup 只读 dry-run 计划；P0 不执行删除或更新。
+// @Param organization query string true "Admin 组织 ID"
+// @Param source query string false "manual 或 scheduled"
+// @Param status query string false "ok 或 error"
+// @Param failureCategory query string false "稳定失败分类 alias"
+// @Param olderThan query string false "RFC3339 清理候选上限时间；默认按 retention window 计算"
+// @Param limit query int false "最大统计数量"
+// @Success 200 {object} object.GatewayProjectionPublishAttemptCleanupDryRunPlan "projection publish attempt cleanup dry-run 脱敏计划"
+// @router /gateway-projection/publish-attempt-retention-cleanup-dry-run [get]
+func (c *ApiController) GetGatewayProjectionPublishAttemptRetentionCleanupDryRun() {
+	organization := strings.TrimSpace(c.Ctx.Input.Query("organization"))
+	if organization == "" {
+		c.ResponseError("gateway projection organization is required")
+		return
+	}
+	result, err := (object.GatewayProjectionPublishAttemptHistoryService{}).CleanupDryRun(object.GatewayProjectionPublishAttemptCleanupDryRunQuery{
+		OrganizationId:  organization,
+		Source:          c.Ctx.Input.Query("source"),
+		Status:          c.Ctx.Input.Query("status"),
+		FailureCategory: c.Ctx.Input.Query("failureCategory"),
+		OlderThan:       parseGatewayProjectionQueryTime(c.Ctx.Input.Query("olderThan")),
+		Limit:           parseGatewayProjectionQueryInt(c.Ctx.Input.Query("limit")),
 	})
 	if err != nil {
 		c.ResponseError(err.Error())

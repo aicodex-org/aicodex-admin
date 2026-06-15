@@ -168,6 +168,7 @@ class PlatformApiMappingPage extends React.Component {
       manualPublishing: false,
       attemptsLoading: false,
       retentionReadinessLoading: false,
+      cleanupDryRunLoading: false,
       attemptDetailLoading: false,
       savingKey: "",
       userKeyword: "",
@@ -180,6 +181,7 @@ class PlatformApiMappingPage extends React.Component {
       manualPublishResult: null,
       publishAttempts: [],
       retentionReadiness: null,
+      cleanupDryRun: null,
       attemptSource: "",
       attemptStatus: "",
       attemptTimeWindow: "",
@@ -358,6 +360,7 @@ class PlatformApiMappingPage extends React.Component {
         attemptTimeWindow: timeWindow,
       });
       this.refreshGatewayProjectionPublishAttemptRetentionReadiness(organization, {source, status, timeWindow});
+      this.refreshGatewayProjectionPublishAttemptCleanupDryRun(organization, {source, status});
     }).catch(error => {
       this.setState({attemptsLoading: false});
       Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
@@ -388,6 +391,32 @@ class PlatformApiMappingPage extends React.Component {
       });
     }).catch(error => {
       this.setState({retentionReadinessLoading: false});
+      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+    });
+  }
+
+  refreshGatewayProjectionPublishAttemptCleanupDryRun(organization = this.state.organization, options = {}) {
+    if (!organization) {
+      return Promise.resolve();
+    }
+    const source = options.source !== undefined ? options.source : this.state.attemptSource;
+    const status = options.status !== undefined ? options.status : this.state.attemptStatus;
+
+    this.setState({cleanupDryRunLoading: true});
+    return PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupDryRun(organization, {
+      source,
+      status,
+      limit: 100,
+    }).then((res) => {
+      if (res.status === "error") {
+        Setting.showMessage("error", res.msg);
+      }
+      this.setState({
+        cleanupDryRunLoading: false,
+        cleanupDryRun: res.status === "ok" ? res.data : null,
+      });
+    }).catch(error => {
+      this.setState({cleanupDryRunLoading: false});
       Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
     });
   }
@@ -447,6 +476,7 @@ class PlatformApiMappingPage extends React.Component {
       manualPublishResult: null,
       publishAttempts: [],
       retentionReadiness: null,
+      cleanupDryRun: null,
       attemptSource: "",
       attemptStatus: "",
       attemptTimeWindow: "",
@@ -804,6 +834,7 @@ class PlatformApiMappingPage extends React.Component {
       this.refreshGatewayProjectionIngestionStatus();
       this.refreshGatewayProjectionPublishAttempts();
       this.refreshGatewayProjectionPublishAttemptRetentionReadiness();
+      this.refreshGatewayProjectionPublishAttemptCleanupDryRun();
     }).catch(error => {
       this.setState({manualPublishing: false});
       Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
@@ -966,7 +997,12 @@ class PlatformApiMappingPage extends React.Component {
   renderPublishAttemptHistory() {
     const attempts = this.state.publishAttempts || [];
     const retentionReadiness = this.state.retentionReadiness;
+    const cleanupDryRun = this.state.cleanupDryRun;
     const reasonCounts = retentionReadiness?.reasonCounts || {};
+    const cleanupReasonCounts = cleanupDryRun?.reasonCounts || {};
+    const cleanupGuardrail = cleanupDryRun?.executeGuardrail || {};
+    const diagnosticCompleteness = cleanupDryRun?.diagnosticCompleteness || {};
+    const receiptHintCoverage = cleanupDryRun?.receiptHintCoverage || {};
     const detail = this.state.attemptDetail || {};
     const detailRetention = detail.retention || {};
     const receiptHint = detail.receiptQueryHint || {};
@@ -1126,6 +1162,49 @@ class PlatformApiMappingPage extends React.Component {
           }
           style={{marginBottom: 12}}
         />
+        <Card
+          type="inner"
+          size="small"
+          title="Cleanup dry-run guardrails"
+          style={{marginBottom: 12}}
+          extra={
+            <Button
+              icon={<ReloadOutlined />}
+              loading={this.state.cleanupDryRunLoading}
+              onClick={() => this.refreshGatewayProjectionPublishAttemptCleanupDryRun()}
+            >
+              刷新 dry-run
+            </Button>
+          }
+        >
+          <Alert
+            type={cleanupDryRun?.candidateCount > 0 ? "warning" : "info"}
+            showIcon
+            message={`Dry-run: ${cleanupDryRun?.operatorActionSummary || "未加载"}`}
+            description="P0 只生成只读计划和安全确认项，不执行 DB delete/update，也不声明 Gateway runtime authorization success。"
+            style={{marginBottom: 12}}
+          />
+          <Space wrap style={{marginBottom: 8}}>
+            <Tag>total: {cleanupDryRun?.total || 0}</Tag>
+            <Tag color="orange">candidate: {cleanupDryRun?.candidateCount || 0}</Tag>
+            <Tag>blocked: {cleanupDryRun?.blockedCount || 0}</Tag>
+            <Tag>windowSeconds: {cleanupDryRun?.retentionWindowSeconds || 0}</Tag>
+            <Tag>diagnosticComplete: {diagnosticCompleteness.completeCount || 0}</Tag>
+            <Tag>diagnosticMissing: {diagnosticCompleteness.missingCount || 0}</Tag>
+            <Tag>receiptHint: {receiptHintCoverage.availableCount || 0}/{(receiptHintCoverage.availableCount || 0) + (receiptHintCoverage.unavailableCount || 0)}</Tag>
+            <Tag color={cleanupGuardrail.enabled ? "red" : "green"}>executeEnabled: {String(!!cleanupGuardrail.enabled)}</Tag>
+            <Tag>dryRunOnly: {String(!!cleanupGuardrail.dryRunOnly)}</Tag>
+            {cleanupGuardrail.disabledReason && <Tag>{cleanupGuardrail.disabledReason}</Tag>}
+          </Space>
+          <div style={{marginBottom: 8}}>
+            {Object.entries(cleanupReasonCounts).map(([key, value]) => (
+              <Tag key={key}>{getPublishAttemptCleanupReasonLabel(key)}: {value}</Tag>
+            ))}
+          </div>
+          <Space wrap>
+            {(cleanupDryRun?.safetyChecklist || []).map(item => <Tag key={item}>{item}</Tag>)}
+          </Space>
+        </Card>
         <Table
           rowKey={(record) => record.attemptId}
           columns={columns}

@@ -169,6 +169,165 @@ func TestGatewayProjectionPublishAttemptReceiptHintHandlesMissingLineage(t *test
 	}
 }
 
+func TestGatewayProjectionPublishAttemptCleanupDryRunBuildsSafePlan(t *testing.T) {
+	now := time.Date(2026, 6, 15, 14, 0, 0, 0, time.UTC)
+	attemptStore := &memoryGatewayProjectionPublishAttemptStore{
+		records: []*GatewayProjectionPublishAttempt{
+			{
+				AttemptId:         "attempt-candidate",
+				OrganizationId:    "org-a",
+				Source:            GatewayProjectionPublishAttemptSourceManual,
+				Status:            "error",
+				ProjectionBatchId: "batch-candidate",
+				OrgVersion:        2001,
+				SourceVersion:     "orgv-candidate",
+				FailureCategory:   "gateway_unavailable",
+				SkippedByReason:   map[string]int{GatewayProjectionSkipMappingMissing: 2},
+				CreatedAt:         now.Add(-35 * 24 * time.Hour),
+			},
+			{
+				AttemptId:      "attempt-blocked-missing-summary",
+				OrganizationId: "org-a",
+				Source:         GatewayProjectionPublishAttemptSourceScheduled,
+				Status:         "ok",
+				CreatedAt:      now.Add(-36 * 24 * time.Hour),
+			},
+			{
+				AttemptId:         "attempt-within-window",
+				OrganizationId:    "org-a",
+				Source:            GatewayProjectionPublishAttemptSourceManual,
+				Status:            "error",
+				ProjectionBatchId: "batch-new",
+				FailureCategory:   "gateway_unavailable",
+				CreatedAt:         now.Add(-time.Hour),
+			},
+			{
+				AttemptId:         "attempt-other-org",
+				OrganizationId:    "org-b",
+				Source:            GatewayProjectionPublishAttemptSourceManual,
+				Status:            "error",
+				ProjectionBatchId: "batch-other",
+				FailureCategory:   "gateway_unavailable",
+				CreatedAt:         now.Add(-40 * 24 * time.Hour),
+			},
+		},
+	}
+	service := GatewayProjectionPublishAttemptHistoryService{Store: attemptStore, Now: func() time.Time { return now }}
+	plan, err := service.CleanupDryRun(GatewayProjectionPublishAttemptCleanupDryRunQuery{
+		OrganizationId:   "org-a",
+		Status:           "error",
+		FailureCategory:  "gateway_unavailable",
+		OlderThan:        now.Add(-30 * 24 * time.Hour),
+		Limit:            20,
+		RequiredReason:   "operator-dry-run",
+		ConfirmationText: "",
+	})
+	if err != nil {
+		t.Fatalf("CleanupDryRun() error = %v", err)
+	}
+	if plan.Total != 1 || plan.CandidateCount != 1 || plan.BlockedCount != 0 {
+		t.Fatalf("plan counts = %#v, want one eligible candidate only", plan)
+	}
+	if plan.ReceiptHintCoverage.AvailableCount != 1 || plan.DiagnosticCompleteness.CompleteCount != 1 {
+		t.Fatalf("coverage = %#v completeness = %#v, want one complete receipt-covered candidate", plan.ReceiptHintCoverage, plan.DiagnosticCompleteness)
+	}
+	if plan.ExecuteGuardrail.Enabled || !plan.ExecuteGuardrail.DryRunOnly || plan.ExecuteGuardrail.Irreversible {
+		t.Fatalf("execute guardrail = %#v, want disabled dry-run-only reversible guardrail", plan.ExecuteGuardrail)
+	}
+	if len(plan.SafetyChecklist) == 0 || plan.OperatorActionSummary == "" {
+		t.Fatalf("operator guidance missing: %#v", plan)
+	}
+	raw, err := json.Marshal(plan)
+	if err != nil {
+		t.Fatalf("marshal plan: %v", err)
+	}
+	assertDoesNotContainAny(t, string(raw), "projection-secret", "Authorization", "Cookie", "gateway.example.invalid")
+}
+
+func TestGatewayProjectionPublishAttemptCleanupExecuteIsDisabledAndReadOnly(t *testing.T) {
+	now := time.Date(2026, 6, 15, 14, 10, 0, 0, time.UTC)
+	attemptStore := &memoryGatewayProjectionPublishAttemptStore{
+		records: []*GatewayProjectionPublishAttempt{{
+			AttemptId:         "attempt-candidate",
+			OrganizationId:    "org-a",
+			Status:            "error",
+			ProjectionBatchId: "batch-candidate",
+			FailureCategory:   "gateway_unavailable",
+			CreatedAt:         now.Add(-35 * 24 * time.Hour),
+		}},
+	}
+	service := GatewayProjectionPublishAttemptHistoryService{Store: attemptStore, Now: func() time.Time { return now }}
+	result, err := service.CleanupExecuteGuardrail(GatewayProjectionPublishAttemptCleanupDryRunQuery{
+		OrganizationId: "org-a",
+		OlderThan:      now.Add(-30 * 24 * time.Hour),
+		Limit:          20,
+	})
+	if err != nil {
+		t.Fatalf("CleanupExecuteGuardrail() error = %v", err)
+	}
+	if result.ExecuteGuardrail.Enabled || !result.ExecuteGuardrail.DryRunOnly || result.CandidateCount != 1 {
+		t.Fatalf("execute result = %#v, want disabled dry-run guardrail with candidate summary", result)
+	}
+	if len(attemptStore.records) != 1 || attemptStore.records[0].AttemptId != "attempt-candidate" {
+		t.Fatalf("execute guardrail mutated records: %#v", attemptStore.records)
+	}
+}
+
+func TestGatewayProjectionPublishAttemptCleanupDryRunDefensiveBranches(t *testing.T) {
+	now := time.Date(2026, 6, 15, 14, 30, 0, 0, time.UTC)
+	service := GatewayProjectionPublishAttemptHistoryService{
+		Store: &memoryGatewayProjectionPublishAttemptStore{records: []*GatewayProjectionPublishAttempt{{
+			AttemptId:      "attempt-missing-diagnostic",
+			OrganizationId: "org-a",
+			Status:         "ok",
+			CreatedAt:      now.Add(-31 * 24 * time.Hour),
+		}}},
+		Now: func() time.Time { return now },
+	}
+	if _, err := service.CleanupDryRun(GatewayProjectionPublishAttemptCleanupDryRunQuery{}); err == nil {
+		t.Fatalf("CleanupDryRun(empty organization) error = nil, want fail-closed organization requirement")
+	}
+	if _, err := service.CleanupDryRun(GatewayProjectionPublishAttemptCleanupDryRunQuery{
+		OrganizationId: "org-a",
+		OlderThan:      now.Add(time.Hour),
+	}); err == nil {
+		t.Fatalf("CleanupDryRun(future olderThan) error = nil, want fail-closed cutoff")
+	}
+	plan, err := service.CleanupDryRun(GatewayProjectionPublishAttemptCleanupDryRunQuery{
+		OrganizationId: " org-a ",
+		Limit:          500,
+	})
+	if err != nil {
+		t.Fatalf("CleanupDryRun(defaults) error = %v", err)
+	}
+	if plan.Filters.Limit != maxGatewayProjectionPublishAttemptLimit || plan.Filters.OlderThan == "" {
+		t.Fatalf("filters = %#v, want capped limit and default olderThan", plan.Filters)
+	}
+	if plan.CandidateCount != 0 || plan.BlockedCount != 1 || plan.DiagnosticCompleteness.MissingCount != 1 || plan.ReceiptHintCoverage.UnavailableCount != 1 {
+		t.Fatalf("plan = %#v, want blocked missing-diagnostic attempt", plan)
+	}
+	if sample := buildGatewayProjectionPublishAttemptRetentionSample(nil); sample.AttemptId != "" {
+		t.Fatalf("nil sample = %#v, want empty sample", sample)
+	}
+	if gatewayProjectionAttemptDiagnosticComplete(nil) {
+		t.Fatalf("nil diagnostic complete = true, want false")
+	}
+	for _, tc := range []struct {
+		candidate int
+		blocked   int
+		want      string
+	}{
+		{0, 0, "no_attempts_match_filters"},
+		{0, 2, "cleanup_blocked_review_reasons"},
+		{1, 1, "cleanup_candidates_require_operator_review"},
+		{1, 0, "cleanup_candidates_ready_for_future_execute_gate"},
+	} {
+		if got := gatewayProjectionAttemptCleanupOperatorActionSummary(tc.candidate, tc.blocked); got != tc.want {
+			t.Fatalf("summary(%d,%d) = %q, want %q", tc.candidate, tc.blocked, got, tc.want)
+		}
+	}
+}
+
 func TestGatewayProjectionPublishAttemptHistoryHandlesLimitsMissingAndRecordFailure(t *testing.T) {
 	setupGatewayProjectionPublishAttemptTestOrmer(t)
 	generatedAt := time.Date(2026, 6, 15, 13, 30, 0, 0, time.UTC)
@@ -413,7 +572,19 @@ func (s *memoryGatewayProjectionPublishAttemptStore) ListGatewayProjectionPublis
 		if query.Status != "" && record.Status != query.Status {
 			continue
 		}
+		if query.FailureCategory != "" && record.FailureCategory != query.FailureCategory {
+			continue
+		}
+		if !query.From.IsZero() && record.CreatedAt.Before(query.From) {
+			continue
+		}
+		if !query.To.IsZero() && record.CreatedAt.After(query.To) {
+			continue
+		}
 		result = append(result, cloneGatewayProjectionPublishAttempt(record))
+		if query.Limit > 0 && len(result) >= query.Limit {
+			break
+		}
 	}
 	return result, nil
 }

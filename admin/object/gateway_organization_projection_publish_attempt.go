@@ -16,6 +16,7 @@ package object
 
 import (
 	"encoding/json"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -74,13 +75,14 @@ type GatewayProjectionPublishAttempt struct {
 
 // GatewayProjectionPublishAttemptQuery 限定 history 查询范围和筛选条件。
 type GatewayProjectionPublishAttemptQuery struct {
-	OrganizationId string
-	AttemptId      string
-	Source         string
-	Status         string
-	From           time.Time
-	To             time.Time
-	Limit          int
+	OrganizationId  string
+	AttemptId       string
+	Source          string
+	Status          string
+	FailureCategory string
+	From            time.Time
+	To              time.Time
+	Limit           int
 }
 
 type GatewayProjectionPublishAttemptList struct {
@@ -91,12 +93,14 @@ type GatewayProjectionPublishAttemptList struct {
 }
 
 type GatewayProjectionPublishAttemptFilters struct {
-	OrganizationId string `json:"organizationId,omitempty"`
-	Source         string `json:"source,omitempty"`
-	Status         string `json:"status,omitempty"`
-	From           string `json:"from,omitempty"`
-	To             string `json:"to,omitempty"`
-	Limit          int    `json:"limit"`
+	OrganizationId  string `json:"organizationId,omitempty"`
+	Source          string `json:"source,omitempty"`
+	Status          string `json:"status,omitempty"`
+	FailureCategory string `json:"failureCategory,omitempty"`
+	From            string `json:"from,omitempty"`
+	To              string `json:"to,omitempty"`
+	OlderThan       string `json:"olderThan,omitempty"`
+	Limit           int    `json:"limit"`
 }
 
 // GatewayProjectionPublishAttemptRetention 是只读保留期诊断，不代表已经执行 cleanup。
@@ -143,6 +147,56 @@ type GatewayProjectionPublishAttemptRetentionSample struct {
 	SourceVersion     string `json:"sourceVersion,omitempty"`
 }
 
+// GatewayProjectionPublishAttemptCleanupDryRunQuery 限定 cleanup dry-run 的只读评估范围。
+// P0 只允许组织内 dry-run，不允许跨组织空查询或真实清理。
+type GatewayProjectionPublishAttemptCleanupDryRunQuery struct {
+	OrganizationId   string
+	Source           string
+	Status           string
+	FailureCategory  string
+	OlderThan        time.Time
+	Limit            int
+	RequiredReason   string
+	ConfirmationText string
+}
+
+type GatewayProjectionPublishAttemptCleanupDryRunPlan struct {
+	GeneratedAt            string                                           `json:"generatedAt"`
+	Filters                GatewayProjectionPublishAttemptFilters           `json:"filters"`
+	RetentionWindowSeconds int64                                            `json:"retentionWindowSeconds"`
+	Total                  int                                              `json:"total"`
+	CandidateCount         int                                              `json:"candidateCount"`
+	BlockedCount           int                                              `json:"blockedCount"`
+	ReasonCounts           map[string]int                                   `json:"reasonCounts"`
+	OldestAttemptAt        string                                           `json:"oldestAttemptAt,omitempty"`
+	NewestAttemptAt        string                                           `json:"newestAttemptAt,omitempty"`
+	DiagnosticCompleteness GatewayProjectionAttemptDiagnosticCompleteness   `json:"diagnosticCompleteness"`
+	ReceiptHintCoverage    GatewayProjectionAttemptReceiptHintCoverage      `json:"receiptHintCoverage"`
+	OperatorActionSummary  string                                           `json:"operatorActionSummary"`
+	SafetyChecklist        []string                                         `json:"safetyChecklist"`
+	ExecuteGuardrail       GatewayProjectionAttemptCleanupExecuteGuardrail  `json:"executeGuardrail"`
+	Samples                []GatewayProjectionPublishAttemptRetentionSample `json:"samples,omitempty"`
+}
+
+type GatewayProjectionAttemptDiagnosticCompleteness struct {
+	CompleteCount int `json:"completeCount"`
+	MissingCount  int `json:"missingCount"`
+}
+
+type GatewayProjectionAttemptReceiptHintCoverage struct {
+	AvailableCount   int `json:"availableCount"`
+	UnavailableCount int `json:"unavailableCount"`
+}
+
+type GatewayProjectionAttemptCleanupExecuteGuardrail struct {
+	Enabled              bool     `json:"enabled"`
+	DryRunOnly           bool     `json:"dryRunOnly"`
+	Irreversible         bool     `json:"irreversible"`
+	DisabledReason       string   `json:"disabledReason"`
+	RequiredConfirmation string   `json:"requiredConfirmation"`
+	SafetyChecklist      []string `json:"safetyChecklist"`
+}
+
 type GatewayProjectionPublishAttemptStore interface {
 	RecordGatewayProjectionPublishAttempt(attempt *GatewayProjectionPublishAttempt) error
 	ListGatewayProjectionPublishAttempts(query GatewayProjectionPublishAttemptQuery) ([]*GatewayProjectionPublishAttempt, error)
@@ -180,12 +234,13 @@ func (s GatewayProjectionPublishAttemptHistoryService) List(query GatewayProject
 	return &GatewayProjectionPublishAttemptList{
 		GeneratedAt: formatGatewayProjectionObservabilityTime(s.now()),
 		Filters: GatewayProjectionPublishAttemptFilters{
-			OrganizationId: query.OrganizationId,
-			Source:         query.Source,
-			Status:         query.Status,
-			From:           formatGatewayProjectionObservabilityTime(query.From),
-			To:             formatGatewayProjectionObservabilityTime(query.To),
-			Limit:          query.Limit,
+			OrganizationId:  query.OrganizationId,
+			Source:          query.Source,
+			Status:          query.Status,
+			FailureCategory: query.FailureCategory,
+			From:            formatGatewayProjectionObservabilityTime(query.From),
+			To:              formatGatewayProjectionObservabilityTime(query.To),
+			Limit:           query.Limit,
 		},
 		Total:    len(attempts),
 		Attempts: attempts,
@@ -243,12 +298,13 @@ func (s GatewayProjectionPublishAttemptHistoryService) RetentionReadiness(query 
 	return &GatewayProjectionPublishAttemptRetentionReadiness{
 		GeneratedAt: formatGatewayProjectionObservabilityTime(now),
 		Filters: GatewayProjectionPublishAttemptFilters{
-			OrganizationId: query.OrganizationId,
-			Source:         query.Source,
-			Status:         query.Status,
-			From:           formatGatewayProjectionObservabilityTime(query.From),
-			To:             formatGatewayProjectionObservabilityTime(query.To),
-			Limit:          query.Limit,
+			OrganizationId:  query.OrganizationId,
+			Source:          query.Source,
+			Status:          query.Status,
+			FailureCategory: query.FailureCategory,
+			From:            formatGatewayProjectionObservabilityTime(query.From),
+			To:              formatGatewayProjectionObservabilityTime(query.To),
+			Limit:           query.Limit,
 		},
 		RetentionWindowSeconds: int64(defaultGatewayProjectionPublishAttemptRetentionWindow / time.Second),
 		Total:                  len(attempts),
@@ -259,6 +315,95 @@ func (s GatewayProjectionPublishAttemptHistoryService) RetentionReadiness(query 
 		NewestAttemptAt:        formatGatewayProjectionObservabilityTime(newest),
 		Samples:                samples,
 	}, nil
+}
+
+func (s GatewayProjectionPublishAttemptHistoryService) CleanupDryRun(query GatewayProjectionPublishAttemptCleanupDryRunQuery) (*GatewayProjectionPublishAttemptCleanupDryRunPlan, error) {
+	normalized, err := normalizeGatewayProjectionPublishAttemptCleanupDryRunQuery(query, s.now())
+	if err != nil {
+		return nil, err
+	}
+	listQuery := GatewayProjectionPublishAttemptQuery{
+		OrganizationId:  normalized.OrganizationId,
+		Source:          normalized.Source,
+		Status:          normalized.Status,
+		FailureCategory: normalized.FailureCategory,
+		To:              normalized.OlderThan,
+		Limit:           normalized.Limit,
+	}
+	attempts, err := s.store().ListGatewayProjectionPublishAttempts(listQuery)
+	if err != nil {
+		return nil, err
+	}
+	now := s.now()
+	reasonCounts := map[string]int{}
+	samples := []GatewayProjectionPublishAttemptRetentionSample{}
+	var oldest time.Time
+	var newest time.Time
+	candidateCount := 0
+	diagnosticCompleteCount := 0
+	receiptAvailableCount := 0
+	for _, raw := range attempts {
+		attempt := enrichGatewayProjectionPublishAttempt(cloneGatewayProjectionPublishAttempt(raw), normalized.OrganizationId, now)
+		reasonCounts[attempt.Retention.CleanupReason]++
+		if attempt.Retention.CleanupEligible {
+			candidateCount++
+		}
+		if gatewayProjectionAttemptDiagnosticComplete(attempt) {
+			diagnosticCompleteCount++
+		}
+		if attempt.ReceiptQueryHint.Available {
+			receiptAvailableCount++
+		}
+		if !attempt.CreatedAt.IsZero() {
+			if oldest.IsZero() || attempt.CreatedAt.Before(oldest) {
+				oldest = attempt.CreatedAt
+			}
+			if newest.IsZero() || attempt.CreatedAt.After(newest) {
+				newest = attempt.CreatedAt
+			}
+		}
+		if len(samples) < 5 {
+			samples = append(samples, buildGatewayProjectionPublishAttemptRetentionSample(attempt))
+		}
+	}
+	total := len(attempts)
+	safetyChecklist := gatewayProjectionAttemptCleanupSafetyChecklist()
+	return &GatewayProjectionPublishAttemptCleanupDryRunPlan{
+		GeneratedAt: formatGatewayProjectionObservabilityTime(now),
+		Filters: GatewayProjectionPublishAttemptFilters{
+			OrganizationId:  normalized.OrganizationId,
+			Source:          normalized.Source,
+			Status:          normalized.Status,
+			FailureCategory: normalized.FailureCategory,
+			OlderThan:       formatGatewayProjectionObservabilityTime(normalized.OlderThan),
+			Limit:           normalized.Limit,
+		},
+		RetentionWindowSeconds: int64(defaultGatewayProjectionPublishAttemptRetentionWindow / time.Second),
+		Total:                  total,
+		CandidateCount:         candidateCount,
+		BlockedCount:           total - candidateCount,
+		ReasonCounts:           reasonCounts,
+		OldestAttemptAt:        formatGatewayProjectionObservabilityTime(oldest),
+		NewestAttemptAt:        formatGatewayProjectionObservabilityTime(newest),
+		DiagnosticCompleteness: GatewayProjectionAttemptDiagnosticCompleteness{
+			CompleteCount: diagnosticCompleteCount,
+			MissingCount:  total - diagnosticCompleteCount,
+		},
+		ReceiptHintCoverage: GatewayProjectionAttemptReceiptHintCoverage{
+			AvailableCount:   receiptAvailableCount,
+			UnavailableCount: total - receiptAvailableCount,
+		},
+		OperatorActionSummary: gatewayProjectionAttemptCleanupOperatorActionSummary(candidateCount, total-candidateCount),
+		SafetyChecklist:       safetyChecklist,
+		ExecuteGuardrail:      buildGatewayProjectionAttemptCleanupExecuteGuardrail(safetyChecklist),
+		Samples:               samples,
+	}, nil
+}
+
+// CleanupExecuteGuardrail deliberately returns the same read-only plan with execution disabled.
+// P0 不执行 DB delete/update，只把确认项和禁用原因暴露给 operator。
+func (s GatewayProjectionPublishAttemptHistoryService) CleanupExecuteGuardrail(query GatewayProjectionPublishAttemptCleanupDryRunQuery) (*GatewayProjectionPublishAttemptCleanupDryRunPlan, error) {
+	return s.CleanupDryRun(query)
 }
 
 func (s GatewayProjectionPublishAttemptHistoryService) store() GatewayProjectionPublishAttemptStore {
@@ -297,6 +442,9 @@ func (s defaultGatewayProjectionPublishAttemptStore) ListGatewayProjectionPublis
 	}
 	if query.Status != "" {
 		session = session.And("status = ?", query.Status)
+	}
+	if query.FailureCategory != "" {
+		session = session.And("failure_category = ?", query.FailureCategory)
 	}
 	if !query.From.IsZero() {
 		session = session.And("created_at >= ?", query.From)
@@ -355,6 +503,7 @@ func normalizeGatewayProjectionPublishAttemptQuery(query GatewayProjectionPublis
 	query.AttemptId = normalizeGatewayProjectionString(query.AttemptId)
 	query.Source = normalizeGatewayProjectionString(query.Source)
 	query.Status = normalizeGatewayProjectionString(query.Status)
+	query.FailureCategory = normalizeGatewayProjectionString(query.FailureCategory)
 	if query.Limit <= 0 {
 		query.Limit = defaultGatewayProjectionPublishAttemptLimit
 	}
@@ -362,6 +511,33 @@ func normalizeGatewayProjectionPublishAttemptQuery(query GatewayProjectionPublis
 		query.Limit = maxGatewayProjectionPublishAttemptLimit
 	}
 	return query
+}
+
+func normalizeGatewayProjectionPublishAttemptCleanupDryRunQuery(query GatewayProjectionPublishAttemptCleanupDryRunQuery, now time.Time) (GatewayProjectionPublishAttemptCleanupDryRunQuery, error) {
+	query.OrganizationId = normalizeGatewayProjectionString(query.OrganizationId)
+	if query.OrganizationId == "" {
+		return query, errors.New("gateway projection organization is required")
+	}
+	query.Source = normalizeGatewayProjectionString(query.Source)
+	query.Status = normalizeGatewayProjectionString(query.Status)
+	query.FailureCategory = normalizeGatewayProjectionString(query.FailureCategory)
+	query.RequiredReason = normalizeGatewayProjectionString(query.RequiredReason)
+	query.ConfirmationText = normalizeGatewayProjectionString(query.ConfirmationText)
+	if query.OlderThan.IsZero() {
+		query.OlderThan = now.UTC().Add(-defaultGatewayProjectionPublishAttemptRetentionWindow)
+	} else {
+		query.OlderThan = query.OlderThan.UTC()
+		if query.OlderThan.After(now.UTC()) {
+			return query, errors.New("gateway projection cleanup olderThan must not be in the future")
+		}
+	}
+	if query.Limit <= 0 {
+		query.Limit = defaultGatewayProjectionPublishAttemptLimit
+	}
+	if query.Limit > maxGatewayProjectionPublishAttemptLimit {
+		query.Limit = maxGatewayProjectionPublishAttemptLimit
+	}
+	return query, nil
 }
 
 func normalizeGatewayProjectionAttemptSource(source string) string {
@@ -451,6 +627,64 @@ func buildGatewayProjectionPublishAttemptRetention(attempt GatewayProjectionPubl
 	retention.CleanupEligible = true
 	retention.CleanupReason = "retention_expired_with_diagnostic_summary"
 	return retention
+}
+
+func buildGatewayProjectionPublishAttemptRetentionSample(attempt *GatewayProjectionPublishAttempt) GatewayProjectionPublishAttemptRetentionSample {
+	if attempt == nil {
+		return GatewayProjectionPublishAttemptRetentionSample{}
+	}
+	return GatewayProjectionPublishAttemptRetentionSample{
+		AttemptId:         attempt.AttemptId,
+		Source:            attempt.Source,
+		Status:            attempt.Status,
+		CreatedAt:         formatGatewayProjectionObservabilityTime(attempt.CreatedAt),
+		CleanupEligible:   attempt.Retention.CleanupEligible,
+		CleanupReason:     attempt.Retention.CleanupReason,
+		ProjectionBatchId: attempt.ProjectionBatchId,
+		SourceVersion:     attempt.SourceVersion,
+	}
+}
+
+func gatewayProjectionAttemptDiagnosticComplete(attempt *GatewayProjectionPublishAttempt) bool {
+	if attempt == nil {
+		return false
+	}
+	hasLineage := attempt.ProjectionBatchId != "" || attempt.OrgVersion > 0 || attempt.SourceVersion != ""
+	hasFailureSummary := attempt.FailureCategory != "" || attempt.ErrorCode != "" || len(attempt.SkippedByReason) > 0
+	return hasLineage && hasFailureSummary && attempt.Retention.CleanupReason != ""
+}
+
+func gatewayProjectionAttemptCleanupSafetyChecklist() []string {
+	return []string{
+		"organization_scope_required",
+		"dry_run_only_no_db_delete_or_update",
+		"sanitized_attempt_samples_only",
+		"gateway_receipt_hint_is_diagnostic_not_authorization_fact",
+	}
+}
+
+func buildGatewayProjectionAttemptCleanupExecuteGuardrail(safetyChecklist []string) GatewayProjectionAttemptCleanupExecuteGuardrail {
+	return GatewayProjectionAttemptCleanupExecuteGuardrail{
+		Enabled:              false,
+		DryRunOnly:           true,
+		Irreversible:         false,
+		DisabledReason:       "cleanup_execution_not_enabled",
+		RequiredConfirmation: "not_available_in_p0",
+		SafetyChecklist:      append([]string(nil), safetyChecklist...),
+	}
+}
+
+func gatewayProjectionAttemptCleanupOperatorActionSummary(candidateCount int, blockedCount int) string {
+	if candidateCount == 0 && blockedCount == 0 {
+		return "no_attempts_match_filters"
+	}
+	if candidateCount == 0 {
+		return "cleanup_blocked_review_reasons"
+	}
+	if blockedCount > 0 {
+		return "cleanup_candidates_require_operator_review"
+	}
+	return "cleanup_candidates_ready_for_future_execute_gate"
 }
 
 func buildGatewayProjectionReceiptQueryHint(attempt GatewayProjectionPublishAttempt, organizationID string) GatewayProjectionReceiptQueryHint {
