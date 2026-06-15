@@ -2461,7 +2461,7 @@ export function getApiPaths() {
   res.push("feishu-org-sync/config", "feishu-org-sync/config/test", "feishu-org-sync/runs");
   res.push("org-management-scope/current");
   res.push("organization-master-data-quality/directory");
-  res.push("gateway-projection/observability", "gateway-projection/run-readiness", "gateway-projection/ingestion-status", "gateway-projection/manual-publish");
+  res.push("gateway-projection/observability", "gateway-projection/run-readiness", "gateway-projection/ingestion-status", "gateway-projection/manual-publish", "gateway-projection/publish-attempts");
   res.push("get-organization-master-data-quality-readiness");
   res.push(
     "get-platform-api-organization-mappings",

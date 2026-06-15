@@ -2,6 +2,8 @@
 
 import {
   getGatewayProjectionIngestionStatus,
+  getGatewayProjectionPublishAttempt,
+  getGatewayProjectionPublishAttempts,
   getGatewayProjectionRunReadiness,
   getOrganizationDirectoryQuality,
   getOrganizationMasterDataQualityReadiness,
@@ -41,6 +43,13 @@ test("loads platform api mappings with explicit organization query", async() => 
     traceId: "trace-synthetic",
     projectionBatchId: "batch-synthetic",
   });
+  await getGatewayProjectionPublishAttempts("org-a", {
+    source: "manual",
+    status: "error",
+    from: "2026-06-15T00:00:00.000Z",
+    limit: 20,
+  });
+  await getGatewayProjectionPublishAttempt("org-a", "attempt-synthetic");
   await getOrganizationMasterDataQualityReadiness("org-a");
   await getOrganizationDirectoryQuality("org-a", {
     entityType: "user",
@@ -99,7 +108,7 @@ test("loads platform api mappings with explicit organization query", async() => 
   );
   expect(global.fetch).toHaveBeenNthCalledWith(
     5,
-    "https://admin.example.invalid/api/get-organization-master-data-quality-readiness?organization=org-a",
+    "https://admin.example.invalid/api/gateway-projection/publish-attempts?organization=org-a&source=manual&status=error&from=2026-06-15T00%3A00%3A00.000Z&limit=20",
     expect.objectContaining({
       method: "GET",
       credentials: "include",
@@ -108,7 +117,7 @@ test("loads platform api mappings with explicit organization query", async() => 
   );
   expect(global.fetch).toHaveBeenNthCalledWith(
     6,
-    "https://admin.example.invalid/api/organization-master-data-quality/directory?organization=org-a&entityType=user&keyword=alice&sourceType=wecom&sourceConnectionIdHash=sha256%3Asource&qualityStatus=blocked&reasonCode=mapping_missing&lifecycleStatus=ACTIVE&p=3&pageSize=50",
+    "https://admin.example.invalid/api/gateway-projection/publish-attempts/attempt-synthetic?organization=org-a",
     expect.objectContaining({
       method: "GET",
       credentials: "include",
@@ -117,7 +126,7 @@ test("loads platform api mappings with explicit organization query", async() => 
   );
   expect(global.fetch).toHaveBeenNthCalledWith(
     7,
-    "https://admin.example.invalid/api/gateway-projection/ingestion-status?organization=org-a&latest=true&projectionBatchId=batch-synthetic&orgVersion=202606151200&sourceVersion=orgv-synthetic",
+    "https://admin.example.invalid/api/get-organization-master-data-quality-readiness?organization=org-a",
     expect.objectContaining({
       method: "GET",
       credentials: "include",
@@ -126,6 +135,24 @@ test("loads platform api mappings with explicit organization query", async() => 
   );
   expect(global.fetch).toHaveBeenNthCalledWith(
     8,
+    "https://admin.example.invalid/api/organization-master-data-quality/directory?organization=org-a&entityType=user&keyword=alice&sourceType=wecom&sourceConnectionIdHash=sha256%3Asource&qualityStatus=blocked&reasonCode=mapping_missing&lifecycleStatus=ACTIVE&p=3&pageSize=50",
+    expect.objectContaining({
+      method: "GET",
+      credentials: "include",
+      headers: expect.objectContaining({"Accept-Language": "en"}),
+    })
+  );
+  expect(global.fetch).toHaveBeenNthCalledWith(
+    9,
+    "https://admin.example.invalid/api/gateway-projection/ingestion-status?organization=org-a&latest=true&projectionBatchId=batch-synthetic&orgVersion=202606151200&sourceVersion=orgv-synthetic",
+    expect.objectContaining({
+      method: "GET",
+      credentials: "include",
+      headers: expect.objectContaining({"Accept-Language": "en"}),
+    })
+  );
+  expect(global.fetch).toHaveBeenNthCalledWith(
+    10,
     "https://admin.example.invalid/api/gateway-projection/manual-publish",
     expect.objectContaining({
       method: "POST",

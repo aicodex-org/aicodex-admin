@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import React from "react";
-import {Alert, Button, Card, Input, Select, Space, Table, Tabs, Tag, Typography} from "antd";
+import {Alert, Button, Card, Drawer, Input, Select, Space, Table, Tabs, Tag, Typography} from "antd";
 import {PlusOutlined, ReloadOutlined, SaveOutlined} from "@ant-design/icons";
 import * as Setting from "./Setting";
 import * as PlatformApiMappingBackend from "./backend/PlatformApiMappingBackend";
@@ -75,6 +75,14 @@ const ingestionStatusLabels = {
   invalid_config: "配置缺失",
   invalid_response: "响应无效",
   unknown: "未知",
+};
+const publishAttemptSourceLabels = {
+  manual: "手动",
+  scheduled: "定时/同步",
+};
+const publishAttemptStatusLabels = {
+  ok: "成功",
+  error: "失败",
 };
 const titleTips = {
   platformApiMappings: "维护认证中心组织/账号到 aicodex-api 业务组织、网关账号和用量身份的权威映射。",
@@ -148,6 +156,8 @@ class PlatformApiMappingPage extends React.Component {
       masterDataQualityLoading: false,
       ingestionStatusLoading: false,
       manualPublishing: false,
+      attemptsLoading: false,
+      attemptDetailLoading: false,
       savingKey: "",
       userKeyword: "",
       readinessCategory: "",
@@ -157,6 +167,12 @@ class PlatformApiMappingPage extends React.Component {
       masterDataQuality: null,
       ingestionStatus: null,
       manualPublishResult: null,
+      publishAttempts: [],
+      attemptSource: "",
+      attemptStatus: "",
+      attemptTimeWindow: "",
+      attemptDetail: null,
+      attemptDetailVisible: false,
       userPagination: getDefaultTablePagination(),
       userMappingsLoaded: false,
     };
@@ -304,6 +320,37 @@ class PlatformApiMappingPage extends React.Component {
     });
   }
 
+  refreshGatewayProjectionPublishAttempts(organization = this.state.organization, options = {}) {
+    if (!organization) {
+      return Promise.resolve();
+    }
+    const source = options.source !== undefined ? options.source : this.state.attemptSource;
+    const status = options.status !== undefined ? options.status : this.state.attemptStatus;
+    const timeWindow = options.timeWindow !== undefined ? options.timeWindow : this.state.attemptTimeWindow;
+
+    this.setState({attemptsLoading: true});
+    return PlatformApiMappingBackend.getGatewayProjectionPublishAttempts(organization, {
+      source,
+      status,
+      from: this.getAttemptFromTime(timeWindow),
+      limit: 20,
+    }).then((res) => {
+      if (res.status === "error") {
+        Setting.showMessage("error", res.msg);
+      }
+      this.setState({
+        attemptsLoading: false,
+        publishAttempts: res.status === "ok" ? (res.data?.attempts || []) : [],
+        attemptSource: source,
+        attemptStatus: status,
+        attemptTimeWindow: timeWindow,
+      });
+    }).catch(error => {
+      this.setState({attemptsLoading: false});
+      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+    });
+  }
+
   refreshOrganizationMasterDataQuality(organization = this.state.organization) {
     if (!organization) {
       return Promise.resolve();
@@ -357,6 +404,12 @@ class PlatformApiMappingPage extends React.Component {
       masterDataQuality: null,
       ingestionStatus: null,
       manualPublishResult: null,
+      publishAttempts: [],
+      attemptSource: "",
+      attemptStatus: "",
+      attemptTimeWindow: "",
+      attemptDetail: null,
+      attemptDetailVisible: false,
       readinessCategory: "",
       readinessMappingStatus: "",
       userPagination: getDefaultTablePagination(),
@@ -370,6 +423,7 @@ class PlatformApiMappingPage extends React.Component {
         });
         this.refreshGatewayProjectionRunReadiness(organization);
         this.refreshGatewayProjectionIngestionStatus(organization);
+        this.refreshGatewayProjectionPublishAttempts(organization);
       }
     });
   }
@@ -380,6 +434,7 @@ class PlatformApiMappingPage extends React.Component {
         this.refreshUserMappings();
         this.refreshGatewayProjectionRunReadiness();
         this.refreshGatewayProjectionIngestionStatus();
+        this.refreshGatewayProjectionPublishAttempts();
       }
     });
   }
@@ -610,6 +665,47 @@ class PlatformApiMappingPage extends React.Component {
     return guidance.filter(item => item.category === this.state.readinessCategory);
   }
 
+  getAttemptFromTime(timeWindow) {
+    if (!timeWindow) {
+      return "";
+    }
+    const now = new Date();
+    if (timeWindow === "1h") {
+      return new Date(now.getTime() - 60 * 60 * 1000).toISOString();
+    }
+    if (timeWindow === "24h") {
+      return new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+    }
+    return "";
+  }
+
+  changeAttemptFilter(field, value) {
+    this.setState({[field]: value}, () => this.refreshGatewayProjectionPublishAttempts(this.state.organization, {
+      source: this.state.attemptSource,
+      status: this.state.attemptStatus,
+      timeWindow: this.state.attemptTimeWindow,
+    }));
+  }
+
+  openPublishAttemptDetail(attempt) {
+    if (!attempt?.attemptId) {
+      return;
+    }
+    this.setState({attemptDetailLoading: true, attemptDetailVisible: true, attemptDetail: attempt});
+    PlatformApiMappingBackend.getGatewayProjectionPublishAttempt(this.state.organization, attempt.attemptId).then((res) => {
+      if (res.status === "error") {
+        Setting.showMessage("error", res.msg);
+      }
+      this.setState({
+        attemptDetailLoading: false,
+        attemptDetail: res.status === "ok" ? res.data : attempt,
+      });
+    }).catch(error => {
+      this.setState({attemptDetailLoading: false});
+      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+    });
+  }
+
   getManualPublishDisabledReasons() {
     const readiness = this.state.readiness;
     const counts = readiness?.counts || {};
@@ -649,6 +745,7 @@ class PlatformApiMappingPage extends React.Component {
       this.refreshUserMappingReadiness();
       this.refreshGatewayProjectionRunReadiness();
       this.refreshGatewayProjectionIngestionStatus();
+      this.refreshGatewayProjectionPublishAttempts();
     }).catch(error => {
       this.setState({manualPublishing: false});
       Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
@@ -804,6 +901,192 @@ class PlatformApiMappingPage extends React.Component {
             {result.projectionBatchId && <Text type="secondary">{result.projectionBatchId}</Text>}
           </Space>
         )}
+      </Card>
+    );
+  }
+
+  renderPublishAttemptHistory() {
+    const attempts = this.state.publishAttempts || [];
+    const detail = this.state.attemptDetail || {};
+    const skippedByReason = detail.skippedByReason || {};
+    const metadata = detail.metadata || {};
+    const columns = [
+      {
+        title: "时间",
+        dataIndex: "createdAt",
+        width: 180,
+        render: value => value ? new Date(value).toLocaleString() : "-",
+      },
+      {
+        title: "来源",
+        dataIndex: "source",
+        width: 110,
+        render: value => <Tag>{publishAttemptSourceLabels[value] || value || "-"}</Tag>,
+      },
+      {
+        title: "状态",
+        dataIndex: "status",
+        width: 100,
+        render: value => <Tag color={value === "ok" ? "green" : "orange"}>{publishAttemptStatusLabels[value] || value || "unknown"}</Tag>,
+      },
+      {
+        title: "失败分类",
+        dataIndex: "failureCategory",
+        width: 190,
+        render: value => value ? <Tag color="red">{value}</Tag> : <Text type="secondary">-</Text>,
+      },
+      {
+        title: "结果",
+        width: 260,
+        render: (_, record) => (
+          <Space wrap>
+            <Tag>accepted: {String(!!record.accepted)}</Tag>
+            <Tag>idempotent: {String(!!record.idempotent)}</Tag>
+            <Tag>retryable: {String(!!record.retryable)}</Tag>
+          </Space>
+        ),
+      },
+      {
+        title: "主体",
+        width: 190,
+        render: (_, record) => (
+          <Space wrap>
+            <Tag>{record.subjectCount || 0}</Tag>
+            <Tag color="green">A {record.activeSubjectCount || 0}</Tag>
+            <Tag color="blue">T {record.tombstoneSubjectCount || 0}</Tag>
+            <Tag color="orange">S {record.skippedSubjectCount || 0}</Tag>
+          </Space>
+        ),
+      },
+      {
+        title: "版本",
+        width: 220,
+        render: (_, record) => (
+          <Space direction="vertical" size={0}>
+            <Text type="secondary">orgVersion: {record.orgVersion || "-"}</Text>
+            <Text type="secondary">source: {record.sourceVersion || "-"}</Text>
+          </Space>
+        ),
+      },
+      {
+        title: "耗时",
+        dataIndex: "durationMs",
+        width: 100,
+        render: value => `${value || 0} ms`,
+      },
+      {
+        title: i18next.t("general:Action"),
+        width: 100,
+        render: (_, record) => <Button onClick={() => this.openPublishAttemptDetail(record)}>详情</Button>,
+      },
+    ];
+
+    return (
+      <Card
+        type="inner"
+        title="Gateway projection publish attempt history"
+        style={{marginBottom: 12}}
+        extra={
+          <Space wrap>
+            <Select
+              value={this.state.attemptSource}
+              style={{width: 130}}
+              options={[
+                Setting.getOption("全部来源", ""),
+                Setting.getOption("手动", "manual"),
+                Setting.getOption("定时/同步", "scheduled"),
+              ]}
+              onChange={value => this.changeAttemptFilter("attemptSource", value)}
+            />
+            <Select
+              value={this.state.attemptStatus}
+              style={{width: 120}}
+              options={[
+                Setting.getOption("全部状态", ""),
+                Setting.getOption("成功", "ok"),
+                Setting.getOption("失败", "error"),
+              ]}
+              onChange={value => this.changeAttemptFilter("attemptStatus", value)}
+            />
+            <Select
+              value={this.state.attemptTimeWindow}
+              style={{width: 130}}
+              options={[
+                Setting.getOption("全部时间", ""),
+                Setting.getOption("近 1 小时", "1h"),
+                Setting.getOption("近 24 小时", "24h"),
+              ]}
+              onChange={value => this.changeAttemptFilter("attemptTimeWindow", value)}
+            />
+            <Button icon={<ReloadOutlined />} loading={this.state.attemptsLoading} onClick={() => this.refreshGatewayProjectionPublishAttempts()}>
+              {i18next.t("general:Refresh")}
+            </Button>
+          </Space>
+        }
+      >
+        <Alert
+          type="info"
+          showIcon
+          message="Attempt history 只记录 Admin producer 脱敏诊断，不是 gateway authorization facts。"
+          style={{marginBottom: 12}}
+        />
+        <Table
+          rowKey={(record) => record.attemptId}
+          columns={columns}
+          dataSource={attempts}
+          pagination={false}
+          loading={this.state.attemptsLoading}
+          size="small"
+          scroll={{x: 1500}}
+        />
+        <Drawer
+          width={560}
+          title="Publish attempt 详情"
+          open={this.state.attemptDetailVisible}
+          onClose={() => this.setState({attemptDetailVisible: false})}
+        >
+          <Space direction="vertical" style={{width: "100%"}} size="middle">
+            <Alert
+              type={detail.status === "ok" ? "success" : "warning"}
+              showIcon
+              message={`${publishAttemptSourceLabels[detail.source] || detail.source || "unknown"} / ${publishAttemptStatusLabels[detail.status] || detail.status || "unknown"}`}
+              description="详情只展示脱敏 producer 摘要，不包含 raw payload、凭据或完整主体明细。"
+            />
+            <Space wrap>
+              <Tag>attemptId: {detail.attemptId || "-"}</Tag>
+              {detail.traceId && <Tag>traceId: {detail.traceId}</Tag>}
+              {detail.projectionBatchId && <Tag>batch: {detail.projectionBatchId}</Tag>}
+              {detail.failureCategory && <Tag color="red">{detail.failureCategory}</Tag>}
+            </Space>
+            <Space wrap>
+              <Tag>accepted: {String(!!detail.accepted)}</Tag>
+              <Tag>idempotent: {String(!!detail.idempotent)}</Tag>
+              <Tag>retryable: {String(!!detail.retryable)}</Tag>
+              <Tag>attempts: {detail.attempts || 0}</Tag>
+              <Tag>duration: {detail.durationMs || 0} ms</Tag>
+            </Space>
+            <Space wrap>
+              <Tag>subjects: {detail.subjectCount || 0}</Tag>
+              <Tag>active: {detail.activeSubjectCount || 0}</Tag>
+              <Tag>tombstone: {detail.tombstoneSubjectCount || 0}</Tag>
+              <Tag>skipped: {detail.skippedSubjectCount || 0}</Tag>
+            </Space>
+            <div>
+              <Text strong>Skipped reasons</Text>
+              <div style={{marginTop: 8}}>
+                {Object.keys(skippedByReason).length === 0 && <Text type="secondary">无</Text>}
+                {Object.entries(skippedByReason).map(([key, value]) => <Tag key={key}>{key}: {value}</Tag>)}
+              </div>
+            </div>
+            <div>
+              <Text strong>Metadata</Text>
+              <div style={{marginTop: 8}}>
+                {Object.keys(metadata).length === 0 && <Text type="secondary">无</Text>}
+                {Object.entries(metadata).map(([key, value]) => <Tag key={key}>{key}: {value}</Tag>)}
+              </div>
+            </div>
+          </Space>
+        </Drawer>
       </Card>
     );
   }
@@ -1117,6 +1400,7 @@ class PlatformApiMappingPage extends React.Component {
         {this.renderGatewayProjectionRunReadiness()}
         {this.renderGatewayProjectionIngestionStatus()}
         {this.renderManualPublishConsole()}
+        {this.renderPublishAttemptHistory()}
         {this.renderUserMappingTable()}
       </Card>
     );

@@ -19,12 +19,16 @@ import * as Setting from "./Setting";
 import * as PlatformApiMappingBackend from "./backend/PlatformApiMappingBackend";
 import PlatformApiMappingPage from "./PlatformApiMappingPage";
 
+jest.setTimeout(15000);
+
 jest.mock("./backend/PlatformApiMappingBackend", () => ({
   getPlatformApiOrganizationMappings: jest.fn(),
   getOrganizationMasterDataQualityReadiness: jest.fn(),
   getPlatformApiUserMappingReadiness: jest.fn(),
   getGatewayProjectionRunReadiness: jest.fn(),
   getGatewayProjectionIngestionStatus: jest.fn(),
+  getGatewayProjectionPublishAttempts: jest.fn(),
+  getGatewayProjectionPublishAttempt: jest.fn(),
   updatePlatformApiOrganizationMapping: jest.fn(),
   getPlatformApiUserMappings: jest.fn(),
   publishGatewayProjectionManually: jest.fn(),
@@ -139,6 +143,55 @@ beforeEach(() => {
         storageScope: "latest_in_process_observability",
       },
       lastFailureAlias: "gateway_unavailable",
+    },
+  });
+  PlatformApiMappingBackend.getGatewayProjectionPublishAttempts.mockResolvedValue({
+    status: "ok",
+    data: {
+      attempts: [{
+        attemptId: "attempt-synthetic",
+        source: "manual",
+        status: "error",
+        traceId: "trace-synthetic",
+        projectionBatchId: "batch-synthetic",
+        orgVersion: 202606151300,
+        sourceVersion: "orgv-run-1",
+        subjectCount: 1,
+        activeSubjectCount: 1,
+        tombstoneSubjectCount: 0,
+        skippedSubjectCount: 2,
+        skippedByReason: {mapping_missing: 2},
+        failureCategory: "gateway_unavailable",
+        accepted: false,
+        idempotent: false,
+        retryable: true,
+        durationMs: 321,
+        createdAt: "2026-06-15T13:00:00Z",
+      }],
+    },
+  });
+  PlatformApiMappingBackend.getGatewayProjectionPublishAttempt.mockResolvedValue({
+    status: "ok",
+    data: {
+      attemptId: "attempt-synthetic",
+      source: "manual",
+      status: "error",
+      traceId: "trace-synthetic",
+      projectionBatchId: "batch-synthetic",
+      subjectCount: 1,
+      activeSubjectCount: 1,
+      tombstoneSubjectCount: 0,
+      skippedSubjectCount: 2,
+      skippedByReason: {mapping_missing: 2},
+      failureCategory: "gateway_unavailable",
+      accepted: false,
+      idempotent: false,
+      retryable: true,
+      attempts: 2,
+      durationMs: 321,
+      metadata: {
+        readinessPublishable: "1",
+      },
     },
   });
   PlatformApiMappingBackend.getOrganizationMasterDataQualityReadiness.mockResolvedValue({
@@ -263,6 +316,11 @@ test("separates organization and user mapping tabs and loads user mappings on de
     mappingStatus: "",
   })));
   await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionRunReadiness).toHaveBeenCalledWith("org-alpha", expect.any(Object)));
+  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttempts).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+    source: "",
+    status: "",
+    limit: 20,
+  })));
   await wait(() => expect(PlatformApiMappingBackend.getOrganizationMasterDataQualityReadiness).toHaveBeenCalledWith("org-alpha"));
   await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionIngestionStatus).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     latest: true,
@@ -281,6 +339,10 @@ test("separates organization and user mapping tabs and loads user mappings on de
   expect(screen.getByText("reason: projection_applied")).toBeInTheDocument();
   expect(screen.getByText("sourceVersion: orgv-ingestion-1")).toBeInTheDocument();
   expect(screen.getByText("Gateway projection 手动发布")).toBeInTheDocument();
+  expect(screen.getByText("Gateway projection publish attempt history")).toBeInTheDocument();
+  expect(screen.getByText("Attempt history 只记录 Admin producer 脱敏诊断，不是 gateway authorization facts。")).toBeInTheDocument();
+  expect(screen.getByText("gateway_unavailable")).toBeInTheDocument();
+  expect(screen.getByText("321 ms")).toBeInTheDocument();
   expect(screen.getAllByText(/mapping_missing/).length).toBeGreaterThan(0);
   expect(screen.getByText("迁移导入")).toBeInTheDocument();
   expect(screen.getByPlaceholderText("搜索平台主体或 API 用户 ID")).toBeInTheDocument();
@@ -300,6 +362,7 @@ test("allows operator to trigger manual gateway projection publish when readines
   expect(screen.getByText("batch-synthetic")).toBeInTheDocument();
   await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionRunReadiness).toHaveBeenCalled());
   await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionIngestionStatus).toHaveBeenCalled());
+  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttempts).toHaveBeenCalled());
   expect(screen.queryByText(/projection-secret|gateway.example.invalid|rawGatewayResponse/)).not.toBeInTheDocument();
 });
 

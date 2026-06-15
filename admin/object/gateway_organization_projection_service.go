@@ -46,10 +46,13 @@ type GatewayProjectionOrganizationPublisher interface {
 
 // GatewayProjectionService 编排组织快照读取、batch 构建和 publisher push。
 type GatewayProjectionService struct {
-	Store     GatewayProjectionSnapshotStore
-	Config    GatewayProjectionPublisherConfig
-	Publisher GatewayProjectionPublisher
-	Now       func() time.Time
+	Store                 GatewayProjectionSnapshotStore
+	AttemptStore          GatewayProjectionPublishAttemptStore
+	Config                GatewayProjectionPublisherConfig
+	Publisher             GatewayProjectionPublisher
+	Now                   func() time.Time
+	AttemptSource         string
+	DisableAttemptHistory bool
 }
 
 // GatewayProjectionServiceResult 汇总 builder 和 publisher 两段结果，便于脚本或触发方审计。
@@ -93,6 +96,7 @@ func (s *GatewayProjectionService) BuildAndPublishOrganization(ctx context.Conte
 		SyncBatch:          snapshot.SyncBatch,
 	})
 	if err != nil {
+		s.recordAttempt(organizationID, GatewayProjectionServiceResult{Build: build}, snapshot.SourceConnections, startedAt)
 		return GatewayProjectionServiceResult{Build: build}, err
 	}
 
@@ -102,7 +106,9 @@ func (s *GatewayProjectionService) BuildAndPublishOrganization(ctx context.Conte
 	}
 	publish, err := publisher.Publish(ctx, build.Request)
 	recordGatewayProjectionServiceObservability(build, publish, snapshot.SourceConnections, time.Since(startedAt).Milliseconds())
-	return GatewayProjectionServiceResult{Build: build, Publish: publish}, err
+	result := GatewayProjectionServiceResult{Build: build, Publish: publish}
+	s.recordAttempt(organizationID, result, snapshot.SourceConnections, startedAt)
+	return result, err
 }
 
 func (s *GatewayProjectionService) snapshotStore() GatewayProjectionSnapshotStore {
@@ -133,6 +139,34 @@ func (s *GatewayProjectionService) now() time.Time {
 		return s.Now()
 	}
 	return time.Now()
+}
+
+func (s *GatewayProjectionService) recordAttempt(organizationID string, result GatewayProjectionServiceResult, sourceConnections []SourceConnection, startedAt time.Time) {
+	if s != nil && s.DisableAttemptHistory {
+		return
+	}
+	source := GatewayProjectionPublishAttemptSourceScheduled
+	if s != nil && normalizeGatewayProjectionString(s.AttemptSource) != "" {
+		source = s.AttemptSource
+	}
+	recordGatewayProjectionPublishAttemptSafely(GatewayProjectionPublishAttemptHistoryService{
+		Store: s.attemptStore(),
+		Now:   s.attemptNowFunc(),
+	}, buildGatewayProjectionPublishAttemptFromResult(source, organizationID, result, sourceConnections, startedAt, time.Since(startedAt).Milliseconds(), ""))
+}
+
+func (s *GatewayProjectionService) attemptStore() GatewayProjectionPublishAttemptStore {
+	if s != nil && s.AttemptStore != nil {
+		return s.AttemptStore
+	}
+	return nil
+}
+
+func (s *GatewayProjectionService) attemptNowFunc() func() time.Time {
+	if s != nil {
+		return s.Now
+	}
+	return nil
 }
 
 func (s defaultGatewayProjectionSnapshotStore) GetGatewayProjectionSnapshot(organizationID string) (*GatewayProjectionSnapshot, error) {

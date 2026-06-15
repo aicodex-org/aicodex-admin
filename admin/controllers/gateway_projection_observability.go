@@ -16,6 +16,8 @@ package controllers
 
 import (
 	"encoding/json"
+	"strconv"
+	"strings"
 	"time"
 
 	"git.leagsoft.com/aicodex/aicodex-admin/object"
@@ -94,6 +96,68 @@ func gatewayProjectionIngestionStatusErrorMessage(result object.GatewayProjectio
 	return "gateway projection ingestion status query failed: " + category
 }
 
+// GetGatewayProjectionPublishAttempts
+// @Title GetGatewayProjectionPublishAttempts
+// @Tag Gateway Projection Observability API
+// @Description 获取 admin-to-gateway projection producer 的脱敏 publish attempt history 列表；该响应不作为 gateway 授权事实来源。
+// @Param organization query string true "Admin 组织 ID"
+// @Param source query string false "manual 或 scheduled"
+// @Param status query string false "ok 或 error"
+// @Param from query string false "RFC3339 开始时间"
+// @Param to query string false "RFC3339 结束时间"
+// @Param limit query int false "最大返回数量"
+// @Success 200 {object} object.GatewayProjectionPublishAttemptList "projection publish attempt history 列表"
+// @router /gateway-projection/publish-attempts [get]
+func (c *ApiController) GetGatewayProjectionPublishAttempts() {
+	organization := strings.TrimSpace(c.Ctx.Input.Query("organization"))
+	if organization == "" {
+		c.ResponseError("gateway projection organization is required")
+		return
+	}
+	result, err := (object.GatewayProjectionPublishAttemptHistoryService{}).List(object.GatewayProjectionPublishAttemptQuery{
+		OrganizationId: organization,
+		Source:         c.Ctx.Input.Query("source"),
+		Status:         c.Ctx.Input.Query("status"),
+		From:           parseGatewayProjectionQueryTime(c.Ctx.Input.Query("from")),
+		To:             parseGatewayProjectionQueryTime(c.Ctx.Input.Query("to")),
+		Limit:          parseGatewayProjectionQueryInt(c.Ctx.Input.Query("limit")),
+	})
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(result)
+}
+
+// GetGatewayProjectionPublishAttempt
+// @Title GetGatewayProjectionPublishAttempt
+// @Tag Gateway Projection Observability API
+// @Description 获取单条 admin-to-gateway projection publish attempt 的脱敏详情；该响应不包含原始 payload 或凭据。
+// @Param attemptId path string true "Attempt ID"
+// @Param organization query string true "Admin 组织 ID"
+// @Success 200 {object} object.GatewayProjectionPublishAttempt "projection publish attempt 脱敏详情"
+// @router /gateway-projection/publish-attempts/:attemptId [get]
+func (c *ApiController) GetGatewayProjectionPublishAttempt() {
+	organization := strings.TrimSpace(c.Ctx.Input.Query("organization"))
+	if organization == "" {
+		c.ResponseError("gateway projection organization is required")
+		return
+	}
+	result, err := (object.GatewayProjectionPublishAttemptHistoryService{}).Detail(object.GatewayProjectionPublishAttemptQuery{
+		OrganizationId: organization,
+		AttemptId:      c.Ctx.Input.Param(":attemptId"),
+	})
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	if result == nil {
+		c.ResponseError("gateway projection publish attempt not found")
+		return
+	}
+	c.ResponseOk(result)
+}
+
 // PublishGatewayProjectionManually
 // @Title PublishGatewayProjectionManually
 // @Tag Gateway Projection Observability API
@@ -113,4 +177,20 @@ func (c *ApiController) PublishGatewayProjectionManually() {
 		return
 	}
 	c.ResponseOk(result)
+}
+
+func parseGatewayProjectionQueryTime(value string) time.Time {
+	parsed, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return time.Time{}
+	}
+	return parsed
+}
+
+func parseGatewayProjectionQueryInt(value string) int {
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return 0
+	}
+	return parsed
 }

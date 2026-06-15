@@ -35,6 +35,7 @@ type GatewayProjectionManualPublishRequest struct {
 // GatewayProjectionManualPublishResult 是 Admin 控制台使用的脱敏 result envelope。
 // 它描述 Admin producer attempt，不代表 gateway authorization facts 或 API/Insight 成功。
 type GatewayProjectionManualPublishResult struct {
+	AttemptID               string                                       `json:"attemptId,omitempty"`
 	Status                  string                                       `json:"status"`
 	GeneratedAt             string                                       `json:"generatedAt"`
 	TraceID                 string                                       `json:"traceId,omitempty"`
@@ -72,10 +73,11 @@ type GatewayProjectionManualPublishReadiness struct {
 // GatewayProjectionManualPublishService 编排只读 preflight 与一次受控 publish attempt。
 // 该服务只复用 Admin producer，不写 gateway 授权事实，不查询 API/Insight 数据源。
 type GatewayProjectionManualPublishService struct {
-	Store     GatewayProjectionSnapshotStore
-	Publisher GatewayProjectionOrganizationPublisher
-	Config    GatewayProjectionPublisherConfig
-	Now       func() time.Time
+	Store        GatewayProjectionSnapshotStore
+	Publisher    GatewayProjectionOrganizationPublisher
+	AttemptStore GatewayProjectionPublishAttemptStore
+	Config       GatewayProjectionPublisherConfig
+	Now          func() time.Time
 }
 
 // Publish 执行一次 operator 触发的受控 gateway projection publish。
@@ -111,6 +113,7 @@ func (s GatewayProjectionManualPublishService) Publish(ctx context.Context, requ
 		result.ErrorCode = disabledReasons[0]
 		result.FailureCategory = disabledReasons[0]
 		result.DisabledReasons = disabledReasons
+		result.AttemptID = s.recordAttempt(organizationID, result, startedAt, request.Reason)
 		return result, nil
 	}
 
@@ -121,6 +124,7 @@ func (s GatewayProjectionManualPublishService) Publish(ctx context.Context, requ
 		envelope.ErrorCode = firstNonEmpty(envelope.ErrorCode, GatewayProjectionPublishErrorProviderUnavailable)
 		envelope.Status = "error"
 	}
+	envelope.AttemptID = s.recordAttempt(organizationID, envelope, startedAt, request.Reason)
 	return envelope, publishErr
 }
 
@@ -152,11 +156,19 @@ func (s GatewayProjectionManualPublishService) publisher(config GatewayProjectio
 		return s.Publisher
 	}
 	return &GatewayProjectionService{
-		Store:     gatewayProjectionStaticSnapshotStore{snapshot: snapshot},
-		Config:    config,
-		Publisher: GatewayProjectionPublisher{Config: config},
-		Now:       s.Now,
+		Store:                 gatewayProjectionStaticSnapshotStore{snapshot: snapshot},
+		Config:                config,
+		Publisher:             GatewayProjectionPublisher{Config: config},
+		Now:                   s.Now,
+		DisableAttemptHistory: true,
 	}
+}
+
+func (s GatewayProjectionManualPublishService) recordAttempt(organizationID string, result GatewayProjectionManualPublishResult, startedAt time.Time, reason string) string {
+	return recordGatewayProjectionPublishAttemptSafely(GatewayProjectionPublishAttemptHistoryService{
+		Store: s.AttemptStore,
+		Now:   s.Now,
+	}, buildGatewayProjectionPublishAttemptFromManualResult(organizationID, result, startedAt, hashPlatformApiMappingAuditValue(reason)))
 }
 
 func (s GatewayProjectionManualPublishService) publisherSummary(config GatewayProjectionPublisherConfig) GatewayProjectionPublisherObservability {
