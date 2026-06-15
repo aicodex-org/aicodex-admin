@@ -334,6 +334,12 @@ func InitAPI() {
 	web.Router("/api/wecom-org-sync/runs", &controllers.ApiController{}, "POST:StartWecomOrganizationSyncRun")
 	web.Router("/api/wecom-org-sync/runs", &controllers.ApiController{}, "GET:GetWecomOrganizationSyncRuns")
 	web.Router("/api/wecom-org-sync/runs/:runId", &controllers.ApiController{}, "GET:GetWecomOrganizationSyncRun")
+	web.Router("/api/feishu-org-sync/config", &controllers.ApiController{}, "GET:GetFeishuOrganizationSyncConfig")
+	web.Router("/api/feishu-org-sync/config", &controllers.ApiController{}, "POST:SaveFeishuOrganizationSyncConfig")
+	web.Router("/api/feishu-org-sync/config/test", &controllers.ApiController{}, "POST:TestFeishuOrganizationSyncConfig")
+	web.Router("/api/feishu-org-sync/runs", &controllers.ApiController{}, "POST:StartFeishuOrganizationSyncRun")
+	web.Router("/api/feishu-org-sync/runs", &controllers.ApiController{}, "GET:GetFeishuOrganizationSyncRuns")
+	web.Router("/api/feishu-org-sync/runs/:runId", &controllers.ApiController{}, "GET:GetFeishuOrganizationSyncRun")
 	web.Router("/api/org-management-scope/current", &controllers.ApiController{}, "GET:GetCurrentOrganizationManagementScope")
 
 	web.Router("/api/get-webhooks", &controllers.ApiController{}, "GET:GetWebhooks")

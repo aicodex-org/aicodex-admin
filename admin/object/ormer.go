@@ -588,6 +588,16 @@ func (a *Ormer) createTable() {
 		panic(err)
 	}
 
+	err = a.Engine.Sync2(new(FeishuOrganizationSyncConfig))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(FeishuOrganizationSyncRun))
+	if err != nil {
+		panic(err)
+	}
+
 	err = a.Engine.Sync2(new(OrganizationSyncSchedule))
 	if err != nil {
 		panic(err)
@@ -624,6 +634,21 @@ func (a *Ormer) createTable() {
 	}
 
 	err = a.Engine.Sync2(new(WecomUserDirectLeader))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(FeishuDepartmentMapping))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(FeishuUserMapping))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(FeishuUserDepartment))
 	if err != nil {
 		panic(err)
 	}

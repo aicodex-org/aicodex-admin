@@ -32,6 +32,7 @@ import (
 
 const (
 	OrganizationSyncProviderWeCom           = "wecom"
+	OrganizationSyncProviderLark            = "lark"
 	OrganizationSyncJobTypeFullDifferential = "full-differential"
 
 	OrganizationSyncDefaultCronExpression = "0 2 * * *"

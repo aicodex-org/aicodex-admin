@@ -23,6 +23,7 @@ import (
 
 const (
 	SourceTypeWecom  = "wecom"
+	SourceTypeLark   = "lark"
 	SourceTypeCustom = "custom"
 
 	PlatformSubjectTypeOrganization = "organization"

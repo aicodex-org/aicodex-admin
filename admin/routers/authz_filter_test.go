@@ -40,6 +40,27 @@ func TestGetWecomOrganizationSyncObjectUsesOrganizationBody(t *testing.T) {
 	}
 }
 
+func TestGetFeishuOrganizationSyncObjectUsesOrganizationQuery(t *testing.T) {
+	owner, name, ok := getModuleOrganizationObject("/api/feishu-org-sync/config", http.MethodGet, "engineering", nil)
+	if !ok {
+		t.Fatalf("expected module organization object to be parsed")
+	}
+	if owner != "engineering" || name != "" {
+		t.Fatalf("object = %q/%q, want engineering/<empty>", owner, name)
+	}
+}
+
+func TestGetFeishuOrganizationSyncObjectUsesOrganizationBody(t *testing.T) {
+	body := []byte(`{"organization":"engineering","appId":"cli_123"}`)
+	owner, name, ok := getModuleOrganizationObject("/api/feishu-org-sync/config", http.MethodPost, "", body)
+	if !ok {
+		t.Fatalf("expected module organization object to be parsed")
+	}
+	if owner != "engineering" || name != "" {
+		t.Fatalf("object = %q/%q, want engineering/<empty>", owner, name)
+	}
+}
+
 func TestGetOrganizationManagementScopeObjectUsesOrganizationQuery(t *testing.T) {
 	owner, name, ok := getModuleOrganizationObject("/api/org-management-scope/current", http.MethodGet, "engineering", nil)
 	if !ok {

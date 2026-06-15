@@ -1,0 +1,31 @@
+/* eslint-env jest */
+
+import * as FeishuOrganizationSyncBackend from "./FeishuOrganizationSyncBackend";
+
+beforeEach(() => {
+  global.fetch = jest.fn(() => Promise.resolve({json: () => Promise.resolve({status: "ok"})}));
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
+});
+
+test("calls Feishu organization sync config endpoints", async() => {
+  await FeishuOrganizationSyncBackend.getFeishuOrganizationSyncConfig("engineering");
+  await FeishuOrganizationSyncBackend.saveFeishuOrganizationSyncConfig({organization: "engineering"});
+  await FeishuOrganizationSyncBackend.testFeishuOrganizationSyncConfig({organization: "engineering"});
+
+  expect(global.fetch).toHaveBeenNthCalledWith(1, "/api/feishu-org-sync/config?organization=engineering", expect.objectContaining({method: "GET"}));
+  expect(global.fetch).toHaveBeenNthCalledWith(2, "/api/feishu-org-sync/config", expect.objectContaining({method: "POST"}));
+  expect(global.fetch).toHaveBeenNthCalledWith(3, "/api/feishu-org-sync/config/test", expect.objectContaining({method: "POST"}));
+});
+
+test("calls Feishu organization sync run endpoints", async() => {
+  await FeishuOrganizationSyncBackend.startFeishuOrganizationSyncRun("engineering");
+  await FeishuOrganizationSyncBackend.getFeishuOrganizationSyncRuns("engineering", 1, 10);
+  await FeishuOrganizationSyncBackend.getFeishuOrganizationSyncRun("engineering", "run-1");
+
+  expect(global.fetch).toHaveBeenNthCalledWith(1, "/api/feishu-org-sync/runs", expect.objectContaining({method: "POST"}));
+  expect(global.fetch).toHaveBeenNthCalledWith(2, "/api/feishu-org-sync/runs?organization=engineering&p=1&pageSize=10&field=&value=&sortField=&sortOrder=", expect.objectContaining({method: "GET"}));
+  expect(global.fetch).toHaveBeenNthCalledWith(3, "/api/feishu-org-sync/runs/run-1?organization=engineering", expect.objectContaining({method: "GET"}));
+});
