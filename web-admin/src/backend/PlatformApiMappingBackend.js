@@ -85,6 +85,19 @@ export function getPlatformApiUserMappingReadiness(organization, options = {}) {
   }).then(res => res.json());
 }
 
+export function publishGatewayProjectionManually(organization, options = {}) {
+  return fetch(`${Setting.ServerUrl}/api/gateway-projection/manual-publish`, {
+    method: "POST",
+    credentials: "include",
+    body: JSON.stringify({
+      organizationId: organization || "",
+      traceId: options.traceId || "",
+      reason: options.reason || "operator-manual-publish",
+    }),
+    headers: getJsonHeaders(),
+  }).then(res => res.json());
+}
+
 export function updatePlatformApiUserMapping(mapping) {
   return fetch(`${Setting.ServerUrl}/api/update-platform-api-user-mapping`, {
     method: "POST",

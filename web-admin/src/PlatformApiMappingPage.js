@@ -122,11 +122,13 @@ class PlatformApiMappingPage extends React.Component {
       organizationLoading: false,
       userLoading: false,
       readinessLoading: false,
+      manualPublishing: false,
       savingKey: "",
       userKeyword: "",
       readinessCategory: "",
       readinessMappingStatus: "",
       readiness: null,
+      manualPublishResult: null,
       userPagination: getDefaultTablePagination(),
       userMappingsLoaded: false,
     };
@@ -260,6 +262,7 @@ class PlatformApiMappingPage extends React.Component {
       userMappings: [],
       userKeyword: "",
       readiness: null,
+      manualPublishResult: null,
       readinessCategory: "",
       readinessMappingStatus: "",
       userPagination: getDefaultTablePagination(),
@@ -509,6 +512,92 @@ class PlatformApiMappingPage extends React.Component {
     return guidance.filter(item => item.category === this.state.readinessCategory);
   }
 
+  getManualPublishDisabledReasons() {
+    const readiness = this.state.readiness;
+    const counts = readiness?.counts || {};
+    const publishableCount = (counts.active_publishable || 0) + (counts.tombstone_publishable || 0);
+    const reasons = [];
+    if (!this.state.organization) {
+      reasons.push("未选择组织");
+    }
+    if (!readiness) {
+      reasons.push("readiness 尚未加载");
+    } else if (publishableCount === 0) {
+      reasons.push("没有 active/tombstone 可发布主体");
+    }
+    return reasons;
+  }
+
+  publishGatewayProjectionManually() {
+    const disabledReasons = this.getManualPublishDisabledReasons();
+    if (disabledReasons.length > 0) {
+      Setting.showMessage("warning", `暂不能手动发布：${disabledReasons.join("；")}`);
+      return Promise.resolve();
+    }
+
+    this.setState({manualPublishing: true});
+    return PlatformApiMappingBackend.publishGatewayProjectionManually(this.state.organization, {
+      reason: "operator-manual-publish",
+    }).then((res) => {
+      this.setState({
+        manualPublishing: false,
+        manualPublishResult: res.status === "ok" ? res.data : (res.data || null),
+      });
+      if (res.status === "ok" && res.data?.status === "ok") {
+        Setting.showMessage("success", "gateway projection 手动发布已接受或幂等完成");
+      } else {
+        Setting.showMessage("warning", `gateway projection 手动发布未完成：${res.msg || res.data?.failureCategory || "unknown"}`);
+      }
+      this.refreshUserMappingReadiness();
+    }).catch(error => {
+      this.setState({manualPublishing: false});
+      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+    });
+  }
+
+  renderManualPublishConsole() {
+    const disabledReasons = this.getManualPublishDisabledReasons();
+    const result = this.state.manualPublishResult;
+    return (
+      <Card
+        type="inner"
+        title="Gateway projection 手动发布"
+        style={{marginBottom: 12}}
+        extra={
+          <Button
+            type="primary"
+            icon={<ReloadOutlined />}
+            loading={this.state.manualPublishing}
+            disabled={disabledReasons.length > 0}
+            onClick={() => this.publishGatewayProjectionManually()}
+          >
+            手动发布
+          </Button>
+        }
+      >
+        <Alert
+          type={disabledReasons.length > 0 ? "warning" : "info"}
+          showIcon
+          message={disabledReasons.length > 0 ? `暂不能触发：${disabledReasons.join("；")}` : "将基于 Admin 当前组织主模型触发一次受控 publish attempt。"}
+          description="该操作只发布 gateway organization projection 输入，不写 gateway 授权事实，也不证明 API/Gateway/Insight 授权成功。"
+          style={{marginBottom: 12}}
+        />
+        {result && (
+          <Space wrap>
+            <Tag color={result.status === "ok" ? "green" : "orange"}>{result.status || "unknown"}</Tag>
+            <Tag>accepted: {String(!!result.accepted)}</Tag>
+            <Tag>idempotent: {String(!!result.idempotent)}</Tag>
+            <Tag>retryable: {String(!!result.retryable)}</Tag>
+            <Tag>subjects: {result.subjectCount || 0}</Tag>
+            <Tag>skipped: {result.skippedSubjectCount || 0}</Tag>
+            {result.failureCategory && <Tag color="red">{result.failureCategory}</Tag>}
+            {result.projectionBatchId && <Text type="secondary">{result.projectionBatchId}</Text>}
+          </Space>
+        )}
+      </Card>
+    );
+  }
+
   renderReadinessGuidance() {
     const guidance = this.getDisplayedReadinessGuidance();
     if (guidance.length === 0) {
@@ -734,6 +823,7 @@ class PlatformApiMappingPage extends React.Component {
         }
       >
         {this.renderReadinessSummary()}
+        {this.renderManualPublishConsole()}
         {this.renderUserMappingTable()}
       </Card>
     );

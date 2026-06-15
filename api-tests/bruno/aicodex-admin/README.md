@@ -965,3 +965,22 @@ readiness 响应会返回 `remediationGuidance`。验证记录只写 `category`�
 - `source_metadata_unavailable` / `source_metadata_unavailable_requires_admin_source_snapshot`：只检查 Admin-owned source connection、OrgSyncBatch 和平台主模型快照；不得查询 API/Insight/gateway store 或写 gateway authorization facts。
 - `lineage_freshness_unavailable` / `lineage_freshness_unavailable_requires_org_version_and_batch`：检查 `PlatformUser.OrgVersion`、`LastSeenBatchId`、`OrgSyncBatch.OrgVersion` 和 freshness 元数据，修复或等待 Admin source 同步后重新读取 readiness。
 - `active_publishable` / `tombstone_publishable`：只表示 Admin producer 具备对应 subject 前置条件。它不是 API/Insight 授权成功证明，也不能替代受控 smoke 的 subject count gate。
+
+### Gateway projection manual publish console
+
+`/api/gateway-projection/manual-publish` 是 Admin-only 受控手动 publish 入口，用于 operator 在 source readiness、mapping readiness 和 freshness 前置条件检查后触发一次 `BuildAndPublishOrganization` attempt。该入口会复用服务间 projection publisher 配置，返回脱敏 result envelope；它不会维护 mapping，不写 gateway resource authorization facts，不写权限矩阵，也不证明 API/Gateway/Insight 授权成功。
+
+建议使用后台 Platform API 映射页的“用户映射”页签操作：
+
+1. 先查看“可发布主体 readiness”，确认 `active_publishable` 或 `tombstone_publishable` 大于 0。
+2. 确认 publisher 配置、source freshness、lineage 和 SourceConnection 状态不是 blocked。
+3. 点击“Gateway projection 手动发布 / 手动发布”，只记录响应中的 `status`、`accepted`、`idempotent`、`retryable`、`projectionBatchId`、subject counts、`skippedByReason`、`failureCategory` 和 `durationMs`。
+4. 若要在真实测试环境验证 `subjectCount>=1` 或 gateway ingestion 结果，必须由主控授权另派 fixture/smoke 任务；不要在本 runbook 中写真实 token、Cookie、私有 URL、账号、手机号、邮箱、完整 organizationId、完整组织树或完整响应体。
+
+稳定失败分类示例：
+
+- `publisher_disabled`：Admin producer 配置未启用；需要 Admin operator 确认是否允许打开 projection publisher。
+- `projection_token_missing`：缺少服务间 endpoint/token；只能通过私有环境配置补齐，不得提交凭据。
+- `source_connection_stale` / `source_connection_disabled`：回到 Admin source owner 修复 SourceConnection/freshness。
+- `lineage_invalid`：缺少 sourceVersion、OrgSyncBatch 或等价 lineage 元数据。
+- `no_publishable_subjects`：当前无可发布 active/tombstone subject；回到 mapping readiness 处理。

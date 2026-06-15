@@ -24,6 +24,7 @@ jest.mock("./backend/PlatformApiMappingBackend", () => ({
   getPlatformApiUserMappingReadiness: jest.fn(),
   updatePlatformApiOrganizationMapping: jest.fn(),
   getPlatformApiUserMappings: jest.fn(),
+  publishGatewayProjectionManually: jest.fn(),
   updatePlatformApiUserMapping: jest.fn(),
 }));
 
@@ -103,6 +104,18 @@ beforeEach(() => {
   });
   PlatformApiMappingBackend.updatePlatformApiOrganizationMapping.mockResolvedValue({status: "ok"});
   PlatformApiMappingBackend.updatePlatformApiUserMapping.mockResolvedValue({status: "ok"});
+  PlatformApiMappingBackend.publishGatewayProjectionManually.mockResolvedValue({
+    status: "ok",
+    data: {
+      status: "ok",
+      accepted: true,
+      idempotent: false,
+      retryable: false,
+      projectionBatchId: "batch-synthetic",
+      subjectCount: 1,
+      skippedSubjectCount: 0,
+    },
+  });
 });
 
 afterEach(() => {
@@ -156,9 +169,24 @@ test("separates organization and user mapping tabs and loads user mappings on de
   })));
   expect(await screen.findByDisplayValue("org-alpha/user-one")).toBeInTheDocument();
   expect(screen.getByText("可发布主体 readiness")).toBeInTheDocument();
+  expect(screen.getByText("Gateway projection 手动发布")).toBeInTheDocument();
   expect(screen.getAllByText(/mapping_missing/).length).toBeGreaterThan(0);
   expect(screen.getByText("迁移导入")).toBeInTheDocument();
   expect(screen.getByPlaceholderText("搜索平台主体或 API 用户 ID")).toBeInTheDocument();
+});
+
+test("allows operator to trigger manual gateway projection publish when readiness is available", async() => {
+  render(<PlatformApiMappingPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  fireEvent.click(await screen.findByText("用户映射"));
+  const button = await screen.findByText("手动发布");
+  fireEvent.click(button);
+
+  await wait(() => expect(PlatformApiMappingBackend.publishGatewayProjectionManually).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+    reason: "operator-manual-publish",
+  })));
+  expect(await screen.findByText("accepted: true")).toBeInTheDocument();
+  expect(screen.getByText("batch-synthetic")).toBeInTheDocument();
 });
 
 test("renders read-only remediation guidance for readiness categories", async() => {

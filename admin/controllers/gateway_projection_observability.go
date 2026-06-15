@@ -15,6 +15,7 @@
 package controllers
 
 import (
+	"encoding/json"
 	"time"
 
 	"git.leagsoft.com/aicodex/aicodex-admin/object"
@@ -28,4 +29,25 @@ import (
 // @router /gateway-projection/observability [get]
 func (c *ApiController) GetGatewayProjectionObservability() {
 	c.ResponseOk(object.GetGatewayProjectionObservabilitySnapshot(time.Now().UTC()))
+}
+
+// PublishGatewayProjectionManually
+// @Title PublishGatewayProjectionManually
+// @Tag Gateway Projection Observability API
+// @Description 触发一次 admin-only gateway projection 受控手动 publish attempt；该操作不写 gateway 授权事实。
+// @Param body body object.GatewayProjectionManualPublishRequest true "手动 publish 请求"
+// @Success 200 {object} object.GatewayProjectionManualPublishResult "projection manual publish 脱敏结果"
+// @router /gateway-projection/manual-publish [post]
+func (c *ApiController) PublishGatewayProjectionManually() {
+	request := object.GatewayProjectionManualPublishRequest{}
+	if err := json.Unmarshal(c.Ctx.Input.RequestBody, &request); err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	result, err := object.GatewayProjectionManualPublishService{}.Publish(c.Ctx.Request.Context(), request)
+	if err != nil {
+		c.ResponseError(err.Error(), result)
+		return
+	}
+	c.ResponseOk(result)
 }

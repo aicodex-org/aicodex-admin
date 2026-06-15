@@ -4,6 +4,7 @@ import {
   getPlatformApiOrganizationMappings,
   getPlatformApiUserMappingReadiness,
   getPlatformApiUserMappings,
+  publishGatewayProjectionManually,
   updatePlatformApiOrganizationMapping,
   updatePlatformApiUserMapping
 } from "./PlatformApiMappingBackend";
@@ -32,6 +33,7 @@ test("loads platform api mappings with explicit organization query", async() => 
     mappingStatus: "CONFIRMED",
     limit: 20,
   });
+  await publishGatewayProjectionManually("org-a", {traceId: "trace-synthetic", reason: "operator-check"});
 
   expect(global.fetch).toHaveBeenNthCalledWith(
     1,
@@ -58,6 +60,23 @@ test("loads platform api mappings with explicit organization query", async() => 
       method: "GET",
       credentials: "include",
       headers: expect.objectContaining({"Accept-Language": "en"}),
+    })
+  );
+  expect(global.fetch).toHaveBeenNthCalledWith(
+    4,
+    "https://admin.example.invalid/api/gateway-projection/manual-publish",
+    expect.objectContaining({
+      method: "POST",
+      credentials: "include",
+      body: JSON.stringify({
+        organizationId: "org-a",
+        traceId: "trace-synthetic",
+        reason: "operator-check",
+      }),
+      headers: expect.objectContaining({
+        "Accept-Language": "en",
+        "Content-Type": "application/json",
+      }),
     })
   );
 });
