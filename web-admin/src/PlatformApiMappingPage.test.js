@@ -31,6 +31,7 @@ jest.mock("./backend/PlatformApiMappingBackend", () => ({
   getGatewayProjectionPublishAttempt: jest.fn(),
   getGatewayProjectionPublishAttemptRetentionReadiness: jest.fn(),
   getGatewayProjectionPublishAttemptCleanupDryRun: jest.fn(),
+  getGatewayProjectionPublishAttemptCleanupExecuteReadiness: jest.fn(),
   updatePlatformApiOrganizationMapping: jest.fn(),
   getPlatformApiUserMappings: jest.fn(),
   publishGatewayProjectionManually: jest.fn(),
@@ -238,6 +239,45 @@ beforeEach(() => {
       },
     },
   });
+  PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupExecuteReadiness.mockResolvedValue({
+    status: "ok",
+    data: {
+      generatedAt: "2026-06-15T13:05:00Z",
+      readiness: "approval_required",
+      safeNextAction: "collect_approval_package",
+      disabledReasons: ["approval_evidence_missing", "cleanup_execution_not_enabled"],
+      dryRunId: "dryrun-synthetic",
+      dryRunHash: "dryrun-hash-synthetic",
+      retentionPolicyVersion: "gateway_projection_publish_attempt_retention.v1",
+      candidateCount: 1,
+      blockedCount: 0,
+      missingDiagnosticSummaryCount: 0,
+      receiptHintAvailableCount: 1,
+      receiptHintMissingCount: 0,
+      lastDryRunFreshness: {
+        status: "fresh",
+        ageSeconds: 0,
+        maxAgeSeconds: 900,
+      },
+      operatorApproval: {
+        required: true,
+        status: "missing",
+        requiredEvidenceAliases: ["dry_run_export_reviewed"],
+        missingEvidenceAliases: ["dry_run_export_reviewed"],
+      },
+      executeGuardrail: {
+        enabled: false,
+        dryRunOnly: true,
+        irreversible: false,
+      },
+      export: {
+        readiness: "approval_required",
+        safeNextAction: "collect_approval_package",
+        dryRunHash: "dryrun-hash-synthetic",
+        samples: [],
+      },
+    },
+  });
   PlatformApiMappingBackend.getGatewayProjectionPublishAttempt.mockResolvedValue({
     status: "ok",
     data: {
@@ -412,6 +452,11 @@ test("separates organization and user mapping tabs and loads user mappings on de
     status: "",
     limit: 100,
   })));
+  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupExecuteReadiness).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+    source: "",
+    status: "",
+    limit: 100,
+  })));
   await wait(() => expect(PlatformApiMappingBackend.getOrganizationMasterDataQualityReadiness).toHaveBeenCalledWith("org-alpha"));
   await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionIngestionStatus).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     latest: true,
@@ -438,6 +483,12 @@ test("separates organization and user mapping tabs and loads user mappings on de
   expect(screen.getByText("Cleanup dry-run guardrails")).toBeInTheDocument();
   expect(screen.getByText(/Dry-run: cleanup_candidates_ready_for_future_execute_gate/)).toBeInTheDocument();
   expect(screen.getByText("candidate: 1")).toBeInTheDocument();
+  expect(screen.getByText("Cleanup execute readiness")).toBeInTheDocument();
+  expect(screen.getByText(/Execute readiness: approval_required/)).toBeInTheDocument();
+  expect(screen.getByText(/safeNextAction: collect_approval_package/)).toBeInTheDocument();
+  expect(screen.getByText("dryRunId: dryrun-synthetic")).toBeInTheDocument();
+  expect(screen.getByText("dryRunHash: dryrun-hash-synthetic")).toBeInTheDocument();
+  expect(screen.getByText("approvalStatus: missing")).toBeInTheDocument();
   expect(screen.getByText("executeEnabled: false")).toBeInTheDocument();
   expect(screen.getByText("dryRunOnly: true")).toBeInTheDocument();
   expect(screen.getAllByText("保留期内").length).toBeGreaterThan(0);
@@ -491,7 +542,27 @@ test("allows operator to trigger manual gateway projection publish when readines
   await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttempts).toHaveBeenCalled());
   await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptRetentionReadiness).toHaveBeenCalled());
   await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupDryRun).toHaveBeenCalled());
+  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupExecuteReadiness).toHaveBeenCalled());
   expect(screen.queryByText(/projection-secret|gateway.example.invalid|rawGatewayResponse/)).not.toBeInTheDocument();
+});
+
+test("copies redacted cleanup execute readiness export", async() => {
+  const writeText = jest.fn();
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: {writeText},
+  });
+
+  render(<PlatformApiMappingPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  fireEvent.click(await screen.findByText("用户映射"));
+  fireEvent.click(await screen.findByText("复制脱敏 JSON"));
+
+  await wait(() => expect(writeText).toHaveBeenCalled());
+  const copied = writeText.mock.calls[0][0];
+  expect(copied).toContain("approval_required");
+  expect(copied).toContain("dryrun-hash-synthetic");
+  expect(copied).not.toMatch(/rawGatewayResponse|projection-secret|gateway\.example\.invalid/);
 });
 
 test("renders read-only remediation guidance for readiness categories", async() => {

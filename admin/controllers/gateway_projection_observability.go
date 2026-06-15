@@ -228,6 +228,45 @@ func (c *ApiController) GetGatewayProjectionPublishAttemptRetentionCleanupDryRun
 	c.ResponseOk(result)
 }
 
+// GetGatewayProjectionPublishAttemptRetentionCleanupExecuteReadiness
+// @Title GetGatewayProjectionPublishAttemptRetentionCleanupExecuteReadiness
+// @Tag Gateway Projection Observability API
+// @Description 生成 admin-to-gateway projection publish attempt retention cleanup 执行前只读 readiness；P0 不执行删除或更新。
+// @Param organization query string true "Admin 组织 ID"
+// @Param source query string false "manual 或 scheduled"
+// @Param status query string false "ok 或 error"
+// @Param failureCategory query string false "稳定失败分类 alias"
+// @Param olderThan query string false "RFC3339 清理候选上限时间"
+// @Param dryRunGeneratedAt query string false "RFC3339 dry-run 生成时间"
+// @Param maxDryRunAgeSeconds query int false "dry-run 新鲜度最大年龄秒数"
+// @Param approvalEvidence query string false "逗号分隔的脱敏审批材料 alias"
+// @Param limit query int false "最大统计数量"
+// @Success 200 {object} object.GatewayProjectionPublishAttemptCleanupExecuteReadiness "projection cleanup execute readiness 脱敏结果"
+// @router /gateway-projection/publish-attempt-retention-cleanup-execute-readiness [get]
+func (c *ApiController) GetGatewayProjectionPublishAttemptRetentionCleanupExecuteReadiness() {
+	organization := strings.TrimSpace(c.Ctx.Input.Query("organization"))
+	if organization == "" {
+		c.ResponseError("gateway projection organization is required")
+		return
+	}
+	result, err := (object.GatewayProjectionPublishAttemptHistoryService{}).CleanupExecuteReadiness(object.GatewayProjectionPublishAttemptCleanupExecuteReadinessQuery{
+		OrganizationId:          organization,
+		Source:                  c.Ctx.Input.Query("source"),
+		Status:                  c.Ctx.Input.Query("status"),
+		FailureCategory:         c.Ctx.Input.Query("failureCategory"),
+		OlderThan:               parseGatewayProjectionQueryTime(c.Ctx.Input.Query("olderThan")),
+		Limit:                   parseGatewayProjectionQueryInt(c.Ctx.Input.Query("limit")),
+		DryRunGeneratedAt:       parseGatewayProjectionQueryTime(c.Ctx.Input.Query("dryRunGeneratedAt")),
+		MaxDryRunAgeSeconds:     int64(parseGatewayProjectionQueryInt(c.Ctx.Input.Query("maxDryRunAgeSeconds"))),
+		ApprovalEvidenceAliases: parseGatewayProjectionQueryCSV(c.Ctx.Input.Query("approvalEvidence")),
+	})
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(result)
+}
+
 // PublishGatewayProjectionManually
 // @Title PublishGatewayProjectionManually
 // @Tag Gateway Projection Observability API
@@ -263,4 +302,15 @@ func parseGatewayProjectionQueryInt(value string) int {
 		return 0
 	}
 	return parsed
+}
+
+func parseGatewayProjectionQueryCSV(value string) []string {
+	items := []string{}
+	for _, item := range strings.Split(value, ",") {
+		item = strings.TrimSpace(item)
+		if item != "" {
+			items = append(items, item)
+		}
+	}
+	return items
 }

@@ -169,6 +169,7 @@ class PlatformApiMappingPage extends React.Component {
       attemptsLoading: false,
       retentionReadinessLoading: false,
       cleanupDryRunLoading: false,
+      cleanupExecuteReadinessLoading: false,
       attemptDetailLoading: false,
       savingKey: "",
       userKeyword: "",
@@ -182,6 +183,7 @@ class PlatformApiMappingPage extends React.Component {
       publishAttempts: [],
       retentionReadiness: null,
       cleanupDryRun: null,
+      cleanupExecuteReadiness: null,
       attemptSource: "",
       attemptStatus: "",
       attemptTimeWindow: "",
@@ -361,6 +363,7 @@ class PlatformApiMappingPage extends React.Component {
       });
       this.refreshGatewayProjectionPublishAttemptRetentionReadiness(organization, {source, status, timeWindow});
       this.refreshGatewayProjectionPublishAttemptCleanupDryRun(organization, {source, status});
+      this.refreshGatewayProjectionPublishAttemptCleanupExecuteReadiness(organization, {source, status});
     }).catch(error => {
       this.setState({attemptsLoading: false});
       Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
@@ -421,6 +424,32 @@ class PlatformApiMappingPage extends React.Component {
     });
   }
 
+  refreshGatewayProjectionPublishAttemptCleanupExecuteReadiness(organization = this.state.organization, options = {}) {
+    if (!organization) {
+      return Promise.resolve();
+    }
+    const source = options.source !== undefined ? options.source : this.state.attemptSource;
+    const status = options.status !== undefined ? options.status : this.state.attemptStatus;
+
+    this.setState({cleanupExecuteReadinessLoading: true});
+    return PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupExecuteReadiness(organization, {
+      source,
+      status,
+      limit: 100,
+    }).then((res) => {
+      if (res.status === "error") {
+        Setting.showMessage("error", res.msg);
+      }
+      this.setState({
+        cleanupExecuteReadinessLoading: false,
+        cleanupExecuteReadiness: res.status === "ok" ? res.data : null,
+      });
+    }).catch(error => {
+      this.setState({cleanupExecuteReadinessLoading: false});
+      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+    });
+  }
+
   refreshOrganizationMasterDataQuality(organization = this.state.organization) {
     if (!organization) {
       return Promise.resolve();
@@ -477,6 +506,7 @@ class PlatformApiMappingPage extends React.Component {
       publishAttempts: [],
       retentionReadiness: null,
       cleanupDryRun: null,
+      cleanupExecuteReadiness: null,
       attemptSource: "",
       attemptStatus: "",
       attemptTimeWindow: "",
@@ -793,6 +823,39 @@ class PlatformApiMappingPage extends React.Component {
     this.setState({attemptDetailVisible: false});
   }
 
+  copyCleanupExecuteReadinessExport() {
+    const readiness = this.state.cleanupExecuteReadiness;
+    if (!readiness) {
+      Setting.showMessage("warning", "cleanup execute readiness 尚未加载");
+      return;
+    }
+    const exportPayload = readiness.export || {
+      generatedAt: readiness.generatedAt,
+      readiness: readiness.readiness,
+      safeNextAction: readiness.safeNextAction,
+      disabledReasons: readiness.disabledReasons || [],
+      dryRunId: readiness.dryRunId,
+      dryRunHash: readiness.dryRunHash,
+      retentionPolicyVersion: readiness.retentionPolicyVersion,
+      filters: readiness.filters || {},
+      candidateCount: readiness.candidateCount || 0,
+      blockedCount: readiness.blockedCount || 0,
+      lastDryRunFreshness: readiness.lastDryRunFreshness || {},
+      operatorApproval: readiness.operatorApproval || {},
+      executeGuardrail: readiness.executeGuardrail || {},
+    };
+    const text = JSON.stringify(exportPayload, null, 2);
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        Setting.showMessage("success", "已复制脱敏 readiness JSON");
+      }).catch(error => {
+        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      });
+      return;
+    }
+    Setting.showMessage("warning", "当前浏览器不支持自动复制，请从只读响应中导出");
+  }
+
   getManualPublishDisabledReasons() {
     const readiness = this.state.readiness;
     const counts = readiness?.counts || {};
@@ -835,6 +898,7 @@ class PlatformApiMappingPage extends React.Component {
       this.refreshGatewayProjectionPublishAttempts();
       this.refreshGatewayProjectionPublishAttemptRetentionReadiness();
       this.refreshGatewayProjectionPublishAttemptCleanupDryRun();
+      this.refreshGatewayProjectionPublishAttemptCleanupExecuteReadiness();
     }).catch(error => {
       this.setState({manualPublishing: false});
       Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
@@ -998,11 +1062,15 @@ class PlatformApiMappingPage extends React.Component {
     const attempts = this.state.publishAttempts || [];
     const retentionReadiness = this.state.retentionReadiness;
     const cleanupDryRun = this.state.cleanupDryRun;
+    const cleanupExecuteReadiness = this.state.cleanupExecuteReadiness;
     const reasonCounts = retentionReadiness?.reasonCounts || {};
     const cleanupReasonCounts = cleanupDryRun?.reasonCounts || {};
     const cleanupGuardrail = cleanupDryRun?.executeGuardrail || {};
     const diagnosticCompleteness = cleanupDryRun?.diagnosticCompleteness || {};
     const receiptHintCoverage = cleanupDryRun?.receiptHintCoverage || {};
+    const executeFreshness = cleanupExecuteReadiness?.lastDryRunFreshness || {};
+    const executeApproval = cleanupExecuteReadiness?.operatorApproval || {};
+    const executeGuardrail = cleanupExecuteReadiness?.executeGuardrail || {};
     const detail = this.state.attemptDetail || {};
     const detailRetention = detail.retention || {};
     const receiptHint = detail.receiptQueryHint || {};
@@ -1203,6 +1271,58 @@ class PlatformApiMappingPage extends React.Component {
           </div>
           <Space wrap>
             {(cleanupDryRun?.safetyChecklist || []).map(item => <Tag key={item}>{item}</Tag>)}
+          </Space>
+        </Card>
+        <Card
+          type="inner"
+          size="small"
+          title="Cleanup execute readiness"
+          style={{marginBottom: 12}}
+          extra={
+            <Space wrap>
+              <Button
+                icon={<ReloadOutlined />}
+                loading={this.state.cleanupExecuteReadinessLoading}
+                onClick={() => this.refreshGatewayProjectionPublishAttemptCleanupExecuteReadiness()}
+              >
+                刷新 readiness
+              </Button>
+              <Button onClick={() => this.copyCleanupExecuteReadinessExport()}>
+                复制脱敏 JSON
+              </Button>
+            </Space>
+          }
+        >
+          <Alert
+            type={cleanupExecuteReadiness?.readiness === "blocked" ? "error" : cleanupExecuteReadiness?.readiness === "ready_for_approval" ? "success" : "warning"}
+            showIcon
+            message={`Execute readiness: ${cleanupExecuteReadiness?.readiness || "未加载"}`}
+            description={`safeNextAction: ${cleanupExecuteReadiness?.safeNextAction || "等待 readiness"}。该门禁只用于 Admin producer 执行前审批判断，不执行 cleanup，也不是下游授权成功证据。`}
+            style={{marginBottom: 12}}
+          />
+          <Space wrap style={{marginBottom: 8}}>
+            <Tag>candidate: {cleanupExecuteReadiness?.candidateCount || 0}</Tag>
+            <Tag>blocked: {cleanupExecuteReadiness?.blockedCount || 0}</Tag>
+            <Tag>missingDiagnostic: {cleanupExecuteReadiness?.missingDiagnosticSummaryCount || 0}</Tag>
+            <Tag>receiptHintAvailable: {cleanupExecuteReadiness?.receiptHintAvailableCount || 0}</Tag>
+            <Tag>receiptHintMissing: {cleanupExecuteReadiness?.receiptHintMissingCount || 0}</Tag>
+            <Tag>freshness: {executeFreshness.status || "unknown"}</Tag>
+            <Tag>ageSeconds: {executeFreshness.ageSeconds || 0}</Tag>
+            <Tag color={executeGuardrail.enabled ? "red" : "green"}>executeEnabled: {String(!!executeGuardrail.enabled)}</Tag>
+            <Tag>dryRunOnly: {String(!!executeGuardrail.dryRunOnly)}</Tag>
+          </Space>
+          <Space wrap style={{marginBottom: 8}}>
+            {cleanupExecuteReadiness?.dryRunId && <Tag>dryRunId: {cleanupExecuteReadiness.dryRunId}</Tag>}
+            {cleanupExecuteReadiness?.dryRunHash && <Tag>dryRunHash: {cleanupExecuteReadiness.dryRunHash}</Tag>}
+            {cleanupExecuteReadiness?.retentionPolicyVersion && <Tag>policy: {cleanupExecuteReadiness.retentionPolicyVersion}</Tag>}
+          </Space>
+          <div style={{marginBottom: 8}}>
+            {(cleanupExecuteReadiness?.disabledReasons || []).map(reason => <Tag key={reason} color="orange">{reason}</Tag>)}
+          </div>
+          <Space wrap>
+            <Tag>approvalRequired: {String(!!executeApproval.required)}</Tag>
+            <Tag>approvalStatus: {executeApproval.status || "unknown"}</Tag>
+            {(executeApproval.missingEvidenceAliases || []).map(item => <Tag key={item}>{item}</Tag>)}
           </Space>
         </Card>
         <Table

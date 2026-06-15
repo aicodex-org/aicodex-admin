@@ -35,3 +35,16 @@ func TestGatewayProjectionIngestionStatusErrorMessageIsSanitized(t *testing.T) {
 		}
 	}
 }
+
+func TestParseGatewayProjectionQueryCSVTrimsEmptyApprovalEvidence(t *testing.T) {
+	got := parseGatewayProjectionQueryCSV(" dry_run_export_reviewed, ,candidate_count_reviewed ,,")
+	want := []string{"dry_run_export_reviewed", "candidate_count_reviewed"}
+	if len(got) != len(want) {
+		t.Fatalf("csv = %#v, want %#v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("csv[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}

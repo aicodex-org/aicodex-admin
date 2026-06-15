@@ -328,6 +328,141 @@ func TestGatewayProjectionPublishAttemptCleanupDryRunDefensiveBranches(t *testin
 	}
 }
 
+func TestGatewayProjectionPublishAttemptCleanupExecuteReadinessRequiresApproval(t *testing.T) {
+	now := time.Date(2026, 6, 15, 15, 0, 0, 0, time.UTC)
+	attemptStore := &memoryGatewayProjectionPublishAttemptStore{
+		records: []*GatewayProjectionPublishAttempt{{
+			AttemptId:         "attempt-execute-candidate",
+			OrganizationId:    "org-a",
+			Source:            GatewayProjectionPublishAttemptSourceManual,
+			Status:            "error",
+			ProjectionBatchId: "batch-execute",
+			OrgVersion:        202606151500,
+			SourceVersion:     "orgv-execute",
+			FailureCategory:   "gateway_unavailable",
+			SkippedByReason:   map[string]int{GatewayProjectionSkipMappingMissing: 1},
+			CreatedAt:         now.Add(-35 * 24 * time.Hour),
+		}},
+	}
+	service := GatewayProjectionPublishAttemptHistoryService{Store: attemptStore, Now: func() time.Time { return now }}
+	readiness, err := service.CleanupExecuteReadiness(GatewayProjectionPublishAttemptCleanupExecuteReadinessQuery{
+		OrganizationId: "org-a",
+		OlderThan:      now.Add(-30 * 24 * time.Hour),
+		Limit:          20,
+	})
+	if err != nil {
+		t.Fatalf("CleanupExecuteReadiness() error = %v", err)
+	}
+	if readiness.Readiness != "approval_required" || readiness.SafeNextAction != "collect_approval_package" {
+		t.Fatalf("readiness = %#v, want approval-required next action", readiness)
+	}
+	if readiness.CandidateCount != 1 || readiness.BlockedCount != 0 || readiness.MissingDiagnosticSummaryCount != 0 || readiness.ReceiptHintMissingCount != 0 {
+		t.Fatalf("counts = %#v, want one fully diagnosable candidate", readiness)
+	}
+	if !readiness.OperatorApproval.Required || readiness.OperatorApproval.Status != "missing" || len(readiness.OperatorApproval.MissingEvidenceAliases) == 0 {
+		t.Fatalf("approval = %#v, want missing required approval evidence", readiness.OperatorApproval)
+	}
+	if readiness.ExecuteGuardrail.Enabled || !readiness.ExecuteGuardrail.DryRunOnly || readiness.ExecuteGuardrail.Irreversible {
+		t.Fatalf("execute guardrail = %#v, want disabled dry-run-only guardrail", readiness.ExecuteGuardrail)
+	}
+	if readiness.DryRunId == "" || readiness.DryRunHash == "" || readiness.RetentionPolicyVersion != "gateway_projection_publish_attempt_retention.v1" {
+		t.Fatalf("identity = %#v, want dry-run id/hash and policy version", readiness)
+	}
+	raw, err := json.Marshal(readiness)
+	if err != nil {
+		t.Fatalf("marshal readiness: %v", err)
+	}
+	assertDoesNotContainAny(t, string(raw), "projection-secret", "Authorization", "Cookie", "gateway.example.invalid", "rawGatewayResponse")
+}
+
+func TestGatewayProjectionPublishAttemptCleanupExecuteReadinessBlocksUnsafeDryRun(t *testing.T) {
+	now := time.Date(2026, 6, 15, 15, 10, 0, 0, time.UTC)
+	attemptStore := &memoryGatewayProjectionPublishAttemptStore{
+		records: []*GatewayProjectionPublishAttempt{{
+			AttemptId:       "attempt-receipt-missing",
+			OrganizationId:  "org-a",
+			Source:          GatewayProjectionPublishAttemptSourceScheduled,
+			Status:          "error",
+			FailureCategory: "gateway_unavailable",
+			CreatedAt:       now.Add(-35 * 24 * time.Hour),
+		}},
+	}
+	service := GatewayProjectionPublishAttemptHistoryService{Store: attemptStore, Now: func() time.Time { return now }}
+	readiness, err := service.CleanupExecuteReadiness(GatewayProjectionPublishAttemptCleanupExecuteReadinessQuery{
+		OrganizationId:          "org-a",
+		OlderThan:               now.Add(-30 * 24 * time.Hour),
+		DryRunGeneratedAt:       now.Add(-time.Hour),
+		MaxDryRunAgeSeconds:     60,
+		ApprovalEvidenceAliases: allGatewayProjectionCleanupApprovalEvidenceAliases(),
+		Limit:                   20,
+	})
+	if err != nil {
+		t.Fatalf("CleanupExecuteReadiness(unsafe) error = %v", err)
+	}
+	if readiness.Readiness != "blocked" || readiness.SafeNextAction != "rerun_cleanup_dry_run" {
+		t.Fatalf("readiness = %#v, want blocked stale dry-run", readiness)
+	}
+	for _, reason := range []string{"cleanup_dry_run_stale", "diagnostic_summary_missing", "receipt_hint_missing", "cleanup_execution_not_enabled"} {
+		if !containsString(readiness.DisabledReasons, reason) {
+			t.Fatalf("disabled reasons = %#v, want %q", readiness.DisabledReasons, reason)
+		}
+	}
+	if readiness.LastDryRunFreshness.Status != "stale" || readiness.MissingDiagnosticSummaryCount != 1 || readiness.ReceiptHintMissingCount != 1 {
+		t.Fatalf("freshness/counts = %#v missing=%d receiptMissing=%d", readiness.LastDryRunFreshness, readiness.MissingDiagnosticSummaryCount, readiness.ReceiptHintMissingCount)
+	}
+
+	noCandidate, err := service.CleanupExecuteReadiness(GatewayProjectionPublishAttemptCleanupExecuteReadinessQuery{
+		OrganizationId:          "org-missing",
+		OlderThan:               now.Add(-30 * 24 * time.Hour),
+		DryRunGeneratedAt:       now.Add(time.Minute),
+		ApprovalEvidenceAliases: allGatewayProjectionCleanupApprovalEvidenceAliases(),
+		Limit:                   20,
+	})
+	if err != nil {
+		t.Fatalf("CleanupExecuteReadiness(no candidate) error = %v", err)
+	}
+	for _, reason := range []string{"no_cleanup_candidates", "cleanup_dry_run_generated_at_future", "cleanup_execution_not_enabled"} {
+		if !containsString(noCandidate.DisabledReasons, reason) {
+			t.Fatalf("no-candidate disabled reasons = %#v, want %q", noCandidate.DisabledReasons, reason)
+		}
+	}
+}
+
+func TestGatewayProjectionPublishAttemptCleanupExecuteReadinessReadyForApproval(t *testing.T) {
+	now := time.Date(2026, 6, 15, 15, 20, 0, 0, time.UTC)
+	attemptStore := &memoryGatewayProjectionPublishAttemptStore{
+		records: []*GatewayProjectionPublishAttempt{{
+			AttemptId:         "attempt-ready",
+			OrganizationId:    "org-a",
+			Status:            "error",
+			ProjectionBatchId: "batch-ready",
+			SourceVersion:     "orgv-ready",
+			FailureCategory:   "gateway_unavailable",
+			CreatedAt:         now.Add(-35 * 24 * time.Hour),
+		}},
+	}
+	service := GatewayProjectionPublishAttemptHistoryService{Store: attemptStore, Now: func() time.Time { return now }}
+	readiness, err := service.CleanupExecuteReadiness(GatewayProjectionPublishAttemptCleanupExecuteReadinessQuery{
+		OrganizationId:          "org-a",
+		OlderThan:               now.Add(-30 * 24 * time.Hour),
+		ApprovalEvidenceAliases: allGatewayProjectionCleanupApprovalEvidenceAliases(),
+		MaxDryRunAgeSeconds:     900,
+		Limit:                   20,
+	})
+	if err != nil {
+		t.Fatalf("CleanupExecuteReadiness(ready) error = %v", err)
+	}
+	if readiness.Readiness != "ready_for_approval" || readiness.SafeNextAction != "wait_for_cleanup_execute_gate" {
+		t.Fatalf("readiness = %#v, want ready for approval without execution", readiness)
+	}
+	if readiness.OperatorApproval.Status != "ready" || len(readiness.OperatorApproval.MissingEvidenceAliases) != 0 {
+		t.Fatalf("approval = %#v, want ready approval evidence", readiness.OperatorApproval)
+	}
+	if readiness.Export.Readiness != readiness.Readiness || readiness.Export.DryRunHash != readiness.DryRunHash || len(readiness.Export.Samples) != 0 {
+		t.Fatalf("export = %#v, want sanitized summary without samples", readiness.Export)
+	}
+}
+
 func TestGatewayProjectionPublishAttemptHistoryHandlesLimitsMissingAndRecordFailure(t *testing.T) {
 	setupGatewayProjectionPublishAttemptTestOrmer(t)
 	generatedAt := time.Date(2026, 6, 15, 13, 30, 0, 0, time.UTC)

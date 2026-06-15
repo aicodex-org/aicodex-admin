@@ -31,6 +31,9 @@ const (
 	defaultGatewayProjectionPublishAttemptLimit           = 20
 	maxGatewayProjectionPublishAttemptLimit               = 100
 	defaultGatewayProjectionPublishAttemptRetentionWindow = 30 * 24 * time.Hour
+	defaultGatewayProjectionCleanupDryRunMaxAge           = 15 * time.Minute
+
+	gatewayProjectionCleanupRetentionPolicyVersion = "gateway_projection_publish_attempt_retention.v1"
 )
 
 // GatewayProjectionPublishAttempt 是 Admin producer 的脱敏发布尝试台账。
@@ -195,6 +198,81 @@ type GatewayProjectionAttemptCleanupExecuteGuardrail struct {
 	DisabledReason       string   `json:"disabledReason"`
 	RequiredConfirmation string   `json:"requiredConfirmation"`
 	SafetyChecklist      []string `json:"safetyChecklist"`
+}
+
+// GatewayProjectionPublishAttemptCleanupExecuteReadinessQuery 限定 cleanup 执行前只读门禁范围。
+// 它只复用 dry-run 输入，不承载真实审批签名或破坏性执行意图。
+type GatewayProjectionPublishAttemptCleanupExecuteReadinessQuery struct {
+	OrganizationId          string
+	Source                  string
+	Status                  string
+	FailureCategory         string
+	OlderThan               time.Time
+	Limit                   int
+	DryRunGeneratedAt       time.Time
+	MaxDryRunAgeSeconds     int64
+	ApprovalEvidenceAliases []string
+}
+
+// GatewayProjectionPublishAttemptCleanupExecuteReadiness 是 cleanup 执行前审批门禁的只读结果。
+// readiness 只表示是否具备进入人工批准阶段的诊断条件；即使为 ready_for_approval，也不会执行删除或声明下游授权成功。
+type GatewayProjectionPublishAttemptCleanupExecuteReadiness struct {
+	GeneratedAt                   string                                          `json:"generatedAt"`
+	Readiness                     string                                          `json:"readiness"`
+	SafeNextAction                string                                          `json:"safeNextAction"`
+	DisabledReasons               []string                                        `json:"disabledReasons,omitempty"`
+	DryRunId                      string                                          `json:"dryRunId"`
+	DryRunHash                    string                                          `json:"dryRunHash"`
+	RetentionPolicyVersion        string                                          `json:"retentionPolicyVersion"`
+	Filters                       GatewayProjectionPublishAttemptFilters          `json:"filters"`
+	CandidateCount                int                                             `json:"candidateCount"`
+	BlockedCount                  int                                             `json:"blockedCount"`
+	MissingDiagnosticSummaryCount int                                             `json:"missingDiagnosticSummaryCount"`
+	ReceiptHintAvailableCount     int                                             `json:"receiptHintAvailableCount"`
+	ReceiptHintMissingCount       int                                             `json:"receiptHintMissingCount"`
+	LastDryRunGeneratedAt         string                                          `json:"lastDryRunGeneratedAt"`
+	LastDryRunFreshness           GatewayProjectionCleanupDryRunFreshness         `json:"lastDryRunFreshness"`
+	OperatorApproval              GatewayProjectionCleanupOperatorApproval        `json:"operatorApproval"`
+	ExecuteGuardrail              GatewayProjectionAttemptCleanupExecuteGuardrail `json:"executeGuardrail"`
+	Export                        GatewayProjectionCleanupExecuteReadinessExport  `json:"export"`
+}
+
+// GatewayProjectionCleanupDryRunFreshness 描述本次 execute readiness 所依赖 dry-run 证据的新鲜度。
+// stale/future 都必须 fail closed，引导 operator 重新生成 dry-run。
+type GatewayProjectionCleanupDryRunFreshness struct {
+	Status        string `json:"status"`
+	GeneratedAt   string `json:"generatedAt"`
+	AgeSeconds    int64  `json:"ageSeconds"`
+	MaxAgeSeconds int64  `json:"maxAgeSeconds"`
+	ExpiresAt     string `json:"expiresAt,omitempty"`
+}
+
+// GatewayProjectionCleanupOperatorApproval 描述 operator 已提交的审批证据别名是否满足最小人工确认清单。
+// 这里不保存真实签名、账号凭据或审批正文，避免 readiness 结果承载敏感审批材料。
+type GatewayProjectionCleanupOperatorApproval struct {
+	Required                bool     `json:"required"`
+	Status                  string   `json:"status"`
+	RequiredEvidenceAliases []string `json:"requiredEvidenceAliases"`
+	MissingEvidenceAliases  []string `json:"missingEvidenceAliases,omitempty"`
+}
+
+// GatewayProjectionCleanupExecuteReadinessExport 是前端复制/导出的脱敏审批包摘要。
+// 它排除样本明细和 raw gateway response，只保留 dryRunHash、计数、freshness 和 guardrail 状态。
+type GatewayProjectionCleanupExecuteReadinessExport struct {
+	GeneratedAt            string                                           `json:"generatedAt"`
+	Readiness              string                                           `json:"readiness"`
+	SafeNextAction         string                                           `json:"safeNextAction"`
+	DisabledReasons        []string                                         `json:"disabledReasons,omitempty"`
+	DryRunId               string                                           `json:"dryRunId"`
+	DryRunHash             string                                           `json:"dryRunHash"`
+	RetentionPolicyVersion string                                           `json:"retentionPolicyVersion"`
+	Filters                GatewayProjectionPublishAttemptFilters           `json:"filters"`
+	CandidateCount         int                                              `json:"candidateCount"`
+	BlockedCount           int                                              `json:"blockedCount"`
+	LastDryRunFreshness    GatewayProjectionCleanupDryRunFreshness          `json:"lastDryRunFreshness"`
+	OperatorApproval       GatewayProjectionCleanupOperatorApproval         `json:"operatorApproval"`
+	ExecuteGuardrail       GatewayProjectionAttemptCleanupExecuteGuardrail  `json:"executeGuardrail"`
+	Samples                []GatewayProjectionPublishAttemptRetentionSample `json:"samples,omitempty"`
 }
 
 type GatewayProjectionPublishAttemptStore interface {
@@ -404,6 +482,64 @@ func (s GatewayProjectionPublishAttemptHistoryService) CleanupDryRun(query Gatew
 // P0 不执行 DB delete/update，只把确认项和禁用原因暴露给 operator。
 func (s GatewayProjectionPublishAttemptHistoryService) CleanupExecuteGuardrail(query GatewayProjectionPublishAttemptCleanupDryRunQuery) (*GatewayProjectionPublishAttemptCleanupDryRunPlan, error) {
 	return s.CleanupDryRun(query)
+}
+
+// CleanupExecuteReadiness 基于现有 dry-run plan 生成执行前只读门禁。
+// 该方法只读取 Admin producer attempt history，不执行 DB delete/update、不触发 projection publish，也不读取 Gateway/API/Insight 内部库。
+func (s GatewayProjectionPublishAttemptHistoryService) CleanupExecuteReadiness(query GatewayProjectionPublishAttemptCleanupExecuteReadinessQuery) (*GatewayProjectionPublishAttemptCleanupExecuteReadiness, error) {
+	dryRunQuery := GatewayProjectionPublishAttemptCleanupDryRunQuery{
+		OrganizationId:  query.OrganizationId,
+		Source:          query.Source,
+		Status:          query.Status,
+		FailureCategory: query.FailureCategory,
+		OlderThan:       query.OlderThan,
+		Limit:           query.Limit,
+	}
+	plan, err := s.CleanupDryRun(dryRunQuery)
+	if err != nil {
+		return nil, err
+	}
+	now := s.now()
+	freshness := buildGatewayProjectionCleanupDryRunFreshness(query, now)
+	approval := buildGatewayProjectionCleanupOperatorApproval(query.ApprovalEvidenceAliases)
+	disabledReasons := gatewayProjectionCleanupExecuteDisabledReasons(plan, freshness, approval)
+	readiness, safeNextAction := gatewayProjectionCleanupExecuteReadinessStatus(disabledReasons, approval)
+	dryRunId, dryRunHash := buildGatewayProjectionCleanupDryRunIdentity(plan, freshness.GeneratedAt)
+	export := GatewayProjectionCleanupExecuteReadinessExport{
+		GeneratedAt:            formatGatewayProjectionObservabilityTime(now),
+		Readiness:              readiness,
+		SafeNextAction:         safeNextAction,
+		DisabledReasons:        append([]string(nil), disabledReasons...),
+		DryRunId:               dryRunId,
+		DryRunHash:             dryRunHash,
+		RetentionPolicyVersion: gatewayProjectionCleanupRetentionPolicyVersion,
+		Filters:                plan.Filters,
+		CandidateCount:         plan.CandidateCount,
+		BlockedCount:           plan.BlockedCount,
+		LastDryRunFreshness:    freshness,
+		OperatorApproval:       approval,
+		ExecuteGuardrail:       plan.ExecuteGuardrail,
+	}
+	return &GatewayProjectionPublishAttemptCleanupExecuteReadiness{
+		GeneratedAt:                   formatGatewayProjectionObservabilityTime(now),
+		Readiness:                     readiness,
+		SafeNextAction:                safeNextAction,
+		DisabledReasons:               disabledReasons,
+		DryRunId:                      dryRunId,
+		DryRunHash:                    dryRunHash,
+		RetentionPolicyVersion:        gatewayProjectionCleanupRetentionPolicyVersion,
+		Filters:                       plan.Filters,
+		CandidateCount:                plan.CandidateCount,
+		BlockedCount:                  plan.BlockedCount,
+		MissingDiagnosticSummaryCount: plan.DiagnosticCompleteness.MissingCount,
+		ReceiptHintAvailableCount:     plan.ReceiptHintCoverage.AvailableCount,
+		ReceiptHintMissingCount:       plan.ReceiptHintCoverage.UnavailableCount,
+		LastDryRunGeneratedAt:         freshness.GeneratedAt,
+		LastDryRunFreshness:           freshness,
+		OperatorApproval:              approval,
+		ExecuteGuardrail:              plan.ExecuteGuardrail,
+		Export:                        export,
+	}, nil
 }
 
 func (s GatewayProjectionPublishAttemptHistoryService) store() GatewayProjectionPublishAttemptStore {
@@ -685,6 +821,143 @@ func gatewayProjectionAttemptCleanupOperatorActionSummary(candidateCount int, bl
 		return "cleanup_candidates_require_operator_review"
 	}
 	return "cleanup_candidates_ready_for_future_execute_gate"
+}
+
+func buildGatewayProjectionCleanupDryRunFreshness(query GatewayProjectionPublishAttemptCleanupExecuteReadinessQuery, now time.Time) GatewayProjectionCleanupDryRunFreshness {
+	maxAgeSeconds := query.MaxDryRunAgeSeconds
+	if maxAgeSeconds <= 0 {
+		maxAgeSeconds = int64(defaultGatewayProjectionCleanupDryRunMaxAge / time.Second)
+	}
+	generatedAt := query.DryRunGeneratedAt
+	if generatedAt.IsZero() {
+		generatedAt = now
+	}
+	generatedAt = generatedAt.UTC()
+	ageSeconds := int64(now.UTC().Sub(generatedAt).Seconds())
+	status := "fresh"
+	if ageSeconds < 0 {
+		status = "future"
+		ageSeconds = 0
+	} else if ageSeconds > maxAgeSeconds {
+		status = "stale"
+	}
+	return GatewayProjectionCleanupDryRunFreshness{
+		Status:        status,
+		GeneratedAt:   formatGatewayProjectionObservabilityTime(generatedAt),
+		AgeSeconds:    ageSeconds,
+		MaxAgeSeconds: maxAgeSeconds,
+		ExpiresAt:     formatGatewayProjectionObservabilityTime(generatedAt.Add(time.Duration(maxAgeSeconds) * time.Second)),
+	}
+}
+
+func allGatewayProjectionCleanupApprovalEvidenceAliases() []string {
+	return []string{
+		"dry_run_export_reviewed",
+		"candidate_count_reviewed",
+		"receipt_hint_coverage_reviewed",
+		"no_blocked_attempts_confirmed",
+	}
+}
+
+func buildGatewayProjectionCleanupOperatorApproval(provided []string) GatewayProjectionCleanupOperatorApproval {
+	required := allGatewayProjectionCleanupApprovalEvidenceAliases()
+	seen := map[string]bool{}
+	for _, item := range provided {
+		item = normalizeGatewayProjectionString(item)
+		if item != "" {
+			seen[item] = true
+		}
+	}
+	missing := []string{}
+	for _, item := range required {
+		if !seen[item] {
+			missing = append(missing, item)
+		}
+	}
+	status := "ready"
+	if len(missing) > 0 {
+		status = "missing"
+	}
+	return GatewayProjectionCleanupOperatorApproval{
+		Required:                true,
+		Status:                  status,
+		RequiredEvidenceAliases: required,
+		MissingEvidenceAliases:  missing,
+	}
+}
+
+func gatewayProjectionCleanupExecuteDisabledReasons(plan *GatewayProjectionPublishAttemptCleanupDryRunPlan, freshness GatewayProjectionCleanupDryRunFreshness, approval GatewayProjectionCleanupOperatorApproval) []string {
+	reasons := []string{}
+	if plan == nil {
+		return []string{"cleanup_dry_run_unavailable", "cleanup_execution_not_enabled"}
+	}
+	if plan.CandidateCount == 0 {
+		reasons = append(reasons, "no_cleanup_candidates")
+	}
+	if plan.BlockedCount > 0 {
+		reasons = append(reasons, "cleanup_blocked_attempts_present")
+	}
+	if plan.DiagnosticCompleteness.MissingCount > 0 {
+		reasons = append(reasons, "diagnostic_summary_missing")
+	}
+	if plan.ReceiptHintCoverage.UnavailableCount > 0 {
+		reasons = append(reasons, "receipt_hint_missing")
+	}
+	if freshness.Status == "stale" {
+		reasons = append(reasons, "cleanup_dry_run_stale")
+	}
+	if freshness.Status == "future" {
+		reasons = append(reasons, "cleanup_dry_run_generated_at_future")
+	}
+	if approval.Status != "ready" {
+		reasons = append(reasons, "approval_evidence_missing")
+	}
+	return append(reasons, "cleanup_execution_not_enabled")
+}
+
+func gatewayProjectionCleanupExecuteReadinessStatus(disabledReasons []string, approval GatewayProjectionCleanupOperatorApproval) (string, string) {
+	if containsGatewayProjectionCleanupReason(disabledReasons, "cleanup_dry_run_stale") || containsGatewayProjectionCleanupReason(disabledReasons, "cleanup_dry_run_generated_at_future") {
+		return "blocked", "rerun_cleanup_dry_run"
+	}
+	for _, reason := range disabledReasons {
+		if reason != "approval_evidence_missing" && reason != "cleanup_execution_not_enabled" {
+			return "blocked", "review_disabled_reasons"
+		}
+	}
+	if approval.Status != "ready" {
+		return "approval_required", "collect_approval_package"
+	}
+	return "ready_for_approval", "wait_for_cleanup_execute_gate"
+}
+
+func containsGatewayProjectionCleanupReason(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
+func buildGatewayProjectionCleanupDryRunIdentity(plan *GatewayProjectionPublishAttemptCleanupDryRunPlan, generatedAt string) (string, string) {
+	if plan == nil {
+		return "", ""
+	}
+	reasonJSON, _ := json.Marshal(plan.ReasonCounts)
+	parts := []string{
+		plan.Filters.OrganizationId,
+		plan.Filters.Source,
+		plan.Filters.Status,
+		plan.Filters.FailureCategory,
+		plan.Filters.OlderThan,
+		strconv.Itoa(plan.CandidateCount),
+		strconv.Itoa(plan.BlockedCount),
+		string(reasonJSON),
+		generatedAt,
+	}
+	dryRunHash := prefixedStableHash("dryrun-hash-", parts...)
+	dryRunId := prefixedStableHash("dryrun-", parts...)
+	return dryRunId, dryRunHash
 }
 
 func buildGatewayProjectionReceiptQueryHint(attempt GatewayProjectionPublishAttempt, organizationID string) GatewayProjectionReceiptQueryHint {
