@@ -89,7 +89,7 @@ func (s *FeishuOrganizationSyncService) ExecuteRun(ctx context.Context, config *
 	}
 	snapshot, sourceTenantId, err := s.FetchFullSnapshot(ctx, config, s.snapshotClient(config))
 	if err != nil {
-		return s.finishRunFailed(run, FeishuOrganizationSyncRunStageFetching, "fetch_failed", config.AppSecret, err)
+		return s.finishRunFailed(run, FeishuOrganizationSyncRunStageFetching, feishuSyncErrorCodeFromError(err, "fetch_failed"), config.AppSecret, err)
 	}
 	run.TenantKey = sourceTenantId
 	run.DepartmentFetchedCount = len(snapshot.Departments)
@@ -102,7 +102,7 @@ func (s *FeishuOrganizationSyncService) ExecuteRun(ctx context.Context, config *
 	}
 	stats, err := s.ApplyFullSnapshot(config, run, snapshot, sourceTenantId)
 	if err != nil {
-		return s.finishRunFailed(run, FeishuOrganizationSyncRunStageApplying, "apply_failed", config.AppSecret, err)
+		return s.finishRunFailed(run, FeishuOrganizationSyncRunStageApplying, feishuSyncErrorCodeFromError(err, "apply_failed"), config.AppSecret, err)
 	}
 	applyFeishuRunStats(run, stats)
 	if err := s.UpdateRunStage(run, FeishuOrganizationSyncRunStageFinalizing); err != nil {
@@ -114,15 +114,15 @@ func (s *FeishuOrganizationSyncService) ExecuteRun(ctx context.Context, config *
 func (s *FeishuOrganizationSyncService) FetchFullSnapshot(ctx context.Context, config *FeishuOrganizationSyncConfig, client FeishuOrganizationSnapshotClient) (*FeishuOrganizationFullSnapshot, string, error) {
 	token, err := client.GetAccessToken(ctx)
 	if err != nil {
-		return nil, "", err
+		return nil, "", newFeishuSyncStageError("tenant_token_failed", err)
 	}
 	departments, err := client.FetchDepartmentSnapshots(ctx, token.TenantAccessToken, "0")
 	if err != nil {
-		return nil, "", err
+		return nil, "", newFeishuSyncStageError("department_fetch_failed", err)
 	}
 	users, err := client.FetchUserSnapshots(ctx, token.TenantAccessToken, departments)
 	if err != nil {
-		return nil, "", err
+		return nil, "", newFeishuSyncStageError("user_fetch_failed", err)
 	}
 	sourceTenantId := strings.TrimSpace(config.TenantKey)
 	userDepartments := []FeishuUserDepartmentSnapshot{}
@@ -161,12 +161,12 @@ type FeishuOrganizationSyncRunStats struct {
 func (s *FeishuOrganizationSyncService) ApplyFullSnapshot(config *FeishuOrganizationSyncConfig, run *FeishuOrganizationSyncRun, snapshot *FeishuOrganizationFullSnapshot, sourceTenantId string) (*FeishuOrganizationSyncRunStats, error) {
 	stats := &FeishuOrganizationSyncRunStats{}
 	if err := projectFeishuSourceConnection(config.Organization, config.AppId, sourceTenantId, config.EndpointMode, run.Name, s.now()); err != nil {
-		return nil, err
+		return nil, newFeishuSyncStageError("projection_failed", err)
 	}
 	for _, department := range snapshot.Departments {
 		created, err := s.upsertDepartment(config, run, sourceTenantId, department)
 		if err != nil {
-			return nil, err
+			return nil, wrapFeishuSyncStageError("upsert_department_failed", err)
 		}
 		if created {
 			stats.DepartmentCreatedCount++
@@ -177,7 +177,7 @@ func (s *FeishuOrganizationSyncService) ApplyFullSnapshot(config *FeishuOrganiza
 	for _, user := range snapshot.Users {
 		created, err := s.upsertUser(config, run, sourceTenantId, user)
 		if err != nil {
-			return nil, err
+			return nil, wrapFeishuSyncStageError("upsert_user_failed", err)
 		}
 		if created {
 			stats.UserCreatedCount++
@@ -188,7 +188,7 @@ func (s *FeishuOrganizationSyncService) ApplyFullSnapshot(config *FeishuOrganiza
 	for _, membership := range snapshot.UserDepartments {
 		updated, err := s.upsertMembership(config, run, sourceTenantId, membership)
 		if err != nil {
-			return nil, err
+			return nil, wrapFeishuSyncStageError("upsert_membership_failed", err)
 		}
 		if updated {
 			stats.MembershipUpdatedCount++
@@ -197,7 +197,7 @@ func (s *FeishuOrganizationSyncService) ApplyFullSnapshot(config *FeishuOrganiza
 	if config.SoftDisableMissingData {
 		deptDisabled, userDisabled, membershipDisabled, err := s.softDisableMissingData(config, run, snapshot, sourceTenantId)
 		if err != nil {
-			return nil, err
+			return nil, wrapFeishuSyncStageError("soft_disable_failed", err)
 		}
 		stats.DepartmentDisabledCount = deptDisabled
 		stats.UserDisabledCount = userDisabled
@@ -257,7 +257,10 @@ func (s *FeishuOrganizationSyncService) upsertDepartment(config *FeishuOrganizat
 	if err := saveFeishuDepartmentMapping(mapping); err != nil {
 		return false, err
 	}
-	return created, projectFeishuPlatformDepartment(config.Organization, sourceTenantId, run.Name, mapping, now)
+	if err := projectFeishuPlatformDepartment(config.Organization, sourceTenantId, run.Name, mapping, now); err != nil {
+		return false, newFeishuSyncStageError("projection_failed", err)
+	}
+	return created, nil
 }
 
 func (s *FeishuOrganizationSyncService) upsertUser(config *FeishuOrganizationSyncConfig, run *FeishuOrganizationSyncRun, sourceTenantId string, snapshot FeishuUserSnapshot) (bool, error) {
@@ -339,7 +342,10 @@ func (s *FeishuOrganizationSyncService) upsertUser(config *FeishuOrganizationSyn
 	if err := saveFeishuUserMapping(mapping); err != nil {
 		return false, err
 	}
-	return created, projectFeishuPlatformUser(config.Organization, sourceTenantId, run.Name, mapping, user, now)
+	if err := projectFeishuPlatformUser(config.Organization, sourceTenantId, run.Name, mapping, user, now); err != nil {
+		return false, newFeishuSyncStageError("projection_failed", err)
+	}
+	return created, nil
 }
 
 func (s *FeishuOrganizationSyncService) upsertMembership(config *FeishuOrganizationSyncConfig, run *FeishuOrganizationSyncRun, sourceTenantId string, snapshot FeishuUserDepartmentSnapshot) (bool, error) {
@@ -384,7 +390,10 @@ func (s *FeishuOrganizationSyncService) upsertMembership(config *FeishuOrganizat
 			return false, err
 		}
 	}
-	return true, projectFeishuPlatformMembership(config.Organization, sourceTenantId, run.Name, membership, PlatformLifecycleStatusActive, now)
+	if err := projectFeishuPlatformMembership(config.Organization, sourceTenantId, run.Name, membership, PlatformLifecycleStatusActive, now); err != nil {
+		return false, newFeishuSyncStageError("projection_failed", err)
+	}
+	return true, nil
 }
 
 func (s *FeishuOrganizationSyncService) softDisableMissingData(config *FeishuOrganizationSyncConfig, run *FeishuOrganizationSyncRun, snapshot *FeishuOrganizationFullSnapshot, sourceTenantId string) (int, int, int, error) {

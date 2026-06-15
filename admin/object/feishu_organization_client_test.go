@@ -16,9 +16,13 @@ import (
 type fakeFeishuConfigStore struct {
 	config *FeishuOrganizationSyncConfig
 	saved  *FeishuOrganizationSyncConfig
+	err    error
 }
 
 func (s *fakeFeishuConfigStore) GetFeishuOrganizationSyncConfigByOrganization(organization string) (*FeishuOrganizationSyncConfig, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
 	if s.config == nil || s.config.Organization != organization {
 		return nil, nil
 	}
@@ -196,6 +200,45 @@ func TestFeishuOrganizationSyncConfigServicePreservesMaskedSecretAndNormalizesEn
 	}
 	if config.AppSecret != FeishuOrganizationSyncMaskedSecret {
 		t.Fatalf("response secret = %q, want masked", config.AppSecret)
+	}
+}
+
+func TestFeishuOrganizationSyncConfigServiceAttachesScheduleDiagnostics(t *testing.T) {
+	scheduleStore := newMemoryOrganizationSyncScheduleStore()
+	schedule := &OrganizationSyncSchedule{
+		Provider:       OrganizationSyncProviderLark,
+		JobType:        OrganizationSyncJobTypeFullDifferential,
+		Organization:   "engineering",
+		IsEnabled:      true,
+		CronExpression: OrganizationSyncDefaultCronExpression,
+		Timezone:       "UTC",
+		LastStatus:     string(OrganizationSyncScheduleFireStatusFailed),
+		LastErrorCode:  "config_missing",
+		LastErrorText:  "feishu organization sync config secret=real-secret",
+	}
+	_, _ = scheduleStore.SaveOrganizationSyncSchedule(schedule)
+	service := &FeishuOrganizationSyncConfigService{
+		Store: &fakeFeishuConfigStore{config: &FeishuOrganizationSyncConfig{
+			Organization: "engineering",
+			AppId:        "cli_1",
+			AppSecret:    "real-secret",
+			EndpointMode: FeishuEndpointModeDomestic,
+		}},
+		ScheduleStore: scheduleStore,
+	}
+
+	config, err := service.GetConfig("engineering", true)
+	if err != nil {
+		t.Fatalf("GetConfig() error = %v", err)
+	}
+	if config.ScheduleDiagnostics == nil {
+		t.Fatalf("schedule diagnostics is nil")
+	}
+	if config.ScheduleDiagnostics.FailedStage != FeishuOrganizationSyncDiagnosticStageScheduler || config.ScheduleDiagnostics.OperatorAction != FeishuOrganizationSyncOperatorFixCredentials {
+		t.Fatalf("schedule diagnostics = %+v, want scheduler/fix_credentials", config.ScheduleDiagnostics)
+	}
+	if strings.Contains(config.ScheduleDiagnostics.SafeSummary, "real-secret") {
+		t.Fatalf("schedule diagnostics leaked secret: %q", config.ScheduleDiagnostics.SafeSummary)
 	}
 }
 

@@ -62,3 +62,44 @@ test("renders Feishu organization sync config and endpoint mode", async() => {
   expect(screen.getByText("国内飞书（open.feishu.cn）")).toBeInTheDocument();
   expect(screen.getByDisplayValue("cli_123")).toBeInTheDocument();
 });
+
+test("renders run diagnostics with compact labels and redacted summary", async() => {
+  FeishuOrganizationSyncBackend.getFeishuOrganizationSyncRuns.mockResolvedValue({
+    status: "ok",
+    data: [{
+      name: "run-failed",
+      status: "failed",
+      stage: "fetching",
+      triggerType: "scheduled",
+      diagnostics: {
+        failedStage: "tenant_token",
+        failureCategory: "credentials",
+        retryReadiness: "not_ready",
+        operatorAction: "fix_credentials",
+        safeSummary: "invalid app credentials user_id=*** *** ***",
+        durationMs: 125000,
+        stats: {
+          departmentCount: 3,
+          userCount: 5,
+          membershipCount: 7,
+          disabledCount: 1,
+        },
+      },
+      errorText: "tenant_access_token open_id=open_1 alice@example.test 13800138000",
+    }],
+    data2: 1,
+  });
+
+  render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+
+  expect(await screen.findByText("run-failed")).toBeInTheDocument();
+  expect(screen.getByText("凭证")).toBeInTheDocument();
+  expect(screen.getByText("租户 token")).toBeInTheDocument();
+  expect(screen.getByText("修凭证")).toBeInTheDocument();
+  expect(screen.getByText("部 3 / 人 5 / 关系 7 / 禁 1")).toBeInTheDocument();
+  expect(screen.getByText("2 分 5 秒")).toBeInTheDocument();
+  expect(screen.getByText("invalid app credentials user_id=*** *** ***")).toBeInTheDocument();
+  expect(screen.queryByText(/open_1/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/alice@example\.test/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/13800138000/)).not.toBeInTheDocument();
+});

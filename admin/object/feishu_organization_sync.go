@@ -87,11 +87,12 @@ type FeishuOrganizationSyncConfig struct {
 	ScheduleCron     string `xorm:"-" json:"scheduleCron"`
 	ScheduleTimezone string `xorm:"-" json:"scheduleTimezone"`
 
-	ScheduleLastFireAt    time.Time `xorm:"-" json:"scheduleLastFireAt"`
-	ScheduleLastRunId     string    `xorm:"-" json:"scheduleLastRunId"`
-	ScheduleLastStatus    string    `xorm:"-" json:"scheduleLastStatus"`
-	ScheduleLastErrorCode string    `xorm:"-" json:"scheduleLastErrorCode"`
-	ScheduleLastErrorText string    `xorm:"-" json:"scheduleLastErrorText"`
+	ScheduleLastFireAt    time.Time                             `xorm:"-" json:"scheduleLastFireAt"`
+	ScheduleLastRunId     string                                `xorm:"-" json:"scheduleLastRunId"`
+	ScheduleLastStatus    string                                `xorm:"-" json:"scheduleLastStatus"`
+	ScheduleLastErrorCode string                                `xorm:"-" json:"scheduleLastErrorCode"`
+	ScheduleLastErrorText string                                `xorm:"-" json:"scheduleLastErrorText"`
+	ScheduleDiagnostics   *FeishuOrganizationSyncRunDiagnostics `xorm:"-" json:"scheduleDiagnostics,omitempty"`
 }
 
 // FeishuOrganizationSyncRun 记录一次飞书组织架构同步执行。
@@ -126,6 +127,8 @@ type FeishuOrganizationSyncRun struct {
 	MembershipUpdatedCount  int    `xorm:"int" json:"membershipUpdatedCount"`
 	ErrorCode               string `xorm:"varchar(100)" json:"errorCode"`
 	ErrorText               string `xorm:"text" json:"errorText"`
+
+	Diagnostics *FeishuOrganizationSyncRunDiagnostics `xorm:"-" json:"diagnostics,omitempty"`
 }
 
 type FeishuDepartmentMapping struct {

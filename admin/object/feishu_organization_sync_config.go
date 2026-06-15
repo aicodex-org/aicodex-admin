@@ -219,6 +219,18 @@ func attachFeishuOrganizationSyncScheduleFields(config *FeishuOrganizationSyncCo
 	config.ScheduleLastStatus = schedule.LastStatus
 	config.ScheduleLastErrorCode = schedule.LastErrorCode
 	config.ScheduleLastErrorText = schedule.LastErrorText
+	if schedule.LastStatus != "" || schedule.LastErrorCode != "" || schedule.LastErrorText != "" {
+		config.ScheduleDiagnostics = BuildFeishuOrganizationSyncScheduleDiagnostics(&OrganizationSyncScheduleFire{
+			Provider:     OrganizationSyncProviderLark,
+			JobType:      OrganizationSyncJobTypeFullDifferential,
+			Organization: config.Organization,
+			WindowStart:  schedule.LastFireAt,
+			Status:       OrganizationSyncScheduleFireStatus(schedule.LastStatus),
+			RunId:        schedule.LastRunId,
+			ErrorCode:    schedule.LastErrorCode,
+			ErrorText:    schedule.LastErrorText,
+		}, config.AppSecret)
+	}
 }
 
 func AttachFeishuOrganizationSyncScheduleFieldsForResponse(config *FeishuOrganizationSyncConfig, schedule *OrganizationSyncSchedule) {

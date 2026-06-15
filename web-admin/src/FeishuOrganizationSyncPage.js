@@ -13,6 +13,45 @@ import i18next from "i18next";
 
 const {Text} = Typography;
 const syncRunPollIntervalMs = 3000;
+const diagnosticStageLabels = {
+  config_validation: "配置校验",
+  tenant_token: "租户 token",
+  department_fetch: "部门拉取",
+  user_fetch: "用户拉取",
+  upsert_department: "部门写入",
+  upsert_user: "用户写入",
+  upsert_membership: "关系写入",
+  projection: "主数据投影",
+  soft_disable: "软禁用",
+  scheduler: "调度",
+  unknown: "未知",
+};
+const diagnosticCategoryLabels = {
+  configuration: "配置",
+  credentials: "凭证",
+  permission: "权限",
+  provider: "飞书服务",
+  contract: "数据契约",
+  local_apply: "本地写入",
+  projection: "主数据投影",
+  partial_sync: "部分同步",
+  unknown: "未知",
+};
+const diagnosticActionLabels = {
+  fix_credentials: "修凭证",
+  grant_contact_scope: "授权通讯录",
+  wait_rate_limit: "等限流",
+  inspect_mapping_conflict: "查映射",
+  inspect_projection: "查投影",
+  manual_review: "人工确认",
+  unknown: "待确认",
+};
+const diagnosticRetryLabels = {
+  safe_retry: "可重试",
+  wait_rate_limit: "等待限流",
+  not_ready: "先处理",
+  unknown: "待确认",
+};
 
 class FeishuOrganizationSyncPage extends React.Component {
   constructor(props) {
@@ -269,6 +308,89 @@ class FeishuOrganizationSyncPage extends React.Component {
     return labelMap[stage] || stage || "-";
   }
 
+  getDiagnosticLabel(labels, value) {
+    return labels[value] || value || "-";
+  }
+
+  getDiagnosticTagColor(kind, value) {
+    if (kind === "category") {
+      return {
+        configuration: "orange",
+        credentials: "red",
+        permission: "volcano",
+        provider: "gold",
+        contract: "purple",
+        local_apply: "magenta",
+        projection: "geekblue",
+        partial_sync: "warning",
+        unknown: "default",
+      }[value] || "default";
+    }
+    if (kind === "action") {
+      return {
+        fix_credentials: "red",
+        grant_contact_scope: "volcano",
+        wait_rate_limit: "gold",
+        inspect_mapping_conflict: "magenta",
+        inspect_projection: "geekblue",
+        manual_review: "blue",
+        unknown: "default",
+      }[value] || "default";
+    }
+    return "default";
+  }
+
+  formatDurationMs(durationMs) {
+    const value = Number(durationMs || 0);
+    if (!Number.isFinite(value) || value <= 0) {
+      return "-";
+    }
+    const totalSeconds = Math.round(value / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    if (minutes > 0) {
+      return `${minutes} 分 ${seconds} 秒`;
+    }
+    return `${seconds} 秒`;
+  }
+
+  renderDiagnostics(record) {
+    const diagnostics = record?.diagnostics;
+    if (!diagnostics) {
+      return "-";
+    }
+    const category = diagnostics.failureCategory;
+    const stage = diagnostics.failedStage;
+    const action = diagnostics.operatorAction;
+    return (
+      <Space size={4} wrap>
+        {category && <Tag color={this.getDiagnosticTagColor("category", category)}>{this.getDiagnosticLabel(diagnosticCategoryLabels, category)}</Tag>}
+        {stage && <Tag>{this.getDiagnosticLabel(diagnosticStageLabels, stage)}</Tag>}
+        {action && <Tag color={this.getDiagnosticTagColor("action", action)}>{this.getDiagnosticLabel(diagnosticActionLabels, action)}</Tag>}
+        {diagnostics.retryReadiness && <Tag>{this.getDiagnosticLabel(diagnosticRetryLabels, diagnostics.retryReadiness)}</Tag>}
+      </Space>
+    );
+  }
+
+  renderDiagnosticStats(record) {
+    const diagnostics = record?.diagnostics;
+    const stats = diagnostics?.stats || {};
+    const hasStats = diagnostics && ["departmentCount", "userCount", "membershipCount", "disabledCount"].some(key => stats[key] !== undefined);
+    if (!hasStats && !diagnostics?.durationMs) {
+      return "-";
+    }
+    return (
+      <Space direction="vertical" size={0}>
+        {hasStats && <span>{`部 ${stats.departmentCount || 0} / 人 ${stats.userCount || 0} / 关系 ${stats.membershipCount || 0} / 禁 ${stats.disabledCount || 0}`}</span>}
+        <Text type="secondary">{this.formatDurationMs(diagnostics.durationMs)}</Text>
+      </Space>
+    );
+  }
+
+  getRunSafeSummary(record) {
+    return record?.diagnostics?.safeSummary || record?.errorText || "";
+  }
+
   renderTestResult() {
     const result = this.state.testResult;
     if (!result) {
@@ -296,7 +418,9 @@ class FeishuOrganizationSyncPage extends React.Component {
       {title: "结束时间", dataIndex: "finishedAt", key: "finishedAt", width: 180, render: text => this.formatRunTime(text)},
       {title: "部门（新增 / 更新 / 禁用）", key: "departments", width: 180, render: (_, record) => `新 ${record.departmentCreatedCount || 0} / 更 ${record.departmentUpdatedCount || 0} / 禁 ${record.departmentDisabledCount || 0}`},
       {title: "用户（新增 / 更新 / 禁用）", key: "users", width: 180, render: (_, record) => `新 ${record.userCreatedCount || 0} / 更 ${record.userUpdatedCount || 0} / 禁 ${record.userDisabledCount || 0}`},
-      {title: "错误摘要", dataIndex: "errorText", key: "errorText", ellipsis: true},
+      {title: "诊断", key: "diagnostics", width: 260, render: (_, record) => this.renderDiagnostics(record)},
+      {title: "统计 / 耗时", key: "diagnosticStats", width: 190, render: (_, record) => this.renderDiagnosticStats(record)},
+      {title: "错误摘要", key: "errorText", ellipsis: true, render: (_, record) => this.getRunSafeSummary(record)},
     ];
     return (
       <Table
@@ -306,7 +430,7 @@ class FeishuOrganizationSyncPage extends React.Component {
         loading={this.state.loading}
         columns={columns}
         dataSource={this.state.runs}
-        scroll={{x: 1420}}
+        scroll={{x: 1870}}
         pagination={getTablePaginationProps({...this.state.pagination, total: this.state.runCount || this.state.runs.length})}
         onChange={pagination => this.refreshRuns(this.state.organization, {pagination}).catch(() => {})}
       />

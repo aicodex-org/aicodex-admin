@@ -96,14 +96,15 @@ type OrganizationSyncScheduleFire struct {
 	WindowStart  time.Time `xorm:"timestampz index unique(org_sync_schedule_fire_window)" json:"windowStart"`
 
 	// Locked* 字段是跨节点派发租约；过期的非终态 fire 可被其它节点接管。
-	LockedBy      string                             `xorm:"varchar(150) index" json:"lockedBy"`
-	LockedAt      time.Time                          `xorm:"timestampz" json:"lockedAt"`
-	LockExpiresAt time.Time                          `xorm:"timestampz index" json:"lockExpiresAt"`
-	Status        OrganizationSyncScheduleFireStatus `xorm:"varchar(50) index" json:"status"`
-	RunId         string                             `xorm:"varchar(100) index" json:"runId"`
-	ErrorCode     string                             `xorm:"varchar(100)" json:"errorCode"`
-	ErrorText     string                             `xorm:"text" json:"errorText"`
-	AttemptCount  int                                `xorm:"int" json:"attemptCount"`
+	LockedBy      string                                `xorm:"varchar(150) index" json:"lockedBy"`
+	LockedAt      time.Time                             `xorm:"timestampz" json:"lockedAt"`
+	LockExpiresAt time.Time                             `xorm:"timestampz index" json:"lockExpiresAt"`
+	Status        OrganizationSyncScheduleFireStatus    `xorm:"varchar(50) index" json:"status"`
+	RunId         string                                `xorm:"varchar(100) index" json:"runId"`
+	ErrorCode     string                                `xorm:"varchar(100)" json:"errorCode"`
+	ErrorText     string                                `xorm:"text" json:"errorText"`
+	AttemptCount  int                                   `xorm:"int" json:"attemptCount"`
+	Diagnostics   *FeishuOrganizationSyncRunDiagnostics `xorm:"-" json:"diagnostics,omitempty"`
 }
 
 // OrganizationSyncDispatchRequest 是通用调度器传给具体 provider executor 的派发上下文。
@@ -116,10 +117,11 @@ type OrganizationSyncDispatchRequest struct {
 
 // OrganizationSyncDispatchResult 只描述派发结果；provider run 的最终同步结果由各自 run 表记录。
 type OrganizationSyncDispatchResult struct {
-	Status    OrganizationSyncScheduleFireStatus
-	RunId     string
-	ErrorCode string
-	ErrorText string
+	Status      OrganizationSyncScheduleFireStatus
+	RunId       string
+	ErrorCode   string
+	ErrorText   string
+	Diagnostics *FeishuOrganizationSyncRunDiagnostics
 }
 
 // OrganizationSyncExecutor 由具体 provider 实现，用于把已抢到的 fire 派发为实际同步任务。
@@ -400,6 +402,9 @@ func (s *OrganizationSyncScheduler) finishFire(schedule *OrganizationSyncSchedul
 	if fire == nil {
 		return nil
 	}
+	if fire.Provider == OrganizationSyncProviderLark && fire.Diagnostics == nil {
+		fire.Diagnostics = BuildFeishuOrganizationSyncScheduleDiagnostics(fire, s.SensitiveValues...)
+	}
 	if err := s.store().UpdateOrganizationSyncScheduleFire(fire); err != nil {
 		return err
 	}
@@ -467,6 +472,7 @@ func applyOrganizationSyncDispatchResult(fire *OrganizationSyncScheduleFire, res
 	fire.RunId = result.RunId
 	fire.ErrorCode = result.ErrorCode
 	fire.ErrorText = result.ErrorText
+	fire.Diagnostics = result.Diagnostics
 }
 
 func getOrganizationSyncDueWindow(schedule *OrganizationSyncSchedule, now time.Time) (time.Time, bool, error) {

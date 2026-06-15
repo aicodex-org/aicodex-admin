@@ -133,6 +133,7 @@ func GetMaskedFeishuOrganizationSyncRun(run *FeishuOrganizationSyncRun, sensitiv
 	}
 	masked := *run
 	masked.ErrorText = safeOrganizationSyncErrorText(masked.ErrorText, sensitiveValues...)
+	masked.Diagnostics = BuildFeishuOrganizationSyncRunDiagnostics(&masked, sensitiveValues...)
 	return &masked
 }
 

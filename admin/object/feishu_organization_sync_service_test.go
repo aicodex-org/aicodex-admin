@@ -18,13 +18,19 @@ import (
 )
 
 type fakeFeishuSnapshotClient struct {
-	token       *FeishuAccessToken
-	departments []FeishuDepartmentSnapshot
-	users       []FeishuUserSnapshot
-	err         error
+	token         *FeishuAccessToken
+	departments   []FeishuDepartmentSnapshot
+	users         []FeishuUserSnapshot
+	err           error
+	tokenErr      error
+	departmentErr error
+	userErr       error
 }
 
 func (c *fakeFeishuSnapshotClient) GetAccessToken(ctx context.Context) (*FeishuAccessToken, error) {
+	if c.tokenErr != nil {
+		return nil, c.tokenErr
+	}
 	if c.err != nil {
 		return nil, c.err
 	}
@@ -32,6 +38,9 @@ func (c *fakeFeishuSnapshotClient) GetAccessToken(ctx context.Context) (*FeishuA
 }
 
 func (c *fakeFeishuSnapshotClient) FetchDepartmentSnapshots(ctx context.Context, accessToken string, departmentId string) ([]FeishuDepartmentSnapshot, error) {
+	if c.departmentErr != nil {
+		return nil, c.departmentErr
+	}
 	if c.err != nil {
 		return nil, c.err
 	}
@@ -39,6 +48,9 @@ func (c *fakeFeishuSnapshotClient) FetchDepartmentSnapshots(ctx context.Context,
 }
 
 func (c *fakeFeishuSnapshotClient) FetchUserSnapshots(ctx context.Context, accessToken string, departments []FeishuDepartmentSnapshot) ([]FeishuUserSnapshot, error) {
+	if c.userErr != nil {
+		return nil, c.userErr
+	}
 	if c.err != nil {
 		return nil, c.err
 	}
@@ -49,6 +61,8 @@ type fakeFeishuRunStore struct {
 	running *FeishuOrganizationSyncRun
 	created *FeishuOrganizationSyncRun
 	updated *FeishuOrganizationSyncRun
+	run     *FeishuOrganizationSyncRun
+	runs    []*FeishuOrganizationSyncRun
 }
 
 func (s *fakeFeishuRunStore) GetRunningFeishuOrganizationSyncRun(organization string) (*FeishuOrganizationSyncRun, error) {
@@ -67,15 +81,30 @@ func (s *fakeFeishuRunStore) UpdateFeishuOrganizationSyncRun(run *FeishuOrganiza
 }
 
 func (s *fakeFeishuRunStore) GetFeishuOrganizationSyncRun(organization string, runId string) (*FeishuOrganizationSyncRun, error) {
+	if s.run != nil && s.run.Organization == organization && s.run.Name == runId {
+		return s.run, nil
+	}
 	return nil, nil
 }
 
 func (s *fakeFeishuRunStore) GetFeishuOrganizationSyncRuns(organization string, offset int, limit int, field string, value string, sortField string, sortOrder string) ([]*FeishuOrganizationSyncRun, error) {
-	return nil, nil
+	runs := []*FeishuOrganizationSyncRun{}
+	for _, run := range s.runs {
+		if run != nil && run.Organization == organization {
+			runs = append(runs, run)
+		}
+	}
+	return runs, nil
 }
 
 func (s *fakeFeishuRunStore) GetFeishuOrganizationSyncRunCount(organization string, field string, value string) (int64, error) {
-	return 0, nil
+	count := int64(0)
+	for _, run := range s.runs {
+		if run != nil && run.Organization == organization {
+			count++
+		}
+	}
+	return count, nil
 }
 
 type fakeFeishuConfigLastSyncStore struct {
@@ -624,6 +653,72 @@ func TestFeishuOrganizationSyncServiceSoftDisableFailsClosedOnMembershipProjecti
 	}
 }
 
+func TestFeishuOrganizationSyncServiceApplyFullSnapshotReturnsDiagnosticStageErrors(t *testing.T) {
+	tests := []struct {
+		name          string
+		breakStore    func(t *testing.T)
+		snapshot      *FeishuOrganizationFullSnapshot
+		wantErrorCode string
+	}{
+		{
+			name: "upsert user",
+			breakStore: func(t *testing.T) {
+				if err := ormer.Engine.DropTables(new(FeishuUserMapping)); err != nil {
+					t.Fatalf("drop user mapping table error = %v", err)
+				}
+			},
+			snapshot: &FeishuOrganizationFullSnapshot{
+				Users: []FeishuUserSnapshot{{UserId: "ou_1", Name: "Alice"}},
+			},
+			wantErrorCode: "upsert_user_failed",
+		},
+		{
+			name: "projection",
+			breakStore: func(t *testing.T) {
+				if err := ormer.Engine.DropTables(new(SourceConnection)); err != nil {
+					t.Fatalf("drop source connection table error = %v", err)
+				}
+			},
+			snapshot:      &FeishuOrganizationFullSnapshot{},
+			wantErrorCode: "projection_failed",
+		},
+		{
+			name: "soft disable",
+			breakStore: func(t *testing.T) {
+				if err := ormer.Engine.DropTables(new(FeishuDepartmentMapping)); err != nil {
+					t.Fatalf("drop department mapping table error = %v", err)
+				}
+			},
+			snapshot:      &FeishuOrganizationFullSnapshot{},
+			wantErrorCode: "soft_disable_failed",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupFeishuOrganizationSyncSqlite(t)
+			service := &FeishuOrganizationSyncService{Now: func() time.Time { return time.Date(2026, 6, 15, 16, 30, 0, 0, time.UTC) }}
+			config := &FeishuOrganizationSyncConfig{
+				Organization:           "engineering",
+				AppId:                  "cli_1",
+				AppSecret:              "secret",
+				EndpointMode:           FeishuEndpointModeDomestic,
+				IsEnabled:              true,
+				SoftDisableMissingData: true,
+			}
+			run := &FeishuOrganizationSyncRun{Owner: "engineering", Name: "run-apply-diagnostic", Organization: "engineering", AppId: "cli_1"}
+			tt.breakStore(t)
+
+			_, err := service.ApplyFullSnapshot(config, run, tt.snapshot, "tenant-a")
+			if err == nil {
+				t.Fatalf("ApplyFullSnapshot() error = nil, want %s", tt.wantErrorCode)
+			}
+			if got := feishuSyncErrorCodeFromError(err, ""); got != tt.wantErrorCode {
+				t.Fatalf("diagnostic error code = %q, want %q", got, tt.wantErrorCode)
+			}
+		})
+	}
+}
+
 func TestFeishuOrganizationSyncServiceExecuteRunSuccessUpdatesStagesAndStats(t *testing.T) {
 	setupFeishuOrganizationSyncSqlite(t)
 	now := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
@@ -697,8 +792,8 @@ func TestFeishuOrganizationSyncServiceExecuteRunFailureRedactsSecretAndProjectsB
 	if err := service.ExecuteRun(context.Background(), config, run); err == nil {
 		t.Fatalf("ExecuteRun() expected fetch error")
 	}
-	if run.Status != FeishuOrganizationSyncRunStatusFailed || run.ErrorCode != "fetch_failed" {
-		t.Fatalf("run = %+v, want failed fetch", run)
+	if run.Status != FeishuOrganizationSyncRunStatusFailed || run.ErrorCode != "tenant_token_failed" {
+		t.Fatalf("run = %+v, want failed tenant token fetch", run)
 	}
 	if strings.Contains(run.ErrorText, "real-secret") {
 		t.Fatalf("run error leaked secret: %q", run.ErrorText)
@@ -710,6 +805,111 @@ func TestFeishuOrganizationSyncServiceExecuteRunFailureRedactsSecretAndProjectsB
 	}
 	if batch.Status != OrgSyncBatchStatusFailed || batch.Freshness != PlatformFreshnessUnavailable {
 		t.Fatalf("failed batch = %+v, want failed/unavailable", batch)
+	}
+}
+
+func TestFeishuOrganizationSyncServiceExecuteRunFailureWritesDiagnosticErrorCodes(t *testing.T) {
+	tests := []struct {
+		name          string
+		client        *fakeFeishuSnapshotClient
+		wantErrorCode string
+		wantStage     string
+	}{
+		{
+			name:          "tenant token",
+			client:        &fakeFeishuSnapshotClient{tokenErr: errors.New("invalid app secret")},
+			wantErrorCode: "tenant_token_failed",
+			wantStage:     FeishuOrganizationSyncDiagnosticStageTenantToken,
+		},
+		{
+			name: "user fetch",
+			client: &fakeFeishuSnapshotClient{
+				token:       &FeishuAccessToken{TenantAccessToken: "token"},
+				departments: []FeishuDepartmentSnapshot{{Id: "od-root"}},
+				userErr:     errors.New("missing contact scope"),
+			},
+			wantErrorCode: "user_fetch_failed",
+			wantStage:     FeishuOrganizationSyncDiagnosticStageUserFetch,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupFeishuOrganizationSyncSqlite(t)
+			now := time.Date(2026, 6, 15, 16, 0, 0, 0, time.UTC)
+			runStore := &fakeFeishuRunStore{}
+			service := &FeishuOrganizationSyncService{
+				Store: runStore,
+				Now:   func() time.Time { return now },
+				NewSnapshotClient: func(appId string, appSecret string, endpointMode string) FeishuOrganizationSnapshotClient {
+					return tt.client
+				},
+			}
+			config := &FeishuOrganizationSyncConfig{
+				Organization: "engineering",
+				AppId:        "cli_1",
+				AppSecret:    "real-secret",
+				EndpointMode: FeishuEndpointModeDomestic,
+				IsEnabled:    true,
+			}
+			run := &FeishuOrganizationSyncRun{Owner: "engineering", Name: "run-diagnostic-failure", Organization: "engineering", AppId: "cli_1"}
+
+			if err := service.ExecuteRun(context.Background(), config, run); err == nil {
+				t.Fatalf("ExecuteRun() expected error")
+			}
+			if run.ErrorCode != tt.wantErrorCode {
+				t.Fatalf("run error code = %q, want %q", run.ErrorCode, tt.wantErrorCode)
+			}
+			diagnostics := BuildFeishuOrganizationSyncRunDiagnostics(run, config.AppSecret)
+			if diagnostics.FailedStage != tt.wantStage {
+				t.Fatalf("diagnostics failed stage = %q, want %q", diagnostics.FailedStage, tt.wantStage)
+			}
+		})
+	}
+}
+
+func TestFeishuOrganizationSyncServiceRunInspectionReturnsDiagnosticsAndSafeNotFound(t *testing.T) {
+	run := &FeishuOrganizationSyncRun{
+		Name:         "run-failed",
+		Organization: "engineering",
+		Status:       FeishuOrganizationSyncRunStatusFailed,
+		Stage:        FeishuOrganizationSyncRunStageFetching,
+		ErrorCode:    "contact_scope_missing",
+		ErrorText:    "permission denied secret=real-secret user_id=ou_1",
+	}
+	store := &fakeFeishuRunStore{
+		run:  run,
+		runs: []*FeishuOrganizationSyncRun{run, {Name: "other-run", Organization: "other-org"}},
+	}
+	service := &FeishuOrganizationSyncService{Store: store}
+
+	got, err := service.GetRun("engineering", "run-failed", "real-secret")
+	if err != nil {
+		t.Fatalf("GetRun() error = %v", err)
+	}
+	if got == nil || got.Diagnostics == nil {
+		t.Fatalf("GetRun() = %+v, want diagnostics", got)
+	}
+	if got.Diagnostics.ReasonCode != FeishuOrganizationSyncReasonContactScopeMissing || got.Diagnostics.OperatorAction != FeishuOrganizationSyncOperatorGrantContactScope {
+		t.Fatalf("diagnostics = %+v, want contact permission action", got.Diagnostics)
+	}
+	if strings.Contains(got.Diagnostics.SafeSummary, "real-secret") || strings.Contains(got.Diagnostics.SafeSummary, "ou_1") {
+		t.Fatalf("diagnostics leaked sensitive values: %q", got.Diagnostics.SafeSummary)
+	}
+
+	runs, count, err := service.GetRuns("engineering", 0, 20, "", "", "", "", "real-secret")
+	if err != nil {
+		t.Fatalf("GetRuns() error = %v", err)
+	}
+	if count != 1 || len(runs) != 1 || runs[0].Diagnostics == nil {
+		t.Fatalf("GetRuns() count=%d runs=%+v, want one run with diagnostics", count, runs)
+	}
+
+	missing, err := service.GetRun("engineering", "other-run", "real-secret")
+	if err != nil {
+		t.Fatalf("GetRun(other org) error = %v", err)
+	}
+	if missing != nil {
+		t.Fatalf("GetRun(other org) = %+v, want safe nil not-found", missing)
 	}
 }
 

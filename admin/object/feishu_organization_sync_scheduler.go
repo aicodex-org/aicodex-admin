@@ -28,18 +28,10 @@ func (e *FeishuOrganizationScheduledSyncExecutor) ExecuteOrganizationSync(ctx co
 		return nil, err
 	}
 	if config == nil {
-		return &OrganizationSyncDispatchResult{
-			Status:    OrganizationSyncScheduleFireStatusFailed,
-			ErrorCode: "config_missing",
-			ErrorText: "feishu organization sync config is not configured",
-		}, nil
+		return newFeishuOrganizationSyncDispatchResult(OrganizationSyncScheduleFireStatusFailed, "", "config_missing", "feishu organization sync config is not configured"), nil
 	}
 	if !config.IsEnabled {
-		return &OrganizationSyncDispatchResult{
-			Status:    OrganizationSyncScheduleFireStatusSkipped,
-			ErrorCode: "config_disabled",
-			ErrorText: "feishu organization sync config is disabled",
-		}, nil
+		return newFeishuOrganizationSyncDispatchResult(OrganizationSyncScheduleFireStatusSkipped, "", "config_disabled", "feishu organization sync config is disabled"), nil
 	}
 	result, err := e.syncService().StartScheduledRunAsync(config, request.Actor)
 	if errors.Is(err, ErrFeishuOrganizationSyncRunAlreadyRunning) {
@@ -68,7 +60,29 @@ func (e *FeishuOrganizationScheduledSyncExecutor) alreadyRunningResult(organizat
 	if runningRun != nil {
 		result.RunId = runningRun.Name
 	}
+	result.Diagnostics = BuildFeishuOrganizationSyncScheduleDiagnostics(&OrganizationSyncScheduleFire{
+		Status:    result.Status,
+		RunId:     result.RunId,
+		ErrorCode: result.ErrorCode,
+		ErrorText: result.ErrorText,
+	})
 	return result, nil
+}
+
+func newFeishuOrganizationSyncDispatchResult(status OrganizationSyncScheduleFireStatus, runId string, errorCode string, errorText string) *OrganizationSyncDispatchResult {
+	result := &OrganizationSyncDispatchResult{
+		Status:    status,
+		RunId:     runId,
+		ErrorCode: errorCode,
+		ErrorText: errorText,
+	}
+	result.Diagnostics = BuildFeishuOrganizationSyncScheduleDiagnostics(&OrganizationSyncScheduleFire{
+		Status:    result.Status,
+		RunId:     result.RunId,
+		ErrorCode: result.ErrorCode,
+		ErrorText: result.ErrorText,
+	})
+	return result
 }
 
 func (e *FeishuOrganizationScheduledSyncExecutor) configStore() FeishuOrganizationSyncConfigStore {

@@ -35,6 +35,15 @@ type recordingOrganizationSyncExecutor struct {
 	calls  []OrganizationSyncDispatchRequest
 }
 
+type failingUpdateOrganizationSyncScheduleStore struct {
+	*memoryOrganizationSyncScheduleStore
+	err error
+}
+
+func (s *failingUpdateOrganizationSyncScheduleStore) UpdateOrganizationSyncScheduleFire(fire *OrganizationSyncScheduleFire) error {
+	return s.err
+}
+
 func newMemoryOrganizationSyncScheduleStore() *memoryOrganizationSyncScheduleStore {
 	return &memoryOrganizationSyncScheduleStore{
 		schedules: map[string]*OrganizationSyncSchedule{},
@@ -374,6 +383,87 @@ func TestOrganizationSyncSchedulerRecordsSkippedDispatchOutcome(t *testing.T) {
 	fire := firstMemoryOrganizationSyncScheduleFire(store)
 	if fire == nil || fire.Status != OrganizationSyncScheduleFireStatusSkipped || fire.RunId != "run-active" || fire.ErrorCode != OrganizationSyncScheduleFireErrorAlreadyRunning {
 		t.Fatalf("skipped outcome should be recorded: %#v", fire)
+	}
+}
+
+func TestOrganizationSyncSchedulerAttachesFeishuDispatchDiagnostics(t *testing.T) {
+	now := time.Date(2026, 6, 9, 1, 2, 30, 0, time.UTC)
+	store := newMemoryOrganizationSyncScheduleStore()
+	schedule := newEnabledOrganizationSyncSchedule("engineering", "* * * * *")
+	schedule.Provider = OrganizationSyncProviderLark
+	schedule.ApplyDefaults()
+	_, _ = store.SaveOrganizationSyncSchedule(schedule)
+	executor := &recordingOrganizationSyncExecutor{
+		result: &OrganizationSyncDispatchResult{
+			Status:    OrganizationSyncScheduleFireStatusFailed,
+			ErrorCode: "config_missing",
+			ErrorText: "secret=real-secret",
+		},
+	}
+	registry := NewOrganizationSyncExecutorRegistry()
+	registry.Register(OrganizationSyncProviderLark, OrganizationSyncJobTypeFullDifferential, executor)
+	scheduler := &OrganizationSyncScheduler{
+		Store:           store,
+		Registry:        registry,
+		NodeID:          "node-a",
+		Now:             func() time.Time { return now },
+		SensitiveValues: []string{"real-secret"},
+	}
+
+	if err := scheduler.RunOnce(context.Background()); err != nil {
+		t.Fatalf("RunOnce() error = %v", err)
+	}
+
+	fire := firstMemoryOrganizationSyncScheduleFire(store)
+	if fire == nil || fire.Diagnostics == nil {
+		t.Fatalf("fire diagnostics = %+v, want attached Feishu diagnostics", fire)
+	}
+	if fire.Diagnostics.FailedStage != FeishuOrganizationSyncDiagnosticStageScheduler || fire.Diagnostics.OperatorAction != FeishuOrganizationSyncOperatorFixCredentials {
+		t.Fatalf("fire diagnostics = %+v, want scheduler/fix_credentials", fire.Diagnostics)
+	}
+	if strings.Contains(fire.Diagnostics.SafeSummary, "real-secret") {
+		t.Fatalf("fire diagnostics leaked secret: %q", fire.Diagnostics.SafeSummary)
+	}
+}
+
+func TestApplyOrganizationSyncDispatchResultPreservesDiagnostics(t *testing.T) {
+	fire := &OrganizationSyncScheduleFire{}
+	diagnostics := &FeishuOrganizationSyncRunDiagnostics{FailedStage: FeishuOrganizationSyncDiagnosticStageScheduler}
+
+	applyOrganizationSyncDispatchResult(nil, &OrganizationSyncDispatchResult{})
+	applyOrganizationSyncDispatchResult(fire, nil)
+	if fire.Status != OrganizationSyncScheduleFireStatusDispatched {
+		t.Fatalf("nil result should default to dispatched, got %s", fire.Status)
+	}
+
+	applyOrganizationSyncDispatchResult(fire, &OrganizationSyncDispatchResult{
+		Status:      OrganizationSyncScheduleFireStatusDispatched,
+		RunId:       "run-1",
+		Diagnostics: diagnostics,
+	})
+
+	if fire.Status != OrganizationSyncScheduleFireStatusDispatched || fire.RunId != "run-1" || fire.Diagnostics != diagnostics {
+		t.Fatalf("fire = %+v, want dispatch result fields and diagnostics", fire)
+	}
+
+	applyOrganizationSyncDispatchResult(fire, &OrganizationSyncDispatchResult{Status: OrganizationSyncScheduleFireStatusDispatching})
+	if fire.Status != OrganizationSyncScheduleFireStatusFailed {
+		t.Fatalf("non-terminal dispatch result should become failed, got %s", fire.Status)
+	}
+}
+
+func TestOrganizationSyncSchedulerFinishFireHandlesNilAndStoreErrors(t *testing.T) {
+	scheduler := &OrganizationSyncScheduler{}
+	if err := scheduler.finishFire(&OrganizationSyncSchedule{}, nil); err != nil {
+		t.Fatalf("finishFire(nil) error = %v", err)
+	}
+
+	storeErr := errors.New("store update failed")
+	store := &failingUpdateOrganizationSyncScheduleStore{memoryOrganizationSyncScheduleStore: newMemoryOrganizationSyncScheduleStore(), err: storeErr}
+	scheduler = &OrganizationSyncScheduler{Store: store}
+	err := scheduler.finishFire(&OrganizationSyncSchedule{}, &OrganizationSyncScheduleFire{})
+	if !errors.Is(err, storeErr) {
+		t.Fatalf("finishFire(store error) = %v, want %v", err, storeErr)
 	}
 }
 
