@@ -27,6 +27,7 @@ test("includes module-based WeCom organization API paths", () => {
   expect(paths).toContain("feishu-org-sync/runs");
   expect(paths).toContain("org-management-scope/current");
   expect(paths).toContain("organization-master-data-quality/directory");
+  expect(paths).toContain("organization-master-data-quality/remediation-plan");
   expect(paths).toContain("gateway-projection/observability");
   expect(paths).toContain("gateway-projection/manual-publish");
   expect(paths).toContain("gateway-projection/publish-attempts");

@@ -14,7 +14,7 @@
 
 import React, {useEffect, useMemo, useState} from "react";
 import {Button, Descriptions, Drawer, Empty, Input, Select, Space, Table, Tag, Typography} from "antd";
-import {ReloadOutlined} from "@ant-design/icons";
+import {DownloadOutlined, ReloadOutlined} from "@ant-design/icons";
 import OrganizationSelect from "./common/select/OrganizationSelect";
 import * as Setting from "./Setting";
 import * as PlatformApiMappingBackend from "./backend/PlatformApiMappingBackend";
@@ -37,6 +37,11 @@ const qualityOptions = [
 function qualityTag(status) {
   const color = status === "blocked" ? "red" : status === "warning" ? "gold" : "green";
   return <Tag color={color}>{status || "ready"}</Tag>;
+}
+
+function priorityTag(priority) {
+  const color = priority === "P0" ? "red" : priority === "P1" ? "orange" : priority === "P2" ? "gold" : "blue";
+  return <Tag color={color}>{priority || "P3"}</Tag>;
 }
 
 function compactText(value) {
@@ -67,8 +72,22 @@ export default function OrganizationDirectoryQualityPage(props) {
   const [keyword, setKeyword] = useState("");
   const [pagination, setPagination] = useState({current: 1, pageSize: 10});
   const [loading, setLoading] = useState(false);
+  const [planLoading, setPlanLoading] = useState(false);
   const [data, setData] = useState(null);
+  const [planData, setPlanData] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
+
+  const currentPlanOptions = () => ({
+    entityType,
+    qualityStatus,
+    reasonCode,
+    lifecycleStatus,
+    sourceType,
+    sourceConnectionIdHash,
+    keyword,
+    limit: 100,
+    topN: 20,
+  });
 
   const loadDirectoryQuality = (nextPagination = pagination) => {
     setLoading(true);
@@ -96,8 +115,25 @@ export default function OrganizationDirectoryQualityPage(props) {
     }).finally(() => setLoading(false));
   };
 
+  const loadRemediationPlan = () => {
+    setPlanLoading(true);
+    return PlatformApiMappingBackend.getOrganizationDirectoryRemediationPlan(organization, currentPlanOptions()).then((res) => {
+      if (res.status !== "ok") {
+        Setting.showMessage("error", res.msg || "加载组织目录修复计划失败");
+        setPlanData(null);
+        return;
+      }
+      setPlanData(res.data);
+    }).finally(() => setPlanLoading(false));
+  };
+
+  const loadAll = (nextPagination = pagination) => Promise.all([
+    loadDirectoryQuality(nextPagination),
+    loadRemediationPlan(),
+  ]);
+
   useEffect(() => {
-    loadDirectoryQuality({current: 1, pageSize: pagination.pageSize});
+    loadAll({current: 1, pageSize: pagination.pageSize});
   }, []);
 
   const reasonOptions = useMemo(() => {
@@ -156,8 +192,75 @@ export default function OrganizationDirectoryQualityPage(props) {
     },
   ];
 
+  const planColumns = [
+    {
+      title: "优先级",
+      dataIndex: "priority",
+      width: 90,
+      render: priorityTag,
+    },
+    {
+      title: "修复计划",
+      dataIndex: "actionAlias",
+      width: 180,
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{record.actionAlias}</Text>
+          <Text type="secondary">影响 {record.affectedCounts?.total || 0}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: "原因",
+      dataIndex: "reasonCodes",
+      render: values => renderTags(values, "volcano"),
+    },
+    {
+      title: "样例",
+      dataIndex: "sampleEntityIds",
+      width: 220,
+      render: values => (
+        <Space direction="vertical" size={0}>
+          {(values || []).slice(0, 3).map(value => <Text key={value} type="secondary">{compactText(value)}</Text>)}
+          {(!values || values.length === 0) && <Text type="secondary">-</Text>}
+        </Space>
+      ),
+    },
+    {
+      title: "摘要",
+      dataIndex: "safeSummary",
+      render: (_, record) => (
+        <Space direction="vertical" size={4}>
+          <Text>{record.safeSummary || "-"}</Text>
+          <div>{renderTags(record.operatorActions, "blue")}</div>
+          {record.blockedReason && <Text type="danger">{record.blockedReason}</Text>}
+        </Space>
+      ),
+    },
+  ];
+
   const tableLocale = {
     emptyText: loading ? "加载中" : <Empty description="暂无匹配的目录质量记录" />,
+  };
+
+  const planTableLocale = {
+    emptyText: planLoading ? "加载中" : <Empty description="暂无待处理修复计划" />,
+  };
+
+  const exportRemediationPlan = () => {
+    if (!planData?.exportSummary) {
+      Setting.showMessage("warning", "暂无可导出的修复计划");
+      return;
+    }
+    const blob = new Blob([JSON.stringify(planData.exportSummary, null, 2)], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `organization-directory-remediation-plan-${organization || "empty"}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -166,7 +269,7 @@ export default function OrganizationDirectoryQualityPage(props) {
         <Space align="center" wrap>
           <Title level={3} style={{margin: 0}}>组织目录质量</Title>
           <OrganizationSelect initValue={organization} onChange={(value) => setOrganization(value)} />
-          <Button icon={<ReloadOutlined />} onClick={() => loadDirectoryQuality({current: 1, pageSize: pagination.pageSize})}>刷新</Button>
+          <Button icon={<ReloadOutlined />} onClick={() => loadAll({current: 1, pageSize: pagination.pageSize})}>刷新</Button>
         </Space>
 
         <Space wrap>
@@ -179,7 +282,7 @@ export default function OrganizationDirectoryQualityPage(props) {
           <Input style={{width: 150}} placeholder="生命周期" value={lifecycleStatus} onChange={event => setLifecycleStatus(event.target.value)} />
           <Input style={{width: 140}} placeholder="来源类型" value={sourceType} onChange={event => setSourceType(event.target.value)} />
           <Input style={{width: 210}} placeholder="来源连接 Hash" value={sourceConnectionIdHash} onChange={event => setSourceConnectionIdHash(event.target.value)} />
-          <Input.Search style={{width: 220}} placeholder="关键字" value={keyword} onChange={event => setKeyword(event.target.value)} onSearch={() => loadDirectoryQuality({current: 1, pageSize: pagination.pageSize})} />
+          <Input.Search style={{width: 220}} placeholder="关键字" value={keyword} onChange={event => setKeyword(event.target.value)} onSearch={() => loadAll({current: 1, pageSize: pagination.pageSize})} />
         </Space>
 
         <Space wrap>
@@ -188,6 +291,28 @@ export default function OrganizationDirectoryQualityPage(props) {
           <Tag color="green">ready {data?.summary?.ready || 0}</Tag>
           <Text type="secondary">{data?.boundary || "Admin producer diagnostics only."}</Text>
         </Space>
+
+        <div style={{border: "1px solid #f0f0f0", borderRadius: 6, padding: 16}}>
+          <Space direction="vertical" size={12} style={{width: "100%"}}>
+            <Space align="center" wrap style={{justifyContent: "space-between", width: "100%"}}>
+              <Space align="center" wrap>
+                <Title level={4} style={{margin: 0}}>修复计划</Title>
+                <Tag color="purple">plans {planData?.totalPlanCount || 0}</Tag>
+                <Text type="secondary">{planData?.boundary || "Read-only Admin diagnostics."}</Text>
+              </Space>
+              <Button icon={<DownloadOutlined />} onClick={exportRemediationPlan}>导出计划</Button>
+            </Space>
+            <Table
+              rowKey={(record) => record.planId || record.planKey}
+              size="small"
+              loading={planLoading}
+              columns={planColumns}
+              dataSource={planData?.plans || []}
+              locale={planTableLocale}
+              pagination={false}
+            />
+          </Space>
+        </div>
 
         <Table
           rowKey={(record) => `${record.entityType}:${record.entityId}`}

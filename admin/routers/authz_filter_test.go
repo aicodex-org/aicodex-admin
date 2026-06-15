@@ -110,6 +110,16 @@ func TestGetOrganizationDirectoryQualityObjectUsesOrganizationQuery(t *testing.T
 	}
 }
 
+func TestGetOrganizationDirectoryRemediationPlanObjectUsesOrganizationQuery(t *testing.T) {
+	owner, name, ok := getModuleOrganizationObject("/api/organization-master-data-quality/remediation-plan", http.MethodGet, "engineering", nil)
+	if !ok {
+		t.Fatalf("expected organization directory remediation plan object to be parsed")
+	}
+	if owner != "engineering" || name != "" {
+		t.Fatalf("remediation plan object = %q/%q, want engineering/<empty>", owner, name)
+	}
+}
+
 func TestResolveModuleOrganizationQueryFallsBackToCurrentUserOwnerForScopeAudit(t *testing.T) {
 	organization := resolveModuleOrganizationQuery("/api/org-management-scope/current", "", "engineering/alice")
 	if organization != "engineering" {

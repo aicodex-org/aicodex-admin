@@ -159,6 +159,31 @@ func (c *ApiController) GetOrganizationDirectoryQuality() {
 	c.ResponseOk(result)
 }
 
+// GetOrganizationDirectoryRemediationPlan
+// @Title GetOrganizationDirectoryRemediationPlan
+// @Tag Platform API Mapping API
+// @Description 获取 Admin 组织目录质量 remediation plan；该响应只用于只读 producer 排障，不执行修复。
+// @router /organization-master-data-quality/remediation-plan [get]
+func (c *ApiController) GetOrganizationDirectoryRemediationPlan() {
+	result, err := object.GetOrganizationDirectoryRemediationPlan(newOrganizationDirectoryRemediationPlanQuery(map[string]string{
+		"organization":           c.Ctx.Input.Query("organization"),
+		"entityType":             c.Ctx.Input.Query("entityType"),
+		"keyword":                c.Ctx.Input.Query("keyword"),
+		"sourceType":             c.Ctx.Input.Query("sourceType"),
+		"sourceConnectionIdHash": c.Ctx.Input.Query("sourceConnectionIdHash"),
+		"qualityStatus":          c.Ctx.Input.Query("qualityStatus"),
+		"reasonCode":             c.Ctx.Input.Query("reasonCode"),
+		"lifecycleStatus":        c.Ctx.Input.Query("lifecycleStatus"),
+		"limit":                  c.Ctx.Input.Query("limit"),
+		"topN":                   c.Ctx.Input.Query("topN"),
+	}))
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(result)
+}
+
 func newOrganizationDirectoryQualityQuery(values map[string]string) object.OrganizationDirectoryQualityQuery {
 	return object.OrganizationDirectoryQualityQuery{
 		OrganizationId:         values["organization"],
@@ -171,6 +196,21 @@ func newOrganizationDirectoryQualityQuery(values map[string]string) object.Organ
 		LifecycleStatus:        values["lifecycleStatus"],
 		Page:                   util.ParseInt(values["p"]),
 		PageSize:               util.ParseInt(values["pageSize"]),
+	}
+}
+
+func newOrganizationDirectoryRemediationPlanQuery(values map[string]string) object.OrganizationDirectoryRemediationPlanQuery {
+	return object.OrganizationDirectoryRemediationPlanQuery{
+		OrganizationId:         values["organization"],
+		EntityType:             values["entityType"],
+		Keyword:                values["keyword"],
+		SourceType:             values["sourceType"],
+		SourceConnectionIdHash: values["sourceConnectionIdHash"],
+		QualityStatus:          values["qualityStatus"],
+		ReasonCode:             values["reasonCode"],
+		LifecycleStatus:        values["lifecycleStatus"],
+		Limit:                  util.ParseInt(values["limit"]),
+		TopN:                   util.ParseInt(values["topN"]),
 	}
 }
 

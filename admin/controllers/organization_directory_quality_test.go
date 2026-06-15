@@ -48,3 +48,31 @@ func TestNewOrganizationDirectoryQualityQueryParsesOperatorFilters(t *testing.T)
 		t.Fatalf("query = %+v, want parsed operator filters", query)
 	}
 }
+
+func TestNewOrganizationDirectoryRemediationPlanQueryParsesOperatorFilters(t *testing.T) {
+	query := newOrganizationDirectoryRemediationPlanQuery(map[string]string{
+		"organization":           " org-a ",
+		"entityType":             object.OrganizationDirectoryQualityEntityUser,
+		"keyword":                "Alice",
+		"sourceType":             object.SourceTypeWecom,
+		"sourceConnectionIdHash": "sha256:source",
+		"qualityStatus":          object.OrganizationMasterDataQualityStatusBlocked,
+		"reasonCode":             object.OrganizationMasterDataQualityReasonMappingMissing,
+		"lifecycleStatus":        object.PlatformLifecycleStatusActive,
+		"limit":                  "30",
+		"topN":                   "10",
+	})
+
+	if query.OrganizationId != " org-a " ||
+		query.EntityType != object.OrganizationDirectoryQualityEntityUser ||
+		query.Keyword != "Alice" ||
+		query.SourceType != object.SourceTypeWecom ||
+		query.SourceConnectionIdHash != "sha256:source" ||
+		query.QualityStatus != object.OrganizationMasterDataQualityStatusBlocked ||
+		query.ReasonCode != object.OrganizationMasterDataQualityReasonMappingMissing ||
+		query.LifecycleStatus != object.PlatformLifecycleStatusActive ||
+		query.Limit != 30 ||
+		query.TopN != 10 {
+		t.Fatalf("query = %+v, want parsed remediation plan filters", query)
+	}
+}
