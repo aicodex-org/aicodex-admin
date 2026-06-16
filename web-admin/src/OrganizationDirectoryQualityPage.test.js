@@ -28,6 +28,7 @@ jest.mock("./backend/PlatformApiMappingBackend", () => ({
   getOrganizationDirectoryRemediationApprovalPacketAudit: jest.fn(),
   getOrganizationDirectoryRemediationApprovalPacketOperatorNotes: jest.fn(),
   getOrganizationDirectoryRemediationOperatorNotePersistenceReadiness: jest.fn(),
+  getOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch: jest.fn(),
 }));
 
 jest.mock("./common/select/OrganizationSelect", () => (props) => (
@@ -393,6 +394,64 @@ beforeEach(() => {
       },
     },
   });
+  PlatformApiMappingBackend.getOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch.mockResolvedValue({
+    status: "ok",
+    data: {
+      organizationId: "org-alpha",
+      searchId: "operator-note-readonly-audit-search:sample",
+      totalItemCount: 1,
+      searchScope: "current_derived_non_persistent",
+      persistenceRequiredForHistoricalSearch: true,
+      boundary: "organization directory remediation operator note readonly audit search 是 Admin producer 只读诊断。",
+      cannotInfer: ["historical_search_completeness", "saved_operator_comments", "persistent_audit_evidence"],
+      items: [{
+        auditSearchItemId: "operator-note-readonly-audit-search-item:sample",
+        noteHash: "sha256:operator-note",
+        readinessHash: "sha256:persistence-readiness",
+        packetHash: "sha256:packet-audit",
+        approvalPreviewHash: "sha256:approval-preview",
+        draftId: "sha256:draft",
+        actionAlias: "mapping_review",
+        entityType: "user",
+        riskLevel: "medium",
+        packetStatus: "ready_for_approval",
+        readinessStatus: "ready_for_design_review",
+        checklistAliases: ["manual_review_only_required", "auto_execution_must_remain_false"],
+        reasonAliases: ["mapping_missing"],
+        displaySafeLabel: "user/mapping_review operator note readonly audit",
+        executionMode: "manual_review_only",
+        autoExecutionAllowed: false,
+        noteScope: "derived_note_draft",
+        retentionPolicy: "not_persisted",
+        storageScope: "readiness_only",
+        manualReviewOnly: true,
+        redactedFields: ["source_content_redacted", "contact_identifier", "full_organization_tree"],
+        sourceVersionSummary: "sourceVersion=current_derived_metadata_only",
+        orgVersionSummary: "orgVersion=current_admin_read_model_only",
+        cannotInfer: ["historical_search_completeness", "saved_operator_comments", "persistent_audit_evidence"],
+        blockedReasons: [],
+        safeSummary: "Readonly handoff audit search for user/mapping_review remains manual-review-only.",
+        markdownSummary: "# Operator Note Readonly Audit Search\n- executionMode: `manual_review_only`\n- persistenceRequiredForHistoricalSearch: `true`\n## cannotInfer\n- historical_search_completeness",
+      }],
+      exportSummary: {
+        searchScope: "current_derived_non_persistent",
+        persistenceRequiredForHistoricalSearch: true,
+        cannotInfer: ["historical_search_completeness", "saved_operator_comments", "persistent_audit_evidence"],
+        items: [{
+          noteHash: "sha256:operator-note",
+          readinessHash: "sha256:persistence-readiness",
+          packetHash: "sha256:packet-audit",
+          executionMode: "manual_review_only",
+          autoExecutionAllowed: false,
+          noteScope: "derived_note_draft",
+          retentionPolicy: "not_persisted",
+          storageScope: "readiness_only",
+          manualReviewOnly: true,
+          markdownSummary: "# Operator Note Readonly Audit Search\n- executionMode: `manual_review_only`\n- persistenceRequiredForHistoricalSearch: `true`",
+        }],
+      },
+    },
+  });
   global.Blob = jest.fn((parts, options) => ({parts, options}));
   global.URL.createObjectURL = jest.fn(() => "blob:remediation-plan");
   global.URL.revokeObjectURL = jest.fn();
@@ -616,6 +675,48 @@ test("opens sanitized approval packet audit from approval preview without repair
   expect(exportedReadinessJson.parts.join("")).toContain("sha256:persistence-readiness");
   expect(exportedReadinessJson.parts.join("")).toContain("storeDecisionRequired");
   expect(exportedReadinessJson.parts.join("")).not.toContain("org-alpha/alice");
+
+  fireEvent.click(screen.getByText("备注审计检索"));
+  expect((await screen.findAllByText("备注审计检索")).length).toBeGreaterThan(0);
+  expect(screen.getByText("current_derived_non_persistent")).toBeInTheDocument();
+  expect(screen.getByText("persistenceRequiredForHistoricalSearch: true")).toBeInTheDocument();
+  expect(screen.getAllByText("historical_search_completeness").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("saved_operator_comments").length).toBeGreaterThan(0);
+  expect(screen.getByText("source_content_redacted")).toBeInTheDocument();
+  expect(screen.getByText("readiness_only / derived_note_draft / not_persisted")).toBeInTheDocument();
+  expect(screen.queryByText("保存备注")).not.toBeInTheDocument();
+  expect(screen.queryByText("执行修复")).not.toBeInTheDocument();
+  expect(PlatformApiMappingBackend.getOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+    noteHash: "sha256:operator-note",
+    readinessHash: "sha256:persistence-readiness",
+    packetHash: "sha256:packet-audit",
+    approvalPreviewHash: "sha256:approval-preview",
+    draftId: "sha256:draft",
+    packetStatus: "ready_for_approval",
+    readinessStatus: "ready_for_design_review",
+    includeHistorical: true,
+    historyMode: "persistent",
+    topN: 20,
+  }));
+
+  fireEvent.click(screen.getByText("复制备注审计检索JSON"));
+  await wait(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("current_derived_non_persistent")));
+  fireEvent.click(screen.getByText("复制备注审计检索Markdown"));
+  await wait(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("persistenceRequiredForHistoricalSearch")));
+
+  fireEvent.click(screen.getByText("导出备注审计检索JSON"));
+  const exportedSearchJson = global.URL.createObjectURL.mock.calls[4][0];
+  expect(exportedSearchJson.parts.join("")).toContain("sha256:persistence-readiness");
+  expect(exportedSearchJson.parts.join("")).toContain("manual_review_only");
+  expect(exportedSearchJson.parts.join("")).not.toContain("org-alpha/alice");
+
+  navigator.clipboard.writeText.mockRejectedValueOnce(new Error("copy failed"));
+  fireEvent.click(screen.getByText("复制备注审计检索JSON"));
+  await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "复制脱敏备注审计检索JSON失败"));
+
+  navigator.clipboard.writeText.mockRejectedValueOnce(new Error("copy failed"));
+  fireEvent.click(screen.getByText("复制备注审计检索Markdown"));
+  await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "复制脱敏备注审计检索Markdown失败"));
 });
 
 test("shows blocked approval preview and fails closed on approval preview errors", async() => {
@@ -714,6 +815,28 @@ test("fails closed on operator note persistence readiness errors", async() => {
   expect(screen.queryByText("保存备注")).not.toBeInTheDocument();
 });
 
+test("fails closed on operator note readonly audit search errors", async() => {
+  PlatformApiMappingBackend.getOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch.mockResolvedValueOnce({status: "error", msg: "search failed"});
+  render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  await screen.findAllByText("mapping_review");
+  fireEvent.click(screen.getByText("草案"));
+  fireEvent.click(await screen.findByText("预检"));
+  fireEvent.click(await screen.findByText("审批预览"));
+  expect(await screen.findByText("readyForApproval: true")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("审批包审计"));
+  expect(await screen.findByText("ready_for_approval")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("交接备注"));
+  expect(await screen.findByText("derived_note_draft")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("持久化准入"));
+  expect(await screen.findByText("ready_for_design_review")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("备注审计检索"));
+
+  await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "search failed"));
+  expect(screen.queryByText("保存备注")).not.toBeInTheDocument();
+  expect(screen.queryByText("执行修复")).not.toBeInTheDocument();
+});
+
 test("shows empty operator note persistence readiness without writes", async() => {
   PlatformApiMappingBackend.getOrganizationDirectoryRemediationOperatorNotePersistenceReadiness.mockResolvedValueOnce({
     status: "ok",
@@ -742,6 +865,43 @@ test("shows empty operator note persistence readiness without writes", async() =
   expect(screen.getByText("复制持久化准入JSON")).toBeDisabled();
   expect(screen.getByText("导出持久化准入JSON")).toBeDisabled();
   expect(screen.queryByText("保存备注")).not.toBeInTheDocument();
+});
+
+test("shows empty operator note readonly audit search without writes", async() => {
+  PlatformApiMappingBackend.getOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch.mockResolvedValueOnce({
+    status: "ok",
+    data: {
+      organizationId: "org-alpha",
+      searchId: "operator-note-readonly-audit-search:empty",
+      totalItemCount: 0,
+      searchScope: "current_derived_non_persistent",
+      persistenceRequiredForHistoricalSearch: true,
+      cannotInfer: ["historical_search_completeness"],
+      boundary: "organization directory remediation operator note readonly audit search 是 Admin producer 只读诊断。",
+      items: [],
+      exportSummary: {searchScope: "current_derived_non_persistent", persistenceRequiredForHistoricalSearch: true, items: []},
+    },
+  });
+  render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  await screen.findAllByText("mapping_review");
+  fireEvent.click(screen.getByText("草案"));
+  fireEvent.click(await screen.findByText("预检"));
+  fireEvent.click(await screen.findByText("审批预览"));
+  expect(await screen.findByText("readyForApproval: true")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("审批包审计"));
+  expect(await screen.findByText("ready_for_approval")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("交接备注"));
+  expect(await screen.findByText("derived_note_draft")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("持久化准入"));
+  expect(await screen.findByText("ready_for_design_review")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("备注审计检索"));
+
+  expect(await screen.findByText("暂无备注审计检索")).toBeInTheDocument();
+  expect(screen.getByText("复制备注审计检索JSON")).toBeDisabled();
+  expect(screen.getByText("导出备注审计检索JSON")).toBeDisabled();
+  expect(screen.queryByText("保存备注")).not.toBeInTheDocument();
+  expect(screen.queryByText("执行修复")).not.toBeInTheDocument();
 });
 
 test("shows empty approval packet operator notes without writes", async() => {

@@ -363,6 +363,48 @@ func (c *ApiController) GetOrganizationDirectoryRemediationOperatorNotePersisten
 	c.ResponseOk(result)
 }
 
+// GetOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch
+// @Title GetOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch
+// @Tag Platform API Mapping API
+// @Description 获取 Admin 组织目录 remediation operator note readonly audit search；该响应只读、非持久化派生，且不保存 notes。
+// @router /organization-master-data-quality/remediation-operator-note-readonly-audit-search [get]
+func (c *ApiController) GetOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch() {
+	result, err := object.GetOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch(newOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearchQuery(map[string]string{
+		"organization":           c.Ctx.Input.Query("organization"),
+		"searchId":               c.Ctx.Input.Query("searchId"),
+		"readinessId":            c.Ctx.Input.Query("readinessId"),
+		"readinessHash":          c.Ctx.Input.Query("readinessHash"),
+		"noteId":                 c.Ctx.Input.Query("noteId"),
+		"noteHash":               c.Ctx.Input.Query("noteHash"),
+		"packetAuditId":          c.Ctx.Input.Query("packetAuditId"),
+		"packetHash":             c.Ctx.Input.Query("packetHash"),
+		"approvalPreviewId":      c.Ctx.Input.Query("approvalPreviewId"),
+		"approvalPreviewHash":    c.Ctx.Input.Query("approvalPreviewHash"),
+		"draftId":                c.Ctx.Input.Query("draftId"),
+		"remediationRunId":       c.Ctx.Input.Query("remediationRunId"),
+		"actionAlias":            c.Ctx.Input.Query("actionAlias"),
+		"entityType":             c.Ctx.Input.Query("entityType"),
+		"keyword":                c.Ctx.Input.Query("keyword"),
+		"sourceType":             c.Ctx.Input.Query("sourceType"),
+		"sourceConnectionIdHash": c.Ctx.Input.Query("sourceConnectionIdHash"),
+		"qualityStatus":          c.Ctx.Input.Query("qualityStatus"),
+		"reasonCode":             c.Ctx.Input.Query("reasonCode"),
+		"checklistAlias":         c.Ctx.Input.Query("checklistAlias"),
+		"riskLevel":              c.Ctx.Input.Query("riskLevel"),
+		"packetStatus":           c.Ctx.Input.Query("packetStatus"),
+		"readinessStatus":        c.Ctx.Input.Query("readinessStatus"),
+		"includeHistorical":      c.Ctx.Input.Query("includeHistorical"),
+		"historyMode":            c.Ctx.Input.Query("historyMode"),
+		"limit":                  c.Ctx.Input.Query("limit"),
+		"topN":                   c.Ctx.Input.Query("topN"),
+	}))
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(result)
+}
+
 func newOrganizationDirectoryQualityQuery(values map[string]string) object.OrganizationDirectoryQualityQuery {
 	return object.OrganizationDirectoryQualityQuery{
 		OrganizationId:         values["organization"],
@@ -510,6 +552,43 @@ func newOrganizationDirectoryRemediationOperatorNotePersistenceReadinessQuery(va
 		Limit:                  util.ParseInt(values["limit"]),
 		TopN:                   util.ParseInt(values["topN"]),
 	}
+}
+
+func newOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearchQuery(values map[string]string) object.OrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearchQuery {
+	return object.OrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearchQuery{
+		OrganizationId:         values["organization"],
+		SearchId:               values["searchId"],
+		ReadinessId:            values["readinessId"],
+		ReadinessHash:          values["readinessHash"],
+		NoteId:                 values["noteId"],
+		NoteHash:               values["noteHash"],
+		PacketAuditId:          values["packetAuditId"],
+		PacketHash:             values["packetHash"],
+		ApprovalPreviewId:      values["approvalPreviewId"],
+		ApprovalPreviewHash:    values["approvalPreviewHash"],
+		DraftId:                values["draftId"],
+		RemediationRunId:       values["remediationRunId"],
+		ActionAlias:            values["actionAlias"],
+		EntityType:             values["entityType"],
+		Keyword:                values["keyword"],
+		SourceType:             values["sourceType"],
+		SourceConnectionIdHash: values["sourceConnectionIdHash"],
+		QualityStatus:          values["qualityStatus"],
+		ReasonCode:             values["reasonCode"],
+		ChecklistAlias:         values["checklistAlias"],
+		RiskLevel:              values["riskLevel"],
+		PacketStatus:           values["packetStatus"],
+		ReadinessStatus:        values["readinessStatus"],
+		IncludeHistorical:      parseOrganizationDirectoryRemediationBool(values["includeHistorical"]),
+		HistoryMode:            values["historyMode"],
+		Limit:                  util.ParseInt(values["limit"]),
+		TopN:                   util.ParseInt(values["topN"]),
+	}
+}
+
+func parseOrganizationDirectoryRemediationBool(value string) bool {
+	value = strings.TrimSpace(value)
+	return value == "1" || strings.EqualFold(value, "true") || strings.EqualFold(value, "yes")
 }
 
 // UpdatePlatformApiUserMapping

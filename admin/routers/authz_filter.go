@@ -189,7 +189,7 @@ func getModuleOrganizationObject(path string, method string, queryOrganization s
 		return strings.TrimSpace(queryOrganization), "", true
 	}
 
-	if path == "/api/organization-master-data-quality/directory" || path == "/api/organization-master-data-quality/remediation-plan" || path == "/api/organization-master-data-quality/remediation-action-drafts" || path == "/api/organization-master-data-quality/remediation-preflight" || path == "/api/organization-master-data-quality/remediation-approval-preview" || path == "/api/organization-master-data-quality/remediation-approval-packet-audit" || path == "/api/organization-master-data-quality/remediation-approval-packet-operator-notes" || path == "/api/organization-master-data-quality/remediation-operator-note-persistence-readiness" {
+	if path == "/api/organization-master-data-quality/directory" || path == "/api/organization-master-data-quality/remediation-plan" || path == "/api/organization-master-data-quality/remediation-action-drafts" || path == "/api/organization-master-data-quality/remediation-preflight" || path == "/api/organization-master-data-quality/remediation-approval-preview" || path == "/api/organization-master-data-quality/remediation-approval-packet-audit" || path == "/api/organization-master-data-quality/remediation-approval-packet-operator-notes" || path == "/api/organization-master-data-quality/remediation-operator-note-persistence-readiness" || path == "/api/organization-master-data-quality/remediation-operator-note-readonly-audit-search" {
 		return strings.TrimSpace(queryOrganization), "", true
 	}
 

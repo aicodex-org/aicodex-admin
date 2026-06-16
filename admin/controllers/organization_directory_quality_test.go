@@ -15,9 +15,14 @@
 package controllers
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"git.leagsoft.com/aicodex/aicodex-admin/object"
+	webcontext "github.com/beego/beego/v2/server/web/context"
 )
 
 func TestNewOrganizationDirectoryQualityQueryParsesOperatorFilters(t *testing.T) {
@@ -295,4 +300,139 @@ func TestNewOrganizationDirectoryRemediationOperatorNotePersistenceReadinessQuer
 		query.TopN != 10 {
 		t.Fatalf("query = %+v, want parsed remediation operator note persistence readiness filters", query)
 	}
+}
+
+func TestNewOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearchQueryParsesOperatorFilters(t *testing.T) {
+	query := newOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearchQuery(map[string]string{
+		"organization":           "org-a",
+		"searchId":               "operator-note-readonly-audit-search:sample",
+		"readinessId":            "operator-note-persistence-readiness:sample",
+		"readinessHash":          "sha256:readiness",
+		"noteId":                 "operator-note:note",
+		"noteHash":               "sha256:note",
+		"packetAuditId":          "approval-packet-audit:packet",
+		"packetHash":             "sha256:packet",
+		"approvalPreviewId":      "approval-preview:preview",
+		"approvalPreviewHash":    "sha256:preview",
+		"draftId":                "sha256:draft",
+		"remediationRunId":       "run-20260616",
+		"actionAlias":            object.OrganizationDirectoryRemediationActionMappingReview,
+		"entityType":             object.OrganizationDirectoryQualityEntityUser,
+		"keyword":                "alice",
+		"sourceType":             "wecom",
+		"sourceConnectionIdHash": "sha256:source",
+		"qualityStatus":          object.OrganizationMasterDataQualityStatusBlocked,
+		"reasonCode":             object.OrganizationMasterDataQualityReasonMappingMissing,
+		"checklistAlias":         "manual_review_only_required",
+		"riskLevel":              object.OrganizationDirectoryRemediationApprovalRiskMedium,
+		"packetStatus":           object.OrganizationDirectoryRemediationApprovalPacketStatusReadyForApproval,
+		"readinessStatus":        object.OrganizationDirectoryRemediationOperatorNotePersistenceStatusReadyForDesignReview,
+		"includeHistorical":      "true",
+		"historyMode":            object.OrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearchHistoryModePersistent,
+		"limit":                  "30",
+		"topN":                   "10",
+	})
+	if query.OrganizationId != "org-a" ||
+		query.SearchId != "operator-note-readonly-audit-search:sample" ||
+		query.ReadinessId != "operator-note-persistence-readiness:sample" ||
+		query.ReadinessHash != "sha256:readiness" ||
+		query.NoteId != "operator-note:note" ||
+		query.NoteHash != "sha256:note" ||
+		query.PacketAuditId != "approval-packet-audit:packet" ||
+		query.PacketHash != "sha256:packet" ||
+		query.ApprovalPreviewId != "approval-preview:preview" ||
+		query.ApprovalPreviewHash != "sha256:preview" ||
+		query.DraftId != "sha256:draft" ||
+		query.RemediationRunId != "run-20260616" ||
+		query.ActionAlias != object.OrganizationDirectoryRemediationActionMappingReview ||
+		query.EntityType != object.OrganizationDirectoryQualityEntityUser ||
+		query.Keyword != "alice" ||
+		query.SourceType != "wecom" ||
+		query.SourceConnectionIdHash != "sha256:source" ||
+		query.QualityStatus != object.OrganizationMasterDataQualityStatusBlocked ||
+		query.ReasonCode != object.OrganizationMasterDataQualityReasonMappingMissing ||
+		query.ChecklistAlias != "manual_review_only_required" ||
+		query.RiskLevel != object.OrganizationDirectoryRemediationApprovalRiskMedium ||
+		query.PacketStatus != object.OrganizationDirectoryRemediationApprovalPacketStatusReadyForApproval ||
+		query.ReadinessStatus != object.OrganizationDirectoryRemediationOperatorNotePersistenceStatusReadyForDesignReview ||
+		!query.IncludeHistorical ||
+		query.HistoryMode != object.OrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearchHistoryModePersistent ||
+		query.Limit != 30 ||
+		query.TopN != 10 {
+		t.Fatalf("query = %+v, want parsed remediation operator note readonly audit search filters", query)
+	}
+}
+
+func TestGetOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearchHandlerReturnsReadonlyBoundary(t *testing.T) {
+	controller, recorder := newOrganizationDirectoryQualityTestControllerWithRequest(
+		t,
+		http.MethodGet,
+		"/api/organization-master-data-quality/remediation-operator-note-readonly-audit-search?organization=org-a&includeHistorical=true&historyMode=persistent&limit=20&topN=10",
+	)
+
+	controller.GetOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch()
+
+	var response struct {
+		Status string                                                                       `json:"status"`
+		Msg    string                                                                       `json:"msg"`
+		Data   object.OrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearchResult `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("response body = %q, unmarshal error = %v", recorder.Body.String(), err)
+	}
+	if response.Status != "ok" || response.Msg != "" {
+		t.Fatalf("response = %+v, want ok readonly audit search response", response)
+	}
+	if response.Data.OrganizationId != "org-a" ||
+		response.Data.SearchScope != object.OrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearchScopeCurrentDerived ||
+		!response.Data.PersistenceRequiredForHistoricalSearch ||
+		!organizationDirectoryQualityControllerTestContains(response.Data.CannotInfer, object.OrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearchCannotInferHistoricalCompleteness) {
+		t.Fatalf("response data = %+v, want scoped historical-boundary readonly audit search", response.Data)
+	}
+}
+
+func TestGetOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearchHandlerFailsClosedOnInvalidHistoryMode(t *testing.T) {
+	controller, recorder := newOrganizationDirectoryQualityTestControllerWithRequest(
+		t,
+		http.MethodGet,
+		"/api/organization-master-data-quality/remediation-operator-note-readonly-audit-search?organization=org-a&historyMode=durable_store",
+	)
+
+	controller.GetOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch()
+
+	var response struct {
+		Status string `json:"status"`
+		Msg    string `json:"msg"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("response body = %q, unmarshal error = %v", recorder.Body.String(), err)
+	}
+	if response.Status != "error" || !strings.Contains(response.Msg, "unsupported operator note audit search history mode") {
+		t.Fatalf("response = %+v, want operator-readable invalid history mode error", response)
+	}
+}
+
+func organizationDirectoryQualityControllerTestContains(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
+func newOrganizationDirectoryQualityTestControllerWithRequest(t *testing.T, method string, target string) (*ApiController, *httptest.ResponseRecorder) {
+	t.Helper()
+
+	request := httptest.NewRequest(method, target, strings.NewReader(""))
+	request.Host = "door.example.com"
+	request.Header.Set("Accept-Language", "zh-CN")
+
+	recorder := httptest.NewRecorder()
+	ctx := webcontext.NewContext()
+	ctx.Reset(recorder, request)
+
+	controller := &ApiController{}
+	controller.Init(ctx, "ApiController", "GetOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch", controller)
+	return controller, recorder
 }

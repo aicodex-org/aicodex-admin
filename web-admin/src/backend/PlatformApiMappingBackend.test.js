@@ -18,6 +18,7 @@ import {
   getOrganizationDirectoryRemediationApprovalPacketOperatorNotes,
   getOrganizationDirectoryRemediationApprovalPreview,
   getOrganizationDirectoryRemediationOperatorNotePersistenceReadiness,
+  getOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch,
   getOrganizationDirectoryRemediationPlan,
   getOrganizationDirectoryRemediationPreflight,
   getOrganizationMasterDataQualityReadiness,
@@ -559,6 +560,46 @@ test("loads organization directory remediation operator note persistence readine
 
   expect(global.fetch).toHaveBeenCalledWith(
     "https://admin.example.invalid/api/organization-master-data-quality/remediation-operator-note-persistence-readiness?organization=org-a&readinessId=operator-note-persistence-readiness%3Asample&readinessHash=sha256%3Areadiness&noteId=operator-note%3Anote&noteHash=sha256%3Anote&packetAuditId=approval-packet-audit%3Apacket&packetHash=sha256%3Apacket&approvalPreviewId=approval-preview%3Apreview&approvalPreviewHash=sha256%3Apreview&draftId=sha256%3Adraft&actionAlias=mapping_review&entityType=user&keyword=alice&sourceType=wecom&sourceConnectionIdHash=sha256%3Asource&qualityStatus=blocked&reasonCode=mapping_missing&riskLevel=medium&packetStatus=ready_for_approval&limit=30&topN=10",
+    expect.objectContaining({
+      method: "GET",
+      credentials: "include",
+      headers: expect.objectContaining({"Accept-Language": "en"}),
+    })
+  );
+});
+
+test("loads organization directory remediation operator note readonly audit search with safe filters", async() => {
+  await getOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch("org-a", {
+    searchId: "operator-note-readonly-audit-search:sample",
+    readinessId: "operator-note-persistence-readiness:sample",
+    readinessHash: "sha256:readiness",
+    noteId: "operator-note:note",
+    noteHash: "sha256:note",
+    packetAuditId: "approval-packet-audit:packet",
+    packetHash: "sha256:packet",
+    approvalPreviewId: "approval-preview:preview",
+    approvalPreviewHash: "sha256:preview",
+    draftId: "sha256:draft",
+    remediationRunId: "run-20260616",
+    actionAlias: "mapping_review",
+    entityType: "user",
+    keyword: "alice",
+    sourceType: "wecom",
+    sourceConnectionIdHash: "sha256:source",
+    qualityStatus: "blocked",
+    reasonCode: "mapping_missing",
+    checklistAlias: "manual_review_only_required",
+    riskLevel: "medium",
+    packetStatus: "ready_for_approval",
+    readinessStatus: "ready_for_design_review",
+    includeHistorical: true,
+    historyMode: "persistent",
+    limit: 30,
+    topN: 10,
+  });
+
+  expect(global.fetch).toHaveBeenCalledWith(
+    "https://admin.example.invalid/api/organization-master-data-quality/remediation-operator-note-readonly-audit-search?organization=org-a&searchId=operator-note-readonly-audit-search%3Asample&readinessId=operator-note-persistence-readiness%3Asample&readinessHash=sha256%3Areadiness&noteId=operator-note%3Anote&noteHash=sha256%3Anote&packetAuditId=approval-packet-audit%3Apacket&packetHash=sha256%3Apacket&approvalPreviewId=approval-preview%3Apreview&approvalPreviewHash=sha256%3Apreview&draftId=sha256%3Adraft&remediationRunId=run-20260616&actionAlias=mapping_review&entityType=user&keyword=alice&sourceType=wecom&sourceConnectionIdHash=sha256%3Asource&qualityStatus=blocked&reasonCode=mapping_missing&checklistAlias=manual_review_only_required&riskLevel=medium&packetStatus=ready_for_approval&readinessStatus=ready_for_design_review&includeHistorical=true&historyMode=persistent&limit=30&topN=10",
     expect.objectContaining({
       method: "GET",
       credentials: "include",

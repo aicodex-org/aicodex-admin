@@ -79,6 +79,7 @@ export default function OrganizationDirectoryQualityPage(props) {
   const [approvalPacketAuditLoading, setApprovalPacketAuditLoading] = useState(false);
   const [approvalPacketOperatorNotesLoading, setApprovalPacketOperatorNotesLoading] = useState(false);
   const [operatorNotePersistenceReadinessLoading, setOperatorNotePersistenceReadinessLoading] = useState(false);
+  const [operatorNoteReadonlyAuditSearchLoading, setOperatorNoteReadonlyAuditSearchLoading] = useState(false);
   const [data, setData] = useState(null);
   const [planData, setPlanData] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -89,6 +90,7 @@ export default function OrganizationDirectoryQualityPage(props) {
   const [approvalPacketAuditData, setApprovalPacketAuditData] = useState(null);
   const [approvalPacketOperatorNotesData, setApprovalPacketOperatorNotesData] = useState(null);
   const [operatorNotePersistenceReadinessData, setOperatorNotePersistenceReadinessData] = useState(null);
+  const [operatorNoteReadonlyAuditSearchData, setOperatorNoteReadonlyAuditSearchData] = useState(null);
 
   const currentPlanOptions = () => ({
     entityType,
@@ -148,6 +150,7 @@ export default function OrganizationDirectoryQualityPage(props) {
     setApprovalPacketAuditData(null);
     setApprovalPacketOperatorNotesData(null);
     setOperatorNotePersistenceReadinessData(null);
+    setOperatorNoteReadonlyAuditSearchData(null);
     setDraftLoading(true);
     return PlatformApiMappingBackend.getOrganizationDirectoryRemediationActionDrafts(organization, {
       ...currentPlanOptions(),
@@ -171,6 +174,7 @@ export default function OrganizationDirectoryQualityPage(props) {
     setApprovalPacketAuditData(null);
     setApprovalPacketOperatorNotesData(null);
     setOperatorNotePersistenceReadinessData(null);
+    setOperatorNoteReadonlyAuditSearchData(null);
     setPreflightLoading(true);
     return PlatformApiMappingBackend.getOrganizationDirectoryRemediationPreflight(organization, {
       ...currentPlanOptions(),
@@ -195,6 +199,7 @@ export default function OrganizationDirectoryQualityPage(props) {
     setApprovalPacketAuditData(null);
     setApprovalPacketOperatorNotesData(null);
     setOperatorNotePersistenceReadinessData(null);
+    setOperatorNoteReadonlyAuditSearchData(null);
     setApprovalPreviewLoading(true);
     return PlatformApiMappingBackend.getOrganizationDirectoryRemediationApprovalPreview(organization, {
       ...currentPlanOptions(),
@@ -218,6 +223,7 @@ export default function OrganizationDirectoryQualityPage(props) {
     setApprovalPacketAuditData(null);
     setApprovalPacketOperatorNotesData(null);
     setOperatorNotePersistenceReadinessData(null);
+    setOperatorNoteReadonlyAuditSearchData(null);
     setApprovalPacketAuditLoading(true);
     return PlatformApiMappingBackend.getOrganizationDirectoryRemediationApprovalPacketAudit(organization, {
       ...currentPlanOptions(),
@@ -244,6 +250,7 @@ export default function OrganizationDirectoryQualityPage(props) {
   const loadApprovalPacketOperatorNotes = (packetAudit) => {
     setApprovalPacketOperatorNotesData(null);
     setOperatorNotePersistenceReadinessData(null);
+    setOperatorNoteReadonlyAuditSearchData(null);
     setApprovalPacketOperatorNotesLoading(true);
     return PlatformApiMappingBackend.getOrganizationDirectoryRemediationApprovalPacketOperatorNotes(organization, {
       ...currentPlanOptions(),
@@ -271,6 +278,7 @@ export default function OrganizationDirectoryQualityPage(props) {
 
   const loadOperatorNotePersistenceReadiness = (note) => {
     setOperatorNotePersistenceReadinessData(null);
+    setOperatorNoteReadonlyAuditSearchData(null);
     setOperatorNotePersistenceReadinessLoading(true);
     return PlatformApiMappingBackend.getOrganizationDirectoryRemediationOperatorNotePersistenceReadiness(organization, {
       ...currentPlanOptions(),
@@ -294,6 +302,38 @@ export default function OrganizationDirectoryQualityPage(props) {
       }
       setOperatorNotePersistenceReadinessData(res.data);
     }).finally(() => setOperatorNotePersistenceReadinessLoading(false));
+  };
+
+  const loadOperatorNoteReadonlyAuditSearch = (readiness) => {
+    setOperatorNoteReadonlyAuditSearchData(null);
+    setOperatorNoteReadonlyAuditSearchLoading(true);
+    return PlatformApiMappingBackend.getOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch(organization, {
+      ...currentPlanOptions(),
+      readinessId: readiness.readinessId,
+      readinessHash: readiness.readinessHash,
+      noteId: selectedApprovalPacketOperatorNote?.noteId,
+      noteHash: readiness.noteHash || selectedApprovalPacketOperatorNote?.noteHash,
+      packetHash: readiness.packetHash || selectedApprovalPacketOperatorNote?.packetHash,
+      approvalPreviewHash: readiness.approvalPreviewHash || selectedApprovalPacketOperatorNote?.approvalPreviewHash,
+      draftId: readiness.draftId || selectedApprovalPacketOperatorNote?.draftId,
+      actionAlias: readiness.actionAlias || selectedApprovalPacketOperatorNote?.actionAlias || selectedPlan?.actionAlias,
+      entityType: readiness.entityType || selectedApprovalPacketOperatorNote?.entityType || entityType,
+      riskLevel: selectedApprovalPacketAudit?.riskLevel,
+      packetStatus: selectedApprovalPacketAudit?.packetStatus,
+      readinessStatus: readiness.readinessStatus,
+      reasonCode: (selectedPlan?.reasonCodes || [])[0] || reasonCode,
+      includeHistorical: true,
+      historyMode: "persistent",
+      limit: 100,
+      topN: 20,
+    }).then((res) => {
+      if (res.status !== "ok") {
+        Setting.showMessage("error", res.msg || "加载备注审计检索失败");
+        setOperatorNoteReadonlyAuditSearchData(null);
+        return;
+      }
+      setOperatorNoteReadonlyAuditSearchData(res.data);
+    }).finally(() => setOperatorNoteReadonlyAuditSearchLoading(false));
   };
 
   const loadAll = (nextPagination = pagination) => Promise.all([
@@ -679,6 +719,62 @@ export default function OrganizationDirectoryQualityPage(props) {
     URL.revokeObjectURL(url);
   };
 
+  const selectedOperatorNoteReadonlyAuditSearchItem = operatorNoteReadonlyAuditSearchData?.items?.[0];
+  const operatorNoteReadonlyAuditSearchExportPayload = operatorNoteReadonlyAuditSearchData?.exportSummary || {
+    organizationId: operatorNoteReadonlyAuditSearchData?.organizationId,
+    boundary: operatorNoteReadonlyAuditSearchData?.boundary,
+    searchScope: operatorNoteReadonlyAuditSearchData?.searchScope || "current_derived_non_persistent",
+    persistenceRequiredForHistoricalSearch: Boolean(operatorNoteReadonlyAuditSearchData?.persistenceRequiredForHistoricalSearch),
+    cannotInfer: operatorNoteReadonlyAuditSearchData?.cannotInfer || [],
+    items: operatorNoteReadonlyAuditSearchData?.items || [],
+  };
+
+  const copyOperatorNoteReadonlyAuditSearchJson = () => {
+    const content = JSON.stringify(operatorNoteReadonlyAuditSearchExportPayload, null, 2);
+    if (!navigator.clipboard?.writeText) {
+      Setting.showMessage("error", "当前浏览器不支持复制备注审计检索");
+      return;
+    }
+    navigator.clipboard.writeText(content).then(() => {
+      Setting.showMessage("success", "已复制脱敏备注审计检索JSON");
+    }).catch(() => {
+      Setting.showMessage("error", "复制脱敏备注审计检索JSON失败");
+    });
+  };
+
+  const copyOperatorNoteReadonlyAuditSearchMarkdown = () => {
+    const content = selectedOperatorNoteReadonlyAuditSearchItem?.markdownSummary || "";
+    if (!content) {
+      Setting.showMessage("warning", "暂无可复制的备注审计检索Markdown");
+      return;
+    }
+    if (!navigator.clipboard?.writeText) {
+      Setting.showMessage("error", "当前浏览器不支持复制备注审计检索Markdown");
+      return;
+    }
+    navigator.clipboard.writeText(content).then(() => {
+      Setting.showMessage("success", "已复制脱敏备注审计检索Markdown");
+    }).catch(() => {
+      Setting.showMessage("error", "复制脱敏备注审计检索Markdown失败");
+    });
+  };
+
+  const exportOperatorNoteReadonlyAuditSearchJson = () => {
+    if (!operatorNoteReadonlyAuditSearchData?.items || operatorNoteReadonlyAuditSearchData.items.length === 0) {
+      Setting.showMessage("warning", "暂无可导出的备注审计检索");
+      return;
+    }
+    const blob = new Blob([JSON.stringify(operatorNoteReadonlyAuditSearchExportPayload, null, 2)], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `organization-directory-remediation-operator-note-readonly-audit-search-${organization || "empty"}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div style={{padding: 24}}>
       <Space direction="vertical" size={16} style={{width: "100%"}}>
@@ -790,6 +886,8 @@ export default function OrganizationDirectoryQualityPage(props) {
           setApprovalPreviewData(null);
           setApprovalPacketAuditData(null);
           setApprovalPacketOperatorNotesData(null);
+          setOperatorNotePersistenceReadinessData(null);
+          setOperatorNoteReadonlyAuditSearchData(null);
         }}
       >
         <Space direction="vertical" size={16} style={{width: "100%"}}>
@@ -1051,6 +1149,7 @@ export default function OrganizationDirectoryQualityPage(props) {
                                                     <Text type="secondary">{operatorNotePersistenceReadinessData?.boundary || "Admin producer persistence readiness only."}</Text>
                                                   </Space>
                                                   <Space wrap>
+                                                    <Button onClick={() => loadOperatorNoteReadonlyAuditSearch(selectedOperatorNotePersistenceReadiness)} disabled={!selectedOperatorNotePersistenceReadiness}>备注审计检索</Button>
                                                     <Button onClick={copyOperatorNotePersistenceReadinessJson} disabled={!operatorNotePersistenceReadinessData?.readiness?.length}>复制持久化准入JSON</Button>
                                                     <Button icon={<DownloadOutlined />} onClick={exportOperatorNotePersistenceReadinessJson} disabled={!operatorNotePersistenceReadinessData?.readiness?.length}>导出持久化准入JSON</Button>
                                                   </Space>
@@ -1075,6 +1174,58 @@ export default function OrganizationDirectoryQualityPage(props) {
                                                     <Descriptions.Item label="Blocked reasons">{renderTags(selectedOperatorNotePersistenceReadiness.blockedReasons, "red")}</Descriptions.Item>
                                                     <Descriptions.Item label="安全摘要">{selectedOperatorNotePersistenceReadiness.safeSummary || "-"}</Descriptions.Item>
                                                   </Descriptions>
+                                                )}
+                                                {(operatorNoteReadonlyAuditSearchLoading || operatorNoteReadonlyAuditSearchData) && (
+                                                  <div style={{border: "1px solid #f0f0f0", borderRadius: 6, padding: 12}}>
+                                                    <Space direction="vertical" size={12} style={{width: "100%"}}>
+                                                      <Space align="center" wrap style={{justifyContent: "space-between", width: "100%"}}>
+                                                        <Space align="center" wrap>
+                                                          <Title level={5} style={{margin: 0}}>备注审计检索</Title>
+                                                          {operatorNoteReadonlyAuditSearchData?.searchScope && <Tag color="blue">{operatorNoteReadonlyAuditSearchData.searchScope}</Tag>}
+                                                          <Text type="secondary">{operatorNoteReadonlyAuditSearchData?.boundary || "Admin producer readonly audit search only."}</Text>
+                                                        </Space>
+                                                        <Space wrap>
+                                                          <Button onClick={copyOperatorNoteReadonlyAuditSearchJson} disabled={!operatorNoteReadonlyAuditSearchData?.items?.length}>复制备注审计检索JSON</Button>
+                                                          <Button onClick={copyOperatorNoteReadonlyAuditSearchMarkdown} disabled={!selectedOperatorNoteReadonlyAuditSearchItem?.markdownSummary}>复制备注审计检索Markdown</Button>
+                                                          <Button icon={<DownloadOutlined />} onClick={exportOperatorNoteReadonlyAuditSearchJson} disabled={!operatorNoteReadonlyAuditSearchData?.items?.length}>导出备注审计检索JSON</Button>
+                                                        </Space>
+                                                      </Space>
+                                                      {operatorNoteReadonlyAuditSearchLoading && <Text type="secondary">加载备注审计检索中</Text>}
+                                                      {!operatorNoteReadonlyAuditSearchLoading && operatorNoteReadonlyAuditSearchData && !selectedOperatorNoteReadonlyAuditSearchItem && <Empty description="暂无备注审计检索" />}
+                                                      {operatorNoteReadonlyAuditSearchData && (
+                                                        <Space wrap>
+                                                          <Text>persistenceRequiredForHistoricalSearch: {String(operatorNoteReadonlyAuditSearchData.persistenceRequiredForHistoricalSearch)}</Text>
+                                                          {renderTags(operatorNoteReadonlyAuditSearchData.cannotInfer, "orange")}
+                                                        </Space>
+                                                      )}
+                                                      {selectedOperatorNoteReadonlyAuditSearchItem && (
+                                                        <Descriptions column={1} size="small" bordered>
+                                                          <Descriptions.Item label="Item">{selectedOperatorNoteReadonlyAuditSearchItem.auditSearchItemId || "-"}</Descriptions.Item>
+                                                          <Descriptions.Item label="Hashes">
+                                                            <Space direction="vertical" size={0}>
+                                                              <Text>noteHash: {selectedOperatorNoteReadonlyAuditSearchItem.noteHash || "-"}</Text>
+                                                              <Text>readinessHash: {selectedOperatorNoteReadonlyAuditSearchItem.readinessHash || "-"}</Text>
+                                                              <Text>packetHash: {selectedOperatorNoteReadonlyAuditSearchItem.packetHash || "-"}</Text>
+                                                            </Space>
+                                                          </Descriptions.Item>
+                                                          <Descriptions.Item label="Storage">{selectedOperatorNoteReadonlyAuditSearchItem.storageScope || "-"} / {selectedOperatorNoteReadonlyAuditSearchItem.noteScope || "-"} / {selectedOperatorNoteReadonlyAuditSearchItem.retentionPolicy || "-"}</Descriptions.Item>
+                                                          <Descriptions.Item label="Execution">{selectedOperatorNoteReadonlyAuditSearchItem.executionMode || "-"} / autoExecutionAllowed={String(selectedOperatorNoteReadonlyAuditSearchItem.autoExecutionAllowed)} / manualReviewOnly={String(selectedOperatorNoteReadonlyAuditSearchItem.manualReviewOnly)}</Descriptions.Item>
+                                                          <Descriptions.Item label="Status">{selectedOperatorNoteReadonlyAuditSearchItem.packetStatus || "-"} / {selectedOperatorNoteReadonlyAuditSearchItem.readinessStatus || "-"}</Descriptions.Item>
+                                                          <Descriptions.Item label="Display safe label">{selectedOperatorNoteReadonlyAuditSearchItem.displaySafeLabel || "-"}</Descriptions.Item>
+                                                          <Descriptions.Item label="Checklist aliases">{renderTags(selectedOperatorNoteReadonlyAuditSearchItem.checklistAliases, "geekblue")}</Descriptions.Item>
+                                                          <Descriptions.Item label="Reason aliases">{renderTags(selectedOperatorNoteReadonlyAuditSearchItem.reasonAliases, "volcano")}</Descriptions.Item>
+                                                          <Descriptions.Item label="Redacted fields">{renderTags(selectedOperatorNoteReadonlyAuditSearchItem.redactedFields, "green")}</Descriptions.Item>
+                                                          <Descriptions.Item label="cannotInfer">{renderTags(selectedOperatorNoteReadonlyAuditSearchItem.cannotInfer, "orange")}</Descriptions.Item>
+                                                          <Descriptions.Item label="Blocked reasons">{renderTags(selectedOperatorNoteReadonlyAuditSearchItem.blockedReasons, "red")}</Descriptions.Item>
+                                                          <Descriptions.Item label="Version">{selectedOperatorNoteReadonlyAuditSearchItem.sourceVersionSummary || "-"} / {selectedOperatorNoteReadonlyAuditSearchItem.orgVersionSummary || "-"}</Descriptions.Item>
+                                                          <Descriptions.Item label="安全摘要">{selectedOperatorNoteReadonlyAuditSearchItem.safeSummary || "-"}</Descriptions.Item>
+                                                          <Descriptions.Item label="Markdown">
+                                                            <Text style={{whiteSpace: "pre-wrap", wordBreak: "break-word"}}>{selectedOperatorNoteReadonlyAuditSearchItem.markdownSummary || "-"}</Text>
+                                                          </Descriptions.Item>
+                                                        </Descriptions>
+                                                      )}
+                                                    </Space>
+                                                  </div>
                                                 )}
                                               </Space>
                                             </div>
