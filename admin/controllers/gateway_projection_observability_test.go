@@ -109,6 +109,62 @@ func TestGatewayProjectionCleanupApprovalDecisionDraftHandlerFailsClosedOnServic
 	}
 }
 
+func TestGatewayProjectionCleanupExecutionGateOwnerBoundaryHandlerIsExposed(t *testing.T) {
+	if _, ok := reflect.TypeOf(&ApiController{}).MethodByName("GetGatewayProjectionPublishAttemptRetentionCleanupExecutionGateOwnerBoundaryPreflight"); !ok {
+		t.Fatalf("ApiController should expose cleanup execution gate owner-boundary preflight handler")
+	}
+}
+
+func TestGatewayProjectionCleanupExecutionGateOwnerBoundaryHandlerReturnsReadOnlyEnvelope(t *testing.T) {
+	controller := newGatewayProjectionObservabilityTestController("/api/gateway-projection/publish-attempt-retention-cleanup-execution-gate-owner-boundary-preflight?organization=org-a&approvalEvidence=dry_run_export_reviewed")
+
+	controller.GetGatewayProjectionPublishAttemptRetentionCleanupExecutionGateOwnerBoundaryPreflight()
+
+	resp, ok := controller.Data["json"].(*Response)
+	if !ok || resp.Status != "ok" {
+		t.Fatalf("response = %#v, want ok response", controller.Data["json"])
+	}
+	preflight, ok := resp.Data.(*object.GatewayProjectionCleanupExecutionGateOwnerBoundaryPreflight)
+	if !ok {
+		t.Fatalf("response data = %#v, want execution gate owner-boundary preflight", resp.Data)
+	}
+	if preflight.ExecutionMode != "manual_review_only" || preflight.CleanupExecutionAllowed || preflight.ExecuteGuardrail.Enabled || !preflight.NoFallback.Enforced {
+		t.Fatalf("preflight boundary = mode %q allowed=%v guardrail=%#v noFallback=%#v, want read-only disabled", preflight.ExecutionMode, preflight.CleanupExecutionAllowed, preflight.ExecuteGuardrail, preflight.NoFallback)
+	}
+}
+
+func TestGatewayProjectionCleanupExecutionGateOwnerBoundaryHandlerRequiresOrganization(t *testing.T) {
+	controller := newGatewayProjectionObservabilityTestController("/api/gateway-projection/publish-attempt-retention-cleanup-execution-gate-owner-boundary-preflight")
+
+	controller.GetGatewayProjectionPublishAttemptRetentionCleanupExecutionGateOwnerBoundaryPreflight()
+
+	resp, ok := controller.Data["json"].(*Response)
+	if !ok || resp.Status != "error" || !strings.Contains(resp.Msg, "organization is required") {
+		t.Fatalf("response = %#v, want organization required error", controller.Data["json"])
+	}
+}
+
+func TestGatewayProjectionCleanupExecutionGateOwnerBoundaryHandlerFailsClosedOnServiceError(t *testing.T) {
+	original := getGatewayProjectionCleanupExecutionGateOwnerBoundaryPreflight
+	defer func() {
+		getGatewayProjectionCleanupExecutionGateOwnerBoundaryPreflight = original
+	}()
+	getGatewayProjectionCleanupExecutionGateOwnerBoundaryPreflight = func(query object.GatewayProjectionCleanupExecutionGateOwnerBoundaryPreflightQuery) (*object.GatewayProjectionCleanupExecutionGateOwnerBoundaryPreflight, error) {
+		if query.OrganizationId != "org-a" {
+			t.Fatalf("organization = %q, want org-a", query.OrganizationId)
+		}
+		return nil, errors.New("assert execution gate preflight unavailable")
+	}
+	controller := newGatewayProjectionObservabilityTestController("/api/gateway-projection/publish-attempt-retention-cleanup-execution-gate-owner-boundary-preflight?organization=org-a")
+
+	controller.GetGatewayProjectionPublishAttemptRetentionCleanupExecutionGateOwnerBoundaryPreflight()
+
+	resp, ok := controller.Data["json"].(*Response)
+	if !ok || resp.Status != "error" || !strings.Contains(resp.Msg, "execution gate preflight unavailable") {
+		t.Fatalf("response = %#v, want service error", controller.Data["json"])
+	}
+}
+
 func newGatewayProjectionObservabilityTestController(target string) *ApiController {
 	request := httptest.NewRequest("GET", target, nil)
 	recorder := httptest.NewRecorder()

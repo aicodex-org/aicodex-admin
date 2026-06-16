@@ -36,10 +36,12 @@ const (
 	gatewayProjectionCleanupRetentionPolicyVersion = "gateway_projection_publish_attempt_retention.v1"
 	gatewayProjectionCleanupApprovalPolicyVersion  = "gateway_projection_cleanup_approval_policy.v1"
 	gatewayProjectionCleanupDecisionDraftVersion   = "gateway_projection_cleanup_approval_decision_draft.v1"
+	gatewayProjectionCleanupExecutionGateVersion   = "gateway_projection_cleanup_execution_gate_owner_boundary.v1"
 
 	GatewayProjectionCleanupApprovalAuditTrailStorageScope      = "admin_cleanup_approval_audit_trail.v1"
 	GatewayProjectionCleanupApprovalPolicyReadinessStorageScope = "derived_policy_readiness_not_persisted"
 	GatewayProjectionCleanupDecisionDraftStorageScope           = "derived_decision_draft_not_persisted"
+	GatewayProjectionCleanupExecutionGateStorageScope           = "derived_execution_gate_owner_boundary_preflight_not_persisted"
 )
 
 // GatewayProjectionPublishAttempt 是 Admin producer 的脱敏发布尝试台账。
@@ -559,6 +561,100 @@ type GatewayProjectionCleanupApprovalDecisionDraftReadinessExport struct {
 	ExecuteGuardrail        GatewayProjectionAttemptCleanupExecuteGuardrail       `json:"executeGuardrail"`
 }
 
+// GatewayProjectionCleanupExecutionGateOwnerBoundaryPreflightQuery 限定执行门禁 owner 边界预检的只读派生范围。
+// 它复用 decision draft 的安全过滤条件，不表达真实 cleanup execution approval 或执行意图。
+type GatewayProjectionCleanupExecutionGateOwnerBoundaryPreflightQuery struct {
+	OrganizationId          string
+	Source                  string
+	Status                  string
+	FailureCategory         string
+	OlderThan               time.Time
+	Limit                   int
+	ReadinessHash           string
+	DryRunGeneratedAt       time.Time
+	MaxDryRunAgeSeconds     int64
+	ApprovalEvidenceAliases []string
+}
+
+// GatewayProjectionCleanupExecutionGateOwnerBoundaryPreflight 是真实 cleanup gate 开放前的只读 owner-boundary 预检。
+// owner_boundary_ready 只表示证据可进入主控人工评审，不表示 cleanup execution 已被允许。
+type GatewayProjectionCleanupExecutionGateOwnerBoundaryPreflight struct {
+	GeneratedAt             string                                                            `json:"generatedAt"`
+	GatePreflightId         string                                                            `json:"gatePreflightId"`
+	GatePreflightHash       string                                                            `json:"gatePreflightHash"`
+	GateReadiness           string                                                            `json:"gateReadiness"`
+	GateState               string                                                            `json:"gateState"`
+	GateSummary             string                                                            `json:"gateSummary"`
+	ExecutionMode           string                                                            `json:"executionMode"`
+	CleanupExecutionAllowed bool                                                              `json:"cleanupExecutionAllowed"`
+	StorageScope            string                                                            `json:"storageScope"`
+	GateVersion             string                                                            `json:"gateVersion"`
+	DecisionDraftId         string                                                            `json:"decisionDraftId"`
+	DecisionDraftHash       string                                                            `json:"decisionDraftHash"`
+	DecisionReadiness       string                                                            `json:"decisionReadiness"`
+	PolicyVersion           string                                                            `json:"policyVersion"`
+	PolicyStatus            string                                                            `json:"policyStatus"`
+	ReadinessHash           string                                                            `json:"readinessHash"`
+	DryRunId                string                                                            `json:"dryRunId"`
+	CandidateCount          int                                                               `json:"candidateCount"`
+	BlockedCount            int                                                               `json:"blockedCount"`
+	OwnerBoundary           GatewayProjectionCleanupExecutionGateOwnerBoundary                `json:"ownerBoundary"`
+	ManualReviewBlockers    []string                                                          `json:"manualReviewBlockers,omitempty"`
+	CannotInfer             GatewayProjectionCleanupApprovalCannotInfer                       `json:"cannotInfer"`
+	NoFallback              GatewayProjectionCleanupExecutionGateNoFallback                   `json:"noFallback"`
+	RetentionSummary        GatewayProjectionCleanupDecisionRetentionSummary                  `json:"retentionSummary"`
+	RedactionSummary        GatewayProjectionCleanupDecisionRedactionSummary                  `json:"redactionSummary"`
+	OperatorNextAction      string                                                            `json:"operatorNextAction"`
+	ExecuteGuardrail        GatewayProjectionAttemptCleanupExecuteGuardrail                   `json:"executeGuardrail"`
+	CopySafeLabels          []string                                                          `json:"copySafeLabels"`
+	Export                  GatewayProjectionCleanupExecutionGateOwnerBoundaryPreflightExport `json:"export"`
+}
+
+// GatewayProjectionCleanupExecutionGateOwnerBoundary 明确 Admin producer 侧预检的 owner 边界。
+// 这些字段用于阻止 operator 将 Admin 诊断误读为 Gateway/API/Insight 权威授权事实。
+type GatewayProjectionCleanupExecutionGateOwnerBoundary struct {
+	AdminAuthorityOnly        bool     `json:"adminAuthorityOnly"`
+	ProducerDiagnosticsOnly   bool     `json:"producerDiagnosticsOnly"`
+	DownstreamReceiptHintOnly bool     `json:"downstreamReceiptHintOnly"`
+	ExternalOwnerAliases      []string `json:"externalOwnerAliases"`
+	ForbiddenActionAliases    []string `json:"forbiddenActionAliases"`
+}
+
+// GatewayProjectionCleanupExecutionGateNoFallback 固化 owner-boundary 预检的 no-fallback 语义。
+// Admin 不允许绕过 policy/draft、读取下游内部库或把页面 JSON 变成授权输入。
+type GatewayProjectionCleanupExecutionGateNoFallback struct {
+	Enforced                 bool     `json:"enforced"`
+	ReasonAliases            []string `json:"reasonAliases"`
+	ForbiddenFallbackAliases []string `json:"forbiddenFallbackAliases"`
+}
+
+// GatewayProjectionCleanupExecutionGateOwnerBoundaryPreflightExport 是复制/导出用脱敏预检包。
+// 它只保留 hash、alias、计数和状态，排除 raw payload、私有 URL、完整组织树和真实执行凭据。
+type GatewayProjectionCleanupExecutionGateOwnerBoundaryPreflightExport struct {
+	GeneratedAt             string                                             `json:"generatedAt"`
+	GatePreflightId         string                                             `json:"gatePreflightId"`
+	GatePreflightHash       string                                             `json:"gatePreflightHash"`
+	GateReadiness           string                                             `json:"gateReadiness"`
+	GateState               string                                             `json:"gateState"`
+	ExecutionMode           string                                             `json:"executionMode"`
+	CleanupExecutionAllowed bool                                               `json:"cleanupExecutionAllowed"`
+	GateVersion             string                                             `json:"gateVersion"`
+	DecisionDraftHash       string                                             `json:"decisionDraftHash"`
+	DecisionReadiness       string                                             `json:"decisionReadiness"`
+	PolicyStatus            string                                             `json:"policyStatus"`
+	ReadinessHash           string                                             `json:"readinessHash"`
+	DryRunId                string                                             `json:"dryRunId"`
+	OwnerBoundary           GatewayProjectionCleanupExecutionGateOwnerBoundary `json:"ownerBoundary"`
+	ManualReviewBlockers    []string                                           `json:"manualReviewBlockers,omitempty"`
+	CannotInfer             GatewayProjectionCleanupApprovalCannotInfer        `json:"cannotInfer"`
+	NoFallback              GatewayProjectionCleanupExecutionGateNoFallback    `json:"noFallback"`
+	RetentionSummary        GatewayProjectionCleanupDecisionRetentionSummary   `json:"retentionSummary"`
+	RedactionSummary        GatewayProjectionCleanupDecisionRedactionSummary   `json:"redactionSummary"`
+	OperatorNextAction      string                                             `json:"operatorNextAction"`
+	ExecuteGuardrail        GatewayProjectionAttemptCleanupExecuteGuardrail    `json:"executeGuardrail"`
+	CopySafeLabels          []string                                           `json:"copySafeLabels"`
+}
+
 type GatewayProjectionPublishAttemptStore interface {
 	RecordGatewayProjectionPublishAttempt(attempt *GatewayProjectionPublishAttempt) error
 	ListGatewayProjectionPublishAttempts(query GatewayProjectionPublishAttemptQuery) ([]*GatewayProjectionPublishAttempt, error)
@@ -1066,6 +1162,95 @@ func (s GatewayProjectionPublishAttemptHistoryService) CleanupApprovalDecisionDr
 		PolicyGates:               policy.PolicyGates,
 		ExecuteGuardrail:          policy.ExecuteGuardrail,
 		Export:                    export,
+	}, nil
+}
+
+// CleanupExecutionGateOwnerBoundaryPreflight 派生真实 cleanup gate 开放前的只读 owner-boundary 预检。
+// 它只消费 Admin-owned decision draft/policy evidence，始终保持 manual_review_only 且不修改 publish attempt。
+func (s GatewayProjectionPublishAttemptHistoryService) CleanupExecutionGateOwnerBoundaryPreflight(query GatewayProjectionCleanupExecutionGateOwnerBoundaryPreflightQuery) (*GatewayProjectionCleanupExecutionGateOwnerBoundaryPreflight, error) {
+	organizationID := normalizeGatewayProjectionString(query.OrganizationId)
+	if organizationID == "" {
+		return nil, errors.New("gateway projection organization is required")
+	}
+	draft, err := s.CleanupApprovalDecisionDraftReadiness(GatewayProjectionCleanupApprovalDecisionDraftReadinessQuery{
+		OrganizationId:          organizationID,
+		Source:                  query.Source,
+		Status:                  query.Status,
+		FailureCategory:         query.FailureCategory,
+		OlderThan:               query.OlderThan,
+		Limit:                   query.Limit,
+		ReadinessHash:           query.ReadinessHash,
+		DryRunGeneratedAt:       query.DryRunGeneratedAt,
+		MaxDryRunAgeSeconds:     query.MaxDryRunAgeSeconds,
+		ApprovalEvidenceAliases: query.ApprovalEvidenceAliases,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	gateReadiness, gateState, operatorNextAction := gatewayProjectionCleanupExecutionGatePreflightState(draft)
+	manualReviewBlockers := gatewayProjectionCleanupExecutionGateManualReviewBlockers(draft)
+	ownerBoundary := buildGatewayProjectionCleanupExecutionGateOwnerBoundary()
+	noFallback := buildGatewayProjectionCleanupExecutionGateNoFallback()
+	copySafeLabels := buildGatewayProjectionCleanupExecutionGateCopySafeLabels(gateReadiness, draft)
+	generatedAt := formatGatewayProjectionObservabilityTime(s.now())
+	gatePreflightHash := prefixedStableHash("execution-gate-preflight-hash-", organizationID, draft.DecisionDraftHash, draft.DecisionReadiness, gateReadiness, gateState)
+	gatePreflightID := prefixedStableHash("execution-gate-preflight-", organizationID, gatePreflightHash)
+	gateSummary := gatewayProjectionCleanupExecutionGateSummary(gateReadiness)
+	export := GatewayProjectionCleanupExecutionGateOwnerBoundaryPreflightExport{
+		GeneratedAt:             generatedAt,
+		GatePreflightId:         gatePreflightID,
+		GatePreflightHash:       gatePreflightHash,
+		GateReadiness:           gateReadiness,
+		GateState:               gateState,
+		ExecutionMode:           "manual_review_only",
+		CleanupExecutionAllowed: false,
+		GateVersion:             gatewayProjectionCleanupExecutionGateVersion,
+		DecisionDraftHash:       draft.DecisionDraftHash,
+		DecisionReadiness:       draft.DecisionReadiness,
+		PolicyStatus:            draft.PolicyStatus,
+		ReadinessHash:           draft.ReadinessHash,
+		DryRunId:                draft.DryRunId,
+		OwnerBoundary:           ownerBoundary,
+		ManualReviewBlockers:    manualReviewBlockers,
+		CannotInfer:             draft.CannotInfer,
+		NoFallback:              noFallback,
+		RetentionSummary:        draft.RetentionSummary,
+		RedactionSummary:        draft.RedactionSummary,
+		OperatorNextAction:      operatorNextAction,
+		ExecuteGuardrail:        draft.ExecuteGuardrail,
+		CopySafeLabels:          copySafeLabels,
+	}
+	return &GatewayProjectionCleanupExecutionGateOwnerBoundaryPreflight{
+		GeneratedAt:             generatedAt,
+		GatePreflightId:         gatePreflightID,
+		GatePreflightHash:       gatePreflightHash,
+		GateReadiness:           gateReadiness,
+		GateState:               gateState,
+		GateSummary:             gateSummary,
+		ExecutionMode:           "manual_review_only",
+		CleanupExecutionAllowed: false,
+		StorageScope:            GatewayProjectionCleanupExecutionGateStorageScope,
+		GateVersion:             gatewayProjectionCleanupExecutionGateVersion,
+		DecisionDraftId:         draft.DecisionDraftId,
+		DecisionDraftHash:       draft.DecisionDraftHash,
+		DecisionReadiness:       draft.DecisionReadiness,
+		PolicyVersion:           draft.PolicyVersion,
+		PolicyStatus:            draft.PolicyStatus,
+		ReadinessHash:           draft.ReadinessHash,
+		DryRunId:                draft.DryRunId,
+		CandidateCount:          draft.CandidateCount,
+		BlockedCount:            draft.BlockedCount,
+		OwnerBoundary:           ownerBoundary,
+		ManualReviewBlockers:    manualReviewBlockers,
+		CannotInfer:             draft.CannotInfer,
+		NoFallback:              noFallback,
+		RetentionSummary:        draft.RetentionSummary,
+		RedactionSummary:        draft.RedactionSummary,
+		OperatorNextAction:      operatorNextAction,
+		ExecuteGuardrail:        draft.ExecuteGuardrail,
+		CopySafeLabels:          copySafeLabels,
+		Export:                  export,
 	}, nil
 }
 
@@ -1719,6 +1904,109 @@ func buildGatewayProjectionCleanupDecisionCopySafeLabels(decisionReadiness strin
 		labels = append(labels,
 			"policy_status_"+normalizeGatewayProjectionCleanupAuditAlias(policy.PolicyStatus),
 			"policy_version_"+normalizeGatewayProjectionCleanupAuditAlias(policy.PolicyVersion),
+		)
+	}
+	return normalizeGatewayProjectionCleanupAuditAliasSlice(labels)
+}
+
+func gatewayProjectionCleanupExecutionGatePreflightState(draft *GatewayProjectionCleanupApprovalDecisionDraftReadiness) (string, string, string) {
+	if draft == nil {
+		return "cannot_infer", "decision_draft_unavailable", "rerun_cleanup_approval_decision_draft_readiness"
+	}
+	switch draft.DecisionReadiness {
+	case "draft_ready":
+		return "owner_boundary_ready", "owner_boundary_ready_no_execution", "request_master_control_owner_boundary_review"
+	case "manual_review_required":
+		return "manual_review_required", "manual_review_checklist_incomplete", "complete_manual_review_checklist"
+	case "blocked":
+		return "blocked", "decision_draft_blocked", "review_owner_boundary_blockers"
+	case "cannot_infer":
+		return "cannot_infer", "decision_draft_cannot_infer", "refresh_cleanup_approval_decision_draft_readiness"
+	default:
+		return "cannot_infer", "decision_draft_unknown", "refresh_cleanup_approval_decision_draft_readiness"
+	}
+}
+
+func gatewayProjectionCleanupExecutionGateSummary(gateReadiness string) string {
+	switch gateReadiness {
+	case "owner_boundary_ready":
+		return "execution_gate_preflight_ready_for_owner_boundary_review_without_cleanup_execution"
+	case "manual_review_required":
+		return "execution_gate_preflight_waiting_for_manual_review_actions"
+	case "blocked":
+		return "execution_gate_preflight_blocked_by_decision_draft_or_policy"
+	default:
+		return "execution_gate_preflight_cannot_infer_required_evidence"
+	}
+}
+
+func gatewayProjectionCleanupExecutionGateManualReviewBlockers(draft *GatewayProjectionCleanupApprovalDecisionDraftReadiness) []string {
+	if draft == nil {
+		return []string{"decision_draft_unavailable"}
+	}
+	blockers := append([]string(nil), draft.BlockingReasons...)
+	blockers = append(blockers, draft.ManualReviewChecklist.MissingActionAliases...)
+	blockers = append(blockers, draft.ManualReviewChecklist.MissingEvidenceAliases...)
+	blockers = append(blockers, draft.CannotInfer.ReasonAliases...)
+	if draft.DecisionReadiness == "blocked" && len(blockers) == 0 {
+		blockers = append(blockers, "decision_draft_blocked")
+	}
+	if draft.DecisionReadiness == "manual_review_required" && len(blockers) == 0 {
+		blockers = append(blockers, "manual_review_action_missing")
+	}
+	return normalizeGatewayProjectionCleanupAuditAliasSlice(blockers)
+}
+
+func buildGatewayProjectionCleanupExecutionGateOwnerBoundary() GatewayProjectionCleanupExecutionGateOwnerBoundary {
+	return GatewayProjectionCleanupExecutionGateOwnerBoundary{
+		AdminAuthorityOnly:        true,
+		ProducerDiagnosticsOnly:   true,
+		DownstreamReceiptHintOnly: true,
+		ExternalOwnerAliases:      []string{"api_gateway_ingestion_owner", "insight_consumer_owner"},
+		ForbiddenActionAliases: []string{
+			"query_api_gateway_insight_internal_storage",
+			"write_gateway_authorization_facts",
+			"treat_admin_page_json_as_authorization_input",
+			"treat_receipt_hint_as_runtime_authorization_success",
+			"execute_cleanup_delete_or_update",
+		},
+	}
+}
+
+func buildGatewayProjectionCleanupExecutionGateNoFallback() GatewayProjectionCleanupExecutionGateNoFallback {
+	return GatewayProjectionCleanupExecutionGateNoFallback{
+		Enforced: true,
+		ReasonAliases: []string{
+			"admin_owner_boundary_only",
+			"cleanup_execution_not_enabled",
+			"gateway_receipt_hint_diagnostic_not_authorization_fact",
+			"manual_review_only",
+		},
+		ForbiddenFallbackAliases: []string{
+			"api_gateway_internal_db",
+			"insight_internal_db",
+			"admin_page_tree_json",
+			"raw_gateway_response",
+			"display_name_phone_email_join_key",
+		},
+	}
+}
+
+func buildGatewayProjectionCleanupExecutionGateCopySafeLabels(gateReadiness string, draft *GatewayProjectionCleanupApprovalDecisionDraftReadiness) []string {
+	labels := []string{
+		"admin_producer_diagnostics_only",
+		"owner_boundary_preflight_only",
+		"manual_review_only",
+		"cleanup_execution_not_enabled",
+		"no_fallback_enforced",
+		"sanitized_export_only",
+		"gate_readiness_" + normalizeGatewayProjectionCleanupAuditAlias(gateReadiness),
+	}
+	if draft != nil {
+		labels = append(labels,
+			"decision_readiness_"+normalizeGatewayProjectionCleanupAuditAlias(draft.DecisionReadiness),
+			"policy_status_"+normalizeGatewayProjectionCleanupAuditAlias(draft.PolicyStatus),
+			"gate_version_"+normalizeGatewayProjectionCleanupAuditAlias(gatewayProjectionCleanupExecutionGateVersion),
 		)
 	}
 	return normalizeGatewayProjectionCleanupAuditAliasSlice(labels)

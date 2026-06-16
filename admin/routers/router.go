@@ -75,6 +75,7 @@ func InitAPI() {
 	web.Router("/api/gateway-projection/publish-attempt-retention-cleanup-execute-readiness", &controllers.ApiController{}, "GET:GetGatewayProjectionPublishAttemptRetentionCleanupExecuteReadiness")
 	web.Router("/api/gateway-projection/publish-attempt-retention-cleanup-approval-policy-readiness", &controllers.ApiController{}, "GET:GetGatewayProjectionPublishAttemptRetentionCleanupApprovalPolicyReadiness")
 	web.Router("/api/gateway-projection/publish-attempt-retention-cleanup-approval-decision-draft-readiness", &controllers.ApiController{}, "GET:GetGatewayProjectionPublishAttemptRetentionCleanupApprovalDecisionDraftReadiness")
+	web.Router("/api/gateway-projection/publish-attempt-retention-cleanup-execution-gate-owner-boundary-preflight", &controllers.ApiController{}, "GET:GetGatewayProjectionPublishAttemptRetentionCleanupExecutionGateOwnerBoundaryPreflight")
 	web.Router("/api/gateway-projection/publish-attempt-retention-cleanup-approval-audit-trail", &controllers.ApiController{}, "GET:GetGatewayProjectionPublishAttemptRetentionCleanupApprovalAuditTrail;POST:RecordGatewayProjectionPublishAttemptRetentionCleanupApprovalAuditTrail")
 	web.Router("/api/gateway-projection/manual-publish", &controllers.ApiController{}, "POST:PublishGatewayProjectionManually")
 	web.Router("/api/unlink", &controllers.ApiController{}, "POST:Unlink")

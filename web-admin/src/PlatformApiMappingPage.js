@@ -173,6 +173,7 @@ class PlatformApiMappingPage extends React.Component {
       cleanupExecuteReadinessLoading: false,
       cleanupApprovalPolicyLoading: false,
       cleanupApprovalDecisionDraftLoading: false,
+      cleanupExecutionGatePreflightLoading: false,
       cleanupApprovalAuditLoading: false,
       cleanupApprovalAuditRecording: false,
       attemptDetailLoading: false,
@@ -191,6 +192,7 @@ class PlatformApiMappingPage extends React.Component {
       cleanupExecuteReadiness: null,
       cleanupApprovalPolicyReadiness: null,
       cleanupApprovalDecisionDraftReadiness: null,
+      cleanupExecutionGatePreflight: null,
       cleanupApprovalAuditTrail: null,
       attemptSource: "",
       attemptStatus: "",
@@ -374,6 +376,7 @@ class PlatformApiMappingPage extends React.Component {
       this.refreshGatewayProjectionPublishAttemptCleanupExecuteReadiness(organization, {source, status});
       this.refreshGatewayProjectionPublishAttemptCleanupApprovalPolicyReadiness(organization);
       this.refreshGatewayProjectionPublishAttemptCleanupApprovalDecisionDraftReadiness(organization);
+      this.refreshGatewayProjectionPublishAttemptCleanupExecutionGateOwnerBoundaryPreflight(organization);
       this.refreshGatewayProjectionPublishAttemptCleanupApprovalAuditTrail(organization);
     }).catch(error => {
       this.setState({attemptsLoading: false});
@@ -557,8 +560,46 @@ class PlatformApiMappingPage extends React.Component {
         cleanupApprovalDecisionDraftLoading: false,
         cleanupApprovalDecisionDraftReadiness: res.status === "ok" ? res.data : null,
       });
+      if (res.status === "ok") {
+        this.refreshGatewayProjectionPublishAttemptCleanupExecutionGateOwnerBoundaryPreflight(organization, {
+          source,
+          status,
+          readinessHash: res.data?.readinessHash,
+        });
+      }
     }).catch(error => {
       this.setState({cleanupApprovalDecisionDraftLoading: false});
+      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+    });
+  }
+
+  refreshGatewayProjectionPublishAttemptCleanupExecutionGateOwnerBoundaryPreflight(organization = this.state.organization, options = {}) {
+    if (!organization) {
+      return Promise.resolve();
+    }
+    const source = options.source !== undefined ? options.source : this.state.attemptSource;
+    const status = options.status !== undefined ? options.status : this.state.attemptStatus;
+    const readinessHash = options.readinessHash !== undefined
+      ? options.readinessHash
+      : (this.state.cleanupApprovalDecisionDraftReadiness?.readinessHash || this.state.cleanupApprovalPolicyReadiness?.readinessHash || this.state.cleanupExecuteReadiness?.dryRunHash);
+
+    this.setState({cleanupExecutionGatePreflightLoading: true});
+    return PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupExecutionGateOwnerBoundaryPreflight(organization, {
+      source,
+      status,
+      readinessHash,
+      approvalEvidence: cleanupApprovalPolicyEvidenceAliases,
+      limit: 100,
+    }).then((res) => {
+      if (res.status === "error") {
+        Setting.showMessage("error", res.msg);
+      }
+      this.setState({
+        cleanupExecutionGatePreflightLoading: false,
+        cleanupExecutionGatePreflight: res.status === "ok" ? res.data : null,
+      });
+    }).catch(error => {
+      this.setState({cleanupExecutionGatePreflightLoading: false});
       Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
     });
   }
@@ -622,6 +663,7 @@ class PlatformApiMappingPage extends React.Component {
       cleanupExecuteReadiness: null,
       cleanupApprovalPolicyReadiness: null,
       cleanupApprovalDecisionDraftReadiness: null,
+      cleanupExecutionGatePreflight: null,
       cleanupApprovalAuditTrail: null,
       attemptSource: "",
       attemptStatus: "",
@@ -1074,6 +1116,48 @@ class PlatformApiMappingPage extends React.Component {
     Setting.showMessage("warning", "当前浏览器不支持自动复制，请从只读响应中导出");
   }
 
+  copyCleanupExecutionGatePreflightExport() {
+    const preflight = this.state.cleanupExecutionGatePreflight;
+    if (!preflight) {
+      Setting.showMessage("warning", "cleanup execution gate preflight 尚未加载");
+      return;
+    }
+    const text = JSON.stringify(preflight.export || {
+      generatedAt: preflight.generatedAt,
+      gatePreflightId: preflight.gatePreflightId,
+      gatePreflightHash: preflight.gatePreflightHash,
+      gateReadiness: preflight.gateReadiness,
+      gateState: preflight.gateState,
+      executionMode: preflight.executionMode,
+      cleanupExecutionAllowed: !!preflight.cleanupExecutionAllowed,
+      gateVersion: preflight.gateVersion,
+      decisionDraftHash: preflight.decisionDraftHash,
+      decisionReadiness: preflight.decisionReadiness,
+      policyStatus: preflight.policyStatus,
+      readinessHash: preflight.readinessHash,
+      dryRunId: preflight.dryRunId,
+      ownerBoundary: preflight.ownerBoundary || {},
+      manualReviewBlockers: preflight.manualReviewBlockers || [],
+      cannotInfer: preflight.cannotInfer || {},
+      noFallback: preflight.noFallback || {},
+      retentionSummary: preflight.retentionSummary || {},
+      redactionSummary: preflight.redactionSummary || {},
+      operatorNextAction: preflight.operatorNextAction,
+      executeGuardrail: preflight.executeGuardrail || {},
+      copySafeLabels: preflight.copySafeLabels || [],
+    }, null, 2);
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      Promise.resolve(navigator.clipboard.writeText(text)).then(() => {
+        Setting.showMessage("success", "已复制脱敏 execution gate preflight JSON");
+        this.recordCleanupApprovalAuditAction("export");
+      }).catch(error => {
+        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      });
+      return;
+    }
+    Setting.showMessage("warning", "当前浏览器不支持自动复制，请从只读响应中导出");
+  }
+
   recordCleanupApprovalAuditAction(action) {
     const readiness = this.state.cleanupExecuteReadiness;
     if (!this.state.organization || !readiness) {
@@ -1319,6 +1403,7 @@ class PlatformApiMappingPage extends React.Component {
     const cleanupExecuteReadiness = this.state.cleanupExecuteReadiness;
     const cleanupApprovalPolicyReadiness = this.state.cleanupApprovalPolicyReadiness;
     const cleanupApprovalDecisionDraftReadiness = this.state.cleanupApprovalDecisionDraftReadiness;
+    const cleanupExecutionGatePreflight = this.state.cleanupExecutionGatePreflight;
     const cleanupApprovalAuditTrail = this.state.cleanupApprovalAuditTrail || {};
     const reasonCounts = retentionReadiness?.reasonCounts || {};
     const cleanupReasonCounts = cleanupDryRun?.reasonCounts || {};
@@ -1337,6 +1422,11 @@ class PlatformApiMappingPage extends React.Component {
     const decisionRetentionSummary = cleanupApprovalDecisionDraftReadiness?.retentionSummary || {};
     const decisionAuditSummary = cleanupApprovalDecisionDraftReadiness?.auditSummary || {};
     const decisionRedactionSummary = cleanupApprovalDecisionDraftReadiness?.redactionSummary || {};
+    const gateOwnerBoundary = cleanupExecutionGatePreflight?.ownerBoundary || {};
+    const gateNoFallback = cleanupExecutionGatePreflight?.noFallback || {};
+    const gateCannotInfer = cleanupExecutionGatePreflight?.cannotInfer || {};
+    const gateRetentionSummary = cleanupExecutionGatePreflight?.retentionSummary || {};
+    const gateRedactionSummary = cleanupExecutionGatePreflight?.redactionSummary || {};
     const auditSummary = cleanupApprovalAuditTrail.summary || {};
     const auditActionCounts = auditSummary.actionCounts || {};
     const auditStateCounts = auditSummary.approvalStateCounts || {};
@@ -1737,6 +1827,70 @@ class PlatformApiMappingPage extends React.Component {
           </div>
           <Space wrap>
             {(cleanupApprovalDecisionDraftReadiness?.copySafeLabels || []).map(item => <Tag key={item}>{item}</Tag>)}
+          </Space>
+        </Card>
+        <Card
+          type="inner"
+          size="small"
+          title="Cleanup execution gate owner-boundary preflight"
+          style={{marginBottom: 12}}
+          extra={
+            <Space wrap>
+              <Button
+                icon={<ReloadOutlined />}
+                loading={this.state.cleanupExecutionGatePreflightLoading}
+                onClick={() => this.refreshGatewayProjectionPublishAttemptCleanupExecutionGateOwnerBoundaryPreflight()}
+              >
+                刷新预检
+              </Button>
+              <Button disabled={!cleanupExecutionGatePreflight} onClick={() => this.copyCleanupExecutionGatePreflightExport()}>
+                复制预检 JSON
+              </Button>
+            </Space>
+          }
+        >
+          <Alert
+            type={cleanupExecutionGatePreflight?.gateReadiness === "blocked" ? "error" : cleanupExecutionGatePreflight?.gateReadiness === "owner_boundary_ready" ? "success" : "warning"}
+            showIcon
+            message={`Execution gate preflight: ${cleanupExecutionGatePreflight?.gateReadiness || "未加载"}`}
+            description={`operatorNextAction: ${cleanupExecutionGatePreflight?.operatorNextAction || "等待 owner-boundary preflight"}。该预检只用于 Admin producer owner 边界和人工评审，不是真实 cleanup execution approval，不打开 cleanup gate，也不是 Gateway runtime authorization success。`}
+            style={{marginBottom: 12}}
+          />
+          <Space wrap style={{marginBottom: 8}}>
+            <Tag>gateState: {cleanupExecutionGatePreflight?.gateState || "unknown"}</Tag>
+            <Tag>executionMode: {cleanupExecutionGatePreflight?.executionMode || "manual_review_only"}</Tag>
+            <Tag color={cleanupExecutionGatePreflight?.cleanupExecutionAllowed ? "red" : "green"}>
+              cleanupExecutionAllowed: {String(!!cleanupExecutionGatePreflight?.cleanupExecutionAllowed)}
+            </Tag>
+            <Tag>decisionReadiness: {cleanupExecutionGatePreflight?.decisionReadiness || "unknown"}</Tag>
+            <Tag>policyStatus: {cleanupExecutionGatePreflight?.policyStatus || "unknown"}</Tag>
+            <Tag>operatorNextAction: {cleanupExecutionGatePreflight?.operatorNextAction || "waiting"}</Tag>
+            <Tag color={gateCannotInfer.value ? "orange" : "green"}>cannotInfer: {String(!!gateCannotInfer.value)}</Tag>
+            <Tag color={gateNoFallback.enforced === false ? "red" : "green"}>noFallback: {String(gateNoFallback.enforced !== false)}</Tag>
+          </Space>
+          <Space wrap style={{marginBottom: 8}}>
+            {cleanupExecutionGatePreflight?.gatePreflightId && <Tag>gatePreflightId: {cleanupExecutionGatePreflight.gatePreflightId}</Tag>}
+            {cleanupExecutionGatePreflight?.gatePreflightHash && <Tag>gatePreflightHash: {cleanupExecutionGatePreflight.gatePreflightHash}</Tag>}
+            {cleanupExecutionGatePreflight?.readinessHash && <Tag>readinessHash: {cleanupExecutionGatePreflight.readinessHash}</Tag>}
+          </Space>
+          <Space wrap style={{marginBottom: 8}}>
+            <Tag>adminAuthorityOnly: {String(!!gateOwnerBoundary.adminAuthorityOnly)}</Tag>
+            <Tag>producerDiagnosticsOnly: {String(!!gateOwnerBoundary.producerDiagnosticsOnly)}</Tag>
+            <Tag>downstreamReceiptHintOnly: {String(!!gateOwnerBoundary.downstreamReceiptHintOnly)}</Tag>
+            <Tag>retentionCandidate: {gateRetentionSummary.candidateCount || 0}</Tag>
+            <Tag>retentionBlocked: {gateRetentionSummary.blockedCount || 0}</Tag>
+            <Tag>redaction: {gateRedactionSummary.status || "redacted"}</Tag>
+          </Space>
+          <div style={{marginBottom: 8}}>
+            {(cleanupExecutionGatePreflight?.manualReviewBlockers || []).map(item => <Tag key={item} color="orange">{item}</Tag>)}
+            {(gateCannotInfer.reasonAliases || []).map(item => <Tag key={item} color="red">{item}</Tag>)}
+            {(gateNoFallback.reasonAliases || []).map(item => <Tag key={item} color="blue">{item}</Tag>)}
+            {(gateNoFallback.forbiddenFallbackAliases || []).map(item => <Tag key={item} color="red">{item}</Tag>)}
+          </div>
+          <Space wrap>
+            {(gateOwnerBoundary.externalOwnerAliases || []).map(item => <Tag key={item}>{item}</Tag>)}
+            {(gateOwnerBoundary.forbiddenActionAliases || []).map(item => <Tag key={item} color="red">{item}</Tag>)}
+            {(cleanupExecutionGatePreflight?.copySafeLabels || []).map(item => <Tag key={item}>{item}</Tag>)}
           </Space>
         </Card>
         <Card

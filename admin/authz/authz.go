@@ -72,6 +72,7 @@ p, *, *, GET, /api/gateway-projection/publish-attempt-retention-cleanup-dry-run,
 p, *, *, GET, /api/gateway-projection/publish-attempt-retention-cleanup-execute-readiness, *, *
 p, *, *, GET, /api/gateway-projection/publish-attempt-retention-cleanup-approval-policy-readiness, *, *
 p, *, *, GET, /api/gateway-projection/publish-attempt-retention-cleanup-approval-decision-draft-readiness, *, *
+p, *, *, GET, /api/gateway-projection/publish-attempt-retention-cleanup-execution-gate-owner-boundary-preflight, *, *
 p, *, *, GET, /api/gateway-projection/publish-attempt-retention-cleanup-approval-audit-trail, *, *
 p, *, *, POST, /api/gateway-projection/publish-attempt-retention-cleanup-approval-audit-trail, *, *
 p, *, *, GET, /api/health, *, *

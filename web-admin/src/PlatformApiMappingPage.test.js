@@ -34,6 +34,7 @@ jest.mock("./backend/PlatformApiMappingBackend", () => ({
   getGatewayProjectionPublishAttemptCleanupExecuteReadiness: jest.fn(),
   getGatewayProjectionPublishAttemptCleanupApprovalPolicyReadiness: jest.fn(),
   getGatewayProjectionPublishAttemptCleanupApprovalDecisionDraftReadiness: jest.fn(),
+  getGatewayProjectionPublishAttemptCleanupExecutionGateOwnerBoundaryPreflight: jest.fn(),
   getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail: jest.fn(),
   recordGatewayProjectionPublishAttemptCleanupApprovalAuditTrail: jest.fn(),
   updatePlatformApiOrganizationMapping: jest.fn(),
@@ -385,6 +386,75 @@ beforeEach(() => {
       },
     },
   });
+  PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupExecutionGateOwnerBoundaryPreflight.mockResolvedValue({
+    status: "ok",
+    data: {
+      generatedAt: "2026-06-15T13:08:00Z",
+      gatePreflightId: "execution-gate-preflight-synthetic",
+      gatePreflightHash: "execution-gate-preflight-hash-synthetic",
+      gateReadiness: "owner_boundary_ready",
+      gateState: "owner_boundary_ready_no_execution",
+      gateSummary: "execution_gate_preflight_ready_for_owner_boundary_review_without_cleanup_execution",
+      executionMode: "manual_review_only",
+      cleanupExecutionAllowed: false,
+      gateVersion: "gateway_projection_cleanup_execution_gate_owner_boundary.v1",
+      decisionDraftId: "decision-draft-synthetic",
+      decisionDraftHash: "decision-draft-hash-synthetic",
+      decisionReadiness: "draft_ready",
+      policyVersion: "gateway_projection_cleanup_approval_policy.v1",
+      policyStatus: "manual_review_ready",
+      readinessHash: "dryrun-hash-synthetic",
+      dryRunId: "dryrun-synthetic",
+      candidateCount: 1,
+      blockedCount: 0,
+      ownerBoundary: {
+        adminAuthorityOnly: true,
+        producerDiagnosticsOnly: true,
+        downstreamReceiptHintOnly: true,
+        externalOwnerAliases: ["api_gateway_ingestion_owner", "insight_consumer_owner"],
+        forbiddenActionAliases: ["write_gateway_authorization_facts", "execute_cleanup_delete_or_update"],
+      },
+      manualReviewBlockers: [],
+      cannotInfer: {
+        value: false,
+        reasonAliases: [],
+      },
+      noFallback: {
+        enforced: true,
+        reasonAliases: ["admin_owner_boundary_only", "cleanup_execution_not_enabled"],
+        forbiddenFallbackAliases: ["api_gateway_internal_db", "admin_page_tree_json"],
+      },
+      retentionSummary: {
+        retentionPolicyVersion: "gateway_projection_publish_attempt_retention.v1",
+        candidateCount: 1,
+        blockedCount: 0,
+      },
+      redactionSummary: {
+        status: "redacted",
+        copySafe: true,
+        redactedFields: ["token", "raw_gateway_response"],
+      },
+      operatorNextAction: "request_master_control_owner_boundary_review",
+      executeGuardrail: {
+        enabled: false,
+        dryRunOnly: true,
+      },
+      copySafeLabels: [
+        "owner_boundary_preflight_only",
+        "manual_review_only",
+        "no_fallback_enforced",
+      ],
+      export: {
+        gatePreflightId: "execution-gate-preflight-synthetic",
+        gateReadiness: "owner_boundary_ready",
+        executionMode: "manual_review_only",
+        cleanupExecutionAllowed: false,
+        noFallback: {
+          enforced: true,
+        },
+      },
+    },
+  });
   PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail.mockResolvedValue({
     status: "ok",
     data: {
@@ -624,6 +694,12 @@ test("separates organization and user mapping tabs and loads user mappings on de
     approvalEvidence: "dry_run_export_reviewed,candidate_count_reviewed,receipt_hint_coverage_reviewed,no_blocked_attempts_confirmed",
     limit: 100,
   })));
+  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupExecutionGateOwnerBoundaryPreflight).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+    source: "",
+    status: "",
+    approvalEvidence: "dry_run_export_reviewed,candidate_count_reviewed,receipt_hint_coverage_reviewed,no_blocked_attempts_confirmed",
+    limit: 100,
+  })));
   await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     limit: 20,
   })));
@@ -668,9 +744,15 @@ test("separates organization and user mapping tabs and loads user mappings on de
   expect(screen.getByText("Cleanup approval decision draft")).toBeInTheDocument();
   expect(screen.getByText(/Decision draft: draft_ready/)).toBeInTheDocument();
   expect(screen.getByText("decisionState: manual_review_ready_no_execution")).toBeInTheDocument();
-  expect(screen.getByText("cleanupExecutionAllowed: false")).toBeInTheDocument();
+  expect(screen.getAllByText("cleanupExecutionAllowed: false").length).toBeGreaterThan(1);
   expect(screen.getByText("operatorNextAction: review_decision_draft_with_master_control")).toBeInTheDocument();
-  expect(screen.getByText("redaction: redacted")).toBeInTheDocument();
+  expect(screen.getAllByText("redaction: redacted").length).toBeGreaterThan(1);
+  expect(screen.getByText("Cleanup execution gate owner-boundary preflight")).toBeInTheDocument();
+  expect(screen.getByText(/Execution gate preflight: owner_boundary_ready/)).toBeInTheDocument();
+  expect(screen.getByText("gateState: owner_boundary_ready_no_execution")).toBeInTheDocument();
+  expect(screen.getByText("adminAuthorityOnly: true")).toBeInTheDocument();
+  expect(screen.getByText("noFallback: true")).toBeInTheDocument();
+  expect(screen.getByText("operatorNextAction: request_master_control_owner_boundary_review")).toBeInTheDocument();
   expect(screen.getByText("Cleanup approval audit trail")).toBeInTheDocument();
   expect(screen.getByText(/Approval audit storage: admin_cleanup_approval_audit_trail.v1/)).toBeInTheDocument();
   expect(screen.getByText("candidateTotal: 1")).toBeInTheDocument();
@@ -787,6 +869,31 @@ test("copies redacted cleanup approval decision draft export", async() => {
   })));
 });
 
+test("copies redacted cleanup execution gate preflight export", async() => {
+  const writeText = jest.fn();
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: {writeText},
+  });
+
+  render(<PlatformApiMappingPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  fireEvent.click(await screen.findByText("用户映射"));
+  fireEvent.click(await screen.findByText("复制预检 JSON"));
+
+  await wait(() => expect(writeText).toHaveBeenCalled());
+  const copied = writeText.mock.calls[0][0];
+  expect(copied).toContain("execution-gate-preflight-synthetic");
+  expect(copied).toContain("owner_boundary_ready");
+  expect(copied).toContain("manual_review_only");
+  expect(copied).not.toMatch(/rawGatewayResponse|projection-secret|gateway\.example\.invalid|Authorization|Cookie/);
+  await wait(() => expect(PlatformApiMappingBackend.recordGatewayProjectionPublishAttemptCleanupApprovalAuditTrail).toHaveBeenCalledWith(expect.objectContaining({
+    organizationId: "org-alpha",
+    action: "export",
+    readinessHash: "dryrun-hash-synthetic",
+  })));
+});
+
 test("keeps cleanup approval decision draft panel disabled on error", async() => {
   PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalDecisionDraftReadiness.mockResolvedValue({
     status: "error",
@@ -800,6 +907,21 @@ test("keeps cleanup approval decision draft panel disabled on error", async() =>
   await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "decision draft unavailable"));
   expect(screen.getByText(/Decision draft: 未加载/)).toBeInTheDocument();
   expect(screen.getByText("复制草案 JSON").closest("button")).toBeDisabled();
+});
+
+test("keeps cleanup execution gate preflight panel disabled on error", async() => {
+  PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupExecutionGateOwnerBoundaryPreflight.mockResolvedValue({
+    status: "error",
+    msg: "execution gate preflight unavailable",
+  });
+
+  render(<PlatformApiMappingPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  fireEvent.click(await screen.findByText("用户映射"));
+
+  await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "execution gate preflight unavailable"));
+  expect(screen.getByText(/Execution gate preflight: 未加载/)).toBeInTheDocument();
+  expect(screen.getByText("复制预检 JSON").closest("button")).toBeDisabled();
 });
 
 test("renders read-only remediation guidance for readiness categories", async() => {

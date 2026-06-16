@@ -8,6 +8,7 @@ import {
   getGatewayProjectionPublishAttemptCleanupApprovalPolicyReadiness,
   getGatewayProjectionPublishAttemptCleanupDryRun,
   getGatewayProjectionPublishAttemptCleanupExecuteReadiness,
+  getGatewayProjectionPublishAttemptCleanupExecutionGateOwnerBoundaryPreflight,
   getGatewayProjectionPublishAttemptRetentionReadiness,
   getGatewayProjectionPublishAttempts,
   getGatewayProjectionRunReadiness,
@@ -97,6 +98,16 @@ test("loads platform api mappings with explicit organization query", async() => 
     limit: 100,
   });
   await getGatewayProjectionPublishAttemptCleanupApprovalDecisionDraftReadiness("org-a", {
+    source: "manual",
+    status: "error",
+    failureCategory: "gateway_unavailable",
+    readinessHash: "dryrun-hash-a",
+    dryRunGeneratedAt: "2026-06-15T00:10:00.000Z",
+    maxDryRunAgeSeconds: 900,
+    approvalEvidence: "dry_run_export_reviewed,candidate_count_reviewed",
+    limit: 100,
+  });
+  await getGatewayProjectionPublishAttemptCleanupExecutionGateOwnerBoundaryPreflight("org-a", {
     source: "manual",
     status: "error",
     failureCategory: "gateway_unavailable",
@@ -253,7 +264,7 @@ test("loads platform api mappings with explicit organization query", async() => 
   );
   expect(global.fetch).toHaveBeenNthCalledWith(
     11,
-    "https://admin.example.invalid/api/gateway-projection/publish-attempts/attempt-synthetic?organization=org-a",
+    "https://admin.example.invalid/api/gateway-projection/publish-attempt-retention-cleanup-execution-gate-owner-boundary-preflight?organization=org-a&source=manual&status=error&failureCategory=gateway_unavailable&readinessHash=dryrun-hash-a&dryRunGeneratedAt=2026-06-15T00%3A10%3A00.000Z&maxDryRunAgeSeconds=900&approvalEvidence=dry_run_export_reviewed%2Ccandidate_count_reviewed&limit=100",
     expect.objectContaining({
       method: "GET",
       credentials: "include",
@@ -262,7 +273,7 @@ test("loads platform api mappings with explicit organization query", async() => 
   );
   expect(global.fetch).toHaveBeenNthCalledWith(
     12,
-    "https://admin.example.invalid/api/get-organization-master-data-quality-readiness?organization=org-a",
+    "https://admin.example.invalid/api/gateway-projection/publish-attempts/attempt-synthetic?organization=org-a",
     expect.objectContaining({
       method: "GET",
       credentials: "include",
@@ -271,7 +282,7 @@ test("loads platform api mappings with explicit organization query", async() => 
   );
   expect(global.fetch).toHaveBeenNthCalledWith(
     13,
-    "https://admin.example.invalid/api/organization-master-data-quality/directory?organization=org-a&entityType=user&keyword=alice&sourceType=wecom&sourceConnectionIdHash=sha256%3Asource&qualityStatus=blocked&reasonCode=mapping_missing&lifecycleStatus=ACTIVE&p=3&pageSize=50",
+    "https://admin.example.invalid/api/get-organization-master-data-quality-readiness?organization=org-a",
     expect.objectContaining({
       method: "GET",
       credentials: "include",
@@ -280,7 +291,7 @@ test("loads platform api mappings with explicit organization query", async() => 
   );
   expect(global.fetch).toHaveBeenNthCalledWith(
     14,
-    "https://admin.example.invalid/api/organization-master-data-quality/remediation-plan?organization=org-a&entityType=user&keyword=alice&sourceType=wecom&sourceConnectionIdHash=sha256%3Asource&qualityStatus=blocked&reasonCode=mapping_missing&lifecycleStatus=ACTIVE&limit=30&topN=10",
+    "https://admin.example.invalid/api/organization-master-data-quality/directory?organization=org-a&entityType=user&keyword=alice&sourceType=wecom&sourceConnectionIdHash=sha256%3Asource&qualityStatus=blocked&reasonCode=mapping_missing&lifecycleStatus=ACTIVE&p=3&pageSize=50",
     expect.objectContaining({
       method: "GET",
       credentials: "include",
@@ -289,7 +300,7 @@ test("loads platform api mappings with explicit organization query", async() => 
   );
   expect(global.fetch).toHaveBeenNthCalledWith(
     15,
-    "https://admin.example.invalid/api/organization-master-data-quality/remediation-action-drafts?organization=org-a&actionAlias=mapping_review&entityType=user&keyword=alice&sourceType=wecom&sourceConnectionIdHash=sha256%3Asource&qualityStatus=blocked&reasonCode=mapping_missing&limit=30&topN=10",
+    "https://admin.example.invalid/api/organization-master-data-quality/remediation-plan?organization=org-a&entityType=user&keyword=alice&sourceType=wecom&sourceConnectionIdHash=sha256%3Asource&qualityStatus=blocked&reasonCode=mapping_missing&lifecycleStatus=ACTIVE&limit=30&topN=10",
     expect.objectContaining({
       method: "GET",
       credentials: "include",
@@ -298,7 +309,7 @@ test("loads platform api mappings with explicit organization query", async() => 
   );
   expect(global.fetch).toHaveBeenNthCalledWith(
     16,
-    "https://admin.example.invalid/api/organization-master-data-quality/remediation-preflight?organization=org-a&draftId=sha256%3Adraft&actionAlias=mapping_review&entityType=user&keyword=alice&sourceType=wecom&sourceConnectionIdHash=sha256%3Asource&qualityStatus=blocked&reasonCode=mapping_missing&limit=30&topN=10",
+    "https://admin.example.invalid/api/organization-master-data-quality/remediation-action-drafts?organization=org-a&actionAlias=mapping_review&entityType=user&keyword=alice&sourceType=wecom&sourceConnectionIdHash=sha256%3Asource&qualityStatus=blocked&reasonCode=mapping_missing&limit=30&topN=10",
     expect.objectContaining({
       method: "GET",
       credentials: "include",
@@ -307,7 +318,7 @@ test("loads platform api mappings with explicit organization query", async() => 
   );
   expect(global.fetch).toHaveBeenNthCalledWith(
     17,
-    "https://admin.example.invalid/api/gateway-projection/ingestion-status?organization=org-a&latest=true&projectionBatchId=batch-synthetic&orgVersion=202606151200&sourceVersion=orgv-synthetic",
+    "https://admin.example.invalid/api/organization-master-data-quality/remediation-preflight?organization=org-a&draftId=sha256%3Adraft&actionAlias=mapping_review&entityType=user&keyword=alice&sourceType=wecom&sourceConnectionIdHash=sha256%3Asource&qualityStatus=blocked&reasonCode=mapping_missing&limit=30&topN=10",
     expect.objectContaining({
       method: "GET",
       credentials: "include",
@@ -316,6 +327,15 @@ test("loads platform api mappings with explicit organization query", async() => 
   );
   expect(global.fetch).toHaveBeenNthCalledWith(
     18,
+    "https://admin.example.invalid/api/gateway-projection/ingestion-status?organization=org-a&latest=true&projectionBatchId=batch-synthetic&orgVersion=202606151200&sourceVersion=orgv-synthetic",
+    expect.objectContaining({
+      method: "GET",
+      credentials: "include",
+      headers: expect.objectContaining({"Accept-Language": "en"}),
+    })
+  );
+  expect(global.fetch).toHaveBeenNthCalledWith(
+    19,
     "https://admin.example.invalid/api/gateway-projection/manual-publish",
     expect.objectContaining({
       method: "POST",

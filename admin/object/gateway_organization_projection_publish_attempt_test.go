@@ -767,6 +767,155 @@ func TestGatewayProjectionCleanupApprovalDecisionDraftReadinessFailsClosed(t *te
 	}
 }
 
+func TestGatewayProjectionCleanupExecutionGateOwnerBoundaryPreflightDerivesNoFallbackEnvelope(t *testing.T) {
+	now := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
+	attemptStore := &memoryGatewayProjectionPublishAttemptStore{
+		records: []*GatewayProjectionPublishAttempt{{
+			AttemptId:         "attempt-gate-ready",
+			OrganizationId:    "org-a",
+			Status:            "error",
+			ProjectionBatchId: "batch-gate-ready",
+			SourceVersion:     "orgv-gate-ready",
+			FailureCategory:   "gateway_unavailable",
+			CreatedAt:         now.Add(-35 * 24 * time.Hour),
+		}},
+	}
+	service := GatewayProjectionPublishAttemptHistoryService{Store: attemptStore, Now: func() time.Time { return now }}
+	query := GatewayProjectionCleanupExecutionGateOwnerBoundaryPreflightQuery{
+		OrganizationId:          "org-a",
+		OlderThan:               now.Add(-30 * 24 * time.Hour),
+		ApprovalEvidenceAliases: allGatewayProjectionCleanupApprovalEvidenceAliases(),
+		Limit:                   20,
+	}
+	draft, err := service.CleanupApprovalDecisionDraftReadiness(GatewayProjectionCleanupApprovalDecisionDraftReadinessQuery{
+		OrganizationId:          query.OrganizationId,
+		OlderThan:               query.OlderThan,
+		ApprovalEvidenceAliases: query.ApprovalEvidenceAliases,
+		Limit:                   query.Limit,
+	})
+	if err != nil {
+		t.Fatalf("CleanupApprovalDecisionDraftReadiness() error = %v", err)
+	}
+	for _, action := range []string{"approve", "copy", "export"} {
+		if _, err := service.RecordCleanupApprovalAuditTrail(GatewayProjectionCleanupApprovalAuditTrailRequest{
+			OrganizationId: "org-a",
+			Action:         action,
+			ReadinessHash:  draft.ReadinessHash,
+			DryRunId:       draft.DryRunId,
+			CandidateCount: draft.CandidateCount,
+			BlockedCount:   draft.BlockedCount,
+			SafeNextAction: draft.OperatorNextAction,
+		}); err != nil {
+			t.Fatalf("RecordCleanupApprovalAuditTrail(%s) error = %v", action, err)
+		}
+	}
+
+	preflight, err := service.CleanupExecutionGateOwnerBoundaryPreflight(query)
+	if err != nil {
+		t.Fatalf("CleanupExecutionGateOwnerBoundaryPreflight() error = %v", err)
+	}
+	if preflight.GateReadiness != "owner_boundary_ready" || preflight.GateState != "owner_boundary_ready_no_execution" {
+		t.Fatalf("gate preflight = %#v, want owner boundary ready without execution", preflight)
+	}
+	if preflight.ExecutionMode != "manual_review_only" || preflight.CleanupExecutionAllowed || preflight.ExecuteGuardrail.Enabled {
+		t.Fatalf("execution boundary = mode %q allowed=%v guardrail=%#v, want read-only disabled", preflight.ExecutionMode, preflight.CleanupExecutionAllowed, preflight.ExecuteGuardrail)
+	}
+	if !preflight.OwnerBoundary.AdminAuthorityOnly || !preflight.NoFallback.Enforced || len(preflight.NoFallback.ForbiddenFallbackAliases) == 0 {
+		t.Fatalf("owner/noFallback = %#v/%#v, want enforced Admin owner boundary", preflight.OwnerBoundary, preflight.NoFallback)
+	}
+	if preflight.GatePreflightId == "" || preflight.GatePreflightHash == "" || len(preflight.CopySafeLabels) == 0 || preflight.RedactionSummary.Status != "redacted" {
+		t.Fatalf("preflight identifiers/redaction = %#v, want copy-safe redacted preflight", preflight)
+	}
+	if len(attemptStore.records) != 1 || attemptStore.records[0].AttemptId != "attempt-gate-ready" {
+		t.Fatalf("execution gate preflight mutated publish attempts: %#v", attemptStore.records)
+	}
+	raw, err := json.Marshal(preflight)
+	if err != nil {
+		t.Fatalf("marshal preflight: %v", err)
+	}
+	assertDoesNotContainAny(t, string(raw), "projection-secret", "Authorization", "Cookie", "gateway.example.invalid", "rawGatewayResponse")
+}
+
+func TestGatewayProjectionCleanupExecutionGateOwnerBoundaryPreflightFailsClosed(t *testing.T) {
+	now := time.Date(2026, 6, 16, 12, 30, 0, 0, time.UTC)
+	attemptStore := &memoryGatewayProjectionPublishAttemptStore{
+		records: []*GatewayProjectionPublishAttempt{{
+			AttemptId:         "attempt-gate-blocked",
+			OrganizationId:    "org-a",
+			Status:            "error",
+			ProjectionBatchId: "batch-gate-blocked",
+			SourceVersion:     "orgv-gate-blocked",
+			FailureCategory:   "gateway_unavailable",
+			CreatedAt:         now.Add(-35 * 24 * time.Hour),
+		}},
+	}
+	service := GatewayProjectionPublishAttemptHistoryService{Store: attemptStore, Now: func() time.Time { return now }}
+	preflight, err := service.CleanupExecutionGateOwnerBoundaryPreflight(GatewayProjectionCleanupExecutionGateOwnerBoundaryPreflightQuery{
+		OrganizationId: "org-a",
+		OlderThan:      now.Add(-30 * 24 * time.Hour),
+		ReadinessHash:  "dryrun-hash-other",
+		Limit:          20,
+	})
+	if err != nil {
+		t.Fatalf("CleanupExecutionGateOwnerBoundaryPreflight(mismatch) error = %v", err)
+	}
+	if preflight.GateReadiness != "cannot_infer" || !preflight.CannotInfer.Value || !containsString(preflight.CannotInfer.ReasonAliases, "approval_audit_hash_mismatch") {
+		t.Fatalf("mismatch preflight = %#v, want cannot_infer hash mismatch", preflight)
+	}
+	if preflight.CleanupExecutionAllowed || !preflight.NoFallback.Enforced || len(preflight.ManualReviewBlockers) == 0 {
+		t.Fatalf("blocked fields = allowed %v noFallback %#v blockers %#v, want fail-closed guidance", preflight.CleanupExecutionAllowed, preflight.NoFallback, preflight.ManualReviewBlockers)
+	}
+	if _, err := service.CleanupExecutionGateOwnerBoundaryPreflight(GatewayProjectionCleanupExecutionGateOwnerBoundaryPreflightQuery{}); err == nil {
+		t.Fatalf("CleanupExecutionGateOwnerBoundaryPreflight(empty org) error = nil, want organization required")
+	}
+}
+
+func TestGatewayProjectionCleanupExecutionGateOwnerBoundaryHelperBranches(t *testing.T) {
+	readiness, state, action := gatewayProjectionCleanupExecutionGatePreflightState(nil)
+	if readiness != "cannot_infer" || state != "decision_draft_unavailable" || action != "rerun_cleanup_approval_decision_draft_readiness" {
+		t.Fatalf("nil preflight state = %s/%s/%s, want cannot infer rerun", readiness, state, action)
+	}
+
+	cases := []struct {
+		decisionReadiness string
+		readiness         string
+		state             string
+		action            string
+		summary           string
+	}{
+		{"draft_ready", "owner_boundary_ready", "owner_boundary_ready_no_execution", "request_master_control_owner_boundary_review", "execution_gate_preflight_ready_for_owner_boundary_review_without_cleanup_execution"},
+		{"manual_review_required", "manual_review_required", "manual_review_checklist_incomplete", "complete_manual_review_checklist", "execution_gate_preflight_waiting_for_manual_review_actions"},
+		{"blocked", "blocked", "decision_draft_blocked", "review_owner_boundary_blockers", "execution_gate_preflight_blocked_by_decision_draft_or_policy"},
+		{"cannot_infer", "cannot_infer", "decision_draft_cannot_infer", "refresh_cleanup_approval_decision_draft_readiness", "execution_gate_preflight_cannot_infer_required_evidence"},
+		{"unexpected", "cannot_infer", "decision_draft_unknown", "refresh_cleanup_approval_decision_draft_readiness", "execution_gate_preflight_cannot_infer_required_evidence"},
+	}
+	for _, tc := range cases {
+		gotReadiness, gotState, gotAction := gatewayProjectionCleanupExecutionGatePreflightState(&GatewayProjectionCleanupApprovalDecisionDraftReadiness{DecisionReadiness: tc.decisionReadiness})
+		if gotReadiness != tc.readiness || gotState != tc.state || gotAction != tc.action {
+			t.Fatalf("state(%s) = %s/%s/%s, want %s/%s/%s", tc.decisionReadiness, gotReadiness, gotState, gotAction, tc.readiness, tc.state, tc.action)
+		}
+		if got := gatewayProjectionCleanupExecutionGateSummary(tc.readiness); got != tc.summary {
+			t.Fatalf("summary(%s) = %q, want %q", tc.readiness, got, tc.summary)
+		}
+	}
+	blockers := gatewayProjectionCleanupExecutionGateManualReviewBlockers(&GatewayProjectionCleanupApprovalDecisionDraftReadiness{
+		DecisionReadiness: "manual_review_required",
+		ManualReviewChecklist: GatewayProjectionCleanupDecisionManualReviewChecklist{
+			MissingActionAliases:   []string{"approve"},
+			MissingEvidenceAliases: []string{"dry_run_export_reviewed"},
+		},
+	})
+	if !containsString(blockers, "approve") || !containsString(blockers, "dry_run_export_reviewed") {
+		t.Fatalf("manual blockers = %#v, want action and evidence blockers", blockers)
+	}
+	if boundary := buildGatewayProjectionCleanupExecutionGateOwnerBoundary(); !boundary.AdminAuthorityOnly || len(boundary.ForbiddenActionAliases) == 0 {
+		t.Fatalf("owner boundary = %#v, want enforced forbidden actions", boundary)
+	}
+	if noFallback := buildGatewayProjectionCleanupExecutionGateNoFallback(); !noFallback.Enforced || len(noFallback.ForbiddenFallbackAliases) == 0 {
+		t.Fatalf("noFallback = %#v, want enforced fallback list", noFallback)
+	}
+}
+
 func TestGatewayProjectionCleanupApprovalDecisionDraftHelperBranches(t *testing.T) {
 	readiness, state, action := gatewayProjectionCleanupApprovalDecisionDraftState(nil)
 	if readiness != "cannot_infer" || state != "policy_readiness_unavailable" || action != "rerun_cleanup_approval_policy_readiness" {
