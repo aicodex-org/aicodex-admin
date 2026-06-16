@@ -1,12 +1,13 @@
 ---
 name: antd
-description: Use when working with Ant Design in the aicodex-admin web-admin frontend, especially Layout, Menu, Tree, Table, Form, Modal, Tag, Tooltip, loading/empty/error states, AntD warnings, stable keys, admin table density, and enterprise console UI patterns.
+description: Project-custom aicodex-admin Ant Design guidance. Use when working with Ant Design in the web-admin frontend, especially Layout, Menu, Tree, Table, Form, Modal, Tag, Tooltip, loading/empty/error states, AntD warnings, stable keys, admin table density, and enterprise console UI patterns.
 ---
 
 # Ant Design Admin UI
 
 ## Baseline
 
+- This is a project-custom skill for `aicodex-admin`, not a public upstream AntD skill.
 - The frontend uses Ant Design 5 with `ConfigProvider` and `@ant-design/cssinjs` configured in `src/App.js`.
 - Prefer AntD components and `@ant-design/icons` over custom controls when AntD already provides the interaction.
 - Keep the UI quiet, dense, and work-focused. This is an admin console, not a marketing site.

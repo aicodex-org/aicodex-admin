@@ -1,12 +1,13 @@
 ---
 name: admin-i18n
-description: Use when adding, reviewing, or modifying user-visible text, menus, navigation IA, page titles, buttons, status labels, errors, zh/en locale entries, AntD locale behavior, or sensitive text handling in the aicodex-admin web-admin frontend.
+description: Project-custom aicodex-admin i18n guidance. Use when adding, reviewing, or modifying user-visible text, menus, navigation IA, page titles, buttons, status labels, errors, zh/en locale entries, AntD locale behavior, or sensitive text handling in the web-admin frontend.
 ---
 
 # Admin Internationalization
 
 ## Baseline
 
+- This is a project-custom skill for `aicodex-admin`, not a public upstream i18n skill.
 - `web-admin/src/i18n.js` initializes i18next with namespaces from `src/locales/en/data.json` and dynamically loads `src/locales/<language>/data.json`.
 - Existing components commonly call `i18next.t("namespace:Key")`; prefer existing namespaces such as `general`, `account`, `application`, and the domain-specific namespace already used by nearby files.
 - AntD locale is selected in `src/App.js` through `getAntdLocale(Setting.getLanguage())`.
