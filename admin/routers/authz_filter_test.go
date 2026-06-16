@@ -191,6 +191,16 @@ func TestGetOrganizationDirectoryRemediationApprovalPacketAuditObjectUsesOrganiz
 	}
 }
 
+func TestGetOrganizationDirectoryRemediationApprovalPacketOperatorNotesObjectUsesOrganizationQuery(t *testing.T) {
+	owner, name, ok := getModuleOrganizationObject("/api/organization-master-data-quality/remediation-approval-packet-operator-notes", http.MethodGet, "engineering", nil)
+	if !ok {
+		t.Fatalf("expected organization directory remediation approval packet operator notes object to be parsed")
+	}
+	if owner != "engineering" || name != "" {
+		t.Fatalf("remediation approval packet operator notes object = %q/%q, want engineering/<empty>", owner, name)
+	}
+}
+
 func TestGetModuleOrganizationObjectIgnoresUnscopedApi(t *testing.T) {
 	owner, name, ok := getModuleOrganizationObject("/api/get-providers", http.MethodGet, "engineering", nil)
 	if ok || owner != "" || name != "" {

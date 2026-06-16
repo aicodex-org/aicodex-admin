@@ -202,3 +202,48 @@ func TestNewOrganizationDirectoryRemediationApprovalPacketAuditQueryParsesOperat
 		t.Fatalf("query = %+v, want parsed remediation approval packet audit filters", query)
 	}
 }
+
+func TestNewOrganizationDirectoryRemediationApprovalPacketOperatorNotesQueryParsesOperatorFilters(t *testing.T) {
+	query := newOrganizationDirectoryRemediationApprovalPacketOperatorNotesQuery(map[string]string{
+		"organization":           "org-a",
+		"noteId":                 "operator-note:note",
+		"noteHash":               "sha256:note",
+		"packetAuditId":          "approval-packet-audit:packet",
+		"packetHash":             "sha256:packet",
+		"approvalPreviewId":      "approval-preview:preview",
+		"approvalPreviewHash":    "sha256:preview",
+		"draftId":                "sha256:draft",
+		"actionAlias":            object.OrganizationDirectoryRemediationActionMappingReview,
+		"entityType":             object.OrganizationDirectoryQualityEntityUser,
+		"keyword":                "alice",
+		"sourceType":             "wecom",
+		"sourceConnectionIdHash": "sha256:source",
+		"qualityStatus":          object.OrganizationMasterDataQualityStatusBlocked,
+		"reasonCode":             object.OrganizationMasterDataQualityReasonMappingMissing,
+		"riskLevel":              object.OrganizationDirectoryRemediationApprovalRiskMedium,
+		"packetStatus":           object.OrganizationDirectoryRemediationApprovalPacketStatusReadyForApproval,
+		"limit":                  "30",
+		"topN":                   "10",
+	})
+	if query.OrganizationId != "org-a" ||
+		query.NoteId != "operator-note:note" ||
+		query.NoteHash != "sha256:note" ||
+		query.PacketAuditId != "approval-packet-audit:packet" ||
+		query.PacketHash != "sha256:packet" ||
+		query.ApprovalPreviewId != "approval-preview:preview" ||
+		query.ApprovalPreviewHash != "sha256:preview" ||
+		query.DraftId != "sha256:draft" ||
+		query.ActionAlias != object.OrganizationDirectoryRemediationActionMappingReview ||
+		query.EntityType != object.OrganizationDirectoryQualityEntityUser ||
+		query.Keyword != "alice" ||
+		query.SourceType != "wecom" ||
+		query.SourceConnectionIdHash != "sha256:source" ||
+		query.QualityStatus != object.OrganizationMasterDataQualityStatusBlocked ||
+		query.ReasonCode != object.OrganizationMasterDataQualityReasonMappingMissing ||
+		query.RiskLevel != object.OrganizationDirectoryRemediationApprovalRiskMedium ||
+		query.PacketStatus != object.OrganizationDirectoryRemediationApprovalPacketStatusReadyForApproval ||
+		query.Limit != 30 ||
+		query.TopN != 10 {
+		t.Fatalf("query = %+v, want parsed remediation approval packet operator notes filters", query)
+	}
+}

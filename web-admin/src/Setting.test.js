@@ -32,6 +32,7 @@ test("includes module-based WeCom organization API paths", () => {
   expect(paths).toContain("organization-master-data-quality/remediation-preflight");
   expect(paths).toContain("organization-master-data-quality/remediation-approval-preview");
   expect(paths).toContain("organization-master-data-quality/remediation-approval-packet-audit");
+  expect(paths).toContain("organization-master-data-quality/remediation-approval-packet-operator-notes");
   expect(paths).toContain("gateway-projection/observability");
   expect(paths).toContain("gateway-projection/manual-publish");
   expect(paths).toContain("gateway-projection/publish-attempts");

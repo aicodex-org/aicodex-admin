@@ -77,6 +77,7 @@ export default function OrganizationDirectoryQualityPage(props) {
   const [preflightLoading, setPreflightLoading] = useState(false);
   const [approvalPreviewLoading, setApprovalPreviewLoading] = useState(false);
   const [approvalPacketAuditLoading, setApprovalPacketAuditLoading] = useState(false);
+  const [approvalPacketOperatorNotesLoading, setApprovalPacketOperatorNotesLoading] = useState(false);
   const [data, setData] = useState(null);
   const [planData, setPlanData] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -85,6 +86,7 @@ export default function OrganizationDirectoryQualityPage(props) {
   const [preflightData, setPreflightData] = useState(null);
   const [approvalPreviewData, setApprovalPreviewData] = useState(null);
   const [approvalPacketAuditData, setApprovalPacketAuditData] = useState(null);
+  const [approvalPacketOperatorNotesData, setApprovalPacketOperatorNotesData] = useState(null);
 
   const currentPlanOptions = () => ({
     entityType,
@@ -142,6 +144,7 @@ export default function OrganizationDirectoryQualityPage(props) {
     setPreflightData(null);
     setApprovalPreviewData(null);
     setApprovalPacketAuditData(null);
+    setApprovalPacketOperatorNotesData(null);
     setDraftLoading(true);
     return PlatformApiMappingBackend.getOrganizationDirectoryRemediationActionDrafts(organization, {
       ...currentPlanOptions(),
@@ -163,6 +166,7 @@ export default function OrganizationDirectoryQualityPage(props) {
     setPreflightData(null);
     setApprovalPreviewData(null);
     setApprovalPacketAuditData(null);
+    setApprovalPacketOperatorNotesData(null);
     setPreflightLoading(true);
     return PlatformApiMappingBackend.getOrganizationDirectoryRemediationPreflight(organization, {
       ...currentPlanOptions(),
@@ -185,6 +189,7 @@ export default function OrganizationDirectoryQualityPage(props) {
   const loadApprovalPreview = (preflight) => {
     setApprovalPreviewData(null);
     setApprovalPacketAuditData(null);
+    setApprovalPacketOperatorNotesData(null);
     setApprovalPreviewLoading(true);
     return PlatformApiMappingBackend.getOrganizationDirectoryRemediationApprovalPreview(organization, {
       ...currentPlanOptions(),
@@ -206,6 +211,7 @@ export default function OrganizationDirectoryQualityPage(props) {
 
   const loadApprovalPacketAudit = (approvalPreview) => {
     setApprovalPacketAuditData(null);
+    setApprovalPacketOperatorNotesData(null);
     setApprovalPacketAuditLoading(true);
     return PlatformApiMappingBackend.getOrganizationDirectoryRemediationApprovalPacketAudit(organization, {
       ...currentPlanOptions(),
@@ -227,6 +233,33 @@ export default function OrganizationDirectoryQualityPage(props) {
       }
       setApprovalPacketAuditData(res.data);
     }).finally(() => setApprovalPacketAuditLoading(false));
+  };
+
+  const loadApprovalPacketOperatorNotes = (packetAudit) => {
+    setApprovalPacketOperatorNotesData(null);
+    setApprovalPacketOperatorNotesLoading(true);
+    return PlatformApiMappingBackend.getOrganizationDirectoryRemediationApprovalPacketOperatorNotes(organization, {
+      ...currentPlanOptions(),
+      packetAuditId: packetAudit.packetAuditId,
+      packetHash: packetAudit.packetHash,
+      approvalPreviewId: packetAudit.approvalPreviewId,
+      approvalPreviewHash: packetAudit.approvalPreviewHash,
+      draftId: packetAudit.draftId,
+      actionAlias: packetAudit.actionAlias || selectedPlan?.actionAlias,
+      entityType: packetAudit.entityType || entityType,
+      riskLevel: packetAudit.riskLevel,
+      packetStatus: packetAudit.packetStatus,
+      reasonCode: (selectedPlan?.reasonCodes || [])[0] || reasonCode,
+      limit: 100,
+      topN: 20,
+    }).then((res) => {
+      if (res.status !== "ok") {
+        Setting.showMessage("error", res.msg || "加载交接备注失败");
+        setApprovalPacketOperatorNotesData(null);
+        return;
+      }
+      setApprovalPacketOperatorNotesData(res.data);
+    }).finally(() => setApprovalPacketOperatorNotesLoading(false));
   };
 
   const loadAll = (nextPagination = pagination) => Promise.all([
@@ -502,6 +535,76 @@ export default function OrganizationDirectoryQualityPage(props) {
   };
 
   const selectedApprovalPacketAudit = approvalPacketAuditData?.packetAudits?.[0];
+  const selectedApprovalPacketOperatorNote = approvalPacketOperatorNotesData?.notes?.[0];
+  const approvalPacketOperatorNotesExportPayload = approvalPacketOperatorNotesData?.exportSummary || {
+    organizationId: approvalPacketOperatorNotesData?.organizationId,
+    boundary: approvalPacketOperatorNotesData?.boundary,
+    noteScope: approvalPacketOperatorNotesData?.exportSummary?.noteScope || "derived_note_draft",
+    retentionPolicy: approvalPacketOperatorNotesData?.exportSummary?.retentionPolicy || "not_persisted",
+    notes: approvalPacketOperatorNotesData?.notes || [],
+  };
+
+  const copyApprovalPacketOperatorNotesJson = () => {
+    const content = JSON.stringify(approvalPacketOperatorNotesExportPayload, null, 2);
+    if (!navigator.clipboard?.writeText) {
+      Setting.showMessage("error", "当前浏览器不支持复制交接备注");
+      return;
+    }
+    navigator.clipboard.writeText(content).then(() => {
+      Setting.showMessage("success", "已复制脱敏交接备注JSON");
+    }).catch(() => {
+      Setting.showMessage("error", "复制脱敏交接备注JSON失败");
+    });
+  };
+
+  const copyApprovalPacketOperatorNotesMarkdown = () => {
+    const content = selectedApprovalPacketOperatorNote?.markdownSummary || "";
+    if (!content) {
+      Setting.showMessage("warning", "暂无可复制的交接备注Markdown");
+      return;
+    }
+    if (!navigator.clipboard?.writeText) {
+      Setting.showMessage("error", "当前浏览器不支持复制交接备注Markdown");
+      return;
+    }
+    navigator.clipboard.writeText(content).then(() => {
+      Setting.showMessage("success", "已复制脱敏交接备注Markdown");
+    }).catch(() => {
+      Setting.showMessage("error", "复制脱敏交接备注Markdown失败");
+    });
+  };
+
+  const exportApprovalPacketOperatorNotesJson = () => {
+    if (!approvalPacketOperatorNotesData?.notes || approvalPacketOperatorNotesData.notes.length === 0) {
+      Setting.showMessage("warning", "暂无可导出的交接备注");
+      return;
+    }
+    const blob = new Blob([JSON.stringify(approvalPacketOperatorNotesExportPayload, null, 2)], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `organization-directory-remediation-operator-notes-${organization || "empty"}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const exportApprovalPacketOperatorNotesMarkdown = () => {
+    if (!selectedApprovalPacketOperatorNote?.markdownSummary) {
+      Setting.showMessage("warning", "暂无可导出的交接备注Markdown");
+      return;
+    }
+    const blob = new Blob([selectedApprovalPacketOperatorNote.markdownSummary], {type: "text/markdown"});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `organization-directory-remediation-operator-notes-${organization || "empty"}.md`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div style={{padding: 24}}>
@@ -613,6 +716,7 @@ export default function OrganizationDirectoryQualityPage(props) {
           setPreflightData(null);
           setApprovalPreviewData(null);
           setApprovalPacketAuditData(null);
+          setApprovalPacketOperatorNotesData(null);
         }}
       >
         <Space direction="vertical" size={16} style={{width: "100%"}}>
@@ -804,6 +908,7 @@ export default function OrganizationDirectoryQualityPage(props) {
                                         <Text type="secondary">{approvalPacketAuditData?.boundary || "Admin producer approval packet audit only."}</Text>
                                       </Space>
                                       <Space wrap>
+                                        <Button onClick={() => loadApprovalPacketOperatorNotes(selectedApprovalPacketAudit)} disabled={!selectedApprovalPacketAudit}>交接备注</Button>
                                         <Button onClick={copyApprovalPacketAudit} disabled={!approvalPacketAuditData?.packetAudits?.length}>复制审批包审计</Button>
                                         <Button icon={<DownloadOutlined />} onClick={exportApprovalPacketAudit} disabled={!approvalPacketAuditData?.packetAudits?.length}>导出审批包审计</Button>
                                       </Space>
@@ -824,6 +929,46 @@ export default function OrganizationDirectoryQualityPage(props) {
                                         <Descriptions.Item label="Sample stable hashes">{renderTags(selectedApprovalPacketAudit.sampleStableHashes, "cyan")}</Descriptions.Item>
                                         <Descriptions.Item label="安全摘要">{selectedApprovalPacketAudit.safeSummary || "-"}</Descriptions.Item>
                                       </Descriptions>
+                                    )}
+                                    {(approvalPacketOperatorNotesLoading || approvalPacketOperatorNotesData) && (
+                                      <div style={{border: "1px solid #f0f0f0", borderRadius: 6, padding: 12}}>
+                                        <Space direction="vertical" size={12} style={{width: "100%"}}>
+                                          <Space align="center" wrap style={{justifyContent: "space-between", width: "100%"}}>
+                                            <Space align="center" wrap>
+                                              <Title level={5} style={{margin: 0}}>交接备注</Title>
+                                              {selectedApprovalPacketOperatorNote && <Tag color="geekblue">{selectedApprovalPacketOperatorNote.noteScope}</Tag>}
+                                              <Text type="secondary">{approvalPacketOperatorNotesData?.boundary || "Admin producer operator notes only."}</Text>
+                                            </Space>
+                                            <Space wrap>
+                                              <Button onClick={copyApprovalPacketOperatorNotesJson} disabled={!approvalPacketOperatorNotesData?.notes?.length}>复制交接备注JSON</Button>
+                                              <Button onClick={copyApprovalPacketOperatorNotesMarkdown} disabled={!selectedApprovalPacketOperatorNote?.markdownSummary}>复制交接备注Markdown</Button>
+                                              <Button icon={<DownloadOutlined />} onClick={exportApprovalPacketOperatorNotesJson} disabled={!approvalPacketOperatorNotesData?.notes?.length}>导出交接备注JSON</Button>
+                                              <Button icon={<DownloadOutlined />} onClick={exportApprovalPacketOperatorNotesMarkdown} disabled={!selectedApprovalPacketOperatorNote?.markdownSummary}>导出交接备注Markdown</Button>
+                                            </Space>
+                                          </Space>
+                                          {approvalPacketOperatorNotesLoading && <Text type="secondary">加载交接备注中</Text>}
+                                          {!approvalPacketOperatorNotesLoading && approvalPacketOperatorNotesData && !selectedApprovalPacketOperatorNote && <Empty description="暂无交接备注" />}
+                                          {selectedApprovalPacketOperatorNote && (
+                                            <Descriptions column={1} size="small" bordered>
+                                              <Descriptions.Item label="Note Hash">{selectedApprovalPacketOperatorNote.noteHash || "-"}</Descriptions.Item>
+                                              <Descriptions.Item label="Packet Hash">{selectedApprovalPacketOperatorNote.packetHash || "-"}</Descriptions.Item>
+                                              <Descriptions.Item label="Approval Preview Hash">{selectedApprovalPacketOperatorNote.approvalPreviewHash || "-"}</Descriptions.Item>
+                                              <Descriptions.Item label="Scope">{selectedApprovalPacketOperatorNote.noteScope || "-"} / {selectedApprovalPacketOperatorNote.retentionPolicy || "-"}</Descriptions.Item>
+                                              <Descriptions.Item label="Execution">{selectedApprovalPacketOperatorNote.executionMode || "-"} / autoExecutionAllowed={String(selectedApprovalPacketOperatorNote.autoExecutionAllowed)}</Descriptions.Item>
+                                              <Descriptions.Item label="Handoff summary">{selectedApprovalPacketOperatorNote.handoffSummary || "-"}</Descriptions.Item>
+                                              <Descriptions.Item label="Risk summary">{selectedApprovalPacketOperatorNote.riskSummary || "-"}</Descriptions.Item>
+                                              <Descriptions.Item label="Status summary">{selectedApprovalPacketOperatorNote.statusSummary || "-"}</Descriptions.Item>
+                                              <Descriptions.Item label="Checklist summary">{renderTags(selectedApprovalPacketOperatorNote.checklistSummary, "geekblue")}</Descriptions.Item>
+                                              <Descriptions.Item label="cannotInfer">{renderTags(selectedApprovalPacketOperatorNote.cannotInfer, "volcano")}</Descriptions.Item>
+                                              <Descriptions.Item label="Operator next steps">{renderTags(selectedApprovalPacketOperatorNote.operatorNextSteps, "blue")}</Descriptions.Item>
+                                              <Descriptions.Item label="Sample stable hashes">{renderTags(selectedApprovalPacketOperatorNote.sampleStableHashes, "cyan")}</Descriptions.Item>
+                                              <Descriptions.Item label="Markdown">
+                                                <Text style={{whiteSpace: "pre-wrap", wordBreak: "break-word"}}>{selectedApprovalPacketOperatorNote.markdownSummary || "-"}</Text>
+                                              </Descriptions.Item>
+                                            </Descriptions>
+                                          )}
+                                        </Space>
+                                      </div>
                                     )}
                                   </Space>
                                 </div>
