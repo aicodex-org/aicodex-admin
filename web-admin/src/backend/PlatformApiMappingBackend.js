@@ -663,6 +663,44 @@ export function getGatewayProjectionPublishAttemptCleanupApprovalPolicyReadiness
   }).then(res => res.json());
 }
 
+export function getGatewayProjectionPublishAttemptCleanupApprovalDecisionDraftReadiness(organization, options = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.source) {
+    query.set("source", options.source);
+  }
+  if (options.status) {
+    query.set("status", options.status);
+  }
+  if (options.failureCategory) {
+    query.set("failureCategory", options.failureCategory);
+  }
+  if (options.olderThan) {
+    query.set("olderThan", options.olderThan);
+  }
+  if (options.readinessHash) {
+    query.set("readinessHash", options.readinessHash);
+  }
+  if (options.dryRunGeneratedAt) {
+    query.set("dryRunGeneratedAt", options.dryRunGeneratedAt);
+  }
+  if (options.maxDryRunAgeSeconds) {
+    query.set("maxDryRunAgeSeconds", options.maxDryRunAgeSeconds);
+  }
+  if (options.approvalEvidence) {
+    query.set("approvalEvidence", options.approvalEvidence);
+  }
+  if (options.limit) {
+    query.set("limit", options.limit);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/gateway-projection/publish-attempt-retention-cleanup-approval-decision-draft-readiness?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
 export function getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail(organization, options = {}) {
   const query = new URLSearchParams();
   query.set("organization", organization || "");

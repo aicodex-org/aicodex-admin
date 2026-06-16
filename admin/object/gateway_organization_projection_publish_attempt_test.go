@@ -662,6 +662,160 @@ func TestGatewayProjectionCleanupApprovalPolicyReadinessFailsClosed(t *testing.T
 	}
 }
 
+func TestGatewayProjectionCleanupApprovalDecisionDraftReadinessDerivesCopySafeDraft(t *testing.T) {
+	now := time.Date(2026, 6, 16, 11, 0, 0, 0, time.UTC)
+	attemptStore := &memoryGatewayProjectionPublishAttemptStore{
+		records: []*GatewayProjectionPublishAttempt{{
+			AttemptId:         "attempt-decision-ready",
+			OrganizationId:    "org-a",
+			Status:            "error",
+			ProjectionBatchId: "batch-decision-ready",
+			SourceVersion:     "orgv-decision-ready",
+			FailureCategory:   "gateway_unavailable",
+			CreatedAt:         now.Add(-35 * 24 * time.Hour),
+		}},
+	}
+	service := GatewayProjectionPublishAttemptHistoryService{Store: attemptStore, Now: func() time.Time { return now }}
+	query := GatewayProjectionCleanupApprovalDecisionDraftReadinessQuery{
+		OrganizationId:          "org-a",
+		OlderThan:               now.Add(-30 * 24 * time.Hour),
+		ApprovalEvidenceAliases: allGatewayProjectionCleanupApprovalEvidenceAliases(),
+		Limit:                   20,
+	}
+	policy, err := service.CleanupApprovalPolicyReadiness(GatewayProjectionCleanupApprovalPolicyReadinessQuery{
+		OrganizationId:          query.OrganizationId,
+		OlderThan:               query.OlderThan,
+		ApprovalEvidenceAliases: query.ApprovalEvidenceAliases,
+		Limit:                   query.Limit,
+	})
+	if err != nil {
+		t.Fatalf("CleanupApprovalPolicyReadiness() error = %v", err)
+	}
+	for _, action := range []string{"approve", "copy", "export"} {
+		if _, err := service.RecordCleanupApprovalAuditTrail(GatewayProjectionCleanupApprovalAuditTrailRequest{
+			OrganizationId: "org-a",
+			Action:         action,
+			ReadinessHash:  policy.ReadinessHash,
+			DryRunId:       policy.DryRunId,
+			CandidateCount: policy.CandidateCount,
+			BlockedCount:   policy.BlockedCount,
+			SafeNextAction: policy.SafeNextAction,
+		}); err != nil {
+			t.Fatalf("RecordCleanupApprovalAuditTrail(%s) error = %v", action, err)
+		}
+	}
+
+	draft, err := service.CleanupApprovalDecisionDraftReadiness(query)
+	if err != nil {
+		t.Fatalf("CleanupApprovalDecisionDraftReadiness() error = %v", err)
+	}
+	if draft.DecisionReadiness != "draft_ready" || draft.DecisionState != "manual_review_ready_no_execution" {
+		t.Fatalf("decision draft = %#v, want draft_ready manual_review_ready_no_execution", draft)
+	}
+	if draft.ExecutionMode != "manual_review_only" || draft.CleanupExecutionAllowed || draft.ExecuteGuardrail.Enabled || !draft.ExecuteGuardrail.DryRunOnly {
+		t.Fatalf("execution boundary = mode %q allowed=%v guardrail=%#v, want read-only disabled", draft.ExecutionMode, draft.CleanupExecutionAllowed, draft.ExecuteGuardrail)
+	}
+	if draft.PolicyStatus != "manual_review_ready" || draft.ManualReviewChecklist.Status != "ready" || draft.CannotInfer.Value {
+		t.Fatalf("policy/manual/cannotInfer = %s/%#v/%#v, want ready without cannot infer", draft.PolicyStatus, draft.ManualReviewChecklist, draft.CannotInfer)
+	}
+	if draft.DecisionDraftId == "" || draft.DecisionDraftHash == "" || len(draft.CopySafeLabels) == 0 || draft.RedactionSummary.Status != "redacted" {
+		t.Fatalf("draft identifiers/redaction = %#v, want copy-safe redacted draft", draft)
+	}
+	draftStoreRecords := attemptStore.records
+	if len(draftStoreRecords) != 1 || draftStoreRecords[0].AttemptId != "attempt-decision-ready" {
+		t.Fatalf("decision draft mutated publish attempts: %#v", attemptStore.records)
+	}
+	raw, err := json.Marshal(draft)
+	if err != nil {
+		t.Fatalf("marshal draft: %v", err)
+	}
+	assertDoesNotContainAny(t, string(raw), "projection-secret", "Authorization", "Cookie", "gateway.example.invalid", "rawGatewayResponse")
+}
+
+func TestGatewayProjectionCleanupApprovalDecisionDraftReadinessFailsClosed(t *testing.T) {
+	now := time.Date(2026, 6, 16, 11, 30, 0, 0, time.UTC)
+	attemptStore := &memoryGatewayProjectionPublishAttemptStore{
+		records: []*GatewayProjectionPublishAttempt{{
+			AttemptId:         "attempt-decision-blocked",
+			OrganizationId:    "org-a",
+			Status:            "error",
+			ProjectionBatchId: "batch-decision-blocked",
+			SourceVersion:     "orgv-decision-blocked",
+			FailureCategory:   "gateway_unavailable",
+			CreatedAt:         now.Add(-35 * 24 * time.Hour),
+		}},
+	}
+	service := GatewayProjectionPublishAttemptHistoryService{Store: attemptStore, Now: func() time.Time { return now }}
+	query := GatewayProjectionCleanupApprovalDecisionDraftReadinessQuery{
+		OrganizationId: "org-a",
+		OlderThan:      now.Add(-30 * 24 * time.Hour),
+		ReadinessHash:  "dryrun-hash-other",
+		Limit:          20,
+	}
+	draft, err := service.CleanupApprovalDecisionDraftReadiness(query)
+	if err != nil {
+		t.Fatalf("CleanupApprovalDecisionDraftReadiness(mismatch) error = %v", err)
+	}
+	if draft.DecisionReadiness != "cannot_infer" || !draft.CannotInfer.Value || !containsString(draft.CannotInfer.ReasonAliases, "approval_audit_hash_mismatch") {
+		t.Fatalf("mismatch draft = %#v, want cannot_infer hash mismatch", draft)
+	}
+	if draft.CleanupExecutionAllowed || draft.OperatorNextAction == "" || len(draft.BlockingReasons) == 0 {
+		t.Fatalf("blocked fields = allowed %v next %q reasons %#v, want fail-closed guidance", draft.CleanupExecutionAllowed, draft.OperatorNextAction, draft.BlockingReasons)
+	}
+	if _, err := service.CleanupApprovalDecisionDraftReadiness(GatewayProjectionCleanupApprovalDecisionDraftReadinessQuery{}); err == nil {
+		t.Fatalf("CleanupApprovalDecisionDraftReadiness(empty org) error = nil, want organization required")
+	}
+}
+
+func TestGatewayProjectionCleanupApprovalDecisionDraftHelperBranches(t *testing.T) {
+	readiness, state, action := gatewayProjectionCleanupApprovalDecisionDraftState(nil)
+	if readiness != "cannot_infer" || state != "policy_readiness_unavailable" || action != "rerun_cleanup_approval_policy_readiness" {
+		t.Fatalf("nil policy state = %s/%s/%s, want cannot infer rerun", readiness, state, action)
+	}
+
+	cases := []struct {
+		policyStatus string
+		readiness    string
+		state        string
+		action       string
+		summary      string
+	}{
+		{"manual_review_ready", "draft_ready", "manual_review_ready_no_execution", "review_decision_draft_with_master_control", "decision_draft_ready_for_manual_review_without_cleanup_execution"},
+		{"manual_review_required", "manual_review_required", "manual_review_checklist_incomplete", "complete_manual_review_checklist", "decision_draft_waiting_for_manual_review_actions"},
+		{"blocked", "blocked", "approval_policy_blocked", "review_blocking_reasons", "decision_draft_blocked_by_policy_or_reject_action"},
+		{"cannot_infer", "cannot_infer", "approval_policy_cannot_infer", "refresh_cleanup_approval_policy_readiness", "decision_draft_cannot_infer_required_evidence"},
+		{"unexpected", "cannot_infer", "approval_policy_unknown", "refresh_cleanup_approval_policy_readiness", "decision_draft_cannot_infer_required_evidence"},
+	}
+	for _, tc := range cases {
+		gotReadiness, gotState, gotAction := gatewayProjectionCleanupApprovalDecisionDraftState(&GatewayProjectionCleanupApprovalPolicyReadiness{PolicyStatus: tc.policyStatus})
+		if gotReadiness != tc.readiness || gotState != tc.state || gotAction != tc.action {
+			t.Fatalf("state(%s) = %s/%s/%s, want %s/%s/%s", tc.policyStatus, gotReadiness, gotState, gotAction, tc.readiness, tc.state, tc.action)
+		}
+		if got := gatewayProjectionCleanupApprovalDecisionSummary(tc.readiness); got != tc.summary {
+			t.Fatalf("summary(%s) = %q, want %q", tc.readiness, got, tc.summary)
+		}
+	}
+
+	reasons := gatewayProjectionCleanupApprovalDecisionBlockingReasons(nil)
+	if !containsString(reasons, "cleanup_approval_policy_unavailable") {
+		t.Fatalf("nil blocking reasons = %#v, want policy unavailable", reasons)
+	}
+	reasons = gatewayProjectionCleanupApprovalDecisionBlockingReasons(&GatewayProjectionCleanupApprovalPolicyReadiness{
+		PolicyStatus: "manual_review_required",
+		ManualReview: GatewayProjectionCleanupApprovalManualReview{
+			Status:               "missing",
+			MissingActionAliases: []string{"approve"},
+		},
+	})
+	if !containsString(reasons, "manual_review_action_missing") {
+		t.Fatalf("manual blocking reasons = %#v, want manual_review_action_missing", reasons)
+	}
+	reasons = gatewayProjectionCleanupApprovalDecisionBlockingReasons(&GatewayProjectionCleanupApprovalPolicyReadiness{PolicyStatus: "blocked"})
+	if !containsString(reasons, "approval_policy_blocked") {
+		t.Fatalf("blocked reasons = %#v, want approval_policy_blocked", reasons)
+	}
+}
+
 func TestGatewayProjectionCleanupApprovalPolicyStatusBranches(t *testing.T) {
 	manualReady := GatewayProjectionCleanupApprovalManualReview{Status: "ready"}
 	manualMissing := GatewayProjectionCleanupApprovalManualReview{Status: "missing"}

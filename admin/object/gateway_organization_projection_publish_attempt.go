@@ -35,9 +35,11 @@ const (
 
 	gatewayProjectionCleanupRetentionPolicyVersion = "gateway_projection_publish_attempt_retention.v1"
 	gatewayProjectionCleanupApprovalPolicyVersion  = "gateway_projection_cleanup_approval_policy.v1"
+	gatewayProjectionCleanupDecisionDraftVersion   = "gateway_projection_cleanup_approval_decision_draft.v1"
 
 	GatewayProjectionCleanupApprovalAuditTrailStorageScope      = "admin_cleanup_approval_audit_trail.v1"
 	GatewayProjectionCleanupApprovalPolicyReadinessStorageScope = "derived_policy_readiness_not_persisted"
+	GatewayProjectionCleanupDecisionDraftStorageScope           = "derived_decision_draft_not_persisted"
 )
 
 // GatewayProjectionPublishAttempt 是 Admin producer 的脱敏发布尝试台账。
@@ -457,6 +459,106 @@ type GatewayProjectionCleanupApprovalPolicyReadinessExport struct {
 	ExecuteGuardrail          GatewayProjectionAttemptCleanupExecuteGuardrail   `json:"executeGuardrail"`
 }
 
+// GatewayProjectionCleanupApprovalDecisionDraftReadinessQuery 限定 decision draft 的只读派生范围。
+// 它沿用 approval policy readiness 的安全过滤条件，不承载真实审批签名或 cleanup 执行意图。
+type GatewayProjectionCleanupApprovalDecisionDraftReadinessQuery struct {
+	OrganizationId          string
+	Source                  string
+	Status                  string
+	FailureCategory         string
+	OlderThan               time.Time
+	Limit                   int
+	ReadinessHash           string
+	DryRunGeneratedAt       time.Time
+	MaxDryRunAgeSeconds     int64
+	ApprovalEvidenceAliases []string
+}
+
+// GatewayProjectionCleanupApprovalDecisionDraftReadiness 是 cleanup 执行开放前的只读审批草案。
+// draft_ready 只表示可进入人工审阅，不表示真实 approval decision 已创建或 cleanup gate 已打开。
+type GatewayProjectionCleanupApprovalDecisionDraftReadiness struct {
+	GeneratedAt               string                                                       `json:"generatedAt"`
+	DecisionDraftId           string                                                       `json:"decisionDraftId"`
+	DecisionDraftHash         string                                                       `json:"decisionDraftHash"`
+	DecisionReadiness         string                                                       `json:"decisionReadiness"`
+	DecisionState             string                                                       `json:"decisionState"`
+	DecisionSummary           string                                                       `json:"decisionSummary"`
+	ExecutionMode             string                                                       `json:"executionMode"`
+	CleanupExecutionAllowed   bool                                                         `json:"cleanupExecutionAllowed"`
+	StorageScope              string                                                       `json:"storageScope"`
+	PolicyVersion             string                                                       `json:"policyVersion"`
+	PolicyStatus              string                                                       `json:"policyStatus"`
+	RetentionPolicyVersion    string                                                       `json:"retentionPolicyVersion"`
+	ApprovalAuditStorageScope string                                                       `json:"approvalAuditStorageScope"`
+	ReadinessHash             string                                                       `json:"readinessHash"`
+	DryRunId                  string                                                       `json:"dryRunId"`
+	CandidateCount            int                                                          `json:"candidateCount"`
+	BlockedCount              int                                                          `json:"blockedCount"`
+	ManualReviewChecklist     GatewayProjectionCleanupDecisionManualReviewChecklist        `json:"manualReviewChecklist"`
+	CannotInfer               GatewayProjectionCleanupApprovalCannotInfer                  `json:"cannotInfer"`
+	BlockingReasons           []string                                                     `json:"blockingReasons,omitempty"`
+	CopySafeLabels            []string                                                     `json:"copySafeLabels"`
+	RetentionSummary          GatewayProjectionCleanupDecisionRetentionSummary             `json:"retentionSummary"`
+	AuditSummary              GatewayProjectionCleanupApprovalAuditTrailSummary            `json:"auditSummary"`
+	RedactionSummary          GatewayProjectionCleanupDecisionRedactionSummary             `json:"redactionSummary"`
+	OperatorNextAction        string                                                       `json:"operatorNextAction"`
+	PolicyGates               []GatewayProjectionCleanupApprovalPolicyGate                 `json:"policyGates"`
+	ExecuteGuardrail          GatewayProjectionAttemptCleanupExecuteGuardrail              `json:"executeGuardrail"`
+	Export                    GatewayProjectionCleanupApprovalDecisionDraftReadinessExport `json:"export"`
+}
+
+// GatewayProjectionCleanupDecisionManualReviewChecklist 汇总人工审阅动作缺口。
+// 这里只暴露 action/evidence alias，不保存操作者身份、审批正文或敏感材料。
+type GatewayProjectionCleanupDecisionManualReviewChecklist struct {
+	Required                bool     `json:"required"`
+	Status                  string   `json:"status"`
+	RequiredActionAliases   []string `json:"requiredActionAliases"`
+	MissingActionAliases    []string `json:"missingActionAliases,omitempty"`
+	RequiredEvidenceAliases []string `json:"requiredEvidenceAliases"`
+	MissingEvidenceAliases  []string `json:"missingEvidenceAliases,omitempty"`
+}
+
+// GatewayProjectionCleanupDecisionRetentionSummary 是 decision draft 的保留期摘要。
+// 它只包含策略版本、计数和 dry-run freshness，不包含 attempt 明细或 raw Gateway response。
+type GatewayProjectionCleanupDecisionRetentionSummary struct {
+	RetentionPolicyVersion string                                  `json:"retentionPolicyVersion"`
+	CandidateCount         int                                     `json:"candidateCount"`
+	BlockedCount           int                                     `json:"blockedCount"`
+	LastDryRunFreshness    GatewayProjectionCleanupDryRunFreshness `json:"lastDryRunFreshness"`
+}
+
+// GatewayProjectionCleanupDecisionRedactionSummary 明确 decision draft/export 的脱敏边界。
+type GatewayProjectionCleanupDecisionRedactionSummary struct {
+	Status         string   `json:"status"`
+	CopySafe       bool     `json:"copySafe"`
+	RedactedFields []string `json:"redactedFields"`
+}
+
+// GatewayProjectionCleanupApprovalDecisionDraftReadinessExport 是复制/导出用脱敏 decision draft。
+// 它排除 raw payload、下游私有 URL、完整组织树、完整 subject 明细和真实执行凭据。
+type GatewayProjectionCleanupApprovalDecisionDraftReadinessExport struct {
+	GeneratedAt             string                                                `json:"generatedAt"`
+	DecisionDraftId         string                                                `json:"decisionDraftId"`
+	DecisionDraftHash       string                                                `json:"decisionDraftHash"`
+	DecisionReadiness       string                                                `json:"decisionReadiness"`
+	DecisionState           string                                                `json:"decisionState"`
+	ExecutionMode           string                                                `json:"executionMode"`
+	CleanupExecutionAllowed bool                                                  `json:"cleanupExecutionAllowed"`
+	PolicyVersion           string                                                `json:"policyVersion"`
+	PolicyStatus            string                                                `json:"policyStatus"`
+	ReadinessHash           string                                                `json:"readinessHash"`
+	DryRunId                string                                                `json:"dryRunId"`
+	ManualReviewChecklist   GatewayProjectionCleanupDecisionManualReviewChecklist `json:"manualReviewChecklist"`
+	CannotInfer             GatewayProjectionCleanupApprovalCannotInfer           `json:"cannotInfer"`
+	BlockingReasons         []string                                              `json:"blockingReasons,omitempty"`
+	CopySafeLabels          []string                                              `json:"copySafeLabels"`
+	RetentionSummary        GatewayProjectionCleanupDecisionRetentionSummary      `json:"retentionSummary"`
+	AuditSummary            GatewayProjectionCleanupApprovalAuditTrailSummary     `json:"auditSummary"`
+	RedactionSummary        GatewayProjectionCleanupDecisionRedactionSummary      `json:"redactionSummary"`
+	OperatorNextAction      string                                                `json:"operatorNextAction"`
+	ExecuteGuardrail        GatewayProjectionAttemptCleanupExecuteGuardrail       `json:"executeGuardrail"`
+}
+
 type GatewayProjectionPublishAttemptStore interface {
 	RecordGatewayProjectionPublishAttempt(attempt *GatewayProjectionPublishAttempt) error
 	ListGatewayProjectionPublishAttempts(query GatewayProjectionPublishAttemptQuery) ([]*GatewayProjectionPublishAttempt, error)
@@ -859,6 +961,110 @@ func (s GatewayProjectionPublishAttemptHistoryService) CleanupApprovalPolicyRead
 		AuditSummary:              trail.Summary,
 		LastDryRunFreshness:       executeReadiness.LastDryRunFreshness,
 		ExecuteGuardrail:          executeReadiness.ExecuteGuardrail,
+		Export:                    export,
+	}, nil
+}
+
+// CleanupApprovalDecisionDraftReadiness 派生真实 cleanup gate 开放前的只读审批草案。
+// 它只消费 Admin-owned policy readiness/audit evidence，不创建真实 approval decision，也不修改 publish attempt。
+func (s GatewayProjectionPublishAttemptHistoryService) CleanupApprovalDecisionDraftReadiness(query GatewayProjectionCleanupApprovalDecisionDraftReadinessQuery) (*GatewayProjectionCleanupApprovalDecisionDraftReadiness, error) {
+	organizationID := normalizeGatewayProjectionString(query.OrganizationId)
+	if organizationID == "" {
+		return nil, errors.New("gateway projection organization is required")
+	}
+	policy, err := s.CleanupApprovalPolicyReadiness(GatewayProjectionCleanupApprovalPolicyReadinessQuery{
+		OrganizationId:          organizationID,
+		Source:                  query.Source,
+		Status:                  query.Status,
+		FailureCategory:         query.FailureCategory,
+		OlderThan:               query.OlderThan,
+		Limit:                   query.Limit,
+		ReadinessHash:           query.ReadinessHash,
+		DryRunGeneratedAt:       query.DryRunGeneratedAt,
+		MaxDryRunAgeSeconds:     query.MaxDryRunAgeSeconds,
+		ApprovalEvidenceAliases: query.ApprovalEvidenceAliases,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	decisionReadiness, decisionState, operatorNextAction := gatewayProjectionCleanupApprovalDecisionDraftState(policy)
+	blockingReasons := gatewayProjectionCleanupApprovalDecisionBlockingReasons(policy)
+	manualChecklist := buildGatewayProjectionCleanupDecisionManualReviewChecklist(policy, query.ApprovalEvidenceAliases)
+	retentionSummary := GatewayProjectionCleanupDecisionRetentionSummary{
+		RetentionPolicyVersion: policy.RetentionPolicyVersion,
+		CandidateCount:         policy.CandidateCount,
+		BlockedCount:           policy.BlockedCount,
+		LastDryRunFreshness:    policy.LastDryRunFreshness,
+	}
+	redactionSummary := GatewayProjectionCleanupDecisionRedactionSummary{
+		Status:   "redacted",
+		CopySafe: true,
+		RedactedFields: []string{
+			"token",
+			"cookie",
+			"private_url",
+			"raw_gateway_response",
+			"complete_organization_tree",
+			"complete_subject_details",
+			"gateway_authorization_facts",
+		},
+	}
+	copySafeLabels := buildGatewayProjectionCleanupDecisionCopySafeLabels(decisionReadiness, policy)
+	generatedAt := formatGatewayProjectionObservabilityTime(s.now())
+	decisionDraftHash := prefixedStableHash("decision-draft-hash-", organizationID, policy.ReadinessHash, policy.DryRunId, policy.PolicyStatus, decisionReadiness, decisionState)
+	decisionDraftID := prefixedStableHash("decision-draft-", organizationID, decisionDraftHash)
+	decisionSummary := gatewayProjectionCleanupApprovalDecisionSummary(decisionReadiness)
+	export := GatewayProjectionCleanupApprovalDecisionDraftReadinessExport{
+		GeneratedAt:             generatedAt,
+		DecisionDraftId:         decisionDraftID,
+		DecisionDraftHash:       decisionDraftHash,
+		DecisionReadiness:       decisionReadiness,
+		DecisionState:           decisionState,
+		ExecutionMode:           "manual_review_only",
+		CleanupExecutionAllowed: false,
+		PolicyVersion:           policy.PolicyVersion,
+		PolicyStatus:            policy.PolicyStatus,
+		ReadinessHash:           policy.ReadinessHash,
+		DryRunId:                policy.DryRunId,
+		ManualReviewChecklist:   manualChecklist,
+		CannotInfer:             policy.CannotInfer,
+		BlockingReasons:         blockingReasons,
+		CopySafeLabels:          copySafeLabels,
+		RetentionSummary:        retentionSummary,
+		AuditSummary:            policy.AuditSummary,
+		RedactionSummary:        redactionSummary,
+		OperatorNextAction:      operatorNextAction,
+		ExecuteGuardrail:        policy.ExecuteGuardrail,
+	}
+	return &GatewayProjectionCleanupApprovalDecisionDraftReadiness{
+		GeneratedAt:               generatedAt,
+		DecisionDraftId:           decisionDraftID,
+		DecisionDraftHash:         decisionDraftHash,
+		DecisionReadiness:         decisionReadiness,
+		DecisionState:             decisionState,
+		DecisionSummary:           decisionSummary,
+		ExecutionMode:             "manual_review_only",
+		CleanupExecutionAllowed:   false,
+		StorageScope:              GatewayProjectionCleanupDecisionDraftStorageScope,
+		PolicyVersion:             policy.PolicyVersion,
+		PolicyStatus:              policy.PolicyStatus,
+		RetentionPolicyVersion:    policy.RetentionPolicyVersion,
+		ApprovalAuditStorageScope: policy.ApprovalAuditStorageScope,
+		ReadinessHash:             policy.ReadinessHash,
+		DryRunId:                  policy.DryRunId,
+		CandidateCount:            policy.CandidateCount,
+		BlockedCount:              policy.BlockedCount,
+		ManualReviewChecklist:     manualChecklist,
+		CannotInfer:               policy.CannotInfer,
+		BlockingReasons:           blockingReasons,
+		CopySafeLabels:            copySafeLabels,
+		RetentionSummary:          retentionSummary,
+		AuditSummary:              policy.AuditSummary,
+		RedactionSummary:          redactionSummary,
+		OperatorNextAction:        operatorNextAction,
+		PolicyGates:               policy.PolicyGates,
+		ExecuteGuardrail:          policy.ExecuteGuardrail,
 		Export:                    export,
 	}, nil
 }
@@ -1435,6 +1641,87 @@ func firstPolicyGateReasonAlias(reasons []string, candidates ...string) string {
 		}
 	}
 	return ""
+}
+
+func gatewayProjectionCleanupApprovalDecisionDraftState(policy *GatewayProjectionCleanupApprovalPolicyReadiness) (string, string, string) {
+	if policy == nil {
+		return "cannot_infer", "policy_readiness_unavailable", "rerun_cleanup_approval_policy_readiness"
+	}
+	switch policy.PolicyStatus {
+	case "manual_review_ready":
+		return "draft_ready", "manual_review_ready_no_execution", "review_decision_draft_with_master_control"
+	case "manual_review_required":
+		return "manual_review_required", "manual_review_checklist_incomplete", "complete_manual_review_checklist"
+	case "blocked":
+		return "blocked", "approval_policy_blocked", "review_blocking_reasons"
+	case "cannot_infer":
+		return "cannot_infer", "approval_policy_cannot_infer", "refresh_cleanup_approval_policy_readiness"
+	default:
+		return "cannot_infer", "approval_policy_unknown", "refresh_cleanup_approval_policy_readiness"
+	}
+}
+
+func gatewayProjectionCleanupApprovalDecisionSummary(decisionReadiness string) string {
+	switch decisionReadiness {
+	case "draft_ready":
+		return "decision_draft_ready_for_manual_review_without_cleanup_execution"
+	case "manual_review_required":
+		return "decision_draft_waiting_for_manual_review_actions"
+	case "blocked":
+		return "decision_draft_blocked_by_policy_or_reject_action"
+	default:
+		return "decision_draft_cannot_infer_required_evidence"
+	}
+}
+
+func gatewayProjectionCleanupApprovalDecisionBlockingReasons(policy *GatewayProjectionCleanupApprovalPolicyReadiness) []string {
+	if policy == nil {
+		return []string{"cleanup_approval_policy_unavailable"}
+	}
+	reasons := append([]string(nil), policy.CannotInfer.ReasonAliases...)
+	if policy.PolicyStatus == "manual_review_required" && len(policy.ManualReview.MissingActionAliases) > 0 {
+		reasons = append(reasons, "manual_review_action_missing")
+	}
+	if policy.PolicyStatus == "blocked" && len(reasons) == 0 {
+		reasons = append(reasons, "approval_policy_blocked")
+	}
+	return normalizeGatewayProjectionCleanupAuditAliasSlice(reasons)
+}
+
+func buildGatewayProjectionCleanupDecisionManualReviewChecklist(policy *GatewayProjectionCleanupApprovalPolicyReadiness, providedEvidence []string) GatewayProjectionCleanupDecisionManualReviewChecklist {
+	checklist := GatewayProjectionCleanupDecisionManualReviewChecklist{
+		Required:                true,
+		Status:                  "missing",
+		RequiredActionAliases:   requiredGatewayProjectionCleanupApprovalPolicyActionAliases(),
+		RequiredEvidenceAliases: allGatewayProjectionCleanupApprovalEvidenceAliases(),
+	}
+	if policy != nil {
+		checklist.Status = policy.ManualReview.Status
+		checklist.Required = policy.ManualReview.Required
+		checklist.RequiredActionAliases = append([]string(nil), policy.ManualReview.RequiredActionAliases...)
+		checklist.MissingActionAliases = append([]string(nil), policy.ManualReview.MissingActionAliases...)
+	}
+	approval := buildGatewayProjectionCleanupOperatorApproval(providedEvidence)
+	checklist.MissingEvidenceAliases = append([]string(nil), approval.MissingEvidenceAliases...)
+	return checklist
+}
+
+func buildGatewayProjectionCleanupDecisionCopySafeLabels(decisionReadiness string, policy *GatewayProjectionCleanupApprovalPolicyReadiness) []string {
+	labels := []string{
+		"admin_producer_diagnostics_only",
+		"manual_review_only",
+		"cleanup_execution_not_enabled",
+		"gateway_receipt_hint_diagnostic_not_authorization_fact",
+		"sanitized_export_only",
+		"decision_readiness_" + normalizeGatewayProjectionCleanupAuditAlias(decisionReadiness),
+	}
+	if policy != nil {
+		labels = append(labels,
+			"policy_status_"+normalizeGatewayProjectionCleanupAuditAlias(policy.PolicyStatus),
+			"policy_version_"+normalizeGatewayProjectionCleanupAuditAlias(policy.PolicyVersion),
+		)
+	}
+	return normalizeGatewayProjectionCleanupAuditAliasSlice(labels)
 }
 
 func enrichGatewayProjectionPublishAttempt(attempt *GatewayProjectionPublishAttempt, organizationID string, now time.Time) *GatewayProjectionPublishAttempt {

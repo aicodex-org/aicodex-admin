@@ -15,10 +15,14 @@
 package controllers
 
 import (
+	"errors"
+	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
 	"git.leagsoft.com/aicodex/aicodex-admin/object"
+	webcontext "github.com/beego/beego/v2/server/web/context"
 )
 
 func TestGatewayProjectionIngestionStatusErrorMessageIsSanitized(t *testing.T) {
@@ -47,4 +51,70 @@ func TestParseGatewayProjectionQueryCSVTrimsEmptyApprovalEvidence(t *testing.T) 
 			t.Fatalf("csv[%d] = %q, want %q", i, got[i], want[i])
 		}
 	}
+}
+
+func TestGatewayProjectionCleanupApprovalDecisionDraftHandlerIsExposed(t *testing.T) {
+	if _, ok := reflect.TypeOf(&ApiController{}).MethodByName("GetGatewayProjectionPublishAttemptRetentionCleanupApprovalDecisionDraftReadiness"); !ok {
+		t.Fatalf("ApiController should expose cleanup approval decision draft readiness handler")
+	}
+}
+
+func TestGatewayProjectionCleanupApprovalDecisionDraftHandlerReturnsReadOnlyEnvelope(t *testing.T) {
+	controller := newGatewayProjectionObservabilityTestController("/api/gateway-projection/publish-attempt-retention-cleanup-approval-decision-draft-readiness?organization=org-a&approvalEvidence=dry_run_export_reviewed")
+
+	controller.GetGatewayProjectionPublishAttemptRetentionCleanupApprovalDecisionDraftReadiness()
+
+	resp, ok := controller.Data["json"].(*Response)
+	if !ok || resp.Status != "ok" {
+		t.Fatalf("response = %#v, want ok response", controller.Data["json"])
+	}
+	draft, ok := resp.Data.(*object.GatewayProjectionCleanupApprovalDecisionDraftReadiness)
+	if !ok {
+		t.Fatalf("response data = %#v, want decision draft readiness", resp.Data)
+	}
+	if draft.ExecutionMode != "manual_review_only" || draft.CleanupExecutionAllowed || draft.ExecuteGuardrail.Enabled {
+		t.Fatalf("draft execution boundary = mode %q allowed=%v guardrail=%#v, want read-only disabled", draft.ExecutionMode, draft.CleanupExecutionAllowed, draft.ExecuteGuardrail)
+	}
+}
+
+func TestGatewayProjectionCleanupApprovalDecisionDraftHandlerRequiresOrganization(t *testing.T) {
+	controller := newGatewayProjectionObservabilityTestController("/api/gateway-projection/publish-attempt-retention-cleanup-approval-decision-draft-readiness")
+
+	controller.GetGatewayProjectionPublishAttemptRetentionCleanupApprovalDecisionDraftReadiness()
+
+	resp, ok := controller.Data["json"].(*Response)
+	if !ok || resp.Status != "error" || !strings.Contains(resp.Msg, "organization is required") {
+		t.Fatalf("response = %#v, want organization required error", controller.Data["json"])
+	}
+}
+
+func TestGatewayProjectionCleanupApprovalDecisionDraftHandlerFailsClosedOnServiceError(t *testing.T) {
+	original := getGatewayProjectionCleanupApprovalDecisionDraftReadiness
+	defer func() {
+		getGatewayProjectionCleanupApprovalDecisionDraftReadiness = original
+	}()
+	getGatewayProjectionCleanupApprovalDecisionDraftReadiness = func(query object.GatewayProjectionCleanupApprovalDecisionDraftReadinessQuery) (*object.GatewayProjectionCleanupApprovalDecisionDraftReadiness, error) {
+		if query.OrganizationId != "org-a" {
+			t.Fatalf("organization = %q, want org-a", query.OrganizationId)
+		}
+		return nil, errors.New("assert decision draft unavailable")
+	}
+	controller := newGatewayProjectionObservabilityTestController("/api/gateway-projection/publish-attempt-retention-cleanup-approval-decision-draft-readiness?organization=org-a")
+
+	controller.GetGatewayProjectionPublishAttemptRetentionCleanupApprovalDecisionDraftReadiness()
+
+	resp, ok := controller.Data["json"].(*Response)
+	if !ok || resp.Status != "error" || !strings.Contains(resp.Msg, "decision draft unavailable") {
+		t.Fatalf("response = %#v, want service error", controller.Data["json"])
+	}
+}
+
+func newGatewayProjectionObservabilityTestController(target string) *ApiController {
+	request := httptest.NewRequest("GET", target, nil)
+	recorder := httptest.NewRecorder()
+	ctx := webcontext.NewContext()
+	ctx.Reset(recorder, request)
+	controller := &ApiController{}
+	controller.Init(ctx, "ApiController", "GetGatewayProjectionPublishAttemptRetentionCleanupApprovalDecisionDraftReadiness", controller)
+	return controller
 }

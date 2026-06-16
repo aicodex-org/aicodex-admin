@@ -172,6 +172,7 @@ class PlatformApiMappingPage extends React.Component {
       cleanupDryRunLoading: false,
       cleanupExecuteReadinessLoading: false,
       cleanupApprovalPolicyLoading: false,
+      cleanupApprovalDecisionDraftLoading: false,
       cleanupApprovalAuditLoading: false,
       cleanupApprovalAuditRecording: false,
       attemptDetailLoading: false,
@@ -189,6 +190,7 @@ class PlatformApiMappingPage extends React.Component {
       cleanupDryRun: null,
       cleanupExecuteReadiness: null,
       cleanupApprovalPolicyReadiness: null,
+      cleanupApprovalDecisionDraftReadiness: null,
       cleanupApprovalAuditTrail: null,
       attemptSource: "",
       attemptStatus: "",
@@ -371,6 +373,7 @@ class PlatformApiMappingPage extends React.Component {
       this.refreshGatewayProjectionPublishAttemptCleanupDryRun(organization, {source, status});
       this.refreshGatewayProjectionPublishAttemptCleanupExecuteReadiness(organization, {source, status});
       this.refreshGatewayProjectionPublishAttemptCleanupApprovalPolicyReadiness(organization);
+      this.refreshGatewayProjectionPublishAttemptCleanupApprovalDecisionDraftReadiness(organization);
       this.refreshGatewayProjectionPublishAttemptCleanupApprovalAuditTrail(organization);
     }).catch(error => {
       this.setState({attemptsLoading: false});
@@ -459,6 +462,9 @@ class PlatformApiMappingPage extends React.Component {
         this.refreshGatewayProjectionPublishAttemptCleanupApprovalPolicyReadiness(organization, {
           readinessHash: res.data?.dryRunHash,
         });
+        this.refreshGatewayProjectionPublishAttemptCleanupApprovalDecisionDraftReadiness(organization, {
+          readinessHash: res.data?.dryRunHash,
+        });
       }
     }).catch(error => {
       this.setState({cleanupExecuteReadinessLoading: false});
@@ -513,8 +519,46 @@ class PlatformApiMappingPage extends React.Component {
         cleanupApprovalPolicyLoading: false,
         cleanupApprovalPolicyReadiness: res.status === "ok" ? res.data : null,
       });
+      if (res.status === "ok") {
+        this.refreshGatewayProjectionPublishAttemptCleanupApprovalDecisionDraftReadiness(organization, {
+          source,
+          status,
+          readinessHash: res.data?.readinessHash,
+        });
+      }
     }).catch(error => {
       this.setState({cleanupApprovalPolicyLoading: false});
+      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+    });
+  }
+
+  refreshGatewayProjectionPublishAttemptCleanupApprovalDecisionDraftReadiness(organization = this.state.organization, options = {}) {
+    if (!organization) {
+      return Promise.resolve();
+    }
+    const source = options.source !== undefined ? options.source : this.state.attemptSource;
+    const status = options.status !== undefined ? options.status : this.state.attemptStatus;
+    const readinessHash = options.readinessHash !== undefined
+      ? options.readinessHash
+      : (this.state.cleanupApprovalPolicyReadiness?.readinessHash || this.state.cleanupExecuteReadiness?.dryRunHash);
+
+    this.setState({cleanupApprovalDecisionDraftLoading: true});
+    return PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalDecisionDraftReadiness(organization, {
+      source,
+      status,
+      readinessHash,
+      approvalEvidence: cleanupApprovalPolicyEvidenceAliases,
+      limit: 100,
+    }).then((res) => {
+      if (res.status === "error") {
+        Setting.showMessage("error", res.msg);
+      }
+      this.setState({
+        cleanupApprovalDecisionDraftLoading: false,
+        cleanupApprovalDecisionDraftReadiness: res.status === "ok" ? res.data : null,
+      });
+    }).catch(error => {
+      this.setState({cleanupApprovalDecisionDraftLoading: false});
       Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
     });
   }
@@ -577,6 +621,7 @@ class PlatformApiMappingPage extends React.Component {
       cleanupDryRun: null,
       cleanupExecuteReadiness: null,
       cleanupApprovalPolicyReadiness: null,
+      cleanupApprovalDecisionDraftReadiness: null,
       cleanupApprovalAuditTrail: null,
       attemptSource: "",
       attemptStatus: "",
@@ -989,6 +1034,46 @@ class PlatformApiMappingPage extends React.Component {
     Setting.showMessage("warning", "当前浏览器不支持自动复制，请从只读响应中导出");
   }
 
+  copyCleanupApprovalDecisionDraftReadinessExport() {
+    const draft = this.state.cleanupApprovalDecisionDraftReadiness;
+    if (!draft) {
+      Setting.showMessage("warning", "cleanup approval decision draft 尚未加载");
+      return;
+    }
+    const text = JSON.stringify(draft.export || {
+      generatedAt: draft.generatedAt,
+      decisionDraftId: draft.decisionDraftId,
+      decisionDraftHash: draft.decisionDraftHash,
+      decisionReadiness: draft.decisionReadiness,
+      decisionState: draft.decisionState,
+      executionMode: draft.executionMode,
+      cleanupExecutionAllowed: !!draft.cleanupExecutionAllowed,
+      policyVersion: draft.policyVersion,
+      policyStatus: draft.policyStatus,
+      readinessHash: draft.readinessHash,
+      dryRunId: draft.dryRunId,
+      manualReviewChecklist: draft.manualReviewChecklist || {},
+      cannotInfer: draft.cannotInfer || {},
+      blockingReasons: draft.blockingReasons || [],
+      copySafeLabels: draft.copySafeLabels || [],
+      retentionSummary: draft.retentionSummary || {},
+      auditSummary: draft.auditSummary || {},
+      redactionSummary: draft.redactionSummary || {},
+      operatorNextAction: draft.operatorNextAction,
+      executeGuardrail: draft.executeGuardrail || {},
+    }, null, 2);
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      Promise.resolve(navigator.clipboard.writeText(text)).then(() => {
+        Setting.showMessage("success", "已复制脱敏 decision draft JSON");
+        this.recordCleanupApprovalAuditAction("export");
+      }).catch(error => {
+        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      });
+      return;
+    }
+    Setting.showMessage("warning", "当前浏览器不支持自动复制，请从只读响应中导出");
+  }
+
   recordCleanupApprovalAuditAction(action) {
     const readiness = this.state.cleanupExecuteReadiness;
     if (!this.state.organization || !readiness) {
@@ -1233,6 +1318,7 @@ class PlatformApiMappingPage extends React.Component {
     const cleanupDryRun = this.state.cleanupDryRun;
     const cleanupExecuteReadiness = this.state.cleanupExecuteReadiness;
     const cleanupApprovalPolicyReadiness = this.state.cleanupApprovalPolicyReadiness;
+    const cleanupApprovalDecisionDraftReadiness = this.state.cleanupApprovalDecisionDraftReadiness;
     const cleanupApprovalAuditTrail = this.state.cleanupApprovalAuditTrail || {};
     const reasonCounts = retentionReadiness?.reasonCounts || {};
     const cleanupReasonCounts = cleanupDryRun?.reasonCounts || {};
@@ -1246,6 +1332,11 @@ class PlatformApiMappingPage extends React.Component {
     const policyCannotInfer = cleanupApprovalPolicyReadiness?.cannotInfer || {};
     const policyGates = cleanupApprovalPolicyReadiness?.policyGates || [];
     const policyAuditSummary = cleanupApprovalPolicyReadiness?.auditSummary || {};
+    const decisionManualChecklist = cleanupApprovalDecisionDraftReadiness?.manualReviewChecklist || {};
+    const decisionCannotInfer = cleanupApprovalDecisionDraftReadiness?.cannotInfer || {};
+    const decisionRetentionSummary = cleanupApprovalDecisionDraftReadiness?.retentionSummary || {};
+    const decisionAuditSummary = cleanupApprovalDecisionDraftReadiness?.auditSummary || {};
+    const decisionRedactionSummary = cleanupApprovalDecisionDraftReadiness?.redactionSummary || {};
     const auditSummary = cleanupApprovalAuditTrail.summary || {};
     const auditActionCounts = auditSummary.actionCounts || {};
     const auditStateCounts = auditSummary.approvalStateCounts || {};
@@ -1586,6 +1677,66 @@ class PlatformApiMappingPage extends React.Component {
                 {gate.name}: {gate.status}{gate.reasonAlias ? ` / ${gate.reasonAlias}` : ""}
               </Tag>
             ))}
+          </Space>
+        </Card>
+        <Card
+          type="inner"
+          size="small"
+          title="Cleanup approval decision draft"
+          style={{marginBottom: 12}}
+          extra={
+            <Space wrap>
+              <Button
+                icon={<ReloadOutlined />}
+                loading={this.state.cleanupApprovalDecisionDraftLoading}
+                onClick={() => this.refreshGatewayProjectionPublishAttemptCleanupApprovalDecisionDraftReadiness()}
+              >
+                刷新草案
+              </Button>
+              <Button disabled={!cleanupApprovalDecisionDraftReadiness} onClick={() => this.copyCleanupApprovalDecisionDraftReadinessExport()}>
+                复制草案 JSON
+              </Button>
+            </Space>
+          }
+        >
+          <Alert
+            type={cleanupApprovalDecisionDraftReadiness?.decisionReadiness === "blocked" ? "error" : cleanupApprovalDecisionDraftReadiness?.decisionReadiness === "draft_ready" ? "success" : "warning"}
+            showIcon
+            message={`Decision draft: ${cleanupApprovalDecisionDraftReadiness?.decisionReadiness || "未加载"}`}
+            description={`operatorNextAction: ${cleanupApprovalDecisionDraftReadiness?.operatorNextAction || "等待 decision draft"}。该草案只用于 Admin producer 人工审阅，不是真实 approval decision，不打开 cleanup gate，也不是 Gateway runtime authorization success。`}
+            style={{marginBottom: 12}}
+          />
+          <Space wrap style={{marginBottom: 8}}>
+            <Tag>decisionState: {cleanupApprovalDecisionDraftReadiness?.decisionState || "unknown"}</Tag>
+            <Tag>executionMode: {cleanupApprovalDecisionDraftReadiness?.executionMode || "manual_review_only"}</Tag>
+            <Tag color={cleanupApprovalDecisionDraftReadiness?.cleanupExecutionAllowed ? "red" : "green"}>
+              cleanupExecutionAllowed: {String(!!cleanupApprovalDecisionDraftReadiness?.cleanupExecutionAllowed)}
+            </Tag>
+            <Tag>policyStatus: {cleanupApprovalDecisionDraftReadiness?.policyStatus || "unknown"}</Tag>
+            <Tag>manualChecklist: {decisionManualChecklist.status || "unknown"}</Tag>
+            <Tag color={decisionCannotInfer.value ? "orange" : "green"}>cannotInfer: {String(!!decisionCannotInfer.value)}</Tag>
+            <Tag>operatorNextAction: {cleanupApprovalDecisionDraftReadiness?.operatorNextAction || "waiting"}</Tag>
+          </Space>
+          <Space wrap style={{marginBottom: 8}}>
+            {cleanupApprovalDecisionDraftReadiness?.decisionDraftId && <Tag>decisionDraftId: {cleanupApprovalDecisionDraftReadiness.decisionDraftId}</Tag>}
+            {cleanupApprovalDecisionDraftReadiness?.decisionDraftHash && <Tag>decisionDraftHash: {cleanupApprovalDecisionDraftReadiness.decisionDraftHash}</Tag>}
+            {cleanupApprovalDecisionDraftReadiness?.readinessHash && <Tag>readinessHash: {cleanupApprovalDecisionDraftReadiness.readinessHash}</Tag>}
+          </Space>
+          <Space wrap style={{marginBottom: 8}}>
+            <Tag>retentionCandidate: {decisionRetentionSummary.candidateCount || 0}</Tag>
+            <Tag>retentionBlocked: {decisionRetentionSummary.blockedCount || 0}</Tag>
+            <Tag>auditActions: {Object.values(decisionAuditSummary.actionCounts || {}).reduce((sum, count) => sum + count, 0)}</Tag>
+            <Tag>redaction: {decisionRedactionSummary.status || "redacted"}</Tag>
+            <Tag>copySafe: {String(decisionRedactionSummary.copySafe !== false)}</Tag>
+          </Space>
+          <div style={{marginBottom: 8}}>
+            {(decisionManualChecklist.missingActionAliases || []).map(item => <Tag key={item} color="orange">{item}</Tag>)}
+            {(decisionManualChecklist.missingEvidenceAliases || []).map(item => <Tag key={item} color="orange">{item}</Tag>)}
+            {(decisionCannotInfer.reasonAliases || []).map(item => <Tag key={item} color="red">{item}</Tag>)}
+            {(cleanupApprovalDecisionDraftReadiness?.blockingReasons || []).map(item => <Tag key={item} color="red">{item}</Tag>)}
+          </div>
+          <Space wrap>
+            {(cleanupApprovalDecisionDraftReadiness?.copySafeLabels || []).map(item => <Tag key={item}>{item}</Tag>)}
           </Space>
         </Card>
         <Card

@@ -33,6 +33,7 @@ jest.mock("./backend/PlatformApiMappingBackend", () => ({
   getGatewayProjectionPublishAttemptCleanupDryRun: jest.fn(),
   getGatewayProjectionPublishAttemptCleanupExecuteReadiness: jest.fn(),
   getGatewayProjectionPublishAttemptCleanupApprovalPolicyReadiness: jest.fn(),
+  getGatewayProjectionPublishAttemptCleanupApprovalDecisionDraftReadiness: jest.fn(),
   getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail: jest.fn(),
   recordGatewayProjectionPublishAttemptCleanupApprovalAuditTrail: jest.fn(),
   updatePlatformApiOrganizationMapping: jest.fn(),
@@ -324,6 +325,66 @@ beforeEach(() => {
       },
     },
   });
+  PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalDecisionDraftReadiness.mockResolvedValue({
+    status: "ok",
+    data: {
+      generatedAt: "2026-06-15T13:07:00Z",
+      decisionDraftId: "decision-draft-synthetic",
+      decisionDraftHash: "decision-draft-hash-synthetic",
+      decisionReadiness: "draft_ready",
+      decisionState: "manual_review_ready_no_execution",
+      decisionSummary: "decision_draft_ready_for_manual_review_without_cleanup_execution",
+      executionMode: "manual_review_only",
+      cleanupExecutionAllowed: false,
+      policyVersion: "gateway_projection_cleanup_approval_policy.v1",
+      policyStatus: "manual_review_ready",
+      readinessHash: "dryrun-hash-synthetic",
+      dryRunId: "dryrun-synthetic",
+      candidateCount: 1,
+      blockedCount: 0,
+      manualReviewChecklist: {
+        required: true,
+        status: "ready",
+        requiredActionAliases: ["approve", "copy", "export"],
+        requiredEvidenceAliases: ["dry_run_export_reviewed"],
+      },
+      cannotInfer: {
+        value: false,
+        reasonAliases: [],
+      },
+      blockingReasons: [],
+      copySafeLabels: [
+        "admin_producer_diagnostics_only",
+        "manual_review_only",
+        "cleanup_execution_not_enabled",
+      ],
+      retentionSummary: {
+        retentionPolicyVersion: "gateway_projection_publish_attempt_retention.v1",
+        candidateCount: 1,
+        blockedCount: 0,
+      },
+      auditSummary: {
+        actionCounts: {approve: 1, copy: 1, export: 1},
+        approvalStateCounts: {approved_preview: 1},
+      },
+      redactionSummary: {
+        status: "redacted",
+        copySafe: true,
+        redactedFields: ["token", "raw_gateway_response"],
+      },
+      operatorNextAction: "review_decision_draft_with_master_control",
+      executeGuardrail: {
+        enabled: false,
+        dryRunOnly: true,
+      },
+      export: {
+        decisionDraftId: "decision-draft-synthetic",
+        decisionReadiness: "draft_ready",
+        executionMode: "manual_review_only",
+        cleanupExecutionAllowed: false,
+      },
+    },
+  });
   PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail.mockResolvedValue({
     status: "ok",
     data: {
@@ -557,6 +618,12 @@ test("separates organization and user mapping tabs and loads user mappings on de
     approvalEvidence: "dry_run_export_reviewed,candidate_count_reviewed,receipt_hint_coverage_reviewed,no_blocked_attempts_confirmed",
     limit: 100,
   })));
+  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalDecisionDraftReadiness).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+    source: "",
+    status: "",
+    approvalEvidence: "dry_run_export_reviewed,candidate_count_reviewed,receipt_hint_coverage_reviewed,no_blocked_attempts_confirmed",
+    limit: 100,
+  })));
   await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     limit: 20,
   })));
@@ -598,6 +665,12 @@ test("separates organization and user mapping tabs and loads user mappings on de
   expect(screen.getByText(/Approval policy: manual_review_ready/)).toBeInTheDocument();
   expect(screen.getByText("manualReview: ready")).toBeInTheDocument();
   expect(screen.getByText("storage: derived_policy_readiness_not_persisted")).toBeInTheDocument();
+  expect(screen.getByText("Cleanup approval decision draft")).toBeInTheDocument();
+  expect(screen.getByText(/Decision draft: draft_ready/)).toBeInTheDocument();
+  expect(screen.getByText("decisionState: manual_review_ready_no_execution")).toBeInTheDocument();
+  expect(screen.getByText("cleanupExecutionAllowed: false")).toBeInTheDocument();
+  expect(screen.getByText("operatorNextAction: review_decision_draft_with_master_control")).toBeInTheDocument();
+  expect(screen.getByText("redaction: redacted")).toBeInTheDocument();
   expect(screen.getByText("Cleanup approval audit trail")).toBeInTheDocument();
   expect(screen.getByText(/Approval audit storage: admin_cleanup_approval_audit_trail.v1/)).toBeInTheDocument();
   expect(screen.getByText("candidateTotal: 1")).toBeInTheDocument();
@@ -687,6 +760,46 @@ test("copies redacted cleanup execute readiness export", async() => {
   expect(copied).toContain("approval_required");
   expect(copied).toContain("dryrun-hash-synthetic");
   expect(copied).not.toMatch(/rawGatewayResponse|projection-secret|gateway\.example\.invalid/);
+});
+
+test("copies redacted cleanup approval decision draft export", async() => {
+  const writeText = jest.fn();
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: {writeText},
+  });
+
+  render(<PlatformApiMappingPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  fireEvent.click(await screen.findByText("用户映射"));
+  fireEvent.click(await screen.findByText("复制草案 JSON"));
+
+  await wait(() => expect(writeText).toHaveBeenCalled());
+  const copied = writeText.mock.calls[0][0];
+  expect(copied).toContain("decision-draft-synthetic");
+  expect(copied).toContain("manual_review_only");
+  expect(copied).toContain("cleanupExecutionAllowed");
+  expect(copied).not.toMatch(/rawGatewayResponse|projection-secret|gateway\.example\.invalid|Authorization|Cookie/);
+  await wait(() => expect(PlatformApiMappingBackend.recordGatewayProjectionPublishAttemptCleanupApprovalAuditTrail).toHaveBeenCalledWith(expect.objectContaining({
+    organizationId: "org-alpha",
+    action: "export",
+    readinessHash: "dryrun-hash-synthetic",
+  })));
+});
+
+test("keeps cleanup approval decision draft panel disabled on error", async() => {
+  PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalDecisionDraftReadiness.mockResolvedValue({
+    status: "error",
+    msg: "decision draft unavailable",
+  });
+
+  render(<PlatformApiMappingPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  fireEvent.click(await screen.findByText("用户映射"));
+
+  await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "decision draft unavailable"));
+  expect(screen.getByText(/Decision draft: 未加载/)).toBeInTheDocument();
+  expect(screen.getByText("复制草案 JSON").closest("button")).toBeDisabled();
 });
 
 test("renders read-only remediation guidance for readiness categories", async() => {
