@@ -342,7 +342,7 @@ func newFeishuUserSnapshotFromRaw(operation string, raw map[string]json.RawMessa
 		Name:             rawFeishuString(firstRaw(raw, "name", "cn_name")),
 		Email:            rawFeishuString(raw["email"]),
 		Mobile:           rawFeishuString(raw["mobile"]),
-		Avatar:           rawFeishuString(firstRaw(raw, "avatar", "avatar_url")),
+		Avatar:           rawFeishuAvatarUrl(firstRaw(raw, "avatar", "avatar_url")),
 		Title:            rawFeishuString(firstRaw(raw, "job_title", "position")),
 		Status:           status,
 		Departments:      departments,
@@ -380,6 +380,22 @@ func rawFeishuString(raw json.RawMessage) string {
 	var obj map[string]any
 	if err := decodeFeishuResponse(bytes.NewReader(raw), &obj); err == nil {
 		if value, ok := obj["status"].(string); ok {
+			return value
+		}
+	}
+	return ""
+}
+
+func rawFeishuAvatarUrl(raw json.RawMessage) string {
+	if text := rawFeishuString(raw); text != "" {
+		return text
+	}
+	var obj map[string]any
+	if err := decodeFeishuResponse(bytes.NewReader(raw), &obj); err != nil {
+		return ""
+	}
+	for _, key := range []string{"avatar_origin", "avatar_640", "avatar_240", "avatar_72", "avatar_url", "url"} {
+		if value, ok := obj[key].(string); ok && strings.TrimSpace(value) != "" {
 			return value
 		}
 	}

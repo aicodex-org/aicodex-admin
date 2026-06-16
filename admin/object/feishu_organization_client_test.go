@@ -145,6 +145,29 @@ func TestFeishuUserSnapshotFromRawNormalizesContactV3Fields(t *testing.T) {
 	}
 }
 
+func TestFeishuUserSnapshotFromRawReadsAvatarObject(t *testing.T) {
+	raw := map[string]json.RawMessage{
+		"user_id":        json.RawMessage(`"ou_1"`),
+		"name":           json.RawMessage(`"Alice"`),
+		"department_ids": json.RawMessage(`["od-1"]`),
+		"avatar":         json.RawMessage(`{"avatar_72":"https://avatar.example/72.png","avatar_240":"https://avatar.example/240.png","avatar_640":"https://avatar.example/640.png","avatar_origin":"https://avatar.example/origin.png"}`),
+	}
+	user, err := newFeishuUserSnapshotFromRaw("test", raw)
+	if err != nil {
+		t.Fatalf("newFeishuUserSnapshotFromRaw() error = %v", err)
+	}
+	if user.Avatar != "https://avatar.example/origin.png" {
+		t.Fatalf("avatar = %q, want origin url from avatar object", user.Avatar)
+	}
+}
+
+func TestRawFeishuAvatarUrlFallsBackToSizedAvatar(t *testing.T) {
+	avatar := rawFeishuAvatarUrl(json.RawMessage(`{"avatar_72":"https://avatar.example/72.png","avatar_240":"https://avatar.example/240.png"}`))
+	if avatar != "https://avatar.example/240.png" {
+		t.Fatalf("avatar = %q, want largest available sized url", avatar)
+	}
+}
+
 func TestRawFeishuStringSliceHandlesStringNumberNullAndInvalidValues(t *testing.T) {
 	values, err := rawFeishuStringSlice(json.RawMessage(`["od-1","od-2"]`))
 	if err != nil {
