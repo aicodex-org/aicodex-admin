@@ -31,3 +31,32 @@
 
 - 当前真实 worktree 内的 `node_modules` 是中断安装后的不完整本地目录；最终报告将要求 reviewer 在常规非隐藏路径或 CI 中重新执行 `yarn install --frozen-lockfile` 后验证。
 - 本 change 暂不 archive，保留 active change 供主调度 review 和后续是否合入 `hfl-test-base` 决策。
+
+## 归档前复验（2026-06-16）
+
+- 工作分支：`hfl-test/archive-enable-incremental-typescript-for-web-admin`
+- 基线：`hfl-test-base@41859979c594bd3d6512fcc728804ad86340f4bf`
+- 归档前补充：为 `ShortcutsPage.tsx` 导出的 `buildShortcutItems` 增加中文 JSDoc，说明其作为 TSX smoke 迁移的稳定测试边界；不改变运行时行为。
+
+### 命令与结果
+
+- `openspec validate "enable-incremental-typescript-for-web-admin" --strict`
+  - 结果：通过，`Change 'enable-incremental-typescript-for-web-admin' is valid`
+- `git diff --check`
+  - 结果：通过，无空白错误。
+- `yarn typecheck`
+  - 结果：通过，执行 `tsc --noEmit`。
+- `yarn test --coverage --watchAll=false --runInBand ShortcutsPage.test.js --collectCoverageFrom=src/basic/ShortcutsPage.tsx`
+  - 结果：通过，1 suite / 2 tests；`ShortcutsPage.tsx` Statements 100% / Branches 100% / Functions 100% / Lines 100%。
+  - 说明：输出包含既有 React 18 `ReactDOM.render` 测试库兼容警告，不影响本次测试结果。
+- `yarn build`
+  - 结果：通过；仅有既有 bundle size、Browserslist 和 Node `fs.F_OK` deprecation warning。
+
+### 覆盖率结论
+
+- 覆盖率统计对象：本 change 实际迁移的生产文件 `src/basic/ShortcutsPage.tsx`。
+- 结果：Statements 100% / Branches 100% / Functions 100% / Lines 100%，达到 85% 归档门槛。
+
+### 脱敏说明
+
+- 本次归档前复验未使用或记录真实账号、密码、token、Cookie、client secret、私有 URL、生产连接串或可直连环境地址。

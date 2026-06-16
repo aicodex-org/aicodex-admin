@@ -21,6 +21,9 @@ const shortcutDefinitions: ShortcutDefinition[] = [
   {link: "/applications", name: i18next.t("general:Applications"), description: i18next.t("general:Applications that require authentication")},
 ];
 
+/**
+ * 构造快捷入口卡片数据，作为 TSX smoke 迁移的稳定测试边界。
+ */
 export function buildShortcutItems(staticBaseUrl: string = Setting.StaticBaseUrl): ShortcutItem[] {
   return shortcutDefinitions.map(item => ({
     ...item,
