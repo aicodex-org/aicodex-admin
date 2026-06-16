@@ -15,6 +15,22 @@ const (
 	FeishuHandoffEvidenceVersion     = "feishu-org-sync-handoff-evidence-v1"
 	FeishuHandoffEvidenceRedactionV1 = "feishu-handoff-evidence-redaction-v1"
 
+	FeishuHandoffAcceptanceChecklistVersion          = "feishu-handoff-acceptance-checklist-v1"
+	FeishuHandoffAcceptanceExecutionManualReviewOnly = "manual_review_only"
+
+	FeishuHandoffAcceptanceStatusPassed      = "passed"
+	FeishuHandoffAcceptanceStatusNeedsReview = "needs_review"
+	FeishuHandoffAcceptanceStatusBlocked     = "blocked"
+	FeishuHandoffAcceptanceStatusMissing     = "missing"
+	FeishuHandoffAcceptanceStatusCannotInfer = "cannot_infer"
+
+	FeishuHandoffAcceptanceSeverityInfo     = "info"
+	FeishuHandoffAcceptanceSeverityReview   = "review"
+	FeishuHandoffAcceptanceSeverityBlocking = "blocking"
+
+	FeishuHandoffAcceptanceSourceAdminLocalMetadata  = "admin_local_metadata"
+	FeishuHandoffAcceptanceSourceExternalOwnerNeeded = "external_owner_required"
+
 	FeishuHandoffEvidenceSourceLatest        = "latest"
 	FeishuHandoffEvidenceSourceRun           = "run"
 	FeishuHandoffEvidenceSourceDryRunHistory = "dry_run_history"
@@ -48,6 +64,7 @@ type FeishuOrganizationSyncHandoffEvidence struct {
 	OperatorNextActions    []string                            `json:"operatorNextActions"`
 	CannotInfer            []string                            `json:"cannotInfer"`
 	Redaction              FeishuHandoffEvidenceRedaction      `json:"redaction"`
+	AcceptanceChecklist    FeishuHandoffAcceptanceChecklist    `json:"acceptanceChecklist"`
 	GeneratedAt            string                              `json:"generatedAt"`
 	SafeSummary            string                              `json:"safeSummary"`
 }
@@ -105,6 +122,75 @@ type FeishuHandoffEvidenceRedaction struct {
 	Version string `json:"version"`
 }
 
+// FeishuHandoffAcceptanceChecklist 是由 handoff evidence 派生的只读验收清单。
+// 它不证明 provider truth 或下游验收，只给 operator 提供人工复核项和安全导出元数据。
+type FeishuHandoffAcceptanceChecklist struct {
+	Version                      string                                 `json:"version"`
+	ExecutionMode                string                                 `json:"executionMode"`
+	ManualReviewOnly             bool                                   `json:"manualReviewOnly"`
+	SafeSource                   FeishuHandoffAcceptanceSafeSource      `json:"safeSource"`
+	Summary                      FeishuHandoffAcceptanceSummary         `json:"summary"`
+	Items                        []FeishuHandoffAcceptanceChecklistItem `json:"items"`
+	ProviderOwnedEvidenceMissing []string                               `json:"providerOwnedEvidenceMissing"`
+	ManualReviewActions          []string                               `json:"manualReviewActions"`
+	CannotInfer                  []string                               `json:"cannotInfer"`
+	NoFallback                   []string                               `json:"noFallback"`
+	Redaction                    FeishuHandoffEvidenceRedaction         `json:"redaction"`
+	Retention                    FeishuHandoffAcceptanceRetention       `json:"retention"`
+}
+
+// FeishuHandoffAcceptanceSafeSource 只携带 evidence 的 alias/hash，不能放入 raw app/tenant/run/user 标识。
+type FeishuHandoffAcceptanceSafeSource struct {
+	SourceType             string `json:"sourceType"`
+	SourceIdHash           string `json:"sourceIdHash,omitempty"`
+	SourceConnectionIdHash string `json:"sourceConnectionIdHash,omitempty"`
+	SourceStatus           string `json:"sourceStatus,omitempty"`
+	SourceCreatedAt        string `json:"sourceCreatedAt,omitempty"`
+	EndpointMode           string `json:"endpointMode,omitempty"`
+	AppAlias               string `json:"appAlias,omitempty"`
+	TenantAlias            string `json:"tenantAlias,omitempty"`
+	Readiness              string `json:"readiness"`
+}
+
+// FeishuHandoffAcceptanceSummary 给前端和导出提供稳定计数，不包含明细身份数据。
+type FeishuHandoffAcceptanceSummary struct {
+	Total         int    `json:"total"`
+	Passed        int    `json:"passed"`
+	NeedsReview   int    `json:"needsReview"`
+	Blocked       int    `json:"blocked"`
+	Missing       int    `json:"missing"`
+	CannotInfer   int    `json:"cannotInfer"`
+	SafeSummary   string `json:"safeSummary"`
+	DerivedOnly   bool   `json:"derivedOnly"`
+	NoFallback    bool   `json:"noFallback"`
+	ProviderGaps  int    `json:"providerGaps"`
+	ManualActions int    `json:"manualActions"`
+}
+
+// FeishuHandoffAcceptanceChecklistItem 是 operator 可见的一行验收项。
+type FeishuHandoffAcceptanceChecklistItem struct {
+	Id                     string `json:"id"`
+	Status                 string `json:"status"`
+	Severity               string `json:"severity"`
+	Source                 string `json:"source"`
+	SafeSummary            string `json:"safeSummary"`
+	BlockedReasonAlias     string `json:"blockedReasonAlias,omitempty"`
+	RecommendedActionAlias string `json:"recommendedActionAlias,omitempty"`
+	ProviderOwned          bool   `json:"providerOwned"`
+	ManualReviewOnly       bool   `json:"manualReviewOnly"`
+	CannotInfer            bool   `json:"cannotInfer"`
+	NoFallback             bool   `json:"noFallback"`
+}
+
+// FeishuHandoffAcceptanceRetention 标记清单导出只能依赖已脱敏和有生命周期的本地摘要。
+type FeishuHandoffAcceptanceRetention struct {
+	RedactionApplied bool   `json:"redactionApplied"`
+	RedactionVersion string `json:"redactionVersion"`
+	RetentionDays    int    `json:"retentionDays"`
+	RetentionPolicy  string `json:"retentionPolicy"`
+	GeneratedAt      string `json:"generatedAt"`
+}
+
 // FeishuOrganizationSyncHandoffEvidenceFilter 描述只读 evidence 查询条件，SourceId 只用于本地查找。
 type FeishuOrganizationSyncHandoffEvidenceFilter struct {
 	Organization string
@@ -134,6 +220,7 @@ func (s *FeishuOrganizationSyncHandoffEvidenceService) GetEvidence(filter Feishu
 		evidence.SafeSummary = "飞书组织同步未配置或未启用，无法生成交接证据。"
 		evidence.OperatorNextActions = []string{"configure_feishu_sync"}
 		evidence.CannotInfer = defaultFeishuHandoffCannotInfer()
+		attachFeishuHandoffAcceptanceChecklist(evidence)
 		return evidence, nil
 	}
 	attachFeishuHandoffConfigMarkers(evidence, config)
@@ -157,6 +244,7 @@ func (s *FeishuOrganizationSyncHandoffEvidenceService) GetEvidence(filter Feishu
 		evidence.SourceType = sourceType
 		evidence.SafeSummary = "不支持的飞书交接证据来源类型。"
 		evidence.OperatorNextActions = []string{"select_supported_evidence_source"}
+		attachFeishuHandoffAcceptanceChecklist(evidence)
 		return evidence, nil
 	}
 	bindingDiagnostics, err := (&FeishuOrganizationSyncUserBindingConflictService{Now: s.now}).GetDiagnostics(FeishuUserBindingConflictDiagnosticsFilter{
@@ -168,6 +256,7 @@ func (s *FeishuOrganizationSyncHandoffEvidenceService) GetEvidence(filter Feishu
 	}
 	attachFeishuHandoffBindingSummary(evidence, bindingDiagnostics)
 	classifyFeishuHandoffEvidenceReadiness(evidence)
+	attachFeishuHandoffAcceptanceChecklist(evidence)
 	return evidence, nil
 }
 
@@ -393,6 +482,251 @@ func classifyFeishuHandoffEvidenceReadiness(evidence *FeishuOrganizationSyncHand
 	evidence.Readiness = FeishuHandoffEvidenceReadinessReady
 	evidence.SafeSummary = "交接证据已就绪，可复制或导出脱敏 JSON 供真实租户测试和验收交接。"
 	evidence.OperatorNextActions = []string{"export_evidence_json", "validate_real_tenant_runtime", "coordinate_gateway_insight_acceptance"}
+}
+
+func attachFeishuHandoffAcceptanceChecklist(evidence *FeishuOrganizationSyncHandoffEvidence) {
+	if evidence == nil {
+		return
+	}
+	evidence.AcceptanceChecklist = buildFeishuHandoffAcceptanceChecklist(evidence)
+}
+
+func buildFeishuHandoffAcceptanceChecklist(evidence *FeishuOrganizationSyncHandoffEvidence) FeishuHandoffAcceptanceChecklist {
+	checklist := FeishuHandoffAcceptanceChecklist{
+		Version:          FeishuHandoffAcceptanceChecklistVersion,
+		ExecutionMode:    FeishuHandoffAcceptanceExecutionManualReviewOnly,
+		ManualReviewOnly: true,
+		SafeSource: FeishuHandoffAcceptanceSafeSource{
+			SourceType:             evidence.SourceType,
+			SourceIdHash:           evidence.SourceIdHash,
+			SourceConnectionIdHash: evidence.SourceConnectionIdHash,
+			SourceStatus:           evidence.SourceStatus,
+			SourceCreatedAt:        evidence.SourceCreatedAt,
+			EndpointMode:           evidence.EndpointMode,
+			AppAlias:               evidence.AppAlias,
+			TenantAlias:            evidence.TenantAlias,
+			Readiness:              evidence.Readiness,
+		},
+		ProviderOwnedEvidenceMissing: defaultFeishuHandoffProviderOwnedEvidenceMissing(evidence),
+		CannotInfer:                  defaultFeishuHandoffAcceptanceCannotInfer(evidence),
+		NoFallback:                   defaultFeishuHandoffNoFallback(),
+		Redaction:                    evidence.Redaction,
+		Retention: FeishuHandoffAcceptanceRetention{
+			RedactionApplied: evidence.Redaction.Applied,
+			RedactionVersion: evidence.Redaction.Version,
+			RetentionDays:    FeishuOrganizationSyncDryRunHistoryRetentionDays,
+			RetentionPolicy:  "redacted_summary_retained",
+			GeneratedAt:      evidence.GeneratedAt,
+		},
+	}
+	checklist.Items = buildFeishuHandoffAcceptanceChecklistItems(evidence)
+	checklist.ManualReviewActions = buildFeishuHandoffManualReviewActions(evidence, checklist.Items)
+	checklist.Summary = summarizeFeishuHandoffAcceptanceChecklist(evidence, checklist)
+	return checklist
+}
+
+func buildFeishuHandoffAcceptanceChecklistItems(evidence *FeishuOrganizationSyncHandoffEvidence) []FeishuHandoffAcceptanceChecklistItem {
+	items := []FeishuHandoffAcceptanceChecklistItem{
+		buildFeishuHandoffSourceEvidenceItem(evidence),
+		buildFeishuHandoffReadinessItem(evidence),
+		buildFeishuHandoffBindingItem(evidence),
+		buildFeishuHandoffSoftDisableItem(evidence),
+		buildFeishuHandoffRedactionItem(evidence),
+		{
+			Id:                     "provider_truth",
+			Status:                 FeishuHandoffAcceptanceStatusCannotInfer,
+			Severity:               FeishuHandoffAcceptanceSeverityReview,
+			Source:                 FeishuHandoffAcceptanceSourceExternalOwnerNeeded,
+			SafeSummary:            "Provider 租户真值需要真实 Feishu/Lark 凭据和人工运行态验证。",
+			RecommendedActionAlias: "validate_real_tenant_runtime",
+			ProviderOwned:          true,
+			ManualReviewOnly:       true,
+			CannotInfer:            true,
+			NoFallback:             true,
+		},
+		{
+			Id:                     "downstream_acceptance",
+			Status:                 FeishuHandoffAcceptanceStatusCannotInfer,
+			Severity:               FeishuHandoffAcceptanceSeverityReview,
+			Source:                 FeishuHandoffAcceptanceSourceExternalOwnerNeeded,
+			SafeSummary:            "Gateway projection consumption 和 Insight acceptance 属于下游 owner 验收项。",
+			RecommendedActionAlias: "coordinate_gateway_insight_acceptance",
+			ProviderOwned:          true,
+			ManualReviewOnly:       true,
+			CannotInfer:            true,
+			NoFallback:             true,
+		},
+	}
+	return items
+}
+
+func buildFeishuHandoffSourceEvidenceItem(evidence *FeishuOrganizationSyncHandoffEvidence) FeishuHandoffAcceptanceChecklistItem {
+	status := FeishuHandoffAcceptanceStatusPassed
+	severity := FeishuHandoffAcceptanceSeverityInfo
+	action := "export_evidence_json"
+	summary := "已存在可用于交接的脱敏本地 run 或 dry-run 摘要。"
+	if evidence.SourceIdHash == "" {
+		status = FeishuHandoffAcceptanceStatusMissing
+		severity = FeishuHandoffAcceptanceSeverityReview
+		action = "run_dry_run_preview"
+		summary = "暂无可用于交接验收的本地 run 或 dry-run 摘要。"
+	}
+	if evidence.Readiness == FeishuHandoffEvidenceReadinessUnsupported {
+		status = FeishuHandoffAcceptanceStatusNeedsReview
+		action = "configure_feishu_sync"
+		summary = "需要先配置飞书组织同步，或选择受支持的 evidence source。"
+	}
+	return FeishuHandoffAcceptanceChecklistItem{
+		Id:                     "source_evidence",
+		Status:                 status,
+		Severity:               severity,
+		Source:                 FeishuHandoffAcceptanceSourceAdminLocalMetadata,
+		SafeSummary:            summary,
+		RecommendedActionAlias: action,
+		ManualReviewOnly:       true,
+	}
+}
+
+func buildFeishuHandoffReadinessItem(evidence *FeishuOrganizationSyncHandoffEvidence) FeishuHandoffAcceptanceChecklistItem {
+	item := FeishuHandoffAcceptanceChecklistItem{
+		Id:                     "handoff_readiness",
+		Status:                 FeishuHandoffAcceptanceStatusPassed,
+		Severity:               FeishuHandoffAcceptanceSeverityInfo,
+		Source:                 FeishuHandoffAcceptanceSourceAdminLocalMetadata,
+		SafeSummary:            "Admin 本地 evidence readiness 暂无本地阻断原因。",
+		RecommendedActionAlias: "export_acceptance_checklist",
+		ManualReviewOnly:       true,
+	}
+	switch evidence.Readiness {
+	case FeishuHandoffEvidenceReadinessBlocked:
+		item.Status = FeishuHandoffAcceptanceStatusBlocked
+		item.Severity = FeishuHandoffAcceptanceSeverityBlocking
+		item.SafeSummary = evidence.SafeSummary
+		item.BlockedReasonAlias = strings.Join(evidence.BlockedReasons, ",")
+		item.RecommendedActionAlias = firstNonEmpty(firstString(evidence.OperatorNextActions), "review_blocked_reasons")
+	case FeishuHandoffEvidenceReadinessNoRun:
+		item.Status = FeishuHandoffAcceptanceStatusMissing
+		item.Severity = FeishuHandoffAcceptanceSeverityReview
+		item.SafeSummary = evidence.SafeSummary
+		item.RecommendedActionAlias = "run_dry_run_preview"
+	case FeishuHandoffEvidenceReadinessUnsupported:
+		item.Status = FeishuHandoffAcceptanceStatusNeedsReview
+		item.Severity = FeishuHandoffAcceptanceSeverityReview
+		item.SafeSummary = evidence.SafeSummary
+		item.RecommendedActionAlias = firstNonEmpty(firstString(evidence.OperatorNextActions), "configure_feishu_sync")
+	}
+	return item
+}
+
+func buildFeishuHandoffBindingItem(evidence *FeishuOrganizationSyncHandoffEvidence) FeishuHandoffAcceptanceChecklistItem {
+	item := FeishuHandoffAcceptanceChecklistItem{
+		Id:                     "binding_conflicts",
+		Status:                 FeishuHandoffAcceptanceStatusPassed,
+		Severity:               FeishuHandoffAcceptanceSeverityInfo,
+		Source:                 FeishuHandoffAcceptanceSourceAdminLocalMetadata,
+		SafeSummary:            "安全诊断摘要中暂无阻断级本地绑定冲突。",
+		RecommendedActionAlias: "review_binding_diagnostics",
+		ManualReviewOnly:       true,
+	}
+	if evidence.BindingConflicts.Blocked {
+		item.Status = FeishuHandoffAcceptanceStatusBlocked
+		item.Severity = FeishuHandoffAcceptanceSeverityBlocking
+		item.SafeSummary = evidence.BindingConflicts.SafeSummary
+		item.BlockedReasonAlias = "binding_conflict_blocked"
+		item.RecommendedActionAlias = "resolve_binding_conflicts"
+	}
+	return item
+}
+
+func buildFeishuHandoffSoftDisableItem(evidence *FeishuOrganizationSyncHandoffEvidence) FeishuHandoffAcceptanceChecklistItem {
+	item := FeishuHandoffAcceptanceChecklistItem{
+		Id:                     "soft_disable_review",
+		Status:                 FeishuHandoffAcceptanceStatusPassed,
+		Severity:               FeishuHandoffAcceptanceSeverityInfo,
+		Source:                 FeishuHandoffAcceptanceSourceAdminLocalMetadata,
+		SafeSummary:            "本地聚合计数中暂无待复核软禁用影响。",
+		RecommendedActionAlias: "review_soft_disable_summary",
+		ManualReviewOnly:       true,
+	}
+	if evidence.SoftDisableSummary.TotalToSoftDisable > 0 {
+		item.Status = FeishuHandoffAcceptanceStatusNeedsReview
+		item.Severity = FeishuHandoffAcceptanceSeverityReview
+		item.SafeSummary = fmt.Sprintf("本地聚合计数包含 %d 个待复核软禁用影响。", evidence.SoftDisableSummary.TotalToSoftDisable)
+	}
+	return item
+}
+
+func buildFeishuHandoffRedactionItem(evidence *FeishuOrganizationSyncHandoffEvidence) FeishuHandoffAcceptanceChecklistItem {
+	status := FeishuHandoffAcceptanceStatusPassed
+	severity := FeishuHandoffAcceptanceSeverityInfo
+	summary := "Evidence 和 checklist 仅暴露安全 hash、alias、聚合计数和脱敏元数据。"
+	if !evidence.Redaction.Applied || evidence.Redaction.Version == "" {
+		status = FeishuHandoffAcceptanceStatusBlocked
+		severity = FeishuHandoffAcceptanceSeverityBlocking
+		summary = "缺少脱敏元数据，禁止导出该交接证据。"
+	}
+	return FeishuHandoffAcceptanceChecklistItem{
+		Id:                     "redaction",
+		Status:                 status,
+		Severity:               severity,
+		Source:                 FeishuHandoffAcceptanceSourceAdminLocalMetadata,
+		SafeSummary:            summary,
+		RecommendedActionAlias: "export_sanitized_evidence_only",
+		ManualReviewOnly:       true,
+	}
+}
+
+func summarizeFeishuHandoffAcceptanceChecklist(evidence *FeishuOrganizationSyncHandoffEvidence, checklist FeishuHandoffAcceptanceChecklist) FeishuHandoffAcceptanceSummary {
+	summary := FeishuHandoffAcceptanceSummary{
+		Total:        len(checklist.Items),
+		SafeSummary:  evidence.SafeSummary,
+		DerivedOnly:  true,
+		NoFallback:   len(checklist.NoFallback) > 0,
+		ProviderGaps: len(checklist.ProviderOwnedEvidenceMissing),
+	}
+	for _, item := range checklist.Items {
+		switch item.Status {
+		case FeishuHandoffAcceptanceStatusPassed:
+			summary.Passed++
+		case FeishuHandoffAcceptanceStatusNeedsReview:
+			summary.NeedsReview++
+		case FeishuHandoffAcceptanceStatusBlocked:
+			summary.Blocked++
+		case FeishuHandoffAcceptanceStatusMissing:
+			summary.Missing++
+		case FeishuHandoffAcceptanceStatusCannotInfer:
+			summary.CannotInfer++
+		}
+	}
+	summary.ManualActions = len(checklist.ManualReviewActions)
+	return summary
+}
+
+func buildFeishuHandoffManualReviewActions(evidence *FeishuOrganizationSyncHandoffEvidence, items []FeishuHandoffAcceptanceChecklistItem) []string {
+	actions := append([]string{}, evidence.OperatorNextActions...)
+	actions = append(actions, "copy_acceptance_checklist_json", "export_acceptance_checklist_markdown")
+	for _, item := range items {
+		if item.Status != FeishuHandoffAcceptanceStatusPassed {
+			actions = append(actions, item.RecommendedActionAlias)
+		}
+	}
+	return uniqueNonEmptyStrings(actions)
+}
+
+func defaultFeishuHandoffProviderOwnedEvidenceMissing(evidence *FeishuOrganizationSyncHandoffEvidence) []string {
+	missing := append([]string{}, evidence.CannotInfer...)
+	missing = append(missing, "provider_payload_validation", "sync_full_success", "production_readiness")
+	return uniqueNonEmptyStrings(missing)
+}
+
+func defaultFeishuHandoffAcceptanceCannotInfer(evidence *FeishuOrganizationSyncHandoffEvidence) []string {
+	values := append([]string{}, evidence.CannotInfer...)
+	values = append(values, "provider_truth", "sync_full_success", "production_readiness")
+	return uniqueNonEmptyStrings(values)
+}
+
+func defaultFeishuHandoffNoFallback() []string {
+	return []string{"gateway_projection_consumption", "insight_acceptance", "production_readiness", "provider_truth", "sync_full_success"}
 }
 
 func recommendedFeishuHandoffActions(evidence *FeishuOrganizationSyncHandoffEvidence) []string {

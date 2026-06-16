@@ -42,6 +42,85 @@ func TestFeishuOrganizationSyncHandoffEvidenceReadyFromDryRunHistory(t *testing.
 	assertFeishuHandoffEvidenceRedacted(t, evidence)
 }
 
+func TestFeishuOrganizationSyncHandoffEvidenceBuildsAcceptanceChecklist(t *testing.T) {
+	setupFeishuOrganizationSyncSqlite(t)
+	now := time.Date(2026, 6, 15, 20, 10, 0, 0, time.UTC)
+	insertFeishuBindingConfig(t, "engineering", "cli-real", "tenant-real", FeishuEndpointModeDomestic, true)
+	insertFeishuHandoffDryRunHistory(t, now, FeishuOrganizationSyncDryRunPreviewStatusSucceeded, 0, 0)
+
+	evidence, err := (&FeishuOrganizationSyncHandoffEvidenceService{Now: func() time.Time { return now }}).GetEvidence(FeishuOrganizationSyncHandoffEvidenceFilter{
+		Organization: "engineering",
+		SourceType:   FeishuHandoffEvidenceSourceLatest,
+	})
+	if err != nil {
+		t.Fatalf("GetEvidence() error = %v", err)
+	}
+	checklist := evidence.AcceptanceChecklist
+	if checklist.Version != FeishuHandoffAcceptanceChecklistVersion || !checklist.ManualReviewOnly || checklist.ExecutionMode != FeishuHandoffAcceptanceExecutionManualReviewOnly {
+		t.Fatalf("checklist metadata = %+v, want manual-review-only v1", checklist)
+	}
+	if checklist.SafeSource.SourceIdHash != evidence.SourceIdHash || checklist.SafeSource.SourceConnectionIdHash != evidence.SourceConnectionIdHash {
+		t.Fatalf("safe source = %+v, want evidence hashes", checklist.SafeSource)
+	}
+	if checklist.Summary.Total == 0 || checklist.Summary.Passed == 0 || checklist.Summary.CannotInfer == 0 {
+		t.Fatalf("checklist summary = %+v, want passed and cannot-infer items", checklist.Summary)
+	}
+	if !containsString(checklist.ProviderOwnedEvidenceMissing, "live_contact_v3_credentials") || !containsString(checklist.ProviderOwnedEvidenceMissing, "gateway_projection_consumption") {
+		t.Fatalf("provider missing = %+v, want provider-owned gaps", checklist.ProviderOwnedEvidenceMissing)
+	}
+	if !containsString(checklist.NoFallback, "production_readiness") {
+		t.Fatalf("noFallback = %+v, want production_readiness", checklist.NoFallback)
+	}
+	if !containsString(checklist.ManualReviewActions, "validate_real_tenant_runtime") {
+		t.Fatalf("manual actions = %+v, want runtime validation", checklist.ManualReviewActions)
+	}
+	if !checklist.Retention.RedactionApplied || checklist.Retention.RetentionDays != FeishuOrganizationSyncDryRunHistoryRetentionDays {
+		t.Fatalf("retention = %+v, want dry-run retention/redaction metadata", checklist.Retention)
+	}
+	if !hasFeishuHandoffChecklistItem(checklist.Items, "redaction", FeishuHandoffAcceptanceStatusPassed) {
+		t.Fatalf("items = %+v, want passed redaction item", checklist.Items)
+	}
+	if !hasFeishuHandoffChecklistItem(checklist.Items, "provider_truth", FeishuHandoffAcceptanceStatusCannotInfer) {
+		t.Fatalf("items = %+v, want provider truth cannot-infer item", checklist.Items)
+	}
+	assertFeishuHandoffEvidenceRedacted(t, evidence)
+}
+
+func TestFeishuOrganizationSyncHandoffEvidenceAcceptanceChecklistBlockedNoRunAndUnsupported(t *testing.T) {
+	setupFeishuOrganizationSyncSqlite(t)
+	now := time.Date(2026, 6, 15, 20, 40, 0, 0, time.UTC)
+	service := &FeishuOrganizationSyncHandoffEvidenceService{Now: func() time.Time { return now }}
+	insertFeishuBindingConfig(t, "engineering", "cli-real", "tenant-real", FeishuEndpointModeDomestic, true)
+	insertFeishuHandoffRun(t, "run-failed", now, FeishuOrganizationSyncRunStatusFailed)
+
+	blocked, err := service.GetEvidence(FeishuOrganizationSyncHandoffEvidenceFilter{Organization: "engineering", SourceType: FeishuHandoffEvidenceSourceRun, SourceId: "run-failed"})
+	if err != nil {
+		t.Fatalf("GetEvidence(blocked) error = %v", err)
+	}
+	if blocked.AcceptanceChecklist.Summary.Blocked == 0 || !hasFeishuHandoffChecklistItem(blocked.AcceptanceChecklist.Items, "handoff_readiness", FeishuHandoffAcceptanceStatusBlocked) {
+		t.Fatalf("blocked checklist = %+v, want blocked handoff readiness", blocked.AcceptanceChecklist)
+	}
+
+	setupFeishuOrganizationSyncSqlite(t)
+	insertFeishuBindingConfig(t, "engineering", "cli-real", "tenant-real", FeishuEndpointModeDomestic, true)
+	noRun, err := service.GetEvidence(FeishuOrganizationSyncHandoffEvidenceFilter{Organization: "engineering"})
+	if err != nil {
+		t.Fatalf("GetEvidence(no-run) error = %v", err)
+	}
+	if noRun.AcceptanceChecklist.Summary.Missing == 0 || !hasFeishuHandoffChecklistItem(noRun.AcceptanceChecklist.Items, "source_evidence", FeishuHandoffAcceptanceStatusMissing) {
+		t.Fatalf("no-run checklist = %+v, want missing source evidence", noRun.AcceptanceChecklist)
+	}
+
+	setupFeishuOrganizationSyncSqlite(t)
+	unsupported, err := service.GetEvidence(FeishuOrganizationSyncHandoffEvidenceFilter{Organization: "engineering"})
+	if err != nil {
+		t.Fatalf("GetEvidence(unsupported) error = %v", err)
+	}
+	if unsupported.AcceptanceChecklist.Summary.NeedsReview == 0 || !containsString(unsupported.AcceptanceChecklist.ManualReviewActions, "configure_feishu_sync") {
+		t.Fatalf("unsupported checklist = %+v, want configure action", unsupported.AcceptanceChecklist)
+	}
+}
+
 func TestFeishuOrganizationSyncHandoffEvidenceBlockedByRunAndBinding(t *testing.T) {
 	setupFeishuOrganizationSyncSqlite(t)
 	now := time.Date(2026, 6, 15, 20, 30, 0, 0, time.UTC)
@@ -74,6 +153,15 @@ func TestFeishuOrganizationSyncHandoffEvidenceBlockedByRunAndBinding(t *testing.
 		t.Fatalf("blocked reasons = %+v, want run and binding reasons", evidence.BlockedReasons)
 	}
 	assertFeishuHandoffEvidenceRedacted(t, evidence)
+}
+
+func hasFeishuHandoffChecklistItem(items []FeishuHandoffAcceptanceChecklistItem, itemId string, status string) bool {
+	for _, item := range items {
+		if item.Id == itemId && item.Status == status {
+			return true
+		}
+	}
+	return false
 }
 
 func TestFeishuOrganizationSyncHandoffEvidenceUnsupportedNoRunAndRequiredInputs(t *testing.T) {

@@ -166,6 +166,43 @@ beforeEach(() => {
       operatorNextActions: ["export_evidence_json"],
       cannotInfer: ["live_contact_v3_credentials"],
       redaction: {applied: true, version: "feishu-handoff-evidence-redaction-v1"},
+      acceptanceChecklist: {
+        version: "feishu-handoff-acceptance-checklist-v1",
+        executionMode: "manual_review_only",
+        manualReviewOnly: true,
+        safeSource: {
+          sourceType: "dry_run_history",
+          sourceIdHash: "dry-run-safe",
+          sourceConnectionIdHash: "source-safe",
+          readiness: "ready",
+          endpointMode: "feishu",
+          appAlias: "app-safe",
+          tenantAlias: "tenant-safe",
+        },
+        summary: {
+          total: 6,
+          passed: 4,
+          needsReview: 0,
+          blocked: 0,
+          missing: 0,
+          cannotInfer: 2,
+          safeSummary: "交接证据已就绪，可复制或导出脱敏 JSON 供真实租户测试和验收交接。",
+          derivedOnly: true,
+          noFallback: true,
+          providerGaps: 4,
+          manualActions: 3,
+        },
+        items: [
+          {id: "redaction", status: "passed", severity: "info", source: "admin_local_metadata", safeSummary: "仅包含安全别名和聚合计数。", manualReviewOnly: true},
+          {id: "provider_truth", status: "cannot_infer", severity: "review", source: "external_owner_required", safeSummary: "Provider tenant truth requires live validation.", recommendedActionAlias: "validate_real_tenant_runtime", providerOwned: true, manualReviewOnly: true, cannotInfer: true, noFallback: true},
+        ],
+        providerOwnedEvidenceMissing: ["live_contact_v3_credentials", "gateway_projection_consumption", "production_readiness"],
+        manualReviewActions: ["validate_real_tenant_runtime", "copy_acceptance_checklist_json", "export_acceptance_checklist_markdown"],
+        cannotInfer: ["provider_truth", "sync_full_success", "production_readiness"],
+        noFallback: ["provider_truth", "production_readiness"],
+        redaction: {applied: true, version: "feishu-handoff-evidence-redaction-v1"},
+        retention: {redactionApplied: true, redactionVersion: "feishu-handoff-evidence-redaction-v1", retentionDays: 90, retentionPolicy: "redacted_summary_retained"},
+      },
       generatedAt: "2026-06-15T12:30:00Z",
       safeSummary: "交接证据已就绪，可复制或导出脱敏 JSON 供真实租户测试和验收交接。",
     },
@@ -302,10 +339,15 @@ test("renders handoff evidence ready summary and safe markers", async() => {
   expect(await screen.findByText("交接证据")).toBeInTheDocument();
   expect(FeishuOrganizationSyncBackend.getFeishuOrganizationSyncHandoffEvidence).toHaveBeenCalledWith("engineering", {sourceType: "latest"});
   expect(screen.getByText("可交接")).toBeInTheDocument();
-  expect(screen.getByText("dry-run-safe")).toBeInTheDocument();
-  expect(screen.getByText("source-safe")).toBeInTheDocument();
+  expect(screen.getAllByText("dry-run-safe").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("source-safe").length).toBeGreaterThan(0);
   expect(screen.getByText("部门：新 1 / 更 1 / 软禁 0 / 冲突 0 / 无效 0")).toBeInTheDocument();
-  expect(screen.getByText("live_contact_v3_credentials")).toBeInTheDocument();
+  expect(screen.getAllByText("live_contact_v3_credentials").length).toBeGreaterThan(0);
+  expect(screen.getByText("验收清单")).toBeInTheDocument();
+  expect(screen.getAllByText("manual_review_only").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("provider_truth").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("production_readiness").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("validate_real_tenant_runtime").length).toBeGreaterThan(0);
   expect(screen.queryByText(/cli-real/)).not.toBeInTheDocument();
   expect(screen.queryByText(/tenant-real/)).not.toBeInTheDocument();
 });
@@ -329,6 +371,53 @@ test("copies handoff evidence JSON without raw tenant identifiers", async() => {
   expect(copied).not.toContain("tenant-real");
 });
 
+test("copies handoff acceptance checklist JSON and Markdown without raw tenant identifiers", async() => {
+  const writeText = jest.fn(() => Promise.resolve());
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: {writeText},
+  });
+  render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+
+  expect(await screen.findByText("验收清单")).toBeInTheDocument();
+  fireEvent.click(screen.getByLabelText("copy-handoff-acceptance-checklist-json"));
+  fireEvent.click(screen.getByLabelText("copy-handoff-acceptance-checklist-markdown"));
+
+  expect(writeText).toHaveBeenCalledTimes(2);
+  const copiedJson = writeText.mock.calls[0][0];
+  const copiedMarkdown = writeText.mock.calls[1][0];
+  expect(copiedJson).toContain("feishu-handoff-acceptance-checklist-v1");
+  expect(copiedJson).toContain("source-safe");
+  expect(copiedMarkdown).toContain("# Feishu Handoff Acceptance Checklist");
+  expect(copiedMarkdown).toContain("provider_truth");
+  expect(`${copiedJson}\n${copiedMarkdown}`).not.toContain("cli-real");
+  expect(`${copiedJson}\n${copiedMarkdown}`).not.toContain("tenant-real");
+});
+
+test("exports handoff acceptance checklist JSON and Markdown", async() => {
+  const createObjectURL = jest.fn(() => "blob:feishu-checklist");
+  const revokeObjectURL = jest.fn();
+  const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  Object.defineProperty(URL, "createObjectURL", {
+    configurable: true,
+    value: createObjectURL,
+  });
+  Object.defineProperty(URL, "revokeObjectURL", {
+    configurable: true,
+    value: revokeObjectURL,
+  });
+  render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+
+  expect(await screen.findByText("验收清单")).toBeInTheDocument();
+  fireEvent.click(screen.getByLabelText("export-handoff-acceptance-checklist-json"));
+  fireEvent.click(screen.getByLabelText("export-handoff-acceptance-checklist-markdown"));
+
+  expect(createObjectURL).toHaveBeenCalledTimes(2);
+  expect(revokeObjectURL).toHaveBeenCalledTimes(2);
+  expect(clickSpy).toHaveBeenCalledTimes(2);
+  clickSpy.mockRestore();
+});
+
 test("renders handoff evidence blocked and no-run states", async() => {
   FeishuOrganizationSyncBackend.getFeishuOrganizationSyncHandoffEvidence.mockResolvedValueOnce({
     status: "ok",
@@ -340,6 +429,22 @@ test("renders handoff evidence blocked and no-run states", async() => {
       operatorNextActions: ["inspect_sync_diagnostics"],
       cannotInfer: ["insight_acceptance"],
       redaction: {applied: true, version: "feishu-handoff-evidence-redaction-v1"},
+      acceptanceChecklist: {
+        version: "feishu-handoff-acceptance-checklist-v1",
+        executionMode: "manual_review_only",
+        manualReviewOnly: true,
+        safeSource: {sourceType: "run", sourceIdHash: "run-safe", readiness: "blocked"},
+        summary: {total: 2, passed: 0, needsReview: 0, blocked: 1, missing: 0, cannotInfer: 1, derivedOnly: true, noFallback: true, providerGaps: 1, manualActions: 1},
+        items: [
+          {id: "handoff_readiness", status: "blocked", severity: "blocking", source: "admin_local_metadata", safeSummary: "交接证据存在 2 个阻断原因，需处理后再交接。", blockedReasonAlias: "sync_run_failed,binding_conflict_blocked", recommendedActionAlias: "inspect_sync_diagnostics", manualReviewOnly: true},
+          {id: "provider_truth", status: "cannot_infer", severity: "review", source: "external_owner_required", safeSummary: "Provider truth requires runtime validation.", recommendedActionAlias: "validate_real_tenant_runtime", providerOwned: true, manualReviewOnly: true, cannotInfer: true, noFallback: true},
+        ],
+        providerOwnedEvidenceMissing: ["insight_acceptance"],
+        manualReviewActions: ["inspect_sync_diagnostics"],
+        cannotInfer: ["provider_truth"],
+        noFallback: ["production_readiness"],
+        retention: {redactionApplied: true, retentionDays: 90, retentionPolicy: "redacted_summary_retained"},
+      },
       generatedAt: "2026-06-15T12:30:00Z",
       safeSummary: "交接证据存在 2 个阻断原因，需处理后再交接。",
     },
@@ -349,6 +454,7 @@ test("renders handoff evidence blocked and no-run states", async() => {
   expect((await screen.findAllByText("交接证据存在 2 个阻断原因，需处理后再交接。")).length).toBeGreaterThan(0);
   expect(screen.getByText("sync_run_failed")).toBeInTheDocument();
   expect(screen.getByText("binding_conflict_blocked")).toBeInTheDocument();
+  expect(screen.getByText("handoff_readiness")).toBeInTheDocument();
 
   FeishuOrganizationSyncBackend.getFeishuOrganizationSyncHandoffEvidence.mockResolvedValueOnce({
     status: "ok",
@@ -358,6 +464,22 @@ test("renders handoff evidence blocked and no-run states", async() => {
       operatorNextActions: ["run_dry_run_preview"],
       cannotInfer: ["live_contact_v3_credentials"],
       redaction: {applied: true, version: "feishu-handoff-evidence-redaction-v1"},
+      acceptanceChecklist: {
+        version: "feishu-handoff-acceptance-checklist-v1",
+        executionMode: "manual_review_only",
+        manualReviewOnly: true,
+        safeSource: {sourceType: "latest", readiness: "no_run"},
+        summary: {total: 2, passed: 0, needsReview: 0, blocked: 0, missing: 1, cannotInfer: 1, derivedOnly: true, noFallback: true, providerGaps: 2, manualActions: 1},
+        items: [
+          {id: "source_evidence", status: "missing", severity: "review", source: "admin_local_metadata", safeSummary: "No local run or dry-run summary is available.", recommendedActionAlias: "run_dry_run_preview", manualReviewOnly: true},
+          {id: "provider_truth", status: "cannot_infer", severity: "review", source: "external_owner_required", safeSummary: "Provider truth requires runtime validation.", recommendedActionAlias: "validate_real_tenant_runtime", providerOwned: true, manualReviewOnly: true, cannotInfer: true, noFallback: true},
+        ],
+        providerOwnedEvidenceMissing: ["live_contact_v3_credentials", "production_readiness"],
+        manualReviewActions: ["run_dry_run_preview"],
+        cannotInfer: ["provider_truth"],
+        noFallback: ["production_readiness"],
+        retention: {redactionApplied: true, retentionDays: 90, retentionPolicy: "redacted_summary_retained"},
+      },
       generatedAt: "2026-06-15T12:31:00Z",
       safeSummary: "未发现可用于交接的飞书同步 run 或 dry-run history。",
     },
@@ -365,7 +487,9 @@ test("renders handoff evidence blocked and no-run states", async() => {
   fireEvent.click(screen.getByLabelText("refresh-handoff-evidence"));
 
   expect(await screen.findByText("无记录")).toBeInTheDocument();
-  expect(screen.getByText("run_dry_run_preview")).toBeInTheDocument();
+  expect(screen.getAllByText("run_dry_run_preview").length).toBeGreaterThan(0);
+  expect(screen.getByText("source_evidence")).toBeInTheDocument();
+  expect(screen.getAllByText("production_readiness").length).toBeGreaterThan(0);
 });
 
 test("renders disabled user binding diagnostics state", async() => {

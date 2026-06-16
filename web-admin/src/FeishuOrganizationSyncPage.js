@@ -91,6 +91,20 @@ const handoffSourceTypeLabels = {
   run: "最近同步",
   dry_run_history: "最近 Dry-run",
 };
+const handoffAcceptanceStatusLabels = {
+  passed: "通过",
+  needs_review: "待复核",
+  blocked: "阻断",
+  missing: "缺失",
+  cannot_infer: "无法推断",
+};
+const handoffAcceptanceStatusColors = {
+  passed: "green",
+  needs_review: "gold",
+  blocked: "red",
+  missing: "orange",
+  cannot_infer: "blue",
+};
 
 class FeishuOrganizationSyncPage extends React.Component {
   constructor(props) {
@@ -617,6 +631,110 @@ class FeishuOrganizationSyncPage extends React.Component {
     URL.revokeObjectURL(url);
   }
 
+  getHandoffAcceptanceChecklistJson(payload = this.state.handoffEvidence?.acceptanceChecklist) {
+    return JSON.stringify(payload || {}, null, 2);
+  }
+
+  copyHandoffAcceptanceChecklistJson(payload = this.state.handoffEvidence?.acceptanceChecklist) {
+    const text = this.getHandoffAcceptanceChecklistJson(payload);
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text)
+        .then(() => Setting.showMessage("success", "已复制验收清单 JSON"))
+        .catch(error => Setting.showMessage("error", `复制失败：${error}`));
+      return;
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    document.body.removeChild(textarea);
+    Setting.showMessage("success", "已复制验收清单 JSON");
+  }
+
+  exportHandoffAcceptanceChecklistJson(payload = this.state.handoffEvidence?.acceptanceChecklist) {
+    const blob = new Blob([this.getHandoffAcceptanceChecklistJson(payload)], {type: "application/json;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const generatedAt = (this.state.handoffEvidence?.generatedAt || new Date().toISOString()).replace(/[:.]/g, "-");
+    link.href = url;
+    link.download = `feishu-handoff-acceptance-checklist-${generatedAt}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  getHandoffAcceptanceChecklistMarkdown(payload = this.state.handoffEvidence?.acceptanceChecklist) {
+    const checklist = payload || {};
+    const summary = checklist.summary || {};
+    const safeSource = checklist.safeSource || {};
+    const lines = [
+      "# Feishu Handoff Acceptance Checklist",
+      "",
+      `- version: ${checklist.version || "-"}`,
+      `- executionMode: ${checklist.executionMode || "-"}`,
+      `- manualReviewOnly: ${checklist.manualReviewOnly ? "true" : "false"}`,
+      `- readiness: ${safeSource.readiness || "-"}`,
+      `- sourceType: ${safeSource.sourceType || "-"}`,
+      `- sourceIdHash: ${safeSource.sourceIdHash || "-"}`,
+      `- sourceConnectionIdHash: ${safeSource.sourceConnectionIdHash || "-"}`,
+      `- summary: total=${summary.total || 0}, passed=${summary.passed || 0}, needsReview=${summary.needsReview || 0}, blocked=${summary.blocked || 0}, missing=${summary.missing || 0}, cannotInfer=${summary.cannotInfer || 0}`,
+      "",
+      "## Provider-Owned Missing",
+      ...(checklist.providerOwnedEvidenceMissing || ["-"]).map(item => `- ${item}`),
+      "",
+      "## Manual Review Actions",
+      ...(checklist.manualReviewActions || ["-"]).map(item => `- ${item}`),
+      "",
+      "## Cannot Infer",
+      ...(checklist.cannotInfer || ["-"]).map(item => `- ${item}`),
+      "",
+      "## No Fallback",
+      ...(checklist.noFallback || ["-"]).map(item => `- ${item}`),
+      "",
+      "## Items",
+      ...((checklist.items || []).length === 0 ? ["- -"] : checklist.items.map(item => `- ${item.id || "-"}: ${item.status || "-"} / ${item.source || "-"} / ${item.recommendedActionAlias || "-"}`)),
+      "",
+      "## Retention And Redaction",
+      `- redactionApplied: ${checklist.retention?.redactionApplied ? "true" : "false"}`,
+      `- redactionVersion: ${checklist.retention?.redactionVersion || checklist.redaction?.version || "-"}`,
+      `- retentionDays: ${checklist.retention?.retentionDays || 0}`,
+      `- retentionPolicy: ${checklist.retention?.retentionPolicy || "-"}`,
+    ];
+    return lines.join("\n");
+  }
+
+  copyHandoffAcceptanceChecklistMarkdown(payload = this.state.handoffEvidence?.acceptanceChecklist) {
+    const text = this.getHandoffAcceptanceChecklistMarkdown(payload);
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text)
+        .then(() => Setting.showMessage("success", "已复制验收清单 Markdown"))
+        .catch(error => Setting.showMessage("error", `复制失败：${error}`));
+      return;
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    document.body.removeChild(textarea);
+    Setting.showMessage("success", "已复制验收清单 Markdown");
+  }
+
+  exportHandoffAcceptanceChecklistMarkdown(payload = this.state.handoffEvidence?.acceptanceChecklist) {
+    const blob = new Blob([this.getHandoffAcceptanceChecklistMarkdown(payload)], {type: "text/markdown;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const generatedAt = (this.state.handoffEvidence?.generatedAt || new Date().toISOString()).replace(/[:.]/g, "-");
+    link.href = url;
+    link.download = `feishu-handoff-acceptance-checklist-${generatedAt}.md`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
   renderHandoffCounts(counts = {}) {
     const format = item => `新 ${item?.toCreate || 0} / 更 ${item?.toUpdate || 0} / 软禁 ${item?.toSoftDisable || 0} / 冲突 ${item?.conflict || 0} / 无效 ${item?.invalid || 0}`;
     return (
@@ -624,6 +742,95 @@ class FeishuOrganizationSyncPage extends React.Component {
         <Text>{`部门：${format(counts.departments)}`}</Text>
         <Text>{`用户：${format(counts.users)}`}</Text>
         <Text>{`关系：${format(counts.memberships)}`}</Text>
+      </Space>
+    );
+  }
+
+  renderAcceptanceStatusTag(status) {
+    return <Tag color={handoffAcceptanceStatusColors[status] || "default"}>{handoffAcceptanceStatusLabels[status] || status || "-"}</Tag>;
+  }
+
+  renderHandoffAcceptanceChecklist(checklist) {
+    if (!checklist?.version) {
+      return (
+        <Alert
+          style={{marginTop: 12}}
+          type="info"
+          showIcon
+          message="验收清单"
+          description="暂无验收清单；刷新交接证据后可复制或导出脱敏 checklist。"
+        />
+      );
+    }
+    const summary = checklist.summary || {};
+    const safeSource = checklist.safeSource || {};
+    const checklistRows = (checklist.items || []).map((item, index) => ({...item, key: item.id || index}));
+    return (
+      <Space direction="vertical" size={8} style={{width: "100%", marginTop: 12}}>
+        <Row align="middle" justify="space-between">
+          <Col>
+            <Space direction="vertical" size={2}>
+              <Text strong>验收清单</Text>
+              <Space wrap size={4}>
+                {checklist.version && <Tag>{checklist.version}</Tag>}
+                {checklist.executionMode && <Tag color="blue">{checklist.executionMode}</Tag>}
+                {checklist.manualReviewOnly && <Tag color="gold">manual_review_only</Tag>}
+                {safeSource.sourceIdHash && <Tag>{safeSource.sourceIdHash}</Tag>}
+                {safeSource.sourceConnectionIdHash && <Tag>{safeSource.sourceConnectionIdHash}</Tag>}
+              </Space>
+            </Space>
+          </Col>
+          <Col>
+            <Space wrap>
+              <Button aria-label="copy-handoff-acceptance-checklist-json" icon={<CopyOutlined />} onClick={() => this.copyHandoffAcceptanceChecklistJson(checklist)}>复制清单 JSON</Button>
+              <Button aria-label="copy-handoff-acceptance-checklist-markdown" icon={<CopyOutlined />} onClick={() => this.copyHandoffAcceptanceChecklistMarkdown(checklist)}>复制 Markdown</Button>
+              <Button aria-label="export-handoff-acceptance-checklist-json" icon={<DownloadOutlined />} onClick={() => this.exportHandoffAcceptanceChecklistJson(checklist)}>导出清单 JSON</Button>
+              <Button aria-label="export-handoff-acceptance-checklist-markdown" icon={<DownloadOutlined />} onClick={() => this.exportHandoffAcceptanceChecklistMarkdown(checklist)}>导出 Markdown</Button>
+            </Space>
+          </Col>
+        </Row>
+        <Space wrap size={4}>
+          <Tag>{`总 ${summary.total || 0}`}</Tag>
+          <Tag color="green">{`通过 ${summary.passed || 0}`}</Tag>
+          <Tag color="gold">{`待复核 ${summary.needsReview || 0}`}</Tag>
+          <Tag color="red">{`阻断 ${summary.blocked || 0}`}</Tag>
+          <Tag color="orange">{`缺失 ${summary.missing || 0}`}</Tag>
+          <Tag color="blue">{`无法推断 ${summary.cannotInfer || 0}`}</Tag>
+          {summary.derivedOnly && <Tag>derived</Tag>}
+          {summary.noFallback && <Tag color="volcano">noFallback</Tag>}
+          {checklist.retention?.redactionApplied && <Tag color="green">{checklist.retention.redactionVersion || "redacted"}</Tag>}
+          {checklist.retention?.retentionDays > 0 && <Tag>{`retention ${checklist.retention.retentionDays}d`}</Tag>}
+        </Space>
+        <Space direction="vertical" size={4} style={{width: "100%"}}>
+          <Text type="secondary">provider-owned evidence missing</Text>
+          <Space size={4} wrap>
+            {(checklist.providerOwnedEvidenceMissing || []).map(item => <Tag color="blue" key={item}>{item}</Tag>)}
+          </Space>
+          <Text type="secondary">manual review actions</Text>
+          <Space size={4} wrap>
+            {(checklist.manualReviewActions || []).map(item => <Tag color="gold" key={item}>{item}</Tag>)}
+          </Space>
+          <Text type="secondary">cannotInfer / noFallback</Text>
+          <Space size={4} wrap>
+            {(checklist.cannotInfer || []).map(item => <Tag key={`cannot-${item}`}>{item}</Tag>)}
+            {(checklist.noFallback || []).map(item => <Tag color="volcano" key={`nofallback-${item}`}>{item}</Tag>)}
+          </Space>
+        </Space>
+        <Table
+          rowKey="key"
+          size="small"
+          bordered
+          pagination={false}
+          dataSource={checklistRows}
+          locale={{emptyText: "暂无验收项"}}
+          columns={[
+            {title: "项", dataIndex: "id", width: 160},
+            {title: "状态", dataIndex: "status", width: 120, render: status => this.renderAcceptanceStatusTag(status)},
+            {title: "来源", dataIndex: "source", width: 180, render: value => <Tag>{value || "-"}</Tag>},
+            {title: "建议动作", dataIndex: "recommendedActionAlias", width: 180, render: value => value ? <Tag color="blue">{value}</Tag> : "-"},
+            {title: "摘要", dataIndex: "safeSummary"},
+          ]}
+        />
       </Space>
     );
   }
@@ -689,6 +896,7 @@ class FeishuOrganizationSyncPage extends React.Component {
                   {(evidence.cannotInfer || []).map(item => <Tag key={item}>{item}</Tag>)}
                 </Space>
                 {evidence.bindingConflicts?.safeSummary && <Text type={evidence.bindingConflicts?.blocked ? "danger" : "secondary"}>{evidence.bindingConflicts.safeSummary}</Text>}
+                {this.renderHandoffAcceptanceChecklist(evidence.acceptanceChecklist)}
               </Space>
             }
           />
