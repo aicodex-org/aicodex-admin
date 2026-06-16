@@ -26,6 +26,7 @@ import BaseListPage from "./BaseListPage";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
 import AccountAvatar from "./account/AccountAvatar";
 import * as XLSX from "xlsx";
+import OrganizationIdentityCenter from "./OrganizationIdentityCenter";
 
 class UserListPage extends BaseListPage {
   constructor(props) {
@@ -579,7 +580,12 @@ class UserListPage extends BaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <div>
+      <OrganizationIdentityCenter
+        page="users"
+        currentOrganization={this.state.organizationName || (Setting.isDefaultOrganizationSelected(this.props.account) ? i18next.t("general:All") : Setting.getRequestOrganization(this.props.account))}
+        total={this.state.pagination.total}
+        loadedCount={users.length}
+      >
         <Table scroll={{x: "max-content"}} columns={filteredColumns} dataSource={users} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
           title={() => (
             <div>
@@ -594,7 +600,7 @@ class UserListPage extends BaseListPage {
           loading={this.state.loading}
           onChange={this.handleTableChange}
         />
-      </div>
+      </OrganizationIdentityCenter>
     );
   }
 

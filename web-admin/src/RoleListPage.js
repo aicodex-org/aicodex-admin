@@ -23,6 +23,7 @@ import BaseListPage from "./BaseListPage";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
 import {UploadOutlined} from "@ant-design/icons";
 import * as XLSX from "xlsx";
+import OrganizationIdentityCenter from "./OrganizationIdentityCenter";
 
 class RoleListPage extends BaseListPage {
   newRole() {
@@ -310,7 +311,12 @@ class RoleListPage extends BaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <div>
+      <OrganizationIdentityCenter
+        page="roles"
+        currentOrganization={Setting.isDefaultOrganizationSelected(this.props.account) ? i18next.t("general:All") : Setting.getRequestOrganization(this.props.account)}
+        total={this.state.pagination.total}
+        loadedCount={roles.length}
+      >
         <Table scroll={{x: "max-content"}} columns={columns} dataSource={roles} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
           title={() => (
             <div>
@@ -325,7 +331,7 @@ class RoleListPage extends BaseListPage {
           loading={this.state.loading}
           onChange={this.handleTableChange}
         />
-      </div>
+      </OrganizationIdentityCenter>
     );
   }
 

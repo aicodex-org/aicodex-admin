@@ -242,10 +242,12 @@ function ManagementPage(props) {
     ];
 
     if (widgetItemsIsAll()) {
-      return widgets.map(item => item.label);
+      return widgets.map(item => <React.Fragment key={item.key}>{item.label}</React.Fragment>);
     }
 
-    return widgets.filter(item => widgetItems.includes(item.key)).map(item => item.label);
+    return widgets
+      .filter(item => widgetItems.includes(item.key))
+      .map(item => <React.Fragment key={item.key}>{item.label}</React.Fragment>);
   }
 
   function renderAccountMenu() {
@@ -435,7 +437,19 @@ function ManagementPage(props) {
   }
 
   function isWithoutCard() {
-    return Setting.isMobile() || window.location.pathname === "/" || window.location.pathname.startsWith("/trees");
+    const pathname = window.location.pathname;
+    const organizationIdentityCenterPaths = [
+      "/organizations",
+      "/users",
+      "/roles",
+      "/permissions",
+    ];
+
+    return Setting.isMobile() ||
+      pathname === "/" ||
+      pathname.startsWith("/trees") ||
+      organizationIdentityCenterPaths.includes(pathname) ||
+      /^\/organizations\/[^/]+\/users$/.test(pathname);
   }
 
   const onClose = () => {

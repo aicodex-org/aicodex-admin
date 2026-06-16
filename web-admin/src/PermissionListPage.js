@@ -24,6 +24,7 @@ import BaseListPage from "./BaseListPage";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
 import {UploadOutlined} from "@ant-design/icons";
 import * as XLSX from "xlsx";
+import OrganizationIdentityCenter from "./OrganizationIdentityCenter";
 
 class PermissionListPage extends BaseListPage {
   newPermission() {
@@ -467,7 +468,12 @@ class PermissionListPage extends BaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <div>
+      <OrganizationIdentityCenter
+        page="permissions"
+        currentOrganization={Setting.isDefaultOrganizationSelected(this.props.account) ? i18next.t("general:All") : Setting.getRequestOrganization(this.props.account)}
+        total={this.state.pagination.total}
+        loadedCount={permissions.length}
+      >
         <Table scroll={{x: "max-content"}} columns={columns} dataSource={permissions} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
           title={() => (
             <div>
@@ -482,7 +488,7 @@ class PermissionListPage extends BaseListPage {
           loading={this.state.loading}
           onChange={this.handleTableChange}
         />
-      </div>
+      </OrganizationIdentityCenter>
     );
   }
 

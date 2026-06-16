@@ -22,6 +22,7 @@ import * as OrganizationBackend from "./backend/OrganizationBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
+import OrganizationIdentityCenter from "./OrganizationIdentityCenter";
 
 class OrganizationListPage extends BaseListPage {
   newOrganization() {
@@ -334,7 +335,12 @@ class OrganizationListPage extends BaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <div>
+      <OrganizationIdentityCenter
+        page="organizations"
+        currentOrganization={Setting.isDefaultOrganizationSelected(this.props.account) ? i18next.t("general:All") : Setting.getRequestOrganization(this.props.account)}
+        total={this.state.pagination.total}
+        loadedCount={organizations.length}
+      >
         <Table scroll={{x: "max-content"}} columns={filteredColumns} dataSource={organizations} rowKey="name" size="middle" bordered pagination={paginationProps}
           title={() => (
             <div>
@@ -345,7 +351,7 @@ class OrganizationListPage extends BaseListPage {
           loading={this.state.loading}
           onChange={this.handleTableChange}
         />
-      </div>
+      </OrganizationIdentityCenter>
     );
   }
 

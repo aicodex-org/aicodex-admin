@@ -1,6 +1,10 @@
 /* eslint-env jest */
 import i18next from "i18next";
-import {buildEnterpriseNavigationGroups, findNavigationSelection} from "./enterpriseNavigation";
+import {
+  buildEnterpriseNavigationConfigTreeData,
+  buildEnterpriseNavigationGroups,
+  findNavigationSelection
+} from "./enterpriseNavigation";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
 
@@ -128,6 +132,36 @@ describe("enterprise identity navigation", () => {
       groupKey: "/application-access",
       itemKey: "/platform-api-mappings",
     });
+  });
+
+  test("reuses runtime IA in organization navigation configuration tree", () => {
+    const tree = buildEnterpriseNavigationConfigTreeData();
+    const rootChildren = tree[0].children;
+    const organizationIdentity = rootChildren.find(node => node.key === "/organization-identity-top");
+    const identitySources = rootChildren.find(node => node.key === "/identity-sources-top");
+    const authorizationGovernance = rootChildren.find(node => node.key === "/authorization-governance-top");
+
+    expect(organizationIdentity.children.map(item => item.key)).toEqual([
+      "/organizations",
+      "/groups",
+      "/users",
+      "/invitations",
+      "/organization-tree-operations",
+      "/organization-directory-quality",
+    ]);
+    expect(identitySources.children.map(item => item.key)).toEqual([
+      "/providers",
+      "/wecom-org-sync",
+      "/feishu-org-sync",
+      "/syncers",
+    ]);
+    expect(authorizationGovernance.children.map(item => item.key)).toEqual([
+      "/roles",
+      "/permissions",
+      "/models",
+      "/adapters",
+      "/enforcers",
+    ]);
   });
 
   test("covers matcher routes, empty state, and hidden admin-only entries", () => {
