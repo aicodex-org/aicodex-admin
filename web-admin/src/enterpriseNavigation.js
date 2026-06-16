@@ -49,55 +49,55 @@ function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin
   const groups = [
     {
       key: "/overview",
-      label: "总览",
+      label: i18next.t("general:Overview"),
       icon: <HomeTwoTone twoToneColor={twoToneColor} />,
       children: [
-        {key: "/", label: "身份治理总览", to: "/", matchPrefixes: ["/"]},
+        {key: "/", label: i18next.t("general:Identity Governance Overview"), to: "/", matchPrefixes: ["/"]},
         {key: "/shortcuts", label: i18next.t("general:Shortcuts"), to: "/shortcuts", matchPrefixes: ["/shortcuts"]},
         {key: "/apps", label: i18next.t("general:Apps"), to: "/apps", matchPrefixes: ["/apps"]},
       ],
     },
     {
       key: "/organization-identity",
-      label: "组织与身份",
+      label: i18next.t("general:Organization & Identity"),
       icon: <AppstoreTwoTone twoToneColor={twoToneColor} />,
       children: [
         {key: "/organizations", label: i18next.t("general:Organizations"), to: "/organizations", matchPrefixes: ["/organizations"], matcher: (uri) => uri === "/organizations" || uri.startsWith("/organizations/") && !uri.includes("/users")},
         {key: "/groups", label: i18next.t("general:Groups"), to: "/groups", matchPrefixes: ["/groups", "/trees"]},
         {key: "/users", label: i18next.t("general:Users"), to: "/users", matchPrefixes: ["/users"], matcher: (uri) => uri === "/users" || uri.startsWith("/users/") || uri.includes("/users")},
         {key: "/invitations", label: i18next.t("general:Invitations"), to: "/invitations", matchPrefixes: ["/invitations"]},
-        {key: "/organization-tree-operations", label: "组织树运营", to: "/organization-tree-operations", matchPrefixes: ["/organization-tree-operations"], visible: isAdmin},
-        {key: "/organization-directory-quality", label: "组织目录质量", to: "/organization-directory-quality", matchPrefixes: ["/organization-directory-quality"], visible: isAdmin},
+        {key: "/organization-tree-operations", label: i18next.t("general:Organization Tree Operations"), to: "/organization-tree-operations", matchPrefixes: ["/organization-tree-operations"], visible: isAdmin},
+        {key: "/organization-directory-quality", label: i18next.t("general:Organization Directory Quality"), to: "/organization-directory-quality", matchPrefixes: ["/organization-directory-quality"], visible: isAdmin},
       ],
     },
     {
       key: "/identity-sources",
-      label: "认证源",
+      label: i18next.t("general:Identity Sources"),
       icon: <LockTwoTone twoToneColor={twoToneColor} />,
       children: [
-        {key: "/providers", label: "认证源中心", to: "/providers", matchPrefixes: ["/providers"]},
-        {key: "/wecom-org-sync", label: "企业微信同步", to: "/wecom-org-sync", matchPrefixes: ["/wecom-org-sync"]},
-        {key: "/feishu-org-sync", label: "飞书同步", to: "/feishu-org-sync", matchPrefixes: ["/feishu-org-sync"]},
+        {key: "/providers", label: i18next.t("general:Authentication Source Center"), to: "/providers", matchPrefixes: ["/providers"]},
+        {key: "/wecom-org-sync", label: i18next.t("general:WeCom Sync"), to: "/wecom-org-sync", matchPrefixes: ["/wecom-org-sync"]},
+        {key: "/feishu-org-sync", label: i18next.t("general:Feishu Sync"), to: "/feishu-org-sync", matchPrefixes: ["/feishu-org-sync"]},
         {key: "/syncers", label: i18next.t("general:Syncers"), to: "/syncers", matchPrefixes: ["/syncers"]},
       ],
     },
     {
       key: "/application-access",
-      label: "应用接入",
+      label: i18next.t("general:Application Access"),
       icon: <ApiTwoTone twoToneColor={twoToneColor} />,
       children: [
-        {key: "/applications", label: "应用接入中心", to: "/applications", matchPrefixes: ["/applications"]},
+        {key: "/applications", label: i18next.t("general:Application Access Center"), to: "/applications", matchPrefixes: ["/applications"]},
         {key: "/resources", label: i18next.t("general:Resources"), to: "/resources", matchPrefixes: ["/resources"]},
         {key: "/certs", label: i18next.t("general:Certs"), to: "/certs", matchPrefixes: ["/certs"]},
         {key: "/keys", label: i18next.t("general:Keys"), to: "/keys", matchPrefixes: ["/keys"]},
-        {key: "/platform-api-mappings", label: "API 网关映射", to: "/platform-api-mappings", matchPrefixes: ["/platform-api-mappings"], visible: isAdmin},
+        {key: "/platform-api-mappings", label: i18next.t("general:API Gateway Mappings"), to: "/platform-api-mappings", matchPrefixes: ["/platform-api-mappings"], visible: isAdmin},
         {key: "/webhooks", label: i18next.t("general:Webhooks"), to: "/webhooks", matchPrefixes: ["/webhooks"]},
         {key: "/webhook-events", label: i18next.t("general:Webhook Events"), to: "/webhook-events", matchPrefixes: ["/webhook-events"]},
       ],
     },
     {
       key: "/gateway-projection",
-      label: "Gateway 投影",
+      label: i18next.t("general:Gateway Projection"),
       icon: <CheckCircleTwoTone twoToneColor={twoToneColor} />,
       children: [
         {key: "/agents", label: i18next.t("general:Agents"), to: "/agents", matchPrefixes: ["/agents"]},
@@ -110,7 +110,7 @@ function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin
     },
     {
       key: "/authorization-governance",
-      label: "权限治理",
+      label: i18next.t("general:Authorization Governance"),
       icon: <SecurityScanTwoTone twoToneColor={twoToneColor} />,
       children: [
         {key: "/roles", label: i18next.t("general:Roles"), to: "/roles", matchPrefixes: ["/roles"]},
@@ -122,7 +122,7 @@ function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin
     },
     {
       key: "/audit-operations",
-      label: "审计与运维",
+      label: i18next.t("general:Audit & Operations"),
       icon: <ProfileTwoTone twoToneColor={twoToneColor} />,
       children: [
         {key: "/sessions", label: i18next.t("general:Sessions"), to: "/sessions", matchPrefixes: ["/sessions"]},
@@ -133,7 +133,7 @@ function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin
     },
     {
       key: "/system-tools",
-      label: "系统工具",
+      label: i18next.t("general:System Tools"),
       icon: <ToolTwoTone twoToneColor={twoToneColor} />,
       children: [
         {key: "/sysinfo", label: i18next.t("general:System Info"), to: "/sysinfo", matchPrefixes: ["/sysinfo"], visible: isAdmin},
@@ -144,7 +144,7 @@ function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin
     },
     {
       key: "/commerce-billing",
-      label: "商业与计费",
+      label: i18next.t("general:Commerce & Billing"),
       icon: <DollarCircleTwoTone twoToneColor={twoToneColor} />,
       children: [
         {key: "/product-store", label: i18next.t("general:Product Store"), to: "/product-store", matchPrefixes: ["/product-store"]},

@@ -1,5 +1,8 @@
 /* eslint-env jest */
+import i18next from "i18next";
 import {buildEnterpriseNavigationGroups, findNavigationSelection} from "./enterpriseNavigation";
+import en from "./locales/en/data.json";
+import zh from "./locales/zh/data.json";
 
 const localAdminAccount = {
   owner: "built-in",
@@ -10,7 +13,28 @@ const localAdminAccount = {
   },
 };
 
+async function useTestLanguage(language) {
+  if (!i18next.isInitialized) {
+    await i18next.init({
+      lng: language,
+      fallbackLng: "en",
+      resources: {en, zh},
+      ns: Object.keys(en),
+      keySeparator: false,
+    });
+    return;
+  }
+
+  i18next.addResourceBundle("en", "general", en.general, true, true);
+  i18next.addResourceBundle("zh", "general", zh.general, true, true);
+  await i18next.changeLanguage(language);
+}
+
 describe("enterprise identity navigation", () => {
+  beforeEach(async() => {
+    await useTestLanguage("zh");
+  });
+
   test("groups existing routes by enterprise identity console information architecture", () => {
     const groups = buildEnterpriseNavigationGroups({
       account: localAdminAccount,
@@ -40,6 +64,40 @@ describe("enterprise identity navigation", () => {
       .toEqual(expect.arrayContaining(["/roles", "/permissions", "/models", "/adapters", "/enforcers"]));
     expect(groups.find(group => group.key === "/commerce-billing").children.map(item => item.key))
       .toEqual(expect.arrayContaining(["/product-store", "/orders", "/payments"]));
+  });
+
+  test("localizes enterprise identity console labels instead of hard-coding Chinese", async() => {
+    await useTestLanguage("en");
+
+    const groups = buildEnterpriseNavigationGroups({
+      account: localAdminAccount,
+      themeData: {colorPrimary: "#1677ff"},
+    });
+
+    expect(groups.map(group => group.label)).toEqual([
+      "Overview",
+      "Organization & Identity",
+      "Identity Sources",
+      "Application Access",
+      "Gateway Projection",
+      "Authorization Governance",
+      "Audit & Operations",
+      "System Tools",
+      "Commerce & Billing",
+    ]);
+    expect(groups.find(group => group.key === "/overview").children.find(item => item.key === "/").label)
+      .toBe("Identity Governance Overview");
+    expect(groups.find(group => group.key === "/identity-sources").children.find(item => item.key === "/providers").label)
+      .toBe("Authentication Source Center");
+    expect(groups.find(group => group.key === "/identity-sources").children.find(item => item.key === "/wecom-org-sync").label)
+      .toBe("WeCom Sync");
+    expect(groups.find(group => group.key === "/identity-sources").children.find(item => item.key === "/feishu-org-sync").label)
+      .toBe("Feishu Sync");
+    expect(groups.find(group => group.key === "/application-access").children.find(item => item.key === "/applications").label)
+      .toBe("Application Access Center");
+    expect(groups.find(group => group.key === "/application-access").children.find(item => item.key === "/platform-api-mappings").label)
+      .toBe("API Gateway Mappings");
+    expect(groups.map(group => group.label).join("")).not.toMatch(/[\u4e00-\u9fff]/);
   });
 
   test("keeps leaf route keys compatible with navItems filtering and selection", () => {
