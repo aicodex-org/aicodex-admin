@@ -40,6 +40,7 @@ test("includes module-based WeCom organization API paths", () => {
   expect(paths).toContain("gateway-projection/publish-attempt-retention-readiness");
   expect(paths).toContain("gateway-projection/publish-attempt-retention-cleanup-dry-run");
   expect(paths).toContain("gateway-projection/publish-attempt-retention-cleanup-execute-readiness");
+  expect(paths).toContain("gateway-projection/publish-attempt-retention-cleanup-approval-policy-readiness");
   expect(paths).toContain("gateway-projection/publish-attempt-retention-cleanup-approval-audit-trail");
   expect(paths).toContain("get-organization-master-data-quality-readiness");
   expect(paths).toContain("get-platform-api-organization-mappings");

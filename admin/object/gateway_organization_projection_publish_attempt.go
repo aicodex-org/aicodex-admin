@@ -34,8 +34,10 @@ const (
 	defaultGatewayProjectionCleanupDryRunMaxAge           = 15 * time.Minute
 
 	gatewayProjectionCleanupRetentionPolicyVersion = "gateway_projection_publish_attempt_retention.v1"
+	gatewayProjectionCleanupApprovalPolicyVersion  = "gateway_projection_cleanup_approval_policy.v1"
 
-	GatewayProjectionCleanupApprovalAuditTrailStorageScope = "admin_cleanup_approval_audit_trail.v1"
+	GatewayProjectionCleanupApprovalAuditTrailStorageScope      = "admin_cleanup_approval_audit_trail.v1"
+	GatewayProjectionCleanupApprovalPolicyReadinessStorageScope = "derived_policy_readiness_not_persisted"
 )
 
 // GatewayProjectionPublishAttempt 是 Admin producer 的脱敏发布尝试台账。
@@ -372,6 +374,89 @@ type GatewayProjectionCleanupApprovalAuditTrailExport struct {
 	Records      []*GatewayProjectionCleanupApprovalAuditRecord    `json:"records"`
 }
 
+// GatewayProjectionCleanupApprovalPolicyReadinessQuery 限定 cleanup approval policy 的只读派生范围。
+// 它不承载真实审批签名，只允许 Admin owner 基于 dry-run/readiness/audit trail 判断人工复核是否具备前置证据。
+type GatewayProjectionCleanupApprovalPolicyReadinessQuery struct {
+	OrganizationId          string
+	Source                  string
+	Status                  string
+	FailureCategory         string
+	OlderThan               time.Time
+	Limit                   int
+	ReadinessHash           string
+	DryRunGeneratedAt       time.Time
+	MaxDryRunAgeSeconds     int64
+	ApprovalEvidenceAliases []string
+}
+
+// GatewayProjectionCleanupApprovalPolicyReadiness 是 cleanup 真实执行开放前的只读审批策略门禁。
+// P0 只提供 manual review/cannot infer 指引，不创建真实 approval decision，也不打开 cleanup gate。
+type GatewayProjectionCleanupApprovalPolicyReadiness struct {
+	GeneratedAt               string                                                `json:"generatedAt"`
+	PolicyVersion             string                                                `json:"policyVersion"`
+	PolicyStatus              string                                                `json:"policyStatus"`
+	StorageScope              string                                                `json:"storageScope"`
+	RetentionPolicyVersion    string                                                `json:"retentionPolicyVersion"`
+	ApprovalAuditStorageScope string                                                `json:"approvalAuditStorageScope"`
+	ReadinessHash             string                                                `json:"readinessHash"`
+	DryRunId                  string                                                `json:"dryRunId"`
+	SafeNextAction            string                                                `json:"safeNextAction"`
+	CandidateCount            int                                                   `json:"candidateCount"`
+	BlockedCount              int                                                   `json:"blockedCount"`
+	ManualReview              GatewayProjectionCleanupApprovalManualReview          `json:"manualReview"`
+	CannotInfer               GatewayProjectionCleanupApprovalCannotInfer           `json:"cannotInfer"`
+	PolicyGates               []GatewayProjectionCleanupApprovalPolicyGate          `json:"policyGates"`
+	AuditSummary              GatewayProjectionCleanupApprovalAuditTrailSummary     `json:"auditSummary"`
+	LastDryRunFreshness       GatewayProjectionCleanupDryRunFreshness               `json:"lastDryRunFreshness"`
+	ExecuteGuardrail          GatewayProjectionAttemptCleanupExecuteGuardrail       `json:"executeGuardrail"`
+	Export                    GatewayProjectionCleanupApprovalPolicyReadinessExport `json:"export"`
+}
+
+// GatewayProjectionCleanupApprovalManualReview 描述人工复核动作是否覆盖最小安全证据。
+// 这些 action alias 只来自 Admin approval audit trail，不包含真实审批正文、操作者身份或敏感 payload。
+type GatewayProjectionCleanupApprovalManualReview struct {
+	Required              bool     `json:"required"`
+	Status                string   `json:"status"`
+	RequiredActionAliases []string `json:"requiredActionAliases"`
+	MissingActionAliases  []string `json:"missingActionAliases,omitempty"`
+}
+
+// GatewayProjectionCleanupApprovalCannotInfer 说明当前策略不能推断通过的脱敏原因。
+// reason alias 只能用于 operator guidance，不能作为 Gateway runtime authorization fact。
+type GatewayProjectionCleanupApprovalCannotInfer struct {
+	Value         bool     `json:"value"`
+	ReasonAliases []string `json:"reasonAliases,omitempty"`
+}
+
+// GatewayProjectionCleanupApprovalPolicyGate 表示单个 approval policy gate 的脱敏判断。
+// `disabled` 用于表达 P0 尚未开放真实 cleanup execute gate，不等同于当前 manual review 失败。
+type GatewayProjectionCleanupApprovalPolicyGate struct {
+	Name        string `json:"name"`
+	Status      string `json:"status"`
+	ReasonAlias string `json:"reasonAlias,omitempty"`
+}
+
+// GatewayProjectionCleanupApprovalPolicyReadinessExport 是复制/导出用脱敏策略摘要。
+// 它排除 audit record 明细、raw gateway response、subject 明细和任何真实执行凭据。
+type GatewayProjectionCleanupApprovalPolicyReadinessExport struct {
+	GeneratedAt               string                                            `json:"generatedAt"`
+	PolicyVersion             string                                            `json:"policyVersion"`
+	PolicyStatus              string                                            `json:"policyStatus"`
+	StorageScope              string                                            `json:"storageScope"`
+	RetentionPolicyVersion    string                                            `json:"retentionPolicyVersion"`
+	ApprovalAuditStorageScope string                                            `json:"approvalAuditStorageScope"`
+	ReadinessHash             string                                            `json:"readinessHash"`
+	DryRunId                  string                                            `json:"dryRunId"`
+	SafeNextAction            string                                            `json:"safeNextAction"`
+	CandidateCount            int                                               `json:"candidateCount"`
+	BlockedCount              int                                               `json:"blockedCount"`
+	ManualReview              GatewayProjectionCleanupApprovalManualReview      `json:"manualReview"`
+	CannotInfer               GatewayProjectionCleanupApprovalCannotInfer       `json:"cannotInfer"`
+	PolicyGates               []GatewayProjectionCleanupApprovalPolicyGate      `json:"policyGates"`
+	AuditSummary              GatewayProjectionCleanupApprovalAuditTrailSummary `json:"auditSummary"`
+	ExecuteGuardrail          GatewayProjectionAttemptCleanupExecuteGuardrail   `json:"executeGuardrail"`
+}
+
 type GatewayProjectionPublishAttemptStore interface {
 	RecordGatewayProjectionPublishAttempt(attempt *GatewayProjectionPublishAttempt) error
 	ListGatewayProjectionPublishAttempts(query GatewayProjectionPublishAttemptQuery) ([]*GatewayProjectionPublishAttempt, error)
@@ -692,6 +777,89 @@ func (s GatewayProjectionPublishAttemptHistoryService) ListCleanupApprovalAuditT
 		Records:          cloned,
 		Export:           export,
 		ExecuteGuardrail: buildGatewayProjectionAttemptCleanupExecuteGuardrail(gatewayProjectionAttemptCleanupSafetyChecklist()),
+	}, nil
+}
+
+// CleanupApprovalPolicyReadiness 基于 execute readiness 和 approval audit trail 派生审批策略状态。
+// 该方法不执行 cleanup、不写 publish attempt、不读取下游 Gateway/API/Insight 数据；cannotInfer 必须 fail closed。
+func (s GatewayProjectionPublishAttemptHistoryService) CleanupApprovalPolicyReadiness(query GatewayProjectionCleanupApprovalPolicyReadinessQuery) (*GatewayProjectionCleanupApprovalPolicyReadiness, error) {
+	organizationID := normalizeGatewayProjectionString(query.OrganizationId)
+	if organizationID == "" {
+		return nil, errors.New("gateway projection organization is required")
+	}
+	executeReadiness, err := s.CleanupExecuteReadiness(GatewayProjectionPublishAttemptCleanupExecuteReadinessQuery{
+		OrganizationId:          organizationID,
+		Source:                  query.Source,
+		Status:                  query.Status,
+		FailureCategory:         query.FailureCategory,
+		OlderThan:               query.OlderThan,
+		Limit:                   query.Limit,
+		DryRunGeneratedAt:       query.DryRunGeneratedAt,
+		MaxDryRunAgeSeconds:     query.MaxDryRunAgeSeconds,
+		ApprovalEvidenceAliases: query.ApprovalEvidenceAliases,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	currentHash := executeReadiness.DryRunHash
+	requestedHash := sanitizeGatewayProjectionCleanupAuditIdentifier(query.ReadinessHash, "readiness-hash")
+	auditHash := firstNonEmpty(requestedHash, currentHash)
+	trail, err := s.ListCleanupApprovalAuditTrail(GatewayProjectionCleanupApprovalAuditTrailQuery{
+		OrganizationId: organizationID,
+		ReadinessHash:  auditHash,
+		Limit:          query.Limit,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	manualReview := buildGatewayProjectionCleanupApprovalManualReview(trail)
+	cannotInferReasons := gatewayProjectionCleanupApprovalPolicyCannotInferReasons(executeReadiness, trail, manualReview, requestedHash, currentHash)
+	policyStatus, safeNextAction := gatewayProjectionCleanupApprovalPolicyStatus(executeReadiness, manualReview, cannotInferReasons)
+	cannotInfer := GatewayProjectionCleanupApprovalCannotInfer{
+		Value:         len(cannotInferReasons) > 0 && policyStatus != "manual_review_ready",
+		ReasonAliases: cannotInferReasons,
+	}
+	gates := buildGatewayProjectionCleanupApprovalPolicyGates(executeReadiness, manualReview, cannotInferReasons)
+	generatedAt := formatGatewayProjectionObservabilityTime(s.now())
+	export := GatewayProjectionCleanupApprovalPolicyReadinessExport{
+		GeneratedAt:               generatedAt,
+		PolicyVersion:             gatewayProjectionCleanupApprovalPolicyVersion,
+		PolicyStatus:              policyStatus,
+		StorageScope:              GatewayProjectionCleanupApprovalPolicyReadinessStorageScope,
+		RetentionPolicyVersion:    gatewayProjectionCleanupRetentionPolicyVersion,
+		ApprovalAuditStorageScope: GatewayProjectionCleanupApprovalAuditTrailStorageScope,
+		ReadinessHash:             currentHash,
+		DryRunId:                  executeReadiness.DryRunId,
+		SafeNextAction:            safeNextAction,
+		CandidateCount:            executeReadiness.CandidateCount,
+		BlockedCount:              executeReadiness.BlockedCount,
+		ManualReview:              manualReview,
+		CannotInfer:               cannotInfer,
+		PolicyGates:               gates,
+		AuditSummary:              trail.Summary,
+		ExecuteGuardrail:          executeReadiness.ExecuteGuardrail,
+	}
+	return &GatewayProjectionCleanupApprovalPolicyReadiness{
+		GeneratedAt:               generatedAt,
+		PolicyVersion:             gatewayProjectionCleanupApprovalPolicyVersion,
+		PolicyStatus:              policyStatus,
+		StorageScope:              GatewayProjectionCleanupApprovalPolicyReadinessStorageScope,
+		RetentionPolicyVersion:    gatewayProjectionCleanupRetentionPolicyVersion,
+		ApprovalAuditStorageScope: GatewayProjectionCleanupApprovalAuditTrailStorageScope,
+		ReadinessHash:             currentHash,
+		DryRunId:                  executeReadiness.DryRunId,
+		SafeNextAction:            safeNextAction,
+		CandidateCount:            executeReadiness.CandidateCount,
+		BlockedCount:              executeReadiness.BlockedCount,
+		ManualReview:              manualReview,
+		CannotInfer:               cannotInfer,
+		PolicyGates:               gates,
+		AuditSummary:              trail.Summary,
+		LastDryRunFreshness:       executeReadiness.LastDryRunFreshness,
+		ExecuteGuardrail:          executeReadiness.ExecuteGuardrail,
+		Export:                    export,
 	}, nil
 }
 
@@ -1142,6 +1310,131 @@ func buildGatewayProjectionCleanupApprovalAuditTrailSummary(records []*GatewayPr
 	summary.LatestActionAt = formatGatewayProjectionObservabilityTime(latest)
 	summary.DisabledReasonCount = len(disabledReasons)
 	return summary
+}
+
+func requiredGatewayProjectionCleanupApprovalPolicyActionAliases() []string {
+	return []string{"approve", "copy", "export"}
+}
+
+func buildGatewayProjectionCleanupApprovalManualReview(trail *GatewayProjectionCleanupApprovalAuditTrail) GatewayProjectionCleanupApprovalManualReview {
+	required := requiredGatewayProjectionCleanupApprovalPolicyActionAliases()
+	actionCounts := map[string]int{}
+	if trail != nil {
+		actionCounts = trail.Summary.ActionCounts
+	}
+	missing := []string{}
+	for _, action := range required {
+		if actionCounts[action] <= 0 {
+			missing = append(missing, action)
+		}
+	}
+	status := "ready"
+	if len(missing) > 0 {
+		status = "missing"
+	}
+	return GatewayProjectionCleanupApprovalManualReview{
+		Required:              true,
+		Status:                status,
+		RequiredActionAliases: required,
+		MissingActionAliases:  missing,
+	}
+}
+
+func gatewayProjectionCleanupApprovalPolicyCannotInferReasons(executeReadiness *GatewayProjectionPublishAttemptCleanupExecuteReadiness, trail *GatewayProjectionCleanupApprovalAuditTrail, manualReview GatewayProjectionCleanupApprovalManualReview, requestedHash string, currentHash string) []string {
+	reasons := []string{}
+	seen := map[string]bool{}
+	add := func(reason string) {
+		if reason == "" || seen[reason] {
+			return
+		}
+		seen[reason] = true
+		reasons = append(reasons, reason)
+	}
+	if executeReadiness == nil {
+		return []string{"cleanup_execute_readiness_unavailable"}
+	}
+	if currentHash == "" {
+		add("readiness_hash_missing")
+	}
+	if requestedHash != "" && currentHash != "" && requestedHash != currentHash {
+		add("approval_audit_hash_mismatch")
+	}
+	if trail == nil || trail.Total == 0 {
+		add("approval_audit_trail_empty")
+	}
+	if trail != nil && trail.Summary.ActionCounts["reject"] > 0 {
+		add("approval_rejected")
+	}
+	if executeReadiness.Readiness == "blocked" {
+		add("execute_readiness_blocked")
+	}
+	for _, reason := range executeReadiness.DisabledReasons {
+		if reason == "cleanup_execution_not_enabled" {
+			continue
+		}
+		if reason == "approval_evidence_missing" {
+			add("approval_evidence_missing")
+			continue
+		}
+		add(reason)
+	}
+	if manualReview.Status != "ready" {
+		add("manual_review_action_missing")
+	}
+	return reasons
+}
+
+func gatewayProjectionCleanupApprovalPolicyStatus(executeReadiness *GatewayProjectionPublishAttemptCleanupExecuteReadiness, manualReview GatewayProjectionCleanupApprovalManualReview, reasons []string) (string, string) {
+	if executeReadiness == nil {
+		return "cannot_infer", "rerun_cleanup_execute_readiness"
+	}
+	if containsGatewayProjectionCleanupReason(reasons, "approval_rejected") || executeReadiness.Readiness == "blocked" {
+		return "blocked", "review_disabled_reasons"
+	}
+	if containsGatewayProjectionCleanupReason(reasons, "approval_audit_hash_mismatch") || containsGatewayProjectionCleanupReason(reasons, "approval_audit_trail_empty") {
+		return "cannot_infer", "refresh_approval_audit_trail"
+	}
+	if manualReview.Status != "ready" || executeReadiness.Readiness == "approval_required" {
+		return "manual_review_required", "collect_approval_package"
+	}
+	if executeReadiness.Readiness == "ready_for_approval" {
+		return "manual_review_ready", "wait_for_cleanup_execute_gate"
+	}
+	return "cannot_infer", "rerun_cleanup_execute_readiness"
+}
+
+func buildGatewayProjectionCleanupApprovalPolicyGates(executeReadiness *GatewayProjectionPublishAttemptCleanupExecuteReadiness, manualReview GatewayProjectionCleanupApprovalManualReview, reasons []string) []GatewayProjectionCleanupApprovalPolicyGate {
+	executeStatus := "pass"
+	if executeReadiness == nil || executeReadiness.Readiness == "blocked" {
+		executeStatus = "blocked"
+	} else if executeReadiness.Readiness != "ready_for_approval" {
+		executeStatus = "manual_review"
+	}
+	auditStatus := "pass"
+	if containsGatewayProjectionCleanupReason(reasons, "approval_rejected") {
+		auditStatus = "blocked"
+	} else if containsGatewayProjectionCleanupReason(reasons, "approval_audit_hash_mismatch") || containsGatewayProjectionCleanupReason(reasons, "approval_audit_trail_empty") {
+		auditStatus = "cannot_infer"
+	}
+	manualStatus := "pass"
+	if manualReview.Status != "ready" {
+		manualStatus = "manual_review"
+	}
+	return []GatewayProjectionCleanupApprovalPolicyGate{
+		{Name: "cleanup_execute_readiness", Status: executeStatus, ReasonAlias: firstPolicyGateReasonAlias(reasons, "execute_readiness_blocked", "cleanup_dry_run_stale", "cleanup_dry_run_generated_at_future", "readiness_hash_missing")},
+		{Name: "approval_audit_trail", Status: auditStatus, ReasonAlias: firstPolicyGateReasonAlias(reasons, "approval_rejected", "approval_audit_hash_mismatch", "approval_audit_trail_empty")},
+		{Name: "manual_review_actions", Status: manualStatus, ReasonAlias: firstPolicyGateReasonAlias(reasons, "manual_review_action_missing", "approval_evidence_missing")},
+		{Name: "cleanup_execution_guardrail", Status: "disabled", ReasonAlias: "cleanup_execution_not_enabled"},
+	}
+}
+
+func firstPolicyGateReasonAlias(reasons []string, candidates ...string) string {
+	for _, candidate := range candidates {
+		if containsGatewayProjectionCleanupReason(reasons, candidate) {
+			return candidate
+		}
+	}
+	return ""
 }
 
 func enrichGatewayProjectionPublishAttempt(attempt *GatewayProjectionPublishAttempt, organizationID string, now time.Time) *GatewayProjectionPublishAttempt {

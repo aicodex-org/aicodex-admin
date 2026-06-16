@@ -90,6 +90,7 @@ const publishAttemptCleanupReasonLabels = {
   retention_expired_missing_diagnostic_summary: "保留期已过但缺少排障摘要",
   created_at_missing: "缺少创建时间",
 };
+const cleanupApprovalPolicyEvidenceAliases = "dry_run_export_reviewed,candidate_count_reviewed,receipt_hint_coverage_reviewed,no_blocked_attempts_confirmed";
 const titleTips = {
   platformApiMappings: "维护认证中心组织/账号到 aicodex-api 业务组织、网关账号和用量身份的权威映射。",
   organizationMapping: "维护平台组织到 aicodex-api 业务组织 UUID 的一等映射。只有“已确认”才会作为运行时权威来源。",
@@ -170,6 +171,7 @@ class PlatformApiMappingPage extends React.Component {
       retentionReadinessLoading: false,
       cleanupDryRunLoading: false,
       cleanupExecuteReadinessLoading: false,
+      cleanupApprovalPolicyLoading: false,
       cleanupApprovalAuditLoading: false,
       cleanupApprovalAuditRecording: false,
       attemptDetailLoading: false,
@@ -186,6 +188,7 @@ class PlatformApiMappingPage extends React.Component {
       retentionReadiness: null,
       cleanupDryRun: null,
       cleanupExecuteReadiness: null,
+      cleanupApprovalPolicyReadiness: null,
       cleanupApprovalAuditTrail: null,
       attemptSource: "",
       attemptStatus: "",
@@ -367,6 +370,7 @@ class PlatformApiMappingPage extends React.Component {
       this.refreshGatewayProjectionPublishAttemptRetentionReadiness(organization, {source, status, timeWindow});
       this.refreshGatewayProjectionPublishAttemptCleanupDryRun(organization, {source, status});
       this.refreshGatewayProjectionPublishAttemptCleanupExecuteReadiness(organization, {source, status});
+      this.refreshGatewayProjectionPublishAttemptCleanupApprovalPolicyReadiness(organization);
       this.refreshGatewayProjectionPublishAttemptCleanupApprovalAuditTrail(organization);
     }).catch(error => {
       this.setState({attemptsLoading: false});
@@ -452,6 +456,9 @@ class PlatformApiMappingPage extends React.Component {
         this.refreshGatewayProjectionPublishAttemptCleanupApprovalAuditTrail(organization, {
           readinessHash: res.data?.dryRunHash,
         });
+        this.refreshGatewayProjectionPublishAttemptCleanupApprovalPolicyReadiness(organization, {
+          readinessHash: res.data?.dryRunHash,
+        });
       }
     }).catch(error => {
       this.setState({cleanupExecuteReadinessLoading: false});
@@ -479,6 +486,35 @@ class PlatformApiMappingPage extends React.Component {
       });
     }).catch(error => {
       this.setState({cleanupApprovalAuditLoading: false});
+      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+    });
+  }
+
+  refreshGatewayProjectionPublishAttemptCleanupApprovalPolicyReadiness(organization = this.state.organization, options = {}) {
+    if (!organization) {
+      return Promise.resolve();
+    }
+    const source = options.source !== undefined ? options.source : this.state.attemptSource;
+    const status = options.status !== undefined ? options.status : this.state.attemptStatus;
+    const readinessHash = options.readinessHash !== undefined ? options.readinessHash : this.state.cleanupExecuteReadiness?.dryRunHash;
+
+    this.setState({cleanupApprovalPolicyLoading: true});
+    return PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalPolicyReadiness(organization, {
+      source,
+      status,
+      readinessHash,
+      approvalEvidence: cleanupApprovalPolicyEvidenceAliases,
+      limit: 100,
+    }).then((res) => {
+      if (res.status === "error") {
+        Setting.showMessage("error", res.msg);
+      }
+      this.setState({
+        cleanupApprovalPolicyLoading: false,
+        cleanupApprovalPolicyReadiness: res.status === "ok" ? res.data : null,
+      });
+    }).catch(error => {
+      this.setState({cleanupApprovalPolicyLoading: false});
       Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
     });
   }
@@ -540,6 +576,8 @@ class PlatformApiMappingPage extends React.Component {
       retentionReadiness: null,
       cleanupDryRun: null,
       cleanupExecuteReadiness: null,
+      cleanupApprovalPolicyReadiness: null,
+      cleanupApprovalAuditTrail: null,
       attemptSource: "",
       attemptStatus: "",
       attemptTimeWindow: "",
@@ -915,6 +953,42 @@ class PlatformApiMappingPage extends React.Component {
     Setting.showMessage("warning", "当前浏览器不支持自动复制，请从只读响应中导出");
   }
 
+  copyCleanupApprovalPolicyReadinessExport() {
+    const policy = this.state.cleanupApprovalPolicyReadiness;
+    if (!policy) {
+      Setting.showMessage("warning", "cleanup approval policy readiness 尚未加载");
+      return;
+    }
+    const text = JSON.stringify(policy.export || {
+      generatedAt: policy.generatedAt,
+      policyVersion: policy.policyVersion,
+      policyStatus: policy.policyStatus,
+      storageScope: policy.storageScope,
+      retentionPolicyVersion: policy.retentionPolicyVersion,
+      approvalAuditStorageScope: policy.approvalAuditStorageScope,
+      readinessHash: policy.readinessHash,
+      dryRunId: policy.dryRunId,
+      safeNextAction: policy.safeNextAction,
+      candidateCount: policy.candidateCount || 0,
+      blockedCount: policy.blockedCount || 0,
+      manualReview: policy.manualReview || {},
+      cannotInfer: policy.cannotInfer || {},
+      policyGates: policy.policyGates || [],
+      auditSummary: policy.auditSummary || {},
+      executeGuardrail: policy.executeGuardrail || {},
+    }, null, 2);
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      Promise.resolve(navigator.clipboard.writeText(text)).then(() => {
+        Setting.showMessage("success", "已复制脱敏 approval policy JSON");
+        this.recordCleanupApprovalAuditAction("export");
+      }).catch(error => {
+        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      });
+      return;
+    }
+    Setting.showMessage("warning", "当前浏览器不支持自动复制，请从只读响应中导出");
+  }
+
   recordCleanupApprovalAuditAction(action) {
     const readiness = this.state.cleanupExecuteReadiness;
     if (!this.state.organization || !readiness) {
@@ -940,6 +1014,9 @@ class PlatformApiMappingPage extends React.Component {
       }
       Setting.showMessage("success", `已记录 ${action} 审计动作`);
       this.refreshGatewayProjectionPublishAttemptCleanupApprovalAuditTrail(this.state.organization, {
+        readinessHash: readiness.dryRunHash,
+      });
+      this.refreshGatewayProjectionPublishAttemptCleanupApprovalPolicyReadiness(this.state.organization, {
         readinessHash: readiness.dryRunHash,
       });
     }).catch(error => {
@@ -1155,6 +1232,7 @@ class PlatformApiMappingPage extends React.Component {
     const retentionReadiness = this.state.retentionReadiness;
     const cleanupDryRun = this.state.cleanupDryRun;
     const cleanupExecuteReadiness = this.state.cleanupExecuteReadiness;
+    const cleanupApprovalPolicyReadiness = this.state.cleanupApprovalPolicyReadiness;
     const cleanupApprovalAuditTrail = this.state.cleanupApprovalAuditTrail || {};
     const reasonCounts = retentionReadiness?.reasonCounts || {};
     const cleanupReasonCounts = cleanupDryRun?.reasonCounts || {};
@@ -1164,6 +1242,10 @@ class PlatformApiMappingPage extends React.Component {
     const executeFreshness = cleanupExecuteReadiness?.lastDryRunFreshness || {};
     const executeApproval = cleanupExecuteReadiness?.operatorApproval || {};
     const executeGuardrail = cleanupExecuteReadiness?.executeGuardrail || {};
+    const policyManualReview = cleanupApprovalPolicyReadiness?.manualReview || {};
+    const policyCannotInfer = cleanupApprovalPolicyReadiness?.cannotInfer || {};
+    const policyGates = cleanupApprovalPolicyReadiness?.policyGates || [];
+    const policyAuditSummary = cleanupApprovalPolicyReadiness?.auditSummary || {};
     const auditSummary = cleanupApprovalAuditTrail.summary || {};
     const auditActionCounts = auditSummary.actionCounts || {};
     const auditStateCounts = auditSummary.approvalStateCounts || {};
@@ -1451,6 +1533,59 @@ class PlatformApiMappingPage extends React.Component {
             <Tag>approvalRequired: {String(!!executeApproval.required)}</Tag>
             <Tag>approvalStatus: {executeApproval.status || "unknown"}</Tag>
             {(executeApproval.missingEvidenceAliases || []).map(item => <Tag key={item}>{item}</Tag>)}
+          </Space>
+        </Card>
+        <Card
+          type="inner"
+          size="small"
+          title="Cleanup approval policy readiness"
+          style={{marginBottom: 12}}
+          extra={
+            <Space wrap>
+              <Button
+                icon={<ReloadOutlined />}
+                loading={this.state.cleanupApprovalPolicyLoading}
+                onClick={() => this.refreshGatewayProjectionPublishAttemptCleanupApprovalPolicyReadiness()}
+              >
+                刷新策略
+              </Button>
+              <Button disabled={!cleanupApprovalPolicyReadiness} onClick={() => this.copyCleanupApprovalPolicyReadinessExport()}>
+                复制策略 JSON
+              </Button>
+            </Space>
+          }
+        >
+          <Alert
+            type={cleanupApprovalPolicyReadiness?.policyStatus === "blocked" ? "error" : cleanupApprovalPolicyReadiness?.policyStatus === "manual_review_ready" ? "success" : "warning"}
+            showIcon
+            message={`Approval policy: ${cleanupApprovalPolicyReadiness?.policyStatus || "未加载"}`}
+            description={`safeNextAction: ${cleanupApprovalPolicyReadiness?.safeNextAction || "等待 policy readiness"}。该策略只读派生 manual review 和 cannotInfer，不创建真实 approval decision，也不打开 cleanup gate。`}
+            style={{marginBottom: 12}}
+          />
+          <Space wrap style={{marginBottom: 8}}>
+            <Tag>policyVersion: {cleanupApprovalPolicyReadiness?.policyVersion || "gateway_projection_cleanup_approval_policy.v1"}</Tag>
+            <Tag>storage: {cleanupApprovalPolicyReadiness?.storageScope || "derived_policy_readiness_not_persisted"}</Tag>
+            <Tag>auditStorage: {cleanupApprovalPolicyReadiness?.approvalAuditStorageScope || "admin_cleanup_approval_audit_trail.v1"}</Tag>
+            <Tag>candidate: {cleanupApprovalPolicyReadiness?.candidateCount || 0}</Tag>
+            <Tag>blocked: {cleanupApprovalPolicyReadiness?.blockedCount || 0}</Tag>
+            <Tag>manualReview: {policyManualReview.status || "unknown"}</Tag>
+            <Tag color={policyCannotInfer.value ? "orange" : "green"}>cannotInfer: {String(!!policyCannotInfer.value)}</Tag>
+          </Space>
+          <Space wrap style={{marginBottom: 8}}>
+            {cleanupApprovalPolicyReadiness?.dryRunId && <Tag>dryRunId: {cleanupApprovalPolicyReadiness.dryRunId}</Tag>}
+            {cleanupApprovalPolicyReadiness?.readinessHash && <Tag>readinessHash: {cleanupApprovalPolicyReadiness.readinessHash}</Tag>}
+            <Tag>auditActions: {Object.values(policyAuditSummary.actionCounts || {}).reduce((sum, count) => sum + count, 0)}</Tag>
+          </Space>
+          <div style={{marginBottom: 8}}>
+            {(policyManualReview.missingActionAliases || []).map(item => <Tag key={item} color="orange">{item}</Tag>)}
+            {(policyCannotInfer.reasonAliases || []).map(item => <Tag key={item} color="red">{item}</Tag>)}
+          </div>
+          <Space wrap>
+            {policyGates.map(gate => (
+              <Tag key={gate.name} color={gate.status === "pass" ? "green" : gate.status === "blocked" ? "red" : "orange"}>
+                {gate.name}: {gate.status}{gate.reasonAlias ? ` / ${gate.reasonAlias}` : ""}
+              </Tag>
+            ))}
           </Space>
         </Card>
         <Card

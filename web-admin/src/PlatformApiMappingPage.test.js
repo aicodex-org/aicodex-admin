@@ -32,6 +32,7 @@ jest.mock("./backend/PlatformApiMappingBackend", () => ({
   getGatewayProjectionPublishAttemptRetentionReadiness: jest.fn(),
   getGatewayProjectionPublishAttemptCleanupDryRun: jest.fn(),
   getGatewayProjectionPublishAttemptCleanupExecuteReadiness: jest.fn(),
+  getGatewayProjectionPublishAttemptCleanupApprovalPolicyReadiness: jest.fn(),
   getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail: jest.fn(),
   recordGatewayProjectionPublishAttemptCleanupApprovalAuditTrail: jest.fn(),
   updatePlatformApiOrganizationMapping: jest.fn(),
@@ -280,6 +281,49 @@ beforeEach(() => {
       },
     },
   });
+  PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalPolicyReadiness.mockResolvedValue({
+    status: "ok",
+    data: {
+      generatedAt: "2026-06-15T13:06:30Z",
+      policyVersion: "gateway_projection_cleanup_approval_policy.v1",
+      policyStatus: "manual_review_ready",
+      storageScope: "derived_policy_readiness_not_persisted",
+      retentionPolicyVersion: "gateway_projection_publish_attempt_retention.v1",
+      approvalAuditStorageScope: "admin_cleanup_approval_audit_trail.v1",
+      readinessHash: "dryrun-hash-synthetic",
+      dryRunId: "dryrun-synthetic",
+      safeNextAction: "wait_for_cleanup_execute_gate",
+      candidateCount: 1,
+      blockedCount: 0,
+      manualReview: {
+        required: true,
+        status: "ready",
+        requiredActionAliases: ["approve", "copy", "export"],
+      },
+      cannotInfer: {
+        value: false,
+        reasonAliases: [],
+      },
+      policyGates: [{
+        name: "manual_review_actions",
+        status: "pass",
+      }],
+      auditSummary: {
+        actionCounts: {approve: 1, copy: 1, export: 1},
+        approvalStateCounts: {approved_preview: 1},
+      },
+      executeGuardrail: {
+        enabled: false,
+        dryRunOnly: true,
+      },
+      export: {
+        policyVersion: "gateway_projection_cleanup_approval_policy.v1",
+        policyStatus: "manual_review_ready",
+        readinessHash: "dryrun-hash-synthetic",
+        policyGates: [],
+      },
+    },
+  });
   PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail.mockResolvedValue({
     status: "ok",
     data: {
@@ -507,6 +551,12 @@ test("separates organization and user mapping tabs and loads user mappings on de
     status: "",
     limit: 100,
   })));
+  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalPolicyReadiness).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+    source: "",
+    status: "",
+    approvalEvidence: "dry_run_export_reviewed,candidate_count_reviewed,receipt_hint_coverage_reviewed,no_blocked_attempts_confirmed",
+    limit: 100,
+  })));
   await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     limit: 20,
   })));
@@ -539,11 +589,15 @@ test("separates organization and user mapping tabs and loads user mappings on de
   expect(screen.getByText("Cleanup execute readiness")).toBeInTheDocument();
   expect(screen.getByText(/Execute readiness: approval_required/)).toBeInTheDocument();
   expect(screen.getByText(/safeNextAction: collect_approval_package/)).toBeInTheDocument();
-  expect(screen.getByText("dryRunId: dryrun-synthetic")).toBeInTheDocument();
+  expect(screen.getAllByText("dryRunId: dryrun-synthetic").length).toBeGreaterThan(0);
   expect(screen.getByText("dryRunHash: dryrun-hash-synthetic")).toBeInTheDocument();
   expect(screen.getByText("approvalStatus: missing")).toBeInTheDocument();
   expect(screen.getAllByText("executeEnabled: false").length).toBeGreaterThan(0);
   expect(screen.getAllByText("dryRunOnly: true").length).toBeGreaterThan(0);
+  expect(screen.getByText("Cleanup approval policy readiness")).toBeInTheDocument();
+  expect(screen.getByText(/Approval policy: manual_review_ready/)).toBeInTheDocument();
+  expect(screen.getByText("manualReview: ready")).toBeInTheDocument();
+  expect(screen.getByText("storage: derived_policy_readiness_not_persisted")).toBeInTheDocument();
   expect(screen.getByText("Cleanup approval audit trail")).toBeInTheDocument();
   expect(screen.getByText(/Approval audit storage: admin_cleanup_approval_audit_trail.v1/)).toBeInTheDocument();
   expect(screen.getByText("candidateTotal: 1")).toBeInTheDocument();

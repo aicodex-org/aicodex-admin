@@ -531,6 +531,170 @@ func TestGatewayProjectionCleanupApprovalAuditTrailRecordsSafeActions(t *testing
 	assertDoesNotContainAny(t, string(raw), "projection-secret", "Authorization", "Cookie", "gateway.example.invalid", "rawGatewayResponse")
 }
 
+func TestGatewayProjectionCleanupApprovalPolicyReadinessDerivesManualReviewState(t *testing.T) {
+	now := time.Date(2026, 6, 16, 10, 0, 0, 0, time.UTC)
+	attemptStore := &memoryGatewayProjectionPublishAttemptStore{
+		records: []*GatewayProjectionPublishAttempt{{
+			AttemptId:         "attempt-policy-ready",
+			OrganizationId:    "org-a",
+			Status:            "error",
+			ProjectionBatchId: "batch-policy-ready",
+			SourceVersion:     "orgv-policy-ready",
+			FailureCategory:   "gateway_unavailable",
+			CreatedAt:         now.Add(-35 * 24 * time.Hour),
+		}},
+	}
+	service := GatewayProjectionPublishAttemptHistoryService{Store: attemptStore, Now: func() time.Time { return now }}
+	query := GatewayProjectionCleanupApprovalPolicyReadinessQuery{
+		OrganizationId:          "org-a",
+		OlderThan:               now.Add(-30 * 24 * time.Hour),
+		ApprovalEvidenceAliases: allGatewayProjectionCleanupApprovalEvidenceAliases(),
+		Limit:                   20,
+	}
+
+	pending, err := service.CleanupApprovalPolicyReadiness(query)
+	if err != nil {
+		t.Fatalf("CleanupApprovalPolicyReadiness(empty audit) error = %v", err)
+	}
+	if pending.PolicyStatus != "cannot_infer" || !pending.CannotInfer.Value || !containsString(pending.CannotInfer.ReasonAliases, "approval_audit_trail_empty") {
+		t.Fatalf("pending policy = %#v, want cannot infer from empty audit trail", pending)
+	}
+	if pending.StorageScope != "derived_policy_readiness_not_persisted" || pending.PolicyVersion != "gateway_projection_cleanup_approval_policy.v1" {
+		t.Fatalf("scope/version = %#v/%#v, want derived policy readiness v1", pending.StorageScope, pending.PolicyVersion)
+	}
+
+	for _, action := range []string{"approve", "copy", "export"} {
+		if _, err := service.RecordCleanupApprovalAuditTrail(GatewayProjectionCleanupApprovalAuditTrailRequest{
+			OrganizationId: "org-a",
+			Action:         action,
+			ReadinessHash:  pending.ReadinessHash,
+			DryRunId:       pending.DryRunId,
+			CandidateCount: pending.CandidateCount,
+			BlockedCount:   pending.BlockedCount,
+			SafeNextAction: pending.SafeNextAction,
+		}); err != nil {
+			t.Fatalf("RecordCleanupApprovalAuditTrail(%s) error = %v", action, err)
+		}
+	}
+
+	ready, err := service.CleanupApprovalPolicyReadiness(query)
+	if err != nil {
+		t.Fatalf("CleanupApprovalPolicyReadiness(ready) error = %v", err)
+	}
+	if ready.PolicyStatus != "manual_review_ready" || ready.SafeNextAction != "wait_for_cleanup_execute_gate" || ready.ManualReview.Status != "ready" {
+		t.Fatalf("ready policy = %#v, want manual-review-ready without execution", ready)
+	}
+	if ready.AuditSummary.ActionCounts["approve"] != 1 || ready.AuditSummary.ActionCounts["copy"] != 1 || ready.AuditSummary.ActionCounts["export"] != 1 {
+		t.Fatalf("action counts = %#v, want approve/copy/export evidence", ready.AuditSummary.ActionCounts)
+	}
+	if ready.ExecuteGuardrail.Enabled || !ready.ExecuteGuardrail.DryRunOnly {
+		t.Fatalf("execute guardrail = %#v, want disabled dry-run-only policy", ready.ExecuteGuardrail)
+	}
+	raw, err := json.Marshal(ready)
+	if err != nil {
+		t.Fatalf("marshal ready policy: %v", err)
+	}
+	assertDoesNotContainAny(t, string(raw), "projection-secret", "Authorization", "Cookie", "gateway.example.invalid", "rawGatewayResponse")
+	if len(attemptStore.records) != 1 || attemptStore.records[0].AttemptId != "attempt-policy-ready" {
+		t.Fatalf("policy readiness mutated publish attempts: %#v", attemptStore.records)
+	}
+}
+
+func TestGatewayProjectionCleanupApprovalPolicyReadinessFailsClosed(t *testing.T) {
+	now := time.Date(2026, 6, 16, 10, 30, 0, 0, time.UTC)
+	attemptStore := &memoryGatewayProjectionPublishAttemptStore{
+		records: []*GatewayProjectionPublishAttempt{{
+			AttemptId:         "attempt-policy-blocked",
+			OrganizationId:    "org-a",
+			Status:            "error",
+			ProjectionBatchId: "batch-policy-blocked",
+			SourceVersion:     "orgv-policy-blocked",
+			FailureCategory:   "gateway_unavailable",
+			CreatedAt:         now.Add(-35 * 24 * time.Hour),
+		}},
+	}
+	service := GatewayProjectionPublishAttemptHistoryService{Store: attemptStore, Now: func() time.Time { return now }}
+	query := GatewayProjectionCleanupApprovalPolicyReadinessQuery{
+		OrganizationId:          "org-a",
+		OlderThan:               now.Add(-30 * 24 * time.Hour),
+		ApprovalEvidenceAliases: allGatewayProjectionCleanupApprovalEvidenceAliases(),
+		Limit:                   20,
+	}
+	readiness, err := service.CleanupExecuteReadiness(GatewayProjectionPublishAttemptCleanupExecuteReadinessQuery{
+		OrganizationId:          query.OrganizationId,
+		OlderThan:               query.OlderThan,
+		ApprovalEvidenceAliases: query.ApprovalEvidenceAliases,
+		Limit:                   query.Limit,
+	})
+	if err != nil {
+		t.Fatalf("CleanupExecuteReadiness() error = %v", err)
+	}
+	if _, err := service.RecordCleanupApprovalAuditTrail(GatewayProjectionCleanupApprovalAuditTrailRequest{
+		OrganizationId: "org-a",
+		Action:         "reject",
+		Readiness:      readiness,
+	}); err != nil {
+		t.Fatalf("RecordCleanupApprovalAuditTrail(reject) error = %v", err)
+	}
+
+	rejected, err := service.CleanupApprovalPolicyReadiness(query)
+	if err != nil {
+		t.Fatalf("CleanupApprovalPolicyReadiness(rejected) error = %v", err)
+	}
+	if rejected.PolicyStatus != "blocked" || !containsString(rejected.CannotInfer.ReasonAliases, "approval_rejected") {
+		t.Fatalf("rejected policy = %#v, want blocked approval_rejected", rejected)
+	}
+
+	mismatch, err := service.CleanupApprovalPolicyReadiness(GatewayProjectionCleanupApprovalPolicyReadinessQuery{
+		OrganizationId: "org-a",
+		ReadinessHash:  "dryrun-hash-other",
+		OlderThan:      now.Add(-30 * 24 * time.Hour),
+		Limit:          20,
+	})
+	if err != nil {
+		t.Fatalf("CleanupApprovalPolicyReadiness(mismatch) error = %v", err)
+	}
+	if mismatch.PolicyStatus != "cannot_infer" || !containsString(mismatch.CannotInfer.ReasonAliases, "approval_audit_hash_mismatch") {
+		t.Fatalf("mismatch policy = %#v, want cannot infer hash mismatch", mismatch)
+	}
+	if _, err := service.CleanupApprovalPolicyReadiness(GatewayProjectionCleanupApprovalPolicyReadinessQuery{}); err == nil {
+		t.Fatalf("CleanupApprovalPolicyReadiness(empty org) error = nil, want organization required")
+	}
+}
+
+func TestGatewayProjectionCleanupApprovalPolicyStatusBranches(t *testing.T) {
+	manualReady := GatewayProjectionCleanupApprovalManualReview{Status: "ready"}
+	manualMissing := GatewayProjectionCleanupApprovalManualReview{Status: "missing"}
+
+	status, action := gatewayProjectionCleanupApprovalPolicyStatus(nil, manualReady, nil)
+	if status != "cannot_infer" || action != "rerun_cleanup_execute_readiness" {
+		t.Fatalf("nil execute policy = %s/%s, want cannot_infer/rerun_cleanup_execute_readiness", status, action)
+	}
+	status, action = gatewayProjectionCleanupApprovalPolicyStatus(&GatewayProjectionPublishAttemptCleanupExecuteReadiness{Readiness: "approval_required"}, manualMissing, []string{"approval_evidence_missing"})
+	if status != "manual_review_required" || action != "collect_approval_package" {
+		t.Fatalf("manual required policy = %s/%s, want manual_review_required/collect_approval_package", status, action)
+	}
+	status, action = gatewayProjectionCleanupApprovalPolicyStatus(&GatewayProjectionPublishAttemptCleanupExecuteReadiness{Readiness: "ready_for_approval"}, manualReady, nil)
+	if status != "manual_review_ready" || action != "wait_for_cleanup_execute_gate" {
+		t.Fatalf("ready policy = %s/%s, want manual_review_ready/wait_for_cleanup_execute_gate", status, action)
+	}
+	status, action = gatewayProjectionCleanupApprovalPolicyStatus(&GatewayProjectionPublishAttemptCleanupExecuteReadiness{Readiness: "unknown"}, manualReady, nil)
+	if status != "cannot_infer" || action != "rerun_cleanup_execute_readiness" {
+		t.Fatalf("fallback policy = %s/%s, want cannot_infer/rerun_cleanup_execute_readiness", status, action)
+	}
+
+	reasons := gatewayProjectionCleanupApprovalPolicyCannotInferReasons(
+		&GatewayProjectionPublishAttemptCleanupExecuteReadiness{Readiness: "ready_for_approval"},
+		&GatewayProjectionCleanupApprovalAuditTrail{Total: 1, Summary: GatewayProjectionCleanupApprovalAuditTrailSummary{ActionCounts: map[string]int{"approve": 1, "copy": 1, "export": 1}}},
+		manualReady,
+		"",
+		"",
+	)
+	if !containsString(reasons, "readiness_hash_missing") {
+		t.Fatalf("cannot infer reasons = %#v, want readiness_hash_missing", reasons)
+	}
+}
+
 func TestGatewayProjectionCleanupApprovalAuditTrailFiltersAndDefensiveBranches(t *testing.T) {
 	setupGatewayProjectionPublishAttemptTestOrmer(t)
 	now := time.Date(2026, 6, 15, 15, 40, 0, 0, time.UTC)
