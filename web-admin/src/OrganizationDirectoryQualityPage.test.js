@@ -27,6 +27,7 @@ jest.mock("./backend/PlatformApiMappingBackend", () => ({
   getOrganizationDirectoryRemediationApprovalPreview: jest.fn(),
   getOrganizationDirectoryRemediationApprovalPacketAudit: jest.fn(),
   getOrganizationDirectoryRemediationApprovalPacketOperatorNotes: jest.fn(),
+  getOrganizationDirectoryRemediationOperatorNotePersistenceReadiness: jest.fn(),
 }));
 
 jest.mock("./common/select/OrganizationSelect", () => (props) => (
@@ -342,6 +343,56 @@ beforeEach(() => {
       },
     },
   });
+  PlatformApiMappingBackend.getOrganizationDirectoryRemediationOperatorNotePersistenceReadiness.mockResolvedValue({
+    status: "ok",
+    data: {
+      organizationId: "org-alpha",
+      totalReadinessCount: 1,
+      boundary: "organization directory remediation operator note persistence readiness 是 Admin producer 只读准入。",
+      readiness: [{
+        readinessId: "operator-note-persistence-readiness:sample",
+        readinessHash: "sha256:persistence-readiness",
+        noteHash: "sha256:operator-note",
+        packetHash: "sha256:packet-audit",
+        approvalPreviewHash: "sha256:approval-preview",
+        draftId: "sha256:draft",
+        actionAlias: "mapping_review",
+        entityType: "user",
+        executionMode: "manual_review_only",
+        autoExecutionAllowed: false,
+        storageScope: "readiness_only",
+        persistenceAllowed: false,
+        storeDecisionRequired: true,
+        readinessStatus: "ready_for_design_review",
+        readyForPersistenceDesignReview: true,
+        idempotencyKey: "operator-note-persistence:sample",
+        idempotencyComponents: ["organizationId", "noteHash", "packetHash", "approvalPreviewHash"],
+        permissionChecklist: ["organization_scoped_operator_permission", "write_permission_not_granted_in_p0"],
+        retentionChecklist: ["retention_policy_required_before_store", "p0_notes_remain_not_persisted"],
+        auditSemanticsChecklist: ["derived_note_is_not_audit_fact", "copy_export_events_not_persisted_in_p0"],
+        redactionChecklist: ["stable_hash_only", "contact_identifier_not_exported", "source_content_not_exported"],
+        manualReviewGate: ["manual_review_only_required", "auto_execution_must_remain_false", "persistence_requires_separate_store_decision"],
+        cannotInfer: ["real_person_identity", "contact_identifier", "source_content", "persistent_audit_evidence"],
+        blockedReasons: [],
+        safeSummary: "Operator note persistence readiness for user/mapping_review uses readiness-only storage.",
+      }],
+      exportSummary: {
+        storageScope: "readiness_only",
+        persistenceAllowed: false,
+        storeDecisionRequired: true,
+        readiness: [{
+          readinessHash: "sha256:persistence-readiness",
+          noteHash: "sha256:operator-note",
+          storageScope: "readiness_only",
+          persistenceAllowed: false,
+          storeDecisionRequired: true,
+          readinessStatus: "ready_for_design_review",
+          idempotencyKey: "operator-note-persistence:sample",
+          redactionChecklist: ["stable_hash_only", "contact_identifier_not_exported"],
+        }],
+      },
+    },
+  });
   global.Blob = jest.fn((parts, options) => ({parts, options}));
   global.URL.createObjectURL = jest.fn(() => "blob:remediation-plan");
   global.URL.revokeObjectURL = jest.fn();
@@ -538,6 +589,33 @@ test("opens sanitized approval packet audit from approval preview without repair
   const exportedNotesMarkdown = global.URL.createObjectURL.mock.calls[2][0];
   expect(exportedNotesMarkdown.parts.join("")).toContain("manual_review_only");
   expect(exportedNotesMarkdown.parts.join("")).not.toContain("org-alpha/alice");
+
+  fireEvent.click(screen.getByText("持久化准入"));
+  expect((await screen.findAllByText("持久化准入")).length).toBeGreaterThan(0);
+  expect(screen.getByText("ready_for_design_review")).toBeInTheDocument();
+  expect(screen.getByText("readiness_only / persistenceAllowed=false / storeDecisionRequired=true")).toBeInTheDocument();
+  expect(screen.getByText("operator-note-persistence:sample")).toBeInTheDocument();
+  expect(screen.getByText("auto_execution_must_remain_false")).toBeInTheDocument();
+  expect(screen.getByText("persistent_audit_evidence")).toBeInTheDocument();
+  expect(screen.queryByText("保存备注")).not.toBeInTheDocument();
+  expect(PlatformApiMappingBackend.getOrganizationDirectoryRemediationOperatorNotePersistenceReadiness).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+    noteHash: "sha256:operator-note",
+    packetHash: "sha256:packet-audit",
+    approvalPreviewHash: "sha256:approval-preview",
+    draftId: "sha256:draft",
+    packetStatus: "ready_for_approval",
+    riskLevel: "medium",
+    topN: 20,
+  }));
+
+  fireEvent.click(screen.getByText("复制持久化准入JSON"));
+  await wait(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("readiness_only")));
+
+  fireEvent.click(screen.getByText("导出持久化准入JSON"));
+  const exportedReadinessJson = global.URL.createObjectURL.mock.calls[3][0];
+  expect(exportedReadinessJson.parts.join("")).toContain("sha256:persistence-readiness");
+  expect(exportedReadinessJson.parts.join("")).toContain("storeDecisionRequired");
+  expect(exportedReadinessJson.parts.join("")).not.toContain("org-alpha/alice");
 });
 
 test("shows blocked approval preview and fails closed on approval preview errors", async() => {
@@ -615,6 +693,55 @@ test("fails closed on approval packet operator notes errors", async() => {
 
   await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "notes failed"));
   expect(screen.queryByText("执行修复")).not.toBeInTheDocument();
+});
+
+test("fails closed on operator note persistence readiness errors", async() => {
+  PlatformApiMappingBackend.getOrganizationDirectoryRemediationOperatorNotePersistenceReadiness.mockResolvedValueOnce({status: "error", msg: "readiness failed"});
+  render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  await screen.findAllByText("mapping_review");
+  fireEvent.click(screen.getByText("草案"));
+  fireEvent.click(await screen.findByText("预检"));
+  fireEvent.click(await screen.findByText("审批预览"));
+  expect(await screen.findByText("readyForApproval: true")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("审批包审计"));
+  expect(await screen.findByText("ready_for_approval")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("交接备注"));
+  expect(await screen.findByText("derived_note_draft")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("持久化准入"));
+
+  await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "readiness failed"));
+  expect(screen.queryByText("保存备注")).not.toBeInTheDocument();
+});
+
+test("shows empty operator note persistence readiness without writes", async() => {
+  PlatformApiMappingBackend.getOrganizationDirectoryRemediationOperatorNotePersistenceReadiness.mockResolvedValueOnce({
+    status: "ok",
+    data: {
+      organizationId: "org-alpha",
+      totalReadinessCount: 0,
+      boundary: "organization directory remediation operator note persistence readiness 是 Admin producer 只读准入。",
+      readiness: [],
+      exportSummary: {storageScope: "readiness_only", persistenceAllowed: false, storeDecisionRequired: true, readiness: []},
+    },
+  });
+  render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  await screen.findAllByText("mapping_review");
+  fireEvent.click(screen.getByText("草案"));
+  fireEvent.click(await screen.findByText("预检"));
+  fireEvent.click(await screen.findByText("审批预览"));
+  expect(await screen.findByText("readyForApproval: true")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("审批包审计"));
+  expect(await screen.findByText("ready_for_approval")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("交接备注"));
+  expect(await screen.findByText("derived_note_draft")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("持久化准入"));
+
+  expect(await screen.findByText("暂无持久化准入")).toBeInTheDocument();
+  expect(screen.getByText("复制持久化准入JSON")).toBeDisabled();
+  expect(screen.getByText("导出持久化准入JSON")).toBeDisabled();
+  expect(screen.queryByText("保存备注")).not.toBeInTheDocument();
 });
 
 test("shows empty approval packet operator notes without writes", async() => {

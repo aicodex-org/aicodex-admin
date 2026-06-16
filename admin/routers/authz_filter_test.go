@@ -211,6 +211,16 @@ func TestGetOrganizationDirectoryRemediationApprovalPacketOperatorNotesObjectUse
 	}
 }
 
+func TestGetOrganizationDirectoryRemediationOperatorNotePersistenceReadinessObjectUsesOrganizationQuery(t *testing.T) {
+	owner, name, ok := getModuleOrganizationObject("/api/organization-master-data-quality/remediation-operator-note-persistence-readiness", http.MethodGet, "engineering", nil)
+	if !ok {
+		t.Fatalf("expected organization directory remediation operator note persistence readiness object to be parsed")
+	}
+	if owner != "engineering" || name != "" {
+		t.Fatalf("remediation operator note persistence readiness object = %q/%q, want engineering/<empty>", owner, name)
+	}
+}
+
 func TestGetModuleOrganizationObjectIgnoresUnscopedApi(t *testing.T) {
 	owner, name, ok := getModuleOrganizationObject("/api/get-providers", http.MethodGet, "engineering", nil)
 	if ok || owner != "" || name != "" {

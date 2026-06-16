@@ -78,6 +78,7 @@ export default function OrganizationDirectoryQualityPage(props) {
   const [approvalPreviewLoading, setApprovalPreviewLoading] = useState(false);
   const [approvalPacketAuditLoading, setApprovalPacketAuditLoading] = useState(false);
   const [approvalPacketOperatorNotesLoading, setApprovalPacketOperatorNotesLoading] = useState(false);
+  const [operatorNotePersistenceReadinessLoading, setOperatorNotePersistenceReadinessLoading] = useState(false);
   const [data, setData] = useState(null);
   const [planData, setPlanData] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -87,6 +88,7 @@ export default function OrganizationDirectoryQualityPage(props) {
   const [approvalPreviewData, setApprovalPreviewData] = useState(null);
   const [approvalPacketAuditData, setApprovalPacketAuditData] = useState(null);
   const [approvalPacketOperatorNotesData, setApprovalPacketOperatorNotesData] = useState(null);
+  const [operatorNotePersistenceReadinessData, setOperatorNotePersistenceReadinessData] = useState(null);
 
   const currentPlanOptions = () => ({
     entityType,
@@ -145,6 +147,7 @@ export default function OrganizationDirectoryQualityPage(props) {
     setApprovalPreviewData(null);
     setApprovalPacketAuditData(null);
     setApprovalPacketOperatorNotesData(null);
+    setOperatorNotePersistenceReadinessData(null);
     setDraftLoading(true);
     return PlatformApiMappingBackend.getOrganizationDirectoryRemediationActionDrafts(organization, {
       ...currentPlanOptions(),
@@ -167,6 +170,7 @@ export default function OrganizationDirectoryQualityPage(props) {
     setApprovalPreviewData(null);
     setApprovalPacketAuditData(null);
     setApprovalPacketOperatorNotesData(null);
+    setOperatorNotePersistenceReadinessData(null);
     setPreflightLoading(true);
     return PlatformApiMappingBackend.getOrganizationDirectoryRemediationPreflight(organization, {
       ...currentPlanOptions(),
@@ -190,6 +194,7 @@ export default function OrganizationDirectoryQualityPage(props) {
     setApprovalPreviewData(null);
     setApprovalPacketAuditData(null);
     setApprovalPacketOperatorNotesData(null);
+    setOperatorNotePersistenceReadinessData(null);
     setApprovalPreviewLoading(true);
     return PlatformApiMappingBackend.getOrganizationDirectoryRemediationApprovalPreview(organization, {
       ...currentPlanOptions(),
@@ -212,6 +217,7 @@ export default function OrganizationDirectoryQualityPage(props) {
   const loadApprovalPacketAudit = (approvalPreview) => {
     setApprovalPacketAuditData(null);
     setApprovalPacketOperatorNotesData(null);
+    setOperatorNotePersistenceReadinessData(null);
     setApprovalPacketAuditLoading(true);
     return PlatformApiMappingBackend.getOrganizationDirectoryRemediationApprovalPacketAudit(organization, {
       ...currentPlanOptions(),
@@ -237,6 +243,7 @@ export default function OrganizationDirectoryQualityPage(props) {
 
   const loadApprovalPacketOperatorNotes = (packetAudit) => {
     setApprovalPacketOperatorNotesData(null);
+    setOperatorNotePersistenceReadinessData(null);
     setApprovalPacketOperatorNotesLoading(true);
     return PlatformApiMappingBackend.getOrganizationDirectoryRemediationApprovalPacketOperatorNotes(organization, {
       ...currentPlanOptions(),
@@ -260,6 +267,33 @@ export default function OrganizationDirectoryQualityPage(props) {
       }
       setApprovalPacketOperatorNotesData(res.data);
     }).finally(() => setApprovalPacketOperatorNotesLoading(false));
+  };
+
+  const loadOperatorNotePersistenceReadiness = (note) => {
+    setOperatorNotePersistenceReadinessData(null);
+    setOperatorNotePersistenceReadinessLoading(true);
+    return PlatformApiMappingBackend.getOrganizationDirectoryRemediationOperatorNotePersistenceReadiness(organization, {
+      ...currentPlanOptions(),
+      noteId: note.noteId,
+      noteHash: note.noteHash,
+      packetHash: note.packetHash,
+      approvalPreviewHash: note.approvalPreviewHash,
+      draftId: note.draftId,
+      actionAlias: note.actionAlias || selectedPlan?.actionAlias,
+      entityType: note.entityType || entityType,
+      riskLevel: selectedApprovalPacketAudit?.riskLevel,
+      packetStatus: selectedApprovalPacketAudit?.packetStatus,
+      reasonCode: (selectedPlan?.reasonCodes || [])[0] || reasonCode,
+      limit: 100,
+      topN: 20,
+    }).then((res) => {
+      if (res.status !== "ok") {
+        Setting.showMessage("error", res.msg || "加载持久化准入失败");
+        setOperatorNotePersistenceReadinessData(null);
+        return;
+      }
+      setOperatorNotePersistenceReadinessData(res.data);
+    }).finally(() => setOperatorNotePersistenceReadinessLoading(false));
   };
 
   const loadAll = (nextPagination = pagination) => Promise.all([
@@ -606,6 +640,45 @@ export default function OrganizationDirectoryQualityPage(props) {
     URL.revokeObjectURL(url);
   };
 
+  const selectedOperatorNotePersistenceReadiness = operatorNotePersistenceReadinessData?.readiness?.[0];
+  const operatorNotePersistenceReadinessExportPayload = operatorNotePersistenceReadinessData?.exportSummary || {
+    organizationId: operatorNotePersistenceReadinessData?.organizationId,
+    boundary: operatorNotePersistenceReadinessData?.boundary,
+    storageScope: operatorNotePersistenceReadinessData?.exportSummary?.storageScope || "readiness_only",
+    persistenceAllowed: false,
+    storeDecisionRequired: true,
+    readiness: operatorNotePersistenceReadinessData?.readiness || [],
+  };
+
+  const copyOperatorNotePersistenceReadinessJson = () => {
+    const content = JSON.stringify(operatorNotePersistenceReadinessExportPayload, null, 2);
+    if (!navigator.clipboard?.writeText) {
+      Setting.showMessage("error", "当前浏览器不支持复制持久化准入");
+      return;
+    }
+    navigator.clipboard.writeText(content).then(() => {
+      Setting.showMessage("success", "已复制脱敏持久化准入JSON");
+    }).catch(() => {
+      Setting.showMessage("error", "复制脱敏持久化准入JSON失败");
+    });
+  };
+
+  const exportOperatorNotePersistenceReadinessJson = () => {
+    if (!operatorNotePersistenceReadinessData?.readiness || operatorNotePersistenceReadinessData.readiness.length === 0) {
+      Setting.showMessage("warning", "暂无可导出的持久化准入");
+      return;
+    }
+    const blob = new Blob([JSON.stringify(operatorNotePersistenceReadinessExportPayload, null, 2)], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `organization-directory-remediation-operator-note-persistence-readiness-${organization || "empty"}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div style={{padding: 24}}>
       <Space direction="vertical" size={16} style={{width: "100%"}}>
@@ -940,6 +1013,7 @@ export default function OrganizationDirectoryQualityPage(props) {
                                               <Text type="secondary">{approvalPacketOperatorNotesData?.boundary || "Admin producer operator notes only."}</Text>
                                             </Space>
                                             <Space wrap>
+                                              <Button onClick={() => loadOperatorNotePersistenceReadiness(selectedApprovalPacketOperatorNote)} disabled={!selectedApprovalPacketOperatorNote}>持久化准入</Button>
                                               <Button onClick={copyApprovalPacketOperatorNotesJson} disabled={!approvalPacketOperatorNotesData?.notes?.length}>复制交接备注JSON</Button>
                                               <Button onClick={copyApprovalPacketOperatorNotesMarkdown} disabled={!selectedApprovalPacketOperatorNote?.markdownSummary}>复制交接备注Markdown</Button>
                                               <Button icon={<DownloadOutlined />} onClick={exportApprovalPacketOperatorNotesJson} disabled={!approvalPacketOperatorNotesData?.notes?.length}>导出交接备注JSON</Button>
@@ -966,6 +1040,44 @@ export default function OrganizationDirectoryQualityPage(props) {
                                                 <Text style={{whiteSpace: "pre-wrap", wordBreak: "break-word"}}>{selectedApprovalPacketOperatorNote.markdownSummary || "-"}</Text>
                                               </Descriptions.Item>
                                             </Descriptions>
+                                          )}
+                                          {(operatorNotePersistenceReadinessLoading || operatorNotePersistenceReadinessData) && (
+                                            <div style={{border: "1px solid #f0f0f0", borderRadius: 6, padding: 12}}>
+                                              <Space direction="vertical" size={12} style={{width: "100%"}}>
+                                                <Space align="center" wrap style={{justifyContent: "space-between", width: "100%"}}>
+                                                  <Space align="center" wrap>
+                                                    <Title level={5} style={{margin: 0}}>持久化准入</Title>
+                                                    {selectedOperatorNotePersistenceReadiness && <Tag color={selectedOperatorNotePersistenceReadiness.readinessStatus === "ready_for_design_review" ? "green" : "red"}>{selectedOperatorNotePersistenceReadiness.readinessStatus}</Tag>}
+                                                    <Text type="secondary">{operatorNotePersistenceReadinessData?.boundary || "Admin producer persistence readiness only."}</Text>
+                                                  </Space>
+                                                  <Space wrap>
+                                                    <Button onClick={copyOperatorNotePersistenceReadinessJson} disabled={!operatorNotePersistenceReadinessData?.readiness?.length}>复制持久化准入JSON</Button>
+                                                    <Button icon={<DownloadOutlined />} onClick={exportOperatorNotePersistenceReadinessJson} disabled={!operatorNotePersistenceReadinessData?.readiness?.length}>导出持久化准入JSON</Button>
+                                                  </Space>
+                                                </Space>
+                                                {operatorNotePersistenceReadinessLoading && <Text type="secondary">加载持久化准入中</Text>}
+                                                {!operatorNotePersistenceReadinessLoading && operatorNotePersistenceReadinessData && !selectedOperatorNotePersistenceReadiness && <Empty description="暂无持久化准入" />}
+                                                {selectedOperatorNotePersistenceReadiness && (
+                                                  <Descriptions column={1} size="small" bordered>
+                                                    <Descriptions.Item label="Readiness Hash">{selectedOperatorNotePersistenceReadiness.readinessHash || "-"}</Descriptions.Item>
+                                                    <Descriptions.Item label="Storage">{selectedOperatorNotePersistenceReadiness.storageScope || "-"} / persistenceAllowed={String(selectedOperatorNotePersistenceReadiness.persistenceAllowed)} / storeDecisionRequired={String(selectedOperatorNotePersistenceReadiness.storeDecisionRequired)}</Descriptions.Item>
+                                                    <Descriptions.Item label="Status">{selectedOperatorNotePersistenceReadiness.readinessStatus || "-"} / readyForPersistenceDesignReview={String(selectedOperatorNotePersistenceReadiness.readyForPersistenceDesignReview)}</Descriptions.Item>
+                                                    <Descriptions.Item label="Idempotency Key">
+                                                      <Text style={{wordBreak: "break-word"}}>{selectedOperatorNotePersistenceReadiness.idempotencyKey || "-"}</Text>
+                                                    </Descriptions.Item>
+                                                    <Descriptions.Item label="Idempotency Components">{renderTags(selectedOperatorNotePersistenceReadiness.idempotencyComponents, "cyan")}</Descriptions.Item>
+                                                    <Descriptions.Item label="Permission Checklist">{renderTags(selectedOperatorNotePersistenceReadiness.permissionChecklist, "blue")}</Descriptions.Item>
+                                                    <Descriptions.Item label="Retention Checklist">{renderTags(selectedOperatorNotePersistenceReadiness.retentionChecklist, "purple")}</Descriptions.Item>
+                                                    <Descriptions.Item label="Audit Semantics">{renderTags(selectedOperatorNotePersistenceReadiness.auditSemanticsChecklist, "geekblue")}</Descriptions.Item>
+                                                    <Descriptions.Item label="Redaction Checklist">{renderTags(selectedOperatorNotePersistenceReadiness.redactionChecklist, "green")}</Descriptions.Item>
+                                                    <Descriptions.Item label="Manual Review Gate">{renderTags(selectedOperatorNotePersistenceReadiness.manualReviewGate, "volcano")}</Descriptions.Item>
+                                                    <Descriptions.Item label="cannotInfer">{renderTags(selectedOperatorNotePersistenceReadiness.cannotInfer, "orange")}</Descriptions.Item>
+                                                    <Descriptions.Item label="Blocked reasons">{renderTags(selectedOperatorNotePersistenceReadiness.blockedReasons, "red")}</Descriptions.Item>
+                                                    <Descriptions.Item label="安全摘要">{selectedOperatorNotePersistenceReadiness.safeSummary || "-"}</Descriptions.Item>
+                                                  </Descriptions>
+                                                )}
+                                              </Space>
+                                            </div>
                                           )}
                                         </Space>
                                       </div>

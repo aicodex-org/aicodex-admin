@@ -411,6 +411,77 @@ export function getOrganizationDirectoryRemediationApprovalPacketOperatorNotes(o
   }).then(res => res.json());
 }
 
+export function getOrganizationDirectoryRemediationOperatorNotePersistenceReadiness(organization, options = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.readinessId) {
+    query.set("readinessId", options.readinessId);
+  }
+  if (options.readinessHash) {
+    query.set("readinessHash", options.readinessHash);
+  }
+  if (options.noteId) {
+    query.set("noteId", options.noteId);
+  }
+  if (options.noteHash) {
+    query.set("noteHash", options.noteHash);
+  }
+  if (options.packetAuditId) {
+    query.set("packetAuditId", options.packetAuditId);
+  }
+  if (options.packetHash) {
+    query.set("packetHash", options.packetHash);
+  }
+  if (options.approvalPreviewId) {
+    query.set("approvalPreviewId", options.approvalPreviewId);
+  }
+  if (options.approvalPreviewHash) {
+    query.set("approvalPreviewHash", options.approvalPreviewHash);
+  }
+  if (options.draftId) {
+    query.set("draftId", options.draftId);
+  }
+  if (options.actionAlias) {
+    query.set("actionAlias", options.actionAlias);
+  }
+  if (options.entityType) {
+    query.set("entityType", options.entityType);
+  }
+  if (options.keyword) {
+    query.set("keyword", options.keyword);
+  }
+  if (options.sourceType) {
+    query.set("sourceType", options.sourceType);
+  }
+  if (options.sourceConnectionIdHash) {
+    query.set("sourceConnectionIdHash", options.sourceConnectionIdHash);
+  }
+  if (options.qualityStatus) {
+    query.set("qualityStatus", options.qualityStatus);
+  }
+  if (options.reasonCode) {
+    query.set("reasonCode", options.reasonCode);
+  }
+  if (options.riskLevel) {
+    query.set("riskLevel", options.riskLevel);
+  }
+  if (options.packetStatus) {
+    query.set("packetStatus", options.packetStatus);
+  }
+  if (options.limit) {
+    query.set("limit", options.limit);
+  }
+  if (options.topN) {
+    query.set("topN", options.topN);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/organization-master-data-quality/remediation-operator-note-persistence-readiness?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
 export function publishGatewayProjectionManually(organization, options = {}) {
   return fetch(`${Setting.ServerUrl}/api/gateway-projection/manual-publish`, {
     method: "POST",
