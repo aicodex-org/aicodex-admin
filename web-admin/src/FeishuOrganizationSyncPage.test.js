@@ -13,6 +13,7 @@ jest.mock("./backend/FeishuOrganizationSyncBackend", () => ({
   getFeishuOrganizationSyncDryRunHistories: jest.fn(),
   getFeishuOrganizationSyncDryRunHistory: jest.fn(),
   getFeishuOrganizationSyncUserBindingConflicts: jest.fn(),
+  getFeishuOrganizationSyncHandoffEvidence: jest.fn(),
   startFeishuOrganizationSyncRun: jest.fn(),
   getFeishuOrganizationSyncRuns: jest.fn(),
 }));
@@ -134,6 +135,39 @@ beforeEach(() => {
       redaction: {applied: true, version: "feishu-user-binding-conflict-redaction-v1"},
       generatedAt: "2026-06-15T12:00:00Z",
       safeSummary: "发现 1 个飞书用户绑定风险，最高风险级别为 critical，建议先处理后再正式同步。",
+    },
+  });
+  FeishuOrganizationSyncBackend.getFeishuOrganizationSyncHandoffEvidence.mockResolvedValue({
+    status: "ok",
+    data: {
+      organization: "engineering",
+      evidenceVersion: "feishu-org-sync-handoff-evidence-v1",
+      sourceType: "dry_run_history",
+      sourceIdHash: "dry-run-safe",
+      sourceStatus: "succeeded",
+      endpointMode: "feishu",
+      appAlias: "app-safe",
+      tenantAlias: "tenant-safe",
+      sourceConnectionIdHash: "source-safe",
+      readiness: "ready",
+      counts: {
+        departments: {toCreate: 1, toUpdate: 1, toSoftDisable: 0, conflict: 0, invalid: 0},
+        users: {toCreate: 2, toUpdate: 0, toSoftDisable: 1, conflict: 0, invalid: 0},
+        memberships: {toCreate: 3, toUpdate: 0, toSoftDisable: 0, conflict: 0, invalid: 0},
+      },
+      bindingConflicts: {
+        status: "ok",
+        riskLevel: "none",
+        blocked: false,
+        total: 0,
+        safeSummary: "未发现阻断级飞书用户绑定风险。",
+      },
+      blockedReasons: [],
+      operatorNextActions: ["export_evidence_json"],
+      cannotInfer: ["live_contact_v3_credentials"],
+      redaction: {applied: true, version: "feishu-handoff-evidence-redaction-v1"},
+      generatedAt: "2026-06-15T12:30:00Z",
+      safeSummary: "交接证据已就绪，可复制或导出脱敏 JSON 供真实租户测试和验收交接。",
     },
   });
   FeishuOrganizationSyncBackend.dryRunFeishuOrganizationSyncPreview.mockResolvedValue({
@@ -260,6 +294,78 @@ test("renders user binding diagnostics and opens redacted detail drawer", async(
   expect(screen.getAllByText(/duplicate_user_id_binding_blocks_safe_sync/).length).toBeGreaterThan(0);
   expect(screen.getAllByText(/source-abcdef/).length).toBeGreaterThan(0);
   expect(screen.queryByText(/ou-shared/)).not.toBeInTheDocument();
+});
+
+test("renders handoff evidence ready summary and safe markers", async() => {
+  render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+
+  expect(await screen.findByText("交接证据")).toBeInTheDocument();
+  expect(FeishuOrganizationSyncBackend.getFeishuOrganizationSyncHandoffEvidence).toHaveBeenCalledWith("engineering", {sourceType: "latest"});
+  expect(screen.getByText("可交接")).toBeInTheDocument();
+  expect(screen.getByText("dry-run-safe")).toBeInTheDocument();
+  expect(screen.getByText("source-safe")).toBeInTheDocument();
+  expect(screen.getByText("部门：新 1 / 更 1 / 软禁 0 / 冲突 0 / 无效 0")).toBeInTheDocument();
+  expect(screen.getByText("live_contact_v3_credentials")).toBeInTheDocument();
+  expect(screen.queryByText(/cli-real/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/tenant-real/)).not.toBeInTheDocument();
+});
+
+test("copies handoff evidence JSON without raw tenant identifiers", async() => {
+  const writeText = jest.fn(() => Promise.resolve());
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: {writeText},
+  });
+  render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+
+  expect(await screen.findByText("交接证据")).toBeInTheDocument();
+  fireEvent.click(screen.getByLabelText("copy-handoff-evidence-json"));
+
+  expect(writeText).toHaveBeenCalledTimes(1);
+  const copied = writeText.mock.calls[0][0];
+  expect(copied).toContain("dry-run-safe");
+  expect(copied).toContain("source-safe");
+  expect(copied).not.toContain("cli-real");
+  expect(copied).not.toContain("tenant-real");
+});
+
+test("renders handoff evidence blocked and no-run states", async() => {
+  FeishuOrganizationSyncBackend.getFeishuOrganizationSyncHandoffEvidence.mockResolvedValueOnce({
+    status: "ok",
+    data: {
+      readiness: "blocked",
+      sourceType: "run",
+      sourceIdHash: "run-safe",
+      blockedReasons: ["sync_run_failed", "binding_conflict_blocked"],
+      operatorNextActions: ["inspect_sync_diagnostics"],
+      cannotInfer: ["insight_acceptance"],
+      redaction: {applied: true, version: "feishu-handoff-evidence-redaction-v1"},
+      generatedAt: "2026-06-15T12:30:00Z",
+      safeSummary: "交接证据存在 2 个阻断原因，需处理后再交接。",
+    },
+  });
+  render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+
+  expect((await screen.findAllByText("交接证据存在 2 个阻断原因，需处理后再交接。")).length).toBeGreaterThan(0);
+  expect(screen.getByText("sync_run_failed")).toBeInTheDocument();
+  expect(screen.getByText("binding_conflict_blocked")).toBeInTheDocument();
+
+  FeishuOrganizationSyncBackend.getFeishuOrganizationSyncHandoffEvidence.mockResolvedValueOnce({
+    status: "ok",
+    data: {
+      readiness: "no_run",
+      blockedReasons: [],
+      operatorNextActions: ["run_dry_run_preview"],
+      cannotInfer: ["live_contact_v3_credentials"],
+      redaction: {applied: true, version: "feishu-handoff-evidence-redaction-v1"},
+      generatedAt: "2026-06-15T12:31:00Z",
+      safeSummary: "未发现可用于交接的飞书同步 run 或 dry-run history。",
+    },
+  });
+  fireEvent.click(screen.getByLabelText("refresh-handoff-evidence"));
+
+  expect(await screen.findByText("无记录")).toBeInTheDocument();
+  expect(screen.getByText("run_dry_run_preview")).toBeInTheDocument();
 });
 
 test("renders disabled user binding diagnostics state", async() => {

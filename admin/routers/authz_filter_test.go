@@ -102,6 +102,16 @@ func TestGetFeishuOrganizationSyncUserBindingConflictObjectUsesOrganizationQuery
 	}
 }
 
+func TestGetFeishuOrganizationSyncHandoffEvidenceObjectUsesOrganizationQuery(t *testing.T) {
+	owner, name, ok := getModuleOrganizationObject("/api/feishu-org-sync/handoff-evidence", http.MethodGet, "engineering", nil)
+	if !ok {
+		t.Fatalf("expected handoff evidence organization object to be parsed")
+	}
+	if owner != "engineering" || name != "" {
+		t.Fatalf("handoff evidence object = %q/%q, want engineering/<empty>", owner, name)
+	}
+}
+
 func TestGetOrganizationManagementScopeObjectUsesOrganizationQuery(t *testing.T) {
 	owner, name, ok := getModuleOrganizationObject("/api/org-management-scope/current", http.MethodGet, "engineering", nil)
 	if !ok {

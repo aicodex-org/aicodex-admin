@@ -80,6 +80,17 @@ const bindingActionLabels = {
   align_endpoint_mode: "对齐 endpoint",
   no_action: "无需处理",
 };
+const handoffReadinessLabels = {
+  ready: "可交接",
+  blocked: "阻断",
+  no_run: "无记录",
+  unsupported: "不可用",
+};
+const handoffSourceTypeLabels = {
+  latest: "最近证据",
+  run: "最近同步",
+  dry_run_history: "最近 Dry-run",
+};
 
 class FeishuOrganizationSyncPage extends React.Component {
   constructor(props) {
@@ -115,6 +126,10 @@ class FeishuOrganizationSyncPage extends React.Component {
       bindingDiagnosticsError: "",
       bindingDiagnosticsDetail: null,
       bindingDiagnosticsDetailOpen: false,
+      handoffEvidence: null,
+      handoffEvidenceLoading: false,
+      handoffEvidenceError: "",
+      handoffEvidenceSourceType: "latest",
     };
   }
 
@@ -189,11 +204,12 @@ class FeishuOrganizationSyncPage extends React.Component {
     const runsRequest = FeishuOrganizationSyncBackend.getFeishuOrganizationSyncRuns(organization, nextPagination.current, nextPagination.pageSize);
     const dryRunHistoryRequest = FeishuOrganizationSyncBackend.getFeishuOrganizationSyncDryRunHistories(organization, {topN: 10});
     const bindingDiagnosticsRequest = FeishuOrganizationSyncBackend.getFeishuOrganizationSyncUserBindingConflicts(organization, {limit: 20});
+    const handoffEvidenceRequest = FeishuOrganizationSyncBackend.getFeishuOrganizationSyncHandoffEvidence(organization, {sourceType: this.state.handoffEvidenceSourceType});
     const configRequest = refreshConfig
       ? FeishuOrganizationSyncBackend.getFeishuOrganizationSyncConfig(organization)
       : Promise.resolve(null);
 
-    return Promise.all([configRequest, runsRequest, dryRunHistoryRequest, bindingDiagnosticsRequest]).then(([configRes, runsRes, dryRunHistoryRes, bindingDiagnosticsRes]) => {
+    return Promise.all([configRequest, runsRequest, dryRunHistoryRequest, bindingDiagnosticsRequest, handoffEvidenceRequest]).then(([configRes, runsRes, dryRunHistoryRes, bindingDiagnosticsRes, handoffEvidenceRes]) => {
       if (configRes?.status === "error") {
         Setting.showMessage("error", configRes.msg);
       }
@@ -205,6 +221,9 @@ class FeishuOrganizationSyncPage extends React.Component {
       }
       if (bindingDiagnosticsRes.status === "error") {
         Setting.showMessage("error", bindingDiagnosticsRes.msg);
+      }
+      if (handoffEvidenceRes.status === "error") {
+        Setting.showMessage("error", handoffEvidenceRes.msg);
       }
       if (this.isUnmounted || this.state.organization !== organization) {
         return;
@@ -236,6 +255,12 @@ class FeishuOrganizationSyncPage extends React.Component {
         nextState.bindingDiagnosticsError = "";
       } else {
         nextState.bindingDiagnosticsError = "绑定冲突诊断刷新失败，请手动刷新重试。";
+      }
+      if (handoffEvidenceRes.status === "ok") {
+        nextState.handoffEvidence = handoffEvidenceRes.data || null;
+        nextState.handoffEvidenceError = "";
+      } else {
+        nextState.handoffEvidenceError = "交接证据刷新失败，请手动刷新重试。";
       }
       this.setState(nextState, () => this.syncRunRefreshLoop(organization, nextState.runs || this.state.runs));
     }).catch(error => {
@@ -294,6 +319,29 @@ class FeishuOrganizationSyncPage extends React.Component {
       });
   }
 
+  refreshHandoffEvidence(organization = this.state.organization, sourceType = this.state.handoffEvidenceSourceType) {
+    if (!organization) {
+      return Promise.resolve();
+    }
+    this.setState({handoffEvidenceLoading: true});
+    return FeishuOrganizationSyncBackend.getFeishuOrganizationSyncHandoffEvidence(organization, {sourceType})
+      .then(res => {
+        if (this.isUnmounted || this.state.organization !== organization) {
+          return;
+        }
+        if (res.status === "ok") {
+          this.setState({handoffEvidenceLoading: false, handoffEvidence: res.data || null, handoffEvidenceError: ""});
+        } else {
+          this.setState({handoffEvidenceLoading: false, handoffEvidenceError: res.msg || "交接证据刷新失败"});
+        }
+      }).catch(error => {
+        if (this.isUnmounted || this.state.organization !== organization) {
+          return;
+        }
+        this.setState({handoffEvidenceLoading: false, handoffEvidenceError: `${i18next.t("general:Failed to connect to server")}: ${error}`});
+      });
+  }
+
   refresh(organization) {
     if (organization) {
       this.refreshRuns(organization, {refreshConfig: true, pagination: getDefaultTablePagination()}).catch(() => {});
@@ -341,6 +389,8 @@ class FeishuOrganizationSyncPage extends React.Component {
       bindingDiagnosticsError: "",
       bindingDiagnosticsDetail: null,
       bindingDiagnosticsDetailOpen: false,
+      handoffEvidence: null,
+      handoffEvidenceError: "",
     }, () => this.refresh(organization));
   }
 
@@ -526,6 +576,137 @@ class FeishuOrganizationSyncPage extends React.Component {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  }
+
+  getHandoffReadinessTag(readiness) {
+    const colorMap = {ready: "green", blocked: "red", no_run: "default", unsupported: "default"};
+    return <Tag color={colorMap[readiness] || "default"}>{handoffReadinessLabels[readiness] || readiness || "-"}</Tag>;
+  }
+
+  getHandoffEvidenceJson(payload = this.state.handoffEvidence) {
+    return JSON.stringify(payload || {}, null, 2);
+  }
+
+  copyHandoffEvidenceJson(payload = this.state.handoffEvidence) {
+    const text = this.getHandoffEvidenceJson(payload);
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text)
+        .then(() => Setting.showMessage("success", "已复制交接证据 JSON"))
+        .catch(error => Setting.showMessage("error", `复制失败：${error}`));
+      return;
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    document.body.removeChild(textarea);
+    Setting.showMessage("success", "已复制交接证据 JSON");
+  }
+
+  exportHandoffEvidenceJson(payload = this.state.handoffEvidence) {
+    const blob = new Blob([this.getHandoffEvidenceJson(payload)], {type: "application/json;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const generatedAt = (payload?.generatedAt || new Date().toISOString()).replace(/[:.]/g, "-");
+    link.href = url;
+    link.download = `feishu-handoff-evidence-${generatedAt}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  renderHandoffCounts(counts = {}) {
+    const format = item => `新 ${item?.toCreate || 0} / 更 ${item?.toUpdate || 0} / 软禁 ${item?.toSoftDisable || 0} / 冲突 ${item?.conflict || 0} / 无效 ${item?.invalid || 0}`;
+    return (
+      <Space direction="vertical" size={2}>
+        <Text>{`部门：${format(counts.departments)}`}</Text>
+        <Text>{`用户：${format(counts.users)}`}</Text>
+        <Text>{`关系：${format(counts.memberships)}`}</Text>
+      </Space>
+    );
+  }
+
+  renderHandoffEvidence() {
+    const evidence = this.state.handoffEvidence || {};
+    const readinessType = evidence.readiness === "blocked" ? "error" : evidence.readiness === "ready" ? "success" : "info";
+    return (
+      <>
+        <Row align="middle" justify="space-between" style={{marginBottom: 12}}>
+          <Col>
+            <Space direction="vertical" size={2}>
+              <Text strong>交接证据</Text>
+              <Text type={this.state.handoffEvidenceError ? "danger" : "secondary"}>
+                {this.state.handoffEvidenceError || evidence.safeSummary || "复制或导出脱敏 evidence JSON，用于真实租户测试和验收交接。"}
+              </Text>
+            </Space>
+          </Col>
+          <Col>
+            <Space wrap>
+              <Select
+                value={this.state.handoffEvidenceSourceType}
+                style={{width: 140}}
+                options={[
+                  {value: "latest", label: handoffSourceTypeLabels.latest},
+                  {value: "run", label: handoffSourceTypeLabels.run},
+                  {value: "dry_run_history", label: handoffSourceTypeLabels.dry_run_history},
+                ]}
+                onChange={sourceType => this.setState({handoffEvidenceSourceType: sourceType}, () => this.refreshHandoffEvidence(this.state.organization, sourceType).catch(() => {}))}
+              />
+              <Button aria-label="copy-handoff-evidence-json" icon={<CopyOutlined />} disabled={!evidence.generatedAt} onClick={() => this.copyHandoffEvidenceJson(evidence)}>复制 JSON</Button>
+              <Button icon={<DownloadOutlined />} disabled={!evidence.generatedAt} onClick={() => this.exportHandoffEvidenceJson(evidence)}>导出 JSON</Button>
+              <Button aria-label="refresh-handoff-evidence" icon={<ReloadOutlined />} loading={this.state.handoffEvidenceLoading} onClick={() => this.refreshHandoffEvidence().catch(() => {})}>刷新</Button>
+            </Space>
+          </Col>
+        </Row>
+        {evidence.readiness && (
+          <Alert
+            style={{marginBottom: 12}}
+            type={readinessType}
+            showIcon
+            message={
+              <Space wrap>
+                {this.getHandoffReadinessTag(evidence.readiness)}
+                {evidence.sourceType && <Tag>{handoffSourceTypeLabels[evidence.sourceType] || evidence.sourceType}</Tag>}
+                {evidence.sourceIdHash && <Tag>{evidence.sourceIdHash}</Tag>}
+                {evidence.redaction?.applied && <Tag color="green">{evidence.redaction.version || "已脱敏"}</Tag>}
+              </Space>
+            }
+            description={
+              <Space direction="vertical" size={6} style={{width: "100%"}}>
+                <Text>{evidence.safeSummary || "-"}</Text>
+                <Space size={4} wrap>
+                  {evidence.sourceConnectionIdHash && <Tag>{evidence.sourceConnectionIdHash}</Tag>}
+                  {evidence.endpointMode && <Tag>{evidence.endpointMode}</Tag>}
+                  {evidence.appAlias && <Tag>{evidence.appAlias}</Tag>}
+                  {evidence.tenantAlias && <Tag>{evidence.tenantAlias}</Tag>}
+                </Space>
+                {this.renderHandoffCounts(evidence.counts)}
+                <Space size={4} wrap>
+                  {(evidence.blockedReasons || []).map(reason => <Tag color="red" key={reason}>{reason}</Tag>)}
+                  {(evidence.operatorNextActions || []).map(action => <Tag color="blue" key={action}>{action}</Tag>)}
+                  {(evidence.cannotInfer || []).map(item => <Tag key={item}>{item}</Tag>)}
+                </Space>
+                {evidence.bindingConflicts?.safeSummary && <Text type={evidence.bindingConflicts?.blocked ? "danger" : "secondary"}>{evidence.bindingConflicts.safeSummary}</Text>}
+              </Space>
+            }
+          />
+        )}
+        {!evidence.readiness && (
+          <Table
+            rowKey="state"
+            size="middle"
+            bordered
+            loading={this.state.loading || this.state.handoffEvidenceLoading}
+            columns={[{title: "状态", dataIndex: "state"}]}
+            dataSource={[]}
+            locale={{emptyText: this.state.handoffEvidenceError || "暂无交接证据"}}
+            pagination={false}
+          />
+        )}
+      </>
+    );
   }
 
   openBindingDiagnosticsDetail(issue) {
@@ -1031,6 +1212,9 @@ class FeishuOrganizationSyncPage extends React.Component {
 
         <Divider />
         {this.renderBindingDiagnostics()}
+
+        <Divider />
+        {this.renderHandoffEvidence()}
 
         <Divider />
         {this.renderDryRunHistory()}

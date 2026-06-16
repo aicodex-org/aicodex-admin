@@ -63,6 +63,15 @@ test("calls Feishu organization sync user binding conflict diagnostics endpoint"
   expect(global.fetch).toHaveBeenCalledWith("/api/feishu-org-sync/user-binding-conflicts?organization=engineering&limit=5&includeOk=true", expect.objectContaining({method: "GET"}));
 });
 
+test("calls Feishu organization sync handoff evidence endpoint", async() => {
+  await FeishuOrganizationSyncBackend.getFeishuOrganizationSyncHandoffEvidence("engineering", {
+    sourceType: "run",
+    sourceId: "run-1",
+  });
+
+  expect(global.fetch).toHaveBeenCalledWith("/api/feishu-org-sync/handoff-evidence?organization=engineering&sourceType=run&sourceId=run-1", expect.objectContaining({method: "GET"}));
+});
+
 test("passes Feishu organization sync diagnostics payload through run detail", async() => {
   global.fetch = jest.fn(() => Promise.resolve({
     json: () => Promise.resolve({

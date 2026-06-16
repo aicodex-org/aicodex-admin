@@ -83,6 +83,21 @@ export function getFeishuOrganizationSyncUserBindingConflicts(organization, filt
   }).then(res => res.json());
 }
 
+export function getFeishuOrganizationSyncHandoffEvidence(organization, filters = {}) {
+  const params = new URLSearchParams();
+  params.set("organization", organization || "");
+  ["sourceType", "sourceId"].forEach(key => {
+    if (filters[key] !== undefined && filters[key] !== null && filters[key] !== "") {
+      params.set(key, filters[key]);
+    }
+  });
+  return fetch(`${Setting.ServerUrl}/api/feishu-org-sync/handoff-evidence?${params.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
 export function startFeishuOrganizationSyncRun(organization) {
   return fetch(`${Setting.ServerUrl}/api/feishu-org-sync/runs`, {
     method: "POST",

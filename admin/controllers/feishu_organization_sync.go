@@ -39,6 +39,10 @@ var getFeishuOrganizationSyncUserBindingConflictDiagnostics = func(filter object
 	return (&object.FeishuOrganizationSyncUserBindingConflictService{}).GetDiagnostics(filter)
 }
 
+var getFeishuOrganizationSyncHandoffEvidence = func(filter object.FeishuOrganizationSyncHandoffEvidenceFilter) (*object.FeishuOrganizationSyncHandoffEvidence, error) {
+	return (&object.FeishuOrganizationSyncHandoffEvidenceService{}).GetEvidence(filter)
+}
+
 // GetFeishuOrganizationSyncConfig
 // @router /feishu-org-sync/config [get]
 func (c *ApiController) GetFeishuOrganizationSyncConfig() {
@@ -243,6 +247,24 @@ func (c *ApiController) GetFeishuOrganizationSyncUserBindingConflicts() {
 	c.ResponseOk(diagnostics)
 }
 
+// GetFeishuOrganizationSyncHandoffEvidence
+// @router /feishu-org-sync/handoff-evidence [get]
+func (c *ApiController) GetFeishuOrganizationSyncHandoffEvidence() {
+	organization, ok := c.resolveFeishuOrganizationSyncTarget(c.Ctx.Input.Query("organization"))
+	if !ok {
+		return
+	}
+	if !c.requireFeishuOrganizationSyncAdmin(organization) {
+		return
+	}
+	evidence, err := getFeishuOrganizationSyncHandoffEvidence(c.getFeishuOrganizationSyncHandoffEvidenceFilter(organization))
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(evidence)
+}
+
 // GetFeishuOrganizationSyncRuns
 // @router /feishu-org-sync/runs [get]
 func (c *ApiController) GetFeishuOrganizationSyncRuns() {
@@ -418,6 +440,14 @@ func (c *ApiController) getFeishuOrganizationSyncUserBindingConflictFilter(organ
 		Organization: organization,
 		Limit:        util.ParseInt(c.Ctx.Input.Query("limit")),
 		IncludeOk:    parseFeishuOrganizationSyncBoolQuery(c.Ctx.Input.Query("includeOk")),
+	}
+}
+
+func (c *ApiController) getFeishuOrganizationSyncHandoffEvidenceFilter(organization string) object.FeishuOrganizationSyncHandoffEvidenceFilter {
+	return object.FeishuOrganizationSyncHandoffEvidenceFilter{
+		Organization: organization,
+		SourceType:   strings.TrimSpace(c.Ctx.Input.Query("sourceType")),
+		SourceId:     strings.TrimSpace(c.Ctx.Input.Query("sourceId")),
 	}
 }
 
