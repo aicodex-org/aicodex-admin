@@ -20,6 +20,7 @@ import {Popconfirm, Table, Tag} from "antd";
 import React from "react";
 import * as SessionBackend from "./backend/SessionBackend";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
+import AuditOperationsCenter from "./AuditOperationsCenter";
 
 class SessionListPage extends BaseListPage {
   handleTagClose = (rowIndex, sessionId, e) => {
@@ -142,10 +143,18 @@ class SessionListPage extends BaseListPage {
 
     return (
       <div>
-        <Table scroll={{x: "max-content"}} columns={columns} dataSource={sessions} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
+        <AuditOperationsCenter
+          activeKey="sessions"
           loading={this.state.loading}
-          onChange={this.handleTableChange}
+          sessions={sessions}
+          totals={{sessions: this.state.pagination.total}}
         />
+        <div className="audit-operations-table-section">
+          <Table scroll={{x: "max-content"}} columns={columns} dataSource={sessions} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
+            loading={this.state.loading}
+            onChange={this.handleTableChange}
+          />
+        </div>
       </div>
     );
   }

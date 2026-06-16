@@ -125,10 +125,10 @@ function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin
       label: i18next.t("general:Audit & Operations"),
       icon: <ProfileTwoTone twoToneColor={twoToneColor} />,
       children: [
-        {key: "/sessions", label: i18next.t("general:Sessions"), to: "/sessions", matchPrefixes: ["/sessions"]},
-        {key: "/records", label: i18next.t("general:Records"), to: "/records", matchPrefixes: ["/records"]},
-        {key: "/tokens", label: i18next.t("general:Tokens"), to: "/tokens", matchPrefixes: ["/tokens"]},
-        {key: "/verifications", label: i18next.t("general:Verifications"), to: "/verifications", matchPrefixes: ["/verifications"]},
+        {key: "/sessions", label: i18next.t("general:Session Review"), to: "/sessions", matchPrefixes: ["/sessions"]},
+        {key: "/records", label: i18next.t("general:Audit Records"), to: "/records", matchPrefixes: ["/records"]},
+        {key: "/tokens", label: i18next.t("general:Token Review"), to: "/tokens", matchPrefixes: ["/tokens"]},
+        {key: "/verifications", label: i18next.t("general:Verification Review"), to: "/verifications", matchPrefixes: ["/verifications"]},
       ],
     },
     {

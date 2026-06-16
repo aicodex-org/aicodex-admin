@@ -63,6 +63,8 @@ describe("enterprise identity navigation", () => {
       .toEqual(["/agents", "/servers", "/server-store", "/entries", "/sites", "/rules"]);
     expect(groups.find(group => group.key === "/audit-operations").children.map(item => item.key))
       .toEqual(["/sessions", "/records", "/tokens", "/verifications"]);
+    expect(groups.find(group => group.key === "/audit-operations").children.map(item => item.label))
+      .toEqual(["会话核对", "审计记录", "令牌核对", "验证核对"]);
     expect(groups.find(group => group.key === "/authorization-governance").children.map(item => item.key))
       .toEqual(expect.arrayContaining(["/roles", "/permissions", "/models", "/adapters", "/enforcers"]));
     expect(groups.find(group => group.key === "/commerce-billing").children.map(item => item.key))
@@ -101,6 +103,8 @@ describe("enterprise identity navigation", () => {
       .toBe("Application Access Center");
     expect(groups.find(group => group.key === "/application-access").children.find(item => item.key === "/platform-api-mappings").label)
       .toBe("API Gateway Mappings");
+    expect(groups.find(group => group.key === "/audit-operations").children.map(item => item.label))
+      .toEqual(["Session Review", "Audit Records", "Token Review", "Verification Review"]);
     expect(groups.map(group => group.label).join("")).not.toMatch(/[\u4e00-\u9fff]/);
   });
 

@@ -22,6 +22,7 @@ import * as TokenBackend from "./backend/TokenBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
+import AuditOperationsCenter from "./AuditOperationsCenter";
 
 class TokenListPage extends BaseListPage {
   newToken() {
@@ -221,16 +222,24 @@ class TokenListPage extends BaseListPage {
 
     return (
       <div>
-        <Table scroll={{x: "100%"}} columns={columns} dataSource={tokens} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
-          title={() => (
-            <div>
-              {i18next.t("general:Tokens")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button type="primary" size="small" onClick={this.addToken.bind(this)}>{i18next.t("general:Add")}</Button>
-            </div>
-          )}
+        <AuditOperationsCenter
+          activeKey="tokens"
           loading={this.state.loading}
-          onChange={this.handleTableChange}
+          tokens={tokens}
+          totals={{tokens: this.state.pagination.total}}
         />
+        <div className="audit-operations-table-section">
+          <Table scroll={{x: "100%"}} columns={columns} dataSource={tokens} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
+            title={() => (
+              <div>
+                {i18next.t("general:Tokens")}&nbsp;&nbsp;&nbsp;&nbsp;
+                <Button type="primary" size="small" onClick={this.addToken.bind(this)}>{i18next.t("general:Add")}</Button>
+              </div>
+            )}
+            loading={this.state.loading}
+            onChange={this.handleTableChange}
+          />
+        </div>
       </div>
     );
   }

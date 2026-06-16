@@ -20,6 +20,7 @@ import i18next from "i18next";
 import {Link} from "react-router-dom";
 import React from "react";
 import {Switch, Table} from "antd";
+import AuditOperationsCenter from "./AuditOperationsCenter";
 
 class VerificationListPage extends BaseListPage {
   newVerification() {
@@ -164,15 +165,23 @@ class VerificationListPage extends BaseListPage {
 
     return (
       <div>
-        <Table scroll={{x: "max-content"}} columns={columns} dataSource={verifications} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
-          title={() => (
-            <div>
-              {i18next.t("general:Verifications")}&nbsp;&nbsp;&nbsp;&nbsp;
-            </div>
-          )}
+        <AuditOperationsCenter
+          activeKey="verifications"
           loading={this.state.loading}
-          onChange={this.handleTableChange}
+          verifications={verifications}
+          totals={{verifications: this.state.pagination.total}}
         />
+        <div className="audit-operations-table-section">
+          <Table scroll={{x: "max-content"}} columns={columns} dataSource={verifications} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
+            title={() => (
+              <div>
+                {i18next.t("general:Verifications")}&nbsp;&nbsp;&nbsp;&nbsp;
+              </div>
+            )}
+            loading={this.state.loading}
+            onChange={this.handleTableChange}
+          />
+        </div>
       </div>
     );
   }

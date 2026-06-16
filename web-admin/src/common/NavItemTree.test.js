@@ -69,6 +69,12 @@ describe("NavItemTree enterprise identity configuration", () => {
       "/tokens",
       "/verifications",
     ]);
+    expect(getGroup(treeData, "审计运维").children.map(item => item.title)).toEqual([
+      "会话核对",
+      "审计记录",
+      "令牌核对",
+      "验证核对",
+    ]);
     expect(leafKeys(getGroup(treeData, "管理工具"))).toEqual(
       expect.arrayContaining(["/sysinfo", "/forms", "/tickets", "/swagger"])
     );
@@ -99,6 +105,12 @@ describe("NavItemTree enterprise identity configuration", () => {
       "/records",
       "/tokens",
       "/verifications",
+    ]);
+    expect(getGroup(treeData, "Audit & Operations").children.map(item => item.title)).toEqual([
+      "Session Review",
+      "Audit Records",
+      "Token Review",
+      "Verification Review",
     ]);
   });
 });

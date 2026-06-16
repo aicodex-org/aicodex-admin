@@ -20,12 +20,19 @@ import * as RecordBackend from "./backend/RecordBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import Editor from "./common/Editor";
+import AuditOperationsCenter from "./AuditOperationsCenter";
+import {formatRecordJson} from "./recordJsonFormatter";
 
 class RecordListPage extends BaseListPage {
   UNSAFE_componentWillMount() {
     this.state.pagination.pageSize = 20;
+  }
+
+  componentDidMount() {
+    super.componentDidMount();
     const {pagination} = this.state;
     this.fetch({pagination});
+    this.getForm();
   }
 
   renderTable(records) {
@@ -224,15 +231,23 @@ class RecordListPage extends BaseListPage {
 
     return (
       <div>
-        <Table scroll={{x: "100%"}} columns={columns} dataSource={records} rowKey="id" size="middle" bordered pagination={paginationProps}
-          title={() => (
-            <div>
-              {i18next.t("general:Records")}&nbsp;&nbsp;&nbsp;&nbsp;
-            </div>
-          )}
+        <AuditOperationsCenter
+          activeKey="records"
           loading={this.state.loading}
-          onChange={this.handleTableChange}
+          records={records}
+          totals={{records: this.state.pagination.total}}
         />
+        <div className="audit-operations-table-section">
+          <Table scroll={{x: "100%"}} columns={columns} dataSource={records} rowKey="id" size="middle" bordered pagination={paginationProps}
+            title={() => (
+              <div>
+                {i18next.t("general:Records")}&nbsp;&nbsp;&nbsp;&nbsp;
+              </div>
+            )}
+            loading={this.state.loading}
+            onChange={this.handleTableChange}
+          />
+        </div>
         {/* TODO: Should be packaged as a component after confirm it run correctly.*/}
         <Drawer
           title={i18next.t("general:Detail")}
@@ -292,15 +307,7 @@ class RecordListPage extends BaseListPage {
     return Setting.isMobile() ? window.innerWidth - 60 : 475;
   };
 
-  jsonStrFormatter = str => {
-    try {
-      return JSON.stringify(JSON.parse(str), null, 2);
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error(e);
-      return str;
-    }
-  };
+  jsonStrFormatter = formatRecordJson;
 
   getDetailField = dataIndex => {
     return this.state.detailRecord ? this.state.detailRecord?.[dataIndex] ?? "" : "";
