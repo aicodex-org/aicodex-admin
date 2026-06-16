@@ -1117,6 +1117,569 @@ func TestHandleWecomProfileConsentCallbackCompletesProfileSyncIntent(t *testing.
 	}
 }
 
+func TestAuthorizeWecomProfileConsentLoginIntentUsesProviderTargetOrganization(t *testing.T) {
+	oldGetApplication := getWecomProfileConsentApplication
+	oldGetOrganization := getWecomProfileConsentOrganization
+	oldGetProvider := getWecomProfileConsentProvider
+	defer func() {
+		getWecomProfileConsentApplication = oldGetApplication
+		getWecomProfileConsentOrganization = oldGetOrganization
+		getWecomProfileConsentProvider = oldGetProvider
+	}()
+
+	getWecomProfileConsentApplication = func(id string) (*object.Application, error) {
+		return &object.Application{
+			Owner:        "admin",
+			Name:         "app-aicodex-insight-60",
+			Organization: "wecom-org",
+			Providers: []*object.ProviderItem{
+				{
+					Owner:              "admin",
+					Name:               "wecom-internal",
+					TargetOrganization: "feishu-test",
+					Provider: &object.Provider{
+						Category: "OAuth",
+						Type:     "WeCom",
+					},
+				},
+			},
+		}, nil
+	}
+
+	var organizationLookup string
+	getWecomProfileConsentOrganization = func(id string) (*object.Organization, error) {
+		organizationLookup = id
+		return &object.Organization{Owner: "admin", Name: "feishu-test"}, nil
+	}
+	getWecomProfileConsentProvider = func(id string) (*object.Provider, error) {
+		return nil, errors.New("stop before oauth")
+	}
+
+	_, err := (&defaultWecomProfileConsentCallbackAuthorizer{}).AuthorizeLoginIntent(&ApiController{}, &object.WecomProfileConsentIntent{
+		Application:  "app-aicodex-insight-60",
+		ProviderName: "wecom-internal",
+	}, "code")
+
+	if err == nil || !strings.Contains(err.Error(), "stop before oauth") {
+		t.Fatalf("AuthorizeLoginIntent() error = %v, want provider lookup stop", err)
+	}
+	if organizationLookup != "admin/feishu-test" {
+		t.Fatalf("organization lookup = %q, want admin/feishu-test", organizationLookup)
+	}
+}
+
+func TestResolveWecomProfileConsentLoginUserUsesResolvedOrganizationForExistingUser(t *testing.T) {
+	oldGetUserByField := getWecomProfileConsentUserByField
+	oldSetProfile := setWecomProfileConsentUserOAuthProfile
+	oldLinkAccount := linkWecomProfileConsentUserAccount
+	defer func() {
+		getWecomProfileConsentUserByField = oldGetUserByField
+		setWecomProfileConsentUserOAuthProfile = oldSetProfile
+		linkWecomProfileConsentUserAccount = oldLinkAccount
+	}()
+
+	var lookupOwner string
+	getWecomProfileConsentUserByField = func(organizationName string, field string, value string) (*object.User, error) {
+		lookupOwner = organizationName
+		if field != "WeCom" || value != "wecom-user-1" {
+			t.Fatalf("GetUserByField(%q, %q), want WeCom/wecom-user-1", field, value)
+		}
+		return &object.User{Owner: organizationName, Name: "alice", Properties: map[string]string{}}, nil
+	}
+	setWecomProfileConsentUserOAuthProfile = func(organization *object.Organization, user *object.User, providerType string, userInfo *idp.UserInfo, token *oauth2.Token, userMapping ...map[string]string) (bool, error) {
+		if organization.Name != "feishu-test" || user.Owner != "feishu-test" {
+			t.Fatalf("profile organization/user = %s/%s, want feishu-test/feishu-test", organization.Name, user.Owner)
+		}
+		return true, nil
+	}
+	linkWecomProfileConsentUserAccount = func(user *object.User, field string, value string) (bool, error) {
+		if field != "WeCom" || value != "wecom-user-1" {
+			t.Fatalf("LinkUserAccount(%q, %q), want WeCom/wecom-user-1", field, value)
+		}
+		return true, nil
+	}
+
+	user, err := resolveWecomProfileConsentLoginUser(
+		&ApiController{},
+		&object.Application{Name: "insight", Organization: "wecom-org"},
+		&object.Organization{Name: "feishu-test"},
+		&object.ProviderItem{},
+		&object.Provider{Type: "WeCom"},
+		&idp.UserInfo{Id: "wecom-user-1"},
+		"wecom-user-1",
+	)
+	if err != nil {
+		t.Fatalf("resolveWecomProfileConsentLoginUser() error = %v", err)
+	}
+	if lookupOwner != "feishu-test" || user.Owner != "feishu-test" {
+		t.Fatalf("lookup/user owner = %q/%q, want feishu-test/feishu-test", lookupOwner, user.Owner)
+	}
+}
+
+func TestResolveWecomProfileConsentLoginUserUsesResolvedOrganizationForLarkIdentifiers(t *testing.T) {
+	oldFindLarkUser := findWecomProfileConsentLarkUser
+	oldSetProfile := setWecomProfileConsentUserOAuthProfile
+	oldLinkAccount := linkWecomProfileConsentUserAccount
+	defer func() {
+		findWecomProfileConsentLarkUser = oldFindLarkUser
+		setWecomProfileConsentUserOAuthProfile = oldSetProfile
+		linkWecomProfileConsentUserAccount = oldLinkAccount
+	}()
+
+	var lookupOwner string
+	findWecomProfileConsentLarkUser = func(organizationName string, userInfo *idp.UserInfo) (*object.User, string, error) {
+		lookupOwner = organizationName
+		if userInfo.Id != "lark-user-1" {
+			t.Fatalf("Lark userInfo.Id = %q, want lark-user-1", userInfo.Id)
+		}
+		return &object.User{Owner: organizationName, Name: "alice", Properties: map[string]string{}}, "user_id", nil
+	}
+	setWecomProfileConsentUserOAuthProfile = func(organization *object.Organization, user *object.User, providerType string, userInfo *idp.UserInfo, token *oauth2.Token, userMapping ...map[string]string) (bool, error) {
+		if organization.Name != "feishu-test" || user.Owner != "feishu-test" || providerType != "Lark" {
+			t.Fatalf("profile organization/user/provider = %s/%s/%s", organization.Name, user.Owner, providerType)
+		}
+		return true, nil
+	}
+	linkWecomProfileConsentUserAccount = func(user *object.User, field string, value string) (bool, error) {
+		if field != "Lark" || value != "lark-user-1" {
+			t.Fatalf("LinkUserAccount(%q, %q), want Lark/lark-user-1", field, value)
+		}
+		return true, nil
+	}
+
+	user, err := resolveWecomProfileConsentLoginUser(
+		&ApiController{},
+		&object.Application{Name: "insight", Organization: "wecom-org"},
+		&object.Organization{Name: "feishu-test"},
+		&object.ProviderItem{},
+		&object.Provider{Type: "Lark"},
+		&idp.UserInfo{Id: "lark-user-1"},
+		"lark-user-1",
+	)
+	if err != nil {
+		t.Fatalf("resolveWecomProfileConsentLoginUser() error = %v", err)
+	}
+	if lookupOwner != "feishu-test" || user.Owner != "feishu-test" {
+		t.Fatalf("lookup/user owner = %q/%q, want feishu-test/feishu-test", lookupOwner, user.Owner)
+	}
+}
+
+func TestResolveWecomProfileConsentLoginUserCreatesInResolvedOrganizationWhenNoExistingUser(t *testing.T) {
+	oldGetUserByField := getWecomProfileConsentUserByField
+	oldGetUser := getWecomProfileConsentUser
+	oldGetUserCount := getWecomProfileConsentUserCount
+	oldAddUser := addWecomProfileConsentUser
+	oldSetProfile := setWecomProfileConsentUserOAuthProfile
+	oldLinkAccount := linkWecomProfileConsentUserAccount
+	defer func() {
+		getWecomProfileConsentUserByField = oldGetUserByField
+		getWecomProfileConsentUser = oldGetUser
+		getWecomProfileConsentUserCount = oldGetUserCount
+		addWecomProfileConsentUser = oldAddUser
+		setWecomProfileConsentUserOAuthProfile = oldSetProfile
+		linkWecomProfileConsentUserAccount = oldLinkAccount
+	}()
+
+	getWecomProfileConsentUserByField = func(organizationName string, field string, value string) (*object.User, error) {
+		if organizationName != "feishu-test" {
+			t.Fatalf("GetUserByField organization = %q, want feishu-test", organizationName)
+		}
+		return nil, nil
+	}
+	getWecomProfileConsentUser = func(id string) (*object.User, error) {
+		if id != "feishu-test/bob" {
+			t.Fatalf("existing lookup id = %q, want feishu-test/bob", id)
+		}
+		return nil, nil
+	}
+	getWecomProfileConsentUserCount = func(owner string, field string, value string, groupName string) (int64, error) {
+		if owner != "feishu-test" {
+			t.Fatalf("count owner = %q, want feishu-test", owner)
+		}
+		return 1, nil
+	}
+	var addedUser *object.User
+	addWecomProfileConsentUser = func(user *object.User, lang string) (bool, error) {
+		addedUser = user
+		return true, nil
+	}
+	setWecomProfileConsentUserOAuthProfile = func(organization *object.Organization, user *object.User, providerType string, userInfo *idp.UserInfo, token *oauth2.Token, userMapping ...map[string]string) (bool, error) {
+		return true, nil
+	}
+	linkWecomProfileConsentUserAccount = func(user *object.User, field string, value string) (bool, error) {
+		return true, nil
+	}
+
+	controller, _ := newWecomProfileConsentTestControllerWithRequest(t, http.MethodPost, "/api/wecom-profile-consent/test", "")
+	user, err := resolveWecomProfileConsentLoginUser(
+		controller,
+		&object.Application{Name: "insight", Organization: "wecom-org", EnableSignUp: true},
+		&object.Organization{Name: "feishu-test", InitScore: 2000},
+		&object.ProviderItem{CanSignUp: true, BindingRule: &[]string{}},
+		&object.Provider{Type: "WeCom"},
+		&idp.UserInfo{Id: "wecom-user-1", Username: "bob", DisplayName: "Bob"},
+		"wecom-user-1",
+	)
+	if err != nil {
+		t.Fatalf("resolveWecomProfileConsentLoginUser() error = %v", err)
+	}
+	if user != addedUser || user.Owner != "feishu-test" || user.RegisterSource != "feishu-test/insight" {
+		t.Fatalf("created user = %#v, want feishu-test owner/source", user)
+	}
+}
+
+func TestResolveWecomProfileConsentLoginUserPropagatesLookupError(t *testing.T) {
+	oldGetUserByField := getWecomProfileConsentUserByField
+	defer func() {
+		getWecomProfileConsentUserByField = oldGetUserByField
+	}()
+
+	getWecomProfileConsentUserByField = func(organizationName string, field string, value string) (*object.User, error) {
+		if organizationName != "feishu-test" {
+			t.Fatalf("GetUserByField organization = %q, want feishu-test", organizationName)
+		}
+		return nil, errors.New("lookup failed")
+	}
+
+	_, err := resolveWecomProfileConsentLoginUser(
+		&ApiController{},
+		&object.Application{Name: "insight", Organization: "wecom-org"},
+		&object.Organization{Name: "feishu-test"},
+		&object.ProviderItem{},
+		&object.Provider{Type: "WeCom"},
+		&idp.UserInfo{Id: "wecom-user-1"},
+		"wecom-user-1",
+	)
+	if err == nil || !strings.Contains(err.Error(), "lookup failed") {
+		t.Fatalf("resolveWecomProfileConsentLoginUser() error = %v, want lookup failed", err)
+	}
+}
+
+func TestResolveWecomProfileConsentLoginUserPropagatesCreateError(t *testing.T) {
+	oldGetUserByField := getWecomProfileConsentUserByField
+	defer func() {
+		getWecomProfileConsentUserByField = oldGetUserByField
+	}()
+
+	getWecomProfileConsentUserByField = func(organizationName string, field string, value string) (*object.User, error) {
+		return nil, nil
+	}
+
+	_, err := resolveWecomProfileConsentLoginUser(
+		&ApiController{},
+		&object.Application{Name: "insight", Organization: "wecom-org", EnableSignUp: false},
+		&object.Organization{Name: "feishu-test"},
+		&object.ProviderItem{CanSignUp: true, BindingRule: &[]string{}},
+		&object.Provider{Type: "WeCom"},
+		&idp.UserInfo{Id: "wecom-user-1", Username: "alice"},
+		"wecom-user-1",
+	)
+	if err == nil || !strings.Contains(err.Error(), "sign up is disabled") {
+		t.Fatalf("resolveWecomProfileConsentLoginUser() error = %v, want sign up disabled", err)
+	}
+}
+
+func TestResolveWecomProfileConsentLoginUserPropagatesProfileSaveError(t *testing.T) {
+	oldGetUserByField := getWecomProfileConsentUserByField
+	oldSetProfile := setWecomProfileConsentUserOAuthProfile
+	defer func() {
+		getWecomProfileConsentUserByField = oldGetUserByField
+		setWecomProfileConsentUserOAuthProfile = oldSetProfile
+	}()
+
+	getWecomProfileConsentUserByField = func(organizationName string, field string, value string) (*object.User, error) {
+		return &object.User{Owner: organizationName, Name: "alice", Properties: map[string]string{}}, nil
+	}
+	setWecomProfileConsentUserOAuthProfile = func(organization *object.Organization, user *object.User, providerType string, userInfo *idp.UserInfo, token *oauth2.Token, userMapping ...map[string]string) (bool, error) {
+		return false, errors.New("profile save failed")
+	}
+
+	_, err := resolveWecomProfileConsentLoginUser(
+		&ApiController{},
+		&object.Application{Name: "insight", Organization: "wecom-org"},
+		&object.Organization{Name: "feishu-test"},
+		&object.ProviderItem{},
+		&object.Provider{Type: "WeCom"},
+		&idp.UserInfo{Id: "wecom-user-1"},
+		"wecom-user-1",
+	)
+	if err == nil || !strings.Contains(err.Error(), "profile save failed") {
+		t.Fatalf("resolveWecomProfileConsentLoginUser() error = %v, want profile save failed", err)
+	}
+}
+
+func TestCreateWecomProfileConsentLoginUserUsesResolvedOrganization(t *testing.T) {
+	oldGetUser := getWecomProfileConsentUser
+	oldGetUserCount := getWecomProfileConsentUserCount
+	oldAddUser := addWecomProfileConsentUser
+	defer func() {
+		getWecomProfileConsentUser = oldGetUser
+		getWecomProfileConsentUserCount = oldGetUserCount
+		addWecomProfileConsentUser = oldAddUser
+	}()
+
+	var existingLookup string
+	getWecomProfileConsentUser = func(id string) (*object.User, error) {
+		existingLookup = id
+		return nil, nil
+	}
+	var countOwner string
+	getWecomProfileConsentUserCount = func(owner string, field string, value string, groupName string) (int64, error) {
+		countOwner = owner
+		return 5, nil
+	}
+	var addedUser *object.User
+	addWecomProfileConsentUser = func(user *object.User, lang string) (bool, error) {
+		addedUser = user
+		return true, nil
+	}
+
+	controller, _ := newWecomProfileConsentTestControllerWithRequest(t, http.MethodPost, "/api/wecom-profile-consent/test", "")
+	user, err := createWecomProfileConsentLoginUser(
+		controller,
+		&object.Application{Name: "insight", Organization: "wecom-org", EnableSignUp: true, DefaultGroup: "default-group"},
+		&object.Organization{Name: "feishu-test", UseEmailAsUsername: true, InitScore: 3000},
+		&object.ProviderItem{CanSignUp: true, SignupGroup: "provider-group"},
+		&idp.UserInfo{Id: "wecom-user-1", Username: "alice", Email: "alice@example.test", DisplayName: "Alice"},
+	)
+	if err != nil {
+		t.Fatalf("createWecomProfileConsentLoginUser() error = %v", err)
+	}
+	if existingLookup != "feishu-test/alice@example.test" || countOwner != "feishu-test" {
+		t.Fatalf("existing lookup/count owner = %q/%q, want feishu-test/alice@example.test/feishu-test", existingLookup, countOwner)
+	}
+	if addedUser == nil || user != addedUser {
+		t.Fatalf("added user = %#v, returned user = %#v, want same user", addedUser, user)
+	}
+	if user.Owner != "feishu-test" || user.RegisterSource != "feishu-test/insight" || user.Score != 3000 {
+		t.Fatalf("created user owner/source/score = %q/%q/%d", user.Owner, user.RegisterSource, user.Score)
+	}
+	if len(user.Groups) != 1 || user.Groups[0] != "provider-group" {
+		t.Fatalf("created user groups = %#v, want provider signup group", user.Groups)
+	}
+}
+
+func TestCreateWecomProfileConsentLoginUserRejectsDisabledSignup(t *testing.T) {
+	tests := []struct {
+		name         string
+		application  *object.Application
+		providerItem *object.ProviderItem
+		wantErr      string
+	}{
+		{
+			name:         "application signup disabled",
+			application:  &object.Application{Name: "insight", EnableSignUp: false},
+			providerItem: &object.ProviderItem{CanSignUp: true},
+			wantErr:      "sign up is disabled",
+		},
+		{
+			name:         "provider signup disabled",
+			application:  &object.Application{Name: "insight", EnableSignUp: true},
+			providerItem: &object.ProviderItem{CanSignUp: false},
+			wantErr:      "provider sign up is disabled",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := createWecomProfileConsentLoginUser(
+				&ApiController{},
+				tt.application,
+				&object.Organization{Name: "feishu-test"},
+				tt.providerItem,
+				&idp.UserInfo{Id: "wecom-user-1", Username: "alice"},
+			)
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("createWecomProfileConsentLoginUser() error = %v, want %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestCreateWecomProfileConsentLoginUserHandlesUsernameConflictAndDefaultGroup(t *testing.T) {
+	oldGetUser := getWecomProfileConsentUser
+	oldGetUserCount := getWecomProfileConsentUserCount
+	oldAddUser := addWecomProfileConsentUser
+	defer func() {
+		getWecomProfileConsentUser = oldGetUser
+		getWecomProfileConsentUserCount = oldGetUserCount
+		addWecomProfileConsentUser = oldAddUser
+	}()
+
+	getWecomProfileConsentUser = func(id string) (*object.User, error) {
+		if id != "feishu-test/alice" {
+			t.Fatalf("existing lookup id = %q, want feishu-test/alice", id)
+		}
+		return &object.User{Owner: "feishu-test", Name: "alice"}, nil
+	}
+	getWecomProfileConsentUserCount = func(owner string, field string, value string, groupName string) (int64, error) {
+		if owner != "feishu-test" {
+			t.Fatalf("count owner = %q, want feishu-test", owner)
+		}
+		return 2, nil
+	}
+	var addedUser *object.User
+	addWecomProfileConsentUser = func(user *object.User, lang string) (bool, error) {
+		addedUser = user
+		return true, nil
+	}
+
+	controller, _ := newWecomProfileConsentTestControllerWithRequest(t, http.MethodPost, "/api/wecom-profile-consent/test", "")
+	user, err := createWecomProfileConsentLoginUser(
+		controller,
+		&object.Application{Name: "insight", Organization: "wecom-org", EnableSignUp: true, DefaultGroup: "default-group"},
+		&object.Organization{Name: "feishu-test", InitScore: 3000},
+		&object.ProviderItem{CanSignUp: true},
+		&idp.UserInfo{Id: "wecom-user-1", Username: "alice", DisplayName: "Alice"},
+	)
+	if err != nil {
+		t.Fatalf("createWecomProfileConsentLoginUser() error = %v", err)
+	}
+	if user != addedUser || !strings.HasPrefix(user.Name, "alice_") {
+		t.Fatalf("created user name = %q, want alice_ conflict suffix", user.Name)
+	}
+	if len(user.Groups) != 1 || user.Groups[0] != "default-group" {
+		t.Fatalf("created user groups = %#v, want default group", user.Groups)
+	}
+}
+
+func TestCreateWecomProfileConsentLoginUserGeneratesFallbackUsernameInResolvedOrganization(t *testing.T) {
+	oldGetUser := getWecomProfileConsentUser
+	oldGetUserCount := getWecomProfileConsentUserCount
+	oldAddUser := addWecomProfileConsentUser
+	defer func() {
+		getWecomProfileConsentUser = oldGetUser
+		getWecomProfileConsentUserCount = oldGetUserCount
+		addWecomProfileConsentUser = oldAddUser
+	}()
+
+	var existingLookup string
+	getWecomProfileConsentUser = func(id string) (*object.User, error) {
+		existingLookup = id
+		return nil, nil
+	}
+	getWecomProfileConsentUserCount = func(owner string, field string, value string, groupName string) (int64, error) {
+		return 0, nil
+	}
+	var addedUser *object.User
+	addWecomProfileConsentUser = func(user *object.User, lang string) (bool, error) {
+		addedUser = user
+		return true, nil
+	}
+
+	controller, _ := newWecomProfileConsentTestControllerWithRequest(t, http.MethodPost, "/api/wecom-profile-consent/test", "")
+	user, err := createWecomProfileConsentLoginUser(
+		controller,
+		&object.Application{Name: "insight", Organization: "wecom-org", EnableSignUp: true},
+		&object.Organization{Name: "feishu-test", InitScore: 1000},
+		&object.ProviderItem{CanSignUp: true},
+		&idp.UserInfo{},
+	)
+	if err != nil {
+		t.Fatalf("createWecomProfileConsentLoginUser() error = %v", err)
+	}
+	if user != addedUser || !strings.HasPrefix(existingLookup, "feishu-test/") || existingLookup == "feishu-test/" {
+		t.Fatalf("existing lookup/user = %q/%#v, want generated username in feishu-test", existingLookup, user)
+	}
+	if user.Owner != "feishu-test" || user.Id == "" || user.Name == "" {
+		t.Fatalf("created user owner/id/name = %q/%q/%q", user.Owner, user.Id, user.Name)
+	}
+}
+
+func TestCreateWecomProfileConsentLoginUserPropagatesStoreErrors(t *testing.T) {
+	tests := []struct {
+		name      string
+		setup     func()
+		wantError string
+	}{
+		{
+			name: "existing lookup error",
+			setup: func() {
+				getWecomProfileConsentUser = func(id string) (*object.User, error) {
+					return nil, errors.New("existing lookup failed")
+				}
+			},
+			wantError: "existing lookup failed",
+		},
+		{
+			name: "count error",
+			setup: func() {
+				getWecomProfileConsentUser = func(id string) (*object.User, error) {
+					return nil, nil
+				}
+				getWecomProfileConsentUserCount = func(owner string, field string, value string, groupName string) (int64, error) {
+					return 0, errors.New("count failed")
+				}
+			},
+			wantError: "count failed",
+		},
+		{
+			name: "add user error",
+			setup: func() {
+				getWecomProfileConsentUser = func(id string) (*object.User, error) {
+					return nil, nil
+				}
+				getWecomProfileConsentUserCount = func(owner string, field string, value string, groupName string) (int64, error) {
+					return 0, nil
+				}
+				addWecomProfileConsentUser = func(user *object.User, lang string) (bool, error) {
+					return false, errors.New("add failed")
+				}
+			},
+			wantError: "add failed",
+		},
+		{
+			name: "add user not affected",
+			setup: func() {
+				getWecomProfileConsentUser = func(id string) (*object.User, error) {
+					return nil, nil
+				}
+				getWecomProfileConsentUserCount = func(owner string, field string, value string, groupName string) (int64, error) {
+					return 0, nil
+				}
+				addWecomProfileConsentUser = func(user *object.User, lang string) (bool, error) {
+					return false, nil
+				}
+			},
+			wantError: "failed to create user",
+		},
+	}
+
+	oldGetUser := getWecomProfileConsentUser
+	oldGetUserCount := getWecomProfileConsentUserCount
+	oldAddUser := addWecomProfileConsentUser
+	defer func() {
+		getWecomProfileConsentUser = oldGetUser
+		getWecomProfileConsentUserCount = oldGetUserCount
+		addWecomProfileConsentUser = oldAddUser
+	}()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			getWecomProfileConsentUser = oldGetUser
+			getWecomProfileConsentUserCount = func(owner string, field string, value string, groupName string) (int64, error) {
+				return 0, nil
+			}
+			addWecomProfileConsentUser = func(user *object.User, lang string) (bool, error) {
+				return true, nil
+			}
+			tt.setup()
+
+			controller, _ := newWecomProfileConsentTestControllerWithRequest(t, http.MethodPost, "/api/wecom-profile-consent/test", "")
+			_, err := createWecomProfileConsentLoginUser(
+				controller,
+				&object.Application{Name: "insight", Organization: "wecom-org", EnableSignUp: true},
+				&object.Organization{Name: "feishu-test", InitScore: 1000},
+				&object.ProviderItem{CanSignUp: true},
+				&idp.UserInfo{Id: "wecom-user-1", Username: "alice"},
+			)
+			if err == nil || !strings.Contains(err.Error(), tt.wantError) {
+				t.Fatalf("createWecomProfileConsentLoginUser() error = %v, want %q", err, tt.wantError)
+			}
+		})
+	}
+}
+
 func TestHandleWecomProfileConsentCallbackRejectsProfileSyncUserMismatch(t *testing.T) {
 	oldGetIntent := getWecomProfileConsentIntentByName
 	oldExpireIntent := expireWecomProfileConsentIntentIfNeeded

@@ -72,12 +72,15 @@ function isApplicationDisabled(application) {
 }
 
 function getAccessChecks(application) {
+  const identitySourceStatus = getIdentitySourceStatus(application);
   return {
     hasClientId: `${application?.clientId ?? ""}`.trim() !== "",
     hasRedirectUris: hasNonEmptyValue(application?.redirectUris),
     hasScopes: hasNonEmptyValue(application?.scopes),
     hasProviders: hasNonEmptyValue(application?.providers),
     hasGrantTypes: hasNonEmptyValue(application?.grantTypes),
+    hasIdentitySourceOrganization: identitySourceStatus !== "missing",
+    identitySourceStatus,
   };
 }
 
@@ -92,7 +95,28 @@ function getApplicationStatus(application, checks) {
     return "已停用";
   }
 
-  return getCompleteness(checks) === 100 ? "接入完整" : "待补全";
+  return getCompleteness(checks) === 100 && checks.hasIdentitySourceOrganization ? "接入完整" : "待补全";
+}
+
+function getLoginProviderBindings(application) {
+  return toArray(application?.providers).filter(providerItem => {
+    const category = providerItem?.provider?.category || providerItem?.category || "";
+    return ["OAuth", "Web3", "SAML"].includes(category);
+  });
+}
+
+function getIdentitySourceStatus(application) {
+  const loginProviders = getLoginProviderBindings(application);
+  if (loginProviders.length === 0) {
+    return "not-applicable";
+  }
+  if (loginProviders.some(providerItem => `${providerItem?.targetOrganization ?? ""}`.trim() !== "")) {
+    return "explicit";
+  }
+  if (`${application?.organization ?? ""}`.trim() !== "") {
+    return "fallback";
+  }
+  return "missing";
 }
 
 function getStatusColor(status) {
@@ -147,6 +171,12 @@ function buildRiskItems(applications, cards) {
       actionPath: "/applications",
     },
     {
+      key: "missing-identity-source-organization",
+      title: "Provider 目标组织待补全",
+      count: countBy((application) => !getAccessChecks(application).hasIdentitySourceOrganization),
+      actionPath: "/applications",
+    },
+    {
       key: "disabled-applications",
       title: "应用已停用",
       count: cards.filter(card => card.status === "已停用").length,
@@ -186,6 +216,7 @@ export function buildApplicationAccessCenterSummary(applications = []) {
       callbackStatus: checks.hasRedirectUris ? "回调地址已配置" : "回调地址待补全",
       scopeStatus: checks.hasScopes ? "授权范围已配置" : "授权范围待补全",
       providerStatus: checks.hasProviders ? "Provider 已绑定" : "Provider 待绑定",
+      identitySourceStatus: getIdentitySourceStatusText(checks.identitySourceStatus),
     };
   });
 
@@ -196,6 +227,7 @@ export function buildApplicationAccessCenterSummary(applications = []) {
     callbackReadyApplications: normalizedApplications.filter(application => getAccessChecks(application).hasRedirectUris).length,
     scopedApplications: normalizedApplications.filter(application => getAccessChecks(application).hasScopes).length,
     providerBoundApplications: normalizedApplications.filter(application => getAccessChecks(application).hasProviders).length,
+    identitySourceReadyApplications: normalizedApplications.filter(application => getAccessChecks(application).hasIdentitySourceOrganization).length,
   };
 
   return {
@@ -292,6 +324,7 @@ function ApplicationAccessCenter({applications = [], loading = false}) {
                   <Text type="secondary">{card.callbackStatus}</Text>
                   <Text type="secondary">{card.scopeStatus}</Text>
                   <Text type="secondary">{card.providerStatus}</Text>
+                  <Text type="secondary">{card.identitySourceStatus}</Text>
                 </Space>
                 <Space wrap className="application-access-center-card-actions">
                   <Link to={card.editPath}>编辑应用</Link>
@@ -347,6 +380,19 @@ function ApplicationAccessCenter({applications = [], loading = false}) {
       )}
     </div>
   );
+}
+
+function getIdentitySourceStatusText(status) {
+  switch (status) {
+  case "explicit":
+    return "身份源组织已显式绑定";
+  case "fallback":
+    return "身份源使用应用默认组织";
+  case "missing":
+    return "身份源目标组织待补全";
+  default:
+    return "无登录身份源组织要求";
+  }
 }
 
 export default ApplicationAccessCenter;

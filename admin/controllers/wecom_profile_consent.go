@@ -49,6 +49,10 @@ var (
 	getWecomProfileConsentProvider          = object.GetProvider
 	getWecomProfileConsentOrganization      = object.GetOrganization
 	getWecomProfileConsentUser              = object.GetUser
+	getWecomProfileConsentUserByField       = object.GetUserByField
+	findWecomProfileConsentLarkUser         = object.FindLarkUserByIdentifiers
+	getWecomProfileConsentUserCount         = object.GetUserCount
+	addWecomProfileConsentUser              = object.AddUser
 	getWecomProfileConsentWecomUserMapping  = object.GetWecomUserMapping
 	getWecomProfileConsentIntentByName      = object.GetWecomProfileConsentIntentByName
 	expireWecomProfileConsentIntentIfNeeded = object.ExpireWecomProfileConsentIntentIfNeeded
@@ -750,7 +754,19 @@ func (s *defaultWecomProfileConsentCallbackAuthorizer) AuthorizeLoginIntent(c *A
 	if application == nil {
 		return nil, fmt.Errorf("wecom profile consent application is invalid")
 	}
-	organization, err := getWecomProfileConsentOrganization(util.GetId("admin", application.Organization))
+	providerItem := application.GetProviderItem(intent.ProviderName)
+	if providerItem == nil {
+		return nil, fmt.Errorf("wecom profile consent provider is not enabled for the application")
+	}
+	var organization *object.Organization
+	_, err = application.ResolveProviderLoginOrganization(intent.ProviderName, func(name string) (bool, error) {
+		resolved, err := getWecomProfileConsentOrganization(util.GetId("admin", name))
+		if err != nil {
+			return false, err
+		}
+		organization = resolved
+		return resolved != nil, nil
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -758,10 +774,6 @@ func (s *defaultWecomProfileConsentCallbackAuthorizer) AuthorizeLoginIntent(c *A
 		return nil, fmt.Errorf("wecom profile consent organization is invalid")
 	}
 
-	providerItem := application.GetProviderItem(intent.ProviderName)
-	if providerItem == nil {
-		return nil, fmt.Errorf("wecom profile consent provider is not enabled for the application")
-	}
 	providerOwner := firstNonEmptyWecomProfileConsentValue(intent.ProviderOwner, providerItem.Owner, "admin")
 	provider, err := getWecomProfileConsentProvider(util.GetId(providerOwner, intent.ProviderName))
 	if err != nil {
@@ -921,17 +933,18 @@ func requireWecomProfileConsentUserTicket(userInfo *idp.UserInfo) error {
 func resolveWecomProfileConsentLoginUser(c *ApiController, application *object.Application, organization *object.Organization, providerItem *object.ProviderItem, provider *object.Provider, userInfo *idp.UserInfo, wecomUserId string) (*object.User, error) {
 	var user *object.User
 	var err error
+	organizationName := strings.TrimSpace(organization.Name)
 	if provider.Type == "Lark" {
-		user, _, err = object.FindLarkUserByIdentifiers(application.Organization, userInfo)
+		user, _, err = findWecomProfileConsentLarkUser(organizationName, userInfo)
 	} else {
-		user, err = object.GetUserByField(application.Organization, provider.Type, userInfo.Id)
+		user, err = getWecomProfileConsentUserByField(organizationName, provider.Type, userInfo.Id)
 	}
 	if err != nil {
 		return nil, err
 	}
 
 	if user == nil {
-		user, err = getExistUserByBindingRule(providerItem, application, userInfo)
+		user, err = getExistUserByBindingRule(providerItem, organizationName, userInfo)
 		if err != nil {
 			return nil, err
 		}
@@ -979,13 +992,14 @@ func createWecomProfileConsentLoginUser(c *ApiController, application *object.Ap
 	if username == "" {
 		username = util.GenerateId()
 	}
-	if existing, err := object.GetUser(util.GetId(application.Organization, username)); err != nil {
+	organizationName := strings.TrimSpace(organization.Name)
+	if existing, err := getWecomProfileConsentUser(util.GetId(organizationName, username)); err != nil {
 		return nil, err
 	} else if existing != nil {
 		username = fmt.Sprintf("%s_%s", username, util.GenerateId())
 	}
 
-	count, err := object.GetUserCount(application.Organization, "", "", "")
+	count, err := getWecomProfileConsentUserCount(organizationName, "", "", "")
 	if err != nil {
 		return nil, err
 	}
@@ -995,7 +1009,7 @@ func createWecomProfileConsentLoginUser(c *ApiController, application *object.Ap
 	}
 
 	user := &object.User{
-		Owner:             application.Organization,
+		Owner:             organizationName,
 		Name:              username,
 		CreatedTime:       util.GetCurrentTime(),
 		Id:                firstNonEmptyWecomProfileConsentValue(userInfo.Id, util.GenerateId()),
@@ -1016,7 +1030,7 @@ func createWecomProfileConsentLoginUser(c *ApiController, application *object.Ap
 			"no": strconv.Itoa(int(count + 2)),
 		},
 		RegisterType:   "Application Signup",
-		RegisterSource: fmt.Sprintf("%s/%s", application.Organization, application.Name),
+		RegisterSource: fmt.Sprintf("%s/%s", organizationName, application.Name),
 	}
 
 	if providerItem.SignupGroup != "" {
@@ -1025,7 +1039,7 @@ func createWecomProfileConsentLoginUser(c *ApiController, application *object.Ap
 		user.Groups = []string{application.DefaultGroup}
 	}
 
-	affected, err := object.AddUser(user, c.GetAcceptLanguage())
+	affected, err := addWecomProfileConsentUser(user, c.GetAcceptLanguage())
 	if err != nil {
 		return nil, err
 	}

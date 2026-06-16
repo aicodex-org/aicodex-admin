@@ -17,16 +17,17 @@ Admin 企业认证中心 SHALL 在应用接入分组下提供应用接入中心�
 - **AND** 应用接入中心不得改变 Application 表格的路由、权限 key 或数据写入行为
 
 ### Requirement: 应用接入状态与配置完整度
-应用接入中心 SHALL 基于现有只读 Application 数据展示当前列表视图的接入完整度、启用/停用、回调地址配置、授权范围、Provider 绑定和 OAuth/OIDC client 配置状态，不得展示 client secret、token 或其它敏感字段原值。
+应用接入中心 SHALL 基于现有只读 Application 数据展示当前列表视图的接入完整度、启用/停用、回调地址配置、授权范围、Provider 绑定、Provider 身份源目标组织和 OAuth/OIDC client 配置状态，不得展示 client secret、token 或其它敏感字段原值。
 
 #### Scenario: 应用配置完整
 - **WHEN** Application 列表中存在启用应用
 - **AND** 该应用具备 `clientId`、回调地址、授权范围和 Provider 绑定
+- **AND** 启用的企业身份 Provider 具备明确目标组织或可解释的默认组织 fallback
 - **THEN** 应用接入中心将该应用计入“接入完整”或“低风险”摘要
 - **AND** 页面提供进入应用编辑、API 映射和审计记录的入口
 
 #### Scenario: 应用配置不完整
-- **WHEN** Application 缺少回调地址、授权范围、Provider 绑定或 `clientId`
+- **WHEN** Application 缺少回调地址、授权范围、Provider 绑定、Provider 身份源目标组织或 `clientId`
 - **THEN** 应用接入中心 SHALL 展示对应待补全风险摘要
 - **AND** 页面 SHALL 提供进入应用编辑或相关配置页的入口
 
@@ -65,3 +66,16 @@ Admin 企业认证中心 SHALL 在应用接入分组下提供应用接入中心�
 - **WHEN** 管理员在桌面端或窄屏访问应用接入中心
 - **THEN** 文本、状态标签、按钮、卡片和表格区域不发生重叠或不可读溢出
 - **AND** 配置和诊断入口仍可触达
+
+### Requirement: Provider 身份源绑定配置
+应用编辑页 SHALL 允许管理员为每个启用的登录 Provider 配置目标组织，用于决定该 Provider 登录时在哪个组织中匹配用户。
+
+#### Scenario: 管理员配置飞书目标组织
+- **WHEN** 管理员在同一个 OIDC Application 中启用 Lark/Feishu Provider
+- **THEN** 页面 SHALL 允许将该 Provider 的目标组织设置为飞书组织同步目标，例如 `feishu-test`
+- **AND** 页面 SHALL 说明 Application 组织仍是应用归属/默认组织，不等同于每个 Provider 的登录查找组织
+
+#### Scenario: 未配置目标组织
+- **WHEN** Provider binding 没有设置目标组织
+- **THEN** 页面 SHALL 展示“使用应用默认组织”或等价说明
+- **AND** 保存后 SHALL 保持空值，不强行写入当前默认组织

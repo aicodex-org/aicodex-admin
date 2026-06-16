@@ -14,6 +14,15 @@
 
 package object
 
+import (
+	"errors"
+	"fmt"
+	"strings"
+)
+
+// ErrProviderLoginOrganizationUnavailable 表示 Provider 登录组织无法解析或不可用，调用方必须 fail closed。
+var ErrProviderLoginOrganizationUnavailable = errors.New("provider login organization is unavailable")
+
 type ProviderItem struct {
 	Owner string `json:"owner"`
 	Name  string `json:"name"`
@@ -26,7 +35,9 @@ type ProviderItem struct {
 	Prompted     bool      `json:"prompted"`
 	SignupGroup  string    `json:"signupGroup"`
 	Rule         string    `json:"rule"`
-	Provider     *Provider `json:"provider"`
+	// TargetOrganization 指定该 Provider 登录后匹配用户的组织；为空时回退 Application.Organization 以兼容旧数据。
+	TargetOrganization string    `json:"targetOrganization"`
+	Provider           *Provider `json:"provider"`
 }
 
 func (application *Application) GetProviderItem(providerName string) *ProviderItem {
@@ -68,4 +79,51 @@ func (pi *ProviderItem) IsProviderVisible() bool {
 
 func (pi *ProviderItem) isProviderPrompted() bool {
 	return pi.IsProviderVisible() && pi.Prompted
+}
+
+// ResolveProviderLoginOrganization 解析 Provider 登录用户查找组织，并在组织不可用时阻断跨组织猜测。
+func (application *Application) ResolveProviderLoginOrganization(providerName string, isOrganizationAvailable func(name string) (bool, error)) (string, error) {
+	if application == nil {
+		return "", fmt.Errorf("%w: application is nil", ErrProviderLoginOrganizationUnavailable)
+	}
+
+	targetOrganization := ""
+	if providerItem := application.GetProviderItem(providerName); providerItem != nil {
+		targetOrganization = strings.TrimSpace(providerItem.TargetOrganization)
+	}
+	if targetOrganization == "" {
+		targetOrganization = strings.TrimSpace(application.Organization)
+	}
+	if targetOrganization == "" {
+		return "", fmt.Errorf("%w: empty organization", ErrProviderLoginOrganizationUnavailable)
+	}
+
+	if isOrganizationAvailable != nil {
+		ok, err := isOrganizationAvailable(targetOrganization)
+		if err != nil {
+			return "", err
+		}
+		if !ok {
+			return "", fmt.Errorf("%w: %s", ErrProviderLoginOrganizationUnavailable, targetOrganization)
+		}
+	}
+
+	return targetOrganization, nil
+}
+
+// ResolveProviderLoginOrganizationObject 返回 Provider 登录组织对象，供登录链路复用同一组织上下文。
+func (application *Application) ResolveProviderLoginOrganizationObject(providerName string) (string, *Organization, error) {
+	var resolvedOrganization *Organization
+	targetOrganization, err := application.ResolveProviderLoginOrganization(providerName, func(name string) (bool, error) {
+		organization, err := getOrganization("admin", name)
+		if err != nil {
+			return false, err
+		}
+		resolvedOrganization = organization
+		return organization != nil, nil
+	})
+	if err != nil {
+		return "", nil, err
+	}
+	return targetOrganization, resolvedOrganization, nil
 }

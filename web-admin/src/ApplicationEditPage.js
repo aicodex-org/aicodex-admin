@@ -45,6 +45,7 @@ import LoginPage from "./auth/LoginPage";
 import i18next from "i18next";
 import UrlTable from "./table/UrlTable";
 import ProviderTable from "./table/ProviderTable";
+import ApplicationIdentitySourceBindings from "./ApplicationIdentitySourceBindings";
 import SigninMethodTable from "./table/SigninMethodTable";
 import SignupTable from "./table/SignupTable";
 import SamlAttributeTable from "./table/SamlAttributeTable";
@@ -1044,6 +1045,12 @@ class ApplicationEditPage extends React.Component {
                 providers={this.state.providers}
                 application={this.state.application}
                 onUpdateTable={(value) => {this.updateApplicationField("providers", value);}}
+              />
+              <ApplicationIdentitySourceBindings
+                application={this.state.application}
+                providers={this.state.providers}
+                organizations={this.state.organizations}
+                onChange={(value) => {this.updateApplicationField("providers", value);}}
               />
             </Col>
           </Row>

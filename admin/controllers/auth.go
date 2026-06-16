@@ -500,7 +500,7 @@ func checkMfaEnable(c *ApiController, user *object.User, organization *object.Or
 	return false
 }
 
-func getExistUserByBindingRule(providerItem *object.ProviderItem, application *object.Application, userInfo *idp.UserInfo) (user *object.User, err error) {
+func getExistUserByBindingRule(providerItem *object.ProviderItem, organizationName string, userInfo *idp.UserInfo) (user *object.User, err error) {
 	if providerItem.BindingRule == nil {
 		providerItem.BindingRule = &[]string{"Email", "Phone", "Name"}
 	}
@@ -511,7 +511,7 @@ func getExistUserByBindingRule(providerItem *object.ProviderItem, application *o
 	for _, rule := range *providerItem.BindingRule {
 		// Find existing user with Email
 		if rule == "Email" {
-			user, err = object.GetUserByField(application.Organization, "email", userInfo.Email)
+			user, err = object.GetUserByField(organizationName, "email", userInfo.Email)
 			if err != nil {
 				return nil, err
 			}
@@ -522,7 +522,7 @@ func getExistUserByBindingRule(providerItem *object.ProviderItem, application *o
 
 		// Find existing user with phone number
 		if rule == "Phone" {
-			user, err = object.GetUserByField(application.Organization, "phone", userInfo.Phone)
+			user, err = object.GetUserByField(organizationName, "phone", userInfo.Phone)
 			if err != nil {
 				return nil, err
 			}
@@ -536,7 +536,7 @@ func getExistUserByBindingRule(providerItem *object.ProviderItem, application *o
 		// existing users when usernames match, particularly useful for enterprise
 		// scenarios where signup is disabled and users already exist in Casdoor
 		if rule == "Name" {
-			user, err = object.GetUserByFields(application.Organization, userInfo.Username)
+			user, err = object.GetUserByFields(organizationName, userInfo.Username)
 			if err != nil {
 				return nil, err
 			}
@@ -817,12 +817,6 @@ func (c *ApiController) Login() {
 			return
 		}
 
-		var organization *object.Organization
-		organization, err = object.GetOrganization(util.GetId("admin", application.Organization))
-		if err != nil {
-			c.ResponseError(c.T(err.Error()))
-		}
-
 		var provider *object.Provider
 		provider, err = object.GetProvider(util.GetId("admin", authForm.Provider))
 		if err != nil {
@@ -837,6 +831,11 @@ func (c *ApiController) Login() {
 		providerItem := application.GetProviderItem(provider.Name)
 		if !application.IsProviderVisibleForLogin(provider.Name) {
 			c.ResponseError(fmt.Sprintf(c.T("auth:The provider: %s is not enabled for the application"), provider.Name))
+			return
+		}
+		providerLoginOrganizationName, organization, err := application.ResolveProviderLoginOrganizationObject(provider.Name)
+		if err != nil {
+			c.ResponseError(c.T(err.Error()))
 			return
 		}
 		userInfo := &idp.UserInfo{}
@@ -909,16 +908,16 @@ func (c *ApiController) Login() {
 			user := &object.User{}
 			if provider.Category == "SAML" {
 				// The userInfo.Id is the NameID in SAML response, it could be name / email / phone
-				user, err = object.GetUserByFields(application.Organization, userInfo.Id)
+				user, err = object.GetUserByFields(providerLoginOrganizationName, userInfo.Id)
 				if err != nil {
 					c.ResponseError(err.Error())
 					return
 				}
 			} else if provider.Category == "OAuth" || provider.Category == "Web3" {
 				if provider.Type == "Lark" {
-					user, _, err = object.FindLarkUserByIdentifiers(application.Organization, userInfo)
+					user, _, err = object.FindLarkUserByIdentifiers(providerLoginOrganizationName, userInfo)
 				} else {
-					user, err = object.GetUserByField(application.Organization, provider.Type, userInfo.Id)
+					user, err = object.GetUserByField(providerLoginOrganizationName, provider.Type, userInfo.Id)
 				}
 				if err != nil {
 					c.ResponseError(err.Error())
@@ -944,7 +943,7 @@ func (c *ApiController) Login() {
 				c.Ctx.Input.SetParam("recordUserId", user.GetId())
 			} else if provider.Category == "OAuth" || provider.Category == "Web3" || provider.Category == "SAML" {
 				// Sign up via OAuth
-				user, err = getExistUserByBindingRule(providerItem, application, userInfo)
+				user, err = getExistUserByBindingRule(providerItem, providerLoginOrganizationName, userInfo)
 				if err != nil {
 					c.ResponseError(err.Error())
 					return
@@ -979,7 +978,7 @@ func (c *ApiController) Login() {
 
 					// Handle username conflicts
 					var tmpUser *object.User
-					tmpUser, err = object.GetUser(util.GetId(application.Organization, userInfo.Username))
+					tmpUser, err = object.GetUser(util.GetId(providerLoginOrganizationName, userInfo.Username))
 					if err != nil {
 						c.ResponseError(err.Error())
 						return
@@ -999,7 +998,7 @@ func (c *ApiController) Login() {
 
 					properties := map[string]string{}
 					var count int64
-					count, err = object.GetUserCount(application.Organization, "", "", "")
+					count, err = object.GetUserCount(providerLoginOrganizationName, "", "", "")
 					if err != nil {
 						c.ResponseError(err.Error())
 						return
@@ -1019,7 +1018,7 @@ func (c *ApiController) Login() {
 					}
 
 					user = &object.User{
-						Owner:             application.Organization,
+						Owner:             providerLoginOrganizationName,
 						Name:              userInfo.Username,
 						CreatedTime:       util.GetCurrentTime(),
 						Id:                userId,
@@ -1040,7 +1039,7 @@ func (c *ApiController) Login() {
 						Invitation:        invitationName,
 						InvitationCode:    authForm.InvitationCode,
 						RegisterType:      "Application Signup",
-						RegisterSource:    fmt.Sprintf("%s/%s", application.Organization, application.Name),
+						RegisterSource:    fmt.Sprintf("%s/%s", providerLoginOrganizationName, application.Name),
 					}
 
 					// Set group from invitation code if available, otherwise use provider's signup group or application's default group
@@ -1094,21 +1093,21 @@ func (c *ApiController) Login() {
 				c.Ctx.Input.SetParam("recordSignup", "true")
 			} else if provider.Category == "SAML" {
 				// TODO: since we get the user info from SAML response, we can try to create the user
-				resp = &Response{Status: "error", Msg: fmt.Sprintf(c.T("general:The user: %s doesn't exist"), util.GetId(application.Organization, userInfo.Id))}
+				resp = &Response{Status: "error", Msg: fmt.Sprintf(c.T("general:The user: %s doesn't exist"), util.GetId(providerLoginOrganizationName, userInfo.Id))}
 			}
 			// resp = &Response{Status: "ok", Msg: "", Data: res}
 		} else { // authForm.Method != "signup"
 			userId := c.GetSessionUsername()
 			if userId == "" {
-				c.ResponseError(fmt.Sprintf(c.T("general:The user: %s doesn't exist"), util.GetId(application.Organization, userInfo.Id)), userInfo)
+				c.ResponseError(fmt.Sprintf(c.T("general:The user: %s doesn't exist"), util.GetId(providerLoginOrganizationName, userInfo.Id)), userInfo)
 				return
 			}
 
 			var oldUser *object.User
 			if provider.Type == "Lark" {
-				oldUser, _, err = object.FindLarkUserByIdentifiers(application.Organization, userInfo)
+				oldUser, _, err = object.FindLarkUserByIdentifiers(providerLoginOrganizationName, userInfo)
 			} else {
-				oldUser, err = object.GetUserByField(application.Organization, provider.Type, userInfo.Id)
+				oldUser, err = object.GetUserByField(providerLoginOrganizationName, provider.Type, userInfo.Id)
 			}
 			if err != nil {
 				c.ResponseError(err.Error())

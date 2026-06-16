@@ -14,7 +14,7 @@ const applications = [
     clientSecret: "portal-secret-value",
     redirectUris: ["https://portal.example.com/callback"],
     scopes: ["openid", "profile", "email"],
-    providers: [{name: "enterprise-oidc"}],
+    providers: [{name: "enterprise-oidc", category: "OAuth", targetOrganization: "built-in"}],
     grantTypes: ["authorization_code", "refresh_token"],
     disableSignin: false,
   },
@@ -165,6 +165,49 @@ describe("ApplicationAccessCenter", () => {
     ]));
   });
 
+  test("summarizes provider identity source target organization readiness", () => {
+    const summary = buildApplicationAccessCenterSummary([
+      {
+        owner: "admin",
+        name: "app-explicit-provider-org",
+        clientId: "explicit-client",
+        redirectUris: ["https://explicit.example.com/callback"],
+        scopes: ["openid"],
+        providers: [{name: "lark-main", category: "OAuth", targetOrganization: "feishu-test"}],
+        grantTypes: ["authorization_code"],
+      },
+      {
+        owner: "admin",
+        organization: "wecom-org",
+        name: "app-fallback-provider-org",
+        clientId: "fallback-client",
+        redirectUris: ["https://fallback.example.com/callback"],
+        scopes: ["openid"],
+        providers: [{name: "wecom-main", category: "OAuth"}],
+        grantTypes: ["authorization_code"],
+      },
+      {
+        owner: "admin",
+        name: "app-missing-provider-org",
+        clientId: "missing-client",
+        redirectUris: ["https://missing.example.com/callback"],
+        scopes: ["openid"],
+        providers: [{name: "lark-missing", category: "OAuth"}],
+        grantTypes: ["authorization_code"],
+      },
+    ]);
+
+    expect(summary.cards.map(card => card.identitySourceStatus)).toEqual([
+      "身份源组织已显式绑定",
+      "身份源使用应用默认组织",
+      "身份源目标组织待补全",
+    ]);
+    expect(summary.cards.map(card => card.status)).toEqual(["接入完整", "接入完整", "待补全"]);
+    expect(summary.riskItems).toEqual(expect.arrayContaining([
+      expect.objectContaining({key: "missing-identity-source-organization", count: 1}),
+    ]));
+  });
+
   test("renders status cards, risk summary, and existing configuration links", () => {
     render(
       <MemoryRouter>
@@ -180,6 +223,7 @@ describe("ApplicationAccessCenter", () => {
     expect(screen.getByText("Disabled Legacy App")).toBeInTheDocument();
     expect(screen.getByText("缺少回调地址")).toBeInTheDocument();
     expect(screen.getByText("缺少 Provider 绑定")).toBeInTheDocument();
+    expect(screen.getByText("身份源组织已显式绑定")).toBeInTheDocument();
     expect(screen.getByText("应用列表").closest("a")).toHaveAttribute("href", "/applications");
     expect(screen.getAllByText("API 网关映射").some(item => item.closest("a")?.getAttribute("href") === "/platform-api-mappings")).toBe(true);
     expect(screen.getByText("OAuth/OIDC Provider").closest("a")).toHaveAttribute("href", "/providers");
