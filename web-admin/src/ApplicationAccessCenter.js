@@ -22,11 +22,19 @@ import {
   SafetyCertificateOutlined,
   SettingOutlined
 } from "@ant-design/icons";
-import {Alert, Button, Card, Col, Progress, Row, Space, Spin, Statistic, Tag, Typography} from "antd";
+import {Alert, Button, Space, Spin, Typography} from "antd";
 import React from "react";
 import {Link} from "react-router-dom";
+import {
+  EnterpriseIdentityActionGrid,
+  EnterpriseIdentityConsolePage,
+  EnterpriseIdentityRiskList,
+  EnterpriseIdentitySection,
+  EnterpriseIdentityStatusGrid,
+  EnterpriseIdentitySummaryStrip
+} from "./common/EnterpriseIdentityConsoleLayout";
 
-const {Text, Title} = Typography;
+const {Text} = Typography;
 
 const ENTRY_LINKS = [
   {key: "applications", label: "应用列表", to: "/applications", icon: <AppstoreAddOutlined />},
@@ -151,36 +159,42 @@ function buildRiskItems(applications, cards) {
       title: "缺少回调地址",
       count: countBy((application) => !getAccessChecks(application).hasRedirectUris),
       actionPath: "/applications",
+      actionLabel: "编辑应用",
     },
     {
       key: "missing-scopes",
       title: "缺少授权范围",
       count: countBy((application) => !getAccessChecks(application).hasScopes),
       actionPath: "/applications",
+      actionLabel: "补全授权范围",
     },
     {
       key: "missing-providers",
       title: "缺少 Provider 绑定",
       count: countBy((application) => !getAccessChecks(application).hasProviders),
       actionPath: "/providers",
+      actionLabel: "配置 Provider",
     },
     {
       key: "missing-client-id",
       title: "client_id 待配置",
       count: countBy((application) => !getAccessChecks(application).hasClientId),
       actionPath: "/applications",
+      actionLabel: "核对应用",
     },
     {
       key: "missing-identity-source-organization",
       title: "Provider 目标组织待补全",
       count: countBy((application) => !getAccessChecks(application).hasIdentitySourceOrganization),
       actionPath: "/applications",
+      actionLabel: "补全目标组织",
     },
     {
       key: "disabled-applications",
       title: "应用已停用",
       count: cards.filter(card => card.status === "已停用").length,
       actionPath: "/applications",
+      actionLabel: "查看应用",
     },
   ].filter(item => item.count > 0);
 
@@ -190,6 +204,7 @@ function buildRiskItems(applications, cards) {
       title: "当前列表视图未发现接入缺口",
       count: 0,
       actionPath: "/records",
+      actionLabel: "查看审计",
     }];
   }
 
@@ -238,30 +253,102 @@ export function buildApplicationAccessCenterSummary(applications = []) {
   };
 }
 
+function buildSummaryItems(summary) {
+  return [
+    {
+      key: "total",
+      label: "应用总数",
+      value: summary.metrics.totalApplications,
+      description: `启用 ${summary.metrics.enabledApplications}`,
+      tone: summary.metrics.totalApplications > 0 ? "processing" : "warning",
+    },
+    {
+      key: "complete",
+      label: "接入完整",
+      value: summary.metrics.completeApplications,
+      description: "client、回调、范围、Provider",
+      tone: summary.metrics.completeApplications > 0 ? "success" : "warning",
+    },
+    {
+      key: "callbacks",
+      label: "回调地址",
+      value: summary.metrics.callbackReadyApplications,
+      description: "已配置应用",
+      tone: summary.metrics.callbackReadyApplications > 0 ? "success" : "warning",
+    },
+    {
+      key: "scopes",
+      label: "授权范围",
+      value: summary.metrics.scopedApplications,
+      description: "已配置应用",
+      tone: summary.metrics.scopedApplications > 0 ? "success" : "warning",
+    },
+  ];
+}
+
 function ApplicationAccessCenter({applications = [], loading = false}) {
   const summary = buildApplicationAccessCenterSummary(applications);
   const hasApplications = Array.isArray(applications) && applications.length > 0;
+  const statusCards = summary.cards.map(card => ({
+    key: card.key,
+    title: card.displayName,
+    description: card.name || "未配置技术名称",
+    icon: <ApiOutlined />,
+    metricValue: `${card.completeness}%`,
+    metricLabel: "接入完整度",
+    tags: [
+      {key: "status", label: card.status, tone: getStatusColor(card.status)},
+      {key: "client", label: card.clientStatus, tone: card.clientStatus.includes("已") ? "success" : "warning"},
+      {key: "grant", label: card.grantStatus, tone: card.grantStatus.includes("已") ? "success" : "warning"},
+    ],
+    progress: {
+      percent: card.completeness,
+      label: `接入完整度 ${card.completeness}%`,
+      status: getProgressStatus(card.status),
+    },
+    details: (
+      <Space direction="vertical" size={2}>
+        <Text type="secondary">{card.callbackStatus}</Text>
+        <Text type="secondary">{card.scopeStatus}</Text>
+        <Text type="secondary">{card.providerStatus}</Text>
+        <Text type="secondary">{card.identitySourceStatus}</Text>
+      </Space>
+    ),
+    actions: [
+      {key: "edit", to: card.editPath, label: "编辑应用"},
+      {key: "api-mapping", to: "/platform-api-mappings", label: "API 映射"},
+      {key: "records", to: "/records", label: "审计记录"},
+    ],
+  }));
+  const riskItems = summary.riskItems.map(item => ({
+    key: item.key,
+    title: item.title,
+    description: "只读推导，不触发授权、回调、密钥写入或真实探测。",
+    icon: <ExclamationCircleOutlined />,
+    tone: item.count > 0 ? "warning" : "success",
+    badge: item.count > 0 ? `${item.count} 项` : "低风险",
+    action: {key: "action", to: item.actionPath, label: item.actionLabel || "进入处理入口"},
+  }));
+  const summaryItems = buildSummaryItems(summary);
 
   return (
-    <div className="application-access-center">
-      <div className="application-access-center-header">
-        <Space direction="vertical" size={4}>
-          <Space wrap>
-            <Title level={3}>应用接入中心</Title>
-            <Tag color="blue">当前列表视图</Tag>
-          </Space>
-          <Text type="secondary">应用接入、OAuth/OIDC client、回调地址、授权范围、API 映射与审计入口</Text>
-        </Space>
+    <EnterpriseIdentityConsolePage
+      className="application-access-center"
+      eyebrow="企业认证中心 / 应用接入"
+      title="应用接入中心"
+      description="围绕应用、OAuth/OIDC client、回调地址、授权范围、API 映射和审计入口组织当前接入状态"
+      actions={(
         <Space wrap>
           <Link to="/applications"><Button icon={<AppstoreAddOutlined />}>新增应用</Button></Link>
           <Link to="/platform-api-mappings"><Button type="primary" icon={<ApiOutlined />}>API 网关映射</Button></Link>
           <Link to="/records"><Button icon={<AuditOutlined />}>查看审计记录</Button></Link>
         </Space>
-      </div>
+      )}
+    >
 
       {loading && (
         <Alert
-          className="application-access-center-alert"
+          className="enterprise-identity-console-alert"
           type="info"
           showIcon
           message="加载应用接入状态..."
@@ -269,116 +356,43 @@ function ApplicationAccessCenter({applications = [], loading = false}) {
       )}
       {!loading && !hasApplications && (
         <Alert
-          className="application-access-center-alert"
+          className="enterprise-identity-console-alert"
           type="warning"
           showIcon
           message="暂无应用接入，先新增应用或进入 API 映射核对接入契约。"
         />
       )}
 
-      <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} xl={6}>
-          <Card className="application-access-center-metric" variant="borderless">
-            <Statistic title="应用总数" value={summary.metrics.totalApplications} suffix={`启用 ${summary.metrics.enabledApplications}`} />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} xl={6}>
-          <Card className="application-access-center-metric" variant="borderless">
-            <Statistic title="接入完整" value={summary.metrics.completeApplications} suffix="应用" />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} xl={6}>
-          <Card className="application-access-center-metric" variant="borderless">
-            <Statistic title="回调地址" value={summary.metrics.callbackReadyApplications} suffix="已配置" />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} xl={6}>
-          <Card className="application-access-center-metric" variant="borderless">
-            <Statistic title="授权范围" value={summary.metrics.scopedApplications} suffix="已配置" />
-          </Card>
-        </Col>
-      </Row>
+      <EnterpriseIdentitySummaryStrip items={summaryItems} />
+      <EnterpriseIdentitySection
+        title="当前列表视图"
+        description="摘要来自当前 Application 列表视图，不代表后端全量聚合事实"
+        extra={<Text type="secondary">只读推导</Text>}
+      >
+        <EnterpriseIdentityStatusGrid items={statusCards} minColumns={3} />
+      </EnterpriseIdentitySection>
 
-      <Row gutter={[16, 16]} className="application-access-center-section">
-        {summary.cards.map(card => (
-          <Col xs={24} md={12} xl={8} key={card.key}>
-            <Card className="application-access-center-card" variant="borderless">
-              <Space direction="vertical" size={12} className="application-access-center-card-body">
-                <Space className="application-access-center-card-title" align="start">
-                  <ApiOutlined />
-                  <Space direction="vertical" size={0}>
-                    <Text strong>{card.displayName}</Text>
-                    <Text type="secondary">{card.name || "未配置技术名称"}</Text>
-                  </Space>
-                </Space>
-                <Space wrap>
-                  <Tag color={getStatusColor(card.status)}>{card.status}</Tag>
-                  <Tag>{card.clientStatus}</Tag>
-                  <Tag>{card.grantStatus}</Tag>
-                </Space>
-                <div>
-                  <Text type="secondary">接入完整度 {card.completeness}%</Text>
-                  <Progress percent={card.completeness} size="small" status={getProgressStatus(card.status)} />
-                </div>
-                <Space direction="vertical" size={2}>
-                  <Text type="secondary">{card.callbackStatus}</Text>
-                  <Text type="secondary">{card.scopeStatus}</Text>
-                  <Text type="secondary">{card.providerStatus}</Text>
-                  <Text type="secondary">{card.identitySourceStatus}</Text>
-                </Space>
-                <Space wrap className="application-access-center-card-actions">
-                  <Link to={card.editPath}>编辑应用</Link>
-                  <Link to="/platform-api-mappings">API 映射</Link>
-                  <Link to="/records">审计记录</Link>
-                </Space>
-              </Space>
-            </Card>
-          </Col>
-        ))}
-      </Row>
-
-      <Row gutter={[16, 16]} className="application-access-center-section">
-        <Col xs={24} lg={10}>
-          <Card title="风险摘要" variant="borderless" className="application-access-center-panel">
-            <Space direction="vertical" size={10} className="application-access-center-risk-list">
-              {summary.riskItems.map(item => (
-                <div className="application-access-center-risk-item" key={item.key}>
-                  <Space align="start">
-                    <ExclamationCircleOutlined />
-                    <Space direction="vertical" size={2}>
-                      <Space wrap>
-                        <Text strong>{item.title}</Text>
-                        <Tag color={item.count > 0 ? "warning" : "success"}>{item.count > 0 ? `${item.count} 项` : "低风险"}</Tag>
-                      </Space>
-                      <Text type="secondary">只读推导，不触发授权、回调、密钥写入或真实探测。</Text>
-                      <Link to={item.actionPath}>进入处理入口</Link>
-                    </Space>
-                  </Space>
-                </div>
-              ))}
-            </Space>
-          </Card>
-        </Col>
-        <Col xs={24} lg={14}>
-          <Card title="配置入口" variant="borderless" className="application-access-center-panel">
-            <div className="application-access-center-link-grid">
-              {summary.entryLinks.map(item => (
-                <Link to={item.to} key={item.key}>
-                  {item.icon}
-                  <span>{item.label}</span>
-                </Link>
-              ))}
-            </div>
-          </Card>
-        </Col>
-      </Row>
+      <div className="enterprise-identity-two-column enterprise-identity-two-column-wide-right">
+        <EnterpriseIdentitySection
+          title="风险摘要"
+          description="把配置缺口转成可处理入口，避免孤立数字"
+        >
+          <EnterpriseIdentityRiskList items={riskItems} />
+        </EnterpriseIdentitySection>
+        <EnterpriseIdentitySection
+          title="配置入口"
+          description="复用既有路由，不新增不兼容页面"
+        >
+          <EnterpriseIdentityActionGrid items={summary.entryLinks} />
+        </EnterpriseIdentitySection>
+      </div>
 
       {loading && (
         <div className="application-access-center-loading">
           <Spin />
         </div>
       )}
-    </div>
+    </EnterpriseIdentityConsolePage>
   );
 }
 

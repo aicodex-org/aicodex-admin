@@ -19,11 +19,18 @@ import {
   SafetyCertificateOutlined,
   SettingOutlined
 } from "@ant-design/icons";
-import {Alert, Button, Card, Col, Progress, Row, Space, Spin, Tag, Typography} from "antd";
+import {Alert, Button, Space, Spin, Typography} from "antd";
 import React from "react";
 import {Link} from "react-router-dom";
+import {
+  EnterpriseIdentityConsolePage,
+  EnterpriseIdentityRiskList,
+  EnterpriseIdentitySection,
+  EnterpriseIdentityStatusGrid,
+  EnterpriseIdentitySummaryStrip
+} from "./common/EnterpriseIdentityConsoleLayout";
 
-const {Text, Title} = Typography;
+const {Text} = Typography;
 
 // 认证源中心只做前端只读归类，避免把 provider 密钥或真实运行探测结果带入页面状态。
 const AUTH_SOURCE_DEFINITIONS = [
@@ -142,26 +149,101 @@ function getProgressStatus(status) {
   return "exception";
 }
 
+function buildSummaryItems(cards, providers) {
+  const enabledCount = cards.filter(card => card.status === "已启用").length;
+  const incompleteCount = cards.filter(card => card.status === "待补全").length;
+  const missingCount = cards.filter(card => card.status === "未启用").length;
+
+  return [
+    {
+      key: "provider-total",
+      label: "Provider 总数",
+      value: providers.length,
+      description: "来自既有 Provider 列表",
+      tone: providers.length > 0 ? "processing" : "warning",
+    },
+    {
+      key: "enabled",
+      label: "已启用认证源",
+      value: enabledCount,
+      description: "企业微信 / 飞书 / OIDC",
+      tone: enabledCount > 0 ? "success" : "warning",
+    },
+    {
+      key: "incomplete",
+      label: "待补全配置",
+      value: incompleteCount,
+      description: "缺少 client 或 providerUrl",
+      tone: incompleteCount > 0 ? "warning" : "success",
+    },
+    {
+      key: "missing",
+      label: "未启用类型",
+      value: missingCount,
+      description: "仍可进入配置入口",
+      tone: missingCount > 0 ? "warning" : "success",
+    },
+  ];
+}
+
 function AuthSourceCenter({providers = [], loading = false}) {
   const cards = buildAuthSourceCenterCards(providers);
   const hasProviders = Array.isArray(providers) && providers.length > 0;
+  const summaryItems = buildSummaryItems(cards, providers);
+  const statusCards = cards.map(card => ({
+    key: card.key,
+    title: card.title,
+    description: card.description,
+    icon: <SafetyCertificateOutlined />,
+    metricValue: `${card.completeness}%`,
+    metricLabel: "配置完整度",
+    tags: [
+      {key: "status", label: card.status, tone: getStatusColor(card.status)},
+      {key: "auth", label: card.authStatus, tone: "processing"},
+    ],
+    progress: {
+      percent: card.completeness,
+      label: `配置完整度 ${card.completeness}%`,
+      status: getProgressStatus(card.status),
+    },
+    details: (
+      <Space direction="vertical" size={2}>
+        <Text>匹配来源：{card.providerDisplayName}</Text>
+        <Text type="secondary">最近失败：以同步页面和审计记录为准</Text>
+      </Space>
+    ),
+    actions: [
+      {key: "config", to: card.configPath, label: card.status === "未启用" ? "进入配置" : "编辑配置"},
+      {key: "diagnostic", to: card.diagnosticPath, label: card.diagnosticLabel},
+    ],
+  }));
+  const diagnosticItems = cards.map(card => ({
+    key: card.key,
+    title: `${card.title} ${card.status}`,
+    description: `${card.authStatus}，当前不触发同步、授权刷新或真实探测。`,
+    icon: <CloudSyncOutlined />,
+    tone: card.status === "已启用" ? "success" : "warning",
+    badge: card.status,
+    action: {key: "diagnostic", to: card.diagnosticPath, label: card.diagnosticLabel},
+  }));
 
   return (
-    <div className="auth-source-center">
-      <div className="auth-source-center-header">
-        <Space direction="vertical" size={4}>
-          <Title level={3}>认证源中心</Title>
-          <Text type="secondary">企业微信、飞书、OIDC 的只读接入状态、配置完整度与诊断入口</Text>
-        </Space>
+    <EnterpriseIdentityConsolePage
+      className="auth-source-center"
+      eyebrow="企业认证中心 / 身份认证"
+      title="认证源中心"
+      description="把企业微信、飞书和 OIDC 组织成可扫描的身份源接入、同步诊断和失败核对工作台"
+      actions={(
         <Space wrap>
           <Link to="/providers"><Button icon={<SettingOutlined />}>配置认证源</Button></Link>
           <Link to="/records"><Button icon={<ExclamationCircleOutlined />}>查看审计记录</Button></Link>
         </Space>
-      </div>
+      )}
+    >
 
       {loading && (
         <Alert
-          className="auth-source-center-alert"
+          className="enterprise-identity-console-alert"
           type="info"
           showIcon
           message="加载认证源状态..."
@@ -169,99 +251,51 @@ function AuthSourceCenter({providers = [], loading = false}) {
       )}
       {!loading && !hasProviders && (
         <Alert
-          className="auth-source-center-alert"
+          className="enterprise-identity-console-alert"
           type="warning"
           showIcon
           message="暂无认证源配置，先从 Provider 列表新增或进入同步诊断页面核对。"
         />
       )}
 
-      <Row gutter={[16, 16]}>
-        {cards.map(card => (
-          <Col xs={24} md={8} key={card.key}>
-            <Card className="auth-source-center-card" variant="borderless">
-              <Space direction="vertical" size={12} className="auth-source-center-card-body">
-                <Space className="auth-source-center-card-title" align="start">
-                  <SafetyCertificateOutlined />
-                  <Space direction="vertical" size={0}>
-                    <Text strong>{card.title}</Text>
-                    <Text type="secondary">{card.description}</Text>
-                  </Space>
-                </Space>
+      <EnterpriseIdentitySummaryStrip items={summaryItems} />
+      <EnterpriseIdentityStatusGrid items={statusCards} minColumns={3} />
 
-                <Space wrap>
-                  <Tag color={getStatusColor(card.status)}>{card.status}</Tag>
-                  <Tag>{card.authStatus}</Tag>
-                </Space>
-
-                <div>
-                  <Text type="secondary">配置完整度 {card.completeness}%</Text>
-                  <Progress percent={card.completeness} size="small" status={getProgressStatus(card.status)} />
-                </div>
-
-                <Space direction="vertical" size={2}>
-                  <Text>匹配来源：{card.providerDisplayName}</Text>
-                  <Text type="secondary">最近失败：以同步页面和审计记录为准</Text>
-                </Space>
-
-                <Space wrap className="auth-source-center-card-actions">
-                  <Link to={card.configPath}>{card.status === "未启用" ? "进入配置" : "编辑配置"}</Link>
-                  <Link to={card.diagnosticPath}>{card.diagnosticLabel}</Link>
-                </Space>
-              </Space>
-            </Card>
-          </Col>
-        ))}
-      </Row>
-
-      <Row gutter={[16, 16]} className="auth-source-center-section">
-        <Col xs={24} lg={14}>
-          <Card title="最近同步 / 授权状态" variant="borderless" className="auth-source-center-panel">
-            <Space direction="vertical" size={10} className="auth-source-center-diagnostic-list">
-              {cards.map(card => (
-                <div className="auth-source-center-diagnostic-item" key={card.key}>
-                  <Space align="start">
-                    <CloudSyncOutlined />
-                    <Space direction="vertical" size={2}>
-                      <Space wrap>
-                        <Text strong>{card.title}</Text>
-                        <Tag color={getStatusColor(card.status)}>{card.status}</Tag>
-                      </Space>
-                      <Text type="secondary">{card.authStatus}，当前不触发同步、授权刷新或真实探测。</Text>
-                      <Link to={card.diagnosticPath}>{card.diagnosticLabel}</Link>
-                    </Space>
-                  </Space>
-                </div>
-              ))}
-            </Space>
-          </Card>
-        </Col>
-        <Col xs={24} lg={10}>
-          <Card title="最近失败摘要" variant="borderless" className="auth-source-center-panel">
-            <Space direction="vertical" size={12}>
-              <Space align="start">
-                <CheckCircleOutlined />
-                <Space direction="vertical" size={2}>
-                  <Text strong>以同步页面和审计记录为准</Text>
-                  <Text type="secondary">当前页面仅做前端只读聚合，不读取失败详情、不触发重试。</Text>
-                </Space>
-              </Space>
-              <Space wrap>
-                <Link to="/records">查看审计记录</Link>
-                <Link to="/wecom-org-sync">企业微信诊断</Link>
-                <Link to="/feishu-org-sync">飞书诊断</Link>
-              </Space>
-            </Space>
-          </Card>
-        </Col>
-      </Row>
+      <div className="enterprise-identity-two-column">
+        <EnterpriseIdentitySection
+          title="最近同步 / 授权状态"
+          description="每个入口只做只读诊断分流，不触发同步、授权刷新或真实探测"
+        >
+          <EnterpriseIdentityRiskList items={diagnosticItems} />
+        </EnterpriseIdentitySection>
+        <EnterpriseIdentitySection
+          title="最近失败摘要"
+          description="当前页面只做前端只读聚合，失败详情以同步页面和审计记录为准"
+        >
+          <EnterpriseIdentityRiskList items={[
+            {
+              key: "failure-summary",
+              title: "以同步页面和审计记录为准",
+              description: "当前页面不读取失败详情、不触发重试，管理员可进入审计和同步诊断核对。",
+              icon: <CheckCircleOutlined />,
+              tone: "processing",
+              badge: "只读核对",
+              action: {key: "records", to: "/records", label: "查看审计记录"},
+            },
+          ]} />
+          <div className="enterprise-identity-inline-actions enterprise-identity-inline-actions-block">
+            <Link to="/wecom-org-sync">企业微信诊断</Link>
+            <Link to="/feishu-org-sync">飞书诊断</Link>
+          </div>
+        </EnterpriseIdentitySection>
+      </div>
 
       {loading && (
         <div className="auth-source-center-loading">
           <Spin />
         </div>
       )}
-    </div>
+    </EnterpriseIdentityConsolePage>
   );
 }
 

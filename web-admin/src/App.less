@@ -152,12 +152,6 @@ img {
   min-width: 0;
 }
 
-.identity-console-overview {
-  padding: 16px 20px 20px;
-  width: 100%;
-  box-sizing: border-box;
-}
-
 .identity-console-overview-state {
   min-height: 240px;
   display: flex;
@@ -166,257 +160,384 @@ img {
   gap: 12px;
 }
 
-.identity-console-header {
+.enterprise-identity-console {
+  padding: 18px 20px 24px;
+  width: 100%;
+  box-sizing: border-box;
+  background: #f6f7f9;
+}
+
+.enterprise-identity-console-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.identity-console-header h3 {
-  margin-bottom: 0 !important;
-}
-
-.identity-console-alert {
-  margin-bottom: 16px;
-}
-
-.identity-console-status-card,
-.identity-console-panel {
-  border: 1px solid rgb(235 237 242);
+  gap: 18px;
+  padding: 18px 20px;
+  margin-bottom: 14px;
+  border: 1px solid rgb(220 226 235);
   border-radius: 8px;
+  background: #fff;
 }
 
-.identity-console-status-card .ant-card-body {
-  min-height: 156px;
+.enterprise-identity-console-title-block {
+  min-width: 0;
 }
 
-.identity-console-card-title {
-  min-height: 24px;
+.enterprise-identity-console-header h3 {
+  margin: 0 !important;
+  letter-spacing: 0;
 }
 
-.identity-console-card-actions {
-  min-height: 24px;
+.enterprise-identity-console-eyebrow {
+  color: rgb(72 85 105);
+  font-size: 13px;
+  font-weight: 600;
 }
 
-.identity-console-section {
-  margin-top: 16px;
+.enterprise-identity-console-header-actions {
+  justify-content: flex-end;
+  flex-shrink: 0;
 }
 
-.identity-console-link-grid {
+.enterprise-identity-console-alert {
+  margin-bottom: 14px;
+}
+
+.enterprise-identity-summary-strip {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin-bottom: 14px;
+  overflow: hidden;
+  border: 1px solid rgb(220 226 235);
+  border-radius: 8px;
+  background: rgb(220 226 235);
 }
 
-.identity-console-link-grid a {
-  min-height: 36px;
-  display: flex;
-  align-items: center;
-  padding: 0 12px;
-  border: 1px solid rgb(235 237 242);
-  border-radius: 6px;
+.enterprise-identity-summary-item {
+  min-height: 92px;
+  padding: 14px 16px;
+  background: #fff;
+  border-top: 3px solid rgb(100 116 139);
+}
+
+.enterprise-identity-summary-label,
+.enterprise-identity-summary-description {
+  display: block;
   overflow-wrap: anywhere;
 }
 
-.identity-console-risk-list {
-  width: 100%;
+.enterprise-identity-summary-value {
+  margin-top: 6px;
+  color: rgb(15 23 42);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
 }
 
-.identity-console-risk-item {
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgb(235 237 242);
+.enterprise-identity-section {
+  padding: 16px;
+  border: 1px solid rgb(220 226 235);
+  border-radius: 8px;
+  background: #fff;
+  min-width: 0;
 }
 
-.identity-console-risk-item:last-child {
-  padding-bottom: 0;
-  border-bottom: 0;
+.enterprise-identity-section + .enterprise-identity-section,
+.enterprise-identity-summary-strip + .enterprise-identity-section {
+  margin-top: 14px;
 }
 
-.auth-source-center {
-  margin-bottom: 16px;
-}
-
-.auth-source-center-header {
+.enterprise-identity-section-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
+  gap: 12px;
+  margin-bottom: 14px;
 }
 
-.auth-source-center-header h3 {
-  margin-bottom: 0 !important;
+.enterprise-identity-section-extra {
+  flex-shrink: 0;
 }
 
-.auth-source-center-alert {
-  margin-bottom: 16px;
+.enterprise-identity-status-grid {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
 }
 
-.auth-source-center-card,
-.auth-source-center-panel {
-  border: 1px solid rgb(235 237 242);
+.enterprise-identity-status-grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.enterprise-identity-status-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.enterprise-identity-status-grid-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.enterprise-identity-status-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 196px;
+  padding: 15px;
+  border: 1px solid rgb(220 226 235);
   border-radius: 8px;
+  background: #fff;
 }
 
-.auth-source-center-card .ant-card-body {
-  min-height: 250px;
+.enterprise-identity-status-card-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
 }
 
-.auth-source-center-card-body,
-.auth-source-center-diagnostic-list {
+.enterprise-identity-status-icon,
+.enterprise-identity-action-icon,
+.enterprise-identity-risk-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: rgb(241 245 249);
+  color: rgb(51 65 85);
+}
+
+.enterprise-identity-status-copy,
+.enterprise-identity-risk-copy {
+  min-width: 0;
   width: 100%;
 }
 
-.auth-source-center-card-title {
-  min-height: 48px;
-}
-
-.auth-source-center-card-title .ant-typography {
+.enterprise-identity-status-copy .ant-typography,
+.enterprise-identity-risk-copy .ant-typography,
+.enterprise-identity-action-copy,
+.enterprise-identity-section-header .ant-typography {
   overflow-wrap: anywhere;
 }
 
-.auth-source-center-card-actions {
+.enterprise-identity-status-metric {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: rgb(15 23 42);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.enterprise-identity-status-metric .ant-typography {
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.enterprise-identity-status-tags {
   min-height: 24px;
 }
 
-.auth-source-center-section {
-  margin-top: 16px;
+.enterprise-identity-status-progress .ant-progress {
+  margin-bottom: 0;
 }
 
-.auth-source-center-diagnostic-item {
-  padding-bottom: 10px;
-  border-bottom: 1px solid rgb(235 237 242);
+.enterprise-identity-status-details {
+  min-height: 42px;
 }
 
-.auth-source-center-diagnostic-item:last-child {
-  padding-bottom: 0;
-  border-bottom: 0;
-}
-
-.auth-source-center-loading {
+.enterprise-identity-inline-actions,
+.enterprise-identity-action-grid {
   display: flex;
-  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.enterprise-identity-inline-actions {
+  margin-top: auto;
+}
+
+.enterprise-identity-inline-actions-block {
   margin-top: 12px;
 }
 
-.application-access-center {
-  margin-bottom: 16px;
-}
-
-.application-access-center-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.application-access-center-header h3 {
-  margin-bottom: 0 !important;
-}
-
-.application-access-center-alert {
-  margin-bottom: 16px;
-}
-
-.application-access-center-metric,
-.application-access-center-card,
-.application-access-center-panel {
-  border: 1px solid rgb(235 237 242);
-  border-radius: 8px;
-}
-
-.application-access-center-card .ant-card-body {
-  min-height: 270px;
-}
-
-.application-access-center-card-body,
-.application-access-center-risk-list {
-  width: 100%;
-}
-
-.application-access-center-card-title {
-  min-height: 44px;
-}
-
-.application-access-center-card-title .ant-typography {
+.enterprise-identity-inline-actions a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgb(220 226 235);
+  border-radius: 6px;
+  background: rgb(248 250 252);
   overflow-wrap: anywhere;
 }
 
-.application-access-center-card-actions {
-  min-height: 24px;
+.enterprise-identity-two-column {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+  gap: 14px;
+  margin-top: 14px;
 }
 
-.application-access-center-section {
-  margin-top: 16px;
+.enterprise-identity-two-column-wide-right {
+  grid-template-columns: minmax(300px, 0.8fr) minmax(0, 1.2fr);
 }
 
-.application-access-center-risk-item {
-  padding-bottom: 10px;
-  border-bottom: 1px solid rgb(235 237 242);
+.enterprise-identity-section + .enterprise-identity-two-column {
+  margin-top: 14px;
 }
 
-.application-access-center-risk-item:last-child {
+.enterprise-identity-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.enterprise-identity-action-grid a {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 58px;
+  padding: 11px 12px;
+  border: 1px solid rgb(220 226 235);
+  border-radius: 8px;
+  background: rgb(248 250 252);
+  color: rgb(15 23 42);
+}
+
+.enterprise-identity-action-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.enterprise-identity-risk-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.enterprise-identity-risk-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgb(226 232 240);
+}
+
+.enterprise-identity-risk-item:first-child {
+  padding-top: 0;
+}
+
+.enterprise-identity-risk-item:last-child {
   padding-bottom: 0;
   border-bottom: 0;
 }
 
-.application-access-center-link-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+.enterprise-identity-tone-success {
+  border-top-color: rgb(22 163 74) !important;
 }
 
-.application-access-center-link-grid a {
-  min-height: 38px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 12px;
-  border: 1px solid rgb(235 237 242);
-  border-radius: 6px;
-  overflow-wrap: anywhere;
+.enterprise-identity-tone-warning {
+  border-top-color: rgb(217 119 6) !important;
 }
 
+.enterprise-identity-tone-error {
+  border-top-color: rgb(220 38 38) !important;
+}
+
+.enterprise-identity-tone-processing,
+.enterprise-identity-tone-info {
+  border-top-color: rgb(37 99 235) !important;
+}
+
+.enterprise-identity-status-tags .enterprise-identity-tone-success,
+.enterprise-identity-risk-copy .enterprise-identity-tone-success {
+  color: rgb(21 128 61);
+  background: rgb(240 253 244);
+  border-color: rgb(187 247 208);
+}
+
+.enterprise-identity-status-tags .enterprise-identity-tone-warning,
+.enterprise-identity-risk-copy .enterprise-identity-tone-warning {
+  color: rgb(146 64 14);
+  background: rgb(255 251 235);
+  border-color: rgb(253 230 138);
+}
+
+.enterprise-identity-status-tags .enterprise-identity-tone-error,
+.enterprise-identity-risk-copy .enterprise-identity-tone-error {
+  color: rgb(185 28 28);
+  background: rgb(254 242 242);
+  border-color: rgb(254 202 202);
+}
+
+.enterprise-identity-status-tags .enterprise-identity-tone-processing,
+.enterprise-identity-risk-copy .enterprise-identity-tone-processing,
+.enterprise-identity-status-tags .enterprise-identity-tone-info,
+.enterprise-identity-risk-copy .enterprise-identity-tone-info {
+  color: rgb(29 78 216);
+  background: rgb(239 246 255);
+  border-color: rgb(191 219 254);
+}
+
+.auth-source-center-loading,
 .application-access-center-loading {
   display: flex;
   justify-content: center;
   margin-top: 12px;
 }
 
+@media screen and (max-width: 1180px) {
+  .enterprise-identity-status-grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .enterprise-identity-status-grid-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .enterprise-identity-two-column,
+  .enterprise-identity-two-column-wide-right {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media screen and (max-width: 768px) {
-  .identity-console-overview {
+  .enterprise-identity-console {
     padding: 12px;
   }
 
-  .identity-console-header {
+  .enterprise-identity-console-header {
     flex-direction: column;
+    padding: 14px;
   }
 
-  .identity-console-link-grid {
+  .enterprise-identity-console-header-actions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .enterprise-identity-summary-strip,
+  .enterprise-identity-status-grid-2,
+  .enterprise-identity-status-grid-3,
+  .enterprise-identity-status-grid-4,
+  .enterprise-identity-action-grid {
     grid-template-columns: 1fr;
   }
 
-  .auth-source-center-header {
-    flex-direction: column;
-  }
-
-  .auth-source-center-card .ant-card-body {
+  .enterprise-identity-status-card {
     min-height: auto;
   }
 
-  .application-access-center-header {
+  .enterprise-identity-section-header {
     flex-direction: column;
-  }
-
-  .application-access-center-card .ant-card-body {
-    min-height: auto;
-  }
-
-  .application-access-center-link-grid {
-    grid-template-columns: 1fr;
   }
 }
 

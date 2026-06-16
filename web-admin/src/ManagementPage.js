@@ -25,7 +25,7 @@ import {
 } from "@ant-design/icons";
 import IdentityConsoleOverview from "./IdentityConsoleOverview";
 import AppListPage from "./basic/AppListPage";
-import ShortcutsPage from "./basic/ShortcutsPage";
+import ShortcutsPage from "./basic/ShortcutsPage.tsx";
 import AccountPage from "./account/AccountPage";
 import OrganizationListPage from "./OrganizationListPage";
 import OrganizationEditPage from "./OrganizationEditPage";
