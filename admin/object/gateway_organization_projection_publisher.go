@@ -240,11 +240,12 @@ func (p GatewayProjectionPublisher) writeAudit(request GatewayProjectionBatchReq
 	}
 	if p.Audit != nil {
 		p.Audit(event)
-		return
+	} else {
+		// 审计日志只记录批次、状态和错误码，不输出 token、完整 endpoint、Cookie 或原始响应。
+		logs.Info("gateway_projection_publish_audit traceId=%s caller=%s projectionBatchId=%s orgVersion=%d sourceVersion=%s generatedAt=%s freshnessExpiresAt=%s subjectCount=%d activeSubjectCount=%d tombstoneSubjectCount=%d status=%s statusCode=%d errorCode=%s failureCategory=%s attempts=%d accepted=%t idempotent=%t durationMs=%d",
+			event.TraceID, event.Caller, event.ProjectionBatchID, event.OrgVersion, request.Lineage.SourceVersion, request.GeneratedAt.UTC().Format(time.RFC3339), request.Freshness.ExpiresAt.UTC().Format(time.RFC3339), len(request.Subjects), gatewayProjectionActiveSubjectCount(request.Subjects), gatewayProjectionTombstoneSubjectCount(request.Subjects), event.Status, event.StatusCode, event.ErrorCode, GatewayProjectionFailureCategory(event.ErrorCode), event.Attempts, event.Accepted, event.Idempotent, event.DurationMs)
 	}
-	// 审计日志只记录批次、状态和错误码，不输出 token、完整 endpoint、Cookie 或原始响应。
-	logs.Info("gateway_projection_publish_audit traceId=%s caller=%s projectionBatchId=%s orgVersion=%d status=%s statusCode=%d errorCode=%s attempts=%d accepted=%t idempotent=%t durationMs=%d",
-		event.TraceID, event.Caller, event.ProjectionBatchID, event.OrgVersion, event.Status, event.StatusCode, event.ErrorCode, event.Attempts, event.Accepted, event.Idempotent, event.DurationMs)
+	recordGatewayProjectionPublishAudit(event, request)
 }
 
 // gatewayProjectionEnvelopeResult 只把 accepted 或 idempotent 视为发布成功。

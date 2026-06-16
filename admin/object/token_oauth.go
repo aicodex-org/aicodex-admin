@@ -145,14 +145,14 @@ func ExpireTokenByAccessToken(accessToken string) (bool, *Application, *Token, e
 	return affected != 0, application, token, nil
 }
 
-func CheckOAuthLogin(clientId string, responseType string, redirectUri string, scope string, state string, lang string) (string, *Application, error) {
+func CheckOAuthLogin(clientId string, responseType string, redirectUri string, scope string, state string, organization string, lang string) (string, *Application, error) {
 	if responseType != "code" && responseType != "token" && responseType != "id_token" {
 		return fmt.Sprintf(i18n.Translate(lang, "token:Grant_type: %s is not supported in this application"), responseType), nil, nil
 	}
 
-	application, err := GetApplicationByClientId(clientId)
+	application, err := GetApplicationByClientIdForOrganization(clientId, organization)
 	if err != nil {
-		return "", nil, err
+		return err.Error(), application, nil
 	}
 
 	if application == nil {
@@ -193,7 +193,17 @@ func ValidateOAuthClientRequestForApplication(application *Application, clientId
 	return ""
 }
 
-func GetOAuthCode(userId string, clientId string, provider string, signinMethod string, responseType string, redirectUri string, scope string, state string, nonce string, challengeMethod string, challenge string, resource string, host string, lang string) (*Code, error) {
+func ValidateOAuthClientRequestForApplicationWithOrganization(application *Application, clientId string, responseType string, redirectUri string, scope string, state string, organization string, lang string) string {
+	if msg := ValidateOAuthClientRequestForApplication(application, clientId, responseType, redirectUri, scope, state, lang); msg != "" {
+		return msg
+	}
+	if err := ResolveApplicationLoginOrganization(application, organization); err != nil {
+		return err.Error()
+	}
+	return ""
+}
+
+func GetOAuthCode(userId string, clientId string, provider string, signinMethod string, responseType string, redirectUri string, scope string, state string, nonce string, challengeMethod string, challenge string, resource string, organization string, host string, lang string) (*Code, error) {
 	user, err := GetUser(userId)
 	if err != nil {
 		return nil, err
@@ -212,7 +222,7 @@ func GetOAuthCode(userId string, clientId string, provider string, signinMethod 
 		}, nil
 	}
 
-	msg, application, err := CheckOAuthLogin(clientId, responseType, redirectUri, scope, state, lang)
+	msg, application, err := CheckOAuthLogin(clientId, responseType, redirectUri, scope, state, organization, lang)
 	if err != nil {
 		return nil, err
 	}
@@ -220,6 +230,12 @@ func GetOAuthCode(userId string, clientId string, provider string, signinMethod 
 	if msg != "" {
 		return &Code{
 			Message: msg,
+			Code:    "",
+		}, nil
+	}
+	if err := ValidateApplicationApiMappingGate(application, user); err != nil {
+		return &Code{
+			Message: err.Error(),
 			Code:    "",
 		}, nil
 	}
@@ -451,6 +467,9 @@ func RefreshToken(application *Application, grantType string, refreshToken strin
 			ErrorDescription: "refresh token is expired",
 		}, nil
 	}
+	if tokenError := bindApplicationToStoredTokenOrganization(application, token); tokenError != nil {
+		return tokenError, nil
+	}
 
 	cert, err := getCertByApplication(application)
 	if err != nil {
@@ -489,18 +508,24 @@ func RefreshToken(application *Application, grantType string, refreshToken strin
 	}
 
 	// generate a new token
-	user, err := getUser(application.Organization, token.User)
+	user, err := getUser(token.Organization, token.User)
 	if err != nil {
 		return nil, err
 	}
 	if user == nil {
-		return "", fmt.Errorf("The user: %s doesn't exist", util.GetId(application.Organization, token.User))
+		return "", fmt.Errorf("The user: %s doesn't exist", util.GetId(token.Organization, token.User))
 	}
 
 	if user.IsForbidden {
 		return &TokenError{
 			Error:            InvalidGrant,
 			ErrorDescription: "the user is forbidden to sign in, please contact the administrator",
+		}, nil
+	}
+	if err := ValidateApplicationUserTokenContext(application, user); err != nil {
+		return &TokenError{
+			Error:            InvalidGrant,
+			ErrorDescription: err.Error(),
 		}, nil
 	}
 
@@ -656,6 +681,36 @@ func IsScopeValid(scope string, application *Application) bool {
 	return ok
 }
 
+// bindApplicationToStoredTokenOrganization 恢复原 token 签发时固定的 organization 上下文。
+// refresh token 不携带新的登录参数，必须使用存量 Token 记录校验 client 绑定和 shared application 允许范围。
+func bindApplicationToStoredTokenOrganization(application *Application, token *Token) *TokenError {
+	if application == nil || token == nil {
+		return &TokenError{
+			Error:            InvalidGrant,
+			ErrorDescription: "application or token context is missing",
+		}
+	}
+	if application.Name != token.Application {
+		return &TokenError{
+			Error:            InvalidGrant,
+			ErrorDescription: fmt.Sprintf("refresh token is for wrong application, application.Name: [%s], token.Application: [%s]", application.Name, token.Application),
+		}
+	}
+	if strings.TrimSpace(token.Organization) == "" {
+		return &TokenError{
+			Error:            InvalidGrant,
+			ErrorDescription: "refresh token organization is missing",
+		}
+	}
+	if err := ResolveApplicationLoginOrganization(application, token.Organization); err != nil {
+		return &TokenError{
+			Error:            InvalidGrant,
+			ErrorDescription: err.Error(),
+		}
+	}
+	return nil
+}
+
 // createGuestUserToken creates a new guest user and returns a token for them
 func createGuestUserToken(application *Application, clientSecret string, verifier string) (*Token, *TokenError, error) {
 	// Verify client secret if provided
@@ -725,6 +780,13 @@ func createGuestUserToken(application *Application, clientSecret string, verifie
 		Properties:        map[string]string{},
 		RegisterType:      "Guest Signup",
 		RegisterSource:    fmt.Sprintf("%s/%s", application.Organization, application.Name),
+	}
+
+	if err := ValidateApplicationUserTokenContext(application, guestUser); err != nil {
+		return nil, &TokenError{
+			Error:            InvalidGrant,
+			ErrorDescription: err.Error(),
+		}, nil
 	}
 
 	// Add the user
@@ -961,6 +1023,12 @@ func GetPasswordToken(application *Application, username string, password string
 			ErrorDescription: "the user is forbidden to sign in, please contact the administrator",
 		}, nil
 	}
+	if err := ValidateApplicationUserTokenContext(application, user); err != nil {
+		return nil, &TokenError{
+			Error:            InvalidGrant,
+			ErrorDescription: err.Error(),
+		}, nil
+	}
 
 	err = ExtendUserWithRolesAndPermissions(user)
 	if err != nil {
@@ -1167,6 +1235,10 @@ func ValidateClientAssertion(clientAssertion string, host string) (bool, *Applic
 // GetTokenByUser
 // Implicit flow
 func GetTokenByUser(application *Application, user *User, scope string, nonce string, host string) (*Token, error) {
+	if err := ValidateApplicationUserTokenContext(application, user); err != nil {
+		return nil, err
+	}
+
 	err := ExtendUserWithRolesAndPermissions(user)
 	if err != nil {
 		return nil, err
@@ -1275,10 +1347,23 @@ func GetWechatMiniProgramToken(application *Application, code string, host strin
 				UserPropertiesWechatUnionId: unionId,
 			},
 		}
+		if err := ValidateApplicationUserTokenContext(application, user); err != nil {
+			return nil, &TokenError{
+				Error:            InvalidGrant,
+				ErrorDescription: err.Error(),
+			}, nil
+		}
 		_, err = AddUser(user, "en")
 		if err != nil {
 			return nil, nil, err
 		}
+	}
+
+	if err := ValidateApplicationUserTokenContext(application, user); err != nil {
+		return nil, &TokenError{
+			Error:            InvalidGrant,
+			ErrorDescription: err.Error(),
+		}, nil
 	}
 
 	err = ExtendUserWithRolesAndPermissions(user)
@@ -1418,6 +1503,12 @@ func GetTokenExchangeToken(application *Application, clientSecret string, subjec
 		return nil, &TokenError{
 			Error:            InvalidGrant,
 			ErrorDescription: "the user is forbidden to sign in, please contact the administrator",
+		}, nil
+	}
+	if err := ValidateApplicationUserTokenContext(application, user); err != nil {
+		return nil, &TokenError{
+			Error:            InvalidGrant,
+			ErrorDescription: err.Error(),
 		}, nil
 	}
 

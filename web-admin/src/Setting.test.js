@@ -28,6 +28,11 @@ test("includes module-based WeCom organization API paths", () => {
   expect(paths).toContain("organization-sync-api-keys/disable");
   expect(paths).toContain("organization-sync-api-keys/delete");
   expect(paths).toContain("organization-sync/export");
+  expect(paths).toContain("get-platform-api-organization-mappings");
+  expect(paths).toContain("update-platform-api-organization-mapping");
+  expect(paths).toContain("get-platform-api-user-mappings");
+  expect(paths).toContain("get-platform-api-user-mapping-readiness");
+  expect(paths).toContain("update-platform-api-user-mapping");
 });
 
 test("uses shared Lark/Feishu logo for domestic Lark OAuth provider", () => {

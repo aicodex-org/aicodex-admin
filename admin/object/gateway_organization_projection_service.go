@@ -17,6 +17,7 @@ package object
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -26,6 +27,7 @@ type GatewayProjectionSnapshot struct {
 	SourceConnections  []SourceConnection
 	AdminUsers         []User
 	Users              []PlatformUser
+	ApiUserMappings    []PlatformApiUserMapping
 	Departments        []PlatformDepartment
 	Memberships        []PlatformMembership
 	ExternalIdentities []ExternalIdentity
@@ -61,6 +63,7 @@ type defaultGatewayProjectionSnapshotStore struct{}
 // BuildAndPublishOrganization 从当前 admin 主模型读取组织快照，构建并推送 gateway projection batch。
 // 该服务方法是后端和脚本共用入口；是否自动触发由上层配置门控决定。
 func (s *GatewayProjectionService) BuildAndPublishOrganization(ctx context.Context, organizationID string, traceID string) (GatewayProjectionServiceResult, error) {
+	startedAt := time.Now()
 	organizationID = normalizeGatewayProjectionString(organizationID)
 	if organizationID == "" {
 		return GatewayProjectionServiceResult{}, errors.New("gateway projection organization is required")
@@ -83,6 +86,7 @@ func (s *GatewayProjectionService) BuildAndPublishOrganization(ctx context.Conte
 		SourceConnections:  snapshot.SourceConnections,
 		AdminUsers:         snapshot.AdminUsers,
 		Users:              snapshot.Users,
+		ApiUserMappings:    snapshot.ApiUserMappings,
 		Departments:        snapshot.Departments,
 		Memberships:        snapshot.Memberships,
 		ExternalIdentities: snapshot.ExternalIdentities,
@@ -97,6 +101,7 @@ func (s *GatewayProjectionService) BuildAndPublishOrganization(ctx context.Conte
 		publisher.Config = config
 	}
 	publish, err := publisher.Publish(ctx, build.Request)
+	recordGatewayProjectionServiceObservability(build, publish, snapshot.SourceConnections, time.Since(startedAt).Milliseconds())
 	return GatewayProjectionServiceResult{Build: build, Publish: publish}, err
 }
 
@@ -145,6 +150,9 @@ func (s defaultGatewayProjectionSnapshotStore) GetGatewayProjectionSnapshot(orga
 	if err := ormer.Engine.Where("organization_id = ?", organizationID).Find(&snapshot.Users); err != nil {
 		return nil, err
 	}
+	if err := ormer.Engine.Where("organization_id = ?", organizationID).Find(&snapshot.ApiUserMappings); err != nil {
+		return nil, err
+	}
 	if err := ormer.Engine.Where("organization_id = ?", organizationID).Find(&snapshot.Departments); err != nil {
 		return nil, err
 	}
@@ -155,12 +163,36 @@ func (s defaultGatewayProjectionSnapshotStore) GetGatewayProjectionSnapshot(orga
 		return nil, err
 	}
 	batches := []OrgSyncBatch{}
-	if err := ormer.Engine.Where("organization_id = ?", organizationID).Desc("finished_at").Limit(1).Find(&batches); err != nil {
+	if err := ormer.Engine.Where("organization_id = ? AND org_version <> ?", organizationID, "").
+		In("status", OrgSyncBatchStatusSucceeded, OrgSyncBatchStatusPartial).
+		Desc("finished_at").
+		Find(&batches); err != nil {
 		return nil, err
 	}
-	if len(batches) > 0 {
-		batch := batches[0]
-		snapshot.SyncBatch = &batch
-	}
+	snapshot.SyncBatch = latestGatewayProjectionUsableSyncBatch(batches)
 	return snapshot, nil
+}
+
+// latestGatewayProjectionUsableSyncBatch 只选择能代表来源快照版本的最新同步批次。
+// 失败或运行中的批次只是诊断状态，不能覆盖上一次可用 orgVersion，否则 refresh 会用错误版本续期 freshness。
+func latestGatewayProjectionUsableSyncBatch(batches []OrgSyncBatch) *OrgSyncBatch {
+	var selected *OrgSyncBatch
+	for _, batch := range batches {
+		if !gatewayProjectionSyncBatchUsable(batch) {
+			continue
+		}
+		if selected == nil || batch.FinishedAt.After(selected.FinishedAt) {
+			candidate := batch
+			selected = &candidate
+		}
+	}
+	return selected
+}
+
+func gatewayProjectionSyncBatchUsable(batch OrgSyncBatch) bool {
+	status := strings.ToUpper(normalizeGatewayProjectionString(batch.Status))
+	if status != OrgSyncBatchStatusSucceeded && status != OrgSyncBatchStatusPartial {
+		return false
+	}
+	return normalizeGatewayProjectionString(batch.OrgVersion) != "" && !batch.FinishedAt.IsZero()
 }

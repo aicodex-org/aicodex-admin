@@ -46,6 +46,7 @@ p, *, *, POST, /api/login, *, *
 p, *, *, GET, /api/get-app-login, *, *
 p, *, *, POST, /api/wecom-profile-consent/login-intents, *, *
 p, *, *, GET, /api/wecom-profile-consent/callback, *, *
+p, *, *, GET, /api/wecom-profile-consent/intents/:intentId/authorize, *, *
 p, *, *, GET, /api/wecom-profile-consent/intents/:intentId, *, *
 p, *, *, POST, /api/wecom-profile-consent/intents/:intentId/complete, *, *
 p, *, *, POST, /api/logout, *, *
@@ -60,6 +61,10 @@ p, *, *, GET, /api/user, *, *
 p, *, *, GET, /api/admin-provider/insight/v1/current-user, *, *
 p, *, *, GET, /api/admin-provider/insight/v1/current-user/scope, *, *
 p, *, *, GET, /api/admin-provider/insight/v1/current-user/organization-tree, *, *
+p, *, *, GET, /api/organization-tree-operations/diagnostics, *, *
+p, *, *, GET, /api/organization-tree-operations/members, *, *
+p, *, *, POST, /api/organization-tree-operations/refresh, *, *
+p, *, *, GET, /api/gateway-projection/observability, *, *
 p, *, *, GET, /api/health, *, *
 p, *, *, *, /api/webhook, *, *
 p, *, *, GET, /api/get-qrcode, *, *

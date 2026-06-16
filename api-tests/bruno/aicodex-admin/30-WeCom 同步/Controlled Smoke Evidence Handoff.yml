@@ -1,0 +1,109 @@
+info:
+  name: Controlled Smoke Evidence Handoff
+  type: http
+  seq: 6
+  tags:
+    - smoke
+    - wecom-sync
+    - source-readiness
+    - controlled-smoke
+    - evidence-handoff
+    - readonly
+
+http:
+  method: GET
+  url: "http://127.0.0.1/__local_only_wecom_source_controlled_smoke_evidence_handoff__"
+
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        function loadControlledSmokeEvidenceHandoff() {
+          try {
+            return require("../scripts/wecomSourceControlledSmokeEvidenceHandoff")
+          } catch (error) {
+            return require("./scripts/wecomSourceControlledSmokeEvidenceHandoff")
+          }
+        }
+
+        function varValue(name, fallback) {
+          const value = bru.getVar(name) || bru.getEnvVar(name)
+          return value === undefined || value === null || value === "" ? fallback : value
+        }
+
+        function parseJsonVar(name) {
+          const raw = bru.getVar(name) || bru.getEnvVar(name)
+          if (!raw) {
+            return undefined
+          }
+          return typeof raw === "string" ? JSON.parse(raw) : raw
+        }
+
+        function boolVar(name) {
+          return String(bru.getVar(name) || bru.getEnvVar(name) || "").toLowerCase() === "true"
+        }
+
+        function fallbackReadinessSummary() {
+          const alias = varValue("wecomSourceControlledSmokeReadinessAlias", undefined)
+          if (!alias) {
+            return undefined
+          }
+          return {
+            status: alias === "wecom_source_ready" ? "ready" : "blocked",
+            aliases: [alias],
+            evidenceShapeVersion: "wecom-source-readiness-handoff/v1",
+          }
+        }
+
+        function fallbackReleaseSummary() {
+          const alias = varValue("wecomSourceControlledSmokeReleaseAlias", undefined)
+          if (!alias) {
+            return undefined
+          }
+          return {
+            status: alias === "wecom_source_ready" ? "ready" : "blocked",
+            release: alias === "wecom_source_ready" ? "release_after_report" : "hold",
+            decision: alias === "wecom_source_ready" ? "ready_for_org_tree_readiness" : "blocked",
+            reasonAlias: alias,
+            evidenceShapeVersion: "wecom-source-release-decision/v1",
+          }
+        }
+
+        function fallbackPreflightSummary() {
+          const status = varValue("wecomSourceControlledSmokePreflightStatus", undefined)
+          if (!status) {
+            return undefined
+          }
+          return {
+            status,
+            release: status === "ready-for-wecom-controlled-smoke-preflight" ? "release_after_report" : "hold",
+            reasonAlias: status,
+            evidenceShapeVersion: "wecom-source-controlled-smoke-preflight/v1",
+          }
+        }
+
+        const {createWecomSourceControlledSmokeEvidenceHandoff} = loadControlledSmokeEvidenceHandoff()
+        const handoff = createWecomSourceControlledSmokeEvidenceHandoff({
+          readinessSummary: parseJsonVar("wecomSourceControlledSmokeReadinessSummary") || fallbackReadinessSummary(),
+          releaseSummary: parseJsonVar("wecomSourceControlledSmokeReleaseSummary") || fallbackReleaseSummary(),
+          preflightSummary: parseJsonVar("wecomSourceControlledSmokePreflightSummary") || fallbackPreflightSummary(),
+          redactionSignal: varValue("wecomSourceControlledSmokeEvidenceRedactionSignal", "redacted"),
+          blockingAlias: varValue("wecomSourceControlledSmokeEvidenceBlockingAlias", "none"),
+          operatorScope: varValue("wecomSourceControlledSmokeEvidenceOperatorScope", "local-readonly-evidence-handoff"),
+          operatorMetadata: parseJsonVar("wecomSourceControlledSmokeEvidenceOperatorMetadata"),
+        }, {
+          sourceAlias: varValue("wecomSourceControlledSmokeEvidenceSourceAlias", undefined),
+        })
+
+        console.log(JSON.stringify(handoff, null, 2))
+        if (handoff.status !== "ready-for-controlled-smoke-evidence-handoff" && boolVar("wecomSourceControlledSmokeEvidenceRequireReady")) {
+          throw new Error(`wecom source controlled smoke evidence handoff blocked reasonAlias=${handoff.reasonAlias}`)
+        }
+
+        throw new Error(`local-only WeCom source controlled smoke evidence handoff completed status=${handoff.status}; HTTP request intentionally aborted`)
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: false
+  maxRedirects: 0

@@ -1,0 +1,77 @@
+info:
+  name: Operator Remediation Handoff
+  type: http
+  seq: 7
+  tags:
+    - smoke
+    - gateway-projection
+    - operator-remediation
+    - readonly
+    - local-only
+
+http:
+  method: GET
+  url: "{{baseUrl}}/__local_only__/gateway-projection/operator-remediation-handoff"
+
+runtime:
+  scripts:
+    - type: pre-request
+      code: |-
+        function loadOperatorRemediationHandoff() {
+          try {
+            return require("../scripts/gatewayProjectionOperatorRemediationHandoff")
+          } catch (error) {
+            return require("./scripts/gatewayProjectionOperatorRemediationHandoff")
+          }
+        }
+
+        function parseJsonVar(name) {
+          const raw = bru.getVar(name) || bru.getEnvVar(name)
+          if (!raw) {
+            return undefined
+          }
+          return typeof raw === "string" ? JSON.parse(raw) : raw
+        }
+
+        function boolVar(name) {
+          return String(bru.getVar(name) || bru.getEnvVar(name) || "").toLowerCase() === "true"
+        }
+
+        function arrayVar(name) {
+          const parsed = parseJsonVar(name)
+          if (Array.isArray(parsed)) {
+            return parsed
+          }
+          const raw = bru.getVar(name) || bru.getEnvVar(name)
+          if (!raw) {
+            return []
+          }
+          return String(raw).split(/[,\s|]+/).map((item) => item.trim()).filter(Boolean)
+        }
+
+        const {createGatewayProjectionOperatorRemediationHandoff} = loadOperatorRemediationHandoff()
+        const handoff = createGatewayProjectionOperatorRemediationHandoff({
+          readinessSummary: parseJsonVar("gatewayProjectionReadinessSummary"),
+          releaseDecision: parseJsonVar("gatewayProjectionReleaseDecisionHandoff"),
+          controlledSmokePreflight: parseJsonVar("gatewayProjectionControlledSmokePreflightHandoff"),
+          controlledSmokeReleaseRunbook: parseJsonVar("gatewayProjectionControlledSmokeReleaseRunbook"),
+          evidenceReadiness: parseJsonVar("gatewayProjectionControlledSmokeEvidenceReadiness"),
+          blockingAliases: arrayVar("gatewayProjectionOperatorRemediationBlockingAliases"),
+          operatorMetadata: parseJsonVar("gatewayProjectionOperatorRemediationOperatorMetadata"),
+          operatorNote: bru.getVar("gatewayProjectionOperatorRemediationOperatorNote") || bru.getEnvVar("gatewayProjectionOperatorRemediationOperatorNote"),
+        }, {
+          sourceAlias: bru.getVar("gatewayProjectionOperatorRemediationSourceAlias") || bru.getEnvVar("gatewayProjectionOperatorRemediationSourceAlias") || "bruno-operator-remediation-handoff",
+        })
+
+        console.log(JSON.stringify(handoff, null, 2))
+        if (handoff.status !== "ready-for-operator-handoff" && boolVar("gatewayProjectionRequireOperatorRemediationReady")) {
+          throw new Error(`projection operator remediation handoff blocked status=${handoff.status} blockers=${handoff.remediations.map((item) => item.alias).join("|") || "none"}`)
+        }
+
+        throw new Error("local-only operator remediation handoff completed before network request; copy the sanitized console output")
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -37,6 +37,15 @@ type defaultWecomOrganizationSyncRunStore struct{}
 
 // StartManualRunWithResult 在创建新 run 的同时返回 stale running 恢复结果，供 API 明确提示。
 func (s *WecomOrganizationSyncService) StartManualRunWithResult(config *WecomOrganizationSyncConfig, actor string) (*WecomOrganizationSyncStartRunResult, error) {
+	return s.startRunWithResult(config, actor, WecomOrganizationSyncTriggerManual)
+}
+
+// StartScheduledRunWithResult 创建调度器触发的 run，触发来源写入 scheduled 便于审计。
+func (s *WecomOrganizationSyncService) StartScheduledRunWithResult(config *WecomOrganizationSyncConfig, actor string) (*WecomOrganizationSyncStartRunResult, error) {
+	return s.startRunWithResult(config, actor, WecomOrganizationSyncTriggerScheduled)
+}
+
+func (s *WecomOrganizationSyncService) startRunWithResult(config *WecomOrganizationSyncConfig, actor string, triggerType WecomOrganizationSyncTriggerType) (*WecomOrganizationSyncStartRunResult, error) {
 	if err := validateWecomOrganizationSyncRunExecutionConfig(config); err != nil {
 		return nil, err
 	}
@@ -45,10 +54,16 @@ func (s *WecomOrganizationSyncService) StartManualRunWithResult(config *WecomOrg
 	}
 
 	store := s.runStore()
+	if startStore, ok := store.(WecomOrganizationSyncRunTriggerStartStore); ok {
+		return startStore.StartWecomOrganizationSyncRunWithTrigger(config, actor, triggerType, s.now().UTC(), s.leaseDuration())
+	}
 	if startStore, ok := store.(WecomOrganizationSyncRunStartStore); ok {
+		if triggerType != "" && triggerType != WecomOrganizationSyncTriggerManual {
+			return s.startRunWithStore(store, config, actor, triggerType)
+		}
 		return startStore.StartWecomOrganizationSyncRun(config, actor, s.now().UTC(), s.leaseDuration())
 	}
-	return s.startManualRunWithStore(store, config, actor)
+	return s.startRunWithStore(store, config, actor, triggerType)
 }
 
 func (s *WecomOrganizationSyncService) GetRuns(organization string, offset int, limit int, field string, value string, sortField string, sortOrder string, sensitiveValues ...string) ([]*WecomOrganizationSyncRun, int64, error) {
@@ -148,6 +163,15 @@ func (s defaultWecomOrganizationSyncRunStore) GetRunningWecomOrganizationSyncRun
 // StartWecomOrganizationSyncRun 在数据库事务内创建 running 记录。
 // 这里用目标组织的配置行做行级锁，保证同组织手动同步启动请求串行执行。
 func (s defaultWecomOrganizationSyncRunStore) StartWecomOrganizationSyncRun(config *WecomOrganizationSyncConfig, actor string, now time.Time, leaseDuration time.Duration) (*WecomOrganizationSyncStartRunResult, error) {
+	return s.StartWecomOrganizationSyncRunWithTrigger(config, actor, WecomOrganizationSyncTriggerManual, now, leaseDuration)
+}
+
+// StartWecomOrganizationSyncRunWithTrigger 在数据库事务内创建带触发来源的 running 记录。
+// 这里用目标组织的配置行做行级锁，保证同组织同步启动请求串行执行。
+func (s defaultWecomOrganizationSyncRunStore) StartWecomOrganizationSyncRunWithTrigger(config *WecomOrganizationSyncConfig, actor string, triggerType WecomOrganizationSyncTriggerType, now time.Time, leaseDuration time.Duration) (*WecomOrganizationSyncStartRunResult, error) {
+	if triggerType == "" {
+		triggerType = WecomOrganizationSyncTriggerManual
+	}
 	session := ormer.Engine.NewSession()
 	defer session.Close()
 	if err := session.Begin(); err != nil {
@@ -207,7 +231,7 @@ func (s defaultWecomOrganizationSyncRunStore) StartWecomOrganizationSyncRun(conf
 		Organization:   lockedConfig.Organization,
 		ConfigName:     lockedConfig.Name,
 		CorpId:         lockedConfig.CorpId,
-		TriggerType:    WecomOrganizationSyncTriggerManual,
+		TriggerType:    triggerType,
 		Actor:          actor,
 		Status:         WecomOrganizationSyncRunStatusRunning,
 		Stage:          WecomOrganizationSyncRunStageFetching,

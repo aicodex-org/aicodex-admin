@@ -34,6 +34,16 @@ request:
       value: "false"
     - name: wecomSyncRunId
       value: ""
+    - name: gatewayProjectionRequireLatestAudit
+      value: "false"
+    - name: gatewayProjectionMinSubjectCount
+      value: "0"
+    - name: gatewayProjectionMinTombstoneSubjectCount
+      value: "0"
+    - name: gatewayProjectionRequireMappingReadiness
+      value: "false"
+    - name: gatewayProjectionMappingReadinessResponse
+      value: ""
 
 bundled: false
 extensions:

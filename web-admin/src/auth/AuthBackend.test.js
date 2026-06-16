@@ -4,7 +4,8 @@ import {
   completeWecomProfileConsentLoginIntent,
   createWecomProfileConsentLoginIntent,
   createWecomProfileConsentProfileSyncIntent,
-  getWecomProfileConsentIntentStatus
+  getWecomProfileConsentIntentStatus,
+  oAuthParamsToQuery
 } from "./AuthBackend";
 
 jest.mock("../Setting", () => ({
@@ -104,5 +105,24 @@ describe("WeCom profile consent AuthBackend", () => {
       mfaType: "totp",
       passcode: "123456",
     });
+  });
+
+  test("OAuth query carries explicit organization context", () => {
+    const query = oAuthParamsToQuery({
+      clientId: "client-web",
+      responseType: "code",
+      redirectUri: "https://app.example.invalid/callback",
+      type: "code",
+      scope: "openid profile",
+      state: "state-1",
+      nonce: "nonce-1",
+      challengeMethod: "S256",
+      codeChallenge: "challenge-1",
+      organization: "org-a",
+    });
+
+    expect(query).toContain("organization=org-a");
+    expect(query).toContain("clientId=client-web");
+    expect(query).not.toContain("client-web-org-org-a");
   });
 });

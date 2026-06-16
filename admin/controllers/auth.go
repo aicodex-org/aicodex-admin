@@ -68,6 +68,23 @@ func (c *ApiController) HandleLoggedIn(application *object.Application, user *ob
 		return
 	}
 
+	if form.Type == ResponseTypeCode || form.Type == ResponseTypeToken || form.Type == ResponseTypeIdToken {
+		clientId := firstNonEmptyQuery(c, "clientId", "client_id")
+		organization := firstNonEmptyQuery(c, "organization")
+		if clientId != "" {
+			resolvedApplication, err := object.GetApplicationByClientIdForOrganization(clientId, organization)
+			if err != nil {
+				c.ResponseError(err.Error())
+				return
+			}
+			if resolvedApplication == nil {
+				c.ResponseError(c.T("token:Invalid client_id"))
+				return
+			}
+			application = resolvedApplication
+		}
+	}
+
 	userId := user.GetId()
 
 	clientIp := util.GetClientIpFromRequest(c.Ctx.Request)
@@ -153,22 +170,23 @@ func (c *ApiController) HandleLoggedIn(application *object.Application, user *ob
 		util.LogInfo(c.Ctx, "API: [%s] signed in", userId)
 		resp = &Response{Status: "ok", Msg: "", Data: userId, Data3: user.NeedUpdatePassword}
 	} else if form.Type == ResponseTypeCode {
-		clientId := c.Ctx.Input.Query("clientId")
-		responseType := c.Ctx.Input.Query("responseType")
-		redirectUri := c.Ctx.Input.Query("redirectUri")
+		clientId := firstNonEmptyQuery(c, "clientId", "client_id")
+		responseType := firstNonEmptyQuery(c, "responseType", "response_type")
+		redirectUri := firstNonEmptyQuery(c, "redirectUri", "redirect_uri")
 		scope := c.Ctx.Input.Query("scope")
 		state := c.Ctx.Input.Query("state")
 		nonce := c.Ctx.Input.Query("nonce")
 		challengeMethod := c.Ctx.Input.Query("code_challenge_method")
 		codeChallenge := c.Ctx.Input.Query("code_challenge")
 		resource := c.Ctx.Input.Query("resource")
+		organization := firstNonEmptyQuery(c, "organization")
 
 		if challengeMethod != "S256" && challengeMethod != "null" && challengeMethod != "" {
 			c.ResponseError(c.T("auth:Challenge method should be S256"))
 			return
 		}
 
-		if msg := object.ValidateOAuthClientRequestForApplication(application, clientId, responseType, redirectUri, scope, state, c.GetAcceptLanguage()); msg != "" {
+		if msg := object.ValidateOAuthClientRequestForApplicationWithOrganization(application, clientId, responseType, redirectUri, scope, state, organization, c.GetAcceptLanguage()); msg != "" {
 			resp = &Response{Status: "error", Msg: msg, Data: ""}
 			return
 		}
@@ -185,7 +203,7 @@ func (c *ApiController) HandleLoggedIn(application *object.Application, user *ob
 			return
 		}
 
-		code, err := object.GetOAuthCode(userId, clientId, form.Provider, form.SigninMethod, responseType, redirectUri, scope, state, nonce, challengeMethod, codeChallenge, resource, c.Ctx.Request.Host, c.GetAcceptLanguage())
+		code, err := object.GetOAuthCode(userId, clientId, form.Provider, form.SigninMethod, responseType, redirectUri, scope, state, nonce, challengeMethod, codeChallenge, resource, organization, c.Ctx.Request.Host, c.GetAcceptLanguage())
 		if err != nil {
 			c.ResponseError(err.Error(), nil)
 			return
@@ -198,14 +216,15 @@ func (c *ApiController) HandleLoggedIn(application *object.Application, user *ob
 			c.SetSessionUsername(userId)
 		}
 	} else if form.Type == ResponseTypeToken || form.Type == ResponseTypeIdToken { // implicit flow
-		clientId := c.Ctx.Input.Query("clientId")
-		responseType := c.Ctx.Input.Query("responseType")
-		redirectUri := c.Ctx.Input.Query("redirectUri")
+		clientId := firstNonEmptyQuery(c, "clientId", "client_id")
+		responseType := firstNonEmptyQuery(c, "responseType", "response_type")
+		redirectUri := firstNonEmptyQuery(c, "redirectUri", "redirect_uri")
 		scope := c.Ctx.Input.Query("scope")
 		state := c.Ctx.Input.Query("state")
 		nonce := c.Ctx.Input.Query("nonce")
+		organization := firstNonEmptyQuery(c, "organization")
 
-		if msg := object.ValidateOAuthClientRequestForApplication(application, clientId, responseType, redirectUri, scope, state, c.GetAcceptLanguage()); msg != "" {
+		if msg := object.ValidateOAuthClientRequestForApplicationWithOrganization(application, clientId, responseType, redirectUri, scope, state, organization, c.GetAcceptLanguage()); msg != "" {
 			resp = &Response{Status: "error", Msg: msg, Data: ""}
 			return
 		}
@@ -344,20 +363,21 @@ func (c *ApiController) HandleLoggedIn(application *object.Application, user *ob
 // @Success 200 {object} controllers.Response The Response object
 // @router /get-app-login [get]
 func (c *ApiController) GetApplicationLogin() {
-	clientId := c.Ctx.Input.Query("clientId")
-	responseType := c.Ctx.Input.Query("responseType")
-	redirectUri := c.Ctx.Input.Query("redirectUri")
+	clientId := firstNonEmptyQuery(c, "clientId", "client_id")
+	responseType := firstNonEmptyQuery(c, "responseType", "response_type")
+	redirectUri := firstNonEmptyQuery(c, "redirectUri", "redirect_uri")
 	scope := c.Ctx.Input.Query("scope")
 	state := c.Ctx.Input.Query("state")
 	id := c.Ctx.Input.Query("id")
 	loginType := c.Ctx.Input.Query("type")
 	userCode := c.Ctx.Input.Query("userCode")
+	organization := firstNonEmptyQuery(c, "organization")
 
 	var application *object.Application
 	var msg string
 	var err error
 	if loginType == "code" {
-		msg, application, err = object.CheckOAuthLogin(clientId, responseType, redirectUri, scope, state, c.GetAcceptLanguage())
+		msg, application, err = object.CheckOAuthLogin(clientId, responseType, redirectUri, scope, state, organization, c.GetAcceptLanguage())
 		if err != nil {
 			c.ResponseError(err.Error())
 			return
@@ -402,6 +422,15 @@ func (c *ApiController) GetApplicationLogin() {
 	} else {
 		c.ResponseOk(application)
 	}
+}
+
+func firstNonEmptyQuery(c *ApiController, keys ...string) string {
+	for _, key := range keys {
+		if value := strings.TrimSpace(c.Ctx.Input.Query(key)); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func setHttpClient(idProvider idp.IdProvider, providerType string) {

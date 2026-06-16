@@ -30,6 +30,16 @@ runtime:
         if (first?.runId && !bru.getVar("wecomSyncRunId") && !bru.getEnvVar("wecomSyncRunId")) {
           bru.setVar("wecomSyncRunId", String(first.runId))
         }
+        bru.setVar("wecomSourceReadinessRunsResponse", JSON.stringify({
+          status: json.status,
+          data: json.data.map(item => ({
+            status: item?.status,
+            startedAt: item?.startedAt,
+            finishedAt: item?.finishedAt,
+            createdAt: item?.createdAt,
+            updatedAt: item?.updatedAt,
+          })),
+        }))
 
 settings:
   encodeUrl: true

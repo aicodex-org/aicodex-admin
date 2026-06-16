@@ -38,6 +38,7 @@ type WecomAddressBookConnectionTester interface {
 // WecomOrganizationSyncConfigService 统一处理配置保存、Secret 保留和返回脱敏。
 type WecomOrganizationSyncConfigService struct {
 	Store                          WecomOrganizationSyncConfigStore
+	ScheduleStore                  OrganizationSyncScheduleStore
 	OrganizationStore              WecomBusinessOrganizationStore
 	Now                            func() time.Time
 	NewAddressBookConnectionTester func(corpId string, addressBookSecret string) WecomAddressBookConnectionTester
@@ -55,11 +56,15 @@ func (s *WecomOrganizationSyncConfigService) GetConfig(organization string, isMa
 	if err != nil {
 		return nil, err
 	}
-	return GetMaskedWecomOrganizationSyncConfig(config, isMaskEnabled), nil
+	return s.attachScheduleFields(GetMaskedWecomOrganizationSyncConfig(config, isMaskEnabled))
 }
 
 func (s *WecomOrganizationSyncConfigService) SaveConfig(config *WecomOrganizationSyncConfig, isMaskEnabled bool) (*WecomOrganizationSyncConfig, bool, error) {
 	prepared, err := s.prepareConfigForSave(config)
+	if err != nil {
+		return nil, false, err
+	}
+	schedule, hasScheduleSettings, err := s.prepareScheduleForSave(prepared.Organization, config)
 	if err != nil {
 		return nil, false, err
 	}
@@ -68,7 +73,19 @@ func (s *WecomOrganizationSyncConfigService) SaveConfig(config *WecomOrganizatio
 	if err != nil {
 		return nil, false, err
 	}
-	return GetMaskedWecomOrganizationSyncConfig(prepared, isMaskEnabled), affected, nil
+	if hasScheduleSettings {
+		schedule, err = s.scheduleService().SaveSchedule(schedule)
+		if err != nil {
+			return nil, false, err
+		}
+	}
+	masked := GetMaskedWecomOrganizationSyncConfig(prepared, isMaskEnabled)
+	if hasScheduleSettings {
+		attachWecomOrganizationSyncScheduleFields(masked, schedule)
+		return masked, affected, nil
+	}
+	masked, err = s.attachScheduleFields(masked)
+	return masked, affected, err
 }
 
 func (s *WecomOrganizationSyncConfigService) TestConnection(ctx context.Context, config *WecomOrganizationSyncConfig) (*WecomAddressBookConnectionTestResult, error) {
@@ -170,6 +187,78 @@ func (s *WecomOrganizationSyncConfigService) configStore() WecomOrganizationSync
 		return s.Store
 	}
 	return defaultWecomOrganizationSyncConfigStore{}
+}
+
+func (s *WecomOrganizationSyncConfigService) scheduleService() *OrganizationSyncScheduleService {
+	if s != nil && s.ScheduleStore != nil {
+		return &OrganizationSyncScheduleService{Store: s.ScheduleStore}
+	}
+	return &OrganizationSyncScheduleService{}
+}
+
+func (s *WecomOrganizationSyncConfigService) prepareScheduleForSave(organization string, config *WecomOrganizationSyncConfig) (*OrganizationSyncSchedule, bool, error) {
+	if !hasExplicitWecomOrganizationSyncScheduleSettings(config) {
+		return nil, false, nil
+	}
+	schedule := &OrganizationSyncSchedule{
+		Provider:       OrganizationSyncProviderWeCom,
+		JobType:        OrganizationSyncJobTypeFullDifferential,
+		Organization:   organization,
+		IsEnabled:      config.ScheduleEnabled,
+		CronExpression: config.ScheduleCron,
+		Timezone:       config.ScheduleTimezone,
+	}
+	prepared, err := prepareOrganizationSyncSchedule(schedule)
+	if err != nil {
+		return nil, true, err
+	}
+	return prepared, true, nil
+}
+
+func (s *WecomOrganizationSyncConfigService) attachScheduleFields(config *WecomOrganizationSyncConfig) (*WecomOrganizationSyncConfig, error) {
+	if config == nil {
+		return nil, nil
+	}
+	schedule, err := s.scheduleService().GetSchedule(OrganizationSyncProviderWeCom, OrganizationSyncJobTypeFullDifferential, config.Organization)
+	if err != nil {
+		return nil, err
+	}
+	attachWecomOrganizationSyncScheduleFields(config, schedule)
+	return config, nil
+}
+
+func hasExplicitWecomOrganizationSyncScheduleSettings(config *WecomOrganizationSyncConfig) bool {
+	if config == nil {
+		return false
+	}
+	return config.ScheduleEnabled || strings.TrimSpace(config.ScheduleCron) != "" || strings.TrimSpace(config.ScheduleTimezone) != ""
+}
+
+func attachWecomOrganizationSyncScheduleFields(config *WecomOrganizationSyncConfig, schedule *OrganizationSyncSchedule) {
+	if config == nil {
+		return
+	}
+	if schedule == nil {
+		schedule = &OrganizationSyncSchedule{
+			Provider:     OrganizationSyncProviderWeCom,
+			JobType:      OrganizationSyncJobTypeFullDifferential,
+			Organization: config.Organization,
+		}
+	}
+	schedule.ApplyDefaults()
+	config.ScheduleEnabled = schedule.IsEnabled
+	config.ScheduleCron = schedule.CronExpression
+	config.ScheduleTimezone = schedule.Timezone
+	config.ScheduleLastFireAt = schedule.LastFireAt
+	config.ScheduleLastRunId = schedule.LastRunId
+	config.ScheduleLastStatus = schedule.LastStatus
+	config.ScheduleLastErrorCode = schedule.LastErrorCode
+	config.ScheduleLastErrorText = schedule.LastErrorText
+}
+
+// AttachWecomOrganizationSyncScheduleFieldsForResponse 为未保存 WeCom 配置的默认响应补齐调度字段。
+func AttachWecomOrganizationSyncScheduleFieldsForResponse(config *WecomOrganizationSyncConfig, schedule *OrganizationSyncSchedule) {
+	attachWecomOrganizationSyncScheduleFields(config, schedule)
 }
 
 func (s *WecomOrganizationSyncConfigService) connectionTester(corpId string, addressBookSecret string) WecomAddressBookConnectionTester {

@@ -1,0 +1,70 @@
+info:
+  name: Controlled Smoke Preflight
+  type: http
+  seq: 5
+  tags:
+    - smoke
+    - wecom-sync
+    - source-readiness
+    - controlled-smoke
+    - preflight
+    - readonly
+
+http:
+  method: GET
+  url: "http://127.0.0.1/__local_only_wecom_source_controlled_smoke_preflight__"
+
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        function loadControlledSmokePreflight() {
+          try {
+            return require("../scripts/wecomSourceControlledSmokePreflight")
+          } catch (error) {
+            return require("./scripts/wecomSourceControlledSmokePreflight")
+          }
+        }
+
+        function varValue(name, fallback) {
+          const value = bru.getVar(name) || bru.getEnvVar(name)
+          return value === undefined || value === null || value === "" ? fallback : value
+        }
+
+        function parseJsonVar(name) {
+          const raw = bru.getVar(name) || bru.getEnvVar(name)
+          if (!raw) {
+            return undefined
+          }
+          return typeof raw === "string" ? JSON.parse(raw) : raw
+        }
+
+        function boolVar(name) {
+          return String(bru.getVar(name) || bru.getEnvVar(name) || "").toLowerCase() === "true"
+        }
+
+        const {createWecomSourceControlledSmokePreflight} = loadControlledSmokePreflight()
+        const preflight = createWecomSourceControlledSmokePreflight({
+          sourceReadinessAlias: varValue("wecomSourceControlledSmokeSourceReadinessAlias", undefined),
+          releaseDecisionAlias: varValue("wecomSourceControlledSmokeReleaseDecisionAlias", undefined),
+          sourceConnectionFreshnessAlias: varValue("wecomSourceControlledSmokeFreshnessAlias", undefined),
+          redactionSignal: varValue("wecomSourceControlledSmokeRedactionSignal", "redacted"),
+          blockingAlias: varValue("wecomSourceControlledSmokeBlockingAlias", "none"),
+          operatorScope: varValue("wecomSourceControlledSmokeOperatorScope", "local-readonly-preflight"),
+          operatorMetadata: parseJsonVar("wecomSourceControlledSmokeOperatorMetadata"),
+        }, {
+          sourceAlias: varValue("wecomSourceControlledSmokeSourceAlias", undefined),
+        })
+
+        console.log(JSON.stringify(preflight, null, 2))
+        if (preflight.status !== "ready-for-wecom-controlled-smoke-preflight" && boolVar("wecomSourceControlledSmokeRequireReady")) {
+          throw new Error(`wecom source controlled smoke preflight blocked reasonAlias=${preflight.reasonAlias}`)
+        }
+
+        throw new Error(`local-only WeCom source controlled smoke preflight completed status=${preflight.status}; HTTP request intentionally aborted`)
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: false
+  maxRedirects: 0

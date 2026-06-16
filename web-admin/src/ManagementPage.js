@@ -86,6 +86,8 @@ import FormEditPage from "./FormEditPage";
 import SyncerListPage from "./SyncerListPage";
 import SyncerEditPage from "./SyncerEditPage";
 import WecomOrganizationSyncPage from "./WecomOrganizationSyncPage";
+import OrganizationTreeOperationsPage from "./OrganizationTreeOperationsPage";
+import PlatformApiMappingPage from "./PlatformApiMappingPage";
 import WebhookListPage from "./WebhookListPage";
 import WebhookEventListPage from "./WebhookEventListPage";
 import WebhookEditPage from "./WebhookEditPage";
@@ -430,6 +432,8 @@ function ManagementPage(props) {
           {key: "/syncers", label: i18next.t("general:Syncers"), to: "/syncers", matchPrefixes: ["/syncers"]},
           {key: "/wecom-org-sync", label: "企业微信同步", to: "/wecom-org-sync", matchPrefixes: ["/wecom-org-sync"]},
           {key: "/organization-sync-api-keys", label: "组织同步密钥", to: "/organization-sync-api-keys", matchPrefixes: ["/organization-sync-api-keys"]},
+          {key: "/organization-tree-operations", label: "组织树运营", to: "/organization-tree-operations", matchPrefixes: ["/organization-tree-operations"], visible: isAdmin},
+          {key: "/platform-api-mappings", label: "API 网关映射", to: "/platform-api-mappings", matchPrefixes: ["/platform-api-mappings"], visible: isAdmin},
           {key: "/webhooks", label: i18next.t("general:Webhooks"), to: "/webhooks", matchPrefixes: ["/webhooks"]},
           {key: "/webhook-events", label: i18next.t("general:Webhook Events"), to: "/webhook-events", matchPrefixes: ["/webhook-events"]},
           {key: "/tickets", label: i18next.t("general:Tickets"), to: "/tickets", matchPrefixes: ["/tickets"]},
@@ -575,6 +579,8 @@ function ManagementPage(props) {
         <Route exact path="/syncers/:syncerName" render={(props) => renderLoginIfNotLoggedIn(<SyncerEditPage account={account} {...props} />)} />
         <Route exact path="/wecom-org-sync" render={(props) => renderLoginIfNotLoggedIn(<WecomOrganizationSyncPage account={account} {...props} />)} />
         <Route exact path="/organization-sync-api-keys" render={(props) => renderLoginIfNotLoggedIn(<OrganizationSyncApiKeyListPage account={account} {...props} />)} />
+        <Route exact path="/organization-tree-operations" render={(props) => renderLoginIfNotLoggedIn(<OrganizationTreeOperationsPage account={account} {...props} />)} />
+        <Route exact path="/platform-api-mappings" render={(props) => renderLoginIfNotLoggedIn(<PlatformApiMappingPage account={account} {...props} />)} />
         <Route exact path="/transactions" render={(props) => renderLoginIfNotLoggedIn(<TransactionListPage account={account} {...props} />)} />
         <Route exact path="/transactions/:organizationName/:transactionName" render={(props) => renderLoginIfNotLoggedIn(<TransactionEditPage account={account} {...props} />)} />
         <Route exact path="/webhooks" render={(props) => renderLoginIfNotLoggedIn(<WebhookListPage account={account} {...props} />)} />

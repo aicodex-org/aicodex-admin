@@ -234,8 +234,63 @@ func GetPlatformDepartments(organizationId string) ([]*PlatformDepartment, error
 	return departments, err
 }
 
+// GetPlatformUsers 返回指定平台组织下的稳定用户主体，用于 admin-only 诊断展示。
+func GetPlatformUsers(organizationId string) ([]*PlatformUser, error) {
+	users := []*PlatformUser{}
+	organizationId = strings.TrimSpace(organizationId)
+	if organizationId == "" {
+		return users, nil
+	}
+	err := ormer.Engine.Where("organization_id = ?", organizationId).Find(&users)
+	return users, err
+}
+
+// GetPlatformMemberships 返回指定平台组织下的成员关系，供 scope 和组织树 read model 复用同一主模型口径。
+func GetPlatformMemberships(organizationId string) ([]*PlatformMembership, error) {
+	memberships := []*PlatformMembership{}
+	organizationId = strings.TrimSpace(organizationId)
+	if organizationId == "" {
+		return memberships, nil
+	}
+	err := ormer.Engine.Where("organization_id = ?", organizationId).Find(&memberships)
+	return memberships, err
+}
+
+// GetExternalIdentities 返回指定平台组织下的外部身份映射，用于诊断来源身份和 mapping 状态。
+func GetExternalIdentities(organizationId string) ([]*ExternalIdentity, error) {
+	identities := []*ExternalIdentity{}
+	organizationId = strings.TrimSpace(organizationId)
+	if organizationId == "" {
+		return identities, nil
+	}
+	err := ormer.Engine.Where("organization_id = ?", organizationId).Find(&identities)
+	return identities, err
+}
+
 func GetPlatformMembershipName(organizationId string, adminSubject string, departmentId string) string {
 	return prefixedStableHash("mem-", organizationId, adminSubject, departmentId)
+}
+
+// GetSourceConnections 返回平台组织下的来源连接脱敏元数据。
+func GetSourceConnections(organizationId string) ([]*SourceConnection, error) {
+	connections := []*SourceConnection{}
+	organizationId = strings.TrimSpace(organizationId)
+	if organizationId == "" {
+		return connections, nil
+	}
+	err := ormer.Engine.Where("organization_id = ?", organizationId).Find(&connections)
+	return connections, err
+}
+
+// GetOrgSyncBatches 返回平台组织下的来源同步批次，调用方负责选择最新可用版本。
+func GetOrgSyncBatches(organizationId string) ([]*OrgSyncBatch, error) {
+	batches := []*OrgSyncBatch{}
+	organizationId = strings.TrimSpace(organizationId)
+	if organizationId == "" {
+		return batches, nil
+	}
+	err := ormer.Engine.Where("organization_id = ?", organizationId).Find(&batches)
+	return batches, err
 }
 
 // GetLifecycleEventName 将生命周期事件的主体、批次和发生时间纳入幂等键，避免不同批次状态变更互相覆盖。

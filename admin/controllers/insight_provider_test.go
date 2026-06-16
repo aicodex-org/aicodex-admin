@@ -23,11 +23,8 @@ func TestInsightCurrentUserResponseUsesWhitelistAndRedactsSensitiveFields(t *tes
 		OriginalRefreshToken: "refresh-token-value",
 		Phone:                "13800000000",
 		Email:                "alice@example.com",
-		Properties: map[string]string{
-			"aicodexApiUserId":         "101",
-			"aicodexApiOrganizationId": "00000000-0000-7000-8000-000000000123",
-		},
 	}
+	installInsightPlatformApiMappingFixtures(t, "org-a", "00000000-0000-7000-8000-000000000123", map[string]string{"org-a/alice": "101"})
 
 	got := buildInsightCurrentUserResponse(user, []string{"admin"}, []InsightProviderGroup{
 		{DepartmentId: "org-a/dev", DepartmentName: "Dev"},
@@ -80,19 +77,19 @@ func TestInsightScopeForOrganizationAdminStaysInOwnOrganization(t *testing.T) {
 		Owner:   "org-a",
 		Name:    "owner",
 		IsAdmin: true,
-		Properties: map[string]string{
-			"aicodexApiUserId":         "100",
-			"aicodexApiOrganizationId": "00000000-0000-7000-8000-000000000123",
-		},
 	}
 	users := []*object.User{
 		currentUser,
-		{Owner: "org-a", Name: "member", Properties: map[string]string{"aicodexApiUserId": "101"}},
+		{Owner: "org-a", Name: "member"},
 		{Owner: "org-a", Name: "unmapped"},
-		{Owner: "org-b", Name: "outside", Properties: map[string]string{"aicodexApiUserId": "999"}},
+		{Owner: "org-b", Name: "outside"},
 	}
+	installInsightPlatformApiMappingFixtures(t, "org-a", "00000000-0000-7000-8000-000000000123", map[string]string{
+		"org-a/owner":  "100",
+		"org-a/member": "101",
+	})
 
-	got, providerErr := calculateInsightScopeForOrganizationWithResolver(currentUser, "org-a", users, nil, generatedAt, nil, "trace-admin-scope")
+	got, providerErr := calculateInsightScopeForOrganizationWithTrace(currentUser, "org-a", users, nil, generatedAt, "trace-admin-scope")
 	if providerErr != nil {
 		t.Fatalf("calculateInsightScope returned error: %+v", providerErr)
 	}
@@ -125,22 +122,24 @@ func TestInsightAllCompanyScopeIncludesDepartmentUsageMappings(t *testing.T) {
 		Owner:   "org-a",
 		Name:    "owner",
 		IsAdmin: true,
-		Properties: map[string]string{
-			"aicodexApiUserId":         "100",
-			"aicodexApiOrganizationId": "00000000-0000-7000-8000-000000000123",
-		},
 	}
 	users := []*object.User{
 		currentUser,
-		{Owner: "org-a", Name: "dev-a", Groups: []string{"org-a/dev"}, Properties: map[string]string{"aicodexApiUserId": "101"}},
-		{Owner: "org-a", Name: "dev-b", Groups: []string{"org-a/dev"}, Properties: map[string]string{"aicodexApiUserId": "102"}},
-		{Owner: "org-a", Name: "qa-a", Groups: []string{"org-a/qa"}, Properties: map[string]string{"aicodexApiUserId": "201"}},
+		{Owner: "org-a", Name: "dev-a", Groups: []string{"org-a/dev"}},
+		{Owner: "org-a", Name: "dev-b", Groups: []string{"org-a/dev"}},
+		{Owner: "org-a", Name: "qa-a", Groups: []string{"org-a/qa"}},
 		{Owner: "org-a", Name: "missing", Groups: []string{"org-a/dev"}},
 	}
 	groups := []*object.Group{
 		{Owner: "org-a", Name: "dev", DisplayName: "Dev"},
 		{Owner: "org-a", Name: "qa", DisplayName: "QA"},
 	}
+	installInsightPlatformApiMappingFixtures(t, "org-a", "00000000-0000-7000-8000-000000000123", map[string]string{
+		"org-a/owner": "100",
+		"org-a/dev-a": "101",
+		"org-a/dev-b": "102",
+		"org-a/qa-a":  "201",
+	})
 
 	got, providerErr := calculateInsightScope(currentUser, users, groups, generatedAt)
 	if providerErr != nil {
@@ -169,17 +168,18 @@ func TestInsightProviderUsesPlatformDepartmentSourceMetadataForWecomGroups(t *te
 		Owner:   "org-a",
 		Name:    "owner",
 		IsAdmin: true,
-		Properties: map[string]string{
-			"aicodexApiUserId": "100",
-		},
 	}
 	users := []*object.User{
 		currentUser,
-		{Owner: "org-a", Name: "member", Groups: []string{"org-a/wecom-dept-2"}, Properties: map[string]string{"aicodexApiUserId": "101"}},
+		{Owner: "org-a", Name: "member", Groups: []string{"org-a/wecom-dept-2"}},
 	}
 	groups := []*object.Group{
 		{Owner: "org-a", Name: "wecom-dept-2", DisplayName: "研发", Type: object.WecomDepartmentGroupType, IsEnabled: true},
 	}
+	installInsightPlatformApiMappingFixtures(t, "org-a", "00000000-0000-7000-8000-000000000123", map[string]string{
+		"org-a/owner":  "100",
+		"org-a/member": "101",
+	})
 	departmentMetadata := buildInsightDepartmentSourceMetadataIndex([]*object.PlatformDepartment{
 		{
 			OrganizationId:     "org-a",
@@ -189,7 +189,7 @@ func TestInsightProviderUsesPlatformDepartmentSourceMetadataForWecomGroups(t *te
 		},
 	})
 
-	scope, providerErr := calculateInsightScopeForOrganizationWithResolverAndDepartmentMetadata(currentUser, "org-a", users, groups, generatedAt, nil, "trace-source-metadata", departmentMetadata)
+	scope, providerErr := calculateInsightScopeForOrganizationWithDepartmentMetadata(currentUser, "org-a", users, groups, generatedAt, "trace-source-metadata", departmentMetadata)
 	if providerErr != nil {
 		t.Fatalf("calculateInsightScope returned error: %+v", providerErr)
 	}
@@ -204,11 +204,398 @@ func TestInsightProviderUsesPlatformDepartmentSourceMetadataForWecomGroups(t *te
 	}
 }
 
+func TestInsightOrganizationTreeReadModelBuildsPlatformEnvelopeForAdmin(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
+	sourceConnectionId := object.GetSourceConnectionId("org-a", object.SourceTypeWecom, "ww123")
+	currentUser := &object.User{Owner: "org-a", Name: "owner", IsAdmin: true}
+
+	got := buildInsightOrganizationTreeReadModel(insightOrganizationTreeReadModelInput{
+		CurrentUser:  currentUser,
+		Organization: "org-a",
+		GeneratedAt:  generatedAt,
+		Scope: &object.OrganizationManagementScope{
+			Organization: "org-a",
+			ScopeType:    object.OrganizationManagementScopeTypeAdmin,
+			Departments: []object.OrganizationManagementScopeDepartment{
+				{DepartmentId: "org-a/dev"},
+				{DepartmentId: "org-a/platform"},
+			},
+		},
+		PlatformDepartments: []object.PlatformDepartment{
+			{OrganizationId: "org-a", DepartmentId: "org-a/dev", DisplayName: "Dev", LifecycleStatus: object.PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-tree-1"},
+			{OrganizationId: "org-a", DepartmentId: "org-a/platform", ParentDepartmentId: "org-a/dev", DisplayName: "Platform", LifecycleStatus: object.PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-tree-1"},
+			{OrganizationId: "org-a", DepartmentId: "org-a/disabled", DisplayName: "Disabled", LifecycleStatus: object.PlatformLifecycleStatusDisabled, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-tree-1"},
+		},
+		SourceConnections: []object.SourceConnection{
+			{OrganizationId: "org-a", SourceConnectionId: sourceConnectionId, SourceType: object.SourceTypeWecom, Status: object.SourceConnectionStatusActive, Freshness: object.PlatformFreshnessFresh},
+		},
+		SyncBatches: []object.OrgSyncBatch{
+			{OrganizationId: "org-a", SourceConnectionId: sourceConnectionId, BatchId: "batch-1", Status: object.OrgSyncBatchStatusSucceeded, OrgVersion: "orgv-tree-1", Freshness: object.PlatformFreshnessFresh, FinishedAt: generatedAt.Add(-time.Minute)},
+		},
+	})
+
+	if got.Organization != "org-a" || got.ReadModelSource != "platform_department" {
+		t.Fatalf("tree metadata = %+v, want org-a platform_department", got)
+	}
+	if got.OrgVersion != "orgv-tree-1" || got.Freshness != object.PlatformFreshnessFresh || got.GeneratedAt != formatInsightTime(generatedAt) {
+		t.Fatalf("version metadata = %+v, want latest platform org version and freshness", got)
+	}
+	if got.Lineage.SourceService != "aicodex-admin" || got.Lineage.SourceType != object.SourceTypeWecom || got.Lineage.SourceConnectionId != sourceConnectionId || got.Lineage.BatchId != "batch-1" {
+		t.Fatalf("lineage = %+v, want redacted source metadata", got.Lineage)
+	}
+	if len(got.Nodes) != 2 || len(got.List) != 2 {
+		t.Fatalf("nodes/list len = %d/%d, want 2 active platform nodes", len(got.Nodes), len(got.List))
+	}
+	root := got.Nodes[0]
+	if root.DepartmentId != "org-a/dev" || root.DepartmentPath != "Dev" || !root.HasChildren || root.VisibilitySource != "admin" {
+		t.Fatalf("root node = %+v, want admin-visible Dev root", root)
+	}
+	child := got.Nodes[1]
+	if child.DepartmentId != "org-a/platform" || child.ParentDepartmentId != "org-a/dev" || child.DepartmentPath != "Dev/Platform" || child.SourceType != object.SourceTypeWecom {
+		t.Fatalf("child node = %+v, want Platform child with source metadata", child)
+	}
+	for _, node := range got.Nodes {
+		if strings.Contains(strings.ToLower(node.Lineage.Digest), "token") || strings.Contains(node.DepartmentName, "13800000000") {
+			t.Fatalf("node lineage/display leaked sensitive data: %+v", node)
+		}
+	}
+}
+
+func TestInsightOrganizationTreeEnvelopeKeepsVersionInsideData(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
+	got := buildInsightOrganizationTreeReadModel(insightOrganizationTreeReadModelInput{
+		CurrentUser:  &object.User{Owner: "org-a", Name: "member"},
+		Organization: "org-a",
+		GeneratedAt:  generatedAt,
+		Scope: &object.OrganizationManagementScope{
+			Organization: "org-a",
+			ScopeType:    object.OrganizationManagementScopeTypeSelf,
+		},
+	})
+	payload, err := json.Marshal(InsightProviderEnvelope{Status: "ok", TraceId: "trace-redacted", Data: got})
+	if err != nil {
+		t.Fatalf("marshal organization-tree envelope: %v", err)
+	}
+	var envelope map[string]any
+	if err := json.Unmarshal(payload, &envelope); err != nil {
+		t.Fatalf("unmarshal organization-tree envelope: %v", err)
+	}
+	if _, ok := envelope["orgVersion"]; ok {
+		t.Fatalf("top-level orgVersion found in envelope: %s", payload)
+	}
+	data, ok := envelope["data"].(map[string]any)
+	if !ok {
+		t.Fatalf("data envelope missing: %s", payload)
+	}
+	if data["orgVersion"] == nil || data["scopeVersion"] == nil {
+		t.Fatalf("data version fields missing: %s", payload)
+	}
+	if data["orgVersion"] == "" && data["scopeVersion"] == "" {
+		t.Fatalf("data version fields empty: %s", payload)
+	}
+}
+
+func TestInsightOrganizationTreeReadModelUsesLatestUsableSyncBatchForVersion(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
+	currentUser := &object.User{Owner: "org-a", Name: "owner", IsAdmin: true}
+
+	got := buildInsightOrganizationTreeReadModel(insightOrganizationTreeReadModelInput{
+		CurrentUser:  currentUser,
+		Organization: "org-a",
+		GeneratedAt:  generatedAt,
+		Scope: &object.OrganizationManagementScope{
+			Organization: "org-a",
+			ScopeType:    object.OrganizationManagementScopeTypeAdmin,
+			Departments:  []object.OrganizationManagementScopeDepartment{{DepartmentId: "org-a/dev"}},
+		},
+		PlatformDepartments: []object.PlatformDepartment{
+			{OrganizationId: "org-a", DepartmentId: "org-a/dev", DisplayName: "Dev", LifecycleStatus: object.PlatformLifecycleStatusActive, OrgVersion: "orgv-department"},
+		},
+		SyncBatches: []object.OrgSyncBatch{
+			{OrganizationId: "org-a", BatchId: "failed-newer", Status: object.OrgSyncBatchStatusFailed, OrgVersion: "orgv-failed", Freshness: object.PlatformFreshnessUnavailable, FinishedAt: generatedAt.Add(time.Minute)},
+			{OrganizationId: "org-a", BatchId: "running-newer", Status: object.OrgSyncBatchStatusRunning, OrgVersion: "orgv-running", Freshness: object.PlatformFreshnessUnknown, FinishedAt: generatedAt.Add(2 * time.Minute)},
+			{OrganizationId: "org-a", BatchId: "success-usable", Status: object.OrgSyncBatchStatusSucceeded, OrgVersion: "orgv-success", Freshness: object.PlatformFreshnessFresh, FinishedAt: generatedAt.Add(-time.Minute)},
+			{OrganizationId: "org-a", BatchId: "partial-empty-version", Status: object.OrgSyncBatchStatusPartial, Freshness: object.PlatformFreshnessStale, FinishedAt: generatedAt},
+		},
+	})
+
+	if got.OrgVersion != "orgv-success" || got.Freshness != object.PlatformFreshnessFresh || got.Lineage.BatchId != "success-usable" {
+		t.Fatalf("version metadata = %+v lineage=%+v, want latest usable succeeded batch", got, got.Lineage)
+	}
+	if strings.Contains(got.OrgVersion, "2026-06-10T08") {
+		t.Fatalf("orgVersion must not be derived from request time: %+v", got)
+	}
+}
+
+func TestInsightOrganizationTreeReadModelFailClosedForUntrustedSourceConnection(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
+	currentUser := &object.User{Owner: "org-a", Name: "owner", IsAdmin: true}
+	activeConnectionId := object.GetSourceConnectionId("org-a", object.SourceTypeWecom, "ww-active")
+	disabledConnectionId := object.GetSourceConnectionId("org-a", object.SourceTypeWecom, "ww-disabled")
+
+	got := buildInsightOrganizationTreeReadModel(insightOrganizationTreeReadModelInput{
+		CurrentUser:  currentUser,
+		Organization: "org-a",
+		GeneratedAt:  generatedAt,
+		Scope: &object.OrganizationManagementScope{
+			Organization: "org-a",
+			ScopeType:    object.OrganizationManagementScopeTypeAdmin,
+			Departments: []object.OrganizationManagementScopeDepartment{
+				{DepartmentId: "org-a/active"},
+				{DepartmentId: "org-a/disabled-source"},
+			},
+		},
+		PlatformDepartments: []object.PlatformDepartment{
+			{OrganizationId: "org-a", DepartmentId: "org-a/active", DisplayName: "Active", LifecycleStatus: object.PlatformLifecycleStatusActive, SourceConnectionId: activeConnectionId, OrgVersion: "orgv-tree-1"},
+			{OrganizationId: "org-a", DepartmentId: "org-a/disabled-source", DisplayName: "Disabled Source", LifecycleStatus: object.PlatformLifecycleStatusActive, SourceConnectionId: disabledConnectionId, OrgVersion: "orgv-tree-1"},
+		},
+		SourceConnections: []object.SourceConnection{
+			{OrganizationId: "org-a", SourceConnectionId: activeConnectionId, SourceType: object.SourceTypeWecom, Status: object.SourceConnectionStatusActive, Freshness: object.PlatformFreshnessFresh},
+			{OrganizationId: "org-a", SourceConnectionId: disabledConnectionId, SourceType: object.SourceTypeWecom, Status: object.SourceConnectionStatusDisabled, Freshness: object.PlatformFreshnessStale},
+		},
+	})
+
+	if len(got.Nodes) != 1 || got.Nodes[0].DepartmentId != "org-a/active" {
+		t.Fatalf("nodes = %+v, want only department from ACTIVE/FRESH source connection", got.Nodes)
+	}
+}
+
+func TestInsightOrganizationTreeReadModelRejectsUntrustedSuccessfulEmptyTree(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
+	currentUser := &object.User{Owner: "org-a", Name: "owner", IsAdmin: true}
+	disabledConnectionId := object.GetSourceConnectionId("org-a", object.SourceTypeWecom, "ww-disabled")
+	input := insightOrganizationTreeReadModelInput{
+		CurrentUser:  currentUser,
+		Organization: "org-a",
+		GeneratedAt:  generatedAt,
+		Scope: &object.OrganizationManagementScope{
+			Organization: "org-a",
+			ScopeType:    object.OrganizationManagementScopeTypeAdmin,
+			Departments:  []object.OrganizationManagementScopeDepartment{{DepartmentId: "org-a/disabled-source"}},
+		},
+		PlatformDepartments: []object.PlatformDepartment{
+			{OrganizationId: "org-a", DepartmentId: "org-a/disabled-source", DisplayName: "Disabled Source", LifecycleStatus: object.PlatformLifecycleStatusActive, SourceConnectionId: disabledConnectionId, OrgVersion: "orgv-tree-1"},
+		},
+		SourceConnections: []object.SourceConnection{
+			{OrganizationId: "org-a", SourceConnectionId: disabledConnectionId, SourceType: object.SourceTypeWecom, Status: object.SourceConnectionStatusDisabled, Freshness: object.PlatformFreshnessStale},
+		},
+	}
+	got := buildInsightOrganizationTreeReadModel(input)
+
+	providerErr := validateInsightOrganizationTreeReadModelTrusted(input, got)
+
+	if providerErr == nil || providerErr.Code != InsightProviderErrorUnavailable {
+		t.Fatalf("providerErr = %+v, want provider unavailable for untrusted empty tree", providerErr)
+	}
+}
+
+func TestInsightOrganizationTreeReadModelTrustAllowsBusinessEmptyTree(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
+	input := insightOrganizationTreeReadModelInput{
+		CurrentUser:  &object.User{Owner: "org-a", Name: "member"},
+		Organization: "org-a",
+		GeneratedAt:  generatedAt,
+		Scope: &object.OrganizationManagementScope{
+			Organization: "org-a",
+			ScopeType:    object.OrganizationManagementScopeTypeSelf,
+		},
+	}
+	got := buildInsightOrganizationTreeReadModel(input)
+
+	if providerErr := validateInsightOrganizationTreeReadModelTrusted(input, got); providerErr != nil {
+		t.Fatalf("providerErr = %+v, want business empty tree to stay status=ok", providerErr)
+	}
+}
+
+func TestInsightOrganizationTreeReadModelTrustAllowsNonEmptyTree(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
+	sourceConnectionId := object.GetSourceConnectionId("org-a", object.SourceTypeWecom, "ww123")
+	input := insightOrganizationTreeReadModelInput{
+		CurrentUser:  &object.User{Owner: "org-a", Name: "owner", IsAdmin: true},
+		Organization: "org-a",
+		GeneratedAt:  generatedAt,
+		Scope: &object.OrganizationManagementScope{
+			Organization: "org-a",
+			ScopeType:    object.OrganizationManagementScopeTypeAdmin,
+			Departments:  []object.OrganizationManagementScopeDepartment{{DepartmentId: "org-a/dev"}},
+		},
+		PlatformDepartments: []object.PlatformDepartment{
+			{OrganizationId: "org-a", DepartmentId: "org-a/dev", DisplayName: "Dev", LifecycleStatus: object.PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-tree-1"},
+		},
+		SourceConnections: []object.SourceConnection{
+			{OrganizationId: "org-a", SourceConnectionId: sourceConnectionId, SourceType: object.SourceTypeWecom, Status: object.SourceConnectionStatusActive, Freshness: object.PlatformFreshnessFresh},
+		},
+	}
+	got := buildInsightOrganizationTreeReadModel(input)
+
+	if providerErr := validateInsightOrganizationTreeReadModelTrusted(input, got); providerErr != nil {
+		t.Fatalf("providerErr = %+v, want non-empty trusted tree to stay status=ok", providerErr)
+	}
+}
+
+func TestInsightOrganizationTreeReadModelTrustAllowsCompatGroupTree(t *testing.T) {
+	input := insightOrganizationTreeReadModelInput{
+		CurrentUser:  &object.User{Owner: "org-a", Name: "lead"},
+		Organization: "org-a",
+		Groups: []*object.Group{
+			{Owner: "org-a", Name: "dev", DisplayName: "Dev", Manager: "org-a/lead"},
+		},
+	}
+	got := buildInsightOrganizationTreeReadModel(input)
+
+	if providerErr := validateInsightOrganizationTreeReadModelTrusted(input, got); providerErr != nil {
+		t.Fatalf("providerErr = %+v, want compat group tree to stay status=ok", providerErr)
+	}
+}
+
+func TestInsightOrganizationTreeReadModelDirectLeaderDoesNotExpandDepartmentTree(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
+	currentUser := &object.User{Owner: "org-a", Name: "lead"}
+
+	got := buildInsightOrganizationTreeReadModel(insightOrganizationTreeReadModelInput{
+		CurrentUser:  currentUser,
+		Organization: "org-a",
+		GeneratedAt:  generatedAt,
+		Scope: &object.OrganizationManagementScope{
+			Organization: "org-a",
+			ScopeType:    object.OrganizationManagementScopeTypeDirectLeader,
+			Users: []object.OrganizationManagementScopeUser{
+				{UserId: "org-a/member", MainDepartmentId: "org-a/dev"},
+			},
+		},
+		PlatformDepartments: []object.PlatformDepartment{
+			{OrganizationId: "org-a", DepartmentId: "org-a/root", DisplayName: "Root", LifecycleStatus: object.PlatformLifecycleStatusActive},
+			{OrganizationId: "org-a", DepartmentId: "org-a/dev", ParentDepartmentId: "org-a/root", DisplayName: "Dev", LifecycleStatus: object.PlatformLifecycleStatusActive},
+			{OrganizationId: "org-a", DepartmentId: "org-a/platform", ParentDepartmentId: "org-a/dev", DisplayName: "Platform", LifecycleStatus: object.PlatformLifecycleStatusActive},
+		},
+		SyncBatches: []object.OrgSyncBatch{
+			{OrganizationId: "org-a", BatchId: "batch-1", Status: object.OrgSyncBatchStatusSucceeded, OrgVersion: "orgv-tree-1", Freshness: object.PlatformFreshnessFresh, FinishedAt: generatedAt.Add(-time.Minute)},
+		},
+	})
+
+	if len(got.Nodes) != 1 {
+		t.Fatalf("direct leader visible nodes = %+v, want only subordinate's department", got.Nodes)
+	}
+	if got.Nodes[0].DepartmentId != "org-a/dev" || got.Nodes[0].ParentDepartmentId != "" || got.Nodes[0].HasChildren || got.Nodes[0].VisibilitySource != "direct_leader" {
+		t.Fatalf("direct leader node = %+v, want only direct subordinate department without ancestor/descendant expansion", got.Nodes[0])
+	}
+}
+
+func TestInsightOrganizationTreeReadModelDepartmentManagerUsesScopeDepartments(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
+	currentUser := &object.User{Owner: "org-a", Name: "lead"}
+
+	got := buildInsightOrganizationTreeReadModel(insightOrganizationTreeReadModelInput{
+		CurrentUser:  currentUser,
+		Organization: "org-a",
+		GeneratedAt:  generatedAt,
+		Scope: &object.OrganizationManagementScope{
+			Organization: "org-a",
+			ScopeType:    object.OrganizationManagementScopeTypeDepartmentManager,
+			Departments: []object.OrganizationManagementScopeDepartment{
+				{DepartmentId: "org-a/dev"},
+				{DepartmentId: "org-a/platform"},
+			},
+		},
+		PlatformDepartments: []object.PlatformDepartment{
+			{OrganizationId: "org-a", DepartmentId: "org-a/dev", DisplayName: "Dev", LifecycleStatus: object.PlatformLifecycleStatusActive},
+			{OrganizationId: "org-a", DepartmentId: "org-a/platform", ParentDepartmentId: "org-a/dev", DisplayName: "Platform", LifecycleStatus: object.PlatformLifecycleStatusActive},
+			{OrganizationId: "org-a", DepartmentId: "org-a/finance", DisplayName: "Finance", LifecycleStatus: object.PlatformLifecycleStatusActive},
+		},
+	})
+
+	if len(got.Nodes) != 2 {
+		t.Fatalf("department manager visible nodes = %+v, want managed subtree only", got.Nodes)
+	}
+	for _, node := range got.Nodes {
+		if node.VisibilitySource != "department_manager" {
+			t.Fatalf("node visibilitySource = %+v, want department_manager", got.Nodes)
+		}
+		if node.DepartmentId == "org-a/finance" {
+			t.Fatalf("unauthorized sibling leaked into organization tree: %+v", got.Nodes)
+		}
+	}
+}
+
+func TestInsightOrganizationTreeReadModelGuardsDepartmentCycles(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
+	currentUser := &object.User{Owner: "org-a", Name: "owner", IsAdmin: true}
+
+	got := buildInsightOrganizationTreeReadModel(insightOrganizationTreeReadModelInput{
+		CurrentUser:  currentUser,
+		Organization: "org-a",
+		GeneratedAt:  generatedAt,
+		Scope: &object.OrganizationManagementScope{
+			Organization: "org-a",
+			ScopeType:    object.OrganizationManagementScopeTypeAdmin,
+			Departments: []object.OrganizationManagementScopeDepartment{
+				{DepartmentId: "org-a/a"},
+				{DepartmentId: "org-a/b"},
+			},
+		},
+		PlatformDepartments: []object.PlatformDepartment{
+			{OrganizationId: "org-a", DepartmentId: "org-a/a", ParentDepartmentId: "org-a/b", DisplayName: "A", LifecycleStatus: object.PlatformLifecycleStatusActive},
+			{OrganizationId: "org-a", DepartmentId: "org-a/b", ParentDepartmentId: "org-a/a", DisplayName: "B", LifecycleStatus: object.PlatformLifecycleStatusActive},
+		},
+	})
+
+	if len(got.Nodes) != 2 {
+		t.Fatalf("cycle nodes = %+v, want finite two-node result", got.Nodes)
+	}
+	for _, node := range got.Nodes {
+		if node.DepartmentPath == "" {
+			t.Fatalf("cycle node should still have diagnostic path: %+v", node)
+		}
+	}
+}
+
+func TestInsightOrganizationTreeReadModelUsesCompatGroupWhenPlatformMissing(t *testing.T) {
+	currentUser := &object.User{Owner: "org-a", Name: "lead"}
+
+	got := buildInsightOrganizationTreeReadModel(insightOrganizationTreeReadModelInput{
+		CurrentUser:  currentUser,
+		Organization: "org-a",
+		Groups: []*object.Group{
+			{Owner: "org-a", Name: "dev", DisplayName: "Dev", Manager: "org-a/lead"},
+			{Owner: "org-a", Name: "platform", ParentId: "dev", DisplayName: "Platform"},
+		},
+	})
+
+	if got.ReadModelSource != "compat_group" || len(got.Nodes) != 2 || len(got.List) != 2 {
+		t.Fatalf("compat tree = %+v, want group fallback with compatible list", got)
+	}
+	if got.Freshness != object.PlatformFreshnessUnknown {
+		t.Fatalf("compat freshness = %q, want UNKNOWN without platform snapshot version", got.Freshness)
+	}
+}
+
+func TestInsightOrganizationTreeReadModelReturnsEmptyWithoutScope(t *testing.T) {
+	currentUser := &object.User{Owner: "org-a", Name: "member"}
+
+	got := buildInsightOrganizationTreeReadModel(insightOrganizationTreeReadModelInput{
+		CurrentUser:  currentUser,
+		Organization: "",
+		PlatformDepartments: []object.PlatformDepartment{
+			{OrganizationId: "org-a", DepartmentId: "org-a/dev", DisplayName: "Dev", LifecycleStatus: object.PlatformLifecycleStatusActive},
+		},
+	})
+
+	if got.Organization != "org-a" || len(got.Nodes) != 0 || got.ReadModelSource != "platform_department" {
+		t.Fatalf("empty scope tree = %+v, want org-a platform envelope with no visible nodes", got)
+	}
+	if got.OrgVersion == "" && got.ScopeVersion == "" {
+		t.Fatalf("empty scope tree version = org:%q scope:%q, want at least one version for status=ok", got.OrgVersion, got.ScopeVersion)
+	}
+	if got.Freshness == "" || got.GeneratedAt == "" || got.Lineage.Digest == "" || got.ReadModelSource == "" {
+		t.Fatalf("empty scope tree diagnostics = %+v, want freshness/generatedAt/lineage/readModelSource", got)
+	}
+}
+
 func TestInsightScopeRejectsForbiddenOrDeletedCurrentUser(t *testing.T) {
 	generatedAt := time.Date(2026, 5, 21, 8, 0, 0, 0, time.UTC)
 	for _, currentUser := range []*object.User{
-		{Owner: "org-a", Name: "forbidden", IsForbidden: true, Properties: map[string]string{"aicodexApiUserId": "102"}},
-		{Owner: "org-a", Name: "deleted", IsDeleted: true, Properties: map[string]string{"aicodexApiUserId": "103"}},
+		{Owner: "org-a", Name: "forbidden", IsForbidden: true},
+		{Owner: "org-a", Name: "deleted", IsDeleted: true},
 	} {
 		got, providerErr := calculateInsightScope(currentUser, []*object.User{currentUser}, nil, generatedAt)
 		if got != nil {
@@ -222,13 +609,19 @@ func TestInsightScopeRejectsForbiddenOrDeletedCurrentUser(t *testing.T) {
 
 func TestInsightScopeExcludesForbiddenAndDeletedUsers(t *testing.T) {
 	generatedAt := time.Date(2026, 5, 21, 8, 0, 0, 0, time.UTC)
-	currentUser := &object.User{Owner: "org-a", Name: "owner", IsAdmin: true, Properties: map[string]string{"aicodexApiUserId": "100"}}
+	currentUser := &object.User{Owner: "org-a", Name: "owner", IsAdmin: true}
 	users := []*object.User{
 		currentUser,
-		{Owner: "org-a", Name: "member", Properties: map[string]string{"aicodexApiUserId": "101"}},
-		{Owner: "org-a", Name: "forbidden", IsForbidden: true, Properties: map[string]string{"aicodexApiUserId": "102"}},
-		{Owner: "org-a", Name: "deleted", IsDeleted: true, Properties: map[string]string{"aicodexApiUserId": "103"}},
+		{Owner: "org-a", Name: "member"},
+		{Owner: "org-a", Name: "forbidden", IsForbidden: true},
+		{Owner: "org-a", Name: "deleted", IsDeleted: true},
 	}
+	installInsightPlatformApiMappingFixtures(t, "org-a", "", map[string]string{
+		"org-a/owner":     "100",
+		"org-a/member":    "101",
+		"org-a/forbidden": "102",
+		"org-a/deleted":   "103",
+	})
 
 	got, providerErr := calculateInsightScope(currentUser, users, nil, generatedAt)
 	if providerErr != nil {
@@ -277,18 +670,19 @@ func TestInsightScopeSkipsUsersWithoutDepartmentUsageMapping(t *testing.T) {
 	currentUser := &object.User{
 		Owner: "org-a",
 		Name:  "lead",
-		Properties: map[string]string{
-			"aicodexApiUserId": "200",
-		},
 	}
 	users := []*object.User{
 		currentUser,
 		{Owner: "org-a", Name: "missing", Groups: []string{"org-a/dev"}},
-		{Owner: "org-a", Name: "mapped", Groups: []string{"org-a/dev"}, Properties: map[string]string{"aicodexApiUserId": "201"}},
+		{Owner: "org-a", Name: "mapped", Groups: []string{"org-a/dev"}},
 	}
 	groups := []*object.Group{
 		{Owner: "org-a", Name: "dev", DisplayName: "Dev", Manager: "org-a/lead"},
 	}
+	installInsightPlatformApiMappingFixtures(t, "org-a", "", map[string]string{
+		"org-a/lead":   "200",
+		"org-a/mapped": "201",
+	})
 
 	got, providerErr := calculateInsightScope(currentUser, users, groups, generatedAt)
 	if providerErr != nil {
@@ -306,32 +700,26 @@ func TestInsightScopeSkipsUsersWithoutDepartmentUsageMapping(t *testing.T) {
 	}
 }
 
-func TestInsightQueryableScopeSkipsResolverMissingUsers(t *testing.T) {
+func TestInsightQueryableScopeSkipsMissingPlatformApiUserMappings(t *testing.T) {
 	users := []*object.User{
 		{Owner: "org-a", Name: "mapped", Id: "subject-mapped"},
 		{Owner: "org-a", Name: "missing", Id: "subject-missing"},
 	}
-	resolver := &stubInsightUsageIdentityResolver{results: []insightUsageIdentityResolveResult{
-		{RequestId: "org-a/mapped", MappingStatus: MappingStatusOK, ApiUserId: 201},
-		{RequestId: "org-a/missing", MappingStatus: MappingStatusMissing},
-	}}
+	installInsightPlatformApiMappingFixtures(t, "org-a", "", map[string]string{"org-a/mapped": "201"})
 
-	adminUserIds, apiUserIds, mappingStatus, providerErr := mapInsightQueryableUsersToUsageIdsWithResolver(users, resolver, "trace-skip-missing")
-	if providerErr != nil {
-		t.Fatalf("mapInsightQueryableUsersToUsageIdsWithResolver returned error: %+v", providerErr)
-	}
+	adminUserIds, apiUserIds, mappingStatus := mapInsightQueryableUsersToUsageIds(users)
 	if mappingStatus != MappingStatusOK {
-		t.Fatalf("mappingStatus = %q, want OK when resolver reports missing queryable users", mappingStatus)
+		t.Fatalf("mappingStatus = %q, want OK when missing queryable users are skipped", mappingStatus)
 	}
 	if !containsString(adminUserIds, "org-a/mapped") || !containsString(apiUserIds, "201") {
 		t.Fatalf("mapped user was not retained: adminUserIds=%+v apiUserIds=%+v", adminUserIds, apiUserIds)
 	}
 	if containsString(adminUserIds, "org-a/missing") {
-		t.Fatalf("resolver missing user should be skipped for queryable scopes: %+v", adminUserIds)
+		t.Fatalf("missing user should be skipped for queryable scopes: %+v", adminUserIds)
 	}
 }
 
-func TestInsightScopeReturnsAuthorizationFailedForAmbiguousMapping(t *testing.T) {
+func TestInsightScopeIgnoresLegacyAmbiguousPropertyWithoutFirstClassMapping(t *testing.T) {
 	generatedAt := time.Date(2026, 5, 21, 8, 0, 0, 0, time.UTC)
 	currentUser := &object.User{
 		Owner: "org-a",
@@ -345,11 +733,11 @@ func TestInsightScopeReturnsAuthorizationFailedForAmbiguousMapping(t *testing.T)
 	if providerErr == nil {
 		t.Fatalf("calculateInsightScope returned scope %+v, want AUTHORIZATION_FAILED", got)
 	}
-	if providerErr.Code != InsightProviderErrorAuthorizationFailed || providerErr.MappingStatus != MappingStatusAmbiguous {
-		t.Fatalf("providerErr = %+v, want AUTHORIZATION_FAILED with AMBIGUOUS mapping", providerErr)
+	if providerErr.Code != InsightProviderErrorAuthorizationFailed || providerErr.MappingStatus != MappingStatusMissing {
+		t.Fatalf("providerErr = %+v, want AUTHORIZATION_FAILED with MISSING first-class mapping", providerErr)
 	}
 	if got != nil && got.ScopeType == ScopeTypeEmpty {
-		t.Fatalf("ambiguous mapping must not be downgraded to EMPTY scope: %+v", got)
+		t.Fatalf("legacy property must not be downgraded to EMPTY scope: %+v", got)
 	}
 }
 
@@ -358,10 +746,8 @@ func TestInsightScopeReturnsAuthorizationFailedForInvalidAPIUserID(t *testing.T)
 	currentUser := &object.User{
 		Owner: "org-a",
 		Name:  "member",
-		Properties: map[string]string{
-			"aicodexApiUserId": "api-user-member",
-		},
 	}
+	installInsightPlatformApiMappingFixtures(t, "org-a", "", map[string]string{"org-a/member": "api-user-member"})
 
 	got, providerErr := calculateInsightScope(currentUser, []*object.User{currentUser}, nil, generatedAt)
 	if providerErr == nil {
@@ -381,14 +767,15 @@ func TestInsightScopeReturnsAuthorizationFailedForDuplicateAPIUserID(t *testing.
 		Owner:   "org-a",
 		Name:    "owner",
 		IsAdmin: true,
-		Properties: map[string]string{
-			"aicodexApiUserId": "201",
-		},
 	}
 	users := []*object.User{
 		currentUser,
-		{Owner: "org-a", Name: "member", Properties: map[string]string{"aicodexApiUserId": "201"}},
+		{Owner: "org-a", Name: "member"},
 	}
+	installInsightPlatformApiMappingFixtures(t, "org-a", "", map[string]string{
+		"org-a/owner":  "201",
+		"org-a/member": "201",
+	})
 
 	got, providerErr := calculateInsightScope(currentUser, users, nil, generatedAt)
 	if providerErr == nil {
@@ -404,9 +791,6 @@ func TestInsightScopeReturnsEmptyWhenManagedDepartmentHasNoQueryableUsers(t *tes
 	currentUser := &object.User{
 		Owner: "org-a",
 		Name:  "lead",
-		Properties: map[string]string{
-			"aicodexApiUserId": "200",
-		},
 	}
 	groups := []*object.Group{
 		{Owner: "org-a", Name: "dev", DisplayName: "Dev", Manager: "org-a/lead"},
@@ -429,19 +813,20 @@ func TestInsightDepartmentTreeReturnsPerDepartmentMappings(t *testing.T) {
 	currentUser := &object.User{
 		Owner: "org-a",
 		Name:  "lead",
-		Properties: map[string]string{
-			"aicodexApiUserId": "200",
-		},
 	}
 	users := []*object.User{
 		currentUser,
-		{Owner: "org-a", Name: "member", Groups: []string{"org-a/dev"}, Properties: map[string]string{"aicodexApiUserId": "201"}},
-		{Owner: "org-a", Name: "child", Groups: []string{"org-a/platform"}, Properties: map[string]string{"aicodexApiUserId": "202"}},
+		{Owner: "org-a", Name: "member", Groups: []string{"org-a/dev"}},
+		{Owner: "org-a", Name: "child", Groups: []string{"org-a/platform"}},
 	}
 	groups := []*object.Group{
 		{Owner: "org-a", Name: "dev", DisplayName: "Dev", Manager: "lead"},
 		{Owner: "org-a", Name: "platform", DisplayName: "Platform", ParentId: "dev"},
 	}
+	installInsightPlatformApiMappingFixtures(t, "org-a", "", map[string]string{
+		"org-a/member": "201",
+		"org-a/child":  "202",
+	})
 
 	got, providerErr := calculateInsightScope(currentUser, users, groups, generatedAt)
 	if providerErr != nil {
@@ -488,6 +873,110 @@ func TestInsightBearerTokenAudienceMismatchReturnsAuthorizationFailed(t *testing
 	}
 	if providerErr == nil || providerErr.Code != InsightProviderErrorAuthorizationFailed {
 		t.Fatalf("providerErr = %+v, want AUTHORIZATION_FAILED", providerErr)
+	}
+}
+
+func TestFindInsightUserBySubjectMatchesStableAdminUserId(t *testing.T) {
+	users := []*object.User{
+		{Owner: "built-in", Name: "aicodex-admin-dev", Id: "def793d3-0a95-4e1b-957d-4e9ed3f7e689"},
+	}
+
+	got := findInsightUserBySubject(users, "built-in/aicodex-admin-dev")
+
+	if got != users[0] {
+		t.Fatalf("matched user = %+v, want stable owner/name subject", got)
+	}
+}
+
+func TestFindInsightUserBySubjectKeepsLegacyUuidMatch(t *testing.T) {
+	users := []*object.User{
+		{Owner: "built-in", Name: "aicodex-admin-dev", Id: "def793d3-0a95-4e1b-957d-4e9ed3f7e689"},
+	}
+
+	got := findInsightUserBySubject(users, "def793d3-0a95-4e1b-957d-4e9ed3f7e689")
+
+	if got != users[0] {
+		t.Fatalf("matched user = %+v, want legacy UUID subject", got)
+	}
+}
+
+func TestParseInsightProviderClaimsAcceptsStandardJwtAccessToken(t *testing.T) {
+	oldStandardParser := parseInsightStandardJwtTokenByApplication
+	oldLegacyParser := parseInsightJwtTokenByApplication
+	t.Cleanup(func() {
+		parseInsightStandardJwtTokenByApplication = oldStandardParser
+		parseInsightJwtTokenByApplication = oldLegacyParser
+	})
+
+	parseInsightStandardJwtTokenByApplication = func(token string, application *object.Application) (*object.ClaimsStandard, error) {
+		if token != "standard-token" || application.ClientId != "aicodex-insight-dev" {
+			t.Fatalf("standard parser input token=%q application=%+v", token, application)
+		}
+		return &object.ClaimsStandard{
+			TokenType: "access-token",
+			Scope:     "openid profile insight.scope.read",
+			RegisteredClaims: jwt.RegisteredClaims{
+				Issuer:   "http://localhost:8000",
+				Subject:  "built-in/aicodex-admin-dev",
+				Audience: jwt.ClaimStrings{"aicodex-insight-dev"},
+			},
+		}, nil
+	}
+	parseInsightJwtTokenByApplication = func(token string, application *object.Application) (*object.Claims, error) {
+		t.Fatalf("legacy parser should not be used for JWT-Standard")
+		return nil, nil
+	}
+
+	got, err := parseInsightProviderClaimsByApplication("standard-token", &object.Application{
+		ClientId:    "aicodex-insight-dev",
+		TokenFormat: "JWT-Standard",
+	})
+	if err != nil {
+		t.Fatalf("parseInsightProviderClaimsByApplication returned error: %v", err)
+	}
+	if got.TokenType != "access-token" || got.Scope != "openid profile insight.scope.read" || got.Subject != "built-in/aicodex-admin-dev" {
+		t.Fatalf("claims = %+v, want standard access-token claims", got)
+	}
+	if len(got.Audience) != 1 || got.Audience[0] != "aicodex-insight-dev" || got.Issuer != "http://localhost:8000" {
+		t.Fatalf("registered claims = aud:%+v iss:%q, want standard OIDC claims", got.Audience, got.Issuer)
+	}
+}
+
+func TestParseInsightProviderClaimsKeepsLegacyJwtAccessTokenPath(t *testing.T) {
+	oldStandardParser := parseInsightStandardJwtTokenByApplication
+	oldLegacyParser := parseInsightJwtTokenByApplication
+	t.Cleanup(func() {
+		parseInsightStandardJwtTokenByApplication = oldStandardParser
+		parseInsightJwtTokenByApplication = oldLegacyParser
+	})
+
+	parseInsightStandardJwtTokenByApplication = func(token string, application *object.Application) (*object.ClaimsStandard, error) {
+		t.Fatalf("standard parser should not be used for legacy JWT")
+		return nil, nil
+	}
+	parseInsightJwtTokenByApplication = func(token string, application *object.Application) (*object.Claims, error) {
+		if token != "legacy-token" || application.ClientId != "legacy-insight-client" {
+			t.Fatalf("legacy parser input token=%q application=%+v", token, application)
+		}
+		return &object.Claims{
+			TokenType: "access-token",
+			Scope:     "insight.scope.read",
+			RegisteredClaims: jwt.RegisteredClaims{
+				Subject:  "legacy-user-uuid",
+				Audience: jwt.ClaimStrings{"legacy-insight-client"},
+			},
+		}, nil
+	}
+
+	got, err := parseInsightProviderClaimsByApplication("legacy-token", &object.Application{
+		ClientId:    "legacy-insight-client",
+		TokenFormat: "JWT",
+	})
+	if err != nil {
+		t.Fatalf("parseInsightProviderClaimsByApplication returned error: %v", err)
+	}
+	if got.Subject != "legacy-user-uuid" || got.Scope != "insight.scope.read" {
+		t.Fatalf("claims = %+v, want legacy JWT claims", got)
 	}
 }
 
@@ -596,4 +1085,48 @@ func findInsightDepartmentScope(departments []InsightDepartmentScope, department
 		}
 	}
 	return nil
+}
+
+func installInsightPlatformApiMappingFixtures(t *testing.T, organizationId string, apiOrganizationId string, userMappings map[string]string) {
+	t.Helper()
+	originalOrgLookup := getInsightPlatformApiOrganizationMappingFunc
+	originalUserLookup := getInsightPlatformApiUserMappingByAdminSubjectFunc
+
+	orgMappings := map[string]*object.PlatformApiOrganizationMapping{}
+	if organizationId != "" && apiOrganizationId != "" {
+		orgMappings[organizationId] = &object.PlatformApiOrganizationMapping{
+			OrganizationId:    organizationId,
+			ApiOrganizationId: apiOrganizationId,
+			MappingStatus:     object.PlatformMappingStatusConfirmed,
+			MappingSource:     object.PlatformApiMappingSourceManual,
+		}
+	}
+
+	userMappingByKey := map[string]*object.PlatformApiUserMapping{}
+	for adminSubject, apiUserId := range userMappings {
+		userMappingByKey[organizationId+"\x00"+adminSubject] = &object.PlatformApiUserMapping{
+			OrganizationId: organizationId,
+			AdminSubject:   adminSubject,
+			ApiUserId:      apiUserId,
+			MappingStatus:  object.PlatformMappingStatusConfirmed,
+			MappingSource:  object.PlatformApiMappingSourceManual,
+		}
+	}
+
+	getInsightPlatformApiOrganizationMappingFunc = func(organizationId string) (*object.PlatformApiOrganizationMapping, error) {
+		if mapping := orgMappings[organizationId]; mapping != nil {
+			return mapping, nil
+		}
+		return nil, object.ErrPlatformApiOrganizationMappingMissing
+	}
+	getInsightPlatformApiUserMappingByAdminSubjectFunc = func(organizationId string, adminSubject string) (*object.PlatformApiUserMapping, error) {
+		if mapping := userMappingByKey[organizationId+"\x00"+adminSubject]; mapping != nil {
+			return mapping, nil
+		}
+		return nil, object.ErrPlatformApiUserMappingMissing
+	}
+	t.Cleanup(func() {
+		getInsightPlatformApiOrganizationMappingFunc = originalOrgLookup
+		getInsightPlatformApiUserMappingByAdminSubjectFunc = originalUserLookup
+	})
 }

@@ -1,3 +1,4 @@
+/* eslint-env jest */
 // Copyright 2026 The AICodex Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,6 +29,22 @@ test("uses module-based config API paths", async() => {
   expect(global.fetch).toHaveBeenNthCalledWith(1, "/api/wecom-org-sync/config?organization=engineering", expect.objectContaining({method: "GET"}));
   expect(global.fetch).toHaveBeenNthCalledWith(2, "/api/wecom-org-sync/config", expect.objectContaining({method: "POST"}));
   expect(global.fetch).toHaveBeenNthCalledWith(3, "/api/wecom-org-sync/config/test", expect.objectContaining({method: "POST"}));
+});
+
+test("sends scheduled sync fields in config save body", async() => {
+  await WecomOrganizationSyncBackend.saveWecomOrganizationSyncConfig({
+    organization: "engineering",
+    scheduleEnabled: true,
+    scheduleCron: "*/15 * * * *",
+    scheduleTimezone: "UTC",
+  });
+
+  const options = global.fetch.mock.calls[0][1];
+  expect(JSON.parse(options.body)).toEqual(expect.objectContaining({
+    scheduleEnabled: true,
+    scheduleCron: "*/15 * * * *",
+    scheduleTimezone: "UTC",
+  }));
 });
 
 test("uses module-based run API paths", async() => {

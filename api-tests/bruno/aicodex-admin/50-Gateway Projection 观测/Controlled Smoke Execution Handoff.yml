@@ -1,0 +1,67 @@
+info:
+  name: Controlled Smoke Execution Handoff
+  type: http
+  seq: 9
+  tags:
+    - smoke
+    - gateway-projection
+    - controlled-smoke
+    - execution-handoff
+    - readonly
+    - local-only
+
+http:
+  method: GET
+  url: "{{baseUrl}}/__local_only__/gateway-projection/controlled-smoke/execution-handoff"
+
+runtime:
+  scripts:
+    - type: pre-request
+      code: |-
+        function loadControlledSmokeExecutionHandoff() {
+          try {
+            return require("../scripts/gatewayProjectionControlledSmokeExecutionHandoff")
+          } catch (error) {
+            return require("./scripts/gatewayProjectionControlledSmokeExecutionHandoff")
+          }
+        }
+
+        function parseJsonVar(name) {
+          const raw = bru.getVar(name) || bru.getEnvVar(name)
+          if (!raw) {
+            return undefined
+          }
+          return typeof raw === "string" ? JSON.parse(raw) : raw
+        }
+
+        function boolVar(name) {
+          return String(bru.getVar(name) || bru.getEnvVar(name) || "").toLowerCase() === "true"
+        }
+
+        const {createGatewayProjectionControlledSmokeExecutionHandoff} = loadControlledSmokeExecutionHandoff()
+        const handoff = createGatewayProjectionControlledSmokeExecutionHandoff({
+          preflightSummary: parseJsonVar("gatewayProjectionControlledSmokePreflightHandoff"),
+          evidenceReadinessSummary: parseJsonVar("gatewayProjectionControlledSmokeEvidenceReadiness"),
+          releaseRunbookSummary: parseJsonVar("gatewayProjectionControlledSmokeReleaseRunbook"),
+          operatorRemediationHandoffSummary: parseJsonVar("gatewayProjectionOperatorRemediationHandoff"),
+          remediationResultEvidenceHandoffSummary: parseJsonVar("gatewayProjectionRemediationResultEvidenceHandoff"),
+          redactionSignal: bru.getVar("gatewayProjectionControlledSmokeExecutionRedactionSignal") || bru.getEnvVar("gatewayProjectionControlledSmokeExecutionRedactionSignal"),
+          executionScope: bru.getVar("gatewayProjectionControlledSmokeExecutionScope") || bru.getEnvVar("gatewayProjectionControlledSmokeExecutionScope"),
+          operatorMetadata: parseJsonVar("gatewayProjectionControlledSmokeExecutionOperatorMetadata"),
+          operatorNote: bru.getVar("gatewayProjectionControlledSmokeExecutionOperatorNote") || bru.getEnvVar("gatewayProjectionControlledSmokeExecutionOperatorNote"),
+        }, {
+          sourceAlias: bru.getVar("gatewayProjectionControlledSmokeExecutionSourceAlias") || bru.getEnvVar("gatewayProjectionControlledSmokeExecutionSourceAlias") || "bruno-controlled-smoke-execution-handoff",
+        })
+
+        console.log(JSON.stringify(handoff, null, 2))
+        if (handoff.status !== "ready-for-controlled-smoke-execution" && boolVar("gatewayProjectionRequireControlledSmokeExecutionReady")) {
+          throw new Error(`projection controlled smoke execution handoff blocked status=${handoff.status} blocker=${handoff.blockerAlias}`)
+        }
+
+        throw new Error("local-only controlled smoke execution handoff completed before network request; copy the sanitized console output")
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

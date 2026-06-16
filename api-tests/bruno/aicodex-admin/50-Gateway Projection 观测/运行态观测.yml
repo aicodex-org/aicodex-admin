@@ -1,0 +1,47 @@
+info:
+  name: 运行态观测
+  type: http
+  seq: 1
+  tags:
+    - smoke
+    - gateway-projection
+    - readonly
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/gateway-projection/observability"
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        function loadPreflight() {
+          try {
+            return require("../scripts/gatewayProjectionObservabilityPreflight")
+          } catch (error) {
+            return require("./scripts/gatewayProjectionObservabilityPreflight")
+          }
+        }
+
+        const status = res.getStatus()
+        const body = res.getBody()
+        const json = typeof body === "string" ? JSON.parse(body) : body
+        if (status !== 200) {
+          throw new Error(`admin gateway projection observability 响应异常。status=${status} statusField=${json?.status}`)
+        }
+        const {evaluateGatewayProjectionObservabilityPreflight} = loadPreflight()
+        const requireLatest = String(bru.getVar("gatewayProjectionRequireLatestAudit") || bru.getEnvVar("gatewayProjectionRequireLatestAudit") || "").toLowerCase()
+        const result = evaluateGatewayProjectionObservabilityPreflight(json, {
+          requireLatestAudit: requireLatest === "true",
+          minSubjectCount: bru.getVar("gatewayProjectionMinSubjectCount") || bru.getEnvVar("gatewayProjectionMinSubjectCount"),
+          minTombstoneSubjectCount: bru.getVar("gatewayProjectionMinTombstoneSubjectCount") || bru.getEnvVar("gatewayProjectionMinTombstoneSubjectCount"),
+        })
+        if (result.status !== "ok") {
+          throw new Error(`projection observability preflight blocked alias=${result.alias} reason=${result.reason}`)
+        }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

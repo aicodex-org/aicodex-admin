@@ -1,0 +1,116 @@
+info:
+  name: Controlled Smoke Result Evidence Handoff
+  type: http
+  seq: 9
+  tags:
+    - smoke
+    - wecom-sync
+    - source-readiness
+    - controlled-smoke
+    - result-evidence-handoff
+    - readonly
+
+http:
+  method: GET
+  url: "http://127.0.0.1/__local_only_wecom_source_controlled_smoke_result_evidence_handoff__"
+
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        function loadControlledSmokeResultEvidenceHandoff() {
+          try {
+            return require("../scripts/wecomSourceControlledSmokeResultEvidenceHandoff")
+          } catch (error) {
+            return require("./scripts/wecomSourceControlledSmokeResultEvidenceHandoff")
+          }
+        }
+
+        function varValue(name, fallback) {
+          const value = bru.getVar(name) || bru.getEnvVar(name)
+          return value === undefined || value === null || value === "" ? fallback : value
+        }
+
+        function parseJsonVar(name) {
+          const raw = bru.getVar(name) || bru.getEnvVar(name)
+          if (!raw) {
+            return undefined
+          }
+          return typeof raw === "string" ? JSON.parse(raw) : raw
+        }
+
+        function boolVar(name) {
+          return String(bru.getVar(name) || bru.getEnvVar(name) || "").toLowerCase() === "true"
+        }
+
+        function summaryFromAlias(alias, readyStatus, version) {
+          if (!alias) {
+            return undefined
+          }
+          return {
+            status: readyStatus || alias,
+            aliases: [alias],
+            reasonAlias: alias,
+            evidenceShapeVersion: version,
+          }
+        }
+
+        function countsFromVars() {
+          const raw = parseJsonVar("wecomSourceControlledSmokeResultCounts")
+          if (raw) {
+            return raw
+          }
+          return {
+            expected: Number(varValue("wecomSourceControlledSmokeResultExpectedCount", "0")),
+            observed: Number(varValue("wecomSourceControlledSmokeResultObservedCount", "0")),
+            passed: Number(varValue("wecomSourceControlledSmokeResultPassedCount", "0")),
+            partial: Number(varValue("wecomSourceControlledSmokeResultPartialCount", "0")),
+            failed: Number(varValue("wecomSourceControlledSmokeResultFailedCount", "0")),
+            blocked: Number(varValue("wecomSourceControlledSmokeResultBlockedCount", "0")),
+            missing: Number(varValue("wecomSourceControlledSmokeResultMissingCount", "0")),
+            unauthorized: Number(varValue("wecomSourceControlledSmokeResultUnauthorizedCount", "0")),
+          }
+        }
+
+        const {createWecomSourceControlledSmokeResultEvidenceHandoff} = loadControlledSmokeResultEvidenceHandoff()
+        const handoff = createWecomSourceControlledSmokeResultEvidenceHandoff({
+          executionHandoffSummary: parseJsonVar("wecomSourceControlledSmokeResultExecutionHandoff") || summaryFromAlias(
+            varValue("wecomSourceControlledSmokeResultExecutionAlias", undefined),
+            "ready-for-controlled-smoke-execution-handoff",
+            "wecom-source-controlled-smoke-execution-handoff/v1"
+          ),
+          resultStatus: varValue("wecomSourceControlledSmokeResultStatus", undefined),
+          resultAliases: parseJsonVar("wecomSourceControlledSmokeResultAliases") || [varValue("wecomSourceControlledSmokeResultAlias", undefined)].filter(Boolean),
+          resultCounts: countsFromVars(),
+          deploymentSummary: parseJsonVar("wecomSourceControlledSmokeResultDeploymentSummary") || summaryFromAlias(
+            varValue("wecomSourceControlledSmokeResultDeploymentAlias", undefined),
+            undefined,
+            "wecom-source-controlled-smoke-deployment/v1"
+          ),
+          authorizationSummary: parseJsonVar("wecomSourceControlledSmokeResultAuthorizationSummary") || summaryFromAlias(
+            varValue("wecomSourceControlledSmokeResultAuthorizationAlias", undefined),
+            undefined,
+            "wecom-source-controlled-smoke-authorization/v1"
+          ),
+          redactionSignal: varValue("wecomSourceControlledSmokeResultRedactionSignal", undefined),
+          riskCategory: varValue("wecomSourceControlledSmokeResultRiskCategory", undefined),
+          operatorScope: varValue("wecomSourceControlledSmokeResultOperatorScope", "local-readonly-controlled-smoke-result-evidence-handoff"),
+          resultModeAlias: varValue("wecomSourceControlledSmokeResultModeAlias", "controlled-smoke-result-evidence-handoff-only"),
+          resultEvidence: parseJsonVar("wecomSourceControlledSmokeResultEvidence"),
+          operatorNote: varValue("wecomSourceControlledSmokeResultOperatorNote", undefined),
+        }, {
+          sourceAlias: varValue("wecomSourceControlledSmokeResultSourceAlias", undefined),
+        })
+
+        console.log(JSON.stringify(handoff, null, 2))
+        if (handoff.status !== "passed" && boolVar("wecomSourceControlledSmokeResultRequirePassed")) {
+          throw new Error(`wecom source controlled smoke result evidence handoff blocked reasonAlias=${handoff.reasonAlias}`)
+        }
+
+        throw new Error(`local-only WeCom source controlled smoke result evidence handoff completed status=${handoff.status}; HTTP request intentionally aborted`)
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: false
+  maxRedirects: 0

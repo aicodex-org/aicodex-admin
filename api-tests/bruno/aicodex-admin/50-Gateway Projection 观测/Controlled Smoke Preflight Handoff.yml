@@ -1,0 +1,103 @@
+info:
+  name: Controlled Smoke Preflight Handoff
+  type: http
+  seq: 4
+  tags:
+    - smoke
+    - gateway-projection
+    - controlled-smoke
+    - handoff
+    - readonly
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/gateway-projection/observability"
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        function loadControlledSmokeHandoff() {
+          try {
+            return require("../scripts/gatewayProjectionControlledSmokePreflightHandoff")
+          } catch (error) {
+            return require("./scripts/gatewayProjectionControlledSmokePreflightHandoff")
+          }
+        }
+
+        function loadReleaseDecision() {
+          try {
+            return require("../scripts/gatewayProjectionReleaseDecision")
+          } catch (error) {
+            return require("./scripts/gatewayProjectionReleaseDecision")
+          }
+        }
+
+        function loadReadinessSummary() {
+          try {
+            return require("../scripts/gatewayProjectionReadinessSummary")
+          } catch (error) {
+            return require("./scripts/gatewayProjectionReadinessSummary")
+          }
+        }
+
+        function parseJsonVar(name) {
+          const raw = bru.getVar(name) || bru.getEnvVar(name)
+          if (!raw) {
+            return undefined
+          }
+          return typeof raw === "string" ? JSON.parse(raw) : raw
+        }
+
+        function boolVar(name) {
+          return String(bru.getVar(name) || bru.getEnvVar(name) || "").toLowerCase() === "true"
+        }
+
+        const status = res.getStatus()
+        const body = res.getBody()
+        const observabilityResponse = typeof body === "string" ? JSON.parse(body) : body
+        if (status !== 200) {
+          throw new Error(`admin gateway projection controlled smoke preflight 响应异常。status=${status} statusField=${observabilityResponse?.status}`)
+        }
+
+        const mappingReadinessResponse = parseJsonVar("gatewayProjectionMappingReadinessResponse")
+        const adminReleaseDecisionHandoff = parseJsonVar("gatewayProjectionAdminReleaseDecisionHandoff")
+          || loadReleaseDecision().createGatewayProjectionReleaseDecisionHandoff({
+            observabilityResponse,
+            mappingReadinessResponse,
+          }, {
+            requireLatestAudit: boolVar("gatewayProjectionRequireLatestAudit"),
+            requireMappingReadiness: boolVar("gatewayProjectionRequireMappingReadiness"),
+            minSubjectCount: bru.getVar("gatewayProjectionMinSubjectCount") || bru.getEnvVar("gatewayProjectionMinSubjectCount"),
+            minTombstoneSubjectCount: bru.getVar("gatewayProjectionMinTombstoneSubjectCount") || bru.getEnvVar("gatewayProjectionMinTombstoneSubjectCount"),
+            sourceAlias: "bruno-controlled-smoke-admin-release",
+          })
+        const adminReadinessSummary = parseJsonVar("gatewayProjectionAdminReadinessSummary")
+          || loadReadinessSummary().evaluateGatewayProjectionReadinessSummary({
+            observabilityResponse,
+            mappingReadinessResponse,
+          }, {
+            requireLatestAudit: boolVar("gatewayProjectionRequireLatestAudit"),
+            minSubjectCount: bru.getVar("gatewayProjectionMinSubjectCount") || bru.getEnvVar("gatewayProjectionMinSubjectCount"),
+            minTombstoneSubjectCount: bru.getVar("gatewayProjectionMinTombstoneSubjectCount") || bru.getEnvVar("gatewayProjectionMinTombstoneSubjectCount"),
+          })
+
+        const {createGatewayProjectionControlledSmokePreflightHandoff} = loadControlledSmokeHandoff()
+        const handoff = createGatewayProjectionControlledSmokePreflightHandoff({
+          adminReleaseDecisionHandoff,
+          adminReadinessSummary,
+          apiDiagnosticsDecision: parseJsonVar("gatewayProjectionApiDiagnosticsDecision"),
+        }, {
+          sourceAlias: bru.getVar("gatewayProjectionControlledSmokePreflightSourceAlias") || bru.getEnvVar("gatewayProjectionControlledSmokePreflightSourceAlias") || "bruno-controlled-smoke-preflight",
+        })
+
+        console.log(JSON.stringify(handoff, null, 2))
+        if (handoff.status !== "ready" && boolVar("gatewayProjectionRequireControlledSmokePreflightReady")) {
+          throw new Error(`projection controlled smoke preflight blocked decision=${handoff.decision} aliases=${handoff.aliases.join("|") || "none"}`)
+        }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

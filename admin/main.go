@@ -134,6 +134,8 @@ func main() {
 
 	// Start webhook delivery worker
 	object.StartWebhookDeliveryWorker()
+	object.StartGatewayProjectionRefreshWorker()
+	object.StartOrganizationSyncScheduler()
 
 	if len(object.SiteMap) != 0 {
 		service.Start()

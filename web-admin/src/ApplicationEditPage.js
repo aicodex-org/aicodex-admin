@@ -402,6 +402,7 @@ class ApplicationEditPage extends React.Component {
             <Col span={21} >
               <Switch disabled={Setting.isAdminUser()} checked={this.state.application.isShared} onChange={checked => {
                 this.updateApplicationField("isShared", checked);
+                this.updateApplicationField("organizationResolutionMode", checked ? "shared_application" : "organization_bound");
               }} />
             </Col>
           </Row>
@@ -699,6 +700,62 @@ class ApplicationEditPage extends React.Component {
             <Col span={21} >
               <Input value={this.state.application.clientId} onChange={e => {
                 this.updateApplicationField("clientId", e.target.value);
+              }} />
+            </Col>
+          </Row>
+          <Row style={{marginTop: "20px"}} >
+            <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
+              Organization resolution mode :
+            </Col>
+            <Col span={21} >
+              <Select virtual={false} style={{width: "100%"}}
+                value={this.state.application.organizationResolutionMode || (this.state.application.isShared ? "shared_application" : "organization_bound")}
+                onChange={(value) => {
+                  this.updateApplicationField("organizationResolutionMode", value);
+                  this.updateApplicationField("isShared", value === "shared_application");
+                }} >
+                <Option value="organization_bound">organization_bound</Option>
+                <Option value="shared_application">shared_application</Option>
+              </Select>
+            </Col>
+          </Row>
+          <Row style={{marginTop: "20px"}} >
+            <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
+              Allowed organizations :
+            </Col>
+            <Col span={21} >
+              <Select virtual={false} mode="multiple" style={{width: "100%"}}
+                disabled={(this.state.application.organizationResolutionMode || (this.state.application.isShared ? "shared_application" : "organization_bound")) !== "shared_application"}
+                value={this.state.application.allowedOrganizations || []}
+                onChange={(value) => this.updateApplicationField("allowedOrganizations", value)} >
+                {this.state.organizations.map((organization) => (
+                  <Option key={organization.name} value={organization.name}>{organization.displayName || organization.name}</Option>
+                ))}
+              </Select>
+            </Col>
+          </Row>
+          <Row style={{marginTop: "20px"}} >
+            <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
+              Allowed organization policy :
+            </Col>
+            <Col span={21} >
+              <Select virtual={false} style={{width: "100%"}}
+                value={this.state.application.allowedOrganizationStatus || "PENDING_REVIEW"}
+                onChange={(value) => this.updateApplicationField("allowedOrganizationStatus", value)} >
+                <Option value="CONFIRMED">CONFIRMED</Option>
+                <Option value="PENDING_REVIEW">PENDING_REVIEW</Option>
+                <Option value="CONFLICTED">CONFLICTED</Option>
+                <Option value="DISABLED">DISABLED</Option>
+              </Select>
+            </Col>
+          </Row>
+          <Row style={{marginTop: "20px"}} >
+            <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
+              Require API mapping :
+            </Col>
+            <Col span={21} >
+              <Switch checked={this.state.application.apiMappingRequired} onChange={checked => {
+                this.updateApplicationField("apiMappingRequired", checked);
               }} />
             </Col>
           </Row>
@@ -1576,11 +1633,9 @@ class ApplicationEditPage extends React.Component {
       redirectUri = "\"ERROR: You must specify at least one Redirect URL in 'Redirect URLs'\"";
     }
 
-    let clientId = this.state.application.clientId;
-    if (this.state.application.isShared) {
-      clientId += `-org-${this.props.account.owner}`;
-    }
-    const signInUrl = `/login/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${redirectUri}&scope=read&state=aicodex-admin`;
+    const clientId = this.state.application.clientId;
+    const organizationQuery = this.state.application.isShared ? `&organization=${encodeURIComponent(this.props.account.owner)}` : "";
+    const signInUrl = `/login/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${redirectUri}&scope=read&state=aicodex-admin${organizationQuery}`;
     const maskStyle = {position: "absolute", top: "0px", left: "0px", zIndex: 10, height: "97%", width: "100%", background: "rgba(0,0,0,0.4)"};
     if (!Setting.isPasswordEnabled(this.state.application)) {
       signUpUrl = signInUrl.replace("/login/oauth/authorize", "/signup/oauth/authorize");

@@ -130,37 +130,37 @@ func TestBuildGatewayProjectionBatchFailsClosedForMappingsAndLifecycle(t *testin
 			LifecycleStatus: PlatformLifecycleStatusActive,
 			MappingStatus:   "",
 		},
+		PlatformUser{
+			OrganizationId:  "org-a",
+			AdminSubject:    "disabled-active-mapping",
+			LifecycleStatus: PlatformLifecycleStatusActive,
+			MappingStatus:   PlatformMappingStatusDisabled,
+		},
 	)
-	input.ExternalIdentities = append(input.ExternalIdentities,
-		ExternalIdentity{
-			OrganizationId:      "org-a",
-			SourceConnectionId:  "src-a",
-			ExternalSubjectType: PlatformSubjectTypeUser,
-			ExternalSubjectId:   "pending-api",
-			PlatformSubjectType: PlatformSubjectTypeUser,
-			PlatformSubject:     "pending-api",
-			MappingStatus:       PlatformMappingStatusPendingReview,
-			Lineage:             `{"apiSubjectId":"10002"}`,
+	input.ApiUserMappings = append(input.ApiUserMappings,
+		PlatformApiUserMapping{
+			OrganizationId: "org-a",
+			AdminSubject:   "pending-api",
+			ApiUserId:      "10002",
+			MappingStatus:  PlatformMappingStatusPendingReview,
 		},
-		ExternalIdentity{
-			OrganizationId:      "org-a",
-			SourceConnectionId:  "src-a",
-			ExternalSubjectType: PlatformSubjectTypeUser,
-			ExternalSubjectId:   "stale-user",
-			PlatformSubjectType: PlatformSubjectTypeUser,
-			PlatformSubject:     "stale-user",
-			MappingStatus:       PlatformMappingStatusConfirmed,
-			Lineage:             `{"apiSubjectId":"10003"}`,
+		PlatformApiUserMapping{
+			OrganizationId: "org-a",
+			AdminSubject:   "stale-user",
+			ApiUserId:      "10003",
+			MappingStatus:  PlatformMappingStatusConfirmed,
 		},
-		ExternalIdentity{
-			OrganizationId:      "org-a",
-			SourceConnectionId:  "src-a",
-			ExternalSubjectType: PlatformSubjectTypeUser,
-			ExternalSubjectId:   "empty-platform-mapping",
-			PlatformSubjectType: PlatformSubjectTypeUser,
-			PlatformSubject:     "empty-platform-mapping",
-			MappingStatus:       PlatformMappingStatusConfirmed,
-			Lineage:             `{"apiSubjectId":"10004"}`,
+		PlatformApiUserMapping{
+			OrganizationId: "org-a",
+			AdminSubject:   "empty-platform-mapping",
+			ApiUserId:      "10004",
+			MappingStatus:  PlatformMappingStatusConfirmed,
+		},
+		PlatformApiUserMapping{
+			OrganizationId: "org-a",
+			AdminSubject:   "disabled-active-mapping",
+			ApiUserId:      "10005",
+			MappingStatus:  PlatformMappingStatusDisabled,
 		},
 	)
 
@@ -177,10 +177,13 @@ func TestBuildGatewayProjectionBatchFailsClosedForMappingsAndLifecycle(t *testin
 		t.Fatalf("missing apiSubjectId must not be published: %#v", result.Request.Subjects)
 	}
 	if _, ok := subjectByStableID["pending-api"]; ok {
-		t.Fatalf("untrusted external identity must not be published: %#v", result.Request.Subjects)
+		t.Fatalf("untrusted api user mapping must not be published: %#v", result.Request.Subjects)
 	}
 	if _, ok := subjectByStableID["empty-platform-mapping"]; ok {
-		t.Fatalf("empty PlatformUser mappingStatus must not be published even with confirmed ExternalIdentity: %#v", result.Request.Subjects)
+		t.Fatalf("empty PlatformUser mappingStatus must not be published even with confirmed api user mapping: %#v", result.Request.Subjects)
+	}
+	if _, ok := subjectByStableID["disabled-active-mapping"]; ok {
+		t.Fatalf("active subject must still require confirmed PlatformUser mappingStatus: %#v", result.Request.Subjects)
 	}
 	stale := subjectByStableID["stale-user"]
 	if stale.APISubjectID != "10003" || stale.LifecycleStatus != "unknown" {
@@ -189,34 +192,21 @@ func TestBuildGatewayProjectionBatchFailsClosedForMappingsAndLifecycle(t *testin
 	if result.Summary.SkippedByReason[GatewayProjectionSkipMappingMissing] != 1 {
 		t.Fatalf("mapping_missing summary = %#v", result.Summary.SkippedByReason)
 	}
-	if result.Summary.SkippedByReason[GatewayProjectionSkipMappingUntrusted] != 2 {
+	if result.Summary.SkippedByReason[GatewayProjectionSkipMappingUntrusted] != 3 {
 		t.Fatalf("mapping_untrusted summary = %#v", result.Summary.SkippedByReason)
 	}
 }
 
-func TestBuildGatewayProjectionBatchUsesExplicitAdminUserMapping(t *testing.T) {
+func TestBuildGatewayProjectionBatchUsesPlatformApiUserMapping(t *testing.T) {
 	generatedAt := time.Date(2026, 6, 5, 10, 30, 0, 0, time.UTC)
 	finishedAt := generatedAt.Add(5 * time.Minute)
 	input := gatewayProjectionTestInput(generatedAt, finishedAt)
-	input.ExternalIdentities = []ExternalIdentity{
+	input.ApiUserMappings = []PlatformApiUserMapping{
 		{
-			OrganizationId:      "org-a",
-			SourceConnectionId:  "src-a",
-			ExternalSubjectType: PlatformSubjectTypeUser,
-			ExternalSubjectId:   "external-user-1",
-			PlatformSubjectType: PlatformSubjectTypeUser,
-			PlatformSubject:     "admin-user-1",
-			MappingStatus:       PlatformMappingStatusConfirmed,
-			Lineage:             `{"sourceType":"wecom","externalSubjectId":"external-user-1"}`,
-		},
-	}
-	input.AdminUsers = []User{
-		{
-			Owner: "org-a",
-			Name:  "local-user-1",
-			Properties: map[string]string{
-				"aicodexApiUserId": "10009",
-			},
+			OrganizationId: "org-a",
+			AdminSubject:   "admin-user-1",
+			ApiUserId:      "10009",
+			MappingStatus:  PlatformMappingStatusConfirmed,
 		},
 	}
 
@@ -228,7 +218,37 @@ func TestBuildGatewayProjectionBatchUsesExplicitAdminUserMapping(t *testing.T) {
 		t.Fatalf("subjects = %#v, want one mapped subject", result.Request.Subjects)
 	}
 	if result.Request.Subjects[0].APISubjectID != "10009" {
-		t.Fatalf("apiSubjectId should come from explicit admin user mapping, got %#v", result.Request.Subjects[0])
+		t.Fatalf("apiSubjectId should come from PlatformApiUserMapping, got %#v", result.Request.Subjects[0])
+	}
+}
+
+func TestBuildGatewayProjectionBatchDoesNotUseLegacyIdentityLineageAtRuntime(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 5, 10, 45, 0, 0, time.UTC)
+	finishedAt := generatedAt.Add(5 * time.Minute)
+	input := gatewayProjectionTestInput(generatedAt, finishedAt)
+	input.ApiUserMappings = nil
+	input.ExternalIdentities = []ExternalIdentity{
+		{
+			OrganizationId:      "org-a",
+			SourceConnectionId:  "src-a",
+			ExternalSubjectType: PlatformSubjectTypeUser,
+			ExternalSubjectId:   "external-user-1",
+			PlatformSubjectType: PlatformSubjectTypeUser,
+			PlatformSubject:     "admin-user-1",
+			MappingStatus:       PlatformMappingStatusConfirmed,
+			Lineage:             `{"apiSubjectId":"10001"}`,
+		},
+	}
+
+	result, err := BuildGatewayProjectionBatch(input)
+	if err != nil {
+		t.Fatalf("BuildGatewayProjectionBatch() error = %v", err)
+	}
+	if len(result.Request.Subjects) != 0 {
+		t.Fatalf("legacy ExternalIdentity lineage must not publish api subject at runtime: %#v", result.Request.Subjects)
+	}
+	if result.Summary.SkippedByReason[GatewayProjectionSkipMappingMissing] != 1 {
+		t.Fatalf("missing first-class mapping should be reported as mapping_missing: %#v", result.Summary.SkippedByReason)
 	}
 }
 
@@ -280,6 +300,98 @@ func TestBuildGatewayProjectionBatchGeneratesStableDigestAndSubjectVersion(t *te
 	}
 }
 
+func TestBuildGatewayProjectionBatchRefreshKeepsOrgVersionAndRenewsFreshness(t *testing.T) {
+	finishedAt := time.Date(2026, 6, 5, 9, 30, 0, 0, time.UTC)
+	first := gatewayProjectionTestInput(time.Date(2026, 6, 5, 10, 0, 0, 0, time.UTC), finishedAt)
+	second := gatewayProjectionTestInput(time.Date(2026, 6, 5, 10, 15, 0, 0, time.UTC), finishedAt)
+
+	firstResult, err := BuildGatewayProjectionBatch(first)
+	if err != nil {
+		t.Fatalf("first refresh build error = %v", err)
+	}
+	secondResult, err := BuildGatewayProjectionBatch(second)
+	if err != nil {
+		t.Fatalf("second refresh build error = %v", err)
+	}
+
+	if firstResult.Request.OrgVersion != secondResult.Request.OrgVersion {
+		t.Fatalf("refresh must keep orgVersion for unchanged source snapshot: first=%d second=%d", firstResult.Request.OrgVersion, secondResult.Request.OrgVersion)
+	}
+	if firstResult.Request.ProjectionBatchID == secondResult.Request.ProjectionBatchID {
+		t.Fatalf("refresh should create a new projectionBatchId when freshness moves: %s", firstResult.Request.ProjectionBatchID)
+	}
+	if firstResult.Request.Subjects[0].ProjectionVersion == secondResult.Request.Subjects[0].ProjectionVersion {
+		t.Fatalf("refresh should create a new subject projectionVersion when freshness moves")
+	}
+	if !secondResult.Request.Freshness.ExpiresAt.After(firstResult.Request.Freshness.ExpiresAt) {
+		t.Fatalf("refresh freshness should move forward: first=%s second=%s", firstResult.Request.Freshness.ExpiresAt, secondResult.Request.Freshness.ExpiresAt)
+	}
+}
+
+func TestBuildGatewayProjectionBatchPublishesLifecycleTombstoneSubjects(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 5, 11, 30, 0, 0, time.UTC)
+	finishedAt := generatedAt.Add(5 * time.Minute)
+	input := gatewayProjectionTestInput(generatedAt, finishedAt)
+	input.Users = append(input.Users,
+		PlatformUser{
+			OrganizationId:  "org-a",
+			AdminSubject:    "disabled-user",
+			LifecycleStatus: PlatformLifecycleStatusDisabled,
+			MappingStatus:   PlatformMappingStatusDisabled,
+		},
+		PlatformUser{
+			OrganizationId:  "org-a",
+			AdminSubject:    "deleted-user",
+			LifecycleStatus: PlatformLifecycleStatusDeleted,
+			MappingStatus:   PlatformMappingStatusConfirmed,
+		},
+		PlatformUser{
+			OrganizationId:  "org-a",
+			AdminSubject:    "conflicted-user",
+			LifecycleStatus: PlatformLifecycleStatusConflicted,
+			MappingStatus:   PlatformMappingStatusConfirmed,
+		},
+	)
+	input.ApiUserMappings = append(input.ApiUserMappings,
+		PlatformApiUserMapping{
+			OrganizationId: "org-a",
+			AdminSubject:   "disabled-user",
+			ApiUserId:      "10002",
+			MappingStatus:  PlatformMappingStatusDisabled,
+		},
+		PlatformApiUserMapping{
+			OrganizationId: "org-a",
+			AdminSubject:   "deleted-user",
+			ApiUserId:      "10003",
+			MappingStatus:  PlatformMappingStatusConfirmed,
+		},
+		PlatformApiUserMapping{
+			OrganizationId: "org-a",
+			AdminSubject:   "conflicted-user",
+			ApiUserId:      "10004",
+			MappingStatus:  PlatformMappingStatusConfirmed,
+		},
+	)
+
+	result, err := BuildGatewayProjectionBatch(input)
+	if err != nil {
+		t.Fatalf("BuildGatewayProjectionBatch() error = %v", err)
+	}
+	lifecycleBySubject := map[string]string{}
+	for _, subject := range result.Request.Subjects {
+		lifecycleBySubject[subject.StableSubjectID] = subject.LifecycleStatus
+	}
+	expected := map[string]string{
+		"admin-user-1":    "active",
+		"disabled-user":   "disabled",
+		"deleted-user":    "deleted",
+		"conflicted-user": "conflicted",
+	}
+	if !reflect.DeepEqual(lifecycleBySubject, expected) {
+		t.Fatalf("full projection must include active and tombstone subjects: got %#v want %#v", lifecycleBySubject, expected)
+	}
+}
+
 func gatewayProjectionTestInput(generatedAt time.Time, finishedAt time.Time) GatewayProjectionBuildInput {
 	return GatewayProjectionBuildInput{
 		TraceID:        "trace-projection-1",
@@ -303,6 +415,15 @@ func gatewayProjectionTestInput(generatedAt time.Time, finishedAt time.Time) Gat
 				UserName:        "local-user-1",
 				LifecycleStatus: PlatformLifecycleStatusActive,
 				MappingStatus:   PlatformMappingStatusConfirmed,
+			},
+		},
+		ApiUserMappings: []PlatformApiUserMapping{
+			{
+				OrganizationId: "org-a",
+				AdminSubject:   "admin-user-1",
+				ApiUserId:      "10001",
+				MappingStatus:  PlatformMappingStatusConfirmed,
+				Lineage:        `{"roleIds":["role-b","role-a","role-b"],"positionIds":["pos-b","pos-a"]}`,
 			},
 		},
 		Departments: []PlatformDepartment{
@@ -362,6 +483,7 @@ func gatewayProjectionTestInput(generatedAt time.Time, finishedAt time.Time) Gat
 }
 
 func TestGatewayProjectionPublisherSendsBearerAndTreatsAcceptedOrIdempotentAsSuccess(t *testing.T) {
+	resetGatewayProjectionObservabilityForTest()
 	request := gatewayProjectionPublishTestRequest()
 	calls := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -412,6 +534,265 @@ func TestGatewayProjectionPublisherSendsBearerAndTreatsAcceptedOrIdempotentAsSuc
 	}
 	if !second.Success || !second.Accepted || !second.Idempotent || second.Attempts != 1 {
 		t.Fatalf("unexpected second result: %#v", second)
+	}
+	snapshot := GetGatewayProjectionObservabilitySnapshot(time.Date(2026, 6, 11, 10, 0, 0, 0, time.UTC))
+	if snapshot.Latest == nil || snapshot.Latest.ProjectionBatchID != "batch-publish-1" {
+		t.Fatalf("latest publish observability missing batch: %#v", snapshot.Latest)
+	}
+	if snapshot.Latest.SourceVersion != "orgv-publish-1" || snapshot.Latest.FreshnessExpiresAt == "" || snapshot.Latest.SubjectCount != 1 {
+		t.Fatalf("latest publish observability missing sanitized projection fields: %#v", snapshot.Latest)
+	}
+	if snapshot.Latest.SourceConnectionSummary.Total != 0 || snapshot.Latest.SourceConnectionSummary.StatusCounts["missing"] != 1 || snapshot.Latest.SourceConnectionSummary.FreshnessCounts["missing"] != 1 {
+		t.Fatalf("direct publisher audit should expose sanitized missing source summary shape: %#v", snapshot.Latest.SourceConnectionSummary)
+	}
+	if snapshot.Latest.SourceConnectionStatus != "missing" {
+		t.Fatalf("direct publisher audit sourceConnectionStatus = %q, want missing", snapshot.Latest.SourceConnectionStatus)
+	}
+	if snapshot.Latest.FailureCategory != "" || snapshot.Latest.Status != "ok" {
+		t.Fatalf("successful latest publish should not expose failure category: %#v", snapshot.Latest)
+	}
+}
+
+func TestGatewayProjectionServiceObservabilityIncludesBuildSummary(t *testing.T) {
+	resetGatewayProjectionObservabilityForTest()
+	generatedAt := time.Date(2026, 6, 11, 9, 0, 0, 0, time.UTC)
+	finishedAt := generatedAt.Add(5 * time.Minute)
+	input := gatewayProjectionTestInput(generatedAt, finishedAt)
+	input.Users = append(input.Users, PlatformUser{
+		OrganizationId:  "org-a",
+		AdminSubject:    "missing-api",
+		LifecycleStatus: PlatformLifecycleStatusActive,
+		MappingStatus:   PlatformMappingStatusConfirmed,
+	})
+
+	build, err := BuildGatewayProjectionBatch(input)
+	if err != nil {
+		t.Fatalf("BuildGatewayProjectionBatch() error = %v", err)
+	}
+	recordGatewayProjectionServiceObservability(build, GatewayProjectionPublishResult{Success: true, Accepted: true, Attempts: 1}, input.SourceConnections, 12)
+
+	snapshot := GetGatewayProjectionObservabilitySnapshot(generatedAt)
+	if snapshot.Latest == nil {
+		t.Fatalf("expected latest publish observability")
+	}
+	if snapshot.Latest.SkippedSubjectCount == 0 || snapshot.Latest.SkippedByReason[GatewayProjectionSkipMappingMissing] == 0 {
+		t.Fatalf("latest publish should include build skip summary: %#v", snapshot.Latest)
+	}
+	if snapshot.Latest.SourceConnectionStatus != SourceConnectionStatusActive {
+		t.Fatalf("source connection status = %q", snapshot.Latest.SourceConnectionStatus)
+	}
+}
+
+func TestGatewayProjectionServiceObservabilityIncludesSourceFreshnessSummary(t *testing.T) {
+	resetGatewayProjectionObservabilityForTest()
+	generatedAt := time.Date(2026, 6, 11, 9, 15, 0, 0, time.UTC)
+	finishedAt := generatedAt.Add(5 * time.Minute)
+	input := gatewayProjectionTestInput(generatedAt, finishedAt)
+	input.SourceConnections = []SourceConnection{
+		{
+			OrganizationId:     "org-a",
+			SourceConnectionId: "src-fresh",
+			SourceTenantId:     "tenant-secret",
+			Status:             SourceConnectionStatusActive,
+			Freshness:          PlatformFreshnessFresh,
+			Metadata:           `{"contact":"operator@example.invalid"}`,
+			ConfigRef:          "config-sensitive",
+			SecretRef:          "secret-sensitive",
+		},
+		{
+			OrganizationId:     "org-a",
+			SourceConnectionId: "src-stale",
+			Status:             SourceConnectionStatusActive,
+			Freshness:          PlatformFreshnessStale,
+		},
+		{
+			OrganizationId:     "org-a",
+			SourceConnectionId: "src-unavailable",
+			Status:             SourceConnectionStatusDisabled,
+			Freshness:          PlatformFreshnessUnavailable,
+		},
+		{
+			OrganizationId:     "org-a",
+			SourceConnectionId: "src-unknown",
+			Status:             "",
+			Freshness:          "",
+		},
+	}
+
+	build, err := BuildGatewayProjectionBatch(input)
+	if err != nil {
+		t.Fatalf("BuildGatewayProjectionBatch() error = %v", err)
+	}
+	recordGatewayProjectionServiceObservability(build, GatewayProjectionPublishResult{Success: true, Accepted: true, Attempts: 1}, input.SourceConnections, 10)
+
+	snapshot := GetGatewayProjectionObservabilitySnapshot(generatedAt)
+	if snapshot.Latest == nil {
+		t.Fatalf("expected latest publish observability")
+	}
+	summary := snapshot.Latest.SourceConnectionSummary
+	if summary.Total != 4 {
+		t.Fatalf("source connection total = %d, want 4", summary.Total)
+	}
+	if summary.StatusCounts[SourceConnectionStatusActive] != 2 || summary.StatusCounts[SourceConnectionStatusDisabled] != 1 || summary.StatusCounts["unknown"] != 1 {
+		t.Fatalf("status counts = %#v", summary.StatusCounts)
+	}
+	if summary.FreshnessCounts[PlatformFreshnessFresh] != 1 || summary.FreshnessCounts[PlatformFreshnessStale] != 1 || summary.FreshnessCounts[PlatformFreshnessUnavailable] != 1 || summary.FreshnessCounts["unknown"] != 1 {
+		t.Fatalf("freshness counts = %#v", summary.FreshnessCounts)
+	}
+	if !summary.HasStaleFreshness || !summary.HasUnavailableFreshness || !summary.HasUnknownFreshness {
+		t.Fatalf("freshness flags = %#v", summary)
+	}
+	raw, err := json.Marshal(snapshot.Latest)
+	if err != nil {
+		t.Fatalf("marshal latest observability: %v", err)
+	}
+	serialized := strings.ToLower(string(raw))
+	for _, forbidden := range []string{"tenant-secret", "operator@example.invalid", "config-sensitive", "secret-sensitive"} {
+		if strings.Contains(serialized, forbidden) {
+			t.Fatalf("source diagnostics leaked sensitive source metadata %q: %s", forbidden, string(raw))
+		}
+	}
+}
+
+func TestGatewayProjectionServiceObservabilityClassifiesDisabledSourceConnection(t *testing.T) {
+	resetGatewayProjectionObservabilityForTest()
+	generatedAt := time.Date(2026, 6, 11, 9, 30, 0, 0, time.UTC)
+	finishedAt := generatedAt.Add(5 * time.Minute)
+	input := gatewayProjectionTestInput(generatedAt, finishedAt)
+	input.SourceConnections[0].Status = SourceConnectionStatusDisabled
+
+	build, err := BuildGatewayProjectionBatch(input)
+	if err != nil {
+		t.Fatalf("BuildGatewayProjectionBatch() error = %v", err)
+	}
+	recordGatewayProjectionServiceObservability(build, GatewayProjectionPublishResult{Success: false, Attempts: 1}, input.SourceConnections, 10)
+
+	snapshot := GetGatewayProjectionObservabilitySnapshot(generatedAt)
+	if snapshot.Latest == nil || snapshot.Latest.FailureCategory != GatewayProjectionFailureSourceConnectionDisabled {
+		t.Fatalf("disabled source connection should be visible as stable category: %#v", snapshot.Latest)
+	}
+}
+
+func TestGatewayProjectionServiceObservabilityClassifiesSourceFreshness(t *testing.T) {
+	tests := []struct {
+		name        string
+		connections []SourceConnection
+		want        string
+	}{
+		{
+			name: "fresh",
+			connections: []SourceConnection{
+				{OrganizationId: "org-a", SourceConnectionId: "src-a", Status: SourceConnectionStatusActive, Freshness: PlatformFreshnessFresh},
+			},
+			want: "",
+		},
+		{
+			name: "stale",
+			connections: []SourceConnection{
+				{OrganizationId: "org-a", SourceConnectionId: "src-a", Status: SourceConnectionStatusActive, Freshness: PlatformFreshnessStale},
+			},
+			want: GatewayProjectionFailureSourceConnectionStale,
+		},
+		{
+			name: "unavailable",
+			connections: []SourceConnection{
+				{OrganizationId: "org-a", SourceConnectionId: "src-a", Status: SourceConnectionStatusActive, Freshness: PlatformFreshnessUnavailable},
+			},
+			want: GatewayProjectionFailureSourceConnectionStale,
+		},
+		{
+			name: "unknown",
+			connections: []SourceConnection{
+				{OrganizationId: "org-a", SourceConnectionId: "src-a", Status: SourceConnectionStatusActive, Freshness: ""},
+			},
+			want: GatewayProjectionFailureUnknown,
+		},
+		{
+			name:        "missing",
+			connections: nil,
+			want:        GatewayProjectionFailureUnknown,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resetGatewayProjectionObservabilityForTest()
+			generatedAt := time.Date(2026, 6, 11, 9, 45, 0, 0, time.UTC)
+			finishedAt := generatedAt.Add(5 * time.Minute)
+			input := gatewayProjectionTestInput(generatedAt, finishedAt)
+			input.SourceConnections = tt.connections
+
+			build, err := BuildGatewayProjectionBatch(input)
+			if err != nil {
+				t.Fatalf("BuildGatewayProjectionBatch() error = %v", err)
+			}
+			recordGatewayProjectionServiceObservability(build, GatewayProjectionPublishResult{Success: true, Accepted: true, Attempts: 1}, input.SourceConnections, 10)
+
+			snapshot := GetGatewayProjectionObservabilitySnapshot(generatedAt)
+			if snapshot.Latest == nil {
+				t.Fatalf("expected latest publish observability")
+			}
+			if snapshot.Latest.FailureCategory != tt.want {
+				t.Fatalf("failure category = %q, want %q; latest=%#v", snapshot.Latest.FailureCategory, tt.want, snapshot.Latest)
+			}
+			if tt.name == "missing" && snapshot.Latest.SourceConnectionSummary.Total != 0 {
+				t.Fatalf("missing source total = %d, want 0", snapshot.Latest.SourceConnectionSummary.Total)
+			}
+		})
+	}
+}
+
+func TestGatewayProjectionObservabilitySnapshotReportsMissingProjectionConfig(t *testing.T) {
+	resetGatewayProjectionObservabilityForTest()
+	t.Setenv("gatewayOrganizationProjectionEnabled", "true")
+	t.Setenv("gatewayOrganizationProjectionEndpoint", "")
+	t.Setenv("gatewayOrganizationProjectionToken", "")
+	t.Setenv("gatewayOrganizationProjectionRefreshEnabled", "true")
+	t.Setenv("gatewayOrganizationProjectionFreshnessTTLSeconds", "1800")
+
+	now := time.Date(2026, 6, 11, 10, 0, 0, 0, time.UTC)
+	snapshot := GetGatewayProjectionObservabilitySnapshot(now)
+	if !snapshot.Publisher.Enabled || snapshot.Publisher.Configured {
+		t.Fatalf("publisher config readiness mismatch: %#v", snapshot.Publisher)
+	}
+	if snapshot.Publisher.DisabledReason != GatewayProjectionFailureProjectionTokenMissing {
+		t.Fatalf("publisher disabled reason = %q", snapshot.Publisher.DisabledReason)
+	}
+	if snapshot.Refresh.Enabled || snapshot.Refresh.DisabledReason != GatewayProjectionRefreshErrorInvalidConfig {
+		t.Fatalf("refresh should report invalid config without projection credentials: %#v", snapshot.Refresh)
+	}
+}
+
+func TestGatewayProjectionObservabilityHelpersHandleEmptyInputs(t *testing.T) {
+	resetGatewayProjectionObservabilityForTest()
+	recordGatewayProjectionLatestPublish(nil)
+	if got := summarizeGatewayProjectionSourceConnections(nil); got != "missing" {
+		t.Fatalf("empty source connections summary = %q", got)
+	}
+	if got := formatGatewayProjectionObservabilityTime(time.Time{}); got != "" {
+		t.Fatalf("zero time should format as empty string, got %q", got)
+	}
+}
+
+func TestGatewayProjectionFailureCategoryMapping(t *testing.T) {
+	tests := []struct {
+		code string
+		want string
+	}{
+		{code: GatewayProjectionPublishErrorInvalidConfig, want: GatewayProjectionFailureProjectionTokenMissing},
+		{code: GatewayProjectionPublishErrorProviderUnavailable, want: GatewayProjectionFailureGatewayUnavailable},
+		{code: "invalid_argument", want: GatewayProjectionFailureGatewayContractMismatch},
+		{code: GatewayProjectionSkipMappingUntrusted, want: GatewayProjectionFailureMappingUntrusted},
+		{code: GatewayProjectionSkipLifecycleInvalid, want: GatewayProjectionFailureLifecycleUntrusted},
+		{code: GatewayProjectionSkipSourceDataInvalid, want: GatewayProjectionFailureSourceConnectionStale},
+		{code: "unexpected", want: GatewayProjectionFailureUnknown},
+	}
+	for _, tt := range tests {
+		t.Run(tt.code, func(t *testing.T) {
+			if got := GatewayProjectionFailureCategory(tt.code); got != tt.want {
+				t.Fatalf("GatewayProjectionFailureCategory(%q) = %q, want %q", tt.code, got, tt.want)
+			}
+		})
 	}
 }
 
@@ -568,14 +949,16 @@ func TestGatewayProjectionPublisherKeepsRequestContextUntilResponseBodyRead(t *t
 func TestGatewayProjectionServiceBuildsAndPublishesOrganization(t *testing.T) {
 	generatedAt := time.Date(2026, 6, 5, 13, 0, 0, 0, time.UTC)
 	finishedAt := generatedAt.Add(10 * time.Minute)
+	input := gatewayProjectionTestInput(generatedAt, finishedAt)
 	store := &memoryGatewayProjectionSnapshotStore{
 		snapshot: GatewayProjectionSnapshot{
 			SourceConnections:  []SourceConnection{{OrganizationId: "org-a", SourceConnectionId: "src-a", SourceType: SourceTypeWecom, Status: SourceConnectionStatusActive}},
-			Users:              gatewayProjectionTestInput(generatedAt, finishedAt).Users,
-			Departments:        gatewayProjectionTestInput(generatedAt, finishedAt).Departments,
-			Memberships:        gatewayProjectionTestInput(generatedAt, finishedAt).Memberships,
-			ExternalIdentities: gatewayProjectionTestInput(generatedAt, finishedAt).ExternalIdentities,
-			SyncBatch:          gatewayProjectionTestInput(generatedAt, finishedAt).SyncBatch,
+			Users:              input.Users,
+			Departments:        input.Departments,
+			Memberships:        input.Memberships,
+			ExternalIdentities: input.ExternalIdentities,
+			ApiUserMappings:    input.ApiUserMappings,
+			SyncBatch:          input.SyncBatch,
 		},
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -26,6 +26,20 @@ runtime:
         if (status !== 200 || json?.status !== "ok" || !json?.data?.organization) {
           throw new Error(`admin WeCom 同步配置响应异常。status=${status} body=${JSON.stringify(json)}`)
         }
+        const config = json.data.config || {}
+        bru.setVar("wecomSourceReadinessConfigResponse", JSON.stringify({
+          status: json.status,
+          data: {
+            organization: json.data.organization ? "present" : "",
+            isConfigured: json.data.isConfigured === true,
+            config: {
+              organization: config.organization ? "present" : "",
+              corpId: config.corpId ? "present" : "",
+              addressBookSecret: config.addressBookSecret ? "***" : "",
+              isEnabled: config.isEnabled === true,
+            },
+          },
+        }))
 
 settings:
   encodeUrl: true

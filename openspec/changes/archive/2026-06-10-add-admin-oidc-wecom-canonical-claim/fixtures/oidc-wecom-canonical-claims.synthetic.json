@@ -1,0 +1,48 @@
+{
+  "issuer": "https://admin.example.invalid",
+  "authorization_request": {
+    "mode": "shared_application",
+    "client_id": "client-api-synthetic",
+    "organization": "org-alpha",
+    "redirect_uri": "https://app.example.invalid/callback",
+    "scope": "openid profile email"
+  },
+  "wecom_internal_member": {
+    "corp_id": "corp-alpha",
+    "userid": "alice",
+    "id_token_claims": {
+      "iss": "https://admin.example.invalid",
+      "sub": "org-alpha/alice",
+      "aud": ["client-api-synthetic"],
+      "azp": "client-api-synthetic",
+      "client_id": "client-api-synthetic",
+      "organization": "org-alpha",
+      "scope": "openid profile email",
+      "wecom_canonical_id": "wecom:corp-alpha:alice"
+    }
+  },
+  "missing_corp_id": {
+    "userid": "alice",
+    "id_token_claims": {
+      "iss": "https://admin.example.invalid",
+      "sub": "org-alpha/alice",
+      "aud": ["client-api-synthetic"],
+      "client_id": "client-api-synthetic",
+      "organization": "org-alpha"
+    },
+    "omitted_claims": ["wecom_canonical_id"]
+  },
+  "non_wecom_login": {
+    "id_token_claims": {
+      "iss": "https://admin.example.invalid",
+      "sub": "org-alpha/alice",
+      "aud": ["client-api-synthetic"],
+      "client_id": "client-api-synthetic",
+      "organization": "org-alpha",
+      "email": "alice@example.invalid",
+      "phone_number": "+15555550100"
+    },
+    "omitted_claims": ["wecom_canonical_id"],
+    "not_allowed_fallbacks": ["email", "username", "nickname", "phone_number", "userinfo"]
+  }
+}

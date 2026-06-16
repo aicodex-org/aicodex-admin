@@ -1,0 +1,64 @@
+info:
+  name: Controlled Smoke Operator Decision Handoff
+  type: http
+  seq: 13
+  tags:
+    - smoke
+    - gateway-projection
+    - controlled-smoke
+    - operator-decision
+    - readonly
+    - local-only
+
+http:
+  method: GET
+  url: "{{baseUrl}}/__local_only__/gateway-projection/controlled-smoke/operator-decision-handoff"
+
+runtime:
+  scripts:
+    - type: pre-request
+      code: |-
+        function loadControlledSmokeOperatorDecisionHandoff() {
+          try {
+            return require("../scripts/gatewayProjectionControlledSmokeOperatorDecisionHandoff")
+          } catch (error) {
+            return require("./scripts/gatewayProjectionControlledSmokeOperatorDecisionHandoff")
+          }
+        }
+
+        function parseJsonVar(name) {
+          const raw = bru.getVar(name) || bru.getEnvVar(name)
+          if (!raw) {
+            return undefined
+          }
+          return typeof raw === "string" ? JSON.parse(raw) : raw
+        }
+
+        function boolVar(name) {
+          return String(bru.getVar(name) || bru.getEnvVar(name) || "").toLowerCase() === "true"
+        }
+
+        const {createGatewayProjectionControlledSmokeOperatorDecisionHandoff} = loadControlledSmokeOperatorDecisionHandoff()
+        const handoff = createGatewayProjectionControlledSmokeOperatorDecisionHandoff({
+          operatorTriageHandoffSummary: parseJsonVar("gatewayProjectionControlledSmokeOperatorTriageHandoff"),
+          resultEvidenceHandoffSummary: parseJsonVar("gatewayProjectionControlledSmokeResultEvidenceHandoff"),
+          executionHandoffSummary: parseJsonVar("gatewayProjectionControlledSmokeExecutionHandoff"),
+          releaseSummaryHandoffSummary: parseJsonVar("gatewayProjectionControlledSmokeReleaseSummaryHandoff"),
+          operatorMetadata: parseJsonVar("gatewayProjectionControlledSmokeOperatorDecisionMetadata"),
+          operatorNote: bru.getVar("gatewayProjectionControlledSmokeOperatorDecisionNote") || bru.getEnvVar("gatewayProjectionControlledSmokeOperatorDecisionNote"),
+        }, {
+          sourceAlias: bru.getVar("gatewayProjectionControlledSmokeOperatorDecisionSourceAlias") || bru.getEnvVar("gatewayProjectionControlledSmokeOperatorDecisionSourceAlias") || "bruno-controlled-smoke-operator-decision-handoff",
+        })
+
+        console.log(JSON.stringify(handoff, null, 2))
+        if (handoff.status !== "ready-for-operator-decision-handoff" && boolVar("gatewayProjectionRequireControlledSmokeOperatorDecisionReady")) {
+          throw new Error(`projection controlled smoke operator decision handoff blocked status=${handoff.status} blocker=${handoff.blockerAlias}`)
+        }
+
+        throw new Error("local-only controlled smoke operator decision handoff completed before network request; copy the sanitized console output")
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

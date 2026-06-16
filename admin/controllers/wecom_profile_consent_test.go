@@ -16,6 +16,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -199,6 +200,7 @@ func TestCreateWecomProfileConsentLoginIntent(t *testing.T) {
 				ExpiresAt: time.Date(2026, 6, 4, 10, 30, 0, 0, time.UTC),
 			},
 			Secrets: &object.WecomProfileConsentIssuedSecrets{
+				State:     object.BuildWecomProfileConsentState("intent-login-1", "nonce-1"),
 				PollToken: "poll-token-1",
 			},
 			AuthURL: "https://open.weixin.qq.com/connect/oauth2/authorize?scope=snsapi_privateinfo#wechat_redirect",
@@ -245,6 +247,10 @@ func TestCreateWecomProfileConsentLoginIntent(t *testing.T) {
 	if data["pollToken"] != "poll-token-1" {
 		t.Fatalf("pollToken = %#v, want poll-token-1", data["pollToken"])
 	}
+	shortAuthURL, ok := data["shortAuthUrl"].(string)
+	if !ok || !strings.Contains(shortAuthURL, "/api/wecom-profile-consent/intents/intent-login-1/authorize?state=") {
+		t.Fatalf("shortAuthUrl = %#v, want short authorize URL", data["shortAuthUrl"])
+	}
 
 	cookies := recorder.Result().Cookies()
 	foundCookie := false
@@ -256,6 +262,335 @@ func TestCreateWecomProfileConsentLoginIntent(t *testing.T) {
 	}
 	if !foundCookie {
 		t.Fatalf("cookie %q was not set", object.WecomProfileConsentClientCookieName)
+	}
+}
+
+func TestCreateWecomProfileConsentLoginIntentRejectsInvalidRequests(t *testing.T) {
+	oldGetApplication := getWecomProfileConsentApplication
+	oldGetProvider := getWecomProfileConsentProvider
+	oldNewIssuer := newWecomProfileConsentIntentIssuer
+	defer func() {
+		getWecomProfileConsentApplication = oldGetApplication
+		getWecomProfileConsentProvider = oldGetProvider
+		newWecomProfileConsentIntentIssuer = oldNewIssuer
+	}()
+
+	tests := []struct {
+		name      string
+		body      string
+		app       *object.Application
+		appErr    error
+		provider  *object.Provider
+		provErr   error
+		issuerErr error
+	}{
+		{
+			name: "invalid json",
+			body: "{",
+		},
+		{
+			name: "missing application",
+			body: `{"provider":"admin/wecom-internal"}`,
+		},
+		{
+			name: "missing provider",
+			body: `{"application":"app-built-in"}`,
+		},
+		{
+			name:   "application lookup error",
+			body:   `{"application":"app-built-in","provider":"admin/wecom-internal"}`,
+			appErr: errors.New("application lookup failed"),
+		},
+		{
+			name: "application is missing",
+			body: `{"application":"app-built-in","provider":"admin/wecom-internal"}`,
+			app:  nil,
+		},
+		{
+			name: "provider is not enabled",
+			body: `{"application":"app-built-in","provider":"admin/wecom-internal"}`,
+			app:  &object.Application{Owner: "admin", Name: "app-built-in", Organization: "built-in"},
+		},
+		{
+			name:    "provider lookup error",
+			body:    `{"application":"app-built-in","provider":"admin/wecom-internal"}`,
+			app:     newWecomProfileConsentTestApplication(),
+			provErr: errors.New("provider lookup failed"),
+		},
+		{
+			name:     "provider is missing",
+			body:     `{"application":"app-built-in","provider":"admin/wecom-internal"}`,
+			app:      newWecomProfileConsentTestApplication(),
+			provider: nil,
+		},
+		{
+			name: "provider configuration is incomplete",
+			body: `{"application":"app-built-in","provider":"admin/wecom-internal"}`,
+			app:  newWecomProfileConsentTestApplication(),
+			provider: func() *object.Provider {
+				provider := newWecomProfileConsentTestProvider()
+				provider.ClientSecret = ""
+				return provider
+			}(),
+		},
+		{
+			name:      "issuer returns error",
+			body:      `{"application":"app-built-in","provider":"admin/wecom-internal"}`,
+			app:       newWecomProfileConsentTestApplication(),
+			provider:  newWecomProfileConsentTestProvider(),
+			issuerErr: errors.New("issuer failed"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeIssuer := &fakeWecomProfileConsentLoginIntentIssuer{err: tt.issuerErr}
+			getWecomProfileConsentApplication = func(id string) (*object.Application, error) {
+				if tt.appErr != nil {
+					return nil, tt.appErr
+				}
+				return tt.app, nil
+			}
+			getWecomProfileConsentProvider = func(id string) (*object.Provider, error) {
+				if tt.provErr != nil {
+					return nil, tt.provErr
+				}
+				return tt.provider, nil
+			}
+			newWecomProfileConsentIntentIssuer = func() wecomProfileConsentLoginIntentIssuer {
+				return fakeIssuer
+			}
+
+			controller, recorder := newWecomProfileConsentTestController(t, tt.body)
+			controller.CreateWecomProfileConsentLoginIntent()
+
+			var response map[string]interface{}
+			if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+				t.Fatalf("response json error = %v, body = %s", err, recorder.Body.String())
+			}
+			if response["status"] != "error" {
+				t.Fatalf("response = %#v, want error", response)
+			}
+			if tt.issuerErr == nil && fakeIssuer.request != nil {
+				t.Fatalf("issuer should not be called for invalid request: %#v", fakeIssuer.request)
+			}
+		})
+	}
+}
+
+func TestAuthorizeWecomProfileConsentIntentRedirectsToOAuthURL(t *testing.T) {
+	oldGetIntent := getWecomProfileConsentIntentByName
+	oldExpireIntent := expireWecomProfileConsentIntentIfNeeded
+	oldGetProvider := getWecomProfileConsentProvider
+	defer func() {
+		getWecomProfileConsentIntentByName = oldGetIntent
+		expireWecomProfileConsentIntentIfNeeded = oldExpireIntent
+		getWecomProfileConsentProvider = oldGetProvider
+	}()
+
+	intent, issued := newWecomProfileConsentCompleteTestIntent(t, "intent-short-1", object.WecomProfileConsentIntentStatusPending)
+	intent.ExpiresAt = time.Now().Add(5 * time.Minute).UTC()
+	getWecomProfileConsentIntentByName = func(name string) (*object.WecomProfileConsentIntent, error) {
+		if name != "intent-short-1" {
+			t.Fatalf("intent name = %q, want intent-short-1", name)
+		}
+		return intent, nil
+	}
+	expireWecomProfileConsentIntentIfNeeded = func(name string, now time.Time) (*object.WecomProfileConsentIntent, bool, error) {
+		return intent, false, nil
+	}
+	getWecomProfileConsentProvider = func(id string) (*object.Provider, error) {
+		if id != "admin/wecom-internal" {
+			t.Fatalf("provider id = %q, want admin/wecom-internal", id)
+		}
+		return newWecomProfileConsentTestProvider(), nil
+	}
+
+	controller, recorder := newWecomProfileConsentTestControllerWithRequest(t, http.MethodGet, "/api/wecom-profile-consent/intents/intent-short-1/authorize?state="+issued.State, "")
+	controller.Ctx.Input.SetParam(":intentId", "intent-short-1")
+	controller.AuthorizeWecomProfileConsentIntent()
+
+	if recorder.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302", recorder.Code)
+	}
+	location := recorder.Header().Get("Location")
+	if !strings.HasPrefix(location, "https://open.weixin.qq.com/connect/oauth2/authorize?") {
+		t.Fatalf("Location = %q, want WeCom OAuth2 URL", location)
+	}
+	if !strings.Contains(location, "scope=snsapi_privateinfo") || !strings.Contains(location, "state="+issued.State) {
+		t.Fatalf("Location = %q, want sensitive scope and original state", location)
+	}
+	if !strings.Contains(location, "redirect_uri=https%3A%2F%2Fdoor.example.com%2Fapi%2Fwecom-profile-consent%2Fcallback") {
+		t.Fatalf("Location = %q, want callback URL", location)
+	}
+}
+
+func TestAuthorizeWecomProfileConsentIntentRejectsInvalidState(t *testing.T) {
+	oldGetIntent := getWecomProfileConsentIntentByName
+	oldExpireIntent := expireWecomProfileConsentIntentIfNeeded
+	defer func() {
+		getWecomProfileConsentIntentByName = oldGetIntent
+		expireWecomProfileConsentIntentIfNeeded = oldExpireIntent
+	}()
+
+	intent, _ := newWecomProfileConsentCompleteTestIntent(t, "intent-short-invalid", object.WecomProfileConsentIntentStatusPending)
+	intent.ExpiresAt = time.Now().Add(5 * time.Minute).UTC()
+	getWecomProfileConsentIntentByName = func(name string) (*object.WecomProfileConsentIntent, error) {
+		return intent, nil
+	}
+	expireWecomProfileConsentIntentIfNeeded = func(name string, now time.Time) (*object.WecomProfileConsentIntent, bool, error) {
+		return intent, false, nil
+	}
+
+	controller, recorder := newWecomProfileConsentTestControllerWithRequest(t, http.MethodGet, "/api/wecom-profile-consent/intents/intent-short-invalid/authorize?state=invalid-state", "")
+	controller.Ctx.Input.SetParam(":intentId", "intent-short-invalid")
+	controller.AuthorizeWecomProfileConsentIntent()
+
+	if recorder.Code == http.StatusFound {
+		t.Fatalf("status = %d, must not redirect invalid state", recorder.Code)
+	}
+	if strings.Contains(recorder.Body.String(), "poll-token") {
+		t.Fatalf("response leaked poll token: %s", recorder.Body.String())
+	}
+}
+
+func TestAuthorizeWecomProfileConsentIntentRejectsUnsafeRequests(t *testing.T) {
+	oldGetIntent := getWecomProfileConsentIntentByName
+	oldExpireIntent := expireWecomProfileConsentIntentIfNeeded
+	oldGetProvider := getWecomProfileConsentProvider
+	defer func() {
+		getWecomProfileConsentIntentByName = oldGetIntent
+		expireWecomProfileConsentIntentIfNeeded = oldExpireIntent
+		getWecomProfileConsentProvider = oldGetProvider
+	}()
+
+	tests := []struct {
+		name        string
+		state       func(intent *object.WecomProfileConsentIntent, issued *object.WecomProfileConsentIssuedSecrets) string
+		configure   func(intent *object.WecomProfileConsentIntent)
+		nilIntent   bool
+		refreshed   *object.WecomProfileConsentIntent
+		providerSet bool
+		provider    *object.Provider
+		providerErr error
+	}{
+		{
+			name: "missing state",
+			state: func(intent *object.WecomProfileConsentIntent, issued *object.WecomProfileConsentIssuedSecrets) string {
+				return ""
+			},
+		},
+		{
+			name: "state belongs to another intent",
+			state: func(intent *object.WecomProfileConsentIntent, issued *object.WecomProfileConsentIssuedSecrets) string {
+				return object.BuildWecomProfileConsentState("other-intent", "nonce")
+			},
+		},
+		{
+			name:      "intent is not found",
+			nilIntent: true,
+		},
+		{
+			name: "state hash mismatch",
+			state: func(intent *object.WecomProfileConsentIntent, issued *object.WecomProfileConsentIssuedSecrets) string {
+				return object.BuildWecomProfileConsentState(intent.Name, "different-nonce")
+			},
+		},
+		{
+			name: "expired refreshed intent",
+			refreshed: func() *object.WecomProfileConsentIntent {
+				intent, _ := newWecomProfileConsentCompleteTestIntent(t, "intent-short-unsafe", object.WecomProfileConsentIntentStatusExpired)
+				return intent
+			}(),
+		},
+		{
+			name: "completed intent",
+			configure: func(intent *object.WecomProfileConsentIntent) {
+				intent.Status = object.WecomProfileConsentIntentStatusCompleted
+			},
+		},
+		{
+			name: "profile sync intent",
+			configure: func(intent *object.WecomProfileConsentIntent) {
+				intent.IntentType = object.WecomProfileConsentIntentTypeProfileSync
+			},
+		},
+		{
+			name:        "provider lookup error",
+			providerErr: errors.New("provider lookup failed"),
+		},
+		{
+			name:        "provider is missing",
+			providerSet: true,
+			provider:    nil,
+		},
+		{
+			name:      "corp boundary mismatch",
+			configure: func(intent *object.WecomProfileConsentIntent) { intent.CorpId = "ww-other" },
+		},
+		{
+			name:      "agent boundary mismatch",
+			configure: func(intent *object.WecomProfileConsentIntent) { intent.AgentId = "1000003" },
+		},
+		{
+			name: "provider configuration is incomplete",
+			provider: func() *object.Provider {
+				provider := newWecomProfileConsentTestProvider()
+				provider.ClientSecret = ""
+				return provider
+			}(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			intent, issued := newWecomProfileConsentCompleteTestIntent(t, "intent-short-unsafe", object.WecomProfileConsentIntentStatusPending)
+			intent.ExpiresAt = time.Now().Add(5 * time.Minute).UTC()
+			if tt.configure != nil {
+				tt.configure(intent)
+			}
+			state := issued.State
+			if tt.state != nil {
+				state = tt.state(intent, issued)
+			}
+
+			getWecomProfileConsentIntentByName = func(name string) (*object.WecomProfileConsentIntent, error) {
+				if tt.nilIntent {
+					return nil, nil
+				}
+				return intent, nil
+			}
+			expireWecomProfileConsentIntentIfNeeded = func(name string, now time.Time) (*object.WecomProfileConsentIntent, bool, error) {
+				if tt.refreshed != nil {
+					return tt.refreshed, true, nil
+				}
+				return intent, false, nil
+			}
+			getWecomProfileConsentProvider = func(id string) (*object.Provider, error) {
+				if tt.providerErr != nil {
+					return nil, tt.providerErr
+				}
+				if tt.providerSet || tt.provider != nil {
+					return tt.provider, nil
+				}
+				return newWecomProfileConsentTestProvider(), nil
+			}
+
+			target := "/api/wecom-profile-consent/intents/intent-short-unsafe/authorize"
+			if state != "" {
+				target += "?state=" + state
+			}
+			controller, recorder := newWecomProfileConsentTestControllerWithRequest(t, http.MethodGet, target, "")
+			controller.Ctx.Input.SetParam(":intentId", "intent-short-unsafe")
+			controller.AuthorizeWecomProfileConsentIntent()
+
+			if recorder.Code == http.StatusFound {
+				t.Fatalf("status = %d, must not redirect unsafe request", recorder.Code)
+			}
+			if strings.Contains(recorder.Body.String(), issued.PollToken) {
+				t.Fatalf("response leaked poll token: %s", recorder.Body.String())
+			}
+		})
 	}
 }
 

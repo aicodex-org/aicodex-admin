@@ -1,0 +1,73 @@
+info:
+  name: Evidence Snapshot
+  type: http
+  seq: 4
+  tags:
+    - smoke
+    - organization-tree-operations
+    - evidence
+    - readonly
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/organization-tree-operations/diagnostics?organization={{organizationTreeOperationsOrganization}}"
+
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        const organization = bru.getVar("organizationTreeOperationsOrganization") || bru.getEnvVar("organizationTreeOperationsOrganization") || bru.getVar("wecomOrganization") || bru.getEnvVar("wecomOrganization")
+        if (!organization) {
+          throw new Error("请设置 organizationTreeOperationsOrganization 或 wecomOrganization。evidence snapshot 只读诊断，不触发 read model 重建。")
+        }
+        bru.setVar("organizationTreeOperationsOrganization", String(organization))
+    - type: after-response
+      code: |-
+        function loadSnapshot() {
+          try {
+            return require("../scripts/organizationTreeOperationsEvidenceSnapshot")
+          } catch (error) {
+            return require("./scripts/organizationTreeOperationsEvidenceSnapshot")
+          }
+        }
+
+        function parseJsonVar(name) {
+          const raw = bru.getVar(name) || bru.getEnvVar(name)
+          if (!raw) {
+            return undefined
+          }
+          return typeof raw === "string" ? JSON.parse(raw) : raw
+        }
+
+        function boolVar(name) {
+          return String(bru.getVar(name) || bru.getEnvVar(name) || "").toLowerCase() === "true"
+        }
+
+        const status = res.getStatus()
+        const body = res.getBody()
+        const diagnosticsResponse = typeof body === "string" ? JSON.parse(body) : body
+        if (status !== 200) {
+          throw new Error(`admin 组织树 evidence snapshot 诊断响应异常。status=${status} statusField=${diagnosticsResponse?.status}`)
+        }
+
+        const {createOrganizationTreeOperationsEvidenceSnapshot} = loadSnapshot()
+        const snapshot = createOrganizationTreeOperationsEvidenceSnapshot({
+          diagnosticsResponse,
+          refreshStatusResponse: parseJsonVar("organizationTreeOperationsRefreshStatusResponse"),
+          organizationTreeResponse: parseJsonVar("organizationTreeOperationsTreeResponse"),
+        }, {
+          requireNonEmptyTree: boolVar("organizationTreeOperationsRequireNonEmpty"),
+          requireRefreshStatus: boolVar("organizationTreeOperationsRequireRefreshStatus"),
+          requireTreeResponse: boolVar("organizationTreeOperationsRequireTreeResponse"),
+        })
+
+        console.log(JSON.stringify(snapshot, null, 2))
+        if (boolVar("organizationTreeOperationsRequireEvidenceReady") && snapshot.status !== "ready") {
+          throw new Error(`organization tree evidence snapshot not ready status=${snapshot.status} aliases=${snapshot.aliases.join("|") || "none"}`)
+        }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

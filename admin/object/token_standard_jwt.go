@@ -33,7 +33,11 @@ type ClaimsStandard struct {
 	Scope               string      `json:"scope,omitempty"`
 	Address             OIDCAddress `json:"address,omitempty"`
 	Azp                 string      `json:"azp,omitempty"`
+	ClientId            string      `json:"client_id,omitempty"`
+	Organization        string      `json:"organization,omitempty"`
 	Provider            string      `json:"provider,omitempty"`
+	// WecomCanonicalId 是签名 id_token 中给下游绑定使用的企业微信强身份，不能替代稳定 admin subject。
+	WecomCanonicalId string `json:"wecom_canonical_id,omitempty"`
 
 	jwt.RegisteredClaims
 }
@@ -46,6 +50,36 @@ func getStreetAddress(user *User) string {
 	return addrs
 }
 
+// getWecomCanonicalId 只从企业微信强身份字段生成 canonical claim，缺失字段或非企业微信登录时 fail closed。
+func getWecomCanonicalId(claims Claims) string {
+	if claims.User == nil || !isWecomLoginClaims(claims) {
+		return ""
+	}
+
+	corpId := ""
+	wecomUserId := strings.TrimSpace(claims.User.Wecom)
+	if claims.User.Properties != nil {
+		corpId = strings.TrimSpace(claims.User.Properties[WecomUserPropertyCorpId])
+		if value := strings.TrimSpace(claims.User.Properties[WecomUserPropertyUserId]); value != "" {
+			wecomUserId = value
+		}
+	}
+
+	if corpId == "" || wecomUserId == "" {
+		return ""
+	}
+	return fmt.Sprintf("wecom:%s:%s", corpId, wecomUserId)
+}
+
+// isWecomLoginClaims 优先信任显式 signinMethod，避免非企业微信登录仅靠 provider 字段伪造 claim。
+func isWecomLoginClaims(claims Claims) bool {
+	signinMethod := strings.TrimSpace(claims.SigninMethod)
+	if signinMethod != "" {
+		return strings.EqualFold(signinMethod, "wecom")
+	}
+	return strings.EqualFold(strings.TrimSpace(claims.Provider), "WeCom")
+}
+
 func getStandardClaims(claims Claims) ClaimsStandard {
 	res := ClaimsStandard{
 		UserStandard:     getStandardUser(claims.User),
@@ -55,7 +89,10 @@ func getStandardClaims(claims Claims) ClaimsStandard {
 		Scope:            claims.Scope,
 		RegisteredClaims: claims.RegisteredClaims,
 		Azp:              claims.Azp,
+		ClientId:         claims.ClientId,
+		Organization:     claims.Organization,
 		Provider:         claims.Provider,
+		WecomCanonicalId: getWecomCanonicalId(claims),
 	}
 
 	res.Phone = ""

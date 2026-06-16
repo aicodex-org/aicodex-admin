@@ -40,6 +40,17 @@ The system SHALL provide an authenticated API that returns the current user's ma
 - **WHEN** a normal user who does not manage any enabled department and has no direct or indirect subordinates requests the current management scope
 - **THEN** the system returns only the user's own scope
 
+#### Scenario: Organization tree uses the same backend scope calculation
+- **WHEN** organization-tree provider computes visible nodes for Insight or downstream diagnostics
+- **THEN** the system uses the same backend-managed platform organization scope rules
+- **AND** the result SHALL NOT rely on frontend filtering, display names, phone numbers, emails, source tenant IDs, or management page JSON as authorization facts
+- **AND** the provider SHALL reuse or extract the same platform organization scope calculation used by the management scope service instead of maintaining an independent legacy `Group.Manager` authorization path
+
+#### Scenario: Direct leader scope does not imply department subtree
+- **WHEN** a user only has direct leader scope over subordinate users
+- **THEN** organization-tree provider SHALL NOT convert that relationship into full department subtree visibility
+- **AND** any display nodes returned for subordinate users SHALL be limited to confirmed enabled departments that contain those users and SHALL NOT include ancestor, sibling, or descendant expansion unless separately authorized by department manager scope
+
 ### Requirement: Scope response identifiers
 The system SHALL include stable local, platform, and source metadata identifiers in the management scope response so downstream systems can enforce data filters without relying on display names.
 
@@ -50,6 +61,11 @@ The system SHALL include stable local, platform, and source metadata identifiers
 #### Scenario: Department response includes hierarchy identifiers
 - **WHEN** the system returns manageable departments
 - **THEN** each department entry includes local group ID, local group name, platform department ID, parent department identity, display name, source metadata when available, and lifecycle status
+
+#### Scenario: Organization tree response includes filter-ready hierarchy identifiers
+- **WHEN** organization-tree provider returns visible departments
+- **THEN** each node includes stable platform department identity, parent platform department identity, display path, source metadata, lifecycle status, optional visibility source and version/freshness context
+- **AND** consumers SHALL use stable identifiers rather than display names for filters or joins
 
 #### Scenario: Response includes scope type
 - **WHEN** the system returns a management scope response

@@ -23,46 +23,62 @@ import (
 
 // DynamicClientRegistrationRequest represents an RFC 7591 client registration request
 type DynamicClientRegistrationRequest struct {
-	ClientName              string   `json:"client_name,omitempty"`
-	RedirectUris            []string `json:"redirect_uris,omitempty"`
-	GrantTypes              []string `json:"grant_types,omitempty"`
-	ResponseTypes           []string `json:"response_types,omitempty"`
-	TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method,omitempty"`
-	ApplicationType         string   `json:"application_type,omitempty"`
-	Contacts                []string `json:"contacts,omitempty"`
-	LogoUri                 string   `json:"logo_uri,omitempty"`
-	ClientUri               string   `json:"client_uri,omitempty"`
-	PolicyUri               string   `json:"policy_uri,omitempty"`
-	TosUri                  string   `json:"tos_uri,omitempty"`
-	Scope                   string   `json:"scope,omitempty"`
+	ClientName                 string   `json:"client_name,omitempty"`
+	RedirectUris               []string `json:"redirect_uris,omitempty"`
+	GrantTypes                 []string `json:"grant_types,omitempty"`
+	ResponseTypes              []string `json:"response_types,omitempty"`
+	TokenEndpointAuthMethod    string   `json:"token_endpoint_auth_method,omitempty"`
+	ApplicationType            string   `json:"application_type,omitempty"`
+	OrganizationResolutionMode string   `json:"organization_resolution_mode,omitempty"`
+	Contacts                   []string `json:"contacts,omitempty"`
+	LogoUri                    string   `json:"logo_uri,omitempty"`
+	ClientUri                  string   `json:"client_uri,omitempty"`
+	PolicyUri                  string   `json:"policy_uri,omitempty"`
+	TosUri                     string   `json:"tos_uri,omitempty"`
+	Scope                      string   `json:"scope,omitempty"`
 }
 
 // DynamicClientRegistrationResponse represents an RFC 7591 client registration response
 type DynamicClientRegistrationResponse struct {
-	ClientId                string   `json:"client_id"`
-	ClientSecret            string   `json:"client_secret,omitempty"`
-	ClientIdIssuedAt        int64    `json:"client_id_issued_at,omitempty"`
-	ClientSecretExpiresAt   int64    `json:"client_secret_expires_at,omitempty"`
-	ClientName              string   `json:"client_name,omitempty"`
-	RedirectUris            []string `json:"redirect_uris,omitempty"`
-	GrantTypes              []string `json:"grant_types,omitempty"`
-	ResponseTypes           []string `json:"response_types,omitempty"`
-	TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method,omitempty"`
-	ApplicationType         string   `json:"application_type,omitempty"`
-	Contacts                []string `json:"contacts,omitempty"`
-	LogoUri                 string   `json:"logo_uri,omitempty"`
-	ClientUri               string   `json:"client_uri,omitempty"`
-	PolicyUri               string   `json:"policy_uri,omitempty"`
-	TosUri                  string   `json:"tos_uri,omitempty"`
-	Scope                   string   `json:"scope,omitempty"`
-	RegistrationClientUri   string   `json:"registration_client_uri,omitempty"`
-	RegistrationAccessToken string   `json:"registration_access_token,omitempty"`
+	ClientId                   string   `json:"client_id"`
+	ClientSecret               string   `json:"client_secret,omitempty"`
+	ClientIdIssuedAt           int64    `json:"client_id_issued_at,omitempty"`
+	ClientSecretExpiresAt      int64    `json:"client_secret_expires_at,omitempty"`
+	ClientName                 string   `json:"client_name,omitempty"`
+	RedirectUris               []string `json:"redirect_uris,omitempty"`
+	GrantTypes                 []string `json:"grant_types,omitempty"`
+	ResponseTypes              []string `json:"response_types,omitempty"`
+	TokenEndpointAuthMethod    string   `json:"token_endpoint_auth_method,omitempty"`
+	ApplicationType            string   `json:"application_type,omitempty"`
+	OrganizationResolutionMode string   `json:"organization_resolution_mode,omitempty"`
+	Organization               string   `json:"organization,omitempty"`
+	Contacts                   []string `json:"contacts,omitempty"`
+	LogoUri                    string   `json:"logo_uri,omitempty"`
+	ClientUri                  string   `json:"client_uri,omitempty"`
+	PolicyUri                  string   `json:"policy_uri,omitempty"`
+	TosUri                     string   `json:"tos_uri,omitempty"`
+	Scope                      string   `json:"scope,omitempty"`
+	RegistrationClientUri      string   `json:"registration_client_uri,omitempty"`
+	RegistrationAccessToken    string   `json:"registration_access_token,omitempty"`
 }
 
 // DcrError represents an RFC 7591 error response
 type DcrError struct {
 	Error            string `json:"error"`
 	ErrorDescription string `json:"error_description,omitempty"`
+}
+
+func normalizeDynamicClientOrganizationResolutionMode(req *DynamicClientRegistrationRequest) *DcrError {
+	if req.OrganizationResolutionMode == "" {
+		req.OrganizationResolutionMode = ApplicationOrganizationResolutionModeOrganizationBound
+	}
+	if req.OrganizationResolutionMode != ApplicationOrganizationResolutionModeOrganizationBound {
+		return &DcrError{
+			Error:            "invalid_client_metadata",
+			ErrorDescription: "dynamic client registration only supports organization_bound clients by default",
+		}
+	}
+	return nil
 }
 
 // RegisterDynamicClient creates a new application based on DCR request
@@ -115,6 +131,9 @@ func RegisterDynamicClient(req *DynamicClientRegistrationRequest, organization s
 	if req.ApplicationType == "" {
 		req.ApplicationType = "web"
 	}
+	if dcrErr := normalizeDynamicClientOrganizationResolutionMode(req); dcrErr != nil {
+		return nil, dcrErr, nil
+	}
 
 	// Generate unique application name
 	randomName := util.GetRandomName()
@@ -128,33 +147,34 @@ func RegisterDynamicClient(req *DynamicClientRegistrationRequest, organization s
 	createdTime := util.GetCurrentTime()
 
 	application := &Application{
-		Owner:                "admin",
-		Name:                 appName,
-		Organization:         organization,
-		CreatedTime:          createdTime,
-		DisplayName:          req.ClientName,
-		Category:             "Agent",
-		Type:                 "MCP",
-		Scopes:               []*ScopeItem{},
-		Logo:                 req.LogoUri,
-		HomepageUrl:          req.ClientUri,
-		ClientId:             clientId,
-		ClientSecret:         clientSecret,
-		RedirectUris:         req.RedirectUris,
-		GrantTypes:           req.GrantTypes,
-		EnablePassword:       false,
-		EnableSignUp:         false,
-		DisableSignin:        false,
-		EnableSigninSession:  false,
-		EnableCodeSignin:     true,
-		EnableAutoSignin:     false,
-		TokenFormat:          "JWT",
-		ExpireInHours:        168,
-		RefreshExpireInHours: 168,
-		CookieExpireInHours:  720,
-		FormOffset:           2,
-		Tags:                 []string{"dcr"},
-		TermsOfUse:           req.TosUri,
+		Owner:                      "admin",
+		Name:                       appName,
+		Organization:               organization,
+		OrganizationResolutionMode: ApplicationOrganizationResolutionModeOrganizationBound,
+		CreatedTime:                createdTime,
+		DisplayName:                req.ClientName,
+		Category:                   "Agent",
+		Type:                       "MCP",
+		Scopes:                     []*ScopeItem{},
+		Logo:                       req.LogoUri,
+		HomepageUrl:                req.ClientUri,
+		ClientId:                   clientId,
+		ClientSecret:               clientSecret,
+		RedirectUris:               req.RedirectUris,
+		GrantTypes:                 req.GrantTypes,
+		EnablePassword:             false,
+		EnableSignUp:               false,
+		DisableSignin:              false,
+		EnableSigninSession:        false,
+		EnableCodeSignin:           true,
+		EnableAutoSignin:           false,
+		TokenFormat:                "JWT",
+		ExpireInHours:              168,
+		RefreshExpireInHours:       168,
+		CookieExpireInHours:        720,
+		FormOffset:                 2,
+		Tags:                       []string{"dcr"},
+		TermsOfUse:                 req.TosUri,
 	}
 
 	// Add the application
@@ -171,22 +191,24 @@ func RegisterDynamicClient(req *DynamicClientRegistrationRequest, organization s
 
 	// Build response
 	response := &DynamicClientRegistrationResponse{
-		ClientId:                clientId,
-		ClientSecret:            clientSecret,
-		ClientIdIssuedAt:        time.Now().Unix(),
-		ClientSecretExpiresAt:   0, // Never expires
-		ClientName:              req.ClientName,
-		RedirectUris:            req.RedirectUris,
-		GrantTypes:              req.GrantTypes,
-		ResponseTypes:           req.ResponseTypes,
-		TokenEndpointAuthMethod: req.TokenEndpointAuthMethod,
-		ApplicationType:         req.ApplicationType,
-		Contacts:                req.Contacts,
-		LogoUri:                 req.LogoUri,
-		ClientUri:               req.ClientUri,
-		PolicyUri:               req.PolicyUri,
-		TosUri:                  req.TosUri,
-		Scope:                   req.Scope,
+		ClientId:                   clientId,
+		ClientSecret:               clientSecret,
+		ClientIdIssuedAt:           time.Now().Unix(),
+		ClientSecretExpiresAt:      0, // Never expires
+		ClientName:                 req.ClientName,
+		RedirectUris:               req.RedirectUris,
+		GrantTypes:                 req.GrantTypes,
+		ResponseTypes:              req.ResponseTypes,
+		TokenEndpointAuthMethod:    req.TokenEndpointAuthMethod,
+		ApplicationType:            req.ApplicationType,
+		Contacts:                   req.Contacts,
+		LogoUri:                    req.LogoUri,
+		ClientUri:                  req.ClientUri,
+		PolicyUri:                  req.PolicyUri,
+		TosUri:                     req.TosUri,
+		Scope:                      req.Scope,
+		OrganizationResolutionMode: ApplicationOrganizationResolutionModeOrganizationBound,
+		Organization:               organization,
 	}
 
 	return response, nil, nil

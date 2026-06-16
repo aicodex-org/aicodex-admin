@@ -20,6 +20,10 @@ import * as Provider from "./Provider";
 import {MfaAuthVerifyForm, NextMfa} from "./mfa/MfaAuthVerifyForm";
 
 const WeComWidgetScript = "https://wwcdn.weixin.qq.com/node/wework/wwopen/js/wwLogin-1.2.7.js";
+// 企业微信 OAuth2 URL 较长，二维码需要显式静区，避免边缘贴边影响扫码识别。
+const WeComOAuthQRCodeSize = 256;
+const WeComOAuthQRCodeQuietZone = 12;
+const WeComOAuthScanPanelMinHeight = WeComOAuthQRCodeSize + WeComOAuthQRCodeQuietZone * 2 + 20;
 
 let widgetScriptPromise = null;
 
@@ -273,7 +277,7 @@ class WeComLoginPanel extends React.Component {
 
       this.setState({
         status: "pending",
-        authUrl: res.data.authUrl,
+        authUrl: res.data.shortAuthUrl || res.data.authUrl,
         expiresAt: res.data.expiresAt,
         intentId: res.data.intentId,
         pollToken: res.data.pollToken,
@@ -574,13 +578,22 @@ class WeComLoginPanel extends React.Component {
     }
 
     return (
-      <QRCode
-        style={{margin: "auto"}}
-        bordered={false}
-        status={this.renderQRCodeStatus()}
-        value={this.state.authUrl || " "}
-        size={230}
-      />
+      <div
+        style={{
+          display: "inline-flex",
+          padding: WeComOAuthQRCodeQuietZone,
+          backgroundColor: "#ffffff",
+          lineHeight: 0,
+        }}
+      >
+        <QRCode
+          style={{margin: "auto"}}
+          bordered={false}
+          status={this.renderQRCodeStatus()}
+          value={this.state.authUrl || " "}
+          size={WeComOAuthQRCodeSize}
+        />
+      </div>
     );
   }
 
@@ -618,7 +631,7 @@ class WeComLoginPanel extends React.Component {
         {this.renderHint()}
         <div
           style={{
-            minHeight: this.state.status === "mfa_pending" ? 350 : 240,
+            minHeight: this.state.status === "mfa_pending" ? 350 : WeComOAuthScanPanelMinHeight,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",

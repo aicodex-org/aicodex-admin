@@ -42,10 +42,11 @@ import WeComLoginPanel from "./WeComLoginPanel";
 import {CountryCodeSelect} from "../common/select/CountryCodeSelect";
 import {getSigninLanguageOverride} from "./LoginLanguage";
 import {getSigninMethodChoiceItems} from "./SigninMethodChoice";
+import {getLoginPanelClassName, shouldHidePasswordRecoveryForLoginMethod} from "./LoginPageVisibility";
 const FaceRecognitionCommonModal = lazy(() => import("../common/modal/FaceRecognitionCommonModal"));
 const FaceRecognitionModal = lazy(() => import("../common/modal/FaceRecognitionModal"));
 
-class LoginPage extends React.Component {
+export class LoginPage extends React.Component {
   constructor(props) {
     super(props);
     this.captchaRef = React.createRef();
@@ -704,8 +705,7 @@ class LoginPage extends React.Component {
 
     const clientId = searchParams.get("client_id");
     if (clientId) {
-      const clientIdSplited = clientId.split("-org-");
-      searchParams.set("client_id", `${clientIdSplited[0]}-org-${name}`);
+      searchParams.set("organization", name);
 
       Setting.goToLink(`/login/oauth/authorize?${searchParams.toString()}`);
       return;
@@ -932,17 +932,19 @@ class LoginPage extends React.Component {
         </div>
       );
     } else if (signinItem.name === "Forgot password?") {
+      if (shouldHidePasswordRecoveryForLoginMethod(this.state.loginMethod)) {
+        return null;
+      }
+
       return (
         <div key={resultItemKey}>
           <div dangerouslySetInnerHTML={{__html: ("<style>" + signinItem.customCss?.replaceAll("<style>", "").replaceAll("</style>", "") + "</style>")}} />
           <div className="login-forget-password">
-            {this.state.loginMethod === "wecom" ? null : (
-              <Form.Item name="autoSignin" valuePropName="checked" noStyle>
-                <Checkbox style={{float: "left"}}>
-                  {i18next.t("login:Auto sign in")}
-                </Checkbox>
-              </Form.Item>
-            )}
+            <Form.Item name="autoSignin" valuePropName="checked" noStyle>
+              <Checkbox style={{float: "left"}}>
+                {i18next.t("login:Auto sign in")}
+              </Checkbox>
+            </Form.Item>
             {
               signinItem.visible ? Setting.renderForgetLink(application, signinItem.label ? signinItem.label : i18next.t("login:Forgot password?")) : null
             }
@@ -1642,7 +1644,7 @@ class LoginPage extends React.Component {
         <div className="login-content" style={{margin: this.props.preview ?? this.parseOffset(application.formOffset)}}>
           {Setting.inIframe() || Setting.isMobile() ? null : <div dangerouslySetInnerHTML={{__html: application.formCss}} />}
           {Setting.inIframe() || !Setting.isMobile() ? null : <div dangerouslySetInnerHTML={{__html: application.formCssMobile}} />}
-          <div className={Setting.isDarkTheme(this.props.themeAlgorithm) ? "login-panel-dark" : "login-panel"}>
+          <div className={getLoginPanelClassName(Setting.isDarkTheme(this.props.themeAlgorithm), this.state.loginMethod)}>
             <div className="side-image" style={{display: application.formOffset !== 4 ? "none" : null}}>
               <div dangerouslySetInnerHTML={{__html: application.formSideHtml}} />
             </div>

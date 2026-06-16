@@ -115,17 +115,8 @@ func getOriginFromHost(host string) (string, string) {
 func GetOidcDiscovery(host string, applicationName string) OidcDiscovery {
 	originFrontend, originBackend := getOriginFromHost(host)
 
-	// If application is provided, use application-specific URLs
-	var issuer, jwksUri string
-	if applicationName != "" {
-		// Application-specific issuer and endpoints (owner is always "admin")
-		issuer = fmt.Sprintf("%s/.well-known/%s", originBackend, applicationName)
-		jwksUri = fmt.Sprintf("%s/.well-known/%s/jwks", originBackend, applicationName)
-	} else {
-		// Default global issuer and endpoints
-		issuer = originBackend
-		jwksUri = fmt.Sprintf("%s/.well-known/jwks", originBackend)
-	}
+	issuer := originBackend
+	jwksUri := fmt.Sprintf("%s/.well-known/jwks", originBackend)
 
 	// Default OIDC scopes
 	scopes := []string{"openid", "email", "profile", "address", "phone", "offline_access"}
@@ -165,7 +156,7 @@ func GetOidcDiscovery(host string, applicationName string) OidcDiscovery {
 		IdTokenSigningAlgValuesSupported:       []string{"RS256", "RS512", "ES256", "ES384", "ES512"},
 		ScopesSupported:                        scopes,
 		CodeChallengeMethodsSupported:          []string{"S256"},
-		ClaimsSupported:                        []string{"iss", "ver", "sub", "aud", "iat", "exp", "id", "type", "displayName", "avatar", "permanentAvatar", "email", "phone", "location", "affiliation", "title", "homepage", "bio", "tag", "region", "language", "score", "ranking", "isOnline", "isAdmin", "isForbidden", "signupApplication", "ldap"},
+		ClaimsSupported:                        []string{"iss", "ver", "sub", "aud", "iat", "exp", "id", "type", "organization", "client_id", "wecom_canonical_id", "displayName", "avatar", "permanentAvatar", "email", "phone", "location", "affiliation", "title", "homepage", "bio", "tag", "region", "language", "score", "ranking", "isOnline", "isAdmin", "isForbidden", "signupApplication", "ldap"},
 		RequestParameterSupported:              true,
 		RequestObjectSigningAlgValuesSupported: []string{"HS256", "HS384", "HS512"},
 		EndSessionEndpoint:                     fmt.Sprintf("%s/api/logout", originBackend),

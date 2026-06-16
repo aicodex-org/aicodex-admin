@@ -41,6 +41,11 @@ type ObjectWithOrg struct {
 	Organization string `json:"organization"`
 }
 
+type ObjectWithOrganizationId struct {
+	Object
+	OrganizationId string `json:"organizationId"`
+}
+
 func getUsername(ctx *context.Context) (username string) {
 	username, ok := ctx.Input.Session("username").(string)
 	if !ok || username == "" {
@@ -193,11 +198,36 @@ func getModuleOrganizationObject(path string, method string, queryOrganization s
 		if method == http.MethodGet {
 			return strings.TrimSpace(queryOrganization), "", true
 		}
+
 		var obj ObjectWithOrg
 		if err := json.Unmarshal(body, &obj); err != nil {
 			return "", "", true
 		}
 		return strings.TrimSpace(obj.Organization), obj.Name, true
+	}
+
+	if strings.HasPrefix(path, "/api/organization-tree-operations/") {
+		if method == http.MethodGet {
+			return strings.TrimSpace(queryOrganization), "", true
+		}
+
+		var obj ObjectWithOrg
+		if err := json.Unmarshal(body, &obj); err != nil {
+			return "", "", true
+		}
+		return strings.TrimSpace(obj.Organization), "", true
+	}
+
+	if isPlatformApiMappingPath(path) {
+		if method == http.MethodGet {
+			return strings.TrimSpace(queryOrganization), "", true
+		}
+
+		var obj ObjectWithOrganizationId
+		if err := json.Unmarshal(body, &obj); err != nil {
+			return "", "", true
+		}
+		return strings.TrimSpace(obj.OrganizationId), obj.Name, true
 	}
 
 	if !strings.HasPrefix(path, "/api/wecom-org-sync/") {
@@ -213,6 +243,19 @@ func getModuleOrganizationObject(path string, method string, queryOrganization s
 		return "", "", true
 	}
 	return strings.TrimSpace(obj.Organization), "", true
+}
+
+func isPlatformApiMappingPath(path string) bool {
+	switch path {
+	case "/api/get-platform-api-organization-mappings",
+		"/api/update-platform-api-organization-mapping",
+		"/api/get-platform-api-user-mappings",
+		"/api/get-platform-api-user-mapping-readiness",
+		"/api/update-platform-api-user-mapping":
+		return true
+	default:
+		return false
+	}
 }
 
 func resolveModuleOrganizationQuery(path string, queryOrganization string, currentUserId string) string {
