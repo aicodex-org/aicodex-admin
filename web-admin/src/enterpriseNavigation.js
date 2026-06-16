@@ -4,9 +4,12 @@ import {
   ApiTwoTone,
   AppstoreTwoTone,
   CheckCircleTwoTone,
+  DollarCircleTwoTone,
   HomeTwoTone,
   LockTwoTone,
-  WalletTwoTone
+  ProfileTwoTone,
+  SecurityScanTwoTone,
+  ToolTwoTone
 } from "@ant-design/icons";
 import * as Setting from "./Setting";
 
@@ -42,18 +45,7 @@ export function findNavigationSelection(uri, groups) {
   };
 }
 
-// 导航分组只改变企业认证中心的信息架构语义，叶子 key 保持兼容组织级 navItems 配置。
-export function buildEnterpriseNavigationGroups({account, themeData}) {
-  if (account === null || account === undefined) {
-    return [];
-  }
-
-  const organization = account?.organization;
-  const navItems = Setting.isLocalAdminUser(account) ? organization?.navItems : (organization?.userNavItems ?? []);
-  const navItemsIsAll = !Array.isArray(navItems) || !!navItems?.includes("all");
-  const twoToneColor = themeData?.colorPrimary;
-  const isLocalAdmin = Setting.isLocalAdminUser(account);
-  const isAdmin = Setting.isAdminUser(account);
+function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin = true, twoToneColor} = {}) {
   const groups = [
     {
       key: "/overview",
@@ -117,22 +109,44 @@ export function buildEnterpriseNavigationGroups({account, themeData}) {
       ],
     },
     {
-      key: "/audit-operations",
-      label: "审计与运维",
-      icon: <WalletTwoTone twoToneColor={twoToneColor} />,
+      key: "/authorization-governance",
+      label: "权限治理",
+      icon: <SecurityScanTwoTone twoToneColor={twoToneColor} />,
       children: [
-        {key: "/sessions", label: i18next.t("general:Sessions"), to: "/sessions", matchPrefixes: ["/sessions"]},
-        {key: "/records", label: i18next.t("general:Records"), to: "/records", matchPrefixes: ["/records"]},
-        {key: "/tokens", label: i18next.t("general:Tokens"), to: "/tokens", matchPrefixes: ["/tokens"]},
-        {key: "/verifications", label: i18next.t("general:Verifications"), to: "/verifications", matchPrefixes: ["/verifications"]},
         {key: "/roles", label: i18next.t("general:Roles"), to: "/roles", matchPrefixes: ["/roles"]},
         {key: "/permissions", label: i18next.t("general:Permissions"), to: "/permissions", matchPrefixes: ["/permissions"]},
         {key: "/models", label: i18next.t("general:Models"), to: "/models", matchPrefixes: ["/models"], visible: isLocalAdmin},
         {key: "/adapters", label: i18next.t("general:Adapters"), to: "/adapters", matchPrefixes: ["/adapters"], visible: isLocalAdmin},
         {key: "/enforcers", label: i18next.t("general:Enforcers"), to: "/enforcers", matchPrefixes: ["/enforcers"], visible: isLocalAdmin},
+      ],
+    },
+    {
+      key: "/audit-operations",
+      label: "审计与运维",
+      icon: <ProfileTwoTone twoToneColor={twoToneColor} />,
+      children: [
+        {key: "/sessions", label: i18next.t("general:Sessions"), to: "/sessions", matchPrefixes: ["/sessions"]},
+        {key: "/records", label: i18next.t("general:Records"), to: "/records", matchPrefixes: ["/records"]},
+        {key: "/tokens", label: i18next.t("general:Tokens"), to: "/tokens", matchPrefixes: ["/tokens"]},
+        {key: "/verifications", label: i18next.t("general:Verifications"), to: "/verifications", matchPrefixes: ["/verifications"]},
+      ],
+    },
+    {
+      key: "/system-tools",
+      label: "系统工具",
+      icon: <ToolTwoTone twoToneColor={twoToneColor} />,
+      children: [
         {key: "/sysinfo", label: i18next.t("general:System Info"), to: "/sysinfo", matchPrefixes: ["/sysinfo"], visible: isAdmin},
         {key: "/forms", label: i18next.t("general:Forms"), to: "/forms", matchPrefixes: ["/forms"]},
         {key: "/tickets", label: i18next.t("general:Tickets"), to: "/tickets", matchPrefixes: ["/tickets"]},
+        {key: "/swagger", label: i18next.t("general:Swagger"), external: true, href: Setting.isLocalhost() ? `${Setting.ServerUrl}/swagger` : "/swagger", matchPrefixes: ["/swagger"], visible: isAdmin},
+      ],
+    },
+    {
+      key: "/commerce-billing",
+      label: "商业与计费",
+      icon: <DollarCircleTwoTone twoToneColor={twoToneColor} />,
+      children: [
         {key: "/product-store", label: i18next.t("general:Product Store"), to: "/product-store", matchPrefixes: ["/product-store"]},
         {key: "/products", label: i18next.t("general:Products"), to: "/products", matchPrefixes: ["/products"]},
         {key: "/cart", label: i18next.t("general:Cart"), to: "/cart", matchPrefixes: ["/cart"]},
@@ -142,11 +156,46 @@ export function buildEnterpriseNavigationGroups({account, themeData}) {
         {key: "/pricings", label: i18next.t("general:Pricings"), to: "/pricings", matchPrefixes: ["/pricings"]},
         {key: "/subscriptions", label: i18next.t("general:Subscriptions"), to: "/subscriptions", matchPrefixes: ["/subscriptions"]},
         {key: "/transactions", label: i18next.t("general:Transactions"), to: "/transactions", matchPrefixes: ["/transactions"]},
-        {key: "/swagger", label: i18next.t("general:Swagger"), external: true, href: Setting.isLocalhost() ? `${Setting.ServerUrl}/swagger` : "/swagger", matchPrefixes: ["/swagger"], visible: isAdmin},
       ],
     },
   ];
 
+  return groups;
+}
+
+export function buildEnterpriseNavigationConfigTreeData() {
+  const groups = buildEnterpriseNavigationGroupDefinitions({isAdmin: true, isLocalAdmin: true});
+
+  return [
+    {
+      title: i18next.t("general:All"),
+      key: "all",
+      children: groups.map((group) => ({
+        title: group.label,
+        key: `${group.key}-top`,
+        children: group.children.map((item) => ({
+          title: item.label,
+          key: item.key,
+        })),
+      })),
+    },
+  ];
+}
+
+// 导航分组只改变企业认证中心的信息架构语义，叶子 key 保持兼容组织级 navItems 配置。
+export function buildEnterpriseNavigationGroups({account, themeData}) {
+  if (account === null || account === undefined) {
+    return [];
+  }
+
+  const organization = account?.organization;
+  const navItems = Setting.isLocalAdminUser(account) ? organization?.navItems : (organization?.userNavItems ?? []);
+  const navItemsIsAll = !Array.isArray(navItems) || !!navItems?.includes("all");
+  const groups = buildEnterpriseNavigationGroupDefinitions({
+    isAdmin: Setting.isAdminUser(account),
+    isLocalAdmin: Setting.isLocalAdminUser(account),
+    twoToneColor: themeData?.colorPrimary,
+  });
   const allowedItems = navItemsIsAll ? null : new Set(navItems);
 
   return groups

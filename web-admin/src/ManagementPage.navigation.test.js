@@ -1,3 +1,4 @@
+/* eslint-env jest */
 import {buildEnterpriseNavigationGroups, findNavigationSelection} from "./enterpriseNavigation";
 
 const localAdminAccount = {
@@ -22,7 +23,10 @@ describe("enterprise identity navigation", () => {
       "认证源",
       "应用接入",
       "Gateway 投影",
+      "权限治理",
       "审计与运维",
+      "系统工具",
+      "商业与计费",
     ]);
     expect(groups.find(group => group.key === "/identity-sources").children.map(item => item.key))
       .toEqual(expect.arrayContaining(["/providers", "/wecom-org-sync", "/feishu-org-sync", "/syncers"]));
@@ -30,6 +34,12 @@ describe("enterprise identity navigation", () => {
       .toBe("认证源中心");
     expect(groups.find(group => group.key === "/application-access").children.map(item => item.key))
       .toEqual(expect.arrayContaining(["/applications", "/platform-api-mappings", "/webhooks"]));
+    expect(groups.find(group => group.key === "/audit-operations").children.map(item => item.key))
+      .toEqual(["/sessions", "/records", "/tokens", "/verifications"]);
+    expect(groups.find(group => group.key === "/authorization-governance").children.map(item => item.key))
+      .toEqual(expect.arrayContaining(["/roles", "/permissions", "/models", "/adapters", "/enforcers"]));
+    expect(groups.find(group => group.key === "/commerce-billing").children.map(item => item.key))
+      .toEqual(expect.arrayContaining(["/product-store", "/orders", "/payments"]));
   });
 
   test("keeps leaf route keys compatible with navItems filtering and selection", () => {
