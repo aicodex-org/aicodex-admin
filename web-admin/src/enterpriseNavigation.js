@@ -97,7 +97,7 @@ function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin
     },
     {
       key: "/gateway-projection",
-      label: i18next.t("general:Gateway Projection"),
+      label: i18next.t("general:LLM AI"),
       icon: <CheckCircleTwoTone twoToneColor={twoToneColor} />,
       children: [
         {key: "/agents", label: i18next.t("general:Agents"), to: "/agents", matchPrefixes: ["/agents"]},
@@ -144,7 +144,7 @@ function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin
     },
     {
       key: "/commerce-billing",
-      label: i18next.t("general:Commerce & Billing"),
+      label: i18next.t("general:Business & Payments"),
       icon: <DollarCircleTwoTone twoToneColor={twoToneColor} />,
       children: [
         {key: "/product-store", label: i18next.t("general:Product Store"), to: "/product-store", matchPrefixes: ["/product-store"]},

@@ -38,29 +38,38 @@ describe("NavItemTree enterprise identity configuration", () => {
     const treeData = buildEnterpriseNavigationConfigTreeData();
 
     expect(treeData[0].children.map(group => group.title)).toEqual([
-      "总览",
-      "组织与身份",
-      "认证源",
+      "中心总览",
+      "组织身份",
+      "身份认证",
       "应用接入",
-      "Gateway 投影",
+      "LLM AI",
       "权限治理",
-      "审计与运维",
-      "系统工具",
-      "商业与计费",
+      "审计运维",
+      "管理工具",
+      "商业付款",
     ]);
-    expect(leafKeys(getGroup(treeData, "认证源"))).toEqual(
+    expect(treeData[0].children.map(group => group.title)).not.toContain("Gateway 投影");
+    expect(leafKeys(getGroup(treeData, "身份认证"))).toEqual(
       expect.arrayContaining(["/providers", "/wecom-org-sync", "/feishu-org-sync", "/syncers"])
     );
     expect(leafKeys(getGroup(treeData, "应用接入"))).toEqual(
       expect.arrayContaining(["/applications", "/keys", "/platform-api-mappings", "/webhook-events"])
     );
-    expect(leafKeys(getGroup(treeData, "审计与运维"))).toEqual([
+    expect(leafKeys(getGroup(treeData, "LLM AI"))).toEqual([
+      "/agents",
+      "/servers",
+      "/server-store",
+      "/entries",
+      "/sites",
+      "/rules",
+    ]);
+    expect(leafKeys(getGroup(treeData, "审计运维"))).toEqual([
       "/sessions",
       "/records",
       "/tokens",
       "/verifications",
     ]);
-    expect(leafKeys(getGroup(treeData, "系统工具"))).toEqual(
+    expect(leafKeys(getGroup(treeData, "管理工具"))).toEqual(
       expect.arrayContaining(["/sysinfo", "/forms", "/tickets", "/swagger"])
     );
   });
@@ -75,12 +84,13 @@ describe("NavItemTree enterprise identity configuration", () => {
       "Organization & Identity",
       "Identity Sources",
       "Application Access",
-      "Gateway Projection",
+      "LLM AI",
       "Authorization Governance",
       "Audit & Operations",
       "System Tools",
-      "Commerce & Billing",
+      "Business & Payments",
     ]);
+    expect(treeData[0].children.map(group => group.title)).not.toContain("Gateway Projection");
     expect(leafKeys(getGroup(treeData, "Identity Sources"))).toEqual(
       expect.arrayContaining(["/providers", "/wecom-org-sync", "/feishu-org-sync", "/syncers"])
     );

@@ -42,22 +42,25 @@ describe("enterprise identity navigation", () => {
     });
 
     expect(groups.map(group => group.label)).toEqual([
-      "总览",
-      "组织与身份",
-      "认证源",
+      "中心总览",
+      "组织身份",
+      "身份认证",
       "应用接入",
-      "Gateway 投影",
+      "LLM AI",
       "权限治理",
-      "审计与运维",
-      "系统工具",
-      "商业与计费",
+      "审计运维",
+      "管理工具",
+      "商业付款",
     ]);
+    expect(groups.map(group => group.label)).not.toContain("Gateway 投影");
     expect(groups.find(group => group.key === "/identity-sources").children.map(item => item.key))
       .toEqual(expect.arrayContaining(["/providers", "/wecom-org-sync", "/feishu-org-sync", "/syncers"]));
     expect(groups.find(group => group.key === "/identity-sources").children.find(item => item.key === "/providers").label)
       .toBe("认证源中心");
     expect(groups.find(group => group.key === "/application-access").children.map(item => item.key))
       .toEqual(expect.arrayContaining(["/applications", "/platform-api-mappings", "/webhooks"]));
+    expect(groups.find(group => group.label === "LLM AI").children.map(item => item.key))
+      .toEqual(["/agents", "/servers", "/server-store", "/entries", "/sites", "/rules"]);
     expect(groups.find(group => group.key === "/audit-operations").children.map(item => item.key))
       .toEqual(["/sessions", "/records", "/tokens", "/verifications"]);
     expect(groups.find(group => group.key === "/authorization-governance").children.map(item => item.key))
@@ -79,12 +82,13 @@ describe("enterprise identity navigation", () => {
       "Organization & Identity",
       "Identity Sources",
       "Application Access",
-      "Gateway Projection",
+      "LLM AI",
       "Authorization Governance",
       "Audit & Operations",
       "System Tools",
-      "Commerce & Billing",
+      "Business & Payments",
     ]);
+    expect(groups.map(group => group.label)).not.toContain("Gateway Projection");
     expect(groups.find(group => group.key === "/overview").children.find(item => item.key === "/").label)
       .toBe("Identity Governance Overview");
     expect(groups.find(group => group.key === "/identity-sources").children.find(item => item.key === "/providers").label)
