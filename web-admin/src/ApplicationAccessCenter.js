@@ -23,28 +23,33 @@ import {
   SettingOutlined
 } from "@ant-design/icons";
 import {Alert, Button, Space, Spin, Typography} from "antd";
+import i18next from "i18next";
 import React from "react";
 import {Link} from "react-router-dom";
 import {
   EnterpriseIdentityActionGrid,
   EnterpriseIdentityConsolePage,
   EnterpriseIdentityRiskList,
-  EnterpriseIdentitySection,
-  EnterpriseIdentityStatusGrid,
-  EnterpriseIdentitySummaryStrip
+  EnterpriseIdentitySection
 } from "./common/EnterpriseIdentityConsoleLayout";
 
 const {Text} = Typography;
 
+function t(key, defaultValue = key) {
+  const namespacedKey = `general:${key}`;
+  const translated = i18next.t(namespacedKey, {defaultValue});
+  return translated === namespacedKey || translated === key ? defaultValue : translated;
+}
+
 const ENTRY_LINKS = [
-  {key: "applications", label: "应用列表", to: "/applications", icon: <AppstoreAddOutlined />},
-  {key: "api-mapping", label: "API 网关映射", to: "/platform-api-mappings", icon: <ApiOutlined />},
-  {key: "providers", label: "OAuth/OIDC Provider", to: "/providers", icon: <SafetyCertificateOutlined />},
-  {key: "resources", label: "资源", to: "/resources", icon: <SettingOutlined />},
-  {key: "certs", label: "证书", to: "/certs", icon: <KeyOutlined />},
-  {key: "keys", label: "密钥", to: "/keys", icon: <KeyOutlined />},
-  {key: "webhooks", label: "Webhook", to: "/webhooks", icon: <LinkOutlined />},
-  {key: "records", label: "查看审计记录", to: "/records", icon: <AuditOutlined />},
+  {key: "applications", labelKey: "Application list entry", label: "应用列表", to: "/applications", icon: <AppstoreAddOutlined />},
+  {key: "api-mapping", labelKey: "API Gateway Mappings", label: "API 网关映射", to: "/platform-api-mappings", icon: <ApiOutlined />},
+  {key: "providers", labelKey: "Authentication sources entry", label: "认证源", to: "/providers", icon: <SafetyCertificateOutlined />},
+  {key: "resources", labelKey: "Resources", label: "资源", to: "/resources", icon: <SettingOutlined />},
+  {key: "certs", labelKey: "Certs", label: "证书", to: "/certs", icon: <KeyOutlined />},
+  {key: "keys", labelKey: "Keys", label: "密钥", to: "/keys", icon: <KeyOutlined />},
+  {key: "webhooks", labelKey: "Webhooks", label: "Webhook 回调", to: "/webhooks", icon: <LinkOutlined />},
+  {key: "records", labelKey: "View audit records", label: "查看审计记录", to: "/records", icon: <AuditOutlined />},
 ];
 
 function toArray(value) {
@@ -127,30 +132,6 @@ function getIdentitySourceStatus(application) {
   return "missing";
 }
 
-function getStatusColor(status) {
-  if (status === "接入完整") {
-    return "success";
-  }
-
-  if (status === "待补全") {
-    return "warning";
-  }
-
-  return "default";
-}
-
-function getProgressStatus(status) {
-  if (status === "接入完整") {
-    return "success";
-  }
-
-  if (status === "待补全") {
-    return "normal";
-  }
-
-  return "exception";
-}
-
 function buildRiskItems(applications, cards) {
   const countBy = (predicate) => applications.filter(predicate).length;
   const riskItems = [
@@ -201,7 +182,7 @@ function buildRiskItems(applications, cards) {
   if (riskItems.length === 0 && applications.length > 0) {
     return [{
       key: "all-ready",
-      title: "当前列表视图未发现接入缺口",
+      title: "本页未发现接入缺口",
       count: 0,
       actionPath: "/records",
       actionLabel: "查看审计",
@@ -257,7 +238,7 @@ function buildSummaryItems(summary) {
   return [
     {
       key: "total",
-      label: "应用总数",
+      label: "应用",
       value: summary.metrics.totalApplications,
       description: `启用 ${summary.metrics.enabledApplications}`,
       tone: summary.metrics.totalApplications > 0 ? "processing" : "warning",
@@ -277,11 +258,11 @@ function buildSummaryItems(summary) {
       tone: summary.metrics.callbackReadyApplications > 0 ? "success" : "warning",
     },
     {
-      key: "scopes",
-      label: "授权范围",
-      value: summary.metrics.scopedApplications,
-      description: "已配置应用",
-      tone: summary.metrics.scopedApplications > 0 ? "success" : "warning",
+      key: "identity-source",
+      label: "身份源已绑定",
+      value: summary.metrics.identitySourceReadyApplications,
+      description: "OAuth / OIDC 目标组织",
+      tone: summary.metrics.identitySourceReadyApplications > 0 ? "success" : "warning",
     },
   ];
 }
@@ -289,41 +270,10 @@ function buildSummaryItems(summary) {
 function ApplicationAccessCenter({applications = [], loading = false}) {
   const summary = buildApplicationAccessCenterSummary(applications);
   const hasApplications = Array.isArray(applications) && applications.length > 0;
-  const statusCards = summary.cards.map(card => ({
-    key: card.key,
-    title: card.displayName,
-    description: card.name || "未配置技术名称",
-    icon: <ApiOutlined />,
-    metricValue: `${card.completeness}%`,
-    metricLabel: "接入完整度",
-    tags: [
-      {key: "status", label: card.status, tone: getStatusColor(card.status)},
-      {key: "client", label: card.clientStatus, tone: card.clientStatus.includes("已") ? "success" : "warning"},
-      {key: "grant", label: card.grantStatus, tone: card.grantStatus.includes("已") ? "success" : "warning"},
-    ],
-    progress: {
-      percent: card.completeness,
-      label: `接入完整度 ${card.completeness}%`,
-      status: getProgressStatus(card.status),
-    },
-    details: (
-      <Space direction="vertical" size={2}>
-        <Text type="secondary">{card.callbackStatus}</Text>
-        <Text type="secondary">{card.scopeStatus}</Text>
-        <Text type="secondary">{card.providerStatus}</Text>
-        <Text type="secondary">{card.identitySourceStatus}</Text>
-      </Space>
-    ),
-    actions: [
-      {key: "edit", to: card.editPath, label: "编辑应用"},
-      {key: "api-mapping", to: "/platform-api-mappings", label: "API 映射"},
-      {key: "records", to: "/records", label: "审计记录"},
-    ],
-  }));
   const riskItems = summary.riskItems.map(item => ({
     key: item.key,
     title: item.title,
-    description: "只读推导，不触发授权、回调、密钥写入或真实探测。",
+    description: "用于定位接入缺口，不触发授权、回调、密钥写入或真实探测。",
     icon: <ExclamationCircleOutlined />,
     tone: item.count > 0 ? "warning" : "success",
     badge: item.count > 0 ? `${item.count} 项` : "低风险",
@@ -363,27 +313,35 @@ function ApplicationAccessCenter({applications = [], loading = false}) {
         />
       )}
 
-      <EnterpriseIdentitySummaryStrip items={summaryItems} />
-      <EnterpriseIdentitySection
-        title="当前列表视图"
-        description="摘要来自当前 Application 列表视图，不代表后端全量聚合事实"
-        extra={<Text type="secondary">只读推导</Text>}
-      >
-        <EnterpriseIdentityStatusGrid items={statusCards} minColumns={3} />
-      </EnterpriseIdentitySection>
-
-      <div className="enterprise-identity-two-column enterprise-identity-two-column-wide-right">
+      <div className="application-access-readiness-rail enterprise-identity-compact-rail enterprise-identity-compact-rail-wide">
+        <div className="enterprise-identity-rail-summary" aria-label={t("Application access summary", "应用接入摘要")}>
+          {summaryItems.map(item => (
+            <div className={`enterprise-identity-rail-summary-item enterprise-identity-tone-${item.tone}`} key={item.key}>
+              <Text type="secondary">{item.label}</Text>
+              <strong>{item.value}</strong>
+              <Text type="secondary">{item.description}</Text>
+            </div>
+          ))}
+        </div>
         <EnterpriseIdentitySection
-          title="风险摘要"
-          description="把配置缺口转成可处理入口，避免孤立数字"
+          className="enterprise-identity-rail-section"
+          title="配置缺口"
+          description="摘要来自本页数据，不代表后端全量聚合事实"
+          extra={<Text type="secondary">治理摘要</Text>}
         >
           <EnterpriseIdentityRiskList items={riskItems} />
         </EnterpriseIdentitySection>
         <EnterpriseIdentitySection
+          className="enterprise-identity-rail-section"
           title="配置入口"
           description="复用既有路由，不新增不兼容页面"
         >
-          <EnterpriseIdentityActionGrid items={summary.entryLinks} />
+          <EnterpriseIdentityActionGrid
+            items={summary.entryLinks.map(item => ({
+              ...item,
+              label: t(item.labelKey, item.label),
+            }))}
+          />
         </EnterpriseIdentitySection>
       </div>
 

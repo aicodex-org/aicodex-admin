@@ -14,25 +14,29 @@
 
 import {
   CheckCircleOutlined,
-  CloudSyncOutlined,
   ExclamationCircleOutlined,
   SafetyCertificateOutlined,
   SettingOutlined
 } from "@ant-design/icons";
-import {Alert, Button, Space, Spin, Typography} from "antd";
+import {Alert, Button, Progress, Space, Spin, Tag, Typography} from "antd";
+import i18next from "i18next";
 import React from "react";
 import {Link} from "react-router-dom";
 import {
   EnterpriseIdentityConsolePage,
   EnterpriseIdentityRiskList,
-  EnterpriseIdentitySection,
-  EnterpriseIdentityStatusGrid,
-  EnterpriseIdentitySummaryStrip
+  EnterpriseIdentitySection
 } from "./common/EnterpriseIdentityConsoleLayout";
 
 const {Text} = Typography;
 
-// 认证源中心只做前端只读归类，避免把 provider 密钥或真实运行探测结果带入页面状态。
+function t(key, defaultValue = key) {
+  const namespacedKey = `general:${key}`;
+  const translated = i18next.t(namespacedKey, {defaultValue});
+  return translated === namespacedKey || translated === key ? defaultValue : translated;
+}
+
+// 认证源中心只归类展示安全摘要，避免把 provider 密钥或真实运行探测结果带入页面状态。
 const AUTH_SOURCE_DEFINITIONS = [
   {
     key: "wecom",
@@ -137,18 +141,6 @@ function getStatusColor(status) {
   return "default";
 }
 
-function getProgressStatus(status) {
-  if (status === "已启用") {
-    return "success";
-  }
-
-  if (status === "待补全") {
-    return "normal";
-  }
-
-  return "exception";
-}
-
 function buildSummaryItems(cards, providers) {
   const enabledCount = cards.filter(card => card.status === "已启用").length;
   const incompleteCount = cards.filter(card => card.status === "待补全").length;
@@ -186,47 +178,33 @@ function buildSummaryItems(cards, providers) {
   ];
 }
 
+function getStatusLabel(status) {
+  switch (status) {
+  case "已启用":
+    return t("Auth source status enabled", status);
+  case "待补全":
+    return t("Auth source status incomplete", status);
+  default:
+    return t("Auth source status disabled", status);
+  }
+}
+
+function getAuthSourceTitle(card) {
+  return t(`Auth source ${card.key} title`, card.title);
+}
+
+function getAuthSourceDescription(card) {
+  return t(`Auth source ${card.key} description`, card.description);
+}
+
+function getDiagnosticLabel(card) {
+  return t(`Auth source ${card.key} diagnostic`, card.diagnosticLabel);
+}
+
 function AuthSourceCenter({providers = [], loading = false}) {
   const cards = buildAuthSourceCenterCards(providers);
   const hasProviders = Array.isArray(providers) && providers.length > 0;
   const summaryItems = buildSummaryItems(cards, providers);
-  const statusCards = cards.map(card => ({
-    key: card.key,
-    title: card.title,
-    description: card.description,
-    icon: <SafetyCertificateOutlined />,
-    metricValue: `${card.completeness}%`,
-    metricLabel: "配置完整度",
-    tags: [
-      {key: "status", label: card.status, tone: getStatusColor(card.status)},
-      {key: "auth", label: card.authStatus, tone: "processing"},
-    ],
-    progress: {
-      percent: card.completeness,
-      label: `配置完整度 ${card.completeness}%`,
-      status: getProgressStatus(card.status),
-    },
-    details: (
-      <Space direction="vertical" size={2}>
-        <Text>匹配来源：{card.providerDisplayName}</Text>
-        <Text type="secondary">最近失败：以同步页面和审计记录为准</Text>
-      </Space>
-    ),
-    actions: [
-      {key: "config", to: card.configPath, label: card.status === "未启用" ? "进入配置" : "编辑配置"},
-      {key: "diagnostic", to: card.diagnosticPath, label: card.diagnosticLabel},
-    ],
-  }));
-  const diagnosticItems = cards.map(card => ({
-    key: card.key,
-    title: `${card.title} ${card.status}`,
-    description: `${card.authStatus}，当前不触发同步、授权刷新或真实探测。`,
-    icon: <CloudSyncOutlined />,
-    tone: card.status === "已启用" ? "success" : "warning",
-    badge: card.status,
-    action: {key: "diagnostic", to: card.diagnosticPath, label: card.diagnosticLabel},
-  }));
-
   return (
     <EnterpriseIdentityConsolePage
       className="auth-source-center"
@@ -258,28 +236,63 @@ function AuthSourceCenter({providers = [], loading = false}) {
         />
       )}
 
-      <EnterpriseIdentitySummaryStrip items={summaryItems} />
-      <EnterpriseIdentityStatusGrid items={statusCards} minColumns={3} />
+      <div className="auth-source-diagnostics-rail enterprise-identity-compact-rail">
+        <div className="enterprise-identity-rail-summary" aria-label={t("Auth source summary", "认证源摘要")}>
+          {summaryItems.map(item => (
+            <div className={`enterprise-identity-rail-summary-item enterprise-identity-tone-${item.tone}`} key={item.key}>
+              <Text type="secondary">{item.label}</Text>
+              <strong>{item.value}</strong>
+              <Text type="secondary">{item.description}</Text>
+            </div>
+          ))}
+        </div>
 
-      <div className="enterprise-identity-two-column">
+        <div className="enterprise-identity-rail-list">
+          {cards.map(card => (
+            <article className="enterprise-identity-rail-source" key={card.key}>
+              <div className="enterprise-identity-rail-source-heading">
+                <span className="enterprise-identity-status-icon"><SafetyCertificateOutlined /></span>
+                <Space direction="vertical" size={1}>
+                  <Space wrap size={[6, 4]}>
+                    <Text strong>{getAuthSourceTitle(card)}</Text>
+                    <Tag className={`enterprise-identity-tone-${getStatusColor(card.status)}`}>
+                      {getStatusLabel(card.status)}
+                    </Tag>
+                  </Space>
+                  <Text type="secondary">{getAuthSourceDescription(card)}</Text>
+                </Space>
+              </div>
+              <div className="enterprise-identity-rail-progress">
+                <Text>{t("Configuration completeness", "配置完整度")}</Text>
+                <strong>{card.completeness}%</strong>
+                <Progress percent={card.completeness} showInfo={false} size="small" />
+              </div>
+              <Text type="secondary">
+                {t("Matched source", "匹配来源")}：{card.providerDisplayName}
+              </Text>
+              <Text type="secondary">
+                {t("Recent failure based on sync pages and audit records", "最近失败：以同步页面和审计记录为准")}
+              </Text>
+              <div className="enterprise-identity-inline-actions">
+                <Link to={card.configPath}>{card.status === "未启用" ? t("Enter configuration", "进入配置") : t("Edit configuration", "编辑配置")}</Link>
+                <Link to={card.diagnosticPath}>{getDiagnosticLabel(card)}</Link>
+              </div>
+            </article>
+          ))}
+        </div>
         <EnterpriseIdentitySection
-          title="最近同步 / 授权状态"
-          description="每个入口只做只读诊断分流，不触发同步、授权刷新或真实探测"
-        >
-          <EnterpriseIdentityRiskList items={diagnosticItems} />
-        </EnterpriseIdentitySection>
-        <EnterpriseIdentitySection
-          title="最近失败摘要"
-          description="当前页面只做前端只读聚合，失败详情以同步页面和审计记录为准"
+          className="enterprise-identity-rail-section auth-source-failure-section"
+          title="失败摘要"
+          description="失败详情以同步页面和审计记录为准"
         >
           <EnterpriseIdentityRiskList items={[
             {
               key: "failure-summary",
               title: "以同步页面和审计记录为准",
-              description: "当前页面不读取失败详情、不触发重试，管理员可进入审计和同步诊断核对。",
+              description: "进入审计和同步诊断核对失败详情、重试记录与授权状态。",
               icon: <CheckCircleOutlined />,
               tone: "processing",
-              badge: "只读核对",
+              badge: "治理摘要",
               action: {key: "records", to: "/records", label: "查看审计记录"},
             },
           ]} />

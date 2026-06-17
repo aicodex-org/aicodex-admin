@@ -1,8 +1,5 @@
-# admin-enterprise-identity-auth-source-center Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change implement-admin-enterprise-identity-auth-source-center. Update Purpose after archive.
-## Requirements
 ### Requirement: 认证源中心工作区
 Admin 企业认证中心 SHALL 在认证源分组下提供紧凑的认证源中心工作区，使管理员能够从 `/providers` 首屏扫描企业微信、飞书、OIDC 等认证源的接入状态、同步/授权风险和 Provider 列表操作。
 
@@ -23,42 +20,6 @@ Admin 企业认证中心 SHALL 在认证源分组下提供紧凑的认证源中�
 - **THEN** 既有 Provider 分页、筛选、新增、编辑和删除行为保持可用
 - **AND** 认证源中心不得改变 Provider 表格的路由、权限 key 或数据写入行为
 
-### Requirement: 认证源状态与配置完整度
-认证源中心 SHALL 基于现有只读 Provider 数据展示每类认证源的启用状态、配置完整度和下一步动作，不得展示 client secret、token 或其它敏感字段原值。
-
-#### Scenario: 已配置认证源
-- **WHEN** Provider 列表包含企业微信、飞书或 OIDC 相关 provider
-- **THEN** 对应状态卡片展示已启用或待补全状态
-- **AND** 配置完整度以字段数量或百分比呈现，不展示敏感配置内容
-
-#### Scenario: 未配置认证源
-- **WHEN** Provider 列表不包含某类认证源 provider
-- **THEN** 对应状态卡片展示未启用或待配置状态
-- **AND** 页面提供进入配置页面的入口
-
-#### Scenario: Provider 数据加载中或为空
-- **WHEN** Provider 列表正在加载或返回空数组
-- **THEN** 认证源中心展示加载、待配置或空态提示
-- **AND** 页面仍保留进入配置和诊断页面的入口
-
-### Requirement: 同步授权诊断与失败摘要
-认证源中心 SHALL 展示最近同步、授权状态和失败摘要的只读诊断入口；在缺少聚合接口时，页面 MUST 明确该状态需要进入同步页面或审计记录核对。
-
-#### Scenario: 企业微信与飞书诊断入口
-- **WHEN** 管理员查看企业微信或飞书状态卡片
-- **THEN** 页面展示同步诊断入口
-- **AND** 不触发组织同步、重试、授权刷新或其它写入操作
-
-#### Scenario: OIDC 授权状态入口
-- **WHEN** 管理员查看 OIDC 状态卡片
-- **THEN** 页面展示进入配置或核对回调配置的入口
-- **AND** 不触发 OAuth/OIDC 授权流程或真实探测
-
-#### Scenario: 最近失败摘要不可用
-- **WHEN** 前端没有真实失败摘要或聚合接口
-- **THEN** 页面展示“以同步页面和审计记录为准”的只读提示
-- **AND** 提供进入审计记录或同步诊断页面的入口
-
 ### Requirement: 企业管理台视觉与响应式
 认证源中心 SHALL 使用安静、信息密度合理的企业管理台布局，避免营销式 hero、装饰背景和卡片套卡片，并在桌面和窄屏上保持可读可操作。
 
@@ -78,4 +39,3 @@ Admin 企业认证中心 SHALL 在认证源分组下提供紧凑的认证源中�
 - **THEN** 文本、状态标签、按钮和表格区域不发生重叠或不可读溢出
 - **AND** 页头、状态摘要和诊断入口 SHALL 使用紧凑间距，避免列表被大面积空白推到深滚动位置
 - **AND** 配置和诊断入口仍可触达
-

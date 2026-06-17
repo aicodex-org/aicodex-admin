@@ -1,8 +1,5 @@
-# admin-enterprise-identity-audit-operations-center Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change improve-admin-enterprise-audit-operations-center. Update Purpose after archive.
-## Requirements
 ### Requirement: 审计运维中心工作台
 Admin 企业认证中心 SHALL 在审计运维分组下将会话、审计记录、令牌和验证记录组织为紧凑运行态核对工作台，使管理员能够从任一审计运维页面理解当前核对域、主要风险和下一步入口，同时保持核心列表为首屏主任务。
 
@@ -49,24 +46,6 @@ Admin 企业认证中心 SHALL 在审计运维分组下将会话、审计记录�
 - **AND** 每个入口跳转到既有路由，不新增不兼容路由或权限 key
 - **AND** 四个入口 SHALL 以紧凑 tabs、segmented rail 或同等低高度结构呈现，不在表格前堆叠四张大卡片
 
-### Requirement: 风险核对与敏感信息边界
-审计运维中心 SHALL 只展示可扫描的风险类别、状态标签和跳转入口，不得展示 token、验证码、Cookie、client secret 或其它可复用敏感凭据原值。
-
-#### Scenario: 审计记录包含错误状态
-- **WHEN** 当前 Record 列表包含 4xx 或 5xx 状态码
-- **THEN** 审计运维工作台展示失败或风险核对提示
-- **AND** 提供进入审计记录页面的入口
-
-#### Scenario: 当前 Token 列表包含访问令牌
-- **WHEN** 当前 Token 列表包含 `accessToken` 字段
-- **THEN** 审计运维工作台只展示令牌数量、有效期核对或入口提示
-- **AND** 不展示 `accessToken` 原值
-
-#### Scenario: 当前 Verification 列表包含验证码
-- **WHEN** 当前 Verification 列表包含 `code` 或 `receiver` 字段
-- **THEN** 审计运维工作台只展示验证记录数量、未使用状态或入口提示
-- **AND** 不展示验证码原值或接收者敏感明细
-
 ### Requirement: 企业管理台视觉与响应式
 审计运维中心 SHALL 复用企业认证中心视觉语言，使用安静、信息密度合理的管理台布局，避免营销式 hero、装饰背景、卡片套卡片，并在桌面和窄屏上保持可读可操作。
 
@@ -86,4 +65,3 @@ Admin 企业认证中心 SHALL 在审计运维分组下将会话、审计记录�
 - **WHEN** 管理员点击工作台中的入口或查看风险摘要
 - **THEN** 页面只跳转既有路由或展示只读说明
 - **AND** 不触发认证、授权、会话清理、令牌签发、验证码重发、组织同步或 Gateway projection publish
-

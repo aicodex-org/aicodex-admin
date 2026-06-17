@@ -74,7 +74,28 @@ describe("LlmAiGatewayCenter", () => {
     expect(JSON.stringify(summary)).not.toContain("private-gateway.example.invalid");
   });
 
-  test("renders gateway center around existing LLM AI routes", () => {
+  test("treats malformed agent collections as an empty visible table", () => {
+    const summary = buildLlmAiGatewayCenterSummary({agents: "not-an-array" as unknown as [], totalAgents: Number.NaN});
+
+    expect(summary.metrics.currentViewAgents).toBe(0);
+    expect(summary.metrics.totalAgents).toBe(0);
+    expect(summary.riskItems.every(item => item.count === 0)).toBe(true);
+  });
+
+  test("normalizes missing input and non-string agent fields", () => {
+    const emptySummary = buildLlmAiGatewayCenterSummary();
+    const typedSummary = buildLlmAiGatewayCenterSummary({
+      agents: [{application: 42, url: null}],
+    });
+
+    expect(emptySummary.metrics.totalAgents).toBe(0);
+    expect(typedSummary.metrics.currentViewAgents).toBe(1);
+    expect(typedSummary.metrics.agentsWithApplications).toBe(1);
+    expect(typedSummary.metrics.agentsWithListeningEndpoints).toBe(0);
+    expect(typedSummary.riskItems.find(item => item.key === "agent-endpoint-missing")?.count).toBe(1);
+  });
+
+  test("renders compact gateway center around existing LLM AI routes", () => {
     const view = render(
       <MemoryRouter>
         <LlmAiGatewayCenter agents={agents} totalAgents={8} loading={false} />
@@ -82,7 +103,9 @@ describe("LlmAiGatewayCenter", () => {
     );
 
     expect(view.getByText("LLM AI 网关中心")).not.toBeNull();
-    expect(view.getAllByText("当前 Agent 视图").length).toBeGreaterThan(0);
+    expect(view.container.querySelector(".llm-ai-gateway-rail")).not.toBeNull();
+    expect(view.container.querySelector(".enterprise-identity-status-card")).toBeNull();
+    expect(view.getAllByText("Agent 视图").length).toBeGreaterThan(0);
     expect(view.getByText("Agent 绑定应用待补全")).not.toBeNull();
     expect(view.getAllByText("API 网关身份映射").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/platform-api-mappings")).toBe(true);
     expect(view.getAllByText("MCP Server").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/servers")).toBe(true);
@@ -106,5 +129,13 @@ describe("LlmAiGatewayCenter", () => {
     );
 
     expect(view.getByText("正在加载 LLM AI 网关状态...")).not.toBeNull();
+
+    view.rerender(
+      <MemoryRouter>
+        <LlmAiGatewayCenter />
+      </MemoryRouter>
+    );
+
+    expect(view.getByText("暂无 Agent 接入，先新增 Agent 或核对 MCP Server 与网关身份映射。")).not.toBeNull();
   });
 });

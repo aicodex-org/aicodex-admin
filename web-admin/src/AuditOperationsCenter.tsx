@@ -25,12 +25,9 @@ import i18next from "i18next";
 import React from "react";
 import {Link} from "react-router-dom";
 import {
-  EnterpriseIdentityActionGrid,
   EnterpriseIdentityConsolePage,
   EnterpriseIdentityRiskList,
-  EnterpriseIdentitySection,
-  EnterpriseIdentityStatusGrid,
-  EnterpriseIdentitySummaryStrip
+  EnterpriseIdentitySection
 } from "./common/EnterpriseIdentityConsoleLayout";
 
 const {Text} = Typography;
@@ -52,22 +49,6 @@ interface AuditOperationsSummaryStripItem {
   value: React.ReactNode;
   description?: React.ReactNode;
   tone?: RiskTone;
-}
-
-interface AuditOperationsStatusCardItem {
-  key: string;
-  title: React.ReactNode;
-  description?: React.ReactNode;
-  icon?: React.ReactNode;
-  metricValue?: React.ReactNode;
-  metricLabel?: React.ReactNode;
-  tags?: Array<{
-    key: string;
-    label: React.ReactNode;
-    tone?: RiskTone;
-  }>;
-  details?: React.ReactNode;
-  actions?: AuditOperationsActionItem[];
 }
 
 interface AuditOperationsRiskListItem {
@@ -231,7 +212,7 @@ export function buildAuditOperationsSummary({
     tokenCount > 0 ? {
       key: "visible-tokens",
       titleKey: "Token Visibility Review",
-      descriptionKey: "Token rows are visible in the current view; inspect expiry and ownership without exposing token values",
+      descriptionKey: "Token rows are visible in table data; inspect expiry and ownership without exposing token values",
       count: tokenCount,
       tone: "processing",
       path: "/tokens",
@@ -240,7 +221,7 @@ export function buildAuditOperationsSummary({
     unusedVerificationCount > 0 ? {
       key: "unused-verifications",
       titleKey: "Unused Verification Records",
-      descriptionKey: "Unused verification rows are visible in the current view; verify recipient and abuse signals in the table",
+      descriptionKey: "Unused verification rows are visible in table data; verify recipient and abuse signals in the table",
       count: unusedVerificationCount,
       tone: "warning",
       path: "/verifications",
@@ -249,7 +230,7 @@ export function buildAuditOperationsSummary({
     sessionCount > 0 ? {
       key: "active-sessions",
       titleKey: "Session Continuity Review",
-      descriptionKey: "Session rows are visible in the current view; review active sign-in continuity and termination scope",
+      descriptionKey: "Session rows are visible in table data; review active sign-in continuity and termination scope",
       count: sessionCount,
       tone: "processing",
       path: "/sessions",
@@ -262,14 +243,14 @@ export function buildAuditOperationsSummary({
     entries,
     riskItems: riskItems.length > 0 ? riskItems : [{
       key: "current-view-clean",
-      titleKey: "No runtime exception in current view",
+      titleKey: "No runtime exception in visible data",
       descriptionKey: "Use filters or switch to another runtime entry for deeper audit review",
       count: 0,
       tone: "success",
       path: activeEntry.path,
       actionLabelKey: activeEntry.labelKey,
     }],
-    sourceDescriptionKey: "Summary comes from current filtered or paginated view",
+    sourceDescriptionKey: "Summary comes from visible table data",
   };
 }
 
@@ -313,9 +294,9 @@ function buildSummaryStripItems(summary: AuditOperationsSummary, loading: boolea
     },
     {
       key: "current-total",
-      label: t("Current View Total"),
+      label: t("Visible Table Total"),
       value: summary.activeEntry.total,
-      description: t("Filtered or paginated total"),
+      description: t("Table total after filters and pagination"),
       tone: summary.activeEntry.total > 0 ? "processing" : "warning",
     },
     {
@@ -329,43 +310,10 @@ function buildSummaryStripItems(summary: AuditOperationsSummary, loading: boolea
       key: "risk-review",
       label: t("Risk Review"),
       value: summary.riskItems.filter(item => item.count > 0).length,
-      description: t("Current-view risk categories"),
+      description: t("Visible data risk categories"),
       tone: summary.riskItems.some(item => item.count > 0 && item.tone === "warning") ? "warning" : "success",
     },
   ];
-}
-
-function buildStatusCards(summary: AuditOperationsSummary): AuditOperationsStatusCardItem[] {
-  return summary.entries.map(entry => ({
-    key: entry.key,
-    title: t(entry.labelKey),
-    description: t(entry.descriptionKey),
-    icon: getEntryIcon(entry.key),
-    metricValue: entry.total,
-    metricLabel: t("Current view rows"),
-    tags: [
-      {key: "scope", label: entry.active ? t("Current") : t("Linked entry"), tone: entry.tone},
-      {key: "readonly", label: t("Read-only review"), tone: "processing"},
-    ],
-    details: (
-      <Text type="secondary">
-        {t("Keeps existing route permissions pagination filters and table actions")}
-      </Text>
-    ),
-    actions: [
-      {key: entry.key, to: entry.path, label: t(entry.labelKey)},
-    ],
-  }));
-}
-
-function buildActionItems(summary: AuditOperationsSummary): AuditOperationsActionItem[] {
-  return summary.entries.map(entry => ({
-    key: entry.key,
-    to: entry.path,
-    label: t(entry.labelKey),
-    description: t(entry.descriptionKey),
-    icon: getEntryIcon(entry.key),
-  }));
 }
 
 function buildRiskItems(summary: AuditOperationsSummary): AuditOperationsRiskListItem[] {
@@ -425,16 +373,39 @@ function AuditOperationsCenter({
           message={t("Loading audit operations state")}
         />
       )}
-      <EnterpriseIdentitySummaryStrip items={buildSummaryStripItems(summary, loading)} />
-      <EnterpriseIdentityStatusGrid items={buildStatusCards(summary)} minColumns={4} />
-      <div className="enterprise-identity-two-column enterprise-identity-two-column-wide-right">
+      <div className="audit-operations-rail enterprise-identity-compact-rail enterprise-identity-compact-rail-wide">
+        <div className="enterprise-identity-rail-summary" aria-label={t("Audit operations summary")}>
+          {buildSummaryStripItems(summary, loading).map(item => (
+            <div className={`enterprise-identity-rail-summary-item enterprise-identity-tone-${item.tone}`} key={item.key}>
+              <Text type="secondary">{item.label}</Text>
+              <strong>{item.value}</strong>
+              <Text type="secondary">{item.description}</Text>
+            </div>
+          ))}
+        </div>
         <EnterpriseIdentitySection
+          className="enterprise-identity-rail-section"
           title={t("Runtime Review Entries")}
           description={t("Runtime review entries description")}
         >
-          <EnterpriseIdentityActionGrid items={buildActionItems(summary)} />
+          <div className="enterprise-identity-segmented-rail">
+            {summary.entries.map(entry => (
+              <Link
+                className={`enterprise-identity-segmented-item ${entry.active ? "enterprise-identity-segmented-item-active" : ""}`}
+                to={entry.path}
+                key={entry.key}
+              >
+                <span className="enterprise-identity-segmented-icon">{getEntryIcon(entry.key)}</span>
+                <span className="enterprise-identity-segmented-copy">
+                  <Text strong>{t(entry.labelKey)}</Text>
+                  <Text type="secondary">{entry.total} {t("Visible rows")}</Text>
+                </span>
+              </Link>
+            ))}
+          </div>
         </EnterpriseIdentitySection>
         <EnterpriseIdentitySection
+          className="enterprise-identity-rail-section"
           title={t("Risk Check Queue")}
           description={t("Risk check queue description")}
           extra={<Text type="secondary">{t(summary.sourceDescriptionKey)}</Text>}

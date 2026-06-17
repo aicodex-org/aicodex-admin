@@ -1,7 +1,10 @@
 import React from "react";
 import {render, screen} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
+import i18next from "i18next";
 import AuthSourceCenter, {buildAuthSourceCenterCards} from "./AuthSourceCenter";
+import en from "./locales/en/data.json";
+import zh from "./locales/zh/data.json";
 
 const providers = [
   {
@@ -36,7 +39,28 @@ const providers = [
   },
 ];
 
+async function useTestLanguage(language) {
+  if (!i18next.isInitialized) {
+    await i18next.init({
+      lng: language,
+      fallbackLng: "en",
+      resources: {en, zh},
+      ns: Object.keys(en),
+      keySeparator: false,
+    });
+    return;
+  }
+
+  i18next.addResourceBundle("en", "general", en.general, true, true);
+  i18next.addResourceBundle("zh", "general", zh.general, true, true);
+  await i18next.changeLanguage(language);
+}
+
 describe("AuthSourceCenter", () => {
+  beforeEach(async() => {
+    await useTestLanguage("zh");
+  });
+
   test("builds auth source cards from existing providers without exposing secrets", () => {
     const cards = buildAuthSourceCenterCards(providers);
 
@@ -59,20 +83,22 @@ describe("AuthSourceCenter", () => {
     expect(JSON.stringify(cards)).not.toContain("secret-value");
   });
 
-  test("renders status cards, diagnostic links, and failure summary", () => {
-    render(
+  test("renders compact diagnostics, diagnostic links, and failure summary", () => {
+    const {container} = render(
       <MemoryRouter>
         <AuthSourceCenter providers={providers} loading={false} />
       </MemoryRouter>
     );
 
     expect(screen.getByText("认证源中心")).toBeInTheDocument();
+    expect(container.querySelector(".auth-source-diagnostics-rail")).not.toBeNull();
+    expect(container.querySelector(".enterprise-identity-status-card")).toBeNull();
     expect(screen.getAllByText("企业微信").length).toBeGreaterThan(0);
     expect(screen.getAllByText("飞书").length).toBeGreaterThan(0);
     expect(screen.getAllByText("OIDC").length).toBeGreaterThan(0);
     expect(screen.getByText(/企业微信主认证/)).toBeInTheDocument();
-    expect(screen.getAllByText("配置完整度 100%")).toHaveLength(2);
-    expect(screen.getByText("配置完整度 67%")).toBeInTheDocument();
+    expect(screen.getAllByText("100%")).toHaveLength(2);
+    expect(screen.getByText("67%")).toBeInTheDocument();
     expect(screen.getByText("以同步页面和审计记录为准")).toBeInTheDocument();
     expect(screen.getAllByText("企业微信诊断").some(item => item.closest("a")?.getAttribute("href") === "/wecom-org-sync")).toBe(true);
     expect(screen.getAllByText("飞书诊断").some(item => item.closest("a")?.getAttribute("href") === "/feishu-org-sync")).toBe(true);

@@ -161,7 +161,7 @@ img {
 }
 
 .enterprise-identity-console {
-  padding: 18px 20px 24px;
+  padding: 14px 16px 20px;
   width: 100%;
   box-sizing: border-box;
   background: #f6f7f9;
@@ -172,9 +172,9 @@ img {
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 18px;
-  padding: 18px 20px;
-  margin-bottom: 14px;
+  gap: 12px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
   border: 1px solid rgb(220 226 235);
   border-radius: 8px;
   background: #fff;
@@ -188,6 +188,7 @@ img {
 .enterprise-identity-console-header h3 {
   margin: 0 !important;
   letter-spacing: 0;
+  line-height: 1.25;
 }
 
 .enterprise-identity-console-eyebrow {
@@ -490,6 +491,151 @@ img {
   border-color: rgb(191 219 254);
 }
 
+.enterprise-identity-compact-rail {
+  display: grid;
+  grid-template-columns: minmax(230px, 0.55fr) minmax(0, 1.45fr);
+  gap: 8px;
+  align-items: stretch;
+  margin-bottom: 10px;
+}
+
+.enterprise-identity-compact-rail-wide {
+  grid-template-columns: minmax(190px, 0.45fr) minmax(260px, 0.65fr) minmax(420px, 1.35fr);
+}
+
+.auth-source-diagnostics-rail {
+  grid-template-columns: minmax(190px, 0.4fr) minmax(520px, 1.25fr) minmax(260px, 0.55fr);
+}
+
+.enterprise-identity-rail-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid rgb(220 226 235);
+  border-radius: 8px;
+  background: rgb(220 226 235);
+}
+
+.enterprise-identity-rail-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 56px;
+  padding: 8px 10px;
+  background: #fff;
+  border-top: 3px solid rgb(100 116 139);
+  overflow-wrap: anywhere;
+}
+
+.enterprise-identity-rail-summary-item strong {
+  color: rgb(15 23 42);
+  font-size: 20px;
+  line-height: 1.08;
+}
+
+.enterprise-identity-rail-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.enterprise-identity-rail-source {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgb(220 226 235);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.enterprise-identity-rail-source-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.enterprise-identity-rail-progress {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 8px;
+  align-items: center;
+}
+
+.enterprise-identity-rail-progress .ant-progress {
+  grid-column: 1 / -1;
+  margin-bottom: 0;
+}
+
+.enterprise-identity-rail-section {
+  padding: 10px;
+}
+
+.enterprise-identity-rail-section .enterprise-identity-section-header {
+  margin-bottom: 8px;
+}
+
+.enterprise-identity-rail-section .enterprise-identity-risk-item {
+  padding: 6px 0;
+}
+
+.enterprise-identity-rail-section .enterprise-identity-action-grid a {
+  min-height: 46px;
+  padding: 8px 10px;
+}
+
+.enterprise-identity-segmented-rail,
+.enterprise-identity-link-rail {
+  display: grid;
+  gap: 8px;
+}
+
+.enterprise-identity-segmented-rail,
+.enterprise-identity-link-rail {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.enterprise-identity-segmented-item,
+.enterprise-identity-link-rail a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 40px;
+  padding: 7px 9px;
+  border: 1px solid rgb(220 226 235);
+  border-radius: 8px;
+  background: rgb(248 250 252);
+  color: rgb(15 23 42);
+}
+
+.enterprise-identity-segmented-item-active {
+  border-color: rgb(37 99 235);
+  background: rgb(239 246 255);
+}
+
+.enterprise-identity-segmented-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: #fff;
+  color: rgb(51 65 85);
+}
+
+.enterprise-identity-segmented-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .auth-source-center-loading,
 .application-access-center-loading {
   display: flex;
@@ -759,6 +905,15 @@ img {
     grid-template-columns: 1fr;
   }
 
+  .enterprise-identity-compact-rail,
+  .enterprise-identity-compact-rail-wide {
+    grid-template-columns: 1fr;
+  }
+
+  .enterprise-identity-rail-list {
+    grid-template-columns: 1fr;
+  }
+
   .organization-identity-directory-shell,
   .organization-identity-lifecycle-shell,
   .organization-identity-role-matrix,
@@ -769,17 +924,33 @@ img {
 
 @media screen and (max-width: 768px) {
   .enterprise-identity-console {
-    padding: 12px;
+    padding: 8px;
   }
 
   .enterprise-identity-console-header {
     flex-direction: column;
-    padding: 14px;
+    gap: 8px;
+    padding: 10px;
+    margin-bottom: 8px;
   }
 
   .enterprise-identity-console-header-actions {
     justify-content: flex-start;
     width: 100%;
+    overflow-x: auto;
+  }
+
+  .enterprise-identity-console-header-actions,
+  .enterprise-identity-console-header-actions .ant-space {
+    flex-wrap: nowrap !important;
+  }
+
+  .enterprise-identity-console-header-actions .ant-space-item {
+    flex: 0 0 auto;
+  }
+
+  .enterprise-identity-console-header-actions .ant-btn {
+    white-space: nowrap;
   }
 
   .enterprise-identity-summary-strip,
@@ -788,6 +959,71 @@ img {
   .enterprise-identity-status-grid-4,
   .enterprise-identity-action-grid {
     grid-template-columns: 1fr;
+  }
+
+  .enterprise-identity-rail-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .enterprise-identity-segmented-rail,
+  .enterprise-identity-link-rail,
+  .application-access-center .enterprise-identity-action-grid,
+  .auth-source-center .enterprise-identity-rail-list {
+    display: flex;
+    grid-template-columns: none;
+    gap: 8px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding-bottom: 2px;
+  }
+
+  .application-access-center .enterprise-identity-action-grid {
+    flex-wrap: nowrap;
+  }
+
+  .enterprise-identity-rail-summary-item,
+  .enterprise-identity-rail-source,
+  .enterprise-identity-rail-section {
+    padding: 8px;
+  }
+
+  .enterprise-identity-compact-rail {
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .enterprise-identity-rail-summary-item {
+    min-height: 50px;
+  }
+
+  .enterprise-identity-rail-summary-item strong {
+    font-size: 18px;
+  }
+
+  .auth-source-center .enterprise-identity-rail-source {
+    flex: 0 0 258px;
+  }
+
+  .enterprise-identity-segmented-item,
+  .enterprise-identity-link-rail a,
+  .application-access-center .enterprise-identity-action-grid a {
+    flex: 0 0 220px;
+  }
+
+  .auth-source-center .auth-source-failure-section,
+  .application-access-center .application-access-readiness-rail .enterprise-identity-rail-section:first-of-type,
+  .audit-operations-center .audit-operations-rail .enterprise-identity-rail-section:last-child,
+  .llm-ai-gateway-center .llm-ai-gateway-rail .enterprise-identity-rail-section:first-of-type {
+    display: none;
+  }
+
+  .enterprise-identity-section-header {
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .enterprise-identity-risk-item {
+    padding: 8px 0;
   }
 
   .enterprise-identity-status-card {

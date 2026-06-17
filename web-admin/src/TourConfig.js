@@ -201,6 +201,24 @@ export const TourObj = {
 
 export const TourUrlList = ["home", "organizations", "groups", "users", "applications", "providers", "resources", "roles", "permissions", "models", "adapters", "enforcers", "tokens", "sessions", "products", "payments", "plans", "pricings", "subscriptions", "sysinfo", "syncers", "webhooks"];
 
+const EnterpriseIdentityTourClosedRoutes = new Set([
+  "organizations",
+  "users",
+  "roles",
+  "permissions",
+  "providers",
+  "applications",
+  "sessions",
+  "records",
+  "tokens",
+  "verifications",
+  "agents",
+]);
+
+function getTourRouteKey(pathName = window.location.pathname) {
+  return `${pathName}`.split("?")[0].replace(/^\/+/, "").split("/")[0];
+}
+
 export function getNextUrl(pathName = window.location.pathname) {
   return TourUrlList[TourUrlList.indexOf(pathName.replace("/", "")) + 1] || "";
 }
@@ -225,7 +243,11 @@ export function setTourLogo(tourLogoSrc) {
   }
 }
 
-export function getTourVisible() {
+export function getTourVisible(pathName = window.location.pathname) {
+  if (EnterpriseIdentityTourClosedRoutes.has(getTourRouteKey(pathName))) {
+    return false;
+  }
+
   return localStorage.getItem("isTourVisible") !== "false";
 }
 

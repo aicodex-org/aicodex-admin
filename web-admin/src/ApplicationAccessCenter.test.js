@@ -2,7 +2,10 @@
 import React from "react";
 import {render, screen} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
+import i18next from "i18next";
 import ApplicationAccessCenter, {buildApplicationAccessCenterSummary} from "./ApplicationAccessCenter";
+import en from "./locales/en/data.json";
+import zh from "./locales/zh/data.json";
 
 const applications = [
   {
@@ -46,10 +49,28 @@ const applications = [
   },
 ];
 
+async function useTestLanguage(language) {
+  if (!i18next.isInitialized) {
+    await i18next.init({
+      lng: language,
+      fallbackLng: "en",
+      resources: {en, zh},
+      ns: Object.keys(en),
+      keySeparator: false,
+    });
+    return;
+  }
+
+  i18next.addResourceBundle("en", "general", en.general, true, true);
+  i18next.addResourceBundle("zh", "general", zh.general, true, true);
+  await i18next.changeLanguage(language);
+}
+
 describe("ApplicationAccessCenter", () => {
   let consoleErrorSpy;
 
-  beforeEach(() => {
+  beforeEach(async() => {
+    await useTestLanguage("zh");
     consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((message, ...args) => {
       if (`${message}`.includes("ReactDOM.render is no longer supported")) {
         return;
@@ -104,7 +125,7 @@ describe("ApplicationAccessCenter", () => {
     expect(summary.riskItems).toEqual([
       expect.objectContaining({
         key: "all-ready",
-        title: "当前列表视图未发现接入缺口",
+        title: "本页未发现接入缺口",
       }),
     ]);
 
@@ -208,30 +229,34 @@ describe("ApplicationAccessCenter", () => {
     ]));
   });
 
-  test("renders status cards, risk summary, and existing configuration links", () => {
-    render(
+  test("renders list-first summary, risk summary, and existing configuration links", () => {
+    const {container} = render(
       <MemoryRouter>
         <ApplicationAccessCenter applications={applications} loading={false} />
       </MemoryRouter>
     );
 
     expect(screen.getByText("应用接入中心")).toBeInTheDocument();
-    expect(screen.getByText("当前列表视图")).toBeInTheDocument();
-    expect(screen.getByText("AICodex Portal")).toBeInTheDocument();
+    expect(container.querySelector(".application-access-readiness-rail")).not.toBeNull();
+    expect(container.querySelector(".enterprise-identity-status-card")).toBeNull();
+    expect(screen.getByText("应用")).toBeInTheDocument();
+    expect(screen.queryByText("当前列表视图")).not.toBeInTheDocument();
+    expect(screen.queryByText("只读推导")).not.toBeInTheDocument();
+    expect(screen.queryByText("只读核对")).not.toBeInTheDocument();
+    expect(screen.queryByText("AICodex Portal")).not.toBeInTheDocument();
     expect(screen.getAllByText("接入完整").length).toBeGreaterThan(0);
-    expect(screen.getByText("Missing Callback")).toBeInTheDocument();
-    expect(screen.getByText("Disabled Legacy App")).toBeInTheDocument();
     expect(screen.getByText("缺少回调地址")).toBeInTheDocument();
     expect(screen.getByText("缺少 Provider 绑定")).toBeInTheDocument();
-    expect(screen.getByText("身份源组织已显式绑定")).toBeInTheDocument();
+    expect(screen.getByText("身份源已绑定")).toBeInTheDocument();
     expect(screen.getByText("应用列表").closest("a")).toHaveAttribute("href", "/applications");
     expect(screen.getAllByText("API 网关映射").some(item => item.closest("a")?.getAttribute("href") === "/platform-api-mappings")).toBe(true);
-    expect(screen.getByText("OAuth/OIDC Provider").closest("a")).toHaveAttribute("href", "/providers");
+    expect(screen.getByText("认证源").closest("a")).toHaveAttribute("href", "/providers");
+    expect(screen.queryByText("OAuth/OIDC Provider")).not.toBeInTheDocument();
     expect(screen.getAllByText("查看审计记录").some(item => item.closest("a")?.getAttribute("href") === "/records")).toBe(true);
     expect(screen.queryByText("portal-secret-value")).not.toBeInTheDocument();
   });
 
-  test("renders low-risk fallback copy for complete unnamed current-view data", () => {
+  test("renders low-risk fallback copy for complete unnamed visible data", () => {
     render(
       <MemoryRouter>
         <ApplicationAccessCenter applications={[
@@ -248,8 +273,8 @@ describe("ApplicationAccessCenter", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText("未配置技术名称")).toBeInTheDocument();
-    expect(screen.getByText("当前列表视图未发现接入缺口")).toBeInTheDocument();
+    expect(screen.queryByText("未配置技术名称")).not.toBeInTheDocument();
+    expect(screen.getByText("本页未发现接入缺口")).toBeInTheDocument();
     expect(screen.getByText("低风险")).toBeInTheDocument();
   });
 

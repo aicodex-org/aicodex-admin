@@ -27,12 +27,9 @@ import i18next from "i18next";
 import React from "react";
 import {Link} from "react-router-dom";
 import {
-  EnterpriseIdentityActionGrid,
   EnterpriseIdentityConsolePage,
   EnterpriseIdentityRiskList,
-  EnterpriseIdentitySection,
-  EnterpriseIdentityStatusGrid,
-  EnterpriseIdentitySummaryStrip
+  EnterpriseIdentitySection
 } from "./common/EnterpriseIdentityConsoleLayout";
 
 const {Text} = Typography;
@@ -202,8 +199,8 @@ export function buildLlmAiGatewayCenterSummary({
     entryLinks: ENTRY_LINKS,
     riskItems: riskItems.length > 0 ? riskItems : [{
       key: "current-view-ready",
-      titleKey: "No LLM AI gateway risk in current view",
-      descriptionKey: "Use MCP server API mapping and audit entries for deeper read-only review",
+      titleKey: "No LLM AI gateway risk in visible data",
+      descriptionKey: "Use MCP server API mapping and audit entries for deeper governance review",
       count: 0,
       path: "/agents",
       actionLabelKey: "Review agents",
@@ -216,16 +213,16 @@ function buildSummaryItems(summary: LlmAiGatewayCenterSummary) {
   return [
     {
       key: "current-agents",
-      label: t("Current Agent View"),
+      label: t("Agent View"),
       value: summary.metrics.currentViewAgents,
-      description: t("Current page agents"),
+      description: t("Page agents"),
       tone: summary.metrics.currentViewAgents > 0 ? "processing" : "warning" as GatewayCenterTone,
     },
     {
       key: "total-agents",
       label: t("Agent Total"),
       value: summary.metrics.totalAgents,
-      description: t("Filtered or paginated total"),
+      description: t("Table total after filters and pagination"),
       tone: summary.metrics.totalAgents > 0 ? "processing" : "warning" as GatewayCenterTone,
     },
     {
@@ -245,65 +242,6 @@ function buildSummaryItems(summary: LlmAiGatewayCenterSummary) {
   ];
 }
 
-function buildStatusCards(summary: LlmAiGatewayCenterSummary) {
-  return [
-    {
-      key: "agent-view",
-      title: t("Current Agent View"),
-      description: t("Current list view summary"),
-      icon: <RobotOutlined />,
-      metricValue: summary.metrics.currentViewAgents,
-      metricLabel: t("Current page agents"),
-      tags: [
-        {key: "readonly", label: t("Read-only review"), tone: "processing" as GatewayCenterTone},
-        {key: "route", label: "/agents", tone: "default" as GatewayCenterTone},
-      ],
-      details: <Text type="secondary">{t("Keeps existing route permissions pagination filters and table actions")}</Text>,
-      actions: [{key: "agents", to: "/agents", label: t("Review agents")}],
-    },
-    {
-      key: "mcp-resources",
-      title: t("MCP resources"),
-      description: t("MCP resources description"),
-      icon: <CloudServerOutlined />,
-      metricValue: 3,
-      metricLabel: t("Linked entry"),
-      tags: [
-        {key: "server", label: t("MCP Server"), tone: "processing" as GatewayCenterTone},
-        {key: "store", label: t("MCP Store"), tone: "default" as GatewayCenterTone},
-      ],
-      actions: [
-        {key: "servers", to: "/servers", label: t("MCP Server")},
-        {key: "store", to: "/server-store", label: t("MCP Store")},
-      ],
-    },
-    {
-      key: "gateway-identity",
-      title: t("Gateway identity mapping"),
-      description: t("Gateway identity mapping description"),
-      icon: <ApiOutlined />,
-      metricValue: 1,
-      metricLabel: t("Linked entry"),
-      tags: [
-        {key: "mapping", label: t("API Gateway Identity Mappings"), tone: "processing" as GatewayCenterTone},
-      ],
-      actions: [{key: "api-mapping", to: "/platform-api-mappings", label: t("API Gateway Identity Mappings")}],
-    },
-    {
-      key: "audit",
-      title: t("AI gateway audit evidence"),
-      description: t("AI gateway audit evidence description"),
-      icon: <AuditOutlined />,
-      metricValue: 1,
-      metricLabel: t("Linked entry"),
-      tags: [
-        {key: "audit", label: t("Audit Records"), tone: "default" as GatewayCenterTone},
-      ],
-      actions: [{key: "records", to: "/records", label: t("Audit Records")}],
-    },
-  ];
-}
-
 function buildRiskItems(summary: LlmAiGatewayCenterSummary) {
   return summary.riskItems.map(item => ({
     key: item.key,
@@ -317,16 +255,6 @@ function buildRiskItems(summary: LlmAiGatewayCenterSummary) {
       to: item.path,
       label: t(item.actionLabelKey),
     },
-  }));
-}
-
-function buildActionItems(summary: LlmAiGatewayCenterSummary) {
-  return summary.entryLinks.map(item => ({
-    key: item.key,
-    to: item.to,
-    label: t(item.labelKey),
-    description: t(item.descriptionKey),
-    icon: item.icon,
   }));
 }
 
@@ -368,21 +296,37 @@ function LlmAiGatewayCenter({
           message={t("LLM AI gateway empty state")}
         />
       )}
-      <EnterpriseIdentitySummaryStrip items={buildSummaryItems(summary)} />
-      <EnterpriseIdentityStatusGrid items={buildStatusCards(summary)} minColumns={4} />
-      <div className="enterprise-identity-two-column enterprise-identity-two-column-wide-right">
+      <div className="llm-ai-gateway-rail enterprise-identity-compact-rail enterprise-identity-compact-rail-wide">
+        <div className="enterprise-identity-rail-summary" aria-label={t("LLM AI gateway summary")}>
+          {buildSummaryItems(summary).map(item => (
+            <div className={`enterprise-identity-rail-summary-item enterprise-identity-tone-${item.tone}`} key={item.key}>
+              <Text type="secondary">{item.label}</Text>
+              <strong>{item.value}</strong>
+              <Text type="secondary">{item.description}</Text>
+            </div>
+          ))}
+        </div>
         <EnterpriseIdentitySection
+          className="enterprise-identity-rail-section"
           title={t("Gateway Risk Queue")}
           description={t("Gateway risk queue description")}
-          extra={<Text type="secondary">{t("Summary comes from current filtered or paginated view")}</Text>}
+          extra={<Text type="secondary">{t("Summary comes from visible table data")}</Text>}
         >
           <EnterpriseIdentityRiskList items={buildRiskItems(summary)} />
         </EnterpriseIdentitySection>
         <EnterpriseIdentitySection
+          className="enterprise-identity-rail-section"
           title={t("LLM AI Gateway Configuration Entries")}
           description={t("AI gateway configuration entries description")}
         >
-          <EnterpriseIdentityActionGrid items={buildActionItems(summary)} />
+          <div className="enterprise-identity-link-rail">
+            {summary.entryLinks.map(item => (
+              <Link to={item.to} key={item.key}>
+                <span className="enterprise-identity-action-icon">{item.icon}</span>
+                <span>{t(item.labelKey)}</span>
+              </Link>
+            ))}
+          </div>
         </EnterpriseIdentitySection>
       </div>
     </EnterpriseIdentityConsolePage>

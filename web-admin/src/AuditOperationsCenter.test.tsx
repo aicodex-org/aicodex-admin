@@ -1,7 +1,8 @@
 /* eslint-env jest */
 import React from "react";
-import {render, screen} from "@testing-library/react";
+import {render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
+import {expect, jest} from "@jest/globals";
 import i18next from "i18next";
 import AuditOperationsCenter, {buildAuditOperationsSummary} from "./AuditOperationsCenter";
 import en from "./locales/en/data.json";
@@ -46,17 +47,15 @@ const sampleVerifications = [
 ];
 
 describe("AuditOperationsCenter", () => {
-  let consoleErrorSpy;
+  let consoleErrorSpy: {mockRestore: () => void};
 
   beforeEach(async() => {
-    // eslint-disable-next-line no-console
     const originalConsoleError = console.error;
-    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((...args) => {
+    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
       if (typeof args[0] === "string" && args[0].includes("ReactDOM.render is no longer supported in React 18")) {
         return;
       }
 
-      // eslint-disable-next-line no-console
       originalConsoleError(...args);
     });
 
@@ -113,14 +112,14 @@ describe("AuditOperationsCenter", () => {
 
   test("normalizes unsupported active keys and ignores malformed row fields", () => {
     const summary = buildAuditOperationsSummary({
-      activeKey: "unknown",
+      activeKey: "unknown" as never,
       sessions: [{id: "session-1"}],
       records: [null, {statusCode: 404}, {statusCode: "pending"}],
       verifications: ["bad-row", {isUsed: false, code: "654321"}],
     });
 
     expect(summary.activeEntry.key).toBe("records");
-    expect(summary.entries.find(entry => entry.key === "sessions").total).toBe(1);
+    expect(summary.entries.find(entry => entry.key === "sessions")?.total).toBe(1);
     expect(summary.riskItems).toEqual(expect.arrayContaining([
       expect.objectContaining({key: "record-errors", count: 1}),
       expect.objectContaining({key: "unused-verifications", count: 1}),
@@ -131,21 +130,21 @@ describe("AuditOperationsCenter", () => {
 
   test("treats malformed current-view collections as empty totals", () => {
     const summary = buildAuditOperationsSummary({
-      records: "not-array",
-      tokens: "not-array",
-      verifications: {isUsed: false},
+      records: "not-array" as never,
+      tokens: "not-array" as never,
+      verifications: {isUsed: false} as never,
     });
 
-    expect(summary.entries.find(entry => entry.key === "records").total).toBe(0);
-    expect(summary.entries.find(entry => entry.key === "tokens").total).toBe(0);
-    expect(summary.entries.find(entry => entry.key === "verifications").total).toBe(0);
+    expect(summary.entries.find(entry => entry.key === "records")?.total).toBe(0);
+    expect(summary.entries.find(entry => entry.key === "tokens")?.total).toBe(0);
+    expect(summary.entries.find(entry => entry.key === "verifications")?.total).toBe(0);
     expect(summary.riskItems).toEqual([
       expect.objectContaining({key: "current-view-clean", count: 0}),
     ]);
   });
 
-  test("renders audit operations workbench entries and current-view risk copy", () => {
-    render(
+  test("renders compact runtime rail and current-view risk copy", () => {
+    const {container, getAllByText, getByText, queryByText} = render(
       <MemoryRouter>
         <AuditOperationsCenter
           activeKey="records"
@@ -163,29 +162,31 @@ describe("AuditOperationsCenter", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText("审计运维中心")).toBeInTheDocument();
-    expect(screen.getByText("当前核对域")).toBeInTheDocument();
-    expect(screen.getAllByText("审计记录").some(item => item.closest("a")?.getAttribute("href") === "/records")).toBe(true);
-    expect(screen.getAllByText("会话核对").some(item => item.closest("a")?.getAttribute("href") === "/sessions")).toBe(true);
-    expect(screen.getAllByText("令牌核对").some(item => item.closest("a")?.getAttribute("href") === "/tokens")).toBe(true);
-    expect(screen.getAllByText("验证核对").some(item => item.closest("a")?.getAttribute("href") === "/verifications")).toBe(true);
-    expect(screen.getByText("失败状态核对")).toBeInTheDocument();
-    expect(screen.getByText("令牌可见性核对")).toBeInTheDocument();
-    expect(screen.getByText("未使用验证记录")).toBeInTheDocument();
-    expect(screen.queryByText("sensitive-access-token-value")).not.toBeInTheDocument();
-    expect(screen.queryByText("123456")).not.toBeInTheDocument();
-    expect(screen.queryByText("person@example.com")).not.toBeInTheDocument();
+    expect(container.querySelector(".audit-operations-rail")).not.toBeNull();
+    expect(container.querySelector(".enterprise-identity-status-card")).toBeNull();
+    expect(container.textContent).toContain("审计运维中心");
+    expect(getByText("当前核对域")).not.toBeNull();
+    expect(getAllByText("审计记录").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/records")).toBe(true);
+    expect(getAllByText("会话核对").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/sessions")).toBe(true);
+    expect(getAllByText("令牌核对").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/tokens")).toBe(true);
+    expect(getAllByText("验证核对").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/verifications")).toBe(true);
+    expect(getByText("失败状态核对")).not.toBeNull();
+    expect(getByText("令牌可见性核对")).not.toBeNull();
+    expect(getByText("未使用验证记录")).not.toBeNull();
+    expect(queryByText("sensitive-access-token-value")).toBeNull();
+    expect(queryByText("123456")).toBeNull();
+    expect(queryByText("person@example.com")).toBeNull();
   });
 
-  test("keeps empty current-view data actionable", () => {
-    render(
+  test("keeps empty visible data actionable", () => {
+    const view = render(
       <MemoryRouter>
         <AuditOperationsCenter activeKey="sessions" loading={false} totals={{sessions: 0}} />
       </MemoryRouter>
     );
 
-    expect(screen.getByText("当前视图暂无运行态异常")).toBeInTheDocument();
-    expect(screen.getAllByText("摘要来自当前筛选或分页视图").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("会话核对").some(item => item.closest("a")?.getAttribute("href") === "/sessions")).toBe(true);
+    expect(view.getByText("表格数据暂无运行态异常")).not.toBeNull();
+    expect(view.getAllByText("摘要来自表格数据").length).toBeGreaterThan(0);
+    expect(view.getAllByText("会话核对").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/sessions")).toBe(true);
   });
 });
