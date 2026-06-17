@@ -146,6 +146,7 @@ class FeishuOrganizationSyncPage extends React.Component {
       handoffEvidenceLoading: false,
       handoffEvidenceError: "",
       handoffEvidenceSourceType: "latest",
+      handoffEvidenceDetailsOpen: false,
     };
   }
 
@@ -407,6 +408,7 @@ class FeishuOrganizationSyncPage extends React.Component {
       bindingDiagnosticsDetailOpen: false,
       handoffEvidence: null,
       handoffEvidenceError: "",
+      handoffEvidenceDetailsOpen: false,
     }, () => this.refresh(organization));
   }
 
@@ -845,6 +847,8 @@ class FeishuOrganizationSyncPage extends React.Component {
   renderHandoffEvidence() {
     const evidence = this.state.handoffEvidence || {};
     const readinessType = evidence.readiness === "blocked" ? "error" : evidence.readiness === "ready" ? "success" : "info";
+    const hasHandoffDetails = Boolean(evidence.sourceConnectionIdHash || evidence.endpointMode || evidence.appAlias || evidence.tenantAlias || evidence.acceptanceChecklist?.version ||
+      (evidence.blockedReasons || []).length > 0 || (evidence.operatorNextActions || []).length > 0 || (evidence.cannotInfer || []).length > 0);
     return (
       <>
         <Row align="middle" justify="space-between" style={{marginBottom: 12}}>
@@ -883,27 +887,42 @@ class FeishuOrganizationSyncPage extends React.Component {
               <Space wrap>
                 {this.getHandoffReadinessTag(evidence.readiness)}
                 {evidence.sourceType && <Tag>{handoffSourceTypeLabels[evidence.sourceType] || evidence.sourceType}</Tag>}
-                {evidence.sourceIdHash && <Tag>{evidence.sourceIdHash}</Tag>}
                 {evidence.redaction?.applied && <Tag color="green">{evidence.redaction.version || "已脱敏"}</Tag>}
               </Space>
             }
             description={
               <Space direction="vertical" size={6} style={{width: "100%"}}>
                 <Text>{evidence.safeSummary || "-"}</Text>
-                <Space size={4} wrap>
-                  {evidence.sourceConnectionIdHash && <Tag>{evidence.sourceConnectionIdHash}</Tag>}
-                  {evidence.endpointMode && <Tag>{evidence.endpointMode}</Tag>}
-                  {evidence.appAlias && <Tag>{evidence.appAlias}</Tag>}
-                  {evidence.tenantAlias && <Tag>{evidence.tenantAlias}</Tag>}
-                </Space>
                 {this.renderHandoffCounts(evidence.counts)}
-                <Space size={4} wrap>
-                  {(evidence.blockedReasons || []).map(reason => <Tag color="red" key={reason}>{reason}</Tag>)}
-                  {(evidence.operatorNextActions || []).map(action => <Tag color="blue" key={action}>{action}</Tag>)}
-                  {(evidence.cannotInfer || []).map(item => <Tag key={item}>{item}</Tag>)}
-                </Space>
                 {evidence.bindingConflicts?.safeSummary && <Text type={evidence.bindingConflicts?.blocked ? "danger" : "secondary"}>{evidence.bindingConflicts.safeSummary}</Text>}
-                {this.renderHandoffAcceptanceChecklist(evidence.acceptanceChecklist)}
+                {hasHandoffDetails && (
+                  <Button
+                    size="small"
+                    type="link"
+                    style={{padding: 0, height: "auto", alignSelf: "flex-start"}}
+                    aria-label="toggle-handoff-evidence-details"
+                    onClick={() => this.setState({handoffEvidenceDetailsOpen: !this.state.handoffEvidenceDetailsOpen})}
+                  >
+                    {this.state.handoffEvidenceDetailsOpen ? "收起验收资料" : "查看验收资料"}
+                  </Button>
+                )}
+                {hasHandoffDetails && this.state.handoffEvidenceDetailsOpen && (
+                  <Space direction="vertical" size={8} style={{width: "100%"}}>
+                    <Space size={4} wrap>
+                      {evidence.sourceIdHash && <Tag>{evidence.sourceIdHash}</Tag>}
+                      {evidence.sourceConnectionIdHash && <Tag>{evidence.sourceConnectionIdHash}</Tag>}
+                      {evidence.endpointMode && <Tag>{evidence.endpointMode}</Tag>}
+                      {evidence.appAlias && <Tag>{evidence.appAlias}</Tag>}
+                      {evidence.tenantAlias && <Tag>{evidence.tenantAlias}</Tag>}
+                    </Space>
+                    <Space size={4} wrap>
+                      {(evidence.blockedReasons || []).map(reason => <Tag color="red" key={reason}>{reason}</Tag>)}
+                      {(evidence.operatorNextActions || []).map(action => <Tag color="blue" key={action}>{action}</Tag>)}
+                      {(evidence.cannotInfer || []).map(item => <Tag key={item}>{item}</Tag>)}
+                    </Space>
+                    {this.renderHandoffAcceptanceChecklist(evidence.acceptanceChecklist)}
+                  </Space>
+                )}
               </Space>
             }
           />

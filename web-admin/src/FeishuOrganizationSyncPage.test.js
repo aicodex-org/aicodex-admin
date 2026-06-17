@@ -339,10 +339,16 @@ test("renders handoff evidence ready summary and safe markers", async() => {
   expect(await screen.findByText("交接证据")).toBeInTheDocument();
   expect(FeishuOrganizationSyncBackend.getFeishuOrganizationSyncHandoffEvidence).toHaveBeenCalledWith("engineering", {sourceType: "latest"});
   expect(screen.getByText("可交接")).toBeInTheDocument();
+  expect(screen.getByText("部门：新 1 / 更 1 / 软禁 0 / 冲突 0 / 无效 0")).toBeInTheDocument();
+  expect(screen.getByText("查看验收资料")).toBeInTheDocument();
+  expect(screen.queryByText("dry-run-safe")).not.toBeInTheDocument();
+  expect(screen.queryByText("source-safe")).not.toBeInTheDocument();
+  expect(screen.queryByText("live_contact_v3_credentials")).not.toBeInTheDocument();
+  expect(screen.queryByText("provider_truth")).not.toBeInTheDocument();
+  expect(screen.queryByText("production_readiness")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByLabelText("toggle-handoff-evidence-details"));
   expect(screen.getAllByText("dry-run-safe").length).toBeGreaterThan(0);
   expect(screen.getAllByText("source-safe").length).toBeGreaterThan(0);
-  expect(screen.getByText("部门：新 1 / 更 1 / 软禁 0 / 冲突 0 / 无效 0")).toBeInTheDocument();
-  expect(screen.getAllByText("live_contact_v3_credentials").length).toBeGreaterThan(0);
   expect(screen.getByText("验收清单")).toBeInTheDocument();
   expect(screen.getAllByText("manual_review_only").length).toBeGreaterThan(0);
   expect(screen.getAllByText("provider_truth").length).toBeGreaterThan(0);
@@ -379,7 +385,9 @@ test("copies handoff acceptance checklist JSON and Markdown without raw tenant i
   });
   render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
-  expect(await screen.findByText("验收清单")).toBeInTheDocument();
+  expect(await screen.findByText("交接证据")).toBeInTheDocument();
+  fireEvent.click(screen.getByLabelText("toggle-handoff-evidence-details"));
+  expect(screen.getByText("验收清单")).toBeInTheDocument();
   fireEvent.click(screen.getByLabelText("copy-handoff-acceptance-checklist-json"));
   fireEvent.click(screen.getByLabelText("copy-handoff-acceptance-checklist-markdown"));
 
@@ -408,7 +416,9 @@ test("exports handoff acceptance checklist JSON and Markdown", async() => {
   });
   render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
-  expect(await screen.findByText("验收清单")).toBeInTheDocument();
+  expect(await screen.findByText("交接证据")).toBeInTheDocument();
+  fireEvent.click(screen.getByLabelText("toggle-handoff-evidence-details"));
+  expect(screen.getByText("验收清单")).toBeInTheDocument();
   fireEvent.click(screen.getByLabelText("export-handoff-acceptance-checklist-json"));
   fireEvent.click(screen.getByLabelText("export-handoff-acceptance-checklist-markdown"));
 
@@ -452,6 +462,8 @@ test("renders handoff evidence blocked and no-run states", async() => {
   render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
   expect((await screen.findAllByText("交接证据存在 2 个阻断原因，需处理后再交接。")).length).toBeGreaterThan(0);
+  expect(screen.queryByText("sync_run_failed")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByLabelText("toggle-handoff-evidence-details"));
   expect(screen.getByText("sync_run_failed")).toBeInTheDocument();
   expect(screen.getByText("binding_conflict_blocked")).toBeInTheDocument();
   expect(screen.getByText("handoff_readiness")).toBeInTheDocument();
