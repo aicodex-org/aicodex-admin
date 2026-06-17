@@ -63,11 +63,18 @@ The system SHALL allow existing gateway synchronization clients to use organizat
 #### Scenario: Legacy organizations endpoint returns bound organization only
 - **WHEN** a valid sync API Key calls `GET /api/get-organizations?owner=admin`
 - **THEN** the system returns only the organization bound to that key
+- **AND** the response includes `data2=1` as the total count
 
 #### Scenario: Legacy groups endpoint returns bound groups only
 - **WHEN** a valid sync API Key calls `GET /api/get-groups?owner=<organization>`
 - **THEN** the system returns groups only when `<organization>` matches the key-bound organization
+- **AND** when `p` and `pageSize` are supplied, the system returns only the requested page
+- **AND** the pagination follows the legacy paginator defaults for invalid, non-positive, or out-of-range values
+- **AND** the response includes `data2` with the total bound-group count
 
 #### Scenario: Legacy applications endpoint returns bound applications only
 - **WHEN** a valid sync API Key calls `GET /api/get-organization-applications?owner=admin&organization=<organization>`
 - **THEN** the system returns applications only when `<organization>` matches the key-bound organization
+- **AND** when `p` and `pageSize` are supplied, the system returns only the requested page
+- **AND** the pagination follows the legacy paginator defaults for invalid, non-positive, or out-of-range values
+- **AND** the response includes `data2` with the total bound-application count

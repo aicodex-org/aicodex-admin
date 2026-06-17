@@ -187,7 +187,9 @@ func (c *ApiController) GetOrganizationApplications() {
 			c.ResponseError(err.Error())
 			return
 		}
-		c.ResponseOk(object.GetMaskedApplications(applications, ""))
+		maskedApplications := object.GetMaskedApplications(applications, "")
+		pagedApplications, total := paginateOrganizationSyncItems(maskedApplications, page, limit)
+		c.ResponseOk(pagedApplications, total)
 		return
 	}
 

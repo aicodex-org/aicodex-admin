@@ -50,10 +50,11 @@ func (c *ApiController) GetGroups() {
 			return
 		}
 		if withTree == "true" {
-			c.ResponseOk(object.ConvertToTreeData(groups, organization))
+			c.ResponseOk(object.ConvertToTreeData(groups, organization), len(groups))
 			return
 		}
-		c.ResponseOk(groups)
+		pagedGroups, total := paginateOrganizationSyncItems(groups, page, limit)
+		c.ResponseOk(pagedGroups, total)
 		return
 	}
 

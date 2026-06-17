@@ -19,3 +19,9 @@
 
 - [x] 4.1 增加后端单元测试覆盖 Key 生命周期、哈希存储、过期/禁用/组织不匹配拒绝和导出读取
 - [x] 4.2 运行 OpenSpec 校验和针对性 Go/前端构建检查，记录结果
+
+## 5. Gateway 兼容性回归
+
+- [x] 5.1 让旧组织读取接口在组织同步 API Key 主体下支持 `p/pageSize` 分页，并在 `data2` 返回总数
+- [x] 5.2 实现 `/api/get-groups`、`/api/get-organization-applications` 和 `/api/get-organizations` 的同步 Key 兼容返回语义
+- [x] 5.3 增加针对分页 slice 逻辑和 legacy paginator 边界语义的单元测试

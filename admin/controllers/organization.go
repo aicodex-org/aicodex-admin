@@ -53,7 +53,7 @@ func (c *ApiController) GetOrganizations() {
 			c.ResponseError("organization does not exist: " + auth.Organization)
 			return
 		}
-		c.ResponseOk([]*object.Organization{organization})
+		c.ResponseOk([]*object.Organization{organization}, 1)
 		return
 	}
 

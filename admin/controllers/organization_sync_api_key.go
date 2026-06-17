@@ -17,6 +17,7 @@ package controllers
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"git.leagsoft.com/aicodex/aicodex-admin/object"
@@ -62,6 +63,39 @@ func (c *ApiController) requireOrganizationSyncApiKeyOrganization(requestedOrgan
 		return "", false
 	}
 	return auth.Organization, true
+}
+
+func paginateOrganizationSyncItems[T any](items []T, pageRaw string, pageSizeRaw string) ([]T, int) {
+	total := len(items)
+	if strings.TrimSpace(pageRaw) == "" || strings.TrimSpace(pageSizeRaw) == "" {
+		return items, total
+	}
+	page := parseOrganizationSyncPaginationInt(pageRaw, 1)
+	pageSize := parseOrganizationSyncPaginationInt(pageSizeRaw, 10)
+	pageCount := 0
+	if total > 0 {
+		pageCount = ((total - 1) / pageSize) + 1
+	}
+	if pageCount > 0 && page > pageCount {
+		page = pageCount
+	}
+	start := (page - 1) * pageSize
+	if start > total {
+		start = total
+	}
+	end := start + pageSize
+	if end > total {
+		end = total
+	}
+	return items[start:end], total
+}
+
+func parseOrganizationSyncPaginationInt(value string, fallback int) int {
+	parsed, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || parsed <= 0 {
+		return fallback
+	}
+	return parsed
 }
 
 func (c *ApiController) requireOrganizationSyncApiKeyAdmin(organization string) (*object.User, bool) {

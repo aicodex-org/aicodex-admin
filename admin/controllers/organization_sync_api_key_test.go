@@ -78,6 +78,58 @@ func TestRequireOrganizationSyncApiKeyOrganizationAllowsBoundOrganization(t *tes
 	}
 }
 
+func TestPaginateOrganizationSyncItemsReturnsRequestedPageAndTotal(t *testing.T) {
+	items := []string{"g1", "g2", "g3", "g4", "g5"}
+
+	got, total := paginateOrganizationSyncItems(items, "2", "2")
+
+	if total != 5 {
+		t.Fatalf("total = %d, want 5", total)
+	}
+	if len(got) != 2 || got[0] != "g3" || got[1] != "g4" {
+		t.Fatalf("page items = %#v, want [g3 g4]", got)
+	}
+}
+
+func TestPaginateOrganizationSyncItemsKeepsFullListWithoutPagination(t *testing.T) {
+	items := []string{"g1", "g2", "g3"}
+
+	got, total := paginateOrganizationSyncItems(items, "", "")
+
+	if total != 3 {
+		t.Fatalf("total = %d, want 3", total)
+	}
+	if len(got) != 3 {
+		t.Fatalf("items = %#v, want full list", got)
+	}
+}
+
+func TestPaginateOrganizationSyncItemsClampsBeyondLastPage(t *testing.T) {
+	items := []string{"g1", "g2", "g3", "g4", "g5"}
+
+	got, total := paginateOrganizationSyncItems(items, "100", "2")
+
+	if total != 5 {
+		t.Fatalf("total = %d, want 5", total)
+	}
+	if len(got) != 1 || got[0] != "g5" {
+		t.Fatalf("page items = %#v, want [g5]", got)
+	}
+}
+
+func TestPaginateOrganizationSyncItemsUsesLegacyDefaultsForInvalidPagination(t *testing.T) {
+	items := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}
+
+	got, total := paginateOrganizationSyncItems(items, "invalid", "0")
+
+	if total != 11 {
+		t.Fatalf("total = %d, want 11", total)
+	}
+	if len(got) != 10 || got[0] != 1 || got[9] != 10 {
+		t.Fatalf("page items = %#v, want first 10 items", got)
+	}
+}
+
 func newOrganizationSyncApiKeyTestController(t *testing.T, method string, target string, body string) (*ApiController, *httptest.ResponseRecorder) {
 	t.Helper()
 
