@@ -15,6 +15,13 @@ export type AccessWizardStepStatus = "wait" | "process" | "finish" | "error";
 export type AccessWizardResultStatus = "ready" | "blocked" | "cannot_infer";
 export type AccessWizardBlockerKind = "configuration_gap" | "evidence_gap" | "cannot_infer";
 export type AccessWizardActionKind = "configure" | "evidence" | "detail" | "wait_for_aggregation";
+export type AccessWizardResultEvidenceKind =
+  "configuration_integrity"
+  | "authorization_relationship"
+  | "sync_diagnostics"
+  | "audit_verification"
+  | "runtime_health";
+export type AccessWizardResultEvidenceStatus = "ready" | "needs_review" | "blocked" | "cannot_infer";
 
 export interface AccessWizardSourceDataset {
   pagePath: string;
@@ -71,6 +78,30 @@ export interface AccessWizardAction {
   kind: AccessWizardActionKind;
 }
 
+export interface AccessWizardIdentityAssetContext {
+  assetId: "application-access" | "auth-source" | "gateway-llm-ai";
+  labelKey: string;
+  defaultLabel: string;
+  objectKey: string;
+  objectType: string;
+  objectId: string;
+  to: string;
+}
+
+export interface AccessWizardResultEvidenceLink {
+  key: string;
+  kind: AccessWizardResultEvidenceKind;
+  status: AccessWizardResultEvidenceStatus;
+  labelKey: string;
+  defaultLabel: string;
+  descriptionKey: string;
+  defaultDescription: string;
+  to: string;
+  objectKey: string;
+  source: SourceScope;
+  identityAssetTo: string;
+}
+
 export interface AccessWizardPreflightSummary {
   checkedCount: number;
   blockedCount: number;
@@ -99,6 +130,8 @@ export interface AccessWizardPlan {
   blockers: AccessWizardBlocker[];
   evidenceEntries: AccessWizardEvidenceEntry[];
   safeNextActions: AccessWizardAction[];
+  identityAssetContext: AccessWizardIdentityAssetContext;
+  resultEvidenceLinks: AccessWizardResultEvidenceLink[];
   redactionSummary: RedactionSummary;
   preflightSummary: AccessWizardPreflightSummary;
   resultStatus: AccessWizardResultStatus;
@@ -164,6 +197,36 @@ function hasValue(value: unknown): boolean {
 
 function encoded(value: string): string {
   return encodeURIComponent(value);
+}
+
+function objectKey(object: AccessWizardObject): string {
+  return `${object.type}:${object.id}`;
+}
+
+function identityAssetIdForDomain(domain: AccessWizardDomain): AccessWizardIdentityAssetContext["assetId"] {
+  if (domain === "application_access") {
+    return "application-access";
+  }
+
+  if (domain === "llm_ai_gateway") {
+    return "gateway-llm-ai";
+  }
+
+  return "auth-source";
+}
+
+function buildIdentityAssetContext(domain: AccessWizardDomain, object: AccessWizardObject): AccessWizardIdentityAssetContext {
+  const assetId = identityAssetIdForDomain(domain);
+  const key = objectKey(object);
+  return {
+    assetId,
+    labelKey: "currentObjectEvidenceChain",
+    defaultLabel: "当前对象证据链",
+    objectKey: key,
+    objectType: object.type,
+    objectId: object.id,
+    to: `/identity-assets?asset=${encoded(assetId)}&object=${encoded(key)}&from=access-wizard`,
+  };
 }
 
 function sourceForDataset(dataset: AccessWizardSourceDataset, object?: {type: string; id: string}): SourceScope {
@@ -291,6 +354,27 @@ function action(key: string, labelKey: string, defaultLabel: string, to: string,
   return {key, labelKey, defaultLabel, to, kind};
 }
 
+function resultEvidenceLink(
+  params: Omit<AccessWizardResultEvidenceLink, "descriptionKey"> & {descriptionKey?: string}
+): AccessWizardResultEvidenceLink {
+  return {
+    ...params,
+    descriptionKey: params.descriptionKey || `${params.labelKey}Description`,
+  };
+}
+
+function statusFromBlockers(
+  blockers: AccessWizardBlocker[],
+  blockerKeys: string[],
+  fallback: AccessWizardResultEvidenceStatus = "needs_review"
+): AccessWizardResultEvidenceStatus {
+  if (blockers.some(item => item.kind === "cannot_infer")) {
+    return "cannot_infer";
+  }
+
+  return blockers.some(item => blockerKeys.includes(item.key)) ? "blocked" : fallback;
+}
+
 function getDomainCopy(domain: AccessWizardDomain): Pick<AccessWizardPlan, "titleKey" | "defaultTitle" | "descriptionKey" | "defaultDescription"> {
   if (domain === "application_access") {
     return {
@@ -371,6 +455,143 @@ function buildSteps(resultStatus: AccessWizardResultStatus): AccessWizardStep[] 
   ];
 }
 
+function buildResultEvidenceLinks(params: {
+  domain: AccessWizardDomain;
+  object: AccessWizardObject;
+  source: SourceScope;
+  blockers: AccessWizardBlocker[];
+}): AccessWizardResultEvidenceLink[] {
+  const context = buildIdentityAssetContext(params.domain, params.object);
+  const base = {
+    objectKey: context.objectKey,
+    source: params.source,
+    identityAssetTo: context.to,
+  };
+
+  if (params.domain === "application_access") {
+    return [
+      resultEvidenceLink({
+        ...base,
+        key: "application-result-configuration",
+        kind: "configuration_integrity",
+        status: statusFromBlockers(params.blockers, ["application-client-id", "application-callback", "application-scope"], "ready"),
+        labelKey: "configurationIntegrity",
+        defaultLabel: "配置完整度",
+        defaultDescription: "核对当前应用对象的 Client、回调地址和授权范围。",
+        to: params.object.to,
+      }),
+      resultEvidenceLink({
+        ...base,
+        key: "application-result-authorization",
+        kind: "authorization_relationship",
+        status: statusFromBlockers(params.blockers, ["application-provider-binding", "application-scope"]),
+        labelKey: "applicationAuthorizationRelationship",
+        defaultLabel: "授权关系",
+        defaultDescription: "核对当前应用对象的 Provider 绑定、授权范围和目标组织入口。",
+        to: "/providers",
+      }),
+      resultEvidenceLink({
+        ...base,
+        key: "application-result-audit",
+        kind: "audit_verification",
+        status: "needs_review",
+        labelKey: "auditVerificationEvidence",
+        defaultLabel: "审计/验证证据",
+        defaultDescription: "从当前对象证据链进入审计记录，核对应用配置和登录链路证据。",
+        to: "/records",
+      }),
+    ];
+  }
+
+  if (params.domain === "llm_ai_gateway") {
+    return [
+      resultEvidenceLink({
+        ...base,
+        key: "gateway-result-configuration",
+        kind: "configuration_integrity",
+        status: statusFromBlockers(params.blockers, ["gateway-listening-entry"], "ready"),
+        labelKey: "configurationIntegrity",
+        defaultLabel: "配置完整度",
+        defaultDescription: "核对当前 AI 入口、MCP/API 资源和监听入口。",
+        to: params.object.to,
+      }),
+      resultEvidenceLink({
+        ...base,
+        key: "gateway-result-authorization",
+        kind: "authorization_relationship",
+        status: statusFromBlockers(params.blockers, ["gateway-identity-mapping"]),
+        labelKey: "authorizationRelationship",
+        defaultLabel: "授权关系",
+        defaultDescription: "核对当前 Gateway/LLM AI 对象依赖的应用映射和平台主体关系。",
+        to: "/platform-api-mappings",
+      }),
+      resultEvidenceLink({
+        ...base,
+        key: "gateway-result-runtime",
+        kind: "runtime_health",
+        status: statusFromBlockers(params.blockers, ["gateway-readiness-evidence"]),
+        labelKey: "runtimeHealthEvidence",
+        defaultLabel: "运行健康",
+        defaultDescription: "进入 Gateway 映射与审计证据入口核对 readiness，不执行发布或 receipt 查询。",
+        to: "/platform-api-mappings",
+      }),
+      resultEvidenceLink({
+        ...base,
+        key: "gateway-result-audit",
+        kind: "audit_verification",
+        status: "needs_review",
+        labelKey: "auditVerificationEvidence",
+        defaultLabel: "审计/验证证据",
+        defaultDescription: "从当前对象证据链进入审计记录，核对映射变更和失败证据。",
+        to: "/records",
+      }),
+    ];
+  }
+
+  return [
+    resultEvidenceLink({
+      ...base,
+      key: "auth-source-result-configuration",
+      kind: "configuration_integrity",
+      status: statusFromBlockers(params.blockers, ["auth-source-client-id", "auth-source-field-mapping"], "ready"),
+      labelKey: "configurationIntegrity",
+      defaultLabel: "配置完整度",
+      defaultDescription: "核对当前认证源对象的协议能力、Client 标识和字段映射。",
+      to: params.object.to,
+    }),
+    resultEvidenceLink({
+      ...base,
+      key: "auth-source-result-sync",
+      kind: "sync_diagnostics",
+      status: statusFromBlockers(params.blockers, ["auth-source-field-mapping"]),
+      labelKey: "syncDiagnosticsEvidence",
+      defaultLabel: "同步诊断",
+      defaultDescription: "核对当前认证源对象的字段、组织和账号映射诊断入口。",
+      to: "/providers",
+    }),
+    resultEvidenceLink({
+      ...base,
+      key: "auth-source-result-authorization",
+      kind: "authorization_relationship",
+      status: "needs_review",
+      labelKey: "authorizationRelationship",
+      defaultLabel: "授权关系",
+      defaultDescription: "核对当前认证源与应用、目标组织之间的绑定入口。",
+      to: "/applications",
+    }),
+    resultEvidenceLink({
+      ...base,
+      key: "auth-source-result-audit",
+      kind: "audit_verification",
+      status: "needs_review",
+      labelKey: "auditVerificationEvidence",
+      defaultLabel: "审计/验证证据",
+      defaultDescription: "从当前对象证据链进入审计和验证记录，核对登录、同步和配置变更证据。",
+      to: "/records",
+    }),
+  ];
+}
+
 function buildPlan(params: {
   domain: AccessWizardDomain;
   object: AccessWizardObject;
@@ -385,6 +606,7 @@ function buildPlan(params: {
   const cannotInferCount = params.blockers.filter(item => item.kind === "cannot_infer").length;
   const resultStatus: AccessWizardResultStatus = cannotInferCount > 0 ? "cannot_infer" : params.blockers.length > 0 ? "blocked" : "ready";
   const domainCopy = getDomainCopy(params.domain);
+  const identityContext = buildIdentityAssetContext(params.domain, params.object);
 
   return {
     key: params.domain,
@@ -397,6 +619,13 @@ function buildPlan(params: {
     blockers: params.blockers,
     evidenceEntries: params.evidenceEntries,
     safeNextActions: params.safeNextActions,
+    identityAssetContext: identityContext,
+    resultEvidenceLinks: buildResultEvidenceLinks({
+      domain: params.domain,
+      object: params.object,
+      source: params.source,
+      blockers: params.blockers,
+    }),
     redactionSummary: params.redactionSummary,
     preflightSummary: {
       checkedCount: ACCESS_WIZARD_STEP_IDS.length,

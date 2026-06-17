@@ -81,6 +81,15 @@ describe("identity access wizard models", () => {
     expect(plans.every(plan => plan.steps.map(step => step.id).join("|") === ACCESS_WIZARD_STEP_IDS.join("|"))).toBe(true);
     expect(plans.every(plan => plan.source.kind !== "global_aggregation")).toBe(true);
     expect(plans.every(plan => plan.safetyBoundary.forbiddenExecutions.length > 0)).toBe(true);
+    expect(plans.every(plan => plan.identityAssetContext.to.startsWith("/identity-assets?asset="))).toBe(true);
+    expect(plans.every(plan => plan.identityAssetContext.objectKey.includes(":"))).toBe(true);
+    expect(plans.every(plan => plan.resultEvidenceLinks.length >= 3)).toBe(true);
+    expect(plans.flatMap(plan => plan.resultEvidenceLinks.map(item => item.kind))).toEqual(expect.arrayContaining([
+      "configuration_integrity",
+      "authorization_relationship",
+      "audit_verification",
+      "runtime_health",
+    ]));
     expect(JSON.stringify(plans)).not.toContain("raw-provider-secret");
     expect(JSON.stringify(plans)).not.toContain("raw-app-secret");
     expect(JSON.stringify(plans)).not.toContain("raw-agent-token");
@@ -107,6 +116,10 @@ describe("identity access wizard models", () => {
     ]));
 
     const application = getPlan(plans, "application_access");
+    expect(application.identityAssetContext).toMatchObject({
+      assetId: "application-access",
+      objectKey: "Application:built-in/portal",
+    });
     expect(application.blockers.map(item => item.key)).toEqual(expect.arrayContaining([
       "application-client-id",
       "application-callback",
@@ -117,8 +130,14 @@ describe("identity access wizard models", () => {
       "/applications/built-in/portal",
       "/providers",
     ]));
+    expect(application.resultEvidenceLinks.map(item => item.objectKey)).toContain("Application:built-in/portal");
+    expect(application.resultEvidenceLinks.find(item => item.kind === "authorization_relationship")?.to).toBe("/providers");
 
     const gateway = getPlan(plans, "llm_ai_gateway");
+    expect(gateway.identityAssetContext).toMatchObject({
+      assetId: "gateway-llm-ai",
+      objectKey: "Agent:built-in/support-agent",
+    });
     expect(gateway.blockers.map(item => item.key)).toEqual(expect.arrayContaining([
       "gateway-identity-mapping",
       "gateway-readiness-evidence",

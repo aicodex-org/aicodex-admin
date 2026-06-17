@@ -804,6 +804,12 @@ img {
   gap: 8px;
 }
 
+.access-wizard-result-evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
 .access-wizard-check-item {
   display: grid;
   gap: 5px;
@@ -811,6 +817,22 @@ img {
   border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
   border-radius: 8px;
   background: var(--ant-color-bg-container, #fff);
+}
+
+.access-wizard-result-object,
+.access-wizard-result-evidence-item {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+  border-radius: 8px;
+  background: var(--ant-color-bg-container, #fff);
+}
+
+.access-wizard-result-evidence-item .ant-typography,
+.access-wizard-result-object .ant-typography {
+  overflow-wrap: anywhere;
 }
 
 .access-wizard-link-list a {
@@ -1187,6 +1209,7 @@ img {
 
   .access-wizard-domain-grid,
   .access-wizard-detail-grid,
+  .access-wizard-result-evidence-grid,
   .identity-evidence-chain-layout,
   .identity-evidence-chain-detail-grid {
     grid-template-columns: 1fr;

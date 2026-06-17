@@ -188,6 +188,22 @@ function getSourceOfTruthLabel(sourceOfTruth: string): string {
   return labels[sourceOfTruth] || sourceOfTruth;
 }
 
+function getResultEvidenceStatusLabel(status: AccessWizardPlan["resultEvidenceLinks"][number]["status"]): string {
+  if (status === "ready") {
+    return t("evidenceStatusReady", "已核对");
+  }
+
+  if (status === "blocked") {
+    return t("evidenceStatusBlocked", "存在缺口");
+  }
+
+  if (status === "cannot_infer") {
+    return t("statusCannotInfer", "无法推断");
+  }
+
+  return t("evidenceStatusNeedsReview", "待核对");
+}
+
 const AccessWizardPage = ({account, initialPlans, sourceErrors = EMPTY_SOURCE_ERRORS}: AccessWizardPageProps): JSX.Element => {
   const [plans, setPlans] = React.useState<AccessWizardPlan[]>(initialPlans || []);
   const [loading, setLoading] = React.useState(initialPlans === undefined);
@@ -459,6 +475,31 @@ const AccessWizardPage = ({account, initialPlans, sourceErrors = EMPTY_SOURCE_ER
                         : <Tag>{t("noRawCredential", "未渲染原始凭据")}</Tag>}
                     </Space>
                     <Text type="secondary">{t("sourceOfTruth", "证据口径")}: {getSourceOfTruthLabel(selectedPlan.sourceOfTruth)}</Text>
+                    <div className="access-wizard-result-object">
+                      <Space direction="vertical" size={4}>
+                        <Text strong>{t("resultEvidenceObject", "结果对象")}</Text>
+                        <Text type="secondary">{selectedPlan.identityAssetContext.objectKey}</Text>
+                        <Link to={selectedPlan.identityAssetContext.to}>
+                          {t(selectedPlan.identityAssetContext.labelKey, selectedPlan.identityAssetContext.defaultLabel)}
+                        </Link>
+                      </Space>
+                    </div>
+                    <div className="access-wizard-result-evidence-grid">
+                      {selectedPlan.resultEvidenceLinks.map(item => (
+                        <article className="access-wizard-result-evidence-item" key={item.key}>
+                          <Space wrap>
+                            <Tag>{getResultEvidenceStatusLabel(item.status)}</Tag>
+                            <Tag>{item.objectKey}</Tag>
+                          </Space>
+                          <Text strong>{t(item.labelKey, item.defaultLabel)}</Text>
+                          <Text type="secondary">{t(item.descriptionKey, item.defaultDescription)}</Text>
+                          <Space wrap>
+                            <Link to={item.identityAssetTo}>{t("openObjectEvidenceChain", "进入对象证据链")}</Link>
+                            <Link to={item.to}>{t("reviewRelatedObject", "核对相关对象")}</Link>
+                          </Space>
+                        </article>
+                      ))}
+                    </div>
                   </div>
                 </EnterpriseIdentitySection>
               )}

@@ -37,6 +37,13 @@
 - [x] 4.4 Add focused tests for step transitions, cancel/return, blockers, result page, permission state, preflight failure, cannotInfer and sensitive redaction.
 - [ ] 4.5 Run `yarn typecheck`, focused tests, `yarn build` as risk requires, and browser verification for wizard flow, safe cancellation and no real execution calls.
 
+### 4a. Completed P1 Access Wizard Result Evidence Linkage
+
+- [x] 4a.1 Extend access wizard models with current-object identity asset context, stable object keys and domain-specific result evidence links.
+- [x] 4a.2 Render result-summary evidence linkage from `/access-wizard` to `/identity-assets` without adding KPI cards, full-width workbench panels or write actions.
+- [x] 4a.3 Allow `/identity-assets` to select the requested asset from access wizard query context while keeping evidence-chain actions read-only.
+- [x] 4a.4 Add focused `.test.ts` / `.test.tsx` coverage for model linkage, result evidence rendering and requested asset selection.
+
 ## 5. P1 Read-only Aggregation Interfaces
 
 - [ ] 5.1 Define read-only relationship aggregation API contracts with scope, generatedAt, sourceOfTruth, redactionSummary and cannotInfer reason fields.

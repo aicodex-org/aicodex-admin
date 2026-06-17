@@ -106,6 +106,24 @@ describe("IdentityEvidenceChainPage", () => {
     expect(view.getAllByText("令牌核对").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/tokens")).toBe(true);
   });
 
+  test("selects the requested asset from access wizard query context", () => {
+    const view = render(
+      <MemoryRouter initialEntries={["/identity-assets?asset=auth-source&object=Provider%3Aadmin%2Foidc-main"]}>
+        <IdentityEvidenceChainPage
+          account={adminAccount}
+          location={{search: "?asset=auth-source&object=Provider%3Aadmin%2Foidc-main"}}
+        />
+      </MemoryRouter>
+    );
+
+    expect(view.getByText("Provider")).not.toBeNull();
+    expect(view.getByText("auth-source")).not.toBeNull();
+    const activeSourceButton = view.getAllByText("认证源")
+      .map((item: HTMLElement) => item.closest("button"))
+      .find((button: HTMLButtonElement | null) => button?.className.includes("identity-evidence-chain-selector-item-active"));
+    expect(activeSourceButton?.className).toContain("identity-evidence-chain-selector-item-active");
+  });
+
   test("renders empty and permission states without leaking asset names", () => {
     const view = render(
       <MemoryRouter>

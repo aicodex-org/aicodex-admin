@@ -26,6 +26,9 @@ const {Text, Title} = Typography;
 interface IdentityEvidenceChainPageProps {
   account?: unknown;
   initialAssets?: IdentityEvidenceAsset[];
+  location?: {
+    search?: string;
+  };
 }
 
 function t(key: string, defaultValue: string): string {
@@ -75,7 +78,7 @@ function renderSourceTag(asset: IdentityEvidenceAsset): JSX.Element {
   return <Tag className="enterprise-identity-tone-processing">{display.label}</Tag>;
 }
 
-const IdentityEvidenceChainPage = ({account, initialAssets}: IdentityEvidenceChainPageProps): JSX.Element => {
+const IdentityEvidenceChainPage = ({account, initialAssets, location}: IdentityEvidenceChainPageProps): JSX.Element => {
   if (!Setting.isLocalAdminUser(account)) {
     return (
       <Result
@@ -87,14 +90,21 @@ const IdentityEvidenceChainPage = ({account, initialAssets}: IdentityEvidenceCha
   }
 
   const assets = initialAssets ?? buildIdentityEvidenceChainCatalog();
-  const [selectedKey, setSelectedKey] = React.useState<string>(assets[0]?.object.id ?? "");
+  const queryAsset = new URLSearchParams(location?.search || "").get("asset") || "";
+  const initialSelectedKey = assets.some(item => item.object.id === queryAsset) ? queryAsset : assets[0]?.object.id ?? "";
+  const [selectedKey, setSelectedKey] = React.useState<string>(initialSelectedKey);
   const selectedAsset = assets.find(item => item.object.id === selectedKey) ?? assets[0];
 
   React.useEffect(() => {
+    if (queryAsset && assets.some(item => item.object.id === queryAsset) && selectedKey !== queryAsset) {
+      setSelectedKey(queryAsset);
+      return;
+    }
+
     if (!assets.some(item => item.object.id === selectedKey)) {
       setSelectedKey(assets[0]?.object.id ?? "");
     }
-  }, [assets, selectedKey]);
+  }, [assets, queryAsset, selectedKey]);
 
   return (
     <EnterpriseIdentityConsolePage

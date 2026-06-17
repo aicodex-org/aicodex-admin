@@ -198,6 +198,9 @@ describe("AccessWizardPage", () => {
     expect(view.container.querySelector(".access-wizard-step-panel")?.textContent).toContain("发布前核对");
     fireEvent.click(view.getByText("结果摘要"));
     expect(view.getByText("脱敏摘要")).not.toBeNull();
+    expect(view.getByText("当前对象证据链").closest("a")?.getAttribute("href")).toContain("/identity-assets?asset=application-access");
+    expect(view.getAllByText("Application:built-in/portal").length).toBeGreaterThan(0);
+    expect(view.getByText("授权关系").closest("article")?.textContent).toContain("Provider 绑定");
     expect(view.getByText("取消并返回来源").closest("a")?.getAttribute("href")).toBe("/applications");
     expect(view.queryByText("保存")).toBeNull();
     expect(view.queryByText("发布")).toBeNull();
