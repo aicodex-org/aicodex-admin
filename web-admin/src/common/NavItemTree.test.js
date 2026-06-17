@@ -63,6 +63,14 @@ describe("NavItemTree enterprise identity configuration", () => {
       "/sites",
       "/rules",
     ]);
+    expect(getGroup(treeData, "LLM AI 网关").children.map(item => item.title)).toEqual([
+      "AI Agent 入口",
+      "MCP Server",
+      "MCP Store",
+      "入口配置",
+      "站点范围",
+      "治理规则",
+    ]);
     expect(leafKeys(getGroup(treeData, "审计运维"))).toEqual([
       "/sessions",
       "/records",

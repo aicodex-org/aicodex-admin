@@ -71,8 +71,10 @@ describe("enterprise identity navigation", () => {
       .toEqual(expect.arrayContaining(["/applications", "/platform-api-mappings", "/webhooks"]));
     expect(groups.find(group => group.label === "LLM AI 网关").children.map(item => item.key))
       .toEqual(["/agents", "/servers", "/server-store", "/entries", "/sites", "/rules"]);
+    expect(groups.find(group => group.label === "LLM AI 网关").children.map(item => item.label))
+      .toEqual(["AI Agent 入口", "MCP Server", "MCP Store", "入口配置", "站点范围", "治理规则"]);
     expect(groups.find(group => group.label === "LLM AI 网关").children.find(item => item.key === "/agents").label)
-      .toBe("LLM AI 网关中心");
+      .toBe("AI Agent 入口");
     expect(groups.find(group => group.key === "/audit-operations").children.map(item => item.key))
       .toEqual(["/sessions", "/records", "/tokens", "/verifications"]);
     expect(groups.find(group => group.key === "/audit-operations").children.map(item => item.label))
@@ -122,7 +124,7 @@ describe("enterprise identity navigation", () => {
     expect(groups.find(group => group.key === "/application-access").children.find(item => item.key === "/platform-api-mappings").label)
       .toBe("API Gateway Mappings");
     expect(groups.find(group => group.key === "/llm-ai-gateway").children.find(item => item.key === "/agents").label)
-      .toBe("LLM AI Gateway Center");
+      .toBe("AI Agent Entry Points");
     expect(groups.find(group => group.key === "/audit-operations").children.map(item => item.label))
       .toEqual(["Session Review", "Audit Records", "Token Review", "Verification Review"]);
     expect(groups.map(group => group.label).join("")).not.toMatch(/[\u4e00-\u9fff]/);

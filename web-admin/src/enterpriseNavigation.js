@@ -103,7 +103,7 @@ function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin
       label: i18next.t("general:LLM AI Gateway"),
       icon: <CheckCircleTwoTone twoToneColor={twoToneColor} />,
       children: [
-        {key: "/agents", label: i18next.t("general:LLM AI Gateway Center"), to: "/agents", matchPrefixes: ["/agents"]},
+        {key: "/agents", label: i18next.t("general:Agents"), to: "/agents", matchPrefixes: ["/agents"]},
         {key: "/servers", label: i18next.t("general:MCP Servers"), to: "/servers", matchPrefixes: ["/servers"]},
         {key: "/server-store", label: i18next.t("general:MCP Store"), to: "/server-store", matchPrefixes: ["/server-store"]},
         {key: "/entries", label: i18next.t("general:Entries"), to: "/entries", matchPrefixes: ["/entries"]},

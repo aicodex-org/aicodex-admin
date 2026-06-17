@@ -105,10 +105,17 @@ describe("LlmAiGatewayCenter", () => {
     expect(view.getByText("LLM AI 网关中心")).not.toBeNull();
     expect(view.container.querySelector(".llm-ai-gateway-rail")).not.toBeNull();
     expect(view.container.querySelector(".enterprise-identity-status-card")).toBeNull();
-    expect(view.getAllByText("Agent 视图").length).toBeGreaterThan(0);
-    expect(view.getByText("Agent 绑定应用待补全")).not.toBeNull();
+    expect(view.getAllByText("AI Agent 视图").length).toBeGreaterThan(0);
+    expect(view.getByText("AI Agent 绑定应用待补全")).not.toBeNull();
+    expect(view.getAllByText("入口配置").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/entries")).toBe(true);
+    expect(view.getAllByText("站点范围").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/sites")).toBe(true);
+    expect(view.getAllByText("治理规则").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/rules")).toBe(true);
     expect(view.getAllByText("API 网关身份映射").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/platform-api-mappings")).toBe(true);
     expect(view.getAllByText("MCP Server").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/servers")).toBe(true);
+    expect(view.queryByText("Entries")).toBeNull();
+    expect(view.queryByText("Sites")).toBeNull();
+    expect(view.queryByText("Rules")).toBeNull();
+    expect(view.queryByText("Agent 视图")).toBeNull();
     expect(view.queryByText(/Gateway 投影/)).toBeNull();
     expect(view.queryByText(/secret-agent-token|private-gateway/)).toBeNull();
   });
@@ -120,7 +127,7 @@ describe("LlmAiGatewayCenter", () => {
       </MemoryRouter>
     );
 
-    expect(view.getByText("暂无 Agent 接入，先新增 Agent 或核对 MCP Server 与网关身份映射。")).not.toBeNull();
+    expect(view.getByText("暂无 AI Agent 接入，先新增 AI Agent 或核对 MCP Server 与网关身份映射。")).not.toBeNull();
 
     view.rerender(
       <MemoryRouter>
@@ -136,6 +143,6 @@ describe("LlmAiGatewayCenter", () => {
       </MemoryRouter>
     );
 
-    expect(view.getByText("暂无 Agent 接入，先新增 Agent 或核对 MCP Server 与网关身份映射。")).not.toBeNull();
+    expect(view.getByText("暂无 AI Agent 接入，先新增 AI Agent 或核对 MCP Server 与网关身份映射。")).not.toBeNull();
   });
 });

@@ -253,7 +253,7 @@ class SiteEditPage extends React.Component {
           </Col>
           <Col span={22} >
             <RuleTable
-              title={"Rules"}
+              title={i18next.t("site:Rules")}
               account={this.props.account}
               sources={this.state.rules}
               rules={this.state.site.rules}
