@@ -15,7 +15,7 @@
 import React from "react";
 import {Link} from "react-router-dom";
 import {Button, Col, List, Row, Table, Tooltip} from "antd";
-import {EditOutlined} from "@ant-design/icons";
+import {EditOutlined, EyeOutlined} from "@ant-design/icons";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as Conf from "./Conf";
@@ -25,6 +25,8 @@ import BaseListPage from "./BaseListPage";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
 import {SignupTableDefaultCssMap} from "./table/SignupTable";
 import ApplicationAccessCenter from "./ApplicationAccessCenter";
+import IdentityAssetRelationshipDrawer from "./IdentityAssetRelationshipDrawer";
+import {buildApplicationIdentityAssetDetail} from "./identityAssetRelationship";
 
 class ApplicationListPage extends BaseListPage {
   constructor(props) {
@@ -146,6 +148,26 @@ class ApplicationListPage extends BaseListPage {
       .catch(error => {
         Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
       });
+  }
+
+  getIdentityAssetSourceContext() {
+    const filterSummary = this.state.searchedColumn && this.state.searchText ? `${this.state.searchedColumn}=${this.state.searchText}` : undefined;
+    return {
+      pagePath: "/applications",
+      filterSummary,
+      loadedRows: Array.isArray(this.state.data) ? this.state.data.length : 0,
+      totalRows: this.state.pagination?.total,
+    };
+  }
+
+  openIdentityAssetDetail(record) {
+    this.setState({
+      identityAssetDetail: buildApplicationIdentityAssetDetail(record, this.getIdentityAssetSourceContext()),
+    });
+  }
+
+  closeIdentityAssetDetail() {
+    this.setState({identityAssetDetail: null});
   }
 
   renderTable(applications) {
@@ -302,11 +324,12 @@ class ApplicationListPage extends BaseListPage {
         title: i18next.t("general:Action"),
         dataIndex: "",
         key: "op",
-        width: "230px",
+        width: "340px",
         fixed: (Setting.isMobile()) ? "false" : "right",
         render: (text, record, index) => {
           return (
             <div>
+              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} icon={<EyeOutlined />} onClick={() => this.openIdentityAssetDetail(record)}>{i18next.t("identityAssetRelationship:Object context")}</Button>
               <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/applications/${record.organization}/${record.name}`)}>{i18next.t("general:Edit")}</Button>
               <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} onClick={() => this.copyApplication(index)}>{i18next.t("general:Copy")}</Button>
               <PopconfirmModal
@@ -327,6 +350,11 @@ class ApplicationListPage extends BaseListPage {
     return (
       <div>
         <ApplicationAccessCenter applications={applications} loading={this.state.loading} />
+        <IdentityAssetRelationshipDrawer
+          open={Boolean(this.state.identityAssetDetail)}
+          asset={this.state.identityAssetDetail}
+          onClose={this.closeIdentityAssetDetail.bind(this)}
+        />
         <Table scroll={{x: "max-content"}} columns={filteredColumns} dataSource={applications} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
           title={() => (
             <div>

@@ -15,6 +15,7 @@
 import React from "react";
 import {Link} from "react-router-dom";
 import {Button, Table} from "antd";
+import {EyeOutlined} from "@ant-design/icons";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as ProviderBackend from "./backend/ProviderBackend";
@@ -23,6 +24,8 @@ import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
 import AuthSourceCenter from "./AuthSourceCenter";
+import IdentityAssetRelationshipDrawer from "./IdentityAssetRelationshipDrawer";
+import {buildProviderIdentityAssetDetail} from "./identityAssetRelationship";
 
 class ProviderListPage extends BaseListPage {
   constructor(props) {
@@ -90,6 +93,26 @@ class ProviderListPage extends BaseListPage {
       .catch(error => {
         Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
       });
+  }
+
+  getIdentityAssetSourceContext() {
+    const filterSummary = this.state.searchedColumn && this.state.searchText ? `${this.state.searchedColumn}=${this.state.searchText}` : undefined;
+    return {
+      pagePath: "/providers",
+      filterSummary,
+      loadedRows: Array.isArray(this.state.data) ? this.state.data.length : 0,
+      totalRows: this.state.pagination?.total,
+    };
+  }
+
+  openIdentityAssetDetail(record) {
+    this.setState({
+      identityAssetDetail: buildProviderIdentityAssetDetail(record, this.getIdentityAssetSourceContext()),
+    });
+  }
+
+  closeIdentityAssetDetail() {
+    this.setState({identityAssetDetail: null});
   }
 
   renderTable(providers) {
@@ -213,11 +236,12 @@ class ProviderListPage extends BaseListPage {
         title: i18next.t("general:Action"),
         dataIndex: "",
         key: "op",
-        width: "170px",
+        width: "280px",
         fixed: (Setting.isMobile()) ? "false" : "right",
         render: (text, record, index) => {
           return (
             <div>
+              <Button icon={<EyeOutlined />} style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} onClick={() => this.openIdentityAssetDetail(record)}>{i18next.t("identityAssetRelationship:Object context")}</Button>
               <Button disabled={!Setting.isAdminUser(this.props.account) && (record.owner !== this.props.account.owner)} style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/providers/${record.owner}/${record.name}`)}>{i18next.t("general:Edit")}</Button>
               <PopconfirmModal
                 title={i18next.t("general:Sure to delete") + `: ${record.name} ?`}
@@ -237,6 +261,11 @@ class ProviderListPage extends BaseListPage {
     return (
       <div>
         <AuthSourceCenter providers={providers} loading={this.state.loading} />
+        <IdentityAssetRelationshipDrawer
+          open={Boolean(this.state.identityAssetDetail)}
+          asset={this.state.identityAssetDetail}
+          onClose={this.closeIdentityAssetDetail.bind(this)}
+        />
         <Table scroll={{x: "max-content"}} columns={filteredColumns} dataSource={providers} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
           title={() => (
             <div>
