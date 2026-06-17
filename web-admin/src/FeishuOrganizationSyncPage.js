@@ -108,13 +108,18 @@ const handoffAcceptanceStatusColors = {
   cannot_infer: "blue",
 };
 const handoffActionLabels = {
+  configure_feishu_sync: "配置飞书同步",
   resolve_binding_conflicts: "处理绑定冲突",
   review_blocked_reasons: "复核阻断原因",
+  review_binding_diagnostics: "复核绑定诊断",
+  review_dry_run_diff: "复核预览影响",
+  review_soft_disable_summary: "复核软禁用影响",
   validate_real_tenant_runtime: "真实租户运行验证",
   coordinate_gateway_insight_acceptance: "协调下游验收",
   copy_acceptance_checklist_json: "复制验收清单",
   export_acceptance_checklist_markdown: "导出验收清单",
   export_evidence_json: "导出交接证据",
+  export_sanitized_evidence_only: "仅导出脱敏证据",
   inspect_sync_diagnostics: "查看同步诊断",
   run_dry_run_preview: "先预览影响",
 };
@@ -131,6 +136,8 @@ const handoffBlockedReasonLabels = {
   binding_conflict_blocked: "存在绑定冲突",
   sync_run_failed: "最近同步失败",
   dry_run_failed: "最近预览失败",
+  dry_run_not_succeeded: "最近预览未成功",
+  dry_run_diff_conflict_or_invalid: "预览影响存在冲突或无效关系",
   no_run: "没有同步记录",
   no_dry_run_history: "没有预览记录",
   source_connection_missing: "同步连接缺失",

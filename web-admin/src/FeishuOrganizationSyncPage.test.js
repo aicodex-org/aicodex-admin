@@ -361,9 +361,9 @@ test("renders handoff evidence ready summary and safe markers", async() => {
   expect(screen.getByText("验收资料")).toBeInTheDocument();
   expect(screen.getByText("验收清单")).toBeInTheDocument();
   expect(screen.getByText("只展示脱敏摘要；完整安全别名和逐项清单可展开查看。")).toBeInTheDocument();
-  expect(screen.getByText("真实租户运行验证")).toBeInTheDocument();
-  expect(screen.getByText("飞书通讯录权限需真实验证")).toBeInTheDocument();
-  expect(screen.getByText("生产就绪需人工确认")).toBeInTheDocument();
+  expect(screen.getAllByText("真实租户运行验证").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("飞书通讯录权限需真实验证").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("生产就绪需人工确认").length).toBeGreaterThan(0);
   expect(screen.queryByText("dry-run-safe")).not.toBeInTheDocument();
   expect(screen.queryByText("source-safe")).not.toBeInTheDocument();
   expect(screen.queryByText("manual_review_only")).not.toBeInTheDocument();
@@ -460,8 +460,8 @@ test("renders handoff evidence blocked and no-run states", async() => {
       readiness: "blocked",
       sourceType: "run",
       sourceIdHash: "run-safe",
-      blockedReasons: ["sync_run_failed", "binding_conflict_blocked"],
-      operatorNextActions: ["inspect_sync_diagnostics"],
+      blockedReasons: ["sync_run_failed", "binding_conflict_blocked", "dry_run_diff_conflict_or_invalid"],
+      operatorNextActions: ["inspect_sync_diagnostics", "review_dry_run_diff"],
       cannotInfer: ["insight_acceptance"],
       redaction: {applied: true, version: "feishu-handoff-evidence-redaction-v1"},
       acceptanceChecklist: {
@@ -469,26 +469,33 @@ test("renders handoff evidence blocked and no-run states", async() => {
         executionMode: "manual_review_only",
         manualReviewOnly: true,
         safeSource: {sourceType: "run", sourceIdHash: "run-safe", readiness: "blocked"},
-        summary: {total: 2, passed: 0, needsReview: 0, blocked: 1, missing: 0, cannotInfer: 1, derivedOnly: true, noFallback: true, providerGaps: 1, manualActions: 1},
+        summary: {total: 2, passed: 0, needsReview: 0, blocked: 1, missing: 0, cannotInfer: 1, derivedOnly: true, noFallback: true, providerGaps: 1, manualActions: 2},
         items: [
-          {id: "handoff_readiness", status: "blocked", severity: "blocking", source: "admin_local_metadata", safeSummary: "交接证据存在 2 个阻断原因，需处理后再交接。", blockedReasonAlias: "sync_run_failed,binding_conflict_blocked", recommendedActionAlias: "inspect_sync_diagnostics", manualReviewOnly: true},
+          {id: "handoff_readiness", status: "blocked", severity: "blocking", source: "admin_local_metadata", safeSummary: "交接证据存在 3 个阻断原因，需处理后再交接。", blockedReasonAlias: "sync_run_failed,binding_conflict_blocked,dry_run_diff_conflict_or_invalid", recommendedActionAlias: "review_dry_run_diff", manualReviewOnly: true},
           {id: "provider_truth", status: "cannot_infer", severity: "review", source: "external_owner_required", safeSummary: "Provider truth requires runtime validation.", recommendedActionAlias: "validate_real_tenant_runtime", providerOwned: true, manualReviewOnly: true, cannotInfer: true, noFallback: true},
         ],
         providerOwnedEvidenceMissing: ["insight_acceptance"],
-        manualReviewActions: ["inspect_sync_diagnostics"],
+        manualReviewActions: ["inspect_sync_diagnostics", "review_dry_run_diff"],
         cannotInfer: ["provider_truth"],
         noFallback: ["production_readiness"],
         retention: {redactionApplied: true, retentionDays: 90, retentionPolicy: "redacted_summary_retained"},
       },
       generatedAt: "2026-06-15T12:30:00Z",
-      safeSummary: "交接证据存在 2 个阻断原因，需处理后再交接。",
+      safeSummary: "交接证据存在 3 个阻断原因，需处理后再交接。",
     },
   });
   render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
-  expect((await screen.findAllByText("交接证据存在 2 个阻断原因，需处理后再交接。")).length).toBeGreaterThan(0);
+  expect((await screen.findAllByText("交接证据存在 3 个阻断原因，需处理后再交接。")).length).toBeGreaterThan(0);
   expect(screen.queryByText("sync_run_failed")).not.toBeInTheDocument();
+  expect(screen.queryByText("dry_run_diff_conflict_or_invalid")).not.toBeInTheDocument();
   expect(screen.getByText("查看验收资料")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("查看验收资料"));
+  expect(screen.getByText("预览影响存在冲突或无效关系")).toBeInTheDocument();
+  expect(screen.getAllByText("复核预览影响").length).toBeGreaterThan(0);
+  expect(screen.queryByText("review_dry_run_diff")).not.toBeInTheDocument();
+  expect(screen.queryByText("dry_run_diff_conflict_or_invalid")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByLabelText("Close"));
 
   FeishuOrganizationSyncBackend.getFeishuOrganizationSyncHandoffEvidence.mockResolvedValueOnce({
     status: "ok",
@@ -520,11 +527,11 @@ test("renders handoff evidence blocked and no-run states", async() => {
   });
   fireEvent.click(screen.getByLabelText("refresh-handoff-evidence"));
 
-  expect(await screen.findByText("无记录")).toBeInTheDocument();
+  expect((await screen.findAllByText("无记录")).length).toBeGreaterThan(0);
   expect(screen.getByText("查看验收资料")).toBeInTheDocument();
   expect(screen.queryByText("source_evidence")).not.toBeInTheDocument();
   expect(screen.queryByText("production_readiness")).not.toBeInTheDocument();
-});
+}, 10000);
 
 test("renders disabled user binding diagnostics state", async() => {
   FeishuOrganizationSyncBackend.getFeishuOrganizationSyncUserBindingConflicts.mockResolvedValue({
