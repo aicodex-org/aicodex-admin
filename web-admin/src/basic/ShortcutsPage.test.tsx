@@ -1,10 +1,15 @@
 import React from "react";
-import {render, screen} from "@testing-library/react";
+import {render} from "@testing-library/react";
+import {expect} from "@jest/globals";
 import ShortcutsPage, {buildShortcutItems} from "./ShortcutsPage";
+
+declare const jest: {
+  mock: (moduleName: string, factory: () => unknown) => void;
+};
 
 jest.mock("./GridCards", () => ({
   __esModule: true,
-  default: ({items}) => (
+  default: ({items}: {items: Array<{link: string; logo: string}>}) => (
     <div data-testid="shortcut-grid">
       {items.map(item => (
         <a key={item.link} href={item.link}>
@@ -30,11 +35,11 @@ describe("ShortcutsPage", () => {
   });
 
   test("renders the shortcut grid", () => {
-    render(<ShortcutsPage />);
+    const view = render(<ShortcutsPage />);
 
-    const grid = screen.getByTestId("shortcut-grid");
+    const grid = view.getByTestId("shortcut-grid");
 
     expect(grid.querySelectorAll("a")).toHaveLength(4);
-    expect(grid.querySelector('a[href="/organizations"]')).toBeInTheDocument();
+    expect(grid.querySelector("a[href=\"/organizations\"]")).not.toBeNull();
   });
 });

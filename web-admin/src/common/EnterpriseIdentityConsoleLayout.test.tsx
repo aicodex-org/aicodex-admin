@@ -1,7 +1,8 @@
 /* eslint-env jest */
 import React from "react";
-import {render, screen} from "@testing-library/react";
+import {render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
+import {expect} from "@jest/globals";
 import {
   EnterpriseIdentityActionGrid,
   EnterpriseIdentityConsolePage,
@@ -13,7 +14,7 @@ import {
 
 describe("EnterpriseIdentityConsoleLayout", () => {
   test("renders a console page with summary, status, risk and action regions", () => {
-    render(
+    const view = render(
       <MemoryRouter>
         <EnterpriseIdentityConsolePage
           eyebrow="企业认证中心 / 总览"
@@ -55,13 +56,13 @@ describe("EnterpriseIdentityConsoleLayout", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText("企业认证中心 / 总览")).toBeInTheDocument();
-    expect(screen.getByText("身份治理总览")).toBeInTheDocument();
-    expect(screen.getByText("认证源")).toBeInTheDocument();
-    expect(screen.getByText("企业微信")).toBeInTheDocument();
-    expect(screen.getByText("风险待办")).toBeInTheDocument();
-    expect(screen.getByText("应用接入").closest("a")).toHaveAttribute("href", "/applications");
-    expect(screen.getByText("进入配置").closest("a")).toHaveAttribute("href", "/providers");
-    expect(screen.getByText("查看审计").closest("a")).toHaveAttribute("href", "/records");
+    expect(view.getByText("企业认证中心 / 总览")).not.toBeNull();
+    expect(view.getByText("身份治理总览")).not.toBeNull();
+    expect(view.getByText("认证源")).not.toBeNull();
+    expect(view.getByText("企业微信")).not.toBeNull();
+    expect(view.getByText("风险待办")).not.toBeNull();
+    expect(view.getByText("应用接入").closest("a")?.getAttribute("href")).toBe("/applications");
+    expect(view.getByText("进入配置").closest("a")?.getAttribute("href")).toBe("/providers");
+    expect(view.getByText("查看审计").closest("a")?.getAttribute("href")).toBe("/records");
   });
 });
