@@ -698,6 +698,141 @@ img {
   align-items: flex-start;
 }
 
+.access-wizard-domain-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.access-wizard-domain-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px 10px;
+  align-items: flex-start;
+  min-width: 0;
+  min-height: 138px;
+  padding: 12px;
+  border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+  border-radius: 8px;
+  background: var(--ant-color-bg-container, #fff);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.access-wizard-domain-card-active {
+  border-color: rgb(37 99 235);
+  background: rgb(239 246 255);
+}
+
+.access-wizard-domain-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: rgb(241 245 249);
+  color: rgb(30 64 175);
+}
+
+.access-wizard-domain-copy,
+.access-wizard-domain-meta,
+.access-wizard-check-item,
+.access-wizard-result-summary,
+.access-wizard-link-list a {
+  min-width: 0;
+}
+
+.access-wizard-domain-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.access-wizard-domain-copy .ant-typography,
+.access-wizard-domain-meta .ant-typography,
+.access-wizard-check-item .ant-typography,
+.access-wizard-link-list .ant-typography,
+.access-wizard-result-summary .ant-typography {
+  overflow-wrap: anywhere;
+}
+
+.access-wizard-domain-status {
+  grid-column: 1 / -1;
+  justify-self: start;
+  padding: 2px 8px;
+  border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.access-wizard-domain-meta {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.access-wizard-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+  gap: 14px;
+}
+
+.access-wizard-detail-grid > .enterprise-identity-section:first-child {
+  grid-row: span 2;
+}
+
+.access-wizard-step-panel {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+  border-radius: 8px;
+  background: rgb(248 250 252);
+}
+
+.access-wizard-step-actions {
+  margin-top: 12px;
+}
+
+.access-wizard-check-list,
+.access-wizard-link-list,
+.access-wizard-result-summary {
+  display: grid;
+  gap: 8px;
+}
+
+.access-wizard-check-item {
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+  border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+  border-radius: 8px;
+  background: var(--ant-color-bg-container, #fff);
+}
+
+.access-wizard-link-list a {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+  border-radius: 8px;
+  background: var(--ant-color-bg-container, #fff);
+}
+
+.access-wizard-link-list a span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.access-wizard-safety-boundary {
+  margin-top: 12px;
+}
+
 .organization-identity-console {
   padding: 14px 16px 18px;
 }
@@ -956,6 +1091,11 @@ img {
     grid-template-columns: 1fr;
   }
 
+  .access-wizard-domain-grid,
+  .access-wizard-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
   .enterprise-identity-compact-rail,
   .enterprise-identity-compact-rail-wide {
     grid-template-columns: 1fr;
@@ -1015,6 +1155,22 @@ img {
   .governance-task-filter-bar,
   .governance-task-item-main {
     grid-template-columns: 1fr;
+  }
+
+  .access-wizard-domain-card {
+    min-height: auto;
+  }
+
+  .access-wizard-domain-meta {
+    flex-direction: column;
+  }
+
+  .access-wizard-step-actions {
+    align-items: flex-start;
+  }
+
+  .access-wizard-step-actions .ant-space-item {
+    max-width: 100%;
   }
 
   .governance-task-actions {

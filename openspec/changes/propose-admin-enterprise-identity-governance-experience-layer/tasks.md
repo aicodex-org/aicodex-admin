@@ -31,10 +31,10 @@
 
 ## 4. P0 Connection Wizards
 
-- [ ] 4.1 Implement TypeScript wizard state, step, blocker, preflight result and redacted result summary models for auth source, application access and Gateway/LLM AI mapping flows.
-- [ ] 4.2 Implement `.tsx` wizard shell, steps, preflight checklist, enable-before-check page and result page without replacing existing Provider/Application/Gateway edit routes.
-- [ ] 4.3 Limit P0 preflight/test connection to configuration completeness and current-object read-only simulation; do not execute real OAuth/OIDC callback, Provider login, sync, Gateway publish, cleanup or receipt verification.
-- [ ] 4.4 Add focused tests for step transitions, cancel/return, blockers, result page, permission state, preflight failure, cannotInfer and sensitive redaction.
+- [x] 4.1 Implement TypeScript wizard state, step, blocker, preflight result and redacted result summary models for auth source, application access and Gateway/LLM AI mapping flows.
+- [x] 4.2 Implement `.tsx` wizard shell, steps, preflight checklist, enable-before-check page and result page without replacing existing Provider/Application/Gateway edit routes.
+- [x] 4.3 Limit P0 preflight/test connection to configuration completeness and current-object read-only simulation; do not execute real OAuth/OIDC callback, Provider login, sync, Gateway publish, cleanup or receipt verification.
+- [x] 4.4 Add focused tests for step transitions, cancel/return, blockers, result page, permission state, preflight failure, cannotInfer and sensitive redaction.
 - [ ] 4.5 Run `yarn typecheck`, focused tests, `yarn build` as risk requires, and browser verification for wizard flow, safe cancellation and no real execution calls.
 
 ## 5. P1 Read-only Aggregation Interfaces

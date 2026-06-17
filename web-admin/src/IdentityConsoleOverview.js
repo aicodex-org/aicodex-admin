@@ -119,6 +119,15 @@ function buildStatusCards(dashboardData) {
 function buildRiskItems(hasError) {
   return [
     {
+      key: "access-preflight",
+      title: tGeneral("Access preflight overview title", "接入预检"),
+      description: tGeneral("Access preflight overview risk", "按认证源、应用接入和 LLM AI/Gateway 核对配置缺口、证据入口和发布前条件。"),
+      icon: <ProfileOutlined />,
+      tone: "processing",
+      badge: tGeneral("Read-only preflight", "只读预检"),
+      action: {key: "access-wizard", to: "/access-wizard", label: tGeneral("Enter access preflight center", "进入接入预检")},
+    },
+    {
       key: "audit-risk",
       title: "最近失败 / 待处理风险",
       description: hasError ? tGeneral("Governance task center overview error risk", "只读统计暂不可用，请进入任务中心和审计运维页面核对失败记录。") : tGeneral("Governance task center overview risk", "从治理任务中心处理配置缺口、审计证据和跨域身份风险。"),
@@ -188,6 +197,7 @@ function buildSummaryItems(dashboardData, hasError) {
 
 function buildCapabilityLinks() {
   return [
+    {key: "access-wizard", to: "/access-wizard", label: tGeneral("Access Preflight Center", "接入预检中心"), description: tGeneral("Access preflight capability description", "配置缺口、证据入口和发布前核对"), icon: <ProfileOutlined />},
     {key: "governance-tasks", to: "/governance-tasks", label: tGeneral("Governance Task Center", "治理任务中心"), description: tGeneral("Governance task center capability description", "风险待办、证据入口和建议核对"), icon: <ProfileOutlined />},
     {key: "organizations", to: "/organizations", label: "组织主数据", description: "身份域、部门和用户主数据", icon: <TeamOutlined />},
     {key: "providers", to: "/providers", label: "认证源", description: "企业微信、飞书、OIDC 接入", icon: <SafetyCertificateOutlined />},
