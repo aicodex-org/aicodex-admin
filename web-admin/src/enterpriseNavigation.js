@@ -53,6 +53,7 @@ function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin
       icon: <HomeTwoTone twoToneColor={twoToneColor} />,
       children: [
         {key: "/", label: i18next.t("general:Identity Governance Overview"), to: "/", matchPrefixes: ["/"]},
+        {key: "/governance-tasks", label: i18next.t("general:Governance Task Center"), to: "/governance-tasks", matchPrefixes: ["/governance-tasks"]},
         {key: "/shortcuts", label: i18next.t("general:Shortcuts"), to: "/shortcuts", matchPrefixes: ["/shortcuts"]},
         {key: "/apps", label: i18next.t("general:Apps"), to: "/apps", matchPrefixes: ["/apps"]},
       ],

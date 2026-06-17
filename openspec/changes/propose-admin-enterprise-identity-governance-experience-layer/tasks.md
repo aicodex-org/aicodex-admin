@@ -23,10 +23,10 @@
 
 ## 3. P0 Governance Task Center
 
-- [ ] 3.1 Implement TypeScript task classifiers for sync failures, orphan accounts, privileged roles, incomplete applications, abnormal tokens, missing callbacks, Provider binding risks and Gateway mapping gaps.
-- [ ] 3.2 Implement a `.tsx` governance task queue page with filters for type, severity, impact object, source scope, processing state and keyword.
-- [ ] 3.3 Make P0 task sources explicitly current-view/current-filter/read-only candidates and route suggested actions to existing configuration, evidence or detail pages only.
-- [ ] 3.4 Add focused tests for task type, severity, source scope labels, cannotInfer, suggested actions, empty state, error state and sensitive redaction.
+- [x] 3.1 Implement TypeScript task classifiers for sync failures, orphan accounts, privileged roles, incomplete applications, abnormal tokens, missing callbacks, Provider binding risks and Gateway mapping gaps.
+- [x] 3.2 Implement a `.tsx` governance task queue page with filters for type, severity, impact object, source scope, processing state and keyword.
+- [x] 3.3 Make P0 task sources explicitly current-view/current-filter/read-only candidates and route suggested actions to existing configuration, evidence or detail pages only.
+- [x] 3.4 Add focused tests for task type, severity, source scope labels, cannotInfer, suggested actions, empty state, error state and sensitive redaction.
 - [ ] 3.5 Run `yarn typecheck`, focused tests, `yarn build` as risk requires, and browser verification for filters, task actions, empty/error/permission states and no global-fact mislabeling.
 
 ## 4. P0 Connection Wizards

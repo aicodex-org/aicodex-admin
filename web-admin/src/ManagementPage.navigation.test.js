@@ -57,6 +57,8 @@ describe("enterprise identity navigation", () => {
       "商业付款",
     ]);
     expect(groups.map(group => group.label)).not.toContain("Gateway 投影");
+    expect(groups.find(group => group.key === "/overview").children.map(item => item.key))
+      .toEqual(["/", "/governance-tasks", "/shortcuts", "/apps"]);
     expect(groups.find(group => group.key === "/identity-sources").children.map(item => item.key))
       .toEqual(expect.arrayContaining(["/providers", "/wecom-org-sync", "/feishu-org-sync", "/syncers"]));
     expect(groups.find(group => group.key === "/identity-sources").children.find(item => item.key === "/providers").label)
@@ -99,6 +101,8 @@ describe("enterprise identity navigation", () => {
     expect(groups.map(group => group.label)).not.toContain("Gateway Projection");
     expect(groups.find(group => group.key === "/overview").children.find(item => item.key === "/").label)
       .toBe("Identity Governance Overview");
+    expect(groups.find(group => group.key === "/overview").children.find(item => item.key === "/governance-tasks").label)
+      .toBe("Governance Task Center");
     expect(groups.find(group => group.key === "/identity-sources").children.find(item => item.key === "/providers").label)
       .toBe("Authentication Source Center");
     expect(groups.find(group => group.key === "/identity-sources").children.find(item => item.key === "/wecom-org-sync").label)

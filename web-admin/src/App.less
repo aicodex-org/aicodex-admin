@@ -647,6 +647,57 @@ img {
   margin-top: 14px;
 }
 
+.governance-task-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.4fr) repeat(5, minmax(150px, 1fr));
+  gap: 10px;
+  align-items: center;
+}
+
+.governance-task-filter-bar .ant-select,
+.governance-task-filter-bar .ant-input-search {
+  min-width: 0;
+  width: 100%;
+}
+
+.governance-task-loading {
+  display: flex;
+  min-height: 120px;
+  align-items: center;
+  justify-content: center;
+}
+
+.governance-task-list {
+  display: grid;
+  gap: 10px;
+}
+
+.governance-task-item {
+  border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+  border-radius: 8px;
+  background: var(--ant-color-bg-container, #fff);
+}
+
+.governance-task-item-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 240px);
+  gap: 16px;
+  padding: 14px;
+}
+
+.governance-task-copy,
+.governance-task-actions {
+  min-width: 0;
+}
+
+.governance-task-copy h5 {
+  margin: 0;
+}
+
+.governance-task-actions {
+  align-items: flex-start;
+}
+
 .organization-identity-console {
   padding: 14px 16px 18px;
 }
@@ -959,6 +1010,15 @@ img {
   .enterprise-identity-status-grid-4,
   .enterprise-identity-action-grid {
     grid-template-columns: 1fr;
+  }
+
+  .governance-task-filter-bar,
+  .governance-task-item-main {
+    grid-template-columns: 1fr;
+  }
+
+  .governance-task-actions {
+    width: 100%;
   }
 
   .enterprise-identity-rail-summary {

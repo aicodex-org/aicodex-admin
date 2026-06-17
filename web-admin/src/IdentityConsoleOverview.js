@@ -19,12 +19,14 @@ import {
   ClusterOutlined,
   DeploymentUnitOutlined,
   ExclamationCircleOutlined,
+  ProfileOutlined,
   SafetyCertificateOutlined,
   TeamOutlined
 } from "@ant-design/icons";
 import {Alert, Button, Space, Spin, Typography} from "antd";
 import React from "react";
 import {Link} from "react-router-dom";
+import i18next from "i18next";
 import * as DashboardBackend from "./backend/DashboardBackend";
 import {
   EnterpriseIdentityActionGrid,
@@ -37,6 +39,12 @@ import {
 import * as Setting from "./Setting";
 
 const {Text} = Typography;
+
+function tGeneral(key, defaultValue = key) {
+  const namespacedKey = `general:${key}`;
+  const translated = i18next.t(namespacedKey, {defaultValue});
+  return translated === namespacedKey || translated === key ? defaultValue : translated;
+}
 
 function getLatestCount(values) {
   if (!Array.isArray(values) || values.length === 0) {
@@ -113,11 +121,11 @@ function buildRiskItems(hasError) {
     {
       key: "audit-risk",
       title: "最近失败 / 待处理风险",
-      description: hasError ? "只读统计暂不可用，请进入审计与运维页面核对失败记录。" : "当前总览仅展示只读巡检入口，失败明细以审计记录和同步页面为准。",
+      description: hasError ? tGeneral("Governance task center overview error risk", "只读统计暂不可用，请进入任务中心和审计运维页面核对失败记录。") : tGeneral("Governance task center overview risk", "从治理任务中心处理配置缺口、审计证据和跨域身份风险。"),
       icon: <ExclamationCircleOutlined />,
       tone: hasError ? "error" : "warning",
       badge: hasError ? "需核对" : "待巡检",
-      action: {key: "records", to: "/records", label: "查看审计记录"},
+      action: {key: "tasks", to: "/governance-tasks", label: tGeneral("Enter governance task center", "进入任务中心")},
     },
     {
       key: "directory-quality",
@@ -178,14 +186,17 @@ function buildSummaryItems(dashboardData, hasError) {
   ];
 }
 
-const capabilityLinks = [
-  {key: "organizations", to: "/organizations", label: "组织主数据", description: "身份域、部门和用户主数据", icon: <TeamOutlined />},
-  {key: "providers", to: "/providers", label: "认证源", description: "企业微信、飞书、OIDC 接入", icon: <SafetyCertificateOutlined />},
-  {key: "applications", to: "/applications", label: "应用接入", description: "OAuth client、回调和授权范围", icon: <AppstoreOutlined />},
-  {key: "api-mapping", to: "/platform-api-mappings", label: "API 网关映射", description: "应用到 API 的接入契约", icon: <ApiOutlined />},
-  {key: "gateway", to: "/agents", label: "LLM AI 网关", description: "AI 入口、MCP 资源与网关身份映射", icon: <DeploymentUnitOutlined />},
-  {key: "records", to: "/records", label: "审计记录", description: "变更、失败和运维核对", icon: <AuditOutlined />},
-];
+function buildCapabilityLinks() {
+  return [
+    {key: "governance-tasks", to: "/governance-tasks", label: tGeneral("Governance Task Center", "治理任务中心"), description: tGeneral("Governance task center capability description", "风险待办、证据入口和建议核对"), icon: <ProfileOutlined />},
+    {key: "organizations", to: "/organizations", label: "组织主数据", description: "身份域、部门和用户主数据", icon: <TeamOutlined />},
+    {key: "providers", to: "/providers", label: "认证源", description: "企业微信、飞书、OIDC 接入", icon: <SafetyCertificateOutlined />},
+    {key: "applications", to: "/applications", label: "应用接入", description: "OAuth client、回调和授权范围", icon: <AppstoreOutlined />},
+    {key: "api-mapping", to: "/platform-api-mappings", label: "API 网关映射", description: "应用到 API 的接入契约", icon: <ApiOutlined />},
+    {key: "gateway", to: "/agents", label: "LLM AI 网关", description: "AI 入口、MCP 资源与网关身份映射", icon: <DeploymentUnitOutlined />},
+    {key: "records", to: "/records", label: "审计记录", description: "变更、失败和运维核对", icon: <AuditOutlined />},
+  ];
+}
 
 function IdentityConsoleOverview({account, history}) {
   const [dashboardData, setDashboardData] = React.useState(null);
@@ -243,6 +254,7 @@ function IdentityConsoleOverview({account, history}) {
   const statusCards = buildStatusCards(dashboardData);
   const riskItems = buildRiskItems(!!errorMessage);
   const summaryItems = buildSummaryItems(dashboardData, !!errorMessage);
+  const capabilityLinks = buildCapabilityLinks();
 
   return (
     <EnterpriseIdentityConsolePage
