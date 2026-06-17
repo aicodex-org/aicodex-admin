@@ -1,6 +1,7 @@
 /* eslint-env jest */
+import {expect} from "@jest/globals";
 import React from "react";
-import {render, screen} from "@testing-library/react";
+import {render} from "@testing-library/react";
 import ApplicationIdentitySourceBindings, {
   buildIdentitySourceBindingRows,
   updateIdentitySourceBindingTarget
@@ -64,20 +65,20 @@ describe("ApplicationIdentitySourceBindings", () => {
   });
 
   test("renders empty state when no login provider is bound", () => {
-    render(
+    const view = render(
       <ApplicationIdentitySourceBindings
         application={{organization: "built-in", providers: [{name: "sms-main"}]}}
         providers={providers}
         organizations={organizations}
-        onChange={jest.fn()}
+        onChange={() => undefined}
       />
     );
 
-    expect(screen.getByText("暂无可配置的登录身份源")).toBeInTheDocument();
+    expect(view.getByText("暂无可配置的登录身份源")).not.toBeNull();
   });
 
   test("renders target organization and fallback markers without exposing secrets", () => {
-    render(
+    const view = render(
       <ApplicationIdentitySourceBindings
         application={{
           organization: "wecom-wwe7e01c69367e67bf",
@@ -88,15 +89,15 @@ describe("ApplicationIdentitySourceBindings", () => {
         }}
         providers={providers}
         organizations={organizations}
-        onChange={jest.fn()}
+        onChange={() => undefined}
       />
     );
 
-    expect(screen.getByText("Provider 身份源目标组织")).toBeInTheDocument();
-    expect(screen.getByText("wecom-internal")).toBeInTheDocument();
-    expect(screen.getByText("lark-main")).toBeInTheDocument();
-    expect(screen.getByText("使用应用默认组织")).toBeInTheDocument();
-    expect(screen.getAllByText("feishu-test").length).toBeGreaterThan(0);
-    expect(screen.queryByText(/secret|token|cookie/i)).not.toBeInTheDocument();
+    expect(view.getByText("Provider 身份源目标组织")).not.toBeNull();
+    expect(view.getByText("wecom-internal")).not.toBeNull();
+    expect(view.getByText("lark-main")).not.toBeNull();
+    expect(view.getByText("沿用应用组织")).not.toBeNull();
+    expect(view.getAllByText("feishu-test").length).toBeGreaterThan(0);
+    expect(view.queryByText(/secret|token|cookie/i)).toBeNull();
   });
 });

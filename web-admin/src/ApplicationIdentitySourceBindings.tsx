@@ -1,5 +1,6 @@
 import React from "react";
-import {Alert, Select, Space, Table, Tag, Typography} from "antd";
+import {QuestionCircleOutlined} from "@ant-design/icons";
+import {Alert, Select, Space, Table, Tag, Tooltip, Typography} from "antd";
 import i18next from "i18next";
 
 type ProviderCategory = "OAuth" | "Web3" | "SAML" | string;
@@ -43,6 +44,7 @@ type Props = {
 };
 
 const loginProviderCategories = new Set(["OAuth", "Web3", "SAML"]);
+const helpIconStyle = {color: "#1677ff", cursor: "help"};
 
 function normalizeText(value?: string): string {
   return (value || "").trim();
@@ -66,7 +68,7 @@ function isLoginProvider(binding: ApplicationProviderBinding, providers: Identit
   return loginProviderCategories.has(normalizeText(provider?.category));
 }
 
-// buildIdentitySourceBindingRows 只展示 OAuth/Web3/SAML 登录身份源，并计算空 targetOrganization 的默认组织回退。
+// buildIdentitySourceBindingRows 只展示 OAuth/Web3/SAML 登录身份源，并计算空 targetOrganization 时沿用的应用组织。
 export function buildIdentitySourceBindingRows(
   application?: IdentitySourceApplication | null,
   providers: IdentityProvider[] = []
@@ -134,7 +136,7 @@ const ApplicationIdentitySourceBindings = ({application, providers = [], organiz
         <Typography.Text type="secondary">
           {t(
             "application:Application organization is ownership and fallback while target organization controls provider user lookup",
-            "应用组织用于归属和默认回退；这里的目标组织决定该 Provider 登录时在哪里匹配用户。"
+            "应用组织用于应用归属；未显式绑定时，Provider 登录会沿用应用组织匹配用户。"
           )}
         </Typography.Text>
         <Table
@@ -163,7 +165,17 @@ const ApplicationIdentitySourceBindings = ({application, providers = [], organiz
               ),
             },
             {
-              title: t("application:Target organization", "目标组织"),
+              title: (
+                <Space size={4}>
+                  <span>{t("application:Target organization", "目标组织")}</span>
+                  <Tooltip title={t(
+                    "application:Target organization - Tooltip",
+                    "显式指定该 Provider 登录时查找用户的组织。"
+                  )}>
+                    <QuestionCircleOutlined style={helpIconStyle} />
+                  </Tooltip>
+                </Space>
+              ),
               dataIndex: "targetOrganization",
               key: "targetOrganization",
               width: 280,
@@ -177,8 +189,8 @@ const ApplicationIdentitySourceBindings = ({application, providers = [], organiz
                     {
                       value: "",
                       label: defaultOrganization
-                        ? t("application:Use application default organization with name", "使用应用默认组织 ({{organization}})", {organization: defaultOrganization})
-                        : t("application:Use application default organization", "使用应用默认组织"),
+                        ? t("application:Follow application organization with name", "沿用应用组织 ({{organization}})", {organization: defaultOrganization})
+                        : t("application:Follow application organization", "沿用应用组织"),
                     },
                     ...organizations
                       .filter(organization => normalizeText(organization.name) !== "")
@@ -193,7 +205,17 @@ const ApplicationIdentitySourceBindings = ({application, providers = [], organiz
               ),
             },
             {
-              title: t("application:Effective organization", "生效组织"),
+              title: (
+                <Space size={4}>
+                  <span>{t("application:Effective organization", "生效组织")}</span>
+                  <Tooltip title={t(
+                    "application:Effective organization - Tooltip",
+                    "实际用于匹配用户的组织；未显式绑定时只是沿用应用组织。"
+                  )}>
+                    <QuestionCircleOutlined style={helpIconStyle} />
+                  </Tooltip>
+                </Space>
+              ),
               dataIndex: "effectiveOrganization",
               key: "effectiveOrganization",
               width: 220,
@@ -201,7 +223,7 @@ const ApplicationIdentitySourceBindings = ({application, providers = [], organiz
                 <Space>
                   <Typography.Text>{value || t("application:Not configured", "未配置")}</Typography.Text>
                   {row.usesFallback
-                    ? <Tag>{t("application:Use application default organization", "使用应用默认组织")}</Tag>
+                    ? <Tag>{t("application:Follow application organization", "沿用应用组织")}</Tag>
                     : <Tag color="blue">{t("application:Explicit binding", "显式绑定")}</Tag>}
                 </Space>
               ),
