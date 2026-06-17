@@ -311,6 +311,9 @@ func (s *FeishuOrganizationSyncService) upsertUser(config *FeishuOrganizationSyn
 	if user.Properties == nil {
 		user.Properties = map[string]string{}
 	}
+	if user.SignupApplication == "" && config.Organization == GetFeishuBusinessOrganizationName(sourceTenantId) {
+		user.SignupApplication = GetFeishuBusinessApplicationName(sourceTenantId)
+	}
 	setUserProperty(user, FeishuUserPropertyUserId, snapshot.UserId)
 	setUserProperty(user, FeishuUserPropertyOpenId, snapshot.OpenId)
 	setUserProperty(user, FeishuUserPropertyUnionId, snapshot.UnionId)

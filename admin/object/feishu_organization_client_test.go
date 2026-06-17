@@ -44,6 +44,38 @@ func (t *fakeFeishuConnectionTester) TestConnection(ctx context.Context) (*Feish
 	return t.result, t.err
 }
 
+type fakeFeishuBusinessOrganizationStore struct {
+	organizations map[string]*Organization
+	applications  map[string]*Application
+}
+
+func newFakeFeishuBusinessOrganizationStore() *fakeFeishuBusinessOrganizationStore {
+	return &fakeFeishuBusinessOrganizationStore{
+		organizations: map[string]*Organization{},
+		applications:  map[string]*Application{},
+	}
+}
+
+func (s *fakeFeishuBusinessOrganizationStore) GetOrganization(owner string, name string) (*Organization, error) {
+	return s.organizations[owner+"/"+name], nil
+}
+
+func (s *fakeFeishuBusinessOrganizationStore) SaveOrganization(organization *Organization) (bool, error) {
+	copied := *organization
+	s.organizations[organization.Owner+"/"+organization.Name] = &copied
+	return true, nil
+}
+
+func (s *fakeFeishuBusinessOrganizationStore) GetApplication(owner string, name string) (*Application, error) {
+	return s.applications[owner+"/"+name], nil
+}
+
+func (s *fakeFeishuBusinessOrganizationStore) SaveApplication(application *Application) (bool, error) {
+	copied := *application
+	s.applications[application.Owner+"/"+application.Name] = &copied
+	return true, nil
+}
+
 func TestFeishuAddressBookClientBuildUrlSelectsEndpointMode(t *testing.T) {
 	domestic := NewFeishuAddressBookClient("cli_1", "secret", "")
 	domesticUrl, err := domestic.buildUrl("/open-apis/contact/v3/users/find_by_department", map[string]string{"department_id": "0"})
@@ -113,6 +145,9 @@ func TestFeishuAddressBookClientTestConnectionReadsDepartmentsAndUsers(t *testin
 	}
 	if result.DepartmentCount != 1 || result.UserCount != 1 {
 		t.Fatalf("counts = departments %d users %d, want 1/1", result.DepartmentCount, result.UserCount)
+	}
+	if result.TenantKey != "tenant-a" {
+		t.Fatalf("tenant key = %q, want tenant-a", result.TenantKey)
 	}
 	if tokenRequests != 1 || departmentRequests != 1 || userRequests != 2 {
 		t.Fatalf("requests token/department/user = %d/%d/%d, want 1/1/2", tokenRequests, departmentRequests, userRequests)
@@ -223,6 +258,39 @@ func TestFeishuOrganizationSyncConfigServicePreservesMaskedSecretAndNormalizesEn
 	}
 	if config.AppSecret != FeishuOrganizationSyncMaskedSecret {
 		t.Fatalf("response secret = %q, want masked", config.AppSecret)
+	}
+}
+
+func TestFeishuOrganizationSyncConfigServiceSaveRetargetsToTenantOrganization(t *testing.T) {
+	configStore := &fakeFeishuConfigStore{}
+	organizationStore := newFakeFeishuBusinessOrganizationStore()
+	service := &FeishuOrganizationSyncConfigService{
+		Store:             configStore,
+		OrganizationStore: organizationStore,
+	}
+
+	config, _, err := service.SaveConfig(&FeishuOrganizationSyncConfig{
+		Organization: "feishu-test",
+		AppId:        "cli-a",
+		AppSecret:    "secret",
+		EndpointMode: "feishu",
+		TenantKey:    "tenant-a",
+	}, true)
+	if err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	wantOrganization := GetFeishuBusinessOrganizationName("tenant-a")
+	if config.Organization != wantOrganization || configStore.saved.Organization != wantOrganization {
+		t.Fatalf("saved organization = response %q store %q, want %q", config.Organization, configStore.saved.Organization, wantOrganization)
+	}
+	organization := organizationStore.organizations[FeishuBusinessOrganizationOwner+"/"+wantOrganization]
+	if organization == nil || organization.DefaultApplication != GetFeishuBusinessApplicationName("tenant-a") {
+		t.Fatalf("business organization = %#v, want default application %q", organization, GetFeishuBusinessApplicationName("tenant-a"))
+	}
+	application := organizationStore.applications[FeishuBusinessOrganizationOwner+"/"+GetFeishuBusinessApplicationName("tenant-a")]
+	if application == nil || application.Organization != wantOrganization {
+		t.Fatalf("business application = %#v, want organization %q", application, wantOrganization)
 	}
 }
 

@@ -30,6 +30,7 @@ import {NavItemTree} from "./common/NavItemTree";
 import {WidgetItemTree} from "./common/WidgetItemTree";
 import TransactionTable from "./table/TransactionTable";
 import * as TransactionBackend from "./backend/TransactionBackend";
+import {getOrganizationNameTooltipKey, isOrganizationNameLocked} from "./OrganizationEditPageUtils";
 
 const {Option} = Select;
 
@@ -152,6 +153,7 @@ class OrganizationEditPage extends React.Component {
   }
 
   renderOrganization() {
+    const isNameLocked = isOrganizationNameLocked(this.state.organization, this.state.mode);
     return (
       <Card size="small" title={
         <div>
@@ -163,10 +165,10 @@ class OrganizationEditPage extends React.Component {
       } style={(Setting.isMobile()) ? {margin: "5px"} : {}} type="inner">
         <Row style={{marginTop: "10px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Name"), i18next.t("general:Name - Tooltip"))} :
+            {Setting.getLabel(i18next.t("general:Name"), i18next.t(getOrganizationNameTooltipKey(this.state.organization, this.state.mode)))} :
           </Col>
           <Col span={22} >
-            <Input value={this.state.organization.name} disabled={this.state.organization.name === "built-in"} onChange={e => {
+            <Input value={this.state.organization.name} disabled={this.state.organization.name === "built-in" || isNameLocked} onChange={e => {
               this.updateOrganizationField("name", e.target.value);
             }} />
           </Col>

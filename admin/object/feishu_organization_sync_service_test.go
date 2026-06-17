@@ -398,6 +398,65 @@ func TestFeishuOrganizationSyncServiceUpsertUserReusesExistingMapping(t *testing
 	assertFeishuProjectionCounts(t, GetSourceConnectionId("engineering", SourceTypeLark, "tenant-a"), 0, 1, 0, 1)
 }
 
+func TestGetFeishuUserNameUsesSafeFeishuUserId(t *testing.T) {
+	tests := []struct {
+		name         string
+		sourceTenant string
+		userId       string
+		want         string
+	}{
+		{name: "short opaque id", sourceTenant: "tenant-a", userId: "ef1436be", want: "feishu-user-ef1436be"},
+		{name: "open id style identifier", sourceTenant: "tenant-a", userId: "ou_f75020053bdb74c", want: "feishu-user-ou_f75020053bdb74c"},
+		{name: "unsafe separators", sourceTenant: "tenant-a", userId: "  ou/user abc  ", want: "feishu-user-ou-user-abc"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := GetFeishuUserName(tt.sourceTenant, tt.userId); got != tt.want {
+				t.Fatalf("GetFeishuUserName() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFeishuOrganizationSyncServiceUpsertUserCreatesReadableStableUserNameAndSignupApplication(t *testing.T) {
+	setupFeishuOrganizationSyncSqlite(t)
+	now := time.Date(2026, 6, 15, 14, 0, 0, 0, time.UTC)
+	service := &FeishuOrganizationSyncService{Now: func() time.Time { return now }}
+	sourceTenantId := "tenant-a"
+	organization := GetFeishuBusinessOrganizationName(sourceTenantId)
+	config := &FeishuOrganizationSyncConfig{Organization: organization, AppId: "cli-a", TenantKey: sourceTenantId, EndpointMode: FeishuEndpointModeDomestic}
+	run := &FeishuOrganizationSyncRun{Name: "run-user-create"}
+
+	created, err := service.upsertUser(config, run, sourceTenantId, FeishuUserSnapshot{
+		UserId:  "ef1436be",
+		OpenId:  "ou_f75020053bdb74c617d2e54c480d72c8",
+		UnionId: "on_0a1223dd8ccb8ad8f2ca96420623a4f1",
+		Name:    "Alice Zhang",
+		Status:  "active",
+	})
+	if err != nil {
+		t.Fatalf("upsertUser() error = %v", err)
+	}
+	if !created {
+		t.Fatalf("upsertUser() created = false, want true")
+	}
+	user, err := getUser(organization, "feishu-user-ef1436be")
+	if err != nil || user == nil {
+		t.Fatalf("get created user user=%v err=%v", user, err)
+	}
+	if user.DisplayName != "Alice Zhang" || user.SignupApplication != GetFeishuBusinessApplicationName(sourceTenantId) {
+		t.Fatalf("created user display/signup mismatch: display=%q signup=%q", user.DisplayName, user.SignupApplication)
+	}
+	mapping, err := getFeishuUserMapping(organization, "cli-a", "ef1436be")
+	if err != nil || mapping == nil {
+		t.Fatalf("get created mapping mapping=%v err=%v", mapping, err)
+	}
+	if mapping.UserName != "feishu-user-ef1436be" {
+		t.Fatalf("mapping.UserName = %q, want feishu-user-ef1436be", mapping.UserName)
+	}
+}
+
 func TestFeishuOrganizationSyncServiceSkipsInvalidOrUnmappedInputs(t *testing.T) {
 	setupFeishuOrganizationSyncSqlite(t)
 	now := time.Date(2026, 6, 15, 13, 30, 0, 0, time.UTC)

@@ -259,6 +259,12 @@ func (c *FeishuAddressBookClient) TestConnection(ctx context.Context) (*FeishuAd
 	}
 	result.UserSnapshotOk = true
 	result.UserCount = len(users)
+	for _, user := range users {
+		if strings.TrimSpace(user.TenantKey) != "" {
+			result.TenantKey = strings.TrimSpace(user.TenantKey)
+			break
+		}
+	}
 	result.MissingFields = nil
 	return result, nil
 }

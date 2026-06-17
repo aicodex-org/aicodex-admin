@@ -589,6 +589,8 @@
     "Orders": "Orders",
     "Organization": "Organization",
     "Organization - Tooltip": "Similar to concepts such as tenants or user pools, each user and application belongs to an organization",
+    "Organization name - Tooltip": "Unique technical ID for internal links such as users, applications, and sync mappings. Use Display name for the company label shown in the UI.",
+    "Organization name locked - Tooltip": "This organization is bound to an organization sync source such as WeCom or Feishu. Its name is a sync technical identifier and cannot be changed; update Display name instead.",
     "Organization & Identity": "Organization & Identity",
     "Enterprise Identity Domain": "Enterprise Identity Domain",
     "Organization Identity Center": "Organization Identity Center",

@@ -15,8 +15,10 @@
 package object
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"git.leagsoft.com/aicodex/aicodex-admin/conf"
 	"git.leagsoft.com/aicodex/aicodex-admin/cred"
@@ -106,7 +108,15 @@ type Organization struct {
 	UserBalance     float64 `json:"userBalance"`
 	BalanceCredit   float64 `json:"balanceCredit"`
 	BalanceCurrency string  `xorm:"varchar(100)" json:"balanceCurrency"`
+
+	NameLocked     bool   `xorm:"-" json:"nameLocked"`
+	NameLockReason string `xorm:"-" json:"nameLockReason"`
 }
+
+const (
+	OrganizationNameLockReasonSyncManaged = "sync-managed-organization"
+	OrganizationNameLockedMessage         = "organization name cannot be changed after organization sync is configured; update display name instead"
+)
 
 func GetOrganizationCount(owner, name, field, value string) (int64, error) {
 	session := GetSession(owner, -1, -1, field, value, "", "")
@@ -179,7 +189,14 @@ func GetOrganization(id string) (*Organization, error) {
 	if err != nil {
 		return nil, err
 	}
-	return getOrganization(owner, name)
+	organization, err := getOrganization(owner, name)
+	if err != nil {
+		return nil, err
+	}
+	if err := attachOrganizationNameLockMetadata(organization); err != nil {
+		return nil, err
+	}
+	return organization, nil
 }
 
 func GetMaskedOrganization(organization *Organization, errs ...error) (*Organization, error) {
@@ -236,7 +253,14 @@ func UpdateOrganization(id string, organization *Organization, isGlobalAdmin boo
 	}
 
 	if name != organization.Name {
-		err := organizationChangeTrigger(name, organization.Name)
+		locked, _, err := GetOrganizationNameLock(name)
+		if err != nil {
+			return false, err
+		}
+		if locked {
+			return false, errors.New(OrganizationNameLockedMessage)
+		}
+		err = organizationChangeTrigger(name, organization.Name)
 		if err != nil {
 			return false, err
 		}
@@ -274,6 +298,74 @@ func UpdateOrganization(id string, organization *Organization, isGlobalAdmin boo
 	}
 
 	return affected != 0, nil
+}
+
+func attachOrganizationNameLockMetadata(organization *Organization) error {
+	if organization == nil {
+		return nil
+	}
+	locked, reason, err := GetOrganizationNameLock(organization.Name)
+	if err != nil {
+		return err
+	}
+	organization.NameLocked = locked
+	organization.NameLockReason = reason
+	return nil
+}
+
+func GetOrganizationNameLock(organization string) (bool, string, error) {
+	locked, err := isOrganizationSyncManaged(organization)
+	if err != nil {
+		return false, "", err
+	}
+	if !locked {
+		return false, "", nil
+	}
+	return true, OrganizationNameLockReasonSyncManaged, nil
+}
+
+func isOrganizationSyncManaged(organization string) (bool, error) {
+	organization = strings.TrimSpace(organization)
+	if organization == "" || ormer == nil || ormer.Engine == nil {
+		return false, nil
+	}
+
+	if organizationModelTableExists(new(WecomOrganizationSyncConfig)) {
+		config, err := getWecomOrganizationSyncConfigByOrganization(organization)
+		if err != nil {
+			return false, err
+		}
+		if config != nil {
+			return true, nil
+		}
+	}
+
+	if organizationModelTableExists(new(FeishuOrganizationSyncConfig)) {
+		config, err := getFeishuOrganizationSyncConfigByOrganization(organization)
+		if err != nil {
+			return false, err
+		}
+		if config != nil {
+			return true, nil
+		}
+	}
+
+	if organizationModelTableExists(new(SourceConnection)) {
+		count, err := ormer.Engine.Where("organization_id = ?", organization).Count(new(SourceConnection))
+		if err != nil {
+			return false, err
+		}
+		if count > 0 {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func organizationModelTableExists(bean any) bool {
+	exists, err := ormer.Engine.IsTableExist(bean)
+	return err == nil && exists
 }
 
 func AddOrganization(organization *Organization) (bool, error) {

@@ -235,7 +235,7 @@ func GetFeishuDepartmentGroupName(sourceTenantId string, departmentId string) st
 }
 
 func GetFeishuUserName(sourceTenantId string, userId string) string {
-	return FeishuUserNamePrefix + shortFeishuOrganizationSyncHash(sourceTenantId, userId)
+	return boundedFeishuName(FeishuUserNamePrefix, userId, 255)
 }
 
 func GetFeishuRelationshipName(organization string, appId string, relationshipType string, ids ...string) string {
@@ -303,4 +303,49 @@ func shortFeishuOrganizationSyncHash(values ...string) string {
 	}
 	sum := sha256.Sum256([]byte(strings.Join(normalized, "\x1f")))
 	return hex.EncodeToString(sum[:])[:24]
+}
+
+func boundedFeishuName(prefix string, raw string, maxLength int) string {
+	sanitized := sanitizeFeishuIdentifier(raw)
+	if sanitized == "" {
+		return prefix + shortFeishuOrganizationSyncHash(raw)
+	}
+	name := prefix + sanitized
+	if len(name) <= maxLength {
+		return name
+	}
+	hash := shortFeishuOrganizationSyncHash(raw)[:12]
+	available := maxLength - len(prefix) - len(hash) - 1
+	if available <= 0 {
+		return prefix + hash
+	}
+	if available > len(sanitized) {
+		available = len(sanitized)
+	}
+	return prefix + sanitized[:available] + "-" + hash
+}
+
+func sanitizeFeishuIdentifier(value string) string {
+	value = strings.TrimSpace(value)
+	var builder strings.Builder
+	lastDash := false
+	for _, r := range value {
+		if isSafeFeishuNameRune(r) {
+			builder.WriteRune(r)
+			lastDash = false
+			continue
+		}
+		if !lastDash {
+			builder.WriteByte('-')
+			lastDash = true
+		}
+	}
+	return strings.Trim(builder.String(), ".-_")
+}
+
+func isSafeFeishuNameRune(r rune) bool {
+	return r >= 'a' && r <= 'z' ||
+		r >= 'A' && r <= 'Z' ||
+		r >= '0' && r <= '9' ||
+		r == '.' || r == '_' || r == '-'
 }

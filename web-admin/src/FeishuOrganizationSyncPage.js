@@ -10,9 +10,11 @@ import * as FeishuOrganizationSyncBackend from "./backend/FeishuOrganizationSync
 import OrganizationSelect from "./common/select/OrganizationSelect";
 import {getDefaultTablePagination, getTablePaginationProps} from "./common/table/TablePagination";
 import i18next from "i18next";
+import {getFeishuBusinessOrganizationNameFromTenantKey} from "./FeishuOrganizationSyncPageUtils";
 
 const {Text} = Typography;
 const syncRunPollIntervalMs = 3000;
+
 const diagnosticStageLabels = {
   config_validation: "配置校验",
   tenant_token: "租户 token",
@@ -438,7 +440,12 @@ class FeishuOrganizationSyncPage extends React.Component {
       .then(res => {
         this.setState({testing: false});
         if (res.status === "ok") {
-          this.setState({testResult: res.data});
+          const tenantKey = `${res.data?.tenantKey || ""}`.trim();
+          const nextState = {testResult: res.data};
+          if (tenantKey !== "") {
+            nextState.config = {...this.state.config, tenantKey};
+          }
+          this.setState(nextState);
           Setting.showMessage("success", "飞书通讯录连接测试通过");
         } else {
           Setting.showMessage("error", `连接测试失败：${res.msg}`);
@@ -1297,13 +1304,15 @@ class FeishuOrganizationSyncPage extends React.Component {
     if (!result) {
       return null;
     }
+    const tenantKey = `${result.tenantKey || ""}`.trim();
+    const targetOrganization = getFeishuBusinessOrganizationNameFromTenantKey(tenantKey);
     return (
       <Alert
         style={{marginTop: 16}}
         type="success"
         showIcon
         message="通讯录权限已满足"
-        description={`部门：${result.departmentCount || 0}，成员：${result.userCount || 0}`}
+        description={`部门：${result.departmentCount || 0}，成员：${result.userCount || 0}${targetOrganization ? `，保存后同步组织：${targetOrganization}` : ""}`}
       />
     );
   }

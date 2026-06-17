@@ -24,6 +24,7 @@ type FeishuAddressBookConnectionTester interface {
 
 type FeishuOrganizationSyncConfigService struct {
 	Store                          FeishuOrganizationSyncConfigStore
+	OrganizationStore              FeishuBusinessOrganizationStore
 	ScheduleStore                  OrganizationSyncScheduleStore
 	NewAddressBookConnectionTester func(appId string, appSecret string, endpointMode string) FeishuAddressBookConnectionTester
 }
@@ -93,6 +94,21 @@ func (s *FeishuOrganizationSyncConfigService) prepareConfigForSave(config *Feish
 	if err != nil {
 		return nil, err
 	}
+	originalOrganization := prepared.Organization
+	var legacyOriginalConfig *FeishuOrganizationSyncConfig
+	if prepared.TenantKey != "" {
+		if originalOrganization != GetFeishuBusinessOrganizationName(prepared.TenantKey) {
+			legacyOriginalConfig, err = s.configStore().GetFeishuOrganizationSyncConfigByOrganization(originalOrganization)
+			if err != nil {
+				return nil, err
+			}
+		}
+		prepared.Organization, err = ensureFeishuBusinessOrganization(s.organizationStore(), prepared.TenantKey)
+		if err != nil {
+			return nil, err
+		}
+		prepared.Owner = prepared.Organization
+	}
 	existing, err := s.configStore().GetFeishuOrganizationSyncConfigByOrganization(prepared.Organization)
 	if err != nil {
 		return nil, err
@@ -110,10 +126,14 @@ func (s *FeishuOrganizationSyncConfigService) prepareConfigForSave(config *Feish
 	} else {
 		prepared.Owner = prepared.Organization
 		prepared.Name = FeishuOrganizationSyncDefaultConfigName
+		if prepared.AppSecret == FeishuOrganizationSyncMaskedSecret && legacyOriginalConfig != nil {
+			prepared.AppSecret = legacyOriginalConfig.AppSecret
+		}
 	}
 	if prepared.AppSecret == "" || prepared.AppSecret == FeishuOrganizationSyncMaskedSecret {
 		return nil, errors.New("feishu organization sync app_secret is required")
 	}
+	prepared.Owner = prepared.Organization
 	return prepared, nil
 }
 
@@ -186,6 +206,13 @@ func (s *FeishuOrganizationSyncConfigService) configStore() FeishuOrganizationSy
 		return s.Store
 	}
 	return defaultFeishuOrganizationSyncConfigStore{}
+}
+
+func (s *FeishuOrganizationSyncConfigService) organizationStore() FeishuBusinessOrganizationStore {
+	if s != nil && s.OrganizationStore != nil {
+		return s.OrganizationStore
+	}
+	return defaultFeishuBusinessOrganizationStore{}
 }
 
 func (s *FeishuOrganizationSyncConfigService) connectionTester(appId string, appSecret string, endpointMode string) FeishuAddressBookConnectionTester {

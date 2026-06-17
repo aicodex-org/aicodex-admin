@@ -24,6 +24,9 @@
 
 ## 验证要求
 
+- 新 change 启动或前端收口时，先在 `web-admin` 下运行：
+  `node scripts/check-incremental-typescript-gate.mjs --base origin/hfl-test-base`
+  该门禁会拦截新增 React `.js/.jsx`、新增 JSX `.test.js`、新增纯逻辑 `.js` 等不符合增量 TypeScript 约定的文件。
 - 任何 `.ts` / `.tsx` 改动必须在 `web-admin` 下运行 `yarn typecheck`。
 - 前端 UI 或行为改动按风险运行聚焦 Jest/coverage、`yarn build` 和浏览器/Playwright 验证。
 - 仅文档、规则或 skill 改动不需要运行前端构建；至少运行 `git diff --check`，并人工检查 Markdown 无乱码、无 secrets。
