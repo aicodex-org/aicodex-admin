@@ -140,6 +140,7 @@ class FeishuOrganizationSyncPage extends React.Component {
       bindingDiagnostics: null,
       bindingDiagnosticsLoading: false,
       bindingDiagnosticsError: "",
+      bindingDiagnosticsIssuesOpen: false,
       bindingDiagnosticsDetail: null,
       bindingDiagnosticsDetailOpen: false,
       handoffEvidence: null,
@@ -270,12 +271,14 @@ class FeishuOrganizationSyncPage extends React.Component {
       if (bindingDiagnosticsRes.status === "ok") {
         nextState.bindingDiagnostics = bindingDiagnosticsRes.data || null;
         nextState.bindingDiagnosticsError = "";
+        nextState.bindingDiagnosticsIssuesOpen = false;
       } else {
         nextState.bindingDiagnosticsError = "绑定冲突诊断刷新失败，请手动刷新重试。";
       }
       if (handoffEvidenceRes.status === "ok") {
         nextState.handoffEvidence = handoffEvidenceRes.data || null;
         nextState.handoffEvidenceError = "";
+        nextState.handoffEvidenceDetailsOpen = false;
       } else {
         nextState.handoffEvidenceError = "交接证据刷新失败，请手动刷新重试。";
       }
@@ -324,7 +327,7 @@ class FeishuOrganizationSyncPage extends React.Component {
           return;
         }
         if (res.status === "ok") {
-          this.setState({bindingDiagnosticsLoading: false, bindingDiagnostics: res.data || null, bindingDiagnosticsError: ""});
+          this.setState({bindingDiagnosticsLoading: false, bindingDiagnostics: res.data || null, bindingDiagnosticsError: "", bindingDiagnosticsIssuesOpen: false});
         } else {
           this.setState({bindingDiagnosticsLoading: false, bindingDiagnosticsError: res.msg || "绑定冲突诊断刷新失败"});
         }
@@ -347,7 +350,7 @@ class FeishuOrganizationSyncPage extends React.Component {
           return;
         }
         if (res.status === "ok") {
-          this.setState({handoffEvidenceLoading: false, handoffEvidence: res.data || null, handoffEvidenceError: ""});
+          this.setState({handoffEvidenceLoading: false, handoffEvidence: res.data || null, handoffEvidenceError: "", handoffEvidenceDetailsOpen: false});
         } else {
           this.setState({handoffEvidenceLoading: false, handoffEvidenceError: res.msg || "交接证据刷新失败"});
         }
@@ -844,6 +847,43 @@ class FeishuOrganizationSyncPage extends React.Component {
     );
   }
 
+  renderHandoffEvidenceDetailsDrawer(evidence, hasHandoffDetails) {
+    return (
+      <Drawer
+        title="验收资料"
+        width={720}
+        open={this.state.handoffEvidenceDetailsOpen}
+        onClose={() => this.setState({handoffEvidenceDetailsOpen: false})}
+      >
+        {!hasHandoffDetails ? (
+          <Alert type="info" showIcon message="暂无验收资料" description="当前交接证据只有摘要信息。" />
+        ) : (
+          <Space direction="vertical" size={10} style={{width: "100%"}}>
+            <Typography.Paragraph ellipsis={{rows: 3, expandable: true}}>
+              {evidence.safeSummary || "-"}
+            </Typography.Paragraph>
+            <Space size={4} wrap>
+              {this.getHandoffReadinessTag(evidence.readiness)}
+              {evidence.sourceType && <Tag>{handoffSourceTypeLabels[evidence.sourceType] || evidence.sourceType}</Tag>}
+              {evidence.sourceIdHash && <Tag>{evidence.sourceIdHash}</Tag>}
+              {evidence.sourceConnectionIdHash && <Tag>{evidence.sourceConnectionIdHash}</Tag>}
+              {evidence.endpointMode && <Tag>{evidence.endpointMode}</Tag>}
+              {evidence.appAlias && <Tag>{evidence.appAlias}</Tag>}
+              {evidence.tenantAlias && <Tag>{evidence.tenantAlias}</Tag>}
+              {evidence.redaction?.applied && <Tag color="green">{evidence.redaction.version || "已脱敏"}</Tag>}
+            </Space>
+            <Space size={4} wrap>
+              {(evidence.blockedReasons || []).map(reason => <Tag color="red" key={reason}>{reason}</Tag>)}
+              {(evidence.operatorNextActions || []).map(action => <Tag color="blue" key={action}>{action}</Tag>)}
+              {(evidence.cannotInfer || []).map(item => <Tag key={item}>{item}</Tag>)}
+            </Space>
+            {this.renderHandoffAcceptanceChecklist(evidence.acceptanceChecklist)}
+          </Space>
+        )}
+      </Drawer>
+    );
+  }
+
   renderHandoffEvidence() {
     const evidence = this.state.handoffEvidence || {};
     const readinessType = evidence.readiness === "blocked" ? "error" : evidence.readiness === "ready" ? "success" : "info";
@@ -901,32 +941,16 @@ class FeishuOrganizationSyncPage extends React.Component {
                     type="link"
                     style={{padding: 0, height: "auto", alignSelf: "flex-start"}}
                     aria-label="toggle-handoff-evidence-details"
-                    onClick={() => this.setState({handoffEvidenceDetailsOpen: !this.state.handoffEvidenceDetailsOpen})}
+                    onClick={() => this.setState({handoffEvidenceDetailsOpen: true})}
                   >
-                    {this.state.handoffEvidenceDetailsOpen ? "收起验收资料" : "查看验收资料"}
+                    查看验收资料
                   </Button>
-                )}
-                {hasHandoffDetails && this.state.handoffEvidenceDetailsOpen && (
-                  <Space direction="vertical" size={8} style={{width: "100%"}}>
-                    <Space size={4} wrap>
-                      {evidence.sourceIdHash && <Tag>{evidence.sourceIdHash}</Tag>}
-                      {evidence.sourceConnectionIdHash && <Tag>{evidence.sourceConnectionIdHash}</Tag>}
-                      {evidence.endpointMode && <Tag>{evidence.endpointMode}</Tag>}
-                      {evidence.appAlias && <Tag>{evidence.appAlias}</Tag>}
-                      {evidence.tenantAlias && <Tag>{evidence.tenantAlias}</Tag>}
-                    </Space>
-                    <Space size={4} wrap>
-                      {(evidence.blockedReasons || []).map(reason => <Tag color="red" key={reason}>{reason}</Tag>)}
-                      {(evidence.operatorNextActions || []).map(action => <Tag color="blue" key={action}>{action}</Tag>)}
-                      {(evidence.cannotInfer || []).map(item => <Tag key={item}>{item}</Tag>)}
-                    </Space>
-                    {this.renderHandoffAcceptanceChecklist(evidence.acceptanceChecklist)}
-                  </Space>
                 )}
               </Space>
             }
           />
         )}
+        {this.renderHandoffEvidenceDetailsDrawer(evidence, hasHandoffDetails)}
         {!evidence.readiness && (
           <Table
             rowKey="state"
@@ -976,6 +1000,7 @@ class FeishuOrganizationSyncPage extends React.Component {
   renderBindingDiagnostics() {
     const diagnostics = this.state.bindingDiagnostics || {};
     const issues = diagnostics.issues || [];
+    const hasIssues = issues.length > 0;
     const columns = [
       {title: "风险", dataIndex: "riskLevel", key: "riskLevel", width: 90, render: risk => this.getBindingRiskTag(risk)},
       {title: "类型", dataIndex: "type", key: "type", width: 150, render: type => this.getBindingIssueTypeLabel(type)},
@@ -1019,29 +1044,47 @@ class FeishuOrganizationSyncPage extends React.Component {
             showIcon
             message={<Space wrap>{this.getBindingStatusTag(diagnostics.status)}{this.getBindingRiskTag(diagnostics.riskLevel)}{this.renderBindingCounts(diagnostics.counts)}</Space>}
             description={
-              <Space direction="vertical" size={4}>
+              <Space direction="vertical" size={6} style={{width: "100%"}}>
                 <Text>{diagnostics.safeSummary || "-"}</Text>
-                <Space size={4} wrap>
-                  {diagnostics.sourceConnectionIdHash && <Tag>{diagnostics.sourceConnectionIdHash}</Tag>}
-                  {this.renderBindingLinkage(diagnostics.latestRun, "run")}
-                  {this.renderBindingLinkage(diagnostics.latestDryRunHistory, "history")}
-                  {diagnostics.redaction?.applied && <Tag color="green">{diagnostics.redaction.version || "已脱敏"}</Tag>}
-                </Space>
+                {hasIssues && (
+                  <Space wrap>
+                    <Button
+                      size="small"
+                      type="link"
+                      style={{padding: 0, height: "auto"}}
+                      aria-label="toggle-binding-diagnostics-issues"
+                      onClick={() => this.setState({bindingDiagnosticsIssuesOpen: !this.state.bindingDiagnosticsIssuesOpen})}
+                    >
+                      {this.state.bindingDiagnosticsIssuesOpen ? "收起冲突详情" : "查看冲突详情"}
+                    </Button>
+                    {!this.state.bindingDiagnosticsIssuesOpen && <Text type="secondary">{`已收起 ${issues.length} 条脱敏诊断详情`}</Text>}
+                  </Space>
+                )}
+                {this.state.bindingDiagnosticsIssuesOpen && (
+                  <Space size={4} wrap>
+                    {diagnostics.sourceConnectionIdHash && <Tag>{diagnostics.sourceConnectionIdHash}</Tag>}
+                    {this.renderBindingLinkage(diagnostics.latestRun, "run")}
+                    {this.renderBindingLinkage(diagnostics.latestDryRunHistory, "history")}
+                    {diagnostics.redaction?.applied && <Tag color="green">{diagnostics.redaction.version || "已脱敏"}</Tag>}
+                  </Space>
+                )}
               </Space>
             }
           />
         )}
-        <Table
-          rowKey="id"
-          size="middle"
-          bordered
-          loading={this.state.loading || this.state.bindingDiagnosticsLoading}
-          columns={columns}
-          dataSource={issues}
-          locale={{emptyText: this.state.bindingDiagnosticsError || (diagnostics.status === "disabled" ? "飞书组织同步未启用" : "暂无绑定冲突")}}
-          scroll={{x: 1220}}
-          pagination={false}
-        />
+        {this.state.bindingDiagnosticsIssuesOpen && (
+          <Table
+            rowKey="id"
+            size="middle"
+            bordered
+            loading={this.state.loading || this.state.bindingDiagnosticsLoading}
+            columns={columns}
+            dataSource={issues}
+            locale={{emptyText: this.state.bindingDiagnosticsError || (diagnostics.status === "disabled" ? "飞书组织同步未启用" : "暂无绑定冲突")}}
+            scroll={{x: 1220}}
+            pagination={false}
+          />
+        )}
         {this.renderBindingDiagnosticsDetailDrawer()}
       </>
     );

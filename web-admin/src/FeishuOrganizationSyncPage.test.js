@@ -320,6 +320,12 @@ test("renders user binding diagnostics and opens redacted detail drawer", async(
   expect(FeishuOrganizationSyncBackend.getFeishuOrganizationSyncUserBindingConflicts).toHaveBeenCalledWith("engineering", {limit: 20});
   expect(screen.getByText("阻断")).toBeInTheDocument();
   expect(screen.getAllByText("严重").length).toBeGreaterThan(0);
+  expect(screen.getByText("查看冲突详情")).toBeInTheDocument();
+  expect(screen.getByText("已收起 1 条脱敏诊断详情")).toBeInTheDocument();
+  expect(screen.queryByText("sample-a")).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByLabelText("toggle-binding-diagnostics-issues"));
+
   expect(screen.getByText("user_id 多用户")).toBeInTheDocument();
   expect(screen.getByText("确认主账号")).toBeInTheDocument();
   expect(screen.getByText("sample-a")).toBeInTheDocument();
@@ -347,6 +353,7 @@ test("renders handoff evidence ready summary and safe markers", async() => {
   expect(screen.queryByText("provider_truth")).not.toBeInTheDocument();
   expect(screen.queryByText("production_readiness")).not.toBeInTheDocument();
   fireEvent.click(screen.getByLabelText("toggle-handoff-evidence-details"));
+  expect(screen.getByText("验收资料")).toBeInTheDocument();
   expect(screen.getAllByText("dry-run-safe").length).toBeGreaterThan(0);
   expect(screen.getAllByText("source-safe").length).toBeGreaterThan(0);
   expect(screen.getByText("验收清单")).toBeInTheDocument();
@@ -463,10 +470,7 @@ test("renders handoff evidence blocked and no-run states", async() => {
 
   expect((await screen.findAllByText("交接证据存在 2 个阻断原因，需处理后再交接。")).length).toBeGreaterThan(0);
   expect(screen.queryByText("sync_run_failed")).not.toBeInTheDocument();
-  fireEvent.click(screen.getByLabelText("toggle-handoff-evidence-details"));
-  expect(screen.getByText("sync_run_failed")).toBeInTheDocument();
-  expect(screen.getByText("binding_conflict_blocked")).toBeInTheDocument();
-  expect(screen.getByText("handoff_readiness")).toBeInTheDocument();
+  expect(screen.getByText("查看验收资料")).toBeInTheDocument();
 
   FeishuOrganizationSyncBackend.getFeishuOrganizationSyncHandoffEvidence.mockResolvedValueOnce({
     status: "ok",
@@ -499,9 +503,9 @@ test("renders handoff evidence blocked and no-run states", async() => {
   fireEvent.click(screen.getByLabelText("refresh-handoff-evidence"));
 
   expect(await screen.findByText("无记录")).toBeInTheDocument();
-  expect(screen.getAllByText("run_dry_run_preview").length).toBeGreaterThan(0);
-  expect(screen.getByText("source_evidence")).toBeInTheDocument();
-  expect(screen.getAllByText("production_readiness").length).toBeGreaterThan(0);
+  expect(screen.getByText("查看验收资料")).toBeInTheDocument();
+  expect(screen.queryByText("source_evidence")).not.toBeInTheDocument();
+  expect(screen.queryByText("production_readiness")).not.toBeInTheDocument();
 });
 
 test("renders disabled user binding diagnostics state", async() => {
