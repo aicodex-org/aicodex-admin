@@ -26,7 +26,8 @@ import PopconfirmModal from "./common/modal/PopconfirmModal";
 import {SignupTableDefaultCssMap} from "./table/SignupTable";
 import ApplicationAccessCenter from "./ApplicationAccessCenter";
 import IdentityAssetRelationshipDrawer from "./IdentityAssetRelationshipDrawer";
-import {buildApplicationIdentityAssetDetail} from "./identityAssetRelationship";
+import {buildAggregatedIdentityAssetDetail, buildApplicationIdentityAssetDetail} from "./identityAssetRelationship";
+import * as IdentityAssetRelationshipBackend from "./backend/IdentityAssetRelationshipBackend";
 
 class ApplicationListPage extends BaseListPage {
   constructor(props) {
@@ -161,9 +162,23 @@ class ApplicationListPage extends BaseListPage {
   }
 
   openIdentityAssetDetail(record) {
+    const fallbackDetail = buildApplicationIdentityAssetDetail(record, this.getIdentityAssetSourceContext());
     this.setState({
-      identityAssetDetail: buildApplicationIdentityAssetDetail(record, this.getIdentityAssetSourceContext()),
+      identityAssetDetail: fallbackDetail,
     });
+    IdentityAssetRelationshipBackend.getIdentityAssetRelationshipAggregation({
+      assetType: "application",
+      owner: record.owner || "admin",
+      organization: record.organization || record.owner || "admin",
+      name: record.name || record.displayName || "",
+    })
+      .then(res => {
+        const aggregation = res?.status === "ok" && res?.data ? res.data : res;
+        if (aggregation?.object && aggregation?.scope) {
+          this.setState({identityAssetDetail: buildAggregatedIdentityAssetDetail(aggregation)});
+        }
+      })
+      .catch(() => undefined);
   }
 
   closeIdentityAssetDetail() {

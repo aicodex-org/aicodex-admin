@@ -46,10 +46,17 @@
 
 ## 5. P1 Read-only Aggregation Interfaces
 
-- [ ] 5.1 Define read-only relationship aggregation API contracts with scope, generatedAt, sourceOfTruth, redactionSummary and cannotInfer reason fields.
+- [x] 5.1 Define read-only relationship aggregation API contracts with scope, generatedAt, sourceOfTruth, redactionSummary and cannotInfer reason fields.
 - [ ] 5.2 Define read-only governance task aggregation API contracts with pagination, task type, severity, impact object, source scope, evidence entry and safe next action.
 - [ ] 5.3 Define read-only preflight/test summary API contracts for auth source, application access and Gateway/LLM AI mapping flows.
 - [ ] 5.4 Add backend and frontend validation for permission filtering, redaction, partial failure and no-write behavior.
+
+### 5a. Completed P1 Relationship Aggregation Frontend Slice: Application + Provider
+
+- [x] 5a.1 Add frontend TypeScript contract and read-only GET client for identity asset relationship aggregation with `scope`, `generatedAt`, `sourceOfTruth`, `redactionSummary`, `cannotInfer` and permission fields.
+- [x] 5a.2 Add aggregation response adapter that marks returned relationships/evidence as `global_aggregation` and re-applies frontend redaction before rendering.
+- [x] 5a.3 Wire Application and Provider object context actions to use the read-only aggregation endpoint when available, while preserving current-row fallback if the endpoint is absent, partial or unavailable.
+- [x] 5a.4 Add focused tests for aggregation adaptation, sensitive redaction and no-write GET behavior.
 
 ## 6. P2 Processing State and History
 

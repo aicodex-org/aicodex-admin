@@ -2,6 +2,7 @@
 import {expect} from "@jest/globals";
 import i18next from "i18next";
 import {
+  buildAggregatedIdentityAssetDetail,
   buildApplicationIdentityAssetDetail,
   buildProviderIdentityAssetDetail,
   getSourceScopeDisplay,
@@ -175,6 +176,89 @@ describe("identityAssetRelationship", () => {
     expect(detail.cannotInfer.map(item => item.reason)).toEqual(expect.arrayContaining(["global_relationships_require_aggregation"]));
     expect(JSON.stringify(detail)).not.toContain("secret-value");
     expect(JSON.stringify(detail)).not.toContain("private.example.com");
+  });
+
+  test("adapts read-only aggregation responses without falling back to current-view facts", () => {
+    const detail = buildAggregatedIdentityAssetDetail({
+      object: {
+        type: "Application",
+        id: "built-in/portal",
+        displayName: "AICodex Portal",
+        owner: "admin",
+        organization: "built-in",
+        status: "healthy",
+      },
+      scope: {
+        sourceOfTruth: "admin-readonly-relationship-aggregation",
+        generatedAt: "2026-06-18T06:00:00Z",
+      },
+      relationships: [
+        {
+          key: "provider-binding",
+          type: "provider_binding",
+          label: "Provider 绑定",
+          value: "enterprise-oidc",
+          status: "ready",
+          to: "/providers/admin/enterprise-oidc",
+          description: "clientSecret=secret-value Provider binding is complete",
+        },
+      ],
+      evidenceEntries: [
+        {
+          key: "audit-records",
+          label: "审计证据",
+          to: "/records?object=portal",
+          description: "https://private.example.com/audit payload",
+        },
+      ],
+      cannotInfer: [
+        {
+          reason: "audit_window_not_loaded",
+          message: "部分审计窗口需要后端继续聚合",
+          safeNextAction: {key: "records", label: "查看审计记录", to: "/records"},
+        },
+      ],
+      redactionSummary: {
+        hiddenFields: ["clientSecret"],
+        note: "后端已脱敏",
+      },
+    });
+
+    expect(detail.source.kind).toBe("global_aggregation");
+    expect(detail.source.sourceOfTruth).toBe("admin-readonly-relationship-aggregation");
+    expect(detail.source.generatedAt).toBe("2026-06-18T06:00:00Z");
+    expect(isGlobalFactScope(detail.source)).toBe(true);
+    expect(detail.relationships[0].source.kind).toBe("global_aggregation");
+    expect(detail.evidenceEntries[0].source.kind).toBe("global_aggregation");
+    expect(detail.cannotInfer[0].reason).toBe("audit_window_not_loaded");
+    expect(JSON.stringify(detail)).not.toContain("secret-value");
+    expect(JSON.stringify(detail)).not.toContain("private.example.com");
+  });
+
+  test("keeps aggregation permission and empty partial responses explicit", () => {
+    const detail = buildAggregatedIdentityAssetDetail({
+      object: {
+        type: "Provider",
+        id: "admin/oidc",
+        displayName: "Enterprise OIDC",
+      },
+      scope: {},
+      permission: {
+        allowed: false,
+        reason: "relationship_scope_denied",
+      },
+    });
+
+    expect(detail.source.kind).toBe("global_aggregation");
+    expect(detail.source.pagePath).toBe("/identity-assets");
+    expect(detail.source.sourceOfTruth).toBe("admin-readonly-relationship-aggregation");
+    expect(detail.relationships).toEqual([]);
+    expect(detail.evidenceEntries).toEqual([]);
+    expect(detail.cannotInfer).toEqual([]);
+    expect(detail.safeNextActions).toEqual([]);
+    expect(detail.permission?.allowed).toBe(false);
+    expect(detail.redactionSummary.hiddenFields).toEqual([]);
+    expect(detail.redactionSummary.note).toBe("未展示敏感原值");
   });
 
   test("builds provider detail with current view gaps instead of inferred global bindings", () => {

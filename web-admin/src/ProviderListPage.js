@@ -25,7 +25,8 @@ import BaseListPage from "./BaseListPage";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
 import AuthSourceCenter from "./AuthSourceCenter";
 import IdentityAssetRelationshipDrawer from "./IdentityAssetRelationshipDrawer";
-import {buildProviderIdentityAssetDetail} from "./identityAssetRelationship";
+import {buildAggregatedIdentityAssetDetail, buildProviderIdentityAssetDetail} from "./identityAssetRelationship";
+import * as IdentityAssetRelationshipBackend from "./backend/IdentityAssetRelationshipBackend";
 
 class ProviderListPage extends BaseListPage {
   constructor(props) {
@@ -106,9 +107,23 @@ class ProviderListPage extends BaseListPage {
   }
 
   openIdentityAssetDetail(record) {
+    const fallbackDetail = buildProviderIdentityAssetDetail(record, this.getIdentityAssetSourceContext());
     this.setState({
-      identityAssetDetail: buildProviderIdentityAssetDetail(record, this.getIdentityAssetSourceContext()),
+      identityAssetDetail: fallbackDetail,
     });
+    IdentityAssetRelationshipBackend.getIdentityAssetRelationshipAggregation({
+      assetType: "provider",
+      owner: record.owner || "admin",
+      organization: record.owner || "admin",
+      name: record.name || record.displayName || "",
+    })
+      .then(res => {
+        const aggregation = res?.status === "ok" && res?.data ? res.data : res;
+        if (aggregation?.object && aggregation?.scope) {
+          this.setState({identityAssetDetail: buildAggregatedIdentityAssetDetail(aggregation)});
+        }
+      })
+      .catch(() => undefined);
   }
 
   closeIdentityAssetDetail() {

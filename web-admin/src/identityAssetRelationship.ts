@@ -86,6 +86,44 @@ export interface IdentityAssetDetail {
   };
 }
 
+export interface AggregatedIdentityAssetRelationshipResponse {
+  object: {
+    type: string;
+    id: string;
+    displayName: string;
+    owner?: string;
+    organization?: string;
+    status?: string;
+  };
+  scope: {
+    pagePath?: string;
+    sourceOfTruth?: string;
+    generatedAt?: string;
+  };
+  relationships?: Array<{
+    key: string;
+    type: string;
+    label: string;
+    value: string;
+    status: RelationshipStatus;
+    to?: string;
+    description?: string;
+  }>;
+  evidenceEntries?: Array<{
+    key: string;
+    label: string;
+    to: string;
+    description: string;
+  }>;
+  cannotInfer?: CannotInferState[];
+  redactionSummary?: Partial<RedactionSummary>;
+  safeNextActions?: SafeNextAction[];
+  permission?: {
+    allowed: boolean;
+    reason?: string;
+  };
+}
+
 type UnknownRecord = Record<string, unknown>;
 type I18nInterpolationValues = Record<string, string | number>;
 
@@ -176,6 +214,17 @@ function buildCurrentObjectSource(pagePath: string, objectType: string, objectId
   };
 }
 
+function buildGlobalAggregationSource(response: AggregatedIdentityAssetRelationshipResponse): SourceScope {
+  return {
+    kind: "global_aggregation",
+    pagePath: response.scope.pagePath || "/identity-assets",
+    objectType: response.object.type,
+    objectId: response.object.id,
+    sourceOfTruth: response.scope.sourceOfTruth || "admin-readonly-relationship-aggregation",
+    generatedAt: response.scope.generatedAt,
+  };
+}
+
 function summarizeCount(labelKey: string, defaultLabel: string, count: number): string {
   const label = t(labelKey, defaultLabel);
   return count > 0 ? t("Count format", "{{count}} {{label}}", {count, label}) : t("Not configured", "Not configured");
@@ -235,6 +284,53 @@ function createEvidenceEntries(source: SourceScope): EvidenceEntry[] {
 
 export function isGlobalFactScope(scope: Pick<SourceScope, "kind">): boolean {
   return scope.kind === "global_aggregation";
+}
+
+export function buildAggregatedIdentityAssetDetail(response: AggregatedIdentityAssetRelationshipResponse): IdentityAssetDetail {
+  const source = buildGlobalAggregationSource(response);
+  const hiddenFields = new Set(response.redactionSummary?.hiddenFields ?? []);
+
+  const relationships: RelationshipItem[] = (response.relationships ?? []).map(item => {
+    const value = redactSensitiveText(item.value);
+    const description = redactSensitiveText(item.description);
+    value.hiddenFields.forEach(field => hiddenFields.add(field));
+    description.hiddenFields.forEach(field => hiddenFields.add(field));
+
+    return {
+      ...item,
+      value: value.text,
+      description: description.text,
+      source,
+    };
+  });
+
+  const evidenceEntries: EvidenceEntry[] = (response.evidenceEntries ?? []).map(entry => {
+    const description = redactSensitiveText(entry.description);
+    description.hiddenFields.forEach(field => hiddenFields.add(field));
+
+    return {
+      ...entry,
+      description: description.text,
+      source,
+    };
+  });
+
+  return {
+    object: {
+      ...response.object,
+      source,
+    },
+    source,
+    relationships,
+    evidenceEntries,
+    cannotInfer: response.cannotInfer ?? [],
+    redactionSummary: {
+      hiddenFields: Array.from(hiddenFields).sort(),
+      note: response.redactionSummary?.note || (hiddenFields.size > 0 ? t("Sensitive values are hidden", "Sensitive values are hidden") : t("No sensitive raw values rendered", "No sensitive raw values rendered")),
+    },
+    safeNextActions: response.safeNextActions ?? [],
+    permission: response.permission,
+  };
 }
 
 export function getSourceScopeDisplay(scope: SourceScope): SourceScopeDisplay {
