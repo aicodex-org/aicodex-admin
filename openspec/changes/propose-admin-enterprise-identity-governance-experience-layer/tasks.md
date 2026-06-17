@@ -7,11 +7,11 @@
 
 ## 2. P0 Asset Relationship Layer
 
-- [ ] 2.1 Implement `.tsx` object detail drawer or light detail page components for high-value identity assets, starting with Application, Provider binding, User/Role/Permission and Gateway mapping objects.
-- [ ] 2.2 Add current-view relationship lists for organization, user, role, permission, application, auth source, LLM AI/Gateway and audit evidence references.
-- [ ] 2.3 Add timeline and evidence entry links that route to existing audit, sync, token, verification, Gateway mapping or readiness pages without triggering execution behavior.
-- [ ] 2.4 Add focused `.test.tsx` coverage for object boundaries, relationship source labels, empty state, error state, permission state, route actions and sensitive redaction.
-- [ ] 2.5 Run `yarn typecheck`, focused tests, `yarn build` as risk requires, and browser verification that object entry points work while core lists remain accessible.
+- [x] 2.1 Implement `.tsx` object detail drawer or light detail page components for high-value identity assets, starting with Application, Provider binding, User/Role/Permission and Gateway mapping objects.
+- [x] 2.2 Add current-view relationship lists for organization, user, role, permission, application, auth source, LLM AI/Gateway and audit evidence references.
+- [x] 2.3 Add timeline and evidence entry links that route to existing audit, sync, token, verification, Gateway mapping or readiness pages without triggering execution behavior.
+- [x] 2.4 Add focused `.test.tsx` coverage for object boundaries, relationship source labels, empty state, error state, permission state, route actions and sensitive redaction.
+- [x] 2.5 Run `yarn typecheck`, focused tests, `yarn build` as risk requires, and browser verification that object entry points work while core lists remain accessible.
 
 ### 2a. Completed P0 Asset Relationship Slice: `/applications` + `/providers`
 

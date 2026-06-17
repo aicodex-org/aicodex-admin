@@ -833,6 +833,100 @@ img {
   margin-top: 12px;
 }
 
+.identity-evidence-chain-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.identity-evidence-chain-selector {
+  display: grid;
+  gap: 8px;
+}
+
+.identity-evidence-chain-selector-item {
+  width: 100%;
+  min-height: 72px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  text-align: left;
+  color: inherit;
+  background: #fff;
+  border: 1px solid #d9e0ea;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.identity-evidence-chain-selector-item:hover,
+.identity-evidence-chain-selector-item-active {
+  border-color: #1677ff;
+  background: #f7fbff;
+}
+
+.identity-evidence-chain-selector-icon,
+.identity-evidence-chain-object-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  font-size: 18px;
+}
+
+.identity-evidence-chain-selector-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.identity-evidence-chain-selector-copy > span:first-child {
+  font-weight: 600;
+}
+
+.identity-evidence-chain-selector-copy .ant-typography,
+.identity-evidence-chain-list-item .ant-typography,
+.identity-evidence-chain-object-header .ant-typography {
+  overflow-wrap: anywhere;
+}
+
+.identity-evidence-chain-detail {
+  min-width: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.identity-evidence-chain-object-header {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  margin-bottom: 12px;
+}
+
+.identity-evidence-chain-object-header h4 {
+  margin: 0;
+}
+
+.identity-evidence-chain-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.identity-evidence-chain-list-item {
+  width: 100%;
+}
+
+.identity-evidence-chain-empty {
+  padding: 32px 0;
+}
+
 .organization-identity-console {
   padding: 14px 16px 18px;
 }
@@ -1092,7 +1186,9 @@ img {
   }
 
   .access-wizard-domain-grid,
-  .access-wizard-detail-grid {
+  .access-wizard-detail-grid,
+  .identity-evidence-chain-layout,
+  .identity-evidence-chain-detail-grid {
     grid-template-columns: 1fr;
   }
 

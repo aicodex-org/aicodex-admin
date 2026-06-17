@@ -53,6 +53,7 @@ describe("IdentityConsoleOverview", () => {
     expect(screen.getAllByText("LLM AI 网关中心").length).toBeGreaterThan(0);
     expect(screen.getByText("最近失败 / 待处理风险")).toBeInTheDocument();
     expect(screen.getAllByText("进入应用接入").some(item => item.closest("a")?.getAttribute("href") === "/applications")).toBe(true);
+    expect(screen.getByText("身份资产关系").closest("a")).toHaveAttribute("href", "/identity-assets");
     expect(screen.getByText("API 网关映射").closest("a")).toHaveAttribute("href", "/platform-api-mappings");
     expect(screen.queryByText(/Gateway 投影/)).not.toBeInTheDocument();
     expect(screen.getByText("身份域覆盖")).toBeInTheDocument();

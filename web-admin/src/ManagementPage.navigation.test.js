@@ -58,7 +58,9 @@ describe("enterprise identity navigation", () => {
     ]);
     expect(groups.map(group => group.label)).not.toContain("Gateway 投影");
     expect(groups.find(group => group.key === "/overview").children.map(item => item.key))
-      .toEqual(["/", "/access-wizard", "/governance-tasks", "/shortcuts", "/apps"]);
+      .toEqual(["/", "/identity-assets", "/access-wizard", "/governance-tasks", "/shortcuts", "/apps"]);
+    expect(groups.find(group => group.key === "/overview").children.find(item => item.key === "/identity-assets").label)
+      .toBe("身份资产关系");
     expect(groups.find(group => group.key === "/overview").children.find(item => item.key === "/access-wizard").label)
       .toBe("接入预检中心");
     expect(groups.find(group => group.key === "/identity-sources").children.map(item => item.key))
@@ -103,6 +105,8 @@ describe("enterprise identity navigation", () => {
     expect(groups.map(group => group.label)).not.toContain("Gateway Projection");
     expect(groups.find(group => group.key === "/overview").children.find(item => item.key === "/").label)
       .toBe("Identity Governance Overview");
+    expect(groups.find(group => group.key === "/overview").children.find(item => item.key === "/identity-assets").label)
+      .toBe("Identity Asset Relationships");
     expect(groups.find(group => group.key === "/overview").children.find(item => item.key === "/governance-tasks").label)
       .toBe("Governance Task Center");
     expect(groups.find(group => group.key === "/overview").children.find(item => item.key === "/access-wizard").label)
@@ -129,7 +133,7 @@ describe("enterprise identity navigation", () => {
       account: {
         ...localAdminAccount,
         organization: {
-          navItems: ["/", "/access-wizard", "/providers", "/platform-api-mappings"],
+          navItems: ["/", "/identity-assets", "/access-wizard", "/providers", "/platform-api-mappings"],
         },
       },
       themeData: {colorPrimary: "#1677ff"},
@@ -137,6 +141,7 @@ describe("enterprise identity navigation", () => {
 
     expect(groups.map(group => group.children.map(item => item.key)).flat()).toEqual([
       "/",
+      "/identity-assets",
       "/access-wizard",
       "/providers",
       "/platform-api-mappings",
@@ -144,6 +149,10 @@ describe("enterprise identity navigation", () => {
     expect(findNavigationSelection("/access-wizard", groups)).toEqual({
       groupKey: "/overview",
       itemKey: "/access-wizard",
+    });
+    expect(findNavigationSelection("/identity-assets", groups)).toEqual({
+      groupKey: "/overview",
+      itemKey: "/identity-assets",
     });
     expect(findNavigationSelection("/platform-api-mappings", groups)).toEqual({
       groupKey: "/application-access",

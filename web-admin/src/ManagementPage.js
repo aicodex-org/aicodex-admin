@@ -123,6 +123,7 @@ import {getAdminLoginRedirectPath} from "./adminLoginRouting";
 import {buildEnterpriseNavigationGroups, findNavigationSelection} from "./enterpriseNavigation";
 import GovernanceTaskCenter from "./GovernanceTaskCenter";
 import AccessWizardPage from "./AccessWizardPage";
+import IdentityEvidenceChainPage from "./IdentityEvidenceChainPage";
 
 const {Content, Header, Sider} = Layout;
 
@@ -345,6 +346,7 @@ function ManagementPage(props) {
     return (
       <Switch>
         <Route exact path="/" render={(props) => renderLoginIfNotLoggedIn(<IdentityConsoleOverview account={account} {...props} />)} />
+        <Route exact path="/identity-assets" render={(props) => renderLoginIfNotLoggedIn(<IdentityEvidenceChainPage account={account} {...props} />)} />
         <Route exact path="/access-wizard" render={(props) => renderLoginIfNotLoggedIn(<AccessWizardPage account={account} {...props} />)} />
         <Route exact path="/governance-tasks" render={(props) => renderLoginIfNotLoggedIn(<GovernanceTaskCenter account={account} {...props} />)} />
         <Route exact path="/apps" render={(props) => renderLoginIfNotLoggedIn(<AppListPage account={account} {...props} />)} />
@@ -451,6 +453,7 @@ function ManagementPage(props) {
 
     return Setting.isMobile() ||
       pathname === "/" ||
+      pathname === "/identity-assets" ||
       pathname === "/access-wizard" ||
       pathname === "/governance-tasks" ||
       pathname.startsWith("/trees") ||

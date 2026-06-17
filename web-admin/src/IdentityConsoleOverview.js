@@ -119,6 +119,15 @@ function buildStatusCards(dashboardData) {
 function buildRiskItems(hasError) {
   return [
     {
+      key: "identity-assets",
+      title: tGeneral("Identity asset relationship overview title", "对象关系证据链"),
+      description: tGeneral("Identity asset relationship overview risk", "从对象视角核对应用、认证源、组织身份、角色权限、Gateway/LLM AI 与审计证据入口。"),
+      icon: <ClusterOutlined />,
+      tone: "processing",
+      badge: tGeneral("Evidence chain", "证据链"),
+      action: {key: "identity-assets", to: "/identity-assets", label: tGeneral("Enter identity asset relationships", "进入身份资产关系")},
+    },
+    {
       key: "access-preflight",
       title: tGeneral("Access preflight overview title", "接入预检"),
       description: tGeneral("Access preflight overview risk", "按认证源、应用接入和 LLM AI/Gateway 核对配置缺口、证据入口和发布前条件。"),
@@ -197,6 +206,7 @@ function buildSummaryItems(dashboardData, hasError) {
 
 function buildCapabilityLinks() {
   return [
+    {key: "identity-assets", to: "/identity-assets", label: tGeneral("Identity Asset Relationships", "身份资产关系"), description: tGeneral("Identity asset relationship capability description", "对象详情、授权关系和审计证据入口"), icon: <ClusterOutlined />},
     {key: "access-wizard", to: "/access-wizard", label: tGeneral("Access Preflight Center", "接入预检中心"), description: tGeneral("Access preflight capability description", "配置缺口、证据入口和发布前核对"), icon: <ProfileOutlined />},
     {key: "governance-tasks", to: "/governance-tasks", label: tGeneral("Governance Task Center", "治理任务中心"), description: tGeneral("Governance task center capability description", "风险待办、证据入口和建议核对"), icon: <ProfileOutlined />},
     {key: "organizations", to: "/organizations", label: "组织主数据", description: "身份域、部门和用户主数据", icon: <TeamOutlined />},
