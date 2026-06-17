@@ -1228,7 +1228,7 @@ class PlatformApiMappingPage extends React.Component {
       if (res.status === "ok" && res.data?.status === "ok") {
         Setting.showMessage("success", "gateway projection 手动发布已接受或幂等完成");
       } else {
-        Setting.showMessage("warning", `gateway projection 手动发布未完成：${res.msg || res.data?.failureCategory || "unknown"}`);
+        Setting.showMessage("warning", `网关身份手动同步未完成：${res.msg || res.data?.failureCategory || "unknown"}`);
       }
       this.refreshUserMappingReadiness();
       this.refreshGatewayProjectionRunReadiness();
@@ -1255,7 +1255,7 @@ class PlatformApiMappingPage extends React.Component {
     return (
       <Card
         type="inner"
-        title="Gateway ingestion status"
+        title="网关接入回执状态"
         style={{marginBottom: 12}}
         extra={
           <Button icon={<ReloadOutlined />} loading={this.state.ingestionStatusLoading} onClick={() => this.refreshGatewayProjectionIngestionStatus()}>
@@ -1266,7 +1266,7 @@ class PlatformApiMappingPage extends React.Component {
         <Alert
           type={success ? "success" : "warning"}
           showIcon
-          message={`Gateway status: ${statusLabel}`}
+          message={`网关回执状态: ${statusLabel}`}
           description="该状态来自 Gateway owner ingestion-status contract，只表示 receipt/apply 状态，不证明 Insight/API 授权查询成功。"
           style={{marginBottom: 12}}
         />
@@ -1313,7 +1313,7 @@ class PlatformApiMappingPage extends React.Component {
     return (
       <Card
         type="inner"
-        title="Gateway projection run readiness"
+        title="网关身份同步就绪"
         style={{marginBottom: 12}}
         extra={
           <Button icon={<ReloadOutlined />} loading={this.state.runReadinessLoading} onClick={() => this.refreshGatewayProjectionRunReadiness()}>
@@ -1324,7 +1324,7 @@ class PlatformApiMappingPage extends React.Component {
         <Alert
           type={retry.safeToRetry ? "success" : "warning"}
           showIcon
-          message={`Retry action: ${actionLabel}`}
+          message={`同步动作: ${actionLabel}`}
           description={retry.operatorAction || "该摘要只基于 Admin producer 视角，不代表 Gateway/API/Insight 授权成功。"}
           style={{marginBottom: 12}}
         />
@@ -1359,7 +1359,7 @@ class PlatformApiMappingPage extends React.Component {
     return (
       <Card
         type="inner"
-        title="Gateway projection 手动发布"
+        title="网关身份手动同步"
         style={{marginBottom: 12}}
         extra={
           <Button
@@ -1369,7 +1369,7 @@ class PlatformApiMappingPage extends React.Component {
             disabled={disabledReasons.length > 0}
             onClick={() => this.publishGatewayProjectionManually()}
           >
-            手动发布
+            手动同步
           </Button>
         }
       >
@@ -1557,7 +1557,7 @@ class PlatformApiMappingPage extends React.Component {
     return (
       <Card
         type="inner"
-        title="Gateway projection publish attempt history"
+        title="网关身份发布记录"
         style={{marginBottom: 12}}
         extra={
           <Space wrap>
@@ -1600,7 +1600,7 @@ class PlatformApiMappingPage extends React.Component {
         <Alert
           type="info"
           showIcon
-          message="Attempt history 只记录 Admin producer 脱敏诊断，不是 gateway authorization facts。"
+          message="发布记录只记录 Admin producer 脱敏诊断，不是 gateway authorization facts。"
           style={{marginBottom: 12}}
         />
         <Alert

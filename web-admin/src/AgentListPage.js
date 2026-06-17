@@ -21,6 +21,7 @@ import * as AgentBackend from "./backend/AgentBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
+import LlmAiGatewayCenter from "./LlmAiGatewayCenter";
 
 class AgentListPage extends BaseListPage {
   newAgent() {
@@ -190,23 +191,26 @@ class AgentListPage extends BaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <Table
-        scroll={{x: "max-content"}}
-        dataSource={agents}
-        columns={filteredColumns}
-        rowKey={record => `${record.owner}/${record.name}`}
-        pagination={paginationProps}
-        loading={this.state.loading}
-        onChange={this.handleTableChange}
-        size="middle"
-        bordered
-        title={() => (
-          <div>
-            {i18next.t("general:Agents")}&nbsp;&nbsp;&nbsp;&nbsp;
-            <Button type="primary" size="small" onClick={() => this.addAgent()}>{i18next.t("general:Add")}</Button>
-          </div>
-        )}
-      />
+      <div>
+        <LlmAiGatewayCenter agents={agents} totalAgents={this.state.pagination.total} loading={this.state.loading} />
+        <Table
+          scroll={{x: "max-content"}}
+          dataSource={agents}
+          columns={filteredColumns}
+          rowKey={record => `${record.owner}/${record.name}`}
+          pagination={paginationProps}
+          loading={this.state.loading}
+          onChange={this.handleTableChange}
+          size="middle"
+          bordered
+          title={() => (
+            <div>
+              {i18next.t("general:Agents")}&nbsp;&nbsp;&nbsp;&nbsp;
+              <Button type="primary" size="small" onClick={() => this.addAgent()}>{i18next.t("general:Add")}</Button>
+            </div>
+          )}
+        />
+      </div>
     );
   }
 }

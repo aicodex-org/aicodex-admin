@@ -97,13 +97,13 @@ function buildStatusCards(dashboardData) {
     },
     {
       key: "gateway",
-      title: "LLM AI / Gateway 投影",
+      title: "LLM AI 网关中心",
       icon: <DeploymentUnitOutlined />,
-      description: "授权映射、AI 入口和 Gateway 只读巡检",
+      description: "AI 入口、MCP 资源和网关身份映射只读巡检",
       metricValue: permissionCount ?? "-",
       metricLabel: "授权映射",
       tags: [{key: "status", label: permissionCount === null ? "待巡检" : "只读巡检", tone: permissionCount === null ? "warning" : "processing"}],
-      actions: [{key: "gateway", to: "/agents", label: "查看 LLM AI"}],
+      actions: [{key: "gateway", to: "/agents", label: "进入 LLM AI 网关"}],
     },
   ];
 }
@@ -183,7 +183,7 @@ const capabilityLinks = [
   {key: "providers", to: "/providers", label: "认证源", description: "企业微信、飞书、OIDC 接入", icon: <SafetyCertificateOutlined />},
   {key: "applications", to: "/applications", label: "应用接入", description: "OAuth client、回调和授权范围", icon: <AppstoreOutlined />},
   {key: "api-mapping", to: "/platform-api-mappings", label: "API 网关映射", description: "应用到 API 的接入契约", icon: <ApiOutlined />},
-  {key: "gateway", to: "/agents", label: "LLM AI", description: "AI 入口与 Gateway 投影巡检", icon: <DeploymentUnitOutlined />},
+  {key: "gateway", to: "/agents", label: "LLM AI 网关", description: "AI 入口、MCP 资源与网关身份映射", icon: <DeploymentUnitOutlined />},
   {key: "records", to: "/records", label: "审计记录", description: "变更、失败和运维核对", icon: <AuditOutlined />},
 ];
 
@@ -249,7 +249,7 @@ function IdentityConsoleOverview({account, history}) {
       className="identity-console-overview"
       eyebrow="企业认证中心 / 身份治理总览"
       title="身份治理总览"
-      description="从组织、认证源、应用接入、LLM AI 与审计风险判断当前身份治理态势和下一步动作"
+      description="从组织、认证源、应用接入、LLM AI 网关与审计风险判断当前身份治理态势和下一步动作"
       actions={(
         <Space wrap>
           <Link to="/wecom-org-sync"><Button icon={<SafetyCertificateOutlined />}>企业微信同步</Button></Link>

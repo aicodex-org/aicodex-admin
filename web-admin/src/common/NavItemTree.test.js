@@ -42,7 +42,7 @@ describe("NavItemTree enterprise identity configuration", () => {
       "组织身份",
       "身份认证",
       "应用接入",
-      "LLM AI",
+      "LLM AI 网关",
       "权限治理",
       "审计运维",
       "管理工具",
@@ -55,7 +55,7 @@ describe("NavItemTree enterprise identity configuration", () => {
     expect(leafKeys(getGroup(treeData, "应用接入"))).toEqual(
       expect.arrayContaining(["/applications", "/keys", "/platform-api-mappings", "/webhook-events"])
     );
-    expect(leafKeys(getGroup(treeData, "LLM AI"))).toEqual([
+    expect(leafKeys(getGroup(treeData, "LLM AI 网关"))).toEqual([
       "/agents",
       "/servers",
       "/server-store",
@@ -90,7 +90,7 @@ describe("NavItemTree enterprise identity configuration", () => {
       "Organization & Identity",
       "Identity Sources",
       "Application Access",
-      "LLM AI",
+      "LLM AI Gateway",
       "Authorization Governance",
       "Audit & Operations",
       "System Tools",

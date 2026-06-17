@@ -17,4 +17,12 @@ declare module "react-router-dom" {
   }
 
   export class Link extends React.Component<LinkProps> {}
+
+  export interface MemoryRouterProps {
+    initialEntries?: LinkTarget[];
+    initialIndex?: number;
+    children?: React.ReactNode;
+  }
+
+  export class MemoryRouter extends React.Component<MemoryRouterProps> {}
 }

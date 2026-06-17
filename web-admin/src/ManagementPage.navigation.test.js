@@ -50,7 +50,7 @@ describe("enterprise identity navigation", () => {
       "组织身份",
       "身份认证",
       "应用接入",
-      "LLM AI",
+      "LLM AI 网关",
       "权限治理",
       "审计运维",
       "管理工具",
@@ -63,8 +63,10 @@ describe("enterprise identity navigation", () => {
       .toBe("认证源中心");
     expect(groups.find(group => group.key === "/application-access").children.map(item => item.key))
       .toEqual(expect.arrayContaining(["/applications", "/platform-api-mappings", "/webhooks"]));
-    expect(groups.find(group => group.label === "LLM AI").children.map(item => item.key))
+    expect(groups.find(group => group.label === "LLM AI 网关").children.map(item => item.key))
       .toEqual(["/agents", "/servers", "/server-store", "/entries", "/sites", "/rules"]);
+    expect(groups.find(group => group.label === "LLM AI 网关").children.find(item => item.key === "/agents").label)
+      .toBe("LLM AI 网关中心");
     expect(groups.find(group => group.key === "/audit-operations").children.map(item => item.key))
       .toEqual(["/sessions", "/records", "/tokens", "/verifications"]);
     expect(groups.find(group => group.key === "/audit-operations").children.map(item => item.label))
@@ -88,7 +90,7 @@ describe("enterprise identity navigation", () => {
       "Organization & Identity",
       "Identity Sources",
       "Application Access",
-      "LLM AI",
+      "LLM AI Gateway",
       "Authorization Governance",
       "Audit & Operations",
       "System Tools",
@@ -107,6 +109,8 @@ describe("enterprise identity navigation", () => {
       .toBe("Application Access Center");
     expect(groups.find(group => group.key === "/application-access").children.find(item => item.key === "/platform-api-mappings").label)
       .toBe("API Gateway Mappings");
+    expect(groups.find(group => group.key === "/llm-ai-gateway").children.find(item => item.key === "/agents").label)
+      .toBe("LLM AI Gateway Center");
     expect(groups.find(group => group.key === "/audit-operations").children.map(item => item.label))
       .toEqual(["Session Review", "Audit Records", "Token Review", "Verification Review"]);
     expect(groups.map(group => group.label).join("")).not.toMatch(/[\u4e00-\u9fff]/);

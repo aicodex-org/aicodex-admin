@@ -712,17 +712,17 @@ test("separates organization and user mapping tabs and loads user mappings on de
   expect(screen.getByText("质量状态：")).toBeInTheDocument();
   expect(screen.getAllByText("mapping_missing").length).toBeGreaterThan(0);
   expect(screen.getByText("可发布主体 readiness")).toBeInTheDocument();
-  expect(screen.getByText("Gateway projection run readiness")).toBeInTheDocument();
-  expect(screen.getByText(/Retry action: 可安全重试/)).toBeInTheDocument();
+  expect(screen.getByText("网关身份同步就绪")).toBeInTheDocument();
+  expect(screen.getByText(/同步动作: 可安全重试/)).toBeInTheDocument();
   expect(screen.getByText("lastFailure: gateway_unavailable")).toBeInTheDocument();
   expect(screen.getByText("contract: not_declared_by_gateway_contract")).toBeInTheDocument();
-  expect(screen.getByText("Gateway ingestion status")).toBeInTheDocument();
-  expect(screen.getByText(/Gateway status: 已应用/)).toBeInTheDocument();
+  expect(screen.getByText("网关接入回执状态")).toBeInTheDocument();
+  expect(screen.getByText(/网关回执状态: 已应用/)).toBeInTheDocument();
   expect(screen.getByText("reason: projection_applied")).toBeInTheDocument();
   expect(screen.getByText("sourceVersion: orgv-ingestion-1")).toBeInTheDocument();
-  expect(screen.getByText("Gateway projection 手动发布")).toBeInTheDocument();
-  expect(screen.getByText("Gateway projection publish attempt history")).toBeInTheDocument();
-  expect(screen.getByText("Attempt history 只记录 Admin producer 脱敏诊断，不是 gateway authorization facts。")).toBeInTheDocument();
+  expect(screen.getByText("网关身份手动同步")).toBeInTheDocument();
+  expect(screen.getByText("网关身份发布记录")).toBeInTheDocument();
+  expect(screen.getByText("发布记录只记录 Admin producer 脱敏诊断，不是 gateway authorization facts。")).toBeInTheDocument();
   expect(screen.getByText("Publish attempt retention readiness")).toBeInTheDocument();
   expect(screen.getByText("只读展示 cleanup readiness，不执行删除。")).toBeInTheDocument();
   expect(screen.getByText("cleanupEligible: 0")).toBeInTheDocument();
@@ -808,7 +808,7 @@ test("allows operator to trigger manual gateway projection publish when readines
   render(<PlatformApiMappingPage account={{owner: "org-alpha", isAdmin: true}} />);
 
   fireEvent.click(await screen.findByText("用户映射"));
-  const button = await screen.findByText("手动发布");
+  const button = await screen.findByText("手动同步");
   fireEvent.click(button);
 
   await wait(() => expect(PlatformApiMappingBackend.publishGatewayProjectionManually).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
