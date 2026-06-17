@@ -294,17 +294,17 @@ test("runs dry-run preview and renders compact diff summary", async() => {
   expect(screen.getByText("would_soft_disable: 2")).toBeInTheDocument();
 });
 
-test("renders dry-run history and opens safe detail drawer", async() => {
+test("renders dry-run history summary and opens safe detail modal", async() => {
   render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
-  expect(await screen.findByText("Dry-run 历史")).toBeInTheDocument();
+  expect(await screen.findByText("查看预览历史")).toBeInTheDocument();
   expect(screen.getByText(/最近 1 次 dry-run 预览/)).toBeInTheDocument();
   expect(screen.queryByText("history-1")).not.toBeInTheDocument();
 
-  fireEvent.click(screen.getByText("Dry-run 历史"));
+  fireEvent.click(screen.getByText("查看预览历史"));
 
+  expect(screen.getByRole("dialog", {name: "Dry-run 历史"})).toBeInTheDocument();
   expect(screen.getByText("history-1")).toBeInTheDocument();
-  expect(screen.getByText("app-history / tenant-history")).toBeInTheDocument();
   expect(screen.getByText("permission denied user_id=***")).toBeInTheDocument();
 
   fireEvent.click(screen.getByLabelText("dry-run-history-detail-history-1"));
@@ -344,7 +344,7 @@ test("renders user binding diagnostics and opens redacted detail drawer", async(
   expect(screen.queryByText(/ou-shared/)).not.toBeInTheDocument();
 });
 
-test("renders handoff evidence ready summary and safe markers", async() => {
+test("renders handoff evidence ready summary in a centered modal", async() => {
   render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
   expect(await screen.findByText("交接证据")).toBeInTheDocument();
@@ -359,6 +359,8 @@ test("renders handoff evidence ready summary and safe markers", async() => {
   expect(screen.queryByText("production_readiness")).not.toBeInTheDocument();
   fireEvent.click(screen.getByLabelText("toggle-handoff-evidence-details"));
   expect(screen.getByText("验收资料")).toBeInTheDocument();
+  expect(document.body.querySelector(".ant-drawer")).not.toBeInTheDocument();
+  expect(document.body.querySelector(".ant-modal")).toBeInTheDocument();
   expect(screen.getByText("验收清单")).toBeInTheDocument();
   expect(screen.getByText("只展示脱敏摘要；完整安全别名和逐项清单可展开查看。")).toBeInTheDocument();
   expect(screen.getAllByText("真实租户运行验证").length).toBeGreaterThan(0);
@@ -373,14 +375,68 @@ test("renders handoff evidence ready summary and safe markers", async() => {
 
   fireEvent.click(screen.getByText("详细清单和安全别名"));
 
-  expect((await screen.findAllByText("dry-run-safe")).length).toBeGreaterThan(0);
-  expect(screen.getAllByText("source-safe").length).toBeGreaterThan(0);
-  expect(screen.getAllByText("manual_review_only").length).toBeGreaterThan(0);
-  expect(screen.getAllByText("provider_truth").length).toBeGreaterThan(0);
-  expect(screen.getAllByText("production_readiness").length).toBeGreaterThan(0);
-  expect(screen.getAllByText("validate_real_tenant_runtime").length).toBeGreaterThan(0);
+  expect((await screen.findAllByText("人工复核模式")).length).toBeGreaterThan(0);
+  expect(screen.getAllByText("仅作验收辅助").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("飞书租户真值需外部验证").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("完整同步成功需运行态验证").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("脱敏检查").length).toBeGreaterThan(0);
+  expect(screen.queryByText("dry-run-safe")).not.toBeInTheDocument();
+  expect(screen.queryByText("source-safe")).not.toBeInTheDocument();
+  expect(screen.queryByText("manual_review_only")).not.toBeInTheDocument();
+  expect(screen.queryByText("provider_truth")).not.toBeInTheDocument();
+  expect(screen.queryByText("production_readiness")).not.toBeInTheDocument();
+  expect(screen.queryByText("validate_real_tenant_runtime")).not.toBeInTheDocument();
   expect(screen.queryByText(/cli-real/)).not.toBeInTheDocument();
   expect(screen.queryByText(/tenant-real/)).not.toBeInTheDocument();
+});
+
+test("keeps dry-run history off the main page and opens it in a modal", async() => {
+  render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+
+  expect(await screen.findByText("查看预览历史")).toBeInTheDocument();
+  expect(screen.getByText("最近 1 次 dry-run 预览")).toBeInTheDocument();
+  expect(screen.queryByRole("button", {name: /collapsed Dry-run 历史/})).not.toBeInTheDocument();
+  expect(screen.queryByRole("columnheader", {name: "记录 ID"})).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByText("查看预览历史"));
+
+  expect(screen.getByRole("dialog", {name: "Dry-run 历史"})).toBeInTheDocument();
+  expect(document.body.querySelector(".ant-drawer")).not.toBeInTheDocument();
+  expect(screen.getByRole("columnheader", {name: "记录 ID"})).toBeInTheDocument();
+  expect(screen.getByText("permission denied user_id=***")).toBeInTheDocument();
+});
+
+test("renders sync runs without forcing horizontal table scroll", async() => {
+  FeishuOrganizationSyncBackend.getFeishuOrganizationSyncRuns.mockResolvedValueOnce({
+    status: "ok",
+    data: [{
+      name: "feishu-sync-run-1781681971079340586",
+      status: "succeeded",
+      triggerType: "manual",
+      stage: "completed",
+      actor: "built-in/aicodex-admin",
+      startedAt: "2026-06-17T15:39:31Z",
+      finishedAt: "2026-06-17T15:39:33Z",
+      departmentCreatedCount: 0,
+      departmentUpdatedCount: 0,
+      departmentDisabledCount: 0,
+      userCreatedCount: 0,
+      userUpdatedCount: 56,
+      userDisabledCount: 0,
+      membershipUpdatedCount: 56,
+    }],
+    data2: 1,
+  });
+  const {container} = render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+
+  expect(await screen.findByText("同步记录")).toBeInTheDocument();
+  expect(screen.getByText("feishu-sync-run-1781681971079340586")).toBeInTheDocument();
+  expect(screen.getByText("部门 0 / 0 / 0")).toBeInTheDocument();
+  expect(screen.getByText("用户 0 / 56 / 0")).toBeInTheDocument();
+  expect(screen.getByText("关系 56")).toBeInTheDocument();
+  const horizontallyScrollableTables = [...container.querySelectorAll(".ant-table-content")]
+    .filter(element => element.getAttribute("style")?.includes("overflow-x: auto"));
+  expect(horizontallyScrollableTables).toHaveLength(0);
 });
 
 test("copies handoff evidence JSON without raw tenant identifiers", async() => {

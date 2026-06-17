@@ -3,7 +3,7 @@
 // Licensed under the Apache License, Version 2.0 (the "License");
 
 import React from "react";
-import {Alert, Button, Col, Collapse, Divider, Drawer, Input, Row, Select, Space, Switch, Table, Tag, Typography} from "antd";
+import {Alert, Button, Col, Collapse, Divider, Drawer, Input, Modal, Row, Select, Space, Switch, Table, Tag, Typography} from "antd";
 import {CloudSyncOutlined, CopyOutlined, DownloadOutlined, PlayCircleOutlined, ReloadOutlined, SaveOutlined, ToolOutlined} from "@ant-design/icons";
 import * as Setting from "./Setting";
 import * as FeishuOrganizationSyncBackend from "./backend/FeishuOrganizationSyncBackend";
@@ -132,6 +132,12 @@ const handoffEvidenceAliasLabels = {
   provider_truth: "飞书租户真值需外部验证",
   sync_full_success: "完整同步成功需运行态验证",
 };
+const handoffChecklistItemLabels = {
+  redaction: "脱敏检查",
+  handoff_readiness: "交接就绪",
+  admin_local_metadata: "Admin 本地元数据",
+  external_owner_required: "外部系统确认",
+};
 const handoffBlockedReasonLabels = {
   binding_conflict_blocked: "存在绑定冲突",
   sync_run_failed: "最近同步失败",
@@ -169,6 +175,7 @@ class FeishuOrganizationSyncPage extends React.Component {
       dryRunHistories: [],
       dryRunHistoryLoading: false,
       dryRunHistoryError: "",
+      dryRunHistoryOpen: false,
       dryRunHistoryDetail: null,
       dryRunHistoryDetailOpen: false,
       dryRunHistoryDetailLoading: false,
@@ -438,6 +445,7 @@ class FeishuOrganizationSyncPage extends React.Component {
       previewError: "",
       dryRunHistories: [],
       dryRunHistoryError: "",
+      dryRunHistoryOpen: false,
       dryRunHistoryDetail: null,
       dryRunHistoryDetailOpen: false,
       dryRunHistoryDetailError: "",
@@ -795,7 +803,7 @@ class FeishuOrganizationSyncPage extends React.Component {
   }
 
   getHandoffAliasLabel(alias) {
-    return handoffActionLabels[alias] || handoffEvidenceAliasLabels[alias] || handoffBlockedReasonLabels[alias] || alias || "-";
+    return handoffChecklistItemLabels[alias] || handoffActionLabels[alias] || handoffEvidenceAliasLabels[alias] || handoffBlockedReasonLabels[alias] || alias || "-";
   }
 
   renderHandoffAliasList(items = [], color = "blue") {
@@ -835,43 +843,54 @@ class FeishuOrganizationSyncPage extends React.Component {
     const detailContent = (
       <Space direction="vertical" size={8} style={{width: "100%"}}>
         <Space size={4} wrap>
-          {checklist.version && <Tag>{checklist.version}</Tag>}
-          {checklist.executionMode && <Tag color="blue">{checklist.executionMode}</Tag>}
-          {checklist.manualReviewOnly && <Tag color="gold">manual_review_only</Tag>}
-          {safeSource.sourceIdHash && <Tag>{safeSource.sourceIdHash}</Tag>}
-          {safeSource.sourceConnectionIdHash && <Tag>{safeSource.sourceConnectionIdHash}</Tag>}
+          {checklist.executionMode && <Tag color="blue">人工复核模式</Tag>}
+          {checklist.manualReviewOnly && <Tag color="gold">仅作验收辅助</Tag>}
+          {checklist.retention?.redactionApplied && <Tag color="green">已脱敏</Tag>}
+          {checklist.retention?.retentionDays > 0 && <Tag>{`保留 ${checklist.retention.retentionDays} 天`}</Tag>}
         </Space>
-        <Space direction="vertical" size={4} style={{width: "100%"}}>
-          <Text type="secondary">provider-owned evidence missing</Text>
-          <Space size={4} wrap>
-            {(checklist.providerOwnedEvidenceMissing || []).map(item => <Tag color="blue" key={item}>{item}</Tag>)}
-          </Space>
-          <Text type="secondary">manual review actions</Text>
-          <Space size={4} wrap>
-            {(checklist.manualReviewActions || []).map(item => <Tag color="gold" key={item}>{item}</Tag>)}
-          </Space>
-          <Text type="secondary">cannotInfer / noFallback</Text>
-          <Space size={4} wrap>
-            {(checklist.cannotInfer || []).map(item => <Tag key={`cannot-${item}`}>{item}</Tag>)}
-            {(checklist.noFallback || []).map(item => <Tag color="volcano" key={`nofallback-${item}`}>{item}</Tag>)}
-          </Space>
+        <Space direction="vertical" size={6} style={{width: "100%"}}>
+          <Text type="secondary">外部补充材料</Text>
+          {this.renderHandoffAliasList(checklist.providerOwnedEvidenceMissing, "blue")}
+          <Text type="secondary">人工复核动作</Text>
+          {this.renderHandoffAliasList(checklist.manualReviewActions, "gold")}
+          <Text type="secondary">无法自动证明</Text>
+          {this.renderHandoffAliasList([...(checklist.cannotInfer || []), ...(checklist.noFallback || [])], "volcano")}
         </Space>
-        <Table
-          rowKey="key"
-          size="small"
-          bordered
-          pagination={false}
-          dataSource={checklistRows}
-          locale={{emptyText: "暂无验收项"}}
-          scroll={{x: 760}}
-          columns={[
-            {title: "项", dataIndex: "id", width: 160},
-            {title: "状态", dataIndex: "status", width: 120, render: status => this.renderAcceptanceStatusTag(status)},
-            {title: "来源", dataIndex: "source", width: 180, render: value => <Tag>{value || "-"}</Tag>},
-            {title: "建议动作", dataIndex: "recommendedActionAlias", width: 180, render: value => value ? <Tag color="blue">{this.getHandoffAliasLabel(value)}</Tag> : "-"},
-            {title: "摘要", dataIndex: "safeSummary", width: 280, render: text => <Typography.Paragraph style={{marginBottom: 0}} ellipsis={{rows: 3, expandable: true}}>{text || "-"}</Typography.Paragraph>},
-          ]}
-        />
+        <Space direction="vertical" size={8} style={{width: "100%"}}>
+          {checklistRows.length === 0 ? <Text type="secondary">暂无验收项</Text> : checklistRows.map(item => (
+            <div key={item.key} style={{border: "1px solid #f0f0f0", borderRadius: 4, padding: 10}}>
+              <Row gutter={[8, 8]} align="top">
+                <Col xs={24} md={8}>
+                  <Space direction="vertical" size={4}>
+                    <Space size={4} wrap>
+                      <Text strong>{this.getHandoffAliasLabel(item.id)}</Text>
+                      {this.renderAcceptanceStatusTag(item.status)}
+                    </Space>
+                    <Space size={4} wrap>
+                      {item.source && <Tag>{this.getHandoffAliasLabel(item.source)}</Tag>}
+                      {item.manualReviewOnly && <Tag color="gold">人工复核</Tag>}
+                      {item.providerOwned && <Tag color="blue">外部材料</Tag>}
+                      {item.noFallback && <Tag color="volcano">无自动兜底</Tag>}
+                    </Space>
+                  </Space>
+                </Col>
+                <Col xs={24} md={16}>
+                  <Space direction="vertical" size={4} style={{width: "100%"}}>
+                    <Typography.Paragraph style={{marginBottom: 0}} ellipsis={{rows: 3, expandable: true}}>
+                      {item.safeSummary || "-"}
+                    </Typography.Paragraph>
+                    {item.recommendedActionAlias && (
+                      <Space size={4} wrap>
+                        <Text type="secondary">建议</Text>
+                        <Tag color="blue">{this.getHandoffAliasLabel(item.recommendedActionAlias)}</Tag>
+                      </Space>
+                    )}
+                  </Space>
+                </Col>
+              </Row>
+            </div>
+          ))}
+        </Space>
       </Space>
     );
     return (
@@ -915,23 +934,20 @@ class FeishuOrganizationSyncPage extends React.Component {
           {!compact && checklist.retention?.retentionDays > 0 && <Tag>{`retention ${checklist.retention.retentionDays}d`}</Tag>}
         </Space>
         {compact && (
-          <Alert
-            type={summary.blocked > 0 || summary.missing > 0 ? "warning" : "info"}
-            showIcon
-            message={summary.blocked > 0 || summary.missing > 0 ? "仍需处理后再交接" : "验收资料已脱敏"}
-            description={
-              <Space direction="vertical" size={6}>
-                <Space direction="vertical" size={2}>
-                  <Text type="secondary">建议下一步</Text>
-                  {this.renderHandoffAliasList(actionItems, "gold")}
-                </Space>
-                <Space direction="vertical" size={2}>
-                  <Text type="secondary">无法在本页证明的事项</Text>
-                  {this.renderHandoffAliasList(evidenceItems, "blue")}
-                </Space>
+          <Row gutter={[12, 12]}>
+            <Col xs={24} md={12}>
+              <Space direction="vertical" size={4} style={{width: "100%"}}>
+                <Text type="secondary">建议下一步</Text>
+                {this.renderHandoffAliasList(actionItems, "gold")}
               </Space>
-            }
-          />
+            </Col>
+            <Col xs={24} md={12}>
+              <Space direction="vertical" size={4} style={{width: "100%"}}>
+                <Text type="secondary">无法在本页证明的事项</Text>
+                {this.renderHandoffAliasList(evidenceItems, "blue")}
+              </Space>
+            </Col>
+          </Row>
         )}
         {compact ? (
           <Collapse
@@ -948,16 +964,18 @@ class FeishuOrganizationSyncPage extends React.Component {
     );
   }
 
-  renderHandoffEvidenceDetailsDrawer(evidence, hasHandoffDetails) {
+  renderHandoffEvidenceDetailsModal(evidence, hasHandoffDetails) {
     const blockedReasons = evidence.blockedReasons || [];
     const operatorNextActions = evidence.operatorNextActions || [];
     const cannotInfer = evidence.cannotInfer || [];
     return (
-      <Drawer
+      <Modal
         title="验收资料"
         width={720}
+        centered
+        footer={null}
         open={this.state.handoffEvidenceDetailsOpen}
-        onClose={() => this.setState({handoffEvidenceDetailsOpen: false})}
+        onCancel={() => this.setState({handoffEvidenceDetailsOpen: false})}
       >
         {!hasHandoffDetails ? (
           <Alert type="info" showIcon message="暂无验收资料" description="当前交接证据只有摘要信息。" />
@@ -996,7 +1014,7 @@ class FeishuOrganizationSyncPage extends React.Component {
             {this.renderHandoffAcceptanceChecklist(evidence.acceptanceChecklist, {compact: true})}
           </Space>
         )}
-      </Drawer>
+      </Modal>
     );
   }
 
@@ -1043,7 +1061,7 @@ class FeishuOrganizationSyncPage extends React.Component {
               <Space wrap>
                 {this.getHandoffReadinessTag(evidence.readiness)}
                 {evidence.sourceType && <Tag>{handoffSourceTypeLabels[evidence.sourceType] || evidence.sourceType}</Tag>}
-                {evidence.redaction?.applied && <Tag color="green">{evidence.redaction.version || "已脱敏"}</Tag>}
+                {evidence.redaction?.applied && <Tag color="green">已脱敏</Tag>}
               </Space>
             }
             description={
@@ -1066,7 +1084,7 @@ class FeishuOrganizationSyncPage extends React.Component {
             }
           />
         )}
-        {this.renderHandoffEvidenceDetailsDrawer(evidence, hasHandoffDetails)}
+        {this.renderHandoffEvidenceDetailsModal(evidence, hasHandoffDetails)}
         {!evidence.readiness && (
           <Table
             rowKey="state"
@@ -1244,80 +1262,94 @@ class FeishuOrganizationSyncPage extends React.Component {
 
   renderDryRunHistory() {
     const columns = [
-      {title: "记录 ID", dataIndex: "name", key: "name", width: 190, ellipsis: true},
-      {title: "状态", dataIndex: "status", key: "status", width: 100, render: status => this.getStatusTag(status)},
-      {title: "预览时间", dataIndex: "createdAt", key: "createdAt", width: 180, render: text => this.formatRunTime(text)},
-      {title: "来源别名", key: "source", width: 230, ellipsis: true, render: (_, record) => this.getDryRunSourceAlias(record)},
-      {title: "快照", key: "snapshot", width: 150, render: (_, record) => `部 ${record.snapshotDepartmentCount || 0} / 人 ${record.snapshotUserCount || 0} / 关系 ${record.snapshotMembershipCount || 0}`},
-      {title: "Diff（新增/更新/软禁）", key: "diff", width: 280, render: (_, record) => this.formatDryRunDiff(record)},
-      {title: "诊断", dataIndex: "diagnosticAlias", key: "diagnosticAlias", width: 190, ellipsis: true},
-      {title: "摘要", dataIndex: "safeSummary", key: "safeSummary", width: 260, ellipsis: true},
-      {title: "保留/脱敏", key: "retention", width: 160, render: (_, record) => (
-        <Space size={4} wrap>
-          <Tag>{`${record.retentionDays || 0} 天`}</Tag>
-          <Tag color={record.redactionApplied ? "green" : "default"}>{record.redactionApplied ? "已脱敏" : "未标记"}</Tag>
+      {title: "记录 ID", dataIndex: "name", key: "name", width: 180, render: text => <Text style={{wordBreak: "break-all"}}>{text || "-"}</Text>},
+      {title: "状态 / 时间", key: "status", width: 150, render: (_, record) => (
+        <Space direction="vertical" size={2}>
+          {this.getStatusTag(record.status)}
+          <Text type="secondary">{this.formatRunTime(record.createdAt)}</Text>
+        </Space>
+      )},
+      {title: "影响", key: "impact", width: 220, render: (_, record) => (
+        <Space direction="vertical" size={2}>
+          <Text>{`快照：部 ${record.snapshotDepartmentCount || 0} / 人 ${record.snapshotUserCount || 0} / 关系 ${record.snapshotMembershipCount || 0}`}</Text>
+          <Text type="secondary">{this.formatDryRunDiff(record)}</Text>
+        </Space>
+      )},
+      {title: "诊断摘要", key: "summary", render: (_, record) => (
+        <Space direction="vertical" size={4} style={{width: "100%"}}>
+          <Space size={4} wrap>
+            {record.diagnosticAlias && <Tag>{record.diagnosticAlias}</Tag>}
+            <Tag>{`${record.retentionDays || 0} 天`}</Tag>
+            <Tag color={record.redactionApplied ? "green" : "default"}>{record.redactionApplied ? "已脱敏" : "未标记"}</Tag>
+          </Space>
+          <Typography.Paragraph style={{marginBottom: 0}} ellipsis={{rows: 2, expandable: true}}>
+            {record.safeSummary || "-"}
+          </Typography.Paragraph>
         </Space>
       )},
       {title: "操作", key: "action", width: 90, render: (_, record) => <Button size="small" aria-label={`dry-run-history-detail-${record.name}`} onClick={() => this.openDryRunHistoryDetail(record)}>详情</Button>},
     ];
     const historyCount = this.state.dryRunHistories.length;
     const latestHistory = this.state.dryRunHistories[0];
-    const historySummary = this.state.dryRunHistoryError ||
-      (historyCount > 0 ? `最近 ${historyCount} 次 dry-run 预览，最新 ${this.formatRunTime(latestHistory?.createdAt)}。` : "暂无 Dry-run 历史。");
+    const historySummary = historyCount > 0 ? `最近 ${historyCount} 次 dry-run 预览` : "暂无 Dry-run 历史";
     return (
       <>
-        <Collapse
-          size="small"
-          destroyOnHidden
-          items={[{
-            key: "dry-run-history",
-            label: (
-              <Space direction="vertical" size={2}>
-                <Text strong>Dry-run 历史</Text>
-                <Text type={this.state.dryRunHistoryError ? "danger" : "secondary"}>{historySummary}</Text>
-              </Space>
-            ),
-            extra: (
+        <Row align="middle" justify="space-between" style={{marginBottom: 12}}>
+          <Col>
+            <Space direction="vertical" size={2}>
+              <Text strong>预览历史</Text>
+              <Text type={this.state.dryRunHistoryError ? "danger" : "secondary"}>{this.state.dryRunHistoryError || historySummary}</Text>
+              {latestHistory?.createdAt && <Text type="secondary">{`最新预览：${this.formatRunTime(latestHistory.createdAt)}`}</Text>}
+            </Space>
+          </Col>
+          <Col>
+            <Space wrap>
+              <Button onClick={() => this.setState({dryRunHistoryOpen: true})}>查看预览历史</Button>
               <Button
                 icon={<ReloadOutlined />}
                 loading={this.state.dryRunHistoryLoading}
-                onClick={event => {
-                  event.stopPropagation();
-                  this.refreshDryRunHistory().catch(() => {});
-                }}
+                onClick={() => this.refreshDryRunHistory().catch(() => {})}
               >
                 刷新
               </Button>
-            ),
-            children: (
-              <Table
-                rowKey="name"
-                size="middle"
-                bordered
-                loading={this.state.loading || this.state.dryRunHistoryLoading}
-                columns={columns}
-                dataSource={this.state.dryRunHistories}
-                locale={{emptyText: this.state.dryRunHistoryError || "暂无 Dry-run 历史"}}
-                scroll={{x: 1830}}
-                pagination={false}
-              />
-            ),
-          }]}
-        />
-        {this.renderDryRunHistoryDetailDrawer()}
+            </Space>
+          </Col>
+        </Row>
+        <Modal
+          title="Dry-run 历史"
+          width={960}
+          centered
+          footer={null}
+          open={this.state.dryRunHistoryOpen}
+          onCancel={() => this.setState({dryRunHistoryOpen: false})}
+        >
+          <Table
+            rowKey="name"
+            size="middle"
+            bordered
+            loading={this.state.loading || this.state.dryRunHistoryLoading}
+            columns={columns}
+            dataSource={this.state.dryRunHistories}
+            locale={{emptyText: this.state.dryRunHistoryError || "暂无 Dry-run 历史"}}
+            pagination={false}
+          />
+        </Modal>
+        {this.renderDryRunHistoryDetailModal()}
       </>
     );
   }
 
-  renderDryRunHistoryDetailDrawer() {
+  renderDryRunHistoryDetailModal() {
     const detail = this.state.dryRunHistoryDetail || {};
     const diagnostics = detail.diagnostics || {};
     return (
-      <Drawer
+      <Modal
         title="Dry-run 详情"
-        width={520}
+        width={560}
+        centered
+        footer={null}
         open={this.state.dryRunHistoryDetailOpen}
-        onClose={() => this.setState({dryRunHistoryDetailOpen: false})}
+        onCancel={() => this.setState({dryRunHistoryDetailOpen: false})}
       >
         {this.state.dryRunHistoryDetailError && <Alert type="error" showIcon style={{marginBottom: 12}} message={this.state.dryRunHistoryDetailError} />}
         <Space direction="vertical" size={10} style={{width: "100%"}}>
@@ -1339,7 +1371,7 @@ class FeishuOrganizationSyncPage extends React.Component {
             {detail.redactionVersion && <Tag>{detail.redactionVersion}</Tag>}
           </Space>
         </Space>
-      </Drawer>
+      </Modal>
     );
   }
 
@@ -1497,6 +1529,35 @@ class FeishuOrganizationSyncPage extends React.Component {
     return record?.diagnostics?.safeSummary || record?.errorText || "";
   }
 
+  renderRunStatus(record) {
+    return (
+      <Space size={4} wrap>
+        {this.getStatusTag(record.status)}
+        {this.getTriggerTag(record.triggerType)}
+        <Tag>{this.getStageText(record.stage, record.status)}</Tag>
+      </Space>
+    );
+  }
+
+  renderRunTime(record) {
+    return (
+      <Space direction="vertical" size={0}>
+        <Text>{this.formatRunTime(record.startedAt)}</Text>
+        <Text type="secondary">{this.formatRunTime(record.finishedAt)}</Text>
+      </Space>
+    );
+  }
+
+  renderRunImpact(record) {
+    return (
+      <Space direction="vertical" size={0}>
+        <Text>{`部门 ${record.departmentCreatedCount || 0} / ${record.departmentUpdatedCount || 0} / ${record.departmentDisabledCount || 0}`}</Text>
+        <Text>{`用户 ${record.userCreatedCount || 0} / ${record.userUpdatedCount || 0} / ${record.userDisabledCount || 0}`}</Text>
+        <Text>{`关系 ${record.membershipUpdatedCount || 0}`}</Text>
+      </Space>
+    );
+  }
+
   renderTestResult() {
     const result = this.state.testResult;
     if (!result) {
@@ -1517,18 +1578,24 @@ class FeishuOrganizationSyncPage extends React.Component {
 
   renderRuns() {
     const columns = [
-      {title: "运行 ID", dataIndex: "name", key: "name", width: 210, ellipsis: true},
-      {title: "状态", dataIndex: "status", key: "status", width: 120, render: status => this.getStatusTag(status)},
-      {title: "触发方式", dataIndex: "triggerType", key: "triggerType", width: 110, render: triggerType => this.getTriggerTag(triggerType)},
-      {title: "阶段", dataIndex: "stage", key: "stage", width: 120, render: (stage, record) => this.getStageText(stage, record.status)},
-      {title: "执行人", dataIndex: "actor", key: "actor", width: 120},
-      {title: "开始时间", dataIndex: "startedAt", key: "startedAt", width: 180, render: text => this.formatRunTime(text)},
-      {title: "结束时间", dataIndex: "finishedAt", key: "finishedAt", width: 180, render: text => this.formatRunTime(text)},
-      {title: "部门（新增 / 更新 / 禁用）", key: "departments", width: 180, render: (_, record) => `新 ${record.departmentCreatedCount || 0} / 更 ${record.departmentUpdatedCount || 0} / 禁 ${record.departmentDisabledCount || 0}`},
-      {title: "用户（新增 / 更新 / 禁用）", key: "users", width: 180, render: (_, record) => `新 ${record.userCreatedCount || 0} / 更 ${record.userUpdatedCount || 0} / 禁 ${record.userDisabledCount || 0}`},
-      {title: "诊断", key: "diagnostics", width: 260, render: (_, record) => this.renderDiagnostics(record)},
-      {title: "统计 / 耗时", key: "diagnosticStats", width: 190, render: (_, record) => this.renderDiagnosticStats(record)},
-      {title: "错误摘要", key: "errorText", ellipsis: true, render: (_, record) => this.getRunSafeSummary(record)},
+      {title: "运行", dataIndex: "name", key: "name", width: 220, render: (_, record) => (
+        <Space direction="vertical" size={2} style={{width: "100%"}}>
+          <Text style={{wordBreak: "break-all"}}>{record.name || "-"}</Text>
+          {record.actor && <Text type="secondary" style={{wordBreak: "break-all"}}>{record.actor}</Text>}
+        </Space>
+      )},
+      {title: "状态", key: "status", width: 210, render: (_, record) => this.renderRunStatus(record)},
+      {title: "时间", key: "time", width: 170, render: (_, record) => this.renderRunTime(record)},
+      {title: "影响统计", key: "impact", width: 160, render: (_, record) => this.renderRunImpact(record)},
+      {title: "诊断 / 错误", key: "diagnostics", render: (_, record) => (
+        <Space direction="vertical" size={4} style={{width: "100%"}}>
+          {this.renderDiagnostics(record)}
+          {this.renderDiagnosticStats(record)}
+          <Typography.Paragraph style={{marginBottom: 0}} ellipsis={{rows: 2, expandable: true}}>
+            {this.getRunSafeSummary(record) || "-"}
+          </Typography.Paragraph>
+        </Space>
+      )},
     ];
     return (
       <Table
@@ -1538,7 +1605,6 @@ class FeishuOrganizationSyncPage extends React.Component {
         loading={this.state.loading}
         columns={columns}
         dataSource={this.state.runs}
-        scroll={{x: 1870}}
         pagination={getTablePaginationProps({...this.state.pagination, total: this.state.runCount || this.state.runs.length})}
         onChange={pagination => this.refreshRuns(this.state.organization, {pagination}).catch(() => {})}
       />
