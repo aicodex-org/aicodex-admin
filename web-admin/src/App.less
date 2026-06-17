@@ -501,6 +501,250 @@ img {
   margin-top: 14px;
 }
 
+.organization-identity-console {
+  padding: 14px 16px 18px;
+}
+
+.organization-identity-console .enterprise-identity-console-header {
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+
+.organization-identity-console .enterprise-identity-console-header h3 {
+  font-size: 20px;
+  line-height: 1.24;
+}
+
+.organization-identity-console .enterprise-identity-console-title-block > .ant-space-item:last-child {
+  max-width: 760px;
+}
+
+.organization-identity-workbench {
+  margin-bottom: 10px;
+}
+
+.organization-identity-directory-shell,
+.organization-identity-lifecycle-shell,
+.organization-identity-role-matrix-shell,
+.organization-identity-permission-shell {
+  display: grid;
+  gap: 10px;
+}
+
+.organization-identity-directory-shell {
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+}
+
+.organization-identity-lifecycle-shell {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.72fr);
+  align-items: stretch;
+}
+
+.organization-identity-role-matrix-shell,
+.organization-identity-permission-shell {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.organization-identity-directory-map,
+.organization-identity-lifecycle-rail,
+.organization-identity-role-matrix,
+.organization-identity-permission-sensitivity {
+  display: grid;
+  gap: 8px;
+}
+
+.organization-identity-directory-map,
+.organization-identity-permission-sensitivity {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.organization-identity-role-matrix {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) repeat(3, minmax(0, 0.9fr));
+}
+
+.organization-identity-metric {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 76px;
+  padding: 12px;
+  border: 1px solid rgb(218 226 238);
+  border-left-width: 4px;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.organization-identity-metric-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: rgb(248 250 252);
+  color: rgb(37 99 235);
+  font-size: 17px;
+}
+
+.organization-identity-metric-copy {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.organization-identity-metric-label {
+  color: rgb(71 85 105);
+  font-size: 12px;
+}
+
+.organization-identity-metric-copy strong {
+  color: rgb(15 23 42);
+  font-size: 20px;
+  line-height: 1.1;
+}
+
+.organization-identity-directory-boundary,
+.organization-identity-lifecycle-side,
+.organization-identity-permission-reference {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgb(218 226 238);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.organization-identity-directory-boundary .organization-identity-risk-stack {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.organization-identity-directory-boundary .organization-identity-action-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.organization-identity-directory-boundary .organization-identity-action-row a {
+  justify-content: center;
+  min-width: 0;
+  text-align: center;
+}
+
+.organization-identity-lifecycle-rail {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  position: relative;
+  padding: 8px;
+  border: 1px solid rgb(218 226 238);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.organization-identity-lifecycle-step {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  row-gap: 2px;
+  align-items: center;
+  min-height: 70px;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgb(248 250 252);
+}
+
+.organization-identity-lifecycle-step > span:first-child {
+  grid-row: 1 / span 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #fff;
+  color: rgb(37 99 235);
+  font-weight: 700;
+}
+
+.organization-identity-risk-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.organization-identity-risk-stack-inline {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.organization-identity-risk-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px 8px;
+  border: 1px solid rgb(218 226 238);
+  border-radius: 999px;
+  background: #fff;
+  color: rgb(51 65 85);
+  font-size: 12px;
+}
+
+.organization-identity-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.organization-identity-action-row a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 5px 9px;
+  border: 1px solid rgb(203 213 225);
+  border-radius: 6px;
+  background: #fff;
+  color: rgb(30 64 175);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.organization-identity-matrix-risk {
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  min-height: 76px;
+  padding: 10px;
+  border: 1px solid rgb(218 226 238);
+  border-left-width: 4px;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.organization-identity-matrix-risk > span:first-child {
+  color: rgb(71 85 105);
+}
+
+.organization-identity-reference-row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 36px;
+  padding: 7px 8px;
+  border-left: 4px solid rgb(203 213 225);
+  border-radius: 6px;
+  background: rgb(248 250 252);
+}
+
+.organization-identity-list-section {
+  padding: 10px 12px;
+}
+
 @media screen and (max-width: 1180px) {
   .enterprise-identity-status-grid-4 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -512,6 +756,13 @@ img {
 
   .enterprise-identity-two-column,
   .enterprise-identity-two-column-wide-right {
+    grid-template-columns: 1fr;
+  }
+
+  .organization-identity-directory-shell,
+  .organization-identity-lifecycle-shell,
+  .organization-identity-role-matrix,
+  .organization-identity-permission-sensitivity {
     grid-template-columns: 1fr;
   }
 }
@@ -545,6 +796,29 @@ img {
 
   .enterprise-identity-section-header {
     flex-direction: column;
+  }
+
+  .organization-identity-console {
+    padding: 10px;
+  }
+
+  .organization-identity-console .enterprise-identity-console-header {
+    padding: 12px;
+  }
+
+  .organization-identity-lifecycle-rail,
+  .organization-identity-directory-map,
+  .organization-identity-permission-sensitivity {
+    grid-template-columns: 1fr;
+  }
+
+  .organization-identity-reference-row {
+    grid-template-columns: 22px minmax(0, 1fr);
+  }
+
+  .organization-identity-reference-row .ant-tag {
+    grid-column: 2;
+    width: fit-content;
   }
 }
 

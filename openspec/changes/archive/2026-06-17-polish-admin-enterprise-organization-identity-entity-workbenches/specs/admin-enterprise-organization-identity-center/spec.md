@@ -1,10 +1,7 @@
-# admin-enterprise-organization-identity-center Specification
+## ADDED Requirements
 
-## Purpose
-定义 Admin 企业认证中心中组织、用户、角色、权限相关页面的组织身份治理体验，确保工作台提供企业级身份治理语义、保持导航 IA 兼容，并不改变真实认证、授权发布或同步执行链路。
-## Requirements
 ### Requirement: 组织身份实体工作台差异化与密度收口
-Admin 管理员访问组织、用户、角色或权限相关列表页时，系统 SHALL 在既有列表上方展示企业认证中心风格的组织身份实体工作台，且四类实体 SHALL 呈现差异化、紧凑、以列表为主任务的治理体验。
+组织身份域工作台在组织、用户、角色、权限四类实体列表页中 SHALL 呈现差异化、紧凑的实体治理语义和首屏骨架，并 SHALL 保持原列表作为首要操作区域。
 
 #### Scenario: 四类实体拥有不同治理语义
 - **WHEN** 管理员分别访问 `/organizations`、`/users`、`/roles` 和 `/permissions`
@@ -30,27 +27,8 @@ Admin 管理员访问组织、用户、角色或权限相关列表页时，系�
 - **AND** local-dev 或等价浏览器验证 SHALL 在 1440x900 桌面视口记录表格或核心列表入口的 y 坐标；若某页表格顶部不能进入或接近首屏，验证记录 SHALL 说明具体 y 坐标和原因
 
 #### Scenario: 摘要仍保持只读当前视图口径
-- **WHEN** 工作台展示数量、风险或提示
+- **WHEN** 工作台展示数量、风险或质量提示
 - **THEN** 文案 SHALL 使用短状态标签表达摘要来自当前列表视图、分页 total、已加载行数或前端只读状态
 - **AND** 系统 SHALL NOT 声称新增了跨租户、跨组织或后端全量治理统计
 - **AND** 页面 SHALL NOT 以“原列表仍是操作入口”“不包装成全量事实”等长句暴露实现痕迹
 - **AND** 点击工作台行动入口 SHALL 只导航到既有页面，不触发同步执行、授权刷新或 Gateway projection 操作
-
-### Requirement: 组织身份入口与 IA 兼容
-组织身份域 SHALL 通过运行时侧栏、组织配置页导航树和实体工作台行动入口覆盖组织、用户、部门、角色/权限、目录质量和组织同步诊断能力，同时保持运行时侧栏与组织配置页导航树使用相同 IA 和稳定叶子 key。
-
-#### Scenario: 实体工作台提供相关既有入口
-- **WHEN** 管理员查看组织身份实体工作台
-- **THEN** 工作台 SHALL 按当前实体提供少量相关既有入口，例如目录质量、组织树、身份源、组织同步、角色、权限或用户列表
-- **AND** 组织身份域的完整页面能力仍 SHALL 通过运行时侧栏或组织配置导航覆盖 `/organizations`、`/groups`、`/users`、`/organization-tree-operations`、`/organization-directory-quality`、`/roles`、`/permissions`、`/providers`、`/wecom-org-sync` 和 `/feishu-org-sync`
-- **AND** 点击入口只导航到现有页面，不触发同步执行、授权刷新或 Gateway projection 操作
-
-#### Scenario: 导航配置树复用运行时 IA
-- **WHEN** 管理员在组织配置页编辑 `navItems` 或 `userNavItems`
-- **THEN** 配置树展示与运行时侧栏一致的组织身份、身份认证和权限治理分组
-- **AND** 配置值仍使用既有稳定叶子 key，不引入不兼容权限 key
-
-#### Scenario: 权限过滤保持兼容
-- **WHEN** 组织配置限制 `navItems` 或 `userNavItems`
-- **THEN** 运行时侧栏仍按稳定叶子 key 过滤可见菜单
-- **AND** 工作台只展示跳转到既有路由的入口，不绕过页面级登录和权限检查
