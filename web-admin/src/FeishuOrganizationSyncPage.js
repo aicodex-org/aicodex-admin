@@ -3,7 +3,7 @@
 // Licensed under the Apache License, Version 2.0 (the "License");
 
 import React from "react";
-import {Alert, Button, Col, Divider, Drawer, Input, Row, Select, Space, Switch, Table, Tag, Typography} from "antd";
+import {Alert, Button, Col, Collapse, Divider, Drawer, Input, Row, Select, Space, Switch, Table, Tag, Typography} from "antd";
 import {CloudSyncOutlined, CopyOutlined, DownloadOutlined, PlayCircleOutlined, ReloadOutlined, SaveOutlined, ToolOutlined} from "@ant-design/icons";
 import * as Setting from "./Setting";
 import * as FeishuOrganizationSyncBackend from "./backend/FeishuOrganizationSyncBackend";
@@ -106,6 +106,35 @@ const handoffAcceptanceStatusColors = {
   blocked: "red",
   missing: "orange",
   cannot_infer: "blue",
+};
+const handoffActionLabels = {
+  resolve_binding_conflicts: "处理绑定冲突",
+  review_blocked_reasons: "复核阻断原因",
+  validate_real_tenant_runtime: "真实租户运行验证",
+  coordinate_gateway_insight_acceptance: "协调下游验收",
+  copy_acceptance_checklist_json: "复制验收清单",
+  export_acceptance_checklist_markdown: "导出验收清单",
+  export_evidence_json: "导出交接证据",
+  inspect_sync_diagnostics: "查看同步诊断",
+  run_dry_run_preview: "先预览影响",
+};
+const handoffEvidenceAliasLabels = {
+  live_contact_v3_credentials: "飞书通讯录权限需真实验证",
+  gateway_projection_consumption: "Gateway 消费需下游验收",
+  insight_acceptance: "Insight 验收需下游确认",
+  provider_payload_validation: "飞书返回数据需运行态验证",
+  production_readiness: "生产就绪需人工确认",
+  provider_truth: "飞书租户真值需外部验证",
+  sync_full_success: "完整同步成功需运行态验证",
+};
+const handoffBlockedReasonLabels = {
+  binding_conflict_blocked: "存在绑定冲突",
+  sync_run_failed: "最近同步失败",
+  dry_run_failed: "最近预览失败",
+  no_run: "没有同步记录",
+  no_dry_run_history: "没有预览记录",
+  source_connection_missing: "同步连接缺失",
+  config_disabled: "同步配置未启用",
 };
 
 class FeishuOrganizationSyncPage extends React.Component {
@@ -758,11 +787,28 @@ class FeishuOrganizationSyncPage extends React.Component {
     );
   }
 
+  getHandoffAliasLabel(alias) {
+    return handoffActionLabels[alias] || handoffEvidenceAliasLabels[alias] || handoffBlockedReasonLabels[alias] || alias || "-";
+  }
+
+  renderHandoffAliasList(items = [], color = "blue") {
+    const normalized = [...new Set((items || []).filter(Boolean))];
+    if (normalized.length === 0) {
+      return <Text type="secondary">无</Text>;
+    }
+    return (
+      <Space size={4} wrap>
+        {normalized.map(item => <Tag color={color} key={item}>{this.getHandoffAliasLabel(item)}</Tag>)}
+      </Space>
+    );
+  }
+
   renderAcceptanceStatusTag(status) {
     return <Tag color={handoffAcceptanceStatusColors[status] || "default"}>{handoffAcceptanceStatusLabels[status] || status || "-"}</Tag>;
   }
 
-  renderHandoffAcceptanceChecklist(checklist) {
+  renderHandoffAcceptanceChecklist(checklist, options = {}) {
+    const {compact = false} = options;
     if (!checklist?.version) {
       return (
         <Alert
@@ -777,41 +823,16 @@ class FeishuOrganizationSyncPage extends React.Component {
     const summary = checklist.summary || {};
     const safeSource = checklist.safeSource || {};
     const checklistRows = (checklist.items || []).map((item, index) => ({...item, key: item.id || index}));
-    return (
-      <Space direction="vertical" size={8} style={{width: "100%", marginTop: 12}}>
-        <Row align="middle" justify="space-between">
-          <Col>
-            <Space direction="vertical" size={2}>
-              <Text strong>验收清单</Text>
-              <Space wrap size={4}>
-                {checklist.version && <Tag>{checklist.version}</Tag>}
-                {checklist.executionMode && <Tag color="blue">{checklist.executionMode}</Tag>}
-                {checklist.manualReviewOnly && <Tag color="gold">manual_review_only</Tag>}
-                {safeSource.sourceIdHash && <Tag>{safeSource.sourceIdHash}</Tag>}
-                {safeSource.sourceConnectionIdHash && <Tag>{safeSource.sourceConnectionIdHash}</Tag>}
-              </Space>
-            </Space>
-          </Col>
-          <Col>
-            <Space wrap>
-              <Button aria-label="copy-handoff-acceptance-checklist-json" icon={<CopyOutlined />} onClick={() => this.copyHandoffAcceptanceChecklistJson(checklist)}>复制清单 JSON</Button>
-              <Button aria-label="copy-handoff-acceptance-checklist-markdown" icon={<CopyOutlined />} onClick={() => this.copyHandoffAcceptanceChecklistMarkdown(checklist)}>复制 Markdown</Button>
-              <Button aria-label="export-handoff-acceptance-checklist-json" icon={<DownloadOutlined />} onClick={() => this.exportHandoffAcceptanceChecklistJson(checklist)}>导出清单 JSON</Button>
-              <Button aria-label="export-handoff-acceptance-checklist-markdown" icon={<DownloadOutlined />} onClick={() => this.exportHandoffAcceptanceChecklistMarkdown(checklist)}>导出 Markdown</Button>
-            </Space>
-          </Col>
-        </Row>
-        <Space wrap size={4}>
-          <Tag>{`总 ${summary.total || 0}`}</Tag>
-          <Tag color="green">{`通过 ${summary.passed || 0}`}</Tag>
-          <Tag color="gold">{`待复核 ${summary.needsReview || 0}`}</Tag>
-          <Tag color="red">{`阻断 ${summary.blocked || 0}`}</Tag>
-          <Tag color="orange">{`缺失 ${summary.missing || 0}`}</Tag>
-          <Tag color="blue">{`无法推断 ${summary.cannotInfer || 0}`}</Tag>
-          {summary.derivedOnly && <Tag>derived</Tag>}
-          {summary.noFallback && <Tag color="volcano">noFallback</Tag>}
-          {checklist.retention?.redactionApplied && <Tag color="green">{checklist.retention.redactionVersion || "redacted"}</Tag>}
-          {checklist.retention?.retentionDays > 0 && <Tag>{`retention ${checklist.retention.retentionDays}d`}</Tag>}
+    const actionItems = [...(checklist.manualReviewActions || []), ...(checklist.noFallback || [])];
+    const evidenceItems = [...(checklist.providerOwnedEvidenceMissing || []), ...(checklist.cannotInfer || [])];
+    const detailContent = (
+      <Space direction="vertical" size={8} style={{width: "100%"}}>
+        <Space size={4} wrap>
+          {checklist.version && <Tag>{checklist.version}</Tag>}
+          {checklist.executionMode && <Tag color="blue">{checklist.executionMode}</Tag>}
+          {checklist.manualReviewOnly && <Tag color="gold">manual_review_only</Tag>}
+          {safeSource.sourceIdHash && <Tag>{safeSource.sourceIdHash}</Tag>}
+          {safeSource.sourceConnectionIdHash && <Tag>{safeSource.sourceConnectionIdHash}</Tag>}
         </Space>
         <Space direction="vertical" size={4} style={{width: "100%"}}>
           <Text type="secondary">provider-owned evidence missing</Text>
@@ -835,19 +856,95 @@ class FeishuOrganizationSyncPage extends React.Component {
           pagination={false}
           dataSource={checklistRows}
           locale={{emptyText: "暂无验收项"}}
+          scroll={{x: 760}}
           columns={[
             {title: "项", dataIndex: "id", width: 160},
             {title: "状态", dataIndex: "status", width: 120, render: status => this.renderAcceptanceStatusTag(status)},
             {title: "来源", dataIndex: "source", width: 180, render: value => <Tag>{value || "-"}</Tag>},
-            {title: "建议动作", dataIndex: "recommendedActionAlias", width: 180, render: value => value ? <Tag color="blue">{value}</Tag> : "-"},
-            {title: "摘要", dataIndex: "safeSummary"},
+            {title: "建议动作", dataIndex: "recommendedActionAlias", width: 180, render: value => value ? <Tag color="blue">{this.getHandoffAliasLabel(value)}</Tag> : "-"},
+            {title: "摘要", dataIndex: "safeSummary", width: 280, render: text => <Typography.Paragraph style={{marginBottom: 0}} ellipsis={{rows: 3, expandable: true}}>{text || "-"}</Typography.Paragraph>},
           ]}
         />
+      </Space>
+    );
+    return (
+      <Space direction="vertical" size={8} style={{width: "100%", marginTop: 12}}>
+        <Row align="middle" justify="space-between">
+          <Col>
+            <Space direction="vertical" size={2}>
+              <Text strong>验收清单</Text>
+              {compact ? (
+                <Text type="secondary">只展示脱敏摘要；完整安全别名和逐项清单可展开查看。</Text>
+              ) : (
+                <Space wrap size={4}>
+                  {checklist.version && <Tag>{checklist.version}</Tag>}
+                  {checklist.executionMode && <Tag color="blue">{checklist.executionMode}</Tag>}
+                  {checklist.manualReviewOnly && <Tag color="gold">manual_review_only</Tag>}
+                  {safeSource.sourceIdHash && <Tag>{safeSource.sourceIdHash}</Tag>}
+                  {safeSource.sourceConnectionIdHash && <Tag>{safeSource.sourceConnectionIdHash}</Tag>}
+                </Space>
+              )}
+            </Space>
+          </Col>
+          <Col>
+            <Space wrap>
+              <Button aria-label="copy-handoff-acceptance-checklist-json" icon={<CopyOutlined />} onClick={() => this.copyHandoffAcceptanceChecklistJson(checklist)}>复制清单 JSON</Button>
+              <Button aria-label="copy-handoff-acceptance-checklist-markdown" icon={<CopyOutlined />} onClick={() => this.copyHandoffAcceptanceChecklistMarkdown(checklist)}>复制 Markdown</Button>
+              <Button aria-label="export-handoff-acceptance-checklist-json" icon={<DownloadOutlined />} onClick={() => this.exportHandoffAcceptanceChecklistJson(checklist)}>导出清单 JSON</Button>
+              <Button aria-label="export-handoff-acceptance-checklist-markdown" icon={<DownloadOutlined />} onClick={() => this.exportHandoffAcceptanceChecklistMarkdown(checklist)}>导出 Markdown</Button>
+            </Space>
+          </Col>
+        </Row>
+        <Space wrap size={4}>
+          <Tag>{`总 ${summary.total || 0}`}</Tag>
+          <Tag color="green">{`通过 ${summary.passed || 0}`}</Tag>
+          <Tag color="gold">{`待复核 ${summary.needsReview || 0}`}</Tag>
+          <Tag color="red">{`阻断 ${summary.blocked || 0}`}</Tag>
+          <Tag color="orange">{`缺失 ${summary.missing || 0}`}</Tag>
+          <Tag color="blue">{`无法推断 ${summary.cannotInfer || 0}`}</Tag>
+          {!compact && summary.derivedOnly && <Tag>derived</Tag>}
+          {!compact && summary.noFallback && <Tag color="volcano">noFallback</Tag>}
+          {!compact && checklist.retention?.redactionApplied && <Tag color="green">{checklist.retention.redactionVersion || "redacted"}</Tag>}
+          {!compact && checklist.retention?.retentionDays > 0 && <Tag>{`retention ${checklist.retention.retentionDays}d`}</Tag>}
+        </Space>
+        {compact && (
+          <Alert
+            type={summary.blocked > 0 || summary.missing > 0 ? "warning" : "info"}
+            showIcon
+            message={summary.blocked > 0 || summary.missing > 0 ? "仍需处理后再交接" : "验收资料已脱敏"}
+            description={
+              <Space direction="vertical" size={6}>
+                <Space direction="vertical" size={2}>
+                  <Text type="secondary">建议下一步</Text>
+                  {this.renderHandoffAliasList(actionItems, "gold")}
+                </Space>
+                <Space direction="vertical" size={2}>
+                  <Text type="secondary">无法在本页证明的事项</Text>
+                  {this.renderHandoffAliasList(evidenceItems, "blue")}
+                </Space>
+              </Space>
+            }
+          />
+        )}
+        {compact ? (
+          <Collapse
+            size="small"
+            destroyOnHidden
+            items={[{
+              key: "details",
+              label: "详细清单和安全别名",
+              children: detailContent,
+            }]}
+          />
+        ) : detailContent}
       </Space>
     );
   }
 
   renderHandoffEvidenceDetailsDrawer(evidence, hasHandoffDetails) {
+    const blockedReasons = evidence.blockedReasons || [];
+    const operatorNextActions = evidence.operatorNextActions || [];
+    const cannotInfer = evidence.cannotInfer || [];
     return (
       <Drawer
         title="验收资料"
@@ -859,25 +956,37 @@ class FeishuOrganizationSyncPage extends React.Component {
           <Alert type="info" showIcon message="暂无验收资料" description="当前交接证据只有摘要信息。" />
         ) : (
           <Space direction="vertical" size={10} style={{width: "100%"}}>
-            <Typography.Paragraph ellipsis={{rows: 3, expandable: true}}>
-              {evidence.safeSummary || "-"}
-            </Typography.Paragraph>
-            <Space size={4} wrap>
-              {this.getHandoffReadinessTag(evidence.readiness)}
-              {evidence.sourceType && <Tag>{handoffSourceTypeLabels[evidence.sourceType] || evidence.sourceType}</Tag>}
-              {evidence.sourceIdHash && <Tag>{evidence.sourceIdHash}</Tag>}
-              {evidence.sourceConnectionIdHash && <Tag>{evidence.sourceConnectionIdHash}</Tag>}
-              {evidence.endpointMode && <Tag>{evidence.endpointMode}</Tag>}
-              {evidence.appAlias && <Tag>{evidence.appAlias}</Tag>}
-              {evidence.tenantAlias && <Tag>{evidence.tenantAlias}</Tag>}
-              {evidence.redaction?.applied && <Tag color="green">{evidence.redaction.version || "已脱敏"}</Tag>}
-            </Space>
-            <Space size={4} wrap>
-              {(evidence.blockedReasons || []).map(reason => <Tag color="red" key={reason}>{reason}</Tag>)}
-              {(evidence.operatorNextActions || []).map(action => <Tag color="blue" key={action}>{action}</Tag>)}
-              {(evidence.cannotInfer || []).map(item => <Tag key={item}>{item}</Tag>)}
-            </Space>
-            {this.renderHandoffAcceptanceChecklist(evidence.acceptanceChecklist)}
+            <Alert
+              type={evidence.readiness === "blocked" ? "warning" : "info"}
+              showIcon
+              message={
+                <Space wrap>
+                  {this.getHandoffReadinessTag(evidence.readiness)}
+                  {evidence.sourceType && <Tag>{handoffSourceTypeLabels[evidence.sourceType] || evidence.sourceType}</Tag>}
+                  {evidence.redaction?.applied && <Tag color="green">已脱敏</Tag>}
+                </Space>
+              }
+              description={<Typography.Paragraph style={{marginBottom: 0}} ellipsis={{rows: 3, expandable: true}}>{evidence.safeSummary || "-"}</Typography.Paragraph>}
+            />
+            {blockedReasons.length > 0 && (
+              <Space direction="vertical" size={2}>
+                <Text type="secondary">当前阻断</Text>
+                {this.renderHandoffAliasList(blockedReasons, "red")}
+              </Space>
+            )}
+            {operatorNextActions.length > 0 && (
+              <Space direction="vertical" size={2}>
+                <Text type="secondary">建议下一步</Text>
+                {this.renderHandoffAliasList(operatorNextActions, "gold")}
+              </Space>
+            )}
+            {cannotInfer.length > 0 && (
+              <Space direction="vertical" size={2}>
+                <Text type="secondary">无法在本页证明</Text>
+                {this.renderHandoffAliasList(cannotInfer, "blue")}
+              </Space>
+            )}
+            {this.renderHandoffAcceptanceChecklist(evidence.acceptanceChecklist, {compact: true})}
           </Space>
         )}
       </Drawer>
@@ -1144,29 +1253,49 @@ class FeishuOrganizationSyncPage extends React.Component {
       )},
       {title: "操作", key: "action", width: 90, render: (_, record) => <Button size="small" aria-label={`dry-run-history-detail-${record.name}`} onClick={() => this.openDryRunHistoryDetail(record)}>详情</Button>},
     ];
+    const historyCount = this.state.dryRunHistories.length;
+    const latestHistory = this.state.dryRunHistories[0];
+    const historySummary = this.state.dryRunHistoryError ||
+      (historyCount > 0 ? `最近 ${historyCount} 次 dry-run 预览，最新 ${this.formatRunTime(latestHistory?.createdAt)}。` : "暂无 Dry-run 历史。");
     return (
       <>
-        <Row align="middle" justify="space-between" style={{marginBottom: 12}}>
-          <Col>
-            <Space direction="vertical" size={2}>
-              <Text strong>Dry-run 历史</Text>
-              <Text type={this.state.dryRunHistoryError ? "danger" : "secondary"}>
-                {this.state.dryRunHistoryError || "最近 10 次预览摘要，仅展示脱敏聚合信息。"}
-              </Text>
-            </Space>
-          </Col>
-          <Col><Button icon={<ReloadOutlined />} loading={this.state.dryRunHistoryLoading} onClick={() => this.refreshDryRunHistory().catch(() => {})}>刷新</Button></Col>
-        </Row>
-        <Table
-          rowKey="name"
-          size="middle"
-          bordered
-          loading={this.state.loading || this.state.dryRunHistoryLoading}
-          columns={columns}
-          dataSource={this.state.dryRunHistories}
-          locale={{emptyText: this.state.dryRunHistoryError || "暂无 Dry-run 历史"}}
-          scroll={{x: 1830}}
-          pagination={false}
+        <Collapse
+          size="small"
+          destroyOnHidden
+          items={[{
+            key: "dry-run-history",
+            label: (
+              <Space direction="vertical" size={2}>
+                <Text strong>Dry-run 历史</Text>
+                <Text type={this.state.dryRunHistoryError ? "danger" : "secondary"}>{historySummary}</Text>
+              </Space>
+            ),
+            extra: (
+              <Button
+                icon={<ReloadOutlined />}
+                loading={this.state.dryRunHistoryLoading}
+                onClick={event => {
+                  event.stopPropagation();
+                  this.refreshDryRunHistory().catch(() => {});
+                }}
+              >
+                刷新
+              </Button>
+            ),
+            children: (
+              <Table
+                rowKey="name"
+                size="middle"
+                bordered
+                loading={this.state.loading || this.state.dryRunHistoryLoading}
+                columns={columns}
+                dataSource={this.state.dryRunHistories}
+                locale={{emptyText: this.state.dryRunHistoryError || "暂无 Dry-run 历史"}}
+                scroll={{x: 1830}}
+                pagination={false}
+              />
+            ),
+          }]}
         />
         {this.renderDryRunHistoryDetailDrawer()}
       </>

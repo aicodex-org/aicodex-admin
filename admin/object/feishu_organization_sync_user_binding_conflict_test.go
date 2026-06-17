@@ -119,6 +119,65 @@ func TestFeishuUserBindingConflictDiagnosticsDisabledEmptyAndLimit(t *testing.T)
 	}
 }
 
+func TestFeishuUserBindingConflictDiagnosticsDoesNotFlagLinkedOAuthTenantAlias(t *testing.T) {
+	setupFeishuOrganizationSyncSqlite(t)
+	now := time.Date(2026, 6, 15, 19, 0, 0, 0, time.UTC)
+	insertFeishuBindingConfig(t, "engineering", "cli-a", "tenant-from-sync", FeishuEndpointModeDomestic, true)
+	insertFeishuBindingUser(t, "same-person", "uid-same", map[string]string{
+		FeishuUserPropertyUserId:       "uid-same",
+		FeishuUserPropertyOpenId:       "open-same",
+		FeishuUserPropertyUnionId:      "union-same",
+		FeishuUserPropertyTenantKey:    "tenant-from-oauth",
+		FeishuUserPropertyEndpointMode: FeishuEndpointModeDomestic,
+	})
+	insertFeishuBindingMapping(t, "map-same-person", "cli-a", "tenant-from-sync", "uid-same", "open-same", "union-same", "same-person")
+	insertFeishuBindingRunAndHistory(t, now)
+
+	diagnostics, err := (&FeishuOrganizationSyncUserBindingConflictService{Now: func() time.Time { return now }}).GetDiagnostics(FeishuUserBindingConflictDiagnosticsFilter{
+		Organization: "engineering",
+		Limit:        50,
+	})
+	if err != nil {
+		t.Fatalf("GetDiagnostics() error = %v", err)
+	}
+	if diagnostics.Status != FeishuUserBindingDiagnosticsStatusOK || diagnostics.RiskLevel != FeishuUserBindingRiskNone {
+		t.Fatalf("status/risk = %q/%q, want ok/none: %+v", diagnostics.Status, diagnostics.RiskLevel, diagnostics.Counts)
+	}
+	if diagnostics.Counts.LocalUserMultiTenant != 0 || len(diagnostics.Issues) != 0 {
+		t.Fatalf("diagnostics = %+v issues=%d, want no false local multi-tenant issue", diagnostics.Counts, len(diagnostics.Issues))
+	}
+}
+
+func TestFeishuBindingIdentityClustersDoNotMergeDifferentIdentifierTypes(t *testing.T) {
+	clusters := clusterFeishuBindingIdentityRecords([]feishuBindingIdentityRecord{
+		{TenantKey: "tenant-a", UserID: "shared"},
+		{TenantKey: "tenant-b", OpenID: "shared"},
+	})
+	if len(clusters) != 2 {
+		t.Fatalf("cluster count = %d, want 2 distinct identities for same text across different identifier types", len(clusters))
+	}
+}
+
+func TestFeishuBindingIdentityClustersMergeTransitiveMatches(t *testing.T) {
+	clusters := clusterFeishuBindingIdentityRecords([]feishuBindingIdentityRecord{
+		{TenantKey: "tenant-a", UserID: "user-a"},
+		{TenantKey: "tenant-b", OpenID: "open-b"},
+		{TenantKey: "tenant-c", UserID: "user-a", OpenID: "open-b", UnionID: "union-c"},
+	})
+	if len(clusters) != 1 {
+		t.Fatalf("cluster count = %d, want transitive identifier match to merge into one identity", len(clusters))
+	}
+	if len(clusters[0].Samples) != 3 {
+		t.Fatalf("sample count = %d, want all linked samples preserved", len(clusters[0].Samples))
+	}
+
+	var cluster feishuBindingIdentityCluster
+	mergeFeishuBindingIdentityCluster(&cluster, map[string]bool{"user_id:user-a": true}, "tenant-a:user-a")
+	if !cluster.Identifiers["user_id:user-a"] || !cluster.Samples["tenant-a:user-a"] {
+		t.Fatalf("merge should initialize nil maps and keep identifiers/samples: %+v", cluster)
+	}
+}
+
 func TestFeishuUserBindingConflictDiagnosticsValidatesRequiredInputs(t *testing.T) {
 	if _, err := (&FeishuOrganizationSyncUserBindingConflictService{}).GetDiagnostics(FeishuUserBindingConflictDiagnosticsFilter{}); err == nil {
 		t.Fatalf("GetDiagnostics(empty organization) expected error")

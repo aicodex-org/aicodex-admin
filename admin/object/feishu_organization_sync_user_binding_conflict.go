@@ -119,6 +119,19 @@ type feishuBindingUserIdentity struct {
 	EndpointMode string
 }
 
+type feishuBindingIdentityRecord struct {
+	TenantKey string
+	UserID    string
+	OpenID    string
+	UnionID   string
+	Lark      string
+}
+
+type feishuBindingIdentityCluster struct {
+	Identifiers map[string]bool
+	Samples     map[string]bool
+}
+
 // GetDiagnostics 扫描 Admin 本地绑定状态并返回脱敏风险摘要，不调用任何写入路径。
 func (s *FeishuOrganizationSyncUserBindingConflictService) GetDiagnostics(filter FeishuUserBindingConflictDiagnosticsFilter) (*FeishuUserBindingConflictDiagnostics, error) {
 	organization := strings.TrimSpace(filter.Organization)
@@ -232,36 +245,134 @@ func findDuplicateFeishuUserIDBindingIssues(config *FeishuOrganizationSyncConfig
 }
 
 func findLocalUserMultiTenantIssues(base *FeishuUserBindingConflictDiagnostics, mappings []*FeishuUserMapping, identities []*feishuBindingUserIdentity) []*FeishuUserBindingConflictIssue {
-	grouped := map[string]map[string]bool{}
+	grouped := map[string][]feishuBindingIdentityRecord{}
 	for _, mapping := range mappings {
 		localKey := feishuLocalUserKey(mapping.UserOwner, mapping.UserName)
 		if localKey == "" {
 			continue
 		}
-		if grouped[localKey] == nil {
-			grouped[localKey] = map[string]bool{}
-		}
-		grouped[localKey][feishuUserBindingExternalKey(mapping.TenantKey, mapping.FeishuUserId)] = true
+		grouped[localKey] = append(grouped[localKey], feishuBindingIdentityRecord{
+			TenantKey: mapping.TenantKey,
+			UserID:    mapping.FeishuUserId,
+			OpenID:    mapping.OpenId,
+			UnionID:   mapping.UnionId,
+		})
 	}
 	for _, identity := range identities {
 		localKey := feishuLocalUserKey(identity.User.Owner, identity.User.Name)
 		if localKey == "" {
 			continue
 		}
-		if grouped[localKey] == nil {
-			grouped[localKey] = map[string]bool{}
-		}
-		grouped[localKey][feishuUserBindingExternalKey(identity.TenantKey, firstNonEmpty(identity.UserID, identity.Lark))] = true
+		grouped[localKey] = append(grouped[localKey], feishuBindingIdentityRecord{
+			TenantKey: identity.TenantKey,
+			UserID:    identity.UserID,
+			OpenID:    identity.OpenID,
+			UnionID:   identity.UnionID,
+			Lark:      identity.Lark,
+		})
 	}
 	issues := []*FeishuUserBindingConflictIssue{}
-	for localKey, externalKeys := range grouped {
-		normalized := removeEmptyBoolKeys(externalKeys)
-		if len(normalized) <= 1 {
+	for localKey, records := range grouped {
+		// 同一飞书身份可能同时来自通讯录同步映射和扫码登录属性；tenant alias 不同不等于多租户复用。
+		clusters := clusterFeishuBindingIdentityRecords(records)
+		if len(clusters) <= 1 {
 			continue
+		}
+		normalized := map[string]bool{}
+		for _, cluster := range clusters {
+			for sample := range cluster.Samples {
+				normalized[sample] = true
+			}
 		}
 		issues = append(issues, newFeishuUserBindingConflictIssue(base, FeishuUserBindingConflictLocalUserMultiTenant, FeishuUserBindingRiskHigh, localKey, normalized, "同一本地用户关联多个飞书 tenant/user identity，需确认是否跨租户复用。", FeishuUserBindingActionInspectMapping, "local_user_multi_tenant_requires_review"))
 	}
 	return issues
+}
+
+func clusterFeishuBindingIdentityRecords(records []feishuBindingIdentityRecord) []feishuBindingIdentityCluster {
+	clusters := []feishuBindingIdentityCluster{}
+	for _, record := range records {
+		identifiers := feishuBindingIdentityIdentifiers(record)
+		sample := feishuBindingIdentitySampleKey(record)
+		matches := []int{}
+		for index, cluster := range clusters {
+			if feishuBindingIdentityClusterMatches(cluster, identifiers) {
+				matches = append(matches, index)
+			}
+		}
+		if len(matches) == 0 {
+			clusters = append(clusters, feishuBindingIdentityCluster{
+				Identifiers: identifiers,
+				Samples:     map[string]bool{},
+			})
+			if strings.TrimSpace(sample) != "" {
+				clusters[len(clusters)-1].Samples[sample] = true
+			}
+			continue
+		}
+		target := matches[0]
+		mergeFeishuBindingIdentityCluster(&clusters[target], identifiers, sample)
+		for i := len(matches) - 1; i > 0; i-- {
+			index := matches[i]
+			mergeFeishuBindingIdentityCluster(&clusters[target], clusters[index].Identifiers, "")
+			for clusterSample := range clusters[index].Samples {
+				clusters[target].Samples[clusterSample] = true
+			}
+			clusters = append(clusters[:index], clusters[index+1:]...)
+		}
+	}
+	normalized := make([]feishuBindingIdentityCluster, 0, len(clusters))
+	for _, cluster := range clusters {
+		if len(cluster.Identifiers) == 0 && len(cluster.Samples) == 0 {
+			continue
+		}
+		normalized = append(normalized, cluster)
+	}
+	return normalized
+}
+
+func feishuBindingIdentityIdentifiers(record feishuBindingIdentityRecord) map[string]bool {
+	identifiers := map[string]bool{}
+	for prefix, identifier := range map[string]string{
+		"user_id":  record.UserID,
+		"open_id":  record.OpenID,
+		"union_id": record.UnionID,
+		"lark":     record.Lark,
+	} {
+		identifier = strings.TrimSpace(identifier)
+		if identifier != "" {
+			identifiers[prefix+":"+identifier] = true
+		}
+	}
+	return identifiers
+}
+
+func feishuBindingIdentitySampleKey(record feishuBindingIdentityRecord) string {
+	return feishuUserBindingExternalKey(record.TenantKey, firstNonEmpty(record.UserID, record.Lark, record.OpenID, record.UnionID))
+}
+
+func feishuBindingIdentityClusterMatches(cluster feishuBindingIdentityCluster, identifiers map[string]bool) bool {
+	for identifier := range identifiers {
+		if cluster.Identifiers[identifier] {
+			return true
+		}
+	}
+	return false
+}
+
+func mergeFeishuBindingIdentityCluster(cluster *feishuBindingIdentityCluster, identifiers map[string]bool, sample string) {
+	if cluster.Identifiers == nil {
+		cluster.Identifiers = map[string]bool{}
+	}
+	if cluster.Samples == nil {
+		cluster.Samples = map[string]bool{}
+	}
+	for identifier := range identifiers {
+		cluster.Identifiers[identifier] = true
+	}
+	if strings.TrimSpace(sample) != "" {
+		cluster.Samples[sample] = true
+	}
 }
 
 func findLegacyIdentifierSplitIssues(config *FeishuOrganizationSyncConfig, base *FeishuUserBindingConflictDiagnostics, mappings []*FeishuUserMapping, identities []*feishuBindingUserIdentity) []*FeishuUserBindingConflictIssue {

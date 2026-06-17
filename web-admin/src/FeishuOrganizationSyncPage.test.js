@@ -298,6 +298,11 @@ test("renders dry-run history and opens safe detail drawer", async() => {
   render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
   expect(await screen.findByText("Dry-run 历史")).toBeInTheDocument();
+  expect(screen.getByText(/最近 1 次 dry-run 预览/)).toBeInTheDocument();
+  expect(screen.queryByText("history-1")).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByText("Dry-run 历史"));
+
   expect(screen.getByText("history-1")).toBeInTheDocument();
   expect(screen.getByText("app-history / tenant-history")).toBeInTheDocument();
   expect(screen.getByText("permission denied user_id=***")).toBeInTheDocument();
@@ -354,9 +359,22 @@ test("renders handoff evidence ready summary and safe markers", async() => {
   expect(screen.queryByText("production_readiness")).not.toBeInTheDocument();
   fireEvent.click(screen.getByLabelText("toggle-handoff-evidence-details"));
   expect(screen.getByText("验收资料")).toBeInTheDocument();
-  expect(screen.getAllByText("dry-run-safe").length).toBeGreaterThan(0);
-  expect(screen.getAllByText("source-safe").length).toBeGreaterThan(0);
   expect(screen.getByText("验收清单")).toBeInTheDocument();
+  expect(screen.getByText("只展示脱敏摘要；完整安全别名和逐项清单可展开查看。")).toBeInTheDocument();
+  expect(screen.getByText("真实租户运行验证")).toBeInTheDocument();
+  expect(screen.getByText("飞书通讯录权限需真实验证")).toBeInTheDocument();
+  expect(screen.getByText("生产就绪需人工确认")).toBeInTheDocument();
+  expect(screen.queryByText("dry-run-safe")).not.toBeInTheDocument();
+  expect(screen.queryByText("source-safe")).not.toBeInTheDocument();
+  expect(screen.queryByText("manual_review_only")).not.toBeInTheDocument();
+  expect(screen.queryByText("provider_truth")).not.toBeInTheDocument();
+  expect(screen.queryByText("production_readiness")).not.toBeInTheDocument();
+  expect(screen.queryByText("validate_real_tenant_runtime")).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByText("详细清单和安全别名"));
+
+  expect((await screen.findAllByText("dry-run-safe")).length).toBeGreaterThan(0);
+  expect(screen.getAllByText("source-safe").length).toBeGreaterThan(0);
   expect(screen.getAllByText("manual_review_only").length).toBeGreaterThan(0);
   expect(screen.getAllByText("provider_truth").length).toBeGreaterThan(0);
   expect(screen.getAllByText("production_readiness").length).toBeGreaterThan(0);
