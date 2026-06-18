@@ -42,11 +42,75 @@ const freshnessLabels = {
   unavailable: "不可用",
 };
 
-const emptyTreeClassLabels = {
-  business_empty: "业务空树",
-  test_data_gap: "测试数据缺口",
-  untrusted_read_model: "不可信数据",
+const reasonAliasLabels = {
+  scope_has_no_manageable_departments: {
+    labelKey: "Current organization has no manageable departments",
+    label: "当前组织暂无可管理部门",
+    descriptionKey: "Check organization management scope source connection or administrator permission read only",
+    description: "请检查组织管理范围、来源连接或管理员权限；本页仅做只读诊断，不会自动扩大可见范围。",
+  },
+  lifecycle_not_active: {
+    labelKey: "Lifecycle is not active",
+    label: "生命周期非正常",
+  },
+  mapping_missing: {
+    labelKey: "API subject mapping missing",
+    label: "API 主体映射缺失",
+  },
+  source_connection_stale: {
+    labelKey: "Source connection stale",
+    label: "来源连接已过期",
+  },
 };
+
+function translateGeneral(key, fallback) {
+  return i18next.t(`general:${key}`, {defaultValue: fallback});
+}
+
+function readableAlias(value) {
+  const text = String(value || "");
+  if (!text) {
+    return "-";
+  }
+  if (!text.includes("_") || text.includes(":")) {
+    return text;
+  }
+  return text.split("_").filter(Boolean).map(part => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join(" ");
+}
+
+function renderReasonLabel(value) {
+  const copy = reasonAliasLabels[String(value || "").toLowerCase()];
+  if (copy) {
+    return translateGeneral(copy.labelKey, copy.label);
+  }
+  return readableAlias(value);
+}
+
+function renderReasonDescription(value, fallback) {
+  const copy = reasonAliasLabels[String(value || "").toLowerCase()];
+  if (copy?.descriptionKey) {
+    return translateGeneral(copy.descriptionKey, copy.description);
+  }
+  if (value) {
+    return renderReasonLabel(value);
+  }
+  return fallback;
+}
+
+function renderEmptyTreeClassLabel(value, reason) {
+  if (reason) {
+    const reasonCopy = reasonAliasLabels[String(reason || "").toLowerCase()];
+    if (reasonCopy) {
+      return translateGeneral(reasonCopy.labelKey, reasonCopy.label);
+    }
+  }
+  const labels = {
+    business_empty: translateGeneral("Business empty organization tree", "业务空树"),
+    test_data_gap: translateGeneral("Test data gap", "测试数据缺口"),
+    untrusted_read_model: translateGeneral("Untrusted directory data", "不可信数据"),
+  };
+  return labels[value] || readableAlias(value);
+}
 
 function renderText(value) {
   return value || "-";
@@ -286,7 +350,7 @@ class OrganizationTreeOperationsPage extends React.Component {
     const source = this.state.diagnostics?.sourceConnections || [];
     return [
       {title: "可见节点", value: summary.visibleNodeCount ?? 0, extra: `平台部门 ${summary.totalPlatformDepartmentCount ?? 0}`},
-      {title: "诊断项", value: summary.diagnosticItemCount ?? 0, extra: renderText(this.state.diagnostics?.emptyTreeClass ? emptyTreeClassLabels[this.state.diagnostics.emptyTreeClass] || this.state.diagnostics.emptyTreeClass : "")},
+      {title: "诊断项", value: summary.diagnosticItemCount ?? 0, extra: renderText(this.state.diagnostics?.emptyTreeClass ? renderEmptyTreeClassLabel(this.state.diagnostics.emptyTreeClass, this.state.diagnostics.reason) : "")},
       {title: "目录健康", value: renderStatusTag(summary.freshness, freshnessLabels), extra: `生成 ${renderTime(summary.generatedAt)}`},
       {title: "同步来源", value: source.length, extra: source.length > 0 ? source.map(item => item.sourceType).filter(Boolean).join(" / ") : "无来源连接"},
       {title: "最近同步", value: renderStatusTag(this.state.diagnostics?.latestSyncBatch?.status), extra: this.state.diagnostics?.latestSyncBatch?.status ? "查看技术详情获取批次号" : "无最近批次"},
@@ -317,7 +381,7 @@ class OrganizationTreeOperationsPage extends React.Component {
           <Text type="secondary">{record.subjectType}:{record.subjectId}</Text>
         </Space>
       )},
-      {title: "原因", dataIndex: "reason", key: "reason", render: renderText},
+      {title: "原因", dataIndex: "reason", key: "reason", render: renderReasonLabel},
       {title: "生命周期", dataIndex: "lifecycleStatus", key: "lifecycleStatus", width: 120, render: value => renderStatusTag(value, lifecycleStatusLabels)},
       {title: "映射状态", dataIndex: "mappingStatus", key: "mappingStatus", width: 130, render: renderText},
       {title: "来源", dataIndex: "sourceType", key: "sourceType", width: 120, render: renderText},
@@ -488,7 +552,7 @@ class OrganizationTreeOperationsPage extends React.Component {
             type="warning"
             showIcon
             message="组织树当前未通过可信校验"
-            description={diagnostics.reason || "请查看诊断项和来源连接状态。"}
+            description={renderReasonDescription(diagnostics.reason, "请查看诊断项和来源连接状态。")}
           />
         ) : null}
         {diagnostics?.emptyTreeClass ? (
@@ -496,16 +560,21 @@ class OrganizationTreeOperationsPage extends React.Component {
             style={{marginBottom: 16}}
             type={diagnostics.emptyTreeClass === "business_empty" ? "info" : "warning"}
             showIcon
-            message={emptyTreeClassLabels[diagnostics.emptyTreeClass] || diagnostics.emptyTreeClass}
-            description={diagnostics.reason || "空树仅表示当前可管理范围为空，不代表组织树能力通过。"}
+            message={renderEmptyTreeClassLabel(diagnostics.emptyTreeClass, diagnostics.reason)}
+            description={renderReasonDescription(diagnostics.reason, "空树仅表示当前可管理范围为空，不代表组织树能力通过。")}
           />
         ) : null}
-        <Row gutter={[16, 16]} style={{marginBottom: 16}}>
+        <Row gutter={[12, 12]} style={{marginBottom: 12}}>
           {this.getSummaryCards().map(item => (
-            <Col xs={24} sm={12} lg={8} xl={4} key={item.title}>
-              <Card size="small" bodyStyle={{minHeight: 108}}>
+            <Col xs={12} sm={12} lg={8} xl={4} key={item.title}>
+              <Card
+                data-testid="organization-tree-summary-card"
+                size="small"
+                style={{height: "100%", minHeight: 72}}
+                styles={{body: {minHeight: 72, padding: 12}}}
+              >
                 <Text type="secondary">{item.title}</Text>
-                <Title level={4} style={{margin: "8px 0 4px", maxWidth: "100%"}}>{item.value}</Title>
+                <Title level={4} style={{margin: "4px 0 2px", maxWidth: "100%"}}>{item.value}</Title>
                 {typeof item.extra === "string" ? <Text type="secondary">{item.extra}</Text> : item.extra}
               </Card>
             </Col>

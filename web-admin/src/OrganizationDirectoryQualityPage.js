@@ -18,6 +18,7 @@ import {DownloadOutlined, ReloadOutlined} from "@ant-design/icons";
 import OrganizationSelect from "./common/select/OrganizationSelect";
 import * as Setting from "./Setting";
 import * as PlatformApiMappingBackend from "./backend/PlatformApiMappingBackend";
+import i18next from "i18next";
 
 const {Text, Title} = Typography;
 
@@ -54,11 +55,81 @@ function compactText(value) {
   return `${String(value).slice(0, 18)}...${String(value).slice(-10)}`;
 }
 
+const aliasCopy = {
+  scope_has_no_manageable_departments: {
+    labelKey: "Current organization has no manageable departments",
+    label: "当前组织暂无可管理部门",
+    shortKey: "Check organization management scope source connection or administrator permission",
+    short: "检查组织管理范围、来源连接或管理员权限。",
+  },
+  mapping_missing: {
+    labelKey: "API subject mapping missing",
+    label: "API 主体映射缺失",
+  },
+  mapping_review: {
+    labelKey: "API mapping review",
+    label: "API 映射核对",
+  },
+  lifecycle_not_active: {
+    labelKey: "Lifecycle is not active",
+    label: "生命周期非正常",
+  },
+  manual_review_only: {
+    labelKey: "Manual review only",
+    label: "仅人工复核",
+  },
+  missing_preflight_samples: {
+    labelKey: "Missing preflight samples",
+    label: "缺少预检样例",
+  },
+};
+
+function translateGeneral(key, fallback) {
+  return i18next.t(`general:${key}`, {defaultValue: fallback});
+}
+
+function readableAlias(value) {
+  const text = String(value || "");
+  if (!text) {
+    return "-";
+  }
+  if (!text.includes("_") || text.includes(":")) {
+    return text;
+  }
+  return text.split("_").filter(Boolean).map(part => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join(" ");
+}
+
+function aliasLabel(value) {
+  const copy = aliasCopy[String(value || "").toLowerCase()];
+  if (copy) {
+    return translateGeneral(copy.labelKey, copy.label);
+  }
+  return readableAlias(value);
+}
+
+function aliasSummary(value) {
+  const copy = aliasCopy[String(value || "").toLowerCase()];
+  if (copy?.shortKey) {
+    return translateGeneral(copy.shortKey, copy.short);
+  }
+  if (copy) {
+    return translateGeneral(copy.labelKey, copy.label);
+  }
+  return readableAlias(value);
+}
+
 function renderTags(values, color) {
   if (!values || values.length === 0) {
     return <Text type="secondary">-</Text>;
   }
   return values.map(value => <Tag color={color} key={value}>{value}</Tag>);
+}
+
+function renderAliasTags(values, color) {
+  if (!values || values.length === 0) {
+    return <Text type="secondary">-</Text>;
+  }
+  return values.map(value => <Tag color={color} key={value}>{aliasLabel(value)}</Tag>);
 }
 
 export default function OrganizationDirectoryQualityPage(props) {
@@ -347,7 +418,7 @@ export default function OrganizationDirectoryQualityPage(props) {
 
   const reasonOptions = useMemo(() => {
     const aliases = data?.reasonAliases || [];
-    return [{label: "全部原因", value: ""}, ...aliases.map(alias => ({label: alias, value: alias}))];
+    return [{label: "全部原因", value: ""}, ...aliases.map(alias => ({label: aliasLabel(alias), value: alias}))];
   }, [data]);
 
   const columns = [
@@ -381,7 +452,7 @@ export default function OrganizationDirectoryQualityPage(props) {
     {
       title: "原因",
       dataIndex: "reasonCodes",
-      render: values => renderTags(values, "volcano"),
+      render: values => renderAliasTags(values, "volcano"),
     },
     {
       title: "操作",
@@ -403,7 +474,7 @@ export default function OrganizationDirectoryQualityPage(props) {
       width: 180,
       render: (_, record) => (
         <Space direction="vertical" size={0}>
-          <Text strong>{record.actionAlias}</Text>
+          <Text strong>{aliasLabel(record.actionAlias)}</Text>
           <Text type="secondary">影响 {record.affectedCounts?.total || 0}</Text>
         </Space>
       ),
@@ -411,7 +482,7 @@ export default function OrganizationDirectoryQualityPage(props) {
     {
       title: "原因",
       dataIndex: "reasonCodes",
-      render: values => renderTags(values, "volcano"),
+      render: values => renderAliasTags(values, "volcano"),
     },
     {
       title: "样例",
@@ -429,9 +500,9 @@ export default function OrganizationDirectoryQualityPage(props) {
       dataIndex: "safeSummary",
       render: (_, record) => (
         <Space direction="vertical" size={4}>
-          <Text>{record.safeSummary || "-"}</Text>
-          <div>{renderTags(record.operatorActions, "blue")}</div>
-          {record.blockedReason && <Text type="danger">{record.blockedReason}</Text>}
+          <Text>{record.safeSummary ? aliasSummary(record.safeSummary) : "-"}</Text>
+          <div>{renderAliasTags(record.operatorActions, "blue")}</div>
+          {record.blockedReason && <Text type="danger">{aliasSummary(record.blockedReason)}</Text>}
         </Space>
       ),
     },

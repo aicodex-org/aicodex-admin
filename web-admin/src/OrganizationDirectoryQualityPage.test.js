@@ -475,10 +475,10 @@ test("renders organization directory quality list and details without leaking so
   expect(await screen.findByText("组织目录质量")).toBeInTheDocument();
   expect(document.querySelector(".organization-directory-quality-page")).not.toBeNull();
   expect((await screen.findAllByText("修复计划")).length).toBeGreaterThan(0);
-  expect((await screen.findAllByText("mapping_review")).length).toBeGreaterThan(0);
+  expect((await screen.findAllByText("API 映射核对")).length).toBeGreaterThan(0);
   expect(screen.getByText("用户到 API 主体的一等映射缺失或不可信，需要 mapping owner 确认。")).toBeInTheDocument();
   expect(screen.getByText("Alice")).toBeInTheDocument();
-  expect(screen.getAllByText("mapping_missing").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("API 主体映射缺失").length).toBeGreaterThan(0);
   expect(screen.queryByText("external-subject-synthetic")).not.toBeInTheDocument();
   expect(screen.queryByText("org-alpha/alice")).toBeInTheDocument();
   expect(PlatformApiMappingBackend.getOrganizationDirectoryQuality).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
@@ -499,7 +499,7 @@ test("renders organization directory quality list and details without leaking so
 test("opens sanitized manual-review action draft drawer from remediation plan", async() => {
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
-  await screen.findAllByText("mapping_review");
+  await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
 
   expect(await screen.findByText("manual_review_only")).toBeInTheDocument();
@@ -525,7 +525,7 @@ test("opens sanitized manual-review action draft drawer from remediation plan", 
 test("runs sanitized read-only preflight from action draft drawer", async() => {
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
-  await screen.findAllByText("mapping_review");
+  await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
   expect(await screen.findByText("manual_review_only")).toBeInTheDocument();
   fireEvent.click(screen.getByText("预检"));
@@ -552,7 +552,7 @@ test("runs sanitized read-only preflight from action draft drawer", async() => {
 test("opens sanitized approval preview from preflight without repair actions", async() => {
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
-  await screen.findAllByText("mapping_review");
+  await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
   expect(await screen.findByText("manual_review_only")).toBeInTheDocument();
   fireEvent.click(screen.getByText("预检"));
@@ -586,7 +586,7 @@ test("opens sanitized approval preview from preflight without repair actions", a
 test("opens sanitized approval packet audit from approval preview without repair actions", async() => {
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
-  await screen.findAllByText("mapping_review");
+  await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
   expect(await screen.findByText("manual_review_only")).toBeInTheDocument();
   fireEvent.click(screen.getByText("预检"));
@@ -748,7 +748,7 @@ test("shows blocked approval preview and fails closed on approval preview errors
 
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
-  await screen.findAllByText("mapping_review");
+  await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
   expect(await screen.findByText("manual_review_only")).toBeInTheDocument();
   fireEvent.click(screen.getByText("预检"));
@@ -767,7 +767,7 @@ test("fails closed on approval packet audit errors", async() => {
   PlatformApiMappingBackend.getOrganizationDirectoryRemediationApprovalPacketAudit.mockResolvedValueOnce({status: "error", msg: "audit failed"});
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
-  await screen.findAllByText("mapping_review");
+  await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
   expect(await screen.findByText("manual_review_only")).toBeInTheDocument();
   fireEvent.click(screen.getByText("预检"));
@@ -784,7 +784,7 @@ test("fails closed on approval packet operator notes errors", async() => {
   PlatformApiMappingBackend.getOrganizationDirectoryRemediationApprovalPacketOperatorNotes.mockResolvedValueOnce({status: "error", msg: "notes failed"});
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
-  await screen.findAllByText("mapping_review");
+  await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
   fireEvent.click(await screen.findByText("预检"));
   fireEvent.click(await screen.findByText("审批预览"));
@@ -801,7 +801,7 @@ test("fails closed on operator note persistence readiness errors", async() => {
   PlatformApiMappingBackend.getOrganizationDirectoryRemediationOperatorNotePersistenceReadiness.mockResolvedValueOnce({status: "error", msg: "readiness failed"});
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
-  await screen.findAllByText("mapping_review");
+  await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
   fireEvent.click(await screen.findByText("预检"));
   fireEvent.click(await screen.findByText("审批预览"));
@@ -820,7 +820,7 @@ test("fails closed on operator note readonly audit search errors", async() => {
   PlatformApiMappingBackend.getOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch.mockResolvedValueOnce({status: "error", msg: "search failed"});
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
-  await screen.findAllByText("mapping_review");
+  await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
   fireEvent.click(await screen.findByText("预检"));
   fireEvent.click(await screen.findByText("审批预览"));
@@ -851,7 +851,7 @@ test("shows empty operator note persistence readiness without writes", async() =
   });
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
-  await screen.findAllByText("mapping_review");
+  await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
   fireEvent.click(await screen.findByText("预检"));
   fireEvent.click(await screen.findByText("审批预览"));
@@ -885,7 +885,7 @@ test("shows empty operator note readonly audit search without writes", async() =
   });
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
-  await screen.findAllByText("mapping_review");
+  await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
   fireEvent.click(await screen.findByText("预检"));
   fireEvent.click(await screen.findByText("审批预览"));
@@ -918,7 +918,7 @@ test("shows empty approval packet operator notes without writes", async() => {
   });
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
-  await screen.findAllByText("mapping_review");
+  await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
   fireEvent.click(await screen.findByText("预检"));
   fireEvent.click(await screen.findByText("审批预览"));
@@ -946,7 +946,7 @@ test("shows empty approval packet audit history without writes", async() => {
   });
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
-  await screen.findAllByText("mapping_review");
+  await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
   fireEvent.click(await screen.findByText("预检"));
   expect(await screen.findByText("readyForManualReview: true")).toBeInTheDocument();
@@ -963,7 +963,7 @@ test("shows blocked preflight errors without repair actions", async() => {
   PlatformApiMappingBackend.getOrganizationDirectoryRemediationPreflight.mockResolvedValueOnce({status: "error", msg: "preflight failed"});
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
-  await screen.findAllByText("mapping_review");
+  await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
   expect(await screen.findByText("manual_review_only")).toBeInTheDocument();
   fireEvent.click(screen.getByText("预检"));
@@ -981,6 +981,71 @@ test("refreshes directory quality with selected filters", async() => {
 
   await wait(() => expect(PlatformApiMappingBackend.getOrganizationDirectoryQuality).toHaveBeenCalledTimes(2));
   await wait(() => expect(PlatformApiMappingBackend.getOrganizationDirectoryRemediationPlan).toHaveBeenCalledTimes(2));
+});
+
+test("shows business labels for no manageable department directory quality aliases while preserving export values", async() => {
+  PlatformApiMappingBackend.getOrganizationDirectoryQuality.mockResolvedValueOnce({
+    status: "ok",
+    data: {
+      organizationId: "org-alpha",
+      entityType: "department",
+      page: 1,
+      pageSize: 10,
+      total: 1,
+      summary: {ready: 0, warning: 0, blocked: 1, total: 1},
+      reasonAliases: ["scope_has_no_manageable_departments"],
+      boundary: "Admin producer diagnostics only.",
+      items: [{
+        entityType: "department",
+        entityId: "scope",
+        displayName: "当前范围",
+        organizationId: "org-alpha",
+        sourceType: "wecom",
+        sourceConnectionIdHash: "sha256:source",
+        lifecycleStatus: "ACTIVE",
+        qualityStatus: "blocked",
+        reasonCodes: ["scope_has_no_manageable_departments"],
+        remediationHints: ["检查组织管理范围、来源连接或管理员权限。"],
+      }],
+    },
+  });
+  PlatformApiMappingBackend.getOrganizationDirectoryRemediationPlan.mockResolvedValueOnce({
+    status: "ok",
+    data: {
+      organizationId: "org-alpha",
+      totalPlanCount: 1,
+      boundary: "organization directory remediation plan 是 Admin producer 只读诊断。",
+      plans: [{
+        planId: "sha256:scope",
+        planKey: "scope_review",
+        priority: "P0",
+        actionAlias: "scope_has_no_manageable_departments",
+        reasonCodes: ["scope_has_no_manageable_departments"],
+        affectedCounts: {department: 0, user: 0, membership: 0, total: 0},
+        sampleEntityIds: [],
+        safeSummary: "scope_has_no_manageable_departments",
+        operatorActions: ["scope_has_no_manageable_departments"],
+        blockedReason: "scope_has_no_manageable_departments",
+      }],
+      exportSummary: {
+        plans: [{
+          actionAlias: "scope_has_no_manageable_departments",
+          reasonCodes: ["scope_has_no_manageable_departments"],
+        }],
+      },
+    },
+  });
+
+  render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  expect((await screen.findAllByText("当前组织暂无可管理部门")).length).toBeGreaterThan(1);
+  expect(screen.getAllByText("检查组织管理范围、来源连接或管理员权限。").length).toBeGreaterThan(0);
+  expect(screen.queryByText("scope_has_no_manageable_departments")).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByText("导出计划"));
+
+  const exportedBlob = global.URL.createObjectURL.mock.calls[0][0];
+  expect(exportedBlob.parts.join("")).toContain("scope_has_no_manageable_departments");
 });
 
 test("keeps version and batch evidence out of the primary quality table", async() => {
@@ -1029,7 +1094,7 @@ test("handles empty plan export and action draft load failure without writes", a
 
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
-  await screen.findAllByText("mapping_review");
+  await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("导出计划"));
   expect(Setting.showMessage).toHaveBeenCalledWith("warning", "暂无可导出的修复计划");
 
@@ -1041,7 +1106,7 @@ test("keeps copy action fail-closed when clipboard is unavailable", async() => {
   Object.defineProperty(navigator, "clipboard", {value: {}, configurable: true});
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
-  await screen.findAllByText("mapping_review");
+  await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
   expect(await screen.findByText("manual_review_only")).toBeInTheDocument();
   fireEvent.click(screen.getByText("复制草案"));
@@ -1052,7 +1117,7 @@ test("keeps copy action fail-closed when clipboard is unavailable", async() => {
 test("exports sanitized remediation plan summary on the client", async() => {
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
-  await screen.findAllByText("mapping_review");
+  await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("导出计划"));
 
   expect(global.URL.createObjectURL).toHaveBeenCalled();

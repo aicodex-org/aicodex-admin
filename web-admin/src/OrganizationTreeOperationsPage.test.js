@@ -14,7 +14,7 @@
 // limitations under the License.
 
 import React from "react";
-import {fireEvent, render, screen, wait} from "@testing-library/react";
+import {act, fireEvent, render, screen, wait} from "@testing-library/react";
 import * as Setting from "./Setting";
 import * as OrganizationTreeOperationsBackend from "./backend/OrganizationTreeOperationsBackend";
 import OrganizationTreeOperationsPage from "./OrganizationTreeOperationsPage";
@@ -28,6 +28,7 @@ jest.mock("./backend/OrganizationTreeOperationsBackend", () => ({
 jest.mock("./common/select/OrganizationSelect", () => (props) => (
   <select data-testid="organization-select" value={props.initValue} onChange={event => props.onChange(event.target.value)}>
     <option value="org-alpha">测试组织</option>
+    <option value="org-beta">备用组织</option>
   </select>
 ));
 
@@ -321,6 +322,47 @@ test("passes stable search and filters to diagnostics endpoint", async() => {
   })));
 });
 
+test("keeps visible filter labels separate from stable diagnostics request values", async() => {
+  const pageRef = React.createRef();
+  render(<OrganizationTreeOperationsPage ref={pageRef} account={{owner: "org-alpha", isAdmin: true}} />);
+
+  await screen.findByText("根部门");
+  act(() => {
+    pageRef.current.setState({
+      filters: {
+        query: "",
+        lifecycleStatus: "disabled",
+        sourceConnectionStatus: "STALE",
+        freshness: "expired",
+        readModelSource: "",
+      },
+    });
+  });
+  fireEvent.click(screen.getByText("查询"));
+
+  await wait(() => expect(OrganizationTreeOperationsBackend.getOrganizationTreeOperationsDiagnostics).toHaveBeenLastCalledWith("org-alpha", expect.objectContaining({
+    lifecycleStatus: "disabled",
+    sourceConnectionStatus: "STALE",
+    freshness: "expired",
+  })));
+  expect(screen.queryByText("lifecycle_not_active")).not.toBeInTheDocument();
+});
+
+test("changes organization with reset filters and stable request payload", async() => {
+  render(<OrganizationTreeOperationsPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  await screen.findByText("根部门");
+  fireEvent.change(screen.getByTestId("organization-select"), {target: {value: "org-beta"}});
+
+  await wait(() => expect(OrganizationTreeOperationsBackend.getOrganizationTreeOperationsDiagnostics).toHaveBeenLastCalledWith("org-beta", {
+    query: "",
+    lifecycleStatus: "",
+    sourceConnectionStatus: "",
+    freshness: "",
+    readModelSource: "",
+  }));
+});
+
 test("shows fail-closed empty tree class and supports controlled refresh", async() => {
   OrganizationTreeOperationsBackend.getOrganizationTreeOperationsDiagnostics.mockResolvedValueOnce({
     status: "ok",
@@ -341,6 +383,155 @@ test("shows fail-closed empty tree class and supports controlled refresh", async
   fireEvent.click(screen.getByText("刷新诊断"));
 
   await wait(() => expect(OrganizationTreeOperationsBackend.refreshOrganizationTreeOperations).toHaveBeenCalledWith("org-alpha", "refresh_status"));
+});
+
+test("refresh read model falls back to readonly diagnostics when no payload diagnostics are returned", async() => {
+  OrganizationTreeOperationsBackend.refreshOrganizationTreeOperations.mockResolvedValueOnce({
+    status: "ok",
+    data: {
+      status: "queued",
+    },
+  });
+  render(<OrganizationTreeOperationsPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  await screen.findByText("根部门");
+  fireEvent.click(screen.getByText("重建目录视图"));
+
+  await wait(() => expect(OrganizationTreeOperationsBackend.refreshOrganizationTreeOperations).toHaveBeenCalledWith("org-alpha", "refresh_read_model"));
+  await wait(() => expect(OrganizationTreeOperationsBackend.getOrganizationTreeOperationsDiagnostics).toHaveBeenCalledTimes(2));
+  expect(Setting.showMessage).toHaveBeenCalledWith("success", "刷新状态：queued");
+});
+
+test("shows business copy for no manageable department empty state without raw aliases", async() => {
+  OrganizationTreeOperationsBackend.getOrganizationTreeOperationsDiagnostics.mockResolvedValueOnce({
+    status: "ok",
+    data: buildDiagnostics({
+      emptyTreeClass: "business_empty",
+      reason: "scope_has_no_manageable_departments",
+      nodes: [],
+      diagnostics: [{
+        subjectType: "department",
+        subjectId: "scope",
+        displayName: "当前范围",
+        reason: "scope_has_no_manageable_departments",
+        lifecycleStatus: "active",
+        sourceType: "wecom",
+        freshness: "current",
+      }],
+      summary: {
+        ...buildDiagnostics().summary,
+        visibleNodeCount: 0,
+        diagnosticItemCount: 1,
+      },
+    }),
+  });
+
+  render(<OrganizationTreeOperationsPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  await wait(() => expect(OrganizationTreeOperationsBackend.getOrganizationTreeOperationsDiagnostics).toHaveBeenCalled());
+  await wait(() => expect(screen.getAllByText("当前组织暂无可管理部门").length).toBeGreaterThan(0));
+  expect(screen.getByText("请检查组织管理范围、来源连接或管理员权限；本页仅做只读诊断，不会自动扩大可见范围。")).toBeInTheDocument();
+  expect(screen.queryByText("scope_has_no_manageable_departments")).not.toBeInTheDocument();
+  expect(screen.getAllByTestId("organization-tree-summary-card").length).toBeGreaterThan(0);
+  expect(screen.getAllByTestId("organization-tree-summary-card")[0].style.minHeight).toBe("72px");
+});
+
+test("renders readable fallback labels for unknown aliases without leaking raw snake case", async() => {
+  OrganizationTreeOperationsBackend.getOrganizationTreeOperationsDiagnostics.mockResolvedValueOnce({
+    status: "ok",
+    data: buildDiagnostics({
+      status: "blocked",
+      reason: "source_connection_permission_missing",
+      nodes: [],
+      diagnostics: [{
+        subjectType: "department",
+        subjectId: "scope",
+        displayName: "当前范围",
+        reason: "source_connection_permission_missing",
+        lifecycleStatus: "active",
+        sourceType: "wecom",
+        freshness: "current",
+      }],
+      summary: {
+        ...buildDiagnostics().summary,
+        visibleNodeCount: 0,
+        diagnosticItemCount: 1,
+      },
+    }),
+  });
+
+  render(<OrganizationTreeOperationsPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  expect(await screen.findByText("组织树当前未通过可信校验")).toBeInTheDocument();
+  await wait(() => expect(screen.getAllByText("Source Connection Permission Missing").length).toBeGreaterThan(0));
+  expect(screen.queryByText("source_connection_permission_missing")).not.toBeInTheDocument();
+});
+
+test("keeps custom empty tree class readable with readonly next-step fallback", async() => {
+  OrganizationTreeOperationsBackend.getOrganizationTreeOperationsDiagnostics.mockResolvedValueOnce({
+    status: "ok",
+    data: buildDiagnostics({
+      emptyTreeClass: "custom_business_empty",
+      reason: "",
+      nodes: [],
+      diagnostics: [{
+        subjectType: "department",
+        subjectId: "empty-reason",
+        displayName: "空范围",
+        reason: "",
+        lifecycleStatus: "active",
+        sourceType: "wecom",
+        freshness: "current",
+      }],
+      summary: {
+        ...buildDiagnostics().summary,
+        visibleNodeCount: 0,
+        diagnosticItemCount: 1,
+      },
+    }),
+  });
+
+  render(<OrganizationTreeOperationsPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  await wait(() => expect(screen.getAllByText("Custom Business Empty").length).toBeGreaterThan(0));
+  expect(screen.getByText("空范围")).toBeInTheDocument();
+  expect(screen.getByText("空树仅表示当前可管理范围为空，不代表组织树能力通过。")).toBeInTheDocument();
+  expect(screen.queryByText("custom_business_empty")).not.toBeInTheDocument();
+});
+
+test("shows compact summary fallbacks when source connection and sync batch are absent", async() => {
+  OrganizationTreeOperationsBackend.getOrganizationTreeOperationsDiagnostics.mockResolvedValueOnce({
+    status: "ok",
+    data: buildDiagnostics({
+      sourceConnections: [],
+      latestSyncBatch: null,
+      summary: {
+        ...buildDiagnostics().summary,
+        visibleNodeCount: 0,
+        diagnosticItemCount: 0,
+      },
+    }),
+  });
+
+  render(<OrganizationTreeOperationsPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  expect(await screen.findByText("无来源连接")).toBeInTheDocument();
+  expect(screen.getByText("无最近批次")).toBeInTheDocument();
+  expect(screen.getAllByTestId("organization-tree-summary-card")[0].closest(".ant-col")).toHaveClass("ant-col-xs-12");
+  fireEvent.click(screen.getByText("技术详情"));
+  expect(screen.getByText("batchStatus")).toBeInTheDocument();
+  expect(screen.getAllByText("-").length).toBeGreaterThan(0);
+});
+
+test("opens node detail drawer from readonly tree view", async() => {
+  render(<OrganizationTreeOperationsPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  await screen.findByText("树视图");
+  fireEvent.click(screen.getByText("根部门"));
+
+  expect(await screen.findByText("节点详情")).toBeInTheDocument();
+  expect(screen.getByText("batchId")).toBeInTheDocument();
+  expect(screen.getByText("sourceOrgVersion")).toBeInTheDocument();
 });
 
 test("shows stable error state when diagnostics endpoint is unauthorized", async() => {
