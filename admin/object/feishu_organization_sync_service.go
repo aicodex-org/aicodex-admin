@@ -141,11 +141,12 @@ func (s *FeishuOrganizationSyncService) FetchFullSnapshot(ctx context.Context, c
 	if sourceTenantId == "" {
 		sourceTenantId = config.AppId
 	}
-	return &FeishuOrganizationFullSnapshot{
+	snapshot := &FeishuOrganizationFullSnapshot{
 		Departments:     departments,
 		Users:           users,
 		UserDepartments: userDepartments,
-	}, sourceTenantId, nil
+	}
+	return normalizeFeishuOrganizationFullSnapshot(config, snapshot), sourceTenantId, nil
 }
 
 type FeishuOrganizationSyncRunStats struct {
@@ -578,6 +579,60 @@ func (s *FeishuOrganizationSyncService) syncTimeout() time.Duration {
 		return s.SyncTimeout
 	}
 	return 0
+}
+
+func normalizeFeishuOrganizationFullSnapshot(config *FeishuOrganizationSyncConfig, snapshot *FeishuOrganizationFullSnapshot) *FeishuOrganizationFullSnapshot {
+	if snapshot == nil {
+		snapshot = &FeishuOrganizationFullSnapshot{}
+	}
+	if !feishuSnapshotNeedsVirtualRootDepartment(snapshot) || hasFeishuSnapshotDepartment(snapshot.Departments, "0") {
+		return snapshot
+	}
+	snapshot.Departments = append([]FeishuDepartmentSnapshot{{
+		Id:   "0",
+		Name: feishuVirtualRootDepartmentName(config),
+	}}, snapshot.Departments...)
+	return snapshot
+}
+
+func feishuSnapshotNeedsVirtualRootDepartment(snapshot *FeishuOrganizationFullSnapshot) bool {
+	for _, membership := range snapshot.UserDepartments {
+		if strings.TrimSpace(membership.DepartmentId) == "0" {
+			return true
+		}
+	}
+	for _, user := range snapshot.Users {
+		if strings.TrimSpace(user.MainDepartmentId) == "0" {
+			return true
+		}
+		for _, departmentId := range user.Departments {
+			if strings.TrimSpace(departmentId) == "0" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func hasFeishuSnapshotDepartment(departments []FeishuDepartmentSnapshot, departmentId string) bool {
+	for _, department := range departments {
+		if strings.TrimSpace(department.Id) == departmentId {
+			return true
+		}
+	}
+	return false
+}
+
+func feishuVirtualRootDepartmentName(config *FeishuOrganizationSyncConfig) string {
+	if config == nil {
+		return "组织根部门"
+	}
+	if ormer != nil && ormer.Engine != nil {
+		if organization, err := getOrganization("admin", config.Organization); err == nil && organization != nil {
+			return firstNonEmpty(organization.DisplayName, organization.Name, config.Organization, "组织根部门")
+		}
+	}
+	return firstNonEmpty(config.Organization, "组织根部门")
 }
 
 func validateFeishuOrganizationSyncRunExecutionConfig(config *FeishuOrganizationSyncConfig) error {

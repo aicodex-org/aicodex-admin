@@ -209,6 +209,42 @@ func TestFeishuOrganizationSyncDryRunPreviewClassifiesMembershipEdges(t *testing
 	}
 }
 
+func TestFeishuOrganizationSyncDryRunPreviewTreatsRootDepartmentMembershipAsValid(t *testing.T) {
+	setupFeishuOrganizationSyncSqlite(t)
+	service := &FeishuOrganizationSyncDryRunPreviewService{}
+	preview, err := service.buildPreview(&FeishuOrganizationSyncConfig{
+		Organization: "engineering",
+		AppId:        "cli-a",
+		AppSecret:    "fixture-secret",
+		EndpointMode: FeishuEndpointModeDomestic,
+		TenantKey:    "tenant-a",
+		IsEnabled:    true,
+	}, &FeishuOrganizationFullSnapshot{
+		Departments: []FeishuDepartmentSnapshot{},
+		Users: []FeishuUserSnapshot{
+			{UserId: "ou-root", Name: "Root User", Departments: []string{"0"}, MainDepartmentId: "0"},
+		},
+		UserDepartments: []FeishuUserDepartmentSnapshot{
+			{FeishuUserId: "ou-root", DepartmentId: "0", IsMain: true},
+		},
+	}, "tenant-a")
+	if err != nil {
+		t.Fatalf("buildPreview() error = %v", err)
+	}
+	assertFeishuDryRunCounts(t, "departments", preview.Diff.Departments, FeishuOrganizationSyncDryRunDiffCounts{
+		ToCreate: 1,
+	})
+	assertFeishuDryRunCounts(t, "memberships", preview.Diff.Memberships, FeishuOrganizationSyncDryRunDiffCounts{
+		ToCreate: 1,
+	})
+	if preview.ReasonCounts[feishuDryRunReasonUnmappedDepartment] != 0 {
+		t.Fatalf("unmapped root department count = %d, want 0; all=%+v", preview.ReasonCounts[feishuDryRunReasonUnmappedDepartment], preview.ReasonCounts)
+	}
+	if preview.SnapshotStats.DepartmentCount != 1 || preview.SnapshotStats.MembershipCount != 1 {
+		t.Fatalf("snapshot stats = %+v, want root department and one membership", preview.SnapshotStats)
+	}
+}
+
 func TestFeishuOrganizationSyncDryRunPreviewValidationAndDiagnostics(t *testing.T) {
 	tests := []struct {
 		name          string

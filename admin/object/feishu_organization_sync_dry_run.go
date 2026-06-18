@@ -123,6 +123,7 @@ func (s *FeishuOrganizationSyncDryRunPreviewService) buildPreview(config *Feishu
 	if snapshot == nil {
 		snapshot = &FeishuOrganizationFullSnapshot{}
 	}
+	snapshot = normalizeFeishuOrganizationFullSnapshot(config, snapshot)
 	preview := &FeishuOrganizationSyncDryRunPreview{
 		Status: FeishuOrganizationSyncDryRunPreviewStatusSucceeded,
 		Source: FeishuOrganizationSyncDryRunSource{

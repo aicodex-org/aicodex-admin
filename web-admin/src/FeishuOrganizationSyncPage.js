@@ -149,6 +149,19 @@ const handoffBlockedReasonLabels = {
   source_connection_missing: "同步连接缺失",
   config_disabled: "同步配置未启用",
 };
+const dryRunReasonLabels = {
+  duplicate_external_identifier: "外部标识重复",
+  missing_department_identifier: "部门标识缺失",
+  missing_parent_department: "上级部门未返回",
+  missing_user_identifier: "用户标识缺失",
+  unmapped_user: "成员未返回",
+  unmapped_department: "成员所属部门未返回",
+  would_soft_disable: "将软禁缺失数据",
+  contact_permission_missing: "通讯录权限不足",
+  invalid_app_credentials: "应用凭证无效",
+  credential_missing: "凭证未配置",
+  runtime_authorization_required: "需要运行态授权",
+};
 
 class FeishuOrganizationSyncPage extends React.Component {
   constructor(props) {
@@ -548,7 +561,18 @@ class FeishuOrganizationSyncPage extends React.Component {
   }
 
   formatPreviewCounts(counts = {}) {
-    return `新增 ${counts.toCreate || 0} / 更新 ${counts.toUpdate || 0} / 软禁 ${counts.toSoftDisable || 0} / 冲突 ${counts.conflict || 0} / 无效 ${counts.invalid || 0}`;
+    const parts = [
+      `新增 ${counts.toCreate || 0}`,
+      `更新 ${counts.toUpdate || 0}`,
+      `软禁 ${counts.toSoftDisable || 0}`,
+    ];
+    if (Number(counts.conflict || 0) > 0) {
+      parts.push(`冲突 ${counts.conflict || 0}`);
+    }
+    if (Number(counts.invalid || 0) > 0) {
+      parts.push(`无效 ${counts.invalid || 0}`);
+    }
+    return parts.join(" / ");
   }
 
   renderPreviewReasonCounts(reasonCounts) {
@@ -558,7 +582,7 @@ class FeishuOrganizationSyncPage extends React.Component {
     }
     return (
       <Space size={4} wrap>
-        {entries.map(([reason, count]) => <Tag key={reason}>{reason}: {count}</Tag>)}
+        {entries.map(([reason, count]) => <Tag key={reason}>{dryRunReasonLabels[reason] || reason}: {count}</Tag>)}
       </Space>
     );
   }
@@ -1290,7 +1314,7 @@ class FeishuOrganizationSyncPage extends React.Component {
       {title: "诊断摘要", key: "summary", render: (_, record) => (
         <Space direction="vertical" size={4} style={{width: "100%"}}>
           <Space size={4} wrap>
-            {record.diagnosticAlias && <Tag>{record.diagnosticAlias}</Tag>}
+            {record.diagnosticAlias && <Tag>{dryRunReasonLabels[record.diagnosticAlias] || record.diagnosticAlias}</Tag>}
             <Tag>{`${record.retentionDays || 0} 天`}</Tag>
             <Tag color={record.redactionApplied ? "green" : "default"}>{record.redactionApplied ? "已脱敏" : "未标记"}</Tag>
           </Space>
@@ -1301,32 +1325,8 @@ class FeishuOrganizationSyncPage extends React.Component {
       )},
       {title: "操作", key: "action", width: 90, render: (_, record) => <Button size="small" aria-label={`dry-run-history-detail-${record.name}`} onClick={() => this.openDryRunHistoryDetail(record)}>详情</Button>},
     ];
-    const historyCount = this.state.dryRunHistories.length;
-    const latestHistory = this.state.dryRunHistories[0];
-    const historySummary = historyCount > 0 ? `最近 ${historyCount} 次 dry-run 预览` : "暂无 Dry-run 历史";
     return (
       <>
-        <Row align="middle" justify="space-between" style={{marginBottom: 12}}>
-          <Col>
-            <Space direction="vertical" size={2}>
-              <Text strong>预览历史</Text>
-              <Text type={this.state.dryRunHistoryError ? "danger" : "secondary"}>{this.state.dryRunHistoryError || historySummary}</Text>
-              {latestHistory?.createdAt && <Text type="secondary">{`最新预览：${this.formatRunTime(latestHistory.createdAt)}`}</Text>}
-            </Space>
-          </Col>
-          <Col>
-            <Space wrap>
-              <Button onClick={() => this.setState({dryRunHistoryOpen: true})}>查看预览历史</Button>
-              <Button
-                icon={<ReloadOutlined />}
-                loading={this.state.dryRunHistoryLoading}
-                onClick={() => this.refreshDryRunHistory().catch(() => {})}
-              >
-                刷新
-              </Button>
-            </Space>
-          </Col>
-        </Row>
         <Modal
           title="Dry-run 历史"
           width={960}
@@ -1700,6 +1700,7 @@ class FeishuOrganizationSyncPage extends React.Component {
           <Button icon={<SaveOutlined />} type="primary" loading={this.state.saving} onClick={() => this.saveConfig()}>{i18next.t("general:Save")}</Button>
           <Button icon={<ToolOutlined />} loading={this.state.testing} onClick={() => this.testConfig()}>测试连接</Button>
           <Button icon={<CloudSyncOutlined />} loading={this.state.previewing} disabled={!config.isEnabled} onClick={() => this.previewSyncImpact()}>预览影响</Button>
+          <Button icon={<ReloadOutlined />} loading={this.state.dryRunHistoryLoading} onClick={() => this.setState({dryRunHistoryOpen: true})}>查看预览历史</Button>
           <Button icon={<PlayCircleOutlined />} loading={this.state.syncing} disabled={!config.isEnabled || hasRunningRuns} onClick={() => this.startSync()}>{hasRunningRuns ? "同步进行中" : "开始全量同步"}</Button>
         </Space>
 

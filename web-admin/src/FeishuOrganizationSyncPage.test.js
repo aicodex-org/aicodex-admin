@@ -289,22 +289,48 @@ test("runs dry-run preview and renders compact diff summary", async() => {
   expect(screen.getByText("app-abc / tenant-def")).toBeInTheDocument();
   expect(screen.getAllByText(/预览时间/).length).toBeGreaterThan(0);
   expect(screen.getByText("部门 2 / 用户 3 / 关系 4")).toBeInTheDocument();
-  expect(screen.getByText("新增 1 / 更新 1 / 软禁 0 / 冲突 0 / 无效 0")).toBeInTheDocument();
-  expect(screen.getByText("新增 2 / 更新 0 / 软禁 1 / 冲突 0 / 无效 0")).toBeInTheDocument();
-  expect(screen.getByText("would_soft_disable: 2")).toBeInTheDocument();
+  expect(screen.getByText("新增 1 / 更新 1 / 软禁 0")).toBeInTheDocument();
+  expect(screen.getByText("新增 2 / 更新 0 / 软禁 1")).toBeInTheDocument();
+  expect(screen.getByText("将软禁缺失数据: 2")).toBeInTheDocument();
+  expect(screen.queryByText("新增 1 / 更新 1 / 软禁 0 / 冲突 0 / 无效 0")).not.toBeInTheDocument();
 });
 
-test("renders dry-run history summary and opens safe detail modal", async() => {
+test("renders dry-run reason counts with safe Chinese labels", async() => {
+  FeishuOrganizationSyncBackend.dryRunFeishuOrganizationSyncPreview.mockResolvedValueOnce({
+    status: "ok",
+    data: {
+      status: "succeeded",
+      source: {appAlias: "app-abc", tenantAlias: "tenant-def", previewedAt: "2026-06-15T10:00:00Z"},
+      snapshotStats: {departmentCount: 0, userCount: 56, membershipCount: 56},
+      diff: {
+        departments: {toCreate: 0, toUpdate: 0, toSoftDisable: 0, unchanged: 0, conflict: 0, invalid: 0},
+        users: {toCreate: 0, toUpdate: 56, toSoftDisable: 0, unchanged: 0, conflict: 0, invalid: 0},
+        memberships: {toCreate: 0, toUpdate: 0, toSoftDisable: 0, unchanged: 0, conflict: 0, invalid: 56},
+      },
+      reasonCounts: {unmapped_department: 56},
+      diagnostics: {safeSummary: "preview completed"},
+    },
+  });
+  render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+
+  fireEvent.click(await screen.findByText("预览影响"));
+
+  expect(await screen.findByText("成员所属部门未返回: 56")).toBeInTheDocument();
+  expect(screen.queryByText(/unmapped_department/)).not.toBeInTheDocument();
+});
+
+test("opens dry-run history modal and safe detail modal", async() => {
   render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
   expect(await screen.findByText("查看预览历史")).toBeInTheDocument();
-  expect(screen.getByText(/最近 1 次 dry-run 预览/)).toBeInTheDocument();
+  expect(screen.queryByText(/最近 1 次 dry-run 预览/)).not.toBeInTheDocument();
   expect(screen.queryByText("history-1")).not.toBeInTheDocument();
 
   fireEvent.click(screen.getByText("查看预览历史"));
 
   expect(screen.getByRole("dialog", {name: "Dry-run 历史"})).toBeInTheDocument();
   expect(screen.getByText("history-1")).toBeInTheDocument();
+  expect(screen.getByText("通讯录权限不足")).toBeInTheDocument();
   expect(screen.getByText("permission denied user_id=***")).toBeInTheDocument();
 
   fireEvent.click(screen.getByLabelText("dry-run-history-detail-history-1"));
@@ -313,7 +339,7 @@ test("renders dry-run history summary and opens safe detail modal", async() => {
   expect(await screen.findByText("Dry-run 详情")).toBeInTheDocument();
   expect(screen.getByText(/request-abcdef/)).toBeInTheDocument();
   expect(screen.getByText(/operator-abcdef/)).toBeInTheDocument();
-  expect(screen.getByText("contact_permission_missing: 1")).toBeInTheDocument();
+  expect(screen.getByText("通讯录权限不足: 1")).toBeInTheDocument();
   expect(screen.queryByText(/alice@example\.test/)).not.toBeInTheDocument();
   expect(screen.queryByText(/13800138000/)).not.toBeInTheDocument();
 });
@@ -383,7 +409,7 @@ test("keeps dry-run history off the main page and opens it in a modal", async() 
   render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
   expect(await screen.findByText("查看预览历史")).toBeInTheDocument();
-  expect(screen.getByText("最近 1 次 dry-run 预览")).toBeInTheDocument();
+  expect(screen.queryByText("最近 1 次 dry-run 预览")).not.toBeInTheDocument();
   expect(screen.queryByRole("button", {name: /collapsed Dry-run 历史/})).not.toBeInTheDocument();
   expect(screen.queryByRole("columnheader", {name: "记录 ID"})).not.toBeInTheDocument();
 
@@ -392,6 +418,7 @@ test("keeps dry-run history off the main page and opens it in a modal", async() 
   expect(screen.getByRole("dialog", {name: "Dry-run 历史"})).toBeInTheDocument();
   expect(document.body.querySelector(".ant-drawer")).not.toBeInTheDocument();
   expect(screen.getByRole("columnheader", {name: "记录 ID"})).toBeInTheDocument();
+  expect(screen.getByText("通讯录权限不足")).toBeInTheDocument();
   expect(screen.getByText("permission denied user_id=***")).toBeInTheDocument();
 });
 

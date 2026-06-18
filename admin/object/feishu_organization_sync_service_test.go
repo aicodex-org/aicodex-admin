@@ -144,6 +144,44 @@ func TestFeishuOrganizationSyncServiceFetchFullSnapshotUsesTenantKeyFromUser(t *
 	}
 }
 
+func TestFeishuOrganizationSyncServiceFetchFullSnapshotAddsRootDepartmentForRootMembers(t *testing.T) {
+	setupFeishuOrganizationSyncSqlite(t)
+	if _, err := ormer.Engine.Insert(&Organization{
+		Owner:       "admin",
+		Name:        "feishu-test",
+		DisplayName: "飞书测试企业",
+	}); err != nil {
+		t.Fatalf("insert organization error = %v", err)
+	}
+	client := &fakeFeishuSnapshotClient{
+		token:       &FeishuAccessToken{TenantAccessToken: "token"},
+		departments: []FeishuDepartmentSnapshot{},
+		users: []FeishuUserSnapshot{{
+			UserId:           "ou_root",
+			TenantKey:        "tenant-a",
+			Departments:      []string{"0"},
+			MainDepartmentId: "0",
+		}},
+	}
+	service := &FeishuOrganizationSyncService{}
+	snapshot, _, err := service.FetchFullSnapshot(context.Background(), &FeishuOrganizationSyncConfig{
+		Organization: "feishu-test",
+		AppId:        "cli_1",
+	}, client)
+	if err != nil {
+		t.Fatalf("FetchFullSnapshot() error = %v", err)
+	}
+	if len(snapshot.Departments) != 1 {
+		t.Fatalf("departments = %+v, want one virtual root department", snapshot.Departments)
+	}
+	if snapshot.Departments[0].Id != "0" || snapshot.Departments[0].ParentId != "" || snapshot.Departments[0].Name != "飞书测试企业" {
+		t.Fatalf("root department = %+v, want id=0 display name from organization", snapshot.Departments[0])
+	}
+	if len(snapshot.UserDepartments) != 1 || snapshot.UserDepartments[0].DepartmentId != "0" || !snapshot.UserDepartments[0].IsMain {
+		t.Fatalf("user departments = %+v, want root main membership", snapshot.UserDepartments)
+	}
+}
+
 func TestFeishuOrganizationSyncServiceFetchFullSnapshotFallsBackToAppId(t *testing.T) {
 	client := &fakeFeishuSnapshotClient{
 		token:       &FeishuAccessToken{TenantAccessToken: "token"},
@@ -826,6 +864,56 @@ func TestFeishuOrganizationSyncServiceExecuteRunSuccessUpdatesStagesAndStats(t *
 	if configStore.run == nil || configStore.run.Name != "run-execute" {
 		t.Fatalf("config store run = %+v, want run-execute", configStore.run)
 	}
+}
+
+func TestFeishuOrganizationSyncServiceExecuteRunCreatesRootDepartmentMembership(t *testing.T) {
+	setupFeishuOrganizationSyncSqlite(t)
+	now := time.Date(2026, 6, 15, 10, 30, 0, 0, time.UTC)
+	runStore := &fakeFeishuRunStore{}
+	service := &FeishuOrganizationSyncService{
+		Store: runStore,
+		Now:   func() time.Time { return now },
+		NewSnapshotClient: func(appId string, appSecret string, endpointMode string) FeishuOrganizationSnapshotClient {
+			return &fakeFeishuSnapshotClient{
+				token:       &FeishuAccessToken{TenantAccessToken: "token"},
+				departments: []FeishuDepartmentSnapshot{},
+				users: []FeishuUserSnapshot{{
+					UserId:           "ou_root",
+					TenantKey:        "tenant-a",
+					Name:             "Root User",
+					Departments:      []string{"0"},
+					MainDepartmentId: "0",
+				}},
+			}
+		},
+	}
+	config := &FeishuOrganizationSyncConfig{
+		Organization: "engineering",
+		AppId:        "cli_1",
+		AppSecret:    "secret",
+		EndpointMode: FeishuEndpointModeDomestic,
+		IsEnabled:    true,
+	}
+	run := &FeishuOrganizationSyncRun{Owner: "engineering", Name: "run-root", Organization: "engineering", AppId: "cli_1"}
+
+	if err := service.ExecuteRun(context.Background(), config, run); err != nil {
+		t.Fatalf("ExecuteRun() error = %v", err)
+	}
+	if run.DepartmentCreatedCount != 1 || run.UserCreatedCount != 1 || run.MembershipUpdatedCount != 1 {
+		t.Fatalf("run counts dept=%d user=%d membership=%d, want 1/1/1", run.DepartmentCreatedCount, run.UserCreatedCount, run.MembershipUpdatedCount)
+	}
+	rootMapping, err := getFeishuDepartmentMapping("engineering", "cli_1", "0")
+	if err != nil || rootMapping == nil {
+		t.Fatalf("root department mapping mapping=%+v err=%v, want mapping", rootMapping, err)
+	}
+	if rootMapping.DisplayName != "engineering" {
+		t.Fatalf("root display name = %q, want engineering", rootMapping.DisplayName)
+	}
+	membership, err := getFeishuUserDepartment("engineering", "cli_1", "ou_root", "0")
+	if err != nil || membership == nil || !membership.IsEnabled {
+		t.Fatalf("root membership=%+v err=%v, want enabled membership", membership, err)
+	}
+	assertFeishuProjectionCounts(t, GetSourceConnectionId("engineering", SourceTypeLark, "tenant-a"), 1, 1, 1, 2)
 }
 
 func TestFeishuOrganizationSyncServiceExecuteRunFailureRedactsSecretAndProjectsBatch(t *testing.T) {
