@@ -49,7 +49,8 @@ describe("NavItemTree enterprise identity configuration", () => {
       "商业付款",
     ]);
     expect(treeData[0].children.map(group => group.title)).not.toContain("Gateway 投影");
-    expect(leafKeys(getGroup(treeData, "中心总览"))).toEqual(["/", "/apps", "/shortcuts"]);
+    expect(leafKeys(getGroup(treeData, "中心总览"))).toEqual(["/", "/shortcuts"]);
+    expect(leafKeys(getGroup(treeData, "中心总览"))).not.toContain("/apps");
     expect(leafKeys(getGroup(treeData, "身份源"))).toEqual(
       expect.arrayContaining(["/providers", "/wecom-org-sync", "/feishu-org-sync", "/syncers"])
     );
@@ -111,7 +112,8 @@ describe("NavItemTree enterprise identity configuration", () => {
       "Business & Payments",
     ]);
     expect(treeData[0].children.map(group => group.title)).not.toContain("Gateway Projection");
-    expect(leafKeys(getGroup(treeData, "Overview"))).toEqual(["/", "/apps", "/shortcuts"]);
+    expect(leafKeys(getGroup(treeData, "Overview"))).toEqual(["/", "/shortcuts"]);
+    expect(leafKeys(getGroup(treeData, "Overview"))).not.toContain("/apps");
     expect(leafKeys(getGroup(treeData, "Identity Sources"))).toEqual(
       expect.arrayContaining(["/providers", "/wecom-org-sync", "/feishu-org-sync", "/syncers"])
     );

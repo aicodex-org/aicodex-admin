@@ -53,7 +53,7 @@ function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin
       icon: <HomeTwoTone twoToneColor={twoToneColor} />,
       children: [
         {key: "/", label: i18next.t("general:Enterprise Identity Overview"), to: "/", matchPrefixes: ["/"]},
-        {key: "/apps", label: i18next.t("general:Apps"), to: "/apps", matchPrefixes: ["/apps"]},
+        {key: "/apps", label: i18next.t("general:Application Portal"), to: "/apps", matchPrefixes: ["/apps"], visible: !isLocalAdmin},
         {key: "/shortcuts", label: i18next.t("general:Shortcuts"), to: "/shortcuts", matchPrefixes: ["/shortcuts"]},
       ],
     },
@@ -167,6 +167,10 @@ function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin
   return groups;
 }
 
+function isNavigationItemVisible(item) {
+  return item.visible !== false;
+}
+
 export function buildEnterpriseNavigationConfigTreeData() {
   const groups = buildEnterpriseNavigationGroupDefinitions({isAdmin: true, isLocalAdmin: true});
 
@@ -177,10 +181,12 @@ export function buildEnterpriseNavigationConfigTreeData() {
       children: groups.map((group) => ({
         title: group.label,
         key: `${group.key}-top`,
-        children: group.children.map((item) => ({
-          title: item.label,
-          key: item.key,
-        })),
+        children: group.children
+          .filter(isNavigationItemVisible)
+          .map((item) => ({
+            title: item.label,
+            key: item.key,
+          })),
       })),
     },
   ];
@@ -206,7 +212,7 @@ export function buildEnterpriseNavigationGroups({account, themeData}) {
     .map((group) => ({
       ...group,
       children: group.children.filter((item) => {
-        if (item.visible === false) {
+        if (!isNavigationItemVisible(item)) {
           return false;
         }
 

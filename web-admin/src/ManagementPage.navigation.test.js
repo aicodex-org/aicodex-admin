@@ -17,6 +17,15 @@ const localAdminAccount = {
   },
 };
 
+const nonLocalAdminAccount = {
+  owner: "demo",
+  isAdmin: false,
+  organization: {
+    navItems: [],
+    userNavItems: ["all"],
+  },
+};
+
 async function useTestLanguage(language) {
   if (!i18next.isInitialized) {
     await i18next.init({
@@ -58,9 +67,11 @@ describe("enterprise identity navigation", () => {
     ]);
     expect(groups.map(group => group.label)).not.toContain("Gateway 投影");
     expect(groups.find(group => group.key === "/overview").children.map(item => item.key))
-      .toEqual(["/", "/apps", "/shortcuts"]);
+      .toEqual(["/", "/shortcuts"]);
     expect(groups.find(group => group.key === "/overview").children.map(item => item.key))
       .not.toEqual(expect.arrayContaining(["/identity-assets", "/access-wizard", "/governance-tasks"]));
+    expect(groups.find(group => group.key === "/overview").children.map(item => item.key))
+      .not.toContain("/apps");
     expect(groups.find(group => group.key === "/overview").children.find(item => item.key === "/").label)
       .toBe("企业认证总览");
     expect(groups.find(group => group.key === "/identity-sources").children.map(item => item.key))
@@ -112,7 +123,9 @@ describe("enterprise identity navigation", () => {
     expect(groups.find(group => group.key === "/overview").children.find(item => item.key === "/").label)
       .toBe("Enterprise Identity Overview");
     expect(groups.find(group => group.key === "/overview").children.map(item => item.key))
-      .toEqual(["/", "/apps", "/shortcuts"]);
+      .toEqual(["/", "/shortcuts"]);
+    expect(groups.find(group => group.key === "/overview").children.map(item => item.key))
+      .not.toContain("/apps");
     expect(groups.find(group => group.key === "/identity-sources").children.find(item => item.key === "/providers").label)
       .toBe("Identity Source Center");
     expect(groups.find(group => group.key === "/identity-sources").children.find(item => item.key === "/wecom-org-sync").label)
@@ -132,6 +145,33 @@ describe("enterprise identity navigation", () => {
     expect(groups.find(group => group.key === "/audit-operations").children.map(item => item.label))
       .toEqual(["Session Review", "Audit Records", "Token Review", "Verification Review", "Risk Actions"]);
     expect(groups.map(group => group.label).join("")).not.toMatch(/[\u4e00-\u9fff]/);
+  });
+
+  test("keeps legacy app portal available for non-local-admin fallback with explicit portal wording", () => {
+    const groups = buildEnterpriseNavigationGroups({
+      account: nonLocalAdminAccount,
+      themeData: {colorPrimary: "#1677ff"},
+    });
+    const overviewItems = groups.find(group => group.key === "/overview").children;
+
+    expect(overviewItems.map(item => item.key)).toEqual(["/", "/apps", "/shortcuts"]);
+    expect(overviewItems.find(item => item.key === "/apps").label).toBe("应用门户");
+    expect(findNavigationSelection("/apps", groups)).toEqual({
+      groupKey: "/overview",
+      itemKey: "/apps",
+    });
+  });
+
+  test("localizes the legacy app portal fallback label for non-local-admin users", async() => {
+    await useTestLanguage("en");
+
+    const groups = buildEnterpriseNavigationGroups({
+      account: nonLocalAdminAccount,
+      themeData: {colorPrimary: "#1677ff"},
+    });
+    const overviewItems = groups.find(group => group.key === "/overview").children;
+
+    expect(overviewItems.find(item => item.key === "/apps").label).toBe("Application Portal");
   });
 
   test("keeps leaf route keys compatible with navItems filtering and selection", () => {
@@ -174,10 +214,13 @@ describe("enterprise identity navigation", () => {
   test("reuses runtime IA in organization navigation configuration tree", () => {
     const tree = buildEnterpriseNavigationConfigTreeData();
     const rootChildren = tree[0].children;
+    const overview = rootChildren.find(node => node.key === "/overview-top");
     const organizationIdentity = rootChildren.find(node => node.key === "/organization-identity-top");
     const identitySources = rootChildren.find(node => node.key === "/identity-sources-top");
     const authorizationGovernance = rootChildren.find(node => node.key === "/authorization-governance-top");
 
+    expect(overview.children.map(item => item.key)).toEqual(["/", "/shortcuts"]);
+    expect(overview.children.map(item => item.key)).not.toContain("/apps");
     expect(organizationIdentity.children.map(item => item.key)).toEqual([
       "/organizations",
       "/groups",
