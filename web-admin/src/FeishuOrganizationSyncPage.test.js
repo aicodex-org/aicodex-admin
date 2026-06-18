@@ -4,6 +4,7 @@ import React from "react";
 import {fireEvent, render, screen} from "@testing-library/react";
 import FeishuOrganizationSyncPage from "./FeishuOrganizationSyncPage";
 import * as FeishuOrganizationSyncBackend from "./backend/FeishuOrganizationSyncBackend";
+import * as Setting from "./Setting";
 
 jest.mock("./backend/FeishuOrganizationSyncBackend", () => ({
   getFeishuOrganizationSyncConfig: jest.fn(),
@@ -38,6 +39,7 @@ beforeEach(() => {
     writable: true,
     value: mockMatchMedia,
   });
+  jest.spyOn(Setting, "showMessage").mockImplementation(() => {});
   FeishuOrganizationSyncBackend.getFeishuOrganizationSyncConfig.mockResolvedValue({
     status: "ok",
     data: {
@@ -225,8 +227,14 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  jest.restoreAllMocks();
   jest.clearAllMocks();
 });
+
+async function flushPromises() {
+  await Promise.resolve();
+  await Promise.resolve();
+}
 
 test("renders Feishu organization sync config and endpoint mode", async() => {
   render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
@@ -237,9 +245,54 @@ test("renders Feishu organization sync config and endpoint mode", async() => {
   expect(screen.getByText("飞书组织架构同步")).toBeInTheDocument();
   expect(screen.getByText("服务区域")).toBeInTheDocument();
   expect(screen.getByText("飞书（中国大陆）")).toBeInTheDocument();
+  expect(screen.getByText("未启用定时同步")).toBeInTheDocument();
+  expect(screen.queryByText("Cron 表达式")).not.toBeInTheDocument();
+  expect(screen.queryByText("时区")).not.toBeInTheDocument();
+  expect(screen.getByDisplayValue("cli_123")).toBeInTheDocument();
+});
+
+test("expands Feishu schedule fields only after enabling scheduled sync", async() => {
+  render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+
+  expect(await screen.findByText("定时同步")).toBeInTheDocument();
+  expect(screen.queryByDisplayValue("0 2 * * *")).not.toBeInTheDocument();
+
+  const scheduleSwitch = screen.getByText("启用定时同步").closest(".ant-space")?.querySelector("button");
+  fireEvent.click(scheduleSwitch);
+
   expect(screen.getByText("Cron 表达式")).toBeInTheDocument();
   expect(screen.getByText("时区")).toBeInTheDocument();
-  expect(screen.getByDisplayValue("cli_123")).toBeInTheDocument();
+});
+
+test("renders Feishu scheduled sync details after enabling schedule", async() => {
+  FeishuOrganizationSyncBackend.getFeishuOrganizationSyncConfig.mockResolvedValueOnce({
+    status: "ok",
+    data: {
+      config: {
+        organization: "engineering",
+        appId: "cli_123",
+        appSecret: "***",
+        endpointMode: "feishu",
+        isEnabled: true,
+        softDisableMissingData: true,
+        scheduleEnabled: true,
+        scheduleCron: "0 2 * * *",
+        scheduleTimezone: "Asia/Shanghai",
+        scheduleLastFireAt: "2026-06-15T10:00:00Z",
+        scheduleLastStatus: "failed",
+        scheduleLastErrorText: "network timeout",
+      },
+    },
+  });
+
+  render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+
+  expect(await screen.findByText("定时同步")).toBeInTheDocument();
+  expect(screen.queryByText("未启用定时同步")).not.toBeInTheDocument();
+  expect(screen.getByText("Cron 表达式")).toBeInTheDocument();
+  expect(screen.getByText("时区")).toBeInTheDocument();
+  expect(screen.getByText(/最近调度：/)).toBeInTheDocument();
+  expect(screen.getByText("最近结果：failed，network timeout")).toBeInTheDocument();
 });
 
 test("renders run diagnostics with compact labels and redacted summary", async() => {
@@ -509,6 +562,11 @@ test("keeps dry-run history off the main page and opens it in a modal", async() 
 });
 
 test("renders sync runs without forcing horizontal table scroll", async() => {
+  const writeText = jest.fn(() => Promise.resolve());
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: {writeText},
+  });
   FeishuOrganizationSyncBackend.getFeishuOrganizationSyncRuns.mockResolvedValueOnce({
     status: "ok",
     data: [{
@@ -534,6 +592,13 @@ test("renders sync runs without forcing horizontal table scroll", async() => {
   expect(await screen.findByText("同步记录")).toBeInTheDocument();
   expect(screen.queryByText("feishu-sync-run-1781681971079340586")).not.toBeInTheDocument();
   expect(screen.getByText("序号")).toBeInTheDocument();
+  const runIndexCell = container.querySelector("tbody tr[data-row-key='feishu-sync-run-1781681971079340586'] td:first-child");
+  expect(runIndexCell?.textContent).toBe("1");
+  expect(container.querySelector(".ant-typography-copy")).not.toBeInTheDocument();
+  const runIndexButton = runIndexCell?.querySelector("[role='button']");
+  fireEvent.click(runIndexButton);
+  fireEvent.keyDown(runIndexButton, {key: " "});
+  expect(writeText).toHaveBeenCalledWith("feishu-sync-run-1781681971079340586");
   expect(screen.queryByText("运行 ID")).not.toBeInTheDocument();
   expect(screen.getByText("触发方式")).toBeInTheDocument();
   expect(screen.getByText("部门")).toBeInTheDocument();
@@ -547,6 +612,60 @@ test("renders sync runs without forcing horizontal table scroll", async() => {
   const horizontallyScrollableTables = [...container.querySelectorAll(".ant-table-content")]
     .filter(element => element.getAttribute("style")?.includes("overflow-x: auto"));
   expect(horizontallyScrollableTables).toHaveLength(0);
+});
+
+test("copies Feishu run ID through keyboard, fallback, and failure paths", async() => {
+  const originalClipboard = navigator.clipboard;
+  const originalExecCommand = document.execCommand;
+  const page = new FeishuOrganizationSyncPage({account: {owner: "engineering", isAdmin: true}});
+  const writeText = jest.fn(() => Promise.resolve());
+
+  try {
+    page.copyRunId("");
+    expect(Setting.showMessage).not.toHaveBeenCalled();
+
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {writeText},
+    });
+
+    const event = {key: "Enter", preventDefault: jest.fn()};
+    page.handleRunIndexKeyDown(event, "run-keyboard");
+
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(writeText).toHaveBeenCalledWith("run-keyboard");
+    await flushPromises();
+    expect(Setting.showMessage).toHaveBeenCalledWith("success", "已复制运行 ID");
+
+    writeText.mockRejectedValueOnce(new Error("clipboard denied"));
+    page.copyRunId("run-failed");
+    await flushPromises();
+    expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("复制失败："));
+
+    const execCommand = jest.fn(() => true);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: undefined,
+    });
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: execCommand,
+    });
+
+    page.copyRunId("run-fallback");
+
+    expect(execCommand).toHaveBeenCalledWith("copy");
+    expect(Setting.showMessage).toHaveBeenCalledWith("success", "已复制运行 ID");
+  } finally {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: originalClipboard,
+    });
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: originalExecCommand,
+    });
+  }
 });
 
 test("copies handoff evidence JSON without raw tenant identifiers", async() => {

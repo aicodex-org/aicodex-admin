@@ -598,11 +598,43 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
     return (current - 1) * pageSize + index + 1;
   }
 
+  copyRunId(runId: string) {
+    if (!runId) {
+      return;
+    }
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(runId)
+        .then(() => Setting.showMessage("success", "已复制运行 ID"))
+        .catch(error => Setting.showMessage("error", `复制失败：${error}`));
+      return;
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = runId;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    document.body.removeChild(textarea);
+    Setting.showMessage("success", "已复制运行 ID");
+  }
+
+  handleRunIndexKeyDown(event: React.KeyboardEvent<HTMLElement>, runId: string) {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      this.copyRunId(runId);
+    }
+  }
+
   renderRunIndex(record: WecomOrganizationSyncRun, index: number) {
     const runId = record.name || "";
     return (
-      <Tooltip title={runId ? `运行 ID：${runId}` : "运行 ID：-"}>
-        <Text copyable={runId ? {text: runId, tooltips: ["复制运行 ID", "已复制"]} : false}>
+      <Tooltip title={runId ? `运行 ID：${runId}，点击复制` : "运行 ID：-"}>
+        <Text
+          role={runId ? "button" : undefined}
+          tabIndex={runId ? 0 : undefined}
+          onClick={() => this.copyRunId(runId)}
+          onKeyDown={event => this.handleRunIndexKeyDown(event, runId)}
+          style={runId ? {cursor: "pointer"} : undefined}
+        >
           {this.getRunRowNumber(index)}
         </Text>
       </Tooltip>
@@ -723,27 +755,33 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
             <Switch checked={config.scheduleEnabled} onChange={checked => this.updateConfigField("scheduleEnabled", checked)} />
             <span>启用定时同步</span>
           </Space>
-          <div>
-            <div style={{marginBottom: 4}}>Cron 表达式</div>
-            <Input
-              value={config.scheduleCron}
-              onChange={event => this.updateConfigField("scheduleCron", event.target.value)}
-              placeholder="0 2 * * *"
-            />
-          </div>
-          <div>
-            <div style={{marginBottom: 4}}>时区</div>
-            <Input
-              value={config.scheduleTimezone}
-              onChange={event => this.updateConfigField("scheduleTimezone", event.target.value)}
-              placeholder="Asia/Shanghai"
-            />
-          </div>
-          {config.scheduleLastFireAt && (
-            <Text type="secondary">最近调度：{this.formatRunTime(config.scheduleLastFireAt)}</Text>
-          )}
-          {config.scheduleLastStatus && (
-            <Text type="secondary">最近结果：{config.scheduleLastStatus}{config.scheduleLastErrorText ? `，${config.scheduleLastErrorText}` : ""}</Text>
+          {!config.scheduleEnabled ? (
+            <Text type="secondary">未启用定时同步</Text>
+          ) : (
+            <>
+              <div>
+                <div style={{marginBottom: 4}}>Cron 表达式</div>
+                <Input
+                  value={config.scheduleCron}
+                  onChange={event => this.updateConfigField("scheduleCron", event.target.value)}
+                  placeholder="0 2 * * *"
+                />
+              </div>
+              <div>
+                <div style={{marginBottom: 4}}>时区</div>
+                <Input
+                  value={config.scheduleTimezone}
+                  onChange={event => this.updateConfigField("scheduleTimezone", event.target.value)}
+                  placeholder="Asia/Shanghai"
+                />
+              </div>
+              {config.scheduleLastFireAt && (
+                <Text type="secondary">最近调度：{this.formatRunTime(config.scheduleLastFireAt)}</Text>
+              )}
+              {config.scheduleLastStatus && (
+                <Text type="secondary">最近结果：{config.scheduleLastStatus}{config.scheduleLastErrorText ? `，${config.scheduleLastErrorText}` : ""}</Text>
+              )}
+            </>
           )}
         </Space>
       </div>

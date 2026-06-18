@@ -78,6 +78,7 @@ const {fireEvent, screen} = require("@testing-library/react") as {
   fireEvent: {
     click: (element: Element | null) => boolean;
     change: (element: Element | null, event: unknown) => boolean;
+    keyDown: (element: Element | null, event: unknown) => boolean;
   };
   screen: {
     findByText: (text: string | RegExp) => Promise<HTMLElement>;
@@ -85,6 +86,7 @@ const {fireEvent, screen} = require("@testing-library/react") as {
     queryByText: (text: string | RegExp) => HTMLElement | null;
     getByAltText: (text: string) => HTMLElement;
     getByDisplayValue: (text: string) => HTMLElement;
+    queryByDisplayValue: (text: string) => HTMLElement | null;
     getByTestId: (testId: string) => HTMLElement;
   };
 };
@@ -161,8 +163,9 @@ test("renders localized WeCom organization sync configuration entry", async() =>
   expect(screen.getByText("启用同步")).toBeInTheDocument();
   expect(screen.getByText("定时同步")).toBeInTheDocument();
   expect(screen.getByText("启用定时同步")).toBeInTheDocument();
-  expect(screen.getByText("Cron 表达式")).toBeInTheDocument();
-  expect(screen.getByText("时区")).toBeInTheDocument();
+  expect(screen.getByText("未启用定时同步")).toBeInTheDocument();
+  expect(screen.queryByText("Cron 表达式")).not.toBeInTheDocument();
+  expect(screen.queryByText("时区")).not.toBeInTheDocument();
   expect(screen.getByText("通讯录读取权限要求")).toBeInTheDocument();
   expect(screen.getByText("开始全量同步")).toBeInTheDocument();
   expect(Setting.showMessage).not.toHaveBeenCalled();
@@ -195,8 +198,11 @@ test("saves scheduled sync settings from the config form", async() => {
   render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
   await screen.findByText("定时同步");
+  expect(screen.queryByDisplayValue("0 2 * * *")).not.toBeInTheDocument();
   const scheduleSwitch = screen.getByText("启用定时同步").closest(".ant-space")?.querySelector("button") || null;
   fireEvent.click(scheduleSwitch);
+  expect(screen.getByText("Cron 表达式")).toBeInTheDocument();
+  expect(screen.getByText("时区")).toBeInTheDocument();
   fireEvent.change(screen.getByDisplayValue("0 2 * * *"), {target: {value: "*/15 * * * *"}});
   fireEvent.change(screen.getByDisplayValue("Asia/Shanghai"), {target: {value: "UTC"}});
   fireEvent.click(screen.getByText("保存"));
@@ -207,6 +213,26 @@ test("saves scheduled sync settings from the config form", async() => {
     scheduleCron: "*/15 * * * *",
     scheduleTimezone: "UTC",
   }));
+});
+
+test("renders WeCom scheduled sync details after enabling schedule", async() => {
+  mockConfig({
+    scheduleEnabled: true,
+    scheduleCron: "0 2 * * *",
+    scheduleTimezone: "Asia/Shanghai",
+    scheduleLastFireAt: "2026-06-15T10:00:00Z",
+    scheduleLastStatus: "failed",
+    scheduleLastErrorText: "network timeout",
+  });
+
+  render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+
+  expect(await screen.findByText("定时同步")).toBeInTheDocument();
+  expect(screen.queryByText("未启用定时同步")).not.toBeInTheDocument();
+  expect(screen.getByText("Cron 表达式")).toBeInTheDocument();
+  expect(screen.getByText("时区")).toBeInTheDocument();
+  expect(screen.getByText(/最近调度：/)).toBeInTheDocument();
+  expect(screen.getByText("最近结果：failed，network timeout")).toBeInTheDocument();
 });
 
 test("refreshes after account organization is loaded", async() => {
@@ -259,6 +285,11 @@ test("navigates to organization list when creating sync target organization", as
 });
 
 test("renders sync run history with status, counts, and safe error summary", async() => {
+  const writeText = jestValue.fn(() => Promise.resolve());
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: {writeText},
+  });
   wecomBackendMock.getWecomOrganizationSyncRuns.mockResolvedValue({
     status: "ok",
     data: [
@@ -290,8 +321,15 @@ test("renders sync run history with status, counts, and safe error summary", asy
   expect(screen.getByText("序号")).toBeInTheDocument();
   expect(screen.queryByText("运行 ID")).not.toBeInTheDocument();
   expect(screen.queryByText("run-running")).not.toBeInTheDocument();
-  expect(container.querySelector("tbody tr[data-row-key='run-running'] td:first-child")?.textContent).toContain("1");
-  expect(container.querySelector(".ant-typography-copy")).toBeInTheDocument();
+  const runIndexCell = container.querySelector("tbody tr[data-row-key='run-running'] td:first-child");
+  expect(runIndexCell?.textContent).toBe("1");
+  expect(container.querySelector(".ant-typography-copy")).not.toBeInTheDocument();
+  const runIndexButton = runIndexCell?.querySelector("[role='button']");
+  fireEvent.click(runIndexButton as HTMLElement);
+  fireEvent.keyDown(runIndexButton as HTMLElement, {key: " "});
+  expect(writeText).toHaveBeenCalledWith("run-running");
+  await flushPromises();
+  expect(Setting.showMessage).toHaveBeenCalledWith("success", "已复制运行 ID");
   expect(screen.getByText("运行中")).toBeInTheDocument();
   expect(screen.getByText("成功")).toBeInTheDocument();
   expect(screen.getByText("失败")).toBeInTheDocument();
@@ -315,6 +353,60 @@ test("renders sync run history with status, counts, and safe error summary", asy
   expect(screen.getByText(/检测到运行中任务，自动每 3 秒刷新/)).toBeInTheDocument();
   expect(screen.queryByText(/0001-01-01/)).not.toBeInTheDocument();
   expect(screen.queryByText("新增 / 更新 / 禁用")).not.toBeInTheDocument();
+});
+
+test("copies WeCom run ID through keyboard, fallback, and failure paths", async() => {
+  const originalClipboard = navigator.clipboard;
+  const originalExecCommand = document.execCommand;
+  const page = new WecomOrganizationSyncPage({account: {owner: "engineering", isAdmin: true}} as any);
+  const writeText = jestValue.fn(() => Promise.resolve());
+
+  try {
+    page.copyRunId("");
+    expect(Setting.showMessage).not.toHaveBeenCalled();
+
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {writeText},
+    });
+
+    const event = {key: "Enter", preventDefault: jestValue.fn()} as unknown as React.KeyboardEvent<HTMLElement>;
+    page.handleRunIndexKeyDown(event, "run-keyboard");
+
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(writeText).toHaveBeenCalledWith("run-keyboard");
+    await flushPromises();
+    expect(Setting.showMessage).toHaveBeenCalledWith("success", "已复制运行 ID");
+
+    writeText.mockRejectedValueOnce(new Error("clipboard denied"));
+    page.copyRunId("run-failed");
+    await flushPromises();
+    expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("复制失败："));
+
+    const execCommand = jestValue.fn(() => true);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: undefined,
+    });
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: execCommand,
+    });
+
+    page.copyRunId("run-fallback");
+
+    expect(execCommand).toHaveBeenCalledWith("copy");
+    expect(Setting.showMessage).toHaveBeenCalledWith("success", "已复制运行 ID");
+  } finally {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: originalClipboard,
+    });
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: originalExecCommand,
+    });
+  }
 });
 
 test("shows address book permission result after connection test", async() => {
