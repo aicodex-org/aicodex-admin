@@ -1,12 +1,12 @@
 ## ADDED Requirements
 
-### Requirement: Feishu formal sync record statistic headers remain single-line
-The Web Admin Feishu/Lark formal sync run table SHALL use compact statistic column headers so the primary run history remains dense and scan-friendly.
+### Requirement: Feishu 正式同步记录统计表头保持单行
+Web Admin 飞书/Lark 正式同步记录表 SHALL 使用紧凑统计列表头，让主要运行记录保持紧凑且易扫读。
 
-#### Scenario: Display compact Feishu run statistic headers
-- **WHEN** the Feishu/Lark organization sync page renders formal sync run history
-- **THEN** the department statistic column header SHALL be `部门`
-- **AND** the user statistic column header SHALL be `用户`
-- **AND** the membership statistic column header SHALL be `关系`
-- **AND** each statistic cell SHALL continue to show added, updated, and disabled counts in the existing `新 / 更 / 禁` format
-- **AND** the statistic headers SHALL NOT wrap because of embedded explanatory text
+#### Scenario: 展示紧凑的飞书运行统计表头
+- **WHEN** 飞书/Lark 组织同步页面渲染正式同步记录
+- **THEN** 部门统计列表头 SHALL 为 `部门`
+- **AND** 用户统计列表头 SHALL 为 `用户`
+- **AND** 关系统计列表头 SHALL 为 `关系`
+- **AND** 每个统计单元格 SHALL 继续使用既有 `新 / 更 / 禁` 格式展示新增、更新和禁用数量
+- **AND** 统计表头 SHALL NOT 因内嵌说明文字而换行
