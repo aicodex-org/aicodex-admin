@@ -815,13 +815,20 @@ class FeishuOrganizationSyncPage extends React.Component {
     URL.revokeObjectURL(url);
   }
 
-  renderHandoffCounts(counts = {}) {
+  renderHandoffCounts(counts = {}, options = {}) {
+    const {compact = false} = options;
     const format = item => `新 ${item?.toCreate || 0} / 更 ${item?.toUpdate || 0} / 软禁 ${item?.toSoftDisable || 0} / 冲突 ${item?.conflict || 0} / 无效 ${item?.invalid || 0}`;
+    const items = [
+      <Text key="departments">{`部门：${format(counts.departments)}`}</Text>,
+      <Text key="users">{`用户：${format(counts.users)}`}</Text>,
+      <Text key="memberships">{`关系：${format(counts.memberships)}`}</Text>,
+    ];
+    if (compact) {
+      return <Space size={8} wrap>{items}</Space>;
+    }
     return (
       <Space direction="vertical" size={2}>
-        <Text>{`部门：${format(counts.departments)}`}</Text>
-        <Text>{`用户：${format(counts.users)}`}</Text>
-        <Text>{`关系：${format(counts.memberships)}`}</Text>
+        {items}
       </Space>
     );
   }
@@ -1056,7 +1063,8 @@ class FeishuOrganizationSyncPage extends React.Component {
 
   renderHandoffEvidence() {
     const evidence = this.state.handoffEvidence || {};
-    const readinessType = evidence.readiness === "blocked" ? "error" : evidence.readiness === "ready" ? "success" : "info";
+    const hasHandoffProblem = Boolean(this.state.handoffEvidenceError) || evidence.readiness === "blocked";
+    const readinessType = hasHandoffProblem ? "error" : evidence.readiness === "ready" ? "success" : "info";
     const hasHandoffDetails = Boolean(evidence.sourceConnectionIdHash || evidence.endpointMode || evidence.appAlias || evidence.tenantAlias || evidence.acceptanceChecklist?.version ||
       (evidence.blockedReasons || []).length > 0 || (evidence.operatorNextActions || []).length > 0 || (evidence.cannotInfer || []).length > 0);
     return (
@@ -1088,7 +1096,32 @@ class FeishuOrganizationSyncPage extends React.Component {
             </Space>
           </Col>
         </Row>
-        {evidence.readiness && (
+        {evidence.readiness && !hasHandoffProblem && (
+          <Row align="middle" justify="space-between" style={{marginBottom: 12}}>
+            <Col flex="auto">
+              <Space size={8} wrap>
+                {this.getHandoffReadinessTag(evidence.readiness)}
+                {evidence.sourceType && <Tag>{handoffSourceTypeLabels[evidence.sourceType] || evidence.sourceType}</Tag>}
+                {evidence.redaction?.applied && <Tag color="green">已脱敏</Tag>}
+                {this.renderHandoffCounts(evidence.counts, {compact: true})}
+              </Space>
+            </Col>
+            {hasHandoffDetails && (
+              <Col>
+                <Button
+                  size="small"
+                  type="link"
+                  style={{padding: 0, height: "auto"}}
+                  aria-label="toggle-handoff-evidence-details"
+                  onClick={() => this.setState({handoffEvidenceDetailsOpen: true})}
+                >
+                  查看验收资料
+                </Button>
+              </Col>
+            )}
+          </Row>
+        )}
+        {evidence.readiness && hasHandoffProblem && (
           <Alert
             style={{marginBottom: 12}}
             type={readinessType}
@@ -1188,6 +1221,25 @@ class FeishuOrganizationSyncPage extends React.Component {
       {title: "操作", key: "action", width: 90, render: (_, record) => <Button size="small" aria-label={`binding-diagnostics-detail-${record.id}`} onClick={() => this.openBindingDiagnosticsDetail(record)}>详情</Button>},
     ];
     const statusType = diagnostics.status === "blocked" ? "error" : diagnostics.status === "warning" ? "warning" : diagnostics.status === "ok" ? "success" : "info";
+    const hasProblem = Boolean(this.state.bindingDiagnosticsError) || diagnostics.status === "blocked" || diagnostics.status === "warning" || hasIssues;
+    if (!hasProblem) {
+      return (
+        <>
+          <Row align="middle" justify="space-between" style={{marginBottom: 12}}>
+            <Col>
+              <Space size={8} wrap>
+                <Text strong>{`身份匹配：${bindingStatusLabels[diagnostics.status] || "待刷新"}`}</Text>
+                <Text type="secondary">{diagnostics.safeSummary || "仅展示脱敏绑定风险摘要。"}</Text>
+              </Space>
+            </Col>
+            <Col>
+              <Button icon={<ReloadOutlined />} loading={this.state.bindingDiagnosticsLoading} onClick={() => this.refreshBindingDiagnostics().catch(() => {})}>刷新</Button>
+            </Col>
+          </Row>
+          {this.renderBindingDiagnosticsDetailDrawer()}
+        </>
+      );
+    }
     return (
       <>
         <Row align="middle" justify="space-between" style={{marginBottom: 12}}>

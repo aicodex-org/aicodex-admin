@@ -370,14 +370,40 @@ test("renders user binding diagnostics and opens redacted detail drawer", async(
   expect(screen.queryByText(/ou-shared/)).not.toBeInTheDocument();
 });
 
-test("renders handoff evidence ready summary in a centered modal", async() => {
+test("renders healthy user binding diagnostics as a compact row", async() => {
+  FeishuOrganizationSyncBackend.getFeishuOrganizationSyncUserBindingConflicts.mockResolvedValue({
+    status: "ok",
+    data: {
+      organization: "engineering",
+      status: "ok",
+      riskLevel: "none",
+      configured: true,
+      enabled: true,
+      counts: {total: 0},
+      issues: [],
+      generatedAt: "2026-06-15T12:00:00Z",
+      safeSummary: "未发现阻断级飞书用户绑定风险。",
+      redaction: {applied: true, version: "feishu-user-binding-conflict-redaction-v1"},
+    },
+  });
+
   render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+
+  expect(await screen.findByText("身份匹配：正常")).toBeInTheDocument();
+  expect(screen.getAllByText("未发现阻断级飞书用户绑定风险。").length).toBeGreaterThan(0);
+  expect(screen.queryByText("绑定冲突 / 身份匹配诊断")).not.toBeInTheDocument();
+  expect(screen.queryByText("无风险")).not.toBeInTheDocument();
+});
+
+test("renders handoff evidence ready summary in a centered modal", async() => {
+  const {container} = render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
   expect(await screen.findByText("交接证据")).toBeInTheDocument();
   expect(FeishuOrganizationSyncBackend.getFeishuOrganizationSyncHandoffEvidence).toHaveBeenCalledWith("engineering", {sourceType: "latest"});
   expect(screen.getByText("可交接")).toBeInTheDocument();
   expect(screen.getByText("部门：新 1 / 更 1 / 软禁 0 / 冲突 0 / 无效 0")).toBeInTheDocument();
   expect(screen.getByText("查看验收资料")).toBeInTheDocument();
+  expect(container.querySelector(".ant-alert-success")).not.toBeInTheDocument();
   expect(screen.queryByText("dry-run-safe")).not.toBeInTheDocument();
   expect(screen.queryByText("source-safe")).not.toBeInTheDocument();
   expect(screen.queryByText("live_contact_v3_credentials")).not.toBeInTheDocument();
@@ -622,7 +648,7 @@ test("renders disabled user binding diagnostics state", async() => {
 
   render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
-  expect(await screen.findByText("绑定冲突 / 身份匹配诊断")).toBeInTheDocument();
-  expect(screen.getByText("未启用")).toBeInTheDocument();
+  expect(await screen.findByText("身份匹配：未启用")).toBeInTheDocument();
+  expect(screen.queryByText("绑定冲突 / 身份匹配诊断")).not.toBeInTheDocument();
   expect(screen.getAllByText("飞书组织同步未配置或未启用，绑定诊断未执行。").length).toBeGreaterThan(0);
 });
