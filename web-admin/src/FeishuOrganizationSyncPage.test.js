@@ -362,24 +362,13 @@ test("renders handoff evidence ready summary in a centered modal", async() => {
   expect(document.body.querySelector(".ant-drawer")).not.toBeInTheDocument();
   expect(document.body.querySelector(".ant-modal")).toBeInTheDocument();
   expect(screen.getByText("验收清单")).toBeInTheDocument();
-  expect(screen.getByText("只展示脱敏摘要；完整安全别名和逐项清单可展开查看。")).toBeInTheDocument();
-  expect(screen.getAllByText("真实租户运行验证").length).toBeGreaterThan(0);
-  expect(screen.getAllByText("飞书通讯录权限需真实验证").length).toBeGreaterThan(0);
-  expect(screen.getAllByText("生产就绪需人工确认").length).toBeGreaterThan(0);
-  expect(screen.queryByText("dry-run-safe")).not.toBeInTheDocument();
-  expect(screen.queryByText("source-safe")).not.toBeInTheDocument();
-  expect(screen.queryByText("manual_review_only")).not.toBeInTheDocument();
-  expect(screen.queryByText("provider_truth")).not.toBeInTheDocument();
-  expect(screen.queryByText("production_readiness")).not.toBeInTheDocument();
-  expect(screen.queryByText("validate_real_tenant_runtime")).not.toBeInTheDocument();
-
-  fireEvent.click(screen.getByText("详细清单和安全别名"));
-
-  expect((await screen.findAllByText("人工复核模式")).length).toBeGreaterThan(0);
-  expect(screen.getAllByText("仅作验收辅助").length).toBeGreaterThan(0);
-  expect(screen.getAllByText("飞书租户真值需外部验证").length).toBeGreaterThan(0);
-  expect(screen.getAllByText("完整同步成功需运行态验证").length).toBeGreaterThan(0);
-  expect(screen.getAllByText("脱敏检查").length).toBeGreaterThan(0);
+  expect(screen.getByText("交接资料已就绪，完整审计清单保留在导出的 JSON / Markdown 中。")).toBeInTheDocument();
+  expect(screen.getByLabelText("copy-handoff-acceptance-checklist-json")).toBeInTheDocument();
+  expect(screen.getByLabelText("export-handoff-acceptance-checklist-markdown")).toBeInTheDocument();
+  expect(screen.queryByText("真实租户运行验证")).not.toBeInTheDocument();
+  expect(screen.queryByText("飞书通讯录权限需真实验证")).not.toBeInTheDocument();
+  expect(screen.queryByText("生产就绪需人工确认")).not.toBeInTheDocument();
+  expect(screen.queryByText("详细清单和安全别名")).not.toBeInTheDocument();
   expect(screen.queryByText("dry-run-safe")).not.toBeInTheDocument();
   expect(screen.queryByText("source-safe")).not.toBeInTheDocument();
   expect(screen.queryByText("manual_review_only")).not.toBeInTheDocument();

@@ -823,7 +823,7 @@ class FeishuOrganizationSyncPage extends React.Component {
   }
 
   renderHandoffAcceptanceChecklist(checklist, options = {}) {
-    const {compact = false} = options;
+    const {compact = false, showAuditDetails = true} = options;
     if (!checklist?.version) {
       return (
         <Alert
@@ -900,7 +900,9 @@ class FeishuOrganizationSyncPage extends React.Component {
             <Space direction="vertical" size={2}>
               <Text strong>验收清单</Text>
               {compact ? (
-                <Text type="secondary">只展示脱敏摘要；完整安全别名和逐项清单可展开查看。</Text>
+                <Text type="secondary">
+                  {showAuditDetails ? "只展示脱敏摘要；完整安全别名和逐项清单可展开查看。" : "交接资料已就绪，完整审计清单保留在导出的 JSON / Markdown 中。"}
+                </Text>
               ) : (
                 <Space wrap size={4}>
                   {checklist.version && <Tag>{checklist.version}</Tag>}
@@ -921,19 +923,28 @@ class FeishuOrganizationSyncPage extends React.Component {
             </Space>
           </Col>
         </Row>
-        <Space wrap size={4}>
-          <Tag>{`总 ${summary.total || 0}`}</Tag>
-          <Tag color="green">{`通过 ${summary.passed || 0}`}</Tag>
-          <Tag color="gold">{`待复核 ${summary.needsReview || 0}`}</Tag>
-          <Tag color="red">{`阻断 ${summary.blocked || 0}`}</Tag>
-          <Tag color="orange">{`缺失 ${summary.missing || 0}`}</Tag>
-          <Tag color="blue">{`无法推断 ${summary.cannotInfer || 0}`}</Tag>
-          {!compact && summary.derivedOnly && <Tag>derived</Tag>}
-          {!compact && summary.noFallback && <Tag color="volcano">noFallback</Tag>}
-          {!compact && checklist.retention?.redactionApplied && <Tag color="green">{checklist.retention.redactionVersion || "redacted"}</Tag>}
-          {!compact && checklist.retention?.retentionDays > 0 && <Tag>{`retention ${checklist.retention.retentionDays}d`}</Tag>}
-        </Space>
-        {compact && (
+        {showAuditDetails ? (
+          <Space wrap size={4}>
+            <Tag>{`总 ${summary.total || 0}`}</Tag>
+            <Tag color="green">{`通过 ${summary.passed || 0}`}</Tag>
+            <Tag color="gold">{`待复核 ${summary.needsReview || 0}`}</Tag>
+            <Tag color="red">{`阻断 ${summary.blocked || 0}`}</Tag>
+            <Tag color="orange">{`缺失 ${summary.missing || 0}`}</Tag>
+            <Tag color="blue">{`无法推断 ${summary.cannotInfer || 0}`}</Tag>
+            {!compact && summary.derivedOnly && <Tag>derived</Tag>}
+            {!compact && summary.noFallback && <Tag color="volcano">noFallback</Tag>}
+            {!compact && checklist.retention?.redactionApplied && <Tag color="green">{checklist.retention.redactionVersion || "redacted"}</Tag>}
+            {!compact && checklist.retention?.retentionDays > 0 && <Tag>{`retention ${checklist.retention.retentionDays}d`}</Tag>}
+          </Space>
+        ) : (
+          <Space wrap size={4}>
+            <Tag>{`总 ${summary.total || 0}`}</Tag>
+            <Tag color="green">{`通过 ${summary.passed || 0}`}</Tag>
+            {checklist.retention?.redactionApplied && <Tag color="green">已脱敏</Tag>}
+            {checklist.retention?.retentionDays > 0 && <Tag>{`保留 ${checklist.retention.retentionDays} 天`}</Tag>}
+          </Space>
+        )}
+        {compact && showAuditDetails && (
           <Row gutter={[12, 12]}>
             <Col xs={24} md={12}>
               <Space direction="vertical" size={4} style={{width: "100%"}}>
@@ -949,7 +960,7 @@ class FeishuOrganizationSyncPage extends React.Component {
             </Col>
           </Row>
         )}
-        {compact ? (
+        {compact ? (showAuditDetails ? (
           <Collapse
             size="small"
             destroyOnHidden
@@ -959,7 +970,7 @@ class FeishuOrganizationSyncPage extends React.Component {
               children: detailContent,
             }]}
           />
-        ) : detailContent}
+        ) : null) : detailContent}
       </Space>
     );
   }
@@ -968,6 +979,7 @@ class FeishuOrganizationSyncPage extends React.Component {
     const blockedReasons = evidence.blockedReasons || [];
     const operatorNextActions = evidence.operatorNextActions || [];
     const cannotInfer = evidence.cannotInfer || [];
+    const isReady = evidence.readiness === "ready";
     return (
       <Modal
         title="验收资料"
@@ -999,19 +1011,19 @@ class FeishuOrganizationSyncPage extends React.Component {
                 {this.renderHandoffAliasList(blockedReasons, "red")}
               </Space>
             )}
-            {operatorNextActions.length > 0 && (
+            {!isReady && operatorNextActions.length > 0 && (
               <Space direction="vertical" size={2}>
                 <Text type="secondary">建议下一步</Text>
                 {this.renderHandoffAliasList(operatorNextActions, "gold")}
               </Space>
             )}
-            {cannotInfer.length > 0 && (
+            {!isReady && cannotInfer.length > 0 && (
               <Space direction="vertical" size={2}>
                 <Text type="secondary">无法在本页证明</Text>
                 {this.renderHandoffAliasList(cannotInfer, "blue")}
               </Space>
             )}
-            {this.renderHandoffAcceptanceChecklist(evidence.acceptanceChecklist, {compact: true})}
+            {this.renderHandoffAcceptanceChecklist(evidence.acceptanceChecklist, {compact: true, showAuditDetails: !isReady})}
           </Space>
         )}
       </Modal>
