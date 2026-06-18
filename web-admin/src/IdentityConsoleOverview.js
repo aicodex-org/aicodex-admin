@@ -118,31 +118,13 @@ function buildStatusCards(dashboardData) {
 function buildRiskItems(hasError) {
   return [
     {
-      key: "identity-assets",
-      title: tGeneral("Identity asset relationship overview title", "对象关系证据链"),
-      description: tGeneral("Identity asset relationship overview risk", "从对象视角核对应用、认证源、组织身份、角色权限、Gateway/LLM AI 与审计证据入口。"),
-      icon: <ClusterOutlined />,
-      tone: "processing",
-      badge: tGeneral("Evidence chain", "证据链"),
-      action: {key: "identity-assets", to: "/identity-assets", label: tGeneral("Enter identity asset relationships", "进入身份资产关系")},
-    },
-    {
-      key: "access-preflight",
-      title: tGeneral("Access preflight overview title", "接入预检"),
-      description: tGeneral("Access preflight overview risk", "按认证源、应用接入和 LLM AI/Gateway 核对配置缺口、证据入口和发布前条件。"),
-      icon: <ProfileOutlined />,
-      tone: "processing",
-      badge: tGeneral("Read-only preflight", "只读预检"),
-      action: {key: "access-wizard", to: "/access-wizard", label: tGeneral("Enter access preflight center", "进入接入预检")},
-    },
-    {
       key: "audit-risk",
-      title: "最近失败 / 待处理风险",
-      description: hasError ? tGeneral("Governance task center overview error risk", "只读统计暂不可用，请进入任务中心和审计运维页面核对失败记录。") : tGeneral("Governance task center overview risk", "从治理任务中心处理配置缺口、审计证据和跨域身份风险。"),
+      title: tGeneral("Risk pending summary overview title", "风险待办摘要"),
+      description: hasError ? tGeneral("Risk pending summary overview error risk", "只读统计暂不可用，请从风险队列和审计运维核对失败记录。") : tGeneral("Risk pending summary overview risk", "按当前只读状态关注配置缺口、审计证据和跨域身份风险。"),
       icon: <ExclamationCircleOutlined />,
       tone: hasError ? "error" : "warning",
-      badge: hasError ? "需核对" : "待巡检",
-      action: {key: "tasks", to: "/governance-tasks", label: tGeneral("Enter governance task center", "进入任务中心")},
+      badge: hasError ? tGeneral("Needs review", "需核对") : tGeneral("Pending attention", "待关注"),
+      action: {key: "tasks", to: "/governance-tasks", label: tGeneral("View risk pending items", "查看风险待办")},
     },
     {
       key: "directory-quality",
@@ -161,6 +143,24 @@ function buildRiskItems(hasError) {
       tone: "default",
       badge: "只读核对",
       action: {key: "applications", to: "/applications", label: "进入应用接入"},
+    },
+    {
+      key: "identity-assets",
+      title: tGeneral("Identity evidence context overview title", "关联证据状态"),
+      description: tGeneral("Identity evidence context overview risk", "对象详情已保留应用、身份源、组织身份、角色权限、Gateway/LLM AI 与审计证据深链。"),
+      icon: <ClusterOutlined />,
+      tone: "processing",
+      badge: tGeneral("Object context", "对象上下文"),
+      action: {key: "identity-assets", to: "/identity-assets", label: tGeneral("View relationship evidence", "查看关联证据")},
+    },
+    {
+      key: "access-preflight",
+      title: tGeneral("Access condition check overview title", "接入条件核对"),
+      description: tGeneral("Access condition check overview risk", "新增或变更接入前，可按身份源、应用接入和 LLM AI/Gateway 核对配置条件。"),
+      icon: <ProfileOutlined />,
+      tone: "processing",
+      badge: tGeneral("Flow check", "流程核对"),
+      action: {key: "access-wizard", to: "/access-wizard", label: tGeneral("Check access conditions", "核对接入条件")},
     },
   ];
 }
@@ -297,8 +297,8 @@ function IdentityConsoleOverview({account, history}) {
 
       <EnterpriseIdentitySection
         className="identity-console-next-actions"
-        title="当前最该处理"
-        description="保留对象关系、接入预检和治理任务深链，但默认按身份覆盖、应用接入和审计风险排序"
+        title={tGeneral("Overview pending status section title", "运行状态与待关注事项")}
+        description={tGeneral("Overview pending status section description", "优先呈现审计风险、目录质量和应用变更；关系证据与接入核对保留为上下文 deep link。")}
       >
         <EnterpriseIdentityRiskList items={riskItems} />
       </EnterpriseIdentitySection>

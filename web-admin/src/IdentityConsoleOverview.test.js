@@ -51,11 +51,11 @@ describe("IdentityConsoleOverview", () => {
     expect(screen.getAllByText("企业微信 / 飞书 / OIDC").length).toBeGreaterThan(0);
     expect(screen.getByText("应用接入 / API 映射")).toBeInTheDocument();
     expect(screen.getAllByText("LLM AI 网关中心").length).toBeGreaterThan(0);
-    expect(screen.getByText("当前最该处理")).toBeInTheDocument();
+    expect(screen.getByText("运行状态与待关注事项")).toBeInTheDocument();
     expect(screen.getAllByText("进入应用接入").some(item => item.closest("a")?.getAttribute("href") === "/applications")).toBe(true);
     expect(screen.queryByText("能力入口")).not.toBeInTheDocument();
-    expect(screen.getByText("对象关系证据链").closest("article").querySelector("a")).toHaveAttribute("href", "/identity-assets");
-    expect(screen.getByText("接入预检").closest("article").querySelector("a")).toHaveAttribute("href", "/access-wizard");
+    expect(screen.getByText("关联证据状态").closest("article").querySelector("a")).toHaveAttribute("href", "/identity-assets");
+    expect(screen.getByText("接入条件核对").closest("article").querySelector("a")).toHaveAttribute("href", "/access-wizard");
     expect(screen.queryByText(/Gateway 投影/)).not.toBeInTheDocument();
     expect(screen.getByText("身份域覆盖")).toBeInTheDocument();
   });
@@ -76,6 +76,38 @@ describe("IdentityConsoleOverview", () => {
     expect(screen.getByText("dashboard unavailable")).toBeInTheDocument();
     expect(screen.getByText("处理组织质量").closest("a")).toHaveAttribute("href", "/organization-directory-quality");
     expect(screen.queryByText("能力入口")).not.toBeInTheDocument();
+  });
+
+  test("demotes abstract governance centers into status-oriented pending summaries", async() => {
+    DashboardBackend.getDashboard.mockResolvedValue({
+      status: "ok",
+      data: {
+        organizationCounts: Array(31).fill(2),
+        userCounts: Array(31).fill(16),
+        providerCounts: Array(31).fill(3),
+        applicationCounts: Array(31).fill(4),
+        resourceCounts: Array(31).fill(6),
+        permissionCounts: Array(31).fill(8),
+        recordCounts: Array(31).fill(12),
+      },
+    });
+
+    render(
+      <MemoryRouter>
+        <IdentityConsoleOverview account={adminAccount} />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("运行状态与待关注事项")).toBeInTheDocument();
+    expect(screen.queryByText("对象关系证据链")).not.toBeInTheDocument();
+    expect(screen.queryByText("接入预检")).not.toBeInTheDocument();
+    expect(screen.queryByText("进入身份资产关系")).not.toBeInTheDocument();
+    expect(screen.queryByText("进入接入预检")).not.toBeInTheDocument();
+    expect(screen.queryByText("进入任务中心")).not.toBeInTheDocument();
+
+    expect(screen.getByText("查看关联证据").closest("a")).toHaveAttribute("href", "/identity-assets");
+    expect(screen.getByText("核对接入条件").closest("a")).toHaveAttribute("href", "/access-wizard");
+    expect(screen.getByText("查看风险待办").closest("a")).toHaveAttribute("href", "/governance-tasks");
   });
 
   test("redirects non-admin users to their application workspace", () => {
