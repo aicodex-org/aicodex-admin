@@ -155,8 +155,8 @@ test("renders localized WeCom organization sync configuration entry", async() =>
   expect(screen.getByText("新建组织")).toBeInTheDocument();
   expect(screen.queryByText("Built-in Organization")).not.toBeInTheDocument();
   expect(screen.getByText("选择要绑定企业微信通讯录的 aicodex-admin 组织。不同组织的 Corp ID、Secret 和同步记录互不混用。")).toBeInTheDocument();
-  expect(screen.getByText("企业 ID（Corp ID）")).toBeInTheDocument();
-  expect(screen.getByText("自建应用 Secret")).toBeInTheDocument();
+  expect(screen.getByText("App ID（Corp ID）")).toBeInTheDocument();
+  expect(screen.getByText("App Secret")).toBeInTheDocument();
   expect(screen.getByText("同步选项")).toBeInTheDocument();
   expect(screen.getByText("启用同步")).toBeInTheDocument();
   expect(screen.getByText("定时同步")).toBeInTheDocument();
@@ -296,8 +296,10 @@ test("renders sync run history with status, counts, and safe error summary", asy
   expect(screen.getByText("手动")).toBeInTheDocument();
   expect(screen.getByText("定时")).toBeInTheDocument();
   expect(screen.queryByText("Status")).not.toBeInTheDocument();
-  expect(screen.getByText("部门（新增 / 更新 / 禁用）")).toBeInTheDocument();
-  expect(screen.getByText("用户（新增 / 更新 / 禁用）")).toBeInTheDocument();
+  expect(screen.getByText("部门")).toBeInTheDocument();
+  expect(screen.getByText("用户")).toBeInTheDocument();
+  expect(screen.queryByText("部门（新增 / 更新 / 禁用）")).not.toBeInTheDocument();
+  expect(screen.queryByText("用户（新增 / 更新 / 禁用）")).not.toBeInTheDocument();
   expect(screen.getByText("已完成")).toBeInTheDocument();
   expect(screen.getByText("应用变更")).toBeInTheDocument();
   expect(screen.getByText("计算差异")).toBeInTheDocument();

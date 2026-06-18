@@ -571,3 +571,14 @@ The Web Admin Feishu/Lark organization sync page SHALL display formal sync run h
 - **WHEN** a Feishu/Lark run has failed, partial, warning, or diagnostic evidence
 - **THEN** the table MAY display compact diagnostic tags or a safe summary
 - **AND** it SHALL NOT expose raw Contact payloads, complete trees, complete users, token, secret, phone, email, `open_id`, `union_id`, `user_id`, raw app identifiers, or raw tenant identifiers
+
+### Requirement: Feishu formal sync record statistic headers remain single-line
+The Web Admin Feishu/Lark formal sync run table SHALL use compact statistic column headers so the primary run history remains dense and scan-friendly.
+
+#### Scenario: Display compact Feishu run statistic headers
+- **WHEN** the Feishu/Lark organization sync page renders formal sync run history
+- **THEN** the department statistic column header SHALL be `部门`
+- **AND** the user statistic column header SHALL be `用户`
+- **AND** the membership statistic column header SHALL be `关系`
+- **AND** each statistic cell SHALL continue to show added, updated, and disabled counts in the existing `新 / 更 / 禁` format
+- **AND** the statistic headers SHALL NOT wrap because of embedded explanatory text

@@ -552,13 +552,13 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
         render: (text: string) => this.formatRunTime(text),
       },
       {
-        title: "部门（新增 / 更新 / 禁用）",
+        title: "部门",
         key: "departments",
         width: 180,
         render: (_: unknown, record: WecomOrganizationSyncRun) => `新 ${record.departmentCreatedCount || 0} / 更 ${record.departmentUpdatedCount || 0} / 禁 ${record.departmentDisabledCount || 0}`,
       },
       {
-        title: "用户（新增 / 更新 / 禁用）",
+        title: "用户",
         key: "users",
         width: 180,
         render: (_: unknown, record: WecomOrganizationSyncRun) => `新 ${record.userCreatedCount || 0} / 更 ${record.userUpdatedCount || 0} / 禁 ${record.userDisabledCount || 0}`,
@@ -741,12 +741,13 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
           <Col xs={24} md={12}>
             {this.renderOrganizationSelector()}
           </Col>
+          <Col xs={0} md={12} />
           <Col xs={24} md={12}>
-            <div style={{marginBottom: 8}}>企业 ID（Corp ID）</div>
+            <div style={{marginBottom: 8}}>App ID（Corp ID）</div>
             <Input value={config.corpId} onChange={event => this.updateConfigField("corpId", event.target.value)} />
           </Col>
           <Col xs={24} md={12}>
-            <div style={{marginBottom: 8}}>自建应用 Secret</div>
+            <div style={{marginBottom: 8}}>App Secret</div>
             <Input.Password value={config.addressBookSecret} onChange={event => this.updateConfigField("addressBookSecret", event.target.value)} />
           </Col>
           <Col xs={24} md={12}>
@@ -762,7 +763,7 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
           type="info"
           showIcon
           message="通讯录读取权限要求"
-          description="请填写自建应用 Secret，并把应用可见范围设置为需要同步的部门和成员；通讯录同步 Secret 只适合写入或 ID 比对，读取详情时可能返回 48009。"
+          description="请填写 App Secret，并把应用可见范围设置为需要同步的部门和成员；通讯录同步 Secret 只适合写入或 ID 比对，读取详情时可能返回 48009。"
         />
         {this.renderTestResult()}
 

@@ -1670,9 +1670,9 @@ class FeishuOrganizationSyncPage extends React.Component {
       {title: "执行人", dataIndex: "actor", key: "actor", width: 140, ellipsis: true},
       {title: "开始时间", dataIndex: "startedAt", key: "startedAt", width: 170, render: text => this.formatRunTime(text)},
       {title: "结束时间", dataIndex: "finishedAt", key: "finishedAt", width: 170, render: text => this.formatRunTime(text)},
-      {title: "部门（新增 / 更新 / 禁用）", key: "departments", width: 170, render: (_, record) => this.formatImpactCounts(record.departmentCreatedCount, record.departmentUpdatedCount, record.departmentDisabledCount)},
-      {title: "用户（新增 / 更新 / 禁用）", key: "users", width: 170, render: (_, record) => this.formatImpactCounts(record.userCreatedCount, record.userUpdatedCount, record.userDisabledCount)},
-      {title: "关系（新增 / 更新 / 禁用）", key: "memberships", width: 170, render: (_, record) => this.formatImpactCounts(record.membershipCreatedCount, record.membershipUpdatedCount, record.membershipDisabledCount)},
+      {title: "部门", key: "departments", width: 170, render: (_, record) => this.formatImpactCounts(record.departmentCreatedCount, record.departmentUpdatedCount, record.departmentDisabledCount)},
+      {title: "用户", key: "users", width: 170, render: (_, record) => this.formatImpactCounts(record.userCreatedCount, record.userUpdatedCount, record.userDisabledCount)},
+      {title: "关系", key: "memberships", width: 170, render: (_, record) => this.formatImpactCounts(record.membershipCreatedCount, record.membershipUpdatedCount, record.membershipDisabledCount)},
       {title: "错误摘要", key: "diagnostics", render: (_, record) => this.renderRunErrorSummary(record)},
     ];
     return (

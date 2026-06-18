@@ -530,7 +530,9 @@ test("renders sync runs without forcing horizontal table scroll", async() => {
   expect(screen.getByText("feishu-sync-run-1781681971079340586")).toBeInTheDocument();
   expect(screen.getByRole("columnheader", {name: "运行 ID"})).toBeInTheDocument();
   expect(screen.getByRole("columnheader", {name: "触发方式"})).toBeInTheDocument();
-  expect(screen.getByRole("columnheader", {name: "关系（新增 / 更新 / 禁用）"})).toBeInTheDocument();
+  expect(screen.getByRole("columnheader", {name: "部门"})).toBeInTheDocument();
+  expect(screen.getByRole("columnheader", {name: "用户"})).toBeInTheDocument();
+  expect(screen.getByRole("columnheader", {name: "关系"})).toBeInTheDocument();
   expect(screen.queryByRole("columnheader", {name: "影响统计"})).not.toBeInTheDocument();
   expect(screen.queryByRole("columnheader", {name: "诊断 / 错误"})).not.toBeInTheDocument();
   expect(screen.getByText("新 0 / 更 0 / 禁 0")).toBeInTheDocument();
