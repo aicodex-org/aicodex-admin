@@ -220,6 +220,193 @@ func TestGetOrganizationSyncSnapshotReturnsBoundDataAndMasksApplications(t *test
 	}
 }
 
+func TestGetOrganizationSyncSnapshotExportsStableMemberReferences(t *testing.T) {
+	setupOrganizationSyncApiKeyTestDB(t)
+	insertOrganizationSyncApiKeyTestOrganizations(t)
+
+	group := &Group{
+		Owner:       "engineering",
+		Name:        "wecom-dept-ww123-2",
+		DisplayName: "研发部",
+		IsTopGroup:  true,
+		IsEnabled:   true,
+	}
+	if _, err := ormer.Engine.Insert(group); err != nil {
+		t.Fatalf("insert group error = %v", err)
+	}
+	sourceConnectionId := GetSourceConnectionId("engineering", SourceTypeWecom, "ww123")
+	records := []any{
+		&SourceConnection{Owner: "admin", Name: sourceConnectionId, OrganizationId: "engineering", SourceConnectionId: sourceConnectionId, SourceType: SourceTypeWecom, SourceTenantId: "ww123", Status: SourceConnectionStatusActive, Freshness: PlatformFreshnessFresh},
+		&PlatformDepartment{Owner: "admin", Name: GetPlatformDepartmentName("engineering", group.GetId()), OrganizationId: "engineering", DepartmentId: group.GetId(), ExternalDepartmentId: "2", DisplayName: "研发部", LifecycleStatus: PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-a"},
+		&PlatformUser{Owner: "admin", Name: "platform-user-zhang", OrganizationId: "engineering", AdminSubject: "engineering/local-zhang", UserOwner: "engineering", UserName: "local-zhang", DisplayName: "张三", LifecycleStatus: PlatformLifecycleStatusActive, MappingStatus: PlatformMappingStatusConfirmed, OrgVersion: "orgv-a"},
+		&PlatformMembership{Owner: "admin", Name: GetPlatformMembershipName("engineering", "engineering/local-zhang", group.GetId()), OrganizationId: "engineering", AdminSubject: "engineering/local-zhang", DepartmentId: group.GetId(), LifecycleStatus: PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-a"},
+		&ExternalIdentity{Owner: "admin", Name: GetExternalIdentityName(sourceConnectionId, PlatformSubjectTypeUser, "zhangsan"), OrganizationId: "engineering", SourceConnectionId: sourceConnectionId, ExternalSubjectType: PlatformSubjectTypeUser, ExternalSubjectId: "zhangsan", PlatformSubjectType: PlatformSubjectTypeUser, PlatformSubject: "engineering/local-zhang", MappingStatus: PlatformMappingStatusConfirmed, LastSeenBatchId: "batch-a"},
+	}
+	if _, err := ormer.Engine.Insert(records...); err != nil {
+		t.Fatalf("insert platform projection records error = %v", err)
+	}
+
+	snapshot, err := GetOrganizationSyncSnapshot("engineering")
+	if err != nil {
+		t.Fatalf("GetOrganizationSyncSnapshot() error = %v", err)
+	}
+	if len(snapshot.Groups) != 1 {
+		t.Fatalf("snapshot groups = %#v, want one group", snapshot.Groups)
+	}
+	if len(snapshot.Groups[0].Users) != 1 {
+		t.Fatalf("snapshot group users = %#v, want one member reference", snapshot.Groups[0].Users)
+	}
+	member := snapshot.Groups[0].Users[0]
+	if member.AdminSubject != "engineering/local-zhang" {
+		t.Fatalf("adminSubject = %q", member.AdminSubject)
+	}
+	if member.WecomCorpId != "ww123" || member.WecomUserId != "zhangsan" || member.WecomExternalId != "wecom:ww123:zhangsan" {
+		t.Fatalf("wecom member reference = %#v", member)
+	}
+	if member.SourceUserId != "engineering/local-zhang" || member.DisplayName != "张三" {
+		t.Fatalf("member display fields = %#v", member)
+	}
+}
+
+func TestBuildOrganizationSyncExportGroupsFiltersAndDeduplicatesMembers(t *testing.T) {
+	setupOrganizationSyncApiKeyTestDB(t)
+	insertOrganizationSyncApiKeyTestOrganizations(t)
+
+	rd := &Group{Owner: "engineering", Name: "rd", DisplayName: "研发部", IsEnabled: true}
+	qa := &Group{Owner: "engineering", Name: "qa", DisplayName: "测试部", IsEnabled: true}
+	if _, err := ormer.Engine.Insert(rd, qa); err != nil {
+		t.Fatalf("insert groups error = %v", err)
+	}
+	sourceConnectionId := GetSourceConnectionId("engineering", SourceTypeWecom, "ww123")
+	records := []any{
+		&SourceConnection{Owner: "admin", Name: sourceConnectionId, OrganizationId: "engineering", SourceConnectionId: sourceConnectionId, SourceType: SourceTypeWecom, SourceTenantId: "ww123", Status: SourceConnectionStatusActive, Freshness: PlatformFreshnessFresh},
+		&PlatformDepartment{Owner: "admin", Name: GetPlatformDepartmentName("engineering", rd.GetId()), OrganizationId: "engineering", DepartmentId: rd.GetId(), DisplayName: "研发部", LifecycleStatus: PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-a"},
+		&PlatformDepartment{Owner: "admin", Name: GetPlatformDepartmentName("engineering", rd.Name), OrganizationId: "engineering", DepartmentId: rd.Name, DisplayName: "研发部别名", LifecycleStatus: PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-a"},
+		&PlatformDepartment{Owner: "admin", Name: GetPlatformDepartmentName("engineering", "engineering/orphan"), OrganizationId: "engineering", DepartmentId: "engineering/orphan", DisplayName: "孤立部门", LifecycleStatus: PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-a"},
+		&PlatformDepartment{Owner: "admin", Name: GetPlatformDepartmentName("engineering", qa.GetId()), OrganizationId: "engineering", DepartmentId: qa.GetId(), DisplayName: "测试部", LifecycleStatus: PlatformLifecycleStatusDisabled, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-a"},
+		&PlatformUser{Owner: "admin", Name: "platform-user-active", OrganizationId: "engineering", AdminSubject: "engineering/active", UserOwner: "engineering", UserName: "active", DisplayName: "Active", LifecycleStatus: PlatformLifecycleStatusActive, MappingStatus: PlatformMappingStatusConfirmed, OrgVersion: "orgv-a"},
+		&PlatformUser{Owner: "admin", Name: "platform-user-beta", OrganizationId: "engineering", AdminSubject: "engineering/beta", UserOwner: "engineering", UserName: "beta", DisplayName: "Beta", LifecycleStatus: PlatformLifecycleStatusActive, MappingStatus: PlatformMappingStatusConfirmed, OrgVersion: "orgv-a"},
+		&PlatformUser{Owner: "admin", Name: "platform-user-pending", OrganizationId: "engineering", AdminSubject: "engineering/pending", UserOwner: "engineering", UserName: "pending", DisplayName: "Pending", LifecycleStatus: PlatformLifecycleStatusActive, MappingStatus: PlatformMappingStatusPendingReview, OrgVersion: "orgv-a"},
+		&PlatformUser{Owner: "admin", Name: "platform-user-disabled", OrganizationId: "engineering", AdminSubject: "engineering/disabled", UserOwner: "engineering", UserName: "disabled", DisplayName: "Disabled", LifecycleStatus: PlatformLifecycleStatusDisabled, MappingStatus: PlatformMappingStatusConfirmed, OrgVersion: "orgv-a"},
+		&PlatformMembership{Owner: "admin", Name: GetPlatformMembershipName("engineering", "engineering/active", rd.GetId()), OrganizationId: "engineering", AdminSubject: "engineering/active", DepartmentId: rd.GetId(), LifecycleStatus: PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-a"},
+		&PlatformMembership{Owner: "admin", Name: GetPlatformMembershipName("engineering", "engineering/active", rd.Name), OrganizationId: "engineering", AdminSubject: "engineering/active", DepartmentId: rd.Name, LifecycleStatus: PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-a"},
+		&PlatformMembership{Owner: "admin", Name: GetPlatformMembershipName("engineering", "engineering/beta", rd.GetId()), OrganizationId: "engineering", AdminSubject: "engineering/beta", DepartmentId: rd.GetId(), LifecycleStatus: PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-a"},
+		&PlatformMembership{Owner: "admin", Name: GetPlatformMembershipName("engineering", "engineering/pending", rd.GetId()), OrganizationId: "engineering", AdminSubject: "engineering/pending", DepartmentId: rd.GetId(), LifecycleStatus: PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-a"},
+		&PlatformMembership{Owner: "admin", Name: GetPlatformMembershipName("engineering", "engineering/disabled", rd.GetId()), OrganizationId: "engineering", AdminSubject: "engineering/disabled", DepartmentId: rd.GetId(), LifecycleStatus: PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-a"},
+		&PlatformMembership{Owner: "admin", Name: GetPlatformMembershipName("engineering", "engineering/active", qa.GetId()), OrganizationId: "engineering", AdminSubject: "engineering/active", DepartmentId: qa.GetId(), LifecycleStatus: PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-a"},
+		&ExternalIdentity{Owner: "admin", Name: GetExternalIdentityName(sourceConnectionId, PlatformSubjectTypeUser, "active-wecom"), OrganizationId: "engineering", SourceConnectionId: sourceConnectionId, ExternalSubjectType: PlatformSubjectTypeUser, ExternalSubjectId: "active-wecom", PlatformSubjectType: PlatformSubjectTypeUser, PlatformSubject: "engineering/active", MappingStatus: PlatformMappingStatusConfirmed, LastSeenBatchId: "batch-a"},
+		&ExternalIdentity{Owner: "admin", Name: GetExternalIdentityName(sourceConnectionId, PlatformSubjectTypeUser, "beta-wecom"), OrganizationId: "engineering", SourceConnectionId: sourceConnectionId, ExternalSubjectType: PlatformSubjectTypeUser, ExternalSubjectId: "beta-wecom", PlatformSubjectType: PlatformSubjectTypeUser, PlatformSubject: "engineering/beta", MappingStatus: PlatformMappingStatusConfirmed, LastSeenBatchId: "batch-a"},
+	}
+	if _, err := ormer.Engine.Insert(records...); err != nil {
+		t.Fatalf("insert projection records error = %v", err)
+	}
+
+	exportGroups, err := BuildOrganizationSyncExportGroups("engineering", []*Group{rd, qa})
+	if err != nil {
+		t.Fatalf("BuildOrganizationSyncExportGroups() error = %v", err)
+	}
+	rdExport := findOrganizationSyncExportGroupForTest(exportGroups, "rd")
+	if rdExport == nil {
+		t.Fatalf("rd export group missing: %#v", exportGroups)
+	}
+	if len(rdExport.Users) != 2 {
+		t.Fatalf("rd users = %#v, want two active users with duplicates removed", rdExport.Users)
+	}
+	if rdExport.Users[0].AdminSubject != "engineering/active" || rdExport.Users[0].WecomExternalId != "wecom:ww123:active-wecom" {
+		t.Fatalf("rd active user reference = %#v", rdExport.Users[0])
+	}
+	if rdExport.Users[1].AdminSubject != "engineering/beta" || rdExport.Users[1].WecomExternalId != "wecom:ww123:beta-wecom" {
+		t.Fatalf("rd beta user reference = %#v", rdExport.Users[1])
+	}
+	qaExport := findOrganizationSyncExportGroupForTest(exportGroups, "qa")
+	if qaExport == nil {
+		t.Fatalf("qa export group missing: %#v", exportGroups)
+	}
+	if len(qaExport.Users) != 0 {
+		t.Fatalf("qa users = %#v, want disabled department filtered", qaExport.Users)
+	}
+}
+
+func TestOrganizationSyncExportHelperEdgeCases(t *testing.T) {
+	setupOrganizationSyncApiKeyTestDB(t)
+
+	exportGroups, err := BuildOrganizationSyncExportGroups("", []*Group{nil, &Group{Owner: "engineering", Name: "empty"}})
+	if err != nil {
+		t.Fatalf("BuildOrganizationSyncExportGroups() blank org error = %v", err)
+	}
+	if len(exportGroups) != 1 || len(exportGroups[0].Users) != 0 {
+		t.Fatalf("blank org export groups = %#v", exportGroups)
+	}
+
+	departmentIndex := buildOrganizationSyncGroupDepartmentIndex([]*Group{
+		nil,
+		&Group{Owner: "engineering", Name: ""},
+		&Group{Owner: "engineering", Name: "rd"},
+	})
+	if departmentIndex["rd"] != "rd" || departmentIndex["engineering/rd"] != "rd" {
+		t.Fatalf("department index = %#v", departmentIndex)
+	}
+
+	sourceConnections := map[string]*SourceConnection{
+		"src-a":       {SourceConnectionId: "src-a", SourceType: SourceTypeWecom, SourceTenantId: "ww-a", Status: SourceConnectionStatusActive},
+		"src-b":       {SourceConnectionId: "src-b", SourceType: SourceTypeWecom, SourceTenantId: "ww-b", Status: SourceConnectionStatusActive},
+		"src-custom":  {SourceConnectionId: "src-custom", SourceType: SourceTypeCustom, SourceTenantId: "tenant", Status: SourceConnectionStatusActive},
+		"src-no-corp": {SourceConnectionId: "src-no-corp", SourceType: SourceTypeWecom, Status: SourceConnectionStatusActive},
+	}
+	refsBySubject := buildOrganizationSyncExternalIdentityIndex([]*ExternalIdentity{
+		nil,
+		{OrganizationId: "engineering", SourceConnectionId: "src-a", ExternalSubjectType: PlatformSubjectTypeUser, ExternalSubjectId: "pending", PlatformSubjectType: PlatformSubjectTypeUser, PlatformSubject: "engineering/pending", MappingStatus: PlatformMappingStatusPendingReview},
+		{OrganizationId: "engineering", SourceConnectionId: "src-a", ExternalSubjectType: PlatformSubjectTypeDepartment, ExternalSubjectId: "dept", PlatformSubjectType: PlatformSubjectTypeUser, PlatformSubject: "engineering/dept", MappingStatus: PlatformMappingStatusConfirmed},
+		{OrganizationId: "engineering", SourceConnectionId: "src-a", ExternalSubjectType: PlatformSubjectTypeUser, ExternalSubjectId: "bad-platform", PlatformSubjectType: PlatformSubjectTypeDepartment, PlatformSubject: "engineering/bad", MappingStatus: PlatformMappingStatusConfirmed},
+		{OrganizationId: "engineering", SourceConnectionId: "src-a", ExternalSubjectType: PlatformSubjectTypeUser, ExternalSubjectId: "", PlatformSubjectType: PlatformSubjectTypeUser, PlatformSubject: "engineering/empty-external", MappingStatus: PlatformMappingStatusConfirmed},
+		{OrganizationId: "engineering", SourceConnectionId: "src-a", ExternalSubjectType: PlatformSubjectTypeUser, ExternalSubjectId: "empty-subject", PlatformSubjectType: PlatformSubjectTypeUser, PlatformSubject: "", MappingStatus: PlatformMappingStatusConfirmed},
+		{OrganizationId: "engineering", SourceConnectionId: "src-custom", ExternalSubjectType: PlatformSubjectTypeUser, ExternalSubjectId: "custom-user", PlatformSubjectType: PlatformSubjectTypeUser, PlatformSubject: "engineering/custom", MappingStatus: PlatformMappingStatusConfirmed},
+		{OrganizationId: "engineering", SourceConnectionId: "src-no-corp", ExternalSubjectType: PlatformSubjectTypeUser, ExternalSubjectId: "no-corp-user", PlatformSubjectType: PlatformSubjectTypeUser, PlatformSubject: "engineering/no-corp", MappingStatus: PlatformMappingStatusConfirmed},
+		{OrganizationId: "engineering", SourceConnectionId: "src-b", ExternalSubjectType: PlatformSubjectTypeUser, ExternalSubjectId: "bob", PlatformSubjectType: PlatformSubjectTypeUser, PlatformSubject: "engineering/bob", MappingStatus: PlatformMappingStatusConfirmed},
+		{OrganizationId: "engineering", SourceConnectionId: "src-a", ExternalSubjectType: PlatformSubjectTypeUser, ExternalSubjectId: "alice", PlatformSubjectType: PlatformSubjectTypeUser, PlatformSubject: "engineering/bob", MappingStatus: PlatformMappingStatusConfirmed},
+	}, sourceConnections)
+	refs := refsBySubject["engineering/bob"]
+	if len(refs) != 2 {
+		t.Fatalf("refs for bob = %#v, want two valid wecom refs", refs)
+	}
+	if refs[0].SourceConnectionId != "src-a" || refs[0].WecomExternalId != "wecom:ww-a:alice" {
+		t.Fatalf("refs not sorted by source/external id: %#v", refs)
+	}
+	if _, ok := refsBySubject["engineering/custom"]; ok {
+		t.Fatalf("custom source should not be exported: %#v", refsBySubject["engineering/custom"])
+	}
+	if _, ok := refsBySubject["engineering/no-corp"]; ok {
+		t.Fatalf("wecom source without corp should not be exported: %#v", refsBySubject["engineering/no-corp"])
+	}
+	if _, ok := refsBySubject["engineering/pending"]; ok {
+		t.Fatalf("pending identity should not be exported: %#v", refsBySubject["engineering/pending"])
+	}
+
+	selected, ok := selectOrganizationSyncExternalIdentityRef(refs, "src-b")
+	if !ok || selected.WecomExternalId != "wecom:ww-b:bob" {
+		t.Fatalf("selected src-b ref = %#v ok=%v", selected, ok)
+	}
+	selected, ok = selectOrganizationSyncExternalIdentityRef(refs, "missing")
+	if !ok || selected.WecomExternalId != "wecom:ww-a:alice" {
+		t.Fatalf("fallback ref = %#v ok=%v", selected, ok)
+	}
+	if _, ok = selectOrganizationSyncExternalIdentityRef(nil, "src-a"); ok {
+		t.Fatalf("empty refs should not select")
+	}
+	if got := organizationSyncMemberReferenceSortKey(OrganizationSyncGroupMemberReference{WecomExternalId: "wecom:ww-a:alice"}); got != "wecom:ww-a:alice" {
+		t.Fatalf("sort key = %q", got)
+	}
+}
+
+func findOrganizationSyncExportGroupForTest(groups []*OrganizationSyncExportGroup, name string) *OrganizationSyncExportGroup {
+	for _, group := range groups {
+		if group != nil && group.Name == name {
+			return group
+		}
+	}
+	return nil
+}
+
 func setupOrganizationSyncApiKeyTestDB(t *testing.T) {
 	t.Helper()
 
@@ -229,7 +416,17 @@ func setupOrganizationSyncApiKeyTestDB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new sqlite engine error = %v", err)
 	}
-	if err := engine.Sync2(new(Organization), new(Group), new(Application), new(OrganizationSyncApiKey)); err != nil {
+	if err := engine.Sync2(
+		new(Organization),
+		new(Group),
+		new(Application),
+		new(OrganizationSyncApiKey),
+		new(PlatformDepartment),
+		new(PlatformUser),
+		new(PlatformMembership),
+		new(SourceConnection),
+		new(ExternalIdentity),
+	); err != nil {
 		t.Fatalf("sync tables error = %v", err)
 	}
 	ormer = &Ormer{Engine: engine}

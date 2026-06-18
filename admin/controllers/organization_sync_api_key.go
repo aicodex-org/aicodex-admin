@@ -25,9 +25,9 @@ import (
 )
 
 type organizationSyncExportResponse struct {
-	Organization *object.Organization  `json:"organization"`
-	Groups       []*object.Group       `json:"groups"`
-	Applications []*object.Application `json:"applications"`
+	Organization *object.Organization                  `json:"organization"`
+	Groups       []*object.OrganizationSyncExportGroup `json:"groups"`
+	Applications []*object.Application                 `json:"applications"`
 }
 
 func (c *ApiController) getOrganizationSyncApiKeyAuth() *object.OrganizationSyncApiKeyAuth {

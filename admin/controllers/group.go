@@ -49,6 +49,10 @@ func (c *ApiController) GetGroups() {
 			c.ResponseError(err.Error())
 			return
 		}
+		if err = object.ExtendGroupsWithUsers(groups); err != nil {
+			c.ResponseError(err.Error())
+			return
+		}
 		if withTree == "true" {
 			c.ResponseOk(object.ConvertToTreeData(groups, organization), len(groups))
 			return
