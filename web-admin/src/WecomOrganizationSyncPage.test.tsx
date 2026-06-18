@@ -284,9 +284,14 @@ test("renders sync run history with status, counts, and safe error summary", asy
     data2: 4,
   });
 
-  render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+  const {container} = render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
-  expect(await screen.findByText("run-running")).toBeInTheDocument();
+  expect(await screen.findByText("运行中")).toBeInTheDocument();
+  expect(screen.getByText("序号")).toBeInTheDocument();
+  expect(screen.queryByText("运行 ID")).not.toBeInTheDocument();
+  expect(screen.queryByText("run-running")).not.toBeInTheDocument();
+  expect(container.querySelector("tbody tr[data-row-key='run-running'] td:first-child")?.textContent).toContain("1");
+  expect(container.querySelector(".ant-typography-copy")).toBeInTheDocument();
   expect(screen.getByText("运行中")).toBeInTheDocument();
   expect(screen.getByText("成功")).toBeInTheDocument();
   expect(screen.getByText("失败")).toBeInTheDocument();
@@ -396,14 +401,18 @@ test("loads the selected history page when pagination changes", async() => {
 
   const {container} = render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
-  expect(await screen.findByText("run-page-1-0")).toBeInTheDocument();
+  await flushPromises();
+  expect(container.querySelector("tbody tr[data-row-key='run-page-1-0']")).toBeInTheDocument();
+  expect(container.querySelector("tbody tr[data-row-key='run-page-1-0'] td:first-child")?.textContent).toContain("1");
+  expect(screen.queryByText("run-page-1-0")).not.toBeInTheDocument();
 
   const page2Item = container.querySelector(".ant-pagination-item-2");
   fireEvent.click(page2Item.querySelector("a") || page2Item);
 
   await flushPromises();
   expect(wecomBackendMock.getWecomOrganizationSyncRuns).toHaveBeenNthCalledWith(2, "engineering", 2, 10);
-  expect(await screen.findByText("run-page-2-0")).toBeInTheDocument();
+  expect(container.querySelector("tbody tr[data-row-key='run-page-2-0'] td:first-child")?.textContent).toContain("11");
+  expect(screen.queryByText("run-page-2-0")).not.toBeInTheDocument();
 });
 
 test("auto refreshes while a sync run is running and stops after terminal status", async() => {
@@ -426,7 +435,8 @@ test("auto refreshes while a sync run is running and stops after terminal status
   await act(async() => {
     await flushMicrotasks();
   });
-  expect(screen.getByText("run-running")).toBeInTheDocument();
+  expect(screen.getByText("序号")).toBeInTheDocument();
+  expect(screen.queryByText("run-running")).not.toBeInTheDocument();
   expect(screen.getByText(/检测到运行中任务，自动每 3 秒刷新/)).toBeInTheDocument();
   expect(wecomBackendMock.getWecomOrganizationSyncRuns).toHaveBeenCalledTimes(1);
 

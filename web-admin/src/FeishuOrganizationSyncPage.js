@@ -3,7 +3,7 @@
 // Licensed under the Apache License, Version 2.0 (the "License");
 
 import React from "react";
-import {Alert, Button, Col, Collapse, Divider, Drawer, Input, Modal, Row, Select, Space, Switch, Table, Tag, Typography} from "antd";
+import {Alert, Button, Col, Collapse, Divider, Drawer, Input, Modal, Row, Select, Space, Switch, Table, Tag, Tooltip, Typography} from "antd";
 import {CloudSyncOutlined, CopyOutlined, DownloadOutlined, PlayCircleOutlined, ReloadOutlined, SaveOutlined, ToolOutlined} from "@ant-design/icons";
 import * as Setting from "./Setting";
 import * as FeishuOrganizationSyncBackend from "./backend/FeishuOrganizationSyncBackend";
@@ -20,6 +20,8 @@ import {getFeishuEndpointContextText} from "./organizationSync/FeishuOrganizatio
 
 const {Text} = Typography;
 const syncRunPollIntervalMs = 3000;
+const runStatisticTextStyle = {fontVariantNumeric: "tabular-nums"};
+const nowrapHeaderCell = {style: {whiteSpace: "nowrap"}};
 
 const diagnosticStageLabels = {
   config_validation: "配置校验",
@@ -1591,7 +1593,11 @@ class FeishuOrganizationSyncPage extends React.Component {
   }
 
   formatImpactCounts(created, updated, disabled) {
-    return `新 ${created || 0} / 更 ${updated || 0} / 禁 ${disabled || 0}`;
+    return (
+      <Text style={runStatisticTextStyle}>
+        {`新 ${created || 0} / 更 ${updated || 0} / 禁 ${disabled || 0}`}
+      </Text>
+    );
   }
 
   renderRunErrorSummary(record) {
@@ -1663,17 +1669,17 @@ class FeishuOrganizationSyncPage extends React.Component {
 
   renderRuns() {
     const columns = [
-      {title: "运行 ID", dataIndex: "name", key: "name", width: 210, ellipsis: true},
+      {title: "序号", key: "index", width: 72, align: "center", onHeaderCell: () => nowrapHeaderCell, render: (_, record, index) => this.renderRunIndex(record, index)},
       {title: "状态", key: "status", width: 110, render: (_, record) => this.renderRunStatus(record)},
       {title: "触发方式", dataIndex: "triggerType", key: "triggerType", width: 110, render: triggerType => this.getTriggerTag(triggerType)},
       {title: "阶段", dataIndex: "stage", key: "stage", width: 110, render: (stage, record) => this.getStageText(stage, record.status)},
-      {title: "执行人", dataIndex: "actor", key: "actor", width: 140, ellipsis: true},
+      {title: "执行人", dataIndex: "actor", key: "actor", width: 140, ellipsis: true, render: actor => this.renderActor(actor)},
       {title: "开始时间", dataIndex: "startedAt", key: "startedAt", width: 170, render: text => this.formatRunTime(text)},
       {title: "结束时间", dataIndex: "finishedAt", key: "finishedAt", width: 170, render: text => this.formatRunTime(text)},
-      {title: "部门", key: "departments", width: 170, render: (_, record) => this.formatImpactCounts(record.departmentCreatedCount, record.departmentUpdatedCount, record.departmentDisabledCount)},
-      {title: "用户", key: "users", width: 170, render: (_, record) => this.formatImpactCounts(record.userCreatedCount, record.userUpdatedCount, record.userDisabledCount)},
-      {title: "关系", key: "memberships", width: 170, render: (_, record) => this.formatImpactCounts(record.membershipCreatedCount, record.membershipUpdatedCount, record.membershipDisabledCount)},
-      {title: "错误摘要", key: "diagnostics", render: (_, record) => this.renderRunErrorSummary(record)},
+      {title: "部门", key: "departments", width: 150, render: (_, record) => this.formatImpactCounts(record.departmentCreatedCount, record.departmentUpdatedCount, record.departmentDisabledCount)},
+      {title: "用户", key: "users", width: 150, render: (_, record) => this.formatImpactCounts(record.userCreatedCount, record.userUpdatedCount, record.userDisabledCount)},
+      {title: "关系", key: "memberships", width: 150, render: (_, record) => this.formatImpactCounts(record.membershipCreatedCount, record.membershipUpdatedCount, record.membershipDisabledCount)},
+      {title: "错误摘要", key: "diagnostics", onHeaderCell: () => nowrapHeaderCell, render: (_, record) => this.renderRunErrorSummary(record)},
     ];
     return (
       <Table
@@ -1686,6 +1692,34 @@ class FeishuOrganizationSyncPage extends React.Component {
         pagination={getTablePaginationProps({...this.state.pagination, total: this.state.runCount || this.state.runs.length})}
         onChange={pagination => this.refreshRuns(this.state.organization, {pagination}).catch(() => {})}
       />
+    );
+  }
+
+  getRunRowNumber(index) {
+    const current = this.state.pagination?.current || 1;
+    const pageSize = this.state.pagination?.pageSize || 10;
+    return (current - 1) * pageSize + index + 1;
+  }
+
+  renderRunIndex(record, index) {
+    const runId = record?.name || "";
+    return (
+      <Tooltip title={runId ? `运行 ID：${runId}` : "运行 ID：-"}>
+        <Text copyable={runId ? {text: runId, tooltips: ["复制运行 ID", "已复制"]} : false}>
+          {this.getRunRowNumber(index)}
+        </Text>
+      </Tooltip>
+    );
+  }
+
+  renderActor(actor) {
+    const text = actor || "-";
+    return (
+      <Tooltip title={text}>
+        <Text ellipsis style={{display: "inline-block", maxWidth: 132}}>
+          {text}
+        </Text>
+      </Tooltip>
     );
   }
 
@@ -1757,8 +1791,14 @@ class FeishuOrganizationSyncPage extends React.Component {
             <div style={{marginBottom: 8}}>定时同步</div>
             <Space direction="vertical" size={8} style={{width: "100%"}}>
               <Space><Switch checked={config.scheduleEnabled} onChange={checked => this.updateConfigField("scheduleEnabled", checked)} /><span>启用定时同步</span></Space>
-              <Input value={config.scheduleCron} onChange={event => this.updateConfigField("scheduleCron", event.target.value)} placeholder="0 2 * * *" />
-              <Input value={config.scheduleTimezone} onChange={event => this.updateConfigField("scheduleTimezone", event.target.value)} placeholder="Asia/Shanghai" />
+              <div>
+                <div style={{marginBottom: 4}}>Cron 表达式</div>
+                <Input value={config.scheduleCron} onChange={event => this.updateConfigField("scheduleCron", event.target.value)} placeholder="0 2 * * *" />
+              </div>
+              <div>
+                <div style={{marginBottom: 4}}>时区</div>
+                <Input value={config.scheduleTimezone} onChange={event => this.updateConfigField("scheduleTimezone", event.target.value)} placeholder="Asia/Shanghai" />
+              </div>
             </Space>
           </Col>
         </Row>

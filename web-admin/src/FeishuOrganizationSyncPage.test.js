@@ -237,6 +237,8 @@ test("renders Feishu organization sync config and endpoint mode", async() => {
   expect(screen.getByText("飞书组织架构同步")).toBeInTheDocument();
   expect(screen.getByText("服务区域")).toBeInTheDocument();
   expect(screen.getByText("飞书（中国大陆）")).toBeInTheDocument();
+  expect(screen.getByText("Cron 表达式")).toBeInTheDocument();
+  expect(screen.getByText("时区")).toBeInTheDocument();
   expect(screen.getByDisplayValue("cli_123")).toBeInTheDocument();
 });
 
@@ -269,7 +271,10 @@ test("renders run diagnostics with compact labels and redacted summary", async()
 
   render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
-  expect(await screen.findByText("run-failed")).toBeInTheDocument();
+  expect(await screen.findByText("失败")).toBeInTheDocument();
+  expect(screen.getByText("序号")).toBeInTheDocument();
+  expect(screen.queryByText("运行 ID")).not.toBeInTheDocument();
+  expect(screen.queryByText("run-failed")).not.toBeInTheDocument();
   expect(screen.getByText("凭证")).toBeInTheDocument();
   expect(screen.getByText("租户 token")).toBeInTheDocument();
   expect(screen.getByText("修凭证")).toBeInTheDocument();
@@ -527,14 +532,16 @@ test("renders sync runs without forcing horizontal table scroll", async() => {
   const {container} = render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
   expect(await screen.findByText("同步记录")).toBeInTheDocument();
-  expect(screen.getByText("feishu-sync-run-1781681971079340586")).toBeInTheDocument();
-  expect(screen.getByRole("columnheader", {name: "运行 ID"})).toBeInTheDocument();
-  expect(screen.getByRole("columnheader", {name: "触发方式"})).toBeInTheDocument();
-  expect(screen.getByRole("columnheader", {name: "部门"})).toBeInTheDocument();
-  expect(screen.getByRole("columnheader", {name: "用户"})).toBeInTheDocument();
-  expect(screen.getByRole("columnheader", {name: "关系"})).toBeInTheDocument();
-  expect(screen.queryByRole("columnheader", {name: "影响统计"})).not.toBeInTheDocument();
-  expect(screen.queryByRole("columnheader", {name: "诊断 / 错误"})).not.toBeInTheDocument();
+  expect(screen.queryByText("feishu-sync-run-1781681971079340586")).not.toBeInTheDocument();
+  expect(screen.getByText("序号")).toBeInTheDocument();
+  expect(screen.queryByText("运行 ID")).not.toBeInTheDocument();
+  expect(screen.getByText("触发方式")).toBeInTheDocument();
+  expect(screen.getByText("部门")).toBeInTheDocument();
+  expect(screen.getByText("用户")).toBeInTheDocument();
+  expect(screen.getByText("关系")).toBeInTheDocument();
+  expect(screen.getByText("错误摘要").closest("th")).toHaveStyle("white-space: nowrap");
+  expect(screen.queryByText("影响统计")).not.toBeInTheDocument();
+  expect(screen.queryByText("诊断 / 错误")).not.toBeInTheDocument();
   expect(screen.getByText("新 0 / 更 0 / 禁 0")).toBeInTheDocument();
   expect(screen.getAllByText("新 0 / 更 56 / 禁 0").length).toBeGreaterThan(1);
   const horizontallyScrollableTables = [...container.querySelectorAll(".ant-table-content")]

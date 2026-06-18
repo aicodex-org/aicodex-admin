@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import React from "react";
-import {Alert, Button, Col, Divider, Input, Row, Space, Switch, Table, Tag, Typography} from "antd";
+import {Alert, Button, Col, Divider, Input, Row, Space, Switch, Table, Tag, Tooltip, Typography} from "antd";
 import {PlayCircleOutlined, PlusOutlined, ReloadOutlined, SaveOutlined, ToolOutlined} from "@ant-design/icons";
 import * as Setting from "./Setting";
 import * as WecomOrganizationSyncBackendRaw from "./backend/WecomOrganizationSyncBackend";
@@ -28,6 +28,8 @@ import {
 
 const {Text} = Typography;
 const syncRunPollIntervalMs = 3000;
+const runStatisticTextStyle: React.CSSProperties = {fontVariantNumeric: "tabular-nums"};
+const nowrapHeaderCell: React.ThHTMLAttributes<HTMLElement> = {style: {whiteSpace: "nowrap"}};
 
 interface AdminAccount {
   owner?: string;
@@ -503,11 +505,12 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
   renderRuns() {
     const columns = [
       {
-        title: "运行 ID",
-        dataIndex: "name",
-        key: "name",
-        width: 210,
-        ellipsis: true,
+        title: "序号",
+        key: "index",
+        width: 72,
+        align: "center" as const,
+        onHeaderCell: () => nowrapHeaderCell,
+        render: (_: unknown, record: WecomOrganizationSyncRun, index: number) => this.renderRunIndex(record, index),
       },
       {
         title: "状态",
@@ -536,6 +539,8 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
         dataIndex: "actor",
         key: "actor",
         width: 120,
+        ellipsis: true,
+        render: (actor: string) => this.renderActor(actor),
       },
       {
         title: "开始时间",
@@ -554,20 +559,21 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
       {
         title: "部门",
         key: "departments",
-        width: 180,
-        render: (_: unknown, record: WecomOrganizationSyncRun) => `新 ${record.departmentCreatedCount || 0} / 更 ${record.departmentUpdatedCount || 0} / 禁 ${record.departmentDisabledCount || 0}`,
+        width: 150,
+        render: (_: unknown, record: WecomOrganizationSyncRun) => this.renderImpactCounts(record.departmentCreatedCount, record.departmentUpdatedCount, record.departmentDisabledCount),
       },
       {
         title: "用户",
         key: "users",
-        width: 180,
-        render: (_: unknown, record: WecomOrganizationSyncRun) => `新 ${record.userCreatedCount || 0} / 更 ${record.userUpdatedCount || 0} / 禁 ${record.userDisabledCount || 0}`,
+        width: 150,
+        render: (_: unknown, record: WecomOrganizationSyncRun) => this.renderImpactCounts(record.userCreatedCount, record.userUpdatedCount, record.userDisabledCount),
       },
       {
         title: "错误摘要",
         dataIndex: "errorText",
         key: "errorText",
         ellipsis: true,
+        onHeaderCell: () => nowrapHeaderCell,
       },
     ];
 
@@ -579,10 +585,46 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
         loading={this.state.loading}
         columns={columns}
         dataSource={this.state.runs}
-        scroll={{x: 1420}}
+        scroll={{x: 1280}}
         pagination={getTablePaginationProps({...this.state.pagination, total: this.state.runCount || this.state.runs.length})}
         onChange={this.handleRunsTableChange}
       />
+    );
+  }
+
+  getRunRowNumber(index: number): number {
+    const current = this.state.pagination.current || 1;
+    const pageSize = this.state.pagination.pageSize || 10;
+    return (current - 1) * pageSize + index + 1;
+  }
+
+  renderRunIndex(record: WecomOrganizationSyncRun, index: number) {
+    const runId = record.name || "";
+    return (
+      <Tooltip title={runId ? `运行 ID：${runId}` : "运行 ID：-"}>
+        <Text copyable={runId ? {text: runId, tooltips: ["复制运行 ID", "已复制"]} : false}>
+          {this.getRunRowNumber(index)}
+        </Text>
+      </Tooltip>
+    );
+  }
+
+  renderActor(actor: string) {
+    const text = actor || "-";
+    return (
+      <Tooltip title={text}>
+        <Text ellipsis style={{display: "inline-block", maxWidth: 112}}>
+          {text}
+        </Text>
+      </Tooltip>
+    );
+  }
+
+  renderImpactCounts(created?: number, updated?: number, disabled?: number) {
+    return (
+      <Text style={runStatisticTextStyle}>
+        {`新 ${created || 0} / 更 ${updated || 0} / 禁 ${disabled || 0}`}
+      </Text>
     );
   }
 
