@@ -232,6 +232,7 @@ test("renders Feishu organization sync config and endpoint mode", async() => {
   render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
   expect(await screen.findByText("飞书组织架构同步")).toBeInTheDocument();
+  expect(screen.getByAltText("Feishu/Lark provider logo")).toHaveAttribute("src", expect.stringContaining("/img/social_lark.png"));
   expect(FeishuOrganizationSyncBackend.getFeishuOrganizationSyncConfig).toHaveBeenCalledWith("engineering");
   expect(screen.getByText("飞书组织架构同步")).toBeInTheDocument();
   expect(screen.getByText("国内飞书（open.feishu.cn）")).toBeInTheDocument();

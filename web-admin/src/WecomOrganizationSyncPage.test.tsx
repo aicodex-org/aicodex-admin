@@ -14,20 +14,46 @@
 // limitations under the License.
 
 import React from "react";
-import {act, fireEvent, render, screen} from "@testing-library/react";
+import {expect as jestExpect, jest as jestValue} from "@jest/globals";
+import {act, render} from "@testing-library/react";
 import * as Setting from "./Setting";
 import * as WecomOrganizationSyncBackend from "./backend/WecomOrganizationSyncBackend";
 import WecomOrganizationSyncPage from "./WecomOrganizationSyncPage";
 
-jest.mock("./backend/WecomOrganizationSyncBackend", () => ({
-  getWecomOrganizationSyncConfig: jest.fn(),
-  saveWecomOrganizationSyncConfig: jest.fn(),
-  testWecomOrganizationSyncConfig: jest.fn(),
-  startWecomOrganizationSyncRun: jest.fn(),
-  getWecomOrganizationSyncRuns: jest.fn(),
-}));
+declare const jest: typeof jestValue;
 
-jest.mock("./common/select/OrganizationSelect", () => (props) => {
+type DomMatcherResult = ReturnType<typeof jestExpect> & {
+  toBeInTheDocument: () => void;
+  toHaveAttribute: (attr: string, value?: unknown) => void;
+  toBeDisabled: () => void;
+  toHaveClass: (...classNames: string[]) => void;
+  not: ReturnType<typeof jestExpect> & {
+    toBeInTheDocument: () => void;
+    toHaveBeenCalled: () => void;
+    toBeNull: () => void;
+  };
+};
+
+type TestExpect = {
+  (actual: unknown): DomMatcherResult;
+  objectContaining: typeof jestExpect.objectContaining;
+  stringContaining: typeof jestExpect.stringContaining;
+};
+
+const expect = jestExpect as unknown as TestExpect;
+
+jest.mock("./backend/WecomOrganizationSyncBackend", () => {
+  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+  return {
+    getWecomOrganizationSyncConfig: factoryJest.fn(),
+    saveWecomOrganizationSyncConfig: factoryJest.fn(),
+    testWecomOrganizationSyncConfig: factoryJest.fn(),
+    startWecomOrganizationSyncRun: factoryJest.fn(),
+    getWecomOrganizationSyncRuns: factoryJest.fn(),
+  };
+});
+
+jest.mock("./common/select/OrganizationSelect", () => (props: {initValue?: string; excludedOrganizations?: string[]; onChange: (value: string) => void}) => {
   const organizations = [
     {value: "built-in", label: "Built-in Organization"},
     {value: "engineering", label: "engineering"},
@@ -39,16 +65,40 @@ jest.mock("./common/select/OrganizationSelect", () => (props) => {
   );
 });
 
-const mockMatchMedia = query => ({
+type LooseMock = {
+  (...args: unknown[]): unknown;
+  mockResolvedValue: (value: unknown) => LooseMock;
+  mockResolvedValueOnce: (value: unknown) => LooseMock;
+  mockReturnValueOnce: (value: unknown) => LooseMock;
+};
+type WecomBackendMock = Record<keyof typeof WecomOrganizationSyncBackend, LooseMock>;
+
+const wecomBackendMock = WecomOrganizationSyncBackend as unknown as WecomBackendMock;
+const {fireEvent, screen} = require("@testing-library/react") as {
+  fireEvent: {
+    click: (element: Element | null) => boolean;
+    change: (element: Element | null, event: unknown) => boolean;
+  };
+  screen: {
+    findByText: (text: string | RegExp) => Promise<HTMLElement>;
+    getByText: (text: string | RegExp) => HTMLElement;
+    queryByText: (text: string | RegExp) => HTMLElement | null;
+    getByAltText: (text: string) => HTMLElement;
+    getByDisplayValue: (text: string) => HTMLElement;
+    getByTestId: (testId: string) => HTMLElement;
+  };
+};
+
+const mockMatchMedia = (query: string): MediaQueryList => ({
   matches: false,
   media: query,
   onchange: null,
-  addListener: jest.fn(),
-  removeListener: jest.fn(),
-  addEventListener: jest.fn(),
-  removeEventListener: jest.fn(),
-  dispatchEvent: jest.fn(),
-});
+  addListener: jestValue.fn(),
+  removeListener: jestValue.fn(),
+  addEventListener: jestValue.fn(),
+  removeEventListener: jestValue.fn(),
+  dispatchEvent: jestValue.fn(),
+} as unknown as MediaQueryList);
 
 beforeEach(() => {
   Object.defineProperty(window, "matchMedia", {
@@ -56,21 +106,21 @@ beforeEach(() => {
     value: mockMatchMedia,
   });
   localStorage.removeItem("organization");
-  jest.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
   mockConfig();
-  WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns.mockResolvedValue({status: "ok", data: [], data2: 0});
-  WecomOrganizationSyncBackend.testWecomOrganizationSyncConfig.mockResolvedValue({status: "ok", data: {missingFields: [], departmentCount: 0, userCount: 0}});
-  WecomOrganizationSyncBackend.startWecomOrganizationSyncRun.mockResolvedValue({status: "ok", data: {name: "run-1"}});
+  wecomBackendMock.getWecomOrganizationSyncRuns.mockResolvedValue({status: "ok", data: [], data2: 0});
+  wecomBackendMock.testWecomOrganizationSyncConfig.mockResolvedValue({status: "ok", data: {missingFields: [], departmentCount: 0, userCount: 0}});
+  wecomBackendMock.startWecomOrganizationSyncRun.mockResolvedValue({status: "ok", data: {name: "run-1"}});
 });
 
 afterEach(() => {
-  jest.useRealTimers();
-  Setting.showMessage.mockRestore();
-  jest.clearAllMocks();
+  jestValue.useRealTimers();
+  jestValue.restoreAllMocks();
+  jestValue.clearAllMocks();
 });
 
-function mockConfig(config = {}) {
-  WecomOrganizationSyncBackend.getWecomOrganizationSyncConfig.mockResolvedValue({
+function mockConfig(config: Record<string, unknown> = {}) {
+  wecomBackendMock.getWecomOrganizationSyncConfig.mockResolvedValue({
     status: "ok",
     data: {
       organization: "engineering",
@@ -100,6 +150,7 @@ test("renders localized WeCom organization sync configuration entry", async() =>
   render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
   expect(await screen.findByText("企业微信组织架构同步")).toBeInTheDocument();
+  expect(screen.getByAltText("WeCom provider logo")).toHaveAttribute("src", expect.stringContaining("/img/social_wecom.png"));
   expect(screen.getByText("同步目标组织")).toBeInTheDocument();
   expect(screen.getByText("新建组织")).toBeInTheDocument();
   expect(screen.queryByText("Built-in Organization")).not.toBeInTheDocument();
@@ -124,7 +175,7 @@ test("saves scheduled sync settings from the config form", async() => {
     scheduleCron: "0 2 * * *",
     scheduleTimezone: "Asia/Shanghai",
   });
-  WecomOrganizationSyncBackend.saveWecomOrganizationSyncConfig.mockResolvedValue({
+  wecomBackendMock.saveWecomOrganizationSyncConfig.mockResolvedValue({
     status: "ok",
     data: {
       organization: "engineering",
@@ -144,14 +195,14 @@ test("saves scheduled sync settings from the config form", async() => {
   render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
   await screen.findByText("定时同步");
-  const scheduleSwitch = screen.getByText("启用定时同步").closest(".ant-space").querySelector("button");
+  const scheduleSwitch = screen.getByText("启用定时同步").closest(".ant-space")?.querySelector("button") || null;
   fireEvent.click(scheduleSwitch);
   fireEvent.change(screen.getByDisplayValue("0 2 * * *"), {target: {value: "*/15 * * * *"}});
   fireEvent.change(screen.getByDisplayValue("Asia/Shanghai"), {target: {value: "UTC"}});
   fireEvent.click(screen.getByText("保存"));
 
   await flushPromises();
-  expect(WecomOrganizationSyncBackend.saveWecomOrganizationSyncConfig).toHaveBeenCalledWith(expect.objectContaining({
+  expect(wecomBackendMock.saveWecomOrganizationSyncConfig).toHaveBeenCalledWith(expect.objectContaining({
     scheduleEnabled: true,
     scheduleCron: "*/15 * * * *",
     scheduleTimezone: "UTC",
@@ -164,13 +215,13 @@ test("refreshes after account organization is loaded", async() => {
 
   expect(screen.getByText("企业微信组织架构同步")).toBeInTheDocument();
   expect(screen.getByText("正在加载企业微信同步页面...")).toBeInTheDocument();
-  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncConfig).not.toHaveBeenCalled();
+  expect(wecomBackendMock.getWecomOrganizationSyncConfig).not.toHaveBeenCalled();
 
   rerender(<WecomOrganizationSyncPage account={{owner: "built-in", isAdmin: true}} />);
 
   expect(await screen.findByText("企业微信组织架构同步")).toBeInTheDocument();
-  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncConfig).toHaveBeenCalledWith("built-in");
-  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns).toHaveBeenCalledWith("built-in", 1, 10);
+  expect(wecomBackendMock.getWecomOrganizationSyncConfig).toHaveBeenCalledWith("built-in");
+  expect(wecomBackendMock.getWecomOrganizationSyncRuns).toHaveBeenCalledWith("built-in", 1, 10);
 });
 
 test("refreshes when account object is filled in place", async() => {
@@ -182,8 +233,8 @@ test("refreshes when account object is filled in place", async() => {
   rerender(<WecomOrganizationSyncPage account={account} />);
 
   expect(await screen.findByText("企业微信组织架构同步")).toBeInTheDocument();
-  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncConfig).toHaveBeenCalledWith("built-in");
-  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns).toHaveBeenCalledWith("built-in", 1, 10);
+  expect(wecomBackendMock.getWecomOrganizationSyncConfig).toHaveBeenCalledWith("built-in");
+  expect(wecomBackendMock.getWecomOrganizationSyncRuns).toHaveBeenCalledWith("built-in", 1, 10);
 });
 
 test("falls back to account owner when stored organization is blank", async() => {
@@ -194,12 +245,12 @@ test("falls back to account owner when stored organization is blank", async() =>
 
   expect(await screen.findByText("企业微信组织架构同步")).toBeInTheDocument();
   expect(screen.getByTestId("organization-select")).toBeInTheDocument();
-  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncConfig).toHaveBeenCalledWith("built-in");
-  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns).toHaveBeenCalledWith("built-in", 1, 10);
+  expect(wecomBackendMock.getWecomOrganizationSyncConfig).toHaveBeenCalledWith("built-in");
+  expect(wecomBackendMock.getWecomOrganizationSyncRuns).toHaveBeenCalledWith("built-in", 1, 10);
 });
 
 test("navigates to organization list when creating sync target organization", async() => {
-  const history = {push: jest.fn()};
+  const history = {push: jestValue.fn()};
   render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} history={history} />);
 
   fireEvent.click(await screen.findByText("新建组织"));
@@ -208,7 +259,7 @@ test("navigates to organization list when creating sync target organization", as
 });
 
 test("renders sync run history with status, counts, and safe error summary", async() => {
-  WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns.mockResolvedValue({
+  wecomBackendMock.getWecomOrganizationSyncRuns.mockResolvedValue({
     status: "ok",
     data: [
       {
@@ -260,7 +311,7 @@ test("renders sync run history with status, counts, and safe error summary", asy
 });
 
 test("shows address book permission result after connection test", async() => {
-  WecomOrganizationSyncBackend.testWecomOrganizationSyncConfig.mockResolvedValue({
+  wecomBackendMock.testWecomOrganizationSyncConfig.mockResolvedValue({
     status: "ok",
     data: {
       missingFields: ["direct_leader"],
@@ -274,7 +325,7 @@ test("shows address book permission result after connection test", async() => {
 
   expect(await screen.findByText("缺失字段：direct_leader")).toBeInTheDocument();
   expect(screen.getByText("部门：1，成员：2")).toBeInTheDocument();
-  expect(WecomOrganizationSyncBackend.testWecomOrganizationSyncConfig).toHaveBeenCalledWith(expect.objectContaining({organization: "engineering"}));
+  expect(wecomBackendMock.testWecomOrganizationSyncConfig).toHaveBeenCalledWith(expect.objectContaining({organization: "engineering"}));
 });
 
 test("starts full sync when config is enabled", async() => {
@@ -284,13 +335,13 @@ test("starts full sync when config is enabled", async() => {
   fireEvent.click(await screen.findByText("开始全量同步"));
 
   await flushPromises();
-  expect(WecomOrganizationSyncBackend.startWecomOrganizationSyncRun).toHaveBeenCalledWith("engineering");
+  expect(wecomBackendMock.startWecomOrganizationSyncRun).toHaveBeenCalledWith("engineering");
   expect(Setting.showMessage).toHaveBeenCalledWith("success", "同步任务已启动");
 });
 
 test("disables start sync action while a run is already active", async() => {
   mockConfig({isEnabled: true});
-  WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns.mockResolvedValue({
+  wecomBackendMock.getWecomOrganizationSyncRuns.mockResolvedValue({
     status: "ok",
     data: [{name: "run-running", status: "running", stage: "fetching"}],
     data2: 1,
@@ -300,36 +351,36 @@ test("disables start sync action while a run is already active", async() => {
 
   const syncButtonLabel = await screen.findByText("同步进行中");
   expect(syncButtonLabel.closest("button")).toBeDisabled();
-  expect(WecomOrganizationSyncBackend.startWecomOrganizationSyncRun).not.toHaveBeenCalled();
+  expect(wecomBackendMock.startWecomOrganizationSyncRun).not.toHaveBeenCalled();
 });
 
 test("refreshes sync runs when refresh button is clicked", async() => {
   mockConfig({isEnabled: true});
-  let resolveRefresh;
+  let resolveRefresh: (value: unknown) => void = () => {};
   const refreshPromise = new Promise(resolve => {
     resolveRefresh = resolve;
   });
-  WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns
+  wecomBackendMock.getWecomOrganizationSyncRuns
     .mockResolvedValueOnce({status: "ok", data: [], data2: 0})
     .mockReturnValueOnce(refreshPromise);
 
   render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
   const refreshButton = await screen.findByText("刷新");
-  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns).toHaveBeenCalledTimes(1);
+  expect(wecomBackendMock.getWecomOrganizationSyncRuns).toHaveBeenCalledTimes(1);
 
   fireEvent.click(refreshButton);
   expect(refreshButton.closest("button")).toHaveClass("ant-btn-loading");
 
   resolveRefresh({status: "ok", data: [], data2: 0});
   await flushPromises();
-  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns).toHaveBeenCalledTimes(2);
+  expect(wecomBackendMock.getWecomOrganizationSyncRuns).toHaveBeenCalledTimes(2);
   expect(screen.getByText(/当前无运行中任务，可手动刷新同步记录/)).toBeInTheDocument();
 });
 
 test("loads the selected history page when pagination changes", async() => {
   mockConfig({isEnabled: true});
-  WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns
+  wecomBackendMock.getWecomOrganizationSyncRuns
     .mockResolvedValueOnce({
       status: "ok",
       data: Array.from({length: 10}, (_, index) => ({name: `run-page-1-${index}`, status: "succeeded", stage: "finalizing"})),
@@ -349,14 +400,14 @@ test("loads the selected history page when pagination changes", async() => {
   fireEvent.click(page2Item.querySelector("a") || page2Item);
 
   await flushPromises();
-  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns).toHaveBeenNthCalledWith(2, "engineering", 2, 10);
+  expect(wecomBackendMock.getWecomOrganizationSyncRuns).toHaveBeenNthCalledWith(2, "engineering", 2, 10);
   expect(await screen.findByText("run-page-2-0")).toBeInTheDocument();
 });
 
 test("auto refreshes while a sync run is running and stops after terminal status", async() => {
-  jest.useFakeTimers();
+  jestValue.useFakeTimers();
   mockConfig({isEnabled: true});
-  WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns
+  wecomBackendMock.getWecomOrganizationSyncRuns
     .mockResolvedValueOnce({
       status: "ok",
       data: [{name: "run-running", status: "running", stage: "fetching"}],
@@ -375,27 +426,27 @@ test("auto refreshes while a sync run is running and stops after terminal status
   });
   expect(screen.getByText("run-running")).toBeInTheDocument();
   expect(screen.getByText(/检测到运行中任务，自动每 3 秒刷新/)).toBeInTheDocument();
-  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns).toHaveBeenCalledTimes(1);
+  expect(wecomBackendMock.getWecomOrganizationSyncRuns).toHaveBeenCalledTimes(1);
 
   await act(async() => {
-    jest.advanceTimersByTime(3000);
+    jestValue.advanceTimersByTime(3000);
     await flushMicrotasks();
   });
 
-  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns).toHaveBeenCalledTimes(2);
+  expect(wecomBackendMock.getWecomOrganizationSyncRuns).toHaveBeenCalledTimes(2);
   expect(screen.getByText(/当前无运行中任务，可手动刷新同步记录/)).toBeInTheDocument();
 
   await act(async() => {
-    jest.advanceTimersByTime(3000);
+    jestValue.advanceTimersByTime(3000);
     await flushMicrotasks();
   });
 
-  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns).toHaveBeenCalledTimes(2);
+  expect(wecomBackendMock.getWecomOrganizationSyncRuns).toHaveBeenCalledTimes(2);
 });
 
 test("switches to resolved business organization after saving built-in config", async() => {
   mockConfig({organization: "built-in", corpId: "ww123", addressBookSecret: "secret"});
-  WecomOrganizationSyncBackend.saveWecomOrganizationSyncConfig.mockResolvedValue({
+  wecomBackendMock.saveWecomOrganizationSyncConfig.mockResolvedValue({
     status: "ok",
     data: {
       organization: "wecom-ww123",
@@ -413,21 +464,21 @@ test("switches to resolved business organization after saving built-in config", 
   fireEvent.click(await screen.findByText("保存"));
 
   await flushPromises();
-  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncConfig).toHaveBeenCalledWith("wecom-ww123");
-  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns).toHaveBeenCalledWith("wecom-ww123", 1, 10);
+  expect(wecomBackendMock.getWecomOrganizationSyncConfig).toHaveBeenCalledWith("wecom-ww123");
+  expect(wecomBackendMock.getWecomOrganizationSyncRuns).toHaveBeenCalledWith("wecom-ww123", 1, 10);
   expect(Setting.showMessage).toHaveBeenCalledWith("success", expect.stringContaining("wecom-ww123"));
 });
 
 test("refreshes runs and shows info when backend reports a duplicate running sync", async() => {
   mockConfig({isEnabled: true});
-  WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns
+  wecomBackendMock.getWecomOrganizationSyncRuns
     .mockResolvedValueOnce({status: "ok", data: [], data2: 0})
     .mockResolvedValueOnce({
       status: "ok",
       data: [{name: "run-running", status: "running", stage: "fetching"}],
       data2: 1,
     });
-  WecomOrganizationSyncBackend.startWecomOrganizationSyncRun.mockResolvedValue({
+  wecomBackendMock.startWecomOrganizationSyncRun.mockResolvedValue({
     status: "error",
     msg: "wecom organization sync run is already running",
   });
@@ -437,6 +488,6 @@ test("refreshes runs and shows info when backend reports a duplicate running syn
 
   await flushPromises();
   expect(Setting.showMessage).toHaveBeenCalledWith("info", "已有同步任务在运行，已刷新同步记录。");
-  expect(WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns).toHaveBeenCalledTimes(2);
+  expect(wecomBackendMock.getWecomOrganizationSyncRuns).toHaveBeenCalledTimes(2);
   expect(screen.getByText(/检测到运行中任务，自动每 3 秒刷新/)).toBeInTheDocument();
 });

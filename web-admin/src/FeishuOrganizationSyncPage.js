@@ -11,6 +11,12 @@ import OrganizationSelect from "./common/select/OrganizationSelect";
 import {getDefaultTablePagination, getTablePaginationProps} from "./common/table/TablePagination";
 import i18next from "i18next";
 import {getFeishuBusinessOrganizationNameFromTenantKey} from "./FeishuOrganizationSyncPageUtils";
+import {
+  OrganizationSyncActionBar,
+  OrganizationSyncPageHeader,
+  OrganizationSyncRunRecordHeader
+} from "./organizationSync/OrganizationSyncShell";
+import {getFeishuEndpointContextText} from "./organizationSync/FeishuOrganizationSyncTypes";
 
 const {Text} = Typography;
 const syncRunPollIntervalMs = 3000;
@@ -1683,16 +1689,27 @@ class FeishuOrganizationSyncPage extends React.Component {
     if (config === null) {
       return (
         <div className="organization-sync-page feishu-organization-sync-page">
-          <Space className="organization-sync-page-title"><CloudSyncOutlined /><Text strong>飞书组织架构同步</Text></Space>
+          <OrganizationSyncPageHeader
+            className="organization-sync-page-title"
+            provider="feishu"
+            title="飞书组织架构同步"
+            subtitle="配置通讯录同步、预览影响并查看正式同步记录。"
+          />
           <Text type="secondary">正在加载飞书同步页面...</Text>
         </div>
       );
     }
     const hasRunningRuns = this.hasRunningRuns(this.state.runs);
     const lastRefreshText = this.state.lastRunsRefreshAt ? `上次刷新：${this.state.lastRunsRefreshAt}` : "";
+    const runRefreshHint = `${this.state.runRefreshError || (hasRunningRuns ? `检测到运行中任务，自动每 ${syncRunPollIntervalMs / 1000} 秒刷新。` : "当前无运行中任务，可手动刷新同步记录。")} ${lastRefreshText}`;
     return (
       <div className="organization-sync-page feishu-organization-sync-page">
-        <Space className="organization-sync-page-title"><CloudSyncOutlined /><Text strong>飞书组织架构同步</Text></Space>
+        <OrganizationSyncPageHeader
+          className="organization-sync-page-title"
+          provider="feishu"
+          title="飞书组织架构同步"
+          subtitle={`配置通讯录同步、预览影响并查看正式同步记录。${getFeishuEndpointContextText(config.endpointMode)}`}
+        />
 
         <Row className="organization-sync-config-grid" gutter={[16, 16]}>
           <Col xs={24} md={12}>
@@ -1751,13 +1768,16 @@ class FeishuOrganizationSyncPage extends React.Component {
         {this.renderTestResult()}
         {this.renderDryRunPreview()}
 
-        <Space className="organization-sync-action-bar" style={{marginTop: 16}} wrap>
-          <Button icon={<SaveOutlined />} type="primary" loading={this.state.saving} onClick={() => this.saveConfig()}>{i18next.t("general:Save")}</Button>
-          <Button icon={<ToolOutlined />} loading={this.state.testing} onClick={() => this.testConfig()}>测试连接</Button>
-          <Button icon={<CloudSyncOutlined />} loading={this.state.previewing} disabled={!config.isEnabled} onClick={() => this.previewSyncImpact()}>预览影响</Button>
-          <Button icon={<ReloadOutlined />} loading={this.state.dryRunHistoryLoading} onClick={() => this.setState({dryRunHistoryOpen: true})}>查看预览历史</Button>
-          <Button icon={<PlayCircleOutlined />} loading={this.state.syncing} disabled={!config.isEnabled || hasRunningRuns} onClick={() => this.startSync()}>{hasRunningRuns ? "同步进行中" : "开始全量同步"}</Button>
-        </Space>
+        <OrganizationSyncActionBar
+          className="organization-sync-action-bar"
+          actions={[
+            {key: "save", label: i18next.t("general:Save"), icon: <SaveOutlined />, type: "primary", loading: this.state.saving, onClick: () => this.saveConfig()},
+            {key: "test", label: "测试连接", icon: <ToolOutlined />, loading: this.state.testing, onClick: () => this.testConfig()},
+            {key: "preview", label: "预览影响", icon: <CloudSyncOutlined />, loading: this.state.previewing, disabled: !config.isEnabled, onClick: () => this.previewSyncImpact()},
+            {key: "history", label: "查看预览历史", icon: <ReloadOutlined />, loading: this.state.dryRunHistoryLoading, onClick: () => this.setState({dryRunHistoryOpen: true})},
+            {key: "sync", label: hasRunningRuns ? "同步进行中" : "开始全量同步", icon: <PlayCircleOutlined />, loading: this.state.syncing, disabled: !config.isEnabled || hasRunningRuns, onClick: () => this.startSync()},
+          ]}
+        />
 
         <Divider />
         {this.renderBindingDiagnostics()}
@@ -1769,17 +1789,18 @@ class FeishuOrganizationSyncPage extends React.Component {
         {this.renderDryRunHistory()}
 
         <Divider />
-        <Row className="organization-sync-record-header" align="middle" justify="space-between" gutter={[8, 8]} style={{marginBottom: 12}}>
-          <Col>
-            <Space direction="vertical" size={2}>
-              <Text strong>同步记录</Text>
-              <Text type={this.state.runRefreshError ? "danger" : "secondary"}>
-                {this.state.runRefreshError || (hasRunningRuns ? `检测到运行中任务，自动每 ${syncRunPollIntervalMs / 1000} 秒刷新。` : "当前无运行中任务，可手动刷新同步记录。")} {lastRefreshText}
-              </Text>
-            </Space>
-          </Col>
-          <Col><Button icon={<ReloadOutlined />} loading={this.state.loading} onClick={() => this.refreshRuns(this.state.organization).catch(() => {})}>刷新</Button></Col>
-        </Row>
+        <OrganizationSyncRunRecordHeader
+          className="organization-sync-record-header"
+          title="同步记录"
+          hint={runRefreshHint}
+          hintType={this.state.runRefreshError ? "danger" : "secondary"}
+          refreshAction={{
+            label: "刷新",
+            icon: <ReloadOutlined />,
+            loading: this.state.loading,
+            onClick: () => this.refreshRuns(this.state.organization).catch(() => {}),
+          }}
+        />
         {this.renderRuns()}
       </div>
     );

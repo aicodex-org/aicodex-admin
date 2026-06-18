@@ -14,18 +14,136 @@
 
 import React from "react";
 import {Alert, Button, Col, Divider, Input, Row, Space, Switch, Table, Tag, Typography} from "antd";
-import {CloudSyncOutlined, PlayCircleOutlined, PlusOutlined, ReloadOutlined, SaveOutlined, ToolOutlined} from "@ant-design/icons";
+import {PlayCircleOutlined, PlusOutlined, ReloadOutlined, SaveOutlined, ToolOutlined} from "@ant-design/icons";
 import * as Setting from "./Setting";
-import * as WecomOrganizationSyncBackend from "./backend/WecomOrganizationSyncBackend";
+import * as WecomOrganizationSyncBackendRaw from "./backend/WecomOrganizationSyncBackend";
 import OrganizationSelect from "./common/select/OrganizationSelect";
 import {getDefaultTablePagination, getTablePaginationProps} from "./common/table/TablePagination";
 import i18next from "i18next";
+import {
+  OrganizationSyncActionBar,
+  OrganizationSyncPageHeader,
+  OrganizationSyncRunRecordHeader
+} from "./organizationSync/OrganizationSyncShell";
 
 const {Text} = Typography;
 const syncRunPollIntervalMs = 3000;
 
-class WecomOrganizationSyncPage extends React.Component {
-  constructor(props) {
+interface AdminAccount {
+  owner?: string;
+  isAdmin?: boolean;
+}
+
+interface WecomOrganizationSyncPageProps {
+  account?: AdminAccount;
+  history?: {
+    push?: (path: string) => void;
+  };
+}
+
+interface PaginationState {
+  current: number;
+  pageSize: number;
+  total?: number;
+  [key: string]: unknown;
+}
+
+interface TablePaginationChange {
+  current?: number;
+  pageSize?: number;
+}
+
+interface WecomOrganizationSyncConfig {
+  owner?: string;
+  name?: string;
+  organization: string;
+  corpId: string;
+  addressBookSecret: string;
+  isEnabled: boolean;
+  softDisableMissingData: boolean;
+  scheduleEnabled: boolean;
+  scheduleCron: string;
+  scheduleTimezone: string;
+  scheduleLastFireAt?: string;
+  scheduleLastStatus?: string;
+  scheduleLastErrorText?: string;
+}
+
+interface WecomOrganizationSyncRun {
+  name?: string;
+  status?: string;
+  stage?: string;
+  triggerType?: string;
+  actor?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  departmentCreatedCount?: number;
+  departmentUpdatedCount?: number;
+  departmentDisabledCount?: number;
+  userCreatedCount?: number;
+  userUpdatedCount?: number;
+  userDisabledCount?: number;
+  errorText?: string;
+}
+
+interface WecomOrganizationSyncTestResult {
+  missingFields?: string[];
+  departmentCount?: number;
+  userCount?: number;
+}
+
+interface WecomOrganizationSyncPageState {
+  organization: string;
+  config: WecomOrganizationSyncConfig | null;
+  runs: WecomOrganizationSyncRun[];
+  runCount: number;
+  pagination: PaginationState;
+  loading: boolean;
+  lastRunsRefreshAt: string;
+  runRefreshError: string;
+  saving: boolean;
+  testing: boolean;
+  syncing: boolean;
+  testResult: WecomOrganizationSyncTestResult | null;
+}
+
+interface RefreshRunsOptions {
+  refreshConfig?: boolean;
+  pagination?: PaginationState;
+}
+
+interface ApiResponse<T = unknown> {
+  status?: string;
+  data?: T;
+  data2?: number;
+  msg?: string | null;
+}
+
+interface WecomConfigResponseData {
+  organization?: string;
+  config?: Partial<WecomOrganizationSyncConfig>;
+}
+
+interface WecomSaveResponseData {
+  organization?: string;
+  config?: Partial<WecomOrganizationSyncConfig>;
+}
+
+interface WecomBackend {
+  getWecomOrganizationSyncConfig: (organization: string) => Promise<ApiResponse<WecomConfigResponseData>>;
+  saveWecomOrganizationSyncConfig: (config: WecomOrganizationSyncConfig | null) => Promise<ApiResponse<WecomSaveResponseData>>;
+  testWecomOrganizationSyncConfig: (config: WecomOrganizationSyncConfig | null) => Promise<ApiResponse<WecomOrganizationSyncTestResult>>;
+  startWecomOrganizationSyncRun: (organization: string) => Promise<ApiResponse>;
+  getWecomOrganizationSyncRuns: (organization: string, page?: number | string, pageSize?: number | string) => Promise<ApiResponse<WecomOrganizationSyncRun[]>>;
+}
+
+const WecomOrganizationSyncBackend = WecomOrganizationSyncBackendRaw as unknown as WecomBackend;
+
+class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPageProps, WecomOrganizationSyncPageState> {
+  private runRefreshTimer: ReturnType<typeof setTimeout> | null;
+  private isUnmounted: boolean;
+
+  constructor(props: WecomOrganizationSyncPageProps) {
     super(props);
     this.runRefreshTimer = null;
     this.isUnmounted = false;
@@ -66,7 +184,7 @@ class WecomOrganizationSyncPage extends React.Component {
     }
   }
 
-  getAccountOrganization(account) {
+  getAccountOrganization(account?: AdminAccount): string {
     // 管理页账号信息异步加载时可能先传入 owner 为空的占位对象，避免页面永久停留在空白态。
     if (!account?.owner) {
       return "";
@@ -81,22 +199,22 @@ class WecomOrganizationSyncPage extends React.Component {
     }
   }
 
-  hasRunningRuns(runs) {
+  hasRunningRuns(runs: WecomOrganizationSyncRun[]): boolean {
     return (runs || []).some(run => run?.status === "running");
   }
 
-  scheduleRunRefresh(organization) {
+  scheduleRunRefresh(organization: string): void {
     if (!organization || this.runRefreshTimer !== null) {
       return;
     }
 
     this.runRefreshTimer = setTimeout(() => {
       this.runRefreshTimer = null;
-      this.refreshRuns(organization, false);
+      this.refreshRuns(organization);
     }, syncRunPollIntervalMs);
   }
 
-  syncRunRefreshLoop(organization, runs) {
+  syncRunRefreshLoop(organization: string, runs: WecomOrganizationSyncRun[]): void {
     // 自动刷新只服务当前组织上下文，切组织或组件卸载后必须立即失效。
     if (this.state.organization !== organization) {
       this.clearRunRefreshTimer();
@@ -111,7 +229,7 @@ class WecomOrganizationSyncPage extends React.Component {
     this.clearRunRefreshTimer();
   }
 
-  refreshRuns(organization, options = {}) {
+  refreshRuns(organization: string, options: RefreshRunsOptions = {}): Promise<void> {
     if (!organization) {
       return Promise.resolve();
     }
@@ -133,16 +251,16 @@ class WecomOrganizationSyncPage extends React.Component {
     // 手动刷新和自动轮询默认只关心同步记录；只有整页初始化时才顺带刷新配置表单。
     return Promise.all([configRequest, runsRequest]).then(([configRes, runsRes]) => {
       if (configRes?.status === "error") {
-        Setting.showMessage("error", configRes.msg);
+        Setting.showMessage("error", configRes.msg || "配置刷新失败");
       }
       if (runsRes.status === "error") {
-        Setting.showMessage("error", runsRes.msg);
+        Setting.showMessage("error", runsRes.msg || "同步记录刷新失败");
       }
       if (this.isUnmounted || this.state.organization !== organization) {
         return;
       }
 
-      const nextState = {
+      const nextState: Partial<WecomOrganizationSyncPageState> = {
         loading: false,
       };
       if (configRes !== null) {
@@ -156,12 +274,12 @@ class WecomOrganizationSyncPage extends React.Component {
           ...nextPagination,
           total: runsRes.data2 || 0,
         };
-        nextState.lastRunsRefreshAt = Setting.getFormattedDate(new Date().toISOString());
+        nextState.lastRunsRefreshAt = Setting.getFormattedDate(new Date().toISOString()) || "";
         nextState.runRefreshError = "";
       } else {
         nextState.runRefreshError = "同步记录刷新失败，请手动刷新重试。";
       }
-      this.setState(nextState, () => this.syncRunRefreshLoop(organization, nextState.runs || this.state.runs));
+      this.setState(nextState as Pick<WecomOrganizationSyncPageState, keyof WecomOrganizationSyncPageState>, () => this.syncRunRefreshLoop(organization, nextState.runs || this.state.runs));
     }).catch(error => {
       this.clearRunRefreshTimer();
       if (this.isUnmounted || this.state.organization !== organization) {
@@ -175,14 +293,14 @@ class WecomOrganizationSyncPage extends React.Component {
     });
   }
 
-  refresh(organization) {
+  refresh(organization: string): void {
     if (!organization) {
       return;
     }
     this.refreshRuns(organization, {refreshConfig: true, pagination: getDefaultTablePagination()}).catch(() => {});
   }
 
-  normalizeConfig(organization, config) {
+  normalizeConfig(organization: string, config?: Partial<WecomOrganizationSyncConfig> | null): WecomOrganizationSyncConfig {
     // 后端在未配置时可能只返回空配置，前端统一补齐表单默认值，避免保存时漏传目标组织。
     return {
       owner: organization,
@@ -199,11 +317,14 @@ class WecomOrganizationSyncPage extends React.Component {
     };
   }
 
-  isDuplicateRunningStartError(message) {
+  isDuplicateRunningStartError(message?: string | null): boolean {
     return typeof message === "string" && message.toLowerCase().includes("already running");
   }
 
-  updateConfigField(key, value) {
+  updateConfigField<K extends keyof WecomOrganizationSyncConfig>(key: K, value: WecomOrganizationSyncConfig[K]): void {
+    if (!this.state.config) {
+      return;
+    }
     this.setState({
       config: {
         ...this.state.config,
@@ -212,7 +333,7 @@ class WecomOrganizationSyncPage extends React.Component {
     });
   }
 
-  changeOrganization(organization) {
+  changeOrganization(organization: string): void {
     this.clearRunRefreshTimer();
     this.setState({
       organization,
@@ -267,7 +388,7 @@ class WecomOrganizationSyncPage extends React.Component {
       .then(res => {
         this.setState({testing: false});
         if (res.status === "ok") {
-          this.setState({testResult: res.data});
+          this.setState({testResult: res.data || null});
           const missingFields = res.data?.missingFields || [];
           if (missingFields.length === 0) {
             Setting.showMessage("success", "通讯录连接测试通过");
@@ -303,57 +424,60 @@ class WecomOrganizationSyncPage extends React.Component {
       });
   }
 
-  getStatusTag(status) {
-    const colorMap = {
+  getStatusTag(status?: string) {
+    const colorMap: Record<string, string> = {
       running: "processing",
       succeeded: "success",
       failed: "error",
       partial: "warning",
     };
-    const labelMap = {
+    const labelMap: Record<string, string> = {
       running: "运行中",
       succeeded: "成功",
       failed: "失败",
       partial: "部分成功",
     };
-    return <Tag color={colorMap[status] || "default"}>{labelMap[status] || status || "-"}</Tag>;
+    const statusKey = status || "";
+    return <Tag color={colorMap[statusKey] || "default"}>{labelMap[statusKey] || statusKey || "-"}</Tag>;
   }
 
-  getTriggerTag(triggerType) {
-    const colorMap = {
+  getTriggerTag(triggerType?: string) {
+    const colorMap: Record<string, string> = {
       manual: "blue",
       scheduled: "cyan",
       callback: "purple",
     };
-    const labelMap = {
+    const labelMap: Record<string, string> = {
       manual: "手动",
       scheduled: "定时",
       callback: "回调",
     };
-    return <Tag color={colorMap[triggerType] || "default"}>{labelMap[triggerType] || triggerType || "-"}</Tag>;
+    const triggerTypeKey = triggerType || "";
+    return <Tag color={colorMap[triggerTypeKey] || "default"}>{labelMap[triggerTypeKey] || triggerTypeKey || "-"}</Tag>;
   }
 
-  getStageText(stage, status) {
+  getStageText(stage?: string, status?: string): string {
     if (status === "succeeded") {
       return "已完成";
     }
 
-    const labelMap = {
+    const labelMap: Record<string, string> = {
       fetching: "拉取数据",
       fetch: "拉取数据",
       planning: "计算差异",
       applying: "应用变更",
       finalizing: "收尾处理",
     };
-    return labelMap[stage] || stage || "-";
+    const stageKey = stage || "";
+    return labelMap[stageKey] || stageKey || "-";
   }
 
-  formatRunTime(text) {
+  formatRunTime(text?: string | null): string {
     // 运行中的记录还没有结束时间，后端零值时间不应被当成真实时间展示。
     if (!text || String(text).startsWith("0001-01-01")) {
       return "-";
     }
-    return Setting.getFormattedDate(text);
+    return Setting.getFormattedDate(text) || "-";
   }
 
   renderTestResult() {
@@ -390,14 +514,14 @@ class WecomOrganizationSyncPage extends React.Component {
         dataIndex: "status",
         key: "status",
         width: 120,
-        render: status => this.getStatusTag(status),
+        render: (status: string) => this.getStatusTag(status),
       },
       {
         title: "触发方式",
         dataIndex: "triggerType",
         key: "triggerType",
         width: 110,
-        render: triggerType => this.getTriggerTag(triggerType),
+        render: (triggerType: string) => this.getTriggerTag(triggerType),
       },
       {
         title: "阶段",
@@ -405,7 +529,7 @@ class WecomOrganizationSyncPage extends React.Component {
         key: "stage",
         width: 120,
         // 成功记录显示“已完成”；失败或部分成功保留最后阶段，便于定位卡在哪一步。
-        render: (stage, record) => this.getStageText(stage, record.status),
+        render: (stage: string, record: WecomOrganizationSyncRun) => this.getStageText(stage, record.status),
       },
       {
         title: "执行人",
@@ -418,26 +542,26 @@ class WecomOrganizationSyncPage extends React.Component {
         dataIndex: "startedAt",
         key: "startedAt",
         width: 180,
-        render: text => this.formatRunTime(text),
+        render: (text: string) => this.formatRunTime(text),
       },
       {
         title: "结束时间",
         dataIndex: "finishedAt",
         key: "finishedAt",
         width: 180,
-        render: text => this.formatRunTime(text),
+        render: (text: string) => this.formatRunTime(text),
       },
       {
         title: "部门（新增 / 更新 / 禁用）",
         key: "departments",
         width: 180,
-        render: (_, record) => `新 ${record.departmentCreatedCount || 0} / 更 ${record.departmentUpdatedCount || 0} / 禁 ${record.departmentDisabledCount || 0}`,
+        render: (_: unknown, record: WecomOrganizationSyncRun) => `新 ${record.departmentCreatedCount || 0} / 更 ${record.departmentUpdatedCount || 0} / 禁 ${record.departmentDisabledCount || 0}`,
       },
       {
         title: "用户（新增 / 更新 / 禁用）",
         key: "users",
         width: 180,
-        render: (_, record) => `新 ${record.userCreatedCount || 0} / 更 ${record.userUpdatedCount || 0} / 禁 ${record.userDisabledCount || 0}`,
+        render: (_: unknown, record: WecomOrganizationSyncRun) => `新 ${record.userCreatedCount || 0} / 更 ${record.userUpdatedCount || 0} / 禁 ${record.userDisabledCount || 0}`,
       },
       {
         title: "错误摘要",
@@ -462,7 +586,7 @@ class WecomOrganizationSyncPage extends React.Component {
     );
   }
 
-  getRunRefreshHint() {
+  getRunRefreshHint(): {type: "secondary" | "danger"; text: string} {
     const lastRefreshText = this.state.lastRunsRefreshAt ? `上次刷新：${this.state.lastRunsRefreshAt}` : "";
     if (this.state.runRefreshError) {
       return {type: "danger", text: `${this.state.runRefreshError}${lastRefreshText ? ` ${lastRefreshText}` : ""}`};
@@ -483,10 +607,12 @@ class WecomOrganizationSyncPage extends React.Component {
   renderLoadingState() {
     return (
       <div className="organization-sync-page wecom-organization-sync-page">
-        <Space className="organization-sync-page-title">
-          <CloudSyncOutlined />
-          <Text strong>企业微信组织架构同步</Text>
-        </Space>
+        <OrganizationSyncPageHeader
+          className="organization-sync-page-title"
+          provider="wecom"
+          title="企业微信组织架构同步"
+          subtitle="配置通讯录同步并查看正式同步记录。"
+        />
         <Text type="secondary">正在加载企业微信同步页面...</Text>
       </div>
     );
@@ -503,7 +629,7 @@ class WecomOrganizationSyncPage extends React.Component {
         <Space.Compact style={{width: "100%"}}>
           <OrganizationSelect
             initValue={this.state.organization}
-            onChange={organization => this.changeOrganization(organization)}
+            onChange={(organization: string) => this.changeOrganization(organization)}
             excludedOrganizations={["built-in"]}
             style={{minWidth: 280, width: "100%"}}
           />
@@ -528,7 +654,7 @@ class WecomOrganizationSyncPage extends React.Component {
     );
   }
 
-  renderSyncOptions(config) {
+  renderSyncOptions(config: WecomOrganizationSyncConfig) {
     return (
       <div>
         <div style={{marginBottom: 8}}>同步选项</div>
@@ -546,7 +672,7 @@ class WecomOrganizationSyncPage extends React.Component {
     );
   }
 
-  renderScheduleOptions(config) {
+  renderScheduleOptions(config: WecomOrganizationSyncConfig) {
     return (
       <div>
         <div style={{marginBottom: 8}}>定时同步</div>
@@ -582,12 +708,12 @@ class WecomOrganizationSyncPage extends React.Component {
     );
   }
 
-  handleRunsTableChange = (pagination) => {
+  handleRunsTableChange = (pagination: TablePaginationChange) => {
     this.refreshRuns(this.state.organization, {
       pagination: {
         ...this.state.pagination,
-        current: pagination.current,
-        pageSize: pagination.pageSize,
+        current: pagination.current || this.state.pagination.current,
+        pageSize: pagination.pageSize || this.state.pagination.pageSize,
       },
     }).catch(() => {});
   };
@@ -604,10 +730,12 @@ class WecomOrganizationSyncPage extends React.Component {
 
     return (
       <div className="organization-sync-page wecom-organization-sync-page">
-        <Space className="organization-sync-page-title">
-          <CloudSyncOutlined />
-          <Text strong>企业微信组织架构同步</Text>
-        </Space>
+        <OrganizationSyncPageHeader
+          className="organization-sync-page-title"
+          provider="wecom"
+          title="企业微信组织架构同步"
+          subtitle="配置通讯录同步并查看正式同步记录。"
+        />
 
         <Row className="organization-sync-config-grid" gutter={[16, 16]}>
           <Col xs={24} md={12}>
@@ -638,41 +766,28 @@ class WecomOrganizationSyncPage extends React.Component {
         />
         {this.renderTestResult()}
 
-        <Space className="organization-sync-action-bar" style={{marginTop: 16}} wrap>
-          <Button icon={<SaveOutlined />} type="primary" loading={this.state.saving} onClick={() => this.saveConfig()}>
-            {i18next.t("general:Save")}
-          </Button>
-          <Button icon={<ToolOutlined />} loading={this.state.testing} onClick={() => this.testConfig()}>
-            测试连接
-          </Button>
-          <Button
-            icon={<PlayCircleOutlined />}
-            loading={this.state.syncing}
-            onClick={() => this.startSync()}
-            disabled={!config.isEnabled || hasRunningRuns}
-          >
-            {syncButtonLabel}
-          </Button>
-        </Space>
+        <OrganizationSyncActionBar
+          className="organization-sync-action-bar"
+          actions={[
+            {key: "save", label: String(i18next.t("general:Save")), icon: <SaveOutlined />, type: "primary", loading: this.state.saving, onClick: () => this.saveConfig()},
+            {key: "test", label: "测试连接", icon: <ToolOutlined />, loading: this.state.testing, onClick: () => this.testConfig()},
+            {key: "sync", label: syncButtonLabel, icon: <PlayCircleOutlined />, loading: this.state.syncing, disabled: !config.isEnabled || hasRunningRuns, onClick: () => this.startSync()},
+          ]}
+        />
 
         <Divider />
-        <Row className="organization-sync-record-header" align="middle" justify="space-between" gutter={[8, 8]} style={{marginBottom: 12}}>
-          <Col>
-            <Space direction="vertical" size={2}>
-              <Text strong>同步记录</Text>
-              <Text type={runRefreshHint.type}>{runRefreshHint.text}</Text>
-            </Space>
-          </Col>
-          <Col>
-            <Button
-              icon={<ReloadOutlined />}
-              loading={this.state.loading}
-              onClick={() => this.refreshRuns(this.state.organization).catch(() => {})}
-            >
-              刷新
-            </Button>
-          </Col>
-        </Row>
+        <OrganizationSyncRunRecordHeader
+          className="organization-sync-record-header"
+          title="同步记录"
+          hint={runRefreshHint.text}
+          hintType={runRefreshHint.type}
+          refreshAction={{
+            label: "刷新",
+            icon: <ReloadOutlined />,
+            loading: this.state.loading,
+            onClick: () => this.refreshRuns(this.state.organization).catch(() => {}),
+          }}
+        />
         {this.renderRuns()}
       </div>
     );
