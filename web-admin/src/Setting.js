@@ -2463,6 +2463,7 @@ export function getApiPaths() {
   res.push("organization-master-data-quality/directory", "organization-master-data-quality/remediation-plan", "organization-master-data-quality/remediation-action-drafts", "organization-master-data-quality/remediation-preflight", "organization-master-data-quality/remediation-approval-preview", "organization-master-data-quality/remediation-approval-packet-audit", "organization-master-data-quality/remediation-approval-packet-operator-notes", "organization-master-data-quality/remediation-operator-note-persistence-readiness", "organization-master-data-quality/remediation-operator-note-readonly-audit-search");
   res.push("gateway-projection/observability", "gateway-projection/run-readiness", "gateway-projection/ingestion-status", "gateway-projection/manual-publish", "gateway-projection/publish-attempts", "gateway-projection/publish-attempt-retention-readiness", "gateway-projection/publish-attempt-retention-cleanup-dry-run", "gateway-projection/publish-attempt-retention-cleanup-execute-readiness", "gateway-projection/publish-attempt-retention-cleanup-approval-policy-readiness", "gateway-projection/publish-attempt-retention-cleanup-approval-audit-trail");
   res.push("get-organization-master-data-quality-readiness");
+  res.push("organization-sync-api-keys", "organization-sync-api-keys/rotate", "organization-sync-api-keys/disable", "organization-sync-api-keys/delete", "organization-sync/export");
   res.push(
     "get-platform-api-organization-mappings",
     "update-platform-api-organization-mapping",

@@ -46,6 +46,7 @@ import CertListPage from "./CertListPage";
 import CertEditPage from "./CertEditPage";
 import KeyListPage from "./KeyListPage";
 import KeyEditPage from "./KeyEditPage";
+import OrganizationSyncApiKeyListPage from "./OrganizationSyncApiKeyListPage";
 import RoleListPage from "./RoleListPage";
 import RoleEditPage from "./RoleEditPage";
 import PermissionListPage from "./PermissionListPage";
@@ -422,6 +423,7 @@ function ManagementPage(props) {
         <Route exact path="/syncers/:syncerName" render={(props) => renderLoginIfNotLoggedIn(<SyncerEditPage account={account} {...props} />)} />
         <Route exact path="/wecom-org-sync" render={(props) => renderLoginIfNotLoggedIn(<WecomOrganizationSyncPage account={account} {...props} />)} />
         <Route exact path="/feishu-org-sync" render={(props) => renderLoginIfNotLoggedIn(<FeishuOrganizationSyncPage account={account} {...props} />)} />
+        <Route exact path="/organization-sync-api-keys" render={(props) => renderLoginIfNotLoggedIn(<OrganizationSyncApiKeyListPage account={account} {...props} />)} />
         <Route exact path="/organization-tree-operations" render={(props) => renderLoginIfNotLoggedIn(<OrganizationTreeOperationsPage account={account} {...props} />)} />
         <Route exact path="/organization-directory-quality" render={(props) => renderLoginIfNotLoggedIn(<OrganizationDirectoryQualityPage account={account} {...props} />)} />
         <Route exact path="/platform-api-mappings" render={(props) => renderLoginIfNotLoggedIn(<PlatformApiMappingPage account={account} {...props} />)} />

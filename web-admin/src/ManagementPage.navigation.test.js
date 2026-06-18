@@ -190,6 +190,7 @@ describe("enterprise identity navigation", () => {
       "/providers",
       "/wecom-org-sync",
       "/feishu-org-sync",
+      "/organization-sync-api-keys",
       "/syncers",
     ]);
     expect(authorizationGovernance.children.map(item => item.key)).toEqual([

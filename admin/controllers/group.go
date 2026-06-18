@@ -39,6 +39,29 @@ func (c *ApiController) GetGroups() {
 	sortOrder := c.Ctx.Input.Query("sortOrder")
 	withTree := c.Ctx.Input.Query("withTree")
 
+	if c.isOrganizationSyncApiKeyRequest() {
+		organization, ok := c.requireOrganizationSyncApiKeyOrganization(owner)
+		if !ok {
+			return
+		}
+		groups, err := object.GetGroups(organization)
+		if err != nil {
+			c.ResponseError(err.Error())
+			return
+		}
+		if err = object.ExtendGroupsWithUsers(groups); err != nil {
+			c.ResponseError(err.Error())
+			return
+		}
+		if withTree == "true" {
+			c.ResponseOk(object.ConvertToTreeData(groups, organization), len(groups))
+			return
+		}
+		pagedGroups, total := paginateOrganizationSyncItems(groups, page, limit)
+		c.ResponseOk(pagedGroups, total)
+		return
+	}
+
 	if limit == "" || page == "" {
 		groups, err := object.GetGroups(owner)
 		if err != nil {

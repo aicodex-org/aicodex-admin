@@ -238,6 +238,25 @@ func TestGetModuleOrganizationObjectIgnoresUnscopedApi(t *testing.T) {
 	}
 }
 
+func TestGetPlatformApiMappingObjectUsesOrganization(t *testing.T) {
+	owner, name, ok := getModuleOrganizationObject("/api/get-platform-api-organization-mappings", http.MethodGet, "engineering", nil)
+	if !ok {
+		t.Fatalf("expected platform API mapping object to be parsed")
+	}
+	if owner != "engineering" || name != "" {
+		t.Fatalf("organization mappings object = %q/%q, want engineering/<empty>", owner, name)
+	}
+
+	body := []byte(`{"organizationId":"engineering","adminSubject":"alice","name":"api-user-map-alice"}`)
+	owner, name, ok = getModuleOrganizationObject("/api/update-platform-api-user-mapping", http.MethodPost, "", body)
+	if !ok {
+		t.Fatalf("expected platform API mapping update object to be parsed")
+	}
+	if owner != "engineering" || name != "api-user-map-alice" {
+		t.Fatalf("user mapping object = %q/%q, want engineering/api-user-map-alice", owner, name)
+	}
+}
+
 func TestResolveModuleOrganizationQueryFallsBackToCurrentUserOwnerForScopeAudit(t *testing.T) {
 	organization := resolveModuleOrganizationQuery("/api/org-management-scope/current", "", "engineering/alice")
 	if organization != "engineering" {

@@ -41,6 +41,11 @@ type ObjectWithOrg struct {
 	Organization string `json:"organization"`
 }
 
+type ObjectWithOrganizationId struct {
+	Object
+	OrganizationId string `json:"organizationId"`
+}
+
 func getUsername(ctx *context.Context) (username string) {
 	username, ok := ctx.Input.Session("username").(string)
 	if !ok || username == "" {
@@ -193,6 +198,18 @@ func getModuleOrganizationObject(path string, method string, queryOrganization s
 		return strings.TrimSpace(queryOrganization), "", true
 	}
 
+	if strings.HasPrefix(path, "/api/organization-sync-api-keys") {
+		if method == http.MethodGet {
+			return strings.TrimSpace(queryOrganization), "", true
+		}
+
+		var obj ObjectWithOrg
+		if err := json.Unmarshal(body, &obj); err != nil {
+			return "", "", true
+		}
+		return strings.TrimSpace(obj.Organization), obj.Name, true
+	}
+
 	if strings.HasPrefix(path, "/api/organization-tree-operations/") {
 		if method == http.MethodGet {
 			return strings.TrimSpace(queryOrganization), "", true
@@ -203,6 +220,18 @@ func getModuleOrganizationObject(path string, method string, queryOrganization s
 			return "", "", true
 		}
 		return strings.TrimSpace(obj.Organization), "", true
+	}
+
+	if isPlatformApiMappingPath(path) {
+		if method == http.MethodGet {
+			return strings.TrimSpace(queryOrganization), "", true
+		}
+
+		var obj ObjectWithOrganizationId
+		if err := json.Unmarshal(body, &obj); err != nil {
+			return "", "", true
+		}
+		return strings.TrimSpace(obj.OrganizationId), obj.Name, true
 	}
 
 	if !strings.HasPrefix(path, "/api/wecom-org-sync/") && !strings.HasPrefix(path, "/api/feishu-org-sync/") {
@@ -220,9 +249,22 @@ func getModuleOrganizationObject(path string, method string, queryOrganization s
 	return strings.TrimSpace(obj.Organization), "", true
 }
 
+func isPlatformApiMappingPath(path string) bool {
+	switch path {
+	case "/api/get-platform-api-organization-mappings",
+		"/api/update-platform-api-organization-mapping",
+		"/api/get-platform-api-user-mappings",
+		"/api/get-platform-api-user-mapping-readiness",
+		"/api/update-platform-api-user-mapping":
+		return true
+	default:
+		return false
+	}
+}
+
 func resolveModuleOrganizationQuery(path string, queryOrganization string, currentUserId string) string {
 	organization := strings.TrimSpace(queryOrganization)
-	if organization != "" || path != "/api/org-management-scope/current" {
+	if organization != "" || (path != "/api/org-management-scope/current" && path != "/api/organization-sync-api-keys") {
 		return organization
 	}
 
@@ -321,6 +363,37 @@ func getImpersonateUser(ctx *context.Context, subOwner, subName, username string
 }
 
 func ApiFilter(ctx *context.Context) {
+	if syncAuth := getOrganizationSyncApiKeyAuth(ctx); syncAuth != nil {
+		ctx.Input.SetData("currentUserId", "")
+		method := ctx.Request.Method
+		urlPath := getUrlPath(ctx)
+		isAllowed := isOrganizationSyncApiKeyReadPath(method, urlPath)
+		result := "deny"
+		if isAllowed {
+			result = "allow"
+		}
+		logLine := fmt.Sprintf("subOwner = organization-sync-api-key, subName = %s/%s, method = %s, urlPath = %s, obj.Owner = %s, obj.Name = , result = %s",
+			syncAuth.Owner, syncAuth.Name, method, urlPath, syncAuth.Organization, result)
+		fmt.Println(logLine)
+		util.LogInfo(ctx, logLine)
+		if isAllowed {
+			return
+		}
+
+		denyRequest(ctx)
+		record, err := object.NewRecord(ctx)
+		if err != nil {
+			return
+		}
+		record.Organization = syncAuth.Organization
+		record.User = "organization-sync-api-key"
+		record.Response = fmt.Sprintf("{status:\"error\", msg:\"%s\"}", T(ctx, "auth:Unauthorized operation"))
+		util.SafeGoroutine(func() {
+			object.AddRecord(record)
+		})
+		return
+	}
+
 	subOwner, subName := getSubject(ctx)
 	// stash current user info into request context for controllers
 	username := ""
@@ -384,6 +457,30 @@ func ApiFilter(ctx *context.Context) {
 		util.SafeGoroutine(func() {
 			object.AddRecord(record)
 		})
+	}
+}
+
+func getOrganizationSyncApiKeyAuth(ctx *context.Context) *object.OrganizationSyncApiKeyAuth {
+	authData := ctx.Input.GetData(object.OrganizationSyncApiKeyContextKey)
+	if authData == nil {
+		return nil
+	}
+	auth, _ := authData.(*object.OrganizationSyncApiKeyAuth)
+	return auth
+}
+
+func isOrganizationSyncApiKeyReadPath(method string, urlPath string) bool {
+	if method != http.MethodGet {
+		return false
+	}
+	switch urlPath {
+	case "/api/organization-sync/export",
+		"/api/get-organizations",
+		"/api/get-groups",
+		"/api/get-organization-applications":
+		return true
+	default:
+		return false
 	}
 }
 

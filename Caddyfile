@@ -22,6 +22,9 @@
 (auth_center_backend_proxy) {
     reverse_proxy http://10.18.80.69:8000 {
         flush_interval -1
+        # 认证中心 Discovery/JWKS/Token issuer 依赖请求 Host 生成外部边界。
+        header_up Host {http.request.host}
+        header_up X-Forwarded-Host {http.request.host}
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-For {remote_host}
         header_up X-Forwarded-Proto {scheme}
@@ -109,11 +112,18 @@ ai.leagsoft.com {
 auth.leagsoft.com:8000 {
     tls /etc/caddy/certs/leagsoft.crt /etc/caddy/certs/leagsoft.key
 
+    @well_known path /.well-known /.well-known/*
+    handle @well_known {
+        import auth_center_backend_proxy
+    }
+
     # API 请求反代到后端服务，保留 /api 前缀
     @api path /api /api/*
     handle @api {
         reverse_proxy http://10.18.80.69:8000 {
             flush_interval -1
+            header_up Host {http.request.host}
+            header_up X-Forwarded-Host {http.request.host}
             header_up X-Real-IP {remote_host}
             header_up X-Forwarded-For {remote_host}
             header_up X-Forwarded-Proto {scheme}

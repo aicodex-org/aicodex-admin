@@ -93,6 +93,7 @@ function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin
         {key: "/providers", label: i18next.t("general:Authentication Source Center"), to: "/providers", matchPrefixes: ["/providers"]},
         {key: "/wecom-org-sync", label: i18next.t("general:WeCom Sync"), to: "/wecom-org-sync", matchPrefixes: ["/wecom-org-sync"]},
         {key: "/feishu-org-sync", label: i18next.t("general:Feishu Sync"), to: "/feishu-org-sync", matchPrefixes: ["/feishu-org-sync"]},
+        {key: "/organization-sync-api-keys", label: i18next.t("general:Organization Sync API Keys"), to: "/organization-sync-api-keys", matchPrefixes: ["/organization-sync-api-keys"]},
         {key: "/syncers", label: i18next.t("general:Syncers"), to: "/syncers", matchPrefixes: ["/syncers"]},
       ],
     },
