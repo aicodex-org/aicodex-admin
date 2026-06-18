@@ -431,6 +431,59 @@ test("renders handoff evidence ready summary in a centered modal", async() => {
   expect(screen.queryByText(/tenant-real/)).not.toBeInTheDocument();
 });
 
+test("renders running handoff evidence as non-blocking compact status", async() => {
+  FeishuOrganizationSyncBackend.getFeishuOrganizationSyncUserBindingConflicts.mockResolvedValue({
+    status: "ok",
+    data: {
+      organization: "engineering",
+      status: "ok",
+      riskLevel: "none",
+      configured: true,
+      enabled: true,
+      counts: {total: 0},
+      issues: [],
+      generatedAt: "2026-06-15T12:00:00Z",
+      safeSummary: "未发现阻断级飞书用户绑定风险。",
+      redaction: {applied: true, version: "feishu-user-binding-conflict-redaction-v1"},
+    },
+  });
+  FeishuOrganizationSyncBackend.getFeishuOrganizationSyncHandoffEvidence.mockResolvedValue({
+    status: "ok",
+    data: {
+      organization: "engineering",
+      evidenceVersion: "feishu-org-sync-handoff-evidence-v1",
+      sourceType: "run",
+      sourceIdHash: "run-safe",
+      sourceStatus: "running",
+      readiness: "running",
+      counts: {
+        departments: {toCreate: 0, toUpdate: 0, toSoftDisable: 0, conflict: 0, invalid: 0},
+        users: {toCreate: 0, toUpdate: 0, toSoftDisable: 0, conflict: 0, invalid: 0},
+        memberships: {toCreate: 0, toUpdate: 0, toSoftDisable: 0, conflict: 0, invalid: 0},
+      },
+      bindingConflicts: {status: "ok", riskLevel: "none", blocked: false, total: 0, safeSummary: "未发现阻断级飞书用户绑定风险。"},
+      blockedReasons: [],
+      operatorNextActions: ["wait_sync_completion", "refresh_handoff_evidence"],
+      redaction: {applied: true, version: "feishu-handoff-evidence-redaction-v1"},
+      acceptanceChecklist: {
+        version: "feishu-handoff-acceptance-checklist-v1",
+        summary: {total: 1, passed: 0, needsReview: 1, blocked: 0, missing: 0, cannotInfer: 0},
+        items: [{id: "handoff_readiness", status: "needs_review", safeSummary: "同步任务正在运行，交接证据会在任务完成后更新。"}],
+        manualReviewActions: ["wait_sync_completion"],
+        retention: {redactionApplied: true, retentionDays: 90},
+      },
+      generatedAt: "2026-06-15T12:30:00Z",
+      safeSummary: "同步任务正在运行，交接证据会在任务完成后更新。",
+    },
+  });
+  const {container} = render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+
+  expect(await screen.findByText("同步中")).toBeInTheDocument();
+  expect(screen.getByText("同步任务正在运行，交接证据会在任务完成后更新。")).toBeInTheDocument();
+  expect(screen.queryByText(/阻断原因/)).not.toBeInTheDocument();
+  expect(container.querySelector(".ant-alert-error")).not.toBeInTheDocument();
+});
+
 test("keeps dry-run history off the main page and opens it in a modal", async() => {
   render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 

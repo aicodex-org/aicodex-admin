@@ -37,6 +37,7 @@ const (
 
 	FeishuHandoffEvidenceReadinessReady       = "ready"
 	FeishuHandoffEvidenceReadinessBlocked     = "blocked"
+	FeishuHandoffEvidenceReadinessRunning     = "running"
 	FeishuHandoffEvidenceReadinessNoRun       = "no_run"
 	FeishuHandoffEvidenceReadinessUnsupported = "unsupported"
 )
@@ -381,7 +382,7 @@ func attachFeishuHandoffRun(evidence *FeishuOrganizationSyncHandoffEvidence, run
 	if masked.Diagnostics != nil {
 		evidence.TriggerSummary.Diagnostic = firstNonEmpty(masked.Diagnostics.ReasonCode, masked.Diagnostics.FailureCategory, masked.Diagnostics.FailedStage)
 	}
-	if run.Status != FeishuOrganizationSyncRunStatusSucceeded {
+	if run.Status == FeishuOrganizationSyncRunStatusFailed || run.Status == FeishuOrganizationSyncRunStatusPartial {
 		evidence.BlockedReasons = append(evidence.BlockedReasons, "sync_run_failed")
 	}
 }
@@ -477,6 +478,12 @@ func classifyFeishuHandoffEvidenceReadiness(evidence *FeishuOrganizationSyncHand
 		evidence.SafeSummary = fmt.Sprintf("交接证据存在 %d 个阻断原因，需处理后再交接。", len(evidence.BlockedReasons))
 		evidence.OperatorNextActions = append([]string{"review_blocked_reasons"}, recommendedFeishuHandoffActions(evidence)...)
 		evidence.OperatorNextActions = uniqueNonEmptyStrings(evidence.OperatorNextActions)
+		return
+	}
+	if evidence.SourceType == FeishuHandoffEvidenceSourceRun && evidence.SourceStatus == string(FeishuOrganizationSyncRunStatusRunning) {
+		evidence.Readiness = FeishuHandoffEvidenceReadinessRunning
+		evidence.SafeSummary = "同步任务正在运行，交接证据会在任务完成后更新。"
+		evidence.OperatorNextActions = []string{"wait_sync_completion", "refresh_handoff_evidence"}
 		return
 	}
 	evidence.Readiness = FeishuHandoffEvidenceReadinessReady
@@ -609,6 +616,11 @@ func buildFeishuHandoffReadinessItem(evidence *FeishuOrganizationSyncHandoffEvid
 		item.Severity = FeishuHandoffAcceptanceSeverityReview
 		item.SafeSummary = evidence.SafeSummary
 		item.RecommendedActionAlias = "run_dry_run_preview"
+	case FeishuHandoffEvidenceReadinessRunning:
+		item.Status = FeishuHandoffAcceptanceStatusNeedsReview
+		item.Severity = FeishuHandoffAcceptanceSeverityReview
+		item.SafeSummary = evidence.SafeSummary
+		item.RecommendedActionAlias = "wait_sync_completion"
 	case FeishuHandoffEvidenceReadinessUnsupported:
 		item.Status = FeishuHandoffAcceptanceStatusNeedsReview
 		item.Severity = FeishuHandoffAcceptanceSeverityReview

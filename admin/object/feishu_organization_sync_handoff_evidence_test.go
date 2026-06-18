@@ -155,6 +155,32 @@ func TestFeishuOrganizationSyncHandoffEvidenceBlockedByRunAndBinding(t *testing.
 	assertFeishuHandoffEvidenceRedacted(t, evidence)
 }
 
+func TestFeishuOrganizationSyncHandoffEvidenceRunningRunIsPendingNotBlocked(t *testing.T) {
+	setupFeishuOrganizationSyncSqlite(t)
+	now := time.Date(2026, 6, 15, 20, 35, 0, 0, time.UTC)
+	insertFeishuBindingConfig(t, "engineering", "cli-real", "tenant-real", FeishuEndpointModeDomestic, true)
+	insertFeishuHandoffRun(t, "run-running", now, FeishuOrganizationSyncRunStatusRunning)
+
+	evidence, err := (&FeishuOrganizationSyncHandoffEvidenceService{Now: func() time.Time { return now }}).GetEvidence(FeishuOrganizationSyncHandoffEvidenceFilter{
+		Organization: "engineering",
+		SourceType:   FeishuHandoffEvidenceSourceRun,
+		SourceId:     "run-running",
+	})
+	if err != nil {
+		t.Fatalf("GetEvidence(run) error = %v", err)
+	}
+	if evidence.Readiness != "running" {
+		t.Fatalf("readiness = %q, want running", evidence.Readiness)
+	}
+	if containsString(evidence.BlockedReasons, "sync_run_failed") {
+		t.Fatalf("blocked reasons = %+v, running run must not be classified as failed", evidence.BlockedReasons)
+	}
+	if evidence.AcceptanceChecklist.Summary.Blocked != 0 || !hasFeishuHandoffChecklistItem(evidence.AcceptanceChecklist.Items, "handoff_readiness", FeishuHandoffAcceptanceStatusNeedsReview) {
+		t.Fatalf("checklist = %+v, want non-blocking handoff readiness review", evidence.AcceptanceChecklist)
+	}
+	assertFeishuHandoffEvidenceRedacted(t, evidence)
+}
+
 func hasFeishuHandoffChecklistItem(items []FeishuHandoffAcceptanceChecklistItem, itemId string, status string) bool {
 	for _, item := range items {
 		if item.Id == itemId && item.Status == status {

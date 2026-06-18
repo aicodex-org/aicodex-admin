@@ -85,6 +85,7 @@ const bindingActionLabels = {
 const handoffReadinessLabels = {
   ready: "可交接",
   blocked: "阻断",
+  running: "同步中",
   no_run: "无记录",
   unsupported: "不可用",
 };
@@ -122,6 +123,8 @@ const handoffActionLabels = {
   export_sanitized_evidence_only: "仅导出脱敏证据",
   inspect_sync_diagnostics: "查看同步诊断",
   run_dry_run_preview: "先预览影响",
+  wait_sync_completion: "等待同步完成",
+  refresh_handoff_evidence: "刷新交接证据",
 };
 const handoffEvidenceAliasLabels = {
   live_contact_v3_credentials: "飞书通讯录权限需真实验证",
@@ -673,7 +676,7 @@ class FeishuOrganizationSyncPage extends React.Component {
   }
 
   getHandoffReadinessTag(readiness) {
-    const colorMap = {ready: "green", blocked: "red", no_run: "default", unsupported: "default"};
+    const colorMap = {ready: "green", blocked: "red", running: "processing", no_run: "default", unsupported: "default"};
     return <Tag color={colorMap[readiness] || "default"}>{handoffReadinessLabels[readiness] || readiness || "-"}</Tag>;
   }
 
