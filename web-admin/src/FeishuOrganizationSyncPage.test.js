@@ -235,7 +235,8 @@ test("renders Feishu organization sync config and endpoint mode", async() => {
   expect(screen.getByAltText("Feishu/Lark provider logo")).toHaveAttribute("src", expect.stringContaining("/img/social_lark.png"));
   expect(FeishuOrganizationSyncBackend.getFeishuOrganizationSyncConfig).toHaveBeenCalledWith("engineering");
   expect(screen.getByText("飞书组织架构同步")).toBeInTheDocument();
-  expect(screen.getByText("国内飞书（open.feishu.cn）")).toBeInTheDocument();
+  expect(screen.getByText("服务区域")).toBeInTheDocument();
+  expect(screen.getByText("飞书（中国大陆）")).toBeInTheDocument();
   expect(screen.getByDisplayValue("cli_123")).toBeInTheDocument();
 });
 
@@ -399,10 +400,10 @@ test("renders healthy user binding diagnostics as a compact row", async() => {
 test("renders handoff evidence ready summary in a centered modal", async() => {
   const {container} = render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
-  expect(await screen.findByText("交接证据")).toBeInTheDocument();
+  expect(await screen.findByText("交接资料")).toBeInTheDocument();
   expect(FeishuOrganizationSyncBackend.getFeishuOrganizationSyncHandoffEvidence).toHaveBeenCalledWith("engineering", {sourceType: "latest"});
   expect(screen.getByText("可交接")).toBeInTheDocument();
-  expect(screen.getByText("部门：新 1 / 更 1 / 软禁 0 / 冲突 0 / 无效 0")).toBeInTheDocument();
+  expect(screen.queryByText("部门：新 1 / 更 1 / 软禁 0 / 冲突 0 / 无效 0")).not.toBeInTheDocument();
   expect(screen.getByText("查看验收资料")).toBeInTheDocument();
   expect(container.querySelector(".ant-alert-success")).not.toBeInTheDocument();
   expect(screen.queryByText("dry-run-safe")).not.toBeInTheDocument();
@@ -480,7 +481,7 @@ test("renders running handoff evidence as non-blocking compact status", async() 
   const {container} = render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
   expect(await screen.findByText("同步中")).toBeInTheDocument();
-  expect(screen.getByText("同步任务正在运行，交接证据会在任务完成后更新。")).toBeInTheDocument();
+  expect(screen.getByText("同步任务正在运行，交接资料会在任务完成后更新。")).toBeInTheDocument();
   expect(screen.queryByText(/阻断原因/)).not.toBeInTheDocument();
   expect(container.querySelector(".ant-alert-error")).not.toBeInTheDocument();
 });
@@ -527,9 +528,13 @@ test("renders sync runs without forcing horizontal table scroll", async() => {
 
   expect(await screen.findByText("同步记录")).toBeInTheDocument();
   expect(screen.getByText("feishu-sync-run-1781681971079340586")).toBeInTheDocument();
-  expect(screen.getByText("部门 0 / 0 / 0")).toBeInTheDocument();
-  expect(screen.getByText("用户 0 / 56 / 0")).toBeInTheDocument();
-  expect(screen.getByText("关系 56")).toBeInTheDocument();
+  expect(screen.getByRole("columnheader", {name: "运行 ID"})).toBeInTheDocument();
+  expect(screen.getByRole("columnheader", {name: "触发方式"})).toBeInTheDocument();
+  expect(screen.getByRole("columnheader", {name: "关系（新增 / 更新 / 禁用）"})).toBeInTheDocument();
+  expect(screen.queryByRole("columnheader", {name: "影响统计"})).not.toBeInTheDocument();
+  expect(screen.queryByRole("columnheader", {name: "诊断 / 错误"})).not.toBeInTheDocument();
+  expect(screen.getByText("新 0 / 更 0 / 禁 0")).toBeInTheDocument();
+  expect(screen.getAllByText("新 0 / 更 56 / 禁 0").length).toBeGreaterThan(1);
   const horizontallyScrollableTables = [...container.querySelectorAll(".ant-table-content")]
     .filter(element => element.getAttribute("style")?.includes("overflow-x: auto"));
   expect(horizontallyScrollableTables).toHaveLength(0);
@@ -543,7 +548,7 @@ test("copies handoff evidence JSON without raw tenant identifiers", async() => {
   });
   render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
-  expect(await screen.findByText("交接证据")).toBeInTheDocument();
+  expect(await screen.findByText("交接资料")).toBeInTheDocument();
   fireEvent.click(screen.getByLabelText("copy-handoff-evidence-json"));
 
   expect(writeText).toHaveBeenCalledTimes(1);
@@ -562,7 +567,7 @@ test("copies handoff acceptance checklist JSON and Markdown without raw tenant i
   });
   render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
-  expect(await screen.findByText("交接证据")).toBeInTheDocument();
+  expect(await screen.findByText("交接资料")).toBeInTheDocument();
   fireEvent.click(screen.getByLabelText("toggle-handoff-evidence-details"));
   expect(screen.getByText("验收清单")).toBeInTheDocument();
   fireEvent.click(screen.getByLabelText("copy-handoff-acceptance-checklist-json"));
@@ -593,7 +598,7 @@ test("exports handoff acceptance checklist JSON and Markdown", async() => {
   });
   render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
-  expect(await screen.findByText("交接证据")).toBeInTheDocument();
+  expect(await screen.findByText("交接资料")).toBeInTheDocument();
   fireEvent.click(screen.getByLabelText("toggle-handoff-evidence-details"));
   expect(screen.getByText("验收清单")).toBeInTheDocument();
   fireEvent.click(screen.getByLabelText("export-handoff-acceptance-checklist-json"));
@@ -638,7 +643,7 @@ test("renders handoff evidence blocked and no-run states", async() => {
   });
   render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
-  expect((await screen.findAllByText("交接证据存在 3 个阻断原因，需处理后再交接。")).length).toBeGreaterThan(0);
+  expect((await screen.findAllByText("交接资料存在 3 个阻断原因，需处理后再交接。")).length).toBeGreaterThan(0);
   expect(screen.queryByText("sync_run_failed")).not.toBeInTheDocument();
   expect(screen.queryByText("dry_run_diff_conflict_or_invalid")).not.toBeInTheDocument();
   expect(screen.getByText("查看验收资料")).toBeInTheDocument();
