@@ -420,6 +420,28 @@ func buildOrganizationSyncGroupMemberReferences(organization string, groups []*G
 		return result, nil
 	}
 
+	platformRefs, err := buildOrganizationSyncPlatformGroupMemberReferences(organization, groups)
+	if err != nil {
+		return nil, err
+	}
+	mergeOrganizationSyncGroupMemberReferences(result, platformRefs)
+
+	legacyRefs, err := buildOrganizationSyncLegacyGroupMemberReferences(organization, groups)
+	if err != nil {
+		return nil, err
+	}
+	mergeOrganizationSyncGroupMemberReferences(result, legacyRefs)
+
+	for groupName := range result {
+		sort.Slice(result[groupName], func(i, j int) bool {
+			return organizationSyncMemberReferenceSortKey(result[groupName][i]) < organizationSyncMemberReferenceSortKey(result[groupName][j])
+		})
+	}
+	return result, nil
+}
+
+func buildOrganizationSyncPlatformGroupMemberReferences(organization string, groups []*Group) (map[string][]OrganizationSyncGroupMemberReference, error) {
+	result := map[string][]OrganizationSyncGroupMemberReference{}
 	groupNameByDepartmentId := buildOrganizationSyncGroupDepartmentIndex(groups)
 	departments, err := GetPlatformDepartments(organization)
 	if err != nil {
@@ -510,7 +532,7 @@ func buildOrganizationSyncGroupMemberReferences(organization string, groups []*G
 			memberRef.WecomCorpId = externalRef.WecomCorpId
 			memberRef.WecomUserId = externalRef.WecomUserId
 		}
-		dedupeKey := groupName + "\x1f" + firstNonEmpty(memberRef.AdminSubject, memberRef.WecomExternalId, memberRef.WecomCorpId+":"+memberRef.WecomUserId)
+		dedupeKey := groupName + "\x1f" + organizationSyncMemberReferenceDedupeKey(memberRef)
 		if seen[dedupeKey] {
 			continue
 		}
@@ -523,6 +545,218 @@ func buildOrganizationSyncGroupMemberReferences(organization string, groups []*G
 		})
 	}
 	return result, nil
+}
+
+func buildOrganizationSyncLegacyGroupMemberReferences(organization string, groups []*Group) (map[string][]OrganizationSyncGroupMemberReference, error) {
+	result := map[string][]OrganizationSyncGroupMemberReference{}
+	usersBySubject, err := buildOrganizationSyncAdminUserIndex(organization)
+	if err != nil {
+		return nil, err
+	}
+	if len(usersBySubject) == 0 {
+		return result, nil
+	}
+
+	groupNameById := buildOrganizationSyncGroupDepartmentIndex(groups)
+	seen := map[string]bool{}
+	for _, group := range groups {
+		if group == nil {
+			continue
+		}
+		groupName := strings.TrimSpace(group.Name)
+		if groupName == "" {
+			continue
+		}
+		userIds, err := getOrganizationSyncGroupMemberIds(group)
+		if err != nil {
+			return nil, err
+		}
+		for _, userId := range userIds {
+			addOrganizationSyncLegacyMemberReference(result, seen, organization, groupName, userId, usersBySubject)
+		}
+	}
+	for adminSubject, user := range usersBySubject {
+		if user == nil {
+			continue
+		}
+		for _, groupId := range user.Groups {
+			groupName := groupNameById[strings.TrimSpace(groupId)]
+			if groupName == "" {
+				continue
+			}
+			addOrganizationSyncLegacyMemberReference(result, seen, organization, groupName, adminSubject, usersBySubject)
+		}
+	}
+	return result, nil
+}
+
+func buildOrganizationSyncAdminUserIndex(organization string) (map[string]*User, error) {
+	result := map[string]*User{}
+	users, err := GetUsers(organization)
+	if err != nil {
+		return nil, err
+	}
+	for _, user := range users {
+		if user == nil || user.IsDeleted || user.IsForbidden {
+			continue
+		}
+		adminSubject := strings.TrimSpace(user.GetId())
+		if adminSubject == "" {
+			continue
+		}
+		result[adminSubject] = user
+	}
+	return result, nil
+}
+
+func getOrganizationSyncGroupMemberIds(group *Group) ([]string, error) {
+	if group == nil {
+		return []string{}, nil
+	}
+	if len(group.Users) > 0 {
+		return group.Users, nil
+	}
+	if userEnforcer == nil {
+		return []string{}, nil
+	}
+	return userEnforcer.GetAllUsersByGroup(group.GetId())
+}
+
+func addOrganizationSyncLegacyMemberReference(result map[string][]OrganizationSyncGroupMemberReference, seen map[string]bool, organization string, groupName string, userId string, usersBySubject map[string]*User) {
+	groupName = strings.TrimSpace(groupName)
+	if groupName == "" {
+		return
+	}
+	ref, ok := buildOrganizationSyncLegacyMemberReference(organization, userId, usersBySubject)
+	if !ok {
+		return
+	}
+	dedupeKey := groupName + "\x1f" + organizationSyncMemberReferenceDedupeKey(ref)
+	if seen[dedupeKey] {
+		return
+	}
+	seen[dedupeKey] = true
+	result[groupName] = append(result[groupName], ref)
+}
+
+func buildOrganizationSyncLegacyMemberReference(organization string, userId string, usersBySubject map[string]*User) (OrganizationSyncGroupMemberReference, bool) {
+	adminSubject := normalizeOrganizationSyncAdminSubject(organization, userId)
+	if adminSubject == "" {
+		return OrganizationSyncGroupMemberReference{}, false
+	}
+	user := usersBySubject[adminSubject]
+	if user == nil {
+		return OrganizationSyncGroupMemberReference{}, false
+	}
+	ref := OrganizationSyncGroupMemberReference{
+		SourceUserId: strings.TrimSpace(adminSubject),
+		AdminSubject: strings.TrimSpace(adminSubject),
+		DisplayName:  firstNonEmpty(user.DisplayName, user.Name),
+	}
+	applyOrganizationSyncWecomIdentityFromUser(&ref, user)
+	return ref, true
+}
+
+func normalizeOrganizationSyncAdminSubject(organization string, userId string) string {
+	userId = strings.TrimSpace(userId)
+	if userId == "" {
+		return ""
+	}
+	owner, name, err := util.GetOwnerAndNameFromIdWithError(userId)
+	if err == nil {
+		if strings.TrimSpace(owner) != strings.TrimSpace(organization) || strings.TrimSpace(name) == "" {
+			return ""
+		}
+		return util.GetId(strings.TrimSpace(owner), strings.TrimSpace(name))
+	}
+	if strings.Contains(userId, "/") {
+		return ""
+	}
+	return util.GetId(strings.TrimSpace(organization), userId)
+}
+
+func applyOrganizationSyncWecomIdentityFromUser(ref *OrganizationSyncGroupMemberReference, user *User) {
+	if ref == nil || user == nil {
+		return
+	}
+	corpId := ""
+	wecomUserId := strings.TrimSpace(user.Wecom)
+	if user.Properties != nil {
+		corpId = strings.TrimSpace(user.Properties[WecomUserPropertyCorpId])
+		wecomUserId = firstNonEmpty(user.Properties[WecomUserPropertyUserId], wecomUserId)
+	}
+	externalId := strings.TrimSpace(user.ExternalId)
+	if parsedCorpId, parsedUserId, ok := parseOrganizationSyncWecomExternalId(externalId); ok {
+		corpId = firstNonEmpty(corpId, parsedCorpId)
+		wecomUserId = firstNonEmpty(wecomUserId, parsedUserId)
+	}
+	if corpId == "" || wecomUserId == "" {
+		return
+	}
+	ref.WecomCorpId = corpId
+	ref.WecomUserId = wecomUserId
+	ref.WecomExternalId = GetWecomUserFullExternalId(corpId, wecomUserId)
+}
+
+func parseOrganizationSyncWecomExternalId(externalId string) (string, string, bool) {
+	parts := strings.Split(strings.TrimSpace(externalId), ":")
+	if len(parts) != 3 || parts[0] != "wecom" || parts[1] == "" || parts[1] == "sha256" || parts[2] == "" {
+		return "", "", false
+	}
+	return parts[1], parts[2], true
+}
+
+func mergeOrganizationSyncGroupMemberReferences(target map[string][]OrganizationSyncGroupMemberReference, source map[string][]OrganizationSyncGroupMemberReference) {
+	if target == nil || len(source) == 0 {
+		return
+	}
+	seen := map[string]int{}
+	for groupName, refs := range target {
+		groupName = strings.TrimSpace(groupName)
+		if groupName == "" {
+			continue
+		}
+		for index, ref := range refs {
+			seen[groupName+"\x1f"+organizationSyncMemberReferenceDedupeKey(ref)] = index
+		}
+	}
+	for groupName, refs := range source {
+		groupName = strings.TrimSpace(groupName)
+		if groupName == "" {
+			continue
+		}
+		for _, ref := range refs {
+			dedupeKey := groupName + "\x1f" + organizationSyncMemberReferenceDedupeKey(ref)
+			if index, ok := seen[dedupeKey]; ok {
+				target[groupName][index] = mergeOrganizationSyncMemberReference(target[groupName][index], ref)
+				continue
+			}
+			seen[dedupeKey] = len(target[groupName])
+			target[groupName] = append(target[groupName], ref)
+		}
+	}
+}
+
+func mergeOrganizationSyncMemberReference(target OrganizationSyncGroupMemberReference, source OrganizationSyncGroupMemberReference) OrganizationSyncGroupMemberReference {
+	if strings.TrimSpace(target.SourceUserId) == "" {
+		target.SourceUserId = strings.TrimSpace(source.SourceUserId)
+	}
+	if strings.TrimSpace(target.AdminSubject) == "" {
+		target.AdminSubject = strings.TrimSpace(source.AdminSubject)
+	}
+	if strings.TrimSpace(target.WecomExternalId) == "" {
+		target.WecomExternalId = strings.TrimSpace(source.WecomExternalId)
+	}
+	if strings.TrimSpace(target.WecomCorpId) == "" {
+		target.WecomCorpId = strings.TrimSpace(source.WecomCorpId)
+	}
+	if strings.TrimSpace(target.WecomUserId) == "" {
+		target.WecomUserId = strings.TrimSpace(source.WecomUserId)
+	}
+	if strings.TrimSpace(target.DisplayName) == "" {
+		target.DisplayName = strings.TrimSpace(source.DisplayName)
+	}
+	return target
 }
 
 func buildOrganizationSyncGroupDepartmentIndex(groups []*Group) map[string]string {
@@ -616,5 +850,18 @@ func isOrganizationSyncConfirmedStatus(status string) bool {
 }
 
 func organizationSyncMemberReferenceSortKey(ref OrganizationSyncGroupMemberReference) string {
-	return firstNonEmpty(ref.AdminSubject, ref.WecomExternalId, ref.WecomCorpId+":"+ref.WecomUserId, ref.SourceUserId, ref.DisplayName)
+	return firstNonEmpty(ref.AdminSubject, ref.WecomExternalId, organizationSyncMemberReferenceWecomPairKey(ref), ref.SourceUserId, ref.DisplayName)
+}
+
+func organizationSyncMemberReferenceDedupeKey(ref OrganizationSyncGroupMemberReference) string {
+	return firstNonEmpty(ref.AdminSubject, ref.WecomExternalId, organizationSyncMemberReferenceWecomPairKey(ref), ref.SourceUserId, ref.DisplayName)
+}
+
+func organizationSyncMemberReferenceWecomPairKey(ref OrganizationSyncGroupMemberReference) string {
+	corpId := strings.TrimSpace(ref.WecomCorpId)
+	userId := strings.TrimSpace(ref.WecomUserId)
+	if corpId == "" || userId == "" {
+		return ""
+	}
+	return corpId + ":" + userId
 }

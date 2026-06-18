@@ -21,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/casbin/casbin/v2"
+	casbinmodel "github.com/casbin/casbin/v2/model"
 	"github.com/xorm-io/xorm"
 )
 
@@ -268,6 +270,158 @@ func TestGetOrganizationSyncSnapshotExportsStableMemberReferences(t *testing.T) 
 	}
 }
 
+func TestGetOrganizationSyncSnapshotFallsBackToGroupMembers(t *testing.T) {
+	setupOrganizationSyncApiKeyTestDB(t)
+	insertOrganizationSyncApiKeyTestOrganizations(t)
+	setupOrganizationSyncApiKeyTestUserEnforcer(t)
+
+	group := &Group{
+		Owner:       "engineering",
+		Name:        "wecom-dept-ww123-3",
+		DisplayName: "产品部",
+		IsTopGroup:  true,
+		IsEnabled:   true,
+	}
+	user := &User{
+		Owner:       "engineering",
+		Name:        "local-alice",
+		Id:          "local-alice-id",
+		DisplayName: "Alice",
+		Wecom:       "alice",
+		ExternalId:  GetWecomUserFullExternalId("ww123", "alice"),
+		Properties: map[string]string{
+			WecomUserPropertyCorpId: "ww123",
+			WecomUserPropertyUserId: "alice",
+		},
+	}
+	if _, err := ormer.Engine.Insert(group, user); err != nil {
+		t.Fatalf("insert group and user error = %v", err)
+	}
+	if _, err := userEnforcer.AddGroupForUser(user.GetId(), group.GetId()); err != nil {
+		t.Fatalf("add user to group error = %v", err)
+	}
+
+	snapshot, err := GetOrganizationSyncSnapshot("engineering")
+	if err != nil {
+		t.Fatalf("GetOrganizationSyncSnapshot() error = %v", err)
+	}
+	if len(snapshot.Groups) != 1 {
+		t.Fatalf("snapshot groups = %#v, want one group", snapshot.Groups)
+	}
+	if len(snapshot.Groups[0].Users) != 1 {
+		t.Fatalf("snapshot group users = %#v, want legacy group member fallback", snapshot.Groups[0].Users)
+	}
+	member := snapshot.Groups[0].Users[0]
+	if member.AdminSubject != "engineering/local-alice" || member.SourceUserId != "engineering/local-alice" {
+		t.Fatalf("fallback admin subject = %#v", member)
+	}
+	if member.WecomExternalId != "wecom:ww123:alice" || member.WecomCorpId != "ww123" || member.WecomUserId != "alice" {
+		t.Fatalf("fallback wecom identity = %#v", member)
+	}
+}
+
+func TestGetOrganizationSyncSnapshotFallsBackToUserGroups(t *testing.T) {
+	setupOrganizationSyncApiKeyTestDB(t)
+	insertOrganizationSyncApiKeyTestOrganizations(t)
+	setupOrganizationSyncApiKeyTestUserEnforcer(t)
+
+	group := &Group{
+		Owner:       "engineering",
+		Name:        "wecom-dept-ww123-4",
+		DisplayName: "市场部",
+		IsTopGroup:  true,
+		IsEnabled:   true,
+	}
+	user := &User{
+		Owner:       "engineering",
+		Name:        "local-bob",
+		Id:          "local-bob-id",
+		DisplayName: "Bob",
+		Wecom:       "bob",
+		ExternalId:  GetWecomUserFullExternalId("ww123", "bob"),
+		Groups:      []string{group.GetId()},
+		Properties: map[string]string{
+			WecomUserPropertyCorpId: "ww123",
+			WecomUserPropertyUserId: "bob",
+		},
+	}
+	if _, err := ormer.Engine.Insert(group, user); err != nil {
+		t.Fatalf("insert group and user error = %v", err)
+	}
+
+	snapshot, err := GetOrganizationSyncSnapshot("engineering")
+	if err != nil {
+		t.Fatalf("GetOrganizationSyncSnapshot() error = %v", err)
+	}
+	if len(snapshot.Groups) != 1 {
+		t.Fatalf("snapshot groups = %#v, want one group", snapshot.Groups)
+	}
+	if len(snapshot.Groups[0].Users) != 1 {
+		t.Fatalf("snapshot group users = %#v, want user.Groups fallback", snapshot.Groups[0].Users)
+	}
+	member := snapshot.Groups[0].Users[0]
+	if member.AdminSubject != "engineering/local-bob" || member.WecomExternalId != "wecom:ww123:bob" {
+		t.Fatalf("fallback user group member = %#v", member)
+	}
+}
+
+func TestGetOrganizationSyncSnapshotEnrichesPlatformMembersFromLegacyUser(t *testing.T) {
+	setupOrganizationSyncApiKeyTestDB(t)
+	insertOrganizationSyncApiKeyTestOrganizations(t)
+	setupOrganizationSyncApiKeyTestUserEnforcer(t)
+
+	group := &Group{
+		Owner:       "engineering",
+		Name:        "wecom-dept-ww123-5",
+		DisplayName: "运营部",
+		IsTopGroup:  true,
+		IsEnabled:   true,
+	}
+	user := &User{
+		Owner:       "engineering",
+		Name:        "local-carol",
+		Id:          "local-carol-id",
+		DisplayName: "Carol",
+		Wecom:       "carol",
+		ExternalId:  GetWecomUserFullExternalId("ww123", "carol"),
+		Groups:      []string{group.GetId()},
+		Properties: map[string]string{
+			WecomUserPropertyCorpId: "ww123",
+			WecomUserPropertyUserId: "carol",
+		},
+	}
+	sourceConnectionId := GetSourceConnectionId("engineering", SourceTypeWecom, "ww123")
+	records := []any{
+		group,
+		user,
+		&SourceConnection{Owner: "admin", Name: sourceConnectionId, OrganizationId: "engineering", SourceConnectionId: sourceConnectionId, SourceType: SourceTypeWecom, SourceTenantId: "ww123", Status: SourceConnectionStatusActive, Freshness: PlatformFreshnessFresh},
+		&PlatformDepartment{Owner: "admin", Name: GetPlatformDepartmentName("engineering", group.GetId()), OrganizationId: "engineering", DepartmentId: group.GetId(), ExternalDepartmentId: "5", DisplayName: "运营部", LifecycleStatus: PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-a"},
+		&PlatformUser{Owner: "admin", Name: "platform-user-carol", OrganizationId: "engineering", AdminSubject: user.GetId(), UserOwner: "engineering", UserName: user.Name, DisplayName: "Carol", LifecycleStatus: PlatformLifecycleStatusActive, MappingStatus: PlatformMappingStatusConfirmed, OrgVersion: "orgv-a"},
+		&PlatformMembership{Owner: "admin", Name: GetPlatformMembershipName("engineering", user.GetId(), group.GetId()), OrganizationId: "engineering", AdminSubject: user.GetId(), DepartmentId: group.GetId(), LifecycleStatus: PlatformLifecycleStatusActive, SourceConnectionId: sourceConnectionId, OrgVersion: "orgv-a"},
+	}
+	if _, err := ormer.Engine.Insert(records...); err != nil {
+		t.Fatalf("insert platform and legacy records error = %v", err)
+	}
+
+	snapshot, err := GetOrganizationSyncSnapshot("engineering")
+	if err != nil {
+		t.Fatalf("GetOrganizationSyncSnapshot() error = %v", err)
+	}
+	if len(snapshot.Groups) != 1 {
+		t.Fatalf("snapshot groups = %#v, want one group", snapshot.Groups)
+	}
+	if len(snapshot.Groups[0].Users) != 1 {
+		t.Fatalf("snapshot group users = %#v, want merged member reference", snapshot.Groups[0].Users)
+	}
+	member := snapshot.Groups[0].Users[0]
+	if member.AdminSubject != "engineering/local-carol" || member.SourceUserId != "engineering/local-carol" {
+		t.Fatalf("merged admin subject = %#v", member)
+	}
+	if member.WecomExternalId != "wecom:ww123:carol" || member.WecomCorpId != "ww123" || member.WecomUserId != "carol" {
+		t.Fatalf("merged wecom identity = %#v", member)
+	}
+}
+
 func TestBuildOrganizationSyncExportGroupsFiltersAndDeduplicatesMembers(t *testing.T) {
 	setupOrganizationSyncApiKeyTestDB(t)
 	insertOrganizationSyncApiKeyTestOrganizations(t)
@@ -418,6 +572,7 @@ func setupOrganizationSyncApiKeyTestDB(t *testing.T) {
 	}
 	if err := engine.Sync2(
 		new(Organization),
+		new(User),
 		new(Group),
 		new(Application),
 		new(OrganizationSyncApiKey),
@@ -433,6 +588,40 @@ func setupOrganizationSyncApiKeyTestDB(t *testing.T) {
 	t.Cleanup(func() {
 		_ = engine.Close()
 		ormer = oldOrmer
+	})
+}
+
+func setupOrganizationSyncApiKeyTestUserEnforcer(t *testing.T) {
+	t.Helper()
+
+	modelText := `
+[request_definition]
+r = sub, obj, act
+
+[policy_definition]
+p = sub, obj, act
+
+[role_definition]
+g = _, _
+
+[policy_effect]
+e = some(where (p.eft == allow))
+
+[matchers]
+m = g(r.sub, p.sub) && r.obj == p.obj && r.act == p.act
+`
+	m, err := casbinmodel.NewModelFromString(modelText)
+	if err != nil {
+		t.Fatalf("new casbin model error = %v", err)
+	}
+	enforcer, err := casbin.NewEnforcer(m)
+	if err != nil {
+		t.Fatalf("new casbin enforcer error = %v", err)
+	}
+	oldUserEnforcer := userEnforcer
+	userEnforcer = NewUserGroupEnforcer(enforcer)
+	t.Cleanup(func() {
+		userEnforcer = oldUserEnforcer
 	})
 }
 
