@@ -482,8 +482,8 @@ class WecomOrganizationSyncPage extends React.Component {
 
   renderLoadingState() {
     return (
-      <div>
-        <Space style={{marginBottom: 16}}>
+      <div className="organization-sync-page wecom-organization-sync-page">
+        <Space className="organization-sync-page-title">
           <CloudSyncOutlined />
           <Text strong>企业微信组织架构同步</Text>
         </Space>
@@ -496,7 +496,7 @@ class WecomOrganizationSyncPage extends React.Component {
     // 这里选择的是本页要配置的 aicodex-admin 组织，不是一个普通列表筛选条件。
     const isBuiltIn = this.state.organization === "built-in";
     return (
-      <div>
+      <div className="organization-sync-target-selector">
         <Space style={{marginBottom: 8}}>
           <Text strong>同步目标组织</Text>
         </Space>
@@ -603,13 +603,13 @@ class WecomOrganizationSyncPage extends React.Component {
     const syncButtonLabel = hasRunningRuns ? "同步进行中" : "开始全量同步";
 
     return (
-      <div>
-        <Space style={{marginBottom: 16}}>
+      <div className="organization-sync-page wecom-organization-sync-page">
+        <Space className="organization-sync-page-title">
           <CloudSyncOutlined />
           <Text strong>企业微信组织架构同步</Text>
         </Space>
 
-        <Row gutter={[16, 16]}>
+        <Row className="organization-sync-config-grid" gutter={[16, 16]}>
           <Col xs={24} md={12}>
             {this.renderOrganizationSelector()}
           </Col>
@@ -638,7 +638,7 @@ class WecomOrganizationSyncPage extends React.Component {
         />
         {this.renderTestResult()}
 
-        <Space style={{marginTop: 16}}>
+        <Space className="organization-sync-action-bar" style={{marginTop: 16}} wrap>
           <Button icon={<SaveOutlined />} type="primary" loading={this.state.saving} onClick={() => this.saveConfig()}>
             {i18next.t("general:Save")}
           </Button>
@@ -656,7 +656,7 @@ class WecomOrganizationSyncPage extends React.Component {
         </Space>
 
         <Divider />
-        <Row align="middle" justify="space-between" style={{marginBottom: 12}}>
+        <Row className="organization-sync-record-header" align="middle" justify="space-between" gutter={[8, 8]} style={{marginBottom: 12}}>
           <Col>
             <Space direction="vertical" size={2}>
               <Text strong>同步记录</Text>

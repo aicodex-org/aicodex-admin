@@ -194,16 +194,24 @@ test("renders organization tree operations diagnostics without treating display 
   render(<OrganizationTreeOperationsPage account={{owner: "org-alpha", isAdmin: true}} />);
 
   expect(await screen.findByText("组织树节点")).toBeInTheDocument();
+  expect(document.querySelector(".organization-tree-operations-page")).not.toBeNull();
   expect(screen.getByText("可见节点")).toBeInTheDocument();
-  expect(screen.getAllByText("orgv-1").length).toBeGreaterThan(0);
+  expect(screen.queryByText("orgv-1")).not.toBeInTheDocument();
+  expect(screen.queryByText("readModelSource")).not.toBeInTheDocument();
   expect(screen.getByText("根部门")).toBeInTheDocument();
   expect(screen.getByText("停用部门")).toBeInTheDocument();
   expect(screen.getByText("仅诊断和受控刷新，不编辑源事实")).toBeInTheDocument();
+  expect(screen.queryByText("重建 read model")).not.toBeInTheDocument();
+  expect(screen.getByText("重建目录视图")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("技术详情"));
+  expect(screen.getAllByText("orgv-1").length).toBeGreaterThan(0);
+  expect(screen.getByText("readModelSource")).toBeInTheDocument();
 });
 
 test("compacts long versions in summary cards while keeping copyable diagnostics", async() => {
   const longOrgVersion = "orgv-ed073c4ab7a34c05d79fdb539df3f0a31714bfdb8ccca2c59027370474815437";
   const longScopeVersion = "scopev-03ceeba02044c23b02a5602c77d00403446f76edb3100cc37f214ce4168692c4";
+  const compactDiagnosticIdentifier = value => `${value.slice(0, 28)}...${value.slice(-12)}`;
   OrganizationTreeOperationsBackend.getOrganizationTreeOperationsDiagnostics.mockResolvedValueOnce({
     status: "ok",
     data: buildDiagnostics({
@@ -223,8 +231,11 @@ test("compacts long versions in summary cards while keeping copyable diagnostics
 
   render(<OrganizationTreeOperationsPage account={{owner: "org-alpha", isAdmin: true}} />);
 
-  expect(await screen.findByText("orgv-ed073c4ab...74815437")).toBeInTheDocument();
-  expect(screen.getByText("scopev-03cee...168692c4")).toBeInTheDocument();
+  expect(await screen.findByText("组织树节点")).toBeInTheDocument();
+  expect(screen.queryByText(compactDiagnosticIdentifier(longOrgVersion))).not.toBeInTheDocument();
+  fireEvent.click(screen.getByText("技术详情"));
+  expect(screen.getByText(compactDiagnosticIdentifier(longOrgVersion))).toBeInTheDocument();
+  expect(screen.getByText(compactDiagnosticIdentifier(longScopeVersion))).toBeInTheDocument();
   expect(screen.queryByRole("heading", {name: longOrgVersion})).not.toBeInTheDocument();
 });
 

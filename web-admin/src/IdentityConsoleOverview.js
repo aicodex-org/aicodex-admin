@@ -29,7 +29,6 @@ import {Link} from "react-router-dom";
 import i18next from "i18next";
 import * as DashboardBackend from "./backend/DashboardBackend";
 import {
-  EnterpriseIdentityActionGrid,
   EnterpriseIdentityConsolePage,
   EnterpriseIdentityRiskList,
   EnterpriseIdentitySection,
@@ -204,20 +203,6 @@ function buildSummaryItems(dashboardData, hasError) {
   ];
 }
 
-function buildCapabilityLinks() {
-  return [
-    {key: "identity-assets", to: "/identity-assets", label: tGeneral("Identity Asset Relationships", "身份资产关系"), description: tGeneral("Identity asset relationship capability description", "对象详情、授权关系和审计证据入口"), icon: <ClusterOutlined />},
-    {key: "access-wizard", to: "/access-wizard", label: tGeneral("Access Preflight Center", "接入预检中心"), description: tGeneral("Access preflight capability description", "配置缺口、证据入口和发布前核对"), icon: <ProfileOutlined />},
-    {key: "governance-tasks", to: "/governance-tasks", label: tGeneral("Governance Task Center", "治理任务中心"), description: tGeneral("Governance task center capability description", "风险待办、证据入口和建议核对"), icon: <ProfileOutlined />},
-    {key: "organizations", to: "/organizations", label: "组织主数据", description: "身份域、部门和用户主数据", icon: <TeamOutlined />},
-    {key: "providers", to: "/providers", label: "认证源", description: "企业微信、飞书、OIDC 接入", icon: <SafetyCertificateOutlined />},
-    {key: "applications", to: "/applications", label: "应用接入", description: "OAuth client、回调和授权范围", icon: <AppstoreOutlined />},
-    {key: "api-mapping", to: "/platform-api-mappings", label: "API 网关映射", description: "应用到 API 的接入契约", icon: <ApiOutlined />},
-    {key: "gateway", to: "/agents", label: "LLM AI 网关", description: "AI 入口、MCP 资源与网关身份映射", icon: <DeploymentUnitOutlined />},
-    {key: "records", to: "/records", label: "审计记录", description: "变更、失败和运维核对", icon: <AuditOutlined />},
-  ];
-}
-
 function IdentityConsoleOverview({account, history}) {
   const [dashboardData, setDashboardData] = React.useState(null);
   const [loading, setLoading] = React.useState(false);
@@ -274,7 +259,6 @@ function IdentityConsoleOverview({account, history}) {
   const statusCards = buildStatusCards(dashboardData);
   const riskItems = buildRiskItems(!!errorMessage);
   const summaryItems = buildSummaryItems(dashboardData, !!errorMessage);
-  const capabilityLinks = buildCapabilityLinks();
 
   return (
     <EnterpriseIdentityConsolePage
@@ -311,20 +295,13 @@ function IdentityConsoleOverview({account, history}) {
       <EnterpriseIdentitySummaryStrip items={summaryItems} />
       <EnterpriseIdentityStatusGrid items={statusCards} minColumns={4} />
 
-      <div className="enterprise-identity-two-column">
-        <EnterpriseIdentitySection
-          title="能力入口"
-          description="按治理任务进入既有页面，保留原有路由和权限过滤"
-        >
-          <EnterpriseIdentityActionGrid items={capabilityLinks} />
-        </EnterpriseIdentitySection>
-        <EnterpriseIdentitySection
-          title="风险待办"
-          description="只读巡检入口，不触发同步、授权刷新或投影执行"
-        >
-          <EnterpriseIdentityRiskList items={riskItems} />
-        </EnterpriseIdentitySection>
-      </div>
+      <EnterpriseIdentitySection
+        className="identity-console-next-actions"
+        title="当前最该处理"
+        description="保留对象关系、接入预检和治理任务深链，但默认按身份覆盖、应用接入和审计风险排序"
+      >
+        <EnterpriseIdentityRiskList items={riskItems} />
+      </EnterpriseIdentitySection>
     </EnterpriseIdentityConsolePage>
   );
 }

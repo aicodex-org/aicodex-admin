@@ -161,7 +161,9 @@ describe("AccessWizardPage", () => {
       </MemoryRouter>
     );
 
-    expect(view.getByText("接入预检中心")).not.toBeNull();
+    expect(view.getByText("接入预检工具")).not.toBeNull();
+    expect(view.queryByText("接入预检中心")).toBeNull();
+    expect(view.container.querySelector(".access-wizard-compact-workflow")).not.toBeNull();
     expect(view.getByText("认证源接入")).not.toBeNull();
     expect(view.getByText("应用接入")).not.toBeNull();
     expect(view.getByText("LLM AI / Gateway")).not.toBeNull();
@@ -255,7 +257,7 @@ describe("AccessWizardPage", () => {
       </MemoryRouter>
     );
 
-    expect(view.getByText("无权查看接入预检中心")).not.toBeNull();
+    expect(view.getByText("无权查看接入预检工具")).not.toBeNull();
     expect(view.queryByText("Portal")).toBeNull();
   });
 });

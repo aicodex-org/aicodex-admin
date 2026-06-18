@@ -255,7 +255,7 @@ const AccessWizardPage = ({account, initialPlans, sourceErrors = EMPTY_SOURCE_ER
     return (
       <Result
         status="403"
-        title={t("permissionDeniedTitle", "无权查看接入预检中心")}
+        title={t("permissionDeniedTitle", "无权查看接入预检工具")}
         subTitle={t("permissionDeniedDescription", "隐藏的接入对象、配置缺口和证据入口不会为当前账号渲染。")}
       />
     );
@@ -284,8 +284,8 @@ const AccessWizardPage = ({account, initialPlans, sourceErrors = EMPTY_SOURCE_ER
     <EnterpriseIdentityConsolePage
       className="access-wizard-page"
       eyebrow={t("eyebrow", "企业认证中心 / 接入预检")}
-      title={t("title", "接入预检中心")}
-      description={t("description", "按认证源、应用接入和 LLM AI/Gateway 三个接入域核对配置缺口、证据入口和发布前条件。")}
+      title={t("title", "接入预检工具")}
+      description={t("description", "在认证源、应用接入和 LLM AI/Gateway 配置流程内核对缺口、证据入口和发布前条件。")}
       actions={(
         <Space wrap>
           <Link to="/providers"><Button icon={<SafetyCertificateOutlined />}>{t("identitySources", "认证源")}</Button></Link>
@@ -332,7 +332,7 @@ const AccessWizardPage = ({account, initialPlans, sourceErrors = EMPTY_SOURCE_ER
       )}
 
       {plans.length > 0 && (
-        <React.Fragment>
+        <div className="access-wizard-compact-workflow">
           <div className="access-wizard-domain-grid">
             {plans.map(plan => (
               <button
@@ -511,7 +511,7 @@ const AccessWizardPage = ({account, initialPlans, sourceErrors = EMPTY_SOURCE_ER
               <Spin />
             </div>
           )}
-        </React.Fragment>
+        </div>
       )}
     </EnterpriseIdentityConsolePage>
   );

@@ -379,17 +379,6 @@ export default function OrganizationDirectoryQualityPage(props) {
       ),
     },
     {
-      title: "版本/批次",
-      dataIndex: "orgVersion",
-      width: 180,
-      render: (_, record) => (
-        <Space direction="vertical" size={0}>
-          <Text>{compactText(record.orgVersion)}</Text>
-          <Text type="secondary">{compactText(record.syncBatchId)}</Text>
-        </Space>
-      ),
-    },
-    {
       title: "原因",
       dataIndex: "reasonCodes",
       render: values => renderTags(values, "volcano"),
@@ -776,7 +765,7 @@ export default function OrganizationDirectoryQualityPage(props) {
   };
 
   return (
-    <div style={{padding: 24}}>
+    <div className="organization-directory-quality-page" style={{padding: 24}}>
       <Space direction="vertical" size={16} style={{width: "100%"}}>
         <Space align="center" wrap>
           <Title level={3} style={{margin: 0}}>组织目录质量</Title>
@@ -861,11 +850,14 @@ export default function OrganizationDirectoryQualityPage(props) {
               <Descriptions.Item label="来源类型">{selectedItem.sourceType || "-"}</Descriptions.Item>
               <Descriptions.Item label="来源连接 Hash">{selectedItem.sourceConnectionIdHash || "-"}</Descriptions.Item>
               <Descriptions.Item label="外部 ID Hash">{selectedItem.externalIdHash || "-"}</Descriptions.Item>
+            </Descriptions>
+            <Descriptions title="技术详情" column={1} size="small" bordered>
               <Descriptions.Item label="同步批次">{selectedItem.syncBatchId || "-"}</Descriptions.Item>
               <Descriptions.Item label="组织版本">{selectedItem.orgVersion || "-"}</Descriptions.Item>
+              <Descriptions.Item label="来源版本">{selectedItem.sourceVersion || "-"}</Descriptions.Item>
             </Descriptions>
             <div>
-              <Text strong>Reason codes</Text>
+              <Text strong>原因码</Text>
               <div style={{marginTop: 8}}>{renderTags(selectedItem.reasonCodes, "volcano")}</div>
             </div>
             <div>

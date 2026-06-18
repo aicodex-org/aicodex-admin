@@ -126,6 +126,7 @@ class OrganizationTreeOperationsPage extends React.Component {
       memberTotal: 0,
       members: [],
       selectedMember: null,
+      showTechnicalDetails: false,
     };
   }
 
@@ -171,6 +172,7 @@ class OrganizationTreeOperationsPage extends React.Component {
       memberTotal: 0,
       members: [],
       selectedMember: null,
+      showTechnicalDetails: false,
     }, () => this.refreshDiagnostics());
   }
 
@@ -282,23 +284,12 @@ class OrganizationTreeOperationsPage extends React.Component {
   getSummaryCards() {
     const summary = this.state.diagnostics?.summary || {};
     const source = this.state.diagnostics?.sourceConnections || [];
-    const latestSyncBatch = this.state.diagnostics?.latestSyncBatch;
-    const version = summary.orgVersion || summary.scopeVersion;
     return [
       {title: "可见节点", value: summary.visibleNodeCount ?? 0, extra: `平台部门 ${summary.totalPlatformDepartmentCount ?? 0}`},
       {title: "诊断项", value: summary.diagnosticItemCount ?? 0, extra: renderText(this.state.diagnostics?.emptyTreeClass ? emptyTreeClassLabels[this.state.diagnostics.emptyTreeClass] || this.state.diagnostics.emptyTreeClass : "")},
-      {
-        title: "版本",
-        value: renderCompactIdentifier(version, {copyable: true, head: 14, tail: 8}),
-        extra: summary.scopeVersion ? (
-          <Space direction="vertical" size={0} style={{maxWidth: "100%"}}>
-            <Text type="secondary">scope</Text>
-            {renderCompactIdentifier(summary.scopeVersion, {copyable: true, head: 12, tail: 8})}
-          </Space>
-        ) : "-",
-      },
-      {title: "新鲜度", value: renderText(summary.freshness), extra: `生成 ${renderTime(summary.generatedAt)}`},
-      {title: "来源连接", value: source.length, extra: latestSyncBatch ? `最近批次 ${latestSyncBatch.status || "-"}` : "无最近批次"},
+      {title: "目录健康", value: renderStatusTag(summary.freshness, freshnessLabels), extra: `生成 ${renderTime(summary.generatedAt)}`},
+      {title: "同步来源", value: source.length, extra: source.length > 0 ? source.map(item => item.sourceType).filter(Boolean).join(" / ") : "无来源连接"},
+      {title: "最近同步", value: renderStatusTag(this.state.diagnostics?.latestSyncBatch?.status), extra: this.state.diagnostics?.latestSyncBatch?.status ? "查看技术详情获取批次号" : "无最近批次"},
     ];
   }
 
@@ -315,7 +306,6 @@ class OrganizationTreeOperationsPage extends React.Component {
       {title: "连接状态", dataIndex: "sourceConnectionStatus", key: "sourceConnectionStatus", width: 130, render: renderStatusTag},
       {title: "新鲜度", dataIndex: "sourceConnectionFreshness", key: "sourceConnectionFreshness", width: 120, render: value => renderStatusTag(value, freshnessLabels)},
       {title: "可见来源", dataIndex: "visibilitySource", key: "visibilitySource", width: 150, render: renderText},
-      {title: "readModelSource", dataIndex: "readModelSource", key: "readModelSource", width: 180, render: renderText},
     ];
   }
 
@@ -390,7 +380,6 @@ class OrganizationTreeOperationsPage extends React.Component {
             <Tag color={issueCount > 0 ? "orange" : "default"}>异常 {issueCount}</Tag>
           </>
         ) : null}
-        <Text type="secondary">{renderText(node.readModelSource)}</Text>
       </Space>
     );
   }
@@ -614,13 +603,14 @@ class OrganizationTreeOperationsPage extends React.Component {
   render() {
     const diagnostics = this.state.diagnostics;
     return (
-      <div>
+      <div className="organization-tree-operations-page">
         <Space direction="vertical" size={16} style={{width: "100%"}}>
           <Space wrap style={{width: "100%", justifyContent: "space-between"}}>
             <Space wrap>
               <OrganizationSelect initValue={this.state.organization} onChange={organization => this.changeOrganization(organization)} />
               <Button icon={<ReloadOutlined />} loading={this.state.refreshingStatus || this.state.loading} onClick={() => this.triggerRefresh(triggerRefreshStatus)}>刷新诊断</Button>
-              <Button icon={<SyncOutlined />} loading={this.state.refreshingReadModel} onClick={() => this.triggerRefresh(triggerRefreshReadModel)}>重建 read model</Button>
+              <Button icon={<SyncOutlined />} loading={this.state.refreshingReadModel} onClick={() => this.triggerRefresh(triggerRefreshReadModel)}>重建目录视图</Button>
+              <Button onClick={() => this.setState({showTechnicalDetails: !this.state.showTechnicalDetails})}>技术详情</Button>
             </Space>
             <Text type="secondary"><ToolOutlined /> 仅诊断和受控刷新，不编辑源事实</Text>
           </Space>
@@ -634,7 +624,7 @@ class OrganizationTreeOperationsPage extends React.Component {
           ) : null}
 
           {this.renderSummary()}
-          {this.renderSourceConnections()}
+          {this.state.showTechnicalDetails ? this.renderSourceConnections() : null}
 
           <Card title="组织树节点" size="small">
             <Space direction="vertical" size={12} style={{width: "100%"}}>

@@ -47,14 +47,15 @@ describe("IdentityConsoleOverview", () => {
     expect(screen.getByText("身份治理总览")).toBeInTheDocument();
     expect(screen.getByText("加载身份治理状态...")).toBeInTheDocument();
 
-    expect(await screen.findAllByText("组织主数据")).toHaveLength(2);
+    expect(await screen.findAllByText("组织主数据")).toHaveLength(1);
     expect(screen.getAllByText("企业微信 / 飞书 / OIDC").length).toBeGreaterThan(0);
     expect(screen.getByText("应用接入 / API 映射")).toBeInTheDocument();
     expect(screen.getAllByText("LLM AI 网关中心").length).toBeGreaterThan(0);
-    expect(screen.getByText("最近失败 / 待处理风险")).toBeInTheDocument();
+    expect(screen.getByText("当前最该处理")).toBeInTheDocument();
     expect(screen.getAllByText("进入应用接入").some(item => item.closest("a")?.getAttribute("href") === "/applications")).toBe(true);
-    expect(screen.getByText("身份资产关系").closest("a")).toHaveAttribute("href", "/identity-assets");
-    expect(screen.getByText("API 网关映射").closest("a")).toHaveAttribute("href", "/platform-api-mappings");
+    expect(screen.queryByText("能力入口")).not.toBeInTheDocument();
+    expect(screen.getByText("对象关系证据链").closest("article").querySelector("a")).toHaveAttribute("href", "/identity-assets");
+    expect(screen.getByText("接入预检").closest("article").querySelector("a")).toHaveAttribute("href", "/access-wizard");
     expect(screen.queryByText(/Gateway 投影/)).not.toBeInTheDocument();
     expect(screen.getByText("身份域覆盖")).toBeInTheDocument();
   });
@@ -74,6 +75,7 @@ describe("IdentityConsoleOverview", () => {
     expect(await screen.findByText("只读状态暂不可用")).toBeInTheDocument();
     expect(screen.getByText("dashboard unavailable")).toBeInTheDocument();
     expect(screen.getByText("处理组织质量").closest("a")).toHaveAttribute("href", "/organization-directory-quality");
+    expect(screen.queryByText("能力入口")).not.toBeInTheDocument();
   });
 
   test("redirects non-admin users to their application workspace", () => {

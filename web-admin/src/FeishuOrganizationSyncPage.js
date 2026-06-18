@@ -1682,8 +1682,8 @@ class FeishuOrganizationSyncPage extends React.Component {
     const config = this.state.config;
     if (config === null) {
       return (
-        <div>
-          <Space style={{marginBottom: 16}}><CloudSyncOutlined /><Text strong>飞书组织架构同步</Text></Space>
+        <div className="organization-sync-page feishu-organization-sync-page">
+          <Space className="organization-sync-page-title"><CloudSyncOutlined /><Text strong>飞书组织架构同步</Text></Space>
           <Text type="secondary">正在加载飞书同步页面...</Text>
         </div>
       );
@@ -1691,10 +1691,10 @@ class FeishuOrganizationSyncPage extends React.Component {
     const hasRunningRuns = this.hasRunningRuns(this.state.runs);
     const lastRefreshText = this.state.lastRunsRefreshAt ? `上次刷新：${this.state.lastRunsRefreshAt}` : "";
     return (
-      <div>
-        <Space style={{marginBottom: 16}}><CloudSyncOutlined /><Text strong>飞书组织架构同步</Text></Space>
+      <div className="organization-sync-page feishu-organization-sync-page">
+        <Space className="organization-sync-page-title"><CloudSyncOutlined /><Text strong>飞书组织架构同步</Text></Space>
 
-        <Row gutter={[16, 16]}>
+        <Row className="organization-sync-config-grid" gutter={[16, 16]}>
           <Col xs={24} md={12}>
             <div style={{marginBottom: 8}}>同步目标组织</div>
             <OrganizationSelect
@@ -1751,7 +1751,7 @@ class FeishuOrganizationSyncPage extends React.Component {
         {this.renderTestResult()}
         {this.renderDryRunPreview()}
 
-        <Space style={{marginTop: 16}}>
+        <Space className="organization-sync-action-bar" style={{marginTop: 16}} wrap>
           <Button icon={<SaveOutlined />} type="primary" loading={this.state.saving} onClick={() => this.saveConfig()}>{i18next.t("general:Save")}</Button>
           <Button icon={<ToolOutlined />} loading={this.state.testing} onClick={() => this.testConfig()}>测试连接</Button>
           <Button icon={<CloudSyncOutlined />} loading={this.state.previewing} disabled={!config.isEnabled} onClick={() => this.previewSyncImpact()}>预览影响</Button>
@@ -1769,7 +1769,7 @@ class FeishuOrganizationSyncPage extends React.Component {
         {this.renderDryRunHistory()}
 
         <Divider />
-        <Row align="middle" justify="space-between" style={{marginBottom: 12}}>
+        <Row className="organization-sync-record-header" align="middle" justify="space-between" gutter={[8, 8]} style={{marginBottom: 12}}>
           <Col>
             <Space direction="vertical" size={2}>
               <Text strong>同步记录</Text>

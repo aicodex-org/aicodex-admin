@@ -176,7 +176,7 @@ describe("ApplicationAccessCenter", () => {
       completeness: 0,
       callbackStatus: "回调地址待补全",
       scopeStatus: "授权范围待补全",
-      providerStatus: "Provider 待绑定",
+      providerStatus: "认证源待绑定",
     });
     expect(summary.riskItems.map(item => item.key)).toEqual(expect.arrayContaining([
       "missing-redirect-uris",
@@ -238,17 +238,20 @@ describe("ApplicationAccessCenter", () => {
 
     expect(screen.getByText("应用接入中心")).toBeInTheDocument();
     expect(container.querySelector(".application-access-readiness-rail")).not.toBeNull();
+    expect(container.querySelector(".application-access-readiness-rail-compact")).not.toBeNull();
     expect(container.querySelector(".enterprise-identity-status-card")).toBeNull();
+    expect(container.querySelector(".application-access-center .enterprise-identity-action-grid")).toBeNull();
     expect(screen.getByText("应用")).toBeInTheDocument();
+    expect(screen.getByText("优先处理")).toBeInTheDocument();
     expect(screen.queryByText("当前列表视图")).not.toBeInTheDocument();
     expect(screen.queryByText("只读推导")).not.toBeInTheDocument();
     expect(screen.queryByText("只读核对")).not.toBeInTheDocument();
     expect(screen.queryByText("AICodex Portal")).not.toBeInTheDocument();
     expect(screen.getAllByText("接入完整").length).toBeGreaterThan(0);
     expect(screen.getByText("缺少回调地址")).toBeInTheDocument();
-    expect(screen.getByText("缺少 Provider 绑定")).toBeInTheDocument();
+    expect(screen.getByText("缺少认证源绑定")).toBeInTheDocument();
     expect(screen.getByText("身份源已绑定")).toBeInTheDocument();
-    expect(screen.getByText("应用列表").closest("a")).toHaveAttribute("href", "/applications");
+    expect(screen.queryByText("配置入口")).not.toBeInTheDocument();
     expect(screen.getAllByText("API 网关映射").some(item => item.closest("a")?.getAttribute("href") === "/platform-api-mappings")).toBe(true);
     expect(screen.getByText("认证源").closest("a")).toHaveAttribute("href", "/providers");
     expect(screen.queryByText("OAuth/OIDC Provider")).not.toBeInTheDocument();

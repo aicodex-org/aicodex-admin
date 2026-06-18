@@ -17,17 +17,13 @@ import {
   AppstoreAddOutlined,
   AuditOutlined,
   ExclamationCircleOutlined,
-  KeyOutlined,
-  LinkOutlined,
-  SafetyCertificateOutlined,
-  SettingOutlined
+  SafetyCertificateOutlined
 } from "@ant-design/icons";
 import {Alert, Button, Space, Spin, Typography} from "antd";
 import i18next from "i18next";
 import React from "react";
 import {Link} from "react-router-dom";
 import {
-  EnterpriseIdentityActionGrid,
   EnterpriseIdentityConsolePage,
   EnterpriseIdentityRiskList,
   EnterpriseIdentitySection
@@ -40,17 +36,6 @@ function t(key, defaultValue = key) {
   const translated = i18next.t(namespacedKey, {defaultValue});
   return translated === namespacedKey || translated === key ? defaultValue : translated;
 }
-
-const ENTRY_LINKS = [
-  {key: "applications", labelKey: "Application list entry", label: "应用列表", to: "/applications", icon: <AppstoreAddOutlined />},
-  {key: "api-mapping", labelKey: "API Gateway Mappings", label: "API 网关映射", to: "/platform-api-mappings", icon: <ApiOutlined />},
-  {key: "providers", labelKey: "Authentication sources entry", label: "认证源", to: "/providers", icon: <SafetyCertificateOutlined />},
-  {key: "resources", labelKey: "Resources", label: "资源", to: "/resources", icon: <SettingOutlined />},
-  {key: "certs", labelKey: "Certs", label: "证书", to: "/certs", icon: <KeyOutlined />},
-  {key: "keys", labelKey: "Keys", label: "密钥", to: "/keys", icon: <KeyOutlined />},
-  {key: "webhooks", labelKey: "Webhooks", label: "Webhook 回调", to: "/webhooks", icon: <LinkOutlined />},
-  {key: "records", labelKey: "View audit records", label: "查看审计记录", to: "/records", icon: <AuditOutlined />},
-];
 
 function toArray(value) {
   if (Array.isArray(value)) {
@@ -151,21 +136,21 @@ function buildRiskItems(applications, cards) {
     },
     {
       key: "missing-providers",
-      title: "缺少 Provider 绑定",
+      title: "缺少认证源绑定",
       count: countBy((application) => !getAccessChecks(application).hasProviders),
       actionPath: "/providers",
-      actionLabel: "配置 Provider",
+      actionLabel: "配置认证源",
     },
     {
       key: "missing-client-id",
-      title: "client_id 待配置",
+      title: "客户端标识待配置",
       count: countBy((application) => !getAccessChecks(application).hasClientId),
       actionPath: "/applications",
       actionLabel: "核对应用",
     },
     {
       key: "missing-identity-source-organization",
-      title: "Provider 目标组织待补全",
+      title: "认证源目标组织待补全",
       count: countBy((application) => !getAccessChecks(application).hasIdentitySourceOrganization),
       actionPath: "/applications",
       actionLabel: "补全目标组织",
@@ -207,11 +192,11 @@ export function buildApplicationAccessCenterSummary(applications = []) {
       status,
       completeness,
       editPath: getApplicationEditPath(application),
-      clientStatus: checks.hasClientId ? "client_id 已配置" : "client_id 待配置",
+      clientStatus: checks.hasClientId ? "客户端标识已配置" : "客户端标识待配置",
       grantStatus: checks.hasGrantTypes ? "授权类型已配置" : "授权类型待核对",
       callbackStatus: checks.hasRedirectUris ? "回调地址已配置" : "回调地址待补全",
       scopeStatus: checks.hasScopes ? "授权范围已配置" : "授权范围待补全",
-      providerStatus: checks.hasProviders ? "Provider 已绑定" : "Provider 待绑定",
+      providerStatus: checks.hasProviders ? "认证源已绑定" : "认证源待绑定",
       identitySourceStatus: getIdentitySourceStatusText(checks.identitySourceStatus),
     };
   });
@@ -230,7 +215,6 @@ export function buildApplicationAccessCenterSummary(applications = []) {
     metrics,
     cards,
     riskItems: buildRiskItems(normalizedApplications, cards),
-    entryLinks: ENTRY_LINKS,
   };
 }
 
@@ -247,7 +231,7 @@ function buildSummaryItems(summary) {
       key: "complete",
       label: "接入完整",
       value: summary.metrics.completeApplications,
-      description: "client、回调、范围、Provider",
+      description: "客户端、回调、范围、认证源",
       tone: summary.metrics.completeApplications > 0 ? "success" : "warning",
     },
     {
@@ -290,6 +274,7 @@ function ApplicationAccessCenter({applications = [], loading = false}) {
       actions={(
         <Space wrap>
           <Link to="/applications"><Button icon={<AppstoreAddOutlined />}>新增应用</Button></Link>
+          <Link to="/providers"><Button icon={<SafetyCertificateOutlined />}>认证源</Button></Link>
           <Link to="/platform-api-mappings"><Button type="primary" icon={<ApiOutlined />}>API 网关映射</Button></Link>
           <Link to="/records"><Button icon={<AuditOutlined />}>查看审计记录</Button></Link>
         </Space>
@@ -313,7 +298,7 @@ function ApplicationAccessCenter({applications = [], loading = false}) {
         />
       )}
 
-      <div className="application-access-readiness-rail enterprise-identity-compact-rail enterprise-identity-compact-rail-wide">
+      <div className="application-access-readiness-rail application-access-readiness-rail-compact enterprise-identity-compact-rail">
         <div className="enterprise-identity-rail-summary" aria-label={t("Application access summary", "应用接入摘要")}>
           {summaryItems.map(item => (
             <div className={`enterprise-identity-rail-summary-item enterprise-identity-tone-${item.tone}`} key={item.key}>
@@ -325,23 +310,11 @@ function ApplicationAccessCenter({applications = [], loading = false}) {
         </div>
         <EnterpriseIdentitySection
           className="enterprise-identity-rail-section"
-          title="配置缺口"
+          title="优先处理"
           description="摘要来自本页数据，不代表后端全量聚合事实"
           extra={<Text type="secondary">治理摘要</Text>}
         >
           <EnterpriseIdentityRiskList items={riskItems} />
-        </EnterpriseIdentitySection>
-        <EnterpriseIdentitySection
-          className="enterprise-identity-rail-section"
-          title="配置入口"
-          description="复用既有路由，不新增不兼容页面"
-        >
-          <EnterpriseIdentityActionGrid
-            items={summary.entryLinks.map(item => ({
-              ...item,
-              label: t(item.labelKey, item.label),
-            }))}
-          />
         </EnterpriseIdentitySection>
       </div>
 

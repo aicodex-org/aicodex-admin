@@ -14,15 +14,14 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Col, List, Row, Table, Tooltip} from "antd";
-import {EditOutlined, EyeOutlined} from "@ant-design/icons";
+import {Button, Col, Dropdown, List, Modal, Row, Space, Table, Tooltip} from "antd";
+import {CopyOutlined, EditOutlined, EyeOutlined, MoreOutlined} from "@ant-design/icons";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as Conf from "./Conf";
 import * as ApplicationBackend from "./backend/ApplicationBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
-import PopconfirmModal from "./common/modal/PopconfirmModal";
 import {SignupTableDefaultCssMap} from "./table/SignupTable";
 import ApplicationAccessCenter from "./ApplicationAccessCenter";
 import IdentityAssetRelationshipDrawer from "./IdentityAssetRelationshipDrawer";
@@ -252,14 +251,14 @@ class ApplicationListPage extends BaseListPage {
         },
       },
       {
-        title: "Logo",
+        title: i18next.t("general:Logo"),
         dataIndex: "logo",
         key: "logo",
-        width: "200px",
+        width: "72px",
         render: (text, record, index) => {
           return (
             <a target="_blank" rel="noreferrer" href={text}>
-              <img src={text} alt={text} width={150} />
+              <img className="application-logo-thumb" src={text} alt={text} width={40} />
             </a>
           );
         },
@@ -339,21 +338,38 @@ class ApplicationListPage extends BaseListPage {
         title: i18next.t("general:Action"),
         dataIndex: "",
         key: "op",
-        width: "340px",
-        fixed: (Setting.isMobile()) ? "false" : "right",
+        width: "230px",
+        fixed: (Setting.isMobile()) ? false : "right",
         render: (text, record, index) => {
           return (
-            <div>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} icon={<EyeOutlined />} onClick={() => this.openIdentityAssetDetail(record)}>{i18next.t("identityAssetRelationship:Object context")}</Button>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/applications/${record.organization}/${record.name}`)}>{i18next.t("general:Edit")}</Button>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} onClick={() => this.copyApplication(index)}>{i18next.t("general:Copy")}</Button>
-              <PopconfirmModal
-                title={i18next.t("general:Sure to delete") + `: ${record.name} ?`}
-                onConfirm={() => this.deleteApplication(index)}
-                disabled={record.name === "app-built-in"}
+            <Space className="application-row-actions" size={6} wrap>
+              <Button size="small" icon={<EyeOutlined />} onClick={() => this.openIdentityAssetDetail(record)}>{i18next.t("identityAssetRelationship:Object context")}</Button>
+              <Button size="small" type="primary" onClick={() => this.props.history.push(`/applications/${record.organization}/${record.name}`)}>{i18next.t("general:Edit")}</Button>
+              <Dropdown
+                trigger={["click"]}
+                menu={{
+                  items: [
+                    {key: "copy", icon: <CopyOutlined />, label: i18next.t("general:Copy")},
+                    {key: "delete", danger: true, disabled: record.name === "app-built-in", label: i18next.t("general:Delete")},
+                  ],
+                  onClick: ({key}) => {
+                    if (key === "copy") {
+                      this.copyApplication(index);
+                    } else if (key === "delete") {
+                      Modal.confirm({
+                        title: i18next.t("general:Sure to delete") + `: ${record.name} ?`,
+                        okText: i18next.t("general:OK"),
+                        cancelText: i18next.t("general:Cancel"),
+                        okButtonProps: {danger: true},
+                        onOk: () => this.deleteApplication(index),
+                      });
+                    }
+                  },
+                }}
               >
-              </PopconfirmModal>
-            </div>
+                <Button size="small" icon={<MoreOutlined />}>{i18next.t("general:More")}</Button>
+              </Dropdown>
+            </Space>
           );
         },
       },

@@ -473,6 +473,7 @@ test("renders organization directory quality list and details without leaking so
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
   expect(await screen.findByText("组织目录质量")).toBeInTheDocument();
+  expect(document.querySelector(".organization-directory-quality-page")).not.toBeNull();
   expect((await screen.findAllByText("修复计划")).length).toBeGreaterThan(0);
   expect((await screen.findAllByText("mapping_review")).length).toBeGreaterThan(0);
   expect(screen.getByText("用户到 API 主体的一等映射缺失或不可信，需要 mapping owner 确认。")).toBeInTheDocument();
@@ -980,6 +981,18 @@ test("refreshes directory quality with selected filters", async() => {
 
   await wait(() => expect(PlatformApiMappingBackend.getOrganizationDirectoryQuality).toHaveBeenCalledTimes(2));
   await wait(() => expect(PlatformApiMappingBackend.getOrganizationDirectoryRemediationPlan).toHaveBeenCalledTimes(2));
+});
+
+test("keeps version and batch evidence out of the primary quality table", async() => {
+  render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  await screen.findByText("Alice");
+  expect(screen.queryByText("版本/批次")).not.toBeInTheDocument();
+  expect(screen.queryByText("orgv-1")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByText("详情"));
+  expect(await screen.findByText("技术详情")).toBeInTheDocument();
+  expect(screen.getAllByText("orgv-1").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("batch-1").length).toBeGreaterThan(0);
 });
 
 test("fails closed when directory quality or remediation plan loading fails", async() => {
