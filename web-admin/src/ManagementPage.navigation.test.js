@@ -47,40 +47,44 @@ describe("enterprise identity navigation", () => {
 
     expect(groups.map(group => group.label)).toEqual([
       "中心总览",
-      "组织身份",
-      "身份认证",
+      "组织与账号",
       "应用接入",
-      "LLM AI 网关",
-      "权限治理",
+      "身份源",
+      "权限与角色",
       "审计运维",
+      "LLM AI/Gateway",
       "管理工具",
       "商业付款",
     ]);
     expect(groups.map(group => group.label)).not.toContain("Gateway 投影");
     expect(groups.find(group => group.key === "/overview").children.map(item => item.key))
-      .toEqual(["/", "/identity-assets", "/access-wizard", "/governance-tasks", "/shortcuts", "/apps"]);
-    expect(groups.find(group => group.key === "/overview").children.find(item => item.key === "/identity-assets").label)
-      .toBe("身份资产关系");
-    expect(groups.find(group => group.key === "/overview").children.find(item => item.key === "/access-wizard").label)
-      .toBe("接入预检中心");
+      .toEqual(["/", "/apps", "/shortcuts"]);
+    expect(groups.find(group => group.key === "/overview").children.map(item => item.key))
+      .not.toEqual(expect.arrayContaining(["/identity-assets", "/access-wizard", "/governance-tasks"]));
+    expect(groups.find(group => group.key === "/overview").children.find(item => item.key === "/").label)
+      .toBe("企业认证总览");
     expect(groups.find(group => group.key === "/identity-sources").children.map(item => item.key))
       .toEqual(expect.arrayContaining(["/providers", "/wecom-org-sync", "/feishu-org-sync", "/syncers"]));
     expect(groups.find(group => group.key === "/identity-sources").children.find(item => item.key === "/providers").label)
-      .toBe("认证源中心");
+      .toBe("身份源中心");
     expect(groups.find(group => group.key === "/application-access").children.map(item => item.key))
-      .toEqual(expect.arrayContaining(["/applications", "/platform-api-mappings", "/webhooks"]));
-    expect(groups.find(group => group.label === "LLM AI 网关").children.map(item => item.key))
-      .toEqual(["/agents", "/servers", "/server-store", "/entries", "/sites", "/rules"]);
-    expect(groups.find(group => group.label === "LLM AI 网关").children.map(item => item.label))
-      .toEqual(["AI Agent 入口", "MCP Server", "MCP Store", "入口配置", "站点范围", "治理规则"]);
-    expect(groups.find(group => group.label === "LLM AI 网关").children.find(item => item.key === "/agents").label)
-      .toBe("AI Agent 入口");
-    expect(groups.find(group => group.key === "/audit-operations").children.map(item => item.key))
-      .toEqual(["/sessions", "/records", "/tokens", "/verifications"]);
-    expect(groups.find(group => group.key === "/audit-operations").children.map(item => item.label))
-      .toEqual(["会话核对", "审计记录", "令牌核对", "验证核对"]);
+      .toEqual(expect.arrayContaining(["/applications", "/access-wizard", "/platform-api-mappings", "/webhooks"]));
+    expect(groups.find(group => group.key === "/application-access").children.find(item => item.key === "/access-wizard").label)
+      .toBe("接入预检");
     expect(groups.find(group => group.key === "/authorization-governance").children.map(item => item.key))
-      .toEqual(expect.arrayContaining(["/roles", "/permissions", "/models", "/adapters", "/enforcers"]));
+      .toEqual(expect.arrayContaining(["/roles", "/permissions", "/identity-assets", "/models", "/adapters", "/enforcers"]));
+    expect(groups.find(group => group.key === "/authorization-governance").children.find(item => item.key === "/identity-assets").label)
+      .toBe("授权关系与证据");
+    expect(groups.find(group => group.key === "/audit-operations").children.map(item => item.key))
+      .toEqual(["/sessions", "/records", "/tokens", "/verifications", "/governance-tasks"]);
+    expect(groups.find(group => group.key === "/audit-operations").children.map(item => item.label))
+      .toEqual(["会话核对", "审计记录", "令牌核对", "验证核对", "风险处理"]);
+    expect(groups.find(group => group.key === "/llm-ai-gateway").children.map(item => item.key))
+      .toEqual(["/agents", "/servers", "/server-store", "/entries", "/sites", "/rules"]);
+    expect(groups.find(group => group.key === "/llm-ai-gateway").children.map(item => item.label))
+      .toEqual(["AI Agent 入口", "MCP Server", "MCP Store", "入口配置", "站点范围", "治理规则"]);
+    expect(groups.find(group => group.key === "/llm-ai-gateway").children.find(item => item.key === "/agents").label)
+      .toBe("AI Agent 入口");
     expect(groups.find(group => group.key === "/commerce-billing").children.map(item => item.key))
       .toEqual(expect.arrayContaining(["/product-store", "/orders", "/payments"]));
   });
@@ -95,38 +99,38 @@ describe("enterprise identity navigation", () => {
 
     expect(groups.map(group => group.label)).toEqual([
       "Overview",
-      "Organization & Identity",
-      "Identity Sources",
+      "Organization & Accounts",
       "Application Access",
-      "LLM AI Gateway",
-      "Authorization Governance",
+      "Identity Sources",
+      "Permissions & Roles",
       "Audit & Operations",
+      "LLM AI/Gateway",
       "System Tools",
       "Business & Payments",
     ]);
     expect(groups.map(group => group.label)).not.toContain("Gateway Projection");
     expect(groups.find(group => group.key === "/overview").children.find(item => item.key === "/").label)
-      .toBe("Identity Governance Overview");
-    expect(groups.find(group => group.key === "/overview").children.find(item => item.key === "/identity-assets").label)
-      .toBe("Identity Asset Relationships");
-    expect(groups.find(group => group.key === "/overview").children.find(item => item.key === "/governance-tasks").label)
-      .toBe("Governance Task Center");
-    expect(groups.find(group => group.key === "/overview").children.find(item => item.key === "/access-wizard").label)
-      .toBe("Access Preflight Center");
+      .toBe("Enterprise Identity Overview");
+    expect(groups.find(group => group.key === "/overview").children.map(item => item.key))
+      .toEqual(["/", "/apps", "/shortcuts"]);
     expect(groups.find(group => group.key === "/identity-sources").children.find(item => item.key === "/providers").label)
-      .toBe("Authentication Source Center");
+      .toBe("Identity Source Center");
     expect(groups.find(group => group.key === "/identity-sources").children.find(item => item.key === "/wecom-org-sync").label)
       .toBe("WeCom Sync");
     expect(groups.find(group => group.key === "/identity-sources").children.find(item => item.key === "/feishu-org-sync").label)
       .toBe("Feishu Sync");
     expect(groups.find(group => group.key === "/application-access").children.find(item => item.key === "/applications").label)
       .toBe("Application Access Center");
+    expect(groups.find(group => group.key === "/application-access").children.find(item => item.key === "/access-wizard").label)
+      .toBe("Access Preflight");
     expect(groups.find(group => group.key === "/application-access").children.find(item => item.key === "/platform-api-mappings").label)
       .toBe("API Gateway Mappings");
+    expect(groups.find(group => group.key === "/authorization-governance").children.find(item => item.key === "/identity-assets").label)
+      .toBe("Relationship Evidence");
     expect(groups.find(group => group.key === "/llm-ai-gateway").children.find(item => item.key === "/agents").label)
       .toBe("AI Agent Entry Points");
     expect(groups.find(group => group.key === "/audit-operations").children.map(item => item.label))
-      .toEqual(["Session Review", "Audit Records", "Token Review", "Verification Review"]);
+      .toEqual(["Session Review", "Audit Records", "Token Review", "Verification Review", "Risk Actions"]);
     expect(groups.map(group => group.label).join("")).not.toMatch(/[\u4e00-\u9fff]/);
   });
 
@@ -135,7 +139,7 @@ describe("enterprise identity navigation", () => {
       account: {
         ...localAdminAccount,
         organization: {
-          navItems: ["/", "/identity-assets", "/access-wizard", "/providers", "/platform-api-mappings"],
+          navItems: ["/", "/identity-assets", "/access-wizard", "/providers", "/platform-api-mappings", "/governance-tasks"],
         },
       },
       themeData: {colorPrimary: "#1677ff"},
@@ -143,18 +147,23 @@ describe("enterprise identity navigation", () => {
 
     expect(groups.map(group => group.children.map(item => item.key)).flat()).toEqual([
       "/",
-      "/identity-assets",
       "/access-wizard",
-      "/providers",
       "/platform-api-mappings",
+      "/providers",
+      "/identity-assets",
+      "/governance-tasks",
     ]);
     expect(findNavigationSelection("/access-wizard", groups)).toEqual({
-      groupKey: "/overview",
+      groupKey: "/application-access",
       itemKey: "/access-wizard",
     });
     expect(findNavigationSelection("/identity-assets", groups)).toEqual({
-      groupKey: "/overview",
+      groupKey: "/authorization-governance",
       itemKey: "/identity-assets",
+    });
+    expect(findNavigationSelection("/governance-tasks", groups)).toEqual({
+      groupKey: "/audit-operations",
+      itemKey: "/governance-tasks",
     });
     expect(findNavigationSelection("/platform-api-mappings", groups)).toEqual({
       groupKey: "/application-access",
@@ -186,6 +195,7 @@ describe("enterprise identity navigation", () => {
     expect(authorizationGovernance.children.map(item => item.key)).toEqual([
       "/roles",
       "/permissions",
+      "/identity-assets",
       "/models",
       "/adapters",
       "/enforcers",

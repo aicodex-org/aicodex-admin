@@ -1,9 +1,9 @@
 ## 1. IA Audit and Navigation Reframe
 
-- [ ] 1.1 Audit current `enterpriseNavigation` and runtime sidebar entries, classifying each as primary business domain, contextual capability, flow entry or legacy route.
-- [ ] 1.2 Define the target primary IA around center overview, organization/accounts, application access, identity sources, permissions/roles, audit operations and LLM AI/Gateway.
-- [ ] 1.3 Demote abstract governance entries such as identity asset relationship, access preflight, governance tasks and quick actions to overview links, object detail actions or flow entry points while preserving route compatibility.
-- [ ] 1.4 Update `zh` / `en` navigation copy and navigation tests so labels use administrator-facing business language rather than implementation terms.
+- [x] 1.1 Audit current `enterpriseNavigation` and runtime sidebar entries, classifying each as primary business domain, contextual capability, flow entry or legacy route.
+- [x] 1.2 Define the target primary IA around center overview, organization/accounts, application access, identity sources, permissions/roles, audit operations and LLM AI/Gateway.
+- [x] 1.3 Demote abstract governance entries such as identity asset relationship, access preflight, governance tasks and quick actions to overview links, object detail actions or flow entry points while preserving route compatibility.
+- [x] 1.4 Update `zh` / `en` navigation copy and navigation tests so labels use administrator-facing business language rather than implementation terms.
 
 ## 2. Enterprise Visual-System Slice
 
