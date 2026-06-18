@@ -98,10 +98,11 @@ After completing all artifacts, summarize:
 
 - For `proposal.md`, `design.md`, and `tasks.md`, write explanatory body text in Simplified Chinese by default.
 - Keep OpenSpec template headings and common section labels as-is when they are fixed by the template, such as `## Why`, `## What Changes`, `Goals / Non-Goals`, `Requirements`, and `Scenarios`.
-- For `spec.md`, write requirement titles, scenario titles, and natural-language requirement/scenario text in Simplified Chinese by default.
+- For `spec.md`, write `ADDED` requirement titles, scenario titles, and new natural-language requirement/scenario text in Simplified Chinese by default.
+- For `MODIFIED` or `RENAMED` requirements, preserve exact existing `### Requirement:` header text when OpenSpec matching requires it; write newly added or materially rewritten natural-language clauses in Simplified Chinese unless the user requests otherwise.
 - Keep OpenSpec structure keywords and normative keywords in English when they are part of the spec format, such as `ADDED Requirements`, `MODIFIED Requirements`, `Requirement`, `Scenario`, `WHEN`, `THEN`, `AND`, `SHALL`, `MUST`, and `MAY`.
 - Keep commands, paths, APIs, field names, type names, protocol names, provider names, error codes, and established technical terms in English.
-- If an existing main spec for the same capability is primarily English or mixed-language, follow that spec's style for contract text to avoid producing a fragmented specification.
+- Do not treat a primarily English or mixed-language main spec as permission to write new `ADDED` contract text in English. Follow existing English wording only where exact matching is required or the user explicitly asks for it.
 - If the user explicitly asks for a different language, follow the user's request.
 
 **Artifact Creation Guidelines**

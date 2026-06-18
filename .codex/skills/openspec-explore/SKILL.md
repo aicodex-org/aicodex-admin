@@ -127,7 +127,7 @@ If the user mentions a change or you detect one is relevant:
     - "This is a new requirement. Add it to specs?"
     - "This changes scope. Update the proposal?"
 
-   When creating or updating OpenSpec artifacts, write `proposal.md`, `design.md`, `tasks.md`, and the natural-language portions of `spec.md` in Simplified Chinese by default. Keep fixed OpenSpec headings and normative keywords such as `Requirement`, `Scenario`, `WHEN`, `THEN`, and `SHALL` in English, and follow the existing main spec language if it is already primarily English or mixed-language.
+   When creating or updating OpenSpec artifacts, write `proposal.md`, `design.md`, and `tasks.md` explanatory text in Simplified Chinese by default. For `spec.md`, write new `ADDED` requirement titles, scenario titles, and natural-language requirement/scenario text in Simplified Chinese by default; preserve exact existing `### Requirement:` headers for `MODIFIED` or `RENAMED` requirements only when OpenSpec matching requires it. Keep fixed OpenSpec headings and normative keywords such as `Requirement`, `Scenario`, `WHEN`, `THEN`, and `SHALL` in English. Do not treat a primarily English or mixed-language main spec as permission to write new `ADDED` contract text in English unless the user explicitly asks for it.
 
 4. **The user decides** - Offer and move on. Don't pressure. Don't auto-capture.
 
