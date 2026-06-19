@@ -29,8 +29,9 @@ Admin 企业认证中心 SHALL 为组织、用户、角色、权限、应用、�
 
 #### Scenario: 需要全局关系事实
 - **WHEN** 关系视图需要展示跨页面、跨组织、跨认证源或全量影响范围
-- **THEN** 系统 SHALL 使用后续只读聚合接口或后端事实源返回的关系数据
+- **THEN** 系统 SHALL 使用已明确实现的只读聚合接口或后端事实源返回的关系数据
 - **AND** 响应 SHALL 包含 scope、generatedAt、sourceOfTruth 和 cannotInfer reason 或等价字段
+- **AND** 当聚合接口尚未由后端事实源提供时，系统 SHALL 回落到当前视图/当前筛选/只读核对口径，且不得伪装成全局事实
 
 #### Scenario: 管理员查看应用与 Provider 绑定关系
 - **WHEN** 管理员打开 Application 或 Provider 绑定详情
@@ -52,7 +53,7 @@ Admin 企业认证中心 SHALL 为组织、用户、角色、权限、应用、�
 - **AND** 入口 SHALL NOT 执行重试、清理、发布、授权刷新或真实连接测试
 
 #### Scenario: 证据来自后续只读聚合接口
-- **WHEN** P1 或后续实现返回跨域证据链
+- **WHEN** 已明确实现的 P1 或后续独立 change 返回跨域证据链
 - **THEN** 证据链 SHALL 返回脱敏事件摘要、事件时间、对象引用、来源系统、sourceOfTruth 和可跳转详情
 - **AND** 证据链 SHALL NOT 返回原始 token、Cookie、完整请求头、完整响应体、完整组织树或真实账号敏感明细
 
@@ -62,10 +63,10 @@ Admin 企业认证中心 SHALL 为组织、用户、角色、权限、应用、�
 #### Scenario: 当前视图信息不足
 - **WHEN** 当前列表行或已加载数据不足以生成关系、时间线或证据摘要
 - **THEN** 详情 SHALL 展示当前视图信息不足或 cannotInfer 状态
-- **AND** 详情 SHALL 提供进入相关既有页面或等待后续只读聚合接口的入口
+- **AND** 详情 SHALL 提供进入相关既有页面或等待未来独立只读聚合接口的入口
 
 #### Scenario: 只读聚合接口失败
-- **WHEN** 后续只读聚合接口返回错误或超时
+- **WHEN** 已明确实现的只读聚合接口返回错误或超时
 - **THEN** 详情 SHALL 展示局部错误和重试入口
 - **AND** 原列表、原编辑入口和其它已加载只读信息 SHALL 保持可用
 

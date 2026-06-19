@@ -1,7 +1,10 @@
-## ADDED Requirements
+# admin-enterprise-identity-connection-wizards Specification
 
+## Purpose
+TBD - created by archiving change propose-admin-enterprise-identity-governance-experience-layer. Update Purpose after archive.
+## Requirements
 ### Requirement: 接入向导入口和适用对象
-Admin 企业认证中心 SHALL 为认证源、应用接入和 Gateway/LLM AI 映射提供向导化接入体验，使管理员能够按步骤完成配置核对、预检、测试连接或只读模拟、启用前检查和结果确认。
+Admin 企业认证中心 SHALL 为认证源、应用接入和 Gateway/LLM AI 映射提供向导化接入体验，使管理员能够按步骤完成配置核对、预检或只读模拟、启用前检查和结果确认；真实连接测试或后端 preflight/test summary 接口必须由未来独立 change 定义。
 
 #### Scenario: 管理员从认证源中心启动接入向导
 - **WHEN** 已登录管理员在 `/providers` 或认证源详情中点击开始接入、继续配置或修复缺口入口
@@ -37,7 +40,7 @@ Admin 企业认证中心 SHALL 为认证源、应用接入和 Gateway/LLM AI 映
 - **AND** P0 SHALL NOT 在取消时创建、更新或确认 Provider、Application、Gateway mapping、任务处理状态或审计事实
 
 ### Requirement: 预检和测试连接安全边界
-接入向导 SHALL 在 P0 中将预检和测试连接限定为配置完整度、当前对象只读模拟和后续受控检查入口；真实网络探测、OAuth/OIDC 回调执行、Provider 登录和 Gateway 发布必须通过单独 change 定义。
+接入向导 SHALL 在 P0 中将预检和测试连接限定为配置完整度、当前对象只读模拟和后续受控检查入口；真实网络探测、OAuth/OIDC 回调执行、Provider 登录、后端 preflight/test summary 接口和 Gateway 发布必须通过单独 change 定义。
 
 #### Scenario: P0 执行配置完整度预检
 - **WHEN** 管理员在 P0 向导中运行预检
@@ -45,10 +48,11 @@ Admin 企业认证中心 SHALL 为认证源、应用接入和 Gateway/LLM AI 映
 - **AND** 系统 SHALL 标记该预检为当前对象、当前视图或只读模拟口径
 - **AND** 系统 SHALL NOT 声称已完成真实连接测试、真实 OAuth/OIDC 回调、Provider 登录或 Gateway 发布验证
 
-#### Scenario: 后续只读 preflight 接口返回结果
-- **WHEN** P1 或后续 change 提供只读 preflight 或测试连接摘要接口
-- **THEN** 响应 SHALL 包含 scope、generatedAt、sourceOfTruth、redactionSummary、blockingReasons、cannotInfer reason 和 safeNextAction 或等价字段
-- **AND** 接口 SHALL NOT 保存密钥、触发登录、触发同步、刷新授权、写 Gateway authorization facts、发布 projection 或执行 cleanup
+#### Scenario: 后端预检摘要需要未来独立接口
+- **WHEN** 产品需要由后端返回只读 preflight 或测试连接摘要
+- **THEN** 后续 change SHALL 单独定义接口、权限、脱敏、scope、generatedAt、sourceOfTruth、blockingReasons、cannotInfer reason 和 safeNextAction
+- **AND** 本 capability SHALL NOT 隐式声明该后端接口已经可用
+- **AND** 未来接口 SHALL NOT 保存密钥、触发登录、触发同步、刷新授权、写 Gateway authorization facts、发布 projection 或执行 cleanup
 
 #### Scenario: 真实连接测试需要单独受控 change
 - **WHEN** 产品需要执行真实网络探测、OAuth/OIDC 回调、Provider 登录测试、Webhook 调用、Gateway publish 或 Gateway receipt 验证

@@ -1,18 +1,22 @@
-## ADDED Requirements
+# admin-enterprise-identity-governance-task-center Specification
 
+## Purpose
+TBD - created by archiving change propose-admin-enterprise-identity-governance-experience-layer. Update Purpose after archive.
+## Requirements
 ### Requirement: 治理任务中心入口和任务模型
-Admin 企业认证中心 SHALL 提供治理任务中心，使身份治理管理员和运维管理员能够查看跨组织身份、认证源、应用接入、审计运维和 LLM AI/Gateway 的可处理待办。
+Admin 企业认证中心 SHALL 提供只读治理任务队列，使身份治理管理员和运维管理员能够在当前视图、当前筛选或已接入事实范围内查看身份、认证源、应用接入、审计运维和 LLM AI/Gateway 的可处理待办候选。
 
 #### Scenario: 管理员进入治理任务中心
-- **WHEN** 已登录管理员从企业认证中心总览、侧栏入口或对象详情中的待办入口进入治理任务中心
+- **WHEN** 已登录管理员从企业认证中心总览、对象详情、风险提示或保留 deep link 进入治理任务队列
 - **THEN** 页面 SHALL 展示治理任务队列
 - **AND** 页面 SHALL 支持按任务类型、严重级别、影响对象、来源范围、处理状态和关键字筛选
 - **AND** 页面 SHALL 提供返回影响对象、证据链或既有配置页的入口
+- **AND** 该队列 SHALL NOT 成为后续继续扩张显眼主导航入口、卡片目录或独立治理中心的默认依据
 
 #### Scenario: 治理任务具备可解释字段
 - **WHEN** 系统展示任一治理任务
 - **THEN** 任务 SHALL 至少包含 taskType、severity、impactObject、scopeLabel、sourceOfTruth、suggestedAction、status、evidenceEntry 和 safetyBoundary 或等价字段
-- **AND** 任务 SHALL 明确建议动作是跳转配置、查看证据、核对详情、忽略当前视图候选还是等待后续聚合事实
+- **AND** 任务 SHALL 明确建议动作是跳转配置、查看证据、核对详情、忽略当前视图候选还是等待未来独立 change 提供聚合事实
 
 #### Scenario: 治理任务不展示敏感原值
 - **WHEN** 任务与 token、Provider 配置、OAuth/OIDC client、Gateway 映射或审计 payload 相关
@@ -31,7 +35,7 @@ Admin 企业认证中心 SHALL 提供治理任务中心，使身份治理管理�
 - **WHEN** 系统展示治理任务
 - **THEN** 任务 SHALL 使用 high、medium、low、info 或等价严重级别
 - **AND** 高权限角色、异常 token、缺少回调、Provider 绑定缺失和 Gateway 映射缺口 SHALL 被标记为需要优先核对的任务
-- **AND** 严重级别 SHALL NOT 暗示系统已经自动完成全局风险扫描，除非任务来自后端全局只读聚合接口
+- **AND** 严重级别 SHALL NOT 暗示系统已经自动完成全局风险扫描，除非未来独立 change 已定义并实现后端全局只读聚合接口
 
 ### Requirement: 任务来源范围和全局事实边界
 治理任务中心 SHALL 明确任务来源范围，避免把当前列表推导、当前筛选或已加载行伪装成全局事实。
@@ -41,10 +45,11 @@ Admin 企业认证中心 SHALL 提供治理任务中心，使身份治理管理�
 - **THEN** 任务 SHALL 标记为当前视图候选、当前筛选候选或只读核对候选
 - **AND** 任务 SHALL NOT 声称代表全局风险总量、跨组织事实或全部未处理任务
 
-#### Scenario: P1 从只读聚合接口生成任务
-- **WHEN** 后续只读聚合接口返回治理任务
-- **THEN** 响应 SHALL 包含 scope、generatedAt、sourceOfTruth、redactionSummary、cannotInfer reason 和任务分页或摘要字段
-- **AND** 接口 SHALL NOT 写入处理状态、触发同步、触发认证、执行授权刷新或触发 Gateway projection publish
+#### Scenario: 全局治理任务需要未来独立接口
+- **WHEN** 产品需要展示全局、跨组织、跨认证源或后端事实源级别的治理任务
+- **THEN** 后续 change SHALL 单独定义只读聚合接口、权限过滤、分页、sourceOfTruth、redactionSummary 和 cannotInfer reason
+- **AND** 本 capability SHALL NOT 隐式声明该后端聚合接口已经可用
+- **AND** 未来接口 SHALL NOT 写入处理状态、触发同步、触发认证、执行授权刷新或触发 Gateway projection publish
 
 #### Scenario: 后端事实源不可判定
 - **WHEN** 系统无法从当前视图或只读聚合接口判断某类风险
