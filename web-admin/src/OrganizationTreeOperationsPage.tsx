@@ -25,7 +25,62 @@ const {Search} = Input;
 const triggerRefreshStatus = "refresh_status";
 const triggerRefreshReadModel = "refresh_read_model";
 
-const lifecycleStatusLabels = {
+type StatusLabelMap = Record<string, string>;
+type ReasonAliasCopy = {
+  labelKey: string;
+  label: string;
+  descriptionKey?: string;
+  description?: string;
+};
+type Account = {
+  owner?: string;
+  isAdmin?: boolean;
+  [key: string]: unknown;
+};
+type OrganizationTreeOperationsDiagnosticItem = OrganizationTreeOperationsBackend.OrganizationTreeOperationsDiagnosticItem;
+type OrganizationTreeOperationsDiagnostics = OrganizationTreeOperationsBackend.OrganizationTreeOperationsDiagnostics;
+type OrganizationTreeOperationsFilters = OrganizationTreeOperationsBackend.OrganizationTreeOperationsFilters;
+type OrganizationTreeOperationsMember = OrganizationTreeOperationsBackend.OrganizationTreeOperationsMember;
+type OrganizationTreeOperationsNode = OrganizationTreeOperationsBackend.OrganizationTreeOperationsNode;
+type OrganizationTreeOperationsSourceConnection = OrganizationTreeOperationsBackend.OrganizationTreeOperationsSourceConnection;
+type OrganizationTreeOperationsPageProps = {
+  account?: Account;
+};
+type NodeViewMode = "tree" | "list" | "members";
+type OrganizationTreeOperationsPageState = {
+  organization: string;
+  diagnostics: OrganizationTreeOperationsDiagnostics | null;
+  loading: boolean;
+  refreshingStatus: boolean;
+  refreshingReadModel: boolean;
+  lastError: string;
+  filters: OrganizationTreeOperationsFilters;
+  nodeViewMode: NodeViewMode;
+  selectedNode: OrganizationTreeOperationsNode | null;
+  selectedMemberDepartment: string | null;
+  memberLoading: boolean;
+  memberPage: number;
+  memberPageSize: number;
+  memberTotal: number;
+  members: OrganizationTreeOperationsMember[];
+  selectedMember: OrganizationTreeOperationsMember | null;
+  showTechnicalDetails: boolean;
+};
+type RefreshDiagnosticsOptions = {
+  filters?: OrganizationTreeOperationsFilters;
+};
+type CompactIdentifierOptions = {
+  copyable?: boolean;
+  head?: number;
+  tail?: number;
+};
+type OrganizationTreeDataNode = {
+  key: string;
+  title: React.ReactNode;
+  children: OrganizationTreeDataNode[];
+};
+
+const lifecycleStatusLabels: StatusLabelMap = {
   active: "正常",
   disabled: "已停用",
   deleted: "已删除",
@@ -33,7 +88,7 @@ const lifecycleStatusLabels = {
   unknown: "未知",
 };
 
-const freshnessLabels = {
+const freshnessLabels: StatusLabelMap = {
   current: "当前",
   fresh: "新鲜",
   stale: "陈旧",
@@ -42,7 +97,7 @@ const freshnessLabels = {
   unavailable: "不可用",
 };
 
-const reasonAliasLabels = {
+const reasonAliasLabels: Record<string, ReasonAliasCopy> = {
   scope_has_no_manageable_departments: {
     labelKey: "Current organization has no manageable departments",
     label: "当前组织暂无可管理部门",
@@ -63,11 +118,11 @@ const reasonAliasLabels = {
   },
 };
 
-function translateGeneral(key, fallback) {
+function translateGeneral(key: string, fallback: string): string {
   return i18next.t(`general:${key}`, {defaultValue: fallback});
 }
 
-function readableAlias(value) {
+function readableAlias(value?: string | null): string {
   const text = String(value || "");
   if (!text) {
     return "-";
@@ -78,7 +133,7 @@ function readableAlias(value) {
   return text.split("_").filter(Boolean).map(part => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join(" ");
 }
 
-function renderReasonLabel(value) {
+function renderReasonLabel(value?: string | null): string {
   const copy = reasonAliasLabels[String(value || "").toLowerCase()];
   if (copy) {
     return translateGeneral(copy.labelKey, copy.label);
@@ -86,10 +141,10 @@ function renderReasonLabel(value) {
   return readableAlias(value);
 }
 
-function renderReasonDescription(value, fallback) {
+function renderReasonDescription(value: string | undefined, fallback: string): string {
   const copy = reasonAliasLabels[String(value || "").toLowerCase()];
   if (copy?.descriptionKey) {
-    return translateGeneral(copy.descriptionKey, copy.description);
+    return translateGeneral(copy.descriptionKey, copy.description || "");
   }
   if (value) {
     return renderReasonLabel(value);
@@ -97,26 +152,26 @@ function renderReasonDescription(value, fallback) {
   return fallback;
 }
 
-function renderEmptyTreeClassLabel(value, reason) {
+function renderEmptyTreeClassLabel(value?: string, reason?: string): string {
   if (reason) {
     const reasonCopy = reasonAliasLabels[String(reason || "").toLowerCase()];
     if (reasonCopy) {
       return translateGeneral(reasonCopy.labelKey, reasonCopy.label);
     }
   }
-  const labels = {
+  const labels: StatusLabelMap = {
     business_empty: translateGeneral("Business empty organization tree", "业务空树"),
     test_data_gap: translateGeneral("Test data gap", "测试数据缺口"),
     untrusted_read_model: translateGeneral("Untrusted directory data", "不可信数据"),
   };
-  return labels[value] || readableAlias(value);
+  return value ? labels[value] || readableAlias(value) : readableAlias(value);
 }
 
-function renderText(value) {
-  return value || "-";
+function renderText(value?: React.ReactNode): React.ReactNode {
+  return value === undefined || value === null || value === "" ? "-" : value;
 }
 
-function compactIdentifier(value, head = 18, tail = 8) {
+function compactIdentifier(value?: string | null, head = 18, tail = 8): string {
   if (!value) {
     return "-";
   }
@@ -127,7 +182,7 @@ function compactIdentifier(value, head = 18, tail = 8) {
   return `${text.slice(0, head)}...${text.slice(-tail)}`;
 }
 
-function renderCompactIdentifier(value, options = {}) {
+function renderCompactIdentifier(value?: string | null, options: CompactIdentifierOptions = {}): React.ReactNode {
   if (!value) {
     return "-";
   }
@@ -144,7 +199,7 @@ function renderCompactIdentifier(value, options = {}) {
   );
 }
 
-function renderStatusTag(value, labels = {}) {
+function renderStatusTag(value?: string | null, labels: StatusLabelMap = {}): React.ReactNode {
   if (!value) {
     return <Tag>-</Tag>;
   }
@@ -159,12 +214,12 @@ function renderStatusTag(value, labels = {}) {
   return <Tag color={color}>{labels[value] || labels[normalized] || value}</Tag>;
 }
 
-function renderTime(value) {
+function renderTime(value?: string): React.ReactNode {
   return value ? Setting.getFormattedDate(value) : "-";
 }
 
-class OrganizationTreeOperationsPage extends React.Component {
-  constructor(props) {
+class OrganizationTreeOperationsPage extends React.Component<OrganizationTreeOperationsPageProps, OrganizationTreeOperationsPageState> {
+  constructor(props: OrganizationTreeOperationsPageProps) {
     super(props);
     const organization = this.getAccountOrganization(props.account);
     this.state = {
@@ -208,14 +263,14 @@ class OrganizationTreeOperationsPage extends React.Component {
     }
   }
 
-  getAccountOrganization(account) {
+  getAccountOrganization(account?: Account): string {
     if (!account?.owner) {
       return "";
     }
     return Setting.getRequestOrganization(account) || account.owner;
   }
 
-  changeOrganization(organization) {
+  changeOrganization(organization: string) {
     this.setState({
       organization,
       diagnostics: null,
@@ -240,7 +295,7 @@ class OrganizationTreeOperationsPage extends React.Component {
     }, () => this.refreshDiagnostics());
   }
 
-  updateFilter(key, value) {
+  updateFilter(key: keyof OrganizationTreeOperationsFilters, value?: string | null) {
     this.setState({
       filters: {
         ...this.state.filters,
@@ -249,7 +304,7 @@ class OrganizationTreeOperationsPage extends React.Component {
     });
   }
 
-  refreshDiagnostics(options = {}) {
+  refreshDiagnostics(options: RefreshDiagnosticsOptions = {}) {
     const organization = this.state.organization;
     if (!organization) {
       return Promise.resolve();
@@ -262,7 +317,7 @@ class OrganizationTreeOperationsPage extends React.Component {
       }
       this.setState({
         loading: false,
-        diagnostics: res.status === "ok" ? res.data : null,
+        diagnostics: res.status === "ok" ? res.data ?? null : null,
         lastError: res.status === "ok" ? "" : (res.msg || "诊断接口返回错误"),
       });
     }).catch(error => {
@@ -271,7 +326,7 @@ class OrganizationTreeOperationsPage extends React.Component {
     });
   }
 
-  applySearch(query) {
+  applySearch(query: string) {
     const filters = {
       ...this.state.filters,
       query,
@@ -279,13 +334,17 @@ class OrganizationTreeOperationsPage extends React.Component {
     this.setState({filters}, () => this.refreshDiagnostics({filters}));
   }
 
-  triggerRefresh(triggerType) {
+  triggerRefresh(triggerType: string) {
     const organization = this.state.organization;
     if (!organization) {
       return Promise.resolve();
     }
-    const loadingKey = triggerType === triggerRefreshReadModel ? "refreshingReadModel" : "refreshingStatus";
-    this.setState({[loadingKey]: true});
+    const isReadModelRefresh = triggerType === triggerRefreshReadModel;
+    if (isReadModelRefresh) {
+      this.setState({refreshingReadModel: true});
+    } else {
+      this.setState({refreshingStatus: true});
+    }
     return OrganizationTreeOperationsBackend.refreshOrganizationTreeOperations(organization, triggerType).then(res => {
       if (res.status === "error") {
         Setting.showMessage("error", res.msg);
@@ -294,22 +353,31 @@ class OrganizationTreeOperationsPage extends React.Component {
       if (res.status === "ok" && payload.status) {
         Setting.showMessage(payload.status === "error" ? "error" : "success", `刷新状态：${payload.status}`);
       }
-      this.setState({
-        [loadingKey]: false,
+      const nextState = {
         diagnostics: payload.diagnostics || this.state.diagnostics,
         lastError: res.status === "ok" ? "" : (res.msg || "刷新动作返回错误"),
-      }, () => {
+      };
+      const afterRefresh = () => {
         if (!payload.diagnostics) {
           this.refreshDiagnostics();
         }
-      });
+      };
+      if (isReadModelRefresh) {
+        this.setState({refreshingReadModel: false, ...nextState}, afterRefresh);
+      } else {
+        this.setState({refreshingStatus: false, ...nextState}, afterRefresh);
+      }
     }).catch(error => {
-      this.setState({[loadingKey]: false, lastError: String(error)});
+      if (isReadModelRefresh) {
+        this.setState({refreshingReadModel: false, lastError: String(error)});
+      } else {
+        this.setState({refreshingStatus: false, lastError: String(error)});
+      }
       Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
     });
   }
 
-  loadDepartmentMembers(departmentId, page = 1, pageSize = this.state.memberPageSize) {
+  loadDepartmentMembers(departmentId: string | null, page = 1, pageSize = this.state.memberPageSize) {
     const organization = this.state.organization;
     if (!organization || !departmentId) {
       return Promise.resolve();
@@ -337,7 +405,7 @@ class OrganizationTreeOperationsPage extends React.Component {
     });
   }
 
-  selectNode(node) {
+  selectNode(node: OrganizationTreeOperationsNode) {
     if (this.state.nodeViewMode === "members") {
       return this.loadDepartmentMembers(node.departmentId, 1, this.state.memberPageSize);
     }
@@ -359,54 +427,54 @@ class OrganizationTreeOperationsPage extends React.Component {
 
   getNodeColumns() {
     return [
-      {title: "部门", dataIndex: "departmentName", key: "departmentName", render: (text, record) => (
+      {title: "部门", dataIndex: "departmentName", key: "departmentName", render: (text: React.ReactNode, record: OrganizationTreeOperationsNode) => (
         <Space direction="vertical" size={0}>
           <Button type="link" style={{padding: 0}} onClick={() => this.setState({selectedNode: record})}>{renderText(text)}</Button>
           <Text type="secondary">{record.departmentPath || record.departmentId}</Text>
         </Space>
       )},
-      {title: "生命周期", dataIndex: "lifecycleStatus", key: "lifecycleStatus", width: 120, render: value => renderStatusTag(value, lifecycleStatusLabels)},
+      {title: "生命周期", dataIndex: "lifecycleStatus", key: "lifecycleStatus", width: 120, render: (value?: string) => renderStatusTag(value, lifecycleStatusLabels)},
       {title: "来源", dataIndex: "sourceType", key: "sourceType", width: 120, render: renderText},
-      {title: "连接状态", dataIndex: "sourceConnectionStatus", key: "sourceConnectionStatus", width: 130, render: renderStatusTag},
-      {title: "新鲜度", dataIndex: "sourceConnectionFreshness", key: "sourceConnectionFreshness", width: 120, render: value => renderStatusTag(value, freshnessLabels)},
+      {title: "连接状态", dataIndex: "sourceConnectionStatus", key: "sourceConnectionStatus", width: 130, render: (value?: string) => renderStatusTag(value)},
+      {title: "新鲜度", dataIndex: "sourceConnectionFreshness", key: "sourceConnectionFreshness", width: 120, render: (value?: string) => renderStatusTag(value, freshnessLabels)},
       {title: "可见来源", dataIndex: "visibilitySource", key: "visibilitySource", width: 150, render: renderText},
     ];
   }
 
   getDiagnosticColumns() {
     return [
-      {title: "对象", dataIndex: "displayName", key: "displayName", render: (text, record) => (
+      {title: "对象", dataIndex: "displayName", key: "displayName", render: (text: React.ReactNode, record: OrganizationTreeOperationsDiagnosticItem) => (
         <Space direction="vertical" size={0}>
           <Text>{renderText(text || record.subjectId)}</Text>
           <Text type="secondary">{record.subjectType}:{record.subjectId}</Text>
         </Space>
       )},
       {title: "原因", dataIndex: "reason", key: "reason", render: renderReasonLabel},
-      {title: "生命周期", dataIndex: "lifecycleStatus", key: "lifecycleStatus", width: 120, render: value => renderStatusTag(value, lifecycleStatusLabels)},
+      {title: "生命周期", dataIndex: "lifecycleStatus", key: "lifecycleStatus", width: 120, render: (value?: string) => renderStatusTag(value, lifecycleStatusLabels)},
       {title: "映射状态", dataIndex: "mappingStatus", key: "mappingStatus", width: 130, render: renderText},
       {title: "来源", dataIndex: "sourceType", key: "sourceType", width: 120, render: renderText},
-      {title: "新鲜度", dataIndex: "freshness", key: "freshness", width: 120, render: value => renderStatusTag(value, freshnessLabels)},
+      {title: "新鲜度", dataIndex: "freshness", key: "freshness", width: 120, render: (value?: string) => renderStatusTag(value, freshnessLabels)},
     ];
   }
 
   getMemberColumns() {
     return [
-      {title: "成员", dataIndex: "displayName", key: "displayName", render: (text, record) => (
+      {title: "成员", dataIndex: "displayName", key: "displayName", render: (text: React.ReactNode, record: OrganizationTreeOperationsMember) => (
         <Space direction="vertical" size={0}>
           <Button type="link" style={{padding: 0}} onClick={() => this.setState({selectedMember: record, selectedNode: null})}>{renderText(text)}</Button>
           <Text type="secondary">{renderCompactIdentifier(record.departmentId, {head: 16, tail: 8})}</Text>
         </Space>
       )},
-      {title: "生命周期", dataIndex: "lifecycleStatus", key: "lifecycleStatus", width: 120, render: value => renderStatusTag(value, lifecycleStatusLabels)},
+      {title: "生命周期", dataIndex: "lifecycleStatus", key: "lifecycleStatus", width: 120, render: (value?: string) => renderStatusTag(value, lifecycleStatusLabels)},
       {title: "映射状态", dataIndex: "mappingStatus", key: "mappingStatus", width: 120, render: renderText},
       {title: "来源", dataIndex: "sourceType", key: "sourceType", width: 110, render: renderText},
-      {title: "新鲜度", dataIndex: "freshness", key: "freshness", width: 120, render: value => renderStatusTag(value, freshnessLabels)},
+      {title: "新鲜度", dataIndex: "freshness", key: "freshness", width: 120, render: (value?: string) => renderStatusTag(value, freshnessLabels)},
       {title: "原因", dataIndex: "reason", key: "reason", render: renderText},
     ];
   }
 
-  buildTreeData(nodes = []) {
-    const records = new Map();
+  buildTreeData(nodes: OrganizationTreeOperationsNode[] = []): OrganizationTreeDataNode[] {
+    const records = new Map<string, OrganizationTreeDataNode>();
     nodes.forEach(node => {
       records.set(node.departmentId, {
         key: node.departmentId,
@@ -415,10 +483,13 @@ class OrganizationTreeOperationsPage extends React.Component {
       });
     });
 
-    const roots = [];
+    const roots: OrganizationTreeDataNode[] = [];
     nodes.forEach(node => {
       const treeNode = records.get(node.departmentId);
-      const parent = records.get(node.parentDepartmentId);
+      const parent = node.parentDepartmentId ? records.get(node.parentDepartmentId) : undefined;
+      if (!treeNode) {
+        return;
+      }
       if (parent && parent !== treeNode) {
         parent.children.push(treeNode);
       } else {
@@ -428,7 +499,7 @@ class OrganizationTreeOperationsPage extends React.Component {
     return roots;
   }
 
-  renderTreeNodeTitle(node) {
+  renderTreeNodeTitle(node: OrganizationTreeOperationsNode): React.ReactNode {
     const memberSummary = node.memberSummary || {};
     const issueCount = (memberSummary.conflictedMemberCount || 0) + (memberSummary.mappingIssueCount || 0) + (memberSummary.staleMemberCount || 0);
     return (
@@ -521,7 +592,7 @@ class OrganizationTreeOperationsPage extends React.Component {
         </Col>
         <Col xs={24} lg={14} xl={16}>
           {this.state.selectedMemberDepartment ? (
-            <Table
+            <Table<OrganizationTreeOperationsMember>
               size="small"
               rowKey={record => record.stableSubjectId}
               loading={this.state.memberLoading}
@@ -586,6 +657,14 @@ class OrganizationTreeOperationsPage extends React.Component {
 
   renderSourceConnections() {
     const diagnostics = this.state.diagnostics;
+    const sourceConnectionColumns = [
+      {title: "连接", dataIndex: "sourceConnectionId", key: "sourceConnectionId", render: (value?: string) => renderCompactIdentifier(value, {copyable: true, head: 28, tail: 12})},
+      {title: "类型", dataIndex: "sourceType", key: "sourceType", width: 120, render: renderText},
+      {title: "状态", dataIndex: "status", key: "status", width: 120, render: (value?: string) => renderStatusTag(value)},
+      {title: "新鲜度", dataIndex: "freshness", key: "freshness", width: 120, render: (value?: string) => renderStatusTag(value, freshnessLabels)},
+      {title: "已配置", dataIndex: "configured", key: "configured", width: 100, render: (value?: boolean) => value ? <Tag color="green">是</Tag> : <Tag>否</Tag>},
+      {title: "最近批次", dataIndex: "lastSeenBatchId", key: "lastSeenBatchId", render: (value?: string) => renderCompactIdentifier(value, {copyable: true, head: 28, tail: 12})},
+    ];
     return (
       <Card title="来源与批次" size="small" style={{marginBottom: 16}}>
         <Descriptions size="small" column={2}>
@@ -596,20 +675,13 @@ class OrganizationTreeOperationsPage extends React.Component {
           <Descriptions.Item label="latestBatch">{renderCompactIdentifier(diagnostics?.latestSyncBatch?.batchId, {copyable: true, head: 28, tail: 12})}</Descriptions.Item>
           <Descriptions.Item label="batchStatus">{renderText(diagnostics?.latestSyncBatch?.status)}</Descriptions.Item>
         </Descriptions>
-        <Table
+        <Table<OrganizationTreeOperationsSourceConnection>
           style={{marginTop: 12}}
           size="small"
-          rowKey={record => record.sourceConnectionId || record.sourceType}
+          rowKey={record => record.sourceConnectionId || record.sourceType || "source-connection"}
           pagination={false}
           dataSource={diagnostics?.sourceConnections || []}
-          columns={[
-            {title: "连接", dataIndex: "sourceConnectionId", key: "sourceConnectionId", render: value => renderCompactIdentifier(value, {copyable: true, head: 28, tail: 12})},
-            {title: "类型", dataIndex: "sourceType", key: "sourceType", width: 120, render: renderText},
-            {title: "状态", dataIndex: "status", key: "status", width: 120, render: renderStatusTag},
-            {title: "新鲜度", dataIndex: "freshness", key: "freshness", width: 120, render: value => renderStatusTag(value, freshnessLabels)},
-            {title: "已配置", dataIndex: "configured", key: "configured", width: 100, render: value => value ? <Tag color="green">是</Tag> : <Tag>否</Tag>},
-            {title: "最近批次", dataIndex: "lastSeenBatchId", key: "lastSeenBatchId", render: value => renderCompactIdentifier(value, {copyable: true, head: 28, tail: 12})},
-          ]}
+          columns={sourceConnectionColumns}
         />
       </Card>
     );
@@ -676,7 +748,7 @@ class OrganizationTreeOperationsPage extends React.Component {
         <Space direction="vertical" size={16} style={{width: "100%"}}>
           <Space wrap style={{width: "100%", justifyContent: "space-between"}}>
             <Space wrap>
-              <OrganizationSelect initValue={this.state.organization} onChange={organization => this.changeOrganization(organization)} />
+              <OrganizationSelect initValue={this.state.organization} onChange={(organization: string) => this.changeOrganization(organization)} />
               <Button icon={<ReloadOutlined />} loading={this.state.refreshingStatus || this.state.loading} onClick={() => this.triggerRefresh(triggerRefreshStatus)}>刷新诊断</Button>
               <Button icon={<SyncOutlined />} loading={this.state.refreshingReadModel} onClick={() => this.triggerRefresh(triggerRefreshReadModel)}>重建目录视图</Button>
               <Button onClick={() => this.setState({showTechnicalDetails: !this.state.showTechnicalDetails})}>技术详情</Button>
@@ -701,7 +773,7 @@ class OrganizationTreeOperationsPage extends React.Component {
                 {this.renderFilters()}
                 <Segmented
                   value={this.state.nodeViewMode}
-                  onChange={nodeViewMode => this.setState({nodeViewMode})}
+                  onChange={nodeViewMode => this.setState({nodeViewMode: String(nodeViewMode) as NodeViewMode})}
                   options={[
                     {label: "树视图", value: "tree"},
                     {label: "列表视图", value: "list"},
@@ -710,7 +782,7 @@ class OrganizationTreeOperationsPage extends React.Component {
                 />
               </Space>
               {this.state.nodeViewMode === "members" ? this.renderMemberView() : this.state.nodeViewMode === "tree" ? this.renderNodeTree() : (
-                <Table
+                <Table<OrganizationTreeOperationsNode>
                   size="small"
                   rowKey={record => record.departmentId}
                   loading={this.state.loading}
@@ -724,7 +796,7 @@ class OrganizationTreeOperationsPage extends React.Component {
           </Card>
 
           <Card title="诊断项" size="small">
-            <Table
+            <Table<OrganizationTreeOperationsDiagnosticItem>
               size="small"
               rowKey={record => `${record.subjectType}-${record.subjectId}-${record.reason}`}
               loading={this.state.loading}

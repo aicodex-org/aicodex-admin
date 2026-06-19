@@ -14,25 +14,65 @@
 // limitations under the License.
 
 import React from "react";
-import {act, fireEvent, render, screen, wait} from "@testing-library/react";
+import {act, render} from "@testing-library/react";
+import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import * as Setting from "./Setting";
 import * as OrganizationTreeOperationsBackend from "./backend/OrganizationTreeOperationsBackend";
 import OrganizationTreeOperationsPage from "./OrganizationTreeOperationsPage";
 
-jest.mock("./backend/OrganizationTreeOperationsBackend", () => ({
-  getOrganizationTreeOperationsDiagnostics: jest.fn(),
-  getOrganizationTreeOperationsMembers: jest.fn(),
-  refreshOrganizationTreeOperations: jest.fn(),
-}));
+declare const jest: typeof jestValue;
 
-jest.mock("./common/select/OrganizationSelect", () => (props) => (
+type LooseMock = {
+  (...args: unknown[]): unknown;
+  mockResolvedValue: (value: unknown) => LooseMock;
+  mockResolvedValueOnce: (value: unknown) => LooseMock;
+  mockRejectedValueOnce: (value: unknown) => LooseMock;
+};
+type OrganizationTreeOperationsBackendMock = Record<
+  "getOrganizationTreeOperationsDiagnostics" | "getOrganizationTreeOperationsMembers" | "refreshOrganizationTreeOperations",
+  LooseMock
+>;
+type OrganizationSelectMockProps = {
+  initValue?: string;
+  onChange: (value: string) => void;
+};
+
+const expect = jestExpect;
+const {fireEvent, screen, wait} = require("@testing-library/react") as {
+  fireEvent: {
+    click: (element: Element | null) => boolean;
+    change: (element: Element | null, event: unknown) => boolean;
+  };
+  screen: {
+    findByText: (text: string | RegExp) => Promise<HTMLElement>;
+    getByText: (text: string | RegExp) => HTMLElement;
+    getAllByText: (text: string | RegExp) => HTMLElement[];
+    queryByText: (text: string | RegExp) => HTMLElement | null;
+    getByPlaceholderText: (text: string | RegExp) => HTMLElement;
+    getByTestId: (id: string) => HTMLElement;
+    getAllByTestId: (id: string) => HTMLElement[];
+  };
+  wait: (callback: () => unknown) => Promise<unknown>;
+};
+const treeBackendMock = OrganizationTreeOperationsBackend as unknown as OrganizationTreeOperationsBackendMock;
+
+jest.mock("./backend/OrganizationTreeOperationsBackend", () => {
+  const {jest: factoryJest} = require("@jest/globals") as {jest: Pick<typeof jestValue, "fn">};
+  return {
+    getOrganizationTreeOperationsDiagnostics: factoryJest.fn(),
+    getOrganizationTreeOperationsMembers: factoryJest.fn(),
+    refreshOrganizationTreeOperations: factoryJest.fn(),
+  };
+});
+
+jest.mock("./common/select/OrganizationSelect", () => (props: OrganizationSelectMockProps) => (
   <select data-testid="organization-select" value={props.initValue} onChange={event => props.onChange(event.target.value)}>
     <option value="org-alpha">测试组织</option>
     <option value="org-beta">备用组织</option>
   </select>
 ));
 
-const mockMatchMedia = query => ({
+const mockMatchMedia = (query: string) => ({
   matches: false,
   media: query,
   onchange: null,
@@ -43,7 +83,7 @@ const mockMatchMedia = query => ({
   dispatchEvent: jest.fn(),
 });
 
-function buildDiagnostics(overrides = {}) {
+function buildDiagnostics(overrides: Record<string, unknown> = {}) {
   return {
     organization: "org-alpha",
     status: "ok",
@@ -124,11 +164,11 @@ beforeEach(() => {
     value: mockMatchMedia,
   });
   jest.spyOn(Setting, "showMessage").mockImplementation(() => {});
-  OrganizationTreeOperationsBackend.getOrganizationTreeOperationsDiagnostics.mockResolvedValue({
+  treeBackendMock.getOrganizationTreeOperationsDiagnostics.mockResolvedValue({
     status: "ok",
     data: buildDiagnostics(),
   });
-  OrganizationTreeOperationsBackend.getOrganizationTreeOperationsMembers.mockResolvedValue({
+  treeBackendMock.getOrganizationTreeOperationsMembers.mockResolvedValue({
     status: "ok",
     data: {
       organization: "org-alpha",
@@ -177,7 +217,7 @@ beforeEach(() => {
       ],
     },
   });
-  OrganizationTreeOperationsBackend.refreshOrganizationTreeOperations.mockResolvedValue({
+  treeBackendMock.refreshOrganizationTreeOperations.mockResolvedValue({
     status: "ok",
     data: {
       status: "ok",
@@ -187,33 +227,33 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  Setting.showMessage.mockRestore();
+  jest.restoreAllMocks();
   jest.clearAllMocks();
 });
 
 test("renders organization tree operations diagnostics without treating display data as authority", async() => {
   render(<OrganizationTreeOperationsPage account={{owner: "org-alpha", isAdmin: true}} />);
 
-  expect(await screen.findByText("组织树节点")).toBeInTheDocument();
+  expect(await screen.findByText("组织树节点")).toBeTruthy();
   expect(document.querySelector(".organization-tree-operations-page")).not.toBeNull();
-  expect(screen.getByText("可见节点")).toBeInTheDocument();
-  expect(screen.queryByText("orgv-1")).not.toBeInTheDocument();
-  expect(screen.queryByText("readModelSource")).not.toBeInTheDocument();
-  expect(screen.getByText("根部门")).toBeInTheDocument();
-  expect(screen.getByText("停用部门")).toBeInTheDocument();
-  expect(screen.getByText("仅诊断和受控刷新，不编辑源事实")).toBeInTheDocument();
-  expect(screen.queryByText("重建 read model")).not.toBeInTheDocument();
-  expect(screen.getByText("重建目录视图")).toBeInTheDocument();
+  expect(screen.getByText("可见节点")).toBeTruthy();
+  expect(screen.queryByText("orgv-1")).toBeFalsy();
+  expect(screen.queryByText("readModelSource")).toBeFalsy();
+  expect(screen.getByText("根部门")).toBeTruthy();
+  expect(screen.getByText("停用部门")).toBeTruthy();
+  expect(screen.getByText("仅诊断和受控刷新，不编辑源事实")).toBeTruthy();
+  expect(screen.queryByText("重建 read model")).toBeFalsy();
+  expect(screen.getByText("重建目录视图")).toBeTruthy();
   fireEvent.click(screen.getByText("技术详情"));
   expect(screen.getAllByText("orgv-1").length).toBeGreaterThan(0);
-  expect(screen.getByText("readModelSource")).toBeInTheDocument();
+  expect(screen.getByText("readModelSource")).toBeTruthy();
 });
 
 test("compacts long versions in summary cards while keeping copyable diagnostics", async() => {
   const longOrgVersion = "orgv-ed073c4ab7a34c05d79fdb539df3f0a31714bfdb8ccca2c59027370474815437";
   const longScopeVersion = "scopev-03ceeba02044c23b02a5602c77d00403446f76edb3100cc37f214ce4168692c4";
-  const compactDiagnosticIdentifier = value => `${value.slice(0, 28)}...${value.slice(-12)}`;
-  OrganizationTreeOperationsBackend.getOrganizationTreeOperationsDiagnostics.mockResolvedValueOnce({
+  const compactDiagnosticIdentifier = (value: string) => `${value.slice(0, 28)}...${value.slice(-12)}`;
+  treeBackendMock.getOrganizationTreeOperationsDiagnostics.mockResolvedValueOnce({
     status: "ok",
     data: buildDiagnostics({
       summary: {
@@ -232,16 +272,16 @@ test("compacts long versions in summary cards while keeping copyable diagnostics
 
   render(<OrganizationTreeOperationsPage account={{owner: "org-alpha", isAdmin: true}} />);
 
-  expect(await screen.findByText("组织树节点")).toBeInTheDocument();
-  expect(screen.queryByText(compactDiagnosticIdentifier(longOrgVersion))).not.toBeInTheDocument();
+  expect(await screen.findByText("组织树节点")).toBeTruthy();
+  expect(screen.queryByText(compactDiagnosticIdentifier(longOrgVersion))).toBeFalsy();
   fireEvent.click(screen.getByText("技术详情"));
-  expect(screen.getByText(compactDiagnosticIdentifier(longOrgVersion))).toBeInTheDocument();
-  expect(screen.getByText(compactDiagnosticIdentifier(longScopeVersion))).toBeInTheDocument();
-  expect(screen.queryByRole("heading", {name: longOrgVersion})).not.toBeInTheDocument();
+  expect(screen.getByText(compactDiagnosticIdentifier(longOrgVersion))).toBeTruthy();
+  expect(screen.getByText(compactDiagnosticIdentifier(longScopeVersion))).toBeTruthy();
+  expect(document.body.textContent).not.toContain(longOrgVersion);
 });
 
 test("defaults to collapsible tree view and keeps list view available", async() => {
-  OrganizationTreeOperationsBackend.getOrganizationTreeOperationsDiagnostics.mockResolvedValueOnce({
+  treeBackendMock.getOrganizationTreeOperationsDiagnostics.mockResolvedValueOnce({
     status: "ok",
     data: buildDiagnostics({
       nodes: [
@@ -265,35 +305,35 @@ test("defaults to collapsible tree view and keeps list view available", async() 
 
   render(<OrganizationTreeOperationsPage account={{owner: "org-alpha", isAdmin: true}} />);
 
-  expect(await screen.findByText("树视图")).toBeInTheDocument();
-  expect(screen.getByText("子部门")).toBeInTheDocument();
-  expect(screen.queryByText("部门")).not.toBeInTheDocument();
+  expect(await screen.findByText("树视图")).toBeTruthy();
+  expect(screen.getByText("子部门")).toBeTruthy();
+  expect(screen.queryByText("部门")).toBeFalsy();
 
   fireEvent.click(screen.getByText("列表视图"));
 
-  expect(await screen.findByText("部门")).toBeInTheDocument();
-  expect(screen.getByText("子部门")).toBeInTheDocument();
+  expect(await screen.findByText("部门")).toBeTruthy();
+  expect(screen.getByText("子部门")).toBeTruthy();
 });
 
 test("lazy loads paged members only after selecting a department in member view", async() => {
   render(<OrganizationTreeOperationsPage account={{owner: "org-alpha", isAdmin: true}} />);
 
-  expect(await screen.findByText("树视图")).toBeInTheDocument();
-  expect(OrganizationTreeOperationsBackend.getOrganizationTreeOperationsMembers).not.toHaveBeenCalled();
+  expect(await screen.findByText("树视图")).toBeTruthy();
+  expect(treeBackendMock.getOrganizationTreeOperationsMembers).not.toHaveBeenCalled();
 
   fireEvent.click(screen.getByText("成员视图"));
 
-  expect(await screen.findByText("选择部门查看成员诊断")).toBeInTheDocument();
-  expect(OrganizationTreeOperationsBackend.getOrganizationTreeOperationsMembers).not.toHaveBeenCalled();
+  expect(await screen.findByText("选择部门查看成员诊断")).toBeTruthy();
+  expect(treeBackendMock.getOrganizationTreeOperationsMembers).not.toHaveBeenCalled();
 
   fireEvent.click(screen.getAllByText("根部门")[0]);
 
-  await wait(() => expect(OrganizationTreeOperationsBackend.getOrganizationTreeOperationsMembers).toHaveBeenCalledWith("org-alpha", "dept-root", 1, 10));
-  expect(await screen.findByText("Active Member")).toBeInTheDocument();
-  expect(screen.getByText("Disabled Member")).toBeInTheDocument();
+  await wait(() => expect(treeBackendMock.getOrganizationTreeOperationsMembers).toHaveBeenCalledWith("org-alpha", "dept-root", 1, 10));
+  expect(await screen.findByText("Active Member")).toBeTruthy();
+  expect(screen.getByText("Disabled Member")).toBeTruthy();
   expect(screen.getAllByText("新鲜").length).toBeGreaterThan(0);
-  expect(screen.getByText("成员 2")).toBeInTheDocument();
-  expect(screen.getByText("异常 1")).toBeInTheDocument();
+  expect(screen.getByText("成员 2")).toBeTruthy();
+  expect(screen.getByText("异常 1")).toBeTruthy();
 });
 
 test("opens member detail drawer with diagnostics metadata", async() => {
@@ -304,10 +344,10 @@ test("opens member detail drawer with diagnostics metadata", async() => {
   fireEvent.click(screen.getAllByText("根部门")[0]);
   fireEvent.click(await screen.findByText("Active Member"));
 
-  expect(await screen.findByText("成员详情")).toBeInTheDocument();
-  expect(screen.getByText("subj-active")).toBeInTheDocument();
-  expect(screen.getByText("mappingStatus")).toBeInTheDocument();
-  expect(screen.getByText("lineageDigest")).toBeInTheDocument();
+  expect(await screen.findByText("成员详情")).toBeTruthy();
+  expect(screen.getByText("subj-active")).toBeTruthy();
+  expect(screen.getByText("mappingStatus")).toBeTruthy();
+  expect(screen.getByText("lineageDigest")).toBeTruthy();
 });
 
 test("passes stable search and filters to diagnostics endpoint", async() => {
@@ -317,18 +357,18 @@ test("passes stable search and filters to diagnostics endpoint", async() => {
   fireEvent.change(screen.getByPlaceholderText("搜索稳定部门 ID、名称或路径"), {target: {value: "dept-root"}});
   fireEvent.click(screen.getByText("查询"));
 
-  await wait(() => expect(OrganizationTreeOperationsBackend.getOrganizationTreeOperationsDiagnostics).toHaveBeenLastCalledWith("org-alpha", expect.objectContaining({
+  await wait(() => expect(treeBackendMock.getOrganizationTreeOperationsDiagnostics).toHaveBeenLastCalledWith("org-alpha", expect.objectContaining({
     query: "dept-root",
   })));
 });
 
 test("keeps visible filter labels separate from stable diagnostics request values", async() => {
-  const pageRef = React.createRef();
+  const pageRef = React.createRef<OrganizationTreeOperationsPage>();
   render(<OrganizationTreeOperationsPage ref={pageRef} account={{owner: "org-alpha", isAdmin: true}} />);
 
   await screen.findByText("根部门");
   act(() => {
-    pageRef.current.setState({
+    pageRef.current?.setState({
       filters: {
         query: "",
         lifecycleStatus: "disabled",
@@ -340,12 +380,12 @@ test("keeps visible filter labels separate from stable diagnostics request value
   });
   fireEvent.click(screen.getByText("查询"));
 
-  await wait(() => expect(OrganizationTreeOperationsBackend.getOrganizationTreeOperationsDiagnostics).toHaveBeenLastCalledWith("org-alpha", expect.objectContaining({
+  await wait(() => expect(treeBackendMock.getOrganizationTreeOperationsDiagnostics).toHaveBeenLastCalledWith("org-alpha", expect.objectContaining({
     lifecycleStatus: "disabled",
     sourceConnectionStatus: "STALE",
     freshness: "expired",
   })));
-  expect(screen.queryByText("lifecycle_not_active")).not.toBeInTheDocument();
+  expect(screen.queryByText("lifecycle_not_active")).toBeFalsy();
 });
 
 test("changes organization with reset filters and stable request payload", async() => {
@@ -354,7 +394,7 @@ test("changes organization with reset filters and stable request payload", async
   await screen.findByText("根部门");
   fireEvent.change(screen.getByTestId("organization-select"), {target: {value: "org-beta"}});
 
-  await wait(() => expect(OrganizationTreeOperationsBackend.getOrganizationTreeOperationsDiagnostics).toHaveBeenLastCalledWith("org-beta", {
+  await wait(() => expect(treeBackendMock.getOrganizationTreeOperationsDiagnostics).toHaveBeenLastCalledWith("org-beta", {
     query: "",
     lifecycleStatus: "",
     sourceConnectionStatus: "",
@@ -364,7 +404,7 @@ test("changes organization with reset filters and stable request payload", async
 });
 
 test("shows fail-closed empty tree class and supports controlled refresh", async() => {
-  OrganizationTreeOperationsBackend.getOrganizationTreeOperationsDiagnostics.mockResolvedValueOnce({
+  treeBackendMock.getOrganizationTreeOperationsDiagnostics.mockResolvedValueOnce({
     status: "ok",
     data: buildDiagnostics({
       status: "untrusted",
@@ -378,15 +418,15 @@ test("shows fail-closed empty tree class and supports controlled refresh", async
   render(<OrganizationTreeOperationsPage account={{owner: "org-alpha", isAdmin: true}} />);
 
   await wait(() => expect(screen.getAllByText("不可信数据").length).toBeGreaterThan(0));
-  expect(screen.getByText("组织树当前未通过可信校验")).toBeInTheDocument();
+  expect(screen.getByText("组织树当前未通过可信校验")).toBeTruthy();
 
   fireEvent.click(screen.getByText("刷新诊断"));
 
-  await wait(() => expect(OrganizationTreeOperationsBackend.refreshOrganizationTreeOperations).toHaveBeenCalledWith("org-alpha", "refresh_status"));
+  await wait(() => expect(treeBackendMock.refreshOrganizationTreeOperations).toHaveBeenCalledWith("org-alpha", "refresh_status"));
 });
 
 test("refresh read model falls back to readonly diagnostics when no payload diagnostics are returned", async() => {
-  OrganizationTreeOperationsBackend.refreshOrganizationTreeOperations.mockResolvedValueOnce({
+  treeBackendMock.refreshOrganizationTreeOperations.mockResolvedValueOnce({
     status: "ok",
     data: {
       status: "queued",
@@ -397,13 +437,13 @@ test("refresh read model falls back to readonly diagnostics when no payload diag
   await screen.findByText("根部门");
   fireEvent.click(screen.getByText("重建目录视图"));
 
-  await wait(() => expect(OrganizationTreeOperationsBackend.refreshOrganizationTreeOperations).toHaveBeenCalledWith("org-alpha", "refresh_read_model"));
-  await wait(() => expect(OrganizationTreeOperationsBackend.getOrganizationTreeOperationsDiagnostics).toHaveBeenCalledTimes(2));
+  await wait(() => expect(treeBackendMock.refreshOrganizationTreeOperations).toHaveBeenCalledWith("org-alpha", "refresh_read_model"));
+  await wait(() => expect(treeBackendMock.getOrganizationTreeOperationsDiagnostics).toHaveBeenCalledTimes(2));
   expect(Setting.showMessage).toHaveBeenCalledWith("success", "刷新状态：queued");
 });
 
 test("shows business copy for no manageable department empty state without raw aliases", async() => {
-  OrganizationTreeOperationsBackend.getOrganizationTreeOperationsDiagnostics.mockResolvedValueOnce({
+  treeBackendMock.getOrganizationTreeOperationsDiagnostics.mockResolvedValueOnce({
     status: "ok",
     data: buildDiagnostics({
       emptyTreeClass: "business_empty",
@@ -428,16 +468,16 @@ test("shows business copy for no manageable department empty state without raw a
 
   render(<OrganizationTreeOperationsPage account={{owner: "org-alpha", isAdmin: true}} />);
 
-  await wait(() => expect(OrganizationTreeOperationsBackend.getOrganizationTreeOperationsDiagnostics).toHaveBeenCalled());
+  await wait(() => expect(treeBackendMock.getOrganizationTreeOperationsDiagnostics).toHaveBeenCalled());
   await wait(() => expect(screen.getAllByText("当前组织暂无可管理部门").length).toBeGreaterThan(0));
-  expect(screen.getByText("请检查组织管理范围、来源连接或管理员权限；本页仅做只读诊断，不会自动扩大可见范围。")).toBeInTheDocument();
-  expect(screen.queryByText("scope_has_no_manageable_departments")).not.toBeInTheDocument();
+  expect(screen.getByText("请检查组织管理范围、来源连接或管理员权限；本页仅做只读诊断，不会自动扩大可见范围。")).toBeTruthy();
+  expect(screen.queryByText("scope_has_no_manageable_departments")).toBeFalsy();
   expect(screen.getAllByTestId("organization-tree-summary-card").length).toBeGreaterThan(0);
   expect(screen.getAllByTestId("organization-tree-summary-card")[0].style.minHeight).toBe("72px");
 });
 
 test("renders readable fallback labels for unknown aliases without leaking raw snake case", async() => {
-  OrganizationTreeOperationsBackend.getOrganizationTreeOperationsDiagnostics.mockResolvedValueOnce({
+  treeBackendMock.getOrganizationTreeOperationsDiagnostics.mockResolvedValueOnce({
     status: "ok",
     data: buildDiagnostics({
       status: "blocked",
@@ -462,13 +502,13 @@ test("renders readable fallback labels for unknown aliases without leaking raw s
 
   render(<OrganizationTreeOperationsPage account={{owner: "org-alpha", isAdmin: true}} />);
 
-  expect(await screen.findByText("组织树当前未通过可信校验")).toBeInTheDocument();
+  expect(await screen.findByText("组织树当前未通过可信校验")).toBeTruthy();
   await wait(() => expect(screen.getAllByText("Source Connection Permission Missing").length).toBeGreaterThan(0));
-  expect(screen.queryByText("source_connection_permission_missing")).not.toBeInTheDocument();
+  expect(screen.queryByText("source_connection_permission_missing")).toBeFalsy();
 });
 
 test("keeps custom empty tree class readable with readonly next-step fallback", async() => {
-  OrganizationTreeOperationsBackend.getOrganizationTreeOperationsDiagnostics.mockResolvedValueOnce({
+  treeBackendMock.getOrganizationTreeOperationsDiagnostics.mockResolvedValueOnce({
     status: "ok",
     data: buildDiagnostics({
       emptyTreeClass: "custom_business_empty",
@@ -494,13 +534,13 @@ test("keeps custom empty tree class readable with readonly next-step fallback", 
   render(<OrganizationTreeOperationsPage account={{owner: "org-alpha", isAdmin: true}} />);
 
   await wait(() => expect(screen.getAllByText("Custom Business Empty").length).toBeGreaterThan(0));
-  expect(screen.getByText("空范围")).toBeInTheDocument();
-  expect(screen.getByText("空树仅表示当前可管理范围为空，不代表组织树能力通过。")).toBeInTheDocument();
-  expect(screen.queryByText("custom_business_empty")).not.toBeInTheDocument();
+  expect(screen.getByText("空范围")).toBeTruthy();
+  expect(screen.getByText("空树仅表示当前可管理范围为空，不代表组织树能力通过。")).toBeTruthy();
+  expect(screen.queryByText("custom_business_empty")).toBeFalsy();
 });
 
 test("shows compact summary fallbacks when source connection and sync batch are absent", async() => {
-  OrganizationTreeOperationsBackend.getOrganizationTreeOperationsDiagnostics.mockResolvedValueOnce({
+  treeBackendMock.getOrganizationTreeOperationsDiagnostics.mockResolvedValueOnce({
     status: "ok",
     data: buildDiagnostics({
       sourceConnections: [],
@@ -515,11 +555,11 @@ test("shows compact summary fallbacks when source connection and sync batch are 
 
   render(<OrganizationTreeOperationsPage account={{owner: "org-alpha", isAdmin: true}} />);
 
-  expect(await screen.findByText("无来源连接")).toBeInTheDocument();
-  expect(screen.getByText("无最近批次")).toBeInTheDocument();
-  expect(screen.getAllByTestId("organization-tree-summary-card")[0].closest(".ant-col")).toHaveClass("ant-col-xs-12");
+  expect(await screen.findByText("无来源连接")).toBeTruthy();
+  expect(screen.getByText("无最近批次")).toBeTruthy();
+  expect(screen.getAllByTestId("organization-tree-summary-card")[0].closest(".ant-col")?.className).toContain("ant-col-xs-12");
   fireEvent.click(screen.getByText("技术详情"));
-  expect(screen.getByText("batchStatus")).toBeInTheDocument();
+  expect(screen.getByText("batchStatus")).toBeTruthy();
   expect(screen.getAllByText("-").length).toBeGreaterThan(0);
 });
 
@@ -529,20 +569,43 @@ test("opens node detail drawer from readonly tree view", async() => {
   await screen.findByText("树视图");
   fireEvent.click(screen.getByText("根部门"));
 
-  expect(await screen.findByText("节点详情")).toBeInTheDocument();
-  expect(screen.getByText("batchId")).toBeInTheDocument();
-  expect(screen.getByText("sourceOrgVersion")).toBeInTheDocument();
+  expect(await screen.findByText("节点详情")).toBeTruthy();
+  expect(screen.getByText("batchId")).toBeTruthy();
+  expect(screen.getByText("sourceOrgVersion")).toBeTruthy();
 });
 
 test("shows stable error state when diagnostics endpoint is unauthorized", async() => {
-  OrganizationTreeOperationsBackend.getOrganizationTreeOperationsDiagnostics.mockResolvedValueOnce({
+  treeBackendMock.getOrganizationTreeOperationsDiagnostics.mockResolvedValueOnce({
     status: "error",
     msg: "Unauthorized operation",
   });
 
   render(<OrganizationTreeOperationsPage account={{owner: "org-alpha", isAdmin: true}} />);
 
-  expect(await screen.findByText("组织树运营数据加载失败")).toBeInTheDocument();
-  expect(screen.getByText("Unauthorized operation")).toBeInTheDocument();
+  expect(await screen.findByText("组织树运营数据加载失败")).toBeTruthy();
+  expect(screen.getByText("Unauthorized operation")).toBeTruthy();
   expect(Setting.showMessage).toHaveBeenCalledWith("error", "Unauthorized operation");
+});
+
+test("shows fail-closed server connection error when diagnostics request rejects", async() => {
+  treeBackendMock.getOrganizationTreeOperationsDiagnostics.mockRejectedValueOnce(new Error("network unavailable"));
+
+  render(<OrganizationTreeOperationsPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  expect(await screen.findByText("组织树运营数据加载失败")).toBeTruthy();
+  expect(screen.getByText("Error: network unavailable")).toBeTruthy();
+  expect(Setting.showMessage).toHaveBeenCalledWith("error", "连接服务器失败: Error: network unavailable");
+});
+
+test("clears refresh loading and keeps diagnostics visible when refresh request rejects", async() => {
+  render(<OrganizationTreeOperationsPage account={{owner: "org-alpha", isAdmin: true}} />);
+
+  await screen.findByText("根部门");
+  treeBackendMock.refreshOrganizationTreeOperations.mockRejectedValueOnce(new Error("refresh timeout"));
+  fireEvent.click(screen.getByText("刷新诊断"));
+
+  expect(await screen.findByText("组织树运营数据加载失败")).toBeTruthy();
+  expect(screen.getByText("Error: refresh timeout")).toBeTruthy();
+  expect(screen.getByText("根部门")).toBeTruthy();
+  expect(Setting.showMessage).toHaveBeenCalledWith("error", "连接服务器失败: Error: refresh timeout");
 });
