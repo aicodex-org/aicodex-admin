@@ -3,7 +3,8 @@ import i18next from "i18next";
 import {
   buildEnterpriseNavigationConfigTreeData,
   buildEnterpriseNavigationGroups,
-  findNavigationSelection
+  findNavigationSelection,
+  shouldRenderNavigationGroupAsSingleLeaf
 } from "./enterpriseNavigation";
 import {buildWorkspaceRouteItems, openWorkspaceTab} from "./common/workspaceTabState";
 import {expectEnterprisePrimaryMenuLabels} from "./enterpriseNavigationLabelRules.testUtils";
@@ -57,7 +58,7 @@ describe("enterprise identity navigation", () => {
     });
 
     expect(groups.map(group => group.label)).toEqual([
-      "中心总览",
+      "身份总览",
       "组织账号",
       "应用接入",
       "身份来源",
@@ -70,13 +71,16 @@ describe("enterprise identity navigation", () => {
     expectEnterprisePrimaryMenuLabels(groups.map(group => group.label));
     expect(groups.map(group => group.label)).not.toContain("Gateway 投影");
     expect(groups.find(group => group.key === "/overview").children.map(item => item.key))
-      .toEqual(["/", "/shortcuts"]);
+      .toEqual(["/"]);
     expect(groups.find(group => group.key === "/overview").children.map(item => item.key))
       .not.toEqual(expect.arrayContaining(["/identity-assets", "/access-wizard", "/governance-tasks"]));
     expect(groups.find(group => group.key === "/overview").children.map(item => item.key))
       .not.toContain("/apps");
+    expect(groups.find(group => group.key === "/overview").children.map(item => item.key))
+      .not.toContain("/shortcuts");
     expect(groups.find(group => group.key === "/overview").children.find(item => item.key === "/").label)
-      .toBe("企业认证总览");
+      .toBe("身份总览");
+    expect(shouldRenderNavigationGroupAsSingleLeaf(groups.find(group => group.key === "/overview"))).toBe(true);
     expect(groups.find(group => group.key === "/identity-sources").children.map(item => item.key))
       .toEqual(expect.arrayContaining(["/providers", "/wecom-org-sync", "/feishu-org-sync", "/syncers"]));
     expect(groups.find(group => group.key === "/identity-sources").children.find(item => item.key === "/providers").label)
@@ -124,11 +128,13 @@ describe("enterprise identity navigation", () => {
     ]);
     expect(groups.map(group => group.label)).not.toContain("Gateway Projection");
     expect(groups.find(group => group.key === "/overview").children.find(item => item.key === "/").label)
-      .toBe("Enterprise Identity Overview");
+      .toBe("Identity Overview");
     expect(groups.find(group => group.key === "/overview").children.map(item => item.key))
-      .toEqual(["/", "/shortcuts"]);
+      .toEqual(["/"]);
     expect(groups.find(group => group.key === "/overview").children.map(item => item.key))
       .not.toContain("/apps");
+    expect(groups.find(group => group.key === "/overview").children.map(item => item.key))
+      .not.toContain("/shortcuts");
     expect(groups.find(group => group.key === "/identity-sources").children.find(item => item.key === "/providers").label)
       .toBe("Identity Source Center");
     expect(groups.find(group => group.key === "/identity-sources").children.find(item => item.key === "/wecom-org-sync").label)
@@ -157,7 +163,7 @@ describe("enterprise identity navigation", () => {
     });
     const overviewItems = groups.find(group => group.key === "/overview").children;
 
-    expect(overviewItems.map(item => item.key)).toEqual(["/", "/apps", "/shortcuts"]);
+    expect(overviewItems.map(item => item.key)).toEqual(["/", "/apps"]);
     expect(overviewItems.find(item => item.key === "/apps").label).toBe("应用门户");
     expect(findNavigationSelection("/apps", groups)).toEqual({
       groupKey: "/overview",
@@ -223,7 +229,7 @@ describe("enterprise identity navigation", () => {
     const authorizationGovernance = rootChildren.find(node => node.key === "/authorization-governance-top");
 
     expect(rootChildren.map(node => node.title)).toEqual([
-      "中心总览",
+      "身份总览",
       "组织账号",
       "应用接入",
       "身份来源",
@@ -234,8 +240,9 @@ describe("enterprise identity navigation", () => {
       "商业付款",
     ]);
     expectEnterprisePrimaryMenuLabels(rootChildren.map(node => node.title));
-    expect(overview.children.map(item => item.key)).toEqual(["/", "/shortcuts"]);
+    expect(overview.children.map(item => item.key)).toEqual(["/"]);
     expect(overview.children.map(item => item.key)).not.toContain("/apps");
+    expect(overview.children.map(item => item.key)).not.toContain("/shortcuts");
     expect(organizationIdentity.children.map(item => item.key)).toEqual([
       "/organizations",
       "/groups",
@@ -268,7 +275,7 @@ describe("enterprise identity navigation", () => {
     });
     const routes = buildWorkspaceRouteItems(groups);
 
-    expect(routes.find(route => route.path === "/")?.label).toBe("企业认证总览");
+    expect(routes.find(route => route.path === "/")?.label).toBe("身份总览");
     expect(routes.find(route => route.path === "/applications")?.label).toBe("应用接入中心");
     expect(routes.find(route => route.path === "/agents")?.label).toBe("AI Agent 入口");
 

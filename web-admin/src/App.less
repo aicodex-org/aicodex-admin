@@ -544,6 +544,127 @@ img {
   overflow-wrap: anywhere;
 }
 
+.identity-console-overview-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1.42fr) minmax(300px, 0.58fr);
+  gap: 14px;
+  align-items: stretch;
+}
+
+.identity-console-review-section,
+.identity-console-health-section,
+.identity-console-audit-section {
+  min-width: 0;
+}
+
+.identity-console-review-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.identity-console-review-table {
+  width: 100%;
+  min-width: 680px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.identity-console-review-table th,
+.identity-console-review-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgb(226 232 240);
+  text-align: left;
+  vertical-align: top;
+}
+
+.identity-console-review-table th {
+  color: rgb(71 85 105);
+  font-size: 12px;
+  font-weight: 600;
+  background: rgb(248 250 252);
+}
+
+.identity-console-review-table th:nth-child(1) {
+  width: 43%;
+}
+
+.identity-console-review-table th:nth-child(2) {
+  width: 20%;
+}
+
+.identity-console-review-table th:nth-child(3) {
+  width: 17%;
+}
+
+.identity-console-review-table th:nth-child(4) {
+  width: 20%;
+}
+
+.identity-console-review-table td:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.identity-console-review-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.identity-console-review-table .ant-typography,
+.identity-console-health-item .ant-typography,
+.identity-console-audit-item .ant-typography {
+  overflow-wrap: anywhere;
+}
+
+.identity-console-overview-side {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.identity-console-health-list,
+.identity-console-audit-list {
+  display: grid;
+  gap: 8px;
+}
+
+.identity-console-health-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 58px;
+  padding: 10px 12px;
+  border: 1px solid rgb(226 232 240);
+  border-left-width: 4px;
+  border-radius: 8px;
+  background: rgb(248 250 252);
+}
+
+.identity-console-health-item span,
+.identity-console-audit-item span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.identity-console-audit-item {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  gap: 10px;
+  min-height: 48px;
+  padding: 9px 0;
+  border-bottom: 1px solid rgb(226 232 240);
+}
+
+.identity-console-audit-item:first-child {
+  padding-top: 0;
+}
+
+.identity-console-audit-item:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
 .enterprise-identity-two-column {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
@@ -648,6 +769,30 @@ img {
 .enterprise-identity-risk-copy .enterprise-identity-tone-processing,
 .enterprise-identity-status-tags .enterprise-identity-tone-info,
 .enterprise-identity-risk-copy .enterprise-identity-tone-info {
+  color: rgb(29 78 216);
+  background: rgb(239 246 255);
+  border-color: rgb(191 219 254);
+}
+
+.identity-console-review-table .enterprise-identity-tone-success,
+.identity-console-health-list .enterprise-identity-tone-success,
+.identity-console-audit-list .enterprise-identity-tone-success {
+  color: rgb(21 128 61);
+  background: rgb(240 253 244);
+  border-color: rgb(187 247 208);
+}
+
+.identity-console-review-table .enterprise-identity-tone-warning,
+.identity-console-health-list .enterprise-identity-tone-warning,
+.identity-console-audit-list .enterprise-identity-tone-warning {
+  color: rgb(146 64 14);
+  background: rgb(255 251 235);
+  border-color: rgb(253 230 138);
+}
+
+.identity-console-review-table .enterprise-identity-tone-processing,
+.identity-console-health-list .enterprise-identity-tone-processing,
+.identity-console-audit-list .enterprise-identity-tone-processing {
   color: rgb(29 78 216);
   background: rgb(239 246 255);
   border-color: rgb(191 219 254);
@@ -1474,6 +1619,10 @@ img {
     grid-template-columns: 1fr;
   }
 
+  .identity-console-overview-workbench {
+    grid-template-columns: 1fr;
+  }
+
   .access-wizard-domain-grid,
   .access-wizard-detail-grid,
   .access-wizard-result-evidence-grid,
@@ -1536,6 +1685,15 @@ img {
   .enterprise-identity-status-grid-4,
   .enterprise-identity-action-grid {
     grid-template-columns: 1fr;
+  }
+
+  .identity-console-review-table {
+    min-width: 620px;
+  }
+
+  .identity-console-health-item {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
   }
 
   .governance-task-filter-bar,

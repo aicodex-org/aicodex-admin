@@ -45,6 +45,11 @@ export function findNavigationSelection(uri, groups) {
   };
 }
 
+// 身份总览组只有 `/` 一个叶子时，运行时侧栏直接显示一级入口，避免“身份总览 > 身份总览”的空层级。
+export function shouldRenderNavigationGroupAsSingleLeaf(group) {
+  return group?.key === "/overview" && group.children.length === 1 && group.children[0]?.key === "/";
+}
+
 function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin = true, twoToneColor} = {}) {
   const groups = [
     {
@@ -54,7 +59,6 @@ function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin
       children: [
         {key: "/", label: i18next.t("general:Enterprise Identity Overview"), to: "/", matchPrefixes: ["/"]},
         {key: "/apps", label: i18next.t("general:Application Portal"), to: "/apps", matchPrefixes: ["/apps"], visible: !isLocalAdmin},
-        {key: "/shortcuts", label: i18next.t("general:Shortcuts"), to: "/shortcuts", matchPrefixes: ["/shortcuts"]},
       ],
     },
     {
@@ -192,7 +196,7 @@ export function buildEnterpriseNavigationConfigTreeData() {
   ];
 }
 
-// 导航分组只改变企业认证中心的信息架构语义，叶子 key 保持兼容组织级 navItems 配置。
+// 导航分组只改变身份控制台的信息架构语义，叶子 key 保持兼容组织级 navItems 配置。
 export function buildEnterpriseNavigationGroups({account, themeData}) {
   if (account === null || account === undefined) {
     return [];

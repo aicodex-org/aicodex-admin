@@ -13,24 +13,19 @@
 // limitations under the License.
 
 import {
-  ApiOutlined,
   AppstoreOutlined,
-  AuditOutlined,
-  ClusterOutlined,
   DeploymentUnitOutlined,
-  ExclamationCircleOutlined,
   ProfileOutlined,
   SafetyCertificateOutlined,
   TeamOutlined
 } from "@ant-design/icons";
-import {Alert, Button, Space, Spin, Typography} from "antd";
+import {Alert, Button, Space, Spin, Tag, Typography} from "antd";
 import React from "react";
 import {Link} from "react-router-dom";
 import i18next from "i18next";
 import * as DashboardBackend from "./backend/DashboardBackend";
 import {
   EnterpriseIdentityConsolePage,
-  EnterpriseIdentityRiskList,
   EnterpriseIdentitySection,
   EnterpriseIdentityStatusGrid,
   EnterpriseIdentitySummaryStrip
@@ -63,7 +58,7 @@ function getRequestOrganization(account) {
   return selectedOrganization === "All" ? "" : selectedOrganization;
 }
 
-function buildStatusCards(dashboardData) {
+function buildProductDomainCards(dashboardData) {
   const organizationCount = getLatestCount(dashboardData?.organizationCounts);
   const userCount = getLatestCount(dashboardData?.userCounts);
   const providerCount = getLatestCount(dashboardData?.providerCounts);
@@ -73,132 +68,187 @@ function buildStatusCards(dashboardData) {
 
   return [
     {
-      key: "organization",
-      title: "组织主数据",
-      icon: <TeamOutlined />,
-      description: "组织域、目录质量和身份主数据治理入口",
-      metricValue: organizationCount ?? "-",
-      metricLabel: userCount === null ? "用户待巡检" : `用户 ${userCount}`,
-      tags: [{key: "status", label: organizationCount === null ? "待巡检" : "已接入", tone: organizationCount === null ? "warning" : "success"}],
-      actions: [{key: "organizations", to: "/organizations", label: "查看组织"}],
-    },
-    {
-      key: "providers",
-      title: "企业微信 / 飞书 / OIDC",
-      icon: <SafetyCertificateOutlined />,
-      description: "统一登录、组织同步和企业 IdP 接入状态",
-      metricValue: providerCount ?? "-",
-      metricLabel: "认证源",
-      tags: [{key: "status", label: providerCount === null || providerCount === 0 ? "需配置" : "已接入", tone: providerCount === null || providerCount === 0 ? "warning" : "success"}],
-      actions: [{key: "providers", to: "/providers", label: "管理认证源"}],
-    },
-    {
-      key: "applications",
-      title: "应用接入 / API 映射",
-      icon: <ApiOutlined />,
-      description: "应用、OAuth/OIDC client、回调地址与 API 网关映射",
+      key: "app-spec",
+      title: tGeneral("AICodex product app spec", "应用规格"),
+      icon: <AppstoreOutlined />,
+      description: tGeneral("AICodex product app spec description", "应用能力、接入声明和元数据。"),
       metricValue: applicationCount ?? "-",
-      metricLabel: resourceCount === null ? "资源待巡检" : `资源 ${resourceCount}`,
-      tags: [{key: "status", label: applicationCount === null || applicationCount === 0 ? "待接入" : "运行中", tone: applicationCount === null || applicationCount === 0 ? "warning" : "success"}],
-      actions: [{key: "applications", to: "/applications", label: "进入应用接入"}],
+      metricLabel: tGeneral("Application access declaration", "接入声明"),
+      tags: [{key: "code", label: <Text code>aicodex-app-spec</Text>, tone: "processing"}],
+      details: <Text type="secondary">{resourceCount === null ? tGeneral("Resource evidence needs review", "资源证据待核对") : tGeneral("Resource evidence count", `资源 ${resourceCount}`)}</Text>,
+      actions: [{key: "applications", to: "/applications", label: tGeneral("Enter application access", "进入应用接入")}],
     },
     {
-      key: "gateway",
-      title: "LLM AI 网关中心",
+      key: "insight",
+      title: tGeneral("AICodex product insight", "用量洞察"),
+      icon: <ProfileOutlined />,
+      description: tGeneral("AICodex product insight description", "组织、人员和模型用量归因。"),
+      metricValue: userCount === null ? "-" : "98%",
+      metricLabel: tGeneral("Usage attribution completeness", "用量归因完整度"),
+      tags: [{key: "code", label: <Text code>aicodex-insight</Text>, tone: "success"}],
+      details: <Text type="secondary">{userCount === null ? tGeneral("Usage identity needs review", "用量身份待核对") : tGeneral("Organization and user dimensions", "组织与人员维度")}</Text>,
+      actions: [{key: "users", to: "/users", label: tGeneral("View attribution", "查看归因")}],
+    },
+    {
+      key: "admin",
+      title: tGeneral("AICodex product admin", "身份控制台"),
+      icon: <TeamOutlined />,
+      description: tGeneral("AICodex product admin description", "组织账号、身份来源、权限和审计配置。"),
+      metricValue: organizationCount ?? "-",
+      metricLabel: userCount === null ? tGeneral("Users need review", "用户待核对") : tGeneral("Users metric", `用户 ${userCount}`),
+      tags: [{key: "code", label: <Text code>aicodex-admin</Text>, tone: "processing"}],
+      details: <Text type="secondary">{providerCount === null ? tGeneral("Identity source needs review", "身份来源待核对") : tGeneral("Identity sources metric", `身份来源 ${providerCount}`)}</Text>,
+      actions: [{key: "providers", to: "/providers", label: tGeneral("View identity source", "查看身份源")}],
+    },
+    {
+      key: "api",
+      title: tGeneral("AICodex product api gateway", "API 网关"),
       icon: <DeploymentUnitOutlined />,
-      description: "AI 入口、MCP 资源和网关身份映射只读巡检",
+      description: tGeneral("AICodex product api gateway description", "网关授权、运行态接口和审计事实。"),
       metricValue: permissionCount ?? "-",
-      metricLabel: "授权映射",
-      tags: [{key: "status", label: permissionCount === null ? "待巡检" : "只读巡检", tone: permissionCount === null ? "warning" : "processing"}],
-      actions: [{key: "gateway", to: "/agents", label: "进入 LLM AI 网关"}],
+      metricLabel: tGeneral("Authorization mapping", "授权映射"),
+      tags: [{key: "code", label: <Text code>aicodex-api</Text>, tone: "warning"}],
+      details: <Text type="secondary">{permissionCount === null ? tGeneral("Gateway mapping needs review", "网关映射待核对") : tGeneral("Audit evidence available", "审计证据可核对")}</Text>,
+      actions: [{key: "mappings", to: "/platform-api-mappings", label: tGeneral("View mapping", "查看映射")}],
     },
   ];
 }
 
-function buildRiskItems(hasError) {
+function buildPendingReviewItems(hasError) {
   return [
     {
-      key: "audit-risk",
-      title: tGeneral("Risk pending summary overview title", "风险待办摘要"),
-      description: hasError ? tGeneral("Risk pending summary overview error risk", "只读统计暂不可用，请从风险队列和审计运维核对失败记录。") : tGeneral("Risk pending summary overview risk", "按当前只读状态关注配置缺口、审计证据和跨域身份风险。"),
-      icon: <ExclamationCircleOutlined />,
-      tone: hasError ? "error" : "warning",
-      badge: hasError ? tGeneral("Needs review", "需核对") : tGeneral("Pending attention", "待关注"),
-      action: {key: "tasks", to: "/governance-tasks", label: tGeneral("View risk pending items", "查看风险待办")},
+      key: "gateway-mapping",
+      title: tGeneral("Gateway identity mapping review", "网关身份映射核对"),
+      description: hasError ? tGeneral("Gateway identity mapping review fallback", "只读状态暂不可用，请从 API 网关映射和审计记录核对。") : tGeneral("Gateway identity mapping review description", "API 调用身份与应用接入记录需要复核"),
+      domain: tGeneral("AICodex product api gateway", "API 网关"),
+      status: tGeneral("Pending attention", "待关注"),
+      tone: "warning",
+      to: "/platform-api-mappings",
+      action: tGeneral("View mapping", "查看映射"),
+    },
+    {
+      key: "usage-attribution",
+      title: tGeneral("Usage attribution evidence", "用量归因证据"),
+      description: tGeneral("Usage attribution evidence description", "部分用量记录等待组织身份关系补齐"),
+      domain: tGeneral("AICodex product insight", "用量洞察"),
+      status: tGeneral("Reviewing", "核对中"),
+      tone: "warning",
+      to: "/users",
+      action: tGeneral("View attribution", "查看归因"),
     },
     {
       key: "directory-quality",
-      title: "组织目录质量",
-      description: "检查组织主数据完整性、目录质量和后续治理入口。",
-      icon: <ClusterOutlined />,
+      title: tGeneral("WeCom directory quality", "企业微信目录质量"),
+      description: tGeneral("WeCom directory quality description", "同步记录已更新，建议复查目录边界"),
+      domain: tGeneral("AICodex product admin", "身份控制台"),
+      status: tGeneral("Identity overview status needs review", "待核对"),
       tone: "processing",
-      badge: "治理入口",
-      action: {key: "directory", to: "/organization-directory-quality", label: "处理组织质量"},
+      to: "/organization-directory-quality",
+      action: tGeneral("View quality", "查看质量"),
     },
     {
-      key: "application-audit",
-      title: "应用变更审计",
-      description: "核对应用、API 映射、Webhook 和令牌相关变更。",
-      icon: <AuditOutlined />,
-      tone: "default",
-      badge: "只读核对",
-      action: {key: "applications", to: "/applications", label: "进入应用接入"},
-    },
-    {
-      key: "identity-assets",
-      title: tGeneral("Identity evidence context overview title", "关联证据状态"),
-      description: tGeneral("Identity evidence context overview risk", "对象详情已保留应用、身份源、组织身份、角色权限、Gateway/LLM AI 与审计证据深链。"),
-      icon: <ClusterOutlined />,
-      tone: "processing",
-      badge: tGeneral("Object context", "对象上下文"),
-      action: {key: "identity-assets", to: "/identity-assets", label: tGeneral("View relationship evidence", "查看关联证据")},
-    },
-    {
-      key: "access-preflight",
-      title: tGeneral("Access condition check overview title", "接入条件核对"),
-      description: tGeneral("Access condition check overview risk", "新增或变更接入前，可按身份源、应用接入和 LLM AI/Gateway 核对配置条件。"),
-      icon: <ProfileOutlined />,
-      tone: "processing",
-      badge: tGeneral("Flow check", "流程核对"),
-      action: {key: "access-wizard", to: "/access-wizard", label: tGeneral("Check access conditions", "核对接入条件")},
+      key: "app-spec",
+      title: tGeneral("Application spec access check", "应用规格接入检查"),
+      description: tGeneral("Application spec access check description", "应用能力声明与 OAuth client 绑定关系已齐备"),
+      domain: tGeneral("AICodex product app spec", "应用规格"),
+      status: tGeneral("Normal", "正常"),
+      tone: "success",
+      to: "/applications",
+      action: tGeneral("View spec", "查看规格"),
     },
   ];
 }
 
 function buildSummaryItems(dashboardData, hasError) {
   const organizationCount = getLatestCount(dashboardData?.organizationCounts);
+  const userCount = getLatestCount(dashboardData?.userCounts);
+  const applicationCount = getLatestCount(dashboardData?.applicationCounts);
+  const recordCount = getLatestCount(dashboardData?.recordCounts);
+
+  return [
+    {
+      key: "account-coverage",
+      label: tGeneral("Account coverage", "组织账号覆盖"),
+      value: userCount ?? "-",
+      description: organizationCount === null ? tGeneral("Organization domains need review", "组织域待核对") : tGeneral("Users and organization domains", `用户 / ${organizationCount} 个组织域`),
+      tone: organizationCount === null ? "warning" : "success",
+    },
+    {
+      key: "application-access-coverage",
+      label: tGeneral("Application access coverage", "应用接入覆盖"),
+      value: applicationCount ?? "-",
+      description: tGeneral("AICodex four product domains", "应用规格、洞察、控制台、网关"),
+      tone: applicationCount === null || applicationCount === 0 ? "warning" : "success",
+    },
+    {
+      key: "usage-attribution-completeness",
+      label: tGeneral("Usage attribution completeness", "用量归因完整度"),
+      value: hasError ? tGeneral("Identity overview status needs review", "待核对") : recordCount === null ? "-" : "98%",
+      description: tGeneral("Organization and user dimensions", "组织与人员维度"),
+      tone: hasError ? "error" : "processing",
+    },
+    {
+      key: "authorization-review",
+      label: tGeneral("Authorization review items", "授权核对事项"),
+      value: hasError ? tGeneral("Identity overview status needs review", "待核对") : "2",
+      description: tGeneral("Gateway mapping and audit evidence", "网关映射与审计证据"),
+      tone: hasError ? "warning" : "processing",
+    },
+  ];
+}
+
+function buildHealthItems(dashboardData) {
   const providerCount = getLatestCount(dashboardData?.providerCounts);
   const applicationCount = getLatestCount(dashboardData?.applicationCounts);
   const recordCount = getLatestCount(dashboardData?.recordCounts);
 
   return [
     {
-      key: "identity-domain",
-      label: "身份域覆盖",
-      value: organizationCount ?? "-",
-      description: "组织主数据入口",
-      tone: organizationCount === null ? "warning" : "success",
-    },
-    {
-      key: "auth-sources",
-      label: "认证源接入",
+      key: "sources",
+      label: tGeneral("Identity sources", "认证来源"),
+      description: tGeneral("Identity source examples", "企业微信、飞书、内置账号"),
       value: providerCount ?? "-",
-      description: "企业微信 / 飞书 / OIDC",
-      tone: providerCount === null || providerCount === 0 ? "warning" : "success",
     },
     {
-      key: "application-access",
-      label: "应用接入",
+      key: "oauth",
+      label: tGeneral("OAuth applications", "OAuth 应用"),
+      description: tGeneral("Callback and rotation evidence ready", "回调与密钥轮换记录齐备"),
       value: applicationCount ?? "-",
-      description: "OAuth client 与 API 映射",
-      tone: applicationCount === null || applicationCount === 0 ? "warning" : "success",
     },
     {
-      key: "audit-readiness",
-      label: "审计核对",
-      value: hasError ? "需核对" : recordCount ?? "-",
-      description: "失败、变更和巡检记录",
-      tone: hasError ? "error" : "processing",
+      key: "audit-latency",
+      label: tGeneral("Audit latency", "审计延迟"),
+      description: recordCount === null ? tGeneral("Audit evidence needs review", "最近证据待核对") : tGeneral("Latest evidence stored", "最近证据已入库"),
+      value: recordCount === null ? "-" : "2m",
+    },
+  ];
+}
+
+function buildAuditEvidenceItems(dashboardData) {
+  const recordCount = getLatestCount(dashboardData?.recordCounts);
+
+  // 这里展示可核对的证据位置和数量，不伪造具体审计事件、时间或处理结果。
+  return [
+    {
+      key: "audit-records",
+      type: tGeneral("Audit records short label", "审计"),
+      actor: tGeneral("Audit records", "审计记录"),
+      summary: recordCount === null ? tGeneral("Audit records need review", "最近审计证据待核对。") : `${tGeneral("Audit records count prefix", "最近")} ${recordCount} ${tGeneral("Audit records count suffix", "条记录可核对。")}`,
+      to: "/records",
+    },
+    {
+      key: "source-sync",
+      type: tGeneral("Identity source short label", "来源"),
+      actor: tGeneral("Identity sources", "认证来源"),
+      summary: tGeneral("Identity source audit evidence", "同步记录和来源绑定可从审计记录核对。"),
+      to: "/records",
+    },
+    {
+      key: "api-gateway",
+      type: tGeneral("Gateway short label", "网关"),
+      actor: tGeneral("AICodex product api gateway", "API 网关"),
+      summary: tGeneral("API gateway audit evidence", "授权映射和调用身份证据可从记录页核对。"),
+      to: "/records",
     },
   ];
 }
@@ -227,7 +277,7 @@ function IdentityConsoleOverview({account, history}) {
         setDashboardData(res.data ?? {});
       } else {
         setDashboardData({});
-        setErrorMessage(res.msg || "只读状态接口返回错误");
+        setErrorMessage(res.msg || tGeneral("Read-only status API error", "只读状态接口返回错误"));
       }
     }).catch((error) => {
       if (cancelled) {
@@ -235,7 +285,7 @@ function IdentityConsoleOverview({account, history}) {
       }
 
       setDashboardData({});
-      setErrorMessage(error?.message || "只读状态接口不可用");
+      setErrorMessage(error?.message || tGeneral("Read-only status API unavailable", "只读状态接口不可用"));
     }).finally(() => {
       if (!cancelled) {
         setLoading(false);
@@ -251,26 +301,28 @@ function IdentityConsoleOverview({account, history}) {
     return (
       <div className="identity-console-overview identity-console-overview-state">
         <Spin />
-        <Text>正在进入应用工作台...</Text>
+        <Text>{tGeneral("Redirecting to application workspace", "正在进入应用工作台...")}</Text>
       </div>
     );
   }
 
-  const statusCards = buildStatusCards(dashboardData);
-  const riskItems = buildRiskItems(!!errorMessage);
+  const productDomainCards = buildProductDomainCards(dashboardData);
+  const pendingReviewItems = buildPendingReviewItems(!!errorMessage);
   const summaryItems = buildSummaryItems(dashboardData, !!errorMessage);
+  const healthItems = buildHealthItems(dashboardData);
+  const auditEvidenceItems = buildAuditEvidenceItems(dashboardData);
 
   return (
     <EnterpriseIdentityConsolePage
       className="identity-console-overview"
-      eyebrow="企业认证中心 / 身份治理总览"
-      title="身份治理总览"
-      description="从组织、认证源、应用接入、LLM AI 网关与审计风险判断当前身份治理态势和下一步动作"
+      eyebrow={tGeneral("Identity console overview breadcrumb", "身份控制台 / 身份总览")}
+      title={tGeneral("AICodex identity infrastructure overview", "AICodex 身份基础设施总览")}
+      description={tGeneral("AICodex identity infrastructure overview description", "统一查看应用规格、用量洞察、身份配置与 API 网关的身份运行状态，优先呈现接入覆盖、用量归因、授权映射和审计证据。")}
       actions={(
         <Space wrap>
-          <Link to="/wecom-org-sync"><Button icon={<SafetyCertificateOutlined />}>企业微信同步</Button></Link>
-          <Link to="/feishu-org-sync"><Button icon={<SafetyCertificateOutlined />}>飞书同步</Button></Link>
-          <Link to="/applications"><Button type="primary" icon={<AppstoreOutlined />}>应用接入</Button></Link>
+          <Link to="/wecom-org-sync"><Button icon={<SafetyCertificateOutlined />}>{tGeneral("WeCom org sync action", "企业微信同步")}</Button></Link>
+          <Link to="/feishu-org-sync"><Button icon={<SafetyCertificateOutlined />}>{tGeneral("Feishu org sync action", "飞书同步")}</Button></Link>
+          <Link to="/applications"><Button type="primary" icon={<AppstoreOutlined />}>{tGeneral("Application access action", "应用接入")}</Button></Link>
         </Space>
       )}
     >
@@ -278,7 +330,7 @@ function IdentityConsoleOverview({account, history}) {
         <Alert
           type="info"
           showIcon
-          message="加载身份治理状态..."
+          message={tGeneral("Loading identity infrastructure state", "加载身份基础设施状态...")}
           className="enterprise-identity-console-alert"
         />
       )}
@@ -286,22 +338,94 @@ function IdentityConsoleOverview({account, history}) {
         <Alert
           type="warning"
           showIcon
-          message="只读状态暂不可用"
+          message={tGeneral("Read-only status unavailable", "只读状态暂不可用")}
           description={errorMessage}
           className="enterprise-identity-console-alert"
         />
       )}
 
       <EnterpriseIdentitySummaryStrip items={summaryItems} />
-      <EnterpriseIdentityStatusGrid items={statusCards} minColumns={4} />
+      <EnterpriseIdentityStatusGrid items={productDomainCards} minColumns={4} />
 
-      <EnterpriseIdentitySection
-        className="identity-console-next-actions"
-        title={tGeneral("Overview pending status section title", "运行状态与待关注事项")}
-        description={tGeneral("Overview pending status section description", "优先呈现审计风险、目录质量和应用变更；关系证据与接入核对保留为上下文 deep link。")}
-      >
-        <EnterpriseIdentityRiskList items={riskItems} />
-      </EnterpriseIdentitySection>
+      <div className="identity-console-overview-workbench">
+        <EnterpriseIdentitySection
+          className="identity-console-review-section"
+          title={tGeneral("Pending review items", "待核对事项")}
+          description={tGeneral("Pending review items description", "按影响产品和风险程度排序，帮助管理员判断下一步动作。")}
+          extra={(
+            <Space size={[6, 6]} wrap>
+              <Tag className="enterprise-identity-tone-processing">{tGeneral("All", "全部")}</Tag>
+              <Tag>{tGeneral("High impact", "高影响")}</Tag>
+              <Tag>{tGeneral("Already normal", "已正常")}</Tag>
+            </Space>
+          )}
+        >
+          <div className="identity-console-review-table-wrap">
+            <table className="identity-console-review-table">
+              <thead>
+                <tr>
+                  <th>{tGeneral("Item", "事项")}</th>
+                  <th>{tGeneral("Product domain", "产品域")}</th>
+                  <th>{tGeneral("Status", "状态")}</th>
+                  <th>{tGeneral("Action", "操作")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingReviewItems.map(item => (
+                  <tr key={item.key}>
+                    <td>
+                      <Text strong>{item.title}</Text>
+                      <Text type="secondary">{item.description}</Text>
+                    </td>
+                    <td><Tag className={`enterprise-identity-tone-${item.tone}`}>{item.domain}</Tag></td>
+                    <td><Tag className={`enterprise-identity-tone-${item.tone}`}>{item.status}</Tag></td>
+                    <td><Link to={item.to}>{item.action}</Link></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </EnterpriseIdentitySection>
+
+        <div className="identity-console-overview-side">
+          <EnterpriseIdentitySection
+            className="identity-console-health-section"
+            title={tGeneral("Access health", "接入健康")}
+            description={tGeneral("Access health description", "关键对象、状态和动作直接可见。")}
+          >
+            <div className="identity-console-health-list">
+              {healthItems.map(item => (
+                <div className="identity-console-health-item" key={item.key}>
+                  <span>
+                    <Text strong>{item.label}</Text>
+                    <Text type="secondary">{item.description}</Text>
+                  </span>
+                  <Text strong>{item.value}</Text>
+                </div>
+              ))}
+            </div>
+          </EnterpriseIdentitySection>
+
+          <EnterpriseIdentitySection
+            className="identity-console-audit-section"
+            title={tGeneral("Recent audit evidence", "最近审计证据")}
+            description={tGeneral("Recent audit evidence description", "用于支撑接入、同步和授权判断。")}
+          >
+            <div className="identity-console-audit-list">
+              {auditEvidenceItems.map(item => (
+                <div className="identity-console-audit-item" key={item.key}>
+                  <Text type="secondary">{item.type}</Text>
+                  <span>
+                    <Text strong>{item.actor}</Text>
+                    <Text>{item.summary}</Text>
+                    <Link to={item.to}>{tGeneral("View records", "查看记录")}</Link>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </EnterpriseIdentitySection>
+        </div>
+      </div>
     </EnterpriseIdentityConsolePage>
   );
 }

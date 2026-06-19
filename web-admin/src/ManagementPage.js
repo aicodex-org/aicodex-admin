@@ -121,7 +121,11 @@ import SiteEditPage from "./SiteEditPage";
 import RuleListPage from "./RuleListPage";
 import RuleEditPage from "./RuleEditPage";
 import {getAdminLoginRedirectPath} from "./adminLoginRouting";
-import {buildEnterpriseNavigationGroups, findNavigationSelection} from "./enterpriseNavigation";
+import {
+  buildEnterpriseNavigationGroups,
+  findNavigationSelection,
+  shouldRenderNavigationGroupAsSingleLeaf
+} from "./enterpriseNavigation";
 import GovernanceTaskCenter from "./GovernanceTaskCenter";
 import AccessWizardPage from "./AccessWizardPage";
 import IdentityEvidenceChainPage from "./IdentityEvidenceChainPage";
@@ -315,13 +319,20 @@ function ManagementPage(props) {
   }
 
   function getSidebarMenuItems(groups) {
-    return groups.map((group) => Setting.getItem(group.label, group.key, group.icon, group.children.map((item) => {
-      if (item.external) {
-        return Setting.getItem(<a target="_blank" rel="noreferrer" href={item.href}>{item.label}</a>, item.key);
+    return groups.map((group) => {
+      if (shouldRenderNavigationGroupAsSingleLeaf(group)) {
+        const item = group.children[0];
+        return Setting.getItem(<Link to={item.to}>{group.label}</Link>, item.key, group.icon);
       }
 
-      return Setting.getItem(<Link to={item.to}>{item.label}</Link>, item.key);
-    })));
+      return Setting.getItem(group.label, group.key, group.icon, group.children.map((item) => {
+        if (item.external) {
+          return Setting.getItem(<a target="_blank" rel="noreferrer" href={item.href}>{item.label}</a>, item.key);
+        }
+
+        return Setting.getItem(<Link to={item.to}>{item.label}</Link>, item.key);
+      }));
+    });
   }
 
   const navigationGroups = getNavigationGroups();

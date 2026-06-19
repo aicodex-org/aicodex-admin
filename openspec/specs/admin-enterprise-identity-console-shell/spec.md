@@ -1,14 +1,14 @@
 # admin-enterprise-identity-console-shell Specification
 
 ## Purpose
-定义 Admin 企业认证中心 Shell 的首页、导航信息架构、只读状态入口和安全降级边界，使管理员能够从首屏理解组织、认证源、应用接入、Gateway 投影和审计运维的当前状态与下一步入口。
+定义 Admin 身份控制台 Shell 的首页、导航信息架构、只读状态入口和安全降级边界，使管理员能够从首屏理解组织、认证源、应用接入、API 网关和审计运维的当前状态与下一步入口。
 ## Requirements
 ### Requirement: 身份治理总览首页
-Admin 管理员访问根路径 `/` 时，系统 SHALL 展示企业认证中心的身份治理总览，而不是营销落地页、旧后台趋势图优先的首页或松散卡片集合。
+Admin 管理员访问根路径 `/` 时，系统 SHALL 展示身份控制台的身份总览，而不是营销落地页、旧后台趋势图优先的首页或松散卡片集合。
 
 #### Scenario: 管理员访问总览
 - **WHEN** 已登录管理员访问 `/`
-- **THEN** 页面展示组织主数据、认证源、应用接入、Gateway 投影、审计风险等企业认证中心状态入口
+- **THEN** 页面展示组织主数据、认证源、应用接入、API 网关、审计风险等身份控制台状态入口
 - **AND** 页面提供跳转到既有组织、认证源、应用接入中心、API 映射和运维页面的操作入口
 
 #### Scenario: 总览展示控制台结构
@@ -26,12 +26,12 @@ Admin 管理员访问根路径 `/` 时，系统 SHALL 展示企业认证中心�
 - **THEN** 页面展示局部错误或空态
 - **AND** 仍保留可进入既有页面的操作入口
 
-### Requirement: 企业认证中心导航信息架构
-Admin 左侧导航 SHALL 以企业认证中心语义组织既有页面入口，至少包含总览、组织与身份、认证源、应用接入、LLM AI、权限治理、审计运维这些一级分组；审计运维分组 SHALL 聚焦会话核对、审计记录、令牌核对和验证核对四类运行态入口，并与组织配置页导航树复用同一 IA。
+### Requirement: 身份控制台导航信息架构
+Admin 左侧导航 SHALL 以身份控制台语义组织既有页面入口，至少包含总览、组织与身份、认证源、应用接入、LLM AI、权限治理、审计运维这些一级分组；审计运维分组 SHALL 聚焦会话核对、审计记录、令牌核对和验证核对四类运行态入口，并与组织配置页导航树复用同一 IA。
 
-#### Scenario: 导航展示企业认证中心分组
+#### Scenario: 导航展示身份控制台分组
 - **WHEN** 管理员打开桌面端 Admin 壳层
-- **THEN** 左侧导航展示企业认证中心分组
+- **THEN** 左侧导航展示身份控制台分组
 - **AND** 应用接入分组中的 `/applications` 叶子入口展示为“应用接入中心”
 - **AND** 审计运维分组中的 `/sessions`、`/records`、`/tokens`、`/verifications` 叶子入口分别展示为会话核对、审计记录、令牌核对和验证核对
 - **AND** 既有页面路由仍通过原有叶子菜单进入
@@ -51,7 +51,7 @@ Admin 左侧导航 SHALL 以企业认证中心语义组织既有页面入口，�
 - **AND** 配置值仍使用 `/sessions`、`/records`、`/tokens`、`/verifications` 这些稳定叶子 key
 
 ### Requirement: Shell 边界与安全降级
-企业认证中心 Shell SHALL 只做只读总览、导航重组和既有入口聚合，不得触发认证、同步、Gateway projection publish、重试或真实环境探测等写入/执行行为。
+身份控制台 Shell SHALL 只做只读总览、导航重组和既有入口聚合，不得触发认证、同步、Gateway projection publish、重试或真实环境探测等写入/执行行为。
 
 #### Scenario: 总览展示同步与投影状态
 - **WHEN** 总览展示企业微信、飞书、OIDC、API 映射或 Gateway 投影相关状态
@@ -59,15 +59,15 @@ Admin 左侧导航 SHALL 以企业认证中心语义组织既有页面入口，�
 - **AND** 不调用会改变认证链路、组织同步或 projection publish 状态的接口
 
 #### Scenario: 无权限或无数据
-- **WHEN** 当前账号无权访问某些企业认证中心入口或相关数据为空
+- **WHEN** 当前账号无权访问某些身份控制台入口或相关数据为空
 - **THEN** 页面展示无权限/无数据状态
 - **AND** 不暴露隐藏入口、真实组织树、真实用户明细或敏感环境信息
 
 ### Requirement: 企业 SaaS 管理台视觉
-企业认证中心 Shell SHALL 使用安静、专业、信息密度合理且按业务域分化的管理台视觉，避免大 hero、装饰渐变、营销式介绍、卡片套卡片和所有列表页套同一工作台模板；总览、组织身份、认证源、应用接入、LLM AI/Gateway 和审计运维 SHALL 使用一致的控制台基础语言，但首屏结构、文案、指标和操作入口 SHALL 服务各自业务域。
+身份控制台 Shell SHALL 使用安静、专业、信息密度合理且按业务域分化的管理台视觉，避免大 hero、装饰渐变、营销式介绍、卡片套卡片和所有列表页套同一工作台模板；总览、组织身份、认证源、应用接入、LLM AI/Gateway 和审计运维 SHALL 使用一致的控制台基础语言，但首屏结构、文案、指标和操作入口 SHALL 服务各自业务域。
 
 #### Scenario: 桌面端首屏
-- **WHEN** 管理员在桌面端打开总览或企业认证中心子页面
+- **WHEN** 管理员在桌面端打开总览或身份控制台子页面
 - **THEN** 首屏展示可扫描的状态区、风险区、入口区和对应页面的核心列表或核心操作
 - **AND** 文案服务于操作决策
 
@@ -79,27 +79,27 @@ Admin 左侧导航 SHALL 以企业认证中心语义组织既有页面入口，�
 - **AND** 页面 SHALL NOT 把核心列表长期压到 1440x900 首屏以下，除非验证记录说明 legacy 表格或数据结构限制
 
 #### Scenario: 窄屏展示
-- **WHEN** 管理员在窄屏或移动端打开企业认证中心页面
+- **WHEN** 管理员在窄屏或移动端打开身份控制台页面
 - **THEN** 文本、按钮和状态卡片不发生重叠或不可读溢出
 - **AND** 页头、摘要、入口和列表之间 SHALL 使用紧凑响应式间距
 - **AND** 关键入口和核心列表仍可触达
 
-### Requirement: 企业认证中心旧 Tour 降级
-企业认证中心 Shell SHALL 避免在企业认证中心路由下自动弹出旧 Casdoor 英文 Tour 遮罩；如需要导引，导引文案和步骤 MUST 使用企业认证中心语义并走 `zh` / `en` locale。
+### Requirement: 身份控制台旧 Tour 降级
+身份控制台 Shell SHALL 避免在身份控制台路由下自动弹出旧 Casdoor 英文 Tour 遮罩；如需要导引，导引文案和步骤 MUST 使用身份控制台语义并走 `zh` / `en` locale。
 
-#### Scenario: 首次访问企业认证中心列表页
+#### Scenario: 首次访问身份控制台列表页
 - **WHEN** 管理员首次访问 `/organizations`、`/users`、`/roles`、`/permissions`、`/providers`、`/applications`、`/sessions`、`/records`、`/tokens`、`/verifications` 或 `/agents`
 - **THEN** 页面 SHALL NOT 自动展示硬编码英文 `Organization List`、`User List`、`Application List` 或等价旧 Casdoor Tour 遮罩
 - **AND** 核心列表、表格或主要操作区域不被 Tour 遮挡
 
-#### Scenario: 后续重建企业认证中心导引
-- **WHEN** 系统提供新的企业认证中心导引
+#### Scenario: 后续重建身份控制台导引
+- **WHEN** 系统提供新的身份控制台导引
 - **THEN** 导引文案 SHALL 同步 `zh` / `en` locale
 - **AND** 导引步骤 SHALL 使用企业身份治理、认证源、应用接入、审计运维、LLM AI/Gateway 等当前信息架构文案
 - **AND** 导引 SHALL 支持用户关闭或跳过，不阻塞核心列表操作
 
 ### Requirement: 核心页面 P0 信息密度和入口降级
-Admin 企业认证中心核心页面 SHALL prioritize operational status, table workflows and safe next actions over prominent standalone governance entrances.
+Admin 身份控制台核心页面 SHALL prioritize operational status, table workflows and safe next actions over prominent standalone governance entrances.
 
 #### Scenario: 身份治理总览不再是能力入口目录
 - **WHEN** 管理员在桌面端打开 `/`
@@ -132,7 +132,7 @@ Admin 企业认证中心核心页面 SHALL prioritize operational status, table 
 - **AND** raw audit evidence SHALL remain available in a detail drawer or folded detail area with sensitive values redacted by default.
 
 ### Requirement: 核心页面 P0 响应式与验证证据
-Admin 企业认证中心 P0 polish SHALL preserve existing route compatibility and SHALL be verified with source-level checks and browser evidence when tooling allows.
+Admin 身份控制台 P0 polish SHALL preserve existing route compatibility and SHALL be verified with source-level checks and browser evidence when tooling allows.
 
 #### Scenario: 路由和深链保持兼容
 - **WHEN** the P0 polish demotes a capability entrance or moves technical fields to details
@@ -151,7 +151,7 @@ Admin 企业认证中心 P0 polish SHALL preserve existing route compatibility a
 - **AND** buttons, selectors, form grids and table wrappers SHALL wrap or contain their own horizontal scrolling without creating document-level horizontal overflow.
 
 ### Requirement: 总览横向能力降噪
-Admin 企业认证中心总览 SHALL 以运行状态、待关注事项或上下文 deep link 呈现跨域能力，而不是显眼连续展示一组独立中心目录。
+Admin 身份控制台总览 SHALL 以运行状态、待关注事项或上下文 deep link 呈现跨域能力，而不是显眼连续展示一组独立中心目录。
 
 #### Scenario: 总览不连续堆叠抽象能力入口
 - **WHEN** 已登录管理员访问 `/`
@@ -165,7 +165,7 @@ Admin 企业认证中心总览 SHALL 以运行状态、待关注事项或上下�
 - **AND** 文案 SHALL NOT 要求管理员先理解新的独立中心概念，才能判断下一步应核对什么
 
 ### Requirement: 组织运营空态与目录质量诊断保持业务可读
-Admin 企业认证中心的组织树运营页和组织目录质量页 SHALL 将后端实现 alias 转换为管理员可理解的业务文案，保持只读边界可见，并让移动端状态摘要足够紧凑，使核心列表或诊断区域容易到达。
+Admin 身份控制台的组织树运营页和组织目录质量页 SHALL 将后端实现 alias 转换为管理员可理解的业务文案，保持只读边界可见，并让移动端状态摘要足够紧凑，使核心列表或诊断区域容易到达。
 
 #### Scenario: 无可管理部门时不直出 raw alias
 - **WHEN** 管理员打开组织树运营页或组织目录质量页，且后端返回 `scope_has_no_manageable_departments` 或等价的无可管理部门 alias
@@ -185,10 +185,10 @@ Admin 企业认证中心的组织树运营页和组织目录质量页 SHALL 将�
 - **AND** 技术 lineage 字段 SHALL 继续在详情区域可用，但不主导默认摘要
 
 ### Requirement: 旧应用门户入口不得伪装为企业应用列表
-Admin 企业认证中心 Shell SHALL distinguish the legacy `/apps` application portal from the `/applications` application access center. Local admin enterprise navigation SHALL NOT render `/apps` as the primary application list entry, and `/applications` SHALL remain the administrator-facing application access center under the application access business domain.
+Admin 身份控制台 Shell SHALL distinguish the legacy `/apps` application portal from the `/applications` application access center. Local admin enterprise navigation SHALL NOT render `/apps` as the primary application list entry, and `/applications` SHALL remain the administrator-facing application access center under the application access business domain.
 
 #### Scenario: Local admin 主导航隐藏旧应用门户
-- **WHEN** local admin 打开企业认证中心桌面侧栏或移动端抽屉
+- **WHEN** local admin 打开身份控制台桌面侧栏或移动端抽屉
 - **THEN** “中心总览”分组 SHALL NOT include a `/apps` leaf entry
 - **AND** “应用接入”分组 SHALL include `/applications` as the application access center entry
 
@@ -203,7 +203,7 @@ Admin 企业认证中心 Shell SHALL distinguish the legacy `/apps` application 
 - **AND** any visible navigation label for `/apps` SHALL describe it as an application portal or application entry, not the administrator application list
 
 ### Requirement: 业务域信息架构和抽象能力降级
-Admin 企业认证中心 Shell SHALL organize primary navigation by administrator business domains, and SHALL keep cross-domain governance capabilities contextual unless a follow-up product decision proves they need prominent primary navigation.
+Admin 身份控制台 Shell SHALL organize primary navigation by administrator business domains, and SHALL keep cross-domain governance capabilities contextual unless a follow-up product decision proves they need prominent primary navigation.
 
 #### Scenario: 主导航展示业务域
 - **WHEN** 已登录管理员打开桌面端 Admin 壳层
@@ -211,7 +211,7 @@ Admin 企业认证中心 Shell SHALL organize primary navigation by administrato
 - **AND** 主导航 SHALL NOT use implementation history, helper modules or abstract governance terms as the default top-level taxonomy
 
 #### Scenario: 一级菜单命名保持四字中文优先
-- **WHEN** 后续 change 新增或调整 Admin 企业认证中心一级菜单标签、菜单分组名或菜单文档命名
+- **WHEN** 后续 change 新增或调整 Admin 身份控制台一级菜单标签、菜单分组名或菜单文档命名
 - **THEN** 一级菜单命名 SHALL 默认采用四字中文业务名优先
 - **AND** 菜单标签 SHALL NOT 使用过长解释性短语，也 SHALL NOT 为新增治理概念继续扩张显眼的“中心”或“工作台”入口
 - **AND** LLM AI/Gateway、OAuth/OIDC、Provider、MCP 等专有技术词 MAY 保留中英混合表达
@@ -239,8 +239,8 @@ Future Admin enterprise identity UI tasks SHALL be judged by whether they improv
 - **THEN** validation SHALL include browser evidence on representative desktop and mobile routes
 - **AND** evidence SHALL check first-viewport core operation visibility, no old Tour or overlay, no page-level horizontal overflow, no console warning/error regression and no sensitive data exposure
 
-### Requirement: 企业认证中心一级菜单命名门禁
-Admin 企业认证中心 Shell SHALL 保持一级导航标签简洁、面向业务域且受测试门禁保护。常规中文一级菜单标签 MUST 使用四个中文字符，`LLM AI/Gateway` 等专有技术词 MAY 通过显式 allowlist 保留；没有明确产品例外时，新的抽象“中心/工作台/任务中心/快捷入口”式一级入口 SHALL NOT 被新增。
+### Requirement: 身份控制台一级菜单命名门禁
+Admin 身份控制台 Shell SHALL 保持一级导航标签简洁、面向业务域且受测试门禁保护。常规中文一级菜单标签 MUST 使用四个中文字符，`LLM AI/Gateway` 等专有技术词 MAY 通过显式 allowlist 保留；没有明确产品例外时，新的抽象“中心/工作台/任务中心/快捷入口”式一级入口 SHALL NOT 被新增。
 
 #### Scenario: 中文一级菜单使用四字业务名
 - **WHEN** 管理员使用中文界面打开桌面侧栏或组织导航配置树
@@ -248,7 +248,7 @@ Admin 企业认证中心 Shell SHALL 保持一级导航标签简洁、面向业�
 - **AND** `LLM AI/Gateway` 等允许保留的专有技术标签 SHALL 记录在导航测试 allowlist 中
 
 #### Scenario: 一级菜单不新增抽象入口
-- **WHEN** 后续 change 新增或重命名 Admin 企业认证中心一级导航分组
+- **WHEN** 后续 change 新增或重命名 Admin 身份控制台一级导航分组
 - **THEN** 如果标签引入泛化中心、工作台、任务中心或快捷入口等明显抽象主入口命名，导航测试 SHALL 失败
 - **AND** 跨域能力默认 SHALL 通过总览状态、对象上下文、抽屉、工具栏动作、向导步骤或兼容 deep link 继续可达
 
@@ -258,10 +258,10 @@ Admin 企业认证中心 Shell SHALL 保持一级导航标签简洁、面向业�
 - **AND** 一级标签调整后，route key、叶子 key 和权限过滤 SHALL 保持稳定
 
 ### Requirement: 桌面工作区多标签
-Admin 企业认证中心 Shell SHALL 在桌面端 header 下方、主内容区上方展示 route-driven workspace tabs，用于表示当前工作会话中已打开的页面；左侧菜单仍负责主导航，标签栏不得替代或扩张一级菜单体系。
+Admin 身份控制台 Shell SHALL 在桌面端 header 下方、主内容区上方展示 route-driven workspace tabs，用于表示当前工作会话中已打开的页面；左侧菜单仍负责主导航，标签栏不得替代或扩张一级菜单体系。
 
 #### Scenario: 桌面端打开页面生成标签
-- **WHEN** 管理员在桌面端通过左侧菜单或 deep link 访问 `/applications`、`/providers`、`/records`、`/organizations`、`/users`、`/agents` 或其它可见企业认证中心路由
+- **WHEN** 管理员在桌面端通过左侧菜单或 deep link 访问 `/applications`、`/providers`、`/records`、`/organizations`、`/users`、`/agents` 或其它可见身份控制台路由
 - **THEN** Shell SHALL 在 header 下方展示对应工作页面标签
 - **AND** 当前 route 的标签 SHALL 以克制蓝色文字、蓝点或上边线/边框表达激活态
 - **AND** 非激活标签 SHALL 使用低对比灰底灰字
@@ -287,15 +287,15 @@ Admin 企业认证中心 Shell SHALL 在桌面端 header 下方、主内容区�
 - **AND** 标签栏 SHALL NOT 让页面出现无限横向撑开或页面级横向溢出
 
 #### Scenario: 标签栏与内容区分隔清晰
-- **WHEN** 管理员打开任一桌面企业认证中心页面
+- **WHEN** 管理员打开任一桌面身份控制台页面
 - **THEN** 标签栏与主页面内容之间 SHALL 使用 `1px` 分隔线和 `6-8px` 浅灰 gutter/divider
 - **AND** 标签栏 SHALL NOT 贴住页面标题、筛选区或主表格工具栏
 
 ### Requirement: 移动端工作区标签降级
-Admin 企业认证中心 Shell SHALL 在移动端避免渲染完整多标签栏，改为展示当前页面标题或路径以及一个“更多”入口，以保护首屏空间和可读性。
+Admin 身份控制台 Shell SHALL 在移动端避免渲染完整多标签栏，改为展示当前页面标题或路径以及一个“更多”入口，以保护首屏空间和可读性。
 
 #### Scenario: 移动端不展示完整 tabs
-- **WHEN** 管理员在 `390x844` 或等价移动视口打开企业认证中心页面
+- **WHEN** 管理员在 `390x844` 或等价移动视口打开身份控制台页面
 - **THEN** Shell SHALL NOT 渲染完整桌面多标签列表
 - **AND** Shell SHALL 展示当前页面标题或 route 路径
 - **AND** Shell SHALL 提供“更多”入口访问已打开工作页面
@@ -306,7 +306,7 @@ Admin 企业认证中心 Shell SHALL 在移动端避免渲染完整多标签栏�
 - **AND** 主内容首屏 SHALL NOT 因标签栏明显下沉
 
 ### Requirement: 工作区标签状态轻量持久化
-Admin 企业认证中心 Shell SHALL 通过 route-driven state 和浏览器会话级存储轻量保存已打开标签，不得依赖 iframe、复杂 keep-alive 或跨页面业务状态缓存。
+Admin 身份控制台 Shell SHALL 通过 route-driven state 和浏览器会话级存储轻量保存已打开标签，不得依赖 iframe、复杂 keep-alive 或跨页面业务状态缓存。
 
 #### Scenario: 会话内恢复打开标签
 - **WHEN** 管理员在同一浏览器会话中刷新 Admin 页面
@@ -317,3 +317,63 @@ Admin 企业认证中心 Shell SHALL 通过 route-driven state 和浏览器会�
 - **WHEN** 管理员在标签间切换
 - **THEN** Shell SHALL 使用现有 React route 渲染对应页面
 - **AND** Shell SHALL NOT 使用 iframe、隐藏页面 keep-alive 或本地伪造页面状态替代真实 route 行为
+
+### Requirement: AICodex 身份基础设施总览
+Admin 身份控制台总览 SHALL 以 `AICodex 身份基础设施总览` 呈现 AICodex 四个产品域的身份运行状态、接入覆盖、待核对事项和审计证据，而不是泛企业认证中心入口集合。
+
+#### Scenario: 总览标题和面包屑使用身份控制台口径
+- **WHEN** local admin 访问 `/`
+- **THEN** 页面主标题 SHALL 为 `AICodex 身份基础设施总览`
+- **AND** 面包屑 SHALL 为 `身份控制台 / 身份总览`
+- **AND** 页面 SHALL NOT 使用 `企业认证中心` 作为用户可见产品名
+
+#### Scenario: 总览覆盖 AICodex 四个产品域
+- **WHEN** 页面展示产品域覆盖
+- **THEN** 页面 SHALL 展示 `应用规格`、`用量洞察`、`身份控制台`、`API 网关` 四个业务名
+- **AND** `aicodex-app-spec`、`aicodex-insight`、`aicodex-admin`、`aicodex-api` SHALL 仅作为二级 code tag 或证据标识展示
+- **AND** 产品域卡片 SHALL 帮助管理员理解接入声明、用量归因、组织身份配置、Gateway 授权和审计事实
+
+#### Scenario: 总览优先状态和证据
+- **WHEN** 管理员在 `1440x900` 桌面视口打开 `/`
+- **THEN** 首屏 SHALL 可见覆盖指标、四产品域、待核对事项、接入健康或最近审计证据
+- **AND** `身份资产关系`、`治理任务中心`、`接入预检中心` SHALL NOT 作为总览显眼入口堆叠出现
+- **AND** 指向既有能力的链接 MAY 以核对建议、状态操作或低噪上下文入口保持可达
+
+#### Scenario: 没有真实处理流时使用核对状态
+- **WHEN** 总览展示风险、授权映射、用量归因、接入或审计相关状态
+- **THEN** UI SHALL 使用 `待核对`、`待关注`、`核对建议`、`核对中`、`正常` 或等价只读核对文案
+- **AND** UI SHALL NOT 展示 `待处理` 或暗示已有后端工单处理闭环的状态
+
+#### Scenario: 总览不暴露内部设计或实现术语
+- **WHEN** 管理员查看总览可见文案
+- **THEN** 页面 SHALL NOT 展示 `国内云控制台式密度`、`避免把治理入口堆到菜单里`、`对象上下文`、`deep link`、`只读推导`、`当前列表视图` 等内部设计术语或实现痕迹
+
+### Requirement: 身份总览导航入口收敛
+Admin 身份控制台左侧首个一级菜单 SHALL 为 `身份总览`，并 SHALL 避免用独立 `快捷操作` 入口填充首页导航。
+
+#### Scenario: 首个一级菜单为身份总览
+- **WHEN** local admin 打开桌面侧栏、移动抽屉或组织导航配置树
+- **THEN** 首个一级入口 SHALL 使用 `身份总览`
+- **AND** 它 SHALL 指向 `/` 总览路由
+- **AND** 如果首组只剩一个总览子项，壳层 SHOULD 将其直接渲染为一级菜单项，而不是展示只有一个二级入口的分组
+
+#### Scenario: 快捷操作不作为显眼侧栏入口
+- **WHEN** local admin 查看身份控制台侧栏或移动抽屉
+- **THEN** 侧栏 SHALL NOT 展示独立 `快捷操作` 主入口
+- **AND** `/shortcuts` 路由兼容性 MAY 保留，但不作为身份总览第一屏或首组菜单的显眼入口
+
+### Requirement: Admin 身份控制台 UI 规则
+Admin 身份控制台 UI 规则 SHALL 以 Ant Design / Ant Design Pro 为主准则，并把其他设计系统限定为补充检查来源。
+
+#### Scenario: 设计来源边界清晰
+- **WHEN** 后续 agent 阅读项目设计文档或 `web-admin/AGENTS.md`
+- **THEN** 文档 SHALL 明确 Ant Design / Ant Design Pro 是本 Admin 的主设计准则
+- **AND** IBM Carbon SHALL 仅用于数据表格、toolbar、搜索/筛选、列设置、批量操作和密度参考
+- **AND** Microsoft Fluent 2 SHALL 仅用于可访问性、焦点顺序、对比、内容与工具型产品体验参考
+- **AND** Material Design 3 / Apple HIG SHALL 仅用于通用导航、层级、响应式和平台一致性检查
+- **AND** Vercel Web Interface Guidelines SHALL 仅作为语义 HTML、button/link、aria、focus-visible、长文本、overflow、URL 状态和 i18n checklist
+
+#### Scenario: 规则可执行
+- **WHEN** 后续 change 修改 Admin 身份控制台菜单、总览、表格、工具栏、状态标签、移动布局或用户可见文案
+- **THEN** 项目规则 SHALL 要求菜单命名优先四字中文业务名、产品域使用业务名、仓库名仅作 code tag、禁止泛企业/内部实现文案、总览优先状态和证据、减少入口堆叠、表格/工具栏保持管理台密度、首屏不压低核心内容、桌面/移动均无页面级横向溢出
+- **AND** 新增 React 组件、共享逻辑和测试 SHALL 遵循 web-admin 渐进 TypeScript 规则
