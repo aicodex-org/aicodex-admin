@@ -48,6 +48,13 @@ Admin 前端后续新增 React 组件 SHALL 默认使用 `.tsx`；新增共享�
 - **AND** 对应 React 测试 SHOULD 使用 `.test.tsx`
 - **AND** 迁移 SHALL NOT 要求同一 change 迁移承载它的历史 JS 列表页或无关编辑页
 
+#### Scenario: 组织同步密钥页面迁移
+- **WHEN** 后续 change 触碰身份源菜单下的组织同步密钥页面
+- **THEN** `OrganizationSyncApiKeyListPage` SHOULD 迁移为 `.tsx` 并使用明确类型描述 props、state、API Key 记录、草稿和操作响应
+- **AND** `OrganizationSyncApiKeyBackend` SHOULD 迁移为 `.ts` 并导出页面可复用的请求/响应类型
+- **AND** 迁移 SHALL 保持 `/organization-sync-api-keys` 路由、权限、表格列、创建/轮换/禁用/删除操作、一次性明文展示和后端 API 契约
+- **AND** 迁移 SHALL NOT 要求归档或重写独立的 `add-organization-sync-api-keys` 功能 change
+
 #### Scenario: TypeScript migration is validated
 - **WHEN** identity source menu React components are migrated to TSX
 - **THEN** the incremental TypeScript gate, `yarn typecheck`, focused Jest tests, and build or equivalent import-boundary validation SHALL pass for the touched TSX and JS coexistence paths

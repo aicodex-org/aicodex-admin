@@ -15,6 +15,7 @@
 import React from "react";
 import {Link} from "react-router-dom";
 import {Alert, Button, DatePicker, Input, Modal, Popconfirm, Space, Table, Tag, Typography} from "antd";
+import type {TablePaginationConfig, TableProps} from "antd";
 import {CopyOutlined, DeleteOutlined, PlusOutlined, ReloadOutlined, StopOutlined, SyncOutlined} from "@ant-design/icons";
 import copy from "copy-to-clipboard";
 import dayjs from "dayjs";
@@ -22,12 +23,60 @@ import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import * as Setting from "./Setting";
 import * as OrganizationSyncApiKeyBackend from "./backend/OrganizationSyncApiKeyBackend";
+import type {OrganizationSyncApiKeyRecord} from "./backend/OrganizationSyncApiKeyBackend";
 import OrganizationSelect from "./common/select/OrganizationSelect";
 
 const {Text} = Typography;
 
-class OrganizationSyncApiKeyListPage extends BaseListPage {
-  constructor(props) {
+interface OrganizationSyncApiKeyListPageProps {
+  account?: Record<string, unknown>;
+  history?: {
+    push: (path: string) => void;
+  };
+  match?: {
+    path?: string;
+    params?: {
+      organizationName?: string;
+    };
+  };
+}
+
+interface OrganizationSyncApiKeyListPageState {
+  createModalVisible: boolean;
+  secretModalVisible: boolean;
+  issuedSecret: string;
+  draftKey: OrganizationSyncApiKeyRecord;
+  operating: boolean;
+  loading: boolean;
+  data: OrganizationSyncApiKeyRecord[];
+  pagination: TablePaginationConfig;
+  isAuthorized?: boolean;
+}
+
+type OrganizationSyncApiKeyListFetchParams = {
+  pagination?: TablePaginationConfig;
+};
+
+type OrganizationSyncApiKeyColumns = TableProps<OrganizationSyncApiKeyRecord>["columns"];
+
+// 旧 BaseListPage 仍是 JS 文件，这里只声明本页面用到的继承边界，避免把基类迁移扩大到本 change。
+type LegacyBaseListPageCompat = React.Component<OrganizationSyncApiKeyListPageProps, OrganizationSyncApiKeyListPageState> & {
+  getColumnSearchProps: (dataIndex: string, customRender?: unknown) => Record<string, unknown>;
+  getTablePaginationProps: (overrides?: Record<string, unknown>) => TablePaginationConfig;
+  handleTableChange: NonNullable<TableProps<OrganizationSyncApiKeyRecord>["onChange"]>;
+};
+
+const TypedBaseListPage = BaseListPage as unknown as {
+  new(props: OrganizationSyncApiKeyListPageProps): LegacyBaseListPageCompat;
+};
+
+function t(key: string, defaultValue = key): string {
+  const translated = i18next.t(key, {defaultValue}) as unknown;
+  return typeof translated === "string" ? translated : defaultValue;
+}
+
+class OrganizationSyncApiKeyListPage extends TypedBaseListPage {
+  constructor(props: OrganizationSyncApiKeyListPageProps) {
     super(props);
     this.state = {
       ...this.state,
@@ -39,15 +88,15 @@ class OrganizationSyncApiKeyListPage extends BaseListPage {
     };
   }
 
-  getSelectedOrganization() {
+  getSelectedOrganization(): string {
     if (Setting.isDefaultOrganizationSelected(this.props.account)) {
       return "";
     }
     const organization = Setting.getRequestOrganization(this.props.account);
-    return organization === "built-in" ? "" : organization;
+    return organization && organization !== "built-in" ? organization : "";
   }
 
-  newKey() {
+  newKey(): OrganizationSyncApiKeyRecord {
     const randomName = Setting.getRandomName();
     const organization = this.getSelectedOrganization();
     return {
@@ -60,21 +109,21 @@ class OrganizationSyncApiKeyListPage extends BaseListPage {
     };
   }
 
-  openCreateModal() {
+  openCreateModal(): void {
     this.setState({
       createModalVisible: true,
       draftKey: this.newKey(),
     });
   }
 
-  closeCreateModal() {
+  closeCreateModal(): void {
     this.setState({
       createModalVisible: false,
       draftKey: this.newKey(),
     });
   }
 
-  updateDraftKey(field, value) {
+  updateDraftKey(field: keyof OrganizationSyncApiKeyRecord, value: string): void {
     const draftKey = {
       ...this.state.draftKey,
       [field]: value,
@@ -85,19 +134,19 @@ class OrganizationSyncApiKeyListPage extends BaseListPage {
     this.setState({draftKey});
   }
 
-  showIssuedSecret(result) {
+  showIssuedSecret(result?: OrganizationSyncApiKeyRecord): void {
     this.setState({
       secretModalVisible: true,
       issuedSecret: result?.secret || "",
     });
   }
 
-  copyIssuedSecret() {
+  copyIssuedSecret(): void {
     copy(this.state.issuedSecret);
-    Setting.showMessage("success", i18next.t("general:Successfully copied"));
+    Setting.showMessage("success", t("general:Successfully copied"));
   }
 
-  addKey() {
+  addKey(): void {
     const key = this.state.draftKey;
     if (!key.organization || key.organization === "built-in") {
       Setting.showMessage("error", "请选择非 built-in 的业务组织");
@@ -112,18 +161,18 @@ class OrganizationSyncApiKeyListPage extends BaseListPage {
           this.setState({createModalVisible: false});
           this.showIssuedSecret(res.data);
           this.fetch({pagination: this.state.pagination});
-          Setting.showMessage("success", i18next.t("general:Successfully added"));
+          Setting.showMessage("success", t("general:Successfully added"));
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to add")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
         }
       })
       .catch(error => {
         this.setState({operating: false});
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  rotateKey(record) {
+  rotateKey(record: OrganizationSyncApiKeyRecord): void {
     this.setState({operating: true});
     OrganizationSyncApiKeyBackend.rotateOrganizationSyncApiKey(record)
       .then((res) => {
@@ -138,11 +187,11 @@ class OrganizationSyncApiKeyListPage extends BaseListPage {
       })
       .catch(error => {
         this.setState({operating: false});
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  disableKey(record) {
+  disableKey(record: OrganizationSyncApiKeyRecord): void {
     this.setState({operating: true});
     OrganizationSyncApiKeyBackend.disableOrganizationSyncApiKey(record)
       .then((res) => {
@@ -156,38 +205,39 @@ class OrganizationSyncApiKeyListPage extends BaseListPage {
       })
       .catch(error => {
         this.setState({operating: false});
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  deleteKey(record) {
+  deleteKey(record: OrganizationSyncApiKeyRecord): void {
     this.setState({operating: true});
     OrganizationSyncApiKeyBackend.deleteOrganizationSyncApiKey(record)
       .then((res) => {
         this.setState({operating: false});
         if (res.status === "ok") {
+          const current = this.state.pagination.current || 1;
           this.fetch({
             pagination: {
               ...this.state.pagination,
-              current: this.state.pagination.current > 1 && this.state.data.length === 1 ? this.state.pagination.current - 1 : this.state.pagination.current,
+              current: current > 1 && this.state.data.length === 1 ? current - 1 : current,
             },
           });
-          Setting.showMessage("success", i18next.t("general:Successfully deleted"));
+          Setting.showMessage("success", t("general:Successfully deleted"));
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
         }
       })
       .catch(error => {
         this.setState({operating: false});
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  isExpired(record) {
-    return record?.expireTime && dayjs(record.expireTime).isValid() && !dayjs().isBefore(dayjs(record.expireTime));
+  isExpired(record?: OrganizationSyncApiKeyRecord): boolean {
+    return Boolean(record?.expireTime && dayjs(record.expireTime).isValid() && !dayjs().isBefore(dayjs(record.expireTime)));
   }
 
-  renderState(record) {
+  renderState(record: OrganizationSyncApiKeyRecord): React.ReactNode {
     if (this.isExpired(record)) {
       return <Tag color="red">Expired</Tag>;
     }
@@ -197,14 +247,14 @@ class OrganizationSyncApiKeyListPage extends BaseListPage {
     return <Tag color="default">{record.state || "Disabled"}</Tag>;
   }
 
-  renderDate(text, emptyText = "-") {
+  renderDate(text?: string, emptyText = "-"): string {
     if (!text) {
       return emptyText;
     }
-    return Setting.getFormattedDate(text);
+    return Setting.getFormattedDate(text) || emptyText;
   }
 
-  renderCreateModal() {
+  renderCreateModal(): React.ReactNode {
     const draftKey = this.state.draftKey;
     return (
       <Modal
@@ -213,20 +263,20 @@ class OrganizationSyncApiKeyListPage extends BaseListPage {
         onOk={() => this.addKey()}
         confirmLoading={this.state.operating}
         onCancel={() => this.closeCreateModal()}
-        okText={i18next.t("general:Add")}
+        okText={t("general:Add")}
       >
         <Space direction="vertical" style={{width: "100%"}} size="middle">
           <div>
             <Text strong>组织</Text>
             <OrganizationSelect
-              initValue={draftKey.organization}
+              initValue={draftKey.organization || ""}
               excludedOrganizations={["built-in"]}
               style={{width: "100%", marginTop: 8}}
-              onChange={(value) => this.updateDraftKey("organization", value)}
+              onChange={(value: string) => this.updateDraftKey("organization", value)}
             />
           </div>
           <div>
-            <Text strong>{i18next.t("general:Name")}</Text>
+            <Text strong>{t("general:Name")}</Text>
             <Input
               value={draftKey.name}
               style={{marginTop: 8}}
@@ -234,7 +284,7 @@ class OrganizationSyncApiKeyListPage extends BaseListPage {
             />
           </div>
           <div>
-            <Text strong>{i18next.t("general:Display name")}</Text>
+            <Text strong>{t("general:Display name")}</Text>
             <Input
               value={draftKey.displayName}
               style={{marginTop: 8}}
@@ -242,7 +292,7 @@ class OrganizationSyncApiKeyListPage extends BaseListPage {
             />
           </div>
           <div>
-            <Text strong>{i18next.t("general:Expire time")}</Text>
+            <Text strong>{t("general:Expire time")}</Text>
             <DatePicker
               showTime
               allowClear
@@ -256,7 +306,7 @@ class OrganizationSyncApiKeyListPage extends BaseListPage {
     );
   }
 
-  renderSecretModal() {
+  renderSecretModal(): React.ReactNode {
     return (
       <Modal
         title="组织同步密钥明文"
@@ -264,10 +314,10 @@ class OrganizationSyncApiKeyListPage extends BaseListPage {
         onCancel={() => this.setState({secretModalVisible: false, issuedSecret: ""})}
         footer={[
           <Button key="copy" type="primary" icon={<CopyOutlined />} onClick={() => this.copyIssuedSecret()}>
-            {i18next.t("general:Copy")}
+            {t("general:Copy")}
           </Button>,
           <Button key="close" onClick={() => this.setState({secretModalVisible: false, issuedSecret: ""})}>
-            {i18next.t("general:Close")}
+            {t("general:Close")}
           </Button>,
         ]}
       >
@@ -279,29 +329,29 @@ class OrganizationSyncApiKeyListPage extends BaseListPage {
     );
   }
 
-  renderTable(keys) {
-    const columns = [
+  renderTable(keys: OrganizationSyncApiKeyRecord[]): React.ReactNode {
+    const columns: OrganizationSyncApiKeyColumns = [
       {
-        title: i18next.t("general:Organization"),
+        title: t("general:Organization"),
         dataIndex: "organization",
         key: "organization",
         width: "150px",
         fixed: "left",
-        render: (text) => (
+        render: (text: string) => (
           <Link to={`/organizations/${text}`}>
             {text}
           </Link>
         ),
       },
       {
-        title: i18next.t("general:Name"),
+        title: t("general:Name"),
         dataIndex: "name",
         key: "name",
         width: "190px",
         ...this.getColumnSearchProps("name"),
       },
       {
-        title: i18next.t("general:Display name"),
+        title: t("general:Display name"),
         dataIndex: "displayName",
         key: "displayName",
         width: "190px",
@@ -311,35 +361,35 @@ class OrganizationSyncApiKeyListPage extends BaseListPage {
         dataIndex: "keyPrefix",
         key: "keyPrefix",
         width: "170px",
-        render: (text) => <Text code>{text}</Text>,
+        render: (text: string) => <Text code>{text}</Text>,
       },
       {
-        title: i18next.t("general:State"),
+        title: t("general:State"),
         dataIndex: "state",
         key: "state",
         width: "120px",
-        render: (text, record) => this.renderState(record),
+        render: (_text: string, record: OrganizationSyncApiKeyRecord) => this.renderState(record),
       },
       {
-        title: i18next.t("general:Expire time"),
+        title: t("general:Expire time"),
         dataIndex: "expireTime",
         key: "expireTime",
         width: "170px",
-        render: (text) => this.renderDate(text, "永不过期"),
+        render: (text?: string) => this.renderDate(text, "永不过期"),
       },
       {
         title: "Last used time",
         dataIndex: "lastUsedTime",
         key: "lastUsedTime",
         width: "170px",
-        render: (text) => this.renderDate(text),
+        render: (text?: string) => this.renderDate(text),
       },
       {
         title: "Last used IP",
         dataIndex: "lastUsedIp",
         key: "lastUsedIp",
         width: "140px",
-        render: (text) => text || "-",
+        render: (text?: string) => text || "-",
       },
       {
         title: "Last user-agent",
@@ -347,28 +397,28 @@ class OrganizationSyncApiKeyListPage extends BaseListPage {
         key: "lastUsedUserAgent",
         width: "220px",
         ellipsis: true,
-        render: (text) => text || "-",
+        render: (text?: string) => text || "-",
       },
       {
         title: "Created by",
         dataIndex: "createdBy",
         key: "createdBy",
         width: "180px",
-        render: (text) => text || "-",
+        render: (text?: string) => text || "-",
       },
       {
-        title: i18next.t("general:Action"),
+        title: t("general:Action"),
         dataIndex: "",
         key: "op",
         width: "260px",
-        fixed: Setting.isMobile() ? "false" : "right",
-        render: (text, record) => (
+        fixed: Setting.isMobile() ? false : "right",
+        render: (_text: unknown, record: OrganizationSyncApiKeyRecord) => (
           <Space wrap>
             <Popconfirm
               title={`确认轮换组织同步密钥: ${record.name} ?`}
               onConfirm={() => this.rotateKey(record)}
-              okText={i18next.t("general:OK")}
-              cancelText={i18next.t("general:Cancel")}
+              okText={t("general:OK")}
+              cancelText={t("general:Cancel")}
             >
               <Button icon={<SyncOutlined />} loading={this.state.operating}>轮换</Button>
             </Popconfirm>
@@ -376,19 +426,19 @@ class OrganizationSyncApiKeyListPage extends BaseListPage {
               <Popconfirm
                 title={`确认禁用组织同步密钥: ${record.name} ?`}
                 onConfirm={() => this.disableKey(record)}
-                okText={i18next.t("general:OK")}
-                cancelText={i18next.t("general:Cancel")}
+                okText={t("general:OK")}
+                cancelText={t("general:Cancel")}
               >
                 <Button icon={<StopOutlined />} loading={this.state.operating}>禁用</Button>
               </Popconfirm>
             )}
             <Popconfirm
-              title={i18next.t("general:Sure to delete") + `: ${record.name} ?`}
+              title={t("general:Sure to delete") + `: ${record.name} ?`}
               onConfirm={() => this.deleteKey(record)}
-              okText={i18next.t("general:OK")}
-              cancelText={i18next.t("general:Cancel")}
+              okText={t("general:OK")}
+              cancelText={t("general:Cancel")}
             >
-              <Button danger icon={<DeleteOutlined />} loading={this.state.operating}>{i18next.t("general:Delete")}</Button>
+              <Button danger icon={<DeleteOutlined />} loading={this.state.operating}>{t("general:Delete")}</Button>
             </Popconfirm>
           </Space>
         ),
@@ -403,7 +453,7 @@ class OrganizationSyncApiKeyListPage extends BaseListPage {
           scroll={{x: "max-content"}}
           columns={columns}
           dataSource={keys}
-          rowKey={(record) => `${record.owner}/${record.name}`}
+          rowKey={(record) => `${record.owner || ""}/${record.name || ""}`}
           size="middle"
           bordered
           pagination={paginationProps}
@@ -411,10 +461,10 @@ class OrganizationSyncApiKeyListPage extends BaseListPage {
             <Space>
               <span>组织同步密钥</span>
               <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => this.openCreateModal()}>
-                {i18next.t("general:Add")}
+                {t("general:Add")}
               </Button>
               <Button size="small" icon={<ReloadOutlined />} onClick={() => this.fetch({pagination: this.state.pagination})}>
-                {i18next.t("general:Refresh")}
+                {t("general:Refresh")}
               </Button>
             </Space>
           )}
@@ -427,7 +477,7 @@ class OrganizationSyncApiKeyListPage extends BaseListPage {
     );
   }
 
-  fetch = (params = {}) => {
+  fetch = (params: OrganizationSyncApiKeyListFetchParams = {}): void => {
     const pagination = params.pagination || this.state.pagination;
     this.setState({loading: true});
     OrganizationSyncApiKeyBackend.getOrganizationSyncApiKeys(this.getSelectedOrganization())
@@ -455,7 +505,7 @@ class OrganizationSyncApiKeyListPage extends BaseListPage {
       })
       .catch(error => {
         this.setState({loading: false});
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   };
 }
