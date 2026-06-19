@@ -15,6 +15,7 @@
 import React from "react";
 import {Link} from "react-router-dom";
 import {Button, Modal, Space, Switch, Table, Upload} from "antd";
+import type {TablePaginationConfig, TableProps} from "antd";
 import {UploadOutlined} from "@ant-design/icons";
 import moment from "moment";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
@@ -28,8 +29,158 @@ import AccountAvatar from "./account/AccountAvatar";
 import * as XLSX from "xlsx";
 import OrganizationIdentityCenter from "./OrganizationIdentityCenter";
 
-class UserListPage extends BaseListPage {
-  constructor(props) {
+type QueryValue = string | number | boolean | readonly (string | number | boolean)[] | null | undefined;
+
+type FormItem = {
+  name: string;
+  label?: string;
+  visible?: boolean;
+  width?: string | number;
+};
+
+type UserRecord = {
+  owner: string;
+  name: string;
+  createdTime?: string;
+  type?: string;
+  password?: string;
+  passwordSalt?: string;
+  displayName?: string;
+  avatar?: string;
+  email?: string;
+  phone?: string;
+  countryCode?: string;
+  address?: unknown[];
+  groups?: string[];
+  affiliation?: string;
+  tag?: string;
+  region?: string;
+  realName?: string;
+  isVerified?: boolean;
+  isAdmin?: boolean;
+  IsForbidden?: boolean;
+  isForbidden?: boolean;
+  score?: number;
+  isDeleted?: boolean;
+  properties?: Record<string, unknown>;
+  signupApplication?: string;
+  registerType?: string;
+  registerSource?: string;
+  balance?: number;
+  balanceCredit?: number;
+  balanceCurrency?: string;
+  [key: string]: unknown;
+};
+
+type OrganizationRecord = {
+  name?: string;
+  defaultAvatar?: string;
+  countryCodes?: string[];
+  initScore?: number;
+  defaultApplication?: string;
+  balanceCurrency?: string;
+  tags?: string[];
+  [key: string]: unknown;
+};
+
+type BackendResponse<T = unknown> = {
+  status: string;
+  msg?: string;
+  data?: T;
+  data2?: number;
+};
+
+interface UserListPageProps {
+  account: {
+    owner: string;
+    name?: string;
+    tag?: string;
+    [key: string]: unknown;
+  };
+  history: {
+    push: (location: string | {pathname: string; mode?: string}) => void;
+  };
+  match: {
+    path?: string;
+    params?: Record<string, string | undefined>;
+  };
+  organizationName?: string;
+  groupName?: string;
+  formItems?: FormItem[];
+}
+
+interface UserListPageState {
+  data: UserRecord[];
+  pagination: TablePaginationConfig;
+  loading: boolean;
+  searchText?: QueryValue;
+  searchedColumn?: string;
+  isAuthorized?: boolean;
+  formItems?: FormItem[];
+  organizationName: string;
+  organization: OrganizationRecord | null;
+  uploadJsonData: Record<string, unknown>[];
+  uploadColumns: TableProps<Record<string, unknown>>["columns"];
+  showUploadModal: boolean;
+  file?: File;
+  [key: string]: unknown;
+}
+
+type UserListColumns = TableProps<UserRecord>["columns"];
+
+type UserListFetchParams = {
+  pagination?: TablePaginationConfig;
+  searchedColumn?: string;
+  searchText?: QueryValue;
+  sortField?: string;
+  sortOrder?: string | null;
+};
+
+type UserBackendCompat = {
+  getGlobalUsers: (page: QueryValue, pageSize: QueryValue, field?: QueryValue, value?: QueryValue, sortField?: QueryValue, sortOrder?: QueryValue) => Promise<BackendResponse<UserRecord[]>>;
+  getUsers: (owner: string | undefined, page?: QueryValue, pageSize?: QueryValue, field?: QueryValue, value?: QueryValue, sortField?: QueryValue, sortOrder?: QueryValue, groupName?: string) => Promise<BackendResponse<UserRecord[]>>;
+  addUser: (user: UserRecord) => Promise<BackendResponse>;
+  deleteUser: (user: UserRecord) => Promise<BackendResponse>;
+  removeUserFromGroup: (payload: {groupName?: string; owner: string; name: string}) => Promise<BackendResponse>;
+  impersonateUser: (username: string) => Promise<BackendResponse>;
+};
+
+type OrganizationBackendCompat = {
+  getOrganization: (owner: string, name: string) => Promise<BackendResponse<OrganizationRecord>>;
+};
+
+/* istanbul ignore next -- 仅用于声明 legacy BaseListPage.js 的继承边界，运行时由真实 BaseListPage 实现。 */
+class LegacyBaseListPageCompat extends React.Component<UserListPageProps, UserListPageState> {
+  getColumnSearchProps(_dataIndex: string, _customRender?: unknown): Record<string, unknown> {
+    return {};
+  }
+
+  getTablePaginationProps(_overrides?: Record<string, unknown>): TablePaginationConfig {
+    return {};
+  }
+
+  handleTableChange: NonNullable<TableProps<UserRecord>["onChange"]> = () => undefined;
+
+  UNSAFE_componentWillMount(): void {
+    return undefined;
+  }
+
+  fetch(_params: UserListFetchParams): void {
+    return undefined;
+  }
+}
+
+const TypedBaseListPage = BaseListPage as unknown as typeof LegacyBaseListPageCompat;
+const TypedUserBackend = UserBackend as unknown as UserBackendCompat;
+const TypedOrganizationBackend = OrganizationBackend as unknown as OrganizationBackendCompat;
+
+function t(key: string, defaultValue = key): string {
+  const translated = i18next.t(key, {defaultValue}) as unknown;
+  return typeof translated === "string" ? translated : defaultValue;
+}
+
+class UserListPage extends TypedBaseListPage {
+  constructor(props: UserListPageProps) {
     super(props);
     this.state = {
       ...this.state,
@@ -37,15 +188,15 @@ class UserListPage extends BaseListPage {
     };
   }
 
-  UNSAFE_componentWillMount() {
+  UNSAFE_componentWillMount(): void {
     super.UNSAFE_componentWillMount();
     this.getOrganization(this.state.organizationName);
   }
 
-  componentDidUpdate(prevProps, prevState) {
+  componentDidUpdate(prevProps: UserListPageProps, prevState: UserListPageState): void {
     if (this.props.match.path !== prevProps.match.path || this.props.organizationName !== prevProps.organizationName) {
       this.setState({
-        organizationName: this.props.organizationName ?? this.props.match?.params.organizationName,
+        organizationName: this.props.organizationName ?? this.props.match.params?.organizationName ?? "",
       });
     }
 
@@ -62,7 +213,7 @@ class UserListPage extends BaseListPage {
     }
   }
 
-  newUser() {
+  newUser(): UserRecord {
     const randomName = Setting.getRandomName();
     const owner = (Setting.isDefaultOrganizationSelected(this.props.account) || this.props.groupName) ? this.state.organizationName : Setting.getRequestOrganization(this.props.account);
     return {
@@ -73,10 +224,10 @@ class UserListPage extends BaseListPage {
       password: "123",
       passwordSalt: "",
       displayName: `New User - ${randomName}`,
-      avatar: this.state.organization.defaultAvatar ?? Conf.BrandIcon,
+      avatar: this.state.organization!.defaultAvatar ?? Conf.BrandIcon,
       email: `${randomName}@example.com`,
       phone: Setting.getRandomNumber(),
-      countryCode: this.state.organization.countryCodes?.length > 0 ? this.state.organization.countryCodes[0] : "",
+      countryCode: (this.state.organization!.countryCodes?.length || 0) > 0 ? this.state.organization!.countryCodes![0] : "",
       address: [],
       groups: this.props.groupName ? [`${owner}/${this.props.groupName}`] : [],
       affiliation: "Example Inc.",
@@ -86,87 +237,87 @@ class UserListPage extends BaseListPage {
       isVerified: false,
       isAdmin: (owner === "built-in"),
       IsForbidden: false,
-      score: this.state.organization.initScore,
+      score: this.state.organization!.initScore,
       isDeleted: false,
       properties: {},
-      signupApplication: this.state.organization.defaultApplication,
+      signupApplication: this.state.organization!.defaultApplication,
       registerType: "Add User",
       registerSource: `${this.props.account.owner}/${this.props.account.name}`,
-      balanceCurrency: this.state.organization.balanceCurrency || "USD",
+      balanceCurrency: this.state.organization!.balanceCurrency || "USD",
     };
   }
 
-  addUser() {
+  addUser(): void {
     const newUser = this.newUser();
-    UserBackend.addUser(newUser)
+    TypedUserBackend.addUser(newUser)
       .then((res) => {
         if (res.status === "ok") {
           sessionStorage.setItem("userListUrl", window.location.pathname);
           this.props.history.push({pathname: `/users/${newUser.owner}/${newUser.name}`, mode: "add"});
-          Setting.showMessage("success", i18next.t("general:Successfully added"));
+          Setting.showMessage("success", t("general:Successfully added"));
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to add")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  deleteUser(i) {
-    UserBackend.deleteUser(this.state.data[i])
+  deleteUser(i: number): void {
+    TypedUserBackend.deleteUser(this.state.data[i])
       .then((res) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully deleted"));
+          Setting.showMessage("success", t("general:Successfully deleted"));
           this.fetch({
             pagination: {
               ...this.state.pagination,
-              current: this.state.pagination.current > 1 && this.state.data.length === 1 ? this.state.pagination.current - 1 : this.state.pagination.current,
+              current: (this.state.pagination.current || 1) > 1 && this.state.data.length === 1 ? (this.state.pagination.current || 1) - 1 : this.state.pagination.current,
             },
           });
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  removeUserFromGroup(i) {
+  removeUserFromGroup(i: number): void {
     const user = this.state.data[i];
     const group = this.props.groupName;
-    UserBackend.removeUserFromGroup({groupName: group, owner: user.owner, name: user.name})
+    TypedUserBackend.removeUserFromGroup({groupName: group, owner: user.owner, name: user.name})
       .then((res) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully removed"));
+          Setting.showMessage("success", t("general:Successfully removed"));
           this.setState({
             data: Setting.deleteRow(this.state.data, i),
-            pagination: {total: this.state.pagination.total - 1},
+            pagination: {total: (this.state.pagination.total as number) - 1},
           });
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to remove")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to remove")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  uploadFile(info) {
+  uploadFile(info: BackendResponse): void {
     const {status, msg} = info;
     if (status === "ok") {
       Setting.showMessage("success", "Users uploaded successfully, refreshing the page");
       const {pagination} = this.state;
       this.fetch({pagination});
     } else if (status === "error") {
-      Setting.showMessage("error", `${i18next.t("general:Failed to upload")}: ${msg}`);
+      Setting.showMessage("error", `${t("general:Failed to upload")}: ${msg}`);
     }
     this.setState({uploadJsonData: [], uploadColumns: [], showUploadModal: false});
   }
 
-  generateDownloadTemplate() {
-    const userObj = {};
+  generateDownloadTemplate = (): void => {
+    const userObj: Record<string, null> = {};
     const items = Setting.getUserColumns();
     items.forEach((item) => {
       userObj[item] = null;
@@ -175,25 +326,25 @@ class UserListPage extends BaseListPage {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
     XLSX.writeFile(workbook, "import-user.xlsx", {compression: true});
-  }
+  };
 
-  getOrganization(organizationName) {
-    OrganizationBackend.getOrganization("admin", organizationName)
+  getOrganization(organizationName: string): void {
+    TypedOrganizationBackend.getOrganization("admin", organizationName)
       .then((res) => {
         if (res.status === "ok") {
           this.setState({
-            organization: res.data,
+            organization: res.data as OrganizationRecord,
           });
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to get")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to get")}: ${res.msg}`);
         }
       });
   }
 
-  impersonateUser(user) {
-    UserBackend.impersonateUser(user).then((res) => {
+  impersonateUser(user: string): void {
+    TypedUserBackend.impersonateUser(user).then((res) => {
       if (res.status === "ok") {
-        Setting.showMessage("success", i18next.t("general:Successfully executed"));
+        Setting.showMessage("success", t("general:Successfully executed"));
         Setting.goToLinkSoft(this, "/");
         window.location.reload();
       } else {
@@ -202,26 +353,26 @@ class UserListPage extends BaseListPage {
     });
   }
 
-  renderUpload() {
+  renderUpload(): React.ReactNode {
     const uploadThis = this;
     const props = {
       name: "file",
       accept: ".xlsx",
       showUploadList: false,
-      beforeUpload: (file) => {
+      beforeUpload: (file: File) => {
         const reader = new FileReader();
         reader.onload = (e) => {
-          const binary = e.target.result;
+          const binary = e.target?.result;
 
           try {
-            const workbook = XLSX.read(binary, {type: "array"});
+            const workbook = XLSX.read(binary as ArrayBuffer, {type: "array"});
             if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
-              Setting.showMessage("error", i18next.t("general:No sheets found in file"));
+              Setting.showMessage("error", t("general:No sheets found in file"));
               return;
             }
 
             const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-            const jsonData = XLSX.utils.sheet_to_json(worksheet);
+            const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet);
             this.setState({uploadJsonData: jsonData, file: file});
 
             const columns = Setting.getUserColumns().map(el => {
@@ -229,12 +380,14 @@ class UserListPage extends BaseListPage {
             });
             this.setState({uploadColumns: columns}, () => {this.setState({showUploadModal: true});});
           } catch (err) {
-            Setting.showMessage("error", `${i18next.t("general:Failed to upload")}: ${err.message}`);
+            const message = err instanceof Error ? err.message : String(err);
+            Setting.showMessage("error", `${t("general:Failed to upload")}: ${message}`);
           }
         };
 
         reader.onerror = (error) => {
-          Setting.showMessage("error", `${i18next.t("general:Failed to upload")}: ${error?.message || error}`);
+          const message = (error as ProgressEvent<FileReader> & {message?: string})?.message || error;
+          Setting.showMessage("error", `${t("general:Failed to upload")}: ${message}`);
         };
 
         reader.readAsArrayBuffer(file);
@@ -246,17 +399,17 @@ class UserListPage extends BaseListPage {
       <>
         <Upload {...props}>
           <Button icon={<UploadOutlined />} id="upload-button" size="small">
-            {i18next.t("general:Upload (.xlsx)")}
+            {t("general:Upload (.xlsx)")}
           </Button>
         </Upload>
-        <Modal title={i18next.t("general:Upload (.xlsx)")}
+        <Modal title={t("general:Upload (.xlsx)")}
           width={"100%"}
           closable={true}
           open={this.state.showUploadModal}
-          okText={i18next.t("general:Click to Upload")}
+          okText={t("general:Click to Upload")}
           onOk = {() => {
             const formData = new FormData();
-            formData.append("file", this.state.file);
+            formData.append("file", this.state.file as Blob);
             fetch(`${Setting.ServerUrl}/api/upload-users`, {
               method: "post",
               body: formData,
@@ -268,10 +421,10 @@ class UserListPage extends BaseListPage {
               .then((res) => res.json())
               .then((res) => {uploadThis.uploadFile(res);})
               .catch((error) => {
-                Setting.showMessage("error", `${i18next.t("general:Failed to upload")}: ${error.message}`);
+                Setting.showMessage("error", `${t("general:Failed to upload")}: ${error.message}`);
               });
           }}
-          cancelText={i18next.t("general:Cancel")}
+          cancelText={t("general:Cancel")}
           onCancel={() => {this.setState({showUploadModal: false, uploadJsonData: [], uploadColumns: []});}}
         >
           <div style={{marginRight: "34px"}}>
@@ -282,10 +435,10 @@ class UserListPage extends BaseListPage {
     );
   }
 
-  renderTable(users) {
-    const columns = [
+  renderTable(users: UserRecord[]): React.ReactNode {
+    const columns: UserListColumns = [
       {
-        title: i18next.t("general:Organization"),
+        title: t("general:Organization"),
         dataIndex: "owner",
         key: "owner",
         width: (Setting.isMobile()) ? "100px" : "120px",
@@ -301,7 +454,7 @@ class UserListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Application"),
+        title: t("general:Application"),
         dataIndex: "signupApplication",
         key: "signupApplication",
         width: (Setting.isMobile()) ? "100px" : "120px",
@@ -317,7 +470,7 @@ class UserListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Name"),
+        title: t("general:Name"),
         dataIndex: "name",
         key: "name",
         width: (Setting.isMobile()) ? "80px" : "110px",
@@ -333,7 +486,7 @@ class UserListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Created time"),
+        title: t("general:Created time"),
         dataIndex: "createdTime",
         key: "createdTime",
         width: "160px",
@@ -343,7 +496,7 @@ class UserListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Display name"),
+        title: t("general:Display name"),
         dataIndex: "displayName",
         key: "displayName",
         // width: '100px',
@@ -351,7 +504,7 @@ class UserListPage extends BaseListPage {
         ...this.getColumnSearchProps("displayName"),
       },
       {
-        title: i18next.t("general:Avatar"),
+        title: t("general:Avatar"),
         dataIndex: "avatar",
         key: "avatar",
         width: "80px",
@@ -364,7 +517,7 @@ class UserListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Email"),
+        title: t("general:Email"),
         dataIndex: "email",
         key: "email",
         width: "160px",
@@ -379,7 +532,7 @@ class UserListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Phone"),
+        title: t("general:Phone"),
         dataIndex: "phone",
         key: "phone",
         width: "120px",
@@ -387,7 +540,7 @@ class UserListPage extends BaseListPage {
         ...this.getColumnSearchProps("phone"),
       },
       {
-        title: i18next.t("user:Affiliation"),
+        title: t("user:Affiliation"),
         dataIndex: "affiliation",
         key: "affiliation",
         width: "140px",
@@ -395,7 +548,7 @@ class UserListPage extends BaseListPage {
         ...this.getColumnSearchProps("affiliation"),
       },
       {
-        title: i18next.t("application:Real name"),
+        title: t("application:Real name"),
         dataIndex: "realName",
         key: "realName",
         width: "120px",
@@ -403,7 +556,7 @@ class UserListPage extends BaseListPage {
         ...this.getColumnSearchProps("realName"),
       },
       {
-        title: i18next.t("user:Is verified"),
+        title: t("user:Is verified"),
         dataIndex: "isVerified",
         key: "isVerified",
         width: "120px",
@@ -415,18 +568,18 @@ class UserListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("user:Country/Region"),
+        title: t("user:Country/Region"),
         dataIndex: "region",
         key: "region",
         width: "140px",
         sorter: true,
         ...this.getColumnSearchProps("region"),
         render: (text, record, index) => {
-          return Setting.initCountries().getName(record.region, Setting.getLanguage(), {select: "official"});
+          return Setting.initCountries().getName(record.region || "", Setting.getLanguage(), {select: "official"});
         },
       },
       {
-        title: i18next.t("general:User type"),
+        title: t("general:User type"),
         dataIndex: "type",
         key: "type",
         width: "120px",
@@ -434,7 +587,7 @@ class UserListPage extends BaseListPage {
         ...this.getColumnSearchProps("type"),
       },
       {
-        title: i18next.t("user:Tag"),
+        title: t("user:Tag"),
         dataIndex: "tag",
         key: "tag",
         width: "110px",
@@ -445,17 +598,17 @@ class UserListPage extends BaseListPage {
             return text;
           }
 
-          const tagMap = {};
+          const tagMap: Record<string, string> = {};
           this.state.organization?.tags?.map((tag, index) => {
             const tokens = tag.split("|");
             const displayValue = Setting.getLanguage() !== "zh" ? tokens[0] : tokens[1];
             tagMap[tokens[0]] = displayValue;
           });
-          return tagMap[text];
+          return tagMap[String(text)];
         },
       },
       {
-        title: i18next.t("user:Register type"),
+        title: t("user:Register type"),
         dataIndex: "registerType",
         key: "registerType",
         width: "150px",
@@ -463,7 +616,7 @@ class UserListPage extends BaseListPage {
         ...this.getColumnSearchProps("registerType"),
       },
       {
-        title: i18next.t("user:Register source"),
+        title: t("user:Register source"),
         dataIndex: "registerSource",
         key: "registerSource",
         width: "150px",
@@ -471,7 +624,7 @@ class UserListPage extends BaseListPage {
         ...this.getColumnSearchProps("registerSource"),
       },
       {
-        title: i18next.t("user:Balance"),
+        title: t("user:Balance"),
         dataIndex: "balance",
         key: "balance",
         width: "120px",
@@ -481,7 +634,7 @@ class UserListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("organization:Balance credit"),
+        title: t("organization:Balance credit"),
         dataIndex: "balanceCredit",
         key: "balanceCredit",
         width: "120px",
@@ -491,7 +644,7 @@ class UserListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("organization:Balance currency"),
+        title: t("organization:Balance currency"),
         dataIndex: "balanceCurrency",
         key: "balanceCurrency",
         width: "140px",
@@ -501,47 +654,47 @@ class UserListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("user:Is admin"),
+        title: t("user:Is admin"),
         dataIndex: "isAdmin",
         key: "isAdmin",
         width: "120px",
         sorter: true,
         render: (text, record, index) => {
           return (
-            <Switch disabled checkedChildren={i18next.t("general:ON")} unCheckedChildren={i18next.t("general:OFF")} checked={text} />
+            <Switch disabled checkedChildren={t("general:ON")} unCheckedChildren={t("general:OFF")} checked={text} />
           );
         },
       },
       {
-        title: i18next.t("user:Is forbidden"),
+        title: t("user:Is forbidden"),
         dataIndex: "isForbidden",
         key: "isForbidden",
         width: "110px",
         sorter: true,
         render: (text, record, index) => {
           return (
-            <Switch disabled checkedChildren={i18next.t("general:ON")} unCheckedChildren={i18next.t("general:OFF")} checked={text} />
+            <Switch disabled checkedChildren={t("general:ON")} unCheckedChildren={t("general:OFF")} checked={text} />
           );
         },
       },
       {
-        title: i18next.t("user:Is deleted"),
+        title: t("user:Is deleted"),
         dataIndex: "isDeleted",
         key: "isDeleted",
         width: "110px",
         sorter: true,
         render: (text, record, index) => {
           return (
-            <Switch disabled checkedChildren={i18next.t("general:ON")} unCheckedChildren={i18next.t("general:OFF")} checked={text} />
+            <Switch disabled checkedChildren={t("general:ON")} unCheckedChildren={t("general:OFF")} checked={text} />
           );
         },
       },
       {
-        title: i18next.t("general:Action"),
+        title: t("general:Action"),
         dataIndex: "",
         key: "op",
         width: "190px",
-        fixed: (Setting.isMobile()) ? "false" : "right",
+        fixed: Setting.isMobile() ? false : "right",
         render: (text, record, index) => {
           const isTreePage = this.props.groupName !== undefined;
           const disabled = (record.owner === this.props.account.owner && record.name === this.props.account.name) || (record.owner === "built-in" && record.name === "admin");
@@ -549,23 +702,23 @@ class UserListPage extends BaseListPage {
             <Space>
               <Button size={isTreePage ? "small" : "middle"} type="primary" onClick={() => {
                 this.impersonateUser(`${record.owner}/${record.name}`);
-              }}>{i18next.t("general:Impersonation")}
+              }}>{t("general:Impersonation")}
               </Button>
               <Button size={isTreePage ? "small" : "middle"} type="primary" onClick={() => {
                 sessionStorage.setItem("userListUrl", window.location.pathname);
                 this.props.history.push(`/users/${record.owner}/${record.name}`);
-              }}>{i18next.t("general:Edit")}
+              }}>{t("general:Edit")}
               </Button>
               {isTreePage ?
                 <PopconfirmModal
-                  text={i18next.t("general:remove")}
-                  title={i18next.t("general:Sure to remove") + `: ${record.name} ?`}
+                  text={t("general:remove")}
+                  title={t("general:Sure to remove") + `: ${record.name} ?`}
                   onConfirm={() => this.removeUserFromGroup(index)}
                   disabled={disabled}
                   size="small"
                 /> : null}
               <PopconfirmModal
-                title={i18next.t("general:Sure to delete") + `: ${record.name} ?`}
+                title={t("general:Sure to delete") + `: ${record.name} ?`}
                 onConfirm={() => this.deleteUser(index)}
                 disabled={disabled}
                 size={isTreePage ? "small" : "default"}
@@ -576,22 +729,22 @@ class UserListPage extends BaseListPage {
       },
     ];
 
-    const filteredColumns = Setting.filterTableColumns(columns, this.props.formItems ?? this.state.formItems);
+    const filteredColumns = (Setting.filterTableColumns as (columns: UserListColumns, formItems?: FormItem[]) => UserListColumns)(columns, this.props.formItems ?? this.state.formItems);
     const paginationProps = this.getTablePaginationProps();
 
     return (
       <OrganizationIdentityCenter
         page="users"
-        currentOrganization={this.state.organizationName || (Setting.isDefaultOrganizationSelected(this.props.account) ? i18next.t("general:All") : Setting.getRequestOrganization(this.props.account))}
+        currentOrganization={this.state.organizationName || (Setting.isDefaultOrganizationSelected(this.props.account) ? t("general:All") : Setting.getRequestOrganization(this.props.account))}
         total={this.state.pagination.total}
         loadedCount={users.length}
       >
         <Table scroll={{x: "max-content"}} columns={filteredColumns} dataSource={users} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
           title={() => (
             <div>
-              {i18next.t("general:Users")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button style={{marginRight: "15px"}} type="primary" size="small" onClick={this.addUser.bind(this)}>{i18next.t("general:Add")} </Button>
-              <Button style={{marginRight: "15px"}} type="primary" size="small" onClick={this.generateDownloadTemplate}>{i18next.t("general:Download template")} </Button>
+              {t("general:Users")}&nbsp;&nbsp;&nbsp;&nbsp;
+              <Button style={{marginRight: "15px"}} type="primary" size="small" onClick={this.addUser.bind(this)}>{t("general:Add")} </Button>
+              <Button style={{marginRight: "15px"}} type="primary" size="small" onClick={this.generateDownloadTemplate}>{t("general:Download template")} </Button>
               {
                 this.renderUpload()
               }
@@ -604,21 +757,22 @@ class UserListPage extends BaseListPage {
     );
   }
 
-  fetch = (params = {}) => {
+  fetch = (params: UserListFetchParams = {}): void => {
     const field = params.searchedColumn, value = params.searchText;
     const sortField = params.sortField, sortOrder = params.sortOrder;
     this.setState({loading: true});
+    const pagination = params.pagination as TablePaginationConfig;
     if (this.props.match?.path === "/users") {
-      (Setting.isDefaultOrganizationSelected(this.props.account) ? UserBackend.getGlobalUsers(params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder) : UserBackend.getUsers(Setting.getRequestOrganization(this.props.account), params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder))
+      (Setting.isDefaultOrganizationSelected(this.props.account) ? TypedUserBackend.getGlobalUsers(pagination.current, pagination.pageSize, field, value, sortField, sortOrder) : TypedUserBackend.getUsers(Setting.getRequestOrganization(this.props.account), pagination.current, pagination.pageSize, field, value, sortField, sortOrder))
         .then((res) => {
           this.setState({
             loading: false,
           });
           if (res.status === "ok") {
             this.setState({
-              data: res.data,
+              data: res.data as UserRecord[],
               pagination: {
-                ...params.pagination,
+                ...pagination,
                 total: res.data2,
               },
               searchText: params.searchText,
@@ -636,17 +790,17 @@ class UserListPage extends BaseListPage {
         });
     } else {
       (this.props.groupName ?
-        UserBackend.getUsers(this.state.organizationName, params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder, this.props.groupName) :
-        UserBackend.getUsers(this.state.organizationName, params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder))
+        TypedUserBackend.getUsers(this.state.organizationName, pagination.current, pagination.pageSize, field, value, sortField, sortOrder, this.props.groupName) :
+        TypedUserBackend.getUsers(this.state.organizationName, pagination.current, pagination.pageSize, field, value, sortField, sortOrder))
         .then((res) => {
           this.setState({
             loading: false,
           });
           if (res.status === "ok") {
             this.setState({
-              data: res.data,
+              data: res.data as UserRecord[],
               pagination: {
-                ...params.pagination,
+                ...pagination,
                 total: res.data2,
               },
               searchText: params.searchText,
