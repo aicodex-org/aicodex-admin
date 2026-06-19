@@ -17,7 +17,7 @@ import {
   Button, Card, Col, Form, Input, InputNumber, Layout, List,
   Menu, Result, Row, Select, Space, Spin, Switch, Tabs, Tag, Tooltip
 } from "antd";
-import {withRouter} from "react-router-dom";
+import * as ReactRouterDom from "react-router-dom";
 import {TotpMfaType} from "./auth/MfaSetupPage";
 import * as GroupBackend from "./backend/GroupBackend";
 import * as UserBackend from "./backend/UserBackend";
@@ -25,7 +25,7 @@ import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as AuthBackend from "./auth/AuthBackend";
 import EnableMfaModal from "./common/modal/EnableMfaModal";
 import * as Setting from "./Setting";
-import i18next from "i18next";
+import i18nextRaw from "i18next";
 import CropperDivModal from "./common/modal/CropperDivModal.js";
 import * as ApplicationBackend from "./backend/ApplicationBackend";
 import PasswordModal from "./common/modal/PasswordModal";
@@ -58,14 +58,210 @@ import Sider from "antd/es/layout/Sider";
 
 const {Option} = Select;
 
-class UserEditPage extends React.Component {
-  constructor(props) {
+interface BackendResponse<T> {
+  status?: string;
+  data?: T | null;
+  data2?: unknown;
+  msg?: string;
+}
+
+interface OrganizationRecord {
+  name: string;
+  accountMenu?: string;
+  accountItems?: AccountItemRecord[];
+  userTypes?: string[];
+  tags?: string[];
+  countryCodes?: string[];
+  [key: string]: unknown;
+}
+
+interface ApplicationRecord {
+  name: string;
+  organizationObj?: OrganizationRecord;
+  providers?: ProviderItemRecord[];
+  [key: string]: unknown;
+}
+
+interface GroupRecord {
+  owner: string;
+  name: string;
+  displayName?: string;
+  type?: string;
+  [key: string]: unknown;
+}
+
+interface ProviderRecord {
+  name?: string;
+  displayName?: string;
+  category?: string;
+  type?: string;
+  [key: string]: unknown;
+}
+
+interface ProviderItemRecord {
+  name?: string;
+  provider: ProviderRecord;
+  [key: string]: unknown;
+}
+
+interface AccountItemRecord {
+  name?: string;
+  visible?: boolean;
+  modifyRule?: "Self" | "Admin" | "Immutable" | string;
+  viewRule?: "Self" | "Admin" | string;
+  tab?: string;
+  regex?: string;
+  rule?: string;
+  [key: string]: unknown;
+}
+
+interface RoleRecord {
+  name: string;
+  [key: string]: unknown;
+}
+
+interface MfaPropsRecord {
+  mfaType: string;
+  enabled?: boolean;
+  secret?: string;
+  isPreferred?: boolean;
+  [key: string]: unknown;
+}
+
+interface UserRecord {
+  owner: string;
+  name: string;
+  id?: string;
+  displayName?: string;
+  avatar?: string;
+  type?: string;
+  email?: string;
+  countryCode?: string;
+  phone?: string;
+  region?: string;
+  location?: string;
+  address?: string[];
+  addresses?: unknown[];
+  title?: string;
+  idCardType?: string;
+  idCard?: string;
+  realName?: string;
+  homepage?: string;
+  bio?: string;
+  tag?: string;
+  language?: string;
+  gender?: string;
+  birthday?: string;
+  education?: string;
+  balance?: number | null;
+  balanceCredit?: number | null;
+  balanceCurrency?: string;
+  cart?: unknown;
+  score?: number | string | null;
+  karma?: number | string | null;
+  ranking?: number | string | null;
+  signupApplication?: string;
+  registerType?: string;
+  registerSource?: string;
+  groups?: string[];
+  roles?: RoleRecord[];
+  permissions?: RoleRecord[];
+  properties?: Record<string, unknown> | null;
+  isVerified?: boolean;
+  isAdmin?: boolean;
+  isForbidden?: boolean;
+  isDeleted?: boolean;
+  deletedTime?: string;
+  mfaItems?: unknown[];
+  multiFactorAuths?: MfaPropsRecord[];
+  webauthnCredentials?: unknown[];
+  lastChangePasswordTime?: string;
+  managedAccounts?: unknown[];
+  faceIds?: unknown[];
+  mfaAccounts?: unknown[];
+  mfaProps?: unknown;
+  needUpdatePassword?: boolean;
+  ipWhitelist?: string;
+  firstName?: string;
+  lastName?: string;
+  applicationScopes?: unknown[];
+  [key: string]: unknown;
+}
+
+interface AccountRecord extends UserRecord {
+  isAdmin?: boolean;
+  accessToken?: string;
+  organization?: OrganizationRecord;
+}
+
+interface UserEditPageProps {
+  account: AccountRecord | null;
+  match: {
+    params: {
+      organizationName: string;
+      userName: string;
+    };
+  };
+  location: {
+    mode?: string;
+    search?: string;
+    [key: string]: unknown;
+  };
+  history: {
+    push: (path: string) => void;
+  };
+  organizationName?: string;
+  userName?: string;
+  onUpdateAccount?: (account: AccountRecord) => void;
+}
+
+interface UserEditPageState {
+  classes: UserEditPageProps;
+  organizationName: string;
+  userName: string;
+  user: UserRecord;
+  application: ApplicationRecord | null;
+  groups: GroupRecord[] | null;
+  organizations: OrganizationRecord[];
+  applications: ApplicationRecord[];
+  mode: string;
+  loading: boolean;
+  returnUrl: string | null;
+  idCardInfo: string[];
+  openFaceRecognitionModal: boolean;
+  transactions: Record<string, unknown>[];
+  consents: unknown[];
+  activeMenuKey: string;
+  menuMode: "Horizontal" | "Vertical" | string;
+  multiFactorAuths?: MfaPropsRecord[];
+  RemoveMfaLoading?: boolean;
+  [key: string]: unknown;
+}
+
+interface RouterInjectedProps {
+  history: UserEditPageProps["history"];
+  location: UserEditPageProps["location"];
+  match: UserEditPageProps["match"];
+}
+
+const withRouter = (ReactRouterDom as unknown as {
+  withRouter: <P extends object>(component: React.ComponentType<P>) => React.ComponentType<Omit<P, keyof RouterInjectedProps> & Partial<RouterInjectedProps>>;
+}).withRouter;
+
+// i18next 的历史类型返回值偏宽；页面 JSX 和消息提示只消费字符串。
+const i18next = {
+  t: (key: string, options?: Record<string, unknown>): string => String(i18nextRaw.t(key, options)),
+};
+
+export class UserEditPage extends React.Component<UserEditPageProps, UserEditPageState> {
+  constructor(props: UserEditPageProps) {
     super(props);
     this.state = {
       classes: props,
       organizationName: props.organizationName !== undefined ? props.organizationName : props.match.params.organizationName,
       userName: props.userName !== undefined ? props.userName : props.match.params.userName,
-      user: null,
+      // 保留历史 JS 行为：用户详情加载前为 null，render 中仍用 null guard 控制展示。
+      user: null as unknown as UserRecord,
       application: null,
       groups: null,
       organizations: [],
@@ -92,7 +288,7 @@ class UserEditPage extends React.Component {
     this.setReturnUrl();
   }
 
-  componentDidUpdate(prevProps, prevState, snapshot) {
+  componentDidUpdate(prevProps: Readonly<UserEditPageProps>, prevState: Readonly<UserEditPageState>, snapshot?: unknown) {
     if (prevState.application !== this.state.application) {
       this.getGroups(this.state.organizationName);
     }
@@ -100,7 +296,7 @@ class UserEditPage extends React.Component {
 
   getUser() {
     UserBackend.getUser(this.state.organizationName, this.state.userName)
-      .then((res) => {
+      .then((res: BackendResponse<UserRecord>) => {
         if (res.data === null) {
           this.props.history.push("/404");
           return;
@@ -111,10 +307,11 @@ class UserEditPage extends React.Component {
           return;
         }
 
+        const user = res.data as UserRecord;
         this.setState({
-          user: res.data,
-          multiFactorAuths: res.data?.multiFactorAuths ?? [],
-          consents: res.data?.applicationScopes ?? [],
+          user: user,
+          multiFactorAuths: user.multiFactorAuths ?? [],
+          consents: user.applicationScopes ?? [],
           loading: false,
         });
 
@@ -125,7 +322,7 @@ class UserEditPage extends React.Component {
 
   getUserTransactions() {
     TransactionBackend.getTransactions(this.state.organizationName, "", "", "user", this.state.userName)
-      .then((res) => {
+      .then((res: BackendResponse<Record<string, unknown>[]>) => {
         if (res.status === "ok") {
           this.setState({
             transactions: res.data ?? [],
@@ -141,21 +338,21 @@ class UserEditPage extends React.Component {
 
   getOrganizations() {
     OrganizationBackend.getOrganizations("admin")
-      .then((res) => {
+      .then((res: BackendResponse<OrganizationRecord[]>) => {
         this.setState({
           organizations: res.data || [],
         });
       });
   }
 
-  getApplicationsByOrganization(organizationName) {
+  getApplicationsByOrganization(organizationName: string) {
     ApplicationBackend.getApplicationsByOrganization("admin", organizationName)
-      .then((res) => {
+      .then((res: BackendResponse<ApplicationRecord[]>) => {
+        const applications = res.data ?? [];
         this.setState({
-          applications: res.data || [],
+          applications: applications,
         });
 
-        const applications = res.data;
         if (this.state.user) {
           if (this.state.user.signupApplication === "" || applications.filter(application => application.name === this.state.user.signupApplication).length === 0) {
             if (applications.length > 0) {
@@ -196,17 +393,17 @@ class UserEditPage extends React.Component {
     }
   }
 
-  getGroups(organizationName) {
+  getGroups(organizationName: string) {
     if (!Setting.isLocalAdminUser(this.props.account)) {
       return;
     }
 
     if (this.isGroupsVisible()) {
       GroupBackend.getGroups(organizationName)
-        .then((res) => {
+        .then((res: BackendResponse<GroupRecord[]>) => {
           if (res.status === "ok") {
             this.setState({
-              groups: res.data,
+              groups: res.data ?? [],
             });
           }
         });
@@ -223,14 +420,14 @@ class UserEditPage extends React.Component {
     }
   }
 
-  parseUserField(key, value) {
+  parseUserField(key: string, value: unknown): unknown {
     if (["score", "karma", "ranking"].includes(key)) {
       value = Setting.myParseInt(value);
     }
     return value;
   }
 
-  updateUserField(key, value, idx) {
+  updateUserField(key: string, value: unknown, idx?: number) {
     if (this.props.account === null) {
       return;
     }
@@ -239,10 +436,12 @@ class UserEditPage extends React.Component {
 
     const user = this.state.user;
     if (key === "address") {
-      if (!user[key]) {
-        user[key] = ["", ""];
+      if (!user.address) {
+        user.address = ["", ""];
       }
-      user[key][idx] = value;
+      if (idx !== undefined) {
+        user.address[idx] = String(value ?? "");
+      }
     } else {
       user[key] = value;
     }
@@ -276,7 +475,7 @@ class UserEditPage extends React.Component {
   }
 
   getCountryCode() {
-    return this.props.account.countryCode;
+    return this.props.account?.countryCode;
   }
 
   deleteMfa = () => {
@@ -334,13 +533,16 @@ class UserEditPage extends React.Component {
     }
 
     AuthBackend.getAccount()
-      .then((res) => {
+      .then((res: BackendResponse<AccountRecord>) => {
         if (res.status !== "ok") {
           return;
         }
         const account = res.data;
-        account.organization = res.data2;
-        this.props.onUpdateAccount(account);
+        if (!account) {
+          return;
+        }
+        account.organization = res.data2 as OrganizationRecord;
+        this.props.onUpdateAccount?.(account);
       });
   }
 
@@ -358,7 +560,7 @@ class UserEditPage extends React.Component {
     );
   }
 
-  renderAccountItem(accountItem) {
+  renderAccountItem(accountItem: AccountItemRecord): React.ReactNode {
     const isAdmin = Setting.isLocalAdminUser(this.props.account);
 
     let disabled = false;
@@ -413,7 +615,7 @@ class UserEditPage extends React.Component {
           </Col>
           <Col span={22} >
             <Select virtual={false} mode="multiple" style={{width: "100%"}} disabled={disabled} value={this.state.user.groups ?? []} onChange={(value => {
-              if (this.state.groups?.filter(group => value.includes(`${group.owner}/${group.name}`))
+              if ((this.state.groups ?? []).filter(group => value.includes(`${group.owner}/${group.name}`))
                 .filter(group => group.type === "Physical").length > 1) {
                 Setting.showMessage("error", i18next.t("general:You can only select one physical group"));
                 return;
@@ -558,7 +760,7 @@ class UserEditPage extends React.Component {
                 style={{width: "30%"}}
                 // disabled={!Setting.isLocalAdminUser(this.props.account) ? true : disabled}
                 initValue={this.state.user.countryCode}
-                onChange={(value) => {
+                onChange={(value: unknown) => {
                   this.updateUserField("countryCode", value);
                 }}
                 countryCodes={this.getUserOrganization()?.countryCodes}
@@ -583,7 +785,7 @@ class UserEditPage extends React.Component {
             {Setting.getLabel(i18next.t("user:Country/Region"), i18next.t("user:Country/Region - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <RegionSelect defaultValue={this.state.user.region} onChange={(value) => {
+            <RegionSelect defaultValue={this.state.user.region} onChange={(value: unknown) => {
               this.updateUserField("region", value);
             }} />
           </Col>
@@ -642,7 +844,7 @@ class UserEditPage extends React.Component {
             <AddressTable
               title={i18next.t("user:Addresses")}
               table={this.state.user.addresses}
-              onUpdateTable={(value) => {
+              onUpdateTable={(value: unknown) => {
                 this.updateUserField("addresses", value);
               }}
             />
@@ -652,7 +854,7 @@ class UserEditPage extends React.Component {
     } else if (accountItem.name === "Affiliation") {
       return (
         (this.state.application === null || this.state.user === null) ? null : (
-          <AffiliationSelect labelSpan={(Setting.isMobile()) ? 22 : 2} application={this.state.application} user={this.state.user} onUpdateUserField={(key, value) => {return this.updateUserField(key, value);}} />
+          <AffiliationSelect labelSpan={(Setting.isMobile()) ? 22 : 2} application={this.state.application} user={this.state.user} onUpdateUserField={(key: string, value: unknown) => {return this.updateUserField(key, value);}} />
         )
       );
     } else if (accountItem.name === "Title") {
@@ -708,7 +910,7 @@ class UserEditPage extends React.Component {
                   {name: "ID card back", value: "idCardBack"},
                   {name: "ID card with person", value: "idCardWithPerson"},
                 ].map((entry) => {
-                  return this.renderImage(this.state.user.properties === null ? "" : (this.state.user.properties[entry.value] || ""), this.getIdCardType(entry.name), this.getIdCardText(entry.name), entry.value, disabled);
+                  return this.renderImage(this.state.user.properties === null ? "" : String(this.state.user.properties?.[entry.value] || ""), this.getIdCardType(entry.name), this.getIdCardText(entry.name), entry.value, disabled);
                 })
               }
             </Row>
@@ -781,10 +983,10 @@ class UserEditPage extends React.Component {
           </Col>
           <Col span={22} >
             {
-              this.getUserOrganization()?.tags?.length > 0 ? (
+              (this.getUserOrganization()?.tags ?? []).length > 0 ? (
                 <Select virtual={false} style={{width: "100%"}} value={this.state.user.tag}
                   onChange={(value => {this.updateUserField("tag", value);})}
-                  options={this.getUserOrganization()?.tags?.map((tag) => {
+                  options={(this.getUserOrganization()?.tags ?? []).map((tag) => {
                     const tokens = tag.split("|");
                     const value = tokens[0];
                     const displayValue = Setting.getLanguage() !== "zh" ? tokens[0] : tokens[1];
@@ -976,7 +1178,7 @@ class UserEditPage extends React.Component {
             {Setting.getLabel(i18next.t("user:Register type"), i18next.t("user:Register type - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Input value={this.state.user.registerType} disabled={!this.props.account.isAdmin}
+            <Input value={this.state.user.registerType} disabled={!this.props.account?.isAdmin}
               onChange={e => {this.updateUserField("registerType", e.target.value);}} />
           </Col>
         </Row>
@@ -988,7 +1190,7 @@ class UserEditPage extends React.Component {
             {Setting.getLabel(i18next.t("user:Register source"), i18next.t("user:Register source - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Input value={this.state.user.registerSource} disabled={!this.props.account.isAdmin}
+            <Input value={this.state.user.registerSource} disabled={!this.props.account?.isAdmin}
               onChange={e => {this.updateUserField("registerSource", e.target.value);}} />
           </Col>
         </Row>
@@ -1001,7 +1203,7 @@ class UserEditPage extends React.Component {
           </Col>
           <Col span={22} >
             {
-              Setting.getTags(this.state.user.roles.map(role => role.name))
+              Setting.getTags((this.state.user.roles ?? []).map(role => role.name))
             }
           </Col>
         </Row>
@@ -1014,7 +1216,7 @@ class UserEditPage extends React.Component {
           </Col>
           <Col span={22} >
             {
-              Setting.getTags(this.state.user.permissions.map(permission => permission.name))
+              Setting.getTags((this.state.user.permissions ?? []).map(permission => permission.name))
             }
           </Col>
         </Row>
@@ -1030,7 +1232,7 @@ class UserEditPage extends React.Component {
               <div style={{marginBottom: 20}}>
                 {
                   (this.state.application === null || this.state.user === null) ? null : (
-                    this.state.application?.providers.filter(providerItem => Setting.isProviderVisible(providerItem)).map((providerItem) =>
+                    (this.state.application?.providers ?? []).filter(providerItem => Setting.isProviderVisible(providerItem)).map((providerItem) =>
                       (providerItem.provider.category === "OAuth" || providerItem.provider.category === "Web3") ? (
                         <OAuthWidget
                           key={providerItem.name}
@@ -1064,7 +1266,7 @@ class UserEditPage extends React.Component {
             {Setting.getLabel(i18next.t("user:Properties"), i18next.t("user:Properties - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <PropertyTable properties={this.state.user.properties} onUpdateTable={(value) => {this.updateUserField("properties", value);}} />
+            <PropertyTable properties={this.state.user.properties} onUpdateTable={(value: unknown) => {this.updateUserField("properties", value);}} />
           </Col>
         </Row>
       );
@@ -1117,7 +1319,7 @@ class UserEditPage extends React.Component {
           <MfaTable
             title={i18next.t("general:MFA items")}
             table={this.state.user.mfaItems ?? []}
-            onUpdateTable={(value) => {this.updateUserField("mfaItems", value);}}
+            onUpdateTable={(value: unknown) => {this.updateUserField("mfaItems", value);}}
           />
         </Col>
       </Row>);
@@ -1227,7 +1429,7 @@ class UserEditPage extends React.Component {
             {Setting.getLabel(i18next.t("user:WebAuthn credentials"), i18next.t("user:WebAuthn credentials"))} :
           </Col>
           <Col span={22} >
-            <WebAuthnCredentialTable isSelf={this.isSelf()} table={this.state.user.webauthnCredentials} updateTable={(table) => {this.updateUserField("webauthnCredentials", table);}} refresh={this.getUser.bind(this)} />
+            <WebAuthnCredentialTable isSelf={this.isSelf()} table={this.state.user.webauthnCredentials} updateTable={(table: unknown) => {this.updateUserField("webauthnCredentials", table);}} refresh={this.getUser.bind(this)} />
           </Col>
         </Row>
       );
@@ -1254,7 +1456,7 @@ class UserEditPage extends React.Component {
             <ManagedAccountTable
               title={i18next.t("user:Managed accounts")}
               table={this.state.user.managedAccounts}
-              onUpdateTable={(table) => {this.updateUserField("managedAccounts", table);}}
+              onUpdateTable={(table: unknown) => {this.updateUserField("managedAccounts", table);}}
               applications={this.state.applications}
             />
           </Col>
@@ -1271,7 +1473,7 @@ class UserEditPage extends React.Component {
               title={i18next.t("user:Face IDs")}
               table={this.state.user.faceIds}
               {...this.props}
-              onUpdateTable={(table) => {this.updateUserField("faceIds", table);}}
+              onUpdateTable={(table: unknown) => {this.updateUserField("faceIds", table);}}
             />
           </Col>
         </Row>
@@ -1288,7 +1490,7 @@ class UserEditPage extends React.Component {
               table={this.state.user.mfaAccounts}
               accessToken={this.props.account?.accessToken}
               icon={this.state.user.avatar}
-              onUpdateTable={(table) => {this.updateUserField("mfaAccounts", table);}}
+              onUpdateTable={(table: unknown) => {this.updateUserField("mfaAccounts", table);}}
             />
           </Col>
         </Row>
@@ -1348,7 +1550,7 @@ class UserEditPage extends React.Component {
     }
   }
 
-  renderImage(imgUrl, title, set, tag, disabled) {
+  renderImage(imgUrl: string | undefined, title: string, set: string, tag: string, disabled: boolean) {
     return (
       <Col span={4} style={{textAlign: "center", margin: "auto", marginLeft: "20px"}} key={tag}>
         {
@@ -1373,7 +1575,7 @@ class UserEditPage extends React.Component {
     );
   }
 
-  isAccountItemVisible(item) {
+  isAccountItemVisible(item: AccountItemRecord) {
     if (!item.visible) {
       return false;
     }
@@ -1392,7 +1594,7 @@ class UserEditPage extends React.Component {
     return true;
   }
 
-  getAccountItemsByTab(tab) {
+  getAccountItemsByTab(tab: string): AccountItemRecord[] {
     const accountItems = this.getUserOrganization()?.accountItems || [];
     return accountItems.filter(item => {
       if (!this.isAccountItemVisible(item)) {
@@ -1404,9 +1606,9 @@ class UserEditPage extends React.Component {
     });
   }
 
-  getUniqueTabs() {
+  getUniqueTabs(): string[] {
     const accountItems = this.getUserOrganization()?.accountItems || [];
-    const tabs = new Set();
+    const tabs = new Set<string>();
 
     accountItems.forEach(item => {
       if (this.isAccountItemVisible(item)) {
@@ -1440,7 +1642,7 @@ class UserEditPage extends React.Component {
                 validateTrigger="onChange"
                 rules={[
                   {
-                    pattern: accountItem.regex ? new RegExp(accountItem.regex, "g") : null,
+                    pattern: accountItem.regex ? new RegExp(accountItem.regex, "g") : undefined,
                     message: i18next.t("user:This field value doesn't match the pattern rule"),
                   },
                 ]}
@@ -1503,7 +1705,7 @@ class UserEditPage extends React.Component {
                     validateTrigger="onChange"
                     rules={[
                       {
-                        pattern: accountItem.regex ? new RegExp(accountItem.regex, "g") : null,
+                        pattern: accountItem.regex ? new RegExp(accountItem.regex, "g") : undefined,
                         message: i18next.t("user:This field value doesn't match the pattern rule"),
                       },
                     ]}
@@ -1539,7 +1741,7 @@ class UserEditPage extends React.Component {
     );
   }
 
-  getIdCardType(key) {
+  getIdCardType(key: string) {
     if (key === "ID card front") {
       return i18next.t("user:ID card front");
     } else if (key === "ID card back") {
@@ -1551,7 +1753,7 @@ class UserEditPage extends React.Component {
     }
   }
 
-  getIdCardText(key) {
+  getIdCardText(key: string) {
     if (key === "ID card front") {
       return i18next.t("user:Upload ID card front picture");
     } else if (key === "ID card back") {
@@ -1563,7 +1765,7 @@ class UserEditPage extends React.Component {
     }
   }
 
-  submitUserEdit(exitAfterSave) {
+  submitUserEdit(exitAfterSave: boolean) {
     const user = Setting.deepCopy(this.state.user);
     UserBackend.updateUser(this.state.organizationName, this.state.userName, user)
       .then((res) => {
