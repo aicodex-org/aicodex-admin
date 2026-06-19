@@ -23,8 +23,71 @@ import * as ApplicationBackend from "./backend/ApplicationBackend";
 
 const {Option} = Select;
 
-class AgentEditPage extends React.Component {
-  constructor(props) {
+interface BackendResponse<T> {
+  status?: string;
+  data?: T | null;
+  msg?: string;
+}
+
+interface AccountRecord {
+  owner?: string;
+  tag?: string;
+  isAdmin?: boolean;
+  [key: string]: unknown;
+}
+
+interface AgentRecord {
+  owner: string;
+  name: string;
+  displayName: string;
+  url: string;
+  token: string;
+  application: string;
+  [key: string]: unknown;
+}
+
+interface OrganizationRecord {
+  name: string;
+  [key: string]: unknown;
+}
+
+interface ApplicationRecord {
+  name: string;
+  [key: string]: unknown;
+}
+
+interface AgentEditPageProps {
+  account: AccountRecord;
+  history: {
+    push: (location: string) => void;
+  };
+  location: {
+    mode?: string;
+  };
+  match: {
+    params: {
+      organizationName: string;
+      agentName: string;
+    };
+  };
+}
+
+interface AgentEditPageState {
+  classes: AgentEditPageProps;
+  agentName: string;
+  owner: string;
+  agent: AgentRecord | null;
+  organizations: OrganizationRecord[];
+  applications: ApplicationRecord[];
+  mode: string;
+}
+
+function t(key: string): string {
+  return String(i18next.t(key));
+}
+
+class AgentEditPage extends React.Component<AgentEditPageProps, AgentEditPageState> {
+  constructor(props: AgentEditPageProps) {
     super(props);
     this.state = {
       classes: props,
@@ -37,15 +100,15 @@ class AgentEditPage extends React.Component {
     };
   }
 
-  UNSAFE_componentWillMount() {
+  UNSAFE_componentWillMount(): void {
     this.getAgent();
     this.getOrganizations();
     this.getApplications(this.state.owner);
   }
 
-  getAgent() {
+  getAgent(): void {
     AgentBackend.getAgent(this.state.agent?.owner || this.state.owner, this.state.agentName)
-      .then((res) => {
+      .then((res: BackendResponse<AgentRecord>) => {
         if (res.data === null) {
           this.props.history.push("/404");
           return;
@@ -53,18 +116,18 @@ class AgentEditPage extends React.Component {
 
         if (res.status === "ok") {
           this.setState({
-            agent: res.data,
+            agent: res.data ?? null,
           });
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to get")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to get")}: ${res.msg}`);
         }
       });
   }
 
-  getOrganizations() {
+  getOrganizations(): void {
     if (Setting.isAdminUser(this.props.account)) {
       OrganizationBackend.getOrganizations("admin")
-        .then((res) => {
+        .then((res: BackendResponse<OrganizationRecord[]>) => {
           this.setState({
             organizations: res.data || [],
           });
@@ -72,34 +135,42 @@ class AgentEditPage extends React.Component {
     }
   }
 
-  getApplications(owner) {
+  getApplications(owner: string): void {
     ApplicationBackend.getApplicationsByOrganization("admin", owner)
-      .then((res) => {
+      .then((res: BackendResponse<ApplicationRecord[]>) => {
         this.setState({
           applications: res.data || [],
         });
       });
   }
 
-  updateAgentField(key, value) {
+  updateAgentField(key: string, value: unknown): void {
     const agent = this.state.agent;
-    if (key === "owner" && agent.owner !== value) {
-      agent.application = "";
-      this.getApplications(value);
+    if (agent === null) {
+      return;
     }
 
-    agent[key] = value;
+    if (key === "owner" && agent.owner !== value) {
+      agent.application = "";
+      this.getApplications(String(value));
+    }
+
+    agent[key] = value as string;
     this.setState({
       agent: agent,
     });
   }
 
-  submitAgentEdit(willExit) {
-    const agent = Setting.deepCopy(this.state.agent);
+  submitAgentEdit(willExit: boolean): void {
+    if (this.state.agent === null) {
+      return;
+    }
+
+    const agent = Setting.deepCopy(this.state.agent) as AgentRecord;
     AgentBackend.updateAgent(this.state.owner, this.state.agentName, agent)
-      .then((res) => {
+      .then((res: BackendResponse<unknown>) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully modified"));
+          Setting.showMessage("success", t("general:Successfully modified"));
           if (willExit) {
             this.props.history.push("/agents");
           } else {
@@ -111,42 +182,50 @@ class AgentEditPage extends React.Component {
             this.props.history.push(`/agents/${agent.owner}/${agent.name}`);
           }
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to update")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to update")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  deleteAgent() {
+  deleteAgent(): void {
+    if (this.state.agent === null) {
+      return;
+    }
+
     AgentBackend.deleteAgent(this.state.agent)
-      .then((res) => {
+      .then((res: BackendResponse<unknown>) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully deleted"));
+          Setting.showMessage("success", t("general:Successfully deleted"));
           this.props.history.push("/agents");
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  renderAgent() {
+  renderAgent(): React.ReactNode {
+    if (this.state.agent === null) {
+      return null;
+    }
+
     return (
       <Card size="small" title={
         <div>
-          {this.state.mode === "add" ? i18next.t("agent:New Agent") : i18next.t("agent:Edit Agent")}&nbsp;&nbsp;&nbsp;&nbsp;
-          <Button onClick={() => this.submitAgentEdit(false)}>{i18next.t("general:Save")}</Button>
-          <Button style={{marginLeft: "20px"}} type="primary" onClick={() => this.submitAgentEdit(true)}>{i18next.t("general:Save & Exit")}</Button>
-          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteAgent()}>{i18next.t("general:Cancel")}</Button> : null}
+          {this.state.mode === "add" ? t("agent:New Agent") : t("agent:Edit Agent")}&nbsp;&nbsp;&nbsp;&nbsp;
+          <Button onClick={() => this.submitAgentEdit(false)}>{t("general:Save")}</Button>
+          <Button style={{marginLeft: "20px"}} type="primary" onClick={() => this.submitAgentEdit(true)}>{t("general:Save & Exit")}</Button>
+          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteAgent()}>{t("general:Cancel")}</Button> : null}
         </div>
       } style={(Setting.isMobile()) ? {margin: "5px"} : {}} type="inner">
         <Row style={{marginTop: "10px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Organization"), i18next.t("general:Organization - Tooltip"))} :
+            {Setting.getLabel(t("general:Organization"), t("general:Organization - Tooltip"))} :
           </Col>
           <Col span={22} >
             <Select virtual={false} style={{width: "100%"}} disabled={!Setting.isAdminUser(this.props.account)} value={this.state.agent.owner} onChange={(value => {this.updateAgentField("owner", value);})}>
@@ -158,7 +237,7 @@ class AgentEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {i18next.t("general:Name")}:
+            {t("general:Name")}:
           </Col>
           <Col span={22} >
             <Input value={this.state.agent.name} onChange={e => {
@@ -168,7 +247,7 @@ class AgentEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {i18next.t("general:Display name")}:
+            {t("general:Display name")}:
           </Col>
           <Col span={22} >
             <Input value={this.state.agent.displayName} onChange={e => {
@@ -178,7 +257,7 @@ class AgentEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Listening URL"), i18next.t("general:Listening URL - Tooltip"))} :
+            {Setting.getLabel(t("general:Listening URL"), t("general:Listening URL - Tooltip"))} :
           </Col>
           <Col span={22} >
             <Input prefix={<LinkOutlined />} value={this.state.agent.url} onChange={e => {
@@ -188,7 +267,7 @@ class AgentEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("token:Access token"), i18next.t("token:Access token - Tooltip"))} :
+            {Setting.getLabel(t("token:Access token"), t("token:Access token - Tooltip"))} :
           </Col>
           <Col span={22} >
             <Input.Password placeholder={"***"} value={this.state.agent.token} onChange={e => {
@@ -198,7 +277,7 @@ class AgentEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Application"), i18next.t("general:Application - Tooltip"))} :
+            {Setting.getLabel(t("general:Application"), t("general:Application - Tooltip"))} :
           </Col>
           <Col span={22} >
             <Select virtual={false} style={{width: "100%"}} value={this.state.agent.application} onChange={(value => {this.updateAgentField("application", value);})}>
@@ -212,7 +291,7 @@ class AgentEditPage extends React.Component {
     );
   }
 
-  render() {
+  render(): React.ReactNode {
     if (this.state.agent === null) {
       return null;
     }

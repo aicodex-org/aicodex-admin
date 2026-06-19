@@ -6,16 +6,11 @@ TBD - created by archiving change improve-admin-enterprise-llm-ai-gateway-center
 ### Requirement: LLM AI 网关中心工作台
 Admin 企业认证中心 SHALL 在原 `/agents` 路由提供紧凑的 LLM AI 网关中心工作台，使管理员能够从 LLM AI 区域首屏理解 AI Agent、MCP Server、MCP Store、Entry、Site、Rule、API 网关身份映射和审计记录之间的治理关系，并快速进入 Agent 列表操作。
 
-#### Scenario: 管理员打开 LLM AI 区域
-- **WHEN** 已登录管理员访问 `/agents`
-- **THEN** 页面展示 LLM AI 网关中心标题、当前 Agent 列表摘要、AI/Gateway 关系核对和配置入口
-- **AND** 页面仍展示既有 Agent 表格、新增、编辑、删除、分页、搜索和排序行为
-- **AND** Agent 列表或列表操作入口在 1440x900 桌面首屏内可感知
-
-#### Scenario: 保持既有路由和权限 key
-- **WHEN** 管理员使用侧边栏、组织 navItems 配置树或直接 URL 访问 LLM AI 相关页面
-- **THEN** `/agents`、`/servers`、`/server-store`、`/entries`、`/sites`、`/rules` 和 `/platform-api-mappings` SHALL 保持原路由和权限 key 可用
-- **AND** 工作台 SHALL 只改变页面语义和入口组织，不改变后端接口契约
+#### Scenario: AI Agent 入口页迁移保持工作台和列表行为
+- **WHEN** `AgentListPage` 和 `AgentEditPage` 迁移为 TSX
+- **THEN** `/agents` 页面 SHALL 继续展示 `LlmAiGatewayCenter` 总览块、Agent 表格、新增、编辑、删除、分页、搜索和排序行为
+- **AND** `/agents/:organizationName/:agentName` 页面 SHALL 继续保持 Agent 读取、组织/应用下拉、字段编辑、保存、保存并退出、取消新增、删除和 404 跳转行为
+- **AND** 迁移 SHALL NOT 改变后端 Agent API 契约、Agent 保存/删除语义、Gateway projection publish 行为、MCP Server、MCP Store、入口配置、站点范围或治理规则页面
 
 ### Requirement: 只读摘要与敏感信息边界
 LLM AI 网关中心 SHALL 只基于当前列表视图和既有路由展示可扫描摘要，不得把 token、Cookie、client secret、私有 URL、完整认证头或原始 Gateway 响应写入工作台摘要、测试快照、locale 或报告。
