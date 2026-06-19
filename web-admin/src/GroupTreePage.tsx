@@ -15,31 +15,99 @@
 import {DeleteOutlined, EditOutlined, HolderOutlined, PlusOutlined, UsergroupAddOutlined} from "@ant-design/icons";
 import {Button, Col, Empty, Row, Space, Tree} from "antd";
 import i18next from "i18next";
-import moment from "moment/moment";
+import moment from "moment";
 import React from "react";
 import * as GroupBackend from "./backend/GroupBackend";
 import * as Setting from "./Setting";
 import OrganizationSelect from "./common/select/OrganizationSelect";
 import UserListPage from "./UserListPage";
 
-class GroupTreePage extends React.Component {
-  constructor(props) {
+type Account = {
+  owner: string;
+  isAdmin?: boolean;
+  [key: string]: unknown;
+};
+
+type RouteParams = {
+  organizationName: string;
+  groupName?: string;
+};
+
+type HistoryLike = {
+  push: (location: string | {pathname: string; mode?: string}) => void;
+};
+
+type GroupTreePageProps = {
+  account: Account;
+  history: HistoryLike;
+  match: {
+    params: RouteParams;
+  };
+  organizationName?: string;
+  [key: string]: unknown;
+};
+
+type GroupTreeNode = {
+  key: string;
+  title: string;
+  owner: string;
+  type?: string;
+  children?: GroupTreeNode[];
+};
+
+type RenderedTreeNode = {
+  key: string;
+  title: React.ReactNode;
+  children: RenderedTreeNode[];
+};
+
+type GroupDraft = {
+  owner: string;
+  name: string;
+  createdTime: string;
+  updatedTime: string;
+  displayName: string;
+  type: string;
+  parentId?: string;
+  isTopGroup: boolean;
+  isEnabled: boolean;
+};
+
+type ApiResponse<T = unknown> = {
+  status: string;
+  msg?: string;
+  data?: T;
+};
+
+type GroupTreePageState = {
+  classes: GroupTreePageProps;
+  owner: string;
+  organizationName: string;
+  groupName?: string;
+  treeData: GroupTreeNode[];
+  selectedKeys: React.Key[];
+  expandedKeys?: React.Key[];
+};
+
+class GroupTreePage extends React.Component<GroupTreePageProps, GroupTreePageState> {
+  constructor(props: GroupTreePageProps) {
     super(props);
+    const groupName = props.match?.params.groupName;
     this.state = {
       classes: props,
       owner: Setting.isAdminUser(this.props.account) ? "" : this.props.account.owner,
       organizationName: props.organizationName !== undefined ? props.organizationName : props.match.params.organizationName,
-      groupName: this.props.match?.params.groupName,
+      groupName,
       treeData: [],
-      selectedKeys: [this.props.match?.params.groupName],
+      selectedKeys: groupName === undefined ? [] : [groupName],
     };
   }
 
-  UNSAFE_componentWillMount() {
+  UNSAFE_componentWillMount(): void {
     this.getTreeData();
   }
 
-  componentDidUpdate(prevProps, prevState, snapshot) {
+  componentDidUpdate(prevProps: GroupTreePageProps, prevState: GroupTreePageState): void {
     if (this.state.organizationName !== prevState.organizationName) {
       this.getTreeData();
     }
@@ -49,11 +117,11 @@ class GroupTreePage extends React.Component {
     }
   }
 
-  getTreeData() {
-    GroupBackend.getGroups(this.state.organizationName, true).then((res) => {
+  getTreeData(): void {
+    GroupBackend.getGroups(this.state.organizationName, true).then((res: ApiResponse<GroupTreeNode[]>) => {
       if (res.status === "ok") {
         this.setState({
-          treeData: res.data,
+          treeData: res.data ?? [],
         });
       } else {
         Setting.showMessage("error", res.msg);
@@ -61,7 +129,7 @@ class GroupTreePage extends React.Component {
     });
   }
 
-  setTreeTitle(treeData) {
+  setTreeTitle(treeData: GroupTreeNode): RenderedTreeNode {
     const haveChildren = Array.isArray(treeData.children) && treeData.children.length > 0;
     const isSelected = this.state.groupName === treeData.key;
     return {
@@ -77,19 +145,19 @@ class GroupTreePage extends React.Component {
                 color: "inherit",
                 transition: "color 0.3s",
               }}
-              onMouseEnter={(e) => {
+              onMouseEnter={(e: React.MouseEvent<HTMLSpanElement>) => {
                 e.currentTarget.style.color = "rgba(89,54,213,0.6)";
               }}
-              onMouseLeave={(e) => {
+              onMouseLeave={(e: React.MouseEvent<HTMLSpanElement>) => {
                 e.currentTarget.style.color = "inherit";
               }}
-              onMouseDown={(e) => {
+              onMouseDown={(e: React.MouseEvent<HTMLSpanElement>) => {
                 e.currentTarget.style.color = "rgba(89,54,213,0.4)";
               }}
-              onMouseUp={(e) => {
+              onMouseUp={(e: React.MouseEvent<HTMLSpanElement>) => {
                 e.currentTarget.style.color = "rgba(89,54,213,0.6)";
               }}
-              onClick={(e) => {
+              onClick={(e: React.MouseEvent<HTMLSpanElement>) => {
                 e.stopPropagation();
                 sessionStorage.setItem("groupTreeUrl", window.location.pathname);
                 this.addGroup();
@@ -101,19 +169,19 @@ class GroupTreePage extends React.Component {
                 color: "inherit",
                 transition: "color 0.3s",
               }}
-              onMouseEnter={(e) => {
+              onMouseEnter={(e: React.MouseEvent<HTMLSpanElement>) => {
                 e.currentTarget.style.color = "rgba(89,54,213,0.6)";
               }}
-              onMouseLeave={(e) => {
+              onMouseLeave={(e: React.MouseEvent<HTMLSpanElement>) => {
                 e.currentTarget.style.color = "inherit";
               }}
-              onMouseDown={(e) => {
+              onMouseDown={(e: React.MouseEvent<HTMLSpanElement>) => {
                 e.currentTarget.style.color = "rgba(89,54,213,0.4)";
               }}
-              onMouseUp={(e) => {
+              onMouseUp={(e: React.MouseEvent<HTMLSpanElement>) => {
                 e.currentTarget.style.color = "rgba(89,54,213,0.6)";
               }}
-              onClick={(e) => {
+              onClick={(e: React.MouseEvent<HTMLSpanElement>) => {
                 e.stopPropagation();
                 sessionStorage.setItem("groupTreeUrl", window.location.pathname);
                 this.props.history.push(`/groups/${this.state.organizationName}/${treeData.key}`);
@@ -126,22 +194,22 @@ class GroupTreePage extends React.Component {
                 color: "inherit",
                 transition: "color 0.3s",
               }}
-              onMouseEnter={(e) => {
+              onMouseEnter={(e: React.MouseEvent<HTMLSpanElement>) => {
                 e.currentTarget.style.color = "rgba(89,54,213,0.6)";
               }}
-              onMouseLeave={(e) => {
+              onMouseLeave={(e: React.MouseEvent<HTMLSpanElement>) => {
                 e.currentTarget.style.color = "inherit";
               }}
-              onMouseDown={(e) => {
+              onMouseDown={(e: React.MouseEvent<HTMLSpanElement>) => {
                 e.currentTarget.style.color = "rgba(89,54,213,0.4)";
               }}
-              onMouseUp={(e) => {
+              onMouseUp={(e: React.MouseEvent<HTMLSpanElement>) => {
                 e.currentTarget.style.color = "rgba(89,54,213,0.6)";
               }}
-              onClick={(e) => {
+              onClick={(e: React.MouseEvent<HTMLSpanElement>) => {
                 e.stopPropagation();
                 GroupBackend.deleteGroup({owner: treeData.owner, name: treeData.key})
-                  .then((res) => {
+                  .then((res: ApiResponse) => {
                     if (res.status === "ok") {
                       Setting.showMessage("success", i18next.t("general:Successfully deleted"));
                       this.getTreeData();
@@ -149,7 +217,7 @@ class GroupTreePage extends React.Component {
                       Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
                     }
                   })
-                  .catch(error => {
+                  .catch((error: unknown) => {
                     Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
                   });
               }}
@@ -158,13 +226,13 @@ class GroupTreePage extends React.Component {
           </React.Fragment>
         )}
       </Space>,
-      children: haveChildren ? treeData.children.map(i => this.setTreeTitle(i)) : [],
+      children: haveChildren ? treeData.children!.map(i => this.setTreeTitle(i)) : [],
     };
   }
 
-  setTreeExpandedKeys = () => {
-    const expandedKeys = [];
-    const setExpandedKeys = (nodes) => {
+  setTreeExpandedKeys = (): void => {
+    const expandedKeys: React.Key[] = [];
+    const setExpandedKeys = (nodes: GroupTreeNode[]): void => {
       for (const node of nodes) {
         expandedKeys.push(node.key);
         if (node.children) {
@@ -178,15 +246,16 @@ class GroupTreePage extends React.Component {
     });
   };
 
-  renderTree() {
-    const onSelect = (selectedKeys, info) => {
+  renderTree(): React.ReactNode {
+    const onSelect = (selectedKeys: React.Key[], info: {node: {key: React.Key}}) => {
+      const groupName = String(info.node.key);
       this.setState({
         selectedKeys: selectedKeys,
-        groupName: info.node.key,
+        groupName,
       });
-      this.props.history.push(`/trees/${this.state.organizationName}/${info.node.key}`);
+      this.props.history.push(`/trees/${this.state.organizationName}/${groupName}`);
     };
-    const onExpand = (expandedKeysValue) => {
+    const onExpand = (expandedKeysValue: React.Key[]) => {
       this.setState({
         expandedKeys: expandedKeysValue,
       });
@@ -200,7 +269,7 @@ class GroupTreePage extends React.Component {
     return (
       <Tree
         blockNode={true}
-        defaultSelectedKeys={[this.state.groupName]}
+        defaultSelectedKeys={this.state.groupName === undefined ? [] : [this.state.groupName]}
         defaultExpandAll={true}
         selectedKeys={this.state.selectedKeys}
         expandedKeys={this.state.expandedKeys}
@@ -212,13 +281,13 @@ class GroupTreePage extends React.Component {
     );
   }
 
-  renderOrganizationSelect() {
+  renderOrganizationSelect(): React.ReactNode {
     if (Setting.isAdminUser(this.props.account)) {
       return (
         <OrganizationSelect
           initValue={this.state.organizationName}
           style={{width: "100%"}}
-          onChange={(value) => {
+          onChange={(value: string) => {
             this.setState({
               organizationName: value,
               groupName: "",
@@ -228,9 +297,10 @@ class GroupTreePage extends React.Component {
         />
       );
     }
+    return null;
   }
 
-  newGroup(isRoot) {
+  newGroup(isRoot: boolean): GroupDraft {
     const randomName = Setting.getRandomName();
     return {
       owner: this.state.organizationName,
@@ -245,10 +315,10 @@ class GroupTreePage extends React.Component {
     };
   }
 
-  addGroup(isRoot = false) {
+  addGroup(isRoot = false): void {
     const newGroup = this.newGroup(isRoot);
     GroupBackend.addGroup(newGroup)
-      .then((res) => {
+      .then((res: ApiResponse) => {
         if (res.status === "ok") {
           sessionStorage.setItem("groupTreeUrl", window.location.pathname);
           this.props.history.push({pathname: `/groups/${newGroup.owner}/${newGroup.name}`, mode: "add"});
@@ -257,12 +327,12 @@ class GroupTreePage extends React.Component {
           Setting.showMessage("error", `${i18next.t("general:Failed to add")}: ${res.msg}`);
         }
       })
-      .catch(error => {
+      .catch((error: unknown) => {
         Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  render() {
+  render(): React.ReactNode {
     return (
       <div style={{
         flex: 1,
@@ -287,10 +357,10 @@ class GroupTreePage extends React.Component {
                     this.props.history.push(`/trees/${this.state.organizationName}`);
                   }}
                 >
-                  {i18next.t("group:Show all")}
+                  {String(i18next.t("group:Show all"))}
                 </Button>
                 <Button size={"small"} type={"primary"} style={{marginLeft: "10px"}} onClick={() => this.addGroup(true)}>
-                  {i18next.t("general:Add")}
+                  {String(i18next.t("general:Add"))}
                 </Button>
               </Col>
             </Row>
