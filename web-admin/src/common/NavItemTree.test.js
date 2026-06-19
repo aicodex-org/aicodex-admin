@@ -1,6 +1,7 @@
 /* eslint-env jest */
 import i18next from "i18next";
 import {buildEnterpriseNavigationConfigTreeData} from "../enterpriseNavigation";
+import {expectEnterprisePrimaryMenuLabels} from "../enterpriseNavigationLabelRules.testUtils";
 import en from "../locales/en/data.json";
 import zh from "../locales/zh/data.json";
 
@@ -39,25 +40,26 @@ describe("NavItemTree enterprise identity configuration", () => {
 
     expect(treeData[0].children.map(group => group.title)).toEqual([
       "中心总览",
-      "组织与账号",
+      "组织账号",
       "应用接入",
-      "身份源",
-      "权限与角色",
+      "身份来源",
+      "权限角色",
       "审计运维",
       "LLM AI/Gateway",
       "管理工具",
       "商业付款",
     ]);
+    expectEnterprisePrimaryMenuLabels(treeData[0].children.map(group => group.title));
     expect(treeData[0].children.map(group => group.title)).not.toContain("Gateway 投影");
     expect(leafKeys(getGroup(treeData, "中心总览"))).toEqual(["/", "/shortcuts"]);
     expect(leafKeys(getGroup(treeData, "中心总览"))).not.toContain("/apps");
-    expect(leafKeys(getGroup(treeData, "身份源"))).toEqual(
+    expect(leafKeys(getGroup(treeData, "身份来源"))).toEqual(
       expect.arrayContaining(["/providers", "/wecom-org-sync", "/feishu-org-sync", "/syncers"])
     );
     expect(leafKeys(getGroup(treeData, "应用接入"))).toEqual(
       expect.arrayContaining(["/applications", "/access-wizard", "/keys", "/platform-api-mappings", "/webhook-events"])
     );
-    expect(leafKeys(getGroup(treeData, "权限与角色"))).toEqual(
+    expect(leafKeys(getGroup(treeData, "权限角色"))).toEqual(
       expect.arrayContaining(["/roles", "/permissions", "/identity-assets", "/models", "/adapters", "/enforcers"])
     );
     expect(leafKeys(getGroup(treeData, "审计运维"))).toEqual([

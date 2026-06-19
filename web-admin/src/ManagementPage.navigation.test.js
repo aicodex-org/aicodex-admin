@@ -5,6 +5,7 @@ import {
   buildEnterpriseNavigationGroups,
   findNavigationSelection
 } from "./enterpriseNavigation";
+import {expectEnterprisePrimaryMenuLabels} from "./enterpriseNavigationLabelRules.testUtils";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
 
@@ -56,15 +57,16 @@ describe("enterprise identity navigation", () => {
 
     expect(groups.map(group => group.label)).toEqual([
       "中心总览",
-      "组织与账号",
+      "组织账号",
       "应用接入",
-      "身份源",
-      "权限与角色",
+      "身份来源",
+      "权限角色",
       "审计运维",
       "LLM AI/Gateway",
       "管理工具",
       "商业付款",
     ]);
+    expectEnterprisePrimaryMenuLabels(groups.map(group => group.label));
     expect(groups.map(group => group.label)).not.toContain("Gateway 投影");
     expect(groups.find(group => group.key === "/overview").children.map(item => item.key))
       .toEqual(["/", "/shortcuts"]);
@@ -219,6 +221,18 @@ describe("enterprise identity navigation", () => {
     const identitySources = rootChildren.find(node => node.key === "/identity-sources-top");
     const authorizationGovernance = rootChildren.find(node => node.key === "/authorization-governance-top");
 
+    expect(rootChildren.map(node => node.title)).toEqual([
+      "中心总览",
+      "组织账号",
+      "应用接入",
+      "身份来源",
+      "权限角色",
+      "审计运维",
+      "LLM AI/Gateway",
+      "管理工具",
+      "商业付款",
+    ]);
+    expectEnterprisePrimaryMenuLabels(rootChildren.map(node => node.title));
     expect(overview.children.map(item => item.key)).toEqual(["/", "/shortcuts"]);
     expect(overview.children.map(item => item.key)).not.toContain("/apps");
     expect(organizationIdentity.children.map(item => item.key)).toEqual([
