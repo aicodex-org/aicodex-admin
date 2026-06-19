@@ -31,13 +31,129 @@ import {
 
 const {Text} = Typography;
 
-function t(key, defaultValue = key) {
-  const namespacedKey = `general:${key}`;
-  const translated = i18next.t(namespacedKey, {defaultValue});
-  return translated === namespacedKey || translated === key ? defaultValue : translated;
+type IdentitySourceStatus = "explicit" | "fallback" | "missing" | "not-applicable";
+type ApplicationStatus = "已停用" | "接入完整" | "待补全";
+type SummaryTone = "processing" | "warning" | "success";
+
+interface ApplicationProviderBinding {
+  name?: unknown;
+  category?: unknown;
+  targetOrganization?: unknown;
+  provider?: {
+    category?: unknown;
+  } | null;
+  [key: string]: unknown;
 }
 
-function toArray(value) {
+interface ApplicationAccessRecord {
+  owner?: unknown;
+  organization?: unknown;
+  name?: unknown;
+  displayName?: unknown;
+  clientId?: unknown;
+  redirectUris?: unknown;
+  scopes?: unknown;
+  providers?: unknown;
+  grantTypes?: unknown;
+  isDeleted?: unknown;
+  disableSignin?: unknown;
+  enabled?: unknown;
+  [key: string]: unknown;
+}
+
+interface AccessChecks {
+  hasClientId: boolean;
+  hasRedirectUris: boolean;
+  hasScopes: boolean;
+  hasProviders: boolean;
+  hasGrantTypes: boolean;
+  hasIdentitySourceOrganization: boolean;
+  identitySourceStatus: IdentitySourceStatus;
+}
+
+interface ApplicationAccessCard {
+  key: string;
+  name: string;
+  displayName: string;
+  status: ApplicationStatus;
+  completeness: number;
+  editPath: string;
+  clientStatus: string;
+  grantStatus: string;
+  callbackStatus: string;
+  scopeStatus: string;
+  providerStatus: string;
+  identitySourceStatus: string;
+}
+
+interface ApplicationAccessMetrics {
+  totalApplications: number;
+  enabledApplications: number;
+  completeApplications: number;
+  callbackReadyApplications: number;
+  scopedApplications: number;
+  providerBoundApplications: number;
+  identitySourceReadyApplications: number;
+}
+
+interface ApplicationAccessRiskItem {
+  key: string;
+  title: string;
+  count: number;
+  actionPath: string;
+  actionLabel: string;
+}
+
+interface ApplicationAccessCenterSummary {
+  metrics: ApplicationAccessMetrics;
+  cards: ApplicationAccessCard[];
+  riskItems: ApplicationAccessRiskItem[];
+}
+
+interface SummaryItem {
+  key: string;
+  label: string;
+  value: number;
+  description: string;
+  tone: SummaryTone;
+}
+
+interface ApplicationAccessCenterProps {
+  applications?: unknown[];
+  loading?: boolean;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readDisplayValue(value: unknown): string {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  return `${value}`;
+}
+
+function readTruthyDisplayValue(value: unknown): string {
+  return value ? `${value}` : "";
+}
+
+function asApplicationRecord(value: unknown): ApplicationAccessRecord {
+  return isRecord(value) ? value as ApplicationAccessRecord : {};
+}
+
+function asProviderBinding(value: unknown): ApplicationProviderBinding {
+  return isRecord(value) ? value as ApplicationProviderBinding : {};
+}
+
+function t(key: string, defaultValue = key): string {
+  const namespacedKey = `general:${key}`;
+  const translated = i18next.t(namespacedKey, {defaultValue});
+  return translated === namespacedKey || translated === key ? defaultValue : String(translated);
+}
+
+function toArray(value: unknown): unknown[] {
   if (Array.isArray(value)) {
     return value;
   }
@@ -49,30 +165,34 @@ function toArray(value) {
   return [value];
 }
 
-function hasNonEmptyValue(values) {
-  return toArray(values).some(value => `${typeof value === "object" ? value?.name ?? value?.scope ?? "" : value ?? ""}`.trim() !== "");
+function hasNonEmptyValue(values: unknown): boolean {
+  return toArray(values).some(value => {
+    const displayValue = isRecord(value) ? value.name ?? value.scope ?? "" : value ?? "";
+    return `${displayValue}`.trim() !== "";
+  });
 }
 
-function getApplicationName(application) {
-  return application?.displayName || application?.name || "未命名应用";
+function getApplicationName(application?: ApplicationAccessRecord | null): string {
+  return readTruthyDisplayValue(application?.displayName) || readTruthyDisplayValue(application?.name) || "未命名应用";
 }
 
-function getApplicationEditPath(application) {
-  if (!application?.name) {
+function getApplicationEditPath(application?: ApplicationAccessRecord | null): string {
+  const name = readTruthyDisplayValue(application?.name);
+  if (!name) {
     return "/applications";
   }
 
-  return `/applications/${application.organization || application.owner || "admin"}/${application.name}`;
+  return `/applications/${readTruthyDisplayValue(application?.organization) || readTruthyDisplayValue(application?.owner) || "admin"}/${name}`;
 }
 
-function isApplicationDisabled(application) {
-  return application?.isDeleted || application?.disableSignin === true || application?.enabled === false;
+function isApplicationDisabled(application?: ApplicationAccessRecord | null): boolean {
+  return Boolean(application?.isDeleted) || application?.disableSignin === true || application?.enabled === false;
 }
 
-function getAccessChecks(application) {
+function getAccessChecks(application?: ApplicationAccessRecord | null): AccessChecks {
   const identitySourceStatus = getIdentitySourceStatus(application);
   return {
-    hasClientId: `${application?.clientId ?? ""}`.trim() !== "",
+    hasClientId: readDisplayValue(application?.clientId).trim() !== "",
     hasRedirectUris: hasNonEmptyValue(application?.redirectUris),
     hasScopes: hasNonEmptyValue(application?.scopes),
     hasProviders: hasNonEmptyValue(application?.providers),
@@ -82,13 +202,13 @@ function getAccessChecks(application) {
   };
 }
 
-function getCompleteness(checks) {
+function getCompleteness(checks: AccessChecks): number {
   const values = [checks.hasClientId, checks.hasRedirectUris, checks.hasScopes, checks.hasProviders];
   const completed = values.filter(Boolean).length;
   return Math.round((completed / values.length) * 100);
 }
 
-function getApplicationStatus(application, checks) {
+function getApplicationStatus(application: ApplicationAccessRecord, checks: AccessChecks): ApplicationStatus {
   if (isApplicationDisabled(application)) {
     return "已停用";
   }
@@ -96,30 +216,31 @@ function getApplicationStatus(application, checks) {
   return getCompleteness(checks) === 100 && checks.hasIdentitySourceOrganization ? "接入完整" : "待补全";
 }
 
-function getLoginProviderBindings(application) {
-  return toArray(application?.providers).filter(providerItem => {
-    const category = providerItem?.provider?.category || providerItem?.category || "";
+function getLoginProviderBindings(application?: ApplicationAccessRecord | null): ApplicationProviderBinding[] {
+  return toArray(application?.providers).map(asProviderBinding).filter(providerItem => {
+    const nestedProvider = isRecord(providerItem.provider) ? providerItem.provider : {};
+    const category = readDisplayValue(nestedProvider.category) || readDisplayValue(providerItem.category);
     return ["OAuth", "Web3", "SAML"].includes(category);
   });
 }
 
-function getIdentitySourceStatus(application) {
+function getIdentitySourceStatus(application?: ApplicationAccessRecord | null): IdentitySourceStatus {
   const loginProviders = getLoginProviderBindings(application);
   if (loginProviders.length === 0) {
     return "not-applicable";
   }
-  if (loginProviders.some(providerItem => `${providerItem?.targetOrganization ?? ""}`.trim() !== "")) {
+  if (loginProviders.some(providerItem => readDisplayValue(providerItem.targetOrganization).trim() !== "")) {
     return "explicit";
   }
-  if (`${application?.organization ?? ""}`.trim() !== "") {
+  if (readDisplayValue(application?.organization).trim() !== "") {
     return "fallback";
   }
   return "missing";
 }
 
-function buildRiskItems(applications, cards) {
-  const countBy = (predicate) => applications.filter(predicate).length;
-  const riskItems = [
+function buildRiskItems(applications: ApplicationAccessRecord[], cards: ApplicationAccessCard[]): ApplicationAccessRiskItem[] {
+  const countBy = (predicate: (application: ApplicationAccessRecord) => boolean) => applications.filter(predicate).length;
+  const riskItems: ApplicationAccessRiskItem[] = [
     {
       key: "missing-redirect-uris",
       title: "缺少回调地址",
@@ -178,17 +299,21 @@ function buildRiskItems(applications, cards) {
 }
 
 // 只返回可展示摘要，不携带 clientSecret、token 或其它敏感配置原值。
-export function buildApplicationAccessCenterSummary(applications = []) {
-  const normalizedApplications = Array.isArray(applications) ? applications : [];
+export function buildApplicationAccessCenterSummary(applications: unknown = []): ApplicationAccessCenterSummary {
+  const normalizedApplications = Array.isArray(applications) ? applications.map(asApplicationRecord) : [];
   const cards = normalizedApplications.map((application) => {
     const checks = getAccessChecks(application);
     const completeness = getCompleteness(checks);
     const status = getApplicationStatus(application, checks);
+    const name = readTruthyDisplayValue(application.name);
+    const owner = readTruthyDisplayValue(application.owner);
+    const organization = readTruthyDisplayValue(application.organization);
+    const displayName = getApplicationName(application);
 
     return {
-      key: `${application?.owner || application?.organization || "admin"}/${application?.name || getApplicationName(application)}`,
-      name: application?.name || "",
-      displayName: getApplicationName(application),
+      key: `${owner || organization || "admin"}/${name || displayName}`,
+      name,
+      displayName,
       status,
       completeness,
       editPath: getApplicationEditPath(application),
@@ -218,7 +343,7 @@ export function buildApplicationAccessCenterSummary(applications = []) {
   };
 }
 
-function buildSummaryItems(summary) {
+function buildSummaryItems(summary: ApplicationAccessCenterSummary): SummaryItem[] {
   return [
     {
       key: "total",
@@ -251,18 +376,21 @@ function buildSummaryItems(summary) {
   ];
 }
 
-function ApplicationAccessCenter({applications = [], loading = false}) {
+function ApplicationAccessCenter({applications = [], loading = false}: ApplicationAccessCenterProps): React.ReactElement {
   const summary = buildApplicationAccessCenterSummary(applications);
   const hasApplications = Array.isArray(applications) && applications.length > 0;
-  const riskItems = summary.riskItems.map(item => ({
-    key: item.key,
-    title: item.title,
-    description: "用于定位接入缺口，不触发授权、回调、密钥写入或真实探测。",
-    icon: <ExclamationCircleOutlined />,
-    tone: item.count > 0 ? "warning" : "success",
-    badge: item.count > 0 ? `${item.count} 项` : "低风险",
-    action: {key: "action", to: item.actionPath, label: item.actionLabel || "进入处理入口"},
-  }));
+  const riskItems = summary.riskItems.map(item => {
+    const tone: "warning" | "success" = item.count > 0 ? "warning" : "success";
+    return {
+      key: item.key,
+      title: item.title,
+      description: "用于定位接入缺口，不触发授权、回调、密钥写入或真实探测。",
+      icon: <ExclamationCircleOutlined />,
+      tone,
+      badge: item.count > 0 ? `${item.count} 项` : "低风险",
+      action: {key: "action", to: item.actionPath, label: item.actionLabel || "进入处理入口"},
+    };
+  });
   const summaryItems = buildSummaryItems(summary);
 
   return (
@@ -327,7 +455,7 @@ function ApplicationAccessCenter({applications = [], loading = false}) {
   );
 }
 
-function getIdentitySourceStatusText(status) {
+function getIdentitySourceStatusText(status: IdentitySourceStatus): string {
   switch (status) {
   case "explicit":
     return "身份源组织已显式绑定";

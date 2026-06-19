@@ -1,7 +1,8 @@
 /* eslint-env jest */
 import React from "react";
-import {render, screen} from "@testing-library/react";
+import {render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
+import {expect, jest} from "@jest/globals";
 import i18next from "i18next";
 import ApplicationAccessCenter, {buildApplicationAccessCenterSummary} from "./ApplicationAccessCenter";
 import en from "./locales/en/data.json";
@@ -49,7 +50,7 @@ const applications = [
   },
 ];
 
-async function useTestLanguage(language) {
+async function useTestLanguage(language: string) {
   if (!i18next.isInitialized) {
     await i18next.init({
       lng: language,
@@ -67,11 +68,11 @@ async function useTestLanguage(language) {
 }
 
 describe("ApplicationAccessCenter", () => {
-  let consoleErrorSpy;
+  let consoleErrorSpy: {mockRestore: () => void};
 
   beforeEach(async() => {
     await useTestLanguage("zh");
-    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((message, ...args) => {
+    const spy = jest.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
       if (`${message}`.includes("ReactDOM.render is no longer supported")) {
         return;
       }
@@ -79,6 +80,7 @@ describe("ApplicationAccessCenter", () => {
       consoleErrorSpy.mockRestore();
       throw new Error([message, ...args].map(item => `${item}`).join(" "));
     });
+    consoleErrorSpy = spy;
   });
 
   afterEach(() => {
@@ -230,37 +232,38 @@ describe("ApplicationAccessCenter", () => {
   });
 
   test("renders list-first summary, risk summary, and existing configuration links", () => {
-    const {container} = render(
+    const view = render(
       <MemoryRouter>
         <ApplicationAccessCenter applications={applications} loading={false} />
       </MemoryRouter>
     );
+    const {container} = view;
 
-    expect(screen.getByText("应用接入中心")).toBeInTheDocument();
+    expect(view.getByText("应用接入中心")).not.toBeNull();
     expect(container.querySelector(".application-access-readiness-rail")).not.toBeNull();
     expect(container.querySelector(".application-access-readiness-rail-compact")).not.toBeNull();
     expect(container.querySelector(".enterprise-identity-status-card")).toBeNull();
     expect(container.querySelector(".application-access-center .enterprise-identity-action-grid")).toBeNull();
-    expect(screen.getByText("应用")).toBeInTheDocument();
-    expect(screen.getByText("优先处理")).toBeInTheDocument();
-    expect(screen.queryByText("当前列表视图")).not.toBeInTheDocument();
-    expect(screen.queryByText("只读推导")).not.toBeInTheDocument();
-    expect(screen.queryByText("只读核对")).not.toBeInTheDocument();
-    expect(screen.queryByText("AICodex Portal")).not.toBeInTheDocument();
-    expect(screen.getAllByText("接入完整").length).toBeGreaterThan(0);
-    expect(screen.getByText("缺少回调地址")).toBeInTheDocument();
-    expect(screen.getByText("缺少认证源绑定")).toBeInTheDocument();
-    expect(screen.getByText("身份源已绑定")).toBeInTheDocument();
-    expect(screen.queryByText("配置入口")).not.toBeInTheDocument();
-    expect(screen.getAllByText("API 网关映射").some(item => item.closest("a")?.getAttribute("href") === "/platform-api-mappings")).toBe(true);
-    expect(screen.getByText("认证源").closest("a")).toHaveAttribute("href", "/providers");
-    expect(screen.queryByText("OAuth/OIDC Provider")).not.toBeInTheDocument();
-    expect(screen.getAllByText("查看审计记录").some(item => item.closest("a")?.getAttribute("href") === "/records")).toBe(true);
-    expect(screen.queryByText("portal-secret-value")).not.toBeInTheDocument();
+    expect(view.getByText("应用")).not.toBeNull();
+    expect(view.getByText("优先处理")).not.toBeNull();
+    expect(view.queryByText("当前列表视图")).toBeNull();
+    expect(view.queryByText("只读推导")).toBeNull();
+    expect(view.queryByText("只读核对")).toBeNull();
+    expect(view.queryByText("AICodex Portal")).toBeNull();
+    expect(view.getAllByText("接入完整").length).toBeGreaterThan(0);
+    expect(view.getByText("缺少回调地址")).not.toBeNull();
+    expect(view.getByText("缺少认证源绑定")).not.toBeNull();
+    expect(view.getByText("身份源已绑定")).not.toBeNull();
+    expect(view.queryByText("配置入口")).toBeNull();
+    expect(view.getAllByText("API 网关映射").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/platform-api-mappings")).toBe(true);
+    expect(view.getByText("认证源").closest("a")?.getAttribute("href")).toBe("/providers");
+    expect(view.queryByText("OAuth/OIDC Provider")).toBeNull();
+    expect(view.getAllByText("查看审计记录").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/records")).toBe(true);
+    expect(view.queryByText("portal-secret-value")).toBeNull();
   });
 
   test("renders low-risk fallback copy for complete unnamed visible data", () => {
-    render(
+    const view = render(
       <MemoryRouter>
         <ApplicationAccessCenter applications={[
           {
@@ -276,30 +279,31 @@ describe("ApplicationAccessCenter", () => {
       </MemoryRouter>
     );
 
-    expect(screen.queryByText("未配置技术名称")).not.toBeInTheDocument();
-    expect(screen.getByText("本页未发现接入缺口")).toBeInTheDocument();
-    expect(screen.getByText("低风险")).toBeInTheDocument();
+    expect(view.queryByText("未配置技术名称")).toBeNull();
+    expect(view.getByText("本页未发现接入缺口")).not.toBeNull();
+    expect(view.getByText("低风险")).not.toBeNull();
   });
 
   test("keeps empty and loading states actionable", () => {
-    const {unmount} = render(
+    const emptyView = render(
       <MemoryRouter>
         <ApplicationAccessCenter applications={[]} loading={false} />
       </MemoryRouter>
     );
+    const {unmount} = emptyView;
 
-    expect(screen.getByText("暂无应用接入，先新增应用或进入 API 映射核对接入契约。")).toBeInTheDocument();
-    expect(screen.getByText("新增应用").closest("a")).toHaveAttribute("href", "/applications");
-    expect(screen.getAllByText("API 网关映射").some(item => item.closest("a")?.getAttribute("href") === "/platform-api-mappings")).toBe(true);
+    expect(emptyView.getByText("暂无应用接入，先新增应用或进入 API 映射核对接入契约。")).not.toBeNull();
+    expect(emptyView.getByText("新增应用").closest("a")?.getAttribute("href")).toBe("/applications");
+    expect(emptyView.getAllByText("API 网关映射").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/platform-api-mappings")).toBe(true);
 
     unmount();
 
-    render(
+    const loadingView = render(
       <MemoryRouter>
         <ApplicationAccessCenter loading />
       </MemoryRouter>
     );
 
-    expect(screen.getByText("加载应用接入状态...")).toBeInTheDocument();
+    expect(loadingView.getByText("加载应用接入状态...")).not.toBeNull();
   });
 });
