@@ -14,13 +14,61 @@
 
 import React from "react";
 import {Button, Card, Col, Input, Row, Select, Switch} from "antd";
+import type {SelectProps} from "antd";
 import * as GroupBackend from "./backend/GroupBackend";
+import type {GroupMutation, GroupRecord} from "./backend/GroupBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as Setting from "./Setting";
 import i18next from "i18next";
 
-class GroupEditPage extends React.Component {
-  constructor(props) {
+type HistoryLike = {
+  push: (location: string | {pathname: string; mode?: string}) => void;
+};
+
+type GroupEditRouteParams = {
+  organizationName: string;
+  groupName: string;
+};
+
+type GroupEditPageProps = {
+  account?: unknown;
+  history: HistoryLike;
+  location: {
+    mode?: string;
+    [key: string]: unknown;
+  };
+  match: {
+    params: GroupEditRouteParams;
+  };
+  organizationName?: string;
+};
+
+type OrganizationSummary = {
+  name: string;
+  displayName?: string;
+  [key: string]: unknown;
+};
+
+type GroupOption = NonNullable<SelectProps["options"]>[number];
+
+type GroupEditPageState = {
+  classes: GroupEditPageProps;
+  groupName: string;
+  organizationName: string;
+  group: GroupRecord | null;
+  users: string[];
+  groups: GroupRecord[];
+  organizations: OrganizationSummary[];
+  mode: string;
+};
+
+function t(key: string, defaultValue = key): string {
+  const translated = i18next.t(key, {defaultValue}) as unknown;
+  return typeof translated === "string" ? translated : defaultValue;
+}
+
+class GroupEditPage extends React.Component<GroupEditPageProps, GroupEditPageState> {
+  constructor(props: GroupEditPageProps) {
     super(props);
     this.state = {
       classes: props,
@@ -45,18 +93,18 @@ class GroupEditPage extends React.Component {
       .then((res) => {
         if (res.status === "ok") {
           this.setState({
-            group: res.data,
+            group: res.data ?? null,
           });
         }
       });
   }
 
-  getGroups(organizationName) {
+  getGroups(organizationName: string) {
     GroupBackend.getGroups(organizationName)
       .then((res) => {
         if (res.status === "ok") {
           this.setState({
-            groups: res.data,
+            groups: (res.data ?? []) as GroupRecord[],
           });
         }
       });
@@ -67,32 +115,37 @@ class GroupEditPage extends React.Component {
       .then((res) => {
         if (res.status === "ok") {
           this.setState({
-            organizations: res.data || [],
+            organizations: (res.data || []) as unknown as OrganizationSummary[],
           });
         }
       });
   }
 
-  parseGroupField(key, value) {
-    if ([""].includes(key)) {
+  parseGroupField(key: keyof GroupRecord, value: unknown): unknown {
+    if ([""].includes(String(key))) {
       value = Setting.myParseInt(value);
     }
     return value;
   }
 
-  updateGroupField(key, value) {
+  updateGroupField(key: keyof GroupRecord, value: unknown) {
     value = this.parseGroupField(key, value);
 
-    const group = this.state.group;
-    group[key] = value;
+    const group = this.state.group!;
+    group[key] = value as never;
     this.setState({
       group: group,
     });
   }
 
-  getParentIdOptions() {
-    const groups = this.state.groups.filter((group) => group.name !== this.state.group.name);
-    const organization = this.state.organizations.find((organization) => organization.name === this.state.group.owner);
+  getParentIdOptions(): GroupOption[] {
+    const currentGroup = this.state.group;
+    if (currentGroup === null) {
+      return [];
+    }
+
+    const groups: Array<Pick<GroupRecord, "name" | "displayName">> = this.state.groups.filter((group) => group.name !== currentGroup.name);
+    const organization = this.state.organizations.find((organization) => organization.name === currentGroup.owner);
     if (organization !== undefined) {
       groups.push({name: organization.name, displayName: organization.displayName});
     }
@@ -100,13 +153,18 @@ class GroupEditPage extends React.Component {
   }
 
   renderGroup() {
+    const group = this.state.group;
+    if (group === null) {
+      return null;
+    }
+
     return (
       <Card size="small" title={
         <div>
-          {this.state.mode === "add" ? i18next.t("group:New Group") : i18next.t("group:Edit Group")}&nbsp;&nbsp;&nbsp;&nbsp;
-          <Button onClick={() => this.submitGroupEdit(false)}>{i18next.t("general:Save")}</Button>
-          <Button style={{marginLeft: "20px"}} type="primary" onClick={() => this.submitGroupEdit(true)}>{i18next.t("general:Save & Exit")}</Button>
-          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteGroup()}>{i18next.t("general:Cancel")}</Button> : null}
+          {this.state.mode === "add" ? t("group:New Group") : t("group:Edit Group")}&nbsp;&nbsp;&nbsp;&nbsp;
+          <Button onClick={() => this.submitGroupEdit(false)}>{t("general:Save")}</Button>
+          <Button style={{marginLeft: "20px"}} type="primary" onClick={() => this.submitGroupEdit(true)}>{t("general:Save & Exit")}</Button>
+          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteGroup()}>{t("general:Cancel")}</Button> : null}
         </div>
       }
       style={(Setting.isMobile()) ? {margin: "5px"} : {}}
@@ -114,10 +172,10 @@ class GroupEditPage extends React.Component {
       >
         <Row style={{marginTop: "10px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Organization"), i18next.t("general:Organization - Tooltip"))} :
+            {Setting.getLabel(t("general:Organization"), t("general:Organization - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Select virtual={false} style={{width: "100%"}} disabled={!Setting.isAdminUser(this.props.account)} value={this.state.group.owner}
+            <Select virtual={false} style={{width: "100%"}} disabled={!Setting.isAdminUser(this.props.account)} value={group.owner}
               onChange={(value => {
                 this.updateGroupField("owner", value);
                 this.getGroups(value);
@@ -128,37 +186,37 @@ class GroupEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Name"), i18next.t("general:Name - Tooltip"))} :
+            {Setting.getLabel(t("general:Name"), t("general:Name - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Input value={this.state.group.name} onChange={e => {
+            <Input value={group.name} onChange={e => {
               this.updateGroupField("name", e.target.value);
             }} />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Display name"), i18next.t("general:Display name - Tooltip"))} :
+            {Setting.getLabel(t("general:Display name"), t("general:Display name - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Input value={this.state.group.displayName} onChange={e => {
+            <Input value={group.displayName} onChange={e => {
               this.updateGroupField("displayName", e.target.value);
             }} />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Type"), i18next.t("general:Type - Tooltip"))} :
+            {Setting.getLabel(t("general:Type"), t("general:Type - Tooltip"))} :
           </Col>
           <Col span={22} >
             <Select style={{width: "100%"}}
               options={
                 [
-                  {label: i18next.t("group:Virtual"), value: "Virtual"},
-                  {label: i18next.t("group:Physical"), value: "Physical"},
+                  {label: t("group:Virtual"), value: "Virtual"},
+                  {label: t("group:Physical"), value: "Physical"},
                 ].map((item) => ({label: item.label, value: item.value}))
               }
-              value={this.state.group.type} onChange={(value => {
+              value={group.type} onChange={(value => {
                 this.updateGroupField("type", value);
               }
               )} />
@@ -166,12 +224,12 @@ class GroupEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("group:Parent group"), i18next.t("group:Parent group - Tooltip"))} :
+            {Setting.getLabel(t("group:Parent group"), t("group:Parent group - Tooltip"))} :
           </Col>
           <Col span={22} >
             <Select style={{width: "100%"}}
               options={this.getParentIdOptions()}
-              value={this.state.group.parentId} onChange={(value => {
+              value={group.parentId} onChange={(value => {
                 this.updateGroupField("parentId", value);
               }
               )} />
@@ -179,20 +237,20 @@ class GroupEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Users"), i18next.t("general:Users - Tooltip"))} :
+            {Setting.getLabel(t("general:Users"), t("general:Users - Tooltip"))} :
           </Col>
           <Col style={{marginTop: "5px"}} span={22} >
             {
-              Setting.getTags(this.state.group.users, "users")
+              (Setting.getTags as (...args: unknown[]) => React.ReactNode)(group.users, "users")
             }
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 19 : 2}>
-            {Setting.getLabel(i18next.t("general:Is enabled"), i18next.t("general:Is enabled - Tooltip"))} :
+            {Setting.getLabel(t("general:Is enabled"), t("general:Is enabled - Tooltip"))} :
           </Col>
           <Col span={1} >
-            <Switch checked={this.state.group.isEnabled} onChange={checked => {
+            <Switch checked={group.isEnabled} onChange={checked => {
               this.updateGroupField("isEnabled", checked);
             }} />
           </Col>
@@ -201,16 +259,16 @@ class GroupEditPage extends React.Component {
     );
   }
 
-  submitGroupEdit(exitAfterSave) {
-    const group = Setting.deepCopy(this.state.group);
+  submitGroupEdit(exitAfterSave: boolean) {
+    const group = Setting.deepCopy(this.state.group) as GroupMutation;
     group["isTopGroup"] = this.state.organizations.some((organization) => organization.name === group.parentId);
 
     GroupBackend.updateGroup(this.state.organizationName, this.state.groupName, group)
       .then((res) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully saved"));
+          Setting.showMessage("success", t("general:Successfully saved"));
           this.setState({
-            groupName: this.state.group.name,
+            groupName: this.state.group!.name,
           });
 
           if (exitAfterSave) {
@@ -222,20 +280,20 @@ class GroupEditPage extends React.Component {
               this.props.history.push("/groups");
             }
           } else {
-            this.props.history.push(`/groups/${this.state.group.owner}/${this.state.group.name}`);
+            this.props.history.push(`/groups/${this.state.group!.owner}/${this.state.group!.name}`);
           }
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to save")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to save")}: ${res.msg}`);
           this.updateGroupField("name", this.state.groupName);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
   deleteGroup() {
-    GroupBackend.deleteGroup(this.state.group)
+    GroupBackend.deleteGroup(this.state.group!)
       .then((res) => {
         if (res.status === "ok") {
           const groupTreeUrl = sessionStorage.getItem("groupTreeUrl");
@@ -246,11 +304,11 @@ class GroupEditPage extends React.Component {
             this.props.history.push("/groups");
           }
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
@@ -261,9 +319,9 @@ class GroupEditPage extends React.Component {
           this.state.group !== null ? this.renderGroup() : null
         }
         <div style={{marginTop: "20px", marginLeft: "40px"}}>
-          <Button size="large" onClick={() => this.submitGroupEdit(false)}>{i18next.t("general:Save")}</Button>
-          <Button style={{marginLeft: "20px"}} type="primary" size="large" onClick={() => this.submitGroupEdit(true)}>{i18next.t("general:Save & Exit")}</Button>
-          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} size="large" onClick={() => this.deleteGroup()}>{i18next.t("general:Cancel")}</Button> : null}
+          <Button size="large" onClick={() => this.submitGroupEdit(false)}>{t("general:Save")}</Button>
+          <Button style={{marginLeft: "20px"}} type="primary" size="large" onClick={() => this.submitGroupEdit(true)}>{t("general:Save & Exit")}</Button>
+          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} size="large" onClick={() => this.deleteGroup()}>{t("general:Cancel")}</Button> : null}
         </div>
       </div>
     );
