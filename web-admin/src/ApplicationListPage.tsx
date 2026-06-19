@@ -27,13 +27,43 @@ import ApplicationAccessCenter from "./ApplicationAccessCenter";
 import IdentityAssetRelationshipDrawer from "./IdentityAssetRelationshipDrawer";
 import {buildAggregatedIdentityAssetDetail, buildApplicationIdentityAssetDetail} from "./identityAssetRelationship";
 import * as IdentityAssetRelationshipBackend from "./backend/IdentityAssetRelationshipBackend";
+import {legacyColumns} from "./types/legacyPage";
 
-class ApplicationListPage extends BaseListPage {
-  constructor(props) {
+type AdminRouteProps = import("./types/legacyPage").AdminRouteProps;
+type LegacyAny = import("./types/legacyPage").LegacyAny;
+type LegacyBackendResponse<TData = LegacyAny> = import("./types/legacyPage").LegacyBackendResponse<TData>;
+type LegacyColumn<TRecord = LegacyAny> = import("./types/legacyPage").LegacyColumn<TRecord>;
+type LegacyFetchParams = import("./types/legacyPage").LegacyFetchParams;
+
+interface ApplicationProvider {
+  name: string;
+  [key: string]: LegacyAny;
+}
+
+interface ApplicationRecord {
+  owner: string;
+  organization: string;
+  name: string;
+  displayName?: string;
+  category?: string;
+  type?: string;
+  logo?: string;
+  providers?: ApplicationProvider[];
+  [key: string]: LegacyAny;
+}
+
+function t(key: string, options?: LegacyAny): string {
+  return String(i18next.t(key, options));
+}
+
+const LegacyBaseListPage = BaseListPage as unknown as React.ComponentClass<AdminRouteProps, LegacyAny> & LegacyAny;
+
+class ApplicationListPage extends LegacyBaseListPage {
+  constructor(props: AdminRouteProps) {
     super(props);
   }
 
-  newApplication() {
+  newApplication(): ApplicationRecord {
     const randomName = Setting.getRandomName();
     const organizationName = Setting.getRequestOrganization(this.props.account);
     return {
@@ -92,21 +122,21 @@ class ApplicationListPage extends BaseListPage {
       .then((res) => {
         if (res.status === "ok") {
           this.props.history.push({pathname: `/applications/${newApplication.organization}/${newApplication.name}`, mode: "add"});
-          Setting.showMessage("success", i18next.t("general:Successfully added"));
+          Setting.showMessage("success", t("general:Successfully added"));
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to add")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  deleteApplication(i) {
+  deleteApplication(i: number) {
     ApplicationBackend.deleteApplication(this.state.data[i])
       .then((res) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully deleted"));
+          Setting.showMessage("success", t("general:Successfully deleted"));
           this.fetch({
             pagination: {
               ...this.state.pagination,
@@ -114,15 +144,15 @@ class ApplicationListPage extends BaseListPage {
             },
           });
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  copyApplication(i) {
+  copyApplication(i: number) {
     const original = this.state.data[i];
     const randomSuffix = Setting.getRandomName();
     const newName = `${original.name}_${randomSuffix}`;
@@ -140,13 +170,13 @@ class ApplicationListPage extends BaseListPage {
       .then((res) => {
         if (res.status === "ok") {
           this.props.history.push({pathname: `/applications/${copiedApplication.organization}/${newName}`, mode: "add"});
-          Setting.showMessage("success", i18next.t("general:Successfully copied"));
+          Setting.showMessage("success", t("general:Successfully copied"));
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to copy")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to copy")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
@@ -160,7 +190,7 @@ class ApplicationListPage extends BaseListPage {
     };
   }
 
-  openIdentityAssetDetail(record) {
+  openIdentityAssetDetail(record: ApplicationRecord) {
     const fallbackDetail = buildApplicationIdentityAssetDetail(record, this.getIdentityAssetSourceContext());
     this.setState({
       identityAssetDetail: fallbackDetail,
@@ -171,7 +201,7 @@ class ApplicationListPage extends BaseListPage {
       organization: record.organization || record.owner || "admin",
       name: record.name || record.displayName || "",
     })
-      .then(res => {
+      .then((res: LegacyAny) => {
         const aggregation = res?.status === "ok" && res?.data ? res.data : res;
         if (aggregation?.object && aggregation?.scope) {
           this.setState({identityAssetDetail: buildAggregatedIdentityAssetDetail(aggregation)});
@@ -184,17 +214,17 @@ class ApplicationListPage extends BaseListPage {
     this.setState({identityAssetDetail: null});
   }
 
-  renderTable(applications) {
-    const columns = [
+  renderTable(applications: ApplicationRecord[]) {
+    const columns: LegacyColumn<ApplicationRecord>[] = legacyColumns<ApplicationRecord>([
       {
-        title: i18next.t("general:Name"),
+        title: t("general:Name"),
         dataIndex: "name",
         key: "name",
         width: "150px",
         fixed: "left",
         sorter: true,
         ...this.getColumnSearchProps("name"),
-        render: (text, record, index) => {
+        render: (text: string, record: ApplicationRecord, index: number) => {
           return (
             <Link to={`/applications/${record.organization}/${text}`}>
               {Setting.getApplicationDisplayName(record)}
@@ -203,17 +233,17 @@ class ApplicationListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Created time"),
+        title: t("general:Created time"),
         dataIndex: "createdTime",
         key: "createdTime",
         width: "160px",
         sorter: true,
-        render: (text, record, index) => {
+        render: (text: string, record: ApplicationRecord, index: number) => {
           return Setting.getFormattedDate(text);
         },
       },
       {
-        title: i18next.t("general:Display name"),
+        title: t("general:Display name"),
         dataIndex: "displayName",
         key: "displayName",
         // width: '100px',
@@ -221,13 +251,13 @@ class ApplicationListPage extends BaseListPage {
         ...this.getColumnSearchProps("displayName"),
       },
       {
-        title: i18next.t("general:Category"),
+        title: t("general:Category"),
         dataIndex: "category",
         key: "category",
         width: "120px",
         sorter: true,
         ...this.getColumnSearchProps("category"),
-        render: (text, record, index) => {
+        render: (text: string, record: ApplicationRecord, index: number) => {
           if (!text) {
             text = "Default";
           }
@@ -240,22 +270,22 @@ class ApplicationListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Type"),
+        title: t("general:Type"),
         dataIndex: "type",
         key: "type",
         width: "100px",
         sorter: true,
         ...this.getColumnSearchProps("type"),
-        render: (text, record, index) => {
+        render: (text: string, record: ApplicationRecord, index: number) => {
           return text;
         },
       },
       {
-        title: i18next.t("general:Logo"),
+        title: t("general:Logo"),
         dataIndex: "logo",
         key: "logo",
         width: "72px",
-        render: (text, record, index) => {
+        render: (text: string, record: ApplicationRecord, index: number) => {
           return (
             <a target="_blank" rel="noreferrer" href={text}>
               <img className="application-logo-thumb" src={text} alt={text} width={40} />
@@ -264,13 +294,13 @@ class ApplicationListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Organization"),
+        title: t("general:Organization"),
         dataIndex: "organization",
         key: "organization",
         width: "150px",
         sorter: true,
         ...this.getColumnSearchProps("organization"),
-        render: (text, record, index) => {
+        render: (text: string, record: ApplicationRecord, index: number) => {
           return (
             <Link to={`/organizations/${text}`}>
               {text}
@@ -279,20 +309,20 @@ class ApplicationListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("application:Providers"),
+        title: t("application:Providers"),
         dataIndex: "providers",
         key: "providers",
         ...this.getColumnSearchProps("providers"),
         // width: '600px',
-        render: (text, record, index) => {
+        render: (text: ApplicationProvider[] | null, record: ApplicationRecord, index: number) => {
           const providers = text;
           if (providers === null || providers.length === 0) {
-            return `(${i18next.t("general:empty")})`;
+            return `(${t("general:empty")})`;
           }
 
           const half = Math.floor((providers.length + 1) / 2);
 
-          const getList = (providers) => {
+          const getList = (providers: ApplicationProvider[]) => {
             return (
               <List
                 size="small"
@@ -335,31 +365,31 @@ class ApplicationListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Action"),
+        title: t("general:Action"),
         dataIndex: "",
         key: "op",
         width: "230px",
         fixed: (Setting.isMobile()) ? false : "right",
-        render: (text, record, index) => {
+        render: (text: string, record: ApplicationRecord, index: number) => {
           return (
             <Space className="application-row-actions" size={6} wrap>
-              <Button size="small" icon={<EyeOutlined />} onClick={() => this.openIdentityAssetDetail(record)}>{i18next.t("identityAssetRelationship:Object context")}</Button>
-              <Button size="small" type="primary" onClick={() => this.props.history.push(`/applications/${record.organization}/${record.name}`)}>{i18next.t("general:Edit")}</Button>
+              <Button size="small" icon={<EyeOutlined />} onClick={() => this.openIdentityAssetDetail(record)}>{t("identityAssetRelationship:Object context")}</Button>
+              <Button size="small" type="primary" onClick={() => this.props.history.push(`/applications/${record.organization}/${record.name}`)}>{t("general:Edit")}</Button>
               <Dropdown
                 trigger={["click"]}
                 menu={{
                   items: [
-                    {key: "copy", icon: <CopyOutlined />, label: i18next.t("general:Copy")},
-                    {key: "delete", danger: true, disabled: record.name === "app-built-in", label: i18next.t("general:Delete")},
+                    {key: "copy", icon: <CopyOutlined />, label: t("general:Copy")},
+                    {key: "delete", danger: true, disabled: record.name === "app-built-in", label: t("general:Delete")},
                   ],
-                  onClick: ({key}) => {
+                  onClick: ({key}: {key: string}) => {
                     if (key === "copy") {
                       this.copyApplication(index);
                     } else if (key === "delete") {
                       Modal.confirm({
-                        title: i18next.t("general:Sure to delete") + `: ${record.name} ?`,
-                        okText: i18next.t("general:OK"),
-                        cancelText: i18next.t("general:Cancel"),
+                        title: t("general:Sure to delete") + `: ${record.name} ?`,
+                        okText: t("general:OK"),
+                        cancelText: t("general:Cancel"),
                         okButtonProps: {danger: true},
                         onOk: () => this.deleteApplication(index),
                       });
@@ -367,13 +397,13 @@ class ApplicationListPage extends BaseListPage {
                   },
                 }}
               >
-                <Button size="small" icon={<MoreOutlined />}>{i18next.t("general:More")}</Button>
+                <Button size="small" icon={<MoreOutlined />}>{t("general:More")}</Button>
               </Dropdown>
             </Space>
           );
         },
       },
-    ];
+    ]);
 
     const filteredColumns = Setting.filterTableColumns(columns, this.props.formItems ?? this.state.formItems);
     const paginationProps = this.getTablePaginationProps();
@@ -389,8 +419,8 @@ class ApplicationListPage extends BaseListPage {
         <Table scroll={{x: "max-content"}} columns={filteredColumns} dataSource={applications} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
           title={() => (
             <div>
-              {i18next.t("general:Applications")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button type="primary" size="small" onClick={this.addApplication.bind(this)}>{i18next.t("general:Add")}</Button>
+              {t("general:Applications")}&nbsp;&nbsp;&nbsp;&nbsp;
+              <Button type="primary" size="small" onClick={this.addApplication.bind(this)}>{t("general:Add")}</Button>
             </div>
           )}
           loading={this.state.loading}
@@ -400,13 +430,13 @@ class ApplicationListPage extends BaseListPage {
     );
   }
 
-  fetch = (params = {}) => {
+  fetch = (params: LegacyFetchParams = {pagination: this.state.pagination}) => {
     const field = params.searchedColumn, value = params.searchText;
     const sortField = params.sortField, sortOrder = params.sortOrder;
     this.setState({loading: true});
-    (Setting.isDefaultOrganizationSelected(this.props.account) ? ApplicationBackend.getApplications("admin", params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder) :
-      ApplicationBackend.getApplicationsByOrganization("admin", Setting.getRequestOrganization(this.props.account), params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder))
-      .then((res) => {
+    (Setting.isDefaultOrganizationSelected(this.props.account) ? (ApplicationBackend.getApplications as LegacyAny)("admin", params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder) :
+      (ApplicationBackend.getApplicationsByOrganization as LegacyAny)("admin", Setting.getRequestOrganization(this.props.account), params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder))
+      .then((res: LegacyBackendResponse<ApplicationRecord[]>) => {
         this.setState({
           loading: false,
         });
@@ -433,4 +463,4 @@ class ApplicationListPage extends BaseListPage {
   };
 }
 
-export default ApplicationListPage;
+export default ApplicationListPage as unknown as React.ComponentType<AdminRouteProps>;

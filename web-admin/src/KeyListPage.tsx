@@ -21,8 +21,27 @@ import * as KeyBackend from "./backend/KeyBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
+import {legacyColumns} from "./types/legacyPage";
 
-class KeyListPage extends BaseListPage {
+type AdminRouteProps = import("./types/legacyPage").AdminRouteProps;
+type LegacyAny = import("./types/legacyPage").LegacyAny;
+type LegacyBackendResponse<TData = LegacyAny> = import("./types/legacyPage").LegacyBackendResponse<TData>;
+type LegacyColumn<TRecord = LegacyAny> = import("./types/legacyPage").LegacyColumn<TRecord>;
+type LegacyFetchParams = import("./types/legacyPage").LegacyFetchParams;
+
+interface KeyRecord {
+  owner: string;
+  name: string;
+  [key: string]: LegacyAny;
+}
+
+function t(key: string, options?: LegacyAny): string {
+  return String(i18next.t(key, options));
+}
+
+const LegacyBaseListPage = BaseListPage as unknown as React.ComponentClass<AdminRouteProps, LegacyAny> & LegacyAny;
+
+class KeyListPage extends LegacyBaseListPage {
   newKey() {
     const randomName = Setting.getRandomName();
     const owner = Setting.getRequestOrganization(this.props.account);
@@ -49,21 +68,21 @@ class KeyListPage extends BaseListPage {
       .then((res) => {
         if (res.status === "ok") {
           this.props.history.push({pathname: `/keys/${newKey.owner}/${newKey.name}`, mode: "add"});
-          Setting.showMessage("success", i18next.t("general:Successfully added"));
+          Setting.showMessage("success", t("general:Successfully added"));
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to add")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  deleteKey(i) {
+  deleteKey(i: number) {
     KeyBackend.deleteKey(this.state.data[i])
       .then((res) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully deleted"));
+          Setting.showMessage("success", t("general:Successfully deleted"));
           this.fetch({
             pagination: {
               ...this.state.pagination,
@@ -71,18 +90,18 @@ class KeyListPage extends BaseListPage {
             },
           });
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  renderTable(keys) {
-    const columns = [
+  renderTable(keys: KeyRecord[]) {
+    const columns: LegacyColumn<KeyRecord>[] = legacyColumns<KeyRecord>([
       {
-        title: i18next.t("general:Name"),
+        title: t("general:Name"),
         dataIndex: "name",
         key: "name",
         width: "140px",
@@ -98,7 +117,7 @@ class KeyListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Organization"),
+        title: t("general:Organization"),
         dataIndex: "owner",
         key: "owner",
         width: "150px",
@@ -113,7 +132,7 @@ class KeyListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Created time"),
+        title: t("general:Created time"),
         dataIndex: "createdTime",
         key: "createdTime",
         width: "160px",
@@ -123,7 +142,7 @@ class KeyListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Display name"),
+        title: t("general:Display name"),
         dataIndex: "displayName",
         key: "displayName",
         width: "170px",
@@ -131,21 +150,21 @@ class KeyListPage extends BaseListPage {
         ...this.getColumnSearchProps("displayName"),
       },
       {
-        title: i18next.t("general:Type"),
+        title: t("general:Type"),
         dataIndex: "type",
         key: "type",
         width: "140px",
         sorter: true,
         filterMultiple: false,
         filters: [
-          {text: i18next.t("general:Organization"), value: "Organization"},
-          {text: i18next.t("general:Application"), value: "Application"},
-          {text: i18next.t("general:User"), value: "User"},
-          {text: i18next.t("general:General"), value: "General"},
+          {text: t("general:Organization"), value: "Organization"},
+          {text: t("general:Application"), value: "Application"},
+          {text: t("general:User"), value: "User"},
+          {text: t("general:General"), value: "General"},
         ],
       },
       {
-        title: i18next.t("key:Access key"),
+        title: t("key:Access key"),
         dataIndex: "accessKey",
         key: "accessKey",
         width: "300px",
@@ -153,7 +172,7 @@ class KeyListPage extends BaseListPage {
         ...this.getColumnSearchProps("accessKey"),
       },
       {
-        title: i18next.t("general:Expire time"),
+        title: t("general:Expire time"),
         dataIndex: "expireTime",
         key: "expireTime",
         width: "160px",
@@ -163,7 +182,7 @@ class KeyListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:State"),
+        title: t("general:State"),
         dataIndex: "state",
         key: "state",
         width: "120px",
@@ -171,17 +190,17 @@ class KeyListPage extends BaseListPage {
         ...this.getColumnSearchProps("state"),
       },
       {
-        title: i18next.t("general:Action"),
+        title: t("general:Action"),
         dataIndex: "",
         key: "op",
         width: "180px",
-        fixed: (Setting.isMobile()) ? "false" : "right",
+        fixed: (Setting.isMobile()) ? false : "right",
         render: (text, record, index) => {
           return (
             <div>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/keys/${record.owner}/${record.name}`)}>{i18next.t("general:Edit")}</Button>
+              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/keys/${record.owner}/${record.name}`)}>{t("general:Edit")}</Button>
               <PopconfirmModal
-                title={i18next.t("general:Sure to delete") + `: ${record.name} ?`}
+                title={t("general:Sure to delete") + `: ${record.name} ?`}
                 onConfirm={() => this.deleteKey(index)}
               >
               </PopconfirmModal>
@@ -189,17 +208,17 @@ class KeyListPage extends BaseListPage {
           );
         },
       },
-    ];
+    ]);
 
     const paginationProps = this.getTablePaginationProps();
 
     return (
       <div>
-        <Table scroll={{x: "max-content"}} columns={columns} dataSource={keys} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
+        <Table scroll={{x: "max-content"}} columns={columns} dataSource={keys} rowKey={(record: KeyRecord) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
           title={() => (
             <div>
-              {i18next.t("general:Keys")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button type="primary" size="small" onClick={this.addKey.bind(this)}>{i18next.t("general:Add")}</Button>
+              {t("general:Keys")}&nbsp;&nbsp;&nbsp;&nbsp;
+              <Button type="primary" size="small" onClick={this.addKey.bind(this)}>{t("general:Add")}</Button>
             </div>
           )}
           loading={this.state.loading}
@@ -209,7 +228,7 @@ class KeyListPage extends BaseListPage {
     );
   }
 
-  fetch = (params = {}) => {
+  fetch = (params: LegacyFetchParams = {pagination: this.state.pagination}) => {
     let field = params.searchedColumn, value = params.searchText;
     const sortField = params.sortField, sortOrder = params.sortOrder;
     if (params.type !== undefined && params.type !== null) {
@@ -217,9 +236,9 @@ class KeyListPage extends BaseListPage {
       value = params.type;
     }
     this.setState({loading: true});
-    (Setting.isDefaultOrganizationSelected(this.props.account) ? KeyBackend.getGlobalKeys(params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
-      : KeyBackend.getKeys(Setting.getRequestOrganization(this.props.account), params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder))
-      .then((res) => {
+    (Setting.isDefaultOrganizationSelected(this.props.account) ? (KeyBackend.getGlobalKeys as LegacyAny)(params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
+      : (KeyBackend.getKeys as LegacyAny)(Setting.getRequestOrganization(this.props.account), params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder))
+      .then((res: LegacyBackendResponse<KeyRecord[]>) => {
         this.setState({
           loading: false,
         });
@@ -246,4 +265,4 @@ class KeyListPage extends BaseListPage {
   };
 }
 
-export default KeyListPage;
+export default KeyListPage as unknown as React.ComponentType<AdminRouteProps>;

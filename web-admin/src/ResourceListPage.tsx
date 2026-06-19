@@ -22,9 +22,33 @@ import i18next from "i18next";
 import {Link} from "react-router-dom";
 import BaseListPage from "./BaseListPage";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
+import {legacyColumns} from "./types/legacyPage";
 
-class ResourceListPage extends BaseListPage {
-  constructor(props) {
+type AdminRouteProps = import("./types/legacyPage").AdminRouteProps;
+type LegacyAny = import("./types/legacyPage").LegacyAny;
+type LegacyBackendResponse<TData = LegacyAny> = import("./types/legacyPage").LegacyBackendResponse<TData>;
+type LegacyColumn<TRecord = LegacyAny> = import("./types/legacyPage").LegacyColumn<TRecord>;
+type LegacyFetchParams = import("./types/legacyPage").LegacyFetchParams;
+
+interface ResourceRecord {
+  owner: string;
+  provider?: string;
+  application?: string;
+  user?: string;
+  name: string;
+  fileType?: string;
+  url?: string;
+  [key: string]: LegacyAny;
+}
+
+function t(key: string, options?: LegacyAny): string {
+  return String(i18next.t(key, options));
+}
+
+const LegacyBaseListPage = BaseListPage as unknown as React.ComponentClass<AdminRouteProps, LegacyAny> & LegacyAny;
+
+class ResourceListPage extends LegacyBaseListPage {
+  constructor(props: AdminRouteProps) {
     super(props);
   }
 
@@ -35,11 +59,11 @@ class ResourceListPage extends BaseListPage {
     });
   }
 
-  deleteResource(i) {
+  deleteResource(i: number) {
     ResourceBackend.deleteResource(this.state.data[i])
       .then((res) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully deleted"));
+          Setting.showMessage("success", t("general:Successfully deleted"));
           this.fetch({
             pagination: {
               ...this.state.pagination,
@@ -47,22 +71,22 @@ class ResourceListPage extends BaseListPage {
             },
           });
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  handleUpload(info) {
+  handleUpload(info: LegacyAny) {
     this.setState({uploading: true});
     const filename = info.fileList[0].name;
     const fullFilePath = `resource/${this.props.account.owner}/${this.props.account.name}/${filename}`;
     ResourceBackend.uploadResource(this.props.account.owner, this.props.account.name, "custom", "ResourceListPage", fullFilePath, info.file)
       .then(res => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("application:File uploaded successfully"));
+          Setting.showMessage("success", t("application:File uploaded successfully"));
 
           const {pagination} = this.state;
           this.fetch({pagination});
@@ -77,18 +101,18 @@ class ResourceListPage extends BaseListPage {
   renderUpload() {
     return (
       <Upload maxCount={1} showUploadList={false}
-        beforeUpload={file => {return false;}} onChange={info => {this.handleUpload(info);}}>
+        beforeUpload={(file: LegacyAny) => {return false;}} onChange={(info: LegacyAny) => {this.handleUpload(info);}}>
         <Button id="upload-button" icon={<UploadOutlined />} loading={this.state.uploading} type="primary" size="small">
-          {i18next.t("resource:Upload a file...")}
+          {t("resource:Upload a file...")}
         </Button>
       </Upload>
     );
   }
 
-  renderTable(resources) {
-    const columns = [
+  renderTable(resources: ResourceRecord[]) {
+    const columns: LegacyColumn<ResourceRecord>[] = legacyColumns<ResourceRecord>([
       {
-        title: i18next.t("general:Provider"),
+        title: t("general:Provider"),
         dataIndex: "provider",
         key: "provider",
         width: "150px",
@@ -103,7 +127,7 @@ class ResourceListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Organization"),
+        title: t("general:Organization"),
         dataIndex: "owner",
         key: "owner",
         width: "120px",
@@ -118,7 +142,7 @@ class ResourceListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Application"),
+        title: t("general:Application"),
         dataIndex: "application",
         key: "application",
         width: "80px",
@@ -133,7 +157,7 @@ class ResourceListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:User"),
+        title: t("general:User"),
         dataIndex: "user",
         key: "user",
         width: "80px",
@@ -148,7 +172,7 @@ class ResourceListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("resource:Parent"),
+        title: t("resource:Parent"),
         dataIndex: "parent",
         key: "parent",
         width: "80px",
@@ -156,7 +180,7 @@ class ResourceListPage extends BaseListPage {
         ...this.getColumnSearchProps("parent"),
       },
       {
-        title: i18next.t("general:Name"),
+        title: t("general:Name"),
         dataIndex: "name",
         key: "name",
         width: "150px",
@@ -164,7 +188,7 @@ class ResourceListPage extends BaseListPage {
         ...this.getColumnSearchProps("name"),
       },
       {
-        title: i18next.t("general:Created time"),
+        title: t("general:Created time"),
         dataIndex: "createdTime",
         key: "createdTime",
         width: "150px",
@@ -174,7 +198,7 @@ class ResourceListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("user:Tag"),
+        title: t("user:Tag"),
         dataIndex: "tag",
         key: "tag",
         width: "80px",
@@ -182,14 +206,14 @@ class ResourceListPage extends BaseListPage {
         ...this.getColumnSearchProps("tag"),
       },
       // {
-      //   title: i18next.t("resource:File name"),
+      //   title: t("resource:File name"),
       //   dataIndex: 'fileName',
       //   key: 'fileName',
       //   width: '120px',
       //   sorter: (a, b) => a.fileName.localeCompare(b.fileName),
       // },
       {
-        title: i18next.t("general:Type"),
+        title: t("general:Type"),
         dataIndex: "fileType",
         key: "fileType",
         width: "80px",
@@ -197,7 +221,7 @@ class ResourceListPage extends BaseListPage {
         ...this.getColumnSearchProps("fileType"),
       },
       {
-        title: i18next.t("resource:Format"),
+        title: t("resource:Format"),
         dataIndex: "fileFormat",
         key: "fileFormat",
         width: "80px",
@@ -205,21 +229,21 @@ class ResourceListPage extends BaseListPage {
         ...this.getColumnSearchProps("fileFormat"),
       },
       {
-        title: i18next.t("resource:File size"),
+        title: t("resource:File size"),
         dataIndex: "fileSize",
         key: "fileSize",
         width: "100px",
         sorter: true,
         render: (text, record, index) => {
-          return Setting.getFriendlyFileSize(text);
+          return Setting.getFriendlyFileSize(String(text || ""));
         },
       },
       {
-        title: i18next.t("general:Preview"),
+        title: t("general:Preview"),
         dataIndex: "preview",
         key: "preview",
         width: "100px",
-        fixed: (Setting.isMobile()) ? "false" : "right",
+        fixed: (Setting.isMobile()) ? false : "right",
         render: (text, record, index) => {
           if (record.fileType === "image") {
             const errorImage = "data:image/png;base64,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";
@@ -240,46 +264,46 @@ class ResourceListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:URL"),
+        title: t("general:URL"),
         dataIndex: "url",
         key: "url",
         width: "120px",
-        fixed: (Setting.isMobile()) ? "false" : "right",
+        fixed: (Setting.isMobile()) ? false : "right",
         render: (text, record, index) => {
           return (
             <div>
               <Button onClick={() => {
-                copy(record.url);
-                Setting.showMessage("success", i18next.t("general:Copied to clipboard successfully"));
+                copy(record.url || "");
+                Setting.showMessage("success", t("general:Copied to clipboard successfully"));
               }}
               >
-                {i18next.t("resource:Copy Link")}
+                {t("resource:Copy Link")}
               </Button>
             </div>
           );
         },
       },
       {
-        title: i18next.t("general:Action"),
+        title: t("general:Action"),
         dataIndex: "",
         key: "op",
         width: "70px",
-        fixed: (Setting.isMobile()) ? "false" : "right",
+        fixed: (Setting.isMobile()) ? false : "right",
         render: (text, record, index) => {
           return (
             <div>
               <PopconfirmModal
-                title={i18next.t("general:Sure to delete") + `: ${record.name} ?`}
+                title={t("general:Sure to delete") + `: ${record.name} ?`}
                 onConfirm={() => this.deleteResource(index)}
-                okText={i18next.t("general:OK")}
-                cancelText={i18next.t("general:Cancel")}
+                okText={t("general:OK")}
+                cancelText={t("general:Cancel")}
               >
               </PopconfirmModal>
             </div>
           );
         },
       },
-    ];
+    ]);
 
     const paginationProps = this.getTablePaginationProps();
 
@@ -288,8 +312,8 @@ class ResourceListPage extends BaseListPage {
         <Table scroll={{x: "max-content"}} columns={columns} dataSource={resources} rowKey="name" size="middle" bordered pagination={paginationProps}
           title={() => (
             <div>
-              {i18next.t("general:Resources")}&nbsp;&nbsp;&nbsp;&nbsp;
-              {/* <Button type="primary" size="small" onClick={this.addResource.bind(this)}>{i18next.t("general:Add")}</Button>*/}
+              {t("general:Resources")}&nbsp;&nbsp;&nbsp;&nbsp;
+              {/* <Button type="primary" size="small" onClick={this.addResource.bind(this)}>{t("general:Add")}</Button>*/}
               {
                 this.renderUpload()
               }
@@ -302,12 +326,12 @@ class ResourceListPage extends BaseListPage {
     );
   }
 
-  fetch = (params = {}) => {
+  fetch = (params: LegacyFetchParams = {pagination: this.state.pagination}) => {
     const field = params.searchedColumn, value = params.searchText;
     const sortField = params.sortField, sortOrder = params.sortOrder;
     this.setState({loading: true});
-    ResourceBackend.getResources(Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), this.props.account.name, params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
-      .then((res) => {
+    (ResourceBackend.getResources as LegacyAny)(Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), this.props.account.name, params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
+      .then((res: LegacyBackendResponse<ResourceRecord[]>) => {
         this.setState({
           loading: false,
         });
@@ -322,7 +346,7 @@ class ResourceListPage extends BaseListPage {
             searchedColumn: params.searchedColumn,
           });
         } else {
-          if (res.data.includes("Please login first")) {
+          if (String(res.data || "").includes("Please login first")) {
             this.setState({
               loading: false,
               isAuthorized: false,
@@ -333,4 +357,4 @@ class ResourceListPage extends BaseListPage {
   };
 }
 
-export default ResourceListPage;
+export default ResourceListPage as unknown as React.ComponentType<AdminRouteProps>;

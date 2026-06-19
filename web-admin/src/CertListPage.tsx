@@ -21,9 +21,29 @@ import * as CertBackend from "./backend/CertBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
+import {legacyColumns} from "./types/legacyPage";
 
-class CertListPage extends BaseListPage {
-  constructor(props) {
+type AdminRouteProps = import("./types/legacyPage").AdminRouteProps;
+type LegacyAny = import("./types/legacyPage").LegacyAny;
+type LegacyBackendResponse<TData = LegacyAny> = import("./types/legacyPage").LegacyBackendResponse<TData>;
+type LegacyColumn<TRecord = LegacyAny> = import("./types/legacyPage").LegacyColumn<TRecord>;
+type LegacyFetchParams = import("./types/legacyPage").LegacyFetchParams;
+
+interface CertRecord {
+  owner: string;
+  name: string;
+  type?: string;
+  [key: string]: LegacyAny;
+}
+
+function t(key: string, options?: LegacyAny): string {
+  return String(i18next.t(key, options));
+}
+
+const LegacyBaseListPage = BaseListPage as unknown as React.ComponentClass<AdminRouteProps, LegacyAny> & LegacyAny;
+
+class CertListPage extends LegacyBaseListPage {
+  constructor(props: AdminRouteProps) {
     super(props);
   }
 
@@ -58,21 +78,21 @@ class CertListPage extends BaseListPage {
       .then((res) => {
         if (res.status === "ok") {
           this.props.history.push({pathname: `/certs/${newCert.owner}/${newCert.name}`, mode: "add"});
-          Setting.showMessage("success", i18next.t("general:Successfully added"));
+          Setting.showMessage("success", t("general:Successfully added"));
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to add")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  deleteCert(i) {
+  deleteCert(i: number) {
     CertBackend.deleteCert(this.state.data[i])
       .then((res) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully deleted"));
+          Setting.showMessage("success", t("general:Successfully deleted"));
           this.fetch({
             pagination: {
               ...this.state.pagination,
@@ -80,15 +100,15 @@ class CertListPage extends BaseListPage {
             },
           });
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  refreshCert(i) {
+  refreshCert(i: number) {
     const cert = this.state.data[i];
     CertBackend.refreshDomainExpire(cert.owner, cert.name)
       .then((res) => {
@@ -110,10 +130,10 @@ class CertListPage extends BaseListPage {
       });
   }
 
-  renderTable(certs) {
-    const columns = [
+  renderTable(certs: CertRecord[]) {
+    const columns: LegacyColumn<CertRecord>[] = legacyColumns<CertRecord>([
       {
-        title: i18next.t("general:Name"),
+        title: t("general:Name"),
         dataIndex: "name",
         key: "name",
         width: "120px",
@@ -129,18 +149,18 @@ class CertListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Organization"),
+        title: t("general:Organization"),
         dataIndex: "owner",
         key: "owner",
         width: "150px",
         sorter: true,
         ...this.getColumnSearchProps("owner"),
         render: (text, record, index) => {
-          return (text !== "admin") ? text : i18next.t("provider:admin (Shared)");
+          return (text !== "admin") ? text : t("provider:admin (Shared)");
         },
       },
       {
-        title: i18next.t("general:Created time"),
+        title: t("general:Created time"),
         dataIndex: "createdTime",
         key: "createdTime",
         width: "180px",
@@ -150,7 +170,7 @@ class CertListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Display name"),
+        title: t("general:Display name"),
         dataIndex: "displayName",
         key: "displayName",
         // width: '100px',
@@ -158,7 +178,7 @@ class CertListPage extends BaseListPage {
         ...this.getColumnSearchProps("displayName"),
       },
       {
-        title: i18next.t("provider:Scope"),
+        title: t("provider:Scope"),
         dataIndex: "scope",
         key: "scope",
         filterMultiple: false,
@@ -169,7 +189,7 @@ class CertListPage extends BaseListPage {
         sorter: true,
       },
       {
-        title: i18next.t("general:Type"),
+        title: t("general:Type"),
         dataIndex: "type",
         key: "type",
         filterMultiple: false,
@@ -181,7 +201,7 @@ class CertListPage extends BaseListPage {
         sorter: true,
       },
       {
-        title: i18next.t("cert:Crypto algorithm"),
+        title: t("cert:Crypto algorithm"),
         dataIndex: "cryptoAlgorithm",
         key: "cryptoAlgorithm",
         filterMultiple: false,
@@ -192,7 +212,7 @@ class CertListPage extends BaseListPage {
         sorter: true,
       },
       {
-        title: i18next.t("cert:Bit size"),
+        title: t("cert:Bit size"),
         dataIndex: "bitSize",
         key: "bitSize",
         width: "130px",
@@ -200,7 +220,7 @@ class CertListPage extends BaseListPage {
         ...this.getColumnSearchProps("bitSize"),
       },
       {
-        title: i18next.t("cert:Expire in years"),
+        title: t("cert:Expire in years"),
         dataIndex: "expireInYears",
         key: "expireInYears",
         width: "170px",
@@ -208,24 +228,24 @@ class CertListPage extends BaseListPage {
         ...this.getColumnSearchProps("expireInYears"),
       },
       {
-        title: i18next.t("general:Action"),
+        title: t("general:Action"),
         dataIndex: "",
         key: "op",
         width: "170px",
-        fixed: (Setting.isMobile()) ? "false" : "right",
+        fixed: (Setting.isMobile()) ? false : "right",
         render: (text, record, index) => {
           return (
             <div>
               {
                 record.type === "SSL" ? (
-                  <Button disabled={!Setting.isAdminUser(this.props.account) && (record.owner !== this.props.account.owner)} style={{margin: "10px 10px 10px 0"}} type="default" onClick={() => this.refreshCert(index)}>{i18next.t("general:Refresh")}
+                  <Button disabled={!Setting.isAdminUser(this.props.account) && (record.owner !== this.props.account.owner)} style={{margin: "10px 10px 10px 0"}} type="default" onClick={() => this.refreshCert(index)}>{t("general:Refresh")}
                   </Button>
                 ) : null
               }
-              <Button disabled={!Setting.isAdminUser(this.props.account) && (record.owner !== this.props.account.owner)} style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/certs/${record.owner}/${record.name}`)}>{i18next.t("general:Edit")}</Button>
+              <Button disabled={!Setting.isAdminUser(this.props.account) && (record.owner !== this.props.account.owner)} style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/certs/${record.owner}/${record.name}`)}>{t("general:Edit")}</Button>
               <PopconfirmModal
                 disabled={!Setting.isAdminUser(this.props.account) && (record.owner !== this.props.account.owner)}
-                title={i18next.t("general:Sure to delete") + `: ${record.name} ?`}
+                title={t("general:Sure to delete") + `: ${record.name} ?`}
                 onConfirm={() => this.deleteCert(index)}
               >
               </PopconfirmModal>
@@ -233,17 +253,17 @@ class CertListPage extends BaseListPage {
           );
         },
       },
-    ];
+    ]);
 
     const paginationProps = this.getTablePaginationProps();
 
     return (
       <div>
-        <Table scroll={{x: "max-content"}} columns={columns} dataSource={certs} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
+        <Table scroll={{x: "max-content"}} columns={columns} dataSource={certs} rowKey={(record: CertRecord) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
           title={() => (
             <div>
-              {i18next.t("general:Certs")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button type="primary" size="small" onClick={this.addCert.bind(this)}>{i18next.t("general:Add")}</Button>
+              {t("general:Certs")}&nbsp;&nbsp;&nbsp;&nbsp;
+              <Button type="primary" size="small" onClick={this.addCert.bind(this)}>{t("general:Add")}</Button>
             </div>
           )}
           loading={this.state.loading}
@@ -253,7 +273,7 @@ class CertListPage extends BaseListPage {
     );
   }
 
-  fetch = (params = {}) => {
+  fetch = (params: LegacyFetchParams = {pagination: this.state.pagination}) => {
     let field = params.searchedColumn, value = params.searchText;
     const sortField = params.sortField, sortOrder = params.sortOrder;
     if (params.category !== undefined && params.category !== null) {
@@ -264,9 +284,9 @@ class CertListPage extends BaseListPage {
       value = params.type;
     }
     this.setState({loading: true});
-    (Setting.isDefaultOrganizationSelected(this.props.account) ? CertBackend.getGlobalCerts(params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
-      : CertBackend.getCerts(Setting.getRequestOrganization(this.props.account), params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder))
-      .then((res) => {
+    (Setting.isDefaultOrganizationSelected(this.props.account) ? (CertBackend.getGlobalCerts as LegacyAny)(params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
+      : (CertBackend.getCerts as LegacyAny)(Setting.getRequestOrganization(this.props.account), params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder))
+      .then((res: LegacyBackendResponse<CertRecord[]>) => {
         this.setState({
           loading: false,
         });
@@ -293,4 +313,4 @@ class CertListPage extends BaseListPage {
   };
 }
 
-export default CertListPage;
+export default CertListPage as unknown as React.ComponentType<AdminRouteProps>;

@@ -20,11 +20,19 @@ import * as PlatformApiMappingBackend from "./backend/PlatformApiMappingBackend"
 import OrganizationSelect from "./common/select/OrganizationSelect";
 import {getDefaultTablePagination, getTablePaginationProps} from "./common/table/TablePagination";
 import i18next from "i18next";
+import {legacyColumns} from "./types/legacyPage";
+
+type AdminAccount = import("./types/legacyPage").AdminAccount;
+type AdminRouteProps = import("./types/legacyPage").AdminRouteProps;
+type LegacyAny = import("./types/legacyPage").LegacyAny;
+type LegacyBackendResponse<TData = LegacyAny> = import("./types/legacyPage").LegacyBackendResponse<TData>;
+type LegacyColumn<TRecord = LegacyAny> = import("./types/legacyPage").LegacyColumn<TRecord>;
+type LegacyPagination = import("./types/legacyPage").LegacyPagination;
 
 const {Text} = Typography;
 const {Search} = Input;
-const mappingStatuses = ["CONFIRMED", "PENDING_REVIEW", "CONFLICTED", "DUPLICATE", "DISABLED"];
-const mappingSources = ["MANUAL", "MIGRATION", "RESOLVER"];
+const mappingStatuses: string[] = ["CONFIRMED", "PENDING_REVIEW", "CONFLICTED", "DUPLICATE", "DISABLED"];
+const mappingSources: string[] = ["MANUAL", "MIGRATION", "RESOLVER"];
 const readinessCategories = [
   "active_publishable",
   "tombstone_publishable",
@@ -34,19 +42,19 @@ const readinessCategories = [
   "source_metadata_unavailable",
   "lineage_freshness_unavailable",
 ];
-const mappingStatusLabels = {
+const mappingStatusLabels: Record<string, string> = {
   CONFIRMED: "已确认",
   PENDING_REVIEW: "待复核",
   CONFLICTED: "冲突",
   DUPLICATE: "重复",
   DISABLED: "已停用",
 };
-const mappingSourceLabels = {
+const mappingSourceLabels: Record<string, string> = {
   MANUAL: "手工维护",
   MIGRATION: "迁移导入",
   RESOLVER: "解析器生成",
 };
-const readinessCategoryLabels = {
+const readinessCategoryLabels: Record<string, string> = {
   active_publishable: "Active 可发布",
   tombstone_publishable: "Tombstone 可发布",
   mapping_missing: "缺少映射",
@@ -55,7 +63,7 @@ const readinessCategoryLabels = {
   source_metadata_unavailable: "来源元数据不可用",
   lineage_freshness_unavailable: "血缘/新鲜度不可用",
 };
-const retryReadinessLabels = {
+const retryReadinessLabels: Record<string, string> = {
   safe_retry: "可安全重试",
   wait_source_refresh: "等待来源刷新",
   fix_mapping_or_subject: "修复映射/主体",
@@ -63,7 +71,7 @@ const retryReadinessLabels = {
   inspect_gateway_contract: "检查网关契约",
   unknown: "需要复查",
 };
-const ingestionStatusLabels = {
+const ingestionStatusLabels: Record<string, string> = {
   accepted: "已接收",
   applied: "已应用",
   stale: "已过期",
@@ -76,22 +84,22 @@ const ingestionStatusLabels = {
   invalid_response: "响应无效",
   unknown: "未知",
 };
-const publishAttemptSourceLabels = {
+const publishAttemptSourceLabels: Record<string, string> = {
   manual: "手动",
   scheduled: "定时/同步",
 };
-const publishAttemptStatusLabels = {
+const publishAttemptStatusLabels: Record<string, string> = {
   ok: "成功",
   error: "失败",
 };
-const publishAttemptCleanupReasonLabels = {
+const publishAttemptCleanupReasonLabels: Record<string, string> = {
   within_retention_window: "保留期内",
   retention_expired_with_diagnostic_summary: "保留期已过且有脱敏摘要",
   retention_expired_missing_diagnostic_summary: "保留期已过但缺少排障摘要",
   created_at_missing: "缺少创建时间",
 };
 const cleanupApprovalPolicyEvidenceAliases = "dry_run_export_reviewed,candidate_count_reviewed,receipt_hint_coverage_reviewed,no_blocked_attempts_confirmed";
-const titleTips = {
+const titleTips: Record<string, string> = {
   platformApiMappings: "维护认证中心组织/账号到 aicodex-api 业务组织、网关账号和用量身份的权威映射。",
   organizationMapping: "维护平台组织到 aicodex-api 业务组织 UUID 的一等映射。只有“已确认”才会作为运行时权威来源。",
   userMapping: "维护同一组织内平台主体到 aicodex-api 用户 ID 的一等映射。只有“已确认”才会作为运行时权威来源。",
@@ -105,12 +113,16 @@ const titleTips = {
   mappingSource: "技术字段：mappingSource。用于审计和排查，保存值为 MANUAL、MIGRATION 或 RESOLVER。",
 };
 
-function normalizeMappingStatus(status) {
+function t(key: string, options?: LegacyAny): string {
+  return String(i18next.t(key, options));
+}
+
+function normalizeMappingStatus(status?: string) {
   return status || "PENDING_REVIEW";
 }
 
-function getReadinessCategoryLabel(category) {
-  return readinessCategoryLabels[category] || category || "-";
+function getReadinessCategoryLabel(category?: string) {
+  return readinessCategoryLabels[category || ""] || category || "-";
 }
 
 function getReadinessCategoryOptions() {
@@ -120,20 +132,20 @@ function getReadinessCategoryOptions() {
   ];
 }
 
-function getPublishAttemptCleanupReasonLabel(reason) {
-  return publishAttemptCleanupReasonLabels[reason] || reason || "-";
+function getPublishAttemptCleanupReasonLabel(reason?: string) {
+  return publishAttemptCleanupReasonLabels[reason || ""] || reason || "-";
 }
 
-function normalizeMappingSource(source) {
+function normalizeMappingSource(source?: string) {
   return source || "MANUAL";
 }
 
-function getMappingStatusLabel(status) {
+function getMappingStatusLabel(status?: string) {
   const normalizedStatus = normalizeMappingStatus(status);
   return mappingStatusLabels[normalizedStatus] || normalizedStatus;
 }
 
-function getMappingSourceLabel(source) {
+function getMappingSourceLabel(source?: string) {
   const normalizedSource = normalizeMappingSource(source);
   return mappingSourceLabels[normalizedSource] || normalizedSource;
 }
@@ -142,7 +154,7 @@ function getMappingStatusOptions() {
   return mappingStatuses.map(status => Setting.getOption(getMappingStatusLabel(status), status));
 }
 
-function getMappingSourceOptions(source) {
+function getMappingSourceOptions(source?: string) {
   const normalizedSource = normalizeMappingSource(source);
   const options = mappingSources.map(item => Setting.getOption(getMappingSourceLabel(item), item));
   if (!mappingSources.includes(normalizedSource)) {
@@ -151,8 +163,8 @@ function getMappingSourceOptions(source) {
   return options;
 }
 
-class PlatformApiMappingPage extends React.Component {
-  constructor(props) {
+class PlatformApiMappingPage extends React.Component<AdminRouteProps, LegacyAny> {
+  constructor(props: AdminRouteProps) {
     super(props);
     const organization = this.getAccountOrganization(props.account);
     this.state = {
@@ -219,27 +231,27 @@ class PlatformApiMappingPage extends React.Component {
     }
   }
 
-  getAccountOrganization(account) {
+  getAccountOrganization(account?: AdminAccount) {
     if (!account?.owner) {
       return "";
     }
     return Setting.getRequestOrganization(account) || account.owner;
   }
 
-  refresh(organization = this.state.organization) {
+  refresh(organization: string = this.state.organization) {
     if (this.state.activeTabKey === "user") {
       return this.refreshUserMappings(organization);
     }
     return this.refreshOrganizationMappings(organization);
   }
 
-  refreshOrganizationMappings(organization = this.state.organization) {
+  refreshOrganizationMappings(organization: string = this.state.organization) {
     if (!organization) {
       return Promise.resolve();
     }
 
     this.setState({organizationLoading: true});
-    return PlatformApiMappingBackend.getPlatformApiOrganizationMappings(organization).then((organizationRes) => {
+    return PlatformApiMappingBackend.getPlatformApiOrganizationMappings(organization).then((organizationRes: LegacyBackendResponse) => {
       if (organizationRes.status === "error") {
         Setting.showMessage("error", organizationRes.msg);
       }
@@ -249,11 +261,11 @@ class PlatformApiMappingPage extends React.Component {
       });
     }).catch(error => {
       this.setState({organizationLoading: false});
-      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
     });
   }
 
-  refreshUserMappings(organization = this.state.organization, options = {}) {
+  refreshUserMappings(organization: string = this.state.organization, options: LegacyAny = {}) {
     if (!organization) {
       return Promise.resolve();
     }
@@ -275,7 +287,7 @@ class PlatformApiMappingPage extends React.Component {
       current: pagination.current,
       pageSize: pagination.pageSize,
       keyword,
-    }).then((userRes) => {
+    }).then((userRes: LegacyBackendResponse) => {
       if (userRes.status === "error") {
         Setting.showMessage("error", userRes.msg);
       }
@@ -292,11 +304,11 @@ class PlatformApiMappingPage extends React.Component {
       return Promise.all([readinessPromise, masterDataQualityPromise]);
     }).catch(error => {
       this.setState({userLoading: false});
-      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
     });
   }
 
-  refreshUserMappingReadiness(organization = this.state.organization, options = {}) {
+  refreshUserMappingReadiness(organization: string = this.state.organization, options: LegacyAny = {}) {
     if (!organization) {
       return Promise.resolve();
     }
@@ -310,7 +322,7 @@ class PlatformApiMappingPage extends React.Component {
       readinessCategory,
       mappingStatus,
       limit: 20,
-    }).then((res) => {
+    }).then((res: LegacyBackendResponse) => {
       if (res.status === "error") {
         Setting.showMessage("error", res.msg);
       }
@@ -322,17 +334,17 @@ class PlatformApiMappingPage extends React.Component {
       });
     }).catch(error => {
       this.setState({readinessLoading: false});
-      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
     });
   }
 
-  refreshGatewayProjectionRunReadiness(organization = this.state.organization, options = {}) {
+  refreshGatewayProjectionRunReadiness(organization: string = this.state.organization, options: LegacyAny = {}) {
     if (!organization) {
       return Promise.resolve();
     }
 
     this.setState({runReadinessLoading: true});
-    return PlatformApiMappingBackend.getGatewayProjectionRunReadiness(organization, options).then((res) => {
+    return PlatformApiMappingBackend.getGatewayProjectionRunReadiness(organization, options).then((res: LegacyBackendResponse) => {
       if (res.status === "error") {
         Setting.showMessage("error", res.msg);
       }
@@ -342,11 +354,11 @@ class PlatformApiMappingPage extends React.Component {
       });
     }).catch(error => {
       this.setState({runReadinessLoading: false});
-      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
     });
   }
 
-  refreshGatewayProjectionPublishAttempts(organization = this.state.organization, options = {}) {
+  refreshGatewayProjectionPublishAttempts(organization: string = this.state.organization, options: LegacyAny = {}) {
     if (!organization) {
       return Promise.resolve();
     }
@@ -360,7 +372,7 @@ class PlatformApiMappingPage extends React.Component {
       status,
       from: this.getAttemptFromTime(timeWindow),
       limit: 20,
-    }).then((res) => {
+    }).then((res: LegacyBackendResponse) => {
       if (res.status === "error") {
         Setting.showMessage("error", res.msg);
       }
@@ -380,11 +392,11 @@ class PlatformApiMappingPage extends React.Component {
       this.refreshGatewayProjectionPublishAttemptCleanupApprovalAuditTrail(organization);
     }).catch(error => {
       this.setState({attemptsLoading: false});
-      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
     });
   }
 
-  refreshGatewayProjectionPublishAttemptRetentionReadiness(organization = this.state.organization, options = {}) {
+  refreshGatewayProjectionPublishAttemptRetentionReadiness(organization: string = this.state.organization, options: LegacyAny = {}) {
     if (!organization) {
       return Promise.resolve();
     }
@@ -398,7 +410,7 @@ class PlatformApiMappingPage extends React.Component {
       status,
       from: this.getAttemptFromTime(timeWindow),
       limit: 100,
-    }).then((res) => {
+    }).then((res: LegacyBackendResponse) => {
       if (res.status === "error") {
         Setting.showMessage("error", res.msg);
       }
@@ -408,11 +420,11 @@ class PlatformApiMappingPage extends React.Component {
       });
     }).catch(error => {
       this.setState({retentionReadinessLoading: false});
-      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
     });
   }
 
-  refreshGatewayProjectionPublishAttemptCleanupDryRun(organization = this.state.organization, options = {}) {
+  refreshGatewayProjectionPublishAttemptCleanupDryRun(organization: string = this.state.organization, options: LegacyAny = {}) {
     if (!organization) {
       return Promise.resolve();
     }
@@ -424,7 +436,7 @@ class PlatformApiMappingPage extends React.Component {
       source,
       status,
       limit: 100,
-    }).then((res) => {
+    }).then((res: LegacyBackendResponse) => {
       if (res.status === "error") {
         Setting.showMessage("error", res.msg);
       }
@@ -434,11 +446,11 @@ class PlatformApiMappingPage extends React.Component {
       });
     }).catch(error => {
       this.setState({cleanupDryRunLoading: false});
-      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
     });
   }
 
-  refreshGatewayProjectionPublishAttemptCleanupExecuteReadiness(organization = this.state.organization, options = {}) {
+  refreshGatewayProjectionPublishAttemptCleanupExecuteReadiness(organization: string = this.state.organization, options: LegacyAny = {}) {
     if (!organization) {
       return Promise.resolve();
     }
@@ -450,7 +462,7 @@ class PlatformApiMappingPage extends React.Component {
       source,
       status,
       limit: 100,
-    }).then((res) => {
+    }).then((res: LegacyBackendResponse) => {
       if (res.status === "error") {
         Setting.showMessage("error", res.msg);
       }
@@ -471,11 +483,11 @@ class PlatformApiMappingPage extends React.Component {
       }
     }).catch(error => {
       this.setState({cleanupExecuteReadinessLoading: false});
-      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
     });
   }
 
-  refreshGatewayProjectionPublishAttemptCleanupApprovalAuditTrail(organization = this.state.organization, options = {}) {
+  refreshGatewayProjectionPublishAttemptCleanupApprovalAuditTrail(organization: string = this.state.organization, options: LegacyAny = {}) {
     if (!organization) {
       return Promise.resolve();
     }
@@ -485,7 +497,7 @@ class PlatformApiMappingPage extends React.Component {
     return PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail(organization, {
       readinessHash,
       limit: 20,
-    }).then((res) => {
+    }).then((res: LegacyBackendResponse) => {
       if (res.status === "error") {
         Setting.showMessage("error", res.msg);
       }
@@ -495,11 +507,11 @@ class PlatformApiMappingPage extends React.Component {
       });
     }).catch(error => {
       this.setState({cleanupApprovalAuditLoading: false});
-      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
     });
   }
 
-  refreshGatewayProjectionPublishAttemptCleanupApprovalPolicyReadiness(organization = this.state.organization, options = {}) {
+  refreshGatewayProjectionPublishAttemptCleanupApprovalPolicyReadiness(organization: string = this.state.organization, options: LegacyAny = {}) {
     if (!organization) {
       return Promise.resolve();
     }
@@ -514,7 +526,7 @@ class PlatformApiMappingPage extends React.Component {
       readinessHash,
       approvalEvidence: cleanupApprovalPolicyEvidenceAliases,
       limit: 100,
-    }).then((res) => {
+    }).then((res: LegacyBackendResponse) => {
       if (res.status === "error") {
         Setting.showMessage("error", res.msg);
       }
@@ -531,11 +543,11 @@ class PlatformApiMappingPage extends React.Component {
       }
     }).catch(error => {
       this.setState({cleanupApprovalPolicyLoading: false});
-      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
     });
   }
 
-  refreshGatewayProjectionPublishAttemptCleanupApprovalDecisionDraftReadiness(organization = this.state.organization, options = {}) {
+  refreshGatewayProjectionPublishAttemptCleanupApprovalDecisionDraftReadiness(organization: string = this.state.organization, options: LegacyAny = {}) {
     if (!organization) {
       return Promise.resolve();
     }
@@ -552,7 +564,7 @@ class PlatformApiMappingPage extends React.Component {
       readinessHash,
       approvalEvidence: cleanupApprovalPolicyEvidenceAliases,
       limit: 100,
-    }).then((res) => {
+    }).then((res: LegacyBackendResponse) => {
       if (res.status === "error") {
         Setting.showMessage("error", res.msg);
       }
@@ -569,11 +581,11 @@ class PlatformApiMappingPage extends React.Component {
       }
     }).catch(error => {
       this.setState({cleanupApprovalDecisionDraftLoading: false});
-      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
     });
   }
 
-  refreshGatewayProjectionPublishAttemptCleanupExecutionGateOwnerBoundaryPreflight(organization = this.state.organization, options = {}) {
+  refreshGatewayProjectionPublishAttemptCleanupExecutionGateOwnerBoundaryPreflight(organization: string = this.state.organization, options: LegacyAny = {}) {
     if (!organization) {
       return Promise.resolve();
     }
@@ -590,7 +602,7 @@ class PlatformApiMappingPage extends React.Component {
       readinessHash,
       approvalEvidence: cleanupApprovalPolicyEvidenceAliases,
       limit: 100,
-    }).then((res) => {
+    }).then((res: LegacyBackendResponse) => {
       if (res.status === "error") {
         Setting.showMessage("error", res.msg);
       }
@@ -600,16 +612,16 @@ class PlatformApiMappingPage extends React.Component {
       });
     }).catch(error => {
       this.setState({cleanupExecutionGatePreflightLoading: false});
-      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
     });
   }
 
-  refreshOrganizationMasterDataQuality(organization = this.state.organization) {
+  refreshOrganizationMasterDataQuality(organization: string = this.state.organization) {
     if (!organization) {
       return Promise.resolve();
     }
     this.setState({masterDataQualityLoading: true});
-    return PlatformApiMappingBackend.getOrganizationMasterDataQualityReadiness(organization).then((res) => {
+    return PlatformApiMappingBackend.getOrganizationMasterDataQualityReadiness(organization).then((res: LegacyBackendResponse) => {
       if (res.status === "error") {
         Setting.showMessage("error", res.msg);
       }
@@ -619,11 +631,11 @@ class PlatformApiMappingPage extends React.Component {
       });
     }).catch(error => {
       this.setState({masterDataQualityLoading: false});
-      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
     });
   }
 
-  refreshGatewayProjectionIngestionStatus(organization = this.state.organization, options = {}) {
+  refreshGatewayProjectionIngestionStatus(organization: string = this.state.organization, options: LegacyAny = {}) {
     if (!organization) {
       return Promise.resolve();
     }
@@ -632,7 +644,7 @@ class PlatformApiMappingPage extends React.Component {
     return PlatformApiMappingBackend.getGatewayProjectionIngestionStatus(organization, {
       latest: true,
       ...options,
-    }).then((res) => {
+    }).then((res: LegacyBackendResponse) => {
       if (res.status === "error") {
         Setting.showMessage("error", res.msg);
       }
@@ -642,11 +654,11 @@ class PlatformApiMappingPage extends React.Component {
       });
     }).catch(error => {
       this.setState({ingestionStatusLoading: false});
-      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
     });
   }
 
-  changeOrganization(organization) {
+  changeOrganization(organization: string) {
     this.setState({
       organization,
       organizationMappings: [],
@@ -688,7 +700,7 @@ class PlatformApiMappingPage extends React.Component {
     });
   }
 
-  changeTab(activeTabKey) {
+  changeTab(activeTabKey: string) {
     this.setState({activeTabKey}, () => {
       if (activeTabKey === "user" && !this.state.userMappingsLoaded) {
         this.refreshUserMappings();
@@ -703,7 +715,7 @@ class PlatformApiMappingPage extends React.Component {
     return this.state.activeTabKey === "user" ? this.state.userLoading : this.state.organizationLoading;
   }
 
-  updateOrganizationMapping(index, field, value) {
+  updateOrganizationMapping(index: number, field: string, value: LegacyAny) {
     const organizationMappings = [...this.state.organizationMappings];
     organizationMappings[index] = {
       ...organizationMappings[index],
@@ -712,7 +724,7 @@ class PlatformApiMappingPage extends React.Component {
     this.setState({organizationMappings});
   }
 
-  updateUserMapping(index, field, value) {
+  updateUserMapping(index: number, field: string, value: LegacyAny) {
     const userMappings = [...this.state.userMappings];
     userMappings[index] = {
       ...userMappings[index],
@@ -760,55 +772,55 @@ class PlatformApiMappingPage extends React.Component {
     });
   }
 
-  saveOrganizationMapping(mapping, index) {
+  saveOrganizationMapping(mapping: LegacyAny, index: number) {
     if (!mapping.organizationId) {
       Setting.showMessage("error", "平台组织 ID（organizationId）不能为空");
       return;
     }
     const savingKey = `org-${index}`;
     this.setState({savingKey});
-    PlatformApiMappingBackend.updatePlatformApiOrganizationMapping(mapping).then((res) => {
+    PlatformApiMappingBackend.updatePlatformApiOrganizationMapping(mapping).then((res: LegacyBackendResponse) => {
       this.setState({savingKey: ""});
       if (res.status === "ok") {
-        Setting.showMessage("success", i18next.t("general:Successfully saved"));
+        Setting.showMessage("success", t("general:Successfully saved"));
         this.refresh();
       } else {
-        Setting.showMessage("error", `${i18next.t("general:Failed to save")}: ${res.msg}`);
+        Setting.showMessage("error", `${t("general:Failed to save")}: ${res.msg}`);
       }
     }).catch(error => {
       this.setState({savingKey: ""});
-      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
     });
   }
 
-  saveUserMapping(mapping, index) {
+  saveUserMapping(mapping: LegacyAny, index: number) {
     if (!mapping.organizationId || !mapping.adminSubject) {
       Setting.showMessage("error", "平台组织 ID（organizationId）和平台主体（adminSubject）不能为空");
       return;
     }
     const savingKey = `user-${index}`;
     this.setState({savingKey});
-    PlatformApiMappingBackend.updatePlatformApiUserMapping(mapping).then((res) => {
+    PlatformApiMappingBackend.updatePlatformApiUserMapping(mapping).then((res: LegacyBackendResponse) => {
       this.setState({savingKey: ""});
       if (res.status === "ok") {
-        Setting.showMessage("success", i18next.t("general:Successfully saved"));
+        Setting.showMessage("success", t("general:Successfully saved"));
         this.refreshUserMappings();
       } else {
-        Setting.showMessage("error", `${i18next.t("general:Failed to save")}: ${res.msg}`);
+        Setting.showMessage("error", `${t("general:Failed to save")}: ${res.msg}`);
       }
     }).catch(error => {
       this.setState({savingKey: ""});
-      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
     });
   }
 
-  renderStatus(value) {
+  renderStatus(value?: string) {
     const status = normalizeMappingStatus(value);
     const color = status === "CONFIRMED" ? "green" : status === "DISABLED" ? "default" : "orange";
     return <Tag color={color}>{getMappingStatusLabel(status)}</Tag>;
   }
 
-  renderTitleWithTip(title, tooltip) {
+  renderTitleWithTip(title: string, tooltip: string) {
     return (
       <span style={{display: "inline-flex", alignItems: "center", whiteSpace: "nowrap"}}>
         {Setting.getLabel(title, tooltip)}
@@ -817,7 +829,7 @@ class PlatformApiMappingPage extends React.Component {
   }
 
   renderOrganizationMappingTable() {
-    const columns = [
+    const columns: LegacyColumn[] = [
       {
         title: this.renderTitleWithTip("平台组织 ID", titleTips.organizationId),
         dataIndex: "organizationId",
@@ -861,7 +873,7 @@ class PlatformApiMappingPage extends React.Component {
         ),
       },
       {
-        title: i18next.t("general:Action"),
+        title: t("general:Action"),
         width: 110,
         render: (text, record, index) => (
           <Button
@@ -870,14 +882,14 @@ class PlatformApiMappingPage extends React.Component {
             loading={this.state.savingKey === `org-${index}`}
             onClick={() => this.saveOrganizationMapping(record, index)}
           >
-            {i18next.t("general:Save")}
+            {t("general:Save")}
           </Button>
         ),
       },
     ];
     return (
       <Table
-        rowKey={(record) => record.name || `${record.organizationId || "new"}-${record.apiOrganizationId || ""}`}
+        rowKey={(record: LegacyAny) => record.name || `${record.organizationId || "new"}-${record.apiOrganizationId || ""}`}
         columns={columns}
         dataSource={this.state.organizationMappings}
         pagination={false}
@@ -887,7 +899,7 @@ class PlatformApiMappingPage extends React.Component {
     );
   }
 
-  handleUserTableChange = (pagination) => {
+  handleUserTableChange = (pagination: LegacyPagination) => {
     this.refreshUserMappings(this.state.organization, {
       pagination: {
         ...this.state.userPagination,
@@ -897,7 +909,7 @@ class PlatformApiMappingPage extends React.Component {
     });
   };
 
-  searchUserMappings(keyword) {
+  searchUserMappings(keyword: string) {
     this.refreshUserMappings(this.state.organization, {
       keyword: (keyword || "").trim(),
       pagination: {
@@ -907,7 +919,7 @@ class PlatformApiMappingPage extends React.Component {
     });
   }
 
-  changeReadinessFilter(field, value) {
+  changeReadinessFilter(field: string, value: string) {
     this.setState({[field]: value}, () => {
       this.refreshUserMappingReadiness(this.state.organization, {
         keyword: this.state.userKeyword,
@@ -922,10 +934,10 @@ class PlatformApiMappingPage extends React.Component {
     if (!this.state.readinessCategory) {
       return guidance;
     }
-    return guidance.filter(item => item.category === this.state.readinessCategory);
+    return guidance.filter((item: LegacyAny) => item.category === this.state.readinessCategory);
   }
 
-  getAttemptFromTime(timeWindow) {
+  getAttemptFromTime(timeWindow?: string) {
     if (!timeWindow) {
       return "";
     }
@@ -939,7 +951,7 @@ class PlatformApiMappingPage extends React.Component {
     return "";
   }
 
-  changeAttemptFilter(field, value) {
+  changeAttemptFilter(field: string, value: string) {
     this.setState({[field]: value}, () => this.refreshGatewayProjectionPublishAttempts(this.state.organization, {
       source: this.state.attemptSource,
       status: this.state.attemptStatus,
@@ -947,12 +959,12 @@ class PlatformApiMappingPage extends React.Component {
     }));
   }
 
-  openPublishAttemptDetail(attempt) {
+  openPublishAttemptDetail(attempt: LegacyAny) {
     if (!attempt?.attemptId) {
       return;
     }
     this.setState({attemptDetailLoading: true, attemptDetailVisible: true, attemptDetail: attempt});
-    PlatformApiMappingBackend.getGatewayProjectionPublishAttempt(this.state.organization, attempt.attemptId).then((res) => {
+    PlatformApiMappingBackend.getGatewayProjectionPublishAttempt(this.state.organization, attempt.attemptId).then((res: LegacyBackendResponse) => {
       if (res.status === "error") {
         Setting.showMessage("error", res.msg);
       }
@@ -962,11 +974,11 @@ class PlatformApiMappingPage extends React.Component {
       });
     }).catch(error => {
       this.setState({attemptDetailLoading: false});
-      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
     });
   }
 
-  queryGatewayReceiptFromAttempt(detail = this.state.attemptDetail || {}) {
+  queryGatewayReceiptFromAttempt(detail: LegacyAny = this.state.attemptDetail || {}) {
     const hint = detail.receiptQueryHint || {};
     if (!hint.available) {
       return;
@@ -981,7 +993,7 @@ class PlatformApiMappingPage extends React.Component {
     this.setState({attemptDetailVisible: false});
   }
 
-  copyCleanupExecuteReadinessExport(action = "copy") {
+  copyCleanupExecuteReadinessExport(action: string = "copy") {
     const readiness = this.state.cleanupExecuteReadiness;
     if (!readiness) {
       Setting.showMessage("warning", "cleanup execute readiness 尚未加载");
@@ -1008,7 +1020,7 @@ class PlatformApiMappingPage extends React.Component {
         Setting.showMessage("success", "已复制脱敏 readiness JSON");
         this.recordCleanupApprovalAuditAction(action);
       }).catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
       return;
     }
@@ -1033,7 +1045,7 @@ class PlatformApiMappingPage extends React.Component {
         Setting.showMessage("success", "已复制脱敏 approval audit JSON");
         this.recordCleanupApprovalAuditAction("export");
       }).catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
       return;
     }
@@ -1069,7 +1081,7 @@ class PlatformApiMappingPage extends React.Component {
         Setting.showMessage("success", "已复制脱敏 approval policy JSON");
         this.recordCleanupApprovalAuditAction("export");
       }).catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
       return;
     }
@@ -1109,7 +1121,7 @@ class PlatformApiMappingPage extends React.Component {
         Setting.showMessage("success", "已复制脱敏 decision draft JSON");
         this.recordCleanupApprovalAuditAction("export");
       }).catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
       return;
     }
@@ -1151,14 +1163,14 @@ class PlatformApiMappingPage extends React.Component {
         Setting.showMessage("success", "已复制脱敏 execution gate preflight JSON");
         this.recordCleanupApprovalAuditAction("export");
       }).catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
       return;
     }
     Setting.showMessage("warning", "当前浏览器不支持自动复制，请从只读响应中导出");
   }
 
-  recordCleanupApprovalAuditAction(action) {
+  recordCleanupApprovalAuditAction(action: string) {
     const readiness = this.state.cleanupExecuteReadiness;
     if (!this.state.organization || !readiness) {
       Setting.showMessage("warning", "cleanup execute readiness 尚未加载");
@@ -1175,7 +1187,7 @@ class PlatformApiMappingPage extends React.Component {
       blockedCount: readiness.blockedCount || 0,
       disabledReasons: readiness.disabledReasons || [],
       safeNextAction: readiness.safeNextAction || "",
-    }).then((res) => {
+    }).then((res: LegacyBackendResponse) => {
       this.setState({cleanupApprovalAuditRecording: false});
       if (res.status === "error") {
         Setting.showMessage("error", res.msg);
@@ -1190,7 +1202,7 @@ class PlatformApiMappingPage extends React.Component {
       });
     }).catch(error => {
       this.setState({cleanupApprovalAuditRecording: false});
-      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
     });
   }
 
@@ -1198,7 +1210,7 @@ class PlatformApiMappingPage extends React.Component {
     const readiness = this.state.readiness;
     const counts = readiness?.counts || {};
     const publishableCount = (counts.active_publishable || 0) + (counts.tombstone_publishable || 0);
-    const reasons = [];
+    const reasons: string[] = [];
     if (!this.state.organization) {
       reasons.push("未选择组织");
     }
@@ -1220,7 +1232,7 @@ class PlatformApiMappingPage extends React.Component {
     this.setState({manualPublishing: true});
     return PlatformApiMappingBackend.publishGatewayProjectionManually(this.state.organization, {
       reason: "operator-manual-publish",
-    }).then((res) => {
+    }).then((res: LegacyBackendResponse) => {
       this.setState({
         manualPublishing: false,
         manualPublishResult: res.status === "ok" ? res.data : (res.data || null),
@@ -1239,7 +1251,7 @@ class PlatformApiMappingPage extends React.Component {
       this.refreshGatewayProjectionPublishAttemptCleanupExecuteReadiness();
     }).catch(error => {
       this.setState({manualPublishing: false});
-      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
     });
   }
 
@@ -1259,7 +1271,7 @@ class PlatformApiMappingPage extends React.Component {
         style={{marginBottom: 12}}
         extra={
           <Button icon={<ReloadOutlined />} loading={this.state.ingestionStatusLoading} onClick={() => this.refreshGatewayProjectionIngestionStatus()}>
-            {i18next.t("general:Refresh")}
+            {t("general:Refresh")}
           </Button>
         }
       >
@@ -1317,7 +1329,7 @@ class PlatformApiMappingPage extends React.Component {
         style={{marginBottom: 12}}
         extra={
           <Button icon={<ReloadOutlined />} loading={this.state.runReadinessLoading} onClick={() => this.refreshGatewayProjectionRunReadiness()}>
-            {i18next.t("general:Refresh")}
+            {t("general:Refresh")}
           </Button>
         }
       >
@@ -1397,46 +1409,46 @@ class PlatformApiMappingPage extends React.Component {
   }
 
   renderPublishAttemptHistory() {
-    const attempts = this.state.publishAttempts || [];
-    const retentionReadiness = this.state.retentionReadiness;
-    const cleanupDryRun = this.state.cleanupDryRun;
-    const cleanupExecuteReadiness = this.state.cleanupExecuteReadiness;
-    const cleanupApprovalPolicyReadiness = this.state.cleanupApprovalPolicyReadiness;
-    const cleanupApprovalDecisionDraftReadiness = this.state.cleanupApprovalDecisionDraftReadiness;
-    const cleanupExecutionGatePreflight = this.state.cleanupExecutionGatePreflight;
-    const cleanupApprovalAuditTrail = this.state.cleanupApprovalAuditTrail || {};
-    const reasonCounts = retentionReadiness?.reasonCounts || {};
-    const cleanupReasonCounts = cleanupDryRun?.reasonCounts || {};
-    const cleanupGuardrail = cleanupDryRun?.executeGuardrail || {};
-    const diagnosticCompleteness = cleanupDryRun?.diagnosticCompleteness || {};
-    const receiptHintCoverage = cleanupDryRun?.receiptHintCoverage || {};
-    const executeFreshness = cleanupExecuteReadiness?.lastDryRunFreshness || {};
-    const executeApproval = cleanupExecuteReadiness?.operatorApproval || {};
-    const executeGuardrail = cleanupExecuteReadiness?.executeGuardrail || {};
-    const policyManualReview = cleanupApprovalPolicyReadiness?.manualReview || {};
-    const policyCannotInfer = cleanupApprovalPolicyReadiness?.cannotInfer || {};
-    const policyGates = cleanupApprovalPolicyReadiness?.policyGates || [];
-    const policyAuditSummary = cleanupApprovalPolicyReadiness?.auditSummary || {};
-    const decisionManualChecklist = cleanupApprovalDecisionDraftReadiness?.manualReviewChecklist || {};
-    const decisionCannotInfer = cleanupApprovalDecisionDraftReadiness?.cannotInfer || {};
-    const decisionRetentionSummary = cleanupApprovalDecisionDraftReadiness?.retentionSummary || {};
-    const decisionAuditSummary = cleanupApprovalDecisionDraftReadiness?.auditSummary || {};
-    const decisionRedactionSummary = cleanupApprovalDecisionDraftReadiness?.redactionSummary || {};
-    const gateOwnerBoundary = cleanupExecutionGatePreflight?.ownerBoundary || {};
-    const gateNoFallback = cleanupExecutionGatePreflight?.noFallback || {};
-    const gateCannotInfer = cleanupExecutionGatePreflight?.cannotInfer || {};
-    const gateRetentionSummary = cleanupExecutionGatePreflight?.retentionSummary || {};
-    const gateRedactionSummary = cleanupExecutionGatePreflight?.redactionSummary || {};
-    const auditSummary = cleanupApprovalAuditTrail.summary || {};
-    const auditActionCounts = auditSummary.actionCounts || {};
-    const auditStateCounts = auditSummary.approvalStateCounts || {};
-    const auditRecords = cleanupApprovalAuditTrail.records || [];
-    const detail = this.state.attemptDetail || {};
-    const detailRetention = detail.retention || {};
-    const receiptHint = detail.receiptQueryHint || {};
-    const skippedByReason = detail.skippedByReason || {};
-    const metadata = detail.metadata || {};
-    const columns = [
+    const attempts: LegacyAny[] = this.state.publishAttempts || [];
+    const retentionReadiness: LegacyAny = this.state.retentionReadiness;
+    const cleanupDryRun: LegacyAny = this.state.cleanupDryRun;
+    const cleanupExecuteReadiness: LegacyAny = this.state.cleanupExecuteReadiness;
+    const cleanupApprovalPolicyReadiness: LegacyAny = this.state.cleanupApprovalPolicyReadiness;
+    const cleanupApprovalDecisionDraftReadiness: LegacyAny = this.state.cleanupApprovalDecisionDraftReadiness;
+    const cleanupExecutionGatePreflight: LegacyAny = this.state.cleanupExecutionGatePreflight;
+    const cleanupApprovalAuditTrail: LegacyAny = this.state.cleanupApprovalAuditTrail || {};
+    const reasonCounts: Record<string, LegacyAny> = retentionReadiness?.reasonCounts || {};
+    const cleanupReasonCounts: Record<string, LegacyAny> = cleanupDryRun?.reasonCounts || {};
+    const cleanupGuardrail: LegacyAny = cleanupDryRun?.executeGuardrail || {};
+    const diagnosticCompleteness: LegacyAny = cleanupDryRun?.diagnosticCompleteness || {};
+    const receiptHintCoverage: LegacyAny = cleanupDryRun?.receiptHintCoverage || {};
+    const executeFreshness: LegacyAny = cleanupExecuteReadiness?.lastDryRunFreshness || {};
+    const executeApproval: LegacyAny = cleanupExecuteReadiness?.operatorApproval || {};
+    const executeGuardrail: LegacyAny = cleanupExecuteReadiness?.executeGuardrail || {};
+    const policyManualReview: LegacyAny = cleanupApprovalPolicyReadiness?.manualReview || {};
+    const policyCannotInfer: LegacyAny = cleanupApprovalPolicyReadiness?.cannotInfer || {};
+    const policyGates: LegacyAny[] = cleanupApprovalPolicyReadiness?.policyGates || [];
+    const policyAuditSummary: LegacyAny = cleanupApprovalPolicyReadiness?.auditSummary || {};
+    const decisionManualChecklist: LegacyAny = cleanupApprovalDecisionDraftReadiness?.manualReviewChecklist || {};
+    const decisionCannotInfer: LegacyAny = cleanupApprovalDecisionDraftReadiness?.cannotInfer || {};
+    const decisionRetentionSummary: LegacyAny = cleanupApprovalDecisionDraftReadiness?.retentionSummary || {};
+    const decisionAuditSummary: LegacyAny = cleanupApprovalDecisionDraftReadiness?.auditSummary || {};
+    const decisionRedactionSummary: LegacyAny = cleanupApprovalDecisionDraftReadiness?.redactionSummary || {};
+    const gateOwnerBoundary: LegacyAny = cleanupExecutionGatePreflight?.ownerBoundary || {};
+    const gateNoFallback: LegacyAny = cleanupExecutionGatePreflight?.noFallback || {};
+    const gateCannotInfer: LegacyAny = cleanupExecutionGatePreflight?.cannotInfer || {};
+    const gateRetentionSummary: LegacyAny = cleanupExecutionGatePreflight?.retentionSummary || {};
+    const gateRedactionSummary: LegacyAny = cleanupExecutionGatePreflight?.redactionSummary || {};
+    const auditSummary: LegacyAny = cleanupApprovalAuditTrail.summary || {};
+    const auditActionCounts: Record<string, LegacyAny> = auditSummary.actionCounts || {};
+    const auditStateCounts: Record<string, LegacyAny> = auditSummary.approvalStateCounts || {};
+    const auditRecords: LegacyAny[] = cleanupApprovalAuditTrail.records || [];
+    const detail: LegacyAny = this.state.attemptDetail || {};
+    const detailRetention: LegacyAny = detail.retention || {};
+    const receiptHint: LegacyAny = detail.receiptQueryHint || {};
+    const skippedByReason: Record<string, LegacyAny> = detail.skippedByReason || {};
+    const metadata: Record<string, LegacyAny> = detail.metadata || {};
+    const columns = legacyColumns([
       {
         title: "时间",
         dataIndex: "createdAt",
@@ -1517,12 +1529,12 @@ class PlatformApiMappingPage extends React.Component {
         },
       },
       {
-        title: i18next.t("general:Action"),
+        title: t("general:Action"),
         width: 100,
         render: (_, record) => <Button onClick={() => this.openPublishAttemptDetail(record)}>详情</Button>,
       },
-    ];
-    const auditColumns = [
+    ]);
+    const auditColumns = legacyColumns([
       {
         title: "动作",
         dataIndex: "action",
@@ -1552,7 +1564,7 @@ class PlatformApiMappingPage extends React.Component {
         width: 180,
         render: value => value ? new Date(value).toLocaleString() : "-",
       },
-    ];
+    ]);
 
     return (
       <Card
@@ -1592,7 +1604,7 @@ class PlatformApiMappingPage extends React.Component {
               onChange={value => this.changeAttemptFilter("attemptTimeWindow", value)}
             />
             <Button icon={<ReloadOutlined />} loading={this.state.attemptsLoading} onClick={() => this.refreshGatewayProjectionPublishAttempts()}>
-              {i18next.t("general:Refresh")}
+              {t("general:Refresh")}
             </Button>
           </Space>
         }
@@ -1661,7 +1673,7 @@ class PlatformApiMappingPage extends React.Component {
             ))}
           </div>
           <Space wrap>
-            {(cleanupDryRun?.safetyChecklist || []).map(item => <Tag key={item}>{item}</Tag>)}
+            {(cleanupDryRun?.safetyChecklist || []).map((item: LegacyAny) => <Tag key={item}>{item}</Tag>)}
           </Space>
         </Card>
         <Card
@@ -1708,12 +1720,12 @@ class PlatformApiMappingPage extends React.Component {
             {cleanupExecuteReadiness?.retentionPolicyVersion && <Tag>policy: {cleanupExecuteReadiness.retentionPolicyVersion}</Tag>}
           </Space>
           <div style={{marginBottom: 8}}>
-            {(cleanupExecuteReadiness?.disabledReasons || []).map(reason => <Tag key={reason} color="orange">{reason}</Tag>)}
+            {(cleanupExecuteReadiness?.disabledReasons || []).map((reason: LegacyAny) => <Tag key={reason} color="orange">{reason}</Tag>)}
           </div>
           <Space wrap>
             <Tag>approvalRequired: {String(!!executeApproval.required)}</Tag>
             <Tag>approvalStatus: {executeApproval.status || "unknown"}</Tag>
-            {(executeApproval.missingEvidenceAliases || []).map(item => <Tag key={item}>{item}</Tag>)}
+            {(executeApproval.missingEvidenceAliases || []).map((item: LegacyAny) => <Tag key={item}>{item}</Tag>)}
           </Space>
         </Card>
         <Card
@@ -1755,11 +1767,11 @@ class PlatformApiMappingPage extends React.Component {
           <Space wrap style={{marginBottom: 8}}>
             {cleanupApprovalPolicyReadiness?.dryRunId && <Tag>dryRunId: {cleanupApprovalPolicyReadiness.dryRunId}</Tag>}
             {cleanupApprovalPolicyReadiness?.readinessHash && <Tag>readinessHash: {cleanupApprovalPolicyReadiness.readinessHash}</Tag>}
-            <Tag>auditActions: {Object.values(policyAuditSummary.actionCounts || {}).reduce((sum, count) => sum + count, 0)}</Tag>
+            <Tag>auditActions: {Object.values(policyAuditSummary.actionCounts || {}).reduce((sum: number, count: LegacyAny) => sum + Number(count || 0), 0)}</Tag>
           </Space>
           <div style={{marginBottom: 8}}>
-            {(policyManualReview.missingActionAliases || []).map(item => <Tag key={item} color="orange">{item}</Tag>)}
-            {(policyCannotInfer.reasonAliases || []).map(item => <Tag key={item} color="red">{item}</Tag>)}
+            {(policyManualReview.missingActionAliases || []).map((item: LegacyAny) => <Tag key={item} color="orange">{item}</Tag>)}
+            {(policyCannotInfer.reasonAliases || []).map((item: LegacyAny) => <Tag key={item} color="red">{item}</Tag>)}
           </div>
           <Space wrap>
             {policyGates.map(gate => (
@@ -1815,18 +1827,18 @@ class PlatformApiMappingPage extends React.Component {
           <Space wrap style={{marginBottom: 8}}>
             <Tag>retentionCandidate: {decisionRetentionSummary.candidateCount || 0}</Tag>
             <Tag>retentionBlocked: {decisionRetentionSummary.blockedCount || 0}</Tag>
-            <Tag>auditActions: {Object.values(decisionAuditSummary.actionCounts || {}).reduce((sum, count) => sum + count, 0)}</Tag>
+            <Tag>auditActions: {Object.values(decisionAuditSummary.actionCounts || {}).reduce((sum: number, count: LegacyAny) => sum + Number(count || 0), 0)}</Tag>
             <Tag>redaction: {decisionRedactionSummary.status || "redacted"}</Tag>
             <Tag>copySafe: {String(decisionRedactionSummary.copySafe !== false)}</Tag>
           </Space>
           <div style={{marginBottom: 8}}>
-            {(decisionManualChecklist.missingActionAliases || []).map(item => <Tag key={item} color="orange">{item}</Tag>)}
-            {(decisionManualChecklist.missingEvidenceAliases || []).map(item => <Tag key={item} color="orange">{item}</Tag>)}
-            {(decisionCannotInfer.reasonAliases || []).map(item => <Tag key={item} color="red">{item}</Tag>)}
-            {(cleanupApprovalDecisionDraftReadiness?.blockingReasons || []).map(item => <Tag key={item} color="red">{item}</Tag>)}
+            {(decisionManualChecklist.missingActionAliases || []).map((item: LegacyAny) => <Tag key={item} color="orange">{item}</Tag>)}
+            {(decisionManualChecklist.missingEvidenceAliases || []).map((item: LegacyAny) => <Tag key={item} color="orange">{item}</Tag>)}
+            {(decisionCannotInfer.reasonAliases || []).map((item: LegacyAny) => <Tag key={item} color="red">{item}</Tag>)}
+            {(cleanupApprovalDecisionDraftReadiness?.blockingReasons || []).map((item: LegacyAny) => <Tag key={item} color="red">{item}</Tag>)}
           </div>
           <Space wrap>
-            {(cleanupApprovalDecisionDraftReadiness?.copySafeLabels || []).map(item => <Tag key={item}>{item}</Tag>)}
+            {(cleanupApprovalDecisionDraftReadiness?.copySafeLabels || []).map((item: LegacyAny) => <Tag key={item}>{item}</Tag>)}
           </Space>
         </Card>
         <Card
@@ -1882,15 +1894,15 @@ class PlatformApiMappingPage extends React.Component {
             <Tag>redaction: {gateRedactionSummary.status || "redacted"}</Tag>
           </Space>
           <div style={{marginBottom: 8}}>
-            {(cleanupExecutionGatePreflight?.manualReviewBlockers || []).map(item => <Tag key={item} color="orange">{item}</Tag>)}
-            {(gateCannotInfer.reasonAliases || []).map(item => <Tag key={item} color="red">{item}</Tag>)}
-            {(gateNoFallback.reasonAliases || []).map(item => <Tag key={item} color="blue">{item}</Tag>)}
-            {(gateNoFallback.forbiddenFallbackAliases || []).map(item => <Tag key={item} color="red">{item}</Tag>)}
+            {(cleanupExecutionGatePreflight?.manualReviewBlockers || []).map((item: LegacyAny) => <Tag key={item} color="orange">{item}</Tag>)}
+            {(gateCannotInfer.reasonAliases || []).map((item: LegacyAny) => <Tag key={item} color="red">{item}</Tag>)}
+            {(gateNoFallback.reasonAliases || []).map((item: LegacyAny) => <Tag key={item} color="blue">{item}</Tag>)}
+            {(gateNoFallback.forbiddenFallbackAliases || []).map((item: LegacyAny) => <Tag key={item} color="red">{item}</Tag>)}
           </div>
           <Space wrap>
-            {(gateOwnerBoundary.externalOwnerAliases || []).map(item => <Tag key={item}>{item}</Tag>)}
-            {(gateOwnerBoundary.forbiddenActionAliases || []).map(item => <Tag key={item} color="red">{item}</Tag>)}
-            {(cleanupExecutionGatePreflight?.copySafeLabels || []).map(item => <Tag key={item}>{item}</Tag>)}
+            {(gateOwnerBoundary.externalOwnerAliases || []).map((item: LegacyAny) => <Tag key={item}>{item}</Tag>)}
+            {(gateOwnerBoundary.forbiddenActionAliases || []).map((item: LegacyAny) => <Tag key={item} color="red">{item}</Tag>)}
+            {(cleanupExecutionGatePreflight?.copySafeLabels || []).map((item: LegacyAny) => <Tag key={item}>{item}</Tag>)}
           </Space>
         </Card>
         <Card
@@ -2064,8 +2076,8 @@ class PlatformApiMappingPage extends React.Component {
     const status = quality?.status || "unknown";
     const statusColor = status === "ready" ? "green" : status === "blocked" ? "red" : "orange";
     const alertType = status === "ready" ? "success" : status === "blocked" ? "error" : "warning";
-    const checks = quality?.qualityChecks || [];
-    const columns = [
+    const checks: LegacyAny[] = quality?.qualityChecks || [];
+    const columns = legacyColumns([
       {
         title: "Alias",
         dataIndex: "alias",
@@ -2086,7 +2098,7 @@ class PlatformApiMappingPage extends React.Component {
         title: "摘要",
         dataIndex: "summary",
       },
-    ];
+    ]);
 
     return (
       <Card
@@ -2095,7 +2107,7 @@ class PlatformApiMappingPage extends React.Component {
         style={{marginBottom: 12}}
         extra={
           <Button icon={<ReloadOutlined />} loading={this.state.masterDataQualityLoading} onClick={() => this.refreshOrganizationMasterDataQuality()}>
-            {i18next.t("general:Refresh")}
+            {t("general:Refresh")}
           </Button>
         }
       >
@@ -2117,7 +2129,7 @@ class PlatformApiMappingPage extends React.Component {
         </Space>
         {(quality?.reasonAliases || []).length > 0 && (
           <Space wrap style={{marginBottom: 12}}>
-            {(quality.reasonAliases || []).map(alias => <Tag key={alias} color={status === "blocked" ? "red" : "orange"}>{alias}</Tag>)}
+            {(quality.reasonAliases || []).map((alias: LegacyAny) => <Tag key={alias} color={status === "blocked" ? "red" : "orange"}>{alias}</Tag>)}
           </Space>
         )}
         <Space wrap style={{marginBottom: 12}}>
@@ -2146,7 +2158,7 @@ class PlatformApiMappingPage extends React.Component {
 
     return (
       <div style={{marginBottom: 12}}>
-        {guidance.map(item => (
+        {guidance.map((item: LegacyAny) => (
           <div
             key={item.category}
             style={{
@@ -2163,7 +2175,7 @@ class PlatformApiMappingPage extends React.Component {
               <Text type="secondary">{item.code}</Text>
             </Space>
             <ul style={{margin: 0, paddingLeft: 20}}>
-              {(item.operatorActions || []).map(action => (
+              {(item.operatorActions || []).map((action: LegacyAny) => (
                 <li key={action}>{action}</li>
               ))}
               <li>最小解除条件：{item.minimumUnblockCondition}</li>
@@ -2176,7 +2188,7 @@ class PlatformApiMappingPage extends React.Component {
   }
 
   renderUserMappingTable() {
-    const columns = [
+    const columns = legacyColumns([
       {
         title: this.renderTitleWithTip("平台主体", titleTips.adminSubject),
         dataIndex: "adminSubject",
@@ -2220,7 +2232,7 @@ class PlatformApiMappingPage extends React.Component {
         ),
       },
       {
-        title: i18next.t("general:Action"),
+        title: t("general:Action"),
         width: 110,
         render: (text, record, index) => (
           <Button
@@ -2229,11 +2241,11 @@ class PlatformApiMappingPage extends React.Component {
             loading={this.state.savingKey === `user-${index}`}
             onClick={() => this.saveUserMapping(record, index)}
           >
-            {i18next.t("general:Save")}
+            {t("general:Save")}
           </Button>
         ),
       },
-    ];
+    ]);
     return (
       <Table
         rowKey={(record) => record.name || `${record.organizationId || "new"}-${record.adminSubject || record.apiUserId || ""}`}
@@ -2251,7 +2263,7 @@ class PlatformApiMappingPage extends React.Component {
     const readiness = this.state.readiness;
     const counts = readiness?.counts || {};
     const candidates = readiness?.candidates || [];
-    const columns = [
+    const columns = legacyColumns([
       {
         title: "平台主体",
         dataIndex: "adminSubject",
@@ -2275,7 +2287,7 @@ class PlatformApiMappingPage extends React.Component {
         width: 180,
         render: value => value || <Text type="secondary">未确认</Text>,
       },
-    ];
+    ]);
 
     return (
       <Card
@@ -2297,7 +2309,7 @@ class PlatformApiMappingPage extends React.Component {
               onChange={value => this.changeReadinessFilter("readinessMappingStatus", value)}
             />
             <Button icon={<ReloadOutlined />} loading={this.state.readinessLoading} onClick={() => this.refreshUserMappingReadiness()}>
-              {i18next.t("general:Refresh")}
+              {t("general:Refresh")}
             </Button>
           </Space>
         }
@@ -2335,7 +2347,7 @@ class PlatformApiMappingPage extends React.Component {
       <Card
         type="inner"
         title={this.renderTitleWithTip("平台组织映射", titleTips.organizationMapping)}
-        extra={<Button icon={<PlusOutlined />} onClick={() => this.addOrganizationMapping()}>{i18next.t("general:Add")}</Button>}
+        extra={<Button icon={<PlusOutlined />} onClick={() => this.addOrganizationMapping()}>{t("general:Add")}</Button>}
       >
         {this.state.organizationMappings.length > 0 && this.renderStatus(this.state.organizationMappings[0]?.mappingStatus)}
         <div style={{marginTop: 12}}>
@@ -2358,7 +2370,7 @@ class PlatformApiMappingPage extends React.Component {
               style={{width: 320}}
               onSearch={value => this.searchUserMappings(value)}
             />
-            <Button icon={<PlusOutlined />} onClick={() => this.addUserMapping()}>{i18next.t("general:Add")}</Button>
+            <Button icon={<PlusOutlined />} onClick={() => this.addUserMapping()}>{t("general:Add")}</Button>
           </Space>
         }
       >
@@ -2388,7 +2400,7 @@ class PlatformApiMappingPage extends React.Component {
               initValue={this.state.organization}
               style={{width: 240}}
               excludedOrganizations={["built-in"]}
-              onChange={value => this.changeOrganization(value)}
+              onChange={(value: string) => this.changeOrganization(value)}
             />
             <Button icon={<ReloadOutlined />} onClick={() => this.refresh()} loading={this.getActiveLoading()}>
               刷新

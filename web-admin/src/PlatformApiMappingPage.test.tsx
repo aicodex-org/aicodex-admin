@@ -14,50 +14,82 @@
 // limitations under the License.
 
 import React from "react";
-import {fireEvent, render, screen, wait} from "@testing-library/react";
+import "@testing-library/jest-dom/extend-expect";
+import {expect} from "@jest/globals";
+import {render} from "@testing-library/react";
+import * as TestingLibrary from "@testing-library/react";
 import * as Setting from "./Setting";
-import * as PlatformApiMappingBackend from "./backend/PlatformApiMappingBackend";
+import * as PlatformApiMappingBackendModule from "./backend/PlatformApiMappingBackend";
 import PlatformApiMappingPage from "./PlatformApiMappingPage";
+import type {LegacyAny} from "./types/legacyPage";
+
+declare const jest: LegacyAny;
+
+const fireEvent = (TestingLibrary as LegacyAny).fireEvent;
+const screen = (TestingLibrary as LegacyAny).screen;
+const wait = (TestingLibrary as LegacyAny).wait || (TestingLibrary as LegacyAny).waitFor;
+const PlatformApiMappingBackend = PlatformApiMappingBackendModule as unknown as Record<string, LegacyAny>;
+const expectAny: any = expect;
+
+function mockFn() {
+  return jest.fn();
+}
+
+declare global {
+  namespace jest {
+    interface Matchers<R, T = Record<string, never>> {
+      toBeInTheDocument(): R;
+      toBeDisabled(): R;
+    }
+  }
+}
+
+function pageProps() {
+  return {
+    account: {owner: "org-alpha", isAdmin: true},
+    history: {push: mockFn()},
+  };
+}
 
 jest.setTimeout(15000);
 
 jest.mock("./backend/PlatformApiMappingBackend", () => ({
-  getPlatformApiOrganizationMappings: jest.fn(),
-  getOrganizationMasterDataQualityReadiness: jest.fn(),
-  getPlatformApiUserMappingReadiness: jest.fn(),
-  getGatewayProjectionRunReadiness: jest.fn(),
-  getGatewayProjectionIngestionStatus: jest.fn(),
-  getGatewayProjectionPublishAttempts: jest.fn(),
-  getGatewayProjectionPublishAttempt: jest.fn(),
-  getGatewayProjectionPublishAttemptRetentionReadiness: jest.fn(),
-  getGatewayProjectionPublishAttemptCleanupDryRun: jest.fn(),
-  getGatewayProjectionPublishAttemptCleanupExecuteReadiness: jest.fn(),
-  getGatewayProjectionPublishAttemptCleanupApprovalPolicyReadiness: jest.fn(),
-  getGatewayProjectionPublishAttemptCleanupApprovalDecisionDraftReadiness: jest.fn(),
-  getGatewayProjectionPublishAttemptCleanupExecutionGateOwnerBoundaryPreflight: jest.fn(),
-  getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail: jest.fn(),
-  recordGatewayProjectionPublishAttemptCleanupApprovalAuditTrail: jest.fn(),
-  updatePlatformApiOrganizationMapping: jest.fn(),
-  getPlatformApiUserMappings: jest.fn(),
-  publishGatewayProjectionManually: jest.fn(),
-  updatePlatformApiUserMapping: jest.fn(),
+  getPlatformApiOrganizationMappings: mockFn(),
+  getOrganizationMasterDataQualityReadiness: mockFn(),
+  getPlatformApiUserMappingReadiness: mockFn(),
+  getGatewayProjectionRunReadiness: mockFn(),
+  getGatewayProjectionIngestionStatus: mockFn(),
+  getGatewayProjectionPublishAttempts: mockFn(),
+  getGatewayProjectionPublishAttempt: mockFn(),
+  getGatewayProjectionPublishAttemptRetentionReadiness: mockFn(),
+  getGatewayProjectionPublishAttemptCleanupDryRun: mockFn(),
+  getGatewayProjectionPublishAttemptCleanupExecuteReadiness: mockFn(),
+  getGatewayProjectionPublishAttemptCleanupApprovalPolicyReadiness: mockFn(),
+  getGatewayProjectionPublishAttemptCleanupApprovalDecisionDraftReadiness: mockFn(),
+  getGatewayProjectionPublishAttemptCleanupExecutionGateOwnerBoundaryPreflight: mockFn(),
+  getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail: mockFn(),
+  recordGatewayProjectionPublishAttemptCleanupApprovalAuditTrail: mockFn(),
+  updatePlatformApiOrganizationMapping: mockFn(),
+  getPlatformApiUserMappings: mockFn(),
+  publishGatewayProjectionManually: mockFn(),
+  updatePlatformApiUserMapping: mockFn(),
 }));
 
-jest.mock("./common/select/OrganizationSelect", () => (props) => (
+jest.mock("./common/select/OrganizationSelect", () => (props: LegacyAny) => (
   <select data-testid="organization-select" value={props.initValue} onChange={event => props.onChange(event.target.value)}>
     <option value="org-alpha">联软科技集团</option>
   </select>
 ));
 
-const mockMatchMedia = query => ({
+const mockMatchMedia = (query: string) => ({
   matches: false,
   media: query,
   onchange: null,
-  addListener: jest.fn(),
-  removeListener: jest.fn(),
-  addEventListener: jest.fn(),
-  removeEventListener: jest.fn(),
-  dispatchEvent: jest.fn(),
+  addListener: mockFn(),
+  removeListener: mockFn(),
+  addEventListener: mockFn(),
+  removeEventListener: mockFn(),
+  dispatchEvent: mockFn(),
 });
 
 beforeEach(() => {
@@ -613,154 +645,154 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  Setting.showMessage.mockRestore();
+  (Setting.showMessage as LegacyAny).mockRestore();
   jest.clearAllMocks();
 });
 
 test("renders operator-friendly mapping labels while saving enum values", async() => {
-  render(<PlatformApiMappingPage account={{owner: "org-alpha", isAdmin: true}} />);
+  render(<PlatformApiMappingPage {...pageProps()} />);
 
-  expect(await screen.findByText("AICodex API 组织与账号映射")).toBeInTheDocument();
-  expect(screen.getAllByText("映射状态").length).toBeGreaterThan(0);
-  expect(screen.getAllByText("映射来源").length).toBeGreaterThan(0);
-  expect(screen.queryByText("血缘信息")).not.toBeInTheDocument();
-  expect(screen.queryByDisplayValue("{}")).not.toBeInTheDocument();
-  expect(screen.queryByText("映射状态（mappingStatus）")).not.toBeInTheDocument();
-  expect(screen.queryByText("映射来源（mappingSource）")).not.toBeInTheDocument();
+  expectAny(await screen.findByText("AICodex API 组织与账号映射")).toBeInTheDocument();
+  expectAny(screen.getAllByText("映射状态").length).toBeGreaterThan(0);
+  expectAny(screen.getAllByText("映射来源").length).toBeGreaterThan(0);
+  expectAny(screen.queryByText("血缘信息")).not.toBeInTheDocument();
+  expectAny(screen.queryByDisplayValue("{}")).not.toBeInTheDocument();
+  expectAny(screen.queryByText("映射状态（mappingStatus）")).not.toBeInTheDocument();
+  expectAny(screen.queryByText("映射来源（mappingSource）")).not.toBeInTheDocument();
 
-  expect(screen.getAllByText("待复核").length).toBeGreaterThan(0);
-  expect(screen.getByText("手工维护")).toBeInTheDocument();
-  expect(screen.queryByText("PENDING_REVIEW")).not.toBeInTheDocument();
-  expect(screen.queryByText("MANUAL")).not.toBeInTheDocument();
+  expectAny(screen.getAllByText("待复核").length).toBeGreaterThan(0);
+  expectAny(screen.getByText("手工维护")).toBeInTheDocument();
+  expectAny(screen.queryByText("PENDING_REVIEW")).not.toBeInTheDocument();
+  expectAny(screen.queryByText("MANUAL")).not.toBeInTheDocument();
 
   fireEvent.click(screen.getAllByText(/保存|Save/i)[0]);
 
-  await wait(() => expect(PlatformApiMappingBackend.updatePlatformApiOrganizationMapping).toHaveBeenCalled());
-  expect(PlatformApiMappingBackend.updatePlatformApiOrganizationMapping).toHaveBeenCalledWith(expect.objectContaining({
+  await wait(() => expectAny(PlatformApiMappingBackend.updatePlatformApiOrganizationMapping).toHaveBeenCalled());
+  expectAny(PlatformApiMappingBackend.updatePlatformApiOrganizationMapping).toHaveBeenCalledWith(expect.objectContaining({
     mappingStatus: "PENDING_REVIEW",
     mappingSource: "MANUAL",
   }));
 });
 
 test("separates organization and user mapping tabs and loads user mappings on demand", async() => {
-  render(<PlatformApiMappingPage account={{owner: "org-alpha", isAdmin: true}} />);
+  render(<PlatformApiMappingPage {...pageProps()} />);
 
-  expect((await screen.findAllByText("平台组织映射")).length).toBeGreaterThan(0);
-  expect(PlatformApiMappingBackend.getPlatformApiOrganizationMappings).toHaveBeenCalledWith("org-alpha");
-  expect(PlatformApiMappingBackend.getPlatformApiUserMappings).not.toHaveBeenCalled();
+  expectAny((await screen.findAllByText("平台组织映射")).length).toBeGreaterThan(0);
+  expectAny(PlatformApiMappingBackend.getPlatformApiOrganizationMappings).toHaveBeenCalledWith("org-alpha");
+  expectAny(PlatformApiMappingBackend.getPlatformApiUserMappings).not.toHaveBeenCalled();
 
   fireEvent.click(screen.getByText("用户映射"));
 
-  await wait(() => expect(PlatformApiMappingBackend.getPlatformApiUserMappings).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+  await wait(() => expectAny(PlatformApiMappingBackend.getPlatformApiUserMappings).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     current: 1,
     pageSize: 10,
     keyword: "",
   })));
-  await wait(() => expect(PlatformApiMappingBackend.getPlatformApiUserMappingReadiness).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+  await wait(() => expectAny(PlatformApiMappingBackend.getPlatformApiUserMappingReadiness).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     keyword: "",
     readinessCategory: "",
     mappingStatus: "",
   })));
-  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionRunReadiness).toHaveBeenCalledWith("org-alpha", expect.any(Object)));
-  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttempts).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionRunReadiness).toHaveBeenCalledWith("org-alpha", expect.any(Object)));
+  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttempts).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     source: "",
     status: "",
     limit: 20,
   })));
-  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptRetentionReadiness).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptRetentionReadiness).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     source: "",
     status: "",
     limit: 100,
   })));
-  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupDryRun).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupDryRun).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     source: "",
     status: "",
     limit: 100,
   })));
-  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupExecuteReadiness).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupExecuteReadiness).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     source: "",
     status: "",
     limit: 100,
   })));
-  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalPolicyReadiness).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
-    source: "",
-    status: "",
-    approvalEvidence: "dry_run_export_reviewed,candidate_count_reviewed,receipt_hint_coverage_reviewed,no_blocked_attempts_confirmed",
-    limit: 100,
-  })));
-  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalDecisionDraftReadiness).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalPolicyReadiness).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     source: "",
     status: "",
     approvalEvidence: "dry_run_export_reviewed,candidate_count_reviewed,receipt_hint_coverage_reviewed,no_blocked_attempts_confirmed",
     limit: 100,
   })));
-  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupExecutionGateOwnerBoundaryPreflight).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalDecisionDraftReadiness).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     source: "",
     status: "",
     approvalEvidence: "dry_run_export_reviewed,candidate_count_reviewed,receipt_hint_coverage_reviewed,no_blocked_attempts_confirmed",
     limit: 100,
   })));
-  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupExecutionGateOwnerBoundaryPreflight).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+    source: "",
+    status: "",
+    approvalEvidence: "dry_run_export_reviewed,candidate_count_reviewed,receipt_hint_coverage_reviewed,no_blocked_attempts_confirmed",
+    limit: 100,
+  })));
+  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     limit: 20,
   })));
-  await wait(() => expect(PlatformApiMappingBackend.getOrganizationMasterDataQualityReadiness).toHaveBeenCalledWith("org-alpha"));
-  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionIngestionStatus).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+  await wait(() => expectAny(PlatformApiMappingBackend.getOrganizationMasterDataQualityReadiness).toHaveBeenCalledWith("org-alpha"));
+  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionIngestionStatus).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     latest: true,
   })));
-  expect(await screen.findByDisplayValue("org-alpha/user-one")).toBeInTheDocument();
-  expect(screen.getByText("组织主数据质量 readiness")).toBeInTheDocument();
-  expect(screen.getByText("质量状态：")).toBeInTheDocument();
-  expect(screen.getAllByText("mapping_missing").length).toBeGreaterThan(0);
-  expect(screen.getByText("可发布主体 readiness")).toBeInTheDocument();
-  expect(screen.getByText("网关身份同步就绪")).toBeInTheDocument();
-  expect(screen.getByText(/同步动作: 可安全重试/)).toBeInTheDocument();
-  expect(screen.getByText("lastFailure: gateway_unavailable")).toBeInTheDocument();
-  expect(screen.getByText("contract: not_declared_by_gateway_contract")).toBeInTheDocument();
-  expect(screen.getByText("网关接入回执状态")).toBeInTheDocument();
-  expect(screen.getByText(/网关回执状态: 已应用/)).toBeInTheDocument();
-  expect(screen.getByText("reason: projection_applied")).toBeInTheDocument();
-  expect(screen.getByText("sourceVersion: orgv-ingestion-1")).toBeInTheDocument();
-  expect(screen.getByText("网关身份手动同步")).toBeInTheDocument();
-  expect(screen.getByText("网关身份发布记录")).toBeInTheDocument();
-  expect(screen.getByText("发布记录只记录 Admin producer 脱敏诊断，不是 gateway authorization facts。")).toBeInTheDocument();
-  expect(screen.getByText("Publish attempt retention readiness")).toBeInTheDocument();
-  expect(screen.getByText("只读展示 cleanup readiness，不执行删除。")).toBeInTheDocument();
-  expect(screen.getByText("cleanupEligible: 0")).toBeInTheDocument();
-  expect(screen.getByText("Cleanup dry-run guardrails")).toBeInTheDocument();
-  expect(screen.getByText(/Dry-run: cleanup_candidates_ready_for_future_execute_gate/)).toBeInTheDocument();
-  expect(screen.getAllByText("candidate: 1").length).toBeGreaterThan(0);
-  expect(screen.getByText("Cleanup execute readiness")).toBeInTheDocument();
-  expect(screen.getByText(/Execute readiness: approval_required/)).toBeInTheDocument();
-  expect(screen.getByText(/safeNextAction: collect_approval_package/)).toBeInTheDocument();
-  expect(screen.getAllByText("dryRunId: dryrun-synthetic").length).toBeGreaterThan(0);
-  expect(screen.getByText("dryRunHash: dryrun-hash-synthetic")).toBeInTheDocument();
-  expect(screen.getByText("approvalStatus: missing")).toBeInTheDocument();
-  expect(screen.getAllByText("executeEnabled: false").length).toBeGreaterThan(0);
-  expect(screen.getAllByText("dryRunOnly: true").length).toBeGreaterThan(0);
-  expect(screen.getByText("Cleanup approval policy readiness")).toBeInTheDocument();
-  expect(screen.getByText(/Approval policy: manual_review_ready/)).toBeInTheDocument();
-  expect(screen.getByText("manualReview: ready")).toBeInTheDocument();
-  expect(screen.getByText("storage: derived_policy_readiness_not_persisted")).toBeInTheDocument();
-  expect(screen.getByText("Cleanup approval decision draft")).toBeInTheDocument();
-  expect(screen.getByText(/Decision draft: draft_ready/)).toBeInTheDocument();
-  expect(screen.getByText("decisionState: manual_review_ready_no_execution")).toBeInTheDocument();
-  expect(screen.getAllByText("cleanupExecutionAllowed: false").length).toBeGreaterThan(1);
-  expect(screen.getByText("operatorNextAction: review_decision_draft_with_master_control")).toBeInTheDocument();
-  expect(screen.getAllByText("redaction: redacted").length).toBeGreaterThan(1);
-  expect(screen.getByText("Cleanup execution gate owner-boundary preflight")).toBeInTheDocument();
-  expect(screen.getByText(/Execution gate preflight: owner_boundary_ready/)).toBeInTheDocument();
-  expect(screen.getByText("gateState: owner_boundary_ready_no_execution")).toBeInTheDocument();
-  expect(screen.getByText("adminAuthorityOnly: true")).toBeInTheDocument();
-  expect(screen.getByText("noFallback: true")).toBeInTheDocument();
-  expect(screen.getByText("operatorNextAction: request_master_control_owner_boundary_review")).toBeInTheDocument();
-  expect(screen.getByText("Cleanup approval audit trail")).toBeInTheDocument();
-  expect(screen.getByText(/Approval audit storage: admin_cleanup_approval_audit_trail.v1/)).toBeInTheDocument();
-  expect(screen.getByText("candidateTotal: 1")).toBeInTheDocument();
-  expect(screen.getByText("disabledReasonAliases: 2")).toBeInTheDocument();
-  expect(screen.getByText("approved_preview")).toBeInTheDocument();
-  expect(screen.getByText("记录 refresh")).toBeInTheDocument();
+  expectAny(await screen.findByDisplayValue("org-alpha/user-one")).toBeInTheDocument();
+  expectAny(screen.getByText("组织主数据质量 readiness")).toBeInTheDocument();
+  expectAny(screen.getByText("质量状态：")).toBeInTheDocument();
+  expectAny(screen.getAllByText("mapping_missing").length).toBeGreaterThan(0);
+  expectAny(screen.getByText("可发布主体 readiness")).toBeInTheDocument();
+  expectAny(screen.getByText("网关身份同步就绪")).toBeInTheDocument();
+  expectAny(screen.getByText(/同步动作: 可安全重试/)).toBeInTheDocument();
+  expectAny(screen.getByText("lastFailure: gateway_unavailable")).toBeInTheDocument();
+  expectAny(screen.getByText("contract: not_declared_by_gateway_contract")).toBeInTheDocument();
+  expectAny(screen.getByText("网关接入回执状态")).toBeInTheDocument();
+  expectAny(screen.getByText(/网关回执状态: 已应用/)).toBeInTheDocument();
+  expectAny(screen.getByText("reason: projection_applied")).toBeInTheDocument();
+  expectAny(screen.getByText("sourceVersion: orgv-ingestion-1")).toBeInTheDocument();
+  expectAny(screen.getByText("网关身份手动同步")).toBeInTheDocument();
+  expectAny(screen.getByText("网关身份发布记录")).toBeInTheDocument();
+  expectAny(screen.getByText("发布记录只记录 Admin producer 脱敏诊断，不是 gateway authorization facts。")).toBeInTheDocument();
+  expectAny(screen.getByText("Publish attempt retention readiness")).toBeInTheDocument();
+  expectAny(screen.getByText("只读展示 cleanup readiness，不执行删除。")).toBeInTheDocument();
+  expectAny(screen.getByText("cleanupEligible: 0")).toBeInTheDocument();
+  expectAny(screen.getByText("Cleanup dry-run guardrails")).toBeInTheDocument();
+  expectAny(screen.getByText(/Dry-run: cleanup_candidates_ready_for_future_execute_gate/)).toBeInTheDocument();
+  expectAny(screen.getAllByText("candidate: 1").length).toBeGreaterThan(0);
+  expectAny(screen.getByText("Cleanup execute readiness")).toBeInTheDocument();
+  expectAny(screen.getByText(/Execute readiness: approval_required/)).toBeInTheDocument();
+  expectAny(screen.getByText(/safeNextAction: collect_approval_package/)).toBeInTheDocument();
+  expectAny(screen.getAllByText("dryRunId: dryrun-synthetic").length).toBeGreaterThan(0);
+  expectAny(screen.getByText("dryRunHash: dryrun-hash-synthetic")).toBeInTheDocument();
+  expectAny(screen.getByText("approvalStatus: missing")).toBeInTheDocument();
+  expectAny(screen.getAllByText("executeEnabled: false").length).toBeGreaterThan(0);
+  expectAny(screen.getAllByText("dryRunOnly: true").length).toBeGreaterThan(0);
+  expectAny(screen.getByText("Cleanup approval policy readiness")).toBeInTheDocument();
+  expectAny(screen.getByText(/Approval policy: manual_review_ready/)).toBeInTheDocument();
+  expectAny(screen.getByText("manualReview: ready")).toBeInTheDocument();
+  expectAny(screen.getByText("storage: derived_policy_readiness_not_persisted")).toBeInTheDocument();
+  expectAny(screen.getByText("Cleanup approval decision draft")).toBeInTheDocument();
+  expectAny(screen.getByText(/Decision draft: draft_ready/)).toBeInTheDocument();
+  expectAny(screen.getByText("decisionState: manual_review_ready_no_execution")).toBeInTheDocument();
+  expectAny(screen.getAllByText("cleanupExecutionAllowed: false").length).toBeGreaterThan(1);
+  expectAny(screen.getByText("operatorNextAction: review_decision_draft_with_master_control")).toBeInTheDocument();
+  expectAny(screen.getAllByText("redaction: redacted").length).toBeGreaterThan(1);
+  expectAny(screen.getByText("Cleanup execution gate owner-boundary preflight")).toBeInTheDocument();
+  expectAny(screen.getByText(/Execution gate preflight: owner_boundary_ready/)).toBeInTheDocument();
+  expectAny(screen.getByText("gateState: owner_boundary_ready_no_execution")).toBeInTheDocument();
+  expectAny(screen.getByText("adminAuthorityOnly: true")).toBeInTheDocument();
+  expectAny(screen.getByText("noFallback: true")).toBeInTheDocument();
+  expectAny(screen.getByText("operatorNextAction: request_master_control_owner_boundary_review")).toBeInTheDocument();
+  expectAny(screen.getByText("Cleanup approval audit trail")).toBeInTheDocument();
+  expectAny(screen.getByText(/Approval audit storage: admin_cleanup_approval_audit_trail.v1/)).toBeInTheDocument();
+  expectAny(screen.getByText("candidateTotal: 1")).toBeInTheDocument();
+  expectAny(screen.getByText("disabledReasonAliases: 2")).toBeInTheDocument();
+  expectAny(screen.getByText("approved_preview")).toBeInTheDocument();
+  expectAny(screen.getByText("记录 refresh")).toBeInTheDocument();
   fireEvent.click(screen.getByText("记录 approve 预览"));
-  await wait(() => expect(PlatformApiMappingBackend.recordGatewayProjectionPublishAttemptCleanupApprovalAuditTrail).toHaveBeenCalledWith(expect.objectContaining({
+  await wait(() => expectAny(PlatformApiMappingBackend.recordGatewayProjectionPublishAttemptCleanupApprovalAuditTrail).toHaveBeenCalledWith(expect.objectContaining({
     organizationId: "org-alpha",
     action: "approve",
     readinessHash: "dryrun-hash-synthetic",
@@ -770,19 +802,19 @@ test("separates organization and user mapping tabs and loads user mappings on de
     blockedCount: 0,
     safeNextAction: "collect_approval_package",
   })));
-  expect(screen.getAllByText("保留期内").length).toBeGreaterThan(0);
-  expect(screen.getByText("gateway_unavailable")).toBeInTheDocument();
-  expect(screen.getByText("321 ms")).toBeInTheDocument();
-  expect(screen.getAllByText(/mapping_missing/).length).toBeGreaterThan(0);
-  expect(screen.getByText("迁移导入")).toBeInTheDocument();
-  expect(screen.getByPlaceholderText("搜索平台主体或 API 用户 ID")).toBeInTheDocument();
+  expectAny(screen.getAllByText("保留期内").length).toBeGreaterThan(0);
+  expectAny(screen.getByText("gateway_unavailable")).toBeInTheDocument();
+  expectAny(screen.getByText("321 ms")).toBeInTheDocument();
+  expectAny(screen.getAllByText(/mapping_missing/).length).toBeGreaterThan(0);
+  expectAny(screen.getByText("迁移导入")).toBeInTheDocument();
+  expectAny(screen.getByPlaceholderText("搜索平台主体或 API 用户 ID")).toBeInTheDocument();
 });
 
 test("uses attempt receipt query hint to refresh gateway ingestion status", () => {
-  const page = new PlatformApiMappingPage({account: {owner: "org-alpha", isAdmin: true}});
+  const page = new PlatformApiMappingPage(pageProps());
   page.state = {organization: "org-alpha"};
-  page.refreshGatewayProjectionIngestionStatus = jest.fn();
-  page.setState = jest.fn();
+  page.refreshGatewayProjectionIngestionStatus = mockFn();
+  page.setState = mockFn();
 
   page.queryGatewayReceiptFromAttempt({
     receiptQueryHint: {
@@ -795,74 +827,74 @@ test("uses attempt receipt query hint to refresh gateway ingestion status", () =
     },
   });
 
-  expect(page.refreshGatewayProjectionIngestionStatus).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+  expectAny(page.refreshGatewayProjectionIngestionStatus).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     latest: false,
     projectionBatchId: "batch-synthetic",
     orgVersion: 202606151300,
     sourceVersion: "orgv-run-1",
   }));
-  expect(page.setState).toHaveBeenCalledWith({attemptDetailVisible: false});
+  expectAny(page.setState).toHaveBeenCalledWith({attemptDetailVisible: false});
 });
 
 test("allows operator to trigger manual gateway projection publish when readiness is available", async() => {
-  render(<PlatformApiMappingPage account={{owner: "org-alpha", isAdmin: true}} />);
+  render(<PlatformApiMappingPage {...pageProps()} />);
 
   fireEvent.click(await screen.findByText("用户映射"));
   const button = await screen.findByText("手动同步");
   fireEvent.click(button);
 
-  await wait(() => expect(PlatformApiMappingBackend.publishGatewayProjectionManually).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+  await wait(() => expectAny(PlatformApiMappingBackend.publishGatewayProjectionManually).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     reason: "operator-manual-publish",
   })));
-  expect(await screen.findByText("accepted: true")).toBeInTheDocument();
-  expect(screen.getByText("batch-synthetic")).toBeInTheDocument();
-  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionRunReadiness).toHaveBeenCalled());
-  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionIngestionStatus).toHaveBeenCalled());
-  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttempts).toHaveBeenCalled());
-  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptRetentionReadiness).toHaveBeenCalled());
-  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupDryRun).toHaveBeenCalled());
-  await wait(() => expect(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupExecuteReadiness).toHaveBeenCalled());
-  expect(screen.queryByText(/projection-secret|gateway.example.invalid|rawGatewayResponse/)).not.toBeInTheDocument();
+  expectAny(await screen.findByText("accepted: true")).toBeInTheDocument();
+  expectAny(screen.getByText("batch-synthetic")).toBeInTheDocument();
+  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionRunReadiness).toHaveBeenCalled());
+  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionIngestionStatus).toHaveBeenCalled());
+  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttempts).toHaveBeenCalled());
+  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptRetentionReadiness).toHaveBeenCalled());
+  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupDryRun).toHaveBeenCalled());
+  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupExecuteReadiness).toHaveBeenCalled());
+  expectAny(screen.queryByText(/projection-secret|gateway.example.invalid|rawGatewayResponse/)).not.toBeInTheDocument();
 });
 
 test("copies redacted cleanup execute readiness export", async() => {
-  const writeText = jest.fn();
+  const writeText = mockFn();
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
     value: {writeText},
   });
 
-  render(<PlatformApiMappingPage account={{owner: "org-alpha", isAdmin: true}} />);
+  render(<PlatformApiMappingPage {...pageProps()} />);
 
   fireEvent.click(await screen.findByText("用户映射"));
   fireEvent.click(await screen.findByText("复制脱敏 JSON"));
 
-  await wait(() => expect(writeText).toHaveBeenCalled());
+  await wait(() => expectAny(writeText).toHaveBeenCalled());
   const copied = writeText.mock.calls[0][0];
-  expect(copied).toContain("approval_required");
-  expect(copied).toContain("dryrun-hash-synthetic");
-  expect(copied).not.toMatch(/rawGatewayResponse|projection-secret|gateway\.example\.invalid/);
+  expectAny(copied).toContain("approval_required");
+  expectAny(copied).toContain("dryrun-hash-synthetic");
+  expectAny(copied).not.toMatch(/rawGatewayResponse|projection-secret|gateway\.example\.invalid/);
 });
 
 test("copies redacted cleanup approval decision draft export", async() => {
-  const writeText = jest.fn();
+  const writeText = mockFn();
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
     value: {writeText},
   });
 
-  render(<PlatformApiMappingPage account={{owner: "org-alpha", isAdmin: true}} />);
+  render(<PlatformApiMappingPage {...pageProps()} />);
 
   fireEvent.click(await screen.findByText("用户映射"));
   fireEvent.click(await screen.findByText("复制草案 JSON"));
 
-  await wait(() => expect(writeText).toHaveBeenCalled());
+  await wait(() => expectAny(writeText).toHaveBeenCalled());
   const copied = writeText.mock.calls[0][0];
-  expect(copied).toContain("decision-draft-synthetic");
-  expect(copied).toContain("manual_review_only");
-  expect(copied).toContain("cleanupExecutionAllowed");
-  expect(copied).not.toMatch(/rawGatewayResponse|projection-secret|gateway\.example\.invalid|Authorization|Cookie/);
-  await wait(() => expect(PlatformApiMappingBackend.recordGatewayProjectionPublishAttemptCleanupApprovalAuditTrail).toHaveBeenCalledWith(expect.objectContaining({
+  expectAny(copied).toContain("decision-draft-synthetic");
+  expectAny(copied).toContain("manual_review_only");
+  expectAny(copied).toContain("cleanupExecutionAllowed");
+  expectAny(copied).not.toMatch(/rawGatewayResponse|projection-secret|gateway\.example\.invalid|Authorization|Cookie/);
+  await wait(() => expectAny(PlatformApiMappingBackend.recordGatewayProjectionPublishAttemptCleanupApprovalAuditTrail).toHaveBeenCalledWith(expect.objectContaining({
     organizationId: "org-alpha",
     action: "export",
     readinessHash: "dryrun-hash-synthetic",
@@ -870,24 +902,24 @@ test("copies redacted cleanup approval decision draft export", async() => {
 });
 
 test("copies redacted cleanup execution gate preflight export", async() => {
-  const writeText = jest.fn();
+  const writeText = mockFn();
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
     value: {writeText},
   });
 
-  render(<PlatformApiMappingPage account={{owner: "org-alpha", isAdmin: true}} />);
+  render(<PlatformApiMappingPage {...pageProps()} />);
 
   fireEvent.click(await screen.findByText("用户映射"));
   fireEvent.click(await screen.findByText("复制预检 JSON"));
 
-  await wait(() => expect(writeText).toHaveBeenCalled());
+  await wait(() => expectAny(writeText).toHaveBeenCalled());
   const copied = writeText.mock.calls[0][0];
-  expect(copied).toContain("execution-gate-preflight-synthetic");
-  expect(copied).toContain("owner_boundary_ready");
-  expect(copied).toContain("manual_review_only");
-  expect(copied).not.toMatch(/rawGatewayResponse|projection-secret|gateway\.example\.invalid|Authorization|Cookie/);
-  await wait(() => expect(PlatformApiMappingBackend.recordGatewayProjectionPublishAttemptCleanupApprovalAuditTrail).toHaveBeenCalledWith(expect.objectContaining({
+  expectAny(copied).toContain("execution-gate-preflight-synthetic");
+  expectAny(copied).toContain("owner_boundary_ready");
+  expectAny(copied).toContain("manual_review_only");
+  expectAny(copied).not.toMatch(/rawGatewayResponse|projection-secret|gateway\.example\.invalid|Authorization|Cookie/);
+  await wait(() => expectAny(PlatformApiMappingBackend.recordGatewayProjectionPublishAttemptCleanupApprovalAuditTrail).toHaveBeenCalledWith(expect.objectContaining({
     organizationId: "org-alpha",
     action: "export",
     readinessHash: "dryrun-hash-synthetic",
@@ -900,13 +932,13 @@ test("keeps cleanup approval decision draft panel disabled on error", async() =>
     msg: "decision draft unavailable",
   });
 
-  render(<PlatformApiMappingPage account={{owner: "org-alpha", isAdmin: true}} />);
+  render(<PlatformApiMappingPage {...pageProps()} />);
 
   fireEvent.click(await screen.findByText("用户映射"));
 
-  await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "decision draft unavailable"));
-  expect(screen.getByText(/Decision draft: 未加载/)).toBeInTheDocument();
-  expect(screen.getByText("复制草案 JSON").closest("button")).toBeDisabled();
+  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", "decision draft unavailable"));
+  expectAny(screen.getByText(/Decision draft: 未加载/)).toBeInTheDocument();
+  expectAny(screen.getByText("复制草案 JSON").closest("button")).toBeDisabled();
 });
 
 test("keeps cleanup execution gate preflight panel disabled on error", async() => {
@@ -915,23 +947,23 @@ test("keeps cleanup execution gate preflight panel disabled on error", async() =
     msg: "execution gate preflight unavailable",
   });
 
-  render(<PlatformApiMappingPage account={{owner: "org-alpha", isAdmin: true}} />);
+  render(<PlatformApiMappingPage {...pageProps()} />);
 
   fireEvent.click(await screen.findByText("用户映射"));
 
-  await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "execution gate preflight unavailable"));
-  expect(screen.getByText(/Execution gate preflight: 未加载/)).toBeInTheDocument();
-  expect(screen.getByText("复制预检 JSON").closest("button")).toBeDisabled();
+  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", "execution gate preflight unavailable"));
+  expectAny(screen.getByText(/Execution gate preflight: 未加载/)).toBeInTheDocument();
+  expectAny(screen.getByText("复制预检 JSON").closest("button")).toBeDisabled();
 });
 
 test("renders read-only remediation guidance for readiness categories", async() => {
-  render(<PlatformApiMappingPage account={{owner: "org-alpha", isAdmin: true}} />);
+  render(<PlatformApiMappingPage {...pageProps()} />);
 
   fireEvent.click(await screen.findByText("用户映射"));
 
-  expect(await screen.findByText("缺少一等 API user mapping")).toBeInTheDocument();
-  expect(screen.getByText("补齐同一 organizationId + adminSubject 的 PlatformApiUserMapping.ApiUserId")).toBeInTheDocument();
-  expect(screen.getByText(/confirmed PlatformApiUserMapping.ApiUserId/)).toBeInTheDocument();
-  expect(screen.getByText(/display\/phone\/email\/legacy lineage/)).toBeInTheDocument();
-  expect(screen.queryByText("自动修复")).not.toBeInTheDocument();
+  expectAny(await screen.findByText("缺少一等 API user mapping")).toBeInTheDocument();
+  expectAny(screen.getByText("补齐同一 organizationId + adminSubject 的 PlatformApiUserMapping.ApiUserId")).toBeInTheDocument();
+  expectAny(screen.getByText(/confirmed PlatformApiUserMapping.ApiUserId/)).toBeInTheDocument();
+  expectAny(screen.getByText(/display\/phone\/email\/legacy lineage/)).toBeInTheDocument();
+  expectAny(screen.queryByText("自动修复")).not.toBeInTheDocument();
 });
