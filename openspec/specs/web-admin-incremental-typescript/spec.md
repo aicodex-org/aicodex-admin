@@ -69,8 +69,15 @@ Admin 前端后续新增 React 组件 SHALL 默认使用 `.tsx`；新增共享�
 - **AND** 迁移 SHALL 保持 `/syncers` 路由、权限、组织筛选、表格列、分页筛选排序、新增、删除、运行同步和后端 API 契约
 - **AND** 迁移 SHALL NOT 要求同一 change 迁移 `SyncerEditPage`、`SyncerTableColumnTable` 或同步器编辑表单
 
+#### Scenario: 组织账号菜单邀请码列表迁移
+- **WHEN** 后续 change 触碰组织账号菜单下的邀请码列表页
+- **THEN** `InvitationListPage` SHOULD 迁移为 `.tsx` 并使用明确局部类型描述 props、state、邀请码记录、列表 fetch 参数和表格列
+- **AND** `InvitationBackend` SHOULD 迁移为 `.ts` 并导出列表页和编辑页可复用的邀请码记录、发送目标和响应类型
+- **AND** 迁移 SHALL 保持 `/invitations` 路由、权限、组织筛选、表格列、分页筛选排序、新增、删除和后端 API 契约
+- **AND** 迁移 SHALL NOT 要求同一 change 迁移 `InvitationEditPage`、组织列表、群组列表、用户列表或其它组织账号页面
+
 #### Scenario: TypeScript migration is validated
-- **WHEN** identity source menu React components are migrated to TSX
+- **WHEN** identity source menu or organization account menu React components are migrated to TSX
 - **THEN** the incremental TypeScript gate, `yarn typecheck`, focused Jest tests, and build or equivalent import-boundary validation SHALL pass for the touched TSX and JS coexistence paths
 
 ### Requirement: 低风险 TSX smoke 迁移
