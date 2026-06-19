@@ -30,14 +30,69 @@ import {
 
 const {Text} = Typography;
 
-function t(key, defaultValue = key) {
+type AuthSourceKey = "wecom" | "feishu" | "oidc";
+type AuthSourceStatus = "已启用" | "待补全" | "未启用";
+type AuthSourceTone = "success" | "warning" | "default" | "processing";
+type AuthProviderRequiredField = "clientId" | "clientSecret" | "providerUrl";
+
+interface AuthProvider {
+  owner?: string;
+  name?: string;
+  displayName?: string;
+  type?: string;
+  category?: string;
+  providerUrl?: string;
+  clientId?: string | null;
+  clientSecret?: string | null;
+}
+
+interface AuthSourceDefinition {
+  key: AuthSourceKey;
+  title: string;
+  description: string;
+  matchers: string[];
+  requiredFields: AuthProviderRequiredField[];
+  configPath: string;
+  diagnosticPath: string;
+  diagnosticLabel: string;
+  authStatus: string;
+}
+
+export interface AuthSourceCenterCard {
+  key: AuthSourceKey;
+  title: string;
+  description: string;
+  status: AuthSourceStatus;
+  completeness: number;
+  providerName: string;
+  providerDisplayName: string;
+  configPath: string;
+  diagnosticPath: string;
+  diagnosticLabel: string;
+  authStatus: string;
+}
+
+interface AuthSourceSummaryItem {
+  key: string;
+  label: string;
+  value: number;
+  description: string;
+  tone: AuthSourceTone;
+}
+
+interface AuthSourceCenterProps {
+  providers?: AuthProvider[];
+  loading?: boolean;
+}
+
+function t(key: string, defaultValue = key): string {
   const namespacedKey = `general:${key}`;
-  const translated = i18next.t(namespacedKey, {defaultValue});
+  const translated = i18next.t(namespacedKey, {defaultValue}) as string;
   return translated === namespacedKey || translated === key ? defaultValue : translated;
 }
 
 // 认证源中心只归类展示安全摘要，避免把 provider 密钥或真实运行探测结果带入页面状态。
-const AUTH_SOURCE_DEFINITIONS = [
+const AUTH_SOURCE_DEFINITIONS: AuthSourceDefinition[] = [
   {
     key: "wecom",
     title: "企业微信",
@@ -73,11 +128,11 @@ const AUTH_SOURCE_DEFINITIONS = [
   },
 ];
 
-function normalize(value) {
+function normalize(value: unknown): string {
   return `${value ?? ""}`.toLowerCase();
 }
 
-function matchesProvider(provider, definition) {
+function matchesProvider(provider: AuthProvider | undefined, definition: AuthSourceDefinition): boolean {
   const searchable = [
     provider?.type,
     provider?.category,
@@ -89,7 +144,7 @@ function matchesProvider(provider, definition) {
   return definition.matchers.some(matcher => searchable.includes(matcher.toLowerCase()));
 }
 
-function getConfigurationCompleteness(provider, requiredFields) {
+function getConfigurationCompleteness(provider: AuthProvider | undefined, requiredFields: AuthProviderRequiredField[]): number {
   if (!provider) {
     return 0;
   }
@@ -98,20 +153,20 @@ function getConfigurationCompleteness(provider, requiredFields) {
   return Math.round((completed / requiredFields.length) * 100);
 }
 
-function getProviderDisplayName(provider) {
+function getProviderDisplayName(provider: AuthProvider | undefined): string {
   if (!provider) {
     return "未找到匹配 Provider";
   }
 
-  return provider.displayName || provider.name;
+  return provider.displayName || provider.name || "";
 }
 
 // 导出给测试覆盖状态推导规则：只返回可展示摘要，不携带 clientSecret/token 等敏感原值。
-export function buildAuthSourceCenterCards(providers = []) {
+export function buildAuthSourceCenterCards(providers: AuthProvider[] = []): AuthSourceCenterCard[] {
   return AUTH_SOURCE_DEFINITIONS.map((definition) => {
     const provider = providers.find(item => matchesProvider(item, definition));
     const completeness = getConfigurationCompleteness(provider, definition.requiredFields);
-    const status = !provider ? "未启用" : completeness === 100 ? "已启用" : "待补全";
+    const status: AuthSourceStatus = !provider ? "未启用" : completeness === 100 ? "已启用" : "待补全";
 
     return {
       key: definition.key,
@@ -129,7 +184,7 @@ export function buildAuthSourceCenterCards(providers = []) {
   });
 }
 
-function getStatusColor(status) {
+function getStatusColor(status: AuthSourceStatus): AuthSourceTone {
   if (status === "已启用") {
     return "success";
   }
@@ -141,7 +196,7 @@ function getStatusColor(status) {
   return "default";
 }
 
-function buildSummaryItems(cards, providers) {
+function buildSummaryItems(cards: AuthSourceCenterCard[], providers: AuthProvider[]): AuthSourceSummaryItem[] {
   const enabledCount = cards.filter(card => card.status === "已启用").length;
   const incompleteCount = cards.filter(card => card.status === "待补全").length;
   const missingCount = cards.filter(card => card.status === "未启用").length;
@@ -178,7 +233,7 @@ function buildSummaryItems(cards, providers) {
   ];
 }
 
-function getStatusLabel(status) {
+function getStatusLabel(status: AuthSourceStatus): string {
   switch (status) {
   case "已启用":
     return t("Auth source status enabled", status);
@@ -189,19 +244,19 @@ function getStatusLabel(status) {
   }
 }
 
-function getAuthSourceTitle(card) {
+function getAuthSourceTitle(card: AuthSourceCenterCard): string {
   return t(`Auth source ${card.key} title`, card.title);
 }
 
-function getAuthSourceDescription(card) {
+function getAuthSourceDescription(card: AuthSourceCenterCard): string {
   return t(`Auth source ${card.key} description`, card.description);
 }
 
-function getDiagnosticLabel(card) {
+function getDiagnosticLabel(card: AuthSourceCenterCard): string {
   return t(`Auth source ${card.key} diagnostic`, card.diagnosticLabel);
 }
 
-function AuthSourceCenter({providers = [], loading = false}) {
+function AuthSourceCenter({providers = [], loading = false}: AuthSourceCenterProps): JSX.Element {
   const cards = buildAuthSourceCenterCards(providers);
   const hasProviders = Array.isArray(providers) && providers.length > 0;
   const summaryItems = buildSummaryItems(cards, providers);

@@ -42,6 +42,16 @@ Admin 前端后续新增 React 组件 SHALL 默认使用 `.tsx`；新增共享�
 - **THEN** 开发者 MAY 将该文件渐进迁移为 `.ts` 或 `.tsx`
 - **AND** 迁移 SHALL 保持原有运行时行为、路由、权限和接口契约兼容
 
+#### Scenario: 身份源菜单低风险入口迁移
+- **WHEN** 后续 change 触碰身份源菜单下低风险只读 React 区块，例如 `/providers` 中的身份源中心摘要区
+- **THEN** 该区块 SHOULD 迁移为 `.tsx` 并使用明确局部类型描述 props、输入数据和派生展示状态
+- **AND** 对应 React 测试 SHOULD 使用 `.test.tsx`
+- **AND** 迁移 SHALL NOT 要求同一 change 迁移承载它的历史 JS 列表页或无关编辑页
+
+#### Scenario: TypeScript migration is validated
+- **WHEN** identity source menu React components are migrated to TSX
+- **THEN** the incremental TypeScript gate, `yarn typecheck`, focused Jest tests, and build or equivalent import-boundary validation SHALL pass for the touched TSX and JS coexistence paths
+
 ### Requirement: 低风险 TSX smoke 迁移
 本 change SHALL 迁移一个低风险展示组件作为 TSX smoke test，证明 TypeScript 基建覆盖编译、测试、typecheck 和 build 路径，同时避开认证、授权、OAuth/OIDC、Provider contract、Gateway projection 与真实配置链路。
 

@@ -1,5 +1,6 @@
 import React from "react";
-import {render, screen} from "@testing-library/react";
+import {expect} from "@jest/globals";
+import {render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import i18next from "i18next";
 import AuthSourceCenter, {buildAuthSourceCenterCards} from "./AuthSourceCenter";
@@ -39,7 +40,7 @@ const providers = [
   },
 ];
 
-async function useTestLanguage(language) {
+async function useTestLanguage(language: string): Promise<void> {
   if (!i18next.isInitialized) {
     await i18next.init({
       lng: language,
@@ -84,39 +85,40 @@ describe("AuthSourceCenter", () => {
   });
 
   test("renders compact diagnostics, diagnostic links, and failure summary", () => {
-    const {container} = render(
+    const view = render(
       <MemoryRouter>
         <AuthSourceCenter providers={providers} loading={false} />
       </MemoryRouter>
     );
+    const {container} = view;
 
-    expect(screen.getByText("认证源中心")).toBeInTheDocument();
+    expect(view.getByText("认证源中心")).not.toBeNull();
     expect(container.querySelector(".auth-source-diagnostics-rail")).not.toBeNull();
     expect(container.querySelector(".enterprise-identity-status-card")).toBeNull();
-    expect(screen.getAllByText("企业微信").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("飞书").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("OIDC").length).toBeGreaterThan(0);
-    expect(screen.getByText(/企业微信主认证/)).toBeInTheDocument();
-    expect(screen.getAllByText("100%")).toHaveLength(2);
-    expect(screen.getByText("67%")).toBeInTheDocument();
-    expect(screen.getByText("以同步页面和审计记录为准")).toBeInTheDocument();
-    expect(screen.getAllByText("企业微信诊断").some(item => item.closest("a")?.getAttribute("href") === "/wecom-org-sync")).toBe(true);
-    expect(screen.getAllByText("飞书诊断").some(item => item.closest("a")?.getAttribute("href") === "/feishu-org-sync")).toBe(true);
-    expect(screen.getAllByText("查看审计记录").some(item => item.closest("a")?.getAttribute("href") === "/records")).toBe(true);
-    expect(screen.queryByText("wecom-secret-value")).not.toBeInTheDocument();
+    expect(view.getAllByText("企业微信").length).toBeGreaterThan(0);
+    expect(view.getAllByText("飞书").length).toBeGreaterThan(0);
+    expect(view.getAllByText("OIDC").length).toBeGreaterThan(0);
+    expect(view.getByText(/企业微信主认证/)).not.toBeNull();
+    expect(view.getAllByText("100%")).toHaveLength(2);
+    expect(view.getByText("67%")).not.toBeNull();
+    expect(view.getByText("以同步页面和审计记录为准")).not.toBeNull();
+    expect(view.getAllByText("企业微信诊断").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/wecom-org-sync")).toBe(true);
+    expect(view.getAllByText("飞书诊断").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/feishu-org-sync")).toBe(true);
+    expect(view.getAllByText("查看审计记录").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/records")).toBe(true);
+    expect(view.queryByText("wecom-secret-value")).toBeNull();
   });
 
   test("keeps configuration and diagnostic entries available when providers are empty", () => {
-    render(
+    const view = render(
       <MemoryRouter>
         <AuthSourceCenter providers={[]} loading={false} />
       </MemoryRouter>
     );
 
-    expect(screen.getAllByText("未启用").length).toBeGreaterThanOrEqual(3);
-    expect(screen.getByText("暂无认证源配置，先从 Provider 列表新增或进入同步诊断页面核对。")).toBeInTheDocument();
-    expect(screen.getByText("配置认证源").closest("a")).toHaveAttribute("href", "/providers");
-    expect(screen.getAllByText("OIDC 配置").some(item => item.closest("a")?.getAttribute("href") === "/providers")).toBe(true);
+    expect(view.getAllByText("未启用").length).toBeGreaterThanOrEqual(3);
+    expect(view.getByText("暂无认证源配置，先从 Provider 列表新增或进入同步诊断页面核对。")).not.toBeNull();
+    expect(view.getByText("配置认证源").closest("a")?.getAttribute("href")).toBe("/providers");
+    expect(view.getAllByText("OIDC 配置").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/providers")).toBe(true);
   });
 
   test("covers loading and fallback summaries for incomplete provider fields", () => {
@@ -137,13 +139,13 @@ describe("AuthSourceCenter", () => {
       providerDisplayName: "wechat-basic",
     });
 
-    render(
+    const view = render(
       <MemoryRouter>
         <AuthSourceCenter loading />
       </MemoryRouter>
     );
 
-    expect(screen.getByText("加载认证源状态...")).toBeInTheDocument();
-    expect(screen.getAllByText("未启用").length).toBeGreaterThanOrEqual(3);
+    expect(view.getByText("加载认证源状态...")).not.toBeNull();
+    expect(view.getAllByText("未启用").length).toBeGreaterThanOrEqual(3);
   });
 });

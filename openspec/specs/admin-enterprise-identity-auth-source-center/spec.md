@@ -23,6 +23,11 @@ Admin 企业认证中心 SHALL 在认证源分组下提供紧凑的认证源中�
 - **THEN** 既有 Provider 分页、筛选、新增、编辑和删除行为保持可用
 - **AND** 认证源中心不得改变 Provider 表格的路由、权限 key 或数据写入行为
 
+#### Scenario: TSX 迁移保持行为兼容
+- **WHEN** 认证源中心从 JavaScript 迁移为 TSX
+- **THEN** `/providers` 路由、Provider 列表加载、表格操作、配置入口和同步诊断链接 SHALL 保持现有行为兼容
+- **AND** 迁移 SHALL NOT 触发后端写入、组织同步、OAuth/OIDC 授权、真实 provider 探测或权限模型变更
+
 ### Requirement: 认证源状态与配置完整度
 认证源中心 SHALL 基于现有只读 Provider 数据展示每类认证源的启用状态、配置完整度和下一步动作，不得展示 client secret、token 或其它敏感字段原值。
 
