@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 
 	"git.leagsoft.com/aicodex/aicodex-admin/object"
 	"git.leagsoft.com/aicodex/aicodex-admin/util"
@@ -31,6 +32,10 @@ type wecomOrganizationSyncConfigResponse struct {
 }
 
 type wecomOrganizationSyncRunRequest struct {
+	Organization string `json:"organization"`
+}
+
+type wecomOrganizationSyncDryRunPreviewRequest struct {
 	Organization string `json:"organization"`
 }
 
@@ -180,6 +185,105 @@ func (c *ApiController) StartWecomOrganizationSyncRun() {
 		return
 	}
 	c.ResponseOk(newWecomOrganizationSyncRunStartResponse(result, config.AddressBookSecret))
+}
+
+// DryRunWecomOrganizationSyncPreview
+// @Title DryRunWecomOrganizationSyncPreview
+// @Tag WeCom Organization Sync API
+// @Description 预览企业微信组织同步影响，不写入本地组织主数据
+// @Param   body    body   controllers.wecomOrganizationSyncDryRunPreviewRequest  true        "目标组织"
+// @Success 200 {object} object.WecomOrganizationSyncDryRunPreview 响应对象
+// @router /wecom-org-sync/dry-run-preview [post]
+func (c *ApiController) DryRunWecomOrganizationSyncPreview() {
+	var request wecomOrganizationSyncDryRunPreviewRequest
+	if err := json.Unmarshal(c.Ctx.Input.RequestBody, &request); err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+
+	organization, ok := c.resolveWecomOrganizationSyncTarget(request.Organization)
+	if !ok {
+		return
+	}
+	if !c.requireWecomOrganizationSyncAdmin(organization) {
+		return
+	}
+
+	config, err := object.GetWecomOrganizationSyncConfigByOrganization(organization)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	if config == nil {
+		c.ResponseError("wecom organization sync config is not configured")
+		return
+	}
+
+	preview, err := (&object.WecomOrganizationSyncDryRunPreviewService{
+		Operator:      c.GetSessionUsername(),
+		RequestMarker: c.getWecomOrganizationSyncRequestMarker(),
+	}).Preview(c.Ctx.Request.Context(), config)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(preview)
+}
+
+// GetWecomOrganizationSyncDryRunHistories
+// @Title GetWecomOrganizationSyncDryRunHistories
+// @Tag WeCom Organization Sync API
+// @Description 查询企业微信组织同步 dry-run 预览历史
+// @Param   organization     query    string  true        "目标组织"
+// @Success 200 {array} object.WecomOrganizationSyncDryRunHistory 响应对象
+// @router /wecom-org-sync/dry-run-history [get]
+func (c *ApiController) GetWecomOrganizationSyncDryRunHistories() {
+	organization, ok := c.resolveWecomOrganizationSyncTarget(c.Ctx.Input.Query("organization"))
+	if !ok {
+		return
+	}
+	if !c.requireWecomOrganizationSyncAdmin(organization) {
+		return
+	}
+	filter, err := c.getWecomOrganizationSyncDryRunHistoryFilter(organization)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	histories, count, err := (&object.WecomOrganizationSyncDryRunHistoryService{}).GetHistories(filter)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	if filter.Limit > 0 && c.Ctx.Input.Query("p") != "" {
+		c.ResponseOk(histories, count)
+		return
+	}
+	c.ResponseOk(histories)
+}
+
+// GetWecomOrganizationSyncDryRunHistory
+// @Title GetWecomOrganizationSyncDryRunHistory
+// @Tag WeCom Organization Sync API
+// @Description 查询单条企业微信组织同步 dry-run 预览历史详情
+// @Param   organization     query    string  true        "目标组织"
+// @Param   historyId        path     string  true        "dry-run 历史 ID"
+// @Success 200 {object} object.WecomOrganizationSyncDryRunHistory 响应对象
+// @router /wecom-org-sync/dry-run-history/:historyId [get]
+func (c *ApiController) GetWecomOrganizationSyncDryRunHistory() {
+	organization, ok := c.resolveWecomOrganizationSyncTarget(c.Ctx.Input.Query("organization"))
+	if !ok {
+		return
+	}
+	if !c.requireWecomOrganizationSyncAdmin(organization) {
+		return
+	}
+	history, err := (&object.WecomOrganizationSyncDryRunHistoryService{}).GetHistory(organization, c.Ctx.Input.Param(":historyId"))
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(history)
 }
 
 // GetWecomOrganizationSyncRuns
@@ -389,6 +493,56 @@ func (c *ApiController) getWecomOrganizationSyncSecretForMasking(organization st
 		return ""
 	}
 	return config.AddressBookSecret
+}
+
+func (c *ApiController) getWecomOrganizationSyncRequestMarker() string {
+	for _, header := range []string{"X-Request-Id", "X-Codex-Request-Id", "X-Trace-Id"} {
+		if value := strings.TrimSpace(c.Ctx.Request.Header.Get(header)); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func (c *ApiController) getWecomOrganizationSyncDryRunHistoryFilter(organization string) (object.WecomOrganizationSyncDryRunHistoryFilter, error) {
+	filter := object.WecomOrganizationSyncDryRunHistoryFilter{
+		Organization:           organization,
+		SourceConnectionIdHash: strings.TrimSpace(c.Ctx.Input.Query("sourceConnectionIdHash")),
+		Status:                 strings.TrimSpace(c.Ctx.Input.Query("status")),
+		DiagnosticAlias:        strings.TrimSpace(c.Ctx.Input.Query("diagnosticAlias")),
+		Limit:                  util.ParseInt(c.Ctx.Input.Query("pageSize")),
+		TopN:                   util.ParseInt(c.Ctx.Input.Query("topN")),
+		SortField:              strings.TrimSpace(c.Ctx.Input.Query("sortField")),
+		SortOrder:              strings.TrimSpace(c.Ctx.Input.Query("sortOrder")),
+	}
+	if filter.Limit == 0 {
+		filter.Limit = util.ParseInt(c.Ctx.Input.Query("limit"))
+	}
+	if page := util.ParseInt(c.Ctx.Input.Query("p")); page > 0 && filter.Limit > 0 {
+		filter.Offset = (page - 1) * filter.Limit
+	} else {
+		filter.Offset = 0
+	}
+	var err error
+	if filter.CreatedFrom, err = parseWecomDryRunHistoryTime(c.Ctx.Input.Query("createdFrom")); err != nil {
+		return filter, err
+	}
+	if filter.CreatedTo, err = parseWecomDryRunHistoryTime(c.Ctx.Input.Query("createdTo")); err != nil {
+		return filter, err
+	}
+	return filter, nil
+}
+
+func parseWecomDryRunHistoryTime(text string) (time.Time, error) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return time.Time{}, nil
+	}
+	value, err := time.Parse(time.RFC3339Nano, text)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return value.UTC(), nil
 }
 
 func resolveOrganizationManagementScopeTarget(explicitOrganization string, user *object.User, isGlobalAdmin bool) (string, bool, error) {

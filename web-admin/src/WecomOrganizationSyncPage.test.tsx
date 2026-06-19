@@ -48,6 +48,9 @@ jest.mock("./backend/WecomOrganizationSyncBackend", () => {
     getWecomOrganizationSyncConfig: factoryJest.fn(),
     saveWecomOrganizationSyncConfig: factoryJest.fn(),
     testWecomOrganizationSyncConfig: factoryJest.fn(),
+    dryRunWecomOrganizationSyncPreview: factoryJest.fn(),
+    getWecomOrganizationSyncDryRunHistories: factoryJest.fn(),
+    getWecomOrganizationSyncDryRunHistory: factoryJest.fn(),
     startWecomOrganizationSyncRun: factoryJest.fn(),
     getWecomOrganizationSyncRuns: factoryJest.fn(),
   };
@@ -83,6 +86,7 @@ const {fireEvent, screen} = require("@testing-library/react") as {
   screen: {
     findByText: (text: string | RegExp) => Promise<HTMLElement>;
     getByText: (text: string | RegExp) => HTMLElement;
+    getAllByText: (text: string | RegExp) => HTMLElement[];
     queryByText: (text: string | RegExp) => HTMLElement | null;
     getByAltText: (text: string) => HTMLElement;
     getByDisplayValue: (text: string) => HTMLElement;
@@ -112,6 +116,9 @@ beforeEach(() => {
   mockConfig();
   wecomBackendMock.getWecomOrganizationSyncRuns.mockResolvedValue({status: "ok", data: [], data2: 0});
   wecomBackendMock.testWecomOrganizationSyncConfig.mockResolvedValue({status: "ok", data: {missingFields: [], departmentCount: 0, userCount: 0}});
+  wecomBackendMock.dryRunWecomOrganizationSyncPreview.mockResolvedValue({status: "ok", data: null});
+  wecomBackendMock.getWecomOrganizationSyncDryRunHistories.mockResolvedValue({status: "ok", data: []});
+  wecomBackendMock.getWecomOrganizationSyncDryRunHistory.mockResolvedValue({status: "ok", data: null});
   wecomBackendMock.startWecomOrganizationSyncRun.mockResolvedValue({status: "ok", data: {name: "run-1"}});
 });
 
@@ -436,6 +443,115 @@ test("starts full sync when config is enabled", async() => {
   await flushPromises();
   expect(wecomBackendMock.startWecomOrganizationSyncRun).toHaveBeenCalledWith("engineering");
   expect(Setting.showMessage).toHaveBeenCalledWith("success", "同步任务已启动");
+});
+
+test("previews WeCom sync impact in a compact modal", async() => {
+  mockConfig({isEnabled: true});
+  wecomBackendMock.dryRunWecomOrganizationSyncPreview.mockResolvedValue({
+    status: "ok",
+    data: {
+      status: "succeeded",
+      source: {organization: "engineering", corpAlias: "corp-safe", previewedAt: "2026-06-18T10:00:00Z"},
+      snapshotStats: {departmentCount: 3, userCount: 4, relationshipCount: 5},
+      diff: {
+        departments: {toCreate: 1, toUpdate: 2, toSoftDisable: 3},
+        users: {toCreate: 4, toUpdate: 5, toSoftDisable: 6},
+        relationships: {toCreate: 7, toUpdate: 8, toSoftDisable: 9},
+      },
+      reasonCounts: {would_soft_disable: 3},
+      historyWarning: "dry-run history could not be recorded",
+    },
+  });
+
+  render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+  fireEvent.click(await screen.findByText("预览影响"));
+
+  expect(wecomBackendMock.dryRunWecomOrganizationSyncPreview).toHaveBeenCalledWith("engineering");
+  expect(await screen.findByText("预览影响结果")).toBeInTheDocument();
+  expect(screen.getByText("预览通过")).toBeInTheDocument();
+  expect(screen.getByText("快照：部门 3 / 用户 4 / 关系 5")).toBeInTheDocument();
+  expect(screen.getByText("来源：corp-safe")).toBeInTheDocument();
+  expect(screen.getByText("历史记录未写入，但预览结果仍可用于本次判断。")).toBeInTheDocument();
+  expect(screen.getAllByText("新 1 / 更 2 / 禁 3").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("新 4 / 更 5 / 禁 6").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("新 7 / 更 8 / 禁 9").length).toBeGreaterThan(0);
+});
+
+test("shows WeCom dry-run history empty and error states in a modal", async() => {
+  mockConfig({isEnabled: true});
+  wecomBackendMock.getWecomOrganizationSyncDryRunHistories.mockResolvedValueOnce({status: "ok", data: []});
+
+  render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+  fireEvent.click(await screen.findByText("预览历史"));
+
+  expect(wecomBackendMock.getWecomOrganizationSyncDryRunHistories).toHaveBeenCalledWith("engineering", {topN: 10});
+  expect(await screen.findByText("预览历史记录")).toBeInTheDocument();
+  expect(screen.getByText("暂无预览历史")).toBeInTheDocument();
+
+  wecomBackendMock.getWecomOrganizationSyncDryRunHistories.mockResolvedValueOnce({status: "error", msg: "history unavailable"});
+  fireEvent.click(screen.getByText("刷新历史"));
+  await flushPromises();
+
+  expect(screen.getByText("预览历史加载失败，请稍后重试。")).toBeInTheDocument();
+  expect(Setting.showMessage).toHaveBeenCalledWith("error", "预览历史加载失败：history unavailable");
+});
+
+test("opens WeCom dry-run history detail with long safe summary", async() => {
+  mockConfig({isEnabled: true});
+  const longSummary = "permission denied ".repeat(20);
+  wecomBackendMock.getWecomOrganizationSyncDryRunHistories.mockResolvedValue({
+    status: "ok",
+    data: [{
+      name: "history-1",
+      status: "failed",
+      createdAt: "2026-06-18T10:00:00Z",
+      diagnosticAlias: "contact_permission_missing",
+      corpAlias: "corp-safe",
+      snapshotDepartmentCount: 1,
+      snapshotUserCount: 2,
+      snapshotRelationshipCount: 3,
+      departmentToCreate: 0,
+      departmentToUpdate: 0,
+      departmentToSoftDisable: 0,
+      userToCreate: 0,
+      userToUpdate: 0,
+      userToSoftDisable: 0,
+      relationshipToCreate: 0,
+      relationshipToUpdate: 0,
+      relationshipToSoftDisable: 0,
+      safeSummary: "short summary",
+    }],
+  });
+  wecomBackendMock.getWecomOrganizationSyncDryRunHistory.mockResolvedValue({
+    status: "ok",
+    data: {
+      name: "history-1",
+      status: "failed",
+      createdAt: "2026-06-18T10:00:00Z",
+      diagnosticAlias: "contact_permission_missing",
+      corpAlias: "corp-safe",
+      snapshotDepartmentCount: 1,
+      snapshotUserCount: 2,
+      snapshotRelationshipCount: 3,
+      relationshipToCreate: 0,
+      relationshipToUpdate: 0,
+      relationshipToSoftDisable: 0,
+      safeSummary: longSummary,
+      redactionApplied: true,
+      retentionDays: 90,
+    },
+  });
+
+  render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+  fireEvent.click(await screen.findByText("预览历史"));
+  fireEvent.click(await screen.findByText("查看详情"));
+
+  expect(wecomBackendMock.getWecomOrganizationSyncDryRunHistory).toHaveBeenCalledWith("engineering", "history-1");
+  expect(await screen.findByText("预览历史详情")).toBeInTheDocument();
+  expect(screen.getByText("contact_permission_missing")).toBeInTheDocument();
+  expect(await screen.findByText(longSummary.trim())).toBeInTheDocument();
+  expect(screen.getByText("脱敏：已应用")).toBeInTheDocument();
+  expect(screen.getByText("保留：90 天")).toBeInTheDocument();
 });
 
 test("disables start sync action while a run is already active", async() => {

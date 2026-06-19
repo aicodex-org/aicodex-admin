@@ -40,6 +40,27 @@ func TestGetWecomOrganizationSyncObjectUsesOrganizationBody(t *testing.T) {
 	}
 }
 
+func TestGetWecomOrganizationSyncDryRunPreviewObjectUsesOrganizationBody(t *testing.T) {
+	body := []byte(`{"organization":"engineering"}`)
+	owner, name, ok := getModuleOrganizationObject("/api/wecom-org-sync/dry-run-preview", http.MethodPost, "", body)
+	if !ok {
+		t.Fatalf("expected WeCom dry-run preview organization object to be parsed")
+	}
+	if owner != "engineering" || name != "" {
+		t.Fatalf("dry-run object = %q/%q, want engineering/<empty>", owner, name)
+	}
+}
+
+func TestGetWecomOrganizationSyncDryRunHistoryObjectUsesOrganizationQuery(t *testing.T) {
+	owner, name, ok := getModuleOrganizationObject("/api/wecom-org-sync/dry-run-history/history-1", http.MethodGet, "engineering", nil)
+	if !ok {
+		t.Fatalf("expected WeCom dry-run history organization object to be parsed")
+	}
+	if owner != "engineering" || name != "" {
+		t.Fatalf("dry-run history object = %q/%q, want engineering/<empty>", owner, name)
+	}
+}
+
 func TestGetFeishuOrganizationSyncObjectUsesOrganizationQuery(t *testing.T) {
 	owner, name, ok := getModuleOrganizationObject("/api/feishu-org-sync/config", http.MethodGet, "engineering", nil)
 	if !ok {

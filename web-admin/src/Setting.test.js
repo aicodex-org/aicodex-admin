@@ -21,6 +21,8 @@ test("includes module-based WeCom organization API paths", () => {
 
   expect(paths).toContain("wecom-org-sync/config");
   expect(paths).toContain("wecom-org-sync/config/test");
+  expect(paths).toContain("wecom-org-sync/dry-run-preview");
+  expect(paths).toContain("wecom-org-sync/dry-run-history");
   expect(paths).toContain("wecom-org-sync/runs");
   expect(paths).toContain("feishu-org-sync/config");
   expect(paths).toContain("feishu-org-sync/config/test");

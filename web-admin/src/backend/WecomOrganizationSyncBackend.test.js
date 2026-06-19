@@ -54,3 +54,20 @@ test("uses module-based run API paths", async() => {
   expect(global.fetch).toHaveBeenNthCalledWith(1, "/api/wecom-org-sync/runs", expect.objectContaining({method: "POST"}));
   expect(global.fetch).toHaveBeenNthCalledWith(2, "/api/wecom-org-sync/runs?organization=engineering&p=1&pageSize=10&field=&value=&sortField=&sortOrder=", expect.objectContaining({method: "GET"}));
 });
+
+test("uses module-based dry-run preview and history API paths", async() => {
+  await WecomOrganizationSyncBackend.dryRunWecomOrganizationSyncPreview("engineering");
+  await WecomOrganizationSyncBackend.getWecomOrganizationSyncDryRunHistories("engineering", {
+    sourceConnectionIdHash: "source-a",
+    status: "failed",
+    diagnosticAlias: "contact_permission_missing",
+    createdFrom: "2026-06-18T00:00:00Z",
+    createdTo: "2026-06-18T23:59:59Z",
+    topN: 5,
+  });
+  await WecomOrganizationSyncBackend.getWecomOrganizationSyncDryRunHistory("engineering", "history-1");
+
+  expect(global.fetch).toHaveBeenNthCalledWith(1, "/api/wecom-org-sync/dry-run-preview", expect.objectContaining({method: "POST"}));
+  expect(global.fetch).toHaveBeenNthCalledWith(2, "/api/wecom-org-sync/dry-run-history?organization=engineering&sourceConnectionIdHash=source-a&status=failed&diagnosticAlias=contact_permission_missing&createdFrom=2026-06-18T00%3A00%3A00Z&createdTo=2026-06-18T23%3A59%3A59Z&topN=5", expect.objectContaining({method: "GET"}));
+  expect(global.fetch).toHaveBeenNthCalledWith(3, "/api/wecom-org-sync/dry-run-history/history-1?organization=engineering", expect.objectContaining({method: "GET"}));
+});

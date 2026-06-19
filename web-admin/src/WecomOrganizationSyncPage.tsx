@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import React from "react";
-import {Alert, Button, Col, Divider, Input, Row, Space, Switch, Table, Tag, Tooltip, Typography} from "antd";
-import {PlayCircleOutlined, PlusOutlined, ReloadOutlined, SaveOutlined, ToolOutlined} from "@ant-design/icons";
+import {Alert, Button, Col, Divider, Empty, Input, Modal, Row, Space, Spin, Switch, Table, Tag, Tooltip, Typography} from "antd";
+import {FileSearchOutlined, HistoryOutlined, PlayCircleOutlined, PlusOutlined, ReloadOutlined, SaveOutlined, ToolOutlined} from "@ant-design/icons";
 import * as Setting from "./Setting";
 import * as WecomOrganizationSyncBackendRaw from "./backend/WecomOrganizationSyncBackend";
 import OrganizationSelect from "./common/select/OrganizationSelect";
@@ -88,6 +88,66 @@ interface WecomOrganizationSyncRun {
   errorText?: string;
 }
 
+interface WecomOrganizationSyncDryRunDiffCounts {
+  toCreate?: number;
+  toUpdate?: number;
+  toSoftDisable?: number;
+  unchanged?: number;
+  conflict?: number;
+  invalid?: number;
+}
+
+interface WecomOrganizationSyncDryRunPreview {
+  status?: string;
+  source?: {
+    organization?: string;
+    corpAlias?: string;
+    previewedAt?: string;
+  };
+  snapshotStats?: {
+    departmentCount?: number;
+    userCount?: number;
+    relationshipCount?: number;
+  };
+  diff?: {
+    departments?: WecomOrganizationSyncDryRunDiffCounts;
+    users?: WecomOrganizationSyncDryRunDiffCounts;
+    relationships?: WecomOrganizationSyncDryRunDiffCounts;
+  };
+  reasonCounts?: Record<string, number>;
+  diagnostics?: {
+    failedStage?: string;
+    failureCategory?: string;
+    reasonCode?: string;
+    operatorAction?: string;
+    safeSummary?: string;
+  };
+  historyWarning?: string;
+}
+
+interface WecomOrganizationSyncDryRunHistory {
+  name?: string;
+  status?: string;
+  createdAt?: string;
+  diagnosticAlias?: string;
+  corpAlias?: string;
+  snapshotDepartmentCount?: number;
+  snapshotUserCount?: number;
+  snapshotRelationshipCount?: number;
+  departmentToCreate?: number;
+  departmentToUpdate?: number;
+  departmentToSoftDisable?: number;
+  userToCreate?: number;
+  userToUpdate?: number;
+  userToSoftDisable?: number;
+  relationshipToCreate?: number;
+  relationshipToUpdate?: number;
+  relationshipToSoftDisable?: number;
+  safeSummary?: string;
+  redactionApplied?: boolean;
+  retentionDays?: number;
+}
+
 interface WecomOrganizationSyncTestResult {
   missingFields?: string[];
   departmentCount?: number;
@@ -107,6 +167,18 @@ interface WecomOrganizationSyncPageState {
   testing: boolean;
   syncing: boolean;
   testResult: WecomOrganizationSyncTestResult | null;
+  dryRunPreviewLoading: boolean;
+  dryRunPreviewModalOpen: boolean;
+  dryRunPreview: WecomOrganizationSyncDryRunPreview | null;
+  dryRunPreviewError: string;
+  dryRunHistoryModalOpen: boolean;
+  dryRunHistoryLoading: boolean;
+  dryRunHistoryError: string;
+  dryRunHistories: WecomOrganizationSyncDryRunHistory[];
+  dryRunHistoryDetailModalOpen: boolean;
+  dryRunHistoryDetailLoading: boolean;
+  dryRunHistoryDetail: WecomOrganizationSyncDryRunHistory | null;
+  dryRunHistoryDetailError: string;
 }
 
 interface RefreshRunsOptions {
@@ -135,6 +207,9 @@ interface WecomBackend {
   getWecomOrganizationSyncConfig: (organization: string) => Promise<ApiResponse<WecomConfigResponseData>>;
   saveWecomOrganizationSyncConfig: (config: WecomOrganizationSyncConfig | null) => Promise<ApiResponse<WecomSaveResponseData>>;
   testWecomOrganizationSyncConfig: (config: WecomOrganizationSyncConfig | null) => Promise<ApiResponse<WecomOrganizationSyncTestResult>>;
+  dryRunWecomOrganizationSyncPreview: (organization: string) => Promise<ApiResponse<WecomOrganizationSyncDryRunPreview>>;
+  getWecomOrganizationSyncDryRunHistories: (organization: string, filters?: Record<string, unknown>) => Promise<ApiResponse<WecomOrganizationSyncDryRunHistory[]>>;
+  getWecomOrganizationSyncDryRunHistory: (organization: string, historyId: string) => Promise<ApiResponse<WecomOrganizationSyncDryRunHistory>>;
   startWecomOrganizationSyncRun: (organization: string) => Promise<ApiResponse>;
   getWecomOrganizationSyncRuns: (organization: string, page?: number | string, pageSize?: number | string) => Promise<ApiResponse<WecomOrganizationSyncRun[]>>;
 }
@@ -163,6 +238,18 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
       testing: false,
       syncing: false,
       testResult: null,
+      dryRunPreviewLoading: false,
+      dryRunPreviewModalOpen: false,
+      dryRunPreview: null,
+      dryRunPreviewError: "",
+      dryRunHistoryModalOpen: false,
+      dryRunHistoryLoading: false,
+      dryRunHistoryError: "",
+      dryRunHistories: [],
+      dryRunHistoryDetailModalOpen: false,
+      dryRunHistoryDetailLoading: false,
+      dryRunHistoryDetail: null,
+      dryRunHistoryDetailError: "",
     };
   }
 
@@ -343,6 +430,12 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
       runs: [],
       runCount: 0,
       pagination: getDefaultTablePagination(),
+      dryRunPreview: null,
+      dryRunPreviewError: "",
+      dryRunHistoryError: "",
+      dryRunHistories: [],
+      dryRunHistoryDetail: null,
+      dryRunHistoryDetailError: "",
     }, () => this.refresh(organization));
   }
 
@@ -426,6 +519,129 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
       });
   }
 
+  previewDryRun() {
+    if (!this.state.organization) {
+      Setting.showMessage("error", "请先选择同步目标组织");
+      return;
+    }
+    this.setState({
+      dryRunPreviewLoading: true,
+      dryRunPreviewModalOpen: true,
+      dryRunPreviewError: "",
+      dryRunPreview: null,
+    });
+    WecomOrganizationSyncBackend.dryRunWecomOrganizationSyncPreview(this.state.organization)
+      .then(res => {
+        if (this.isUnmounted) {
+          return;
+        }
+        if (res.status === "ok") {
+          this.setState({
+            dryRunPreviewLoading: false,
+            dryRunPreview: res.data || null,
+            dryRunPreviewError: "",
+          });
+          return;
+        }
+        const message = res.msg || "预览失败";
+        this.setState({
+          dryRunPreviewLoading: false,
+          dryRunPreviewError: `预览失败：${message}`,
+        });
+        Setting.showMessage("error", `预览失败：${message}`);
+      }).catch(error => {
+        if (this.isUnmounted) {
+          return;
+        }
+        this.setState({
+          dryRunPreviewLoading: false,
+          dryRunPreviewError: "预览影响失败，请稍后重试。",
+        });
+        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      });
+  }
+
+  openDryRunHistory() {
+    this.setState({dryRunHistoryModalOpen: true}, () => this.refreshDryRunHistory());
+  }
+
+  refreshDryRunHistory() {
+    if (!this.state.organization) {
+      return;
+    }
+    this.setState({dryRunHistoryLoading: true, dryRunHistoryError: ""});
+    WecomOrganizationSyncBackend.getWecomOrganizationSyncDryRunHistories(this.state.organization, {topN: 10})
+      .then(res => {
+        if (this.isUnmounted) {
+          return;
+        }
+        if (res.status === "ok") {
+          this.setState({
+            dryRunHistoryLoading: false,
+            dryRunHistories: res.data || [],
+            dryRunHistoryError: "",
+          });
+          return;
+        }
+        const message = res.msg || "unknown";
+        this.setState({
+          dryRunHistoryLoading: false,
+          dryRunHistoryError: "预览历史加载失败，请稍后重试。",
+        });
+        Setting.showMessage("error", `预览历史加载失败：${message}`);
+      }).catch(error => {
+        if (this.isUnmounted) {
+          return;
+        }
+        this.setState({
+          dryRunHistoryLoading: false,
+          dryRunHistoryError: "预览历史加载失败，请稍后重试。",
+        });
+        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      });
+  }
+
+  openDryRunHistoryDetail(historyId?: string) {
+    if (!historyId || !this.state.organization) {
+      return;
+    }
+    this.setState({
+      dryRunHistoryDetailModalOpen: true,
+      dryRunHistoryDetailLoading: true,
+      dryRunHistoryDetailError: "",
+      dryRunHistoryDetail: null,
+    });
+    WecomOrganizationSyncBackend.getWecomOrganizationSyncDryRunHistory(this.state.organization, historyId)
+      .then(res => {
+        if (this.isUnmounted) {
+          return;
+        }
+        if (res.status === "ok") {
+          this.setState({
+            dryRunHistoryDetailLoading: false,
+            dryRunHistoryDetail: res.data || null,
+            dryRunHistoryDetailError: "",
+          });
+          return;
+        }
+        const message = res.msg || "unknown";
+        this.setState({
+          dryRunHistoryDetailLoading: false,
+          dryRunHistoryDetailError: `预览历史详情加载失败：${message}`,
+        });
+        Setting.showMessage("error", `预览历史详情加载失败：${message}`);
+      }).catch(error => {
+        if (this.isUnmounted) {
+          return;
+        }
+        this.setState({
+          dryRunHistoryDetailLoading: false,
+          dryRunHistoryDetailError: "预览历史详情加载失败，请稍后重试。",
+        });
+        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      });
+  }
+
   getStatusTag(status?: string) {
     const colorMap: Record<string, string> = {
       running: "processing",
@@ -441,6 +657,17 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
     };
     const statusKey = status || "";
     return <Tag color={colorMap[statusKey] || "default"}>{labelMap[statusKey] || statusKey || "-"}</Tag>;
+  }
+
+  getDryRunStatusTag(status?: string) {
+    const statusKey = status || "";
+    if (statusKey === "succeeded") {
+      return <Tag color="success">预览通过</Tag>;
+    }
+    if (statusKey === "failed") {
+      return <Tag color="error">预览失败</Tag>;
+    }
+    return <Tag>{statusKey || "无结果"}</Tag>;
   }
 
   getTriggerTag(triggerType?: string) {
@@ -660,6 +887,210 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
     );
   }
 
+  renderDryRunDiffCounts(counts?: WecomOrganizationSyncDryRunDiffCounts) {
+    return this.renderImpactCounts(counts?.toCreate, counts?.toUpdate, counts?.toSoftDisable);
+  }
+
+  renderDryRunPreviewModal() {
+    const preview = this.state.dryRunPreview;
+    const snapshot = preview?.snapshotStats || {};
+    const sourceAlias = preview?.source?.corpAlias || "-";
+    const diagnosticSummary = preview?.diagnostics?.safeSummary || preview?.diagnostics?.operatorAction || "";
+
+    return (
+      <Modal
+        title="预览影响结果"
+        open={this.state.dryRunPreviewModalOpen}
+        onCancel={() => this.setState({dryRunPreviewModalOpen: false})}
+        footer={<Button onClick={() => this.setState({dryRunPreviewModalOpen: false})}>关闭</Button>}
+        width={720}
+        destroyOnClose
+      >
+        <Spin spinning={this.state.dryRunPreviewLoading}>
+          {this.state.dryRunPreviewError && (
+            <Alert type="error" showIcon message={this.state.dryRunPreviewError} style={{marginBottom: 12}} />
+          )}
+          {!this.state.dryRunPreviewLoading && !this.state.dryRunPreviewError && !preview && (
+            <Empty description="暂无预览结果" />
+          )}
+          {preview && (
+            <Space direction="vertical" size={12} style={{width: "100%"}}>
+              <Space wrap>
+                {this.getDryRunStatusTag(preview.status)}
+                <Text>{`来源：${sourceAlias}`}</Text>
+                <Text type="secondary">
+                  {`快照：部门 ${snapshot.departmentCount || 0} / 用户 ${snapshot.userCount || 0} / 关系 ${snapshot.relationshipCount || 0}`}
+                </Text>
+              </Space>
+              {preview.historyWarning && (
+                <Alert type="warning" showIcon message="历史记录未写入，但预览结果仍可用于本次判断。" />
+              )}
+              {diagnosticSummary && (
+                <Alert type={preview.status === "failed" ? "error" : "info"} showIcon message={diagnosticSummary} />
+              )}
+              <Row gutter={[12, 12]}>
+                <Col xs={24} md={8}>
+                  <Space direction="vertical" size={2}>
+                    <Text type="secondary">部门</Text>
+                    {this.renderDryRunDiffCounts(preview.diff?.departments)}
+                  </Space>
+                </Col>
+                <Col xs={24} md={8}>
+                  <Space direction="vertical" size={2}>
+                    <Text type="secondary">用户</Text>
+                    {this.renderDryRunDiffCounts(preview.diff?.users)}
+                  </Space>
+                </Col>
+                <Col xs={24} md={8}>
+                  <Space direction="vertical" size={2}>
+                    <Text type="secondary">关系</Text>
+                    {this.renderDryRunDiffCounts(preview.diff?.relationships)}
+                  </Space>
+                </Col>
+              </Row>
+            </Space>
+          )}
+        </Spin>
+      </Modal>
+    );
+  }
+
+  renderDryRunHistoryModal() {
+    const columns = [
+      {
+        title: "时间",
+        dataIndex: "createdAt",
+        key: "createdAt",
+        width: 160,
+        render: (text: string) => this.formatRunTime(text),
+      },
+      {
+        title: "状态",
+        dataIndex: "status",
+        key: "status",
+        width: 110,
+        render: (status: string) => this.getDryRunStatusTag(status),
+      },
+      {
+        title: "来源",
+        dataIndex: "corpAlias",
+        key: "corpAlias",
+        width: 120,
+        ellipsis: true,
+      },
+      {
+        title: "影响",
+        key: "impact",
+        width: 180,
+        render: (_: unknown, record: WecomOrganizationSyncDryRunHistory) => this.renderDryRunHistoryImpact(record),
+      },
+      {
+        title: "摘要",
+        dataIndex: "safeSummary",
+        key: "safeSummary",
+        ellipsis: true,
+      },
+      {
+        title: "操作",
+        key: "action",
+        width: 100,
+        render: (_: unknown, record: WecomOrganizationSyncDryRunHistory) => (
+          <Button type="link" size="small" onClick={() => this.openDryRunHistoryDetail(record.name)}>
+            查看详情
+          </Button>
+        ),
+      },
+    ];
+
+    return (
+      <Modal
+        title="预览历史记录"
+        open={this.state.dryRunHistoryModalOpen}
+        onCancel={() => this.setState({dryRunHistoryModalOpen: false})}
+        footer={<Button onClick={() => this.setState({dryRunHistoryModalOpen: false})}>关闭</Button>}
+        width={860}
+        destroyOnClose
+      >
+        <Space direction="vertical" size={12} style={{width: "100%"}}>
+          <Button icon={<ReloadOutlined />} loading={this.state.dryRunHistoryLoading} onClick={() => this.refreshDryRunHistory()}>
+            刷新历史
+          </Button>
+          {this.state.dryRunHistoryError && (
+            <Alert type="error" showIcon message={this.state.dryRunHistoryError} />
+          )}
+          <Table
+            rowKey={record => record.name || `${record.createdAt}-${record.corpAlias}`}
+            size="middle"
+            loading={this.state.dryRunHistoryLoading}
+            columns={columns}
+            dataSource={this.state.dryRunHistories}
+            pagination={false}
+            locale={{emptyText: <Empty description="暂无预览历史" />}}
+          />
+        </Space>
+        {this.renderDryRunHistoryDetailModal()}
+      </Modal>
+    );
+  }
+
+  renderDryRunHistoryImpact(record: WecomOrganizationSyncDryRunHistory) {
+    const created = (record.departmentToCreate || 0) + (record.userToCreate || 0) + (record.relationshipToCreate || 0);
+    const updated = (record.departmentToUpdate || 0) + (record.userToUpdate || 0) + (record.relationshipToUpdate || 0);
+    const disabled = (record.departmentToSoftDisable || 0) + (record.userToSoftDisable || 0) + (record.relationshipToSoftDisable || 0);
+    return this.renderImpactCounts(created, updated, disabled);
+  }
+
+  renderDryRunHistoryDetailModal() {
+    const detail = this.state.dryRunHistoryDetail;
+    const safeSummary = detail?.safeSummary || "无摘要";
+    return (
+      <Modal
+        title={this.state.dryRunHistoryDetailLoading ? "正在加载预览历史详情" : "预览历史详情"}
+        open={this.state.dryRunHistoryDetailModalOpen}
+        onCancel={() => this.setState({dryRunHistoryDetailModalOpen: false})}
+        footer={<Button onClick={() => this.setState({dryRunHistoryDetailModalOpen: false})}>关闭</Button>}
+        width={680}
+        destroyOnClose
+      >
+        <Spin spinning={this.state.dryRunHistoryDetailLoading}>
+          {this.state.dryRunHistoryDetailError && (
+            <Alert type="error" showIcon message={this.state.dryRunHistoryDetailError} style={{marginBottom: 12}} />
+          )}
+          {!this.state.dryRunHistoryDetailLoading && !this.state.dryRunHistoryDetailError && !detail && (
+            <Empty description="暂无预览历史详情" />
+          )}
+          {detail && (
+            <Space direction="vertical" size={10} style={{width: "100%"}}>
+              <Space wrap>
+                {this.getDryRunStatusTag(detail.status)}
+                <Text>{detail.diagnosticAlias || "none"}</Text>
+                <Text type="secondary">{`来源：${detail.corpAlias || "-"}`}</Text>
+              </Space>
+              <Row gutter={[12, 12]}>
+                <Col xs={24} md={8}>
+                  <Text type="secondary">{`快照部门：${detail.snapshotDepartmentCount || 0}`}</Text>
+                </Col>
+                <Col xs={24} md={8}>
+                  <Text type="secondary">{`快照用户：${detail.snapshotUserCount || 0}`}</Text>
+                </Col>
+                <Col xs={24} md={8}>
+                  <Text type="secondary">{`快照关系：${detail.snapshotRelationshipCount || 0}`}</Text>
+                </Col>
+              </Row>
+              <Text style={{display: "block", whiteSpace: "pre-wrap", wordBreak: "break-word"}}>
+                {safeSummary}
+              </Text>
+              <Space wrap>
+                <Text type="secondary">{`脱敏：${detail.redactionApplied ? "已应用" : "未标记"}`}</Text>
+                <Text type="secondary">{`保留：${detail.retentionDays || 0} 天`}</Text>
+              </Space>
+            </Space>
+          )}
+        </Spin>
+      </Modal>
+    );
+  }
+
   getRunRefreshHint(): {type: "secondary" | "danger"; text: string} {
     const lastRefreshText = this.state.lastRunsRefreshAt ? `上次刷新：${this.state.lastRunsRefreshAt}` : "";
     if (this.state.runRefreshError) {
@@ -852,6 +1283,8 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
           actions={[
             {key: "save", label: String(i18next.t("general:Save")), icon: <SaveOutlined />, type: "primary", loading: this.state.saving, onClick: () => this.saveConfig()},
             {key: "test", label: "测试连接", icon: <ToolOutlined />, loading: this.state.testing, onClick: () => this.testConfig()},
+            {key: "dryRunPreview", label: "预览影响", icon: <FileSearchOutlined />, loading: this.state.dryRunPreviewLoading, disabled: !this.state.organization || !config.isEnabled, onClick: () => this.previewDryRun()},
+            {key: "dryRunHistory", label: "预览历史", icon: <HistoryOutlined />, loading: this.state.dryRunHistoryLoading, disabled: !this.state.organization, onClick: () => this.openDryRunHistory()},
             {key: "sync", label: syncButtonLabel, icon: <PlayCircleOutlined />, loading: this.state.syncing, disabled: !config.isEnabled || hasRunningRuns, onClick: () => this.startSync()},
           ]}
         />
@@ -870,6 +1303,8 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
           }}
         />
         {this.renderRuns()}
+        {this.renderDryRunPreviewModal()}
+        {this.renderDryRunHistoryModal()}
       </div>
     );
   }

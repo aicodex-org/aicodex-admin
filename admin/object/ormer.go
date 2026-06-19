@@ -603,6 +603,11 @@ func (a *Ormer) createTable() {
 		panic(err)
 	}
 
+	err = a.Engine.Sync2(new(WecomOrganizationSyncDryRunHistory))
+	if err != nil {
+		panic(err)
+	}
+
 	err = a.Engine.Sync2(new(FeishuOrganizationSyncConfig))
 	if err != nil {
 		panic(err)

@@ -48,6 +48,38 @@ export function testWecomOrganizationSyncConfig(config) {
   }).then(res => res.json());
 }
 
+export function dryRunWecomOrganizationSyncPreview(organization) {
+  return fetch(`${Setting.ServerUrl}/api/wecom-org-sync/dry-run-preview`, {
+    method: "POST",
+    credentials: "include",
+    body: JSON.stringify({organization}),
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
+export function getWecomOrganizationSyncDryRunHistories(organization, filters = {}) {
+  const params = new URLSearchParams();
+  params.set("organization", organization || "");
+  ["sourceConnectionIdHash", "status", "diagnosticAlias", "createdFrom", "createdTo", "topN"].forEach(key => {
+    if (filters[key] !== undefined && filters[key] !== null && filters[key] !== "") {
+      params.set(key, filters[key]);
+    }
+  });
+  return fetch(`${Setting.ServerUrl}/api/wecom-org-sync/dry-run-history?${params.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
+export function getWecomOrganizationSyncDryRunHistory(organization, historyId) {
+  return fetch(`${Setting.ServerUrl}/api/wecom-org-sync/dry-run-history/${encodeURIComponent(historyId)}?organization=${encodeURIComponent(organization)}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
 export function startWecomOrganizationSyncRun(organization) {
   return fetch(`${Setting.ServerUrl}/api/wecom-org-sync/runs`, {
     method: "POST",
