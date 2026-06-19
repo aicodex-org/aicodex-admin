@@ -15,15 +15,73 @@
 import React from "react";
 import {Link} from "react-router-dom";
 import {Button, Switch, Table} from "antd";
+import type {TablePaginationConfig, TableProps} from "antd";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as SyncerBackend from "./backend/SyncerBackend";
+import type {SyncerRecord} from "./backend/SyncerBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
 
-class SyncerListPage extends BaseListPage {
-  newSyncer() {
+interface SyncerListPageProps {
+  account?: Record<string, unknown>;
+  history: {
+    push: (location: string | {pathname: string; mode?: string}) => void;
+  };
+  match?: {
+    path?: string;
+    params?: {
+      organizationName?: string;
+    };
+  };
+}
+
+interface SyncerListPageState {
+  data: SyncerRecord[];
+  pagination: TablePaginationConfig;
+  loading: boolean;
+  searchText?: string | number;
+  searchedColumn?: string;
+  isAuthorized?: boolean;
+}
+
+type SyncerListColumns = TableProps<SyncerRecord>["columns"];
+
+type SyncerListFetchParams = {
+  pagination?: TablePaginationConfig;
+  searchedColumn?: string;
+  searchText?: string | number;
+  sortField?: string;
+  sortOrder?: string | null;
+  type?: string | string[] | null;
+};
+
+// BaseListPage 仍是 legacy JS；本 change 只声明当前列表页实际使用到的继承边界。
+type LegacyBaseListPageCompat = React.Component<SyncerListPageProps, SyncerListPageState> & {
+  getColumnSearchProps: (dataIndex: string, customRender?: unknown) => Record<string, unknown>;
+  getTablePaginationProps: (overrides?: Record<string, unknown>) => TablePaginationConfig;
+  handleTableChange: NonNullable<TableProps<SyncerRecord>["onChange"]>;
+};
+
+const TypedBaseListPage = BaseListPage as unknown as {
+  new(props: SyncerListPageProps): LegacyBaseListPageCompat;
+};
+
+function t(key: string, defaultValue = key): string {
+  const translated = i18next.t(key, {defaultValue}) as unknown;
+  return typeof translated === "string" ? translated : defaultValue;
+}
+
+function normalizeTypeFilter(typeFilter?: string | string[] | null): string | undefined {
+  if (Array.isArray(typeFilter)) {
+    return typeFilter.join(",");
+  }
+  return typeFilter || undefined;
+}
+
+class SyncerListPage extends TypedBaseListPage {
+  newSyncer(): SyncerRecord {
     const randomName = Setting.getRandomName();
     const organizationName = Setting.getRequestOrganization(this.props.account);
     return {
@@ -48,72 +106,73 @@ class SyncerListPage extends BaseListPage {
     };
   }
 
-  addSyncer() {
+  addSyncer(): void {
     const newSyncer = this.newSyncer();
     SyncerBackend.addSyncer(newSyncer)
       .then((res) => {
         if (res.status === "ok") {
           this.props.history.push({pathname: `/syncers/${newSyncer.name}`, mode: "add"});
-          Setting.showMessage("success", i18next.t("general:Successfully added"));
+          Setting.showMessage("success", t("general:Successfully added"));
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to add")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  deleteSyncer(i) {
+  deleteSyncer(i: number): void {
     SyncerBackend.deleteSyncer(this.state.data[i])
       .then((res) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully deleted"));
+          Setting.showMessage("success", t("general:Successfully deleted"));
+          const current = this.state.pagination.current || 1;
           this.fetch({
             pagination: {
               ...this.state.pagination,
-              current: this.state.pagination.current > 1 && this.state.data.length === 1 ? this.state.pagination.current - 1 : this.state.pagination.current,
+              current: current > 1 && this.state.data.length === 1 ? current - 1 : current,
             },
           });
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  runSyncer(i) {
+  runSyncer(i: number): void {
     this.setState({loading: true});
-    SyncerBackend.runSyncer("admin", this.state.data[i].name)
+    SyncerBackend.runSyncer("admin", this.state.data[i].name || "")
       .then((res) => {
         if (res.status === "ok") {
           this.setState({loading: false});
-          Setting.showMessage("success", i18next.t("general:Successfully synced"));
+          Setting.showMessage("success", t("general:Successfully synced"));
         } else {
           this.setState({loading: false});
-          Setting.showMessage("error", `${i18next.t("general:Failed to sync")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to sync")}: ${res.msg}`);
         }
       }
       )
       .catch(error => {
         this.setState({loading: false});
-        Setting.showMessage("error", `${i18next.t("general:Failed to sync")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to sync")}: ${error}`);
       });
   }
 
-  renderTable(syncers) {
-    const columns = [
+  renderTable(syncers: SyncerRecord[]): React.ReactNode {
+    const columns: SyncerListColumns = [
       {
-        title: i18next.t("general:Name"),
+        title: t("general:Name"),
         dataIndex: "name",
         key: "name",
         width: "150px",
         fixed: "left",
         sorter: true,
         ...this.getColumnSearchProps("name"),
-        render: (text, record, index) => {
+        render: (text: string) => {
           return (
             <Link to={`/syncers/${text}`}>
               {text}
@@ -122,13 +181,13 @@ class SyncerListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Organization"),
+        title: t("general:Organization"),
         dataIndex: "organization",
         key: "organization",
         width: "120px",
         sorter: true,
         ...this.getColumnSearchProps("organization"),
-        render: (text, record, index) => {
+        render: (text: string) => {
           return (
             <Link to={`/organizations/${text}`}>
               {text}
@@ -137,17 +196,17 @@ class SyncerListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Created time"),
+        title: t("general:Created time"),
         dataIndex: "createdTime",
         key: "createdTime",
         width: "160px",
         sorter: true,
-        render: (text, record, index) => {
+        render: (text: string) => {
           return Setting.getFormattedDate(text);
         },
       },
       {
-        title: i18next.t("general:Type"),
+        title: t("general:Type"),
         dataIndex: "type",
         key: "type",
         width: "100px",
@@ -159,14 +218,14 @@ class SyncerListPage extends BaseListPage {
         ],
       },
       {
-        title: i18next.t("syncer:Database type"),
+        title: t("syncer:Database type"),
         dataIndex: "databaseType",
         key: "databaseType",
         width: "130px",
-        sorter: (a, b) => a.databaseType.localeCompare(b.databaseType),
+        sorter: (a, b) => String(a.databaseType || "").localeCompare(String(b.databaseType || "")),
       },
       {
-        title: i18next.t("provider:Host"),
+        title: t("provider:Host"),
         dataIndex: "host",
         key: "host",
         width: "120px",
@@ -174,7 +233,7 @@ class SyncerListPage extends BaseListPage {
         ...this.getColumnSearchProps("host"),
       },
       {
-        title: i18next.t("provider:Port"),
+        title: t("provider:Port"),
         dataIndex: "port",
         key: "port",
         width: "100px",
@@ -182,7 +241,7 @@ class SyncerListPage extends BaseListPage {
         ...this.getColumnSearchProps("port"),
       },
       {
-        title: i18next.t("general:User"),
+        title: t("general:User"),
         dataIndex: "user",
         key: "user",
         width: "120px",
@@ -190,7 +249,7 @@ class SyncerListPage extends BaseListPage {
         ...this.getColumnSearchProps("user"),
       },
       {
-        title: i18next.t("general:Password"),
+        title: t("general:Password"),
         dataIndex: "password",
         key: "password",
         width: "120px",
@@ -198,21 +257,21 @@ class SyncerListPage extends BaseListPage {
         ...this.getColumnSearchProps("password"),
       },
       {
-        title: i18next.t("syncer:Database"),
+        title: t("syncer:Database"),
         dataIndex: "database",
         key: "database",
         width: "120px",
         sorter: true,
       },
       {
-        title: i18next.t("syncer:Table"),
+        title: t("syncer:Table"),
         dataIndex: "table",
         key: "table",
         width: "120px",
         sorter: true,
       },
       {
-        title: i18next.t("syncer:Sync interval"),
+        title: t("syncer:Sync interval"),
         dataIndex: "syncInterval",
         key: "syncInterval",
         width: "140px",
@@ -220,30 +279,30 @@ class SyncerListPage extends BaseListPage {
         ...this.getColumnSearchProps("syncInterval"),
       },
       {
-        title: i18next.t("general:Is enabled"),
+        title: t("general:Is enabled"),
         dataIndex: "isEnabled",
         key: "isEnabled",
         width: "120px",
         sorter: true,
-        render: (text, record, index) => {
+        render: (text: boolean) => {
           return (
-            <Switch disabled checkedChildren={i18next.t("general:ON")} unCheckedChildren={i18next.t("general:OFF")} checked={text} />
+            <Switch disabled checkedChildren={t("general:ON")} unCheckedChildren={t("general:OFF")} checked={text} />
           );
         },
       },
       {
-        title: i18next.t("general:Action"),
+        title: t("general:Action"),
         dataIndex: "",
         key: "op",
         width: "240px",
-        fixed: (Setting.isMobile()) ? "false" : "right",
-        render: (text, record, index) => {
+        fixed: Setting.isMobile() ? false : "right",
+        render: (_text: unknown, record: SyncerRecord, index: number) => {
           return (
             <div>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.runSyncer(index)}>{i18next.t("general:Sync")}</Button>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} onClick={() => this.props.history.push(`/syncers/${record.name}`)}>{i18next.t("general:Edit")}</Button>
+              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.runSyncer(index)}>{t("general:Sync")}</Button>
+              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} onClick={() => this.props.history.push(`/syncers/${record.name || ""}`)}>{t("general:Edit")}</Button>
               <PopconfirmModal
-                title={i18next.t("general:Sure to delete") + `: ${record.name} ?`}
+                title={t("general:Sure to delete") + `: ${record.name || ""} ?`}
                 onConfirm={() => this.deleteSyncer(index)}
               >
               </PopconfirmModal>
@@ -260,8 +319,8 @@ class SyncerListPage extends BaseListPage {
         <Table scroll={{x: "max-content"}} columns={columns} dataSource={syncers} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
           title={() => (
             <div>
-              {i18next.t("general:Syncers")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button type="primary" size="small" onClick={this.addSyncer.bind(this)}>{i18next.t("general:Add")}</Button>
+              {t("general:Syncers")}&nbsp;&nbsp;&nbsp;&nbsp;
+              <Button type="primary" size="small" onClick={this.addSyncer.bind(this)}>{t("general:Add")}</Button>
             </div>
           )}
           loading={this.state.loading}
@@ -271,25 +330,26 @@ class SyncerListPage extends BaseListPage {
     );
   }
 
-  fetch = (params = {}) => {
+  fetch = (params: SyncerListFetchParams = {}): void => {
     let field = params.searchedColumn, value = params.searchText;
     const sortField = params.sortField, sortOrder = params.sortOrder;
     if (params.type !== undefined && params.type !== null) {
       field = "type";
-      value = params.type;
+      value = normalizeTypeFilter(params.type);
     }
     this.setState({loading: true});
-    SyncerBackend.getSyncers("admin", Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
+    const pagination = params.pagination || this.state.pagination;
+    SyncerBackend.getSyncers("admin", Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), pagination.current, pagination.pageSize, field, value, sortField, sortOrder)
       .then((res) => {
         this.setState({
           loading: false,
         });
         if (res.status === "ok") {
           this.setState({
-            data: res.data,
+            data: res.data || [],
             pagination: {
-              ...params.pagination,
-              total: res.data2,
+              ...pagination,
+              total: typeof res.data2 === "number" ? res.data2 : typeof res.data2 === "string" ? Number(res.data2) : pagination.total,
             },
             searchText: params.searchText,
             searchedColumn: params.searchedColumn,

@@ -55,6 +55,13 @@ Admin 前端后续新增 React 组件 SHALL 默认使用 `.tsx`；新增共享�
 - **AND** 迁移 SHALL 保持 `/organization-sync-api-keys` 路由、权限、表格列、创建/轮换/禁用/删除操作、一次性明文展示和后端 API 契约
 - **AND** 迁移 SHALL NOT 要求归档或重写独立的 `add-organization-sync-api-keys` 功能 change
 
+#### Scenario: 同步器列表页迁移
+- **WHEN** 后续 change 触碰身份源菜单下的同步器列表页
+- **THEN** `SyncerListPage` SHOULD 迁移为 `.tsx` 并使用明确局部类型描述 props、state、同步器记录、列表 fetch 参数和表格列
+- **AND** `SyncerBackend` SHOULD 迁移为 `.ts` 并导出列表页可复用的同步器记录和响应类型
+- **AND** 迁移 SHALL 保持 `/syncers` 路由、权限、组织筛选、表格列、分页筛选排序、新增、删除、运行同步和后端 API 契约
+- **AND** 迁移 SHALL NOT 要求同一 change 迁移 `SyncerEditPage`、`SyncerTableColumnTable` 或同步器编辑表单
+
 #### Scenario: TypeScript migration is validated
 - **WHEN** identity source menu React components are migrated to TSX
 - **THEN** the incremental TypeScript gate, `yarn typecheck`, focused Jest tests, and build or equivalent import-boundary validation SHALL pass for the touched TSX and JS coexistence paths
