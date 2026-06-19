@@ -20,10 +20,97 @@ import {getFeishuEndpointContextText} from "./organizationSync/FeishuOrganizatio
 
 const {Text} = Typography;
 const syncRunPollIntervalMs = 3000;
-const runStatisticTextStyle = {fontVariantNumeric: "tabular-nums"};
-const nowrapHeaderCell = {style: {whiteSpace: "nowrap"}};
+const runStatisticTextStyle: React.CSSProperties = {fontVariantNumeric: "tabular-nums"};
+const nowrapHeaderCell: React.ThHTMLAttributes<HTMLElement> = {style: {whiteSpace: "nowrap"}};
 
-const diagnosticStageLabels = {
+type LabelMap = Record<string, string>;
+type FeishuDiffCounts = FeishuOrganizationSyncBackend.FeishuDiffCounts;
+type FeishuDryRunHistoryRecord = FeishuOrganizationSyncBackend.FeishuDryRunHistoryRecord;
+type FeishuDryRunPreviewResult = FeishuOrganizationSyncBackend.FeishuDryRunPreviewResult;
+type FeishuHandoffAcceptanceChecklist = FeishuOrganizationSyncBackend.FeishuHandoffAcceptanceChecklist;
+type FeishuHandoffCounts = FeishuOrganizationSyncBackend.FeishuHandoffCounts;
+type FeishuHandoffEvidence = FeishuOrganizationSyncBackend.FeishuHandoffEvidence;
+type FeishuOrganizationSyncConfig = FeishuOrganizationSyncBackend.FeishuOrganizationSyncConfig;
+type FeishuOrganizationSyncRunRecord = FeishuOrganizationSyncBackend.FeishuOrganizationSyncRunRecord;
+type FeishuUserBindingConflictCounts = FeishuOrganizationSyncBackend.FeishuUserBindingConflictCounts;
+type FeishuUserBindingConflictIssue = FeishuOrganizationSyncBackend.FeishuUserBindingConflictIssue;
+type FeishuUserBindingConflictSummary = FeishuOrganizationSyncBackend.FeishuUserBindingConflictSummary;
+
+interface FeishuOrganizationSyncPageAccount {
+  owner?: string;
+  [key: string]: unknown;
+}
+
+interface FeishuOrganizationSyncPageProps {
+  account?: FeishuOrganizationSyncPageAccount;
+}
+
+interface FeishuTablePagination {
+  current?: number;
+  pageSize?: number;
+  total?: number;
+  showQuickJumper?: unknown;
+  showSizeChanger?: unknown;
+}
+
+interface FeishuRefreshRunsOptions {
+  refreshConfig?: boolean;
+  pagination?: FeishuTablePagination;
+}
+
+interface HandoffAcceptanceRenderOptions {
+  compact?: boolean;
+  showAuditDetails?: boolean;
+}
+
+interface HandoffCountsRenderOptions {
+  compact?: boolean;
+}
+
+interface BindingLinkage {
+  id?: string;
+}
+
+type BindingDiagnosticsPayload = FeishuUserBindingConflictSummary | FeishuUserBindingConflictIssue | null;
+
+interface FeishuOrganizationSyncPageState {
+  organization: string;
+  config: FeishuOrganizationSyncConfig | null;
+  runs: FeishuOrganizationSyncRunRecord[];
+  runCount: number;
+  pagination: FeishuTablePagination;
+  loading: boolean;
+  lastRunsRefreshAt: string;
+  runRefreshError: string;
+  saving: boolean;
+  testing: boolean;
+  previewing: boolean;
+  syncing: boolean;
+  testResult: Record<string, unknown> | null;
+  previewResult: FeishuDryRunPreviewResult | null;
+  previewError: string;
+  dryRunHistories: FeishuDryRunHistoryRecord[];
+  dryRunHistoryLoading: boolean;
+  dryRunHistoryError: string;
+  dryRunHistoryOpen: boolean;
+  dryRunHistoryDetail: FeishuDryRunHistoryRecord | null;
+  dryRunHistoryDetailOpen: boolean;
+  dryRunHistoryDetailLoading: boolean;
+  dryRunHistoryDetailError: string;
+  bindingDiagnostics: FeishuUserBindingConflictSummary | null;
+  bindingDiagnosticsLoading: boolean;
+  bindingDiagnosticsError: string;
+  bindingDiagnosticsIssuesOpen: boolean;
+  bindingDiagnosticsDetail: FeishuUserBindingConflictIssue | null;
+  bindingDiagnosticsDetailOpen: boolean;
+  handoffEvidence: FeishuHandoffEvidence | null;
+  handoffEvidenceLoading: boolean;
+  handoffEvidenceError: string;
+  handoffEvidenceSourceType: string;
+  handoffEvidenceDetailsOpen: boolean;
+}
+
+const diagnosticStageLabels: LabelMap = {
   config_validation: "配置校验",
   tenant_token: "租户 token",
   department_fetch: "部门拉取",
@@ -36,7 +123,7 @@ const diagnosticStageLabels = {
   scheduler: "调度",
   unknown: "未知",
 };
-const diagnosticCategoryLabels = {
+const diagnosticCategoryLabels: LabelMap = {
   configuration: "配置",
   credentials: "凭证",
   permission: "权限",
@@ -47,7 +134,7 @@ const diagnosticCategoryLabels = {
   partial_sync: "部分同步",
   unknown: "未知",
 };
-const diagnosticActionLabels = {
+const diagnosticActionLabels: LabelMap = {
   fix_credentials: "修凭证",
   grant_contact_scope: "授权通讯录",
   wait_rate_limit: "等限流",
@@ -56,67 +143,67 @@ const diagnosticActionLabels = {
   manual_review: "人工确认",
   unknown: "待确认",
 };
-const diagnosticRetryLabels = {
+const diagnosticRetryLabels: LabelMap = {
   safe_retry: "可重试",
   wait_rate_limit: "等待限流",
   not_ready: "先处理",
   unknown: "待确认",
 };
-const bindingRiskLabels = {
+const bindingRiskLabels: LabelMap = {
   none: "无风险",
   low: "低",
   medium: "中",
   high: "高",
   critical: "严重",
 };
-const bindingStatusLabels = {
+const bindingStatusLabels: LabelMap = {
   disabled: "未启用",
   empty: "无数据",
   ok: "正常",
   warning: "需关注",
   blocked: "阻断",
 };
-const bindingIssueTypeLabels = {
+const bindingIssueTypeLabels: LabelMap = {
   duplicate_user_id_binding: "user_id 多用户",
   local_user_multi_tenant_binding: "本地用户多租户",
   legacy_identifier_split: "历史标识分裂",
   missing_tenant_key: "缺少 tenant_key",
   endpoint_mode_mismatch: "Endpoint 不一致",
 };
-const bindingActionLabels = {
+const bindingActionLabels: LabelMap = {
   inspect_mapping: "检查映射",
   confirm_primary_user: "确认主账号",
   backfill_tenant_key: "补 tenant_key",
   align_endpoint_mode: "对齐 endpoint",
   no_action: "无需处理",
 };
-const handoffReadinessLabels = {
+const handoffReadinessLabels: LabelMap = {
   ready: "可交接",
   blocked: "阻断",
   running: "同步中",
   no_run: "无记录",
   unsupported: "不可用",
 };
-const handoffSourceTypeLabels = {
+const handoffSourceTypeLabels: LabelMap = {
   latest: "最近证据",
   run: "最近同步",
   dry_run_history: "最近 Dry-run",
 };
-const handoffAcceptanceStatusLabels = {
+const handoffAcceptanceStatusLabels: LabelMap = {
   passed: "通过",
   needs_review: "待复核",
   blocked: "阻断",
   missing: "缺失",
   cannot_infer: "无法推断",
 };
-const handoffAcceptanceStatusColors = {
+const handoffAcceptanceStatusColors: LabelMap = {
   passed: "green",
   needs_review: "gold",
   blocked: "red",
   missing: "orange",
   cannot_infer: "blue",
 };
-const handoffActionLabels = {
+const handoffActionLabels: LabelMap = {
   configure_feishu_sync: "配置飞书同步",
   resolve_binding_conflicts: "处理绑定冲突",
   review_blocked_reasons: "复核阻断原因",
@@ -134,7 +221,7 @@ const handoffActionLabels = {
   wait_sync_completion: "等待同步完成",
   refresh_handoff_evidence: "刷新交接资料",
 };
-const handoffEvidenceAliasLabels = {
+const handoffEvidenceAliasLabels: LabelMap = {
   live_contact_v3_credentials: "飞书通讯录权限需真实验证",
   gateway_projection_consumption: "Gateway 消费需下游验收",
   insight_acceptance: "Insight 验收需下游确认",
@@ -143,13 +230,13 @@ const handoffEvidenceAliasLabels = {
   provider_truth: "飞书租户真值需外部验证",
   sync_full_success: "完整同步成功需运行态验证",
 };
-const handoffChecklistItemLabels = {
+const handoffChecklistItemLabels: LabelMap = {
   redaction: "脱敏检查",
   handoff_readiness: "交接就绪",
   admin_local_metadata: "Admin 本地元数据",
   external_owner_required: "外部系统确认",
 };
-const handoffBlockedReasonLabels = {
+const handoffBlockedReasonLabels: LabelMap = {
   binding_conflict_blocked: "存在绑定冲突",
   sync_run_failed: "最近同步失败",
   dry_run_failed: "最近预览失败",
@@ -160,7 +247,7 @@ const handoffBlockedReasonLabels = {
   source_connection_missing: "同步连接缺失",
   config_disabled: "同步配置未启用",
 };
-const dryRunReasonLabels = {
+const dryRunReasonLabels: LabelMap = {
   duplicate_external_identifier: "外部标识重复",
   missing_department_identifier: "部门标识缺失",
   missing_parent_department: "上级部门未返回",
@@ -174,8 +261,11 @@ const dryRunReasonLabels = {
   runtime_authorization_required: "需要运行态授权",
 };
 
-class FeishuOrganizationSyncPage extends React.Component {
-  constructor(props) {
+class FeishuOrganizationSyncPage extends React.Component<FeishuOrganizationSyncPageProps, FeishuOrganizationSyncPageState> {
+  private runRefreshTimer: ReturnType<typeof setTimeout> | null;
+  private isUnmounted: boolean;
+
+  constructor(props: FeishuOrganizationSyncPageProps) {
     super(props);
     this.runRefreshTimer = null;
     this.isUnmounted = false;
@@ -237,35 +327,35 @@ class FeishuOrganizationSyncPage extends React.Component {
     }
   }
 
-  getAccountOrganization(account) {
+  getAccountOrganization(account?: FeishuOrganizationSyncPageAccount): string {
     if (!account?.owner) {
       return "";
     }
     return Setting.getRequestOrganization(account) || account.owner;
   }
 
-  clearRunRefreshTimer() {
+  clearRunRefreshTimer(): void {
     if (this.runRefreshTimer !== null) {
       clearTimeout(this.runRefreshTimer);
       this.runRefreshTimer = null;
     }
   }
 
-  hasRunningRuns(runs) {
+  hasRunningRuns(runs: FeishuOrganizationSyncRunRecord[] = []): boolean {
     return (runs || []).some(run => run?.status === "running");
   }
 
-  scheduleRunRefresh(organization) {
+  scheduleRunRefresh(organization: string): void {
     if (!organization || this.runRefreshTimer !== null) {
       return;
     }
     this.runRefreshTimer = setTimeout(() => {
       this.runRefreshTimer = null;
-      this.refreshRuns(organization, false);
+      this.refreshRuns(organization);
     }, syncRunPollIntervalMs);
   }
 
-  syncRunRefreshLoop(organization, runs) {
+  syncRunRefreshLoop(organization: string, runs: FeishuOrganizationSyncRunRecord[]): void {
     if (this.state.organization !== organization) {
       this.clearRunRefreshTimer();
       return;
@@ -277,12 +367,12 @@ class FeishuOrganizationSyncPage extends React.Component {
     this.clearRunRefreshTimer();
   }
 
-  refreshRuns(organization, options = {}) {
+  refreshRuns(organization: string, options: FeishuRefreshRunsOptions = {}): Promise<void> {
     if (!organization) {
       return Promise.resolve();
     }
     const {refreshConfig = false, pagination = this.state.pagination} = options;
-    const nextPagination = getDefaultTablePagination(pagination);
+    const nextPagination = getDefaultTablePagination(pagination) as FeishuTablePagination;
 
     this.clearRunRefreshTimer();
     this.setState({loading: true});
@@ -313,7 +403,7 @@ class FeishuOrganizationSyncPage extends React.Component {
       if (this.isUnmounted || this.state.organization !== organization) {
         return;
       }
-      const nextState = {loading: false};
+      const nextState: Partial<FeishuOrganizationSyncPageState> = {loading: false};
       if (configRes !== null) {
         nextState.config = this.normalizeConfig(organization, configRes?.data?.config);
         nextState.testResult = null;
@@ -324,7 +414,7 @@ class FeishuOrganizationSyncPage extends React.Component {
         nextState.runs = runsRes.data || [];
         nextState.runCount = runsRes.data2 || 0;
         nextState.pagination = {...nextPagination, total: runsRes.data2 || 0};
-        nextState.lastRunsRefreshAt = Setting.getFormattedDate(new Date().toISOString());
+        nextState.lastRunsRefreshAt = Setting.getFormattedDate(new Date().toISOString()) || "";
         nextState.runRefreshError = "";
       } else {
         nextState.runRefreshError = "同步记录刷新失败，请手动刷新重试。";
@@ -349,7 +439,7 @@ class FeishuOrganizationSyncPage extends React.Component {
       } else {
         nextState.handoffEvidenceError = "交接资料刷新失败，请手动刷新重试。";
       }
-      this.setState(nextState, () => this.syncRunRefreshLoop(organization, nextState.runs || this.state.runs));
+      this.setState(nextState as Pick<FeishuOrganizationSyncPageState, keyof FeishuOrganizationSyncPageState>, () => this.syncRunRefreshLoop(organization, nextState.runs || this.state.runs));
     }).catch(error => {
       this.clearRunRefreshTimer();
       if (this.isUnmounted || this.state.organization !== organization) {
@@ -360,7 +450,7 @@ class FeishuOrganizationSyncPage extends React.Component {
     });
   }
 
-  refreshDryRunHistory(organization = this.state.organization) {
+  refreshDryRunHistory(organization = this.state.organization): Promise<void> {
     if (!organization) {
       return Promise.resolve();
     }
@@ -383,7 +473,7 @@ class FeishuOrganizationSyncPage extends React.Component {
       });
   }
 
-  refreshBindingDiagnostics(organization = this.state.organization) {
+  refreshBindingDiagnostics(organization = this.state.organization): Promise<void> {
     if (!organization) {
       return Promise.resolve();
     }
@@ -406,7 +496,7 @@ class FeishuOrganizationSyncPage extends React.Component {
       });
   }
 
-  refreshHandoffEvidence(organization = this.state.organization, sourceType = this.state.handoffEvidenceSourceType) {
+  refreshHandoffEvidence(organization = this.state.organization, sourceType = this.state.handoffEvidenceSourceType): Promise<void> {
     if (!organization) {
       return Promise.resolve();
     }
@@ -429,13 +519,13 @@ class FeishuOrganizationSyncPage extends React.Component {
       });
   }
 
-  refresh(organization) {
+  refresh(organization: string): void {
     if (organization) {
       this.refreshRuns(organization, {refreshConfig: true, pagination: getDefaultTablePagination()}).catch(() => {});
     }
   }
 
-  normalizeConfig(organization, config) {
+  normalizeConfig(organization: string, config?: FeishuOrganizationSyncConfig | null): FeishuOrganizationSyncConfig {
     return {
       owner: organization,
       name: "feishu-organization-sync",
@@ -453,11 +543,12 @@ class FeishuOrganizationSyncPage extends React.Component {
     };
   }
 
-  updateConfigField(key, value) {
-    this.setState({config: {...this.state.config, [key]: value}});
+  updateConfigField(key: string, value: unknown): void {
+    const config = this.normalizeConfig(this.state.organization, this.state.config);
+    this.setState({config: {...config, [key]: value}});
   }
 
-  changeOrganization(organization) {
+  changeOrganization(organization: string): void {
     this.clearRunRefreshTimer();
     this.setState({
       organization,
@@ -514,11 +605,11 @@ class FeishuOrganizationSyncPage extends React.Component {
         this.setState({testing: false});
         if (res.status === "ok") {
           const tenantKey = `${res.data?.tenantKey || ""}`.trim();
-          const nextState = {testResult: res.data};
           if (tenantKey !== "") {
-            nextState.config = {...this.state.config, tenantKey};
+            this.setState({testResult: res.data || null, config: {...this.normalizeConfig(this.state.organization, this.state.config), tenantKey}});
+          } else {
+            this.setState({testResult: res.data || null});
           }
-          this.setState(nextState);
           Setting.showMessage("success", "飞书通讯录连接测试通过");
         } else {
           Setting.showMessage("error", `连接测试失败：${res.msg}`);
@@ -535,7 +626,7 @@ class FeishuOrganizationSyncPage extends React.Component {
       .then(res => {
         this.setState({previewing: false});
         if (res.status === "ok") {
-          this.setState({previewResult: res.data, previewError: ""});
+          this.setState({previewResult: res.data || null, previewError: ""});
           this.refreshDryRunHistory(this.state.organization).catch(() => {});
           this.refreshBindingDiagnostics(this.state.organization).catch(() => {});
           if (res.data?.status === "failed") {
@@ -571,7 +662,7 @@ class FeishuOrganizationSyncPage extends React.Component {
       });
   }
 
-  formatPreviewCounts(counts = {}) {
+  formatPreviewCounts(counts: FeishuDiffCounts = {}) {
     const parts = [
       `新增 ${counts.toCreate || 0}`,
       `更新 ${counts.toUpdate || 0}`,
@@ -586,7 +677,7 @@ class FeishuOrganizationSyncPage extends React.Component {
     return parts.join(" / ");
   }
 
-  renderPreviewReasonCounts(reasonCounts) {
+  renderPreviewReasonCounts(reasonCounts?: Record<string, number>) {
     const entries = Object.entries(reasonCounts || {}).filter(([, value]) => Number(value || 0) > 0);
     if (entries.length === 0) {
       return <Text type="secondary">无风险原因计数</Text>;
@@ -598,28 +689,28 @@ class FeishuOrganizationSyncPage extends React.Component {
     );
   }
 
-  formatDryRunDiff(record = {}) {
+  formatDryRunDiff(record: FeishuDryRunHistoryRecord = {}) {
     return `部 ${record.departmentToCreate || 0}/${record.departmentToUpdate || 0}/${record.departmentToSoftDisable || 0} · 人 ${record.userToCreate || 0}/${record.userToUpdate || 0}/${record.userToSoftDisable || 0} · 关系 ${record.membershipToCreate || 0}/${record.membershipToUpdate || 0}/${record.membershipToSoftDisable || 0}`;
   }
 
-  getDryRunSourceAlias(record = {}) {
+  getDryRunSourceAlias(record: FeishuDryRunHistoryRecord = {}) {
     return [record.appAlias, record.tenantAlias].filter(Boolean).join(" / ") || "-";
   }
 
-  openDryRunHistoryDetail(record) {
+  openDryRunHistoryDetail(record: FeishuDryRunHistoryRecord) {
     this.setState({
       dryRunHistoryDetailOpen: true,
       dryRunHistoryDetailLoading: true,
       dryRunHistoryDetail: record,
       dryRunHistoryDetailError: "",
     });
-    FeishuOrganizationSyncBackend.getFeishuOrganizationSyncDryRunHistory(this.state.organization, record.name)
+    FeishuOrganizationSyncBackend.getFeishuOrganizationSyncDryRunHistory(this.state.organization, record.name || "")
       .then(res => {
         if (this.isUnmounted) {
           return;
         }
         if (res.status === "ok") {
-          this.setState({dryRunHistoryDetailLoading: false, dryRunHistoryDetail: res.data, dryRunHistoryDetailError: ""});
+          this.setState({dryRunHistoryDetailLoading: false, dryRunHistoryDetail: res.data || null, dryRunHistoryDetailError: ""});
         } else {
           this.setState({dryRunHistoryDetailLoading: false, dryRunHistoryDetailError: res.msg || "Dry-run 详情加载失败"});
         }
@@ -631,29 +722,33 @@ class FeishuOrganizationSyncPage extends React.Component {
       });
   }
 
-  getBindingRiskTag(riskLevel) {
-    const colorMap = {none: "green", low: "lime", medium: "orange", high: "volcano", critical: "red"};
-    return <Tag color={colorMap[riskLevel] || "default"}>{bindingRiskLabels[riskLevel] || riskLevel || "-"}</Tag>;
+  getBindingRiskTag(riskLevel?: string) {
+    const colorMap: LabelMap = {none: "green", low: "lime", medium: "orange", high: "volcano", critical: "red"};
+    const key = riskLevel || "";
+    return <Tag color={colorMap[key] || "default"}>{bindingRiskLabels[key] || key || "-"}</Tag>;
   }
 
-  getBindingStatusTag(status) {
-    const colorMap = {disabled: "default", empty: "default", ok: "green", warning: "orange", blocked: "red"};
-    return <Tag color={colorMap[status] || "default"}>{bindingStatusLabels[status] || status || "-"}</Tag>;
+  getBindingStatusTag(status?: string) {
+    const colorMap: LabelMap = {disabled: "default", empty: "default", ok: "green", warning: "orange", blocked: "red"};
+    const key = status || "";
+    return <Tag color={colorMap[key] || "default"}>{bindingStatusLabels[key] || key || "-"}</Tag>;
   }
 
-  getBindingIssueTypeLabel(type) {
-    return bindingIssueTypeLabels[type] || type || "-";
+  getBindingIssueTypeLabel(type?: string) {
+    const key = type || "";
+    return bindingIssueTypeLabels[key] || key || "-";
   }
 
-  getBindingActionLabel(action) {
-    return bindingActionLabels[action] || action || "-";
+  getBindingActionLabel(action?: string) {
+    const key = action || "";
+    return bindingActionLabels[key] || key || "-";
   }
 
-  getBindingDiagnosticsJson(payload = this.state.bindingDiagnostics) {
+  getBindingDiagnosticsJson(payload: BindingDiagnosticsPayload = this.state.bindingDiagnostics) {
     return JSON.stringify(payload || {}, null, 2);
   }
 
-  copyBindingDiagnosticsJson(payload) {
+  copyBindingDiagnosticsJson(payload: BindingDiagnosticsPayload): void {
     const text = this.getBindingDiagnosticsJson(payload);
     if (navigator?.clipboard?.writeText) {
       navigator.clipboard.writeText(text)
@@ -670,7 +765,7 @@ class FeishuOrganizationSyncPage extends React.Component {
     Setting.showMessage("success", "已复制脱敏 JSON");
   }
 
-  exportBindingDiagnosticsJson(payload = this.state.bindingDiagnostics) {
+  exportBindingDiagnosticsJson(payload: BindingDiagnosticsPayload = this.state.bindingDiagnostics): void {
     const blob = new Blob([this.getBindingDiagnosticsJson(payload)], {type: "application/json;charset=utf-8"});
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -683,20 +778,21 @@ class FeishuOrganizationSyncPage extends React.Component {
     URL.revokeObjectURL(url);
   }
 
-  getHandoffReadinessTag(readiness) {
-    const colorMap = {ready: "green", blocked: "red", running: "processing", no_run: "default", unsupported: "default"};
-    return <Tag color={colorMap[readiness] || "default"}>{handoffReadinessLabels[readiness] || readiness || "-"}</Tag>;
+  getHandoffReadinessTag(readiness?: string) {
+    const colorMap: LabelMap = {ready: "green", blocked: "red", running: "processing", no_run: "default", unsupported: "default"};
+    const key = readiness || "";
+    return <Tag color={colorMap[key] || "default"}>{handoffReadinessLabels[key] || key || "-"}</Tag>;
   }
 
-  getHandoffEvidenceJson(payload = this.state.handoffEvidence) {
+  getHandoffEvidenceJson(payload: FeishuHandoffEvidence | null = this.state.handoffEvidence) {
     return JSON.stringify(payload || {}, null, 2);
   }
 
-  getHandoffSummaryText(text) {
+  getHandoffSummaryText(text?: string) {
     return (text || "").replace(/交接证据/g, "交接资料");
   }
 
-  copyHandoffEvidenceJson(payload = this.state.handoffEvidence) {
+  copyHandoffEvidenceJson(payload: FeishuHandoffEvidence | null = this.state.handoffEvidence): void {
     const text = this.getHandoffEvidenceJson(payload);
     if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(text)
@@ -713,7 +809,7 @@ class FeishuOrganizationSyncPage extends React.Component {
     Setting.showMessage("success", "已复制交接资料 JSON");
   }
 
-  exportHandoffEvidenceJson(payload = this.state.handoffEvidence) {
+  exportHandoffEvidenceJson(payload: FeishuHandoffEvidence | null = this.state.handoffEvidence): void {
     const blob = new Blob([this.getHandoffEvidenceJson(payload)], {type: "application/json;charset=utf-8"});
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -726,11 +822,11 @@ class FeishuOrganizationSyncPage extends React.Component {
     URL.revokeObjectURL(url);
   }
 
-  getHandoffAcceptanceChecklistJson(payload = this.state.handoffEvidence?.acceptanceChecklist) {
+  getHandoffAcceptanceChecklistJson(payload?: FeishuHandoffAcceptanceChecklist) {
     return JSON.stringify(payload || {}, null, 2);
   }
 
-  copyHandoffAcceptanceChecklistJson(payload = this.state.handoffEvidence?.acceptanceChecklist) {
+  copyHandoffAcceptanceChecklistJson(payload?: FeishuHandoffAcceptanceChecklist): void {
     const text = this.getHandoffAcceptanceChecklistJson(payload);
     if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(text)
@@ -747,7 +843,7 @@ class FeishuOrganizationSyncPage extends React.Component {
     Setting.showMessage("success", "已复制验收清单 JSON");
   }
 
-  exportHandoffAcceptanceChecklistJson(payload = this.state.handoffEvidence?.acceptanceChecklist) {
+  exportHandoffAcceptanceChecklistJson(payload?: FeishuHandoffAcceptanceChecklist): void {
     const blob = new Blob([this.getHandoffAcceptanceChecklistJson(payload)], {type: "application/json;charset=utf-8"});
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -760,8 +856,8 @@ class FeishuOrganizationSyncPage extends React.Component {
     URL.revokeObjectURL(url);
   }
 
-  getHandoffAcceptanceChecklistMarkdown(payload = this.state.handoffEvidence?.acceptanceChecklist) {
-    const checklist = payload || {};
+  getHandoffAcceptanceChecklistMarkdown(payload?: FeishuHandoffAcceptanceChecklist) {
+    const checklist: FeishuHandoffAcceptanceChecklist = payload || {};
     const summary = checklist.summary || {};
     const safeSource = checklist.safeSource || {};
     const lines = [
@@ -789,7 +885,7 @@ class FeishuOrganizationSyncPage extends React.Component {
       ...(checklist.noFallback || ["-"]).map(item => `- ${item}`),
       "",
       "## Items",
-      ...((checklist.items || []).length === 0 ? ["- -"] : checklist.items.map(item => `- ${item.id || "-"}: ${item.status || "-"} / ${item.source || "-"} / ${item.recommendedActionAlias || "-"}`)),
+      ...((checklist.items || []).length === 0 ? ["- -"] : (checklist.items || []).map(item => `- ${item.id || "-"}: ${item.status || "-"} / ${item.source || "-"} / ${item.recommendedActionAlias || "-"}`)),
       "",
       "## Retention And Redaction",
       `- redactionApplied: ${checklist.retention?.redactionApplied ? "true" : "false"}`,
@@ -800,7 +896,7 @@ class FeishuOrganizationSyncPage extends React.Component {
     return lines.join("\n");
   }
 
-  copyHandoffAcceptanceChecklistMarkdown(payload = this.state.handoffEvidence?.acceptanceChecklist) {
+  copyHandoffAcceptanceChecklistMarkdown(payload?: FeishuHandoffAcceptanceChecklist): void {
     const text = this.getHandoffAcceptanceChecklistMarkdown(payload);
     if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(text)
@@ -817,7 +913,7 @@ class FeishuOrganizationSyncPage extends React.Component {
     Setting.showMessage("success", "已复制验收清单 Markdown");
   }
 
-  exportHandoffAcceptanceChecklistMarkdown(payload = this.state.handoffEvidence?.acceptanceChecklist) {
+  exportHandoffAcceptanceChecklistMarkdown(payload?: FeishuHandoffAcceptanceChecklist): void {
     const blob = new Blob([this.getHandoffAcceptanceChecklistMarkdown(payload)], {type: "text/markdown;charset=utf-8"});
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -830,9 +926,9 @@ class FeishuOrganizationSyncPage extends React.Component {
     URL.revokeObjectURL(url);
   }
 
-  renderHandoffCounts(counts = {}, options = {}) {
+  renderHandoffCounts(counts: FeishuHandoffCounts = {}, options: HandoffCountsRenderOptions = {}) {
     const {compact = false} = options;
-    const format = item => `新 ${item?.toCreate || 0} / 更 ${item?.toUpdate || 0} / 软禁 ${item?.toSoftDisable || 0} / 冲突 ${item?.conflict || 0} / 无效 ${item?.invalid || 0}`;
+    const format = (item?: FeishuDiffCounts) => `新 ${item?.toCreate || 0} / 更 ${item?.toUpdate || 0} / 软禁 ${item?.toSoftDisable || 0} / 冲突 ${item?.conflict || 0} / 无效 ${item?.invalid || 0}`;
     const items = [
       <Text key="departments">{`部门：${format(counts.departments)}`}</Text>,
       <Text key="users">{`用户：${format(counts.users)}`}</Text>,
@@ -848,12 +944,13 @@ class FeishuOrganizationSyncPage extends React.Component {
     );
   }
 
-  getHandoffAliasLabel(alias) {
-    return handoffChecklistItemLabels[alias] || handoffActionLabels[alias] || handoffEvidenceAliasLabels[alias] || handoffBlockedReasonLabels[alias] || alias || "-";
+  getHandoffAliasLabel(alias?: string) {
+    const key = alias || "";
+    return handoffChecklistItemLabels[key] || handoffActionLabels[key] || handoffEvidenceAliasLabels[key] || handoffBlockedReasonLabels[key] || key || "-";
   }
 
-  renderHandoffAliasList(items = [], color = "blue") {
-    const normalized = [...new Set((items || []).filter(Boolean))];
+  renderHandoffAliasList(items: string[] = [], color = "blue") {
+    const normalized = Array.from(new Set((items || []).filter(Boolean)));
     if (normalized.length === 0) {
       return <Text type="secondary">无</Text>;
     }
@@ -864,11 +961,12 @@ class FeishuOrganizationSyncPage extends React.Component {
     );
   }
 
-  renderAcceptanceStatusTag(status) {
-    return <Tag color={handoffAcceptanceStatusColors[status] || "default"}>{handoffAcceptanceStatusLabels[status] || status || "-"}</Tag>;
+  renderAcceptanceStatusTag(status?: string) {
+    const key = status || "";
+    return <Tag color={handoffAcceptanceStatusColors[key] || "default"}>{handoffAcceptanceStatusLabels[key] || key || "-"}</Tag>;
   }
 
-  renderHandoffAcceptanceChecklist(checklist, options = {}) {
+  renderHandoffAcceptanceChecklist(checklist?: FeishuHandoffAcceptanceChecklist, options: HandoffAcceptanceRenderOptions = {}) {
     const {compact = false, showAuditDetails = true} = options;
     if (!checklist?.version) {
       return (
@@ -892,7 +990,7 @@ class FeishuOrganizationSyncPage extends React.Component {
           {checklist.executionMode && <Tag color="blue">人工复核模式</Tag>}
           {checklist.manualReviewOnly && <Tag color="gold">仅作验收辅助</Tag>}
           {checklist.retention?.redactionApplied && <Tag color="green">已脱敏</Tag>}
-          {checklist.retention?.retentionDays > 0 && <Tag>{`保留 ${checklist.retention.retentionDays} 天`}</Tag>}
+          {Number(checklist.retention?.retentionDays || 0) > 0 && <Tag>{`保留 ${checklist.retention?.retentionDays || 0} 天`}</Tag>}
         </Space>
         <Space direction="vertical" size={6} style={{width: "100%"}}>
           <Text type="secondary">外部补充材料</Text>
@@ -980,14 +1078,14 @@ class FeishuOrganizationSyncPage extends React.Component {
             {!compact && summary.derivedOnly && <Tag>derived</Tag>}
             {!compact && summary.noFallback && <Tag color="volcano">noFallback</Tag>}
             {!compact && checklist.retention?.redactionApplied && <Tag color="green">{checklist.retention.redactionVersion || "redacted"}</Tag>}
-            {!compact && checklist.retention?.retentionDays > 0 && <Tag>{`retention ${checklist.retention.retentionDays}d`}</Tag>}
+            {!compact && Number(checklist.retention?.retentionDays || 0) > 0 && <Tag>{`retention ${checklist.retention?.retentionDays || 0}d`}</Tag>}
           </Space>
         ) : (
           <Space wrap size={4}>
             <Tag>{`总 ${summary.total || 0}`}</Tag>
             <Tag color="green">{`通过 ${summary.passed || 0}`}</Tag>
             {checklist.retention?.redactionApplied && <Tag color="green">已脱敏</Tag>}
-            {checklist.retention?.retentionDays > 0 && <Tag>{`保留 ${checklist.retention.retentionDays} 天`}</Tag>}
+            {Number(checklist.retention?.retentionDays || 0) > 0 && <Tag>{`保留 ${checklist.retention?.retentionDays || 0} 天`}</Tag>}
           </Space>
         )}
         {compact && showAuditDetails && (
@@ -1009,7 +1107,7 @@ class FeishuOrganizationSyncPage extends React.Component {
         {compact ? (showAuditDetails ? (
           <Collapse
             size="small"
-            destroyOnHidden
+            destroyInactivePanel
             items={[{
               key: "details",
               label: "详细清单和安全别名",
@@ -1021,7 +1119,7 @@ class FeishuOrganizationSyncPage extends React.Component {
     );
   }
 
-  renderHandoffEvidenceDetailsModal(evidence, hasHandoffDetails) {
+  renderHandoffEvidenceDetailsModal(evidence: FeishuHandoffEvidence, hasHandoffDetails: boolean) {
     const blockedReasons = evidence.blockedReasons || [];
     const operatorNextActions = evidence.operatorNextActions || [];
     const cannotInfer = evidence.cannotInfer || [];
@@ -1161,11 +1259,11 @@ class FeishuOrganizationSyncPage extends React.Component {
     );
   }
 
-  openBindingDiagnosticsDetail(issue) {
+  openBindingDiagnosticsDetail(issue: FeishuUserBindingConflictIssue): void {
     this.setState({bindingDiagnosticsDetail: issue, bindingDiagnosticsDetailOpen: true});
   }
 
-  renderBindingCounts(counts = {}) {
+  renderBindingCounts(counts: FeishuUserBindingConflictCounts = {}) {
     const entries = [
       ["总数", counts.total],
       ["user_id 多用户", counts.duplicateUserIdBinding],
@@ -1184,7 +1282,7 @@ class FeishuOrganizationSyncPage extends React.Component {
     );
   }
 
-  renderBindingLinkage(linkage, prefix) {
+  renderBindingLinkage(linkage: BindingLinkage | undefined, prefix: string) {
     if (!linkage?.id) {
       return null;
     }
@@ -1192,24 +1290,24 @@ class FeishuOrganizationSyncPage extends React.Component {
   }
 
   renderBindingDiagnostics() {
-    const diagnostics = this.state.bindingDiagnostics || {};
+    const diagnostics: FeishuUserBindingConflictSummary = this.state.bindingDiagnostics || {};
     const issues = diagnostics.issues || [];
     const hasIssues = issues.length > 0;
     const columns = [
-      {title: "风险", dataIndex: "riskLevel", key: "riskLevel", width: 90, render: risk => this.getBindingRiskTag(risk)},
-      {title: "类型", dataIndex: "type", key: "type", width: 150, render: type => this.getBindingIssueTypeLabel(type)},
-      {title: "摘要", dataIndex: "safeSummary", key: "safeSummary", width: 320, render: text => <Typography.Paragraph style={{marginBottom: 0}} ellipsis={{rows: 2, expandable: true}}>{text || "-"}</Typography.Paragraph>},
-      {title: "样本", dataIndex: "sampleAliases", key: "sampleAliases", width: 210, render: aliases => (
-        <Space size={4} wrap>{(aliases || []).map(alias => <Tag key={alias}>{alias}</Tag>)}</Space>
+      {title: "风险", dataIndex: "riskLevel", key: "riskLevel", width: 90, render: (risk: string) => this.getBindingRiskTag(risk)},
+      {title: "类型", dataIndex: "type", key: "type", width: 150, render: (type: string) => this.getBindingIssueTypeLabel(type)},
+      {title: "摘要", dataIndex: "safeSummary", key: "safeSummary", width: 320, render: (text: string) => <Typography.Paragraph style={{marginBottom: 0}} ellipsis={{rows: 2, expandable: true}}>{text || "-"}</Typography.Paragraph>},
+      {title: "样本", dataIndex: "sampleAliases", key: "sampleAliases", width: 210, render: (aliases: string[] = []) => (
+        <Space size={4} wrap>{(aliases || []).map((alias: string) => <Tag key={alias}>{alias}</Tag>)}</Space>
       )},
-      {title: "建议动作", dataIndex: "recommendedAction", key: "recommendedAction", width: 130, render: action => this.getBindingActionLabel(action)},
-      {title: "关联", key: "linkage", width: 230, render: (_, record) => (
+      {title: "建议动作", dataIndex: "recommendedAction", key: "recommendedAction", width: 130, render: (action: string) => this.getBindingActionLabel(action)},
+      {title: "关联", key: "linkage", width: 230, render: (_: unknown, record: FeishuUserBindingConflictIssue) => (
         <Space size={4} wrap>
           {this.renderBindingLinkage(record.latestRun, "run")}
           {this.renderBindingLinkage(record.latestDryRunHistory, "history")}
         </Space>
       )},
-      {title: "操作", key: "action", width: 90, render: (_, record) => <Button size="small" aria-label={`binding-diagnostics-detail-${record.id}`} onClick={() => this.openBindingDiagnosticsDetail(record)}>详情</Button>},
+      {title: "操作", key: "action", width: 90, render: (_: unknown, record: FeishuUserBindingConflictIssue) => <Button size="small" aria-label={`binding-diagnostics-detail-${record.id}`} onClick={() => this.openBindingDiagnosticsDetail(record)}>详情</Button>},
     ];
     const statusType = diagnostics.status === "blocked" ? "error" : diagnostics.status === "warning" ? "warning" : diagnostics.status === "ok" ? "success" : "info";
     const hasProblem = Boolean(this.state.bindingDiagnosticsError) || diagnostics.status === "blocked" || diagnostics.status === "warning" || hasIssues;
@@ -1219,7 +1317,7 @@ class FeishuOrganizationSyncPage extends React.Component {
           <Row align="middle" justify="space-between" style={{marginBottom: 12}}>
             <Col>
               <Space size={8} wrap>
-                <Text strong>{`身份匹配：${bindingStatusLabels[diagnostics.status] || "待刷新"}`}</Text>
+                <Text strong>{`身份匹配：${bindingStatusLabels[diagnostics.status || ""] || "待刷新"}`}</Text>
                 <Text type="secondary">{diagnostics.safeSummary || "仅展示脱敏绑定风险摘要。"}</Text>
               </Space>
             </Col>
@@ -1304,7 +1402,7 @@ class FeishuOrganizationSyncPage extends React.Component {
   }
 
   renderBindingDiagnosticsDetailDrawer() {
-    const detail = this.state.bindingDiagnosticsDetail || this.state.bindingDiagnostics || {};
+    const detail = (this.state.bindingDiagnosticsDetail || this.state.bindingDiagnostics || {}) as FeishuUserBindingConflictIssue & FeishuUserBindingConflictSummary;
     return (
       <Drawer
         title="绑定诊断详情"
@@ -1341,20 +1439,20 @@ class FeishuOrganizationSyncPage extends React.Component {
 
   renderDryRunHistory() {
     const columns = [
-      {title: "记录 ID", dataIndex: "name", key: "name", width: 180, render: text => <Text style={{wordBreak: "break-all"}}>{text || "-"}</Text>},
-      {title: "状态 / 时间", key: "status", width: 150, render: (_, record) => (
+      {title: "记录 ID", dataIndex: "name", key: "name", width: 180, render: (text: string) => <Text style={{wordBreak: "break-all"}}>{text || "-"}</Text>},
+      {title: "状态 / 时间", key: "status", width: 150, render: (_: unknown, record: FeishuDryRunHistoryRecord) => (
         <Space direction="vertical" size={2}>
           {this.getStatusTag(record.status)}
           <Text type="secondary">{this.formatRunTime(record.createdAt)}</Text>
         </Space>
       )},
-      {title: "影响", key: "impact", width: 220, render: (_, record) => (
+      {title: "影响", key: "impact", width: 220, render: (_: unknown, record: FeishuDryRunHistoryRecord) => (
         <Space direction="vertical" size={2}>
           <Text>{`快照：部 ${record.snapshotDepartmentCount || 0} / 人 ${record.snapshotUserCount || 0} / 关系 ${record.snapshotMembershipCount || 0}`}</Text>
           <Text type="secondary">{this.formatDryRunDiff(record)}</Text>
         </Space>
       )},
-      {title: "诊断摘要", key: "summary", render: (_, record) => (
+      {title: "诊断摘要", key: "summary", render: (_: unknown, record: FeishuDryRunHistoryRecord) => (
         <Space direction="vertical" size={4} style={{width: "100%"}}>
           <Space size={4} wrap>
             {record.diagnosticAlias && <Tag>{dryRunReasonLabels[record.diagnosticAlias] || record.diagnosticAlias}</Tag>}
@@ -1366,7 +1464,7 @@ class FeishuOrganizationSyncPage extends React.Component {
           </Typography.Paragraph>
         </Space>
       )},
-      {title: "操作", key: "action", width: 90, render: (_, record) => <Button size="small" aria-label={`dry-run-history-detail-${record.name}`} onClick={() => this.openDryRunHistoryDetail(record)}>详情</Button>},
+      {title: "操作", key: "action", width: 90, render: (_: unknown, record: FeishuDryRunHistoryRecord) => <Button size="small" aria-label={`dry-run-history-detail-${record.name}`} onClick={() => this.openDryRunHistoryDetail(record)}>详情</Button>},
     ];
     return (
       <>
@@ -1474,40 +1572,45 @@ class FeishuOrganizationSyncPage extends React.Component {
     );
   }
 
-  formatRunTime(text) {
+  formatRunTime(text?: string): string {
     if (!text || String(text).startsWith("0001-01-01")) {
       return "-";
     }
-    return Setting.getFormattedDate(text);
+    return Setting.getFormattedDate(text) || "-";
   }
 
-  getStatusTag(status) {
-    const colorMap = {running: "processing", succeeded: "success", failed: "error", partial: "warning"};
-    const labelMap = {running: "运行中", succeeded: "成功", failed: "失败", partial: "部分成功"};
-    return <Tag color={colorMap[status] || "default"}>{labelMap[status] || status || "-"}</Tag>;
+  getStatusTag(status?: string) {
+    const colorMap: LabelMap = {running: "processing", succeeded: "success", failed: "error", partial: "warning"};
+    const labelMap: LabelMap = {running: "运行中", succeeded: "成功", failed: "失败", partial: "部分成功"};
+    const key = status || "";
+    return <Tag color={colorMap[key] || "default"}>{labelMap[key] || key || "-"}</Tag>;
   }
 
-  getTriggerTag(triggerType) {
-    const colorMap = {manual: "blue", scheduled: "cyan"};
-    const labelMap = {manual: "手动", scheduled: "定时"};
-    return <Tag color={colorMap[triggerType] || "default"}>{labelMap[triggerType] || triggerType || "-"}</Tag>;
+  getTriggerTag(triggerType?: string) {
+    const colorMap: LabelMap = {manual: "blue", scheduled: "cyan"};
+    const labelMap: LabelMap = {manual: "手动", scheduled: "定时"};
+    const key = triggerType || "";
+    return <Tag color={colorMap[key] || "default"}>{labelMap[key] || key || "-"}</Tag>;
   }
 
-  getStageText(stage, status) {
+  getStageText(stage?: string, status?: string) {
     if (status === "succeeded") {
       return "已完成";
     }
-    const labelMap = {fetching: "拉取数据", planning: "计算差异", applying: "应用变更", finalizing: "收尾处理"};
-    return labelMap[stage] || stage || "-";
+    const labelMap: LabelMap = {fetching: "拉取数据", planning: "计算差异", applying: "应用变更", finalizing: "收尾处理"};
+    const key = stage || "";
+    return labelMap[key] || key || "-";
   }
 
-  getDiagnosticLabel(labels, value) {
-    return labels[value] || value || "-";
+  getDiagnosticLabel(labels: LabelMap, value?: string) {
+    const key = value || "";
+    return labels[key] || key || "-";
   }
 
-  getDiagnosticTagColor(kind, value) {
+  getDiagnosticTagColor(kind: "category" | "action", value?: string) {
+    const key = value || "";
     if (kind === "category") {
-      return {
+      const colorMap: LabelMap = {
         configuration: "orange",
         credentials: "red",
         permission: "volcano",
@@ -1517,10 +1620,11 @@ class FeishuOrganizationSyncPage extends React.Component {
         projection: "geekblue",
         partial_sync: "warning",
         unknown: "default",
-      }[value] || "default";
+      };
+      return colorMap[key] || "default";
     }
     if (kind === "action") {
-      return {
+      const colorMap: LabelMap = {
         fix_credentials: "red",
         grant_contact_scope: "volcano",
         wait_rate_limit: "gold",
@@ -1528,12 +1632,13 @@ class FeishuOrganizationSyncPage extends React.Component {
         inspect_projection: "geekblue",
         manual_review: "blue",
         unknown: "default",
-      }[value] || "default";
+      };
+      return colorMap[key] || "default";
     }
     return "default";
   }
 
-  formatDurationMs(durationMs) {
+  formatDurationMs(durationMs?: number) {
     const value = Number(durationMs || 0);
     if (!Number.isFinite(value) || value <= 0) {
       return "-";
@@ -1547,7 +1652,7 @@ class FeishuOrganizationSyncPage extends React.Component {
     return `${seconds} 秒`;
   }
 
-  renderDiagnostics(record) {
+  renderDiagnostics(record: FeishuOrganizationSyncRunRecord) {
     const diagnostics = record?.diagnostics;
     if (!diagnostics) {
       return "-";
@@ -1565,7 +1670,7 @@ class FeishuOrganizationSyncPage extends React.Component {
     );
   }
 
-  renderDiagnosticStats(record) {
+  renderDiagnosticStats(record: FeishuOrganizationSyncRunRecord) {
     const diagnostics = record?.diagnostics;
     const stats = diagnostics?.stats || {};
     const hasStats = diagnostics && ["departmentCount", "userCount", "membershipCount", "disabledCount"].some(key => stats[key] !== undefined);
@@ -1580,11 +1685,11 @@ class FeishuOrganizationSyncPage extends React.Component {
     );
   }
 
-  getRunSafeSummary(record) {
+  getRunSafeSummary(record: FeishuOrganizationSyncRunRecord) {
     return record?.diagnostics?.safeSummary || record?.errorText || "";
   }
 
-  renderRunStatus(record) {
+  renderRunStatus(record: FeishuOrganizationSyncRunRecord) {
     return (
       <Space size={4} wrap>
         {this.getStatusTag(record.status)}
@@ -1592,7 +1697,7 @@ class FeishuOrganizationSyncPage extends React.Component {
     );
   }
 
-  formatImpactCounts(created, updated, disabled) {
+  formatImpactCounts(created?: number, updated?: number, disabled?: number) {
     return (
       <Text style={runStatisticTextStyle}>
         {`新 ${created || 0} / 更 ${updated || 0} / 禁 ${disabled || 0}`}
@@ -1600,7 +1705,7 @@ class FeishuOrganizationSyncPage extends React.Component {
     );
   }
 
-  renderRunErrorSummary(record) {
+  renderRunErrorSummary(record: FeishuOrganizationSyncRunRecord) {
     const summary = this.getRunSafeSummary(record);
     const shouldShowDiagnostics = record?.status && record.status !== "succeeded" && record?.diagnostics;
     if (!summary && !shouldShowDiagnostics) {
@@ -1669,17 +1774,17 @@ class FeishuOrganizationSyncPage extends React.Component {
 
   renderRuns() {
     const columns = [
-      {title: "序号", key: "index", width: 72, align: "center", onHeaderCell: () => nowrapHeaderCell, render: (_, record, index) => this.renderRunIndex(record, index)},
-      {title: "状态", key: "status", width: 110, render: (_, record) => this.renderRunStatus(record)},
-      {title: "触发方式", dataIndex: "triggerType", key: "triggerType", width: 110, render: triggerType => this.getTriggerTag(triggerType)},
-      {title: "阶段", dataIndex: "stage", key: "stage", width: 110, render: (stage, record) => this.getStageText(stage, record.status)},
-      {title: "执行人", dataIndex: "actor", key: "actor", width: 140, ellipsis: true, render: actor => this.renderActor(actor)},
-      {title: "开始时间", dataIndex: "startedAt", key: "startedAt", width: 170, render: text => this.formatRunTime(text)},
-      {title: "结束时间", dataIndex: "finishedAt", key: "finishedAt", width: 170, render: text => this.formatRunTime(text)},
-      {title: "部门", key: "departments", width: 150, render: (_, record) => this.formatImpactCounts(record.departmentCreatedCount, record.departmentUpdatedCount, record.departmentDisabledCount)},
-      {title: "用户", key: "users", width: 150, render: (_, record) => this.formatImpactCounts(record.userCreatedCount, record.userUpdatedCount, record.userDisabledCount)},
-      {title: "关系", key: "memberships", width: 150, render: (_, record) => this.formatImpactCounts(record.membershipCreatedCount, record.membershipUpdatedCount, record.membershipDisabledCount)},
-      {title: "错误摘要", key: "diagnostics", onHeaderCell: () => nowrapHeaderCell, render: (_, record) => this.renderRunErrorSummary(record)},
+      {title: "序号", key: "index", width: 72, align: "center" as const, onHeaderCell: () => nowrapHeaderCell, render: (_: unknown, record: FeishuOrganizationSyncRunRecord, index: number) => this.renderRunIndex(record, index)},
+      {title: "状态", key: "status", width: 110, render: (_: unknown, record: FeishuOrganizationSyncRunRecord) => this.renderRunStatus(record)},
+      {title: "触发方式", dataIndex: "triggerType", key: "triggerType", width: 110, render: (triggerType: string) => this.getTriggerTag(triggerType)},
+      {title: "阶段", dataIndex: "stage", key: "stage", width: 110, render: (stage: string, record: FeishuOrganizationSyncRunRecord) => this.getStageText(stage, record.status)},
+      {title: "执行人", dataIndex: "actor", key: "actor", width: 140, ellipsis: true, render: (actor: string) => this.renderActor(actor)},
+      {title: "开始时间", dataIndex: "startedAt", key: "startedAt", width: 170, render: (text: string) => this.formatRunTime(text)},
+      {title: "结束时间", dataIndex: "finishedAt", key: "finishedAt", width: 170, render: (text: string) => this.formatRunTime(text)},
+      {title: "部门", key: "departments", width: 150, render: (_: unknown, record: FeishuOrganizationSyncRunRecord) => this.formatImpactCounts(record.departmentCreatedCount, record.departmentUpdatedCount, record.departmentDisabledCount)},
+      {title: "用户", key: "users", width: 150, render: (_: unknown, record: FeishuOrganizationSyncRunRecord) => this.formatImpactCounts(record.userCreatedCount, record.userUpdatedCount, record.userDisabledCount)},
+      {title: "关系", key: "memberships", width: 150, render: (_: unknown, record: FeishuOrganizationSyncRunRecord) => this.formatImpactCounts(record.membershipCreatedCount, record.membershipUpdatedCount, record.membershipDisabledCount)},
+      {title: "错误摘要", key: "diagnostics", onHeaderCell: () => nowrapHeaderCell, render: (_: unknown, record: FeishuOrganizationSyncRunRecord) => this.renderRunErrorSummary(record)},
     ];
     return (
       <Table
@@ -1695,13 +1800,13 @@ class FeishuOrganizationSyncPage extends React.Component {
     );
   }
 
-  getRunRowNumber(index) {
+  getRunRowNumber(index: number): number {
     const current = this.state.pagination?.current || 1;
     const pageSize = this.state.pagination?.pageSize || 10;
     return (current - 1) * pageSize + index + 1;
   }
 
-  copyRunId(runId) {
+  copyRunId(runId: string): void {
     if (!runId) {
       return;
     }
@@ -1720,14 +1825,14 @@ class FeishuOrganizationSyncPage extends React.Component {
     Setting.showMessage("success", "已复制运行 ID");
   }
 
-  handleRunIndexKeyDown(event, runId) {
+  handleRunIndexKeyDown(event: React.KeyboardEvent<HTMLElement>, runId: string): void {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       this.copyRunId(runId);
     }
   }
 
-  renderRunIndex(record, index) {
+  renderRunIndex(record: FeishuOrganizationSyncRunRecord, index: number) {
     const runId = record?.name || "";
     return (
       <Tooltip title={runId ? `运行 ID：${runId}，点击复制` : "运行 ID：-"}>
@@ -1744,7 +1849,7 @@ class FeishuOrganizationSyncPage extends React.Component {
     );
   }
 
-  renderActor(actor) {
+  renderActor(actor?: string) {
     const text = actor || "-";
     return (
       <Tooltip title={text}>
@@ -1787,7 +1892,7 @@ class FeishuOrganizationSyncPage extends React.Component {
             <div style={{marginBottom: 8}}>同步目标组织</div>
             <OrganizationSelect
               initValue={this.state.organization}
-              onChange={organization => this.changeOrganization(organization)}
+              onChange={(organization: string) => this.changeOrganization(organization)}
               excludedOrganizations={["built-in"]}
               style={{minWidth: 280, width: "100%"}}
             />
@@ -1859,7 +1964,7 @@ class FeishuOrganizationSyncPage extends React.Component {
         <OrganizationSyncActionBar
           className="organization-sync-action-bar"
           actions={[
-            {key: "save", label: i18next.t("general:Save"), icon: <SaveOutlined />, type: "primary", loading: this.state.saving, onClick: () => this.saveConfig()},
+            {key: "save", label: `${i18next.t("general:Save")}`, icon: <SaveOutlined />, type: "primary", loading: this.state.saving, onClick: () => this.saveConfig()},
             {key: "test", label: "测试连接", icon: <ToolOutlined />, loading: this.state.testing, onClick: () => this.testConfig()},
             {key: "preview", label: "预览影响", icon: <CloudSyncOutlined />, loading: this.state.previewing, disabled: !config.isEnabled, onClick: () => this.previewSyncImpact()},
             {key: "sync", label: hasRunningRuns ? "同步进行中" : "开始全量同步", icon: <PlayCircleOutlined />, loading: this.state.syncing, disabled: !config.isEnabled || hasRunningRuns, onClick: () => this.startSync()},

@@ -97,6 +97,13 @@ Admin Web organization sync pages SHALL migrate from legacy JavaScript toward TS
 - **THEN** the migration SHALL preserve route exports, backend API calls, polling behavior, pagination, secret masking behavior, organization switching, and existing visible user workflows
 - **AND** the migration SHALL NOT require rewriting unrelated legacy JS pages
 
+#### Scenario: 飞书组织同步页面迁移
+- **WHEN** `FeishuOrganizationSyncPage` is migrated to TSX
+- **THEN** the migration SHALL preserve `/feishu-org-sync` routing, configuration form behavior, connection test behavior, dry-run preview/history, user binding conflict diagnostics, handoff evidence display/export, run polling, pagination, copy actions, and safe redaction behavior
+- **AND** `FeishuOrganizationSyncBackend` SHOULD migrate to `.ts` with typed request/response contracts for the endpoints used by the page
+- **AND** the main page test SHOULD migrate to `.test.tsx` without requiring real Feishu/Lark secrets or real Contact v3 calls
+- **AND** the migration SHALL NOT change backend sync objects, API routes, scheduler semantics, provider credentials, or Gateway/Insight behavior
+
 #### Scenario: TypeScript migration is validated
 - **WHEN** the organization sync page migration is ready for review
 - **THEN** `yarn typecheck`, the incremental TypeScript gate, focused Jest tests, and `yarn build` SHALL pass for the touched TS/TSX and coexistence paths
