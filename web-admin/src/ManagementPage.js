@@ -125,12 +125,23 @@ import {buildEnterpriseNavigationGroups, findNavigationSelection} from "./enterp
 import GovernanceTaskCenter from "./GovernanceTaskCenter";
 import AccessWizardPage from "./AccessWizardPage";
 import IdentityEvidenceChainPage from "./IdentityEvidenceChainPage";
+import WorkspaceTabs from "./common/WorkspaceTabs";
+import {
+  areWorkspaceTabsEqual,
+  buildWorkspaceRouteItems,
+  closeWorkspaceTab,
+  normalizeWorkspacePath,
+  openWorkspaceTab,
+  readWorkspaceTabs,
+  saveWorkspaceTabs
+} from "./common/workspaceTabState";
 
 const {Content, Header, Sider} = Layout;
 
 function ManagementPage(props) {
   const [menuVisible, setMenuVisible] = useState(false);
   const [openKeys, setOpenKeys] = useState([]);
+  const [workspaceTabs, setWorkspaceTabs] = useState([]);
   const organization = props.account?.organization;
   const widgetItems = organization?.widgetItems;
 
@@ -316,12 +327,35 @@ function ManagementPage(props) {
   const navigationGroups = getNavigationGroups();
   const navigationSelection = findNavigationSelection(props.uri || window.location.pathname, navigationGroups);
   const sidebarMenuItems = getSidebarMenuItems(navigationGroups);
+  const workspaceRoutes = buildWorkspaceRouteItems(navigationGroups);
+  const workspaceRouteSignature = workspaceRoutes.map(route => `${route.path}:${route.label}`).join("|");
+  const activeWorkspacePath = normalizeWorkspacePath(props.uri || window.location.pathname);
 
   useEffect(() => {
     if (navigationSelection.groupKey) {
       setOpenKeys([navigationSelection.groupKey]);
     }
   }, [navigationSelection.groupKey]);
+
+  useEffect(() => {
+    if (workspaceRoutes.length === 0) {
+      return;
+    }
+
+    setWorkspaceTabs((currentTabs) => {
+      const baseTabs = currentTabs.length > 0 ?
+        currentTabs :
+        readWorkspaceTabs(window.sessionStorage, activeWorkspacePath, workspaceRoutes);
+      const nextTabs = openWorkspaceTab(baseTabs, activeWorkspacePath, workspaceRoutes);
+
+      if (areWorkspaceTabsEqual(currentTabs, nextTabs)) {
+        return currentTabs;
+      }
+
+      saveWorkspaceTabs(window.sessionStorage, nextTabs);
+      return nextTabs;
+    });
+  }, [activeWorkspacePath, navigationSelection.itemKey, workspaceRouteSignature]);
 
   function renderLoginIfNotLoggedIn(component) {
     if (props.account === null) {
@@ -471,6 +505,22 @@ function ManagementPage(props) {
     setMenuVisible(true);
   };
 
+  const navigateWorkspaceTab = (path) => {
+    if (path !== activeWorkspacePath) {
+      props.history.push(path);
+    }
+  };
+
+  const closeWorkspaceTabByPath = (path) => {
+    const result = closeWorkspaceTab(workspaceTabs, path, activeWorkspacePath);
+
+    setWorkspaceTabs(result.tabs);
+    saveWorkspaceTabs(window.sessionStorage, result.tabs);
+    if (result.nextPath !== activeWorkspacePath) {
+      props.history.push(result.nextPath);
+    }
+  };
+
   return (
     <React.Fragment>
       <EnableMfaNotification account={props.account} />
@@ -520,6 +570,15 @@ function ManagementPage(props) {
           </Sider>
         )}
         <Content className="admin-shell-content">
+          {workspaceTabs.length > 0 && (
+            <WorkspaceTabs
+              tabs={workspaceTabs}
+              activePath={activeWorkspacePath}
+              isMobile={Setting.isMobile()}
+              onNavigate={navigateWorkspaceTab}
+              onClose={closeWorkspaceTabByPath}
+            />
+          )}
           {isWithoutCard() ?
             renderRouter() :
             <Card className="content-warp-card">

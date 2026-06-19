@@ -5,6 +5,7 @@ import {
   buildEnterpriseNavigationGroups,
   findNavigationSelection
 } from "./enterpriseNavigation";
+import {buildWorkspaceRouteItems, openWorkspaceTab} from "./common/workspaceTabState";
 import {expectEnterprisePrimaryMenuLabels} from "./enterpriseNavigationLabelRules.testUtils";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
@@ -258,6 +259,23 @@ describe("enterprise identity navigation", () => {
       "/adapters",
       "/enforcers",
     ]);
+  });
+
+  test("uses enterprise navigation labels as route-driven workspace tabs", () => {
+    const groups = buildEnterpriseNavigationGroups({
+      account: localAdminAccount,
+      themeData: {colorPrimary: "#1677ff"},
+    });
+    const routes = buildWorkspaceRouteItems(groups);
+
+    expect(routes.find(route => route.path === "/")?.label).toBe("企业认证总览");
+    expect(routes.find(route => route.path === "/applications")?.label).toBe("应用接入中心");
+    expect(routes.find(route => route.path === "/agents")?.label).toBe("AI Agent 入口");
+
+    const tabs = openWorkspaceTab([], "/agents/built-in/support-agent", routes);
+
+    expect(tabs.map(tab => tab.path)).toEqual(["/", "/agents/built-in/support-agent"]);
+    expect(tabs[1].label).toBe("AI Agent 入口");
   });
 
   test("covers matcher routes, empty state, and hidden admin-only entries", () => {
