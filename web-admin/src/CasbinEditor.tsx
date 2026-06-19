@@ -19,12 +19,42 @@ import {Tabs} from "antd";
 import i18next from "i18next";
 import Editor from "./common/Editor";
 
-const CasbinEditor = ({model, onModelTextChange}) => {
+type CasbinModel = {
+  owner?: string;
+  name?: string;
+  modelText: string;
+};
+
+type CasbinEditorProps = {
+  model: CasbinModel;
+  onModelTextChange: (modelText: string) => void;
+};
+
+type IframeEditorHandle = {
+  getModelText: () => void;
+  updateModelText: (modelText: string) => void;
+};
+
+type IframeEditorProps = {
+  initialModelText: string;
+  onModelTextChange: (modelText: string) => void;
+  style: React.CSSProperties;
+};
+
+type ModelUpdateMessage = {
+  type?: string;
+  modelText?: string;
+};
+
+const TypedIframeEditor = IframeEditor as React.ForwardRefExoticComponent<IframeEditorProps & React.RefAttributes<IframeEditorHandle>>;
+const t = (key: string): string => i18next.t(key) as string;
+
+const CasbinEditor = ({model, onModelTextChange}: CasbinEditorProps) => {
   const [activeKey, setActiveKey] = useState("advanced");
-  const iframeRef = useRef(null);
+  const iframeRef = useRef<IframeEditorHandle | null>(null);
   const [localModelText, setLocalModelText] = useState(model.modelText);
 
-  const handleModelTextChange = useCallback((newModelText) => {
+  const handleModelTextChange = useCallback((newModelText: string) => {
     if (!Setting.builtInObject(model)) {
       setLocalModelText(newModelText);
       onModelTextChange(newModelText);
@@ -32,12 +62,12 @@ const CasbinEditor = ({model, onModelTextChange}) => {
   }, [model, onModelTextChange]);
 
   const syncModelText = useCallback(() => {
-    return new Promise((resolve) => {
+    return new Promise<void>((resolve) => {
       if (activeKey === "advanced" && iframeRef.current) {
-        const handleSyncMessage = (event) => {
+        const handleSyncMessage = (event: MessageEvent<ModelUpdateMessage>) => {
           if (event.data.type === "modelUpdate") {
             window.removeEventListener("message", handleSyncMessage);
-            handleModelTextChange(event.data.modelText);
+            handleModelTextChange(event.data.modelText || "");
             resolve();
           }
         };
@@ -49,7 +79,7 @@ const CasbinEditor = ({model, onModelTextChange}) => {
     });
   }, [activeKey, handleModelTextChange]);
 
-  const handleTabChange = (key) => {
+  const handleTabChange = (key: string) => {
     syncModelText().then(() => {
       setActiveKey(key);
       if (key === "advanced" && iframeRef.current) {
@@ -69,13 +99,13 @@ const CasbinEditor = ({model, onModelTextChange}) => {
         onChange={handleTabChange}
         style={{flex: "0 0 auto", marginTop: "-10px"}}
         items={[
-          {key: "basic", label: i18next.t("model:Basic Editor")},
-          {key: "advanced", label: i18next.t("model:Advanced Editor")},
+          {key: "basic", label: t("model:Basic Editor")},
+          {key: "advanced", label: t("model:Advanced Editor")},
         ]}
       />
       <div style={{flex: "1 1 auto", overflow: "hidden"}}>
         {activeKey === "advanced" ? (
-          <IframeEditor
+          <TypedIframeEditor
             ref={iframeRef}
             initialModelText={localModelText}
             onModelTextChange={handleModelTextChange}
@@ -85,7 +115,7 @@ const CasbinEditor = ({model, onModelTextChange}) => {
           <Editor
             value={localModelText}
             readOnly={Setting.builtInObject(model)}
-            onChange={value => {
+            onChange={(value: string) => {
               handleModelTextChange(value);
             }}
           />

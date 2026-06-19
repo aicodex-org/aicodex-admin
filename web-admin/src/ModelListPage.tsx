@@ -16,6 +16,7 @@ import React from "react";
 
 import {Link} from "react-router-dom";
 import {Button, Popover, Table} from "antd";
+import type {TableProps} from "antd";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as ModelBackend from "./backend/ModelBackend";
@@ -39,8 +40,103 @@ e = some(where (p.eft == allow))
 [matchers]
 m = g(r.sub, p.sub) && r.obj == p.obj && r.act == p.act`;
 
+type Account = {
+  owner: string;
+  tag: string;
+  isAdmin?: boolean;
+};
+
+export type ModelRecord = {
+  owner: string;
+  name: string;
+  createdTime: string;
+  displayName: string;
+  description?: string;
+  modelText: string;
+};
+
+type HistoryLike = {
+  push: (location: string | {pathname: string; mode?: string}) => void;
+};
+
+type ModelListPageProps = {
+  account: Account;
+  history: HistoryLike;
+  match?: {
+    path?: string;
+    params?: {
+      organizationName?: string;
+    };
+  };
+};
+
+type TablePagination = {
+  current: number;
+  pageSize: number;
+  total?: number;
+};
+
+type FetchParams = {
+  pagination: TablePagination;
+  searchedColumn?: string;
+  searchText?: string;
+  sortField?: string;
+  sortOrder?: string;
+  type?: string;
+};
+
+type ModelListPageState = {
+  data: ModelRecord[];
+  pagination: TablePagination;
+  loading: boolean;
+  searchText: string;
+  searchedColumn: string;
+  isAuthorized: boolean;
+  [key: string]: unknown;
+};
+
+type ModelListResponse = {
+  status: string;
+  msg?: string;
+  data: ModelRecord[];
+  data2: number;
+};
+
+type MutationResponse = {
+  status: string;
+  msg?: string;
+};
+
+type ModelBackendApi = {
+  getModels: (
+    owner: string,
+    page: number,
+    pageSize: number,
+    field?: string,
+    value?: string,
+    sortField?: string,
+    sortOrder?: string
+  ) => Promise<ModelListResponse>;
+  addModel: (model: ModelRecord) => Promise<MutationResponse>;
+  deleteModel: (model: ModelRecord) => Promise<MutationResponse>;
+};
+
+type LegacyTableColumn = {
+  title: React.ReactNode;
+  dataIndex?: string;
+  key?: string;
+  width?: string;
+  sorter?: boolean;
+  fixed?: "left" | "right" | boolean | string;
+  render?: (text: unknown, record: ModelRecord, index: number) => React.ReactNode;
+  [key: string]: unknown;
+};
+
+const modelBackend = ModelBackend as unknown as ModelBackendApi;
+const t = (key: string): string => i18next.t(key) as string;
+
 class ModelListPage extends BaseListPage {
-  newModel() {
+  newModel(): ModelRecord {
     const randomName = Setting.getRandomName();
     const owner = Setting.getRequestOrganization(this.props.account);
     return {
@@ -52,27 +148,27 @@ class ModelListPage extends BaseListPage {
     };
   }
 
-  addModel() {
+  addModel(): void {
     const newModel = this.newModel();
-    ModelBackend.addModel(newModel)
-      .then((res) => {
+    modelBackend.addModel(newModel)
+      .then((res: MutationResponse) => {
         if (res.status === "ok") {
           this.props.history.push({pathname: `/models/${newModel.owner}/${newModel.name}`, mode: "add"});
-          Setting.showMessage("success", i18next.t("general:Successfully added"));
+          Setting.showMessage("success", t("general:Successfully added"));
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to add")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
         }
       })
-      .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      .catch((error: unknown) => {
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  deleteModel(i) {
-    ModelBackend.deleteModel(this.state.data[i])
-      .then((res) => {
+  deleteModel(i: number): void {
+    modelBackend.deleteModel(this.state.data[i])
+      .then((res: MutationResponse) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully deleted"));
+          Setting.showMessage("success", t("general:Successfully deleted"));
           this.fetch({
             pagination: {
               ...this.state.pagination,
@@ -80,59 +176,61 @@ class ModelListPage extends BaseListPage {
             },
           });
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
         }
       })
-      .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      .catch((error: unknown) => {
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  renderTable(models) {
-    const columns = [
+  renderTable(models: ModelRecord[]): React.ReactElement {
+    const columns: LegacyTableColumn[] = [
       {
-        title: i18next.t("general:Name"),
+        title: t("general:Name"),
         dataIndex: "name",
         key: "name",
         width: "180px",
         fixed: "left",
         sorter: true,
         ...this.getColumnSearchProps("name"),
-        render: (text, record, index) => {
+        render: (text: unknown, record: ModelRecord) => {
+          const modelName = String(text);
           return (
-            <Link to={`/models/${record.owner}/${text}`}>
-              {text}
+            <Link to={`/models/${record.owner}/${modelName}`}>
+              {modelName}
             </Link>
           );
         },
       },
       {
-        title: i18next.t("general:Organization"),
+        title: t("general:Organization"),
         dataIndex: "owner",
         key: "owner",
         width: "180px",
         sorter: true,
         ...this.getColumnSearchProps("owner"),
-        render: (text, record, index) => {
+        render: (text: unknown) => {
+          const owner = String(text);
           return (
-            <Link to={`/organizations/${text}`}>
-              {text}
+            <Link to={`/organizations/${owner}`}>
+              {owner}
             </Link>
           );
         },
       },
       {
-        title: i18next.t("general:Created time"),
+        title: t("general:Created time"),
         dataIndex: "createdTime",
         key: "createdTime",
         width: "180px",
         sorter: true,
-        render: (text, record, index) => {
-          return Setting.getFormattedDate(text);
+        render: (text: unknown) => {
+          return Setting.getFormattedDate(String(text));
         },
       },
       {
-        title: i18next.t("general:Display name"),
+        title: t("general:Display name"),
         dataIndex: "displayName",
         key: "displayName",
         width: "200px",
@@ -140,39 +238,40 @@ class ModelListPage extends BaseListPage {
         ...this.getColumnSearchProps("displayName"),
       },
       {
-        title: i18next.t("model:Model text"),
+        title: t("model:Model text"),
         dataIndex: "modelText",
         key: "modelText",
         // width: "180px",
         sorter: true,
-        render: (text, record, index) => {
+        render: (text: unknown) => {
+          const modelText = String(text);
           return (
             <Popover placement="topRight" content={() => {
               return (
-                <Editor value={text} />
+                <Editor value={modelText} />
               );
             }} title="" trigger="hover">
               {
-                Setting.getShortText(text, 100)
+                Setting.getShortText(modelText, 100)
               }
             </Popover>
           );
         },
       },
       {
-        title: i18next.t("general:Action"),
+        title: t("general:Action"),
         dataIndex: "",
         key: "op",
         width: "180px",
         fixed: (Setting.isMobile()) ? "false" : "right",
-        render: (text, record, index) => {
+        render: (_text: unknown, record: ModelRecord, index: number) => {
           return (
             <div>
               <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary"
-                onClick={() => this.props.history.push(`/models/${record.owner}/${record.name}`)}>{i18next.t("general:Edit")}</Button>
+                onClick={() => this.props.history.push(`/models/${record.owner}/${record.name}`)}>{t("general:Edit")}</Button>
               <PopconfirmModal
                 disabled={Setting.builtInObject(record)}
-                title={i18next.t("general:Sure to delete") + `: ${record.name} ?`}
+                title={t("general:Sure to delete") + `: ${record.name} ?`}
                 onConfirm={() => this.deleteModel(index)}
               >
               </PopconfirmModal>
@@ -186,13 +285,13 @@ class ModelListPage extends BaseListPage {
 
     return (
       <div>
-        <Table scroll={{x: "max-content"}} columns={columns} dataSource={models} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered
+        <Table<ModelRecord> scroll={{x: "max-content"}} columns={columns as TableProps<ModelRecord>["columns"]} dataSource={models} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered
           pagination={paginationProps}
           title={() => (
             <div>
-              {i18next.t("general:Models")}&nbsp;&nbsp;&nbsp;&nbsp;
+              {t("general:Models")}&nbsp;&nbsp;&nbsp;&nbsp;
               <Button type="primary" size="small"
-                onClick={this.addModel.bind(this)}>{i18next.t("general:Add")}</Button>
+                onClick={this.addModel.bind(this)}>{t("general:Add")}</Button>
             </div>
           )}
           loading={this.state.loading}
@@ -202,7 +301,7 @@ class ModelListPage extends BaseListPage {
     );
   }
 
-  fetch = (params = {}) => {
+  fetch = (params = {} as FetchParams): void => {
     let field = params.searchedColumn, value = params.searchText;
     const sortField = params.sortField, sortOrder = params.sortOrder;
     if (params.type !== undefined && params.type !== null) {
@@ -210,8 +309,8 @@ class ModelListPage extends BaseListPage {
       value = params.type;
     }
     this.setState({loading: true});
-    ModelBackend.getModels(Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
-      .then((res) => {
+    modelBackend.getModels(Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
+      .then((res: ModelListResponse) => {
         this.setState({
           loading: false,
         });
