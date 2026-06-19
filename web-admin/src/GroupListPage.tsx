@@ -15,29 +15,109 @@
 import React from "react";
 import {Link} from "react-router-dom";
 import {Button, Modal, Table, Tooltip, Upload} from "antd";
+import type {TablePaginationConfig, TableProps} from "antd";
 import {UploadOutlined} from "@ant-design/icons";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as GroupBackend from "./backend/GroupBackend";
+import type {GroupQueryValue, GroupRecord} from "./backend/GroupBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
 import * as XLSX from "xlsx";
 
-class GroupListPage extends BaseListPage {
-  constructor(props) {
+interface GroupListPageProps {
+  account: {
+    owner: string;
+    tag?: string;
+    [key: string]: unknown;
+  };
+  history: {
+    push: (location: string | {pathname: string; mode?: string}) => void;
+  };
+  match?: {
+    path?: string;
+    params?: Record<string, string | undefined>;
+  };
+}
+
+type UploadPreviewRow = Record<string, unknown>;
+
+interface GroupListPageState {
+  owner: string;
+  groups: GroupRecord[];
+  data: GroupRecord[];
+  pagination: TablePaginationConfig;
+  loading: boolean;
+  searchText?: GroupQueryValue;
+  searchedColumn?: string;
+  isAuthorized?: boolean;
+  uploadJsonData: UploadPreviewRow[];
+  uploadColumns: TableProps<UploadPreviewRow>["columns"];
+  showUploadModal?: boolean;
+  file?: Blob;
+}
+
+type GroupListColumns = TableProps<GroupRecord>["columns"];
+
+type GroupListFetchParams = {
+  pagination?: TablePaginationConfig;
+  searchedColumn?: string;
+  searchText?: GroupQueryValue;
+  sortField?: string;
+  sortOrder?: string | null;
+  category?: GroupQueryValue;
+  type?: GroupQueryValue;
+};
+
+// BaseListPage 仍是 legacy JS；本 change 只声明群组列表页实际使用的继承边界。
+type LegacyBaseListPageCompat = React.Component<GroupListPageProps, GroupListPageState> & {
+  getColumnSearchProps: (dataIndex: string, customRender?: unknown) => Record<string, unknown>;
+  getTablePaginationProps: (overrides?: Record<string, unknown>) => TablePaginationConfig;
+  handleTableChange: NonNullable<TableProps<GroupRecord>["onChange"]>;
+};
+
+const TypedBaseListPage = BaseListPage as unknown as {
+  new(props: GroupListPageProps): LegacyBaseListPageCompat;
+};
+
+function t(key: string, defaultValue = key): string {
+  const translated = i18next.t(key, {defaultValue}) as unknown;
+  return typeof translated === "string" ? translated : defaultValue;
+}
+
+function getGroupColumnNames(): string[] {
+  return Setting.getGroupColumns() as string[];
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "object" && error !== null && "message" in error) {
+    const message = (error as {message?: unknown}).message;
+    return message === undefined ? String(error) : String(message);
+  }
+  return String(error);
+}
+
+class GroupListPage extends TypedBaseListPage {
+  constructor(props: GroupListPageProps) {
     super(props);
     this.state = {
       ...this.state,
       owner: Setting.isAdminUser(this.props.account) ? "" : this.props.account.owner,
       groups: [],
+      uploadJsonData: [],
+      uploadColumns: [],
     };
   }
-  UNSAFE_componentWillMount() {
-    super.UNSAFE_componentWillMount();
+
+  UNSAFE_componentWillMount(): void {
+    super.UNSAFE_componentWillMount?.();
   }
 
-  newGroup() {
+  newGroup(): GroupRecord {
     const randomName = Setting.getRandomName();
     const owner = Setting.getRequestOrganization(this.props.account);
     return {
@@ -53,57 +133,58 @@ class GroupListPage extends BaseListPage {
     };
   }
 
-  addGroup() {
+  addGroup(): void {
     const newGroup = this.newGroup();
     GroupBackend.addGroup(newGroup)
       .then((res) => {
         if (res.status === "ok") {
           this.props.history.push({pathname: `/groups/${newGroup.owner}/${newGroup.name}`, mode: "add"});
-          Setting.showMessage("success", i18next.t("general:Successfully added"));
+          Setting.showMessage("success", t("general:Successfully added"));
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to add")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  deleteGroup(i) {
+  deleteGroup(i: number): void {
     GroupBackend.deleteGroup(this.state.data[i])
       .then((res) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully deleted"));
+          Setting.showMessage("success", t("general:Successfully deleted"));
+          const current = this.state.pagination.current || 1;
           this.fetch({
             pagination: {
               ...this.state.pagination,
-              current: this.state.pagination.current > 1 && this.state.data.length === 1 ? this.state.pagination.current - 1 : this.state.pagination.current,
+              current: current > 1 && this.state.data.length === 1 ? current - 1 : current,
             },
           });
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  uploadFile(info) {
+  uploadFile(info: {status?: string; msg?: string}): void {
     const {status, msg} = info;
     if (status === "ok") {
-      Setting.showMessage("success", i18next.t("general:Successfully saved"));
+      Setting.showMessage("success", t("general:Successfully saved"));
       const {pagination} = this.state;
       this.fetch({pagination});
     } else if (status === "error") {
-      Setting.showMessage("error", `${i18next.t("general:Failed to upload")}: ${msg}`);
+      Setting.showMessage("error", `${t("general:Failed to upload")}: ${msg}`);
     }
     this.setState({uploadJsonData: [], uploadColumns: [], showUploadModal: false});
   }
 
-  generateDownloadTemplate() {
-    const groupObj = {};
-    const items = Setting.getGroupColumns();
+  generateDownloadTemplate(): void {
+    const groupObj: Record<string, null> = {};
+    const items = getGroupColumnNames();
     items.forEach((item) => {
       groupObj[item] = null;
     });
@@ -113,39 +194,39 @@ class GroupListPage extends BaseListPage {
     XLSX.writeFile(workbook, "import-group.xlsx", {compression: true});
   }
 
-  renderUpload() {
+  renderUpload(): React.ReactNode {
     const uploadThis = this;
-    const props = {
+    const props: React.ComponentProps<typeof Upload> = {
       name: "file",
       accept: ".xlsx",
       showUploadList: false,
       beforeUpload: (file) => {
         const reader = new FileReader();
         reader.onload = (e) => {
-          const binary = e.target.result;
+          const binary = e.target?.result;
 
           try {
             const workbook = XLSX.read(binary, {type: "array"});
             if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
-              Setting.showMessage("error", i18next.t("general:No sheets found in file"));
+              Setting.showMessage("error", t("general:No sheets found in file"));
               return;
             }
 
             const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-            const jsonData = XLSX.utils.sheet_to_json(worksheet);
-            this.setState({uploadJsonData: jsonData, file: file});
+            const jsonData = XLSX.utils.sheet_to_json<UploadPreviewRow>(worksheet);
+            this.setState({uploadJsonData: jsonData, file: file as Blob});
 
-            const columns = Setting.getGroupColumns().map(el => {
+            const columns = getGroupColumnNames().map(el => {
               return {title: el.split("#")[0], dataIndex: el, key: el};
             });
             this.setState({uploadColumns: columns}, () => {this.setState({showUploadModal: true});});
           } catch (err) {
-            Setting.showMessage("error", `${i18next.t("general:Failed to upload")}: ${err.message}`);
+            Setting.showMessage("error", `${t("general:Failed to upload")}: ${getErrorMessage(err)}`);
           }
         };
 
         reader.onerror = (error) => {
-          Setting.showMessage("error", `${i18next.t("general:Failed to upload")}: ${error?.message || error}`);
+          Setting.showMessage("error", `${t("general:Failed to upload")}: ${getErrorMessage(error)}`);
         };
 
         reader.readAsArrayBuffer(file);
@@ -157,17 +238,17 @@ class GroupListPage extends BaseListPage {
       <>
         <Upload {...props}>
           <Button icon={<UploadOutlined />} id="upload-button" size="small">
-            {i18next.t("general:Upload (.xlsx)")}
+            {t("general:Upload (.xlsx)")}
           </Button>
         </Upload>
-        <Modal title={i18next.t("general:Upload (.xlsx)")}
+        <Modal title={t("general:Upload (.xlsx)")}
           width={"100%"}
           closable={true}
           open={this.state.showUploadModal}
-          okText={i18next.t("general:Click to Upload")}
+          okText={t("general:Click to Upload")}
           onOk = {() => {
             const formData = new FormData();
-            formData.append("file", this.state.file);
+            formData.append("file", this.state.file as Blob);
             fetch(`${Setting.ServerUrl}/api/upload-groups`, {
               method: "post",
               body: formData,
@@ -179,10 +260,10 @@ class GroupListPage extends BaseListPage {
               .then((res) => res.json())
               .then((res) => {uploadThis.uploadFile(res);})
               .catch((error) => {
-                Setting.showMessage("error", `${i18next.t("general:Failed to upload")}: ${error.message}`);
+                Setting.showMessage("error", `${t("general:Failed to upload")}: ${getErrorMessage(error)}`);
               });
           }}
-          cancelText={i18next.t("general:Cancel")}
+          cancelText={t("general:Cancel")}
           onCancel={() => {this.setState({showUploadModal: false, uploadJsonData: [], uploadColumns: []});}}
         >
           <div style={{marginRight: "34px"}}>
@@ -193,17 +274,17 @@ class GroupListPage extends BaseListPage {
     );
   }
 
-  renderTable(data) {
-    const columns = [
+  renderTable(data: GroupRecord[]): React.ReactNode {
+    const columns: GroupListColumns = [
       {
-        title: i18next.t("general:Name"),
+        title: t("general:Name"),
         dataIndex: "name",
         key: "name",
         width: "150px",
         fixed: "left",
         sorter: true,
         ...this.getColumnSearchProps("name"),
-        render: (text, record, index) => {
+        render: (text: string, record: GroupRecord) => {
           return (
             <Link to={`/groups/${record.owner}/${text}`}>
               {text}
@@ -212,13 +293,13 @@ class GroupListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Organization"),
+        title: t("general:Organization"),
         dataIndex: "owner",
         key: "owner",
         width: "140px",
         sorter: true,
         ...this.getColumnSearchProps("owner"),
-        render: (text, record, index) => {
+        render: (text: string) => {
           return (
             <Link to={`/organizations/${text}`}>
               {text}
@@ -227,56 +308,55 @@ class GroupListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Created time"),
+        title: t("general:Created time"),
         dataIndex: "createdTime",
         key: "createdTime",
         width: "180px",
         sorter: true,
-        render: (text, record, index) => {
+        render: (text: string) => {
           return Setting.getFormattedDate(text);
         },
       },
       {
-        title: i18next.t("general:Updated time"),
+        title: t("general:Updated time"),
         dataIndex: "updatedTime",
         key: "updatedTime",
         width: "180px",
         sorter: true,
-        render: (text, record, index) => {
+        render: (text: string) => {
           return Setting.getFormattedDate(text);
         },
       },
       {
-        title: i18next.t("general:Display name"),
+        title: t("general:Display name"),
         dataIndex: "displayName",
         key: "displayName",
-        // width: "200px",
         sorter: true,
         ...this.getColumnSearchProps("displayName"),
       },
       {
-        title: i18next.t("general:Type"),
+        title: t("general:Type"),
         dataIndex: "type",
         key: "type",
         width: "140px",
         sorter: true,
         filterMultiple: false,
         filters: [
-          {text: i18next.t("group:Virtual"), value: "Virtual"},
-          {text: i18next.t("group:Physical"), value: "Physical"},
+          {text: t("group:Virtual"), value: "Virtual"},
+          {text: t("group:Physical"), value: "Physical"},
         ],
-        render: (text, record, index) => {
-          return i18next.t("group:" + text);
+        render: (text: string) => {
+          return t("group:" + text);
         },
       },
       {
-        title: i18next.t("group:Parent group"),
+        title: t("group:Parent group"),
         dataIndex: "parentId",
         key: "parentId",
         width: "220px",
         sorter: true,
         ...this.getColumnSearchProps("parentId"),
-        render: (text, record, index) => {
+        render: (_text: unknown, record: GroupRecord) => {
           if (record.isTopGroup) {
             return <Link to={`/organizations/${record.parentId}`}>
               {record.parentId}
@@ -288,32 +368,31 @@ class GroupListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Users"),
+        title: t("general:Users"),
         dataIndex: "users",
         key: "users",
-        // width: "200px",
         sorter: true,
         ...this.getColumnSearchProps("users"),
-        render: (text, record, index) => {
-          return Setting.getTags(text, "users");
+        render: (text: string[]) => {
+          return (Setting.getTags as (tags?: string[], urlPrefix?: string | null) => React.ReactNode)(text, "users");
         },
       },
       {
-        title: i18next.t("general:Action"),
+        title: t("general:Action"),
         dataIndex: "",
         key: "op",
         width: "180px",
-        fixed: (Setting.isMobile()) ? "false" : "right",
-        render: (text, record, index) => {
+        fixed: Setting.isMobile() ? false : "right",
+        render: (_text: unknown, record: GroupRecord, index: number) => {
           return (
             <div>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/groups/${record.owner}/${record.name}`)}>{i18next.t("general:Edit")}</Button>
+              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/groups/${record.owner}/${record.name}`)}>{t("general:Edit")}</Button>
               {
-                record.haveChildren ? <Tooltip placement="topLeft" title={i18next.t("group:You need to delete all subgroups first. You can view the subgroups in the left group tree of the [Organizations] -> [Groups] page")}>
-                  <Button disabled type="primary" danger>{i18next.t("general:Delete")}</Button>
+                record.haveChildren ? <Tooltip placement="topLeft" title={t("group:You need to delete all subgroups first. You can view the subgroups in the left group tree of the [Organizations] -> [Groups] page")}>
+                  <Button disabled type="primary" danger>{t("general:Delete")}</Button>
                 </Tooltip> :
                   <PopconfirmModal
-                    title={i18next.t("general:Sure to delete") + `: ${record.name} ?`}
+                    title={t("general:Sure to delete") + `: ${record.name} ?`}
                     onConfirm={() => this.deleteGroup(index)}
                   >
                   </PopconfirmModal>
@@ -328,12 +407,19 @@ class GroupListPage extends BaseListPage {
 
     return (
       <div>
-        <Table scroll={{x: "max-content"}} columns={columns} dataSource={data} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
+        <Table
+          scroll={{x: "max-content"}}
+          columns={columns}
+          dataSource={data}
+          rowKey={(record) => `${record.owner}/${record.name}`}
+          size="middle"
+          bordered
+          pagination={paginationProps}
           title={() => (
             <div>
-              {i18next.t("general:Groups")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button style={{marginRight: "15px"}} type="primary" size="small" onClick={this.addGroup.bind(this)}>{i18next.t("general:Add")}</Button>
-              <Button style={{marginRight: "15px"}} type="primary" size="small" onClick={this.generateDownloadTemplate}>{i18next.t("general:Download template")} </Button>
+              {t("general:Groups")}&nbsp;&nbsp;&nbsp;&nbsp;
+              <Button style={{marginRight: "15px"}} type="primary" size="small" onClick={this.addGroup.bind(this)}>{t("general:Add")}</Button>
+              <Button style={{marginRight: "15px"}} type="primary" size="small" onClick={this.generateDownloadTemplate}>{t("general:Download template")} </Button>
               {
                 this.renderUpload()
               }
@@ -346,7 +432,7 @@ class GroupListPage extends BaseListPage {
     );
   }
 
-  fetch = (params = {}) => {
+  fetch = (params: GroupListFetchParams = {}): void => {
     let field = params.searchedColumn, value = params.searchText;
     const sortField = params.sortField, sortOrder = params.sortOrder;
     if (params.category !== undefined && params.category !== null) {
@@ -357,17 +443,18 @@ class GroupListPage extends BaseListPage {
       value = params.type;
     }
     this.setState({loading: true});
-    GroupBackend.getGroups(Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), false, params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
+    const pagination = params.pagination || this.state.pagination;
+    GroupBackend.getGroups(Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), false, pagination.current, pagination.pageSize, field, value, sortField, sortOrder)
       .then((res) => {
         this.setState({
           loading: false,
         });
         if (res.status === "ok") {
           this.setState({
-            data: res.data,
+            data: res.data || [],
             pagination: {
-              ...params.pagination,
-              total: res.data2,
+              ...pagination,
+              total: typeof res.data2 === "number" ? res.data2 : typeof res.data2 === "string" ? Number(res.data2) : pagination.total,
             },
             searchText: params.searchText,
             searchedColumn: params.searchedColumn,
@@ -384,7 +471,7 @@ class GroupListPage extends BaseListPage {
         this.setState({
           loading: false,
         });
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   };
 }
