@@ -15,21 +15,87 @@
 import React from "react";
 import {Link} from "react-router-dom";
 import {Button, Switch, Table} from "antd";
+import type {TablePaginationConfig, TableProps} from "antd";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as Conf from "./Conf";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
+import type {OrganizationQueryValue, OrganizationRecord} from "./backend/OrganizationBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
 import OrganizationIdentityCenter from "./OrganizationIdentityCenter";
 
-class OrganizationListPage extends BaseListPage {
-  newOrganization() {
+type FormItem = {
+  name: string;
+  label?: string;
+  visible?: boolean;
+  width?: string | number;
+};
+
+interface OrganizationListPageProps {
+  account: {
+    owner: string;
+    tag?: string;
+    [key: string]: unknown;
+  };
+  history: {
+    push: (location: string | {pathname: string; mode?: string}) => void;
+  };
+  match?: {
+    path?: string;
+    params?: Record<string, string | undefined>;
+  };
+  formItems?: FormItem[];
+}
+
+interface OrganizationListPageState {
+  data: OrganizationRecord[];
+  pagination: TablePaginationConfig;
+  loading: boolean;
+  searchText?: OrganizationQueryValue;
+  searchedColumn?: string;
+  isAuthorized?: boolean;
+  formItems?: FormItem[];
+}
+
+type OrganizationListColumns = TableProps<OrganizationRecord>["columns"];
+
+type OrganizationListFetchParams = {
+  pagination?: TablePaginationConfig;
+  searchedColumn?: string;
+  searchText?: OrganizationQueryValue;
+  sortField?: string;
+  sortOrder?: string | null;
+  passwordType?: OrganizationQueryValue;
+};
+
+// BaseListPage 仍是 legacy JS；本 change 只声明组织列表页实际使用的继承边界。
+type LegacyBaseListPageCompat = React.Component<OrganizationListPageProps, OrganizationListPageState> & {
+  getColumnSearchProps: (dataIndex: string, customRender?: unknown) => Record<string, unknown>;
+  getTablePaginationProps: (overrides?: Record<string, unknown>) => TablePaginationConfig;
+  handleTableChange: NonNullable<TableProps<OrganizationRecord>["onChange"]>;
+};
+
+const TypedBaseListPage = BaseListPage as unknown as {
+  new(props: OrganizationListPageProps): LegacyBaseListPageCompat;
+};
+
+function t(key: string, defaultValue = key): string {
+  const translated = i18next.t(key, {defaultValue}) as unknown;
+  return typeof translated === "string" ? translated : defaultValue;
+}
+
+function getCountryKeys(): string[] {
+  return (Setting.Countries as Array<{key: string}>).map(item => item.key);
+}
+
+class OrganizationListPage extends TypedBaseListPage {
+  newOrganization(): OrganizationRecord {
     const randomName = Setting.getRandomName();
     const DefaultMfaRememberInHours = 12;
     return {
-      owner: "admin", // this.props.account.organizationname,
+      owner: "admin",
       name: `organization_${randomName}`,
       createdTime: moment().format(),
       displayName: `New Organization - ${randomName}`,
@@ -45,7 +111,7 @@ class OrganizationListPage extends BaseListPage {
       defaultAvatar: Conf.BrandIcon,
       defaultApplication: "",
       tags: [],
-      languages: Setting.Countries.map(item => item.key),
+      languages: getCountryKeys(),
       masterPassword: "",
       defaultPassword: "",
       enableSoftDeletion: false,
@@ -119,55 +185,56 @@ class OrganizationListPage extends BaseListPage {
     };
   }
 
-  addOrganization() {
+  addOrganization(): void {
     const newOrganization = this.newOrganization();
     OrganizationBackend.addOrganization(newOrganization)
       .then((res) => {
         if (res.status === "ok") {
           this.props.history.push({pathname: `/organizations/${newOrganization.name}`, mode: "add"});
-          Setting.showMessage("success", i18next.t("general:Successfully added"));
+          Setting.showMessage("success", t("general:Successfully added"));
           window.dispatchEvent(new Event("storageOrganizationsChanged"));
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to add")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  deleteOrganization(i) {
+  deleteOrganization(i: number): void {
     OrganizationBackend.deleteOrganization(this.state.data[i])
       .then((res) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully deleted"));
+          Setting.showMessage("success", t("general:Successfully deleted"));
+          const current = this.state.pagination.current || 1;
           this.fetch({
             pagination: {
               ...this.state.pagination,
-              current: this.state.pagination.current > 1 && this.state.data.length === 1 ? this.state.pagination.current - 1 : this.state.pagination.current,
+              current: current > 1 && this.state.data.length === 1 ? current - 1 : current,
             },
           });
           window.dispatchEvent(new Event("storageOrganizationsChanged"));
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  renderTable(organizations) {
-    const columns = [
+  renderTable(organizations: OrganizationRecord[]): React.ReactNode {
+    const columns: OrganizationListColumns = [
       {
-        title: i18next.t("general:Name"),
+        title: t("general:Name"),
         dataIndex: "name",
         key: "name",
         width: "120px",
         fixed: "left",
         sorter: true,
         ...this.getColumnSearchProps("name"),
-        render: (text, record, index) => {
+        render: (text: string) => {
           return (
             <Link to={`/organizations/${text}`}>
               {text}
@@ -176,29 +243,28 @@ class OrganizationListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Created time"),
+        title: t("general:Created time"),
         dataIndex: "createdTime",
         key: "createdTime",
         width: "160px",
         sorter: true,
-        render: (text, record, index) => {
+        render: (text: string) => {
           return Setting.getFormattedDate(text);
         },
       },
       {
-        title: i18next.t("general:Display name"),
+        title: t("general:Display name"),
         dataIndex: "displayName",
         key: "displayName",
-        // width: '100px',
         sorter: true,
         ...this.getColumnSearchProps("displayName"),
       },
       {
-        title: i18next.t("general:Favicon"),
+        title: t("general:Favicon"),
         dataIndex: "favicon",
         key: "favicon",
         width: "50px",
-        render: (text, record, index) => {
+        render: (text: string) => {
           return (
             <a target="_blank" rel="noreferrer" href={text}>
               <img src={text} alt={text} width={40} />
@@ -207,13 +273,13 @@ class OrganizationListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("organization:Website URL"),
+        title: t("organization:Website URL"),
         dataIndex: "websiteUrl",
         key: "websiteUrl",
         width: "200px",
         sorter: true,
         ...this.getColumnSearchProps("websiteUrl"),
-        render: (text, record, index) => {
+        render: (text: string) => {
           return (
             <a target="_blank" rel="noreferrer" href={text}>
               {text}
@@ -222,7 +288,7 @@ class OrganizationListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Password type"),
+        title: t("general:Password type"),
         dataIndex: "passwordType",
         key: "passwordType",
         width: "150px",
@@ -235,7 +301,7 @@ class OrganizationListPage extends BaseListPage {
         ],
       },
       {
-        title: i18next.t("general:Password salt"),
+        title: t("general:Password salt"),
         dataIndex: "passwordSalt",
         key: "passwordSalt",
         width: "150px",
@@ -243,11 +309,11 @@ class OrganizationListPage extends BaseListPage {
         ...this.getColumnSearchProps("passwordSalt"),
       },
       {
-        title: i18next.t("general:Default avatar"),
+        title: t("general:Default avatar"),
         dataIndex: "defaultAvatar",
         key: "defaultAvatar",
         width: "120px",
-        render: (text, record, index) => {
+        render: (text: string) => {
           return (
             <a target="_blank" rel="noreferrer" href={text}>
               <img src={text} alt={text} width={40} />
@@ -256,71 +322,71 @@ class OrganizationListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("organization:Org balance"),
+        title: t("organization:Org balance"),
         dataIndex: "orgBalance",
         key: "orgBalance",
         width: "120px",
         sorter: true,
-        render: (text, record, index) => {
+        render: (text: number | null | undefined) => {
           return text ?? 0;
         },
       },
       {
-        title: i18next.t("organization:User balance"),
+        title: t("organization:User balance"),
         dataIndex: "userBalance",
         key: "userBalance",
         width: "120px",
         sorter: true,
-        render: (text, record, index) => {
+        render: (text: number | null | undefined) => {
           return text ?? 0;
         },
       },
       {
-        title: i18next.t("organization:Balance credit"),
+        title: t("organization:Balance credit"),
         dataIndex: "balanceCredit",
         key: "balanceCredit",
         width: "120px",
         sorter: true,
-        render: (text, record, index) => {
+        render: (text: number | null | undefined) => {
           return text ?? 0;
         },
       },
       {
-        title: i18next.t("organization:Balance currency"),
+        title: t("organization:Balance currency"),
         dataIndex: "balanceCurrency",
         key: "balanceCurrency",
         width: "140px",
         sorter: true,
-        render: (text, record, index) => {
+        render: (text: string | null | undefined) => {
           return text || "USD";
         },
       },
       {
-        title: i18next.t("organization:Soft deletion"),
+        title: t("organization:Soft deletion"),
         dataIndex: "enableSoftDeletion",
         key: "enableSoftDeletion",
         width: "140px",
         sorter: true,
-        render: (text, record, index) => {
+        render: (text: boolean) => {
           return (
-            <Switch disabled checkedChildren={i18next.t("general:ON")} unCheckedChildren={i18next.t("general:OFF")} checked={text} />
+            <Switch disabled checkedChildren={t("general:ON")} unCheckedChildren={t("general:OFF")} checked={text} />
           );
         },
       },
       {
-        title: i18next.t("general:Action"),
+        title: t("general:Action"),
         dataIndex: "",
         key: "op",
         width: "350px",
-        fixed: (Setting.isMobile()) ? "false" : "right",
-        render: (text, record, index) => {
+        fixed: Setting.isMobile() ? false : "right",
+        render: (_text: unknown, record: OrganizationRecord, index: number) => {
           return (
             <div>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/trees/${record.name}`)}>{i18next.t("general:Groups")}</Button>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/organizations/${record.name}/users`)}>{i18next.t("general:Users")}</Button>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} onClick={() => this.props.history.push(`/organizations/${record.name}`)}>{i18next.t("general:Edit")}</Button>
+              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/trees/${record.name}`)}>{t("general:Groups")}</Button>
+              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/organizations/${record.name}/users`)}>{t("general:Users")}</Button>
+              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} onClick={() => this.props.history.push(`/organizations/${record.name}`)}>{t("general:Edit")}</Button>
               <PopconfirmModal
-                title={i18next.t("general:Sure to delete") + `: ${record.name} ?`}
+                title={t("general:Sure to delete") + `: ${record.name} ?`}
                 onConfirm={() => this.deleteOrganization(index)}
                 disabled={record.name === "built-in"}
               >
@@ -331,21 +397,28 @@ class OrganizationListPage extends BaseListPage {
       },
     ];
 
-    const filteredColumns = Setting.filterTableColumns(columns, this.props.formItems ?? this.state.formItems);
+    const filteredColumns = (Setting.filterTableColumns as (columns: OrganizationListColumns, formItems?: FormItem[]) => OrganizationListColumns)(columns, this.props.formItems ?? this.state.formItems);
     const paginationProps = this.getTablePaginationProps();
 
     return (
       <OrganizationIdentityCenter
         page="organizations"
-        currentOrganization={Setting.isDefaultOrganizationSelected(this.props.account) ? i18next.t("general:All") : Setting.getRequestOrganization(this.props.account)}
+        currentOrganization={Setting.isDefaultOrganizationSelected(this.props.account) ? t("general:All") : Setting.getRequestOrganization(this.props.account)}
         total={this.state.pagination.total}
         loadedCount={organizations.length}
       >
-        <Table scroll={{x: "max-content"}} columns={filteredColumns} dataSource={organizations} rowKey="name" size="middle" bordered pagination={paginationProps}
+        <Table
+          scroll={{x: "max-content"}}
+          columns={filteredColumns}
+          dataSource={organizations}
+          rowKey="name"
+          size="middle"
+          bordered
+          pagination={paginationProps}
           title={() => (
             <div>
-              {i18next.t("general:Organizations")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button type="primary" size="small" disabled={!Setting.isAdminUser(this.props.account)} onClick={this.addOrganization.bind(this)}>{i18next.t("general:Add")}</Button>
+              {t("general:Organizations")}&nbsp;&nbsp;&nbsp;&nbsp;
+              <Button type="primary" size="small" disabled={!Setting.isAdminUser(this.props.account)} onClick={this.addOrganization.bind(this)}>{t("general:Add")}</Button>
             </div>
           )}
           loading={this.state.loading}
@@ -355,7 +428,7 @@ class OrganizationListPage extends BaseListPage {
     );
   }
 
-  fetch = (params = {}) => {
+  fetch = (params: OrganizationListFetchParams = {}): void => {
     let field = params.searchedColumn, value = params.searchText;
     const sortField = params.sortField, sortOrder = params.sortOrder;
     if (params.passwordType !== undefined && params.passwordType !== null) {
@@ -363,17 +436,18 @@ class OrganizationListPage extends BaseListPage {
       value = params.passwordType;
     }
     this.setState({loading: true});
-    OrganizationBackend.getOrganizations("admin", Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
+    const pagination = params.pagination as TablePaginationConfig;
+    OrganizationBackend.getOrganizations("admin", Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), pagination.current, pagination.pageSize, field, value, sortField, sortOrder)
       .then((res) => {
         this.setState({
           loading: false,
         });
         if (res.status === "ok") {
           this.setState({
-            data: res.data,
+            data: res.data as OrganizationRecord[],
             pagination: {
-              ...params.pagination,
-              total: res.data2,
+              ...pagination,
+              total: res.data2 as number,
             },
             searchText: params.searchText,
             searchedColumn: params.searchedColumn,

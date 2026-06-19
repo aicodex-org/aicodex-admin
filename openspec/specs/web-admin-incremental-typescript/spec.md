@@ -83,6 +83,13 @@ Admin 前端后续新增 React 组件 SHALL 默认使用 `.tsx`；新增共享�
 - **AND** 迁移 SHALL 保持 `/groups` 路由、权限、组织筛选、表格列、分页筛选排序、新增、删除、下载模板、上传预览、上传 endpoint 和后端 API 契约
 - **AND** 迁移 SHALL NOT 要求同一 change 迁移 `GroupTreePage`、`GroupEditPage`、`UserListPage`、组织列表、用户列表或其它组织账号页面
 
+#### Scenario: 组织账号菜单组织列表迁移
+- **WHEN** 后续 change 触碰组织账号菜单下的组织列表页
+- **THEN** `OrganizationListPage` SHOULD 迁移为 `.tsx` 并使用明确局部类型描述 props、state、组织记录、默认组织模板、列表 fetch 参数和表格列
+- **AND** `OrganizationBackend` SHOULD 迁移为 `.ts` 并导出列表页、编辑页、用户页、选择组件和登录页可复用的组织记录、mutation 和响应类型
+- **AND** 迁移 SHALL 保持 `/organizations` 路由、权限、组织筛选、表格列、分页筛选排序、新增、删除、组织身份中心摘要、群组/用户/编辑跳转和后端 API 契约
+- **AND** 迁移 SHALL NOT 要求同一 change 迁移 `OrganizationEditPage`、`OrganizationTreeOperationsPage`、`OrganizationDirectoryQualityPage`、`UserListPage`、`GroupTreePage` 或其它组织账号页面
+
 #### Scenario: TypeScript migration is validated
 - **WHEN** identity source menu or organization account menu React components are migrated to TSX
 - **THEN** the incremental TypeScript gate, `yarn typecheck`, focused Jest tests, and build or equivalent import-boundary validation SHALL pass for the touched TSX and JS coexistence paths
