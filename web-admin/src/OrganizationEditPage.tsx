@@ -20,7 +20,7 @@ import * as LdapBackend from "./backend/LdapBackend";
 import * as Setting from "./Setting";
 import * as Conf from "./Conf";
 import * as Obfuscator from "./auth/Obfuscator";
-import i18next from "i18next";
+import i18nextRaw from "i18next";
 import {LinkOutlined} from "@ant-design/icons";
 import LdapTable from "./table/LdapTable";
 import AccountTable from "./table/AccountTable";
@@ -34,13 +34,129 @@ import {getOrganizationNameTooltipKey, isOrganizationNameLocked} from "./Organiz
 
 const {Option} = Select;
 
-class OrganizationEditPage extends React.Component {
-  constructor(props) {
+type ThemeDataRecord = {
+  isEnabled?: boolean;
+  [key: string]: unknown;
+};
+
+interface AccountItemRecord {
+  name?: string;
+  [key: string]: unknown;
+}
+
+interface OrganizationRecord {
+  owner?: string;
+  name: string;
+  displayName?: string;
+  nameLocked?: boolean;
+  enableDarkLogo?: boolean;
+  logo?: string;
+  logoDark?: string;
+  favicon?: string;
+  websiteUrl?: string;
+  hasPrivilegeConsent?: boolean;
+  passwordType?: string;
+  passwordSalt?: string;
+  passwordOptions?: string[];
+  passwordObfuscatorType?: string;
+  passwordObfuscatorKey?: string;
+  passwordExpireDays?: number | null;
+  countryCodes?: string[];
+  languages?: string[];
+  defaultAvatar?: string;
+  defaultApplication?: string;
+  userTypes?: string[];
+  tags?: string[];
+  masterPassword?: string;
+  defaultPassword?: string;
+  masterVerificationCode?: string;
+  ipWhitelist?: string;
+  initScore?: number | null;
+  orgBalance?: number | null;
+  userBalance?: number | null;
+  balanceCredit?: number | null;
+  balanceCurrency?: string;
+  enableSoftDeletion?: boolean;
+  isProfilePublic?: boolean;
+  useEmailAsUsername?: boolean;
+  enableTour?: boolean;
+  disableSignin?: boolean;
+  usePermanentAvatar?: boolean;
+  navItems?: React.Key[];
+  userNavItems?: React.Key[];
+  widgetItems?: React.Key[];
+  accountMenu?: string;
+  accountItems?: AccountItemRecord[];
+  mfaRememberInHours?: number | null;
+  mfaItems?: unknown[];
+  themeData?: ThemeDataRecord;
+  ldapAttributes?: string[];
+  kerberosRealm?: string;
+  kerberosKdcHost?: string;
+  kerberosKeytab?: string;
+  kerberosServiceName?: string;
+  [key: string]: unknown;
+}
+
+interface ApplicationRecord {
+  name: string;
+  [key: string]: unknown;
+}
+
+type LdapRecord = Record<string, unknown>;
+type TransactionRecord = Record<string, unknown>;
+
+interface OrganizationEditPageProps {
+  match: {
+    params: {
+      organizationName: string;
+    };
+  };
+  location: {
+    mode?: string;
+    [key: string]: unknown;
+  };
+  history: {
+    push: (path: string) => void;
+  };
+  account: {
+    organization?: {
+      name?: string;
+    };
+    [key: string]: unknown;
+  };
+  onChangeTheme: (themeData: unknown) => void;
+}
+
+interface OrganizationEditPageState {
+  classes: OrganizationEditPageProps;
+  organizationName: string;
+  organization: OrganizationRecord;
+  applications: ApplicationRecord[];
+  ldaps: LdapRecord[] | null;
+  mode: string;
+  transactions: TransactionRecord[];
+}
+
+interface BackendResponse<T> {
+  status?: string;
+  data?: T | null;
+  msg?: string;
+}
+
+// i18next 的历史类型返回值偏宽；页面 JSX 只消费字符串，统一在本页边界收窄。
+const i18next = {
+  t: (key: string, options?: Record<string, unknown>): string => String(i18nextRaw.t(key, options)),
+};
+
+class OrganizationEditPage extends React.Component<OrganizationEditPageProps, OrganizationEditPageState> {
+  constructor(props: OrganizationEditPageProps) {
     super(props);
     this.state = {
       classes: props,
       organizationName: props.match.params.organizationName,
-      organization: null,
+      // 保留历史 JS 行为：组织详情加载前为 null，render 中仍用 null guard 控制展示。
+      organization: null as unknown as OrganizationRecord,
       applications: [],
       ldaps: null,
       mode: props.location.mode !== undefined ? props.location.mode : "edit",
@@ -55,16 +171,16 @@ class OrganizationEditPage extends React.Component {
     this.getOrganizationTransactions();
   }
 
-  getOrganization() {
+  getOrganization(): void {
     OrganizationBackend.getOrganization("admin", this.state.organizationName)
-      .then((res) => {
+      .then((res: BackendResponse<OrganizationRecord>) => {
         if (res.status === "ok") {
           const organization = res.data;
-          if (organization === null) {
+          if (organization === null || organization === undefined) {
             this.props.history.push("/404");
             return;
           }
-          organization["enableDarkLogo"] = !!organization["logoDark"];
+          organization.enableDarkLogo = !!organization.logoDark;
 
           this.setState({
             organization: organization,
@@ -75,9 +191,9 @@ class OrganizationEditPage extends React.Component {
       });
   }
 
-  getApplications() {
+  getApplications(): void {
     ApplicationBackend.getApplicationsByOrganization("admin", this.state.organizationName)
-      .then((res) => {
+      .then((res: BackendResponse<ApplicationRecord[]>) => {
         if (res.status === "error") {
           Setting.showMessage("error", res.msg);
           return;
@@ -89,13 +205,13 @@ class OrganizationEditPage extends React.Component {
       });
   }
 
-  getLdaps() {
+  getLdaps(): void {
     LdapBackend.getLdaps(this.state.organizationName)
-      .then(res => {
-        let resdata = [];
+      .then((res: BackendResponse<LdapRecord[]>) => {
+        let resdata: LdapRecord[] = [];
         if (res.status === "ok") {
           if (res.data !== null) {
-            resdata = res.data;
+            resdata = res.data ?? [];
           }
         }
         this.setState({
@@ -104,9 +220,9 @@ class OrganizationEditPage extends React.Component {
       });
   }
 
-  getOrganizationTransactions() {
+  getOrganizationTransactions(): void {
     TransactionBackend.getTransactions(this.state.organizationName)
-      .then((res) => {
+      .then((res: BackendResponse<TransactionRecord[]>) => {
         if (res.status === "ok") {
           this.setState({
             transactions: res.data ?? [],
@@ -115,19 +231,19 @@ class OrganizationEditPage extends React.Component {
           Setting.showMessage("error", `${i18next.t("general:Failed to load")}: ${res.msg}`);
         }
       })
-      .catch(error => {
+      .catch((error: unknown) => {
         Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  parseOrganizationField(key, value) {
+  parseOrganizationField(key: string, value: unknown): unknown {
     // if ([].includes(key)) {
     //   value = Setting.myParseInt(value);
     // }
     return value;
   }
 
-  updateOrganizationField(key, value) {
+  updateOrganizationField(key: string, value: unknown): void {
     value = this.parseOrganizationField(key, value);
     const organization = this.state.organization;
     organization[key] = value;
@@ -136,7 +252,7 @@ class OrganizationEditPage extends React.Component {
     });
   }
 
-  updatePasswordObfuscator(key, value) {
+  updatePasswordObfuscator(key: "type" | "key", value: string): void {
     const organization = this.state.organization;
     if (organization.passwordObfuscatorType === "") {
       organization.passwordObfuscatorType = "Plain";
@@ -152,7 +268,7 @@ class OrganizationEditPage extends React.Component {
     });
   }
 
-  renderOrganization() {
+  renderOrganization(): React.ReactNode {
     const isNameLocked = isOrganizationNameLocked(this.state.organization, this.state.mode);
     return (
       <Card size="small" title={
@@ -654,7 +770,7 @@ class OrganizationEditPage extends React.Component {
               disabled={!Setting.isAdminUser(this.props.account)}
               checkedKeys={this.state.organization.navItems ?? ["all"]}
               defaultExpandedKeys={["all"]}
-              onCheck={(checked, _) => {
+              onCheck={(checked: unknown, _: unknown) => {
                 this.updateOrganizationField("navItems", checked);
               }}
             />
@@ -669,7 +785,7 @@ class OrganizationEditPage extends React.Component {
               disabled={!Setting.isAdminUser(this.props.account)}
               checkedKeys={this.state.organization.userNavItems ?? []}
               defaultExpandedKeys={["all"]}
-              onCheck={(checked, _) => {
+              onCheck={(checked: unknown, _: unknown) => {
                 this.updateOrganizationField("userNavItems", checked);
               }}
             />
@@ -684,7 +800,7 @@ class OrganizationEditPage extends React.Component {
               disabled={!Setting.isAdminUser(this.props.account)}
               checkedKeys={this.state.organization.widgetItems ?? ["all"]}
               defaultExpandedKeys={["all"]}
-              onCheck={(checked, _) => {
+              onCheck={(checked: unknown, _: unknown) => {
                 this.updateOrganizationField("widgetItems", checked);
               }}
             />
@@ -708,7 +824,7 @@ class OrganizationEditPage extends React.Component {
             <AccountTable
               title={i18next.t("organization:Account items")}
               table={this.state.organization.accountItems}
-              onUpdateTable={(value) => {this.updateOrganizationField("accountItems", value);}}
+              onUpdateTable={(value: unknown) => {this.updateOrganizationField("accountItems", value);}}
             />
           </Col>
         </Row>
@@ -730,7 +846,7 @@ class OrganizationEditPage extends React.Component {
             <MfaTable
               title={i18next.t("general:MFA items")}
               table={this.state.organization.mfaItems ?? []}
-              onUpdateTable={(value) => {this.updateOrganizationField("mfaItems", value);}}
+              onUpdateTable={(value: unknown) => {this.updateOrganizationField("mfaItems", value);}}
             />
           </Col>
         </Row>
@@ -751,7 +867,7 @@ class OrganizationEditPage extends React.Component {
             {
               this.state.organization.themeData?.isEnabled ?
                 <Row style={{marginTop: "20px"}}>
-                  <ThemeEditor themeData={this.state.organization.themeData} onThemeChange={(_, nextThemeData) => {
+                  <ThemeEditor themeData={this.state.organization.themeData} onThemeChange={(_: unknown, nextThemeData: ThemeDataRecord) => {
                     const {isEnabled} = this.state.organization.themeData ?? {...Conf.ThemeDefault, isEnabled: false};
                     this.updateOrganizationField("themeData", {...nextThemeData, isEnabled});
                   }} />
@@ -805,7 +921,7 @@ class OrganizationEditPage extends React.Component {
               title={i18next.t("general:LDAPs")}
               table={this.state.ldaps}
               organizationName={this.state.organizationName}
-              onUpdateTable={(value) => {
+              onUpdateTable={(value: LdapRecord[]) => {
                 this.setState({ldaps: value});
               }}
             />
@@ -855,9 +971,9 @@ class OrganizationEditPage extends React.Component {
     );
   }
 
-  submitOrganizationEdit(exitAfterSave) {
-    const organization = Setting.deepCopy(this.state.organization);
-    organization.accountItems = organization.accountItems?.filter(accountItem => accountItem.name !== "Please select an account item");
+  submitOrganizationEdit(exitAfterSave: boolean): void {
+    const organization = Setting.deepCopy(this.state.organization) as OrganizationRecord;
+    organization.accountItems = organization.accountItems?.filter((accountItem: AccountItemRecord) => accountItem.name !== "Please select an account item");
 
     const passwordObfuscatorErrorMessage = Obfuscator.checkPasswordObfuscator(organization.passwordObfuscatorType, organization.passwordObfuscatorKey);
     if (passwordObfuscatorErrorMessage.length > 0) {
@@ -865,12 +981,12 @@ class OrganizationEditPage extends React.Component {
       return;
     }
 
-    OrganizationBackend.updateOrganization(this.state.organization.owner, this.state.organizationName, organization)
-      .then((res) => {
+    OrganizationBackend.updateOrganization(this.state.organization.owner!, this.state.organizationName, organization)
+      .then((res: BackendResponse<unknown>) => {
         if (res.status === "ok") {
           Setting.showMessage("success", i18next.t("general:Successfully saved"));
 
-          if (this.props.account.organization.name === this.state.organizationName) {
+          if (this.props.account.organization?.name === this.state.organizationName) {
             this.props.onChangeTheme(Setting.getThemeData(this.state.organization));
           }
 
@@ -889,14 +1005,14 @@ class OrganizationEditPage extends React.Component {
           this.updateOrganizationField("name", this.state.organizationName);
         }
       })
-      .catch(error => {
+      .catch((error: unknown) => {
         Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  deleteOrganization() {
+  deleteOrganization(): void {
     OrganizationBackend.deleteOrganization(this.state.organization)
-      .then((res) => {
+      .then((res: BackendResponse<unknown>) => {
         if (res.status === "ok") {
           this.props.history.push("/organizations");
           window.dispatchEvent(new Event("storageOrganizationsChanged"));
@@ -904,7 +1020,7 @@ class OrganizationEditPage extends React.Component {
           Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
         }
       })
-      .catch(error => {
+      .catch((error: unknown) => {
         Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
       });
   }
