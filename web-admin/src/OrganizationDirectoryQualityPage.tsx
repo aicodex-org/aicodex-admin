@@ -22,6 +22,314 @@ import i18next from "i18next";
 
 const {Text, Title} = Typography;
 
+type ApiResponse<T> = {
+  status: string;
+  msg?: string;
+  data?: T | null;
+};
+
+type OrganizationDirectoryQualityPageProps = {
+  account?: {
+    owner?: string;
+    [key: string]: unknown;
+  };
+};
+
+type PagePagination = {
+  current: number;
+  pageSize: number;
+};
+
+type PaginationChange = {
+  current?: number;
+  pageSize?: number;
+};
+
+type TableColumn<T> = {
+  title: React.ReactNode;
+  dataIndex?: string;
+  width?: number;
+  render?: (value: unknown, record: T) => React.ReactNode;
+};
+
+type CountSummary = Record<string, number | undefined> & {
+  ready?: number;
+  warning?: number;
+  blocked?: number;
+  total?: number;
+};
+
+type SafeExportSummary = Record<string, unknown> & {
+  storageScope?: string;
+  retentionPolicy?: string;
+  noteScope?: string;
+};
+
+type DirectoryQualityItem = {
+  entityType?: string;
+  entityId?: string;
+  displayName?: string;
+  organizationId?: string;
+  sourceType?: string;
+  sourceConnectionIdHash?: string;
+  externalIdHash?: string;
+  syncBatchId?: string;
+  orgVersion?: string;
+  sourceVersion?: string;
+  lifecycleStatus?: string;
+  qualityStatus?: string;
+  reasonCodes?: string[];
+  remediationHints?: string[];
+  detail?: Record<string, unknown>;
+};
+
+type DirectoryQualityResponse = {
+  organizationId?: string;
+  entityType?: string;
+  page?: number;
+  pageSize?: number;
+  total?: number;
+  summary?: CountSummary;
+  reasonAliases?: string[];
+  boundary?: string;
+  items?: DirectoryQualityItem[];
+};
+
+type RemediationPlan = {
+  planId?: string;
+  planKey?: string;
+  priority?: string;
+  actionAlias?: string;
+  reasonCodes?: string[];
+  affectedCounts?: CountSummary;
+  sampleEntityIds?: string[];
+  sampleEntityHashes?: string[];
+  sourceVersions?: string[];
+  orgVersions?: string[];
+  safeSummary?: string;
+  operatorActions?: string[];
+  blockedReason?: string;
+};
+
+type RemediationPlanResponse = {
+  organizationId?: string;
+  totalPlanCount?: number;
+  boundary?: string;
+  plans?: RemediationPlan[];
+  exportSummary?: SafeExportSummary;
+};
+
+type DirectoryQualitySample = {
+  entityHash?: string;
+  displaySafeLabel?: string;
+  entityType?: string;
+  sourceType?: string;
+  qualityStatus?: string;
+  reasonCodes?: string[];
+  lifecycleStatus?: string;
+  sourceConnectionIdHash?: string;
+  orgVersion?: string;
+  sourceVersion?: string;
+};
+
+type ActionDraft = {
+  draftId?: string;
+  actionAlias?: string;
+  priority?: string;
+  entityType?: string;
+  affectedCount?: number;
+  safeSummary?: string;
+  blockedReason?: string;
+  executionMode?: string;
+  preconditions?: string[];
+  operatorSteps?: string[];
+  samples?: DirectoryQualitySample[];
+};
+
+type ActionDraftsResponse = {
+  organizationId?: string;
+  totalDraftCount?: number;
+  boundary?: string;
+  drafts?: ActionDraft[];
+  exportSummary?: SafeExportSummary;
+};
+
+type RemediationPreflight = {
+  preflightId?: string;
+  draftId?: string;
+  actionAlias?: string;
+  entityType?: string;
+  executionMode?: string;
+  readyForManualReview?: boolean;
+  autoExecutionAllowed?: boolean;
+  blockedReasons?: string[];
+  preconditions?: string[];
+  safetyChecklist?: string[];
+  affectedCounts?: CountSummary;
+  operatorNextSteps?: string[];
+  sampleDigests?: DirectoryQualitySample[];
+};
+
+type RemediationPreflightResponse = {
+  organizationId?: string;
+  totalPreflightCount?: number;
+  boundary?: string;
+  preflights?: RemediationPreflight[];
+  exportSummary?: SafeExportSummary;
+};
+
+type ApprovalPreview = {
+  approvalPreviewId?: string;
+  approvalPreviewHash?: string;
+  draftId?: string;
+  actionAlias?: string;
+  entityType?: string;
+  riskLevel?: string;
+  readyForApproval?: boolean;
+  autoExecutionAllowed?: boolean;
+  affectedCount?: number;
+  preconditions?: string[];
+  blockedReasons?: string[];
+  requiredApprovals?: string[];
+  operatorChecklist?: string[];
+  safeSummary?: string;
+  sampleStableHashes?: string[];
+};
+
+type ApprovalPreviewResponse = {
+  organizationId?: string;
+  boundary?: string;
+  approvalPreviews?: ApprovalPreview[];
+  exportSummary?: SafeExportSummary;
+};
+
+type ApprovalPacketAudit = {
+  packetAuditId?: string;
+  packetHash?: string;
+  approvalPreviewId?: string;
+  approvalPreviewHash?: string;
+  draftId?: string;
+  actionAlias?: string;
+  entityType?: string;
+  riskLevel?: string;
+  packetStatus?: string;
+  storageScope?: string;
+  retentionPolicy?: string;
+  executionMode?: string;
+  autoExecutionAllowed?: boolean;
+  eventTypes?: string[];
+  affectedCount?: number;
+  blockedReasons?: string[];
+  requiredApprovals?: string[];
+  operatorChecklistDigest?: string[];
+  sampleStableHashes?: string[];
+  safeSummary?: string;
+};
+
+type ApprovalPacketAuditResponse = {
+  organizationId?: string;
+  boundary?: string;
+  packetAudits?: ApprovalPacketAudit[];
+  exportSummary?: SafeExportSummary;
+};
+
+type ApprovalPacketOperatorNote = {
+  noteId?: string;
+  noteHash?: string;
+  packetHash?: string;
+  approvalPreviewHash?: string;
+  draftId?: string;
+  actionAlias?: string;
+  entityType?: string;
+  noteScope?: string;
+  retentionPolicy?: string;
+  executionMode?: string;
+  autoExecutionAllowed?: boolean;
+  handoffSummary?: string;
+  riskSummary?: string;
+  statusSummary?: string;
+  checklistSummary?: string[];
+  cannotInfer?: string[];
+  operatorNextSteps?: string[];
+  sampleStableHashes?: string[];
+  markdownSummary?: string;
+};
+
+type ApprovalPacketOperatorNotesResponse = {
+  organizationId?: string;
+  boundary?: string;
+  notes?: ApprovalPacketOperatorNote[];
+  exportSummary?: SafeExportSummary;
+};
+
+type OperatorNotePersistenceReadiness = {
+  readinessId?: string;
+  readinessHash?: string;
+  noteHash?: string;
+  packetHash?: string;
+  approvalPreviewHash?: string;
+  draftId?: string;
+  actionAlias?: string;
+  entityType?: string;
+  readinessStatus?: string;
+  storageScope?: string;
+  persistenceAllowed?: boolean;
+  storeDecisionRequired?: boolean;
+  readyForPersistenceDesignReview?: boolean;
+  idempotencyKey?: string;
+  idempotencyComponents?: string[];
+  permissionChecklist?: string[];
+  retentionChecklist?: string[];
+  auditSemanticsChecklist?: string[];
+  redactionChecklist?: string[];
+  manualReviewGate?: string[];
+  cannotInfer?: string[];
+  blockedReasons?: string[];
+  safeSummary?: string;
+};
+
+type OperatorNotePersistenceReadinessResponse = {
+  organizationId?: string;
+  boundary?: string;
+  readiness?: OperatorNotePersistenceReadiness[];
+  exportSummary?: SafeExportSummary;
+};
+
+type OperatorNoteReadonlyAuditSearchItem = {
+  auditSearchItemId?: string;
+  noteHash?: string;
+  readinessHash?: string;
+  packetHash?: string;
+  storageScope?: string;
+  noteScope?: string;
+  retentionPolicy?: string;
+  executionMode?: string;
+  autoExecutionAllowed?: boolean;
+  manualReviewOnly?: boolean;
+  packetStatus?: string;
+  readinessStatus?: string;
+  displaySafeLabel?: string;
+  checklistAliases?: string[];
+  reasonAliases?: string[];
+  redactedFields?: string[];
+  cannotInfer?: string[];
+  blockedReasons?: string[];
+  sourceVersionSummary?: string;
+  orgVersionSummary?: string;
+  safeSummary?: string;
+  markdownSummary?: string;
+};
+
+type OperatorNoteReadonlyAuditSearchResponse = {
+  organizationId?: string;
+  boundary?: string;
+  searchScope?: string;
+  persistenceRequiredForHistoricalSearch?: boolean;
+  cannotInfer?: string[];
+  items?: OperatorNoteReadonlyAuditSearchItem[];
+  exportSummary?: SafeExportSummary;
+};
+
 const entityOptions = [
   {label: "用户", value: "user"},
   {label: "部门", value: "department"},
@@ -35,27 +343,27 @@ const qualityOptions = [
   {label: "Ready", value: "ready"},
 ];
 
-function qualityTag(status) {
+function qualityTag(status?: string) {
   const color = status === "blocked" ? "red" : status === "warning" ? "gold" : "green";
   return <Tag color={color}>{status || "ready"}</Tag>;
 }
 
-function priorityTag(priority) {
+function priorityTag(priority?: string) {
   const color = priority === "P0" ? "red" : priority === "P1" ? "orange" : priority === "P2" ? "gold" : "blue";
   return <Tag color={color}>{priority || "P3"}</Tag>;
 }
 
-function compactText(value) {
+function compactText(value?: unknown) {
   if (!value) {
     return "-";
   }
   if (String(value).length <= 36) {
-    return value;
+    return String(value);
   }
   return `${String(value).slice(0, 18)}...${String(value).slice(-10)}`;
 }
 
-const aliasCopy = {
+const aliasCopy: Record<string, {labelKey: string; label: string; shortKey?: string; short?: string}> = {
   scope_has_no_manageable_departments: {
     labelKey: "Current organization has no manageable departments",
     label: "当前组织暂无可管理部门",
@@ -84,11 +392,11 @@ const aliasCopy = {
   },
 };
 
-function translateGeneral(key, fallback) {
+function translateGeneral(key: string, fallback: string) {
   return i18next.t(`general:${key}`, {defaultValue: fallback});
 }
 
-function readableAlias(value) {
+function readableAlias(value?: unknown) {
   const text = String(value || "");
   if (!text) {
     return "-";
@@ -99,7 +407,7 @@ function readableAlias(value) {
   return text.split("_").filter(Boolean).map(part => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join(" ");
 }
 
-function aliasLabel(value) {
+function aliasLabel(value?: unknown) {
   const copy = aliasCopy[String(value || "").toLowerCase()];
   if (copy) {
     return translateGeneral(copy.labelKey, copy.label);
@@ -107,10 +415,10 @@ function aliasLabel(value) {
   return readableAlias(value);
 }
 
-function aliasSummary(value) {
+function aliasSummary(value?: unknown) {
   const copy = aliasCopy[String(value || "").toLowerCase()];
   if (copy?.shortKey) {
-    return translateGeneral(copy.shortKey, copy.short);
+    return translateGeneral(copy.shortKey, copy.short || copy.label);
   }
   if (copy) {
     return translateGeneral(copy.labelKey, copy.label);
@@ -118,21 +426,21 @@ function aliasSummary(value) {
   return readableAlias(value);
 }
 
-function renderTags(values, color) {
+function renderTags(values: string[] | undefined, color: string) {
   if (!values || values.length === 0) {
     return <Text type="secondary">-</Text>;
   }
   return values.map(value => <Tag color={color} key={value}>{value}</Tag>);
 }
 
-function renderAliasTags(values, color) {
+function renderAliasTags(values: string[] | undefined, color: string) {
   if (!values || values.length === 0) {
     return <Text type="secondary">-</Text>;
   }
   return values.map(value => <Tag color={color} key={value}>{aliasLabel(value)}</Tag>);
 }
 
-export default function OrganizationDirectoryQualityPage(props) {
+export default function OrganizationDirectoryQualityPage(props: OrganizationDirectoryQualityPageProps) {
   const [organization, setOrganization] = useState(props.account?.owner || "built-in");
   const [entityType, setEntityType] = useState("user");
   const [qualityStatus, setQualityStatus] = useState("");
@@ -141,7 +449,7 @@ export default function OrganizationDirectoryQualityPage(props) {
   const [sourceType, setSourceType] = useState("");
   const [sourceConnectionIdHash, setSourceConnectionIdHash] = useState("");
   const [keyword, setKeyword] = useState("");
-  const [pagination, setPagination] = useState({current: 1, pageSize: 10});
+  const [pagination, setPagination] = useState<PagePagination>({current: 1, pageSize: 10});
   const [loading, setLoading] = useState(false);
   const [planLoading, setPlanLoading] = useState(false);
   const [draftLoading, setDraftLoading] = useState(false);
@@ -151,17 +459,17 @@ export default function OrganizationDirectoryQualityPage(props) {
   const [approvalPacketOperatorNotesLoading, setApprovalPacketOperatorNotesLoading] = useState(false);
   const [operatorNotePersistenceReadinessLoading, setOperatorNotePersistenceReadinessLoading] = useState(false);
   const [operatorNoteReadonlyAuditSearchLoading, setOperatorNoteReadonlyAuditSearchLoading] = useState(false);
-  const [data, setData] = useState(null);
-  const [planData, setPlanData] = useState(null);
-  const [selectedItem, setSelectedItem] = useState(null);
-  const [selectedPlan, setSelectedPlan] = useState(null);
-  const [draftData, setDraftData] = useState(null);
-  const [preflightData, setPreflightData] = useState(null);
-  const [approvalPreviewData, setApprovalPreviewData] = useState(null);
-  const [approvalPacketAuditData, setApprovalPacketAuditData] = useState(null);
-  const [approvalPacketOperatorNotesData, setApprovalPacketOperatorNotesData] = useState(null);
-  const [operatorNotePersistenceReadinessData, setOperatorNotePersistenceReadinessData] = useState(null);
-  const [operatorNoteReadonlyAuditSearchData, setOperatorNoteReadonlyAuditSearchData] = useState(null);
+  const [data, setData] = useState<DirectoryQualityResponse | null>(null);
+  const [planData, setPlanData] = useState<RemediationPlanResponse | null>(null);
+  const [selectedItem, setSelectedItem] = useState<DirectoryQualityItem | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<RemediationPlan | null>(null);
+  const [draftData, setDraftData] = useState<ActionDraftsResponse | null>(null);
+  const [preflightData, setPreflightData] = useState<RemediationPreflightResponse | null>(null);
+  const [approvalPreviewData, setApprovalPreviewData] = useState<ApprovalPreviewResponse | null>(null);
+  const [approvalPacketAuditData, setApprovalPacketAuditData] = useState<ApprovalPacketAuditResponse | null>(null);
+  const [approvalPacketOperatorNotesData, setApprovalPacketOperatorNotesData] = useState<ApprovalPacketOperatorNotesResponse | null>(null);
+  const [operatorNotePersistenceReadinessData, setOperatorNotePersistenceReadinessData] = useState<OperatorNotePersistenceReadinessResponse | null>(null);
+  const [operatorNoteReadonlyAuditSearchData, setOperatorNoteReadonlyAuditSearchData] = useState<OperatorNoteReadonlyAuditSearchResponse | null>(null);
 
   const currentPlanOptions = () => ({
     entityType,
@@ -175,7 +483,7 @@ export default function OrganizationDirectoryQualityPage(props) {
     topN: 20,
   });
 
-  const loadDirectoryQuality = (nextPagination = pagination) => {
+  const loadDirectoryQuality = (nextPagination: PagePagination = pagination) => {
     setLoading(true);
     return PlatformApiMappingBackend.getOrganizationDirectoryQuality(organization, {
       entityType,
@@ -187,13 +495,13 @@ export default function OrganizationDirectoryQualityPage(props) {
       keyword,
       current: nextPagination.current,
       pageSize: nextPagination.pageSize,
-    }).then((res) => {
+    }).then((res: ApiResponse<DirectoryQualityResponse>) => {
       if (res.status !== "ok") {
         Setting.showMessage("error", res.msg || "加载组织目录质量失败");
         setData(null);
         return;
       }
-      setData(res.data);
+      setData(res.data || null);
       setPagination({
         current: res.data?.page || nextPagination.current,
         pageSize: res.data?.pageSize || nextPagination.pageSize,
@@ -203,17 +511,17 @@ export default function OrganizationDirectoryQualityPage(props) {
 
   const loadRemediationPlan = () => {
     setPlanLoading(true);
-    return PlatformApiMappingBackend.getOrganizationDirectoryRemediationPlan(organization, currentPlanOptions()).then((res) => {
+    return PlatformApiMappingBackend.getOrganizationDirectoryRemediationPlan(organization, currentPlanOptions()).then((res: ApiResponse<RemediationPlanResponse>) => {
       if (res.status !== "ok") {
         Setting.showMessage("error", res.msg || "加载组织目录修复计划失败");
         setPlanData(null);
         return;
       }
-      setPlanData(res.data);
+      setPlanData(res.data || null);
     }).finally(() => setPlanLoading(false));
   };
 
-  const loadActionDrafts = (plan) => {
+  const loadActionDrafts = (plan: RemediationPlan) => {
     setSelectedPlan(plan);
     setDraftData(null);
     setPreflightData(null);
@@ -229,17 +537,17 @@ export default function OrganizationDirectoryQualityPage(props) {
       reasonCode: (plan.reasonCodes || [])[0] || reasonCode,
       limit: 100,
       topN: 20,
-    }).then((res) => {
+    }).then((res: ApiResponse<ActionDraftsResponse>) => {
       if (res.status !== "ok") {
         Setting.showMessage("error", res.msg || "加载组织目录修复草案失败");
         setDraftData(null);
         return;
       }
-      setDraftData(res.data);
+      setDraftData(res.data || null);
     }).finally(() => setDraftLoading(false));
   };
 
-  const loadPreflight = (draft) => {
+  const loadPreflight = (draft: ActionDraft) => {
     setPreflightData(null);
     setApprovalPreviewData(null);
     setApprovalPacketAuditData(null);
@@ -255,17 +563,17 @@ export default function OrganizationDirectoryQualityPage(props) {
       reasonCode: (selectedPlan?.reasonCodes || [])[0] || reasonCode,
       limit: 100,
       topN: 20,
-    }).then((res) => {
+    }).then((res: ApiResponse<RemediationPreflightResponse>) => {
       if (res.status !== "ok") {
         Setting.showMessage("error", res.msg || "加载组织目录修复预检失败");
         setPreflightData(null);
         return;
       }
-      setPreflightData(res.data);
+      setPreflightData(res.data || null);
     }).finally(() => setPreflightLoading(false));
   };
 
-  const loadApprovalPreview = (preflight) => {
+  const loadApprovalPreview = (preflight: RemediationPreflight) => {
     setApprovalPreviewData(null);
     setApprovalPacketAuditData(null);
     setApprovalPacketOperatorNotesData(null);
@@ -280,17 +588,17 @@ export default function OrganizationDirectoryQualityPage(props) {
       reasonCode: (selectedPlan?.reasonCodes || [])[0] || reasonCode,
       limit: 100,
       topN: 20,
-    }).then((res) => {
+    }).then((res: ApiResponse<ApprovalPreviewResponse>) => {
       if (res.status !== "ok") {
         Setting.showMessage("error", res.msg || "加载组织目录修复审批预览失败");
         setApprovalPreviewData(null);
         return;
       }
-      setApprovalPreviewData(res.data);
+      setApprovalPreviewData(res.data || null);
     }).finally(() => setApprovalPreviewLoading(false));
   };
 
-  const loadApprovalPacketAudit = (approvalPreview) => {
+  const loadApprovalPacketAudit = (approvalPreview: ApprovalPreview) => {
     setApprovalPacketAuditData(null);
     setApprovalPacketOperatorNotesData(null);
     setOperatorNotePersistenceReadinessData(null);
@@ -308,17 +616,17 @@ export default function OrganizationDirectoryQualityPage(props) {
       reasonCode: (selectedPlan?.reasonCodes || [])[0] || reasonCode,
       limit: 100,
       topN: 20,
-    }).then((res) => {
+    }).then((res: ApiResponse<ApprovalPacketAuditResponse>) => {
       if (res.status !== "ok") {
         Setting.showMessage("error", res.msg || "加载审批包审计失败");
         setApprovalPacketAuditData(null);
         return;
       }
-      setApprovalPacketAuditData(res.data);
+      setApprovalPacketAuditData(res.data || null);
     }).finally(() => setApprovalPacketAuditLoading(false));
   };
 
-  const loadApprovalPacketOperatorNotes = (packetAudit) => {
+  const loadApprovalPacketOperatorNotes = (packetAudit: ApprovalPacketAudit) => {
     setApprovalPacketOperatorNotesData(null);
     setOperatorNotePersistenceReadinessData(null);
     setOperatorNoteReadonlyAuditSearchData(null);
@@ -337,17 +645,17 @@ export default function OrganizationDirectoryQualityPage(props) {
       reasonCode: (selectedPlan?.reasonCodes || [])[0] || reasonCode,
       limit: 100,
       topN: 20,
-    }).then((res) => {
+    }).then((res: ApiResponse<ApprovalPacketOperatorNotesResponse>) => {
       if (res.status !== "ok") {
         Setting.showMessage("error", res.msg || "加载交接备注失败");
         setApprovalPacketOperatorNotesData(null);
         return;
       }
-      setApprovalPacketOperatorNotesData(res.data);
+      setApprovalPacketOperatorNotesData(res.data || null);
     }).finally(() => setApprovalPacketOperatorNotesLoading(false));
   };
 
-  const loadOperatorNotePersistenceReadiness = (note) => {
+  const loadOperatorNotePersistenceReadiness = (note: ApprovalPacketOperatorNote) => {
     setOperatorNotePersistenceReadinessData(null);
     setOperatorNoteReadonlyAuditSearchData(null);
     setOperatorNotePersistenceReadinessLoading(true);
@@ -365,17 +673,17 @@ export default function OrganizationDirectoryQualityPage(props) {
       reasonCode: (selectedPlan?.reasonCodes || [])[0] || reasonCode,
       limit: 100,
       topN: 20,
-    }).then((res) => {
+    }).then((res: ApiResponse<OperatorNotePersistenceReadinessResponse>) => {
       if (res.status !== "ok") {
         Setting.showMessage("error", res.msg || "加载持久化准入失败");
         setOperatorNotePersistenceReadinessData(null);
         return;
       }
-      setOperatorNotePersistenceReadinessData(res.data);
+      setOperatorNotePersistenceReadinessData(res.data || null);
     }).finally(() => setOperatorNotePersistenceReadinessLoading(false));
   };
 
-  const loadOperatorNoteReadonlyAuditSearch = (readiness) => {
+  const loadOperatorNoteReadonlyAuditSearch = (readiness: OperatorNotePersistenceReadiness) => {
     setOperatorNoteReadonlyAuditSearchData(null);
     setOperatorNoteReadonlyAuditSearchLoading(true);
     return PlatformApiMappingBackend.getOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch(organization, {
@@ -397,17 +705,17 @@ export default function OrganizationDirectoryQualityPage(props) {
       historyMode: "persistent",
       limit: 100,
       topN: 20,
-    }).then((res) => {
+    }).then((res: ApiResponse<OperatorNoteReadonlyAuditSearchResponse>) => {
       if (res.status !== "ok") {
         Setting.showMessage("error", res.msg || "加载备注审计检索失败");
         setOperatorNoteReadonlyAuditSearchData(null);
         return;
       }
-      setOperatorNoteReadonlyAuditSearchData(res.data);
+      setOperatorNoteReadonlyAuditSearchData(res.data || null);
     }).finally(() => setOperatorNoteReadonlyAuditSearchLoading(false));
   };
 
-  const loadAll = (nextPagination = pagination) => Promise.all([
+  const loadAll = (nextPagination: PagePagination = pagination) => Promise.all([
     loadDirectoryQuality(nextPagination),
     loadRemediationPlan(),
   ]);
@@ -421,12 +729,12 @@ export default function OrganizationDirectoryQualityPage(props) {
     return [{label: "全部原因", value: ""}, ...aliases.map(alias => ({label: aliasLabel(alias), value: alias}))];
   }, [data]);
 
-  const columns = [
+  const columns: TableColumn<DirectoryQualityItem>[] = [
     {
       title: "质量",
       dataIndex: "qualityStatus",
       width: 110,
-      render: qualityTag,
+      render: value => qualityTag(String(value || "")),
     },
     {
       title: "对象",
@@ -452,7 +760,7 @@ export default function OrganizationDirectoryQualityPage(props) {
     {
       title: "原因",
       dataIndex: "reasonCodes",
-      render: values => renderAliasTags(values, "volcano"),
+      render: values => renderAliasTags(Array.isArray(values) ? values : [], "volcano"),
     },
     {
       title: "操作",
@@ -461,12 +769,12 @@ export default function OrganizationDirectoryQualityPage(props) {
     },
   ];
 
-  const planColumns = [
+  const planColumns: TableColumn<RemediationPlan>[] = [
     {
       title: "优先级",
       dataIndex: "priority",
       width: 90,
-      render: priorityTag,
+      render: value => priorityTag(String(value || "")),
     },
     {
       title: "修复计划",
@@ -482,18 +790,21 @@ export default function OrganizationDirectoryQualityPage(props) {
     {
       title: "原因",
       dataIndex: "reasonCodes",
-      render: values => renderAliasTags(values, "volcano"),
+      render: values => renderAliasTags(Array.isArray(values) ? values : [], "volcano"),
     },
     {
       title: "样例",
       dataIndex: "sampleEntityIds",
       width: 220,
-      render: values => (
-        <Space direction="vertical" size={0}>
-          {(values || []).slice(0, 3).map(value => <Text key={value} type="secondary">{compactText(value)}</Text>)}
-          {(!values || values.length === 0) && <Text type="secondary">-</Text>}
-        </Space>
-      ),
+      render: values => {
+        const sampleEntityIds = Array.isArray(values) ? values : [];
+        return (
+          <Space direction="vertical" size={0}>
+            {sampleEntityIds.slice(0, 3).map((value: string) => <Text key={value} type="secondary">{compactText(value)}</Text>)}
+            {sampleEntityIds.length === 0 && <Text type="secondary">-</Text>}
+          </Space>
+        );
+      },
     },
     {
       title: "摘要",
@@ -840,7 +1151,7 @@ export default function OrganizationDirectoryQualityPage(props) {
       <Space direction="vertical" size={16} style={{width: "100%"}}>
         <Space align="center" wrap>
           <Title level={3} style={{margin: 0}}>组织目录质量</Title>
-          <OrganizationSelect initValue={organization} onChange={(value) => setOrganization(value)} />
+          <OrganizationSelect initValue={organization} onChange={(value: string) => setOrganization(value)} />
           <Button icon={<ReloadOutlined />} onClick={() => loadAll({current: 1, pageSize: pagination.pageSize})}>刷新</Button>
         </Space>
 
@@ -874,8 +1185,8 @@ export default function OrganizationDirectoryQualityPage(props) {
               </Space>
               <Button icon={<DownloadOutlined />} onClick={exportRemediationPlan}>导出计划</Button>
             </Space>
-            <Table
-              rowKey={(record) => record.planId || record.planKey}
+            <Table<RemediationPlan>
+              rowKey={(record) => record.planId || record.planKey || record.actionAlias || "plan"}
               size="small"
               loading={planLoading}
               columns={planColumns}
@@ -886,7 +1197,7 @@ export default function OrganizationDirectoryQualityPage(props) {
           </Space>
         </div>
 
-        <Table
+        <Table<DirectoryQualityItem>
           rowKey={(record) => `${record.entityType}:${record.entityId}`}
           loading={loading}
           columns={columns}
@@ -898,8 +1209,11 @@ export default function OrganizationDirectoryQualityPage(props) {
             total: data?.total || 0,
             showSizeChanger: true,
           }}
-          onChange={(next) => {
-            const nextPagination = {current: next.current, pageSize: next.pageSize};
+          onChange={(next: PaginationChange) => {
+            const nextPagination = {
+              current: next.current || 1,
+              pageSize: next.pageSize || pagination.pageSize,
+            };
             setPagination(nextPagination);
             loadDirectoryQuality(nextPagination);
           }}
@@ -959,8 +1273,8 @@ export default function OrganizationDirectoryQualityPage(props) {
             <Button onClick={copyActionDraft} disabled={!draftData?.drafts?.length}>复制草案</Button>
           </Space>
           <Text type="secondary">{draftData?.boundary || "Admin producer manual review only."}</Text>
-          <Table
-            rowKey={(record) => record.draftId}
+          <Table<ActionDraft>
+            rowKey={(record) => record.draftId || record.actionAlias || "draft"}
             size="small"
             loading={draftLoading}
             dataSource={draftData?.drafts || []}
@@ -994,7 +1308,7 @@ export default function OrganizationDirectoryQualityPage(props) {
                 dataIndex: "preconditions",
                 render: values => (
                   <Space direction="vertical" size={0}>
-                    {(values || []).map(value => <Text key={value}>{value}</Text>)}
+                    {(values || []).map((value: string) => <Text key={value}>{value}</Text>)}
                   </Space>
                 ),
               },
@@ -1003,7 +1317,7 @@ export default function OrganizationDirectoryQualityPage(props) {
                 dataIndex: "operatorSteps",
                 render: values => (
                   <Space direction="vertical" size={0}>
-                    {(values || []).map(value => <Text key={value}>{value}</Text>)}
+                    {(values || []).map((value: string) => <Text key={value}>{value}</Text>)}
                   </Space>
                 ),
               },
@@ -1015,7 +1329,7 @@ export default function OrganizationDirectoryQualityPage(props) {
                     {preflightData && <Text type="secondary">查看下方预检样例</Text>}
                     {!preflightData && (
                       <>
-                        {(values || []).slice(0, 5).map(sample => (
+                        {(values || []).slice(0, 5).map((sample: DirectoryQualitySample) => (
                           <Text key={sample.entityHash} type="secondary">
                             {sample.displaySafeLabel || sample.entityHash} / {sample.sourceType || "-"} / {sample.qualityStatus || "-"}
                           </Text>
@@ -1048,7 +1362,7 @@ export default function OrganizationDirectoryQualityPage(props) {
                     <Text type="secondary">{preflightData?.boundary || "Admin producer preflight only."}</Text>
                   </Space>
                   <Space wrap>
-                    <Button onClick={() => loadApprovalPreview(selectedPreflight)} disabled={!selectedPreflight}>审批预览</Button>
+                    <Button onClick={() => selectedPreflight && loadApprovalPreview(selectedPreflight)} disabled={!selectedPreflight}>审批预览</Button>
                     <Button icon={<DownloadOutlined />} onClick={exportPreflight} disabled={!preflightData?.preflights?.length}>导出预检</Button>
                   </Space>
                 </Space>
@@ -1071,8 +1385,8 @@ export default function OrganizationDirectoryQualityPage(props) {
                       </Descriptions.Item>
                       <Descriptions.Item label="下一步">{renderTags(selectedPreflight.operatorNextSteps, "geekblue")}</Descriptions.Item>
                     </Descriptions>
-                    <Table
-                      rowKey={(record) => record.entityHash || record.displaySafeLabel}
+                    <Table<DirectoryQualitySample>
+                      rowKey={(record) => record.entityHash || record.displaySafeLabel || "sample"}
                       size="small"
                       pagination={false}
                       dataSource={selectedPreflight.sampleDigests || []}
@@ -1108,7 +1422,7 @@ export default function OrganizationDirectoryQualityPage(props) {
                               <Text type="secondary">{approvalPreviewData?.boundary || "Admin producer approval preview only."}</Text>
                             </Space>
                             <Space wrap>
-                              <Button onClick={() => loadApprovalPacketAudit(selectedApprovalPreview)} disabled={!selectedApprovalPreview}>审批包审计</Button>
+                              <Button onClick={() => selectedApprovalPreview && loadApprovalPacketAudit(selectedApprovalPreview)} disabled={!selectedApprovalPreview}>审批包审计</Button>
                               <Button onClick={copyApprovalPreview} disabled={!approvalPreviewData?.approvalPreviews?.length}>复制审批预览</Button>
                               <Button icon={<DownloadOutlined />} onClick={exportApprovalPreview} disabled={!approvalPreviewData?.approvalPreviews?.length}>导出审批预览</Button>
                             </Space>
@@ -1142,7 +1456,7 @@ export default function OrganizationDirectoryQualityPage(props) {
                                         <Text type="secondary">{approvalPacketAuditData?.boundary || "Admin producer approval packet audit only."}</Text>
                                       </Space>
                                       <Space wrap>
-                                        <Button onClick={() => loadApprovalPacketOperatorNotes(selectedApprovalPacketAudit)} disabled={!selectedApprovalPacketAudit}>交接备注</Button>
+                                        <Button onClick={() => selectedApprovalPacketAudit && loadApprovalPacketOperatorNotes(selectedApprovalPacketAudit)} disabled={!selectedApprovalPacketAudit}>交接备注</Button>
                                         <Button onClick={copyApprovalPacketAudit} disabled={!approvalPacketAuditData?.packetAudits?.length}>复制审批包审计</Button>
                                         <Button icon={<DownloadOutlined />} onClick={exportApprovalPacketAudit} disabled={!approvalPacketAuditData?.packetAudits?.length}>导出审批包审计</Button>
                                       </Space>
@@ -1174,7 +1488,7 @@ export default function OrganizationDirectoryQualityPage(props) {
                                               <Text type="secondary">{approvalPacketOperatorNotesData?.boundary || "Admin producer operator notes only."}</Text>
                                             </Space>
                                             <Space wrap>
-                                              <Button onClick={() => loadOperatorNotePersistenceReadiness(selectedApprovalPacketOperatorNote)} disabled={!selectedApprovalPacketOperatorNote}>持久化准入</Button>
+                                              <Button onClick={() => selectedApprovalPacketOperatorNote && loadOperatorNotePersistenceReadiness(selectedApprovalPacketOperatorNote)} disabled={!selectedApprovalPacketOperatorNote}>持久化准入</Button>
                                               <Button onClick={copyApprovalPacketOperatorNotesJson} disabled={!approvalPacketOperatorNotesData?.notes?.length}>复制交接备注JSON</Button>
                                               <Button onClick={copyApprovalPacketOperatorNotesMarkdown} disabled={!selectedApprovalPacketOperatorNote?.markdownSummary}>复制交接备注Markdown</Button>
                                               <Button icon={<DownloadOutlined />} onClick={exportApprovalPacketOperatorNotesJson} disabled={!approvalPacketOperatorNotesData?.notes?.length}>导出交接备注JSON</Button>
@@ -1212,7 +1526,7 @@ export default function OrganizationDirectoryQualityPage(props) {
                                                     <Text type="secondary">{operatorNotePersistenceReadinessData?.boundary || "Admin producer persistence readiness only."}</Text>
                                                   </Space>
                                                   <Space wrap>
-                                                    <Button onClick={() => loadOperatorNoteReadonlyAuditSearch(selectedOperatorNotePersistenceReadiness)} disabled={!selectedOperatorNotePersistenceReadiness}>备注审计检索</Button>
+                                                    <Button onClick={() => selectedOperatorNotePersistenceReadiness && loadOperatorNoteReadonlyAuditSearch(selectedOperatorNotePersistenceReadiness)} disabled={!selectedOperatorNotePersistenceReadiness}>备注审计检索</Button>
                                                     <Button onClick={copyOperatorNotePersistenceReadinessJson} disabled={!operatorNotePersistenceReadinessData?.readiness?.length}>复制持久化准入JSON</Button>
                                                     <Button icon={<DownloadOutlined />} onClick={exportOperatorNotePersistenceReadinessJson} disabled={!operatorNotePersistenceReadinessData?.readiness?.length}>导出持久化准入JSON</Button>
                                                   </Space>

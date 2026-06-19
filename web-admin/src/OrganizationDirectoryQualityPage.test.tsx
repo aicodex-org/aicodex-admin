@@ -14,30 +14,94 @@
 // limitations under the License.
 
 import React from "react";
-import {fireEvent, render, screen, wait} from "@testing-library/react";
+import {render} from "@testing-library/react";
+import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import * as PlatformApiMappingBackend from "./backend/PlatformApiMappingBackend";
 import OrganizationDirectoryQualityPage from "./OrganizationDirectoryQualityPage";
 import * as Setting from "./Setting";
 
-jest.mock("./backend/PlatformApiMappingBackend", () => ({
-  getOrganizationDirectoryQuality: jest.fn(),
-  getOrganizationDirectoryRemediationPlan: jest.fn(),
-  getOrganizationDirectoryRemediationActionDrafts: jest.fn(),
-  getOrganizationDirectoryRemediationPreflight: jest.fn(),
-  getOrganizationDirectoryRemediationApprovalPreview: jest.fn(),
-  getOrganizationDirectoryRemediationApprovalPacketAudit: jest.fn(),
-  getOrganizationDirectoryRemediationApprovalPacketOperatorNotes: jest.fn(),
-  getOrganizationDirectoryRemediationOperatorNotePersistenceReadiness: jest.fn(),
-  getOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch: jest.fn(),
-}));
+declare const jest: typeof jestValue;
 
-jest.mock("./common/select/OrganizationSelect", () => (props) => (
+type LooseMock = {
+  (...args: unknown[]): unknown;
+  mock: {
+    calls: unknown[][];
+  };
+  mockImplementation: (implementation: (...args: unknown[]) => unknown) => LooseMock;
+  mockResolvedValue: (value: unknown) => LooseMock;
+  mockResolvedValueOnce: (value: unknown) => LooseMock;
+  mockRejectedValueOnce: (value: unknown) => LooseMock;
+};
+
+type PlatformApiMappingBackendMock = Record<
+  "getOrganizationDirectoryQuality" |
+  "getOrganizationDirectoryRemediationPlan" |
+  "getOrganizationDirectoryRemediationActionDrafts" |
+  "getOrganizationDirectoryRemediationPreflight" |
+  "getOrganizationDirectoryRemediationApprovalPreview" |
+  "getOrganizationDirectoryRemediationApprovalPacketAudit" |
+  "getOrganizationDirectoryRemediationApprovalPacketOperatorNotes" |
+  "getOrganizationDirectoryRemediationOperatorNotePersistenceReadiness" |
+  "getOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch",
+  LooseMock
+>;
+
+type OrganizationSelectMockProps = {
+  initValue?: string;
+  onChange: (value: string) => void;
+};
+
+type BlobMockValue = {
+  parts: string[];
+  options?: unknown;
+};
+
+type CreateObjectURLMock = LooseMock & {
+  mock: {
+    calls: [BlobMockValue][];
+  };
+};
+
+const backendMock = PlatformApiMappingBackend as unknown as PlatformApiMappingBackendMock;
+const expect = jestExpect;
+const {fireEvent, screen, wait} = require("@testing-library/react") as {
+  fireEvent: {
+    click: (element: Element | null) => boolean;
+    change: (element: Element | null, event: unknown) => boolean;
+  };
+  screen: {
+    findByText: (text: string | RegExp) => Promise<HTMLElement>;
+    findAllByText: (text: string | RegExp) => Promise<HTMLElement[]>;
+    getByText: (text: string | RegExp) => HTMLElement;
+    getAllByText: (text: string | RegExp) => HTMLElement[];
+    queryByText: (text: string | RegExp) => HTMLElement | null;
+    getByTestId: (id: string) => HTMLElement;
+  };
+  wait: (callback: () => unknown) => Promise<unknown>;
+};
+
+jest.mock("./backend/PlatformApiMappingBackend", () => {
+  const {jest: factoryJest} = require("@jest/globals") as {jest: Pick<typeof jestValue, "fn">};
+  return {
+    getOrganizationDirectoryQuality: factoryJest.fn(),
+    getOrganizationDirectoryRemediationPlan: factoryJest.fn(),
+    getOrganizationDirectoryRemediationActionDrafts: factoryJest.fn(),
+    getOrganizationDirectoryRemediationPreflight: factoryJest.fn(),
+    getOrganizationDirectoryRemediationApprovalPreview: factoryJest.fn(),
+    getOrganizationDirectoryRemediationApprovalPacketAudit: factoryJest.fn(),
+    getOrganizationDirectoryRemediationApprovalPacketOperatorNotes: factoryJest.fn(),
+    getOrganizationDirectoryRemediationOperatorNotePersistenceReadiness: factoryJest.fn(),
+    getOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch: factoryJest.fn(),
+  };
+});
+
+jest.mock("./common/select/OrganizationSelect", () => (props: OrganizationSelectMockProps) => (
   <select data-testid="organization-select" value={props.initValue} onChange={event => props.onChange(event.target.value)}>
     <option value="org-alpha">测试组织</option>
   </select>
 ));
 
-const mockMatchMedia = query => ({
+const mockMatchMedia = (query: string) => ({
   matches: false,
   media: query,
   onchange: null,
@@ -48,12 +112,21 @@ const mockMatchMedia = query => ({
   dispatchEvent: jest.fn(),
 });
 
+function exportedBlobAt(index: number): BlobMockValue {
+  return (global.URL.createObjectURL as unknown as CreateObjectURLMock).mock.calls[index][0];
+}
+
+function expectButtonDisabled(text: string) {
+  const button = screen.getByText(text).closest("button") as HTMLButtonElement | null;
+  expect(button?.disabled).toBe(true);
+}
+
 beforeEach(() => {
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: mockMatchMedia,
   });
-  PlatformApiMappingBackend.getOrganizationDirectoryQuality.mockResolvedValue({
+  backendMock.getOrganizationDirectoryQuality.mockResolvedValue({
     status: "ok",
     data: {
       organizationId: "org-alpha",
@@ -83,7 +156,7 @@ beforeEach(() => {
       }],
     },
   });
-  PlatformApiMappingBackend.getOrganizationDirectoryRemediationPlan.mockResolvedValue({
+  backendMock.getOrganizationDirectoryRemediationPlan.mockResolvedValue({
     status: "ok",
     data: {
       organizationId: "org-alpha",
@@ -115,7 +188,7 @@ beforeEach(() => {
       },
     },
   });
-  PlatformApiMappingBackend.getOrganizationDirectoryRemediationActionDrafts.mockResolvedValue({
+  backendMock.getOrganizationDirectoryRemediationActionDrafts.mockResolvedValue({
     status: "ok",
     data: {
       organizationId: "org-alpha",
@@ -155,7 +228,7 @@ beforeEach(() => {
       },
     },
   });
-  PlatformApiMappingBackend.getOrganizationDirectoryRemediationPreflight.mockResolvedValue({
+  backendMock.getOrganizationDirectoryRemediationPreflight.mockResolvedValue({
     status: "ok",
     data: {
       organizationId: "org-alpha",
@@ -197,7 +270,7 @@ beforeEach(() => {
       },
     },
   });
-  PlatformApiMappingBackend.getOrganizationDirectoryRemediationApprovalPreview.mockResolvedValue({
+  backendMock.getOrganizationDirectoryRemediationApprovalPreview.mockResolvedValue({
     status: "ok",
     data: {
       organizationId: "org-alpha",
@@ -240,7 +313,7 @@ beforeEach(() => {
       },
     },
   });
-  PlatformApiMappingBackend.getOrganizationDirectoryRemediationApprovalPacketAudit.mockResolvedValue({
+  backendMock.getOrganizationDirectoryRemediationApprovalPacketAudit.mockResolvedValue({
     status: "ok",
     data: {
       organizationId: "org-alpha",
@@ -292,7 +365,7 @@ beforeEach(() => {
       },
     },
   });
-  PlatformApiMappingBackend.getOrganizationDirectoryRemediationApprovalPacketOperatorNotes.mockResolvedValue({
+  backendMock.getOrganizationDirectoryRemediationApprovalPacketOperatorNotes.mockResolvedValue({
     status: "ok",
     data: {
       organizationId: "org-alpha",
@@ -344,7 +417,7 @@ beforeEach(() => {
       },
     },
   });
-  PlatformApiMappingBackend.getOrganizationDirectoryRemediationOperatorNotePersistenceReadiness.mockResolvedValue({
+  backendMock.getOrganizationDirectoryRemediationOperatorNotePersistenceReadiness.mockResolvedValue({
     status: "ok",
     data: {
       organizationId: "org-alpha",
@@ -394,7 +467,7 @@ beforeEach(() => {
       },
     },
   });
-  PlatformApiMappingBackend.getOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch.mockResolvedValue({
+  backendMock.getOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch.mockResolvedValue({
     status: "ok",
     data: {
       organizationId: "org-alpha",
@@ -452,10 +525,10 @@ beforeEach(() => {
       },
     },
   });
-  global.Blob = jest.fn((parts, options) => ({parts, options}));
-  global.URL.createObjectURL = jest.fn(() => "blob:remediation-plan");
-  global.URL.revokeObjectURL = jest.fn();
-  HTMLAnchorElement.prototype.click = jest.fn();
+  global.Blob = jest.fn((parts: string[], options?: unknown) => ({parts, options})) as unknown as typeof Blob;
+  global.URL.createObjectURL = jest.fn(() => "blob:remediation-plan") as unknown as typeof URL.createObjectURL;
+  global.URL.revokeObjectURL = jest.fn() as unknown as typeof URL.revokeObjectURL;
+  HTMLAnchorElement.prototype.click = jest.fn() as unknown as typeof HTMLAnchorElement.prototype.click;
   Object.assign(navigator, {
     clipboard: {
       writeText: jest.fn(() => Promise.resolve()),
@@ -472,28 +545,28 @@ afterEach(() => {
 test("renders organization directory quality list and details without leaking source ids", async() => {
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
-  expect(await screen.findByText("组织目录质量")).toBeInTheDocument();
+  expect(await screen.findByText("组织目录质量")).not.toBeNull();
   expect(document.querySelector(".organization-directory-quality-page")).not.toBeNull();
   expect((await screen.findAllByText("修复计划")).length).toBeGreaterThan(0);
   expect((await screen.findAllByText("API 映射核对")).length).toBeGreaterThan(0);
-  expect(screen.getByText("用户到 API 主体的一等映射缺失或不可信，需要 mapping owner 确认。")).toBeInTheDocument();
-  expect(screen.getByText("Alice")).toBeInTheDocument();
+  expect(screen.getByText("用户到 API 主体的一等映射缺失或不可信，需要 mapping owner 确认。")).not.toBeNull();
+  expect(screen.getByText("Alice")).not.toBeNull();
   expect(screen.getAllByText("API 主体映射缺失").length).toBeGreaterThan(0);
-  expect(screen.queryByText("external-subject-synthetic")).not.toBeInTheDocument();
-  expect(screen.queryByText("org-alpha/alice")).toBeInTheDocument();
-  expect(PlatformApiMappingBackend.getOrganizationDirectoryQuality).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+  expect(screen.queryByText("external-subject-synthetic")).toBeNull();
+  expect(screen.queryByText("org-alpha/alice")).not.toBeNull();
+  expect(backendMock.getOrganizationDirectoryQuality).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     entityType: "user",
     current: 1,
     pageSize: 10,
   }));
-  expect(PlatformApiMappingBackend.getOrganizationDirectoryRemediationPlan).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+  expect(backendMock.getOrganizationDirectoryRemediationPlan).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     entityType: "user",
     topN: 20,
   }));
 
   fireEvent.click(screen.getByText("详情"));
-  expect(await screen.findByText("补齐 confirmed PlatformApiUserMapping。")).toBeInTheDocument();
-  expect(screen.getByText("sha256:external")).toBeInTheDocument();
+  expect(await screen.findByText("补齐 confirmed PlatformApiUserMapping。")).not.toBeNull();
+  expect(screen.getByText("sha256:external")).not.toBeNull();
 });
 
 test("opens sanitized manual-review action draft drawer from remediation plan", async() => {
@@ -502,11 +575,11 @@ test("opens sanitized manual-review action draft drawer from remediation plan", 
   await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
 
-  expect(await screen.findByText("manual_review_only")).toBeInTheDocument();
-  expect(screen.getByText("确认目标 API user 映射来源可信")).toBeInTheDocument();
-  expect(screen.getByText("导出脱敏样例给 mapping owner 复核")).toBeInTheDocument();
-  expect(screen.getByText(/user:6f2c9d8e1a0b/)).toBeInTheDocument();
-  expect(PlatformApiMappingBackend.getOrganizationDirectoryRemediationActionDrafts).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+  expect(await screen.findByText("manual_review_only")).not.toBeNull();
+  expect(screen.getByText("确认目标 API user 映射来源可信")).not.toBeNull();
+  expect(screen.getByText("导出脱敏样例给 mapping owner 复核")).not.toBeNull();
+  expect(screen.getByText(/user:6f2c9d8e1a0b/)).not.toBeNull();
+  expect(backendMock.getOrganizationDirectoryRemediationActionDrafts).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     actionAlias: "mapping_review",
     entityType: "user",
     reasonCode: "mapping_missing",
@@ -517,7 +590,7 @@ test("opens sanitized manual-review action draft drawer from remediation plan", 
   await wait(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("manual_review_only")));
 
   fireEvent.click(screen.getByText("导出草案"));
-  const exportedBlob = global.URL.createObjectURL.mock.calls[0][0];
+  const exportedBlob = exportedBlobAt(0);
   expect(exportedBlob.parts.join("")).toContain("user:6f2c9d8e1a0b");
   expect(exportedBlob.parts.join("")).not.toContain("org-alpha/alice");
 });
@@ -527,15 +600,15 @@ test("runs sanitized read-only preflight from action draft drawer", async() => {
 
   await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
-  expect(await screen.findByText("manual_review_only")).toBeInTheDocument();
+  expect(await screen.findByText("manual_review_only")).not.toBeNull();
   fireEvent.click(screen.getByText("预检"));
 
-  expect(await screen.findByText("readyForManualReview: true")).toBeInTheDocument();
-  expect(screen.getByText("autoExecutionAllowed: false")).toBeInTheDocument();
-  expect(screen.getByText("确认当前草案仅用于 manual review，不允许自动执行")).toBeInTheDocument();
-  expect(screen.getByText("导出 preflight JSON 供修复 owner 人工复核")).toBeInTheDocument();
-  expect(screen.getByText(/user:6f2c9d8e1a0b/)).toBeInTheDocument();
-  expect(PlatformApiMappingBackend.getOrganizationDirectoryRemediationPreflight).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+  expect(await screen.findByText("readyForManualReview: true")).not.toBeNull();
+  expect(screen.getByText("autoExecutionAllowed: false")).not.toBeNull();
+  expect(screen.getByText("确认当前草案仅用于 manual review，不允许自动执行")).not.toBeNull();
+  expect(screen.getByText("导出 preflight JSON 供修复 owner 人工复核")).not.toBeNull();
+  expect(screen.getByText(/user:6f2c9d8e1a0b/)).not.toBeNull();
+  expect(backendMock.getOrganizationDirectoryRemediationPreflight).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     draftId: "sha256:draft",
     actionAlias: "mapping_review",
     entityType: "user",
@@ -543,7 +616,7 @@ test("runs sanitized read-only preflight from action draft drawer", async() => {
   }));
 
   fireEvent.click(screen.getByText("导出预检"));
-  const exportedBlob = global.URL.createObjectURL.mock.calls[0][0];
+  const exportedBlob = exportedBlobAt(0);
   expect(exportedBlob.parts.join("")).toContain("manual_review_only");
   expect(exportedBlob.parts.join("")).toContain("user:6f2c9d8e1a0b");
   expect(exportedBlob.parts.join("")).not.toContain("org-alpha/alice");
@@ -554,19 +627,19 @@ test("opens sanitized approval preview from preflight without repair actions", a
 
   await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
-  expect(await screen.findByText("manual_review_only")).toBeInTheDocument();
+  expect(await screen.findByText("manual_review_only")).not.toBeNull();
   fireEvent.click(screen.getByText("预检"));
-  expect(await screen.findByText("readyForManualReview: true")).toBeInTheDocument();
+  expect(await screen.findByText("readyForManualReview: true")).not.toBeNull();
   fireEvent.click(screen.getByText("审批预览"));
 
-  expect(await screen.findByText("readyForApproval: true")).toBeInTheDocument();
-  expect(screen.getByText("riskLevel: medium")).toBeInTheDocument();
-  expect(screen.getByText("organization_directory_owner")).toBeInTheDocument();
-  expect(screen.getByText("api_mapping_owner")).toBeInTheDocument();
-  expect(screen.getByText("确认审批预览仅用于 manual review，P0 不允许自动执行")).toBeInTheDocument();
-  expect(screen.getByText("sha256:sample")).toBeInTheDocument();
-  expect(screen.queryByText("执行修复")).not.toBeInTheDocument();
-  expect(PlatformApiMappingBackend.getOrganizationDirectoryRemediationApprovalPreview).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+  expect(await screen.findByText("readyForApproval: true")).not.toBeNull();
+  expect(screen.getByText("riskLevel: medium")).not.toBeNull();
+  expect(screen.getByText("organization_directory_owner")).not.toBeNull();
+  expect(screen.getByText("api_mapping_owner")).not.toBeNull();
+  expect(screen.getByText("确认审批预览仅用于 manual review，P0 不允许自动执行")).not.toBeNull();
+  expect(screen.getByText("sha256:sample")).not.toBeNull();
+  expect(screen.queryByText("执行修复")).toBeNull();
+  expect(backendMock.getOrganizationDirectoryRemediationApprovalPreview).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     draftId: "sha256:draft",
     actionAlias: "mapping_review",
     entityType: "user",
@@ -577,7 +650,7 @@ test("opens sanitized approval preview from preflight without repair actions", a
   await wait(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("approval-preview")));
 
   fireEvent.click(screen.getByText("导出审批预览"));
-  const exportedBlob = global.URL.createObjectURL.mock.calls[0][0];
+  const exportedBlob = exportedBlobAt(0);
   expect(exportedBlob.parts.join("")).toContain("manual_review_only");
   expect(exportedBlob.parts.join("")).toContain("sha256:sample");
   expect(exportedBlob.parts.join("")).not.toContain("org-alpha/alice");
@@ -588,21 +661,21 @@ test("opens sanitized approval packet audit from approval preview without repair
 
   await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
-  expect(await screen.findByText("manual_review_only")).toBeInTheDocument();
+  expect(await screen.findByText("manual_review_only")).not.toBeNull();
   fireEvent.click(screen.getByText("预检"));
-  expect(await screen.findByText("readyForManualReview: true")).toBeInTheDocument();
+  expect(await screen.findByText("readyForManualReview: true")).not.toBeNull();
   fireEvent.click(screen.getByText("审批预览"));
-  expect(await screen.findByText("readyForApproval: true")).toBeInTheDocument();
+  expect(await screen.findByText("readyForApproval: true")).not.toBeNull();
   fireEvent.click(screen.getByText("审批包审计"));
 
   expect((await screen.findAllByText("审批包审计")).length).toBeGreaterThan(0);
-  expect(screen.getByText("ready_for_approval")).toBeInTheDocument();
-  expect(screen.getByText("derived_non_persistent / not_persisted")).toBeInTheDocument();
-  expect(screen.getByText("generated_preview")).toBeInTheDocument();
-  expect(screen.getByText("available_for_copy")).toBeInTheDocument();
-  expect(screen.getByText("sha256:checklist")).toBeInTheDocument();
-  expect(screen.queryByText("执行修复")).not.toBeInTheDocument();
-  expect(PlatformApiMappingBackend.getOrganizationDirectoryRemediationApprovalPacketAudit).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+  expect(screen.getByText("ready_for_approval")).not.toBeNull();
+  expect(screen.getByText("derived_non_persistent / not_persisted")).not.toBeNull();
+  expect(screen.getByText("generated_preview")).not.toBeNull();
+  expect(screen.getByText("available_for_copy")).not.toBeNull();
+  expect(screen.getByText("sha256:checklist")).not.toBeNull();
+  expect(screen.queryByText("执行修复")).toBeNull();
+  expect(backendMock.getOrganizationDirectoryRemediationApprovalPacketAudit).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     approvalPreviewHash: "sha256:approval-preview",
     draftId: "sha256:draft",
     packetStatus: "ready_for_approval",
@@ -614,19 +687,19 @@ test("opens sanitized approval packet audit from approval preview without repair
   await wait(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("derived_non_persistent")));
 
   fireEvent.click(screen.getByText("导出审批包审计"));
-  const exportedBlob = global.URL.createObjectURL.mock.calls[0][0];
+  const exportedBlob = exportedBlobAt(0);
   expect(exportedBlob.parts.join("")).toContain("sha256:packet-audit");
   expect(exportedBlob.parts.join("")).toContain("not_persisted");
   expect(exportedBlob.parts.join("")).not.toContain("org-alpha/alice");
 
   fireEvent.click(screen.getByText("交接备注"));
   expect((await screen.findAllByText("交接备注")).length).toBeGreaterThan(0);
-  expect(screen.getByText("derived_note_draft")).toBeInTheDocument();
-  expect(screen.getByText("derived_note_draft / not_persisted")).toBeInTheDocument();
-  expect(screen.getByText("real_person_identity")).toBeInTheDocument();
-  expect(screen.getByText("sha256:operator-note")).toBeInTheDocument();
-  expect(screen.queryByText("执行修复")).not.toBeInTheDocument();
-  expect(PlatformApiMappingBackend.getOrganizationDirectoryRemediationApprovalPacketOperatorNotes).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+  expect(screen.getByText("derived_note_draft")).not.toBeNull();
+  expect(screen.getByText("derived_note_draft / not_persisted")).not.toBeNull();
+  expect(screen.getByText("real_person_identity")).not.toBeNull();
+  expect(screen.getByText("sha256:operator-note")).not.toBeNull();
+  expect(screen.queryByText("执行修复")).toBeNull();
+  expect(backendMock.getOrganizationDirectoryRemediationApprovalPacketOperatorNotes).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     packetHash: "sha256:packet-audit",
     approvalPreviewHash: "sha256:approval-preview",
     draftId: "sha256:draft",
@@ -641,24 +714,24 @@ test("opens sanitized approval packet audit from approval preview without repair
   await wait(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("cannotInfer")));
 
   fireEvent.click(screen.getByText("导出交接备注JSON"));
-  const exportedNotesJson = global.URL.createObjectURL.mock.calls[1][0];
+  const exportedNotesJson = exportedBlobAt(1);
   expect(exportedNotesJson.parts.join("")).toContain("sha256:operator-note");
   expect(exportedNotesJson.parts.join("")).not.toContain("org-alpha/alice");
 
   fireEvent.click(screen.getByText("导出交接备注Markdown"));
-  const exportedNotesMarkdown = global.URL.createObjectURL.mock.calls[2][0];
+  const exportedNotesMarkdown = exportedBlobAt(2);
   expect(exportedNotesMarkdown.parts.join("")).toContain("manual_review_only");
   expect(exportedNotesMarkdown.parts.join("")).not.toContain("org-alpha/alice");
 
   fireEvent.click(screen.getByText("持久化准入"));
   expect((await screen.findAllByText("持久化准入")).length).toBeGreaterThan(0);
-  expect(screen.getByText("ready_for_design_review")).toBeInTheDocument();
-  expect(screen.getByText("readiness_only / persistenceAllowed=false / storeDecisionRequired=true")).toBeInTheDocument();
-  expect(screen.getByText("operator-note-persistence:sample")).toBeInTheDocument();
-  expect(screen.getByText("auto_execution_must_remain_false")).toBeInTheDocument();
-  expect(screen.getByText("persistent_audit_evidence")).toBeInTheDocument();
-  expect(screen.queryByText("保存备注")).not.toBeInTheDocument();
-  expect(PlatformApiMappingBackend.getOrganizationDirectoryRemediationOperatorNotePersistenceReadiness).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+  expect(screen.getByText("ready_for_design_review")).not.toBeNull();
+  expect(screen.getByText("readiness_only / persistenceAllowed=false / storeDecisionRequired=true")).not.toBeNull();
+  expect(screen.getByText("operator-note-persistence:sample")).not.toBeNull();
+  expect(screen.getByText("auto_execution_must_remain_false")).not.toBeNull();
+  expect(screen.getByText("persistent_audit_evidence")).not.toBeNull();
+  expect(screen.queryByText("保存备注")).toBeNull();
+  expect(backendMock.getOrganizationDirectoryRemediationOperatorNotePersistenceReadiness).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     noteHash: "sha256:operator-note",
     packetHash: "sha256:packet-audit",
     approvalPreviewHash: "sha256:approval-preview",
@@ -672,22 +745,22 @@ test("opens sanitized approval packet audit from approval preview without repair
   await wait(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("readiness_only")));
 
   fireEvent.click(screen.getByText("导出持久化准入JSON"));
-  const exportedReadinessJson = global.URL.createObjectURL.mock.calls[3][0];
+  const exportedReadinessJson = exportedBlobAt(3);
   expect(exportedReadinessJson.parts.join("")).toContain("sha256:persistence-readiness");
   expect(exportedReadinessJson.parts.join("")).toContain("storeDecisionRequired");
   expect(exportedReadinessJson.parts.join("")).not.toContain("org-alpha/alice");
 
   fireEvent.click(screen.getByText("备注审计检索"));
   expect((await screen.findAllByText("备注审计检索")).length).toBeGreaterThan(0);
-  expect(screen.getByText("current_derived_non_persistent")).toBeInTheDocument();
-  expect(screen.getByText("persistenceRequiredForHistoricalSearch: true")).toBeInTheDocument();
+  expect(screen.getByText("current_derived_non_persistent")).not.toBeNull();
+  expect(screen.getByText("persistenceRequiredForHistoricalSearch: true")).not.toBeNull();
   expect(screen.getAllByText("historical_search_completeness").length).toBeGreaterThan(0);
   expect(screen.getAllByText("saved_operator_comments").length).toBeGreaterThan(0);
-  expect(screen.getByText("source_content_redacted")).toBeInTheDocument();
-  expect(screen.getByText("readiness_only / derived_note_draft / not_persisted")).toBeInTheDocument();
-  expect(screen.queryByText("保存备注")).not.toBeInTheDocument();
-  expect(screen.queryByText("执行修复")).not.toBeInTheDocument();
-  expect(PlatformApiMappingBackend.getOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+  expect(screen.getByText("source_content_redacted")).not.toBeNull();
+  expect(screen.getByText("readiness_only / derived_note_draft / not_persisted")).not.toBeNull();
+  expect(screen.queryByText("保存备注")).toBeNull();
+  expect(screen.queryByText("执行修复")).toBeNull();
+  expect(backendMock.getOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     noteHash: "sha256:operator-note",
     readinessHash: "sha256:persistence-readiness",
     packetHash: "sha256:packet-audit",
@@ -706,22 +779,22 @@ test("opens sanitized approval packet audit from approval preview without repair
   await wait(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("persistenceRequiredForHistoricalSearch")));
 
   fireEvent.click(screen.getByText("导出备注审计检索JSON"));
-  const exportedSearchJson = global.URL.createObjectURL.mock.calls[4][0];
+  const exportedSearchJson = exportedBlobAt(4);
   expect(exportedSearchJson.parts.join("")).toContain("sha256:persistence-readiness");
   expect(exportedSearchJson.parts.join("")).toContain("manual_review_only");
   expect(exportedSearchJson.parts.join("")).not.toContain("org-alpha/alice");
 
-  navigator.clipboard.writeText.mockRejectedValueOnce(new Error("copy failed"));
+  (navigator.clipboard.writeText as unknown as LooseMock).mockRejectedValueOnce(new Error("copy failed"));
   fireEvent.click(screen.getByText("复制备注审计检索JSON"));
   await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "复制脱敏备注审计检索JSON失败"));
 
-  navigator.clipboard.writeText.mockRejectedValueOnce(new Error("copy failed"));
+  (navigator.clipboard.writeText as unknown as LooseMock).mockRejectedValueOnce(new Error("copy failed"));
   fireEvent.click(screen.getByText("复制备注审计检索Markdown"));
   await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "复制脱敏备注审计检索Markdown失败"));
 });
 
 test("shows blocked approval preview and fails closed on approval preview errors", async() => {
-  PlatformApiMappingBackend.getOrganizationDirectoryRemediationApprovalPreview.mockResolvedValueOnce({
+  backendMock.getOrganizationDirectoryRemediationApprovalPreview.mockResolvedValueOnce({
     status: "ok",
     data: {
       organizationId: "org-alpha",
@@ -750,96 +823,96 @@ test("shows blocked approval preview and fails closed on approval preview errors
 
   await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
-  expect(await screen.findByText("manual_review_only")).toBeInTheDocument();
+  expect(await screen.findByText("manual_review_only")).not.toBeNull();
   fireEvent.click(screen.getByText("预检"));
-  expect(await screen.findByText("readyForManualReview: true")).toBeInTheDocument();
+  expect(await screen.findByText("readyForManualReview: true")).not.toBeNull();
   fireEvent.click(screen.getByText("审批预览"));
-  expect(await screen.findByText("readyForApproval: false")).toBeInTheDocument();
-  expect(screen.getByText("riskLevel: blocked")).toBeInTheDocument();
-  expect(screen.getByText("missing_preflight_samples")).toBeInTheDocument();
-  expect(screen.queryByText("执行修复")).not.toBeInTheDocument();
+  expect(await screen.findByText("readyForApproval: false")).not.toBeNull();
+  expect(screen.getByText("riskLevel: blocked")).not.toBeNull();
+  expect(screen.getByText("missing_preflight_samples")).not.toBeNull();
+  expect(screen.queryByText("执行修复")).toBeNull();
 
   fireEvent.click(screen.getByText("审批预览"));
   await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "approval failed"));
 });
 
 test("fails closed on approval packet audit errors", async() => {
-  PlatformApiMappingBackend.getOrganizationDirectoryRemediationApprovalPacketAudit.mockResolvedValueOnce({status: "error", msg: "audit failed"});
+  backendMock.getOrganizationDirectoryRemediationApprovalPacketAudit.mockResolvedValueOnce({status: "error", msg: "audit failed"});
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
   await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
-  expect(await screen.findByText("manual_review_only")).toBeInTheDocument();
+  expect(await screen.findByText("manual_review_only")).not.toBeNull();
   fireEvent.click(screen.getByText("预检"));
-  expect(await screen.findByText("readyForManualReview: true")).toBeInTheDocument();
+  expect(await screen.findByText("readyForManualReview: true")).not.toBeNull();
   fireEvent.click(screen.getByText("审批预览"));
-  expect(await screen.findByText("readyForApproval: true")).toBeInTheDocument();
+  expect(await screen.findByText("readyForApproval: true")).not.toBeNull();
   fireEvent.click(screen.getByText("审批包审计"));
 
   await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "audit failed"));
-  expect(screen.queryByText("执行修复")).not.toBeInTheDocument();
+  expect(screen.queryByText("执行修复")).toBeNull();
 });
 
 test("fails closed on approval packet operator notes errors", async() => {
-  PlatformApiMappingBackend.getOrganizationDirectoryRemediationApprovalPacketOperatorNotes.mockResolvedValueOnce({status: "error", msg: "notes failed"});
+  backendMock.getOrganizationDirectoryRemediationApprovalPacketOperatorNotes.mockResolvedValueOnce({status: "error", msg: "notes failed"});
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
   await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
   fireEvent.click(await screen.findByText("预检"));
   fireEvent.click(await screen.findByText("审批预览"));
-  expect(await screen.findByText("readyForApproval: true")).toBeInTheDocument();
+  expect(await screen.findByText("readyForApproval: true")).not.toBeNull();
   fireEvent.click(screen.getByText("审批包审计"));
-  expect(await screen.findByText("ready_for_approval")).toBeInTheDocument();
+  expect(await screen.findByText("ready_for_approval")).not.toBeNull();
   fireEvent.click(screen.getByText("交接备注"));
 
   await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "notes failed"));
-  expect(screen.queryByText("执行修复")).not.toBeInTheDocument();
+  expect(screen.queryByText("执行修复")).toBeNull();
 });
 
 test("fails closed on operator note persistence readiness errors", async() => {
-  PlatformApiMappingBackend.getOrganizationDirectoryRemediationOperatorNotePersistenceReadiness.mockResolvedValueOnce({status: "error", msg: "readiness failed"});
+  backendMock.getOrganizationDirectoryRemediationOperatorNotePersistenceReadiness.mockResolvedValueOnce({status: "error", msg: "readiness failed"});
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
   await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
   fireEvent.click(await screen.findByText("预检"));
   fireEvent.click(await screen.findByText("审批预览"));
-  expect(await screen.findByText("readyForApproval: true")).toBeInTheDocument();
+  expect(await screen.findByText("readyForApproval: true")).not.toBeNull();
   fireEvent.click(screen.getByText("审批包审计"));
-  expect(await screen.findByText("ready_for_approval")).toBeInTheDocument();
+  expect(await screen.findByText("ready_for_approval")).not.toBeNull();
   fireEvent.click(screen.getByText("交接备注"));
-  expect(await screen.findByText("derived_note_draft")).toBeInTheDocument();
+  expect(await screen.findByText("derived_note_draft")).not.toBeNull();
   fireEvent.click(screen.getByText("持久化准入"));
 
   await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "readiness failed"));
-  expect(screen.queryByText("保存备注")).not.toBeInTheDocument();
+  expect(screen.queryByText("保存备注")).toBeNull();
 });
 
 test("fails closed on operator note readonly audit search errors", async() => {
-  PlatformApiMappingBackend.getOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch.mockResolvedValueOnce({status: "error", msg: "search failed"});
+  backendMock.getOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch.mockResolvedValueOnce({status: "error", msg: "search failed"});
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
   await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
   fireEvent.click(await screen.findByText("预检"));
   fireEvent.click(await screen.findByText("审批预览"));
-  expect(await screen.findByText("readyForApproval: true")).toBeInTheDocument();
+  expect(await screen.findByText("readyForApproval: true")).not.toBeNull();
   fireEvent.click(screen.getByText("审批包审计"));
-  expect(await screen.findByText("ready_for_approval")).toBeInTheDocument();
+  expect(await screen.findByText("ready_for_approval")).not.toBeNull();
   fireEvent.click(screen.getByText("交接备注"));
-  expect(await screen.findByText("derived_note_draft")).toBeInTheDocument();
+  expect(await screen.findByText("derived_note_draft")).not.toBeNull();
   fireEvent.click(screen.getByText("持久化准入"));
-  expect(await screen.findByText("ready_for_design_review")).toBeInTheDocument();
+  expect(await screen.findByText("ready_for_design_review")).not.toBeNull();
   fireEvent.click(screen.getByText("备注审计检索"));
 
   await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "search failed"));
-  expect(screen.queryByText("保存备注")).not.toBeInTheDocument();
-  expect(screen.queryByText("执行修复")).not.toBeInTheDocument();
+  expect(screen.queryByText("保存备注")).toBeNull();
+  expect(screen.queryByText("执行修复")).toBeNull();
 });
 
 test("shows empty operator note persistence readiness without writes", async() => {
-  PlatformApiMappingBackend.getOrganizationDirectoryRemediationOperatorNotePersistenceReadiness.mockResolvedValueOnce({
+  backendMock.getOrganizationDirectoryRemediationOperatorNotePersistenceReadiness.mockResolvedValueOnce({
     status: "ok",
     data: {
       organizationId: "org-alpha",
@@ -855,21 +928,21 @@ test("shows empty operator note persistence readiness without writes", async() =
   fireEvent.click(screen.getByText("草案"));
   fireEvent.click(await screen.findByText("预检"));
   fireEvent.click(await screen.findByText("审批预览"));
-  expect(await screen.findByText("readyForApproval: true")).toBeInTheDocument();
+  expect(await screen.findByText("readyForApproval: true")).not.toBeNull();
   fireEvent.click(screen.getByText("审批包审计"));
-  expect(await screen.findByText("ready_for_approval")).toBeInTheDocument();
+  expect(await screen.findByText("ready_for_approval")).not.toBeNull();
   fireEvent.click(screen.getByText("交接备注"));
-  expect(await screen.findByText("derived_note_draft")).toBeInTheDocument();
+  expect(await screen.findByText("derived_note_draft")).not.toBeNull();
   fireEvent.click(screen.getByText("持久化准入"));
 
-  expect(await screen.findByText("暂无持久化准入")).toBeInTheDocument();
-  expect(screen.getByText("复制持久化准入JSON")).toBeDisabled();
-  expect(screen.getByText("导出持久化准入JSON")).toBeDisabled();
-  expect(screen.queryByText("保存备注")).not.toBeInTheDocument();
+  expect(await screen.findByText("暂无持久化准入")).not.toBeNull();
+  expectButtonDisabled("复制持久化准入JSON");
+  expectButtonDisabled("导出持久化准入JSON");
+  expect(screen.queryByText("保存备注")).toBeNull();
 });
 
 test("shows empty operator note readonly audit search without writes", async() => {
-  PlatformApiMappingBackend.getOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch.mockResolvedValueOnce({
+  backendMock.getOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch.mockResolvedValueOnce({
     status: "ok",
     data: {
       organizationId: "org-alpha",
@@ -889,24 +962,24 @@ test("shows empty operator note readonly audit search without writes", async() =
   fireEvent.click(screen.getByText("草案"));
   fireEvent.click(await screen.findByText("预检"));
   fireEvent.click(await screen.findByText("审批预览"));
-  expect(await screen.findByText("readyForApproval: true")).toBeInTheDocument();
+  expect(await screen.findByText("readyForApproval: true")).not.toBeNull();
   fireEvent.click(screen.getByText("审批包审计"));
-  expect(await screen.findByText("ready_for_approval")).toBeInTheDocument();
+  expect(await screen.findByText("ready_for_approval")).not.toBeNull();
   fireEvent.click(screen.getByText("交接备注"));
-  expect(await screen.findByText("derived_note_draft")).toBeInTheDocument();
+  expect(await screen.findByText("derived_note_draft")).not.toBeNull();
   fireEvent.click(screen.getByText("持久化准入"));
-  expect(await screen.findByText("ready_for_design_review")).toBeInTheDocument();
+  expect(await screen.findByText("ready_for_design_review")).not.toBeNull();
   fireEvent.click(screen.getByText("备注审计检索"));
 
-  expect(await screen.findByText("暂无备注审计检索")).toBeInTheDocument();
-  expect(screen.getByText("复制备注审计检索JSON")).toBeDisabled();
-  expect(screen.getByText("导出备注审计检索JSON")).toBeDisabled();
-  expect(screen.queryByText("保存备注")).not.toBeInTheDocument();
-  expect(screen.queryByText("执行修复")).not.toBeInTheDocument();
+  expect(await screen.findByText("暂无备注审计检索")).not.toBeNull();
+  expectButtonDisabled("复制备注审计检索JSON");
+  expectButtonDisabled("导出备注审计检索JSON");
+  expect(screen.queryByText("保存备注")).toBeNull();
+  expect(screen.queryByText("执行修复")).toBeNull();
 });
 
 test("shows empty approval packet operator notes without writes", async() => {
-  PlatformApiMappingBackend.getOrganizationDirectoryRemediationApprovalPacketOperatorNotes.mockResolvedValueOnce({
+  backendMock.getOrganizationDirectoryRemediationApprovalPacketOperatorNotes.mockResolvedValueOnce({
     status: "ok",
     data: {
       organizationId: "org-alpha",
@@ -922,19 +995,19 @@ test("shows empty approval packet operator notes without writes", async() => {
   fireEvent.click(screen.getByText("草案"));
   fireEvent.click(await screen.findByText("预检"));
   fireEvent.click(await screen.findByText("审批预览"));
-  expect(await screen.findByText("readyForApproval: true")).toBeInTheDocument();
+  expect(await screen.findByText("readyForApproval: true")).not.toBeNull();
   fireEvent.click(screen.getByText("审批包审计"));
-  expect(await screen.findByText("ready_for_approval")).toBeInTheDocument();
+  expect(await screen.findByText("ready_for_approval")).not.toBeNull();
   fireEvent.click(screen.getByText("交接备注"));
 
-  expect(await screen.findByText("暂无交接备注")).toBeInTheDocument();
-  expect(screen.getByText("复制交接备注JSON")).toBeDisabled();
-  expect(screen.getByText("导出交接备注JSON")).toBeDisabled();
-  expect(screen.queryByText("执行修复")).not.toBeInTheDocument();
+  expect(await screen.findByText("暂无交接备注")).not.toBeNull();
+  expectButtonDisabled("复制交接备注JSON");
+  expectButtonDisabled("导出交接备注JSON");
+  expect(screen.queryByText("执行修复")).toBeNull();
 });
 
 test("shows empty approval packet audit history without writes", async() => {
-  PlatformApiMappingBackend.getOrganizationDirectoryRemediationApprovalPacketAudit.mockResolvedValueOnce({
+  backendMock.getOrganizationDirectoryRemediationApprovalPacketAudit.mockResolvedValueOnce({
     status: "ok",
     data: {
       organizationId: "org-alpha",
@@ -949,27 +1022,27 @@ test("shows empty approval packet audit history without writes", async() => {
   await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
   fireEvent.click(await screen.findByText("预检"));
-  expect(await screen.findByText("readyForManualReview: true")).toBeInTheDocument();
+  expect(await screen.findByText("readyForManualReview: true")).not.toBeNull();
   fireEvent.click(screen.getByText("审批预览"));
-  expect(await screen.findByText("readyForApproval: true")).toBeInTheDocument();
+  expect(await screen.findByText("readyForApproval: true")).not.toBeNull();
   fireEvent.click(screen.getByText("审批包审计"));
 
-  expect(await screen.findByText("暂无审批包审计")).toBeInTheDocument();
-  expect(screen.getByText("复制审批包审计")).toBeDisabled();
-  expect(screen.getByText("导出审批包审计")).toBeDisabled();
+  expect(await screen.findByText("暂无审批包审计")).not.toBeNull();
+  expectButtonDisabled("复制审批包审计");
+  expectButtonDisabled("导出审批包审计");
 });
 
 test("shows blocked preflight errors without repair actions", async() => {
-  PlatformApiMappingBackend.getOrganizationDirectoryRemediationPreflight.mockResolvedValueOnce({status: "error", msg: "preflight failed"});
+  backendMock.getOrganizationDirectoryRemediationPreflight.mockResolvedValueOnce({status: "error", msg: "preflight failed"});
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
   await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
-  expect(await screen.findByText("manual_review_only")).toBeInTheDocument();
+  expect(await screen.findByText("manual_review_only")).not.toBeNull();
   fireEvent.click(screen.getByText("预检"));
 
   await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "preflight failed"));
-  expect(screen.queryByText("执行修复")).not.toBeInTheDocument();
+  expect(screen.queryByText("执行修复")).toBeNull();
 });
 
 test("refreshes directory quality with selected filters", async() => {
@@ -979,12 +1052,12 @@ test("refreshes directory quality with selected filters", async() => {
   fireEvent.change(screen.getByTestId("organization-select"), {target: {value: "org-alpha"}});
   fireEvent.click(screen.getByText("刷新"));
 
-  await wait(() => expect(PlatformApiMappingBackend.getOrganizationDirectoryQuality).toHaveBeenCalledTimes(2));
-  await wait(() => expect(PlatformApiMappingBackend.getOrganizationDirectoryRemediationPlan).toHaveBeenCalledTimes(2));
+  await wait(() => expect(backendMock.getOrganizationDirectoryQuality).toHaveBeenCalledTimes(2));
+  await wait(() => expect(backendMock.getOrganizationDirectoryRemediationPlan).toHaveBeenCalledTimes(2));
 });
 
 test("shows business labels for no manageable department directory quality aliases while preserving export values", async() => {
-  PlatformApiMappingBackend.getOrganizationDirectoryQuality.mockResolvedValueOnce({
+  backendMock.getOrganizationDirectoryQuality.mockResolvedValueOnce({
     status: "ok",
     data: {
       organizationId: "org-alpha",
@@ -1009,7 +1082,7 @@ test("shows business labels for no manageable department directory quality alias
       }],
     },
   });
-  PlatformApiMappingBackend.getOrganizationDirectoryRemediationPlan.mockResolvedValueOnce({
+  backendMock.getOrganizationDirectoryRemediationPlan.mockResolvedValueOnce({
     status: "ok",
     data: {
       organizationId: "org-alpha",
@@ -1040,11 +1113,11 @@ test("shows business labels for no manageable department directory quality alias
 
   expect((await screen.findAllByText("当前组织暂无可管理部门")).length).toBeGreaterThan(1);
   expect(screen.getAllByText("检查组织管理范围、来源连接或管理员权限。").length).toBeGreaterThan(0);
-  expect(screen.queryByText("scope_has_no_manageable_departments")).not.toBeInTheDocument();
+  expect(screen.queryByText("scope_has_no_manageable_departments")).toBeNull();
 
   fireEvent.click(screen.getByText("导出计划"));
 
-  const exportedBlob = global.URL.createObjectURL.mock.calls[0][0];
+  const exportedBlob = exportedBlobAt(0);
   expect(exportedBlob.parts.join("")).toContain("scope_has_no_manageable_departments");
 });
 
@@ -1052,27 +1125,27 @@ test("keeps version and batch evidence out of the primary quality table", async(
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
   await screen.findByText("Alice");
-  expect(screen.queryByText("版本/批次")).not.toBeInTheDocument();
-  expect(screen.queryByText("orgv-1")).not.toBeInTheDocument();
+  expect(screen.queryByText("版本/批次")).toBeNull();
+  expect(screen.queryByText("orgv-1")).toBeNull();
   fireEvent.click(screen.getByText("详情"));
-  expect(await screen.findByText("技术详情")).toBeInTheDocument();
+  expect(await screen.findByText("技术详情")).not.toBeNull();
   expect(screen.getAllByText("orgv-1").length).toBeGreaterThan(0);
   expect(screen.getAllByText("batch-1").length).toBeGreaterThan(0);
 });
 
 test("fails closed when directory quality or remediation plan loading fails", async() => {
-  PlatformApiMappingBackend.getOrganizationDirectoryQuality.mockResolvedValueOnce({status: "error", msg: "quality failed"});
-  PlatformApiMappingBackend.getOrganizationDirectoryRemediationPlan.mockResolvedValueOnce({status: "error", msg: "plan failed"});
+  backendMock.getOrganizationDirectoryQuality.mockResolvedValueOnce({status: "error", msg: "quality failed"});
+  backendMock.getOrganizationDirectoryRemediationPlan.mockResolvedValueOnce({status: "error", msg: "plan failed"});
 
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
   await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "quality failed"));
   expect(Setting.showMessage).toHaveBeenCalledWith("error", "plan failed");
-  expect(screen.getByText("暂无待处理修复计划")).toBeInTheDocument();
+  expect(screen.getByText("暂无待处理修复计划")).not.toBeNull();
 });
 
 test("handles empty plan export and action draft load failure without writes", async() => {
-  PlatformApiMappingBackend.getOrganizationDirectoryRemediationPlan.mockResolvedValueOnce({
+  backendMock.getOrganizationDirectoryRemediationPlan.mockResolvedValueOnce({
     status: "ok",
     data: {
       organizationId: "org-alpha",
@@ -1090,7 +1163,7 @@ test("handles empty plan export and action draft load failure without writes", a
       exportSummary: null,
     },
   });
-  PlatformApiMappingBackend.getOrganizationDirectoryRemediationActionDrafts.mockResolvedValueOnce({status: "error", msg: "draft failed"});
+  backendMock.getOrganizationDirectoryRemediationActionDrafts.mockResolvedValueOnce({status: "error", msg: "draft failed"});
 
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
@@ -1108,7 +1181,7 @@ test("keeps copy action fail-closed when clipboard is unavailable", async() => {
 
   await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
-  expect(await screen.findByText("manual_review_only")).toBeInTheDocument();
+  expect(await screen.findByText("manual_review_only")).not.toBeNull();
   fireEvent.click(screen.getByText("复制草案"));
 
   expect(Setting.showMessage).toHaveBeenCalledWith("error", "当前浏览器不支持复制草案");
@@ -1121,7 +1194,7 @@ test("exports sanitized remediation plan summary on the client", async() => {
   fireEvent.click(screen.getByText("导出计划"));
 
   expect(global.URL.createObjectURL).toHaveBeenCalled();
-  const exportedBlob = global.URL.createObjectURL.mock.calls[0][0];
+  const exportedBlob = exportedBlobAt(0);
   expect(exportedBlob.parts.join("")).toContain("user:sha256:sample");
   expect(exportedBlob.parts.join("")).not.toContain("external-subject-synthetic");
 });
