@@ -14,40 +14,54 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Switch, Table} from "antd";
+import {Button, Col, Row, Switch, Table, Tooltip} from "antd";
+import {EditOutlined} from "@ant-design/icons";
 import moment from "moment";
 import * as Setting from "./Setting";
-import * as PlanBackend from "./backend/PlanBackend";
-import i18next from "i18next";
+import * as PricingBackend from "./backend/PricingBackend";
+import rawI18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
+import type {AdminRouteProps, LegacyAny, LegacyListState} from "./types/legacyPage";
+import type {PricingRecord} from "./types/businessPayment";
 
-class PlanListPage extends BaseListPage {
-  newPlan() {
+type LegacyFetchParams = import("./types/legacyPage").LegacyFetchParams;
+const i18next = rawI18next as unknown as {t: (key: string) => string};
+
+interface PricingListState extends LegacyListState<PricingRecord> {}
+
+const LegacyBaseListPage = BaseListPage as unknown as React.ComponentClass<AdminRouteProps, PricingListState> & LegacyAny;
+
+// BaseListPage 仍是 legacy JS 类；定价列表只声明本页实际依赖的表格辅助能力。
+interface PricingListPage {
+  props: AdminRouteProps;
+  state: PricingListState;
+  getColumnSearchProps: (dataIndex: string, customRender?: LegacyAny) => LegacyAny;
+  getTablePaginationProps: () => LegacyAny;
+  handleTableChange: LegacyAny;
+}
+
+class PricingListPage extends LegacyBaseListPage {
+  newPricing(): PricingRecord {
     const randomName = Setting.getRandomName();
     const owner = Setting.getRequestOrganization(this.props.account);
     return {
       owner: owner,
-      name: `plan_${randomName}`,
+      name: `pricing_${randomName}`,
       createdTime: moment().format(),
-      displayName: `New Plan - ${randomName}`,
-      description: "",
-      price: 10,
-      currency: "USD",
-      period: "Monthly",
+      plans: [],
+      displayName: `New Pricing - ${randomName}`,
       isEnabled: true,
-      paymentProviders: [],
-      role: "",
-      options: [],
+      trialDuration: 7,
     };
   }
 
-  addPlan() {
-    const newPlan = this.newPlan();
-    PlanBackend.addPlan(newPlan)
+  addPricing() {
+    const newPricing = this.newPricing();
+    PricingBackend.addPricing(newPricing)
       .then((res) => {
         if (res.status === "ok") {
-          this.props.history.push({pathname: `/plans/${newPlan.owner}/${newPlan.name}`, mode: "add"});
+          this.props.history.push({pathname: `/pricings/${newPricing.owner}/${newPricing.name}`, mode: "add"});
           Setting.showMessage("success", i18next.t("general:Successfully added"));
         } else {
           Setting.showMessage("error", `${i18next.t("general:Failed to add")}: ${res.msg}`);
@@ -58,15 +72,16 @@ class PlanListPage extends BaseListPage {
       });
   }
 
-  deletePlan(i) {
-    PlanBackend.deletePlan(this.state.data[i])
+  deletePricing(i: number) {
+    PricingBackend.deletePricing(this.state.data[i])
       .then((res) => {
         if (res.status === "ok") {
           Setting.showMessage("success", i18next.t("general:Successfully deleted"));
+          const current = this.state.pagination.current || 1;
           this.fetch({
             pagination: {
               ...this.state.pagination,
-              current: this.state.pagination.current > 1 && this.state.data.length === 1 ? this.state.pagination.current - 1 : this.state.pagination.current,
+              current: current > 1 && this.state.data.length === 1 ? current - 1 : current,
             },
           });
         } else {
@@ -78,7 +93,7 @@ class PlanListPage extends BaseListPage {
       });
   }
 
-  renderTable(plans) {
+  renderTable(pricings?: PricingRecord[] | null) {
     const columns = [
       {
         title: i18next.t("general:Name"),
@@ -88,9 +103,9 @@ class PlanListPage extends BaseListPage {
         fixed: "left",
         sorter: true,
         ...this.getColumnSearchProps("name"),
-        render: (text, record, index) => {
+        render: (text: string, record: PricingRecord) => {
           return (
-            <Link to={`/plans/${record.owner}/${record.name}`}>
+            <Link to={`/pricings/${record.owner}/${text}`}>
               {text}
             </Link>
           );
@@ -103,7 +118,7 @@ class PlanListPage extends BaseListPage {
         width: "120px",
         sorter: true,
         ...this.getColumnSearchProps("owner"),
-        render: (text, record, index) => {
+        render: (text: string) => {
           return (
             <Link to={`/organizations/${text}`}>
               {text}
@@ -117,7 +132,7 @@ class PlanListPage extends BaseListPage {
         key: "createdTime",
         width: "160px",
         sorter: true,
-        render: (text, record, index) => {
+        render: (text: string) => {
           return Setting.getFormattedDate(text);
         },
       },
@@ -130,47 +145,50 @@ class PlanListPage extends BaseListPage {
         ...this.getColumnSearchProps("displayName"),
       },
       {
-        title: i18next.t("order:Price"),
-        dataIndex: "price",
-        key: "price",
-        width: "160px",
-        ...this.getColumnSearchProps("price"),
-        render: (text, record, index) => {
-          return Setting.getPriceDisplay(record.price, record.currency);
-        },
-      },
-      {
-        title: i18next.t("plan:Period"),
-        dataIndex: "period",
-        key: "period",
-        width: "130px",
-        ...this.getColumnSearchProps("period"),
-      },
-      {
-        title: i18next.t("general:Role"),
-        dataIndex: "role",
-        key: "role",
-        width: "140px",
-        ...this.getColumnSearchProps("role"),
-        render: (text, record, index) => {
+        title: i18next.t("general:Application"),
+        dataIndex: "application",
+        key: "application",
+        width: "170px",
+        sorter: true,
+        ...this.getColumnSearchProps("application"),
+        render: (text: string, record: PricingRecord) => {
           return (
-            <Link to={`/roles/${text}`}>
+            <Link to={`/applications/${record.owner}/${text}`}>
               {text}
             </Link>
           );
         },
       },
       {
-        title: i18next.t("plan:Related product"),
-        dataIndex: "product",
-        key: "product",
-        width: "130px",
-        ...this.getColumnSearchProps("product"),
-        render: (text, record, index) => {
+        title: i18next.t("general:Plans"),
+        dataIndex: "plans",
+        key: "plans",
+        // width: "170px",
+        sorter: true,
+        ...this.getColumnSearchProps("plans"),
+        render: (plans: string[] = [], record: PricingRecord) => {
+          if (plans.length === 0) {
+            return `(${i18next.t("general:empty")})`;
+          }
           return (
-            <Link to={`/products/${record.owner}/${text}`}>
-              {text}
-            </Link>
+            <div>
+              <Row>
+                {
+                  plans.map((plan) => (
+                    <Col key={plan}>
+                      <div style={{display: "inline", marginRight: "20px"}}>
+                        <Tooltip placement="topLeft" title="Edit">
+                          <Button style={{marginRight: "5px"}} icon={<EditOutlined />} size="small" onClick={() => Setting.goToLinkSoft(this, `/plans/${record.owner}/${plan}`)} />
+                        </Tooltip>
+                        <Link to={`/plans/${record.owner}/${plan}`}>
+                          {plan}
+                        </Link>
+                      </div>
+                    </Col>
+                  ))
+                }
+              </Row>
+            </div>
           );
         },
       },
@@ -180,7 +198,7 @@ class PlanListPage extends BaseListPage {
         key: "isEnabled",
         width: "120px",
         sorter: true,
-        render: (text, record, index) => {
+        render: (text: boolean) => {
           return (
             <Switch disabled checkedChildren={i18next.t("general:ON")} unCheckedChildren={i18next.t("general:OFF")} checked={text} />
           );
@@ -190,17 +208,17 @@ class PlanListPage extends BaseListPage {
         title: i18next.t("general:Action"),
         dataIndex: "",
         key: "op",
-        width: "200px",
+        width: "230px",
         fixed: (Setting.isMobile()) ? "false" : "right",
-        render: (text, record, index) => {
+        render: (text: LegacyAny, record: PricingRecord, index: number) => {
           const isAdmin = Setting.isLocalAdminUser(this.props.account);
           return (
             <div>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push({pathname: `/plans/${record.owner}/${record.name}`, mode: isAdmin ? "edit" : "view"})}>{isAdmin ? i18next.t("general:Edit") : i18next.t("general:View")}</Button>
+              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push({pathname: `/pricings/${record.owner}/${record.name}`, mode: isAdmin ? "edit" : "view"})}>{isAdmin ? i18next.t("general:Edit") : i18next.t("general:View")}</Button>
               <PopconfirmModal
                 disabled={!isAdmin}
                 title={i18next.t("general:Sure to delete") + `: ${record.name} ?`}
-                onConfirm={() => this.deletePlan(index)}
+                onConfirm={() => this.deletePricing(index)}
               >
               </PopconfirmModal>
             </div>
@@ -213,13 +231,13 @@ class PlanListPage extends BaseListPage {
 
     return (
       <div>
-        <Table scroll={{x: "max-content"}} columns={columns} dataSource={plans} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
+        <Table scroll={{x: "max-content"}} columns={columns as LegacyAny} dataSource={pricings || []} rowKey={(record: PricingRecord) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
           title={() => {
             const isAdmin = Setting.isLocalAdminUser(this.props.account);
             return (
               <div>
-                {i18next.t("general:Plans")}&nbsp;&nbsp;&nbsp;&nbsp;
-                <Button type="primary" size="small" disabled={!isAdmin} onClick={this.addPlan.bind(this)}>{i18next.t("general:Add")}</Button>
+                {i18next.t("general:Pricings")}&nbsp;&nbsp;&nbsp;&nbsp;
+                <Button type="primary" size="small" disabled={!isAdmin} onClick={this.addPricing.bind(this)}>{i18next.t("general:Add")}</Button>
               </div>
             );
           }}
@@ -230,7 +248,7 @@ class PlanListPage extends BaseListPage {
     );
   }
 
-  fetch = (params = {}) => {
+  fetch = (params: Partial<LegacyFetchParams> & Record<string, LegacyAny> = {}) => {
     let field = params.searchedColumn, value = params.searchText;
     const sortField = params.sortField, sortOrder = params.sortOrder;
     if (params.type !== undefined && params.type !== null) {
@@ -238,8 +256,8 @@ class PlanListPage extends BaseListPage {
       value = params.type;
     }
     this.setState({loading: true});
-    PlanBackend.getPlans(Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
-      .then((res) => {
+    PricingBackend.getPricings(Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), params.pagination?.current as LegacyAny, params.pagination?.pageSize as LegacyAny, field, value, sortField, sortOrder)
+      .then((res: LegacyAny) => {
         this.setState({
           loading: false,
         });
@@ -247,7 +265,7 @@ class PlanListPage extends BaseListPage {
           this.setState({
             data: res.data,
             pagination: {
-              ...params.pagination,
+              ...(params.pagination || {}),
               total: res.data2,
             },
             searchText: params.searchText,
@@ -266,4 +284,4 @@ class PlanListPage extends BaseListPage {
   };
 }
 
-export default PlanListPage;
+export default PricingListPage;

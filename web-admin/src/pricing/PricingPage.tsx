@@ -19,10 +19,34 @@ import * as PlanBackend from "../backend/PlanBackend";
 import CustomGithubCorner from "../common/CustomGithubCorner";
 import * as Setting from "../Setting";
 import SingleCard from "./SingleCard";
-import i18next from "i18next";
+import rawI18next from "i18next";
+import type {AdminAccount, AdminRouteProps, LegacyAny} from "../types/legacyPage";
+import type {PlanRecord, PricingRecord} from "../types/businessPayment";
+const i18next = rawI18next as unknown as {t: (key: string) => string};
 
-class PricingPage extends React.Component {
-  constructor(props) {
+type PricingPageProps = Omit<Partial<AdminRouteProps>, "account"> & {
+  owner?: string;
+  pricingName?: string;
+  pricing?: PricingRecord | null;
+  account?: AdminAccount | null;
+  onUpdatePricing?: (pricing: PricingRecord | null) => void;
+};
+
+interface PricingPageState {
+  classes: PricingPageProps;
+  applications: LegacyAny[] | null;
+  owner: string | null;
+  pricingName: string | null;
+  userName: string | null;
+  pricing: PricingRecord | null | undefined;
+  plans: PlanRecord[] | null;
+  periods: string[] | null;
+  selectedPeriod: string | null;
+  loading: boolean;
+}
+
+class PricingPage extends React.Component<PricingPageProps, PricingPageState> {
+  constructor(props: PricingPageProps) {
     super(props);
     const params = new URLSearchParams(window.location.search);
     this.state = {
@@ -65,6 +89,10 @@ class PricingPage extends React.Component {
   }
 
   loadPlans() {
+    if (!this.state.pricing?.plans) {
+      this.setState({loading: false, plans: [], periods: [], selectedPeriod: null});
+      return;
+    }
     const plans = this.state.pricing.plans.map((plan) =>
       PlanBackend.getPlan(this.state.owner, plan, true));
 
@@ -75,8 +103,8 @@ class PricingPage extends React.Component {
           Setting.showMessage("error", i18next.t("general:Failed to get"));
           return;
         }
-        const plans = results.map(result => result.data);
-        const periods = [... new Set(plans.map(plan => plan.period).filter(period => period !== ""))];
+        const plans = results.map(result => result.data as PlanRecord);
+        const periods = Array.from(new Set(plans.map(plan => plan.period || "").filter(period => period !== "")));
         this.setState({
           plans: plans,
           periods: periods,
@@ -89,12 +117,12 @@ class PricingPage extends React.Component {
       });
   }
 
-  loadPricing(pricingName) {
+  loadPricing(pricingName: string | null) {
     if (!pricingName) {
       return;
     }
     PricingBackend.getPricing(this.state.owner, pricingName)
-      .then((res) => {
+      .then((res: LegacyAny) => {
         if (res.status === "error") {
           Setting.showMessage("error", res.msg);
           return;
@@ -107,8 +135,8 @@ class PricingPage extends React.Component {
       });
   }
 
-  onUpdatePricing(pricing) {
-    this.props.onUpdatePricing(pricing);
+  onUpdatePricing(pricing: PricingRecord | null) {
+    this.props.onUpdatePricing?.(pricing);
   }
 
   renderSelectPeriod() {
@@ -125,7 +153,7 @@ class PricingPage extends React.Component {
         }}
       >
         {
-          this.state.periods.map(period => {
+          this.state.periods.map((period: string) => {
             return (
               <Radio.Button key={period} value={period}>{period}</Radio.Button>
             );
@@ -136,8 +164,12 @@ class PricingPage extends React.Component {
   }
 
   renderCards() {
-    const getUrlByPlan = (planName) => {
-      const pricing = this.state.pricing;
+    if (!this.state.pricing || !this.state.plans) {
+      return null;
+    }
+    const pricing = this.state.pricing;
+    const plans = this.state.plans;
+    const getUrlByPlan = (planName: string) => {
       const account = this.props.account;
       const isLoggedIn = (account !== null && account !== undefined);
 
@@ -153,9 +185,9 @@ class PricingPage extends React.Component {
       return (
         <Card style={{border: "none"}} styles={{body: {padding: 0}}}>
           {
-            this.state.plans.map(item => {
+            plans.map((item: PlanRecord) => {
               return item.period === this.state.selectedPeriod ? (
-                <SingleCard link={getUrlByPlan(item.name)} key={item.name} plan={item} isSingle={this.state.plans.length === 1} />
+                <SingleCard link={getUrlByPlan(item.name)} key={item.name} plan={item} isSingle={plans.length === 1} />
               ) : null;
             })
           }
@@ -166,9 +198,9 @@ class PricingPage extends React.Component {
         <div style={{marginRight: "15px", marginLeft: "15px"}}>
           <Row style={{justifyContent: "center"}} gutter={24}>
             {
-              this.state.plans.map(item => {
+              plans.map((item: PlanRecord) => {
                 return item.period === this.state.selectedPeriod ? (
-                  <SingleCard style={{marginRight: "5px", marginLeft: "5px"}} link={getUrlByPlan(item.name)} key={item.name} plan={item} isSingle={this.state.plans.length === 1} />
+                  <SingleCard style={{marginRight: "5px", marginLeft: "5px"}} link={getUrlByPlan(item.name)} key={item.name} plan={item} isSingle={plans.length === 1} />
                 ) : null;
               })
             }
@@ -179,7 +211,7 @@ class PricingPage extends React.Component {
   }
 
   render() {
-    if (this.state.loading || this.state.plans === null || this.state.plans === undefined) {
+    if (this.state.loading || this.state.plans === null || this.state.plans === undefined || !this.state.pricing) {
       return null;
     }
 
@@ -208,7 +240,7 @@ class PricingPage extends React.Component {
                 </Col>
               </Row>
               <Row style={{justifyContent: "center"}}>
-                {pricing && pricing.trialDuration > 0
+                {(pricing.trialDuration || 0) > 0
                   ? <i>{i18next.t("pricing:Free")} {pricing.trialDuration}-{i18next.t("pricing:days trial available!")}</i>
                   : null}
               </Row>

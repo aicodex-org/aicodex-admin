@@ -73,14 +73,59 @@ export interface PaymentRecord extends PaymentInvoiceFields {
 export interface PricingRecord {
   owner?: string;
   name: string;
+  createdTime?: string;
   displayName?: string;
+  description?: string;
+  application?: string;
+  plans?: string[];
+  isEnabled?: boolean;
+  trialDuration?: number;
+  [key: string]: LegacyAny;
+}
+
+export interface PlanRecord {
+  owner?: string;
+  name: string;
+  createdTime?: string;
+  displayName?: string;
+  description?: string;
+  price?: number;
+  currency?: string;
+  period?: string;
+  role?: string;
+  product?: string;
+  paymentProviders?: string[];
+  isEnabled?: boolean;
+  isExclusive?: boolean;
   [key: string]: LegacyAny;
 }
 
 export interface SubscriptionRecord {
   owner?: string;
   name: string;
+  createdTime?: string;
+  displayName?: string;
+  startTime?: string;
+  endTime?: string;
+  period?: string;
+  description?: string;
+  user?: string;
+  pricing?: string;
+  plan?: string;
   payment?: string;
+  state?: string;
+  approver?: string;
+  approveTime?: string;
+  [key: string]: LegacyAny;
+}
+
+export interface PaymentOrganizationRecord {
+  name: string;
+  [key: string]: LegacyAny;
+}
+
+export interface PaymentApplicationRecord {
+  name: string;
   [key: string]: LegacyAny;
 }
 

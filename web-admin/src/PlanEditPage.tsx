@@ -20,12 +20,36 @@ import * as RoleBackend from "./backend/RoleBackend";
 import * as PlanBackend from "./backend/PlanBackend";
 import * as ProviderBackend from "./backend/ProviderBackend";
 import * as Setting from "./Setting";
-import i18next from "i18next";
+import rawI18next from "i18next";
+import type {AdminRouteProps, LegacyAny} from "./types/legacyPage";
+import type {PaymentOrganizationRecord, PaymentProviderRecord, PlanRecord} from "./types/businessPayment";
 
 const {Option} = Select;
+const i18next = rawI18next as unknown as {t: (key: string) => string};
 
-class PlanEditPage extends React.Component {
-  constructor(props) {
+interface PlanEditProps extends AdminRouteProps {
+  organizationName?: string;
+}
+
+interface RoleRecord {
+  name: string;
+  [key: string]: LegacyAny;
+}
+
+interface PlanEditState {
+  classes: PlanEditProps;
+  organizationName: string | null;
+  planName: string | null;
+  plan: PlanRecord | null;
+  organizations: PaymentOrganizationRecord[];
+  users: LegacyAny[];
+  roles: RoleRecord[];
+  paymentProviders: PaymentProviderRecord[];
+  mode: string;
+}
+
+class PlanEditPage extends React.Component<PlanEditProps, PlanEditState> {
+  constructor(props: PlanEditProps) {
     super(props);
     this.state = {
       classes: props,
@@ -47,7 +71,7 @@ class PlanEditPage extends React.Component {
 
   getPlan() {
     PlanBackend.getPlan(this.state.organizationName, this.state.planName)
-      .then((res) => {
+      .then((res: LegacyAny) => {
         if (res.data === null) {
           this.props.history.push("/404");
           return;
@@ -61,12 +85,12 @@ class PlanEditPage extends React.Component {
       });
   }
 
-  getPaymentProviders(organizationName) {
+  getPaymentProviders(organizationName: string | null) {
     ProviderBackend.getProviders(organizationName)
-      .then((res) => {
+      .then((res: LegacyAny) => {
         if (res.status === "ok") {
           this.setState({
-            paymentProviders: res.data.filter(provider => provider.category === "Payment"),
+            paymentProviders: res.data.filter((provider: PaymentProviderRecord) => provider.category === "Payment"),
           });
           return;
         }
@@ -77,24 +101,27 @@ class PlanEditPage extends React.Component {
 
   getOrganizations() {
     OrganizationBackend.getOrganizations("admin")
-      .then((res) => {
+      .then((res: LegacyAny) => {
         this.setState({
           organizations: res.data || [],
         });
       });
   }
 
-  parsePlanField(key, value) {
+  parsePlanField(key: string, value: LegacyAny) {
     if ([""].includes(key)) {
       value = Setting.myParseInt(value);
     }
     return value;
   }
 
-  updatePlanField(key, value) {
-    value = this.parsePlanField(key, value);
+  updatePlanField(key: keyof PlanRecord | string, value: LegacyAny) {
+    value = this.parsePlanField(String(key), value);
 
     const plan = this.state.plan;
+    if (plan === null) {
+      return;
+    }
     plan[key] = value;
     this.setState({
       plan: plan,
@@ -102,6 +129,9 @@ class PlanEditPage extends React.Component {
   }
 
   renderPlan() {
+    if (this.state.plan === null) {
+      return null;
+    }
     const isViewMode = this.state.mode === "view";
     return (
       <Card size="small" title={
@@ -159,14 +189,14 @@ class PlanEditPage extends React.Component {
               disabled={isViewMode}
               allowClear
               fetchPage={RoleBackend.getRoles}
-              buildFetchArgs={({page, pageSize, searchText}) => {
+              buildFetchArgs={({page, pageSize, searchText}: {page: LegacyAny; pageSize: LegacyAny; searchText: string}) => {
                 const field = searchText ? "name" : "";
-                return [this.state.plan.owner, page, pageSize, field, searchText, "", ""];
+                return [this.state.plan!.owner, page, pageSize, field, searchText, "", ""];
               }}
               reloadKey={this.state.plan.owner}
-              optionMapper={(role) => Setting.getOption(role.name, role.name)}
+              optionMapper={(role: RoleRecord) => Setting.getOption(role.name, role.name)}
               filterOption={false}
-              onChange={(value => {this.updatePlanField("role", value || "");})}
+              onChange={(value: LegacyAny) => {this.updatePlanField("role", value || "");}}
             />
           </Col>
         </Row>
@@ -255,20 +285,23 @@ class PlanEditPage extends React.Component {
     );
   }
 
-  submitPlanEdit(exitAfterSave) {
+  submitPlanEdit(exitAfterSave: boolean) {
+    if (this.state.plan === null) {
+      return;
+    }
     const plan = Setting.deepCopy(this.state.plan);
     PlanBackend.updatePlan(this.state.organizationName, this.state.planName, plan)
-      .then((res) => {
+      .then((res: LegacyAny) => {
         if (res.status === "ok") {
           Setting.showMessage("success", i18next.t("general:Successfully saved"));
           this.setState({
-            planName: this.state.plan.name,
+            planName: plan.name,
           });
 
           if (exitAfterSave) {
             this.props.history.push("/plans");
           } else {
-            this.props.history.push(`/plans/${this.state.plan.owner}/${this.state.plan.name}`);
+            this.props.history.push(`/plans/${plan.owner}/${plan.name}`);
           }
         } else {
           Setting.showMessage("error", `${i18next.t("general:Failed to save")}: ${res.msg}`);
@@ -281,8 +314,11 @@ class PlanEditPage extends React.Component {
   }
 
   deletePlan() {
+    if (this.state.plan === null) {
+      return;
+    }
     PlanBackend.deletePlan(this.state.plan)
-      .then((res) => {
+      .then((res: LegacyAny) => {
         if (res.status === "ok") {
           this.props.history.push("/plans");
         } else {

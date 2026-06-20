@@ -22,10 +22,29 @@ import * as PricingBackend from "./backend/PricingBackend";
 import * as PlanBackend from "./backend/PlanBackend";
 import PricingPage from "./pricing/PricingPage";
 import * as Setting from "./Setting";
-import i18next from "i18next";
+import rawI18next from "i18next";
+import type {AdminRouteProps} from "./types/legacyPage";
+import type {PaymentApplicationRecord, PaymentOrganizationRecord, PlanRecord, PricingRecord} from "./types/businessPayment";
+type LegacyAny = import("./types/legacyPage").LegacyAny;
+const i18next = rawI18next as unknown as {t: (key: string) => string};
 
-class PricingEditPage extends React.Component {
-  constructor(props) {
+interface PricingEditProps extends AdminRouteProps {
+  organizationName?: string;
+}
+
+interface PricingEditState {
+  classes: PricingEditProps;
+  organizationName: string;
+  pricingName: string;
+  organizations: PaymentOrganizationRecord[];
+  applications: PaymentApplicationRecord[];
+  pricing: PricingRecord | null;
+  plans: PlanRecord[];
+  mode: string;
+}
+
+class PricingEditPage extends React.Component<PricingEditProps, PricingEditState> {
+  constructor(props: PricingEditProps) {
     super(props);
     this.state = {
       classes: props,
@@ -47,7 +66,7 @@ class PricingEditPage extends React.Component {
 
   getPricing() {
     PricingBackend.getPricing(this.state.organizationName, this.state.pricingName)
-      .then((res) => {
+      .then((res: LegacyAny) => {
         if (res.data === null) {
           this.props.history.push("/404");
           return;
@@ -65,9 +84,9 @@ class PricingEditPage extends React.Component {
       });
   }
 
-  getPlans(organizationName) {
+  getPlans(organizationName: string) {
     PlanBackend.getPlans(organizationName)
-      .then((res) => {
+      .then((res: LegacyAny) => {
         if (res.status === "error") {
           Setting.showMessage("error", res.msg);
           return;
@@ -81,33 +100,36 @@ class PricingEditPage extends React.Component {
 
   getOrganizations() {
     OrganizationBackend.getOrganizations("admin")
-      .then((res) => {
+      .then((res: LegacyAny) => {
         this.setState({
           organizations: res.data || [],
         });
       });
   }
 
-  getApplicationsByOrganization(organizationName) {
+  getApplicationsByOrganization(organizationName: string) {
     ApplicationBackend.getApplicationsByOrganization("admin", organizationName)
-      .then((res) => {
+      .then((res: LegacyAny) => {
         this.setState({
           applications: res.data || [],
         });
       });
   }
 
-  parsePricingField(key, value) {
+  parsePricingField(key: string, value: LegacyAny) {
     if ([""].includes(key)) {
       value = Setting.myParseInt(value);
     }
     return value;
   }
 
-  updatePricingField(key, value) {
-    value = this.parsePricingField(key, value);
+  updatePricingField(key: keyof PricingRecord | string, value: LegacyAny) {
+    value = this.parsePricingField(String(key), value);
 
     const pricing = this.state.pricing;
+    if (pricing === null) {
+      return;
+    }
     pricing[key] = value;
 
     this.setState({
@@ -116,6 +138,9 @@ class PricingEditPage extends React.Component {
   }
 
   renderPricing() {
+    if (this.state.pricing === null) {
+      return null;
+    }
     const isViewMode = this.state.mode === "view";
     return (
       <Card size="small" title={
@@ -230,20 +255,23 @@ class PricingEditPage extends React.Component {
     );
   }
 
-  submitPricingEdit(exitAfterSave) {
+  submitPricingEdit(exitAfterSave: boolean) {
+    if (this.state.pricing === null) {
+      return;
+    }
     const pricing = Setting.deepCopy(this.state.pricing);
     PricingBackend.updatePricing(this.state.organizationName, this.state.pricingName, pricing)
-      .then((res) => {
+      .then((res: LegacyAny) => {
         if (res.status === "ok") {
           Setting.showMessage("success", i18next.t("general:Successfully saved"));
           this.setState({
-            pricingName: this.state.pricing.name,
+            pricingName: pricing.name,
           });
 
           if (exitAfterSave) {
             this.props.history.push("/pricings");
           } else {
-            this.props.history.push(`/pricings/${this.state.pricing.owner}/${this.state.pricing.name}`);
+            this.props.history.push(`/pricings/${pricing.owner}/${pricing.name}`);
           }
         } else {
           Setting.showMessage("error", `${i18next.t("general:Failed to save")}: ${res.msg}`);
@@ -256,8 +284,11 @@ class PricingEditPage extends React.Component {
   }
 
   deletePricing() {
+    if (this.state.pricing === null) {
+      return;
+    }
     PricingBackend.deletePricing(this.state.pricing)
-      .then((res) => {
+      .then((res: LegacyAny) => {
         if (res.status === "ok") {
           this.props.history.push("/pricings");
         } else {
@@ -287,6 +318,9 @@ class PricingEditPage extends React.Component {
   }
 
   renderPreview() {
+    if (this.state.pricing === null) {
+      return null;
+    }
     const pricingUrl = `/select-plan/${this.state.pricing.owner}/${this.state.pricing.name}`;
     return (
       <React.Fragment>

@@ -19,12 +19,30 @@ import {ClockCircleOutlined, CloseCircleOutlined, ExclamationCircleOutlined, Min
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as SubscriptionBackend from "./backend/SubscriptionBackend";
-import i18next from "i18next";
+import rawI18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
+import type {AdminRouteProps, LegacyAny, LegacyListState} from "./types/legacyPage";
+import type {SubscriptionRecord} from "./types/businessPayment";
 
-class SubscriptionListPage extends BaseListPage {
-  newSubscription() {
+type LegacyFetchParams = import("./types/legacyPage").LegacyFetchParams;
+const i18next = rawI18next as unknown as {t: (key: string) => string};
+
+interface SubscriptionListState extends LegacyListState<SubscriptionRecord> {}
+
+const LegacyBaseListPage = BaseListPage as unknown as React.ComponentClass<AdminRouteProps, SubscriptionListState> & LegacyAny;
+
+// BaseListPage 仍是 legacy JS 类；订阅列表只声明本页实际依赖的表格辅助能力。
+interface SubscriptionListPage {
+  props: AdminRouteProps;
+  state: SubscriptionListState;
+  getColumnSearchProps: (dataIndex: string, customRender?: LegacyAny) => LegacyAny;
+  getTablePaginationProps: () => LegacyAny;
+  handleTableChange: LegacyAny;
+}
+
+class SubscriptionListPage extends LegacyBaseListPage {
+  newSubscription(): SubscriptionRecord {
     const randomName = Setting.getRandomName();
     const owner = Setting.getRequestOrganization(this.props.account);
 
@@ -59,15 +77,16 @@ class SubscriptionListPage extends BaseListPage {
       });
   }
 
-  deleteSubscription(i) {
+  deleteSubscription(i: number) {
     SubscriptionBackend.deleteSubscription(this.state.data[i])
       .then((res) => {
         if (res.status === "ok") {
           Setting.showMessage("success", i18next.t("general:Successfully deleted"));
+          const current = this.state.pagination.current || 1;
           this.fetch({
             pagination: {
               ...this.state.pagination,
-              current: this.state.pagination.current > 1 && this.state.data.length === 1 ? this.state.pagination.current - 1 : this.state.pagination.current,
+              current: current > 1 && this.state.data.length === 1 ? current - 1 : current,
             },
           });
         } else {
@@ -79,7 +98,7 @@ class SubscriptionListPage extends BaseListPage {
       });
   }
 
-  renderTable(subscriptions) {
+  renderTable(subscriptions?: SubscriptionRecord[] | null) {
     const columns = [
       {
         title: i18next.t("general:Name"),
@@ -89,7 +108,7 @@ class SubscriptionListPage extends BaseListPage {
         fixed: "left",
         sorter: true,
         ...this.getColumnSearchProps("name"),
-        render: (text, record, index) => {
+        render: (text: string, record: SubscriptionRecord) => {
           return (
             <Link to={`/subscriptions/${record.owner}/${record.name}`}>
               {text}
@@ -104,7 +123,7 @@ class SubscriptionListPage extends BaseListPage {
         width: "120px",
         sorter: true,
         ...this.getColumnSearchProps("owner"),
-        render: (text, record, index) => {
+        render: (text: string) => {
           return (
             <Link to={`/organizations/${text}`}>
               {text}
@@ -118,7 +137,7 @@ class SubscriptionListPage extends BaseListPage {
         key: "createdTime",
         width: "160px",
         sorter: true,
-        render: (text, record, index) => {
+        render: (text: string) => {
           return Setting.getFormattedDate(text);
         },
       },
@@ -143,7 +162,7 @@ class SubscriptionListPage extends BaseListPage {
         key: "startTime",
         width: "140px",
         ...this.getColumnSearchProps("startTime"),
-        render: (text, record, index) => {
+        render: (text: string) => {
           return Setting.getFormattedDate(text);
         },
       },
@@ -153,7 +172,7 @@ class SubscriptionListPage extends BaseListPage {
         key: "endTime",
         width: "140px",
         ...this.getColumnSearchProps("endTime"),
-        render: (text, record, index) => {
+        render: (text: string, record: SubscriptionRecord) => {
           return Setting.getFormattedDate(text);
         },
       },
@@ -163,7 +182,7 @@ class SubscriptionListPage extends BaseListPage {
         key: "plan",
         width: "140px",
         ...this.getColumnSearchProps("plan"),
-        render: (text, record, index) => {
+        render: (text: string, record: SubscriptionRecord) => {
           return (
             <Link to={`/plans/${text}`}>
               {text}
@@ -177,7 +196,7 @@ class SubscriptionListPage extends BaseListPage {
         key: "user",
         width: "140px",
         ...this.getColumnSearchProps("user"),
-        render: (text, record, index) => {
+        render: (text: string, record: SubscriptionRecord) => {
           return (
             <Link to={`/users/${text}`}>
               {text}
@@ -191,7 +210,7 @@ class SubscriptionListPage extends BaseListPage {
         key: "payment",
         width: "140px",
         ...this.getColumnSearchProps("payment"),
-        render: (text, record, index) => {
+        render: (text: string) => {
           return (
             <Link to={`/payments/${text}`}>
               {text}
@@ -206,7 +225,7 @@ class SubscriptionListPage extends BaseListPage {
         width: "120px",
         sorter: true,
         ...this.getColumnSearchProps("state"),
-        render: (text, record, index) => {
+        render: (text: LegacyAny, record: SubscriptionRecord, index: number) => {
           switch (text) {
           case "Pending":
             return Setting.getTag("processing", i18next.t("permission:Pending"), <ExclamationCircleOutlined />);
@@ -231,7 +250,7 @@ class SubscriptionListPage extends BaseListPage {
         key: "op",
         width: "230px",
         fixed: (Setting.isMobile()) ? "false" : "right",
-        render: (text, record, index) => {
+        render: (text: LegacyAny, record: SubscriptionRecord, index: number) => {
           const isAdmin = Setting.isLocalAdminUser(this.props.account);
           return (
             <div>
@@ -252,7 +271,7 @@ class SubscriptionListPage extends BaseListPage {
 
     return (
       <div>
-        <Table scroll={{x: "max-content"}} columns={columns} dataSource={subscriptions} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
+        <Table scroll={{x: "max-content"}} columns={columns as LegacyAny} dataSource={subscriptions || []} rowKey={(record: SubscriptionRecord) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
           title={() => {
             const isAdmin = Setting.isLocalAdminUser(this.props.account);
             return (
@@ -269,7 +288,7 @@ class SubscriptionListPage extends BaseListPage {
     );
   }
 
-  fetch = (params = {}) => {
+  fetch = (params: Partial<LegacyFetchParams> & Record<string, LegacyAny> = {}) => {
     let field = params.searchedColumn, value = params.searchText;
     const sortField = params.sortField, sortOrder = params.sortOrder;
     if (params.type !== undefined && params.type !== null) {
@@ -277,8 +296,8 @@ class SubscriptionListPage extends BaseListPage {
       value = params.type;
     }
     this.setState({loading: true});
-    SubscriptionBackend.getSubscriptions(Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
-      .then((res) => {
+    SubscriptionBackend.getSubscriptions(Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), params.pagination?.current as LegacyAny, params.pagination?.pageSize as LegacyAny, field, value, sortField, sortOrder)
+      .then((res: LegacyAny) => {
         this.setState({
           loading: false,
         });
@@ -286,7 +305,7 @@ class SubscriptionListPage extends BaseListPage {
           this.setState({
             data: res.data,
             pagination: {
-              ...params.pagination,
+              ...(params.pagination || {}),
               total: res.data2,
             },
             searchText: params.searchText,

@@ -22,11 +22,36 @@ import * as PlanBackend from "./backend/PlanBackend";
 import * as SubscriptionBackend from "./backend/SubscriptionBackend";
 import * as UserBackend from "./backend/UserBackend";
 import * as Setting from "./Setting";
-import i18next from "i18next";
+import rawI18next from "i18next";
 import dayjs from "dayjs";
+import type {AdminRouteProps, LegacyAny} from "./types/legacyPage";
+import type {PaymentOrganizationRecord, PlanRecord, PricingRecord, SubscriptionRecord} from "./types/businessPayment";
+const i18next = rawI18next as unknown as {t: (key: string) => string};
 
-class SubscriptionEditPage extends React.Component {
-  constructor(props) {
+interface SubscriptionEditProps extends AdminRouteProps {
+  organizationName?: string;
+}
+
+interface SubscriptionUserRecord {
+  name: string;
+  [key: string]: LegacyAny;
+}
+
+interface SubscriptionEditState {
+  classes: SubscriptionEditProps;
+  organizationName: string;
+  subscriptionName: string;
+  subscription: SubscriptionRecord | null;
+  organizations: PaymentOrganizationRecord[];
+  users: SubscriptionUserRecord[];
+  pricings: PricingRecord[];
+  plans: PlanRecord[];
+  providers: LegacyAny[];
+  mode: string;
+}
+
+class SubscriptionEditPage extends React.Component<SubscriptionEditProps, SubscriptionEditState> {
+  constructor(props: SubscriptionEditProps) {
     super(props);
     this.state = {
       classes: props,
@@ -49,7 +74,7 @@ class SubscriptionEditPage extends React.Component {
 
   getSubscription() {
     SubscriptionBackend.getSubscription(this.state.organizationName, this.state.subscriptionName)
-      .then((res) => {
+      .then((res: LegacyAny) => {
         if (res.data === null) {
           this.props.history.push("/404");
           return;
@@ -69,18 +94,18 @@ class SubscriptionEditPage extends React.Component {
       });
   }
 
-  getPricings(organizationName) {
+  getPricings(organizationName: string) {
     PricingBackend.getPricings(organizationName)
-      .then((res) => {
+      .then((res: LegacyAny) => {
         this.setState({
           pricings: res.data,
         });
       });
   }
 
-  getPlans(organizationName) {
+  getPlans(organizationName: string) {
     PlanBackend.getPlans(organizationName)
-      .then((res) => {
+      .then((res: LegacyAny) => {
         this.setState({
           plans: res.data,
         });
@@ -89,24 +114,27 @@ class SubscriptionEditPage extends React.Component {
 
   getOrganizations() {
     OrganizationBackend.getOrganizations("admin")
-      .then((res) => {
+      .then((res: LegacyAny) => {
         this.setState({
           organizations: res.data || [],
         });
       });
   }
 
-  parseSubscriptionField(key, value) {
+  parseSubscriptionField(key: string, value: LegacyAny) {
     if ([""].includes(key)) {
       value = Setting.myParseInt(value);
     }
     return value;
   }
 
-  updateSubscriptionField(key, value) {
-    value = this.parseSubscriptionField(key, value);
+  updateSubscriptionField(key: keyof SubscriptionRecord | string, value: LegacyAny) {
+    value = this.parseSubscriptionField(String(key), value);
 
     const subscription = this.state.subscription;
+    if (subscription === null) {
+      return;
+    }
     subscription[key] = value;
     this.setState({
       subscription: subscription,
@@ -114,6 +142,9 @@ class SubscriptionEditPage extends React.Component {
   }
 
   renderSubscription() {
+    if (this.state.subscription === null) {
+      return null;
+    }
     const isViewMode = this.state.mode === "view";
     return (
       <Card size="small" title={
@@ -209,14 +240,14 @@ class SubscriptionEditPage extends React.Component {
               disabled={isViewMode}
               allowClear
               fetchPage={UserBackend.getUsers}
-              buildFetchArgs={({page, pageSize, searchText}) => {
+              buildFetchArgs={({page, pageSize, searchText}: {page: LegacyAny; pageSize: LegacyAny; searchText: string}) => {
                 const field = searchText ? "name" : "";
-                return [this.state.subscription.owner, page, pageSize, field, searchText];
+                return [this.state.subscription!.owner, page, pageSize, field, searchText];
               }}
               reloadKey={this.state.subscription?.owner}
-              optionMapper={(user) => Setting.getOption(user.name, user.name)}
+              optionMapper={(user: SubscriptionUserRecord) => Setting.getOption(user.name, user.name)}
               filterOption={false}
-              onChange={(value => {this.updateSubscriptionField("user", value || "");})}
+              onChange={(value: LegacyAny) => {this.updateSubscriptionField("user", value || "");}}
             />
           </Col>
         </Row>
@@ -270,7 +301,7 @@ class SubscriptionEditPage extends React.Component {
           </Col>
           <Col span={22} >
             <Select virtual={false} disabled={isViewMode || !Setting.isLocalAdminUser(this.props.account)} style={{width: "100%"}} value={this.state.subscription.state} onChange={(value => {
-              if (this.state.subscription.state !== value) {
+              if (this.state.subscription!.state !== value) {
                 if (value === "Approved") {
                   this.updateSubscriptionField("approver", this.props.account.name);
                   this.updateSubscriptionField("approveTime", moment().format());
@@ -297,20 +328,23 @@ class SubscriptionEditPage extends React.Component {
     );
   }
 
-  submitSubscriptionEdit(exitAfterSave) {
+  submitSubscriptionEdit(exitAfterSave: boolean) {
+    if (this.state.subscription === null) {
+      return;
+    }
     const subscription = Setting.deepCopy(this.state.subscription);
     SubscriptionBackend.updateSubscription(this.state.organizationName, this.state.subscriptionName, subscription)
-      .then((res) => {
+      .then((res: LegacyAny) => {
         if (res.status === "ok") {
           Setting.showMessage("success", i18next.t("general:Successfully saved"));
           this.setState({
-            subscriptionName: this.state.subscription.name,
+            subscriptionName: subscription.name,
           });
 
           if (exitAfterSave) {
             this.props.history.push("/subscriptions");
           } else {
-            this.props.history.push(`/subscriptions/${this.state.subscription.owner}/${this.state.subscription.name}`);
+            this.props.history.push(`/subscriptions/${subscription.owner}/${subscription.name}`);
           }
         } else {
           Setting.showMessage("error", `${i18next.t("general:Failed to save")}: ${res.msg}`);
@@ -323,8 +357,11 @@ class SubscriptionEditPage extends React.Component {
   }
 
   deleteSubscription() {
+    if (this.state.subscription === null) {
+      return;
+    }
     SubscriptionBackend.deleteSubscription(this.state.subscription)
-      .then((res) => {
+      .then((res: LegacyAny) => {
         if (res.status === "ok") {
           this.props.history.push("/subscriptions");
         } else {
