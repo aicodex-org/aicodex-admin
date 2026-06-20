@@ -16,11 +16,30 @@ import React from "react";
 import {Button, Input, Space, Table} from "antd";
 import {SearchOutlined} from "@ant-design/icons";
 import Highlighter from "react-highlight-words";
-import i18next from "i18next";
+import rawI18next from "i18next";
 import {getTransactionTableColumns} from "./TransactionTableColumns";
 
-class TransactionTable extends React.Component {
-  constructor(props) {
+const i18next = rawI18next as unknown as {t: (key: string) => string};
+type TransactionRecord = import("../types/businessPayment").TransactionRecord;
+type LegacyAny = import("../types/legacyPage").LegacyAny;
+
+interface TransactionTableProps {
+  transactions?: TransactionRecord[];
+  includeUser?: boolean;
+  hideTag?: boolean;
+  title?: React.ReactNode;
+}
+
+interface TransactionTableState {
+  classes: TransactionTableProps;
+  searchText: string;
+  searchedColumn: string;
+}
+
+class TransactionTable extends React.Component<TransactionTableProps, TransactionTableState> {
+  private searchInput: LegacyAny = null;
+
+  constructor(props: TransactionTableProps) {
     super(props);
     this.state = {
       classes: props,
@@ -29,16 +48,16 @@ class TransactionTable extends React.Component {
     };
   }
 
-  getColumnSearchProps = (dataIndex) => ({
-    filterDropdown: ({setSelectedKeys, selectedKeys, confirm, clearFilters}) => (
+  getColumnSearchProps = (dataIndex: string): Record<string, LegacyAny> => ({
+    filterDropdown: ({setSelectedKeys, selectedKeys, confirm, clearFilters}: LegacyAny) => (
       <div style={{padding: 8}}>
         <Input
-          ref={node => {
+          ref={(node) => {
             this.searchInput = node;
           }}
           placeholder={i18next.t("general:Please input your search")}
           value={selectedKeys[0]}
-          onChange={e => setSelectedKeys(e.target.value ? [e.target.value] : [])}
+          onChange={(e) => setSelectedKeys(e.target.value ? [e.target.value] : [])}
           onPressEnter={() => this.handleSearch(selectedKeys, confirm, dataIndex)}
           style={{marginBottom: 8, display: "block"}}
         />
@@ -72,19 +91,19 @@ class TransactionTable extends React.Component {
         </Space>
       </div>
     ),
-    filterIcon: filtered => <SearchOutlined style={{color: filtered ? "#1890ff" : undefined}} />,
-    onFilter: (value, record) =>
+    filterIcon: (filtered: boolean) => <SearchOutlined style={{color: filtered ? "#1890ff" : undefined}} />,
+    onFilter: (value: LegacyAny, record: TransactionRecord) =>
       record[dataIndex]
         ? record[dataIndex].toString().toLowerCase().includes(value.toLowerCase())
-        : "",
+        : false,
     filterDropdownProps: {
-      onOpenChange: visible => {
+      onOpenChange: (visible: boolean) => {
         if (visible) {
-          setTimeout(() => this.searchInput.select(), 100);
+          setTimeout(() => this.searchInput?.select(), 100);
         }
       },
     },
-    render: (text, record, index) => {
+    render: (text: LegacyAny) => {
       const highlightContent = this.state.searchedColumn === dataIndex ? (
         <Highlighter
           highlightStyle={{backgroundColor: "#ffc069", padding: 0}}
@@ -100,7 +119,7 @@ class TransactionTable extends React.Component {
     },
   });
 
-  handleSearch = (selectedKeys, confirm, dataIndex) => {
+  handleSearch = (selectedKeys: LegacyAny[], confirm: () => void, dataIndex: string) => {
     confirm();
     this.setState({
       searchText: selectedKeys[0],
@@ -108,7 +127,7 @@ class TransactionTable extends React.Component {
     });
   };
 
-  handleReset = clearFilters => {
+  handleReset = (clearFilters: () => void) => {
     clearFilters();
     this.setState({searchText: ""});
   };
@@ -129,8 +148,8 @@ class TransactionTable extends React.Component {
       <Table
         scroll={{x: "max-content"}}
         columns={columns}
-        dataSource={this.props.transactions}
-        rowKey={(record) => `${record.owner}/${record.name}`}
+        dataSource={this.props.transactions || []}
+        rowKey={(record) => `${record.owner || ""}/${record.name || ""}`}
         size="middle"
         bordered
         pagination={{

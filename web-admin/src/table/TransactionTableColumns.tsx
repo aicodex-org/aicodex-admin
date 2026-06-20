@@ -15,11 +15,29 @@
 import React from "react";
 import {Link} from "react-router-dom";
 import * as Setting from "../Setting";
-import i18next from "i18next";
+import rawI18next from "i18next";
 import {Button} from "antd";
 import PopconfirmModal from "../common/modal/PopconfirmModal";
+import {legacyColumns} from "../types/legacyPage";
 
-export function getTransactionTableColumns(options = {}) {
+const i18next = rawI18next as unknown as {t: (key: string) => string};
+type TransactionRecord = import("../types/businessPayment").TransactionRecord;
+type AdminAccount = import("../types/legacyPage").AdminAccount;
+type LegacyAny = import("../types/legacyPage").LegacyAny;
+type LegacyColumn<TRecord = LegacyAny> = import("../types/legacyPage").LegacyColumn<TRecord>;
+
+export interface TransactionTableColumnOptions {
+  includeOrganization?: boolean;
+  includeUser?: boolean;
+  includeTag?: boolean;
+  includeActions?: boolean;
+  getColumnSearchProps?: ((dataIndex: string) => Record<string, LegacyAny>) | null;
+  account?: AdminAccount | null;
+  onEdit?: ((record: TransactionRecord, isAdmin: boolean) => void) | null;
+  onDelete?: ((index: number) => void) | null;
+}
+
+export function getTransactionTableColumns(options: TransactionTableColumnOptions = {}): LegacyColumn<TransactionRecord>[] {
   const {
     includeOrganization = false,
     includeUser = false,
@@ -31,15 +49,15 @@ export function getTransactionTableColumns(options = {}) {
     onDelete = null,
   } = options;
 
-  const columns = [];
+  const columns: LegacyColumn<TransactionRecord>[] = [];
 
   // Use function-based sorter for client-side, boolean for server-side
-  const getSorter = (dataIndex) => {
+  const getSorter = (dataIndex: string) => {
     if (includeActions) {
       return true; // Server-side sorting
     } else if (getColumnSearchProps) {
       // Client-side sorting
-      return (a, b) => {
+      return (a: TransactionRecord, b: TransactionRecord) => {
         const aVal = a[dataIndex] || "";
         const bVal = b[dataIndex] || "";
         return aVal.toString().localeCompare(bVal.toString());
@@ -57,7 +75,7 @@ export function getTransactionTableColumns(options = {}) {
       fixed: "left",
       sorter: getSorter("owner"),
       ...(getColumnSearchProps ? getColumnSearchProps("owner") : {}),
-      render: (text, record, index) => {
+      render: (text: string) => {
         return (
           <Link to={`/organizations/${text}`}>
             {text}
@@ -75,7 +93,7 @@ export function getTransactionTableColumns(options = {}) {
     fixed: includeOrganization ? "left" : false,
     sorter: getSorter("name"),
     ...(getColumnSearchProps ? getColumnSearchProps("name") : {}),
-    render: (text, record, index) => {
+    render: (text: string, record: TransactionRecord) => {
       return (
         <Link to={`/transactions/${record.owner}/${record.name}`}>
           {text}
@@ -90,7 +108,7 @@ export function getTransactionTableColumns(options = {}) {
     key: "createdTime",
     width: "160px",
     sorter: getSorter("createdTime"),
-    render: (text, record, index) => {
+    render: (text: string) => {
       return Setting.getFormattedDate(text);
     },
   });
@@ -114,7 +132,7 @@ export function getTransactionTableColumns(options = {}) {
       width: "120px",
       sorter: getSorter("user"),
       ...(getColumnSearchProps ? getColumnSearchProps("user") : {}),
-      render: (text, record, index) => {
+      render: (text: string | undefined, record: TransactionRecord) => {
         if (!text || Setting.isAnonymousUserName(text)) {
           return text;
         }
@@ -135,7 +153,7 @@ export function getTransactionTableColumns(options = {}) {
     width: "150px",
     sorter: getSorter("application"),
     ...(getColumnSearchProps ? getColumnSearchProps("application") : {}),
-    render: (text, record, index) => {
+    render: (text: string | undefined, record: TransactionRecord) => {
       if (!text) {
         return text;
       }
@@ -154,7 +172,7 @@ export function getTransactionTableColumns(options = {}) {
     width: includeOrganization ? "200px" : "270px",
     sorter: getSorter("domain"),
     ...(getColumnSearchProps ? getColumnSearchProps("domain") : {}),
-    render: (text, record, index) => {
+    render: (text: string | undefined) => {
       if (!text) {
         return null;
       }
@@ -183,7 +201,7 @@ export function getTransactionTableColumns(options = {}) {
     width: "140px",
     sorter: getSorter("type"),
     ...(getColumnSearchProps ? getColumnSearchProps("type") : {}),
-    render: (text, record, index) => {
+    render: (text: string | undefined, record: TransactionRecord) => {
       if (text && record.domain) {
         const chatUrl = `${record.domain}/chats/${text}`;
         return (
@@ -203,7 +221,7 @@ export function getTransactionTableColumns(options = {}) {
     width: "140px",
     sorter: getSorter("subtype"),
     ...(getColumnSearchProps ? getColumnSearchProps("subtype") : {}),
-    render: (text, record, index) => {
+    render: (text: string | undefined, record: TransactionRecord) => {
       if (text && record.domain) {
         const messageUrl = `${record.domain}/messages/${text}`;
         return (
@@ -223,7 +241,7 @@ export function getTransactionTableColumns(options = {}) {
     width: "150px",
     sorter: getSorter("provider"),
     ...(getColumnSearchProps ? getColumnSearchProps("provider") : {}),
-    render: (text, record, index) => {
+    render: (text: string | undefined, record: TransactionRecord) => {
       if (!text) {
         return text;
       }
@@ -250,7 +268,7 @@ export function getTransactionTableColumns(options = {}) {
     width: "120px",
     sorter: getSorter("payment"),
     ...(getColumnSearchProps ? getColumnSearchProps("payment") : {}),
-    render: (text, record, index) => {
+    render: (text: string | undefined, record: TransactionRecord) => {
       if (!text) {
         return text;
       }
@@ -279,7 +297,7 @@ export function getTransactionTableColumns(options = {}) {
     sorter: getSorter("amount"),
     ...(getColumnSearchProps ? getColumnSearchProps("amount") : {}),
     fixed: (Setting.isMobile()) ? "false" : "right",
-    render: (text, record, index) => {
+    render: (_text: number | undefined, record: TransactionRecord) => {
       return Setting.getPriceDisplay(record.amount, record.currency);
     },
   });
@@ -291,7 +309,7 @@ export function getTransactionTableColumns(options = {}) {
       key: "op",
       width: "200px",
       fixed: (Setting.isMobile()) ? "false" : "right",
-      render: (text, record, index) => {
+      render: (_text: LegacyAny, record: TransactionRecord, index: number) => {
         const isAdmin = Setting.isLocalAdminUser(account);
         return (
           <div>
@@ -308,5 +326,5 @@ export function getTransactionTableColumns(options = {}) {
     });
   }
 
-  return columns;
+  return legacyColumns(columns);
 }

@@ -119,6 +119,41 @@ export interface SubscriptionRecord {
   [key: string]: LegacyAny;
 }
 
+// 交易页面只描述前端展示和手工充值会读写的字段；真实入账和支付事实仍由后端交易 API 维护。
+export interface TransactionRecord {
+  owner?: string;
+  name?: string;
+  createdTime?: string;
+  application?: string;
+  domain?: string;
+  category?: string;
+  type?: string;
+  subtype?: string;
+  provider?: string;
+  user?: string;
+  tag?: string;
+  amount?: number;
+  currency?: string;
+  payment?: string;
+  state?: string;
+  [key: string]: LegacyAny;
+}
+
+export interface TransactionOrganizationRecord {
+  name: string;
+  [key: string]: LegacyAny;
+}
+
+export interface TransactionApplicationRecord {
+  name: string;
+  [key: string]: LegacyAny;
+}
+
+export interface TransactionUserRecord {
+  name: string;
+  [key: string]: LegacyAny;
+}
+
 export interface PaymentOrganizationRecord {
   name: string;
   [key: string]: LegacyAny;

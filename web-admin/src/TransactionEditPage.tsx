@@ -20,12 +20,30 @@ import * as UserBackend from "./backend/UserBackend";
 import * as Setting from "./Setting";
 import {Button, Card, Col, Input, InputNumber, Row, Select} from "antd";
 import PaginateSelect from "./common/PaginateSelect";
-import i18next from "i18next";
+import rawI18next from "i18next";
 
 const {Option} = Select;
+const i18next = rawI18next as unknown as {t: (key: string) => string};
+type TransactionApplicationRecord = import("./types/businessPayment").TransactionApplicationRecord;
+type TransactionOrganizationRecord = import("./types/businessPayment").TransactionOrganizationRecord;
+type TransactionRecord = import("./types/businessPayment").TransactionRecord;
+type TransactionUserRecord = import("./types/businessPayment").TransactionUserRecord;
+type AdminRouteProps = import("./types/legacyPage").AdminRouteProps;
+type LegacyAny = import("./types/legacyPage").LegacyAny;
 
-class TransactionEditPage extends React.Component {
-  constructor(props) {
+interface TransactionEditState {
+  classes: AdminRouteProps;
+  organizationName: string;
+  transactionName: string;
+  transaction: TransactionRecord | null;
+  mode: "add" | "edit" | "recharge" | "view";
+  organizations: TransactionOrganizationRecord[];
+  applications: TransactionApplicationRecord[];
+  users: TransactionUserRecord[];
+}
+
+class TransactionEditPage extends React.Component<AdminRouteProps, TransactionEditState> {
+  constructor(props: AdminRouteProps) {
     super(props);
     this.state = {
       classes: props,
@@ -49,7 +67,7 @@ class TransactionEditPage extends React.Component {
 
   getTransaction() {
     TransactionBackend.getTransaction(this.state.organizationName, this.state.transactionName)
-      .then((res) => {
+      .then((res: LegacyAny) => {
         if (res.data === null) {
           this.props.history.push("/404");
           return;
@@ -76,7 +94,7 @@ class TransactionEditPage extends React.Component {
     const owner = isGlobalAdmin ? "admin" : this.state.organizationName;
 
     OrganizationBackend.getOrganizations(owner)
-      .then((res) => {
+      .then((res: LegacyAny) => {
         if (res.status === "ok") {
           this.setState({
             organizations: res.data || [],
@@ -90,10 +108,10 @@ class TransactionEditPage extends React.Component {
       });
   }
 
-  getApplications(organizationName) {
+  getApplications(organizationName?: string) {
     const targetOrganizationName = organizationName || this.state.organizationName;
     ApplicationBackend.getApplicationsByOrganization("admin", targetOrganizationName)
-      .then((res) => {
+      .then((res: LegacyAny) => {
         this.setState({
           applications: res.data || [],
         });
@@ -103,23 +121,24 @@ class TransactionEditPage extends React.Component {
       });
   }
 
-  submitTransactionEdit(exitAfterSave) {
+  submitTransactionEdit(exitAfterSave: boolean) {
     if (this.state.transaction === null) {
       return;
     }
-    const transaction = Setting.deepCopy(this.state.transaction);
-    TransactionBackend.updateTransaction(this.state.transaction.owner, this.state.transactionName, transaction)
-      .then((res) => {
+    const currentTransaction = this.state.transaction;
+    const transaction = Setting.deepCopy(currentTransaction);
+    TransactionBackend.updateTransaction(currentTransaction.owner || "", this.state.transactionName, transaction)
+      .then((res: LegacyAny) => {
         if (res.status === "ok") {
           Setting.showMessage("success", i18next.t("general:Successfully saved"));
           this.setState({
-            transactionName: this.state.transaction.name,
+            transactionName: currentTransaction.name || "",
           });
 
           if (exitAfterSave) {
             this.props.history.push("/transactions");
           } else {
-            this.props.history.push(`/transactions/${this.state.organizationName}/${this.state.transaction.name}`);
+            this.props.history.push(`/transactions/${this.state.organizationName}/${currentTransaction.name || ""}`);
           }
         } else {
           Setting.showMessage("error", `${i18next.t("general:Failed to save")}: ${res.msg}`);
@@ -136,7 +155,7 @@ class TransactionEditPage extends React.Component {
       return;
     }
     TransactionBackend.deleteTransaction(this.state.transaction)
-      .then((res) => {
+      .then((res: LegacyAny) => {
         if (res.status === "ok") {
           this.props.history.push("/transactions");
         } else {
@@ -148,9 +167,9 @@ class TransactionEditPage extends React.Component {
       });
   }
 
-  parseTransactionField(key, value) {
+  parseTransactionField(key: string, value: LegacyAny) {
     if (["amount"].includes(key)) {
-      value = parseFloat(value);
+      value = parseFloat(String(value ?? ""));
       if (isNaN(value)) {
         value = 0;
       }
@@ -158,10 +177,13 @@ class TransactionEditPage extends React.Component {
     return value;
   }
 
-  updateTransactionField(key, value) {
+  updateTransactionField(key: string, value: LegacyAny) {
     value = this.parseTransactionField(key, value);
 
     const transaction = this.state.transaction;
+    if (transaction === null) {
+      return;
+    }
     transaction[key] = value;
     this.setState({
       transaction: transaction,
@@ -169,6 +191,9 @@ class TransactionEditPage extends React.Component {
   }
 
   renderTransaction() {
+    if (this.state.transaction === null) {
+      return null;
+    }
     const isRechargeMode = this.state.mode === "recharge";
     const title = isRechargeMode ? i18next.t("transaction:Recharge") : (this.state.mode === "add" ? i18next.t("transaction:New Transaction") : i18next.t("transaction:Edit Transaction"));
 
@@ -333,14 +358,14 @@ class TransactionEditPage extends React.Component {
                 disabled={this.state.transaction.tag === "Organization"}
                 allowClear
                 fetchPage={UserBackend.getUsers}
-                buildFetchArgs={({page, pageSize, searchText}) => {
+                buildFetchArgs={({page, pageSize, searchText}: LegacyAny) => {
                   const field = searchText ? "name" : "";
                   return [this.state.transaction?.organization || this.state.organizationName, page, pageSize, field, searchText];
                 }}
                 reloadKey={this.state.transaction?.organization || this.state.organizationName}
-                optionMapper={(user) => Setting.getOption(user.name, user.name)}
+                optionMapper={(user: TransactionUserRecord) => Setting.getOption(user.name, user.name)}
                 filterOption={false}
-                onChange={(value) => {
+                onChange={(value: string) => {
                   this.updateTransactionField("user", value || "");
                 }}
               />

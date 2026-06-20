@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import BaseListPage from "./BaseListPage";
-import i18next from "i18next";
+import rawI18next from "i18next";
 import * as Setting from "./Setting";
 import * as Conf from "./Conf";
 import {Button, Table} from "antd";
@@ -21,9 +21,27 @@ import React from "react";
 import * as TransactionBackend from "./backend/TransactionBackend";
 import moment from "moment/moment";
 import {getTransactionTableColumns} from "./table/TransactionTableColumns";
+import type {TransactionRecord} from "./types/businessPayment";
+import type {AdminRouteProps, LegacyAny, LegacyListState} from "./types/legacyPage";
 
-class TransactionListPage extends BaseListPage {
-  newTransaction() {
+type LegacyFetchParams = import("./types/legacyPage").LegacyFetchParams;
+const i18next = rawI18next as unknown as {t: (key: string) => string};
+
+interface TransactionListState extends LegacyListState<TransactionRecord> {}
+
+const LegacyBaseListPage = BaseListPage as unknown as React.ComponentClass<AdminRouteProps, TransactionListState> & LegacyAny;
+
+// BaseListPage 仍是 legacy JS 类；交易列表只声明本页实际依赖的表格辅助能力。
+interface TransactionListPage {
+  props: AdminRouteProps;
+  state: TransactionListState;
+  getColumnSearchProps: (dataIndex: string, customRender?: LegacyAny) => LegacyAny;
+  getTablePaginationProps: () => LegacyAny;
+  handleTableChange: LegacyAny;
+}
+
+class TransactionListPage extends LegacyBaseListPage {
+  newTransaction(): TransactionRecord {
     const organizationName = Setting.getRequestOrganization(this.props.account);
     return {
       owner: organizationName,
@@ -43,15 +61,16 @@ class TransactionListPage extends BaseListPage {
     };
   }
 
-  deleteTransaction(i) {
+  deleteTransaction(i: number) {
     TransactionBackend.deleteTransaction(this.state.data[i])
-      .then((res) => {
+      .then((res: LegacyAny) => {
         if (res.status === "ok") {
           Setting.showMessage("success", i18next.t("general:Successfully deleted"));
+          const current = this.state.pagination.current || 1;
           this.fetch({
             pagination: {
               ...this.state.pagination,
-              current: this.state.pagination.current > 1 && this.state.data.length === 1 ? this.state.pagination.current - 1 : this.state.pagination.current,
+              current: current > 1 && this.state.data.length === 1 ? current - 1 : current,
             },
           });
         } else {
@@ -66,7 +85,7 @@ class TransactionListPage extends BaseListPage {
   addTransaction() {
     const newTransaction = this.newTransaction();
     TransactionBackend.addTransaction(newTransaction)
-      .then((res) => {
+      .then((res: LegacyAny) => {
         if (res.status === "ok") {
           const transactionId = res.data;
           this.props.history.push({pathname: `/transactions/${newTransaction.owner}/${transactionId}`, mode: "add"});
@@ -100,7 +119,7 @@ class TransactionListPage extends BaseListPage {
       state: "Paid",
     };
     TransactionBackend.addTransaction(newTransaction)
-      .then((res) => {
+      .then((res: LegacyAny) => {
         if (res.status === "ok") {
           const transactionId = res.data;
           this.props.history.push({pathname: `/transactions/${newTransaction.owner}/${transactionId}`, mode: "recharge"});
@@ -114,7 +133,7 @@ class TransactionListPage extends BaseListPage {
       });
   }
 
-  renderTable(transactions) {
+  renderTable(transactions?: TransactionRecord[] | null) {
     const columns = getTransactionTableColumns({
       includeOrganization: true,
       includeUser: true,
@@ -122,10 +141,10 @@ class TransactionListPage extends BaseListPage {
       includeActions: true,
       getColumnSearchProps: this.getColumnSearchProps,
       account: this.props.account,
-      onEdit: (record, isAdmin) => {
+      onEdit: (record: TransactionRecord, isAdmin: boolean) => {
         this.props.history.push({pathname: `/transactions/${record.owner}/${record.name}`, mode: isAdmin ? "edit" : "view"});
       },
-      onDelete: (index) => {
+      onDelete: (index: number) => {
         this.deleteTransaction(index);
       },
     });
@@ -134,7 +153,7 @@ class TransactionListPage extends BaseListPage {
 
     return (
       <div>
-        <Table scroll={{x: "max-content"}} columns={columns} dataSource={transactions} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
+        <Table scroll={{x: "max-content"}} columns={columns} dataSource={transactions || []} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
           title={() => {
             const isAdmin = Setting.isLocalAdminUser(this.props.account);
             return (
@@ -153,7 +172,7 @@ class TransactionListPage extends BaseListPage {
     );
   }
 
-  fetch = (params = {}) => {
+  fetch = (params: LegacyFetchParams = {pagination: {}}) => {
     let field = params.searchedColumn, value = params.searchText;
     const sortField = params.sortField, sortOrder = params.sortOrder;
     if (params.type !== undefined && params.type !== null) {
@@ -161,8 +180,8 @@ class TransactionListPage extends BaseListPage {
       value = params.type;
     }
     this.setState({loading: true});
-    TransactionBackend.getTransactions(Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
-      .then((res) => {
+    TransactionBackend.getTransactions(Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), params.pagination.current as LegacyAny, params.pagination.pageSize as LegacyAny, field, value, sortField, sortOrder)
+      .then((res: LegacyAny) => {
         this.setState({
           loading: false,
         });
