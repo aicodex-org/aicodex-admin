@@ -199,3 +199,16 @@ export interface PaymentProductRecord {
   providerObjs?: PaymentProviderRecord[];
   [key: string]: LegacyAny;
 }
+
+// 购物车表格只展示这些前端字段；真实购物车写入、订单创建和支付语义仍由后端 API 维护。
+export interface BusinessPaymentCartItem {
+  owner?: string;
+  name?: string;
+  displayName?: string;
+  image?: string;
+  price?: number | string;
+  currency?: string;
+  quantity?: number;
+  detail?: string;
+  [key: string]: LegacyAny;
+}

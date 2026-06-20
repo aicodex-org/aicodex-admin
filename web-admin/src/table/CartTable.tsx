@@ -16,8 +16,13 @@ import React from "react";
 import {Table} from "antd";
 import i18next from "i18next";
 import * as Setting from "../Setting";
+import type {BusinessPaymentCartItem} from "../types/businessPayment";
 
-class CartTable extends React.Component {
+interface CartTableProps {
+  cart?: unknown;
+}
+
+class CartTable extends React.Component<CartTableProps> {
   render() {
     const columns = [
       {
@@ -31,7 +36,7 @@ class CartTable extends React.Component {
         dataIndex: "image",
         key: "image",
         width: "80px",
-        render: (text, record, index) => {
+        render: (text: string | undefined, record: BusinessPaymentCartItem) => {
           if (!text) {
             return null;
           }
@@ -47,7 +52,7 @@ class CartTable extends React.Component {
         dataIndex: "price",
         key: "price",
         width: "120px",
-        render: (text, record, index) => {
+        render: (text: string | number | undefined, record: BusinessPaymentCartItem) => {
           return Setting.getCurrencySymbol(record.currency) + text;
         },
       },
@@ -64,7 +69,8 @@ class CartTable extends React.Component {
       },
     ];
 
-    const cart = this.props.cart || [];
+    // UserEditPage 仍通过 legacy state 传入 cart；非数组输入按空购物车展示，保持旧组件的容错边界。
+    const cart = Array.isArray(this.props.cart) ? this.props.cart as BusinessPaymentCartItem[] : [];
 
     return (
       <Table
