@@ -15,6 +15,7 @@
 import React from "react";
 import {Link} from "react-router-dom";
 import {Button, Modal, Switch, Table, Upload} from "antd";
+import type {TablePaginationConfig, TableProps} from "antd";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as Conf from "./Conf";
@@ -26,8 +27,144 @@ import {UploadOutlined} from "@ant-design/icons";
 import * as XLSX from "xlsx";
 import OrganizationIdentityCenter from "./OrganizationIdentityCenter";
 
-class PermissionListPage extends BaseListPage {
-  newPermission() {
+type PermissionRecord = {
+  owner: string;
+  name: string;
+  createdTime: string;
+  displayName: string;
+  users: string[];
+  groups: string[];
+  roles: string[];
+  domains: string[];
+  model?: string;
+  resourceType: string;
+  resources: string[];
+  actions: string[];
+  effect: string;
+  isEnabled: boolean;
+  submitter: string;
+  approver: string;
+  approveTime: string;
+  state: string;
+};
+
+type PermissionListPageProps = {
+  account: {
+    owner: string;
+    name: string;
+    isAdmin?: boolean;
+    [key: string]: unknown;
+  };
+  history: {
+    push: (location: string | {pathname: string; mode?: string}) => void;
+  };
+  match?: {
+    path?: string;
+    params?: Record<string, string | undefined>;
+  };
+};
+
+type UploadPreviewRow = Record<string, unknown>;
+
+type PermissionListPageState = {
+  data: PermissionRecord[];
+  pagination: TablePaginationConfig;
+  loading: boolean;
+  searchText?: string;
+  searchedColumn?: string;
+  isAuthorized?: boolean;
+  uploadJsonData: UploadPreviewRow[];
+  uploadColumns: TableProps<UploadPreviewRow>["columns"];
+  showUploadModal?: boolean;
+  file?: Blob;
+  [key: string]: unknown;
+};
+
+type PermissionListFetchParams = {
+  pagination: TablePaginationConfig;
+  searchedColumn?: string;
+  searchText?: string;
+  sortField?: string;
+  sortOrder?: string | null;
+  type?: string;
+};
+
+type PermissionListResponse = {
+  status: string;
+  msg?: string;
+  data?: PermissionRecord[];
+  data2?: number | string;
+};
+
+type MutationResponse = {
+  status: string;
+  msg?: string;
+};
+
+type GetPermissions = (
+  owner: string,
+  page?: number,
+  pageSize?: number,
+  field?: string,
+  value?: string,
+  sortField?: string,
+  sortOrder?: string | null
+) => Promise<PermissionListResponse>;
+
+type PermissionBackendApi = {
+  getPermissions: GetPermissions;
+  getPermissionsBySubmitter: GetPermissions;
+  addPermission: (permission: PermissionRecord) => Promise<MutationResponse>;
+  deletePermission: (permission: PermissionRecord) => Promise<MutationResponse>;
+};
+
+type PermissionListColumns = TableProps<PermissionRecord>["columns"];
+
+// BaseListPage 仍是 legacy JS；这里仅声明权限列表页实际依赖的继承边界。
+type LegacyBaseListPageCompat = React.Component<PermissionListPageProps, PermissionListPageState> & {
+  getColumnSearchProps: (dataIndex: string, customRender?: unknown) => Record<string, unknown>;
+  getTablePaginationProps: (overrides?: Record<string, unknown>) => TablePaginationConfig;
+  handleTableChange: NonNullable<TableProps<PermissionRecord>["onChange"]>;
+};
+
+const TypedBaseListPage = BaseListPage as unknown as {
+  new(props: PermissionListPageProps): LegacyBaseListPageCompat;
+};
+
+const permissionBackend = PermissionBackend as unknown as PermissionBackendApi;
+const getTags = Setting.getTags as (tags?: string[], urlPrefix?: string | null) => React.ReactNode;
+
+function t(key: string, defaultValue = key): string {
+  const translated = i18next.t(key, {defaultValue}) as unknown;
+  return typeof translated === "string" ? translated : defaultValue;
+}
+
+function getPermissionColumnNames(): string[] {
+  return Setting.getPermissionColumns() as string[];
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "object" && error !== null && "message" in error) {
+    const message = (error as {message?: unknown}).message;
+    return message === undefined ? String(error) : String(message);
+  }
+  return String(error);
+}
+
+class PermissionListPage extends TypedBaseListPage {
+  constructor(props: PermissionListPageProps) {
+    super(props);
+    this.state = {
+      ...this.state,
+      uploadJsonData: [],
+      uploadColumns: [],
+    };
+  }
+
+  newPermission(): PermissionRecord {
     const randomName = Setting.getRandomName();
     const owner = Setting.getRequestOrganization(this.props.account);
     return {
@@ -51,57 +188,58 @@ class PermissionListPage extends BaseListPage {
     };
   }
 
-  addPermission() {
+  addPermission(): void {
     const newPermission = this.newPermission();
-    PermissionBackend.addPermission(newPermission)
-      .then((res) => {
+    permissionBackend.addPermission(newPermission)
+      .then((res: MutationResponse) => {
         if (res.status === "ok") {
           this.props.history.push({pathname: `/permissions/${newPermission.owner}/${newPermission.name}`, mode: "add"});
-          Setting.showMessage("success", i18next.t("general:Successfully added"));
+          Setting.showMessage("success", t("general:Successfully added"));
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to add")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
         }
       })
-      .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      .catch((error: unknown) => {
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  deletePermission(i) {
-    PermissionBackend.deletePermission(this.state.data[i])
-      .then((res) => {
+  deletePermission(i: number): void {
+    permissionBackend.deletePermission(this.state.data[i])
+      .then((res: MutationResponse) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully deleted"));
+          Setting.showMessage("success", t("general:Successfully deleted"));
+          const current = this.state.pagination.current;
           this.fetch({
             pagination: {
               ...this.state.pagination,
-              current: this.state.pagination.current > 1 && this.state.data.length === 1 ? this.state.pagination.current - 1 : this.state.pagination.current,
+              current: current !== undefined && current > 1 && this.state.data.length === 1 ? current - 1 : current,
             },
           });
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
         }
       })
-      .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      .catch((error: unknown) => {
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  uploadPermissionFile(info) {
+  uploadPermissionFile(info: MutationResponse): void {
     const {status, msg} = info;
     if (status === "ok") {
       Setting.showMessage("success", "Permissions uploaded successfully, refreshing the page");
       const {pagination} = this.state;
       this.fetch({pagination});
     } else if (status === "error") {
-      Setting.showMessage("error", `${i18next.t("general:Failed to upload")}: ${msg}`);
+      Setting.showMessage("error", `${t("general:Failed to upload")}: ${msg}`);
     }
     this.setState({uploadJsonData: [], uploadColumns: [], showUploadModal: false});
   }
 
-  generateDownloadTemplate() {
-    const permissionObj = {};
-    const items = Setting.getPermissionColumns();
+  generateDownloadTemplate(): void {
+    const permissionObj: Record<string, null> = {};
+    const items = getPermissionColumnNames();
     items.forEach((item) => {
       permissionObj[item] = null;
     });
@@ -111,39 +249,39 @@ class PermissionListPage extends BaseListPage {
     XLSX.writeFile(workbook, "import-permission.xlsx", {compression: true});
   }
 
-  renderPermissionUpload() {
+  renderPermissionUpload(): React.ReactNode {
     const uploadThis = this;
-    const props = {
+    const props: React.ComponentProps<typeof Upload> = {
       name: "file",
       accept: ".xlsx",
       showUploadList: false,
       beforeUpload: (file) => {
         const reader = new FileReader();
         reader.onload = (e) => {
-          const binary = e.target.result;
+          const binary = e.target?.result;
 
           try {
             const workbook = XLSX.read(binary, {type: "array"});
             if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
-              Setting.showMessage("error", i18next.t("general:No sheets found in file"));
+              Setting.showMessage("error", t("general:No sheets found in file"));
               return;
             }
 
             const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-            const jsonData = XLSX.utils.sheet_to_json(worksheet);
-            this.setState({uploadJsonData: jsonData, file: file});
+            const jsonData = XLSX.utils.sheet_to_json<UploadPreviewRow>(worksheet);
+            this.setState({uploadJsonData: jsonData, file: file as Blob});
 
-            const columns = Setting.getPermissionColumns().map(el => {
+            const columns = getPermissionColumnNames().map(el => {
               return {title: el.split("#")[0], dataIndex: el, key: el};
             });
             this.setState({uploadColumns: columns}, () => {this.setState({showUploadModal: true});});
           } catch (err) {
-            Setting.showMessage("error", `${i18next.t("general:Failed to upload")}: ${err.message}`);
+            Setting.showMessage("error", `${t("general:Failed to upload")}: ${getErrorMessage(err)}`);
           }
         };
 
         reader.onerror = (error) => {
-          Setting.showMessage("error", `${i18next.t("general:Failed to upload")}: ${error?.message || error}`);
+          Setting.showMessage("error", `${t("general:Failed to upload")}: ${getErrorMessage(error)}`);
         };
 
         reader.readAsArrayBuffer(file);
@@ -155,17 +293,17 @@ class PermissionListPage extends BaseListPage {
       <>
         <Upload {...props}>
           <Button icon={<UploadOutlined />} id="upload-button" size="small">
-            {i18next.t("general:Upload (.xlsx)")}
+            {t("general:Upload (.xlsx)")}
           </Button>
         </Upload>
-        <Modal title={i18next.t("general:Upload (.xlsx)")}
+        <Modal title={t("general:Upload (.xlsx)")}
           width={"100%"}
           closable={true}
           open={this.state.showUploadModal}
-          okText={i18next.t("general:Click to Upload")}
+          okText={t("general:Click to Upload")}
           onOk = {() => {
             const formData = new FormData();
-            formData.append("file", this.state.file);
+            formData.append("file", this.state.file as Blob);
             fetch(`${Setting.ServerUrl}/api/upload-permissions`, {
               method: "post",
               body: formData,
@@ -177,10 +315,10 @@ class PermissionListPage extends BaseListPage {
               .then((res) => res.json())
               .then((res) => {uploadThis.uploadPermissionFile(res);})
               .catch((error) => {
-                Setting.showMessage("error", `${i18next.t("general:Failed to upload")}: ${error.message}`);
+                Setting.showMessage("error", `${t("general:Failed to upload")}: ${getErrorMessage(error)}`);
               });
           }}
-          cancelText={i18next.t("general:Cancel")}
+          cancelText={t("general:Cancel")}
           onCancel={() => {this.setState({showUploadModal: false, uploadJsonData: [], uploadColumns: []});}}
         >
           <div style={{marginRight: "34px"}}>
@@ -191,18 +329,18 @@ class PermissionListPage extends BaseListPage {
     );
   }
 
-  renderTable(permissions) {
-    const columns = [
+  renderTable(permissions: PermissionRecord[]): React.ReactNode {
+    const columns: PermissionListColumns = [
       // https://github.com/ant-design/ant-design/issues/22184
       {
-        title: i18next.t("general:Name"),
+        title: t("general:Name"),
         dataIndex: "name",
         key: "name",
         width: "150px",
         fixed: "left",
         sorter: true,
         ...this.getColumnSearchProps("name"),
-        render: (text, record, index) => {
+        render: (text: string, record: PermissionRecord) => {
           return (
             <Link to={`/permissions/${record.owner}/${encodeURIComponent(text)}`}>
               {text}
@@ -211,13 +349,13 @@ class PermissionListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Organization"),
+        title: t("general:Organization"),
         dataIndex: "owner",
         key: "owner",
         width: "120px",
         sorter: true,
         ...this.getColumnSearchProps("owner"),
-        render: (text, record, index) => {
+        render: (text: string) => {
           return (
             <Link to={`/organizations/${text}`}>
               {text}
@@ -226,17 +364,17 @@ class PermissionListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Created time"),
+        title: t("general:Created time"),
         dataIndex: "createdTime",
         key: "createdTime",
         width: "160px",
         sorter: true,
-        render: (text, record, index) => {
+        render: (text: string) => {
           return Setting.getFormattedDate(text);
         },
       },
       {
-        title: i18next.t("general:Display name"),
+        title: t("general:Display name"),
         dataIndex: "displayName",
         key: "displayName",
         width: "160px",
@@ -244,14 +382,14 @@ class PermissionListPage extends BaseListPage {
         ...this.getColumnSearchProps("displayName"),
       },
       {
-        title: i18next.t("general:Model"),
+        title: t("general:Model"),
         dataIndex: "model",
         key: "model",
         width: "250px",
         fixed: "left",
         sorter: true,
         ...this.getColumnSearchProps("name"),
-        render: (text, record, index) => {
+        render: (text: string) => {
           return (
             <Link to={`/models/${text}`}>
               {text}
@@ -260,50 +398,50 @@ class PermissionListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("role:Sub users"),
+        title: t("role:Sub users"),
         dataIndex: "users",
         key: "users",
         // width: '100px',
         sorter: true,
         ...this.getColumnSearchProps("users"),
-        render: (text, record, index) => {
-          return Setting.getTags(text, "users");
+        render: (text: string[]) => {
+          return getTags(text, "users");
         },
       },
       {
-        title: i18next.t("role:Sub groups"),
+        title: t("role:Sub groups"),
         dataIndex: "groups",
         key: "groups",
         // width: '100px',
         sorter: true,
         ...this.getColumnSearchProps("groups"),
-        render: (text, record, index) => {
-          return Setting.getTags(text, "groups");
+        render: (text: string[]) => {
+          return getTags(text, "groups");
         },
       },
       {
-        title: i18next.t("role:Sub roles"),
+        title: t("role:Sub roles"),
         dataIndex: "roles",
         key: "roles",
         // width: '100px',
         sorter: true,
         ...this.getColumnSearchProps("roles"),
-        render: (text, record, index) => {
-          return Setting.getTags(text, "roles");
+        render: (text: string[]) => {
+          return getTags(text, "roles");
         },
       },
       {
-        title: i18next.t("role:Sub domains"),
+        title: t("role:Sub domains"),
         dataIndex: "domains",
         key: "domains",
         sorter: true,
         ...this.getColumnSearchProps("domains"),
-        render: (text, record, index) => {
+        render: (text: string[]) => {
           return Setting.getTags(text);
         },
       },
       {
-        title: i18next.t("permission:Resource type"),
+        title: t("permission:Resource type"),
         dataIndex: "resourceType",
         key: "resourceType",
         filterMultiple: false,
@@ -314,32 +452,32 @@ class PermissionListPage extends BaseListPage {
         sorter: true,
       },
       {
-        title: i18next.t("general:Resources"),
+        title: t("general:Resources"),
         dataIndex: "resources",
         key: "resources",
         // width: '100px',
         sorter: true,
         ...this.getColumnSearchProps("resources"),
-        render: (text, record, index) => {
+        render: (text: string[]) => {
           return Setting.getTags(text);
         },
       },
       {
-        title: i18next.t("permission:Actions"),
+        title: t("permission:Actions"),
         dataIndex: "actions",
         key: "actions",
         // width: '100px',
         sorter: true,
         ...this.getColumnSearchProps("actions"),
-        render: (text, record, index) => {
+        render: (text: string[]) => {
           const tags = text.map((tag, i) => {
             switch (tag) {
             case "Read":
-              return i18next.t("permission:Read");
+              return t("permission:Read");
             case "Write":
-              return i18next.t("permission:Write");
+              return t("permission:Write");
             case "Admin":
-              return i18next.t("general:Admin");
+              return t("general:Admin");
             default:
               return tag || null;
             }
@@ -348,47 +486,47 @@ class PermissionListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("permission:Effect"),
+        title: t("permission:Effect"),
         dataIndex: "effect",
         key: "effect",
         filterMultiple: false,
         filters: [
-          {text: i18next.t("permission:Allow"), value: "Allow"},
-          {text: i18next.t("permission:Deny"), value: "Deny"},
+          {text: t("permission:Allow"), value: "Allow"},
+          {text: t("permission:Deny"), value: "Deny"},
         ],
         width: "120px",
         sorter: true,
-        render: (text, record, index) => {
+        render: (text: string) => {
           switch (text) {
           case "Allow":
-            return Setting.getTag("success", i18next.t("permission:Allow"));
+            return Setting.getTag("success", t("permission:Allow"));
           case "Deny":
-            return Setting.getTag("error", i18next.t("permission:Deny"));
+            return Setting.getTag("error", t("permission:Deny"));
           default:
             return null;
           }
         },
       },
       {
-        title: i18next.t("general:Is enabled"),
+        title: t("general:Is enabled"),
         dataIndex: "isEnabled",
         key: "isEnabled",
         width: "120px",
         sorter: true,
-        render: (text, record, index) => {
+        render: (text: boolean) => {
           return (
-            <Switch disabled checkedChildren={i18next.t("general:ON")} unCheckedChildren={i18next.t("general:OFF")} checked={text} />
+            <Switch disabled checkedChildren={t("general:ON")} unCheckedChildren={t("general:OFF")} checked={text} />
           );
         },
       },
       {
-        title: i18next.t("permission:Submitter"),
+        title: t("permission:Submitter"),
         dataIndex: "submitter",
         key: "submitter",
         filterMultiple: false,
         width: "120px",
         sorter: true,
-        render: (text, record, index) => {
+        render: (text: string, record: PermissionRecord) => {
           return (
             <Link to={`/users/${record.owner}/${encodeURIComponent(text)}`}>
               {text}
@@ -397,13 +535,13 @@ class PermissionListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("permission:Approver"),
+        title: t("permission:Approver"),
         dataIndex: "approver",
         key: "approver",
         filterMultiple: false,
         width: "120px",
         sorter: true,
-        render: (text, record, index) => {
+        render: (text: string, record: PermissionRecord) => {
           return (
             <Link to={`/users/${record.owner}/${encodeURIComponent(text)}`}>
               {text}
@@ -412,50 +550,50 @@ class PermissionListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("permission:Approve time"),
+        title: t("permission:Approve time"),
         dataIndex: "approveTime",
         key: "approveTime",
         filterMultiple: false,
         width: "120px",
         sorter: true,
-        render: (text, record, index) => {
+        render: (text: string) => {
           return Setting.getFormattedDate(text);
         },
       },
       {
-        title: i18next.t("general:State"),
+        title: t("general:State"),
         dataIndex: "state",
         key: "state",
         filterMultiple: false,
         filters: [
-          {text: i18next.t("permission:Approved"), value: "Approved"},
-          {text: i18next.t("permission:Pending"), value: "Pending"},
+          {text: t("permission:Approved"), value: "Approved"},
+          {text: t("permission:Pending"), value: "Pending"},
         ],
         width: "120px",
         sorter: true,
-        render: (text, record, index) => {
+        render: (text: string) => {
           switch (text) {
           case "Approved":
-            return Setting.getTag("success", i18next.t("permission:Approved"));
+            return Setting.getTag("success", t("permission:Approved"));
           case "Pending":
-            return Setting.getTag("error", i18next.t("permission:Pending"));
+            return Setting.getTag("error", t("permission:Pending"));
           default:
             return null;
           }
         },
       },
       {
-        title: i18next.t("general:Action"),
+        title: t("general:Action"),
         dataIndex: "",
         key: "op",
         width: "170px",
-        fixed: (Setting.isMobile()) ? "false" : "right",
-        render: (text, record, index) => {
+        fixed: (Setting.isMobile() ? "false" : "right") as unknown as "right",
+        render: (_text: unknown, record: PermissionRecord, index: number) => {
           return (
             <div>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/permissions/${record.owner}/${encodeURIComponent(record.name)}`)}>{i18next.t("general:Edit")}</Button>
+              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/permissions/${record.owner}/${encodeURIComponent(record.name)}`)}>{t("general:Edit")}</Button>
               <PopconfirmModal
-                title={i18next.t("general:Sure to delete") + `: ${record.name} ?`}
+                title={t("general:Sure to delete") + `: ${record.name} ?`}
                 onConfirm={() => this.deletePermission(index)}
               >
               </PopconfirmModal>
@@ -470,16 +608,16 @@ class PermissionListPage extends BaseListPage {
     return (
       <OrganizationIdentityCenter
         page="permissions"
-        currentOrganization={Setting.isDefaultOrganizationSelected(this.props.account) ? i18next.t("general:All") : Setting.getRequestOrganization(this.props.account)}
+        currentOrganization={Setting.isDefaultOrganizationSelected(this.props.account) ? t("general:All") : Setting.getRequestOrganization(this.props.account)}
         total={this.state.pagination.total}
         loadedCount={permissions.length}
       >
-        <Table scroll={{x: "max-content"}} columns={columns} dataSource={permissions} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
+        <Table<PermissionRecord> scroll={{x: "max-content"}} columns={columns} dataSource={permissions} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
           title={() => (
             <div>
-              {i18next.t("general:Permissions")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button id="add-button" style={{marginRight: "15px"}} type="primary" size="small" onClick={this.addPermission.bind(this)}>{i18next.t("general:Add")}</Button>
-              <Button style={{marginRight: "15px"}} type="primary" size="small" onClick={this.generateDownloadTemplate}>{i18next.t("general:Download template")} </Button>
+              {t("general:Permissions")}&nbsp;&nbsp;&nbsp;&nbsp;
+              <Button id="add-button" style={{marginRight: "15px"}} type="primary" size="small" onClick={this.addPermission.bind(this)}>{t("general:Add")}</Button>
+              <Button style={{marginRight: "15px"}} type="primary" size="small" onClick={this.generateDownloadTemplate}>{t("general:Download template")} </Button>
               {
                 this.renderPermissionUpload()
               }
@@ -492,7 +630,7 @@ class PermissionListPage extends BaseListPage {
     );
   }
 
-  fetch = (params = {}) => {
+  fetch = (params = {} as PermissionListFetchParams): void => {
     let field = params.searchedColumn, value = params.searchText;
     const sortField = params.sortField, sortOrder = params.sortOrder;
     if (params.type !== undefined && params.type !== null) {
@@ -501,18 +639,18 @@ class PermissionListPage extends BaseListPage {
     }
     this.setState({loading: true});
 
-    const getPermissions = Setting.isLocalAdminUser(this.props.account) ? PermissionBackend.getPermissions : PermissionBackend.getPermissionsBySubmitter;
+    const getPermissions = Setting.isLocalAdminUser(this.props.account) ? permissionBackend.getPermissions : permissionBackend.getPermissionsBySubmitter;
     getPermissions(Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
-      .then((res) => {
+      .then((res: PermissionListResponse) => {
         this.setState({
           loading: false,
         });
         if (res.status === "ok") {
           this.setState({
-            data: res.data,
+            data: res.data || [],
             pagination: {
               ...params.pagination,
-              total: res.data2,
+              total: typeof res.data2 === "number" ? res.data2 : typeof res.data2 === "string" ? Number(res.data2) : params.pagination.total,
             },
             searchText: params.searchText,
             searchedColumn: params.searchedColumn,
