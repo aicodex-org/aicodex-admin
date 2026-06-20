@@ -29,7 +29,7 @@ const t = i18next.t.bind(i18next) as (key: string) => string;
 const productBackend = ProductBackend as LegacyAny;
 const providerBackend = ProviderBackend as LegacyAny;
 const organizationBackend = OrganizationBackend as LegacyAny;
-const LegacyProductBuyPage = ProductBuyPage as React.ComponentType<{product?: ProductRecord}>;
+const LegacyProductBuyPage = ProductBuyPage as unknown as React.ComponentType<{product?: ProductRecord}>;
 
 interface ProductEditState {
   classes: ProductRouteProps;

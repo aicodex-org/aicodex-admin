@@ -23,9 +23,48 @@ import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
 import {QuantityStepper} from "./common/product/CartControls";
+import type {AdminRouteProps, LegacyAny, LegacyPagination} from "./types/legacyPage";
+import type {ProductCartItem, ProductRecord, ProductUserRecord} from "./types/productCatalog";
 
-class CartListPage extends BaseListPage {
-  constructor(props) {
+const t = i18next.t.bind(i18next) as (key: string) => string;
+
+interface CartListProps extends AdminRouteProps {}
+
+interface CartProductRecord extends ProductRecord {
+  createdTime?: string;
+  price: number;
+  pricingName?: string;
+  planName?: string;
+  quantity: number;
+  isInvalid?: boolean;
+}
+
+interface CartListState {
+  data: CartProductRecord[];
+  user: ProductUserRecord | null;
+  updatingCartItems: Record<string, boolean>;
+  isPlacingOrder: boolean;
+  loading: boolean;
+  pagination: LegacyPagination;
+  searchText: string;
+  searchedColumn: string;
+  [key: string]: LegacyAny;
+}
+
+const LegacyBaseListPage = BaseListPage as unknown as React.ComponentClass<CartListProps, CartListState> & LegacyAny;
+
+// BaseListPage 仍是 legacy JS 类；用 interface merge 描述本页实际依赖的基类能力。
+interface CartListPage {
+  props: CartListProps;
+  state: CartListState;
+  getColumnSearchProps: (dataIndex: string, customRender?: LegacyAny) => LegacyAny;
+  handleTableChange: LegacyAny;
+}
+
+class CartListPage extends LegacyBaseListPage {
+  updatingCartItemsRef: Record<string, boolean>;
+
+  constructor(props: CartListProps) {
     super(props);
     this.state = {
       ...this.state,
@@ -49,7 +88,7 @@ class CartListPage extends BaseListPage {
   clearCart() {
     const user = Setting.deepCopy(this.state.user);
     if (user === undefined || user === null) {
-      Setting.showMessage("error", i18next.t("general:Failed to delete"));
+      Setting.showMessage("error", t("general:Failed to delete"));
       return;
     }
 
@@ -57,14 +96,14 @@ class CartListPage extends BaseListPage {
     UserBackend.updateUser(user.owner, user.name, user)
       .then((res) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully deleted"));
+          Setting.showMessage("success", t("general:Successfully deleted"));
           this.fetch();
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
@@ -77,11 +116,11 @@ class CartListPage extends BaseListPage {
     const carts = this.state.data || [];
     const invalidCarts = carts.filter(item => item.isInvalid);
     if (invalidCarts.length > 0) {
-      Setting.showMessage("error", i18next.t("product:Cart contains invalid products, please delete them before placing an order"));
+      Setting.showMessage("error", t("product:Cart contains invalid products, please delete them before placing an order"));
       return;
     }
     if (carts.length === 0) {
-      Setting.showMessage("error", i18next.t("product:Product list cannot be empty"));
+      Setting.showMessage("error", t("product:Product list cannot be empty"));
       return;
     }
 
@@ -102,33 +141,33 @@ class CartListPage extends BaseListPage {
           const user = Setting.deepCopy(this.state.user);
           user.cart = [];
           UserBackend.updateUser(user.owner, user.name, user);
-          Setting.showMessage("success", i18next.t("product:Order created successfully"));
+          Setting.showMessage("success", t("product:Order created successfully"));
           Setting.goToLink(`/orders/${order.owner}/${order.name}/pay`);
         } else {
-          Setting.showMessage("error", `${i18next.t("product:Failed to create order")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("product:Failed to create order")}: ${res.msg}`);
           this.setState({isPlacingOrder: false});
         }
       })
       .catch((error) => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
         this.setState({isPlacingOrder: false});
       });
   }
 
-  deleteCart(record) {
+  deleteCart(record: CartProductRecord) {
     const user = Setting.deepCopy(this.state.user);
     if (user === undefined || user === null || !Array.isArray(user.cart)) {
-      Setting.showMessage("error", i18next.t("general:Failed to delete"));
+      Setting.showMessage("error", t("general:Failed to delete"));
       return;
     }
 
-    const index = user.cart.findIndex(item =>
+    const index = user.cart.findIndex((item: ProductCartItem) =>
       item.name === record.name &&
       (record.isRecharge ? item.price === record.price : true) &&
       (item.pricingName || "") === (record.pricingName || "") &&
       (item.planName || "") === (record.planName || ""));
     if (index === -1) {
-      Setting.showMessage("error", i18next.t("general:Failed to delete"));
+      Setting.showMessage("error", t("general:Failed to delete"));
       return;
     }
 
@@ -137,18 +176,18 @@ class CartListPage extends BaseListPage {
     UserBackend.updateUser(user.owner, user.name, user)
       .then((res) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully deleted"));
+          Setting.showMessage("success", t("general:Successfully deleted"));
           this.fetch();
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  updateCartItemQuantity(record, newQuantity) {
+  updateCartItemQuantity(record: CartProductRecord, newQuantity: number) {
     if (newQuantity < 1) {
       return;
     }
@@ -161,7 +200,7 @@ class CartListPage extends BaseListPage {
     this.updatingCartItemsRef[itemKey] = true;
 
     const user = Setting.deepCopy(this.state.user);
-    const index = user.cart.findIndex(item =>
+    const index = user.cart.findIndex((item: ProductCartItem) =>
       item.name === record.name &&
       (record.isRecharge ? item.price === record.price : true) &&
       (item.pricingName || "") === (record.pricingName || "") &&
@@ -173,7 +212,7 @@ class CartListPage extends BaseListPage {
 
     user.cart[index].quantity = newQuantity;
     const newData = [...this.state.data];
-    const dataIndex = newData.findIndex(item =>
+    const dataIndex = newData.findIndex((item) =>
       item.name === record.name &&
       (record.price !== null ? item.price === record.price : true) &&
       (item.pricingName || "") === (record.pricingName || "") &&
@@ -183,7 +222,7 @@ class CartListPage extends BaseListPage {
       this.setState({data: newData});
     }
 
-    this.setState(prevState => ({
+    this.setState((prevState: CartListState) => ({
       updatingCartItems: {
         ...(prevState.updatingCartItems || {}),
         [itemKey]: true,
@@ -200,12 +239,12 @@ class CartListPage extends BaseListPage {
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
         this.fetch();
       })
       .finally(() => {
         delete this.updatingCartItemsRef[itemKey];
-        this.setState(prevState => {
+        this.setState((prevState: CartListState) => {
           const updatingCartItems = {...(prevState.updatingCartItems || {})};
           delete updatingCartItems[itemKey];
           return {updatingCartItems};
@@ -213,31 +252,31 @@ class CartListPage extends BaseListPage {
       });
   }
 
-  renderTable(carts) {
+  renderTable(carts?: CartProductRecord[] | null) {
     const isEmpty = carts === undefined || carts === null || carts.length === 0;
-    const hasInvalidItems = carts && carts.some(item => item.isInvalid);
+    const hasInvalidItems = carts && carts.some((item) => item.isInvalid);
     const owner = this.state.user?.owner || this.props.account.owner;
 
     let total = 0;
     let currency = "";
     if (carts && carts.length > 0) {
-      const validCarts = carts.filter(item => !item.isInvalid);
-      validCarts.forEach(item => {
+      const validCarts = carts.filter((item) => !item.isInvalid);
+      validCarts.forEach((item) => {
         total += item.price * item.quantity;
       });
-      currency = validCarts.length > 0 ? validCarts[0].currency : (carts[0].currency || "USD");
+      currency = (validCarts.length > 0 ? validCarts[0].currency : carts[0].currency) || "USD";
     }
 
     const columns = [
       {
-        title: i18next.t("general:Name"),
+        title: t("general:Name"),
         dataIndex: "name",
         key: "name",
         width: "140px",
         fixed: "left",
         sorter: true,
         ...this.getColumnSearchProps("name"),
-        render: (text, record, index) => {
+        render: (text: string, record: CartProductRecord) => {
           if (record.isInvalid) {
             return <span style={{color: "red"}}>{text}</span>;
           }
@@ -249,24 +288,24 @@ class CartListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Display name"),
+        title: t("general:Display name"),
         dataIndex: "displayName",
         key: "displayName",
         width: "170px",
         sorter: true,
-        render: (text, record) => {
+        render: (text: string, record: CartProductRecord) => {
           if (record.isInvalid) {
-            return <span style={{color: "red"}}>{i18next.t("product:Invalid product")}</span>;
+            return <span style={{color: "red"}}>{t("product:Invalid product")}</span>;
           }
           return text;
         },
       },
       {
-        title: i18next.t("product:Image"),
+        title: t("product:Image"),
         dataIndex: "image",
         key: "image",
         width: "170px",
-        render: (text, record, index) => {
+        render: (text: string) => {
           return (
             <a target="_blank" rel="noreferrer" href={text}>
               <img src={text} alt={text} width={150} />
@@ -275,23 +314,23 @@ class CartListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("order:Price"),
+        title: t("order:Price"),
         dataIndex: "price",
         key: "price",
         width: "160px",
         sorter: true,
-        render: (text, record) => {
+        render: (text: number, record: CartProductRecord) => {
           const subtotal = (record.price * record.quantity).toFixed(2);
           return Setting.getPriceDisplay(subtotal, record.currency);
         },
       },
       {
-        title: i18next.t("pricing:Pricing name"),
+        title: t("pricing:Pricing name"),
         dataIndex: "pricingName",
         key: "pricingName",
         width: "140px",
         sorter: true,
-        render: (text, record) => {
+        render: (text: string, record: CartProductRecord) => {
           if (!text) {return null;}
           if (record.isInvalid) {
             return <span style={{color: "red"}}>{text}</span>;
@@ -304,12 +343,12 @@ class CartListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("plan:Plan name"),
+        title: t("plan:Plan name"),
         dataIndex: "planName",
         key: "planName",
         width: "140px",
         sorter: true,
-        render: (text, record) => {
+        render: (text: string, record: CartProductRecord) => {
           if (!text) {return null;}
           if (record.isInvalid) {
             return <span style={{color: "red"}}>{text}</span>;
@@ -322,12 +361,12 @@ class CartListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("product:Quantity"),
+        title: t("product:Quantity"),
         dataIndex: "quantity",
         key: "quantity",
         width: "100px",
         sorter: true,
-        render: (text, record) => {
+        render: (text: number, record: CartProductRecord) => {
           const itemKey = `${record.name}-${record.price !== null ? record.price : "null"}-${record.pricingName || ""}-${record.planName || ""}`;
           const isUpdating = this.state.updatingCartItems?.[itemKey] === true;
           return (
@@ -336,19 +375,19 @@ class CartListPage extends BaseListPage {
               min={1}
               onIncrease={() => this.updateCartItemQuantity(record, text + 1)}
               onDecrease={() => this.updateCartItemQuantity(record, text - 1)}
-              onChange={null}
+              onChange={undefined}
               disabled={isUpdating || record.isInvalid}
             />
           );
         },
       },
       {
-        title: i18next.t("general:Action"),
+        title: t("general:Action"),
         dataIndex: "",
         key: "op",
         width: "160px",
         fixed: Setting.isMobile() ? false : "right",
-        render: (text, record, index) => {
+        render: (text: LegacyAny, record: CartProductRecord) => {
           return (
             <div style={{display: "flex", flexWrap: "wrap", gap: "8px"}}>
               <Button
@@ -356,10 +395,10 @@ class CartListPage extends BaseListPage {
                 onClick={() => this.props.history.push(`/products/${owner}/${record.name}/buy`)}
                 disabled={record.isInvalid}
               >
-                {i18next.t("general:Detail")}
+                {t("general:Detail")}
               </Button>
               <PopconfirmModal
-                title={i18next.t("general:Sure to delete") + `: ${record.name} ?`}
+                title={t("general:Sure to delete") + `: ${record.name} ?`}
                 onConfirm={() => this.deleteCart(record)}
               >
               </PopconfirmModal>
@@ -373,27 +412,27 @@ class CartListPage extends BaseListPage {
       <div>
         <Table
           scroll={{x: "max-content"}}
-          columns={columns}
-          dataSource={carts}
-          rowKey={(record, index) => `${record.name}-${record.pricingName}-${record.planName}-${index}`}
+          columns={columns as LegacyAny}
+          dataSource={carts || []}
+          rowKey={(record: CartProductRecord, index?: number) => `${record.name}-${record.pricingName}-${record.planName}-${index}`}
           size="middle"
           bordered
           pagination={false}
           title={() => {
             return (
               <div>
-                {i18next.t("general:Cart")}&nbsp;&nbsp;&nbsp;&nbsp;
-                <Button size="small" onClick={() => this.props.history.push("/product-store")}>{i18next.t("general:Add")}</Button>
+                {t("general:Cart")}&nbsp;&nbsp;&nbsp;&nbsp;
+                <Button size="small" onClick={() => this.props.history.push("/product-store")}>{t("general:Add")}</Button>
                 &nbsp;&nbsp;
                 <PopconfirmModal
                   size="small"
                   style={{marginRight: "8px"}}
-                  text={i18next.t("general:Clear")}
-                  title={i18next.t("general:Sure to delete") + `: ${i18next.t("general:Cart")} ?`}
+                  text={t("general:Clear")}
+                  title={t("general:Sure to delete") + `: ${t("general:Cart")} ?`}
                   onConfirm={() => this.clearCart()}
                   disabled={isEmpty}
                 />
-                <Button type="primary" size="small" onClick={() => this.placeOrder()} disabled={isEmpty || hasInvalidItems || this.state.isPlacingOrder} loading={this.state.isPlacingOrder}>{i18next.t("general:Place Order")}</Button>
+                <Button type="primary" size="small" onClick={() => this.placeOrder()} disabled={isEmpty || hasInvalidItems || this.state.isPlacingOrder} loading={this.state.isPlacingOrder}>{t("general:Place Order")}</Button>
               </div>
             );
           }}
@@ -404,7 +443,7 @@ class CartListPage extends BaseListPage {
         {!isEmpty && (
           <div style={{marginTop: "20px", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: "20px"}}>
             <div style={{display: "flex", alignItems: "center", fontSize: "18px", fontWeight: "bold"}}>
-              {i18next.t("product:Total Price")}:&nbsp;
+              {t("product:Total Price")}:&nbsp;
               <span style={{color: "red", fontSize: "28px"}}>
                 {Setting.getCurrencySymbol(currency)}{total.toFixed(2)} ({Setting.getCurrencyText(currency)})
               </span>
@@ -417,7 +456,7 @@ class CartListPage extends BaseListPage {
               disabled={hasInvalidItems || this.state.isPlacingOrder}
               loading={this.state.isPlacingOrder}
             >
-              {i18next.t("general:Place Order")}
+              {t("general:Place Order")}
             </Button>
           </div>
         )}
@@ -425,7 +464,7 @@ class CartListPage extends BaseListPage {
     );
   }
 
-  fetch = (params = {}) => {
+  fetch = (params: LegacyAny = {}) => {
     this.setState({loading: true});
     const organizationName = this.props.account.owner;
     const userName = this.props.account.name;
@@ -433,15 +472,15 @@ class CartListPage extends BaseListPage {
     UserBackend.getUser(organizationName, userName)
       .then(async(res) => {
         if (res.status === "ok") {
-          const cartData = res.data.cart || [];
+          const cartData = (res.data.cart || []) as ProductCartItem[];
 
-          const productPromises = cartData.map(item =>
+          const productPromises = cartData.map((item) =>
             ProductBackend.getProduct(organizationName, item.name)
               .then(pRes => {
                 if (pRes.status === "ok" && pRes.data) {
                   const isCurrencyChanged = item.currency && pRes.data.currency && item.currency !== pRes.data.currency;
                   if (isCurrencyChanged) {
-                    Setting.showMessage("warning", i18next.t("product:Product not found or invalid") + `: ${item.name}`);
+                    Setting.showMessage("warning", t("product:Product not found or invalid") + `: ${item.name}`);
                   }
                   return {
                     ...pRes.data,
@@ -451,20 +490,20 @@ class CartListPage extends BaseListPage {
                     quantity: item.quantity,
                     price: pRes.data.isRecharge ? item.price : pRes.data.price,
                     isInvalid: isCurrencyChanged,
-                  };
+                  } as CartProductRecord;
                 }
-                Setting.showMessage("warning", i18next.t("product:Product not found or invalid") + `: ${item.name}`);
+                Setting.showMessage("warning", t("product:Product not found or invalid") + `: ${item.name}`);
                 return {
                   ...item,
                   isInvalid: true,
-                };
+                } as CartProductRecord;
               })
               .catch(() => {
-                Setting.showMessage("warning", i18next.t("product:Product not found or invalid") + `: ${item.name}`);
+                Setting.showMessage("warning", t("product:Product not found or invalid") + `: ${item.name}`);
                 return {
                   ...item,
                   isInvalid: true,
-                };
+                } as CartProductRecord;
               })
           );
 
@@ -473,8 +512,8 @@ class CartListPage extends BaseListPage {
           const sortedData = [...fullCartData];
           if (params.sortField && params.sortOrder) {
             sortedData.sort((a, b) => {
-              const aValue = a[params.sortField];
-              const bValue = b[params.sortField];
+              const aValue = a[params.sortField as keyof CartProductRecord] as LegacyAny;
+              const bValue = b[params.sortField as keyof CartProductRecord] as LegacyAny;
 
               if (aValue === bValue) {
                 return 0;
@@ -485,7 +524,7 @@ class CartListPage extends BaseListPage {
             });
           } else {
             sortedData.sort((a, b) => {
-              return b.createdTime - a.createdTime;
+              return (b.createdTime as LegacyAny) - (a.createdTime as LegacyAny);
             });
           }
 
@@ -503,7 +542,7 @@ class CartListPage extends BaseListPage {
 
           const invalidProducts = sortedData.filter(item => item.isInvalid);
           invalidProducts.forEach(item => {
-            Setting.showMessage("error", i18next.t("product:Product not found or invalid") + `: ${item.name}`);
+            Setting.showMessage("error", t("product:Product not found or invalid") + `: ${item.name}`);
           });
         } else {
           this.setState({loading: false});
@@ -514,7 +553,7 @@ class CartListPage extends BaseListPage {
         this.setState({
           loading: false,
         });
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   };
 }

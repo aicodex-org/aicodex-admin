@@ -311,7 +311,7 @@ afterEach(() => {
   cleanup();
 });
 
-test("uses TSX files for migrated product catalog pages and keeps ProductBuyPage as legacy JS boundary", () => {
+test("uses TSX files for migrated product catalog pages and shared cart controls", () => {
   const srcDir = __dirname;
   const files = [
     "ProductStorePage",
@@ -324,7 +324,6 @@ test("uses TSX files for migrated product catalog pages and keeps ProductBuyPage
     expect(fs.existsSync(path.join(srcDir, `${file}.tsx`))).toBe(true);
     expect(fs.existsSync(path.join(srcDir, `${file}.js`))).toBe(false);
   });
-  expect(fs.existsSync(path.join(srcDir, "ProductBuyPage.js"))).toBe(true);
 });
 
 test("keeps quantity stepper and floating cart button interactions stable", () => {

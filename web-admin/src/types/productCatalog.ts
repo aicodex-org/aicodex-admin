@@ -27,6 +27,7 @@ export interface ProductRecord {
 export interface ProductCartItem {
   name: string;
   createdTime?: string;
+  price?: number | null;
   currency?: string;
   pricingName?: string;
   planName?: string;
@@ -55,4 +56,24 @@ export interface ProductRouteProps extends AdminRouteProps {
     mode?: string;
     [key: string]: LegacyAny;
   };
+}
+
+export interface PricingRecord {
+  owner?: string;
+  name?: string;
+  [key: string]: LegacyAny;
+}
+
+export interface PlanRecord {
+  owner?: string;
+  name?: string;
+  product?: string;
+  [key: string]: LegacyAny;
+}
+
+export interface ProductUserRecord {
+  owner: string;
+  name: string;
+  cart?: ProductCartItem[];
+  [key: string]: LegacyAny;
 }
