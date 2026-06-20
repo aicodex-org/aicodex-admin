@@ -21,8 +21,88 @@ import i18next from "i18next";
 
 const {Text, Title} = Typography;
 
-class ServerStorePage extends React.Component {
-  constructor(props) {
+interface AccountRecord {
+  owner: string;
+  tag?: string;
+  [key: string]: unknown;
+}
+
+interface ServerStorePageProps {
+  account: AccountRecord;
+  history: {
+    push: (location: string | {pathname: string; mode?: string}) => void;
+  };
+}
+
+interface OnlineServerRaw {
+  id?: string;
+  name?: string;
+  description?: string;
+  tags?: string[];
+  endpoints?: {
+    production?: string;
+  };
+  authentication?: {
+    type?: string;
+  };
+  maintainer?: {
+    website?: string;
+  };
+}
+
+interface OnlineServerRecord {
+  id: string;
+  name: string;
+  nameText: string;
+  tagsRaw: string[];
+  tagsLower: string[];
+  production: string;
+  description: string;
+  authentication?: string;
+  website?: string;
+}
+
+interface ServerRecord {
+  owner: string;
+  name: string;
+  createdTime: string;
+  displayName: string;
+  url: string;
+  application: string;
+}
+
+interface ServerStorePageState {
+  onlineListLoading: boolean;
+  onlineServerList: OnlineServerRecord[];
+  creatingOnlineServerId: string;
+  onlineNameFilter: string;
+  onlineTagFilter: string[];
+}
+
+interface BackendResponse<T> {
+  status?: string;
+  data?: T;
+  msg?: string;
+}
+
+type OnlineServersResponseData = {
+  servers?: OnlineServerRaw[];
+  data?: OnlineServerRaw[];
+};
+
+type ServerBackendCompat = {
+  getOnlineServers: () => Promise<BackendResponse<OnlineServersResponseData | OnlineServerRaw[]>>;
+  addServer: (server: ServerRecord) => Promise<BackendResponse<unknown>>;
+};
+
+const serverBackend = ServerBackend as unknown as ServerBackendCompat;
+
+function t(key: string): string {
+  return String(i18next.t(key));
+}
+
+class ServerStorePage extends React.Component<ServerStorePageProps, ServerStorePageState> {
+  constructor(props: ServerStorePageProps) {
     super(props);
     this.state = {
       onlineListLoading: false,
@@ -33,18 +113,18 @@ class ServerStorePage extends React.Component {
     };
   }
 
-  componentDidMount() {
+  componentDidMount(): void {
     this.fetchOnlineServers();
   }
 
-  fetchOnlineServers = () => {
+  fetchOnlineServers = (): void => {
     this.setState({
       onlineListLoading: true,
       onlineNameFilter: "",
       onlineTagFilter: [],
     });
 
-    ServerBackend.getOnlineServers()
+    serverBackend.getOnlineServers()
       .then((res) => {
         if (res.status === "ok") {
           const onlineServerList = this.normalizeOnlineServers(this.getOnlineServersFromResponse(res.data));
@@ -54,28 +134,28 @@ class ServerStorePage extends React.Component {
           });
         } else {
           this.setState({onlineListLoading: false});
-          Setting.showMessage("error", `${i18next.t("general:Failed to get")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to get")}: ${res.msg}`);
         }
       })
       .catch(error => {
         this.setState({onlineListLoading: false});
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   };
 
-  getOnlineServerName = (onlineServer) => {
+  getOnlineServerName = (onlineServer: Partial<OnlineServerRecord>): string => {
     const source = onlineServer.id || onlineServer.name || `server_${Setting.getRandomName()}`;
     const normalized = String(source).toLowerCase().replace(/[^a-z0-9_-]/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "");
     return normalized || `server_${Setting.getRandomName()}`;
   };
 
-  createServerFromOnline = (onlineServer) => {
+  createServerFromOnline = (onlineServer: Partial<OnlineServerRecord>): void => {
     const owner = Setting.getRequestOrganization(this.props.account);
     const serverName = this.getOnlineServerName(onlineServer);
     const serverUrl = onlineServer.production;
 
     if (!serverUrl) {
-      Setting.showMessage("error", i18next.t("server:Production endpoint is empty"));
+      Setting.showMessage("error", t("server:Production endpoint is empty"));
       return;
     }
 
@@ -88,24 +168,25 @@ class ServerStorePage extends React.Component {
       application: "",
     };
 
-    this.setState({creatingOnlineServerId: onlineServer.id});
-    ServerBackend.addServer(newServer)
+    this.setState({creatingOnlineServerId: onlineServer.id || ""});
+    serverBackend.addServer(newServer)
       .then((res) => {
         this.setState({creatingOnlineServerId: ""});
         if (res.status === "ok") {
           this.props.history.push({pathname: `/servers/${newServer.owner}/${newServer.name}`, mode: "add"});
-          Setting.showMessage("success", i18next.t("general:Successfully added"));
+          Setting.showMessage("success", t("general:Successfully added"));
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to add")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
         }
       })
       .catch(error => {
         this.setState({creatingOnlineServerId: ""});
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   };
 
-  normalizeOnlineServers = (onlineServers) => {
+  normalizeOnlineServers = (onlineServers: OnlineServerRaw[]): OnlineServerRecord[] => {
+    // MCP Store 只展示可直接作为本地 Server URL 导入的 production endpoint。
     return onlineServers.map((server, index) => {
       const rawTags = Array.isArray(server?.tags) ? server.tags : [];
 
@@ -123,13 +204,14 @@ class ServerStorePage extends React.Component {
     }).filter(server => server.production.startsWith("http"));
   };
 
-  getOnlineServersFromResponse = (data) => {
-    if (Array.isArray(data?.servers)) {
-      return data.servers;
-    }
-
+  getOnlineServersFromResponse = (data: OnlineServersResponseData | OnlineServerRaw[] | undefined): OnlineServerRaw[] => {
+    // 线上目录历史上存在多种 envelope，这里保持迁移前的兼容读取顺序。
     if (Array.isArray(data)) {
       return data;
+    }
+
+    if (Array.isArray(data?.servers)) {
+      return data.servers;
     }
 
     if (Array.isArray(data?.data)) {
@@ -139,12 +221,12 @@ class ServerStorePage extends React.Component {
     return [];
   };
 
-  getOnlineTagOptions = () => {
+  getOnlineTagOptions = (): Array<{label: string; value: string}> => {
     const tags = this.state.onlineServerList.flatMap((server) => server.tagsRaw || []);
-    return [...new Set(tags)].sort((a, b) => a.localeCompare(b)).map((tag) => ({label: tag, value: tag.toLowerCase()}));
+    return Array.from(new Set(tags)).sort((a, b) => a.localeCompare(b)).map((tag) => ({label: tag, value: tag.toLowerCase()}));
   };
 
-  getFilteredOnlineServers = () => {
+  getFilteredOnlineServers = (): OnlineServerRecord[] => {
     const nameFilter = this.state.onlineNameFilter.trim().toLowerCase();
     const tagFilter = this.state.onlineTagFilter;
 
@@ -155,7 +237,7 @@ class ServerStorePage extends React.Component {
     });
   };
 
-  renderServerCard = (server) => {
+  renderServerCard = (server: OnlineServerRecord): React.ReactNode => {
     return (
       <Col xs={24} sm={12} md={8} lg={6} key={server.id} style={{marginBottom: "16px"}}>
         <Card
@@ -172,7 +254,7 @@ class ServerStorePage extends React.Component {
                 this.createServerFromOnline(server);
               }}
             >
-              {i18next.t("general:Add")}
+              {t("general:Add")}
             </Button>
           }
         >
@@ -180,11 +262,11 @@ class ServerStorePage extends React.Component {
             <Text type="secondary">{server.description || "-"}</Text>
           </div>
           <div style={{marginBottom: "8px"}}>
-            <Text strong>{i18next.t("application:Authentication")}: </Text>
+            <Text strong>{t("application:Authentication")}: </Text>
             <Text>{server.authentication || "-"}</Text>
           </div>
           <div style={{marginBottom: "8px"}}>
-            <Text strong>{i18next.t("general:Website")}: </Text>
+            <Text strong>{t("general:Website")}: </Text>
             {server.website ? (
               <a target="_blank" rel="noreferrer" href={`https://${server.website}`}>{server.website}</a>
             ) : (
@@ -199,7 +281,7 @@ class ServerStorePage extends React.Component {
     );
   };
 
-  render() {
+  render(): React.ReactNode {
     const filteredServers = this.getFilteredOnlineServers();
 
     return (
@@ -207,33 +289,33 @@ class ServerStorePage extends React.Component {
         <div style={{display: "flex", gap: "8px", marginBottom: "12px"}}>
           <Input
             allowClear
-            placeholder={i18next.t("general:Name")}
+            placeholder={t("general:Name")}
             value={this.state.onlineNameFilter}
             onChange={(e) => this.setState({onlineNameFilter: e.target.value})}
           />
           <Select
             mode="multiple"
             allowClear
-            placeholder={i18next.t("general:Tag")}
+            placeholder={t("general:Tag")}
             value={this.state.onlineTagFilter}
-            onChange={(values) => this.setState({onlineTagFilter: values})}
+            onChange={(values) => this.setState({onlineTagFilter: values as string[]})}
             options={this.getOnlineTagOptions()}
             style={{minWidth: "260px"}}
           />
           <Button onClick={() => this.setState({onlineNameFilter: "", onlineTagFilter: []})}>
-            {i18next.t("general:Clear")}
+            {t("general:Clear")}
           </Button>
           <Button onClick={this.fetchOnlineServers}>
-            {i18next.t("general:Refresh")}
+            {t("general:Refresh")}
           </Button>
         </div>
-        <Title level={4} style={{marginBottom: "12px"}}>{i18next.t("general:MCP Store")}</Title>
+        <Title level={4} style={{marginBottom: "12px"}}>{t("general:MCP Store")}</Title>
         {this.state.onlineListLoading ? (
           <div style={{textAlign: "center", padding: "36px 0"}}>
             <Spin />
           </div>
         ) : filteredServers.length === 0 ? (
-          <Empty description={i18next.t("general:No data")} />
+          <Empty description={t("general:No data")} />
         ) : (
           <Row gutter={16}>
             {filteredServers.map((server) => this.renderServerCard(server))}
