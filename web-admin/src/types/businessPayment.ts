@@ -31,11 +31,63 @@ export interface OrderRecord {
   [key: string]: LegacyAny;
 }
 
-export interface PaymentRecord {
+export interface PaymentInvoiceFields {
+  invoiceUrl?: string;
+  invoiceType?: string;
+  invoiceTitle?: string;
+  invoiceTaxId?: string;
+  invoiceRemark?: string;
+  personName?: string;
+  personIdCard?: string;
+  personEmail?: string;
+  personPhone?: string;
+}
+
+export interface PaymentRecord extends PaymentInvoiceFields {
   owner?: string;
   name: string;
+  createdTime?: string;
+  displayName?: string;
+  provider?: string;
+  type?: string;
+  user?: string;
+  products?: string[];
+  productsDisplayName?: string;
+  order?: string;
+  orderObj?: {
+    productInfos?: OrderProductInfo[];
+    [key: string]: LegacyAny;
+  };
+  detail?: string;
+  tag?: string;
+  currency?: string;
+  price?: number;
+  state?: string;
+  message?: string;
+  isRecharge?: boolean;
   payUrl?: string;
   successUrl?: string;
+  [key: string]: LegacyAny;
+}
+
+export interface PricingRecord {
+  owner?: string;
+  name: string;
+  displayName?: string;
+  [key: string]: LegacyAny;
+}
+
+export interface SubscriptionRecord {
+  owner?: string;
+  name: string;
+  payment?: string;
+  [key: string]: LegacyAny;
+}
+
+export interface PaymentUserRecord {
+  owner?: string;
+  name?: string;
+  balance?: number;
   [key: string]: LegacyAny;
 }
 
