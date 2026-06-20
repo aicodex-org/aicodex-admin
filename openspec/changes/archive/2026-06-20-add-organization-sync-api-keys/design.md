@@ -63,7 +63,7 @@
 2. 部署后管理员为目标组织创建同步 Key，把一次性明文填入网关现有“认证中心 Access Token/API Key”输入框。
 3. 若出现问题，可禁用或删除新 Key；普通登录和现有 OAuth token 流程不受影响。
 
-## Open Questions
+## Future Follow-ups
 
-- 后续 `aicodex-api` 是否切换到 `/api/organization-sync/export` 一次性导出接口，以减少三次请求和旧接口兼容分支。
-- 是否需要在生产配置中强制组织同步 Key 必须设置过期时间；本次实现先允许空过期时间以满足服务间稳定同步。
+- 后续 `aicodex-api` 可通过单独 change 评估是否切换到 `/api/organization-sync/export` 一次性导出接口，以减少三次请求和旧接口兼容分支；本 change 已保持旧接口 Bearer 兼容。
+- 生产配置是否强制组织同步 Key 设置过期时间由后续安全策略 change 决定；本 change 先允许空过期时间以满足服务间稳定同步，并提供禁用、删除和轮换能力。

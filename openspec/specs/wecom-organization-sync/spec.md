@@ -1000,3 +1000,15 @@ Web Admin 企业微信组织同步页面 SHALL 在定时同步未启用时收起
 - **THEN** 页面 SHALL 展示 `Cron 表达式` 输入
 - **AND** 页面 SHALL 展示 `时区` 输入
 - **AND** 页面 SHALL 展示最近调度信息
+
+### Requirement: WeCom sync credentials MAY use organization sync API Keys
+The system SHALL support organization sync API Keys as the stable credential for downstream gateway organization mirror synchronization, instead of requiring ordinary user OAuth access tokens.
+
+#### Scenario: Gateway sync uses dedicated organization credential
+- **WHEN** a gateway organization mirror synchronization needs to pull a WeCom-backed business organization's structure from the authentication center
+- **THEN** administrators can provide an organization sync API Key bound to that business organization
+- **AND** the synchronization does not depend on a browser session or a user OAuth access token lifetime
+
+#### Scenario: Existing access token behavior remains available
+- **WHEN** a caller continues using an ordinary valid OAuth access token on existing organization APIs
+- **THEN** the existing authentication and authorization behavior remains unchanged
