@@ -24,8 +24,72 @@ import * as ApplicationBackend from "./backend/ApplicationBackend";
 const {Option} = Select;
 const {TextArea} = Input;
 
-class EntryEditPage extends React.Component {
-  constructor(props) {
+interface BackendResponse<T> {
+  status?: string;
+  data?: T | null;
+  msg?: string;
+}
+
+interface AccountRecord {
+  owner?: string;
+  tag?: string;
+  isAdmin?: boolean;
+  [key: string]: unknown;
+}
+
+interface EntryRecord {
+  owner: string;
+  name: string;
+  displayName: string;
+  url: string;
+  token: string;
+  application: string;
+  message: string;
+  [key: string]: unknown;
+}
+
+interface OrganizationRecord {
+  name: string;
+  [key: string]: unknown;
+}
+
+interface ApplicationRecord {
+  name: string;
+  [key: string]: unknown;
+}
+
+interface EntryEditPageProps {
+  account: AccountRecord;
+  history: {
+    push: (location: string) => void;
+  };
+  location: {
+    mode?: string;
+  };
+  match: {
+    params: {
+      organizationName: string;
+      entryName: string;
+    };
+  };
+}
+
+interface EntryEditPageState {
+  classes: EntryEditPageProps;
+  entryName: string;
+  owner: string;
+  entry: EntryRecord | null;
+  organizations: OrganizationRecord[];
+  applications: ApplicationRecord[];
+  mode: string;
+}
+
+function t(key: string): string {
+  return String(i18next.t(key));
+}
+
+class EntryEditPage extends React.Component<EntryEditPageProps, EntryEditPageState> {
+  constructor(props: EntryEditPageProps) {
     super(props);
     this.state = {
       classes: props,
@@ -38,15 +102,15 @@ class EntryEditPage extends React.Component {
     };
   }
 
-  UNSAFE_componentWillMount() {
+  UNSAFE_componentWillMount(): void {
     this.getEntry();
     this.getOrganizations();
     this.getApplications(this.state.owner);
   }
 
-  getEntry() {
+  getEntry(): void {
     EntryBackend.getEntry(this.state.entry?.owner || this.state.owner, this.state.entryName)
-      .then((res) => {
+      .then((res: BackendResponse<EntryRecord>) => {
         if (res.data === null) {
           this.props.history.push("/404");
           return;
@@ -54,18 +118,18 @@ class EntryEditPage extends React.Component {
 
         if (res.status === "ok") {
           this.setState({
-            entry: res.data,
+            entry: res.data ?? null,
           });
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to get")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to get")}: ${res.msg}`);
         }
       });
   }
 
-  getOrganizations() {
+  getOrganizations(): void {
     if (Setting.isAdminUser(this.props.account)) {
       OrganizationBackend.getOrganizations("admin")
-        .then((res) => {
+        .then((res: BackendResponse<OrganizationRecord[]>) => {
           this.setState({
             organizations: res.data || [],
           });
@@ -73,34 +137,42 @@ class EntryEditPage extends React.Component {
     }
   }
 
-  getApplications(owner) {
+  getApplications(owner: string): void {
     ApplicationBackend.getApplicationsByOrganization("admin", owner)
-      .then((res) => {
+      .then((res: BackendResponse<ApplicationRecord[]>) => {
         this.setState({
           applications: res.data || [],
         });
       });
   }
 
-  updateEntryField(key, value) {
+  updateEntryField(key: string, value: unknown): void {
     const entry = this.state.entry;
-    if (key === "owner" && entry.owner !== value) {
-      entry.application = "";
-      this.getApplications(value);
+    if (entry === null) {
+      return;
     }
 
-    entry[key] = value;
+    if (key === "owner" && entry.owner !== value) {
+      entry.application = "";
+      this.getApplications(String(value));
+    }
+
+    entry[key] = value as string;
     this.setState({
       entry: entry,
     });
   }
 
-  submitEntryEdit(willExit) {
-    const entry = Setting.deepCopy(this.state.entry);
+  submitEntryEdit(willExit: boolean): void {
+    if (this.state.entry === null) {
+      return;
+    }
+
+    const entry = Setting.deepCopy(this.state.entry) as EntryRecord;
     EntryBackend.updateEntry(this.state.owner, this.state.entryName, entry)
-      .then((res) => {
+      .then((res: BackendResponse<unknown>) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully modified"));
+          Setting.showMessage("success", t("general:Successfully modified"));
           if (willExit) {
             this.props.history.push("/entries");
           } else {
@@ -112,42 +184,50 @@ class EntryEditPage extends React.Component {
             this.props.history.push(`/entries/${entry.owner}/${entry.name}`);
           }
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to update")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to update")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  deleteEntry() {
+  deleteEntry(): void {
+    if (this.state.entry === null) {
+      return;
+    }
+
     EntryBackend.deleteEntry(this.state.entry)
-      .then((res) => {
+      .then((res: BackendResponse<unknown>) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully deleted"));
+          Setting.showMessage("success", t("general:Successfully deleted"));
           this.props.history.push("/entries");
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  renderEntry() {
+  renderEntry(): React.ReactNode {
+    if (this.state.entry === null) {
+      return null;
+    }
+
     return (
       <Card size="small" title={
         <div>
-          {this.state.mode === "add" ? i18next.t("entry:New Entry") : i18next.t("entry:Edit Entry")}&nbsp;&nbsp;&nbsp;&nbsp;
-          <Button onClick={() => this.submitEntryEdit(false)}>{i18next.t("general:Save")}</Button>
-          <Button style={{marginLeft: "20px"}} type="primary" onClick={() => this.submitEntryEdit(true)}>{i18next.t("general:Save & Exit")}</Button>
-          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteEntry()}>{i18next.t("general:Cancel")}</Button> : null}
+          {this.state.mode === "add" ? t("entry:New Entry") : t("entry:Edit Entry")}&nbsp;&nbsp;&nbsp;&nbsp;
+          <Button onClick={() => this.submitEntryEdit(false)}>{t("general:Save")}</Button>
+          <Button style={{marginLeft: "20px"}} type="primary" onClick={() => this.submitEntryEdit(true)}>{t("general:Save & Exit")}</Button>
+          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteEntry()}>{t("general:Cancel")}</Button> : null}
         </div>
       } style={(Setting.isMobile()) ? {margin: "5px"} : {}} type="inner">
         <Row style={{marginTop: "10px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Organization"), i18next.t("general:Organization - Tooltip"))} :
+            {Setting.getLabel(t("general:Organization"), t("general:Organization - Tooltip"))} :
           </Col>
           <Col span={22} >
             <Select virtual={false} style={{width: "100%"}} disabled={!Setting.isAdminUser(this.props.account)} value={this.state.entry.owner} onChange={(value => {this.updateEntryField("owner", value);})}>
@@ -159,7 +239,7 @@ class EntryEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {i18next.t("general:Name")}:
+            {t("general:Name")}:
           </Col>
           <Col span={22} >
             <Input value={this.state.entry.name} onChange={e => {
@@ -169,7 +249,7 @@ class EntryEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {i18next.t("general:Display name")}:
+            {t("general:Display name")}:
           </Col>
           <Col span={22} >
             <Input value={this.state.entry.displayName} onChange={e => {
@@ -179,7 +259,7 @@ class EntryEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Listening URL"), i18next.t("general:Listening URL - Tooltip"))} :
+            {Setting.getLabel(t("general:Listening URL"), t("general:Listening URL - Tooltip"))} :
           </Col>
           <Col span={22} >
             <Input prefix={<LinkOutlined />} value={this.state.entry.url} onChange={e => {
@@ -189,7 +269,7 @@ class EntryEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("token:Access token"), i18next.t("token:Access token - Tooltip"))} :
+            {Setting.getLabel(t("token:Access token"), t("token:Access token - Tooltip"))} :
           </Col>
           <Col span={22} >
             <Input.Password placeholder={"***"} value={this.state.entry.token} onChange={e => {
@@ -199,7 +279,7 @@ class EntryEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Application"), i18next.t("general:Application - Tooltip"))} :
+            {Setting.getLabel(t("general:Application"), t("general:Application - Tooltip"))} :
           </Col>
           <Col span={22} >
             <Select virtual={false} style={{width: "100%"}} value={this.state.entry.application} onChange={(value => {this.updateEntryField("application", value);})}>
@@ -211,7 +291,7 @@ class EntryEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {i18next.t("payment:Message")}:
+            {t("payment:Message")}:
           </Col>
           <Col span={22} >
             <TextArea autoSize={{minRows: 8, maxRows: 20}} value={this.state.entry.message} onChange={e => {
@@ -223,7 +303,7 @@ class EntryEditPage extends React.Component {
     );
   }
 
-  render() {
+  render(): React.ReactNode {
     if (this.state.entry === null) {
       return null;
     }
