@@ -15,6 +15,7 @@
 import React from "react";
 import {Link} from "react-router-dom";
 import {Button, Table} from "antd";
+import type {TableProps} from "antd";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as EnforcerBackend from "./backend/EnforcerBackend";
@@ -22,8 +23,95 @@ import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
 
+type Account = {
+  owner: string;
+  tag?: string;
+  isAdmin?: boolean;
+  [key: string]: unknown;
+};
+
+type HistoryLike = {
+  push: (location: string | {pathname: string; mode?: string}) => void;
+};
+
+type EnforcerListPageProps = {
+  account: Account;
+  history: HistoryLike;
+  match?: {
+    path?: string;
+    params?: {
+      organizationName?: string;
+    };
+  };
+};
+
+type EnforcerRecord = {
+  owner: string;
+  name: string;
+  createdTime?: string;
+  displayName?: string;
+  model?: string;
+  adapter?: string;
+  [key: string]: unknown;
+};
+
+type TablePagination = {
+  current: number;
+  pageSize: number;
+  total?: number;
+};
+
+type FetchParams = {
+  pagination: TablePagination;
+  searchedColumn?: string;
+  searchText?: string;
+  sortField?: string;
+  sortOrder?: string;
+  type?: string;
+};
+
+type EnforcerListResponse = {
+  status: string;
+  msg?: string;
+  data: EnforcerRecord[];
+  data2: number;
+};
+
+type MutationResponse = {
+  status: string;
+  msg?: string;
+};
+
+type EnforcerBackendApi = {
+  getEnforcers: (
+    owner: string,
+    page: number,
+    pageSize: number,
+    field?: string,
+    value?: string,
+    sortField?: string,
+    sortOrder?: string
+  ) => Promise<EnforcerListResponse>;
+  addEnforcer: (enforcer: EnforcerRecord) => Promise<MutationResponse>;
+  deleteEnforcer: (enforcer: EnforcerRecord) => Promise<MutationResponse>;
+};
+
+type LegacyTableColumn = {
+  title: React.ReactNode;
+  dataIndex?: string;
+  key?: string;
+  width?: string;
+  fixed?: "left" | "right" | boolean | string;
+  sorter?: boolean;
+  render?: (text: unknown, record: EnforcerRecord, index: number) => React.ReactNode;
+  [key: string]: unknown;
+};
+
+const enforcerBackend = EnforcerBackend as unknown as EnforcerBackendApi;
+const t = (key: string): string => i18next.t(key) as string;
+
 class EnforcerListPage extends BaseListPage {
-  newEnforcer() {
+  newEnforcer(): EnforcerRecord {
     const randomName = Setting.getRandomName();
     const owner = Setting.getRequestOrganization(this.props.account);
     return {
@@ -34,27 +122,27 @@ class EnforcerListPage extends BaseListPage {
     };
   }
 
-  addEnforcer() {
+  addEnforcer(): void {
     const newEnforcer = this.newEnforcer();
-    EnforcerBackend.addEnforcer(newEnforcer)
-      .then((res) => {
+    enforcerBackend.addEnforcer(newEnforcer)
+      .then((res: MutationResponse) => {
         if (res.status === "ok") {
           this.props.history.push({pathname: `/enforcers/${newEnforcer.owner}/${newEnforcer.name}`, mode: "add"});
-          Setting.showMessage("success", i18next.t("general:Successfully added"));
+          Setting.showMessage("success", t("general:Successfully added"));
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to add")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
         }
       })
-      .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      .catch((error: unknown) => {
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  deleteEnforcer(i) {
-    EnforcerBackend.deleteEnforcer(this.state.data[i])
-      .then((res) => {
+  deleteEnforcer(i: number): void {
+    enforcerBackend.deleteEnforcer(this.state.data[i] as EnforcerRecord)
+      .then((res: MutationResponse) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully deleted"));
+          Setting.showMessage("success", t("general:Successfully deleted"));
           this.fetch({
             pagination: {
               ...this.state.pagination,
@@ -62,59 +150,61 @@ class EnforcerListPage extends BaseListPage {
             },
           });
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
         }
       })
-      .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      .catch((error: unknown) => {
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  renderTable(enforcers) {
-    const columns = [
+  renderTable(enforcers: EnforcerRecord[]): React.ReactElement {
+    const columns: LegacyTableColumn[] = [
       {
-        title: i18next.t("general:Name"),
+        title: t("general:Name"),
         dataIndex: "name",
         key: "name",
         width: "200px",
         fixed: "left",
         sorter: true,
         ...this.getColumnSearchProps("name"),
-        render: (text, record, index) => {
+        render: (text: unknown, record: EnforcerRecord) => {
+          const enforcerName = String(text);
           return (
-            <Link to={`/enforcers/${record.owner}/${text}`}>
-              {text}
+            <Link to={`/enforcers/${record.owner}/${enforcerName}`}>
+              {enforcerName}
             </Link>
           );
         },
       },
       {
-        title: i18next.t("general:Organization"),
+        title: t("general:Organization"),
         dataIndex: "owner",
         key: "owner",
         width: "120px",
         sorter: true,
         ...this.getColumnSearchProps("owner"),
-        render: (text, record, index) => {
+        render: (text: unknown) => {
+          const owner = String(text);
           return (
-            <Link to={`/organizations/${text}`}>
-              {text}
+            <Link to={`/organizations/${owner}`}>
+              {owner}
             </Link>
           );
         },
       },
       {
-        title: i18next.t("general:Created time"),
+        title: t("general:Created time"),
         dataIndex: "createdTime",
         key: "createdTime",
         width: "160px",
         sorter: true,
-        render: (text, record, index) => {
-          return Setting.getFormattedDate(text);
+        render: (text: unknown) => {
+          return Setting.getFormattedDate(String(text));
         },
       },
       {
-        title: i18next.t("general:Display name"),
+        title: t("general:Display name"),
         dataIndex: "displayName",
         key: "displayName",
         // width: "200px",
@@ -122,51 +212,53 @@ class EnforcerListPage extends BaseListPage {
         ...this.getColumnSearchProps("displayName"),
       },
       {
-        title: i18next.t("general:Model"),
+        title: t("general:Model"),
         dataIndex: "model",
         key: "model",
         width: "250px",
         fixed: "left",
         sorter: true,
         ...this.getColumnSearchProps("name"),
-        render: (text, record, index) => {
+        render: (text: unknown) => {
+          const model = String(text);
           return (
-            <Link to={`/models/${text}`}>
-              {text}
+            <Link to={`/models/${model}`}>
+              {model}
             </Link>
           );
         },
       },
       {
-        title: i18next.t("general:Adapter"),
+        title: t("general:Adapter"),
         dataIndex: "adapter",
         key: "adapter",
         width: "250px",
         fixed: "left",
         sorter: true,
         ...this.getColumnSearchProps("name"),
-        render: (text, record, index) => {
+        render: (text: unknown) => {
+          const adapter = String(text);
           return (
-            <Link to={`/adapters/${text}`}>
-              {text}
+            <Link to={`/adapters/${adapter}`}>
+              {adapter}
             </Link>
           );
         },
       },
       {
-        title: i18next.t("general:Action"),
+        title: t("general:Action"),
         dataIndex: "",
         key: "op",
         width: "180px",
         fixed: (Setting.isMobile()) ? "false" : "right",
-        render: (text, record, index) => {
+        render: (_text: unknown, record: EnforcerRecord, index: number) => {
           return (
             <div>
               <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary"
-                onClick={() => this.props.history.push(`/enforcers/${record.owner}/${record.name}`)}>{i18next.t("general:Edit")}</Button>
+                onClick={() => this.props.history.push(`/enforcers/${record.owner}/${record.name}`)}>{t("general:Edit")}</Button>
               <PopconfirmModal
                 disabled={Setting.builtInObject(record)}
-                title={i18next.t("general:Sure to delete") + `: ${record.name} ?`}
+                title={t("general:Sure to delete") + `: ${record.name} ?`}
                 onConfirm={() => this.deleteEnforcer(index)}
               >
               </PopconfirmModal>
@@ -180,13 +272,13 @@ class EnforcerListPage extends BaseListPage {
 
     return (
       <div>
-        <Table scroll={{x: "max-content"}} columns={columns} dataSource={enforcers} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered
+        <Table<EnforcerRecord> scroll={{x: "max-content"}} columns={columns as TableProps<EnforcerRecord>["columns"]} dataSource={enforcers} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered
           pagination={paginationProps}
           title={() => (
             <div>
-              {i18next.t("general:Enforcers")}&nbsp;&nbsp;&nbsp;&nbsp;
+              {t("general:Enforcers")}&nbsp;&nbsp;&nbsp;&nbsp;
               <Button type="primary" size="small"
-                onClick={this.addEnforcer.bind(this)}>{i18next.t("general:Add")}</Button>
+                onClick={this.addEnforcer.bind(this)}>{t("general:Add")}</Button>
             </div>
           )}
           loading={this.state.loading}
@@ -196,7 +288,7 @@ class EnforcerListPage extends BaseListPage {
     );
   }
 
-  fetch = (params = {}) => {
+  fetch = (params = {} as FetchParams): void => {
     let field = params.searchedColumn, value = params.searchText;
     const sortField = params.sortField, sortOrder = params.sortOrder;
     if (params.type !== undefined && params.type !== null) {
@@ -204,8 +296,8 @@ class EnforcerListPage extends BaseListPage {
       value = params.type;
     }
     this.setState({loading: true});
-    EnforcerBackend.getEnforcers(Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
-      .then((res) => {
+    enforcerBackend.getEnforcers(Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
+      .then((res: EnforcerListResponse) => {
         this.setState({
           loading: false,
         });
