@@ -16,18 +16,71 @@ import React from "react";
 import {Button, Card, Col, Input, InputNumber, Modal, Row, Select, Table} from "antd";
 import {CopyOutlined} from "@ant-design/icons";
 import * as InvitationBackend from "./backend/InvitationBackend";
+import type {InvitationMutation, InvitationRecord} from "./backend/InvitationBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
+import type {OrganizationRecord} from "./backend/OrganizationBackend";
 import * as ApplicationBackend from "./backend/ApplicationBackend";
 import * as Setting from "./Setting";
 import * as Conf from "./Conf";
 import i18next from "i18next";
 import copy from "copy-to-clipboard";
 import * as GroupBackend from "./backend/GroupBackend";
+import type {GroupRecord} from "./backend/GroupBackend";
 
 const {Option} = Select;
 
-class InvitationEditPage extends React.Component {
-  constructor(props) {
+type HistoryLike = {
+  push: (location: string | {pathname: string; mode?: string}) => void;
+};
+
+type InvitationEditRouteParams = {
+  organizationName: string;
+  invitationName: string;
+};
+
+type InvitationEditPageProps = {
+  account?: unknown;
+  history: HistoryLike;
+  location: {
+    mode?: string;
+    [key: string]: unknown;
+  };
+  match: {
+    params: InvitationEditRouteParams;
+  };
+  organizationName?: string;
+};
+
+type ApplicationRecord = {
+  name: string;
+  [key: string]: unknown;
+};
+
+type InvitationEmailRow = {
+  email: string;
+};
+
+type InvitationEditPageState = {
+  classes: InvitationEditPageProps;
+  organizationName: string;
+  invitationName: string;
+  invitation: InvitationRecord | null;
+  organizations: OrganizationRecord[];
+  applications: ApplicationRecord[];
+  groups: GroupRecord[];
+  mode: string;
+  emails?: string;
+  showSendModal?: boolean;
+  sendLoading: boolean;
+};
+
+function t(key: string, defaultValue = key): string {
+  const translated = i18next.t(key, {defaultValue}) as unknown;
+  return typeof translated === "string" ? translated : defaultValue;
+}
+
+class InvitationEditPage extends React.Component<InvitationEditPageProps, InvitationEditPageState> {
+  constructor(props: InvitationEditPageProps) {
     super(props);
     this.state = {
       classes: props,
@@ -52,7 +105,7 @@ class InvitationEditPage extends React.Component {
   getInvitation() {
     InvitationBackend.getInvitation(this.state.organizationName, this.state.invitationName)
       .then((res) => {
-        if (res.data === null) {
+        if (res.data === null || res.data === undefined) {
           this.props.history.push("/404");
           return;
         }
@@ -72,57 +125,58 @@ class InvitationEditPage extends React.Component {
       });
   }
 
-  getApplicationsByOrganization(organizationName) {
+  getApplicationsByOrganization(organizationName: string) {
     ApplicationBackend.getApplicationsByOrganization("admin", organizationName)
-      .then((res) => {
+      .then((res: {data?: ApplicationRecord[]}) => {
         this.setState({
           applications: res.data || [],
         });
       });
   }
 
-  getGroupsByOrganization(organizationName) {
+  getGroupsByOrganization(organizationName: string) {
     GroupBackend.getGroups(organizationName)
       .then((res) => {
         if (res.status === "ok") {
           this.setState({
-            groups: res.data,
+            groups: (res.data || []) as GroupRecord[],
           });
         }
       });
   }
 
-  parseInvitationField(key, value) {
-    if ([""].includes(key)) {
+  parseInvitationField(key: keyof InvitationRecord, value: unknown): unknown {
+    if ([""].includes(String(key))) {
       value = Setting.myParseInt(value);
     }
     return value;
   }
 
-  updateInvitationField(key, value) {
+  updateInvitationField(key: keyof InvitationRecord, value: unknown) {
     value = this.parseInvitationField(key, value);
 
-    const invitation = this.state.invitation;
-    invitation[key] = value;
+    const invitation = this.state.invitation!;
+    invitation[key] = value as never;
     this.setState({
       invitation: invitation,
     });
   }
 
   copySignupLink() {
+    const invitation = this.state.invitation!;
     let defaultApplication;
-    if (this.state.invitation.owner === "built-in") {
+    if (invitation.owner === "built-in") {
       defaultApplication = Conf.DefaultApplication;
     } else {
-      const selectedOrganization = Setting.getArrayItem(this.state.organizations, "name", this.state.invitation.owner);
+      const selectedOrganization = Setting.getArrayItem(this.state.organizations, "name", invitation.owner) as OrganizationRecord;
       defaultApplication = selectedOrganization.defaultApplication;
       if (!defaultApplication) {
-        Setting.showMessage("error", i18next.t("invitation:You need to first specify a default application for organization: ") + selectedOrganization.name);
+        Setting.showMessage("error", t("invitation:You need to first specify a default application for organization: ") + selectedOrganization.name);
         return;
       }
     }
-    copy(`${window.location.origin}/signup/${defaultApplication}?invitationCode=${this.state.invitation?.defaultCode}`);
-    Setting.showMessage("success", i18next.t("general:Copied to clipboard successfully"));
+    copy(`${window.location.origin}/signup/${defaultApplication}?invitationCode=${invitation.defaultCode}`);
+    Setting.showMessage("success", t("general:Copied to clipboard successfully"));
   }
 
   renderSendEmailModal() {
@@ -132,7 +186,7 @@ class InvitationEditPage extends React.Component {
     const emails = this.state.emails?.split("\n")?.filter(email => Setting.isValidEmail(email));
     const emailData = emails?.map((email) => {return {email: email};});
 
-    return <Modal title={i18next.t("general:Send")}
+    return <Modal title={t("general:Send")}
       style={{height: "800px"}}
       open={this.state.showSendModal}
       closable
@@ -140,15 +194,15 @@ class InvitationEditPage extends React.Component {
         <Button key={1} loading={this.state.sendLoading} type="primary"
           onClick={() => {
             this.setState({sendLoading: true});
-            InvitationBackend.sendInvitation(this.state.invitation, emails).then((res) => {
+            InvitationBackend.sendInvitation(this.state.invitation!, emails as string[]).then((res) => {
               this.setState({sendLoading: false});
               if (res.status === "error") {
                 Setting.showMessage("error", res.msg);
                 return;
               }
-              Setting.showMessage("success", i18next.t("general:Successfully sent"));
+              Setting.showMessage("success", t("general:Successfully sent"));
             }).catch(err => Setting.showMessage("error", err.message));
-          }}>{i18next.t("general:Send")}</Button>,
+          }}>{t("general:Send")}</Button>,
       ]}
       onCancel={() => {this.setState({showSendModal: false});}}>
       <div >
@@ -159,22 +213,27 @@ class InvitationEditPage extends React.Component {
   }
 
   renderInvitation() {
-    const isCreatedByPlan = this.state.invitation.tag === "auto_created_invitation_for_plan";
+    const invitation = this.state.invitation;
+    if (invitation === null) {
+      return null;
+    }
+
+    const isCreatedByPlan = invitation.tag === "auto_created_invitation_for_plan";
     return (
       <Card size="small" title={
         <div>
-          {this.state.mode === "add" ? i18next.t("invitation:New Invitation") : i18next.t("invitation:Edit Invitation")}&nbsp;&nbsp;&nbsp;&nbsp;
-          <Button onClick={() => this.submitInvitationEdit(false)}>{i18next.t("general:Save")}</Button>
-          <Button style={{marginLeft: "20px"}} type="primary" onClick={() => this.submitInvitationEdit(true)}>{i18next.t("general:Save & Exit")}</Button>
-          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteInvitation()}>{i18next.t("general:Cancel")}</Button> : null}
+          {this.state.mode === "add" ? t("invitation:New Invitation") : t("invitation:Edit Invitation")}&nbsp;&nbsp;&nbsp;&nbsp;
+          <Button onClick={() => this.submitInvitationEdit(false)}>{t("general:Save")}</Button>
+          <Button style={{marginLeft: "20px"}} type="primary" onClick={() => this.submitInvitationEdit(true)}>{t("general:Save & Exit")}</Button>
+          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteInvitation()}>{t("general:Cancel")}</Button> : null}
         </div>
       } style={(Setting.isMobile()) ? {margin: "5px"} : {}} type="inner">
         <Row style={{marginTop: "10px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Organization"), i18next.t("general:Organization - Tooltip"))} :
+            {Setting.getLabel(t("general:Organization"), t("general:Organization - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Select virtual={false} style={{width: "100%"}} disabled={!Setting.isAdminUser(this.props.account) || isCreatedByPlan} value={this.state.invitation.owner} onChange={(value => {this.updateInvitationField("owner", value); this.getApplicationsByOrganization(value);this.getGroupsByOrganization(value);})}>
+            <Select virtual={false} style={{width: "100%"}} disabled={!Setting.isAdminUser(this.props.account) || isCreatedByPlan} value={invitation.owner} onChange={(value => {const organizationName = value as string; this.updateInvitationField("owner", organizationName); this.getApplicationsByOrganization(organizationName);this.getGroupsByOrganization(organizationName);})}>
               {
                 this.state.organizations.map((organization, index) => <Option key={index} value={organization.name}>{organization.name}</Option>)
               }
@@ -183,30 +242,30 @@ class InvitationEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Name"), i18next.t("general:Name - Tooltip"))} :
+            {Setting.getLabel(t("general:Name"), t("general:Name - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Input value={this.state.invitation.name} disabled={isCreatedByPlan} onChange={e => {
+            <Input value={invitation.name} disabled={isCreatedByPlan} onChange={e => {
               this.updateInvitationField("name", e.target.value);
             }} />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Display name"), i18next.t("general:Display name - Tooltip"))} :
+            {Setting.getLabel(t("general:Display name"), t("general:Display name - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Input value={this.state.invitation.displayName} onChange={e => {
+            <Input value={invitation.displayName} onChange={e => {
               this.updateInvitationField("displayName", e.target.value);
             }} />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("invitation:Code"), i18next.t("invitation:Code - Tooltip"))} :
+            {Setting.getLabel(t("invitation:Code"), t("invitation:Code - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Input value={this.state.invitation.code} onChange={e => {
+            <Input value={invitation.code} onChange={e => {
               const regex = /[^a-zA-Z0-9]/;
               if (!regex.test(e.target.value)) {
                 this.updateInvitationField("defaultCode", e.target.value);
@@ -217,10 +276,10 @@ class InvitationEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("invitation:Default code"), i18next.t("invitation:Default code - Tooltip"))} :
+            {Setting.getLabel(t("invitation:Default code"), t("invitation:Default code - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Input value={this.state.invitation.defaultCode} onChange={e => {
+            <Input value={invitation.defaultCode} onChange={e => {
               this.updateInvitationField("defaultCode", e.target.value);
             }} />
           </Col>
@@ -230,62 +289,62 @@ class InvitationEditPage extends React.Component {
           </Col>
           <Col span={22} >
             <Button style={{marginBottom: "10px"}} type="primary" shape="round" icon={<CopyOutlined />} onClick={_ => this.copySignupLink()}>
-              {i18next.t("application:Copy signup page URL")}
+              {t("application:Copy signup page URL")}
             </Button>
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {i18next.t("general:Send")}
+            {t("general:Send")}
           </Col>
           <Col span={22} >
             <Input.TextArea autoSize={{minRows: 3, maxRows: 10}} value={this.state.emails} onChange={(value) => {
               this.setState({emails: value.target.value});
             }}></Input.TextArea>
-            <Button type="primary" style={{marginTop: "20px"}} onClick={() => this.setState({showSendModal: true})}>{i18next.t("general:Send")}</Button>
+            <Button type="primary" style={{marginTop: "20px"}} onClick={() => this.setState({showSendModal: true})}>{t("general:Send")}</Button>
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("invitation:Quota"), i18next.t("invitation:Quota - Tooltip"))} :
+            {Setting.getLabel(t("invitation:Quota"), t("invitation:Quota - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <InputNumber min={0} value={this.state.invitation.quota} onChange={value => {
+            <InputNumber min={0} value={invitation.quota} onChange={value => {
               this.updateInvitationField("quota", value);
             }} />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("invitation:Used count"), i18next.t("invitation:Used count - Tooltip"))} :
+            {Setting.getLabel(t("invitation:Used count"), t("invitation:Used count - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <InputNumber min={0} max={this.state.invitation.quota} value={this.state.invitation.usedCount} onChange={value => {
+            <InputNumber min={0} max={invitation.quota} value={invitation.usedCount} onChange={value => {
               this.updateInvitationField("usedCount", value);
             }} />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Application"), i18next.t("general:Application - Tooltip"))} :
+            {Setting.getLabel(t("general:Application"), t("general:Application - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Select virtual={false} style={{width: "100%"}} value={this.state.invitation.application}
+            <Select virtual={false} style={{width: "100%"}} value={invitation.application}
               onChange={(value => {this.updateInvitationField("application", value);})}
               options={[
-                {label: i18next.t("general:All"), value: "All"},
+                {label: t("general:All"), value: "All"},
                 ...this.state.applications.map((application) => Setting.getOption(application.name, application.name)),
               ]} />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("provider:Signup group"), i18next.t("provider:Signup group - Tooltip"))} :
+            {Setting.getLabel(t("provider:Signup group"), t("provider:Signup group - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Select virtual={false} style={{width: "100%"}} value={this.state.invitation.signupGroup} onChange={(value => {this.updateInvitationField("signupGroup", value);})}>
+            <Select virtual={false} style={{width: "100%"}} value={invitation.signupGroup} onChange={(value => {this.updateInvitationField("signupGroup", value);})}>
               <Option key={""} value={""}>
-                {i18next.t("general:Default")}
+                {t("general:Default")}
               </Option>
               {
                 this.state.groups.map((group, index) => <Option key={index} value={`${group.owner}/${group.name}`}>{group.name}</Option>)
@@ -295,45 +354,45 @@ class InvitationEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("signup:Username"), i18next.t("signup:Username - Tooltip"))} :
+            {Setting.getLabel(t("signup:Username"), t("signup:Username - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Input value={this.state.invitation.username} onChange={e => {
+            <Input value={invitation.username} onChange={e => {
               this.updateInvitationField("username", e.target.value);
             }} />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Email"), i18next.t("general:Email - Tooltip"))} :
+            {Setting.getLabel(t("general:Email"), t("general:Email - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Input value={this.state.invitation.email} onChange={e => {
+            <Input value={invitation.email} onChange={e => {
               this.updateInvitationField("email", e.target.value);
             }} />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Phone"), i18next.t("general:Phone - Tooltip"))} :
+            {Setting.getLabel(t("general:Phone"), t("general:Phone - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Input value={this.state.invitation.phone} onChange={e => {
+            <Input value={invitation.phone} onChange={e => {
               this.updateInvitationField("phone", e.target.value);
             }} />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:State"), i18next.t("general:State - Tooltip"))} :
+            {Setting.getLabel(t("general:State"), t("general:State - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Select virtual={false} style={{width: "100%"}} value={this.state.invitation.state} onChange={(value => {
+            <Select virtual={false} style={{width: "100%"}} value={invitation.state} onChange={(value => {
               this.updateInvitationField("state", value);
             })}
             options={[
-              {value: "Active", name: i18next.t("subscription:Active")},
-              {value: "Suspended", name: i18next.t("subscription:Suspended")},
+              {value: "Active", name: t("subscription:Active")},
+              {value: "Suspended", name: t("subscription:Suspended")},
             ].map((item) => Setting.getOption(item.name, item.value))}
             />
           </Col>
@@ -342,42 +401,42 @@ class InvitationEditPage extends React.Component {
     );
   }
 
-  submitInvitationEdit(exitAfterSave) {
-    const invitation = Setting.deepCopy(this.state.invitation);
+  submitInvitationEdit(exitAfterSave: boolean) {
+    const invitation = Setting.deepCopy(this.state.invitation) as InvitationMutation;
     InvitationBackend.updateInvitation(this.state.organizationName, this.state.invitationName, invitation)
       .then((res) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully saved"));
+          Setting.showMessage("success", t("general:Successfully saved"));
           this.setState({
-            invitationName: this.state.invitation.name,
+            invitationName: this.state.invitation!.name,
           });
 
           if (exitAfterSave) {
             this.props.history.push("/invitations");
           } else {
-            this.props.history.push(`/invitations/${this.state.invitation.owner}/${this.state.invitation.name}`);
+            this.props.history.push(`/invitations/${this.state.invitation!.owner}/${this.state.invitation!.name}`);
           }
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to save")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to save")}: ${res.msg}`);
           this.updateInvitationField("name", this.state.invitationName);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
   deleteInvitation() {
-    InvitationBackend.deleteInvitation(this.state.invitation)
+    InvitationBackend.deleteInvitation(this.state.invitation!)
       .then((res) => {
         if (res.status === "ok") {
           this.props.history.push("/invitations");
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
@@ -389,9 +448,9 @@ class InvitationEditPage extends React.Component {
           this.state.invitation !== null ? this.renderInvitation() : null
         }
         <div style={{marginTop: "20px", marginLeft: "40px"}}>
-          <Button size="large" onClick={() => this.submitInvitationEdit(false)}>{i18next.t("general:Save")}</Button>
-          <Button style={{marginLeft: "20px"}} type="primary" size="large" onClick={() => this.submitInvitationEdit(true)}>{i18next.t("general:Save & Exit")}</Button>
-          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} size="large" onClick={() => this.deleteInvitation()}>{i18next.t("general:Cancel")}</Button> : null}
+          <Button size="large" onClick={() => this.submitInvitationEdit(false)}>{t("general:Save")}</Button>
+          <Button style={{marginLeft: "20px"}} type="primary" size="large" onClick={() => this.submitInvitationEdit(true)}>{t("general:Save & Exit")}</Button>
+          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} size="large" onClick={() => this.deleteInvitation()}>{t("general:Cancel")}</Button> : null}
         </div>
       </div>
     );
