@@ -15,12 +15,72 @@
 import React from "react";
 import {DeleteOutlined, EditOutlined} from "@ant-design/icons";
 import {Button, Input, Select, Table, Tooltip} from "antd";
+import type {TableProps} from "antd";
 import * as Setting from "../Setting";
 import * as AdapterBackend from "../backend/AdapterBackend";
 import i18next from "i18next";
 
-class PolicyTable extends React.Component {
-  constructor(props) {
+type EnforcerRecord = {
+  owner: string;
+  name: string;
+  model: string;
+  adapter: string;
+  [key: string]: unknown;
+};
+
+type PolicyRow = {
+  key?: number;
+  Ptype: string;
+  V0?: string;
+  V1?: string;
+  V2?: string;
+  V3?: string;
+  V4?: string;
+  V5?: string;
+  [key: string]: unknown;
+};
+
+type PolicyTableProps = {
+  enforcer: EnforcerRecord;
+  modelCfg?: Record<string, string>;
+  mode: string;
+};
+
+type PolicyTableState = {
+  policyLists: PolicyRow[];
+  loading: boolean;
+  editingIndex: number | "";
+  oldPolicy: PolicyRow | "";
+  add: boolean;
+  page: number;
+};
+
+type PolicyResponse = {
+  status: string;
+  msg?: string;
+  data?: PolicyRow[] | string;
+};
+
+type AdapterBackendApi = {
+  getPolicies: (owner: string, name: string) => Promise<PolicyResponse>;
+  UpdatePolicy: (owner: string, name: string, policy: [PolicyRow, PolicyRow]) => Promise<PolicyResponse>;
+  AddPolicy: (owner: string, name: string, policy: PolicyRow) => Promise<PolicyResponse>;
+  RemovePolicy: (owner: string, name: string, policy: PolicyRow) => Promise<PolicyResponse>;
+};
+
+type PolicyColumn = {
+  title: React.ReactNode;
+  dataIndex?: string;
+  key?: string;
+  width?: string;
+  render?: (text: unknown, record: PolicyRow, index: number) => React.ReactNode;
+};
+
+const adapterBackend = AdapterBackend as unknown as AdapterBackendApi;
+const t = (key: string): string => i18next.t(key) as string;
+
+class PolicyTable extends React.Component<PolicyTableProps, PolicyTableState> {
+  constructor(props: PolicyTableProps) {
     super(props);
     this.state = {
       policyLists: [],
@@ -35,28 +95,29 @@ class PolicyTable extends React.Component {
   count = 0;
   pageSize = 100;
 
-  getIndex(index) {
-    // Need to be used in all place when modify table. Parameter is the row index in table, need to calculate the index in dataSource.
+  getIndex(index: number): number {
+    // AntD render 传入的是当前页可见索引，写回 policyLists 前要换算成真实数据索引。
     return index + (this.state.page - 1) * this.pageSize;
   }
 
-  UNSAFE_componentWillMount() {
+  UNSAFE_componentWillMount(): void {
     if (this.props.mode === "edit" && this.props.enforcer.adapter !== "") {
       this.getPolicies();
     }
   }
 
-  isEditing = (index) => {
+  isEditing = (index: number): boolean => {
     return index === this.state.editingIndex;
   };
 
-  edit = (record, index) => {
+  edit = (record: PolicyRow, index: number): void => {
     this.setState({editingIndex: index, oldPolicy: Setting.deepCopy(record)});
   };
 
-  cancel = (table, index) => {
+  cancel = (table: PolicyRow[], index: number): void => {
+    const oldPolicy = this.state.oldPolicy as PolicyRow;
     Object.keys(table[this.getIndex(index)]).forEach((key) => {
-      table[this.getIndex(index)][key] = this.state.oldPolicy[key];
+      table[this.getIndex(index)][key] = oldPolicy[key];
     });
     this.updateTable(table);
     this.setState({editingIndex: "", oldPolicy: ""});
@@ -66,17 +127,17 @@ class PolicyTable extends React.Component {
     }
   };
 
-  updateTable(table) {
+  updateTable(table: PolicyRow[]): void {
     this.setState({policyLists: table});
   }
 
-  updateField(table, index, key, value) {
+  updateField(table: PolicyRow[], index: number, key: string, value: string): void {
     table[this.getIndex(index)][key] = value;
     this.updateTable(table);
   }
 
-  addRow(table) {
-    const row = {key: this.count, Ptype: "p"};
+  addRow(table?: PolicyRow[]): void {
+    const row: PolicyRow = {key: this.count, Ptype: "p"};
     if (table === undefined) {
       table = [];
     }
@@ -91,95 +152,96 @@ class PolicyTable extends React.Component {
     });
   }
 
-  deleteRow(table, index) {
+  deleteRow(table: PolicyRow[], index: number): void {
     table = Setting.deleteRow(table, this.getIndex(index));
     this.updateTable(table);
   }
 
-  save(table, i) {
+  save(table: PolicyRow[], i: number): void {
     this.state.add ? this.addPolicy(table, i) : this.updatePolicy(table, i);
   }
 
-  getPolicies() {
+  getPolicies(): void {
     this.setState({loading: true});
-    AdapterBackend.getPolicies(this.props.enforcer.owner, this.props.enforcer.name)
-      .then((res) => {
+    adapterBackend.getPolicies(this.props.enforcer.owner, this.props.enforcer.name)
+      .then((res: PolicyResponse) => {
         if (res.status === "ok") {
           // Setting.showMessage("success", i18next.t("adapter:Sync policies successfully"));
 
-          const policyList = res.data;
+          const policyList = (res.data || []) as PolicyRow[];
           policyList.map((policy, index) => {
             policy.key = index;
           });
           this.count = policyList.length;
           this.setState({policyLists: policyList});
         } else {
-          Setting.showMessage("error", `${i18next.t("adapter:Failed to sync policies")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("adapter:Failed to sync policies")}: ${res.msg}`);
         }
         this.setState({loading: false});
       })
-      .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      .catch((error: unknown) => {
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  updatePolicy(table, i) {
-    AdapterBackend.UpdatePolicy(this.props.enforcer.owner, this.props.enforcer.name, [this.state.oldPolicy, table[i]]).then(res => {
+  updatePolicy(table: PolicyRow[], i: number): void {
+    adapterBackend.UpdatePolicy(this.props.enforcer.owner, this.props.enforcer.name, [this.state.oldPolicy as PolicyRow, table[i]]).then((res: PolicyResponse) => {
       if (res.status === "ok") {
         this.setState({editingIndex: "", oldPolicy: ""});
-        Setting.showMessage("success", i18next.t("general:Successfully saved"));
+        Setting.showMessage("success", t("general:Successfully saved"));
       } else {
-        Setting.showMessage("error", `${i18next.t("general:Failed to save")}: ${res.msg}`);
+        Setting.showMessage("error", `${t("general:Failed to save")}: ${res.msg}`);
       }
     });
   }
 
-  addPolicy(table, i) {
-    AdapterBackend.AddPolicy(this.props.enforcer.owner, this.props.enforcer.name, table[i]).then(res => {
+  addPolicy(table: PolicyRow[], i: number): void {
+    adapterBackend.AddPolicy(this.props.enforcer.owner, this.props.enforcer.name, table[i]).then((res: PolicyResponse) => {
       if (res.status === "ok") {
         this.setState({editingIndex: "", oldPolicy: "", add: false});
         if (res.data !== "Affected") {
-          res.msg = i18next.t("adapter:Duplicated policy rules");
-          Setting.showMessage("error", `${i18next.t("general:Failed to add")}: ${res.msg}`);
+          res.msg = t("adapter:Duplicated policy rules");
+          Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
         } else {
-          Setting.showMessage("success", i18next.t("general:Successfully added"));
+          Setting.showMessage("success", t("general:Successfully added"));
         }
       } else {
-        Setting.showMessage("error", `${i18next.t("general:Failed to add")}: ${res.msg}`);
+        Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
       }
     });
   }
 
-  deletePolicy(table, index) {
-    AdapterBackend.RemovePolicy(this.props.enforcer.owner, this.props.enforcer.name, table[this.getIndex(index)]).then(res => {
+  deletePolicy(table: PolicyRow[], index: number): void {
+    adapterBackend.RemovePolicy(this.props.enforcer.owner, this.props.enforcer.name, table[this.getIndex(index)]).then((res: PolicyResponse) => {
       if (res.status === "ok") {
-        Setting.showMessage("success", i18next.t("general:Successfully deleted"));
+        Setting.showMessage("success", t("general:Successfully deleted"));
 
         this.deleteRow(table, index);
       } else {
-        Setting.showMessage("error", i18next.t("general:Failed to delete"));
+        Setting.showMessage("error", t("general:Failed to delete"));
       }
     });
   }
 
-  renderTable(table) {
+  renderTable(table: PolicyRow[]): React.ReactElement | null {
     if (this.props.modelCfg === undefined) {
       return null;
     }
 
-    const columns = [
+    const columns: PolicyColumn[] = [
       {
-        title: i18next.t("adapter:Rule type"),
+        title: t("adapter:Rule type"),
         dataIndex: "Ptype",
         width: "100px",
-        render: (text, record, index) => {
+        render: (text: unknown, _record: PolicyRow, index: number) => {
           const editing = this.isEditing(index);
+          const value = text === undefined || text === null ? "" : String(text);
           return (
             (editing && this.props.modelCfg) ?
-              <Select size={"small"} style={{width: "60px"}} options={Object.keys(this.props.modelCfg).reverse().map(item => Setting.getOption(item, item))} value={text} onChange={value => {
-                this.updateField(table, index, "Ptype", value);
+              <Select size={"small"} style={{width: "60px"}} options={Object.keys(this.props.modelCfg).reverse().map(item => Setting.getOption(item, item))} value={value} onChange={nextValue => {
+                this.updateField(table, index, "Ptype", nextValue);
               }} />
-              : text
+              : value
           );
         },
       },
@@ -192,33 +254,34 @@ class PolicyTable extends React.Component {
         title: title,
         dataIndex: columnKeys[i],
         width: "200px",
-        render: (text, record, index) => {
+        render: (text: unknown, _record: PolicyRow, index: number) => {
           const editing = this.isEditing(index);
+          const value = text === undefined || text === null ? "" : String(text);
           return (
             editing ?
-              <Input size={"small"} value={text} onChange={e => {
+              <Input size={"small"} value={value} onChange={e => {
                 this.updateField(table, index, columnKeys[i], e.target.value);
               }} />
-              : text
+              : value
           );
         },
       });
     });
 
     columns.push({
-      title: i18next.t("general:Action"),
+      title: t("general:Action"),
       dataIndex: "",
       key: "op",
       width: "150px",
-      render: (text, record, index) => {
+      render: (_text: unknown, record: PolicyRow, index: number) => {
         const editable = this.isEditing(index);
         return editable ? (
           <span>
             <Button style={{marginRight: "10px"}} size={"small"} type={"primary"} onClick={() => this.save(table, index)}>
-              {i18next.t("general:Save")}
+              {t("general:Save")}
             </Button>
             <Button size={"small"} onClick={() => this.cancel(table, index)}>
-              {i18next.t("general:Cancel")}
+              {t("general:Cancel")}
             </Button>
           </span>
         ) : (
@@ -235,7 +298,7 @@ class PolicyTable extends React.Component {
     });
 
     return (
-      <Table
+      <Table<PolicyRow>
         pagination={{
           defaultPageSize: this.pageSize,
           onChange: (page) => this.setState({
@@ -243,22 +306,22 @@ class PolicyTable extends React.Component {
           }),
           current: this.state.page,
         }}
-        columns={columns} dataSource={table} rowKey="key" size="middle" bordered
+        columns={columns as TableProps<PolicyRow>["columns"]} dataSource={table} rowKey="key" size="middle" bordered
         loading={this.state.loading}
         title={() => (
           <div>
-            <Button disabled={this.state.editingIndex !== "" || this.props.enforcer.model === "" || this.props.enforcer.adapter === "" || Setting.builtInObject(this.props.enforcer)} style={{marginRight: "5px"}} type="primary" size="small" onClick={() => this.addRow(table)}>{i18next.t("general:Add")}</Button>
+            <Button disabled={this.state.editingIndex !== "" || this.props.enforcer.model === "" || this.props.enforcer.adapter === "" || Setting.builtInObject(this.props.enforcer)} style={{marginRight: "5px"}} type="primary" size="small" onClick={() => this.addRow(table)}>{t("general:Add")}</Button>
           </div>
         )}
       />
     );
   }
 
-  render() {
+  render(): React.ReactElement {
     return (
       <React.Fragment>
         <Button disabled={this.state.editingIndex !== "" || this.props.enforcer.model === "" || this.props.enforcer.adapter === ""} style={{marginBottom: "10px", width: "150px"}} type="primary" onClick={() => {this.getPolicies();}}>
-          {i18next.t("general:Sync")}
+          {t("general:Sync")}
         </Button>
         {
           this.renderTable(this.state.policyLists)
