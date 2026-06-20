@@ -21,8 +21,93 @@ import i18next from "i18next";
 
 const {Option} = Select;
 
-class AdapterEditPage extends React.Component {
-  constructor(props) {
+type Account = {
+  owner: string;
+  tag: string;
+  isAdmin?: boolean;
+};
+
+type AdapterRecord = {
+  owner: string;
+  name: string;
+  createdTime?: string;
+  table: string;
+  useSameDb: boolean;
+  type: string;
+  databaseType: string;
+  host: string;
+  port: number;
+  user: string;
+  password: string;
+  database: string;
+  [key: string]: unknown;
+};
+
+type OrganizationRecord = {
+  name: string;
+};
+
+type HistoryLike = {
+  push: (location: string) => void;
+};
+
+type AdapterEditPageProps = {
+  account: Account;
+  history: HistoryLike;
+  location: {
+    mode?: "add" | "edit";
+  };
+  match: {
+    params: {
+      organizationName: string;
+      adapterName: string;
+    };
+  };
+  organizationName?: string;
+};
+
+type AdapterEditPageState = {
+  classes: AdapterEditPageProps;
+  organizationName: string;
+  adapterName: string;
+  adapter: AdapterRecord | null;
+  organizations: OrganizationRecord[];
+  mode: "add" | "edit";
+};
+
+type AdapterResponse = {
+  status: string;
+  msg?: string;
+  data?: AdapterRecord | null;
+};
+
+type OrganizationsResponse = {
+  status: string;
+  data?: OrganizationRecord[];
+};
+
+type MutationResponse = {
+  status: string;
+  msg?: string;
+};
+
+type AdapterBackendApi = {
+  getAdapter: (owner: string, name: string) => Promise<AdapterResponse>;
+  updateAdapter: (owner: string, name: string, adapter: AdapterRecord) => Promise<MutationResponse>;
+  deleteAdapter: (adapter: AdapterRecord) => Promise<MutationResponse>;
+  getPolicies: (owner: string, name: string, adapterId?: string) => Promise<MutationResponse>;
+};
+
+type OrganizationBackendApi = {
+  getOrganizations: (owner: string) => Promise<OrganizationsResponse>;
+};
+
+const adapterBackend = AdapterBackend as unknown as AdapterBackendApi;
+const organizationBackend = OrganizationBackend as unknown as OrganizationBackendApi;
+const t = (key: string): string => i18next.t(key) as string;
+
+class AdapterEditPage extends React.Component<AdapterEditPageProps, AdapterEditPageState> {
+  constructor(props: AdapterEditPageProps) {
     super(props);
     this.state = {
       classes: props,
@@ -34,14 +119,14 @@ class AdapterEditPage extends React.Component {
     };
   }
 
-  UNSAFE_componentWillMount() {
+  UNSAFE_componentWillMount(): void {
     this.getAdapter();
     this.getOrganizations();
   }
 
-  getAdapter() {
-    AdapterBackend.getAdapter(this.state.organizationName, this.state.adapterName)
-      .then((res) => {
+  getAdapter(): void {
+    adapterBackend.getAdapter(this.state.organizationName, this.state.adapterName)
+      .then((res: AdapterResponse) => {
         if (res.status === "ok") {
           if (res.data === null) {
             this.props.history.push("/404");
@@ -49,54 +134,62 @@ class AdapterEditPage extends React.Component {
           }
 
           this.setState({
-            adapter: res.data,
+            adapter: res.data || null,
           });
         }
       });
   }
 
-  getOrganizations() {
-    OrganizationBackend.getOrganizations("admin")
-      .then((res) => {
+  getOrganizations(): void {
+    organizationBackend.getOrganizations("admin")
+      .then((res: OrganizationsResponse) => {
         this.setState({
           organizations: res.data || [],
         });
       });
   }
 
-  parseAdapterField(key, value) {
+  parseAdapterField(_key: keyof AdapterRecord, value: unknown): unknown {
     // if ([].includes(key)) {
     //   value = Setting.myParseInt(value);
     // }
     return value;
   }
 
-  updateAdapterField(key, value) {
+  updateAdapterField(key: keyof AdapterRecord, value: unknown): void {
     value = this.parseAdapterField(key, value);
 
     const adapter = this.state.adapter;
+    if (adapter === null) {
+      return;
+    }
     adapter[key] = value;
     this.setState({
       adapter: adapter,
     });
   }
 
-  renderAdapter() {
+  renderAdapter(): React.ReactElement | null {
+    const adapter = this.state.adapter;
+    if (adapter === null) {
+      return null;
+    }
+
     return (
       <Card size="small" title={
         <div>
-          {this.state.mode === "add" ? i18next.t("adapter:New Adapter") : i18next.t("adapter:Edit Adapter")}&nbsp;&nbsp;&nbsp;&nbsp;
-          <Button onClick={() => this.submitAdapterEdit(false)}>{i18next.t("general:Save")}</Button>
-          <Button style={{marginLeft: "20px"}} type="primary" onClick={() => this.submitAdapterEdit(true)}>{i18next.t("general:Save & Exit")}</Button>
-          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteAdapter()}>{i18next.t("general:Cancel")}</Button> : null}
+          {this.state.mode === "add" ? t("adapter:New Adapter") : t("adapter:Edit Adapter")}&nbsp;&nbsp;&nbsp;&nbsp;
+          <Button onClick={() => this.submitAdapterEdit(false)}>{t("general:Save")}</Button>
+          <Button style={{marginLeft: "20px"}} type="primary" onClick={() => this.submitAdapterEdit(true)}>{t("general:Save & Exit")}</Button>
+          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteAdapter()}>{t("general:Cancel")}</Button> : null}
         </div>
       } style={(Setting.isMobile()) ? {margin: "5px"} : {}} type="inner">
         <Row style={{marginTop: "10px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Organization"), i18next.t("general:Organization - Tooltip"))} :
+            {Setting.getLabel(t("general:Organization"), t("general:Organization - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Select virtual={false} style={{width: "100%"}} disabled={!Setting.isAdminUser(this.props.account) || Setting.builtInObject(this.state.adapter)} value={this.state.adapter.owner} onChange={(value => {
+            <Select virtual={false} style={{width: "100%"}} disabled={!Setting.isAdminUser(this.props.account) || Setting.builtInObject(adapter)} value={adapter.owner} onChange={(value => {
               this.updateAdapterField("owner", value);
             })}>
               {
@@ -107,31 +200,31 @@ class AdapterEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Name"), i18next.t("general:Name - Tooltip"))} :
+            {Setting.getLabel(t("general:Name"), t("general:Name - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Input disabled={Setting.builtInObject(this.state.adapter)} value={this.state.adapter.name} onChange={e => {
+            <Input disabled={Setting.builtInObject(adapter)} value={adapter.name} onChange={e => {
               this.updateAdapterField("name", e.target.value);
             }} />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("syncer:Table"), i18next.t("syncer:Table - Tooltip"))} :
+            {Setting.getLabel(t("syncer:Table"), t("syncer:Table - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Input value={this.state.adapter.table}
-              disabled={Setting.builtInObject(this.state.adapter)} onChange={e => {
+            <Input value={adapter.table}
+              disabled={Setting.builtInObject(adapter)} onChange={e => {
                 this.updateAdapterField("table", e.target.value);
               }} />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 19 : 2}>
-            {Setting.getLabel(i18next.t("adapter:Use same DB"), i18next.t("adapter:Use same DB - Tooltip"))} :
+            {Setting.getLabel(t("adapter:Use same DB"), t("adapter:Use same DB - Tooltip"))} :
           </Col>
           <Col span={1} >
-            <Switch disabled={Setting.builtInObject(this.state.adapter)} checked={this.state.adapter.useSameDb || Setting.builtInObject(this.state.adapter)} onChange={checked => {
+            <Switch disabled={Setting.builtInObject(adapter)} checked={adapter.useSameDb || Setting.builtInObject(adapter)} onChange={(checked: boolean) => {
               this.updateAdapterField("useSameDb", checked);
               if (checked) {
                 this.updateAdapterField("type", "");
@@ -154,14 +247,14 @@ class AdapterEditPage extends React.Component {
           </Col>
         </Row>
         {
-          (this.state.adapter.useSameDb || Setting.builtInObject(this.state.adapter)) ? null : (
+          (adapter.useSameDb || Setting.builtInObject(adapter)) ? null : (
             <React.Fragment>
               <Row style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                  {Setting.getLabel(i18next.t("general:Type"), i18next.t("general:Type - Tooltip"))} :
+                  {Setting.getLabel(t("general:Type"), t("general:Type - Tooltip"))} :
                 </Col>
                 <Col span={22} >
-                  <Select virtual={false} disabled={Setting.builtInObject(this.state.adapter)} style={{width: "100%"}} value={this.state.adapter.type} onChange={(value => {
+                  <Select virtual={false} disabled={Setting.builtInObject(adapter)} style={{width: "100%"}} value={adapter.type} onChange={(value => {
                     this.updateAdapterField("type", value);
                     const adapter = this.state.adapter;
                     // adapter["tableColumns"] = Setting.getAdapterTableColumns(this.state.adapter);
@@ -178,10 +271,10 @@ class AdapterEditPage extends React.Component {
               </Row>
               <Row style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                  {Setting.getLabel(i18next.t("syncer:Database type"), i18next.t("syncer:Database type - Tooltip"))} :
+                  {Setting.getLabel(t("syncer:Database type"), t("syncer:Database type - Tooltip"))} :
                 </Col>
                 <Col span={22} >
-                  <Select virtual={false} disabled={Setting.builtInObject(this.state.adapter)} style={{width: "100%"}} value={this.state.adapter.databaseType} onChange={(value => {this.updateAdapterField("databaseType", value);})}>
+                  <Select virtual={false} disabled={Setting.builtInObject(adapter)} style={{width: "100%"}} value={adapter.databaseType} onChange={(value => {this.updateAdapterField("databaseType", value);})}>
                     {
                       [
                         {id: "mysql", name: "MySQL"},
@@ -196,50 +289,50 @@ class AdapterEditPage extends React.Component {
               </Row>
               <Row style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                  {Setting.getLabel(i18next.t("provider:Host"), i18next.t("provider:Host - Tooltip"))} :
+                  {Setting.getLabel(t("provider:Host"), t("provider:Host - Tooltip"))} :
                 </Col>
                 <Col span={22} >
-                  <Input value={this.state.adapter.host} onChange={e => {
+                  <Input value={adapter.host} onChange={e => {
                     this.updateAdapterField("host", e.target.value);
                   }} />
                 </Col>
               </Row>
               <Row style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                  {Setting.getLabel(i18next.t("provider:Port"), i18next.t("provider:Port - Tooltip"))} :
+                  {Setting.getLabel(t("provider:Port"), t("provider:Port - Tooltip"))} :
                 </Col>
                 <Col span={22} >
-                  <InputNumber value={this.state.adapter.port} min={0} max={65535} onChange={value => {
+                  <InputNumber value={adapter.port} min={0} max={65535} onChange={value => {
                     this.updateAdapterField("port", value);
                   }} />
                 </Col>
               </Row>
               <Row style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                  {Setting.getLabel(i18next.t("general:User"), i18next.t("general:User - Tooltip"))} :
+                  {Setting.getLabel(t("general:User"), t("general:User - Tooltip"))} :
                 </Col>
                 <Col span={22} >
-                  <Input value={this.state.adapter.user} onChange={e => {
+                  <Input value={adapter.user} onChange={e => {
                     this.updateAdapterField("user", e.target.value);
                   }} />
                 </Col>
               </Row>
               <Row style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                  {Setting.getLabel(i18next.t("general:Password"), i18next.t("general:Password - Tooltip"))} :
+                  {Setting.getLabel(t("general:Password"), t("general:Password - Tooltip"))} :
                 </Col>
                 <Col span={22} >
-                  <Input value={this.state.adapter.password} onChange={e => {
+                  <Input value={adapter.password} onChange={e => {
                     this.updateAdapterField("password", e.target.value);
                   }} />
                 </Col>
               </Row>
               <Row style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                  {Setting.getLabel(i18next.t("syncer:Database"), i18next.t("syncer:Database - Tooltip"))} :
+                  {Setting.getLabel(t("syncer:Database"), t("syncer:Database - Tooltip"))} :
                 </Col>
                 <Col span={22} >
-                  <Input disabled={Setting.builtInObject(this.state.adapter)} value={this.state.adapter.database} onChange={e => {
+                  <Input disabled={Setting.builtInObject(adapter)} value={adapter.database} onChange={e => {
                     this.updateAdapterField("database", e.target.value);
                   }} />
                 </Col>
@@ -249,79 +342,89 @@ class AdapterEditPage extends React.Component {
         }
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("provider:DB test"), i18next.t("provider:DB test - Tooltip"))} :
+            {Setting.getLabel(t("provider:DB test"), t("provider:DB test - Tooltip"))} :
           </Col>
           <Col span={2} >
-            <Button disabled={this.state.organizationName !== this.state.adapter.owner} type={"primary"} onClick={() => {
-              AdapterBackend.getPolicies("", "", `${this.state.adapter.owner}/${this.state.adapter.name}`)
-                .then((res) => {
+            <Button disabled={this.state.organizationName !== adapter.owner} type={"primary"} onClick={() => {
+              adapterBackend.getPolicies("", "", `${adapter.owner}/${adapter.name}`)
+                .then((res: MutationResponse) => {
                   if (res.status === "ok") {
-                    Setting.showMessage("success", i18next.t("syncer:Connect successfully"));
+                    Setting.showMessage("success", t("syncer:Connect successfully"));
                   } else {
-                    Setting.showMessage("error", i18next.t("syncer:Failed to connect") + ": " + res.msg);
+                    Setting.showMessage("error", t("syncer:Failed to connect") + ": " + res.msg);
                   }
                 })
-                .catch(error => {
-                  Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+                .catch((error: unknown) => {
+                  Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
                 });
             }
-            }>{i18next.t("syncer:Test DB Connection")}</Button>
+            }>{t("syncer:Test DB Connection")}</Button>
           </Col>
         </Row>
       </Card>
     );
   }
 
-  submitAdapterEdit(exitAfterSave) {
-    const adapter = Setting.deepCopy(this.state.adapter);
-    AdapterBackend.updateAdapter(this.state.organizationName, this.state.adapterName, adapter)
-      .then((res) => {
+  submitAdapterEdit(exitAfterSave: boolean): void {
+    if (this.state.adapter === null) {
+      return;
+    }
+    const adapter = Setting.deepCopy(this.state.adapter) as AdapterRecord;
+    adapterBackend.updateAdapter(this.state.organizationName, this.state.adapterName, adapter)
+      .then((res: MutationResponse) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully saved"));
+          Setting.showMessage("success", t("general:Successfully saved"));
+          const savedAdapter = this.state.adapter;
+          if (savedAdapter === null) {
+            return;
+          }
           this.setState({
-            organizationName: this.state.adapter.owner,
-            adapterName: this.state.adapter.name,
+            organizationName: savedAdapter.owner,
+            adapterName: savedAdapter.name,
           });
 
           if (exitAfterSave) {
             this.props.history.push("/adapters");
           } else {
-            this.props.history.push(`/adapters/${this.state.adapter.owner}/${this.state.adapter.name}`);
+            this.props.history.push(`/adapters/${savedAdapter.owner}/${savedAdapter.name}`);
           }
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to save")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to save")}: ${res.msg}`);
           this.updateAdapterField("name", this.state.adapterName);
         }
       })
-      .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      .catch((error: unknown) => {
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  deleteAdapter() {
-    AdapterBackend.deleteAdapter(this.state.adapter)
-      .then((res) => {
+  deleteAdapter(): void {
+    if (this.state.adapter === null) {
+      return;
+    }
+    adapterBackend.deleteAdapter(this.state.adapter)
+      .then((res: MutationResponse) => {
         if (res.status === "ok") {
           this.props.history.push("/adapters");
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
         }
       })
-      .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      .catch((error: unknown) => {
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  render() {
+  render(): React.ReactElement {
     return (
       <div>
         {
           this.state.adapter !== null ? this.renderAdapter() : null
         }
         <div style={{marginTop: "20px", marginLeft: "40px"}}>
-          <Button size="large" onClick={() => this.submitAdapterEdit(false)}>{i18next.t("general:Save")}</Button>
-          <Button style={{marginLeft: "20px"}} type="primary" size="large" onClick={() => this.submitAdapterEdit(true)}>{i18next.t("general:Save & Exit")}</Button>
-          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} size="large" onClick={() => this.deleteAdapter()}>{i18next.t("general:Cancel")}</Button> : null}
+          <Button size="large" onClick={() => this.submitAdapterEdit(false)}>{t("general:Save")}</Button>
+          <Button style={{marginLeft: "20px"}} type="primary" size="large" onClick={() => this.submitAdapterEdit(true)}>{t("general:Save & Exit")}</Button>
+          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} size="large" onClick={() => this.deleteAdapter()}>{t("general:Cancel")}</Button> : null}
         </div>
       </div>
     );

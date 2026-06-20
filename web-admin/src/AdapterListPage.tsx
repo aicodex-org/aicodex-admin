@@ -15,6 +15,7 @@
 import React from "react";
 import {Link} from "react-router-dom";
 import {Button, Switch, Table} from "antd";
+import type {TableProps} from "antd";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as AdapterBackend from "./backend/AdapterBackend";
@@ -22,8 +23,100 @@ import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
 
+type Account = {
+  owner: string;
+  tag: string;
+  isAdmin?: boolean;
+};
+
+type HistoryLike = {
+  push: (location: string | {pathname: string; mode?: string}) => void;
+};
+
+type AdapterListPageProps = {
+  account: Account;
+  history: HistoryLike;
+  match?: {
+    path?: string;
+    params?: {
+      organizationName?: string;
+    };
+  };
+};
+
+type AdapterRecord = {
+  owner: string;
+  name: string;
+  createdTime?: string;
+  table: string;
+  useSameDb: boolean;
+  type?: string;
+  databaseType?: string;
+  host?: string;
+  port?: number;
+  user?: string;
+  password?: string;
+  database?: string;
+  [key: string]: unknown;
+};
+
+type TablePagination = {
+  current: number;
+  pageSize: number;
+  total?: number;
+};
+
+type FetchParams = {
+  pagination: TablePagination;
+  searchedColumn?: string;
+  searchText?: string;
+  sortField?: string;
+  sortOrder?: string;
+  type?: string;
+};
+
+type AdapterListResponse = {
+  status: string;
+  msg?: string;
+  data: AdapterRecord[];
+  data2: number;
+};
+
+type MutationResponse = {
+  status: string;
+  msg?: string;
+};
+
+type AdapterBackendApi = {
+  getAdapters: (
+    owner: string,
+    page: number,
+    pageSize: number,
+    field?: string,
+    value?: string,
+    sortField?: string,
+    sortOrder?: string
+  ) => Promise<AdapterListResponse>;
+  addAdapter: (adapter: AdapterRecord) => Promise<MutationResponse>;
+  deleteAdapter: (adapter: AdapterRecord) => Promise<MutationResponse>;
+};
+
+type LegacyTableColumn = {
+  title: React.ReactNode;
+  dataIndex?: string;
+  key?: string;
+  width?: string;
+  fixed?: "left" | "right" | boolean | string;
+  sorter?: boolean | ((a: AdapterRecord, b: AdapterRecord) => number);
+  render?: (text: unknown, record: AdapterRecord, index: number) => React.ReactNode;
+  [key: string]: unknown;
+};
+
+const adapterBackend = AdapterBackend as unknown as AdapterBackendApi;
+const t = (key: string): string => i18next.t(key) as string;
+
 class AdapterListPage extends BaseListPage {
-  newAdapter() {
+  newAdapter(): AdapterRecord {
     const randomName = Setting.getRandomName();
     const owner = Setting.getRequestOrganization(this.props.account);
     return {
@@ -35,27 +128,27 @@ class AdapterListPage extends BaseListPage {
     };
   }
 
-  addAdapter() {
+  addAdapter(): void {
     const newAdapter = this.newAdapter();
-    AdapterBackend.addAdapter(newAdapter)
-      .then((res) => {
+    adapterBackend.addAdapter(newAdapter)
+      .then((res: MutationResponse) => {
         if (res.status === "ok") {
           this.props.history.push({pathname: `/adapters/${newAdapter.owner}/${newAdapter.name}`, mode: "add"});
-          Setting.showMessage("success", i18next.t("general:Successfully added"));
+          Setting.showMessage("success", t("general:Successfully added"));
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to add")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
         }
       })
-      .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      .catch((error: unknown) => {
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  deleteAdapter(i) {
-    AdapterBackend.deleteAdapter(this.state.data[i])
-      .then((res) => {
+  deleteAdapter(i: number): void {
+    adapterBackend.deleteAdapter(this.state.data[i] as AdapterRecord)
+      .then((res: MutationResponse) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully deleted"));
+          Setting.showMessage("success", t("general:Successfully deleted"));
           this.fetch({
             pagination: {
               ...this.state.pagination,
@@ -63,78 +156,80 @@ class AdapterListPage extends BaseListPage {
             },
           });
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
         }
       })
-      .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      .catch((error: unknown) => {
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  renderTable(adapters) {
-    const columns = [
+  renderTable(adapters: AdapterRecord[]): React.ReactElement {
+    const columns: LegacyTableColumn[] = [
       {
-        title: i18next.t("general:Name"),
+        title: t("general:Name"),
         dataIndex: "name",
         key: "name",
         width: "150px",
         fixed: "left",
         sorter: true,
         ...this.getColumnSearchProps("name"),
-        render: (text, record, index) => {
+        render: (text: unknown, record: AdapterRecord) => {
+          const adapterName = String(text);
           return (
-            <Link to={`/adapters/${record.owner}/${text}`}>
-              {text}
+            <Link to={`/adapters/${record.owner}/${adapterName}`}>
+              {adapterName}
             </Link>
           );
         },
       },
       {
-        title: i18next.t("general:Organization"),
+        title: t("general:Organization"),
         dataIndex: "owner",
         key: "owner",
         width: "120px",
         sorter: true,
         ...this.getColumnSearchProps("owner"),
-        render: (text, record, index) => {
+        render: (text: unknown) => {
+          const owner = String(text);
           return (
-            <Link to={`/organizations/${text}`}>
-              {text}
+            <Link to={`/organizations/${owner}`}>
+              {owner}
             </Link>
           );
         },
       },
       {
-        title: i18next.t("general:Created time"),
+        title: t("general:Created time"),
         dataIndex: "createdTime",
         key: "createdTime",
         width: "160px",
         sorter: true,
-        render: (text, record, index) => {
-          return Setting.getFormattedDate(text);
+        render: (text: unknown) => {
+          return Setting.getFormattedDate(String(text));
         },
       },
       {
-        title: i18next.t("syncer:Table"),
+        title: t("syncer:Table"),
         dataIndex: "table",
         key: "table",
         width: "120px",
         sorter: true,
       },
       {
-        title: i18next.t("adapter:Use same DB"),
+        title: t("adapter:Use same DB"),
         dataIndex: "useSameDb",
         key: "useSameDb",
         width: "120px",
         sorter: true,
-        render: (text, record, index) => {
+        render: (text: unknown) => {
           return (
-            <Switch disabled checkedChildren={i18next.t("general:ON")} unCheckedChildren={i18next.t("general:OFF")} checked={text} />
+            <Switch disabled checkedChildren={t("general:ON")} unCheckedChildren={t("general:OFF")} checked={Boolean(text)} />
           );
         },
       },
       {
-        title: i18next.t("general:Type"),
+        title: t("general:Type"),
         dataIndex: "type",
         key: "type",
         width: "100px",
@@ -145,14 +240,14 @@ class AdapterListPage extends BaseListPage {
         ],
       },
       {
-        title: i18next.t("syncer:Database type"),
+        title: t("syncer:Database type"),
         dataIndex: "databaseType",
         key: "databaseType",
         width: "120px",
-        sorter: (a, b) => a.databaseType.localeCompare(b.databaseType),
+        sorter: (a: AdapterRecord, b: AdapterRecord) => String(a.databaseType || "").localeCompare(String(b.databaseType || "")),
       },
       {
-        title: i18next.t("provider:Host"),
+        title: t("provider:Host"),
         dataIndex: "host",
         key: "host",
         width: "120px",
@@ -160,21 +255,21 @@ class AdapterListPage extends BaseListPage {
         ...this.getColumnSearchProps("host"),
       },
       {
-        title: i18next.t("provider:Port"),
+        title: t("provider:Port"),
         dataIndex: "port",
         key: "port",
         width: "100px",
         sorter: true,
         ...this.getColumnSearchProps("port"),
-        render: (text, record, index) => {
+        render: (text: unknown) => {
           if (text === 0) {
             return "";
           }
-          return text;
+          return text as React.ReactNode;
         },
       },
       {
-        title: i18next.t("general:User"),
+        title: t("general:User"),
         dataIndex: "user",
         key: "user",
         width: "120px",
@@ -182,7 +277,7 @@ class AdapterListPage extends BaseListPage {
         ...this.getColumnSearchProps("user"),
       },
       {
-        title: i18next.t("general:Password"),
+        title: t("general:Password"),
         dataIndex: "password",
         key: "password",
         width: "120px",
@@ -190,25 +285,25 @@ class AdapterListPage extends BaseListPage {
         ...this.getColumnSearchProps("password"),
       },
       {
-        title: i18next.t("syncer:Database"),
+        title: t("syncer:Database"),
         dataIndex: "database",
         key: "database",
         width: "120px",
         sorter: true,
       },
       {
-        title: i18next.t("general:Action"),
+        title: t("general:Action"),
         dataIndex: "",
         key: "op",
         width: "170px",
         fixed: (Setting.isMobile()) ? "false" : "right",
-        render: (text, record, index) => {
+        render: (_text: unknown, record: AdapterRecord, index: number) => {
           return (
             <div>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/adapters/${record.owner}/${record.name}`)}>{i18next.t("general:Edit")}</Button>
+              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/adapters/${record.owner}/${record.name}`)}>{t("general:Edit")}</Button>
               <PopconfirmModal
                 disabled={Setting.builtInObject(record)}
-                title={i18next.t("general:Sure to delete") + `: ${record.name} ?`}
+                title={t("general:Sure to delete") + `: ${record.name} ?`}
                 onConfirm={() => this.deleteAdapter(index)}
               >
               </PopconfirmModal>
@@ -222,11 +317,11 @@ class AdapterListPage extends BaseListPage {
 
     return (
       <div>
-        <Table scroll={{x: "max-content"}} columns={columns} dataSource={adapters} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
+        <Table<AdapterRecord> scroll={{x: "max-content"}} columns={columns as TableProps<AdapterRecord>["columns"]} dataSource={adapters} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
           title={() => (
             <div>
-              {i18next.t("general:Adapters")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button type="primary" size="small" onClick={this.addAdapter.bind(this)}>{i18next.t("general:Add")}</Button>
+              {t("general:Adapters")}&nbsp;&nbsp;&nbsp;&nbsp;
+              <Button type="primary" size="small" onClick={this.addAdapter.bind(this)}>{t("general:Add")}</Button>
             </div>
           )}
           loading={this.state.loading}
@@ -236,7 +331,7 @@ class AdapterListPage extends BaseListPage {
     );
   }
 
-  fetch = (params = {}) => {
+  fetch = (params = {} as FetchParams): void => {
     let field = params.searchedColumn, value = params.searchText;
     const sortField = params.sortField, sortOrder = params.sortOrder;
     if (params.type !== undefined && params.type !== null) {
@@ -244,8 +339,8 @@ class AdapterListPage extends BaseListPage {
       value = params.type;
     }
     this.setState({loading: true});
-    AdapterBackend.getAdapters(Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
-      .then((res) => {
+    adapterBackend.getAdapters(Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
+      .then((res: AdapterListResponse) => {
         this.setState({
           loading: false,
         });
