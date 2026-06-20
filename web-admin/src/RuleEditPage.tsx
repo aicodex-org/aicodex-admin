@@ -26,8 +26,62 @@ import * as OrganizationBackend from "./backend/OrganizationBackend";
 
 const {Option} = Select;
 
-class RuleEditPage extends React.Component {
-  constructor(props) {
+interface RouteParams {
+  organizationName: string;
+  ruleName: string;
+}
+
+interface RuleEditPageProps {
+  account: Record<string, unknown>;
+  history: {
+    push: (path: string) => void;
+  };
+  match: {
+    params: RouteParams;
+  };
+}
+
+interface RuleExpression {
+  [key: string]: unknown;
+}
+
+interface RuleRecord {
+  owner: string;
+  name: string;
+  type: string;
+  expressions: RuleExpression[];
+  action: string;
+  statusCode: number | string | null;
+  reason: string;
+  isVerbose: boolean;
+  [key: string]: unknown;
+}
+
+interface OrganizationRecord {
+  name: string;
+  [key: string]: unknown;
+}
+
+interface BackendResponse<T> {
+  status?: string;
+  msg?: string;
+  data?: T;
+}
+
+interface RuleEditPageState {
+  classes: RuleEditPageProps;
+  owner: string;
+  ruleName: string;
+  rule: RuleRecord | null;
+  organizations: OrganizationRecord[];
+}
+
+function t(key: string): string {
+  return String(i18next.t(key));
+}
+
+class RuleEditPage extends React.Component<RuleEditPageProps, RuleEditPageState> {
+  constructor(props: RuleEditPageProps) {
     super(props);
     this.state = {
       classes: props,
@@ -38,21 +92,21 @@ class RuleEditPage extends React.Component {
     };
   }
 
-  UNSAFE_componentWillMount() {
+  UNSAFE_componentWillMount(): void {
     this.getRule();
     this.getOrganizations();
   }
 
-  getRule() {
-    RuleBackend.getRule(this.state.owner, this.state.ruleName).then((res) => {
+  getRule(): void {
+    RuleBackend.getRule(this.state.owner, this.state.ruleName).then((res: BackendResponse<RuleRecord>) => {
       this.setState({
-        rule: res.data,
+        rule: res.data ?? null,
       });
     });
   }
 
-  updateRuleField(key, value) {
-    const rule = Setting.deepCopy(this.state.rule);
+  updateRuleField(key: string, value: unknown): void {
+    const rule = Setting.deepCopy(this.state.rule) as RuleRecord;
     rule[key] = value;
     if (key === "type") {
       rule.expressions = [];
@@ -62,8 +116,8 @@ class RuleEditPage extends React.Component {
     });
   }
 
-  updateRuleFieldInExpressions(index, key, value) {
-    const rule = Setting.deepCopy(this.state.rule);
+  updateRuleFieldInExpressions(index: number, key: string, value: unknown): void {
+    const rule = Setting.deepCopy(this.state.rule) as RuleRecord;
     rule.expressions[index][key] = value;
     this.updateRuleField("expressions", rule.expressions);
     this.setState({
@@ -71,10 +125,10 @@ class RuleEditPage extends React.Component {
     });
   }
 
-  getOrganizations() {
+  getOrganizations(): void {
     if (Setting.isAdminUser(this.props.account)) {
       OrganizationBackend.getOrganizations("admin")
-        .then((res) => {
+        .then((res: BackendResponse<OrganizationRecord[]>) => {
           this.setState({
             organizations: res.data || [],
           });
@@ -82,22 +136,24 @@ class RuleEditPage extends React.Component {
     }
   }
 
-  renderRule() {
+  renderRule(): React.ReactNode {
+    const rule = this.state.rule as RuleRecord;
+
     return (
       <Card size="small" title={
         <div>
-          {i18next.t("rule:Edit Rule")}&nbsp;&nbsp;&nbsp;&nbsp;
-          <Button type="primary" onClick={this.submitRuleEdit.bind(this)}>{i18next.t("general:Save")}</Button>
+          {t("rule:Edit Rule")}&nbsp;&nbsp;&nbsp;&nbsp;
+          <Button type="primary" onClick={this.submitRuleEdit.bind(this)}>{t("general:Save")}</Button>
         </div>
       } style={{marginTop: 10}} type="inner">
         <Row style={{marginTop: "20px"}}>
           <Col span={2} style={{marginTop: "5px"}}>
-            {Setting.getLabel(i18next.t("general:Organization"), i18next.t("general:Organization - Tooltip"))} :
+            {Setting.getLabel(t("general:Organization"), t("general:Organization - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Select virtual={false} style={{width: "100%"}} disabled={!Setting.isAdminUser(this.props.account)} value={this.state.rule.owner} onChange={(value => {
+            <Select virtual={false} style={{width: "100%"}} disabled={!Setting.isAdminUser(this.props.account)} value={rule.owner} onChange={(value: string) => {
               this.updateRuleField("owner", value);
-            })}>
+            }}>
               {
                 this.state.organizations.map((organization, index) => <Option key={index} value={organization.name}>{organization.name}</Option>)
               }
@@ -106,20 +162,20 @@ class RuleEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}}>
           <Col span={2} style={{marginTop: "5px"}}>
-            {i18next.t("general:Name")}:
+            {t("general:Name")}:
           </Col>
           <Col span={22}>
-            <Input value={this.state.rule.name} onChange={e => {
+            <Input value={rule.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
               this.updateRuleField("name", e.target.value);
             }} />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}}>
           <Col span={2} style={{marginTop: "5px"}}>
-            {i18next.t("rule:Type")}:
+            {t("rule:Type")}:
           </Col>
           <Col span={22}>
-            <Select virtual={false} value={this.state.rule.type} style={{width: "100%"}} onChange={value => {
+            <Select virtual={false} value={rule.type} style={{width: "100%"}} onChange={(value: string) => {
               this.updateRuleField("type", value);
             }}>
               {
@@ -127,8 +183,8 @@ class RuleEditPage extends React.Component {
                   {value: "WAF", text: "WAF"},
                   {value: "IP", text: "IP"},
                   {value: "User-Agent", text: "User-Agent"},
-                  {value: "IP Rate Limiting", text: i18next.t("rule:IP Rate Limiting")},
-                  {value: "Compound", text: i18next.t("rule:Compound")},
+                  {value: "IP Rate Limiting", text: t("rule:IP Rate Limiting")},
+                  {value: "Compound", text: t("rule:Compound")},
                 ].map((item, index) => <Option key={index} value={item.value}>{item.text}</Option>)
               }
             </Select>
@@ -136,79 +192,79 @@ class RuleEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={2}>
-            {i18next.t("rule:Expressions")}:
+            {t("rule:Expressions")}:
           </Col>
           <Col span={22} >
             {
-              this.state.rule.type === "WAF" ? (
+              rule.type === "WAF" ? (
                 <WafRuleTable
                   title={"Seclang"}
-                  table={this.state.rule.expressions}
-                  ruleName={this.state.rule.name}
+                  table={rule.expressions}
+                  ruleName={rule.name}
                   account={this.props.account}
-                  onUpdateTable={(value) => {this.updateRuleField("expressions", value);}}
+                  onUpdateTable={(value: RuleExpression[]) => {this.updateRuleField("expressions", value);}}
                 />
               ) : null
             }
             {
-              this.state.rule.type === "IP" ? (
+              rule.type === "IP" ? (
                 <IpRuleTable
                   title={"IPs"}
-                  table={this.state.rule.expressions}
-                  ruleName={this.state.rule.name}
+                  table={rule.expressions}
+                  ruleName={rule.name}
                   account={this.props.account}
-                  onUpdateTable={(value) => {this.updateRuleField("expressions", value);}}
+                  onUpdateTable={(value: RuleExpression[]) => {this.updateRuleField("expressions", value);}}
                 />
               ) : null
             }
             {
-              this.state.rule.type === "User-Agent" ? (
+              rule.type === "User-Agent" ? (
                 <UaRuleTable
                   title={"User-Agents"}
-                  table={this.state.rule.expressions}
-                  ruleName={this.state.rule.name}
+                  table={rule.expressions}
+                  ruleName={rule.name}
                   account={this.props.account}
-                  onUpdateTable={(value) => {this.updateRuleField("expressions", value);}}
+                  onUpdateTable={(value: RuleExpression[]) => {this.updateRuleField("expressions", value);}}
                 />
               ) : null
             }
             {
-              this.state.rule.type === "IP Rate Limiting" ? (
+              rule.type === "IP Rate Limiting" ? (
                 <IpRateRuleTable
-                  title={i18next.t("rule:IP Rate Limiting")}
-                  table={this.state.rule.expressions}
-                  ruleName={this.state.rule.name}
+                  title={t("rule:IP Rate Limiting")}
+                  table={rule.expressions}
+                  ruleName={rule.name}
                   account={this.props.account}
-                  onUpdateTable={(value) => {this.updateRuleField("expressions", value);}}
+                  onUpdateTable={(value: RuleExpression[]) => {this.updateRuleField("expressions", value);}}
                 />
               ) : null
             }
             {
-              this.state.rule.type === "Compound" ? (
+              rule.type === "Compound" ? (
                 <CompoundRule
-                  title={i18next.t("rule:Compound")}
-                  table={this.state.rule.expressions}
-                  ruleName={this.state.rule.name}
+                  title={t("rule:Compound")}
+                  table={rule.expressions}
+                  ruleName={rule.name}
                   owner={this.state.owner}
-                  onUpdateTable={(value) => {this.updateRuleField("expressions", value);}} />
+                  onUpdateTable={(value: RuleExpression[]) => {this.updateRuleField("expressions", value);}} />
               ) : null
             }
           </Col>
         </Row>
         {
-          this.state.rule.type !== "WAF" && (
+          rule.type !== "WAF" && (
             <Row style={{marginTop: "20px"}}>
               <Col span={2} style={{marginTop: "5px"}}>
-                {i18next.t("general:Action")}:
+                {t("general:Action")}:
               </Col>
               <Col span={22}>
-                <Select virtual={false} value={this.state.rule.action} defaultValue={"Block"} style={{width: "100%"}} onChange={(value) => {
+                <Select virtual={false} value={rule.action} defaultValue={"Block"} style={{width: "100%"}} onChange={(value: string) => {
                   this.updateRuleField("action", value);
                 }}>
                   {
                     [
-                      {value: "Allow", text: i18next.t("rule:Allow")},
-                      {value: "Block", text: i18next.t("rule:Block")},
+                      {value: "Allow", text: t("rule:Allow")},
+                      {value: "Block", text: t("rule:Block")},
                     ].map((item, index) => <Option key={index} value={item.value}>{item.text}</Option>)
                   }
                 </Select>
@@ -217,14 +273,14 @@ class RuleEditPage extends React.Component {
           )
         }
         {
-          this.state.rule.type !== "WAF" && (this.state.rule.action === "Allow" || this.state.rule.action === "Block") && (
+          rule.type !== "WAF" && (rule.action === "Allow" || rule.action === "Block") && (
             <Row style={{marginTop: "20px"}}>
               <Col span={2} style={{marginTop: "5px"}}>
-                {i18next.t("rule:Status code")}:
+                {t("rule:Status code")}:
               </Col>
               <Col span={22}>
-                <InputNumber value={this.state.rule.statusCode} min={100} max={599} onChange={e => {
-                  this.updateRuleField("statusCode", e);
+                <InputNumber value={rule.statusCode} min={100} max={599} onChange={(value: number | string | null) => {
+                  this.updateRuleField("statusCode", value);
                 }} />
               </Col>
             </Row>
@@ -233,11 +289,11 @@ class RuleEditPage extends React.Component {
         {
           <Row style={{marginTop: "20px"}}>
             <Col span={2} style={{marginTop: "5px"}}>
-              {i18next.t("rule:Reason")}:
+              {t("rule:Reason")}:
             </Col>
             <Col span={22}>
-              <Input value={this.state.rule.reason}
-                onChange={e => {
+              <Input value={rule.reason}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                   this.updateRuleField("reason", e.target.value);
                 }} />
             </Col>
@@ -246,11 +302,11 @@ class RuleEditPage extends React.Component {
         {
           <Row style={{marginTop: "20px"}}>
             <Col span={2} style={{marginTop: "5px"}}>
-              {i18next.t("rule:Verbose mode")}:
+              {t("rule:Verbose mode")}:
             </Col>
             <Col span={22}>
-              <Switch checked={this.state.rule.isVerbose}
-                onChange={checked => {
+              <Switch checked={rule.isVerbose}
+                onChange={(checked: boolean) => {
                   this.updateRuleField("isVerbose", checked);
                 }} />
             </Col>
@@ -260,7 +316,7 @@ class RuleEditPage extends React.Component {
     );
   }
 
-  render() {
+  render(): React.ReactNode {
     return (
       <div>
         <Row style={{width: "100%"}}>
@@ -278,17 +334,17 @@ class RuleEditPage extends React.Component {
           <Col span={2}>
           </Col>
           <Col span={18}>
-            <Button type="primary" size="large" onClick={this.submitRuleEdit.bind(this)}>{i18next.t("general:Save")}</Button>
+            <Button type="primary" size="large" onClick={this.submitRuleEdit.bind(this)}>{t("general:Save")}</Button>
           </Col>
         </Row>
       </div>
     );
   }
 
-  submitRuleEdit() {
-    const rule = Setting.deepCopy(this.state.rule);
+  submitRuleEdit(): void {
+    const rule = Setting.deepCopy(this.state.rule) as RuleRecord;
     RuleBackend.updateRule(this.state.owner, this.state.ruleName, rule)
-      .then((res) => {
+      .then((res: BackendResponse<unknown>) => {
         if (res.status !== "error") {
           Setting.showMessage("success", "Rule updated successfully");
           this.setState({
@@ -297,9 +353,9 @@ class RuleEditPage extends React.Component {
         } else {
           Setting.showMessage("error", `Rule failed to update: ${res.msg}`);
           this.setState({
-            ruleName: this.state.rule.name,
+            ruleName: (this.state.rule as RuleRecord).name,
           });
-          this.props.history.push(`/rules/${this.state.rule.owner}/${this.state.rule.name}`);
+          this.props.history.push(`/rules/${(this.state.rule as RuleRecord).owner}/${(this.state.rule as RuleRecord).name}`);
           this.getRule();
         }
       });
