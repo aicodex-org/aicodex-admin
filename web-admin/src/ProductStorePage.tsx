@@ -20,11 +20,32 @@ import * as ProductBackend from "./backend/ProductBackend";
 import * as UserBackend from "./backend/UserBackend";
 import i18next from "i18next";
 import {FloatingCartButton, QuantityStepper} from "./common/product/CartControls";
+import type {LegacyAny} from "./types/legacyPage";
+import type {ProductCartItem, ProductRecord} from "./types/productCatalog";
 
 const {Text, Title} = Typography;
+const t = i18next.t.bind(i18next) as (key: string) => string;
+const productBackend = ProductBackend as LegacyAny;
+const userBackend = UserBackend as LegacyAny;
 
-class ProductStorePage extends React.Component {
-  constructor(props) {
+interface ProductStoreState {
+  products: ProductRecord[];
+  loading: boolean;
+  addingToCartProducts: string[];
+  productQuantities: Record<string, number>;
+  cartItemCount: number;
+}
+
+interface ProductStoreProps {
+  account?: LegacyAny;
+  history: {
+    push: (location: string) => void;
+  };
+  [key: string]: LegacyAny;
+}
+
+class ProductStorePage extends React.Component<ProductStoreProps, ProductStoreState> {
+  constructor(props: ProductStoreProps) {
     super(props);
     this.state = {
       products: [],
@@ -44,7 +65,7 @@ class ProductStorePage extends React.Component {
     this.getCartItemCount();
   }
 
-  componentDidUpdate(prevProps) {
+  componentDidUpdate(prevProps: ProductStoreProps) {
     if (!prevProps.account && this.props.account) {
       this.getProducts();
       this.getCartItemCount();
@@ -58,7 +79,7 @@ class ProductStorePage extends React.Component {
 
     const userOwner = this.props.account.owner;
     const userName = this.props.account.name;
-    UserBackend.getUser(userOwner, userName).then((res) => {
+    userBackend.getUser(userOwner, userName).then((res: LegacyAny) => {
       if (res.status === "ok" && res.data.cart) {
         this.setState({
           cartItemCount: res.data.cart.length,
@@ -67,7 +88,7 @@ class ProductStorePage extends React.Component {
     });
   }
 
-  updateProductQuantity(productName, value) {
+  updateProductQuantity(productName: string, value: number) {
     this.setState(prevState => ({
       productQuantities: {
         ...prevState.productQuantities,
@@ -81,11 +102,11 @@ class ProductStorePage extends React.Component {
       return;
     }
 
-    const pageSize = 100; // Max products to display in the store
+    const pageSize = 100; // 商品商店一次性最多展示的商品数量，保持旧页面行为。
     const owner = Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account);
     this.setState({loading: true});
-    ProductBackend.getProducts(owner, 1, pageSize, "state", "Published", "", "")
-      .then((res) => {
+    productBackend.getProducts(owner, 1, pageSize, "state", "Published", "", "")
+      .then((res: LegacyAny) => {
         if (res.status === "ok") {
           this.setState({
             products: res.data,
@@ -96,13 +117,13 @@ class ProductStorePage extends React.Component {
           this.setState({loading: false});
         }
       })
-      .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      .catch((error: LegacyAny) => {
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
         this.setState({loading: false});
       });
   }
 
-  addToCart(product) {
+  addToCart(product: ProductRecord) {
     if (this.state.addingToCartProducts.includes(product.name)) {
       return;
     }
@@ -112,28 +133,28 @@ class ProductStorePage extends React.Component {
     const userOwner = this.props.account.owner;
     const userName = this.props.account.name;
 
-    UserBackend.getUser(userOwner, userName)
-      .then((res) => {
+    userBackend.getUser(userOwner, userName)
+      .then((res: LegacyAny) => {
         if (res.status === "ok") {
           const user = res.data;
-          const cart = user.cart || [];
+          const cart = (user.cart || []) as ProductCartItem[];
 
           if (cart.length > 0) {
             const firstItem = cart[0];
             if (firstItem.currency && product.currency && firstItem.currency !== product.currency) {
-              Setting.showMessage("error", i18next.t("product:The currency of the product you are adding is different from the currency of the items in the cart"));
-              this.setState(prevState => ({addingToCartProducts: prevState.addingToCartProducts.filter(name => name !== product.name)}));
+              Setting.showMessage("error", t("product:The currency of the product you are adding is different from the currency of the items in the cart"));
+              this.setState(prevState => ({addingToCartProducts: prevState.addingToCartProducts.filter((name: string) => name !== product.name)}));
               return;
             }
           }
 
           if (product.isRecharge) {
-            Setting.showMessage("error", i18next.t("product:Recharge products need to go to the product detail page to set custom amount"));
-            this.setState(prevState => ({addingToCartProducts: prevState.addingToCartProducts.filter(name => name !== product.name)}));
+            Setting.showMessage("error", t("product:Recharge products need to go to the product detail page to set custom amount"));
+            this.setState(prevState => ({addingToCartProducts: prevState.addingToCartProducts.filter((name: string) => name !== product.name)}));
             return;
           }
 
-          const existingItemIndex = cart.findIndex(item => item.name === product.name);
+          const existingItemIndex = cart.findIndex((item: ProductCartItem) => item.name === product.name);
           const quantityToAdd = this.state.productQuantities[product.name] || 1;
 
           if (existingItemIndex !== -1) {
@@ -151,10 +172,10 @@ class ProductStorePage extends React.Component {
           }
 
           user.cart = cart;
-          UserBackend.updateUser(user.owner, user.name, user)
-            .then((res) => {
+          userBackend.updateUser(user.owner, user.name, user)
+            .then((res: LegacyAny) => {
               if (res.status === "ok") {
-                Setting.showMessage("success", i18next.t("general:Successfully added"));
+                Setting.showMessage("success", t("general:Successfully added"));
                 this.setState({
                   cartItemCount: cart.length,
                 });
@@ -162,29 +183,29 @@ class ProductStorePage extends React.Component {
                 Setting.showMessage("error", res.msg);
               }
             })
-            .catch(error => {
-              Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+            .catch((error: LegacyAny) => {
+              Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
             })
             .finally(() => {
-              this.setState(prevState => ({addingToCartProducts: prevState.addingToCartProducts.filter(name => name !== product.name)}));
+              this.setState(prevState => ({addingToCartProducts: prevState.addingToCartProducts.filter((name: string) => name !== product.name)}));
             });
         } else {
           Setting.showMessage("error", res.msg);
-          this.setState(prevState => ({addingToCartProducts: prevState.addingToCartProducts.filter(name => name !== product.name)}));
+          this.setState(prevState => ({addingToCartProducts: prevState.addingToCartProducts.filter((name: string) => name !== product.name)}));
         }
       })
-      .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
-        this.setState(prevState => ({addingToCartProducts: prevState.addingToCartProducts.filter(name => name !== product.name)}));
+      .catch((error: LegacyAny) => {
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
+        this.setState(prevState => ({addingToCartProducts: prevState.addingToCartProducts.filter((name: string) => name !== product.name)}));
       });
   }
 
-  handleBuyProduct(product) {
+  handleBuyProduct(product: ProductRecord) {
     const quantity = this.state.productQuantities[product.name] || 1;
     this.props.history.push(`/products/${product.owner}/${product.name}/buy?quantity=${quantity}`);
   }
 
-  renderProductCard(product) {
+  renderProductCard(product: ProductRecord) {
     const isAdding = this.state.addingToCartProducts.includes(product.name);
     const quantity = this.state.productQuantities[product.name] || 1;
 
@@ -212,7 +233,7 @@ class ProductStorePage extends React.Component {
                     min={1}
                     onIncrease={() => this.updateProductQuantity(product.name, quantity + 1)}
                     onDecrease={() => this.updateProductQuantity(product.name, Math.max(1, quantity - 1))}
-                    onChange={(val) => this.updateProductQuantity(product.name, val || 1)}
+                    onChange={(val) => this.updateProductQuantity(product.name, Number(val) || 1)}
                     disabled={isAdding}
                     style={{
                       height: "45px",
@@ -235,7 +256,7 @@ class ProductStorePage extends React.Component {
                     disabled={isAdding}
                     loading={isAdding}
                   >
-                    {i18next.t("product:Add to cart")}
+                    {t("product:Add to cart")}
                   </Button>
                 </>
               )}
@@ -252,7 +273,7 @@ class ProductStorePage extends React.Component {
                   fontSize: "16px",
                 }}
               >
-                {i18next.t("product:Buy")}
+                {t("product:Buy")}
               </Button>
             </div>,
           ]}
@@ -263,7 +284,7 @@ class ProductStorePage extends React.Component {
               {Setting.getLanguageText(product.displayName)}
             </Title>
             {product.detail && (
-              <Text type="secondary" style={{display: "block", marginBottom: 12, fontSize: "13px", lineHeight: "1.5"}} ellipsis={{rows: 2}}>
+              <Text type="secondary" style={{display: "block", marginBottom: 12, fontSize: "13px", lineHeight: "1.5"}} ellipsis={{rows: 2} as LegacyAny}>
                 {Setting.getLanguageText(product.detail)}
               </Text>
             )}
@@ -278,7 +299,7 @@ class ProductStorePage extends React.Component {
                   {product.rechargeOptions && product.rechargeOptions.length > 0 && (
                     <div style={{marginBottom: 8}}>
                       <Text type="secondary" style={{fontSize: "13px", display: "block", marginBottom: 4}}>
-                        {i18next.t("product:Recharge options")}:
+                        {t("product:Recharge options")}:
                       </Text>
                       <div style={{display: "flex", flexWrap: "wrap", gap: "4px", alignItems: "center"}}>
                         {product.rechargeOptions.map((amount, index) => (
@@ -295,7 +316,7 @@ class ProductStorePage extends React.Component {
                   {product.disableCustomRecharge !== true && (
                     <div style={{marginBottom: 8}}>
                       <Text strong style={{fontSize: "16px", color: "#1890ff"}}>
-                        {i18next.t("product:Custom amount available")}
+                        {t("product:Custom amount available")}
                       </Text>
                       {(!product.rechargeOptions || product.rechargeOptions.length === 0) && (
                         <Text type="secondary" style={{fontSize: "13px", marginLeft: 8}}>
@@ -307,7 +328,7 @@ class ProductStorePage extends React.Component {
                   {(!product.rechargeOptions || product.rechargeOptions.length === 0) && product.disableCustomRecharge === true && (
                     <div style={{marginBottom: 8}}>
                       <Text type="secondary" style={{fontSize: "13px", display: "block", marginBottom: 4}}>
-                        {i18next.t("product:No recharge options available")}
+                        {t("product:No recharge options available")}
                       </Text>
                       <Text type="secondary" style={{fontSize: "13px"}}>
                         {Setting.getCurrencyWithFlag(product.currency)}
@@ -327,7 +348,7 @@ class ProductStorePage extends React.Component {
                   </div>
                   <div>
                     <Text type="secondary" style={{fontSize: "13px"}}>
-                      {i18next.t("product:Sold")}: {product.sold}
+                      {t("product:Sold")}: {product.sold}
                     </Text>
                   </div>
                 </>
@@ -354,11 +375,11 @@ class ProductStorePage extends React.Component {
           ) : this.state.products.length === 0 ? (
             <Col span={24}>
               <Card>
-                <Text type="secondary">{i18next.t("general:No products available")}</Text>
+                <Text type="secondary">{t("general:No products available")}</Text>
               </Card>
             </Col>
           ) : (
-            this.state.products.map(product => this.renderProductCard(product))
+            this.state.products.map((product: ProductRecord) => this.renderProductCard(product))
           )}
         </Row>
       </div>

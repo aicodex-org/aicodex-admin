@@ -15,8 +15,26 @@
 import React from "react";
 import {Badge, Button, InputNumber} from "antd";
 import {MinusOutlined, PlusOutlined, ShoppingCartOutlined} from "@ant-design/icons";
+import type {LegacyAny} from "../../types/legacyPage";
 
-export class QuantityStepper extends React.Component {
+interface QuantityStepperProps {
+  value?: number | string | null;
+  onIncrease?: React.MouseEventHandler<HTMLElement>;
+  onDecrease?: React.MouseEventHandler<HTMLElement>;
+  onChange?: (value: number | string | null) => void;
+  min?: number;
+  max?: number;
+  disabled?: boolean;
+  style?: React.CSSProperties;
+}
+
+interface FloatingCartButtonProps {
+  itemCount?: number;
+  onClick?: React.MouseEventHandler<HTMLDivElement>;
+}
+
+// 商品商店和购买页共用的数量控件；保持 props 可选以兼容 legacy JS 调用方。
+export class QuantityStepper extends React.Component<QuantityStepperProps> {
   render() {
     const {value, onIncrease, onDecrease, onChange, min = 1, max, disabled} = this.props;
 
@@ -38,7 +56,7 @@ export class QuantityStepper extends React.Component {
           min={min}
           max={max}
           value={normalizedValue}
-          onChange={onChange}
+          onChange={onChange as LegacyAny}
           controls={false}
           disabled={disabled}
           style={{
@@ -66,7 +84,8 @@ export class QuantityStepper extends React.Component {
   }
 }
 
-export class FloatingCartButton extends React.Component {
+// 固定购物车入口仍由调用页决定跳转目标，本控件只展示数量和转发点击事件。
+export class FloatingCartButton extends React.Component<FloatingCartButtonProps> {
   render() {
     const {itemCount, onClick} = this.props;
 

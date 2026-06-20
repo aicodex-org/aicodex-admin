@@ -23,6 +23,30 @@ import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import {EditOutlined} from "@ant-design/icons";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
+import type {AdminRouteProps, LegacyAny} from "./types/legacyPage";
+import {legacyColumns} from "./types/legacyPage";
+import type {ProductRecord} from "./types/productCatalog";
+
+const t = i18next.t.bind(i18next) as (key: string) => string;
+const productBackend = ProductBackend as LegacyAny;
+
+// BaseListPage 仍是 legacy JS 类；这里用 interface merge 补齐本页实际使用的基类 props/state/helper。
+interface ProductListPage {
+  props: AdminRouteProps;
+  state: LegacyAny;
+  getColumnSearchProps: (dataIndex: string, customRender?: LegacyAny) => LegacyAny;
+  getTablePaginationProps: () => LegacyAny;
+  handleTableChange: LegacyAny;
+}
+
+interface ProductListFetchParams {
+  pagination?: LegacyAny;
+  searchedColumn?: string;
+  searchText?: string;
+  sortField?: string;
+  sortOrder?: string;
+  type?: string;
+}
 
 class ProductListPage extends BaseListPage {
   newProduct() {
@@ -47,25 +71,25 @@ class ProductListPage extends BaseListPage {
 
   addProduct() {
     const newProduct = this.newProduct();
-    ProductBackend.addProduct(newProduct)
-      .then((res) => {
+    productBackend.addProduct(newProduct)
+      .then((res: LegacyAny) => {
         if (res.status === "ok") {
           this.props.history.push({pathname: `/products/${newProduct.owner}/${newProduct.name}`, mode: "add"});
-          Setting.showMessage("success", i18next.t("general:Successfully added"));
+          Setting.showMessage("success", t("general:Successfully added"));
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to add")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
         }
       })
-      .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      .catch((error: LegacyAny) => {
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  deleteProduct(i) {
-    ProductBackend.deleteProduct(this.state.data[i])
-      .then((res) => {
+  deleteProduct(i: number) {
+    productBackend.deleteProduct(this.state.data[i])
+      .then((res: LegacyAny) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully deleted"));
+          Setting.showMessage("success", t("general:Successfully deleted"));
           this.fetch({
             pagination: {
               ...this.state.pagination,
@@ -73,25 +97,25 @@ class ProductListPage extends BaseListPage {
             },
           });
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
         }
       })
-      .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      .catch((error: LegacyAny) => {
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  renderTable(products) {
-    const columns = [
+  renderTable(products: ProductRecord[]) {
+    const columns = legacyColumns<ProductRecord>([
       {
-        title: i18next.t("general:Name"),
+        title: t("general:Name"),
         dataIndex: "name",
         key: "name",
         width: "140px",
         fixed: "left",
         sorter: true,
         ...this.getColumnSearchProps("name"),
-        render: (text, record, index) => {
+        render: (text: string, record: ProductRecord) => {
           return (
             <Link to={`/products/${record.owner}/${text}`}>
               {text}
@@ -100,13 +124,13 @@ class ProductListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Organization"),
+        title: t("general:Organization"),
         dataIndex: "owner",
         key: "owner",
         width: "150px",
         sorter: true,
         ...this.getColumnSearchProps("owner"),
-        render: (text, record, index) => {
+        render: (text: string) => {
           return (
             <Link to={`/organizations/${text}`}>
               {text}
@@ -115,17 +139,17 @@ class ProductListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Created time"),
+        title: t("general:Created time"),
         dataIndex: "createdTime",
         key: "createdTime",
         width: "160px",
         sorter: true,
-        render: (text, record, index) => {
+        render: (text: string) => {
           return Setting.getFormattedDate(text);
         },
       },
       {
-        title: i18next.t("general:Display name"),
+        title: t("general:Display name"),
         dataIndex: "displayName",
         key: "displayName",
         width: "170px",
@@ -133,11 +157,11 @@ class ProductListPage extends BaseListPage {
         ...this.getColumnSearchProps("displayName"),
       },
       {
-        title: i18next.t("product:Image"),
+        title: t("product:Image"),
         dataIndex: "image",
         key: "image",
         width: "170px",
-        render: (text, record, index) => {
+        render: (text: string) => {
           return (
             <a target="_blank" rel="noreferrer" href={text}>
               <img src={text} alt={text} width={150} />
@@ -146,7 +170,7 @@ class ProductListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("user:Tag"),
+        title: t("user:Tag"),
         dataIndex: "tag",
         key: "tag",
         width: "160px",
@@ -154,18 +178,18 @@ class ProductListPage extends BaseListPage {
         ...this.getColumnSearchProps("tag"),
       },
       {
-        title: i18next.t("order:Price"),
+        title: t("order:Price"),
         dataIndex: "price",
         key: "price",
         width: "160px",
         sorter: true,
         ...this.getColumnSearchProps("price"),
-        render: (text, record, index) => {
+        render: (_text: LegacyAny, record: ProductRecord) => {
           return Setting.getPriceDisplay(record.price, record.currency);
         },
       },
       {
-        title: i18next.t("product:Quantity"),
+        title: t("product:Quantity"),
         dataIndex: "quantity",
         key: "quantity",
         width: "120px",
@@ -173,7 +197,7 @@ class ProductListPage extends BaseListPage {
         ...this.getColumnSearchProps("quantity"),
       },
       {
-        title: i18next.t("product:Sold"),
+        title: t("product:Sold"),
         dataIndex: "sold",
         key: "sold",
         width: "120px",
@@ -181,7 +205,7 @@ class ProductListPage extends BaseListPage {
         ...this.getColumnSearchProps("sold"),
       },
       {
-        title: i18next.t("general:State"),
+        title: t("general:State"),
         dataIndex: "state",
         key: "state",
         width: "120px",
@@ -189,27 +213,27 @@ class ProductListPage extends BaseListPage {
         ...this.getColumnSearchProps("state"),
       },
       {
-        title: i18next.t("product:Payment providers"),
+        title: t("product:Payment providers"),
         dataIndex: "providers",
         key: "providers",
         width: "500px",
         ...this.getColumnSearchProps("providers"),
-        render: (text, record, index) => {
+        render: (text: string[], record: ProductRecord) => {
           const providerOwner = record.owner;
           const providers = text;
           if (providers.length === 0) {
-            return `(${i18next.t("general:empty")})`;
+            return `(${t("general:empty")})`;
           }
 
           const half = Math.floor((providers.length + 1) / 2);
 
-          const getList = (providers) => {
+          const getList = (providers: string[]) => {
             return (
               <List
                 size="small"
                 locale={{emptyText: " "}}
                 dataSource={providers}
-                renderItem={(providerName, record, i) => {
+                renderItem={(providerName: string) => {
                   return (
                     <List.Item>
                       <div style={{display: "inline"}}>
@@ -246,21 +270,21 @@ class ProductListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Action"),
+        title: t("general:Action"),
         dataIndex: "",
         key: "op",
         width: "230px",
         fixed: (Setting.isMobile()) ? "false" : "right",
-        render: (text, record, index) => {
+        render: (_text: LegacyAny, record: ProductRecord, index: number) => {
           const isCreatedByPlan = record.tag === "auto_created_product_for_plan";
           const isAdmin = Setting.isLocalAdminUser(this.props.account);
           return (
             <div>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} onClick={() => this.props.history.push(`/products/${record.owner}/${record.name}/buy`)}>{i18next.t("product:Buy")}</Button>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push({pathname: `/products/${record.owner}/${record.name}`, mode: isAdmin ? "edit" : "view"})}>{isAdmin ? i18next.t("general:Edit") : i18next.t("general:View")}</Button>
+              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} onClick={() => this.props.history.push(`/products/${record.owner}/${record.name}/buy`)}>{t("product:Buy")}</Button>
+              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push({pathname: `/products/${record.owner}/${record.name}`, mode: isAdmin ? "edit" : "view"})}>{isAdmin ? t("general:Edit") : t("general:View")}</Button>
               <PopconfirmModal
                 disabled={isCreatedByPlan || !isAdmin}
-                title={i18next.t("general:Sure to delete") + `: ${record.name} ?`}
+                title={t("general:Sure to delete") + `: ${record.name} ?`}
                 onConfirm={() => this.deleteProduct(index)}
               >
               </PopconfirmModal>
@@ -268,19 +292,19 @@ class ProductListPage extends BaseListPage {
           );
         },
       },
-    ];
+    ]);
 
     const paginationProps = this.getTablePaginationProps();
 
     return (
       <div>
-        <Table scroll={{x: "max-content"}} columns={columns} dataSource={products} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
+        <Table scroll={{x: "max-content"}} columns={columns as LegacyAny} dataSource={products} rowKey={(record: ProductRecord) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
           title={() => {
             const isAdmin = Setting.isLocalAdminUser(this.props.account);
             return (
               <div>
-                {i18next.t("general:Products")}&nbsp;&nbsp;&nbsp;&nbsp;
-                <Button type="primary" size="small" disabled={!isAdmin} onClick={this.addProduct.bind(this)}>{i18next.t("general:Add")}</Button>
+                {t("general:Products")}&nbsp;&nbsp;&nbsp;&nbsp;
+                <Button type="primary" size="small" disabled={!isAdmin} onClick={this.addProduct.bind(this)}>{t("general:Add")}</Button>
               </div>
             );
           }}
@@ -291,7 +315,7 @@ class ProductListPage extends BaseListPage {
     );
   }
 
-  fetch = (params = {}) => {
+  fetch = (params: ProductListFetchParams = {}) => {
     let field = params.searchedColumn, value = params.searchText;
     const sortField = params.sortField, sortOrder = params.sortOrder;
     if (params.type !== undefined && params.type !== null) {
@@ -299,8 +323,9 @@ class ProductListPage extends BaseListPage {
       value = params.type;
     }
     this.setState({loading: true});
-    ProductBackend.getProducts(Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
-      .then((res) => {
+    const pagination = params.pagination || this.state.pagination;
+    productBackend.getProducts(Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), pagination.current, pagination.pageSize, field, value, sortField, sortOrder)
+      .then((res: LegacyAny) => {
         this.setState({
           loading: false,
         });
@@ -308,7 +333,7 @@ class ProductListPage extends BaseListPage {
           this.setState({
             data: res.data,
             pagination: {
-              ...params.pagination,
+              ...pagination,
               total: res.data2,
             },
             searchText: params.searchText,
