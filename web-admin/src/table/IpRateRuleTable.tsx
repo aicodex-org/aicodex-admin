@@ -14,10 +14,30 @@
 
 import React from "react";
 import {Button, Col, Input, InputNumber, Row, Table} from "antd";
+import type {TableProps} from "antd";
 import i18next from "i18next";
+import type {RuleExpressionRow, RuleExpressionTablePassthroughProps} from "./ruleExpressionRow";
+import {getRuleExpressionText} from "./ruleExpressionRow";
 
-class IpRateRuleTable extends React.Component {
-  constructor(props) {
+const t = (key: string): string => String(i18next.t(key));
+
+interface IpRateRuleTableProps extends RuleExpressionTablePassthroughProps {
+  title: React.ReactNode;
+  table: RuleExpressionRow[];
+  onUpdateTable: (table: RuleExpressionRow[]) => void;
+}
+
+interface IpRateRuleTableState {
+  classes: IpRateRuleTableProps;
+  defaultRules: RuleExpressionRow[];
+}
+
+type NumericInputValue = string | number | null;
+type RuleTableColumns = NonNullable<TableProps<RuleExpressionRow>["columns"]>;
+type RuleExpressionField = keyof Pick<RuleExpressionRow, "name" | "operator" | "value">;
+
+class IpRateRuleTable extends React.Component<IpRateRuleTableProps, IpRateRuleTableState> {
+  constructor(props: IpRateRuleTableProps) {
     super(props);
     this.state = {
       classes: props,
@@ -34,11 +54,11 @@ class IpRateRuleTable extends React.Component {
     }
   }
 
-  updateTable(table) {
+  updateTable(table: RuleExpressionRow[]) {
     this.props.onUpdateTable(table);
   }
 
-  updateField(table, index, key, value) {
+  updateField(table: RuleExpressionRow[], index: number, key: RuleExpressionField, value: NumericInputValue) {
     table[index][key] = String(value);
     this.updateTable(table);
   }
@@ -47,38 +67,38 @@ class IpRateRuleTable extends React.Component {
     this.updateTable(this.state.defaultRules);
   }
 
-  renderTable(table) {
-    const columns = [
+  renderTable(table: RuleExpressionRow[]) {
+    const columns: RuleTableColumns = [
       {
-        title: i18next.t("general:Name"),
+        title: t("general:Name"),
         dataIndex: "name",
         key: "name",
         width: "20%",
-        render: (text, record, index) => (
-          <Input value={record.name} onChange={e => {
+        render: (_text: unknown, record: RuleExpressionRow, index: number) => (
+          <Input value={getRuleExpressionText(record.name)} onChange={e => {
             this.updateField(table, index, "name", e.target.value);
           }} />
         ),
       },
       {
-        title: i18next.t("rule:Rate"),
+        title: t("rule:Rate"),
         dataIndex: "operator",
         key: "operator",
         width: "40%",
-        render: (text, record, index) => (
-          <InputNumber style={{"width": "100%"}} value={Number(record.operator)} addonAfter="requests / ip / s" onChange={e => {
-            this.updateField(table, index, "operator", e);
+        render: (_text: unknown, record: RuleExpressionRow, index: number) => (
+          <InputNumber style={{"width": "100%"}} value={Number(getRuleExpressionText(record.operator))} addonAfter="requests / ip / s" onChange={value => {
+            this.updateField(table, index, "operator", value);
           }} />
         ),
       },
       {
-        title: i18next.t("rule:Block Duration"),
+        title: t("rule:Block Duration"),
         dataIndex: "value",
         key: "value",
         width: "100%",
-        render: (text, record, index) => (
-          <InputNumber style={{"width": "100%"}} value={Number(record.value)} addonAfter={i18next.t("usage:seconds")} onChange={e => {
-            this.updateField(table, index, "value", e);
+        render: (_text: unknown, record: RuleExpressionRow, index: number) => (
+          <InputNumber style={{"width": "100%"}} value={Number(getRuleExpressionText(record.value))} addonAfter={t("usage:seconds")} onChange={value => {
+            this.updateField(table, index, "value", value);
           }} />
         ),
       },
@@ -89,7 +109,7 @@ class IpRateRuleTable extends React.Component {
         title={() => (
           <div>
             {this.props.title}&nbsp;&nbsp;&nbsp;&nbsp;
-            <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={() => this.restore()}>{i18next.t("general:Restore")}</Button>
+            <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={() => this.restore()}>{t("general:Restore")}</Button>
           </div>
         )}
       />

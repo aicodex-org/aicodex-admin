@@ -15,11 +15,30 @@
 import React from "react";
 import {DeleteOutlined, DownOutlined, UpOutlined} from "@ant-design/icons";
 import {Button, Col, Input, Row, Table, Tooltip} from "antd";
+import type {TableProps} from "antd";
 import * as Setting from "../Setting";
 import i18next from "i18next";
+import type {RuleExpressionRow, RuleExpressionTablePassthroughProps} from "./ruleExpressionRow";
+import {getRuleExpressionText} from "./ruleExpressionRow";
 
-class WafRuleTable extends React.Component {
-  constructor(props) {
+const t = (key: string): string => String(i18next.t(key));
+
+interface WafRuleTableProps extends RuleExpressionTablePassthroughProps {
+  title: React.ReactNode;
+  table: RuleExpressionRow[];
+  onUpdateTable: (table: RuleExpressionRow[]) => void;
+}
+
+interface WafRuleTableState {
+  classes: WafRuleTableProps;
+  defaultRules: RuleExpressionRow[];
+}
+
+type RuleTableColumns = NonNullable<TableProps<RuleExpressionRow>["columns"]>;
+type RuleExpressionField = keyof Pick<RuleExpressionRow, "name" | "operator" | "value">;
+
+class WafRuleTable extends React.Component<WafRuleTableProps, WafRuleTableState> {
+  constructor(props: WafRuleTableProps) {
     super(props);
     this.state = {
       classes: props,
@@ -46,17 +65,17 @@ class WafRuleTable extends React.Component {
     }
   }
 
-  updateTable(table) {
+  updateTable(table: RuleExpressionRow[]) {
     this.props.onUpdateTable(table);
   }
 
-  updateField(table, index, key, value) {
+  updateField(table: RuleExpressionRow[], index: number, key: RuleExpressionField, value: string) {
     table[index][key] = value;
     this.updateTable(table);
   }
 
-  addRow(table) {
-    const row = {name: `New WAF Rule - ${table.length}`, operator: "match", value: ""};
+  addRow(table: RuleExpressionRow[] | undefined) {
+    const row = {name: `New WAF Rule - ${table!.length}`, operator: "match", value: ""};
     if (table === undefined) {
       table = [];
     }
@@ -65,17 +84,17 @@ class WafRuleTable extends React.Component {
     this.updateTable(table);
   }
 
-  deleteRow(table, i) {
+  deleteRow(table: RuleExpressionRow[], i: number) {
     table = Setting.deleteRow(table, i);
     this.updateTable(table);
   }
 
-  upRow(table, i) {
+  upRow(table: RuleExpressionRow[], i: number) {
     table = Setting.swapRow(table, i - 1, i);
     this.updateTable(table);
   }
 
-  downRow(table, i) {
+  downRow(table: RuleExpressionRow[], i: number) {
     table = Setting.swapRow(table, i, i + 1);
     this.updateTable(table);
   }
@@ -84,38 +103,38 @@ class WafRuleTable extends React.Component {
     this.updateTable(this.state.defaultRules);
   }
 
-  renderTable(table) {
-    const columns = [
+  renderTable(table: RuleExpressionRow[]) {
+    const columns: RuleTableColumns = [
       {
-        title: i18next.t("general:Name"),
+        title: t("general:Name"),
         dataIndex: "name",
         key: "name",
         width: "180px",
-        render: (text, record, index) => {
+        render: (text: unknown, _record: RuleExpressionRow, index: number) => {
           return (
-            <Input value={text} onChange={e => {
+            <Input value={getRuleExpressionText(text)} onChange={e => {
               this.updateField(table, index, "name", e.target.value);
             }} />
           );
         },
       },
       {
-        title: i18next.t("rule:Expression"),
+        title: t("rule:Expression"),
         dataIndex: "value",
         key: "value",
-        render: (text, record, index) => {
+        render: (text: unknown, _record: RuleExpressionRow, index: number) => {
           return (
-            <Input value={text} onChange={e => {
+            <Input value={getRuleExpressionText(text)} onChange={e => {
               this.updateField(table, index, "value", e.target.value);
             }} />
           );
         },
       },
       {
-        title: i18next.t("general:Action"),
+        title: t("general:Action"),
         key: "action",
         width: "100px",
-        render: (text, record, index) => {
+        render: (_text: unknown, _record: RuleExpressionRow, index: number) => {
           return (
             <div>
               <Tooltip placement="bottomLeft" title={"Up"}>
@@ -138,8 +157,8 @@ class WafRuleTable extends React.Component {
         title={() => (
           <div>
             {this.props.title}&nbsp;&nbsp;&nbsp;&nbsp;
-            <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={() => this.addRow(table)}>{i18next.t("general:Add")}</Button>
-            <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={() => this.restore()}>{i18next.t("general:Restore")}</Button>
+            <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={() => this.addRow(table)}>{t("general:Add")}</Button>
+            <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={() => this.restore()}>{t("general:Restore")}</Button>
           </div>
         )}
       />

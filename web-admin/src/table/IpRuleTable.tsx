@@ -15,13 +15,37 @@
 import React from "react";
 import {DeleteOutlined, DownOutlined, UpOutlined} from "@ant-design/icons";
 import {Button, Col, Input, Row, Select, Table, Tooltip} from "antd";
+import type {TableProps} from "antd";
 import * as Setting from "../Setting";
 import i18next from "i18next";
+import type {RuleExpressionRow, RuleExpressionTablePassthroughProps} from "./ruleExpressionRow";
+import {getRuleExpressionText} from "./ruleExpressionRow";
 
 const {Option} = Select;
+const t = (key: string): string => String(i18next.t(key));
 
-class IpRuleTable extends React.Component {
-  constructor(props) {
+interface SelectOption {
+  value: string;
+  label: string;
+}
+
+interface IpRuleTableProps extends RuleExpressionTablePassthroughProps {
+  title: React.ReactNode;
+  table: RuleExpressionRow[];
+  onUpdateTable: (table: RuleExpressionRow[]) => void;
+}
+
+interface IpRuleTableState {
+  classes: IpRuleTableProps;
+  options: SelectOption[][];
+  defaultRules: RuleExpressionRow[];
+}
+
+type RuleTableColumns = NonNullable<TableProps<RuleExpressionRow>["columns"]>;
+type RuleExpressionField = keyof Pick<RuleExpressionRow, "name" | "operator" | "value">;
+
+class IpRuleTable extends React.Component<IpRuleTableProps, IpRuleTableState> {
+  constructor(props: IpRuleTableProps) {
     super(props);
     this.state = {
       classes: props,
@@ -43,8 +67,8 @@ class IpRuleTable extends React.Component {
       this.restore();
     }
     for (let i = 0; i < this.props.table.length; i++) {
-      const values = this.props.table[i].value.split(",");
-      const options = [];
+      const values = getRuleExpressionText(this.props.table[i].value).split(",");
+      const options: SelectOption[] = [];
       for (let j = 0; j < values.length; j++) {
         options[j] = {value: values[j], label: values[j]};
       }
@@ -52,25 +76,22 @@ class IpRuleTable extends React.Component {
     }
   }
 
-  updateTable(table) {
+  updateTable(table: RuleExpressionRow[]) {
     this.props.onUpdateTable(table);
   }
 
-  updateField(table, index, key, value) {
+  updateField(table: RuleExpressionRow[], index: number, key: RuleExpressionField, value: string | string[]) {
     if (key === "value") {
-      let v = "";
-      for (let i = 0; i < value.length; i++) {
-        v += value[i].trim() + ",";
-      }
-      table[index][key] = v.slice(0, -1);
+      const tags = Array.isArray(value) ? value : Array.from(value);
+      table[index][key] = tags.map(item => item.trim()).join(",");
     } else {
-      table[index][key] = value;
+      table[index][key] = String(value);
     }
     this.updateTable(table);
   }
 
-  addRow(table) {
-    const row = {name: `New IP Rule - ${table.length}`, operator: "is in", value: "127.0.0.1"};
+  addRow(table: RuleExpressionRow[] | undefined) {
+    const row = {name: `New IP Rule - ${table!.length}`, operator: "is in", value: "127.0.0.1"};
     if (table === undefined) {
       table = [];
     }
@@ -79,18 +100,18 @@ class IpRuleTable extends React.Component {
     this.updateTable(table);
   }
 
-  deleteRow(table, i) {
+  deleteRow(table: RuleExpressionRow[], i: number) {
     table = Setting.deleteRow(table, i);
     this.updateTable(table);
   }
 
-  upRow(table, i) {
+  upRow(table: RuleExpressionRow[], i: number) {
     table = Setting.swapRow(table, i - 1, i);
     Setting.swapRow(this.state.options, i - 1, i);
     this.updateTable(table);
   }
 
-  downRow(table, i) {
+  downRow(table: RuleExpressionRow[], i: number) {
     table = Setting.swapRow(table, i, i + 1);
     Setting.swapRow(this.state.options, i, i + 1);
     this.updateTable(table);
@@ -100,57 +121,57 @@ class IpRuleTable extends React.Component {
     this.updateTable(this.state.defaultRules);
   }
 
-  renderTable(table) {
-    const columns = [
+  renderTable(table: RuleExpressionRow[]) {
+    const columns: RuleTableColumns = [
       {
-        title: i18next.t("general:Name"),
+        title: t("general:Name"),
         dataIndex: "name",
         key: "name",
         width: "180px",
-        render: (text, record, index) => (
-          <Input value={text} onChange={e => {
+        render: (text: unknown, _record: RuleExpressionRow, index: number) => (
+          <Input value={getRuleExpressionText(text)} onChange={e => {
             this.updateField(table, index, "name", e.target.value);
           }} />
         ),
       },
       {
-        title: i18next.t("rule:Operator"),
+        title: t("rule:Operator"),
         dataIndex: "operator",
         key: "operator",
         width: "180px",
-        render: (text, record, index) => (
-          <Select value={text} virtual={false} style={{width: "100%"}} onChange={value => {
+        render: (text: unknown, _record: RuleExpressionRow, index: number) => (
+          <Select value={getRuleExpressionText(text)} virtual={false} style={{width: "100%"}} onChange={(value: string) => {
             this.updateField(table, index, "operator", value);
           }}>
             {
               [
-                {value: "is in", text: i18next.t("rule:is in")},
-                {value: "is not in", text: i18next.t("rule:is not in")},
+                {value: "is in", text: t("rule:is in")},
+                {value: "is not in", text: t("rule:is not in")},
               ].map((item, index) => <Option key={index} value={item.value}>{item.text}</Option>)
             }
           </Select>
         ),
       },
       {
-        title: i18next.t("rule:IP List"),
+        title: t("rule:IP List"),
         dataIndex: "value",
         key: "value",
-        render: (text, record, index) => (
+        render: (_text: unknown, record: RuleExpressionRow, index: number) => (
           <Select
             mode="tags"
             style={{width: "100%"}}
             placeholder="Input IP Addresses"
-            value={record.value ? record.value.split(",") : []}
-            onChange={value => this.updateField(table, index, "value", value)}
+            value={getRuleExpressionText(record.value) ? getRuleExpressionText(record.value).split(",") : []}
+            onChange={(value: string[]) => this.updateField(table, index, "value", value)}
             options={this.state.options[index]}
           />
         ),
       },
       {
-        title: i18next.t("general:Action"),
+        title: t("general:Action"),
         key: "action",
         width: "100px",
-        render: (text, record, index) => (
+        render: (_text: unknown, _record: RuleExpressionRow, index: number) => (
           <div>
             <Tooltip placement="bottomLeft" title={"Up"}>
               <Button style={{marginRight: "5px"}} disabled={index === 0} icon={<UpOutlined />} size="small" onClick={() => this.upRow(table, index)} />
@@ -170,8 +191,8 @@ class IpRuleTable extends React.Component {
         title={() => (
           <div>
             {this.props.title}&nbsp;&nbsp;&nbsp;&nbsp;
-            <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={() => this.addRow(table)}>{i18next.t("general:Add")}</Button>
-            <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={() => this.restore()}>{i18next.t("general:Restore")}</Button>
+            <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={() => this.addRow(table)}>{t("general:Add")}</Button>
+            <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={() => this.restore()}>{t("general:Restore")}</Button>
           </div>
         )}
       />
