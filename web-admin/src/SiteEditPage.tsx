@@ -21,14 +21,77 @@ import * as CertBackend from "./backend/CertBackend";
 import * as RuleBackend from "./backend/RuleBackend";
 import * as ApplicationBackend from "./backend/ApplicationBackend";
 import * as Setting from "./Setting";
-import i18next from "i18next";
+import i18nextLib from "i18next";
 import RuleTable from "./table/RuleTable";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 
 const {Option} = Select;
+const i18next = {t: (key: string) => i18nextLib.t(key) as string};
 
-class SiteEditPage extends React.Component {
-  constructor(props) {
+interface SiteEditPageProps {
+  account: {owner: string; tag?: string; [key: string]: unknown};
+  history: {push: (path: string) => void};
+  match: {params: {organizationName: string; siteName: string}};
+}
+
+interface NamedRecord {
+  name: string;
+  [key: string]: unknown;
+}
+
+interface ProviderRecord {
+  category: string;
+  name: string;
+}
+
+interface RuleRecord {
+  owner: string;
+  name: string;
+  [key: string]: unknown;
+}
+
+interface SiteRecord {
+  owner: string;
+  name: string;
+  displayName: string;
+  tag: string;
+  domain: string;
+  otherDomains: string[];
+  needRedirect: boolean;
+  disableVerbose: boolean;
+  rules: string[];
+  enableAlert: boolean;
+  alertInterval: number;
+  alertTryTimes: number;
+  alertProviders: string[];
+  challenges: string[];
+  host: string;
+  port: number;
+  hosts: string[];
+  publicIp: string;
+  sslMode: string;
+  sslCert: string;
+  casdoorApplication: string;
+  status: string;
+  [key: string]: unknown;
+}
+
+interface SiteEditPageState {
+  classes: SiteEditPageProps;
+  owner: string;
+  siteName: string;
+  rules: RuleRecord[];
+  providers: string[];
+  site: SiteRecord;
+  certs: NamedRecord[];
+  applications: NamedRecord[];
+  organizations: NamedRecord[];
+}
+
+type SiteFieldKey = keyof SiteRecord;
+
+class SiteEditPage extends React.Component<SiteEditPageProps, SiteEditPageState> {
+  constructor(props: SiteEditPageProps) {
     super(props);
     this.state = {
       classes: props,
@@ -36,9 +99,10 @@ class SiteEditPage extends React.Component {
       siteName: props.match.params.siteName,
       rules: [],
       providers: [],
-      site: null,
-      certs: null,
-      applications: null,
+      // 保留 legacy 初始 null；render() 仍通过 null 判断加载前不渲染编辑表单。
+      site: null as unknown as SiteRecord,
+      certs: null as unknown as NamedRecord[],
+      applications: null as unknown as NamedRecord[],
       organizations: [],
     };
   }
@@ -102,7 +166,7 @@ class SiteEditPage extends React.Component {
       });
   }
 
-  getApplications(owner) {
+  getApplications(owner?: string) {
     ApplicationBackend.getApplicationsByOrganization("admin", owner || this.state.owner)
       .then((res) => {
         if (res.status === "ok") {
@@ -135,17 +199,17 @@ class SiteEditPage extends React.Component {
       });
   }
 
-  parseSiteField(key, value) {
+  parseSiteField(key: string, value: unknown) {
     if (["score"].includes(key)) {
       value = Setting.myParseInt(value);
     }
     return value;
   }
 
-  updateSiteField(key, value) {
-    value = this.parseSiteField(key, value);
+  updateSiteField(key: SiteFieldKey, value: unknown) {
+    value = this.parseSiteField(String(key), value);
 
-    const site = this.state.site;
+    const site = this.state.site as SiteRecord;
     site[key] = value;
     this.setState({
       site: site,

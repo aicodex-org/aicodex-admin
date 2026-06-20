@@ -15,14 +15,117 @@
 import React from "react";
 import {Link} from "react-router-dom";
 import {Button, Popconfirm, Table, Tag, Tooltip} from "antd";
+import type {TablePaginationConfig, TableProps} from "antd";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as SiteBackend from "./backend/SiteBackend";
-import i18next from "i18next";
+import i18nextLib from "i18next";
 import BaseListPage from "./BaseListPage";
 
-class SiteListPage extends BaseListPage {
-  constructor(props) {
+const i18next = {t: (key: string) => i18nextLib.t(key) as string};
+
+interface SiteListPageProps {
+  account: {owner: string; tag?: string; [key: string]: unknown};
+  history: {push: (path: string) => void};
+  match?: {path?: string; params?: Record<string, string>};
+}
+
+interface SiteNodeRecord {
+  name: string;
+  version: string;
+  message: string;
+  provider: string;
+}
+
+interface SiteRecord {
+  owner: string;
+  name: string;
+  createdTime: string;
+  displayName: string;
+  domain: string;
+  tag?: string;
+  otherDomains: string[];
+  needRedirect: boolean;
+  disableVerbose: boolean;
+  rules: string[];
+  enableAlert: boolean;
+  alertInterval: number;
+  alertTryTimes: number;
+  alertProviders: string[];
+  challenges: string[];
+  host: string;
+  port: number;
+  hosts: string[];
+  sslMode: string;
+  sslCert: string;
+  publicIp: string;
+  node: string;
+  isSelf: boolean;
+  nodes: SiteNodeRecord[];
+  casdoorApplication: string;
+  organizations: string[];
+  status?: string;
+  [key: string]: unknown;
+}
+
+interface SiteListPageState {
+  data: SiteRecord[];
+  pagination: TablePaginationConfig;
+  loading: boolean;
+  searchText?: string;
+  searchedColumn?: string;
+  formItems?: unknown[];
+}
+
+type LegacyBaseListPageCompat = React.Component<SiteListPageProps, SiteListPageState> & {
+  getColumnSearchProps: (dataIndex: string, customRender?: unknown) => Record<string, unknown>;
+  getTablePaginationProps: (overrides?: Record<string, unknown>) => TablePaginationConfig;
+  handleTableChange: NonNullable<TableProps<SiteRecord>["onChange"]>;
+};
+
+// BaseListPage 仍是 legacy JS class，本页只声明当前迁移需要调用的成员，避免扩大到共享基类迁移。
+const TypedBaseListPage = BaseListPage as unknown as {
+  new(props: SiteListPageProps): LegacyBaseListPageCompat;
+};
+
+interface BackendResponse<T> {
+  status?: string;
+  data?: T;
+  data2?: number;
+  msg?: string;
+  [key: string]: unknown;
+}
+
+interface FetchParams {
+  pagination?: TablePaginationConfig;
+  searchedColumn?: string;
+  searchText?: string;
+  sortField?: string;
+  sortOrder?: string;
+}
+
+type SiteBackendCompat = {
+  getGlobalSites: () => Promise<BackendResponse<SiteRecord[]>>;
+  getSites: (
+    owner: string,
+    page?: string | number,
+    pageSize?: string | number,
+    field?: string,
+    value?: string,
+    sortField?: string,
+    sortOrder?: string
+  ) => Promise<BackendResponse<SiteRecord[]>>;
+  addSite: (site: SiteRecord) => Promise<BackendResponse<unknown>>;
+  deleteSite: (site: SiteRecord) => Promise<BackendResponse<unknown>>;
+};
+
+const siteBackend = SiteBackend as unknown as SiteBackendCompat;
+
+type SiteListColumns = TableProps<SiteRecord>["columns"];
+
+class SiteListPage extends TypedBaseListPage {
+
+  constructor(props: SiteListPageProps) {
     super(props);
   }
 
@@ -37,7 +140,7 @@ class SiteListPage extends BaseListPage {
     this.fetch({pagination: this.state.pagination});
   }
 
-  newSite() {
+  newSite(): SiteRecord {
     const randomName = Setting.getRandomName();
     const owner = Setting.getRequestOrganization(this.props.account);
     return {
@@ -69,10 +172,10 @@ class SiteListPage extends BaseListPage {
     };
   }
 
-  addSite() {
+  addSite(): void {
     const newSite = this.newSite();
-    SiteBackend.addSite(newSite)
-      .then((res) => {
+    siteBackend.addSite(newSite)
+      .then((res: BackendResponse<unknown>) => {
         if (res.status === "error") {
           Setting.showMessage("error", `Failed to add: ${res.msg}`);
         } else {
@@ -89,9 +192,9 @@ class SiteListPage extends BaseListPage {
       });
   }
 
-  deleteSite(i) {
-    SiteBackend.deleteSite(this.state.data[i])
-      .then((res) => {
+  deleteSite(i: number): void {
+    siteBackend.deleteSite(this.state.data[i])
+      .then((res: BackendResponse<unknown>) => {
         if (res.status === "error") {
           Setting.showMessage("error", `Failed to delete: ${res.msg}`);
         } else {
@@ -99,7 +202,7 @@ class SiteListPage extends BaseListPage {
           this.fetch({
             pagination: {
               ...this.state.pagination,
-              current: this.state.pagination.current > 1 && this.state.data.length === 1 ? this.state.pagination.current - 1 : this.state.pagination.current,
+              current: (this.state.pagination.current ?? 1) > 1 && this.state.data.length === 1 ? (this.state.pagination.current ?? 1) - 1 : this.state.pagination.current,
             },
           });
         }
@@ -110,7 +213,7 @@ class SiteListPage extends BaseListPage {
       });
   }
 
-  renderTable(data) {
+  renderTable(data: SiteRecord[]): React.ReactNode {
     // const renderExternalLink = () => {
     //   return (
     //     <svg style={{marginLeft: "5px"}} width="13.5" height="13.5" aria-hidden="true" viewBox="0 0 24 24" className="iconExternalLink_nPIU">
@@ -119,7 +222,7 @@ class SiteListPage extends BaseListPage {
     //   );
     // };
 
-    const columns = [
+    const columns: SiteListColumns = [
       {
         title: i18next.t("general:Owner"),
         dataIndex: "owner",
@@ -132,7 +235,7 @@ class SiteListPage extends BaseListPage {
         dataIndex: "tag",
         key: "tag",
         width: "140px",
-        sorter: (a, b) => a.tag.localeCompare(b.tag),
+        sorter: (a, b) => (a.tag ?? "").localeCompare(b.tag ?? ""),
         render: (text, record, index) => {
           if (text === "") {
             return null;
@@ -198,7 +301,7 @@ class SiteListPage extends BaseListPage {
         dataIndex: "otherDomains",
         key: "otherDomains",
         width: "120px",
-        sorter: (a, b) => a.otherDomains.localeCompare(b.otherDomains),
+        sorter: (a, b) => String(a.otherDomains).localeCompare(String(b.otherDomains)),
         render: (text, record, index) => {
           return record.otherDomains.map(domain => {
             return (
@@ -216,7 +319,7 @@ class SiteListPage extends BaseListPage {
         dataIndex: "rules",
         key: "rules",
         width: "120px",
-        sorter: (a, b) => a.rules.localeCompare(b.rules),
+        sorter: (a, b) => String(a.rules).localeCompare(String(b.rules)),
         render: (text, record, index) => {
           if (!record.rules) {
             return null;
@@ -240,7 +343,7 @@ class SiteListPage extends BaseListPage {
         width: "80px",
         sorter: (a, b) => a.host.localeCompare(b.host),
         render: (text, record, index) => {
-          let host = record.port;
+          let host: string | number = record.port;
           if (record.host !== "") {
             host = `${record.host}:${record.port}`;
           }
@@ -404,7 +507,7 @@ class SiteListPage extends BaseListPage {
                 okText="OK"
                 cancelText="Cancel"
               >
-                <Button style={{marginBottom: "10px"}} type="danger">{i18next.t("general:Delete")}</Button>
+                <Button style={{marginBottom: "10px"}} danger>{i18next.t("general:Delete")}</Button>
               </Popconfirm>
             </div>
           );
@@ -428,7 +531,7 @@ class SiteListPage extends BaseListPage {
     );
   }
 
-  fetch = (params = {}) => {
+  fetch = (params: FetchParams = {}) => {
     const field = params.searchedColumn, value = params.searchText;
     const sortField = params.sortField, sortOrder = params.sortOrder;
     if (!params.pagination) {
@@ -436,14 +539,14 @@ class SiteListPage extends BaseListPage {
     }
     this.setState({loading: true});
     // SiteBackend.getSites(this.props.account.name, params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
-    (Setting.isDefaultOrganizationSelected(this.props.account) ? SiteBackend.getGlobalSites() : SiteBackend.getSites(Setting.getRequestOrganization(this.props.account), "", "", field, value, sortField, sortOrder))
-      .then((res) => {
+    (Setting.isDefaultOrganizationSelected(this.props.account) ? siteBackend.getGlobalSites() : siteBackend.getSites(Setting.getRequestOrganization(this.props.account), "", "", field, value, sortField, sortOrder))
+      .then((res: BackendResponse<SiteRecord[]>) => {
         this.setState({
           loading: false,
         });
         if (res.status === "ok") {
           this.setState({
-            data: res.data,
+            data: res.data ?? [],
             pagination: {
               ...params.pagination,
               total: res.data2,
