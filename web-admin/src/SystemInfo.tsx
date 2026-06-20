@@ -20,7 +20,45 @@ import * as TourConfig from "./TourConfig";
 import i18next from "i18next";
 import PrometheusInfoTable from "./table/PrometheusInfoTable";
 
-const getProgressColor = (percent) => {
+type AdminRouteProps = import("./types/legacyPage").AdminRouteProps;
+type LegacyAny = import("./types/legacyPage").LegacyAny;
+
+interface SystemInfoData {
+  cpuUsage: number[];
+  memoryUsed: number;
+  memoryTotal: number;
+  diskUsed: number;
+  diskTotal: number;
+  networkSent?: number;
+  networkRecv?: number;
+  networkTotal?: number | null;
+}
+
+interface VersionInfo {
+  version?: string;
+  commitOffset?: number;
+}
+
+interface PrometheusInfo {
+  apiThroughput: LegacyAny[];
+  apiLatency: LegacyAny[];
+  totalThroughput: number;
+}
+
+interface SystemInfoState {
+  systemInfo: SystemInfoData;
+  versionInfo: VersionInfo;
+  prometheusInfo: PrometheusInfo;
+  intervalId: ReturnType<typeof setInterval> | null;
+  loading: boolean;
+  isTourVisible: boolean;
+}
+
+function t(key: string, options?: LegacyAny): string {
+  return String(i18next.t(key, options));
+}
+
+const getProgressColor = (percent: number) => {
   if (percent >= 90) {
     return "#ff4d4f";
   } else if (percent >= 70) {
@@ -29,9 +67,11 @@ const getProgressColor = (percent) => {
   return undefined;
 };
 
-class SystemInfo extends React.Component {
+const SystemBackendLegacy = SystemBackend as LegacyAny;
 
-  constructor(props) {
+class SystemInfo extends React.Component<AdminRouteProps, SystemInfoState> {
+
+  constructor(props: AdminRouteProps) {
     super(props);
     this.state = {
       systemInfo: {cpuUsage: [], memoryUsed: 0, memoryTotal: 0, diskUsed: 0, diskTotal: 0, networkSent: 0, networkRecv: 0, networkTotal: 0},
@@ -44,7 +84,7 @@ class SystemInfo extends React.Component {
   }
 
   UNSAFE_componentWillMount() {
-    SystemBackend.getSystemInfo("").then(res => {
+    SystemBackendLegacy.getSystemInfo("").then((res: LegacyAny) => {
       this.setState({
         loading: false,
       });
@@ -59,7 +99,7 @@ class SystemInfo extends React.Component {
       }
 
       const id = setInterval(() => {
-        SystemBackend.getSystemInfo("").then(res => {
+        SystemBackendLegacy.getSystemInfo("").then((res: LegacyAny) => {
           this.setState({
             loading: false,
           });
@@ -72,11 +112,11 @@ class SystemInfo extends React.Component {
             Setting.showMessage("error", res.msg);
             this.stopTimer();
           }
-        }).catch(error => {
-          Setting.showMessage("error", `${i18next.t("general:Failed to get")}: ${error}`);
+        }).catch((error: LegacyAny) => {
+          Setting.showMessage("error", `${t("general:Failed to get")}: ${error}`);
           this.stopTimer();
         });
-        SystemBackend.getPrometheusInfo().then(res => {
+        SystemBackend.getPrometheusInfo().then((res: LegacyAny) => {
           this.setState({
             prometheusInfo: res.data,
           });
@@ -84,12 +124,12 @@ class SystemInfo extends React.Component {
       }, 1000 * 2);
 
       this.setState({intervalId: id});
-    }).catch(error => {
-      Setting.showMessage("error", `${i18next.t("general:Failed to get")}: ${error}`);
+    }).catch((error: LegacyAny) => {
+      Setting.showMessage("error", `${t("general:Failed to get")}: ${error}`);
       this.stopTimer();
     });
 
-    SystemBackend.getVersionInfo().then(res => {
+    SystemBackend.getVersionInfo().then((res: LegacyAny) => {
       if (res.status === "ok") {
         this.setState({
           versionInfo: res.data,
@@ -99,7 +139,7 @@ class SystemInfo extends React.Component {
         this.stopTimer();
       }
     }).catch(err => {
-      Setting.showMessage("error", `${i18next.t("general:Failed to get")}: ${err}`);
+      Setting.showMessage("error", `${t("general:Failed to get")}: ${err}`);
       this.stopTimer();
     });
   }
@@ -139,7 +179,7 @@ class SystemInfo extends React.Component {
   getSteps = () => {
     const nextPathName = TourConfig.getNextUrl();
     const steps = TourConfig.getSteps();
-    steps.map((item, index) => {
+    steps.map((item: LegacyAny, index: number) => {
       item.target = () => document.getElementById(item.id) || null;
       if (index === steps.length - 1) {
         item.nextButtonProps = {
@@ -151,8 +191,8 @@ class SystemInfo extends React.Component {
   };
 
   render() {
-    const cpuUi = this.state.systemInfo.cpuUsage?.length <= 0 ? i18next.t("general:Failed to get") :
-      this.state.systemInfo.cpuUsage.map((usage, i) => {
+    const cpuUi = this.state.systemInfo.cpuUsage?.length <= 0 ? t("general:Failed to get") :
+      this.state.systemInfo.cpuUsage.map((usage: number, i: number) => {
         const percent = Number(usage.toFixed(1));
         return (
           <Progress key={i} percent={percent} strokeColor={getProgressColor(percent)} format={p => `${p}%`} />
@@ -160,28 +200,28 @@ class SystemInfo extends React.Component {
       });
 
     const memPercent = Number((Number(this.state.systemInfo.memoryUsed) / Number(this.state.systemInfo.memoryTotal) * 100).toFixed(2));
-    const memUi = this.state.systemInfo.memoryUsed && this.state.systemInfo.memoryTotal && this.state.systemInfo.memoryTotal <= 0 ? i18next.t("general:Failed to get") :
+    const memUi = this.state.systemInfo.memoryUsed && this.state.systemInfo.memoryTotal && this.state.systemInfo.memoryTotal <= 0 ? t("general:Failed to get") :
       <div>
         {Setting.getFriendlyFileSize(this.state.systemInfo.memoryUsed)} / {Setting.getFriendlyFileSize(this.state.systemInfo.memoryTotal)}
         <br /> <br />
         <Progress type="circle" percent={memPercent} strokeColor={getProgressColor(memPercent)} format={p => `${p}%`} />
       </div>;
 
-    const diskUi = this.state.systemInfo.diskTotal <= 0 ? i18next.t("general:Failed to get") :
+    const diskUi = this.state.systemInfo.diskTotal <= 0 ? t("general:Failed to get") :
       <div>
         {Setting.getFriendlyFileSize(this.state.systemInfo.diskUsed)} / {Setting.getFriendlyFileSize(this.state.systemInfo.diskTotal)}
         <br /> <br />
         <Progress type="circle" percent={Number((Number(this.state.systemInfo.diskUsed) / Number(this.state.systemInfo.diskTotal) * 100).toFixed(2))} />
       </div>;
 
-    const networkUi = this.state.systemInfo.networkTotal === undefined || this.state.systemInfo.networkTotal === null ? i18next.t("general:Failed to get") :
+    const networkUi = this.state.systemInfo.networkTotal === undefined || this.state.systemInfo.networkTotal === null ? t("general:Failed to get") :
       <div>
-        {i18next.t("system:Sent")}: {Setting.getFriendlyFileSize(this.state.systemInfo.networkSent)}
+        {t("system:Sent")}: {Setting.getFriendlyFileSize(this.state.systemInfo.networkSent)}
         <br />
-        {i18next.t("system:Received")}: {Setting.getFriendlyFileSize(this.state.systemInfo.networkRecv)}
+        {t("system:Received")}: {Setting.getFriendlyFileSize(this.state.systemInfo.networkRecv)}
         <br /> <br />
         <div style={{fontSize: "16px", fontWeight: "600", color: "rgba(0, 0, 0, 0.85)"}}>
-          {i18next.t("system:Total Throughput")}: {Setting.getFriendlyFileSize(this.state.systemInfo.networkTotal)}
+          {t("system:Total Throughput")}: {Setting.getFriendlyFileSize(this.state.systemInfo.networkTotal)}
         </div>
       </div>;
 
@@ -191,9 +231,9 @@ class SystemInfo extends React.Component {
       <PrometheusInfoTable prometheusInfo={this.state.prometheusInfo} table={"throughput"} />;
     const repoUrl = "https://git.leagsoft.com/aicodex/aicodex-admin";
     const link = this.state.versionInfo?.version !== "" ? `${repoUrl}/-/releases/${this.state.versionInfo?.version}` : "";
-    let versionText = this.state.versionInfo?.version !== "" ? this.state.versionInfo?.version : i18next.t("system:Unknown version");
-    if (this.state.versionInfo?.commitOffset > 0) {
-      versionText += ` (ahead+${this.state.versionInfo?.commitOffset})`;
+    let versionText = this.state.versionInfo?.version !== "" ? this.state.versionInfo?.version : t("system:Unknown version");
+    if ((this.state.versionInfo.commitOffset ?? 0) > 0) {
+      versionText += ` (ahead+${this.state.versionInfo.commitOffset})`;
     }
 
     if (!Setting.isMobile()) {
@@ -204,46 +244,46 @@ class SystemInfo extends React.Component {
             <Col span={12}>
               <Row gutter={[10, 10]}>
                 <Col span={12}>
-                  <Card id="cpu-card" title={i18next.t("system:CPU Usage")} bordered={true} style={{textAlign: "center", height: "100%"}}>
+                  <Card id="cpu-card" title={t("system:CPU Usage")} bordered={true} style={{textAlign: "center", height: "100%"}}>
                     {this.state.loading ? <Spin size="large" /> : cpuUi}
                   </Card>
                 </Col>
                 <Col span={12}>
-                  <Card id="memory-card" title={i18next.t("system:Memory Usage")} bordered={true} style={{textAlign: "center", height: "100%"}}>
+                  <Card id="memory-card" title={t("system:Memory Usage")} bordered={true} style={{textAlign: "center", height: "100%"}}>
                     {this.state.loading ? <Spin size="large" /> : memUi}
                   </Card>
                 </Col>
                 <Col span={12}>
-                  <Card id="disk-card" title={i18next.t("system:Disk Usage")} bordered={true} style={{textAlign: "center", height: "100%"}}>
+                  <Card id="disk-card" title={t("system:Disk Usage")} bordered={true} style={{textAlign: "center", height: "100%"}}>
                     {this.state.loading ? <Spin size="large" /> : diskUi}
                   </Card>
                 </Col>
                 <Col span={12}>
-                  <Card id="network-card" title={i18next.t("system:Network Usage")} bordered={true} style={{textAlign: "center", height: "100%"}}>
+                  <Card id="network-card" title={t("system:Network Usage")} bordered={true} style={{textAlign: "center", height: "100%"}}>
                     {this.state.loading ? <Spin size="large" /> : networkUi}
                   </Card>
                 </Col>
                 <Col span={24}>
-                  <Card id="latency-card" title={i18next.t("system:API Latency")} bordered={true} style={{textAlign: "center", height: "100%"}}>
+                  <Card id="latency-card" title={t("system:API Latency")} bordered={true} style={{textAlign: "center", height: "100%"}}>
                     {this.state.loading ? <Spin size="large" /> : latencyUi}
                   </Card>
                 </Col>
                 <Col span={24}>
-                  <Card id="throughput-card" title={i18next.t("system:API Throughput")} bordered={true} style={{textAlign: "center", height: "100%"}}>
+                  <Card id="throughput-card" title={t("system:API Throughput")} bordered={true} style={{textAlign: "center", height: "100%"}}>
                     {this.state.loading ? <Spin size="large" /> : throughputUi}
                   </Card>
                 </Col>
               </Row>
               <Divider />
-              <Card id="about-card" title={i18next.t("system:About aicodex-admin")} bordered={true} style={{textAlign: "center"}}>
-                <div>{i18next.t("system:An Identity and Access Management (IAM) / Single-Sign-On (SSO) platform with web UI supporting OAuth 2.0, OIDC, SAML and CAS")}</div>
+              <Card id="about-card" title={t("system:About aicodex-admin")} bordered={true} style={{textAlign: "center"}}>
+                <div>{t("system:An Identity and Access Management (IAM) / Single-Sign-On (SSO) platform with web UI supporting OAuth 2.0, OIDC, SAML and CAS")}</div>
                 Repository: <a target="_blank" rel="noreferrer" href={repoUrl}>aicodex-admin</a>
                 <br />
-                {i18next.t("system:Version")}: <a target="_blank" rel="noreferrer" href={link}>{versionText}</a>
+                {t("system:Version")}: <a target="_blank" rel="noreferrer" href={link}>{versionText}</a>
                 <br />
-                {i18next.t("system:Official website")}: <a target="_blank" rel="noreferrer" href={repoUrl}>{repoUrl}</a>
+                {t("system:Official website")}: <a target="_blank" rel="noreferrer" href={repoUrl}>{repoUrl}</a>
                 <br />
-                {i18next.t("system:Community")}: <a target="_blank" rel="noreferrer" href={repoUrl}>Get in Touch!</a>
+                {t("system:Community")}: <a target="_blank" rel="noreferrer" href={repoUrl}>Get in Touch!</a>
               </Card>
             </Col>
             <Col span={6}></Col>
@@ -265,35 +305,35 @@ class SystemInfo extends React.Component {
       return (
         <Row gutter={[16, 0]}>
           <Col span={24}>
-            <Card title={i18next.t("system:CPU Usage")} bordered={true} style={{textAlign: "center", width: "100%"}}>
+            <Card title={t("system:CPU Usage")} bordered={true} style={{textAlign: "center", width: "100%"}}>
               {this.state.loading ? <Spin size="large" /> : cpuUi}
             </Card>
           </Col>
           <Col span={24}>
-            <Card title={i18next.t("system:Memory Usage")} bordered={true} style={{textAlign: "center", width: "100%"}}>
+            <Card title={t("system:Memory Usage")} bordered={true} style={{textAlign: "center", width: "100%"}}>
               {this.state.loading ? <Spin size="large" /> : memUi}
             </Card>
           </Col>
           <Col span={24}>
-            <Card title={i18next.t("system:Disk Usage")} bordered={true} style={{textAlign: "center", width: "100%"}}>
+            <Card title={t("system:Disk Usage")} bordered={true} style={{textAlign: "center", width: "100%"}}>
               {this.state.loading ? <Spin size="large" /> : diskUi}
             </Card>
           </Col>
           <Col span={24}>
-            <Card title={i18next.t("system:Network Usage")} bordered={true} style={{textAlign: "center", width: "100%"}}>
+            <Card title={t("system:Network Usage")} bordered={true} style={{textAlign: "center", width: "100%"}}>
               {this.state.loading ? <Spin size="large" /> : networkUi}
             </Card>
           </Col>
           <Col span={24}>
-            <Card title={i18next.t("system:About aicodex-admin")} bordered={true} style={{textAlign: "center"}}>
-              <div>{i18next.t("system:An Identity and Access Management (IAM) / Single-Sign-On (SSO) platform with web UI supporting OAuth 2.0, OIDC, SAML and CAS")}</div>
+            <Card title={t("system:About aicodex-admin")} bordered={true} style={{textAlign: "center"}}>
+              <div>{t("system:An Identity and Access Management (IAM) / Single-Sign-On (SSO) platform with web UI supporting OAuth 2.0, OIDC, SAML and CAS")}</div>
               Repository: <a target="_blank" rel="noreferrer" href={repoUrl}>aicodex-admin</a>
               <br />
-              {i18next.t("system:Version")}: <a target="_blank" rel="noreferrer" href={link}>{versionText}</a>
+              {t("system:Version")}: <a target="_blank" rel="noreferrer" href={link}>{versionText}</a>
               <br />
-              {i18next.t("system:Official website")}: <a target="_blank" rel="noreferrer" href={repoUrl}>{repoUrl}</a>
+              {t("system:Official website")}: <a target="_blank" rel="noreferrer" href={repoUrl}>{repoUrl}</a>
               <br />
-              {i18next.t("system:Community")}: <a target="_blank" rel="noreferrer" href={repoUrl}>Get in Touch!</a>
+              {t("system:Community")}: <a target="_blank" rel="noreferrer" href={repoUrl}>Get in Touch!</a>
             </Card>
           </Col>
         </Row>

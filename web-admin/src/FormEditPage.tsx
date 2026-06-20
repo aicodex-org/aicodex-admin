@@ -25,8 +25,40 @@ import OrganizationListPage from "./OrganizationListPage";
 
 const {Option} = Select;
 
-class FormEditPage extends React.Component {
-  constructor(props) {
+type AdminRouteProps = import("./types/legacyPage").AdminRouteProps;
+type LegacyAny = import("./types/legacyPage").LegacyAny;
+
+interface FormEditProps extends AdminRouteProps {
+  match: {
+    params: {
+      formName: string;
+    };
+    [key: string]: LegacyAny;
+  };
+  location?: {
+    mode?: string;
+    [key: string]: LegacyAny;
+  };
+}
+
+interface FormEditState {
+  classes: FormEditProps;
+  formName: string;
+  form: LegacyAny;
+  formItems: LegacyAny[];
+}
+
+function t(key: string, options?: LegacyAny): string {
+  return String(i18next.t(key, options));
+}
+
+const UserListPageLegacy = UserListPage as React.ComponentType<LegacyAny>;
+const ApplicationListPageLegacy = ApplicationListPage as React.ComponentType<LegacyAny>;
+const ProviderListPageLegacy = ProviderListPage as React.ComponentType<LegacyAny>;
+const OrganizationListPageLegacy = OrganizationListPage as React.ComponentType<LegacyAny>;
+
+class FormEditPage extends React.Component<FormEditProps, FormEditState> {
+  constructor(props: FormEditProps) {
     super(props);
     this.state = {
       classes: props,
@@ -42,7 +74,7 @@ class FormEditPage extends React.Component {
 
   getForm() {
     FormBackend.getForm(this.props.account.owner, this.state.formName)
-      .then((res) => {
+      .then((res: LegacyAny) => {
         if (res.status === "ok") {
           this.setState({
             form: res.data,
@@ -51,7 +83,7 @@ class FormEditPage extends React.Component {
       });
   }
 
-  updateFormField(key, value) {
+  updateFormField(key: string, value: LegacyAny) {
     const form = this.state.form;
     form[key] = value;
     this.setState({
@@ -60,22 +92,24 @@ class FormEditPage extends React.Component {
   }
 
   renderForm() {
+    const form = this.state.form;
+
     return (
       <Card size="small" title={
         <div>
-          {i18next.t("form:Edit Form")}&nbsp;&nbsp;&nbsp;&nbsp;
-          <Button onClick={() => this.submitFormEdit(false)}>{i18next.t("general:Save")}</Button>
+          {t("form:Edit Form")}&nbsp;&nbsp;&nbsp;&nbsp;
+          <Button onClick={() => this.submitFormEdit(false)}>{t("general:Save")}</Button>
           <Button style={{marginLeft: "20px"}} type="primary"
-            onClick={() => this.submitFormEdit(true)}>{i18next.t("general:Save & Exit")}</Button>
+            onClick={() => this.submitFormEdit(true)}>{t("general:Save & Exit")}</Button>
         </div>
       } style={{marginLeft: "5px"}} type="inner">
         <Row style={{marginTop: "10px"}}>
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Name"), i18next.t("general:Name - Tooltip"))} :
+            {Setting.getLabel(t("general:Name"), t("general:Name - Tooltip"))} :
           </Col>
           <Col span={22}>
             <Input
-              value={this.state.form.name}
+              value={form.name}
               disabled={true}
               onChange={e => {this.updateFormField("name", e.target.value);}}
             />
@@ -83,23 +117,23 @@ class FormEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}}>
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Display name"), i18next.t("general:Display name - Tooltip"))} :
+            {Setting.getLabel(t("general:Display name"), t("general:Display name - Tooltip"))} :
           </Col>
           <Col span={22}>
-            <Input value={this.state.form.displayName} onChange={e => {
+            <Input value={form.displayName} onChange={e => {
               this.updateFormField("displayName", e.target.value);
             }} />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}}>
           <Col style={{marginTop: "5px"}} span={Setting.isMobile() ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Type"), i18next.t("general:Type - Tooltip"))} :
+            {Setting.getLabel(t("general:Type"), t("general:Type - Tooltip"))} :
           </Col>
           <Col span={22}>
             <Select
               style={{width: "100%"}}
-              value={this.state.form.type}
-              onChange={value => {
+              value={form.type}
+              onChange={(value: string) => {
                 this.updateFormField("type", value);
                 this.updateFormField("name", value);
                 this.updateFormField("displayName", value);
@@ -108,40 +142,40 @@ class FormEditPage extends React.Component {
               }}
             >
               {Setting.getFormTypeOptions().map(option => (
-                <Option key={option.id} value={option.id}>{i18next.t(option.name)}</Option>
+                <Option key={option.id} value={option.id}>{t(option.name)}</Option>
               ))}
             </Select>
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}}>
           <Col style={{marginTop: "5px"}} span={Setting.isMobile() ? 22 : 2}>
-            {Setting.getLabel(i18next.t("user:Tag"), i18next.t("product:Tag - Tooltip"))} :
+            {Setting.getLabel(t("user:Tag"), t("product:Tag - Tooltip"))} :
           </Col>
           <Col span={22}>
-            <Input value={this.state.form.tag} onChange={e => {
+            <Input value={form.tag} onChange={e => {
               this.updateFormField("tag", e.target.value);
-              this.updateFormField("name", e.target.value ? `${this.state.form.type}-tag-${e.target.value}` : this.state.form.type);
+              this.updateFormField("name", e.target.value ? `${form.type}-tag-${e.target.value}` : form.type);
             }} />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}}>
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("form:Form items"), i18next.t("form:Form items - Tooltip"))} :
+            {Setting.getLabel(t("form:Form items"), t("form:Form items - Tooltip"))} :
           </Col>
           <Col span={22}>
             <FormItemTable
-              title={i18next.t("form:Form items")}
-              table={this.state.form.formItems}
-              onUpdateTable={(value) => {
+              title={t("form:Form items")}
+              table={form.formItems}
+              onUpdateTable={(value: LegacyAny) => {
                 this.updateFormField("formItems", value);
               }}
-              formType={this.state.form.type}
+              formType={form.type}
             />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}}>
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Preview"), i18next.t("general:Preview - Tooltip"))} :
+            {Setting.getLabel(t("general:Preview"), t("general:Preview - Tooltip"))} :
           </Col>
           <Col span={22}>
             {
@@ -154,20 +188,21 @@ class FormEditPage extends React.Component {
   }
 
   renderListPreview() {
-    let listPageComponent = null;
+    const form = this.state.form;
+    let listPageComponent: React.ReactElement | null = null;
 
-    if (this.state.form.type === "users") {
-      listPageComponent = (<UserListPage {...this.props} formItems={this.state.form.formItems} />);
-    } else if (this.state.form.type === "applications") {
-      listPageComponent = (<ApplicationListPage {...this.props} formItems={this.state.form.formItems} />);
-    } else if (this.state.form.type === "providers") {
-      listPageComponent = (<ProviderListPage {...this.props} formItems={this.state.form.formItems} />);
-    } else if (this.state.form.type === "organizations") {
-      listPageComponent = (<OrganizationListPage {...this.props} formItems={this.state.form.formItems} />);
+    if (form.type === "users") {
+      listPageComponent = (<UserListPageLegacy {...this.props} formItems={form.formItems} />);
+    } else if (form.type === "applications") {
+      listPageComponent = (<ApplicationListPageLegacy {...this.props} formItems={form.formItems} />);
+    } else if (form.type === "providers") {
+      listPageComponent = (<ProviderListPageLegacy {...this.props} formItems={form.formItems} />);
+    } else if (form.type === "organizations") {
+      listPageComponent = (<OrganizationListPageLegacy {...this.props} formItems={form.formItems} />);
     }
 
     return (
-      <div style={{position: "relative", border: "1px solid rgb(217,217,217)", height: "600px", cursor: "pointer"}} onClick={(e) => {Setting.openLink(`/${this.state.form.type}`);}}>
+      <div style={{position: "relative", border: "1px solid rgb(217,217,217)", height: "600px", cursor: "pointer"}} onClick={(e) => {Setting.openLink(`/${form.type}`);}}>
         <div style={{position: "relative", height: "100%", overflow: "auto"}}>
           <div style={{display: "inline-block", position: "relative", zIndex: 1, pointerEvents: "none"}}>
             {listPageComponent}
@@ -178,13 +213,13 @@ class FormEditPage extends React.Component {
     );
   }
 
-  submitFormEdit(exitAfterSave) {
+  submitFormEdit(exitAfterSave: boolean) {
     const form = Setting.deepCopy(this.state.form);
     FormBackend.updateForm(this.state.form.owner, this.state.formName, form)
-      .then((res) => {
+      .then((res: LegacyAny) => {
         if (res.status === "ok") {
           if (res.data) {
-            Setting.showMessage("success", i18next.t("general:Successfully saved"));
+            Setting.showMessage("success", t("general:Successfully saved"));
             this.setState({
               formName: this.state.form.name,
             });
@@ -194,15 +229,15 @@ class FormEditPage extends React.Component {
               this.props.history.push(`/forms/${this.state.form.name}`);
             }
           } else {
-            Setting.showMessage("error", i18next.t("general:Failed to save"));
+            Setting.showMessage("error", t("general:Failed to save"));
             this.updateFormField("name", this.state.formName);
           }
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to save")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to save")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to save")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to save")}: ${error}`);
       });
   }
 
@@ -213,9 +248,9 @@ class FormEditPage extends React.Component {
           this.state.form !== null ? this.renderForm() : null
         }
         <div style={{marginTop: "20px", marginLeft: "40px"}}>
-          <Button size="large" onClick={() => this.submitFormEdit(false)}>{i18next.t("general:Save")}</Button>
+          <Button size="large" onClick={() => this.submitFormEdit(false)}>{t("general:Save")}</Button>
           <Button style={{marginLeft: "20px"}} type="primary" size="large"
-            onClick={() => this.submitFormEdit(true)}>{i18next.t("general:Save & Exit")}</Button>
+            onClick={() => this.submitFormEdit(true)}>{t("general:Save & Exit")}</Button>
         </div>
       </div>
     );

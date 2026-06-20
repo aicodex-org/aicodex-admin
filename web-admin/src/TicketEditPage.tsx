@@ -23,15 +23,69 @@ import moment from "moment";
 const {Option} = Select;
 const {TextArea} = Input;
 
-class TicketEditPage extends React.Component {
-  constructor(props) {
+type AdminRouteProps = import("./types/legacyPage").AdminRouteProps;
+type LegacyAny = import("./types/legacyPage").LegacyAny;
+
+interface TicketEditProps extends AdminRouteProps {
+  organizationName?: string;
+  match: {
+    params: {
+      organizationName: string;
+      ticketName: string;
+    };
+    [key: string]: LegacyAny;
+  };
+  location?: {
+    mode?: string;
+    [key: string]: LegacyAny;
+  };
+}
+
+interface TicketMessage {
+  author: string;
+  text: string;
+  timestamp: string;
+  isAdmin: boolean;
+  [key: string]: LegacyAny;
+}
+
+interface TicketRecord {
+  owner: string;
+  name: string;
+  createdTime: string;
+  updatedTime: string;
+  displayName: string;
+  user: string;
+  title: string;
+  content: string;
+  state: string;
+  messages: TicketMessage[];
+  [key: string]: LegacyAny;
+}
+
+interface TicketEditState {
+  classes: TicketEditProps;
+  organizationName: string;
+  ticketName: string;
+  ticket: TicketRecord | null;
+  mode: string;
+  messageText: string;
+  sending: boolean;
+}
+
+function t(key: string, options?: LegacyAny): string {
+  return String(i18next.t(key, options));
+}
+
+class TicketEditPage extends React.Component<TicketEditProps, TicketEditState> {
+  constructor(props: TicketEditProps) {
     super(props);
     this.state = {
       classes: props,
       organizationName: props.organizationName !== undefined ? props.organizationName : props.match.params.organizationName,
       ticketName: props.match.params.ticketName,
       ticket: null,
-      mode: props.location.mode !== undefined ? props.location.mode : "edit",
+      mode: props.location?.mode !== undefined ? props.location.mode : "edit",
       messageText: "",
       sending: false,
     };
@@ -43,7 +97,7 @@ class TicketEditPage extends React.Component {
 
   getTicket() {
     TicketBackend.getTicket(this.state.organizationName, this.state.ticketName)
-      .then((res) => {
+      .then((res: LegacyAny) => {
         if (res.data === null) {
           this.props.history.push("/404");
           return;
@@ -59,50 +113,61 @@ class TicketEditPage extends React.Component {
       });
   }
 
-  parseTicketField(key, value) {
+  parseTicketField(key: string, value: LegacyAny) {
     if ([""].includes(key)) {
       value = Setting.myParseInt(value);
     }
     return value;
   }
 
-  updateTicketField(key, value) {
+  updateTicketField(key: string, value: LegacyAny) {
     value = this.parseTicketField(key, value);
 
     const ticket = this.state.ticket;
+    if (ticket === null) {
+      return;
+    }
     ticket[key] = value;
     this.setState({
       ticket: ticket,
     });
   }
 
-  submitTicketEdit(willExist) {
-    const ticket = Setting.deepCopy(this.state.ticket);
+  submitTicketEdit(willExist: boolean) {
+    if (this.state.ticket === null) {
+      return;
+    }
+    const currentTicket = this.state.ticket;
+    const ticket = Setting.deepCopy(currentTicket);
     TicketBackend.updateTicket(this.state.organizationName, this.state.ticketName, ticket)
-      .then((res) => {
+      .then((res: LegacyAny) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully saved"));
+          Setting.showMessage("success", t("general:Successfully saved"));
           this.setState({
-            ticketName: this.state.ticket.name,
+            ticketName: currentTicket.name,
           });
           if (willExist) {
             this.props.history.push("/tickets");
           } else {
-            this.props.history.push(`/tickets/${this.state.ticket.owner}/${this.state.ticket.name}`);
+            this.props.history.push(`/tickets/${currentTicket.owner}/${currentTicket.name}`);
           }
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to save")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to save")}: ${res.msg}`);
           this.updateTicketField("name", this.state.ticketName);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
   sendMessage() {
+    if (this.state.ticket === null) {
+      return;
+    }
+
     if (!this.state.messageText.trim()) {
-      Setting.showMessage("error", i18next.t("ticket:Please enter a message"));
+      Setting.showMessage("error", t("ticket:Please enter a message"));
       return;
     }
 
@@ -116,123 +181,124 @@ class TicketEditPage extends React.Component {
     };
 
     TicketBackend.addTicketMessage(this.state.organizationName, this.state.ticketName, message)
-      .then((res) => {
+      .then((res: LegacyAny) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully sent"));
+          Setting.showMessage("success", t("general:Successfully sent"));
           this.setState({
             messageText: "",
             sending: false,
           });
           this.getTicket();
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to send")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to send")}: ${res.msg}`);
           this.setState({sending: false});
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
         this.setState({sending: false});
       });
   }
 
   renderTicket() {
+    const ticket = this.state.ticket as TicketRecord;
     const isAdmin = Setting.isAdminUser(this.props.account);
-    const isOwner = this.props.account.name === this.state.ticket?.user;
+    const isOwner = this.props.account.name === ticket.user;
 
     return (
       <Card size="small" title={
         <div>
-          {this.state.mode === "add" ? i18next.t("ticket:New Ticket") : i18next.t("ticket:Edit Ticket")}&nbsp;&nbsp;&nbsp;&nbsp;
-          <Button onClick={() => this.submitTicketEdit(false)}>{i18next.t("general:Save")}</Button>
-          <Button style={{marginLeft: "20px"}} type="primary" onClick={() => this.submitTicketEdit(true)}>{i18next.t("general:Save & Exit")}</Button>
+          {this.state.mode === "add" ? t("ticket:New Ticket") : t("ticket:Edit Ticket")}&nbsp;&nbsp;&nbsp;&nbsp;
+          <Button onClick={() => this.submitTicketEdit(false)}>{t("general:Save")}</Button>
+          <Button style={{marginLeft: "20px"}} type="primary" onClick={() => this.submitTicketEdit(true)}>{t("general:Save & Exit")}</Button>
         </div>
       } style={{marginLeft: "5px"}} type="inner">
         <Row style={{marginTop: "10px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {i18next.t("general:Organization")}:
+            {t("general:Organization")}:
           </Col>
           <Col span={22} >
-            <Input value={this.state.ticket.owner} disabled={true} />
+            <Input value={ticket.owner} disabled={true} />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {i18next.t("general:Name")}:
+            {t("general:Name")}:
           </Col>
           <Col span={22} >
-            <Input value={this.state.ticket.name} disabled={!isAdmin} onChange={e => {
+            <Input value={ticket.name} disabled={!isAdmin} onChange={e => {
               this.updateTicketField("name", e.target.value);
             }} />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {i18next.t("general:Display name")}:
+            {t("general:Display name")}:
           </Col>
           <Col span={22} >
-            <Input value={this.state.ticket.displayName} onChange={e => {
+            <Input value={ticket.displayName} onChange={e => {
               this.updateTicketField("displayName", e.target.value);
             }} />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {i18next.t("general:Created time")}:
+            {t("general:Created time")}:
           </Col>
           <Col span={22} >
-            <Input value={this.state.ticket.createdTime} disabled={true} />
+            <Input value={ticket.createdTime} disabled={true} />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {i18next.t("general:Updated time")}:
+            {t("general:Updated time")}:
           </Col>
           <Col span={22} >
-            <Input value={this.state.ticket.updatedTime} disabled={true} />
+            <Input value={ticket.updatedTime} disabled={true} />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {i18next.t("general:Title")}:
+            {t("general:Title")}:
           </Col>
           <Col span={22} >
-            <Input value={this.state.ticket.title} disabled={!isAdmin && !isOwner} onChange={e => {
+            <Input value={ticket.title} disabled={!isAdmin && !isOwner} onChange={e => {
               this.updateTicketField("title", e.target.value);
             }} />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {i18next.t("provider:Content")}:
+            {t("provider:Content")}:
           </Col>
           <Col span={22} >
-            <TextArea autoSize={{minRows: 3, maxRows: 10}} value={this.state.ticket.content} disabled={!isAdmin && !isOwner} onChange={e => {
+            <TextArea autoSize={{minRows: 3, maxRows: 10}} value={ticket.content} disabled={!isAdmin && !isOwner} onChange={e => {
               this.updateTicketField("content", e.target.value);
             }} />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {i18next.t("general:User")}:
+            {t("general:User")}:
           </Col>
           <Col span={22} >
-            <Input value={this.state.ticket.user} />
+            <Input value={ticket.user} />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {i18next.t("general:State")}:
+            {t("general:State")}:
           </Col>
           <Col span={22} >
-            <Select virtual={false} style={{width: "100%"}} value={this.state.ticket.state}
-              disabled={!isAdmin && this.state.ticket.state === "Closed"}
+            <Select virtual={false} style={{width: "100%"}} value={ticket.state}
+              disabled={!isAdmin && ticket.state === "Closed"}
               onChange={(value => {
                 this.updateTicketField("state", value);
               })}>
-              <Option value="Open">{i18next.t("ticket:Open")}</Option>
-              <Option value="In Progress">{i18next.t("ticket:In Progress")}</Option>
-              <Option value="Resolved">{i18next.t("ticket:Resolved")}</Option>
-              <Option value="Closed">{i18next.t("ticket:Closed")}</Option>
+              <Option value="Open">{t("ticket:Open")}</Option>
+              <Option value="In Progress">{t("ticket:In Progress")}</Option>
+              <Option value="Resolved">{t("ticket:Resolved")}</Option>
+              <Option value="Closed">{t("ticket:Closed")}</Option>
             </Select>
           </Col>
         </Row>
@@ -241,19 +307,21 @@ class TicketEditPage extends React.Component {
   }
 
   renderMessages() {
+    const ticket = this.state.ticket as TicketRecord;
+
     return (
-      <Card size="small" title={i18next.t("ticket:Messages")} style={{marginTop: "20px", marginLeft: "5px"}} type="inner">
-        <List
+      <Card size="small" title={t("ticket:Messages")} style={{marginTop: "20px", marginLeft: "5px"}} type="inner">
+        <List<TicketMessage>
           itemLayout="horizontal"
-          dataSource={this.state.ticket.messages || []}
-          renderItem={(message, index) => (
+          dataSource={ticket.messages || []}
+          renderItem={(message: TicketMessage, index: number) => (
             <List.Item key={index}>
               <List.Item.Meta
                 avatar={<Avatar icon={<UserOutlined />} style={{backgroundColor: message.isAdmin ? "#1890ff" : "#87d068"}} />}
                 title={
                   <Space>
                     <span>{message.author}</span>
-                    {message.isAdmin && <Tag color="blue">{i18next.t("general:Admin")}</Tag>}
+                    {message.isAdmin && <Tag color="blue">{t("general:Admin")}</Tag>}
                     <span style={{fontSize: "12px", color: "#999"}}>{Setting.getFormattedDate(message.timestamp)}</span>
                   </Space>
                 }
@@ -273,7 +341,7 @@ class TicketEditPage extends React.Component {
               rows={3}
               value={this.state.messageText}
               onChange={e => this.setState({messageText: e.target.value})}
-              placeholder={i18next.t("ticket:Type your message here...")}
+              placeholder={t("ticket:Type your message here...")}
               onPressEnter={(e) => {
                 if (e.ctrlKey || e.metaKey) {
                   this.sendMessage();
@@ -289,12 +357,12 @@ class TicketEditPage extends React.Component {
               onClick={() => this.sendMessage()}
               style={{width: "100%", height: "100%"}}
             >
-              {i18next.t("general:Send")}
+              {t("general:Send")}
             </Button>
           </Col>
         </Row>
         <div style={{marginTop: "8px", color: "#999", fontSize: "12px"}}>
-          {i18next.t("ticket:Press Ctrl+Enter to send")}
+          {t("ticket:Press Ctrl+Enter to send")}
         </div>
       </Card>
     );

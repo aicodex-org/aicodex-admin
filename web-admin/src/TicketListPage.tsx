@@ -22,9 +22,37 @@ import * as TicketBackend from "./backend/TicketBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
+import {legacyColumns} from "./types/legacyPage";
 
-class TicketListPage extends BaseListPage {
-  newTicket() {
+type AdminRouteProps = import("./types/legacyPage").AdminRouteProps;
+type LegacyAny = import("./types/legacyPage").LegacyAny;
+type LegacyColumn<TRecord = LegacyAny> = import("./types/legacyPage").LegacyColumn<TRecord>;
+type LegacyFetchParams = import("./types/legacyPage").LegacyFetchParams;
+type LegacyListState<TRecord = LegacyAny> = import("./types/legacyPage").LegacyListState<TRecord>;
+
+interface TicketRecord {
+  owner: string;
+  name: string;
+  createdTime: string;
+  updatedTime: string;
+  displayName: string;
+  user: string;
+  title: string;
+  content: string;
+  state: string;
+  messages: LegacyAny[];
+  [key: string]: LegacyAny;
+}
+
+function t(key: string, options?: LegacyAny): string {
+  return String(i18next.t(key, options));
+}
+
+const TicketBackendLegacy = TicketBackend as LegacyAny;
+const LegacyBaseListPage = BaseListPage as unknown as React.ComponentClass<AdminRouteProps, LegacyListState<TicketRecord>> & LegacyAny;
+
+class TicketListPage extends LegacyBaseListPage {
+  newTicket(): TicketRecord {
     const randomName = Setting.getRandomName();
     const owner = Setting.getRequestOrganization(this.props.account);
     return {
@@ -47,21 +75,21 @@ class TicketListPage extends BaseListPage {
       .then((res) => {
         if (res.status === "ok") {
           this.props.history.push({pathname: `/tickets/${newTicket.owner}/${newTicket.name}`, mode: "add"});
-          Setting.showMessage("success", i18next.t("general:Successfully added"));
+          Setting.showMessage("success", t("general:Successfully added"));
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to add")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  deleteTicket(i) {
+  deleteTicket(i: number) {
     TicketBackend.deleteTicket(this.state.data[i])
       .then((res) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully deleted"));
+          Setting.showMessage("success", t("general:Successfully deleted"));
           this.fetch({
             pagination: {
               ...this.state.pagination,
@@ -69,25 +97,25 @@ class TicketListPage extends BaseListPage {
             },
           });
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  renderTable(tickets) {
-    const columns = [
+  renderTable(tickets: TicketRecord[]) {
+    const columns: LegacyColumn<TicketRecord>[] = legacyColumns<TicketRecord>([
       {
-        title: i18next.t("general:Name"),
+        title: t("general:Name"),
         dataIndex: "name",
         key: "name",
         width: "140px",
         fixed: "left",
         sorter: true,
         ...this.getColumnSearchProps("name"),
-        render: (text, record, index) => {
+        render: (text: string, record: TicketRecord, index: number) => {
           return (
             <Link to={`/tickets/${record.owner}/${text}`}>
               {text}
@@ -96,27 +124,27 @@ class TicketListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Created time"),
+        title: t("general:Created time"),
         dataIndex: "createdTime",
         key: "createdTime",
         width: "180px",
         sorter: true,
-        render: (text, record, index) => {
+        render: (text: string, record: TicketRecord, index: number) => {
           return Setting.getFormattedDate(text);
         },
       },
       {
-        title: i18next.t("general:Updated time"),
+        title: t("general:Updated time"),
         dataIndex: "updatedTime",
         key: "updatedTime",
         width: "180px",
         sorter: true,
-        render: (text, record, index) => {
+        render: (text: string, record: TicketRecord, index: number) => {
           return Setting.getFormattedDate(text);
         },
       },
       {
-        title: i18next.t("general:Display name"),
+        title: t("general:Display name"),
         dataIndex: "displayName",
         key: "displayName",
         width: "250px",
@@ -124,7 +152,7 @@ class TicketListPage extends BaseListPage {
         ...this.getColumnSearchProps("displayName"),
       },
       {
-        title: i18next.t("general:Title"),
+        title: t("general:Title"),
         dataIndex: "title",
         key: "title",
         // width: "200px",
@@ -132,13 +160,13 @@ class TicketListPage extends BaseListPage {
         ...this.getColumnSearchProps("title"),
       },
       {
-        title: i18next.t("general:User"),
+        title: t("general:User"),
         dataIndex: "user",
         key: "user",
         width: "140px",
         sorter: true,
         ...this.getColumnSearchProps("user"),
-        render: (text, record, index) => {
+        render: (text: string, record: TicketRecord, index: number) => {
           return (
             <Link to={`/users/${text}`}>
               {text}
@@ -147,40 +175,40 @@ class TicketListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:State"),
+        title: t("general:State"),
         dataIndex: "state",
         key: "state",
         width: "140px",
         sorter: true,
         ...this.getColumnSearchProps("state"),
-        render: (text, record, index) => {
+        render: (text: string, record: TicketRecord, index: number) => {
           switch (text) {
           case "Open":
-            return Setting.getTag("processing", i18next.t("ticket:Open"), <ClockCircleOutlined />);
+            return Setting.getTag("processing", t("ticket:Open"), <ClockCircleOutlined />);
           case "In Progress":
-            return Setting.getTag("warning", i18next.t("ticket:In Progress"), <SyncOutlined spin />);
+            return Setting.getTag("warning", t("ticket:In Progress"), <SyncOutlined spin />);
           case "Resolved":
-            return Setting.getTag("success", i18next.t("ticket:Resolved"), <CheckCircleOutlined />);
+            return Setting.getTag("success", t("ticket:Resolved"), <CheckCircleOutlined />);
           case "Closed":
-            return Setting.getTag("default", i18next.t("ticket:Closed"), <CloseCircleOutlined />);
+            return Setting.getTag("default", t("ticket:Closed"), <CloseCircleOutlined />);
           default:
             return null;
           }
         },
       },
       {
-        title: i18next.t("general:Action"),
+        title: t("general:Action"),
         dataIndex: "",
         key: "op",
         width: "180px",
         fixed: (Setting.isMobile()) ? "false" : "right",
-        render: (text, record, index) => {
+        render: (text: LegacyAny, record: TicketRecord, index: number) => {
           return (
             <div>
-              <Button type="primary" style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} onClick={() => this.props.history.push(`/tickets/${record.owner}/${record.name}`)}>{i18next.t("general:Edit")}</Button>
+              <Button type="primary" style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} onClick={() => this.props.history.push(`/tickets/${record.owner}/${record.name}`)}>{t("general:Edit")}</Button>
               {Setting.isAdminUser(this.props.account) ? (
                 <PopconfirmModal
-                  title={i18next.t("general:Sure to delete") + `: ${record.name} ?`}
+                  title={t("general:Sure to delete") + `: ${record.name} ?`}
                   onConfirm={() => this.deleteTicket(index)}
                 >
                 </PopconfirmModal>
@@ -189,7 +217,7 @@ class TicketListPage extends BaseListPage {
           );
         },
       },
-    ];
+    ]);
 
     const paginationProps = this.getTablePaginationProps();
 
@@ -198,8 +226,8 @@ class TicketListPage extends BaseListPage {
         <Table scroll={{x: "max-content"}} columns={columns} dataSource={tickets} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
           title={() => (
             <div>
-              {i18next.t("general:Tickets")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button type="primary" size="small" onClick={this.addTicket.bind(this)}>{i18next.t("general:Add")}</Button>
+              {t("general:Tickets")}&nbsp;&nbsp;&nbsp;&nbsp;
+              <Button type="primary" size="small" onClick={this.addTicket.bind(this)}>{t("general:Add")}</Button>
             </div>
           )}
           loading={this.state.loading}
@@ -209,7 +237,7 @@ class TicketListPage extends BaseListPage {
     );
   }
 
-  fetch = (params = {}) => {
+  fetch = (params: LegacyFetchParams = {} as LegacyFetchParams) => {
     let field = params.searchedColumn, value = params.searchText;
     const sortField = params.sortField, sortOrder = params.sortOrder;
     if (params.type !== undefined && params.type !== null) {
@@ -217,8 +245,8 @@ class TicketListPage extends BaseListPage {
       value = params.type;
     }
     this.setState({loading: true});
-    TicketBackend.getTickets(Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
-      .then((res) => {
+    TicketBackendLegacy.getTickets(Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
+      .then((res: LegacyAny) => {
         this.setState({
           loading: false,
         });

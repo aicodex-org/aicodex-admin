@@ -20,13 +20,43 @@ import BaseListPage from "./BaseListPage";
 import * as Setting from "./Setting";
 import * as FormBackend from "./backend/FormBackend";
 import i18next from "i18next";
+import {legacyColumns} from "./types/legacyPage";
 
-class FormListPage extends BaseListPage {
-  constructor(props) {
+type AdminRouteProps = import("./types/legacyPage").AdminRouteProps;
+type LegacyAny = import("./types/legacyPage").LegacyAny;
+type LegacyColumn<TRecord = LegacyAny> = import("./types/legacyPage").LegacyColumn<TRecord>;
+type LegacyFetchParams = import("./types/legacyPage").LegacyFetchParams;
+type LegacyListState<TRecord = LegacyAny> = import("./types/legacyPage").LegacyListState<TRecord>;
+
+interface FormItemRecord {
+  label: string;
+  visible?: boolean;
+  [key: string]: LegacyAny;
+}
+
+interface FormRecord {
+  owner: string;
+  name: string;
+  createdTime?: string;
+  displayName: string;
+  type?: string;
+  formItems: FormItemRecord[];
+  [key: string]: LegacyAny;
+}
+
+function t(key: string, options?: LegacyAny): string {
+  return String(i18next.t(key, options));
+}
+
+const FormBackendLegacy = FormBackend as LegacyAny;
+const LegacyBaseListPage = BaseListPage as unknown as React.ComponentClass<AdminRouteProps, LegacyListState<FormRecord>> & LegacyAny;
+
+class FormListPage extends LegacyBaseListPage {
+  constructor(props: AdminRouteProps) {
     super(props);
   }
 
-  newForm() {
+  newForm(): FormRecord {
     const randomName = Setting.getRandomName();
     return {
       owner: this.props.account.owner,
@@ -47,46 +77,46 @@ class FormListPage extends BaseListPage {
             pathname: `/forms/${newForm.name}`,
             mode: "add",
           });
-          Setting.showMessage("success", i18next.t("general:Successfully added"));
+          Setting.showMessage("success", t("general:Successfully added"));
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to add")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  deleteForm(record) {
+  deleteForm(record: FormRecord) {
     FormBackend.deleteForm(record)
       .then((res) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully deleted"));
+          Setting.showMessage("success", t("general:Successfully deleted"));
           this.setState({
-            data: this.state.data.filter((item) => item.name !== record.name),
+            data: this.state.data.filter((item: FormRecord) => item.name !== record.name),
             pagination: {
               ...this.state.pagination,
               total: this.state.pagination.total - 1,
             },
           });
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to delete")}: ${error}`);
       });
   }
 
-  renderTable(forms) {
-    const columns = [
+  renderTable(forms: FormRecord[]) {
+    const columns: LegacyColumn<FormRecord>[] = legacyColumns<FormRecord>([
       {
-        title: i18next.t("general:Name"),
+        title: t("general:Name"),
         dataIndex: "name",
         key: "name",
         width: "160px",
-        sorter: (a, b) => a.name.localeCompare(b.name),
-        render: (text, record, index) => {
+        sorter: (a: FormRecord, b: FormRecord) => a.name.localeCompare(b.name),
+        render: (text: string, record: FormRecord, index: number) => {
           return (
             <Link to={`/forms/${text}`}>
               {text}
@@ -95,38 +125,38 @@ class FormListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Display name"),
+        title: t("general:Display name"),
         dataIndex: "displayName",
         key: "displayName",
         width: "200px",
-        sorter: (a, b) => a.displayName.localeCompare(b.displayName),
+        sorter: (a: FormRecord, b: FormRecord) => a.displayName.localeCompare(b.displayName),
       },
       {
-        title: i18next.t("general:Type"),
+        title: t("general:Type"),
         dataIndex: "type",
         key: "type",
         width: "120px",
-        sorter: (a, b) => a.type.localeCompare(b.type),
-        render: (text, record, index) => {
+        sorter: (a: FormRecord, b: FormRecord) => a.type!.localeCompare(b.type!),
+        render: (text: string, record: FormRecord, index: number) => {
           const typeOption = Setting.getFormTypeOptions().find(option => option.id === text);
-          return typeOption ? i18next.t(typeOption.name) : text;
+          return typeOption ? t(typeOption.name) : text;
         },
       },
       {
-        title: i18next.t("form:Form items"),
+        title: t("form:Form items"),
         dataIndex: "formItems",
         key: "formItems",
         ...this.getColumnSearchProps("formItems"),
-        render: (text, record, index) => {
+        render: (text: FormItemRecord[], record: FormRecord, index: number) => {
           const providers = text;
           if (!providers || providers.length === 0) {
-            return `(${i18next.t("general:empty")})`;
+            return `(${t("general:empty")})`;
           }
 
-          const visibleProviders = providers.filter(item => item.visible !== false);
-          const leftItems = [];
-          const rightItems = [];
-          visibleProviders.forEach((item, idx) => {
+          const visibleProviders = providers.filter((item: FormItemRecord) => item.visible !== false);
+          const leftItems: FormItemRecord[] = [];
+          const rightItems: FormItemRecord[] = [];
+          visibleProviders.forEach((item: FormItemRecord, idx: number) => {
             if (idx % 2 === 0) {
               leftItems.push(item);
             } else {
@@ -134,14 +164,14 @@ class FormListPage extends BaseListPage {
             }
           });
 
-          const getList = (items) => (
-            <List
+          const getList = (items: FormItemRecord[]) => (
+            <List<FormItemRecord>
               size="small"
               locale={{emptyText: " "}}
               dataSource={items}
               renderItem={providerItem => (
                 <List.Item>
-                  <div style={{display: "inline"}}>{i18next.t(providerItem.label)}</div>
+                  <div style={{display: "inline"}}>{t(providerItem.label)}</div>
                 </List.Item>
               )}
             />
@@ -158,31 +188,31 @@ class FormListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Action"),
+        title: t("general:Action"),
         dataIndex: "action",
         key: "action",
         width: "180px",
         fixed: (Setting.isMobile()) ? "false" : "right",
-        render: (text, record, index) => {
+        render: (text: LegacyAny, record: FormRecord, index: number) => {
           return (
             <div>
               <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}}
                 type="primary"
-                onClick={() => this.props.history.push(`/forms/${record.name}`)}>{i18next.t("general:Edit")}</Button>
+                onClick={() => this.props.history.push(`/forms/${record.name}`)}>{t("general:Edit")}</Button>
               <Popconfirm
-                title={`${i18next.t("general:Sure to delete")}: ${record.name} ?`}
+                title={`${t("general:Sure to delete")}: ${record.name} ?`}
                 onConfirm={() => this.deleteForm(record)}
-                okText={i18next.t("general:OK")}
-                cancelText={i18next.t("general:Cancel")}
+                okText={t("general:OK")}
+                cancelText={t("general:Cancel")}
               >
                 <Button style={{marginBottom: "10px"}} type="primary"
-                  danger>{i18next.t("general:Delete")}</Button>
+                  danger>{t("general:Delete")}</Button>
               </Popconfirm>
             </div>
           );
         },
       },
-    ];
+    ]);
 
     const paginationProps = this.getTablePaginationProps();
 
@@ -193,9 +223,9 @@ class FormListPage extends BaseListPage {
           pagination={paginationProps}
           title={() => (
             <div>
-              {i18next.t("general:Forms")}&nbsp;&nbsp;&nbsp;&nbsp;
+              {t("general:Forms")}&nbsp;&nbsp;&nbsp;&nbsp;
               <Button type="primary" size="small"
-                onClick={this.addForm.bind(this)}>{i18next.t("general:Add")}</Button>
+                onClick={this.addForm.bind(this)}>{t("general:Add")}</Button>
             </div>
           )}
           loading={this.state.loading}
@@ -205,12 +235,12 @@ class FormListPage extends BaseListPage {
     );
   }
 
-  fetch = (params = {}) => {
+  fetch = (params: LegacyFetchParams = {} as LegacyFetchParams) => {
     const field = params.searchedColumn, value = params.searchText;
     const sortField = params.sortField, sortOrder = params.sortOrder;
     this.setState({loading: true});
-    FormBackend.getForms(this.props.account.owner, params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
-      .then((res) => {
+    FormBackendLegacy.getForms(this.props.account.owner, params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
+      .then((res: LegacyAny) => {
         this.setState({
           loading: false,
         });
