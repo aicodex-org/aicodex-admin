@@ -24,8 +24,87 @@ import ToolTable from "./ToolTable";
 
 const {Option} = Select;
 
-class ServerEditPage extends React.Component {
-  constructor(props) {
+interface BackendResponse<T> {
+  status?: string;
+  data?: T | null;
+  msg?: string;
+}
+
+interface AccountRecord {
+  owner?: string;
+  tag?: string;
+  isAdmin?: boolean;
+  [key: string]: unknown;
+}
+
+interface ToolRecord {
+  name?: string;
+  description?: string;
+  isAllowed?: boolean;
+  [key: string]: unknown;
+}
+
+interface ServerRecord {
+  owner: string;
+  name: string;
+  displayName: string;
+  url: string;
+  token: string;
+  application: string;
+  tools?: ToolRecord[];
+  [key: string]: unknown;
+}
+
+interface OrganizationRecord {
+  name: string;
+  [key: string]: unknown;
+}
+
+interface ApplicationRecord {
+  name: string;
+  [key: string]: unknown;
+}
+
+interface ServerEditPageProps {
+  account: AccountRecord;
+  history: {
+    push: (location: string) => void;
+  };
+  location: {
+    mode?: string;
+  };
+  match: {
+    params: {
+      organizationName: string;
+      serverName: string;
+    };
+  };
+}
+
+interface ServerEditPageState {
+  classes: ServerEditPageProps;
+  serverName: string;
+  owner: string;
+  server: ServerRecord | null;
+  organizations: OrganizationRecord[];
+  applications: ApplicationRecord[];
+  mode: string;
+}
+
+type ToolTableProps = {
+  tools: ToolRecord[];
+  onUpdateTable: (value: ToolRecord[]) => void;
+};
+
+// ToolTable 仍是 legacy JS；这里仅声明 MCP Server 编辑页传入的最小 props 面。
+const TypedToolTable = ToolTable as React.ComponentType<ToolTableProps>;
+
+function t(key: string): string {
+  return String(i18next.t(key));
+}
+
+class ServerEditPage extends React.Component<ServerEditPageProps, ServerEditPageState> {
+  constructor(props: ServerEditPageProps) {
     super(props);
     this.state = {
       classes: props,
@@ -38,15 +117,15 @@ class ServerEditPage extends React.Component {
     };
   }
 
-  UNSAFE_componentWillMount() {
+  UNSAFE_componentWillMount(): void {
     this.getServer();
     this.getOrganizations();
     this.getApplications(this.state.owner);
   }
 
-  getServer() {
+  getServer(): void {
     ServerBackend.getServer(this.state.server?.owner || this.state.owner, this.state.serverName)
-      .then((res) => {
+      .then((res: BackendResponse<ServerRecord>) => {
         if (res.data === null) {
           this.props.history.push("/404");
           return;
@@ -54,18 +133,18 @@ class ServerEditPage extends React.Component {
 
         if (res.status === "ok") {
           this.setState({
-            server: res.data,
+            server: res.data ?? null,
           });
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to get")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to get")}: ${res.msg}`);
         }
       });
   }
 
-  getOrganizations() {
+  getOrganizations(): void {
     if (Setting.isAdminUser(this.props.account)) {
       OrganizationBackend.getOrganizations("admin")
-        .then((res) => {
+        .then((res: BackendResponse<OrganizationRecord[]>) => {
           this.setState({
             organizations: res.data || [],
           });
@@ -73,20 +152,24 @@ class ServerEditPage extends React.Component {
     }
   }
 
-  getApplications(owner) {
+  getApplications(owner: string): void {
     ApplicationBackend.getApplicationsByOrganization("admin", owner)
-      .then((res) => {
+      .then((res: BackendResponse<ApplicationRecord[]>) => {
         this.setState({
           applications: res.data || [],
         });
       });
   }
 
-  updateServerField(key, value) {
+  updateServerField(key: string, value: unknown): void {
     const server = this.state.server;
+    if (server === null) {
+      return;
+    }
+
     if (key === "owner" && server.owner !== value) {
       server.application = "";
-      this.getApplications(value);
+      this.getApplications(String(value));
     }
 
     server[key] = value;
@@ -95,12 +178,16 @@ class ServerEditPage extends React.Component {
     });
   }
 
-  submitServerEdit(willExit) {
-    const server = Setting.deepCopy(this.state.server);
+  submitServerEdit(willExit: boolean): void {
+    if (this.state.server === null) {
+      return;
+    }
+
+    const server = Setting.deepCopy(this.state.server) as ServerRecord;
     ServerBackend.updateServer(this.state.owner, this.state.serverName, server)
-      .then((res) => {
+      .then((res: BackendResponse<unknown>) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully modified"));
+          Setting.showMessage("success", t("general:Successfully modified"));
           if (willExit) {
             this.props.history.push("/servers");
           } else {
@@ -112,45 +199,55 @@ class ServerEditPage extends React.Component {
             this.props.history.push(`/servers/${server.owner}/${server.name}`);
           }
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to update")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to update")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  deleteServer() {
+  deleteServer(): void {
+    if (this.state.server === null) {
+      return;
+    }
+
     ServerBackend.deleteServer(this.state.server)
-      .then((res) => {
+      .then((res: BackendResponse<unknown>) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully deleted"));
+          Setting.showMessage("success", t("general:Successfully deleted"));
           this.props.history.push("/servers");
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  renderServer() {
+  renderServer(): React.ReactNode {
+    if (this.state.server === null) {
+      return null;
+    }
+
+    const server = this.state.server;
+
     return (
       <Card size="small" title={
         <div>
-          {this.state.mode === "add" ? i18next.t("server:New MCP Server") : i18next.t("server:Edit MCP Server")}&nbsp;&nbsp;&nbsp;&nbsp;
-          <Button onClick={() => this.submitServerEdit(false)}>{i18next.t("general:Save")}</Button>
-          <Button style={{marginLeft: "20px"}} type="primary" onClick={() => this.submitServerEdit(true)}>{i18next.t("general:Save & Exit")}</Button>
-          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteServer()}>{i18next.t("general:Cancel")}</Button> : null}
+          {this.state.mode === "add" ? t("server:New MCP Server") : t("server:Edit MCP Server")}&nbsp;&nbsp;&nbsp;&nbsp;
+          <Button onClick={() => this.submitServerEdit(false)}>{t("general:Save")}</Button>
+          <Button style={{marginLeft: "20px"}} type="primary" onClick={() => this.submitServerEdit(true)}>{t("general:Save & Exit")}</Button>
+          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteServer()}>{t("general:Cancel")}</Button> : null}
         </div>
       } style={(Setting.isMobile()) ? {margin: "5px"} : {}} type="inner">
         <Row style={{marginTop: "10px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Organization"), i18next.t("general:Organization - Tooltip"))} :
+            {Setting.getLabel(t("general:Organization"), t("general:Organization - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Select virtual={false} style={{width: "100%"}} disabled={!Setting.isAdminUser(this.props.account)} value={this.state.server.owner} onChange={(value => {this.updateServerField("owner", value);})}>
+            <Select virtual={false} style={{width: "100%"}} disabled={!Setting.isAdminUser(this.props.account)} value={server.owner} onChange={(value => {this.updateServerField("owner", value);})}>
               {
                 this.state.organizations.map((organization, index) => <Option key={index} value={organization.name}>{organization.name}</Option>)
               }
@@ -159,50 +256,50 @@ class ServerEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {i18next.t("general:Name")}:
+            {t("general:Name")}:
           </Col>
           <Col span={22} >
-            <Input value={this.state.server.name} onChange={e => {
+            <Input value={server.name} onChange={e => {
               this.updateServerField("name", e.target.value);
             }} />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {i18next.t("general:Display name")}:
+            {t("general:Display name")}:
           </Col>
           <Col span={22} >
-            <Input value={this.state.server.displayName} onChange={e => {
+            <Input value={server.displayName} onChange={e => {
               this.updateServerField("displayName", e.target.value);
             }} />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:URL"), i18next.t("general:URL - Tooltip"))} :
+            {Setting.getLabel(t("general:URL"), t("general:URL - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Input prefix={<LinkOutlined />} value={this.state.server.url} onChange={e => {
+            <Input prefix={<LinkOutlined />} value={server.url} onChange={e => {
               this.updateServerField("url", e.target.value);
             }} />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("token:Access token"), i18next.t("token:Access token - Tooltip"))} :
+            {Setting.getLabel(t("token:Access token"), t("token:Access token - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Input.Password placeholder={"***"} value={this.state.server.token} onChange={e => {
+            <Input.Password placeholder={"***"} value={server.token} onChange={e => {
               this.updateServerField("token", e.target.value);
             }} />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Application"), i18next.t("general:Application - Tooltip"))} :
+            {Setting.getLabel(t("general:Application"), t("general:Application - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Select virtual={false} style={{width: "100%"}} value={this.state.server.application} onChange={(value => {this.updateServerField("application", value);})}>
+            <Select virtual={false} style={{width: "100%"}} value={server.application} onChange={(value => {this.updateServerField("application", value);})}>
               {
                 this.state.applications.map((application, index) => <Option key={index} value={application.name}>{application.name}</Option>)
               }
@@ -211,28 +308,28 @@ class ServerEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Tool"), i18next.t("general:Tool - Tooltip"))} :
+            {Setting.getLabel(t("general:Tool"), t("general:Tool - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <ToolTable
-              tools={this.state.server?.tools || []}
+            <TypedToolTable
+              tools={server.tools || []}
               onUpdateTable={(value) => {this.updateServerField("tools", value);}}
             />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("provider:Base URL"), i18next.t("provider:Base URL - Tooltip"))} :
+            {Setting.getLabel(t("provider:Base URL"), t("provider:Base URL - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Input prefix={<LinkOutlined />} readonly value={`${window.location.origin}/api/server/${this.state.server.owner}/${this.state.server.name}`} />
+            <Input prefix={<LinkOutlined />} readOnly value={`${window.location.origin}/api/server/${server.owner}/${server.name}`} />
           </Col>
         </Row>
       </Card>
     );
   }
 
-  render() {
+  render(): React.ReactNode {
     if (this.state.server === null) {
       return null;
     }
