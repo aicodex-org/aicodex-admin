@@ -18,9 +18,38 @@ import i18next from "i18next";
 import * as OrderBackend from "./backend/OrderBackend";
 import * as ProductBackend from "./backend/ProductBackend";
 import * as Setting from "./Setting";
+import type {AdminRouteProps, LegacyAny} from "./types/legacyPage";
+import type {OrderProductInfo, OrderRecord, PaymentAttachInfo, PaymentProductRecord} from "./types/businessPayment";
 
-class OrderPayPage extends React.Component {
-  constructor(props) {
+type PaymentProviderRecord = import("./types/businessPayment").PaymentProviderRecord;
+
+const t = i18next.t.bind(i18next) as (key: string) => string;
+
+interface OrderPayProps extends AdminRouteProps {
+  match?: {
+    params?: {
+      organizationName?: string;
+      owner?: string;
+      orderName?: string;
+      [key: string]: LegacyAny;
+    };
+    [key: string]: LegacyAny;
+  };
+}
+
+interface OrderPayState {
+  owner: string | null;
+  orderName: string | null;
+  order: OrderRecord | null;
+  firstProduct: PaymentProductRecord | null;
+  productInfos: OrderProductInfo[];
+  paymentEnv: string;
+  isProcessingPayment: boolean;
+  isViewMode: boolean;
+}
+
+class OrderPayPage extends React.Component<OrderPayProps, OrderPayState> {
+  constructor(props: OrderPayProps) {
     super(props);
     this.state = {
       owner: props?.match?.params?.organizationName ?? props?.match?.params?.owner ?? null,
@@ -59,7 +88,7 @@ class OrderPayPage extends React.Component {
     if (res.status === "ok") {
       this.setState({
         order: res.data,
-        productInfos: res.data?.productInfos,
+        productInfos: res.data?.productInfos || [],
         isViewMode: res.data?.state !== "Created",
       }, () => {
         this.getProduct();
@@ -89,18 +118,18 @@ class OrderPayPage extends React.Component {
     }
   }
 
-  getPrice(order) {
+  getPrice(order?: OrderRecord | null) {
     return `${Setting.getCurrencySymbol(order?.currency)}${order?.price} (${Setting.getCurrencyText(order?.currency)})`;
   }
 
-  getProductPrice(product) {
-    const price = product.price * (product.quantity ?? 1);
+  getProductPrice(product: OrderProductInfo) {
+    const price = (product.price ?? 0) * (product.quantity ?? 1);
     return `${Setting.getCurrencySymbol(this.state.order?.currency)}${price.toFixed(2)} (${Setting.getCurrencyText(this.state.order?.currency)})`;
   }
 
   // Call Wechat Pay via jsapi
-  onBridgeReady(attachInfo) {
-    const {WeixinJSBridge} = window;
+  onBridgeReady(attachInfo: PaymentAttachInfo) {
+    const {WeixinJSBridge} = window as unknown as {WeixinJSBridge: LegacyAny};
     this.setState({
       isProcessingPayment: false,
     });
@@ -113,23 +142,23 @@ class OrderPayPage extends React.Component {
         "signType": attachInfo.signType,
         "paySign": attachInfo.paySign,
       },
-      function(res) {
+      (res: {err_msg: string}) => {
         if (res.err_msg === "get_brand_wcpay_request:ok") {
-          Setting.goToLink(attachInfo.payment.successUrl);
+          Setting.goToLink(attachInfo.payment?.successUrl || "");
           return;
         }
         if (res.err_msg === "get_brand_wcpay_request:cancel") {
-          Setting.showMessage("error", i18next.t("product:Payment cancelled"));
+          Setting.showMessage("error", t("product:Payment cancelled"));
         } else {
-          Setting.showMessage("error", i18next.t("product:Payment failed"));
+          Setting.showMessage("error", t("product:Payment failed"));
         }
       }
     );
   }
 
   // In WeChat browser, call this function to pay via jsapi
-  callWechatPay(attachInfo) {
-    const {WeixinJSBridge} = window;
+  callWechatPay(attachInfo: PaymentAttachInfo) {
+    const {WeixinJSBridge} = window as unknown as {WeixinJSBridge?: LegacyAny};
     if (typeof WeixinJSBridge === "undefined") {
       document.addEventListener("WeixinJSBridgeReady", () => this.onBridgeReady(attachInfo), false);
     } else {
@@ -137,7 +166,7 @@ class OrderPayPage extends React.Component {
     }
   }
 
-  payOrder(provider) {
+  payOrder(provider: PaymentProviderRecord) {
     const {firstProduct, order} = this.state;
     if (!firstProduct || !order) {
       return;
@@ -151,7 +180,7 @@ class OrderPayPage extends React.Component {
       .then((res) => {
         if (res.status === "ok") {
           const payment = res.data;
-          const attachInfo = res.data2;
+          const attachInfo = res.data2 as PaymentAttachInfo;
 
           let payUrl = payment.payUrl;
           if (provider.type === "WeChat Pay") {
@@ -164,29 +193,29 @@ class OrderPayPage extends React.Component {
           }
           Setting.goToLink(payUrl);
         } else {
-          Setting.showMessage("error", `${i18next.t("product:Payment failed")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("product:Payment failed")}: ${res.msg}`);
           this.setState({
             isProcessingPayment: false,
           });
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
         this.setState({
           isProcessingPayment: false,
         });
       });
   }
 
-  getPayButton(provider, onClick) {
-    const providerTypeMap = {
-      "Dummy": i18next.t("product:Dummy"),
-      "Balance": i18next.t("user:Balance"),
-      "Alipay": i18next.t("product:Alipay"),
-      "WeChat Pay": i18next.t("product:WeChat Pay"),
-      "PayPal": i18next.t("product:PayPal"),
-      "Stripe": i18next.t("product:Stripe"),
-      "AirWallex": i18next.t("product:AirWallex"),
+  getPayButton(provider: PaymentProviderRecord, onClick: () => void) {
+    const providerTypeMap: Record<string, string> = {
+      "Dummy": t("product:Dummy"),
+      "Balance": t("user:Balance"),
+      "Alipay": t("product:Alipay"),
+      "WeChat Pay": t("product:WeChat Pay"),
+      "PayPal": t("product:PayPal"),
+      "Stripe": t("product:Stripe"),
+      "AirWallex": t("product:AirWallex"),
     };
     const text = providerTypeMap[provider.type] || provider.type;
 
@@ -199,7 +228,7 @@ class OrderPayPage extends React.Component {
     );
   }
 
-  renderProviderButton(provider) {
+  renderProviderButton(provider: PaymentProviderRecord) {
     return (
       <span key={provider.name} style={{width: "200px", marginRight: "20px", marginBottom: "10px"}}>
         {this.getPayButton(provider, () => this.payOrder(provider))}
@@ -210,51 +239,51 @@ class OrderPayPage extends React.Component {
   renderPaymentMethods() {
     const {firstProduct} = this.state;
     if (!firstProduct || !firstProduct.providerObjs || firstProduct.providerObjs.length === 0) {
-      return <div>{i18next.t("product:There is no payment channel for this product.")}</div>;
+      return <div>{t("product:There is no payment channel for this product.")}</div>;
     }
 
-    return firstProduct.providerObjs.map(provider => {
+    return firstProduct.providerObjs.map((provider: PaymentProviderRecord) => {
       return this.renderProviderButton(provider);
     });
   }
 
-  renderProduct(product) {
+  renderProduct(product: OrderProductInfo) {
     const isSubscriptionOrder = product.pricingName && product.planName;
 
     return (
       <div key={product.name} style={{marginBottom: "20px", border: "1px solid #f0f0f0", borderRadius: "2px", padding: "1px"}}>
         <Descriptions bordered column={2} size="middle" labelStyle={{width: "150px"}}>
-          <Descriptions.Item label={i18next.t("general:Name")} span={2}>
+          <Descriptions.Item label={t("general:Name")} span={2}>
             <span style={{fontSize: 20, fontWeight: "500"}}>
               {Setting.getLanguageText(product?.displayName)}
             </span>
           </Descriptions.Item>
-          <Descriptions.Item label={i18next.t("product:Image")} span={2}>
+          <Descriptions.Item label={t("product:Image")} span={2}>
             <img src={product?.image} alt={Setting.getLanguageText(product?.displayName)} height={90} style={{objectFit: "contain"}} />
           </Descriptions.Item>
 
-          <Descriptions.Item label={i18next.t("order:Price")} span={1}>
+          <Descriptions.Item label={t("order:Price")} span={1}>
             <span style={{fontSize: 18, fontWeight: "bold"}}>
               {this.getProductPrice(product)}
             </span>
           </Descriptions.Item>
-          <Descriptions.Item label={i18next.t("product:Quantity")} span={1}>
+          <Descriptions.Item label={t("product:Quantity")} span={1}>
             <span style={{fontSize: 18}}>
               {product.quantity ?? 1}
             </span>
           </Descriptions.Item>
 
           {product?.detail && (
-            <Descriptions.Item label={i18next.t("general:Detail")} span={2}>
+            <Descriptions.Item label={t("general:Detail")} span={2}>
               <span style={{fontSize: 16}}>{Setting.getLanguageText(product?.detail)}</span>
             </Descriptions.Item>
           )}
           {isSubscriptionOrder && (
             <>
-              <Descriptions.Item label={i18next.t("subscription:Subscription plan")} span={1}>
+              <Descriptions.Item label={t("subscription:Subscription plan")} span={1}>
                 <span style={{fontSize: 16}}>{Setting.getLanguageText(product?.planName)}</span>
               </Descriptions.Item>
-              <Descriptions.Item label={i18next.t("subscription:Subscription pricing")} span={1}>
+              <Descriptions.Item label={t("subscription:Subscription pricing")} span={1}>
                 <span style={{fontSize: 16}}>{Setting.getLanguageText(product?.pricingName)}</span>
               </Descriptions.Item>
             </>
@@ -269,13 +298,13 @@ class OrderPayPage extends React.Component {
 
     const updateTime = order?.updateTime || "";
     const state = order?.state || "";
-    const updateTimeMap = {
-      Paid: i18next.t("order:Payment time"),
-      Canceled: i18next.t("order:Cancel time"),
-      Failed: i18next.t("order:Payment failed time"),
-      Timeout: i18next.t("order:Timeout time"),
+    const updateTimeMap: Record<string, string> = {
+      Paid: t("order:Payment time"),
+      Canceled: t("order:Cancel time"),
+      Failed: t("order:Payment failed time"),
+      Timeout: t("order:Timeout time"),
     };
-    const updateTimeLabel = updateTimeMap[state] || i18next.t("general:Updated time");
+    const updateTimeLabel = updateTimeMap[state] || t("general:Updated time");
     const shouldShowUpdateTime = state !== "Created" && updateTime !== "";
 
     if (!order || !productInfos) {
@@ -284,20 +313,20 @@ class OrderPayPage extends React.Component {
 
     return (
       <div className="login-content">
-        <Spin spinning={this.state.isProcessingPayment} size="large" tip={i18next.t("product:Processing payment...")} style={{paddingTop: "10%"}} >
+        <Spin spinning={this.state.isProcessingPayment} size="large" tip={t("product:Processing payment...")} style={{paddingTop: "10%"}} >
           <div style={{marginBottom: "20px"}}>
-            <Descriptions title={<span style={Setting.isMobile() ? {fontSize: 18} : {fontSize: 24}}>{i18next.t("application:Order")}</span>} bordered column={3}>
-              <Descriptions.Item label={i18next.t("general:ID")} span={3}>
+            <Descriptions title={<span style={Setting.isMobile() ? {fontSize: 18} : {fontSize: 24}}>{t("application:Order")}</span>} bordered column={3}>
+              <Descriptions.Item label={t("general:ID")} span={3}>
                 <span style={{fontSize: 16}}>
                   {order.name}
                 </span>
               </Descriptions.Item>
-              <Descriptions.Item label={i18next.t("general:Status")}>
+              <Descriptions.Item label={t("general:Status")}>
                 <span style={{fontSize: 16}}>
                   {order.state}
                 </span>
               </Descriptions.Item>
-              <Descriptions.Item label={i18next.t("general:Created time")}>
+              <Descriptions.Item label={t("general:Created time")}>
                 <span style={{fontSize: 16}}>
                   {Setting.getFormattedDate(order.createdTime)}
                 </span>
@@ -309,7 +338,7 @@ class OrderPayPage extends React.Component {
                   </span>
                 </Descriptions.Item>
               )}
-              <Descriptions.Item label={i18next.t("general:User")}>
+              <Descriptions.Item label={t("general:User")}>
                 <span style={{fontSize: 16}}>
                   {order.user}
                 </span>
@@ -319,20 +348,20 @@ class OrderPayPage extends React.Component {
 
           <div style={{marginBottom: "20px"}}>
             <div style={{fontSize: Setting.isMobile() ? 18 : 24, fontWeight: "bold", marginBottom: "16px", color: "rgba(0, 0, 0, 0.85)"}}>
-              {i18next.t("product:Information")}
+              {t("product:Information")}
             </div>
-            {productInfos.map(product => this.renderProduct(product))}
+            {productInfos.map((product: OrderProductInfo) => this.renderProduct(product))}
           </div>
 
           <div>
-            <Descriptions title={<span style={Setting.isMobile() ? {fontSize: 18} : {fontSize: 24}}>{i18next.t("general:Payment")}</span>} bordered column={3}>
-              <Descriptions.Item label={i18next.t("order:Price")} span={3}>
+            <Descriptions title={<span style={Setting.isMobile() ? {fontSize: 18} : {fontSize: 24}}>{t("general:Payment")}</span>} bordered column={3}>
+              <Descriptions.Item label={t("order:Price")} span={3}>
                 <span style={{fontSize: 28, color: "red", fontWeight: "bold"}}>
                   {this.getPrice(order)}
                 </span>
               </Descriptions.Item>
               {!this.state.isViewMode && (
-                <Descriptions.Item label={i18next.t("order:Pay")} span={3}>
+                <Descriptions.Item label={t("order:Pay")} span={3}>
                   {this.renderPaymentMethods()}
                 </Descriptions.Item>
               )}

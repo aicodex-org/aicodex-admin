@@ -22,9 +22,29 @@ import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
 import {EditOutlined} from "@ant-design/icons";
+import type {AdminRouteProps, LegacyAny, LegacyListState} from "./types/legacyPage";
+import type {OrderRecord} from "./types/businessPayment";
 
-class OrderListPage extends BaseListPage {
-  newOrder() {
+type LegacyFetchParams = import("./types/legacyPage").LegacyFetchParams;
+type OrderProductInfo = import("./types/businessPayment").OrderProductInfo;
+
+const t = i18next.t.bind(i18next) as (key: string) => string;
+
+interface OrderListState extends LegacyListState<OrderRecord> {}
+
+const LegacyBaseListPage = BaseListPage as unknown as React.ComponentClass<AdminRouteProps, OrderListState> & LegacyAny;
+
+// BaseListPage 仍是 legacy JS 类；订单列表只声明本页实际依赖的表格辅助能力。
+interface OrderListPage {
+  props: AdminRouteProps;
+  state: OrderListState;
+  getColumnSearchProps: (dataIndex: string, customRender?: LegacyAny) => LegacyAny;
+  getTablePaginationProps: () => LegacyAny;
+  handleTableChange: LegacyAny;
+}
+
+class OrderListPage extends LegacyBaseListPage {
+  newOrder(): OrderRecord {
     const randomName = Setting.getRandomName();
     const owner = Setting.getRequestOrganization(this.props.account);
     return {
@@ -46,64 +66,65 @@ class OrderListPage extends BaseListPage {
       .then((res) => {
         if (res.status === "ok") {
           this.props.history.push({pathname: `/orders/${newOrder.owner}/${newOrder.name}`, mode: "add"});
-          Setting.showMessage("success", i18next.t("general:Successfully added"));
+          Setting.showMessage("success", t("general:Successfully added"));
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to add")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  cancelOrder(order) {
+  cancelOrder(order: OrderRecord) {
     OrderBackend.cancelOrder(order.owner, order.name)
       .then((res) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully canceled"));
+          Setting.showMessage("success", t("general:Successfully canceled"));
           this.fetch({
             pagination: this.state.pagination,
           });
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to cancel")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to cancel")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  deleteOrder(i) {
+  deleteOrder(i: number) {
     OrderBackend.deleteOrder(this.state.data[i])
       .then((res) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully deleted"));
+          Setting.showMessage("success", t("general:Successfully deleted"));
+          const current = this.state.pagination.current || 1;
           this.fetch({
             pagination: {
               ...this.state.pagination,
-              current: this.state.pagination.current > 1 && this.state.data.length === 1 ? this.state.pagination.current - 1 : this.state.pagination.current,
+              current: current > 1 && this.state.data.length === 1 ? current - 1 : current,
             },
           });
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  renderTable(orders) {
+  renderTable(orders?: OrderRecord[] | null) {
     const columns = [
       {
-        title: i18next.t("general:Name"),
+        title: t("general:Name"),
         dataIndex: "name",
         key: "name",
         width: "140px",
         fixed: "left",
         sorter: true,
         ...this.getColumnSearchProps("name"),
-        render: (text, record, index) => {
+        render: (text: string, record: OrderRecord) => {
           return (
             <Link to={`/orders/${record.owner}/${text}`}>
               {text}
@@ -112,13 +133,13 @@ class OrderListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Organization"),
+        title: t("general:Organization"),
         dataIndex: "owner",
         key: "owner",
         width: "150px",
         sorter: true,
         ...this.getColumnSearchProps("owner"),
-        render: (text, record, index) => {
+        render: (text: string) => {
           return (
             <Link to={`/organizations/${text}`}>
               {text}
@@ -127,24 +148,24 @@ class OrderListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Created time"),
+        title: t("general:Created time"),
         dataIndex: "createdTime",
         key: "createdTime",
         width: "160px",
         sorter: true,
-        render: (text, record, index) => {
+        render: (text: string) => {
           return Setting.getFormattedDate(text);
         },
       },
       {
-        title: i18next.t("general:Products"),
+        title: t("general:Products"),
         dataIndex: "products",
         key: "products",
         ...this.getColumnSearchProps("products"),
-        render: (text, record, index) => {
+        render: (text: LegacyAny, record: OrderRecord) => {
           const productInfos = record?.productInfos || [];
           if (productInfos.length === 0) {
-            return `(${i18next.t("general:empty")})`;
+            return `(${t("general:empty")})`;
           }
           return (
             <div>
@@ -156,7 +177,7 @@ class OrderListPage extends BaseListPage {
                   paddingTop: 8,
                   paddingBottom: 8,
                 }}
-                renderItem={(productInfo, i) => {
+                renderItem={(productInfo: OrderProductInfo) => {
                   const price = productInfo.price || 0;
                   const number = productInfo.quantity || 1;
                   const currency = record.currency || "USD";
@@ -166,7 +187,7 @@ class OrderListPage extends BaseListPage {
                       <Row style={{width: "100%"}} wrap={false} gutter={[12, 0]}>
                         <Col flex="auto" style={{minWidth: 0}}>
                           <div style={{display: "flex", alignItems: "center", minWidth: 0}}>
-                            <Tooltip placement="topLeft" title={i18next.t("general:Edit")}>
+                            <Tooltip placement="topLeft" title={t("general:Edit")}>
                               <Button style={{marginRight: "5px"}} icon={<EditOutlined />} size="small" onClick={() => Setting.goToLinkSoft(this, `/products/${record.owner}/${productInfo.name}`)} />
                             </Tooltip>
                             <Tooltip placement="topLeft" title={productName}>
@@ -191,13 +212,13 @@ class OrderListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("order:Price"),
+        title: t("order:Price"),
         dataIndex: "price",
         key: "price",
         width: "160px",
         sorter: true,
         ...this.getColumnSearchProps("price"),
-        render: (text, record, index) => {
+        render: (text: LegacyAny, record: OrderRecord) => {
           const price = (record.price || 0).toFixed(2);
           const currency = record.currency || "USD";
           const priceDisplay = Setting.getPriceDisplay(price, currency);
@@ -212,13 +233,13 @@ class OrderListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:User"),
+        title: t("general:User"),
         dataIndex: "user",
         key: "user",
         width: "120px",
         sorter: true,
         ...this.getColumnSearchProps("user"),
-        render: (text, record, index) => {
+        render: (text: string, record: OrderRecord) => {
           if (text === "") {
             return "(empty)";
           }
@@ -230,13 +251,13 @@ class OrderListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:State"),
+        title: t("general:State"),
         dataIndex: "state",
         key: "state",
         width: "120px",
         sorter: true,
         ...this.getColumnSearchProps("state"),
-        render: (text, record, index) => {
+        render: (text: string, record: OrderRecord) => {
           return (
             <Tooltip title={record.message || ""}>
               <span>{text}</span>
@@ -245,25 +266,25 @@ class OrderListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Action"),
+        title: t("general:Action"),
         dataIndex: "",
         key: "op",
         width: "320px",
         fixed: (Setting.isMobile()) ? "false" : "right",
-        render: (text, record, index) => {
+        render: (text: LegacyAny, record: OrderRecord, index: number) => {
           const isAdmin = Setting.isLocalAdminUser(this.props.account);
           return (
             <div style={{display: "flex", flexWrap: "wrap", gap: "8px"}}>
               <Button onClick={() => this.props.history.push(`/orders/${record.owner}/${record.name}/pay`)}>
-                {(record.state === "Created" || record.state === "Failed") ? i18next.t("order:Pay") : i18next.t("general:Detail")}
+                {(record.state === "Created" || record.state === "Failed") ? t("order:Pay") : t("general:Detail")}
               </Button>
               <Button danger onClick={() => this.cancelOrder(record)} disabled={record.state !== "Created" || !isAdmin}>
-                {i18next.t("general:Cancel")}
+                {t("general:Cancel")}
               </Button>
-              <Button type="primary" onClick={() => this.props.history.push({pathname: `/orders/${record.owner}/${record.name}`, mode: isAdmin ? "edit" : "view"})}>{isAdmin ? i18next.t("general:Edit") : i18next.t("general:View")}</Button>
+              <Button type="primary" onClick={() => this.props.history.push({pathname: `/orders/${record.owner}/${record.name}`, mode: isAdmin ? "edit" : "view"})}>{isAdmin ? t("general:Edit") : t("general:View")}</Button>
               {isAdmin && (
                 <PopconfirmModal
-                  title={i18next.t("general:Sure to delete") + `: ${record.name} ?`}
+                  title={t("general:Sure to delete") + `: ${record.name} ?`}
                   onConfirm={() => this.deleteOrder(index)}
                 >
                 </PopconfirmModal>
@@ -278,13 +299,13 @@ class OrderListPage extends BaseListPage {
 
     return (
       <div>
-        <Table scroll={{x: "max-content"}} columns={columns} dataSource={orders} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
+        <Table scroll={{x: "max-content"}} columns={columns as LegacyAny} dataSource={orders || []} rowKey={(record: OrderRecord) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
           title={() => {
             const isAdmin = Setting.isLocalAdminUser(this.props.account);
             return (
               <div>
-                {i18next.t("general:Orders")}&nbsp;&nbsp;&nbsp;&nbsp;
-                <Button type="primary" size="small" disabled={!isAdmin} onClick={this.addOrder.bind(this)}>{i18next.t("general:Add")}</Button>
+                {t("general:Orders")}&nbsp;&nbsp;&nbsp;&nbsp;
+                <Button type="primary" size="small" disabled={!isAdmin} onClick={this.addOrder.bind(this)}>{t("general:Add")}</Button>
               </div>
             );
           }}
@@ -295,11 +316,11 @@ class OrderListPage extends BaseListPage {
     );
   }
 
-  fetch = (params = {}) => {
+  fetch = (params: LegacyFetchParams) => {
     const field = params.searchedColumn, value = params.searchText;
     const sortField = params.sortField, sortOrder = params.sortOrder;
     this.setState({loading: true});
-    OrderBackend.getOrders(Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
+    OrderBackend.getOrders(Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), params.pagination.current as LegacyAny, params.pagination.pageSize as LegacyAny, field, value, sortField, sortOrder)
       .then((res) => {
         this.setState({
           loading: false,
