@@ -14,13 +14,86 @@
 
 import React from "react";
 import {Button, Popconfirm, Table, Tag} from "antd";
+import type {TablePaginationConfig, TableProps} from "antd";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as RuleBackend from "./backend/RuleBackend";
-import i18next from "i18next";
+import i18nextLib from "i18next";
 import BaseListPage from "./BaseListPage";
 
-class RuleListPage extends BaseListPage {
+const i18next = {t: (key: string) => i18nextLib.t(key) as string};
+
+interface RuleListPageProps {
+  account: {owner: string; tag?: string; [key: string]: unknown};
+  history: {push: (path: string) => void};
+  match?: {path?: string; params?: Record<string, string>};
+}
+
+interface RuleExpressionRecord {
+  operator: string;
+  value: string;
+  [key: string]: unknown;
+}
+
+interface RuleRecord {
+  owner: string;
+  name: string;
+  createdTime: string;
+  updatedTime?: string;
+  type: string;
+  expressions: RuleExpressionRecord[];
+  action: string;
+  statusCode?: string;
+  reason: string;
+  [key: string]: unknown;
+}
+
+interface RuleListPageState {
+  data: RuleRecord[];
+  pagination: TablePaginationConfig;
+  loading: boolean;
+}
+
+type LegacyBaseListPageCompat = React.Component<RuleListPageProps, RuleListPageState> & {
+  handleTableChange: NonNullable<TableProps<RuleRecord>["onChange"]>;
+};
+
+// BaseListPage 仍是 legacy JS；这里只声明 RuleListPage 使用到的最小成员。
+const TypedBaseListPage = BaseListPage as unknown as {
+  new(props: RuleListPageProps): LegacyBaseListPageCompat;
+};
+
+interface BackendResponse<T> {
+  status?: string;
+  data?: T;
+  data2?: number;
+  msg?: string;
+  [key: string]: unknown;
+}
+
+interface FetchParams {
+  pagination?: TablePaginationConfig;
+  sortField?: string;
+  sortOrder?: string;
+}
+
+type RuleBackendCompat = {
+  getRules: (
+    owner: string,
+    page?: string | number,
+    pageSize?: string | number,
+    sortField?: string,
+    sortOrder?: string
+  ) => Promise<BackendResponse<RuleRecord[]>>;
+  addRule: (rule: RuleRecord) => Promise<BackendResponse<unknown>>;
+  deleteRule: (rule: RuleRecord) => Promise<BackendResponse<unknown>>;
+};
+
+const ruleBackend = RuleBackend as unknown as RuleBackendCompat;
+
+type RuleListColumns = TableProps<RuleRecord>["columns"];
+
+class RuleListPage extends TypedBaseListPage {
   UNSAFE_componentWillMount() {
     this.setState({
       pagination: {
@@ -32,7 +105,7 @@ class RuleListPage extends BaseListPage {
     this.fetch({pagination: this.state.pagination});
   }
 
-  fetch = (params = {}) => {
+  fetch = (params: FetchParams = {}) => {
     const sortField = params.sortField, sortOrder = params.sortOrder;
     if (!params.pagination) {
       params.pagination = {current: 1, pageSize: 10};
@@ -40,13 +113,13 @@ class RuleListPage extends BaseListPage {
     this.setState({
       loading: true,
     });
-    RuleBackend.getRules(this.props.account.owner, params.pagination.current, params.pagination.pageSize, sortField, sortOrder).then((res) => {
+    ruleBackend.getRules(this.props.account.owner, params.pagination.current, params.pagination.pageSize, sortField, sortOrder).then((res) => {
       this.setState({
         loading: false,
       });
       if (res.status === "ok") {
         this.setState({
-          data: res.data,
+          data: res.data as RuleRecord[],
           pagination: {
             ...params.pagination,
             total: res.data2,
@@ -58,9 +131,9 @@ class RuleListPage extends BaseListPage {
     });
   };
 
-  addRule() {
+  addRule(): void {
     const newRule = this.newRule();
-    RuleBackend.addRule(newRule).then((res) => {
+    ruleBackend.addRule(newRule).then((res) => {
       if (res.status === "error") {
         Setting.showMessage("error", `Failed to add: ${res.msg}`);
       } else {
@@ -73,8 +146,8 @@ class RuleListPage extends BaseListPage {
     });
   }
 
-  deleteRule(i) {
-    RuleBackend.deleteRule(this.state.data[i]).then((res) => {
+  deleteRule(i: number): void {
+    ruleBackend.deleteRule(this.state.data[i] as RuleRecord).then((res) => {
       if (res.status === "error") {
         Setting.showMessage("error", `Failed to delete: ${res.msg}`);
       } else {
@@ -82,14 +155,14 @@ class RuleListPage extends BaseListPage {
         this.fetch({
           pagination: {
             ...this.state.pagination,
-            current: this.state.pagination.current > 1 && this.state.data.length === 1 ? this.state.pagination.current - 1 : this.state.pagination.current,
+            current: (this.state.pagination.current as number) > 1 && this.state.data.length === 1 ? (this.state.pagination.current as number) - 1 : this.state.pagination.current,
           },
         });
       }
     });
   }
 
-  newRule() {
+  newRule(): RuleRecord {
     const randomName = Setting.getRandomName();
     const owner = Setting.getRequestOrganization(this.props.account);
     return {
@@ -103,8 +176,8 @@ class RuleListPage extends BaseListPage {
     };
   }
 
-  renderTable(data) {
-    const columns = [
+  renderTable(data: RuleRecord[]): React.ReactNode {
+    const columns: RuleListColumns = [
       {
         title: i18next.t("general:Owner"),
         dataIndex: "owner",
@@ -119,7 +192,7 @@ class RuleListPage extends BaseListPage {
         width: "200px",
         sorter: (a, b) => a.name.localeCompare(b.name),
         render: (text, rule, index) => {
-          return <a href={`/rules/${rule.owner}/${text}`}>{text}</a>;
+          return <a href={`/rules/${rule.owner}/${String(text)}`}>{text}</a>;
         },
       },
       {
@@ -137,7 +210,7 @@ class RuleListPage extends BaseListPage {
         dataIndex: "updatedTime",
         key: "updatedTime",
         width: "200px",
-        sorter: (a, b) => a.updatedTime.localeCompare(b.updatedTime),
+        sorter: (a, b) => (a.updatedTime as string).localeCompare(b.updatedTime as string),
         render: (text, rule, index) => {
           return Setting.getFormattedDate(text);
         },
@@ -160,11 +233,11 @@ class RuleListPage extends BaseListPage {
         title: i18next.t("rule:Expressions"),
         dataIndex: "expressions",
         key: "expressions",
-        sorter: (a, b) => a.expressions.localeCompare(b.expressions),
+        sorter: (a, b) => (a.expressions as unknown as string).localeCompare(b.expressions as unknown as string),
         render: (text, rule, index) => {
           return rule.expressions.map((expression, i) => {
             return (
-              <Tag key={expression} color={"success"}>
+              <Tag key={expression as unknown as React.Key} color={"success"}>
                 {expression.operator + " " + expression.value.slice(0, 20)}
               </Tag>
             );
@@ -183,7 +256,7 @@ class RuleListPage extends BaseListPage {
         dataIndex: "statusCode",
         key: "statusCode",
         width: "120px",
-        sorter: (a, b) => a.statusCode.localeCompare(b.statusCode),
+        sorter: (a, b) => (a.statusCode as string).localeCompare(b.statusCode as string),
       },
       {
         title: i18next.t("rule:Reason"),
@@ -204,7 +277,7 @@ class RuleListPage extends BaseListPage {
                 onConfirm={() => this.deleteRule(index)}
               >
                 <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/rules/${rule.owner}/${rule.name}`)}>{i18next.t("general:Edit")}</Button>
-                <Button type="danger">{i18next.t("general:Delete")}</Button>
+                <Button danger>{i18next.t("general:Delete")}</Button>
               </Popconfirm>
             </div>
           );
