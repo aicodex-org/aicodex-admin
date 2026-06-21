@@ -52,6 +52,7 @@ type ServiceCredentialGovernanceStatusGroup struct {
 	KeepInEnvKeys             []string               `json:"keepInEnvKeys,omitempty"`
 	BlockedReasons            []string               `json:"blockedReasons,omitempty"`
 	RemediationRoute          string                 `json:"remediationRoute,omitempty"`
+	NextAction                string                 `json:"nextAction,omitempty"`
 }
 
 // GetApplicationAccessServiceCredentialGovernanceStatus 返回 Admin 运行态配置推导出的脱敏治理状态。
@@ -60,7 +61,12 @@ func (c *ApiController) GetApplicationAccessServiceCredentialGovernanceStatus() 
 	if !c.requireServiceCredentialGovernanceGlobalAdmin() {
 		return
 	}
-	c.ResponseOk(buildApplicationAccessServiceCredentialGovernanceStatus(time.Now().UTC()))
+	status, err := buildApplicationAccessServiceCredentialGovernanceStatusWithConfig(time.Now().UTC())
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(status)
 }
 
 // GetApplicationAccessServiceCredentialGovernanceConfig 返回服务凭据治理配置入口的脱敏回读。
@@ -110,6 +116,27 @@ func (c *ApiController) requireServiceCredentialGovernanceGlobalAdmin() bool {
 }
 
 func buildApplicationAccessServiceCredentialGovernanceStatus(generatedAt time.Time) ServiceCredentialGovernanceStatusResponse {
+	status, err := buildApplicationAccessServiceCredentialGovernanceStatusWithConfig(generatedAt)
+	if err != nil {
+		return buildApplicationAccessServiceCredentialGovernanceLegacyStatus(generatedAt)
+	}
+	return status
+}
+
+func buildApplicationAccessServiceCredentialGovernanceStatusWithConfig(generatedAt time.Time) (ServiceCredentialGovernanceStatusResponse, error) {
+	status := buildApplicationAccessServiceCredentialGovernanceLegacyStatus(generatedAt)
+	config, err := applicationAccessServiceCredentialGovernanceConfigServiceFactory().GetConfig()
+	if err != nil {
+		return ServiceCredentialGovernanceStatusResponse{}, err
+	}
+	if config == nil || !config.IsConfigured {
+		return status, nil
+	}
+	status.Groups = applyServiceCredentialGovernanceStatusConfigOverlay(status.Groups, config.Groups)
+	return status, nil
+}
+
+func buildApplicationAccessServiceCredentialGovernanceLegacyStatus(generatedAt time.Time) ServiceCredentialGovernanceStatusResponse {
 	if generatedAt.IsZero() {
 		generatedAt = time.Now().UTC()
 	}
@@ -123,6 +150,109 @@ func buildApplicationAccessServiceCredentialGovernanceStatus(generatedAt time.Ti
 			buildKeepInEnvGovernanceGroup(),
 		},
 	}
+}
+
+func applyServiceCredentialGovernanceStatusConfigOverlay(groups []ServiceCredentialGovernanceStatusGroup, configGroups []object.ServiceCredentialGovernanceConfigGroup) []ServiceCredentialGovernanceStatusGroup {
+	overlayByKey := map[string]object.ServiceCredentialGovernanceConfigGroup{}
+	for _, configGroup := range configGroups {
+		if isServiceCredentialGovernanceStatusOverlayGroup(configGroup.Key) {
+			overlayByKey[configGroup.Key] = configGroup
+		}
+	}
+	if len(overlayByKey) == 0 {
+		return groups
+	}
+	overlaid := make([]ServiceCredentialGovernanceStatusGroup, 0, len(groups))
+	for _, group := range groups {
+		configGroup, ok := overlayByKey[group.Key]
+		if ok {
+			group = applyServiceCredentialGovernanceStatusGroupConfigOverlay(group, configGroup)
+		}
+		overlaid = append(overlaid, group)
+	}
+	return overlaid
+}
+
+func isServiceCredentialGovernanceStatusOverlayGroup(key string) bool {
+	return key == "usage_identity_resolver" || key == "gateway_organization_projection"
+}
+
+func applyServiceCredentialGovernanceStatusGroupConfigOverlay(group ServiceCredentialGovernanceStatusGroup, configGroup object.ServiceCredentialGovernanceConfigGroup) ServiceCredentialGovernanceStatusGroup {
+	// 已保存配置代表 operator 对该分组的显式治理意图；一旦存在，就不能继续把 legacy token 当成 active readiness。
+	group.ConfiguredKeys = []string{}
+	group.MissingKeys = []string{}
+	group.BlockedReasons = deduplicateStrings(configGroup.BlockedReasons)
+	if strings.TrimSpace(configGroup.Owner) != "" {
+		group.Owner = configGroup.Owner
+	}
+	if strings.TrimSpace(configGroup.CallerPolicy) != "" {
+		group.CallerPolicy = configGroup.CallerPolicy
+	}
+	if configGroup.BoundedRuntimePolicy != nil {
+		group.BoundedRuntimePolicy = configGroup.BoundedRuntimePolicy
+	} else {
+		group.BoundedRuntimePolicy = nil
+	}
+	if strings.TrimSpace(configGroup.RemediationRoute) != "" {
+		group.RemediationRoute = configGroup.RemediationRoute
+	}
+	if strings.TrimSpace(configGroup.NextAction) != "" {
+		group.NextAction = configGroup.NextAction
+	}
+	if strings.TrimSpace(configGroup.CredentialReferenceStatus) != "" {
+		group.CredentialReferenceStatus = configGroup.CredentialReferenceStatus
+	}
+
+	if !configGroup.Enabled {
+		group.Status = serviceCredentialGovernanceStatusBlocked
+		group.BlockedReasons = deduplicateStrings(append(group.BlockedReasons, "admin_service_credential_config_disabled"))
+		return group
+	}
+
+	if serviceCredentialGovernanceReferenceIsReady(configGroup.CredentialReferenceStatus) && strings.TrimSpace(configGroup.CredentialReferenceKey) != "" {
+		group.ConfiguredKeys = append(group.ConfiguredKeys, strings.TrimSpace(configGroup.CredentialReferenceKey))
+	} else {
+		group.MissingKeys = append(group.MissingKeys, "credentialReferenceKey")
+		group.CredentialReferenceStatus = serviceCredentialReferenceMissing
+		group.BlockedReasons = append(group.BlockedReasons, "admin_service_credential_reference_missing")
+	}
+	if strings.TrimSpace(configGroup.CallerPolicy) != "" {
+		group.ConfiguredKeys = append(group.ConfiguredKeys, "callerPolicy")
+	} else {
+		group.MissingKeys = append(group.MissingKeys, "callerPolicy")
+		group.BlockedReasons = append(group.BlockedReasons, "admin_service_credential_caller_policy_missing")
+	}
+	if len(configGroup.BoundedRuntimePolicy) > 0 {
+		group.ConfiguredKeys = append(group.ConfiguredKeys, "boundedRuntimePolicy")
+	} else {
+		group.MissingKeys = append(group.MissingKeys, "boundedRuntimePolicy")
+		group.BlockedReasons = append(group.BlockedReasons, "admin_service_credential_runtime_policy_missing")
+	}
+
+	group.ConfiguredKeys = deduplicateStrings(group.ConfiguredKeys)
+	group.MissingKeys = deduplicateStrings(group.MissingKeys)
+	group.BlockedReasons = deduplicateStrings(group.BlockedReasons)
+	if serviceCredentialGovernanceStringSliceContains(group.BlockedReasons, "admin_service_credential_reference_missing") {
+		group.Status = serviceCredentialGovernanceStatusBlocked
+	} else if len(group.MissingKeys) > 0 {
+		group.Status = serviceCredentialGovernanceStatusPartial
+	} else {
+		group.Status = serviceCredentialGovernanceStatusConfigured
+	}
+	return group
+}
+
+func serviceCredentialGovernanceReferenceIsReady(status string) bool {
+	return status == serviceCredentialReferenceConfigured || status == serviceCredentialReferenceExternal
+}
+
+func serviceCredentialGovernanceStringSliceContains(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }
 
 func buildInsightProviderTrustGovernanceGroup() ServiceCredentialGovernanceStatusGroup {

@@ -2,12 +2,14 @@ package controllers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http/httptest"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/object"
 	webcontext "github.com/beego/beego/v2/server/web/context"
 )
 
@@ -257,6 +259,211 @@ func TestBuildApplicationAccessServiceCredentialGovernanceStatusClassifiesGatewa
 	}
 }
 
+func TestBuildApplicationAccessServiceCredentialGovernanceStatusOverlaysSavedEnabledConfig(t *testing.T) {
+	t.Setenv("insightProviderAllowedAudiences", "insight-client")
+	t.Setenv("insightProviderAllowedIssuers", "https://issuer.example.invalid")
+	t.Setenv("insightUsageIdentityResolverEndpoint", "")
+	t.Setenv("insightUsageIdentityResolverToken", "")
+	t.Setenv("gatewayOrganizationProjectionEnabled", "true")
+	t.Setenv("gatewayOrganizationProjectionEndpoint", "")
+	t.Setenv("gatewayOrganizationProjectionToken", "")
+	withServiceCredentialGovernanceStatusConfig(t, []object.ServiceCredentialGovernanceConfigGroup{
+		{
+			Key:                       "usage_identity_resolver",
+			Enabled:                   true,
+			SourceClass:               "external_secret_system",
+			CredentialReferenceStatus: "external_secret",
+			CredentialReferenceKey:    "vault:usage-identity-resolver",
+			CallerPolicy:              "saved-resolver-caller",
+			BoundedRuntimePolicy:      map[string]interface{}{"timeoutMs": 1600.0, "maxItems": 40.0},
+			RemediationRoute:          "/platform-api-mappings",
+			NextAction:                "核对 resolver 外部 secret 引用",
+			BlockedReasons:            []string{"operator_reviewed_reference"},
+		},
+		{
+			Key:                       "gateway_organization_projection",
+			Enabled:                   true,
+			SourceClass:               "admin_config",
+			CredentialReferenceStatus: "configured",
+			CredentialReferenceKey:    "config:gateway-projection-publisher",
+			CallerPolicy:              "saved-projection-caller",
+			BoundedRuntimePolicy:      map[string]interface{}{"timeoutMs": 2600.0, "maxRetries": 2.0, "refreshBatchSize": 30.0},
+			RemediationRoute:          "/platform-api-mappings",
+			NextAction:                "核对 Gateway projection 发布凭据引用",
+		},
+	})
+
+	status := buildApplicationAccessServiceCredentialGovernanceStatus(time.Date(2026, 6, 21, 8, 0, 0, 0, time.UTC))
+
+	resolver := serviceCredentialGovernanceGroupByKey(t, status.Groups, "usage_identity_resolver")
+	if resolver.Status != "configured" || resolver.CredentialReferenceStatus != "external_secret" {
+		t.Fatalf("resolver should use saved external secret reference, got %#v", resolver)
+	}
+	if resolver.CallerPolicy != "saved-resolver-caller" || resolver.BoundedRuntimePolicy["timeoutMs"] != float64(1600) {
+		t.Fatalf("resolver should use saved caller and bounded policy, got %#v", resolver)
+	}
+	if resolver.NextAction != "核对 resolver 外部 secret 引用" {
+		t.Fatalf("resolver should expose saved next action, got %#v", resolver)
+	}
+	if !stringSliceContains(resolver.ConfiguredKeys, "vault:usage-identity-resolver") || !stringSliceContains(resolver.BlockedReasons, "operator_reviewed_reference") {
+		t.Fatalf("resolver should expose saved safe reference key and reason, got %#v", resolver)
+	}
+
+	projection := serviceCredentialGovernanceGroupByKey(t, status.Groups, "gateway_organization_projection")
+	if projection.Status != "configured" || projection.CredentialReferenceStatus != "configured" {
+		t.Fatalf("projection should use saved configured reference, got %#v", projection)
+	}
+	if projection.CallerPolicy != "saved-projection-caller" || projection.BoundedRuntimePolicy["refreshBatchSize"] != float64(30) {
+		t.Fatalf("projection should use saved caller and bounded policy, got %#v", projection)
+	}
+
+	body, err := json.Marshal(status)
+	if err != nil {
+		t.Fatalf("marshal overlaid status: %v", err)
+	}
+	for _, forbidden := range []string{"resolver-secret-value", "gateway.internal.example.invalid", "Authorization", "Cookie", "clientSecret", "privateKey"} {
+		if strings.Contains(string(body), forbidden) {
+			t.Fatalf("overlaid status leaked %q in %s", forbidden, string(body))
+		}
+	}
+}
+
+func TestBuildApplicationAccessServiceCredentialGovernanceStatusDisablesSavedConfigFailClosed(t *testing.T) {
+	t.Setenv("insightProviderAllowedAudiences", "insight-client")
+	t.Setenv("insightProviderAllowedIssuers", "https://issuer.example.invalid")
+	t.Setenv("insightUsageIdentityResolverEndpoint", "https://resolver.internal.example.invalid/api/usage")
+	t.Setenv("insightUsageIdentityResolverToken", "resolver-secret-value")
+	t.Setenv("gatewayOrganizationProjectionEnabled", "true")
+	t.Setenv("gatewayOrganizationProjectionEndpoint", "https://gateway.internal.example.invalid/api/projection")
+	t.Setenv("gatewayOrganizationProjectionStatusEndpoint", "https://gateway.internal.example.invalid/api/status")
+	t.Setenv("gatewayOrganizationProjectionToken", "projection-secret-value")
+	withServiceCredentialGovernanceStatusConfig(t, []object.ServiceCredentialGovernanceConfigGroup{
+		{
+			Key:                       "usage_identity_resolver",
+			Enabled:                   false,
+			SourceClass:               "external_secret_system",
+			CredentialReferenceStatus: "external_secret",
+			CredentialReferenceKey:    "vault:usage-identity-resolver",
+			CallerPolicy:              "saved-resolver-caller",
+			BoundedRuntimePolicy:      map[string]interface{}{"timeoutMs": 1600.0},
+			RemediationRoute:          "/platform-api-mappings",
+		},
+		{
+			Key:                       "gateway_organization_projection",
+			Enabled:                   false,
+			SourceClass:               "admin_config",
+			CredentialReferenceStatus: "configured",
+			CredentialReferenceKey:    "config:gateway-projection-publisher",
+			CallerPolicy:              "saved-projection-caller",
+			BoundedRuntimePolicy:      map[string]interface{}{"timeoutMs": 2600.0},
+			RemediationRoute:          "/platform-api-mappings",
+		},
+	})
+
+	status := buildApplicationAccessServiceCredentialGovernanceStatus(time.Date(2026, 6, 21, 8, 10, 0, 0, time.UTC))
+
+	for _, key := range []string{"usage_identity_resolver", "gateway_organization_projection"} {
+		group := serviceCredentialGovernanceGroupByKey(t, status.Groups, key)
+		if group.Status != "blocked" || !stringSliceContains(group.BlockedReasons, "admin_service_credential_config_disabled") {
+			t.Fatalf("%s should fail closed when saved config is disabled, got %#v", key, group)
+		}
+		for _, configuredKey := range []string{"insightUsageIdentityResolverToken", "gatewayOrganizationProjectionToken"} {
+			if stringSliceContains(group.ConfiguredKeys, configuredKey) {
+				t.Fatalf("%s should not report legacy token readiness when disabled: %#v", key, group.ConfiguredKeys)
+			}
+		}
+	}
+}
+
+func TestBuildApplicationAccessServiceCredentialGovernanceStatusClassifiesSavedConfigGaps(t *testing.T) {
+	t.Setenv("insightProviderAllowedAudiences", "insight-client")
+	t.Setenv("insightProviderAllowedIssuers", "https://issuer.example.invalid")
+	t.Setenv("insightUsageIdentityResolverEndpoint", "https://resolver.internal.example.invalid/api/usage")
+	t.Setenv("insightUsageIdentityResolverToken", "resolver-secret-value")
+	t.Setenv("gatewayOrganizationProjectionEnabled", "true")
+	t.Setenv("gatewayOrganizationProjectionEndpoint", "https://gateway.internal.example.invalid/api/projection")
+	t.Setenv("gatewayOrganizationProjectionToken", "projection-secret-value")
+	withServiceCredentialGovernanceStatusConfig(t, []object.ServiceCredentialGovernanceConfigGroup{
+		{
+			Key:                       "usage_identity_resolver",
+			Enabled:                   true,
+			SourceClass:               "admin_config",
+			CredentialReferenceStatus: "missing",
+			CallerPolicy:              "saved-resolver-caller",
+			RemediationRoute:          "/platform-api-mappings",
+		},
+		{
+			Key:                       "gateway_organization_projection",
+			Enabled:                   true,
+			SourceClass:               "admin_config",
+			CredentialReferenceStatus: "configured",
+			CredentialReferenceKey:    "config:gateway-projection-publisher",
+			CallerPolicy:              "saved-projection-caller",
+			RemediationRoute:          "/platform-api-mappings",
+		},
+	})
+
+	status := buildApplicationAccessServiceCredentialGovernanceStatus(time.Date(2026, 6, 21, 8, 20, 0, 0, time.UTC))
+
+	resolver := serviceCredentialGovernanceGroupByKey(t, status.Groups, "usage_identity_resolver")
+	if resolver.Status != "blocked" || resolver.CredentialReferenceStatus != "missing" {
+		t.Fatalf("resolver missing saved reference should be blocked, got %#v", resolver)
+	}
+	if !stringSliceContains(resolver.BlockedReasons, "admin_service_credential_reference_missing") {
+		t.Fatalf("resolver should expose stable reference gap reason: %#v", resolver.BlockedReasons)
+	}
+
+	projection := serviceCredentialGovernanceGroupByKey(t, status.Groups, "gateway_organization_projection")
+	if projection.Status != "partial" || !stringSliceContains(projection.BlockedReasons, "admin_service_credential_runtime_policy_missing") {
+		t.Fatalf("projection missing saved bounded policy should be partial, got %#v", projection)
+	}
+}
+
+func TestGetApplicationAccessServiceCredentialGovernanceStatusReturnsConfigStoreError(t *testing.T) {
+	storeErr := errors.New("metadata store unavailable")
+	originalFactory := applicationAccessServiceCredentialGovernanceConfigServiceFactory
+	applicationAccessServiceCredentialGovernanceConfigServiceFactory = func() *object.ServiceCredentialGovernanceConfigService {
+		return &object.ServiceCredentialGovernanceConfigService{
+			Store: &memoryServiceCredentialGovernanceConfigStore{err: storeErr},
+		}
+	}
+	defer func() {
+		applicationAccessServiceCredentialGovernanceConfigServiceFactory = originalFactory
+	}()
+
+	controller := newApplicationAccessServiceCredentialGovernanceStatusTestController()
+	controller.Ctx.Input.SetData("currentUserId", "built-in/admin")
+	controller.GetApplicationAccessServiceCredentialGovernanceStatus()
+
+	resp, ok := controller.Data["json"].(*Response)
+	if !ok || resp.Status != "error" || !strings.Contains(resp.Msg, storeErr.Error()) {
+		t.Fatalf("response = %#v, want config store error", controller.Data["json"])
+	}
+}
+
+func TestBuildApplicationAccessServiceCredentialGovernanceStatusFallsBackToLegacyOnConfigStoreError(t *testing.T) {
+	t.Setenv("insightProviderAllowedAudiences", "insight-client")
+	t.Setenv("insightProviderAllowedIssuers", "https://issuer.example.invalid")
+	t.Setenv("insightUsageIdentityResolverEndpoint", "https://resolver.internal.example.invalid/api/usage")
+	t.Setenv("insightUsageIdentityResolverToken", "resolver-secret-value")
+	originalFactory := applicationAccessServiceCredentialGovernanceConfigServiceFactory
+	applicationAccessServiceCredentialGovernanceConfigServiceFactory = func() *object.ServiceCredentialGovernanceConfigService {
+		return &object.ServiceCredentialGovernanceConfigService{
+			Store: &memoryServiceCredentialGovernanceConfigStore{err: errors.New("metadata store unavailable")},
+		}
+	}
+	defer func() {
+		applicationAccessServiceCredentialGovernanceConfigServiceFactory = originalFactory
+	}()
+
+	status := buildApplicationAccessServiceCredentialGovernanceStatus(time.Date(2026, 6, 21, 8, 30, 0, 0, time.UTC))
+
+	resolver := serviceCredentialGovernanceGroupByKey(t, status.Groups, "usage_identity_resolver")
+	if resolver.Status != "configured" || resolver.CredentialReferenceStatus != "configured" {
+		t.Fatalf("legacy helper should preserve legacy fallback on config store error, got %#v", resolver)
+	}
+}
+
 func serviceCredentialGovernanceGroupByKey(t *testing.T, groups []ServiceCredentialGovernanceStatusGroup, key string) ServiceCredentialGovernanceStatusGroup {
 	t.Helper()
 	for _, group := range groups {
@@ -286,4 +493,23 @@ func newApplicationAccessServiceCredentialGovernanceStatusTestController() *ApiC
 	controller.Init(ctx, "ApiController", "GetApplicationAccessServiceCredentialGovernanceStatus", controller)
 	controller.Ctx.Input.SetData("currentUserId", "")
 	return controller
+}
+
+func withServiceCredentialGovernanceStatusConfig(t *testing.T, groups []object.ServiceCredentialGovernanceConfigGroup) {
+	t.Helper()
+	store := &memoryServiceCredentialGovernanceConfigStore{}
+	service := &object.ServiceCredentialGovernanceConfigService{
+		Store: store,
+		Now:   func() time.Time { return time.Date(2026, 6, 21, 7, 30, 0, 0, time.UTC) },
+	}
+	if _, _, err := service.SaveConfig(&object.ServiceCredentialGovernanceConfigResponse{Groups: groups}); err != nil {
+		t.Fatalf("save test governance config: %v", err)
+	}
+	originalFactory := applicationAccessServiceCredentialGovernanceConfigServiceFactory
+	applicationAccessServiceCredentialGovernanceConfigServiceFactory = func() *object.ServiceCredentialGovernanceConfigService {
+		return &object.ServiceCredentialGovernanceConfigService{Store: store}
+	}
+	t.Cleanup(func() {
+		applicationAccessServiceCredentialGovernanceConfigServiceFactory = originalFactory
+	})
 }

@@ -17,6 +17,7 @@ export interface ServiceCredentialGovernanceGroup {
   keepInEnvKeys?: string[];
   blockedReasons?: string[];
   remediationRoute?: string;
+  nextAction?: string;
 }
 
 export interface ServiceCredentialGovernanceStatusResponse {
