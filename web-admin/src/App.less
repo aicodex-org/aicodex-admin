@@ -306,6 +306,51 @@ img {
   outline-offset: -2px;
 }
 
+.admin-workspace-tabs-overflow-item-active {
+  color: rgb(30 64 175) !important;
+  background: rgb(219 234 254) !important;
+}
+
+.admin-workspace-tabs-overflow-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.admin-workspace-tabs-overflow-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-workspace-tabs-overflow-close {
+  display: inline-flex;
+  flex: 0 0 22px;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 6px;
+  color: rgb(100 116 139);
+  background: transparent;
+  cursor: pointer;
+}
+
+.admin-workspace-tabs-overflow-close:hover {
+  color: rgb(51 65 85);
+  background: rgb(226 232 240);
+}
+
+.admin-workspace-tabs-overflow-close:focus-visible {
+  outline: 2px solid rgb(37 99 235);
+  outline-offset: -2px;
+}
+
 .admin-workspace-tabs-divider {
   height: 7px;
   background: rgb(243 246 250);

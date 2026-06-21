@@ -7,7 +7,7 @@ const ABSTRACT_PRIMARY_ENTRY_PATTERN = /(工作台|任务中心|快捷入口|中
 const FOUR_CHINESE_CHARACTERS_PATTERN = /^[\u4e00-\u9fff]{4}$/;
 
 export const enterprisePrimaryMenuLabelRuleOptions: NavigationLabelRuleOptions = {
-  allowlist: ["LLM AI/Gateway"],
+  allowlist: ["AI 网关"],
   existingBusinessDomainLabels: ["中心总览"],
 };
 

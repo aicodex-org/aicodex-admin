@@ -64,7 +64,7 @@ describe("enterprise identity navigation", () => {
       "身份来源",
       "权限角色",
       "审计运维",
-      "LLM AI/Gateway",
+      "AI 网关",
       "管理工具",
       "商业付款",
     ]);
@@ -122,7 +122,7 @@ describe("enterprise identity navigation", () => {
       "Identity Sources",
       "Permissions & Roles",
       "Audit & Operations",
-      "LLM AI/Gateway",
+      "AI Gateway",
       "System Tools",
       "Business & Payments",
     ]);
@@ -235,7 +235,7 @@ describe("enterprise identity navigation", () => {
       "身份来源",
       "权限角色",
       "审计运维",
-      "LLM AI/Gateway",
+      "AI 网关",
       "管理工具",
       "商业付款",
     ]);

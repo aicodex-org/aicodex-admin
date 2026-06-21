@@ -1,11 +1,10 @@
 /* eslint-env jest */
 import React from "react";
 import {expect, jest} from "@jest/globals";
-import {cleanup, render} from "@testing-library/react";
+import {act, cleanup, render} from "@testing-library/react";
 import i18next from "i18next";
 import en from "../locales/en/data.json";
 import zh from "../locales/zh/data.json";
-import type {WorkspaceTabItem} from "./workspaceTabState";
 
 jest.mock("antd", () => {
   const React = require("react");
@@ -16,12 +15,12 @@ jest.mock("antd", () => {
         {children}
       </button>
     ),
-    Dropdown: ({children, menu}: {children: React.ReactNode; menu?: {items?: Array<{key: string; label: string; onClick: () => void}>}}) => (
+    Dropdown: ({children, menu}: {children: React.ReactNode; menu?: {items?: Array<{key: string; label: React.ReactNode; className?: string; onClick: () => void}>}}) => (
       <>
         {children}
         <div data-testid="workspace-tabs-overflow-menu">
           {menu?.items?.map(item => (
-            <button type="button" key={item.key} onClick={item.onClick}>{item.label}</button>
+            <div role="menuitem" tabIndex={0} key={item.key} className={item.className} onClick={item.onClick}>{item.label}</div>
           ))}
         </div>
       </>
@@ -37,7 +36,7 @@ const {fireEvent} = require("@testing-library/react") as {
 };
 const WorkspaceTabs = require("./WorkspaceTabs.tsx").default as typeof import("./WorkspaceTabs").default;
 
-const tabs: WorkspaceTabItem[] = [
+const tabs = [
   {key: "/", path: "/", label: "企业认证总览", fixed: true, closable: false},
   {key: "/applications", path: "/applications", label: "应用接入中心", fixed: false, closable: true},
   {key: "/providers", path: "/providers", label: "身份源中心", fixed: false, closable: true},
@@ -123,7 +122,7 @@ describe("WorkspaceTabs", () => {
 
   test("navigates from overflow menu without changing rendered tab order", () => {
     const onNavigate = jest.fn();
-    const manyTabs: WorkspaceTabItem[] = [
+    const manyTabs = [
       ...tabs,
       {key: "/records", path: "/records", label: "审计记录", fixed: false, closable: true},
     ];
@@ -146,10 +145,97 @@ describe("WorkspaceTabs", () => {
       "企业认证总览",
       "应用接入中心",
     ]);
-    fireEvent.click(view.getByTestId("workspace-tabs-overflow-menu").querySelector("button") as Element);
+    const overflowItems = Array.from(
+      view.getByTestId("workspace-tabs-overflow-menu").querySelectorAll("[role='menuitem']") as NodeListOf<HTMLDivElement>
+    );
+    expect(overflowItems[0].className).toContain("admin-workspace-tabs-overflow-item-active");
+
+    fireEvent.click(overflowItems[0]);
 
     expect(onNavigate).toHaveBeenCalledWith("/providers");
     expect(view.getByText("企业认证总览")).not.toBeNull();
     expect(view.getByText("应用接入中心")).not.toBeNull();
+  });
+
+  test("closes an active overflow tab without firing overflow navigation", () => {
+    const onNavigate = jest.fn();
+    const onClose = jest.fn();
+    const manyTabs = [
+      ...tabs,
+      {key: "/records", path: "/records", label: "审计记录", fixed: false, closable: true},
+    ];
+    const view = render(
+      <WorkspaceTabs
+        tabs={manyTabs}
+        activePath="/providers"
+        isMobile={false}
+        maxVisible={2}
+        onNavigate={onNavigate}
+        onClose={onClose}
+      />
+    );
+
+    fireEvent.click(view.getByLabelText("关闭 身份源中心"));
+
+    expect(onClose).toHaveBeenCalledWith("/providers");
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  test("measures desktop strip width before splitting overflow tabs", async() => {
+    const originalResizeObserver = globalThis.ResizeObserver;
+    const clientWidthSpy = jest.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(function getClientWidth(this: HTMLElement) {
+      return this.classList.contains("admin-workspace-tabs-strip") ? 320 : 0;
+    });
+    globalThis.ResizeObserver = class {
+      private readonly callback: ResizeObserverCallback;
+
+      constructor(callback: ResizeObserverCallback) {
+        this.callback = callback;
+      }
+
+      observe(target: Element) {
+        this.callback([{target} as ResizeObserverEntry], this as unknown as ResizeObserver);
+      }
+
+      unobserve() {}
+
+      disconnect() {}
+    };
+
+    const manyTabs = [
+      ...tabs,
+      {key: "/records", path: "/records", label: "审计记录", fixed: false, closable: true},
+      {key: "/tokens", path: "/tokens", label: "令牌复核", fixed: false, closable: true},
+    ];
+
+    try {
+      const view = render(
+        <WorkspaceTabs
+          tabs={manyTabs}
+          activePath="/tokens"
+          isMobile={false}
+          onNavigate={jest.fn()}
+          onClose={jest.fn()}
+        />
+      );
+
+      await act(async() => {});
+      const visibleTabLabels = Array.from(
+        view.container.querySelectorAll(".admin-workspace-tab-label") as NodeListOf<HTMLButtonElement>
+      ).map(item => item.textContent);
+
+      expect(visibleTabLabels).toEqual([
+        "企业认证总览",
+        "应用接入中心",
+      ]);
+      expect(view.getByText("令牌复核")).not.toBeNull();
+    } finally {
+      clientWidthSpy.mockRestore();
+      if (originalResizeObserver === undefined) {
+        delete (globalThis as {ResizeObserver?: typeof ResizeObserver}).ResizeObserver;
+      } else {
+        globalThis.ResizeObserver = originalResizeObserver;
+      }
+    }
   });
 });

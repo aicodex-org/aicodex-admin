@@ -2,21 +2,21 @@
 import React from "react";
 import {expect} from "@jest/globals";
 import {
-  closeWorkspaceTab,
+  WORKSPACE_TABS_MAX_VISIBLE,
+  WORKSPACE_TABS_STORAGE_KEY,
   areWorkspaceTabsEqual,
   buildWorkspaceRouteItems,
+  calculateWorkspaceTabsCapacity,
+  closeWorkspaceTab,
   getVisibleWorkspaceTabs,
   hydrateWorkspaceTabs,
-  openWorkspaceTab,
   normalizeWorkspacePath,
+  openWorkspaceTab,
   readWorkspaceTabs,
-  saveWorkspaceTabs,
-  WORKSPACE_TABS_STORAGE_KEY,
-  WORKSPACE_TABS_MAX_VISIBLE,
+  saveWorkspaceTabs
 } from "./workspaceTabState";
-import type {WorkspaceRouteItem, WorkspaceTabItem} from "./workspaceTabState";
 
-const routes: WorkspaceRouteItem[] = [
+const routes = [
   {key: "/", path: "/", label: "企业认证总览", fixed: true, matchPrefixes: ["/"]},
   {key: "/applications", path: "/applications", label: "应用接入中心", matchPrefixes: ["/applications"]},
   {key: "/providers", path: "/providers", label: "身份源中心", matchPrefixes: ["/providers"]},
@@ -215,7 +215,7 @@ describe("workspaceTabState", () => {
   test("keeps visible tabs in opening order and moves extra pages into overflow", () => {
     const tabs = routes
       .filter(route => route.path !== "/")
-      .reduce<WorkspaceTabItem[]>((currentTabs, route) => openWorkspaceTab(currentTabs, route.path, routes), []);
+      .reduce<ReturnType<typeof openWorkspaceTab>>((currentTabs, route) => openWorkspaceTab(currentTabs, route.path, routes), []);
 
     const allFit = getVisibleWorkspaceTabs(tabs, "/records", 10);
     expect(allFit.visibleTabs.map(tab => tab.path)).toEqual([
@@ -249,6 +249,13 @@ describe("workspaceTabState", () => {
     const singleVisible = getVisibleWorkspaceTabs(tabs, "/rules", 1);
     expect(singleVisible.visibleTabs.map(tab => tab.path)).toEqual(["/"]);
     expect(singleVisible.overflowTabs.map(tab => tab.path)).toContain("/rules");
+  });
+
+  test("calculates visible tab capacity from available strip width", () => {
+    expect(calculateWorkspaceTabsCapacity(1200, 10)).toBe(10);
+    expect(calculateWorkspaceTabsCapacity(720, 10)).toBe(6);
+    expect(calculateWorkspaceTabsCapacity(80, 10)).toBe(1);
+    expect(calculateWorkspaceTabsCapacity(1200, 0)).toBe(1);
   });
 
   test("compares tab state by rendered shell fields", () => {

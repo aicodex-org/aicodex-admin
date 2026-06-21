@@ -2,6 +2,9 @@ import type {ReactNode} from "react";
 
 export const WORKSPACE_TABS_MAX_VISIBLE = 8;
 export const WORKSPACE_TABS_STORAGE_KEY = "aicodex.admin.workspaceTabs.v1";
+export const WORKSPACE_TAB_MIN_WIDTH = 92;
+export const WORKSPACE_TAB_GAP = 6;
+export const WORKSPACE_TABS_MORE_WIDTH = 88;
 
 type WorkspaceMatcher = (uri: string) => boolean;
 
@@ -273,6 +276,21 @@ export function getVisibleWorkspaceTabs(
     visibleTabs,
     overflowTabs: tabs.slice(capacity),
   };
+}
+
+/** 根据标签栏实际宽度估算可见标签容量，宽屏尽量不提前出现“更多”。 */
+export function calculateWorkspaceTabsCapacity(stripWidth: number, tabCount: number) {
+  const normalizedTabCount = Math.max(1, tabCount);
+  const usableWidth = Math.max(0, stripWidth);
+  const fitWithoutOverflow = Math.floor((usableWidth + WORKSPACE_TAB_GAP) / (WORKSPACE_TAB_MIN_WIDTH + WORKSPACE_TAB_GAP));
+
+  if (fitWithoutOverflow >= normalizedTabCount) {
+    return normalizedTabCount;
+  }
+
+  const widthWithMoreReserved = Math.max(0, usableWidth - WORKSPACE_TABS_MORE_WIDTH - WORKSPACE_TAB_GAP);
+
+  return Math.max(1, Math.floor((widthWithMoreReserved + WORKSPACE_TAB_GAP) / (WORKSPACE_TAB_MIN_WIDTH + WORKSPACE_TAB_GAP)));
 }
 
 /** 比较影响 shell 渲染的字段，避免 route effect 在标签未变化时重复 setState。 */

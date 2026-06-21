@@ -1,10 +1,11 @@
-import React from "react";
+import React, {useEffect, useRef, useState} from "react";
 import {Button, Dropdown, Tooltip} from "antd";
 import {CloseOutlined, MoreOutlined, PushpinFilled} from "@ant-design/icons";
 import i18next from "i18next";
 import {
   WORKSPACE_TABS_MAX_VISIBLE,
   type WorkspaceTabItem,
+  calculateWorkspaceTabsCapacity,
   getVisibleWorkspaceTabs,
   normalizeWorkspacePath
 } from "./workspaceTabState";
@@ -24,10 +25,35 @@ function getActiveTab(tabs: WorkspaceTabItem[], activePath: string) {
   return tabs.find(tab => tab.path === normalizedActivePath);
 }
 
-function buildOverflowItems(tabs: WorkspaceTabItem[], onNavigate: (path: string) => void) {
+function buildOverflowItems(
+  tabs: WorkspaceTabItem[],
+  activePath: string,
+  onNavigate: (path: string) => void,
+  onClose: (path: string) => void,
+  closePrefix: string
+) {
   return tabs.map((tab) => ({
     key: tab.path,
-    label: tab.label,
+    label: (
+      <span className="admin-workspace-tabs-overflow-label">
+        <span className="admin-workspace-tabs-overflow-text" title={tab.label}>{tab.label}</span>
+        {tab.closable && (
+          <button
+            type="button"
+            className="admin-workspace-tabs-overflow-close"
+            aria-label={`${closePrefix} ${tab.label}`}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onClose(tab.path);
+            }}
+          >
+            <CloseOutlined aria-hidden="true" />
+          </button>
+        )}
+      </span>
+    ),
+    className: tab.path === activePath ? "admin-workspace-tabs-overflow-item-active" : undefined,
     onClick: () => onNavigate(tab.path),
   }));
 }
@@ -37,6 +63,8 @@ function tText(key: string) {
 }
 
 function WorkspaceTabs(props: WorkspaceTabsProps) {
+  const stripRef = useRef<HTMLDivElement | null>(null);
+  const [measuredMaxVisible, setMeasuredMaxVisible] = useState(WORKSPACE_TABS_MAX_VISIBLE);
   const activePath = normalizeWorkspacePath(props.activePath);
   const activeTab = getActiveTab(props.tabs, activePath);
   const closePrefix = tText("general:Close workspace tab");
@@ -45,11 +73,40 @@ function WorkspaceTabs(props: WorkspaceTabsProps) {
   const {visibleTabs, overflowTabs} = getVisibleWorkspaceTabs(
     props.tabs,
     activePath,
-    props.maxVisible ?? WORKSPACE_TABS_MAX_VISIBLE
+    props.maxVisible ?? measuredMaxVisible
   );
   const overflowMenu = {
-    items: buildOverflowItems(props.isMobile ? props.tabs : overflowTabs, props.onNavigate),
+    items: buildOverflowItems(props.isMobile ? props.tabs : overflowTabs, activePath, props.onNavigate, props.onClose, closePrefix),
+    selectedKeys: [activePath],
   };
+
+  useEffect(() => {
+    if (props.isMobile || props.maxVisible !== undefined || stripRef.current === null) {
+      return undefined;
+    }
+
+    const stripElement = stripRef.current;
+    const updateMeasuredCapacity = () => {
+      if (stripElement.clientWidth <= 0) {
+        return;
+      }
+
+      const nextCapacity = calculateWorkspaceTabsCapacity(stripElement.clientWidth, props.tabs.length);
+      setMeasuredMaxVisible((currentCapacity) => currentCapacity === nextCapacity ? currentCapacity : nextCapacity);
+    };
+
+    updateMeasuredCapacity();
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", updateMeasuredCapacity);
+      return () => window.removeEventListener("resize", updateMeasuredCapacity);
+    }
+
+    const resizeObserver = new ResizeObserver(updateMeasuredCapacity);
+    resizeObserver.observe(stripElement);
+
+    return () => resizeObserver.disconnect();
+  }, [props.isMobile, props.maxVisible, props.tabs.length]);
 
   if (props.isMobile) {
     return (
@@ -73,7 +130,7 @@ function WorkspaceTabs(props: WorkspaceTabsProps) {
   return (
     <div className="admin-workspace-tabs-shell">
       <nav className="admin-workspace-tabs admin-workspace-tabs-desktop" aria-label={workspaceLabel}>
-        <div className="admin-workspace-tabs-strip">
+        <div className="admin-workspace-tabs-strip" ref={stripRef}>
           {visibleTabs.map((tab) => {
             const active = tab.path === activePath;
 

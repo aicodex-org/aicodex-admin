@@ -45,7 +45,7 @@ describe("NavItemTree enterprise identity configuration", () => {
       "身份来源",
       "权限角色",
       "审计运维",
-      "LLM AI/Gateway",
+      "AI 网关",
       "管理工具",
       "商业付款",
     ]);
@@ -77,7 +77,7 @@ describe("NavItemTree enterprise identity configuration", () => {
       "验证核对",
       "风险处理",
     ]);
-    expect(leafKeys(getGroup(treeData, "LLM AI/Gateway"))).toEqual([
+    expect(leafKeys(getGroup(treeData, "AI 网关"))).toEqual([
       "/agents",
       "/servers",
       "/server-store",
@@ -85,7 +85,7 @@ describe("NavItemTree enterprise identity configuration", () => {
       "/sites",
       "/rules",
     ]);
-    expect(getGroup(treeData, "LLM AI/Gateway").children.map(item => item.title)).toEqual([
+    expect(getGroup(treeData, "AI 网关").children.map(item => item.title)).toEqual([
       "AI Agent 入口",
       "MCP Server",
       "MCP Store",
@@ -110,7 +110,7 @@ describe("NavItemTree enterprise identity configuration", () => {
       "Identity Sources",
       "Permissions & Roles",
       "Audit & Operations",
-      "LLM AI/Gateway",
+      "AI Gateway",
       "System Tools",
       "Business & Payments",
     ]);

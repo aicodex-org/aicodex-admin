@@ -657,7 +657,7 @@
     "LDAPs - Tooltip": "LDAP servers",
     "LLM AI": "LLM AI",
     "LLM AI Gateway": "LLM AI Gateway",
-    "LLM AI/Gateway": "LLM AI/Gateway",
+    "LLM AI/Gateway": "AI Gateway",
     "LLM AI Gateway Center": "LLM AI Gateway Center",
     "Enterprise Identity LLM AI Gateway": "Identity Console / LLM AI Gateway",
     "LLM AI gateway center description": "Organizes governance entries for AI agents, MCP Server, MCP Store, entry configurations, site scopes, governance rules, API gateway identity mappings, and audit records.",

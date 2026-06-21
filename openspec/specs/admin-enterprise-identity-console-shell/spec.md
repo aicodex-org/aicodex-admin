@@ -64,7 +64,7 @@ Admin 左侧导航 SHALL 以身份控制台语义组织既有页面入口，至�
 - **AND** 不暴露隐藏入口、真实组织树、真实用户明细或敏感环境信息
 
 ### Requirement: 企业 SaaS 管理台视觉
-身份控制台 Shell SHALL 使用安静、专业、信息密度合理且按业务域分化的管理台视觉，避免大 hero、装饰渐变、营销式介绍、卡片套卡片和所有列表页套同一工作台模板；总览、组织身份、认证源、应用接入、LLM AI/Gateway 和审计运维 SHALL 使用一致的控制台基础语言，但首屏结构、文案、指标和操作入口 SHALL 服务各自业务域。
+身份控制台 Shell SHALL 使用安静、专业、信息密度合理且按业务域分化的管理台视觉，避免大 hero、装饰渐变、营销式介绍、卡片套卡片和所有列表页套同一工作台模板；总览、组织身份、认证源、应用接入、AI 网关和审计运维 SHALL 使用一致的控制台基础语言，但首屏结构、文案、指标和操作入口 SHALL 服务各自业务域。
 
 #### Scenario: 桌面端首屏
 - **WHEN** 管理员在桌面端打开总览或身份控制台子页面
@@ -72,7 +72,7 @@ Admin 左侧导航 SHALL 以身份控制台语义组织既有页面入口，至�
 - **AND** 文案服务于操作决策
 
 #### Scenario: 工作台视觉一致但不模板化
-- **WHEN** 管理员在总览、组织身份、认证源中心、应用接入中心、LLM AI/Gateway 和审计运维页面之间切换
+- **WHEN** 管理员在总览、组织身份、认证源中心、应用接入中心、AI 网关和审计运维页面之间切换
 - **THEN** 页面画布、字体层级、状态标签和操作入口 SHALL 保持一致的企业控制台视觉语言
 - **AND** 每个业务域 SHALL 呈现不同首屏结构和治理语义
 - **AND** 页面 SHALL NOT 依赖装饰性背景、光球、bokeh 或大面积单一渐变来表达产品感
@@ -95,7 +95,7 @@ Admin 左侧导航 SHALL 以身份控制台语义组织既有页面入口，至�
 #### Scenario: 后续重建身份控制台导引
 - **WHEN** 系统提供新的身份控制台导引
 - **THEN** 导引文案 SHALL 同步 `zh` / `en` locale
-- **AND** 导引步骤 SHALL 使用企业身份治理、认证源、应用接入、审计运维、LLM AI/Gateway 等当前信息架构文案
+- **AND** 导引步骤 SHALL 使用企业身份治理、认证源、应用接入、审计运维、AI 网关等当前信息架构文案
 - **AND** 导引 SHALL 支持用户关闭或跳过，不阻塞核心列表操作
 
 ### Requirement: 核心页面 P0 信息密度和入口降级
@@ -207,14 +207,14 @@ Admin 身份控制台 Shell SHALL organize primary navigation by administrator b
 
 #### Scenario: 主导航展示业务域
 - **WHEN** 已登录管理员打开桌面端 Admin 壳层
-- **THEN** 左侧主导航 SHALL 优先展示中心总览、组织与账号、应用接入、身份源、权限与角色、审计运维和 LLM AI/Gateway 等稳定业务域
+- **THEN** 左侧主导航 SHALL 优先展示中心总览、组织与账号、应用接入、身份源、权限与角色、审计运维和 AI 网关等稳定业务域
 - **AND** 主导航 SHALL NOT use implementation history, helper modules or abstract governance terms as the default top-level taxonomy
 
 #### Scenario: 一级菜单命名保持四字中文优先
 - **WHEN** 后续 change 新增或调整 Admin 身份控制台一级菜单标签、菜单分组名或菜单文档命名
 - **THEN** 一级菜单命名 SHALL 默认采用四字中文业务名优先
 - **AND** 菜单标签 SHALL NOT 使用过长解释性短语，也 SHALL NOT 为新增治理概念继续扩张显眼的“中心”或“工作台”入口
-- **AND** LLM AI/Gateway、OAuth/OIDC、Provider、MCP 等专有技术词 MAY 保留中英混合表达
+- **AND** LLM AI、OAuth/OIDC、Provider、MCP、Gateway 等专有技术词 MAY 在二级菜单、页面标题或说明中保留中英混合表达
 
 #### Scenario: 抽象治理能力不默认扩张为显眼入口
 - **WHEN** 系统提供身份资产关系、接入预检、治理任务、快捷操作或等价横向能力
@@ -240,12 +240,12 @@ Future Admin enterprise identity UI tasks SHALL be judged by whether they improv
 - **AND** evidence SHALL check first-viewport core operation visibility, no old Tour or overlay, no page-level horizontal overflow, no console warning/error regression and no sensitive data exposure
 
 ### Requirement: 身份控制台一级菜单命名门禁
-Admin 身份控制台 Shell SHALL 保持一级导航标签简洁、面向业务域且受测试门禁保护。常规中文一级菜单标签 MUST 使用四个中文字符，`LLM AI/Gateway` 等专有技术词 MAY 通过显式 allowlist 保留；没有明确产品例外时，新的抽象“中心/工作台/任务中心/快捷入口”式一级入口 SHALL NOT 被新增。
+Admin 身份控制台 Shell SHALL 保持一级导航标签简洁、面向业务域且受测试门禁保护。常规中文一级菜单标签 MUST 使用四个中文字符，`AI 网关` 这类明确产品例外 MUST 通过显式 allowlist 保留；没有明确产品例外时，新的抽象“中心/工作台/任务中心/快捷入口”式一级入口 SHALL NOT 被新增。
 
 #### Scenario: 中文一级菜单使用四字业务名
 - **WHEN** 管理员使用中文界面打开桌面侧栏或组织导航配置树
 - **THEN** 每个常规中文一级分组标签 SHALL 正好包含四个中文字符
-- **AND** `LLM AI/Gateway` 等允许保留的专有技术标签 SHALL 记录在导航测试 allowlist 中
+- **AND** `AI 网关` 等允许保留的一级产品例外 SHALL 记录在导航测试 allowlist 中
 
 #### Scenario: 一级菜单不新增抽象入口
 - **WHEN** 后续 change 新增或重命名 Admin 身份控制台一级导航分组
