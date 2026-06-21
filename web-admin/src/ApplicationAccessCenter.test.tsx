@@ -50,6 +50,71 @@ const applications = [
   },
 ];
 
+const serviceCredentialGovernanceResponse = {
+  status: "ok",
+  data: {
+    generatedAt: "2026-06-21T03:40:00Z",
+    source: "admin_runtime_config",
+    groups: [
+      {
+        key: "insight_provider_trust",
+        label: "Insight provider trust",
+        owner: "admin_provider_trust",
+        status: "partial",
+        configuredKeys: ["insightProviderAllowedAudiences"],
+        missingKeys: ["insightProviderAllowedIssuers"],
+        credentialReferenceStatus: "not_applicable",
+        boundedRuntimePolicy: {requiredScopesDefaulted: true},
+        remediationRoute: "/providers",
+      },
+      {
+        key: "usage_identity_resolver",
+        label: "Usage identity resolver",
+        owner: "admin_outbound_resolver",
+        status: "configured",
+        configuredKeys: ["insightUsageIdentityResolverEndpoint", "insightUsageIdentityResolverToken"],
+        missingKeys: [],
+        credentialReferenceStatus: "configured",
+        callerPolicy: "aicodex-admin",
+        boundedRuntimePolicy: {
+          maxItems: 25,
+          timeoutMs: 1500,
+          unsafeTokenValue: "resolver-secret-value",
+          unsafeEndpoint: "https://resolver.internal.example.invalid/api/usage",
+        },
+        remediationRoute: "/platform-api-mappings",
+      },
+      {
+        key: "gateway_organization_projection",
+        label: "Gateway organization projection",
+        owner: "admin_gateway_projection_producer",
+        status: "blocked",
+        configuredKeys: ["gatewayOrganizationProjectionEndpoint"],
+        missingKeys: ["gatewayOrganizationProjectionToken"],
+        credentialReferenceStatus: "missing",
+        callerPolicy: "aicodex-admin",
+        boundedRuntimePolicy: {
+          enabled: true,
+          unsafeTokenValue: "projection-secret-value",
+          unsafeEndpoint: "https://gateway.internal.example.invalid/api/projection",
+        },
+        blockedReasons: ["gateway_projection_token_missing"],
+        remediationRoute: "/platform-api-mappings",
+      },
+      {
+        key: "keep_in_env",
+        label: "Keep in env/config",
+        owner: "deployment_env_config",
+        status: "configured",
+        configuredKeys: ["env/config"],
+        credentialReferenceStatus: "external_secret",
+        keepInEnvKeys: ["dataSourceName", "redisEndpoint"],
+        remediationRoute: "env/config",
+      },
+    ],
+  },
+};
+
 async function useTestLanguage(language: string) {
   if (!i18next.isInitialized) {
     await i18next.init({
@@ -72,6 +137,10 @@ describe("ApplicationAccessCenter", () => {
 
   beforeEach(async() => {
     await useTestLanguage("zh");
+    Object.defineProperty(global, "fetch", {
+      value: jest.fn(() => new Promise(() => {})),
+      writable: true,
+    });
     const spy = jest.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
       if (`${message}`.includes("ReactDOM.render is no longer supported")) {
         return;
@@ -85,6 +154,7 @@ describe("ApplicationAccessCenter", () => {
 
   afterEach(() => {
     consoleErrorSpy.mockRestore();
+    jest.clearAllMocks();
   });
 
   test("builds read-only access summary without exposing client secrets", () => {
@@ -305,5 +375,161 @@ describe("ApplicationAccessCenter", () => {
     );
 
     expect(loadingView.getByText("加载应用接入状态...")).not.toBeNull();
+  });
+
+  test("renders sanitized service credential governance summary from runtime contract", async() => {
+    (global.fetch as unknown as {mockResolvedValueOnce: (value: unknown) => void}).mockResolvedValueOnce({
+      json: () => Promise.resolve(serviceCredentialGovernanceResponse),
+    });
+
+    const view = render(
+      <MemoryRouter>
+        <ApplicationAccessCenter applications={applications} loading={false} />
+      </MemoryRouter>
+    );
+
+    expect(await view.findByText("服务凭据治理")).not.toBeNull();
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/application-access/service-credential-governance-status",
+      expect.objectContaining({method: "GET", credentials: "include"})
+    );
+    expect(view.getByText("存在阻断")).not.toBeNull();
+    expect(view.getByText("Insight provider trust")).not.toBeNull();
+    expect(view.getByText("Usage identity resolver")).not.toBeNull();
+    expect(view.getByText("Gateway organization projection")).not.toBeNull();
+    expect(view.getAllByText("进入配置").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/platform-api-mappings")).toBe(true);
+    expect(view.queryByText("resolver-secret-value")).toBeNull();
+    expect(view.queryByText("projection-secret-value")).toBeNull();
+    expect(view.queryByText("gateway.internal.example.invalid")).toBeNull();
+    expect(view.queryByText("resolver.internal.example.invalid")).toBeNull();
+  });
+
+  test("keeps application access usable when service credential governance status is unavailable", async() => {
+    (global.fetch as unknown as {mockRejectedValueOnce: (value: unknown) => void}).mockRejectedValueOnce(new Error("network unavailable"));
+
+    const view = render(
+      <MemoryRouter>
+        <ApplicationAccessCenter applications={applications} loading={false} />
+      </MemoryRouter>
+    );
+
+    expect(await view.findByText("服务凭据治理状态暂不可用")).not.toBeNull();
+    expect(view.getByText("新增应用").closest("a")?.getAttribute("href")).toBe("/applications");
+    expect(view.getAllByText("API 网关映射").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/platform-api-mappings")).toBe(true);
+  });
+
+  test("renders service credential governance success, missing, empty, and non-ok states", async() => {
+    (global.fetch as unknown as {mockResolvedValueOnce: (value: unknown) => void})
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve({
+          status: "ok",
+          data: {
+            generatedAt: "2026-06-21T03:45:00Z",
+            source: "admin_runtime_config",
+            groups: [
+              {
+                key: "usage_identity_resolver",
+                label: "Usage identity resolver",
+                owner: "admin_outbound_resolver",
+                status: "missing",
+                configuredKeys: [],
+                missingKeys: ["insightUsageIdentityResolverEndpoint", "insightUsageIdentityResolverToken"],
+                credentialReferenceStatus: "missing",
+                remediationRoute: "/platform-api-mappings",
+              },
+              {
+                key: "gateway_organization_projection",
+                label: "Gateway organization projection",
+                owner: "admin_gateway_projection_producer",
+                status: "not_applicable",
+                configuredKeys: [],
+                missingKeys: [],
+                credentialReferenceStatus: "not_applicable",
+              },
+            ],
+          },
+        }),
+      });
+
+    const missingView = render(
+      <MemoryRouter>
+        <ApplicationAccessCenter applications={applications} loading={false} />
+      </MemoryRouter>
+    );
+
+    expect(await missingView.findByText("需核对")).not.toBeNull();
+    expect(missingView.getByText("缺少配置")).not.toBeNull();
+    expect(missingView.getByText("未启用")).not.toBeNull();
+    missingView.unmount();
+
+    (global.fetch as unknown as {mockResolvedValueOnce: (value: unknown) => void})
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve({
+          status: "ok",
+          data: {
+            generatedAt: "2026-06-21T03:50:00Z",
+            source: "admin_runtime_config",
+            groups: [
+              {
+                key: "insight_provider_trust",
+                label: "Insight provider trust",
+                owner: "admin_provider_trust",
+                status: "configured",
+                configuredKeys: ["insightProviderAllowedAudiences"],
+                credentialReferenceStatus: "not_applicable",
+              },
+              {
+                key: "gateway_organization_projection",
+                label: "Gateway organization projection",
+                owner: "admin_gateway_projection_producer",
+                status: "not_applicable",
+                configuredKeys: [],
+                credentialReferenceStatus: "not_applicable",
+              },
+            ],
+          },
+        }),
+      });
+    const successView = render(
+      <MemoryRouter>
+        <ApplicationAccessCenter applications={applications} loading={false} />
+      </MemoryRouter>
+    );
+
+    expect(await successView.findByText("已脱敏")).not.toBeNull();
+    successView.unmount();
+
+    (global.fetch as unknown as {mockResolvedValueOnce: (value: unknown) => void})
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve({
+          status: "ok",
+          data: {
+            generatedAt: "2026-06-21T03:55:00Z",
+            source: "admin_runtime_config",
+            groups: [],
+          },
+        }),
+      });
+    const emptyView = render(
+      <MemoryRouter>
+        <ApplicationAccessCenter applications={applications} loading={false} />
+      </MemoryRouter>
+    );
+
+    expect(await emptyView.findByText("暂无服务凭据治理状态")).not.toBeNull();
+    emptyView.unmount();
+
+    (global.fetch as unknown as {mockResolvedValueOnce: (value: unknown) => void})
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve({status: "error", msg: "unavailable"}),
+      });
+    const errorView = render(
+      <MemoryRouter>
+        <ApplicationAccessCenter applications={applications} loading={false} />
+      </MemoryRouter>
+    );
+
+    expect(await errorView.findByText("服务凭据治理状态暂不可用")).not.toBeNull();
   });
 });

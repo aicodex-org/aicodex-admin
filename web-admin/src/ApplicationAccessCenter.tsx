@@ -17,12 +17,15 @@ import {
   AppstoreAddOutlined,
   AuditOutlined,
   ExclamationCircleOutlined,
-  SafetyCertificateOutlined
+  SafetyCertificateOutlined,
+  SafetyOutlined
 } from "@ant-design/icons";
-import {Alert, Button, Space, Spin, Typography} from "antd";
+import {Alert, Button, Space, Spin, Tag, Typography} from "antd";
 import i18next from "i18next";
 import React from "react";
 import {Link} from "react-router-dom";
+import {getServiceCredentialGovernanceStatus} from "./backend/ApplicationAccessServiceCredentialGovernanceBackend";
+import type {ServiceCredentialGovernanceStatusResponse} from "./backend/ApplicationAccessServiceCredentialGovernanceBackend";
 import {
   EnterpriseIdentityConsolePage,
   EnterpriseIdentityRiskList,
@@ -122,6 +125,10 @@ interface ApplicationAccessCenterProps {
   applications?: unknown[];
   loading?: boolean;
 }
+
+type ServiceCredentialGovernanceLoadState = "loading" | "ready" | "error" | "empty";
+type ServiceCredentialGovernanceGroup = ServiceCredentialGovernanceStatusResponse["groups"][number];
+type ServiceCredentialGovernanceStatus = ServiceCredentialGovernanceGroup["status"];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -376,9 +383,111 @@ function buildSummaryItems(summary: ApplicationAccessCenterSummary): SummaryItem
   ];
 }
 
+function getServiceCredentialGovernanceTone(status: ServiceCredentialGovernanceStatus): "success" | "warning" | "error" | "default" {
+  switch (status) {
+  case "configured":
+    return "success";
+  case "blocked":
+    return "error";
+  case "missing":
+  case "partial":
+    return "warning";
+  default:
+    return "default";
+  }
+}
+
+function getServiceCredentialGovernanceStatusLabel(status: ServiceCredentialGovernanceStatus): string {
+  switch (status) {
+  case "configured":
+    return "已配置";
+  case "blocked":
+    return "已阻断";
+  case "missing":
+    return "缺少配置";
+  case "partial":
+    return "部分配置";
+  default:
+    return "未启用";
+  }
+}
+
+function getServiceCredentialGovernanceSummary(status?: ServiceCredentialGovernanceStatusResponse | null): {label: string; tone: "success" | "warning" | "error" | "default"} {
+  const groups = status?.groups ?? [];
+  if (groups.some(group => group.status === "blocked")) {
+    return {label: "存在阻断", tone: "error"};
+  }
+  if (groups.some(group => group.status === "missing" || group.status === "partial")) {
+    return {label: "需核对", tone: "warning"};
+  }
+  if (groups.length > 0 && groups.every(group => group.status === "configured" || group.status === "not_applicable")) {
+    return {label: "已脱敏", tone: "success"};
+  }
+  return {label: "待加载", tone: "default"};
+}
+
+function buildServiceCredentialGovernanceItems(groups: ServiceCredentialGovernanceGroup[]) {
+  return groups.map(group => {
+    const tone = getServiceCredentialGovernanceTone(group.status);
+    const missingCount = group.missingKeys?.length ?? 0;
+    const configuredCount = group.configuredKeys?.length ?? 0;
+    const reasonCount = group.blockedReasons?.length ?? 0;
+    const keySummary = missingCount > 0
+      ? `缺少 ${missingCount} 个配置 key，已识别 ${configuredCount} 个配置 key。`
+      : `已识别 ${configuredCount} 个配置 key。`;
+    const description = reasonCount > 0
+      ? `${keySummary} 阻断原因 ${reasonCount} 项；仅展示 key 名和状态。`
+      : `${keySummary} 仅展示 key 名和状态。`;
+    const action = group.remediationRoute && group.remediationRoute.startsWith("/")
+      ? {key: `${group.key}-remediation`, to: group.remediationRoute, label: "进入配置"}
+      : undefined;
+
+    return {
+      key: group.key,
+      title: group.label || group.key,
+      description,
+      icon: <SafetyOutlined />,
+      tone,
+      badge: getServiceCredentialGovernanceStatusLabel(group.status),
+      action,
+    };
+  });
+}
+
 function ApplicationAccessCenter({applications = [], loading = false}: ApplicationAccessCenterProps): React.ReactElement {
+  const [serviceCredentialGovernance, setServiceCredentialGovernance] = React.useState<ServiceCredentialGovernanceStatusResponse | null>(null);
+  const [serviceCredentialGovernanceLoadState, setServiceCredentialGovernanceLoadState] = React.useState<ServiceCredentialGovernanceLoadState>("loading");
   const summary = buildApplicationAccessCenterSummary(applications);
   const hasApplications = Array.isArray(applications) && applications.length > 0;
+  React.useEffect(() => {
+    let isMounted = true;
+    setServiceCredentialGovernanceLoadState("loading");
+    getServiceCredentialGovernanceStatus()
+      .then(response => {
+        if (!isMounted) {
+          return;
+        }
+        if (response.status !== "ok" || !response.data) {
+          setServiceCredentialGovernance(null);
+          setServiceCredentialGovernanceLoadState("error");
+          return;
+        }
+        setServiceCredentialGovernance(response.data);
+        setServiceCredentialGovernanceLoadState(response.data.groups?.length > 0 ? "ready" : "empty");
+      })
+      .catch(() => {
+        if (!isMounted) {
+          return;
+        }
+        setServiceCredentialGovernance(null);
+        setServiceCredentialGovernanceLoadState("error");
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const riskItems = summary.riskItems.map(item => {
     const tone: "warning" | "success" = item.count > 0 ? "warning" : "success";
     return {
@@ -392,6 +501,8 @@ function ApplicationAccessCenter({applications = [], loading = false}: Applicati
     };
   });
   const summaryItems = buildSummaryItems(summary);
+  const serviceCredentialGovernanceSummary = getServiceCredentialGovernanceSummary(serviceCredentialGovernance);
+  const serviceCredentialGovernanceItems = buildServiceCredentialGovernanceItems(serviceCredentialGovernance?.groups ?? []);
 
   return (
     <EnterpriseIdentityConsolePage
@@ -443,6 +554,41 @@ function ApplicationAccessCenter({applications = [], loading = false}: Applicati
           extra={<Text type="secondary">治理摘要</Text>}
         >
           <EnterpriseIdentityRiskList items={riskItems} />
+        </EnterpriseIdentitySection>
+        <EnterpriseIdentitySection
+          className="enterprise-identity-rail-section"
+          title="服务凭据治理"
+          description="来自 Admin 运行态配置的脱敏状态，不触发凭据测试、登录或 Gateway 投影发布"
+          extra={<Tag className={`enterprise-identity-tone-${serviceCredentialGovernanceSummary.tone}`}>{serviceCredentialGovernanceSummary.label}</Tag>}
+        >
+          {serviceCredentialGovernanceLoadState === "loading" && (
+            <Alert
+              className="enterprise-identity-console-alert"
+              type="info"
+              showIcon
+              message="加载服务凭据治理状态..."
+            />
+          )}
+          {serviceCredentialGovernanceLoadState === "error" && (
+            <Alert
+              className="enterprise-identity-console-alert"
+              type="warning"
+              showIcon
+              message="服务凭据治理状态暂不可用"
+              description="应用列表操作不受影响；请稍后刷新或进入配置页核对。"
+            />
+          )}
+          {serviceCredentialGovernanceLoadState === "empty" && (
+            <Alert
+              className="enterprise-identity-console-alert"
+              type="warning"
+              showIcon
+              message="暂无服务凭据治理状态"
+            />
+          )}
+          {serviceCredentialGovernanceLoadState === "ready" && (
+            <EnterpriseIdentityRiskList items={serviceCredentialGovernanceItems} />
+          )}
         </EnterpriseIdentitySection>
       </div>
 
