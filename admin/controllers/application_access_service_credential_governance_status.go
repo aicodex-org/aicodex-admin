@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 	"time"
 
@@ -166,7 +167,11 @@ func applyServiceCredentialGovernanceStatusConfigOverlay(groups []ServiceCredent
 	for _, group := range groups {
 		configGroup, ok := overlayByKey[group.Key]
 		if ok {
-			group = applyServiceCredentialGovernanceStatusGroupConfigOverlay(group, configGroup)
+			if group.Key == "insight_provider_trust" {
+				group = applyInsightProviderTrustStatusGroupConfigOverlay(group, configGroup)
+			} else {
+				group = applyServiceCredentialGovernanceStatusGroupConfigOverlay(group, configGroup)
+			}
 		}
 		overlaid = append(overlaid, group)
 	}
@@ -174,7 +179,73 @@ func applyServiceCredentialGovernanceStatusConfigOverlay(groups []ServiceCredent
 }
 
 func isServiceCredentialGovernanceStatusOverlayGroup(key string) bool {
-	return key == "usage_identity_resolver" || key == "gateway_organization_projection"
+	return key == "insight_provider_trust" || key == "usage_identity_resolver" || key == "gateway_organization_projection"
+}
+
+// applyInsightProviderTrustStatusGroupConfigOverlay 将 saved trust policy 映射成只含 count/digest/source 的脱敏治理状态。
+func applyInsightProviderTrustStatusGroupConfigOverlay(group ServiceCredentialGovernanceStatusGroup, configGroup object.ServiceCredentialGovernanceConfigGroup) ServiceCredentialGovernanceStatusGroup {
+	policy := buildInsightProviderTrustRuntimePolicyFromConfig(&object.ServiceCredentialGovernanceConfigResponse{
+		IsConfigured: true,
+		Groups:       []object.ServiceCredentialGovernanceConfigGroup{configGroup},
+	})
+	if !policy.Explicit {
+		return group
+	}
+
+	group.ConfiguredKeys = []string{}
+	group.MissingKeys = []string{}
+	group.BlockedReasons = deduplicateStrings(configGroup.BlockedReasons)
+	group.CredentialReferenceStatus = serviceCredentialReferenceNotApplicable
+	group.CallerPolicy = "insight_service_token"
+	group.RemediationRoute = firstNonEmptyInsightString(configGroup.RemediationRoute, "/providers")
+	group.BoundedRuntimePolicy = map[string]interface{}{
+		"source":                   "saved_runtime_policy",
+		"allowedAudienceCount":     len(policy.AllowedAudiences),
+		"allowedIssuerDigestCount": len(policy.AllowedIssuerDigests),
+		"requiredScopeCount":       len(policy.RequiredScopes),
+		"requiredScopesDefaulted":  policy.RequiredScopesDefaulted,
+		"issuerMode":               policy.IssuerMode,
+		"cannotInfer":              policy.CannotInfer,
+	}
+
+	if !policy.Enabled {
+		group.Status = serviceCredentialGovernanceStatusBlocked
+		group.BlockedReasons = deduplicateStrings(append(group.BlockedReasons, "insight_provider_saved_trust_policy_disabled"))
+		return group
+	}
+
+	if len(policy.AllowedAudiences) > 0 {
+		group.ConfiguredKeys = append(group.ConfiguredKeys, "allowedAudiences:"+strconv.Itoa(len(policy.AllowedAudiences)))
+	} else {
+		group.MissingKeys = append(group.MissingKeys, "allowedAudiences")
+		group.BlockedReasons = append(group.BlockedReasons, "insight_provider_allowed_audiences_missing")
+	}
+	if policy.IssuerMode == "any_non_empty" {
+		group.ConfiguredKeys = append(group.ConfiguredKeys, "issuerMode:any_non_empty")
+	} else if len(policy.AllowedIssuerDigests) > 0 {
+		group.ConfiguredKeys = append(group.ConfiguredKeys, "allowedIssuerDigests:"+strconv.Itoa(len(policy.AllowedIssuerDigests)))
+	} else {
+		group.MissingKeys = append(group.MissingKeys, "allowedIssuerDigests")
+		group.BlockedReasons = append(group.BlockedReasons, "insight_provider_issuer_digest_missing")
+	}
+	if len(policy.RequiredScopes) > 0 {
+		group.ConfiguredKeys = append(group.ConfiguredKeys, "requiredScopes:"+strconv.Itoa(len(policy.RequiredScopes)))
+	} else {
+		group.MissingKeys = append(group.MissingKeys, "requiredScopes")
+		group.BlockedReasons = append(group.BlockedReasons, "insight_provider_required_scopes_missing")
+	}
+
+	group.ConfiguredKeys = deduplicateStrings(group.ConfiguredKeys)
+	group.MissingKeys = deduplicateStrings(group.MissingKeys)
+	group.BlockedReasons = deduplicateStrings(group.BlockedReasons)
+	if len(group.BlockedReasons) > 0 {
+		group.Status = serviceCredentialGovernanceStatusBlocked
+	} else if len(group.MissingKeys) > 0 {
+		group.Status = serviceCredentialGovernanceStatusPartial
+	} else {
+		group.Status = serviceCredentialGovernanceStatusConfigured
+	}
+	return group
 }
 
 func applyServiceCredentialGovernanceStatusGroupConfigOverlay(group ServiceCredentialGovernanceStatusGroup, configGroup object.ServiceCredentialGovernanceConfigGroup) ServiceCredentialGovernanceStatusGroup {

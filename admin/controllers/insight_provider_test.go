@@ -1,7 +1,10 @@
 package controllers
 
 import (
+	"crypto/sha256"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -1013,6 +1016,181 @@ func TestInsightRequiredScopesDefaultToInsightScopes(t *testing.T) {
 	if !hasInsightRequiredScopes("profile insight.scope.read") {
 		t.Fatalf("default insight scopes should be accepted")
 	}
+}
+
+func TestInsightProviderTrustUsesSavedRuntimePolicyOverLegacyEnv(t *testing.T) {
+	t.Setenv("insightProviderAllowedAudiences", "legacy-client")
+	t.Setenv("insightProviderAllowedIssuers", "legacy-issuer")
+	t.Setenv("insightProviderRequiredScopes", "legacy.scope")
+	withServiceCredentialGovernanceStatusConfig(t, []object.ServiceCredentialGovernanceConfigGroup{{
+		Key:                  "insight_provider_trust",
+		Enabled:              true,
+		SourceClass:          "admin_config",
+		BoundedRuntimePolicy: map[string]interface{}{"allowedAudiences": []string{"saved-client"}, "requiredScopes": []string{"saved.scope"}, "allowedIssuerDigests": []string{testInsightIssuerDigest("saved-issuer")}, "issuerMode": "digest_allowlist"},
+	}})
+
+	if got := getInsightAllowedTokenAudiences([]string{"legacy-client", "saved-client"}); len(got) != 1 || got[0] != "saved-client" {
+		t.Fatalf("saved policy should select only saved audience, got %+v", got)
+	}
+	if isInsightIssuerAllowed("legacy-issuer") {
+		t.Fatalf("saved policy must not fall back to legacy issuer")
+	}
+	if !isInsightIssuerAllowed("saved-issuer") {
+		t.Fatalf("saved issuer digest should be accepted")
+	}
+	if hasInsightRequiredScopes("legacy.scope") {
+		t.Fatalf("saved policy must not fall back to legacy scopes")
+	}
+	if !hasInsightRequiredScopes("saved.scope") {
+		t.Fatalf("saved scope should be accepted")
+	}
+}
+
+func TestInsightProviderTrustSavedDisabledFailClosed(t *testing.T) {
+	t.Setenv("insightProviderAllowedAudiences", "legacy-client")
+	t.Setenv("insightProviderAllowedIssuers", "legacy-issuer")
+	t.Setenv("insightProviderRequiredScopes", "legacy.scope")
+	withServiceCredentialGovernanceStatusConfig(t, []object.ServiceCredentialGovernanceConfigGroup{{
+		Key:                  "insight_provider_trust",
+		Enabled:              false,
+		SourceClass:          "admin_config",
+		BoundedRuntimePolicy: map[string]interface{}{"allowedAudiences": []string{"saved-client"}, "requiredScopes": []string{"saved.scope"}, "allowedIssuerDigests": []string{testInsightIssuerDigest("saved-issuer")}, "issuerMode": "digest_allowlist"},
+	}})
+
+	if isInsightAudienceAllowed([]string{"legacy-client", "saved-client"}) {
+		t.Fatalf("disabled saved policy should reject all audiences")
+	}
+	if isInsightIssuerAllowed("legacy-issuer") || isInsightIssuerAllowed("saved-issuer") {
+		t.Fatalf("disabled saved policy should reject all issuers")
+	}
+	if hasInsightRequiredScopes("legacy.scope saved.scope") {
+		t.Fatalf("disabled saved policy should reject all scopes")
+	}
+}
+
+func TestInsightProviderTrustSavedMismatchDoesNotFallbackToEnv(t *testing.T) {
+	t.Setenv("insightProviderAllowedAudiences", "legacy-client")
+	t.Setenv("insightProviderAllowedIssuers", "legacy-issuer")
+	t.Setenv("insightProviderRequiredScopes", "legacy.scope")
+	withServiceCredentialGovernanceStatusConfig(t, []object.ServiceCredentialGovernanceConfigGroup{{
+		Key:                  "insight_provider_trust",
+		Enabled:              true,
+		SourceClass:          "admin_config",
+		BoundedRuntimePolicy: map[string]interface{}{"allowedAudiences": []string{"saved-client"}, "requiredScopes": []string{"saved.scope"}, "allowedIssuerDigests": []string{testInsightIssuerDigest("saved-issuer")}, "issuerMode": "digest_allowlist"},
+	}})
+
+	if isInsightAudienceAllowed([]string{"legacy-client"}) {
+		t.Fatalf("legacy audience must not pass when saved policy is explicit")
+	}
+	if isInsightIssuerAllowed("legacy-issuer") {
+		t.Fatalf("legacy issuer must not pass when saved policy is explicit")
+	}
+	if hasInsightRequiredScopes("legacy.scope") {
+		t.Fatalf("legacy scope must not pass when saved policy is explicit")
+	}
+}
+
+func TestInsightProviderTrustPolicyKeepsLegacyFallbackWithoutExplicitFields(t *testing.T) {
+	t.Setenv("insightProviderAllowedAudiences", "legacy-client")
+	withServiceCredentialGovernanceStatusConfig(t, []object.ServiceCredentialGovernanceConfigGroup{{
+		Key:         "insight_provider_trust",
+		Enabled:     true,
+		SourceClass: "admin_config",
+	}})
+
+	policy := getInsightProviderTrustRuntimePolicy()
+	if policy.Explicit {
+		t.Fatalf("sparse saved trust group should not override legacy config: %#v", policy)
+	}
+	if !isInsightAudienceAllowed([]string{"legacy-client"}) {
+		t.Fatalf("legacy audience should still be accepted without explicit saved policy")
+	}
+}
+
+func TestInsightProviderTrustPolicySupportsAnyNonEmptyIssuerModeAndDefaultsScopes(t *testing.T) {
+	withServiceCredentialGovernanceStatusConfig(t, []object.ServiceCredentialGovernanceConfigGroup{{
+		Key:         "insight_provider_trust",
+		Enabled:     true,
+		SourceClass: "admin_config",
+		BoundedRuntimePolicy: map[string]interface{}{
+			"allowedAudiences": []interface{}{"saved-client"},
+			"issuerMode":       "any_non_empty",
+		},
+	}})
+
+	policy := getInsightProviderTrustRuntimePolicy()
+	if !policy.Explicit || !policy.RequiredScopesDefaulted || !policy.CannotInfer {
+		t.Fatalf("policy should default scopes and mark cannotInfer for any_non_empty: %#v", policy)
+	}
+	if !isInsightIssuerAllowed("any-saved-issuer") {
+		t.Fatalf("any_non_empty issuer mode should accept non-empty issuer")
+	}
+	if !hasInsightRequiredScopes("profile insight.scope.read") {
+		t.Fatalf("defaulted saved scopes should require existing insight defaults")
+	}
+}
+
+func TestInsightProviderTrustPolicyStoreErrorFailsClosed(t *testing.T) {
+	storeErr := errors.New("metadata store unavailable")
+	originalFactory := applicationAccessServiceCredentialGovernanceConfigServiceFactory
+	applicationAccessServiceCredentialGovernanceConfigServiceFactory = func() *object.ServiceCredentialGovernanceConfigService {
+		return &object.ServiceCredentialGovernanceConfigService{Store: &memoryServiceCredentialGovernanceConfigStore{err: storeErr}}
+	}
+	defer func() {
+		applicationAccessServiceCredentialGovernanceConfigServiceFactory = originalFactory
+	}()
+
+	if isInsightAudienceAllowed([]string{"legacy-client"}) || isInsightIssuerAllowed("legacy-issuer") || hasInsightRequiredScopes("profile insight.scope.read") {
+		t.Fatalf("metadata store error should fail closed")
+	}
+}
+
+func TestInsightProviderTrustPolicyParsingCoversSparseAndJsonShapes(t *testing.T) {
+	if policy := buildInsightProviderTrustRuntimePolicyFromConfig(nil); policy.Explicit {
+		t.Fatalf("nil config should not be explicit: %#v", policy)
+	}
+	if policy := buildInsightProviderTrustRuntimePolicyFromConfig(&object.ServiceCredentialGovernanceConfigResponse{IsConfigured: false}); policy.Explicit {
+		t.Fatalf("unconfigured response should not be explicit: %#v", policy)
+	}
+	if policy := buildInsightProviderTrustRuntimePolicyFromConfig(&object.ServiceCredentialGovernanceConfigResponse{IsConfigured: true, Groups: []object.ServiceCredentialGovernanceConfigGroup{{Key: "keep_in_env"}}}); policy.Explicit {
+		t.Fatalf("missing trust group should not be explicit: %#v", policy)
+	}
+	policy := map[string]interface{}{
+		"allowedAudiences":     "saved-client",
+		"requiredScopes":       []interface{}{"profile", "insight.scope.read"},
+		"allowedIssuerDigests": []string{testInsightIssuerDigest("saved-issuer")},
+		"issuerMode":           "digest_allowlist",
+		"ignoredNumber":        123,
+	}
+	if got := insightPolicyString(policy, "issuerMode"); got != "digest_allowlist" {
+		t.Fatalf("issuer mode = %q, want digest_allowlist", got)
+	}
+	if got := insightPolicyString(policy, "ignoredNumber"); got != "" {
+		t.Fatalf("non-string policy value should return empty string, got %q", got)
+	}
+	if got := insightPolicyStringSlice(policy, "allowedAudiences"); len(got) != 1 || got[0] != "saved-client" {
+		t.Fatalf("string policy value should normalize to slice, got %#v", got)
+	}
+	if got := insightPolicyStringSlice(policy, "requiredScopes"); len(got) != 2 || got[0] != "insight.scope.read" || got[1] != "profile" {
+		t.Fatalf("json array policy value should normalize and sort, got %#v", got)
+	}
+	if got := insightPolicyStringSlice(policy, "ignoredNumber"); got != nil {
+		t.Fatalf("unsupported policy value should return nil, got %#v", got)
+	}
+	if hasInsightProviderTrustRuntimePolicyFields(object.ServiceCredentialGovernanceConfigGroup{}) {
+		t.Fatalf("empty trust group should not have explicit policy fields")
+	}
+	if hasInsightProviderTrustRuntimePolicyFields(object.ServiceCredentialGovernanceConfigGroup{BoundedRuntimePolicy: map[string]interface{}{"timeoutMs": 1000}}) {
+		t.Fatalf("unrelated bounded policy key should not mark trust policy explicit")
+	}
+	if !hasInsightProviderTrustRuntimePolicyFields(object.ServiceCredentialGovernanceConfigGroup{BoundedRuntimePolicy: map[string]interface{}{"issuerMode": "digest_allowlist"}}) {
+		t.Fatalf("issuerMode should mark trust policy explicit")
+	}
+}
+
+func testInsightIssuerDigest(issuer string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(issuer)))
+	return fmt.Sprintf("sha256:%x", sum[:])
 }
 
 func TestInsightOrganizationTreeOnlyReturnsManageableGroupNodes(t *testing.T) {

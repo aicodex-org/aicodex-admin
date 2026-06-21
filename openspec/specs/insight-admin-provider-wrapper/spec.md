@@ -146,12 +146,16 @@ TBD - created by archiving change add-insight-admin-provider-wrapper. Update Pur
 - **THEN** provider MUST NOT 返回该非法 `apiUserId` 或把映射失败降级为 `EMPTY`
 
 ### Requirement: provider 必须统一错误语义和审计日志
+
 系统 MUST 为 insight admin provider 提供稳定错误码和 AI 可读审计日志，便于跨服务联调、排障和权限复盘。
 
 #### Scenario: provider 参数或权限校验失败
-- **WHEN** 请求 token、audience、scope、用户状态或权限校验失败
+- **WHEN** 请求 token、audience、issuer、scope、用户状态或权限校验失败
 - **THEN** 系统 MUST 返回 `UNAUTHENTICATED`、`AUTHORIZATION_FAILED`、`INVALID_ARGUMENT` 或 `PROVIDER_UNAVAILABLE` 中的一个稳定错误码
 - **THEN** 系统 MUST 返回可关联的 `traceId`
+- **AND** 当 Admin 已保存 enabled `insight_provider_trust` runtime policy 时，audience、issuer 和 scope 校验 MUST 使用 saved policy
+- **AND** 当 Admin 已保存 disabled `insight_provider_trust` runtime policy 时，provider MUST fail closed and return `AUTHORIZATION_FAILED`
+- **AND** provider MUST NOT fall back to legacy env/config after a saved policy rejects the token
 
 #### Scenario: provider 调用完成后写入审计日志
 - **WHEN** current-user、scope 或 organization-tree provider 处理完成
@@ -185,7 +189,6 @@ Insight admin provider MUST 在现有手工 `aicodexApiUserId` 映射之外，�
 - **THEN** provider MUST 返回 `AUTHORIZATION_FAILED`
 - **THEN** provider MUST 返回可诊断的 `mappingStatus`
 - **THEN** provider MUST NOT 将该场景返回为 `scopeType=EMPTY`
-
 #### Scenario: 企业微信解析异常不降级为空 scope
 - **WHEN** 企业微信稳定身份解析因歧义、非法或 resolver 不可用而无法完成必要用户映射
 - **THEN** provider MUST 返回 `AUTHORIZATION_FAILED` 或 `PROVIDER_UNAVAILABLE`

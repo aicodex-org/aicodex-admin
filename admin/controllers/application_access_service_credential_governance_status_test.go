@@ -328,6 +328,97 @@ func TestBuildApplicationAccessServiceCredentialGovernanceStatusOverlaysSavedEna
 	}
 }
 
+func TestBuildApplicationAccessServiceCredentialGovernanceStatusUsesSavedInsightProviderTrustPolicy(t *testing.T) {
+	t.Setenv("insightProviderAllowedAudiences", "legacy-client")
+	t.Setenv("insightProviderAllowedIssuers", "legacy-issuer")
+	t.Setenv("insightProviderRequiredScopes", "legacy.scope")
+	withServiceCredentialGovernanceStatusConfig(t, []object.ServiceCredentialGovernanceConfigGroup{{
+		Key:         "insight_provider_trust",
+		Enabled:     true,
+		SourceClass: "admin_config",
+		BoundedRuntimePolicy: map[string]interface{}{
+			"allowedAudiences":     []string{"saved-client"},
+			"requiredScopes":       []string{"saved.scope"},
+			"allowedIssuerDigests": []string{testInsightIssuerDigest("saved-issuer")},
+			"issuerMode":           "digest_allowlist",
+		},
+		RemediationRoute: "/providers",
+	}})
+
+	status := buildApplicationAccessServiceCredentialGovernanceStatus(time.Date(2026, 6, 21, 9, 0, 0, 0, time.UTC))
+
+	trust := serviceCredentialGovernanceGroupByKey(t, status.Groups, "insight_provider_trust")
+	if trust.Status != "configured" || trust.BoundedRuntimePolicy["source"] != "saved_runtime_policy" {
+		t.Fatalf("trust should use saved runtime policy source, got %#v", trust)
+	}
+	if trust.BoundedRuntimePolicy["allowedAudienceCount"] != 1 || trust.BoundedRuntimePolicy["allowedIssuerDigestCount"] != 1 || trust.BoundedRuntimePolicy["requiredScopeCount"] != 1 {
+		t.Fatalf("trust should expose saved counts, got %#v", trust.BoundedRuntimePolicy)
+	}
+	if trust.BoundedRuntimePolicy["requiredScopesDefaulted"] != false || trust.BoundedRuntimePolicy["cannotInfer"] != false {
+		t.Fatalf("trust should expose defaulted/cannotInfer=false, got %#v", trust.BoundedRuntimePolicy)
+	}
+	if !stringSliceContains(trust.ConfiguredKeys, "allowedIssuerDigests:1") {
+		t.Fatalf("trust should expose digest count key only, got %#v", trust.ConfiguredKeys)
+	}
+	body, err := json.Marshal(status)
+	if err != nil {
+		t.Fatalf("marshal saved trust status: %v", err)
+	}
+	for _, forbidden := range []string{"saved-issuer", "legacy-issuer", "https://", "Authorization", "Cookie", "clientSecret", "privateKey"} {
+		if strings.Contains(string(body), forbidden) {
+			t.Fatalf("saved trust status leaked %q in %s", forbidden, string(body))
+		}
+	}
+}
+
+func TestBuildApplicationAccessServiceCredentialGovernanceStatusSavedInsightProviderTrustDisabled(t *testing.T) {
+	t.Setenv("insightProviderAllowedAudiences", "legacy-client")
+	t.Setenv("insightProviderAllowedIssuers", "legacy-issuer")
+	t.Setenv("insightProviderRequiredScopes", "legacy.scope")
+	withServiceCredentialGovernanceStatusConfig(t, []object.ServiceCredentialGovernanceConfigGroup{{
+		Key:                  "insight_provider_trust",
+		Enabled:              false,
+		SourceClass:          "admin_config",
+		BoundedRuntimePolicy: map[string]interface{}{"allowedAudiences": []string{"saved-client"}, "requiredScopes": []string{"saved.scope"}, "allowedIssuerDigests": []string{testInsightIssuerDigest("saved-issuer")}, "issuerMode": "digest_allowlist"},
+		RemediationRoute:     "/providers",
+	}})
+
+	status := buildApplicationAccessServiceCredentialGovernanceStatus(time.Date(2026, 6, 21, 9, 5, 0, 0, time.UTC))
+
+	trust := serviceCredentialGovernanceGroupByKey(t, status.Groups, "insight_provider_trust")
+	if trust.Status != "blocked" || !stringSliceContains(trust.BlockedReasons, "insight_provider_saved_trust_policy_disabled") {
+		t.Fatalf("disabled trust policy should fail closed, got %#v", trust)
+	}
+	if stringSliceContains(trust.ConfiguredKeys, "insightProviderAllowedAudiences") || stringSliceContains(trust.ConfiguredKeys, "insightProviderAllowedIssuers") {
+		t.Fatalf("disabled trust policy should not report legacy readiness, got %#v", trust.ConfiguredKeys)
+	}
+}
+
+func TestBuildApplicationAccessServiceCredentialGovernanceStatusSavedInsightProviderTrustGapsAndCannotInfer(t *testing.T) {
+	withServiceCredentialGovernanceStatusConfig(t, []object.ServiceCredentialGovernanceConfigGroup{{
+		Key:         "insight_provider_trust",
+		Enabled:     true,
+		SourceClass: "admin_config",
+		BoundedRuntimePolicy: map[string]interface{}{
+			"issuerMode": "any_non_empty",
+		},
+		RemediationRoute: "/providers",
+	}})
+
+	status := buildApplicationAccessServiceCredentialGovernanceStatus(time.Date(2026, 6, 21, 9, 10, 0, 0, time.UTC))
+
+	trust := serviceCredentialGovernanceGroupByKey(t, status.Groups, "insight_provider_trust")
+	if trust.Status != "blocked" || !stringSliceContains(trust.BlockedReasons, "insight_provider_allowed_audiences_missing") {
+		t.Fatalf("trust missing saved audiences should be blocked, got %#v", trust)
+	}
+	if trust.BoundedRuntimePolicy["issuerMode"] != "any_non_empty" || trust.BoundedRuntimePolicy["cannotInfer"] != true {
+		t.Fatalf("trust should expose cannotInfer for any_non_empty, got %#v", trust.BoundedRuntimePolicy)
+	}
+	if !stringSliceContains(trust.ConfiguredKeys, "issuerMode:any_non_empty") {
+		t.Fatalf("trust should expose safe issuer mode key, got %#v", trust.ConfiguredKeys)
+	}
+}
+
 func TestBuildApplicationAccessServiceCredentialGovernanceStatusDisablesSavedConfigFailClosed(t *testing.T) {
 	t.Setenv("insightProviderAllowedAudiences", "insight-client")
 	t.Setenv("insightProviderAllowedIssuers", "https://issuer.example.invalid")

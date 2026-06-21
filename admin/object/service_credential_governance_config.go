@@ -322,6 +322,37 @@ func validateServiceCredentialGovernanceConfigGroup(group ServiceCredentialGover
 			return errors.New("service credential governance config contains unsupported sensitive material")
 		}
 	}
+	if group.Key == "insight_provider_trust" {
+		if err := validateInsightProviderTrustRuntimePolicy(group.BoundedRuntimePolicy); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validateInsightProviderTrustRuntimePolicy 确保 provider trust policy 只保存 audience/scope 和 issuer digest 等 copy-safe 元数据。
+func validateInsightProviderTrustRuntimePolicy(policy map[string]interface{}) error {
+	if len(policy) == 0 {
+		return nil
+	}
+	for _, audience := range serviceCredentialGovernancePolicyStringSlice(policy, "allowedAudiences") {
+		if containsServiceCredentialGovernanceSensitiveMaterial(audience) {
+			return errors.New("service credential governance config contains unsupported sensitive material")
+		}
+	}
+	for _, scope := range serviceCredentialGovernancePolicyStringSlice(policy, "requiredScopes") {
+		if containsServiceCredentialGovernanceSensitiveMaterial(scope) {
+			return errors.New("service credential governance config contains unsupported sensitive material")
+		}
+	}
+	for _, digest := range serviceCredentialGovernancePolicyStringSlice(policy, "allowedIssuerDigests") {
+		if !isServiceCredentialGovernanceIssuerDigest(digest) {
+			return errors.New("service credential governance issuer digest is not supported")
+		}
+	}
+	if issuerMode, ok := policy["issuerMode"].(string); ok && issuerMode != "" && issuerMode != "any_non_empty" && issuerMode != "digest_allowlist" {
+		return errors.New("service credential governance issuer mode is not supported")
+	}
 	return nil
 }
 
@@ -359,6 +390,21 @@ func sanitizeServiceCredentialGovernanceConfigPolicy(policy map[string]interface
 		switch typedValue := value.(type) {
 		case bool, int, int64, float64:
 			result[trimmedKey] = typedValue
+		case []string:
+			if values := sanitizeServiceCredentialGovernanceConfigStringSlice(typedValue); len(values) > 0 {
+				result[trimmedKey] = values
+			}
+		case []interface{}:
+			values := []string{}
+			for _, item := range typedValue {
+				text := strings.TrimSpace(fmt.Sprintf("%v", item))
+				if text != "" {
+					values = append(values, text)
+				}
+			}
+			if values = sanitizeServiceCredentialGovernanceConfigStringSlice(values); len(values) > 0 {
+				result[trimmedKey] = values
+			}
 		case string:
 			trimmedValue := strings.TrimSpace(typedValue)
 			if trimmedValue != "" {
@@ -402,9 +448,22 @@ func containsServiceCredentialGovernanceSensitivePolicyValue(value interface{}) 
 	switch typedValue := value.(type) {
 	case string:
 		return containsServiceCredentialGovernanceSensitiveMaterial(typedValue)
+	case []string:
+		for _, item := range typedValue {
+			if containsServiceCredentialGovernanceSensitiveMaterial(item) {
+				return true
+			}
+		}
+	case []interface{}:
+		for _, item := range typedValue {
+			if containsServiceCredentialGovernanceSensitivePolicyValue(item) {
+				return true
+			}
+		}
 	default:
 		return false
 	}
+	return false
 }
 
 func containsServiceCredentialGovernanceSensitiveMaterial(value string) bool {
@@ -412,10 +471,48 @@ func containsServiceCredentialGovernanceSensitiveMaterial(value string) bool {
 	if normalized == "" {
 		return false
 	}
-	if strings.Contains(normalized, "://") || strings.Contains(normalized, "bearer ") || strings.Contains(normalized, "authorization") || strings.Contains(normalized, "cookie") || strings.Contains(normalized, "clientsecret") || strings.Contains(normalized, "client_secret") || strings.Contains(normalized, "privatekey") || strings.Contains(normalized, "private_key") || strings.Contains(normalized, "-----begin") || strings.Contains(normalized, "dsn=") || strings.Contains(normalized, "secret-value") {
+	if strings.Contains(normalized, "://") || strings.Contains(normalized, "bearer ") || strings.Contains(normalized, "authorization") || strings.Contains(normalized, "cookie") || strings.Contains(normalized, "clientsecret") || strings.Contains(normalized, "client_secret") || strings.Contains(normalized, "client-secret") || strings.Contains(normalized, "privatekey") || strings.Contains(normalized, "private_key") || strings.Contains(normalized, "private-key") || strings.Contains(normalized, "-----begin") || strings.Contains(normalized, "dsn=") || strings.Contains(normalized, "rawpayload") || strings.Contains(normalized, "raw_payload") || strings.Contains(normalized, "rawid") || strings.Contains(normalized, "raw_id") || strings.Contains(normalized, "secret-value") {
 		return true
 	}
 	return false
+}
+
+// serviceCredentialGovernancePolicyStringSlice 统一处理 JSON 数组和 Go slice，避免 copy-safe list 被降级成字符串。
+func serviceCredentialGovernancePolicyStringSlice(policy map[string]interface{}, key string) []string {
+	if len(policy) == 0 {
+		return nil
+	}
+	switch value := policy[key].(type) {
+	case []string:
+		return sanitizeServiceCredentialGovernanceConfigStringSlice(value)
+	case []interface{}:
+		values := []string{}
+		for _, item := range value {
+			text := strings.TrimSpace(fmt.Sprintf("%v", item))
+			if text != "" {
+				values = append(values, text)
+			}
+		}
+		return sanitizeServiceCredentialGovernanceConfigStringSlice(values)
+	case string:
+		return sanitizeServiceCredentialGovernanceConfigStringSlice([]string{value})
+	default:
+		return nil
+	}
+}
+
+// isServiceCredentialGovernanceIssuerDigest 只接受 issuer 的 sha256 digest，避免保存完整 issuer URL。
+func isServiceCredentialGovernanceIssuerDigest(value string) bool {
+	value = strings.TrimSpace(value)
+	if !strings.HasPrefix(value, "sha256:") || len(value) != len("sha256:")+64 {
+		return false
+	}
+	for _, r := range strings.TrimPrefix(value, "sha256:") {
+		if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')) {
+			return false
+		}
+	}
+	return true
 }
 
 func formatServiceCredentialGovernanceConfigTime(value time.Time) string {

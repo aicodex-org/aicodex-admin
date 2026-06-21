@@ -120,6 +120,155 @@ func TestServiceCredentialGovernanceConfigServiceRejectsUnsupportedAndSensitiveD
 	if strings.Contains(err.Error(), "resolver-secret-value") || strings.Contains(err.Error(), "resolver.internal.example.invalid") {
 		t.Fatalf("sensitive rejection leaked value: %v", err)
 	}
+
+	_, _, err = service.SaveConfig(&ServiceCredentialGovernanceConfigResponse{
+		Groups: []ServiceCredentialGovernanceConfigGroup{{
+			Key:                       "insight_provider_trust",
+			Enabled:                   true,
+			SourceClass:               "admin_config",
+			CredentialReferenceStatus: "not_applicable",
+			BoundedRuntimePolicy:      map[string]interface{}{"allowedIssuerDigests": []string{"https://issuer.internal.example.invalid"}, "issuerMode": "digest_allowlist"},
+		}},
+	})
+	if err == nil {
+		t.Fatalf("raw issuer URL in trust policy should be rejected")
+	}
+	if strings.Contains(err.Error(), "issuer.internal.example.invalid") {
+		t.Fatalf("trust policy rejection leaked raw issuer URL: %v", err)
+	}
+}
+
+func TestServiceCredentialGovernanceConfigServiceKeepsInsightTrustPolicyArraysCopySafe(t *testing.T) {
+	store := &memoryServiceCredentialGovernanceObjectConfigStore{}
+	service := &ServiceCredentialGovernanceConfigService{Store: store}
+
+	saved, _, err := service.SaveConfig(&ServiceCredentialGovernanceConfigResponse{
+		Groups: []ServiceCredentialGovernanceConfigGroup{{
+			Key:                       "insight_provider_trust",
+			Enabled:                   true,
+			SourceClass:               "admin_config",
+			CredentialReferenceStatus: "not_applicable",
+			BoundedRuntimePolicy: map[string]interface{}{
+				"allowedAudiences":     []string{"saved-client"},
+				"requiredScopes":       []string{"profile", "insight.scope.read"},
+				"allowedIssuerDigests": []string{"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"},
+				"issuerMode":           "digest_allowlist",
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+	trust := serviceCredentialGovernanceObjectConfigGroupByKey(t, saved.Groups, "insight_provider_trust")
+	audiences, ok := trust.BoundedRuntimePolicy["allowedAudiences"].([]string)
+	if !ok || len(audiences) != 1 || audiences[0] != "saved-client" {
+		t.Fatalf("allowedAudiences should round trip as []string, got %#v", trust.BoundedRuntimePolicy["allowedAudiences"])
+	}
+	digests, ok := trust.BoundedRuntimePolicy["allowedIssuerDigests"].([]string)
+	if !ok || len(digests) != 1 || !strings.HasPrefix(digests[0], "sha256:") {
+		t.Fatalf("allowedIssuerDigests should round trip as digest aliases, got %#v", trust.BoundedRuntimePolicy["allowedIssuerDigests"])
+	}
+	readBack, err := service.GetConfig()
+	if err != nil {
+		t.Fatalf("GetConfig() after trust save error = %v", err)
+	}
+	readBackTrust := serviceCredentialGovernanceObjectConfigGroupByKey(t, readBack.Groups, "insight_provider_trust")
+	readBackAudiences, ok := readBackTrust.BoundedRuntimePolicy["allowedAudiences"].([]string)
+	if !ok || len(readBackAudiences) != 1 || readBackAudiences[0] != "saved-client" {
+		t.Fatalf("persisted allowedAudiences should normalize from JSON arrays, got %#v", readBackTrust.BoundedRuntimePolicy["allowedAudiences"])
+	}
+	body, err := json.Marshal(saved)
+	if err != nil {
+		t.Fatalf("marshal saved trust policy: %v", err)
+	}
+	for _, forbidden := range []string{"https://", "Authorization", "Cookie", "clientSecret", "privateKey", "rawPayload", "rawId"} {
+		if strings.Contains(string(body), forbidden) {
+			t.Fatalf("trust policy leaked %q in %s", forbidden, string(body))
+		}
+	}
+}
+
+func TestServiceCredentialGovernanceConfigServiceRejectsInvalidInsightTrustPolicy(t *testing.T) {
+	service := &ServiceCredentialGovernanceConfigService{Store: &memoryServiceCredentialGovernanceObjectConfigStore{}}
+	cases := []struct {
+		name   string
+		policy map[string]interface{}
+	}{
+		{name: "unsupported issuer mode", policy: map[string]interface{}{"allowedAudiences": []string{"saved-client"}, "issuerMode": "raw_url_allowlist"}},
+		{name: "invalid digest alias", policy: map[string]interface{}{"allowedIssuerDigests": []string{"issuer-alias"}, "issuerMode": "digest_allowlist"}},
+		{name: "raw audience url", policy: map[string]interface{}{"allowedAudiences": []interface{}{"https://audience.internal.example.invalid"}}},
+		{name: "raw scope material", policy: map[string]interface{}{"requiredScopes": []interface{}{"Authorization: Bearer secret-value"}}},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, err := service.SaveConfig(&ServiceCredentialGovernanceConfigResponse{
+				Groups: []ServiceCredentialGovernanceConfigGroup{{
+					Key:                       "insight_provider_trust",
+					Enabled:                   true,
+					SourceClass:               "admin_config",
+					CredentialReferenceStatus: "not_applicable",
+					BoundedRuntimePolicy:      tt.policy,
+				}},
+			})
+			if err == nil {
+				t.Fatalf("SaveConfig() error = nil, want invalid trust policy rejection")
+			}
+			if strings.Contains(err.Error(), "audience.internal") || strings.Contains(err.Error(), "secret-value") {
+				t.Fatalf("error leaked sensitive policy value: %v", err)
+			}
+		})
+	}
+}
+
+func TestServiceCredentialGovernanceConfigPolicyHelpersHandleArrayShapes(t *testing.T) {
+	policy := sanitizeServiceCredentialGovernanceConfigPolicy(map[string]interface{}{
+		"stringSlice":     []string{"b", "a", "a"},
+		"interfaceSlice":  []interface{}{"profile", "insight.scope.read"},
+		"singleString":    "saved-client",
+		"unsupportedList": []int{1, 2},
+	})
+	if got := serviceCredentialGovernancePolicyStringSlice(policy, "stringSlice"); len(got) != 2 || got[0] != "a" || got[1] != "b" {
+		t.Fatalf("string slice policy mismatch: %#v", got)
+	}
+	if got := serviceCredentialGovernancePolicyStringSlice(policy, "interfaceSlice"); len(got) != 2 || got[0] != "insight.scope.read" || got[1] != "profile" {
+		t.Fatalf("interface slice policy mismatch: %#v", got)
+	}
+	if got := serviceCredentialGovernancePolicyStringSlice(policy, "singleString"); len(got) != 1 || got[0] != "saved-client" {
+		t.Fatalf("single string policy mismatch: %#v", got)
+	}
+	if got := serviceCredentialGovernancePolicyStringSlice(policy, "missing"); got != nil {
+		t.Fatalf("missing policy should return nil, got %#v", got)
+	}
+	rawPolicy := map[string]interface{}{
+		"stringSlice":    []string{"z", "y"},
+		"interfaceSlice": []interface{}{"b", "a"},
+		"singleString":   "one",
+		"unsupported":    12,
+	}
+	if got := serviceCredentialGovernancePolicyStringSlice(rawPolicy, "stringSlice"); len(got) != 2 || got[0] != "y" || got[1] != "z" {
+		t.Fatalf("raw string slice policy mismatch: %#v", got)
+	}
+	if got := serviceCredentialGovernancePolicyStringSlice(rawPolicy, "interfaceSlice"); len(got) != 2 || got[0] != "a" || got[1] != "b" {
+		t.Fatalf("raw interface slice policy mismatch: %#v", got)
+	}
+	if got := serviceCredentialGovernancePolicyStringSlice(rawPolicy, "singleString"); len(got) != 1 || got[0] != "one" {
+		t.Fatalf("raw string policy mismatch: %#v", got)
+	}
+	if got := serviceCredentialGovernancePolicyStringSlice(rawPolicy, "unsupported"); got != nil {
+		t.Fatalf("raw unsupported policy should return nil, got %#v", got)
+	}
+	if !containsServiceCredentialGovernanceSensitivePolicyValue([]string{"safe", "Cookie: value"}) {
+		t.Fatalf("sensitive []string policy value should be detected")
+	}
+	if !containsServiceCredentialGovernanceSensitivePolicyValue([]interface{}{"safe", "raw_payload"}) {
+		t.Fatalf("sensitive []interface policy value should be detected")
+	}
+	if containsServiceCredentialGovernanceSensitivePolicyValue([]interface{}{"safe", 123}) {
+		t.Fatalf("safe mixed policy values should not be sensitive")
+	}
+	if isServiceCredentialGovernanceIssuerDigest("sha256:not-hex") {
+		t.Fatalf("invalid digest should be rejected")
+	}
 }
 
 func TestServiceCredentialGovernanceConfigServiceHandlesInvalidPersistedConfigAndStoreErrors(t *testing.T) {
