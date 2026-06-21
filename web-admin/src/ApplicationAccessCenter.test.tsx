@@ -8,6 +8,21 @@ import ApplicationAccessCenter, {buildApplicationAccessCenterSummary} from "./Ap
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
 
+type FetchCall = [string, {body?: string; credentials?: string; method?: string}?];
+type MockFetch = {
+  (...args: unknown[]): unknown;
+  mock: {calls: FetchCall[]};
+  mockRejectedValueOnce: (value: unknown) => MockFetch;
+  mockResolvedValueOnce: (value: unknown) => MockFetch;
+};
+
+const {fireEvent} = require("@testing-library/react") as {
+  fireEvent: {
+    change: (element: Element | null, event: unknown) => boolean;
+    click: (element: Element | null) => boolean;
+  };
+};
+
 const applications = [
   {
     owner: "admin",
@@ -110,6 +125,70 @@ const serviceCredentialGovernanceResponse = {
         credentialReferenceStatus: "external_secret",
         keepInEnvKeys: ["dataSourceName", "redisEndpoint"],
         remediationRoute: "env/config",
+      },
+    ],
+  },
+};
+
+const serviceCredentialGovernanceConfigResponse = {
+  status: "ok",
+  data: {
+    updatedAt: "2026-06-21T06:00:00Z",
+    source: "admin_service_credential_governance_config",
+    isConfigured: true,
+    groups: [
+      {
+        key: "insight_provider_trust",
+        label: "Insight provider trust",
+        enabled: true,
+        owner: "admin_provider_trust",
+        sourceClass: "admin_config",
+        credentialReferenceStatus: "not_applicable",
+        callerPolicy: "insight_service_token",
+        remediationRoute: "/providers",
+        nextAction: "核对 Insight provider trust 白名单",
+      },
+      {
+        key: "usage_identity_resolver",
+        label: "Usage identity resolver",
+        enabled: true,
+        owner: "admin_outbound_resolver",
+        sourceClass: "external_secret_system",
+        credentialReferenceStatus: "external_secret",
+        credentialReferenceKey: "vault:usage-identity-resolver",
+        callerPolicy: "aicodex-admin",
+        boundedRuntimePolicy: {
+          timeoutMs: 1500,
+          unsafeTokenValue: "resolver-secret-value",
+          unsafeEndpoint: "https://resolver.internal.example.invalid/api/usage",
+        },
+        remediationRoute: "/platform-api-mappings",
+        nextAction: "核对 resolver 凭据引用",
+      },
+      {
+        key: "gateway_organization_projection",
+        label: "Gateway organization projection",
+        enabled: true,
+        owner: "admin_gateway_projection_producer",
+        sourceClass: "external_secret_system",
+        credentialReferenceStatus: "external_secret",
+        credentialReferenceKey: "vault:gateway-projection-publisher",
+        callerPolicy: "aicodex-admin",
+        boundedRuntimePolicy: {timeoutMs: 2500, maxRetries: 2},
+        remediationRoute: "/platform-api-mappings",
+        nextAction: "核对 Gateway projection 发布凭据引用",
+      },
+      {
+        key: "keep_in_env",
+        label: "Keep in env/config",
+        enabled: true,
+        owner: "deployment_env_config",
+        sourceClass: "env_config",
+        credentialReferenceStatus: "external_secret",
+        keepInEnv: true,
+        keepInEnvKeys: ["dataSourceName", "redisEndpoint"],
+        remediationRoute: "env/config",
+        nextAction: "在部署配置或外部 secret system 中维护",
       },
     ],
   },
@@ -378,7 +457,7 @@ describe("ApplicationAccessCenter", () => {
   });
 
   test("renders sanitized service credential governance summary from runtime contract", async() => {
-    (global.fetch as unknown as {mockResolvedValueOnce: (value: unknown) => void}).mockResolvedValueOnce({
+    (global.fetch as unknown as MockFetch).mockResolvedValueOnce({
       json: () => Promise.resolve(serviceCredentialGovernanceResponse),
     });
 
@@ -406,7 +485,7 @@ describe("ApplicationAccessCenter", () => {
   });
 
   test("keeps application access usable when service credential governance status is unavailable", async() => {
-    (global.fetch as unknown as {mockRejectedValueOnce: (value: unknown) => void}).mockRejectedValueOnce(new Error("network unavailable"));
+    (global.fetch as unknown as MockFetch).mockRejectedValueOnce(new Error("network unavailable"));
 
     const view = render(
       <MemoryRouter>
@@ -420,7 +499,7 @@ describe("ApplicationAccessCenter", () => {
   });
 
   test("renders service credential governance success, missing, empty, and non-ok states", async() => {
-    (global.fetch as unknown as {mockResolvedValueOnce: (value: unknown) => void})
+    (global.fetch as unknown as MockFetch)
       .mockResolvedValueOnce({
         json: () => Promise.resolve({
           status: "ok",
@@ -463,7 +542,7 @@ describe("ApplicationAccessCenter", () => {
     expect(missingView.getByText("未启用")).not.toBeNull();
     missingView.unmount();
 
-    (global.fetch as unknown as {mockResolvedValueOnce: (value: unknown) => void})
+    (global.fetch as unknown as MockFetch)
       .mockResolvedValueOnce({
         json: () => Promise.resolve({
           status: "ok",
@@ -500,7 +579,7 @@ describe("ApplicationAccessCenter", () => {
     expect(await successView.findByText("已脱敏")).not.toBeNull();
     successView.unmount();
 
-    (global.fetch as unknown as {mockResolvedValueOnce: (value: unknown) => void})
+    (global.fetch as unknown as MockFetch)
       .mockResolvedValueOnce({
         json: () => Promise.resolve({
           status: "ok",
@@ -520,7 +599,7 @@ describe("ApplicationAccessCenter", () => {
     expect(await emptyView.findByText("暂无服务凭据治理状态")).not.toBeNull();
     emptyView.unmount();
 
-    (global.fetch as unknown as {mockResolvedValueOnce: (value: unknown) => void})
+    (global.fetch as unknown as MockFetch)
       .mockResolvedValueOnce({
         json: () => Promise.resolve({status: "error", msg: "unavailable"}),
       });
@@ -531,5 +610,71 @@ describe("ApplicationAccessCenter", () => {
     );
 
     expect(await errorView.findByText("服务凭据治理状态暂不可用")).not.toBeNull();
+  });
+
+  test("renders sanitized service credential governance config entry", async() => {
+    (global.fetch as unknown as MockFetch)
+      .mockResolvedValueOnce({json: () => Promise.resolve(serviceCredentialGovernanceResponse)})
+      .mockResolvedValueOnce({json: () => Promise.resolve(serviceCredentialGovernanceConfigResponse)});
+
+    const view = render(
+      <MemoryRouter>
+        <ApplicationAccessCenter applications={applications} loading={false} />
+      </MemoryRouter>
+    );
+
+    expect(await view.findByText("治理配置")).not.toBeNull();
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/application-access/service-credential-governance-config",
+      expect.objectContaining({method: "GET", credentials: "include"})
+    );
+    expect((view.getByLabelText("usage_identity_resolver 凭据引用") as HTMLInputElement).value).toBe("vault:usage-identity-resolver");
+    expect((view.getByLabelText("usage_identity_resolver 调用策略") as HTMLInputElement).value).toBe("aicodex-admin");
+    expect(view.getAllByText("外部 Secret").length).toBeGreaterThan(0);
+    expect(view.getByText("保留在 env/config")).not.toBeNull();
+    expect(view.queryByText("resolver-secret-value")).toBeNull();
+    expect(view.queryByText("resolver.internal.example.invalid")).toBeNull();
+  });
+
+  test("saves service credential governance config and renders sanitized readback", async() => {
+    (global.fetch as unknown as MockFetch)
+      .mockResolvedValueOnce({json: () => Promise.resolve(serviceCredentialGovernanceResponse)})
+      .mockResolvedValueOnce({json: () => Promise.resolve(serviceCredentialGovernanceConfigResponse)})
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve({
+          ...serviceCredentialGovernanceConfigResponse,
+          data: {
+            ...serviceCredentialGovernanceConfigResponse.data,
+            groups: serviceCredentialGovernanceConfigResponse.data.groups.map(group => group.key === "usage_identity_resolver"
+              ? {...group, credentialReferenceKey: "vault:usage-identity-resolver-updated", nextAction: "已回读脱敏配置"}
+              : group),
+          },
+        }),
+      });
+
+    const view = render(
+      <MemoryRouter>
+        <ApplicationAccessCenter applications={applications} loading={false} />
+      </MemoryRouter>
+    );
+
+    const resolverReferenceInput = await view.findByLabelText("usage_identity_resolver 凭据引用");
+    fireEvent.change(resolverReferenceInput, {target: {value: "vault:usage-identity-resolver-updated"}});
+    fireEvent.click(view.getByText("保存配置"));
+
+    expect(await view.findByText("配置已保存")).not.toBeNull();
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/application-access/service-credential-governance-config",
+      expect.objectContaining({method: "POST", credentials: "include"})
+    );
+    const saveCall = (global.fetch as unknown as MockFetch).mock.calls.find(call => call[0] === "/api/application-access/service-credential-governance-config" && call[1]?.method === "POST");
+    expect(saveCall).toBeTruthy();
+    const requestBody = saveCall?.[1]?.body;
+    expect(requestBody).toContain("vault:usage-identity-resolver-updated");
+    expect(requestBody).not.toContain("resolver-secret-value");
+    expect(requestBody).not.toContain("resolver.internal.example.invalid");
+
+    expect((view.getByLabelText("usage_identity_resolver 凭据引用") as HTMLInputElement).value).toBe("vault:usage-identity-resolver-updated");
+    expect(view.container.textContent).toContain("已回读脱敏配置");
   });
 });

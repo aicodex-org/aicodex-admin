@@ -126,6 +126,8 @@ p, *, *, *, /api/webauthn, *, *
 p, *, *, GET, /api/get-release, *, *
 p, *, *, GET, /api/get-default-application, *, *
 p, *, *, GET, /api/application-access/service-credential-governance-status, *, *
+p, *, *, GET, /api/application-access/service-credential-governance-config, *, *
+p, *, *, POST, /api/application-access/service-credential-governance-config, *, *
 p, *, *, GET, /api/get-prometheus-info, *, *
 p, *, *, *, /api/metrics, *, *
 p, *, *, GET, /api/get-pricing, *, *

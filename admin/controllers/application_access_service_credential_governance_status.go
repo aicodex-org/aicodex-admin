@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -23,6 +24,10 @@ const (
 
 	serviceCredentialGovernanceSource = "admin_runtime_config"
 )
+
+var applicationAccessServiceCredentialGovernanceConfigServiceFactory = func() *object.ServiceCredentialGovernanceConfigService {
+	return &object.ServiceCredentialGovernanceConfigService{}
+}
 
 // ServiceCredentialGovernanceStatusResponse 是应用接入消费的服务凭据治理只读响应。
 // 它只承载脱敏状态、配置 key 名和受限运行策略，不承载任何可复用凭据值。
@@ -56,6 +61,39 @@ func (c *ApiController) GetApplicationAccessServiceCredentialGovernanceStatus() 
 		return
 	}
 	c.ResponseOk(buildApplicationAccessServiceCredentialGovernanceStatus(time.Now().UTC()))
+}
+
+// GetApplicationAccessServiceCredentialGovernanceConfig 返回服务凭据治理配置入口的脱敏回读。
+// 该接口不测试凭据、不调用外部 provider，也不触发 Gateway projection 发布或刷新。
+func (c *ApiController) GetApplicationAccessServiceCredentialGovernanceConfig() {
+	if !c.requireServiceCredentialGovernanceGlobalAdmin() {
+		return
+	}
+	config, err := applicationAccessServiceCredentialGovernanceConfigServiceFactory().GetConfig()
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(config)
+}
+
+// SaveApplicationAccessServiceCredentialGovernanceConfig 保存 Admin-owned copy-safe 配置引用元数据。
+// 请求中的 raw secret、完整私有 URL 或未知分组会 fail closed，且错误不会回显敏感值。
+func (c *ApiController) SaveApplicationAccessServiceCredentialGovernanceConfig() {
+	if !c.requireServiceCredentialGovernanceGlobalAdmin() {
+		return
+	}
+	var config object.ServiceCredentialGovernanceConfigResponse
+	if err := json.Unmarshal(c.Ctx.Input.RequestBody, &config); err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	savedConfig, _, err := applicationAccessServiceCredentialGovernanceConfigServiceFactory().SaveConfig(&config)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(savedConfig)
 }
 
 func (c *ApiController) requireServiceCredentialGovernanceGlobalAdmin() bool {

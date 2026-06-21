@@ -593,6 +593,11 @@ func (a *Ormer) createTable() {
 		panic(err)
 	}
 
+	err = a.Engine.Sync2(new(ServiceCredentialGovernanceConfig))
+	if err != nil {
+		panic(err)
+	}
+
 	err = a.Engine.Sync2(new(WecomOrganizationSyncConfig))
 	if err != nil {
 		panic(err)

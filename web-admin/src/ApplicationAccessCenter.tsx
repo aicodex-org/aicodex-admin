@@ -18,14 +18,15 @@ import {
   AuditOutlined,
   ExclamationCircleOutlined,
   SafetyCertificateOutlined,
-  SafetyOutlined
+  SafetyOutlined,
+  SaveOutlined
 } from "@ant-design/icons";
-import {Alert, Button, Space, Spin, Tag, Typography} from "antd";
+import {Alert, Button, Input, Select, Space, Spin, Switch, Tag, Typography} from "antd";
 import i18next from "i18next";
 import React from "react";
 import {Link} from "react-router-dom";
-import {getServiceCredentialGovernanceStatus} from "./backend/ApplicationAccessServiceCredentialGovernanceBackend";
-import type {ServiceCredentialGovernanceStatusResponse} from "./backend/ApplicationAccessServiceCredentialGovernanceBackend";
+import {getServiceCredentialGovernanceConfig, getServiceCredentialGovernanceStatus, saveServiceCredentialGovernanceConfig} from "./backend/ApplicationAccessServiceCredentialGovernanceBackend";
+import type {ServiceCredentialGovernanceConfigGroup, ServiceCredentialGovernanceConfigResponse, ServiceCredentialGovernanceStatusResponse} from "./backend/ApplicationAccessServiceCredentialGovernanceBackend";
 import {
   EnterpriseIdentityConsolePage,
   EnterpriseIdentityRiskList,
@@ -127,6 +128,8 @@ interface ApplicationAccessCenterProps {
 }
 
 type ServiceCredentialGovernanceLoadState = "loading" | "ready" | "error" | "empty";
+type ServiceCredentialGovernanceConfigLoadState = "loading" | "ready" | "error" | "empty";
+type ServiceCredentialGovernanceConfigSaveState = "idle" | "saving" | "saved" | "error";
 type ServiceCredentialGovernanceGroup = ServiceCredentialGovernanceStatusResponse["groups"][number];
 type ServiceCredentialGovernanceStatus = ServiceCredentialGovernanceGroup["status"];
 
@@ -454,9 +457,76 @@ function buildServiceCredentialGovernanceItems(groups: ServiceCredentialGovernan
   });
 }
 
+function getServiceCredentialGovernanceSourceClassLabel(sourceClass?: ServiceCredentialGovernanceConfigGroup["sourceClass"]): string {
+  switch (sourceClass) {
+  case "external_secret_system":
+    return "外部 Secret";
+  case "env_config":
+    return "env/config";
+  default:
+    return "Admin 配置";
+  }
+}
+
+function getServiceCredentialReferenceStatusLabel(status?: ServiceCredentialGovernanceConfigGroup["credentialReferenceStatus"]): string {
+  switch (status) {
+  case "configured":
+    return "引用已配置";
+  case "external_secret":
+    return "外部引用";
+  case "missing":
+    return "引用缺失";
+  default:
+    return "无需引用";
+  }
+}
+
+function containsUnsafeServiceCredentialConfigText(value: unknown): boolean {
+  const text = `${value ?? ""}`.toLowerCase();
+  return text.includes("://") || text.includes("token") || text.includes("secret") || text.includes("authorization") || text.includes("cookie") || text.includes("dsn") || text.includes("private");
+}
+
+function getCopySafeRuntimePolicy(policy?: Record<string, unknown>): Record<string, unknown> | undefined {
+  if (!policy) {
+    return undefined;
+  }
+
+  const nextPolicy: Record<string, unknown> = {};
+  Object.entries(policy).forEach(([key, value]) => {
+    if (containsUnsafeServiceCredentialConfigText(key) || containsUnsafeServiceCredentialConfigText(value)) {
+      return;
+    }
+    if (["string", "number", "boolean"].includes(typeof value)) {
+      nextPolicy[key] = value;
+    }
+  });
+  return Object.keys(nextPolicy).length > 0 ? nextPolicy : undefined;
+}
+
+function sanitizeServiceCredentialGovernanceConfigGroups(groups: ServiceCredentialGovernanceConfigGroup[] = []): ServiceCredentialGovernanceConfigGroup[] {
+  return groups.map(group => ({
+    ...group,
+    credentialReferenceKey: containsUnsafeServiceCredentialConfigText(group.credentialReferenceKey) ? "" : group.credentialReferenceKey,
+    callerPolicy: containsUnsafeServiceCredentialConfigText(group.callerPolicy) ? "" : group.callerPolicy,
+    boundedRuntimePolicy: getCopySafeRuntimePolicy(group.boundedRuntimePolicy),
+  }));
+}
+
+function buildServiceCredentialGovernanceConfigRequest(groups: ServiceCredentialGovernanceConfigGroup[]): ServiceCredentialGovernanceConfigResponse {
+  return {
+    source: "admin_service_credential_governance_config",
+    isConfigured: true,
+    groups: sanitizeServiceCredentialGovernanceConfigGroups(groups),
+  };
+}
+
 function ApplicationAccessCenter({applications = [], loading = false}: ApplicationAccessCenterProps): React.ReactElement {
   const [serviceCredentialGovernance, setServiceCredentialGovernance] = React.useState<ServiceCredentialGovernanceStatusResponse | null>(null);
   const [serviceCredentialGovernanceLoadState, setServiceCredentialGovernanceLoadState] = React.useState<ServiceCredentialGovernanceLoadState>("loading");
+  const [serviceCredentialGovernanceConfig, setServiceCredentialGovernanceConfig] = React.useState<ServiceCredentialGovernanceConfigResponse | null>(null);
+  const [serviceCredentialGovernanceConfigDraft, setServiceCredentialGovernanceConfigDraft] = React.useState<ServiceCredentialGovernanceConfigGroup[]>([]);
+  const [serviceCredentialGovernanceConfigLoadState, setServiceCredentialGovernanceConfigLoadState] = React.useState<ServiceCredentialGovernanceConfigLoadState>("loading");
+  const [serviceCredentialGovernanceConfigSaveState, setServiceCredentialGovernanceConfigSaveState] = React.useState<ServiceCredentialGovernanceConfigSaveState>("idle");
   const summary = buildApplicationAccessCenterSummary(applications);
   const hasApplications = Array.isArray(applications) && applications.length > 0;
   React.useEffect(() => {
@@ -482,11 +552,67 @@ function ApplicationAccessCenter({applications = [], loading = false}: Applicati
         setServiceCredentialGovernance(null);
         setServiceCredentialGovernanceLoadState("error");
       });
+    setServiceCredentialGovernanceConfigLoadState("loading");
+    getServiceCredentialGovernanceConfig()
+      .then(response => {
+        if (!isMounted) {
+          return;
+        }
+        if (response.status !== "ok" || !response.data) {
+          setServiceCredentialGovernanceConfig(null);
+          setServiceCredentialGovernanceConfigDraft([]);
+          setServiceCredentialGovernanceConfigLoadState("error");
+          return;
+        }
+        const sanitizedData = {
+          ...response.data,
+          groups: sanitizeServiceCredentialGovernanceConfigGroups(response.data.groups ?? []),
+        };
+        setServiceCredentialGovernanceConfig(sanitizedData);
+        setServiceCredentialGovernanceConfigDraft(sanitizedData.groups);
+        setServiceCredentialGovernanceConfigLoadState(sanitizedData.groups.length > 0 ? "ready" : "empty");
+      })
+      .catch(() => {
+        if (!isMounted) {
+          return;
+        }
+        setServiceCredentialGovernanceConfig(null);
+        setServiceCredentialGovernanceConfigDraft([]);
+        setServiceCredentialGovernanceConfigLoadState("error");
+      });
 
     return () => {
       isMounted = false;
     };
   }, []);
+
+  const updateServiceCredentialGovernanceConfigGroup = React.useCallback((key: string, patch: Partial<ServiceCredentialGovernanceConfigGroup>) => {
+    setServiceCredentialGovernanceConfigSaveState("idle");
+    setServiceCredentialGovernanceConfigDraft(groups => groups.map(group => group.key === key ? {...group, ...patch} : group));
+  }, []);
+
+  const handleServiceCredentialGovernanceConfigSave = React.useCallback(() => {
+    const request = buildServiceCredentialGovernanceConfigRequest(serviceCredentialGovernanceConfigDraft);
+    setServiceCredentialGovernanceConfigSaveState("saving");
+    saveServiceCredentialGovernanceConfig(request)
+      .then(response => {
+        if (response.status !== "ok" || !response.data) {
+          setServiceCredentialGovernanceConfigSaveState("error");
+          return;
+        }
+        const sanitizedData = {
+          ...response.data,
+          groups: sanitizeServiceCredentialGovernanceConfigGroups(response.data.groups ?? []),
+        };
+        setServiceCredentialGovernanceConfig(sanitizedData);
+        setServiceCredentialGovernanceConfigDraft(sanitizedData.groups);
+        setServiceCredentialGovernanceConfigLoadState(sanitizedData.groups.length > 0 ? "ready" : "empty");
+        setServiceCredentialGovernanceConfigSaveState("saved");
+      })
+      .catch(() => {
+        setServiceCredentialGovernanceConfigSaveState("error");
+      });
+  }, [serviceCredentialGovernanceConfigDraft]);
 
   const riskItems = summary.riskItems.map(item => {
     const tone: "warning" | "success" = item.count > 0 ? "warning" : "success";
@@ -589,6 +715,89 @@ function ApplicationAccessCenter({applications = [], loading = false}: Applicati
           {serviceCredentialGovernanceLoadState === "ready" && (
             <EnterpriseIdentityRiskList items={serviceCredentialGovernanceItems} />
           )}
+          <div className="application-access-service-credential-config" aria-label="服务凭据治理配置入口">
+            <div className="application-access-service-credential-config-heading">
+              <Space wrap>
+                <Text strong>治理配置</Text>
+                {serviceCredentialGovernanceConfig?.isConfigured && <Tag>已回读</Tag>}
+              </Space>
+              <Button
+                size="small"
+                type="primary"
+                icon={<SaveOutlined />}
+                loading={serviceCredentialGovernanceConfigSaveState === "saving"}
+                disabled={serviceCredentialGovernanceConfigLoadState !== "ready"}
+                onClick={handleServiceCredentialGovernanceConfigSave}
+              >
+                保存配置
+              </Button>
+            </div>
+            {serviceCredentialGovernanceConfigSaveState === "saved" && (
+              <Alert className="enterprise-identity-console-alert" type="success" showIcon message="配置已保存" />
+            )}
+            {serviceCredentialGovernanceConfigSaveState === "error" && (
+              <Alert className="enterprise-identity-console-alert" type="warning" showIcon message="服务凭据治理配置保存失败" />
+            )}
+            {serviceCredentialGovernanceConfigLoadState === "loading" && (
+              <Alert className="enterprise-identity-console-alert" type="info" showIcon message="加载服务凭据治理配置..." />
+            )}
+            {serviceCredentialGovernanceConfigLoadState === "error" && (
+              <Alert className="enterprise-identity-console-alert" type="warning" showIcon message="服务凭据治理配置暂不可用" />
+            )}
+            {serviceCredentialGovernanceConfigLoadState === "empty" && (
+              <Alert className="enterprise-identity-console-alert" type="warning" showIcon message="暂无服务凭据治理配置" />
+            )}
+            {serviceCredentialGovernanceConfigLoadState === "ready" && serviceCredentialGovernanceConfigDraft.map(group => {
+              const referenceDisabled = group.keepInEnv || group.credentialReferenceStatus === "not_applicable";
+              return (
+                <div className="application-access-service-credential-config-row" key={group.key}>
+                  <div className="application-access-service-credential-config-row-title">
+                    <Space wrap>
+                      <Text strong>{group.label || group.key}</Text>
+                      <Tag>{group.enabled ? "已启用" : "未启用"}</Tag>
+                      <Tag>{getServiceCredentialGovernanceSourceClassLabel(group.sourceClass)}</Tag>
+                      <Tag>{getServiceCredentialReferenceStatusLabel(group.credentialReferenceStatus)}</Tag>
+                      {group.keepInEnv && <Tag>保留在 env/config</Tag>}
+                    </Space>
+                    <Switch
+                      size="small"
+                      checked={group.enabled}
+                      disabled={group.keepInEnv}
+                      onChange={checked => updateServiceCredentialGovernanceConfigGroup(group.key, {enabled: checked})}
+                    />
+                  </div>
+                  <Text type="secondary">{group.owner || "admin-owned"} · {group.nextAction || "核对配置引用和调用策略"}</Text>
+                  <div className="application-access-service-credential-config-fields">
+                    <Input
+                      aria-label={`${group.key} 凭据引用`}
+                      value={group.credentialReferenceKey || ""}
+                      disabled={referenceDisabled}
+                      placeholder={referenceDisabled ? "无需凭据引用" : "vault:service-credential-reference"}
+                      onChange={event => updateServiceCredentialGovernanceConfigGroup(group.key, {credentialReferenceKey: event.target.value})}
+                    />
+                    <Input
+                      aria-label={`${group.key} 调用策略`}
+                      value={group.callerPolicy || ""}
+                      disabled={group.keepInEnv}
+                      placeholder="aicodex-admin"
+                      onChange={event => updateServiceCredentialGovernanceConfigGroup(group.key, {callerPolicy: event.target.value})}
+                    />
+                    <Select
+                      aria-label={`${group.key} 来源分类`}
+                      value={group.sourceClass || "admin_config"}
+                      disabled={group.keepInEnv}
+                      onChange={sourceClass => updateServiceCredentialGovernanceConfigGroup(group.key, {sourceClass})}
+                      options={[
+                        {value: "admin_config", label: "Admin 配置"},
+                        {value: "env_config", label: "env/config"},
+                        {value: "external_secret_system", label: "外部 Secret"},
+                      ]}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </EnterpriseIdentitySection>
       </div>
 
