@@ -1502,7 +1502,64 @@ func resolveInsightUsageIdentity(user *object.User) InsightUsageIdentity {
 // 旧属性只能作为迁移输入，运行时 provider 不再用弱标识或散落属性推断用量主体。
 func resolveInsightUsageIdentityWithTrace(user *object.User, traceId string) (InsightUsageIdentity, *InsightProviderError) {
 	identity := resolveInsightManualUsageIdentity(user)
+	if identity.MappingStatus == MappingStatusMissing {
+		return resolveInsightUsageIdentityWithResolver(user, traceId, identity)
+	}
 	return withInsightSourceIdentity(identity, user), nil
+}
+
+// resolveInsightUsageIdentityWithResolver 只在一等本地映射缺失时进入 saved runtime policy gate。
+// 普通未配置 resolver 的部署继续返回 missing；显式 saved policy 不可用时 fail-closed。
+func resolveInsightUsageIdentityWithResolver(user *object.User, traceId string, fallback InsightUsageIdentity) (InsightUsageIdentity, *InsightProviderError) {
+	item, ok := buildInsightUsageIdentityResolveItem(user)
+	if !ok {
+		return withInsightSourceIdentity(fallback, user), nil
+	}
+	resolver := newInsightUsageIdentityResolverFromConfig()
+	if resolver == nil || !resolver.Enabled() {
+		runtimePolicy := getInsightUsageIdentityResolverRuntimePolicyDecision()
+		if runtimePolicy.SavedConfigured {
+			return InsightUsageIdentity{}, newInsightProviderError(InsightProviderErrorUnavailable, "usage identity resolver unavailable", traceId, MappingStatusMissing)
+		}
+		return withInsightSourceIdentity(fallback, user), nil
+	}
+	results, providerErr := resolver.Resolve(traceId, []insightUsageIdentityResolveItem{item})
+	if providerErr != nil {
+		if providerErr.MappingStatus == "" {
+			providerErr.MappingStatus = MappingStatusMissing
+		}
+		return InsightUsageIdentity{}, providerErr
+	}
+	identity := buildInsightUsageIdentityFromResolverResult(item.RequestId, results)
+	if identity.MappingStatus == MappingStatusInvalid || identity.MappingStatus == MappingStatusAmbiguous {
+		return InsightUsageIdentity{}, newInsightProviderError(InsightProviderErrorUnavailable, "usage identity resolver returned non-deterministic mapping", traceId, identity.MappingStatus)
+	}
+	return withInsightSourceIdentity(identity, user), nil
+}
+
+// buildInsightUsageIdentityFromResolverResult 只接受 resolver 返回的确定正整数 apiUserId。
+// 其它状态保持 mapping status，由调用方决定是否 fail-closed。
+func buildInsightUsageIdentityFromResolverResult(requestId string, results []insightUsageIdentityResolveResult) InsightUsageIdentity {
+	for _, result := range results {
+		if result.RequestId != requestId {
+			continue
+		}
+		switch result.MappingStatus {
+		case MappingStatusOK:
+			apiUserId := strings.TrimSpace(strconv.Itoa(result.ApiUserId))
+			if !isPositiveInsightAPIUserID(apiUserId) {
+				return InsightUsageIdentity{MappingStatus: MappingStatusInvalid}
+			}
+			return InsightUsageIdentity{ApiUserId: apiUserId, MappingStatus: MappingStatusOK, MappingSource: "usage_identity_resolver"}
+		case MappingStatusAmbiguous:
+			return InsightUsageIdentity{MappingStatus: MappingStatusAmbiguous}
+		case MappingStatusInvalid:
+			return InsightUsageIdentity{MappingStatus: MappingStatusInvalid}
+		default:
+			return InsightUsageIdentity{MappingStatus: MappingStatusMissing}
+		}
+	}
+	return InsightUsageIdentity{MappingStatus: MappingStatusMissing}
 }
 
 func resolveInsightManualUsageIdentity(user *object.User) InsightUsageIdentity {
@@ -1672,21 +1729,18 @@ func mapInsightUsersToUsageIdsWithPolicyAndCache(users []*object.User, skipMissi
 	apiUserIds := []string{}
 	adminToApiUserId := map[string]string{}
 	apiToAdminUserId := map[string]string{}
+	if cache == nil {
+		cache = newInsightUsageIdentityCache()
+	}
+	if providerErr := preloadInsightUsageIdentityCache(users, cache); providerErr != nil {
+		return nil, nil, firstNonEmptyInsightString(providerErr.MappingStatus, MappingStatusMissing), providerErr
+	}
 	for _, user := range users {
 		if user == nil {
 			continue
 		}
 		adminUserId := user.GetId()
-		identity, ok := InsightUsageIdentity{}, false
-		if cache != nil {
-			identity, ok = cache.items[adminUserId]
-		}
-		if !ok {
-			identity = resolveInsightManualUsageIdentity(user)
-		}
-		if cache != nil {
-			cache.items[adminUserId] = identity
-		}
+		identity := cache.items[adminUserId]
 		if identity.MappingStatus == MappingStatusMissing && skipMissing {
 			// 企业微信组织同步会先带来组织成员，再逐步补齐一等 API 用户映射；聚合范围只包含已确认映射成员。
 			continue
@@ -1699,6 +1753,66 @@ func mapInsightUsersToUsageIdsWithPolicyAndCache(users []*object.User, skipMissi
 		}
 	}
 	return deduplicateStrings(adminUserIds), deduplicateStrings(apiUserIds), MappingStatusOK, nil
+}
+
+// preloadInsightUsageIdentityCache 把 scope 路径中的 local-missing 用户合并成一次 resolver 调用。
+// 这样 saved caller/maxItems/timeout gate 由 resolver 统一执行，同时避免每个用户重复构造 outbound client。
+func preloadInsightUsageIdentityCache(users []*object.User, cache *insightUsageIdentityCache) *InsightProviderError {
+	if cache == nil {
+		return nil
+	}
+	pendingItems := []insightUsageIdentityResolveItem{}
+	pendingUsers := map[string]*object.User{}
+	for _, user := range users {
+		if user == nil {
+			continue
+		}
+		adminUserId := user.GetId()
+		if _, ok := cache.items[adminUserId]; ok {
+			continue
+		}
+		identity := resolveInsightManualUsageIdentity(user)
+		if identity.MappingStatus != MappingStatusMissing {
+			cache.items[adminUserId] = withInsightSourceIdentity(identity, user)
+			continue
+		}
+		item, ok := buildInsightUsageIdentityResolveItem(user)
+		if !ok {
+			cache.items[adminUserId] = withInsightSourceIdentity(identity, user)
+			continue
+		}
+		pendingItems = append(pendingItems, item)
+		pendingUsers[item.RequestId] = user
+	}
+	if len(pendingItems) == 0 {
+		return nil
+	}
+	resolver := newInsightUsageIdentityResolverFromConfig()
+	if resolver == nil || !resolver.Enabled() {
+		runtimePolicy := getInsightUsageIdentityResolverRuntimePolicyDecision()
+		if runtimePolicy.SavedConfigured {
+			return newInsightProviderError(InsightProviderErrorUnavailable, "usage identity resolver unavailable", "", MappingStatusMissing)
+		}
+		for _, item := range pendingItems {
+			cache.items[item.RequestId] = withInsightSourceIdentity(InsightUsageIdentity{MappingStatus: MappingStatusMissing}, pendingUsers[item.RequestId])
+		}
+		return nil
+	}
+	results, providerErr := resolver.Resolve("", pendingItems)
+	if providerErr != nil {
+		if providerErr.MappingStatus == "" {
+			providerErr.MappingStatus = MappingStatusMissing
+		}
+		return providerErr
+	}
+	for _, item := range pendingItems {
+		identity := buildInsightUsageIdentityFromResolverResult(item.RequestId, results)
+		if identity.MappingStatus == MappingStatusInvalid || identity.MappingStatus == MappingStatusAmbiguous {
+			return newInsightProviderError(InsightProviderErrorUnavailable, "usage identity resolver returned non-deterministic mapping", "", identity.MappingStatus)
+		}
+		cache.items[item.RequestId] = withInsightSourceIdentity(identity, pendingUsers[item.RequestId])
+	}
+	return nil
 }
 
 func appendInsightUsageMapping(adminUserId string, apiUserId string, adminToApiUserId map[string]string, apiToAdminUserId map[string]string, adminUserIds *[]string, apiUserIds *[]string) string {

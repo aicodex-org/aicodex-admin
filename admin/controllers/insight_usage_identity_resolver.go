@@ -82,9 +82,13 @@ var insightUsageIdentityResolverRuntimePolicyConfigLoader = func() (*object.Serv
 	return (&object.ServiceCredentialGovernanceConfigService{}).GetConfig()
 }
 
-func getInsightUsageIdentityResolverConfig() (insightUsageIdentityResolverConfig, bool) {
+func getInsightUsageIdentityResolverRuntimePolicyDecision() object.ServiceCredentialRuntimePolicyDecision {
 	runtimeConfig, runtimeConfigErr := insightUsageIdentityResolverRuntimePolicyConfigLoader()
-	runtimePolicy := object.BuildServiceCredentialRuntimePolicyDecision(runtimeConfig, runtimeConfigErr, "usage_identity_resolver", []string{"timeoutMs", "maxItems"})
+	return object.BuildServiceCredentialRuntimePolicyDecision(runtimeConfig, runtimeConfigErr, "usage_identity_resolver", []string{"timeoutMs", "maxItems"})
+}
+
+func getInsightUsageIdentityResolverConfig() (insightUsageIdentityResolverConfig, bool) {
+	runtimePolicy := getInsightUsageIdentityResolverRuntimePolicyDecision()
 	if runtimePolicy.SavedConfigured && !runtimePolicy.AllowLegacy {
 		return insightUsageIdentityResolverConfig{}, false
 	}

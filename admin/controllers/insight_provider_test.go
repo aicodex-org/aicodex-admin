@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -55,6 +57,547 @@ func TestInsightCurrentUserResponseUsesWhitelistAndRedactsSensitiveFields(t *tes
 		if strings.Contains(body, forbidden) {
 			t.Fatalf("current-user response leaked sensitive value or field %q: %s", forbidden, body)
 		}
+	}
+}
+
+func TestInsightCurrentUserUsesSavedResolverPolicyWhenLocalMappingMissing(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 22, 8, 0, 0, 0, time.UTC)
+	var resolverRequest insightUsageIdentityResolveRequest
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.Header.Get("Authorization") != "Bearer legacy-resolver-token" {
+			t.Fatalf("resolver Authorization = %q, want bearer service token", r.Header.Get("Authorization"))
+		}
+		if err := json.NewDecoder(r.Body).Decode(&resolverRequest); err != nil {
+			t.Fatalf("decode resolver request failed: %v", err)
+		}
+		_ = json.NewEncoder(w).Encode(insightUsageIdentityResolveEnvelope{
+			Success: true,
+			TraceId: resolverRequest.TraceId,
+			Data: insightUsageIdentityResolveResponse{Results: []insightUsageIdentityResolveResult{{
+				RequestId:     "org-a/huangfanli",
+				MappingStatus: MappingStatusOK,
+				ApiUserId:     701,
+			}}},
+		})
+	}))
+	defer server.Close()
+
+	withInsightUsageIdentityResolverRuntimePolicyConfigForTest(t, &object.ServiceCredentialGovernanceConfigResponse{
+		Groups: []object.ServiceCredentialGovernanceConfigGroup{{
+			Key:                       "usage_identity_resolver",
+			Enabled:                   true,
+			SourceClass:               "env_config",
+			CredentialReferenceStatus: "configured",
+			KeepInEnv:                 true,
+			CallerPolicy:              "saved-resolver-caller",
+			BoundedRuntimePolicy:      map[string]interface{}{"timeoutMs": 1200.0, "maxItems": 1.0},
+		}},
+	})
+	t.Setenv("insightUsageIdentityResolverEndpoint", server.URL)
+	t.Setenv("insightUsageIdentityResolverToken", "legacy-resolver-token")
+	t.Setenv("insightUsageIdentityResolverCaller", "legacy-resolver-caller")
+	t.Setenv("insightUsageIdentityResolverMaxItems", "200")
+	t.Setenv("insightUsageIdentityResolverTimeoutMs", "5000")
+
+	got, providerErr := buildInsightCurrentUserResponseWithTrace(&object.User{
+		Owner: "org-a",
+		Name:  "huangfanli",
+		Id:    "admin-subject-huangfanli",
+		Wecom: "huangfanli",
+		Properties: map[string]string{
+			object.WecomUserPropertyCorpId: "ww123",
+			object.WecomUserPropertyUserId: "huangfanli",
+		},
+	}, nil, nil, generatedAt, "trace-current-user-resolver")
+
+	if providerErr != nil {
+		t.Fatalf("buildInsightCurrentUserResponseWithTrace returned error: %+v", providerErr)
+	}
+	if calls != 1 {
+		t.Fatalf("resolver calls = %d, want 1", calls)
+	}
+	if resolverRequest.Caller != "saved-resolver-caller" || len(resolverRequest.Items) != 1 {
+		t.Fatalf("resolver request = %+v, want saved caller and one item", resolverRequest)
+	}
+	if got.UsageIdentity.ApiUserId != "701" || got.UsageIdentity.MappingStatus != MappingStatusOK {
+		t.Fatalf("UsageIdentity = %+v, want resolver mapping", got.UsageIdentity)
+	}
+	if got.UsageIdentity.SourceConnectionId != object.GetSourceConnectionId("org-a", object.SourceTypeWecom, "ww123") || got.UsageIdentity.ExternalSubjectId != "huangfanli" {
+		t.Fatalf("source identity = %+v, want source metadata preserved", got.UsageIdentity)
+	}
+}
+
+func TestInsightCurrentUserLocalMappingDoesNotCallSavedResolver(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 22, 8, 0, 0, 0, time.UTC)
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		t.Fatalf("resolver should not be called when local mapping exists")
+	}))
+	defer server.Close()
+
+	withInsightUsageIdentityResolverRuntimePolicyConfigForTest(t, &object.ServiceCredentialGovernanceConfigResponse{
+		Groups: []object.ServiceCredentialGovernanceConfigGroup{{
+			Key:                       "usage_identity_resolver",
+			Enabled:                   true,
+			SourceClass:               "env_config",
+			CredentialReferenceStatus: "configured",
+			KeepInEnv:                 true,
+			CallerPolicy:              "saved-resolver-caller",
+			BoundedRuntimePolicy:      map[string]interface{}{"timeoutMs": 1200.0, "maxItems": 25.0},
+		}},
+	})
+	t.Setenv("insightUsageIdentityResolverEndpoint", server.URL)
+	t.Setenv("insightUsageIdentityResolverToken", "legacy-resolver-token")
+	installInsightPlatformApiMappingFixtures(t, "org-a", "", map[string]string{"org-a/huangfanli": "901"})
+
+	got, providerErr := buildInsightCurrentUserResponseWithTrace(&object.User{
+		Owner: "org-a",
+		Name:  "huangfanli",
+		Id:    "admin-subject-huangfanli",
+		Wecom: "huangfanli",
+		Properties: map[string]string{
+			object.WecomUserPropertyCorpId: "ww123",
+			object.WecomUserPropertyUserId: "huangfanli",
+		},
+	}, nil, nil, generatedAt, "trace-current-user-local")
+
+	if providerErr != nil {
+		t.Fatalf("buildInsightCurrentUserResponseWithTrace returned error: %+v", providerErr)
+	}
+	if calls != 0 {
+		t.Fatalf("resolver calls = %d, want 0", calls)
+	}
+	if got.UsageIdentity.ApiUserId != "901" || got.UsageIdentity.MappingStatus != MappingStatusOK {
+		t.Fatalf("UsageIdentity = %+v, want local mapping", got.UsageIdentity)
+	}
+}
+
+func TestInsightCurrentUserSavedResolverDisabledFailsClosedBeforeOutbound(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 22, 8, 0, 0, 0, time.UTC)
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		t.Fatalf("resolver should not be called when saved policy is disabled")
+	}))
+	defer server.Close()
+
+	withInsightUsageIdentityResolverRuntimePolicyConfigForTest(t, &object.ServiceCredentialGovernanceConfigResponse{
+		Groups: []object.ServiceCredentialGovernanceConfigGroup{{
+			Key:                       "usage_identity_resolver",
+			Enabled:                   false,
+			SourceClass:               "env_config",
+			CredentialReferenceStatus: "configured",
+			CallerPolicy:              "saved-resolver-caller",
+			BoundedRuntimePolicy:      map[string]interface{}{"timeoutMs": 1200.0, "maxItems": 25.0},
+		}},
+	})
+	t.Setenv("insightUsageIdentityResolverEndpoint", server.URL)
+	t.Setenv("insightUsageIdentityResolverToken", "legacy-resolver-token")
+
+	got, providerErr := buildInsightCurrentUserResponseWithTrace(&object.User{
+		Owner: "org-a",
+		Name:  "huangfanli",
+		Id:    "admin-subject-huangfanli",
+		Wecom: "huangfanli",
+		Properties: map[string]string{
+			object.WecomUserPropertyCorpId: "ww123",
+			object.WecomUserPropertyUserId: "huangfanli",
+		},
+	}, nil, nil, generatedAt, "trace-current-user-disabled")
+
+	if got != nil {
+		t.Fatalf("response = %+v, want fail-closed error", got)
+	}
+	if providerErr == nil || providerErr.Code != InsightProviderErrorUnavailable || providerErr.MappingStatus != MappingStatusMissing {
+		t.Fatalf("providerErr = %+v, want unavailable missing fail-closed", providerErr)
+	}
+	if calls != 0 {
+		t.Fatalf("resolver calls = %d, want 0", calls)
+	}
+}
+
+func TestInsightCurrentUserSavedResolverExternalReferenceFailsClosedBeforeOutbound(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 22, 8, 0, 0, 0, time.UTC)
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		t.Fatalf("resolver should not be called when saved external reference is unresolved")
+	}))
+	defer server.Close()
+
+	withInsightUsageIdentityResolverRuntimePolicyConfigForTest(t, &object.ServiceCredentialGovernanceConfigResponse{
+		Groups: []object.ServiceCredentialGovernanceConfigGroup{{
+			Key:                       "usage_identity_resolver",
+			Enabled:                   true,
+			SourceClass:               "external_secret_system",
+			CredentialReferenceStatus: "external_secret",
+			CredentialReferenceKey:    "vault:usage-identity-resolver",
+			CallerPolicy:              "saved-resolver-caller",
+			BoundedRuntimePolicy:      map[string]interface{}{"timeoutMs": 1200.0, "maxItems": 25.0},
+		}},
+	})
+	t.Setenv("insightUsageIdentityResolverEndpoint", server.URL)
+	t.Setenv("insightUsageIdentityResolverToken", "legacy-resolver-token")
+
+	got, providerErr := buildInsightCurrentUserResponseWithTrace(&object.User{
+		Owner: "org-a",
+		Name:  "huangfanli",
+		Id:    "admin-subject-huangfanli",
+		Wecom: "huangfanli",
+		Properties: map[string]string{
+			object.WecomUserPropertyCorpId: "ww123",
+			object.WecomUserPropertyUserId: "huangfanli",
+		},
+	}, nil, nil, generatedAt, "trace-current-user-external")
+
+	if got != nil {
+		t.Fatalf("response = %+v, want fail-closed error", got)
+	}
+	if providerErr == nil || providerErr.Code != InsightProviderErrorUnavailable || providerErr.MappingStatus != MappingStatusMissing {
+		t.Fatalf("providerErr = %+v, want unresolved reference fail-closed", providerErr)
+	}
+	if calls != 0 {
+		t.Fatalf("resolver calls = %d, want 0", calls)
+	}
+}
+
+func TestInsightCurrentUserResolverInvalidFailsClosed(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 22, 8, 0, 0, 0, time.UTC)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req insightUsageIdentityResolveRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatalf("decode resolver request failed: %v", err)
+		}
+		_ = json.NewEncoder(w).Encode(insightUsageIdentityResolveEnvelope{
+			Success: true,
+			TraceId: req.TraceId,
+			Data: insightUsageIdentityResolveResponse{Results: []insightUsageIdentityResolveResult{{
+				RequestId:     "org-a/huangfanli",
+				MappingStatus: MappingStatusInvalid,
+				ErrorCode:     "caller_scope_mismatch",
+			}}},
+		})
+	}))
+	defer server.Close()
+
+	withInsightUsageIdentityResolverRuntimePolicyConfigForTest(t, &object.ServiceCredentialGovernanceConfigResponse{
+		Groups: []object.ServiceCredentialGovernanceConfigGroup{{
+			Key:                       "usage_identity_resolver",
+			Enabled:                   true,
+			SourceClass:               "env_config",
+			CredentialReferenceStatus: "configured",
+			KeepInEnv:                 true,
+			CallerPolicy:              "saved-resolver-caller",
+			BoundedRuntimePolicy:      map[string]interface{}{"timeoutMs": 1200.0, "maxItems": 25.0},
+		}},
+	})
+	t.Setenv("insightUsageIdentityResolverEndpoint", server.URL)
+	t.Setenv("insightUsageIdentityResolverToken", "legacy-resolver-token")
+
+	got, providerErr := buildInsightCurrentUserResponseWithTrace(&object.User{
+		Owner: "org-a",
+		Name:  "huangfanli",
+		Id:    "admin-subject-huangfanli",
+		Wecom: "huangfanli",
+		Properties: map[string]string{
+			object.WecomUserPropertyCorpId: "ww123",
+			object.WecomUserPropertyUserId: "huangfanli",
+		},
+	}, nil, nil, generatedAt, "trace-current-user-invalid")
+
+	if got != nil {
+		t.Fatalf("response = %+v, want fail-closed error", got)
+	}
+	if providerErr == nil || providerErr.MappingStatus != MappingStatusInvalid {
+		t.Fatalf("providerErr = %+v, want invalid mapping fail-closed", providerErr)
+	}
+}
+
+func TestInsightCurrentUserResolverProtocolErrorFailsClosed(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 22, 8, 0, 0, 0, time.UTC)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+		_ = json.NewEncoder(w).Encode(insightUsageIdentityResolveEnvelope{
+			Success: false,
+			Error:   &InsightProviderError{Code: InsightProviderErrorUnavailable, Message: "resolver unavailable"},
+		})
+	}))
+	defer server.Close()
+
+	withInsightUsageIdentityResolverRuntimePolicyConfigForTest(t, &object.ServiceCredentialGovernanceConfigResponse{
+		Groups: []object.ServiceCredentialGovernanceConfigGroup{{
+			Key:                       "usage_identity_resolver",
+			Enabled:                   true,
+			SourceClass:               "env_config",
+			CredentialReferenceStatus: "configured",
+			KeepInEnv:                 true,
+			CallerPolicy:              "saved-resolver-caller",
+			BoundedRuntimePolicy:      map[string]interface{}{"timeoutMs": 1200.0, "maxItems": 25.0},
+		}},
+	})
+	t.Setenv("insightUsageIdentityResolverEndpoint", server.URL)
+	t.Setenv("insightUsageIdentityResolverToken", "legacy-resolver-token")
+
+	got, providerErr := buildInsightCurrentUserResponseWithTrace(&object.User{
+		Owner: "org-a",
+		Name:  "huangfanli",
+		Id:    "admin-subject-huangfanli",
+		Wecom: "huangfanli",
+		Properties: map[string]string{
+			object.WecomUserPropertyCorpId: "ww123",
+			object.WecomUserPropertyUserId: "huangfanli",
+		},
+	}, nil, nil, generatedAt, "trace-current-user-protocol")
+
+	if got != nil {
+		t.Fatalf("response = %+v, want fail-closed error", got)
+	}
+	if providerErr == nil || providerErr.Code != InsightProviderErrorUnavailable || providerErr.MappingStatus != MappingStatusMissing {
+		t.Fatalf("providerErr = %+v, want unavailable missing fail-closed", providerErr)
+	}
+}
+
+func TestInsightUsageIdentityResolverKeepsMissingFallbackWithoutSavedConfig(t *testing.T) {
+	withInsightUsageIdentityResolverRuntimePolicyConfigForTest(t, nil)
+	t.Setenv("insightUsageIdentityResolverEndpoint", "")
+	t.Setenv("insightUsageIdentityResolverToken", "")
+
+	identity, providerErr := resolveInsightUsageIdentityWithTrace(&object.User{
+		Owner: "org-a",
+		Name:  "huangfanli",
+		Id:    "admin-subject-huangfanli",
+		Wecom: "huangfanli",
+		Properties: map[string]string{
+			object.WecomUserPropertyCorpId: "ww123",
+			object.WecomUserPropertyUserId: "huangfanli",
+		},
+	}, "trace-no-saved")
+
+	if providerErr != nil {
+		t.Fatalf("resolveInsightUsageIdentityWithTrace returned error: %+v", providerErr)
+	}
+	if identity.MappingStatus != MappingStatusMissing || identity.SourceType != object.SourceTypeWecom {
+		t.Fatalf("identity = %+v, want missing fallback with source metadata", identity)
+	}
+}
+
+func TestInsightUsageIdentityResolverSkipsUnsafeItemWithoutOutbound(t *testing.T) {
+	withInsightUsageIdentityResolverRuntimePolicyConfigForTest(t, &object.ServiceCredentialGovernanceConfigResponse{
+		Groups: []object.ServiceCredentialGovernanceConfigGroup{{
+			Key:                       "usage_identity_resolver",
+			Enabled:                   true,
+			SourceClass:               "env_config",
+			CredentialReferenceStatus: "configured",
+			KeepInEnv:                 true,
+			CallerPolicy:              "saved-resolver-caller",
+			BoundedRuntimePolicy:      map[string]interface{}{"timeoutMs": 1200.0, "maxItems": 25.0},
+		}},
+	})
+	t.Setenv("insightUsageIdentityResolverEndpoint", "http://127.0.0.1:1")
+	t.Setenv("insightUsageIdentityResolverToken", "legacy-resolver-token")
+
+	identity, providerErr := resolveInsightUsageIdentityWithTrace(&object.User{
+		Owner: "org-a",
+		Name:  "huangfanli",
+		Id:    "admin-subject-huangfanli",
+		Wecom: "huangfanli",
+		Properties: map[string]string{
+			object.WecomUserPropertyCorpId:  "ww123",
+			object.WecomUserPropertyUserId:  "huangfanli",
+			"externalIdentityMappingStatus": object.PlatformMappingStatusConflicted,
+		},
+	}, "trace-unsafe")
+
+	if providerErr != nil {
+		t.Fatalf("resolveInsightUsageIdentityWithTrace returned error: %+v", providerErr)
+	}
+	if identity.MappingStatus != MappingStatusMissing {
+		t.Fatalf("identity = %+v, want missing without resolver outbound", identity)
+	}
+}
+
+func TestBuildInsightUsageIdentityFromResolverResultStatuses(t *testing.T) {
+	tests := []struct {
+		name          string
+		results       []insightUsageIdentityResolveResult
+		wantStatus    string
+		wantApiUserId string
+	}{
+		{
+			name:          "ok",
+			results:       []insightUsageIdentityResolveResult{{RequestId: "req-1", MappingStatus: MappingStatusOK, ApiUserId: 42}},
+			wantStatus:    MappingStatusOK,
+			wantApiUserId: "42",
+		},
+		{
+			name:       "ok non positive id",
+			results:    []insightUsageIdentityResolveResult{{RequestId: "req-1", MappingStatus: MappingStatusOK}},
+			wantStatus: MappingStatusInvalid,
+		},
+		{
+			name:       "ambiguous",
+			results:    []insightUsageIdentityResolveResult{{RequestId: "req-1", MappingStatus: MappingStatusAmbiguous}},
+			wantStatus: MappingStatusAmbiguous,
+		},
+		{
+			name:       "invalid",
+			results:    []insightUsageIdentityResolveResult{{RequestId: "req-1", MappingStatus: MappingStatusInvalid}},
+			wantStatus: MappingStatusInvalid,
+		},
+		{
+			name:       "missing",
+			results:    []insightUsageIdentityResolveResult{{RequestId: "req-1", MappingStatus: MappingStatusMissing}},
+			wantStatus: MappingStatusMissing,
+		},
+		{
+			name:       "unmatched",
+			results:    []insightUsageIdentityResolveResult{{RequestId: "other", MappingStatus: MappingStatusOK, ApiUserId: 42}},
+			wantStatus: MappingStatusMissing,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := buildInsightUsageIdentityFromResolverResult("req-1", tt.results)
+			if got.MappingStatus != tt.wantStatus || got.ApiUserId != tt.wantApiUserId {
+				t.Fatalf("identity = %+v, want status %q apiUserId %q", got, tt.wantStatus, tt.wantApiUserId)
+			}
+		})
+	}
+}
+
+func TestPreloadInsightUsageIdentityCacheFallbackBranches(t *testing.T) {
+	if providerErr := preloadInsightUsageIdentityCache(nil, nil); providerErr != nil {
+		t.Fatalf("nil cache preload returned error: %+v", providerErr)
+	}
+
+	cache := newInsightUsageIdentityCache()
+	cache.items["org-a/cached"] = InsightUsageIdentity{ApiUserId: "100", MappingStatus: MappingStatusOK}
+	if providerErr := preloadInsightUsageIdentityCache([]*object.User{{Owner: "org-a", Name: "cached"}}, cache); providerErr != nil {
+		t.Fatalf("cached preload returned error: %+v", providerErr)
+	}
+
+	withInsightUsageIdentityResolverRuntimePolicyConfigForTest(t, nil)
+	t.Setenv("insightUsageIdentityResolverEndpoint", "")
+	t.Setenv("insightUsageIdentityResolverToken", "")
+	cache = newInsightUsageIdentityCache()
+	user := &object.User{
+		Owner: "org-a",
+		Name:  "huangfanli",
+		Id:    "admin-subject-huangfanli",
+		Wecom: "huangfanli",
+		Properties: map[string]string{
+			object.WecomUserPropertyCorpId: "ww123",
+			object.WecomUserPropertyUserId: "huangfanli",
+		},
+	}
+	if providerErr := preloadInsightUsageIdentityCache([]*object.User{user}, cache); providerErr != nil {
+		t.Fatalf("no saved config preload returned error: %+v", providerErr)
+	}
+	if cache.items[user.GetId()].MappingStatus != MappingStatusMissing {
+		t.Fatalf("cache item = %+v, want missing fallback", cache.items[user.GetId()])
+	}
+}
+
+func TestPreloadInsightUsageIdentityCacheResolverErrorFailsClosed(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+		_ = json.NewEncoder(w).Encode(insightUsageIdentityResolveEnvelope{
+			Success: false,
+			Error:   &InsightProviderError{Code: InsightProviderErrorUnavailable, Message: "resolver unavailable"},
+		})
+	}))
+	defer server.Close()
+
+	withInsightUsageIdentityResolverRuntimePolicyConfigForTest(t, &object.ServiceCredentialGovernanceConfigResponse{
+		Groups: []object.ServiceCredentialGovernanceConfigGroup{{
+			Key:                       "usage_identity_resolver",
+			Enabled:                   true,
+			SourceClass:               "env_config",
+			CredentialReferenceStatus: "configured",
+			KeepInEnv:                 true,
+			CallerPolicy:              "saved-resolver-caller",
+			BoundedRuntimePolicy:      map[string]interface{}{"timeoutMs": 1200.0, "maxItems": 25.0},
+		}},
+	})
+	t.Setenv("insightUsageIdentityResolverEndpoint", server.URL)
+	t.Setenv("insightUsageIdentityResolverToken", "legacy-resolver-token")
+
+	providerErr := preloadInsightUsageIdentityCache([]*object.User{{
+		Owner: "org-a",
+		Name:  "huangfanli",
+		Id:    "admin-subject-huangfanli",
+		Wecom: "huangfanli",
+		Properties: map[string]string{
+			object.WecomUserPropertyCorpId: "ww123",
+			object.WecomUserPropertyUserId: "huangfanli",
+		},
+	}}, newInsightUsageIdentityCache())
+	if providerErr == nil || providerErr.Code != InsightProviderErrorUnavailable || providerErr.MappingStatus != MappingStatusMissing {
+		t.Fatalf("providerErr = %+v, want unavailable missing fail-closed", providerErr)
+	}
+}
+
+func TestInsightScopeUsesSavedResolverPolicyWhenLocalMappingMissing(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 22, 8, 0, 0, 0, time.UTC)
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		var req insightUsageIdentityResolveRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatalf("decode resolver request failed: %v", err)
+		}
+		if req.Caller != "saved-resolver-caller" {
+			t.Fatalf("resolver caller = %q, want saved-resolver-caller", req.Caller)
+		}
+		results := make([]insightUsageIdentityResolveResult, 0, len(req.Items))
+		for _, item := range req.Items {
+			switch item.RequestId {
+			case "org-a/owner":
+				results = append(results, insightUsageIdentityResolveResult{RequestId: item.RequestId, MappingStatus: MappingStatusOK, ApiUserId: 700})
+			case "org-a/member":
+				results = append(results, insightUsageIdentityResolveResult{RequestId: item.RequestId, MappingStatus: MappingStatusOK, ApiUserId: 701})
+			default:
+				results = append(results, insightUsageIdentityResolveResult{RequestId: item.RequestId, MappingStatus: MappingStatusMissing})
+			}
+		}
+		_ = json.NewEncoder(w).Encode(insightUsageIdentityResolveEnvelope{
+			Success: true,
+			TraceId: req.TraceId,
+			Data:    insightUsageIdentityResolveResponse{Results: results},
+		})
+	}))
+	defer server.Close()
+
+	withInsightUsageIdentityResolverRuntimePolicyConfigForTest(t, &object.ServiceCredentialGovernanceConfigResponse{
+		Groups: []object.ServiceCredentialGovernanceConfigGroup{{
+			Key:                       "usage_identity_resolver",
+			Enabled:                   true,
+			SourceClass:               "env_config",
+			CredentialReferenceStatus: "configured",
+			KeepInEnv:                 true,
+			CallerPolicy:              "saved-resolver-caller",
+			BoundedRuntimePolicy:      map[string]interface{}{"timeoutMs": 1200.0, "maxItems": 25.0},
+		}},
+	})
+	t.Setenv("insightUsageIdentityResolverEndpoint", server.URL)
+	t.Setenv("insightUsageIdentityResolverToken", "legacy-resolver-token")
+
+	currentUser := &object.User{Owner: "org-a", Name: "owner", Id: "admin-subject-owner", IsAdmin: true, Wecom: "owner", Properties: map[string]string{object.WecomUserPropertyCorpId: "ww123", object.WecomUserPropertyUserId: "owner"}}
+	member := &object.User{Owner: "org-a", Name: "member", Id: "admin-subject-member", Groups: []string{"org-a/dev"}, Wecom: "member", Properties: map[string]string{object.WecomUserPropertyCorpId: "ww123", object.WecomUserPropertyUserId: "member"}}
+
+	got, providerErr := calculateInsightScope(currentUser, []*object.User{currentUser, member}, []*object.Group{{Owner: "org-a", Name: "dev", DisplayName: "Dev"}}, generatedAt)
+	if providerErr != nil {
+		t.Fatalf("calculateInsightScope returned error: %+v", providerErr)
+	}
+	if calls != 1 {
+		t.Fatalf("resolver calls = %d, want one batched resolver call", calls)
+	}
+	if !containsString(got.ApiUserIds, "700") || !containsString(got.ApiUserIds, "701") {
+		t.Fatalf("scope ApiUserIds = %+v, want resolver ids", got.ApiUserIds)
 	}
 }
 

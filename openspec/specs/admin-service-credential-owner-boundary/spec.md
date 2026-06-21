@@ -377,6 +377,22 @@ Admin SHALL apply saved copy-safe service credential governance configuration as
 - **AND** status or diagnostics SHALL expose stable blocker aliases for the missing metadata
 - **AND** Admin MUST NOT output token values, Authorization headers, Cookies, DSNs, client secrets, complete private URLs, raw payloads, raw ids, real accounts or complete organization trees
 
+#### Scenario: Usage identity resolver live provider path 使用 saved runtime gate
+
+- **WHEN** Insight provider resolves usage identity for `current-user` or scope mapping
+- **AND** local confirmed admin-to-api mapping is missing
+- **AND** a safe resolver item can be built from stable admin/source/wecom identifiers
+- **THEN** Admin SHALL evaluate the `usage_identity_resolver` saved runtime policy before any outbound resolver call
+- **AND** saved disabled, unresolved reference, invalid policy, scope mismatch or caller mismatch MUST fail closed before outbound and MUST NOT fall back to legacy env/config
+- **AND** saved `env_config` or `keepInEnv=true` MAY use legacy endpoint/token only while applying saved caller policy and bounded runtime policy
+- **AND** Admin MUST NOT output token values, Authorization headers, complete private URLs, raw resolver payloads, raw ids, real accounts or complete organization trees
+
+#### Scenario: Usage identity resolver 保持本地 confirmed mapping 优先
+
+- **WHEN** Insight provider resolves usage identity for a user with a valid local confirmed admin-to-api mapping
+- **THEN** Admin SHALL return the local mapping without calling the usage identity resolver
+- **AND** Admin SHALL keep existing mapping source and source identity enrichment behavior
+
 #### Scenario: Gateway projection 所有最小运行路径使用同一 gated publisher config
 
 - **WHEN** Admin evaluates Gateway projection manual publish, scheduled refresh, run readiness, ingestion status or observability
