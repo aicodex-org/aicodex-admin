@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"git.leagsoft.com/aicodex/aicodex-admin/conf"
+	"git.leagsoft.com/aicodex/aicodex-admin/object"
 	"github.com/beego/beego/v2/core/logs"
 )
 
@@ -77,7 +78,17 @@ type insightUsageIdentityHTTPResolver struct {
 	client *http.Client
 }
 
+var insightUsageIdentityResolverRuntimePolicyConfigLoader = func() (*object.ServiceCredentialGovernanceConfigResponse, error) {
+	return (&object.ServiceCredentialGovernanceConfigService{}).GetConfig()
+}
+
 func getInsightUsageIdentityResolverConfig() (insightUsageIdentityResolverConfig, bool) {
+	runtimeConfig, runtimeConfigErr := insightUsageIdentityResolverRuntimePolicyConfigLoader()
+	runtimePolicy := object.BuildServiceCredentialRuntimePolicyDecision(runtimeConfig, runtimeConfigErr, "usage_identity_resolver", []string{"timeoutMs", "maxItems"})
+	if runtimePolicy.SavedConfigured && !runtimePolicy.AllowLegacy {
+		return insightUsageIdentityResolverConfig{}, false
+	}
+
 	endpoint := strings.TrimSpace(conf.GetConfigString("insightUsageIdentityResolverEndpoint"))
 	token := strings.TrimSpace(conf.GetConfigString("insightUsageIdentityResolverToken"))
 	if endpoint == "" || token == "" {
@@ -89,6 +100,11 @@ func getInsightUsageIdentityResolverConfig() (insightUsageIdentityResolverConfig
 	}
 	maxItems := getInsightUsageIdentityResolverIntConfig("insightUsageIdentityResolverMaxItems", insightUsageIdentityResolverDefaultMaxItems)
 	timeoutMs := getInsightUsageIdentityResolverIntConfig("insightUsageIdentityResolverTimeoutMs", insightUsageIdentityResolverDefaultTimeoutMs)
+	if runtimePolicy.SavedConfigured && runtimePolicy.AllowLegacy {
+		caller = firstNonEmptyInsightString(runtimePolicy.CallerPolicy, caller)
+		maxItems = object.ServiceCredentialRuntimePolicyInt(runtimePolicy.BoundedRuntimePolicy, "maxItems", maxItems)
+		timeoutMs = object.ServiceCredentialRuntimePolicyInt(runtimePolicy.BoundedRuntimePolicy, "timeoutMs", timeoutMs)
+	}
 	return insightUsageIdentityResolverConfig{
 		Endpoint:      endpoint,
 		Token:         token,

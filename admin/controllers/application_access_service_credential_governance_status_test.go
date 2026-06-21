@@ -296,8 +296,8 @@ func TestBuildApplicationAccessServiceCredentialGovernanceStatusOverlaysSavedEna
 	status := buildApplicationAccessServiceCredentialGovernanceStatus(time.Date(2026, 6, 21, 8, 0, 0, 0, time.UTC))
 
 	resolver := serviceCredentialGovernanceGroupByKey(t, status.Groups, "usage_identity_resolver")
-	if resolver.Status != "configured" || resolver.CredentialReferenceStatus != "external_secret" {
-		t.Fatalf("resolver should use saved external secret reference, got %#v", resolver)
+	if resolver.Status != "blocked" || resolver.CredentialReferenceStatus != "external_secret" || !stringSliceContains(resolver.BlockedReasons, "admin_service_credential_reference_unresolved") {
+		t.Fatalf("resolver should expose unresolved saved external secret reference, got %#v", resolver)
 	}
 	if resolver.CallerPolicy != "saved-resolver-caller" || resolver.BoundedRuntimePolicy["timeoutMs"] != float64(1600) {
 		t.Fatalf("resolver should use saved caller and bounded policy, got %#v", resolver)
@@ -310,8 +310,8 @@ func TestBuildApplicationAccessServiceCredentialGovernanceStatusOverlaysSavedEna
 	}
 
 	projection := serviceCredentialGovernanceGroupByKey(t, status.Groups, "gateway_organization_projection")
-	if projection.Status != "configured" || projection.CredentialReferenceStatus != "configured" {
-		t.Fatalf("projection should use saved configured reference, got %#v", projection)
+	if projection.Status != "blocked" || projection.CredentialReferenceStatus != "configured" || !stringSliceContains(projection.BlockedReasons, "admin_service_credential_reference_unresolved") {
+		t.Fatalf("projection should expose unresolved saved configured reference, got %#v", projection)
 	}
 	if projection.CallerPolicy != "saved-projection-caller" || projection.BoundedRuntimePolicy["refreshBatchSize"] != float64(30) {
 		t.Fatalf("projection should use saved caller and bounded policy, got %#v", projection)
@@ -455,7 +455,7 @@ func TestBuildApplicationAccessServiceCredentialGovernanceStatusDisablesSavedCon
 
 	for _, key := range []string{"usage_identity_resolver", "gateway_organization_projection"} {
 		group := serviceCredentialGovernanceGroupByKey(t, status.Groups, key)
-		if group.Status != "blocked" || !stringSliceContains(group.BlockedReasons, "admin_service_credential_config_disabled") {
+		if group.Status != "blocked" || !stringSliceContains(group.BlockedReasons, "admin_service_credential_group_disabled") {
 			t.Fatalf("%s should fail closed when saved config is disabled, got %#v", key, group)
 		}
 		for _, configuredKey := range []string{"insightUsageIdentityResolverToken", "gatewayOrganizationProjectionToken"} {
@@ -505,8 +505,20 @@ func TestBuildApplicationAccessServiceCredentialGovernanceStatusClassifiesSavedC
 	}
 
 	projection := serviceCredentialGovernanceGroupByKey(t, status.Groups, "gateway_organization_projection")
-	if projection.Status != "partial" || !stringSliceContains(projection.BlockedReasons, "admin_service_credential_runtime_policy_missing") {
-		t.Fatalf("projection missing saved bounded policy should be partial, got %#v", projection)
+	if projection.Status != "blocked" || !stringSliceContains(projection.BlockedReasons, "admin_service_credential_reference_unresolved") || !stringSliceContains(projection.BlockedReasons, "admin_service_credential_bounded_policy_missing") {
+		t.Fatalf("projection unresolved saved reference and missing bounded policy should be blocked, got %#v", projection)
+	}
+}
+
+func TestServiceCredentialGovernanceRuntimeRequiredPolicyKeys(t *testing.T) {
+	if got := serviceCredentialGovernanceRuntimeRequiredPolicyKeys("usage_identity_resolver"); len(got) != 2 || got[0] != "timeoutMs" || got[1] != "maxItems" {
+		t.Fatalf("usage resolver required policy keys mismatch: %#v", got)
+	}
+	if got := serviceCredentialGovernanceRuntimeRequiredPolicyKeys("gateway_organization_projection"); len(got) != 3 || got[0] != "timeoutMs" || got[1] != "freshnessTTLSeconds" || got[2] != "maxRetries" {
+		t.Fatalf("gateway projection required policy keys mismatch: %#v", got)
+	}
+	if got := serviceCredentialGovernanceRuntimeRequiredPolicyKeys("keep_in_env"); got != nil {
+		t.Fatalf("unknown runtime policy keys should be nil, got %#v", got)
 	}
 }
 

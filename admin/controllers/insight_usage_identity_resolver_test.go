@@ -33,6 +33,91 @@ func TestInsightUsageIdentityResolverConfigDisabledWhenMissingEndpointOrToken(t 
 	}
 }
 
+func TestInsightUsageIdentityResolverConfigFallsBackWithoutSavedGovernanceConfig(t *testing.T) {
+	withInsightUsageIdentityResolverRuntimePolicyConfigForTest(t, nil)
+	t.Setenv("insightUsageIdentityResolverEndpoint", "https://api.example.test/api/usage-identity-provider/v1/wecom/resolve")
+	t.Setenv("insightUsageIdentityResolverToken", "legacy-resolver-token")
+	t.Setenv("insightUsageIdentityResolverCaller", "legacy-resolver-caller")
+	t.Setenv("insightUsageIdentityResolverMaxItems", "12")
+	t.Setenv("insightUsageIdentityResolverTimeoutMs", "1300")
+
+	config, ok := getInsightUsageIdentityResolverConfig()
+
+	if !ok {
+		t.Fatalf("resolver should use legacy config when no saved governance config exists")
+	}
+	if config.Caller != "legacy-resolver-caller" || config.MaxItems != 12 || config.LookupTimeout != 1300*time.Millisecond {
+		t.Fatalf("legacy resolver config mismatch: %#v", config)
+	}
+}
+
+func TestInsightUsageIdentityResolverConfigSavedDisabledDoesNotUseLegacy(t *testing.T) {
+	withInsightUsageIdentityResolverRuntimePolicyConfigForTest(t, &object.ServiceCredentialGovernanceConfigResponse{
+		Groups: []object.ServiceCredentialGovernanceConfigGroup{{
+			Key:                       "usage_identity_resolver",
+			Enabled:                   false,
+			SourceClass:               "env_config",
+			CredentialReferenceStatus: "configured",
+			CallerPolicy:              "saved-resolver-caller",
+			BoundedRuntimePolicy:      map[string]interface{}{"timeoutMs": 1200.0, "maxItems": 25.0},
+		}},
+	})
+	t.Setenv("insightUsageIdentityResolverEndpoint", "https://api.example.test/api/usage-identity-provider/v1/wecom/resolve")
+	t.Setenv("insightUsageIdentityResolverToken", "legacy-resolver-token")
+
+	if config, ok := getInsightUsageIdentityResolverConfig(); ok {
+		t.Fatalf("saved disabled resolver policy must fail closed without legacy fallback: %#v", config)
+	}
+}
+
+func TestInsightUsageIdentityResolverConfigSavedExternalReferenceDoesNotFallbackLegacy(t *testing.T) {
+	withInsightUsageIdentityResolverRuntimePolicyConfigForTest(t, &object.ServiceCredentialGovernanceConfigResponse{
+		Groups: []object.ServiceCredentialGovernanceConfigGroup{{
+			Key:                       "usage_identity_resolver",
+			Enabled:                   true,
+			SourceClass:               "external_secret_system",
+			CredentialReferenceStatus: "external_secret",
+			CredentialReferenceKey:    "vault:usage-identity-resolver",
+			CallerPolicy:              "saved-resolver-caller",
+			BoundedRuntimePolicy:      map[string]interface{}{"timeoutMs": 1200.0, "maxItems": 25.0},
+		}},
+	})
+	t.Setenv("insightUsageIdentityResolverEndpoint", "https://api.example.test/api/usage-identity-provider/v1/wecom/resolve")
+	t.Setenv("insightUsageIdentityResolverToken", "legacy-resolver-token")
+
+	if config, ok := getInsightUsageIdentityResolverConfig(); ok {
+		t.Fatalf("unresolved saved external resolver reference must not fall back to legacy: %#v", config)
+	}
+}
+
+func TestInsightUsageIdentityResolverConfigSavedEnvPolicyOverlaysLegacyBounds(t *testing.T) {
+	withInsightUsageIdentityResolverRuntimePolicyConfigForTest(t, &object.ServiceCredentialGovernanceConfigResponse{
+		Groups: []object.ServiceCredentialGovernanceConfigGroup{{
+			Key:                       "usage_identity_resolver",
+			Enabled:                   true,
+			SourceClass:               "env_config",
+			CredentialReferenceStatus: "configured",
+			KeepInEnv:                 true,
+			CallerPolicy:              "saved-resolver-caller",
+			BoundedRuntimePolicy:      map[string]interface{}{"timeoutMs": 1200.0, "maxItems": 25.0},
+		}},
+	})
+	t.Setenv("insightUsageIdentityResolverEndpoint", "https://api.example.test/api/usage-identity-provider/v1/wecom/resolve")
+	t.Setenv("insightUsageIdentityResolverToken", "legacy-resolver-token")
+	t.Setenv("insightUsageIdentityResolverCaller", "legacy-resolver-caller")
+	t.Setenv("insightUsageIdentityResolverMaxItems", "200")
+	t.Setenv("insightUsageIdentityResolverTimeoutMs", "5000")
+
+	config, ok := getInsightUsageIdentityResolverConfig()
+
+	if !ok {
+		t.Fatalf("saved env_config resolver policy should allow legacy credentials")
+	}
+	if config.Caller != "saved-resolver-caller" || config.MaxItems != 25 || config.LookupTimeout != 1200*time.Millisecond {
+		t.Fatalf("saved bounded resolver policy should overlay legacy defaults: %#v", config)
+	}
+}
+
 func TestInsightUsageIdentityResolverClientSendsBearerTokenAndDecodesStatuses(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer identity-secret" {
@@ -73,6 +158,22 @@ func TestInsightUsageIdentityResolverClientSendsBearerTokenAndDecodesStatuses(t 
 	if len(results) != 2 || results[0].ApiUserId != 101 || results[1].MappingStatus != MappingStatusMissing {
 		t.Fatalf("unexpected results: %+v", results)
 	}
+}
+
+func withInsightUsageIdentityResolverRuntimePolicyConfigForTest(t *testing.T, config *object.ServiceCredentialGovernanceConfigResponse) {
+	t.Helper()
+	store := &memoryServiceCredentialGovernanceConfigStore{}
+	service := &object.ServiceCredentialGovernanceConfigService{Store: store}
+	if config != nil {
+		if _, _, err := service.SaveConfig(config); err != nil {
+			t.Fatalf("SaveConfig() error = %v", err)
+		}
+	}
+	original := insightUsageIdentityResolverRuntimePolicyConfigLoader
+	insightUsageIdentityResolverRuntimePolicyConfigLoader = service.GetConfig
+	t.Cleanup(func() {
+		insightUsageIdentityResolverRuntimePolicyConfigLoader = original
+	})
 }
 
 func TestInsightUsageIdentityResolverClientReturnsUnavailableForProtocolError(t *testing.T) {

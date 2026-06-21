@@ -50,6 +50,7 @@ type GatewayProjectionPublisherConfig struct {
 	Timeout        time.Duration
 	FreshnessTTL   time.Duration
 	MaxRetries     int
+	BlockedReasons []string
 }
 
 // GatewayProjectionPublisher 封装 gateway projection HTTP push 行为和脱敏审计出口。
@@ -110,7 +111,7 @@ type gatewayProjectionPublishError struct {
 func GetGatewayProjectionPublisherConfig() GatewayProjectionPublisherConfig {
 	timeoutMs := gatewayProjectionIntConfig("gatewayOrganizationProjectionTimeoutMs", gatewayProjectionPublisherDefaultTimeoutMs)
 	freshnessSeconds := gatewayProjectionIntConfig("gatewayOrganizationProjectionFreshnessTTLSeconds", int(GatewayProjectionDefaultFreshnessTTL/time.Second))
-	return GatewayProjectionPublisherConfig{
+	config := GatewayProjectionPublisherConfig{
 		Enabled:        conf.GetConfigBool("gatewayOrganizationProjectionEnabled"),
 		Endpoint:       strings.TrimSpace(conf.GetConfigString("gatewayOrganizationProjectionEndpoint")),
 		StatusEndpoint: strings.TrimSpace(conf.GetConfigString("gatewayOrganizationProjectionStatusEndpoint")),
@@ -120,6 +121,24 @@ func GetGatewayProjectionPublisherConfig() GatewayProjectionPublisherConfig {
 		FreshnessTTL:   time.Duration(freshnessSeconds) * time.Second,
 		MaxRetries:     gatewayProjectionIntConfig("gatewayOrganizationProjectionMaxRetries", gatewayProjectionPublisherDefaultRetries),
 	}
+	decision := GetServiceCredentialRuntimePolicyDecision("gateway_organization_projection", []string{"timeoutMs", "freshnessTTLSeconds", "maxRetries"})
+	if !decision.SavedConfigured {
+		return config
+	}
+	if !decision.AllowLegacy {
+		return GatewayProjectionPublisherConfig{
+			Caller:         firstNonEmpty(decision.CallerPolicy, GatewayProjectionDefaultCaller),
+			FreshnessTTL:   GatewayProjectionDefaultFreshnessTTL,
+			Timeout:        time.Duration(gatewayProjectionPublisherDefaultTimeoutMs) * time.Millisecond,
+			MaxRetries:     gatewayProjectionPublisherDefaultRetries,
+			BlockedReasons: decision.BlockedReasons,
+		}
+	}
+	config.Caller = firstNonEmpty(decision.CallerPolicy, config.Caller, GatewayProjectionDefaultCaller)
+	config.Timeout = time.Duration(normalizeGatewayProjectionTimeoutMs(ServiceCredentialRuntimePolicyInt(decision.BoundedRuntimePolicy, "timeoutMs", timeoutMs))) * time.Millisecond
+	config.FreshnessTTL = time.Duration(ServiceCredentialRuntimePolicyInt(decision.BoundedRuntimePolicy, "freshnessTTLSeconds", freshnessSeconds)) * time.Second
+	config.MaxRetries = normalizeGatewayProjectionMaxRetries(ServiceCredentialRuntimePolicyInt(decision.BoundedRuntimePolicy, "maxRetries", config.MaxRetries))
+	return config
 }
 
 // Publish 使用服务间 Bearer token 推送 projection batch。
@@ -362,6 +381,13 @@ func newGatewayProjectionPublisherHTTPClient(timeout time.Duration) *http.Client
 func normalizeGatewayProjectionMaxRetries(value int) int {
 	if value < 0 {
 		return 0
+	}
+	return value
+}
+
+func normalizeGatewayProjectionTimeoutMs(value int) int {
+	if value <= 0 {
+		return gatewayProjectionPublisherDefaultTimeoutMs
 	}
 	return value
 }
