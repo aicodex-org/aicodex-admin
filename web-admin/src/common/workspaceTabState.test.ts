@@ -1,4 +1,5 @@
 /* eslint-env jest */
+import React from "react";
 import {expect} from "@jest/globals";
 import {
   closeWorkspaceTab,
@@ -31,6 +32,7 @@ const routes: WorkspaceRouteItem[] = [
 describe("workspaceTabState", () => {
   test("normalizes paths without query hash or trailing slash noise", () => {
     expect(normalizeWorkspacePath("applications/?q=1#top")).toBe("/applications");
+    expect(normalizeWorkspacePath(null)).toBe("/");
     expect(normalizeWorkspacePath("/")).toBe("/");
     expect(normalizeWorkspacePath("")).toBe("/");
   });
@@ -50,6 +52,12 @@ describe("workspaceTabState", () => {
     expect(tabs[1].label).toBe("身份源中心");
   });
 
+  test("hydrates unsupported storage versions safely with overview and current route", () => {
+    const tabs = hydrateWorkspaceTabs(JSON.stringify({version: 2, paths: ["/applications"]}), "/users", routes);
+
+    expect(tabs.map(tab => tab.path)).toEqual(["/", "/users"]);
+  });
+
   test("hydrates valid storage and refreshes labels from current route metadata", () => {
     const tabs = hydrateWorkspaceTabs(
       JSON.stringify({version: 1, paths: ["/applications", "/records"]}),
@@ -59,6 +67,29 @@ describe("workspaceTabState", () => {
 
     expect(tabs.map(tab => tab.path)).toEqual(["/", "/applications", "/records", "/providers"]);
     expect(tabs.map(tab => tab.label)).toEqual(["企业认证总览", "应用接入中心", "审计记录", "身份源中心"]);
+  });
+
+  test("filters invalid restored routes before rendering workspace tabs", () => {
+    const tabs = hydrateWorkspaceTabs(
+      JSON.stringify({version: 1, paths: ["/404", "/shortcuts", "/applications", "/legacy-route", "/providers"]}),
+      "/records",
+      routes
+    );
+
+    expect(tabs.map(tab => tab.path)).toEqual(["/", "/applications", "/providers", "/records"]);
+    expect(tabs.map(tab => tab.path)).not.toContain("/404");
+    expect(tabs.map(tab => tab.path)).not.toContain("/shortcuts");
+    expect(tabs.map(tab => tab.path)).not.toContain("/legacy-route");
+  });
+
+  test("falls back to overview when restored and current routes are invalid", () => {
+    const tabs = hydrateWorkspaceTabs(
+      JSON.stringify({version: 1, paths: ["/404", "/shortcuts", "/legacy-route"]}),
+      "/unknown-route",
+      routes
+    );
+
+    expect(tabs.map(tab => tab.path)).toEqual(["/"]);
   });
 
   test("builds route metadata with matcher routes and overview fallback", () => {
@@ -73,6 +104,20 @@ describe("workspaceTabState", () => {
 
     expect(routeItems.map(route => route.path)).toEqual(["/", "/custom"]);
     expect(tabs.map(tab => tab.label)).toEqual(["/", "unused"]);
+  });
+
+  test("builds route metadata without duplicating overview and with label fallbacks", () => {
+    const routeItems = buildWorkspaceRouteItems([{
+      label: React.createElement("span", null, "分组"),
+      children: [
+        {key: "/", label: "总览", to: "/", matchPrefixes: ["/"]},
+        {key: "/custom", label: "", to: "/custom"},
+      ],
+    }]);
+
+    expect(routeItems.map(route => route.path)).toEqual(["/", "/custom"]);
+    expect(routeItems[1]).toMatchObject({label: "/custom", groupLabel: ""});
+    expect(openWorkspaceTab([], "/custom/child", routeItems).map(tab => tab.path)).toEqual(["/", "/custom/child"]);
   });
 
   test("reads and saves session storage with restricted-storage fallback", () => {
@@ -101,6 +146,26 @@ describe("workspaceTabState", () => {
     expect(() => saveWorkspaceTabs(restrictedStorage, tabs)).not.toThrow();
   });
 
+  test("reopening an existing route activates it without changing tab order", () => {
+    const applications = openWorkspaceTab([], "/applications", routes);
+    const providers = openWorkspaceTab(applications, "/providers", routes);
+    const records = openWorkspaceTab(providers, "/records", routes);
+
+    const reopenedApplications = openWorkspaceTab(records, "/applications", routes);
+    const reopenedProviders = openWorkspaceTab(reopenedApplications, "/providers", routes);
+
+    expect(reopenedApplications.map(tab => tab.path)).toEqual(["/", "/applications", "/providers", "/records"]);
+    expect(reopenedProviders.map(tab => tab.path)).toEqual(["/", "/applications", "/providers", "/records"]);
+  });
+
+  test("does not open a tab for unknown or 404 routes", () => {
+    const tabs = openWorkspaceTab(openWorkspaceTab([], "/applications", routes), "/404", routes);
+    const unknownTabs = openWorkspaceTab(tabs, "/missing-route", routes);
+
+    expect(tabs.map(tab => tab.path)).toEqual(["/", "/applications"]);
+    expect(unknownTabs.map(tab => tab.path)).toEqual(["/", "/applications"]);
+  });
+
   test("closes current tab by navigating to the nearest remaining tab", () => {
     const applications = openWorkspaceTab([], "/applications", routes);
     const providers = openWorkspaceTab(applications, "/providers", routes);
@@ -109,6 +174,17 @@ describe("workspaceTabState", () => {
     const result = closeWorkspaceTab(records, "/records", "/records");
 
     expect(result.tabs.map(tab => tab.path)).toEqual(["/", "/applications", "/providers"]);
+    expect(result.nextPath).toBe("/providers");
+  });
+
+  test("closes current tab by preferring the right-side neighbor", () => {
+    const applications = openWorkspaceTab([], "/applications", routes);
+    const providers = openWorkspaceTab(applications, "/providers", routes);
+    const records = openWorkspaceTab(providers, "/records", routes);
+
+    const result = closeWorkspaceTab(records, "/applications", "/applications");
+
+    expect(result.tabs.map(tab => tab.path)).toEqual(["/", "/providers", "/records"]);
     expect(result.nextPath).toBe("/providers");
   });
 
@@ -128,17 +204,51 @@ describe("workspaceTabState", () => {
     expect(result.nextPath).toBe("/applications");
   });
 
-  test("keeps active tab visible and moves extra pages into overflow", () => {
+  test("closes the only non-fixed tab back to overview", () => {
+    const tabs = openWorkspaceTab([], "/applications", routes);
+    const result = closeWorkspaceTab(tabs, "/applications", "/applications");
+
+    expect(result.tabs.map(tab => tab.path)).toEqual(["/"]);
+    expect(result.nextPath).toBe("/");
+  });
+
+  test("keeps visible tabs in opening order and moves extra pages into overflow", () => {
     const tabs = routes
       .filter(route => route.path !== "/")
       .reduce<WorkspaceTabItem[]>((currentTabs, route) => openWorkspaceTab(currentTabs, route.path, routes), []);
 
+    const allFit = getVisibleWorkspaceTabs(tabs, "/records", 10);
+    expect(allFit.visibleTabs.map(tab => tab.path)).toEqual([
+      "/",
+      "/applications",
+      "/providers",
+      "/records",
+      "/organizations",
+      "/users",
+      "/agents",
+      "/servers",
+      "/entries",
+      "/rules",
+    ]);
+
     const visible = getVisibleWorkspaceTabs(tabs, "/rules", WORKSPACE_TABS_MAX_VISIBLE);
 
     expect(visible.visibleTabs).toHaveLength(WORKSPACE_TABS_MAX_VISIBLE);
-    expect(visible.visibleTabs.map(tab => tab.path)).toContain("/");
-    expect(visible.visibleTabs.map(tab => tab.path)).toContain("/rules");
-    expect(visible.overflowTabs.length).toBeGreaterThan(0);
+    expect(visible.visibleTabs.map(tab => tab.path)).toEqual([
+      "/",
+      "/applications",
+      "/providers",
+      "/records",
+      "/organizations",
+      "/users",
+      "/agents",
+      "/servers",
+    ]);
+    expect(visible.overflowTabs.map(tab => tab.path)).toEqual(["/entries", "/rules"]);
+
+    const singleVisible = getVisibleWorkspaceTabs(tabs, "/rules", 1);
+    expect(singleVisible.visibleTabs.map(tab => tab.path)).toEqual(["/"]);
+    expect(singleVisible.overflowTabs.map(tab => tab.path)).toContain("/rules");
   });
 
   test("compares tab state by rendered shell fields", () => {

@@ -86,6 +86,7 @@ function WorkspaceTabs(props: WorkspaceTabsProps) {
                   type="button"
                   className="admin-workspace-tab-label"
                   aria-current={active ? "page" : undefined}
+                  title={tab.label}
                   onClick={() => props.onNavigate(tab.path)}
                 >
                   {tab.fixed ? (
@@ -105,7 +106,7 @@ function WorkspaceTabs(props: WorkspaceTabsProps) {
                       aria-label={`${closePrefix} ${tab.label}`}
                       onClick={() => props.onClose(tab.path)}
                     >
-                      <CloseOutlined />
+                      <CloseOutlined aria-hidden="true" />
                     </button>
                   </Tooltip>
                 )}

@@ -16,7 +16,16 @@ jest.mock("antd", () => {
         {children}
       </button>
     ),
-    Dropdown: ({children}: {children: React.ReactNode}) => <>{children}</>,
+    Dropdown: ({children, menu}: {children: React.ReactNode; menu?: {items?: Array<{key: string; label: string; onClick: () => void}>}}) => (
+      <>
+        {children}
+        <div data-testid="workspace-tabs-overflow-menu">
+          {menu?.items?.map(item => (
+            <button type="button" key={item.key} onClick={item.onClick}>{item.label}</button>
+          ))}
+        </div>
+      </>
+    ),
     Tooltip: ({children}: {children: React.ReactNode}) => <>{children}</>,
   };
 });
@@ -108,7 +117,39 @@ describe("WorkspaceTabs", () => {
 
     expect(view.container.querySelector(".admin-workspace-tabs-mobile")).not.toBeNull();
     expect(view.container.querySelector(".admin-workspace-tabs-desktop")).toBeNull();
-    expect(view.getByText("身份源中心")).not.toBeNull();
+    expect(view.getAllByText("身份源中心").length).toBeGreaterThan(0);
     expect(view.getByLabelText("更多工作页面")).not.toBeNull();
+  });
+
+  test("navigates from overflow menu without changing rendered tab order", () => {
+    const onNavigate = jest.fn();
+    const manyTabs: WorkspaceTabItem[] = [
+      ...tabs,
+      {key: "/records", path: "/records", label: "审计记录", fixed: false, closable: true},
+    ];
+    const view = render(
+      <WorkspaceTabs
+        tabs={manyTabs}
+        activePath="/providers"
+        isMobile={false}
+        maxVisible={2}
+        onNavigate={onNavigate}
+        onClose={jest.fn()}
+      />
+    );
+
+    const visibleTabLabels = Array.from(
+      view.container.querySelectorAll(".admin-workspace-tab-label") as NodeListOf<HTMLButtonElement>
+    ).map(item => item.textContent);
+
+    expect(visibleTabLabels).toEqual([
+      "企业认证总览",
+      "应用接入中心",
+    ]);
+    fireEvent.click(view.getByTestId("workspace-tabs-overflow-menu").querySelector("button") as Element);
+
+    expect(onNavigate).toHaveBeenCalledWith("/providers");
+    expect(view.getByText("企业认证总览")).not.toBeNull();
+    expect(view.getByText("应用接入中心")).not.toBeNull();
   });
 });

@@ -131,9 +131,14 @@ export function findWorkspaceRoute(path: string, routes: WorkspaceRouteItem[]) {
   return routes.find(route => routeMatchesPath(route, normalizedPath));
 }
 
-function resolveWorkspaceTab(path: string, routes: WorkspaceRouteItem[]): WorkspaceTabItem {
+function resolveWorkspaceTab(path: string, routes: WorkspaceRouteItem[]): WorkspaceTabItem | undefined {
   const normalizedPath = normalizeWorkspacePath(path);
   const route = findWorkspaceRoute(normalizedPath, routes);
+
+  if (route === undefined) {
+    return undefined;
+  }
+
   const isOverview = normalizedPath === "/";
   const fixed = isOverview || route?.fixed === true;
 
@@ -165,18 +170,22 @@ function uniquePaths(paths: string[]) {
 function ensureOverviewFirst(tabs: WorkspaceTabItem[], routes: WorkspaceRouteItem[]) {
   const paths = uniquePaths(["/", ...tabs.map(tab => tab.path)]);
 
-  return paths.map(path => resolveWorkspaceTab(path, routes));
+  return paths
+    .map(path => resolveWorkspaceTab(path, routes))
+    .filter((tab): tab is WorkspaceTabItem => tab !== undefined);
 }
 
 /** 打开当前 route 对应标签，同时保证总览标签始终排在第一位且不可关闭。 */
 export function openWorkspaceTab(currentTabs: WorkspaceTabItem[], path: string, routes: WorkspaceRouteItem[]) {
   const normalizedPath = normalizeWorkspacePath(path);
-  const tabsWithoutCurrent = currentTabs.filter(tab => normalizeWorkspacePath(tab.path) !== normalizedPath);
-  const nextTabs = normalizedPath === "/" ?
-    tabsWithoutCurrent :
-    [...tabsWithoutCurrent, resolveWorkspaceTab(normalizedPath, routes)];
+  const normalizedTabs = ensureOverviewFirst(currentTabs, routes);
+  const targetTab = resolveWorkspaceTab(normalizedPath, routes);
 
-  return ensureOverviewFirst(nextTabs, routes);
+  if (targetTab === undefined || normalizedPath === "/" || normalizedTabs.some(tab => tab.path === normalizedPath)) {
+    return normalizedTabs;
+  }
+
+  return ensureOverviewFirst([...normalizedTabs, targetTab], routes);
 }
 
 /** 从 sessionStorage payload 恢复标签顺序，异常或版本不匹配时安全降级。 */
@@ -187,7 +196,9 @@ export function hydrateWorkspaceTabs(serializedTabs: string | null | undefined, 
       throw new Error("Unsupported workspace tabs storage");
     }
 
-    const restoredTabs = parsed.paths.map(path => resolveWorkspaceTab(path, routes));
+    const restoredTabs = parsed.paths
+      .map(path => resolveWorkspaceTab(path, routes))
+      .filter((tab): tab is WorkspaceTabItem => tab !== undefined);
     return openWorkspaceTab(restoredTabs, currentPath, routes);
   } catch {
     return openWorkspaceTab([], currentPath, routes);
@@ -240,46 +251,27 @@ export function closeWorkspaceTab(tabs: WorkspaceTabItem[], targetPath: string, 
     };
   }
 
-  const previousTab = nextTabs[Math.max(0, targetIndex - 1)];
-  const fallbackTab = nextTabs[nextTabs.length - 1];
+  const rightTab = nextTabs[targetIndex];
+  const leftTab = nextTabs[targetIndex - 1];
 
   return {
     tabs: nextTabs,
-    nextPath: previousTab?.path ?? fallbackTab?.path ?? "/",
+    nextPath: rightTab?.path ?? leftTab?.path ?? "/",
   };
 }
 
-/** 限制桌面直接可见标签数，并保证固定标签和当前激活标签优先展示。 */
+/** 限制桌面直接可见标签数，同时保持用户打开顺序稳定。 */
 export function getVisibleWorkspaceTabs(
   tabs: WorkspaceTabItem[],
-  activePath: string,
+  _activePath: string,
   maxVisible = WORKSPACE_TABS_MAX_VISIBLE
 ): VisibleWorkspaceTabs {
-  const normalizedActivePath = normalizeWorkspacePath(activePath);
   const capacity = Math.max(1, maxVisible);
-  const fixedTabs = tabs.filter(tab => tab.fixed);
-  const activeTab = tabs.find(tab => tab.path === normalizedActivePath && !tab.fixed);
-  const visibleTabs: WorkspaceTabItem[] = [];
-
-  [...fixedTabs, ...(activeTab ? [activeTab] : [])].forEach((tab) => {
-    if (!visibleTabs.some(visibleTab => visibleTab.path === tab.path) && visibleTabs.length < capacity) {
-      visibleTabs.push(tab);
-    }
-  });
-
-  tabs.forEach((tab) => {
-    if (visibleTabs.length >= capacity) {
-      return;
-    }
-
-    if (!visibleTabs.some(visibleTab => visibleTab.path === tab.path)) {
-      visibleTabs.push(tab);
-    }
-  });
+  const visibleTabs = tabs.slice(0, capacity);
 
   return {
     visibleTabs,
-    overflowTabs: tabs.filter(tab => !visibleTabs.some(visibleTab => visibleTab.path === tab.path)),
+    overflowTabs: tabs.slice(capacity),
   };
 }
 
