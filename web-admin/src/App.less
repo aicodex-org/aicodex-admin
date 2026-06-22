@@ -1863,6 +1863,17 @@ img {
     margin: 0 6px !important;
   }
 
+  .admin-workspace-tabs-desktop {
+    min-width: 0;
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+
+  .admin-workspace-tabs-more {
+    flex: 0 1 auto;
+    max-width: 64px;
+  }
+
   .enterprise-identity-console {
     padding: 8px;
   }
@@ -1899,6 +1910,36 @@ img {
   .enterprise-identity-status-grid-4,
   .enterprise-identity-action-grid {
     grid-template-columns: 1fr;
+  }
+
+  .enterprise-list-query-toolbar,
+  .enterprise-list-query-toolbar-header,
+  .enterprise-list-query-toolbar-controls,
+  .enterprise-list-query-toolbar-controls .ant-space,
+  .enterprise-list-query-toolbar-controls .ant-space-item {
+    max-width: 100%;
+  }
+
+  .enterprise-list-query-toolbar {
+    overflow-x: clip;
+  }
+
+  .enterprise-list-query-toolbar-header {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .enterprise-list-query-toolbar-actions {
+    flex: 1 1 auto;
+    justify-content: flex-start;
+    min-width: 0;
+  }
+
+  .enterprise-list-query-toolbar-field,
+  .enterprise-list-query-toolbar-keyword,
+  .enterprise-list-query-toolbar-filter {
+    width: 100%;
+    min-width: 0;
   }
 
   .identity-console-review-table {

@@ -25,6 +25,7 @@ import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
 import OrganizationIdentityCenter from "./OrganizationIdentityCenter";
+import EnterpriseListQueryToolbar from "./common/EnterpriseListQueryToolbar";
 
 type FormItem = {
   name: string;
@@ -57,6 +58,8 @@ interface OrganizationListPageState {
   searchedColumn?: string;
   isAuthorized?: boolean;
   formItems?: FormItem[];
+  queryField: string;
+  queryKeyword: string;
 }
 
 type OrganizationListColumns = TableProps<OrganizationRecord>["columns"];
@@ -90,7 +93,25 @@ function getCountryKeys(): string[] {
   return (Setting.Countries as Array<{key: string}>).map(item => item.key);
 }
 
+function getOrganizationQueryFields() {
+  return [
+    {label: t("general:Name"), value: "name"},
+    {label: t("general:Display name"), value: "displayName"},
+    {label: t("organization:Website URL"), value: "websiteUrl"},
+    {label: t("general:Password salt"), value: "passwordSalt"},
+  ];
+}
+
 class OrganizationListPage extends TypedBaseListPage {
+  constructor(props: OrganizationListPageProps) {
+    super(props);
+    this.state = {
+      ...this.state,
+      queryField: "name",
+      queryKeyword: "",
+    };
+  }
+
   newOrganization(): OrganizationRecord {
     const randomName = Setting.getRandomName();
     const DefaultMfaRememberInHours = 12;
@@ -233,7 +254,6 @@ class OrganizationListPage extends TypedBaseListPage {
         width: "120px",
         fixed: "left",
         sorter: true,
-        ...this.getColumnSearchProps("name"),
         render: (text: string) => {
           return (
             <Link to={`/organizations/${text}`}>
@@ -257,7 +277,6 @@ class OrganizationListPage extends TypedBaseListPage {
         dataIndex: "displayName",
         key: "displayName",
         sorter: true,
-        ...this.getColumnSearchProps("displayName"),
       },
       {
         title: t("general:Favicon"),
@@ -278,7 +297,6 @@ class OrganizationListPage extends TypedBaseListPage {
         key: "websiteUrl",
         width: "200px",
         sorter: true,
-        ...this.getColumnSearchProps("websiteUrl"),
         render: (text: string) => {
           return (
             <a target="_blank" rel="noreferrer" href={text}>
@@ -306,7 +324,6 @@ class OrganizationListPage extends TypedBaseListPage {
         key: "passwordSalt",
         width: "150px",
         sorter: true,
-        ...this.getColumnSearchProps("passwordSalt"),
       },
       {
         title: t("general:Default avatar"),
@@ -415,16 +432,51 @@ class OrganizationListPage extends TypedBaseListPage {
           size="middle"
           bordered
           pagination={paginationProps}
-          title={() => (
-            <div>
-              {t("general:Organizations")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button type="primary" size="small" disabled={!Setting.isAdminUser(this.props.account)} onClick={this.addOrganization.bind(this)}>{t("general:Add")}</Button>
-            </div>
-          )}
+          title={() => this.renderListToolbar()}
           loading={this.state.loading}
           onChange={this.handleTableChange}
         />
       </OrganizationIdentityCenter>
+    );
+  }
+
+  handleToolbarSearch = (): void => {
+    const pagination = {...this.state.pagination, current: 1};
+    // 组织列表后端仍是单字段 field + value 查询；工具栏只移动主入口，不新增组合过滤语义。
+    this.fetch({
+      pagination,
+      searchedColumn: this.state.queryField,
+      searchText: this.state.queryKeyword.trim(),
+    });
+  };
+
+  handleToolbarReset = (): void => {
+    const pagination = {...this.state.pagination, current: 1};
+    this.setState({
+      queryField: "name",
+      queryKeyword: "",
+      searchText: undefined,
+      searchedColumn: undefined,
+    }, () => this.fetch({pagination}));
+  };
+
+  renderListToolbar(): React.ReactNode {
+    return (
+      <EnterpriseListQueryToolbar
+        title={t("general:Organizations")}
+        total={this.state.pagination.total}
+        fields={getOrganizationQueryFields()}
+        selectedField={this.state.queryField}
+        keyword={this.state.queryKeyword}
+        onFieldChange={(value) => this.setState({queryField: value})}
+        onKeywordChange={(value) => this.setState({queryKeyword: value})}
+        onSearch={this.handleToolbarSearch}
+        onReset={this.handleToolbarReset}
+        advancedFilters={<span>{t("general:Advanced filters", "Advanced filters")}</span>}
+        actions={(
+          <Button type="primary" size="small" disabled={!Setting.isAdminUser(this.props.account)} onClick={this.addOrganization.bind(this)}>{t("general:Add")}</Button>
+        )}
+      />
     );
   }
 

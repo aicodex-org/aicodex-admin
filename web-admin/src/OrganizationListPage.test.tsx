@@ -7,6 +7,7 @@ import * as Setting from "./Setting";
 import * as FormBackend from "./backend/FormBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import OrganizationListPage from "./OrganizationListPage";
+import EnterpriseListQueryToolbar from "./common/EnterpriseListQueryToolbar";
 
 declare const jest: typeof jestValue;
 
@@ -31,6 +32,7 @@ type TestTableColumn = {
   fixed?: unknown;
   render?: (text: unknown, record: TestOrganizationRecord, index: number) => React.ReactNode;
 };
+type TestToolbarProps = React.ComponentProps<typeof EnterpriseListQueryToolbar>;
 
 const backendMock = OrganizationBackend as unknown as BackendMock;
 const formBackendMock = FormBackend as unknown as FormBackendMock;
@@ -362,6 +364,48 @@ test("builds table columns, toolbar and action handlers", () => {
   expect(blockedActionChildren[3].props.disabled).toBe(true);
 
   const toolbarView = render(<>{table.props.title()}</>);
+  fireEvent.click(toolbarView.getByText(/添\s*加|Add/));
+  expect(page.addOrganization).toHaveBeenCalled();
+});
+
+test("uses shared query toolbar for organization search and create action", () => {
+  const page = createPage(adminAccount);
+  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  jestValue.spyOn(page, "addOrganization").mockImplementation(() => {});
+  page.state = {
+    ...page.state,
+    pagination: {...page.state.pagination, current: 3, pageSize: 20, total: 18},
+  };
+
+  const tableWrapper = page.renderTable([organization]) as React.ReactElement<{children: React.ReactElement<{title: () => React.ReactNode}>}>;
+  const table = tableWrapper.props.children;
+  const toolbar = table.props.title() as React.ReactElement<TestToolbarProps>;
+
+  expect(toolbar.type).toBe(EnterpriseListQueryToolbar);
+  expect(toolbar.props.fields.map(field => field.value)).toEqual(["name", "displayName", "websiteUrl", "passwordSalt"]);
+
+  toolbar.props.onFieldChange("websiteUrl");
+  expect((page.state as Record<string, unknown>).queryField).toBe("websiteUrl");
+
+  toolbar.props.onFieldChange("name");
+  toolbar.props.onKeywordChange("platform");
+  toolbar.props.onSearch();
+
+  expect(page.fetch).toHaveBeenLastCalledWith({
+    pagination: expect.objectContaining({current: 1, pageSize: 20}),
+    searchedColumn: "name",
+    searchText: "platform",
+  });
+
+  toolbar.props.onReset();
+
+  expect(page.fetch).toHaveBeenLastCalledWith({
+    pagination: expect.objectContaining({current: 1, pageSize: 20}),
+  });
+  expect((page.state as Record<string, unknown>).queryKeyword).toBe("");
+
+  const toolbarView = render(<>{toolbar}</>);
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-actions")).not.toBeNull();
   fireEvent.click(toolbarView.getByText(/添\s*加|Add/));
   expect(page.addOrganization).toHaveBeenCalled();
 });
