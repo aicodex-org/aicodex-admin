@@ -263,6 +263,26 @@ export function closeWorkspaceTab(tabs: WorkspaceTabItem[], targetPath: string, 
   };
 }
 
+/** 关闭除当前页和固定标签以外的其它标签，当前为总览时只保留固定标签。 */
+export function closeOtherWorkspaceTabs(tabs: WorkspaceTabItem[], activePath: string): CloseWorkspaceTabResult {
+  const normalizedActivePath = normalizeWorkspacePath(activePath);
+  const nextTabs = tabs.filter(tab => tab.fixed || (tab.closable && tab.path === normalizedActivePath));
+  const activeStillOpen = nextTabs.some(tab => tab.path === normalizedActivePath);
+
+  return {
+    tabs: nextTabs,
+    nextPath: activeStillOpen ? normalizedActivePath : "/",
+  };
+}
+
+/** 关闭全部可关闭标签，固定总览标签作为安全落点保留。 */
+export function closeAllWorkspaceTabs(tabs: WorkspaceTabItem[]): CloseWorkspaceTabResult {
+  return {
+    tabs: tabs.filter(tab => tab.fixed),
+    nextPath: "/",
+  };
+}
+
 /** 限制桌面直接可见标签数，同时保持用户打开顺序稳定。 */
 export function getVisibleWorkspaceTabs(
   tabs: WorkspaceTabItem[],

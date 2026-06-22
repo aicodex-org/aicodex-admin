@@ -1,12 +1,9 @@
 import React, {useEffect, useRef, useState} from "react";
 import {Button, Dropdown, Tooltip} from "antd";
-import {CloseOutlined, MoreOutlined, PushpinFilled} from "@ant-design/icons";
+import {CloseOutlined, LeftOutlined, MoreOutlined, PushpinFilled, RightOutlined} from "@ant-design/icons";
 import i18next from "i18next";
 import {
-  WORKSPACE_TABS_MAX_VISIBLE,
   type WorkspaceTabItem,
-  calculateWorkspaceTabsCapacity,
-  getVisibleWorkspaceTabs,
   normalizeWorkspacePath
 } from "./workspaceTabState";
 
@@ -17,6 +14,9 @@ interface WorkspaceTabsProps {
   maxVisible?: number;
   onNavigate: (path: string) => void;
   onClose: (path: string) => void;
+  onCloseCurrent?: () => void;
+  onCloseOther?: () => void;
+  onCloseAll?: () => void;
 }
 
 function getActiveTab(tabs: WorkspaceTabItem[], activePath: string) {
@@ -62,51 +62,159 @@ function tText(key: string) {
   return String(i18next.t(key));
 }
 
+interface ScrollState {
+  canScrollLeft: boolean;
+  canScrollRight: boolean;
+}
+
 function WorkspaceTabs(props: WorkspaceTabsProps) {
-  const stripRef = useRef<HTMLDivElement | null>(null);
-  const [measuredMaxVisible, setMeasuredMaxVisible] = useState(WORKSPACE_TABS_MAX_VISIBLE);
+  const scrollViewportRef = useRef<HTMLDivElement | null>(null);
+  const tabElementRefs = useRef(new Map<string, HTMLDivElement>());
+  const [scrollState, setScrollState] = useState<ScrollState>({canScrollLeft: false, canScrollRight: false});
   const activePath = normalizeWorkspacePath(props.activePath);
   const activeTab = getActiveTab(props.tabs, activePath);
   const closePrefix = tText("general:Close workspace tab");
   const moreLabel = tText("general:More workspace pages");
   const workspaceLabel = tText("general:Workspace pages");
-  const {visibleTabs, overflowTabs} = getVisibleWorkspaceTabs(
-    props.tabs,
-    activePath,
-    props.maxVisible ?? measuredMaxVisible
-  );
+  const fixedTabs = props.tabs.filter(tab => tab.fixed);
+  const scrollTabs = props.tabs.filter(tab => !tab.fixed);
+  const activeIsFixed = activeTab?.fixed === true;
   const overflowMenu = {
-    items: buildOverflowItems(props.isMobile ? props.tabs : overflowTabs, activePath, props.onNavigate, props.onClose, closePrefix),
+    items: buildOverflowItems(props.tabs, activePath, props.onNavigate, props.onClose, closePrefix),
     selectedKeys: [activePath],
+  };
+  const closeActionsMenu = {
+    items: [
+      {
+        key: "close-current",
+        label: tText("general:Close current workspace tab"),
+        disabled: activeIsFixed,
+        onClick: () => props.onCloseCurrent?.(),
+      },
+      {
+        key: "close-other",
+        label: tText("general:Close other workspace tabs"),
+        onClick: () => props.onCloseOther?.(),
+      },
+      {
+        key: "close-all",
+        label: tText("general:Close all workspace tabs"),
+        onClick: () => props.onCloseAll?.(),
+      },
+    ],
+  };
+
+  // 箭头只反映当前滚动容器的真实可视范围，避免用标签数量推断溢出状态。
+  const updateScrollState = () => {
+    const viewport = scrollViewportRef.current;
+    if (viewport === null) {
+      return;
+    }
+
+    const canScrollLeft = viewport.scrollLeft > 1;
+    const canScrollRight = viewport.scrollLeft + viewport.clientWidth < viewport.scrollWidth - 1;
+
+    setScrollState((currentState) => (
+      currentState.canScrollLeft === canScrollLeft && currentState.canScrollRight === canScrollRight ?
+        currentState :
+        {canScrollLeft, canScrollRight}
+    ));
   };
 
   useEffect(() => {
-    if (props.isMobile || props.maxVisible !== undefined || stripRef.current === null) {
+    if (props.isMobile || scrollViewportRef.current === null) {
       return undefined;
     }
 
-    const stripElement = stripRef.current;
-    const updateMeasuredCapacity = () => {
-      if (stripElement.clientWidth <= 0) {
-        return;
-      }
-
-      const nextCapacity = calculateWorkspaceTabsCapacity(stripElement.clientWidth, props.tabs.length);
-      setMeasuredMaxVisible((currentCapacity) => currentCapacity === nextCapacity ? currentCapacity : nextCapacity);
-    };
-
-    updateMeasuredCapacity();
+    const viewport = scrollViewportRef.current;
+    updateScrollState();
 
     if (typeof ResizeObserver === "undefined") {
-      window.addEventListener("resize", updateMeasuredCapacity);
-      return () => window.removeEventListener("resize", updateMeasuredCapacity);
+      window.addEventListener("resize", updateScrollState);
+      return () => window.removeEventListener("resize", updateScrollState);
     }
 
-    const resizeObserver = new ResizeObserver(updateMeasuredCapacity);
-    resizeObserver.observe(stripElement);
+    const resizeObserver = new ResizeObserver(updateScrollState);
+    resizeObserver.observe(viewport);
 
     return () => resizeObserver.disconnect();
-  }, [props.isMobile, props.maxVisible, props.tabs.length]);
+  }, [props.isMobile, props.tabs.length]);
+
+  useEffect(() => {
+    if (props.isMobile) {
+      return;
+    }
+
+    const activeElement = tabElementRefs.current.get(activePath);
+    if (activeElement && typeof activeElement.scrollIntoView === "function") {
+      activeElement.scrollIntoView({block: "nearest", inline: "nearest"});
+      updateScrollState();
+    }
+  }, [activePath, props.isMobile, props.tabs.length]);
+
+  const renderTab = (tab: WorkspaceTabItem) => {
+    const active = tab.path === activePath;
+
+    return (
+      <div
+        key={tab.path}
+        ref={(element) => {
+          if (element === null) {
+            tabElementRefs.current.delete(tab.path);
+          } else {
+            tabElementRefs.current.set(tab.path, element);
+          }
+        }}
+        className={`admin-workspace-tab${active ? " admin-workspace-tab-active" : ""}${tab.fixed ? " admin-workspace-tab-fixed" : ""}`}
+        data-workspace-tab-path={tab.path}
+      >
+        <button
+          type="button"
+          className="admin-workspace-tab-label"
+          aria-current={active ? "page" : undefined}
+          title={tab.label}
+          onClick={() => props.onNavigate(tab.path)}
+        >
+          {tab.fixed ? (
+            <Tooltip title={tText("general:Fixed workspace tab")}>
+              <PushpinFilled className="admin-workspace-tab-pin" aria-hidden="true" />
+            </Tooltip>
+          ) : (
+            <span className="admin-workspace-tab-dot" aria-hidden="true" />
+          )}
+          <span className="admin-workspace-tab-text">{tab.label}</span>
+        </button>
+        {tab.closable && (
+          <Tooltip title={`${closePrefix} ${tab.label}`}>
+            <button
+              type="button"
+              className="admin-workspace-tab-close"
+              aria-label={`${closePrefix} ${tab.label}`}
+              onClick={() => props.onClose(tab.path)}
+            >
+              <CloseOutlined aria-hidden="true" />
+            </button>
+          </Tooltip>
+        )}
+      </div>
+    );
+  };
+
+  const scrollTabsBy = (direction: -1 | 1) => {
+    const viewport = scrollViewportRef.current;
+    if (viewport === null) {
+      return;
+    }
+
+    const distance = Math.max(160, Math.floor(viewport.clientWidth * 0.75));
+    if (typeof viewport.scrollBy === "function") {
+      viewport.scrollBy({left: direction * distance, behavior: "smooth"});
+    } else {
+      viewport.scrollLeft += direction * distance;
+    }
+
+    updateScrollState();
+  };
 
   if (props.isMobile) {
     return (
@@ -130,53 +238,42 @@ function WorkspaceTabs(props: WorkspaceTabsProps) {
   return (
     <div className="admin-workspace-tabs-shell">
       <nav className="admin-workspace-tabs admin-workspace-tabs-desktop" aria-label={workspaceLabel}>
-        <div className="admin-workspace-tabs-strip" ref={stripRef}>
-          {visibleTabs.map((tab) => {
-            const active = tab.path === activePath;
-
-            return (
-              <div
-                key={tab.path}
-                className={`admin-workspace-tab${active ? " admin-workspace-tab-active" : ""}${tab.fixed ? " admin-workspace-tab-fixed" : ""}`}
-              >
-                <button
-                  type="button"
-                  className="admin-workspace-tab-label"
-                  aria-current={active ? "page" : undefined}
-                  title={tab.label}
-                  onClick={() => props.onNavigate(tab.path)}
-                >
-                  {tab.fixed ? (
-                    <Tooltip title={tText("general:Fixed workspace tab")}>
-                      <PushpinFilled className="admin-workspace-tab-pin" aria-hidden="true" />
-                    </Tooltip>
-                  ) : (
-                    <span className="admin-workspace-tab-dot" aria-hidden="true" />
-                  )}
-                  <span className="admin-workspace-tab-text">{tab.label}</span>
-                </button>
-                {tab.closable && (
-                  <Tooltip title={`${closePrefix} ${tab.label}`}>
-                    <button
-                      type="button"
-                      className="admin-workspace-tab-close"
-                      aria-label={`${closePrefix} ${tab.label}`}
-                      onClick={() => props.onClose(tab.path)}
-                    >
-                      <CloseOutlined aria-hidden="true" />
-                    </button>
-                  </Tooltip>
-                )}
-              </div>
-            );
-          })}
-          {overflowTabs.length > 0 && (
-            <Dropdown menu={overflowMenu} trigger={["click"]}>
-              <Button className="admin-workspace-tabs-more" type="text" size="small" icon={<MoreOutlined />} aria-label={moreLabel}>
-                {tText("general:More")}
-              </Button>
-            </Dropdown>
+        <div className="admin-workspace-tabs-fixed-area">
+          {fixedTabs.map(renderTab)}
+        </div>
+        <div className="admin-workspace-tabs-scroll-area">
+          <div className="admin-workspace-tabs-scroll-viewport" ref={scrollViewportRef} onScroll={updateScrollState}>
+            <div className="admin-workspace-tabs-scroll-strip">
+              {scrollTabs.map(renderTab)}
+            </div>
+          </div>
+        </div>
+        <div className="admin-workspace-tabs-actions">
+          {scrollState.canScrollLeft && (
+            <Button
+              className="admin-workspace-tabs-scroll-button"
+              type="text"
+              size="small"
+              icon={<LeftOutlined />}
+              aria-label={tText("general:Scroll workspace tabs left")}
+              onClick={() => scrollTabsBy(-1)}
+            />
           )}
+          {scrollState.canScrollRight && (
+            <Button
+              className="admin-workspace-tabs-scroll-button"
+              type="text"
+              size="small"
+              icon={<RightOutlined />}
+              aria-label={tText("general:Scroll workspace tabs right")}
+              onClick={() => scrollTabsBy(1)}
+            />
+          )}
+          <Dropdown menu={closeActionsMenu} trigger={["click"]}>
+            <Button className="admin-workspace-tabs-close-menu" type="text" size="small" icon={<CloseOutlined />} aria-label={tText("general:Close workspace pages")}>
+              {tText("general:Close workspace tabs")}
+            </Button>
+          </Dropdown>
         </div>
       </nav>
       <div className="admin-workspace-tabs-divider" aria-hidden="true" />

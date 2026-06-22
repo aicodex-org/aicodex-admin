@@ -133,6 +133,8 @@ import WorkspaceTabs from "./common/WorkspaceTabs";
 import {
   areWorkspaceTabsEqual,
   buildWorkspaceRouteItems,
+  closeAllWorkspaceTabs,
+  closeOtherWorkspaceTabs,
   closeWorkspaceTab,
   normalizeWorkspacePath,
   openWorkspaceTab,
@@ -525,11 +527,29 @@ function ManagementPage(props) {
   const closeWorkspaceTabByPath = (path) => {
     const result = closeWorkspaceTab(workspaceTabs, path, activeWorkspacePath);
 
+    applyWorkspaceTabsCloseResult(result);
+  };
+
+  const applyWorkspaceTabsCloseResult = (result) => {
+    // 关闭菜单的批量动作统一走这里，确保 sessionStorage 与路由跳转保持一致。
+
     setWorkspaceTabs(result.tabs);
     saveWorkspaceTabs(window.sessionStorage, result.tabs);
     if (result.nextPath !== activeWorkspacePath) {
       props.history.push(result.nextPath);
     }
+  };
+
+  const closeCurrentWorkspaceTab = () => {
+    applyWorkspaceTabsCloseResult(closeWorkspaceTab(workspaceTabs, activeWorkspacePath, activeWorkspacePath));
+  };
+
+  const closeOtherWorkspaceTabPages = () => {
+    applyWorkspaceTabsCloseResult(closeOtherWorkspaceTabs(workspaceTabs, activeWorkspacePath));
+  };
+
+  const closeAllWorkspaceTabPages = () => {
+    applyWorkspaceTabsCloseResult(closeAllWorkspaceTabs(workspaceTabs));
   };
 
   return (
@@ -588,6 +608,9 @@ function ManagementPage(props) {
               isMobile={Setting.isMobile()}
               onNavigate={navigateWorkspaceTab}
               onClose={closeWorkspaceTabByPath}
+              onCloseCurrent={closeCurrentWorkspaceTab}
+              onCloseOther={closeOtherWorkspaceTabPages}
+              onCloseAll={closeAllWorkspaceTabPages}
             />
           )}
           {isWithoutCard() ?

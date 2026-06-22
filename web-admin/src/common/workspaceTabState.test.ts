@@ -8,6 +8,8 @@ import {
   buildWorkspaceRouteItems,
   calculateWorkspaceTabsCapacity,
   closeWorkspaceTab,
+  closeOtherWorkspaceTabs,
+  closeAllWorkspaceTabs,
   getVisibleWorkspaceTabs,
   hydrateWorkspaceTabs,
   normalizeWorkspacePath,
@@ -210,6 +212,39 @@ describe("workspaceTabState", () => {
 
     expect(result.tabs.map(tab => tab.path)).toEqual(["/"]);
     expect(result.nextPath).toBe("/");
+  });
+
+  test("closes other tabs while preserving overview and the active closable tab", () => {
+    const applications = openWorkspaceTab([], "/applications", routes);
+    const providers = openWorkspaceTab(applications, "/providers", routes);
+    const records = openWorkspaceTab(providers, "/records", routes);
+
+    const result = closeOtherWorkspaceTabs(records, "/providers");
+
+    expect(result.tabs.map(tab => tab.path)).toEqual(["/", "/providers"]);
+    expect(result.nextPath).toBe("/providers");
+  });
+
+  test("closing other tabs from overview preserves only the fixed overview tab", () => {
+    const applications = openWorkspaceTab([], "/applications", routes);
+    const providers = openWorkspaceTab(applications, "/providers", routes);
+
+    const result = closeOtherWorkspaceTabs(providers, "/");
+
+    expect(result.tabs.map(tab => tab.path)).toEqual(["/"]);
+    expect(result.nextPath).toBe("/");
+  });
+
+  test("closes all closable tabs and navigates back to overview", () => {
+    const applications = openWorkspaceTab([], "/applications", routes);
+    const providers = openWorkspaceTab(applications, "/providers", routes);
+    const records = openWorkspaceTab(providers, "/records", routes);
+
+    const result = closeAllWorkspaceTabs(records);
+
+    expect(result.tabs.map(tab => tab.path)).toEqual(["/"]);
+    expect(result.nextPath).toBe("/");
+    expect(result.tabs[0]).toMatchObject({fixed: true, closable: false});
   });
 
   test("keeps visible tabs in opening order and moves extra pages into overflow", () => {

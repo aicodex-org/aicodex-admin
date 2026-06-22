@@ -170,24 +170,56 @@ img {
 .admin-workspace-tabs-desktop {
   display: flex;
   align-items: center;
+  gap: 8px;
   min-height: 40px;
   padding: 6px 12px 0;
   background: #fff;
 }
 
-.admin-workspace-tabs-strip {
+.admin-workspace-tabs-fixed-area {
+  display: flex;
+  align-items: flex-end;
+  flex: 0 0 auto;
+}
+
+.admin-workspace-tabs-scroll-area {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.admin-workspace-tabs-scroll-viewport {
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.admin-workspace-tabs-scroll-viewport::-webkit-scrollbar {
+  display: none;
+}
+
+.admin-workspace-tabs-scroll-strip {
   display: flex;
   align-items: flex-end;
   gap: 6px;
-  width: 100%;
-  min-width: 0;
-  overflow: hidden;
+  min-width: max-content;
+  padding-right: 2px;
+}
+
+.admin-workspace-tabs-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  flex: 0 0 auto;
+  height: 34px;
+  margin-bottom: 2px;
 }
 
 .admin-workspace-tab {
   display: inline-flex;
   align-items: center;
-  flex: 0 1 154px;
+  flex: 0 0 154px;
   min-width: 92px;
   max-width: 176px;
   height: 34px;
@@ -294,14 +326,27 @@ img {
   color: rgb(30 64 175);
 }
 
-.admin-workspace-tabs-more {
+.admin-workspace-tabs-more,
+.admin-workspace-tabs-scroll-button,
+.admin-workspace-tabs-close-menu {
   flex: 0 0 auto;
   height: 30px;
   margin-bottom: 2px;
   color: rgb(71 85 105);
 }
 
-.admin-workspace-tabs-more:focus-visible {
+.admin-workspace-tabs-scroll-button {
+  width: 30px;
+  padding-inline: 0;
+}
+
+.admin-workspace-tabs-close-menu {
+  padding-inline: 8px;
+}
+
+.admin-workspace-tabs-more:focus-visible,
+.admin-workspace-tabs-scroll-button:focus-visible,
+.admin-workspace-tabs-close-menu:focus-visible {
   outline: 2px solid rgb(37 99 235);
   outline-offset: -2px;
 }
