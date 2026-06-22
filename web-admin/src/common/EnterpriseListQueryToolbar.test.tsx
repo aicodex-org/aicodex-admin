@@ -60,3 +60,42 @@ test("groups query controls, advanced filters and create actions without mixing 
   expect(onReset).toHaveBeenCalled();
   expect(view.getByText("高级字段")).not.toBeNull();
 });
+
+test("does not render advanced filter toggle when advanced filters are empty", () => {
+  const view = render(
+    <EnterpriseListQueryToolbar
+      title="组织"
+      total={3}
+      fields={[{label: "名称", value: "name"}]}
+      selectedField="name"
+      keyword=""
+      onFieldChange={jestValue.fn()}
+      onKeywordChange={jestValue.fn()}
+      onSearch={jestValue.fn()}
+      onReset={jestValue.fn()}
+    />
+  );
+
+  expect(view.queryByText(/更\s*多\s*筛\s*选|More filters/)).toBeNull();
+  expect(view.container.querySelector(".enterprise-list-query-toolbar-advanced")).toBeNull();
+});
+
+test("does not render advanced filter toggle for empty advanced filter fragments", () => {
+  const view = render(
+    <EnterpriseListQueryToolbar
+      title="组织"
+      total={3}
+      fields={[{label: "名称", value: "name"}]}
+      selectedField="name"
+      keyword=""
+      onFieldChange={jestValue.fn()}
+      onKeywordChange={jestValue.fn()}
+      onSearch={jestValue.fn()}
+      onReset={jestValue.fn()}
+      advancedFilters={<>{""}</>}
+    />
+  );
+
+  expect(view.queryByText(/更\s*多\s*筛\s*选|More filters/)).toBeNull();
+  expect(view.container.querySelector(".enterprise-list-query-toolbar-advanced")).toBeNull();
+});

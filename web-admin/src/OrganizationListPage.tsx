@@ -14,7 +14,7 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Switch, Table} from "antd";
+import {Button, Input, Switch, Table} from "antd";
 import type {TablePaginationConfig, TableProps} from "antd";
 import moment from "moment";
 import * as Setting from "./Setting";
@@ -60,6 +60,7 @@ interface OrganizationListPageState {
   formItems?: FormItem[];
   queryField: string;
   queryKeyword: string;
+  advancedQueryKeywords: Record<string, string>;
 }
 
 type OrganizationListColumns = TableProps<OrganizationRecord>["columns"];
@@ -71,6 +72,11 @@ type OrganizationListFetchParams = {
   sortField?: string;
   sortOrder?: string | null;
   passwordType?: OrganizationQueryValue;
+};
+
+type OrganizationFilterCondition = {
+  field: string;
+  value: string;
 };
 
 // BaseListPage 仍是 legacy JS；本 change 只声明组织列表页实际使用的继承边界。
@@ -102,6 +108,38 @@ function getOrganizationQueryFields() {
   ];
 }
 
+function createEmptyAdvancedQueryKeywords(): Record<string, string> {
+  return getOrganizationQueryFields().reduce((keywords, field) => ({
+    ...keywords,
+    [field.value]: "",
+  }), {} as Record<string, string>);
+}
+
+function normalizeOrganizationFilterValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.join(" ");
+  }
+  if (value === null || value === undefined) {
+    return "";
+  }
+  return String(value);
+}
+
+function matchesOrganizationConditions(organization: OrganizationRecord, conditions: OrganizationFilterCondition[]): boolean {
+  return conditions.every(condition => {
+    const actualValue = normalizeOrganizationFilterValue(organization[condition.field]).toLowerCase();
+    return actualValue.includes(condition.value.toLowerCase());
+  });
+}
+
+function shouldUseFixedOrganizationTableColumns(): boolean {
+  if (Setting.isMobile()) {
+    return false;
+  }
+  // 窄屏壳层里 AntD 固定列可能脱离表格横向滚动容器，因此按实际视口禁用固定列。
+  return typeof window === "undefined" || window.innerWidth > 768;
+}
+
 class OrganizationListPage extends TypedBaseListPage {
   constructor(props: OrganizationListPageProps) {
     super(props);
@@ -109,6 +147,7 @@ class OrganizationListPage extends TypedBaseListPage {
       ...this.state,
       queryField: "name",
       queryKeyword: "",
+      advancedQueryKeywords: createEmptyAdvancedQueryKeywords(),
     };
   }
 
@@ -246,13 +285,14 @@ class OrganizationListPage extends TypedBaseListPage {
   }
 
   renderTable(organizations: OrganizationRecord[]): React.ReactNode {
+    const useFixedColumns = shouldUseFixedOrganizationTableColumns();
     const columns: OrganizationListColumns = [
       {
         title: t("general:Name"),
         dataIndex: "name",
         key: "name",
         width: "120px",
-        fixed: "left",
+        fixed: useFixedColumns ? "left" : false,
         sorter: true,
         render: (text: string) => {
           return (
@@ -395,7 +435,7 @@ class OrganizationListPage extends TypedBaseListPage {
         dataIndex: "",
         key: "op",
         width: "350px",
-        fixed: Setting.isMobile() ? false : "right",
+        fixed: useFixedColumns ? "right" : false,
         render: (_text: unknown, record: OrganizationRecord, index: number) => {
           return (
             <div>
@@ -442,7 +482,10 @@ class OrganizationListPage extends TypedBaseListPage {
 
   handleToolbarSearch = (): void => {
     const pagination = {...this.state.pagination, current: 1};
-    // 组织列表后端仍是单字段 field + value 查询；工具栏只移动主入口，不新增组合过滤语义。
+    if (this.hasAdvancedQueryKeywords()) {
+      this.fetchAdvancedFilteredOrganizations({pagination});
+      return;
+    }
     this.fetch({
       pagination,
       searchedColumn: this.state.queryField,
@@ -455,10 +498,98 @@ class OrganizationListPage extends TypedBaseListPage {
     this.setState({
       queryField: "name",
       queryKeyword: "",
+      advancedQueryKeywords: createEmptyAdvancedQueryKeywords(),
       searchText: undefined,
       searchedColumn: undefined,
     }, () => this.fetch({pagination}));
   };
+
+  handleAdvancedFilterChange = (field: string, value: string): void => {
+    this.setState(prevState => ({
+      advancedQueryKeywords: {
+        ...prevState.advancedQueryKeywords,
+        [field]: value,
+      },
+    }));
+  };
+
+  handleTableChange: NonNullable<TableProps<OrganizationRecord>["onChange"]> = (pagination, filters, sorter) => {
+    const normalizedSorter = Array.isArray(sorter) ? sorter[0] : sorter;
+    const sortField = typeof normalizedSorter?.field === "string" ? normalizedSorter.field : undefined;
+    const sortOrder = normalizedSorter?.order ?? undefined;
+    const params: OrganizationListFetchParams = {
+      pagination,
+      sortField,
+      sortOrder,
+      passwordType: filters.passwordType as OrganizationQueryValue,
+    };
+
+    if (this.hasAdvancedQueryKeywords()) {
+      this.fetchAdvancedFilteredOrganizations(params);
+      return;
+    }
+
+    this.fetch({
+      ...params,
+      searchText: this.state.searchText,
+      searchedColumn: this.state.searchedColumn,
+    });
+  };
+
+  getAdvancedQueryConditions(): OrganizationFilterCondition[] {
+    return Object.entries(this.state.advancedQueryKeywords || {})
+      .map(([field, value]) => ({field, value: value.trim()}))
+      .filter(condition => condition.value !== "");
+  }
+
+  getActiveQueryConditions(): OrganizationFilterCondition[] {
+    const keyword = this.state.queryKeyword.trim();
+    const baseCondition = keyword === "" ? [] : [{field: this.state.queryField, value: keyword}];
+    return [
+      ...baseCondition,
+      ...this.getAdvancedQueryConditions(),
+    ];
+  }
+
+  hasAdvancedQueryKeywords(): boolean {
+    return this.getAdvancedQueryConditions().length > 0;
+  }
+
+  getRequestOrganization(): string {
+    return Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account);
+  }
+
+  getFilteredPageData(organizations: OrganizationRecord[], pagination: TablePaginationConfig): OrganizationRecord[] {
+    const current = typeof pagination.current === "number" && pagination.current > 0 ? pagination.current : 1;
+    const pageSize = typeof pagination.pageSize === "number" && pagination.pageSize > 0 ? pagination.pageSize : organizations.length || 10;
+    const start = (current - 1) * pageSize;
+    return organizations.slice(start, start + pageSize);
+  }
+
+  renderAdvancedFilters(): React.ReactNode {
+    return (
+      <div className="organization-advanced-filters">
+        {
+          getOrganizationQueryFields().map(field => {
+            const labelText = field.label;
+            return (
+              <label className="organization-advanced-filter-item" key={field.value}>
+                <span className="organization-advanced-filter-label">{field.label}</span>
+                <Input
+                  className="organization-advanced-filter-input"
+                  value={this.state.advancedQueryKeywords[field.value] ?? ""}
+                  aria-label={`${t("general:Advanced filters", "Advanced filters")} ${labelText}`}
+                  placeholder={t("general:Please input your search")}
+                  allowClear
+                  onChange={event => this.handleAdvancedFilterChange(field.value, event.target.value)}
+                />
+              </label>
+            );
+          })
+        }
+      </div>
+    );
+  }
 
   renderListToolbar(): React.ReactNode {
     return (
@@ -472,7 +603,7 @@ class OrganizationListPage extends TypedBaseListPage {
         onKeywordChange={(value) => this.setState({queryKeyword: value})}
         onSearch={this.handleToolbarSearch}
         onReset={this.handleToolbarReset}
-        advancedFilters={<span>{t("general:Advanced filters", "Advanced filters")}</span>}
+        advancedFilters={this.renderAdvancedFilters()}
         actions={(
           <Button type="primary" size="small" disabled={!Setting.isAdminUser(this.props.account)} onClick={this.addOrganization.bind(this)}>{t("general:Add")}</Button>
         )}
@@ -503,6 +634,46 @@ class OrganizationListPage extends TypedBaseListPage {
             },
             searchText: params.searchText,
             searchedColumn: params.searchedColumn,
+          });
+        } else {
+          if (Setting.isResponseDenied(res)) {
+            this.setState({
+              isAuthorized: false,
+            });
+          } else {
+            Setting.showMessage("error", res.msg);
+          }
+        }
+      });
+  };
+
+  fetchAdvancedFilteredOrganizations = (params: OrganizationListFetchParams = {}): void => {
+    const pagination = params.pagination as TablePaginationConfig;
+    const tableFilterConditions = params.passwordType === undefined || params.passwordType === null ? [] : [{
+      field: "passwordType",
+      value: normalizeOrganizationFilterValue(params.passwordType).trim(),
+    }];
+    const conditions = [
+      ...this.getActiveQueryConditions(),
+      ...tableFilterConditions,
+    ].filter(condition => condition.value !== "");
+    this.setState({loading: true});
+    // 后端组织列表仍是单字段 field + value 查询；高级筛选先获取当前组织范围列表，再在前端按所有非空条件 AND 过滤。
+    OrganizationBackend.getOrganizations("admin", this.getRequestOrganization(), "", "", undefined, undefined, params.sortField, params.sortOrder)
+      .then((res) => {
+        this.setState({
+          loading: false,
+        });
+        if (res.status === "ok") {
+          const filteredOrganizations = (res.data as OrganizationRecord[]).filter(organization => matchesOrganizationConditions(organization, conditions));
+          this.setState({
+            data: this.getFilteredPageData(filteredOrganizations, pagination),
+            pagination: {
+              ...pagination,
+              total: filteredOrganizations.length,
+            },
+            searchText: this.state.queryKeyword.trim() || undefined,
+            searchedColumn: this.state.queryKeyword.trim() ? this.state.queryField : undefined,
           });
         } else {
           if (Setting.isResponseDenied(res)) {

@@ -40,6 +40,7 @@ const expect = jestExpect;
 const {fireEvent} = require("@testing-library/react") as {
   fireEvent: {
     click: (element: Element | null) => boolean;
+    change: (element: Element | null, event: {target: {value: string}}) => boolean;
   };
 };
 
@@ -150,6 +151,11 @@ beforeEach(() => {
   cleanup();
   localStorage.clear();
   localStorage.setItem("organization", "engineering");
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    writable: true,
+    value: 1024,
+  });
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: () => ({
@@ -368,6 +374,32 @@ test("builds table columns, toolbar and action handlers", () => {
   expect(page.addOrganization).toHaveBeenCalled();
 });
 
+test("disables fixed organization table columns in compact viewport", () => {
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    writable: true,
+    value: 390,
+  });
+  const page = createPage(adminAccount);
+
+  const tableWrapper = page.renderTable([organization]) as React.ReactElement<{children: React.ReactElement<{columns: TestTableColumn[]}>}>;
+  const columns = tableWrapper.props.children.props.columns;
+
+  expect(columns[0].fixed).toBe(false);
+  expect(columns[13].fixed).toBe(false);
+});
+
+test("disables fixed organization table columns when mobile mode is active", () => {
+  jestValue.spyOn(Setting, "isMobile").mockReturnValue(true);
+  const page = createPage(adminAccount);
+
+  const tableWrapper = page.renderTable([organization]) as React.ReactElement<{children: React.ReactElement<{columns: TestTableColumn[]}>}>;
+  const columns = tableWrapper.props.children.props.columns;
+
+  expect(columns[0].fixed).toBe(false);
+  expect(columns[13].fixed).toBe(false);
+});
+
 test("uses shared query toolbar for organization search and create action", () => {
   const page = createPage(adminAccount);
   page.fetch = jestValue.fn() as unknown as typeof page.fetch;
@@ -408,6 +440,236 @@ test("uses shared query toolbar for organization search and create action", () =
   expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-actions")).not.toBeNull();
   fireEvent.click(toolbarView.getByText(/添\s*加|Add/));
   expect(page.addOrganization).toHaveBeenCalled();
+});
+
+test("renders concrete advanced filter inputs from organization query fields", () => {
+  const page = createPage(adminAccount);
+  const toolbar = page.renderListToolbar() as React.ReactElement<TestToolbarProps>;
+  const advancedView = render(<>{toolbar.props.advancedFilters}</>);
+
+  expect(advancedView.container.querySelectorAll(".organization-advanced-filter-input")).toHaveLength(4);
+  expect(advancedView.getByLabelText(/^(Advanced filters Name|高级筛选 名称)$/)).not.toBeNull();
+  expect(advancedView.getByLabelText(/^(Advanced filters Display name|高级筛选 显示名称)$/)).not.toBeNull();
+  expect(advancedView.getByLabelText(/^(Advanced filters Website URL|高级筛选 主页地址)$/)).not.toBeNull();
+  expect(advancedView.getByLabelText(/^(Advanced filters Password salt|高级筛选 密码Salt值)$/)).not.toBeNull();
+  expect(advancedView.queryByText(/^高\s*级\s*筛\s*选$|^Advanced filters$/)).toBeNull();
+});
+
+test("applies organization advanced filters with AND semantics and filtered total", async() => {
+  const page = createPage(adminAccount);
+  const matchingOrganization = {
+    ...organization,
+    name: "engineering",
+    displayName: "Platform Engineering",
+    websiteUrl: "https://eng.example.test",
+    passwordSalt: "pepper",
+  };
+  backendMock.getOrganizations.mockResolvedValueOnce({
+    status: "ok",
+    data: [
+      matchingOrganization,
+      {
+        ...organization,
+        name: "engineering-cn",
+        displayName: "Engineering China",
+        websiteUrl: "https://cn.example.test",
+        passwordSalt: "pepper",
+      },
+      {
+        ...organization,
+        name: "marketing",
+        displayName: "Platform Marketing",
+        websiteUrl: "https://marketing.example.test",
+        passwordSalt: "pepper",
+      },
+    ],
+    data2: 3,
+  });
+  page.state = {
+    ...page.state,
+    pagination: {...page.state.pagination, current: 3, pageSize: 20, total: 3},
+  };
+
+  const toolbar = page.renderListToolbar() as React.ReactElement<TestToolbarProps>;
+  const advancedView = render(<>{toolbar.props.advancedFilters}</>);
+
+  fireEvent.change(advancedView.getByLabelText(/^(Advanced filters Name|高级筛选 名称)$/), {target: {value: "engineering"}});
+  fireEvent.change(advancedView.getByLabelText(/^(Advanced filters Display name|高级筛选 显示名称)$/), {target: {value: "platform"}});
+  toolbar.props.onSearch();
+  await flushPromises();
+
+  expect(backendMock.getOrganizations).toHaveBeenLastCalledWith("admin", "engineering", "", "", undefined, undefined, undefined, undefined);
+  expect(page.state.data).toEqual([matchingOrganization]);
+  expect(page.state.pagination).toEqual(expect.objectContaining({
+    current: 1,
+    total: 1,
+  }));
+  expect(page.state.searchText).toBeUndefined();
+  expect(page.state.searchedColumn).toBeUndefined();
+});
+
+test("keeps ordinary table changes on the existing single-field fetch path", () => {
+  const page = createPage(adminAccount);
+  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  page.state = {
+    ...page.state,
+    searchText: "platform",
+    searchedColumn: "displayName",
+  };
+
+  page.handleTableChange(
+    {current: 2, pageSize: 20, total: 3},
+    {passwordType: ["bcrypt"]},
+    {field: "displayName", order: "descend"} as Parameters<typeof page.handleTableChange>[2],
+    {currentDataSource: [], action: "paginate"} as Parameters<typeof page.handleTableChange>[3]
+  );
+
+  expect(page.fetch).toHaveBeenLastCalledWith({
+    pagination: expect.objectContaining({current: 2, pageSize: 20}),
+    passwordType: ["bcrypt"],
+    sortField: "displayName",
+    sortOrder: "descend",
+    searchText: "platform",
+    searchedColumn: "displayName",
+  });
+});
+
+test("keeps organization advanced filters when table pagination and sorting change", async() => {
+  const page = createPage(adminAccount);
+  const matchingOrganizations = [
+    {
+      ...organization,
+      name: "engineering",
+      displayName: "Platform Engineering",
+      passwordType: "bcrypt",
+    },
+    {
+      ...organization,
+      name: "engineering-cn",
+      displayName: "Engineering China",
+      passwordType: "bcrypt",
+    },
+  ];
+  backendMock.getOrganizations.mockResolvedValueOnce({
+    status: "ok",
+    data: [
+      ...matchingOrganizations,
+      {
+        ...organization,
+        name: "marketing",
+        displayName: "Platform Marketing",
+        passwordType: "plain",
+      },
+    ],
+    data2: 3,
+  });
+  const toolbar = page.renderListToolbar() as React.ReactElement<TestToolbarProps>;
+  const advancedView = render(<>{toolbar.props.advancedFilters}</>);
+
+  fireEvent.change(advancedView.getByLabelText(/^(Advanced filters Name|高级筛选 名称)$/), {target: {value: "engineering"}});
+  page.handleTableChange(
+    {current: 2, pageSize: 1, total: 3},
+    {passwordType: ["bcrypt"]},
+    {field: "name", order: "ascend"} as Parameters<typeof page.handleTableChange>[2],
+    {currentDataSource: [], action: "paginate"} as Parameters<typeof page.handleTableChange>[3]
+  );
+  await flushPromises();
+
+  expect(backendMock.getOrganizations).toHaveBeenLastCalledWith("admin", "engineering", "", "", undefined, undefined, "name", "ascend");
+  expect(page.state.data).toEqual([matchingOrganizations[1]]);
+  expect(page.state.pagination).toEqual(expect.objectContaining({
+    current: 2,
+    pageSize: 1,
+    total: 2,
+  }));
+});
+
+test("combines base query with advanced filters and handles non-string candidate values", async() => {
+  const page = createPage(adminAccount);
+  const matchingOrganization = {
+    ...organization,
+    name: "engineering",
+    displayName: "Platform Engineering",
+    websiteUrl: "https://eng.example.test",
+    passwordSalt: ["pepper", "salt"],
+  };
+  backendMock.getOrganizations.mockResolvedValueOnce({
+    status: "ok",
+    data: [
+      matchingOrganization,
+      {
+        ...organization,
+        name: "engineering-empty-url",
+        displayName: "Platform Engineering",
+        websiteUrl: null,
+        passwordSalt: ["pepper"],
+      },
+      {
+        ...organization,
+        name: "engineering-wrong-salt",
+        displayName: "Platform Engineering",
+        websiteUrl: "https://eng.example.test",
+        passwordSalt: null,
+      },
+    ],
+    data2: 3,
+  });
+
+  const toolbar = page.renderListToolbar() as React.ReactElement<TestToolbarProps>;
+  const advancedView = render(<>{toolbar.props.advancedFilters}</>);
+
+  toolbar.props.onFieldChange("websiteUrl");
+  toolbar.props.onKeywordChange("example");
+  fireEvent.change(advancedView.getByLabelText(/^(Advanced filters Password salt|高级筛选 密码Salt值)$/), {target: {value: "pepper"}});
+  toolbar.props.onSearch();
+  await flushPromises();
+
+  expect(page.state.data).toEqual([matchingOrganization]);
+  expect(page.state.pagination.total).toBe(1);
+  expect(page.state.searchText).toBe("example");
+  expect(page.state.searchedColumn).toBe("websiteUrl");
+});
+
+test("reports advanced filter request errors and denied responses", async() => {
+  const page = createPage(adminAccount);
+  const toolbar = page.renderListToolbar() as React.ReactElement<TestToolbarProps>;
+  const advancedView = render(<>{toolbar.props.advancedFilters}</>);
+  fireEvent.change(advancedView.getByLabelText(/^(Advanced filters Name|高级筛选 名称)$/), {target: {value: "engineering"}});
+
+  backendMock.getOrganizations.mockResolvedValueOnce({status: "error", msg: "advanced failed"});
+  toolbar.props.onSearch();
+  await flushPromises();
+  expect(Setting.showMessage).toHaveBeenLastCalledWith("error", "advanced failed");
+
+  backendMock.getOrganizations.mockResolvedValueOnce({status: "error", msg: "Unauthorized operation"});
+  toolbar.props.onSearch();
+  await flushPromises();
+  expect(page.state.isAuthorized).toBe(false);
+});
+
+test("resets base and advanced organization filters together", () => {
+  const page = createPage(adminAccount);
+  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  const toolbar = page.renderListToolbar() as React.ReactElement<TestToolbarProps>;
+  const advancedView = render(<>{toolbar.props.advancedFilters}</>);
+
+  toolbar.props.onFieldChange("websiteUrl");
+  toolbar.props.onKeywordChange("example.test");
+  fireEvent.change(advancedView.getByLabelText(/^(Advanced filters Name|高级筛选 名称)$/), {target: {value: "engineering"}});
+  fireEvent.change(advancedView.getByLabelText(/^(Advanced filters Password salt|高级筛选 密码Salt值)$/), {target: {value: "pepper"}});
+  toolbar.props.onReset();
+
+  expect((page.state as Record<string, unknown>).queryField).toBe("name");
+  expect((page.state as Record<string, unknown>).queryKeyword).toBe("");
+  expect((page.state as Record<string, unknown>).advancedQueryKeywords).toEqual({
+    name: "",
+    displayName: "",
+    websiteUrl: "",
+    passwordSalt: "",
+  });
+  expect(page.fetch).toHaveBeenLastCalledWith({
+    pagination: expect.objectContaining({current: 1}),
+  });
 });
 
 test("disables add action for non-admin accounts", () => {

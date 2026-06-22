@@ -44,8 +44,28 @@ function formatResultCount(total?: number): string {
   return typeof translated === "string" ? translated : `${total} results`;
 }
 
+function hasRenderableNode(node: React.ReactNode): boolean {
+  if (node === undefined || node === null || node === false) {
+    return false;
+  }
+  if (typeof node === "string") {
+    return node.trim() !== "";
+  }
+  if (typeof node === "number") {
+    return true;
+  }
+  if (Array.isArray(node)) {
+    return node.some(hasRenderableNode);
+  }
+  if (React.isValidElement(node) && node.type === React.Fragment) {
+    return hasRenderableNode((node.props as {children?: React.ReactNode}).children);
+  }
+  return React.Children.count(node) > 0;
+}
+
 export default function EnterpriseListQueryToolbar(props: EnterpriseListQueryToolbarProps): JSX.Element {
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const hasAdvancedFilters = hasRenderableNode(props.advancedFilters);
 
   return (
     <div className="enterprise-list-query-toolbar">
@@ -86,16 +106,20 @@ export default function EnterpriseListQueryToolbar(props: EnterpriseListQueryToo
           <Button icon={<ReloadOutlined />} onClick={props.onReset}>
             {t("general:Reset", "Reset")}
           </Button>
-          <Button
-            icon={advancedOpen ? <UpOutlined /> : <DownOutlined />}
-            onClick={() => setAdvancedOpen(!advancedOpen)}
-          >
-            {advancedOpen ? t("general:Hide filters", "Hide filters") : t("general:More filters", "More filters")}
-          </Button>
+          {
+            hasAdvancedFilters ? (
+              <Button
+                icon={advancedOpen ? <UpOutlined /> : <DownOutlined />}
+                onClick={() => setAdvancedOpen(!advancedOpen)}
+              >
+                {advancedOpen ? t("general:Hide filters", "Hide filters") : t("general:More filters", "More filters")}
+              </Button>
+            ) : null
+          }
         </Space>
       </div>
       {
-        advancedOpen && props.advancedFilters ? (
+        advancedOpen && hasAdvancedFilters ? (
           <div className="enterprise-list-query-toolbar-advanced">
             {props.advancedFilters}
           </div>

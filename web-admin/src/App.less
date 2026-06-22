@@ -1627,6 +1627,29 @@ img {
   color: rgb(100 116 139);
 }
 
+.organization-advanced-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px 12px;
+  max-width: 920px;
+}
+
+.organization-advanced-filter-item {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.organization-advanced-filter-label {
+  color: rgb(71 85 105);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.organization-advanced-filter-input {
+  width: 100%;
+}
+
 .organization-identity-workbench {
   margin-bottom: 10px;
 }
@@ -1980,6 +2003,20 @@ img {
     overflow-x: clip;
   }
 
+  .enterprise-list-query-toolbar-controls,
+  .enterprise-list-query-toolbar-advanced,
+  .organization-advanced-filters {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: clip;
+  }
+
+  .enterprise-list-query-toolbar-controls > .ant-space,
+  .enterprise-list-query-toolbar-controls > .ant-space > .ant-space-item {
+    width: 100%;
+  }
+
   .enterprise-list-query-toolbar-header {
     flex-wrap: wrap;
     align-items: flex-start;
@@ -1996,6 +2033,10 @@ img {
   .enterprise-list-query-toolbar-filter {
     width: 100%;
     min-width: 0;
+  }
+
+  .organization-advanced-filters {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .identity-console-review-table {
