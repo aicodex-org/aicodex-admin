@@ -163,6 +163,7 @@ const serviceCredentialGovernanceConfigResponse = {
           timeoutMs: 1500,
           unsafeAccessToken: "resolver-token-value",
           unsafeTokenValue: "resolver-secret-value",
+          rawId: "raw-id-123",
           unsafeEndpoint: "https://resolver.internal.example.invalid/api/usage",
         },
         remediationRoute: "/platform-api-mappings",
@@ -713,6 +714,7 @@ describe("ApplicationAccessCenter", () => {
     expect(requestBody).toContain("vault:usage-identity-resolver-updated");
     expect(requestBody).not.toContain("resolver-secret-value");
     expect(requestBody).not.toContain("resolver.internal.example.invalid");
+    expect(requestBody).not.toContain("raw-id-123");
 
     expect((view.getByLabelText("usage_identity_resolver 凭据引用") as HTMLInputElement).value).toBe("vault:usage-identity-resolver-updated");
     expect(view.container.textContent).toContain("已回读脱敏配置");
@@ -743,10 +745,13 @@ describe("ApplicationAccessCenter", () => {
     expect(diagnosticCall).toBeTruthy();
     const requestBody = diagnosticCall?.[1]?.body;
     expect(requestBody).toContain("vault:usage-identity-resolver");
+    expect(requestBody).toContain("insight_service_token");
     expect(requestBody).not.toContain("resolver-secret-value");
     expect(requestBody).not.toContain("resolver.internal.example.invalid");
+    expect(requestBody).not.toContain("raw-id-123");
     expect(view.queryByText("resolver-secret-value")).toBeNull();
     expect(view.queryByText("resolver.internal.example.invalid")).toBeNull();
+    expect(view.queryByText("raw-id-123")).toBeNull();
   });
 
   test("builds copy-safe service credential governance handoff package with fail-closed readiness", () => {
@@ -792,10 +797,117 @@ describe("ApplicationAccessCenter", () => {
     expect(serializedPackage).not.toContain("projection-secret-value");
     expect(serializedPackage).not.toContain("resolver.internal.example.invalid");
     expect(serializedPackage).not.toContain("gateway.internal.example.invalid");
+    expect(serializedPackage).not.toContain("raw-id-123");
     expect(serializedPackage).not.toContain("clientSecret");
     expect(serializedPackage).not.toContain("Authorization");
     expect(serializedPackage).not.toContain("Cookie");
     expect(serializedPackage).not.toContain("rawPayload");
+  });
+
+  test("generates ready and fail-closed handoff branches from copy-safe caller policy aliases", async() => {
+    const statusWithReadyTrust = {
+      ...serviceCredentialGovernanceResponse,
+      data: {
+        ...serviceCredentialGovernanceResponse.data,
+        groups: serviceCredentialGovernanceResponse.data.groups.map(group => group.key === "insight_provider_trust"
+          ? {...group, status: "configured", missingKeys: [], blockedReasons: []}
+          : group),
+      },
+    };
+    const diagnosticWithReadyAndFailClosed = {
+      status: "ok",
+      data: {
+        generatedAt: "2026-06-22T02:03:04Z",
+        source: "admin_service_credential_governance_diagnostic",
+        groups: [
+          {
+            key: "insight_provider_trust",
+            label: "Insight provider trust",
+            status: "ready",
+            stableAlias: "admin_service_credential_ready",
+            owner: "admin_provider_trust",
+            sourceClass: "admin_config",
+            credentialReferenceStatus: "not_applicable",
+            callerPolicyPresent: true,
+            keepInEnv: false,
+            cannotInfer: false,
+            nextAction: "配置元数据完整",
+          },
+          {
+            key: "usage_identity_resolver",
+            label: "Usage identity resolver",
+            status: "missing_reference",
+            stableAlias: "admin_service_credential_reference_missing",
+            owner: "admin_outbound_resolver",
+            sourceClass: "admin_config",
+            credentialReferenceStatus: "missing",
+            callerPolicyPresent: true,
+            keepInEnv: false,
+            cannotInfer: false,
+            blockedReasons: ["admin_service_credential_reference_missing"],
+          },
+          {
+            key: "gateway_organization_projection",
+            label: "Gateway organization projection",
+            status: "disabled",
+            stableAlias: "admin_service_credential_group_disabled",
+            owner: "admin_gateway_projection_producer",
+            sourceClass: "admin_config",
+            credentialReferenceStatus: "not_applicable",
+            callerPolicyPresent: true,
+            keepInEnv: false,
+            cannotInfer: false,
+            blockedReasons: ["admin_service_credential_group_disabled"],
+          },
+          {
+            key: "keep_in_env",
+            label: "Keep in env/config",
+            status: "keep_in_env",
+            stableAlias: "admin_service_credential_keep_in_env",
+            owner: "deployment_env_config",
+            sourceClass: "env_config",
+            credentialReferenceStatus: "external_secret",
+            callerPolicyPresent: false,
+            keepInEnv: true,
+            cannotInfer: true,
+            blockedReasons: ["admin_service_credential_keep_in_env"],
+          },
+        ],
+      },
+    };
+    (global.fetch as unknown as MockFetch)
+      .mockResolvedValueOnce({json: () => Promise.resolve(statusWithReadyTrust)})
+      .mockResolvedValueOnce({json: () => Promise.resolve(serviceCredentialGovernanceConfigResponse)})
+      .mockResolvedValueOnce({json: () => Promise.resolve(diagnosticWithReadyAndFailClosed)});
+
+    const view = render(
+      <MemoryRouter>
+        <ApplicationAccessCenter applications={applications} loading={false} />
+      </MemoryRouter>
+    );
+
+    expect(await view.findByText("治理配置")).not.toBeNull();
+    fireEvent.click(view.getByText("诊断/预检"));
+    expect(await view.findByText("诊断结果")).not.toBeNull();
+    fireEvent.click(view.getByText("生成/查看交接包"));
+
+    expect(await view.findByText("交接包预览")).not.toBeNull();
+    const diagnosticCall = (global.fetch as unknown as MockFetch).mock.calls.find(call => call[0] === "/api/application-access/service-credential-governance-diagnostics" && call[1]?.method === "POST");
+    expect(diagnosticCall?.[1]?.body).toContain("insight_service_token");
+    const handoffPreview = view.container.querySelector('[aria-label="服务凭据治理交接包预览"]');
+    const previewText = handoffPreview?.textContent ?? "";
+    const handoffPreviewTags: Element[] = handoffPreview ? Array.from(handoffPreview.querySelectorAll(".ant-tag") as NodeListOf<Element>) : [];
+    const readyTags = handoffPreviewTags.filter(tag => tag.textContent === "可交接");
+    expect(readyTags).toHaveLength(1);
+    expect(previewText).toContain("insight_service_token");
+    expect(previewText).toContain("已阻断");
+    expect(previewText).toContain("keepInEnv");
+    expect(previewText).toContain("cannotInferRuntimeTruth");
+    expect(previewText).toContain("admin_service_credential_reference_missing");
+    expect(previewText).toContain("admin_service_credential_group_disabled");
+    expect(previewText).not.toContain("raw-id-123");
+    expect(previewText).not.toContain("resolver-secret-value");
+    expect(previewText).not.toContain("resolver.internal.example.invalid");
   });
 
   test("generates service credential governance handoff package preview from sanitized readback", async() => {
@@ -838,6 +950,7 @@ describe("ApplicationAccessCenter", () => {
     expect(view.queryByText("resolver-secret-value")).toBeNull();
     expect(view.queryByText("resolver-token-value")).toBeNull();
     expect(view.queryByText("resolver.internal.example.invalid")).toBeNull();
+    expect(view.queryByText("raw-id-123")).toBeNull();
   });
 
   test("keeps config entry usable when service credential governance diagnostic fails", async() => {

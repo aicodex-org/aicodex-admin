@@ -135,26 +135,30 @@ export interface ServiceCredentialGovernanceHandoffPackageInput {
 const SUPPORTED_SERVICE_CREDENTIAL_SOURCE_CLASSES = new Set(["admin_config", "env_config", "external_secret_system"]);
 
 function containsUnsafeHandoffText(value: unknown): boolean {
-  const text = `${value ?? ""}`.toLowerCase();
-  return text.includes("://")
+  const text = `${value ?? ""}`.trim().toLowerCase();
+  if (!text) {
+    return false;
+  }
+
+  return /[a-z][a-z0-9+.-]*:\/\//i.test(text)
     || text.includes("authorization")
     || text.includes("cookie")
-    || text.includes("dsn")
+    || text.includes("bearer ")
+    || /\bdsn\b/.test(text)
+    || text.includes("password")
     || text.includes("clientsecret")
     || text.includes("client_secret")
     || text.includes("privatekey")
     || text.includes("private_key")
     || text.includes("-----begin")
-    || text.includes("bearer ")
-    || text.includes("token:")
-    || text.includes("token=")
-    || text.includes("token-value")
-    || text.includes("token_value")
     || text.includes("access_token")
+    || text.includes("accesstoken")
     || text.includes("refresh_token")
-    || text.includes("secret-value")
-    || text.includes("rawpayload")
-    || text.includes("raw_payload");
+    || text.includes("refreshtoken")
+    || /token(?:[_-]?value|[:=])/.test(text)
+    || /secret(?:[_-]?value|[:=])/.test(text)
+    || /raw[_-]?payload|rawpayload/.test(text)
+    || /raw[_-]?id\b/.test(text);
 }
 
 function getSafeHandoffText(value?: string): string | undefined {

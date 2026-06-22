@@ -547,8 +547,26 @@ function getServiceCredentialGovernanceHandoffReadinessLabel(readiness: ServiceC
 }
 
 function containsUnsafeServiceCredentialConfigText(value: unknown): boolean {
-  const text = `${value ?? ""}`.toLowerCase();
-  return text.includes("://") || text.includes("token") || text.includes("secret") || text.includes("authorization") || text.includes("cookie") || text.includes("dsn") || text.includes("private");
+  const text = `${value ?? ""}`.trim().toLowerCase();
+  if (!text) {
+    return false;
+  }
+
+  return /[a-z][a-z0-9+.-]*:\/\//i.test(text)
+    || text.includes("authorization")
+    || text.includes("cookie")
+    || text.includes("bearer ")
+    || /\bdsn\b/.test(text)
+    || text.includes("password")
+    || text.includes("-----begin")
+    || /client[_-]?secret|clientsecret/.test(text)
+    || /access[_-]?token|accesstoken/.test(text)
+    || /refresh[_-]?token|refreshtoken/.test(text)
+    || /token(?:[_-]?value|[:=])/.test(text)
+    || /secret(?:[_-]?value|[:=])/.test(text)
+    || /private[_-]?key|privatekey/.test(text)
+    || /raw[_-]?payload|rawpayload/.test(text)
+    || /raw[_-]?id\b/.test(text);
 }
 
 function getCopySafeRuntimePolicy(policy?: Record<string, unknown>): Record<string, unknown> | undefined {
