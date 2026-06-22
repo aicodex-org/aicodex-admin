@@ -1,0 +1,11 @@
+- [x] 1.1 创建 OpenSpec proposal、design、tasks 和 delta spec，范围锁定为 workspace tabs 右侧工具区视觉边界。
+- [x] 1.2 运行 `openspec validate polish-admin-workspace-tabs-action-boundary --strict` 并完成实施前 review。
+- [x] 2.1 以 TDD 补充 `WorkspaceTabs.test.tsx`，覆盖桌面 action cluster 分组语义、滚动按钮与关闭菜单仍同级可见、没有桌面 “More” overflow。
+- [x] 2.2 以 TDD 补充移动端回归断言，确认移动端仍使用紧凑 current-page + more-pages 模式且不渲染桌面 action cluster。
+- [x] 2.3 调整 `WorkspaceTabs.tsx` 和 `App.less` 的最小实现，增强右侧工具区视觉边界、稳定尺寸、focus-visible 和无溢出约束。
+- [x] 3.1 运行聚焦 Jest/coverage，覆盖 `WorkspaceTabs.tsx`。
+- [x] 3.2 运行 `web-admin` 增量 TypeScript gate、`yarn typecheck` 和 `yarn build`。
+- [x] 3.3 执行桌面多标签浏览器 smoke 和移动端回归 smoke，记录 no overflow、滚动按钮、`关闭` 菜单、无桌面 More overflow、移动紧凑模式证据。
+- [x] 3.4 补充 `verification.md`，记录命令、覆盖率、浏览器证据和剩余风险。
+- [x] 4.1 完成归档前 review，归档 OpenSpec change，同步主规格。
+- [x] 4.2 收敛为一个 change commit，普通 push 工作分支，ff-only 推进 `origin/hfl-test-base`，删除工作分支并写最终 report。

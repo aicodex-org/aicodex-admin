@@ -210,10 +210,15 @@ img {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 4px;
+  gap: 5px;
   flex: 0 0 auto;
   height: 34px;
+  min-width: 116px;
+  padding: 2px 0 2px 10px;
   margin-bottom: 2px;
+  border-left: 1px solid rgb(218 226 238);
+  border-radius: 6px 6px 0 0;
+  background: linear-gradient(180deg, rgb(248 250 252) 0%, rgb(255 255 255) 100%);
 }
 
 .admin-workspace-tab {
@@ -340,8 +345,25 @@ img {
   padding-inline: 0;
 }
 
+.admin-workspace-tabs-scroll-button-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .admin-workspace-tabs-close-menu {
   padding-inline: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+}
+
+.admin-workspace-tabs-scroll-button:hover,
+.admin-workspace-tabs-close-menu:hover {
+  color: rgb(51 65 85);
+  background: rgb(241 245 249);
+}
+
+.admin-workspace-tabs-close-menu:hover {
+  border-color: rgb(203 213 225);
 }
 
 .admin-workspace-tabs-more:focus-visible,

@@ -76,6 +76,7 @@ function WorkspaceTabs(props: WorkspaceTabsProps) {
   const closePrefix = tText("general:Close workspace tab");
   const moreLabel = tText("general:More workspace pages");
   const workspaceLabel = tText("general:Workspace pages");
+  const workspaceActionsLabel = tText("general:Workspace tab actions");
   const fixedTabs = props.tabs.filter(tab => tab.fixed);
   const scrollTabs = props.tabs.filter(tab => !tab.fixed);
   const activeIsFixed = activeTab?.fixed === true;
@@ -216,6 +217,25 @@ function WorkspaceTabs(props: WorkspaceTabsProps) {
     updateScrollState();
   };
 
+  // 保留隐藏按钮槽位，避免滚动边界变化时右侧工具区宽度跳动。
+  const renderScrollButton = (direction: -1 | 1, enabled: boolean) => (
+    <Button
+      className={`admin-workspace-tabs-scroll-button${enabled ? "" : " admin-workspace-tabs-scroll-button-hidden"}`}
+      type="text"
+      size="small"
+      icon={direction < 0 ? <LeftOutlined /> : <RightOutlined />}
+      aria-hidden={enabled ? undefined : "true"}
+      aria-label={enabled ? tText(direction < 0 ? "general:Scroll workspace tabs left" : "general:Scroll workspace tabs right") : undefined}
+      disabled={!enabled}
+      tabIndex={enabled ? undefined : -1}
+      onClick={() => {
+        if (enabled) {
+          scrollTabsBy(direction);
+        }
+      }}
+    />
+  );
+
   if (props.isMobile) {
     return (
       <div className="admin-workspace-tabs-shell admin-workspace-tabs-shell-mobile">
@@ -248,27 +268,9 @@ function WorkspaceTabs(props: WorkspaceTabsProps) {
             </div>
           </div>
         </div>
-        <div className="admin-workspace-tabs-actions">
-          {scrollState.canScrollLeft && (
-            <Button
-              className="admin-workspace-tabs-scroll-button"
-              type="text"
-              size="small"
-              icon={<LeftOutlined />}
-              aria-label={tText("general:Scroll workspace tabs left")}
-              onClick={() => scrollTabsBy(-1)}
-            />
-          )}
-          {scrollState.canScrollRight && (
-            <Button
-              className="admin-workspace-tabs-scroll-button"
-              type="text"
-              size="small"
-              icon={<RightOutlined />}
-              aria-label={tText("general:Scroll workspace tabs right")}
-              onClick={() => scrollTabsBy(1)}
-            />
-          )}
+        <div className="admin-workspace-tabs-actions" role="group" aria-label={workspaceActionsLabel}>
+          {renderScrollButton(-1, scrollState.canScrollLeft)}
+          {renderScrollButton(1, scrollState.canScrollRight)}
           <Dropdown menu={closeActionsMenu} trigger={["click"]}>
             <Button className="admin-workspace-tabs-close-menu" type="text" size="small" icon={<CloseOutlined />} aria-label={tText("general:Close workspace pages")}>
               {tText("general:Close workspace tabs")}

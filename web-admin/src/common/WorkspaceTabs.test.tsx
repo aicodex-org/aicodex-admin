@@ -146,6 +146,68 @@ describe("WorkspaceTabs", () => {
     expect(onCloseAll).toHaveBeenCalledTimes(1);
   });
 
+  test("groups desktop scroll controls and close management in a labeled action cluster", async() => {
+    const originalResizeObserver = globalThis.ResizeObserver;
+    const clientWidthSpy = jest.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(function getClientWidth(this: HTMLElement) {
+      return this.classList.contains("admin-workspace-tabs-scroll-viewport") ? 160 : 0;
+    });
+    const scrollWidthSpy = jest.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function getScrollWidth(this: HTMLElement) {
+      return this.classList.contains("admin-workspace-tabs-scroll-viewport") ? 420 : 0;
+    });
+    globalThis.ResizeObserver = class {
+      private readonly callback: ResizeObserverCallback;
+
+      constructor(callback: ResizeObserverCallback) {
+        this.callback = callback;
+      }
+
+      observe(target: Element) {
+        this.callback([{target} as ResizeObserverEntry], this as unknown as ResizeObserver);
+      }
+
+      unobserve() {}
+
+      disconnect() {}
+    };
+
+    try {
+      const view = render(
+        <WorkspaceTabs
+          tabs={[
+            ...tabs,
+            {key: "/records", path: "/records", label: "审计记录", fixed: false, closable: true},
+            {key: "/tokens", path: "/tokens", label: "令牌核对", fixed: false, closable: true},
+          ]}
+          activePath="/providers"
+          isMobile={false}
+          onNavigate={jest.fn()}
+          onClose={jest.fn()}
+          onCloseCurrent={jest.fn()}
+          onCloseOther={jest.fn()}
+          onCloseAll={jest.fn()}
+        />
+      );
+
+      await act(async() => {});
+
+      const actionCluster = view.getByLabelText("工作标签操作");
+
+      expect(actionCluster.className).toContain("admin-workspace-tabs-actions");
+      expect(actionCluster.querySelector(".admin-workspace-tabs-scroll-button")).not.toBeNull();
+      expect(actionCluster.querySelector(".admin-workspace-tabs-close-menu")).not.toBeNull();
+      expect(actionCluster.querySelector(".admin-workspace-tabs-more")).toBeNull();
+      expect(view.container.querySelector(".admin-workspace-tabs-scroll-area")?.contains(actionCluster)).toBe(false);
+    } finally {
+      clientWidthSpy.mockRestore();
+      scrollWidthSpy.mockRestore();
+      if (originalResizeObserver === undefined) {
+        delete (globalThis as {ResizeObserver?: typeof ResizeObserver}).ResizeObserver;
+      } else {
+        globalThis.ResizeObserver = originalResizeObserver;
+      }
+    }
+  });
+
   test("disables closing current from the fixed overview tab", () => {
     const view = render(
       <WorkspaceTabs
@@ -284,6 +346,7 @@ describe("WorkspaceTabs", () => {
 
     expect(view.container.querySelector(".admin-workspace-tabs-mobile")).not.toBeNull();
     expect(view.container.querySelector(".admin-workspace-tabs-desktop")).toBeNull();
+    expect(view.container.querySelector(".admin-workspace-tabs-actions")).toBeNull();
     expect(view.getAllByText("身份源中心").length).toBeGreaterThan(0);
     expect(view.getByLabelText("更多工作页面")).not.toBeNull();
   });

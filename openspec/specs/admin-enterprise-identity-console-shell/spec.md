@@ -283,11 +283,19 @@ Admin 身份控制台 Shell SHALL 在桌面端 header 下方、主内容区上�
 - **THEN** 右滚动箭头 SHALL 可见
 - **AND** 如果已滚到最右侧，右滚动箭头 SHALL 不显示
 
+#### Scenario: 右侧工具区与标签区分组清晰
+- **WHEN** 管理员在桌面端查看存在多个工作页的 workspace tabs
+- **THEN** 滚动按钮和 `关闭` 菜单 SHALL 处于独立的右侧工具区
+- **AND** 右侧工具区 SHALL 通过间距、分隔线、低噪按钮样式或等价视觉边界与 active tab 区分
+- **AND** 右侧工具区 SHALL 保持稳定高度和宽度，不因滚动按钮显隐造成 active tab 文本不可读
+- **AND** 右侧工具区 SHALL NOT 引入桌面 `More` / `...` overflow 入口
+
 #### Scenario: 常驻关闭菜单始终可见
 - **WHEN** 管理员在桌面端查看工作区标签栏
 - **THEN** 标签栏最右侧 SHALL 提供常驻 `关闭` 菜单
 - **AND** `关闭` 菜单 SHALL NOT 依赖标签溢出状态才出现
 - **AND** `关闭` 菜单 SHALL 提供 `关闭当前`、`关闭其他`、`关闭所有`
+- **AND** `关闭` 菜单 SHALL NOT 被移动到新的 `...` 操作层级
 
 #### Scenario: 关闭当前保留固定总览
 - **WHEN** 管理员点击 `关闭当前`
