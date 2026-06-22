@@ -400,6 +400,64 @@ test("builds table columns, toolbar and action handlers", () => {
   expect(page.addGroup).toHaveBeenCalled();
 });
 
+test("uses an enterprise query toolbar instead of column header search as the primary group search entry", () => {
+  const page = createPage();
+  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  const tableWrapper = page.renderTable([group]) as React.ReactElement<{children: React.ReactElement<{columns: TestTableColumn[]; title: () => React.ReactNode}>}>;
+  const table = tableWrapper.props.children;
+  const columns = table.props.columns as Array<TestTableColumn & {filterDropdown?: unknown}>;
+  const toolbarView = render(<>{table.props.title()}</>);
+
+  expect(toolbarView.getByText(/群\s*组|Groups/)).not.toBeNull();
+  expect(toolbarView.getByText(/查\s*询|Search/)).not.toBeNull();
+  expect(toolbarView.getByText(/重\s*置|Reset/)).not.toBeNull();
+  expect(toolbarView.getByText(/更\s*多\s*筛\s*选|More filters/)).not.toBeNull();
+  expect(toolbarView.getByText(/添\s*加|Add/).closest(".enterprise-list-query-toolbar-actions")).not.toBeNull();
+  expect(toolbarView.queryByText(/高\s*级\s*筛\s*选|Advanced filters/)).toBeNull();
+  expect(columns.find(column => column.key === "name")?.filterDropdown).toBeUndefined();
+  expect(columns.find(column => column.key === "displayName")?.filterDropdown).toBeUndefined();
+});
+
+test("query toolbar keeps the existing group fetch contract for keyword, type and reset", () => {
+  const page = createPage();
+  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  page.state = {
+    ...page.state,
+    pagination: {...page.state.pagination, current: 3, pageSize: 20},
+    queryField: "displayName",
+    queryKeyword: " Platform ",
+    queryType: undefined,
+  };
+
+  const keywordToolbar = render(<>{page.renderListToolbar()}</>);
+  fireEvent.click(keywordToolbar.getByText(/查\s*询|Search/));
+  expect(page.fetch).toHaveBeenLastCalledWith({
+    pagination: expect.objectContaining({current: 1, pageSize: 20}),
+    searchedColumn: "displayName",
+    searchText: "Platform",
+  });
+  keywordToolbar.unmount();
+
+  page.state = {
+    ...page.state,
+    queryKeyword: "",
+    queryType: "Virtual",
+  };
+  const typeToolbar = render(<>{page.renderListToolbar()}</>);
+  fireEvent.click(typeToolbar.getByText(/查\s*询|Search/));
+  expect(page.fetch).toHaveBeenLastCalledWith({
+    pagination: expect.objectContaining({current: 1, pageSize: 20}),
+    type: "Virtual",
+  });
+  fireEvent.click(typeToolbar.getByText(/重\s*置|Reset/));
+  expect(page.state.queryField).toBe("name");
+  expect(page.state.queryKeyword).toBe("");
+  expect(page.state.queryType).toBeUndefined();
+  expect(page.fetch).toHaveBeenLastCalledWith({
+    pagination: expect.objectContaining({current: 1, pageSize: 20}),
+  });
+});
+
 test("generates group import template with existing columns", () => {
   const page = createPage();
 

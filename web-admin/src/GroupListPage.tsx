@@ -14,7 +14,7 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Modal, Table, Tooltip, Upload} from "antd";
+import {Button, Modal, Select, Table, Tooltip, Upload} from "antd";
 import type {TablePaginationConfig, TableProps} from "antd";
 import {UploadOutlined} from "@ant-design/icons";
 import moment from "moment";
@@ -24,6 +24,7 @@ import type {GroupQueryValue, GroupRecord} from "./backend/GroupBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
+import EnterpriseListQueryToolbar from "./common/EnterpriseListQueryToolbar";
 import * as XLSX from "xlsx";
 
 interface GroupListPageProps {
@@ -56,6 +57,9 @@ interface GroupListPageState {
   uploadColumns: TableProps<UploadPreviewRow>["columns"];
   showUploadModal?: boolean;
   file?: Blob;
+  queryField: string;
+  queryKeyword: string;
+  queryType?: string;
 }
 
 type GroupListColumns = TableProps<GroupRecord>["columns"];
@@ -101,6 +105,16 @@ function getErrorMessage(error: unknown): string {
   return String(error);
 }
 
+function getGroupQueryFields() {
+  return [
+    {label: t("general:Name"), value: "name"},
+    {label: t("general:Organization"), value: "owner"},
+    {label: t("general:Display name"), value: "displayName"},
+    {label: t("group:Parent group"), value: "parentId"},
+    {label: t("general:Users"), value: "users"},
+  ];
+}
+
 class GroupListPage extends TypedBaseListPage {
   constructor(props: GroupListPageProps) {
     super(props);
@@ -110,6 +124,9 @@ class GroupListPage extends TypedBaseListPage {
       groups: [],
       uploadJsonData: [],
       uploadColumns: [],
+      queryField: "name",
+      queryKeyword: "",
+      queryType: undefined,
     };
   }
 
@@ -274,6 +291,73 @@ class GroupListPage extends TypedBaseListPage {
     );
   }
 
+  handleToolbarSearch = (): void => {
+    const pagination = {...this.state.pagination, current: 1};
+    const keyword = this.state.queryKeyword.trim();
+    // 群组后端仍是单字段过滤；关键词查询优先沿用 searchedColumn/searchText，空关键词时才使用类型筛选。
+    if (keyword !== "") {
+      this.fetch({
+        pagination,
+        searchedColumn: this.state.queryField,
+        searchText: keyword,
+      });
+      return;
+    }
+
+    this.fetch({
+      pagination,
+      type: this.state.queryType,
+    });
+  };
+
+  handleToolbarReset = (): void => {
+    const pagination = {...this.state.pagination, current: 1};
+    this.setState({
+      queryField: "name",
+      queryKeyword: "",
+      queryType: undefined,
+      searchText: undefined,
+      searchedColumn: undefined,
+    }, () => this.fetch({pagination}));
+  };
+
+  renderListToolbar(): React.ReactNode {
+    return (
+      <EnterpriseListQueryToolbar
+        title={t("general:Groups")}
+        total={this.state.pagination.total}
+        fields={getGroupQueryFields()}
+        selectedField={this.state.queryField}
+        keyword={this.state.queryKeyword}
+        onFieldChange={(value) => this.setState({queryField: value})}
+        onKeywordChange={(value) => this.setState({queryKeyword: value})}
+        onSearch={this.handleToolbarSearch}
+        onReset={this.handleToolbarReset}
+        primaryFilters={(
+          <Select
+            allowClear
+            className="enterprise-list-query-toolbar-filter"
+            placeholder={t("general:Type")}
+            value={this.state.queryType}
+            onChange={(value) => this.setState({queryType: value})}
+            options={[
+              {label: t("group:Virtual"), value: "Virtual"},
+              {label: t("group:Physical"), value: "Physical"},
+            ]}
+          />
+        )}
+        advancedFilters={<span>{t("general:Advanced filters", "Advanced filters")}</span>}
+        actions={(
+          <>
+            <Button type="primary" size="small" onClick={this.addGroup.bind(this)}>{t("general:Add")}</Button>
+            <Button size="small" onClick={this.generateDownloadTemplate}>{t("general:Download template")} </Button>
+            {this.renderUpload()}
+          </>
+        )}
+      />
+    );
+  }
+
   renderTable(data: GroupRecord[]): React.ReactNode {
     const columns: GroupListColumns = [
       {
@@ -283,7 +367,6 @@ class GroupListPage extends TypedBaseListPage {
         width: "150px",
         fixed: "left",
         sorter: true,
-        ...this.getColumnSearchProps("name"),
         render: (text: string, record: GroupRecord) => {
           return (
             <Link to={`/groups/${record.owner}/${text}`}>
@@ -298,7 +381,6 @@ class GroupListPage extends TypedBaseListPage {
         key: "owner",
         width: "140px",
         sorter: true,
-        ...this.getColumnSearchProps("owner"),
         render: (text: string) => {
           return (
             <Link to={`/organizations/${text}`}>
@@ -332,7 +414,6 @@ class GroupListPage extends TypedBaseListPage {
         dataIndex: "displayName",
         key: "displayName",
         sorter: true,
-        ...this.getColumnSearchProps("displayName"),
       },
       {
         title: t("general:Type"),
@@ -355,7 +436,6 @@ class GroupListPage extends TypedBaseListPage {
         key: "parentId",
         width: "220px",
         sorter: true,
-        ...this.getColumnSearchProps("parentId"),
         render: (_text: unknown, record: GroupRecord) => {
           if (record.isTopGroup) {
             return <Link to={`/organizations/${record.parentId}`}>
@@ -372,7 +452,6 @@ class GroupListPage extends TypedBaseListPage {
         dataIndex: "users",
         key: "users",
         sorter: true,
-        ...this.getColumnSearchProps("users"),
         render: (text: string[]) => {
           return (Setting.getTags as (tags?: string[], urlPrefix?: string | null) => React.ReactNode)(text, "users");
         },
@@ -415,16 +494,7 @@ class GroupListPage extends TypedBaseListPage {
           size="middle"
           bordered
           pagination={paginationProps}
-          title={() => (
-            <div>
-              {t("general:Groups")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button style={{marginRight: "15px"}} type="primary" size="small" onClick={this.addGroup.bind(this)}>{t("general:Add")}</Button>
-              <Button style={{marginRight: "15px"}} type="primary" size="small" onClick={this.generateDownloadTemplate}>{t("general:Download template")} </Button>
-              {
-                this.renderUpload()
-              }
-            </div>
-          )}
+          title={() => this.renderListToolbar()}
           loading={this.state.loading}
           onChange={this.handleTableChange}
         />
