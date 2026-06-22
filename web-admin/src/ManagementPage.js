@@ -19,9 +19,9 @@ import {Link, Redirect, Route, Switch, withRouter} from "react-router-dom";
 import React, {useEffect, useState} from "react";
 import i18next from "i18next";
 import {
-  BarsOutlined, DeploymentUnitOutlined, DownOutlined,
-  LogoutOutlined,
-  SafetyCertificateTwoTone, SettingOutlined
+  BarsOutlined, DeploymentUnitOutlined, DownOutlined, LogoutOutlined,
+  MenuFoldOutlined, MenuUnfoldOutlined,
+  SettingOutlined
 } from "@ant-design/icons";
 import IdentityConsoleOverview from "./IdentityConsoleOverview";
 import AppListPage from "./basic/AppListPage";
@@ -136,6 +136,8 @@ import {
   closeAllWorkspaceTabs,
   closeOtherWorkspaceTabs,
   closeWorkspaceTab,
+  closeWorkspaceTabsToLeft,
+  closeWorkspaceTabsToRight,
   normalizeWorkspacePath,
   openWorkspaceTab,
   readWorkspaceTabs,
@@ -143,13 +145,40 @@ import {
 } from "./common/workspaceTabState";
 
 const {Content, Header, Sider} = Layout;
+const ADMIN_SHELL_SIDEBAR_EXPANDED_WIDTH = 224;
+const ADMIN_SHELL_SIDEBAR_COLLAPSED_WIDTH = 72;
+const ADMIN_SHELL_SIDEBAR_COLLAPSED_KEY = "adminShellSidebarCollapsed";
+
+function readSidebarCollapsedPreference() {
+  try {
+    const storedValue = window.localStorage.getItem(ADMIN_SHELL_SIDEBAR_COLLAPSED_KEY);
+
+    return storedValue === "true";
+  } catch {
+    return false;
+  }
+}
+
+function saveSidebarCollapsedPreference(collapsed) {
+  try {
+    window.localStorage.setItem(ADMIN_SHELL_SIDEBAR_COLLAPSED_KEY, collapsed ? "true" : "false");
+  } catch {
+    // 受限浏览器环境可能禁用 localStorage，桌面偏好可安全降级为本次渲染状态。
+  }
+}
+
+function getMenuTitle(label) {
+  return typeof label === "string" ? label : undefined;
+}
 
 function ManagementPage(props) {
   const [menuVisible, setMenuVisible] = useState(false);
   const [openKeys, setOpenKeys] = useState([]);
   const [workspaceTabs, setWorkspaceTabs] = useState([]);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsedPreference);
   const organization = props.account?.organization;
   const widgetItems = organization?.widgetItems;
+  const isMobile = Setting.isMobile();
 
   function logout() {
     AuthBackend.logout()
@@ -324,16 +353,28 @@ function ManagementPage(props) {
     return groups.map((group) => {
       if (shouldRenderNavigationGroupAsSingleLeaf(group)) {
         const item = group.children[0];
-        return Setting.getItem(<Link to={item.to}>{group.label}</Link>, item.key, group.icon);
+        return {
+          ...Setting.getItem(<Link to={item.to}>{group.label}</Link>, item.key, group.icon),
+          title: getMenuTitle(group.label),
+        };
       }
 
-      return Setting.getItem(group.label, group.key, group.icon, group.children.map((item) => {
-        if (item.external) {
-          return Setting.getItem(<a target="_blank" rel="noreferrer" href={item.href}>{item.label}</a>, item.key);
-        }
+      return {
+        ...Setting.getItem(group.label, group.key, group.icon, group.children.map((item) => {
+          if (item.external) {
+            return {
+              ...Setting.getItem(<a target="_blank" rel="noreferrer" href={item.href}>{item.label}</a>, item.key),
+              title: getMenuTitle(item.label),
+            };
+          }
 
-        return Setting.getItem(<Link to={item.to}>{item.label}</Link>, item.key);
-      }));
+          return {
+            ...Setting.getItem(<Link to={item.to}>{item.label}</Link>, item.key),
+            title: getMenuTitle(item.label),
+          };
+        })),
+        title: getMenuTitle(group.label),
+      };
     });
   }
 
@@ -518,6 +559,14 @@ function ManagementPage(props) {
     setMenuVisible(true);
   };
 
+  const toggleSidebarCollapsed = () => {
+    setSidebarCollapsed((currentCollapsed) => {
+      const nextCollapsed = !currentCollapsed;
+      saveSidebarCollapsedPreference(nextCollapsed);
+      return nextCollapsed;
+    });
+  };
+
   const navigateWorkspaceTab = (path) => {
     if (path !== activeWorkspacePath) {
       props.history.push(path);
@@ -540,12 +589,20 @@ function ManagementPage(props) {
     }
   };
 
-  const closeCurrentWorkspaceTab = () => {
-    applyWorkspaceTabsCloseResult(closeWorkspaceTab(workspaceTabs, activeWorkspacePath, activeWorkspacePath));
+  const closeCurrentWorkspaceTab = (path = activeWorkspacePath) => {
+    applyWorkspaceTabsCloseResult(closeWorkspaceTab(workspaceTabs, path, activeWorkspacePath));
   };
 
-  const closeOtherWorkspaceTabPages = () => {
-    applyWorkspaceTabsCloseResult(closeOtherWorkspaceTabs(workspaceTabs, activeWorkspacePath));
+  const closeWorkspaceTabsLeftOfPath = (path) => {
+    applyWorkspaceTabsCloseResult(closeWorkspaceTabsToLeft(workspaceTabs, path, activeWorkspacePath));
+  };
+
+  const closeWorkspaceTabsRightOfPath = (path) => {
+    applyWorkspaceTabsCloseResult(closeWorkspaceTabsToRight(workspaceTabs, path, activeWorkspacePath));
+  };
+
+  const closeOtherWorkspaceTabPages = (path = activeWorkspacePath) => {
+    applyWorkspaceTabsCloseResult(closeOtherWorkspaceTabs(workspaceTabs, path));
   };
 
   const closeAllWorkspaceTabPages = () => {
@@ -570,15 +627,27 @@ function ManagementPage(props) {
         <div className="admin-shell-header-left">
           <Link to="/" className="admin-shell-brand">
             <img className="logo admin-shell-logo" src={getBrandLogo() ?? props.logo} alt={Conf.BrandName} />
+            {!isMobile && !sidebarCollapsed && (
+              <span className="admin-shell-brand-text">
+                <span className="admin-shell-brand-name">{i18next.t("general:AICodex Admin")}</span>
+                <span className="admin-shell-brand-separator" aria-hidden="true">·</span>
+                <span className="admin-shell-brand-module">{i18next.t("general:Authentication Center")}</span>
+              </span>
+            )}
           </Link>
-          {!Setting.isMobile() && (
-            <div className="admin-shell-entry">
-              <SafetyCertificateTwoTone twoToneColor={props.themeData.colorPrimary} />
-              <span>{Conf.AdminCenterName}</span>
-            </div>
+          {!props.requiredEnableMfa && !isMobile && (
+            <Tooltip title={i18next.t(sidebarCollapsed ? "general:Expand sidebar" : "general:Collapse sidebar")}>
+              <Button
+                className="admin-shell-sidebar-toggle"
+                type="text"
+                icon={sidebarCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                aria-label={i18next.t(sidebarCollapsed ? "general:Expand sidebar" : "general:Collapse sidebar")}
+                onClick={toggleSidebarCollapsed}
+              />
+            </Tooltip>
           )}
-          {!props.requiredEnableMfa && Setting.isMobile() && (
-            <Button icon={<BarsOutlined />} onClick={showMenu} type="text">
+          {!props.requiredEnableMfa && isMobile && (
+            <Button icon={<BarsOutlined />} onClick={showMenu} type="text" aria-label={Conf.AdminCenterName}>
               {Conf.AdminCenterName}
             </Button>
           )}
@@ -588,19 +657,34 @@ function ManagementPage(props) {
         </div>
       </Header>
       <Layout className="admin-shell-body">
-        {!props.requiredEnableMfa && !Setting.isMobile() && (
-          <Sider width={264} theme="light" className="admin-shell-sider">
+        {!props.requiredEnableMfa && !isMobile && (
+          <Sider
+            width={ADMIN_SHELL_SIDEBAR_EXPANDED_WIDTH}
+            collapsedWidth={ADMIN_SHELL_SIDEBAR_COLLAPSED_WIDTH}
+            collapsed={sidebarCollapsed}
+            trigger={null}
+            theme="light"
+            className={`admin-shell-sider${sidebarCollapsed ? " admin-shell-sider-collapsed" : ""}`}
+            data-sidebar-state={sidebarCollapsed ? "collapsed" : "expanded"}
+            style={{
+              width: sidebarCollapsed ? ADMIN_SHELL_SIDEBAR_COLLAPSED_WIDTH : ADMIN_SHELL_SIDEBAR_EXPANDED_WIDTH,
+              minWidth: sidebarCollapsed ? ADMIN_SHELL_SIDEBAR_COLLAPSED_WIDTH : ADMIN_SHELL_SIDEBAR_EXPANDED_WIDTH,
+              maxWidth: sidebarCollapsed ? ADMIN_SHELL_SIDEBAR_COLLAPSED_WIDTH : ADMIN_SHELL_SIDEBAR_EXPANDED_WIDTH,
+              flex: `0 0 ${sidebarCollapsed ? ADMIN_SHELL_SIDEBAR_COLLAPSED_WIDTH : ADMIN_SHELL_SIDEBAR_EXPANDED_WIDTH}px`,
+            }}
+          >
             <Menu
               mode="inline"
+              inlineCollapsed={sidebarCollapsed}
               items={sidebarMenuItems}
               selectedKeys={navigationSelection.itemKey ? [navigationSelection.itemKey] : []}
-              openKeys={openKeys}
-              onOpenChange={setOpenKeys}
+              openKeys={sidebarCollapsed ? [] : openKeys}
+              onOpenChange={sidebarCollapsed ? undefined : setOpenKeys}
               style={{height: "100%", borderInlineEnd: 0}}
             />
           </Sider>
         )}
-        <Content className="admin-shell-content">
+        <Content className="admin-shell-content" style={{minWidth: 0}}>
           {workspaceTabs.length > 0 && (
             <WorkspaceTabs
               tabs={workspaceTabs}
@@ -609,6 +693,8 @@ function ManagementPage(props) {
               onNavigate={navigateWorkspaceTab}
               onClose={closeWorkspaceTabByPath}
               onCloseCurrent={closeCurrentWorkspaceTab}
+              onCloseLeft={closeWorkspaceTabsLeftOfPath}
+              onCloseRight={closeWorkspaceTabsRightOfPath}
               onCloseOther={closeOtherWorkspaceTabPages}
               onCloseAll={closeAllWorkspaceTabPages}
             />

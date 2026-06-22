@@ -15,10 +15,10 @@ jest.mock("antd", () => {
         {children}
       </button>
     ),
-    Dropdown: ({children, menu}: {children: React.ReactNode; menu?: {items?: Array<{key: string; label: React.ReactNode; className?: string; disabled?: boolean; onClick?: () => void}>}}) => (
+    Dropdown: ({children, menu, trigger}: {children: React.ReactNode; menu?: {items?: Array<{key: string; label: React.ReactNode; className?: string; disabled?: boolean; onClick?: () => void}>}; trigger?: string[]}) => (
       <>
         {children}
-        <div data-testid="workspace-tabs-dropdown-menu">
+        <div data-testid="workspace-tabs-dropdown-menu" data-trigger={trigger?.join(",")}>
           {menu?.items?.map(item => (
             <div
               role="menuitem"
@@ -47,7 +47,7 @@ const {fireEvent} = require("@testing-library/react") as {
 const WorkspaceTabs = require("./WorkspaceTabs.tsx").default as typeof import("./WorkspaceTabs").default;
 
 const tabs = [
-  {key: "/", path: "/", label: "企业认证总览", fixed: true, closable: false},
+  {key: "/", path: "/", label: "企业认证总览", fixed: false, closable: true},
   {key: "/applications", path: "/applications", label: "应用接入中心", fixed: false, closable: true},
   {key: "/providers", path: "/providers", label: "身份源中心", fixed: false, closable: true},
 ];
@@ -88,7 +88,7 @@ describe("WorkspaceTabs", () => {
     consoleErrorSpy.mockRestore();
   });
 
-  test("renders desktop tabs with active state fixed overview and close action", () => {
+  test("renders desktop tabs with overview inside the scroll strip and visible close actions", () => {
     const onNavigate = jest.fn();
     const onClose = jest.fn();
     const view = render(
@@ -102,22 +102,26 @@ describe("WorkspaceTabs", () => {
     );
 
     expect(view.container.querySelector(".admin-workspace-tabs-desktop")).not.toBeNull();
-    expect(view.container.querySelector(".admin-workspace-tabs-fixed-area")).not.toBeNull();
+    expect(view.container.querySelector(".admin-workspace-tabs-fixed-area")).toBeNull();
     expect(view.container.querySelector(".admin-workspace-tabs-scroll-viewport")).not.toBeNull();
-    expect(view.container.querySelector(".admin-workspace-tabs-scroll-strip")?.textContent).not.toContain("企业认证总览");
-    expect(view.container.querySelector(".admin-workspace-tabs-fixed-area")?.textContent).toContain("企业认证总览");
+    expect(view.container.querySelector(".admin-workspace-tabs-scroll-strip")?.textContent).toContain("企业认证总览");
     expect(view.getByText("应用接入中心").closest("button")?.getAttribute("aria-current")).toBe("page");
-    expect(view.queryByLabelText("关闭 企业认证总览")).toBeNull();
+    expect(view.getByLabelText("关闭 企业认证总览")).not.toBeNull();
 
     fireEvent.click(view.getByLabelText("关闭 身份源中心"));
     expect(onClose).toHaveBeenCalledWith("/providers");
+
+    fireEvent.click(view.getByLabelText("关闭 企业认证总览"));
+    expect(onClose).toHaveBeenCalledWith("/");
 
     fireEvent.click(view.getByText("企业认证总览"));
     expect(onNavigate).toHaveBeenCalledWith("/");
   });
 
-  test("keeps desktop close actions menu visible and wires batch callbacks", () => {
+  test("renders desktop context menu with close current left right other and all actions", () => {
     const onCloseCurrent = jest.fn();
+    const onCloseLeft = jest.fn();
+    const onCloseRight = jest.fn();
     const onCloseOther = jest.fn();
     const onCloseAll = jest.fn();
     const view = render(
@@ -129,24 +133,40 @@ describe("WorkspaceTabs", () => {
           onNavigate: jest.fn(),
           onClose: jest.fn(),
           onCloseCurrent,
+          onCloseLeft,
+          onCloseRight,
           onCloseOther,
           onCloseAll,
-        } as React.ComponentProps<typeof WorkspaceTabs>)}
+        } as React.ComponentProps<typeof WorkspaceTabs> & {
+          onCloseLeft: (path: string) => void;
+          onCloseRight: (path: string) => void;
+        })}
       />
     );
 
-    expect(view.getByLabelText("关闭工作页面")).not.toBeNull();
+    const contextMenus = view.getAllByTestId("workspace-tabs-dropdown-menu").filter((item: HTMLElement) => item.getAttribute("data-trigger") === "contextMenu");
 
-    fireEvent.click(view.getByText("关闭当前"));
-    fireEvent.click(view.getByText("关闭其他"));
-    fireEvent.click(view.getByText("关闭所有"));
+    expect(contextMenus.length).toBeGreaterThan(0);
+    expect(view.getAllByText("关闭当前").length).toBeGreaterThan(0);
+    expect(view.getAllByText("关闭左侧").length).toBeGreaterThan(0);
+    expect(view.getAllByText("关闭右侧").length).toBeGreaterThan(0);
+    expect(view.getAllByText("关闭其他").length).toBeGreaterThan(0);
+    expect(view.getAllByText("关闭所有").length).toBeGreaterThan(0);
+
+    fireEvent.click(view.getAllByText("关闭当前")[0]);
+    fireEvent.click(view.getAllByText("关闭左侧")[0]);
+    fireEvent.click(view.getAllByText("关闭右侧")[0]);
+    fireEvent.click(view.getAllByText("关闭其他")[0]);
+    fireEvent.click(view.getAllByText("关闭所有")[0]);
 
     expect(onCloseCurrent).toHaveBeenCalledTimes(1);
+    expect(onCloseLeft).toHaveBeenCalledTimes(1);
+    expect(onCloseRight).toHaveBeenCalledTimes(1);
     expect(onCloseOther).toHaveBeenCalledTimes(1);
     expect(onCloseAll).toHaveBeenCalledTimes(1);
   });
 
-  test("groups desktop scroll controls and close management in a labeled action cluster", async() => {
+  test("places desktop scroll controls on both sides of the scroll strip", async() => {
     const originalResizeObserver = globalThis.ResizeObserver;
     const clientWidthSpy = jest.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(function getClientWidth(this: HTMLElement) {
       return this.classList.contains("admin-workspace-tabs-scroll-viewport") ? 160 : 0;
@@ -190,13 +210,13 @@ describe("WorkspaceTabs", () => {
 
       await act(async() => {});
 
-      const actionCluster = view.getByLabelText("工作标签操作");
+      const scrollShell = view.container.querySelector(".admin-workspace-tabs-scroll-shell");
 
-      expect(actionCluster.className).toContain("admin-workspace-tabs-actions");
-      expect(actionCluster.querySelector(".admin-workspace-tabs-scroll-button")).not.toBeNull();
-      expect(actionCluster.querySelector(".admin-workspace-tabs-close-menu")).not.toBeNull();
-      expect(actionCluster.querySelector(".admin-workspace-tabs-more")).toBeNull();
-      expect(view.container.querySelector(".admin-workspace-tabs-scroll-area")?.contains(actionCluster)).toBe(false);
+      expect(scrollShell).not.toBeNull();
+      expect(scrollShell?.querySelectorAll(".admin-workspace-tabs-scroll-button")).toHaveLength(2);
+      expect(view.container.querySelector(".admin-workspace-tabs-actions")).toBeNull();
+      expect(view.container.querySelector(".admin-workspace-tabs-fixed-area")).toBeNull();
+      expect(view.container.querySelector(".admin-workspace-tabs-close-menu")).toBeNull();
     } finally {
       clientWidthSpy.mockRestore();
       scrollWidthSpy.mockRestore();
@@ -208,7 +228,7 @@ describe("WorkspaceTabs", () => {
     }
   });
 
-  test("disables closing current from the fixed overview tab", () => {
+  test("keeps overview closeable from visible affordance and context menu", () => {
     const view = render(
       <WorkspaceTabs
         {...({
@@ -224,7 +244,8 @@ describe("WorkspaceTabs", () => {
       />
     );
 
-    expect(view.getByText("关闭当前").closest("[role='menuitem']")?.getAttribute("aria-disabled")).toBe("true");
+    expect(view.getByLabelText("关闭 企业认证总览")).not.toBeNull();
+    expect(view.getAllByText("关闭当前")[0].closest("[role='menuitem']")?.getAttribute("aria-disabled")).toBeNull();
   });
 
   test("updates desktop scroll arrows only when hidden tabs exist on that side", async() => {
@@ -378,7 +399,7 @@ describe("WorkspaceTabs", () => {
     expect(view.container.querySelector(".admin-workspace-tabs-mobile")).not.toBeNull();
   });
 
-  test("renders all desktop closable tabs in the scroll strip without an overflow menu", () => {
+  test("renders all desktop tabs in the scroll strip without an overflow menu", () => {
     const onNavigate = jest.fn();
     const manyTabs = [
       ...tabs,
@@ -399,6 +420,7 @@ describe("WorkspaceTabs", () => {
     ).map(item => item.textContent);
 
     expect(visibleTabLabels).toEqual([
+      "企业认证总览",
       "应用接入中心",
       "身份源中心",
       "审计记录",

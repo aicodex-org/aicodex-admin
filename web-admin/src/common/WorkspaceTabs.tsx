@@ -14,8 +14,10 @@ interface WorkspaceTabsProps {
   maxVisible?: number;
   onNavigate: (path: string) => void;
   onClose: (path: string) => void;
-  onCloseCurrent?: () => void;
-  onCloseOther?: () => void;
+  onCloseCurrent?: (path: string) => void;
+  onCloseLeft?: (path: string) => void;
+  onCloseRight?: (path: string) => void;
+  onCloseOther?: (path: string) => void;
   onCloseAll?: () => void;
 }
 
@@ -76,26 +78,32 @@ function WorkspaceTabs(props: WorkspaceTabsProps) {
   const closePrefix = tText("general:Close workspace tab");
   const moreLabel = tText("general:More workspace pages");
   const workspaceLabel = tText("general:Workspace pages");
-  const workspaceActionsLabel = tText("general:Workspace tab actions");
-  const fixedTabs = props.tabs.filter(tab => tab.fixed);
-  const scrollTabs = props.tabs.filter(tab => !tab.fixed);
-  const activeIsFixed = activeTab?.fixed === true;
   const overflowMenu = {
     items: buildOverflowItems(props.tabs, activePath, props.onNavigate, props.onClose, closePrefix),
     selectedKeys: [activePath],
   };
-  const closeActionsMenu = {
+  const buildContextMenu = (tab: WorkspaceTabItem) => ({
     items: [
       {
         key: "close-current",
         label: tText("general:Close current workspace tab"),
-        disabled: activeIsFixed,
-        onClick: () => props.onCloseCurrent?.(),
+        disabled: !tab.closable,
+        onClick: () => props.onCloseCurrent?.(tab.path),
+      },
+      {
+        key: "close-left",
+        label: tText("general:Close left workspace tabs"),
+        onClick: () => props.onCloseLeft?.(tab.path),
+      },
+      {
+        key: "close-right",
+        label: tText("general:Close right workspace tabs"),
+        onClick: () => props.onCloseRight?.(tab.path),
       },
       {
         key: "close-other",
         label: tText("general:Close other workspace tabs"),
-        onClick: () => props.onCloseOther?.(),
+        onClick: () => props.onCloseOther?.(tab.path),
       },
       {
         key: "close-all",
@@ -103,7 +111,7 @@ function WorkspaceTabs(props: WorkspaceTabsProps) {
         onClick: () => props.onCloseAll?.(),
       },
     ],
-  };
+  });
 
   // 箭头只反映当前滚动容器的真实可视范围，避免用标签数量推断溢出状态。
   const updateScrollState = () => {
@@ -156,9 +164,8 @@ function WorkspaceTabs(props: WorkspaceTabsProps) {
   const renderTab = (tab: WorkspaceTabItem) => {
     const active = tab.path === activePath;
 
-    return (
+    const tabNode = (
       <div
-        key={tab.path}
         ref={(element) => {
           if (element === null) {
             tabElementRefs.current.delete(tab.path);
@@ -198,6 +205,12 @@ function WorkspaceTabs(props: WorkspaceTabsProps) {
           </Tooltip>
         )}
       </div>
+    );
+
+    return (
+      <Dropdown key={tab.path} menu={buildContextMenu(tab)} trigger={["contextMenu"]}>
+        {tabNode}
+      </Dropdown>
     );
   };
 
@@ -258,24 +271,16 @@ function WorkspaceTabs(props: WorkspaceTabsProps) {
   return (
     <div className="admin-workspace-tabs-shell">
       <nav className="admin-workspace-tabs admin-workspace-tabs-desktop" aria-label={workspaceLabel}>
-        <div className="admin-workspace-tabs-fixed-area">
-          {fixedTabs.map(renderTab)}
-        </div>
-        <div className="admin-workspace-tabs-scroll-area">
-          <div className="admin-workspace-tabs-scroll-viewport" ref={scrollViewportRef} onScroll={updateScrollState}>
-            <div className="admin-workspace-tabs-scroll-strip">
-              {scrollTabs.map(renderTab)}
+        <div className="admin-workspace-tabs-scroll-shell">
+          {renderScrollButton(-1, scrollState.canScrollLeft)}
+          <div className="admin-workspace-tabs-scroll-area">
+            <div className="admin-workspace-tabs-scroll-viewport" ref={scrollViewportRef} onScroll={updateScrollState}>
+              <div className="admin-workspace-tabs-scroll-strip">
+                {props.tabs.map(renderTab)}
+              </div>
             </div>
           </div>
-        </div>
-        <div className="admin-workspace-tabs-actions" role="group" aria-label={workspaceActionsLabel}>
-          {renderScrollButton(-1, scrollState.canScrollLeft)}
           {renderScrollButton(1, scrollState.canScrollRight)}
-          <Dropdown menu={closeActionsMenu} trigger={["click"]}>
-            <Button className="admin-workspace-tabs-close-menu" type="text" size="small" icon={<CloseOutlined />} aria-label={tText("general:Close workspace pages")}>
-              {tText("general:Close workspace tabs")}
-            </Button>
-          </Dropdown>
         </div>
       </nav>
       <div className="admin-workspace-tabs-divider" aria-hidden="true" />

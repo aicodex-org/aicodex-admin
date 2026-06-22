@@ -10,6 +10,8 @@ import {
   closeWorkspaceTab,
   closeOtherWorkspaceTabs,
   closeAllWorkspaceTabs,
+  closeWorkspaceTabsToLeft,
+  closeWorkspaceTabsToRight,
   getVisibleWorkspaceTabs,
   hydrateWorkspaceTabs,
   normalizeWorkspacePath,
@@ -19,7 +21,7 @@ import {
 } from "./workspaceTabState";
 
 const routes = [
-  {key: "/", path: "/", label: "企业认证总览", fixed: true, matchPrefixes: ["/"]},
+  {key: "/", path: "/", label: "企业认证总览", matchPrefixes: ["/"]},
   {key: "/applications", path: "/applications", label: "应用接入中心", matchPrefixes: ["/applications"]},
   {key: "/providers", path: "/providers", label: "身份源中心", matchPrefixes: ["/providers"]},
   {key: "/records", path: "/records", label: "审计记录", matchPrefixes: ["/records"]},
@@ -39,11 +41,11 @@ describe("workspaceTabState", () => {
     expect(normalizeWorkspacePath("")).toBe("/");
   });
 
-  test("keeps overview fixed and opens the current route-driven tab", () => {
+  test("keeps overview as a normal fallback tab and opens the current route-driven tab", () => {
     const tabs = openWorkspaceTab([], "/applications/built-in/app-a?tab=basic", routes);
 
     expect(tabs.map(tab => tab.path)).toEqual(["/", "/applications/built-in/app-a"]);
-    expect(tabs[0]).toMatchObject({label: "企业认证总览", fixed: true, closable: false});
+    expect(tabs[0]).toMatchObject({label: "企业认证总览", fixed: false, closable: true});
     expect(tabs[1]).toMatchObject({label: "应用接入中心", fixed: false, closable: true});
   });
 
@@ -198,12 +200,21 @@ describe("workspaceTabState", () => {
     expect(result.nextPath).toBe("/providers");
   });
 
-  test("ignores attempts to close the fixed overview tab", () => {
+  test("closes overview as a normal non-active tab", () => {
     const tabs = openWorkspaceTab([], "/applications", routes);
     const result = closeWorkspaceTab(tabs, "/", "/applications");
 
-    expect(result.tabs.map(tab => tab.path)).toEqual(["/", "/applications"]);
+    expect(result.tabs.map(tab => tab.path)).toEqual(["/applications"]);
     expect(result.nextPath).toBe("/applications");
+  });
+
+  test("closing the only overview tab reopens overview fallback", () => {
+    const tabs = openWorkspaceTab([], "/", routes);
+    const result = closeWorkspaceTab(tabs, "/", "/");
+
+    expect(result.tabs.map(tab => tab.path)).toEqual(["/"]);
+    expect(result.tabs[0]).toMatchObject({fixed: false, closable: true});
+    expect(result.nextPath).toBe("/");
   });
 
   test("closes the only non-fixed tab back to overview", () => {
@@ -214,28 +225,29 @@ describe("workspaceTabState", () => {
     expect(result.nextPath).toBe("/");
   });
 
-  test("closes other tabs while preserving overview and the active closable tab", () => {
+  test("closes other tabs while preserving the target tab and falling back only when needed", () => {
     const applications = openWorkspaceTab([], "/applications", routes);
     const providers = openWorkspaceTab(applications, "/providers", routes);
     const records = openWorkspaceTab(providers, "/records", routes);
 
     const result = closeOtherWorkspaceTabs(records, "/providers");
 
-    expect(result.tabs.map(tab => tab.path)).toEqual(["/", "/providers"]);
+    expect(result.tabs.map(tab => tab.path)).toEqual(["/providers"]);
     expect(result.nextPath).toBe("/providers");
   });
 
-  test("closing other tabs from overview preserves only the fixed overview tab", () => {
+  test("closing other tabs from overview preserves only the normal overview tab", () => {
     const applications = openWorkspaceTab([], "/applications", routes);
     const providers = openWorkspaceTab(applications, "/providers", routes);
 
     const result = closeOtherWorkspaceTabs(providers, "/");
 
     expect(result.tabs.map(tab => tab.path)).toEqual(["/"]);
+    expect(result.tabs[0]).toMatchObject({fixed: false, closable: true});
     expect(result.nextPath).toBe("/");
   });
 
-  test("closes all closable tabs and navigates back to overview", () => {
+  test("closes all tabs and reopens a normal overview fallback", () => {
     const applications = openWorkspaceTab([], "/applications", routes);
     const providers = openWorkspaceTab(applications, "/providers", routes);
     const records = openWorkspaceTab(providers, "/records", routes);
@@ -244,7 +256,29 @@ describe("workspaceTabState", () => {
 
     expect(result.tabs.map(tab => tab.path)).toEqual(["/"]);
     expect(result.nextPath).toBe("/");
-    expect(result.tabs[0]).toMatchObject({fixed: true, closable: false});
+    expect(result.tabs[0]).toMatchObject({fixed: false, closable: true});
+  });
+
+  test("closes tabs to the left of the context tab without treating overview as fixed", () => {
+    const applications = openWorkspaceTab([], "/applications", routes);
+    const providers = openWorkspaceTab(applications, "/providers", routes);
+    const records = openWorkspaceTab(providers, "/records", routes);
+
+    const result = closeWorkspaceTabsToLeft(records, "/providers", "/applications");
+
+    expect(result.tabs.map(tab => tab.path)).toEqual(["/providers", "/records"]);
+    expect(result.nextPath).toBe("/providers");
+  });
+
+  test("closes tabs to the right of the context tab and preserves active route when still open", () => {
+    const applications = openWorkspaceTab([], "/applications", routes);
+    const providers = openWorkspaceTab(applications, "/providers", routes);
+    const records = openWorkspaceTab(providers, "/records", routes);
+
+    const result = closeWorkspaceTabsToRight(records, "/providers", "/");
+
+    expect(result.tabs.map(tab => tab.path)).toEqual(["/", "/applications", "/providers"]);
+    expect(result.nextPath).toBe("/");
   });
 
   test("keeps visible tabs in opening order and moves extra pages into overflow", () => {

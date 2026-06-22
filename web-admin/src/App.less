@@ -99,7 +99,7 @@ img {
 .admin-shell-header-left {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   min-width: 0;
 }
 
@@ -110,39 +110,81 @@ img {
 }
 
 .admin-shell-brand {
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  gap: 9px;
+  min-width: 0;
+  color: rgb(15 23 42);
+  text-decoration: none;
+}
+
+.admin-shell-brand:hover {
+  color: rgb(15 23 42);
 }
 
 .admin-shell-logo {
+  flex: 0 0 auto;
   height: 30px !important;
   margin: 0 !important;
   float: none !important;
 }
 
-.admin-shell-entry {
+.admin-shell-brand-text {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  height: 36px;
-  padding: 0 14px;
-  border-radius: 999px;
-  background: rgb(87 52 211 / 10%);
-  color: rgb(44 29 109);
+  gap: 6px;
+  min-width: 0;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.admin-shell-brand-name {
+  color: rgb(15 23 42);
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
+}
+
+.admin-shell-brand-separator,
+.admin-shell-brand-module {
+  color: rgb(100 116 139);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.admin-shell-sidebar-toggle {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  color: rgb(71 85 105);
+}
+
+.admin-shell-sidebar-toggle:hover {
+  color: rgb(30 64 175);
+  background: rgb(241 245 249);
 }
 
 .admin-shell-body {
   flex: 1;
   min-height: 0;
+  min-width: 0;
+  overflow: hidden;
   background: transparent;
 }
 
 .admin-shell-sider {
   background: #fff !important;
   border-right: 1px solid rgb(235 237 242);
-  overflow: auto;
+  overflow: hidden auto;
+  transition: width 0.18s ease, min-width 0.18s ease, max-width 0.18s ease, flex-basis 0.18s ease;
+}
+
+.admin-shell-sider .ant-layout-sider-children {
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.admin-shell-sider-collapsed .ant-menu {
+  width: 72px;
 }
 
 .admin-shell-content {
@@ -150,12 +192,17 @@ img {
   flex-direction: column;
   padding: 0 0 12px;
   min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .admin-workspace-tabs-shell {
   flex: 0 0 auto;
+  min-width: 0;
+  max-width: 100%;
   background: #fff;
   border-bottom: 1px solid rgb(218 226 238);
+  overflow-x: hidden;
 }
 
 .admin-workspace-tabs-shell-mobile {
@@ -164,22 +211,25 @@ img {
 
 .admin-workspace-tabs {
   min-width: 0;
+  max-width: 100%;
   box-sizing: border-box;
 }
 
 .admin-workspace-tabs-desktop {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0;
   min-height: 40px;
   padding: 6px 12px 0;
   background: #fff;
 }
 
-.admin-workspace-tabs-fixed-area {
+.admin-workspace-tabs-scroll-shell {
   display: flex;
-  align-items: flex-end;
-  flex: 0 0 auto;
+  align-items: center;
+  flex: 1 1 auto;
+  gap: 4px;
+  min-width: 0;
 }
 
 .admin-workspace-tabs-scroll-area {
@@ -204,21 +254,6 @@ img {
   gap: 6px;
   min-width: max-content;
   padding-right: 2px;
-}
-
-.admin-workspace-tabs-actions {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 5px;
-  flex: 0 0 auto;
-  height: 34px;
-  min-width: 116px;
-  padding: 2px 0 2px 10px;
-  margin-bottom: 2px;
-  border-left: 1px solid rgb(218 226 238);
-  border-radius: 6px 6px 0 0;
-  background: linear-gradient(180deg, rgb(248 250 252) 0%, rgb(255 255 255) 100%);
 }
 
 .admin-workspace-tab {
@@ -336,7 +371,6 @@ img {
 .admin-workspace-tabs-close-menu {
   flex: 0 0 auto;
   height: 30px;
-  margin-bottom: 2px;
   color: rgb(71 85 105);
 }
 

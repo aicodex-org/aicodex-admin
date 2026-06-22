@@ -14,6 +14,7 @@ export interface WorkspaceNavigationItem {
   label: ReactNode;
   to?: string;
   external?: boolean;
+  fixed?: boolean;
   matchPrefixes?: string[];
   matcher?: WorkspaceMatcher;
 }
@@ -106,7 +107,7 @@ export function buildWorkspaceRouteItems(groups: WorkspaceNavigationGroup[]) {
         path,
         label: toLabelText(item.label, item.key),
         groupLabel: toLabelText(group.label, ""),
-        fixed: path === "/",
+        fixed: item.fixed === true,
         matchPrefixes: item.matchPrefixes,
         matcher: item.matcher,
       };
@@ -118,7 +119,7 @@ export function buildWorkspaceRouteItems(groups: WorkspaceNavigationGroup[]) {
       path: "/",
       label: "/",
       groupLabel: undefined,
-      fixed: true,
+      fixed: false,
       matchPrefixes: ["/"],
       matcher: undefined,
     });
@@ -142,8 +143,7 @@ function resolveWorkspaceTab(path: string, routes: WorkspaceRouteItem[]): Worksp
     return undefined;
   }
 
-  const isOverview = normalizedPath === "/";
-  const fixed = isOverview || route?.fixed === true;
+  const fixed = route?.fixed === true;
 
   return {
     key: normalizedPath,
@@ -178,7 +178,49 @@ function ensureOverviewFirst(tabs: WorkspaceTabItem[], routes: WorkspaceRouteIte
     .filter((tab): tab is WorkspaceTabItem => tab !== undefined);
 }
 
-/** 打开当前 route 对应标签，同时保证总览标签始终排在第一位且不可关闭。 */
+function getOverviewFallbackTab(tabs: WorkspaceTabItem[]) {
+  const overviewTab = tabs.find(tab => tab.path === "/");
+
+  return {
+    key: "/",
+    path: "/",
+    label: overviewTab?.label ?? "/",
+    groupLabel: overviewTab?.groupLabel,
+    fixed: false,
+    closable: true,
+  };
+}
+
+function ensureNonEmptyTabs(tabs: WorkspaceTabItem[], sourceTabs: WorkspaceTabItem[]) {
+  return tabs.length > 0 ? tabs : [getOverviewFallbackTab(sourceTabs)];
+}
+
+function resolveNextPathAfterBatchClose(nextTabs: WorkspaceTabItem[], activePath: string, preferredPath: string, sourceTabs: WorkspaceTabItem[]) {
+  const normalizedActivePath = normalizeWorkspacePath(activePath);
+  const normalizedPreferredPath = normalizeWorkspacePath(preferredPath);
+  const safeTabs = ensureNonEmptyTabs(nextTabs, sourceTabs);
+
+  if (safeTabs.some(tab => tab.path === normalizedActivePath)) {
+    return {
+      tabs: safeTabs,
+      nextPath: normalizedActivePath,
+    };
+  }
+
+  if (safeTabs.some(tab => tab.path === normalizedPreferredPath)) {
+    return {
+      tabs: safeTabs,
+      nextPath: normalizedPreferredPath,
+    };
+  }
+
+  return {
+    tabs: safeTabs,
+    nextPath: safeTabs[0]?.path ?? "/",
+  };
+}
+
+/** 打开当前 route 对应标签，同时保证总览 fallback 标签始终可用于空工作区恢复。 */
 export function openWorkspaceTab(currentTabs: WorkspaceTabItem[], path: string, routes: WorkspaceRouteItem[]) {
   const normalizedPath = normalizeWorkspacePath(path);
   const normalizedTabs = ensureOverviewFirst(currentTabs, routes);
@@ -245,7 +287,7 @@ export function closeWorkspaceTab(tabs: WorkspaceTabItem[], targetPath: string, 
   }
 
   const targetIndex = tabs.findIndex(tab => tab.path === normalizedTargetPath);
-  const nextTabs = tabs.filter(tab => tab.path !== normalizedTargetPath);
+  const nextTabs = ensureNonEmptyTabs(tabs.filter(tab => tab.path !== normalizedTargetPath), tabs);
 
   if (normalizedTargetPath !== normalizedActivePath) {
     return {
@@ -266,7 +308,7 @@ export function closeWorkspaceTab(tabs: WorkspaceTabItem[], targetPath: string, 
 /** 关闭除当前页和固定标签以外的其它标签，当前为总览时只保留固定标签。 */
 export function closeOtherWorkspaceTabs(tabs: WorkspaceTabItem[], activePath: string): CloseWorkspaceTabResult {
   const normalizedActivePath = normalizeWorkspacePath(activePath);
-  const nextTabs = tabs.filter(tab => tab.fixed || (tab.closable && tab.path === normalizedActivePath));
+  const nextTabs = ensureNonEmptyTabs(tabs.filter(tab => tab.path === normalizedActivePath), tabs);
   const activeStillOpen = nextTabs.some(tab => tab.path === normalizedActivePath);
 
   return {
@@ -275,12 +317,40 @@ export function closeOtherWorkspaceTabs(tabs: WorkspaceTabItem[], activePath: st
   };
 }
 
-/** 关闭全部可关闭标签，固定总览标签作为安全落点保留。 */
+/** 关闭全部标签并恢复普通总览 fallback。 */
 export function closeAllWorkspaceTabs(tabs: WorkspaceTabItem[]): CloseWorkspaceTabResult {
   return {
-    tabs: tabs.filter(tab => tab.fixed),
+    tabs: [getOverviewFallbackTab(tabs)],
     nextPath: "/",
   };
+}
+
+/** 关闭目标标签左侧的可关闭标签；如果当前页被关闭，则跳到右键目标标签。 */
+export function closeWorkspaceTabsToLeft(tabs: WorkspaceTabItem[], targetPath: string, activePath: string): CloseWorkspaceTabResult {
+  const normalizedTargetPath = normalizeWorkspacePath(targetPath);
+  const targetIndex = tabs.findIndex(tab => tab.path === normalizedTargetPath);
+
+  if (targetIndex < 0) {
+    return resolveNextPathAfterBatchClose(tabs, activePath, activePath, tabs);
+  }
+
+  const nextTabs = tabs.filter((tab, index) => index >= targetIndex || !tab.closable);
+
+  return resolveNextPathAfterBatchClose(nextTabs, activePath, normalizedTargetPath, tabs);
+}
+
+/** 关闭目标标签右侧的可关闭标签；如果当前页被关闭，则跳到右键目标标签。 */
+export function closeWorkspaceTabsToRight(tabs: WorkspaceTabItem[], targetPath: string, activePath: string): CloseWorkspaceTabResult {
+  const normalizedTargetPath = normalizeWorkspacePath(targetPath);
+  const targetIndex = tabs.findIndex(tab => tab.path === normalizedTargetPath);
+
+  if (targetIndex < 0) {
+    return resolveNextPathAfterBatchClose(tabs, activePath, activePath, tabs);
+  }
+
+  const nextTabs = tabs.filter((tab, index) => index <= targetIndex || !tab.closable);
+
+  return resolveNextPathAfterBatchClose(nextTabs, activePath, normalizedTargetPath, tabs);
 }
 
 /** 限制桌面直接可见标签数，同时保持用户打开顺序稳定。 */
