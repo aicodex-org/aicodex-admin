@@ -103,6 +103,20 @@ func (c *ApiController) SaveApplicationAccessServiceCredentialGovernanceConfig()
 	c.ResponseOk(savedConfig)
 }
 
+// DiagnoseApplicationAccessServiceCredentialGovernanceConfig 对 copy-safe draft/saved 配置做保存前预检。
+// 该接口不保存配置、不解析 secret、不触发 resolver、provider、Gateway 或认证链路。
+func (c *ApiController) DiagnoseApplicationAccessServiceCredentialGovernanceConfig() {
+	if !c.requireServiceCredentialGovernanceGlobalAdmin() {
+		return
+	}
+	var config object.ServiceCredentialGovernanceConfigResponse
+	if err := json.Unmarshal(c.Ctx.Input.RequestBody, &config); err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(object.BuildServiceCredentialGovernanceDiagnostics(&config, time.Now().UTC()))
+}
+
 func (c *ApiController) requireServiceCredentialGovernanceGlobalAdmin() bool {
 	userId, ok := c.RequireSignedIn()
 	if !ok {

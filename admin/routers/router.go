@@ -132,6 +132,7 @@ func InitAPI() {
 	web.Router("/api/get-applications", &controllers.ApiController{}, "GET:GetApplications")
 	web.Router("/api/application-access/service-credential-governance-status", &controllers.ApiController{}, "GET:GetApplicationAccessServiceCredentialGovernanceStatus")
 	web.Router("/api/application-access/service-credential-governance-config", &controllers.ApiController{}, "GET:GetApplicationAccessServiceCredentialGovernanceConfig;POST:SaveApplicationAccessServiceCredentialGovernanceConfig")
+	web.Router("/api/application-access/service-credential-governance-diagnostics", &controllers.ApiController{}, "POST:DiagnoseApplicationAccessServiceCredentialGovernanceConfig")
 	web.Router("/api/get-application", &controllers.ApiController{}, "GET:GetApplication")
 	web.Router("/api/get-user-application", &controllers.ApiController{}, "GET:GetUserApplication")
 	web.Router("/api/get-organization-applications", &controllers.ApiController{}, "GET:GetOrganizationApplications")

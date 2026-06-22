@@ -63,6 +63,35 @@ export interface ServiceCredentialGovernanceConfigApiResponse {
   data?: ServiceCredentialGovernanceConfigResponse;
 }
 
+export type ServiceCredentialGovernanceDiagnosticStatus = "ready" | "blocked" | "disabled" | "missing_reference" | "keep_in_env" | "cannot_infer";
+
+export interface ServiceCredentialGovernanceDiagnosticGroup {
+  key: string;
+  label?: string;
+  status: ServiceCredentialGovernanceDiagnosticStatus;
+  stableAlias: string;
+  owner?: string;
+  sourceClass?: ServiceCredentialGovernanceSourceClass;
+  credentialReferenceStatus?: ServiceCredentialReferenceStatus;
+  callerPolicyPresent: boolean;
+  keepInEnv: boolean;
+  nextAction?: string;
+  cannotInfer: boolean;
+  blockedReasons?: string[];
+}
+
+export interface ServiceCredentialGovernanceDiagnosticResponse {
+  generatedAt: string;
+  source: "admin_service_credential_governance_diagnostic";
+  groups: ServiceCredentialGovernanceDiagnosticGroup[];
+}
+
+export interface ServiceCredentialGovernanceDiagnosticApiResponse {
+  status: "ok" | "error";
+  msg?: string;
+  data?: ServiceCredentialGovernanceDiagnosticResponse;
+}
+
 function getHeaders(): Record<string, string> {
   return {
     "Accept-Language": Setting.getAcceptLanguage(),
@@ -87,6 +116,18 @@ export function getServiceCredentialGovernanceConfig(): Promise<ServiceCredentia
 
 export function saveServiceCredentialGovernanceConfig(config: ServiceCredentialGovernanceConfigResponse): Promise<ServiceCredentialGovernanceConfigApiResponse> {
   return fetch(`${Setting.ServerUrl}/api/application-access/service-credential-governance-config`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      ...getHeaders(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(config),
+  }).then(res => res.json());
+}
+
+export function diagnoseServiceCredentialGovernanceConfig(config: ServiceCredentialGovernanceConfigResponse): Promise<ServiceCredentialGovernanceDiagnosticApiResponse> {
+  return fetch(`${Setting.ServerUrl}/api/application-access/service-credential-governance-diagnostics`, {
     method: "POST",
     credentials: "include",
     headers: {

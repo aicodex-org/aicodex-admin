@@ -194,6 +194,43 @@ const serviceCredentialGovernanceConfigResponse = {
   },
 };
 
+const serviceCredentialGovernanceDiagnosticResponse = {
+  status: "ok",
+  data: {
+    generatedAt: "2026-06-22T01:02:03Z",
+    source: "admin_service_credential_governance_diagnostic",
+    groups: [
+      {
+        key: "usage_identity_resolver",
+        label: "Usage identity resolver",
+        status: "cannot_infer",
+        stableAlias: "admin_service_credential_reference_unresolved",
+        owner: "admin_outbound_resolver",
+        sourceClass: "external_secret_system",
+        credentialReferenceStatus: "external_secret",
+        callerPolicyPresent: true,
+        keepInEnv: false,
+        cannotInfer: true,
+        nextAction: "Admin 只能确认外部引用别名，需在运行态验证外部 Secret 解析",
+        blockedReasons: ["admin_service_credential_reference_unresolved"],
+      },
+      {
+        key: "keep_in_env",
+        label: "Keep in env/config",
+        status: "keep_in_env",
+        stableAlias: "admin_service_credential_keep_in_env",
+        owner: "deployment_env_config",
+        sourceClass: "env_config",
+        credentialReferenceStatus: "external_secret",
+        callerPolicyPresent: false,
+        keepInEnv: true,
+        cannotInfer: true,
+        nextAction: "运行时 secret 保留在 env/config，Admin 仅能确认归属边界",
+      },
+    ],
+  },
+};
+
 async function useTestLanguage(language: string) {
   if (!i18next.isInitialized) {
     await i18next.init({
@@ -676,5 +713,55 @@ describe("ApplicationAccessCenter", () => {
 
     expect((view.getByLabelText("usage_identity_resolver 凭据引用") as HTMLInputElement).value).toBe("vault:usage-identity-resolver-updated");
     expect(view.container.textContent).toContain("已回读脱敏配置");
+  });
+
+  test("runs service credential governance diagnostic with copy-safe payload and renders result", async() => {
+    (global.fetch as unknown as MockFetch)
+      .mockResolvedValueOnce({json: () => Promise.resolve(serviceCredentialGovernanceResponse)})
+      .mockResolvedValueOnce({json: () => Promise.resolve(serviceCredentialGovernanceConfigResponse)})
+      .mockResolvedValueOnce({json: () => Promise.resolve(serviceCredentialGovernanceDiagnosticResponse)});
+
+    const view = render(
+      <MemoryRouter>
+        <ApplicationAccessCenter applications={applications} loading={false} />
+      </MemoryRouter>
+    );
+
+    expect(await view.findByText("治理配置")).not.toBeNull();
+    fireEvent.click(view.getByText("诊断/预检"));
+
+    expect(await view.findByText("诊断结果")).not.toBeNull();
+    expect(view.getByText("admin_service_credential_reference_unresolved")).not.toBeNull();
+    expect(view.getByText("不能推断")).not.toBeNull();
+    expect(view.getByText("admin_service_credential_keep_in_env")).not.toBeNull();
+    expect(view.getAllByText("cannotInfer").length).toBeGreaterThan(0);
+
+    const diagnosticCall = (global.fetch as unknown as MockFetch).mock.calls.find(call => call[0] === "/api/application-access/service-credential-governance-diagnostics" && call[1]?.method === "POST");
+    expect(diagnosticCall).toBeTruthy();
+    const requestBody = diagnosticCall?.[1]?.body;
+    expect(requestBody).toContain("vault:usage-identity-resolver");
+    expect(requestBody).not.toContain("resolver-secret-value");
+    expect(requestBody).not.toContain("resolver.internal.example.invalid");
+    expect(view.queryByText("resolver-secret-value")).toBeNull();
+    expect(view.queryByText("resolver.internal.example.invalid")).toBeNull();
+  });
+
+  test("keeps config entry usable when service credential governance diagnostic fails", async() => {
+    (global.fetch as unknown as MockFetch)
+      .mockResolvedValueOnce({json: () => Promise.resolve(serviceCredentialGovernanceResponse)})
+      .mockResolvedValueOnce({json: () => Promise.resolve(serviceCredentialGovernanceConfigResponse)})
+      .mockRejectedValueOnce(new Error("diagnostic unavailable"));
+
+    const view = render(
+      <MemoryRouter>
+        <ApplicationAccessCenter applications={applications} loading={false} />
+      </MemoryRouter>
+    );
+
+    expect(await view.findByText("治理配置")).not.toBeNull();
+    fireEvent.click(view.getByText("诊断/预检"));
+
+    expect(await view.findByText("服务凭据治理诊断暂不可用")).not.toBeNull();
+    expect(view.getByText("保存配置")).not.toBeNull();
   });
 });

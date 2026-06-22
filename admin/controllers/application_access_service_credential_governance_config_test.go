@@ -233,6 +233,56 @@ func TestSaveApplicationAccessServiceCredentialGovernanceConfigHandlesStoreError
 	}
 }
 
+func TestDiagnoseApplicationAccessServiceCredentialGovernanceConfigRequiresAdminAndRejectsMalformedJson(t *testing.T) {
+	controller := newServiceCredentialGovernanceConfigTestController("POST", []byte(`{"groups":[]`))
+	controller.Ctx.Input.SetData("currentUserId", "built-in/admin")
+
+	controller.DiagnoseApplicationAccessServiceCredentialGovernanceConfig()
+
+	resp, ok := controller.Data["json"].(*Response)
+	if !ok || resp.Status != "error" {
+		t.Fatalf("response = %#v, want malformed JSON error", controller.Data["json"])
+	}
+
+	controller = newServiceCredentialGovernanceConfigTestController("POST", []byte(`{"groups":[]}`))
+	controller.Ctx.Input.SetData("currentUserId", "tenant-a/operator")
+
+	controller.DiagnoseApplicationAccessServiceCredentialGovernanceConfig()
+
+	resp, ok = controller.Data["json"].(*Response)
+	if !ok || resp.Status != "error" || !strings.Contains(resp.Msg, "administrator") {
+		t.Fatalf("response = %#v, want administrator required error", controller.Data["json"])
+	}
+}
+
+func TestDiagnoseApplicationAccessServiceCredentialGovernanceConfigReturnsCopySafeDiagnostic(t *testing.T) {
+	controller := newServiceCredentialGovernanceConfigTestController("POST", []byte(`{"groups":[{"key":"usage_identity_resolver","enabled":true,"owner":"admin_outbound_resolver","sourceClass":"external_secret_system","credentialReferenceStatus":"external_secret","credentialReferenceKey":"vault:usage-identity-resolver","callerPolicy":"aicodex-admin","boundedRuntimePolicy":{"timeoutMs":1500,"maxItems":25},"nextAction":"核对 resolver 引用"}]}`))
+	controller.Ctx.Input.SetData("currentUserId", "built-in/admin")
+
+	controller.DiagnoseApplicationAccessServiceCredentialGovernanceConfig()
+
+	resp, ok := controller.Data["json"].(*Response)
+	if !ok || resp.Status != "ok" {
+		t.Fatalf("diagnose response = %#v, want ok", controller.Data["json"])
+	}
+	diagnostic, ok := resp.Data.(object.ServiceCredentialGovernanceDiagnosticResponse)
+	if !ok {
+		t.Fatalf("diagnose data = %#v, want diagnostic response", resp.Data)
+	}
+	if len(diagnostic.Groups) != 1 || diagnostic.Groups[0].StableAlias != object.ServiceCredentialRuntimeBlockerReferenceUnresolved {
+		t.Fatalf("diagnostic groups = %#v", diagnostic.Groups)
+	}
+	body, err := json.Marshal(diagnostic)
+	if err != nil {
+		t.Fatalf("marshal diagnostic: %v", err)
+	}
+	for _, forbidden := range []string{"resolver-secret-value", "Authorization", "Cookie", "clientSecret", "privateKey", "https://resolver.internal"} {
+		if strings.Contains(string(body), forbidden) {
+			t.Fatalf("diagnostic leaked %q in %s", forbidden, string(body))
+		}
+	}
+}
+
 func TestGetAndSaveApplicationAccessServiceCredentialGovernanceConfigRoundTrip(t *testing.T) {
 	store := &memoryServiceCredentialGovernanceConfigStore{}
 	originalFactory := applicationAccessServiceCredentialGovernanceConfigServiceFactory
