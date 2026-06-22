@@ -325,12 +325,13 @@ Admin 身份控制台总览 SHALL 以 `AICodex 身份基础设施总览` 呈现 
 - **WHEN** local admin 访问 `/`
 - **THEN** 页面主标题 SHALL 为 `AICodex 身份基础设施总览`
 - **AND** 面包屑 SHALL 为 `身份控制台 / 身份总览`
+- **AND** 页面副标题 SHALL 使用简短控制台状态口径，而不是说明文档式长句
 - **AND** 页面 SHALL NOT 使用 `企业认证中心` 作为用户可见产品名
 
 #### Scenario: 总览覆盖 AICodex 四个产品域
 - **WHEN** 页面展示产品域覆盖
 - **THEN** 页面 SHALL 展示 `应用规格`、`用量洞察`、`身份控制台`、`API 网关` 四个业务名
-- **AND** `aicodex-app-spec`、`aicodex-insight`、`aicodex-admin`、`aicodex-api` SHALL 仅作为二级 code tag 或证据标识展示
+- **AND** `aicodex-app-spec`、`aicodex-insight`、`aicodex-admin`、`aicodex-api` SHALL 仅作为次级 code tag 或证据标识展示
 - **AND** 产品域卡片 SHALL 帮助管理员理解接入声明、用量归因、组织身份配置、Gateway 授权和审计事实
 
 #### Scenario: 总览优先状态和证据
@@ -338,6 +339,21 @@ Admin 身份控制台总览 SHALL 以 `AICodex 身份基础设施总览` 呈现 
 - **THEN** 首屏 SHALL 可见覆盖指标、四产品域、待核对事项、接入健康或最近审计证据
 - **AND** `身份资产关系`、`治理任务中心`、`接入预检中心` SHALL NOT 作为总览显眼入口堆叠出现
 - **AND** 指向既有能力的链接 MAY 以核对建议、状态操作或低噪上下文入口保持可达
+
+#### Scenario: 总览指标口径保持可信
+- **WHEN** dashboard 数据可推导用量归因完整度
+- **THEN** 顶部 `用量归因完整度` 与用量洞察产品域卡片 SHALL 使用一致显示值
+- **AND** 同屏 SHALL NOT 出现一个 `用量归因完整度` 显示 `-`、另一个同语义卡片显示 `98%` 的状态
+
+#### Scenario: KPI 状态表达不得依赖无语义装饰线
+- **WHEN** 页面展示顶部 KPI 指标
+- **THEN** KPI SHALL NOT 使用管理员无法解释的彩色顶部边线作为主要视觉信号
+- **AND** 状态语义 SHALL 通过标签、数值、描述或清晰分组表达
+
+#### Scenario: 最近审计证据操作文案具体可辨
+- **WHEN** 页面展示最近审计证据列表
+- **THEN** 每条证据操作 SHALL 使用对象或证据类型相关文案
+- **AND** 列表 SHALL NOT 机械重复 `查看记录` 作为所有条目的唯一 CTA
 
 #### Scenario: 没有真实处理流时使用核对状态
 - **WHEN** 总览展示风险、授权映射、用量归因、接入或审计相关状态

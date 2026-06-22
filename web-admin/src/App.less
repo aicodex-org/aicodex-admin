@@ -461,7 +461,6 @@ img {
   min-height: 92px;
   padding: 14px 16px;
   background: #fff;
-  border-top: 3px solid rgb(100 116 139);
 }
 
 .enterprise-identity-summary-label,
@@ -584,6 +583,15 @@ img {
 
 .enterprise-identity-status-tags {
   min-height: 24px;
+}
+
+.identity-console-repo-tag {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  color: rgb(100 116 139);
+  font-size: 12px;
 }
 
 .enterprise-identity-status-progress .ant-progress {
@@ -1755,6 +1763,28 @@ img {
 }
 
 @media screen and (max-width: 768px) {
+  .admin-shell-header {
+    gap: 8px;
+  }
+
+  .admin-shell-header-left,
+  .admin-shell-header-right {
+    min-width: 0;
+  }
+
+  .admin-shell-header-right {
+    flex: 1 1 auto;
+    justify-content: flex-end;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .admin-shell-header-right .org-select {
+    flex: 0 1 120px;
+    min-width: 96px;
+    margin: 0 6px !important;
+  }
+
   .enterprise-identity-console {
     padding: 8px;
   }

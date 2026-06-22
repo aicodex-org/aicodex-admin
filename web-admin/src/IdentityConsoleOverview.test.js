@@ -45,11 +45,14 @@ describe("IdentityConsoleOverview", () => {
     );
 
     expect(screen.getByText("AICodex 身份基础设施总览")).toBeInTheDocument();
+    expect(screen.getByText("关注接入覆盖、归因、授权和审计信号。")).toBeInTheDocument();
+    expect(screen.queryByText("统一查看应用规格、用量洞察、身份配置与 API 网关的身份运行状态，优先呈现接入覆盖、用量归因、授权映射和审计证据。")).not.toBeInTheDocument();
     expect(screen.getAllByText("身份控制台").length).toBeGreaterThan(0);
     expect(screen.getByText("身份控制台 / 身份总览")).toBeInTheDocument();
     expect(screen.getByText("加载身份基础设施状态...")).toBeInTheDocument();
-
     expect((await screen.findAllByText("应用规格")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("98%")).toHaveLength(2);
+
     expect(screen.getByText("aicodex-app-spec")).toBeInTheDocument();
     expect(screen.getAllByText("用量洞察").length).toBeGreaterThan(0);
     expect(screen.getByText("aicodex-insight")).toBeInTheDocument();
@@ -57,11 +60,15 @@ describe("IdentityConsoleOverview", () => {
     expect(screen.getByText("aicodex-admin")).toBeInTheDocument();
     expect(screen.getAllByText("API 网关").length).toBeGreaterThan(0);
     expect(screen.getByText("aicodex-api")).toBeInTheDocument();
+    expect(screen.getAllByText("系统标识")).toHaveLength(4);
     expect(screen.getByText("待核对事项")).toBeInTheDocument();
     expect(screen.getByText("接入健康")).toBeInTheDocument();
     expect(screen.getByText("最近审计证据")).toBeInTheDocument();
     expect(screen.getAllByText("进入应用接入").some(item => item.closest("a")?.getAttribute("href") === "/applications")).toBe(true);
-    expect(screen.getAllByText("查看记录").some(item => item.closest("a")?.getAttribute("href") === "/records")).toBe(true);
+    expect(screen.queryByText("查看记录")).not.toBeInTheDocument();
+    expect(screen.getByText("核对审计记录").closest("a")).toHaveAttribute("href", "/records");
+    expect(screen.getByText("核对同步记录").closest("a")).toHaveAttribute("href", "/records");
+    expect(screen.getByText("核对网关证据").closest("a")).toHaveAttribute("href", "/records");
     expect(screen.queryByText("能力入口")).not.toBeInTheDocument();
     expect(screen.queryByText(/Gateway 投影/)).not.toBeInTheDocument();
     expect(screen.queryByText(/企业认证中心/)).not.toBeInTheDocument();

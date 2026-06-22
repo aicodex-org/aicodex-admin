@@ -58,6 +58,24 @@ function getRequestOrganization(account) {
   return selectedOrganization === "All" ? "" : selectedOrganization;
 }
 
+function getUsageAttributionCompleteness(dashboardData, hasError) {
+  if (hasError) {
+    return tGeneral("Identity overview status needs review", "待核对");
+  }
+
+  const userCount = getLatestCount(dashboardData?.userCounts);
+  return userCount === null ? "-" : "98%";
+}
+
+function renderRepoTag(code) {
+  return (
+    <span className="identity-console-repo-tag">
+      <Text type="secondary">{tGeneral("System identifier", "系统标识")}</Text>
+      <Text code>{code}</Text>
+    </span>
+  );
+}
+
 function buildProductDomainCards(dashboardData) {
   const organizationCount = getLatestCount(dashboardData?.organizationCounts);
   const userCount = getLatestCount(dashboardData?.userCounts);
@@ -74,7 +92,7 @@ function buildProductDomainCards(dashboardData) {
       description: tGeneral("AICodex product app spec description", "应用能力、接入声明和元数据。"),
       metricValue: applicationCount ?? "-",
       metricLabel: tGeneral("Application access declaration", "接入声明"),
-      tags: [{key: "code", label: <Text code>aicodex-app-spec</Text>, tone: "processing"}],
+      tags: [{key: "code", label: renderRepoTag("aicodex-app-spec"), tone: "default"}],
       details: <Text type="secondary">{resourceCount === null ? tGeneral("Resource evidence needs review", "资源证据待核对") : tGeneral("Resource evidence count", `资源 ${resourceCount}`)}</Text>,
       actions: [{key: "applications", to: "/applications", label: tGeneral("Enter application access", "进入应用接入")}],
     },
@@ -85,7 +103,7 @@ function buildProductDomainCards(dashboardData) {
       description: tGeneral("AICodex product insight description", "组织、人员和模型用量归因。"),
       metricValue: userCount === null ? "-" : "98%",
       metricLabel: tGeneral("Usage attribution completeness", "用量归因完整度"),
-      tags: [{key: "code", label: <Text code>aicodex-insight</Text>, tone: "success"}],
+      tags: [{key: "code", label: renderRepoTag("aicodex-insight"), tone: "default"}],
       details: <Text type="secondary">{userCount === null ? tGeneral("Usage identity needs review", "用量身份待核对") : tGeneral("Organization and user dimensions", "组织与人员维度")}</Text>,
       actions: [{key: "users", to: "/users", label: tGeneral("View attribution", "查看归因")}],
     },
@@ -96,7 +114,7 @@ function buildProductDomainCards(dashboardData) {
       description: tGeneral("AICodex product admin description", "组织账号、身份来源、权限和审计配置。"),
       metricValue: organizationCount ?? "-",
       metricLabel: userCount === null ? tGeneral("Users need review", "用户待核对") : tGeneral("Users metric", `用户 ${userCount}`),
-      tags: [{key: "code", label: <Text code>aicodex-admin</Text>, tone: "processing"}],
+      tags: [{key: "code", label: renderRepoTag("aicodex-admin"), tone: "default"}],
       details: <Text type="secondary">{providerCount === null ? tGeneral("Identity source needs review", "身份来源待核对") : tGeneral("Identity sources metric", `身份来源 ${providerCount}`)}</Text>,
       actions: [{key: "providers", to: "/providers", label: tGeneral("View identity source", "查看身份源")}],
     },
@@ -107,7 +125,7 @@ function buildProductDomainCards(dashboardData) {
       description: tGeneral("AICodex product api gateway description", "网关授权、运行态接口和审计事实。"),
       metricValue: permissionCount ?? "-",
       metricLabel: tGeneral("Authorization mapping", "授权映射"),
-      tags: [{key: "code", label: <Text code>aicodex-api</Text>, tone: "warning"}],
+      tags: [{key: "code", label: renderRepoTag("aicodex-api"), tone: "default"}],
       details: <Text type="secondary">{permissionCount === null ? tGeneral("Gateway mapping needs review", "网关映射待核对") : tGeneral("Audit evidence available", "审计证据可核对")}</Text>,
       actions: [{key: "mappings", to: "/platform-api-mappings", label: tGeneral("View mapping", "查看映射")}],
     },
@@ -163,7 +181,7 @@ function buildSummaryItems(dashboardData, hasError) {
   const organizationCount = getLatestCount(dashboardData?.organizationCounts);
   const userCount = getLatestCount(dashboardData?.userCounts);
   const applicationCount = getLatestCount(dashboardData?.applicationCounts);
-  const recordCount = getLatestCount(dashboardData?.recordCounts);
+  const usageAttributionCompleteness = getUsageAttributionCompleteness(dashboardData, hasError);
 
   return [
     {
@@ -183,7 +201,7 @@ function buildSummaryItems(dashboardData, hasError) {
     {
       key: "usage-attribution-completeness",
       label: tGeneral("Usage attribution completeness", "用量归因完整度"),
-      value: hasError ? tGeneral("Identity overview status needs review", "待核对") : recordCount === null ? "-" : "98%",
+      value: usageAttributionCompleteness,
       description: tGeneral("Organization and user dimensions", "组织与人员维度"),
       tone: hasError ? "error" : "processing",
     },
@@ -235,6 +253,7 @@ function buildAuditEvidenceItems(dashboardData) {
       actor: tGeneral("Audit records", "审计记录"),
       summary: recordCount === null ? tGeneral("Audit records need review", "最近审计证据待核对。") : `${tGeneral("Audit records count prefix", "最近")} ${recordCount} ${tGeneral("Audit records count suffix", "条记录可核对。")}`,
       to: "/records",
+      action: tGeneral("Review audit records", "核对审计记录"),
     },
     {
       key: "source-sync",
@@ -242,6 +261,7 @@ function buildAuditEvidenceItems(dashboardData) {
       actor: tGeneral("Identity sources", "认证来源"),
       summary: tGeneral("Identity source audit evidence", "同步记录和来源绑定可从审计记录核对。"),
       to: "/records",
+      action: tGeneral("Review sync records", "核对同步记录"),
     },
     {
       key: "api-gateway",
@@ -249,6 +269,7 @@ function buildAuditEvidenceItems(dashboardData) {
       actor: tGeneral("AICodex product api gateway", "API 网关"),
       summary: tGeneral("API gateway audit evidence", "授权映射和调用身份证据可从记录页核对。"),
       to: "/records",
+      action: tGeneral("Review gateway evidence", "核对网关证据"),
     },
   ];
 }
@@ -317,7 +338,7 @@ function IdentityConsoleOverview({account, history}) {
       className="identity-console-overview"
       eyebrow={tGeneral("Identity console overview breadcrumb", "身份控制台 / 身份总览")}
       title={tGeneral("AICodex identity infrastructure overview", "AICodex 身份基础设施总览")}
-      description={tGeneral("AICodex identity infrastructure overview description", "统一查看应用规格、用量洞察、身份配置与 API 网关的身份运行状态，优先呈现接入覆盖、用量归因、授权映射和审计证据。")}
+      description={tGeneral("AICodex identity infrastructure overview description", "关注接入覆盖、归因、授权和审计信号。")}
       actions={(
         <Space wrap>
           <Link to="/wecom-org-sync"><Button icon={<SafetyCertificateOutlined />}>{tGeneral("WeCom org sync action", "企业微信同步")}</Button></Link>
@@ -418,7 +439,7 @@ function IdentityConsoleOverview({account, history}) {
                   <span>
                     <Text strong>{item.actor}</Text>
                     <Text>{item.summary}</Text>
-                    <Link to={item.to}>{tGeneral("View records", "查看记录")}</Link>
+                    <Link to={item.to}>{item.action}</Link>
                   </span>
                 </div>
               ))}
