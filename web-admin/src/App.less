@@ -37,6 +37,7 @@ img {
   flex-direction: column;
   height: 100%;
   min-height: 100vh;
+  background: rgb(239 244 250);
 }
 
 .panel-logo {
@@ -92,8 +93,11 @@ img {
   justify-content: space-between;
   align-items: center;
   padding: 0 16px !important;
-  margin-bottom: 4px;
-  border-bottom: 1px solid rgb(235 237 242);
+  margin-bottom: 0;
+  border-bottom: 1px solid rgb(214 224 238);
+  box-shadow: 0 1px 0 rgb(15 23 42 / 4%);
+  position: relative;
+  z-index: 5;
 }
 
 .admin-shell-header-left {
@@ -155,12 +159,15 @@ img {
   flex: 0 0 auto;
   width: 32px;
   height: 32px;
-  color: rgb(71 85 105);
+  border: 1px solid rgb(213 223 236);
+  color: rgb(51 65 85);
+  background: rgb(248 250 252);
 }
 
 .admin-shell-sidebar-toggle:hover {
   color: rgb(30 64 175);
-  background: rgb(241 245 249);
+  border-color: rgb(191 219 254);
+  background: rgb(239 246 255);
 }
 
 .admin-shell-body {
@@ -168,12 +175,12 @@ img {
   min-height: 0;
   min-width: 0;
   overflow: hidden;
-  background: transparent;
+  background: rgb(239 244 250);
 }
 
 .admin-shell-sider {
-  background: #fff !important;
-  border-right: 1px solid rgb(235 237 242);
+  background: rgb(247 250 255) !important;
+  border-right: 1px solid rgb(211 222 237);
   overflow: hidden auto;
   transition: width 0.18s ease, min-width 0.18s ease, max-width 0.18s ease, flex-basis 0.18s ease;
 }
@@ -187,6 +194,31 @@ img {
   width: 72px;
 }
 
+.admin-shell-sider .ant-menu {
+  background: transparent;
+  padding: 6px 4px;
+}
+
+.admin-shell-sider .ant-menu-item,
+.admin-shell-sider .ant-menu-submenu-title {
+  margin: 3px 6px !important;
+  width: calc(100% - 12px) !important;
+  border-radius: 8px;
+}
+
+.admin-shell-sider .ant-menu-item-selected,
+.admin-shell-sider .ant-menu-submenu-selected > .ant-menu-submenu-title {
+  color: rgb(79 70 229) !important;
+  background: rgb(236 239 255) !important;
+  box-shadow: inset 3px 0 0 rgb(99 102 241);
+}
+
+.admin-shell-sider .ant-menu-item:hover,
+.admin-shell-sider .ant-menu-submenu-title:hover {
+  color: rgb(55 48 163) !important;
+  background: rgb(241 245 255) !important;
+}
+
 .admin-shell-content {
   display: flex;
   flex-direction: column;
@@ -194,14 +226,15 @@ img {
   min-width: 0;
   max-width: 100%;
   overflow-x: hidden;
+  background: rgb(239 244 250);
 }
 
 .admin-workspace-tabs-shell {
   flex: 0 0 auto;
   min-width: 0;
   max-width: 100%;
-  background: #fff;
-  border-bottom: 1px solid rgb(218 226 238);
+  background: rgb(243 247 252);
+  border-bottom: 1px solid rgb(207 220 238);
   overflow-x: hidden;
 }
 
@@ -219,9 +252,9 @@ img {
   display: flex;
   align-items: center;
   gap: 0;
-  min-height: 40px;
-  padding: 6px 12px 0;
-  background: #fff;
+  min-height: 44px;
+  padding: 7px 14px 0;
+  background: rgb(243 247 252);
 }
 
 .admin-workspace-tabs-scroll-shell {
@@ -263,10 +296,10 @@ img {
   min-width: 92px;
   max-width: 176px;
   height: 34px;
-  border: 1px solid rgb(218 226 238);
+  border: 1px solid rgb(203 216 235);
   border-top: 2px solid transparent;
   border-radius: 7px 7px 0 0;
-  background: rgb(248 250 252);
+  background: rgb(249 251 254);
   color: rgb(71 85 105);
   transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
 }
@@ -279,10 +312,10 @@ img {
 
 .admin-workspace-tab-active {
   border-top-color: rgb(37 99 235);
-  border-bottom-color: #fff;
+  border-bottom-color: rgb(255 255 255);
   background: #fff;
   color: rgb(30 64 175);
-  box-shadow: inset 0 2px 0 rgb(37 99 235);
+  box-shadow: inset 0 2px 0 rgb(37 99 235), 0 -1px 6px rgb(37 99 235 / 10%);
 }
 
 .admin-workspace-tab-active:hover {
@@ -342,21 +375,29 @@ img {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 24px;
-  width: 24px;
-  height: 24px;
+  flex: 0 0 23px;
+  width: 23px;
+  height: 23px;
   margin-right: 4px;
-  border: 0;
+  border: 1px solid rgb(203 213 225);
   border-radius: 5px;
-  background: transparent;
-  color: rgb(148 163 184);
+  background: rgb(255 255 255 / 86%);
+  color: rgb(71 85 105);
   font-size: 11px;
   cursor: pointer;
+  box-shadow: 0 1px 1px rgb(15 23 42 / 4%);
+}
+
+.admin-workspace-tab-active .admin-workspace-tab-close {
+  border-color: rgb(191 219 254);
+  background: rgb(239 246 255);
+  color: rgb(30 64 175);
 }
 
 .admin-workspace-tab-close:hover {
+  border-color: rgb(148 163 184);
   background: rgb(226 232 240);
-  color: rgb(51 65 85);
+  color: rgb(15 23 42);
 }
 
 .admin-workspace-tab-close:focus-visible {
@@ -453,10 +494,10 @@ img {
 }
 
 .admin-workspace-tabs-divider {
-  height: 7px;
-  background: rgb(243 246 250);
-  border-top: 1px solid rgb(235 239 245);
-  border-bottom: 1px solid rgb(226 232 240);
+  height: 8px;
+  background: rgb(231 238 248);
+  border-top: 1px solid rgb(247 250 252);
+  border-bottom: 1px solid rgb(207 220 238);
 }
 
 .admin-workspace-tabs-mobile {
@@ -501,10 +542,10 @@ img {
 }
 
 .enterprise-identity-console {
-  padding: 14px 16px 20px;
+  padding: 16px 18px 22px;
   width: 100%;
   box-sizing: border-box;
-  background: #f6f7f9;
+  background: rgb(239 244 250);
 }
 
 .enterprise-identity-console-header {
@@ -513,11 +554,12 @@ img {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 16px;
-  margin-bottom: 10px;
-  border: 1px solid rgb(220 226 235);
+  padding: 16px 18px;
+  margin-bottom: 12px;
+  border: 1px solid rgb(205 218 237);
   border-radius: 8px;
   background: #fff;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 5%);
 }
 
 .enterprise-identity-console-title-block {
@@ -553,14 +595,17 @@ img {
   gap: 1px;
   margin-bottom: 14px;
   overflow: hidden;
-  border: 1px solid rgb(220 226 235);
+  border: 1px solid rgb(199 215 235);
   border-radius: 8px;
-  background: rgb(220 226 235);
+  background: rgb(199 215 235);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 5%);
 }
 
 .enterprise-identity-summary-item {
-  min-height: 92px;
-  padding: 14px 16px;
+  position: relative;
+  min-height: 96px;
+  padding: 15px 16px 14px;
+  border-left: 3px solid rgb(148 163 184);
   background: #fff;
 }
 
@@ -573,7 +618,7 @@ img {
 .enterprise-identity-summary-value {
   margin-top: 6px;
   color: rgb(15 23 42);
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 700;
   line-height: 1.15;
   overflow-wrap: anywhere;
@@ -581,10 +626,11 @@ img {
 
 .enterprise-identity-section {
   padding: 16px;
-  border: 1px solid rgb(220 226 235);
+  border: 1px solid rgb(205 218 237);
   border-radius: 8px;
   background: #fff;
   min-width: 0;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
 }
 
 .enterprise-identity-section + .enterprise-identity-section,
@@ -623,14 +669,29 @@ img {
 }
 
 .enterprise-identity-status-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 12px;
   min-height: 196px;
   padding: 15px;
-  border: 1px solid rgb(220 226 235);
+  border: 1px solid rgb(205 218 237);
+  border-left: 3px solid rgb(191 219 254);
   border-radius: 8px;
   background: #fff;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
+}
+
+.enterprise-identity-status-card:nth-child(2) {
+  border-left-color: rgb(45 212 191);
+}
+
+.enterprise-identity-status-card:nth-child(3) {
+  border-left-color: rgb(129 140 248);
+}
+
+.enterprise-identity-status-card:nth-child(4) {
+  border-left-color: rgb(251 146 60);
 }
 
 .enterprise-identity-status-card-heading {
@@ -650,8 +711,8 @@ img {
   width: 28px;
   height: 28px;
   border-radius: 6px;
-  background: rgb(241 245 249);
-  color: rgb(51 65 85);
+  background: rgb(239 246 255);
+  color: rgb(37 99 235);
 }
 
 .enterprise-identity-status-copy,
@@ -724,9 +785,10 @@ img {
   gap: 6px;
   min-height: 30px;
   padding: 0 10px;
-  border: 1px solid rgb(220 226 235);
+  border: 1px solid rgb(191 219 254);
   border-radius: 6px;
-  background: rgb(248 250 252);
+  background: rgb(248 251 255);
+  color: rgb(30 64 175);
   overflow-wrap: anywhere;
 }
 
@@ -767,7 +829,7 @@ img {
   color: rgb(71 85 105);
   font-size: 12px;
   font-weight: 600;
-  background: rgb(248 250 252);
+  background: rgb(244 248 253);
 }
 
 .identity-console-review-table th:nth-child(1) {
@@ -820,10 +882,19 @@ img {
   align-items: center;
   min-height: 58px;
   padding: 10px 12px;
-  border: 1px solid rgb(226 232 240);
+  border: 1px solid rgb(205 218 237);
   border-left-width: 4px;
   border-radius: 8px;
-  background: rgb(248 250 252);
+  border-left-color: rgb(37 99 235);
+  background: rgb(248 251 255);
+}
+
+.identity-console-health-item:nth-child(2) {
+  border-left-color: rgb(20 184 166);
+}
+
+.identity-console-health-item:nth-child(3) {
+  border-left-color: rgb(245 158 11);
 }
 
 .identity-console-health-item span,
@@ -838,7 +909,7 @@ img {
   grid-template-columns: 46px minmax(0, 1fr);
   gap: 10px;
   min-height: 48px;
-  padding: 9px 0;
+  padding: 10px 0;
   border-bottom: 1px solid rgb(226 232 240);
 }
 
@@ -914,20 +985,20 @@ img {
 }
 
 .enterprise-identity-tone-success {
-  border-top-color: rgb(22 163 74) !important;
+  border-color: rgb(22 163 74) !important;
 }
 
 .enterprise-identity-tone-warning {
-  border-top-color: rgb(217 119 6) !important;
+  border-color: rgb(217 119 6) !important;
 }
 
 .enterprise-identity-tone-error {
-  border-top-color: rgb(220 38 38) !important;
+  border-color: rgb(220 38 38) !important;
 }
 
 .enterprise-identity-tone-processing,
 .enterprise-identity-tone-info {
-  border-top-color: rgb(37 99 235) !important;
+  border-color: rgb(37 99 235) !important;
 }
 
 .enterprise-identity-status-tags .enterprise-identity-tone-success,
@@ -1542,6 +1613,18 @@ img {
 .identity-evidence-chain-list-item .ant-typography,
 .identity-evidence-chain-object-header .ant-typography {
   overflow-wrap: anywhere;
+}
+
+.identity-console-audit-item > .ant-typography:first-child {
+  width: fit-content;
+  min-width: 34px;
+  height: 24px;
+  padding: 2px 7px;
+  border: 1px solid rgb(203 213 225);
+  border-radius: 999px;
+  background: rgb(248 250 252);
+  color: rgb(71 85 105);
+  text-align: center;
 }
 
 .identity-evidence-chain-detail {

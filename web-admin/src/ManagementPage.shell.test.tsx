@@ -10,6 +10,22 @@ import * as Setting from "./Setting";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
 
+const mockMenuProps: Array<Record<string, unknown>> = [];
+
+jest.mock("antd", () => {
+  const React = require("react");
+  const actual = require("@jest/globals").jest.requireActual("antd");
+
+  return {
+    ...actual,
+    Menu: (props: Record<string, unknown>) => {
+      mockMenuProps.push(props);
+
+      return <nav data-testid="admin-shell-menu" data-inline-collapsed={String(props.inlineCollapsed)} />;
+    },
+  };
+});
+
 jest.mock("./IdentityConsoleOverview", () => () => <main data-testid="identity-overview" />);
 jest.mock("./OrganizationEditPage", () => () => <main data-testid="organization-edit-page" />);
 jest.mock("./ApplicationListPage", () => () => <main data-testid="application-list-page" />);
@@ -112,6 +128,7 @@ function renderShell({path = "/", isMobile = false}: {path?: string; isMobile?: 
 describe("ManagementPage admin shell sidebar", () => {
   beforeEach(async() => {
     localStorage.clear();
+    mockMenuProps.length = 0;
     jest.restoreAllMocks();
     await useTestLanguage("zh");
   });
@@ -148,8 +165,8 @@ describe("ManagementPage admin shell sidebar", () => {
     expect(sider.style.width).toBe("72px");
     expect(localStorage.getItem("adminShellSidebarCollapsed")).toBe("true");
     expect(view.getByRole("button", {name: "展开侧边栏"})).not.toBeNull();
-    expect(view.queryByText("AICodex Admin")).toBeNull();
-    expect(view.queryByText("认证中心")).toBeNull();
+    expect(view.getByText("AICodex Admin")).not.toBeNull();
+    expect(view.getByText("认证中心")).not.toBeNull();
   });
 
   test("restores desktop collapsed state from localStorage on refresh", () => {
@@ -161,6 +178,22 @@ describe("ManagementPage admin shell sidebar", () => {
     expect(sider.getAttribute("data-sidebar-state")).toBe("collapsed");
     expect(sider.style.width).toBe("72px");
     expect(view.getByRole("button", {name: "展开侧边栏"})).not.toBeNull();
+    expect(view.getByText("AICodex Admin")).not.toBeNull();
+    expect(view.getByText("认证中心")).not.toBeNull();
+  });
+
+  test("lets AntD manage collapsed submenu popup state instead of forcing empty openKeys", () => {
+    const view = renderShell();
+
+    fireEvent.click(view.getByRole("button", {name: "收起侧边栏"}));
+
+    const collapsedDesktopMenuProps = mockMenuProps
+      .filter(props => props.mode === "inline" && props.inlineCollapsed === true)
+      .at(-1);
+
+    expect(collapsedDesktopMenuProps).toBeDefined();
+    expect(collapsedDesktopMenuProps?.openKeys).toBeUndefined();
+    expect(collapsedDesktopMenuProps?.onOpenChange).toBeUndefined();
   });
 
   test("keeps mobile drawer behavior independent from persisted desktop collapsed state", () => {

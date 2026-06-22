@@ -627,7 +627,7 @@ function ManagementPage(props) {
         <div className="admin-shell-header-left">
           <Link to="/" className="admin-shell-brand">
             <img className="logo admin-shell-logo" src={getBrandLogo() ?? props.logo} alt={Conf.BrandName} />
-            {!isMobile && !sidebarCollapsed && (
+            {!isMobile && (
               <span className="admin-shell-brand-text">
                 <span className="admin-shell-brand-name">{i18next.t("general:AICodex Admin")}</span>
                 <span className="admin-shell-brand-separator" aria-hidden="true">·</span>
@@ -678,7 +678,7 @@ function ManagementPage(props) {
               inlineCollapsed={sidebarCollapsed}
               items={sidebarMenuItems}
               selectedKeys={navigationSelection.itemKey ? [navigationSelection.itemKey] : []}
-              openKeys={sidebarCollapsed ? [] : openKeys}
+              openKeys={sidebarCollapsed ? undefined : openKeys}
               onOpenChange={sidebarCollapsed ? undefined : setOpenKeys}
               style={{height: "100%", borderInlineEnd: 0}}
             />
