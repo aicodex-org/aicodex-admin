@@ -17,6 +17,7 @@ import {
   AppstoreAddOutlined,
   AuditOutlined,
   ExclamationCircleOutlined,
+  FileTextOutlined,
   SafetyCertificateOutlined,
   SafetyOutlined,
   SaveOutlined
@@ -25,8 +26,8 @@ import {Alert, Button, Input, Select, Space, Spin, Switch, Tag, Typography} from
 import i18next from "i18next";
 import React from "react";
 import {Link} from "react-router-dom";
-import {diagnoseServiceCredentialGovernanceConfig, getServiceCredentialGovernanceConfig, getServiceCredentialGovernanceStatus, saveServiceCredentialGovernanceConfig} from "./backend/ApplicationAccessServiceCredentialGovernanceBackend";
-import type {ServiceCredentialGovernanceConfigGroup, ServiceCredentialGovernanceConfigResponse, ServiceCredentialGovernanceDiagnosticResponse, ServiceCredentialGovernanceStatusResponse} from "./backend/ApplicationAccessServiceCredentialGovernanceBackend";
+import {buildServiceCredentialGovernanceHandoffPackage, diagnoseServiceCredentialGovernanceConfig, getServiceCredentialGovernanceConfig, getServiceCredentialGovernanceStatus, saveServiceCredentialGovernanceConfig} from "./backend/ApplicationAccessServiceCredentialGovernanceBackend";
+import type {ServiceCredentialGovernanceConfigGroup, ServiceCredentialGovernanceConfigResponse, ServiceCredentialGovernanceDiagnosticResponse, ServiceCredentialGovernanceHandoffPackage, ServiceCredentialGovernanceStatusResponse} from "./backend/ApplicationAccessServiceCredentialGovernanceBackend";
 import {
   EnterpriseIdentityConsolePage,
   EnterpriseIdentityRiskList,
@@ -131,9 +132,11 @@ type ServiceCredentialGovernanceLoadState = "loading" | "ready" | "error" | "emp
 type ServiceCredentialGovernanceConfigLoadState = "loading" | "ready" | "error" | "empty";
 type ServiceCredentialGovernanceConfigSaveState = "idle" | "saving" | "saved" | "error";
 type ServiceCredentialGovernanceDiagnosticState = "idle" | "checking" | "ready" | "error" | "empty";
+type ServiceCredentialGovernanceHandoffState = "idle" | "ready" | "error";
 type ServiceCredentialGovernanceGroup = ServiceCredentialGovernanceStatusResponse["groups"][number];
 type ServiceCredentialGovernanceStatus = ServiceCredentialGovernanceGroup["status"];
 type ServiceCredentialGovernanceDiagnosticGroup = ServiceCredentialGovernanceDiagnosticResponse["groups"][number];
+type ServiceCredentialGovernanceHandoffGroup = ServiceCredentialGovernanceHandoffPackage["groups"][number];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -516,6 +519,33 @@ function getServiceCredentialGovernanceDiagnosticStatusLabel(status: ServiceCred
   }
 }
 
+function getServiceCredentialGovernanceHandoffTone(readiness: ServiceCredentialGovernanceHandoffGroup["readiness"]): "success" | "warning" | "error" | "default" {
+  switch (readiness) {
+  case "ready":
+    return "success";
+  case "keep_in_env":
+  case "cannot_infer":
+    return "warning";
+  case "blocked":
+    return "error";
+  default:
+    return "default";
+  }
+}
+
+function getServiceCredentialGovernanceHandoffReadinessLabel(readiness: ServiceCredentialGovernanceHandoffGroup["readiness"]): string {
+  switch (readiness) {
+  case "ready":
+    return t("Ready for handoff", "可交接");
+  case "keep_in_env":
+    return t("Keep in env config", "保留在 env/config");
+  case "cannot_infer":
+    return t("Cannot infer", "不能推断");
+  default:
+    return t("Blocked", "已阻断");
+  }
+}
+
 function containsUnsafeServiceCredentialConfigText(value: unknown): boolean {
   const text = `${value ?? ""}`.toLowerCase();
   return text.includes("://") || text.includes("token") || text.includes("secret") || text.includes("authorization") || text.includes("cookie") || text.includes("dsn") || text.includes("private");
@@ -576,6 +606,8 @@ function ApplicationAccessCenter({applications = [], loading = false}: Applicati
   const [serviceCredentialGovernanceConfigSaveState, setServiceCredentialGovernanceConfigSaveState] = React.useState<ServiceCredentialGovernanceConfigSaveState>("idle");
   const [serviceCredentialGovernanceDiagnostic, setServiceCredentialGovernanceDiagnostic] = React.useState<ServiceCredentialGovernanceDiagnosticResponse | null>(null);
   const [serviceCredentialGovernanceDiagnosticState, setServiceCredentialGovernanceDiagnosticState] = React.useState<ServiceCredentialGovernanceDiagnosticState>("idle");
+  const [serviceCredentialGovernanceHandoffPackage, setServiceCredentialGovernanceHandoffPackage] = React.useState<ServiceCredentialGovernanceHandoffPackage | null>(null);
+  const [serviceCredentialGovernanceHandoffState, setServiceCredentialGovernanceHandoffState] = React.useState<ServiceCredentialGovernanceHandoffState>("idle");
   const summary = buildApplicationAccessCenterSummary(applications);
   const hasApplications = Array.isArray(applications) && applications.length > 0;
   React.useEffect(() => {
@@ -638,6 +670,8 @@ function ApplicationAccessCenter({applications = [], loading = false}: Applicati
   const updateServiceCredentialGovernanceConfigGroup = React.useCallback((key: string, patch: Partial<ServiceCredentialGovernanceConfigGroup>) => {
     setServiceCredentialGovernanceConfigSaveState("idle");
     setServiceCredentialGovernanceDiagnosticState("idle");
+    setServiceCredentialGovernanceHandoffState("idle");
+    setServiceCredentialGovernanceHandoffPackage(null);
     setServiceCredentialGovernanceConfigDraft(groups => groups.map(group => group.key === key ? {...group, ...patch} : group));
   }, []);
 
@@ -658,6 +692,8 @@ function ApplicationAccessCenter({applications = [], loading = false}: Applicati
         setServiceCredentialGovernanceConfigDraft(sanitizedData.groups);
         setServiceCredentialGovernanceConfigLoadState(sanitizedData.groups.length > 0 ? "ready" : "empty");
         setServiceCredentialGovernanceConfigSaveState("saved");
+        setServiceCredentialGovernanceHandoffState("idle");
+        setServiceCredentialGovernanceHandoffPackage(null);
       })
       .catch(() => {
         setServiceCredentialGovernanceConfigSaveState("error");
@@ -686,6 +722,21 @@ function ApplicationAccessCenter({applications = [], loading = false}: Applicati
         setServiceCredentialGovernanceDiagnosticState("error");
       });
   }, [serviceCredentialGovernanceConfigDraft]);
+
+  const handleServiceCredentialGovernanceHandoffPackage = React.useCallback(() => {
+    if (serviceCredentialGovernanceConfigLoadState !== "ready" || serviceCredentialGovernanceConfigDraft.length === 0) {
+      setServiceCredentialGovernanceHandoffPackage(null);
+      setServiceCredentialGovernanceHandoffState("error");
+      return;
+    }
+
+    setServiceCredentialGovernanceHandoffPackage(buildServiceCredentialGovernanceHandoffPackage({
+      config: buildServiceCredentialGovernanceConfigRequest(serviceCredentialGovernanceConfigDraft),
+      status: serviceCredentialGovernance,
+      diagnostic: serviceCredentialGovernanceDiagnostic,
+    }));
+    setServiceCredentialGovernanceHandoffState("ready");
+  }, [serviceCredentialGovernance, serviceCredentialGovernanceConfigDraft, serviceCredentialGovernanceConfigLoadState, serviceCredentialGovernanceDiagnostic]);
 
   const riskItems = summary.riskItems.map(item => {
     const tone: "warning" | "success" = item.count > 0 ? "warning" : "success";
@@ -813,6 +864,14 @@ function ApplicationAccessCenter({applications = [], loading = false}: Applicati
               >
                 诊断/预检
               </Button>
+              <Button
+                size="small"
+                icon={<FileTextOutlined />}
+                disabled={serviceCredentialGovernanceConfigLoadState !== "ready"}
+                onClick={handleServiceCredentialGovernanceHandoffPackage}
+              >
+                {t("Generate or view handoff package", "生成/查看交接包")}
+              </Button>
             </div>
             {serviceCredentialGovernanceConfigSaveState === "saved" && (
               <Alert className="enterprise-identity-console-alert" type="success" showIcon message="配置已保存" />
@@ -907,6 +966,48 @@ function ApplicationAccessCenter({applications = [], loading = false}: Applicati
                     <Text type="secondary">
                       {(group.owner || "admin-owned")} · 调用策略{group.callerPolicyPresent ? "已提供" : "缺失"} · {group.nextAction || "按 stable alias 处理下一步"}
                     </Text>
+                  </div>
+                ))}
+              </div>
+            )}
+            {serviceCredentialGovernanceHandoffState === "error" && (
+              <Alert className="enterprise-identity-console-alert" type="warning" showIcon message={t("Service credential governance handoff package unavailable", "服务凭据治理交接包暂不可用")} />
+            )}
+            {serviceCredentialGovernanceHandoffState === "ready" && serviceCredentialGovernanceHandoffPackage && (
+              <div className="application-access-service-credential-config" aria-label="服务凭据治理交接包预览">
+                <Space wrap>
+                  <Text strong>{t("Handoff package preview", "交接包预览")}</Text>
+                  <Tag>{serviceCredentialGovernanceHandoffPackage.schema}</Tag>
+                  <Tag>{serviceCredentialGovernanceHandoffPackage.version}</Tag>
+                  <Tag>{serviceCredentialGovernanceHandoffPackage.targetConsumerAlias}</Tag>
+                  <Tag>{serviceCredentialGovernanceHandoffPackage.adminOwnerAlias}</Tag>
+                </Space>
+                <Text type="secondary">
+                  {serviceCredentialGovernanceHandoffPackage.generatedAt}
+                </Text>
+                {serviceCredentialGovernanceHandoffPackage.groups.map(group => (
+                  <div className="application-access-service-credential-config-row" key={`${group.key}-${group.readiness}`}>
+                    <div className="application-access-service-credential-config-row-title">
+                      <Space wrap>
+                        <Text strong>{group.label || group.key}</Text>
+                        <Tag className={`enterprise-identity-tone-${getServiceCredentialGovernanceHandoffTone(group.readiness)}`}>{getServiceCredentialGovernanceHandoffReadinessLabel(group.readiness)}</Tag>
+                        {group.sourceClass && <Tag>{getServiceCredentialGovernanceSourceClassLabel(group.sourceClass)}</Tag>}
+                        {group.credentialReferenceStatus && <Tag>{getServiceCredentialReferenceStatusLabel(group.credentialReferenceStatus)}</Tag>}
+                        {group.credentialReferenceKeySummary && <Tag>{group.credentialReferenceKeySummary}</Tag>}
+                        {group.callerPolicyAlias && <Tag>{group.callerPolicyAlias}</Tag>}
+                        {group.keepInEnv && <Tag>keepInEnv</Tag>}
+                        {group.cannotInferRuntimeTruth && <Tag>cannotInferRuntimeTruth</Tag>}
+                      </Space>
+                    </div>
+                    <Text type="secondary">
+                      {(group.ownerHint || "admin-owned")} · {group.callerPolicyPresent ? t("Caller policy provided", "调用策略已提供") : t("Caller policy missing", "调用策略缺失")} · {group.nextAction || t("Handle next step by handoff stable alias", "按交接包 stable alias 处理下一步")}
+                    </Text>
+                    {(group.blockedAliases.length > 0 || group.stableAliases.length > 0) && (
+                      <Space wrap>
+                        {group.blockedAliases.map(alias => <Tag key={`${group.key}-blocked-${alias}`}>{alias}</Tag>)}
+                        {group.stableAliases.filter(alias => !group.blockedAliases.includes(alias)).map(alias => <Tag key={`${group.key}-stable-${alias}`}>{alias}</Tag>)}
+                      </Space>
+                    )}
                   </div>
                 ))}
               </div>

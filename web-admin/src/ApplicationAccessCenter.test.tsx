@@ -5,6 +5,8 @@ import {MemoryRouter} from "react-router-dom";
 import {expect, jest} from "@jest/globals";
 import i18next from "i18next";
 import ApplicationAccessCenter, {buildApplicationAccessCenterSummary} from "./ApplicationAccessCenter";
+import {buildServiceCredentialGovernanceHandoffPackage} from "./backend/ApplicationAccessServiceCredentialGovernanceBackend";
+import type {ServiceCredentialGovernanceConfigResponse, ServiceCredentialGovernanceDiagnosticResponse, ServiceCredentialGovernanceStatusResponse} from "./backend/ApplicationAccessServiceCredentialGovernanceBackend";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
 
@@ -159,6 +161,7 @@ const serviceCredentialGovernanceConfigResponse = {
         callerPolicy: "aicodex-admin",
         boundedRuntimePolicy: {
           timeoutMs: 1500,
+          unsafeAccessToken: "resolver-token-value",
           unsafeTokenValue: "resolver-secret-value",
           unsafeEndpoint: "https://resolver.internal.example.invalid/api/usage",
         },
@@ -743,6 +746,97 @@ describe("ApplicationAccessCenter", () => {
     expect(requestBody).not.toContain("resolver-secret-value");
     expect(requestBody).not.toContain("resolver.internal.example.invalid");
     expect(view.queryByText("resolver-secret-value")).toBeNull();
+    expect(view.queryByText("resolver.internal.example.invalid")).toBeNull();
+  });
+
+  test("builds copy-safe service credential governance handoff package with fail-closed readiness", () => {
+    const handoffPackage = buildServiceCredentialGovernanceHandoffPackage({
+      config: serviceCredentialGovernanceConfigResponse.data as ServiceCredentialGovernanceConfigResponse,
+      status: serviceCredentialGovernanceResponse.data as ServiceCredentialGovernanceStatusResponse,
+      diagnostic: serviceCredentialGovernanceDiagnosticResponse.data as ServiceCredentialGovernanceDiagnosticResponse,
+    });
+
+    expect(handoffPackage).toMatchObject({
+      schema: "aicodex.admin.serviceCredentialGovernanceHandoff",
+      version: "2026-06-22",
+      source: "admin_service_credential_governance_handoff_package",
+      targetConsumerAlias: "insight_business_service_access",
+      adminOwnerAlias: "admin_identity_application_access",
+    });
+    expect(handoffPackage.groups.find(group => group.key === "usage_identity_resolver")).toMatchObject({
+      readiness: "cannot_infer",
+      credentialReferenceStatus: "external_secret",
+      credentialReferenceKeySummary: "vault:usage-identity-resolver",
+      callerPolicyPresent: true,
+      callerPolicyAlias: "aicodex-admin",
+      cannotInferRuntimeTruth: true,
+      stableAliases: expect.arrayContaining(["admin_service_credential_reference_unresolved"]),
+      blockedAliases: expect.arrayContaining(["admin_service_credential_reference_unresolved"]),
+    });
+    expect(handoffPackage.groups.find(group => group.key === "gateway_organization_projection")).toMatchObject({
+      readiness: "cannot_infer",
+      credentialReferenceKeySummary: "vault:gateway-projection-publisher",
+      cannotInferRuntimeTruth: true,
+      blockedAliases: expect.arrayContaining(["admin_service_credential_external_reference_unresolved"]),
+    });
+    expect(handoffPackage.groups.find(group => group.key === "keep_in_env")).toMatchObject({
+      readiness: "keep_in_env",
+      keepInEnv: true,
+      cannotInferRuntimeTruth: true,
+      blockedAliases: expect.arrayContaining(["admin_service_credential_keep_in_env"]),
+    });
+
+    const serializedPackage = JSON.stringify(handoffPackage);
+    expect(serializedPackage).not.toContain("resolver-secret-value");
+    expect(serializedPackage).not.toContain("resolver-token-value");
+    expect(serializedPackage).not.toContain("projection-secret-value");
+    expect(serializedPackage).not.toContain("resolver.internal.example.invalid");
+    expect(serializedPackage).not.toContain("gateway.internal.example.invalid");
+    expect(serializedPackage).not.toContain("clientSecret");
+    expect(serializedPackage).not.toContain("Authorization");
+    expect(serializedPackage).not.toContain("Cookie");
+    expect(serializedPackage).not.toContain("rawPayload");
+  });
+
+  test("generates service credential governance handoff package preview from sanitized readback", async() => {
+    (global.fetch as unknown as MockFetch)
+      .mockResolvedValueOnce({json: () => Promise.resolve(serviceCredentialGovernanceResponse)})
+      .mockResolvedValueOnce({json: () => Promise.resolve(serviceCredentialGovernanceConfigResponse)})
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve({
+          ...serviceCredentialGovernanceConfigResponse,
+          data: {
+            ...serviceCredentialGovernanceConfigResponse.data,
+            groups: serviceCredentialGovernanceConfigResponse.data.groups.map(group => group.key === "usage_identity_resolver"
+              ? {...group, credentialReferenceKey: "vault:usage-identity-resolver-readback", nextAction: "已回读脱敏配置"}
+              : group),
+          },
+        }),
+      });
+
+    const view = render(
+      <MemoryRouter>
+        <ApplicationAccessCenter applications={applications} loading={false} />
+      </MemoryRouter>
+    );
+
+    const resolverReferenceInput = await view.findByLabelText("usage_identity_resolver 凭据引用");
+    fireEvent.change(resolverReferenceInput, {target: {value: "vault:usage-identity-resolver-draft"}});
+    fireEvent.click(view.getByText("保存配置"));
+
+    expect(await view.findByText("配置已保存")).not.toBeNull();
+    fireEvent.click(view.getByText("生成/查看交接包"));
+
+    expect(await view.findByText("交接包预览")).not.toBeNull();
+    expect(view.getByText("insight_business_service_access")).not.toBeNull();
+    expect(view.getByText("admin_identity_application_access")).not.toBeNull();
+    expect(view.container.textContent).toContain("vault:usage-identity-resolver-readback");
+    expect(view.container.textContent).not.toContain("vault:usage-identity-resolver-draft");
+    expect(view.container.textContent).toContain("cannotInferRuntimeTruth");
+    expect(view.getByText("保存配置")).not.toBeNull();
+    expect(view.getByText("诊断/预检")).not.toBeNull();
+    expect(view.queryByText("resolver-secret-value")).toBeNull();
+    expect(view.queryByText("resolver-token-value")).toBeNull();
     expect(view.queryByText("resolver.internal.example.invalid")).toBeNull();
   });
 
