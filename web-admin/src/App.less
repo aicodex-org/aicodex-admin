@@ -2113,6 +2113,27 @@ img {
   justify-content: flex-end;
 }
 
+.organization-identity-compact-list-page .enterprise-list-query-toolbar-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.organization-identity-compact-list-page .enterprise-list-query-toolbar-filter-group {
+  min-width: 0;
+}
+
+.enterprise-list-query-toolbar-context {
+  display: flex;
+  justify-content: flex-end;
+  flex: 1 1 360px;
+  min-width: 280px;
+  max-width: 100%;
+  color: rgb(71 85 105);
+  font-size: 13px;
+}
+
 .enterprise-list-query-toolbar-field {
   min-width: 128px;
 }
@@ -2139,6 +2160,74 @@ img {
   width: 100%;
 }
 
+.organization-identity-compact-list-page {
+  padding: 14px 16px 18px;
+}
+
+.organization-identity-compact-list-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px 8px;
+  border: 1px solid rgb(205 218 237);
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  background: #fff;
+}
+
+.organization-identity-compact-list-title {
+  min-width: 0;
+}
+
+.organization-identity-compact-list-heading {
+  margin: 0 !important;
+  font-size: 18px;
+  line-height: 1.3;
+  letter-spacing: 0;
+}
+
+.organization-identity-compact-list-actions {
+  flex-shrink: 0;
+}
+
+.organization-identity-compact-list-page .ant-table-wrapper {
+  padding: 0 14px 14px;
+  border: 1px solid rgb(205 218 237);
+  border-top: 0;
+  border-radius: 0 0 8px 8px;
+  background: #fff;
+}
+
+.organization-identity-compact-list-page .ant-table-title {
+  padding: 0 0 10px;
+}
+
+.organization-list-directory-context {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.organization-list-directory-context-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.organization-list-directory-context-warning {
+  color: rgb(180 83 9);
+}
+
+.organization-list-directory-context-link {
+  flex-shrink: 0;
+  font-weight: 600;
+}
+
 .organization-advanced-filter-item {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
@@ -2154,7 +2243,8 @@ img {
   white-space: nowrap;
 }
 
-.organization-advanced-filter-input {
+.organization-advanced-filter-input,
+.organization-advanced-filter-select {
   width: 100%;
 }
 
@@ -2563,6 +2653,26 @@ img {
     max-width: 100%;
     min-width: 0;
     overflow-x: clip;
+  }
+
+  .organization-identity-compact-list-page .enterprise-list-query-toolbar-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .enterprise-list-query-toolbar-context {
+    justify-content: flex-start;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .organization-list-directory-context {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .organization-list-directory-context-text {
+    white-space: normal;
   }
 
   .enterprise-list-query-toolbar-controls > .ant-space,

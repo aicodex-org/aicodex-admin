@@ -30,9 +30,14 @@ type TestOrganizationRecord = {
 type TestTableColumn = {
   key?: string;
   fixed?: unknown;
+  filters?: unknown;
   render?: (text: unknown, record: TestOrganizationRecord, index: number) => React.ReactNode;
 };
 type TestToolbarProps = React.ComponentProps<typeof EnterpriseListQueryToolbar>;
+type TestIdentityCenterProps = {
+  children: React.ReactElement<{title: () => React.ReactNode}>;
+  listAction?: React.ReactNode;
+};
 
 const backendMock = OrganizationBackend as unknown as BackendMock;
 const formBackendMock = FormBackend as unknown as FormBackendMock;
@@ -242,7 +247,7 @@ test("fetches all organizations when default organization is selected", async() 
   expect(backendMock.getOrganizations).toHaveBeenCalledWith("admin", "", 3, 50, undefined, undefined, undefined, undefined);
 });
 
-test("passes search, password type filter and sorting parameters to backend", async() => {
+test("passes search, password type query and sorting parameters to backend", async() => {
   const page = createPage();
 
   page.fetch({
@@ -258,11 +263,12 @@ test("passes search, password type filter and sorting parameters to backend", as
 
   page.fetch({
     pagination: {...page.state.pagination, current: 1, pageSize: 20},
-    passwordType: ["bcrypt"],
+    searchedColumn: "passwordType",
+    searchText: "bcrypt",
   });
   await flushPromises();
 
-  expect(backendMock.getOrganizations).toHaveBeenLastCalledWith("admin", "engineering", 1, 20, "passwordType", ["bcrypt"], undefined, undefined);
+  expect(backendMock.getOrganizations).toHaveBeenLastCalledWith("admin", "engineering", 1, 20, "passwordType", "bcrypt", undefined, undefined);
 });
 
 test("deletes organization and rolls back pagination for the last row", async() => {
@@ -345,7 +351,7 @@ test("builds table columns, toolbar and action handlers", () => {
   jestValue.spyOn(page, "addOrganization").mockImplementation(() => {});
   jestValue.spyOn(page, "deleteOrganization").mockImplementation(() => {});
 
-  const tableWrapper = page.renderTable([organization]) as React.ReactElement<{children: React.ReactElement<{columns: TestTableColumn[]; title: () => React.ReactNode}>}>;
+  const tableWrapper = page.renderTable([organization]) as React.ReactElement<TestIdentityCenterProps & {children: React.ReactElement<{columns: TestTableColumn[]; title: () => React.ReactNode}>}>;
   const table = tableWrapper.props.children;
   const columns = table.props.columns;
 
@@ -369,8 +375,8 @@ test("builds table columns, toolbar and action handlers", () => {
   const blockedActionChildren = React.Children.toArray(blockedActionNode.props.children) as React.ReactElement[];
   expect(blockedActionChildren[3].props.disabled).toBe(true);
 
-  const toolbarView = render(<>{table.props.title()}</>);
-  fireEvent.click(toolbarView.getByText(/添\s*加|Add/));
+  const addActionView = render(<>{tableWrapper.props.listAction}</>);
+  fireEvent.click(addActionView.getByText(/添\s*加|Add/));
   expect(page.addOrganization).toHaveBeenCalled();
 });
 
@@ -400,7 +406,7 @@ test("disables fixed organization table columns when mobile mode is active", () 
   expect(columns[13].fixed).toBe(false);
 });
 
-test("uses shared query toolbar for organization search and create action", () => {
+test("uses shared query toolbar for organization search controls and directory context", () => {
   const page = createPage(adminAccount);
   page.fetch = jestValue.fn() as unknown as typeof page.fetch;
   jestValue.spyOn(page, "addOrganization").mockImplementation(() => {});
@@ -414,7 +420,7 @@ test("uses shared query toolbar for organization search and create action", () =
   const toolbar = table.props.title() as React.ReactElement<TestToolbarProps>;
 
   expect(toolbar.type).toBe(EnterpriseListQueryToolbar);
-  expect(toolbar.props.fields.map(field => field.value)).toEqual(["name", "displayName", "websiteUrl", "passwordSalt"]);
+  expect(toolbar.props.fields.map(field => field.value)).toEqual(["name", "displayName", "websiteUrl", "passwordType", "passwordSalt"]);
 
   toolbar.props.onFieldChange("websiteUrl");
   expect((page.state as Record<string, unknown>).queryField).toBe("websiteUrl");
@@ -436,10 +442,66 @@ test("uses shared query toolbar for organization search and create action", () =
   });
   expect((page.state as Record<string, unknown>).queryKeyword).toBe("");
 
-  const toolbarView = render(<>{toolbar}</>);
-  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-actions")).not.toBeNull();
-  fireEvent.click(toolbarView.getByText(/添\s*加|Add/));
+  expect(toolbar.props.actions).toBeUndefined();
+  expect(toolbar.props.context).not.toBeUndefined();
+  expect(toolbar.props.showHeader).toBe(false);
+});
+
+test("moves password type filtering out of the table header and into query controls", () => {
+  const page = createPage(adminAccount);
+  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+
+  const tableWrapper = page.renderTable([organization]) as React.ReactElement<{children: React.ReactElement<{columns: TestTableColumn[]; title: () => React.ReactNode}>}>;
+  const table = tableWrapper.props.children;
+  const columns = table.props.columns;
+  const passwordTypeColumn = columns.find(column => column.key === "passwordType");
+  expect(passwordTypeColumn?.filters).toBeUndefined();
+
+  const toolbar = table.props.title() as React.ReactElement<TestToolbarProps & {keywordControl?: React.ReactNode}>;
+  expect(toolbar.props.fields.map(field => field.value)).toContain("passwordType");
+
+  toolbar.props.onFieldChange("passwordType");
+  const passwordTypeToolbar = page.renderListToolbar() as React.ReactElement<TestToolbarProps & {keywordControl?: React.ReactNode}>;
+  const keywordControl = passwordTypeToolbar.props.keywordControl as React.ReactElement<{options?: Array<{value: string}>; placeholder?: string}>;
+  expect(keywordControl.props.options?.map(option => option.value)).toContain("bcrypt");
+  expect(keywordControl.props.placeholder).not.toBe("general:Please select");
+  const keywordControlView = render(<>{passwordTypeToolbar.props.keywordControl}</>);
+  expect(keywordControlView.getByRole("combobox")).not.toBeNull();
+  keywordControlView.unmount();
+
+  passwordTypeToolbar.props.onKeywordChange("bcrypt");
+  passwordTypeToolbar.props.onSearch();
+  expect(page.fetch).toHaveBeenLastCalledWith({
+    pagination: expect.objectContaining({current: 1}),
+    searchedColumn: "passwordType",
+    searchText: "bcrypt",
+  });
+});
+
+test("passes create action to the compact organization list top instead of the query controls", () => {
+  const page = createPage(adminAccount);
+  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  jestValue.spyOn(page, "addOrganization").mockImplementation(() => {});
+
+  const identityCenter = page.renderTable([organization]) as React.ReactElement<TestIdentityCenterProps>;
+  const toolbar = identityCenter.props.children.props.title() as React.ReactElement<TestToolbarProps>;
+
+  expect(toolbar.type).toBe(EnterpriseListQueryToolbar);
+  expect(toolbar.props.actions).toBeUndefined();
+  expect(identityCenter.props.listAction).not.toBeUndefined();
+
+  const actionView = render(<>{identityCenter.props.listAction}</>);
+  const addButton = actionView.getByText(/添\s*加|Add/).closest("button");
+  expect(addButton).not.toBeNull();
+  expect((addButton as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.click(addButton);
   expect(page.addOrganization).toHaveBeenCalled();
+  actionView.unmount();
+
+  const nonAdminPage = createPage(nonAdminAccount);
+  const nonAdminIdentityCenter = nonAdminPage.renderTable([organization]) as React.ReactElement<TestIdentityCenterProps>;
+  const nonAdminActionView = render(<>{nonAdminIdentityCenter.props.listAction}</>);
+  expect((nonAdminActionView.getByText(/添\s*加|Add/).closest("button") as HTMLButtonElement).disabled).toBe(true);
 });
 
 test("renders concrete advanced filter inputs from organization query fields", () => {
@@ -448,13 +510,15 @@ test("renders concrete advanced filter inputs from organization query fields", (
   const advancedView = render(<>{toolbar.props.advancedFilters}</>);
 
   expect(advancedView.container.querySelectorAll(".organization-advanced-filter-input")).toHaveLength(4);
+  expect(advancedView.container.querySelectorAll(".organization-advanced-filter-select")).toHaveLength(1);
   const advancedFilterLabels = (Array.from(advancedView.container.querySelectorAll(".organization-advanced-filter-label")) as HTMLElement[])
     .map(node => node.textContent);
-  expect(advancedFilterLabels).toHaveLength(4);
+  expect(advancedFilterLabels).toHaveLength(5);
   expect(advancedFilterLabels.every(label => label?.endsWith(":"))).toBe(true);
   expect(advancedView.getByLabelText(/^(Advanced filters Name|高级筛选 名称)$/)).not.toBeNull();
   expect(advancedView.getByLabelText(/^(Advanced filters Display name|高级筛选 显示名称)$/)).not.toBeNull();
   expect(advancedView.getByLabelText(/^(Advanced filters Website URL|高级筛选 主页地址)$/)).not.toBeNull();
+  expect(advancedView.getAllByLabelText(/^(Advanced filters Password type|高级筛选 密码类型)$/).length).toBeGreaterThan(0);
   expect(advancedView.getByLabelText(/^(Advanced filters Password salt|高级筛选 密码Salt值)$/)).not.toBeNull();
   expect(advancedView.queryByText(/^高\s*级\s*筛\s*选$|^Advanced filters$/)).toBeNull();
 });
@@ -523,14 +587,13 @@ test("keeps ordinary table changes on the existing single-field fetch path", () 
 
   page.handleTableChange(
     {current: 2, pageSize: 20, total: 3},
-    {passwordType: ["bcrypt"]},
+    {},
     {field: "displayName", order: "descend"} as Parameters<typeof page.handleTableChange>[2],
     {currentDataSource: [], action: "paginate"} as Parameters<typeof page.handleTableChange>[3]
   );
 
   expect(page.fetch).toHaveBeenLastCalledWith({
     pagination: expect.objectContaining({current: 2, pageSize: 20}),
-    passwordType: ["bcrypt"],
     sortField: "displayName",
     sortOrder: "descend",
     searchText: "platform",
@@ -571,9 +634,10 @@ test("keeps organization advanced filters when table pagination and sorting chan
   const advancedView = render(<>{toolbar.props.advancedFilters}</>);
 
   fireEvent.change(advancedView.getByLabelText(/^(Advanced filters Name|高级筛选 名称)$/), {target: {value: "engineering"}});
+  page.handleAdvancedFilterChange("passwordType", "bcrypt");
   page.handleTableChange(
     {current: 2, pageSize: 1, total: 3},
-    {passwordType: ["bcrypt"]},
+    {},
     {field: "name", order: "ascend"} as Parameters<typeof page.handleTableChange>[2],
     {currentDataSource: [], action: "paginate"} as Parameters<typeof page.handleTableChange>[3]
   );
@@ -669,6 +733,7 @@ test("resets base and advanced organization filters together", () => {
     name: "",
     displayName: "",
     websiteUrl: "",
+    passwordType: "",
     passwordSalt: "",
   });
   expect(page.fetch).toHaveBeenLastCalledWith({
@@ -679,9 +744,8 @@ test("resets base and advanced organization filters together", () => {
 test("disables add action for non-admin accounts", () => {
   const page = createPage(nonAdminAccount);
 
-  const tableWrapper = page.renderTable([organization]) as React.ReactElement<{children: React.ReactElement<{title: () => React.ReactNode}>}>;
-  const table = tableWrapper.props.children;
-  const toolbarView = render(<>{table.props.title()}</>);
+  const tableWrapper = page.renderTable([organization]) as React.ReactElement<TestIdentityCenterProps>;
+  const addActionView = render(<>{tableWrapper.props.listAction}</>);
 
-  expect(toolbarView.getByText(/添\s*加|Add/).closest("button")?.hasAttribute("disabled")).toBe(true);
+  expect((addActionView.getByText(/添\s*加|Add/).closest("button") as HTMLButtonElement).disabled).toBe(true);
 });

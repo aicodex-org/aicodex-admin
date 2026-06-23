@@ -9,20 +9,15 @@ import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
 
 type OrganizationIdentityPage = "organizations" | "users" | "roles" | "permissions";
+type WorkbenchIdentityPage = Exclude<OrganizationIdentityPage, "organizations">;
 type TestLanguage = "en" | "zh";
 
-const differentiatedCopy: Record<OrganizationIdentityPage, {
+const differentiatedCopy: Record<WorkbenchIdentityPage, {
   titleZh: string;
   summaryZh: string;
   actionZh: string;
   riskZh: string;
 }> = {
-  organizations: {
-    titleZh: "组织主数据工作台",
-    summaryZh: "组织树质量",
-    actionZh: "检查目录质量",
-    riskZh: "孤立组织节点",
-  },
   users: {
     titleZh: "账号生命周期工作台",
     summaryZh: "账号完整度",
@@ -45,6 +40,8 @@ const differentiatedCopy: Record<OrganizationIdentityPage, {
 
 const requiredGeneralKeys = [
   "Organization master data workbench",
+  "Organization compact health summary",
+  "Attention item count",
   "Account lifecycle workbench",
   "Role authorization workbench",
   "Permission catalog workbench",
@@ -71,6 +68,7 @@ const requiredGeneralKeys = [
   "Review permission catalog",
   "Review role references",
   "Review permission granularity",
+  "Directory quality",
   "Orphan organization nodes",
   "Empty organization nodes",
   "Mapping risk",
@@ -147,7 +145,7 @@ describe("OrganizationIdentityCenter", () => {
     expect(new Set(profiles.map(profile => profile.risks.map(risk => risk.key).join("|"))).size).toBe(4);
   });
 
-  test("renders differentiated compact workbench copy for each identity entity", () => {
+  test("renders differentiated compact workbench copy for non-organization identity entities", () => {
     Object.entries(differentiatedCopy).forEach(([page, copy]) => {
       const view = renderWorkbench(page as OrganizationIdentityPage);
 
@@ -161,6 +159,21 @@ describe("OrganizationIdentityCenter", () => {
 
       view.unmount();
     });
+  });
+
+  test("renders organization page as a compact list top instead of a workbench hero", () => {
+    const view = renderWorkbench("organizations");
+
+    expect(view.container.querySelector(".organization-identity-compact-list-page")).not.toBeNull();
+    expect(view.getByText("组织")).not.toBeNull();
+    expect(view.getByText("42 条结果")).not.toBeNull();
+    expect(view.getByText("organizations table remains reachable")).not.toBeNull();
+    expect(view.queryByText("组织主数据工作台")).toBeNull();
+    expect(view.queryByText("目录边界、组织树完整性与同步来源一屏核对。")).toBeNull();
+    expect(view.queryByTestId("organization-identity-workbench")).toBeNull();
+    expect(view.queryByText("刷新状态")).toBeNull();
+
+    view.unmount();
   });
 
   test("does not reuse role governance copy for the permission catalog page", async() => {
@@ -177,12 +190,12 @@ describe("OrganizationIdentityCenter", () => {
     view.unmount();
   });
 
-  test("keeps existing list actions reachable through entity-specific links", () => {
-    const view = renderWorkbench("organizations");
+  test("keeps non-organization workbench actions reachable through entity-specific links", () => {
+    const view = renderWorkbench("users");
 
-    const directoryLink = view.getByText("检查目录质量").closest("a");
-    expect(directoryLink?.getAttribute("href")).toBe("/organization-directory-quality");
-    expect(view.getByText("organizations table remains reachable")).not.toBeNull();
+    const importUsersLink = view.getByText("导入用户").closest("a");
+    expect(importUsersLink?.getAttribute("href")).toBe("/users");
+    expect(view.getByText("users table remains reachable")).not.toBeNull();
 
     view.unmount();
   });
@@ -196,8 +209,7 @@ describe("OrganizationIdentityCenter", () => {
       </MemoryRouter>
     );
 
-    expect(organizationView.getByText("全部")).not.toBeNull();
-    expect(organizationView.getAllByText("-").length).toBeGreaterThan(0);
+    expect(organizationView.getByText("当前视图")).not.toBeNull();
     expect(organizationView.getByText("Organization table loading")).not.toBeNull();
     organizationView.unmount();
 

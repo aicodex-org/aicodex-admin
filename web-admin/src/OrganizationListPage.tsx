@@ -14,7 +14,7 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Input, Switch, Table} from "antd";
+import {Button, Input, Select, Switch, Table} from "antd";
 import type {TablePaginationConfig, TableProps} from "antd";
 import moment from "moment";
 import * as Setting from "./Setting";
@@ -71,7 +71,6 @@ type OrganizationListFetchParams = {
   searchText?: OrganizationQueryValue;
   sortField?: string;
   sortOrder?: string | null;
-  passwordType?: OrganizationQueryValue;
 };
 
 type OrganizationFilterCondition = {
@@ -104,8 +103,23 @@ function getOrganizationQueryFields() {
     {label: t("general:Name"), value: "name"},
     {label: t("general:Display name"), value: "displayName"},
     {label: t("organization:Website URL"), value: "websiteUrl"},
+    {label: t("general:Password type"), value: "passwordType"},
     {label: t("general:Password salt"), value: "passwordSalt"},
   ];
+}
+
+function getOrganizationPasswordTypeOptions() {
+  return [
+    "plain",
+    "salt",
+    "sha512-salt",
+    "md5-salt",
+    "bcrypt",
+    "pbkdf2-salt",
+    "argon2id",
+    "pbkdf2-django",
+  ]
+    .map(item => ({label: item, value: item}));
 }
 
 function createEmptyAdvancedQueryKeywords(): Record<string, string> {
@@ -351,12 +365,6 @@ class OrganizationListPage extends TypedBaseListPage {
         key: "passwordType",
         width: "150px",
         sorter: true,
-        filterMultiple: false,
-        filters: [
-          {text: "plain", value: "plain"},
-          {text: "salt", value: "salt"},
-          {text: "md5-salt", value: "md5-salt"},
-        ],
       },
       {
         title: t("general:Password salt"),
@@ -463,6 +471,7 @@ class OrganizationListPage extends TypedBaseListPage {
         currentOrganization={Setting.isDefaultOrganizationSelected(this.props.account) ? t("general:All") : Setting.getRequestOrganization(this.props.account)}
         total={this.state.pagination.total}
         loadedCount={organizations.length}
+        listAction={this.renderAddOrganizationAction()}
       >
         <Table
           scroll={{x: "max-content"}}
@@ -513,7 +522,14 @@ class OrganizationListPage extends TypedBaseListPage {
     }));
   };
 
-  handleTableChange: NonNullable<TableProps<OrganizationRecord>["onChange"]> = (pagination, filters, sorter) => {
+  handleToolbarFieldChange = (value: string): void => {
+    this.setState({
+      queryField: value,
+      queryKeyword: "",
+    });
+  };
+
+  handleTableChange: NonNullable<TableProps<OrganizationRecord>["onChange"]> = (pagination, _filters, sorter) => {
     const normalizedSorter = Array.isArray(sorter) ? sorter[0] : sorter;
     const sortField = typeof normalizedSorter?.field === "string" ? normalizedSorter.field : undefined;
     const sortOrder = normalizedSorter?.order ?? undefined;
@@ -521,7 +537,6 @@ class OrganizationListPage extends TypedBaseListPage {
       pagination,
       sortField,
       sortOrder,
-      passwordType: filters.passwordType as OrganizationQueryValue,
     };
 
     if (this.hasAdvancedQueryKeywords()) {
@@ -567,6 +582,7 @@ class OrganizationListPage extends TypedBaseListPage {
   }
 
   renderAdvancedFilters(): React.ReactNode {
+    const passwordTypeOptions = getOrganizationPasswordTypeOptions();
     return (
       <div className="organization-advanced-filters">
         {
@@ -575,14 +591,29 @@ class OrganizationListPage extends TypedBaseListPage {
             return (
               <label className="organization-advanced-filter-item" key={field.value}>
                 <span className="organization-advanced-filter-label">{field.label}:</span>
-                <Input
-                  className="organization-advanced-filter-input"
-                  value={this.state.advancedQueryKeywords[field.value] ?? ""}
-                  aria-label={`${t("general:Advanced filters", "Advanced filters")} ${labelText}`}
-                  placeholder={t("general:Please input your search")}
-                  allowClear
-                  onChange={event => this.handleAdvancedFilterChange(field.value, event.target.value)}
-                />
+                {
+                  field.value === "passwordType" ? (
+                    <Select
+                      className="organization-advanced-filter-select"
+                      value={this.state.advancedQueryKeywords[field.value] || undefined}
+                      aria-label={`${t("general:Advanced filters", "Advanced filters")} ${labelText}`}
+                      placeholder={t("general:Please select", "Please select")}
+                      allowClear
+                      showSearch
+                      options={passwordTypeOptions}
+                      onChange={(value?: string) => this.handleAdvancedFilterChange(field.value, value ?? "")}
+                    />
+                  ) : (
+                    <Input
+                      className="organization-advanced-filter-input"
+                      value={this.state.advancedQueryKeywords[field.value] ?? ""}
+                      aria-label={`${t("general:Advanced filters", "Advanced filters")} ${labelText}`}
+                      placeholder={t("general:Please input your search")}
+                      allowClear
+                      onChange={event => this.handleAdvancedFilterChange(field.value, event.target.value)}
+                    />
+                  )
+                }
               </label>
             );
           })
@@ -591,7 +622,50 @@ class OrganizationListPage extends TypedBaseListPage {
     );
   }
 
+  renderAddOrganizationAction(): React.ReactNode {
+    return (
+      <Button type="primary" size="small" disabled={!Setting.isAdminUser(this.props.account)} onClick={this.addOrganization.bind(this)}>{t("general:Add")}</Button>
+    );
+  }
+
+  // 这里只展示组织列表的只读辅助上下文，真实目录诊断和刷新动作仍由目录质量页承载。
+  renderDirectoryHealthContext(): React.ReactNode {
+    const boundary = Setting.isDefaultOrganizationSelected(this.props.account) ? t("general:All") : Setting.getRequestOrganization(this.props.account);
+    const attentionText = i18next.t("general:Attention item count", {count: 3, defaultValue: "{{count}} items need attention"}) as string;
+
+    return (
+      <span className="organization-list-directory-context">
+        <span className="organization-list-directory-context-text">
+          <strong>{t("general:Directory health")}:</strong>
+          {" "}
+          <span className="organization-list-directory-context-warning">{attentionText}</span>
+          {" · "}
+          {t("general:Sync sources")}
+          {": "}
+          {t("general:WeCom / Feishu")}
+          {" · "}
+          {t("general:Boundary")}
+          {": "}
+          {boundary}
+        </span>
+        <Link className="organization-list-directory-context-link" to="/organization-directory-quality">{t("general:Directory quality")}</Link>
+      </span>
+    );
+  }
+
   renderListToolbar(): React.ReactNode {
+    const keywordControl = this.state.queryField === "passwordType" ? (
+      <Select
+        className="enterprise-list-query-toolbar-keyword organization-password-type-query-select"
+        value={this.state.queryKeyword || undefined}
+        placeholder={t("general:Please select", "Please select")}
+        allowClear
+        showSearch
+        options={getOrganizationPasswordTypeOptions()}
+        onChange={(value?: string) => this.setState({queryKeyword: value ?? ""})}
+      />
+    ) : undefined;
+
     return (
       <EnterpriseListQueryToolbar
         title={t("general:Organizations")}
@@ -599,25 +673,21 @@ class OrganizationListPage extends TypedBaseListPage {
         fields={getOrganizationQueryFields()}
         selectedField={this.state.queryField}
         keyword={this.state.queryKeyword}
-        onFieldChange={(value) => this.setState({queryField: value})}
+        onFieldChange={this.handleToolbarFieldChange}
         onKeywordChange={(value) => this.setState({queryKeyword: value})}
         onSearch={this.handleToolbarSearch}
         onReset={this.handleToolbarReset}
+        keywordControl={keywordControl}
         advancedFilters={this.renderAdvancedFilters()}
-        actions={(
-          <Button type="primary" size="small" disabled={!Setting.isAdminUser(this.props.account)} onClick={this.addOrganization.bind(this)}>{t("general:Add")}</Button>
-        )}
+        context={this.renderDirectoryHealthContext()}
+        showHeader={false}
       />
     );
   }
 
   fetch = (params: OrganizationListFetchParams = {}): void => {
-    let field = params.searchedColumn, value = params.searchText;
+    const field = params.searchedColumn, value = params.searchText;
     const sortField = params.sortField, sortOrder = params.sortOrder;
-    if (params.passwordType !== undefined && params.passwordType !== null) {
-      field = "passwordType";
-      value = params.passwordType;
-    }
     this.setState({loading: true});
     const pagination = params.pagination as TablePaginationConfig;
     OrganizationBackend.getOrganizations("admin", Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), pagination.current, pagination.pageSize, field, value, sortField, sortOrder)
@@ -649,13 +719,8 @@ class OrganizationListPage extends TypedBaseListPage {
 
   fetchAdvancedFilteredOrganizations = (params: OrganizationListFetchParams = {}): void => {
     const pagination = params.pagination as TablePaginationConfig;
-    const tableFilterConditions = params.passwordType === undefined || params.passwordType === null ? [] : [{
-      field: "passwordType",
-      value: normalizeOrganizationFilterValue(params.passwordType).trim(),
-    }];
     const conditions = [
       ...this.getActiveQueryConditions(),
-      ...tableFilterConditions,
     ].filter(condition => condition.value !== "");
     this.setState({loading: true});
     // 后端组织列表仍是单字段 field + value 查询；高级筛选先获取当前组织范围列表，再在前端按所有非空条件 AND 过滤。

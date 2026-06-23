@@ -38,7 +38,7 @@ import {
   EnterpriseIdentitySection
 } from "./common/EnterpriseIdentityConsoleLayout";
 
-const {Text} = Typography;
+const {Text, Title} = Typography;
 
 type OrganizationIdentityPage = "organizations" | "users" | "roles" | "permissions";
 type WorkbenchLayoutKind = "directory-health" | "account-lifecycle" | "role-risk-matrix" | "permission-catalog-matrix";
@@ -50,6 +50,7 @@ interface OrganizationIdentityCenterProps {
   total?: number;
   loadedCount?: number;
   currentOrganization?: string;
+  listAction?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -93,9 +94,9 @@ export interface OrganizationIdentityWorkbenchProfile {
 export const organizationIdentityWorkbenchProfiles: Record<OrganizationIdentityPage, OrganizationIdentityWorkbenchProfile> = {
   organizations: {
     layoutKind: "directory-health",
-    titleKey: "Organization master data workbench",
+    titleKey: "Organizations",
     descriptionKey: "Organization directory boundary description",
-    listTitleKey: "Organization list",
+    listTitleKey: "Organizations",
     metrics: [
       {
         key: "directory-boundary",
@@ -277,6 +278,14 @@ function formatCount(value?: number): string {
   return typeof value === "number" ? value.toLocaleString() : "-";
 }
 
+function formatResultCount(total?: number): string {
+  if (typeof total !== "number") {
+    return t("Current view");
+  }
+  const translated = i18next.t("general:Result count", {count: total}) as unknown;
+  return typeof translated === "string" ? translated : `${total} results`;
+}
+
 function getMetricValue(metric: WorkbenchMetric, total?: number, loadedCount?: number, currentOrganization?: string): string {
   if (metric.source === "scope") {
     return currentOrganization || t("All");
@@ -420,9 +429,25 @@ function OrganizationIdentityCenter({
   total,
   loadedCount,
   currentOrganization,
+  listAction,
   children,
 }: OrganizationIdentityCenterProps): JSX.Element {
   const profile = organizationIdentityWorkbenchProfiles[page];
+
+  if (page === "organizations") {
+    return (
+      <div className="organization-identity-console organization-identity-compact-list-page">
+        <div className="organization-identity-compact-list-top">
+          <Space size={8} wrap className="organization-identity-compact-list-title">
+            <Title level={3} className="organization-identity-compact-list-heading">{t(profile.titleKey)}</Title>
+            <Text type="secondary">{formatResultCount(total)}</Text>
+          </Space>
+          {listAction ? <Space wrap className="organization-identity-compact-list-actions">{listAction}</Space> : null}
+        </div>
+        {children}
+      </div>
+    );
+  }
 
   return (
     <EnterpriseIdentityConsolePage

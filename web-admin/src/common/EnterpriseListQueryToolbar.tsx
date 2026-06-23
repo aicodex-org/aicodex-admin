@@ -23,9 +23,12 @@ interface EnterpriseListQueryToolbarProps {
   onSearch: () => void;
   onReset: () => void;
   primaryFilters?: React.ReactNode;
+  keywordControl?: React.ReactNode;
   advancedFilters?: React.ReactNode;
   actions?: React.ReactNode;
+  context?: React.ReactNode;
   searchPlaceholder?: string;
+  showHeader?: boolean;
 }
 
 function t(key: string, defaultValue = key): string {
@@ -66,24 +69,29 @@ function hasRenderableNode(node: React.ReactNode): boolean {
 export default function EnterpriseListQueryToolbar(props: EnterpriseListQueryToolbarProps): JSX.Element {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const hasAdvancedFilters = hasRenderableNode(props.advancedFilters);
+  const showHeader = props.showHeader !== false;
 
   return (
     <div className="enterprise-list-query-toolbar">
-      <div className="enterprise-list-query-toolbar-header">
-        <Space size={8} wrap>
-          <Text strong>{props.title}</Text>
-          <Text type="secondary">{formatResultCount(props.total)}</Text>
-        </Space>
-        {
-          props.actions ? (
-            <Space wrap className="enterprise-list-query-toolbar-actions">
-              {props.actions}
+      {
+        showHeader ? (
+          <div className="enterprise-list-query-toolbar-header">
+            <Space size={8} wrap>
+              <Text strong>{props.title}</Text>
+              <Text type="secondary">{formatResultCount(props.total)}</Text>
             </Space>
-          ) : null
-        }
-      </div>
+            {
+              props.actions ? (
+                <Space wrap className="enterprise-list-query-toolbar-actions">
+                  {props.actions}
+                </Space>
+              ) : null
+            }
+          </div>
+        ) : null
+      }
       <div className="enterprise-list-query-toolbar-controls">
-        <Space wrap size={8}>
+        <Space wrap size={8} className="enterprise-list-query-toolbar-filter-group">
           <Select
             className="enterprise-list-query-toolbar-field"
             size="middle"
@@ -91,14 +99,16 @@ export default function EnterpriseListQueryToolbar(props: EnterpriseListQueryToo
             options={props.fields}
             onChange={props.onFieldChange}
           />
-          <Input
-            className="enterprise-list-query-toolbar-keyword"
-            value={props.keyword}
-            placeholder={props.searchPlaceholder ?? t("general:Please input your search")}
-            allowClear
-            onChange={event => props.onKeywordChange(event.target.value)}
-            onPressEnter={props.onSearch}
-          />
+          {props.keywordControl ?? (
+            <Input
+              className="enterprise-list-query-toolbar-keyword"
+              value={props.keyword}
+              placeholder={props.searchPlaceholder ?? t("general:Please input your search")}
+              allowClear
+              onChange={event => props.onKeywordChange(event.target.value)}
+              onPressEnter={props.onSearch}
+            />
+          )}
           {props.primaryFilters}
           <Button type="primary" icon={<SearchOutlined />} onClick={props.onSearch}>
             {t("general:Query", "Search")}
@@ -118,6 +128,7 @@ export default function EnterpriseListQueryToolbar(props: EnterpriseListQueryToo
             ) : null
           }
         </Space>
+        {props.context ? <div className="enterprise-list-query-toolbar-context">{props.context}</div> : null}
       </div>
       {
         advancedOpen && hasAdvancedFilters ? (
