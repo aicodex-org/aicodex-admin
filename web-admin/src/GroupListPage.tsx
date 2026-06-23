@@ -14,7 +14,7 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Input, Modal, Popconfirm, Select, Space, Table, Tag, Tooltip, Upload} from "antd";
+import {Button, Input, Modal, Popconfirm, Space, Table, Tag, Tooltip, Upload} from "antd";
 import type {TablePaginationConfig, TableProps} from "antd";
 import {CopyOutlined, DeleteOutlined, EditOutlined, UploadOutlined} from "@ant-design/icons";
 import moment from "moment";
@@ -23,6 +23,7 @@ import * as GroupBackend from "./backend/GroupBackend";
 import type {GroupQueryValue, GroupRecord} from "./backend/GroupBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
+import ListPageTable from "./common/ListPageTable";
 import EnterpriseListQueryToolbar from "./common/EnterpriseListQueryToolbar";
 import * as XLSX from "xlsx";
 import copy from "copy-to-clipboard";
@@ -114,10 +115,8 @@ function getErrorMessage(error: unknown): string {
 function getGroupQueryFields() {
   return [
     {label: t("general:Name"), value: "name"},
-    {label: t("general:Organization"), value: "owner"},
     {label: t("general:Display name"), value: "displayName"},
     {label: t("group:Parent group"), value: "parentId"},
-    {label: t("general:Users"), value: "users"},
   ];
 }
 
@@ -162,11 +161,9 @@ function renderGroupIdentity(record: GroupRecord): React.ReactNode {
 
   return (
     <div className="group-table-group-cell">
-      <Tooltip title={displayName || undefined}>
-        <Link className="group-table-group-name" to={`/groups/${record.owner}/${groupName}`} title={displayName}>
-          {displayName}
-        </Link>
-      </Tooltip>
+      <Link className="group-table-group-name" to={`/groups/${record.owner}/${groupName}`} title={displayName}>
+        {displayName}
+      </Link>
       <div className="group-table-group-meta">
         <Tooltip title={groupName || undefined}>
           <span className="group-table-group-id" title={groupName}>{groupName}</span>
@@ -204,6 +201,13 @@ function renderUserCount(users?: string[]): React.ReactNode {
       <Tag className="group-table-user-count">{t("general:User count", "{{count}} users", {count: values.length})}</Tag>
     </Tooltip>
   );
+}
+
+function getGroupTableScroll(): TableProps<GroupRecord>["scroll"] | undefined {
+  if (Setting.isMobile()) {
+    return {x: 760};
+  }
+  return {y: "calc(100vh - 360px)"};
 }
 
 class GroupListPage extends TypedBaseListPage {
@@ -439,12 +443,10 @@ class GroupListPage extends TypedBaseListPage {
     const normalizedSorter = Array.isArray(sorter) ? sorter[0] : sorter;
     const sortField = typeof normalizedSorter?.field === "string" ? normalizedSorter.field : undefined;
     const sortOrder = normalizedSorter?.order ?? undefined;
-    const type = (filters.type as GroupQueryValue) ?? this.state.queryType;
     const params: GroupListFetchParams = {
       pagination,
       sortField,
       sortOrder,
-      type,
     };
 
     if (this.hasAdvancedQueryKeywords()) {
@@ -516,10 +518,11 @@ class GroupListPage extends TypedBaseListPage {
 
   renderListToolbar(): React.ReactNode {
     return (
-      <div className="group-list-toolbar-shell">
+      <div className="enterprise-list-toolbar-shell">
         <EnterpriseListQueryToolbar
           title={t("general:Groups")}
           total={this.state.pagination.total}
+          showTotal={false}
           fields={getGroupQueryFields()}
           selectedField={this.state.queryField}
           keyword={this.state.queryKeyword}
@@ -527,19 +530,6 @@ class GroupListPage extends TypedBaseListPage {
           onKeywordChange={(value) => this.setState({queryKeyword: value})}
           onSearch={this.handleToolbarSearch}
           onReset={this.handleToolbarReset}
-          primaryFilters={(
-            <Select
-              allowClear
-              className="enterprise-list-query-toolbar-filter"
-              placeholder={t("general:Type")}
-              value={this.state.queryType}
-              onChange={(value) => this.setState({queryType: value})}
-              options={[
-                {label: t("group:Virtual"), value: "Virtual"},
-                {label: t("group:Physical"), value: "Physical"},
-              ]}
-            />
-          )}
           advancedFilters={this.renderAdvancedFilters()}
           actions={(
             <>
@@ -557,6 +547,7 @@ class GroupListPage extends TypedBaseListPage {
     const columns: GroupListColumns = [
       {
         title: t("general:Groups"),
+        dataIndex: "displayName",
         key: "group",
         width: "40%",
         sorter: true,
@@ -582,7 +573,6 @@ class GroupListPage extends TypedBaseListPage {
         dataIndex: "users",
         key: "users",
         width: "10%",
-        sorter: true,
         render: (text: string[] | undefined) => {
           return renderUserCount(text);
         },
@@ -652,21 +642,17 @@ class GroupListPage extends TypedBaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <div>
-        <Table
+      <div className="group-list-page-table-shell">
+        <ListPageTable<GroupRecord>
           className="group-list-table"
-          scroll={Setting.isMobile() ? {x: 760} : undefined}
+          scroll={getGroupTableScroll()}
           columns={columns}
           dataSource={data}
           rowKey={(record) => `${record.owner}/${record.name}`}
-          size="middle"
-          bordered={false}
           pagination={paginationProps}
-          tableLayout="fixed"
           title={() => this.renderListToolbar()}
           loading={this.state.loading}
           onChange={this.handleTableChange}
-          showSorterTooltip={{target: "sorter-icon"}}
         />
       </div>
     );

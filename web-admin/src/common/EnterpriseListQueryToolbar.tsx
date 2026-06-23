@@ -15,6 +15,7 @@ export interface EnterpriseListQueryField {
 interface EnterpriseListQueryToolbarProps {
   title: React.ReactNode;
   total?: number;
+  showTotal?: boolean;
   fields: EnterpriseListQueryField[];
   selectedField: string;
   keyword: string;
@@ -70,6 +71,7 @@ export default function EnterpriseListQueryToolbar(props: EnterpriseListQueryToo
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const hasAdvancedFilters = hasRenderableNode(props.advancedFilters);
   const showHeader = props.showHeader !== false;
+  const showTotal = props.showTotal !== false;
 
   return (
     <div className="enterprise-list-query-toolbar">
@@ -78,7 +80,7 @@ export default function EnterpriseListQueryToolbar(props: EnterpriseListQueryToo
           <div className="enterprise-list-query-toolbar-header">
             <Space size={8} wrap>
               <Text strong>{props.title}</Text>
-              <Text type="secondary">{formatResultCount(props.total)}</Text>
+              {showTotal ? <Text type="secondary">{formatResultCount(props.total)}</Text> : null}
             </Space>
             {
               props.actions ? (

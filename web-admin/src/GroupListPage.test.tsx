@@ -6,6 +6,7 @@ import {MemoryRouter} from "react-router-dom";
 import * as Setting from "./Setting";
 import * as FormBackend from "./backend/FormBackend";
 import * as GroupBackend from "./backend/GroupBackend";
+import ListPageTable from "./common/ListPageTable";
 import GroupListPage from "./GroupListPage";
 import * as XLSX from "xlsx";
 
@@ -42,6 +43,7 @@ type TestTableColumn = {
   key?: string;
   dataIndex?: string;
   fixed?: unknown;
+  sorter?: unknown;
   render?: (text: unknown, record: TestGroupRecord, index: number) => React.ReactNode;
 };
 type TestGroupTableElement = React.ReactElement<{
@@ -49,10 +51,17 @@ type TestGroupTableElement = React.ReactElement<{
   className?: string;
   columns: TestTableColumn[];
   pagination?: {pageSize?: number};
-  scroll?: {x?: unknown};
+  scroll?: {x?: unknown; y?: unknown};
   showSorterTooltip?: {target?: string};
   tableLayout?: string;
   title: () => React.ReactNode;
+}>;
+type TestSharedTableElement = React.ReactElement<{
+  bordered?: boolean;
+  className?: string;
+  showSorterTooltip?: {target?: string};
+  size?: string;
+  tableLayout?: string;
 }>;
 
 const backendMock = GroupBackend as unknown as BackendMock;
@@ -400,15 +409,18 @@ test("builds table columns, toolbar and action handlers", () => {
   const table = tableWrapper.props.children;
   const columns = table.props.columns;
   const opColumn = columns.find(column => column.key === "op");
+  const groupColumn = columns.find(column => column.key === "group");
+  const usersColumn = columns.find(column => column.key === "users");
 
+  expect(table.type).toBe(ListPageTable);
   expect(columns.map(column => column.key)).toEqual(["group", "parentId", "users", "updatedTime", "op"]);
+  expect(groupColumn?.dataIndex).toBe("displayName");
+  expect(usersColumn?.sorter).toBeUndefined();
   expect(opColumn?.fixed).toBeUndefined();
   expect(table.props.scroll?.x).toBeUndefined();
-  expect(table.props.tableLayout).toBe("fixed");
+  expect(table.props.scroll?.y).toBe("calc(100vh - 360px)");
   expect(table.props.pagination?.pageSize).toBe(20);
   expect(table.props.className).toContain("group-list-table");
-  expect(table.props.bordered).toBe(false);
-  expect(table.props.showSorterTooltip).toEqual({target: "sorter-icon"});
 
   const actionNode = opColumn?.render?.(undefined, group, 0) as React.ReactElement<{children: React.ReactNode}>;
   const actionChildren = React.Children.toArray(actionNode.props.children) as React.ReactElement[];
@@ -430,34 +442,57 @@ test("builds table columns, toolbar and action handlers", () => {
   expect(page.addGroup).toHaveBeenCalled();
 });
 
+test("list page table centralizes shared table defaults", () => {
+  const sharedTable = ListPageTable<TestGroupRecord>({columns: [], dataSource: []}) as TestSharedTableElement;
+
+  expect(sharedTable.props.className).toBe("enterprise-list-table");
+  expect(sharedTable.props.size).toBe("middle");
+  expect(sharedTable.props.bordered).toBe(false);
+  expect(sharedTable.props.tableLayout).toBe("fixed");
+  expect(sharedTable.props.showSorterTooltip).toEqual({target: "sorter-icon"});
+});
+
+test("keeps mobile group table horizontally scrollable without desktop vertical lock", () => {
+  jestValue.spyOn(Setting, "isMobile").mockReturnValue(true);
+  const page = createPage();
+  const tableWrapper = page.renderTable([group]) as React.ReactElement<{children: TestGroupTableElement}>;
+  const table = tableWrapper.props.children;
+
+  expect(table.props.scroll?.x).toBe(760);
+  expect(table.props.scroll?.y).toBeUndefined();
+});
+
 test("uses an enterprise query toolbar instead of column header search as the primary group search entry", () => {
   const page = createPage();
   page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  page.state = {
+    ...page.state,
+    pagination: {...page.state.pagination, total: 258},
+  };
   const tableWrapper = page.renderTable([group]) as React.ReactElement<{children: TestGroupTableElement}>;
   const table = tableWrapper.props.children;
   const columns = table.props.columns as Array<TestTableColumn & {filterDropdown?: unknown}>;
   const toolbarView = render(<>{table.props.title()}</>);
 
   expect(toolbarView.getByText(/群\s*组|Groups/)).not.toBeNull();
+  expect(toolbarView.queryByText(/258/)).toBeNull();
   expect(toolbarView.getByText(/查\s*询|Search/)).not.toBeNull();
   expect(toolbarView.getByText(/重\s*置|Reset/)).not.toBeNull();
   fireEvent.click(toolbarView.getByText(/更\s*多\s*筛\s*选|More filters/));
   expect(toolbarView.getByText(/收\s*起\s*筛\s*选|Hide filters/)).not.toBeNull();
   expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-advanced")).not.toBeNull();
   expect(document.body.querySelector(".enterprise-list-query-toolbar-popover")).toBeNull();
-  expect(toolbarView.container.querySelectorAll(".enterprise-list-query-toolbar-advanced .organization-advanced-filter-input")).toHaveLength(5);
+  expect(toolbarView.container.querySelectorAll(".enterprise-list-query-toolbar-advanced .organization-advanced-filter-input")).toHaveLength(3);
   const advancedFilterLabels = (Array.from(toolbarView.container.querySelectorAll(".enterprise-list-query-toolbar-advanced .organization-advanced-filter-label")) as HTMLElement[])
     .map(node => node.textContent);
-  expect(advancedFilterLabels).toHaveLength(5);
+  expect(advancedFilterLabels).toHaveLength(3);
   expect(advancedFilterLabels.every(label => label?.endsWith(":"))).toBe(true);
   expect(getAdvancedFilterInputByLabel(toolbarView.container, /^(Advanced filters Name|高级筛选 名称)$/)).not.toBeNull();
-  expect(getAdvancedFilterInputByLabel(toolbarView.container, /^(Advanced filters Organization|高级筛选 组织)$/)).not.toBeNull();
   expect(getAdvancedFilterInputByLabel(toolbarView.container, /^(Advanced filters Display name|高级筛选 显示名称)$/)).not.toBeNull();
   expect(getAdvancedFilterInputByLabel(toolbarView.container, /^(Advanced filters Parent group|高级筛选 上级组)$/)).not.toBeNull();
-  expect(getAdvancedFilterInputByLabel(toolbarView.container, /^(Advanced filters Users|高级筛选 用户)$/)).not.toBeNull();
   expect(toolbarView.getByText(/添\s*加|Add/).closest(".enterprise-list-query-toolbar-actions")).not.toBeNull();
   expect(toolbarView.queryByText(/高\s*级\s*筛\s*选|Advanced filters/)).toBeNull();
-  expect(columns.find(column => column.key === "group")?.dataIndex).toBeUndefined();
+  expect(columns.find(column => column.key === "group")?.dataIndex).toBe("displayName");
   expect(columns.find(column => column.key === "displayName")).toBeUndefined();
   expect(columns.find(column => column.key === "owner")).toBeUndefined();
   expect(columns.find(column => column.key === "createdTime")).toBeUndefined();
@@ -497,7 +532,7 @@ test("renders compact group identity and user count for table scanning", () => {
   emptyUserView.unmount();
 });
 
-test("query toolbar keeps the existing group fetch contract for keyword, type and reset", () => {
+test("query toolbar keeps the existing group fetch contract for keyword and reset", () => {
   const page = createPage();
   page.fetch = jestValue.fn() as unknown as typeof page.fetch;
   page.state = {
@@ -505,7 +540,6 @@ test("query toolbar keeps the existing group fetch contract for keyword, type an
     pagination: {...page.state.pagination, current: 3, pageSize: 20},
     queryField: "displayName",
     queryKeyword: " Platform ",
-    queryType: undefined,
   };
 
   const keywordToolbar = render(<>{page.renderListToolbar()}</>);
@@ -515,33 +549,19 @@ test("query toolbar keeps the existing group fetch contract for keyword, type an
     searchedColumn: "displayName",
     searchText: "Platform",
   });
-  keywordToolbar.unmount();
-
-  page.state = {
-    ...page.state,
-    queryKeyword: "",
-    queryType: "Virtual",
-  };
-  const typeToolbar = render(<>{page.renderListToolbar()}</>);
-  fireEvent.click(typeToolbar.getByText(/查\s*询|Search/));
-  expect(page.fetch).toHaveBeenLastCalledWith({
-    pagination: expect.objectContaining({current: 1, pageSize: 20}),
-    type: "Virtual",
-  });
-  fireEvent.click(typeToolbar.getByText(/重\s*置|Reset/));
+  fireEvent.click(keywordToolbar.getByText(/重\s*置|Reset/));
   expect(page.state.queryField).toBe("name");
   expect(page.state.queryKeyword).toBe("");
   expect(page.state.queryType).toBeUndefined();
   expect(page.state.advancedQueryKeywords).toEqual({
     name: "",
-    owner: "",
     displayName: "",
     parentId: "",
-    users: "",
   });
   expect(page.fetch).toHaveBeenLastCalledWith({
     pagination: expect.objectContaining({current: 1, pageSize: 20}),
   });
+  keywordToolbar.unmount();
 });
 
 test("applies group advanced filters with organization-style AND semantics", async() => {
@@ -580,7 +600,6 @@ test("applies group advanced filters with organization-style AND semantics", asy
   fireEvent.click(toolbarView.getByText(/更\s*多\s*筛\s*选|More filters/));
   fireEvent.change(getAdvancedFilterInputByLabel(toolbarView.container, /^(Advanced filters Name|高级筛选 名称)$/), {target: {value: "group-main"}});
   fireEvent.change(getAdvancedFilterInputByLabel(toolbarView.container, /^(Advanced filters Display name|高级筛选 显示名称)$/), {target: {value: "platform"}});
-  fireEvent.change(getAdvancedFilterInputByLabel(toolbarView.container, /^(Advanced filters Users|高级筛选 用户)$/), {target: {value: "alice"}});
   fireEvent.click(toolbarView.getByText(/查\s*询|Search/));
   await flushPromises();
 
