@@ -1448,30 +1448,22 @@ img {
 .application-access-service-credential-alignment {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
-.application-access-service-credential-alignment-header {
+.application-access-service-credential-summary-row {
   display: grid;
-  grid-template-columns: minmax(190px, 0.9fr) minmax(360px, 1.45fr) minmax(240px, 1fr);
-  gap: 12px;
-  padding: 0 0 8px;
-  border-bottom: 1px solid #f0f0f0;
+  grid-template-columns: minmax(220px, 0.9fr) minmax(420px, 1.4fr);
+  gap: 12px 18px;
+  padding: 12px;
+  border: 1px solid rgb(229 233 240);
+  border-radius: 8px;
+  background: rgb(250 252 255);
 }
 
-.application-access-service-credential-alignment-row {
-  display: grid;
-  grid-template-columns: minmax(190px, 0.9fr) minmax(360px, 1.45fr) minmax(240px, 1fr);
-  gap: 12px;
-  padding: 12px 0;
-  border-top: 1px solid #f0f0f0;
-}
-
-.application-access-service-credential-alignment-row:first-child {
-  border-top: 0;
-}
-
-.application-access-service-credential-alignment-cell {
+.application-access-service-credential-summary-main,
+.application-access-service-credential-summary-block,
+.application-access-service-credential-config-detail {
   display: flex;
   min-width: 0;
   flex-direction: column;
@@ -1479,8 +1471,33 @@ img {
   overflow-wrap: anywhere;
 }
 
-.application-access-service-credential-alignment-mobile-label {
-  display: none;
+.application-access-service-credential-summary-title {
+  align-items: center;
+}
+
+.application-access-service-credential-summary-status {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+}
+
+.application-access-service-credential-summary-block {
+  padding-left: 12px;
+  border-left: 1px solid rgb(229 233 240);
+}
+
+.application-access-service-credential-row-details {
+  grid-column: 1 / -1;
+  margin-top: -2px;
+}
+
+.application-access-service-credential-row-details .ant-collapse-header {
+  padding: 4px 0 !important;
+}
+
+.application-access-service-credential-row-details .ant-collapse-content-box {
+  padding: 6px 0 0 !important;
 }
 
 .audit-operations-table-section {
@@ -2707,17 +2724,17 @@ img {
     width: 100%;
   }
 
-  .application-access-service-credential-alignment-header {
-    display: none;
-  }
-
-  .application-access-service-credential-alignment-row,
+  .application-access-service-credential-summary-row,
+  .application-access-service-credential-summary-status,
   .application-access-service-credential-config-fields {
     grid-template-columns: 1fr;
   }
 
-  .application-access-service-credential-alignment-mobile-label {
-    display: block;
+  .application-access-service-credential-summary-block {
+    padding-left: 0;
+    border-left: 0;
+    border-top: 1px solid rgb(229 233 240);
+    padding-top: 10px;
   }
 
   .enterprise-identity-summary-strip,

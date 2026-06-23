@@ -484,11 +484,6 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
           )}
           {serviceCredentialGovernanceConfigLoadState === "ready" && (
             <div className="application-access-service-credential-alignment" aria-label={t("Usage access governance alignment", "治理项对齐")}>
-              <div className="application-access-service-credential-alignment-header" aria-hidden="true">
-                <Text type="secondary">{t("Service credential governance", "服务凭据治理")}</Text>
-                <Text type="secondary">{t("Usage access governance configuration", "配置")}</Text>
-                <Text type="secondary">{t("Usage access governance diagnostics", "诊断")}</Text>
-              </div>
               {serviceCredentialGovernanceAlignedRows.map(row => {
                 const group = row.configGroup;
                 const statusGroup = row.statusGroup;
@@ -496,17 +491,18 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
                 const referenceDisabled = !group || group.keepInEnv || group.credentialReferenceStatus === "not_applicable";
                 const rowStatusTone = statusGroup ? getServiceCredentialGovernanceTone(statusGroup.status) : "default";
                 const rowStatusLabel = statusGroup ? getServiceCredentialGovernanceStatusLabel(statusGroup.status) : "状态未返回";
+                const gapCount = statusGroup?.missingKeys?.length ?? 0;
+                const configuredKeyCount = statusGroup?.configuredKeys?.length ?? 0;
                 return (
-                  <div className="application-access-service-credential-alignment-row" aria-label={`${row.key} 治理项对齐`} key={row.key}>
-                    <div className="application-access-service-credential-alignment-cell">
-                      <Text className="application-access-service-credential-alignment-mobile-label" type="secondary">{t("Service credential governance", "服务凭据治理")}</Text>
-                      <Space wrap>
+                  <div className="application-access-service-credential-summary-row" aria-label={`${row.key} 治理项对齐`} key={row.key}>
+                    <div className="application-access-service-credential-summary-main">
+                      <Space className="application-access-service-credential-summary-title" wrap>
                         <Text strong>{row.label}</Text>
                         <Tag className={`enterprise-identity-tone-${rowStatusTone}`}>{rowStatusLabel}</Tag>
                       </Space>
                       <Text type="secondary">
                         {statusGroup
-                          ? `${statusGroup.missingKeys?.length ?? 0} 个缺口，${statusGroup.configuredKeys?.length ?? 0} 个已识别配置 key`
+                          ? gapCount > 0 ? `${gapCount} 个缺口，${configuredKeyCount} 个已识别配置 key` : `${configuredKeyCount} 个已识别配置 key`
                           : "服务凭据治理状态未返回"}
                       </Text>
                       {statusGroup?.blockedReasons && statusGroup.blockedReasons.length > 0 && (
@@ -515,80 +511,97 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
                         </Space>
                       )}
                     </div>
-                    <div className="application-access-service-credential-alignment-cell">
-                      <Text className="application-access-service-credential-alignment-mobile-label" type="secondary">{t("Usage access governance configuration", "配置")}</Text>
-                      {group ? (
-                        <>
-                          <div className="application-access-service-credential-config-row-title">
+
+                    <div className="application-access-service-credential-summary-status">
+                      <div className="application-access-service-credential-summary-block">
+                        <Text type="secondary">配置</Text>
+                        {group ? (
+                          <>
                             <Space wrap>
                               <Tag>{group.enabled ? "已启用" : "未启用"}</Tag>
                               <Tag>{getServiceCredentialGovernanceSourceClassLabel(group.sourceClass)}</Tag>
                               <Tag>{getServiceCredentialReferenceStatusLabel(group.credentialReferenceStatus)}</Tag>
                               {group.keepInEnv && <Tag>保留在 env/config</Tag>}
                             </Space>
-                            <Switch
-                              size="small"
-                              checked={group.enabled}
-                              disabled={group.keepInEnv}
-                              onChange={checked => updateServiceCredentialGovernanceConfigGroup(group.key, {enabled: checked})}
-                            />
-                          </div>
-                          <Text type="secondary">{group.owner || "admin-owned"} · {group.nextAction || "核对配置引用和调用策略"}</Text>
-                          <div className="application-access-service-credential-config-fields">
-                            <Input
-                              aria-label={`${group.key} 凭据引用`}
-                              value={group.credentialReferenceKey || ""}
-                              disabled={referenceDisabled}
-                              placeholder={referenceDisabled ? "无需凭据引用" : "vault:service-credential-reference"}
-                              onChange={event => updateServiceCredentialGovernanceConfigGroup(group.key, {credentialReferenceKey: event.target.value})}
-                            />
-                            <Input
-                              aria-label={`${group.key} 调用策略`}
-                              value={group.callerPolicy || ""}
-                              disabled={group.keepInEnv}
-                              placeholder="aicodex-admin"
-                              onChange={event => updateServiceCredentialGovernanceConfigGroup(group.key, {callerPolicy: event.target.value})}
-                            />
-                            <Select
-                              aria-label={`${group.key} 来源分类`}
-                              value={group.sourceClass || "admin_config"}
-                              disabled={group.keepInEnv}
-                              onChange={sourceClass => updateServiceCredentialGovernanceConfigGroup(group.key, {sourceClass: sourceClass as ServiceCredentialGovernanceConfigGroup["sourceClass"]})}
-                              options={[
-                                {value: "admin_config", label: "Admin 配置"},
-                                {value: "env_config", label: "env/config"},
-                                {value: "external_secret_system", label: "外部 Secret"},
-                              ]}
-                            />
-                          </div>
-                        </>
-                      ) : (
-                        <Tag className="enterprise-identity-tone-warning">配置未返回</Tag>
-                      )}
+                            <Text type="secondary">{group.owner || "admin-owned"} · {group.nextAction || "核对配置引用和调用策略"}</Text>
+                          </>
+                        ) : (
+                          <Tag className="enterprise-identity-tone-warning">配置未返回</Tag>
+                        )}
+                      </div>
+                      <div className="application-access-service-credential-summary-block">
+                        <Text type="secondary">诊断</Text>
+                        {serviceCredentialGovernanceDiagnosticState === "idle" && <Tag>未诊断</Tag>}
+                        {serviceCredentialGovernanceDiagnosticState === "checking" && <Tag>诊断中</Tag>}
+                        {serviceCredentialGovernanceDiagnosticState === "error" && <Tag className="enterprise-identity-tone-warning">诊断暂不可用</Tag>}
+                        {serviceCredentialGovernanceDiagnosticState === "empty" && <Tag>无诊断结果</Tag>}
+                        {serviceCredentialGovernanceDiagnosticState === "ready" && diagnosticGroup && (
+                          <>
+                            <Space wrap>
+                              <Tag className={`enterprise-identity-tone-${getServiceCredentialGovernanceDiagnosticTone(diagnosticGroup.status)}`}>{getServiceCredentialGovernanceDiagnosticStatusLabel(diagnosticGroup.status)}</Tag>
+                              <Tag>{diagnosticGroup.stableAlias}</Tag>
+                              {diagnosticGroup.keepInEnv && <Tag>keepInEnv</Tag>}
+                              {diagnosticGroup.cannotInfer && <Tag>cannotInfer</Tag>}
+                            </Space>
+                            <Text type="secondary">
+                              {diagnosticGroup.nextAction || "按 stable alias 处理下一步"}
+                            </Text>
+                          </>
+                        )}
+                        {serviceCredentialGovernanceDiagnosticState === "ready" && !diagnosticGroup && <Tag>未返回</Tag>}
+                      </div>
                     </div>
-                    <div className="application-access-service-credential-alignment-cell">
-                      <Text className="application-access-service-credential-alignment-mobile-label" type="secondary">{t("Usage access governance diagnostics", "诊断")}</Text>
-                      {serviceCredentialGovernanceDiagnosticState === "idle" && <Tag>未诊断</Tag>}
-                      {serviceCredentialGovernanceDiagnosticState === "checking" && <Tag>诊断中</Tag>}
-                      {serviceCredentialGovernanceDiagnosticState === "error" && <Tag className="enterprise-identity-tone-warning">诊断暂不可用</Tag>}
-                      {serviceCredentialGovernanceDiagnosticState === "empty" && <Tag>无诊断结果</Tag>}
-                      {serviceCredentialGovernanceDiagnosticState === "ready" && diagnosticGroup && (
-                        <>
-                          <Space wrap>
-                            <Tag className={`enterprise-identity-tone-${getServiceCredentialGovernanceDiagnosticTone(diagnosticGroup.status)}`}>{getServiceCredentialGovernanceDiagnosticStatusLabel(diagnosticGroup.status)}</Tag>
-                            <Tag>{diagnosticGroup.stableAlias}</Tag>
-                            <Tag>{getServiceCredentialGovernanceSourceClassLabel(diagnosticGroup.sourceClass)}</Tag>
-                            <Tag>{getServiceCredentialReferenceStatusLabel(diagnosticGroup.credentialReferenceStatus)}</Tag>
-                            {diagnosticGroup.keepInEnv && <Tag>keepInEnv</Tag>}
-                            {diagnosticGroup.cannotInfer && <Tag>cannotInfer</Tag>}
-                          </Space>
-                          <Text type="secondary">
-                            {(diagnosticGroup.owner || "admin-owned")} · 调用策略{diagnosticGroup.callerPolicyPresent ? "已提供" : "缺失"} · {diagnosticGroup.nextAction || "按 stable alias 处理下一步"}
-                          </Text>
-                        </>
-                      )}
-                      {serviceCredentialGovernanceDiagnosticState === "ready" && !diagnosticGroup && <Tag>未返回</Tag>}
-                    </div>
+                    {group ? (
+                      <Collapse
+                        className="application-access-service-credential-row-details"
+                        ghost
+                        size="small"
+                        items={[{
+                          key: `${row.key}-config`,
+                          label: "配置明细",
+                          children: (
+                            <div className="application-access-service-credential-config-detail">
+                              <div className="application-access-service-credential-config-row-title">
+                                <Text type="secondary">启用治理项</Text>
+                                <Switch
+                                  size="small"
+                                  checked={group.enabled}
+                                  disabled={group.keepInEnv}
+                                  onChange={checked => updateServiceCredentialGovernanceConfigGroup(group.key, {enabled: checked})}
+                                />
+                              </div>
+                              <div className="application-access-service-credential-config-fields">
+                                <Input
+                                  aria-label={`${group.key} 凭据引用`}
+                                  value={group.credentialReferenceKey || ""}
+                                  disabled={referenceDisabled}
+                                  placeholder={referenceDisabled ? "无需凭据引用" : "vault:service-credential-reference"}
+                                  onChange={event => updateServiceCredentialGovernanceConfigGroup(group.key, {credentialReferenceKey: event.target.value})}
+                                />
+                                <Input
+                                  aria-label={`${group.key} 调用策略`}
+                                  value={group.callerPolicy || ""}
+                                  disabled={group.keepInEnv}
+                                  placeholder="aicodex-admin"
+                                  onChange={event => updateServiceCredentialGovernanceConfigGroup(group.key, {callerPolicy: event.target.value})}
+                                />
+                                <Select
+                                  aria-label={`${group.key} 来源分类`}
+                                  value={group.sourceClass || "admin_config"}
+                                  disabled={group.keepInEnv}
+                                  onChange={sourceClass => updateServiceCredentialGovernanceConfigGroup(group.key, {sourceClass: sourceClass as ServiceCredentialGovernanceConfigGroup["sourceClass"]})}
+                                  options={[
+                                    {value: "admin_config", label: "Admin 配置"},
+                                    {value: "env_config", label: "env/config"},
+                                    {value: "external_secret_system", label: "外部 Secret"},
+                                  ]}
+                                />
+                              </div>
+                            </div>
+                          ),
+                        }]}
+                      />
+                    ) : null}
                   </div>
                 );
               })}

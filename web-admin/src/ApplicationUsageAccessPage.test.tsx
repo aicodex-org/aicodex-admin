@@ -209,6 +209,16 @@ function renderPage() {
   );
 }
 
+async function openConfigDetails(view: ReturnType<typeof render>, key: string): Promise<HTMLElement> {
+  const row = await view.findByLabelText(`${key} 治理项对齐`);
+  const header = row.querySelector(".application-access-service-credential-row-details .ant-collapse-header");
+  if (!header) {
+    throw new Error(`Missing config details header for ${key}`);
+  }
+  fireEvent.click(header);
+  return row as HTMLElement;
+}
+
 describe("ApplicationUsageAccessPage", () => {
   let consoleErrorSpy: {mockRestore: () => void};
 
@@ -278,6 +288,8 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.getByText("保存配置")).not.toBeNull();
     expect(view.getByText("诊断/预检")).not.toBeNull();
     expect(view.getByText("生成/查看交接包")).not.toBeNull();
+    expect(view.getAllByText("配置明细").length).toBeGreaterThan(0);
+    await openConfigDetails(view, "usage_identity_resolver");
     expect((view.getByLabelText("usage_identity_resolver 凭据引用") as HTMLInputElement).value).toBe("vault:usage-identity-resolver");
     expect((view.getByLabelText("usage_identity_resolver 调用策略") as HTMLInputElement).value).toBe("aicodex-admin");
     expect(view.getAllByText("外部 Secret").length).toBeGreaterThan(0);
@@ -302,6 +314,7 @@ describe("ApplicationUsageAccessPage", () => {
     mockDiagnoseServiceCredentialGovernanceConfig.mockResolvedValueOnce(governanceDiagnosticResponse);
 
     const view = renderPage();
+    await openConfigDetails(view, "usage_identity_resolver");
     const resolverReferenceInput = await view.findByLabelText("usage_identity_resolver 凭据引用");
     fireEvent.change(resolverReferenceInput, {target: {value: "vault:usage-identity-resolver-updated"}});
     fireEvent.click(view.getByText("保存配置"));
@@ -341,12 +354,12 @@ describe("ApplicationUsageAccessPage", () => {
     mockDiagnoseServiceCredentialGovernanceConfig.mockResolvedValueOnce(governanceDiagnosticResponse);
 
     const view = renderPage();
-    await view.findByLabelText("usage_identity_resolver 凭据引用");
+    await view.findByLabelText("usage_identity_resolver 治理项对齐");
 
     const resolverRowBeforeDiagnostic = view.getByLabelText("usage_identity_resolver 治理项对齐");
-    expect(resolverRowBeforeDiagnostic.textContent).toContain("服务凭据治理");
     expect(resolverRowBeforeDiagnostic.textContent).toContain("已配置");
     expect(resolverRowBeforeDiagnostic.textContent).toContain("配置");
+    await openConfigDetails(view, "usage_identity_resolver");
     expect((view.getByLabelText("usage_identity_resolver 凭据引用") as HTMLInputElement).value).toBe("vault:usage-identity-resolver");
     expect(resolverRowBeforeDiagnostic.textContent).toContain("诊断");
     expect(resolverRowBeforeDiagnostic.textContent).toContain("未诊断");
@@ -354,7 +367,6 @@ describe("ApplicationUsageAccessPage", () => {
     fireEvent.click(view.getByText("诊断/预检"));
 
     const resolverRowAfterDiagnostic = await view.findByLabelText("usage_identity_resolver 治理项对齐");
-    expect(resolverRowAfterDiagnostic.textContent).toContain("服务凭据治理");
     expect(resolverRowAfterDiagnostic.textContent).toContain("配置");
     expect(resolverRowAfterDiagnostic.textContent).toContain("诊断");
     expect(resolverRowAfterDiagnostic.textContent).toContain("不能推断");
@@ -411,6 +423,7 @@ describe("ApplicationUsageAccessPage", () => {
       });
 
     const view = renderPage();
+    await openConfigDetails(view, "usage_identity_resolver");
     const resolverReferenceInput = await view.findByLabelText("usage_identity_resolver 凭据引用");
 
     fireEvent.click(view.getByText("保存配置"));
@@ -507,7 +520,7 @@ describe("ApplicationUsageAccessPage", () => {
     });
 
     const view = renderPage();
-    await view.findByLabelText("ready_group 凭据引用");
+    await view.findByLabelText("ready_group 治理项对齐");
     expect(view.getByLabelText("disabled_group 治理项对齐").textContent).toContain("未启用");
     expect(view.getByLabelText("missing_reference_group 治理项对齐").textContent).toContain("缺少配置");
     expect(view.getByLabelText("blocked_group 治理项对齐").textContent).toContain("caller_policy_missing");
@@ -603,7 +616,7 @@ describe("ApplicationUsageAccessPage", () => {
     });
 
     const view = renderPage();
-    await view.findByLabelText("ready_group 凭据引用");
+    await view.findByLabelText("ready_group 治理项对齐");
     fireEvent.click(view.getByText("生成/查看交接包"));
 
     expect(await view.findByText("可交接")).not.toBeNull();
