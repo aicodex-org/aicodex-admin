@@ -389,6 +389,8 @@
     "Handoff package preview": "交接包预览",
     "Keep in env config": "保留在 env/config",
     "Ready for handoff": "可交接",
+    "Service credential handoff evidence action": "Handoff/Evidence",
+    "Service credential handoff evidence title": "Handoff/Evidence",
     "Service credential governance handoff package unavailable": "服务凭据治理交接包暂不可用",
     "Application list entry": "应用列表",
     "Application Portal": "应用门户",

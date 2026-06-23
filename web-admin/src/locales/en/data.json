@@ -389,6 +389,8 @@
     "Handoff package preview": "Handoff package preview",
     "Keep in env config": "Keep in env/config",
     "Ready for handoff": "Ready for handoff",
+    "Service credential handoff evidence action": "Handoff/Evidence",
+    "Service credential handoff evidence title": "Handoff/Evidence",
     "Service credential governance handoff package unavailable": "Service credential governance handoff package unavailable",
     "Application list entry": "Application list",
     "Application Portal": "Application Portal",

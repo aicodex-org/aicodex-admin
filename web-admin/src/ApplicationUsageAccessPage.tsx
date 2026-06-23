@@ -18,7 +18,7 @@ import {
   AuditOutlined,
   SafetyCertificateOutlined
 } from "@ant-design/icons";
-import {Alert, Button, Space} from "antd";
+import {Button, Space} from "antd";
 import i18next from "i18next";
 import React from "react";
 import {Link} from "react-router-dom";
@@ -47,13 +47,6 @@ function ApplicationUsageAccessPage(): React.ReactElement {
         </Space>
       )}
     >
-      <Alert
-        className="enterprise-identity-console-alert"
-        type="info"
-        showIcon
-        message={t("Usage access owner boundary", "Admin 只承接服务凭据治理中的身份、组织、resolver、projection 和服务间凭据入口。")}
-        description={t("Usage access owner boundary description", "页面不承接 API/Gateway 或 Insight 自己的 truth，不执行登录、同步、凭据测试或 Gateway 发布。")}
-      />
       <ApplicationAccessServiceCredentialGovernancePanel className="application-usage-access-service-credential-panel" />
     </EnterpriseIdentityConsolePage>
   );

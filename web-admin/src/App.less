@@ -1414,6 +1414,28 @@ img {
   margin-top: 12px;
 }
 
+.application-access-service-credential-operator-overview {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.7fr) minmax(260px, 1.2fr) minmax(200px, 0.9fr);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.application-access-service-credential-operator-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid rgb(229 233 240);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.application-access-service-credential-operator-card strong {
+  overflow-wrap: anywhere;
+}
+
 .application-access-service-credential-workspace .ant-collapse-header {
   align-items: center !important;
 }
@@ -1498,6 +1520,12 @@ img {
 
 .application-access-service-credential-row-details .ant-collapse-content-box {
   padding: 6px 0 0 !important;
+}
+
+.application-access-service-credential-advanced-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .audit-operations-table-section {
@@ -2726,6 +2754,7 @@ img {
 
   .application-access-service-credential-summary-row,
   .application-access-service-credential-summary-status,
+  .application-access-service-credential-operator-overview,
   .application-access-service-credential-config-fields {
     grid-template-columns: 1fr;
   }

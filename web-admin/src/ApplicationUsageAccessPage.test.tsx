@@ -5,6 +5,21 @@ import {MemoryRouter} from "react-router-dom";
 import {expect, jest} from "@jest/globals";
 import i18next from "i18next";
 import ApplicationUsageAccessPage from "./ApplicationUsageAccessPage";
+import {
+  getServiceCredentialGovernanceCredentialPresenceLabel,
+  getServiceCredentialGovernanceDiagnosticStatusLabel,
+  getServiceCredentialGovernanceDiagnosticTone,
+  getServiceCredentialGovernanceHandoffReadinessLabel,
+  getServiceCredentialGovernanceHandoffTone,
+  getServiceCredentialGovernanceNextAction,
+  getServiceCredentialGovernanceOperatorStatus,
+  getServiceCredentialGovernancePrimaryGap,
+  getServiceCredentialGovernanceRequiredConfigSummary,
+  getServiceCredentialGovernanceSourceClassLabel,
+  getServiceCredentialGovernanceSummary,
+  getServiceCredentialGovernanceTone,
+  getServiceCredentialReferenceStatusLabel
+} from "./ApplicationAccessServiceCredentialGovernancePanel";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
 
@@ -28,6 +43,8 @@ const {fireEvent} = require("@testing-library/react") as {
     click: (element: Element | null) => boolean;
   };
 };
+
+jest.setTimeout(15000);
 
 jest.mock("./backend/ApplicationAccessServiceCredentialGovernanceBackend", () => {
   return {
@@ -219,6 +236,35 @@ async function openConfigDetails(view: ReturnType<typeof render>, key: string): 
   return row as HTMLElement;
 }
 
+async function openAdvancedInformation(view: ReturnType<typeof render>): Promise<HTMLElement> {
+  const advancedLabel = await view.findByText("高级信息");
+  const header = advancedLabel.closest(".ant-collapse-header");
+  if (!header) {
+    throw new Error("Missing advanced information header");
+  }
+  fireEvent.click(header);
+  return view.findByLabelText("服务凭据治理高级信息");
+}
+
+function expandMetadataSections(view: ReturnType<typeof render>, label: string): void {
+  view.getAllByText(label).forEach((node: HTMLElement) => {
+    const header = node.closest(".ant-collapse-header");
+    if (header) {
+      fireEvent.click(header);
+    }
+  });
+}
+
+function clickButtonByText(view: ReturnType<typeof render>, label: string): void {
+  const button = view.getAllByText(label)
+    .map((node: HTMLElement) => node.closest("button"))
+    .find((candidate: HTMLButtonElement | null): candidate is HTMLButtonElement => Boolean(candidate));
+  if (!button) {
+    throw new Error(`Missing button for ${label}`);
+  }
+  fireEvent.click(button);
+}
+
 describe("ApplicationUsageAccessPage", () => {
   let consoleErrorSpy: {mockRestore: () => void};
 
@@ -275,6 +321,57 @@ describe("ApplicationUsageAccessPage", () => {
     jest.clearAllMocks();
   });
 
+  test("maps service credential machine states to operator-facing summaries", () => {
+    expect(getServiceCredentialGovernanceTone("configured")).toBe("success");
+    expect(getServiceCredentialGovernanceTone("blocked")).toBe("error");
+    expect(getServiceCredentialGovernanceTone("partial")).toBe("warning");
+    expect(getServiceCredentialGovernanceTone("not_applicable")).toBe("default");
+    expect(getServiceCredentialGovernanceSummary(null).label).toBe("待加载");
+    expect(getServiceCredentialGovernanceSummary({generatedAt: "", source: "admin_runtime_config", groups: [{key: "blocked", label: "Blocked", owner: "admin", status: "blocked", credentialReferenceStatus: "missing"}]}).label).toBe("不可用");
+    expect(getServiceCredentialGovernanceSummary({generatedAt: "", source: "admin_runtime_config", groups: [{key: "partial", label: "Partial", owner: "admin", status: "partial", credentialReferenceStatus: "configured"}]}).label).toBe("需补配置");
+    expect(getServiceCredentialGovernanceSummary({generatedAt: "", source: "admin_runtime_config", groups: [{key: "ok", label: "OK", owner: "admin", status: "configured", credentialReferenceStatus: "configured"}]}).label).toBe("可用");
+    expect(getServiceCredentialGovernanceSourceClassLabel("external_secret_system")).toBe("外部凭据");
+    expect(getServiceCredentialGovernanceSourceClassLabel("env_config")).toBe("环境配置");
+    expect(getServiceCredentialGovernanceSourceClassLabel("admin_config")).toBe("Admin 管理");
+    expect(getServiceCredentialReferenceStatusLabel("configured")).toBe("凭据已配置");
+    expect(getServiceCredentialReferenceStatusLabel("external_secret")).toBe("外部凭据");
+    expect(getServiceCredentialReferenceStatusLabel("missing")).toBe("缺少凭据");
+    expect(getServiceCredentialReferenceStatusLabel("not_applicable")).toBe("无需引用");
+  });
+
+  test("maps diagnostic, readiness, gaps, and required config without raw aliases", () => {
+    expect(getServiceCredentialGovernanceDiagnosticTone("ready")).toBe("success");
+    expect(getServiceCredentialGovernanceDiagnosticTone("cannot_infer")).toBe("warning");
+    expect(getServiceCredentialGovernanceDiagnosticTone("missing_reference")).toBe("error");
+    expect(getServiceCredentialGovernanceDiagnosticStatusLabel("ready")).toBe("预检通过");
+    expect(getServiceCredentialGovernanceDiagnosticStatusLabel("disabled")).toBe("未启用");
+    expect(getServiceCredentialGovernanceDiagnosticStatusLabel("missing_reference")).toBe("缺少凭据");
+    expect(getServiceCredentialGovernanceDiagnosticStatusLabel("keep_in_env")).toBe("由环境维护");
+    expect(getServiceCredentialGovernanceDiagnosticStatusLabel("cannot_infer")).toBe("需下游确认");
+    expect(getServiceCredentialGovernanceDiagnosticStatusLabel("blocked")).toBe("策略未放行");
+    expect(getServiceCredentialGovernanceHandoffTone("ready")).toBe("success");
+    expect(getServiceCredentialGovernanceHandoffTone("keep_in_env")).toBe("warning");
+    expect(getServiceCredentialGovernanceHandoffTone("blocked")).toBe("error");
+    expect(getServiceCredentialGovernanceHandoffReadinessLabel("ready")).toBe("可交接");
+    expect(getServiceCredentialGovernanceHandoffReadinessLabel("keep_in_env")).toBe("保留在 env/config");
+    expect(getServiceCredentialGovernanceHandoffReadinessLabel("cannot_infer")).toBe("不能推断");
+    expect(getServiceCredentialGovernanceHandoffReadinessLabel("blocked")).toBe("已阻断");
+    expect(getServiceCredentialGovernanceOperatorStatus("missing").label).toBe("未完成配置");
+    expect(getServiceCredentialGovernanceOperatorStatus(undefined).description).toBe("请刷新状态");
+    expect(getServiceCredentialGovernancePrimaryGap({key: "resolver", label: "Resolver", owner: "admin", status: "partial", credentialReferenceStatus: "missing"})).toBe("缺少凭据");
+    expect(getServiceCredentialGovernancePrimaryGap({key: "resolver", label: "Resolver", owner: "admin", status: "partial", credentialReferenceStatus: "configured", missingKeys: ["callerPolicy"]})).toBe("缺少调用策略");
+    expect(getServiceCredentialGovernancePrimaryGap({key: "resolver", label: "Resolver", owner: "admin", status: "partial", credentialReferenceStatus: "configured", missingKeys: ["boundedRuntimePolicy"]})).toBe("缺少运行策略");
+    expect(getServiceCredentialGovernancePrimaryGap({key: "resolver", label: "Resolver", owner: "admin", status: "blocked", credentialReferenceStatus: "configured"})).toBe("策略未放行");
+    expect(getServiceCredentialGovernanceNextAction([{statusGroup: {key: "resolver", label: "Resolver", owner: "admin", status: "missing", credentialReferenceStatus: "missing"}, configGroup: {key: "resolver", enabled: true, credentialReferenceStatus: "missing", nextAction: "补充 resolver 凭据引用"}}])).toBe("补充 resolver 凭据引用");
+    expect(getServiceCredentialGovernanceNextAction([])).toBe("等待配置加载");
+    expect(getServiceCredentialGovernanceRequiredConfigSummary([{key: "resolver", enabled: true, credentialReferenceStatus: "missing"}, {key: "env", enabled: true, keepInEnv: true, credentialReferenceStatus: "external_secret"}])).toBe("1 项缺少凭据引用");
+    expect(getServiceCredentialGovernanceRequiredConfigSummary([{key: "resolver", enabled: true, credentialReferenceStatus: "configured"}])).toBe("1 项可维护配置");
+    expect(getServiceCredentialGovernanceRequiredConfigSummary([{key: "env", enabled: true, keepInEnv: true, credentialReferenceStatus: "external_secret"}])).toBe("暂无可维护配置");
+    expect(getServiceCredentialGovernanceCredentialPresenceLabel({key: "resolver", enabled: true, credentialReferenceStatus: "configured", credentialReferenceKey: "vault:resolver"})).toBe("已填写引用");
+    expect(getServiceCredentialGovernanceCredentialPresenceLabel({key: "resolver", enabled: true, credentialReferenceStatus: "configured"})).toBe("待填写引用");
+    expect(getServiceCredentialGovernanceCredentialPresenceLabel({key: "env", enabled: true, keepInEnv: true, credentialReferenceStatus: "external_secret"})).toBe("无需填写");
+  });
+
   test("renders the service credential governance panel as the focused usage access content", async() => {
     mockGetServiceCredentialGovernanceStatus.mockResolvedValueOnce(governanceStatusResponse);
     mockGetServiceCredentialGovernanceConfig.mockResolvedValueOnce(governanceConfigResponse);
@@ -284,19 +381,28 @@ describe("ApplicationUsageAccessPage", () => {
     expect(await view.findByText("用量接入")).not.toBeNull();
     expect(view.getByText("应用接入 / 用量接入")).not.toBeNull();
     expect(view.getAllByText("服务凭据治理").length).toBeGreaterThan(0);
+    expect(view.getByLabelText("服务接入配置总览")).not.toBeNull();
+    expect(view.getByText("当前状态")).not.toBeNull();
+    expect(view.getByText("下一步")).not.toBeNull();
     expect(view.getByText("治理项对齐")).not.toBeNull();
     expect(view.getByText("保存配置")).not.toBeNull();
-    expect(view.getByText("诊断/预检")).not.toBeNull();
-    expect(view.getByText("生成/查看交接包")).not.toBeNull();
-    expect(view.getAllByText("配置明细").length).toBeGreaterThan(0);
+    expect(view.getByText("刷新状态")).not.toBeNull();
+    expect(view.getByText("读取配置")).not.toBeNull();
+    expect(view.getByText("恢复回读")).not.toBeNull();
+    expect(view.getByText("Dry-run/Readiness")).not.toBeNull();
+    expect(view.getByText("Doctor")).not.toBeNull();
+    expect(view.getByText("Handoff/Evidence")).not.toBeNull();
+    expect(view.getAllByText("必填配置").length).toBeGreaterThan(0);
     await openConfigDetails(view, "usage_identity_resolver");
     expect((view.getByLabelText("usage_identity_resolver 凭据引用") as HTMLInputElement).value).toBe("vault:usage-identity-resolver");
     expect((view.getByLabelText("usage_identity_resolver 调用策略") as HTMLInputElement).value).toBe("aicodex-admin");
-    expect(view.getAllByText("外部 Secret").length).toBeGreaterThan(0);
-    expect(view.getByText("保留在 env/config")).not.toBeNull();
+    expect(view.getAllByText("外部凭据").length).toBeGreaterThan(0);
+    expect(view.getAllByText("环境配置").length).toBeGreaterThan(0);
     expect(view.container.textContent).not.toContain("resolver-secret-value");
     expect(view.container.textContent).not.toContain("resolver-token-value");
     expect(view.container.textContent).not.toContain("resolver.internal.example.invalid");
+    expect(view.container.textContent).not.toContain("gateway_projection_token_missing");
+    expect(view.container.textContent).not.toContain("admin_service_credential_reference_unresolved");
   });
 
   test("saves, diagnoses, and previews service credential governance handoff from usage access", async() => {
@@ -330,18 +436,21 @@ describe("ApplicationUsageAccessPage", () => {
     expect(savePayload).not.toContain("resolver-token-value");
     expect(savePayload).not.toContain("resolver.internal.example.invalid");
 
-    fireEvent.click(view.getByText("诊断/预检"));
+    fireEvent.click(view.getByText("Dry-run/Readiness"));
     const resolverRowAfterDiagnostic = await view.findByLabelText("usage_identity_resolver 治理项对齐");
-    expect(resolverRowAfterDiagnostic.textContent).toContain("诊断");
-    expect(resolverRowAfterDiagnostic.textContent).toContain("不能推断");
-    expect(view.getByText("admin_service_credential_reference_unresolved")).not.toBeNull();
+    expect(resolverRowAfterDiagnostic.textContent).toContain("预检");
+    expect(resolverRowAfterDiagnostic.textContent).toContain("需下游确认");
+    expect(resolverRowAfterDiagnostic.textContent).not.toContain("admin_service_credential_reference_unresolved");
+    expect(view.container.textContent).not.toContain("admin_service_credential_reference_unresolved");
     expect(mockDiagnoseServiceCredentialGovernanceConfig).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(view.getByText("生成/查看交接包"));
-    expect(await view.findByText("交接包预览")).not.toBeNull();
+    clickButtonByText(view, "Handoff/Evidence");
+    expect(await view.findByText("Evidence 已生成")).not.toBeNull();
+    await openAdvancedInformation(view);
+    expandMetadataSections(view, "Evidence 元数据");
     expect(view.getByText("insight_business_service_access")).not.toBeNull();
     expect(view.getByText("admin_identity_application_access")).not.toBeNull();
-    expect(view.container.textContent).toContain("vault:usage-identity-resolver-updated");
+    expect(view.container.textContent).not.toContain("vault:usage-identity-resolver-updated");
     expect(view.container.textContent).toContain("cannotInferRuntimeTruth");
     expect(view.container.textContent).not.toContain("resolver-secret-value");
     expect(view.container.textContent).not.toContain("resolver-token-value");
@@ -357,20 +466,24 @@ describe("ApplicationUsageAccessPage", () => {
     await view.findByLabelText("usage_identity_resolver 治理项对齐");
 
     const resolverRowBeforeDiagnostic = view.getByLabelText("usage_identity_resolver 治理项对齐");
-    expect(resolverRowBeforeDiagnostic.textContent).toContain("已配置");
-    expect(resolverRowBeforeDiagnostic.textContent).toContain("配置");
+    expect(resolverRowBeforeDiagnostic.textContent).toContain("可用");
+    expect(resolverRowBeforeDiagnostic.textContent).toContain("必填配置");
     await openConfigDetails(view, "usage_identity_resolver");
     expect((view.getByLabelText("usage_identity_resolver 凭据引用") as HTMLInputElement).value).toBe("vault:usage-identity-resolver");
-    expect(resolverRowBeforeDiagnostic.textContent).toContain("诊断");
-    expect(resolverRowBeforeDiagnostic.textContent).toContain("未诊断");
+    expect(resolverRowBeforeDiagnostic.textContent).toContain("预检");
+    expect(resolverRowBeforeDiagnostic.textContent).toContain("尚未诊断");
 
-    fireEvent.click(view.getByText("诊断/预检"));
+    fireEvent.click(view.getByText("Dry-run/Readiness"));
 
     const resolverRowAfterDiagnostic = await view.findByLabelText("usage_identity_resolver 治理项对齐");
-    expect(resolverRowAfterDiagnostic.textContent).toContain("配置");
-    expect(resolverRowAfterDiagnostic.textContent).toContain("诊断");
-    expect(resolverRowAfterDiagnostic.textContent).toContain("不能推断");
-    expect(resolverRowAfterDiagnostic.textContent).toContain("admin_service_credential_reference_unresolved");
+    expect(resolverRowAfterDiagnostic.textContent).toContain("必填配置");
+    expect(resolverRowAfterDiagnostic.textContent).toContain("预检");
+    expect(resolverRowAfterDiagnostic.textContent).toContain("需下游确认");
+    expect(resolverRowAfterDiagnostic.textContent).not.toContain("admin_service_credential_reference_unresolved");
+    expect(view.container.textContent).not.toContain("admin_service_credential_reference_unresolved");
+    await openAdvancedInformation(view);
+    expandMetadataSections(view, "诊断元数据");
+    expect(view.getAllByText("admin_service_credential_reference_unresolved").length).toBeGreaterThan(0);
   });
 
   test("keeps loading, empty, and error states actionable", async() => {
@@ -403,8 +516,8 @@ describe("ApplicationUsageAccessPage", () => {
     expect(await view.findByText("服务凭据治理状态暂不可用")).not.toBeNull();
     expect(view.getByText("服务凭据治理配置暂不可用")).not.toBeNull();
     expect(view.getByText("应用接入中心").closest("a")?.getAttribute("href")).toBe("/applications");
-    expect((view.getByText("诊断/预检").closest("button") as HTMLButtonElement | null)?.disabled).toBe(true);
-    expect((view.getByText("生成/查看交接包").closest("button") as HTMLButtonElement | null)?.disabled).toBe(true);
+    expect((view.getByText("Dry-run/Readiness").closest("button") as HTMLButtonElement | null)?.disabled).toBe(true);
+    expect((view.getByText("Handoff/Evidence").closest("button") as HTMLButtonElement | null)?.disabled).toBe(true);
   });
 
   test("keeps save and diagnostic failures visible and resets stale diagnostic output after edits", async() => {
@@ -429,15 +542,15 @@ describe("ApplicationUsageAccessPage", () => {
     fireEvent.click(view.getByText("保存配置"));
     expect(await view.findByText("服务凭据治理配置保存失败")).not.toBeNull();
 
-    fireEvent.click(view.getByText("诊断/预检"));
+    fireEvent.click(view.getByText("Dry-run/Readiness"));
     expect((await view.findAllByText("诊断暂不可用")).length).toBeGreaterThan(0);
 
     fireEvent.change(resolverReferenceInput, {target: {value: "vault:usage-identity-resolver-after-error"}});
     const resolverRowAfterEdit = view.getByLabelText("usage_identity_resolver 治理项对齐");
-    expect(resolverRowAfterEdit.textContent).toContain("未诊断");
+    expect(resolverRowAfterEdit.textContent).toContain("尚未诊断");
     expect(resolverRowAfterEdit.textContent).not.toContain("诊断暂不可用");
 
-    fireEvent.click(view.getByText("诊断/预检"));
+    fireEvent.click(view.getByText("Dry-run/Readiness"));
     expect((await view.findAllByText("无诊断结果")).length).toBeGreaterThan(0);
     const diagnosticPayload = JSON.stringify(mockDiagnoseServiceCredentialGovernanceConfig.mock.calls[1]?.[0]);
     expect(diagnosticPayload).toContain("vault:usage-identity-resolver-after-error");
@@ -522,15 +635,18 @@ describe("ApplicationUsageAccessPage", () => {
     const view = renderPage();
     await view.findByLabelText("ready_group 治理项对齐");
     expect(view.getByLabelText("disabled_group 治理项对齐").textContent).toContain("未启用");
-    expect(view.getByLabelText("missing_reference_group 治理项对齐").textContent).toContain("缺少配置");
-    expect(view.getByLabelText("blocked_group 治理项对齐").textContent).toContain("caller_policy_missing");
+    expect(view.getByLabelText("missing_reference_group 治理项对齐").textContent).toContain("未完成配置");
+    expect(view.getByLabelText("blocked_group 治理项对齐").textContent).toContain("不可用");
+    expect(view.getByLabelText("blocked_group 治理项对齐").textContent).not.toContain("caller_policy_missing");
 
-    fireEvent.click(view.getByText("诊断/预检"));
+    fireEvent.click(view.getByText("Dry-run/Readiness"));
 
-    expect(await view.findByText("可保存核对")).not.toBeNull();
+    expect((await view.findAllByText("预检通过")).length).toBeGreaterThan(0);
     expect(view.getAllByText("未启用").length).toBeGreaterThan(0);
-    expect(view.getByText("缺少引用")).not.toBeNull();
-    expect(view.getAllByText("已阻断").length).toBeGreaterThan(0);
+    expect(view.getAllByText("缺少凭据").length).toBeGreaterThan(0);
+    expect(view.getAllByText("策略未放行").length).toBeGreaterThan(0);
+    await openAdvancedInformation(view);
+    expandMetadataSections(view, "诊断元数据");
     expect(view.getByText("ready_alias")).not.toBeNull();
     expect(view.getByText("missing_reference_alias")).not.toBeNull();
   });
@@ -617,12 +733,14 @@ describe("ApplicationUsageAccessPage", () => {
 
     const view = renderPage();
     await view.findByLabelText("ready_group 治理项对齐");
-    fireEvent.click(view.getByText("生成/查看交接包"));
+    clickButtonByText(view, "Handoff/Evidence");
 
     expect(await view.findByText("可交接")).not.toBeNull();
     expect(view.getAllByText("保留在 env/config").length).toBeGreaterThan(0);
     expect(view.getAllByText("已阻断").length).toBeGreaterThan(0);
     expect(view.container.textContent).toContain("调用策略缺失");
+    await openAdvancedInformation(view);
+    expandMetadataSections(view, "Evidence 元数据");
     expect(view.getByText("admin_service_credential_reference_missing")).not.toBeNull();
     expect(view.container.textContent).not.toContain("https://");
     expect(view.container.textContent).not.toContain("token-value");
