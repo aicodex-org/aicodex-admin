@@ -448,6 +448,10 @@ test("renders concrete advanced filter inputs from organization query fields", (
   const advancedView = render(<>{toolbar.props.advancedFilters}</>);
 
   expect(advancedView.container.querySelectorAll(".organization-advanced-filter-input")).toHaveLength(4);
+  const advancedFilterLabels = (Array.from(advancedView.container.querySelectorAll(".organization-advanced-filter-label")) as HTMLElement[])
+    .map(node => node.textContent);
+  expect(advancedFilterLabels).toHaveLength(4);
+  expect(advancedFilterLabels.every(label => label?.endsWith(":"))).toBe(true);
   expect(advancedView.getByLabelText(/^(Advanced filters Name|高级筛选 名称)$/)).not.toBeNull();
   expect(advancedView.getByLabelText(/^(Advanced filters Display name|高级筛选 显示名称)$/)).not.toBeNull();
   expect(advancedView.getByLabelText(/^(Advanced filters Website URL|高级筛选 主页地址)$/)).not.toBeNull();

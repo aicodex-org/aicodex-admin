@@ -14,18 +14,19 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Modal, Select, Table, Tooltip, Upload} from "antd";
+import {Button, Input, Modal, Popconfirm, Select, Space, Table, Tag, Tooltip, Typography, Upload} from "antd";
 import type {TablePaginationConfig, TableProps} from "antd";
-import {UploadOutlined} from "@ant-design/icons";
+import {DeleteOutlined, EditOutlined, UploadOutlined} from "@ant-design/icons";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as GroupBackend from "./backend/GroupBackend";
 import type {GroupQueryValue, GroupRecord} from "./backend/GroupBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
-import PopconfirmModal from "./common/modal/PopconfirmModal";
 import EnterpriseListQueryToolbar from "./common/EnterpriseListQueryToolbar";
 import * as XLSX from "xlsx";
+
+const {Text} = Typography;
 
 interface GroupListPageProps {
   account: {
@@ -60,6 +61,7 @@ interface GroupListPageState {
   queryField: string;
   queryKeyword: string;
   queryType?: string;
+  advancedQueryKeywords: Record<string, string>;
 }
 
 type GroupListColumns = TableProps<GroupRecord>["columns"];
@@ -72,6 +74,11 @@ type GroupListFetchParams = {
   sortOrder?: string | null;
   category?: GroupQueryValue;
   type?: GroupQueryValue;
+};
+
+type GroupFilterCondition = {
+  field: string;
+  value: string;
 };
 
 // BaseListPage 仍是 legacy JS；本 change 只声明群组列表页实际使用的继承边界。
@@ -115,6 +122,79 @@ function getGroupQueryFields() {
   ];
 }
 
+function createEmptyAdvancedQueryKeywords(): Record<string, string> {
+  return getGroupQueryFields().reduce((keywords, field) => ({
+    ...keywords,
+    [field.value]: "",
+  }), {} as Record<string, string>);
+}
+
+function normalizeGroupFilterValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.join(" ");
+  }
+  if (value === null || value === undefined) {
+    return "";
+  }
+  return String(value);
+}
+
+function matchesGroupConditions(group: GroupRecord, conditions: GroupFilterCondition[]): boolean {
+  return conditions.every(condition => {
+    const actualValue = normalizeGroupFilterValue(group[condition.field]).toLowerCase();
+    return actualValue.includes(condition.value.toLowerCase());
+  });
+}
+
+function renderCompactLink(text: string | undefined, to: string, className = "group-table-id-link"): React.ReactNode {
+  const value = text || "";
+  return (
+    <Tooltip title={value || undefined}>
+      <Link className={className} to={to} title={value}>
+        {value}
+      </Link>
+    </Tooltip>
+  );
+}
+
+function renderCompactText(text: string | undefined, className = "group-table-id-text"): React.ReactNode {
+  const value = text || "";
+  return (
+    <Text className={className} title={value} ellipsis={{tooltip: value || undefined}}>
+      {value}
+    </Text>
+  );
+}
+
+function renderCompactUsers(users?: string[]): React.ReactNode {
+  const values = Array.isArray(users) ? users.filter(Boolean) : [];
+  if (values.length === 0) {
+    return <Text type="secondary">-</Text>;
+  }
+
+  const visibleUsers = values.slice(0, 2);
+  return (
+    <Tooltip title={values.join(", ")}>
+      <Space className="group-table-users" size={[4, 4]} wrap>
+        {
+          visibleUsers.map(user => (
+            <Link className="group-table-user-link" to={`/users/${user}`} key={user} title={user}>
+              <Tag className="group-table-user-tag" color={(Setting.getTagColor as (value: string) => string)(user)}>
+                {user}
+              </Tag>
+            </Link>
+          ))
+        }
+        {
+          values.length > visibleUsers.length ? (
+            <Tag className="group-table-user-more">+{values.length - visibleUsers.length}</Tag>
+          ) : null
+        }
+      </Space>
+    </Tooltip>
+  );
+}
+
 class GroupListPage extends TypedBaseListPage {
   constructor(props: GroupListPageProps) {
     super(props);
@@ -127,6 +207,7 @@ class GroupListPage extends TypedBaseListPage {
       queryField: "name",
       queryKeyword: "",
       queryType: undefined,
+      advancedQueryKeywords: createEmptyAdvancedQueryKeywords(),
     };
   }
 
@@ -294,6 +375,14 @@ class GroupListPage extends TypedBaseListPage {
   handleToolbarSearch = (): void => {
     const pagination = {...this.state.pagination, current: 1};
     const keyword = this.state.queryKeyword.trim();
+    if (this.hasAdvancedQueryKeywords()) {
+      this.fetchAdvancedFilteredGroups({
+        pagination,
+        type: this.state.queryType,
+      });
+      return;
+    }
+
     // 群组后端仍是单字段过滤；关键词查询优先沿用 searchedColumn/searchText，空关键词时才使用类型筛选。
     if (keyword !== "") {
       this.fetch({
@@ -316,10 +405,99 @@ class GroupListPage extends TypedBaseListPage {
       queryField: "name",
       queryKeyword: "",
       queryType: undefined,
+      advancedQueryKeywords: createEmptyAdvancedQueryKeywords(),
       searchText: undefined,
       searchedColumn: undefined,
     }, () => this.fetch({pagination}));
   };
+
+  handleAdvancedFilterChange = (field: string, value: string): void => {
+    this.setState(prevState => ({
+      advancedQueryKeywords: {
+        ...prevState.advancedQueryKeywords,
+        [field]: value,
+      },
+    }));
+  };
+
+  handleTableChange: NonNullable<TableProps<GroupRecord>["onChange"]> = (pagination, filters, sorter) => {
+    const normalizedSorter = Array.isArray(sorter) ? sorter[0] : sorter;
+    const sortField = typeof normalizedSorter?.field === "string" ? normalizedSorter.field : undefined;
+    const sortOrder = normalizedSorter?.order ?? undefined;
+    const type = (filters.type as GroupQueryValue) ?? this.state.queryType;
+    const params: GroupListFetchParams = {
+      pagination,
+      sortField,
+      sortOrder,
+      type,
+    };
+
+    if (this.hasAdvancedQueryKeywords()) {
+      this.fetchAdvancedFilteredGroups(params);
+      return;
+    }
+
+    this.fetch({
+      ...params,
+      searchText: this.state.searchText,
+      searchedColumn: this.state.searchedColumn,
+    });
+  };
+
+  getAdvancedQueryConditions(): GroupFilterCondition[] {
+    return Object.entries(this.state.advancedQueryKeywords || {})
+      .map(([field, value]) => ({field, value: value.trim()}))
+      .filter(condition => condition.value !== "");
+  }
+
+  getActiveQueryConditions(): GroupFilterCondition[] {
+    const keyword = this.state.queryKeyword.trim();
+    const baseCondition = keyword === "" ? [] : [{field: this.state.queryField, value: keyword}];
+    return [
+      ...baseCondition,
+      ...this.getAdvancedQueryConditions(),
+    ];
+  }
+
+  hasAdvancedQueryKeywords(): boolean {
+    return this.getAdvancedQueryConditions().length > 0;
+  }
+
+  getRequestOrganization(): string {
+    return Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account);
+  }
+
+  getFilteredPageData(groups: GroupRecord[], pagination: TablePaginationConfig): GroupRecord[] {
+    const current = typeof pagination.current === "number" && pagination.current > 0 ? pagination.current : 1;
+    const pageSize = typeof pagination.pageSize === "number" && pagination.pageSize > 0 ? pagination.pageSize : groups.length || 10;
+    const start = (current - 1) * pageSize;
+    return groups.slice(start, start + pageSize);
+  }
+
+  renderAdvancedFilters(): React.ReactNode {
+    return (
+      <div className="organization-advanced-filters">
+        {
+          getGroupQueryFields().map(field => {
+            const labelText = field.label;
+            return (
+              <label className="organization-advanced-filter-item" key={field.value}>
+                <span className="organization-advanced-filter-label">{field.label}:</span>
+                <Input
+                  className="organization-advanced-filter-input"
+                  value={this.state.advancedQueryKeywords[field.value] ?? ""}
+                  aria-label={`${t("general:Advanced filters", "Advanced filters")} ${labelText}`}
+                  placeholder={t("general:Please input your search")}
+                  allowClear
+                  onChange={event => this.handleAdvancedFilterChange(field.value, event.target.value)}
+                />
+              </label>
+            );
+          })
+        }
+      </div>
+    );
+  }
 
   renderListToolbar(): React.ReactNode {
     return (
@@ -346,7 +524,7 @@ class GroupListPage extends TypedBaseListPage {
             ]}
           />
         )}
-        advancedFilters={<span>{t("general:Advanced filters", "Advanced filters")}</span>}
+        advancedFilters={this.renderAdvancedFilters()}
         actions={(
           <>
             <Button type="primary" size="small" onClick={this.addGroup.bind(this)}>{t("general:Add")}</Button>
@@ -364,29 +542,21 @@ class GroupListPage extends TypedBaseListPage {
         title: t("general:Name"),
         dataIndex: "name",
         key: "name",
-        width: "150px",
+        width: "160px",
         fixed: "left",
         sorter: true,
         render: (text: string, record: GroupRecord) => {
-          return (
-            <Link to={`/groups/${record.owner}/${text}`}>
-              {text}
-            </Link>
-          );
+          return renderCompactLink(text, `/groups/${record.owner}/${text}`);
         },
       },
       {
         title: t("general:Organization"),
         dataIndex: "owner",
         key: "owner",
-        width: "140px",
+        width: "150px",
         sorter: true,
         render: (text: string) => {
-          return (
-            <Link to={`/organizations/${text}`}>
-              {text}
-            </Link>
-          );
+          return renderCompactLink(text, `/organizations/${text}`);
         },
       },
       {
@@ -413,7 +583,11 @@ class GroupListPage extends TypedBaseListPage {
         title: t("general:Display name"),
         dataIndex: "displayName",
         key: "displayName",
+        width: "180px",
         sorter: true,
+        render: (text: string | undefined) => {
+          return renderCompactText(text, "group-table-display-name");
+        },
       },
       {
         title: t("general:Type"),
@@ -438,45 +612,69 @@ class GroupListPage extends TypedBaseListPage {
         sorter: true,
         render: (_text: unknown, record: GroupRecord) => {
           if (record.isTopGroup) {
-            return <Link to={`/organizations/${record.parentId}`}>
-              {record.parentId}
-            </Link>;
+            return renderCompactLink(record.parentId, `/organizations/${record.parentId}`, "group-table-parent-link");
           }
-          return <Link to={`/groups/${record.owner}/${record.parentId}`}>
-            {record?.parentName}
-          </Link>;
+          return renderCompactLink(record.parentName || record.parentId, `/groups/${record.owner}/${record.parentId}`, "group-table-parent-link");
         },
       },
       {
         title: t("general:Users"),
         dataIndex: "users",
         key: "users",
+        width: "260px",
         sorter: true,
-        render: (text: string[]) => {
-          return (Setting.getTags as (tags?: string[], urlPrefix?: string | null) => React.ReactNode)(text, "users");
+        render: (text: string[] | undefined) => {
+          return renderCompactUsers(text);
         },
       },
       {
         title: t("general:Action"),
         dataIndex: "",
         key: "op",
-        width: "180px",
+        width: "148px",
         fixed: Setting.isMobile() ? false : "right",
         render: (_text: unknown, record: GroupRecord, index: number) => {
+          const deleteButton = (
+            <Button
+              className="group-row-action-delete"
+              type="text"
+              size="small"
+              danger
+              disabled={record.haveChildren}
+              icon={<DeleteOutlined />}
+            >
+              {t("general:Delete")}
+            </Button>
+          );
+
           return (
-            <div>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/groups/${record.owner}/${record.name}`)}>{t("general:Edit")}</Button>
+            <Space className="group-row-actions" size={4} wrap={false}>
+              <Button
+                className="group-row-action-edit"
+                type="link"
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => this.props.history.push(`/groups/${record.owner}/${record.name}`)}
+              >
+                {t("general:Edit")}
+              </Button>
               {
                 record.haveChildren ? <Tooltip placement="topLeft" title={t("group:You need to delete all subgroups first. You can view the subgroups in the left group tree of the [Organizations] -> [Groups] page")}>
-                  <Button disabled type="primary" danger>{t("general:Delete")}</Button>
+                  <span className="group-row-disabled-action">
+                    {deleteButton}
+                  </span>
                 </Tooltip> :
-                  <PopconfirmModal
+                  <Popconfirm
                     title={t("general:Sure to delete") + `: ${record.name} ?`}
                     onConfirm={() => this.deleteGroup(index)}
+                    okText={t("general:OK")}
+                    cancelText={t("general:Cancel")}
+                    okButtonProps={{danger: true}}
                   >
-                  </PopconfirmModal>
+                    {deleteButton}
+                  </Popconfirm>
               }
-            </div>
+            </Space>
           );
         },
       },
@@ -487,16 +685,18 @@ class GroupListPage extends TypedBaseListPage {
     return (
       <div>
         <Table
+          className="group-list-table"
           scroll={{x: "max-content"}}
           columns={columns}
           dataSource={data}
           rowKey={(record) => `${record.owner}/${record.name}`}
           size="middle"
-          bordered
+          bordered={false}
           pagination={paginationProps}
           title={() => this.renderListToolbar()}
           loading={this.state.loading}
           onChange={this.handleTableChange}
+          showSorterTooltip={{target: "sorter-icon"}}
         />
       </div>
     );
@@ -514,7 +714,7 @@ class GroupListPage extends TypedBaseListPage {
     }
     this.setState({loading: true});
     const pagination = params.pagination || this.state.pagination;
-    GroupBackend.getGroups(Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), false, pagination.current, pagination.pageSize, field, value, sortField, sortOrder)
+    GroupBackend.getGroups(this.getRequestOrganization(), false, pagination.current, pagination.pageSize, field, value, sortField, sortOrder)
       .then((res) => {
         this.setState({
           loading: false,
@@ -534,6 +734,52 @@ class GroupListPage extends TypedBaseListPage {
             this.setState({
               isAuthorized: false,
             });
+          }
+        }
+      })
+      .catch(error => {
+        this.setState({
+          loading: false,
+        });
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
+      });
+  };
+
+  fetchAdvancedFilteredGroups = (params: GroupListFetchParams = {}): void => {
+    const pagination = params.pagination || this.state.pagination;
+    const typeConditions = params.type === undefined || params.type === null ? [] : [{
+      field: "type",
+      value: normalizeGroupFilterValue(params.type).trim(),
+    }];
+    const conditions = [
+      ...this.getActiveQueryConditions(),
+      ...typeConditions,
+    ].filter(condition => condition.value !== "");
+    this.setState({loading: true});
+    // 群组后端仍是单字段 field + value 查询；高级筛选先取当前组织范围列表，再在前端按所有非空条件 AND 过滤。
+    GroupBackend.getGroups(this.getRequestOrganization(), false, "", "", undefined, undefined, params.sortField, params.sortOrder)
+      .then((res) => {
+        this.setState({
+          loading: false,
+        });
+        if (res.status === "ok") {
+          const filteredGroups = (res.data || []).filter(group => matchesGroupConditions(group, conditions));
+          this.setState({
+            data: this.getFilteredPageData(filteredGroups, pagination),
+            pagination: {
+              ...pagination,
+              total: filteredGroups.length,
+            },
+            searchText: this.state.queryKeyword.trim() || undefined,
+            searchedColumn: this.state.queryKeyword.trim() ? this.state.queryField : undefined,
+          });
+        } else {
+          if (Setting.isResponseDenied(res)) {
+            this.setState({
+              isAuthorized: false,
+            });
+          } else {
+            Setting.showMessage("error", res.msg);
           }
         }
       })

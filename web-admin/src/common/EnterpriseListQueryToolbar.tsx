@@ -109,6 +109,7 @@ export default function EnterpriseListQueryToolbar(props: EnterpriseListQueryToo
           {
             hasAdvancedFilters ? (
               <Button
+                aria-expanded={advancedOpen}
                 icon={advancedOpen ? <UpOutlined /> : <DownOutlined />}
                 onClick={() => setAdvancedOpen(!advancedOpen)}
               >

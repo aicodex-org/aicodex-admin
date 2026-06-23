@@ -574,7 +574,7 @@ class OrganizationListPage extends TypedBaseListPage {
             const labelText = field.label;
             return (
               <label className="organization-advanced-filter-item" key={field.value}>
-                <span className="organization-advanced-filter-label">{field.label}</span>
+                <span className="organization-advanced-filter-label">{field.label}:</span>
                 <Input
                   className="organization-advanced-filter-input"
                   value={this.state.advancedQueryKeywords[field.value] ?? ""}

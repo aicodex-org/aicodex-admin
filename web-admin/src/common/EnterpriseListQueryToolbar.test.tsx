@@ -58,7 +58,9 @@ test("groups query controls, advanced filters and create actions without mixing 
   expect(onKeywordChange).toHaveBeenCalledWith("runtime");
   expect(onSearch).toHaveBeenCalled();
   expect(onReset).toHaveBeenCalled();
-  expect(view.getByText("高级字段")).not.toBeNull();
+  expect(view.container.querySelector(".enterprise-list-query-toolbar-advanced")).not.toBeNull();
+  expect(view.container.querySelector(".enterprise-list-query-toolbar-advanced")?.textContent).toContain("高级字段");
+  expect(document.body.querySelector(".enterprise-list-query-toolbar-popover")).toBeNull();
 });
 
 test("does not render advanced filter toggle when advanced filters are empty", () => {

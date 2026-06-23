@@ -43,6 +43,13 @@ type TestTableColumn = {
   fixed?: unknown;
   render?: (text: unknown, record: TestGroupRecord, index: number) => React.ReactNode;
 };
+type TestGroupTableElement = React.ReactElement<{
+  bordered?: boolean;
+  className?: string;
+  columns: TestTableColumn[];
+  showSorterTooltip?: {target?: string};
+  title: () => React.ReactNode;
+}>;
 
 const backendMock = GroupBackend as unknown as BackendMock;
 const formBackendMock = FormBackend as unknown as FormBackendMock;
@@ -51,6 +58,7 @@ const expect = jestExpect;
 const {fireEvent} = require("@testing-library/react") as {
   fireEvent: {
     click: (element: Element | null) => boolean;
+    change: (element: Element | null, event: {target: {value: string}}) => boolean;
   };
 };
 
@@ -108,6 +116,16 @@ const group = {
 
 function flushPromises() {
   return new Promise(resolve => setTimeout(resolve, 0));
+}
+
+function getAdvancedFilterInputByLabel(container: HTMLElement, labelPattern: RegExp): HTMLInputElement {
+  const input = Array.from(container.querySelectorAll<HTMLElement>(".enterprise-list-query-toolbar-advanced .organization-advanced-filter-input"))
+    .map(element => element instanceof HTMLInputElement ? element : element.querySelector<HTMLInputElement>("input"))
+    .find(element => element ? labelPattern.test(element.getAttribute("aria-label") || "") : false);
+  if (!input) {
+    throw new Error(`Unable to find advanced filter input by label pattern: ${labelPattern}`);
+  }
+  return input;
 }
 
 function createHistory() {
@@ -374,12 +392,15 @@ test("builds table columns, toolbar and action handlers", () => {
   jestValue.spyOn(page, "addGroup").mockImplementation(() => {});
   jestValue.spyOn(page, "deleteGroup").mockImplementation(() => {});
 
-  const tableWrapper = page.renderTable([group]) as React.ReactElement<{children: React.ReactElement<{columns: TestTableColumn[]; title: () => React.ReactNode}>}>;
+  const tableWrapper = page.renderTable([group]) as React.ReactElement<{children: TestGroupTableElement}>;
   const table = tableWrapper.props.children;
   const columns = table.props.columns;
 
   expect(columns[0].key).toBe("name");
   expect(columns[8].fixed).toBe("right");
+  expect(table.props.className).toContain("group-list-table");
+  expect(table.props.bordered).toBe(false);
+  expect(table.props.showSorterTooltip).toEqual({target: "sorter-icon"});
 
   const actionNode = columns[8].render?.(undefined, group, 0) as React.ReactElement<{children: React.ReactNode}>;
   const actionChildren = React.Children.toArray(actionNode.props.children) as React.ReactElement[];
@@ -388,6 +409,7 @@ test("builds table columns, toolbar and action handlers", () => {
   expect(history.push).toHaveBeenCalledWith("/groups/engineering/group-main");
   actionChildren[1].props.onConfirm();
   expect(page.deleteGroup).toHaveBeenCalledWith(0);
+  expect(actionView.getByText(/删\s*除|Delete/).closest("button")?.className).toContain("group-row-action-delete");
   actionView.unmount();
 
   const blockedActionNode = columns[8].render?.(undefined, {...group, haveChildren: true}, 0) as React.ReactElement;
@@ -403,7 +425,7 @@ test("builds table columns, toolbar and action handlers", () => {
 test("uses an enterprise query toolbar instead of column header search as the primary group search entry", () => {
   const page = createPage();
   page.fetch = jestValue.fn() as unknown as typeof page.fetch;
-  const tableWrapper = page.renderTable([group]) as React.ReactElement<{children: React.ReactElement<{columns: TestTableColumn[]; title: () => React.ReactNode}>}>;
+  const tableWrapper = page.renderTable([group]) as React.ReactElement<{children: TestGroupTableElement}>;
   const table = tableWrapper.props.children;
   const columns = table.props.columns as Array<TestTableColumn & {filterDropdown?: unknown}>;
   const toolbarView = render(<>{table.props.title()}</>);
@@ -411,11 +433,48 @@ test("uses an enterprise query toolbar instead of column header search as the pr
   expect(toolbarView.getByText(/群\s*组|Groups/)).not.toBeNull();
   expect(toolbarView.getByText(/查\s*询|Search/)).not.toBeNull();
   expect(toolbarView.getByText(/重\s*置|Reset/)).not.toBeNull();
-  expect(toolbarView.getByText(/更\s*多\s*筛\s*选|More filters/)).not.toBeNull();
+  fireEvent.click(toolbarView.getByText(/更\s*多\s*筛\s*选|More filters/));
+  expect(toolbarView.getByText(/收\s*起\s*筛\s*选|Hide filters/)).not.toBeNull();
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-advanced")).not.toBeNull();
+  expect(document.body.querySelector(".enterprise-list-query-toolbar-popover")).toBeNull();
+  expect(toolbarView.container.querySelectorAll(".enterprise-list-query-toolbar-advanced .organization-advanced-filter-input")).toHaveLength(5);
+  const advancedFilterLabels = (Array.from(toolbarView.container.querySelectorAll(".enterprise-list-query-toolbar-advanced .organization-advanced-filter-label")) as HTMLElement[])
+    .map(node => node.textContent);
+  expect(advancedFilterLabels).toHaveLength(5);
+  expect(advancedFilterLabels.every(label => label?.endsWith(":"))).toBe(true);
+  expect(getAdvancedFilterInputByLabel(toolbarView.container, /^(Advanced filters Name|高级筛选 名称)$/)).not.toBeNull();
+  expect(getAdvancedFilterInputByLabel(toolbarView.container, /^(Advanced filters Organization|高级筛选 组织)$/)).not.toBeNull();
+  expect(getAdvancedFilterInputByLabel(toolbarView.container, /^(Advanced filters Display name|高级筛选 显示名称)$/)).not.toBeNull();
+  expect(getAdvancedFilterInputByLabel(toolbarView.container, /^(Advanced filters Parent group|高级筛选 上级组)$/)).not.toBeNull();
+  expect(getAdvancedFilterInputByLabel(toolbarView.container, /^(Advanced filters Users|高级筛选 用户)$/)).not.toBeNull();
   expect(toolbarView.getByText(/添\s*加|Add/).closest(".enterprise-list-query-toolbar-actions")).not.toBeNull();
   expect(toolbarView.queryByText(/高\s*级\s*筛\s*选|Advanced filters/)).toBeNull();
   expect(columns.find(column => column.key === "name")?.filterDropdown).toBeUndefined();
   expect(columns.find(column => column.key === "displayName")?.filterDropdown).toBeUndefined();
+});
+
+test("renders compact group identifiers and user tags for table scanning", () => {
+  const page = createPage();
+  const longGroup = {
+    ...group,
+    owner: "engineering-organization-with-long-id",
+    name: "group-main-with-long-readable-machine-id",
+    displayName: "Main platform group with a long display name",
+    users: ["alice.long.identifier", "bob.long.identifier", "charlie.long.identifier"],
+  };
+  const tableWrapper = page.renderTable([longGroup]) as React.ReactElement<{children: TestGroupTableElement}>;
+  const columns = tableWrapper.props.children.props.columns;
+
+  const nameNode = columns[0].render?.("group-main-with-long-readable-machine-id", longGroup, 0) as React.ReactElement;
+  const nameView = render(<MemoryRouter>{nameNode}</MemoryRouter>);
+  expect(nameView.container.querySelector(".group-table-id-link")?.getAttribute("title")).toBe("group-main-with-long-readable-machine-id");
+  nameView.unmount();
+
+  const userNode = columns[7].render?.(["alice.long.identifier", "bob.long.identifier", "charlie.long.identifier"], group, 0) as React.ReactElement;
+  const userView = render(<MemoryRouter>{userNode}</MemoryRouter>);
+  expect(userView.container.querySelectorAll(".group-table-user-tag").length).toBe(2);
+  expect(userView.getByText("+1")).not.toBeNull();
+  userView.unmount();
 });
 
 test("query toolbar keeps the existing group fetch contract for keyword, type and reset", () => {
@@ -453,9 +512,66 @@ test("query toolbar keeps the existing group fetch contract for keyword, type an
   expect(page.state.queryField).toBe("name");
   expect(page.state.queryKeyword).toBe("");
   expect(page.state.queryType).toBeUndefined();
+  expect(page.state.advancedQueryKeywords).toEqual({
+    name: "",
+    owner: "",
+    displayName: "",
+    parentId: "",
+    users: "",
+  });
   expect(page.fetch).toHaveBeenLastCalledWith({
     pagination: expect.objectContaining({current: 1, pageSize: 20}),
   });
+});
+
+test("applies group advanced filters with organization-style AND semantics", async() => {
+  const page = createPage();
+  const matchingGroup = {
+    ...group,
+    name: "group-main",
+    displayName: "Platform Engineering",
+    users: ["alice.long.identifier", "bob.long.identifier"],
+  };
+  backendMock.getGroups.mockResolvedValueOnce({
+    status: "ok",
+    data: [
+      matchingGroup,
+      {
+        ...group,
+        name: "group-main-cn",
+        displayName: "Engineering China",
+        users: ["alice.long.identifier"],
+      },
+      {
+        ...group,
+        name: "group-marketing",
+        displayName: "Platform Marketing",
+        users: ["marketing.user"],
+      },
+    ],
+    data2: 3,
+  });
+  page.state = {
+    ...page.state,
+    pagination: {...page.state.pagination, current: 2, pageSize: 20, total: 3},
+  };
+
+  const toolbarView = render(<>{page.renderListToolbar()}</>);
+  fireEvent.click(toolbarView.getByText(/更\s*多\s*筛\s*选|More filters/));
+  fireEvent.change(getAdvancedFilterInputByLabel(toolbarView.container, /^(Advanced filters Name|高级筛选 名称)$/), {target: {value: "group-main"}});
+  fireEvent.change(getAdvancedFilterInputByLabel(toolbarView.container, /^(Advanced filters Display name|高级筛选 显示名称)$/), {target: {value: "platform"}});
+  fireEvent.change(getAdvancedFilterInputByLabel(toolbarView.container, /^(Advanced filters Users|高级筛选 用户)$/), {target: {value: "alice"}});
+  fireEvent.click(toolbarView.getByText(/查\s*询|Search/));
+  await flushPromises();
+
+  expect(backendMock.getGroups).toHaveBeenLastCalledWith("engineering", false, "", "", undefined, undefined, undefined, undefined);
+  expect(page.state.data).toEqual([matchingGroup]);
+  expect(page.state.pagination).toEqual(expect.objectContaining({
+    current: 1,
+    total: 1,
+  }));
+  expect(page.state.searchText).toBeUndefined();
+  expect(page.state.searchedColumn).toBeUndefined();
 });
 
 test("generates group import template with existing columns", () => {
