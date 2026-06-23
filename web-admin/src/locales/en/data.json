@@ -477,6 +477,8 @@
     "Confirm": "Confirm",
     "Copied to clipboard successfully": "Copied to clipboard successfully",
     "Copy": "Copy",
+    "No users": "No users",
+    "User count": "{{count}} users",
     "More": "More",
     "Create time": "Create time",
     "Created time": "Created time",

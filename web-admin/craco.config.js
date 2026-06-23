@@ -1,7 +1,10 @@
 const CracoLessPlugin = require("craco-less");
 const path = require("path");
 
-const devProxyTarget = process.env.AICODEX_ADMIN_PROXY_TARGET || "http://localhost:8000";
+const devProxyTarget =
+  process.env.AICODEX_ADMIN_DEV_PROXY_TARGET ||
+  process.env.AICODEX_ADMIN_PROXY_TARGET ||
+  "http://localhost:8000";
 
 module.exports = {
   devServer: {

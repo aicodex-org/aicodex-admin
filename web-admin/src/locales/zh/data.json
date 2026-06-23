@@ -477,6 +477,8 @@
     "Confirm": "确认",
     "Copied to clipboard successfully": "已成功复制到剪贴板",
     "Copy": "复制",
+    "No users": "无用户",
+    "User count": "{{count}} 人",
     "More": "更多",
     "Create time": "Create time",
     "Created time": "创建时间",

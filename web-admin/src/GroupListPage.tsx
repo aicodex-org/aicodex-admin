@@ -14,9 +14,9 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Input, Modal, Popconfirm, Select, Space, Table, Tag, Tooltip, Typography, Upload} from "antd";
+import {Button, Input, Modal, Popconfirm, Select, Space, Table, Tag, Tooltip, Upload} from "antd";
 import type {TablePaginationConfig, TableProps} from "antd";
-import {DeleteOutlined, EditOutlined, UploadOutlined} from "@ant-design/icons";
+import {CopyOutlined, DeleteOutlined, EditOutlined, UploadOutlined} from "@ant-design/icons";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as GroupBackend from "./backend/GroupBackend";
@@ -25,8 +25,7 @@ import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import EnterpriseListQueryToolbar from "./common/EnterpriseListQueryToolbar";
 import * as XLSX from "xlsx";
-
-const {Text} = Typography;
+import copy from "copy-to-clipboard";
 
 interface GroupListPageProps {
   account: {
@@ -92,8 +91,8 @@ const TypedBaseListPage = BaseListPage as unknown as {
   new(props: GroupListPageProps): LegacyBaseListPageCompat;
 };
 
-function t(key: string, defaultValue = key): string {
-  const translated = i18next.t(key, {defaultValue}) as unknown;
+function t(key: string, defaultValue = key, options: Record<string, unknown> = {}): string {
+  const translated = i18next.t(key, {defaultValue, ...options}) as unknown;
   return typeof translated === "string" ? translated : defaultValue;
 }
 
@@ -157,40 +156,52 @@ function renderCompactLink(text: string | undefined, to: string, className = "gr
   );
 }
 
-function renderCompactText(text: string | undefined, className = "group-table-id-text"): React.ReactNode {
-  const value = text || "";
+function renderGroupIdentity(record: GroupRecord): React.ReactNode {
+  const groupName = record.name || "";
+  const displayName = record.displayName || groupName;
+
   return (
-    <Text className={className} title={value} ellipsis={{tooltip: value || undefined}}>
-      {value}
-    </Text>
+    <div className="group-table-group-cell">
+      <Tooltip title={displayName || undefined}>
+        <Link className="group-table-group-name" to={`/groups/${record.owner}/${groupName}`} title={displayName}>
+          {displayName}
+        </Link>
+      </Tooltip>
+      <div className="group-table-group-meta">
+        <Tooltip title={groupName || undefined}>
+          <span className="group-table-group-id" title={groupName}>{groupName}</span>
+        </Tooltip>
+        {
+          groupName ? (
+            <Button
+              aria-label={`${t("general:Copy")} ${t("general:Name")}`}
+              className="group-table-copy-id"
+              icon={<CopyOutlined />}
+              size="small"
+              type="text"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                copy(groupName);
+                Setting.showMessage("success", t("general:Copied to clipboard successfully"));
+              }}
+            />
+          ) : null
+        }
+      </div>
+    </div>
   );
 }
 
-function renderCompactUsers(users?: string[]): React.ReactNode {
+function renderUserCount(users?: string[]): React.ReactNode {
   const values = Array.isArray(users) ? users.filter(Boolean) : [];
   if (values.length === 0) {
-    return <Text type="secondary">-</Text>;
+    return <Tag className="group-table-user-count group-table-user-count-empty">{t("general:No users")}</Tag>;
   }
 
-  const visibleUsers = values.slice(0, 2);
   return (
     <Tooltip title={values.join(", ")}>
-      <Space className="group-table-users" size={[4, 4]} wrap>
-        {
-          visibleUsers.map(user => (
-            <Link className="group-table-user-link" to={`/users/${user}`} key={user} title={user}>
-              <Tag className="group-table-user-tag" color={(Setting.getTagColor as (value: string) => string)(user)}>
-                {user}
-              </Tag>
-            </Link>
-          ))
-        }
-        {
-          values.length > visibleUsers.length ? (
-            <Tag className="group-table-user-more">+{values.length - visibleUsers.length}</Tag>
-          ) : null
-        }
-      </Space>
+      <Tag className="group-table-user-count">{t("general:User count", "{{count}} users", {count: values.length})}</Tag>
     </Tooltip>
   );
 }
@@ -204,6 +215,10 @@ class GroupListPage extends TypedBaseListPage {
       groups: [],
       uploadJsonData: [],
       uploadColumns: [],
+      pagination: {
+        ...this.state.pagination,
+        pageSize: 20,
+      },
       queryField: "name",
       queryKeyword: "",
       queryType: undefined,
@@ -501,114 +516,59 @@ class GroupListPage extends TypedBaseListPage {
 
   renderListToolbar(): React.ReactNode {
     return (
-      <EnterpriseListQueryToolbar
-        title={t("general:Groups")}
-        total={this.state.pagination.total}
-        fields={getGroupQueryFields()}
-        selectedField={this.state.queryField}
-        keyword={this.state.queryKeyword}
-        onFieldChange={(value) => this.setState({queryField: value})}
-        onKeywordChange={(value) => this.setState({queryKeyword: value})}
-        onSearch={this.handleToolbarSearch}
-        onReset={this.handleToolbarReset}
-        primaryFilters={(
-          <Select
-            allowClear
-            className="enterprise-list-query-toolbar-filter"
-            placeholder={t("general:Type")}
-            value={this.state.queryType}
-            onChange={(value) => this.setState({queryType: value})}
-            options={[
-              {label: t("group:Virtual"), value: "Virtual"},
-              {label: t("group:Physical"), value: "Physical"},
-            ]}
-          />
-        )}
-        advancedFilters={this.renderAdvancedFilters()}
-        actions={(
-          <>
-            <Button type="primary" size="small" onClick={this.addGroup.bind(this)}>{t("general:Add")}</Button>
-            <Button size="small" onClick={this.generateDownloadTemplate}>{t("general:Download template")} </Button>
-            {this.renderUpload()}
-          </>
-        )}
-      />
+      <div className="group-list-toolbar-shell">
+        <EnterpriseListQueryToolbar
+          title={t("general:Groups")}
+          total={this.state.pagination.total}
+          fields={getGroupQueryFields()}
+          selectedField={this.state.queryField}
+          keyword={this.state.queryKeyword}
+          onFieldChange={(value) => this.setState({queryField: value})}
+          onKeywordChange={(value) => this.setState({queryKeyword: value})}
+          onSearch={this.handleToolbarSearch}
+          onReset={this.handleToolbarReset}
+          primaryFilters={(
+            <Select
+              allowClear
+              className="enterprise-list-query-toolbar-filter"
+              placeholder={t("general:Type")}
+              value={this.state.queryType}
+              onChange={(value) => this.setState({queryType: value})}
+              options={[
+                {label: t("group:Virtual"), value: "Virtual"},
+                {label: t("group:Physical"), value: "Physical"},
+              ]}
+            />
+          )}
+          advancedFilters={this.renderAdvancedFilters()}
+          actions={(
+            <>
+              <Button type="primary" size="small" onClick={this.addGroup.bind(this)}>{t("general:Add")}</Button>
+              <Button size="small" onClick={this.generateDownloadTemplate}>{t("general:Download template")} </Button>
+              {this.renderUpload()}
+            </>
+          )}
+        />
+      </div>
     );
   }
 
   renderTable(data: GroupRecord[]): React.ReactNode {
     const columns: GroupListColumns = [
       {
-        title: t("general:Name"),
-        dataIndex: "name",
-        key: "name",
-        width: "160px",
-        fixed: "left",
+        title: t("general:Groups"),
+        key: "group",
+        width: "40%",
         sorter: true,
-        render: (text: string, record: GroupRecord) => {
-          return renderCompactLink(text, `/groups/${record.owner}/${text}`);
-        },
-      },
-      {
-        title: t("general:Organization"),
-        dataIndex: "owner",
-        key: "owner",
-        width: "150px",
-        sorter: true,
-        render: (text: string) => {
-          return renderCompactLink(text, `/organizations/${text}`);
-        },
-      },
-      {
-        title: t("general:Created time"),
-        dataIndex: "createdTime",
-        key: "createdTime",
-        width: "180px",
-        sorter: true,
-        render: (text: string) => {
-          return Setting.getFormattedDate(text);
-        },
-      },
-      {
-        title: t("general:Updated time"),
-        dataIndex: "updatedTime",
-        key: "updatedTime",
-        width: "180px",
-        sorter: true,
-        render: (text: string) => {
-          return Setting.getFormattedDate(text);
-        },
-      },
-      {
-        title: t("general:Display name"),
-        dataIndex: "displayName",
-        key: "displayName",
-        width: "180px",
-        sorter: true,
-        render: (text: string | undefined) => {
-          return renderCompactText(text, "group-table-display-name");
-        },
-      },
-      {
-        title: t("general:Type"),
-        dataIndex: "type",
-        key: "type",
-        width: "140px",
-        sorter: true,
-        filterMultiple: false,
-        filters: [
-          {text: t("group:Virtual"), value: "Virtual"},
-          {text: t("group:Physical"), value: "Physical"},
-        ],
-        render: (text: string) => {
-          return t("group:" + text);
+        render: (_text: unknown, record: GroupRecord) => {
+          return renderGroupIdentity(record);
         },
       },
       {
         title: t("group:Parent group"),
         dataIndex: "parentId",
         key: "parentId",
-        width: "220px",
+        width: "20%",
         sorter: true,
         render: (_text: unknown, record: GroupRecord) => {
           if (record.isTopGroup) {
@@ -621,18 +581,27 @@ class GroupListPage extends TypedBaseListPage {
         title: t("general:Users"),
         dataIndex: "users",
         key: "users",
-        width: "260px",
+        width: "10%",
         sorter: true,
         render: (text: string[] | undefined) => {
-          return renderCompactUsers(text);
+          return renderUserCount(text);
+        },
+      },
+      {
+        title: t("general:Updated time"),
+        dataIndex: "updatedTime",
+        key: "updatedTime",
+        width: "17%",
+        sorter: true,
+        render: (text: string) => {
+          return Setting.getFormattedDate(text);
         },
       },
       {
         title: t("general:Action"),
         dataIndex: "",
         key: "op",
-        width: "148px",
-        fixed: Setting.isMobile() ? false : "right",
+        width: "13%",
         render: (_text: unknown, record: GroupRecord, index: number) => {
           const deleteButton = (
             <Button
@@ -686,13 +655,14 @@ class GroupListPage extends TypedBaseListPage {
       <div>
         <Table
           className="group-list-table"
-          scroll={{x: "max-content"}}
+          scroll={Setting.isMobile() ? {x: 760} : undefined}
           columns={columns}
           dataSource={data}
           rowKey={(record) => `${record.owner}/${record.name}`}
           size="middle"
           bordered={false}
           pagination={paginationProps}
+          tableLayout="fixed"
           title={() => this.renderListToolbar()}
           loading={this.state.loading}
           onChange={this.handleTableChange}

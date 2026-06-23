@@ -40,6 +40,7 @@ type TestGroupRecord = {
 };
 type TestTableColumn = {
   key?: string;
+  dataIndex?: string;
   fixed?: unknown;
   render?: (text: unknown, record: TestGroupRecord, index: number) => React.ReactNode;
 };
@@ -47,7 +48,10 @@ type TestGroupTableElement = React.ReactElement<{
   bordered?: boolean;
   className?: string;
   columns: TestTableColumn[];
+  pagination?: {pageSize?: number};
+  scroll?: {x?: unknown};
   showSorterTooltip?: {target?: string};
+  tableLayout?: string;
   title: () => React.ReactNode;
 }>;
 
@@ -395,14 +399,18 @@ test("builds table columns, toolbar and action handlers", () => {
   const tableWrapper = page.renderTable([group]) as React.ReactElement<{children: TestGroupTableElement}>;
   const table = tableWrapper.props.children;
   const columns = table.props.columns;
+  const opColumn = columns.find(column => column.key === "op");
 
-  expect(columns[0].key).toBe("name");
-  expect(columns[8].fixed).toBe("right");
+  expect(columns.map(column => column.key)).toEqual(["group", "parentId", "users", "updatedTime", "op"]);
+  expect(opColumn?.fixed).toBeUndefined();
+  expect(table.props.scroll?.x).toBeUndefined();
+  expect(table.props.tableLayout).toBe("fixed");
+  expect(table.props.pagination?.pageSize).toBe(20);
   expect(table.props.className).toContain("group-list-table");
   expect(table.props.bordered).toBe(false);
   expect(table.props.showSorterTooltip).toEqual({target: "sorter-icon"});
 
-  const actionNode = columns[8].render?.(undefined, group, 0) as React.ReactElement<{children: React.ReactNode}>;
+  const actionNode = opColumn?.render?.(undefined, group, 0) as React.ReactElement<{children: React.ReactNode}>;
   const actionChildren = React.Children.toArray(actionNode.props.children) as React.ReactElement[];
   const actionView = render(<>{actionNode}</>);
   fireEvent.click(actionView.getByText(/编\s*辑|Edit/));
@@ -412,7 +420,7 @@ test("builds table columns, toolbar and action handlers", () => {
   expect(actionView.getByText(/删\s*除|Delete/).closest("button")?.className).toContain("group-row-action-delete");
   actionView.unmount();
 
-  const blockedActionNode = columns[8].render?.(undefined, {...group, haveChildren: true}, 0) as React.ReactElement;
+  const blockedActionNode = opColumn?.render?.(undefined, {...group, haveChildren: true}, 0) as React.ReactElement;
   const blockedActionView = render(<>{blockedActionNode}</>);
   expect(blockedActionView.getByText(/删\s*除|Delete/).closest("button")?.hasAttribute("disabled")).toBe(true);
   blockedActionView.unmount();
@@ -449,11 +457,14 @@ test("uses an enterprise query toolbar instead of column header search as the pr
   expect(getAdvancedFilterInputByLabel(toolbarView.container, /^(Advanced filters Users|高级筛选 用户)$/)).not.toBeNull();
   expect(toolbarView.getByText(/添\s*加|Add/).closest(".enterprise-list-query-toolbar-actions")).not.toBeNull();
   expect(toolbarView.queryByText(/高\s*级\s*筛\s*选|Advanced filters/)).toBeNull();
-  expect(columns.find(column => column.key === "name")?.filterDropdown).toBeUndefined();
-  expect(columns.find(column => column.key === "displayName")?.filterDropdown).toBeUndefined();
+  expect(columns.find(column => column.key === "group")?.dataIndex).toBeUndefined();
+  expect(columns.find(column => column.key === "displayName")).toBeUndefined();
+  expect(columns.find(column => column.key === "owner")).toBeUndefined();
+  expect(columns.find(column => column.key === "createdTime")).toBeUndefined();
+  expect(columns.find(column => column.key === "type")).toBeUndefined();
 });
 
-test("renders compact group identifiers and user tags for table scanning", () => {
+test("renders compact group identity and user count for table scanning", () => {
   const page = createPage();
   const longGroup = {
     ...group,
@@ -464,17 +475,26 @@ test("renders compact group identifiers and user tags for table scanning", () =>
   };
   const tableWrapper = page.renderTable([longGroup]) as React.ReactElement<{children: TestGroupTableElement}>;
   const columns = tableWrapper.props.children.props.columns;
+  const groupColumn = columns.find(column => column.key === "group");
+  const usersColumn = columns.find(column => column.key === "users");
 
-  const nameNode = columns[0].render?.("group-main-with-long-readable-machine-id", longGroup, 0) as React.ReactElement;
+  const nameNode = groupColumn?.render?.(undefined, longGroup, 0) as React.ReactElement;
   const nameView = render(<MemoryRouter>{nameNode}</MemoryRouter>);
-  expect(nameView.container.querySelector(".group-table-id-link")?.getAttribute("title")).toBe("group-main-with-long-readable-machine-id");
+  expect(nameView.getByText("Main platform group with a long display name")).not.toBeNull();
+  expect(nameView.container.querySelector(".group-table-group-id")?.textContent).toContain("group-main-with-long-readable-machine-id");
+  expect(nameView.container.querySelector(".group-table-copy-id")?.getAttribute("aria-label")).toMatch(/Copy|复制/);
   nameView.unmount();
 
-  const userNode = columns[7].render?.(["alice.long.identifier", "bob.long.identifier", "charlie.long.identifier"], group, 0) as React.ReactElement;
-  const userView = render(<MemoryRouter>{userNode}</MemoryRouter>);
-  expect(userView.container.querySelectorAll(".group-table-user-tag").length).toBe(2);
-  expect(userView.getByText("+1")).not.toBeNull();
+  const userNode = usersColumn?.render?.(["alice.long.identifier", "bob.long.identifier", "charlie.long.identifier"], group, 0) as React.ReactElement;
+  const userView = render(<>{userNode}</>);
+  expect(userView.getByText(/3\s*(人|users)/)).not.toBeNull();
+  expect(userView.container.querySelectorAll(".group-table-user-tag")).toHaveLength(0);
   userView.unmount();
+
+  const emptyUserNode = usersColumn?.render?.([], group, 0) as React.ReactElement;
+  const emptyUserView = render(<>{emptyUserNode}</>);
+  expect(emptyUserView.getByText(/无用户|No users/)).not.toBeNull();
+  emptyUserView.unmount();
 });
 
 test("query toolbar keeps the existing group fetch contract for keyword, type and reset", () => {

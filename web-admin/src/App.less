@@ -1909,52 +1909,62 @@ img {
   max-width: 100%;
 }
 
-.group-list-table .ant-table {
+.group-list-table.ant-table-wrapper .ant-table {
   border-radius: 6px;
 }
 
-.group-list-table .ant-table-title {
+.group-list-table.ant-table-wrapper .ant-table-title {
+  padding: 1px 8px;
   background: #fff;
 }
 
-.group-list-table .ant-table-thead > tr > th {
+.group-list-toolbar-shell {
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgb(241 245 249);
+}
+
+.group-list-table.ant-table-wrapper .ant-table.ant-table-middle .ant-table-thead > tr > th {
+  padding-top: 5px !important;
+  padding-bottom: 5px !important;
   color: rgb(71 85 105);
   font-weight: 600;
   background: rgb(248 250 252);
   border-bottom-color: rgb(226 232 240);
 }
 
-.group-list-table .ant-table-thead > tr > th::before {
+.group-list-table.ant-table-wrapper .ant-table.ant-table-middle .ant-table-thead > tr > th::before {
   display: none;
 }
 
-.group-list-table .ant-table-tbody > tr > td {
+.group-list-table.ant-table-wrapper .ant-table.ant-table-middle .ant-table-tbody > tr > td {
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
   border-bottom-color: rgb(235 240 246);
+  vertical-align: middle;
 }
 
-.group-list-table .ant-table-cell-fix-left,
-.group-list-table .ant-table-cell-fix-right {
+.group-list-table.ant-table-wrapper .ant-table-cell-fix-left,
+.group-list-table.ant-table-wrapper .ant-table-cell-fix-right {
   background: #fff;
 }
 
-.group-list-table .ant-table-thead .ant-table-cell-fix-left,
-.group-list-table .ant-table-thead .ant-table-cell-fix-right {
+.group-list-table.ant-table-wrapper .ant-table-thead .ant-table-cell-fix-left,
+.group-list-table.ant-table-wrapper .ant-table-thead .ant-table-cell-fix-right {
   background: rgb(248 250 252);
 }
 
-.group-list-table .ant-table-cell-fix-right-first::after,
-.group-list-table .ant-table-cell-fix-right-last::after {
+.group-list-table.ant-table-wrapper .ant-table-cell-fix-right-first::after,
+.group-list-table.ant-table-wrapper .ant-table-cell-fix-right-last::after {
   box-shadow: inset -5px 0 5px -5px rgb(15 23 42 / 14%) !important;
 }
 
-.group-list-table .ant-table-cell-fix-left-last::after {
+.group-list-table.ant-table-wrapper .ant-table-cell-fix-left-last::after {
   box-shadow: inset 5px 0 5px -5px rgb(15 23 42 / 10%) !important;
 }
 
 .group-table-id-link,
 .group-table-parent-link,
-.group-table-id-text,
-.group-table-display-name {
+.group-table-id-text {
   display: inline-block;
   max-width: 100%;
   overflow: hidden;
@@ -1968,8 +1978,62 @@ img {
   font-size: 12px;
 }
 
-.group-table-display-name {
-  color: rgb(51 65 85);
+.group-table-group-cell {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.group-table-group-name {
+  display: inline-block;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  color: #311ce6;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.group-table-group-meta {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+  color: rgb(100 116 139);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.group-table-group-id {
+  display: inline-block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-table-copy-id.ant-btn {
+  flex: none;
+  width: 22px;
+  height: 20px;
+  padding: 0;
+  color: rgb(100 116 139) !important;
+  opacity: 0.16;
+  transition: color 0.16s ease, opacity 0.16s ease, background-color 0.16s ease;
+}
+
+.group-list-table.ant-table-wrapper .ant-table-row:hover .group-table-copy-id.ant-btn,
+.group-table-copy-id.ant-btn:focus-visible {
+  opacity: 0.54;
+}
+
+.group-list-table.ant-table-wrapper .group-table-copy-id.ant-btn:hover,
+.group-list-table.ant-table-wrapper .group-table-copy-id.ant-btn:focus-visible {
+  color: #311ce6 !important;
+  opacity: 0.88;
 }
 
 .group-table-users {
@@ -1995,6 +2059,19 @@ img {
   color: rgb(100 116 139);
   background: rgb(248 250 252);
   border-color: rgb(226 232 240);
+}
+
+.group-table-user-count {
+  margin-right: 0;
+  color: rgb(52 64 84);
+  background: #fff;
+  border-color: rgb(216 222 230);
+  border-radius: 999px;
+}
+
+.group-table-user-count-empty {
+  color: rgb(148 163 184);
+  background: rgb(249 250 251);
 }
 
 .group-row-actions {
