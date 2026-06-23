@@ -1,51 +1,53 @@
 const CracoLessPlugin = require("craco-less");
 const path = require("path");
 
+const devProxyTarget = process.env.AICODEX_ADMIN_PROXY_TARGET || "http://localhost:8000";
+
 module.exports = {
   devServer: {
     proxy: {
       "/api": {
-        target: "http://localhost:8000",
+        target: devProxyTarget,
         changeOrigin: true,
       },
       "/swagger": {
-        target: "http://localhost:8000",
+        target: devProxyTarget,
         changeOrigin: true,
       },
       "/files": {
-        target: "http://localhost:8000",
+        target: devProxyTarget,
         changeOrigin: true,
       },
       "/.well-known/openid-configuration": {
-        target: "http://localhost:8000",
+        target: devProxyTarget,
         changeOrigin: true,
       },
       "/cas/**/serviceValidate": {
-        target: "http://localhost:8000",
+        target: devProxyTarget,
         changeOrigin: true,
       },
       "/cas/**/proxyValidate": {
-        target: "http://localhost:8000",
+        target: devProxyTarget,
         changeOrigin: true,
       },
       "/cas/**/proxy": {
-        target: "http://localhost:8000",
+        target: devProxyTarget,
         changeOrigin: true,
       },
       "/cas/**/validate": {
-        target: "http://localhost:8000",
+        target: devProxyTarget,
         changeOrigin: true,
       },
       "/cas/**/p3/serviceValidate": {
-        target: "http://localhost:8000",
+        target: devProxyTarget,
         changeOrigin: true,
       },
       "/cas/**/p3/proxyValidate": {
-        target: "http://localhost:8000",
+        target: devProxyTarget,
         changeOrigin: true,
       },
       "/scim": {
-        target: "http://localhost:8000",
+        target: devProxyTarget,
         changeOrigin: true,
       },
     },

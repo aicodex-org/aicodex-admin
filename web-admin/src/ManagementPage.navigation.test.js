@@ -86,7 +86,9 @@ describe("enterprise identity navigation", () => {
     expect(groups.find(group => group.key === "/identity-sources").children.find(item => item.key === "/providers").label)
       .toBe("身份源中心");
     expect(groups.find(group => group.key === "/application-access").children.map(item => item.key))
-      .toEqual(expect.arrayContaining(["/applications", "/access-wizard", "/platform-api-mappings", "/webhooks"]));
+      .toEqual(expect.arrayContaining(["/applications", "/application-usage-access", "/access-wizard", "/platform-api-mappings", "/webhooks"]));
+    expect(groups.find(group => group.key === "/application-access").children.find(item => item.key === "/application-usage-access").label)
+      .toBe("用量接入");
     expect(groups.find(group => group.key === "/application-access").children.find(item => item.key === "/access-wizard").label)
       .toBe("接入预检");
     expect(groups.find(group => group.key === "/authorization-governance").children.map(item => item.key))
@@ -143,6 +145,8 @@ describe("enterprise identity navigation", () => {
       .toBe("Feishu Sync");
     expect(groups.find(group => group.key === "/application-access").children.find(item => item.key === "/applications").label)
       .toBe("Application Access Center");
+    expect(groups.find(group => group.key === "/application-access").children.find(item => item.key === "/application-usage-access").label)
+      .toBe("Usage Access");
     expect(groups.find(group => group.key === "/application-access").children.find(item => item.key === "/access-wizard").label)
       .toBe("Access Preflight");
     expect(groups.find(group => group.key === "/application-access").children.find(item => item.key === "/platform-api-mappings").label)
@@ -188,7 +192,7 @@ describe("enterprise identity navigation", () => {
       account: {
         ...localAdminAccount,
         organization: {
-          navItems: ["/", "/identity-assets", "/access-wizard", "/providers", "/platform-api-mappings", "/governance-tasks"],
+        navItems: ["/", "/identity-assets", "/application-usage-access", "/access-wizard", "/providers", "/platform-api-mappings", "/governance-tasks"],
         },
       },
       themeData: {colorPrimary: "#1677ff"},
@@ -196,6 +200,7 @@ describe("enterprise identity navigation", () => {
 
     expect(groups.map(group => group.children.map(item => item.key)).flat()).toEqual([
       "/",
+      "/application-usage-access",
       "/access-wizard",
       "/platform-api-mappings",
       "/providers",
@@ -205,6 +210,10 @@ describe("enterprise identity navigation", () => {
     expect(findNavigationSelection("/access-wizard", groups)).toEqual({
       groupKey: "/application-access",
       itemKey: "/access-wizard",
+    });
+    expect(findNavigationSelection("/application-usage-access", groups)).toEqual({
+      groupKey: "/application-access",
+      itemKey: "/application-usage-access",
     });
     expect(findNavigationSelection("/identity-assets", groups)).toEqual({
       groupKey: "/authorization-governance",
@@ -258,6 +267,17 @@ describe("enterprise identity navigation", () => {
       "/organization-sync-api-keys",
       "/syncers",
     ]);
+    expect(rootChildren.find(node => node.key === "/application-access-top").children.map(item => item.key)).toEqual([
+      "/applications",
+      "/application-usage-access",
+      "/access-wizard",
+      "/resources",
+      "/certs",
+      "/keys",
+      "/platform-api-mappings",
+      "/webhooks",
+      "/webhook-events",
+    ]);
     expect(authorizationGovernance.children.map(item => item.key)).toEqual([
       "/roles",
       "/permissions",
@@ -277,6 +297,7 @@ describe("enterprise identity navigation", () => {
 
     expect(routes.find(route => route.path === "/")?.label).toBe("身份总览");
     expect(routes.find(route => route.path === "/applications")?.label).toBe("应用接入中心");
+    expect(routes.find(route => route.path === "/application-usage-access")?.label).toBe("用量接入");
     expect(routes.find(route => route.path === "/agents")?.label).toBe("AI Agent 入口");
 
     const tabs = openWorkspaceTab([], "/agents/built-in/support-agent", routes);

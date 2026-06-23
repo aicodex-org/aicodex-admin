@@ -80,6 +80,7 @@ function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin
       icon: <ApiTwoTone twoToneColor={twoToneColor} />,
       children: [
         {key: "/applications", label: i18next.t("general:Application Access Center"), to: "/applications", matchPrefixes: ["/applications"]},
+        {key: "/application-usage-access", label: i18next.t("general:Usage Access"), to: "/application-usage-access", matchPrefixes: ["/application-usage-access"]},
         {key: "/access-wizard", label: i18next.t("general:Access Preflight"), to: "/access-wizard", matchPrefixes: ["/access-wizard"]},
         {key: "/resources", label: i18next.t("general:Resources"), to: "/resources", matchPrefixes: ["/resources"]},
         {key: "/certs", label: i18next.t("general:Certs"), to: "/certs", matchPrefixes: ["/certs"]},

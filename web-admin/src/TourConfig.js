@@ -208,6 +208,7 @@ const EnterpriseIdentityTourClosedRoutes = new Set([
   "permissions",
   "providers",
   "applications",
+  "application-usage-access",
   "sessions",
   "records",
   "tokens",

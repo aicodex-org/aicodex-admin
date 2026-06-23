@@ -959,6 +959,17 @@ img {
   overflow-wrap: anywhere;
 }
 
+.application-usage-access-page .enterprise-identity-summary-strip {
+  margin-bottom: 14px;
+}
+
+.application-usage-access-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 96px;
+}
+
 .identity-console-overview-workbench {
   display: grid;
   grid-template-columns: minmax(0, 1.42fr) minmax(300px, 0.58fr);
@@ -1393,7 +1404,19 @@ img {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.application-access-service-credential-workspace {
   margin-top: 12px;
+}
+
+.application-access-service-credential-workspace .ant-collapse-header {
+  align-items: center !important;
+}
+
+.application-access-service-credential-workspace-actions {
+  justify-content: flex-end;
+  max-width: 100%;
 }
 
 .application-access-service-credential-config-heading,
@@ -1416,6 +1439,44 @@ img {
   display: grid;
   grid-template-columns: minmax(160px, 1.2fr) minmax(140px, 1fr) minmax(120px, 0.8fr);
   gap: 8px;
+}
+
+.application-access-service-credential-alignment {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.application-access-service-credential-alignment-header {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.9fr) minmax(360px, 1.45fr) minmax(240px, 1fr);
+  gap: 12px;
+  padding: 0 0 8px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.application-access-service-credential-alignment-row {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.9fr) minmax(360px, 1.45fr) minmax(240px, 1fr);
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid #f0f0f0;
+}
+
+.application-access-service-credential-alignment-row:first-child {
+  border-top: 0;
+}
+
+.application-access-service-credential-alignment-cell {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+
+.application-access-service-credential-alignment-mobile-label {
+  display: none;
 }
 
 .audit-operations-table-section {
@@ -2355,6 +2416,48 @@ img {
 
   .enterprise-identity-console-header-actions .ant-btn {
     white-space: nowrap;
+  }
+
+  .application-usage-access-page .enterprise-identity-console-header-actions,
+  .application-usage-access-page .enterprise-identity-console-header-actions .ant-space {
+    width: 100%;
+    min-width: 0;
+    flex-wrap: wrap !important;
+    overflow-x: visible;
+  }
+
+  .application-usage-access-page .enterprise-identity-console-header-actions .ant-space-item {
+    flex: 1 1 calc(50% - 6px);
+    min-width: 128px;
+  }
+
+  .application-usage-access-page .enterprise-identity-console-header-actions a,
+  .application-usage-access-page .enterprise-identity-console-header-actions .ant-btn {
+    width: 100%;
+  }
+
+  .application-access-service-credential-workspace .ant-collapse-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .application-access-service-credential-workspace-actions,
+  .application-access-service-credential-workspace-actions .ant-space-item,
+  .application-access-service-credential-workspace-actions .ant-btn {
+    width: 100%;
+  }
+
+  .application-access-service-credential-alignment-header {
+    display: none;
+  }
+
+  .application-access-service-credential-alignment-row,
+  .application-access-service-credential-config-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .application-access-service-credential-alignment-mobile-label {
+    display: block;
   }
 
   .enterprise-identity-summary-strip,

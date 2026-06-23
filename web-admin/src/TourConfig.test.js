@@ -16,6 +16,7 @@ describe("TourConfig enterprise identity routes", () => {
 
   test("keeps the legacy English tour closed on enterprise identity routes by default", () => {
     expect(getTourVisible("/applications")).toBe(false);
+    expect(getTourVisible("/application-usage-access")).toBe(false);
     expect(getTourVisible("/providers")).toBe(false);
     expect(getTourVisible("/records")).toBe(false);
     expect(getTourVisible("/agents")).toBe(false);

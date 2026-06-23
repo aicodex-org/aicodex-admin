@@ -38,6 +38,7 @@ import InvitationListPage from "./InvitationListPage";
 import InvitationEditPage from "./InvitationEditPage";
 import ApplicationListPage from "./ApplicationListPage";
 import ApplicationEditPage from "./ApplicationEditPage";
+import ApplicationUsageAccessPage from "./ApplicationUsageAccessPage";
 import ProviderListPage from "./ProviderListPage";
 import ProviderEditPage from "./ProviderEditPage";
 import RecordListPage from "./RecordListPage";
@@ -458,6 +459,7 @@ function ManagementPage(props) {
         <Route exact path="/invitations" render={(props) => renderLoginIfNotLoggedIn(<InvitationListPage account={account} {...props} />)} />
         <Route exact path="/invitations/:organizationName/:invitationName" render={(props) => renderLoginIfNotLoggedIn(<InvitationEditPage account={account} {...props} />)} />
         <Route exact path="/applications" render={(props) => renderLoginIfNotLoggedIn(<ApplicationListPage account={account} {...props} />)} />
+        <Route exact path="/application-usage-access" render={(props) => renderLoginIfNotLoggedIn(<ApplicationUsageAccessPage account={account} {...props} />)} />
         <Route exact path="/applications/:organizationName/:applicationName" render={(props) => renderLoginIfNotLoggedIn(<ApplicationEditPage account={account} {...props} />)} />
         <Route exact path="/providers" render={(props) => renderLoginIfNotLoggedIn(<ProviderListPage account={account} {...props} />)} />
         <Route exact path="/providers/:organizationName/:providerName" render={(props) => renderLoginIfNotLoggedIn(<ProviderEditPage account={account} {...props} />)} />
@@ -549,6 +551,7 @@ function ManagementPage(props) {
     return Setting.isMobile() ||
       pathname === "/" ||
       pathname === "/identity-assets" ||
+      pathname === "/application-usage-access" ||
       pathname === "/access-wizard" ||
       pathname === "/governance-tasks" ||
       pathname.startsWith("/trees") ||
