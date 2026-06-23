@@ -462,6 +462,21 @@ test("keeps mobile group table horizontally scrollable without desktop vertical 
   expect(table.props.scroll?.y).toBeUndefined();
 });
 
+test("keeps the outer page stable when advanced filters expand", () => {
+  const page = createPage();
+  const collapsedTableWrapper = page.renderTable([group]) as React.ReactElement<{children: TestGroupTableElement}>;
+  const collapsedTable = collapsedTableWrapper.props.children;
+  const toolbarView = render(<>{collapsedTable.props.title()}</>);
+
+  expect(collapsedTable.props.scroll?.y).toBe("calc(100vh - 360px)");
+  fireEvent.click(toolbarView.getByText(/更\s*多\s*筛\s*选|More filters/));
+
+  const expandedTableWrapper = page.renderTable([group]) as React.ReactElement<{children: TestGroupTableElement}>;
+  const expandedTable = expandedTableWrapper.props.children;
+  expect(expandedTable.props.scroll?.y).toBe("calc(100vh - 414px)");
+  toolbarView.unmount();
+});
+
 test("uses an enterprise query toolbar instead of column header search as the primary group search entry", () => {
   const page = createPage();
   page.fetch = jestValue.fn() as unknown as typeof page.fetch;

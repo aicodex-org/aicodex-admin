@@ -62,6 +62,7 @@ interface GroupListPageState {
   queryKeyword: string;
   queryType?: string;
   advancedQueryKeywords: Record<string, string>;
+  advancedFiltersOpen: boolean;
 }
 
 type GroupListColumns = TableProps<GroupRecord>["columns"];
@@ -203,11 +204,11 @@ function renderUserCount(users?: string[]): React.ReactNode {
   );
 }
 
-function getGroupTableScroll(): TableProps<GroupRecord>["scroll"] | undefined {
+function getGroupTableScroll(advancedFiltersOpen: boolean): TableProps<GroupRecord>["scroll"] | undefined {
   if (Setting.isMobile()) {
     return {x: 760};
   }
-  return {y: "calc(100vh - 360px)"};
+  return {y: advancedFiltersOpen ? "calc(100vh - 414px)" : "calc(100vh - 360px)"};
 }
 
 class GroupListPage extends TypedBaseListPage {
@@ -227,6 +228,7 @@ class GroupListPage extends TypedBaseListPage {
       queryKeyword: "",
       queryType: undefined,
       advancedQueryKeywords: createEmptyAdvancedQueryKeywords(),
+      advancedFiltersOpen: false,
     };
   }
 
@@ -530,6 +532,7 @@ class GroupListPage extends TypedBaseListPage {
           onKeywordChange={(value) => this.setState({queryKeyword: value})}
           onSearch={this.handleToolbarSearch}
           onReset={this.handleToolbarReset}
+          onAdvancedOpenChange={(advancedFiltersOpen) => this.setState({advancedFiltersOpen})}
           advancedFilters={this.renderAdvancedFilters()}
           actions={(
             <>
@@ -645,7 +648,7 @@ class GroupListPage extends TypedBaseListPage {
       <div className="group-list-page-table-shell">
         <ListPageTable<GroupRecord>
           className="group-list-table"
-          scroll={getGroupTableScroll()}
+          scroll={getGroupTableScroll(this.state.advancedFiltersOpen)}
           columns={columns}
           dataSource={data}
           rowKey={(record) => `${record.owner}/${record.name}`}

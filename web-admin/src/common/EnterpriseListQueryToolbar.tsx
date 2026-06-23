@@ -30,6 +30,7 @@ interface EnterpriseListQueryToolbarProps {
   context?: React.ReactNode;
   searchPlaceholder?: string;
   showHeader?: boolean;
+  onAdvancedOpenChange?: (open: boolean) => void;
 }
 
 function t(key: string, defaultValue = key): string {
@@ -72,6 +73,10 @@ export default function EnterpriseListQueryToolbar(props: EnterpriseListQueryToo
   const hasAdvancedFilters = hasRenderableNode(props.advancedFilters);
   const showHeader = props.showHeader !== false;
   const showTotal = props.showTotal !== false;
+  const updateAdvancedOpen = (open: boolean): void => {
+    setAdvancedOpen(open);
+    props.onAdvancedOpenChange?.(open);
+  };
 
   return (
     <div className="enterprise-list-query-toolbar">
@@ -123,7 +128,7 @@ export default function EnterpriseListQueryToolbar(props: EnterpriseListQueryToo
               <Button
                 aria-expanded={advancedOpen}
                 icon={advancedOpen ? <UpOutlined /> : <DownOutlined />}
-                onClick={() => setAdvancedOpen(!advancedOpen)}
+                onClick={() => updateAdvancedOpen(!advancedOpen)}
               >
                 {advancedOpen ? t("general:Hide filters", "Hide filters") : t("general:More filters", "More filters")}
               </Button>
