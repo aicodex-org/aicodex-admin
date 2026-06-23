@@ -40,6 +40,13 @@ img {
   background: rgb(239 244 250);
 }
 
+#parent-area.admin-shell-root {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .panel-logo {
   margin-bottom: 30px;
 }
@@ -170,8 +177,21 @@ img {
   background: rgb(239 246 255);
 }
 
+.admin-shell-sidebar-toggle-row {
+  display: flex;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  padding: 8px 10px 10px;
+  border-top: 1px solid rgb(219 230 244);
+  background: rgb(247 250 255);
+}
+
 .admin-shell-body {
-  flex: 1;
+  flex: 1 1 auto;
+  height: calc(100vh - 64px);
+  height: calc(100dvh - 64px);
+  max-height: calc(100vh - 64px);
+  max-height: calc(100dvh - 64px);
   min-height: 0;
   min-width: 0;
   overflow: hidden;
@@ -181,22 +201,58 @@ img {
 .admin-shell-sider {
   background: rgb(247 250 255) !important;
   border-right: 1px solid rgb(211 222 237);
-  overflow: hidden auto;
-  transition: width 0.18s ease, min-width 0.18s ease, max-width 0.18s ease, flex-basis 0.18s ease;
+  overflow: hidden;
+  transition: none;
+}
+
+.admin-shell-sider.ant-layout-sider {
+  transition: none !important;
+}
+
+.admin-shell-sider.admin-shell-sider-collapsed {
+  width: 72px !important;
+  min-width: 72px !important;
+  max-width: 72px !important;
+  flex: 0 0 72px !important;
 }
 
 .admin-shell-sider .ant-layout-sider-children {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: 100%;
   min-width: 0;
   overflow-x: hidden;
 }
 
-.admin-shell-sider-collapsed .ant-menu {
+.admin-shell-sider.admin-shell-sider-collapsed .ant-menu,
+.admin-shell-sider.ant-layout-sider-collapsed .ant-menu {
   width: 72px;
 }
 
+.admin-shell-sider.admin-shell-sider-collapsed .admin-shell-sidebar-toggle-row,
+.admin-shell-sider.ant-layout-sider-collapsed .admin-shell-sidebar-toggle-row {
+  justify-content: center;
+  padding-right: 0;
+  padding-left: 0;
+}
+
 .admin-shell-sider .ant-menu {
+  flex: 1 1 auto;
+  min-height: 0;
   background: transparent;
   padding: 6px 4px;
+  overflow-y: auto;
+  transition: none !important;
+}
+
+.admin-shell-sider .ant-motion-collapse,
+.admin-shell-sider .ant-motion-collapse-appear,
+.admin-shell-sider .ant-motion-collapse-enter,
+.admin-shell-sider .ant-motion-collapse-leave,
+.admin-shell-sider .ant-motion-collapse-active {
+  animation: none !important;
+  transition: none !important;
 }
 
 .admin-shell-sider .ant-menu-item,
@@ -204,13 +260,49 @@ img {
   margin: 3px 6px !important;
   width: calc(100% - 12px) !important;
   border-radius: 8px;
+  transition: color 0.16s ease, background-color 0.16s ease !important;
 }
 
-.admin-shell-sider .ant-menu-item-selected,
+.admin-shell-sider .ant-menu-title-content {
+  transition: none !important;
+}
+
+.admin-shell-sider .ant-menu-item-icon + .ant-menu-title-content,
+.admin-shell-sider .anticon + .ant-menu-title-content {
+  transition: none !important;
+}
+
+.admin-shell-sider .ant-menu-item-icon,
+.admin-shell-sider .ant-menu-submenu-arrow,
+.admin-shell-sider .anticon {
+  transition: none !important;
+}
+
+.admin-shell-sider.admin-shell-sider-collapsed .ant-menu-title-content,
+.admin-shell-sider.ant-layout-sider-collapsed .ant-menu-title-content {
+  width: 0 !important;
+  max-width: 0 !important;
+  margin-inline-start: 0 !important;
+  overflow: hidden !important;
+  color: transparent !important;
+  opacity: 0 !important;
+}
+
+.admin-shell-sider.admin-shell-sider-collapsed .ant-menu-sub.ant-menu-inline,
+.admin-shell-sider.ant-layout-sider-collapsed .ant-menu-sub.ant-menu-inline {
+  display: none !important;
+}
+
+.admin-shell-sider .ant-menu-item-selected {
+  color: rgb(37 99 235) !important;
+  background: rgb(232 238 252) !important;
+  box-shadow: none;
+}
+
 .admin-shell-sider .ant-menu-submenu-selected > .ant-menu-submenu-title {
-  color: rgb(79 70 229) !important;
-  background: rgb(236 239 255) !important;
-  box-shadow: inset 3px 0 0 rgb(99 102 241);
+  color: rgb(37 99 235) !important;
+  background: transparent !important;
+  box-shadow: none;
 }
 
 .admin-shell-sider .ant-menu-item:hover,
@@ -219,22 +311,47 @@ img {
   background: rgb(241 245 255) !important;
 }
 
+.admin-shell-sider .ant-menu-item-selected:hover,
+.admin-shell-sider .ant-menu-item-selected:focus-visible {
+  color: rgb(37 99 235) !important;
+  background: rgb(232 238 252) !important;
+}
+
+.admin-shell-sider .ant-menu-submenu-selected > .ant-menu-submenu-title:hover,
+.admin-shell-sider .ant-menu-submenu-selected > .ant-menu-submenu-title:focus-visible {
+  color: rgb(37 99 235) !important;
+  background: transparent !important;
+}
+
 .admin-shell-content {
   display: flex;
   flex-direction: column;
   padding: 0 0 12px;
   min-width: 0;
+  min-height: 0;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
   background: rgb(239 244 250);
 }
 
+.admin-shell-content > .content-warp-card {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 12px 16px 0;
+  border: 1px solid rgb(205 218 237);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 5%);
+}
+
 .admin-workspace-tabs-shell {
+  position: relative;
   flex: 0 0 auto;
   min-width: 0;
   max-width: 100%;
-  background: rgb(243 247 252);
-  border-bottom: 1px solid rgb(207 220 238);
+  background: rgb(239 244 250);
+  border-bottom: 0;
   overflow-x: hidden;
 }
 
@@ -252,9 +369,10 @@ img {
   display: flex;
   align-items: center;
   gap: 0;
-  min-height: 44px;
-  padding: 7px 14px 0;
-  background: rgb(243 247 252);
+  box-sizing: border-box;
+  min-height: 36px;
+  padding: 5px 52px 1px 14px;
+  background: rgb(239 244 250);
 }
 
 .admin-workspace-tabs-scroll-shell {
@@ -292,37 +410,38 @@ img {
 .admin-workspace-tab {
   display: inline-flex;
   align-items: center;
+  box-sizing: border-box;
   flex: 0 0 154px;
   min-width: 92px;
   max-width: 176px;
-  height: 34px;
-  border: 1px solid rgb(203 216 235);
+  height: 30px;
+  border: 1px solid rgb(222 229 239);
   border-top: 2px solid transparent;
-  border-radius: 7px 7px 0 0;
-  background: rgb(249 251 254);
-  color: rgb(71 85 105);
+  border-radius: 6px;
+  background: rgb(246 249 253);
+  color: rgb(83 96 112);
   transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
 }
 
 .admin-workspace-tab:hover {
-  border-color: rgb(180 196 216);
-  background: rgb(241 245 249);
+  border-color: rgb(199 213 232);
+  background: rgb(245 248 253);
   color: rgb(51 65 85);
 }
 
 .admin-workspace-tab-active {
-  border-top-color: rgb(37 99 235);
-  border-bottom-color: rgb(255 255 255);
+  border-color: rgb(205 218 237);
+  border-top-color: rgb(147 197 253);
   background: #fff;
-  color: rgb(30 64 175);
-  box-shadow: inset 0 2px 0 rgb(37 99 235), 0 -1px 6px rgb(37 99 235 / 10%);
+  color: rgb(29 78 216);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
 }
 
 .admin-workspace-tab-active:hover {
-  border-top-color: rgb(29 78 216);
-  border-bottom-color: #fff;
+  border-color: rgb(191 207 230);
+  border-top-color: rgb(96 165 250);
   background: #fff;
-  color: rgb(30 64 175);
+  color: rgb(29 78 216);
 }
 
 .admin-workspace-tab-label {
@@ -337,8 +456,12 @@ img {
   background: transparent;
   color: inherit;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
+}
+
+.admin-workspace-tab-active .admin-workspace-tab-label {
+  font-weight: 600;
 }
 
 .admin-workspace-tab-label:focus-visible {
@@ -354,15 +477,15 @@ img {
 }
 
 .admin-workspace-tab-dot {
-  flex: 0 0 6px;
-  width: 6px;
-  height: 6px;
+  flex: 0 0 5px;
+  width: 5px;
+  height: 5px;
   border-radius: 999px;
-  background: rgb(148 163 184);
+  background: rgb(156 170 190);
 }
 
 .admin-workspace-tab-active .admin-workspace-tab-dot {
-  background: rgb(37 99 235);
+  background: rgb(96 165 250);
 }
 
 .admin-workspace-tab-pin {
@@ -375,23 +498,41 @@ img {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 23px;
-  width: 23px;
-  height: 23px;
+  box-sizing: border-box;
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
   margin-right: 4px;
   border: 1px solid rgb(203 213 225);
-  border-radius: 5px;
+  border-radius: 4px;
   background: rgb(255 255 255 / 86%);
   color: rgb(71 85 105);
   font-size: 11px;
   cursor: pointer;
   box-shadow: 0 1px 1px rgb(15 23 42 / 4%);
+  opacity: 1;
+  transform: translateX(0);
+  transition: opacity 0.14s ease, transform 0.14s ease, background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.admin-workspace-tab-close-deferred {
+  opacity: 0;
+  transform: translateX(3px);
+  pointer-events: none;
+}
+
+.admin-workspace-tab:hover .admin-workspace-tab-close-deferred,
+.admin-workspace-tab:focus-within .admin-workspace-tab-close-deferred {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
 }
 
 .admin-workspace-tab-active .admin-workspace-tab-close {
-  border-color: rgb(191 219 254);
-  background: rgb(239 246 255);
-  color: rgb(30 64 175);
+  border-color: transparent;
+  background: transparent;
+  color: rgb(71 85 105);
+  box-shadow: none;
 }
 
 .admin-workspace-tab-close:hover {
@@ -412,12 +553,16 @@ img {
 .admin-workspace-tabs-close-menu {
   flex: 0 0 auto;
   height: 30px;
-  color: rgb(71 85 105);
+  color: rgb(100 116 139);
 }
 
 .admin-workspace-tabs-scroll-button {
   width: 30px;
   padding-inline: 0;
+}
+
+.admin-workspace-tabs-shell .admin-workspace-tabs-scroll-button {
+  color: rgb(100 116 139);
 }
 
 .admin-workspace-tabs-scroll-button-hidden {
@@ -426,19 +571,43 @@ img {
 }
 
 .admin-workspace-tabs-close-menu {
-  padding-inline: 8px;
+  width: 30px;
+  padding-inline: 0;
   border: 1px solid transparent;
+  border-radius: 6px;
   background: transparent;
+  position: absolute;
+  top: 7px;
+  right: 10px;
+  z-index: 1;
+}
+
+.admin-workspace-tabs-shell .admin-workspace-tabs-close-menu {
+  position: absolute;
+  top: 7px;
+  right: 10px;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  padding-inline: 0;
+  border-radius: 6px;
+  color: rgb(100 116 139);
 }
 
 .admin-workspace-tabs-scroll-button:hover,
 .admin-workspace-tabs-close-menu:hover {
   color: rgb(51 65 85);
-  background: rgb(241 245 249);
+  background: rgb(235 241 249);
+}
+
+.admin-workspace-tabs-shell .admin-workspace-tabs-scroll-button:hover,
+.admin-workspace-tabs-shell .admin-workspace-tabs-close-menu:hover {
+  color: rgb(51 65 85);
+  background: rgb(235 241 249);
 }
 
 .admin-workspace-tabs-close-menu:hover {
-  border-color: rgb(203 213 225);
+  border-color: transparent;
 }
 
 .admin-workspace-tabs-more:focus-visible,
@@ -494,10 +663,8 @@ img {
 }
 
 .admin-workspace-tabs-divider {
-  height: 8px;
-  background: rgb(231 238 248);
-  border-top: 1px solid rgb(247 250 252);
-  border-bottom: 1px solid rgb(207 220 238);
+  height: 0;
+  border-top: 0;
 }
 
 .admin-workspace-tabs-mobile {
@@ -542,7 +709,7 @@ img {
 }
 
 .enterprise-identity-console {
-  padding: 16px 18px 22px;
+  padding: 12px 16px 20px;
   width: 100%;
   box-sizing: border-box;
   background: rgb(239 244 250);
@@ -2158,6 +2325,10 @@ img {
 
   .enterprise-identity-console {
     padding: 8px;
+  }
+
+  .admin-shell-content > .content-warp-card {
+    margin: 8px;
   }
 
   .enterprise-identity-console-header {

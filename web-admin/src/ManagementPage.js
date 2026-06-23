@@ -148,6 +148,11 @@ const {Content, Header, Sider} = Layout;
 const ADMIN_SHELL_SIDEBAR_EXPANDED_WIDTH = 224;
 const ADMIN_SHELL_SIDEBAR_COLLAPSED_WIDTH = 72;
 const ADMIN_SHELL_SIDEBAR_COLLAPSED_KEY = "adminShellSidebarCollapsed";
+const ADMIN_SHELL_SIDEBAR_MENU_MOTION = {
+  motionAppear: false,
+  motionEnter: false,
+  motionLeave: false,
+};
 
 function readSidebarCollapsedPreference() {
   try {
@@ -567,6 +572,20 @@ function ManagementPage(props) {
     });
   };
 
+  const renderSidebarToggle = () => (
+    <div className="admin-shell-sidebar-toggle-row">
+      <Tooltip title={i18next.t(sidebarCollapsed ? "general:Expand sidebar" : "general:Collapse sidebar")}>
+        <Button
+          className="admin-shell-sidebar-toggle"
+          type="text"
+          icon={sidebarCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+          aria-label={i18next.t(sidebarCollapsed ? "general:Expand sidebar" : "general:Collapse sidebar")}
+          onClick={toggleSidebarCollapsed}
+        />
+      </Tooltip>
+    </div>
+  );
+
   const navigateWorkspaceTab = (path) => {
     if (path !== activeWorkspacePath) {
       props.history.push(path);
@@ -635,17 +654,6 @@ function ManagementPage(props) {
               </span>
             )}
           </Link>
-          {!props.requiredEnableMfa && !isMobile && (
-            <Tooltip title={i18next.t(sidebarCollapsed ? "general:Expand sidebar" : "general:Collapse sidebar")}>
-              <Button
-                className="admin-shell-sidebar-toggle"
-                type="text"
-                icon={sidebarCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-                aria-label={i18next.t(sidebarCollapsed ? "general:Expand sidebar" : "general:Collapse sidebar")}
-                onClick={toggleSidebarCollapsed}
-              />
-            </Tooltip>
-          )}
           {!props.requiredEnableMfa && isMobile && (
             <Button icon={<BarsOutlined />} onClick={showMenu} type="text" aria-label={Conf.AdminCenterName}>
               {Conf.AdminCenterName}
@@ -677,11 +685,13 @@ function ManagementPage(props) {
               mode="inline"
               inlineCollapsed={sidebarCollapsed}
               items={sidebarMenuItems}
+              motion={ADMIN_SHELL_SIDEBAR_MENU_MOTION}
               selectedKeys={navigationSelection.itemKey ? [navigationSelection.itemKey] : []}
               openKeys={sidebarCollapsed ? undefined : openKeys}
               onOpenChange={sidebarCollapsed ? undefined : setOpenKeys}
-              style={{height: "100%", borderInlineEnd: 0}}
+              style={{borderInlineEnd: 0}}
             />
+            {renderSidebarToggle()}
           </Sider>
         )}
         <Content className="admin-shell-content" style={{minWidth: 0}}>

@@ -88,9 +88,12 @@ describe("WorkspaceTabs", () => {
     consoleErrorSpy.mockRestore();
   });
 
-  test("renders desktop tabs with overview inside the scroll strip and visible close actions", () => {
+  test("renders desktop tabs with overview inside the scroll strip, active close affordance, and global close menu", () => {
     const onNavigate = jest.fn();
     const onClose = jest.fn();
+    const onCloseCurrent = jest.fn();
+    const onCloseOther = jest.fn();
+    const onCloseAll = jest.fn();
     const view = render(
       <WorkspaceTabs
         tabs={tabs}
@@ -98,6 +101,9 @@ describe("WorkspaceTabs", () => {
         isMobile={false}
         onNavigate={onNavigate}
         onClose={onClose}
+        onCloseCurrent={onCloseCurrent}
+        onCloseOther={onCloseOther}
+        onCloseAll={onCloseAll}
       />
     );
 
@@ -106,13 +112,25 @@ describe("WorkspaceTabs", () => {
     expect(view.container.querySelector(".admin-workspace-tabs-scroll-viewport")).not.toBeNull();
     expect(view.container.querySelector(".admin-workspace-tabs-scroll-strip")?.textContent).toContain("企业认证总览");
     expect(view.getByText("应用接入中心").closest("button")?.getAttribute("aria-current")).toBe("page");
-    expect(view.getByLabelText("关闭 企业认证总览")).not.toBeNull();
+    expect(view.getByLabelText("关闭 应用接入中心").className).toContain("admin-workspace-tab-close-active");
+    expect(view.getByLabelText("关闭 企业认证总览").className).toContain("admin-workspace-tab-close-deferred");
+    expect(view.getByRole("button", {name: "关闭工作页面"}).textContent).toBe("");
 
     fireEvent.click(view.getByLabelText("关闭 身份源中心"));
     expect(onClose).toHaveBeenCalledWith("/providers");
 
-    fireEvent.click(view.getByLabelText("关闭 企业认证总览"));
-    expect(onClose).toHaveBeenCalledWith("/");
+    const globalCloseMenu = view.getAllByTestId("workspace-tabs-dropdown-menu")
+      .find((item: HTMLElement) => item.getAttribute("data-trigger") === "click");
+    const globalCloseItems = Array.from(globalCloseMenu?.querySelectorAll("[role='menuitem']") ?? []) as HTMLDivElement[];
+
+    expect(globalCloseItems.map(item => item.textContent)).toEqual(["关闭当前", "关闭其他", "关闭所有"]);
+
+    fireEvent.click(globalCloseItems[0]);
+    fireEvent.click(globalCloseItems[1]);
+    fireEvent.click(globalCloseItems[2]);
+    expect(onCloseCurrent).toHaveBeenCalledWith("/applications");
+    expect(onCloseOther).toHaveBeenCalledWith("/applications");
+    expect(onCloseAll).toHaveBeenCalledTimes(1);
 
     fireEvent.click(view.getByText("企业认证总览"));
     expect(onNavigate).toHaveBeenCalledWith("/");
@@ -216,7 +234,7 @@ describe("WorkspaceTabs", () => {
       expect(scrollShell?.querySelectorAll(".admin-workspace-tabs-scroll-button")).toHaveLength(2);
       expect(view.container.querySelector(".admin-workspace-tabs-actions")).toBeNull();
       expect(view.container.querySelector(".admin-workspace-tabs-fixed-area")).toBeNull();
-      expect(view.container.querySelector(".admin-workspace-tabs-close-menu")).toBeNull();
+      expect(view.container.querySelector(".admin-workspace-tabs-close-menu")).not.toBeNull();
     } finally {
       clientWidthSpy.mockRestore();
       scrollWidthSpy.mockRestore();
@@ -244,7 +262,7 @@ describe("WorkspaceTabs", () => {
       />
     );
 
-    expect(view.getByLabelText("关闭 企业认证总览")).not.toBeNull();
+    expect(view.getByLabelText("关闭 企业认证总览").className).toContain("admin-workspace-tab-close-active");
     expect(view.getAllByText("关闭当前")[0].closest("[role='menuitem']")?.getAttribute("aria-disabled")).toBeNull();
   });
 
@@ -299,7 +317,7 @@ describe("WorkspaceTabs", () => {
 
       expect(view.queryByLabelText("向左滚动工作标签")).toBeNull();
       fireEvent.click(view.getByLabelText("向右滚动工作标签"));
-      expect(scrollBy).toHaveBeenCalledWith({left: 160, behavior: "smooth"});
+      expect(scrollBy).toHaveBeenCalledWith({left: 120, behavior: "smooth"});
 
       scrollLeft = 120;
       fireEvent.scroll(view.container.querySelector(".admin-workspace-tabs-scroll-viewport") as HTMLElement);

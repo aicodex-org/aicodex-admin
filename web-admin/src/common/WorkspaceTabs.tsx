@@ -112,6 +112,28 @@ function WorkspaceTabs(props: WorkspaceTabsProps) {
       },
     ],
   });
+  const globalCloseMenu = {
+    items: [
+      {
+        key: "close-current",
+        label: tText("general:Close current workspace tab"),
+        disabled: !activeTab?.closable || props.onCloseCurrent === undefined,
+        onClick: () => props.onCloseCurrent?.(activePath),
+      },
+      {
+        key: "close-other",
+        label: tText("general:Close other workspace tabs"),
+        disabled: props.onCloseOther === undefined,
+        onClick: () => props.onCloseOther?.(activePath),
+      },
+      {
+        key: "close-all",
+        label: tText("general:Close all workspace tabs"),
+        disabled: props.onCloseAll === undefined,
+        onClick: () => props.onCloseAll?.(),
+      },
+    ],
+  };
 
   // 箭头只反映当前滚动容器的真实可视范围，避免用标签数量推断溢出状态。
   const updateScrollState = () => {
@@ -196,7 +218,7 @@ function WorkspaceTabs(props: WorkspaceTabsProps) {
           <Tooltip title={`${closePrefix} ${tab.label}`}>
             <button
               type="button"
-              className="admin-workspace-tab-close"
+              className={`admin-workspace-tab-close${active ? " admin-workspace-tab-close-active" : " admin-workspace-tab-close-deferred"}`}
               aria-label={`${closePrefix} ${tab.label}`}
               onClick={() => props.onClose(tab.path)}
             >
@@ -220,7 +242,7 @@ function WorkspaceTabs(props: WorkspaceTabsProps) {
       return;
     }
 
-    const distance = Math.max(160, Math.floor(viewport.clientWidth * 0.75));
+    const distance = Math.min(320, Math.max(120, Math.floor(viewport.clientWidth * 0.45)));
     if (typeof viewport.scrollBy === "function") {
       viewport.scrollBy({left: direction * distance, behavior: "smooth"});
     } else {
@@ -283,6 +305,16 @@ function WorkspaceTabs(props: WorkspaceTabsProps) {
           {renderScrollButton(1, scrollState.canScrollRight)}
         </div>
       </nav>
+      <Dropdown menu={globalCloseMenu} trigger={["click"]}>
+        <Button
+          className="admin-workspace-tabs-close-menu"
+          type="text"
+          size="small"
+          icon={<CloseOutlined />}
+          aria-label={tText("general:Close workspace pages")}
+          title={tText("general:Close workspace pages")}
+        />
+      </Dropdown>
       <div className="admin-workspace-tabs-divider" aria-hidden="true" />
     </div>
   );

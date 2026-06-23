@@ -147,6 +147,8 @@ describe("ManagementPage admin shell sidebar", () => {
     expect(sider.getAttribute("data-sidebar-state")).toBe("expanded");
     expect(sider.style.width).toBe("224px");
     expect(view.getByRole("button", {name: "收起侧边栏"})).not.toBeNull();
+    expect(view.container.querySelector(".admin-shell-header .admin-shell-sidebar-toggle")).toBeNull();
+    expect(view.container.querySelector(".admin-shell-sider .admin-shell-sidebar-toggle")).not.toBeNull();
     expect(view.getByText("AICodex Admin")).not.toBeNull();
     expect(view.getByText("认证中心")).not.toBeNull();
     expect(view.container.querySelector(".admin-shell-entry")).toBeNull();
@@ -165,6 +167,8 @@ describe("ManagementPage admin shell sidebar", () => {
     expect(sider.style.width).toBe("72px");
     expect(localStorage.getItem("adminShellSidebarCollapsed")).toBe("true");
     expect(view.getByRole("button", {name: "展开侧边栏"})).not.toBeNull();
+    expect(view.container.querySelector(".admin-shell-header .admin-shell-sidebar-toggle")).toBeNull();
+    expect(view.container.querySelector(".admin-shell-sider .admin-shell-sidebar-toggle")).not.toBeNull();
     expect(view.getByText("AICodex Admin")).not.toBeNull();
     expect(view.getByText("认证中心")).not.toBeNull();
   });

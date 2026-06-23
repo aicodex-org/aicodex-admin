@@ -497,8 +497,7 @@ class App extends Component {
     footerHtml = footerHtml ?? this.state.application?.footerHtml;
     return (
       <React.Fragment>
-        {!this.state.account ? null : <div style={{display: "none"}} id="CasdoorApplicationName" value={this.state.account.signupApplication} />}
-        {!this.state.account ? null : <div style={{display: "none"}} id="CasdoorAccessToken" value={this.state.accessToken} />}
+        {this.renderAccountBridge()}
         <Footer id="footer" style={
           {
             textAlign: "center",
@@ -518,6 +517,15 @@ class App extends Component {
               )
           }
         </Footer>
+      </React.Fragment>
+    );
+  }
+
+  renderAccountBridge() {
+    return (
+      <React.Fragment>
+        {!this.state.account ? null : <div style={{display: "none"}} id="CasdoorApplicationName" value={this.state.account.signupApplication} />}
+        {!this.state.account ? null : <div style={{display: "none"}} id="CasdoorAccessToken" value={this.state.accessToken} />}
       </React.Fragment>
     );
   }
@@ -674,7 +682,7 @@ class App extends Component {
         <CustomGithubCorner />
         {
           <Suspense fallback={null}>
-            <Layout id="parent-area">
+            <Layout id="parent-area" className="admin-shell-root">
               <ManagementPage
                 account={this.state.account}
                 application={this.state.application}
@@ -710,7 +718,7 @@ class App extends Component {
                 }}
               />
               {
-                this.renderFooter()
+                this.renderAccountBridge()
               }
               {
                 this.renderAiAssistant()
