@@ -8,6 +8,7 @@ import * as FormBackend from "./backend/FormBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import OrganizationListPage from "./OrganizationListPage";
 import EnterpriseListQueryToolbar from "./common/EnterpriseListQueryToolbar";
+import ListPageTable from "./common/ListPageTable";
 
 declare const jest: typeof jestValue;
 
@@ -31,11 +32,19 @@ type TestTableColumn = {
   key?: string;
   fixed?: unknown;
   filters?: unknown;
+  sorter?: unknown;
   render?: (text: unknown, record: TestOrganizationRecord, index: number) => React.ReactNode;
 };
+type TestOrganizationTableElement = React.ReactElement<{
+  bordered?: boolean;
+  className?: string;
+  columns: TestTableColumn[];
+  scroll?: {x?: unknown; y?: unknown};
+  title: () => React.ReactNode;
+}>;
 type TestToolbarProps = React.ComponentProps<typeof EnterpriseListQueryToolbar>;
 type TestIdentityCenterProps = {
-  children: React.ReactElement<{title: () => React.ReactNode}>;
+  children: TestOrganizationTableElement;
   listAction?: React.ReactNode;
 };
 
@@ -351,14 +360,35 @@ test("builds table columns, toolbar and action handlers", () => {
   jestValue.spyOn(page, "addOrganization").mockImplementation(() => {});
   jestValue.spyOn(page, "deleteOrganization").mockImplementation(() => {});
 
-  const tableWrapper = page.renderTable([organization]) as React.ReactElement<TestIdentityCenterProps & {children: React.ReactElement<{columns: TestTableColumn[]; title: () => React.ReactNode}>}>;
+  const tableWrapper = page.renderTable([organization]) as React.ReactElement<TestIdentityCenterProps>;
   const table = tableWrapper.props.children;
   const columns = table.props.columns;
 
+  expect(table.type).toBe(ListPageTable);
   expect(columns[0].key).toBe("name");
-  expect(columns[13].fixed).toBe("right");
+  expect(columns.map(column => column.key)).toEqual([
+    "name",
+    "createdTime",
+    "displayName",
+    "favicon",
+    "websiteUrl",
+    "passwordType",
+    "enableSoftDeletion",
+    "op",
+  ]);
+  expect(columns.some(column => column.key === "passwordSalt")).toBe(false);
+  expect(columns.some(column => column.key === "defaultAvatar")).toBe(false);
+  expect(columns.some(column => column.key === "orgBalance")).toBe(false);
+  expect(columns.some(column => column.key === "userBalance")).toBe(false);
+  expect(columns.some(column => column.key === "balanceCredit")).toBe(false);
+  expect(columns.some(column => column.key === "balanceCurrency")).toBe(false);
+  expect(columns[7].fixed).toBe("right");
+  expect(table.props.className).toContain("organization-list-table");
+  expect(table.props.bordered).toBeUndefined();
+  expect(table.props.scroll?.x).toBeUndefined();
+  expect(table.props.scroll?.y).toBe("calc(100vh - 360px)");
 
-  const actionNode = columns[13].render?.(undefined, organization, 0) as React.ReactElement<{children: React.ReactNode}>;
+  const actionNode = columns[7].render?.(undefined, organization, 0) as React.ReactElement<{children: React.ReactNode}>;
   const actionChildren = React.Children.toArray(actionNode.props.children) as React.ReactElement[];
   const actionView = render(<>{actionNode}</>);
   fireEvent.click(actionView.getByText(/群\s*组|Groups/));
@@ -371,13 +401,15 @@ test("builds table columns, toolbar and action handlers", () => {
   expect(page.deleteOrganization).toHaveBeenCalledWith(0);
   actionView.unmount();
 
-  const blockedActionNode = columns[13].render?.(undefined, {...organization, name: "built-in"}, 0) as React.ReactElement<{children: React.ReactNode}>;
+  const blockedActionNode = columns[7].render?.(undefined, {...organization, name: "built-in"}, 0) as React.ReactElement<{children: React.ReactNode}>;
   const blockedActionChildren = React.Children.toArray(blockedActionNode.props.children) as React.ReactElement[];
   expect(blockedActionChildren[3].props.disabled).toBe(true);
 
-  const addActionView = render(<>{tableWrapper.props.listAction}</>);
+  const toolbar = table.props.title() as React.ReactElement<TestToolbarProps>;
+  const addActionView = render(<>{toolbar.props.actions}</>);
   fireEvent.click(addActionView.getByText(/添\s*加|Add/));
   expect(page.addOrganization).toHaveBeenCalled();
+  expect(tableWrapper.props.listAction).toBeUndefined();
 });
 
 test("disables fixed organization table columns in compact viewport", () => {
@@ -388,22 +420,28 @@ test("disables fixed organization table columns in compact viewport", () => {
   });
   const page = createPage(adminAccount);
 
-  const tableWrapper = page.renderTable([organization]) as React.ReactElement<{children: React.ReactElement<{columns: TestTableColumn[]}>}>;
-  const columns = tableWrapper.props.children.props.columns;
+  const tableWrapper = page.renderTable([organization]) as React.ReactElement<TestIdentityCenterProps>;
+  const table = tableWrapper.props.children;
+  const columns = table.props.columns;
 
   expect(columns[0].fixed).toBe(false);
-  expect(columns[13].fixed).toBe(false);
+  expect(columns[7].fixed).toBe(false);
+  expect(table.props.scroll?.x).toBeUndefined();
+  expect(table.props.scroll?.y).toBe("calc(100vh - 360px)");
 });
 
 test("disables fixed organization table columns when mobile mode is active", () => {
   jestValue.spyOn(Setting, "isMobile").mockReturnValue(true);
   const page = createPage(adminAccount);
 
-  const tableWrapper = page.renderTable([organization]) as React.ReactElement<{children: React.ReactElement<{columns: TestTableColumn[]}>}>;
-  const columns = tableWrapper.props.children.props.columns;
+  const tableWrapper = page.renderTable([organization]) as React.ReactElement<TestIdentityCenterProps>;
+  const table = tableWrapper.props.children;
+  const columns = table.props.columns;
 
   expect(columns[0].fixed).toBe(false);
-  expect(columns[13].fixed).toBe(false);
+  expect(columns[7].fixed).toBe(false);
+  expect(table.props.scroll?.x).toBe(980);
+  expect(table.props.scroll?.y).toBeUndefined();
 });
 
 test("uses shared query toolbar for organization search controls and directory context", () => {
@@ -415,7 +453,7 @@ test("uses shared query toolbar for organization search controls and directory c
     pagination: {...page.state.pagination, current: 3, pageSize: 20, total: 18},
   };
 
-  const tableWrapper = page.renderTable([organization]) as React.ReactElement<{children: React.ReactElement<{title: () => React.ReactNode}>}>;
+  const tableWrapper = page.renderTable([organization]) as React.ReactElement<TestIdentityCenterProps>;
   const table = tableWrapper.props.children;
   const toolbar = table.props.title() as React.ReactElement<TestToolbarProps>;
 
@@ -442,7 +480,7 @@ test("uses shared query toolbar for organization search controls and directory c
   });
   expect((page.state as Record<string, unknown>).queryKeyword).toBe("");
 
-  expect(toolbar.props.actions).toBeUndefined();
+  expect(toolbar.props.actions).not.toBeUndefined();
   expect(toolbar.props.context).not.toBeUndefined();
   expect(toolbar.props.showHeader).toBe(false);
 });
@@ -451,7 +489,7 @@ test("moves password type filtering out of the table header and into query contr
   const page = createPage(adminAccount);
   page.fetch = jestValue.fn() as unknown as typeof page.fetch;
 
-  const tableWrapper = page.renderTable([organization]) as React.ReactElement<{children: React.ReactElement<{columns: TestTableColumn[]; title: () => React.ReactNode}>}>;
+  const tableWrapper = page.renderTable([organization]) as React.ReactElement<TestIdentityCenterProps>;
   const table = tableWrapper.props.children;
   const columns = table.props.columns;
   const passwordTypeColumn = columns.find(column => column.key === "passwordType");
@@ -478,7 +516,7 @@ test("moves password type filtering out of the table header and into query contr
   });
 });
 
-test("passes create action to the compact organization list top instead of the query controls", () => {
+test("passes create action through shared query toolbar actions", () => {
   const page = createPage(adminAccount);
   page.fetch = jestValue.fn() as unknown as typeof page.fetch;
   jestValue.spyOn(page, "addOrganization").mockImplementation(() => {});
@@ -487,10 +525,10 @@ test("passes create action to the compact organization list top instead of the q
   const toolbar = identityCenter.props.children.props.title() as React.ReactElement<TestToolbarProps>;
 
   expect(toolbar.type).toBe(EnterpriseListQueryToolbar);
-  expect(toolbar.props.actions).toBeUndefined();
-  expect(identityCenter.props.listAction).not.toBeUndefined();
+  expect(toolbar.props.actions).not.toBeUndefined();
+  expect(identityCenter.props.listAction).toBeUndefined();
 
-  const actionView = render(<>{identityCenter.props.listAction}</>);
+  const actionView = render(<>{toolbar.props.actions}</>);
   const addButton = actionView.getByText(/添\s*加|Add/).closest("button");
   expect(addButton).not.toBeNull();
   expect((addButton as HTMLButtonElement).disabled).toBe(false);
@@ -500,7 +538,8 @@ test("passes create action to the compact organization list top instead of the q
 
   const nonAdminPage = createPage(nonAdminAccount);
   const nonAdminIdentityCenter = nonAdminPage.renderTable([organization]) as React.ReactElement<TestIdentityCenterProps>;
-  const nonAdminActionView = render(<>{nonAdminIdentityCenter.props.listAction}</>);
+  const nonAdminToolbar = nonAdminIdentityCenter.props.children.props.title() as React.ReactElement<TestToolbarProps>;
+  const nonAdminActionView = render(<>{nonAdminToolbar.props.actions}</>);
   expect((nonAdminActionView.getByText(/添\s*加|Add/).closest("button") as HTMLButtonElement).disabled).toBe(true);
 });
 
@@ -745,7 +784,8 @@ test("disables add action for non-admin accounts", () => {
   const page = createPage(nonAdminAccount);
 
   const tableWrapper = page.renderTable([organization]) as React.ReactElement<TestIdentityCenterProps>;
-  const addActionView = render(<>{tableWrapper.props.listAction}</>);
+  const toolbar = tableWrapper.props.children.props.title() as React.ReactElement<TestToolbarProps>;
+  const addActionView = render(<>{toolbar.props.actions}</>);
 
   expect((addActionView.getByText(/添\s*加|Add/).closest("button") as HTMLButtonElement).disabled).toBe(true);
 });

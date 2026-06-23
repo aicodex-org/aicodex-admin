@@ -14,7 +14,7 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Input, Select, Switch, Table} from "antd";
+import {Button, Input, Select, Space, Switch} from "antd";
 import type {TablePaginationConfig, TableProps} from "antd";
 import moment from "moment";
 import * as Setting from "./Setting";
@@ -26,6 +26,7 @@ import BaseListPage from "./BaseListPage";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
 import OrganizationIdentityCenter from "./OrganizationIdentityCenter";
 import EnterpriseListQueryToolbar from "./common/EnterpriseListQueryToolbar";
+import ListPageTable from "./common/ListPageTable";
 
 type FormItem = {
   name: string;
@@ -152,6 +153,13 @@ function shouldUseFixedOrganizationTableColumns(): boolean {
   }
   // 窄屏壳层里 AntD 固定列可能脱离表格横向滚动容器，因此按实际视口禁用固定列。
   return typeof window === "undefined" || window.innerWidth > 768;
+}
+
+function getOrganizationTableScroll(): TableProps<OrganizationRecord>["scroll"] | undefined {
+  if (Setting.isMobile()) {
+    return {x: 980};
+  }
+  return {y: "calc(100vh - 360px)"};
 }
 
 class OrganizationListPage extends TypedBaseListPage {
@@ -367,66 +375,6 @@ class OrganizationListPage extends TypedBaseListPage {
         sorter: true,
       },
       {
-        title: t("general:Password salt"),
-        dataIndex: "passwordSalt",
-        key: "passwordSalt",
-        width: "150px",
-        sorter: true,
-      },
-      {
-        title: t("general:Default avatar"),
-        dataIndex: "defaultAvatar",
-        key: "defaultAvatar",
-        width: "120px",
-        render: (text: string) => {
-          return (
-            <a target="_blank" rel="noreferrer" href={text}>
-              <img src={text} alt={text} width={40} />
-            </a>
-          );
-        },
-      },
-      {
-        title: t("organization:Org balance"),
-        dataIndex: "orgBalance",
-        key: "orgBalance",
-        width: "120px",
-        sorter: true,
-        render: (text: number | null | undefined) => {
-          return text ?? 0;
-        },
-      },
-      {
-        title: t("organization:User balance"),
-        dataIndex: "userBalance",
-        key: "userBalance",
-        width: "120px",
-        sorter: true,
-        render: (text: number | null | undefined) => {
-          return text ?? 0;
-        },
-      },
-      {
-        title: t("organization:Balance credit"),
-        dataIndex: "balanceCredit",
-        key: "balanceCredit",
-        width: "120px",
-        sorter: true,
-        render: (text: number | null | undefined) => {
-          return text ?? 0;
-        },
-      },
-      {
-        title: t("organization:Balance currency"),
-        dataIndex: "balanceCurrency",
-        key: "balanceCurrency",
-        width: "140px",
-        sorter: true,
-        render: (text: string | null | undefined) => {
-          return text || "USD";
-        },
-      },
-      {
         title: t("organization:Soft deletion"),
         dataIndex: "enableSoftDeletion",
         key: "enableSoftDeletion",
@@ -442,21 +390,21 @@ class OrganizationListPage extends TypedBaseListPage {
         title: t("general:Action"),
         dataIndex: "",
         key: "op",
-        width: "350px",
+        width: "280px",
         fixed: useFixedColumns ? "right" : false,
         render: (_text: unknown, record: OrganizationRecord, index: number) => {
           return (
-            <div>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/trees/${record.name}`)}>{t("general:Groups")}</Button>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/organizations/${record.name}/users`)}>{t("general:Users")}</Button>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} onClick={() => this.props.history.push(`/organizations/${record.name}`)}>{t("general:Edit")}</Button>
+            <Space className="organization-row-actions" size={6} wrap={false}>
+              <Button size="small" type="primary" onClick={() => this.props.history.push(`/trees/${record.name}`)}>{t("general:Groups")}</Button>
+              <Button size="small" type="primary" onClick={() => this.props.history.push(`/organizations/${record.name}/users`)}>{t("general:Users")}</Button>
+              <Button size="small" onClick={() => this.props.history.push(`/organizations/${record.name}`)}>{t("general:Edit")}</Button>
               <PopconfirmModal
                 title={t("general:Sure to delete") + `: ${record.name} ?`}
                 onConfirm={() => this.deleteOrganization(index)}
                 disabled={record.name === "built-in"}
               >
               </PopconfirmModal>
-            </div>
+            </Space>
           );
         },
       },
@@ -471,15 +419,13 @@ class OrganizationListPage extends TypedBaseListPage {
         currentOrganization={Setting.isDefaultOrganizationSelected(this.props.account) ? t("general:All") : Setting.getRequestOrganization(this.props.account)}
         total={this.state.pagination.total}
         loadedCount={organizations.length}
-        listAction={this.renderAddOrganizationAction()}
       >
-        <Table
-          scroll={{x: "max-content"}}
+        <ListPageTable<OrganizationRecord>
+          className="organization-list-table"
+          scroll={getOrganizationTableScroll()}
           columns={filteredColumns}
           dataSource={organizations}
           rowKey="name"
-          size="middle"
-          bordered
           pagination={paginationProps}
           title={() => this.renderListToolbar()}
           loading={this.state.loading}
@@ -679,6 +625,7 @@ class OrganizationListPage extends TypedBaseListPage {
         onReset={this.handleToolbarReset}
         keywordControl={keywordControl}
         advancedFilters={this.renderAdvancedFilters()}
+        actions={this.renderAddOrganizationAction()}
         context={this.renderDirectoryHealthContext()}
         showHeader={false}
       />
