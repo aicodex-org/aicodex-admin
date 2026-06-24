@@ -99,6 +99,8 @@ describe("ProviderListPage enterprise table polish", () => {
     expect(container.querySelector(".provider-list-page-table-shell")).not.toBeNull();
     expect(container.querySelector(".enterprise-list-table.provider-list-table")).not.toBeNull();
     expect(container.querySelector(".enterprise-list-query-toolbar")).not.toBeNull();
+    expect(container.querySelector(".enterprise-list-query-toolbar-header")?.textContent).toMatch(/提供商|Providers/);
+    expect(container.querySelector(".enterprise-list-query-toolbar-header")?.textContent).not.toMatch(/认证源中心|Authentication Source Center/);
     expect(container.querySelector(".provider-table-cell")).not.toBeNull();
     expect(container.querySelector(".provider-table-cell")?.textContent).toContain("WeCom");
     expect(container.querySelector(".provider-table-cell")?.textContent).toContain("provider_wecom_default");

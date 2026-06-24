@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {
-  CheckCircleOutlined,
   ExclamationCircleOutlined,
   SafetyCertificateOutlined,
   SettingOutlined
@@ -23,9 +22,7 @@ import i18next from "i18next";
 import React from "react";
 import {Link} from "react-router-dom";
 import {
-  EnterpriseIdentityConsolePage,
-  EnterpriseIdentityRiskList,
-  EnterpriseIdentitySection
+  EnterpriseIdentityConsolePage
 } from "./common/EnterpriseIdentityConsoleLayout";
 
 const {Text} = Typography;
@@ -291,10 +288,10 @@ function AuthSourceCenter({providers = [], loading = false}: AuthSourceCenterPro
         />
       )}
 
-      <div className="auth-source-diagnostics-rail enterprise-identity-compact-rail">
-        <div className="enterprise-identity-rail-summary" aria-label={t("Auth source summary", "认证源摘要")}>
+      <div className="auth-source-compact-overview">
+        <div className="auth-source-compact-metrics" aria-label={t("Auth source summary", "认证源摘要")}>
           {summaryItems.map(item => (
-            <div className={`enterprise-identity-rail-summary-item enterprise-identity-tone-${item.tone}`} key={item.key}>
+            <div className={`auth-source-compact-metric enterprise-identity-tone-${item.tone}`} key={item.key}>
               <Text type="secondary">{item.label}</Text>
               <strong>{item.value}</strong>
               <Text type="secondary">{item.description}</Text>
@@ -302,10 +299,10 @@ function AuthSourceCenter({providers = [], loading = false}: AuthSourceCenterPro
           ))}
         </div>
 
-        <div className="enterprise-identity-rail-list">
+        <div className="auth-source-compact-cards">
           {cards.map(card => (
-            <article className="enterprise-identity-rail-source" key={card.key}>
-              <div className="enterprise-identity-rail-source-heading">
+            <article className="auth-source-compact-card" key={card.key}>
+              <div className="auth-source-compact-card-heading">
                 <span className="enterprise-identity-status-icon"><SafetyCertificateOutlined /></span>
                 <Space direction="vertical" size={1}>
                   <Space wrap size={[6, 4]}>
@@ -317,17 +314,15 @@ function AuthSourceCenter({providers = [], loading = false}: AuthSourceCenterPro
                   <Text type="secondary">{getAuthSourceDescription(card)}</Text>
                 </Space>
               </div>
-              <div className="enterprise-identity-rail-progress">
+              <div className="auth-source-compact-progress">
                 <Text>{t("Configuration completeness", "配置完整度")}</Text>
                 <strong>{card.completeness}%</strong>
                 <Progress percent={card.completeness} showInfo={false} size="small" />
               </div>
-              <Text type="secondary">
-                {t("Matched source", "匹配来源")}：{card.providerDisplayName}
-              </Text>
-              <Text type="secondary">
-                {t("Recent failure based on sync pages and audit records", "最近失败：以同步页面和审计记录为准")}
-              </Text>
+              <div className="auth-source-compact-card-meta">
+                <Text type="secondary">{t("Matched source", "匹配来源")}：{card.providerDisplayName}</Text>
+                <Text type="secondary">{card.authStatus}</Text>
+              </div>
               <div className="enterprise-identity-inline-actions">
                 <Link to={card.configPath}>{card.status === "未启用" ? t("Enter configuration", "进入配置") : t("Edit configuration", "编辑配置")}</Link>
                 <Link to={card.diagnosticPath}>{getDiagnosticLabel(card)}</Link>
@@ -335,27 +330,14 @@ function AuthSourceCenter({providers = [], loading = false}: AuthSourceCenterPro
             </article>
           ))}
         </div>
-        <EnterpriseIdentitySection
-          className="enterprise-identity-rail-section auth-source-failure-section"
-          title="失败摘要"
-          description="失败详情以同步页面和审计记录为准"
-        >
-          <EnterpriseIdentityRiskList items={[
-            {
-              key: "failure-summary",
-              title: "以同步页面和审计记录为准",
-              description: "进入审计和同步诊断核对失败详情、重试记录与授权状态。",
-              icon: <CheckCircleOutlined />,
-              tone: "processing",
-              badge: "治理摘要",
-              action: {key: "records", to: "/records", label: "查看审计记录"},
-            },
-          ]} />
-          <div className="enterprise-identity-inline-actions enterprise-identity-inline-actions-block">
+        <div className="auth-source-compact-audit">
+          <Text type="secondary">{t("Recent failure based on sync pages and audit records", "最近失败：以同步页面和审计记录为准")}</Text>
+          <div className="enterprise-identity-inline-actions">
+            <Link to="/records">查看审计记录</Link>
             <Link to="/wecom-org-sync">企业微信诊断</Link>
             <Link to="/feishu-org-sync">飞书诊断</Link>
           </div>
-        </EnterpriseIdentitySection>
+        </div>
       </div>
 
       {loading && (

@@ -84,7 +84,7 @@ describe("AuthSourceCenter", () => {
     expect(JSON.stringify(cards)).not.toContain("secret-value");
   });
 
-  test("renders compact diagnostics, diagnostic links, and failure summary", () => {
+  test("renders compact diagnostics, diagnostic links, and audit fallback", () => {
     const view = render(
       <MemoryRouter>
         <AuthSourceCenter providers={providers} loading={false} />
@@ -93,7 +93,7 @@ describe("AuthSourceCenter", () => {
     const {container} = view;
 
     expect(view.getByText("认证源中心")).not.toBeNull();
-    expect(container.querySelector(".auth-source-diagnostics-rail")).not.toBeNull();
+    expect(container.querySelector(".auth-source-compact-overview")).not.toBeNull();
     expect(container.querySelector(".enterprise-identity-status-card")).toBeNull();
     expect(view.getAllByText("企业微信").length).toBeGreaterThan(0);
     expect(view.getAllByText("飞书").length).toBeGreaterThan(0);
@@ -101,11 +101,28 @@ describe("AuthSourceCenter", () => {
     expect(view.getByText(/企业微信主认证/)).not.toBeNull();
     expect(view.getAllByText("100%")).toHaveLength(2);
     expect(view.getByText("67%")).not.toBeNull();
-    expect(view.getByText("以同步页面和审计记录为准")).not.toBeNull();
+    expect(view.getByText(/以同步页面和审计记录为准/)).not.toBeNull();
     expect(view.getAllByText("企业微信诊断").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/wecom-org-sync")).toBe(true);
     expect(view.getAllByText("飞书诊断").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/feishu-org-sync")).toBe(true);
     expect(view.getAllByText("查看审计记录").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/records")).toBe(true);
+    expect(view.queryByText("失败摘要")).toBeNull();
     expect(view.queryByText("wecom-secret-value")).toBeNull();
+  });
+
+  test("keeps the overview compact above the provider list", () => {
+    const view = render(
+      <MemoryRouter>
+        <AuthSourceCenter providers={providers} loading={false} />
+      </MemoryRouter>
+    );
+    const {container} = view;
+
+    expect(container.querySelector(".auth-source-compact-overview")).not.toBeNull();
+    expect(container.querySelectorAll(".auth-source-compact-metric")).toHaveLength(4);
+    expect(container.querySelectorAll(".auth-source-compact-card")).toHaveLength(3);
+    expect(container.querySelector(".auth-source-failure-section")).toBeNull();
+    expect(view.queryByText("失败摘要")).toBeNull();
+    expect(view.getAllByText("查看审计记录").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/records")).toBe(true);
   });
 
   test("keeps configuration and diagnostic entries available when providers are empty", () => {

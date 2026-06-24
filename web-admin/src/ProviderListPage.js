@@ -191,7 +191,7 @@ class ProviderListPage extends BaseListPage {
     return (
       <div className="enterprise-list-toolbar-shell">
         <EnterpriseListQueryToolbar
-          title={i18next.t("general:Authentication Source Center")}
+          title={i18next.t("application:Providers")}
           total={this.state.pagination.total}
           showTotal={false}
           fields={getProviderQueryFields()}
