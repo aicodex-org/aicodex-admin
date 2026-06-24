@@ -13,24 +13,70 @@
 // limitations under the License.
 
 import React from "react";
-import {Link} from "react-router-dom";
-import {Button, Table} from "antd";
-import {EyeOutlined} from "@ant-design/icons";
+import {Button, Popconfirm, Tooltip} from "antd";
+import {DeleteOutlined, EditOutlined} from "@ant-design/icons";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as ProviderBackend from "./backend/ProviderBackend";
 import * as Provider from "./auth/Provider";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
-import PopconfirmModal from "./common/modal/PopconfirmModal";
 import AuthSourceCenter from "./AuthSourceCenter";
-import IdentityAssetRelationshipDrawer from "./IdentityAssetRelationshipDrawer";
-import {buildAggregatedIdentityAssetDetail, buildProviderIdentityAssetDetail} from "./identityAssetRelationship";
-import * as IdentityAssetRelationshipBackend from "./backend/IdentityAssetRelationshipBackend";
+import ListPageTable from "./common/ListPageTable";
+import EnterpriseListQueryToolbar from "./common/EnterpriseListQueryToolbar";
+import ListPageIdentityCell from "./common/ListPageIdentityCell";
+import ListPageRowActions from "./common/ListPageRowActions";
+
+function getProviderQueryFields() {
+  return [
+    {label: i18next.t("general:Name"), value: "name"},
+    {label: i18next.t("general:Display name"), value: "displayName"},
+    {label: i18next.t("general:Organization"), value: "owner"},
+    {label: i18next.t("general:Category"), value: "category"},
+    {label: i18next.t("general:Type"), value: "type"},
+    {label: i18next.t("provider:Client ID"), value: "clientId"},
+    {label: i18next.t("provider:Provider URL"), value: "providerUrl"},
+  ];
+}
+
+function renderProviderIdentity(record) {
+  const displayName = record.displayName || record.name || "";
+  const technicalName = record.name || "";
+
+  return (
+    <ListPageIdentityCell
+      classPrefix="provider-table"
+      title={displayName}
+      titleTo={`/providers/${record.owner}/${technicalName}`}
+      secondary={technicalName}
+      copyValue=""
+      copyLabel={`${i18next.t("general:Copy")} ${i18next.t("general:Name")}`}
+      iconSrc={Setting.getProviderLogoURL(record)}
+      iconAlt={displayName || technicalName}
+      onCopiedMessage={i18next.t("general:Copied to clipboard successfully")}
+    />
+  );
+}
+
+function getProviderTableScroll() {
+  if (Setting.isMobile()) {
+    return {x: 920};
+  }
+  return {y: "calc(100vh - 580px)"};
+}
 
 class ProviderListPage extends BaseListPage {
   constructor(props) {
     super(props);
+    this.state = {
+      ...this.state,
+      pagination: {
+        ...this.state.pagination,
+        pageSize: 20,
+      },
+      queryField: "name",
+      queryKeyword: "",
+    };
   }
 
   componentDidMount() {
@@ -96,86 +142,101 @@ class ProviderListPage extends BaseListPage {
       });
   }
 
-  getIdentityAssetSourceContext() {
-    const filterSummary = this.state.searchedColumn && this.state.searchText ? `${this.state.searchedColumn}=${this.state.searchText}` : undefined;
-    return {
-      pagePath: "/providers",
-      filterSummary,
-      loadedRows: Array.isArray(this.state.data) ? this.state.data.length : 0,
-      totalRows: this.state.pagination?.total,
-    };
-  }
+  handleToolbarSearch = () => {
+    const pagination = {...this.state.pagination, current: 1};
+    const keyword = String(this.state.queryKeyword || "").trim();
+    if (keyword !== "") {
+      this.fetch({
+        pagination,
+        searchedColumn: this.state.queryField,
+        searchText: keyword,
+      });
+      return;
+    }
 
-  openIdentityAssetDetail(record) {
-    const fallbackDetail = buildProviderIdentityAssetDetail(record, this.getIdentityAssetSourceContext());
+    this.fetch({pagination});
+  };
+
+  handleToolbarReset = () => {
+    const pagination = {...this.state.pagination, current: 1};
     this.setState({
-      identityAssetDetail: fallbackDetail,
-    });
-    IdentityAssetRelationshipBackend.getIdentityAssetRelationshipAggregation({
-      assetType: "provider",
-      owner: record.owner || "admin",
-      organization: record.owner || "admin",
-      name: record.name || record.displayName || "",
-    })
-      .then(res => {
-        const aggregation = res?.status === "ok" && res?.data ? res.data : res;
-        if (aggregation?.object && aggregation?.scope) {
-          this.setState({identityAssetDetail: buildAggregatedIdentityAssetDetail(aggregation)});
-        }
-      })
-      .catch(() => undefined);
-  }
+      queryField: "name",
+      queryKeyword: "",
+      searchText: undefined,
+      searchedColumn: undefined,
+    }, () => this.fetch({pagination}));
+  };
 
-  closeIdentityAssetDetail() {
-    this.setState({identityAssetDetail: null});
+  handleProviderTableChange = (pagination, filters, sorter) => {
+    const normalizedSorter = Array.isArray(sorter) ? sorter[0] : sorter;
+    const params = {
+      pagination,
+      sortField: typeof normalizedSorter?.field === "string" ? normalizedSorter.field : undefined,
+      sortOrder: normalizedSorter?.order ?? undefined,
+      searchText: this.state.searchText,
+      searchedColumn: this.state.searchedColumn,
+    };
+
+    if (filters?.category?.[0]) {
+      params.category = filters.category[0];
+    }
+    if (filters?.type?.[0]) {
+      params.type = filters.type[0];
+    }
+
+    this.fetch(params);
+  };
+
+  renderListToolbar() {
+    return (
+      <div className="enterprise-list-toolbar-shell">
+        <EnterpriseListQueryToolbar
+          title={i18next.t("general:Authentication Source Center")}
+          total={this.state.pagination.total}
+          showTotal={false}
+          fields={getProviderQueryFields()}
+          selectedField={this.state.queryField}
+          keyword={this.state.queryKeyword}
+          onFieldChange={(value) => this.setState({queryField: value})}
+          onKeywordChange={(value) => this.setState({queryKeyword: value})}
+          onSearch={this.handleToolbarSearch}
+          onReset={this.handleToolbarReset}
+          actions={(
+            <Button id="add-button" type="primary" size="small" onClick={this.addProvider.bind(this)}>
+              {i18next.t("general:Add")}
+            </Button>
+          )}
+        />
+      </div>
+    );
   }
 
   renderTable(providers) {
     const columns = [
       {
-        title: i18next.t("general:Name"),
+        title: i18next.t("general:Identity source"),
         dataIndex: "name",
         key: "name",
-        width: "120px",
-        fixed: "left",
+        width: "18%",
         sorter: true,
-        ...this.getColumnSearchProps("name"),
         render: (text, record, index) => {
-          return (
-            <Link to={`/providers/${record.owner}/${text}`}>
-              {text}
-            </Link>
-          );
+          return renderProviderIdentity(record);
         },
       },
       {
         title: i18next.t("general:Organization"),
         dataIndex: "owner",
         key: "owner",
-        width: "150px",
-        sorter: true,
-        ...this.getColumnSearchProps("owner"),
-        render: (text, record, index) => {
-          return (text !== "admin") ? text : i18next.t("provider:admin (Shared)");
-        },
-      },
-      {
-        title: i18next.t("general:Created time"),
-        dataIndex: "createdTime",
-        key: "createdTime",
-        width: "180px",
+        width: "10%",
         sorter: true,
         render: (text, record, index) => {
-          return Setting.getFormattedDate(text);
+          const ownerText = (text !== "admin") ? text : i18next.t("provider:admin (Shared)");
+          return (
+            <Tooltip title={ownerText || undefined}>
+              <span className="provider-table-owner">{ownerText}</span>
+            </Tooltip>
+          );
         },
-      },
-      {
-        title: i18next.t("general:Display name"),
-        dataIndex: "displayName",
-        key: "displayName",
-        // width: '100px',
-        sorter: true,
-        ...this.getColumnSearchProps("displayName"),
       },
       {
         title: i18next.t("general:Category"),
@@ -193,15 +254,17 @@ class ProviderListPage extends BaseListPage {
           {text: "Storage", value: "Storage"},
           {text: "Web3", value: "Web3"},
         ],
-        width: "110px",
+        width: "8%",
         sorter: true,
+        render: (text, record, index) => {
+          return <span className="provider-table-category">{Setting.getTag("default", text || "-")}</span>;
+        },
       },
       {
         title: i18next.t("general:Type"),
         dataIndex: "type",
         key: "type",
-        width: "110px",
-        align: "center",
+        width: "9%",
         filterMultiple: false,
         filters: [
           {text: "Captcha", value: "Captcha", children: Setting.getProviderTypeOptions("Captcha").map((o) => {return {text: o.id, value: o.name};})},
@@ -216,30 +279,36 @@ class ProviderListPage extends BaseListPage {
         ],
         sorter: true,
         render: (text, record, index) => {
-          return Provider.getProviderLogoWidget(record);
+          return (
+            <span className="provider-table-type">
+              {Provider.getProviderLogoWidget(record, {disableLink: true})}
+              <span>{text || "-"}</span>
+            </span>
+          );
         },
       },
       {
         title: i18next.t("provider:Client ID"),
         dataIndex: "clientId",
         key: "clientId",
-        width: "100px",
+        width: "13%",
         sorter: true,
-        ...this.getColumnSearchProps("clientId"),
         render: (text, record, index) => {
-          return Setting.getShortText(text);
+          return <span className="provider-table-client-id" title={text}>{Setting.getShortText(text)}</span>;
         },
       },
       {
         title: i18next.t("provider:Provider URL"),
         dataIndex: "providerUrl",
         key: "providerUrl",
-        width: "150px",
+        width: "16%",
         sorter: true,
-        ...this.getColumnSearchProps("providerUrl"),
         render: (text, record, index) => {
+          if (!text) {
+            return <span className="enterprise-list-secondary-text provider-table-empty-text">{i18next.t("general:empty")}</span>;
+          }
           return (
-            <a target="_blank" rel="noreferrer" href={text}>
+            <a className="enterprise-list-inline-link provider-table-url" target="_blank" rel="noreferrer" href={text} title={text}>
               {
                 Setting.getShortText(text)
               }
@@ -248,49 +317,57 @@ class ProviderListPage extends BaseListPage {
         },
       },
       {
+        title: i18next.t("general:Created time"),
+        dataIndex: "createdTime",
+        key: "createdTime",
+        width: "13%",
+        sorter: true,
+        render: (text, record, index) => {
+          return <span className="provider-table-date">{Setting.getFormattedDate(text)}</span>;
+        },
+      },
+      {
         title: i18next.t("general:Action"),
         dataIndex: "",
         key: "op",
-        width: "280px",
-        fixed: (Setting.isMobile()) ? "false" : "right",
+        width: "13%",
         render: (text, record, index) => {
+          const canModify = Setting.isAdminUser(this.props.account) || record.owner === this.props.account.owner;
           return (
-            <div>
-              <Button icon={<EyeOutlined />} style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} onClick={() => this.openIdentityAssetDetail(record)}>{i18next.t("identityAssetRelationship:Object context")}</Button>
-              <Button disabled={!Setting.isAdminUser(this.props.account) && (record.owner !== this.props.account.owner)} style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/providers/${record.owner}/${record.name}`)}>{i18next.t("general:Edit")}</Button>
-              <PopconfirmModal
+            <ListPageRowActions className="provider-row-actions">
+              <Button className="provider-row-primary-action" disabled={!canModify} size="small" type="link" icon={<EditOutlined />} onClick={() => this.props.history.push(`/providers/${record.owner}/${record.name}`)}>{i18next.t("general:Edit")}</Button>
+              <Popconfirm
                 title={i18next.t("general:Sure to delete") + `: ${record.name} ?`}
+                okText={i18next.t("general:OK")}
+                cancelText={i18next.t("general:Cancel")}
+                okButtonProps={{danger: true}}
                 onConfirm={() => this.deleteProvider(index)}
-                disabled={!Setting.isAdminUser(this.props.account) && (record.owner !== this.props.account.owner)}
+                disabled={!canModify}
               >
-              </PopconfirmModal>
-            </div>
+                <Button className="provider-row-action-delete" disabled={!canModify} size="small" type="text" danger icon={<DeleteOutlined />}>{i18next.t("general:Delete")}</Button>
+              </Popconfirm>
+            </ListPageRowActions>
           );
         },
       },
     ];
 
-    const filteredColumns = Setting.filterTableColumns(columns, this.props.formItems ?? this.state.formItems);
+    const filteredColumns = Setting.filterTableColumns(columns, this.props.formItems ?? this.state.formItems, "op", {
+      preserveColumnWidth: true,
+      preserveColumnTitle: true,
+    });
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <div>
+      <div className="provider-list-page">
         <AuthSourceCenter providers={providers} loading={this.state.loading} />
-        <IdentityAssetRelationshipDrawer
-          open={Boolean(this.state.identityAssetDetail)}
-          asset={this.state.identityAssetDetail}
-          onClose={this.closeIdentityAssetDetail.bind(this)}
-        />
-        <Table scroll={{x: "max-content"}} columns={filteredColumns} dataSource={providers} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
-          title={() => (
-            <div>
-              {i18next.t("application:Providers")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button id="add-button" type="primary" size="small" onClick={this.addProvider.bind(this)}>{i18next.t("general:Add")}</Button>
-            </div>
-          )}
-          loading={this.state.loading}
-          onChange={this.handleTableChange}
-        />
+        <div className="provider-list-page-table-shell">
+          <ListPageTable scroll={getProviderTableScroll()} className="provider-list-table" columns={filteredColumns} dataSource={providers} rowKey={(record) => `${record.owner}/${record.name}`} pagination={paginationProps}
+            title={() => this.renderListToolbar()}
+            loading={this.state.loading}
+            onChange={this.handleProviderTableChange}
+          />
+        </div>
       </div>
     );
   }

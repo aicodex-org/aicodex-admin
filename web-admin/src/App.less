@@ -2682,6 +2682,132 @@ span.enterprise-list-secondary-text {
   line-height: 18px;
 }
 
+.provider-list-page-table-shell {
+  min-width: 0;
+}
+
+.provider-list-table.ant-table-wrapper .ant-table.ant-table-middle .ant-table-thead > tr > th,
+.provider-list-table.ant-table-wrapper .ant-table.ant-table-middle .ant-table-tbody > tr > td {
+  padding-right: 8px !important;
+  padding-left: 8px !important;
+}
+
+.provider-list-table.ant-table-wrapper .ant-table-cell {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.provider-table-cell {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.provider-table-icon {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+}
+
+.provider-table-icon img,
+.provider-table-provider-logo {
+  display: block;
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.provider-table-content {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.provider-table-name,
+.provider-table-owner,
+.provider-table-client-id,
+.provider-table-url,
+.provider-table-date {
+  display: inline-block;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.provider-table-meta {
+  display: flex;
+  min-width: 0;
+  color: rgb(100 116 139);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.provider-table-id,
+.provider-table-category,
+.provider-table-type,
+.provider-table-empty-text {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.provider-table-type {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.provider-table-type img {
+  flex: none;
+}
+
+.provider-table-type span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.provider-list-table .ant-tag {
+  margin-right: 0;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.provider-row-actions {
+  flex-wrap: nowrap;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+.provider-row-actions .ant-btn {
+  height: 24px;
+  min-width: 0;
+  padding-inline: 4px;
+  font-size: 12px;
+  gap: 3px;
+}
+
+.provider-row-primary-action {
+  min-width: 0;
+  font-weight: 500;
+}
+
+.provider-row-action-delete[disabled] {
+  color: rgb(148 163 184) !important;
+  background: transparent !important;
+  border-color: transparent !important;
+}
+
 .enterprise-list-query-toolbar {
   display: grid;
   gap: var(--list-page-toolbar-gap);
