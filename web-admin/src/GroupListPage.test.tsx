@@ -423,9 +423,10 @@ test("builds table columns, toolbar and action handlers", () => {
   expect(table.props.className).toContain("group-list-table");
 
   const actionNode = opColumn?.render?.(undefined, group, 0) as React.ReactElement<{children: React.ReactNode; className?: string}>;
-  expect(actionNode.props.className).toContain("enterprise-list-row-actions");
+  expect(actionNode.props.className).toBe("group-row-actions");
   const actionChildren = React.Children.toArray(actionNode.props.children) as React.ReactElement[];
   const actionView = render(<>{actionNode}</>);
+  expect(actionView.container.querySelector(".enterprise-list-row-actions")).not.toBeNull();
   fireEvent.click(actionView.getByText(/编\s*辑|Edit/));
   expect(history.push).toHaveBeenCalledWith("/groups/engineering/group-main");
   actionChildren[1].props.onConfirm();
@@ -451,6 +452,19 @@ test("list page table centralizes shared table defaults", () => {
   expect(sharedTable.props.bordered).toBe(false);
   expect(sharedTable.props.tableLayout).toBe("fixed");
   expect(sharedTable.props.showSorterTooltip).toEqual({target: "sorter-icon"});
+});
+
+test("list page table wraps title content in the shared toolbar shell", () => {
+  const sharedTable = ListPageTable<TestGroupRecord>({
+    columns: [],
+    dataSource: [],
+    title: () => <span>Shared toolbar</span>,
+  }) as React.ReactElement<{title?: () => React.ReactNode}>;
+
+  const titleNode = sharedTable.props.title?.() as React.ReactElement<{className?: string; children?: React.ReactNode}>;
+
+  expect(titleNode.props.className).toBe("enterprise-list-toolbar-shell");
+  expect(titleNode.props.children).toEqual(<span>Shared toolbar</span>);
 });
 
 test("keeps mobile group table horizontally scrollable without desktop vertical lock", () => {

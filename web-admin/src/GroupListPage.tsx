@@ -14,9 +14,9 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Input, Modal, Popconfirm, Space, Table, Tag, Tooltip, Upload} from "antd";
+import {Button, Input, Modal, Popconfirm, Table, Tag, Tooltip, Upload} from "antd";
 import type {TablePaginationConfig, TableProps} from "antd";
-import {CopyOutlined, DeleteOutlined, EditOutlined, UploadOutlined} from "@ant-design/icons";
+import {DeleteOutlined, EditOutlined, UploadOutlined} from "@ant-design/icons";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as GroupBackend from "./backend/GroupBackend";
@@ -25,8 +25,9 @@ import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import ListPageTable from "./common/ListPageTable";
 import EnterpriseListQueryToolbar from "./common/EnterpriseListQueryToolbar";
+import ListPageIdentityCell from "./common/ListPageIdentityCell";
+import ListPageRowActions from "./common/ListPageRowActions";
 import * as XLSX from "xlsx";
-import copy from "copy-to-clipboard";
 
 interface GroupListPageProps {
   account: {
@@ -161,33 +162,16 @@ function renderGroupIdentity(record: GroupRecord): React.ReactNode {
   const displayName = record.displayName || groupName;
 
   return (
-    <div className="group-table-group-cell">
-      <Link className="enterprise-list-primary-text group-table-group-name" to={`/groups/${record.owner}/${groupName}`} title={displayName}>
-        {displayName}
-      </Link>
-      <div className="enterprise-list-secondary-text group-table-group-meta">
-        <Tooltip title={groupName || undefined}>
-          <span className="enterprise-list-secondary-text group-table-group-id" title={groupName}>{groupName}</span>
-        </Tooltip>
-        {
-          groupName ? (
-            <Button
-              aria-label={`${t("general:Copy")} ${t("general:Name")}`}
-              className="group-table-copy-id"
-              icon={<CopyOutlined />}
-              size="small"
-              type="text"
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                copy(groupName);
-                Setting.showMessage("success", t("general:Copied to clipboard successfully"));
-              }}
-            />
-          ) : null
-        }
-      </div>
-    </div>
+    <ListPageIdentityCell
+      classPrefix="group-table-group"
+      title={displayName}
+      titleTo={`/groups/${record.owner}/${groupName}`}
+      secondary={groupName}
+      copyValue={groupName}
+      copyLabel={`${t("general:Copy")} ${t("general:Name")}`}
+      copyClassName="group-table-copy-id"
+      onCopiedMessage={t("general:Copied to clipboard successfully")}
+    />
   );
 }
 
@@ -520,29 +504,27 @@ class GroupListPage extends TypedBaseListPage {
 
   renderListToolbar(): React.ReactNode {
     return (
-      <div className="enterprise-list-toolbar-shell">
-        <EnterpriseListQueryToolbar
-          title={t("general:Groups")}
-          total={this.state.pagination.total}
-          showTotal={false}
-          fields={getGroupQueryFields()}
-          selectedField={this.state.queryField}
-          keyword={this.state.queryKeyword}
-          onFieldChange={(value) => this.setState({queryField: value})}
-          onKeywordChange={(value) => this.setState({queryKeyword: value})}
-          onSearch={this.handleToolbarSearch}
-          onReset={this.handleToolbarReset}
-          onAdvancedOpenChange={(advancedFiltersOpen) => this.setState({advancedFiltersOpen})}
-          advancedFilters={this.renderAdvancedFilters()}
-          actions={(
-            <>
-              <Button type="primary" size="small" onClick={this.addGroup.bind(this)}>{t("general:Add")}</Button>
-              <Button size="small" onClick={this.generateDownloadTemplate}>{t("general:Download template")} </Button>
-              {this.renderUpload()}
-            </>
-          )}
-        />
-      </div>
+      <EnterpriseListQueryToolbar
+        title={t("general:Groups")}
+        total={this.state.pagination.total}
+        showTotal={false}
+        fields={getGroupQueryFields()}
+        selectedField={this.state.queryField}
+        keyword={this.state.queryKeyword}
+        onFieldChange={(value) => this.setState({queryField: value})}
+        onKeywordChange={(value) => this.setState({queryKeyword: value})}
+        onSearch={this.handleToolbarSearch}
+        onReset={this.handleToolbarReset}
+        onAdvancedOpenChange={(advancedFiltersOpen) => this.setState({advancedFiltersOpen})}
+        advancedFilters={this.renderAdvancedFilters()}
+        actions={(
+          <>
+            <Button type="primary" size="small" onClick={this.addGroup.bind(this)}>{t("general:Add")}</Button>
+            <Button size="small" onClick={this.generateDownloadTemplate}>{t("general:Download template")} </Button>
+            {this.renderUpload()}
+          </>
+        )}
+      />
     );
   }
 
@@ -610,7 +592,7 @@ class GroupListPage extends TypedBaseListPage {
           );
 
           return (
-            <Space className="enterprise-list-row-actions group-row-actions" size={4} wrap={false}>
+            <ListPageRowActions className="group-row-actions">
               <Button
                 className="group-row-action-edit"
                 type="link"
@@ -636,7 +618,7 @@ class GroupListPage extends TypedBaseListPage {
                     {deleteButton}
                   </Popconfirm>
               }
-            </Space>
+            </ListPageRowActions>
           );
         },
       },

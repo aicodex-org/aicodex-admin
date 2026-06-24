@@ -29,16 +29,19 @@ type TestOrganizationRecord = {
   [key: string]: unknown;
 };
 type TestTableColumn = {
+  dataIndex?: string;
   key?: string;
   fixed?: unknown;
   filters?: unknown;
   sorter?: unknown;
+  width?: string | number;
   render?: (text: unknown, record: TestOrganizationRecord, index: number) => React.ReactNode;
 };
 type TestOrganizationTableElement = React.ReactElement<{
   bordered?: boolean;
   className?: string;
   columns: TestTableColumn[];
+  pagination?: {pageSize?: number};
   scroll?: {x?: unknown; y?: unknown};
   title: () => React.ReactNode;
 }>;
@@ -365,42 +368,45 @@ test("builds table columns, toolbar and action handlers", () => {
   const columns = table.props.columns;
 
   expect(table.type).toBe(ListPageTable);
-  expect(columns[0].key).toBe("name");
+  expect(columns[0].key).toBe("organization");
   expect(columns.map(column => column.key)).toEqual([
-    "name",
-    "createdTime",
-    "displayName",
-    "favicon",
-    "websiteUrl",
+    "organization",
+    "source",
     "passwordType",
     "enableSoftDeletion",
+    "createdTime",
     "op",
   ]);
+  expect(columns.some(column => column.key === "name")).toBe(false);
+  expect(columns.some(column => column.key === "displayName")).toBe(false);
+  expect(columns.some(column => column.key === "favicon")).toBe(false);
+  expect(columns.some(column => column.key === "websiteUrl")).toBe(false);
   expect(columns.some(column => column.key === "passwordSalt")).toBe(false);
   expect(columns.some(column => column.key === "defaultAvatar")).toBe(false);
   expect(columns.some(column => column.key === "orgBalance")).toBe(false);
   expect(columns.some(column => column.key === "userBalance")).toBe(false);
   expect(columns.some(column => column.key === "balanceCredit")).toBe(false);
   expect(columns.some(column => column.key === "balanceCurrency")).toBe(false);
-  expect(columns[7].fixed).toBe("right");
+  expect(columns[5].fixed).toBeUndefined();
   expect(table.props.className).toContain("organization-list-table");
   expect(table.props.bordered).toBeUndefined();
   expect(table.props.scroll?.x).toBeUndefined();
   expect(table.props.scroll?.y).toBe("calc(100vh - 360px)");
+  expect(table.props.pagination?.pageSize).toBe(20);
+  expect(columns.reduce((sum, column) => {
+    if (typeof column.width !== "string" || !column.width.endsWith("%")) {
+      return sum;
+    }
+    return sum + Number(column.width.replace("%", ""));
+  }, 0)).toBeLessThanOrEqual(100);
 
-  const nameNode = columns[0].render?.("engineering", organization, 0) as React.ReactElement;
-  const displayNameNode = columns[2].render?.("Engineering", organization, 0) as React.ReactElement;
-  const websiteNode = columns[4].render?.("https://example.test", organization, 0) as React.ReactElement;
-  const textView = render(<MemoryRouter>{nameNode}{displayNameNode}{websiteNode}</MemoryRouter>);
-  expect(textView.getByText("engineering").className).toContain("enterprise-list-primary-text");
-  expect(textView.getByText("Engineering").className).toContain("enterprise-list-secondary-text");
-  expect(textView.getByText("https://example.test").className).toContain("enterprise-list-inline-link");
-  textView.unmount();
-
-  const actionNode = columns[7].render?.(undefined, organization, 0) as React.ReactElement<{children: React.ReactNode; className?: string}>;
-  expect(actionNode.props.className).toContain("enterprise-list-row-actions");
+  const actionNode = columns[5].render?.(undefined, organization, 0) as React.ReactElement<{children: React.ReactNode; className?: string; wrap?: boolean}>;
   const actionChildren = React.Children.toArray(actionNode.props.children) as React.ReactElement[];
   const actionView = render(<>{actionNode}</>);
+  expect(actionNode.props.className).toBe("organization-row-actions");
+  expect(actionNode.props.wrap).toBe(true);
+  expect(actionView.container.querySelector(".enterprise-list-row-actions")).not.toBeNull();
+  expect(actionView.container.querySelectorAll(".ant-btn-primary")).toHaveLength(0);
   fireEvent.click(actionView.getByText(/群\s*组|Groups/));
   expect(history.push).toHaveBeenCalledWith("/trees/engineering");
   fireEvent.click(actionView.getByText(/用\s*户|Users/));
@@ -411,7 +417,7 @@ test("builds table columns, toolbar and action handlers", () => {
   expect(page.deleteOrganization).toHaveBeenCalledWith(0);
   actionView.unmount();
 
-  const blockedActionNode = columns[7].render?.(undefined, {...organization, name: "built-in"}, 0) as React.ReactElement<{children: React.ReactNode}>;
+  const blockedActionNode = columns[5].render?.(undefined, {...organization, name: "built-in"}, 0) as React.ReactElement<{children: React.ReactNode}>;
   const blockedActionChildren = React.Children.toArray(blockedActionNode.props.children) as React.ReactElement[];
   expect(blockedActionChildren[3].props.disabled).toBe(true);
 
@@ -434,8 +440,8 @@ test("disables fixed organization table columns in compact viewport", () => {
   const table = tableWrapper.props.children;
   const columns = table.props.columns;
 
-  expect(columns[0].fixed).toBe(false);
-  expect(columns[7].fixed).toBe(false);
+  expect(columns[0].fixed).toBeUndefined();
+  expect(columns[5].fixed).toBeUndefined();
   expect(table.props.scroll?.x).toBeUndefined();
   expect(table.props.scroll?.y).toBe("calc(100vh - 360px)");
 });
@@ -448,9 +454,9 @@ test("disables fixed organization table columns when mobile mode is active", () 
   const table = tableWrapper.props.children;
   const columns = table.props.columns;
 
-  expect(columns[0].fixed).toBe(false);
-  expect(columns[7].fixed).toBe(false);
-  expect(table.props.scroll?.x).toBe(980);
+  expect(columns[0].fixed).toBeUndefined();
+  expect(columns[5].fixed).toBeUndefined();
+  expect(table.props.scroll?.x).toBe(760);
   expect(table.props.scroll?.y).toBeUndefined();
 });
 
@@ -492,7 +498,16 @@ test("uses shared query toolbar for organization search controls and directory c
 
   expect(toolbar.props.actions).not.toBeUndefined();
   expect(toolbar.props.context).not.toBeUndefined();
+  expect(toolbar.props.contextPlacement).toBe("side");
   expect(toolbar.props.showHeader).toBe(false);
+
+  const toolbarView = render(<MemoryRouter>{toolbar}</MemoryRouter>);
+  const controls = toolbarView.container.querySelector(".enterprise-list-query-toolbar-controls");
+  const context = toolbarView.container.querySelector(".enterprise-list-query-toolbar-side-context");
+  expect(context).not.toBeNull();
+  expect(controls?.contains(context as Node)).toBe(true);
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-context")).toBeNull();
+  toolbarView.unmount();
 });
 
 test("moves password type filtering out of the table header and into query controls", () => {
@@ -524,6 +539,35 @@ test("moves password type filtering out of the table header and into query contr
     searchedColumn: "passwordType",
     searchText: "bcrypt",
   });
+});
+
+test("renders compact organization identity and source summary for table scanning", () => {
+  const page = createPage(adminAccount);
+  const longOrganization = {
+    ...organization,
+    name: "wecom-dept-wwe7e01c69367e67bf-very-long-source-id",
+    displayName: "联软科技集团平台组织",
+    websiteUrl: "https://git.leagsoft.com/aicodex/aicodex-admin/very/long/path",
+  };
+
+  const tableWrapper = page.renderTable([longOrganization]) as React.ReactElement<TestIdentityCenterProps>;
+  const columns = tableWrapper.props.children.props.columns;
+  const organizationColumn = columns.find(column => column.key === "organization");
+  const sourceColumn = columns.find(column => column.key === "source");
+
+  const organizationNode = organizationColumn?.render?.(undefined, longOrganization, 0) as React.ReactElement;
+  const organizationView = render(<MemoryRouter>{organizationNode}</MemoryRouter>);
+  expect(organizationView.getByText("联软科技集团平台组织")).not.toBeNull();
+  expect(organizationView.container.querySelector(".organization-table-identity-id")?.textContent).toContain("wecom-dept-wwe7e01c69367e67bf");
+  expect(organizationView.container.querySelector(".organization-table-copy-id")?.getAttribute("aria-label")).toMatch(/Copy|复制/);
+  expect(organizationView.container.querySelector(".organization-table-identity-icon img")).not.toBeNull();
+  organizationView.unmount();
+
+  const sourceNode = sourceColumn?.render?.(longOrganization.websiteUrl, longOrganization, 0) as React.ReactElement;
+  const sourceView = render(<>{sourceNode}</>);
+  expect(sourceView.getByText(/git\.leagsoft\.com/)).not.toBeNull();
+  expect(sourceView.container.querySelector(".organization-table-source-link")?.getAttribute("title")).toContain("https://git.leagsoft.com");
+  sourceView.unmount();
 });
 
 test("passes create action through shared query toolbar actions", () => {

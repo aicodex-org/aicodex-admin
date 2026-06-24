@@ -158,7 +158,7 @@ describe("OrganizationIdentityCenter", () => {
 
     expect(view.container.querySelector(".organization-identity-compact-list-page")).not.toBeNull();
     expect(view.getByText("组织")).not.toBeNull();
-    expect(view.getByText("42 条结果")).not.toBeNull();
+    expect(view.queryByText("42 条结果")).toBeNull();
     expect(view.getByText("organizations table remains reachable")).not.toBeNull();
     expect(view.queryByText("组织主数据工作台")).toBeNull();
     expect(view.queryByText("目录边界、组织树完整性与同步来源一屏核对。")).toBeNull();
@@ -173,7 +173,7 @@ describe("OrganizationIdentityCenter", () => {
 
     expect(view.container.querySelector(".organization-identity-compact-list-page-users")).not.toBeNull();
     expect(view.getByText("用户")).not.toBeNull();
-    expect(view.getByText("42 条结果")).not.toBeNull();
+    expect(view.queryByText("42 条结果")).toBeNull();
     expect(view.getByText("users table remains reachable")).not.toBeNull();
     expect(view.queryByText("账号生命周期工作台")).toBeNull();
     expect(view.queryByTestId("organization-identity-workbench")).toBeNull();
@@ -213,7 +213,7 @@ describe("OrganizationIdentityCenter", () => {
       </MemoryRouter>
     );
 
-    expect(organizationView.getByText("当前视图")).not.toBeNull();
+    expect(organizationView.queryByText("当前视图")).toBeNull();
     expect(organizationView.getByText("Organization table loading")).not.toBeNull();
     organizationView.unmount();
 
@@ -225,7 +225,7 @@ describe("OrganizationIdentityCenter", () => {
       </MemoryRouter>
     );
 
-    expect(userView.getByText("当前视图")).not.toBeNull();
+    expect(userView.queryByText("当前视图")).toBeNull();
     expect(userView.getByText("User table loading")).not.toBeNull();
     userView.unmount();
   });

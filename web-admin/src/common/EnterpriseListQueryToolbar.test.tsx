@@ -5,8 +5,6 @@ import {Button} from "antd";
 import {cleanup, render} from "@testing-library/react";
 import EnterpriseListQueryToolbar from "./EnterpriseListQueryToolbar";
 
-declare const jest: typeof jestValue;
-
 const expect = jestExpect;
 const {fireEvent} = require("@testing-library/react") as {
   fireEvent: {
@@ -14,6 +12,8 @@ const {fireEvent} = require("@testing-library/react") as {
     change: (element: Element | null, event: {target: {value: string}}) => boolean;
   };
 };
+const fs = require("fs") as typeof import("fs");
+const path = require("path") as typeof import("path");
 
 afterEach(() => {
   cleanup();
@@ -100,4 +100,102 @@ test("does not render advanced filter toggle for empty advanced filter fragments
 
   expect(view.queryByText(/更\s*多\s*筛\s*选|More filters/)).toBeNull();
   expect(view.container.querySelector(".enterprise-list-query-toolbar-advanced")).toBeNull();
+});
+
+test("can place contextual helper content on the side of query controls", () => {
+  const view = render(
+    <EnterpriseListQueryToolbar
+      title="组织"
+      total={3}
+      fields={[{label: "名称", value: "name"}]}
+      selectedField="name"
+      keyword=""
+      onFieldChange={jestValue.fn()}
+      onKeywordChange={jestValue.fn()}
+      onSearch={jestValue.fn()}
+      onReset={jestValue.fn()}
+      showHeader={false}
+      contextPlacement="side"
+      context={<span>目录健康: 3 项待关注</span>}
+    />
+  );
+
+  const controls = view.container.querySelector(".enterprise-list-query-toolbar-controls");
+  const sideContext = view.container.querySelector(".enterprise-list-query-toolbar-side-context");
+
+  expect(sideContext).not.toBeNull();
+  expect(sideContext?.textContent).toContain("目录健康");
+  expect(controls?.contains(sideContext as Node)).toBe(true);
+  expect(view.container.querySelector(".enterprise-list-query-toolbar-context")).toBeNull();
+});
+
+test("list page typography uses shared semantic tokens", () => {
+  const appLess = fs.readFileSync(path.join(__dirname, "..", "App.less"), "utf8") as string;
+
+  [
+    "--list-page-title-font-size",
+    "--list-page-control-font-size",
+    "--list-page-table-header-font-size",
+    "--list-page-table-cell-font-size",
+    "--list-page-secondary-font-size",
+    "--list-page-action-font-size",
+  ].forEach(token => {
+    expect(appLess).toContain(token);
+  });
+
+  expect(appLess).toMatch(/enterprise-list-query-toolbar-header[\s\S]*ant-typography:first-child[\s\S]*font-size:\s*var\(--list-page-title-font-size\)/);
+  expect(appLess).toMatch(/organization-identity-compact-list-heading[\s\S]*font-size:\s*var\(--list-page-title-font-size\)/);
+  expect(appLess).toMatch(/ant-table-thead[\s\S]*font-size:\s*var\(--list-page-table-header-font-size\)/);
+  expect(appLess).toMatch(/ant-table-tbody[\s\S]*font-size:\s*var\(--list-page-table-cell-font-size\)/);
+});
+
+test("list page layout spacing uses shared semantic tokens", () => {
+  const appLess = fs.readFileSync(path.join(__dirname, "..", "App.less"), "utf8") as string;
+
+  [
+    "--list-page-shell-padding",
+    "--list-page-panel-border-color",
+    "--list-page-panel-border-radius",
+    "--list-page-panel-heading-padding",
+    "--list-page-panel-body-padding",
+    "--list-page-table-title-padding",
+    "--list-page-toolbar-shell-padding-bottom",
+    "--list-page-toolbar-gap",
+    "--list-page-toolbar-control-gap",
+    "--list-page-toolbar-advanced-margin-top",
+    "--list-page-toolbar-advanced-padding",
+    "--list-page-table-header-padding-y",
+    "--list-page-table-cell-padding-y",
+    "--list-page-advanced-filter-row-gap",
+    "--list-page-advanced-filter-column-gap",
+    "--list-page-query-field-min-width",
+    "--list-page-query-keyword-width",
+    "--list-page-query-filter-min-width",
+    "--list-page-side-context-max-width",
+    "--list-page-scrollbar-thumb-color",
+    "--list-page-scrollbar-width",
+    "--list-page-scrollbar-radius",
+  ].forEach(token => {
+    expect(appLess).toContain(token);
+  });
+
+  expect(appLess).toMatch(/enterprise-list-table\.ant-table-wrapper \.ant-table-title[\s\S]*padding:\s*var\(--list-page-table-title-padding\)\s*!important/);
+  expect(appLess).toMatch(/enterprise-list-toolbar-shell[\s\S]*padding-bottom:\s*var\(--list-page-toolbar-shell-padding-bottom\)/);
+  expect(appLess).toMatch(/enterprise-list-query-toolbar \{[\s\S]*gap:\s*var\(--list-page-toolbar-gap\)/);
+  expect(appLess).toMatch(/enterprise-list-query-toolbar-header[\s\S]*gap:\s*var\(--list-page-toolbar-control-gap\)/);
+  expect(appLess).toMatch(/enterprise-list-query-toolbar-controls[\s\S]*gap:\s*var\(--list-page-toolbar-control-gap\)/);
+  expect(appLess).toMatch(/ant-table-thead > tr > th[\s\S]*padding-top:\s*var\(--list-page-table-header-padding-y\)/);
+  expect(appLess).toMatch(/ant-table-tbody > tr > td[\s\S]*padding-top:\s*var\(--list-page-table-cell-padding-y\)/);
+  expect(appLess).toMatch(/organization-identity-compact-list-page \{[\s\S]*padding:\s*var\(--list-page-shell-padding\)/);
+  expect(appLess).toMatch(/organization-identity-compact-list-top[\s\S]*padding:\s*var\(--list-page-panel-heading-padding\)/);
+  expect(appLess).toMatch(/organization-identity-compact-list-page \.ant-table-wrapper[\s\S]*padding:\s*var\(--list-page-panel-body-padding\)/);
+  expect(appLess).toMatch(/enterprise-list-query-toolbar-field[\s\S]*min-width:\s*var\(--list-page-query-field-min-width\)/);
+  expect(appLess).toMatch(/enterprise-list-query-toolbar-keyword[\s\S]*width:\s*var\(--list-page-query-keyword-width\)/);
+  expect(appLess).toMatch(/enterprise-list-query-toolbar-filter[\s\S]*min-width:\s*var\(--list-page-query-filter-min-width\)/);
+  expect(appLess).toMatch(/enterprise-list-query-toolbar-side-context[\s\S]*max-width:\s*var\(--list-page-side-context-max-width\)/);
+  expect(appLess).toMatch(/enterprise-list-table\.ant-table-wrapper \.ant-table-body[\s\S]*scrollbar-color:\s*var\(--list-page-scrollbar-thumb-color\) transparent/);
+  expect(appLess).toMatch(/enterprise-list-table\.ant-table-wrapper \.ant-table-body::-webkit-scrollbar[\s\S]*width:\s*var\(--list-page-scrollbar-width\)/);
+  expect(appLess).toMatch(/enterprise-list-table\.ant-table-wrapper \.ant-table-body::-webkit-scrollbar-thumb[\s\S]*border-radius:\s*var\(--list-page-scrollbar-radius\)/);
+  expect(appLess).not.toMatch(/\.organization-identity-compact-list-page \.ant-table-title/);
+  expect(appLess).not.toMatch(/\.group-list-table\.ant-table-wrapper \.ant-table-body/);
 });

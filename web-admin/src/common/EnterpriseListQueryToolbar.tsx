@@ -28,6 +28,7 @@ interface EnterpriseListQueryToolbarProps {
   advancedFilters?: React.ReactNode;
   actions?: React.ReactNode;
   context?: React.ReactNode;
+  contextPlacement?: "below" | "side";
   searchPlaceholder?: string;
   showHeader?: boolean;
   onAdvancedOpenChange?: (open: boolean) => void;
@@ -71,6 +72,8 @@ function hasRenderableNode(node: React.ReactNode): boolean {
 export default function EnterpriseListQueryToolbar(props: EnterpriseListQueryToolbarProps): JSX.Element {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const hasAdvancedFilters = hasRenderableNode(props.advancedFilters);
+  const hasContext = hasRenderableNode(props.context);
+  const contextPlacement = props.contextPlacement ?? "below";
   const showHeader = props.showHeader !== false;
   const showTotal = props.showTotal !== false;
   const updateAdvancedOpen = (open: boolean): void => {
@@ -135,8 +138,15 @@ export default function EnterpriseListQueryToolbar(props: EnterpriseListQueryToo
             ) : null
           }
         </Space>
-        {props.context ? <div className="enterprise-list-query-toolbar-context">{props.context}</div> : null}
+        {
+          hasContext && contextPlacement === "side" ? (
+            <div className="enterprise-list-query-toolbar-side-context">
+              {props.context}
+            </div>
+          ) : null
+        }
       </div>
+      {hasContext && contextPlacement === "below" ? <div className="enterprise-list-query-toolbar-context">{props.context}</div> : null}
       {
         advancedOpen && hasAdvancedFilters ? (
           <div className="enterprise-list-query-toolbar-advanced">

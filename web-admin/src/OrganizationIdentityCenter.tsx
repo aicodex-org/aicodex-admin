@@ -278,14 +278,6 @@ function formatCount(value?: number): string {
   return typeof value === "number" ? value.toLocaleString() : "-";
 }
 
-function formatResultCount(total?: number): string {
-  if (typeof total !== "number") {
-    return t("Current view");
-  }
-  const translated = i18next.t("general:Result count", {count: total}) as unknown;
-  return typeof translated === "string" ? translated : `${total} results`;
-}
-
 function getMetricValue(metric: WorkbenchMetric, total?: number, loadedCount?: number, currentOrganization?: string): string {
   /* istanbul ignore next -- scope metrics are only used by the legacy directory renderer; organizations now use compact list top. */
   if (metric.source === "scope") {
@@ -446,7 +438,6 @@ function OrganizationIdentityCenter({
         <div className="organization-identity-compact-list-top">
           <Space size={8} wrap className="organization-identity-compact-list-title">
             <Title level={3} className="organization-identity-compact-list-heading">{t(profile.titleKey)}</Title>
-            <Text type="secondary">{formatResultCount(total)}</Text>
           </Space>
           {listAction ? <Space wrap className="organization-identity-compact-list-actions">{listAction}</Space> : null}
         </div>

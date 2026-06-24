@@ -14,8 +14,9 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Input, Select, Space, Switch} from "antd";
+import {Button, Input, Popconfirm, Select, Switch, Tooltip} from "antd";
 import type {TablePaginationConfig, TableProps} from "antd";
+import {ApartmentOutlined, DeleteOutlined, EditOutlined, GlobalOutlined, TeamOutlined} from "@ant-design/icons";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as Conf from "./Conf";
@@ -23,10 +24,11 @@ import * as OrganizationBackend from "./backend/OrganizationBackend";
 import type {OrganizationQueryValue, OrganizationRecord} from "./backend/OrganizationBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
-import PopconfirmModal from "./common/modal/PopconfirmModal";
 import OrganizationIdentityCenter from "./OrganizationIdentityCenter";
 import EnterpriseListQueryToolbar from "./common/EnterpriseListQueryToolbar";
 import ListPageTable from "./common/ListPageTable";
+import ListPageIdentityCell from "./common/ListPageIdentityCell";
+import ListPageRowActions from "./common/ListPageRowActions";
 
 type FormItem = {
   name: string;
@@ -147,19 +149,47 @@ function matchesOrganizationConditions(organization: OrganizationRecord, conditi
   });
 }
 
-function shouldUseFixedOrganizationTableColumns(): boolean {
-  if (Setting.isMobile()) {
-    return false;
-  }
-  // 窄屏壳层里 AntD 固定列可能脱离表格横向滚动容器，因此按实际视口禁用固定列。
-  return typeof window === "undefined" || window.innerWidth > 768;
-}
-
 function getOrganizationTableScroll(): TableProps<OrganizationRecord>["scroll"] | undefined {
   if (Setting.isMobile()) {
-    return {x: 980};
+    return {x: 760};
   }
   return {y: "calc(100vh - 360px)"};
+}
+
+function renderOrganizationIdentity(record: OrganizationRecord): React.ReactNode {
+  const organizationName = record.name || "";
+  const displayName = record.displayName || organizationName;
+
+  return (
+    <ListPageIdentityCell
+      classPrefix="organization-table-identity"
+      title={displayName}
+      titleTo={`/organizations/${organizationName}`}
+      secondary={organizationName}
+      copyValue={organizationName}
+      copyLabel={`${t("general:Copy")} ${t("general:Name")}`}
+      copyClassName="organization-table-copy-id"
+      iconSrc={record.favicon}
+      iconAlt={displayName}
+      onCopiedMessage={t("general:Copied to clipboard successfully")}
+    />
+  );
+}
+
+function renderOrganizationSource(record: OrganizationRecord): React.ReactNode {
+  const websiteUrl = record.websiteUrl || "";
+  if (websiteUrl === "") {
+    return <span className="organization-table-source-empty">-</span>;
+  }
+
+  return (
+    <Tooltip title={websiteUrl}>
+      <a className="organization-table-source-link" target="_blank" rel="noreferrer" href={websiteUrl} title={websiteUrl}>
+        <GlobalOutlined />
+        <span>{websiteUrl}</span>
+      </a>
+    </Tooltip>
+  );
 }
 
 class OrganizationListPage extends TypedBaseListPage {
@@ -167,6 +197,10 @@ class OrganizationListPage extends TypedBaseListPage {
     super(props);
     this.state = {
       ...this.state,
+      pagination: {
+        ...this.state.pagination,
+        pageSize: 20,
+      },
       queryField: "name",
       queryKeyword: "",
       advancedQueryKeywords: createEmptyAdvancedQueryKeywords(),
@@ -307,81 +341,39 @@ class OrganizationListPage extends TypedBaseListPage {
   }
 
   renderTable(organizations: OrganizationRecord[]): React.ReactNode {
-    const useFixedColumns = shouldUseFixedOrganizationTableColumns();
     const columns: OrganizationListColumns = [
       {
-        title: t("general:Name"),
-        dataIndex: "name",
-        key: "name",
-        width: "120px",
-        fixed: useFixedColumns ? "left" : false,
-        sorter: true,
-        render: (text: string) => {
-          return (
-            <Link className="enterprise-list-primary-text organization-table-name" to={`/organizations/${text}`}>
-              {text}
-            </Link>
-          );
-        },
-      },
-      {
-        title: t("general:Created time"),
-        dataIndex: "createdTime",
-        key: "createdTime",
-        width: "160px",
-        sorter: true,
-        render: (text: string) => {
-          return Setting.getFormattedDate(text);
-        },
-      },
-      {
-        title: t("general:Display name"),
+        title: t("general:Organizations"),
         dataIndex: "displayName",
-        key: "displayName",
+        key: "organization",
+        width: "24%",
         sorter: true,
-        render: (text: string) => {
-          return <span className="enterprise-list-secondary-text organization-table-display-name">{text}</span>;
-        },
-      },
-      {
-        title: t("general:Favicon"),
-        dataIndex: "favicon",
-        key: "favicon",
-        width: "50px",
-        render: (text: string) => {
-          return (
-            <a target="_blank" rel="noreferrer" href={text}>
-              <img src={text} alt={text} width={40} />
-            </a>
-          );
+        render: (_text: unknown, record: OrganizationRecord) => {
+          return renderOrganizationIdentity(record);
         },
       },
       {
         title: t("organization:Website URL"),
         dataIndex: "websiteUrl",
-        key: "websiteUrl",
-        width: "200px",
+        key: "source",
+        width: "20%",
         sorter: true,
-        render: (text: string) => {
-          return (
-            <a className="enterprise-list-inline-link organization-table-url" target="_blank" rel="noreferrer" href={text}>
-              {text}
-            </a>
-          );
+        render: (_text: unknown, record: OrganizationRecord) => {
+          return renderOrganizationSource(record);
         },
       },
       {
         title: t("general:Password type"),
         dataIndex: "passwordType",
         key: "passwordType",
-        width: "150px",
+        width: "13%",
         sorter: true,
       },
       {
         title: t("organization:Soft deletion"),
         dataIndex: "enableSoftDeletion",
         key: "enableSoftDeletion",
-        width: "140px",
+        width: "12%",
         sorter: true,
         render: (text: boolean) => {
           return (
@@ -390,24 +382,50 @@ class OrganizationListPage extends TypedBaseListPage {
         },
       },
       {
+        title: t("general:Created time"),
+        dataIndex: "createdTime",
+        key: "createdTime",
+        width: "13%",
+        sorter: true,
+        render: (text: string) => {
+          return Setting.getFormattedDate(text);
+        },
+      },
+      {
         title: t("general:Action"),
         dataIndex: "",
         key: "op",
-        width: "280px",
-        fixed: useFixedColumns ? "right" : false,
+        width: "18%",
         render: (_text: unknown, record: OrganizationRecord, index: number) => {
+          const deleteButton = (
+            <Button
+              className="organization-row-action-delete"
+              type="text"
+              size="small"
+              danger
+              disabled={record.name === "built-in"}
+              icon={<DeleteOutlined />}
+            >
+              {t("general:Delete")}
+            </Button>
+          );
+
           return (
-            <Space className="enterprise-list-row-actions organization-row-actions" size={6} wrap={false}>
-              <Button size="small" type="primary" onClick={() => this.props.history.push(`/trees/${record.name}`)}>{t("general:Groups")}</Button>
-              <Button size="small" type="primary" onClick={() => this.props.history.push(`/organizations/${record.name}/users`)}>{t("general:Users")}</Button>
-              <Button size="small" onClick={() => this.props.history.push(`/organizations/${record.name}`)}>{t("general:Edit")}</Button>
-              <PopconfirmModal
+            <ListPageRowActions className="organization-row-actions" wrap>
+              <Button className="organization-row-action-groups" size="small" type="link" icon={<ApartmentOutlined />} onClick={() => this.props.history.push(`/trees/${record.name}`)}>{t("general:Groups")}</Button>
+              <Button className="organization-row-action-users" size="small" type="link" icon={<TeamOutlined />} onClick={() => this.props.history.push(`/organizations/${record.name}/users`)}>{t("general:Users")}</Button>
+              <Button className="organization-row-action-edit" size="small" type="link" icon={<EditOutlined />} onClick={() => this.props.history.push(`/organizations/${record.name}`)}>{t("general:Edit")}</Button>
+              <Popconfirm
                 title={t("general:Sure to delete") + `: ${record.name} ?`}
                 onConfirm={() => this.deleteOrganization(index)}
                 disabled={record.name === "built-in"}
+                okText={t("general:OK")}
+                cancelText={t("general:Cancel")}
+                okButtonProps={{danger: true}}
               >
-              </PopconfirmModal>
-            </Space>
+                {deleteButton}
+              </Popconfirm>
+            </ListPageRowActions>
           );
         },
       },
@@ -630,6 +648,7 @@ class OrganizationListPage extends TypedBaseListPage {
         advancedFilters={this.renderAdvancedFilters()}
         actions={this.renderAddOrganizationAction()}
         context={this.renderDirectoryHealthContext()}
+        contextPlacement="side"
         showHeader={false}
       />
     );
