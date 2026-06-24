@@ -1,8 +1,5 @@
-# admin-enterprise-identity-auth-source-center Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change implement-admin-enterprise-identity-auth-source-center. Update Purpose after archive.
-## Requirements
 ### Requirement: 认证源中心工作区
 Admin 企业认证中心 SHALL 在认证源分组下提供以 Provider 列表为主体的认证源管理页，使管理员能够从 `/providers` 首屏直接扫描、搜索、分页和操作企业微信、飞书、OIDC 等认证源 Provider。
 
@@ -44,6 +41,8 @@ Admin 企业认证中心 SHALL 在认证源分组下提供以 Provider 列表为
 - **AND** 页面级 SHALL NOT 出现由顶部概览区或外层布局造成的横向溢出
 - **AND** 表格内部 MAY 使用横向滚动作为窄屏兜底以保留关键字段和操作列
 
+## ADDED Requirements
+
 ### Requirement: Provider 列表扩展搜索
 Provider 列表页 SHALL 在基础关键词搜索之外提供可展开扩展搜索，用于按当前 Provider 列表可承载的关键属性查找记录，并保持既有后端查询契约。
 
@@ -62,3 +61,14 @@ Provider 列表页 SHALL 在基础关键词搜索之外提供可展开扩展搜�
 - **THEN** 页面 SHALL 清空基础搜索和扩展搜索字段
 - **AND** 页面 SHALL 使用默认 Provider 列表查询重新加载数据
 
+## REMOVED Requirements
+
+### Requirement: 认证源状态与配置完整度
+**Reason**: `/providers` 本轮收敛为 Provider 列表页，顶部认证源概览区不再作为该页面的验收内容；缺少真实聚合接口时，配置完整度摘要容易和列表任务混杂。
+
+**Migration**: 保留 Provider 列表中的类别、类型、组织、client ID 和 Provider URL 等字段供管理员核对；如后续需要认证源状态工作区，应基于真实聚合数据单独开 change 设计入口。
+
+### Requirement: 同步授权诊断与失败摘要
+**Reason**: `/providers` 列表页不再承载同步诊断、授权状态和失败摘要首屏区，避免列表前堆叠无法直接操作的只读概览。
+
+**Migration**: 同步诊断、授权核对和失败摘要仍以各同步页面、配置页和审计记录为事实入口；本 change 不改变这些页面、路由或后端行为。
