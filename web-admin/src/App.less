@@ -2098,6 +2098,61 @@ img {
   box-shadow: inset 5px 0 5px -5px rgb(15 23 42 / 10%) !important;
 }
 
+.enterprise-list-primary-text {
+  color: #311ce6;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+a.enterprise-list-primary-text,
+span.enterprise-list-primary-text,
+.enterprise-list-inline-link {
+  display: inline-block;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.enterprise-list-inline-link {
+  font-size: 13px;
+}
+
+.enterprise-list-secondary-text {
+  color: rgb(100 116 139);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+a.enterprise-list-secondary-text,
+span.enterprise-list-secondary-text {
+  display: inline-block;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.enterprise-list-status-tag.ant-tag {
+  margin-right: 0;
+  font-size: 12px;
+  line-height: 18px;
+  border-radius: 999px;
+}
+
+.enterprise-list-row-actions {
+  white-space: nowrap;
+}
+
+.enterprise-list-row-actions .ant-btn {
+  height: 24px;
+  padding-inline: 5px;
+  font-size: 12px;
+}
+
 .group-table-id-link,
 .group-table-parent-link,
 .group-table-id-text {
@@ -2237,6 +2292,120 @@ img {
   display: inline-block;
 }
 
+.user-list-page-table-shell {
+  min-width: 0;
+}
+
+.user-list-table.ant-table-wrapper .ant-table-body {
+  scrollbar-color: rgb(203 213 225) transparent;
+  scrollbar-width: thin;
+}
+
+.user-list-table.ant-table-wrapper .ant-table-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.user-list-table.ant-table-wrapper .ant-table-body::-webkit-scrollbar-thumb {
+  background: rgb(203 213 225);
+  border-radius: 999px;
+}
+
+.user-list-table.ant-table-wrapper .ant-table-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.user-table-user-cell {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.user-table-avatar {
+  flex: none;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 600;
+  background: #dbeafe;
+}
+
+.user-table-user-content,
+.user-table-contact-cell,
+.user-table-source-cell {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.user-table-user-name,
+.user-table-contact-link,
+.user-table-source-link,
+.user-table-source-subtle {
+  display: inline-block;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.user-table-user-name {
+  color: #311ce6;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.user-table-user-id,
+.user-table-source-subtle,
+.user-table-contact-phone,
+.user-table-empty-text {
+  display: inline-block;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  color: rgb(100 116 139);
+  font-size: 12px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-table-source-link,
+.user-table-contact-link {
+  font-size: 13px;
+}
+
+.user-table-status-tags {
+  max-width: 100%;
+}
+
+.user-table-status-verified {
+  color: #166534;
+  background: #dcfce7;
+  border-color: #bbf7d0;
+}
+
+.user-table-status-unverified {
+  color: rgb(100 116 139);
+  background: rgb(248 250 252);
+  border-color: rgb(226 232 240);
+}
+
+.user-row-action-impersonate.ant-btn {
+  width: 24px;
+  padding-inline: 0;
+  color: rgb(71 85 105);
+}
+
+.user-row-action-delete[disabled],
+.user-row-action-remove[disabled] {
+  color: rgb(148 163 184) !important;
+  background: transparent !important;
+  border-color: transparent !important;
+}
+
 .enterprise-list-query-toolbar {
   display: grid;
   gap: 10px;
@@ -2291,6 +2460,7 @@ img {
   padding: 8px 0 2px;
 }
 
+.enterprise-list-advanced-filters,
 .organization-advanced-filters {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(252px, 1fr));
@@ -2366,6 +2536,7 @@ img {
   font-weight: 600;
 }
 
+.enterprise-list-filter-item,
 .organization-advanced-filter-item {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
@@ -2374,6 +2545,7 @@ img {
   min-width: 0;
 }
 
+.enterprise-list-filter-label,
 .organization-advanced-filter-label {
   color: rgb(71 85 105);
   font-size: 12px;
@@ -2381,6 +2553,7 @@ img {
   white-space: nowrap;
 }
 
+.enterprise-list-filter-control,
 .organization-advanced-filter-input,
 .organization-advanced-filter-select {
   width: 100%;
@@ -2787,6 +2960,7 @@ img {
   }
 
   .enterprise-list-query-toolbar-controls,
+  .enterprise-list-advanced-filters,
   .organization-advanced-filters {
     width: 100%;
     max-width: 100%;
@@ -2837,10 +3011,12 @@ img {
     min-width: 0;
   }
 
+  .enterprise-list-advanced-filters,
   .organization-advanced-filters {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .enterprise-list-filter-item,
   .organization-advanced-filter-item {
     grid-template-columns: minmax(0, 1fr);
     gap: 4px;

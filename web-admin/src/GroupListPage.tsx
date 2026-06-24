@@ -149,7 +149,7 @@ function renderCompactLink(text: string | undefined, to: string, className = "gr
   const value = text || "";
   return (
     <Tooltip title={value || undefined}>
-      <Link className={className} to={to} title={value}>
+      <Link className={`enterprise-list-inline-link ${className}`} to={to} title={value}>
         {value}
       </Link>
     </Tooltip>
@@ -162,12 +162,12 @@ function renderGroupIdentity(record: GroupRecord): React.ReactNode {
 
   return (
     <div className="group-table-group-cell">
-      <Link className="group-table-group-name" to={`/groups/${record.owner}/${groupName}`} title={displayName}>
+      <Link className="enterprise-list-primary-text group-table-group-name" to={`/groups/${record.owner}/${groupName}`} title={displayName}>
         {displayName}
       </Link>
-      <div className="group-table-group-meta">
+      <div className="enterprise-list-secondary-text group-table-group-meta">
         <Tooltip title={groupName || undefined}>
-          <span className="group-table-group-id" title={groupName}>{groupName}</span>
+          <span className="enterprise-list-secondary-text group-table-group-id" title={groupName}>{groupName}</span>
         </Tooltip>
         {
           groupName ? (
@@ -194,12 +194,12 @@ function renderGroupIdentity(record: GroupRecord): React.ReactNode {
 function renderUserCount(users?: string[]): React.ReactNode {
   const values = Array.isArray(users) ? users.filter(Boolean) : [];
   if (values.length === 0) {
-    return <Tag className="group-table-user-count group-table-user-count-empty">{t("general:No users")}</Tag>;
+    return <Tag className="enterprise-list-status-tag group-table-user-count group-table-user-count-empty">{t("general:No users")}</Tag>;
   }
 
   return (
     <Tooltip title={values.join(", ")}>
-      <Tag className="group-table-user-count">{t("general:User count", "{{count}} users", {count: values.length})}</Tag>
+      <Tag className="enterprise-list-status-tag group-table-user-count">{t("general:User count", "{{count}} users", {count: values.length})}</Tag>
     </Tooltip>
   );
 }
@@ -495,15 +495,15 @@ class GroupListPage extends TypedBaseListPage {
 
   renderAdvancedFilters(): React.ReactNode {
     return (
-      <div className="organization-advanced-filters">
+      <div className="enterprise-list-advanced-filters organization-advanced-filters">
         {
           getGroupQueryFields().map(field => {
             const labelText = field.label;
             return (
-              <label className="organization-advanced-filter-item" key={field.value}>
-                <span className="organization-advanced-filter-label">{field.label}:</span>
+              <label className="enterprise-list-filter-item organization-advanced-filter-item" key={field.value}>
+                <span className="enterprise-list-filter-label organization-advanced-filter-label">{field.label}:</span>
                 <Input
-                  className="organization-advanced-filter-input"
+                  className="enterprise-list-filter-control organization-advanced-filter-input"
                   value={this.state.advancedQueryKeywords[field.value] ?? ""}
                   aria-label={`${t("general:Advanced filters", "Advanced filters")} ${labelText}`}
                   placeholder={t("general:Please input your search")}
@@ -610,7 +610,7 @@ class GroupListPage extends TypedBaseListPage {
           );
 
           return (
-            <Space className="group-row-actions" size={4} wrap={false}>
+            <Space className="enterprise-list-row-actions group-row-actions" size={4} wrap={false}>
               <Button
                 className="group-row-action-edit"
                 type="link"

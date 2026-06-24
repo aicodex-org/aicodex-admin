@@ -318,7 +318,7 @@ class OrganizationListPage extends TypedBaseListPage {
         sorter: true,
         render: (text: string) => {
           return (
-            <Link to={`/organizations/${text}`}>
+            <Link className="enterprise-list-primary-text organization-table-name" to={`/organizations/${text}`}>
               {text}
             </Link>
           );
@@ -339,6 +339,9 @@ class OrganizationListPage extends TypedBaseListPage {
         dataIndex: "displayName",
         key: "displayName",
         sorter: true,
+        render: (text: string) => {
+          return <span className="enterprise-list-secondary-text organization-table-display-name">{text}</span>;
+        },
       },
       {
         title: t("general:Favicon"),
@@ -361,7 +364,7 @@ class OrganizationListPage extends TypedBaseListPage {
         sorter: true,
         render: (text: string) => {
           return (
-            <a target="_blank" rel="noreferrer" href={text}>
+            <a className="enterprise-list-inline-link organization-table-url" target="_blank" rel="noreferrer" href={text}>
               {text}
             </a>
           );
@@ -394,7 +397,7 @@ class OrganizationListPage extends TypedBaseListPage {
         fixed: useFixedColumns ? "right" : false,
         render: (_text: unknown, record: OrganizationRecord, index: number) => {
           return (
-            <Space className="organization-row-actions" size={6} wrap={false}>
+            <Space className="enterprise-list-row-actions organization-row-actions" size={6} wrap={false}>
               <Button size="small" type="primary" onClick={() => this.props.history.push(`/trees/${record.name}`)}>{t("general:Groups")}</Button>
               <Button size="small" type="primary" onClick={() => this.props.history.push(`/organizations/${record.name}/users`)}>{t("general:Users")}</Button>
               <Button size="small" onClick={() => this.props.history.push(`/organizations/${record.name}`)}>{t("general:Edit")}</Button>
@@ -530,17 +533,17 @@ class OrganizationListPage extends TypedBaseListPage {
   renderAdvancedFilters(): React.ReactNode {
     const passwordTypeOptions = getOrganizationPasswordTypeOptions();
     return (
-      <div className="organization-advanced-filters">
+      <div className="enterprise-list-advanced-filters organization-advanced-filters">
         {
           getOrganizationQueryFields().map(field => {
             const labelText = field.label;
             return (
-              <label className="organization-advanced-filter-item" key={field.value}>
-                <span className="organization-advanced-filter-label">{field.label}:</span>
+              <label className="enterprise-list-filter-item organization-advanced-filter-item" key={field.value}>
+                <span className="enterprise-list-filter-label organization-advanced-filter-label">{field.label}:</span>
                 {
                   field.value === "passwordType" ? (
                     <Select
-                      className="organization-advanced-filter-select"
+                      className="enterprise-list-filter-control organization-advanced-filter-select"
                       value={this.state.advancedQueryKeywords[field.value] || undefined}
                       aria-label={`${t("general:Advanced filters", "Advanced filters")} ${labelText}`}
                       placeholder={t("general:Please select", "Please select")}
@@ -551,7 +554,7 @@ class OrganizationListPage extends TypedBaseListPage {
                     />
                   ) : (
                     <Input
-                      className="organization-advanced-filter-input"
+                      className="enterprise-list-filter-control organization-advanced-filter-input"
                       value={this.state.advancedQueryKeywords[field.value] ?? ""}
                       aria-label={`${t("general:Advanced filters", "Advanced filters")} ${labelText}`}
                       placeholder={t("general:Please input your search")}

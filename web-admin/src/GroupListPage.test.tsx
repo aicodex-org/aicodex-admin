@@ -422,7 +422,8 @@ test("builds table columns, toolbar and action handlers", () => {
   expect(table.props.pagination?.pageSize).toBe(20);
   expect(table.props.className).toContain("group-list-table");
 
-  const actionNode = opColumn?.render?.(undefined, group, 0) as React.ReactElement<{children: React.ReactNode}>;
+  const actionNode = opColumn?.render?.(undefined, group, 0) as React.ReactElement<{children: React.ReactNode; className?: string}>;
+  expect(actionNode.props.className).toContain("enterprise-list-row-actions");
   const actionChildren = React.Children.toArray(actionNode.props.children) as React.ReactElement[];
   const actionView = render(<>{actionNode}</>);
   fireEvent.click(actionView.getByText(/编\s*辑|Edit/));
@@ -497,6 +498,7 @@ test("uses an enterprise query toolbar instead of column header search as the pr
   expect(toolbarView.getByText(/收\s*起\s*筛\s*选|Hide filters/)).not.toBeNull();
   expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-advanced")).not.toBeNull();
   expect(document.body.querySelector(".enterprise-list-query-toolbar-popover")).toBeNull();
+  expect(toolbarView.container.querySelector(".enterprise-list-advanced-filters")).not.toBeNull();
   expect(toolbarView.container.querySelectorAll(".enterprise-list-query-toolbar-advanced .organization-advanced-filter-input")).toHaveLength(3);
   const advancedFilterLabels = (Array.from(toolbarView.container.querySelectorAll(".enterprise-list-query-toolbar-advanced .organization-advanced-filter-label")) as HTMLElement[])
     .map(node => node.textContent);
@@ -531,7 +533,9 @@ test("renders compact group identity and user count for table scanning", () => {
   const nameNode = groupColumn?.render?.(undefined, longGroup, 0) as React.ReactElement;
   const nameView = render(<MemoryRouter>{nameNode}</MemoryRouter>);
   expect(nameView.getByText("Main platform group with a long display name")).not.toBeNull();
+  expect(nameView.getByText("Main platform group with a long display name").className).toContain("enterprise-list-primary-text");
   expect(nameView.container.querySelector(".group-table-group-id")?.textContent).toContain("group-main-with-long-readable-machine-id");
+  expect(nameView.container.querySelector(".group-table-group-id")?.className).toContain("enterprise-list-secondary-text");
   expect(nameView.container.querySelector(".group-table-copy-id")?.getAttribute("aria-label")).toMatch(/Copy|复制/);
   nameView.unmount();
 

@@ -7,6 +7,7 @@ import * as Setting from "./Setting";
 import * as FormBackend from "./backend/FormBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as UserBackend from "./backend/UserBackend";
+import ListPageTable from "./common/ListPageTable";
 import UserListPage from "./UserListPage";
 import * as XLSX from "xlsx";
 
@@ -15,6 +16,7 @@ declare const jest: typeof jestValue;
 type LooseMock = {
   (...args: unknown[]): unknown;
   mockImplementation: (implementation: (...args: unknown[]) => unknown) => LooseMock;
+  mockImplementationOnce: (implementation: (...args: unknown[]) => unknown) => LooseMock;
   mockReturnValue: (value: unknown) => LooseMock;
   mockReturnValueOnce: (value: unknown) => LooseMock;
   mockResolvedValue: (value: unknown) => LooseMock;
@@ -41,10 +43,19 @@ type TestUserRecord = {
   [key: string]: unknown;
 };
 type TestTableColumn = {
+  dataIndex?: string;
   key?: string;
   fixed?: unknown;
+  title?: React.ReactNode;
+  width?: string | number;
   render?: (text: unknown, record: TestUserRecord, index: number) => React.ReactNode;
 };
+type TestUserTableElement = React.ReactElement<{
+  className?: string;
+  columns: TestTableColumn[];
+  scroll?: unknown;
+  title: () => React.ReactNode;
+}>;
 
 const userBackendMock = UserBackend as unknown as UserBackendMock;
 const organizationBackendMock = OrganizationBackend as unknown as OrganizationBackendMock;
@@ -54,6 +65,8 @@ const expect = jestExpect;
 const {fireEvent} = require("@testing-library/react") as {
   fireEvent: {
     click: (element: Element | null) => boolean;
+    change: (element: Element | null, event: {target: {value: string}}) => boolean;
+    error: (element: Element | null) => boolean;
   };
 };
 
@@ -188,6 +201,16 @@ function flushPromises() {
   return new Promise(resolve => setTimeout(resolve, 0));
 }
 
+function getAdvancedFilterInputByLabel(container: HTMLElement, labelPattern: RegExp): HTMLInputElement {
+  const input = Array.from(container.querySelectorAll<HTMLElement>(".enterprise-list-query-toolbar-advanced .organization-advanced-filter-input"))
+    .map(element => element instanceof HTMLInputElement ? element : element.querySelector<HTMLInputElement>("input"))
+    .find(element => element ? labelPattern.test(element.getAttribute("aria-label") || "") : false);
+  if (!input) {
+    throw new Error(`Unable to find advanced filter input by label pattern: ${labelPattern}`);
+  }
+  return input;
+}
+
 function createHistory() {
   return {
     push: jestValue.fn(),
@@ -240,6 +263,12 @@ function getUploadAndModal(page: UserListPage) {
     upload: children[0],
     modal: children[1],
   };
+}
+
+function getTableFromRender(page: UserListPage, data: TestUserRecord[] = [user]) {
+  const identityWrapper = page.renderTable(data) as React.ReactElement<{children: React.ReactElement<{children: TestUserTableElement}>}>;
+  const tableShell = identityWrapper.props.children;
+  return tableShell.props.children;
 }
 
 class MockFileReader {
@@ -460,6 +489,18 @@ test("reports organization detail and impersonation failures", async() => {
   expect(Setting.showMessage).toHaveBeenCalledWith("error", "impersonate failed");
 });
 
+test("redirects and reloads after successful impersonation", async() => {
+  const page = createPage();
+  jestValue.spyOn(console, "error").mockImplementation(() => {});
+
+  page.impersonateUser("engineering/alice");
+  await flushPromises();
+
+  expect(userBackendMock.impersonateUser).toHaveBeenCalledWith("engineering/alice");
+  expect(Setting.showMessage).toHaveBeenCalledWith("success", expect.any(String));
+  expect(Setting.goToLinkSoft).toHaveBeenCalledWith(page, "/");
+});
+
 test("updates organization context and refetches when route props change", async() => {
   const page = createPage({
     match: {path: "/organizations/:organizationName/users", params: {organizationName: "engineering"}},
@@ -524,17 +565,21 @@ test("builds table actions for edit, impersonation, remove and delete", () => {
   jestValue.spyOn(page, "deleteUser").mockImplementation(() => {});
   jestValue.spyOn(page, "removeUserFromGroup").mockImplementation(() => {});
 
-  const tableWrapper = page.renderTable([user]) as React.ReactElement<{children: React.ReactElement<{columns: TestTableColumn[]; title: () => React.ReactNode}>}>;
-  const table = tableWrapper.props.children;
+  const table = getTableFromRender(page);
   const columns = table.props.columns;
   const actionColumn = columns.find(column => column.key === "op") as TestTableColumn;
 
-  expect(actionColumn.fixed).toBe("right");
-  const actionNode = actionColumn.render?.(undefined, user, 0) as React.ReactElement<{children: React.ReactNode}>;
+  expect(table.type).toBe(ListPageTable);
+  expect(table.props.className).toContain("user-list-table");
+  expect(columns.map(column => column.key)).toEqual(["name", "email", "owner", "isVerified", "createdTime", "op"]);
+  expect(columns.find(column => column.key === "signupApplication")).toBeUndefined();
+  expect(actionColumn.fixed).toBeUndefined();
+  const actionNode = actionColumn.render?.(undefined, user, 0) as React.ReactElement<{children: React.ReactNode; className?: string}>;
+  expect(actionNode.props.className).toContain("enterprise-list-row-actions");
   const actionChildren = React.Children.toArray(actionNode.props.children) as React.ReactElement[];
   const actionView = render(<>{actionNode}</>);
 
-  fireEvent.click(actionView.getByText(/模\s*拟|Impersonation/));
+  fireEvent.click(actionView.getByLabelText(/身\s*份\s*模\s*拟|Impersonation/));
   expect(page.impersonateUser).toHaveBeenCalledWith("engineering/alice");
   fireEvent.click(actionView.getByText(/编\s*辑|Edit/));
   expect(sessionStorage.getItem("userListUrl")).toBe("/");
@@ -548,6 +593,244 @@ test("builds table actions for edit, impersonation, remove and delete", () => {
   const toolbarView = render(<>{table.props.title()}</>);
   fireEvent.click(toolbarView.getByText(/添\s*加|Add/));
   expect(userBackendMock.addUser).toHaveBeenCalled();
+  toolbarView.unmount();
+
+  const toolbarShell = table.props.title() as React.ReactElement<{children: React.ReactElement<{
+    onFieldChange: (value: string) => void;
+    onKeywordChange: (value: string) => void;
+  }>}>;
+  toolbarShell.props.children.props.onFieldChange("phone");
+  toolbarShell.props.children.props.onKeywordChange("138");
+  expect(page.state.queryField).toBe("phone");
+  expect(page.state.queryKeyword).toBe("138");
+});
+
+test("renders advanced user filters and maps them to the existing single-field query contract", () => {
+  const page = createPage();
+  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  page.state = {
+    ...page.state,
+    pagination: {...page.state.pagination, current: 3, pageSize: 20},
+  };
+  const table = getTableFromRender(page);
+  const toolbarView = render(<>{table.props.title()}</>);
+  expect(table.props.scroll).toEqual({y: "calc(100vh - 360px)"});
+
+  fireEvent.click(toolbarView.getByText(/更\s*多\s*筛\s*选|More filters/));
+  const expandedTable = getTableFromRender(page);
+  expect(expandedTable.props.scroll).toEqual({y: "calc(100vh - 414px)"});
+
+  expect(toolbarView.getByText(/收\s*起\s*筛\s*选|Hide filters/)).not.toBeNull();
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-advanced")).not.toBeNull();
+  expect(toolbarView.container.querySelectorAll(".enterprise-list-query-toolbar-advanced .organization-advanced-filter-input")).toHaveLength(6);
+  const advancedFilterLabels = (Array.from(toolbarView.container.querySelectorAll(".enterprise-list-query-toolbar-advanced .organization-advanced-filter-label")) as HTMLElement[])
+    .map(node => node.textContent);
+  expect(advancedFilterLabels).toHaveLength(6);
+  expect(advancedFilterLabels.every(label => label?.endsWith(":"))).toBe(true);
+
+  fireEvent.change(getAdvancedFilterInputByLabel(toolbarView.container, /^(Advanced filters Email|高级筛选 电子邮箱)$/), {target: {value: " alice@example.com "}});
+  expect(page.state.queryField).toBe("email");
+  expect(page.state.queryKeyword).toBe(" alice@example.com ");
+  expect(page.state.advancedQueryKeywords.email).toBe(" alice@example.com ");
+  expect(page.state.advancedQueryKeywords.name).toBe("");
+
+  page.handleToolbarSearch();
+  expect(page.fetch).toHaveBeenCalledWith({
+    pagination: expect.objectContaining({current: 1, pageSize: 20}),
+    searchedColumn: "email",
+    searchText: "alice@example.com",
+  });
+
+  fireEvent.change(getAdvancedFilterInputByLabel(toolbarView.container, /^(Advanced filters Phone|高级筛选 手机号)$/), {target: {value: "138"}});
+  expect(page.state.queryField).toBe("phone");
+  expect(page.state.queryKeyword).toBe("138");
+  expect(page.state.advancedQueryKeywords.email).toBe("");
+  expect(page.state.advancedQueryKeywords.phone).toBe("138");
+
+  page.handleToolbarReset();
+  expect(Object.values(page.state.advancedQueryKeywords).every(value => value === "")).toBe(true);
+  expect(page.fetch).toHaveBeenLastCalledWith({pagination: expect.objectContaining({current: 1})});
+  toolbarView.unmount();
+});
+
+test("uses toolbar query state with existing fetch parameters", () => {
+  const page = createPage();
+  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  page.state = {
+    ...page.state,
+    queryField: "email",
+    queryKeyword: " alice@example.com ",
+    pagination: {...page.state.pagination, current: 3, pageSize: 20},
+  };
+
+  page.handleToolbarSearch();
+
+  expect(page.fetch).toHaveBeenCalledWith({
+    pagination: expect.objectContaining({current: 1, pageSize: 20}),
+    searchedColumn: "email",
+    searchText: "alice@example.com",
+  });
+
+  page.handleToolbarReset();
+  expect(page.state.queryField).toBe("name");
+  expect(page.state.queryKeyword).toBe("");
+  expect(page.fetch).toHaveBeenLastCalledWith({pagination: expect.objectContaining({current: 1})});
+});
+
+test("keeps compact table scroll and sorting compatible with existing fetch contract", () => {
+  const page = createPage();
+  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  page.state = {
+    ...page.state,
+    searchText: "alice",
+    searchedColumn: "name",
+  };
+  (Setting.isMobile as unknown as LooseMock).mockReturnValueOnce(true);
+
+  const mobileTable = getTableFromRender(page);
+  expect(mobileTable.props.scroll).toEqual({x: 780});
+
+  page.handleTableChange({current: 2, pageSize: 20}, {}, {field: "email", order: "ascend"} as never, {} as never);
+  expect(page.fetch).toHaveBeenCalledWith(expect.objectContaining({
+    pagination: expect.objectContaining({current: 2}),
+    sortField: "email",
+    sortOrder: "ascend",
+    searchText: "alice",
+    searchedColumn: "name",
+  }));
+
+  page.handleTableChange({current: 1, pageSize: 20}, {}, [{columnKey: "createdTime", order: "descend"}] as never, {} as never);
+  expect(page.fetch).toHaveBeenLastCalledWith(expect.objectContaining({
+    sortField: "createdTime",
+    sortOrder: "descend",
+  }));
+
+  page.state = {...page.state, queryKeyword: "   "};
+  page.handleToolbarSearch();
+  expect(page.fetch).toHaveBeenLastCalledWith(expect.objectContaining({
+    searchedColumn: undefined,
+    searchText: undefined,
+  }));
+});
+
+test("renders compact user identity, contact, source and status cells", () => {
+  const page = createPage();
+  const table = getTableFromRender(page, [{
+    ...user,
+    avatar: "",
+    displayName: "Bob",
+    email: null,
+    phone: undefined,
+    isVerified: false,
+    isForbidden: true,
+  }]);
+  const columns = table.props.columns;
+  const identityColumn = columns.find(column => column.key === "name") as TestTableColumn;
+  const contactColumn = columns.find(column => column.key === "email") as TestTableColumn;
+  const sourceColumn = columns.find(column => column.key === "owner") as TestTableColumn;
+  const statusColumn = columns.find(column => column.key === "isVerified") as TestTableColumn;
+  const compactUser = {
+    ...user,
+    avatar: "",
+    displayName: "Bob",
+    email: null,
+    phone: undefined,
+    isVerified: false,
+    isForbidden: true,
+  };
+
+  const identityView = render(<MemoryRouter>{identityColumn.render?.(undefined, compactUser, 0)}</MemoryRouter>);
+  expect(identityView.getByText("Bob")).not.toBeNull();
+  expect(identityView.getByText("B")).not.toBeNull();
+  expect(identityView.getByText("Bob").className).toContain("enterprise-list-primary-text");
+  expect(identityView.getByText("alice").className).toContain("enterprise-list-secondary-text");
+  identityView.unmount();
+
+  const contactView = render(<>{contactColumn.render?.(undefined, compactUser, 0)}</>);
+  expect(contactView.getByText(/无联系方式|No contact/)).not.toBeNull();
+  expect(contactView.getByText(/无联系方式|No contact/).className).toContain("enterprise-list-secondary-text");
+  contactView.unmount();
+
+  const sourceView = render(<MemoryRouter>{sourceColumn.render?.(undefined, compactUser, 0)}</MemoryRouter>);
+  expect(sourceView.getByText("engineering")).not.toBeNull();
+  expect(sourceView.getByText("app-main")).not.toBeNull();
+  sourceView.unmount();
+
+  const statusView = render(<>{statusColumn.render?.(undefined, compactUser, 0)}</>);
+  expect(statusView.getByText(/未验证|Unverified/)).not.toBeNull();
+  expect(statusView.getByText(/被禁用|Is forbidden/)).not.toBeNull();
+  statusView.unmount();
+
+  const emptyIdentityUser = {
+    ...compactUser,
+    name: "",
+    displayName: "",
+    realName: "",
+    avatar: "https://example.invalid/avatar.png",
+  };
+  const emptyIdentityView = render(<MemoryRouter>{identityColumn.render?.(undefined, emptyIdentityUser, 0)}</MemoryRouter>);
+  const avatarImage = emptyIdentityView.container.querySelector("img");
+  if (avatarImage !== null) {
+    fireEvent.error(avatarImage);
+  }
+  expect(emptyIdentityView.getByText("?")).not.toBeNull();
+  emptyIdentityView.unmount();
+
+  const realNameUser = {
+    ...compactUser,
+    displayName: "",
+    realName: "Rachel Real",
+    name: "rachel",
+  };
+  const realNameView = render(<MemoryRouter>{identityColumn.render?.(undefined, realNameUser, 0)}</MemoryRouter>);
+  expect(realNameView.getByText("Rachel Real")).not.toBeNull();
+  expect(realNameView.getByText("R")).not.toBeNull();
+  realNameView.unmount();
+
+  const emailOnlyView = render(<>{contactColumn.render?.(undefined, {...compactUser, email: "bob@example.com", phone: ""}, 0)}</>);
+  expect(emailOnlyView.getByText("bob@example.com").closest("a")?.getAttribute("href")).toBe("mailto:bob@example.com");
+  emailOnlyView.unmount();
+
+  const phoneOnlyView = render(<>{contactColumn.render?.(undefined, {...compactUser, email: "", phone: "13900000000"}, 0)}</>);
+  expect(phoneOnlyView.getByText("13900000000")).not.toBeNull();
+  phoneOnlyView.unmount();
+
+  const unknownSourceView = render(<MemoryRouter>{sourceColumn.render?.(undefined, {...compactUser, owner: "", signupApplication: ""}, 0)}</MemoryRouter>);
+  expect(unknownSourceView.getByText(/未知|Unknown/)).not.toBeNull();
+  unknownSourceView.unmount();
+
+  const deletedStatusView = render(<>{statusColumn.render?.(undefined, {
+    ...compactUser,
+    isVerified: true,
+    isForbidden: undefined,
+    IsForbidden: true,
+    isDeleted: true,
+  }, 0)}</>);
+  expect(deletedStatusView.getByText(/已验证|Verified/)).not.toBeNull();
+  expect(deletedStatusView.getByText(/被禁用|Is forbidden/)).not.toBeNull();
+  expect(deletedStatusView.getByText(/被删除|Is deleted/)).not.toBeNull();
+  deletedStatusView.unmount();
+});
+
+test("keeps non-tree destructive actions available but disabled for protected users", () => {
+  const selfPage = createPage({
+    account: {...account, owner: "engineering", name: "alice"},
+  });
+  const builtInPage = createPage({
+    account: {...account, owner: "engineering", name: "ops"},
+  });
+  const selfActionColumn = getTableFromRender(selfPage).props.columns.find(column => column.key === "op") as TestTableColumn;
+  const builtInActionColumn = getTableFromRender(builtInPage).props.columns.find(column => column.key === "op") as TestTableColumn;
+
+  const selfActionNode = selfActionColumn.render?.(undefined, user, 0) as React.ReactElement<{children: React.ReactNode}>;
+  const selfActionChildren = React.Children.toArray(selfActionNode.props.children) as React.ReactElement[];
+  expect(selfActionChildren).toHaveLength(3);
+  expect(selfActionChildren[2].props.children.props.disabled).toBe(true);
+
+  const builtInActionNode = builtInActionColumn.render?.(undefined, {...user, owner: "built-in", name: "admin"}, 0) as React.ReactElement<{children: React.ReactNode}>;
+  const builtInActionChildren = React.Children.toArray(builtInActionNode.props.children) as React.ReactElement[];
+  expect(builtInActionChildren).toHaveLength(3);
+  expect(builtInActionChildren[2].props.children.props.disabled).toBe(true);
 });
 
 test("generates upload template and previews xlsx upload", async() => {
@@ -585,7 +868,7 @@ test("generates upload template and previews xlsx upload", async() => {
   expect(page.state.showUploadModal).toBe(false);
 });
 
-test("cancels upload preview and renders tag fallback branches", () => {
+test("cancels upload preview", () => {
   const page = createPage();
   page.state = {
     ...page.state,
@@ -600,17 +883,9 @@ test("cancels upload preview and renders tag fallback branches", () => {
   expect(page.state.showUploadModal).toBe(false);
   expect(page.state.uploadJsonData).toEqual([]);
   expect(page.state.uploadColumns).toEqual([]);
-
-  const tableWrapper = page.renderTable([user]) as React.ReactElement<{children: React.ReactElement<{columns: TestTableColumn[]}>}>;
-  const columns = tableWrapper.props.children.props.columns;
-  const tagColumn = columns.find(column => column.key === "tag") as TestTableColumn;
-  expect(tagColumn.render?.("staff", user, 0)).toBe("员工");
-
-  page.state = {...page.state, organization: {...organization, tags: []}};
-  expect(tagColumn.render?.("staff", user, 0)).toBe("staff");
 });
 
-test("reports upload preview and upload result errors", () => {
+test("reports upload preview and upload result errors", async() => {
   const page = createPage();
   const file = new File(["content"], "users.xlsx");
   const {upload} = getUploadAndModal(page);
@@ -624,8 +899,22 @@ test("reports upload preview and upload result errors", () => {
   MockFileReader.instances[1].onerror?.({message: "read failed"});
   expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("read failed"));
 
+  xlsxMock.read.mockImplementationOnce(() => {
+    throw new Error("parse failed");
+  });
+  upload.props.beforeUpload(file);
+  MockFileReader.instances[2].onload?.({target: {result: new ArrayBuffer(8)}});
+  expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("parse failed"));
+
   page.uploadFile({status: "error", msg: "server rejected"});
   expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("server rejected"));
   expect(page.state.uploadJsonData).toEqual([]);
   expect(page.state.showUploadModal).toBe(false);
+
+  page.state = {...page.state, file};
+  global.fetch = jestValue.fn(() => Promise.reject(new Error("upload failed"))) as unknown as typeof fetch;
+  const {modal} = getUploadAndModal(page);
+  modal.props.onOk();
+  await flushPromises();
+  expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("upload failed"));
 });

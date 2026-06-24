@@ -9,7 +9,7 @@ import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
 
 type OrganizationIdentityPage = "organizations" | "users" | "roles" | "permissions";
-type WorkbenchIdentityPage = Exclude<OrganizationIdentityPage, "organizations">;
+type WorkbenchIdentityPage = Exclude<OrganizationIdentityPage, "organizations" | "users">;
 type TestLanguage = "en" | "zh";
 
 const differentiatedCopy: Record<WorkbenchIdentityPage, {
@@ -18,12 +18,6 @@ const differentiatedCopy: Record<WorkbenchIdentityPage, {
   actionZh: string;
   riskZh: string;
 }> = {
-  users: {
-    titleZh: "账号生命周期工作台",
-    summaryZh: "账号完整度",
-    actionZh: "导入用户",
-    riskZh: "异常账号",
-  },
   roles: {
     titleZh: "角色授权工作台",
     summaryZh: "成员绑定",
@@ -118,12 +112,10 @@ describe("OrganizationIdentityCenter", () => {
   let consoleErrorSpy: ReturnType<typeof jest.spyOn>;
 
   beforeAll(() => {
-    const originalConsoleError = console.error;
-    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((...args: Parameters<typeof console.error>) => {
+    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
       if (typeof args[0] === "string" && args[0].includes("ReactDOM.render is no longer supported in React 18")) {
         return;
       }
-      originalConsoleError(...args);
     });
   });
 
@@ -145,7 +137,7 @@ describe("OrganizationIdentityCenter", () => {
     expect(new Set(profiles.map(profile => profile.risks.map(risk => risk.key).join("|"))).size).toBe(4);
   });
 
-  test("renders differentiated compact workbench copy for non-organization identity entities", () => {
+  test("renders differentiated compact workbench copy for role and permission entities", () => {
     Object.entries(differentiatedCopy).forEach(([page, copy]) => {
       const view = renderWorkbench(page as OrganizationIdentityPage);
 
@@ -176,6 +168,19 @@ describe("OrganizationIdentityCenter", () => {
     view.unmount();
   });
 
+  test("renders users page as a compact list top instead of an account lifecycle hero", () => {
+    const view = renderWorkbench("users");
+
+    expect(view.container.querySelector(".organization-identity-compact-list-page-users")).not.toBeNull();
+    expect(view.getByText("用户")).not.toBeNull();
+    expect(view.getByText("42 条结果")).not.toBeNull();
+    expect(view.getByText("users table remains reachable")).not.toBeNull();
+    expect(view.queryByText("账号生命周期工作台")).toBeNull();
+    expect(view.queryByTestId("organization-identity-workbench")).toBeNull();
+
+    view.unmount();
+  });
+
   test("does not reuse role governance copy for the permission catalog page", async() => {
     await useTestLanguage("en");
 
@@ -190,12 +195,11 @@ describe("OrganizationIdentityCenter", () => {
     view.unmount();
   });
 
-  test("keeps non-organization workbench actions reachable through entity-specific links", () => {
+  test("does not render account lifecycle workbench actions on the compact users page", () => {
     const view = renderWorkbench("users");
 
-    const importUsersLink = view.getByText("导入用户").closest("a");
-    expect(importUsersLink?.getAttribute("href")).toBe("/users");
     expect(view.getByText("users table remains reachable")).not.toBeNull();
+    expect(view.queryByText("导入用户")).toBeNull();
 
     view.unmount();
   });
@@ -221,9 +225,23 @@ describe("OrganizationIdentityCenter", () => {
       </MemoryRouter>
     );
 
-    expect(userView.getAllByText("-").length).toBeGreaterThanOrEqual(2);
+    expect(userView.getByText("当前视图")).not.toBeNull();
     expect(userView.getByText("User table loading")).not.toBeNull();
     userView.unmount();
+  });
+
+  test("keeps role workbench count fallback while data is loading", () => {
+    const view = render(
+      <MemoryRouter>
+        <OrganizationIdentityCenter page="roles">
+          <div>Role table loading</div>
+        </OrganizationIdentityCenter>
+      </MemoryRouter>
+    );
+
+    expect(view.getAllByText("-").length).toBeGreaterThan(0);
+    expect(view.getByText("Role table loading")).not.toBeNull();
+    view.unmount();
   });
 
   test("keeps zh and en locale keys complete for entity workbench copy", () => {

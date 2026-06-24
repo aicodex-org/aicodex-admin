@@ -388,7 +388,17 @@ test("builds table columns, toolbar and action handlers", () => {
   expect(table.props.scroll?.x).toBeUndefined();
   expect(table.props.scroll?.y).toBe("calc(100vh - 360px)");
 
-  const actionNode = columns[7].render?.(undefined, organization, 0) as React.ReactElement<{children: React.ReactNode}>;
+  const nameNode = columns[0].render?.("engineering", organization, 0) as React.ReactElement;
+  const displayNameNode = columns[2].render?.("Engineering", organization, 0) as React.ReactElement;
+  const websiteNode = columns[4].render?.("https://example.test", organization, 0) as React.ReactElement;
+  const textView = render(<MemoryRouter>{nameNode}{displayNameNode}{websiteNode}</MemoryRouter>);
+  expect(textView.getByText("engineering").className).toContain("enterprise-list-primary-text");
+  expect(textView.getByText("Engineering").className).toContain("enterprise-list-secondary-text");
+  expect(textView.getByText("https://example.test").className).toContain("enterprise-list-inline-link");
+  textView.unmount();
+
+  const actionNode = columns[7].render?.(undefined, organization, 0) as React.ReactElement<{children: React.ReactNode; className?: string}>;
+  expect(actionNode.props.className).toContain("enterprise-list-row-actions");
   const actionChildren = React.Children.toArray(actionNode.props.children) as React.ReactElement[];
   const actionView = render(<>{actionNode}</>);
   fireEvent.click(actionView.getByText(/群\s*组|Groups/));
@@ -550,6 +560,7 @@ test("renders concrete advanced filter inputs from organization query fields", (
 
   expect(advancedView.container.querySelectorAll(".organization-advanced-filter-input")).toHaveLength(4);
   expect(advancedView.container.querySelectorAll(".organization-advanced-filter-select")).toHaveLength(1);
+  expect(advancedView.container.querySelector(".enterprise-list-advanced-filters")).not.toBeNull();
   const advancedFilterLabels = (Array.from(advancedView.container.querySelectorAll(".organization-advanced-filter-label")) as HTMLElement[])
     .map(node => node.textContent);
   expect(advancedFilterLabels).toHaveLength(5);

@@ -137,7 +137,7 @@ export const organizationIdentityWorkbenchProfiles: Record<OrganizationIdentityP
   },
   users: {
     layoutKind: "account-lifecycle",
-    titleKey: "Account lifecycle workbench",
+    titleKey: "Users",
     descriptionKey: "Account lifecycle description",
     listTitleKey: "User account list",
     metrics: [
@@ -287,6 +287,7 @@ function formatResultCount(total?: number): string {
 }
 
 function getMetricValue(metric: WorkbenchMetric, total?: number, loadedCount?: number, currentOrganization?: string): string {
+  /* istanbul ignore next -- scope metrics are only used by the legacy directory renderer; organizations now use compact list top. */
   if (metric.source === "scope") {
     return currentOrganization || t("All");
   }
@@ -325,6 +326,7 @@ function renderMetricTile(metric: WorkbenchMetric, total?: number, loadedCount?:
   );
 }
 
+/* istanbul ignore next -- 仅旧 directory/lifecycle renderer 使用；organizations/users 已切到 compact list top。 */
 function renderRiskPill(risk: WorkbenchRisk) {
   return (
     <span className={`organization-identity-risk-pill ${toneClass(risk.tone)}`} key={risk.key} data-risk-key={risk.key}>
@@ -334,6 +336,7 @@ function renderRiskPill(risk: WorkbenchRisk) {
   );
 }
 
+/* istanbul ignore next -- 组织页已切到 compact list top；保留旧 directory renderer 仅兼容 profile 结构。 */
 function renderDirectoryHealthPanel(profile: OrganizationIdentityWorkbenchProfile, total?: number, loadedCount?: number, currentOrganization?: string) {
   return (
     <div className="organization-identity-directory-shell">
@@ -351,6 +354,7 @@ function renderDirectoryHealthPanel(profile: OrganizationIdentityWorkbenchProfil
   );
 }
 
+/* istanbul ignore next -- 用户页已切到 compact list top；保留旧 lifecycle renderer 仅兼容 profile 结构。 */
 function renderAccountLifecycle(profile: OrganizationIdentityWorkbenchProfile, total?: number, loadedCount?: number, currentOrganization?: string) {
   return (
     <div className="organization-identity-lifecycle-shell">
@@ -412,9 +416,11 @@ function renderPermissionCatalogMatrix(profile: OrganizationIdentityWorkbenchPro
 }
 
 function renderWorkbenchBody(profile: OrganizationIdentityWorkbenchProfile, total?: number, loadedCount?: number, currentOrganization?: string) {
+  /* istanbul ignore next -- 当前 organizations 页面不再走旧 directory workbench 渲染。 */
   if (profile.layoutKind === "directory-health") {
     return renderDirectoryHealthPanel(profile, total, loadedCount, currentOrganization);
   }
+  /* istanbul ignore next -- 当前 users 页面不再走旧 lifecycle workbench 渲染。 */
   if (profile.layoutKind === "account-lifecycle") {
     return renderAccountLifecycle(profile, total, loadedCount, currentOrganization);
   }
@@ -434,9 +440,9 @@ function OrganizationIdentityCenter({
 }: OrganizationIdentityCenterProps): JSX.Element {
   const profile = organizationIdentityWorkbenchProfiles[page];
 
-  if (page === "organizations") {
+  if (page === "organizations" || page === "users") {
     return (
-      <div className="organization-identity-console organization-identity-compact-list-page">
+      <div className={`organization-identity-console organization-identity-compact-list-page organization-identity-compact-list-page-${page}`}>
         <div className="organization-identity-compact-list-top">
           <Space size={8} wrap className="organization-identity-compact-list-title">
             <Title level={3} className="organization-identity-compact-list-heading">{t(profile.titleKey)}</Title>
