@@ -40,7 +40,7 @@ function ApplicationUsageAccessPage(): React.ReactElement {
       description={t("Usage access page description", "聚焦原应用接入中心中的服务凭据治理，承接用量链路的配置、诊断和交接包。")}
       actions={(
         <Space wrap>
-          <Link to="/applications"><Button icon={<AppstoreOutlined />}>{t("Application Access Center", "应用接入中心")}</Button></Link>
+          <Link to="/applications"><Button icon={<AppstoreOutlined />}>{t("Access Center", "接入中心")}</Button></Link>
           <Link to="/providers"><Button icon={<SafetyCertificateOutlined />}>{t("Review identity source", "核对身份源")}</Button></Link>
           <Link to="/platform-api-mappings"><Button icon={<ApiOutlined />}>{t("Review Gateway mapping", "核对 Gateway 映射")}</Button></Link>
           <Link to="/records"><Button icon={<AuditOutlined />}>{t("Audit Records", "审计记录")}</Button></Link>

@@ -48,7 +48,7 @@ const WorkspaceTabs = require("./WorkspaceTabs.tsx").default as typeof import(".
 
 const tabs = [
   {key: "/", path: "/", label: "企业认证总览", fixed: false, closable: true},
-  {key: "/applications", path: "/applications", label: "应用接入中心", fixed: false, closable: true},
+  {key: "/applications", path: "/applications", label: "接入中心", fixed: false, closable: true},
   {key: "/providers", path: "/providers", label: "身份源中心", fixed: false, closable: true},
 ];
 
@@ -111,8 +111,8 @@ describe("WorkspaceTabs", () => {
     expect(view.container.querySelector(".admin-workspace-tabs-fixed-area")).toBeNull();
     expect(view.container.querySelector(".admin-workspace-tabs-scroll-viewport")).not.toBeNull();
     expect(view.container.querySelector(".admin-workspace-tabs-scroll-strip")?.textContent).toContain("企业认证总览");
-    expect(view.getByText("应用接入中心").closest("button")?.getAttribute("aria-current")).toBe("page");
-    expect(view.getByLabelText("关闭 应用接入中心").className).toContain("admin-workspace-tab-close-active");
+    expect(view.getByText("接入中心").closest("button")?.getAttribute("aria-current")).toBe("page");
+    expect(view.getByLabelText("关闭 接入中心").className).toContain("admin-workspace-tab-close-active");
     expect(view.getByLabelText("关闭 企业认证总览").className).toContain("admin-workspace-tab-close-deferred");
     expect(view.getByRole("button", {name: "关闭工作页面"}).textContent).toBe("");
 
@@ -411,7 +411,7 @@ describe("WorkspaceTabs", () => {
     fireEvent.click(menuItems[1]);
     expect(onNavigate).toHaveBeenCalledWith("/applications");
 
-    fireEvent.click(view.getByLabelText("关闭 应用接入中心"));
+    fireEvent.click(view.getByLabelText("关闭 接入中心"));
     expect(onClose).toHaveBeenCalledWith("/applications");
     expect(onNavigate).toHaveBeenCalledTimes(1);
     expect(view.container.querySelector(".admin-workspace-tabs-mobile")).not.toBeNull();
@@ -439,7 +439,7 @@ describe("WorkspaceTabs", () => {
 
     expect(visibleTabLabels).toEqual([
       "企业认证总览",
-      "应用接入中心",
+      "接入中心",
       "身份源中心",
       "审计记录",
     ]);
@@ -449,6 +449,6 @@ describe("WorkspaceTabs", () => {
 
     expect(onNavigate).toHaveBeenCalledWith("/records");
     expect(view.getByText("企业认证总览")).not.toBeNull();
-    expect(view.getByText("应用接入中心")).not.toBeNull();
+    expect(view.getByText("接入中心")).not.toBeNull();
   });
 });

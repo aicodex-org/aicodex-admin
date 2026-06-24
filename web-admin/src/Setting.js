@@ -2347,10 +2347,12 @@ export function getFormTypeItems(formType) {
   }
 }
 
-export function filterTableColumns(columns, formItems, actionKey = "op") {
+export function filterTableColumns(columns, formItems, actionKey = "op", options = {}) {
   if (!formItems || formItems.length === 0) {
     return columns;
   }
+  const preserveColumnWidth = options.preserveColumnWidth === true;
+  const preserveColumnTitle = options.preserveColumnTitle === true;
   const visibleColumns = formItems
     .filter(item => item.visible !== false)
     .map(item => {
@@ -2359,8 +2361,8 @@ export function filterTableColumns(columns, formItems, actionKey = "op") {
       if (matchedColumn) {
         return {
           ...matchedColumn,
-          width: item.width !== undefined ? `${item.width}px` : matchedColumn.width,
-          title: item.width !== undefined ? `${i18next.t(item.label)}` : matchedColumn.title,
+          width: item.width !== undefined && !preserveColumnWidth ? `${item.width}px` : matchedColumn.width,
+          title: item.width !== undefined && !preserveColumnTitle ? `${i18next.t(item.label)}` : matchedColumn.title,
         };
       }
       return null;

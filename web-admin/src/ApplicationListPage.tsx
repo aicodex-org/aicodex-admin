@@ -14,8 +14,9 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Col, Dropdown, List, Modal, Row, Space, Table, Tooltip} from "antd";
-import {CopyOutlined, EditOutlined, EyeOutlined, MoreOutlined} from "@ant-design/icons";
+import {Button, Input, Popconfirm, Space, Tooltip, Typography} from "antd";
+import type {TablePaginationConfig} from "antd";
+import {CopyOutlined, DeleteOutlined, EditOutlined} from "@ant-design/icons";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as Conf from "./Conf";
@@ -23,17 +24,21 @@ import * as ApplicationBackend from "./backend/ApplicationBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import {SignupTableDefaultCssMap} from "./table/SignupTable";
-import ApplicationAccessCenter from "./ApplicationAccessCenter";
-import IdentityAssetRelationshipDrawer from "./IdentityAssetRelationshipDrawer";
-import {buildAggregatedIdentityAssetDetail, buildApplicationIdentityAssetDetail} from "./identityAssetRelationship";
-import * as IdentityAssetRelationshipBackend from "./backend/IdentityAssetRelationshipBackend";
 import {legacyColumns} from "./types/legacyPage";
+import ListPageTable from "./common/ListPageTable";
+import EnterpriseListQueryToolbar from "./common/EnterpriseListQueryToolbar";
+import ListPageIdentityCell from "./common/ListPageIdentityCell";
+import ListPageRowActions from "./common/ListPageRowActions";
 
 type AdminRouteProps = import("./types/legacyPage").AdminRouteProps;
 type LegacyAny = import("./types/legacyPage").LegacyAny;
 type LegacyBackendResponse<TData = LegacyAny> = import("./types/legacyPage").LegacyBackendResponse<TData>;
 type LegacyColumn<TRecord = LegacyAny> = import("./types/legacyPage").LegacyColumn<TRecord>;
 type LegacyFetchParams = import("./types/legacyPage").LegacyFetchParams;
+type ApplicationListFetchParams = Partial<LegacyFetchParams>;
+type ApplicationFilterCondition = {field: string; value: string};
+
+const {Text} = Typography;
 
 interface ApplicationProvider {
   name: string;
@@ -56,11 +61,105 @@ function t(key: string, options?: LegacyAny): string {
   return String(i18next.t(key, options));
 }
 
+function getApplicationQueryFields() {
+  return [
+    {label: t("general:Name"), value: "name"},
+    {label: t("general:Display name"), value: "displayName"},
+    {label: t("general:Organization"), value: "organization"},
+    {label: t("general:Category"), value: "category"},
+    {label: t("general:Type"), value: "type"},
+  ];
+}
+
+function createEmptyAdvancedQueryKeywords(): Record<string, string> {
+  return getApplicationQueryFields().reduce((keywords, field) => ({
+    ...keywords,
+    [field.value]: "",
+  }), {} as Record<string, string>);
+}
+
+function normalizeApplicationFilterValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.join(" ");
+  }
+  if (value === null || value === undefined) {
+    return "";
+  }
+  return String(value);
+}
+
+function matchesApplicationConditions(application: ApplicationRecord, conditions: ApplicationFilterCondition[]): boolean {
+  return conditions.every(condition => {
+    const actualValue = normalizeApplicationFilterValue(application[condition.field]).toLowerCase();
+    return actualValue.includes(condition.value.toLowerCase());
+  });
+}
+
+function renderApplicationIdentity(record: ApplicationRecord): React.ReactNode {
+  const displayName = record.displayName || record.name || "";
+  const technicalName = record.name || "";
+
+  return (
+    <ListPageIdentityCell
+      classPrefix="application-table"
+      title={displayName}
+      titleTo={`/applications/${record.organization}/${technicalName}`}
+      secondary={technicalName}
+      copyValue=""
+      copyLabel={`${t("general:Copy")} ${t("general:Name")}`}
+      iconSrc={record.logo || Conf.BrandIcon}
+      iconAlt={displayName || technicalName}
+      onCopiedMessage={t("general:Copied to clipboard successfully")}
+    />
+  );
+}
+
+function renderApplicationConfig(record: ApplicationRecord): React.ReactNode {
+  const providers = Array.isArray(record.providers) ? record.providers.filter(provider => provider?.name) : [];
+
+  return (
+    <div className="application-table-config">
+      <div className="application-table-providers">
+        {providers.length === 0 ? (
+          <Text type="secondary">{`(${t("general:empty")})`}</Text>
+        ) : (
+          <Space size={[6, 2]} wrap>
+            {providers.slice(0, 3).map(provider => (
+              <Link className="application-table-provider-link" to={`/providers/${record.organization}/${provider.name}`} title={provider.name} key={provider.name}>
+                {provider.name}
+              </Link>
+            ))}
+            {providers.length > 3 ? <Text type="secondary">+{providers.length - 3}</Text> : null}
+          </Space>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function getApplicationTableScroll(advancedFiltersOpen: boolean): {x?: number; y?: string} | undefined {
+  if (Setting.isMobile()) {
+    return {x: 880};
+  }
+  return {y: advancedFiltersOpen ? "calc(100vh - 414px)" : "calc(100vh - 360px)"};
+}
+
 const LegacyBaseListPage = BaseListPage as unknown as React.ComponentClass<AdminRouteProps, LegacyAny> & LegacyAny;
 
 class ApplicationListPage extends LegacyBaseListPage {
   constructor(props: AdminRouteProps) {
     super(props);
+    this.state = {
+      ...this.state,
+      pagination: {
+        ...this.state.pagination,
+        pageSize: 20,
+      },
+      queryField: "name",
+      queryKeyword: "",
+      advancedQueryKeywords: createEmptyAdvancedQueryKeywords(),
+      advancedFiltersOpen: false,
+    };
   }
 
   newApplication(): ApplicationRecord {
@@ -127,7 +226,7 @@ class ApplicationListPage extends LegacyBaseListPage {
           Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
         }
       })
-      .catch(error => {
+      .catch((error: unknown) => {
         Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
@@ -147,7 +246,7 @@ class ApplicationListPage extends LegacyBaseListPage {
           Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
         }
       })
-      .catch(error => {
+      .catch((error: unknown) => {
         Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
@@ -175,260 +274,318 @@ class ApplicationListPage extends LegacyBaseListPage {
           Setting.showMessage("error", `${t("general:Failed to copy")}: ${res.msg}`);
         }
       })
-      .catch(error => {
+      .catch((error: unknown) => {
         Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  getIdentityAssetSourceContext() {
-    const filterSummary = this.state.searchedColumn && this.state.searchText ? `${this.state.searchedColumn}=${this.state.searchText}` : undefined;
-    return {
-      pagePath: "/applications",
-      filterSummary,
-      loadedRows: Array.isArray(this.state.data) ? this.state.data.length : 0,
-      totalRows: this.state.pagination?.total,
-    };
-  }
+  handleToolbarSearch = (): void => {
+    const pagination = {...this.state.pagination, current: 1};
+    const keyword = String(this.state.queryKeyword || "").trim();
+    if (this.hasAdvancedQueryKeywords()) {
+      this.fetchAdvancedFilteredApplications({pagination});
+      return;
+    }
 
-  openIdentityAssetDetail(record: ApplicationRecord) {
-    const fallbackDetail = buildApplicationIdentityAssetDetail(record, this.getIdentityAssetSourceContext());
+    if (keyword !== "") {
+      this.fetch({
+        pagination,
+        searchedColumn: this.state.queryField,
+        searchText: keyword,
+      });
+      return;
+    }
+
+    this.fetch({pagination});
+  };
+
+  handleToolbarReset = (): void => {
+    const pagination = {...this.state.pagination, current: 1};
     this.setState({
-      identityAssetDetail: fallbackDetail,
-    });
-    IdentityAssetRelationshipBackend.getIdentityAssetRelationshipAggregation({
-      assetType: "application",
-      owner: record.owner || "admin",
-      organization: record.organization || record.owner || "admin",
-      name: record.name || record.displayName || "",
-    })
-      .then((res: LegacyAny) => {
-        const aggregation = res?.status === "ok" && res?.data ? res.data : res;
-        if (aggregation?.object && aggregation?.scope) {
-          this.setState({identityAssetDetail: buildAggregatedIdentityAssetDetail(aggregation)});
-        }
-      })
-      .catch(() => undefined);
+      queryField: "name",
+      queryKeyword: "",
+      advancedQueryKeywords: createEmptyAdvancedQueryKeywords(),
+      searchText: undefined,
+      searchedColumn: undefined,
+    }, () => this.fetch({pagination}));
+  };
+
+  handleAdvancedFilterChange = (field: string, value: string): void => {
+    this.setState((prevState: LegacyAny) => ({
+      advancedQueryKeywords: {
+        ...prevState.advancedQueryKeywords,
+        [field]: value,
+      },
+    }));
+  };
+
+  handleApplicationTableChange = (pagination: TablePaginationConfig, _filters: LegacyAny, sorter: LegacyAny): void => {
+    const normalizedSorter = Array.isArray(sorter) ? sorter[0] : sorter;
+    const sortField = typeof normalizedSorter?.field === "string" ? normalizedSorter.field : undefined;
+    const sortOrder = normalizedSorter?.order ?? undefined;
+    const params: ApplicationListFetchParams = {
+      pagination,
+      sortField,
+      sortOrder,
+    };
+
+    if (this.hasAdvancedQueryKeywords()) {
+      this.fetchAdvancedFilteredApplications(params);
+      return;
+    }
+
+    this.fetch({
+      ...params,
+      searchText: this.state.searchText,
+      searchedColumn: this.state.searchedColumn,
+    } as LegacyFetchParams);
+  };
+
+  getAdvancedQueryConditions(): ApplicationFilterCondition[] {
+    return Object.entries(this.state.advancedQueryKeywords || {})
+      .map(([field, value]) => ({field, value: String(value || "").trim()}))
+      .filter(condition => condition.value !== "");
   }
 
-  closeIdentityAssetDetail() {
-    this.setState({identityAssetDetail: null});
+  getActiveQueryConditions(): ApplicationFilterCondition[] {
+    const keyword = String(this.state.queryKeyword || "").trim();
+    const baseCondition = keyword === "" ? [] : [{field: this.state.queryField, value: keyword}];
+    return [
+      ...baseCondition,
+      ...this.getAdvancedQueryConditions(),
+    ];
+  }
+
+  hasAdvancedQueryKeywords(): boolean {
+    return this.getAdvancedQueryConditions().length > 0;
+  }
+
+  getFilteredPageData(applications: ApplicationRecord[], pagination: TablePaginationConfig): ApplicationRecord[] {
+    const current = typeof pagination.current === "number" && pagination.current > 0 ? pagination.current : 1;
+    const pageSize = typeof pagination.pageSize === "number" && pagination.pageSize > 0 ? pagination.pageSize : applications.length || 10;
+    const start = (current - 1) * pageSize;
+    return applications.slice(start, start + pageSize);
+  }
+
+  renderAdvancedFilters(): React.ReactNode {
+    return (
+      <div className="organization-advanced-filters">
+        {
+          getApplicationQueryFields().map(field => (
+            <label className="organization-advanced-filter-item" key={field.value}>
+              <span className="organization-advanced-filter-label">{field.label}:</span>
+              <Input
+                className="organization-advanced-filter-input"
+                value={this.state.advancedQueryKeywords[field.value] ?? ""}
+                aria-label={`${t("general:More filters")} ${field.label}`}
+                placeholder={t("general:Please input your search")}
+                allowClear
+                onChange={event => this.handleAdvancedFilterChange(field.value, event.target.value)}
+              />
+            </label>
+          ))
+        }
+      </div>
+    );
+  }
+
+  renderListToolbar(): React.ReactNode {
+    return (
+      <div className="enterprise-list-toolbar-shell">
+        <EnterpriseListQueryToolbar
+          title={t("general:Applications")}
+          total={this.state.pagination.total}
+          showTotal={false}
+          fields={getApplicationQueryFields()}
+          selectedField={this.state.queryField}
+          keyword={this.state.queryKeyword}
+          onFieldChange={(value) => this.setState({queryField: value})}
+          onKeywordChange={(value) => this.setState({queryKeyword: value})}
+          onSearch={this.handleToolbarSearch}
+          onReset={this.handleToolbarReset}
+          onAdvancedOpenChange={(advancedFiltersOpen) => this.setState({advancedFiltersOpen})}
+          advancedFilters={this.renderAdvancedFilters()}
+          actions={(
+            <>
+              <Button type="primary" size="small" onClick={this.addApplication.bind(this)}>{t("general:Add")}</Button>
+              <Link to="/providers"><Button size="small">{t("identityEvidenceChain:Identity source")}</Button></Link>
+              <Link to="/platform-api-mappings"><Button size="small">{t("identityAssetRelationship:API gateway mapping")}</Button></Link>
+              <Link to="/records"><Button size="small">{t("identityAssetRelationship:Audit records")}</Button></Link>
+            </>
+          )}
+        />
+      </div>
+    );
   }
 
   renderTable(applications: ApplicationRecord[]) {
     const columns: LegacyColumn<ApplicationRecord>[] = legacyColumns<ApplicationRecord>([
       {
-        title: t("general:Name"),
+        title: t("general:Application"),
         dataIndex: "name",
         key: "name",
-        width: "150px",
-        fixed: "left",
+        width: "18%",
         sorter: true,
-        ...this.getColumnSearchProps("name"),
-        render: (text: string, record: ApplicationRecord, index: number) => {
-          return (
-            <Link to={`/applications/${record.organization}/${text}`}>
-              {Setting.getApplicationDisplayName(record)}
-            </Link>
-          );
-        },
-      },
-      {
-        title: t("general:Created time"),
-        dataIndex: "createdTime",
-        key: "createdTime",
-        width: "160px",
-        sorter: true,
-        render: (text: string, record: ApplicationRecord, index: number) => {
-          return Setting.getFormattedDate(text);
-        },
-      },
-      {
-        title: t("general:Display name"),
-        dataIndex: "displayName",
-        key: "displayName",
-        // width: '100px',
-        sorter: true,
-        ...this.getColumnSearchProps("displayName"),
-      },
-      {
-        title: t("general:Category"),
-        dataIndex: "category",
-        key: "category",
-        width: "120px",
-        sorter: true,
-        ...this.getColumnSearchProps("category"),
-        render: (text: string, record: ApplicationRecord, index: number) => {
-          if (!text) {
-            text = "Default";
-          }
-
-          if (text === "Agent") {
-            return Setting.getTag("success", text);
-          } else {
-            return Setting.getTag("default", text);
-          }
-        },
-      },
-      {
-        title: t("general:Type"),
-        dataIndex: "type",
-        key: "type",
-        width: "100px",
-        sorter: true,
-        ...this.getColumnSearchProps("type"),
-        render: (text: string, record: ApplicationRecord, index: number) => {
-          return text;
-        },
-      },
-      {
-        title: t("general:Logo"),
-        dataIndex: "logo",
-        key: "logo",
-        width: "72px",
-        render: (text: string, record: ApplicationRecord, index: number) => {
-          return (
-            <a target="_blank" rel="noreferrer" href={text}>
-              <img className="application-logo-thumb" src={text} alt={text} width={40} />
-            </a>
-          );
+        render: (_text: string, record: ApplicationRecord) => {
+          return renderApplicationIdentity(record);
         },
       },
       {
         title: t("general:Organization"),
         dataIndex: "organization",
         key: "organization",
-        width: "150px",
+        width: "9%",
         sorter: true,
-        ...this.getColumnSearchProps("organization"),
-        render: (text: string, record: ApplicationRecord, index: number) => {
+        render: (text: string) => {
           return (
-            <Link to={`/organizations/${text}`}>
-              {text}
-            </Link>
+            <Tooltip title={text || undefined}>
+              <Link className="application-table-organization-link" to={`/organizations/${text}`}>
+                {text}
+              </Link>
+            </Tooltip>
           );
         },
       },
       {
-        title: t("application:Providers"),
+        title: t("general:Category"),
+        dataIndex: "category",
+        key: "category",
+        width: "7%",
+        sorter: true,
+        render: (text: string | undefined) => {
+          const category = text || "Default";
+          return <span className="application-table-category">{Setting.getTag(category === "Agent" ? "success" : "default", category)}</span>;
+        },
+      },
+      {
+        title: t("general:Type"),
+        dataIndex: "type",
+        key: "type",
+        width: "6%",
+        sorter: true,
+        render: (text: string | undefined) => {
+          return <span className="application-table-type">{Setting.getTag("default", text || "All")}</span>;
+        },
+      },
+      {
+        title: t("general:Access configuration"),
         dataIndex: "providers",
         key: "providers",
-        ...this.getColumnSearchProps("providers"),
-        // width: '600px',
-        render: (text: ApplicationProvider[] | null, record: ApplicationRecord, index: number) => {
-          const providers = text;
-          if (providers === null || providers.length === 0) {
-            return `(${t("general:empty")})`;
-          }
-
-          const half = Math.floor((providers.length + 1) / 2);
-
-          const getList = (providers: ApplicationProvider[]) => {
-            return (
-              <List
-                size="small"
-                locale={{emptyText: " "}}
-                dataSource={providers}
-                renderItem={(providerItem, i) => {
-                  return (
-                    <List.Item>
-                      <div style={{display: "inline"}}>
-                        <Tooltip placement="topLeft" title="Edit">
-                          <Button style={{marginRight: "5px"}} icon={<EditOutlined />} size="small" onClick={() => Setting.goToLinkSoft(this, `/providers/${record.organization}/${providerItem.name}`)} />
-                        </Tooltip>
-                        <Link to={`/providers/${record.organization}/${providerItem.name}`}>
-                          {providerItem.name}
-                        </Link>
-                      </div>
-                    </List.Item>
-                  );
-                }}
-              />
-            );
-          };
-
-          return (
-            <div>
-              <Row>
-                <Col span={12}>
-                  {
-                    getList(providers.slice(0, half))
-                  }
-                </Col>
-                <Col span={12}>
-                  {
-                    getList(providers.slice(half))
-                  }
-                </Col>
-              </Row>
-            </div>
-          );
+        width: "25%",
+        render: (_text: ApplicationProvider[] | null, record: ApplicationRecord) => {
+          return renderApplicationConfig(record);
+        },
+      },
+      {
+        title: t("general:Created time"),
+        dataIndex: "createdTime",
+        key: "createdTime",
+        width: "14%",
+        sorter: true,
+        render: (text: string) => {
+          return <span className="application-table-date">{Setting.getFormattedDate(text)}</span>;
         },
       },
       {
         title: t("general:Action"),
         dataIndex: "",
         key: "op",
-        width: "230px",
-        fixed: (Setting.isMobile()) ? false : "right",
+        width: "21%",
         render: (text: string, record: ApplicationRecord, index: number) => {
+          const deleteButton = (
+            <Button
+              className="application-row-action-delete"
+              size="small"
+              type="text"
+              danger
+              disabled={record.name === "app-built-in"}
+              icon={<DeleteOutlined />}
+            >
+              {t("general:Delete")}
+            </Button>
+          );
           return (
-            <Space className="application-row-actions" size={6} wrap>
-              <Button size="small" icon={<EyeOutlined />} onClick={() => this.openIdentityAssetDetail(record)}>{t("identityAssetRelationship:Object context")}</Button>
-              <Button size="small" type="primary" onClick={() => this.props.history.push(`/applications/${record.organization}/${record.name}`)}>{t("general:Edit")}</Button>
-              <Dropdown
-                trigger={["click"]}
-                menu={{
-                  items: [
-                    {key: "copy", icon: <CopyOutlined />, label: t("general:Copy")},
-                    {key: "delete", danger: true, disabled: record.name === "app-built-in", label: t("general:Delete")},
-                  ],
-                  onClick: ({key}: {key: string}) => {
-                    if (key === "copy") {
-                      this.copyApplication(index);
-                    } else if (key === "delete") {
-                      Modal.confirm({
-                        title: t("general:Sure to delete") + `: ${record.name} ?`,
-                        okText: t("general:OK"),
-                        cancelText: t("general:Cancel"),
-                        okButtonProps: {danger: true},
-                        onOk: () => this.deleteApplication(index),
-                      });
-                    }
-                  },
-                }}
-              >
-                <Button size="small" icon={<MoreOutlined />}>{t("general:More")}</Button>
-              </Dropdown>
-            </Space>
+            <ListPageRowActions className="application-row-actions">
+              <Button className="application-row-primary-action" size="small" type="link" icon={<EditOutlined />} onClick={() => this.props.history.push(`/applications/${record.organization}/${record.name}`)}>{t("general:Edit")}</Button>
+              <Button className="application-row-action-copy" size="small" type="text" icon={<CopyOutlined />} onClick={() => this.copyApplication(index)}>{t("general:Copy")}</Button>
+              {
+                record.name === "app-built-in" ? deleteButton : (
+                  <Popconfirm
+                    title={t("general:Sure to delete") + `: ${record.name} ?`}
+                    okText={t("general:OK")}
+                    cancelText={t("general:Cancel")}
+                    okButtonProps={{danger: true}}
+                    onConfirm={() => this.deleteApplication(index)}
+                  >
+                    {deleteButton}
+                  </Popconfirm>
+                )
+              }
+            </ListPageRowActions>
           );
         },
       },
     ]);
 
-    const filteredColumns = Setting.filterTableColumns(columns, this.props.formItems ?? this.state.formItems);
+    const filteredColumns = Setting.filterTableColumns(columns, this.props.formItems ?? this.state.formItems, "op", {
+      preserveColumnWidth: true,
+      preserveColumnTitle: true,
+    });
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <div>
-        <ApplicationAccessCenter applications={applications} loading={this.state.loading} />
-        <IdentityAssetRelationshipDrawer
-          open={Boolean(this.state.identityAssetDetail)}
-          asset={this.state.identityAssetDetail}
-          onClose={this.closeIdentityAssetDetail.bind(this)}
-        />
-        <Table scroll={{x: "max-content"}} columns={filteredColumns} dataSource={applications} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
-          title={() => (
-            <div>
-              {t("general:Applications")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button type="primary" size="small" onClick={this.addApplication.bind(this)}>{t("general:Add")}</Button>
-            </div>
-          )}
+      <div className="application-list-page-table-shell">
+        <ListPageTable<ApplicationRecord> scroll={getApplicationTableScroll(this.state.advancedFiltersOpen)} className="application-list-table" columns={filteredColumns} dataSource={applications} rowKey={(record) => `${record.owner}/${record.name}`} pagination={paginationProps}
+          title={() => this.renderListToolbar()}
           loading={this.state.loading}
-          onChange={this.handleTableChange}
+          onChange={this.handleApplicationTableChange}
         />
       </div>
     );
   }
+
+  fetchAdvancedFilteredApplications = (params: ApplicationListFetchParams = {}): void => {
+    const pagination = (params.pagination || this.state.pagination) as TablePaginationConfig;
+    const conditions = this.getActiveQueryConditions();
+    this.setState({loading: true});
+    const request = Setting.isDefaultOrganizationSelected(this.props.account) ?
+      (ApplicationBackend.getApplications as LegacyAny)("admin", "", "", "", "", params.sortField, params.sortOrder) :
+      (ApplicationBackend.getApplicationsByOrganization as LegacyAny)("admin", Setting.getRequestOrganization(this.props.account), "", "", "", "", params.sortField, params.sortOrder);
+
+    request
+      .then((res: LegacyBackendResponse<ApplicationRecord[]>) => {
+        this.setState({
+          loading: false,
+        });
+        if (res.status === "ok") {
+          const filteredApplications = (res.data || []).filter(application => matchesApplicationConditions(application, conditions));
+          const keyword = String(this.state.queryKeyword || "").trim();
+          this.setState({
+            data: this.getFilteredPageData(filteredApplications, pagination),
+            pagination: {
+              ...pagination,
+              total: filteredApplications.length,
+            },
+            searchText: keyword || undefined,
+            searchedColumn: keyword ? this.state.queryField : undefined,
+          });
+        } else {
+          if (Setting.isResponseDenied(res)) {
+            this.setState({
+              isAuthorized: false,
+            });
+          } else {
+            Setting.showMessage("error", res.msg);
+          }
+        }
+      })
+      .catch((error: unknown) => {
+        this.setState({
+          loading: false,
+        });
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
+      });
+  };
 
   fetch = (params: LegacyFetchParams = {pagination: this.state.pagination}) => {
     const field = params.searchedColumn, value = params.searchText;

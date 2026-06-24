@@ -7,9 +7,9 @@ import {
   areWorkspaceTabsEqual,
   buildWorkspaceRouteItems,
   calculateWorkspaceTabsCapacity,
-  closeWorkspaceTab,
-  closeOtherWorkspaceTabs,
   closeAllWorkspaceTabs,
+  closeOtherWorkspaceTabs,
+  closeWorkspaceTab,
   closeWorkspaceTabsToLeft,
   closeWorkspaceTabsToRight,
   getVisibleWorkspaceTabs,
@@ -22,7 +22,7 @@ import {
 
 const routes = [
   {key: "/", path: "/", label: "企业认证总览", matchPrefixes: ["/"]},
-  {key: "/applications", path: "/applications", label: "应用接入中心", matchPrefixes: ["/applications"]},
+  {key: "/applications", path: "/applications", label: "接入中心", matchPrefixes: ["/applications"]},
   {key: "/providers", path: "/providers", label: "身份源中心", matchPrefixes: ["/providers"]},
   {key: "/records", path: "/records", label: "审计记录", matchPrefixes: ["/records"]},
   {key: "/organizations", path: "/organizations", label: "组织", matchPrefixes: ["/organizations"]},
@@ -46,7 +46,7 @@ describe("workspaceTabState", () => {
 
     expect(tabs.map(tab => tab.path)).toEqual(["/", "/applications/built-in/app-a"]);
     expect(tabs[0]).toMatchObject({label: "企业认证总览", fixed: false, closable: true});
-    expect(tabs[1]).toMatchObject({label: "应用接入中心", fixed: false, closable: true});
+    expect(tabs[1]).toMatchObject({label: "接入中心", fixed: false, closable: true});
   });
 
   test("hydrates invalid storage safely with overview and current route", () => {
@@ -70,7 +70,7 @@ describe("workspaceTabState", () => {
     );
 
     expect(tabs.map(tab => tab.path)).toEqual(["/", "/applications", "/records", "/providers"]);
-    expect(tabs.map(tab => tab.label)).toEqual(["企业认证总览", "应用接入中心", "审计记录", "身份源中心"]);
+    expect(tabs.map(tab => tab.label)).toEqual(["企业认证总览", "接入中心", "审计记录", "身份源中心"]);
   });
 
   test("filters invalid restored routes before rendering workspace tabs", () => {

@@ -385,7 +385,7 @@ function ApplicationAccessCenter({applications = [], loading = false}: Applicati
     return {
       key: item.key,
       title: item.title,
-      description: "用于定位接入缺口，不触发授权、回调、密钥写入或真实探测。",
+      description: item.count > 0 ? undefined : "可继续从审计记录核对最近接入变更。",
       icon: <ExclamationCircleOutlined />,
       tone,
       badge: item.count > 0 ? `${item.count} 项` : "低风险",
@@ -399,7 +399,7 @@ function ApplicationAccessCenter({applications = [], loading = false}: Applicati
       className="application-access-center"
       eyebrow="企业认证中心 / 应用接入"
       title="应用接入中心"
-      description="围绕应用、OAuth/OIDC client、回调地址、授权范围、API 映射和审计入口组织当前接入状态"
+      description="核对应用、OAuth/OIDC client、回调地址、授权范围、API 映射和审计入口。"
       actions={(
         <Space wrap>
           <Link to="/applications"><Button icon={<AppstoreAddOutlined />}>新增应用</Button></Link>
@@ -427,7 +427,7 @@ function ApplicationAccessCenter({applications = [], loading = false}: Applicati
         />
       )}
 
-      <div className="application-access-readiness-rail application-access-readiness-rail-compact enterprise-identity-compact-rail">
+      <div className="application-access-readiness-rail application-access-readiness-rail-compact application-access-workbench enterprise-identity-compact-rail">
         <div className="enterprise-identity-rail-summary" aria-label={t("Application access summary", "应用接入摘要")}>
           {summaryItems.map(item => (
             <div className={`enterprise-identity-rail-summary-item enterprise-identity-tone-${item.tone}`} key={item.key}>
@@ -438,10 +438,10 @@ function ApplicationAccessCenter({applications = [], loading = false}: Applicati
           ))}
         </div>
         <EnterpriseIdentitySection
-          className="enterprise-identity-rail-section"
-          title="优先处理"
-          description="摘要来自本页数据，不代表后端全量聚合事实"
-          extra={<Text type="secondary">治理摘要</Text>}
+          className="enterprise-identity-rail-section application-access-risk-checklist"
+          title="接入缺口"
+          description="按当前可见应用配置生成，仅作为核对入口。"
+          extra={<Text type="secondary">本页摘要</Text>}
         >
           <EnterpriseIdentityRiskList items={riskItems} />
         </EnterpriseIdentitySection>

@@ -756,6 +756,19 @@ img {
   max-width: 100%;
 }
 
+.application-access-center .enterprise-identity-console-header {
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+
+.application-access-center .enterprise-identity-console-header h3 {
+  font-size: 22px;
+}
+
+.application-access-center .enterprise-identity-console-title-block > .ant-space-item:last-child {
+  max-width: 760px;
+}
+
 .enterprise-identity-console-alert {
   margin-bottom: 14px;
 }
@@ -1246,9 +1259,10 @@ img {
 }
 
 .application-access-readiness-rail-compact {
-  grid-template-columns: minmax(190px, 0.42fr) minmax(0, 1fr);
+  grid-template-columns: minmax(360px, 0.46fr) minmax(0, 1fr);
   align-items: start;
-  margin-bottom: 12px;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
 .application-access-readiness-rail-compact .enterprise-identity-rail-summary-item {
@@ -1258,6 +1272,50 @@ img {
 
 .application-access-readiness-rail-compact .enterprise-identity-rail-section {
   min-height: 0;
+}
+
+.application-access-risk-checklist.enterprise-identity-rail-section {
+  padding: 8px 10px;
+}
+
+.application-access-risk-checklist .enterprise-identity-section-header {
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.application-access-risk-checklist .enterprise-identity-risk-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 12px;
+}
+
+.application-access-risk-checklist .enterprise-identity-risk-item {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-height: 42px;
+  padding: 6px 0;
+}
+
+.application-access-risk-checklist .enterprise-identity-risk-copy {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px !important;
+  align-items: center;
+  width: 100%;
+}
+
+.application-access-risk-checklist .enterprise-identity-risk-copy > .ant-space-item {
+  min-width: 0;
+}
+
+.application-access-risk-checklist .enterprise-identity-risk-copy > .ant-space-item:last-child {
+  justify-self: end;
+}
+
+.application-access-risk-checklist .enterprise-identity-risk-copy a {
+  white-space: nowrap;
 }
 
 .enterprise-identity-compact-rail-wide {
@@ -1765,11 +1823,26 @@ img {
 }
 
 .application-row-actions {
-  max-width: 216px;
+  flex-wrap: nowrap;
+  max-width: 100%;
+  white-space: nowrap;
 }
 
 .application-row-actions .ant-btn {
-  padding-inline: 8px;
+  height: 24px;
+  min-width: 0;
+  padding-inline: 4px;
+  font-size: 12px;
+  gap: 3px;
+}
+
+.application-row-actions .ant-space-item {
+  flex: 0 0 auto;
+}
+
+.application-row-primary-action {
+  min-width: 0;
+  font-weight: 500;
 }
 
 .organization-sync-page {
@@ -1989,7 +2062,8 @@ img {
   max-width: 100%;
 }
 
-.group-list-page-table-shell {
+.group-list-page-table-shell,
+.application-list-page-table-shell {
   min-width: 0;
 }
 
@@ -2089,6 +2163,17 @@ img {
   font-size: var(--list-page-table-cell-font-size);
   border-bottom-color: rgb(235 240 246);
   vertical-align: middle;
+}
+
+.application-list-table.ant-table-wrapper .ant-table.ant-table-middle .ant-table-thead > tr > th,
+.application-list-table.ant-table-wrapper .ant-table.ant-table-middle .ant-table-tbody > tr > td {
+  padding-right: 8px !important;
+  padding-left: 8px !important;
+}
+
+.application-list-table.ant-table-wrapper .ant-table-cell {
+  min-width: 0;
+  overflow: hidden;
 }
 
 .enterprise-list-table.ant-table-wrapper .ant-table-body {
@@ -2508,6 +2593,93 @@ span.enterprise-list-secondary-text {
   color: rgb(148 163 184) !important;
   background: transparent !important;
   border-color: transparent !important;
+}
+
+.application-table-cell {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.application-table-icon {
+  display: inline-flex;
+  width: 40px;
+  height: 40px;
+}
+
+.application-table-icon img {
+  display: block;
+  width: 40px;
+  height: 40px;
+  padding: 2px;
+  object-fit: contain;
+  border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.application-table-content,
+.application-table-config {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.application-table-name,
+.application-table-organization-link,
+.application-table-provider-link {
+  display: inline-block;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.application-table-name {
+  color: #311ce6;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.application-table-meta {
+  display: flex;
+  min-width: 0;
+  color: rgb(100 116 139);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.application-table-id,
+.application-table-category,
+.application-table-type,
+.application-table-date {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.application-table-providers {
+  min-width: 0;
+  color: rgb(100 116 139);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.application-table-provider-link {
+  max-width: 132px;
+  font-size: 12px;
+}
+
+.application-list-table .ant-tag {
+  margin-right: 0;
+  font-size: 12px;
+  line-height: 18px;
 }
 
 .enterprise-list-query-toolbar {
@@ -2937,6 +3109,10 @@ span.enterprise-list-secondary-text {
     grid-template-columns: 1fr;
   }
 
+  .application-access-risk-checklist .enterprise-identity-risk-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .organization-identity-directory-shell,
   .organization-identity-lifecycle-shell,
   .organization-identity-role-matrix,
@@ -3230,6 +3406,14 @@ span.enterprise-list-secondary-text {
   .audit-operations-center .audit-operations-rail .enterprise-identity-rail-section:last-child,
   .llm-ai-gateway-center .llm-ai-gateway-rail .enterprise-identity-rail-section:first-of-type {
     display: none;
+  }
+
+  .application-access-center .application-access-readiness-rail .application-access-risk-checklist:first-of-type {
+    display: block;
+  }
+
+  .application-access-risk-checklist .enterprise-identity-risk-list {
+    grid-template-columns: 1fr;
   }
 
   .enterprise-identity-section-header {

@@ -497,14 +497,14 @@ describe("ApplicationUsageAccessPage", () => {
     });
     const emptyView = renderPage();
     expect(await emptyView.findByText("暂无服务凭据治理状态")).not.toBeNull();
-    expect(emptyView.getByText("应用接入中心").closest("a")?.getAttribute("href")).toBe("/applications");
+    expect(emptyView.getByText("接入中心").closest("a")?.getAttribute("href")).toBe("/applications");
     emptyView.unmount();
 
     mockGetServiceCredentialGovernanceStatus.mockRejectedValueOnce(new Error("unavailable"));
     mockGetServiceCredentialGovernanceConfig.mockRejectedValueOnce(new Error("unavailable"));
     const errorView = renderPage();
     expect(await errorView.findByText("服务凭据治理状态暂不可用")).not.toBeNull();
-    expect(errorView.getByText("应用接入中心").closest("a")?.getAttribute("href")).toBe("/applications");
+    expect(errorView.getByText("接入中心").closest("a")?.getAttribute("href")).toBe("/applications");
   });
 
   test("surfaces status and config API errors without blocking the application access fallback", async() => {
@@ -515,7 +515,7 @@ describe("ApplicationUsageAccessPage", () => {
 
     expect(await view.findByText("服务凭据治理状态暂不可用")).not.toBeNull();
     expect(view.getByText("服务凭据治理配置暂不可用")).not.toBeNull();
-    expect(view.getByText("应用接入中心").closest("a")?.getAttribute("href")).toBe("/applications");
+    expect(view.getByText("接入中心").closest("a")?.getAttribute("href")).toBe("/applications");
     expect((view.getByText("Dry-run/Readiness").closest("button") as HTMLButtonElement | null)?.disabled).toBe(true);
     expect((view.getByText("Handoff/Evidence").closest("button") as HTMLButtonElement | null)?.disabled).toBe(true);
   });

@@ -423,12 +423,17 @@ describe("ApplicationAccessCenter", () => {
     const {container} = view;
 
     expect(view.getByText("应用接入中心")).not.toBeNull();
+    expect(container.querySelector(".application-access-workbench")).not.toBeNull();
+    expect(container.querySelector(".application-access-risk-checklist")).not.toBeNull();
+    expect(container.querySelectorAll(".application-access-risk-checklist .enterprise-identity-risk-item").length).toBeGreaterThanOrEqual(3);
     expect(container.querySelector(".application-access-readiness-rail")).not.toBeNull();
     expect(container.querySelector(".application-access-readiness-rail-compact")).not.toBeNull();
     expect(container.querySelector(".enterprise-identity-status-card")).toBeNull();
     expect(container.querySelector(".application-access-center .enterprise-identity-action-grid")).toBeNull();
     expect(view.getByText("应用")).not.toBeNull();
-    expect(view.getByText("优先处理")).not.toBeNull();
+    expect(view.getByText("接入缺口")).not.toBeNull();
+    expect(view.queryByText("治理摘要")).toBeNull();
+    expect(view.queryByText("用于定位接入缺口，不触发授权、回调、密钥写入或真实探测。")).toBeNull();
     expect(view.queryByText("当前列表视图")).toBeNull();
     expect(view.queryByText("只读推导")).toBeNull();
     expect(view.queryByText("只读核对")).toBeNull();

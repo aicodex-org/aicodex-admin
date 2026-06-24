@@ -13,11 +13,6 @@ jest.mock("./backend/FormBackend");
 jest.mock("./table/SignupTable", () => ({
   SignupTableDefaultCssMap: {},
 }));
-jest.mock("./backend/IdentityAssetRelationshipBackend", () => ({
-  getIdentityAssetRelationshipAggregation: () => Promise.resolve({status: "error"}),
-}));
-jest.mock("./ApplicationAccessCenter", () => () => <div data-testid="application-access-summary" />);
-jest.mock("./IdentityAssetRelationshipDrawer", () => () => null);
 jest.mock("./TourConfig", () => ({
   getTourVisible: () => false,
   getSteps: () => [],
@@ -53,8 +48,17 @@ function attachPageState(page: LegacyAny, extra: Record<string, LegacyAny> = {})
     pagination: {current: 1, pageSize: 10, total: 1},
     searchText: "",
     searchedColumn: "",
+    queryField: "name",
+    queryKeyword: "",
+    advancedQueryKeywords: {
+      name: "",
+      displayName: "",
+      organization: "",
+      category: "",
+      type: "",
+    },
+    advancedFiltersOpen: false,
     formItems: [],
-    identityAssetDetail: null,
     isAuthorized: true,
     ...extra,
   };
@@ -100,20 +104,108 @@ describe("ApplicationListPage enterprise table polish", () => {
 
   test("keeps application rows compact with small logos and secondary row operations", async() => {
     const history = {push: jest.fn()};
+    const page = attachPageState(new (ApplicationListPage as LegacyAny)({
+      account,
+      history,
+      match: {path: "/applications", params: {}},
+    }), {
+      data: [application],
+    });
     const view = render(
       <MemoryRouter>
-        <ApplicationListPage account={account} history={history} match={{path: "/applications", params: {}}} />
+        {page.renderTable([application])}
       </MemoryRouter>
     );
     const {container} = view;
 
-    expect(await view.findByText("AICodex Portal")).not.toBeNull();
-    expect(container.querySelector("[data-testid='application-access-summary']")).not.toBeNull();
-    expect(container.querySelector(".application-logo-thumb")?.getAttribute("width")).toBe("40");
+    expect(container.querySelector("[data-testid='application-access-summary']")).toBeNull();
+    expect(container.querySelector(".application-list-page-table-shell")).not.toBeNull();
+    expect(container.querySelector(".enterprise-list-table.application-list-table")).not.toBeNull();
+    expect(container.querySelector(".enterprise-list-query-toolbar")).not.toBeNull();
+    expect(container.querySelector(".enterprise-list-query-toolbar-header")?.textContent).toMatch(/应用|Applications/);
+    expect(view.getByText(/查询|Search|Query/)).not.toBeNull();
+    expect(view.getByText(/重置|Reset/)).not.toBeNull();
+    expect(view.getByText(/更多筛选|More filters/)).not.toBeNull();
+    expect(view.getByText(/添加|Add/)).not.toBeNull();
+    expect(view.getByText(/分类|Category/)).not.toBeNull();
+    expect(view.getByText(/类型|Type/)).not.toBeNull();
+    const identityCell = container.querySelector(".application-table-cell");
+    expect(identityCell).not.toBeNull();
+    expect(identityCell?.textContent).toContain("AICodex Portal");
+    expect(identityCell?.textContent).toContain("portal");
+    expect(container.querySelector(".application-table-name")?.getAttribute("href")).toBe("/applications/built-in/portal");
+    expect(container.querySelector(".application-table-category")?.textContent).toContain("Default");
+    expect(container.querySelector(".application-table-type")?.textContent).toContain("All");
+    expect(container.querySelector(".application-table-providers")).not.toBeNull();
+    expect(container.querySelector(".application-table-icon img")?.getAttribute("src")).toBe("/logo.png");
     expect(container.querySelector(".application-row-actions")).not.toBeNull();
-    expect(view.getByText(/对象上下文|Object context/)).not.toBeNull();
-    expect(view.getByText(/更多|More/)).not.toBeNull();
-    expect(view.queryByText(/Delete|删除/)).toBeNull();
+    expect(container.querySelector(".enterprise-list-row-actions.application-row-actions")).not.toBeNull();
+    expect(container.querySelector(".application-row-primary-action")).not.toBeNull();
+    expect(view.queryByText(/显示名称|Display name/)).toBeNull();
+    expect(view.queryByText(/对象信息|Object context|Object information/)).toBeNull();
+    expect(view.queryByText(/^(更多|More)$/)).toBeNull();
+    expect(view.getByText(/复制|Copy/)).not.toBeNull();
+    expect(view.getByText(/删除|Delete/)).not.toBeNull();
+  });
+
+  test("uses the shared toolbar query state for backend list filtering", () => {
+    const page = attachPageState(new (ApplicationListPage as LegacyAny)({
+      account,
+      history: {push: jest.fn()},
+      match: {path: "/applications", params: {}},
+    }), {
+      pagination: {current: 3, pageSize: 20, total: 4},
+      queryField: "organization",
+      queryKeyword: "built-in",
+    });
+    page.fetch = jest.fn();
+
+    page.handleToolbarSearch();
+
+    expect(page.fetch).toHaveBeenCalledWith({
+      pagination: expect.objectContaining({current: 1, pageSize: 20}),
+      searchedColumn: "organization",
+      searchText: "built-in",
+    });
+  });
+
+  test("keeps compact identity columns when backend form config uses legacy application field names", () => {
+    const page = attachPageState(new (ApplicationListPage as LegacyAny)({
+      account,
+      history: {push: jest.fn()},
+      match: {path: "/applications", params: {}},
+      formItems: [
+        {name: "name", label: "general:Name", visible: true, width: "150"},
+        {name: "organization", label: "general:Organization", visible: true, width: "150"},
+        {name: "category", label: "general:Category", visible: true, width: "120"},
+        {name: "type", label: "general:Type", visible: true, width: "100"},
+        {name: "providers", label: "application:Providers", visible: true, width: "500"},
+        {name: "createdTime", label: "general:Created time", visible: true, width: "160"},
+      ],
+    }), {
+      data: [application],
+    });
+    const tableShell = page.renderTable([application]) as React.ReactElement<{children: React.ReactElement<LegacyAny>}>;
+    const table = tableShell.props.children;
+    const columns = table.props.columns as Array<{key: string; title: string; width: string}>;
+    const view = render(
+      <MemoryRouter>
+        {tableShell}
+      </MemoryRouter>
+    );
+    const {container} = view;
+
+    expect(columns.find(column => column.key === "name")?.width).toBe("18%");
+    expect(columns.find(column => column.key === "name")?.title).toMatch(/应用|Application/);
+    expect(columns.find(column => column.key === "providers")?.width).toBe("25%");
+    expect(columns.find(column => column.key === "op")?.width).toBe("21%");
+    expect(container.querySelector(".application-table-cell")?.textContent).toContain("AICodex Portal");
+    expect(container.querySelector(".application-table-category")).not.toBeNull();
+    expect(container.querySelector(".application-table-type")).not.toBeNull();
+    expect(container.querySelector(".application-table-providers")).not.toBeNull();
+    expect(view.getByText(/分类|Category/)).not.toBeNull();
+    expect(view.getByText(/类型|Type/)).not.toBeNull();
+    expect(view.getByText(/接入配置|Access configuration/)).not.toBeNull();
   });
 
   test("keeps backend contracts for non-default organization fetch and row actions", async() => {
@@ -171,40 +263,5 @@ describe("ApplicationListPage enterprise table polish", () => {
     await flushPromises();
     expect(ApplicationBackend.deleteApplication).toHaveBeenCalledWith(expect.objectContaining({name: "portal"}));
     expect(page.fetch).toHaveBeenCalledWith({pagination: expect.objectContaining({current: 1})});
-  });
-
-  test("keeps identity asset fallback context when aggregation is unavailable", () => {
-    const page = attachPageState(new (ApplicationListPage as LegacyAny)({
-      account,
-      history: {push: jest.fn()},
-      match: {path: "/applications", params: {}},
-    }), {
-      data: [application],
-      pagination: {current: 1, pageSize: 10, total: 1},
-      searchedColumn: "category",
-      searchText: "Default",
-    });
-
-    expect(page.getIdentityAssetSourceContext()).toEqual(expect.objectContaining({
-      pagePath: "/applications",
-      filterSummary: "category=Default",
-      loadedRows: 1,
-      totalRows: 1,
-    }));
-    page.openIdentityAssetDetail(application);
-
-    expect(page.state.identityAssetDetail).toEqual(expect.objectContaining({
-      object: expect.objectContaining({
-        type: "Application",
-        owner: "admin",
-        id: "built-in/portal",
-      }),
-      source: expect.objectContaining({
-        filterSummary: "category=Default",
-        loadedRows: 1,
-      }),
-    }));
-    page.closeIdentityAssetDetail();
-    expect(page.state.identityAssetDetail).toBeNull();
   });
 });

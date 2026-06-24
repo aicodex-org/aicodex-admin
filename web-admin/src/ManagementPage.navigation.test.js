@@ -144,7 +144,7 @@ describe("enterprise identity navigation", () => {
     expect(groups.find(group => group.key === "/identity-sources").children.find(item => item.key === "/feishu-org-sync").label)
       .toBe("Feishu Sync");
     expect(groups.find(group => group.key === "/application-access").children.find(item => item.key === "/applications").label)
-      .toBe("Application Access Center");
+      .toBe("Access Center");
     expect(groups.find(group => group.key === "/application-access").children.find(item => item.key === "/application-usage-access").label)
       .toBe("Usage Access");
     expect(groups.find(group => group.key === "/application-access").children.find(item => item.key === "/access-wizard").label)
@@ -192,7 +192,7 @@ describe("enterprise identity navigation", () => {
       account: {
         ...localAdminAccount,
         organization: {
-        navItems: ["/", "/identity-assets", "/application-usage-access", "/access-wizard", "/providers", "/platform-api-mappings", "/governance-tasks"],
+          navItems: ["/", "/identity-assets", "/application-usage-access", "/access-wizard", "/providers", "/platform-api-mappings", "/governance-tasks"],
         },
       },
       themeData: {colorPrimary: "#1677ff"},
@@ -296,7 +296,7 @@ describe("enterprise identity navigation", () => {
     const routes = buildWorkspaceRouteItems(groups);
 
     expect(routes.find(route => route.path === "/")?.label).toBe("身份总览");
-    expect(routes.find(route => route.path === "/applications")?.label).toBe("应用接入中心");
+    expect(routes.find(route => route.path === "/applications")?.label).toBe("接入中心");
     expect(routes.find(route => route.path === "/application-usage-access")?.label).toBe("用量接入");
     expect(routes.find(route => route.path === "/agents")?.label).toBe("AI Agent 入口");
 
