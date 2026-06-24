@@ -7,6 +7,8 @@ import * as Setting from "./Setting";
 import * as FormBackend from "./backend/FormBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as UserBackend from "./backend/UserBackend";
+import ListPageIdentityCell from "./common/ListPageIdentityCell";
+import ListPageRowActions from "./common/ListPageRowActions";
 import ListPageTable from "./common/ListPageTable";
 import UserListPage from "./UserListPage";
 import * as XLSX from "xlsx";
@@ -589,9 +591,10 @@ test("builds table actions for edit, impersonation, remove and delete", () => {
   expect(columns.find(column => column.key === "signupApplication")).toBeUndefined();
   expect(actionColumn.fixed).toBeUndefined();
   const actionNode = actionColumn.render?.(undefined, user, 0) as React.ReactElement<{children: React.ReactNode; className?: string}>;
-  expect(actionNode.props.className).toContain("enterprise-list-row-actions");
+  expect(actionNode.type).toBe(ListPageRowActions);
   const actionChildren = React.Children.toArray(actionNode.props.children) as React.ReactElement[];
   const actionView = render(<>{actionNode}</>);
+  expect(actionView.container.querySelector(".enterprise-list-row-actions.user-row-actions")).not.toBeNull();
 
   fireEvent.click(actionView.getByLabelText(/身\s*份\s*模\s*拟|Impersonation/));
   expect(page.impersonateUser).toHaveBeenCalledWith("engineering/alice");
@@ -755,11 +758,14 @@ test("renders compact user identity, contact, source and status cells", () => {
     isForbidden: true,
   };
 
-  const identityView = render(<MemoryRouter>{identityColumn.render?.(undefined, compactUser, 0)}</MemoryRouter>);
+  const identityNode = identityColumn.render?.(undefined, compactUser, 0) as React.ReactElement;
+  expect(identityNode.type).toBe(ListPageIdentityCell);
+  const identityView = render(<MemoryRouter>{identityNode}</MemoryRouter>);
   expect(identityView.getByText("Bob")).not.toBeNull();
   expect(identityView.getByText("B")).not.toBeNull();
   expect(identityView.getByText("Bob").className).toContain("enterprise-list-primary-text");
   expect(identityView.getByText("alice").className).toContain("enterprise-list-secondary-text");
+  expect(identityView.container.querySelector(".user-table-copy-id")?.getAttribute("aria-label")).toMatch(/Copy|复制/);
   identityView.unmount();
 
   const contactView = render(<>{contactColumn.render?.(undefined, compactUser, 0)}</>);

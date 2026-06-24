@@ -13,6 +13,8 @@ interface ListPageIdentityCellProps {
   copyValue?: string;
   copyLabel: string;
   copyClassName?: string;
+  // `icon` 用于传入 Avatar 等有兜底逻辑的节点；`iconSrc` 保留给组织/群组等静态图标场景。
+  icon?: React.ReactNode;
   iconSrc?: string;
   iconAlt?: string;
   onCopiedMessage: string;
@@ -22,13 +24,14 @@ interface ListPageIdentityCellProps {
 export default function ListPageIdentityCell(props: ListPageIdentityCellProps): JSX.Element {
   const secondary = props.secondary ?? "";
   const copyValue = props.copyValue ?? secondary;
+  const icon = props.icon ?? (props.iconSrc ? <img src={props.iconSrc} alt={props.iconAlt ?? props.title} /> : null);
 
   return (
     <div className={`${props.classPrefix}-cell`}>
       {
-        props.iconSrc ? (
+        icon ? (
           <span className={`${props.classPrefix}-icon`}>
-            <img src={props.iconSrc} alt={props.iconAlt ?? props.title} />
+            {icon}
           </span>
         ) : null
       }

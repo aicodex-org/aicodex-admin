@@ -26,6 +26,8 @@ import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import * as XLSX from "xlsx";
 import OrganizationIdentityCenter from "./OrganizationIdentityCenter";
+import ListPageIdentityCell from "./common/ListPageIdentityCell";
+import ListPageRowActions from "./common/ListPageRowActions";
 import ListPageTable from "./common/ListPageTable";
 import EnterpriseListQueryToolbar from "./common/EnterpriseListQueryToolbar";
 
@@ -260,17 +262,17 @@ function renderUserIdentity(record: UserRecord): React.ReactNode {
   const displayName = getUserDisplayName(record) || name;
 
   return (
-    <div className="user-table-user-cell">
-      <UserTableAvatar record={record} />
-      <div className="user-table-user-content">
-        <Link className="enterprise-list-primary-text user-table-user-name" to={`/users/${record.owner}/${name}`} title={displayName}>
-          {displayName}
-        </Link>
-        <Tooltip title={name || undefined}>
-          <span className="enterprise-list-secondary-text user-table-user-id" title={name}>{name}</span>
-        </Tooltip>
-      </div>
-    </div>
+    <ListPageIdentityCell
+      classPrefix="user-table-user"
+      title={displayName}
+      titleTo={`/users/${record.owner}/${name}`}
+      secondary={name}
+      copyValue={name}
+      copyLabel={`${t("general:Copy")} ${t("general:Name")}`}
+      copyClassName="user-table-copy-id"
+      icon={<UserTableAvatar record={record} />}
+      onCopiedMessage={t("general:Copied to clipboard successfully")}
+    />
   );
 }
 
@@ -789,7 +791,7 @@ class UserListPage extends TypedBaseListPage {
           );
 
           return (
-            <Space className="enterprise-list-row-actions user-row-actions" size={4} wrap={false}>
+            <ListPageRowActions className="user-row-actions">
               <Tooltip title={t("general:Impersonation")}>
                 <Button
                   aria-label={t("general:Impersonation")}
@@ -826,7 +828,7 @@ class UserListPage extends TypedBaseListPage {
               >
                 {deleteButton}
               </Popconfirm>
-            </Space>
+            </ListPageRowActions>
           );
         },
       },
