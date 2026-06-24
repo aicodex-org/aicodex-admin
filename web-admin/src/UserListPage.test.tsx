@@ -56,6 +56,16 @@ type TestUserTableElement = React.ReactElement<{
   scroll?: unknown;
   title: () => React.ReactNode;
 }>;
+type TestIdentityCenterElement = React.ReactElement<{
+  children: React.ReactElement<{children: TestUserTableElement}>;
+  listAction?: React.ReactNode;
+}>;
+type TestToolbarProps = {
+  actions?: React.ReactNode;
+  showHeader?: boolean;
+  onFieldChange: (value: string) => void;
+  onKeywordChange: (value: string) => void;
+};
 
 const userBackendMock = UserBackend as unknown as UserBackendMock;
 const organizationBackendMock = OrganizationBackend as unknown as OrganizationBackendMock;
@@ -265,8 +275,12 @@ function getUploadAndModal(page: UserListPage) {
   };
 }
 
+function getIdentityCenterFromRender(page: UserListPage, data: TestUserRecord[] = [user]) {
+  return page.renderTable(data) as TestIdentityCenterElement;
+}
+
 function getTableFromRender(page: UserListPage, data: TestUserRecord[] = [user]) {
-  const identityWrapper = page.renderTable(data) as React.ReactElement<{children: React.ReactElement<{children: TestUserTableElement}>}>;
+  const identityWrapper = getIdentityCenterFromRender(page, data);
   const tableShell = identityWrapper.props.children;
   return tableShell.props.children;
 }
@@ -590,15 +604,17 @@ test("builds table actions for edit, impersonation, remove and delete", () => {
   expect(page.deleteUser).toHaveBeenCalledWith(0);
   actionView.unmount();
 
-  const toolbarView = render(<>{table.props.title()}</>);
-  fireEvent.click(toolbarView.getByText(/添\s*加|Add/));
+  const listActionView = render(<>{getIdentityCenterFromRender(page).props.listAction}</>);
+  fireEvent.click(listActionView.getByText(/添\s*加|Add/));
   expect(userBackendMock.addUser).toHaveBeenCalled();
-  toolbarView.unmount();
+  listActionView.unmount();
 
-  const toolbarShell = table.props.title() as React.ReactElement<{children: React.ReactElement<{
-    onFieldChange: (value: string) => void;
-    onKeywordChange: (value: string) => void;
-  }>}>;
+  const toolbarShell = table.props.title() as React.ReactElement<{children: React.ReactElement<TestToolbarProps>}>;
+  expect(toolbarShell.props.children.props.showHeader).toBe(false);
+  expect(toolbarShell.props.children.props.actions).toBeUndefined();
+  const toolbarView = render(<>{table.props.title()}</>);
+  expect(toolbarView.queryByText(/用\s*户|Users/)).toBeNull();
+  toolbarView.unmount();
   toolbarShell.props.children.props.onFieldChange("phone");
   toolbarShell.props.children.props.onKeywordChange("138");
   expect(page.state.queryField).toBe("phone");

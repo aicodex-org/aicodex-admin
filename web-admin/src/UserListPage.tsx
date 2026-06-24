@@ -656,12 +656,23 @@ class UserListPage extends TypedBaseListPage {
     });
   };
 
+  renderListActions(): React.ReactNode {
+    return (
+      <>
+        <Button type="primary" size="small" onClick={this.addUser.bind(this)}>{t("general:Add")}</Button>
+        <Button size="small" onClick={this.generateDownloadTemplate}>{t("general:Download template")} </Button>
+        {this.renderUpload()}
+      </>
+    );
+  }
+
   renderListToolbar(): React.ReactNode {
     return (
       <div className="enterprise-list-toolbar-shell">
         <EnterpriseListQueryToolbar
           title={t("general:Users")}
           total={this.state.pagination.total}
+          showHeader={false}
           showTotal={false}
           fields={getUserQueryFields()}
           selectedField={this.state.queryField}
@@ -672,13 +683,6 @@ class UserListPage extends TypedBaseListPage {
           onReset={this.handleToolbarReset}
           onAdvancedOpenChange={(advancedFiltersOpen) => this.setState({advancedFiltersOpen})}
           advancedFilters={this.renderAdvancedFilters()}
-          actions={(
-            <>
-              <Button type="primary" size="small" onClick={this.addUser.bind(this)}>{t("general:Add")}</Button>
-              <Button size="small" onClick={this.generateDownloadTemplate}>{t("general:Download template")} </Button>
-              {this.renderUpload()}
-            </>
-          )}
         />
       </div>
     );
@@ -837,6 +841,7 @@ class UserListPage extends TypedBaseListPage {
         currentOrganization={this.state.organizationName || (Setting.isDefaultOrganizationSelected(this.props.account) ? t("general:All") : Setting.getRequestOrganization(this.props.account))}
         total={this.state.pagination.total}
         loadedCount={users.length}
+        listAction={this.renderListActions()}
       >
         <div className="user-list-page-table-shell">
           <ListPageTable<UserRecord>
