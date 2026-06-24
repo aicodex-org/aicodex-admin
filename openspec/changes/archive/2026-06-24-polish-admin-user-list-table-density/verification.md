@@ -4,7 +4,7 @@
 
 预览地址：`http://localhost:7005/users`。
 
-截图证据：`openspec/changes/polish-admin-user-list-table-density/artifacts/users-1440.png`。
+截图验证：本地 Playwright 生成 1440px 桌面截图并完成目视检查；截图仅作为本地临时验收证据，未入库。
 
 ## 命令验证
 
@@ -60,7 +60,7 @@ Playwright DOM 证据：
 
 追加原因：用户指出用户页漏接“更多筛选”，且组织、群组、用户列表文本字号未共用一套样式语义。
 
-追加截图证据：`openspec/changes/polish-admin-user-list-table-density/artifacts/users-advanced-filters-1440.png`。
+追加截图验证：本地 Playwright 生成 1440px 桌面截图并完成目视检查；截图仅作为本地临时验收证据，未入库。
 
 追加命令验证：
 
