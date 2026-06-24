@@ -14,14 +14,23 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Table} from "antd";
+import {Button, Popconfirm} from "antd";
+import {DeleteOutlined, EditOutlined, PlusOutlined} from "@ant-design/icons";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as KeyBackend from "./backend/KeyBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
-import PopconfirmModal from "./common/modal/PopconfirmModal";
 import {legacyColumns} from "./types/legacyPage";
+import ListPageTable from "./common/ListPageTable";
+import EnterpriseListQueryToolbar from "./common/EnterpriseListQueryToolbar";
+import ListPageRowActions from "./common/ListPageRowActions";
+import {
+  createEmptyApplicationAccessQueryKeywords,
+  getActiveApplicationAccessQueryCondition,
+  renderApplicationAccessAdvancedFilters,
+  renderApplicationAccessKeywordControl
+} from "./common/ApplicationAccessListControls";
 
 type AdminRouteProps = import("./types/legacyPage").AdminRouteProps;
 type LegacyAny = import("./types/legacyPage").LegacyAny;
@@ -39,9 +48,51 @@ function t(key: string, options?: LegacyAny): string {
   return String(i18next.t(key, options));
 }
 
+function getKeyQueryFields() {
+  return [
+    {label: t("general:Name"), value: "name"},
+    {label: t("general:Display name"), value: "displayName"},
+    {label: t("general:Organization"), value: "owner"},
+    {
+      label: t("general:Type"),
+      value: "type",
+      options: [
+        {label: t("general:Organization"), value: "Organization"},
+        {label: t("general:Application"), value: "Application"},
+        {label: t("general:User"), value: "User"},
+        {label: t("general:General"), value: "General"},
+      ],
+    },
+    {label: t("key:Access key"), value: "accessKey"},
+    {label: t("general:State"), value: "state", options: [{label: "Active", value: "Active"}, {label: "Inactive", value: "Inactive"}]},
+  ];
+}
+
+function getKeyTableScroll(advancedFiltersOpen: boolean): {x?: number; y?: string} | undefined {
+  if (Setting.isMobile()) {
+    return {x: 900};
+  }
+  return {y: advancedFiltersOpen ? "calc(100vh - 414px)" : "calc(100vh - 360px)"};
+}
+
 const LegacyBaseListPage = BaseListPage as unknown as React.ComponentClass<AdminRouteProps, LegacyAny> & LegacyAny;
 
 class KeyListPage extends LegacyBaseListPage {
+  constructor(props: AdminRouteProps) {
+    super(props);
+    this.state = {
+      ...this.state,
+      pagination: {
+        ...this.state.pagination,
+        pageSize: 20,
+      },
+      queryField: "name",
+      queryKeyword: "",
+      advancedQueryKeywords: createEmptyApplicationAccessQueryKeywords(getKeyQueryFields()),
+      advancedFiltersOpen: false,
+    };
+  }
+
   newKey() {
     const randomName = Setting.getRandomName();
     const owner = Setting.getRequestOrganization(this.props.account);
@@ -98,19 +149,87 @@ class KeyListPage extends LegacyBaseListPage {
       });
   }
 
+  handleToolbarSearch = (): void => {
+    const pagination = {...this.state.pagination, current: 1};
+    const condition = getActiveApplicationAccessQueryCondition(
+      getKeyQueryFields(),
+      this.state.queryField,
+      this.state.queryKeyword,
+      this.state.advancedQueryKeywords
+    );
+    if (condition) {
+      this.fetch({
+        pagination,
+        searchedColumn: condition.field,
+        searchText: condition.value,
+      });
+      return;
+    }
+
+    this.fetch({pagination});
+  };
+
+  handleToolbarReset = (): void => {
+    const pagination = {...this.state.pagination, current: 1};
+    this.setState({
+      queryField: "name",
+      queryKeyword: "",
+      advancedQueryKeywords: createEmptyApplicationAccessQueryKeywords(getKeyQueryFields()),
+      searchText: undefined,
+      searchedColumn: undefined,
+    }, () => this.fetch({pagination}));
+  };
+
+  handleAdvancedFilterChange = (field: string, value: string): void => {
+    this.setState((prevState: LegacyAny) => ({
+      advancedQueryKeywords: {
+        ...prevState.advancedQueryKeywords,
+        [field]: value,
+      },
+    }));
+  };
+
+  renderAdvancedFilters(): React.ReactNode {
+    return renderApplicationAccessAdvancedFilters(
+      getKeyQueryFields(),
+      this.state.advancedQueryKeywords || {},
+      this.handleAdvancedFilterChange
+    );
+  }
+
+  renderListToolbar(): React.ReactNode {
+    return (
+      <EnterpriseListQueryToolbar
+        title={t("general:Keys")}
+        total={this.state.pagination.total}
+        showTotal={false}
+        fields={getKeyQueryFields()}
+        selectedField={this.state.queryField}
+        keyword={this.state.queryKeyword}
+        onFieldChange={(value) => this.setState({queryField: value, queryKeyword: ""})}
+        onKeywordChange={(value) => this.setState({queryKeyword: value})}
+        onSearch={this.handleToolbarSearch}
+        onReset={this.handleToolbarReset}
+        onAdvancedOpenChange={(advancedFiltersOpen) => this.setState({advancedFiltersOpen})}
+        keywordControl={renderApplicationAccessKeywordControl(getKeyQueryFields(), this.state.queryField, this.state.queryKeyword, (value) => this.setState({queryKeyword: value}), this.handleToolbarSearch)}
+        advancedFilters={this.renderAdvancedFilters()}
+        actions={<Button type="primary" size="small" icon={<PlusOutlined />} onClick={this.addKey.bind(this)}>{t("general:Add")}</Button>}
+      />
+    );
+  }
+
   renderTable(keys: KeyRecord[]) {
     const columns: LegacyColumn<KeyRecord>[] = legacyColumns<KeyRecord>([
       {
         title: t("general:Name"),
         dataIndex: "name",
         key: "name",
-        width: "140px",
-        fixed: "left",
+        width: "16%",
         sorter: true,
-        ...this.getColumnSearchProps("name"),
+        ellipsis: true,
         render: (text, record, index) => {
           return (
-            <Link to={`/keys/${record.owner}/${text}`}>
+            <Link className="enterprise-list-inline-link" to={`/keys/${record.owner}/${text}`} title={text}>
               {text}
             </Link>
           );
@@ -120,91 +239,83 @@ class KeyListPage extends LegacyBaseListPage {
         title: t("general:Organization"),
         dataIndex: "owner",
         key: "owner",
-        width: "150px",
+        width: "12%",
         sorter: true,
-        ...this.getColumnSearchProps("owner"),
+        ellipsis: true,
         render: (text, record, index) => {
           return (
-            <Link to={`/organizations/${text}`}>
+            <Link className="enterprise-list-inline-link" to={`/organizations/${text}`} title={text}>
               {text}
             </Link>
           );
         },
       },
       {
-        title: t("general:Created time"),
-        dataIndex: "createdTime",
-        key: "createdTime",
-        width: "160px",
-        sorter: true,
-        render: (text, record, index) => {
-          return Setting.getFormattedDate(text);
-        },
-      },
-      {
         title: t("general:Display name"),
         dataIndex: "displayName",
         key: "displayName",
-        width: "170px",
+        width: "17%",
         sorter: true,
-        ...this.getColumnSearchProps("displayName"),
+        ellipsis: true,
       },
       {
         title: t("general:Type"),
         dataIndex: "type",
         key: "type",
-        width: "140px",
+        width: "10%",
         sorter: true,
-        filterMultiple: false,
-        filters: [
-          {text: t("general:Organization"), value: "Organization"},
-          {text: t("general:Application"), value: "Application"},
-          {text: t("general:User"), value: "User"},
-          {text: t("general:General"), value: "General"},
-        ],
+        ellipsis: true,
       },
       {
         title: t("key:Access key"),
         dataIndex: "accessKey",
         key: "accessKey",
-        width: "300px",
+        width: "20%",
         sorter: true,
-        ...this.getColumnSearchProps("accessKey"),
+        ellipsis: true,
       },
       {
-        title: t("general:Expire time"),
-        dataIndex: "expireTime",
-        key: "expireTime",
-        width: "160px",
+        title: t("general:Updated time"),
+        dataIndex: "updatedTime",
+        key: "updatedTime",
+        width: "13%",
         sorter: true,
         render: (text, record, index) => {
-          return Setting.getFormattedDate(text);
+          return <span className="enterprise-list-secondary-text">{Setting.getFormattedDate(text)}</span>;
         },
       },
       {
         title: t("general:State"),
         dataIndex: "state",
         key: "state",
-        width: "120px",
+        width: "10%",
         sorter: true,
-        ...this.getColumnSearchProps("state"),
+        ellipsis: true,
       },
       {
         title: t("general:Action"),
         dataIndex: "",
         key: "op",
-        width: "180px",
-        fixed: (Setting.isMobile()) ? false : "right",
+        width: "12%",
         render: (text, record, index) => {
+          const deleteButton = (
+            <Button type="text" size="small" danger icon={<DeleteOutlined />}>
+              {t("general:Delete")}
+            </Button>
+          );
           return (
-            <div>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/keys/${record.owner}/${record.name}`)}>{t("general:Edit")}</Button>
-              <PopconfirmModal
+            <ListPageRowActions className="key-row-actions">
+              <Button size="small" type="link" icon={<EditOutlined />} onClick={() => this.props.history.push(`/keys/${record.owner}/${record.name}`)}>{t("general:Edit")}</Button>
+              <Popconfirm
                 title={t("general:Sure to delete") + `: ${record.name} ?`}
                 onConfirm={() => this.deleteKey(index)}
+                okText={t("general:OK")}
+                cancelText={t("general:Cancel")}
+                okButtonProps={{danger: true}}
               >
-              </PopconfirmModal>
-            </div>
+                {deleteButton}
+              </Popconfirm>
+            </ListPageRowActions>
           );
         },
       },
@@ -213,14 +324,9 @@ class KeyListPage extends LegacyBaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <div>
-        <Table scroll={{x: "max-content"}} columns={columns} dataSource={keys} rowKey={(record: KeyRecord) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
-          title={() => (
-            <div>
-              {t("general:Keys")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button type="primary" size="small" onClick={this.addKey.bind(this)}>{t("general:Add")}</Button>
-            </div>
-          )}
+      <div className="key-list-page-table-shell">
+        <ListPageTable<KeyRecord> scroll={getKeyTableScroll(this.state.advancedFiltersOpen)} className="key-list-table" columns={columns} dataSource={keys} rowKey={(record: KeyRecord) => `${record.owner}/${record.name}`} pagination={paginationProps}
+          title={() => this.renderListToolbar()}
           loading={this.state.loading}
           onChange={this.handleTableChange}
         />

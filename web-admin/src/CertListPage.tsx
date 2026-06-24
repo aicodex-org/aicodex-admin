@@ -14,14 +14,23 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Table} from "antd";
+import {Button, Popconfirm} from "antd";
+import {DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined} from "@ant-design/icons";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as CertBackend from "./backend/CertBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
-import PopconfirmModal from "./common/modal/PopconfirmModal";
 import {legacyColumns} from "./types/legacyPage";
+import ListPageTable from "./common/ListPageTable";
+import EnterpriseListQueryToolbar from "./common/EnterpriseListQueryToolbar";
+import ListPageRowActions from "./common/ListPageRowActions";
+import {
+  createEmptyApplicationAccessQueryKeywords,
+  getActiveApplicationAccessQueryCondition,
+  renderApplicationAccessAdvancedFilters,
+  renderApplicationAccessKeywordControl
+} from "./common/ApplicationAccessListControls";
 
 type AdminRouteProps = import("./types/legacyPage").AdminRouteProps;
 type LegacyAny = import("./types/legacyPage").LegacyAny;
@@ -40,11 +49,40 @@ function t(key: string, options?: LegacyAny): string {
   return String(i18next.t(key, options));
 }
 
+function getCertQueryFields() {
+  return [
+    {label: t("general:Name"), value: "name"},
+    {label: t("general:Display name"), value: "displayName"},
+    {label: t("general:Organization"), value: "owner"},
+    {label: t("provider:Scope"), value: "scope", options: [{label: "JWT", value: "JWT"}]},
+    {label: t("general:Type"), value: "type", options: [{label: "x509", value: "x509"}, {label: "Payment", value: "Payment"}, {label: "SSL", value: "SSL"}]},
+    {label: t("cert:Crypto algorithm"), value: "cryptoAlgorithm", options: [{label: "RS256", value: "RS256"}]},
+  ];
+}
+
+function getCertTableScroll(advancedFiltersOpen: boolean): {x?: number; y?: string} | undefined {
+  if (Setting.isMobile()) {
+    return {x: 900};
+  }
+  return {y: advancedFiltersOpen ? "calc(100vh - 414px)" : "calc(100vh - 360px)"};
+}
+
 const LegacyBaseListPage = BaseListPage as unknown as React.ComponentClass<AdminRouteProps, LegacyAny> & LegacyAny;
 
 class CertListPage extends LegacyBaseListPage {
   constructor(props: AdminRouteProps) {
     super(props);
+    this.state = {
+      ...this.state,
+      pagination: {
+        ...this.state.pagination,
+        pageSize: 20,
+      },
+      queryField: "name",
+      queryKeyword: "",
+      advancedQueryKeywords: createEmptyApplicationAccessQueryKeywords(getCertQueryFields()),
+      advancedFiltersOpen: false,
+    };
   }
 
   componentDidMount() {
@@ -130,19 +168,87 @@ class CertListPage extends LegacyBaseListPage {
       });
   }
 
+  handleToolbarSearch = (): void => {
+    const pagination = {...this.state.pagination, current: 1};
+    const condition = getActiveApplicationAccessQueryCondition(
+      getCertQueryFields(),
+      this.state.queryField,
+      this.state.queryKeyword,
+      this.state.advancedQueryKeywords
+    );
+    if (condition) {
+      this.fetch({
+        pagination,
+        searchedColumn: condition.field,
+        searchText: condition.value,
+      });
+      return;
+    }
+
+    this.fetch({pagination});
+  };
+
+  handleToolbarReset = (): void => {
+    const pagination = {...this.state.pagination, current: 1};
+    this.setState({
+      queryField: "name",
+      queryKeyword: "",
+      advancedQueryKeywords: createEmptyApplicationAccessQueryKeywords(getCertQueryFields()),
+      searchText: undefined,
+      searchedColumn: undefined,
+    }, () => this.fetch({pagination}));
+  };
+
+  handleAdvancedFilterChange = (field: string, value: string): void => {
+    this.setState((prevState: LegacyAny) => ({
+      advancedQueryKeywords: {
+        ...prevState.advancedQueryKeywords,
+        [field]: value,
+      },
+    }));
+  };
+
+  renderAdvancedFilters(): React.ReactNode {
+    return renderApplicationAccessAdvancedFilters(
+      getCertQueryFields(),
+      this.state.advancedQueryKeywords || {},
+      this.handleAdvancedFilterChange
+    );
+  }
+
+  renderListToolbar(): React.ReactNode {
+    return (
+      <EnterpriseListQueryToolbar
+        title={t("general:Certs")}
+        total={this.state.pagination.total}
+        showTotal={false}
+        fields={getCertQueryFields()}
+        selectedField={this.state.queryField}
+        keyword={this.state.queryKeyword}
+        onFieldChange={(value) => this.setState({queryField: value, queryKeyword: ""})}
+        onKeywordChange={(value) => this.setState({queryKeyword: value})}
+        onSearch={this.handleToolbarSearch}
+        onReset={this.handleToolbarReset}
+        onAdvancedOpenChange={(advancedFiltersOpen) => this.setState({advancedFiltersOpen})}
+        keywordControl={renderApplicationAccessKeywordControl(getCertQueryFields(), this.state.queryField, this.state.queryKeyword, (value) => this.setState({queryKeyword: value}), this.handleToolbarSearch)}
+        advancedFilters={this.renderAdvancedFilters()}
+        actions={<Button type="primary" size="small" icon={<PlusOutlined />} onClick={this.addCert.bind(this)}>{t("general:Add")}</Button>}
+      />
+    );
+  }
+
   renderTable(certs: CertRecord[]) {
     const columns: LegacyColumn<CertRecord>[] = legacyColumns<CertRecord>([
       {
         title: t("general:Name"),
         dataIndex: "name",
         key: "name",
-        width: "120px",
-        fixed: "left",
+        width: "16%",
         sorter: true,
-        ...this.getColumnSearchProps("name"),
+        ellipsis: true,
         render: (text, record, index) => {
           return (
-            <Link to={`/certs/${record.owner}/${text}`}>
+            <Link className="enterprise-list-inline-link" to={`/certs/${record.owner}/${text}`} title={text}>
               {text}
             </Link>
           );
@@ -152,104 +258,101 @@ class CertListPage extends LegacyBaseListPage {
         title: t("general:Organization"),
         dataIndex: "owner",
         key: "owner",
-        width: "150px",
+        width: "12%",
         sorter: true,
-        ...this.getColumnSearchProps("owner"),
+        ellipsis: true,
         render: (text, record, index) => {
           return (text !== "admin") ? text : t("provider:admin (Shared)");
-        },
-      },
-      {
-        title: t("general:Created time"),
-        dataIndex: "createdTime",
-        key: "createdTime",
-        width: "180px",
-        sorter: true,
-        render: (text, record, index) => {
-          return Setting.getFormattedDate(text);
         },
       },
       {
         title: t("general:Display name"),
         dataIndex: "displayName",
         key: "displayName",
-        // width: '100px',
+        width: "18%",
         sorter: true,
-        ...this.getColumnSearchProps("displayName"),
+        ellipsis: true,
       },
       {
         title: t("provider:Scope"),
         dataIndex: "scope",
         key: "scope",
-        filterMultiple: false,
-        filters: [
-          {text: "JWT", value: "JWT"},
-        ],
-        width: "110px",
+        width: "9%",
         sorter: true,
+        ellipsis: true,
       },
       {
         title: t("general:Type"),
         dataIndex: "type",
         key: "type",
-        filterMultiple: false,
-        filters: [
-          {text: "x509", value: "x509"},
-          {text: "Payment", value: "Payment"},
-        ],
-        width: "110px",
+        width: "9%",
         sorter: true,
+        ellipsis: true,
       },
       {
         title: t("cert:Crypto algorithm"),
         dataIndex: "cryptoAlgorithm",
         key: "cryptoAlgorithm",
-        filterMultiple: false,
-        filters: [
-          {text: "RS256", value: "RS256"},
-        ],
-        width: "190px",
+        width: "13%",
         sorter: true,
+        ellipsis: true,
       },
       {
         title: t("cert:Bit size"),
         dataIndex: "bitSize",
         key: "bitSize",
-        width: "130px",
+        width: "8%",
         sorter: true,
-        ...this.getColumnSearchProps("bitSize"),
       },
       {
         title: t("cert:Expire in years"),
         dataIndex: "expireInYears",
         key: "expireInYears",
-        width: "170px",
+        width: "10%",
         sorter: true,
-        ...this.getColumnSearchProps("expireInYears"),
+      },
+      {
+        title: t("general:Created time"),
+        dataIndex: "createdTime",
+        key: "createdTime",
+        width: "13%",
+        sorter: true,
+        render: (text, record, index) => {
+          return <span className="enterprise-list-secondary-text">{Setting.getFormattedDate(text)}</span>;
+        },
       },
       {
         title: t("general:Action"),
         dataIndex: "",
         key: "op",
-        width: "170px",
-        fixed: (Setting.isMobile()) ? false : "right",
+        width: "12%",
         render: (text, record, index) => {
+          const disabled = !Setting.isAdminUser(this.props.account) && (record.owner !== this.props.account.owner);
+          const deleteButton = (
+            <Button disabled={disabled} type="text" size="small" danger icon={<DeleteOutlined />}>
+              {t("general:Delete")}
+            </Button>
+          );
           return (
-            <div>
+            <ListPageRowActions className="cert-row-actions" wrap>
               {
                 record.type === "SSL" ? (
-                  <Button disabled={!Setting.isAdminUser(this.props.account) && (record.owner !== this.props.account.owner)} style={{margin: "10px 10px 10px 0"}} type="default" onClick={() => this.refreshCert(index)}>{t("general:Refresh")}
+                  <Button disabled={disabled} size="small" type="text" icon={<ReloadOutlined />} onClick={() => this.refreshCert(index)}>{t("general:Refresh")}
                   </Button>
                 ) : null
               }
-              <Button disabled={!Setting.isAdminUser(this.props.account) && (record.owner !== this.props.account.owner)} style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/certs/${record.owner}/${record.name}`)}>{t("general:Edit")}</Button>
-              <PopconfirmModal
-                disabled={!Setting.isAdminUser(this.props.account) && (record.owner !== this.props.account.owner)}
+              <Button disabled={disabled} size="small" type="link" icon={<EditOutlined />} onClick={() => this.props.history.push(`/certs/${record.owner}/${record.name}`)}>{t("general:Edit")}</Button>
+              <Popconfirm
+                disabled={disabled}
                 title={t("general:Sure to delete") + `: ${record.name} ?`}
                 onConfirm={() => this.deleteCert(index)}
+                okText={t("general:OK")}
+                cancelText={t("general:Cancel")}
+                okButtonProps={{danger: true}}
               >
-              </PopconfirmModal>
-            </div>
+                {deleteButton}
+              </Popconfirm>
+            </ListPageRowActions>
           );
         },
       },
@@ -258,14 +361,9 @@ class CertListPage extends LegacyBaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <div>
-        <Table scroll={{x: "max-content"}} columns={columns} dataSource={certs} rowKey={(record: CertRecord) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
-          title={() => (
-            <div>
-              {t("general:Certs")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button type="primary" size="small" onClick={this.addCert.bind(this)}>{t("general:Add")}</Button>
-            </div>
-          )}
+      <div className="cert-list-page-table-shell">
+        <ListPageTable<CertRecord> scroll={getCertTableScroll(this.state.advancedFiltersOpen)} className="cert-list-table" columns={columns} dataSource={certs} rowKey={(record: CertRecord) => `${record.owner}/${record.name}`} pagination={paginationProps}
+          title={() => this.renderListToolbar()}
           loading={this.state.loading}
           onChange={this.handleTableChange}
         />

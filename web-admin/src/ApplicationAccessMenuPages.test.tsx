@@ -15,14 +15,32 @@ import * as ResourceBackend from "./backend/ResourceBackend";
 import * as WebhookBackend from "./backend/WebhookBackend";
 import * as WebhookEventBackend from "./backend/WebhookEventBackend";
 import * as Setting from "./Setting";
+import EnterpriseListQueryToolbar from "./common/EnterpriseListQueryToolbar";
+import ListPageTable from "./common/ListPageTable";
+import {
+  getActiveApplicationAccessQueryCondition,
+  renderApplicationAccessAdvancedFilters,
+  renderApplicationAccessKeywordControl
+} from "./common/ApplicationAccessListControls";
 import type {LegacyAny} from "./types/legacyPage";
 
 type AdminRouteProps = import("./types/legacyPage").AdminRouteProps;
+type TestTableElement = React.ReactElement<{
+  className?: string;
+  columns: LegacyAny[];
+  pagination?: LegacyAny;
+  scroll?: LegacyAny;
+  title?: () => React.ReactNode;
+  bordered?: boolean;
+}>;
+type TestToolbarElement = React.ReactElement<React.ComponentProps<typeof EnterpriseListQueryToolbar>>;
 
 jest.mock("./common/Editor", () => () => <pre data-testid="editor" />);
+jest.mock("copy-to-clipboard", () => () => true);
 
 const expectAny: any = expect;
 const wait = (TestingLibrary as LegacyAny).wait || (TestingLibrary as LegacyAny).waitFor;
+const fireEvent = (TestingLibrary as LegacyAny).fireEvent;
 
 const routeProps: AdminRouteProps = {
   account: {
@@ -54,15 +72,77 @@ function renderLegacyPageTable(page: LegacyAny, element: React.ReactElement) {
 }
 
 function attachLegacyState(page: LegacyAny, extra: Record<string, LegacyAny> = {}): LegacyAny {
-  page.state = defaultListState(extra);
-  page.setState = jest.fn((patch: LegacyAny) => {
+  page.state = defaultListState({
+    ...(page.state || {}),
+    ...extra,
+  });
+  page.setState = jest.fn((patch: LegacyAny, callback?: () => void) => {
     const nextState = typeof patch === "function" ? patch(page.state, page.props) : patch;
     page.state = {
       ...page.state,
       ...nextState,
     };
+    callback?.();
   });
   return page;
+}
+
+function getSharedListTable(element: React.ReactNode): TestTableElement {
+  const node = element as React.ReactElement<LegacyAny>;
+  if (React.isValidElement(node) && node.type === ListPageTable) {
+    return node as TestTableElement;
+  }
+
+  const child = node?.props?.children;
+  if (React.isValidElement(child) && child.type === ListPageTable) {
+    return child as TestTableElement;
+  }
+
+  throw new Error("Expected a shared ListPageTable element");
+}
+
+function getEnterpriseToolbar(table: TestTableElement): TestToolbarElement {
+  const titleNode = table.props.title?.() as React.ReactElement<LegacyAny>;
+  if (React.isValidElement(titleNode) && titleNode.type === EnterpriseListQueryToolbar) {
+    return titleNode as TestToolbarElement;
+  }
+
+  const children = React.Children.toArray(titleNode?.props?.children) as React.ReactElement<LegacyAny>[];
+  const toolbar = children.find(child => React.isValidElement(child) && child.type === EnterpriseListQueryToolbar);
+  if (toolbar) {
+    return toolbar as TestToolbarElement;
+  }
+
+  throw new Error("Expected an enterprise list query toolbar");
+}
+
+function findReactElement(node: React.ReactNode, predicate: (element: React.ReactElement<LegacyAny>) => boolean): React.ReactElement<LegacyAny> | null {
+  if (!React.isValidElement(node)) {
+    return null;
+  }
+  const element = node as React.ReactElement<LegacyAny>;
+  if (predicate(element)) {
+    return element;
+  }
+
+  const children = React.Children.toArray(element.props.children);
+  for (const child of children) {
+    const match = findReactElement(child, predicate);
+    if (match) {
+      return match;
+    }
+  }
+
+  return null;
+}
+
+function getColumnRender(table: TestTableElement, key: string): NonNullable<LegacyAny["render"]> {
+  const column = table.props.columns.find((item: LegacyAny) => item.key === key);
+  if (!column?.render) {
+    throw new Error(`Expected ${key} column renderer`);
+  }
+
+  return column.render;
 }
 
 function mockOrganizationScope() {
@@ -106,6 +186,91 @@ test("renders migrated resource list table with existing row actions", () => {
   expectAny(view.getByText("provider-main")).not.toBeNull();
   expectAny(view.getByText("portal-app")).not.toBeNull();
   expectAny(view.getByRole("button", {name: /Copy Link|复制/i})).not.toBeNull();
+});
+
+test("uses shared table shell and enterprise query toolbar on application access lists", () => {
+  const cases = [
+    {
+      className: "resource-list-table",
+      table: getSharedListTable(attachLegacyState(new (ResourceListPage as LegacyAny)(routeProps) as LegacyAny).renderTable([])),
+    },
+    {
+      className: "cert-list-table",
+      table: getSharedListTable(attachLegacyState(new (CertListPage as LegacyAny)(routeProps) as LegacyAny).renderTable([])),
+    },
+    {
+      className: "key-list-table",
+      table: getSharedListTable(attachLegacyState(new (KeyListPage as LegacyAny)(routeProps) as LegacyAny).renderTable([])),
+    },
+    {
+      className: "webhook-list-table",
+      table: getSharedListTable(attachLegacyState(new (WebhookListPage as LegacyAny)(routeProps) as LegacyAny).renderTable([])),
+    },
+    {
+      className: "webhook-event-list-table",
+      table: getSharedListTable(attachLegacyState(new WebhookEventListPage(routeProps) as LegacyAny).renderTable()),
+    },
+  ];
+
+  for (const item of cases) {
+    expect(item.table.type).toBe(ListPageTable);
+    expect(item.table.props.className).toContain(item.className);
+    expect(item.table.props.bordered).toBeUndefined();
+    expect(item.table.props.scroll?.x).toBeUndefined();
+
+    const toolbar = getEnterpriseToolbar(item.table);
+    expect(toolbar.type).toBe(EnterpriseListQueryToolbar);
+    expect(toolbar.props.fields.length).toBeGreaterThan(0);
+    expect(toolbar.props.advancedFilters).not.toBeUndefined();
+
+    const toolbarView = render(<>{item.table.props.title?.()}</>);
+    expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar")).not.toBeNull();
+    fireEvent.click(toolbarView.getByText(/更\s*多\s*筛\s*选|More filters/));
+    expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-advanced")).not.toBeNull();
+    toolbarView.unmount();
+  }
+});
+
+test("maps application access list toolbar search and advanced filters to existing fetch params", () => {
+  const resourcePage = attachLegacyState(new (ResourceListPage as LegacyAny)(routeProps) as LegacyAny);
+  resourcePage.fetch = jest.fn();
+  const resourceToolbar = getEnterpriseToolbar(getSharedListTable(resourcePage.renderTable([])));
+  resourceToolbar.props.onFieldChange("provider");
+  resourceToolbar.props.onKeywordChange("provider-main");
+  resourceToolbar.props.onSearch();
+  expectAny(resourcePage.fetch).toHaveBeenCalledWith(expect.objectContaining({
+    pagination: expect.objectContaining({current: 1}),
+    searchedColumn: "provider",
+    searchText: "provider-main",
+  }));
+
+  resourcePage.fetch = jest.fn();
+  resourcePage.handleAdvancedFilterChange("provider", "provider-advanced");
+  resourceToolbar.props.onSearch();
+  expectAny(resourcePage.fetch).toHaveBeenCalledWith(expect.objectContaining({
+    pagination: expect.objectContaining({current: 1}),
+    searchedColumn: "provider",
+    searchText: "provider-advanced",
+  }));
+
+  const certPage = attachLegacyState(new (CertListPage as LegacyAny)(routeProps) as LegacyAny);
+  certPage.fetch = jest.fn();
+  const certToolbar = getEnterpriseToolbar(getSharedListTable(certPage.renderTable([])));
+  certToolbar.props.onFieldChange("type");
+  certToolbar.props.onKeywordChange("SSL");
+  certToolbar.props.onSearch();
+  expectAny(certPage.fetch).toHaveBeenCalledWith(expect.objectContaining({
+    searchedColumn: "type",
+    searchText: "SSL",
+  }));
+
+  const eventPage = attachLegacyState(new WebhookEventListPage(routeProps) as LegacyAny);
+  eventPage.fetchWebhookEvents = jest.fn();
+  const eventToolbar = getEnterpriseToolbar(getSharedListTable(eventPage.renderTable()));
+  eventToolbar.props.onFieldChange("status");
+  eventToolbar.props.onKeywordChange("failed");
+  eventToolbar.props.onSearch();
+  expectAny(eventPage.fetchWebhookEvents).toHaveBeenCalledWith(expect.objectContaining({current: 1}), "failed", "", "", "");
 });
 
 test("renders migrated cert and key list rows without exposing secrets", () => {
@@ -297,4 +462,338 @@ test("keeps migrated webhook event helpers and replay behavior", async() => {
   await wait(() => expectAny(replayWebhookEvent).toHaveBeenCalledWith("admin/event-alpha"));
   await wait(() => expectAny(page.fetchWebhookEvents).toHaveBeenCalled());
   expectAny(page.state.replayingId).toBe("");
+});
+
+test("covers shared application access query helper branches", () => {
+  const fields = [
+    {label: "Name", value: "name"},
+    {label: "Status", value: "status", options: [{label: "Active", value: "active"}]},
+  ];
+  const onChange = jest.fn();
+  const onSearch = jest.fn();
+
+  expect(getActiveApplicationAccessQueryCondition(fields, "name", "  ", {status: ""})).toBeNull();
+  expect(getActiveApplicationAccessQueryCondition(fields, "name", " primary ", {status: null})).toEqual({field: "name", value: "primary"});
+  expect(getActiveApplicationAccessQueryCondition(fields, "name", "primary", {status: " active "})).toEqual({field: "status", value: "active"});
+
+  const inputControl = renderApplicationAccessKeywordControl(fields, "name", "initial", onChange, onSearch) as React.ReactElement<LegacyAny>;
+  inputControl.props.onChange({target: {value: "typed"}});
+  inputControl.props.onPressEnter();
+  expect(onChange).toHaveBeenCalledWith("typed");
+  expect(onSearch).toHaveBeenCalled();
+
+  const selectControl = renderApplicationAccessKeywordControl(fields, "status", "", onChange, onSearch) as React.ReactElement<LegacyAny>;
+  selectControl.props.onChange("active");
+  selectControl.props.onChange(undefined);
+  expect(onChange).toHaveBeenCalledWith("active");
+  expect(onChange).toHaveBeenCalledWith("");
+
+  const advancedFilters = renderApplicationAccessAdvancedFilters(fields, {name: "alpha", status: ""}, onChange) as React.ReactElement<LegacyAny>;
+  const labels = React.Children.toArray(advancedFilters.props.children) as React.ReactElement<LegacyAny>[];
+  const nameInput = findReactElement(labels[0], element => typeof element.props.onChange === "function");
+  const statusSelect = findReactElement(labels[1], element => typeof element.props.onChange === "function");
+  nameInput?.props.onChange({target: {value: "beta"}});
+  statusSelect?.props.onChange("active");
+  statusSelect?.props.onChange(undefined);
+  expect(onChange).toHaveBeenCalledWith("name", "beta");
+  expect(onChange).toHaveBeenCalledWith("status", "active");
+  expect(onChange).toHaveBeenCalledWith("status", "");
+});
+
+test("keeps reset and empty toolbar search paths on migrated lists", () => {
+  const pages = [
+    {page: attachLegacyState(new (ResourceListPage as LegacyAny)(routeProps) as LegacyAny), defaultField: "provider"},
+    {page: attachLegacyState(new (CertListPage as LegacyAny)(routeProps) as LegacyAny), defaultField: "name"},
+    {page: attachLegacyState(new (KeyListPage as LegacyAny)(routeProps) as LegacyAny), defaultField: "name"},
+    {page: attachLegacyState(new (WebhookListPage as LegacyAny)(routeProps) as LegacyAny), defaultField: "name"},
+  ];
+
+  for (const {page, defaultField} of pages) {
+    page.fetch = jest.fn();
+    page.state.queryField = defaultField;
+    page.state.queryKeyword = "";
+    page.handleToolbarSearch();
+    expectAny(page.fetch).toHaveBeenCalledWith({pagination: expect.objectContaining({current: 1})});
+
+    page.state.queryKeyword = "dirty";
+    page.state.searchText = "dirty";
+    page.state.searchedColumn = defaultField;
+    page.handleToolbarReset();
+    expect(page.state.queryKeyword).toBe("");
+    expect(page.state.searchText).toBeUndefined();
+    expectAny(page.fetch).toHaveBeenLastCalledWith({pagination: expect.objectContaining({current: 1})});
+  }
+
+  const eventPage = attachLegacyState(new WebhookEventListPage(routeProps) as LegacyAny, {
+    sortField: "attemptCount",
+    sortOrder: "ascend",
+    statusFilter: "failed",
+    webhookNameFilter: "webhook-alpha",
+  });
+  eventPage.fetchWebhookEvents = jest.fn();
+  eventPage.handleToolbarSearch();
+  expectAny(eventPage.fetchWebhookEvents).toHaveBeenCalledWith(expect.objectContaining({current: 1}), "", "attemptCount", "ascend", "");
+
+  eventPage.handleAdvancedFilterChange("status", "success");
+  eventPage.handleToolbarSearch();
+  expectAny(eventPage.fetchWebhookEvents).toHaveBeenLastCalledWith(expect.objectContaining({current: 1}), "success", "attemptCount", "ascend", "");
+
+  eventPage.handleToolbarReset();
+  expect(eventPage.state.queryKeyword).toBe("");
+  expect(eventPage.state.statusFilter).toBe("");
+  expect(eventPage.state.webhookNameFilter).toBe("");
+  expectAny(eventPage.fetchWebhookEvents).toHaveBeenLastCalledWith(expect.objectContaining({current: 1}), "", "attemptCount", "ascend", "");
+});
+
+test("keeps migrated list row callbacks and mobile scroll fallbacks", () => {
+  jest.spyOn(Setting, "isMobile").mockReturnValue(true);
+  jest.spyOn(Setting, "getFriendlyFileSize").mockReturnValue("1 KB");
+  jest.spyOn(Setting, "getShortText").mockReturnValue("https://short");
+  const history = {push: jest.fn()};
+  const props = {...routeProps, history};
+
+  const resourcePage = attachLegacyState(new (ResourceListPage as LegacyAny)(props) as LegacyAny);
+  resourcePage.deleteResource = jest.fn();
+  const resourceTable = getSharedListTable(resourcePage.renderTable([{owner: "org-alpha", provider: "provider-main", application: "portal-app", user: "admin", name: "clip.mp4", fileType: "video", fileSize: "1024", url: "https://static.example.invalid/clip.mp4"}]));
+  expect(resourceTable.props.scroll?.x).toBe(960);
+  const copyButton = getColumnRender(resourceTable, "url")("", {url: "https://static.example.invalid/clip.mp4"}, 0);
+  findReactElement(copyButton, element => typeof element.props.onClick === "function")?.props.onClick();
+  expectAny(Setting.showMessage).toHaveBeenCalledWith("success", expect.any(String));
+  const resourceAction = getColumnRender(resourceTable, "op")("", {name: "clip.mp4"}, 0);
+  findReactElement(resourceAction, element => typeof element.props.onConfirm === "function")?.props.onConfirm();
+  expectAny(resourcePage.deleteResource).toHaveBeenCalledWith(0);
+
+  const certPage = attachLegacyState(new (CertListPage as LegacyAny)(props) as LegacyAny);
+  certPage.refreshCert = jest.fn();
+  certPage.deleteCert = jest.fn();
+  const certTable = getSharedListTable(certPage.renderTable([{owner: "org-alpha", name: "cert-alpha", type: "SSL"}]));
+  expect(certTable.props.scroll?.x).toBe(900);
+  const certAction = getColumnRender(certTable, "op")("", {owner: "org-alpha", name: "cert-alpha", type: "SSL"}, 0);
+  findReactElement(certAction, element => typeof element.props.onClick === "function" && element.props.children)?.props.onClick();
+  findReactElement(certAction, element => typeof element.props.onConfirm === "function")?.props.onConfirm();
+  expectAny(certPage.refreshCert).toHaveBeenCalledWith(0);
+  expectAny(certPage.deleteCert).toHaveBeenCalledWith(0);
+
+  const keyPage = attachLegacyState(new (KeyListPage as LegacyAny)(props) as LegacyAny);
+  keyPage.deleteKey = jest.fn();
+  const keyTable = getSharedListTable(keyPage.renderTable([{owner: "org-alpha", name: "key-alpha"}]));
+  expect(keyTable.props.scroll?.x).toBe(900);
+  const keyAction = getColumnRender(keyTable, "op")("", {owner: "org-alpha", name: "key-alpha"}, 0);
+  findReactElement(keyAction, element => typeof element.props.onClick === "function")?.props.onClick();
+  findReactElement(keyAction, element => typeof element.props.onConfirm === "function")?.props.onConfirm();
+  expectAny(history.push).toHaveBeenCalledWith("/keys/org-alpha/key-alpha");
+  expectAny(keyPage.deleteKey).toHaveBeenCalledWith(0);
+
+  const webhookPage = attachLegacyState(new (WebhookListPage as LegacyAny)(props) as LegacyAny);
+  webhookPage.deleteWebhook = jest.fn();
+  const webhookTable = getSharedListTable(webhookPage.renderTable([{owner: "admin", name: "webhook-alpha", organization: "org-alpha", url: "https://callback.example.invalid/hook"}]));
+  expect(webhookTable.props.scroll?.x).toBe(920);
+  const webhookAction = getColumnRender(webhookTable, "op")("", {name: "webhook-alpha"}, 0);
+  findReactElement(webhookAction, element => typeof element.props.onClick === "function")?.props.onClick();
+  findReactElement(webhookAction, element => typeof element.props.onConfirm === "function")?.props.onConfirm();
+  expectAny(history.push).toHaveBeenCalledWith("/webhooks/webhook-alpha");
+  expectAny(webhookPage.deleteWebhook).toHaveBeenCalledWith(0);
+
+  const eventPage = attachLegacyState(new WebhookEventListPage(props) as LegacyAny, {
+    data: [{owner: "admin", name: "event-alpha", webhookName: "", organization: "", status: "unknown", nextRetryTime: ""}],
+    sortField: "nextRetryTime",
+    sortOrder: "descend",
+    replayingId: "admin/event-alpha",
+  });
+  eventPage.openDetailDrawer = jest.fn();
+  eventPage.replayWebhookEvent = jest.fn();
+  const eventTable = getSharedListTable(eventPage.renderTable());
+  expect(eventTable.props.scroll?.x).toBe(820);
+  const eventAction = getColumnRender(eventTable, "action")("", {owner: "admin", name: "event-alpha"}, 0);
+  const actionButtons = React.Children.toArray((eventAction as React.ReactElement<LegacyAny>).props.children) as React.ReactElement<LegacyAny>[];
+  actionButtons.forEach(button => button.props.onClick());
+  expectAny(eventPage.openDetailDrawer).toHaveBeenCalled();
+  expectAny(eventPage.replayWebhookEvent).toHaveBeenCalled();
+});
+
+test("keeps migrated list backend failure and authorization handling", async() => {
+  mockOrganizationScope();
+  const deniedResponse = {status: "error", msg: "denied"};
+  jest.spyOn(Setting, "isResponseDenied").mockImplementation((res: LegacyAny) => res === deniedResponse);
+
+  const resourcePage = attachLegacyState(new (ResourceListPage as LegacyAny)(routeProps) as LegacyAny);
+  jest.spyOn(ResourceBackend, "getResources").mockResolvedValue({status: "error", data: "Please login first"});
+  resourcePage.fetch({pagination: {current: 1, pageSize: 20, total: 0}});
+  await wait(() => expect(resourcePage.state.isAuthorized).toBe(false));
+
+  const certPage = attachLegacyState(new (CertListPage as LegacyAny)(routeProps) as LegacyAny);
+  jest.spyOn(CertBackend, "getGlobalCerts").mockResolvedValue({status: "ok", data: [], data2: 0});
+  jest.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValueOnce(true);
+  certPage.fetch({pagination: {current: 1, pageSize: 20, total: 0}, category: "tenant"});
+  await wait(() => expectAny(CertBackend.getGlobalCerts).toHaveBeenCalledWith(1, 20, "category", "tenant", undefined, undefined));
+
+  jest.spyOn(CertBackend, "getCerts").mockResolvedValue(deniedResponse);
+  certPage.fetch({pagination: {current: 1, pageSize: 20, total: 0}});
+  await wait(() => expect(certPage.state.isAuthorized).toBe(false));
+
+  const keyPage = attachLegacyState(new (KeyListPage as LegacyAny)(routeProps) as LegacyAny);
+  jest.spyOn(KeyBackend, "getKeys").mockResolvedValue({status: "error", msg: "key failed"});
+  keyPage.fetch({pagination: {current: 1, pageSize: 20, total: 0}});
+  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", "key failed"));
+
+  const webhookPage = attachLegacyState(new (WebhookListPage as LegacyAny)(routeProps) as LegacyAny);
+  jest.spyOn(WebhookBackend, "getWebhooks").mockResolvedValue(deniedResponse);
+  webhookPage.fetch({pagination: {current: 1, pageSize: 20, total: 0}, contentType: "application/json"});
+  await wait(() => expect(webhookPage.state.isAuthorized).toBe(false));
+
+  const eventPage = attachLegacyState(new WebhookEventListPage(routeProps) as LegacyAny);
+  jest.spyOn(WebhookEventBackend, "getWebhookEvents").mockResolvedValue({status: "error", msg: "event failed"});
+  eventPage.fetchWebhookEvents({current: 1, pageSize: 20, total: 0}, "failed", "attemptCount", "descend", "webhook-alpha");
+  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", "event failed"));
+
+  (WebhookEventBackend.getWebhookEvents as LegacyAny).mockResolvedValue(deniedResponse);
+  eventPage.fetchWebhookEvents({current: 1, pageSize: 20, total: 0});
+  await wait(() => expect(eventPage.state.isAuthorized).toBe(false));
+
+  (WebhookEventBackend.getWebhookEvents as LegacyAny).mockRejectedValue(new Error("network"));
+  eventPage.state.isAuthorized = true;
+  eventPage.fetchWebhookEvents({current: 1, pageSize: 20, total: 0});
+  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network")));
+});
+
+test("keeps migrated create delete upload refresh and replay failure branches", async() => {
+  mockOrganizationScope();
+  jest.spyOn(Setting, "getRandomName").mockReturnValue("fixed");
+  const history = {push: jest.fn()};
+  const props = {...routeProps, history};
+
+  const resourcePage = attachLegacyState(new (ResourceListPage as LegacyAny)(props) as LegacyAny, {
+    data: [{owner: "org-alpha", name: "resource-alpha"}],
+    pagination: {current: 1, pageSize: 10, total: 1},
+  });
+  resourcePage.fetch = jest.fn();
+  jest.spyOn(ResourceBackend, "uploadResource").mockResolvedValueOnce({status: "ok"}).mockResolvedValueOnce({status: "error", msg: "upload failed"});
+  await resourcePage.handleUpload({fileList: [{name: "asset.png"}], file: {uid: "1"}});
+  expectAny(ResourceBackend.uploadResource).toHaveBeenCalledWith("org-alpha", "admin", "custom", "ResourceListPage", "resource/org-alpha/admin/asset.png", {uid: "1"});
+  expectAny(resourcePage.fetch).toHaveBeenCalledWith({pagination: resourcePage.state.pagination});
+  await resourcePage.handleUpload({fileList: [{name: "bad.png"}], file: {uid: "2"}});
+  expect(resourcePage.state.uploading).toBe(false);
+
+  jest.spyOn(ResourceBackend, "deleteResource").mockResolvedValueOnce({status: "error", msg: "delete failed"}).mockRejectedValueOnce(new Error("network"));
+  resourcePage.deleteResource(0);
+  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("delete failed")));
+  resourcePage.deleteResource(0);
+  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network")));
+
+  const certPage = attachLegacyState(new (CertListPage as LegacyAny)(props) as LegacyAny, {
+    owner: "org-alpha",
+    data: [{owner: "org-alpha", name: "cert-alpha", type: "SSL"}],
+    pagination: {current: 2, pageSize: 10, total: 1},
+  });
+  certPage.fetch = jest.fn();
+  jest.spyOn(CertBackend, "addCert").mockResolvedValueOnce({status: "error", msg: "add failed"}).mockRejectedValueOnce(new Error("network"));
+  certPage.addCert();
+  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("add failed")));
+  certPage.addCert();
+  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network")));
+
+  jest.spyOn(CertBackend, "deleteCert").mockResolvedValueOnce({status: "ok"}).mockResolvedValueOnce({status: "error", msg: "delete failed"}).mockRejectedValueOnce(new Error("network"));
+  certPage.deleteCert(0);
+  await wait(() => expectAny(certPage.fetch).toHaveBeenCalledWith({pagination: expect.objectContaining({current: 1})}));
+  certPage.deleteCert(0);
+  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("delete failed")));
+  certPage.deleteCert(0);
+  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network")));
+
+  jest.spyOn(CertBackend, "refreshDomainExpire").mockResolvedValueOnce({status: "ok"}).mockResolvedValueOnce({status: "error", msg: "refresh failed"}).mockRejectedValueOnce(new Error("network"));
+  certPage.refreshCert(0);
+  await wait(() => expectAny(certPage.fetch).toHaveBeenCalled());
+  certPage.refreshCert(0);
+  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("refresh failed")));
+  certPage.refreshCert(0);
+  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network")));
+
+  const keyPage = attachLegacyState(new (KeyListPage as LegacyAny)(props) as LegacyAny, {
+    data: [{owner: "org-alpha", name: "key-alpha"}],
+    pagination: {current: 2, pageSize: 10, total: 1},
+  });
+  keyPage.fetch = jest.fn();
+  jest.spyOn(KeyBackend, "addKey").mockResolvedValueOnce({status: "error", msg: "add failed"}).mockRejectedValueOnce(new Error("network"));
+  keyPage.addKey();
+  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("add failed")));
+  keyPage.addKey();
+  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network")));
+
+  jest.spyOn(KeyBackend, "deleteKey").mockResolvedValueOnce({status: "ok"}).mockResolvedValueOnce({status: "error", msg: "delete failed"}).mockRejectedValueOnce(new Error("network"));
+  keyPage.deleteKey(0);
+  await wait(() => expectAny(keyPage.fetch).toHaveBeenCalledWith({pagination: expect.objectContaining({current: 1})}));
+  keyPage.deleteKey(0);
+  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("delete failed")));
+  keyPage.deleteKey(0);
+  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network")));
+
+  const webhookPage = attachLegacyState(new (WebhookListPage as LegacyAny)(props) as LegacyAny, {
+    data: [{owner: "admin", name: "webhook-alpha"}],
+    pagination: {current: 2, pageSize: 10, total: 1},
+  });
+  webhookPage.fetch = jest.fn();
+  jest.spyOn(WebhookBackend, "addWebhook").mockResolvedValueOnce({status: "error", msg: "add failed"}).mockRejectedValueOnce(new Error("network"));
+  webhookPage.addWebhook();
+  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("add failed")));
+  webhookPage.addWebhook();
+  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network")));
+
+  jest.spyOn(WebhookBackend, "deleteWebhook").mockResolvedValueOnce({status: "ok"}).mockResolvedValueOnce({status: "error", msg: "delete failed"}).mockRejectedValueOnce(new Error("network"));
+  webhookPage.deleteWebhook(0);
+  await wait(() => expectAny(webhookPage.fetch).toHaveBeenCalledWith({pagination: expect.objectContaining({current: 1})}));
+  webhookPage.deleteWebhook(0);
+  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("delete failed")));
+  webhookPage.deleteWebhook(0);
+  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network")));
+
+  const eventPage = attachLegacyState(new WebhookEventListPage(props) as LegacyAny);
+  jest.spyOn(WebhookEventBackend, "replayWebhookEvent").mockResolvedValueOnce({status: "error", msg: "replay failed"}).mockRejectedValueOnce(new Error("network"));
+  eventPage.replayWebhookEvent({owner: "admin", name: "event-alpha"});
+  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("replay failed")));
+  eventPage.replayWebhookEvent({owner: "admin", name: "event-alpha"});
+  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network")));
+});
+
+test("keeps webhook event lifecycle detail drawer and unauthorized render branches", async() => {
+  mockOrganizationScope();
+  const addEventListener = jest.spyOn(window, "addEventListener");
+  const removeEventListener = jest.spyOn(window, "removeEventListener");
+  const page = attachLegacyState(new WebhookEventListPage(routeProps) as LegacyAny, {
+    detailRecord: {
+      owner: "admin",
+      name: "event-alpha",
+      webhookName: "webhook-alpha-long-name",
+      organization: "org-alpha",
+      status: "success",
+      attemptCount: 2,
+      nextRetryTime: "2026-06-24T00:00:00Z",
+      payload: "{\"ok\":true}",
+      lastError: "",
+    },
+    detailShow: true,
+  });
+  page.fetchWebhookEvents = jest.fn();
+  page.componentDidMount();
+  expectAny(addEventListener).toHaveBeenCalledWith("storageOrganizationChanged", page.handleOrganizationChange);
+  expectAny(page.fetchWebhookEvents).toHaveBeenCalled();
+
+  page.handleOrganizationChange();
+  expectAny(page.fetchWebhookEvents).toHaveBeenLastCalledWith(expect.objectContaining({current: 1}), page.state.statusFilter, page.state.sortField, page.state.sortOrder, page.state.webhookNameFilter);
+  page.componentWillUnmount();
+  expectAny(removeEventListener).toHaveBeenCalledWith("storageOrganizationChanged", page.handleOrganizationChange);
+
+  expect(page.getOrganizationFilter()).toBe("org-alpha");
+  const noAccountPage = new WebhookEventListPage({...(routeProps as LegacyAny), account: null} as LegacyAny) as LegacyAny;
+  expect(noAccountPage.getOrganizationFilter()).toBe("");
+  expect(page.getWebhookLink()).toBe("-");
+  expect(page.getDetailField("missing")).toBe("");
+  expect(page.getEditorMaxWidth()).toBe(520);
+
+  const detailView = render(<MemoryRouter>{page.render()}</MemoryRouter>);
+  expectAny(detailView.getByText(/Webhook Event Detail|Webhook 事件详情/i)).not.toBeNull();
+  detailView.unmount();
+
+  page.setState({isAuthorized: false});
+  const unauthorizedView = render(<MemoryRouter>{page.render()}</MemoryRouter>);
+  expectAny(unauthorizedView.getByText(/403/)).not.toBeNull();
 });

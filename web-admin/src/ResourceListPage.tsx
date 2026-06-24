@@ -13,16 +13,24 @@
 // limitations under the License.
 
 import React from "react";
-import {Button, Image, Table, Upload} from "antd";
-import {UploadOutlined} from "@ant-design/icons";
+import {Button, Image, Popconfirm, Upload} from "antd";
+import {CopyOutlined, DeleteOutlined, UploadOutlined} from "@ant-design/icons";
 import copy from "copy-to-clipboard";
 import * as Setting from "./Setting";
 import * as ResourceBackend from "./backend/ResourceBackend";
 import i18next from "i18next";
 import {Link} from "react-router-dom";
 import BaseListPage from "./BaseListPage";
-import PopconfirmModal from "./common/modal/PopconfirmModal";
 import {legacyColumns} from "./types/legacyPage";
+import ListPageTable from "./common/ListPageTable";
+import EnterpriseListQueryToolbar from "./common/EnterpriseListQueryToolbar";
+import ListPageRowActions from "./common/ListPageRowActions";
+import {
+  createEmptyApplicationAccessQueryKeywords,
+  getActiveApplicationAccessQueryCondition,
+  renderApplicationAccessAdvancedFilters,
+  renderApplicationAccessKeywordControl
+} from "./common/ApplicationAccessListControls";
 
 type AdminRouteProps = import("./types/legacyPage").AdminRouteProps;
 type LegacyAny = import("./types/legacyPage").LegacyAny;
@@ -45,11 +53,41 @@ function t(key: string, options?: LegacyAny): string {
   return String(i18next.t(key, options));
 }
 
+function getResourceQueryFields() {
+  return [
+    {label: t("general:Provider"), value: "provider"},
+    {label: t("general:Organization"), value: "owner"},
+    {label: t("general:Application"), value: "application"},
+    {label: t("general:User"), value: "user"},
+    {label: t("general:Name"), value: "name"},
+    {label: t("general:Type"), value: "fileType"},
+    {label: t("resource:Format"), value: "fileFormat"},
+  ];
+}
+
+function getResourceTableScroll(advancedFiltersOpen: boolean): {x?: number; y?: string} | undefined {
+  if (Setting.isMobile()) {
+    return {x: 960};
+  }
+  return {y: advancedFiltersOpen ? "calc(100vh - 414px)" : "calc(100vh - 360px)"};
+}
+
 const LegacyBaseListPage = BaseListPage as unknown as React.ComponentClass<AdminRouteProps, LegacyAny> & LegacyAny;
 
 class ResourceListPage extends LegacyBaseListPage {
   constructor(props: AdminRouteProps) {
     super(props);
+    this.state = {
+      ...this.state,
+      pagination: {
+        ...this.state.pagination,
+        pageSize: 20,
+      },
+      queryField: "provider",
+      queryKeyword: "",
+      advancedQueryKeywords: createEmptyApplicationAccessQueryKeywords(getResourceQueryFields()),
+      advancedFiltersOpen: false,
+    };
   }
 
   componentDidMount() {
@@ -109,18 +147,87 @@ class ResourceListPage extends LegacyBaseListPage {
     );
   }
 
+  handleToolbarSearch = (): void => {
+    const pagination = {...this.state.pagination, current: 1};
+    const condition = getActiveApplicationAccessQueryCondition(
+      getResourceQueryFields(),
+      this.state.queryField,
+      this.state.queryKeyword,
+      this.state.advancedQueryKeywords
+    );
+    if (condition) {
+      this.fetch({
+        pagination,
+        searchedColumn: condition.field,
+        searchText: condition.value,
+      });
+      return;
+    }
+
+    this.fetch({pagination});
+  };
+
+  handleToolbarReset = (): void => {
+    const pagination = {...this.state.pagination, current: 1};
+    this.setState({
+      queryField: "provider",
+      queryKeyword: "",
+      advancedQueryKeywords: createEmptyApplicationAccessQueryKeywords(getResourceQueryFields()),
+      searchText: undefined,
+      searchedColumn: undefined,
+    }, () => this.fetch({pagination}));
+  };
+
+  handleAdvancedFilterChange = (field: string, value: string): void => {
+    this.setState((prevState: LegacyAny) => ({
+      advancedQueryKeywords: {
+        ...prevState.advancedQueryKeywords,
+        [field]: value,
+      },
+    }));
+  };
+
+  renderAdvancedFilters(): React.ReactNode {
+    return renderApplicationAccessAdvancedFilters(
+      getResourceQueryFields(),
+      this.state.advancedQueryKeywords || {},
+      this.handleAdvancedFilterChange
+    );
+  }
+
+  renderListToolbar(): React.ReactNode {
+    return (
+      <EnterpriseListQueryToolbar
+        title={t("general:Resources")}
+        total={this.state.pagination.total}
+        showTotal={false}
+        fields={getResourceQueryFields()}
+        selectedField={this.state.queryField}
+        keyword={this.state.queryKeyword}
+        onFieldChange={(value) => this.setState({queryField: value, queryKeyword: ""})}
+        onKeywordChange={(value) => this.setState({queryKeyword: value})}
+        onSearch={this.handleToolbarSearch}
+        onReset={this.handleToolbarReset}
+        onAdvancedOpenChange={(advancedFiltersOpen) => this.setState({advancedFiltersOpen})}
+        keywordControl={renderApplicationAccessKeywordControl(getResourceQueryFields(), this.state.queryField, this.state.queryKeyword, (value) => this.setState({queryKeyword: value}), this.handleToolbarSearch)}
+        advancedFilters={this.renderAdvancedFilters()}
+        actions={this.renderUpload()}
+      />
+    );
+  }
+
   renderTable(resources: ResourceRecord[]) {
     const columns: LegacyColumn<ResourceRecord>[] = legacyColumns<ResourceRecord>([
       {
         title: t("general:Provider"),
         dataIndex: "provider",
         key: "provider",
-        width: "150px",
+        width: "12%",
         sorter: true,
-        ...this.getColumnSearchProps("provider"),
+        ellipsis: true,
         render: (text, record, index) => {
           return (
-            <Link to={`/providers/${record.owner}/${text}`}>
+            <Link className="enterprise-list-inline-link" to={`/providers/${record.owner}/${text}`} title={text}>
               {text}
             </Link>
           );
@@ -130,12 +237,12 @@ class ResourceListPage extends LegacyBaseListPage {
         title: t("general:Organization"),
         dataIndex: "owner",
         key: "owner",
-        width: "120px",
+        width: "10%",
         sorter: true,
-        ...this.getColumnSearchProps("owner"),
+        ellipsis: true,
         render: (text, record, index) => {
           return (
-            <Link to={`/organizations/${text}`}>
+            <Link className="enterprise-list-inline-link" to={`/organizations/${text}`} title={text}>
               {text}
             </Link>
           );
@@ -145,12 +252,12 @@ class ResourceListPage extends LegacyBaseListPage {
         title: t("general:Application"),
         dataIndex: "application",
         key: "application",
-        width: "80px",
+        width: "10%",
         sorter: true,
-        ...this.getColumnSearchProps("application"),
+        ellipsis: true,
         render: (text, record, index) => {
           return (
-            <Link to={`/applications/${record.owner}/${text}`}>
+            <Link className="enterprise-list-inline-link" to={`/applications/${record.owner}/${text}`} title={text}>
               {text}
             </Link>
           );
@@ -160,103 +267,79 @@ class ResourceListPage extends LegacyBaseListPage {
         title: t("general:User"),
         dataIndex: "user",
         key: "user",
-        width: "80px",
+        width: "9%",
         sorter: true,
-        ...this.getColumnSearchProps("user"),
+        ellipsis: true,
         render: (text, record, index) => {
           return (
-            <Link to={`/users/${record.owner}/${record.user}`}>
+            <Link className="enterprise-list-inline-link" to={`/users/${record.owner}/${record.user}`} title={text}>
               {text}
             </Link>
           );
         },
       },
       {
-        title: t("resource:Parent"),
-        dataIndex: "parent",
-        key: "parent",
-        width: "80px",
-        sorter: true,
-        ...this.getColumnSearchProps("parent"),
-      },
-      {
         title: t("general:Name"),
         dataIndex: "name",
         key: "name",
-        width: "150px",
+        width: "13%",
         sorter: true,
-        ...this.getColumnSearchProps("name"),
+        ellipsis: true,
       },
-      {
-        title: t("general:Created time"),
-        dataIndex: "createdTime",
-        key: "createdTime",
-        width: "150px",
-        sorter: true,
-        render: (text, record, index) => {
-          return Setting.getFormattedDate(text);
-        },
-      },
-      {
-        title: t("user:Tag"),
-        dataIndex: "tag",
-        key: "tag",
-        width: "80px",
-        sorter: true,
-        ...this.getColumnSearchProps("tag"),
-      },
-      // {
-      //   title: t("resource:File name"),
-      //   dataIndex: 'fileName',
-      //   key: 'fileName',
-      //   width: '120px',
-      //   sorter: (a, b) => a.fileName.localeCompare(b.fileName),
-      // },
       {
         title: t("general:Type"),
         dataIndex: "fileType",
         key: "fileType",
-        width: "80px",
+        width: "7%",
         sorter: true,
-        ...this.getColumnSearchProps("fileType"),
+        ellipsis: true,
       },
       {
         title: t("resource:Format"),
         dataIndex: "fileFormat",
         key: "fileFormat",
-        width: "80px",
+        width: "7%",
         sorter: true,
-        ...this.getColumnSearchProps("fileFormat"),
+        ellipsis: true,
       },
       {
         title: t("resource:File size"),
         dataIndex: "fileSize",
         key: "fileSize",
-        width: "100px",
+        width: "8%",
         sorter: true,
         render: (text, record, index) => {
           return Setting.getFriendlyFileSize(String(text || ""));
         },
       },
       {
+        title: t("general:Created time"),
+        dataIndex: "createdTime",
+        key: "createdTime",
+        width: "12%",
+        sorter: true,
+        render: (text, record, index) => {
+          return <span className="enterprise-list-secondary-text">{Setting.getFormattedDate(text)}</span>;
+        },
+      },
+      {
         title: t("general:Preview"),
         dataIndex: "preview",
         key: "preview",
-        width: "100px",
-        fixed: (Setting.isMobile()) ? false : "right",
+        width: "9%",
         render: (text, record, index) => {
           if (record.fileType === "image") {
             const errorImage = "data:image/png;base64,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";
             return (
               <Image
-                width={200}
+                width={88}
                 src={record.url}
                 fallback={errorImage}
               />
             );
           } else if (record.fileType === "video") {
             return (
-              <video width={200} controls>
+              <video width={88} controls>
                 <source src={record.url} type="video/mp4" />
               </video>
             );
@@ -267,19 +350,16 @@ class ResourceListPage extends LegacyBaseListPage {
         title: t("general:URL"),
         dataIndex: "url",
         key: "url",
-        width: "120px",
-        fixed: (Setting.isMobile()) ? false : "right",
+        width: "8%",
         render: (text, record, index) => {
           return (
-            <div>
-              <Button onClick={() => {
-                copy(record.url || "");
-                Setting.showMessage("success", t("general:Copied to clipboard successfully"));
-              }}
-              >
-                {t("resource:Copy Link")}
-              </Button>
-            </div>
+            <Button type="text" size="small" icon={<CopyOutlined />} onClick={() => {
+              copy(record.url || "");
+              Setting.showMessage("success", t("general:Copied to clipboard successfully"));
+            }}
+            >
+              {t("resource:Copy Link")}
+            </Button>
           );
         },
       },
@@ -287,19 +367,25 @@ class ResourceListPage extends LegacyBaseListPage {
         title: t("general:Action"),
         dataIndex: "",
         key: "op",
-        width: "70px",
-        fixed: (Setting.isMobile()) ? false : "right",
+        width: "8%",
         render: (text, record, index) => {
+          const deleteButton = (
+            <Button type="text" size="small" danger icon={<DeleteOutlined />}>
+              {t("general:Delete")}
+            </Button>
+          );
           return (
-            <div>
-              <PopconfirmModal
+            <ListPageRowActions className="resource-row-actions">
+              <Popconfirm
                 title={t("general:Sure to delete") + `: ${record.name} ?`}
                 onConfirm={() => this.deleteResource(index)}
                 okText={t("general:OK")}
                 cancelText={t("general:Cancel")}
+                okButtonProps={{danger: true}}
               >
-              </PopconfirmModal>
-            </div>
+                {deleteButton}
+              </Popconfirm>
+            </ListPageRowActions>
           );
         },
       },
@@ -308,17 +394,9 @@ class ResourceListPage extends LegacyBaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <div>
-        <Table scroll={{x: "max-content"}} columns={columns} dataSource={resources} rowKey="name" size="middle" bordered pagination={paginationProps}
-          title={() => (
-            <div>
-              {t("general:Resources")}&nbsp;&nbsp;&nbsp;&nbsp;
-              {/* <Button type="primary" size="small" onClick={this.addResource.bind(this)}>{t("general:Add")}</Button>*/}
-              {
-                this.renderUpload()
-              }
-            </div>
-          )}
+      <div className="resource-list-page-table-shell">
+        <ListPageTable<ResourceRecord> scroll={getResourceTableScroll(this.state.advancedFiltersOpen)} className="resource-list-table" columns={columns} dataSource={resources} rowKey={(record) => `${record.owner}/${record.name}`} pagination={paginationProps}
+          title={() => this.renderListToolbar()}
           loading={this.state.loading}
           onChange={this.handleTableChange}
         />

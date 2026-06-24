@@ -14,13 +14,23 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Descriptions, Drawer, Result, Table, Tag, Tooltip} from "antd";
+import {Button, Descriptions, Drawer, Result, Tag, Tooltip} from "antd";
+import {EyeOutlined, RedoOutlined} from "@ant-design/icons";
 import i18next from "i18next";
 import * as Setting from "./Setting";
 import * as WebhookEventBackend from "./backend/WebhookEventBackend";
 import Editor from "./common/Editor";
 import {getDefaultTablePagination, getTablePaginationProps} from "./common/table/TablePagination";
 import {legacyColumns} from "./types/legacyPage";
+import ListPageTable from "./common/ListPageTable";
+import EnterpriseListQueryToolbar from "./common/EnterpriseListQueryToolbar";
+import ListPageRowActions from "./common/ListPageRowActions";
+import {
+  createEmptyApplicationAccessQueryKeywords,
+  getActiveApplicationAccessQueryCondition,
+  renderApplicationAccessAdvancedFilters,
+  renderApplicationAccessKeywordControl
+} from "./common/ApplicationAccessListControls";
 
 type AdminRouteProps = import("./types/legacyPage").AdminRouteProps;
 type LegacyAny = import("./types/legacyPage").LegacyAny;
@@ -52,10 +62,38 @@ interface WebhookEventListState {
   detailShow: boolean;
   detailRecord: WebhookEventRecord | null;
   pagination: LegacyPagination;
+  queryField: string;
+  queryKeyword: string;
+  advancedQueryKeywords: Record<string, string>;
+  advancedFiltersOpen: boolean;
+  webhookNameFilter: string;
 }
 
 function t(key: string, options?: LegacyAny): string {
   return String(i18next.t(key, options));
+}
+
+function getWebhookEventQueryFields() {
+  return [
+    {label: t("webhook:Webhook Name"), value: "webhookName"},
+    {
+      label: t("webhook:Status"),
+      value: "status",
+      options: [
+        {label: t("webhook:Pending"), value: "pending"},
+        {label: t("webhook:Success"), value: "success"},
+        {label: t("webhook:Failed"), value: "failed"},
+        {label: t("webhook:Retrying"), value: "retrying"},
+      ],
+    },
+  ];
+}
+
+function getWebhookEventTableScroll(advancedFiltersOpen: boolean): {x?: number; y?: string} | undefined {
+  if (Setting.isMobile()) {
+    return {x: 820};
+  }
+  return {y: advancedFiltersOpen ? "calc(100vh - 414px)" : "calc(100vh - 360px)"};
 }
 
 class WebhookEventListPage extends React.Component<AdminRouteProps, WebhookEventListState> {
@@ -72,6 +110,11 @@ class WebhookEventListPage extends React.Component<AdminRouteProps, WebhookEvent
       detailShow: false,
       detailRecord: null,
       pagination: getDefaultTablePagination({total: 0}),
+      queryField: "webhookName",
+      queryKeyword: "",
+      advancedQueryKeywords: createEmptyApplicationAccessQueryKeywords(getWebhookEventQueryFields()),
+      advancedFiltersOpen: false,
+      webhookNameFilter: "",
     };
   }
 
@@ -89,7 +132,7 @@ class WebhookEventListPage extends React.Component<AdminRouteProps, WebhookEvent
       ...this.state.pagination,
       current: 1,
     };
-    this.fetchWebhookEvents(pagination, this.state.statusFilter, this.state.sortField, this.state.sortOrder);
+    this.fetchWebhookEvents(pagination, this.state.statusFilter, this.state.sortField, this.state.sortOrder, this.state.webhookNameFilter);
   };
 
   getStatusTag = (status?: string) => {
@@ -133,11 +176,12 @@ class WebhookEventListPage extends React.Component<AdminRouteProps, WebhookEvent
     pagination: LegacyPagination = this.state.pagination,
     statusFilter: string = this.state.statusFilter,
     sortField: string = this.state.sortField,
-    sortOrder: string = this.state.sortOrder
+    sortOrder: string = this.state.sortOrder,
+    webhookNameFilter: string = this.state.webhookNameFilter
   ) => {
     this.setState({loading: true});
 
-    (WebhookEventBackend.getWebhookEvents as LegacyAny)("", this.getOrganizationFilter(), pagination.current, pagination.pageSize, "", statusFilter, sortField, sortOrder)
+    (WebhookEventBackend.getWebhookEvents as LegacyAny)("", this.getOrganizationFilter(), pagination.current, pagination.pageSize, webhookNameFilter, statusFilter, sortField, sortOrder)
       .then((res: LegacyBackendResponse<WebhookEventRecord[]>) => {
         this.setState({loading: false});
 
@@ -147,6 +191,7 @@ class WebhookEventListPage extends React.Component<AdminRouteProps, WebhookEvent
             statusFilter,
             sortField,
             sortOrder,
+            webhookNameFilter,
             pagination: {
               ...pagination,
               total: res.data2 ?? 0,
@@ -174,7 +219,7 @@ class WebhookEventListPage extends React.Component<AdminRouteProps, WebhookEvent
 
         if (res.status === "ok") {
           Setting.showMessage("success", typeof res.data === "string" ? res.data : t("webhook:Webhook event replay triggered"));
-          this.fetchWebhookEvents(this.state.pagination, this.state.statusFilter, this.state.sortField, this.state.sortOrder);
+          this.fetchWebhookEvents(this.state.pagination, this.state.statusFilter, this.state.sortField, this.state.sortOrder, this.state.webhookNameFilter);
         } else {
           Setting.showMessage("error", `${t("webhook:Failed to replay webhook event")}: ${res.msg}`);
         }
@@ -194,8 +239,82 @@ class WebhookEventListPage extends React.Component<AdminRouteProps, WebhookEvent
       current: 1,
     } : pagination;
 
+    if (this.state.webhookNameFilter) {
+      this.fetchWebhookEvents(nextPagination, statusFilter, sortField, sortOrder, this.state.webhookNameFilter);
+      return;
+    }
+
     this.fetchWebhookEvents(nextPagination, statusFilter, sortField, sortOrder);
   };
+
+  handleToolbarSearch = (): void => {
+    const pagination = {...this.state.pagination, current: 1};
+    const condition = getActiveApplicationAccessQueryCondition(
+      getWebhookEventQueryFields(),
+      this.state.queryField,
+      this.state.queryKeyword,
+      this.state.advancedQueryKeywords
+    );
+    if (!condition) {
+      this.fetchWebhookEvents(pagination, "", this.state.sortField, this.state.sortOrder, "");
+      return;
+    }
+
+    if (condition.field === "status") {
+      this.fetchWebhookEvents(pagination, condition.value, this.state.sortField, this.state.sortOrder, "");
+      return;
+    }
+
+    this.fetchWebhookEvents(pagination, "", this.state.sortField, this.state.sortOrder, condition.value);
+  };
+
+  handleToolbarReset = (): void => {
+    const pagination = {...this.state.pagination, current: 1};
+    this.setState({
+      queryField: "webhookName",
+      queryKeyword: "",
+      advancedQueryKeywords: createEmptyApplicationAccessQueryKeywords(getWebhookEventQueryFields()),
+      statusFilter: "",
+      webhookNameFilter: "",
+    }, () => this.fetchWebhookEvents(pagination, "", this.state.sortField, this.state.sortOrder, ""));
+  };
+
+  handleAdvancedFilterChange = (field: string, value: string): void => {
+    this.setState((prevState) => ({
+      advancedQueryKeywords: {
+        ...prevState.advancedQueryKeywords,
+        [field]: value,
+      },
+    }));
+  };
+
+  renderAdvancedFilters(): React.ReactNode {
+    return renderApplicationAccessAdvancedFilters(
+      getWebhookEventQueryFields(),
+      this.state.advancedQueryKeywords || {},
+      this.handleAdvancedFilterChange
+    );
+  }
+
+  renderListToolbar(): React.ReactNode {
+    return (
+      <EnterpriseListQueryToolbar
+        title={t("webhook:Webhook Event Logs")}
+        total={this.state.pagination.total}
+        showTotal={false}
+        fields={getWebhookEventQueryFields()}
+        selectedField={this.state.queryField}
+        keyword={this.state.queryKeyword}
+        onFieldChange={(value) => this.setState({queryField: value, queryKeyword: ""})}
+        onKeywordChange={(value) => this.setState({queryKeyword: value})}
+        onSearch={this.handleToolbarSearch}
+        onReset={this.handleToolbarReset}
+        onAdvancedOpenChange={(advancedFiltersOpen) => this.setState({advancedFiltersOpen})}
+        keywordControl={renderApplicationAccessKeywordControl(getWebhookEventQueryFields(), this.state.queryField, this.state.queryKeyword, (value) => this.setState({queryKeyword: value}), this.handleToolbarSearch)}
+        advancedFilters={this.renderAdvancedFilters()}
+      />
+    );
+  }
 
   openDetailDrawer = (record: WebhookEventRecord) => {
     this.setState({
@@ -237,36 +356,30 @@ class WebhookEventListPage extends React.Component<AdminRouteProps, WebhookEvent
         title: t("webhook:Webhook Name"),
         dataIndex: "webhookName",
         key: "webhookName",
-        width: 220,
+        width: "24%",
+        ellipsis: true,
         render: (text) => this.getWebhookLink(text),
       },
       {
         title: t("general:Organization"),
         dataIndex: "organization",
         key: "organization",
-        width: 160,
+        width: "18%",
+        ellipsis: true,
         render: (text) => text ? <Link to={`/organizations/${text}`}>{text}</Link> : "-",
       },
       {
         title: t("webhook:Status"),
         dataIndex: "status",
         key: "status",
-        width: 140,
-        filters: [
-          {text: t("webhook:Pending"), value: "pending"},
-          {text: t("webhook:Success"), value: "success"},
-          {text: t("webhook:Failed"), value: "failed"},
-          {text: t("webhook:Retrying"), value: "retrying"},
-        ],
-        filterMultiple: false,
-        filteredValue: this.state.statusFilter ? [this.state.statusFilter] : null,
+        width: "12%",
         render: (text) => this.getStatusTag(text),
       },
       {
         title: t("webhook:Attempt Count"),
         dataIndex: "attemptCount",
         key: "attemptCount",
-        width: 140,
+        width: "12%",
         sorter: true,
         sortOrder: this.state.sortField === "attemptCount" ? this.state.sortOrder : null,
       },
@@ -274,7 +387,7 @@ class WebhookEventListPage extends React.Component<AdminRouteProps, WebhookEvent
         title: t("webhook:Next Retry Time"),
         dataIndex: "nextRetryTime",
         key: "nextRetryTime",
-        width: 180,
+        width: "18%",
         sorter: true,
         sortOrder: this.state.sortField === "nextRetryTime" ? this.state.sortOrder : null,
         render: (text) => text ? Setting.getFormattedDate(text) : "-",
@@ -283,43 +396,44 @@ class WebhookEventListPage extends React.Component<AdminRouteProps, WebhookEvent
         title: t("general:Action"),
         dataIndex: "action",
         key: "action",
-        width: 180,
-        fixed: Setting.isMobile() ? false : "right",
+        width: "16%",
         render: (_, record) => {
           const eventId = `${record.owner}/${record.name}`;
           return (
-            <>
+            <ListPageRowActions className="webhook-event-row-actions">
               <Button
                 type="link"
-                style={{paddingLeft: 0}}
+                size="small"
+                icon={<EyeOutlined />}
                 onClick={() => this.openDetailDrawer(record)}
               >
                 {t("general:View")}
               </Button>
               <Button
-                type="primary"
+                type="text"
+                size="small"
+                icon={<RedoOutlined />}
                 loading={this.state.replayingId === eventId}
                 onClick={() => this.replayWebhookEvent(record)}
               >
                 {t("webhook:Replay")}
               </Button>
-            </>
+            </ListPageRowActions>
           );
         },
       },
     ]);
 
     return (
-      <Table
+      <ListPageTable<WebhookEventRecord>
+        className="webhook-event-list-table"
         rowKey={(record) => `${record.owner}/${record.name}`}
         columns={columns}
         dataSource={this.state.data}
         loading={this.state.loading}
         pagination={getTablePaginationProps(this.state.pagination)}
-        scroll={{x: "max-content"}}
-        size="middle"
-        bordered
-        title={() => t("webhook:Webhook Event Logs")}
+        scroll={getWebhookEventTableScroll(this.state.advancedFiltersOpen)}
+        title={() => this.renderListToolbar()}
         onChange={this.handleTableChange}
       />
     );
