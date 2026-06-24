@@ -59,6 +59,22 @@ Copy-Item .\local-dev\runtime.toml.example .\local-dev\runtime.toml
 .\local-dev\start-windows-local-dev.ps1 start -DryRun
 ```
 
+只启动前端并代理到远端后台，适合 UI 改动预览：
+
+```powershell
+.\local-dev\start-frontend-remote-backend.ps1 start -Port 7002 -BackendUrl <remote-backend-url>
+```
+
+同一项目需要同时预览多个前端分支或页面效果时，使用不同端口启动独立实例：
+
+```powershell
+.\local-dev\start-frontend-remote-backend.ps1 start -Port 7003 -BackendUrl <remote-backend-url>
+.\local-dev\start-frontend-remote-backend.ps1 status -Port 7003
+.\local-dev\start-frontend-remote-backend.ps1 stop -Port 7003
+```
+
+这个脚本不会启动本地 Go 后端，也不会读取 `local-dev/runtime.toml`。启动前默认用 `-BackendHealthPath /api/get-account` 做轻量 JSON 健康检查，确认目标不是 404 或其它服务响应；如果目标环境接口暂不可用，可以临时加 `-SkipHealth` 后自行用浏览器验证。脚本输出会脱敏远端后台地址，不应把完整私有 URL 或响应体写进报告。
+
 ## 运行约定
 
 - 后端源码目录：`admin/`
@@ -68,6 +84,8 @@ Copy-Item .\local-dev\runtime.toml.example .\local-dev\runtime.toml
 - 前端源码目录：`web-admin/`
 - 前端启动命令：优先 `yarn start`，未安装 Yarn 时回退 `npm run start`
 - 前端本机端口：`7002`
+- 远端后台预览脚本：`start-frontend-remote-backend.ps1` 直接调用 `web-admin/node_modules/.bin/craco.cmd start`，通过 `PORT` 与 `AICODEX_ADMIN_DEV_PROXY_TARGET` 控制端口和代理目标，避免 `package.json` 中 `yarn start` 固定 `PORT=7002`。
+- 远端后台预览 PID 与日志按端口隔离，例如 `local-dev/run/frontend-remote-7002.pid`、`local-dev/logs/frontend-remote-7002.log`。
 - 非跟随模式的脚本动作会打印 `Run started` 和 `Run completed`，包含 `started_at`、`completed_at` 与 `duration`，用于确认最近一次启动或重启时间。
 
 脚本启动前会读取 `local-dev/runtime.toml`，并预检远端 PostgreSQL 的 TCP 连通性。Redis 只有在显式启用时才会预检。后端不使用 `go run` 临时 exe 启动，避免 Windows 防火墙或 SmartScreen 因每次生成不同 exe 而反复弹确认。
