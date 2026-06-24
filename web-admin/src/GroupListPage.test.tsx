@@ -258,7 +258,7 @@ test("renders group rows and fetches the selected organization", async() => {
   expect(formBackendMock.getForm).toHaveBeenCalled();
 });
 
-test("creates a default group and navigates to edit page", async() => {
+test("creates a default group, navigates to edit page, and waits for save before success message", async() => {
   const history = createHistory();
   const page = new GroupListPage({
     account,
@@ -284,7 +284,7 @@ test("creates a default group and navigates to edit page", async() => {
     name: "group_abc123",
   }));
   expect(history.push).toHaveBeenCalledWith({pathname: "/groups/engineering/group_abc123", mode: "add"});
-  expect(Setting.showMessage).toHaveBeenCalledWith("success", expect.any(String));
+  expect(Setting.showMessage).not.toHaveBeenCalledWith("success", expect.any(String));
 });
 
 test("fetches all organizations when default organization is selected", async() => {

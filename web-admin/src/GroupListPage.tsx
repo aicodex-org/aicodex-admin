@@ -242,7 +242,7 @@ class GroupListPage extends TypedBaseListPage {
       .then((res) => {
         if (res.status === "ok") {
           this.props.history.push({pathname: `/groups/${newGroup.owner}/${newGroup.name}`, mode: "add"});
-          Setting.showMessage("success", t("general:Successfully added"));
+          // 新增入口只是进入预创建后的编辑页，保存动作再给成功反馈，避免误报为表单已完成。
         } else {
           Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
         }

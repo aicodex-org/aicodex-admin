@@ -307,7 +307,7 @@ class OrganizationListPage extends TypedBaseListPage {
       .then((res) => {
         if (res.status === "ok") {
           this.props.history.push({pathname: `/organizations/${newOrganization.name}`, mode: "add"});
-          Setting.showMessage("success", t("general:Successfully added"));
+          // 新增入口只是进入预创建后的编辑页，保存动作再给成功反馈，避免误报为表单已完成。
           window.dispatchEvent(new Event("storageOrganizationsChanged"));
         } else {
           Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
@@ -440,6 +440,7 @@ class OrganizationListPage extends TypedBaseListPage {
         currentOrganization={Setting.isDefaultOrganizationSelected(this.props.account) ? t("general:All") : Setting.getRequestOrganization(this.props.account)}
         total={this.state.pagination.total}
         loadedCount={organizations.length}
+        listAction={this.renderAddOrganizationAction()}
       >
         <ListPageTable<OrganizationRecord>
           className="organization-list-table"
@@ -646,7 +647,6 @@ class OrganizationListPage extends TypedBaseListPage {
         onReset={this.handleToolbarReset}
         keywordControl={keywordControl}
         advancedFilters={this.renderAdvancedFilters()}
-        actions={this.renderAddOrganizationAction()}
         context={this.renderDirectoryHealthContext()}
         contextPlacement="side"
         showHeader={false}
