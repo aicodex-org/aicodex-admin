@@ -6,8 +6,15 @@ import {MemoryRouter} from "react-router-dom";
 import ProviderListPage from "./ProviderListPage";
 import * as ProviderBackend from "./backend/ProviderBackend";
 import * as Setting from "./Setting";
+import EnterpriseListQueryToolbar from "./common/EnterpriseListQueryToolbar";
+import ListPageTable from "./common/ListPageTable";
 
 type LegacyAny = any;
+type TestTableElement = React.ReactElement<{
+  className?: string;
+  title?: () => React.ReactNode;
+  pagination?: LegacyAny;
+}>;
 
 const {fireEvent} = require("@testing-library/react") as {
   fireEvent: {
@@ -116,7 +123,7 @@ describe("ProviderListPage enterprise table polish", () => {
     const {container} = view;
 
     expect(container.querySelector("[data-testid='auth-source-center']")).toBeNull();
-    expect(container.querySelector(".provider-list-page-table-shell")).not.toBeNull();
+    expect(container.querySelector(".enterprise-list-page-table-shell.provider-list-page-table-shell")).not.toBeNull();
     expect(container.querySelector(".enterprise-list-table.provider-list-table")).not.toBeNull();
     expect(container.querySelector(".enterprise-list-query-toolbar")).not.toBeNull();
     expect(container.querySelector(".enterprise-list-query-toolbar-header")?.textContent).toMatch(/提供商|Providers/);
@@ -155,7 +162,7 @@ describe("ProviderListPage enterprise table polish", () => {
       data: [provider],
     });
     const root = page.renderTable([provider]);
-    const tableShell = React.Children.toArray(root.props.children).find((child: LegacyAny) => child?.props?.className === "provider-list-page-table-shell") as LegacyAny;
+    const tableShell = React.Children.toArray(root.props.children).find((child: LegacyAny) => child?.props?.className?.includes("provider-list-page-table-shell")) as LegacyAny;
     const table = React.Children.only(tableShell.props.children) as LegacyAny;
     const columns = table.props.columns as LegacyAny[];
     const view = render(
@@ -212,7 +219,7 @@ describe("ProviderListPage enterprise table polish", () => {
         data: [provider],
       });
       const root = page.renderTable([provider]);
-      const tableShell = React.Children.toArray(root.props.children).find((child: LegacyAny) => child?.props?.className === "provider-list-page-table-shell") as LegacyAny;
+      const tableShell = React.Children.toArray(root.props.children).find((child: LegacyAny) => child?.props?.className?.includes("provider-list-page-table-shell")) as LegacyAny;
       const table = React.Children.only(tableShell.props.children) as LegacyAny;
 
       expect(table.props.scroll).toEqual(expect.objectContaining({x: 1040}));
@@ -240,6 +247,37 @@ describe("ProviderListPage enterprise table polish", () => {
       searchedColumn: "owner",
       searchText: "admin",
     });
+  });
+
+  test("places identity source center title, actions and pagination on the shared list shell", () => {
+    const page = attachPageState(new ProviderListPage({
+      account,
+      history: {push: jest.fn()},
+      match: {path: "/providers", params: {}},
+    }), {
+      data: [provider],
+      pagination: {current: 1, pageSize: 20, total: 5},
+    });
+    const root = page.renderTable([provider]) as React.ReactElement<{children: React.ReactNode}>;
+    const tableShell = React.Children.toArray(root.props.children).find((child: LegacyAny) => child?.props?.className?.includes("provider-list-page-table-shell")) as React.ReactElement<{className?: string; children: TestTableElement}>;
+    const table = tableShell.props.children;
+    const titleNode = table.props.title?.() as React.ReactElement<LegacyAny>;
+    const toolbar = React.Children.toArray(titleNode.props.children).find((child: LegacyAny) => child?.type === EnterpriseListQueryToolbar) as React.ReactElement<React.ComponentProps<typeof EnterpriseListQueryToolbar>>;
+
+    expect(tableShell.props.className).toContain("enterprise-list-page-table-shell");
+    expect(tableShell.props.className).toContain("provider-list-page-table-shell");
+    expect(table.type).toBe(ListPageTable);
+    expect(table.props.className).toContain("provider-list-table");
+    expect(table.props.pagination).toEqual(expect.objectContaining({
+      showQuickJumper: true,
+      showSizeChanger: true,
+    }));
+    expect(titleNode.props.className).toContain("enterprise-list-toolbar-shell");
+    expect(toolbar.type).toBe(EnterpriseListQueryToolbar);
+    expect(toolbar.props.title).toMatch(/提供商|Providers/);
+    expect(toolbar.props.showTotal).toBe(false);
+    expect(toolbar.props.actions).not.toBeUndefined();
+    expect(toolbar.props.actionsPlacement).toBe("topRight");
   });
 
   test("updates owner and toolbar state without changing backend contracts", () => {

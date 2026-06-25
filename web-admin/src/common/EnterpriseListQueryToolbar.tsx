@@ -27,8 +27,9 @@ interface EnterpriseListQueryToolbarProps {
   keywordControl?: React.ReactNode;
   advancedFilters?: React.ReactNode;
   actions?: React.ReactNode;
+  actionsPlacement?: "inline" | "topRight";
   context?: React.ReactNode;
-  contextPlacement?: "below" | "side";
+  contextPlacement?: "below" | "side" | "header" | "headerBelow";
   searchPlaceholder?: string;
   showHeader?: boolean;
   onAdvancedOpenChange?: (open: boolean) => void;
@@ -76,6 +77,17 @@ export default function EnterpriseListQueryToolbar(props: EnterpriseListQueryToo
   const contextPlacement = props.contextPlacement ?? "below";
   const showHeader = props.showHeader !== false;
   const showTotal = props.showTotal !== false;
+  const hasHeaderStackContext = hasContext && contextPlacement === "headerBelow";
+  const hasHeaderTopRightActions = hasHeaderStackContext || props.actionsPlacement === "topRight";
+  const headerClassName = [
+    "enterprise-list-query-toolbar-header",
+    hasHeaderTopRightActions ? "enterprise-list-query-toolbar-header-stacked" : "",
+  ].filter(Boolean).join(" ");
+  const headerMetaClassName = [
+    "enterprise-list-query-toolbar-header-meta",
+    hasHeaderTopRightActions ? "enterprise-list-query-toolbar-header-meta-top-right" : "",
+    hasHeaderStackContext ? "enterprise-list-query-toolbar-header-meta-stacked" : "",
+  ].filter(Boolean).join(" ");
   const updateAdvancedOpen = (open: boolean): void => {
     setAdvancedOpen(open);
     props.onAdvancedOpenChange?.(open);
@@ -85,18 +97,34 @@ export default function EnterpriseListQueryToolbar(props: EnterpriseListQueryToo
     <div className="enterprise-list-query-toolbar">
       {
         showHeader ? (
-          <div className="enterprise-list-query-toolbar-header">
-            <Space size={8} wrap>
+          <div className={headerClassName}>
+            <Space size={8} wrap className="enterprise-list-query-toolbar-title">
               <Text strong>{props.title}</Text>
               {showTotal ? <Text type="secondary">{formatResultCount(props.total)}</Text> : null}
             </Space>
-            {
-              props.actions ? (
-                <Space wrap className="enterprise-list-query-toolbar-actions">
-                  {props.actions}
-                </Space>
-              ) : null
-            }
+            <div className={headerMetaClassName}>
+              {
+                hasContext && contextPlacement === "header" ? (
+                  <div className="enterprise-list-query-toolbar-header-context">
+                    {props.context}
+                  </div>
+                ) : null
+              }
+              {
+                props.actions ? (
+                  <Space wrap className="enterprise-list-query-toolbar-actions">
+                    {props.actions}
+                  </Space>
+                ) : null
+              }
+              {
+                hasHeaderStackContext ? (
+                  <div className="enterprise-list-query-toolbar-header-below-context">
+                    {props.context}
+                  </div>
+                ) : null
+              }
+            </div>
           </div>
         ) : null
       }

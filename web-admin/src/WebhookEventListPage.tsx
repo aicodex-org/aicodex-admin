@@ -425,17 +425,19 @@ class WebhookEventListPage extends React.Component<AdminRouteProps, WebhookEvent
     ]);
 
     return (
-      <ListPageTable<WebhookEventRecord>
-        className="webhook-event-list-table"
-        rowKey={(record) => `${record.owner}/${record.name}`}
-        columns={columns}
-        dataSource={this.state.data}
-        loading={this.state.loading}
-        pagination={getTablePaginationProps(this.state.pagination)}
-        scroll={getWebhookEventTableScroll(this.state.advancedFiltersOpen)}
-        title={() => this.renderListToolbar()}
-        onChange={this.handleTableChange}
-      />
+      <div className="enterprise-list-page-table-shell webhook-event-list-page-table-shell">
+        <ListPageTable<WebhookEventRecord>
+          className="webhook-event-list-table"
+          rowKey={(record) => `${record.owner}/${record.name}`}
+          columns={columns}
+          dataSource={this.state.data}
+          loading={this.state.loading}
+          pagination={getTablePaginationProps(this.state.pagination)}
+          scroll={getWebhookEventTableScroll(this.state.advancedFiltersOpen)}
+          title={() => this.renderListToolbar()}
+          onChange={this.handleTableChange}
+        />
+      </div>
     );
   };
 

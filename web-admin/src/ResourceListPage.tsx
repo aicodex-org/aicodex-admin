@@ -211,6 +211,7 @@ class ResourceListPage extends LegacyBaseListPage {
         onAdvancedOpenChange={(advancedFiltersOpen) => this.setState({advancedFiltersOpen})}
         keywordControl={renderApplicationAccessKeywordControl(getResourceQueryFields(), this.state.queryField, this.state.queryKeyword, (value) => this.setState({queryKeyword: value}), this.handleToolbarSearch)}
         advancedFilters={this.renderAdvancedFilters()}
+        actionsPlacement="topRight"
         actions={this.renderUpload()}
       />
     );
@@ -394,7 +395,7 @@ class ResourceListPage extends LegacyBaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <div className="resource-list-page-table-shell">
+      <div className="enterprise-list-page-table-shell resource-list-page-table-shell">
         <ListPageTable<ResourceRecord> scroll={getResourceTableScroll(this.state.advancedFiltersOpen)} className="resource-list-table" columns={columns} dataSource={resources} rowKey={(record) => `${record.owner}/${record.name}`} pagination={paginationProps}
           title={() => this.renderListToolbar()}
           loading={this.state.loading}

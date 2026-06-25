@@ -101,6 +101,29 @@ function getSharedListTable(element: React.ReactNode): TestTableElement {
   throw new Error("Expected a shared ListPageTable element");
 }
 
+function getSharedListShell(element: React.ReactNode): React.ReactElement<{className?: string}> {
+  if (!React.isValidElement(element)) {
+    throw new Error("Expected a shared list shell element");
+  }
+  const node = element as React.ReactElement<LegacyAny>;
+  if (typeof node.props.className === "string" && node.props.className.includes("list-page-table-shell")) {
+    return node as React.ReactElement<{className?: string}>;
+  }
+
+  const children = React.Children.toArray(node.props.children);
+  for (const child of children) {
+    if (React.isValidElement(child)) {
+      try {
+        return getSharedListShell(child);
+      } catch {
+        // 递归继续查找兄弟节点，确保嵌套页面壳也能被一致性测试覆盖。
+      }
+    }
+  }
+
+  throw new Error("Expected a shared list shell element");
+}
+
 function getEnterpriseToolbar(table: TestTableElement): TestToolbarElement {
   const titleNode = table.props.title?.() as React.ReactElement<LegacyAny>;
   if (React.isValidElement(titleNode) && titleNode.type === EnterpriseListQueryToolbar) {
@@ -192,42 +215,82 @@ test("uses shared table shell and enterprise query toolbar on application access
   const cases = [
     {
       className: "resource-list-table",
-      table: getSharedListTable(attachLegacyState(new (ResourceListPage as LegacyAny)(routeProps) as LegacyAny).renderTable([])),
+      hasActions: true,
+      element: attachLegacyState(new (ResourceListPage as LegacyAny)(routeProps) as LegacyAny).renderTable([]),
     },
     {
       className: "cert-list-table",
-      table: getSharedListTable(attachLegacyState(new (CertListPage as LegacyAny)(routeProps) as LegacyAny).renderTable([])),
+      hasActions: true,
+      element: attachLegacyState(new (CertListPage as LegacyAny)(routeProps) as LegacyAny).renderTable([]),
     },
     {
       className: "key-list-table",
-      table: getSharedListTable(attachLegacyState(new (KeyListPage as LegacyAny)(routeProps) as LegacyAny).renderTable([])),
+      hasActions: true,
+      element: attachLegacyState(new (KeyListPage as LegacyAny)(routeProps) as LegacyAny).renderTable([]),
     },
     {
       className: "webhook-list-table",
-      table: getSharedListTable(attachLegacyState(new (WebhookListPage as LegacyAny)(routeProps) as LegacyAny).renderTable([])),
+      hasActions: true,
+      element: attachLegacyState(new (WebhookListPage as LegacyAny)(routeProps) as LegacyAny).renderTable([]),
     },
     {
       className: "webhook-event-list-table",
-      table: getSharedListTable(attachLegacyState(new WebhookEventListPage(routeProps) as LegacyAny).renderTable()),
+      hasActions: false,
+      element: attachLegacyState(new WebhookEventListPage(routeProps) as LegacyAny).renderTable(),
     },
   ];
 
   for (const item of cases) {
-    expect(item.table.type).toBe(ListPageTable);
-    expect(item.table.props.className).toContain(item.className);
-    expect(item.table.props.bordered).toBeUndefined();
-    expect(item.table.props.scroll?.x).toBeUndefined();
+    const shell = getSharedListShell(item.element);
+    const table = getSharedListTable(item.element);
 
-    const toolbar = getEnterpriseToolbar(item.table);
+    expect(shell.props.className).toContain("enterprise-list-page-table-shell");
+    expect(table.type).toBe(ListPageTable);
+    expect(table.props.className).toContain(item.className);
+    expect(table.props.bordered).toBeUndefined();
+    expect(table.props.scroll?.x).toBeUndefined();
+    expect(table.props.pagination).toEqual(expect.objectContaining({
+      showQuickJumper: true,
+      showSizeChanger: true,
+    }));
+    expect(table.props.pagination?.showTotal?.(1)).toContain("1");
+
+    const toolbar = getEnterpriseToolbar(table);
     expect(toolbar.type).toBe(EnterpriseListQueryToolbar);
     expect(toolbar.props.fields.length).toBeGreaterThan(0);
     expect(toolbar.props.advancedFilters).not.toBeUndefined();
+    if (item.hasActions) {
+      expect(toolbar.props.actions).not.toBeUndefined();
+      expect(toolbar.props.actionsPlacement).toBe("topRight");
+    } else {
+      expect(toolbar.props.actions).toBeUndefined();
+      expect(toolbar.props.actionsPlacement).toBeUndefined();
+    }
 
-    const toolbarView = render(<>{item.table.props.title?.()}</>);
+    const toolbarView = render(<>{table.props.title?.()}</>);
     expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar")).not.toBeNull();
+    expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-title")).not.toBeNull();
+    if (item.hasActions) {
+      expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-actions")).not.toBeNull();
+    }
     fireEvent.click(toolbarView.getByText(/更\s*多\s*筛\s*选|More filters/));
     expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-advanced")).not.toBeNull();
     toolbarView.unmount();
+  }
+});
+
+test("keeps common add actions visually aligned without a page-specific plus icon", () => {
+  const pages = [
+    attachLegacyState(new (CertListPage as LegacyAny)(routeProps) as LegacyAny),
+    attachLegacyState(new (KeyListPage as LegacyAny)(routeProps) as LegacyAny),
+    attachLegacyState(new (WebhookListPage as LegacyAny)(routeProps) as LegacyAny),
+  ];
+
+  for (const page of pages) {
+    const toolbar = getEnterpriseToolbar(getSharedListTable(page.renderTable([])));
+    const actions = toolbar.props.actions;
+    expect(React.isValidElement(actions)).toBe(true);
+    expect((actions as React.ReactElement<LegacyAny>).props.icon).toBeUndefined();
   }
 });
 

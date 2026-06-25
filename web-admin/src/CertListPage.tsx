@@ -15,7 +15,7 @@
 import React from "react";
 import {Link} from "react-router-dom";
 import {Button, Popconfirm} from "antd";
-import {DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined} from "@ant-design/icons";
+import {DeleteOutlined, EditOutlined, ReloadOutlined} from "@ant-design/icons";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as CertBackend from "./backend/CertBackend";
@@ -232,7 +232,8 @@ class CertListPage extends LegacyBaseListPage {
         onAdvancedOpenChange={(advancedFiltersOpen) => this.setState({advancedFiltersOpen})}
         keywordControl={renderApplicationAccessKeywordControl(getCertQueryFields(), this.state.queryField, this.state.queryKeyword, (value) => this.setState({queryKeyword: value}), this.handleToolbarSearch)}
         advancedFilters={this.renderAdvancedFilters()}
-        actions={<Button type="primary" size="small" icon={<PlusOutlined />} onClick={this.addCert.bind(this)}>{t("general:Add")}</Button>}
+        actionsPlacement="topRight"
+        actions={<Button type="primary" size="small" onClick={this.addCert.bind(this)}>{t("general:Add")}</Button>}
       />
     );
   }
@@ -361,7 +362,7 @@ class CertListPage extends LegacyBaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <div className="cert-list-page-table-shell">
+      <div className="enterprise-list-page-table-shell cert-list-page-table-shell">
         <ListPageTable<CertRecord> scroll={getCertTableScroll(this.state.advancedFiltersOpen)} className="cert-list-table" columns={columns} dataSource={certs} rowKey={(record: CertRecord) => `${record.owner}/${record.name}`} pagination={paginationProps}
           title={() => this.renderListToolbar()}
           loading={this.state.loading}

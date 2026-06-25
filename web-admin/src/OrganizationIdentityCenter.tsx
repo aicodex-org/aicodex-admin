@@ -38,7 +38,7 @@ import {
   EnterpriseIdentitySection
 } from "./common/EnterpriseIdentityConsoleLayout";
 
-const {Text, Title} = Typography;
+const {Text} = Typography;
 
 type OrganizationIdentityPage = "organizations" | "users" | "roles" | "permissions";
 type WorkbenchLayoutKind = "directory-health" | "account-lifecycle" | "role-risk-matrix" | "permission-catalog-matrix";
@@ -50,7 +50,6 @@ interface OrganizationIdentityCenterProps {
   total?: number;
   loadedCount?: number;
   currentOrganization?: string;
-  listAction?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -427,20 +426,13 @@ function OrganizationIdentityCenter({
   total,
   loadedCount,
   currentOrganization,
-  listAction,
   children,
 }: OrganizationIdentityCenterProps): JSX.Element {
   const profile = organizationIdentityWorkbenchProfiles[page];
 
   if (page === "organizations" || page === "users") {
     return (
-      <div className={`organization-identity-console organization-identity-compact-list-page organization-identity-compact-list-page-${page}`}>
-        <div className="organization-identity-compact-list-top">
-          <Space size={8} wrap className="organization-identity-compact-list-title">
-            <Title level={3} className="organization-identity-compact-list-heading">{t(profile.titleKey)}</Title>
-          </Space>
-          {listAction ? <Space wrap className="organization-identity-compact-list-actions">{listAction}</Space> : null}
-        </div>
+      <div className={`organization-identity-console enterprise-list-page-table-shell organization-identity-compact-list-page organization-identity-compact-list-page-${page}`}>
         {children}
       </div>
     );

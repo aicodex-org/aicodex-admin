@@ -405,6 +405,7 @@ class ApplicationListPage extends LegacyBaseListPage {
           onReset={this.handleToolbarReset}
           onAdvancedOpenChange={(advancedFiltersOpen) => this.setState({advancedFiltersOpen})}
           advancedFilters={this.renderAdvancedFilters()}
+          actionsPlacement="topRight"
           actions={(
             <>
               <Button type="primary" size="small" onClick={this.addApplication.bind(this)}>{t("general:Add")}</Button>
@@ -534,7 +535,7 @@ class ApplicationListPage extends LegacyBaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <div className="application-list-page-table-shell">
+      <div className="enterprise-list-page-table-shell application-list-page-table-shell">
         <ListPageTable<ApplicationRecord> scroll={getApplicationTableScroll(this.state.advancedFiltersOpen)} className="application-list-table" columns={filteredColumns} dataSource={applications} rowKey={(record) => `${record.owner}/${record.name}`} pagination={paginationProps}
           title={() => this.renderListToolbar()}
           loading={this.state.loading}

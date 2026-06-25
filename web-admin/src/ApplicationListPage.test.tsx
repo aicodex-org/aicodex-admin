@@ -7,6 +7,8 @@ import ApplicationListPage from "./ApplicationListPage";
 import * as ApplicationBackend from "./backend/ApplicationBackend";
 import * as FormBackend from "./backend/FormBackend";
 import * as Setting from "./Setting";
+import EnterpriseListQueryToolbar from "./common/EnterpriseListQueryToolbar";
+import ListPageTable from "./common/ListPageTable";
 
 jest.mock("./backend/ApplicationBackend");
 jest.mock("./backend/FormBackend");
@@ -21,6 +23,11 @@ jest.mock("./TourConfig", () => ({
 }));
 
 type LegacyAny = any;
+type TestTableElement = React.ReactElement<{
+  className?: string;
+  title?: () => React.ReactNode;
+  pagination?: LegacyAny;
+}>;
 
 const account = {
   owner: "built-in",
@@ -119,7 +126,7 @@ describe("ApplicationListPage enterprise table polish", () => {
     const {container} = view;
 
     expect(container.querySelector("[data-testid='application-access-summary']")).toBeNull();
-    expect(container.querySelector(".application-list-page-table-shell")).not.toBeNull();
+    expect(container.querySelector(".enterprise-list-page-table-shell.application-list-page-table-shell")).not.toBeNull();
     expect(container.querySelector(".enterprise-list-table.application-list-table")).not.toBeNull();
     expect(container.querySelector(".enterprise-list-query-toolbar")).not.toBeNull();
     expect(container.querySelector(".enterprise-list-query-toolbar-header")?.textContent).toMatch(/应用|Applications/);
@@ -167,6 +174,36 @@ describe("ApplicationListPage enterprise table polish", () => {
       searchedColumn: "organization",
       searchText: "built-in",
     });
+  });
+
+  test("places access center title, actions and pagination on the shared list shell", () => {
+    const page = attachPageState(new (ApplicationListPage as LegacyAny)({
+      account,
+      history: {push: jest.fn()},
+      match: {path: "/applications", params: {}},
+    }), {
+      data: [application],
+      pagination: {current: 1, pageSize: 20, total: 6},
+    });
+    const tableShell = page.renderTable([application]) as React.ReactElement<{className?: string; children: TestTableElement}>;
+    const table = tableShell.props.children;
+    const titleNode = table.props.title?.() as React.ReactElement<LegacyAny>;
+    const toolbar = React.Children.toArray(titleNode.props.children).find((child: LegacyAny) => child?.type === EnterpriseListQueryToolbar) as React.ReactElement<React.ComponentProps<typeof EnterpriseListQueryToolbar>>;
+
+    expect(tableShell.props.className).toContain("enterprise-list-page-table-shell");
+    expect(tableShell.props.className).toContain("application-list-page-table-shell");
+    expect(table.type).toBe(ListPageTable);
+    expect(table.props.className).toContain("application-list-table");
+    expect(table.props.pagination).toEqual(expect.objectContaining({
+      showQuickJumper: true,
+      showSizeChanger: true,
+    }));
+    expect(titleNode.props.className).toContain("enterprise-list-toolbar-shell");
+    expect(toolbar.type).toBe(EnterpriseListQueryToolbar);
+    expect(toolbar.props.title).toMatch(/应用|Applications/);
+    expect(toolbar.props.showTotal).toBe(false);
+    expect(toolbar.props.actions).not.toBeUndefined();
+    expect(toolbar.props.actionsPlacement).toBe("topRight");
   });
 
   test("keeps compact identity columns when backend form config uses legacy application field names", () => {

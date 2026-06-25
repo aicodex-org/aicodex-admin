@@ -440,7 +440,6 @@ class OrganizationListPage extends TypedBaseListPage {
         currentOrganization={Setting.isDefaultOrganizationSelected(this.props.account) ? t("general:All") : Setting.getRequestOrganization(this.props.account)}
         total={this.state.pagination.total}
         loadedCount={organizations.length}
-        listAction={this.renderAddOrganizationAction()}
       >
         <ListPageTable<OrganizationRecord>
           className="organization-list-table"
@@ -647,9 +646,10 @@ class OrganizationListPage extends TypedBaseListPage {
         onReset={this.handleToolbarReset}
         keywordControl={keywordControl}
         advancedFilters={this.renderAdvancedFilters()}
+        actions={this.renderAddOrganizationAction()}
         context={this.renderDirectoryHealthContext()}
-        contextPlacement="side"
-        showHeader={false}
+        contextPlacement="headerBelow"
+        showTotal={false}
       />
     );
   }

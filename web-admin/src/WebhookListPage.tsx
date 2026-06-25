@@ -15,7 +15,7 @@
 import React from "react";
 import {Link} from "react-router-dom";
 import {Button, Popconfirm, Switch, Tooltip} from "antd";
-import {DeleteOutlined, EditOutlined, PlusOutlined} from "@ant-design/icons";
+import {DeleteOutlined, EditOutlined} from "@ant-design/icons";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as WebhookBackend from "./backend/WebhookBackend";
@@ -209,7 +209,8 @@ class WebhookListPage extends LegacyBaseListPage {
         onAdvancedOpenChange={(advancedFiltersOpen) => this.setState({advancedFiltersOpen})}
         keywordControl={renderApplicationAccessKeywordControl(getWebhookQueryFields(), this.state.queryField, this.state.queryKeyword, (value) => this.setState({queryKeyword: value}), this.handleToolbarSearch)}
         advancedFilters={this.renderAdvancedFilters()}
-        actions={<Button type="primary" size="small" icon={<PlusOutlined />} onClick={this.addWebhook.bind(this)}>{t("general:Add")}</Button>}
+        actionsPlacement="topRight"
+        actions={<Button type="primary" size="small" onClick={this.addWebhook.bind(this)}>{t("general:Add")}</Button>}
       />
     );
   }
@@ -343,7 +344,7 @@ class WebhookListPage extends LegacyBaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <div className="webhook-list-page-table-shell">
+      <div className="enterprise-list-page-table-shell webhook-list-page-table-shell">
         <ListPageTable<WebhookRecord> scroll={getWebhookTableScroll(this.state.advancedFiltersOpen)} className="webhook-list-table" columns={columns} dataSource={webhooks} rowKey={(record: WebhookRecord) => `${record.owner}/${record.name}`} pagination={paginationProps}
           title={() => this.renderListToolbar()}
           loading={this.state.loading}

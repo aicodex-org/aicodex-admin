@@ -153,11 +153,12 @@ describe("OrganizationIdentityCenter", () => {
     });
   });
 
-  test("renders organization page as a compact list top instead of a workbench hero", () => {
+  test("renders organization page as a compact list shell instead of a private list header", () => {
     const view = renderWorkbench("organizations");
 
     expect(view.container.querySelector(".organization-identity-compact-list-page")).not.toBeNull();
-    expect(view.getByText("组织")).not.toBeNull();
+    expect(view.container.querySelector(".organization-identity-compact-list-top")).toBeNull();
+    expect(view.queryByText("组织")).toBeNull();
     expect(view.queryByText("42 条结果")).toBeNull();
     expect(view.getByText("organizations table remains reachable")).not.toBeNull();
     expect(view.queryByText("组织主数据工作台")).toBeNull();
@@ -168,11 +169,12 @@ describe("OrganizationIdentityCenter", () => {
     view.unmount();
   });
 
-  test("renders users page as a compact list top instead of an account lifecycle hero", () => {
+  test("renders users page as a compact list shell instead of a private list header", () => {
     const view = renderWorkbench("users");
 
     expect(view.container.querySelector(".organization-identity-compact-list-page-users")).not.toBeNull();
-    expect(view.getByText("用户")).not.toBeNull();
+    expect(view.container.querySelector(".organization-identity-compact-list-top")).toBeNull();
+    expect(view.queryByText("用户")).toBeNull();
     expect(view.queryByText("42 条结果")).toBeNull();
     expect(view.getByText("users table remains reachable")).not.toBeNull();
     expect(view.queryByText("账号生命周期工作台")).toBeNull();

@@ -337,6 +337,7 @@ class ProviderListPage extends TypedBaseListPage {
           onReset={this.handleToolbarReset}
           onAdvancedOpenChange={(advancedFiltersOpen) => this.setState({advancedFiltersOpen})}
           advancedFilters={this.renderAdvancedFilters()}
+          actionsPlacement="topRight"
           actions={(
             <Button id="add-button" type="primary" size="small" onClick={this.addProvider.bind(this)}>
               {t("general:Add")}
@@ -496,7 +497,7 @@ class ProviderListPage extends TypedBaseListPage {
 
     return (
       <div className="provider-list-page">
-        <div className="provider-list-page-table-shell">
+        <div className="enterprise-list-page-table-shell provider-list-page-table-shell">
           <ListPageTable<ProviderRecord> scroll={getProviderTableScroll(this.state.advancedFiltersOpen)} className="provider-list-table" columns={filteredColumns} dataSource={providers} rowKey={(record) => `${record.owner}/${record.name}`} pagination={paginationProps}
             title={() => this.renderListToolbar()}
             loading={this.state.loading}

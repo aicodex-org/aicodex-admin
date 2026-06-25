@@ -7,6 +7,7 @@ import * as Setting from "./Setting";
 import * as FormBackend from "./backend/FormBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as UserBackend from "./backend/UserBackend";
+import EnterpriseListQueryToolbar from "./common/EnterpriseListQueryToolbar";
 import ListPageIdentityCell from "./common/ListPageIdentityCell";
 import ListPageRowActions from "./common/ListPageRowActions";
 import ListPageTable from "./common/ListPageTable";
@@ -55,6 +56,12 @@ type TestTableColumn = {
 type TestUserTableElement = React.ReactElement<{
   className?: string;
   columns: TestTableColumn[];
+  pagination?: {
+    pageSize?: number;
+    showQuickJumper?: boolean;
+    showSizeChanger?: boolean;
+    showTotal?: (total: number) => string;
+  };
   scroll?: unknown;
   title: () => React.ReactNode;
 }>;
@@ -62,12 +69,7 @@ type TestIdentityCenterElement = React.ReactElement<{
   children: React.ReactElement<{children: TestUserTableElement}>;
   listAction?: React.ReactNode;
 }>;
-type TestToolbarProps = {
-  actions?: React.ReactNode;
-  showHeader?: boolean;
-  onFieldChange: (value: string) => void;
-  onKeywordChange: (value: string) => void;
-};
+type TestToolbarProps = React.ComponentProps<typeof EnterpriseListQueryToolbar>;
 
 const userBackendMock = UserBackend as unknown as UserBackendMock;
 const organizationBackendMock = OrganizationBackend as unknown as OrganizationBackendMock;
@@ -587,6 +589,10 @@ test("builds table actions for edit, impersonation, remove and delete", () => {
 
   expect(table.type).toBe(ListPageTable);
   expect(table.props.className).toContain("user-list-table");
+  expect(table.props.pagination?.pageSize).toBe(20);
+  expect(table.props.pagination?.showQuickJumper).toBe(true);
+  expect(table.props.pagination?.showSizeChanger).toBe(true);
+  expect(table.props.pagination?.showTotal?.(18)).toContain("18");
   expect(columns.map(column => column.key)).toEqual(["name", "email", "owner", "isVerified", "createdTime", "op"]);
   expect(columns.find(column => column.key === "signupApplication")).toBeUndefined();
   expect(actionColumn.fixed).toBeUndefined();
@@ -607,19 +613,27 @@ test("builds table actions for edit, impersonation, remove and delete", () => {
   expect(page.deleteUser).toHaveBeenCalledWith(0);
   actionView.unmount();
 
-  const listActionView = render(<>{getIdentityCenterFromRender(page).props.listAction}</>);
+  const identityCenter = getIdentityCenterFromRender(page);
+  expect(identityCenter.props.listAction).toBeUndefined();
+  const toolbar = table.props.title() as React.ReactElement<TestToolbarProps>;
+  expect(toolbar.type).toBe(EnterpriseListQueryToolbar);
+  expect(toolbar.props.showHeader).not.toBe(false);
+  expect(toolbar.props.actions).not.toBeUndefined();
+  expect(toolbar.props.actionsPlacement).toBe("topRight");
+
+  const listActionView = render(<>{toolbar.props.actions}</>);
   fireEvent.click(listActionView.getByText(/添\s*加|Add/));
   expect(userBackendMock.addUser).toHaveBeenCalled();
   listActionView.unmount();
 
-  const toolbarShell = table.props.title() as React.ReactElement<{children: React.ReactElement<TestToolbarProps>}>;
-  expect(toolbarShell.props.children.props.showHeader).toBe(false);
-  expect(toolbarShell.props.children.props.actions).toBeUndefined();
   const toolbarView = render(<>{table.props.title()}</>);
-  expect(toolbarView.queryByText(/用\s*户|Users/)).toBeNull();
+  expect(toolbarView.queryByText(/用\s*户|Users/)).not.toBeNull();
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-title")?.textContent).toMatch(/用\s*户|Users/);
+  expect(toolbarView.getByText(/添\s*加|Add/).closest(".enterprise-list-query-toolbar-actions")).not.toBeNull();
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-header-meta")?.className).toContain("enterprise-list-query-toolbar-header-meta-top-right");
   toolbarView.unmount();
-  toolbarShell.props.children.props.onFieldChange("phone");
-  toolbarShell.props.children.props.onKeywordChange("138");
+  toolbar.props.onFieldChange("phone");
+  toolbar.props.onKeywordChange("138");
   expect(page.state.queryField).toBe("phone");
   expect(page.state.queryKeyword).toBe("138");
 });

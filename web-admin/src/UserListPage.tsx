@@ -670,23 +670,22 @@ class UserListPage extends TypedBaseListPage {
 
   renderListToolbar(): React.ReactNode {
     return (
-      <div className="enterprise-list-toolbar-shell">
-        <EnterpriseListQueryToolbar
-          title={t("general:Users")}
-          total={this.state.pagination.total}
-          showHeader={false}
-          showTotal={false}
-          fields={getUserQueryFields()}
-          selectedField={this.state.queryField}
-          keyword={this.state.queryKeyword}
-          onFieldChange={this.handleToolbarFieldChange}
-          onKeywordChange={this.handleToolbarKeywordChange}
-          onSearch={this.handleToolbarSearch}
-          onReset={this.handleToolbarReset}
-          onAdvancedOpenChange={(advancedFiltersOpen) => this.setState({advancedFiltersOpen})}
-          advancedFilters={this.renderAdvancedFilters()}
-        />
-      </div>
+      <EnterpriseListQueryToolbar
+        title={t("general:Users")}
+        total={this.state.pagination.total}
+        showTotal={false}
+        fields={getUserQueryFields()}
+        selectedField={this.state.queryField}
+        keyword={this.state.queryKeyword}
+        onFieldChange={this.handleToolbarFieldChange}
+        onKeywordChange={this.handleToolbarKeywordChange}
+        onSearch={this.handleToolbarSearch}
+        onReset={this.handleToolbarReset}
+        onAdvancedOpenChange={(advancedFiltersOpen) => this.setState({advancedFiltersOpen})}
+        advancedFilters={this.renderAdvancedFilters()}
+        actionsPlacement="topRight"
+        actions={this.renderListActions()}
+      />
     );
   }
 
@@ -843,9 +842,8 @@ class UserListPage extends TypedBaseListPage {
         currentOrganization={this.state.organizationName || (Setting.isDefaultOrganizationSelected(this.props.account) ? t("general:All") : Setting.getRequestOrganization(this.props.account))}
         total={this.state.pagination.total}
         loadedCount={users.length}
-        listAction={this.renderListActions()}
       >
-        <div className="user-list-page-table-shell">
+        <div className="enterprise-list-page-table-shell user-list-page-table-shell">
           <ListPageTable<UserRecord>
             className="user-list-table"
             scroll={getUserTableScroll(this.state.advancedFiltersOpen)}

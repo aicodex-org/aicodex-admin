@@ -41,7 +41,12 @@ type TestOrganizationTableElement = React.ReactElement<{
   bordered?: boolean;
   className?: string;
   columns: TestTableColumn[];
-  pagination?: {pageSize?: number};
+  pagination?: {
+    pageSize?: number;
+    showQuickJumper?: boolean;
+    showSizeChanger?: boolean;
+    showTotal?: (total: number) => string;
+  };
   scroll?: {x?: unknown; y?: unknown};
   title: () => React.ReactNode;
 }>;
@@ -393,6 +398,9 @@ test("builds table columns, toolbar and action handlers", () => {
   expect(table.props.scroll?.x).toBeUndefined();
   expect(table.props.scroll?.y).toBe("calc(100vh - 360px)");
   expect(table.props.pagination?.pageSize).toBe(20);
+  expect(table.props.pagination?.showQuickJumper).toBe(true);
+  expect(table.props.pagination?.showSizeChanger).toBe(true);
+  expect(table.props.pagination?.showTotal?.(18)).toContain("18");
   expect(columns.reduce((sum, column) => {
     if (typeof column.width !== "string" || !column.width.endsWith("%")) {
       return sum;
@@ -422,11 +430,11 @@ test("builds table columns, toolbar and action handlers", () => {
   expect(blockedActionChildren[3].props.disabled).toBe(true);
 
   const toolbar = table.props.title() as React.ReactElement<TestToolbarProps>;
-  expect(toolbar.props.actions).toBeUndefined();
-  const addActionView = render(<>{tableWrapper.props.listAction}</>);
+  expect(toolbar.props.actions).not.toBeUndefined();
+  expect(tableWrapper.props.listAction).toBeUndefined();
+  const addActionView = render(<>{toolbar.props.actions}</>);
   fireEvent.click(addActionView.getByText(/添\s*加|Add/));
   expect(page.addOrganization).toHaveBeenCalled();
-  expect(tableWrapper.props.listAction).not.toBeUndefined();
 });
 
 test("disables fixed organization table columns in compact viewport", () => {
@@ -497,17 +505,23 @@ test("uses shared query toolbar for organization search controls and directory c
   });
   expect((page.state as Record<string, unknown>).queryKeyword).toBe("");
 
-  expect(toolbar.props.actions).toBeUndefined();
-  expect(tableWrapper.props.listAction).not.toBeUndefined();
+  expect(toolbar.props.actions).not.toBeUndefined();
+  expect(tableWrapper.props.listAction).toBeUndefined();
   expect(toolbar.props.context).not.toBeUndefined();
-  expect(toolbar.props.contextPlacement).toBe("side");
-  expect(toolbar.props.showHeader).toBe(false);
+  expect(toolbar.props.contextPlacement).toBe("headerBelow");
+  expect(toolbar.props.showHeader).not.toBe(false);
 
   const toolbarView = render(<MemoryRouter>{toolbar}</MemoryRouter>);
-  const controls = toolbarView.container.querySelector(".enterprise-list-query-toolbar-controls");
-  const context = toolbarView.container.querySelector(".enterprise-list-query-toolbar-side-context");
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-title")?.textContent).toContain("组织");
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-actions")).not.toBeNull();
+  expect(toolbarView.getByText(/添\s*加|Add/).closest(".enterprise-list-query-toolbar-actions")).not.toBeNull();
+  const headerMeta = toolbarView.container.querySelector(".enterprise-list-query-toolbar-header-meta");
+  const context = toolbarView.container.querySelector(".enterprise-list-query-toolbar-header-below-context");
   expect(context).not.toBeNull();
-  expect(controls?.contains(context as Node)).toBe(true);
+  expect(headerMeta?.className).toContain("enterprise-list-query-toolbar-header-meta-stacked");
+  expect(headerMeta?.contains(context as Node)).toBe(true);
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-header-context")).toBeNull();
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-side-context")).toBeNull();
   expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-context")).toBeNull();
   toolbarView.unmount();
 });
@@ -572,7 +586,7 @@ test("renders compact organization identity and source summary for table scannin
   sourceView.unmount();
 });
 
-test("passes create action through compact list action area", () => {
+test("passes create action through shared query toolbar actions", () => {
   const page = createPage(adminAccount);
   page.fetch = jestValue.fn() as unknown as typeof page.fetch;
   jestValue.spyOn(page, "addOrganization").mockImplementation(() => {});
@@ -581,10 +595,10 @@ test("passes create action through compact list action area", () => {
   const toolbar = identityCenter.props.children.props.title() as React.ReactElement<TestToolbarProps>;
 
   expect(toolbar.type).toBe(EnterpriseListQueryToolbar);
-  expect(toolbar.props.actions).toBeUndefined();
-  expect(identityCenter.props.listAction).not.toBeUndefined();
+  expect(toolbar.props.actions).not.toBeUndefined();
+  expect(identityCenter.props.listAction).toBeUndefined();
 
-  const actionView = render(<>{identityCenter.props.listAction}</>);
+  const actionView = render(<>{toolbar.props.actions}</>);
   const addButton = actionView.getByText(/添\s*加|Add/).closest("button");
   expect(addButton).not.toBeNull();
   expect((addButton as HTMLButtonElement).disabled).toBe(false);
@@ -595,8 +609,9 @@ test("passes create action through compact list action area", () => {
   const nonAdminPage = createPage(nonAdminAccount);
   const nonAdminIdentityCenter = nonAdminPage.renderTable([organization]) as React.ReactElement<TestIdentityCenterProps>;
   const nonAdminToolbar = nonAdminIdentityCenter.props.children.props.title() as React.ReactElement<TestToolbarProps>;
-  expect(nonAdminToolbar.props.actions).toBeUndefined();
-  const nonAdminActionView = render(<>{nonAdminIdentityCenter.props.listAction}</>);
+  expect(nonAdminToolbar.props.actions).not.toBeUndefined();
+  expect(nonAdminIdentityCenter.props.listAction).toBeUndefined();
+  const nonAdminActionView = render(<>{nonAdminToolbar.props.actions}</>);
   expect((nonAdminActionView.getByText(/添\s*加|Add/).closest("button") as HTMLButtonElement).disabled).toBe(true);
 });
 
@@ -843,8 +858,9 @@ test("disables add action for non-admin accounts", () => {
 
   const tableWrapper = page.renderTable([organization]) as React.ReactElement<TestIdentityCenterProps>;
   const toolbar = tableWrapper.props.children.props.title() as React.ReactElement<TestToolbarProps>;
-  expect(toolbar.props.actions).toBeUndefined();
-  const addActionView = render(<>{tableWrapper.props.listAction}</>);
+  expect(toolbar.props.actions).not.toBeUndefined();
+  expect(tableWrapper.props.listAction).toBeUndefined();
+  const addActionView = render(<>{toolbar.props.actions}</>);
 
   expect((addActionView.getByText(/添\s*加|Add/).closest("button") as HTMLButtonElement).disabled).toBe(true);
 });

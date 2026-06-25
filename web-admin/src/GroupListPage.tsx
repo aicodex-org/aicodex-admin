@@ -517,6 +517,7 @@ class GroupListPage extends TypedBaseListPage {
         onReset={this.handleToolbarReset}
         onAdvancedOpenChange={(advancedFiltersOpen) => this.setState({advancedFiltersOpen})}
         advancedFilters={this.renderAdvancedFilters()}
+        actionsPlacement="topRight"
         actions={(
           <>
             <Button type="primary" size="small" onClick={this.addGroup.bind(this)}>{t("general:Add")}</Button>
@@ -627,7 +628,7 @@ class GroupListPage extends TypedBaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <div className="group-list-page-table-shell">
+      <div className="enterprise-list-page-table-shell group-list-page-table-shell">
         <ListPageTable<GroupRecord>
           className="group-list-table"
           scroll={getGroupTableScroll(this.state.advancedFiltersOpen)}

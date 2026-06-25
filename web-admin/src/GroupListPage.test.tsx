@@ -50,7 +50,12 @@ type TestGroupTableElement = React.ReactElement<{
   bordered?: boolean;
   className?: string;
   columns: TestTableColumn[];
-  pagination?: {pageSize?: number};
+  pagination?: {
+    pageSize?: number;
+    showQuickJumper?: boolean;
+    showSizeChanger?: boolean;
+    showTotal?: (total: number) => string;
+  };
   scroll?: {x?: unknown; y?: unknown};
   showSorterTooltip?: {target?: string};
   tableLayout?: string;
@@ -420,6 +425,9 @@ test("builds table columns, toolbar and action handlers", () => {
   expect(table.props.scroll?.x).toBeUndefined();
   expect(table.props.scroll?.y).toBe("calc(100vh - 360px)");
   expect(table.props.pagination?.pageSize).toBe(20);
+  expect(table.props.pagination?.showQuickJumper).toBe(true);
+  expect(table.props.pagination?.showSizeChanger).toBe(true);
+  expect(table.props.pagination?.showTotal?.(18)).toContain("18");
   expect(table.props.className).toContain("group-list-table");
 
   const actionNode = opColumn?.render?.(undefined, group, 0) as React.ReactElement<{children: React.ReactNode; className?: string}>;
@@ -440,6 +448,9 @@ test("builds table columns, toolbar and action handlers", () => {
   blockedActionView.unmount();
 
   const toolbarView = render(<>{table.props.title()}</>);
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-title")?.textContent).toMatch(/群\s*组|Groups/);
+  expect(toolbarView.getByText(/添\s*加|Add/).closest(".enterprise-list-query-toolbar-actions")).not.toBeNull();
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-header-meta")?.className).toContain("enterprise-list-query-toolbar-header-meta-top-right");
   fireEvent.click(toolbarView.getByText(/添\s*加|Add/));
   expect(page.addGroup).toHaveBeenCalled();
 });
@@ -522,6 +533,7 @@ test("uses an enterprise query toolbar instead of column header search as the pr
   expect(getAdvancedFilterInputByLabel(toolbarView.container, /^(Advanced filters Display name|高级筛选 显示名称)$/)).not.toBeNull();
   expect(getAdvancedFilterInputByLabel(toolbarView.container, /^(Advanced filters Parent group|高级筛选 上级组)$/)).not.toBeNull();
   expect(toolbarView.getByText(/添\s*加|Add/).closest(".enterprise-list-query-toolbar-actions")).not.toBeNull();
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-header-meta")?.className).toContain("enterprise-list-query-toolbar-header-meta-top-right");
   expect(toolbarView.queryByText(/高\s*级\s*筛\s*选|Advanced filters/)).toBeNull();
   expect(columns.find(column => column.key === "group")?.dataIndex).toBe("displayName");
   expect(columns.find(column => column.key === "displayName")).toBeUndefined();

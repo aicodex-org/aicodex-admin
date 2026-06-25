@@ -15,7 +15,7 @@
 import React from "react";
 import {Link} from "react-router-dom";
 import {Button, Popconfirm} from "antd";
-import {DeleteOutlined, EditOutlined, PlusOutlined} from "@ant-design/icons";
+import {DeleteOutlined, EditOutlined} from "@ant-design/icons";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as KeyBackend from "./backend/KeyBackend";
@@ -213,7 +213,8 @@ class KeyListPage extends LegacyBaseListPage {
         onAdvancedOpenChange={(advancedFiltersOpen) => this.setState({advancedFiltersOpen})}
         keywordControl={renderApplicationAccessKeywordControl(getKeyQueryFields(), this.state.queryField, this.state.queryKeyword, (value) => this.setState({queryKeyword: value}), this.handleToolbarSearch)}
         advancedFilters={this.renderAdvancedFilters()}
-        actions={<Button type="primary" size="small" icon={<PlusOutlined />} onClick={this.addKey.bind(this)}>{t("general:Add")}</Button>}
+        actionsPlacement="topRight"
+        actions={<Button type="primary" size="small" onClick={this.addKey.bind(this)}>{t("general:Add")}</Button>}
       />
     );
   }
@@ -324,7 +325,7 @@ class KeyListPage extends LegacyBaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <div className="key-list-page-table-shell">
+      <div className="enterprise-list-page-table-shell key-list-page-table-shell">
         <ListPageTable<KeyRecord> scroll={getKeyTableScroll(this.state.advancedFiltersOpen)} className="key-list-table" columns={columns} dataSource={keys} rowKey={(record: KeyRecord) => `${record.owner}/${record.name}`} pagination={paginationProps}
           title={() => this.renderListToolbar()}
           loading={this.state.loading}
