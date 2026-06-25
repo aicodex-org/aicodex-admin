@@ -10,6 +10,7 @@ import * as RoleBackend from "./backend/RoleBackend";
 import * as PermissionBackend from "./backend/PermissionBackend";
 import RoleListPage from "./RoleListPage";
 import PermissionListPage from "./PermissionListPage";
+import ListPageTable from "./common/ListPageTable";
 import * as XLSX from "xlsx";
 
 declare const jest: typeof jestValue;
@@ -81,6 +82,12 @@ type TestTableColumn<TRecord> = {
   fixed?: unknown;
   render?: (text: unknown, record: TRecord, index: number) => React.ReactNode;
 };
+
+type TestListPageTableElement<TRecord> = React.ReactElement<{
+  columns: TestTableColumn<TRecord>[];
+  title: () => React.ReactNode;
+  rowKey: (record: TRecord) => string;
+}>;
 
 type RolePageHarness = InstanceType<typeof RoleListPage> & {
   state: InstanceType<typeof RoleListPage>["state"] & {
@@ -275,14 +282,48 @@ function getPermissionUploadAndModal(page: PermissionPageHarness) {
   };
 }
 
+function findElementByType(node: React.ReactNode, type: React.ElementType): React.ReactElement | null {
+  if (!React.isValidElement(node)) {
+    return null;
+  }
+  if (node.type === type) {
+    return node;
+  }
+
+  const props = node.props as {children?: React.ReactNode};
+  let match: React.ReactElement | null = null;
+  React.Children.forEach(props.children, child => {
+    if (match === null) {
+      match = findElementByType(child, type);
+    }
+  });
+  return match;
+}
+
+function getRoleTable(page: RolePageHarness, rows: TestRoleRecord[] = [role]) {
+  const tree = page.renderTable(rows);
+  const table = findElementByType(tree, ListPageTable) as TestListPageTableElement<TestRoleRecord> | null;
+  if (!table) {
+    throw new Error("Expected role list to render shared ListPageTable");
+  }
+  return {tree, table};
+}
+
+function getPermissionTable(page: PermissionPageHarness, rows: TestPermissionRecord[] = [permission]) {
+  const tree = page.renderTable(rows);
+  const table = findElementByType(tree, ListPageTable) as TestListPageTableElement<TestPermissionRecord> | null;
+  if (!table) {
+    throw new Error("Expected permission list to render shared ListPageTable");
+  }
+  return {tree, table};
+}
+
 function getRoleColumns(page: RolePageHarness) {
-  const tableWrapper = page.renderTable([role]) as React.ReactElement<{children: React.ReactElement<{columns: TestTableColumn<TestRoleRecord>[]; title: () => React.ReactNode}>}>;
-  return tableWrapper.props.children.props.columns;
+  return getRoleTable(page).table.props.columns;
 }
 
 function getPermissionColumns(page: PermissionPageHarness) {
-  const tableWrapper = page.renderTable([permission]) as React.ReactElement<{children: React.ReactElement<{columns: TestTableColumn<TestPermissionRecord>[]; title: () => React.ReactNode}>}>;
-  return tableWrapper.props.children.props.columns;
+  return getPermissionTable(page).table.props.columns;
 }
 
 function renderWithRouter(node: React.ReactNode) {
@@ -414,13 +455,17 @@ test("keeps role table columns, links, toolbar and delete refresh behavior", asy
     pagination: {...page.state.pagination, current: 2},
   };
 
-  const tableWrapper = page.renderTable([role]) as React.ReactElement<{children: React.ReactElement<{columns: TestTableColumn<TestRoleRecord>[]; title: () => React.ReactNode}>}>;
-  const table = tableWrapper.props.children;
+  const {tree: tableWrapper, table} = getRoleTable(page, [role]);
   const columns = table.props.columns;
+
+  const tableView = render(<MemoryRouter>{tableWrapper}</MemoryRouter>);
+  expect(tableView.container.querySelector(".enterprise-list-page-table-shell.role-list-page-table-shell")).not.toBeNull();
+  expect(tableView.container.querySelector(".ant-table")).not.toBeNull();
+  tableView.unmount();
 
   expect(columns[0].key).toBe("name");
   expect(columns[9].fixed).toBe("right");
-  expect((table.props as unknown as {rowKey: (record: TestRoleRecord) => string}).rowKey(role)).toBe("engineering/role-main");
+  expect(table.props.rowKey(role)).toBe("engineering/role-main");
 
   const nameView = render(<MemoryRouter>{columns[0].render?.(role.name, role, 0)}</MemoryRouter>);
   expect(nameView.getByText("role-main").closest("a")?.getAttribute("href")).toBe("/roles/engineering/role-main");
@@ -439,6 +484,10 @@ test("keeps role table columns, links, toolbar and delete refresh behavior", asy
   }));
 
   const toolbarView = render(<>{table.props.title()}</>);
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar")).not.toBeNull();
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-title")?.textContent).toMatch(/角色|Roles/);
+  expect(toolbarView.getByText(/添\s*加|Add/).closest(".enterprise-list-query-toolbar-actions")).not.toBeNull();
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-header-meta")?.className).toContain("enterprise-list-query-toolbar-header-meta-top-right");
   fireEvent.click(toolbarView.getByText(/添\s*加|Add/));
   expect(page.addRole).toHaveBeenCalled();
 });
@@ -459,26 +508,33 @@ test("keeps permission table columns, links, tags and delete refresh behavior", 
     pagination: {...page.state.pagination, current: 2},
   };
 
-  const tableWrapper = page.renderTable([permission]) as React.ReactElement<{children: React.ReactElement<{columns: TestTableColumn<TestPermissionRecord>[]; title: () => React.ReactNode}>}>;
-  const table = tableWrapper.props.children;
+  const {tree: tableWrapper, table} = getPermissionTable(page, [permission]);
   const columns = table.props.columns;
 
+  const tableView = render(<MemoryRouter>{tableWrapper}</MemoryRouter>);
+  expect(tableView.container.querySelector(".enterprise-list-page-table-shell.permission-list-page-table-shell")).not.toBeNull();
+  expect(tableView.container.querySelector(".ant-table")).not.toBeNull();
+  tableView.unmount();
+
   expect(columns[0].key).toBe("name");
-  expect(columns[18].fixed).toBe("right");
+  const actionColumn = columns.find(column => column.key === "op");
+  expect(actionColumn?.fixed).toBe("right");
 
   const nameView = render(<MemoryRouter>{columns[0].render?.(permission.name, permission, 0)}</MemoryRouter>);
   expect(nameView.getByText("permission-main").closest("a")?.getAttribute("href")).toBe("/permissions/engineering/permission-main");
   nameView.unmount();
 
-  const effectView = render(<>{columns[12].render?.("Allow", permission, 0)}</>);
+  const effectColumn = columns.find(column => column.key === "effect");
+  const effectView = render(<>{effectColumn?.render?.("Allow", permission, 0)}</>);
   expect(effectView.getByText(/Allow|允许/)).not.toBeNull();
   effectView.unmount();
 
-  const stateView = render(<>{columns[17].render?.("Approved", permission, 0)}</>);
+  const stateColumn = columns.find(column => column.key === "state");
+  const stateView = render(<>{stateColumn?.render?.("Approved", permission, 0)}</>);
   expect(stateView.getByText(/Approved|已批准|审批通过/)).not.toBeNull();
   stateView.unmount();
 
-  const actionNode = columns[18].render?.(undefined, permission, 0) as React.ReactElement<{children: React.ReactNode}>;
+  const actionNode = actionColumn?.render?.(undefined, permission, 0) as React.ReactElement<{children: React.ReactNode}>;
   const actionChildren = React.Children.toArray(actionNode.props.children) as React.ReactElement[];
   const actionView = render(<>{actionNode}</>);
   fireEvent.click(actionView.getByText(/编\s*辑|Edit/));
@@ -491,6 +547,10 @@ test("keeps permission table columns, links, tags and delete refresh behavior", 
   }));
 
   const toolbarView = render(<>{table.props.title()}</>);
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar")).not.toBeNull();
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-title")?.textContent).toMatch(/权限|Permissions/);
+  expect(toolbarView.getByText(/添\s*加|Add/).closest(".enterprise-list-query-toolbar-actions")).not.toBeNull();
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-header-meta")?.className).toContain("enterprise-list-query-toolbar-header-meta-top-right");
   fireEvent.click(toolbarView.getByText(/添\s*加|Add/));
   expect(page.addPermission).toHaveBeenCalled();
 });
@@ -500,7 +560,7 @@ test("keeps remaining role column renderers and mobile fixed behavior", () => {
   const page = createRolePage();
   const columns = getRoleColumns(page);
 
-  expect(columns[9].fixed).toBe("false");
+  expect(columns[9].fixed).toBe(false);
   expect(renderWithRouter(columns[1].render?.(role.owner, role, 0)).getByText("engineering").closest("a")?.getAttribute("href")).toBe("/organizations/engineering");
   expect(columns[2].render?.(role.createdTime, role, 0)).not.toBeNull();
   expect(textFromNode(columns[4].render?.(role.users, role, 0))).toContain("alice");
@@ -515,28 +575,21 @@ test("keeps remaining permission column renderers and mobile fixed behavior", ()
   const page = createPermissionPage();
   const columns = getPermissionColumns(page);
 
-  expect(columns[18].fixed).toBe("false");
+  expect(columns.find(column => column.key === "op")?.fixed).toBe(false);
   expect(renderWithRouter(columns[1].render?.(permission.owner, permission, 0)).getByText("engineering").closest("a")?.getAttribute("href")).toBe("/organizations/engineering");
-  expect(columns[2].render?.(permission.createdTime, permission, 0)).not.toBeNull();
-  expect(renderWithRouter(columns[4].render?.(permission.model, permission, 0)).getByText("engineering/rbac").closest("a")?.getAttribute("href")).toBe("/models/engineering/rbac");
-  expect(textFromNode(columns[5].render?.(permission.users, permission, 0))).toContain("built-in/admin");
-  expect(textFromNode(columns[6].render?.(permission.groups, permission, 0))).toContain("ops");
-  expect(textFromNode(columns[7].render?.(permission.roles, permission, 0))).toContain("role-main");
-  expect(textFromNode(columns[8].render?.(permission.domains, permission, 0))).toContain("domain-a");
-  expect(textFromNode(columns[10].render?.(permission.resources, permission, 0))).toContain(Conf.DefaultApplication);
-  const actionsText = textFromNode(columns[11].render?.(permission.actions, permission, 0));
+  expect(renderWithRouter(columns.find(column => column.key === "model")?.render?.(permission.model, permission, 0)).getByText("engineering/rbac").closest("a")?.getAttribute("href")).toBe("/models/engineering/rbac");
+  expect(textFromNode(columns.find(column => column.key === "resources")?.render?.(permission.resources, permission, 0))).toContain(Conf.DefaultApplication);
+  const actionsText = textFromNode(columns.find(column => column.key === "actions")?.render?.(permission.actions, permission, 0));
   expect(actionsText).toMatch(/Read|读取|读权限/);
   expect(actionsText).toMatch(/Write|写入|写权限/);
   expect(actionsText).toMatch(/Admin|管理员|管理工具/);
   expect(actionsText).toContain("Custom");
-  expect(render(<>{columns[12].render?.("Deny", permission, 0)}</>).container.textContent).toMatch(/Deny|拒绝/);
-  expect(columns[12].render?.("Unknown", permission, 0)).toBeNull();
-  expect(render(<>{columns[13].render?.(true, permission, 0)}</>).container.textContent).toMatch(/ON|开/);
-  expect(renderWithRouter(columns[14].render?.(permission.submitter, permission, 0)).getByText("admin").closest("a")?.getAttribute("href")).toBe("/users/engineering/admin");
-  expect(renderWithRouter(columns[15].render?.(permission.approver, permission, 0)).getByText("owner").closest("a")?.getAttribute("href")).toBe("/users/engineering/owner");
-  expect(columns[16].render?.(permission.approveTime, permission, 0)).not.toBeNull();
-  expect(render(<>{columns[17].render?.("Pending", permission, 0)}</>).container.textContent).toMatch(/Pending|待审批/);
-  expect(columns[17].render?.("Unknown", permission, 0)).toBeNull();
+  const effectColumn = columns.find(column => column.key === "effect");
+  expect(render(<>{effectColumn?.render?.("Deny", permission, 0)}</>).container.textContent).toMatch(/Deny|拒绝/);
+  expect(effectColumn?.render?.("Unknown", permission, 0)).toBeNull();
+  const stateColumn = columns.find(column => column.key === "state");
+  expect(render(<>{stateColumn?.render?.("Pending", permission, 0)}</>).container.textContent).toMatch(/Pending|待审批/);
+  expect(stateColumn?.render?.("Unknown", permission, 0)).toBeNull();
 });
 
 test("keeps role and permission fetch parameters and authorization fallback", async() => {

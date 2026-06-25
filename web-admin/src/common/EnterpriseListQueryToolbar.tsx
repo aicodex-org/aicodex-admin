@@ -98,10 +98,10 @@ export default function EnterpriseListQueryToolbar(props: EnterpriseListQueryToo
       {
         showHeader ? (
           <div className={headerClassName}>
-            <Space size={8} wrap className="enterprise-list-query-toolbar-title">
-              <Text strong>{props.title}</Text>
-              {showTotal ? <Text type="secondary">{formatResultCount(props.total)}</Text> : null}
-            </Space>
+            <div className="enterprise-list-query-toolbar-title">
+              <Text strong className="enterprise-list-query-toolbar-title-text">{props.title}</Text>
+              {showTotal ? <Text type="secondary" className="enterprise-list-query-toolbar-result-count">{formatResultCount(props.total)}</Text> : null}
+            </div>
             <div className={headerMetaClassName}>
               {
                 hasContext && contextPlacement === "header" ? (

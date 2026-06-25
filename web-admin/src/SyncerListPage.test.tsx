@@ -317,10 +317,15 @@ test("builds table columns, actions and toolbar without changing handlers", () =
   const table = tableWrapper.props.children;
   const columns = table.props.columns;
 
-  expect(columns[0].key).toBe("name");
-  expect((columns[4].sorter as (a: SyncerRecord, b: SyncerRecord) => number)({databaseType: "postgres"}, {databaseType: "mysql"})).toBeGreaterThan(0);
+  const tableView = render(<MemoryRouter>{tableWrapper}</MemoryRouter>);
+  expect(tableView.container.querySelector(".enterprise-list-page-table-shell.syncer-list-page-table-shell")).not.toBeNull();
+  expect(tableView.container.querySelector(".ant-table")).not.toBeNull();
+  tableView.unmount();
 
-  const actionNode = columns[13].render?.(undefined, {owner: "admin", name: "syncer-main"}, 0) as React.ReactElement;
+  expect(columns[0].key).toBe("name");
+  expect((columns.find(column => column.key === "databaseType")?.sorter as (a: SyncerRecord, b: SyncerRecord) => number)({databaseType: "postgres"}, {databaseType: "mysql"})).toBeGreaterThan(0);
+
+  const actionNode = columns.find(column => column.key === "op")?.render?.(undefined, {owner: "admin", name: "syncer-main"}, 0) as React.ReactElement;
   const actionView = render(<>{actionNode}</>);
   fireEvent.click(actionView.getByText(/同\s*步/));
   fireEvent.click(actionView.getByText(/编\s*辑/));
@@ -329,6 +334,10 @@ test("builds table columns, actions and toolbar without changing handlers", () =
   actionView.unmount();
 
   const toolbarView = render(<>{table.props.title()}</>);
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar")).not.toBeNull();
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-title")?.textContent).toMatch(/同步器|Syncers/);
+  expect(toolbarView.getByText(/添\s*加|Add/).closest(".enterprise-list-query-toolbar-actions")).not.toBeNull();
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-header-meta")?.className).toContain("enterprise-list-query-toolbar-header-meta-top-right");
   fireEvent.click(toolbarView.getByText(/添\s*加/));
   expect(page.addSyncer).toHaveBeenCalled();
 });

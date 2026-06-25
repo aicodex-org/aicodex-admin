@@ -328,24 +328,33 @@ test("renders adapter list table actions and reports list errors", async() => {
   const table = tableWrapper.props.children;
   const columns = table.props.columns;
 
+  const tableView = render(<MemoryRouter>{tableWrapper}</MemoryRouter>);
+  expect(tableView.container.querySelector(".enterprise-list-page-table-shell.adapter-list-page-table-shell")).not.toBeNull();
+  expect(tableView.container.querySelector(".ant-table")).not.toBeNull();
+  tableView.unmount();
+
   expect(columns[0].key).toBe("name");
-  expect(columns[12].fixed).toBe("right");
-  expect(columns[8].render?.(0, adapter, 0)).toBe("");
-  expect(columns[8].render?.(3306, adapter, 0)).toBe(3306);
+  const actionColumn = columns.find(column => column.key === "op");
+  expect(actionColumn?.fixed).toBe("right");
 
   const nameView = render(<MemoryRouter>{columns[0].render?.(adapter.name, adapter, 0)}</MemoryRouter>);
   expect(nameView.getByText("adapter-main").closest("a")?.getAttribute("href")).toBe("/adapters/engineering/adapter-main");
   nameView.unmount();
 
-  const actionNode = columns[12].render?.(undefined, adapter, 0) as React.ReactElement<{children: React.ReactNode}>;
+  const actionNode = actionColumn?.render?.(undefined, adapter, 0) as React.ReactElement<{children: React.ReactNode}>;
   const actionView = render(<MemoryRouter>{actionNode}</MemoryRouter>);
   fireEvent.click(actionView.getByText(/编\s*辑|Edit/));
   expect(history.push).toHaveBeenCalledWith("/adapters/engineering/adapter-main");
-  fireEvent.click(actionView.getByTestId("popconfirm"));
+  fireEvent.click(actionView.getByText(/删\s*除|Delete/));
+  fireEvent.click(actionView.baseElement.querySelector(".ant-popconfirm-buttons .ant-btn-primary"));
   expect(page.deleteAdapter).toHaveBeenCalledWith(0);
   actionView.unmount();
 
   const toolbarView = render(<>{table.props.title()}</>);
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar")).not.toBeNull();
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-title")?.textContent).toMatch(/适配器|Adapters/);
+  expect(toolbarView.getByText(/添\s*加|Add/).closest(".enterprise-list-query-toolbar-actions")).not.toBeNull();
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-header-meta")?.className).toContain("enterprise-list-query-toolbar-header-meta-top-right");
   fireEvent.click(toolbarView.getByText(/添\s*加|Add/));
   expect(page.addAdapter).toHaveBeenCalled();
 
@@ -377,7 +386,7 @@ test("keeps adapter list column renderers and mutation error behavior", async() 
   const sameDbSwitch = columns[4].render?.(false, adapter, 0) as React.ReactElement;
   expect(elementProps<{checked: boolean; disabled: boolean}>(sameDbSwitch)).toEqual(expect.objectContaining({checked: false, disabled: true}));
 
-  const databaseSorter = columns[6].sorter as (a: AdapterRecord, b: AdapterRecord) => number;
+  const databaseSorter = columns.find(column => column.key === "databaseType")?.sorter as (a: AdapterRecord, b: AdapterRecord) => number;
   expect(databaseSorter({...adapter, databaseType: "mysql"}, {...adapter, databaseType: "postgres"})).toBeLessThan(0);
 
   const tableView = render(<MemoryRouter>{page.renderTable([adapter])}</MemoryRouter>);
@@ -411,9 +420,10 @@ test("keeps adapter list mobile and default-organization branch behavior", async
 
   jestValue.spyOn(Setting, "isMobile").mockReturnValue(true);
   const mobileTable = page.renderTable([adapter]) as React.ReactElement<{children: React.ReactElement<{columns: TableColumn[]}>}>;
-  expect(mobileTable.props.children.props.columns[12].fixed).toBe("false");
+  const mobileColumns = mobileTable.props.children.props.columns;
+  expect(mobileColumns.find(column => column.key === "op")?.fixed).toBe(false);
 
-  const databaseSorter = mobileTable.props.children.props.columns[6].sorter as (a: AdapterRecord, b: AdapterRecord) => number;
+  const databaseSorter = mobileColumns.find(column => column.key === "databaseType")?.sorter as (a: AdapterRecord, b: AdapterRecord) => number;
   expect(databaseSorter(
     {...adapter, databaseType: undefined as unknown as string},
     {...adapter, databaseType: undefined as unknown as string}

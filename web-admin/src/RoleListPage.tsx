@@ -21,7 +21,9 @@ import * as Setting from "./Setting";
 import * as RoleBackend from "./backend/RoleBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
-import PopconfirmModal from "./common/modal/PopconfirmModal";
+import LegacyListPageToolbar from "./common/LegacyListPageToolbar";
+import ListPageRowActions, {ListPageRowDeleteAction, ListPageRowEditAction} from "./common/ListPageRowActions";
+import ListPageTable from "./common/ListPageTable";
 import {UploadOutlined} from "@ant-design/icons";
 import * as XLSX from "xlsx";
 import OrganizationIdentityCenter from "./OrganizationIdentityCenter";
@@ -120,6 +122,16 @@ const TypedBaseListPage = BaseListPage as unknown as {
 
 const roleBackend = RoleBackend as unknown as RoleBackendApi;
 const getTags = Setting.getTags as (tags?: string[], urlPrefix?: string | null) => React.ReactNode;
+
+const queryFields = [
+  {label: t("general:Name"), value: "name"},
+  {label: t("general:Organization"), value: "owner"},
+  {label: t("general:Display name"), value: "displayName"},
+  {label: t("role:Sub users"), value: "users"},
+  {label: t("role:Sub groups"), value: "groups"},
+  {label: t("role:Sub roles"), value: "roles"},
+  {label: t("role:Sub domains"), value: "domains"},
+];
 
 function t(key: string, defaultValue = key): string {
   const translated = i18next.t(key, {defaultValue}) as unknown;
@@ -316,7 +328,6 @@ class RoleListPage extends TypedBaseListPage {
         width: "150px",
         fixed: "left",
         sorter: true,
-        ...this.getColumnSearchProps("name"),
         render: (text: string, record: RoleRecord) => {
           return (
             <Link to={`/roles/${record.owner}/${encodeURIComponent(record.name)}`}>
@@ -331,7 +342,6 @@ class RoleListPage extends TypedBaseListPage {
         key: "owner",
         width: "120px",
         sorter: true,
-        ...this.getColumnSearchProps("owner"),
         render: (text: string) => {
           return (
             <Link to={`/organizations/${text}`}>
@@ -356,7 +366,6 @@ class RoleListPage extends TypedBaseListPage {
         key: "displayName",
         width: "200px",
         sorter: true,
-        ...this.getColumnSearchProps("displayName"),
       },
       {
         title: t("role:Sub users"),
@@ -364,7 +373,6 @@ class RoleListPage extends TypedBaseListPage {
         key: "users",
         // width: '100px',
         sorter: true,
-        ...this.getColumnSearchProps("users"),
         render: (text: string[]) => {
           return getTags(text, "users");
         },
@@ -375,7 +383,6 @@ class RoleListPage extends TypedBaseListPage {
         key: "groups",
         // width: '100px',
         sorter: true,
-        ...this.getColumnSearchProps("groups"),
         render: (text: string[]) => {
           return getTags(text, "groups");
         },
@@ -386,7 +393,6 @@ class RoleListPage extends TypedBaseListPage {
         key: "roles",
         // width: '100px',
         sorter: true,
-        ...this.getColumnSearchProps("roles"),
         render: (text: string[]) => {
           return getTags(text, "roles");
         },
@@ -396,7 +402,6 @@ class RoleListPage extends TypedBaseListPage {
         dataIndex: "domains",
         key: "domains",
         sorter: true,
-        ...this.getColumnSearchProps("domains"),
         render: (text: string[]) => {
           return Setting.getTags(text);
         },
@@ -418,17 +423,16 @@ class RoleListPage extends TypedBaseListPage {
         dataIndex: "",
         key: "op",
         width: "170px",
-        fixed: (Setting.isMobile() ? "false" : "right") as unknown as "right",
+        fixed: Setting.isMobile() ? false : "right",
         render: (_text: unknown, record: RoleRecord, index: number) => {
           return (
-            <div>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/roles/${record.owner}/${encodeURIComponent(record.name)}`)}>{t("general:Edit")}</Button>
-              <PopconfirmModal
+            <ListPageRowActions className="role-row-actions">
+              <ListPageRowEditAction onClick={() => this.props.history.push(`/roles/${record.owner}/${encodeURIComponent(record.name)}`)} />
+              <ListPageRowDeleteAction
                 title={t("general:Sure to delete") + `: ${record.name} ?`}
                 onConfirm={() => this.deleteRole(index)}
-              >
-              </PopconfirmModal>
-            </div>
+              />
+            </ListPageRowActions>
           );
         },
       },
@@ -443,20 +447,28 @@ class RoleListPage extends TypedBaseListPage {
         total={this.state.pagination.total}
         loadedCount={roles.length}
       >
-        <Table<RoleRecord> scroll={{x: "max-content"}} columns={columns} dataSource={roles} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
-          title={() => (
-            <div>
-              {t("general:Roles")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={this.addRole.bind(this)}>{t("general:Add")}</Button>
-              <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={this.generateDownloadTemplate}>{t("general:Download template")} </Button>
-              {
-                this.renderRoleUpload()
-              }
-            </div>
-          )}
-          loading={this.state.loading}
-          onChange={this.handleTableChange}
-        />
+        <div className="enterprise-list-page-table-shell role-list-page-table-shell">
+          <ListPageTable<RoleRecord> columns={columns} dataSource={roles} rowKey={(record) => `${record.owner}/${record.name}`} pagination={paginationProps}
+            title={() => (
+              <LegacyListPageToolbar
+                host={this}
+                title={t("general:Roles")}
+                total={this.state.pagination.total}
+                fields={queryFields}
+                defaultField="name"
+                actions={(
+                  <>
+                    <Button type="primary" onClick={this.addRole.bind(this)}>{t("general:Add")}</Button>
+                    <Button onClick={this.generateDownloadTemplate}>{t("general:Download template")} </Button>
+                    {this.renderRoleUpload()}
+                  </>
+                )}
+              />
+            )}
+            loading={this.state.loading}
+            onChange={this.handleTableChange}
+          />
+        </div>
       </OrganizationIdentityCenter>
     );
   }

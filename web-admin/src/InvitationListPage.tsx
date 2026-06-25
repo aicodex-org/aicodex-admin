@@ -14,7 +14,7 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Table} from "antd";
+import {Button} from "antd";
 import type {TablePaginationConfig, TableProps} from "antd";
 import {MinusCircleOutlined, SyncOutlined} from "@ant-design/icons";
 import moment from "moment";
@@ -23,7 +23,9 @@ import * as InvitationBackend from "./backend/InvitationBackend";
 import type {InvitationRecord} from "./backend/InvitationBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
-import PopconfirmModal from "./common/modal/PopconfirmModal";
+import LegacyListPageToolbar from "./common/LegacyListPageToolbar";
+import ListPageRowActions, {ListPageRowDeleteAction, ListPageRowEditAction} from "./common/ListPageRowActions";
+import ListPageTable from "./common/ListPageTable";
 
 interface InvitationListPageProps {
   account?: Record<string, unknown>;
@@ -66,6 +68,17 @@ type LegacyBaseListPageCompat = React.Component<InvitationListPageProps, Invitat
 const TypedBaseListPage = BaseListPage as unknown as {
   new(props: InvitationListPageProps): LegacyBaseListPageCompat;
 };
+
+const queryFields = [
+  {label: t("general:Name"), value: "name"},
+  {label: t("general:Organization"), value: "owner"},
+  {label: t("general:Display name"), value: "displayName"},
+  {label: t("invitation:Code"), value: "code"},
+  {label: t("general:Application"), value: "application"},
+  {label: t("general:Email"), value: "email"},
+  {label: t("general:Phone"), value: "phone"},
+  {label: t("general:State"), value: "state"},
+];
 
 function t(key: string, defaultValue = key): string {
   const translated = i18next.t(key, {defaultValue}) as unknown;
@@ -139,10 +152,9 @@ class InvitationListPage extends TypedBaseListPage {
         title: t("general:Name"),
         dataIndex: "name",
         key: "name",
-        width: "140px",
+        width: "110px",
         fixed: "left",
         sorter: true,
-        ...this.getColumnSearchProps("name"),
         render: (text: string, record: InvitationRecord) => {
           return (
             <Link to={`/invitations/${record.owner}/${text}`}>
@@ -155,9 +167,8 @@ class InvitationListPage extends TypedBaseListPage {
         title: t("general:Organization"),
         dataIndex: "owner",
         key: "owner",
-        width: "150px",
+        width: "90px",
         sorter: true,
-        ...this.getColumnSearchProps("owner"),
         render: (text: string) => {
           return (
             <Link to={`/organizations/${text}`}>
@@ -177,54 +188,39 @@ class InvitationListPage extends TypedBaseListPage {
       //   },
       // },
       {
-        title: t("general:Updated time"),
-        dataIndex: "updatedTime",
-        key: "updatedTime",
-        width: "160px",
-        sorter: true,
-        render: (text: string) => {
-          return Setting.getFormattedDate(text);
-        },
-      },
-      {
         title: t("general:Display name"),
         dataIndex: "displayName",
         key: "displayName",
-        width: "170px",
+        width: "110px",
         sorter: true,
-        ...this.getColumnSearchProps("displayName"),
       },
       {
         title: t("invitation:Code"),
         dataIndex: "code",
         key: "code",
-        width: "160px",
+        width: "110px",
         sorter: true,
-        ...this.getColumnSearchProps("code"),
       },
       {
         title: t("invitation:Quota"),
         dataIndex: "quota",
         key: "quota",
-        width: "120px",
+        width: "70px",
         sorter: true,
-        ...this.getColumnSearchProps("quota"),
       },
       {
         title: t("invitation:Used count"),
         dataIndex: "usedCount",
         key: "usedCount",
-        width: "130px",
+        width: "80px",
         sorter: true,
-        ...this.getColumnSearchProps("usedCount"),
       },
       {
         title: t("general:Application"),
         dataIndex: "application",
         key: "application",
-        width: "170px",
+        width: "120px",
         sorter: true,
-        ...this.getColumnSearchProps("application"),
         render: (text: string, record: InvitationRecord) => {
           return (
             <Link to={`/applications/${record.owner}/${text}`}>
@@ -234,35 +230,11 @@ class InvitationListPage extends TypedBaseListPage {
         },
       },
       {
-        title: t("general:Email"),
-        dataIndex: "email",
-        key: "email",
-        width: "160px",
-        sorter: true,
-        ...this.getColumnSearchProps("email"),
-        render: (text: string) => {
-          return (
-            <a href={`mailto:${text}`}>
-              {text}
-            </a>
-          );
-        },
-      },
-      {
-        title: t("general:Phone"),
-        dataIndex: "phone",
-        key: "phone",
-        width: "120px",
-        sorter: true,
-        ...this.getColumnSearchProps("phone"),
-      },
-      {
         title: t("general:State"),
         dataIndex: "state",
         key: "state",
-        width: "120px",
+        width: "80px",
         sorter: true,
-        ...this.getColumnSearchProps("state"),
         render: (text: string) => {
           switch (text) {
           case "Active":
@@ -278,18 +250,17 @@ class InvitationListPage extends TypedBaseListPage {
         title: t("general:Action"),
         dataIndex: "",
         key: "op",
-        width: "180px",
+        width: "120px",
         fixed: Setting.isMobile() ? false : "right",
         render: (_text: unknown, record: InvitationRecord, index: number) => {
           return (
-            <div>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/invitations/${record.owner}/${record.name}`)}>{t("general:Edit")}</Button>
-              <PopconfirmModal
+            <ListPageRowActions className="invitation-row-actions">
+              <ListPageRowEditAction onClick={() => this.props.history.push(`/invitations/${record.owner}/${record.name}`)} />
+              <ListPageRowDeleteAction
                 title={t("general:Sure to delete") + `: ${record.name} ?`}
                 onConfirm={() => this.deleteInvitation(index)}
-              >
-              </PopconfirmModal>
-            </div>
+              />
+            </ListPageRowActions>
           );
         },
       },
@@ -298,20 +269,21 @@ class InvitationListPage extends TypedBaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <div>
-        <Table
-          scroll={{x: "max-content"}}
+      <div className="enterprise-list-page-table-shell invitation-list-page-table-shell">
+        <ListPageTable<InvitationRecord>
           columns={columns}
           dataSource={invitations}
           rowKey={(record) => `${record.owner}/${record.name}`}
-          size="middle"
-          bordered
           pagination={paginationProps}
           title={() => (
-            <div>
-              {t("general:Invitations")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button type="primary" size="small" onClick={this.addInvitation.bind(this)}>{t("general:Add")}</Button>
-            </div>
+            <LegacyListPageToolbar
+              host={this}
+              title={t("general:Invitations")}
+              total={this.state.pagination.total}
+              fields={queryFields}
+              defaultField="name"
+              actions={<Button type="primary" onClick={this.addInvitation.bind(this)}>{t("general:Add")}</Button>}
+            />
           )}
           loading={this.state.loading}
           onChange={this.handleTableChange}

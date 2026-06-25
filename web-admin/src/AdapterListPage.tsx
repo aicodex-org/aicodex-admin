@@ -14,14 +14,16 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Switch, Table} from "antd";
+import {Button, Switch} from "antd";
 import type {TableProps} from "antd";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as AdapterBackend from "./backend/AdapterBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
-import PopconfirmModal from "./common/modal/PopconfirmModal";
+import LegacyListPageToolbar from "./common/LegacyListPageToolbar";
+import ListPageRowActions, {ListPageRowDeleteAction, ListPageRowEditAction} from "./common/ListPageRowActions";
+import ListPageTable from "./common/ListPageTable";
 
 type Account = {
   owner: string;
@@ -115,6 +117,17 @@ type LegacyTableColumn = {
 const adapterBackend = AdapterBackend as unknown as AdapterBackendApi;
 const t = (key: string): string => i18next.t(key) as string;
 
+const queryFields = [
+  {label: t("general:Name"), value: "name"},
+  {label: t("general:Organization"), value: "owner"},
+  {label: t("syncer:Table"), value: "table"},
+  {label: t("general:Type"), value: "type"},
+  {label: t("syncer:Database type"), value: "databaseType"},
+  {label: t("provider:Host"), value: "host"},
+  {label: t("provider:Port"), value: "port"},
+  {label: t("general:User"), value: "user"},
+];
+
 class AdapterListPage extends BaseListPage {
   newAdapter(): AdapterRecord {
     const randomName = Setting.getRandomName();
@@ -170,10 +183,9 @@ class AdapterListPage extends BaseListPage {
         title: t("general:Name"),
         dataIndex: "name",
         key: "name",
-        width: "150px",
+        width: "120px",
         fixed: "left",
         sorter: true,
-        ...this.getColumnSearchProps("name"),
         render: (text: unknown, record: AdapterRecord) => {
           const adapterName = String(text);
           return (
@@ -187,9 +199,8 @@ class AdapterListPage extends BaseListPage {
         title: t("general:Organization"),
         dataIndex: "owner",
         key: "owner",
-        width: "120px",
+        width: "100px",
         sorter: true,
-        ...this.getColumnSearchProps("owner"),
         render: (text: unknown) => {
           const owner = String(text);
           return (
@@ -203,7 +214,7 @@ class AdapterListPage extends BaseListPage {
         title: t("general:Created time"),
         dataIndex: "createdTime",
         key: "createdTime",
-        width: "160px",
+        width: "130px",
         sorter: true,
         render: (text: unknown) => {
           return Setting.getFormattedDate(String(text));
@@ -213,14 +224,14 @@ class AdapterListPage extends BaseListPage {
         title: t("syncer:Table"),
         dataIndex: "table",
         key: "table",
-        width: "120px",
+        width: "100px",
         sorter: true,
       },
       {
         title: t("adapter:Use same DB"),
         dataIndex: "useSameDb",
         key: "useSameDb",
-        width: "120px",
+        width: "100px",
         sorter: true,
         render: (text: unknown) => {
           return (
@@ -232,82 +243,32 @@ class AdapterListPage extends BaseListPage {
         title: t("general:Type"),
         dataIndex: "type",
         key: "type",
-        width: "100px",
+        width: "80px",
         sorter: true,
-        filterMultiple: false,
-        filters: [
-          {text: "Database", value: "Database"},
-        ],
       },
       {
         title: t("syncer:Database type"),
         dataIndex: "databaseType",
         key: "databaseType",
-        width: "120px",
-        sorter: (a: AdapterRecord, b: AdapterRecord) => String(a.databaseType || "").localeCompare(String(b.databaseType || "")),
-      },
-      {
-        title: t("provider:Host"),
-        dataIndex: "host",
-        key: "host",
-        width: "120px",
-        sorter: true,
-        ...this.getColumnSearchProps("host"),
-      },
-      {
-        title: t("provider:Port"),
-        dataIndex: "port",
-        key: "port",
         width: "100px",
-        sorter: true,
-        ...this.getColumnSearchProps("port"),
-        render: (text: unknown) => {
-          if (text === 0) {
-            return "";
-          }
-          return text as React.ReactNode;
-        },
-      },
-      {
-        title: t("general:User"),
-        dataIndex: "user",
-        key: "user",
-        width: "120px",
-        sorter: true,
-        ...this.getColumnSearchProps("user"),
-      },
-      {
-        title: t("general:Password"),
-        dataIndex: "password",
-        key: "password",
-        width: "120px",
-        sorter: true,
-        ...this.getColumnSearchProps("password"),
-      },
-      {
-        title: t("syncer:Database"),
-        dataIndex: "database",
-        key: "database",
-        width: "120px",
-        sorter: true,
+        sorter: (a: AdapterRecord, b: AdapterRecord) => String(a.databaseType || "").localeCompare(String(b.databaseType || "")),
       },
       {
         title: t("general:Action"),
         dataIndex: "",
         key: "op",
-        width: "170px",
-        fixed: (Setting.isMobile()) ? "false" : "right",
+        width: "136px",
+        fixed: Setting.isMobile() ? false : "right",
         render: (_text: unknown, record: AdapterRecord, index: number) => {
           return (
-            <div>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/adapters/${record.owner}/${record.name}`)}>{t("general:Edit")}</Button>
-              <PopconfirmModal
+            <ListPageRowActions className="adapter-row-actions">
+              <ListPageRowEditAction onClick={() => this.props.history.push(`/adapters/${record.owner}/${record.name}`)} />
+              <ListPageRowDeleteAction
                 disabled={Setting.builtInObject(record)}
                 title={t("general:Sure to delete") + `: ${record.name} ?`}
                 onConfirm={() => this.deleteAdapter(index)}
-              >
-              </PopconfirmModal>
-            </div>
+              />
+            </ListPageRowActions>
           );
         },
       },
@@ -316,13 +277,17 @@ class AdapterListPage extends BaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <div>
-        <Table<AdapterRecord> scroll={{x: "max-content"}} columns={columns as TableProps<AdapterRecord>["columns"]} dataSource={adapters} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
+      <div className="enterprise-list-page-table-shell adapter-list-page-table-shell">
+        <ListPageTable<AdapterRecord> columns={columns as TableProps<AdapterRecord>["columns"]} dataSource={adapters} rowKey={(record) => `${record.owner}/${record.name}`} pagination={paginationProps}
           title={() => (
-            <div>
-              {t("general:Adapters")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button type="primary" size="small" onClick={this.addAdapter.bind(this)}>{t("general:Add")}</Button>
-            </div>
+            <LegacyListPageToolbar
+              host={this}
+              title={t("general:Adapters")}
+              total={(this.state.pagination as TablePagination).total}
+              fields={queryFields}
+              defaultField="name"
+              actions={<Button type="primary" onClick={this.addAdapter.bind(this)}>{t("general:Add")}</Button>}
+            />
           )}
           loading={this.state.loading}
           onChange={this.handleTableChange}

@@ -14,13 +14,16 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Alert, Button, DatePicker, Input, Modal, Popconfirm, Space, Table, Tag, Typography} from "antd";
+import {Alert, Button, DatePicker, Input, Modal, Popconfirm, Space, Tag, Typography} from "antd";
 import type {TablePaginationConfig, TableProps} from "antd";
-import {CopyOutlined, DeleteOutlined, PlusOutlined, ReloadOutlined, StopOutlined, SyncOutlined} from "@ant-design/icons";
+import {CopyOutlined, PlusOutlined, ReloadOutlined, StopOutlined, SyncOutlined} from "@ant-design/icons";
 import copy from "copy-to-clipboard";
 import dayjs from "dayjs";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
+import LegacyListPageToolbar from "./common/LegacyListPageToolbar";
+import ListPageRowActions, {ListPageRowActionButton, ListPageRowDeleteAction} from "./common/ListPageRowActions";
+import ListPageTable from "./common/ListPageTable";
 import * as Setting from "./Setting";
 import * as OrganizationSyncApiKeyBackend from "./backend/OrganizationSyncApiKeyBackend";
 import type {OrganizationSyncApiKeyRecord} from "./backend/OrganizationSyncApiKeyBackend";
@@ -50,11 +53,15 @@ interface OrganizationSyncApiKeyListPageState {
   loading: boolean;
   data: OrganizationSyncApiKeyRecord[];
   pagination: TablePaginationConfig;
+  searchText?: string | number;
+  searchedColumn?: string;
   isAuthorized?: boolean;
 }
 
 type OrganizationSyncApiKeyListFetchParams = {
   pagination?: TablePaginationConfig;
+  searchedColumn?: string;
+  searchText?: string | number;
 };
 
 type OrganizationSyncApiKeyColumns = TableProps<OrganizationSyncApiKeyRecord>["columns"];
@@ -69,6 +76,15 @@ type LegacyBaseListPageCompat = React.Component<OrganizationSyncApiKeyListPagePr
 const TypedBaseListPage = BaseListPage as unknown as {
   new(props: OrganizationSyncApiKeyListPageProps): LegacyBaseListPageCompat;
 };
+
+const queryFields = [
+  {label: t("general:Organization"), value: "organization"},
+  {label: t("general:Name"), value: "name"},
+  {label: t("general:Display name"), value: "displayName"},
+  {label: "Key Prefix", value: "keyPrefix"},
+  {label: t("general:State"), value: "state"},
+  {label: "Created by", value: "createdBy"},
+];
 
 function t(key: string, defaultValue = key): string {
   const translated = i18next.t(key, {defaultValue}) as unknown;
@@ -254,6 +270,16 @@ class OrganizationSyncApiKeyListPage extends TypedBaseListPage {
     return Setting.getFormattedDate(text) || emptyText;
   }
 
+  filterKeys(keys: OrganizationSyncApiKeyRecord[], params: OrganizationSyncApiKeyListFetchParams): OrganizationSyncApiKeyRecord[] {
+    const field = params.searchedColumn;
+    const value = params.searchText === undefined ? "" : String(params.searchText).trim().toLowerCase();
+    if (!field || value === "") {
+      return keys;
+    }
+
+    return keys.filter((key) => String((key as Record<string, unknown>)[field] ?? "").toLowerCase().includes(value));
+  }
+
   renderCreateModal(): React.ReactNode {
     const draftKey = this.state.draftKey;
     return (
@@ -335,7 +361,7 @@ class OrganizationSyncApiKeyListPage extends TypedBaseListPage {
         title: t("general:Organization"),
         dataIndex: "organization",
         key: "organization",
-        width: "150px",
+        width: "100px",
         fixed: "left",
         render: (text: string) => (
           <Link to={`/organizations/${text}`}>
@@ -347,80 +373,57 @@ class OrganizationSyncApiKeyListPage extends TypedBaseListPage {
         title: t("general:Name"),
         dataIndex: "name",
         key: "name",
-        width: "190px",
-        ...this.getColumnSearchProps("name"),
+        width: "120px",
       },
       {
         title: t("general:Display name"),
         dataIndex: "displayName",
         key: "displayName",
-        width: "190px",
+        width: "120px",
       },
       {
         title: "Key Prefix",
         dataIndex: "keyPrefix",
         key: "keyPrefix",
-        width: "170px",
+        width: "100px",
         render: (text: string) => <Text code>{text}</Text>,
       },
       {
         title: t("general:State"),
         dataIndex: "state",
         key: "state",
-        width: "120px",
+        width: "80px",
         render: (_text: string, record: OrganizationSyncApiKeyRecord) => this.renderState(record),
       },
       {
         title: t("general:Expire time"),
         dataIndex: "expireTime",
         key: "expireTime",
-        width: "170px",
+        width: "110px",
         render: (text?: string) => this.renderDate(text, "永不过期"),
       },
       {
         title: "Last used time",
         dataIndex: "lastUsedTime",
         key: "lastUsedTime",
-        width: "170px",
+        width: "110px",
         render: (text?: string) => this.renderDate(text),
-      },
-      {
-        title: "Last used IP",
-        dataIndex: "lastUsedIp",
-        key: "lastUsedIp",
-        width: "140px",
-        render: (text?: string) => text || "-",
-      },
-      {
-        title: "Last user-agent",
-        dataIndex: "lastUsedUserAgent",
-        key: "lastUsedUserAgent",
-        width: "220px",
-        ellipsis: true,
-        render: (text?: string) => text || "-",
-      },
-      {
-        title: "Created by",
-        dataIndex: "createdBy",
-        key: "createdBy",
-        width: "180px",
-        render: (text?: string) => text || "-",
       },
       {
         title: t("general:Action"),
         dataIndex: "",
         key: "op",
-        width: "260px",
+        width: "150px",
         fixed: Setting.isMobile() ? false : "right",
         render: (_text: unknown, record: OrganizationSyncApiKeyRecord) => (
-          <Space wrap>
+          <ListPageRowActions className="organization-sync-api-key-row-actions" wrap>
             <Popconfirm
               title={`确认轮换组织同步密钥: ${record.name} ?`}
               onConfirm={() => this.rotateKey(record)}
               okText={t("general:OK")}
               cancelText={t("general:Cancel")}
             >
-              <Button icon={<SyncOutlined />} loading={this.state.operating}>轮换</Button>
+              <ListPageRowActionButton icon={<SyncOutlined />} loading={this.state.operating}>轮换</ListPageRowActionButton>
             </Popconfirm>
             {record.state === "Active" && (
               <Popconfirm
@@ -429,18 +432,15 @@ class OrganizationSyncApiKeyListPage extends TypedBaseListPage {
                 okText={t("general:OK")}
                 cancelText={t("general:Cancel")}
               >
-                <Button icon={<StopOutlined />} loading={this.state.operating}>禁用</Button>
+                <ListPageRowActionButton icon={<StopOutlined />} loading={this.state.operating}>禁用</ListPageRowActionButton>
               </Popconfirm>
             )}
-            <Popconfirm
+            <ListPageRowDeleteAction
               title={t("general:Sure to delete") + `: ${record.name} ?`}
               onConfirm={() => this.deleteKey(record)}
-              okText={t("general:OK")}
-              cancelText={t("general:Cancel")}
-            >
-              <Button danger icon={<DeleteOutlined />} loading={this.state.operating}>{t("general:Delete")}</Button>
-            </Popconfirm>
-          </Space>
+              loading={this.state.operating}
+            />
+          </ListPageRowActions>
         ),
       },
     ];
@@ -448,25 +448,30 @@ class OrganizationSyncApiKeyListPage extends TypedBaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <div>
-        <Table
-          scroll={{x: "max-content"}}
+      <div className="enterprise-list-page-table-shell organization-sync-api-key-list-page-table-shell">
+        <ListPageTable<OrganizationSyncApiKeyRecord>
           columns={columns}
           dataSource={keys}
           rowKey={(record) => `${record.owner || ""}/${record.name || ""}`}
-          size="middle"
-          bordered
           pagination={paginationProps}
           title={() => (
-            <Space>
-              <span>组织同步密钥</span>
-              <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => this.openCreateModal()}>
-                {t("general:Add")}
-              </Button>
-              <Button size="small" icon={<ReloadOutlined />} onClick={() => this.fetch({pagination: this.state.pagination})}>
-                {t("general:Refresh")}
-              </Button>
-            </Space>
+            <LegacyListPageToolbar
+              host={this}
+              title="组织同步密钥"
+              total={this.state.pagination.total}
+              fields={queryFields}
+              defaultField="name"
+              actions={(
+                <>
+                  <Button type="primary" icon={<PlusOutlined />} onClick={() => this.openCreateModal()}>
+                    {t("general:Add")}
+                  </Button>
+                  <Button icon={<ReloadOutlined />} onClick={() => this.fetch({pagination: this.state.pagination})}>
+                    {t("general:Refresh")}
+                  </Button>
+                </>
+              )}
+            />
           )}
           loading={this.state.loading}
           onChange={this.handleTableChange}
@@ -486,12 +491,15 @@ class OrganizationSyncApiKeyListPage extends TypedBaseListPage {
           loading: false,
         });
         if (res.status === "ok") {
+          const data = this.filterKeys(res.data || [], params);
           this.setState({
-            data: res.data || [],
+            data,
             pagination: {
               ...pagination,
-              total: (res.data || []).length,
+              total: data.length,
             },
+            searchText: params.searchText,
+            searchedColumn: params.searchedColumn,
           });
         } else {
           if (Setting.isResponseDenied(res)) {

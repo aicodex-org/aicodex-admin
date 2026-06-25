@@ -15,14 +15,16 @@
 import React from "react";
 
 import {Link} from "react-router-dom";
-import {Button, Popover, Table} from "antd";
+import {Button, Popover} from "antd";
 import type {TableProps} from "antd";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as ModelBackend from "./backend/ModelBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
-import PopconfirmModal from "./common/modal/PopconfirmModal";
+import LegacyListPageToolbar from "./common/LegacyListPageToolbar";
+import ListPageRowActions, {ListPageRowDeleteAction, ListPageRowEditAction} from "./common/ListPageRowActions";
+import ListPageTable from "./common/ListPageTable";
 import Editor from "./common/Editor";
 
 const rbacModel = `[request_definition]
@@ -135,6 +137,13 @@ type LegacyTableColumn = {
 const modelBackend = ModelBackend as unknown as ModelBackendApi;
 const t = (key: string): string => i18next.t(key) as string;
 
+const queryFields = [
+  {label: t("general:Name"), value: "name"},
+  {label: t("general:Organization"), value: "owner"},
+  {label: t("general:Display name"), value: "displayName"},
+  {label: t("model:Model text"), value: "modelText"},
+];
+
 class ModelListPage extends BaseListPage {
   newModel(): ModelRecord {
     const randomName = Setting.getRandomName();
@@ -193,7 +202,6 @@ class ModelListPage extends BaseListPage {
         width: "180px",
         fixed: "left",
         sorter: true,
-        ...this.getColumnSearchProps("name"),
         render: (text: unknown, record: ModelRecord) => {
           const modelName = String(text);
           return (
@@ -209,7 +217,6 @@ class ModelListPage extends BaseListPage {
         key: "owner",
         width: "180px",
         sorter: true,
-        ...this.getColumnSearchProps("owner"),
         render: (text: unknown) => {
           const owner = String(text);
           return (
@@ -235,7 +242,6 @@ class ModelListPage extends BaseListPage {
         key: "displayName",
         width: "200px",
         sorter: true,
-        ...this.getColumnSearchProps("displayName"),
       },
       {
         title: t("model:Model text"),
@@ -263,19 +269,17 @@ class ModelListPage extends BaseListPage {
         dataIndex: "",
         key: "op",
         width: "180px",
-        fixed: (Setting.isMobile()) ? "false" : "right",
+        fixed: Setting.isMobile() ? false : "right",
         render: (_text: unknown, record: ModelRecord, index: number) => {
           return (
-            <div>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary"
-                onClick={() => this.props.history.push(`/models/${record.owner}/${record.name}`)}>{t("general:Edit")}</Button>
-              <PopconfirmModal
+            <ListPageRowActions className="model-row-actions">
+              <ListPageRowEditAction onClick={() => this.props.history.push(`/models/${record.owner}/${record.name}`)} />
+              <ListPageRowDeleteAction
                 disabled={Setting.builtInObject(record)}
                 title={t("general:Sure to delete") + `: ${record.name} ?`}
                 onConfirm={() => this.deleteModel(index)}
-              >
-              </PopconfirmModal>
-            </div>
+              />
+            </ListPageRowActions>
           );
         },
       },
@@ -284,15 +288,18 @@ class ModelListPage extends BaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <div>
-        <Table<ModelRecord> scroll={{x: "max-content"}} columns={columns as TableProps<ModelRecord>["columns"]} dataSource={models} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered
+      <div className="enterprise-list-page-table-shell model-list-page-table-shell">
+        <ListPageTable<ModelRecord> columns={columns as TableProps<ModelRecord>["columns"]} dataSource={models} rowKey={(record) => `${record.owner}/${record.name}`}
           pagination={paginationProps}
           title={() => (
-            <div>
-              {t("general:Models")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button type="primary" size="small"
-                onClick={this.addModel.bind(this)}>{t("general:Add")}</Button>
-            </div>
+            <LegacyListPageToolbar
+              host={this}
+              title={t("general:Models")}
+              total={(this.state.pagination as TablePagination).total}
+              fields={queryFields}
+              defaultField="name"
+              actions={<Button type="primary" onClick={this.addModel.bind(this)}>{t("general:Add")}</Button>}
+            />
           )}
           loading={this.state.loading}
           onChange={this.handleTableChange}

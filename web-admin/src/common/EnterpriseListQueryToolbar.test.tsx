@@ -4,12 +4,14 @@ import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {Button} from "antd";
 import {cleanup, render} from "@testing-library/react";
 import EnterpriseListQueryToolbar from "./EnterpriseListQueryToolbar";
+import LegacyListPageToolbar from "./LegacyListPageToolbar";
 
 const expect = jestExpect;
 const {fireEvent} = require("@testing-library/react") as {
   fireEvent: {
     click: (element: Element | null) => boolean;
     change: (element: Element | null, event: {target: {value: string}}) => boolean;
+    mouseDown: (element: Element | null) => boolean;
   };
 };
 const fs = require("fs") as typeof import("fs");
@@ -219,6 +221,174 @@ test("can place header actions at the top right without requiring helper context
   expect(view.container.querySelector(".enterprise-list-query-toolbar-side-context")).toBeNull();
 });
 
+test("legacy list toolbar keeps total only in pagination area", () => {
+  const host = {
+    state: {
+      pagination: {current: 1, pageSize: 20},
+      searchedColumn: "name",
+      searchText: "",
+    },
+    setState: jestValue.fn(),
+    fetch: jestValue.fn(),
+  };
+  const view = render(
+    <LegacyListPageToolbar
+      host={host}
+      title="Casbin适配器"
+      total={2}
+      fields={[{label: "名称", value: "name"}]}
+      defaultField="name"
+      actions={<Button type="primary">添加</Button>}
+    />
+  );
+
+  expect(view.getByText("Casbin适配器")).not.toBeNull();
+  expect(view.queryByText(/2/)).toBeNull();
+  expect(view.getByText(/添\s*加/).closest(".enterprise-list-query-toolbar-actions")).not.toBeNull();
+});
+
+test("legacy list toolbar normalizes empty and numeric keywords for the shared toolbar", () => {
+  const emptyHost = {
+    state: {
+      pagination: {current: 1, pageSize: 20},
+      searchedColumn: undefined,
+      searchText: undefined,
+    },
+    setState: jestValue.fn(),
+    fetch: jestValue.fn(),
+  };
+  const emptyView = render(
+    <LegacyListPageToolbar
+      host={emptyHost}
+      title="角色"
+      total={5}
+      fields={[
+        {label: "名称", value: "name"},
+        {label: "显示名", value: "displayName"},
+      ]}
+      defaultField="name"
+    />
+  );
+
+  expect(emptyView.getByText("角色")).not.toBeNull();
+  expect(emptyView.queryByText(/5/)).toBeNull();
+  expect(emptyView.getByText("名称")).not.toBeNull();
+  expect((emptyView.getByRole("textbox") as HTMLInputElement).value).toBe("");
+  emptyView.unmount();
+
+  const numericHost = {
+    state: {
+      pagination: {current: 2, pageSize: 20},
+      searchedColumn: "displayName",
+      searchText: 42,
+    },
+    setState: jestValue.fn(),
+    fetch: jestValue.fn(),
+  };
+  const numericView = render(
+    <LegacyListPageToolbar
+      host={numericHost}
+      title="角色"
+      total={5}
+      fields={[
+        {label: "名称", value: "name"},
+        {label: "显示名", value: "displayName"},
+      ]}
+      defaultField="name"
+    />
+  );
+
+  expect(numericView.getByDisplayValue("42")).not.toBeNull();
+  expect(numericView.getByText("显示名")).not.toBeNull();
+  numericView.unmount();
+});
+
+test("legacy list toolbar keeps legacy single-field query semantics across advanced search and reset", () => {
+  const hostState = {
+    current: {
+      pagination: {current: 3, pageSize: 10},
+      searchedColumn: "name",
+      searchText: "seed",
+    },
+  };
+  const setStateMock = jestValue.fn((state: Record<string, unknown>, callback?: () => void) => {
+    hostState.current = {
+      ...hostState.current,
+      ...state,
+    };
+    callback?.();
+  });
+  const fetchMock = jestValue.fn();
+
+  function LegacyHarness(): JSX.Element {
+    const [, setVersion] = React.useState(0);
+    const host = React.useMemo(() => ({
+      get state() {
+        return hostState.current;
+      },
+      setState: (state: Record<string, unknown>, callback?: () => void) => {
+        setStateMock(state, callback);
+        setVersion(version => version + 1);
+      },
+      fetch: fetchMock,
+    }), []);
+
+    return (
+      <LegacyListPageToolbar
+        host={host}
+        title="Casbin适配器"
+        total={2}
+        fields={[
+          {label: "名称", value: "name"},
+          {label: "显示名", value: "displayName"},
+        ]}
+        defaultField="name"
+      />
+    );
+  }
+
+  const view = render(<LegacyHarness />);
+
+  fireEvent.change(view.getByDisplayValue("seed"), {target: {value: "runtime"}});
+  expect(setStateMock).toHaveBeenLastCalledWith({searchText: "runtime"}, undefined);
+
+  fireEvent.click(view.getByText(/查\s*询|Search/));
+  expect(fetchMock).toHaveBeenLastCalledWith({
+    pagination: {current: 1, pageSize: 10},
+    searchedColumn: "name",
+    searchText: "runtime",
+  });
+
+  fireEvent.click(view.getByText(/更\s*多\s*筛\s*选|More filters/));
+  const advancedInputs = Array.from(view.container.querySelectorAll(".organization-advanced-filter-input input")) as HTMLInputElement[];
+  fireEvent.change(advancedInputs[1], {target: {value: "platform-team"}});
+  expect(setStateMock).toHaveBeenLastCalledWith({searchedColumn: "displayName", searchText: "platform-team"}, undefined);
+
+  fireEvent.click(view.getByText(/查\s*询|Search/));
+  expect(fetchMock).toHaveBeenLastCalledWith({
+    pagination: {current: 1, pageSize: 10},
+    searchedColumn: "displayName",
+    searchText: "platform-team",
+  });
+
+  fireEvent.change(advancedInputs[1], {target: {value: "   "}});
+  expect(setStateMock).toHaveBeenLastCalledWith({searchedColumn: "displayName", searchText: "   "}, undefined);
+
+  const selector = view.container.querySelector(".ant-select-selector");
+  fireEvent.mouseDown(selector as Element);
+  const nameOptions = view.getAllByText("名称");
+  fireEvent.click(nameOptions[nameOptions.length - 1]);
+  expect(setStateMock).toHaveBeenLastCalledWith({searchedColumn: "name", searchText: ""}, undefined);
+
+  fireEvent.click(view.getByText(/重\s*置|Reset/));
+  expect(setStateMock).toHaveBeenCalled();
+  expect(setStateMock.mock.calls.at(-1)?.[0]).toEqual({searchedColumn: "name", searchText: ""});
+  expect(typeof setStateMock.mock.calls.at(-1)?.[1]).toBe("function");
+  expect(fetchMock).toHaveBeenLastCalledWith({
+    pagination: {current: 1, pageSize: 10},
+  });
+});
+
 test("list page typography uses shared semantic tokens", () => {
   const appLess = fs.readFileSync(path.join(__dirname, "..", "App.less"), "utf8") as string;
 
@@ -257,6 +427,9 @@ test("list page layout spacing uses shared semantic tokens", () => {
     "--list-page-toolbar-context-gap",
     "--list-page-toolbar-advanced-margin-top",
     "--list-page-toolbar-advanced-padding",
+    "--list-page-title-meta-gap",
+    "--list-page-action-button-height",
+    "--list-page-action-button-padding-inline",
     "--list-page-table-header-padding-y",
     "--list-page-table-cell-padding-y",
     "--list-page-advanced-filter-row-gap",
@@ -276,13 +449,17 @@ test("list page layout spacing uses shared semantic tokens", () => {
   expect(appLess).toMatch(/enterprise-list-toolbar-shell[\s\S]*padding-bottom:\s*var\(--list-page-toolbar-shell-padding-bottom\)/);
   expect(appLess).toMatch(/enterprise-list-query-toolbar \{[\s\S]*gap:\s*var\(--list-page-toolbar-gap\)/);
   expect(appLess).toMatch(/enterprise-list-query-toolbar-title[\s\S]*min-width:\s*0/);
+  expect(appLess).toMatch(/enterprise-list-query-toolbar-title[\s\S]*gap:\s*8px var\(--list-page-title-meta-gap\)/);
+  expect(appLess).toMatch(/enterprise-list-query-toolbar-result-count[\s\S]*border-left:\s*1px solid rgb\(226 232 240\)/);
   expect(appLess).toMatch(/enterprise-list-query-toolbar-header[\s\S]*gap:\s*var\(--list-page-toolbar-control-gap\)/);
   expect(appLess).toMatch(/enterprise-list-query-toolbar-header-meta[\s\S]*gap:\s*var\(--list-page-toolbar-control-gap\)/);
   expect(appLess).toMatch(/enterprise-list-query-toolbar-header-meta-stacked[\s\S]*gap:\s*var\(--list-page-toolbar-context-gap\)/);
   expect(appLess).toMatch(/enterprise-list-query-toolbar-header-meta-stacked[\s\S]*width:\s*fit-content/);
   expect(appLess).toMatch(/enterprise-list-query-toolbar-header-meta-stacked[\s\S]*max-width:\s*min\(100%,\s*var\(--list-page-side-context-max-width\)\)/);
+  expect(appLess).toMatch(/enterprise-list-query-toolbar-header-meta-stacked > \.enterprise-list-query-toolbar-actions[\s\S]*align-self:\s*flex-end/);
+  expect(appLess).toMatch(/enterprise-list-query-toolbar-header-meta-stacked > \.enterprise-list-query-toolbar-actions[\s\S]*transform:\s*translateY\(-12px\)/);
   expect(appLess).toMatch(/enterprise-list-query-toolbar-header-meta-top-right[\s\S]*width:\s*fit-content/);
-  expect(appLess).toMatch(/enterprise-list-query-toolbar-header-meta-top-right > \.enterprise-list-query-toolbar-actions[\s\S]*align-self:\s*flex-end/);
+  expect(appLess).toMatch(/enterprise-list-query-toolbar-header-meta-top-right > \.enterprise-list-query-toolbar-actions[\s\S]*align-self:\s*flex-start/);
   expect(appLess).toMatch(/enterprise-list-query-toolbar-header-meta-top-right > \.enterprise-list-query-toolbar-actions[\s\S]*transform:\s*translateY\(-12px\)/);
   expect(appLess).toMatch(/enterprise-list-query-toolbar-header-below-context[\s\S]*width:\s*fit-content/);
   expect(appLess).toMatch(/enterprise-list-query-toolbar-header-below-context[\s\S]*margin-left:\s*auto/);
@@ -307,6 +484,8 @@ test("list page layout spacing uses shared semantic tokens", () => {
   expect(appLess).toMatch(/enterprise-list-query-toolbar-header-below-context[\s\S]*justify-content:\s*flex-end/);
   expect(appLess).toMatch(/enterprise-list-query-toolbar-header-below-context[\s\S]*text-align:\s*right/);
   expect(appLess).toMatch(/enterprise-list-query-toolbar-side-context[\s\S]*max-width:\s*var\(--list-page-side-context-max-width\)/);
+  expect(appLess).toMatch(/enterprise-list-query-toolbar-actions \.ant-btn[\s\S]*height:\s*var\(--list-page-action-button-height\)/);
+  expect(appLess).toMatch(/enterprise-list-query-toolbar-actions \.ant-btn[\s\S]*padding:\s*0 var\(--list-page-action-button-padding-inline\)/);
   expect(appLess).toMatch(/enterprise-list-table\.ant-table-wrapper \.ant-table-body[\s\S]*scrollbar-color:\s*var\(--list-page-scrollbar-thumb-color\) transparent/);
   expect(appLess).toMatch(/enterprise-list-table\.ant-table-wrapper \.ant-table-body::-webkit-scrollbar[\s\S]*width:\s*var\(--list-page-scrollbar-width\)/);
   expect(appLess).toMatch(/enterprise-list-table\.ant-table-wrapper \.ant-table-body::-webkit-scrollbar-thumb[\s\S]*border-radius:\s*var\(--list-page-scrollbar-radius\)/);

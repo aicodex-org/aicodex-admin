@@ -2149,6 +2149,9 @@ img {
   --list-page-toolbar-context-gap: 5px;
   --list-page-toolbar-advanced-margin-top: -4px;
   --list-page-toolbar-advanced-padding: 8px 0 2px;
+  --list-page-title-meta-gap: 14px;
+  --list-page-action-button-height: 24px;
+  --list-page-action-button-padding-inline: 7px;
   --list-page-table-header-padding-y: 5px;
   --list-page-table-cell-padding-y: 6px;
   --list-page-advanced-filter-row-gap: 9px;
@@ -2368,6 +2371,26 @@ span.enterprise-list-secondary-text {
   height: 24px;
   padding-inline: 5px;
   font-size: 12px;
+}
+
+.enterprise-list-row-action-button.ant-btn-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #3b5bdb;
+}
+
+.enterprise-list-row-action-button.ant-btn-link .anticon {
+  font-size: 12px;
+}
+
+.enterprise-list-row-action-button-danger.ant-btn-link {
+  color: #d4380d;
+}
+
+.enterprise-list-row-action-button.ant-btn-link[disabled],
+.enterprise-list-row-action-button.ant-btn-link.ant-btn-disabled {
+  color: rgb(15 23 42 / 28%);
 }
 
 .group-table-id-link,
@@ -2935,7 +2958,20 @@ span.enterprise-list-secondary-text {
 }
 
 .enterprise-list-query-toolbar-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px var(--list-page-title-meta-gap);
+  align-items: center;
   min-width: 0;
+}
+
+.enterprise-list-query-toolbar-result-count {
+  padding-left: 12px;
+  color: rgb(100 116 139);
+  font-size: var(--list-page-secondary-font-size);
+  font-weight: 400;
+  line-height: 18px;
+  border-left: 1px solid rgb(226 232 240);
 }
 
 .enterprise-list-query-toolbar-header-meta {
@@ -2956,7 +2992,7 @@ span.enterprise-list-secondary-text {
 }
 
 .enterprise-list-query-toolbar-header-meta-top-right > .enterprise-list-query-toolbar-actions {
-  align-self: flex-end;
+  align-self: flex-start;
   transform: translateY(-12px);
 }
 
@@ -2967,6 +3003,11 @@ span.enterprise-list-secondary-text {
   gap: var(--list-page-toolbar-context-gap);
   width: fit-content;
   max-width: min(100%, var(--list-page-side-context-max-width));
+}
+
+.enterprise-list-query-toolbar-header-meta-stacked > .enterprise-list-query-toolbar-actions {
+  align-self: flex-end;
+  transform: translateY(-12px);
 }
 
 .enterprise-list-query-toolbar-header-meta-stacked > .enterprise-list-query-toolbar-header-below-context {
@@ -2982,6 +3023,11 @@ span.enterprise-list-secondary-text {
 
 .enterprise-list-query-toolbar-actions {
   justify-content: flex-end;
+}
+
+.enterprise-list-query-toolbar-actions .ant-btn {
+  height: var(--list-page-action-button-height);
+  padding: 0 var(--list-page-action-button-padding-inline);
 }
 
 .organization-identity-compact-list-page .enterprise-list-query-toolbar-controls {

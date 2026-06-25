@@ -6,7 +6,6 @@ import {MemoryRouter} from "react-router-dom";
 import * as Setting from "./Setting";
 import * as FormBackend from "./backend/FormBackend";
 import * as InvitationBackend from "./backend/InvitationBackend";
-import type {InvitationRecord} from "./backend/InvitationBackend";
 import InvitationListPage from "./InvitationListPage";
 
 declare const jest: typeof jestValue;
@@ -23,7 +22,7 @@ type FormBackendMock = Record<keyof typeof FormBackend, LooseMock>;
 
 type TestTableColumn = {
   key?: string;
-  render?: (text: unknown, record: InvitationRecord, index: number) => React.ReactNode;
+  render?: (text: unknown, record: unknown, index: number) => React.ReactNode;
 };
 
 const {fireEvent} = require("@testing-library/react") as {
@@ -59,7 +58,7 @@ jest.mock("./backend/FormBackend", () => {
 
 const account = {owner: "built-in", tag: "", isAdmin: true};
 
-const invitation: InvitationRecord = {
+const invitation = {
   owner: "engineering",
   name: "invite-main",
   updatedTime: "2026-06-19T09:00:00Z",
@@ -295,13 +294,19 @@ test("builds table columns, actions and toolbar without changing handlers", () =
   const table = tableWrapper.props.children;
   const columns = table.props.columns;
 
+  const tableView = render(<MemoryRouter>{tableWrapper}</MemoryRouter>);
+  expect(tableView.container.querySelector(".enterprise-list-page-table-shell.invitation-list-page-table-shell")).not.toBeNull();
+  expect(tableView.container.querySelector(".ant-table")).not.toBeNull();
+  tableView.unmount();
+
   expect(columns[0].key).toBe("name");
   expect(columns[1].key).toBe("owner");
-  expect(columns[10].render?.("Active", invitation, 0)).not.toBeNull();
-  expect(columns[10].render?.("Suspended", invitation, 0)).not.toBeNull();
-  expect(columns[10].render?.("Unknown", invitation, 0)).toBeNull();
+  const stateColumn = columns.find(column => column.key === "state");
+  expect(stateColumn?.render?.("Active", invitation, 0)).not.toBeNull();
+  expect(stateColumn?.render?.("Suspended", invitation, 0)).not.toBeNull();
+  expect(stateColumn?.render?.("Unknown", invitation, 0)).toBeNull();
 
-  const actionNode = columns[11].render?.(undefined, invitation, 0) as React.ReactElement;
+  const actionNode = columns.find(column => column.key === "op")?.render?.(undefined, invitation, 0) as React.ReactElement;
   const actionView = render(<>{actionNode}</>);
   fireEvent.click(actionView.getByText(/编\s*辑|Edit/));
   expect(history.push).toHaveBeenCalledWith("/invitations/engineering/invite-main");
@@ -311,6 +316,10 @@ test("builds table columns, actions and toolbar without changing handlers", () =
   actionView.unmount();
 
   const toolbarView = render(<>{table.props.title()}</>);
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar")).not.toBeNull();
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-title")?.textContent).toMatch(/邀请|Invitations/);
+  expect(toolbarView.getByText(/添\s*加|Add/).closest(".enterprise-list-query-toolbar-actions")).not.toBeNull();
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-header-meta")?.className).toContain("enterprise-list-query-toolbar-header-meta-top-right");
   fireEvent.click(toolbarView.getByText(/添\s*加|Add/));
   expect(page.addInvitation).toHaveBeenCalled();
   toolbarView.unmount();
@@ -324,7 +333,7 @@ test("uses a non-fixed action column on mobile", () => {
   const table = tableWrapper.props.children;
   const columns = table.props.columns;
 
-  expect(columns[11]).toEqual(expect.objectContaining({fixed: false}));
+  expect(columns.find(column => column.key === "op")).toEqual(expect.objectContaining({fixed: false}));
 });
 
 test("renders unauthorized state when invitation list request is denied", async() => {

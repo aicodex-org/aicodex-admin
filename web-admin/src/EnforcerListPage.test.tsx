@@ -198,6 +198,7 @@ test("renders enforcer table, links and action handlers", () => {
   expect(columns[6].fixed).toBe("right");
 
   const tableView = render(<MemoryRouter>{tableWrapper}</MemoryRouter>);
+  expect(tableView.container.querySelector(".enterprise-list-page-table-shell.enforcer-list-page-table-shell")).not.toBeNull();
   expect(tableView.container.querySelector(".ant-table")).not.toBeNull();
   tableView.unmount();
 
@@ -231,6 +232,8 @@ test("renders enforcer table, links and action handlers", () => {
   expect(blockedActionChildren[1].props.disabled).toBe(true);
 
   const toolbarView = render(<>{table.props.title()}</>);
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar")).not.toBeNull();
+  expect(toolbarView.getByText(/执\s*行\s*器|Enforcers/).closest(".enterprise-list-query-toolbar-title")).not.toBeNull();
   fireEvent.click(toolbarView.getByText(/添\s*加|Add/));
   expect(page.addEnforcer).toHaveBeenCalled();
 });
@@ -245,7 +248,7 @@ test("keeps mobile action column and creates enforcer through existing route", a
   } as React.ComponentProps<typeof EnforcerListPage>);
 
   const mobileTable = page.renderTable([enforcer]) as React.ReactElement<{children: React.ReactElement<{columns: TestTableColumn[]}>}>;
-  expect(mobileTable.props.children.props.columns[6].fixed).toBe("false");
+  expect(mobileTable.props.children.props.columns[6].fixed).toBe(false);
 
   expect(page.newEnforcer()).toEqual(expect.objectContaining({
     owner: "engineering",

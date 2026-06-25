@@ -150,7 +150,7 @@ test("renders organization sync API Keys without exposing plaintext secret", asy
   expect(await view.findByText("sync-key-main")).not.toBeNull();
   expect(view.getByText("Engineering sync key")).not.toBeNull();
   expect(view.getByText("osak_live")).not.toBeNull();
-  expect(view.getByText("gateway-sync/1.0")).not.toBeNull();
+  expect(container.textContent).not.toContain("gateway-sync/1.0");
   expect(container.textContent).not.toContain("osak_plain_should_not_render");
   expect(backendMock.getOrganizationSyncApiKeys).toHaveBeenCalledWith("engineering");
 });
@@ -377,6 +377,12 @@ test("renders table toolbar and action handlers", () => {
     </MemoryRouter>
   );
 
+  expect(table.container.querySelector(".enterprise-list-page-table-shell.organization-sync-api-key-list-page-table-shell")).not.toBeNull();
+  expect(table.container.querySelector(".enterprise-list-query-toolbar")).not.toBeNull();
+  expect(table.container.querySelector(".enterprise-list-query-toolbar-title")?.textContent).toContain("组织同步密钥");
+  expect(table.getByText(/添\s*加|Add/).closest(".enterprise-list-query-toolbar-actions")).not.toBeNull();
+  expect(table.getByText(/刷\s*新|Refresh/).closest(".enterprise-list-query-toolbar-actions")).not.toBeNull();
+  expect(table.container.querySelector(".enterprise-list-query-toolbar-header-meta")?.className).toContain("enterprise-list-query-toolbar-header-meta-top-right");
   expect(table.getByText("轮换")).not.toBeNull();
   expect(table.getByText("禁用")).not.toBeNull();
   expect(table.container.textContent).toContain("组织同步密钥");

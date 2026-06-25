@@ -14,7 +14,7 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Modal, Switch, Table, Upload} from "antd";
+import {Button, Modal, Table, Upload} from "antd";
 import type {TablePaginationConfig, TableProps} from "antd";
 import moment from "moment";
 import * as Setting from "./Setting";
@@ -22,7 +22,9 @@ import * as Conf from "./Conf";
 import * as PermissionBackend from "./backend/PermissionBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
-import PopconfirmModal from "./common/modal/PopconfirmModal";
+import LegacyListPageToolbar from "./common/LegacyListPageToolbar";
+import ListPageRowActions, {ListPageRowDeleteAction, ListPageRowEditAction} from "./common/ListPageRowActions";
+import ListPageTable from "./common/ListPageTable";
 import {UploadOutlined} from "@ant-design/icons";
 import * as XLSX from "xlsx";
 import OrganizationIdentityCenter from "./OrganizationIdentityCenter";
@@ -132,7 +134,18 @@ const TypedBaseListPage = BaseListPage as unknown as {
 };
 
 const permissionBackend = PermissionBackend as unknown as PermissionBackendApi;
-const getTags = Setting.getTags as (tags?: string[], urlPrefix?: string | null) => React.ReactNode;
+const queryFields = [
+  {label: t("general:Name"), value: "name"},
+  {label: t("general:Organization"), value: "owner"},
+  {label: t("general:Display name"), value: "displayName"},
+  {label: t("general:Model"), value: "model"},
+  {label: t("role:Sub users"), value: "users"},
+  {label: t("role:Sub groups"), value: "groups"},
+  {label: t("role:Sub roles"), value: "roles"},
+  {label: t("general:Resources"), value: "resources"},
+  {label: t("permission:Actions"), value: "actions"},
+  {label: t("general:State"), value: "state"},
+];
 
 function t(key: string, defaultValue = key): string {
   const translated = i18next.t(key, {defaultValue}) as unknown;
@@ -336,10 +349,9 @@ class PermissionListPage extends TypedBaseListPage {
         title: t("general:Name"),
         dataIndex: "name",
         key: "name",
-        width: "150px",
+        width: "120px",
         fixed: "left",
         sorter: true,
-        ...this.getColumnSearchProps("name"),
         render: (text: string, record: PermissionRecord) => {
           return (
             <Link to={`/permissions/${record.owner}/${encodeURIComponent(text)}`}>
@@ -352,9 +364,8 @@ class PermissionListPage extends TypedBaseListPage {
         title: t("general:Organization"),
         dataIndex: "owner",
         key: "owner",
-        width: "120px",
+        width: "100px",
         sorter: true,
-        ...this.getColumnSearchProps("owner"),
         render: (text: string) => {
           return (
             <Link to={`/organizations/${text}`}>
@@ -364,31 +375,11 @@ class PermissionListPage extends TypedBaseListPage {
         },
       },
       {
-        title: t("general:Created time"),
-        dataIndex: "createdTime",
-        key: "createdTime",
-        width: "160px",
-        sorter: true,
-        render: (text: string) => {
-          return Setting.getFormattedDate(text);
-        },
-      },
-      {
-        title: t("general:Display name"),
-        dataIndex: "displayName",
-        key: "displayName",
-        width: "160px",
-        sorter: true,
-        ...this.getColumnSearchProps("displayName"),
-      },
-      {
         title: t("general:Model"),
         dataIndex: "model",
         key: "model",
-        width: "250px",
-        fixed: "left",
+        width: "140px",
         sorter: true,
-        ...this.getColumnSearchProps("name"),
         render: (text: string) => {
           return (
             <Link to={`/models/${text}`}>
@@ -398,66 +389,11 @@ class PermissionListPage extends TypedBaseListPage {
         },
       },
       {
-        title: t("role:Sub users"),
-        dataIndex: "users",
-        key: "users",
-        // width: '100px',
-        sorter: true,
-        ...this.getColumnSearchProps("users"),
-        render: (text: string[]) => {
-          return getTags(text, "users");
-        },
-      },
-      {
-        title: t("role:Sub groups"),
-        dataIndex: "groups",
-        key: "groups",
-        // width: '100px',
-        sorter: true,
-        ...this.getColumnSearchProps("groups"),
-        render: (text: string[]) => {
-          return getTags(text, "groups");
-        },
-      },
-      {
-        title: t("role:Sub roles"),
-        dataIndex: "roles",
-        key: "roles",
-        // width: '100px',
-        sorter: true,
-        ...this.getColumnSearchProps("roles"),
-        render: (text: string[]) => {
-          return getTags(text, "roles");
-        },
-      },
-      {
-        title: t("role:Sub domains"),
-        dataIndex: "domains",
-        key: "domains",
-        sorter: true,
-        ...this.getColumnSearchProps("domains"),
-        render: (text: string[]) => {
-          return Setting.getTags(text);
-        },
-      },
-      {
-        title: t("permission:Resource type"),
-        dataIndex: "resourceType",
-        key: "resourceType",
-        filterMultiple: false,
-        filters: [
-          {text: "Application", value: "Application"},
-        ],
-        width: "170px",
-        sorter: true,
-      },
-      {
         title: t("general:Resources"),
         dataIndex: "resources",
         key: "resources",
-        // width: '100px',
+        width: "120px",
         sorter: true,
-        ...this.getColumnSearchProps("resources"),
         render: (text: string[]) => {
           return Setting.getTags(text);
         },
@@ -466,9 +402,8 @@ class PermissionListPage extends TypedBaseListPage {
         title: t("permission:Actions"),
         dataIndex: "actions",
         key: "actions",
-        // width: '100px',
+        width: "100px",
         sorter: true,
-        ...this.getColumnSearchProps("actions"),
         render: (text: string[]) => {
           const tags = text.map((tag, i) => {
             switch (tag) {
@@ -489,12 +424,7 @@ class PermissionListPage extends TypedBaseListPage {
         title: t("permission:Effect"),
         dataIndex: "effect",
         key: "effect",
-        filterMultiple: false,
-        filters: [
-          {text: t("permission:Allow"), value: "Allow"},
-          {text: t("permission:Deny"), value: "Deny"},
-        ],
-        width: "120px",
+        width: "80px",
         sorter: true,
         render: (text: string) => {
           switch (text) {
@@ -508,68 +438,10 @@ class PermissionListPage extends TypedBaseListPage {
         },
       },
       {
-        title: t("general:Is enabled"),
-        dataIndex: "isEnabled",
-        key: "isEnabled",
-        width: "120px",
-        sorter: true,
-        render: (text: boolean) => {
-          return (
-            <Switch disabled checkedChildren={t("general:ON")} unCheckedChildren={t("general:OFF")} checked={text} />
-          );
-        },
-      },
-      {
-        title: t("permission:Submitter"),
-        dataIndex: "submitter",
-        key: "submitter",
-        filterMultiple: false,
-        width: "120px",
-        sorter: true,
-        render: (text: string, record: PermissionRecord) => {
-          return (
-            <Link to={`/users/${record.owner}/${encodeURIComponent(text)}`}>
-              {text}
-            </Link>
-          );
-        },
-      },
-      {
-        title: t("permission:Approver"),
-        dataIndex: "approver",
-        key: "approver",
-        filterMultiple: false,
-        width: "120px",
-        sorter: true,
-        render: (text: string, record: PermissionRecord) => {
-          return (
-            <Link to={`/users/${record.owner}/${encodeURIComponent(text)}`}>
-              {text}
-            </Link>
-          );
-        },
-      },
-      {
-        title: t("permission:Approve time"),
-        dataIndex: "approveTime",
-        key: "approveTime",
-        filterMultiple: false,
-        width: "120px",
-        sorter: true,
-        render: (text: string) => {
-          return Setting.getFormattedDate(text);
-        },
-      },
-      {
         title: t("general:State"),
         dataIndex: "state",
         key: "state",
-        filterMultiple: false,
-        filters: [
-          {text: t("permission:Approved"), value: "Approved"},
-          {text: t("permission:Pending"), value: "Pending"},
-        ],
-        width: "120px",
+        width: "80px",
         sorter: true,
         render: (text: string) => {
           switch (text) {
@@ -586,18 +458,17 @@ class PermissionListPage extends TypedBaseListPage {
         title: t("general:Action"),
         dataIndex: "",
         key: "op",
-        width: "170px",
-        fixed: (Setting.isMobile() ? "false" : "right") as unknown as "right",
+        width: "120px",
+        fixed: Setting.isMobile() ? false : "right",
         render: (_text: unknown, record: PermissionRecord, index: number) => {
           return (
-            <div>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/permissions/${record.owner}/${encodeURIComponent(record.name)}`)}>{t("general:Edit")}</Button>
-              <PopconfirmModal
+            <ListPageRowActions className="permission-row-actions">
+              <ListPageRowEditAction onClick={() => this.props.history.push(`/permissions/${record.owner}/${encodeURIComponent(record.name)}`)} />
+              <ListPageRowDeleteAction
                 title={t("general:Sure to delete") + `: ${record.name} ?`}
                 onConfirm={() => this.deletePermission(index)}
-              >
-              </PopconfirmModal>
-            </div>
+              />
+            </ListPageRowActions>
           );
         },
       },
@@ -612,20 +483,28 @@ class PermissionListPage extends TypedBaseListPage {
         total={this.state.pagination.total}
         loadedCount={permissions.length}
       >
-        <Table<PermissionRecord> scroll={{x: "max-content"}} columns={columns} dataSource={permissions} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
-          title={() => (
-            <div>
-              {t("general:Permissions")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button id="add-button" style={{marginRight: "15px"}} type="primary" size="small" onClick={this.addPermission.bind(this)}>{t("general:Add")}</Button>
-              <Button style={{marginRight: "15px"}} type="primary" size="small" onClick={this.generateDownloadTemplate}>{t("general:Download template")} </Button>
-              {
-                this.renderPermissionUpload()
-              }
-            </div>
-          )}
-          loading={this.state.loading}
-          onChange={this.handleTableChange}
-        />
+        <div className="enterprise-list-page-table-shell permission-list-page-table-shell">
+          <ListPageTable<PermissionRecord> columns={columns} dataSource={permissions} rowKey={(record) => `${record.owner}/${record.name}`} pagination={paginationProps}
+            title={() => (
+              <LegacyListPageToolbar
+                host={this}
+                title={t("general:Permissions")}
+                total={this.state.pagination.total}
+                fields={queryFields}
+                defaultField="name"
+                actions={(
+                  <>
+                    <Button id="add-button" type="primary" onClick={this.addPermission.bind(this)}>{t("general:Add")}</Button>
+                    <Button onClick={this.generateDownloadTemplate}>{t("general:Download template")} </Button>
+                    {this.renderPermissionUpload()}
+                  </>
+                )}
+              />
+            )}
+            loading={this.state.loading}
+            onChange={this.handleTableChange}
+          />
+        </div>
       </OrganizationIdentityCenter>
     );
   }

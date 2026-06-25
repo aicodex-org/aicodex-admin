@@ -14,15 +14,18 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Switch, Table} from "antd";
+import {Button, Switch} from "antd";
 import type {TablePaginationConfig, TableProps} from "antd";
+import {SyncOutlined} from "@ant-design/icons";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as SyncerBackend from "./backend/SyncerBackend";
 import type {SyncerRecord} from "./backend/SyncerBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
-import PopconfirmModal from "./common/modal/PopconfirmModal";
+import LegacyListPageToolbar from "./common/LegacyListPageToolbar";
+import ListPageRowActions, {ListPageRowActionButton, ListPageRowDeleteAction, ListPageRowEditAction} from "./common/ListPageRowActions";
+import ListPageTable from "./common/ListPageTable";
 
 interface SyncerListPageProps {
   account?: Record<string, unknown>;
@@ -67,6 +70,16 @@ type LegacyBaseListPageCompat = React.Component<SyncerListPageProps, SyncerListP
 const TypedBaseListPage = BaseListPage as unknown as {
   new(props: SyncerListPageProps): LegacyBaseListPageCompat;
 };
+
+const queryFields = [
+  {label: t("general:Name"), value: "name"},
+  {label: t("general:Organization"), value: "organization"},
+  {label: t("general:Type"), value: "type"},
+  {label: t("provider:Host"), value: "host"},
+  {label: t("provider:Port"), value: "port"},
+  {label: t("general:User"), value: "user"},
+  {label: t("syncer:Sync interval"), value: "syncInterval"},
+];
 
 function t(key: string, defaultValue = key): string {
   const translated = i18next.t(key, {defaultValue}) as unknown;
@@ -168,10 +181,9 @@ class SyncerListPage extends TypedBaseListPage {
         title: t("general:Name"),
         dataIndex: "name",
         key: "name",
-        width: "150px",
+        width: "120px",
         fixed: "left",
         sorter: true,
-        ...this.getColumnSearchProps("name"),
         render: (text: string) => {
           return (
             <Link to={`/syncers/${text}`}>
@@ -184,9 +196,8 @@ class SyncerListPage extends TypedBaseListPage {
         title: t("general:Organization"),
         dataIndex: "organization",
         key: "organization",
-        width: "120px",
+        width: "100px",
         sorter: true,
-        ...this.getColumnSearchProps("organization"),
         render: (text: string) => {
           return (
             <Link to={`/organizations/${text}`}>
@@ -199,7 +210,7 @@ class SyncerListPage extends TypedBaseListPage {
         title: t("general:Created time"),
         dataIndex: "createdTime",
         key: "createdTime",
-        width: "160px",
+        width: "120px",
         sorter: true,
         render: (text: string) => {
           return Setting.getFormattedDate(text);
@@ -209,80 +220,35 @@ class SyncerListPage extends TypedBaseListPage {
         title: t("general:Type"),
         dataIndex: "type",
         key: "type",
-        width: "100px",
+        width: "80px",
         sorter: true,
-        filterMultiple: false,
-        filters: [
-          {text: "Database", value: "Database"},
-          {text: "LDAP", value: "LDAP"},
-        ],
       },
       {
         title: t("syncer:Database type"),
         dataIndex: "databaseType",
         key: "databaseType",
-        width: "130px",
+        width: "110px",
         sorter: (a, b) => String(a.databaseType || "").localeCompare(String(b.databaseType || "")),
-      },
-      {
-        title: t("provider:Host"),
-        dataIndex: "host",
-        key: "host",
-        width: "120px",
-        sorter: true,
-        ...this.getColumnSearchProps("host"),
-      },
-      {
-        title: t("provider:Port"),
-        dataIndex: "port",
-        key: "port",
-        width: "100px",
-        sorter: true,
-        ...this.getColumnSearchProps("port"),
-      },
-      {
-        title: t("general:User"),
-        dataIndex: "user",
-        key: "user",
-        width: "120px",
-        sorter: true,
-        ...this.getColumnSearchProps("user"),
-      },
-      {
-        title: t("general:Password"),
-        dataIndex: "password",
-        key: "password",
-        width: "120px",
-        sorter: true,
-        ...this.getColumnSearchProps("password"),
-      },
-      {
-        title: t("syncer:Database"),
-        dataIndex: "database",
-        key: "database",
-        width: "120px",
-        sorter: true,
       },
       {
         title: t("syncer:Table"),
         dataIndex: "table",
         key: "table",
-        width: "120px",
+        width: "90px",
         sorter: true,
       },
       {
         title: t("syncer:Sync interval"),
         dataIndex: "syncInterval",
         key: "syncInterval",
-        width: "140px",
+        width: "100px",
         sorter: true,
-        ...this.getColumnSearchProps("syncInterval"),
       },
       {
         title: t("general:Is enabled"),
         dataIndex: "isEnabled",
         key: "isEnabled",
-        width: "120px",
+        width: "90px",
         sorter: true,
         render: (text: boolean) => {
           return (
@@ -294,19 +260,18 @@ class SyncerListPage extends TypedBaseListPage {
         title: t("general:Action"),
         dataIndex: "",
         key: "op",
-        width: "240px",
+        width: "150px",
         fixed: Setting.isMobile() ? false : "right",
         render: (_text: unknown, record: SyncerRecord, index: number) => {
           return (
-            <div>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.runSyncer(index)}>{t("general:Sync")}</Button>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} onClick={() => this.props.history.push(`/syncers/${record.name || ""}`)}>{t("general:Edit")}</Button>
-              <PopconfirmModal
+            <ListPageRowActions className="syncer-row-actions" wrap>
+              <ListPageRowActionButton icon={<SyncOutlined />} onClick={() => this.runSyncer(index)}>{t("general:Sync")}</ListPageRowActionButton>
+              <ListPageRowEditAction onClick={() => this.props.history.push(`/syncers/${record.name || ""}`)} />
+              <ListPageRowDeleteAction
                 title={t("general:Sure to delete") + `: ${record.name || ""} ?`}
                 onConfirm={() => this.deleteSyncer(index)}
-              >
-              </PopconfirmModal>
-            </div>
+              />
+            </ListPageRowActions>
           );
         },
       },
@@ -315,13 +280,17 @@ class SyncerListPage extends TypedBaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <div>
-        <Table scroll={{x: "max-content"}} columns={columns} dataSource={syncers} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
+      <div className="enterprise-list-page-table-shell syncer-list-page-table-shell">
+        <ListPageTable<SyncerRecord> columns={columns} dataSource={syncers} rowKey={(record) => `${record.owner}/${record.name}`} pagination={paginationProps}
           title={() => (
-            <div>
-              {t("general:Syncers")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button type="primary" size="small" onClick={this.addSyncer.bind(this)}>{t("general:Add")}</Button>
-            </div>
+            <LegacyListPageToolbar
+              host={this}
+              title={t("general:Syncers")}
+              total={this.state.pagination.total}
+              fields={queryFields}
+              defaultField="name"
+              actions={<Button type="primary" onClick={this.addSyncer.bind(this)}>{t("general:Add")}</Button>}
+            />
           )}
           loading={this.state.loading}
           onChange={this.handleTableChange}

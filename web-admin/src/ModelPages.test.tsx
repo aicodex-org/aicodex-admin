@@ -334,6 +334,11 @@ test("renders model table and keeps toolbar and action handlers", () => {
   const table = tableWrapper.props.children;
   const columns = table.props.columns;
 
+  const tableView = render(<MemoryRouter>{tableWrapper}</MemoryRouter>);
+  expect(tableView.container.querySelector(".enterprise-list-page-table-shell.model-list-page-table-shell")).not.toBeNull();
+  expect(tableView.container.querySelector(".ant-table")).not.toBeNull();
+  tableView.unmount();
+
   expect(columns[0].key).toBe("name");
   expect(columns[5].fixed).toBe("right");
 
@@ -355,6 +360,10 @@ test("renders model table and keeps toolbar and action handlers", () => {
   expect(blockedActionChildren[1].props.disabled).toBe(true);
 
   const toolbarView = render(<>{table.props.title()}</>);
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar")).not.toBeNull();
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-title")?.textContent).toMatch(/模型|Models/);
+  expect(toolbarView.getByText(/添\s*加|Add/).closest(".enterprise-list-query-toolbar-actions")).not.toBeNull();
+  expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-header-meta")?.className).toContain("enterprise-list-query-toolbar-header-meta-top-right");
   fireEvent.click(toolbarView.getByText(/添\s*加|Add/));
   expect(page.addModel).toHaveBeenCalled();
 });
@@ -398,7 +407,7 @@ test("keeps mobile table and edit layout branches compatible", () => {
   jestValue.spyOn(Setting, "isMobile").mockReturnValue(true);
   const listPage = createListPage();
   const tableWrapper = listPage.renderTable([model]) as React.ReactElement<{children: React.ReactElement<{columns: TestTableColumn[]}>}>;
-  expect(tableWrapper.props.children.props.columns[5].fixed).toBe("false");
+  expect(tableWrapper.props.children.props.columns[5].fixed).toBe(false);
 
   const editPage = createEditPage({
     organizationName: "override-org",

@@ -14,14 +14,16 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Table} from "antd";
+import {Button} from "antd";
 import type {TableProps} from "antd";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as EnforcerBackend from "./backend/EnforcerBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
-import PopconfirmModal from "./common/modal/PopconfirmModal";
+import LegacyListPageToolbar from "./common/LegacyListPageToolbar";
+import ListPageRowActions, {ListPageRowDeleteAction, ListPageRowEditAction} from "./common/ListPageRowActions";
+import ListPageTable from "./common/ListPageTable";
 
 type Account = {
   owner: string;
@@ -110,6 +112,14 @@ type LegacyTableColumn = {
 const enforcerBackend = EnforcerBackend as unknown as EnforcerBackendApi;
 const t = (key: string): string => i18next.t(key) as string;
 
+const queryFields = [
+  {label: t("general:Name"), value: "name"},
+  {label: t("general:Organization"), value: "owner"},
+  {label: t("general:Display name"), value: "displayName"},
+  {label: t("general:Model"), value: "model"},
+  {label: t("general:Adapter"), value: "adapter"},
+];
+
 class EnforcerListPage extends BaseListPage {
   newEnforcer(): EnforcerRecord {
     const randomName = Setting.getRandomName();
@@ -164,10 +174,9 @@ class EnforcerListPage extends BaseListPage {
         title: t("general:Name"),
         dataIndex: "name",
         key: "name",
-        width: "200px",
+        width: "140px",
         fixed: "left",
         sorter: true,
-        ...this.getColumnSearchProps("name"),
         render: (text: unknown, record: EnforcerRecord) => {
           const enforcerName = String(text);
           return (
@@ -183,7 +192,6 @@ class EnforcerListPage extends BaseListPage {
         key: "owner",
         width: "120px",
         sorter: true,
-        ...this.getColumnSearchProps("owner"),
         render: (text: unknown) => {
           const owner = String(text);
           return (
@@ -197,7 +205,7 @@ class EnforcerListPage extends BaseListPage {
         title: t("general:Created time"),
         dataIndex: "createdTime",
         key: "createdTime",
-        width: "160px",
+        width: "140px",
         sorter: true,
         render: (text: unknown) => {
           return Setting.getFormattedDate(String(text));
@@ -209,16 +217,13 @@ class EnforcerListPage extends BaseListPage {
         key: "displayName",
         // width: "200px",
         sorter: true,
-        ...this.getColumnSearchProps("displayName"),
       },
       {
         title: t("general:Model"),
         dataIndex: "model",
         key: "model",
-        width: "250px",
-        fixed: "left",
+        width: "180px",
         sorter: true,
-        ...this.getColumnSearchProps("name"),
         render: (text: unknown) => {
           const model = String(text);
           return (
@@ -232,10 +237,8 @@ class EnforcerListPage extends BaseListPage {
         title: t("general:Adapter"),
         dataIndex: "adapter",
         key: "adapter",
-        width: "250px",
-        fixed: "left",
+        width: "180px",
         sorter: true,
-        ...this.getColumnSearchProps("name"),
         render: (text: unknown) => {
           const adapter = String(text);
           return (
@@ -249,20 +252,18 @@ class EnforcerListPage extends BaseListPage {
         title: t("general:Action"),
         dataIndex: "",
         key: "op",
-        width: "180px",
-        fixed: (Setting.isMobile()) ? "false" : "right",
+        width: "120px",
+        fixed: Setting.isMobile() ? false : "right",
         render: (_text: unknown, record: EnforcerRecord, index: number) => {
           return (
-            <div>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary"
-                onClick={() => this.props.history.push(`/enforcers/${record.owner}/${record.name}`)}>{t("general:Edit")}</Button>
-              <PopconfirmModal
+            <ListPageRowActions className="enforcer-row-actions">
+              <ListPageRowEditAction onClick={() => this.props.history.push(`/enforcers/${record.owner}/${record.name}`)} />
+              <ListPageRowDeleteAction
                 disabled={Setting.builtInObject(record)}
                 title={t("general:Sure to delete") + `: ${record.name} ?`}
                 onConfirm={() => this.deleteEnforcer(index)}
-              >
-              </PopconfirmModal>
-            </div>
+              />
+            </ListPageRowActions>
           );
         },
       },
@@ -271,15 +272,18 @@ class EnforcerListPage extends BaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <div>
-        <Table<EnforcerRecord> scroll={{x: "max-content"}} columns={columns as TableProps<EnforcerRecord>["columns"]} dataSource={enforcers} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered
+      <div className="enterprise-list-page-table-shell enforcer-list-page-table-shell">
+        <ListPageTable<EnforcerRecord> columns={columns as TableProps<EnforcerRecord>["columns"]} dataSource={enforcers} rowKey={(record) => `${record.owner}/${record.name}`}
           pagination={paginationProps}
           title={() => (
-            <div>
-              {t("general:Enforcers")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button type="primary" size="small"
-                onClick={this.addEnforcer.bind(this)}>{t("general:Add")}</Button>
-            </div>
+            <LegacyListPageToolbar
+              host={this}
+              title={t("general:Enforcers")}
+              total={(this.state.pagination as TablePagination).total}
+              fields={queryFields}
+              defaultField="name"
+              actions={<Button type="primary" onClick={this.addEnforcer.bind(this)}>{t("general:Add")}</Button>}
+            />
           )}
           loading={this.state.loading}
           onChange={this.handleTableChange}
