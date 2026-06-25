@@ -35,7 +35,7 @@ type ProviderItem struct {
 	Prompted     bool      `json:"prompted"`
 	SignupGroup  string    `json:"signupGroup"`
 	Rule         string    `json:"rule"`
-	// TargetOrganization 指定该 Provider 登录后匹配用户的组织；为空时回退 Application.Organization 以兼容旧数据。
+	// TargetOrganization 指定该 Provider 登录后匹配用户的组织；登录类 Provider 必须显式配置。
 	TargetOrganization string    `json:"targetOrganization"`
 	Provider           *Provider `json:"provider"`
 }
@@ -87,15 +87,13 @@ func (application *Application) ResolveProviderLoginOrganization(providerName st
 		return "", fmt.Errorf("%w: application is nil", ErrProviderLoginOrganizationUnavailable)
 	}
 
-	targetOrganization := ""
-	if providerItem := application.GetProviderItem(providerName); providerItem != nil {
-		targetOrganization = strings.TrimSpace(providerItem.TargetOrganization)
+	providerItem := application.GetProviderItem(providerName)
+	if providerItem == nil {
+		return "", fmt.Errorf("%w: provider binding is missing: %s", ErrProviderLoginOrganizationUnavailable, providerName)
 	}
+	targetOrganization := strings.TrimSpace(providerItem.TargetOrganization)
 	if targetOrganization == "" {
-		targetOrganization = strings.TrimSpace(application.Organization)
-	}
-	if targetOrganization == "" {
-		return "", fmt.Errorf("%w: empty organization", ErrProviderLoginOrganizationUnavailable)
+		return "", fmt.Errorf("%w: targetOrganization is required for provider: %s", ErrProviderLoginOrganizationUnavailable, providerName)
 	}
 
 	if isOrganizationAvailable != nil {

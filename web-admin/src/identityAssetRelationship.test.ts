@@ -135,6 +135,14 @@ describe("identityAssetRelationship", () => {
     }, {
       pagePath: "/applications",
     });
+    const missingProviderTargetDetail = buildApplicationIdentityAssetDetail({
+      owner: "admin",
+      organization: "wecom-org",
+      name: "provider-target-missing",
+      providers: [{name: "wecom-main", category: "OAuth"}],
+    }, {
+      pagePath: "/applications",
+    });
     const fallbackScope = getSourceScopeDisplay({kind: "legacy" as never, pagePath: "/legacy"});
 
     expect(singleValueDetail.object.id).toBe("admin/Fallback App");
@@ -145,6 +153,8 @@ describe("identityAssetRelationship", () => {
     expect(JSON.stringify(singleValueDetail)).not.toContain("private.example.com");
     expect(gapDetail.relationships.find(item => item.type === "callback")?.status).toBe("gap");
     expect(gapDetail.relationships.find(item => item.type === "authorization_scope")?.value).toBe("未配置");
+    expect(missingProviderTargetDetail.relationships.find(item => item.type === "target_organization")?.status).toBe("gap");
+    expect(missingProviderTargetDetail.relationships.find(item => item.type === "target_organization")?.value).toBe("未配置");
     expect(fallbackScope.label).toBe("当前视图");
   });
 

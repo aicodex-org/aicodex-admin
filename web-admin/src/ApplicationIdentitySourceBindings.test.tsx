@@ -19,7 +19,7 @@ const providers = [
 ];
 
 describe("ApplicationIdentitySourceBindings", () => {
-  test("builds login provider rows with target organization and fallback organization", () => {
+  test("builds login provider rows with target organization and missing target state", () => {
     const rows = buildIdentitySourceBindingRows(
       {
         organization: "wecom-wwe7e01c69367e67bf",
@@ -37,21 +37,21 @@ describe("ApplicationIdentitySourceBindings", () => {
       bindingIndex: row.bindingIndex,
       targetOrganization: row.targetOrganization,
       effectiveOrganization: row.effectiveOrganization,
-      usesFallback: row.usesFallback,
+      isTargetOrganizationMissing: row.isTargetOrganizationMissing,
     }))).toEqual([
       {
         name: "wecom-internal",
         bindingIndex: 0,
         targetOrganization: "",
-        effectiveOrganization: "wecom-wwe7e01c69367e67bf",
-        usesFallback: true,
+        effectiveOrganization: "",
+        isTargetOrganizationMissing: true,
       },
       {
         name: "lark-main",
         bindingIndex: 1,
         targetOrganization: "feishu-test",
         effectiveOrganization: "feishu-test",
-        usesFallback: false,
+        isTargetOrganizationMissing: false,
       },
     ]);
   });
@@ -77,7 +77,7 @@ describe("ApplicationIdentitySourceBindings", () => {
     expect(view.getByText("暂无可配置的登录身份源")).not.toBeNull();
   });
 
-  test("renders target organization and fallback markers without exposing secrets", () => {
+  test("renders target organization and missing target markers without exposing secrets", () => {
     const view = render(
       <ApplicationIdentitySourceBindings
         application={{
@@ -96,8 +96,9 @@ describe("ApplicationIdentitySourceBindings", () => {
     expect(view.getByText("Provider 身份源目标组织")).not.toBeNull();
     expect(view.getByText("wecom-internal")).not.toBeNull();
     expect(view.getByText("lark-main")).not.toBeNull();
-    expect(view.getByText("沿用应用组织")).not.toBeNull();
+    expect(view.getAllByText("目标组织未配置").length).toBeGreaterThan(0);
     expect(view.getAllByText("feishu-test").length).toBeGreaterThan(0);
+    expect(view.queryByText("沿用应用组织")).toBeNull();
     expect(view.queryByText(/secret|token|cookie/i)).toBeNull();
   });
 });

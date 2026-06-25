@@ -2,6 +2,7 @@ package object
 
 import (
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -56,7 +57,7 @@ func TestApplicationResolveProviderLoginOrganizationUsesTargetOrganization(t *te
 	}
 }
 
-func TestApplicationResolveProviderLoginOrganizationFallsBackToApplicationOrganization(t *testing.T) {
+func TestApplicationResolveProviderLoginOrganizationRequiresExplicitTargetOrganization(t *testing.T) {
 	application := &Application{
 		Organization: "wecom-org",
 		Providers: []*ProviderItem{
@@ -64,15 +65,23 @@ func TestApplicationResolveProviderLoginOrganizationFallsBackToApplicationOrgani
 		},
 	}
 
+	checkedOrganization := false
 	organization, err := application.ResolveProviderLoginOrganization("wecom-main", func(name string) (bool, error) {
-		return name == "wecom-org", nil
+		checkedOrganization = true
+		return true, nil
 	})
 
-	if err != nil {
-		t.Fatalf("ResolveProviderLoginOrganization() error = %v", err)
+	if organization != "" {
+		t.Fatalf("expected empty organization on missing targetOrganization, got %q", organization)
 	}
-	if organization != "wecom-org" {
-		t.Fatalf("expected fallback organization wecom-org, got %q", organization)
+	if !errors.Is(err, ErrProviderLoginOrganizationUnavailable) {
+		t.Fatalf("expected ErrProviderLoginOrganizationUnavailable, got %v", err)
+	}
+	if err == nil || !strings.Contains(err.Error(), "targetOrganization") {
+		t.Fatalf("expected diagnosable targetOrganization error, got %v", err)
+	}
+	if checkedOrganization {
+		t.Fatal("expected missing targetOrganization to fail before organization availability lookup")
 	}
 }
 
@@ -109,7 +118,7 @@ func TestApplicationResolveProviderLoginOrganizationFailsClosedForNilApplication
 	}
 }
 
-func TestApplicationResolveProviderLoginOrganizationFailsClosedForEmptyFallback(t *testing.T) {
+func TestApplicationResolveProviderLoginOrganizationFailsClosedForEmptyTargetOrganization(t *testing.T) {
 	application := &Application{
 		Providers: []*ProviderItem{
 			{Name: "lark-main", Provider: &Provider{Category: "OAuth", Type: "Lark"}},
@@ -119,7 +128,7 @@ func TestApplicationResolveProviderLoginOrganizationFailsClosedForEmptyFallback(
 	organization, err := application.ResolveProviderLoginOrganization("lark-main", nil)
 
 	if organization != "" {
-		t.Fatalf("expected empty organization on empty fallback, got %q", organization)
+		t.Fatalf("expected empty organization on empty targetOrganization, got %q", organization)
 	}
 	if !errors.Is(err, ErrProviderLoginOrganizationUnavailable) {
 		t.Fatalf("expected ErrProviderLoginOrganizationUnavailable, got %v", err)

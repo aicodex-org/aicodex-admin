@@ -385,9 +385,9 @@ describe("ApplicationAccessCenter", () => {
       {
         owner: "admin",
         organization: "wecom-org",
-        name: "app-fallback-provider-org",
-        clientId: "fallback-client",
-        redirectUris: ["https://fallback.example.com/callback"],
+        name: "app-missing-wecom-provider-org",
+        clientId: "missing-wecom-client",
+        redirectUris: ["https://missing-wecom.example.com/callback"],
         scopes: ["openid"],
         providers: [{name: "wecom-main", category: "OAuth"}],
         grantTypes: ["authorization_code"],
@@ -405,12 +405,12 @@ describe("ApplicationAccessCenter", () => {
 
     expect(summary.cards.map(card => card.identitySourceStatus)).toEqual([
       "身份源组织已显式绑定",
-      "身份源使用应用默认组织",
+      "身份源目标组织待补全",
       "身份源目标组织待补全",
     ]);
-    expect(summary.cards.map(card => card.status)).toEqual(["接入完整", "接入完整", "待补全"]);
+    expect(summary.cards.map(card => card.status)).toEqual(["接入完整", "待补全", "待补全"]);
     expect(summary.riskItems).toEqual(expect.arrayContaining([
-      expect.objectContaining({key: "missing-identity-source-organization", count: 1}),
+      expect.objectContaining({key: "missing-identity-source-organization", count: 2}),
     ]));
   });
 

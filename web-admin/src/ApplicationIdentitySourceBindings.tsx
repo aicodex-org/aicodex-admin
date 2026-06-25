@@ -33,7 +33,7 @@ export type IdentitySourceBindingRow = ApplicationProviderBinding & {
   bindingIndex: number;
   provider?: IdentityProvider;
   effectiveOrganization: string;
-  usesFallback: boolean;
+  isTargetOrganizationMissing: boolean;
 };
 
 type Props = {
@@ -68,26 +68,24 @@ function isLoginProvider(binding: ApplicationProviderBinding, providers: Identit
   return loginProviderCategories.has(normalizeText(provider?.category));
 }
 
-// buildIdentitySourceBindingRows 只展示 OAuth/Web3/SAML 登录身份源，并计算空 targetOrganization 时沿用的应用组织。
+// buildIdentitySourceBindingRows 只展示 OAuth/Web3/SAML 登录身份源；targetOrganization 为空时保持未配置状态，登录链路会 fail closed。
 export function buildIdentitySourceBindingRows(
   application?: IdentitySourceApplication | null,
   providers: IdentityProvider[] = []
 ): IdentitySourceBindingRow[] {
-  const defaultOrganization = normalizeText(application?.organization);
   return (application?.providers || [])
     .map((binding, index) => ({binding, index}))
     .filter(({binding}) => isLoginProvider(binding, providers))
     .map(({binding, index}) => {
       const targetOrganization = normalizeText(binding.targetOrganization);
-      const effectiveOrganization = targetOrganization || defaultOrganization;
       return {
         ...binding,
         key: `${binding.name || "provider"}-${index}`,
         bindingIndex: index,
         provider: resolveProvider(binding, providers),
         targetOrganization,
-        effectiveOrganization,
-        usesFallback: targetOrganization === "",
+        effectiveOrganization: targetOrganization,
+        isTargetOrganizationMissing: targetOrganization === "",
       };
     });
 }
@@ -112,7 +110,7 @@ export function updateIdentitySourceBindingTarget(
 const ApplicationIdentitySourceBindings = ({application, providers = [], organizations = [], onChange}: Props): JSX.Element => {
   const bindings = application?.providers || [];
   const rows = buildIdentitySourceBindingRows(application, providers);
-  const defaultOrganization = normalizeText(application?.organization);
+  const hasMissingTargetOrganization = rows.some(row => row.isTargetOrganizationMissing);
 
   if (rows.length === 0) {
     return (
@@ -136,9 +134,20 @@ const ApplicationIdentitySourceBindings = ({application, providers = [], organiz
         <Typography.Text type="secondary">
           {t(
             "application:Application organization is ownership and fallback while target organization controls provider user lookup",
-            "应用组织用于应用归属；未显式绑定时，Provider 登录会沿用应用组织匹配用户。"
+            "应用组织仅用于应用归属；每个外部登录 Provider 必须显式绑定目标组织，否则扫码登录会失败。"
           )}
         </Typography.Text>
+        {hasMissingTargetOrganization ? (
+          <Alert
+            type="warning"
+            showIcon
+            message={t("application:Provider target organization is required", "Provider 目标组织必填")}
+            description={t(
+              "application:Provider sign-in fails when target organization is missing",
+              "企业微信、飞书/Lark、SAML 或 Web3 登录不会再沿用应用组织；请为每个登录 Provider 选择与同步配置一致的目标组织。"
+            )}
+          />
+        ) : null}
         <Table
           size="small"
           rowKey="key"
@@ -188,9 +197,8 @@ const ApplicationIdentitySourceBindings = ({application, providers = [], organiz
                   options={[
                     {
                       value: "",
-                      label: defaultOrganization
-                        ? t("application:Follow application organization with name", "沿用应用组织 ({{organization}})", {organization: defaultOrganization})
-                        : t("application:Follow application organization", "沿用应用组织"),
+                      label: t("application:Provider target organization not configured", "目标组织未配置"),
+                      disabled: true,
                     },
                     ...organizations
                       .filter(organization => normalizeText(organization.name) !== "")
@@ -210,7 +218,7 @@ const ApplicationIdentitySourceBindings = ({application, providers = [], organiz
                   <span>{t("application:Effective organization", "生效组织")}</span>
                   <Tooltip title={t(
                     "application:Effective organization - Tooltip",
-                    "实际用于匹配用户的组织；未显式绑定时只是沿用应用组织。"
+                    "实际用于匹配用户的组织；未配置时 Provider 登录会失败。"
                   )}>
                     <QuestionCircleOutlined style={helpIconStyle} />
                   </Tooltip>
@@ -221,9 +229,11 @@ const ApplicationIdentitySourceBindings = ({application, providers = [], organiz
               width: 220,
               render: (value: string, row: IdentitySourceBindingRow) => (
                 <Space>
-                  <Typography.Text>{value || t("application:Not configured", "未配置")}</Typography.Text>
-                  {row.usesFallback
-                    ? <Tag>{t("application:Follow application organization", "沿用应用组织")}</Tag>
+                  <Typography.Text type={row.isTargetOrganizationMissing ? "danger" : undefined}>
+                    {value || t("application:Provider target organization not configured", "目标组织未配置")}
+                  </Typography.Text>
+                  {row.isTargetOrganizationMissing
+                    ? <Tag color="warning">{t("application:Required", "必填")}</Tag>
                     : <Tag color="blue">{t("application:Explicit binding", "显式绑定")}</Tag>}
                 </Space>
               ),

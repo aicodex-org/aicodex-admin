@@ -31,7 +31,7 @@ import {
 
 const {Text} = Typography;
 
-type IdentitySourceStatus = "explicit" | "fallback" | "missing" | "not-applicable";
+type IdentitySourceStatus = "explicit" | "missing" | "not-applicable";
 type ApplicationStatus = "已停用" | "接入完整" | "待补全";
 type SummaryTone = "processing" | "warning" | "success";
 
@@ -229,11 +229,8 @@ function getIdentitySourceStatus(application?: ApplicationAccessRecord | null): 
   if (loginProviders.length === 0) {
     return "not-applicable";
   }
-  if (loginProviders.some(providerItem => readDisplayValue(providerItem.targetOrganization).trim() !== "")) {
+  if (loginProviders.every(providerItem => readDisplayValue(providerItem.targetOrganization).trim() !== "")) {
     return "explicit";
-  }
-  if (readDisplayValue(application?.organization).trim() !== "") {
-    return "fallback";
   }
   return "missing";
 }
@@ -460,8 +457,6 @@ function getIdentitySourceStatusText(status: IdentitySourceStatus): string {
   switch (status) {
   case "explicit":
     return "身份源组织已显式绑定";
-  case "fallback":
-    return "身份源使用应用默认组织";
   case "missing":
     return "身份源目标组织待补全";
   default:

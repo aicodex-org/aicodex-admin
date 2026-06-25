@@ -409,6 +409,9 @@ export function buildApplicationIdentityAssetDetail(
   const targetOrganizations = loginProviders
     .map(provider => normalizeText(provider.targetOrganization))
     .filter(value => value !== "");
+  const hasLoginProviders = loginProviders.length > 0;
+  const hasMissingTargetOrganization = loginProviders.some(provider => normalizeText(provider.targetOrganization) === "");
+  const firstTargetOrganization = targetOrganizations[0] || "";
 
   const relationships: RelationshipItem[] = [
     {
@@ -425,11 +428,11 @@ export function buildApplicationIdentityAssetDetail(
       key: "target-organization",
       type: "target_organization",
       label: t("Target organization", "Target organization"),
-      value: targetOrganizations[0] || normalizeText(application.organization) || t("Not configured", "Not configured"),
-      status: targetOrganizations.length > 0 || normalizeText(application.organization) !== "" ? "ready" : "gap",
+      value: firstTargetOrganization || t("Not configured", "Not configured"),
+      status: hasLoginProviders && !hasMissingTargetOrganization && firstTargetOrganization !== "" ? "ready" : "gap",
       source: objectSource,
-      to: normalizeText(application.organization) ? `/organizations/${normalizeText(application.organization)}` : "/organizations",
-      description: targetOrganizations.length > 0 ? t("Target organization from provider binding", "Uses targetOrganization from the Provider binding.") : t("Target organization from application scope", "When no explicit binding exists, only the application organization is reviewed."),
+      to: firstTargetOrganization ? `/organizations/${firstTargetOrganization}` : "/applications",
+      description: targetOrganizations.length > 0 && !hasMissingTargetOrganization ? t("Target organization from provider binding", "Uses targetOrganization from the Provider binding.") : t("Target organization missing from provider binding", "Provider sign-in requires an explicit targetOrganization; the application organization is not used as a fallback."),
     },
     {
       key: "callback",

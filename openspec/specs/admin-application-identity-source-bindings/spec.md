@@ -12,9 +12,11 @@ Admin SHALL allow an Application to bind each login Provider to a target organiz
 - **THEN** Admin MUST look up the external identity in `feishu-test`
 - **AND** Admin MUST NOT use the Application default organization for that Provider lookup
 
-#### Scenario: Provider falls back to Application organization
-- **WHEN** an existing Application Provider binding does not define `targetOrganization`
-- **THEN** Admin MUST preserve existing behavior by using `application.organization` as the Provider login organization
+#### Scenario: Provider requires explicit target organization
+- **WHEN** an Application Provider binding does not define `targetOrganization`
+- **AND** the user signs in through that Provider
+- **THEN** Admin MUST fail closed with a diagnosable configuration error
+- **AND** Admin MUST NOT use `application.organization` as the Provider login organization
 
 #### Scenario: Target organization is unavailable
 - **WHEN** a Provider binding references an empty, missing, or unauthorized target organization
