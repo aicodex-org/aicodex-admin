@@ -14,15 +14,30 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Table} from "antd";
+import {Button} from "antd";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as Conf from "./Conf";
 import * as TokenBackend from "./backend/TokenBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
-import PopconfirmModal from "./common/modal/PopconfirmModal";
-import AuditOperationsCenter from "./AuditOperationsCenter";
+import LegacyListPageToolbar from "./common/LegacyListPageToolbar";
+import ListPageRowActions, {ListPageRowDeleteAction, ListPageRowEditAction} from "./common/ListPageRowActions";
+import ListPageTable from "./common/ListPageTable";
+import {getAuditOperationsTableScroll} from "./auditOperationsListTable";
+
+function getTokenQueryFields() {
+  return [
+    {label: i18next.t("general:Name"), value: "name"},
+    {label: i18next.t("general:Application"), value: "application"},
+    {label: i18next.t("general:Organization"), value: "organization"},
+    {label: i18next.t("general:User"), value: "user"},
+    {label: i18next.t("token:Authorization code"), value: "code"},
+    {label: i18next.t("token:Access token"), value: "accessToken"},
+    {label: i18next.t("token:Expires in"), value: "expiresIn"},
+    {label: i18next.t("provider:Scope"), value: "scope"},
+  ];
+}
 
 class TokenListPage extends BaseListPage {
   newToken() {
@@ -84,10 +99,11 @@ class TokenListPage extends BaseListPage {
         title: i18next.t("general:Name"),
         dataIndex: "name",
         key: "name",
-        width: (Setting.isMobile()) ? "100px" : "300px",
-        fixed: "left",
+        width: (Setting.isMobile()) ? "100px" : "180px",
         sorter: true,
-        ...this.getColumnSearchProps("name"),
+        ellipsis: {
+          showTitle: false,
+        },
         render: (text, record, index) => {
           return (
             <Link to={`/tokens/${text}`}>
@@ -100,7 +116,7 @@ class TokenListPage extends BaseListPage {
         title: i18next.t("general:Created time"),
         dataIndex: "createdTime",
         key: "createdTime",
-        width: "160px",
+        width: "150px",
         sorter: true,
         render: (text, record, index) => {
           return Setting.getFormattedDate(text);
@@ -110,9 +126,11 @@ class TokenListPage extends BaseListPage {
         title: i18next.t("general:Application"),
         dataIndex: "application",
         key: "application",
-        width: "120px",
+        width: "130px",
         sorter: true,
-        ...this.getColumnSearchProps("application"),
+        ellipsis: {
+          showTitle: false,
+        },
         render: (text, record, index) => {
           return (
             <Link to={`/applications/${record.organization}/${text}`}>
@@ -127,7 +145,9 @@ class TokenListPage extends BaseListPage {
         key: "organization",
         width: "120px",
         sorter: true,
-        ...this.getColumnSearchProps("organization"),
+        ellipsis: {
+          showTitle: false,
+        },
         render: (text, record, index) => {
           return (
             <Link to={`/organizations/${text}`}>
@@ -142,7 +162,9 @@ class TokenListPage extends BaseListPage {
         key: "user",
         width: "120px",
         sorter: true,
-        ...this.getColumnSearchProps("user"),
+        ellipsis: {
+          showTitle: false,
+        },
         render: (text, record, index) => {
           return (
             <Link to={`/users/${record.organization}/${text}`}>
@@ -152,43 +174,21 @@ class TokenListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("token:Authorization code"),
-        dataIndex: "code",
-        key: "code",
-        width: "180px",
-        sorter: true,
-        ...this.getColumnSearchProps("code"),
-        render: (text, record, index) => {
-          return Setting.getClickable(text);
-        },
-      },
-      {
-        title: i18next.t("token:Access token"),
-        dataIndex: "accessToken",
-        key: "accessToken",
-        width: "220px",
-        sorter: true,
-        ellipsis: true,
-        ...this.getColumnSearchProps("accessToken"),
-        render: (text, record, index) => {
-          return Setting.getClickable(text);
-        },
-      },
-      {
         title: i18next.t("token:Expires in"),
         dataIndex: "expiresIn",
         key: "expiresIn",
-        width: "120px",
+        width: "100px",
         sorter: true,
-        ...this.getColumnSearchProps("expiresIn"),
       },
       {
         title: i18next.t("provider:Scope"),
         dataIndex: "scope",
         key: "scope",
-        width: "110px",
+        width: "130px",
         sorter: true,
-        ...this.getColumnSearchProps("scope"),
+        ellipsis: {
+          showTitle: false,
+        },
       },
       // {
       //   title: i18next.t("token:Token type"),
@@ -201,18 +201,16 @@ class TokenListPage extends BaseListPage {
         title: i18next.t("general:Action"),
         dataIndex: "",
         key: "op",
-        width: "170px",
-        fixed: (Setting.isMobile()) ? "false" : "right",
+        width: "112px",
         render: (text, record, index) => {
           return (
-            <div>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/tokens/${record.name}`)}>{i18next.t("general:Edit")}</Button>
-              <PopconfirmModal
+            <ListPageRowActions className="token-row-actions">
+              <ListPageRowEditAction onClick={() => this.props.history.push(`/tokens/${record.name}`)} />
+              <ListPageRowDeleteAction
                 title={i18next.t("general:Sure to delete") + `: ${record.name} ?`}
                 onConfirm={() => this.deleteToken(index)}
-              >
-              </PopconfirmModal>
-            </div>
+              />
+            </ListPageRowActions>
           );
         },
       },
@@ -222,19 +220,18 @@ class TokenListPage extends BaseListPage {
 
     return (
       <div>
-        <AuditOperationsCenter
-          activeKey="tokens"
-          loading={this.state.loading}
-          tokens={tokens}
-          totals={{tokens: this.state.pagination.total}}
-        />
-        <div className="audit-operations-table-section">
-          <Table scroll={{x: "100%"}} columns={columns} dataSource={tokens} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
+        <div className="enterprise-list-page-table-shell audit-operations-list-page-table-shell token-list-page-table-shell">
+          <ListPageTable className="audit-operations-list-table token-list-table" scroll={getAuditOperationsTableScroll(this.state.advancedFiltersOpen)} columns={columns} dataSource={tokens} rowKey={(record) => `${record.owner}/${record.name}`} pagination={paginationProps}
             title={() => (
-              <div>
-                {i18next.t("general:Tokens")}&nbsp;&nbsp;&nbsp;&nbsp;
-                <Button type="primary" size="small" onClick={this.addToken.bind(this)}>{i18next.t("general:Add")}</Button>
-              </div>
+              <LegacyListPageToolbar
+                host={this}
+                title={i18next.t("general:Token Review")}
+                total={this.state.pagination.total}
+                fields={getTokenQueryFields()}
+                defaultField="name"
+                onAdvancedOpenChange={(advancedFiltersOpen) => this.setState({advancedFiltersOpen})}
+                actions={<Button type="primary" onClick={this.addToken.bind(this)}>{i18next.t("general:Add")}</Button>}
+              />
             )}
             loading={this.state.loading}
             onChange={this.handleTableChange}

@@ -96,14 +96,14 @@ describe("IdentityAssetRelationshipDrawer", () => {
       </MemoryRouter>
     );
 
-    expect(view.getByText("身份资产对象上下文")).not.toBeNull();
+    expect(view.getByText("身份资产对象信息")).not.toBeNull();
     expect(view.getAllByText("Application").length).toBeGreaterThan(0);
     expect(view.getByText("AICodex Portal")).not.toBeNull();
     expect(view.getAllByText("当前视图").length).toBeGreaterThan(0);
     expect(view.getByText("Provider 绑定")).not.toBeNull();
     expect(view.getByText("目标组织")).not.toBeNull();
     expect(view.getByText("审计记录").closest("a")?.getAttribute("href")).toBe("/records");
-    expect(view.getByText("令牌核对").closest("a")?.getAttribute("href")).toBe("/tokens");
+    expect(view.getByText("令牌管理").closest("a")?.getAttribute("href")).toBe("/tokens");
     expect(view.baseElement.textContent).toContain("后续只读聚合接口");
     expect(view.getByText("已隐藏敏感字段")).not.toBeNull();
     expect(view.baseElement.textContent).not.toContain("secret-value");

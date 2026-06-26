@@ -1689,6 +1689,132 @@ img {
   margin-top: 14px;
 }
 
+.audit-operations-list-page-table-shell {
+  margin-top: 10px;
+}
+
+.audit-operations-list-table .ant-table-cell {
+  min-width: 0;
+}
+
+.audit-operations-list-table .ant-table-cell a,
+.audit-operations-list-table .ant-table-cell .ant-tag {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.audit-operations-list-table .ant-table-cell a {
+  display: inline-block;
+}
+
+.session-id-list {
+  max-width: 100%;
+}
+
+.session-id-tag {
+  display: inline-flex;
+  align-items: center;
+  max-width: 180px;
+  margin-inline-end: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.session-id-tag-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-id-tag .ant-tag-close-icon {
+  flex: 0 0 auto;
+  margin-inline-start: 4px;
+}
+
+.session-id-more-button {
+  height: 22px;
+  padding: 0 4px;
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.session-id-delete-popconfirm.ant-popover,
+.session-bulk-delete-popconfirm.ant-popover {
+  width: min(360px, calc(100vw - 48px)) !important;
+}
+
+.session-id-delete-popconfirm .ant-popover-inner,
+.session-bulk-delete-popconfirm .ant-popover-inner {
+  max-width: 100%;
+}
+
+.session-id-delete-popconfirm .ant-popconfirm-title,
+.session-id-delete-popconfirm .ant-popconfirm-description,
+.session-bulk-delete-popconfirm .ant-popconfirm-title {
+  overflow-wrap: anywhere;
+}
+
+.session-id-drawer-content {
+  display: grid;
+  gap: 16px;
+}
+
+.session-id-drawer .ant-drawer-body {
+  padding: 20px 24px !important;
+  overflow-y: auto;
+}
+
+.session-id-drawer-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #edf0f4;
+}
+
+.session-id-drawer-summary div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.session-id-drawer-summary span {
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.session-id-drawer-summary strong {
+  min-width: 0;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.session-id-drawer-list {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  align-content: start;
+}
+
+.session-id-drawer-list .ant-space-item {
+  min-width: 0;
+}
+
+.session-id-drawer-list .session-id-tag {
+  width: 100%;
+  max-width: 100%;
+}
+
 .governance-task-filter-bar {
   display: grid;
   grid-template-columns: minmax(220px, 1.4fr) repeat(5, minmax(150px, 1fr));
@@ -2000,6 +2126,133 @@ img {
 .audit-record-detail-collapse,
 .audit-record-detail-collapse .ant-collapse-content-box {
   max-width: 100%;
+}
+
+.audit-record-detail-content {
+  display: grid;
+  gap: 0;
+  align-content: start;
+  padding: 14px 18px 24px;
+  background: #fff;
+}
+
+.audit-record-detail-summary {
+  display: grid;
+  gap: 14px;
+  padding: 0 0 16px;
+  border-bottom: 1px solid #edf0f4;
+}
+
+.audit-record-detail-summary-header {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.audit-record-detail-summary-title {
+  color: #1f2937;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 22px;
+}
+
+.audit-record-detail-summary-object {
+  margin-top: 4px;
+  color: #526070;
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.audit-record-detail-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+}
+
+.audit-record-detail-meta-item {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.audit-record-detail-meta-item span {
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.audit-record-detail-meta-item strong {
+  min-width: 0;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.audit-record-detail-collapse {
+  background: transparent;
+}
+
+.audit-record-detail-collapse .ant-collapse-item {
+  border-color: #edf0f4;
+}
+
+.audit-record-detail-collapse .ant-collapse-header {
+  align-items: center !important;
+  padding: 12px 0 !important;
+}
+
+.audit-record-detail-collapse .ant-collapse-content-box {
+  padding: 4px 0 16px !important;
+}
+
+.audit-record-detail-collapse .ant-descriptions-view {
+  border-color: #edf0f4;
+}
+
+.audit-record-detail-collapse .ant-descriptions-item-label,
+.audit-record-detail-collapse .ant-descriptions-item-content {
+  border-color: #edf0f4 !important;
+}
+
+.audit-record-detail-code-panel {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.audit-record-detail-copy-button {
+  color: #64748b;
+}
+
+.audit-record-detail-copy-button:hover {
+  color: #1677ff;
+}
+
+.audit-record-detail-copy-button-copied,
+.audit-record-detail-copy-button-copied:hover {
+  color: #16a34a;
+}
+
+.audit-record-detail-copy-button-failed,
+.audit-record-detail-copy-button-failed:hover {
+  color: #dc2626;
+}
+
+@media (max-width: 768px) {
+  .audit-record-detail-content {
+    padding: 12px 12px 20px;
+  }
+
+  .audit-record-detail-summary-header {
+    display: grid;
+  }
+
+  .audit-record-detail-meta-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .identity-evidence-chain-layout {

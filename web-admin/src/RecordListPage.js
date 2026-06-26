@@ -14,14 +14,19 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Collapse, Descriptions, Drawer, Space, Table, Tag} from "antd";
+import {Button, Collapse, Descriptions, Drawer, Space, Tag, Tooltip} from "antd";
+import {CheckOutlined, CopyOutlined, FileSearchOutlined} from "@ant-design/icons";
+import copy from "copy-to-clipboard";
 import * as Setting from "./Setting";
 import * as RecordBackend from "./backend/RecordBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import Editor from "./common/Editor";
-import AuditOperationsCenter from "./AuditOperationsCenter";
 import {buildAuditRecordPresentation, sanitizeAuditDetailValue} from "./recordAuditPresentation";
+import LegacyListPageToolbar from "./common/LegacyListPageToolbar";
+import ListPageRowActions, {ListPageRowActionButton} from "./common/ListPageRowActions";
+import ListPageTable from "./common/ListPageTable";
+import {getAuditOperationsTableScroll} from "./auditOperationsListTable";
 
 function tRecord(key, defaultValue = key) {
   const namespacedKey = `record:${key}`;
@@ -41,6 +46,16 @@ const riskColorMap = {
   High: "red",
 };
 
+function getRecordQueryFields() {
+  return [
+    {label: tRecord("Event type", "Event type"), value: "action"},
+    {label: tRecord("Audit object", "Audit object"), value: "object"},
+    {label: tRecord("Result", "Result"), value: "statusCode"},
+    {label: tRecord("Operator", "Operator"), value: "user"},
+    {label: i18next.t("general:Method"), value: "method"},
+  ];
+}
+
 class RecordListPage extends BaseListPage {
   UNSAFE_componentWillMount() {
     this.state.pagination.pageSize = 20;
@@ -53,36 +68,43 @@ class RecordListPage extends BaseListPage {
     this.getForm();
   }
 
+  componentWillUnmount() {
+    if (this.auditDetailCopyFeedbackTimer) {
+      clearTimeout(this.auditDetailCopyFeedbackTimer);
+    }
+    super.componentWillUnmount();
+  }
+
   renderTable(records) {
     let columns = [
       {
         title: tRecord("Event type", "Event type"),
         dataIndex: "action",
         key: "eventType",
-        width: 170,
+        width: 150,
         sorter: true,
-        ...this.getColumnSearchProps("action"),
+        ellipsis: {
+          showTitle: false,
+        },
         render: (_, record) => tRecord(buildAuditRecordPresentation(record).eventType),
       },
       {
         title: tRecord("Audit object", "Audit object"),
         dataIndex: "object",
         key: "auditObject",
-        width: 220,
+        width: 200,
         sorter: true,
         ellipsis: {
           showTitle: false,
         },
-        ...this.getColumnSearchProps("object"),
         render: (_, record) => buildAuditRecordPresentation(record).objectSummary,
       },
       {
         title: tRecord("Result", "Result"),
         dataIndex: "statusCode",
         key: "result",
-        width: 130,
+        width: 100,
         sorter: true,
-        ...this.getColumnSearchProps("statusCode"),
         render: (_, record) => {
           const presentation = buildAuditRecordPresentation(record);
           return <Tag color={resultColorMap[presentation.result] || "default"}>{tRecord(presentation.result)}</Tag>;
@@ -91,7 +113,7 @@ class RecordListPage extends BaseListPage {
       {
         title: tRecord("Risk level", "Risk level"),
         key: "riskLevel",
-        width: 120,
+        width: 100,
         render: (_, record) => {
           const presentation = buildAuditRecordPresentation(record);
           return <Tag color={riskColorMap[presentation.riskLevel] || "default"}>{tRecord(presentation.riskLevel)}</Tag>;
@@ -100,40 +122,46 @@ class RecordListPage extends BaseListPage {
       {
         title: tRecord("Evidence status", "Evidence status"),
         key: "evidenceStatus",
-        width: 150,
+        width: 120,
+        ellipsis: {
+          showTitle: false,
+        },
         render: (_, record) => tRecord(buildAuditRecordPresentation(record).evidenceStatus),
       },
       {
         title: tRecord("Operator", "Operator"),
         dataIndex: "user",
         key: "operator",
-        width: 150,
+        width: 130,
         sorter: true,
-        ...this.getColumnSearchProps("user"),
+        ellipsis: {
+          showTitle: false,
+        },
         render: (_, record) => buildAuditRecordPresentation(record).operator,
       },
       {
         title: tRecord("Time", "Time"),
         dataIndex: "createdTime",
         key: "createdTime",
-        width: 170,
+        width: 150,
         sorter: true,
         render: text => Setting.getFormattedDate(text),
       },
       {
         title: tRecord("Action", "Action"),
         key: "op",
-        width: 100,
-        fixed: Setting.isMobile() ? false : "right",
+        width: 88,
         render: (text, record, index) => (
-          <Button type="link" onClick={() => {
-            this.setState({
-              detailRecord: record,
-              detailShow: true,
-            });
-          }}>
-            {i18next.t("general:Detail")}
-          </Button>
+          <ListPageRowActions className="record-row-actions">
+            <ListPageRowActionButton icon={<FileSearchOutlined />} onClick={() => {
+              this.setState({
+                detailRecord: record,
+                detailShow: true,
+              });
+            }}>
+              {i18next.t("general:Detail")}
+            </ListPageRowActionButton>
+          </ListPageRowActions>
         ),
       },
     ];
@@ -146,18 +174,17 @@ class RecordListPage extends BaseListPage {
 
     return (
       <div>
-        <AuditOperationsCenter
-          activeKey="records"
-          loading={this.state.loading}
-          records={records}
-          totals={{records: this.state.pagination.total}}
-        />
-        <div className="audit-operations-table-section">
-          <Table scroll={{x: "max-content"}} columns={columns} dataSource={records} rowKey="id" size="middle" bordered pagination={paginationProps}
+        <div className="enterprise-list-page-table-shell audit-operations-list-page-table-shell record-list-page-table-shell">
+          <ListPageTable className="audit-operations-list-table record-list-table" scroll={getAuditOperationsTableScroll(this.state.advancedFiltersOpen)} columns={columns} dataSource={records} rowKey="id" pagination={paginationProps}
             title={() => (
-              <div>
-                {i18next.t("general:Records")}&nbsp;&nbsp;&nbsp;&nbsp;
-              </div>
+              <LegacyListPageToolbar
+                host={this}
+                title={i18next.t("general:Audit Records")}
+                total={this.state.pagination.total}
+                fields={getRecordQueryFields()}
+                defaultField="action"
+                onAdvancedOpenChange={(advancedFiltersOpen) => this.setState({advancedFiltersOpen})}
+              />
             )}
             loading={this.state.loading}
             onChange={this.handleTableChange}
@@ -165,8 +192,9 @@ class RecordListPage extends BaseListPage {
         </div>
         {/* TODO: Should be packaged as a component after confirm it run correctly.*/}
         <Drawer
+          className="audit-record-detail-drawer"
           title={i18next.t("general:Detail")}
-          width={Setting.isMobile() ? "100%" : 640}
+          width={Setting.isMobile() ? "100%" : 720}
           placement="right"
           destroyOnClose
           onClose={() => this.setState({detailShow: false})}
@@ -181,23 +209,48 @@ class RecordListPage extends BaseListPage {
   renderDetailContent() {
     const record = this.state.detailRecord || {};
     const presentation = buildAuditRecordPresentation(record);
+    const responseValue = sanitizeAuditDetailValue(this.getDetailField("response"));
+    const objectValue = sanitizeAuditDetailValue(this.getDetailField("object"));
     return (
-      <Space direction="vertical" size={12} style={{width: "100%", padding: 12}}>
-        <Descriptions title={tRecord("Audit event summary", "Audit event summary")} bordered size="small" column={1} layout={Setting.isMobile() ? "vertical" : "horizontal"}>
-          <Descriptions.Item label={tRecord("Event type", "Event type")}>{tRecord(presentation.eventType)}</Descriptions.Item>
-          <Descriptions.Item label={tRecord("Audit object", "Audit object")}>{presentation.objectSummary}</Descriptions.Item>
-          <Descriptions.Item label={tRecord("Result", "Result")}><Tag color={resultColorMap[presentation.result] || "default"}>{tRecord(presentation.result)}</Tag></Descriptions.Item>
-          <Descriptions.Item label={tRecord("Risk level", "Risk level")}><Tag color={riskColorMap[presentation.riskLevel] || "default"}>{tRecord(presentation.riskLevel)}</Tag></Descriptions.Item>
-          <Descriptions.Item label={tRecord("Evidence status", "Evidence status")}>{tRecord(presentation.evidenceStatus)}</Descriptions.Item>
-          <Descriptions.Item label={tRecord("Operator", "Operator")}>
-            {record.organization && record.user ? (
-              <Link to={`/users/${record.organization}/${record.user}`}>{presentation.operator}</Link>
-            ) : presentation.operator}
-          </Descriptions.Item>
-          <Descriptions.Item label={tRecord("Time", "Time")}>{Setting.getFormattedDate(record.createdTime)}</Descriptions.Item>
-        </Descriptions>
+      <div className="audit-record-detail-content" style={{height: "calc(100vh - 56px)", overflowY: "auto"}}>
+        <section className="audit-record-detail-summary">
+          <div className="audit-record-detail-summary-header">
+            <div>
+              <div className="audit-record-detail-summary-title">{tRecord("Audit event summary", "Audit event summary")}</div>
+              <div className="audit-record-detail-summary-object">{presentation.objectSummary}</div>
+            </div>
+            <Space size={6} wrap>
+              <Tag color={resultColorMap[presentation.result] || "default"}>{tRecord(presentation.result)}</Tag>
+              <Tag color={riskColorMap[presentation.riskLevel] || "default"}>{tRecord(presentation.riskLevel)}</Tag>
+            </Space>
+          </div>
+          <div className="audit-record-detail-meta-grid">
+            <div className="audit-record-detail-meta-item">
+              <span>{tRecord("Event type", "Event type")}</span>
+              <strong>{tRecord(presentation.eventType)}</strong>
+            </div>
+            <div className="audit-record-detail-meta-item">
+              <span>{tRecord("Operator", "Operator")}</span>
+              <strong>
+                {record.organization && record.user ? (
+                  <Link to={`/users/${record.organization}/${record.user}`}>{presentation.operator}</Link>
+                ) : presentation.operator}
+              </strong>
+            </div>
+            <div className="audit-record-detail-meta-item">
+              <span>{tRecord("Time", "Time")}</span>
+              <strong>{Setting.getFormattedDate(record.createdTime)}</strong>
+            </div>
+            <div className="audit-record-detail-meta-item">
+              <span>{tRecord("Evidence status", "Evidence status")}</span>
+              <strong>{tRecord(presentation.evidenceStatus)}</strong>
+            </div>
+          </div>
+        </section>
         <Collapse
           className="audit-record-detail-collapse"
+          bordered={false}
+          defaultActiveKey={["request", "response", "object"]}
           items={[
             {
               key: "request",
@@ -221,40 +274,91 @@ class RecordListPage extends BaseListPage {
             {
               key: "response",
               label: tRecord("Redacted response", "Redacted response"),
+              extra: this.renderCodeCopyAction(tRecord("Redacted response", "Redacted response"), responseValue),
               children: (
-                <Editor
-                  value={sanitizeAuditDetailValue(this.getDetailField("response"))}
-                  fillHeight
-                  fillWidth
-                  maxWidth={this.getEditorMaxWidth()}
-                  dark
-                  readOnly
-                />
+                <div className="audit-record-detail-code-panel">
+                  <Editor
+                    value={responseValue}
+                    height="180px"
+                    fillWidth
+                    maxWidth={this.getEditorMaxWidth()}
+                    dark
+                    readOnly
+                  />
+                </div>
               ),
             },
             {
               key: "object",
               label: tRecord("Redacted object payload", "Redacted object payload"),
+              extra: this.renderCodeCopyAction(tRecord("Redacted object payload", "Redacted object payload"), objectValue),
               children: (
-                <Editor
-                  value={sanitizeAuditDetailValue(this.getDetailField("object"))}
-                  lang="json"
-                  fillHeight
-                  fillWidth
-                  maxWidth={this.getEditorMaxWidth()}
-                  dark
-                  readOnly
-                />
+                <div className="audit-record-detail-code-panel">
+                  <Editor
+                    value={objectValue}
+                    lang="json"
+                    fillWidth
+                    maxWidth={this.getEditorMaxWidth()}
+                    dark
+                    readOnly
+                  />
+                </div>
               ),
             },
           ]}
         />
-      </Space>
+      </div>
     );
   }
 
+  renderCodeCopyAction = (label, value) => {
+    const feedback = this.state.auditDetailCopyFeedback;
+    const isCurrentFeedback = feedback?.label === label;
+    const isCopied = isCurrentFeedback && feedback.status === "success";
+    const isFailed = isCurrentFeedback && feedback.status === "error";
+    const tooltipTitle = isCopied
+      ? i18next.t("general:Copied to clipboard successfully")
+      : isFailed
+        ? i18next.t("general:Failed to copy")
+        : i18next.t("general:Copy");
+    return (
+      <Tooltip title={tooltipTitle}>
+        <Button
+          aria-label={`${i18next.t("general:Copy")} ${label}`}
+          className={[
+            "audit-record-detail-copy-button",
+            isCopied ? "audit-record-detail-copy-button-copied" : "",
+            isFailed ? "audit-record-detail-copy-button-failed" : "",
+          ].filter(Boolean).join(" ")}
+          disabled={!value}
+          icon={isCopied ? <CheckOutlined /> : <CopyOutlined />}
+          size="small"
+          type="text"
+          onClick={(event) => this.copyAuditDetailValue(label, value, event)}
+        />
+      </Tooltip>
+    );
+  };
+
+  copyAuditDetailValue = (label, value, event) => {
+    event?.stopPropagation();
+    const copied = copy(value || "");
+    if (this.auditDetailCopyFeedbackTimer) {
+      clearTimeout(this.auditDetailCopyFeedbackTimer);
+    }
+    this.setState({
+      auditDetailCopyFeedback: {
+        label,
+        status: copied ? "success" : "error",
+      },
+    });
+    this.auditDetailCopyFeedbackTimer = setTimeout(() => {
+      this.setState({auditDetailCopyFeedback: null});
+    }, 2400);
+  };
+
   getEditorMaxWidth = () => {
-    return Setting.isMobile() ? window.innerWidth - 60 : 475;
+    return Setting.isMobile() ? window.innerWidth - 48 : "100%";
   };
 
   getDetailField = dataIndex => {

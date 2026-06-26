@@ -260,16 +260,16 @@ function createEvidenceEntries(source: SourceScope): EvidenceEntry[] {
     },
     {
       key: "tokens",
-      label: t("Token review", "Token review"),
+      label: t("Token review", "Token Management"),
       to: "/tokens",
       description: t("Token review evidence description", "Open the token page to review visible token status without reading raw token values."),
       source,
     },
     {
       key: "verifications",
-      label: t("Verification records", "Verification records"),
+      label: t("Verification records", "Verification Code Records"),
       to: "/verifications",
-      description: t("Verification records evidence description", "Open verification records to review evidence related to the current object."),
+      description: t("Verification records evidence description", "Open verification code records to review evidence related to the current object."),
       source,
     },
     {
@@ -567,9 +567,9 @@ export function buildProviderIdentityAssetDetail(
       },
       {
         key: "verifications",
-        label: t("Verification records", "Verification records"),
+        label: t("Verification records", "Verification Code Records"),
         to: "/verifications",
-        description: t("Provider verification evidence description", "Review verification code or login verification records without reading raw verification values."),
+        description: t("Provider verification evidence description", "Review verification code send/use records without reading raw code values."),
         source,
       },
     ],

@@ -103,7 +103,7 @@ describe("IdentityEvidenceChainPage", () => {
     expect(view.getByText("运行健康")).not.toBeNull();
     expect(view.getAllByText("API 网关映射").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/platform-api-mappings")).toBe(true);
     expect(view.getAllByText("审计记录").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/records")).toBe(true);
-    expect(view.getAllByText("令牌核对").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/tokens")).toBe(true);
+    expect(view.getAllByText("令牌管理").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/tokens")).toBe(true);
   });
 
   test("selects the requested asset from access wizard query context", () => {

@@ -1,6 +1,6 @@
 import React from "react";
 import {Button, Popconfirm, Space} from "antd";
-import type {ButtonProps} from "antd";
+import type {ButtonProps, PopconfirmProps} from "antd";
 import {DeleteOutlined, EditOutlined} from "@ant-design/icons";
 import i18next from "i18next";
 
@@ -57,18 +57,24 @@ export function ListPageRowEditAction(props: ListPageRowEditActionProps): JSX.El
 
 interface ListPageRowDeleteActionProps {
   title: React.ReactNode;
+  description?: React.ReactNode;
   onConfirm: () => void;
   disabled?: boolean;
   loading?: boolean;
   children?: React.ReactNode;
+  popconfirmProps?: Pick<PopconfirmProps, "classNames" | "placement" | "styles">;
 }
 
 export function ListPageRowDeleteAction(props: ListPageRowDeleteActionProps): JSX.Element {
   return (
     <Popconfirm
       title={props.title}
+      description={props.description}
       onConfirm={props.onConfirm}
       disabled={props.disabled}
+      placement={props.popconfirmProps?.placement}
+      classNames={props.popconfirmProps?.classNames}
+      styles={props.popconfirmProps?.styles}
       okText={t("general:OK")}
       cancelText={t("general:Cancel")}
     >

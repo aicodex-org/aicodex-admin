@@ -19,8 +19,23 @@ import * as VerificationBackend from "./backend/VerificationBackend";
 import i18next from "i18next";
 import {Link} from "react-router-dom";
 import React from "react";
-import {Switch, Table} from "antd";
-import AuditOperationsCenter from "./AuditOperationsCenter";
+import {Switch} from "antd";
+import LegacyListPageToolbar from "./common/LegacyListPageToolbar";
+import ListPageTable from "./common/ListPageTable";
+import {getAuditOperationsTableScroll} from "./auditOperationsListTable";
+
+function getVerificationQueryFields() {
+  return [
+    {label: i18next.t("general:Name"), value: "name"},
+    {label: i18next.t("general:Organization"), value: "owner"},
+    {label: i18next.t("general:Type"), value: "type"},
+    {label: i18next.t("general:User"), value: "user"},
+    {label: i18next.t("general:Provider"), value: "provider"},
+    {label: i18next.t("general:Client IP"), value: "remoteAddr"},
+    {label: i18next.t("verification:Receiver"), value: "receiver"},
+    {label: i18next.t("login:Verification code"), value: "code"},
+  ];
+}
 
 class VerificationListPage extends BaseListPage {
   newVerification() {
@@ -39,9 +54,11 @@ class VerificationListPage extends BaseListPage {
         title: i18next.t("general:Organization"),
         dataIndex: "owner",
         key: "owner",
-        width: "120px",
+        width: "110px",
         sorter: true,
-        ...this.getColumnSearchProps("owner"),
+        ellipsis: {
+          showTitle: false,
+        },
         render: (text, record, index) => {
           if (text === "admin") {
             return `(${i18next.t("general:empty")})`;
@@ -58,16 +75,17 @@ class VerificationListPage extends BaseListPage {
         title: i18next.t("general:Name"),
         dataIndex: "name",
         key: "name",
-        width: "260px",
-        fixed: "left",
+        width: "170px",
         sorter: true,
-        ...this.getColumnSearchProps("name"),
+        ellipsis: {
+          showTitle: false,
+        },
       },
       {
         title: i18next.t("general:Created time"),
         dataIndex: "createdTime",
         key: "createdTime",
-        width: "160px",
+        width: "145px",
         sorter: true,
         render: (text, record, index) => {
           return Setting.getFormattedDate(text);
@@ -77,9 +95,8 @@ class VerificationListPage extends BaseListPage {
         title: i18next.t("general:Type"),
         dataIndex: "type",
         key: "type",
-        width: "90px",
+        width: "80px",
         sorter: true,
-        ...this.getColumnSearchProps("type"),
       },
       {
         title: i18next.t("general:User"),
@@ -87,7 +104,9 @@ class VerificationListPage extends BaseListPage {
         key: "user",
         width: "120px",
         sorter: true,
-        ...this.getColumnSearchProps("user"),
+        ellipsis: {
+          showTitle: false,
+        },
         render: (text, record, index) => {
           return (
             <Link to={`/users/${text}`}>
@@ -100,9 +119,11 @@ class VerificationListPage extends BaseListPage {
         title: i18next.t("general:Provider"),
         dataIndex: "provider",
         key: "provider",
-        width: "150px",
+        width: "120px",
         sorter: true,
-        ...this.getColumnSearchProps("provider"),
+        ellipsis: {
+          showTitle: false,
+        },
         render: (text, record, index) => {
           return (
             <Link to={`/providers/${record.owner}/${text}`}>
@@ -115,9 +136,11 @@ class VerificationListPage extends BaseListPage {
         title: i18next.t("general:Client IP"),
         dataIndex: "remoteAddr",
         key: "remoteAddr",
-        width: "100px",
+        width: "110px",
         sorter: true,
-        ...this.getColumnSearchProps("remoteAddr"),
+        ellipsis: {
+          showTitle: false,
+        },
         render: (text, record, index) => {
           let clientIp = text;
           if (clientIp.endsWith(": ")) {
@@ -135,17 +158,11 @@ class VerificationListPage extends BaseListPage {
         title: i18next.t("verification:Receiver"),
         dataIndex: "receiver",
         key: "receiver",
-        width: "120px",
+        width: "145px",
         sorter: true,
-        ...this.getColumnSearchProps("receiver"),
-      },
-      {
-        title: i18next.t("login:Verification code"),
-        dataIndex: "code",
-        key: "code",
-        width: "150px",
-        sorter: true,
-        ...this.getColumnSearchProps("code"),
+        ellipsis: {
+          showTitle: false,
+        },
       },
       {
         title: i18next.t("verification:Is used"),
@@ -165,18 +182,17 @@ class VerificationListPage extends BaseListPage {
 
     return (
       <div>
-        <AuditOperationsCenter
-          activeKey="verifications"
-          loading={this.state.loading}
-          verifications={verifications}
-          totals={{verifications: this.state.pagination.total}}
-        />
-        <div className="audit-operations-table-section">
-          <Table scroll={{x: "max-content"}} columns={columns} dataSource={verifications} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
+        <div className="enterprise-list-page-table-shell audit-operations-list-page-table-shell verification-list-page-table-shell">
+          <ListPageTable className="audit-operations-list-table verification-list-table" scroll={getAuditOperationsTableScroll(this.state.advancedFiltersOpen)} columns={columns} dataSource={verifications} rowKey={(record) => `${record.owner}/${record.name}`} pagination={paginationProps}
             title={() => (
-              <div>
-                {i18next.t("general:Verifications")}&nbsp;&nbsp;&nbsp;&nbsp;
-              </div>
+              <LegacyListPageToolbar
+                host={this}
+                title={i18next.t("general:Verification Review")}
+                total={this.state.pagination.total}
+                fields={getVerificationQueryFields()}
+                defaultField="name"
+                onAdvancedOpenChange={(advancedFiltersOpen) => this.setState({advancedFiltersOpen})}
+              />
             )}
             loading={this.state.loading}
             onChange={this.handleTableChange}

@@ -152,7 +152,7 @@ export function buildIdentityEvidenceChainCatalog(): IdentityEvidenceAsset[] {
       evidence: [
         {key: "providers", label: t("Identity source", "认证源"), to: "/providers", description: t("Open provider evidence", "进入认证源中心核对身份源配置。")},
         {key: "records", label: t("Audit records", "审计记录"), to: "/records", description: t("Open audit evidence", "进入审计记录核对变更证据。")},
-        {key: "verifications", label: t("Verification records", "验证记录"), to: "/verifications", description: t("Open verification evidence", "核对验证码或登录验证记录，不读取原值。")},
+        {key: "verifications", label: t("Verification records", "验证码记录"), to: "/verifications", description: t("Open verification evidence", "核对验证码发送/使用记录，不读取验证码原值。")},
       ],
       riskMessage: t("Provider risk message", "认证源的全量应用绑定需从应用列表或后续聚合接口核对。"),
       safeNextTo: "/providers",
@@ -198,7 +198,7 @@ export function buildIdentityEvidenceChainCatalog(): IdentityEvidenceAsset[] {
       ],
       evidence: [
         {key: "users", label: t("User identity", "用户身份"), to: "/users", description: t("Open user evidence", "进入用户列表核对身份对象。")},
-        {key: "tokens", label: t("Token review", "令牌核对"), to: "/tokens", description: t("Open token evidence", "核对可见令牌状态，不读取 token 原值。")},
+        {key: "tokens", label: t("Token review", "令牌管理"), to: "/tokens", description: t("Open token evidence", "核对可见令牌状态，不读取 token 原值。")},
         {key: "records", label: t("Audit records", "审计记录"), to: "/records", description: t("Open audit evidence", "进入审计记录核对变更证据。")},
       ],
       riskMessage: t("User risk message", "用户与角色的全量授权影响需结合后端权限事实源核对。"),
@@ -248,7 +248,7 @@ export function buildIdentityEvidenceChainCatalog(): IdentityEvidenceAsset[] {
         {key: "mappings", label: t("API gateway mapping", "API 网关映射"), to: "/platform-api-mappings", description: t("Open gateway evidence", "进入 API 网关映射页面核对身份映射。")},
         {key: "agents", label: t("LLM AI gateway", "LLM AI 网关"), to: "/agents", description: t("Open agent evidence", "进入 LLM AI 网关中心核对 AI 入口。")},
         {key: "records", label: t("Audit records", "审计记录"), to: "/records", description: t("Open audit evidence", "进入审计记录核对变更证据。")},
-        {key: "tokens", label: t("Token review", "令牌核对"), to: "/tokens", description: t("Open token evidence", "核对可见令牌状态，不读取 token 原值。")},
+        {key: "tokens", label: t("Token review", "令牌管理"), to: "/tokens", description: t("Open token evidence", "核对可见令牌状态，不读取 token 原值。")},
       ],
       riskMessage: t("Gateway risk message", "本页只提供只读映射和证据入口，不执行 Gateway 变更动作。"),
       safeNextTo: "/platform-api-mappings",
@@ -262,7 +262,7 @@ export function buildIdentityEvidenceChainCatalog(): IdentityEvidenceAsset[] {
       organization: t("Audit operations", "审计运维"),
       status: t("Evidence chain", "证据链"),
       pagePath: "/records",
-      summary: t("Audit summary", "核对审计记录、令牌、验证记录和对象变更证据入口。"),
+      summary: t("Audit summary", "核对审计记录、令牌、验证码记录和对象变更证据入口。"),
       tone: "default",
       relationships: [
         relationship("audit-evidence", "audit_evidence", t("Audit evidence", "审计证据"), t("Records and verifications", "审计与验证"), "ready", auditSource, "/records", t("Audit relationship", "从审计记录页面核对变更、失败和运维证据。")),
@@ -271,8 +271,8 @@ export function buildIdentityEvidenceChainCatalog(): IdentityEvidenceAsset[] {
       ],
       evidence: [
         {key: "records", label: t("Audit records", "审计记录"), to: "/records", description: t("Open audit evidence", "进入审计记录核对变更证据。")},
-        {key: "tokens", label: t("Token review", "令牌核对"), to: "/tokens", description: t("Open token evidence", "核对可见令牌状态，不读取 token 原值。")},
-        {key: "verifications", label: t("Verification records", "验证记录"), to: "/verifications", description: t("Open verification evidence", "核对验证码或登录验证记录，不读取原值。")},
+        {key: "tokens", label: t("Token review", "令牌管理"), to: "/tokens", description: t("Open token evidence", "核对可见令牌状态，不读取 token 原值。")},
+        {key: "verifications", label: t("Verification records", "验证码记录"), to: "/verifications", description: t("Open verification evidence", "核对验证码发送/使用记录，不读取验证码原值。")},
       ],
       riskMessage: t("Audit risk message", "跨域证据链需要后续只读聚合接口返回 sourceOfTruth 与 cannotInfer。"),
       safeNextTo: "/records",

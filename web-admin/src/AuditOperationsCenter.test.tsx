@@ -50,8 +50,9 @@ describe("AuditOperationsCenter", () => {
   let consoleErrorSpy: {mockRestore: () => void};
 
   beforeEach(async() => {
-    const originalConsoleError = console.error;
-    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+    const testConsole = globalThis.console;
+    const originalConsoleError = testConsole.error;
+    consoleErrorSpy = jest.spyOn(testConsole, "error").mockImplementation((...args: unknown[]) => {
       if (typeof args[0] === "string" && args[0].includes("ReactDOM.render is no longer supported in React 18")) {
         return;
       }
@@ -166,13 +167,13 @@ describe("AuditOperationsCenter", () => {
     expect(container.querySelector(".enterprise-identity-status-card")).toBeNull();
     expect(container.textContent).toContain("审计运维中心");
     expect(getByText("当前核对域")).not.toBeNull();
-    expect(getAllByText("审计记录").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/records")).toBe(true);
-    expect(getAllByText("会话核对").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/sessions")).toBe(true);
-    expect(getAllByText("令牌核对").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/tokens")).toBe(true);
-    expect(getAllByText("验证核对").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/verifications")).toBe(true);
+    expect(getAllByText("操作日志").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/records")).toBe(true);
+    expect(getAllByText("登录会话").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/sessions")).toBe(true);
+    expect(getAllByText("令牌管理").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/tokens")).toBe(true);
+    expect(getAllByText("验证码记录").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/verifications")).toBe(true);
     expect(getByText("失败状态核对")).not.toBeNull();
     expect(getByText("令牌可见性核对")).not.toBeNull();
-    expect(getByText("未使用验证记录")).not.toBeNull();
+    expect(getByText("未使用验证码记录")).not.toBeNull();
     expect(queryByText("sensitive-access-token-value")).toBeNull();
     expect(queryByText("123456")).toBeNull();
     expect(queryByText("person@example.com")).toBeNull();
@@ -187,6 +188,6 @@ describe("AuditOperationsCenter", () => {
 
     expect(view.getByText("表格数据暂无运行态异常")).not.toBeNull();
     expect(view.getAllByText("摘要来自表格数据").length).toBeGreaterThan(0);
-    expect(view.getAllByText("会话核对").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/sessions")).toBe(true);
+    expect(view.getAllByText("登录会话").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/sessions")).toBe(true);
   });
 });

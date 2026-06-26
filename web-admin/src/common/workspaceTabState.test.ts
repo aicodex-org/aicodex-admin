@@ -24,7 +24,7 @@ const routes = [
   {key: "/", path: "/", label: "企业认证总览", matchPrefixes: ["/"]},
   {key: "/applications", path: "/applications", label: "接入中心", matchPrefixes: ["/applications"]},
   {key: "/providers", path: "/providers", label: "身份源中心", matchPrefixes: ["/providers"]},
-  {key: "/records", path: "/records", label: "审计记录", matchPrefixes: ["/records"]},
+  {key: "/records", path: "/records", label: "操作日志", matchPrefixes: ["/records"]},
   {key: "/organizations", path: "/organizations", label: "组织", matchPrefixes: ["/organizations"]},
   {key: "/users", path: "/users", label: "用户", matchPrefixes: ["/users"]},
   {key: "/agents", path: "/agents", label: "AI Agent 入口", matchPrefixes: ["/agents"]},
@@ -70,7 +70,7 @@ describe("workspaceTabState", () => {
     );
 
     expect(tabs.map(tab => tab.path)).toEqual(["/", "/applications", "/records", "/providers"]);
-    expect(tabs.map(tab => tab.label)).toEqual(["企业认证总览", "接入中心", "审计记录", "身份源中心"]);
+    expect(tabs.map(tab => tab.label)).toEqual(["企业认证总览", "接入中心", "操作日志", "身份源中心"]);
   });
 
   test("filters invalid restored routes before rendering workspace tabs", () => {

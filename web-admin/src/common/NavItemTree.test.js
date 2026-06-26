@@ -71,10 +71,10 @@ describe("NavItemTree enterprise identity configuration", () => {
       "/governance-tasks",
     ]);
     expect(getGroup(treeData, "审计运维").children.map(item => item.title)).toEqual([
-      "会话核对",
-      "审计记录",
-      "令牌核对",
-      "验证核对",
+      "登录会话",
+      "操作日志",
+      "令牌管理",
+      "验证码记录",
       "风险处理",
     ]);
     expect(leafKeys(getGroup(treeData, "AI 网关"))).toEqual([
@@ -135,10 +135,10 @@ describe("NavItemTree enterprise identity configuration", () => {
       "/governance-tasks",
     ]);
     expect(getGroup(treeData, "Audit & Operations").children.map(item => item.title)).toEqual([
-      "Session Review",
-      "Audit Records",
-      "Token Review",
-      "Verification Review",
+      "Login Sessions",
+      "Operation Logs",
+      "Token Management",
+      "Verification Code Records",
       "Risk Actions",
     ]);
   });

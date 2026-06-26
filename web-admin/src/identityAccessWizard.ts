@@ -586,7 +586,7 @@ function buildResultEvidenceLinks(params: {
       status: "needs_review",
       labelKey: "auditVerificationEvidence",
       defaultLabel: "审计/验证证据",
-      defaultDescription: "从当前对象证据链进入审计和验证记录，核对登录、同步和配置变更证据。",
+      defaultDescription: "从当前对象证据链进入操作日志和验证码记录，核对登录、同步和配置变更证据。",
       to: "/records",
     }),
   ];
@@ -741,7 +741,7 @@ function buildAuthSourcePlan(dataset: AccessWizardSourceDataset): AccessWizardPl
     evidenceEntries: [
       evidence("auth-source-config", "authSourceConfigEvidence", "认证源配置", object.to, source, "打开认证源配置核对基础信息和协议能力。"),
       evidence("auth-source-audit", "auditEvidence", "审计证据", "/records", source, "打开审计记录核对配置变更和登录证据。"),
-      evidence("auth-source-verification", "verificationEvidence", "验证记录", "/verifications", source, "进入验证记录核对当前对象可见证据。"),
+      evidence("auth-source-verification", "verificationEvidence", "验证码记录", "/verifications", source, "进入验证码记录核对当前对象可见证据。"),
     ],
     safeNextActions: [
       action("review-auth-source", "reviewAuthSource", "核对认证源配置", object.to, "configure"),

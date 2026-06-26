@@ -105,7 +105,7 @@ interface AuditOperationsCenterProps extends AuditOperationsSummaryInput {
 const AUDIT_OPERATION_DEFINITIONS: Array<Omit<AuditOperationsEntry, "total" | "active" | "tone">> = [
   {
     key: "sessions",
-    labelKey: "Session Review",
+    labelKey: "Login Sessions",
     descriptionKey: "Active sign-in sessions and termination review",
     path: "/sessions",
   },
@@ -360,7 +360,7 @@ function AuditOperationsCenter({
       actions={(
         <Space wrap>
           <Link to="/records"><Button icon={<AuditOutlined />}>{t("Audit Records")}</Button></Link>
-          <Link to="/sessions"><Button icon={<ClockCircleOutlined />}>{t("Session Review")}</Button></Link>
+          <Link to="/sessions"><Button icon={<ClockCircleOutlined />}>{t("Login Sessions")}</Button></Link>
           <Link to="/tokens"><Button icon={<KeyOutlined />}>{t("Token Review")}</Button></Link>
         </Space>
       )}

@@ -214,7 +214,7 @@ describe("WorkspaceTabs", () => {
           tabs={[
             ...tabs,
             {key: "/records", path: "/records", label: "审计记录", fixed: false, closable: true},
-            {key: "/tokens", path: "/tokens", label: "令牌核对", fixed: false, closable: true},
+            {key: "/tokens", path: "/tokens", label: "令牌管理", fixed: false, closable: true},
           ]}
           activePath="/providers"
           isMobile={false}
@@ -298,7 +298,7 @@ describe("WorkspaceTabs", () => {
     const manyTabs = [
       ...tabs,
       {key: "/records", path: "/records", label: "审计记录", fixed: false, closable: true},
-      {key: "/tokens", path: "/tokens", label: "令牌核对", fixed: false, closable: true},
+      {key: "/tokens", path: "/tokens", label: "令牌管理", fixed: false, closable: true},
     ];
     HTMLElement.prototype.scrollBy = scrollBy;
 

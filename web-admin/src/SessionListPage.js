@@ -16,19 +16,45 @@ import BaseListPage from "./BaseListPage";
 import * as Setting from "./Setting";
 import i18next from "i18next";
 import {Link} from "react-router-dom";
-import {Popconfirm, Table, Tag} from "antd";
+import {Button, Drawer, Popconfirm, Space, Tag} from "antd";
 import React from "react";
 import * as SessionBackend from "./backend/SessionBackend";
-import PopconfirmModal from "./common/modal/PopconfirmModal";
-import AuditOperationsCenter from "./AuditOperationsCenter";
+import LegacyListPageToolbar from "./common/LegacyListPageToolbar";
+import ListPageRowActions, {ListPageRowDeleteAction} from "./common/ListPageRowActions";
+import ListPageTable from "./common/ListPageTable";
+import {getAuditOperationsTableScroll} from "./auditOperationsListTable";
+
+const visibleSessionIdCount = 2;
+
+function getSessionQueryFields() {
+  return [
+    {label: i18next.t("general:User"), value: "name"},
+    {label: i18next.t("general:Organization"), value: "owner"},
+    {label: i18next.t("general:Application"), value: "application"},
+    {label: i18next.t("general:Session ID"), value: "sessionId"},
+  ];
+}
 
 class SessionListPage extends BaseListPage {
-  handleTagClose = (rowIndex, sessionId, e) => {
+  UNSAFE_componentWillMount() {
+    // BaseListPage 会在 UNSAFE_componentWillMount 中发起异步请求；本页改到挂载后请求，避免快速切页时出现未挂载 setState 警告。
+  }
+
+  componentDidMount() {
+    super.componentDidMount();
+    const {pagination} = this.state;
+    this.fetch({pagination});
+    this.getForm();
+  }
+
+  getSessionRecordKey = (record) => `${record.owner}/${record.name}/${record.application || ""}`;
+
+  handleTagClose = (rowIndex, sessionId, scope, e) => {
     e.preventDefault();
     e.stopPropagation();
 
     this.setState({
-      confirmTagKey: `${rowIndex}-${sessionId}`,
+      confirmTagKey: `${scope}-${rowIndex}-${sessionId}`,
     });
   };
 
@@ -38,6 +64,13 @@ class SessionListPage extends BaseListPage {
       .then((res) => {
         if (res.status === "ok") {
           Setting.showMessage("success", i18next.t("general:Successfully deleted"));
+          this.setState({
+            confirmTagKey: null,
+            sessionDrawerOpen: false,
+            sessionDrawerRecord: null,
+            sessionDrawerRecordKey: "",
+            sessionDrawerRowIndex: null,
+          });
           this.fetch({
             pagination: {
               ...this.state.pagination,
@@ -53,16 +86,120 @@ class SessionListPage extends BaseListPage {
       });
   }
 
+  openSessionDrawer = (record, rowIndex) => {
+    this.setState({
+      sessionDrawerOpen: true,
+      sessionDrawerRecord: record,
+      sessionDrawerRecordKey: this.getSessionRecordKey(record),
+      sessionDrawerRowIndex: rowIndex,
+    });
+  };
+
+  closeSessionDrawer = () => {
+    this.setState({
+      sessionDrawerOpen: false,
+      sessionDrawerRecord: null,
+      sessionDrawerRecordKey: "",
+      sessionDrawerRowIndex: null,
+      confirmTagKey: null,
+    });
+  };
+
+  getActiveSessionDrawerRecord = () => {
+    const recordKey = this.state.sessionDrawerRecordKey;
+    if (recordKey) {
+      return this.state.data.find(record => this.getSessionRecordKey(record) === recordKey) || this.state.sessionDrawerRecord;
+    }
+    return this.state.sessionDrawerRecord;
+  };
+
+  renderSessionIdTag = (sessionId, rowIndex, scope) => {
+    const tagKey = `${scope}-${rowIndex}-${sessionId}`;
+    const isActive = this.state.confirmTagKey === tagKey;
+    return (
+      <Popconfirm
+        key={tagKey}
+        title={i18next.t("general:Kick this session")}
+        description={`${i18next.t("general:Session ID")}: ${sessionId}`}
+        open={isActive}
+        placement={scope === "drawer" ? "left" : "top"}
+        classNames={{root: "session-id-delete-popconfirm"}}
+        onConfirm={() => {this.deleteSession(rowIndex, sessionId); this.setState({confirmTagKey: null});}}
+        onCancel={() => this.setState({confirmTagKey: null})}
+        onOpenChange={(visible) => {if (!visible && isActive) {this.setState({confirmTagKey: null});}}}
+        okText={i18next.t("general:OK")}
+        cancelText={i18next.t("general:Cancel")}
+      >
+        <Tag className="session-id-tag" closable onClose={(e) => this.handleTagClose(rowIndex, sessionId, scope, e)}>
+          <span className="session-id-tag-text">{sessionId}</span>
+        </Tag>
+      </Popconfirm>
+    );
+  };
+
+  renderSessionIds = (sessionIds, record, rowIndex) => {
+    const ids = Array.isArray(sessionIds) ? sessionIds : [];
+    if (ids.length === 0) {
+      return "-";
+    }
+    const visibleIds = ids.slice(0, visibleSessionIdCount);
+    const hiddenCount = ids.length - visibleIds.length;
+    return (
+      <Space className="session-id-list" size={[4, 4]} wrap>
+        {visibleIds.map(sessionId => this.renderSessionIdTag(sessionId, rowIndex, "list"))}
+        {hiddenCount > 0 ? (
+          <Button
+            className="session-id-more-button"
+            size="small"
+            type="link"
+            onClick={() => this.openSessionDrawer(record, rowIndex)}
+          >
+            {`+${hiddenCount} ${i18next.t("general:More")}`}
+          </Button>
+        ) : null}
+      </Space>
+    );
+  };
+
+  renderSessionDrawer = () => {
+    const record = this.getActiveSessionDrawerRecord();
+    const sessionIds = Array.isArray(record?.sessionId) ? record.sessionId : [];
+    const rowIndex = this.state.sessionDrawerRowIndex;
+    return (
+      <Drawer
+        className="session-id-drawer"
+        title={i18next.t("general:All session IDs")}
+        width={Setting.isMobile() ? "100%" : 560}
+        placement="right"
+        destroyOnClose
+        onClose={this.closeSessionDrawer}
+        open={this.state.sessionDrawerOpen}
+      >
+        {record ? (
+          <div className="session-id-drawer-content">
+            <div className="session-id-drawer-summary">
+              <div><span>{i18next.t("general:User")}</span><strong>{record.name}</strong></div>
+              <div><span>{i18next.t("general:Organization")}</span><strong>{record.owner}</strong></div>
+              <div><span>{i18next.t("general:Application")}</span><strong>{record.application || "-"}</strong></div>
+              <div><span>{i18next.t("general:Session ID count")}</span><strong>{sessionIds.length}</strong></div>
+            </div>
+            <Space className="session-id-drawer-list" size={[4, 6]} wrap>
+              {sessionIds.map(sessionId => this.renderSessionIdTag(sessionId, rowIndex, "drawer"))}
+            </Space>
+          </div>
+        ) : null}
+      </Drawer>
+    );
+  };
+
   renderTable(sessions) {
     const columns = [
       {
-        title: i18next.t("general:Name"),
+        title: i18next.t("general:User"),
         dataIndex: "name",
         key: "name",
         width: "150px",
-        fixed: "left",
         sorter: true,
-        ...this.getColumnSearchProps("name"),
       },
       {
         title: i18next.t("general:Organization"),
@@ -70,7 +207,6 @@ class SessionListPage extends BaseListPage {
         key: "owner",
         width: "110px",
         sorter: true,
-        ...this.getColumnSearchProps("owner"),
         render: (text, record, index) => {
           return (
             <Link to={`/organizations/${text}`}>
@@ -78,6 +214,13 @@ class SessionListPage extends BaseListPage {
             </Link>
           );
         },
+      },
+      {
+        title: i18next.t("general:Application"),
+        dataIndex: "application",
+        key: "application",
+        width: "160px",
+        sorter: true,
       },
       {
         title: i18next.t("general:Created time"),
@@ -93,47 +236,32 @@ class SessionListPage extends BaseListPage {
         title: i18next.t("general:Session ID"),
         dataIndex: "sessionId",
         key: "sessionId",
-        width: "180px",
+        width: "260px",
         sorter: true,
         render: (text, record, index) => {
-          return text.map((item, idx) => {
-            const tagKey = `${index}-${item}`;
-            const confirmTitle = i18next.t("general:Sure to delete");
-            const confirmContent = `${i18next.t("general:Session ID")}: ${item}`;
-            const isActive = this.state.confirmTagKey === tagKey;
-            return (
-              <Popconfirm
-                key={`${index}-${idx}`}
-                title={confirmTitle}
-                description={confirmContent}
-                open={isActive}
-                onConfirm={() => {this.deleteSession(index, item); this.setState({confirmTagKey: null});}}
-                onCancel={() => this.setState({confirmTagKey: null})}
-                onOpenChange={(visible) => {if (!visible && isActive) {this.setState({confirmTagKey: null});}}}
-                okText={i18next.t("general:OK")}
-                cancelText={i18next.t("general:Cancel")}
-              >
-                <Tag closable onClose={(e) => this.handleTagClose(index, item, e)}>{item}</Tag>
-              </Popconfirm>
-            );
-          });
+          return this.renderSessionIds(text, record, index);
         },
       },
       {
         title: i18next.t("general:Action"),
         dataIndex: "",
         key: "op",
-        width: "70px",
-        fixed: (Setting.isMobile()) ? "false" : "right",
+        width: "116px",
         render: (text, record, index) => {
           return (
-            <div>
-              <PopconfirmModal
-                title={i18next.t("general:Sure to delete") + `: ${record.name} ?`}
+            <ListPageRowActions className="session-row-actions">
+              <ListPageRowDeleteAction
+                title={i18next.t("general:Delete all sessions for this application")}
+                description={`${record.name} / ${record.application || "-"} ?`}
                 onConfirm={() => this.deleteSession(index)}
+                popconfirmProps={{
+                  placement: "left",
+                  classNames: {root: "session-bulk-delete-popconfirm"},
+                }}
               >
-              </PopconfirmModal>
-            </div>
+                {i18next.t("general:Delete all")}
+              </ListPageRowDeleteAction>
+            </ListPageRowActions>
           );
         },
       },
@@ -143,18 +271,23 @@ class SessionListPage extends BaseListPage {
 
     return (
       <div>
-        <AuditOperationsCenter
-          activeKey="sessions"
-          loading={this.state.loading}
-          sessions={sessions}
-          totals={{sessions: this.state.pagination.total}}
-        />
-        <div className="audit-operations-table-section">
-          <Table scroll={{x: "max-content"}} columns={columns} dataSource={sessions} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
+        <div className="enterprise-list-page-table-shell audit-operations-list-page-table-shell session-list-page-table-shell">
+          <ListPageTable className="audit-operations-list-table session-list-table" scroll={getAuditOperationsTableScroll(this.state.advancedFiltersOpen)} columns={columns} dataSource={sessions} rowKey={(record) => `${record.owner}/${record.name}/${record.application || ""}`} pagination={paginationProps}
+            title={() => (
+              <LegacyListPageToolbar
+                host={this}
+                title={i18next.t("general:Login Sessions")}
+                total={this.state.pagination.total}
+                fields={getSessionQueryFields()}
+                defaultField="name"
+                onAdvancedOpenChange={(advancedFiltersOpen) => this.setState({advancedFiltersOpen})}
+              />
+            )}
             loading={this.state.loading}
             onChange={this.handleTableChange}
           />
         </div>
+        {this.renderSessionDrawer()}
       </div>
     );
   }

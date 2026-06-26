@@ -98,7 +98,7 @@ describe("enterprise identity navigation", () => {
     expect(groups.find(group => group.key === "/audit-operations").children.map(item => item.key))
       .toEqual(["/sessions", "/records", "/tokens", "/verifications", "/governance-tasks"]);
     expect(groups.find(group => group.key === "/audit-operations").children.map(item => item.label))
-      .toEqual(["会话核对", "审计记录", "令牌核对", "验证核对", "风险处理"]);
+      .toEqual(["登录会话", "操作日志", "令牌管理", "验证码记录", "风险处理"]);
     expect(groups.find(group => group.key === "/llm-ai-gateway").children.map(item => item.key))
       .toEqual(["/agents", "/servers", "/server-store", "/entries", "/sites", "/rules"]);
     expect(groups.find(group => group.key === "/llm-ai-gateway").children.map(item => item.label))
@@ -156,7 +156,7 @@ describe("enterprise identity navigation", () => {
     expect(groups.find(group => group.key === "/llm-ai-gateway").children.find(item => item.key === "/agents").label)
       .toBe("AI Agent Entry Points");
     expect(groups.find(group => group.key === "/audit-operations").children.map(item => item.label))
-      .toEqual(["Session Review", "Audit Records", "Token Review", "Verification Review", "Risk Actions"]);
+      .toEqual(["Login Sessions", "Operation Logs", "Token Management", "Verification Code Records", "Risk Actions"]);
     expect(groups.map(group => group.label).join("")).not.toMatch(/[\u4e00-\u9fff]/);
   });
 

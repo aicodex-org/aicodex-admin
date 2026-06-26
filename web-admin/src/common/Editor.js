@@ -18,18 +18,39 @@ import {materialDark} from "@uiw/codemirror-theme-material";
 import {langs} from "@uiw/codemirror-extensions-langs";
 
 export const Editor = (props) => {
+  const {
+    value,
+    width: propWidth,
+    maxWidth,
+    minWidth,
+    height: propHeight,
+    maxHeight,
+    minHeight,
+    fillWidth,
+    fillHeight,
+    style: propStyle,
+    lang,
+    readOnly,
+    dark,
+    onChange,
+    ...codeMirrorProps
+  } = props;
   let style = {};
-  let height = props.height;
-  let width = props.width;
-  const copy2StyleProps = [
-    "width", "maxWidth", "minWidth",
-    "height", "maxHeight", "minHeight",
-  ];
-  if (props.fillHeight) {
+  let height = propHeight;
+  let width = propWidth;
+  const styleProps = {
+    width: propWidth,
+    maxWidth,
+    minWidth,
+    height: propHeight,
+    maxHeight,
+    minHeight,
+  };
+  if (fillHeight) {
     height = "100%";
     style = {...style, height: "100%"};
   }
-  if (props.fillWidth) {
+  if (fillWidth) {
     width = "100%";
     style = {...style, width: "100%"};
   }
@@ -37,16 +58,16 @@ export const Editor = (props) => {
    * @uiw/react-codemirror style props sucha as "height" "width"
    * may need to be configured with "style" in some scenarios to take effect
    */
-  copy2StyleProps.forEach(el => {
-    if (["number", "string"].includes(typeof props[el])) {
-      style = {...style, [el]: props[el]};
+  Object.entries(styleProps).forEach(([key, value]) => {
+    if (["number", "string"].includes(typeof value)) {
+      style = {...style, [key]: value};
     }
   });
-  if (props.style) {
-    style = {...style, ...props.style};
+  if (propStyle) {
+    style = {...style, ...propStyle};
   }
   let extensions = [];
-  switch (props.lang) {
+  switch (lang) {
   case "javascript":
   case "js":
     extensions = [langs.javascript()];
@@ -67,15 +88,15 @@ export const Editor = (props) => {
 
   return (
     <CodeMirror
-      value={props.value}
-      {...props}
+      value={value}
+      {...codeMirrorProps}
       width={width}
       height={height}
       style={style}
-      readOnly={props.readOnly}
-      theme={props.dark ? materialDark : "light"}
+      readOnly={readOnly}
+      theme={dark ? materialDark : "light"}
       extensions={extensions}
-      onChange={props.onChange}
+      onChange={onChange}
     />
   );
 };

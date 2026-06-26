@@ -29,6 +29,7 @@ interface LegacyListPageToolbarProps {
   fields: EnterpriseListQueryField[];
   defaultField: string;
   actions?: React.ReactNode;
+  onAdvancedOpenChange?: (open: boolean) => void;
 }
 
 function normalizeKeyword(value: LegacySearchValue): string {
@@ -73,6 +74,7 @@ export default function LegacyListPageToolbar(props: LegacyListPageToolbarProps)
       keyword={keyword}
       actions={props.actions}
       actionsPlacement="topRight"
+      onAdvancedOpenChange={props.onAdvancedOpenChange}
       advancedFilters={(
         <div className="enterprise-list-advanced-filters organization-advanced-filters">
           {
