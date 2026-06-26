@@ -1,99 +1,13 @@
 /* eslint-env jest */
 import {afterAll, beforeAll, expect, jest} from "@jest/globals";
 import React from "react";
-import i18next from "i18next";
 import {render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
-import OrganizationIdentityCenter, {organizationIdentityWorkbenchProfiles} from "./OrganizationIdentityCenter";
-import en from "./locales/en/data.json";
-import zh from "./locales/zh/data.json";
+import OrganizationIdentityCenter from "./OrganizationIdentityCenter";
 
 type OrganizationIdentityPage = "organizations" | "users" | "roles" | "permissions";
-type WorkbenchIdentityPage = Exclude<OrganizationIdentityPage, "organizations" | "users">;
-type TestLanguage = "en" | "zh";
 
-const differentiatedCopy: Record<WorkbenchIdentityPage, {
-  titleZh: string;
-  summaryZh: string;
-  actionZh: string;
-  riskZh: string;
-}> = {
-  roles: {
-    titleZh: "角色授权工作台",
-    summaryZh: "成员绑定",
-    actionZh: "审查高权限角色",
-    riskZh: "空角色",
-  },
-  permissions: {
-    titleZh: "权限目录工作台",
-    summaryZh: "敏感权限",
-    actionZh: "核对权限目录",
-    riskZh: "未使用权限",
-  },
-};
-
-const requiredGeneralKeys = [
-  "Organization master data workbench",
-  "Organization compact health summary",
-  "Attention item count",
-  "Account lifecycle workbench",
-  "Role authorization workbench",
-  "Permission catalog workbench",
-  "Directory boundary",
-  "Organization tree quality",
-  "Sync sources",
-  "Lifecycle scope",
-  "Verification state",
-  "Account completeness",
-  "Privileged role watch",
-  "Member bindings",
-  "Separation of duties",
-  "Sensitive permissions",
-  "Role references",
-  "Review directory quality",
-  "Inspect organization tree",
-  "Review sync sources",
-  "Import users",
-  "Review verification state",
-  "Review sync quality",
-  "Review privileged roles",
-  "Review permission coverage",
-  "Review member bindings",
-  "Review permission catalog",
-  "Review role references",
-  "Review permission granularity",
-  "Directory quality",
-  "Orphan organization nodes",
-  "Empty organization nodes",
-  "Mapping risk",
-  "Anomalous accounts",
-  "Unverified accounts",
-  "Import sync drift",
-  "Empty roles",
-  "Orphan roles",
-  "Separation of duties risk",
-  "Unused permissions",
-  "Permission granularity drift",
-];
-
-async function useTestLanguage(language: TestLanguage) {
-  if (!i18next.isInitialized) {
-    await i18next.init({
-      lng: language,
-      fallbackLng: "en",
-      resources: {en, zh},
-      ns: Object.keys(en),
-      keySeparator: false,
-    });
-    return;
-  }
-
-  i18next.addResourceBundle("en", "general", en.general, true, true);
-  i18next.addResourceBundle("zh", "general", zh.general, true, true);
-  await i18next.changeLanguage(language);
-}
-
-function renderWorkbench(page: OrganizationIdentityPage) {
+function renderIdentityPage(page: OrganizationIdentityPage) {
   return render(
     <MemoryRouter>
       <OrganizationIdentityCenter
@@ -123,116 +37,38 @@ describe("OrganizationIdentityCenter", () => {
     consoleErrorSpy.mockRestore();
   });
 
-  beforeEach(async() => {
-    await useTestLanguage("zh");
-  });
+  (["organizations", "users", "roles", "permissions"] as OrganizationIdentityPage[]).forEach(page => {
+    test(`renders ${page} as the shared compact list shell`, () => {
+      const view = renderIdentityPage(page);
 
-  test("keeps four entity profiles on distinct layout and governance keys", () => {
-    const profiles = Object.values(organizationIdentityWorkbenchProfiles);
-
-    expect(new Set(profiles.map(profile => profile.layoutKind)).size).toBe(4);
-    expect(new Set(profiles.map(profile => profile.titleKey)).size).toBe(4);
-    expect(new Set(profiles.map(profile => profile.metrics.map(metric => metric.key).join("|"))).size).toBe(4);
-    expect(new Set(profiles.map(profile => profile.actions.map(action => action.key).join("|"))).size).toBe(4);
-    expect(new Set(profiles.map(profile => profile.risks.map(risk => risk.key).join("|"))).size).toBe(4);
-  });
-
-  test("renders differentiated compact workbench copy for role and permission entities", () => {
-    Object.entries(differentiatedCopy).forEach(([page, copy]) => {
-      const view = renderWorkbench(page as OrganizationIdentityPage);
-
-      expect(view.getByText(copy.titleZh)).not.toBeNull();
-      expect(view.getAllByText(copy.summaryZh).length).toBeGreaterThan(0);
-      expect(view.getByText(copy.actionZh)).not.toBeNull();
-      expect(view.getAllByText(copy.riskZh).length).toBeGreaterThan(0);
+      expect(view.container.querySelector(".organization-identity-compact-list-page")).not.toBeNull();
+      expect(view.container.querySelector(`.organization-identity-compact-list-page-${page}`)).not.toBeNull();
       expect(view.getByText(`${page} table remains reachable`)).not.toBeNull();
-      expect(view.queryByText("原列表仍是操作入口")).toBeNull();
-      expect(view.queryByText("不包装成全量事实")).toBeNull();
+      expect(view.queryByTestId("organization-identity-workbench")).toBeNull();
+      expect(view.container.querySelector(".organization-identity-list-section")).toBeNull();
+      expect(view.container.querySelector(".organization-identity-governance-summary")).toBeNull();
 
       view.unmount();
     });
   });
 
-  test("renders organization page as a compact list shell instead of a private list header", () => {
-    const view = renderWorkbench("organizations");
+  test("does not render duplicated role or permission navigation shortcuts", () => {
+    const roleView = renderIdentityPage("roles");
+    expect(roleView.queryByText("角色授权工作台")).toBeNull();
+    expect(roleView.queryByText("审查高权限角色")).toBeNull();
+    expect(roleView.queryByText("核对权限覆盖")).toBeNull();
+    expect(roleView.queryByText("核对成员绑定")).toBeNull();
+    roleView.unmount();
 
-    expect(view.container.querySelector(".organization-identity-compact-list-page")).not.toBeNull();
-    expect(view.container.querySelector(".organization-identity-compact-list-top")).toBeNull();
-    expect(view.queryByText("组织")).toBeNull();
-    expect(view.queryByText("42 条结果")).toBeNull();
-    expect(view.getByText("organizations table remains reachable")).not.toBeNull();
-    expect(view.queryByText("组织主数据工作台")).toBeNull();
-    expect(view.queryByText("目录边界、组织树完整性与同步来源一屏核对。")).toBeNull();
-    expect(view.queryByTestId("organization-identity-workbench")).toBeNull();
-    expect(view.queryByText("刷新状态")).toBeNull();
-
-    view.unmount();
+    const permissionView = renderIdentityPage("permissions");
+    expect(permissionView.queryByText("权限目录工作台")).toBeNull();
+    expect(permissionView.queryByText("核对权限目录")).toBeNull();
+    expect(permissionView.queryByText("核对角色引用")).toBeNull();
+    expect(permissionView.queryByText("核对权限粒度")).toBeNull();
+    permissionView.unmount();
   });
 
-  test("renders users page as a compact list shell instead of a private list header", () => {
-    const view = renderWorkbench("users");
-
-    expect(view.container.querySelector(".organization-identity-compact-list-page-users")).not.toBeNull();
-    expect(view.container.querySelector(".organization-identity-compact-list-top")).toBeNull();
-    expect(view.queryByText("用户")).toBeNull();
-    expect(view.queryByText("42 条结果")).toBeNull();
-    expect(view.getByText("users table remains reachable")).not.toBeNull();
-    expect(view.queryByText("账号生命周期工作台")).toBeNull();
-    expect(view.queryByTestId("organization-identity-workbench")).toBeNull();
-
-    view.unmount();
-  });
-
-  test("does not reuse role governance copy for the permission catalog page", async() => {
-    await useTestLanguage("en");
-
-    const view = renderWorkbench("permissions");
-
-    expect(view.getByText("Permission catalog workbench")).not.toBeNull();
-    expect(view.getAllByText("Sensitive permissions").length).toBeGreaterThan(0);
-    expect(view.getByText("Review permission catalog")).not.toBeNull();
-    expect(view.queryByText("Role authorization workbench")).toBeNull();
-    expect(view.getByText("permissions table remains reachable")).not.toBeNull();
-
-    view.unmount();
-  });
-
-  test("does not render account lifecycle workbench actions on the compact users page", () => {
-    const view = renderWorkbench("users");
-
-    expect(view.getByText("users table remains reachable")).not.toBeNull();
-    expect(view.queryByText("导入用户")).toBeNull();
-
-    view.unmount();
-  });
-
-  test("falls back to all scope and placeholder counts while data is loading", () => {
-    const organizationView = render(
-      <MemoryRouter>
-        <OrganizationIdentityCenter page="organizations">
-          <div>Organization table loading</div>
-        </OrganizationIdentityCenter>
-      </MemoryRouter>
-    );
-
-    expect(organizationView.queryByText("当前视图")).toBeNull();
-    expect(organizationView.getByText("Organization table loading")).not.toBeNull();
-    organizationView.unmount();
-
-    const userView = render(
-      <MemoryRouter>
-        <OrganizationIdentityCenter page="users">
-          <div>User table loading</div>
-        </OrganizationIdentityCenter>
-      </MemoryRouter>
-    );
-
-    expect(userView.queryByText("当前视图")).toBeNull();
-    expect(userView.getByText("User table loading")).not.toBeNull();
-    userView.unmount();
-  });
-
-  test("keeps role workbench count fallback while data is loading", () => {
+  test("does not render synthetic counts while list data is loading", () => {
     const view = render(
       <MemoryRouter>
         <OrganizationIdentityCenter page="roles">
@@ -241,17 +77,10 @@ describe("OrganizationIdentityCenter", () => {
       </MemoryRouter>
     );
 
-    expect(view.getAllByText("-").length).toBeGreaterThan(0);
+    expect(view.queryByText("-")).toBeNull();
+    expect(view.queryByText("当前筛选结果")).toBeNull();
+    expect(view.queryByText(/已加载行数/)).toBeNull();
     expect(view.getByText("Role table loading")).not.toBeNull();
     view.unmount();
-  });
-
-  test("keeps zh and en locale keys complete for entity workbench copy", () => {
-    requiredGeneralKeys.forEach(key => {
-      expect(Object.prototype.hasOwnProperty.call(zh.general, key)).toBe(true);
-      expect(Object.prototype.hasOwnProperty.call(en.general, key)).toBe(true);
-      expect(zh.general[key as keyof typeof zh.general]).not.toBe(key);
-      expect(en.general[key as keyof typeof en.general]).not.toBe("");
-    });
   });
 });

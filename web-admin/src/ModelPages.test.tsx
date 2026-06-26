@@ -340,7 +340,8 @@ test("renders model table and keeps toolbar and action handlers", () => {
   tableView.unmount();
 
   expect(columns[0].key).toBe("name");
-  expect(columns[5].fixed).toBe("right");
+  expect(columns[0].fixed).toBeUndefined();
+  expect(columns[5].fixed).toBeUndefined();
 
   const modelTextView = render(<>{columns[4].render?.(model.modelText, model, 0)}</>);
   expect(modelTextView.getByText(/\[request_definition\]/)).not.toBeNull();
@@ -403,11 +404,11 @@ test("renders list column links and sends filtered fetch parameters", async() =>
   expect(page.state.pagination.total).toBe(1);
 });
 
-test("keeps mobile table and edit layout branches compatible", () => {
+test("keeps mobile table and edit layout branches compatible without fixed action columns", () => {
   jestValue.spyOn(Setting, "isMobile").mockReturnValue(true);
   const listPage = createListPage();
   const tableWrapper = listPage.renderTable([model]) as React.ReactElement<{children: React.ReactElement<{columns: TestTableColumn[]}>}>;
-  expect(tableWrapper.props.children.props.columns[5].fixed).toBe(false);
+  expect(tableWrapper.props.children.props.columns[5].fixed).toBeUndefined();
 
   const editPage = createEditPage({
     organizationName: "override-org",

@@ -326,7 +326,6 @@ class RoleListPage extends TypedBaseListPage {
         dataIndex: "name",
         key: "name",
         width: "150px",
-        fixed: "left",
         sorter: true,
         render: (text: string, record: RoleRecord) => {
           return (
@@ -423,7 +422,6 @@ class RoleListPage extends TypedBaseListPage {
         dataIndex: "",
         key: "op",
         width: "170px",
-        fixed: Setting.isMobile() ? false : "right",
         render: (_text: unknown, record: RoleRecord, index: number) => {
           return (
             <ListPageRowActions className="role-row-actions">

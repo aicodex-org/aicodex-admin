@@ -103,7 +103,6 @@ type LegacyTableColumn = {
   dataIndex?: string;
   key?: string;
   width?: string;
-  fixed?: "left" | "right" | boolean | string;
   sorter?: boolean;
   render?: (text: unknown, record: EnforcerRecord, index: number) => React.ReactNode;
   [key: string]: unknown;
@@ -175,7 +174,6 @@ class EnforcerListPage extends BaseListPage {
         dataIndex: "name",
         key: "name",
         width: "140px",
-        fixed: "left",
         sorter: true,
         render: (text: unknown, record: EnforcerRecord) => {
           const enforcerName = String(text);
@@ -253,7 +251,6 @@ class EnforcerListPage extends BaseListPage {
         dataIndex: "",
         key: "op",
         width: "120px",
-        fixed: Setting.isMobile() ? false : "right",
         render: (_text: unknown, record: EnforcerRecord, index: number) => {
           return (
             <ListPageRowActions className="enforcer-row-actions">

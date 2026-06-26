@@ -195,7 +195,8 @@ test("renders enforcer table, links and action handlers", () => {
   const columns = table.props.columns;
 
   expect(columns[0].key).toBe("name");
-  expect(columns[6].fixed).toBe("right");
+  expect(columns[0].fixed).toBeUndefined();
+  expect(columns[6].fixed).toBeUndefined();
 
   const tableView = render(<MemoryRouter>{tableWrapper}</MemoryRouter>);
   expect(tableView.container.querySelector(".enterprise-list-page-table-shell.enforcer-list-page-table-shell")).not.toBeNull();
@@ -238,7 +239,7 @@ test("renders enforcer table, links and action handlers", () => {
   expect(page.addEnforcer).toHaveBeenCalled();
 });
 
-test("keeps mobile action column and creates enforcer through existing route", async() => {
+test("keeps mobile action column without fixed behavior and creates enforcer through existing route", async() => {
   jestValue.spyOn(Setting, "isMobile").mockReturnValue(true);
   const history = createHistory();
   const page = new EnforcerListPage({
@@ -248,7 +249,7 @@ test("keeps mobile action column and creates enforcer through existing route", a
   } as React.ComponentProps<typeof EnforcerListPage>);
 
   const mobileTable = page.renderTable([enforcer]) as React.ReactElement<{children: React.ReactElement<{columns: TestTableColumn[]}>}>;
-  expect(mobileTable.props.children.props.columns[6].fixed).toBe(false);
+  expect(mobileTable.props.children.props.columns[6].fixed).toBeUndefined();
 
   expect(page.newEnforcer()).toEqual(expect.objectContaining({
     owner: "engineering",

@@ -108,7 +108,6 @@ type LegacyTableColumn = {
   dataIndex?: string;
   key?: string;
   width?: string;
-  fixed?: "left" | "right" | boolean | string;
   sorter?: boolean | ((a: AdapterRecord, b: AdapterRecord) => number);
   render?: (text: unknown, record: AdapterRecord, index: number) => React.ReactNode;
   [key: string]: unknown;
@@ -184,7 +183,6 @@ class AdapterListPage extends BaseListPage {
         dataIndex: "name",
         key: "name",
         width: "120px",
-        fixed: "left",
         sorter: true,
         render: (text: unknown, record: AdapterRecord) => {
           const adapterName = String(text);
@@ -258,7 +256,6 @@ class AdapterListPage extends BaseListPage {
         dataIndex: "",
         key: "op",
         width: "136px",
-        fixed: Setting.isMobile() ? false : "right",
         render: (_text: unknown, record: AdapterRecord, index: number) => {
           return (
             <ListPageRowActions className="adapter-row-actions">

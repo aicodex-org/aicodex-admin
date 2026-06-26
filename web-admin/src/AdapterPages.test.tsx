@@ -334,8 +334,9 @@ test("renders adapter list table actions and reports list errors", async() => {
   tableView.unmount();
 
   expect(columns[0].key).toBe("name");
+  expect(columns[0].fixed).toBeUndefined();
   const actionColumn = columns.find(column => column.key === "op");
-  expect(actionColumn?.fixed).toBe("right");
+  expect(actionColumn?.fixed).toBeUndefined();
 
   const nameView = render(<MemoryRouter>{columns[0].render?.(adapter.name, adapter, 0)}</MemoryRouter>);
   expect(nameView.getByText("adapter-main").closest("a")?.getAttribute("href")).toBe("/adapters/engineering/adapter-main");
@@ -415,13 +416,13 @@ test("keeps adapter list column renderers and mutation error behavior", async() 
   expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("delete network"));
 });
 
-test("keeps adapter list mobile and default-organization branch behavior", async() => {
+test("keeps adapter list mobile and default-organization branch behavior without fixed action columns", async() => {
   const page = createListPage();
 
   jestValue.spyOn(Setting, "isMobile").mockReturnValue(true);
   const mobileTable = page.renderTable([adapter]) as React.ReactElement<{children: React.ReactElement<{columns: TableColumn[]}>}>;
   const mobileColumns = mobileTable.props.children.props.columns;
-  expect(mobileColumns.find(column => column.key === "op")?.fixed).toBe(false);
+  expect(mobileColumns.find(column => column.key === "op")?.fixed).toBeUndefined();
 
   const databaseSorter = mobileColumns.find(column => column.key === "databaseType")?.sorter as (a: AdapterRecord, b: AdapterRecord) => number;
   expect(databaseSorter(

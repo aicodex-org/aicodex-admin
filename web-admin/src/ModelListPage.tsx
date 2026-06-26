@@ -129,7 +129,6 @@ type LegacyTableColumn = {
   key?: string;
   width?: string;
   sorter?: boolean;
-  fixed?: "left" | "right" | boolean | string;
   render?: (text: unknown, record: ModelRecord, index: number) => React.ReactNode;
   [key: string]: unknown;
 };
@@ -200,7 +199,6 @@ class ModelListPage extends BaseListPage {
         dataIndex: "name",
         key: "name",
         width: "180px",
-        fixed: "left",
         sorter: true,
         render: (text: unknown, record: ModelRecord) => {
           const modelName = String(text);
@@ -269,7 +267,6 @@ class ModelListPage extends BaseListPage {
         dataIndex: "",
         key: "op",
         width: "180px",
-        fixed: Setting.isMobile() ? false : "right",
         render: (_text: unknown, record: ModelRecord, index: number) => {
           return (
             <ListPageRowActions className="model-row-actions">

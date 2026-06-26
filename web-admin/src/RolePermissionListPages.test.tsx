@@ -464,7 +464,8 @@ test("keeps role table columns, links, toolbar and delete refresh behavior", asy
   tableView.unmount();
 
   expect(columns[0].key).toBe("name");
-  expect(columns[9].fixed).toBe("right");
+  expect(columns[0].fixed).toBeUndefined();
+  expect(columns[9].fixed).toBeUndefined();
   expect(table.props.rowKey(role)).toBe("engineering/role-main");
 
   const nameView = render(<MemoryRouter>{columns[0].render?.(role.name, role, 0)}</MemoryRouter>);
@@ -517,8 +518,9 @@ test("keeps permission table columns, links, tags and delete refresh behavior", 
   tableView.unmount();
 
   expect(columns[0].key).toBe("name");
+  expect(columns[0].fixed).toBeUndefined();
   const actionColumn = columns.find(column => column.key === "op");
-  expect(actionColumn?.fixed).toBe("right");
+  expect(actionColumn?.fixed).toBeUndefined();
 
   const nameView = render(<MemoryRouter>{columns[0].render?.(permission.name, permission, 0)}</MemoryRouter>);
   expect(nameView.getByText("permission-main").closest("a")?.getAttribute("href")).toBe("/permissions/engineering/permission-main");
@@ -555,12 +557,12 @@ test("keeps permission table columns, links, tags and delete refresh behavior", 
   expect(page.addPermission).toHaveBeenCalled();
 });
 
-test("keeps remaining role column renderers and mobile fixed behavior", () => {
+test("keeps remaining role column renderers without mobile fixed behavior", () => {
   jestValue.spyOn(Setting, "isMobile").mockReturnValue(true);
   const page = createRolePage();
   const columns = getRoleColumns(page);
 
-  expect(columns[9].fixed).toBe(false);
+  expect(columns[9].fixed).toBeUndefined();
   expect(renderWithRouter(columns[1].render?.(role.owner, role, 0)).getByText("engineering").closest("a")?.getAttribute("href")).toBe("/organizations/engineering");
   expect(columns[2].render?.(role.createdTime, role, 0)).not.toBeNull();
   expect(textFromNode(columns[4].render?.(role.users, role, 0))).toContain("alice");
@@ -570,12 +572,12 @@ test("keeps remaining role column renderers and mobile fixed behavior", () => {
   expect(render(<>{columns[8].render?.(true, role, 0)}</>).container.textContent).toMatch(/ON|开/);
 });
 
-test("keeps remaining permission column renderers and mobile fixed behavior", () => {
+test("keeps remaining permission column renderers without mobile fixed behavior", () => {
   jestValue.spyOn(Setting, "isMobile").mockReturnValue(true);
   const page = createPermissionPage();
   const columns = getPermissionColumns(page);
 
-  expect(columns.find(column => column.key === "op")?.fixed).toBe(false);
+  expect(columns.find(column => column.key === "op")?.fixed).toBeUndefined();
   expect(renderWithRouter(columns[1].render?.(permission.owner, permission, 0)).getByText("engineering").closest("a")?.getAttribute("href")).toBe("/organizations/engineering");
   expect(renderWithRouter(columns.find(column => column.key === "model")?.render?.(permission.model, permission, 0)).getByText("engineering/rbac").closest("a")?.getAttribute("href")).toBe("/models/engineering/rbac");
   expect(textFromNode(columns.find(column => column.key === "resources")?.render?.(permission.resources, permission, 0))).toContain(Conf.DefaultApplication);

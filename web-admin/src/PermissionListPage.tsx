@@ -350,7 +350,6 @@ class PermissionListPage extends TypedBaseListPage {
         dataIndex: "name",
         key: "name",
         width: "120px",
-        fixed: "left",
         sorter: true,
         render: (text: string, record: PermissionRecord) => {
           return (
@@ -459,7 +458,6 @@ class PermissionListPage extends TypedBaseListPage {
         dataIndex: "",
         key: "op",
         width: "120px",
-        fixed: Setting.isMobile() ? false : "right",
         render: (_text: unknown, record: PermissionRecord, index: number) => {
           return (
             <ListPageRowActions className="permission-row-actions">
