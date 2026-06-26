@@ -24,6 +24,7 @@ type FeishuAddressBookConnectionTester interface {
 
 type FeishuOrganizationSyncConfigService struct {
 	Store                          FeishuOrganizationSyncConfigStore
+	WecomConfigStore               WecomOrganizationSyncConfigStore
 	OrganizationStore              FeishuBusinessOrganizationStore
 	ScheduleStore                  OrganizationSyncScheduleStore
 	NewAddressBookConnectionTester func(appId string, appSecret string, endpointMode string) FeishuAddressBookConnectionTester
@@ -43,9 +44,52 @@ func (s *FeishuOrganizationSyncConfigService) GetConfig(organization string, isM
 	return s.attachScheduleFields(GetMaskedFeishuOrganizationSyncConfig(config, isMaskEnabled))
 }
 
+func (s *FeishuOrganizationSyncConfigService) GetDefaultOrganization() (string, error) {
+	return getDefaultFeishuOrganizationSyncOrganization(s.configStore())
+}
+
+func (s *FeishuOrganizationSyncConfigService) GetSourceStatus(organization string) (*OrganizationSyncSourceConflictStatus, error) {
+	defaultOrganization, err := s.GetDefaultOrganization()
+	if err != nil {
+		return nil, err
+	}
+	status := &OrganizationSyncSourceConflictStatus{DefaultOrganization: defaultOrganization}
+	if defaultOrganization != "" {
+		status.DefaultOrganizationSource = "configured"
+	}
+	wecomOrganizations, err := getConfiguredWecomOrganizationSyncOrganizations(s.wecomConfigStore())
+	if err != nil {
+		return nil, err
+	}
+	status.ConflictingOrganizations = wecomOrganizations
+
+	organization = strings.TrimSpace(organization)
+	if organization == "" {
+		organization = defaultOrganization
+	}
+	if organization == "" {
+		return status, nil
+	}
+
+	config, err := s.wecomConfigStore().GetWecomOrganizationSyncConfigByOrganization(organization)
+	if err != nil {
+		return nil, err
+	}
+	if config != nil {
+		status.ConflictingProvider = "WeCom"
+		status.ConflictingOrganization = organization
+		status.ConflictingConfigured = true
+		status.ConflictingEnabled = config.IsEnabled
+	}
+	return status, nil
+}
+
 func (s *FeishuOrganizationSyncConfigService) SaveConfig(config *FeishuOrganizationSyncConfig, isMaskEnabled bool) (*FeishuOrganizationSyncConfig, bool, error) {
 	prepared, err := s.prepareConfigForSave(config)
 	if err != nil {
+		return nil, false, err
+	}
+	if err := validateFeishuOrganizationSyncSourceActivation(prepared.Organization, s.wecomConfigStore()); err != nil {
 		return nil, false, err
 	}
 	schedule, hasScheduleSettings, err := s.prepareScheduleForSave(prepared.Organization, config)
@@ -208,6 +252,13 @@ func (s *FeishuOrganizationSyncConfigService) configStore() FeishuOrganizationSy
 	return defaultFeishuOrganizationSyncConfigStore{}
 }
 
+func (s *FeishuOrganizationSyncConfigService) wecomConfigStore() WecomOrganizationSyncConfigStore {
+	if s != nil && s.WecomConfigStore != nil {
+		return s.WecomConfigStore
+	}
+	return defaultWecomOrganizationSyncConfigStore{}
+}
+
 func (s *FeishuOrganizationSyncConfigService) organizationStore() FeishuBusinessOrganizationStore {
 	if s != nil && s.OrganizationStore != nil {
 		return s.OrganizationStore
@@ -274,6 +325,15 @@ func (s defaultFeishuOrganizationSyncConfigStore) GetFeishuOrganizationSyncConfi
 
 func (s defaultFeishuOrganizationSyncConfigStore) SaveFeishuOrganizationSyncConfig(config *FeishuOrganizationSyncConfig) (bool, error) {
 	return saveFeishuOrganizationSyncConfig(config)
+}
+
+func (s defaultFeishuOrganizationSyncConfigStore) ListFeishuOrganizationSyncConfigs() ([]*FeishuOrganizationSyncConfig, error) {
+	configs := []*FeishuOrganizationSyncConfig{}
+	if ormer == nil || ormer.Engine == nil {
+		return configs, nil
+	}
+	err := ormer.Engine.Desc("is_enabled").Desc("updated_at").Find(&configs)
+	return configs, err
 }
 
 func (s defaultFeishuOrganizationSyncConfigStore) UpdateFeishuOrganizationSyncConfigLastSync(config *FeishuOrganizationSyncConfig, run *FeishuOrganizationSyncRun, syncedAt time.Time) error {

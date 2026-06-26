@@ -26,9 +26,16 @@ import (
 )
 
 type wecomOrganizationSyncConfigResponse struct {
-	Organization string                              `json:"organization"`
-	IsConfigured bool                                `json:"isConfigured"`
-	Config       *object.WecomOrganizationSyncConfig `json:"config"`
+	Organization              string                              `json:"organization"`
+	IsConfigured              bool                                `json:"isConfigured"`
+	Config                    *object.WecomOrganizationSyncConfig `json:"config"`
+	DefaultOrganization       string                              `json:"defaultOrganization,omitempty"`
+	DefaultOrganizationSource string                              `json:"defaultOrganizationSource,omitempty"`
+	ConflictingProvider       string                              `json:"conflictingProvider,omitempty"`
+	ConflictingOrganization   string                              `json:"conflictingOrganization,omitempty"`
+	ConflictingConfigured     bool                                `json:"conflictingConfigured"`
+	ConflictingEnabled        bool                                `json:"conflictingEnabled"`
+	ConflictingOrganizations  []string                            `json:"conflictingOrganizations,omitempty"`
 }
 
 type wecomOrganizationSyncRunRequest struct {
@@ -53,20 +60,26 @@ type wecomOrganizationSyncRunStartResponse struct {
 // @Success 200 {object} controllers.Response The Response object
 // @router /wecom-org-sync/config [get]
 func (c *ApiController) GetWecomOrganizationSyncConfig() {
-	organization, ok := c.resolveWecomOrganizationSyncTarget(c.Ctx.Input.Query("organization"))
+	service := &object.WecomOrganizationSyncConfigService{}
+	organization, sourceStatus, ok := c.resolveWecomOrganizationSyncConfigTarget(c.Ctx.Input.Query("organization"), service)
 	if !ok {
 		return
 	}
-	if !c.requireWecomOrganizationSyncAdmin(organization) {
+	if organization != "" && !c.requireWecomOrganizationSyncAdmin(organization) {
 		return
 	}
 
-	config, err := (&object.WecomOrganizationSyncConfigService{}).GetConfig(organization, true)
+	if organization == "" {
+		c.ResponseOk(newWecomOrganizationSyncConfigResponse(organization, nil, sourceStatus))
+		return
+	}
+
+	config, err := service.GetConfig(organization, true)
 	if err != nil {
 		c.ResponseError(err.Error())
 		return
 	}
-	c.ResponseOk(newWecomOrganizationSyncConfigResponse(organization, config))
+	c.ResponseOk(newWecomOrganizationSyncConfigResponse(organization, config, sourceStatus))
 }
 
 // SaveWecomOrganizationSyncConfig
@@ -102,7 +115,12 @@ func (c *ApiController) SaveWecomOrganizationSyncConfig() {
 	if savedConfig != nil && savedConfig.Organization != "" {
 		resolvedOrganization = savedConfig.Organization
 	}
-	c.ResponseOk(newWecomOrganizationSyncConfigResponse(resolvedOrganization, savedConfig))
+	sourceStatus, err := (&object.WecomOrganizationSyncConfigService{}).GetSourceStatus(resolvedOrganization)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(newWecomOrganizationSyncConfigResponse(resolvedOrganization, savedConfig, sourceStatus))
 }
 
 // TestWecomOrganizationSyncConfig
@@ -409,7 +427,8 @@ func (c *ApiController) GetCurrentOrganizationManagementScope() {
 	c.ResponseOk(scope)
 }
 
-func newWecomOrganizationSyncConfigResponse(organization string, config *object.WecomOrganizationSyncConfig) *wecomOrganizationSyncConfigResponse {
+func newWecomOrganizationSyncConfigResponse(organization string, config *object.WecomOrganizationSyncConfig, sourceStatuses ...*object.OrganizationSyncSourceConflictStatus) *wecomOrganizationSyncConfigResponse {
+	sourceStatus := firstWecomOrganizationSyncSourceStatus(sourceStatuses...)
 	if config == nil {
 		config = &object.WecomOrganizationSyncConfig{
 			Owner:        organization,
@@ -417,18 +436,42 @@ func newWecomOrganizationSyncConfigResponse(organization string, config *object.
 			Organization: organization,
 		}
 		object.AttachWecomOrganizationSyncScheduleFieldsForResponse(config, nil)
-		return &wecomOrganizationSyncConfigResponse{
+		response := &wecomOrganizationSyncConfigResponse{
 			Organization: organization,
 			IsConfigured: false,
 			Config:       config,
 		}
+		applyWecomOrganizationSyncSourceStatus(response, sourceStatus)
+		return response
 	}
 
-	return &wecomOrganizationSyncConfigResponse{
+	response := &wecomOrganizationSyncConfigResponse{
 		Organization: organization,
 		IsConfigured: true,
 		Config:       config,
 	}
+	applyWecomOrganizationSyncSourceStatus(response, sourceStatus)
+	return response
+}
+
+func firstWecomOrganizationSyncSourceStatus(sourceStatuses ...*object.OrganizationSyncSourceConflictStatus) *object.OrganizationSyncSourceConflictStatus {
+	if len(sourceStatuses) == 0 {
+		return nil
+	}
+	return sourceStatuses[0]
+}
+
+func applyWecomOrganizationSyncSourceStatus(response *wecomOrganizationSyncConfigResponse, sourceStatus *object.OrganizationSyncSourceConflictStatus) {
+	if response == nil || sourceStatus == nil {
+		return
+	}
+	response.DefaultOrganization = sourceStatus.DefaultOrganization
+	response.DefaultOrganizationSource = sourceStatus.DefaultOrganizationSource
+	response.ConflictingProvider = sourceStatus.ConflictingProvider
+	response.ConflictingOrganization = sourceStatus.ConflictingOrganization
+	response.ConflictingConfigured = sourceStatus.ConflictingConfigured
+	response.ConflictingEnabled = sourceStatus.ConflictingEnabled
+	response.ConflictingOrganizations = sourceStatus.ConflictingOrganizations
 }
 
 func newWecomOrganizationSyncRunStartResponse(result *object.WecomOrganizationSyncStartRunResult, sensitiveValues ...string) *wecomOrganizationSyncRunStartResponse {
@@ -456,6 +499,31 @@ func (c *ApiController) resolveWecomOrganizationSyncTarget(explicitOrganization 
 		return "", false
 	}
 	return organization, true
+}
+
+func (c *ApiController) resolveWecomOrganizationSyncConfigTarget(explicitOrganization string, service *object.WecomOrganizationSyncConfigService) (string, *object.OrganizationSyncSourceConflictStatus, bool) {
+	isGlobalAdmin, user := c.isGlobalAdmin()
+	organization := strings.TrimSpace(explicitOrganization)
+	if organization == "" && isGlobalAdmin {
+		sourceStatus, err := service.GetSourceStatus("")
+		if err != nil {
+			c.ResponseError(err.Error())
+			return "", nil, false
+		}
+		return sourceStatus.DefaultOrganization, sourceStatus, true
+	}
+
+	resolvedOrganization, err := resolveWecomOrganizationSyncTarget(organization, user, isGlobalAdmin)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return "", nil, false
+	}
+	sourceStatus, err := service.GetSourceStatus(resolvedOrganization)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return "", nil, false
+	}
+	return resolvedOrganization, sourceStatus, true
 }
 
 func resolveWecomOrganizationSyncTarget(explicitOrganization string, user *object.User, isGlobalAdmin bool) (string, error) {

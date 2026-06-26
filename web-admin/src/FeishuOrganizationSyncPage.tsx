@@ -7,6 +7,7 @@ import {Alert, Button, Col, Collapse, Divider, Drawer, Input, Modal, Row, Select
 import {CloudSyncOutlined, CopyOutlined, DownloadOutlined, PlayCircleOutlined, ReloadOutlined, SaveOutlined, ToolOutlined} from "@ant-design/icons";
 import * as Setting from "./Setting";
 import * as FeishuOrganizationSyncBackend from "./backend/FeishuOrganizationSyncBackend";
+import * as WecomOrganizationSyncBackend from "./backend/WecomOrganizationSyncBackend";
 import OrganizationSelect from "./common/select/OrganizationSelect";
 import {getDefaultTablePagination, getTablePaginationProps} from "./common/table/TablePagination";
 import i18next from "i18next";
@@ -22,6 +23,15 @@ const {Text} = Typography;
 const syncRunPollIntervalMs = 3000;
 const runStatisticTextStyle: React.CSSProperties = {fontVariantNumeric: "tabular-nums"};
 const nowrapHeaderCell: React.ThHTMLAttributes<HTMLElement> = {style: {whiteSpace: "nowrap"}};
+const lastFeishuOrganizationSyncOrganizationKey = "feishu-org-sync:lastOrganization";
+const credentialTextInputProps = {
+  autoComplete: "off",
+  spellCheck: false,
+} as const;
+const credentialSecretInputProps = {
+  autoComplete: "new-password",
+  spellCheck: false,
+} as const;
 
 type LabelMap = Record<string, string>;
 type FeishuDiffCounts = FeishuOrganizationSyncBackend.FeishuDiffCounts;
@@ -31,10 +41,21 @@ type FeishuHandoffAcceptanceChecklist = FeishuOrganizationSyncBackend.FeishuHand
 type FeishuHandoffCounts = FeishuOrganizationSyncBackend.FeishuHandoffCounts;
 type FeishuHandoffEvidence = FeishuOrganizationSyncBackend.FeishuHandoffEvidence;
 type FeishuOrganizationSyncConfig = FeishuOrganizationSyncBackend.FeishuOrganizationSyncConfig;
+type OrganizationSyncSourceStatus = FeishuOrganizationSyncBackend.OrganizationSyncSourceStatus;
 type FeishuOrganizationSyncRunRecord = FeishuOrganizationSyncBackend.FeishuOrganizationSyncRunRecord;
 type FeishuUserBindingConflictCounts = FeishuOrganizationSyncBackend.FeishuUserBindingConflictCounts;
 type FeishuUserBindingConflictIssue = FeishuOrganizationSyncBackend.FeishuUserBindingConflictIssue;
 type FeishuUserBindingConflictSummary = FeishuOrganizationSyncBackend.FeishuUserBindingConflictSummary;
+
+interface LegacyWecomOrganizationSyncConfigResponse {
+  status?: string;
+  data?: {
+    config?: {
+      organization?: string;
+      isEnabled?: boolean;
+    };
+  };
+}
 
 interface FeishuOrganizationSyncPageAccount {
   owner?: string;
@@ -76,6 +97,7 @@ type BindingDiagnosticsPayload = FeishuUserBindingConflictSummary | FeishuUserBi
 interface FeishuOrganizationSyncPageState {
   organization: string;
   config: FeishuOrganizationSyncConfig | null;
+  sourceStatus: OrganizationSyncSourceStatus;
   runs: FeishuOrganizationSyncRunRecord[];
   runCount: number;
   pagination: FeishuTablePagination;
@@ -269,10 +291,11 @@ class FeishuOrganizationSyncPage extends React.Component<FeishuOrganizationSyncP
     super(props);
     this.runRefreshTimer = null;
     this.isUnmounted = false;
-    const organization = this.getAccountOrganization(props.account);
+    const organization = this.getInitialOrganization(props.account);
     this.state = {
       organization,
       config: null,
+      sourceStatus: {},
       runs: [],
       runCount: 0,
       pagination: getDefaultTablePagination(),
@@ -321,9 +344,9 @@ class FeishuOrganizationSyncPage extends React.Component<FeishuOrganizationSyncP
     if (this.state.organization) {
       return;
     }
-    const organization = this.getAccountOrganization(this.props.account);
+    const organization = this.getInitialOrganization(this.props.account);
     if (organization) {
-      this.changeOrganization(organization);
+      this.changeOrganization(organization, false);
     }
   }
 
@@ -332,6 +355,39 @@ class FeishuOrganizationSyncPage extends React.Component<FeishuOrganizationSyncP
       return "";
     }
     return Setting.getRequestOrganization(account) || account.owner;
+  }
+
+  getInitialOrganization(account?: FeishuOrganizationSyncPageAccount): string {
+    return this.getBusinessOrganization(this.getLastSelectedOrganization())
+      || this.getBusinessOrganization(this.getAccountOrganization(account));
+  }
+
+  getBusinessOrganization(organization?: string): string {
+    const normalized = `${organization || ""}`.trim();
+    if (normalized === "" || normalized === "built-in") {
+      return "";
+    }
+    return normalized;
+  }
+
+  getLastSelectedOrganization(): string {
+    try {
+      return localStorage.getItem(lastFeishuOrganizationSyncOrganizationKey) || "";
+    } catch {
+      return "";
+    }
+  }
+
+  rememberOrganization(organization: string): void {
+    const normalized = this.getBusinessOrganization(organization);
+    if (!normalized) {
+      return;
+    }
+    try {
+      localStorage.setItem(lastFeishuOrganizationSyncOrganizationKey, normalized);
+    } catch {
+      // 本地存储不可用不影响同步页主流程。
+    }
   }
 
   clearRunRefreshTimer(): void {
@@ -368,7 +424,8 @@ class FeishuOrganizationSyncPage extends React.Component<FeishuOrganizationSyncP
   }
 
   refreshRuns(organization: string, options: FeishuRefreshRunsOptions = {}): Promise<void> {
-    if (!organization) {
+    const requestedOrganization = `${organization || ""}`.trim();
+    if (!requestedOrganization && !options.refreshConfig) {
       return Promise.resolve();
     }
     const {refreshConfig = false, pagination = this.state.pagination} = options;
@@ -376,15 +433,36 @@ class FeishuOrganizationSyncPage extends React.Component<FeishuOrganizationSyncP
 
     this.clearRunRefreshTimer();
     this.setState({loading: true});
-    const runsRequest = FeishuOrganizationSyncBackend.getFeishuOrganizationSyncRuns(organization, nextPagination.current, nextPagination.pageSize);
-    const dryRunHistoryRequest = FeishuOrganizationSyncBackend.getFeishuOrganizationSyncDryRunHistories(organization, {topN: 10});
-    const bindingDiagnosticsRequest = FeishuOrganizationSyncBackend.getFeishuOrganizationSyncUserBindingConflicts(organization, {limit: 20});
-    const handoffEvidenceRequest = FeishuOrganizationSyncBackend.getFeishuOrganizationSyncHandoffEvidence(organization, {sourceType: this.state.handoffEvidenceSourceType});
+    const runsRequest = requestedOrganization
+      ? FeishuOrganizationSyncBackend.getFeishuOrganizationSyncRuns(requestedOrganization, nextPagination.current, nextPagination.pageSize)
+      : Promise.resolve({status: "ok", data: [], data2: 0} as FeishuOrganizationSyncBackend.FeishuApiResponse<FeishuOrganizationSyncRunRecord[]>);
+    const dryRunHistoryRequest = requestedOrganization
+      ? FeishuOrganizationSyncBackend.getFeishuOrganizationSyncDryRunHistories(requestedOrganization, {topN: 10})
+      : Promise.resolve({status: "ok", data: []} as FeishuOrganizationSyncBackend.FeishuApiResponse<FeishuDryRunHistoryRecord[]>);
+    const bindingDiagnosticsRequest = requestedOrganization
+      ? FeishuOrganizationSyncBackend.getFeishuOrganizationSyncUserBindingConflicts(requestedOrganization, {limit: 20})
+      : Promise.resolve({status: "ok", data: null} as FeishuOrganizationSyncBackend.FeishuApiResponse<FeishuUserBindingConflictSummary | null>);
+    const handoffEvidenceRequest = requestedOrganization
+      ? FeishuOrganizationSyncBackend.getFeishuOrganizationSyncHandoffEvidence(requestedOrganization, {sourceType: this.state.handoffEvidenceSourceType})
+      : Promise.resolve({status: "ok", data: null} as FeishuOrganizationSyncBackend.FeishuApiResponse<FeishuHandoffEvidence | null>);
     const configRequest = refreshConfig
-      ? FeishuOrganizationSyncBackend.getFeishuOrganizationSyncConfig(organization)
+      ? FeishuOrganizationSyncBackend.getFeishuOrganizationSyncConfig(requestedOrganization)
       : Promise.resolve(null);
+    const legacySourceConflictRequest = configRequest.then(configRes => {
+      if (configRes === null || configRes?.status === "error") {
+        return {};
+      }
+      if (this.hasNativeSourceStatus(configRes?.data)) {
+        return {};
+      }
+      const sourceStatus = this.normalizeSourceStatus(configRes?.data);
+      if (sourceStatus.conflictingConfigured || sourceStatus.conflictingEnabled) {
+        return {};
+      }
+      return this.resolveLegacyWecomSourceConflict(this.resolveConfigResponseOrganization(requestedOrganization, configRes?.data));
+    }).catch(() => ({}));
 
-    return Promise.all([configRequest, runsRequest, dryRunHistoryRequest, bindingDiagnosticsRequest, handoffEvidenceRequest]).then(([configRes, runsRes, dryRunHistoryRes, bindingDiagnosticsRes, handoffEvidenceRes]) => {
+    return Promise.all([configRequest, runsRequest, dryRunHistoryRequest, bindingDiagnosticsRequest, handoffEvidenceRequest, legacySourceConflictRequest]).then(([configRes, runsRes, dryRunHistoryRes, bindingDiagnosticsRes, handoffEvidenceRes, legacySourceConflict]) => {
       if (configRes?.status === "error") {
         Setting.showMessage("error", configRes.msg);
       }
@@ -400,15 +478,22 @@ class FeishuOrganizationSyncPage extends React.Component<FeishuOrganizationSyncP
       if (handoffEvidenceRes.status === "error") {
         Setting.showMessage("error", handoffEvidenceRes.msg);
       }
-      if (this.isUnmounted || this.state.organization !== organization) {
+      if (this.isUnmounted || (requestedOrganization && this.state.organization !== requestedOrganization)) {
         return;
       }
       const nextState: Partial<FeishuOrganizationSyncPageState> = {loading: false};
+      let resolvedOrganization = requestedOrganization;
+      let shouldRefreshResolvedRuns = false;
       if (configRes !== null) {
-        nextState.config = this.normalizeConfig(organization, configRes?.data?.config);
+        resolvedOrganization = this.resolveConfigResponseOrganization(requestedOrganization, configRes?.data);
+        const nextConfig = this.normalizeConfig(resolvedOrganization, configRes?.data?.config);
+        nextState.organization = resolvedOrganization;
+        nextState.sourceStatus = this.mergeSourceStatus(configRes?.data, legacySourceConflict);
+        nextState.config = nextConfig;
         nextState.testResult = null;
         nextState.previewResult = null;
         nextState.previewError = "";
+        shouldRefreshResolvedRuns = !requestedOrganization && !!resolvedOrganization;
       }
       if (runsRes.status === "ok") {
         nextState.runs = runsRes.data || [];
@@ -439,10 +524,16 @@ class FeishuOrganizationSyncPage extends React.Component<FeishuOrganizationSyncP
       } else {
         nextState.handoffEvidenceError = "交接资料刷新失败，请手动刷新重试。";
       }
-      this.setState(nextState as Pick<FeishuOrganizationSyncPageState, keyof FeishuOrganizationSyncPageState>, () => this.syncRunRefreshLoop(organization, nextState.runs || this.state.runs));
+      this.setState(nextState as Pick<FeishuOrganizationSyncPageState, keyof FeishuOrganizationSyncPageState>, () => {
+        if (shouldRefreshResolvedRuns) {
+          this.refreshRuns(resolvedOrganization, {pagination: getDefaultTablePagination()}).catch(() => {});
+          return;
+        }
+        this.syncRunRefreshLoop(resolvedOrganization, nextState.runs || this.state.runs);
+      });
     }).catch(error => {
       this.clearRunRefreshTimer();
-      if (this.isUnmounted || this.state.organization !== organization) {
+      if (this.isUnmounted || (requestedOrganization && this.state.organization !== requestedOrganization)) {
         return;
       }
       this.setState({loading: false, runRefreshError: "自动刷新已暂停，请手动刷新重试。"});
@@ -520,9 +611,120 @@ class FeishuOrganizationSyncPage extends React.Component<FeishuOrganizationSyncP
   }
 
   refresh(organization: string): void {
-    if (organization) {
-      this.refreshRuns(organization, {refreshConfig: true, pagination: getDefaultTablePagination()}).catch(() => {});
+    this.refreshRuns(organization, {refreshConfig: true, pagination: getDefaultTablePagination()}).catch(() => {});
+  }
+
+  resolveConfigResponseOrganization(requestedOrganization: string, data?: FeishuOrganizationSyncBackend.FeishuOrganizationSyncConfigResponse): string {
+    return this.getBusinessOrganization(data?.config?.organization)
+      || this.getBusinessOrganization(data?.organization)
+      || this.getBusinessOrganization(data?.defaultOrganization)
+      || this.getBusinessOrganization(requestedOrganization);
+  }
+
+  normalizeSourceStatus(data?: FeishuOrganizationSyncBackend.FeishuOrganizationSyncConfigResponse | null): OrganizationSyncSourceStatus {
+    const conflictingOrganization = this.getBusinessOrganization(data?.conflictingOrganization);
+    return {
+      defaultOrganization: data?.defaultOrganization || "",
+      defaultOrganizationSource: data?.defaultOrganizationSource || "",
+      conflictingProvider: data?.conflictingProvider || "",
+      conflictingOrganization,
+      conflictingConfigured: Boolean(data?.conflictingConfigured),
+      conflictingEnabled: Boolean(data?.conflictingEnabled),
+      conflictingOrganizations: this.normalizeOrganizations(data?.conflictingOrganizations, conflictingOrganization),
+    };
+  }
+
+  hasNativeSourceStatus(data?: FeishuOrganizationSyncBackend.FeishuOrganizationSyncConfigResponse | null): boolean {
+    if (!data) {
+      return false;
     }
+    return ["conflictingProvider", "conflictingOrganization", "conflictingConfigured", "conflictingEnabled", "conflictingOrganizations"]
+      .some(key => Object.prototype.hasOwnProperty.call(data, key));
+  }
+
+  mergeSourceStatus(data: FeishuOrganizationSyncBackend.FeishuOrganizationSyncConfigResponse | null | undefined, fallbackStatus: OrganizationSyncSourceStatus): OrganizationSyncSourceStatus {
+    const sourceStatus = this.normalizeSourceStatus(data);
+    const fallbackConflict = Boolean(fallbackStatus.conflictingConfigured || fallbackStatus.conflictingEnabled);
+    const sourceConflict = Boolean(sourceStatus.conflictingConfigured || sourceStatus.conflictingEnabled);
+    const conflictStatus = sourceConflict ? sourceStatus : fallbackConflict ? fallbackStatus : sourceStatus;
+    return {
+      ...conflictStatus,
+      defaultOrganization: sourceStatus.defaultOrganization || fallbackStatus.defaultOrganization || "",
+      defaultOrganizationSource: sourceStatus.defaultOrganizationSource || fallbackStatus.defaultOrganizationSource || "",
+      conflictingOrganizations: this.normalizeOrganizations(
+        sourceStatus.conflictingOrganizations,
+        sourceStatus.conflictingOrganization,
+        fallbackStatus.conflictingOrganizations,
+        fallbackStatus.conflictingOrganization
+      ),
+    };
+  }
+
+  normalizeOrganizations(...values: Array<string | string[] | undefined>): string[] {
+    const seen: Record<string, boolean> = {};
+    const organizations: string[] = [];
+    values.forEach(value => {
+      const candidates = Array.isArray(value) ? value : [value];
+      candidates.forEach(candidate => {
+        const organization = this.getBusinessOrganization(candidate);
+        if (!organization || seen[organization]) {
+          return;
+        }
+        seen[organization] = true;
+        organizations.push(organization);
+      });
+    });
+    return organizations;
+  }
+
+  getExcludedSourceOrganizations(): string[] {
+    const currentOrganization = this.getBusinessOrganization(this.state.organization);
+    return this.normalizeOrganizations(
+      this.state.sourceStatus.conflictingOrganizations,
+      this.state.sourceStatus.conflictingOrganization
+    ).filter(organization => organization !== currentOrganization);
+  }
+
+  hasStatusConflict(status: OrganizationSyncSourceStatus): boolean {
+    return Boolean(status.conflictingConfigured || status.conflictingEnabled);
+  }
+
+  hasSourceConflict(): boolean {
+    return this.hasStatusConflict(this.state.sourceStatus);
+  }
+
+  updateSyncEnabled(checked: boolean): void {
+    if (this.hasSourceConflict()) {
+      Setting.showMessage("warning", "当前组织已被其他通讯录同步来源占用，请新建组织后配置飞书同步。");
+      return;
+    }
+    this.updateConfigField("isEnabled", checked);
+  }
+
+  resolveLegacyWecomSourceConflict(organization: string): Promise<OrganizationSyncSourceStatus> {
+    const targetOrganization = this.getBusinessOrganization(organization);
+    if (!targetOrganization) {
+      return Promise.resolve({});
+    }
+    return (WecomOrganizationSyncBackend.getWecomOrganizationSyncConfig(targetOrganization) as Promise<LegacyWecomOrganizationSyncConfigResponse>)
+      .then(res => {
+        const config = res?.data?.config;
+        if (res?.status !== "ok" || config === null || config === undefined) {
+          return {};
+        }
+        const conflictingOrganization = this.getBusinessOrganization(config.organization) || targetOrganization;
+        if (conflictingOrganization !== targetOrganization) {
+          return {};
+        }
+        return {
+          conflictingProvider: "WeCom",
+          conflictingOrganization,
+          conflictingConfigured: true,
+          conflictingEnabled: Boolean(config.isEnabled),
+          conflictingOrganizations: [conflictingOrganization],
+        };
+      })
+      .catch(() => ({}));
   }
 
   normalizeConfig(organization: string, config?: FeishuOrganizationSyncConfig | null): FeishuOrganizationSyncConfig {
@@ -548,11 +750,16 @@ class FeishuOrganizationSyncPage extends React.Component<FeishuOrganizationSyncP
     this.setState({config: {...config, [key]: value}});
   }
 
-  changeOrganization(organization: string): void {
+  changeOrganization(organization: string, remember = true): void {
+    const targetOrganization = this.getBusinessOrganization(organization);
+    if (remember) {
+      this.rememberOrganization(targetOrganization);
+    }
     this.clearRunRefreshTimer();
     this.setState({
-      organization,
+      organization: targetOrganization,
       config: null,
+      sourceStatus: {},
       runs: [],
       runCount: 0,
       pagination: getDefaultTablePagination(),
@@ -571,19 +778,26 @@ class FeishuOrganizationSyncPage extends React.Component<FeishuOrganizationSyncP
       handoffEvidence: null,
       handoffEvidenceError: "",
       handoffEvidenceDetailsOpen: false,
-    }, () => this.refresh(organization));
+    }, () => this.refresh(targetOrganization));
   }
 
   saveConfig() {
+    if (this.hasSourceConflict()) {
+      Setting.showMessage("warning", "当前组织已被其他通讯录同步来源占用，暂不能保存飞书配置。");
+      return;
+    }
     this.setState({saving: true});
     FeishuOrganizationSyncBackend.saveFeishuOrganizationSyncConfig(this.state.config)
       .then(res => {
         if (res.status === "ok") {
           const resolvedOrganization = res.data?.config?.organization || res.data?.organization || this.state.organization;
+          const nextConfig = this.normalizeConfig(resolvedOrganization, res.data?.config);
+          this.rememberOrganization(resolvedOrganization);
           this.setState({
             saving: false,
             organization: resolvedOrganization,
-            config: this.normalizeConfig(resolvedOrganization, res.data?.config),
+            config: nextConfig,
+            sourceStatus: this.normalizeSourceStatus(res.data),
             previewResult: null,
             previewError: "",
           });
@@ -643,6 +857,10 @@ class FeishuOrganizationSyncPage extends React.Component<FeishuOrganizationSyncP
   }
 
   startSync() {
+    if (this.hasSourceConflict()) {
+      Setting.showMessage("warning", "当前组织已被其他通讯录同步来源占用，暂不能开始飞书正式同步。");
+      return;
+    }
     this.setState({syncing: true});
     FeishuOrganizationSyncBackend.startFeishuOrganizationSyncRun(this.state.organization)
       .then(res => {
@@ -1800,6 +2018,23 @@ class FeishuOrganizationSyncPage extends React.Component<FeishuOrganizationSyncP
     );
   }
 
+  renderSourceConflictAlert() {
+    if (!this.hasSourceConflict()) {
+      return null;
+    }
+    const provider = this.state.sourceStatus.conflictingProvider || "另一通讯录来源";
+    const organization = this.state.sourceStatus.conflictingOrganization || this.state.organization || "-";
+    return (
+      <Alert
+        style={{marginTop: 16}}
+        type="warning"
+        showIcon
+        message={`${provider} 已选择为当前组织的通讯录同步来源`}
+        description={`同一 Admin 组织只能保留一个通讯录主数据源。当前组织 ${organization} 已被 ${provider} 占用；如需验证其他通讯录来源，请新建组织后配置。`}
+      />
+    );
+  }
+
   getRunRowNumber(index: number): number {
     const current = this.state.pagination?.current || 1;
     const pageSize = this.state.pagination?.pageSize || 10;
@@ -1876,6 +2111,7 @@ class FeishuOrganizationSyncPage extends React.Component<FeishuOrganizationSyncP
       );
     }
     const hasRunningRuns = this.hasRunningRuns(this.state.runs);
+    const hasSourceConflict = this.hasSourceConflict();
     const lastRefreshText = this.state.lastRunsRefreshAt ? `上次刷新：${this.state.lastRunsRefreshAt}` : "";
     const runRefreshHint = `${this.state.runRefreshError || (hasRunningRuns ? `检测到运行中任务，自动每 ${syncRunPollIntervalMs / 1000} 秒刷新。` : "当前无运行中任务，可手动刷新同步记录。")} ${lastRefreshText}`;
     return (
@@ -1893,7 +2129,7 @@ class FeishuOrganizationSyncPage extends React.Component<FeishuOrganizationSyncP
             <OrganizationSelect
               initValue={this.state.organization}
               onChange={(organization: string) => this.changeOrganization(organization)}
-              excludedOrganizations={["built-in"]}
+              excludedOrganizations={["built-in", ...this.getExcludedSourceOrganizations()]}
               style={{minWidth: 280, width: "100%"}}
             />
           </Col>
@@ -1911,16 +2147,26 @@ class FeishuOrganizationSyncPage extends React.Component<FeishuOrganizationSyncP
           </Col>
           <Col xs={24} md={12}>
             <div style={{marginBottom: 8}}>App ID</div>
-            <Input value={config.appId} onChange={event => this.updateConfigField("appId", event.target.value)} />
+            <Input
+              {...credentialTextInputProps}
+              name="feishu-organization-sync-app-id"
+              value={config.appId}
+              onChange={event => this.updateConfigField("appId", event.target.value)}
+            />
           </Col>
           <Col xs={24} md={12}>
             <div style={{marginBottom: 8}}>App Secret</div>
-            <Input.Password value={config.appSecret} onChange={event => this.updateConfigField("appSecret", event.target.value)} />
+            <Input.Password
+              {...credentialSecretInputProps}
+              name="feishu-organization-sync-app-secret"
+              value={config.appSecret}
+              onChange={event => this.updateConfigField("appSecret", event.target.value)}
+            />
           </Col>
           <Col xs={24} md={12}>
             <div style={{marginBottom: 8}}>同步选项</div>
             <Space direction="vertical" size={8}>
-              <Space><Switch checked={config.isEnabled} onChange={checked => this.updateConfigField("isEnabled", checked)} /><span>启用同步</span></Space>
+              <Space><Switch checked={config.isEnabled} disabled={hasSourceConflict} onChange={checked => this.updateSyncEnabled(checked)} /><span>启用同步</span></Space>
               <Space><Switch checked={config.softDisableMissingData} onChange={checked => this.updateConfigField("softDisableMissingData", checked)} /><span>全量同步成功后软禁用缺失数据</span></Space>
             </Space>
           </Col>
@@ -1952,6 +2198,8 @@ class FeishuOrganizationSyncPage extends React.Component<FeishuOrganizationSyncP
           </Col>
         </Row>
 
+        {this.renderSourceConflictAlert()}
+
         <Alert
           style={{marginTop: 16}}
           type="info"
@@ -1964,10 +2212,10 @@ class FeishuOrganizationSyncPage extends React.Component<FeishuOrganizationSyncP
         <OrganizationSyncActionBar
           className="organization-sync-action-bar"
           actions={[
-            {key: "save", label: `${i18next.t("general:Save")}`, icon: <SaveOutlined />, type: "primary", loading: this.state.saving, onClick: () => this.saveConfig()},
+            {key: "save", label: `${i18next.t("general:Save")}`, icon: <SaveOutlined />, type: "primary", loading: this.state.saving, disabled: hasSourceConflict, onClick: () => this.saveConfig()},
             {key: "test", label: "测试连接", icon: <ToolOutlined />, loading: this.state.testing, onClick: () => this.testConfig()},
             {key: "preview", label: "预览影响", icon: <CloudSyncOutlined />, loading: this.state.previewing, disabled: !config.isEnabled, onClick: () => this.previewSyncImpact()},
-            {key: "sync", label: hasRunningRuns ? "同步进行中" : "开始全量同步", icon: <PlayCircleOutlined />, loading: this.state.syncing, disabled: !config.isEnabled || hasRunningRuns, onClick: () => this.startSync()},
+            {key: "sync", label: hasRunningRuns ? "同步进行中" : "开始全量同步", icon: <PlayCircleOutlined />, loading: this.state.syncing, disabled: hasSourceConflict || !config.isEnabled || hasRunningRuns, onClick: () => this.startSync()},
           ]}
         />
         {this.renderDryRunQuickAccess()}

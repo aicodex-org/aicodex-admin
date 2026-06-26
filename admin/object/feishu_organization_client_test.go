@@ -14,9 +14,10 @@ import (
 )
 
 type fakeFeishuConfigStore struct {
-	config *FeishuOrganizationSyncConfig
-	saved  *FeishuOrganizationSyncConfig
-	err    error
+	config  *FeishuOrganizationSyncConfig
+	configs []*FeishuOrganizationSyncConfig
+	saved   *FeishuOrganizationSyncConfig
+	err     error
 }
 
 func (s *fakeFeishuConfigStore) GetFeishuOrganizationSyncConfigByOrganization(organization string) (*FeishuOrganizationSyncConfig, error) {
@@ -24,15 +25,41 @@ func (s *fakeFeishuConfigStore) GetFeishuOrganizationSyncConfigByOrganization(or
 		return nil, s.err
 	}
 	if s.config == nil || s.config.Organization != organization {
+		for _, config := range s.configs {
+			if config != nil && config.Organization == organization {
+				copied := *config
+				return &copied, nil
+			}
+		}
 		return nil, nil
 	}
-	return s.config, nil
+	copied := *s.config
+	return &copied, nil
 }
 
 func (s *fakeFeishuConfigStore) SaveFeishuOrganizationSyncConfig(config *FeishuOrganizationSyncConfig) (bool, error) {
 	copy := *config
 	s.saved = &copy
 	return true, nil
+}
+
+func (s *fakeFeishuConfigStore) ListFeishuOrganizationSyncConfigs() ([]*FeishuOrganizationSyncConfig, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	configs := []*FeishuOrganizationSyncConfig{}
+	if s.config != nil {
+		copied := *s.config
+		configs = append(configs, &copied)
+	}
+	for _, config := range s.configs {
+		if config == nil {
+			continue
+		}
+		copied := *config
+		configs = append(configs, &copied)
+	}
+	return configs, nil
 }
 
 type fakeFeishuConnectionTester struct {
@@ -237,7 +264,10 @@ func TestFeishuOrganizationSyncConfigServicePreservesMaskedSecretAndNormalizesEn
 		EndpointMode: FeishuEndpointModeDomestic,
 		TenantKey:    "tenant-a",
 	}}
-	service := &FeishuOrganizationSyncConfigService{Store: store}
+	service := &FeishuOrganizationSyncConfigService{
+		Store:            store,
+		WecomConfigStore: &memoryWecomOrganizationSyncConfigStore{},
+	}
 	config, _, err := service.SaveConfig(&FeishuOrganizationSyncConfig{
 		Organization: " engineering ",
 		AppId:        " cli_2 ",
@@ -261,11 +291,144 @@ func TestFeishuOrganizationSyncConfigServicePreservesMaskedSecretAndNormalizesEn
 	}
 }
 
+func TestFeishuOrganizationSyncConfigServiceRejectsEnabledConfigWhenWecomEnabled(t *testing.T) {
+	feishuStore := &fakeFeishuConfigStore{}
+	wecomStore := &memoryWecomOrganizationSyncConfigStore{config: &WecomOrganizationSyncConfig{
+		Owner:             "engineering",
+		Name:              WecomOrganizationSyncDefaultConfigName,
+		Organization:      "engineering",
+		CorpId:            "ww123",
+		AddressBookSecret: "wecom-secret",
+		IsEnabled:         true,
+	}}
+	service := &FeishuOrganizationSyncConfigService{
+		Store:            feishuStore,
+		WecomConfigStore: wecomStore,
+	}
+
+	_, _, err := service.SaveConfig(&FeishuOrganizationSyncConfig{
+		Organization: "engineering",
+		AppId:        "cli_a",
+		AppSecret:    "feishu-secret",
+		EndpointMode: FeishuEndpointModeDomestic,
+		IsEnabled:    true,
+	}, true)
+	if err == nil {
+		t.Fatalf("SaveConfig() error = nil, want WeCom conflict")
+	}
+	if !strings.Contains(err.Error(), "WeCom") || !strings.Contains(err.Error(), "engineering") {
+		t.Fatalf("SaveConfig() error = %q, want WeCom conflict with organization", err.Error())
+	}
+	if feishuStore.saved != nil {
+		t.Fatalf("conflicting enabled config should not be saved: %#v", feishuStore.saved)
+	}
+}
+
+func TestFeishuOrganizationSyncConfigServiceRejectsDisabledDraftWhenWecomEnabled(t *testing.T) {
+	feishuStore := &fakeFeishuConfigStore{}
+	wecomStore := &memoryWecomOrganizationSyncConfigStore{config: &WecomOrganizationSyncConfig{
+		Owner:             "engineering",
+		Name:              WecomOrganizationSyncDefaultConfigName,
+		Organization:      "engineering",
+		CorpId:            "ww123",
+		AddressBookSecret: "wecom-secret",
+		IsEnabled:         true,
+	}}
+	service := &FeishuOrganizationSyncConfigService{
+		Store:            feishuStore,
+		WecomConfigStore: wecomStore,
+	}
+
+	_, _, err := service.SaveConfig(&FeishuOrganizationSyncConfig{
+		Organization: "engineering",
+		AppId:        "cli_a",
+		AppSecret:    "feishu-secret",
+		EndpointMode: FeishuEndpointModeDomestic,
+		IsEnabled:    false,
+	}, true)
+	if err == nil {
+		t.Fatalf("SaveConfig() error = nil, want WeCom conflict")
+	}
+	if !strings.Contains(err.Error(), "WeCom") || !strings.Contains(err.Error(), "engineering") {
+		t.Fatalf("SaveConfig() error = %q, want WeCom conflict with organization", err.Error())
+	}
+	if feishuStore.saved != nil {
+		t.Fatalf("conflicting disabled draft should not be saved: %#v", feishuStore.saved)
+	}
+}
+
+func TestFeishuOrganizationSyncConfigServiceRejectsConfigWhenWecomConfiguredButDisabled(t *testing.T) {
+	feishuStore := &fakeFeishuConfigStore{}
+	wecomStore := &memoryWecomOrganizationSyncConfigStore{config: &WecomOrganizationSyncConfig{
+		Owner:             "engineering",
+		Name:              WecomOrganizationSyncDefaultConfigName,
+		Organization:      "engineering",
+		CorpId:            "ww123",
+		AddressBookSecret: "wecom-secret",
+		IsEnabled:         false,
+	}}
+	service := &FeishuOrganizationSyncConfigService{
+		Store:            feishuStore,
+		WecomConfigStore: wecomStore,
+	}
+
+	_, _, err := service.SaveConfig(&FeishuOrganizationSyncConfig{
+		Organization: "engineering",
+		AppId:        "cli_a",
+		AppSecret:    "feishu-secret",
+		EndpointMode: FeishuEndpointModeDomestic,
+		IsEnabled:    false,
+	}, true)
+	if err == nil {
+		t.Fatalf("SaveConfig() error = nil, want configured WeCom conflict")
+	}
+	if !strings.Contains(err.Error(), "WeCom") || !strings.Contains(err.Error(), "engineering") {
+		t.Fatalf("SaveConfig() error = %q, want WeCom conflict with organization", err.Error())
+	}
+	if feishuStore.saved != nil {
+		t.Fatalf("conflicting config should not be saved: %#v", feishuStore.saved)
+	}
+}
+
+func TestFeishuOrganizationSyncConfigServiceGetSourceStatusReturnsDefaultAndWecomConflict(t *testing.T) {
+	feishuStore := &fakeFeishuConfigStore{configs: []*FeishuOrganizationSyncConfig{
+		{Owner: "built-in", Name: FeishuOrganizationSyncDefaultConfigName, Organization: "built-in", AppId: "cli_built_in", AppSecret: "secret", EndpointMode: FeishuEndpointModeDomestic},
+		{Owner: "engineering", Name: FeishuOrganizationSyncDefaultConfigName, Organization: "engineering", AppId: "cli_a", AppSecret: "secret", EndpointMode: FeishuEndpointModeDomestic},
+	}}
+	wecomStore := &memoryWecomOrganizationSyncConfigStore{config: &WecomOrganizationSyncConfig{
+		Owner:             "engineering",
+		Name:              WecomOrganizationSyncDefaultConfigName,
+		Organization:      "engineering",
+		CorpId:            "ww123",
+		AddressBookSecret: "wecom-secret",
+		IsEnabled:         false,
+	}}
+	service := &FeishuOrganizationSyncConfigService{
+		Store:            feishuStore,
+		WecomConfigStore: wecomStore,
+	}
+
+	status, err := service.GetSourceStatus("")
+	if err != nil {
+		t.Fatalf("GetSourceStatus() error = %v", err)
+	}
+	if status.DefaultOrganization != "engineering" || status.DefaultOrganizationSource != "configured" {
+		t.Fatalf("default organization status = %#v, want engineering from configured source", status)
+	}
+	if !status.ConflictingConfigured || status.ConflictingProvider != "WeCom" || status.ConflictingOrganization != "engineering" {
+		t.Fatalf("conflict status = %#v, want configured WeCom conflict for engineering", status)
+	}
+	if status.ConflictingEnabled || len(status.ConflictingOrganizations) != 1 || status.ConflictingOrganizations[0] != "engineering" {
+		t.Fatalf("conflicting organizations = enabled:%v organizations:%v, want disabled engineering", status.ConflictingEnabled, status.ConflictingOrganizations)
+	}
+}
+
 func TestFeishuOrganizationSyncConfigServiceSaveRetargetsToTenantOrganization(t *testing.T) {
 	configStore := &fakeFeishuConfigStore{}
 	organizationStore := newFakeFeishuBusinessOrganizationStore()
 	service := &FeishuOrganizationSyncConfigService{
 		Store:             configStore,
+		WecomConfigStore:  &memoryWecomOrganizationSyncConfigStore{},
 		OrganizationStore: organizationStore,
 	}
 

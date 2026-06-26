@@ -16,14 +16,17 @@ package object
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 )
 
 type memoryWecomOrganizationSyncConfigStore struct {
-	config *WecomOrganizationSyncConfig
-	saved  *WecomOrganizationSyncConfig
+	config  *WecomOrganizationSyncConfig
+	configs []*WecomOrganizationSyncConfig
+	saved   *WecomOrganizationSyncConfig
+	err     error
 }
 
 type fakeWecomAddressBookConnectionTester struct {
@@ -75,7 +78,16 @@ func (s *memoryWecomBusinessOrganizationStore) SaveApplication(application *Appl
 }
 
 func (s *memoryWecomOrganizationSyncConfigStore) GetWecomOrganizationSyncConfigByOrganization(organization string) (*WecomOrganizationSyncConfig, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
 	if s.config == nil || s.config.Organization != organization {
+		for _, config := range s.configs {
+			if config != nil && config.Organization == organization {
+				copied := *config
+				return &copied, nil
+			}
+		}
 		return nil, nil
 	}
 
@@ -87,6 +99,45 @@ func (s *memoryWecomOrganizationSyncConfigStore) SaveWecomOrganizationSyncConfig
 	copied := *config
 	s.saved = &copied
 	s.config = &copied
+	return true, nil
+}
+
+func (s *memoryWecomOrganizationSyncConfigStore) ListWecomOrganizationSyncConfigs() ([]*WecomOrganizationSyncConfig, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	configs := []*WecomOrganizationSyncConfig{}
+	if s.config != nil {
+		copied := *s.config
+		configs = append(configs, &copied)
+	}
+	for _, config := range s.configs {
+		if config == nil {
+			continue
+		}
+		copied := *config
+		configs = append(configs, &copied)
+	}
+	return configs, nil
+}
+
+type wecomOrganizationSyncConfigStoreWithoutList struct{}
+
+func (s *wecomOrganizationSyncConfigStoreWithoutList) GetWecomOrganizationSyncConfigByOrganization(organization string) (*WecomOrganizationSyncConfig, error) {
+	return nil, nil
+}
+
+func (s *wecomOrganizationSyncConfigStoreWithoutList) SaveWecomOrganizationSyncConfig(config *WecomOrganizationSyncConfig) (bool, error) {
+	return true, nil
+}
+
+type feishuOrganizationSyncConfigStoreWithoutList struct{}
+
+func (s *feishuOrganizationSyncConfigStoreWithoutList) GetFeishuOrganizationSyncConfigByOrganization(organization string) (*FeishuOrganizationSyncConfig, error) {
+	return nil, nil
+}
+
+func (s *feishuOrganizationSyncConfigStoreWithoutList) SaveFeishuOrganizationSyncConfig(config *FeishuOrganizationSyncConfig) (bool, error) {
 	return true, nil
 }
 
@@ -104,7 +155,10 @@ func TestWecomOrganizationSyncConfigServiceGetMasksSecret(t *testing.T) {
 			AddressBookSecret: "real-secret",
 		},
 	}
-	service := &WecomOrganizationSyncConfigService{Store: store}
+	service := &WecomOrganizationSyncConfigService{
+		Store:             store,
+		FeishuConfigStore: &fakeFeishuConfigStore{},
+	}
 
 	config, err := service.GetConfig("built-in", true)
 	if err != nil {
@@ -163,12 +217,285 @@ func TestWecomOrganizationSyncConfigServiceSavePreservesMaskedSecretAndRunMetada
 	}
 }
 
+func TestWecomOrganizationSyncConfigServiceRejectsEnabledConfigWhenFeishuEnabled(t *testing.T) {
+	wecomStore := &memoryWecomOrganizationSyncConfigStore{}
+	feishuStore := &fakeFeishuConfigStore{config: &FeishuOrganizationSyncConfig{
+		Owner:        "engineering",
+		Name:         FeishuOrganizationSyncDefaultConfigName,
+		Organization: "engineering",
+		AppId:        "cli_a",
+		AppSecret:    "feishu-secret",
+		EndpointMode: FeishuEndpointModeDomestic,
+		IsEnabled:    true,
+	}}
+	service := &WecomOrganizationSyncConfigService{
+		Store:             wecomStore,
+		FeishuConfigStore: feishuStore,
+	}
+
+	_, _, err := service.SaveConfig(&WecomOrganizationSyncConfig{
+		Organization:      "engineering",
+		CorpId:            "ww123",
+		AddressBookSecret: "wecom-secret",
+		IsEnabled:         true,
+	}, true)
+	if err == nil {
+		t.Fatalf("SaveConfig() error = nil, want Feishu conflict")
+	}
+	if !strings.Contains(err.Error(), "Feishu/Lark") || !strings.Contains(err.Error(), "engineering") {
+		t.Fatalf("SaveConfig() error = %q, want Feishu conflict with organization", err.Error())
+	}
+	if wecomStore.saved != nil {
+		t.Fatalf("conflicting enabled config should not be saved: %#v", wecomStore.saved)
+	}
+}
+
+func TestWecomOrganizationSyncConfigServiceRejectsDisabledDraftWhenFeishuEnabled(t *testing.T) {
+	wecomStore := &memoryWecomOrganizationSyncConfigStore{}
+	feishuStore := &fakeFeishuConfigStore{config: &FeishuOrganizationSyncConfig{
+		Owner:        "engineering",
+		Name:         FeishuOrganizationSyncDefaultConfigName,
+		Organization: "engineering",
+		AppId:        "cli_a",
+		AppSecret:    "feishu-secret",
+		EndpointMode: FeishuEndpointModeDomestic,
+		IsEnabled:    true,
+	}}
+	service := &WecomOrganizationSyncConfigService{
+		Store:             wecomStore,
+		FeishuConfigStore: feishuStore,
+	}
+
+	_, _, err := service.SaveConfig(&WecomOrganizationSyncConfig{
+		Organization:      "engineering",
+		CorpId:            "ww123",
+		AddressBookSecret: "wecom-secret",
+		IsEnabled:         false,
+	}, true)
+	if err == nil {
+		t.Fatalf("SaveConfig() error = nil, want Feishu conflict")
+	}
+	if !strings.Contains(err.Error(), "Feishu/Lark") || !strings.Contains(err.Error(), "engineering") {
+		t.Fatalf("SaveConfig() error = %q, want Feishu conflict with organization", err.Error())
+	}
+	if wecomStore.saved != nil {
+		t.Fatalf("conflicting disabled draft should not be saved: %#v", wecomStore.saved)
+	}
+}
+
+func TestWecomOrganizationSyncConfigServiceRejectsConfigWhenFeishuConfiguredButDisabled(t *testing.T) {
+	wecomStore := &memoryWecomOrganizationSyncConfigStore{}
+	feishuStore := &fakeFeishuConfigStore{config: &FeishuOrganizationSyncConfig{
+		Owner:        "engineering",
+		Name:         FeishuOrganizationSyncDefaultConfigName,
+		Organization: "engineering",
+		AppId:        "cli_a",
+		AppSecret:    "feishu-secret",
+		EndpointMode: FeishuEndpointModeDomestic,
+		IsEnabled:    false,
+	}}
+	service := &WecomOrganizationSyncConfigService{
+		Store:             wecomStore,
+		FeishuConfigStore: feishuStore,
+	}
+
+	_, _, err := service.SaveConfig(&WecomOrganizationSyncConfig{
+		Organization:      "engineering",
+		CorpId:            "ww123",
+		AddressBookSecret: "wecom-secret",
+		IsEnabled:         false,
+	}, true)
+	if err == nil {
+		t.Fatalf("SaveConfig() error = nil, want configured Feishu conflict")
+	}
+	if !strings.Contains(err.Error(), "Feishu/Lark") || !strings.Contains(err.Error(), "engineering") {
+		t.Fatalf("SaveConfig() error = %q, want Feishu conflict with organization", err.Error())
+	}
+	if wecomStore.saved != nil {
+		t.Fatalf("conflicting config should not be saved: %#v", wecomStore.saved)
+	}
+}
+
+func TestWecomOrganizationSyncConfigServiceGetSourceStatusReturnsDefaultAndFeishuConflict(t *testing.T) {
+	wecomStore := &memoryWecomOrganizationSyncConfigStore{configs: []*WecomOrganizationSyncConfig{
+		{Owner: "built-in", Name: WecomOrganizationSyncDefaultConfigName, Organization: "built-in", CorpId: "ww-built-in"},
+		{Owner: "engineering", Name: WecomOrganizationSyncDefaultConfigName, Organization: "engineering", CorpId: "ww123"},
+	}}
+	feishuStore := &fakeFeishuConfigStore{config: &FeishuOrganizationSyncConfig{
+		Owner:        "engineering",
+		Name:         FeishuOrganizationSyncDefaultConfigName,
+		Organization: "engineering",
+		AppId:        "cli_a",
+		AppSecret:    "feishu-secret",
+		EndpointMode: FeishuEndpointModeDomestic,
+		IsEnabled:    false,
+	}}
+	service := &WecomOrganizationSyncConfigService{
+		Store:             wecomStore,
+		FeishuConfigStore: feishuStore,
+	}
+
+	status, err := service.GetSourceStatus("")
+	if err != nil {
+		t.Fatalf("GetSourceStatus() error = %v", err)
+	}
+	if status.DefaultOrganization != "engineering" || status.DefaultOrganizationSource != "configured" {
+		t.Fatalf("default organization status = %#v, want engineering from configured source", status)
+	}
+	if !status.ConflictingConfigured || status.ConflictingProvider != "Feishu/Lark" || status.ConflictingOrganization != "engineering" {
+		t.Fatalf("conflict status = %#v, want configured Feishu/Lark conflict for engineering", status)
+	}
+	if status.ConflictingEnabled || len(status.ConflictingOrganizations) != 1 || status.ConflictingOrganizations[0] != "engineering" {
+		t.Fatalf("conflicting organizations = enabled:%v organizations:%v, want disabled engineering", status.ConflictingEnabled, status.ConflictingOrganizations)
+	}
+}
+
+func TestOrganizationSyncConfigServiceGetSourceStatusHandlesEmptyAndErrors(t *testing.T) {
+	status, err := (&WecomOrganizationSyncConfigService{
+		Store:             &wecomOrganizationSyncConfigStoreWithoutList{},
+		FeishuConfigStore: &feishuOrganizationSyncConfigStoreWithoutList{},
+	}).GetSourceStatus("")
+	if err != nil {
+		t.Fatalf("Wecom GetSourceStatus(empty) error = %v", err)
+	}
+	if status.DefaultOrganization != "" || status.ConflictingConfigured {
+		t.Fatalf("Wecom empty source status = %#v, want no default or conflict", status)
+	}
+
+	status, err = (&FeishuOrganizationSyncConfigService{
+		Store:            &feishuOrganizationSyncConfigStoreWithoutList{},
+		WecomConfigStore: &wecomOrganizationSyncConfigStoreWithoutList{},
+	}).GetSourceStatus("")
+	if err != nil {
+		t.Fatalf("Feishu GetSourceStatus(empty) error = %v", err)
+	}
+	if status.DefaultOrganization != "" || status.ConflictingConfigured {
+		t.Fatalf("Feishu empty source status = %#v, want no default or conflict", status)
+	}
+
+	boom := errors.New("status store failed")
+	if _, err := (&WecomOrganizationSyncConfigService{
+		Store:             &memoryWecomOrganizationSyncConfigStore{err: boom},
+		FeishuConfigStore: &fakeFeishuConfigStore{},
+	}).GetSourceStatus(""); !errors.Is(err, boom) {
+		t.Fatalf("Wecom GetSourceStatus(default error) = %v, want status store failed", err)
+	}
+	if _, err := (&WecomOrganizationSyncConfigService{
+		Store:             &memoryWecomOrganizationSyncConfigStore{},
+		FeishuConfigStore: &fakeFeishuConfigStore{err: boom},
+	}).GetSourceStatus("engineering"); !errors.Is(err, boom) {
+		t.Fatalf("Wecom GetSourceStatus(conflict error) = %v, want status store failed", err)
+	}
+	if _, err := (&FeishuOrganizationSyncConfigService{
+		Store:            &fakeFeishuConfigStore{err: boom},
+		WecomConfigStore: &memoryWecomOrganizationSyncConfigStore{},
+	}).GetSourceStatus(""); !errors.Is(err, boom) {
+		t.Fatalf("Feishu GetSourceStatus(default error) = %v, want status store failed", err)
+	}
+	if _, err := (&FeishuOrganizationSyncConfigService{
+		Store:            &fakeFeishuConfigStore{},
+		WecomConfigStore: &memoryWecomOrganizationSyncConfigStore{err: boom},
+	}).GetSourceStatus("engineering"); !errors.Is(err, boom) {
+		t.Fatalf("Feishu GetSourceStatus(conflict error) = %v, want status store failed", err)
+	}
+}
+
+func TestOrganizationSyncSourceGuardFiltersConfiguredOrganizations(t *testing.T) {
+	wecomOrganizations, err := getConfiguredWecomOrganizationSyncOrganizations(&memoryWecomOrganizationSyncConfigStore{configs: []*WecomOrganizationSyncConfig{
+		nil,
+		{Owner: "built-in", Name: WecomOrganizationSyncDefaultConfigName, Organization: "built-in"},
+		{Owner: "engineering", Name: WecomOrganizationSyncDefaultConfigName, Organization: "engineering"},
+		{Owner: "engineering", Name: WecomOrganizationSyncDefaultConfigName, Organization: "engineering"},
+		{Owner: "finance", Name: WecomOrganizationSyncDefaultConfigName, Organization: " finance "},
+	}})
+	if err != nil {
+		t.Fatalf("getConfiguredWecomOrganizationSyncOrganizations() error = %v", err)
+	}
+	if strings.Join(wecomOrganizations, ",") != "engineering,finance" {
+		t.Fatalf("wecom organizations = %#v, want engineering and finance without built-in or duplicates", wecomOrganizations)
+	}
+
+	feishuOrganizations, err := getConfiguredFeishuOrganizationSyncOrganizations(&fakeFeishuConfigStore{configs: []*FeishuOrganizationSyncConfig{
+		nil,
+		{Owner: "built-in", Name: FeishuOrganizationSyncDefaultConfigName, Organization: "built-in"},
+		{Owner: "engineering", Name: FeishuOrganizationSyncDefaultConfigName, Organization: "engineering"},
+		{Owner: "engineering", Name: FeishuOrganizationSyncDefaultConfigName, Organization: "engineering"},
+		{Owner: "finance", Name: FeishuOrganizationSyncDefaultConfigName, Organization: " finance "},
+	}})
+	if err != nil {
+		t.Fatalf("getConfiguredFeishuOrganizationSyncOrganizations() error = %v", err)
+	}
+	if strings.Join(feishuOrganizations, ",") != "engineering,finance" {
+		t.Fatalf("feishu organizations = %#v, want engineering and finance without built-in or duplicates", feishuOrganizations)
+	}
+}
+
+func TestOrganizationSyncSourceGuardHandlesStoresWithoutList(t *testing.T) {
+	wecomOrganizations, err := getConfiguredWecomOrganizationSyncOrganizations(&wecomOrganizationSyncConfigStoreWithoutList{})
+	if err != nil {
+		t.Fatalf("getConfiguredWecomOrganizationSyncOrganizations() error = %v", err)
+	}
+	if len(wecomOrganizations) != 0 {
+		t.Fatalf("wecom organizations = %#v, want empty list for non-lister store", wecomOrganizations)
+	}
+
+	feishuOrganizations, err := getConfiguredFeishuOrganizationSyncOrganizations(&feishuOrganizationSyncConfigStoreWithoutList{})
+	if err != nil {
+		t.Fatalf("getConfiguredFeishuOrganizationSyncOrganizations() error = %v", err)
+	}
+	if len(feishuOrganizations) != 0 {
+		t.Fatalf("feishu organizations = %#v, want empty list for non-lister store", feishuOrganizations)
+	}
+}
+
+func TestOrganizationSyncSourceGuardHandlesEmptyAndStoreErrors(t *testing.T) {
+	if err := validateWecomOrganizationSyncSourceActivation("  ", &fakeFeishuConfigStore{}); err != nil {
+		t.Fatalf("validateWecomOrganizationSyncSourceActivation(empty) error = %v", err)
+	}
+	if err := validateFeishuOrganizationSyncSourceActivation("  ", &memoryWecomOrganizationSyncConfigStore{}); err != nil {
+		t.Fatalf("validateFeishuOrganizationSyncSourceActivation(empty) error = %v", err)
+	}
+
+	boom := errors.New("store failed")
+	if err := validateWecomOrganizationSyncSourceActivation("engineering", &fakeFeishuConfigStore{err: boom}); !errors.Is(err, boom) {
+		t.Fatalf("validateWecomOrganizationSyncSourceActivation() error = %v, want store failed", err)
+	}
+	if err := validateFeishuOrganizationSyncSourceActivation("engineering", &memoryWecomOrganizationSyncConfigStore{err: boom}); !errors.Is(err, boom) {
+		t.Fatalf("validateFeishuOrganizationSyncSourceActivation() error = %v, want store failed", err)
+	}
+	if _, err := getConfiguredWecomOrganizationSyncOrganizations(&memoryWecomOrganizationSyncConfigStore{err: boom}); !errors.Is(err, boom) {
+		t.Fatalf("getConfiguredWecomOrganizationSyncOrganizations() error = %v, want store failed", err)
+	}
+	if _, err := getConfiguredFeishuOrganizationSyncOrganizations(&fakeFeishuConfigStore{err: boom}); !errors.Is(err, boom) {
+		t.Fatalf("getConfiguredFeishuOrganizationSyncOrganizations() error = %v, want store failed", err)
+	}
+	if organization, err := getDefaultWecomOrganizationSyncOrganization(&wecomOrganizationSyncConfigStoreWithoutList{}); err != nil || organization != "" {
+		t.Fatalf("getDefaultWecomOrganizationSyncOrganization() = %q, %v; want empty nil", organization, err)
+	}
+	if organization, err := getDefaultFeishuOrganizationSyncOrganization(&feishuOrganizationSyncConfigStoreWithoutList{}); err != nil || organization != "" {
+		t.Fatalf("getDefaultFeishuOrganizationSyncOrganization() = %q, %v; want empty nil", organization, err)
+	}
+}
+
+func TestOrganizationSyncSourceConflictErrorIncludesProviderAndOrganization(t *testing.T) {
+	var empty *OrganizationSyncSourceConflictError
+	if empty.Error() != "" {
+		t.Fatalf("nil conflict error = %q, want empty string", empty.Error())
+	}
+
+	err := (&OrganizationSyncSourceConflictError{Provider: "DingTalk", Organization: "engineering"}).Error()
+	if !strings.Contains(err, "DingTalk") || !strings.Contains(err, "engineering") || !strings.Contains(err, "create a new organization") {
+		t.Fatalf("conflict error = %q, want provider, organization and remediation", err)
+	}
+}
+
 func TestWecomOrganizationSyncConfigServiceSavesAndReadsScheduleSettings(t *testing.T) {
 	configStore := &memoryWecomOrganizationSyncConfigStore{}
 	scheduleStore := newMemoryOrganizationSyncScheduleStore()
 	service := &WecomOrganizationSyncConfigService{
-		Store:         configStore,
-		ScheduleStore: scheduleStore,
+		Store:             configStore,
+		FeishuConfigStore: &fakeFeishuConfigStore{},
+		ScheduleStore:     scheduleStore,
 	}
 
 	config, _, err := service.SaveConfig(&WecomOrganizationSyncConfig{
@@ -224,8 +551,9 @@ func TestWecomOrganizationSyncConfigServiceSaveSchedulePreservesDispatchMetadata
 	existingSchedule.LastStatus = string(OrganizationSyncScheduleFireStatusDispatched)
 	_, _ = scheduleStore.SaveOrganizationSyncSchedule(existingSchedule)
 	service := &WecomOrganizationSyncConfigService{
-		Store:         configStore,
-		ScheduleStore: scheduleStore,
+		Store:             configStore,
+		FeishuConfigStore: &fakeFeishuConfigStore{},
+		ScheduleStore:     scheduleStore,
 	}
 
 	_, _, err := service.SaveConfig(&WecomOrganizationSyncConfig{
@@ -256,6 +584,7 @@ func TestWecomOrganizationSyncConfigServiceSaveRetargetsBuiltInToCorpOrganizatio
 	organizationStore := newMemoryWecomBusinessOrganizationStore()
 	service := &WecomOrganizationSyncConfigService{
 		Store:             configStore,
+		FeishuConfigStore: &fakeFeishuConfigStore{},
 		OrganizationStore: organizationStore,
 	}
 

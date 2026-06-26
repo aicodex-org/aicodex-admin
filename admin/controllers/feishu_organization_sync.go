@@ -16,9 +16,16 @@ import (
 )
 
 type feishuOrganizationSyncConfigResponse struct {
-	Organization string                               `json:"organization"`
-	IsConfigured bool                                 `json:"isConfigured"`
-	Config       *object.FeishuOrganizationSyncConfig `json:"config"`
+	Organization              string                               `json:"organization"`
+	IsConfigured              bool                                 `json:"isConfigured"`
+	Config                    *object.FeishuOrganizationSyncConfig `json:"config"`
+	DefaultOrganization       string                               `json:"defaultOrganization,omitempty"`
+	DefaultOrganizationSource string                               `json:"defaultOrganizationSource,omitempty"`
+	ConflictingProvider       string                               `json:"conflictingProvider,omitempty"`
+	ConflictingOrganization   string                               `json:"conflictingOrganization,omitempty"`
+	ConflictingConfigured     bool                                 `json:"conflictingConfigured"`
+	ConflictingEnabled        bool                                 `json:"conflictingEnabled"`
+	ConflictingOrganizations  []string                             `json:"conflictingOrganizations,omitempty"`
 }
 
 type feishuOrganizationSyncRunRequest struct {
@@ -46,19 +53,24 @@ var getFeishuOrganizationSyncHandoffEvidence = func(filter object.FeishuOrganiza
 // GetFeishuOrganizationSyncConfig
 // @router /feishu-org-sync/config [get]
 func (c *ApiController) GetFeishuOrganizationSyncConfig() {
-	organization, ok := c.resolveFeishuOrganizationSyncTarget(c.Ctx.Input.Query("organization"))
+	service := &object.FeishuOrganizationSyncConfigService{}
+	organization, sourceStatus, ok := c.resolveFeishuOrganizationSyncConfigTarget(c.Ctx.Input.Query("organization"), service)
 	if !ok {
 		return
 	}
-	if !c.requireFeishuOrganizationSyncAdmin(organization) {
+	if organization != "" && !c.requireFeishuOrganizationSyncAdmin(organization) {
 		return
 	}
-	config, err := (&object.FeishuOrganizationSyncConfigService{}).GetConfig(organization, true)
+	if organization == "" {
+		c.ResponseOk(newFeishuOrganizationSyncConfigResponse(organization, nil, sourceStatus))
+		return
+	}
+	config, err := service.GetConfig(organization, true)
 	if err != nil {
 		c.ResponseError(err.Error())
 		return
 	}
-	c.ResponseOk(newFeishuOrganizationSyncConfigResponse(organization, config))
+	c.ResponseOk(newFeishuOrganizationSyncConfigResponse(organization, config, sourceStatus))
 }
 
 // SaveFeishuOrganizationSyncConfig
@@ -82,7 +94,16 @@ func (c *ApiController) SaveFeishuOrganizationSyncConfig() {
 		c.ResponseError(err.Error())
 		return
 	}
-	c.ResponseOk(newFeishuOrganizationSyncConfigResponse(organization, savedConfig))
+	resolvedOrganization := organization
+	if savedConfig != nil && savedConfig.Organization != "" {
+		resolvedOrganization = savedConfig.Organization
+	}
+	sourceStatus, err := (&object.FeishuOrganizationSyncConfigService{}).GetSourceStatus(resolvedOrganization)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(newFeishuOrganizationSyncConfigResponse(resolvedOrganization, savedConfig, sourceStatus))
 }
 
 // TestFeishuOrganizationSyncConfig
@@ -325,7 +346,8 @@ func (c *ApiController) GetFeishuOrganizationSyncRun() {
 	c.ResponseOk(run)
 }
 
-func newFeishuOrganizationSyncConfigResponse(organization string, config *object.FeishuOrganizationSyncConfig) *feishuOrganizationSyncConfigResponse {
+func newFeishuOrganizationSyncConfigResponse(organization string, config *object.FeishuOrganizationSyncConfig, sourceStatuses ...*object.OrganizationSyncSourceConflictStatus) *feishuOrganizationSyncConfigResponse {
+	sourceStatus := firstFeishuOrganizationSyncSourceStatus(sourceStatuses...)
 	if config == nil {
 		config = &object.FeishuOrganizationSyncConfig{
 			Owner:        organization,
@@ -334,9 +356,33 @@ func newFeishuOrganizationSyncConfigResponse(organization string, config *object
 			EndpointMode: object.FeishuEndpointModeDomestic,
 		}
 		object.AttachFeishuOrganizationSyncScheduleFieldsForResponse(config, nil)
-		return &feishuOrganizationSyncConfigResponse{Organization: organization, IsConfigured: false, Config: config}
+		response := &feishuOrganizationSyncConfigResponse{Organization: organization, IsConfigured: false, Config: config}
+		applyFeishuOrganizationSyncSourceStatus(response, sourceStatus)
+		return response
 	}
-	return &feishuOrganizationSyncConfigResponse{Organization: organization, IsConfigured: true, Config: config}
+	response := &feishuOrganizationSyncConfigResponse{Organization: organization, IsConfigured: true, Config: config}
+	applyFeishuOrganizationSyncSourceStatus(response, sourceStatus)
+	return response
+}
+
+func firstFeishuOrganizationSyncSourceStatus(sourceStatuses ...*object.OrganizationSyncSourceConflictStatus) *object.OrganizationSyncSourceConflictStatus {
+	if len(sourceStatuses) == 0 {
+		return nil
+	}
+	return sourceStatuses[0]
+}
+
+func applyFeishuOrganizationSyncSourceStatus(response *feishuOrganizationSyncConfigResponse, sourceStatus *object.OrganizationSyncSourceConflictStatus) {
+	if response == nil || sourceStatus == nil {
+		return
+	}
+	response.DefaultOrganization = sourceStatus.DefaultOrganization
+	response.DefaultOrganizationSource = sourceStatus.DefaultOrganizationSource
+	response.ConflictingProvider = sourceStatus.ConflictingProvider
+	response.ConflictingOrganization = sourceStatus.ConflictingOrganization
+	response.ConflictingConfigured = sourceStatus.ConflictingConfigured
+	response.ConflictingEnabled = sourceStatus.ConflictingEnabled
+	response.ConflictingOrganizations = sourceStatus.ConflictingOrganizations
 }
 
 func newFeishuOrganizationSyncRunStartResponse(result *object.FeishuOrganizationSyncStartRunResult, sensitiveValues ...string) *feishuOrganizationSyncRunStartResponse {
@@ -360,6 +406,31 @@ func (c *ApiController) resolveFeishuOrganizationSyncTarget(explicitOrganization
 		return "", false
 	}
 	return organization, true
+}
+
+func (c *ApiController) resolveFeishuOrganizationSyncConfigTarget(explicitOrganization string, service *object.FeishuOrganizationSyncConfigService) (string, *object.OrganizationSyncSourceConflictStatus, bool) {
+	isGlobalAdmin, user := c.isGlobalAdmin()
+	organization := strings.TrimSpace(explicitOrganization)
+	if organization == "" && isGlobalAdmin {
+		sourceStatus, err := service.GetSourceStatus("")
+		if err != nil {
+			c.ResponseError(err.Error())
+			return "", nil, false
+		}
+		return sourceStatus.DefaultOrganization, sourceStatus, true
+	}
+
+	resolvedOrganization, err := resolveFeishuOrganizationSyncTarget(organization, user, isGlobalAdmin)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return "", nil, false
+	}
+	sourceStatus, err := service.GetSourceStatus(resolvedOrganization)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return "", nil, false
+	}
+	return resolvedOrganization, sourceStatus, true
 }
 
 func resolveFeishuOrganizationSyncTarget(explicitOrganization string, user *object.User, isGlobalAdmin bool) (string, error) {

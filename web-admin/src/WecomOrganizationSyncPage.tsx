@@ -16,6 +16,7 @@ import React from "react";
 import {Alert, Button, Col, Divider, Empty, Input, Modal, Row, Space, Spin, Switch, Table, Tag, Tooltip, Typography} from "antd";
 import {FileSearchOutlined, HistoryOutlined, PlayCircleOutlined, PlusOutlined, ReloadOutlined, SaveOutlined, ToolOutlined} from "@ant-design/icons";
 import * as Setting from "./Setting";
+import * as FeishuOrganizationSyncBackend from "./backend/FeishuOrganizationSyncBackend";
 import * as WecomOrganizationSyncBackendRaw from "./backend/WecomOrganizationSyncBackend";
 import OrganizationSelect from "./common/select/OrganizationSelect";
 import {getDefaultTablePagination, getTablePaginationProps} from "./common/table/TablePagination";
@@ -30,6 +31,15 @@ const {Text} = Typography;
 const syncRunPollIntervalMs = 3000;
 const runStatisticTextStyle: React.CSSProperties = {fontVariantNumeric: "tabular-nums"};
 const nowrapHeaderCell: React.ThHTMLAttributes<HTMLElement> = {style: {whiteSpace: "nowrap"}};
+const lastWecomOrganizationSyncOrganizationKey = "wecom-org-sync:lastOrganization";
+const credentialTextInputProps = {
+  autoComplete: "off",
+  spellCheck: false,
+} as const;
+const credentialSecretInputProps = {
+  autoComplete: "new-password",
+  spellCheck: false,
+} as const;
 
 interface AdminAccount {
   owner?: string;
@@ -157,6 +167,7 @@ interface WecomOrganizationSyncTestResult {
 interface WecomOrganizationSyncPageState {
   organization: string;
   config: WecomOrganizationSyncConfig | null;
+  sourceStatus: OrganizationSyncSourceStatus;
   runs: WecomOrganizationSyncRun[];
   runCount: number;
   pagination: PaginationState;
@@ -193,14 +204,39 @@ interface ApiResponse<T = unknown> {
   msg?: string | null;
 }
 
+interface OrganizationSyncSourceStatus {
+  defaultOrganization?: string;
+  defaultOrganizationSource?: string;
+  conflictingProvider?: string;
+  conflictingOrganization?: string;
+  conflictingConfigured?: boolean;
+  conflictingEnabled?: boolean;
+  conflictingOrganizations?: string[];
+}
+
 interface WecomConfigResponseData {
   organization?: string;
+  isConfigured?: boolean;
   config?: Partial<WecomOrganizationSyncConfig>;
+  defaultOrganization?: string;
+  defaultOrganizationSource?: string;
+  conflictingProvider?: string;
+  conflictingOrganization?: string;
+  conflictingConfigured?: boolean;
+  conflictingEnabled?: boolean;
+  conflictingOrganizations?: string[];
 }
 
 interface WecomSaveResponseData {
   organization?: string;
   config?: Partial<WecomOrganizationSyncConfig>;
+  defaultOrganization?: string;
+  defaultOrganizationSource?: string;
+  conflictingProvider?: string;
+  conflictingOrganization?: string;
+  conflictingConfigured?: boolean;
+  conflictingEnabled?: boolean;
+  conflictingOrganizations?: string[];
 }
 
 interface WecomBackend {
@@ -224,10 +260,11 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
     super(props);
     this.runRefreshTimer = null;
     this.isUnmounted = false;
-    const organization = this.getAccountOrganization(props.account);
+    const organization = this.getInitialOrganization(props.account);
     this.state = {
       organization,
       config: null,
+      sourceStatus: {},
       runs: [],
       runCount: 0,
       pagination: getDefaultTablePagination(),
@@ -267,9 +304,9 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
       return;
     }
 
-    const organization = this.getAccountOrganization(this.props.account);
+    const organization = this.getInitialOrganization(this.props.account);
     if (organization) {
-      this.changeOrganization(organization);
+      this.changeOrganization(organization, false);
     }
   }
 
@@ -279,6 +316,39 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
       return "";
     }
     return Setting.getRequestOrganization(account) || account.owner;
+  }
+
+  getInitialOrganization(account?: AdminAccount): string {
+    return this.getBusinessOrganization(this.getLastSelectedOrganization())
+      || this.getBusinessOrganization(this.getAccountOrganization(account));
+  }
+
+  getBusinessOrganization(organization?: string): string {
+    const normalized = `${organization || ""}`.trim();
+    if (normalized === "" || normalized === "built-in") {
+      return "";
+    }
+    return normalized;
+  }
+
+  getLastSelectedOrganization(): string {
+    try {
+      return localStorage.getItem(lastWecomOrganizationSyncOrganizationKey) || "";
+    } catch {
+      return "";
+    }
+  }
+
+  rememberOrganization(organization: string): void {
+    const normalized = this.getBusinessOrganization(organization);
+    if (!normalized) {
+      return;
+    }
+    try {
+      localStorage.setItem(lastWecomOrganizationSyncOrganizationKey, normalized);
+    } catch {
+      // 本地存储不可用不影响同步页主流程。
+    }
   }
 
   clearRunRefreshTimer() {
@@ -319,7 +389,8 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
   }
 
   refreshRuns(organization: string, options: RefreshRunsOptions = {}): Promise<void> {
-    if (!organization) {
+    const requestedOrganization = `${organization || ""}`.trim();
+    if (!requestedOrganization && !options.refreshConfig) {
       return Promise.resolve();
     }
 
@@ -332,29 +403,50 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
     this.clearRunRefreshTimer();
     this.setState({loading: true});
 
-    const runsRequest = WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns(organization, nextPagination.current, nextPagination.pageSize);
+    const runsRequest = requestedOrganization
+      ? WecomOrganizationSyncBackend.getWecomOrganizationSyncRuns(requestedOrganization, nextPagination.current, nextPagination.pageSize)
+      : Promise.resolve({status: "ok", data: [], data2: 0} as ApiResponse<WecomOrganizationSyncRun[]>);
     const configRequest = refreshConfig
-      ? WecomOrganizationSyncBackend.getWecomOrganizationSyncConfig(organization)
+      ? WecomOrganizationSyncBackend.getWecomOrganizationSyncConfig(requestedOrganization)
       : Promise.resolve(null);
+    const legacySourceConflictRequest = configRequest.then(configRes => {
+      if (configRes === null || configRes?.status === "error") {
+        return {};
+      }
+      if (this.hasNativeSourceStatus(configRes?.data)) {
+        return {};
+      }
+      const sourceStatus = this.normalizeSourceStatus(configRes?.data);
+      if (sourceStatus.conflictingConfigured || sourceStatus.conflictingEnabled) {
+        return {};
+      }
+      return this.resolveLegacyFeishuSourceConflict(this.resolveConfigResponseOrganization(requestedOrganization, configRes?.data));
+    }).catch(() => ({}));
 
     // 手动刷新和自动轮询默认只关心同步记录；只有整页初始化时才顺带刷新配置表单。
-    return Promise.all([configRequest, runsRequest]).then(([configRes, runsRes]) => {
+    return Promise.all([configRequest, runsRequest, legacySourceConflictRequest]).then(([configRes, runsRes, legacySourceConflict]) => {
       if (configRes?.status === "error") {
         Setting.showMessage("error", configRes.msg || "配置刷新失败");
       }
       if (runsRes.status === "error") {
         Setting.showMessage("error", runsRes.msg || "同步记录刷新失败");
       }
-      if (this.isUnmounted || this.state.organization !== organization) {
+      if (this.isUnmounted || (requestedOrganization && this.state.organization !== requestedOrganization)) {
         return;
       }
 
       const nextState: Partial<WecomOrganizationSyncPageState> = {
         loading: false,
       };
+      let resolvedOrganization = requestedOrganization;
+      let shouldRefreshResolvedRuns = false;
       if (configRes !== null) {
-        nextState.config = this.normalizeConfig(organization, configRes?.data?.config);
+        resolvedOrganization = this.resolveConfigResponseOrganization(requestedOrganization, configRes?.data);
+        nextState.organization = resolvedOrganization;
+        nextState.sourceStatus = this.mergeSourceStatus(configRes?.data, legacySourceConflict);
+        nextState.config = this.normalizeConfig(resolvedOrganization, configRes?.data?.config);
         nextState.testResult = null;
+        shouldRefreshResolvedRuns = !requestedOrganization && !!resolvedOrganization;
       }
       if (runsRes.status === "ok") {
         nextState.runs = runsRes.data || [];
@@ -368,10 +460,16 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
       } else {
         nextState.runRefreshError = "同步记录刷新失败，请手动刷新重试。";
       }
-      this.setState(nextState as Pick<WecomOrganizationSyncPageState, keyof WecomOrganizationSyncPageState>, () => this.syncRunRefreshLoop(organization, nextState.runs || this.state.runs));
+      this.setState(nextState as Pick<WecomOrganizationSyncPageState, keyof WecomOrganizationSyncPageState>, () => {
+        if (shouldRefreshResolvedRuns) {
+          this.refreshRuns(resolvedOrganization, {pagination: getDefaultTablePagination()}).catch(() => {});
+          return;
+        }
+        this.syncRunRefreshLoop(resolvedOrganization, nextState.runs || this.state.runs);
+      });
     }).catch(error => {
       this.clearRunRefreshTimer();
-      if (this.isUnmounted || this.state.organization !== organization) {
+      if (this.isUnmounted || (requestedOrganization && this.state.organization !== requestedOrganization)) {
         return;
       }
       this.setState({
@@ -383,10 +481,120 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
   }
 
   refresh(organization: string): void {
-    if (!organization) {
+    this.refreshRuns(organization, {refreshConfig: true, pagination: getDefaultTablePagination()}).catch(() => {});
+  }
+
+  resolveConfigResponseOrganization(requestedOrganization: string, data?: WecomConfigResponseData): string {
+    return this.getBusinessOrganization(data?.config?.organization)
+      || this.getBusinessOrganization(data?.organization)
+      || this.getBusinessOrganization(data?.defaultOrganization)
+      || this.getBusinessOrganization(requestedOrganization);
+  }
+
+  normalizeSourceStatus(data?: WecomConfigResponseData | WecomSaveResponseData | null): OrganizationSyncSourceStatus {
+    const conflictingOrganization = this.getBusinessOrganization(data?.conflictingOrganization);
+    return {
+      defaultOrganization: data?.defaultOrganization || "",
+      defaultOrganizationSource: data?.defaultOrganizationSource || "",
+      conflictingProvider: data?.conflictingProvider || "",
+      conflictingOrganization,
+      conflictingConfigured: Boolean(data?.conflictingConfigured),
+      conflictingEnabled: Boolean(data?.conflictingEnabled),
+      conflictingOrganizations: this.normalizeOrganizations(data?.conflictingOrganizations, conflictingOrganization),
+    };
+  }
+
+  hasNativeSourceStatus(data?: WecomConfigResponseData | WecomSaveResponseData | null): boolean {
+    if (!data) {
+      return false;
+    }
+    return ["conflictingProvider", "conflictingOrganization", "conflictingConfigured", "conflictingEnabled", "conflictingOrganizations"]
+      .some(key => Object.prototype.hasOwnProperty.call(data, key));
+  }
+
+  mergeSourceStatus(data: WecomConfigResponseData | WecomSaveResponseData | null | undefined, fallbackStatus: OrganizationSyncSourceStatus): OrganizationSyncSourceStatus {
+    const sourceStatus = this.normalizeSourceStatus(data);
+    const fallbackConflict = Boolean(fallbackStatus.conflictingConfigured || fallbackStatus.conflictingEnabled);
+    const sourceConflict = Boolean(sourceStatus.conflictingConfigured || sourceStatus.conflictingEnabled);
+    const conflictStatus = sourceConflict ? sourceStatus : fallbackConflict ? fallbackStatus : sourceStatus;
+    return {
+      ...conflictStatus,
+      defaultOrganization: sourceStatus.defaultOrganization || fallbackStatus.defaultOrganization || "",
+      defaultOrganizationSource: sourceStatus.defaultOrganizationSource || fallbackStatus.defaultOrganizationSource || "",
+      conflictingOrganizations: this.normalizeOrganizations(
+        sourceStatus.conflictingOrganizations,
+        sourceStatus.conflictingOrganization,
+        fallbackStatus.conflictingOrganizations,
+        fallbackStatus.conflictingOrganization
+      ),
+    };
+  }
+
+  normalizeOrganizations(...values: Array<string | string[] | undefined>): string[] {
+    const seen: Record<string, boolean> = {};
+    const organizations: string[] = [];
+    values.forEach(value => {
+      const candidates = Array.isArray(value) ? value : [value];
+      candidates.forEach(candidate => {
+        const organization = this.getBusinessOrganization(candidate);
+        if (!organization || seen[organization]) {
+          return;
+        }
+        seen[organization] = true;
+        organizations.push(organization);
+      });
+    });
+    return organizations;
+  }
+
+  getExcludedSourceOrganizations(): string[] {
+    const currentOrganization = this.getBusinessOrganization(this.state.organization);
+    return this.normalizeOrganizations(
+      this.state.sourceStatus.conflictingOrganizations,
+      this.state.sourceStatus.conflictingOrganization
+    ).filter(organization => organization !== currentOrganization);
+  }
+
+  hasStatusConflict(status: OrganizationSyncSourceStatus): boolean {
+    return Boolean(status.conflictingConfigured || status.conflictingEnabled);
+  }
+
+  hasSourceConflict(): boolean {
+    return this.hasStatusConflict(this.state.sourceStatus);
+  }
+
+  updateSyncEnabled(checked: boolean): void {
+    if (this.hasSourceConflict()) {
+      Setting.showMessage("warning", "当前组织已被其他通讯录同步来源占用，请新建组织后配置企业微信同步。");
       return;
     }
-    this.refreshRuns(organization, {refreshConfig: true, pagination: getDefaultTablePagination()}).catch(() => {});
+    this.updateConfigField("isEnabled", checked);
+  }
+
+  resolveLegacyFeishuSourceConflict(organization: string): Promise<OrganizationSyncSourceStatus> {
+    const targetOrganization = this.getBusinessOrganization(organization);
+    if (!targetOrganization) {
+      return Promise.resolve({});
+    }
+    return FeishuOrganizationSyncBackend.getFeishuOrganizationSyncConfig(targetOrganization)
+      .then(res => {
+        const config = res?.data?.config;
+        if (res?.status !== "ok" || config === null || config === undefined) {
+          return {};
+        }
+        const conflictingOrganization = this.getBusinessOrganization(config.organization) || targetOrganization;
+        if (conflictingOrganization !== targetOrganization) {
+          return {};
+        }
+        return {
+          conflictingProvider: "Feishu/Lark",
+          conflictingOrganization,
+          conflictingConfigured: true,
+          conflictingEnabled: Boolean(config.isEnabled),
+          conflictingOrganizations: [conflictingOrganization],
+        };
+      })
+      .catch(() => ({}));
   }
 
   normalizeConfig(organization: string, config?: Partial<WecomOrganizationSyncConfig> | null): WecomOrganizationSyncConfig {
@@ -422,11 +630,16 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
     });
   }
 
-  changeOrganization(organization: string): void {
+  changeOrganization(organization: string, remember = true): void {
+    const targetOrganization = this.getBusinessOrganization(organization);
+    if (remember) {
+      this.rememberOrganization(targetOrganization);
+    }
     this.clearRunRefreshTimer();
     this.setState({
-      organization,
+      organization: targetOrganization,
       config: null,
+      sourceStatus: {},
       runs: [],
       runCount: 0,
       pagination: getDefaultTablePagination(),
@@ -436,7 +649,7 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
       dryRunHistories: [],
       dryRunHistoryDetail: null,
       dryRunHistoryDetailError: "",
-    }, () => this.refresh(organization));
+    }, () => this.refresh(targetOrganization));
   }
 
   goToOrganizationList() {
@@ -448,17 +661,23 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
   }
 
   saveConfig() {
+    if (this.hasSourceConflict()) {
+      Setting.showMessage("warning", "当前组织已被其他通讯录同步来源占用，暂不能保存企业微信配置。");
+      return;
+    }
     this.setState({saving: true});
     WecomOrganizationSyncBackend.saveWecomOrganizationSyncConfig(this.state.config)
       .then(res => {
         if (res.status === "ok") {
           const previousOrganization = this.state.organization;
           const resolvedOrganization = res.data?.config?.organization || res.data?.organization || previousOrganization;
+          this.rememberOrganization(resolvedOrganization);
           const nextConfig = this.normalizeConfig(resolvedOrganization, res.data?.config);
           this.setState({
             saving: false,
             organization: resolvedOrganization,
             config: nextConfig,
+            sourceStatus: this.normalizeSourceStatus(res.data),
           }, () => {
             if (resolvedOrganization !== previousOrganization) {
               this.refresh(resolvedOrganization);
@@ -500,6 +719,10 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
   }
 
   startSync() {
+    if (this.hasSourceConflict()) {
+      Setting.showMessage("warning", "当前组织已被其他通讯录同步来源占用，暂不能开始企业微信正式同步。");
+      return;
+    }
     this.setState({syncing: true});
     WecomOrganizationSyncBackend.startWecomOrganizationSyncRun(this.state.organization)
       .then(res => {
@@ -1135,7 +1358,7 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
           <OrganizationSelect
             initValue={this.state.organization}
             onChange={(organization: string) => this.changeOrganization(organization)}
-            excludedOrganizations={["built-in"]}
+            excludedOrganizations={["built-in", ...this.getExcludedSourceOrganizations()]}
             style={{minWidth: 280, width: "100%"}}
           />
           <Button icon={<PlusOutlined />} onClick={() => this.goToOrganizationList()}>
@@ -1159,13 +1382,31 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
     );
   }
 
+  renderSourceConflictAlert() {
+    if (!this.hasSourceConflict()) {
+      return null;
+    }
+    const provider = this.state.sourceStatus.conflictingProvider || "另一通讯录来源";
+    const organization = this.state.sourceStatus.conflictingOrganization || this.state.organization || "-";
+    return (
+      <Alert
+        style={{marginTop: 16}}
+        type="warning"
+        showIcon
+        message={`${provider} 已选择为当前组织的通讯录同步来源`}
+        description={`同一 Admin 组织只能保留一个通讯录主数据源。当前组织 ${organization} 已被 ${provider} 占用；如需验证其他通讯录来源，请新建组织后配置。`}
+      />
+    );
+  }
+
   renderSyncOptions(config: WecomOrganizationSyncConfig) {
+    const enableDisabled = this.hasSourceConflict();
     return (
       <div>
         <div style={{marginBottom: 8}}>同步选项</div>
         <Space direction="vertical" size={8}>
           <Space>
-            <Switch checked={config.isEnabled} onChange={checked => this.updateConfigField("isEnabled", checked)} />
+            <Switch checked={config.isEnabled} disabled={enableDisabled} onChange={checked => this.updateSyncEnabled(checked)} />
             <span>启用同步</span>
           </Space>
           <Space>
@@ -1237,6 +1478,7 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
 
     const runRefreshHint = this.getRunRefreshHint();
     const hasRunningRuns = this.hasRunningRuns(this.state.runs);
+    const hasSourceConflict = this.hasSourceConflict();
     const syncButtonLabel = hasRunningRuns ? "同步进行中" : "开始全量同步";
 
     return (
@@ -1255,11 +1497,21 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
           <Col xs={0} md={12} />
           <Col xs={24} md={12}>
             <div style={{marginBottom: 8}}>App ID（Corp ID）</div>
-            <Input value={config.corpId} onChange={event => this.updateConfigField("corpId", event.target.value)} />
+            <Input
+              {...credentialTextInputProps}
+              name="wecom-organization-sync-corp-id"
+              value={config.corpId}
+              onChange={event => this.updateConfigField("corpId", event.target.value)}
+            />
           </Col>
           <Col xs={24} md={12}>
             <div style={{marginBottom: 8}}>App Secret</div>
-            <Input.Password value={config.addressBookSecret} onChange={event => this.updateConfigField("addressBookSecret", event.target.value)} />
+            <Input.Password
+              {...credentialSecretInputProps}
+              name="wecom-organization-sync-address-book-secret"
+              value={config.addressBookSecret}
+              onChange={event => this.updateConfigField("addressBookSecret", event.target.value)}
+            />
           </Col>
           <Col xs={24} md={12}>
             {this.renderSyncOptions(config)}
@@ -1268,6 +1520,8 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
             {this.renderScheduleOptions(config)}
           </Col>
         </Row>
+
+        {this.renderSourceConflictAlert()}
 
         <Alert
           style={{marginTop: 16}}
@@ -1281,11 +1535,11 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
         <OrganizationSyncActionBar
           className="organization-sync-action-bar"
           actions={[
-            {key: "save", label: String(i18next.t("general:Save")), icon: <SaveOutlined />, type: "primary", loading: this.state.saving, onClick: () => this.saveConfig()},
+            {key: "save", label: String(i18next.t("general:Save")), icon: <SaveOutlined />, type: "primary", loading: this.state.saving, disabled: hasSourceConflict, onClick: () => this.saveConfig()},
             {key: "test", label: "测试连接", icon: <ToolOutlined />, loading: this.state.testing, onClick: () => this.testConfig()},
             {key: "dryRunPreview", label: "预览影响", icon: <FileSearchOutlined />, loading: this.state.dryRunPreviewLoading, disabled: !this.state.organization || !config.isEnabled, onClick: () => this.previewDryRun()},
             {key: "dryRunHistory", label: "预览历史", icon: <HistoryOutlined />, loading: this.state.dryRunHistoryLoading, disabled: !this.state.organization, onClick: () => this.openDryRunHistory()},
-            {key: "sync", label: syncButtonLabel, icon: <PlayCircleOutlined />, loading: this.state.syncing, disabled: !config.isEnabled || hasRunningRuns, onClick: () => this.startSync()},
+            {key: "sync", label: syncButtonLabel, icon: <PlayCircleOutlined />, loading: this.state.syncing, disabled: hasSourceConflict || !config.isEnabled || hasRunningRuns, onClick: () => this.startSync()},
           ]}
         />
 

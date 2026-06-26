@@ -11,8 +11,9 @@ import (
 
 // FeishuOrganizationScheduledSyncExecutor 将通用调度 fire 派发到飞书/Lark 全量差异同步。
 type FeishuOrganizationScheduledSyncExecutor struct {
-	ConfigStore FeishuOrganizationSyncConfigStore
-	SyncService *FeishuOrganizationSyncService
+	ConfigStore      FeishuOrganizationSyncConfigStore
+	WecomConfigStore WecomOrganizationSyncConfigStore
+	SyncService      *FeishuOrganizationSyncService
 }
 
 func init() {
@@ -33,9 +34,17 @@ func (e *FeishuOrganizationScheduledSyncExecutor) ExecuteOrganizationSync(ctx co
 	if !config.IsEnabled {
 		return newFeishuOrganizationSyncDispatchResult(OrganizationSyncScheduleFireStatusSkipped, "", "config_disabled", "feishu organization sync config is disabled"), nil
 	}
-	result, err := e.syncService().StartScheduledRunAsync(config, request.Actor)
+	service := e.syncService()
+	if service.WecomConfigStore == nil {
+		service.WecomConfigStore = e.wecomConfigStore()
+	}
+	result, err := service.StartScheduledRunAsync(config, request.Actor)
 	if errors.Is(err, ErrFeishuOrganizationSyncRunAlreadyRunning) {
 		return e.alreadyRunningResult(config.Organization)
+	}
+	var sourceConflict *OrganizationSyncSourceConflictError
+	if errors.As(err, &sourceConflict) {
+		return newFeishuOrganizationSyncDispatchResult(OrganizationSyncScheduleFireStatusSkipped, "", OrganizationSyncScheduleFireErrorSourceConflict, err.Error()), nil
 	}
 	if err != nil {
 		return nil, err
@@ -90,6 +99,13 @@ func (e *FeishuOrganizationScheduledSyncExecutor) configStore() FeishuOrganizati
 		return e.ConfigStore
 	}
 	return defaultFeishuOrganizationSyncConfigStore{}
+}
+
+func (e *FeishuOrganizationScheduledSyncExecutor) wecomConfigStore() WecomOrganizationSyncConfigStore {
+	if e != nil && e.WecomConfigStore != nil {
+		return e.WecomConfigStore
+	}
+	return defaultWecomOrganizationSyncConfigStore{}
 }
 
 func (e *FeishuOrganizationScheduledSyncExecutor) syncService() *FeishuOrganizationSyncService {

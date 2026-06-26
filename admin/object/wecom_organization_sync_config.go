@@ -38,6 +38,7 @@ type WecomAddressBookConnectionTester interface {
 // WecomOrganizationSyncConfigService 统一处理配置保存、Secret 保留和返回脱敏。
 type WecomOrganizationSyncConfigService struct {
 	Store                          WecomOrganizationSyncConfigStore
+	FeishuConfigStore              FeishuOrganizationSyncConfigStore
 	ScheduleStore                  OrganizationSyncScheduleStore
 	OrganizationStore              WecomBusinessOrganizationStore
 	Now                            func() time.Time
@@ -59,9 +60,52 @@ func (s *WecomOrganizationSyncConfigService) GetConfig(organization string, isMa
 	return s.attachScheduleFields(GetMaskedWecomOrganizationSyncConfig(config, isMaskEnabled))
 }
 
+func (s *WecomOrganizationSyncConfigService) GetDefaultOrganization() (string, error) {
+	return getDefaultWecomOrganizationSyncOrganization(s.configStore())
+}
+
+func (s *WecomOrganizationSyncConfigService) GetSourceStatus(organization string) (*OrganizationSyncSourceConflictStatus, error) {
+	defaultOrganization, err := s.GetDefaultOrganization()
+	if err != nil {
+		return nil, err
+	}
+	status := &OrganizationSyncSourceConflictStatus{DefaultOrganization: defaultOrganization}
+	if defaultOrganization != "" {
+		status.DefaultOrganizationSource = "configured"
+	}
+	feishuOrganizations, err := getConfiguredFeishuOrganizationSyncOrganizations(s.feishuConfigStore())
+	if err != nil {
+		return nil, err
+	}
+	status.ConflictingOrganizations = feishuOrganizations
+
+	organization = strings.TrimSpace(organization)
+	if organization == "" {
+		organization = defaultOrganization
+	}
+	if organization == "" {
+		return status, nil
+	}
+
+	config, err := s.feishuConfigStore().GetFeishuOrganizationSyncConfigByOrganization(organization)
+	if err != nil {
+		return nil, err
+	}
+	if config != nil {
+		status.ConflictingProvider = "Feishu/Lark"
+		status.ConflictingOrganization = organization
+		status.ConflictingConfigured = true
+		status.ConflictingEnabled = config.IsEnabled
+	}
+	return status, nil
+}
+
 func (s *WecomOrganizationSyncConfigService) SaveConfig(config *WecomOrganizationSyncConfig, isMaskEnabled bool) (*WecomOrganizationSyncConfig, bool, error) {
 	prepared, err := s.prepareConfigForSave(config)
 	if err != nil {
+		return nil, false, err
+	}
+	if err := validateWecomOrganizationSyncSourceActivation(prepared.Organization, s.feishuConfigStore()); err != nil {
 		return nil, false, err
 	}
 	schedule, hasScheduleSettings, err := s.prepareScheduleForSave(prepared.Organization, config)
@@ -189,6 +233,13 @@ func (s *WecomOrganizationSyncConfigService) configStore() WecomOrganizationSync
 	return defaultWecomOrganizationSyncConfigStore{}
 }
 
+func (s *WecomOrganizationSyncConfigService) feishuConfigStore() FeishuOrganizationSyncConfigStore {
+	if s != nil && s.FeishuConfigStore != nil {
+		return s.FeishuConfigStore
+	}
+	return defaultFeishuOrganizationSyncConfigStore{}
+}
+
 func (s *WecomOrganizationSyncConfigService) scheduleService() *OrganizationSyncScheduleService {
 	if s != nil && s.ScheduleStore != nil {
 		return &OrganizationSyncScheduleService{Store: s.ScheduleStore}
@@ -282,6 +333,15 @@ func (s defaultWecomOrganizationSyncConfigStore) GetWecomOrganizationSyncConfigB
 
 func (s defaultWecomOrganizationSyncConfigStore) SaveWecomOrganizationSyncConfig(config *WecomOrganizationSyncConfig) (bool, error) {
 	return saveWecomOrganizationSyncConfig(config)
+}
+
+func (s defaultWecomOrganizationSyncConfigStore) ListWecomOrganizationSyncConfigs() ([]*WecomOrganizationSyncConfig, error) {
+	configs := []*WecomOrganizationSyncConfig{}
+	if ormer == nil || ormer.Engine == nil {
+		return configs, nil
+	}
+	err := ormer.Engine.Desc("is_enabled").Desc("updated_at").Find(&configs)
+	return configs, err
 }
 
 // UpdateWecomOrganizationSyncConfigLastSync 只写最近成功同步元信息，不触碰 CorpId、Secret 或启用状态。

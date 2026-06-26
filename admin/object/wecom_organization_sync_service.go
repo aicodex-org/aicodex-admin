@@ -129,6 +129,7 @@ type WecomOrganizationObjectStore interface {
 type WecomOrganizationSyncService struct {
 	Store                    WecomOrganizationSyncRunStore
 	ConfigStore              WecomOrganizationSyncConfigLastSyncStore
+	FeishuConfigStore        FeishuOrganizationSyncConfigStore
 	ObjectStore              WecomOrganizationObjectStore
 	OrganizationStore        WecomBusinessOrganizationStore
 	Now                      func() time.Time
@@ -1205,6 +1206,13 @@ func (s *WecomOrganizationSyncService) gatewayProjectionService() GatewayProject
 		return s.GatewayProjectionService
 	}
 	return &GatewayProjectionService{}
+}
+
+func (s *WecomOrganizationSyncService) feishuConfigStore() FeishuOrganizationSyncConfigStore {
+	if s != nil && s.FeishuConfigStore != nil {
+		return s.FeishuConfigStore
+	}
+	return defaultFeishuOrganizationSyncConfigStore{}
 }
 
 // publishGatewayProjectionAfterSuccessfulSync 是 WeCom 同步后的可配置触发点。

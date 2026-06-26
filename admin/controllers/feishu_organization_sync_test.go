@@ -33,6 +33,78 @@ func TestNewFeishuOrganizationSyncRunStartResponseAttachesDiagnostics(t *testing
 	}
 }
 
+func TestNewFeishuOrganizationSyncConfigResponseAttachesSourceStatus(t *testing.T) {
+	sourceStatus := &object.OrganizationSyncSourceConflictStatus{
+		DefaultOrganization:       "feishu-org",
+		DefaultOrganizationSource: "configured",
+		ConflictingProvider:       "WeCom",
+		ConflictingOrganization:   "engineering",
+		ConflictingConfigured:     true,
+		ConflictingEnabled:        false,
+		ConflictingOrganizations:  []string{"engineering"},
+	}
+
+	emptyResponse := newFeishuOrganizationSyncConfigResponse("engineering", nil, sourceStatus)
+	if emptyResponse.IsConfigured || emptyResponse.Config == nil || emptyResponse.Config.Organization != "engineering" {
+		t.Fatalf("empty config response = %#v, want default config for engineering", emptyResponse)
+	}
+	if emptyResponse.DefaultOrganization != "feishu-org" || emptyResponse.ConflictingProvider != "WeCom" || !emptyResponse.ConflictingConfigured {
+		t.Fatalf("source status = %#v, want default organization and WeCom conflict", emptyResponse)
+	}
+	if len(emptyResponse.ConflictingOrganizations) != 1 || emptyResponse.ConflictingOrganizations[0] != "engineering" {
+		t.Fatalf("conflicting organizations = %#v, want engineering", emptyResponse.ConflictingOrganizations)
+	}
+
+	configuredResponse := newFeishuOrganizationSyncConfigResponse("engineering", &object.FeishuOrganizationSyncConfig{
+		Organization: "engineering",
+		AppId:        "cli_a",
+		EndpointMode: object.FeishuEndpointModeDomestic,
+	}, sourceStatus)
+	if !configuredResponse.IsConfigured || configuredResponse.Config == nil || configuredResponse.Config.AppId != "cli_a" {
+		t.Fatalf("configured response = %#v, want persisted Feishu config", configuredResponse)
+	}
+}
+
+func TestResolveFeishuOrganizationSyncConfigTargetUsesDefaultForGlobalAdmin(t *testing.T) {
+	controller := newOrganizationSyncConfigTargetTestController("GetFeishuOrganizationSyncConfig")
+	service := &object.FeishuOrganizationSyncConfigService{
+		Store: &controllerFeishuSyncConfigStore{configs: []*object.FeishuOrganizationSyncConfig{
+			{Organization: "feishu-org", AppId: "cli_a"},
+		}},
+		WecomConfigStore: &controllerWecomSyncConfigStore{configs: []*object.WecomOrganizationSyncConfig{
+			{Organization: "feishu-org", CorpId: "ww123", IsEnabled: true},
+		}},
+	}
+
+	organization, sourceStatus, ok := controller.resolveFeishuOrganizationSyncConfigTarget("", service)
+	if !ok || organization != "feishu-org" {
+		t.Fatalf("resolveFeishuOrganizationSyncConfigTarget() = organization:%q ok:%v, want feishu-org true", organization, ok)
+	}
+	if sourceStatus == nil || sourceStatus.DefaultOrganization != "feishu-org" || sourceStatus.ConflictingProvider != "WeCom" {
+		t.Fatalf("sourceStatus = %#v, want default feishu-org and WeCom conflict", sourceStatus)
+	}
+}
+
+func TestResolveFeishuOrganizationSyncConfigTargetUsesExplicitOrganization(t *testing.T) {
+	controller := newOrganizationSyncConfigTargetTestController("GetFeishuOrganizationSyncConfig")
+	service := &object.FeishuOrganizationSyncConfigService{
+		Store: &controllerFeishuSyncConfigStore{configs: []*object.FeishuOrganizationSyncConfig{
+			{Organization: "feishu-org", AppId: "cli_a"},
+		}},
+		WecomConfigStore: &controllerWecomSyncConfigStore{configs: []*object.WecomOrganizationSyncConfig{
+			{Organization: "finance", CorpId: "ww456", IsEnabled: false},
+		}},
+	}
+
+	organization, sourceStatus, ok := controller.resolveFeishuOrganizationSyncConfigTarget("finance", service)
+	if !ok || organization != "finance" {
+		t.Fatalf("resolveFeishuOrganizationSyncConfigTarget() = organization:%q ok:%v, want finance true", organization, ok)
+	}
+	if sourceStatus == nil || sourceStatus.ConflictingOrganization != "finance" || sourceStatus.ConflictingEnabled {
+		t.Fatalf("sourceStatus = %#v, want disabled WeCom conflict for finance", sourceStatus)
+	}
+}
+
 func TestFeishuOrganizationSyncTargetAuthorizationRules(t *testing.T) {
 	tests := []struct {
 		name         string

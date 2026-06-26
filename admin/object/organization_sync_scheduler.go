@@ -44,6 +44,7 @@ const (
 	OrganizationSyncScheduleFireErrorMissingExecutor = "missing_executor"
 	OrganizationSyncScheduleFireErrorDispatchFailed  = "dispatch_failed"
 	OrganizationSyncScheduleFireErrorAlreadyRunning  = "already_running"
+	OrganizationSyncScheduleFireErrorSourceConflict  = "sync_source_conflict"
 )
 
 // OrganizationSyncScheduleFireStatus 表示调度 fire 的派发锁阶段或终态。

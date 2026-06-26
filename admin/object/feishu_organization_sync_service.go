@@ -18,6 +18,7 @@ import (
 type FeishuOrganizationSyncService struct {
 	Store             FeishuOrganizationSyncRunStore
 	ConfigStore       FeishuOrganizationSyncConfigLastSyncStore
+	WecomConfigStore  WecomOrganizationSyncConfigStore
 	Now               func() time.Time
 	LeaseDuration     time.Duration
 	SyncTimeout       time.Duration

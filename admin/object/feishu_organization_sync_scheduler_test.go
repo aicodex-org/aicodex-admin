@@ -7,6 +7,7 @@ package object
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -41,6 +42,7 @@ func TestFeishuOrganizationScheduledSyncExecutorHandlesSetupAndSuccessBranches(t
 			EndpointMode: FeishuEndpointModeDomestic,
 			IsEnabled:    true,
 		}},
+		WecomConfigStore: &memoryWecomOrganizationSyncConfigStore{},
 		SyncService: &FeishuOrganizationSyncService{
 			Store: &fakeFeishuNoRunStartStore{},
 			Now:   func() time.Time { return time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC) },
@@ -56,6 +58,85 @@ func TestFeishuOrganizationScheduledSyncExecutorHandlesSetupAndSuccessBranches(t
 	}
 	if result == nil || result.Status != OrganizationSyncScheduleFireStatusDispatched || result.RunId != "" {
 		t.Fatalf("result = %+v, want dispatched without starting background run", result)
+	}
+}
+
+func TestFeishuOrganizationSyncServiceStartManualRunRejectsWecomConfiguredConflict(t *testing.T) {
+	now := time.Date(2026, 6, 26, 10, 0, 0, 0, time.UTC)
+	runStore := &fakeFeishuRunStore{}
+	service := &FeishuOrganizationSyncService{
+		Store: runStore,
+		Now:   func() time.Time { return now },
+		WecomConfigStore: &memoryWecomOrganizationSyncConfigStore{config: &WecomOrganizationSyncConfig{
+			Owner:             "engineering",
+			Name:              WecomOrganizationSyncDefaultConfigName,
+			Organization:      "engineering",
+			CorpId:            "ww123",
+			AddressBookSecret: "wecom-secret",
+			IsEnabled:         false,
+		}},
+	}
+
+	_, err := service.StartManualRunWithResult(&FeishuOrganizationSyncConfig{
+		Owner:        "engineering",
+		Name:         FeishuOrganizationSyncDefaultConfigName,
+		Organization: "engineering",
+		AppId:        "cli_a",
+		AppSecret:    "feishu-secret",
+		EndpointMode: FeishuEndpointModeDomestic,
+		IsEnabled:    true,
+	}, "engineering/admin")
+
+	if err == nil || !strings.Contains(err.Error(), "WeCom") {
+		t.Fatalf("StartManualRunWithResult() error = %v, want WeCom conflict", err)
+	}
+	if runStore.created != nil {
+		t.Fatalf("conflicting sync source must not create run: %#v", runStore.created)
+	}
+}
+
+func TestFeishuOrganizationScheduledSyncExecutorSkipsWecomConfiguredConflict(t *testing.T) {
+	now := time.Date(2026, 6, 26, 10, 0, 0, 0, time.UTC)
+	runStore := &fakeFeishuRunStore{}
+	executor := &FeishuOrganizationScheduledSyncExecutor{
+		ConfigStore: &fakeFeishuConfigStore{config: &FeishuOrganizationSyncConfig{
+			Owner:        "engineering",
+			Name:         FeishuOrganizationSyncDefaultConfigName,
+			Organization: "engineering",
+			AppId:        "cli_a",
+			AppSecret:    "feishu-secret",
+			EndpointMode: FeishuEndpointModeDomestic,
+			IsEnabled:    true,
+		}},
+		WecomConfigStore: &memoryWecomOrganizationSyncConfigStore{config: &WecomOrganizationSyncConfig{
+			Owner:             "engineering",
+			Name:              WecomOrganizationSyncDefaultConfigName,
+			Organization:      "engineering",
+			CorpId:            "ww123",
+			AddressBookSecret: "wecom-secret",
+			IsEnabled:         false,
+		}},
+		SyncService: &FeishuOrganizationSyncService{
+			Store: runStore,
+			Now:   func() time.Time { return now },
+		},
+	}
+
+	result, err := executor.ExecuteOrganizationSync(context.Background(), OrganizationSyncDispatchRequest{
+		Schedule: &OrganizationSyncSchedule{Organization: "engineering"},
+		Actor:    "scheduler:node-a",
+	})
+	if err != nil {
+		t.Fatalf("ExecuteOrganizationSync() error = %v", err)
+	}
+	if result == nil || result.Status != OrganizationSyncScheduleFireStatusSkipped || result.ErrorCode != OrganizationSyncScheduleFireErrorSourceConflict {
+		t.Fatalf("conflict should return skipped source conflict result: %#v", result)
+	}
+	if result.Diagnostics == nil || result.Diagnostics.FailedStage != FeishuOrganizationSyncDiagnosticStageScheduler {
+		t.Fatalf("conflict result should include scheduler diagnostics: %#v", result)
+	}
+	if runStore.created != nil {
+		t.Fatalf("conflicting scheduled sync should not create run: %#v", runStore.created)
 	}
 }
 
@@ -119,7 +200,8 @@ func TestFeishuOrganizationScheduledSyncExecutorReturnsDispatchDiagnostics(t *te
 				runStore = &fakeFeishuRunStore{}
 			}
 			executor := &FeishuOrganizationScheduledSyncExecutor{
-				ConfigStore: &fakeFeishuConfigStore{config: tt.config},
+				ConfigStore:      &fakeFeishuConfigStore{config: tt.config},
+				WecomConfigStore: &memoryWecomOrganizationSyncConfigStore{},
 				SyncService: &FeishuOrganizationSyncService{
 					Store: runStore,
 					Now:   func() time.Time { return time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC) },

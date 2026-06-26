@@ -5,6 +5,7 @@ import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {render} from "@testing-library/react";
 import FeishuOrganizationSyncPage from "./FeishuOrganizationSyncPage";
 import * as FeishuOrganizationSyncBackend from "./backend/FeishuOrganizationSyncBackend";
+import * as WecomOrganizationSyncBackend from "./backend/WecomOrganizationSyncBackend";
 import * as Setting from "./Setting";
 
 declare const jest: typeof jestValue;
@@ -18,6 +19,7 @@ type DomMatcherResult = ReturnType<typeof jestExpect> & {
   not: ReturnType<typeof jestExpect> & {
     toBeInTheDocument: () => void;
     toHaveBeenCalled: () => void;
+    toBeDisabled: () => void;
   };
 };
 
@@ -45,8 +47,25 @@ jest.mock("./backend/FeishuOrganizationSyncBackend", () => {
   };
 });
 
-jest.mock("./common/select/OrganizationSelect", () => function OrganizationSelectMock(props: {initValue?: string}) {
-  return <input aria-label="organization-select" value={props.initValue || ""} readOnly />;
+jest.mock("./backend/WecomOrganizationSyncBackend", () => {
+  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+  return {
+    getWecomOrganizationSyncConfig: factoryJest.fn(),
+  };
+});
+
+jest.mock("./common/select/OrganizationSelect", () => function OrganizationSelectMock(props: {initValue?: string; excludedOrganizations?: string[]; onChange?: (value: string) => void}) {
+  const organizations = [
+    {value: "built-in", label: "Built-in Organization"},
+    {value: "engineering", label: "engineering"},
+    {value: "wecom-occupied", label: "wecom-occupied"},
+    {value: "support", label: "support"},
+  ].filter(organization => !(props.excludedOrganizations || []).includes(organization.value));
+  return (
+    <select aria-label="organization-select" value={props.initValue || ""} onChange={event => props.onChange?.(event.target.value)}>
+      {organizations.map(organization => <option key={organization.value} value={organization.value}>{organization.label}</option>)}
+    </select>
+  );
 });
 
 type LooseMock = {
@@ -56,8 +75,10 @@ type LooseMock = {
   mockRejectedValueOnce: (value: unknown) => LooseMock;
 };
 type FeishuBackendMock = Record<keyof typeof FeishuOrganizationSyncBackend, LooseMock>;
+type WecomBackendMock = Record<keyof typeof WecomOrganizationSyncBackend, LooseMock>;
 
 const feishuBackendMock = FeishuOrganizationSyncBackend as unknown as FeishuBackendMock;
+const wecomBackendMock = WecomOrganizationSyncBackend as unknown as WecomBackendMock;
 const {fireEvent, screen} = require("@testing-library/react") as {
   fireEvent: {
     click: (element: Element | null) => boolean;
@@ -95,10 +116,13 @@ beforeEach(() => {
     writable: true,
     value: mockMatchMedia,
   });
+  localStorage.removeItem("feishu-org-sync:lastOrganization");
   jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
   feishuBackendMock.getFeishuOrganizationSyncConfig.mockResolvedValue({
     status: "ok",
     data: {
+      organization: "engineering",
+      defaultOrganization: "engineering",
       config: {
         organization: "engineering",
         appId: "cli_123",
@@ -109,6 +133,7 @@ beforeEach(() => {
       },
     },
   });
+  wecomBackendMock.getWecomOrganizationSyncConfig.mockResolvedValue({status: "ok", data: {config: null}});
   feishuBackendMock.getFeishuOrganizationSyncRuns.mockResolvedValue({status: "ok", data: [], data2: 0});
   feishuBackendMock.getFeishuOrganizationSyncDryRunHistories.mockResolvedValue({
     status: "ok",
@@ -291,6 +316,140 @@ async function flushPromises() {
   await Promise.resolve();
   await Promise.resolve();
 }
+
+test("restores configured Feishu organization when account owner is built-in", async() => {
+  render(<FeishuOrganizationSyncPage account={{owner: "built-in"}} />);
+
+  expect(await screen.findByText("飞书组织架构同步")).toBeInTheDocument();
+  expect(screen.getByDisplayValue("cli_123")).toBeInTheDocument();
+  expect(screen.getByDisplayValue("cli_123")).toHaveAttribute("name", "feishu-organization-sync-app-id");
+  expect(screen.getByDisplayValue("cli_123")).toHaveAttribute("autocomplete", "off");
+  expect(document.querySelector("input[name='feishu-organization-sync-app-secret']")).toHaveAttribute("autocomplete", "new-password");
+  expect(feishuBackendMock.getFeishuOrganizationSyncConfig).toHaveBeenCalledWith("");
+  expect(feishuBackendMock.getFeishuOrganizationSyncRuns).toHaveBeenCalledWith("engineering", 1, 10);
+});
+
+test("shows source conflict warning and disables saving or enabling Feishu full sync", async() => {
+  feishuBackendMock.getFeishuOrganizationSyncConfig.mockResolvedValue({
+    status: "ok",
+    data: {
+      organization: "engineering",
+      defaultOrganization: "engineering",
+      conflictingProvider: "WeCom",
+      conflictingOrganization: "engineering",
+      conflictingConfigured: true,
+      conflictingEnabled: true,
+      conflictingOrganizations: ["engineering"],
+      config: {
+        organization: "engineering",
+        appId: "cli_123",
+        appSecret: "***",
+        endpointMode: "feishu",
+        isEnabled: false,
+        softDisableMissingData: true,
+      },
+    },
+  });
+
+  render(<FeishuOrganizationSyncPage account={{owner: "engineering"}} />);
+
+  expect(await screen.findByText("WeCom 已选择为当前组织的通讯录同步来源")).toBeInTheDocument();
+  expect(screen.getByText(/已被 WeCom 占用/)).toBeInTheDocument();
+  const enableSwitch = screen.getByText("启用同步").closest(".ant-space")?.querySelector("button") || null;
+  expect(enableSwitch).toBeDisabled();
+  expect(screen.getByText("开始全量同步").closest("button")).toBeDisabled();
+  expect(screen.getByText("保存").closest("button")).toBeDisabled();
+});
+
+test("keeps already-enabled Feishu source read-only when another source occupies organization", async() => {
+  feishuBackendMock.getFeishuOrganizationSyncConfig.mockResolvedValue({
+    status: "ok",
+    data: {
+      organization: "engineering",
+      defaultOrganization: "engineering",
+      conflictingProvider: "WeCom",
+      conflictingOrganization: "engineering",
+      conflictingConfigured: true,
+      conflictingEnabled: true,
+      conflictingOrganizations: ["engineering"],
+      config: {
+        organization: "engineering",
+        appId: "cli_123",
+        appSecret: "***",
+        endpointMode: "feishu",
+        isEnabled: true,
+        softDisableMissingData: true,
+      },
+    },
+  });
+
+  render(<FeishuOrganizationSyncPage account={{owner: "engineering"}} />);
+
+  expect(await screen.findByText("WeCom 已选择为当前组织的通讯录同步来源")).toBeInTheDocument();
+  const enableSwitch = screen.getByText("启用同步").closest(".ant-space")?.querySelector("button") || null;
+  const saveButton = document.querySelector(".organization-sync-action-bar button");
+  expect(enableSwitch).toBeDisabled();
+  expect(saveButton).toBeDisabled();
+  expect(feishuBackendMock.saveFeishuOrganizationSyncConfig).not.toHaveBeenCalled();
+});
+
+test("detects WeCom conflict from legacy backend response without source status", async() => {
+  feishuBackendMock.getFeishuOrganizationSyncConfig.mockResolvedValue({
+    status: "ok",
+    data: {
+      organization: "engineering",
+      config: {
+        organization: "engineering",
+        appId: "cli_123",
+        appSecret: "***",
+        endpointMode: "feishu",
+        isEnabled: false,
+      },
+    },
+  });
+  wecomBackendMock.getWecomOrganizationSyncConfig.mockResolvedValue({
+    status: "ok",
+    data: {
+      config: {
+        organization: "engineering",
+        isEnabled: false,
+      },
+    },
+  });
+
+  render(<FeishuOrganizationSyncPage account={{owner: "engineering"}} />);
+
+  expect(await screen.findByText("WeCom 已选择为当前组织的通讯录同步来源")).toBeInTheDocument();
+  expect(screen.getByText(/已被 WeCom 占用/)).toBeInTheDocument();
+});
+
+test("filters organizations occupied by WeCom from the sync target selector", async() => {
+  feishuBackendMock.getFeishuOrganizationSyncConfig.mockResolvedValue({
+    status: "ok",
+    data: {
+      organization: "engineering",
+      defaultOrganization: "engineering",
+      conflictingOrganizations: ["wecom-occupied"],
+      config: {
+        organization: "engineering",
+        appId: "cli_123",
+        appSecret: "***",
+        endpointMode: "feishu",
+        isEnabled: false,
+        softDisableMissingData: true,
+      },
+    },
+  });
+
+  render(<FeishuOrganizationSyncPage account={{owner: "engineering"}} />);
+
+  expect(await screen.findByText("飞书组织架构同步")).toBeInTheDocument();
+  expect(screen.getByText("engineering")).toBeInTheDocument();
+  expect(screen.queryByText("wecom-occupied")).not.toBeInTheDocument();
+  expect(screen.getByText("support")).toBeInTheDocument();
+  expect(screen.queryByText("WeCom 已选择为当前组织的通讯录同步来源")).not.toBeInTheDocument();
+  expect(screen.getByText("保存").closest("button")).not.toBeDisabled();
+});
 
 type TestStatePatch = Record<string, unknown> | ((state: Record<string, unknown>) => Record<string, unknown> | null) | null;
 type FeishuPageHarness = FeishuOrganizationSyncPage & {

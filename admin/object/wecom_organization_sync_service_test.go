@@ -1108,6 +1108,7 @@ func TestWecomOrganizationSyncServiceStartManualRunEnsuresBusinessApplication(t 
 	organizationStore := newMemoryWecomBusinessOrganizationStore()
 	service := &WecomOrganizationSyncService{
 		Store:             &memoryWecomOrganizationSyncRunStore{},
+		FeishuConfigStore: &fakeFeishuConfigStore{},
 		OrganizationStore: organizationStore,
 	}
 

@@ -49,6 +49,9 @@ func (s *WecomOrganizationSyncService) startRunWithResult(config *WecomOrganizat
 	if err := validateWecomOrganizationSyncRunExecutionConfig(config); err != nil {
 		return nil, err
 	}
+	if err := validateWecomOrganizationSyncSourceActivation(config.Organization, s.feishuConfigStore()); err != nil {
+		return nil, err
+	}
 	if err := s.ensureWecomBusinessOrganizationForConfig(config); err != nil {
 		return nil, err
 	}

@@ -214,7 +214,11 @@ func TestFeishuOrganizationSyncServiceStartManualRunRejectsMissingSecret(t *test
 func TestFeishuOrganizationSyncServiceStartManualRunRejectsActiveRunningRun(t *testing.T) {
 	now := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
 	store := &fakeFeishuRunStore{running: &FeishuOrganizationSyncRun{LeaseExpiresAt: now.Add(time.Minute)}}
-	service := &FeishuOrganizationSyncService{Store: store, Now: func() time.Time { return now }}
+	service := &FeishuOrganizationSyncService{
+		Store:            store,
+		WecomConfigStore: &memoryWecomOrganizationSyncConfigStore{},
+		Now:              func() time.Time { return now },
+	}
 	_, err := service.StartManualRunWithResult(&FeishuOrganizationSyncConfig{
 		Organization: "engineering",
 		AppId:        "cli_1",

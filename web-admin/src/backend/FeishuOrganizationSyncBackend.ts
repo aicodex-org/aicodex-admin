@@ -255,6 +255,22 @@ export interface FeishuApiResponse<T = unknown> {
   data2?: number;
 }
 
+export interface OrganizationSyncSourceStatus {
+  defaultOrganization?: string;
+  defaultOrganizationSource?: string;
+  conflictingProvider?: string;
+  conflictingOrganization?: string;
+  conflictingConfigured?: boolean;
+  conflictingEnabled?: boolean;
+  conflictingOrganizations?: string[];
+}
+
+export interface FeishuOrganizationSyncConfigResponse extends OrganizationSyncSourceStatus {
+  organization?: string;
+  isConfigured?: boolean;
+  config?: FeishuOrganizationSyncConfig;
+}
+
 type QueryValue = string | number | boolean | null | undefined;
 type QueryFilters = Record<string, QueryValue>;
 
@@ -268,21 +284,21 @@ function parseJson<T>(res: Response): Promise<FeishuApiResponse<T>> {
   return res.json() as Promise<FeishuApiResponse<T>>;
 }
 
-export function getFeishuOrganizationSyncConfig(organization: string): Promise<FeishuApiResponse<{config?: FeishuOrganizationSyncConfig}>> {
+export function getFeishuOrganizationSyncConfig(organization: string): Promise<FeishuApiResponse<FeishuOrganizationSyncConfigResponse>> {
   return fetch(`${Setting.ServerUrl}/api/feishu-org-sync/config?organization=${encodeURIComponent(organization)}`, {
     method: "GET",
     credentials: "include",
     headers: getHeaders(),
-  }).then(res => parseJson<{config?: FeishuOrganizationSyncConfig}>(res));
+  }).then(res => parseJson<FeishuOrganizationSyncConfigResponse>(res));
 }
 
-export function saveFeishuOrganizationSyncConfig(config: FeishuOrganizationSyncConfig | null): Promise<FeishuApiResponse<{config?: FeishuOrganizationSyncConfig; organization?: string}>> {
+export function saveFeishuOrganizationSyncConfig(config: FeishuOrganizationSyncConfig | null): Promise<FeishuApiResponse<FeishuOrganizationSyncConfigResponse>> {
   return fetch(`${Setting.ServerUrl}/api/feishu-org-sync/config`, {
     method: "POST",
     credentials: "include",
     body: JSON.stringify(Setting.deepCopy(config)),
     headers: getHeaders(),
-  }).then(res => parseJson<{config?: FeishuOrganizationSyncConfig; organization?: string}>(res));
+  }).then(res => parseJson<FeishuOrganizationSyncConfigResponse>(res));
 }
 
 export function testFeishuOrganizationSyncConfig(config: FeishuOrganizationSyncConfig | null): Promise<FeishuApiResponse<Record<string, unknown>>> {

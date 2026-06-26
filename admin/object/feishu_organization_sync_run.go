@@ -59,6 +59,9 @@ func (s *FeishuOrganizationSyncService) startRunWithResult(config *FeishuOrganiz
 	if err := validateFeishuOrganizationSyncRunExecutionConfig(config); err != nil {
 		return nil, err
 	}
+	if err := validateFeishuOrganizationSyncSourceActivation(config.Organization, s.wecomConfigStore()); err != nil {
+		return nil, err
+	}
 	store := s.runStore()
 	if startStore, ok := store.(FeishuOrganizationSyncRunTriggerStartStore); ok {
 		return startStore.StartFeishuOrganizationSyncRunWithTrigger(config, actor, triggerType, s.now().UTC(), s.leaseDuration())
@@ -181,6 +184,13 @@ func (s *FeishuOrganizationSyncService) runStore() FeishuOrganizationSyncRunStor
 		return s.Store
 	}
 	return defaultFeishuOrganizationSyncRunStore{}
+}
+
+func (s *FeishuOrganizationSyncService) wecomConfigStore() WecomOrganizationSyncConfigStore {
+	if s != nil && s.WecomConfigStore != nil {
+		return s.WecomConfigStore
+	}
+	return defaultWecomOrganizationSyncConfigStore{}
 }
 
 func (s defaultFeishuOrganizationSyncRunStore) GetRunningFeishuOrganizationSyncRun(organization string) (*FeishuOrganizationSyncRun, error) {

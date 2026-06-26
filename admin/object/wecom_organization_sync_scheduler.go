@@ -21,8 +21,9 @@ import (
 
 // WecomOrganizationScheduledSyncExecutor 将通用调度 fire 派发到企业微信全量差异同步。
 type WecomOrganizationScheduledSyncExecutor struct {
-	ConfigStore WecomOrganizationSyncConfigStore
-	SyncService *WecomOrganizationSyncService
+	ConfigStore       WecomOrganizationSyncConfigStore
+	FeishuConfigStore FeishuOrganizationSyncConfigStore
+	SyncService       *WecomOrganizationSyncService
 }
 
 func init() {
@@ -53,9 +54,20 @@ func (e *WecomOrganizationScheduledSyncExecutor) ExecuteOrganizationSync(ctx con
 	}
 
 	service := e.syncService()
+	if service.FeishuConfigStore == nil {
+		service.FeishuConfigStore = e.feishuConfigStore()
+	}
 	result, err := service.StartScheduledRunAsync(config, request.Actor)
 	if errors.Is(err, ErrWecomOrganizationSyncRunAlreadyRunning) {
 		return e.alreadyRunningResult(config.Organization)
+	}
+	var sourceConflict *OrganizationSyncSourceConflictError
+	if errors.As(err, &sourceConflict) {
+		return &OrganizationSyncDispatchResult{
+			Status:    OrganizationSyncScheduleFireStatusSkipped,
+			ErrorCode: OrganizationSyncScheduleFireErrorSourceConflict,
+			ErrorText: err.Error(),
+		}, nil
 	}
 	if err != nil {
 		return nil, err
@@ -88,6 +100,13 @@ func (e *WecomOrganizationScheduledSyncExecutor) configStore() WecomOrganization
 		return e.ConfigStore
 	}
 	return defaultWecomOrganizationSyncConfigStore{}
+}
+
+func (e *WecomOrganizationScheduledSyncExecutor) feishuConfigStore() FeishuOrganizationSyncConfigStore {
+	if e != nil && e.FeishuConfigStore != nil {
+		return e.FeishuConfigStore
+	}
+	return defaultFeishuOrganizationSyncConfigStore{}
 }
 
 func (e *WecomOrganizationScheduledSyncExecutor) syncService() *WecomOrganizationSyncService {
