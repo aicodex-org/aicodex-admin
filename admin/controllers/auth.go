@@ -500,18 +500,36 @@ func checkMfaEnable(c *ApiController, user *object.User, organization *object.Or
 	return false
 }
 
-func getExistUserByBindingRule(providerItem *object.ProviderItem, organizationName string, userInfo *idp.UserInfo) (user *object.User, err error) {
-	if providerItem.BindingRule == nil {
-		providerItem.BindingRule = &[]string{"Email", "Phone", "Name"}
+var (
+	getUserByBindingRuleField  = object.GetUserByField
+	getUserByBindingRuleFields = object.GetUserByFields
+)
+
+// bindingRule 未配置时仅在运行时使用 Email 默认规则，保留 nil 以区分“未配置”和“显式配置为空”。
+func getEffectiveBindingRules(providerItem *object.ProviderItem) []string {
+	if providerItem == nil || providerItem.BindingRule == nil {
+		return []string{"Email"}
 	}
-	if len(*providerItem.BindingRule) == 0 {
+	return *providerItem.BindingRule
+}
+
+func getExistUserByBindingRule(providerItem *object.ProviderItem, organizationName string, userInfo *idp.UserInfo) (user *object.User, err error) {
+	if userInfo == nil {
+		return nil, nil
+	}
+	bindingRules := getEffectiveBindingRules(providerItem)
+	if len(bindingRules) == 0 {
 		return nil, nil
 	}
 
-	for _, rule := range *providerItem.BindingRule {
-		// Find existing user with Email
-		if rule == "Email" {
-			user, err = object.GetUserByField(organizationName, "email", userInfo.Email)
+	for _, rule := range bindingRules {
+		// 按邮箱查找既有用户；空邮箱不参与匹配，避免空值误绑定。
+		if strings.TrimSpace(rule) == "Email" {
+			email := strings.TrimSpace(userInfo.Email)
+			if email == "" {
+				continue
+			}
+			user, err = getUserByBindingRuleField(organizationName, "email", email)
 			if err != nil {
 				return nil, err
 			}
@@ -520,9 +538,13 @@ func getExistUserByBindingRule(providerItem *object.ProviderItem, organizationNa
 			}
 		}
 
-		// Find existing user with phone number
-		if rule == "Phone" {
-			user, err = object.GetUserByField(organizationName, "phone", userInfo.Phone)
+		// 手机号只有显式配置 Phone 时才参与匹配，空手机号不参与匹配。
+		if strings.TrimSpace(rule) == "Phone" {
+			phone := strings.TrimSpace(userInfo.Phone)
+			if phone == "" {
+				continue
+			}
+			user, err = getUserByBindingRuleField(organizationName, "phone", phone)
 			if err != nil {
 				return nil, err
 			}
@@ -531,12 +553,13 @@ func getExistUserByBindingRule(providerItem *object.ProviderItem, organizationNa
 			}
 		}
 
-		// Try to find existing user by username (case-insensitive)
-		// This allows OAuth providers (e.g., Wecom) to automatically associate with
-		// existing users when usernames match, particularly useful for enterprise
-		// scenarios where signup is disabled and users already exist in Casdoor
-		if rule == "Name" {
-			user, err = object.GetUserByFields(organizationName, userInfo.Username)
+		// 用户名只有显式配置 Name 时才参与匹配；跨企业身份源时不作为隐式默认规则。
+		if strings.TrimSpace(rule) == "Name" {
+			username := strings.TrimSpace(userInfo.Username)
+			if username == "" {
+				continue
+			}
+			user, err = getUserByBindingRuleFields(organizationName, username)
 			if err != nil {
 				return nil, err
 			}

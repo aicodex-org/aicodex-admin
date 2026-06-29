@@ -72,6 +72,7 @@ class ProviderTable extends React.Component {
         title: i18next.t("general:Name"),
         dataIndex: "name",
         key: "name",
+        width: 190,
         render: (text, record, index) => {
           return (
             <Select virtual={false} style={{width: "100%"}}
@@ -106,7 +107,7 @@ class ProviderTable extends React.Component {
         title: i18next.t("general:Category"),
         dataIndex: "category",
         key: "category",
-        width: "100px",
+        width: 90,
         render: (text, record, index) => {
           const provider = Setting.getArrayItem(this.props.providers, "name", record.name);
           const owner = provider?.owner || this.getUserOrganization()?.name;
@@ -126,7 +127,7 @@ class ProviderTable extends React.Component {
         title: i18next.t("general:Type"),
         dataIndex: "type",
         key: "type",
-        width: "80px",
+        width: 72,
         render: (text, record, index) => {
           const provider = Setting.getArrayItem(this.props.providers, "name", record.name);
           const owner = provider?.owner || this.getUserOrganization()?.name;
@@ -146,7 +147,7 @@ class ProviderTable extends React.Component {
         title: i18next.t("user:Country/Region"),
         dataIndex: "countryCodes",
         key: "countryCodes",
-        width: "140px",
+        width: 120,
         render: (text, record, index) => {
           if (record.provider?.category !== "SMS") {
             return null;
@@ -170,7 +171,7 @@ class ProviderTable extends React.Component {
         title: i18next.t("provider:Can signup"),
         dataIndex: "canSignUp",
         key: "canSignUp",
-        width: "120px",
+        width: 92,
         render: (text, record, index) => {
           if (!["OAuth", "Web3", "SAML"].includes(record.provider?.category)) {
             return null;
@@ -187,7 +188,7 @@ class ProviderTable extends React.Component {
         title: i18next.t("provider:Can signin"),
         dataIndex: "canSignIn",
         key: "canSignIn",
-        width: "120px",
+        width: 92,
         render: (text, record, index) => {
           if (!["OAuth", "Web3", "SAML"].includes(record.provider?.category)) {
             return null;
@@ -201,10 +202,10 @@ class ProviderTable extends React.Component {
         },
       },
       {
-        title: i18next.t("provider:Can unlink"),
+        title: Setting.getLabel(i18next.t("provider:Can unlink"), i18next.t("provider:Can unlink - Tooltip")),
         dataIndex: "canUnlink",
         key: "canUnlink",
-        width: "120px",
+        width: 92,
         render: (text, record, index) => {
           if (!["OAuth", "Web3", "SAML"].includes(record.provider?.category)) {
             return null;
@@ -218,35 +219,44 @@ class ProviderTable extends React.Component {
         },
       },
       {
-        title: i18next.t("provider:Binding rule"),
+        title: Setting.getLabel(i18next.t("provider:Binding rule"), i18next.t("provider:Binding rule - Tooltip")),
         dataIndex: "bindingRule",
         key: "bindingRule",
-        width: "120px",
+        width: 126,
         render: (text, record, index) => {
           if (!["OAuth", "Web3", "SAML"].includes(record.provider?.category)) {
             return null;
           }
+          // bindingRule 缺失表示未配置；这里仅展示运行时默认值，不把 Email 写回表单数据。
+          const hasExplicitBindingRule = Array.isArray(text);
 
           return (
-            <Select virtual={false} style={{width: "100%"}}
-              value={text || ["Email", "Phone", "Name"]}
-              mode={"multiple"}
-              onChange={value => {
-                text = Array.isArray(text) ? text : [];
-                this.updateField(table, index, "bindingRule", value);
-              }} >
-              <Option key="Email" value="Email">{i18next.t("general:Email")}</Option>
-              <Option key="Name" value="Name">{i18next.t("general:Name")}</Option>
-              <Option key="Phone" value="Phone">{i18next.t("general:Phone")}</Option>
-            </Select>
+            <div>
+              <Select virtual={false} style={{width: "100%"}}
+                value={hasExplicitBindingRule ? text : []}
+                placeholder={i18next.t("provider:Runtime default email binding")}
+                mode={"multiple"}
+                onChange={value => {
+                  this.updateField(table, index, "bindingRule", value);
+                }} >
+                <Option key="Email" value="Email">{i18next.t("general:Email")}</Option>
+                <Option key="Name" value="Name">{i18next.t("general:Name")}</Option>
+                <Option key="Phone" value="Phone">{i18next.t("general:Phone")}</Option>
+              </Select>
+              {!hasExplicitBindingRule && (
+                <div style={{marginTop: "4px", color: "rgba(0, 0, 0, 0.45)", fontSize: "12px", lineHeight: "18px"}}>
+                  {i18next.t("provider:Runtime default email binding")}
+                </div>
+              )}
+            </div>
           );
         },
       },
       {
-        title: i18next.t("provider:Prompted"),
+        title: Setting.getLabel(i18next.t("provider:Prompted"), i18next.t("provider:Prompted - Tooltip")),
         dataIndex: "prompted",
         key: "prompted",
-        width: "120px",
+        width: 112,
         render: (text, record, index) => {
           if (!["OAuth", "Web3", "SAML"].includes(record.provider?.category)) {
             return null;
@@ -260,10 +270,10 @@ class ProviderTable extends React.Component {
         },
       },
       {
-        title: i18next.t("provider:Signup group"),
+        title: Setting.getLabel(i18next.t("provider:Signup group"), i18next.t("provider:Signup group - Tooltip")),
         dataIndex: "signupGroup",
         key: "signupGroup",
-        width: "120px",
+        width: 112,
         render: (text, record, index) => {
           if (!["OAuth", "Web3"].includes(record.provider?.category)) {
             return null;
@@ -277,10 +287,10 @@ class ProviderTable extends React.Component {
         },
       },
       {
-        title: i18next.t("application:Rule"),
+        title: Setting.getLabel(i18next.t("application:Rule"), i18next.t("provider:Provider rule - Tooltip")),
         dataIndex: "rule",
         key: "rule",
-        width: "160px",
+        width: 132,
         render: (text, record, index) => {
           if (record.provider?.type === "Google") {
             if (text === "None") {
@@ -339,7 +349,7 @@ class ProviderTable extends React.Component {
       {
         title: i18next.t("general:Action"),
         key: "action",
-        width: "100px",
+        width: 88,
         render: (text, record, index) => {
           return (
             <div>
@@ -362,8 +372,16 @@ class ProviderTable extends React.Component {
       columns = columns.filter(column => column.key !== "canSignUp");
     }
 
+    const hasSmsProvider = table.some(item => {
+      const provider = item.provider || Setting.getArrayItem(this.props.providers, "name", item.name);
+      return provider?.category === "SMS";
+    });
+    if (!hasSmsProvider) {
+      columns = columns.filter(column => column.key !== "countryCodes");
+    }
+
     return (
-      <Table scroll={{x: "max-content"}} rowKey="name" columns={columns} dataSource={table} size="middle" bordered pagination={false}
+      <Table scroll={{x: 1260}} tableLayout="fixed" rowKey="name" columns={columns} dataSource={table} size="middle" bordered pagination={false}
         title={() => (
           <div>
             {this.props.title}&nbsp;&nbsp;&nbsp;&nbsp;
