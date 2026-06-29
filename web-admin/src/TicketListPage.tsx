@@ -14,15 +14,18 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Table} from "antd";
+import {Button} from "antd";
+import type {TableProps} from "antd";
 import {CheckCircleOutlined, ClockCircleOutlined, CloseCircleOutlined, SyncOutlined} from "@ant-design/icons";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as TicketBackend from "./backend/TicketBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
-import PopconfirmModal from "./common/modal/PopconfirmModal";
 import {legacyColumns} from "./types/legacyPage";
+import LegacyListPageToolbar from "./common/LegacyListPageToolbar";
+import ListPageRowActions, {ListPageRowDeleteAction, ListPageRowEditAction} from "./common/ListPageRowActions";
+import ListPageTable from "./common/ListPageTable";
 
 type AdminRouteProps = import("./types/legacyPage").AdminRouteProps;
 type LegacyAny = import("./types/legacyPage").LegacyAny;
@@ -46,6 +49,16 @@ interface TicketRecord {
 
 function t(key: string, options?: LegacyAny): string {
   return String(i18next.t(key, options));
+}
+
+function getTicketQueryFields() {
+  return [
+    {label: t("general:Name"), value: "name"},
+    {label: t("general:Display name"), value: "displayName"},
+    {label: t("general:Title"), value: "title"},
+    {label: t("general:User"), value: "user"},
+    {label: t("general:State"), value: "state"},
+  ];
 }
 
 const TicketBackendLegacy = TicketBackend as LegacyAny;
@@ -112,9 +125,7 @@ class TicketListPage extends LegacyBaseListPage {
         dataIndex: "name",
         key: "name",
         width: "140px",
-        fixed: "left",
         sorter: true,
-        ...this.getColumnSearchProps("name"),
         render: (text: string, record: TicketRecord, index: number) => {
           return (
             <Link to={`/tickets/${record.owner}/${text}`}>
@@ -147,25 +158,21 @@ class TicketListPage extends LegacyBaseListPage {
         title: t("general:Display name"),
         dataIndex: "displayName",
         key: "displayName",
-        width: "250px",
+        width: "170px",
         sorter: true,
-        ...this.getColumnSearchProps("displayName"),
       },
       {
         title: t("general:Title"),
         dataIndex: "title",
         key: "title",
-        // width: "200px",
         sorter: true,
-        ...this.getColumnSearchProps("title"),
       },
       {
         title: t("general:User"),
         dataIndex: "user",
         key: "user",
-        width: "140px",
+        width: "120px",
         sorter: true,
-        ...this.getColumnSearchProps("user"),
         render: (text: string, record: TicketRecord, index: number) => {
           return (
             <Link to={`/users/${text}`}>
@@ -178,9 +185,8 @@ class TicketListPage extends LegacyBaseListPage {
         title: t("general:State"),
         dataIndex: "state",
         key: "state",
-        width: "140px",
+        width: "120px",
         sorter: true,
-        ...this.getColumnSearchProps("state"),
         render: (text: string, record: TicketRecord, index: number) => {
           switch (text) {
           case "Open":
@@ -200,20 +206,18 @@ class TicketListPage extends LegacyBaseListPage {
         title: t("general:Action"),
         dataIndex: "",
         key: "op",
-        width: "180px",
-        fixed: (Setting.isMobile()) ? "false" : "right",
+        width: "112px",
         render: (text: LegacyAny, record: TicketRecord, index: number) => {
           return (
-            <div>
-              <Button type="primary" style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} onClick={() => this.props.history.push(`/tickets/${record.owner}/${record.name}`)}>{t("general:Edit")}</Button>
+            <ListPageRowActions className="ticket-row-actions">
+              <ListPageRowEditAction onClick={() => this.props.history.push(`/tickets/${record.owner}/${record.name}`)} />
               {Setting.isAdminUser(this.props.account) ? (
-                <PopconfirmModal
+                <ListPageRowDeleteAction
                   title={t("general:Sure to delete") + `: ${record.name} ?`}
                   onConfirm={() => this.deleteTicket(index)}
-                >
-                </PopconfirmModal>
+                />
               ) : null}
-            </div>
+            </ListPageRowActions>
           );
         },
       },
@@ -222,13 +226,17 @@ class TicketListPage extends LegacyBaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <div>
-        <Table scroll={{x: "max-content"}} columns={columns} dataSource={tickets} rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered pagination={paginationProps}
+      <div className="enterprise-list-page-table-shell ticket-list-page-table-shell">
+        <ListPageTable<TicketRecord> columns={columns as TableProps<TicketRecord>["columns"]} dataSource={tickets} rowKey={(record) => `${record.owner}/${record.name}`} pagination={paginationProps}
           title={() => (
-            <div>
-              {t("general:Tickets")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button type="primary" size="small" onClick={this.addTicket.bind(this)}>{t("general:Add")}</Button>
-            </div>
+            <LegacyListPageToolbar
+              host={this}
+              title={t("general:Tickets")}
+              total={this.state.pagination.total}
+              fields={getTicketQueryFields()}
+              defaultField="name"
+              actions={<Button type="primary" onClick={this.addTicket.bind(this)}>{t("general:Add")}</Button>}
+            />
           )}
           loading={this.state.loading}
           onChange={this.handleTableChange}

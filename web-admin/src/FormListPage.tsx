@@ -14,13 +14,17 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Col, List, Popconfirm, Row, Table} from "antd";
+import {Button, Col, List, Row} from "antd";
+import type {TableProps} from "antd";
 import moment from "moment";
 import BaseListPage from "./BaseListPage";
 import * as Setting from "./Setting";
 import * as FormBackend from "./backend/FormBackend";
 import i18next from "i18next";
 import {legacyColumns} from "./types/legacyPage";
+import LegacyListPageToolbar from "./common/LegacyListPageToolbar";
+import ListPageRowActions, {ListPageRowDeleteAction, ListPageRowEditAction} from "./common/ListPageRowActions";
+import ListPageTable from "./common/ListPageTable";
 
 type AdminRouteProps = import("./types/legacyPage").AdminRouteProps;
 type LegacyAny = import("./types/legacyPage").LegacyAny;
@@ -46,6 +50,15 @@ interface FormRecord {
 
 function t(key: string, options?: LegacyAny): string {
   return String(i18next.t(key, options));
+}
+
+function getFormQueryFields() {
+  return [
+    {label: t("general:Name"), value: "name"},
+    {label: t("general:Display name"), value: "displayName"},
+    {label: t("general:Type"), value: "type"},
+    {label: t("form:Form items"), value: "formItems"},
+  ];
 }
 
 const FormBackendLegacy = FormBackend as LegacyAny;
@@ -146,7 +159,6 @@ class FormListPage extends LegacyBaseListPage {
         title: t("form:Form items"),
         dataIndex: "formItems",
         key: "formItems",
-        ...this.getColumnSearchProps("formItems"),
         render: (text: FormItemRecord[], record: FormRecord, index: number) => {
           const providers = text;
           if (!providers || providers.length === 0) {
@@ -191,24 +203,16 @@ class FormListPage extends LegacyBaseListPage {
         title: t("general:Action"),
         dataIndex: "action",
         key: "action",
-        width: "180px",
-        fixed: (Setting.isMobile()) ? "false" : "right",
+        width: "112px",
         render: (text: LegacyAny, record: FormRecord, index: number) => {
           return (
-            <div>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}}
-                type="primary"
-                onClick={() => this.props.history.push(`/forms/${record.name}`)}>{t("general:Edit")}</Button>
-              <Popconfirm
+            <ListPageRowActions className="form-row-actions">
+              <ListPageRowEditAction onClick={() => this.props.history.push(`/forms/${record.name}`)} />
+              <ListPageRowDeleteAction
                 title={`${t("general:Sure to delete")}: ${record.name} ?`}
                 onConfirm={() => this.deleteForm(record)}
-                okText={t("general:OK")}
-                cancelText={t("general:Cancel")}
-              >
-                <Button style={{marginBottom: "10px"}} type="primary"
-                  danger>{t("general:Delete")}</Button>
-              </Popconfirm>
-            </div>
+              />
+            </ListPageRowActions>
           );
         },
       },
@@ -217,16 +221,19 @@ class FormListPage extends LegacyBaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <div>
-        <Table scroll={{x: "max-content"}} columns={columns} dataSource={forms}
-          rowKey={(record) => `${record.owner}/${record.name}`} size="middle" bordered
+      <div className="enterprise-list-page-table-shell form-list-page-table-shell">
+        <ListPageTable<FormRecord> columns={columns as TableProps<FormRecord>["columns"]} dataSource={forms}
+          rowKey={(record) => `${record.owner}/${record.name}`}
           pagination={paginationProps}
           title={() => (
-            <div>
-              {t("general:Forms")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button type="primary" size="small"
-                onClick={this.addForm.bind(this)}>{t("general:Add")}</Button>
-            </div>
+            <LegacyListPageToolbar
+              host={this}
+              title={t("general:Forms")}
+              total={this.state.pagination.total}
+              fields={getFormQueryFields()}
+              defaultField="name"
+              actions={<Button type="primary" onClick={this.addForm.bind(this)}>{t("general:Add")}</Button>}
+            />
           )}
           loading={this.state.loading}
           onChange={this.handleTableChange}

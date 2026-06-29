@@ -324,7 +324,13 @@ test("keeps form list table display, add and delete behavior", async() => {
 
   expectAny(view.getByText("users")).not.toBeNull();
   expect(view.getAllByText(/Display name|显示名/).length).toBeGreaterThan(0);
-  expectAny(view.getByRole("button", {name: /Add|添\s*加/})).not.toBeNull();
+  expectAny(view.getByText(/Add|添\s*加/)).not.toBeNull();
+  expect(view.container.querySelector(".enterprise-list-page-table-shell.form-list-page-table-shell")).not.toBeNull();
+  expect(view.container.querySelector(".enterprise-list-query-toolbar")).not.toBeNull();
+  expect(view.container.querySelector(".enterprise-list-row-actions.form-row-actions")).not.toBeNull();
+  expect(view.container.querySelector(".ant-table-filter-trigger")).toBeNull();
+  view.getByText(/更\s*多\s*筛\s*选|More filters/).click();
+  expect(view.container.querySelector(".enterprise-list-query-toolbar-advanced")).not.toBeNull();
 
   page.addForm();
   await flushPromises();
@@ -515,7 +521,13 @@ test("keeps ticket list state labels, add and delete behavior", async() => {
 
   expectAny(view.getByText("ticket_alpha")).not.toBeNull();
   expectAny(view.getByText(/Resolved|已解决/)).not.toBeNull();
-  expectAny(view.getByRole("button", {name: /Add|添\s*加/})).not.toBeNull();
+  expectAny(view.getByText(/Add|添\s*加/)).not.toBeNull();
+  expect(view.container.querySelector(".enterprise-list-page-table-shell.ticket-list-page-table-shell")).not.toBeNull();
+  expect(view.container.querySelector(".enterprise-list-query-toolbar")).not.toBeNull();
+  expect(view.container.querySelector(".enterprise-list-row-actions.ticket-row-actions")).not.toBeNull();
+  expect(view.container.querySelector(".ant-table-filter-trigger")).toBeNull();
+  view.getByText(/更\s*多\s*筛\s*选|More filters/).click();
+  expect(view.container.querySelector(".enterprise-list-query-toolbar-advanced")).not.toBeNull();
 
   page.addTicket();
   await flushPromises();
