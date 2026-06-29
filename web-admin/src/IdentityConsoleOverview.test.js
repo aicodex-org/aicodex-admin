@@ -48,19 +48,14 @@ describe("IdentityConsoleOverview", () => {
     expect(screen.getByText("关注接入覆盖、归因、授权和审计信号。")).toBeInTheDocument();
     expect(screen.queryByText("统一查看应用规格、用量洞察、身份配置与 API 网关的身份运行状态，优先呈现接入覆盖、用量归因、授权映射和审计证据。")).not.toBeInTheDocument();
     expect(screen.getAllByText("身份控制台").length).toBeGreaterThan(0);
-    expect(screen.getByText("身份控制台 / 身份总览")).toBeInTheDocument();
+    expect(screen.queryByText("身份控制台 / 身份总览")).not.toBeInTheDocument();
     expect(screen.getByText("加载身份基础设施状态...")).toBeInTheDocument();
     expect((await screen.findAllByText("应用规格")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("98%")).toHaveLength(2);
 
-    expect(screen.getByText("aicodex-app-spec")).toBeInTheDocument();
     expect(screen.getAllByText("用量洞察").length).toBeGreaterThan(0);
-    expect(screen.getByText("aicodex-insight")).toBeInTheDocument();
     expect(screen.getAllByText("身份控制台").length).toBeGreaterThan(0);
-    expect(screen.getByText("aicodex-admin")).toBeInTheDocument();
     expect(screen.getAllByText("API 网关").length).toBeGreaterThan(0);
-    expect(screen.getByText("aicodex-api")).toBeInTheDocument();
-    expect(screen.getAllByText("系统标识")).toHaveLength(4);
     expect(screen.getByText("待核对事项")).toBeInTheDocument();
     expect(screen.getByText("接入健康")).toBeInTheDocument();
     expect(screen.getByText("最近审计证据")).toBeInTheDocument();
@@ -75,6 +70,75 @@ describe("IdentityConsoleOverview", () => {
     expect(screen.queryByText("对象上下文")).not.toBeInTheDocument();
     expect(screen.queryByText(/deep link/i)).not.toBeInTheDocument();
     expect(screen.queryByText("当前列表视图")).not.toBeInTheDocument();
+    expect(screen.queryAllByText("系统标识")).toHaveLength(0);
+    expect(screen.queryByText("aicodex-app-spec")).not.toBeInTheDocument();
+    expect(screen.queryByText("aicodex-insight")).not.toBeInTheDocument();
+    expect(screen.queryByText("aicodex-admin")).not.toBeInTheDocument();
+    expect(screen.queryByText("aicodex-api")).not.toBeInTheDocument();
+  });
+
+  test("keeps the page header separate while treating summary and workbench as body content", async() => {
+    DashboardBackend.getDashboard.mockResolvedValue({
+      status: "ok",
+      data: {
+        organizationCounts: Array(31).fill(3),
+        userCounts: Array(31).fill(42),
+        providerCounts: Array(31).fill(5),
+        applicationCounts: Array(31).fill(7),
+        resourceCounts: Array(31).fill(2),
+        permissionCounts: Array(31).fill(9),
+        recordCounts: Array(31).fill(11),
+      },
+    });
+
+    const view = render(
+      <MemoryRouter>
+        <IdentityConsoleOverview account={adminAccount} />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("待核对事项")).toBeInTheDocument();
+
+    const pageShell = view.container.querySelector(".admin-page-scroll-shell.identity-console-overview");
+    const headerRegion = view.container.querySelector(".enterprise-identity-console-header");
+    const bodyRegion = view.container.querySelector(".enterprise-identity-console-body");
+    const workbench = view.container.querySelector(".identity-console-overview-workbench");
+    const summaryStrip = view.container.querySelector(".enterprise-identity-summary-strip");
+    const statusGrid = view.container.querySelector(".enterprise-identity-status-grid");
+
+    expect(pageShell).not.toBeNull();
+    expect(pageShell?.classList.contains("enterprise-identity-console-density-compact")).toBe(true);
+    expect(headerRegion?.contains(screen.getByText("AICodex 身份基础设施总览"))).toBe(true);
+    expect(bodyRegion?.contains(summaryStrip)).toBe(true);
+    expect(bodyRegion?.contains(statusGrid)).toBe(true);
+    expect(bodyRegion?.contains(workbench)).toBe(true);
+    expect(headerRegion?.contains(workbench)).toBe(false);
+  });
+
+  test("renders compact health and audit side sections instead of card-like detail blocks", async() => {
+    DashboardBackend.getDashboard.mockResolvedValue({
+      status: "ok",
+      data: {
+        organizationCounts: Array(31).fill(3),
+        userCounts: Array(31).fill(42),
+        providerCounts: Array(31).fill(5),
+        applicationCounts: Array(31).fill(7),
+        resourceCounts: Array(31).fill(2),
+        permissionCounts: Array(31).fill(9),
+        recordCounts: Array(31).fill(11),
+      },
+    });
+
+    const view = render(
+      <MemoryRouter>
+        <IdentityConsoleOverview account={adminAccount} />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("接入健康")).toBeInTheDocument();
+
+    expect(view.container.querySelector(".identity-console-health-list-compact")).not.toBeNull();
+    expect(view.container.querySelector(".identity-console-audit-list-compact")).not.toBeNull();
   });
 
   test("keeps entry links available when dashboard data fails", async() => {

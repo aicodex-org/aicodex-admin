@@ -15,6 +15,7 @@
 import React from "react";
 import {Link} from "react-router-dom";
 import {Progress, Space, Tag, Typography} from "antd";
+import PageScrollShell from "./PageScrollShell";
 
 const {Text, Title} = Typography;
 
@@ -69,12 +70,13 @@ export interface EnterpriseIdentityRiskItem {
 }
 
 interface EnterpriseIdentityConsolePageProps {
-  eyebrow: React.ReactNode;
+  eyebrow?: React.ReactNode;
   title: React.ReactNode;
-  description: React.ReactNode;
+  description?: React.ReactNode;
   actions?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
+  density?: "default" | "compact";
 }
 
 interface EnterpriseIdentitySectionProps {
@@ -96,23 +98,30 @@ export function EnterpriseIdentityConsolePage({
   actions,
   children,
   className = "",
+  density = "default",
 }: EnterpriseIdentityConsolePageProps): JSX.Element {
   return (
-    <div className={`enterprise-identity-console ${className}`.trim()}>
-      <div className="enterprise-identity-console-header">
-        <Space direction="vertical" size={4} className="enterprise-identity-console-title-block">
-          <Text className="enterprise-identity-console-eyebrow">{eyebrow}</Text>
-          <Title level={3}>{title}</Title>
-          <Text type="secondary">{description}</Text>
-        </Space>
-        {actions && (
-          <Space wrap className="enterprise-identity-console-header-actions">
-            {actions}
+    <PageScrollShell
+      className={`enterprise-identity-console enterprise-identity-console-density-${density} ${className}`.trim()}
+      headerClassName="enterprise-identity-console-header"
+      bodyClassName="enterprise-identity-console-body"
+      header={(
+        <>
+          <Space direction="vertical" size={density === "compact" ? 2 : 4} className="enterprise-identity-console-title-block">
+            {eyebrow && <Text className="enterprise-identity-console-eyebrow">{eyebrow}</Text>}
+            <Title level={3} className="enterprise-identity-console-title">{title}</Title>
+            {description && <Text type="secondary" className="enterprise-identity-console-description">{description}</Text>}
           </Space>
-        )}
-      </div>
+          {actions && (
+            <Space wrap className="enterprise-identity-console-header-actions">
+              {actions}
+            </Space>
+          )}
+        </>
+      )}
+    >
       {children}
-    </div>
+    </PageScrollShell>
   );
 }
 

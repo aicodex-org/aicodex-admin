@@ -631,6 +631,27 @@ function ManagementPage(props) {
     applyWorkspaceTabsCloseResult(closeAllWorkspaceTabs(workspaceTabs));
   };
 
+  function renderRouteContent() {
+    const routeContent = renderRouter();
+
+    // 路由内容单独滚动，避免工作区页面标签随长页面内容一起离开视口。
+    if (isWithoutCard()) {
+      return (
+        <div className="admin-shell-route-scroll admin-shell-route-scroll-without-card">
+          {routeContent}
+        </div>
+      );
+    }
+
+    return (
+      <div className="admin-shell-route-scroll">
+        <Card className="content-warp-card">
+          {routeContent}
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <React.Fragment>
       <EnableMfaNotification account={props.account} />
@@ -712,12 +733,7 @@ function ManagementPage(props) {
               onCloseAll={closeAllWorkspaceTabPages}
             />
           )}
-          {isWithoutCard() ?
-            renderRouter() :
-            <Card className="content-warp-card">
-              {renderRouter()}
-            </Card>
-          }
+          {renderRouteContent()}
         </Content>
       </Layout>
     </React.Fragment>

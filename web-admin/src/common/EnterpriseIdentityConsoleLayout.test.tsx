@@ -58,6 +58,8 @@ describe("EnterpriseIdentityConsoleLayout", () => {
 
     expect(view.getByText("企业认证中心 / 总览")).not.toBeNull();
     expect(view.getByText("身份治理总览")).not.toBeNull();
+    expect(view.container.querySelector(".admin-page-scroll-shell.enterprise-identity-console")).not.toBeNull();
+    expect(view.container.querySelector(".enterprise-identity-console-body .enterprise-identity-summary-strip")).not.toBeNull();
     expect(view.getByText("认证源")).not.toBeNull();
     expect(view.getByText("企业微信")).not.toBeNull();
     expect(view.getByText("风险待办")).not.toBeNull();

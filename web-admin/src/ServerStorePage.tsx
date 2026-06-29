@@ -18,6 +18,7 @@ import moment from "moment";
 import * as Setting from "./Setting";
 import * as ServerBackend from "./backend/ServerBackend";
 import i18next from "i18next";
+import PageScrollShell from "./common/PageScrollShell";
 
 const {Text, Title} = Typography;
 
@@ -283,10 +284,12 @@ class ServerStorePage extends React.Component<ServerStorePageProps, ServerStoreP
 
   render(): React.ReactNode {
     const filteredServers = this.getFilteredOnlineServers();
-
-    return (
-      <div>
-        <div style={{display: "flex", gap: "8px", marginBottom: "12px"}}>
+    const header = (
+      <div className="server-store-page-header">
+        <div className="server-store-page-title-block">
+          <Title level={4} className="server-store-page-title">{t("general:MCP Store")}</Title>
+        </div>
+        <div className="server-store-page-toolbar">
           <Input
             allowClear
             placeholder={t("general:Name")}
@@ -300,7 +303,7 @@ class ServerStorePage extends React.Component<ServerStorePageProps, ServerStoreP
             value={this.state.onlineTagFilter}
             onChange={(values) => this.setState({onlineTagFilter: values as string[]})}
             options={this.getOnlineTagOptions()}
-            style={{minWidth: "260px"}}
+            className="server-store-page-tag-select"
           />
           <Button onClick={() => this.setState({onlineNameFilter: "", onlineTagFilter: []})}>
             {t("general:Clear")}
@@ -309,19 +312,28 @@ class ServerStorePage extends React.Component<ServerStorePageProps, ServerStoreP
             {t("general:Refresh")}
           </Button>
         </div>
-        <Title level={4} style={{marginBottom: "12px"}}>{t("general:MCP Store")}</Title>
+      </div>
+    );
+
+    return (
+      <PageScrollShell
+        className="server-store-page"
+        headerClassName="server-store-page-header-shell"
+        bodyClassName="server-store-page-body"
+        header={header}
+      >
         {this.state.onlineListLoading ? (
-          <div style={{textAlign: "center", padding: "36px 0"}}>
+          <div className="server-store-page-loading">
             <Spin />
           </div>
         ) : filteredServers.length === 0 ? (
           <Empty description={t("general:No data")} />
         ) : (
-          <Row gutter={16}>
+          <Row gutter={16} className="server-store-page-grid">
             {filteredServers.map((server) => this.renderServerCard(server))}
           </Row>
         )}
-      </div>
+      </PageScrollShell>
     );
   }
 }

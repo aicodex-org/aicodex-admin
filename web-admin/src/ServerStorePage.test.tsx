@@ -171,7 +171,9 @@ function visitReactNode(node: React.ReactNode, visitor: (element: React.ReactEle
   }
 
   visitor(node);
-  visitReactNode((node.props as ElementProps).children, visitor);
+  Object.values(node.props as Record<string, unknown>).forEach((propValue) => {
+    visitReactNode(propValue as React.ReactNode, visitor);
+  });
 }
 
 async function flushPromises() {
@@ -224,6 +226,9 @@ describe("ServerStorePage", () => {
 
     expect(await view.findByText("Alpha MCP")).not.toBeNull();
     expect(view.getByText("MCP Store")).not.toBeNull();
+    expect(view.container.querySelector(".admin-page-scroll-shell.server-store-page")).not.toBeNull();
+    expect(view.container.querySelector(".server-store-page-header-shell .server-store-page-toolbar")).not.toBeNull();
+    expect(view.container.querySelector(".server-store-page-body")).not.toBeNull();
     expect(view.getByText("Alpha tools")).not.toBeNull();
     expect(view.getByText("oauth")).not.toBeNull();
     expect(view.getByText("alpha.example.invalid")).not.toBeNull();

@@ -156,6 +156,32 @@ describe("ManagementPage admin shell sidebar", () => {
     expect(view.container.querySelector(".admin-workspace-tabs-shell")).not.toBeNull();
   });
 
+  test("keeps workspace tabs outside the route scroll container", () => {
+    const view = renderShell();
+    const shellContent = view.container.querySelector(".admin-shell-content") as HTMLElement;
+    const routeScroll = view.container.querySelector(".admin-shell-route-scroll") as HTMLElement;
+
+    expect(routeScroll).not.toBeNull();
+    expect(routeScroll.classList.contains("admin-shell-route-scroll-without-card")).toBe(true);
+    expect(routeScroll.contains(view.getByTestId("identity-overview"))).toBe(true);
+    expect(routeScroll.contains(view.getByTestId("workspace-tabs"))).toBe(false);
+    expect(Array.from(shellContent.children).map(element => element.className)).toEqual([
+      "admin-workspace-tabs-shell",
+      "admin-shell-route-scroll admin-shell-route-scroll-without-card",
+    ]);
+  });
+
+  test("wraps legacy card routes in the same route scroll container", () => {
+    const view = renderShell({path: "/applications"});
+    const routeScroll = view.container.querySelector(".admin-shell-route-scroll") as HTMLElement;
+
+    expect(routeScroll).not.toBeNull();
+    expect(routeScroll.classList.contains("admin-shell-route-scroll-without-card")).toBe(false);
+    expect(routeScroll.querySelector(".content-warp-card")).not.toBeNull();
+    expect(routeScroll.contains(view.getByTestId("application-list-page"))).toBe(true);
+    expect(routeScroll.contains(view.getByTestId("workspace-tabs"))).toBe(false);
+  });
+
   test("collapses desktop sidebar, hides menu text through collapsed state, and persists preference", () => {
     const view = renderShell();
 
