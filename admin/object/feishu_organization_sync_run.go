@@ -59,7 +59,9 @@ func (s *FeishuOrganizationSyncService) startRunWithResult(config *FeishuOrganiz
 	if err := validateFeishuOrganizationSyncRunExecutionConfig(config); err != nil {
 		return nil, err
 	}
-	if err := validateFeishuOrganizationSyncSourceActivation(config.Organization, s.wecomConfigStore()); err != nil {
+	if err := (&OrganizationDirectorySourceStatusService{
+		WecomConfigStore: s.wecomConfigStore(),
+	}).RequireExecutionAllowedWithSourceSummary(config.Organization, OrganizationDirectorySourceLark, newFeishuOrganizationDirectorySourceSummary(config)); err != nil {
 		return nil, err
 	}
 	store := s.runStore()

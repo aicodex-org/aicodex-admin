@@ -16,16 +16,17 @@ import (
 )
 
 type feishuOrganizationSyncConfigResponse struct {
-	Organization              string                               `json:"organization"`
-	IsConfigured              bool                                 `json:"isConfigured"`
-	Config                    *object.FeishuOrganizationSyncConfig `json:"config"`
-	DefaultOrganization       string                               `json:"defaultOrganization,omitempty"`
-	DefaultOrganizationSource string                               `json:"defaultOrganizationSource,omitempty"`
-	ConflictingProvider       string                               `json:"conflictingProvider,omitempty"`
-	ConflictingOrganization   string                               `json:"conflictingOrganization,omitempty"`
-	ConflictingConfigured     bool                                 `json:"conflictingConfigured"`
-	ConflictingEnabled        bool                                 `json:"conflictingEnabled"`
-	ConflictingOrganizations  []string                             `json:"conflictingOrganizations,omitempty"`
+	Organization              string                                    `json:"organization"`
+	IsConfigured              bool                                      `json:"isConfigured"`
+	Config                    *object.FeishuOrganizationSyncConfig      `json:"config"`
+	DefaultOrganization       string                                    `json:"defaultOrganization,omitempty"`
+	DefaultOrganizationSource string                                    `json:"defaultOrganizationSource,omitempty"`
+	ConflictingProvider       string                                    `json:"conflictingProvider,omitempty"`
+	ConflictingOrganization   string                                    `json:"conflictingOrganization,omitempty"`
+	ConflictingConfigured     bool                                      `json:"conflictingConfigured"`
+	ConflictingEnabled        bool                                      `json:"conflictingEnabled"`
+	ConflictingOrganizations  []string                                  `json:"conflictingOrganizations,omitempty"`
+	SourceStatus              *object.OrganizationDirectorySourceStatus `json:"sourceStatus,omitempty"`
 }
 
 type feishuOrganizationSyncRunRequest struct {
@@ -383,6 +384,7 @@ func applyFeishuOrganizationSyncSourceStatus(response *feishuOrganizationSyncCon
 	response.ConflictingConfigured = sourceStatus.ConflictingConfigured
 	response.ConflictingEnabled = sourceStatus.ConflictingEnabled
 	response.ConflictingOrganizations = sourceStatus.ConflictingOrganizations
+	response.SourceStatus = sourceStatus.SourceStatus
 }
 
 func newFeishuOrganizationSyncRunStartResponse(result *object.FeishuOrganizationSyncStartRunResult, sensitiveValues ...string) *feishuOrganizationSyncRunStartResponse {

@@ -358,6 +358,7 @@ func InitAPI() {
 	web.Router("/api/run-syncer", &controllers.ApiController{}, "GET:RunSyncer")
 	web.Router("/api/test-syncer-db", &controllers.ApiController{}, "POST:TestSyncerDb")
 
+	web.Router("/api/organization-directory-source-status", &controllers.ApiController{}, "GET:GetOrganizationDirectorySourceStatus")
 	web.Router("/api/wecom-org-sync/config", &controllers.ApiController{}, "GET:GetWecomOrganizationSyncConfig")
 	web.Router("/api/wecom-org-sync/config", &controllers.ApiController{}, "POST:SaveWecomOrganizationSyncConfig")
 	web.Router("/api/wecom-org-sync/config/test", &controllers.ApiController{}, "POST:TestWecomOrganizationSyncConfig")

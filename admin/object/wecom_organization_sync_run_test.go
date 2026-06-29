@@ -16,7 +16,7 @@ package object
 
 import (
 	"context"
-	"strings"
+	"errors"
 	"testing"
 	"time"
 )
@@ -121,7 +121,7 @@ func TestWecomOrganizationSyncServiceStartManualRunRejectsMaskedSecret(t *testin
 	}
 }
 
-func TestWecomOrganizationSyncServiceStartManualRunRejectsFeishuConfiguredConflict(t *testing.T) {
+func TestWecomOrganizationSyncServiceStartManualRunRejectsAmbiguousFeishuSource(t *testing.T) {
 	now := time.Date(2026, 6, 26, 10, 0, 0, 0, time.UTC)
 	store := &memoryWecomOrganizationSyncRunStore{}
 	service := &WecomOrganizationSyncService{
@@ -147,11 +147,47 @@ func TestWecomOrganizationSyncServiceStartManualRunRejectsFeishuConfiguredConfli
 		IsEnabled:         true,
 	}, "engineering/admin")
 
-	if err == nil || !strings.Contains(err.Error(), "Feishu/Lark") {
-		t.Fatalf("StartManualRunWithResult() error = %v, want Feishu conflict", err)
+	var decisionErr *OrganizationDirectorySourceDecisionError
+	if !errors.As(err, &decisionErr) || decisionErr.ReasonCode != OrganizationDirectorySourceReasonAmbiguous {
+		t.Fatalf("StartManualRunWithResult() error = %v, want source_ambiguous decision error", err)
 	}
 	if store.createdRun != nil {
 		t.Fatalf("conflicting sync source must not create run: %#v", store.createdRun)
+	}
+}
+
+func TestWecomOrganizationSyncServiceStartManualRunRejectsAmbiguousSource(t *testing.T) {
+	now := time.Date(2026, 6, 26, 11, 0, 0, 0, time.UTC)
+	store := &memoryWecomOrganizationSyncRunStore{}
+	service := &WecomOrganizationSyncService{
+		Store: store,
+		Now:   func() time.Time { return now },
+		FeishuConfigStore: &fakeFeishuConfigStore{config: &FeishuOrganizationSyncConfig{
+			Owner:        "engineering",
+			Name:         FeishuOrganizationSyncDefaultConfigName,
+			Organization: "engineering",
+			AppId:        "cli_a",
+			AppSecret:    "feishu-secret",
+			EndpointMode: FeishuEndpointModeDomestic,
+			IsEnabled:    true,
+		}},
+	}
+
+	_, err := service.StartManualRunWithResult(&WecomOrganizationSyncConfig{
+		Owner:             "engineering",
+		Name:              "config",
+		Organization:      "engineering",
+		CorpId:            "ww123",
+		AddressBookSecret: "secret",
+		IsEnabled:         true,
+	}, "engineering/admin")
+
+	var decisionErr *OrganizationDirectorySourceDecisionError
+	if !errors.As(err, &decisionErr) || decisionErr.ReasonCode != OrganizationDirectorySourceReasonAmbiguous {
+		t.Fatalf("StartManualRunWithResult() error = %v, want source_ambiguous decision error", err)
+	}
+	if store.createdRun != nil {
+		t.Fatalf("ambiguous sync source must not create run: %#v", store.createdRun)
 	}
 }
 
@@ -239,7 +275,7 @@ func TestWecomOrganizationScheduledSyncExecutorSkipsAlreadyRunningRun(t *testing
 	}
 }
 
-func TestWecomOrganizationScheduledSyncExecutorSkipsFeishuConfiguredConflict(t *testing.T) {
+func TestWecomOrganizationScheduledSyncExecutorSkipsAmbiguousFeishuSource(t *testing.T) {
 	now := time.Date(2026, 6, 26, 10, 0, 0, 0, time.UTC)
 	configStore := &memoryWecomOrganizationSyncConfigStore{
 		config: &WecomOrganizationSyncConfig{
@@ -282,8 +318,8 @@ func TestWecomOrganizationScheduledSyncExecutorSkipsFeishuConfiguredConflict(t *
 	if err != nil {
 		t.Fatalf("ExecuteOrganizationSync() error = %v", err)
 	}
-	if result == nil || result.Status != OrganizationSyncScheduleFireStatusSkipped || result.ErrorCode != OrganizationSyncScheduleFireErrorSourceConflict {
-		t.Fatalf("conflict should return skipped source conflict result: %#v", result)
+	if result == nil || result.Status != OrganizationSyncScheduleFireStatusSkipped || result.ErrorCode != string(OrganizationDirectorySourceReasonAmbiguous) {
+		t.Fatalf("ambiguous source should return skipped source_ambiguous result: %#v", result)
 	}
 	if runStore.createdRun != nil {
 		t.Fatalf("conflicting scheduled sync should not create run: %#v", runStore.createdRun)

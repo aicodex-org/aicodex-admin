@@ -46,6 +46,10 @@ func (e *FeishuOrganizationScheduledSyncExecutor) ExecuteOrganizationSync(ctx co
 	if errors.As(err, &sourceConflict) {
 		return newFeishuOrganizationSyncDispatchResult(OrganizationSyncScheduleFireStatusSkipped, "", OrganizationSyncScheduleFireErrorSourceConflict, err.Error()), nil
 	}
+	var sourceDecision *OrganizationDirectorySourceDecisionError
+	if errors.As(err, &sourceDecision) {
+		return newFeishuOrganizationSyncDispatchResult(OrganizationSyncScheduleFireStatusSkipped, "", string(sourceDecision.ReasonCode), err.Error()), nil
+	}
 	if err != nil {
 		return nil, err
 	}

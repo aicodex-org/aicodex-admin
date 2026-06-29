@@ -21,6 +21,7 @@ import * as WecomOrganizationSyncBackendRaw from "./backend/WecomOrganizationSyn
 import OrganizationSelect from "./common/select/OrganizationSelect";
 import {getDefaultTablePagination, getTablePaginationProps} from "./common/table/TablePagination";
 import i18next from "i18next";
+import {LegacyOrganizationSyncSourceStatus, OrganizationDirectorySourceStatus, getDirectorySourceUiStatus} from "./organizationDirectorySourceStatus";
 import {
   OrganizationSyncActionBar,
   OrganizationSyncPageHeader,
@@ -204,15 +205,7 @@ interface ApiResponse<T = unknown> {
   msg?: string | null;
 }
 
-interface OrganizationSyncSourceStatus {
-  defaultOrganization?: string;
-  defaultOrganizationSource?: string;
-  conflictingProvider?: string;
-  conflictingOrganization?: string;
-  conflictingConfigured?: boolean;
-  conflictingEnabled?: boolean;
-  conflictingOrganizations?: string[];
-}
+type OrganizationSyncSourceStatus = LegacyOrganizationSyncSourceStatus;
 
 interface WecomConfigResponseData {
   organization?: string;
@@ -225,6 +218,7 @@ interface WecomConfigResponseData {
   conflictingConfigured?: boolean;
   conflictingEnabled?: boolean;
   conflictingOrganizations?: string[];
+  sourceStatus?: OrganizationDirectorySourceStatus;
 }
 
 interface WecomSaveResponseData {
@@ -237,6 +231,7 @@ interface WecomSaveResponseData {
   conflictingConfigured?: boolean;
   conflictingEnabled?: boolean;
   conflictingOrganizations?: string[];
+  sourceStatus?: OrganizationDirectorySourceStatus;
 }
 
 interface WecomBackend {
@@ -501,6 +496,7 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
       conflictingConfigured: Boolean(data?.conflictingConfigured),
       conflictingEnabled: Boolean(data?.conflictingEnabled),
       conflictingOrganizations: this.normalizeOrganizations(data?.conflictingOrganizations, conflictingOrganization),
+      sourceStatus: data?.sourceStatus,
     };
   }
 
@@ -508,7 +504,7 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
     if (!data) {
       return false;
     }
-    return ["conflictingProvider", "conflictingOrganization", "conflictingConfigured", "conflictingEnabled", "conflictingOrganizations"]
+    return ["sourceStatus", "conflictingProvider", "conflictingOrganization", "conflictingConfigured", "conflictingEnabled", "conflictingOrganizations"]
       .some(key => Object.prototype.hasOwnProperty.call(data, key));
   }
 
@@ -521,6 +517,7 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
       ...conflictStatus,
       defaultOrganization: sourceStatus.defaultOrganization || fallbackStatus.defaultOrganization || "",
       defaultOrganizationSource: sourceStatus.defaultOrganizationSource || fallbackStatus.defaultOrganizationSource || "",
+      sourceStatus: sourceStatus.sourceStatus || fallbackStatus.sourceStatus,
       conflictingOrganizations: this.normalizeOrganizations(
         sourceStatus.conflictingOrganizations,
         sourceStatus.conflictingOrganization,
@@ -549,23 +546,31 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
 
   getExcludedSourceOrganizations(): string[] {
     const currentOrganization = this.getBusinessOrganization(this.state.organization);
-    return this.normalizeOrganizations(
-      this.state.sourceStatus.conflictingOrganizations,
-      this.state.sourceStatus.conflictingOrganization
-    ).filter(organization => organization !== currentOrganization);
+    return getDirectorySourceUiStatus(this.state.sourceStatus).organizations
+      .map(organization => this.getBusinessOrganization(organization))
+      .filter(organization => organization && organization !== currentOrganization);
   }
 
   hasStatusConflict(status: OrganizationSyncSourceStatus): boolean {
-    return Boolean(status.conflictingConfigured || status.conflictingEnabled);
+    return getDirectorySourceUiStatus(status).blocked;
   }
 
   hasSourceConflict(): boolean {
     return this.hasStatusConflict(this.state.sourceStatus);
   }
 
+  getSourceConflictActionMessage(actionText: string): string {
+    const status = getDirectorySourceUiStatus(this.state.sourceStatus);
+    if (status.abnormal) {
+      const organization = status.organization || this.state.organization || "-";
+      return `当前组织 ${organization} 存在多个已配置通讯录来源，属于数据异常，请排障或新建组织后再操作。`;
+    }
+    return `当前组织已被其他通讯录同步来源占用，${actionText}`;
+  }
+
   updateSyncEnabled(checked: boolean): void {
     if (this.hasSourceConflict()) {
-      Setting.showMessage("warning", "当前组织已被其他通讯录同步来源占用，请新建组织后配置企业微信同步。");
+      Setting.showMessage("warning", this.getSourceConflictActionMessage("请新建组织后配置企业微信同步。"));
       return;
     }
     this.updateConfigField("isEnabled", checked);
@@ -662,7 +667,7 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
 
   saveConfig() {
     if (this.hasSourceConflict()) {
-      Setting.showMessage("warning", "当前组织已被其他通讯录同步来源占用，暂不能保存企业微信配置。");
+      Setting.showMessage("warning", this.getSourceConflictActionMessage("暂不能保存企业微信配置。"));
       return;
     }
     this.setState({saving: true});
@@ -720,7 +725,7 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
 
   startSync() {
     if (this.hasSourceConflict()) {
-      Setting.showMessage("warning", "当前组织已被其他通讯录同步来源占用，暂不能开始企业微信正式同步。");
+      Setting.showMessage("warning", this.getSourceConflictActionMessage("暂不能开始企业微信正式同步。"));
       return;
     }
     this.setState({syncing: true});
@@ -1386,8 +1391,20 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
     if (!this.hasSourceConflict()) {
       return null;
     }
-    const provider = this.state.sourceStatus.conflictingProvider || "另一通讯录来源";
-    const organization = this.state.sourceStatus.conflictingOrganization || this.state.organization || "-";
+    const status = getDirectorySourceUiStatus(this.state.sourceStatus);
+    const provider = status.provider || "另一通讯录来源";
+    const organization = status.organization || this.state.organization || "-";
+    if (status.abnormal) {
+      return (
+        <Alert
+          style={{marginTop: 16}}
+          type="error"
+          showIcon
+          message="数据异常：当前组织存在多个通讯录同步来源"
+          description={`同一 Admin 组织只能保留一个通讯录主数据源。当前组织 ${organization} 同时存在 ${provider} 配置，请排障或新建组织后再操作。`}
+        />
+      );
+    }
     return (
       <Alert
         style={{marginTop: 16}}

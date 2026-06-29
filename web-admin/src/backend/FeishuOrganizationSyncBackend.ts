@@ -263,6 +263,7 @@ export interface OrganizationSyncSourceStatus {
   conflictingConfigured?: boolean;
   conflictingEnabled?: boolean;
   conflictingOrganizations?: string[];
+  sourceStatus?: import("../organizationDirectorySourceStatus").OrganizationDirectorySourceStatus;
 }
 
 export interface FeishuOrganizationSyncConfigResponse extends OrganizationSyncSourceStatus {

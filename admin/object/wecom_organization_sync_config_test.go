@@ -400,6 +400,298 @@ func TestOrganizationSyncConfigServiceGetSourceStatusHandlesEmptyAndErrors(t *te
 	}
 }
 
+func TestOrganizationDirectorySourceStatusServiceClassifiesSources(t *testing.T) {
+	wecomStore := &memoryWecomOrganizationSyncConfigStore{configs: []*WecomOrganizationSyncConfig{
+		{Owner: "engineering", Name: WecomOrganizationSyncDefaultConfigName, Organization: "engineering", CorpId: "ww-engineering", IsEnabled: true},
+		{Owner: "sales", Name: WecomOrganizationSyncDefaultConfigName, Organization: "sales", CorpId: "ww-sales", IsEnabled: false},
+	}}
+	feishuStore := &fakeFeishuConfigStore{configs: []*FeishuOrganizationSyncConfig{
+		{Owner: "finance", Name: FeishuOrganizationSyncDefaultConfigName, Organization: "finance", AppId: "cli-finance", AppSecret: "feishu-secret", IsEnabled: true},
+		{Owner: "sales", Name: FeishuOrganizationSyncDefaultConfigName, Organization: "sales", AppId: "cli-sales", AppSecret: "feishu-secret", IsEnabled: true},
+	}}
+	service := &OrganizationDirectorySourceStatusService{
+		WecomConfigStore:  wecomStore,
+		FeishuConfigStore: feishuStore,
+	}
+
+	available, err := service.GetStatus("support", OrganizationDirectorySourceWeCom)
+	if err != nil {
+		t.Fatalf("GetStatus(available) error = %v", err)
+	}
+	if available.State != OrganizationDirectorySourceStateAvailable || len(available.Sources) != 0 {
+		t.Fatalf("available status = %#v, want available with no sources", available)
+	}
+
+	owned, err := service.GetStatus("engineering", OrganizationDirectorySourceWeCom)
+	if err != nil {
+		t.Fatalf("GetStatus(owned) error = %v", err)
+	}
+	if owned.State != OrganizationDirectorySourceStateOwned || owned.OwningSource == nil || owned.OwningSource.Source != OrganizationDirectorySourceWeCom {
+		t.Fatalf("owned status = %#v, want WeCom owner", owned)
+	}
+
+	occupied, err := service.GetStatus("finance", OrganizationDirectorySourceWeCom)
+	if err != nil {
+		t.Fatalf("GetStatus(occupied) error = %v", err)
+	}
+	if occupied.State != OrganizationDirectorySourceStateOccupied || occupied.OwningSource == nil || occupied.OwningSource.Source != OrganizationDirectorySourceLark {
+		t.Fatalf("occupied status = %#v, want Lark owner", occupied)
+	}
+
+	ambiguous, err := service.GetStatus("sales", OrganizationDirectorySourceWeCom)
+	if err != nil {
+		t.Fatalf("GetStatus(ambiguous) error = %v", err)
+	}
+	if ambiguous.State != OrganizationDirectorySourceStateAmbiguous || len(ambiguous.Sources) != 2 {
+		t.Fatalf("ambiguous status = %#v, want two sanitized sources", ambiguous)
+	}
+	for _, source := range ambiguous.Sources {
+		if strings.Contains(source.DisplayName, "secret") || strings.Contains(source.Organization, "secret") {
+			t.Fatalf("source summary leaks secret-like value: %#v", source)
+		}
+	}
+}
+
+func TestOrganizationDirectorySourceStatusServiceDecideExecution(t *testing.T) {
+	service := &OrganizationDirectorySourceStatusService{
+		WecomConfigStore: &memoryWecomOrganizationSyncConfigStore{configs: []*WecomOrganizationSyncConfig{
+			{Owner: "engineering", Name: WecomOrganizationSyncDefaultConfigName, Organization: "engineering", CorpId: "ww-engineering", IsEnabled: true},
+			{Owner: "sales", Name: WecomOrganizationSyncDefaultConfigName, Organization: "sales", CorpId: "ww-sales", IsEnabled: true},
+		}},
+		FeishuConfigStore: &fakeFeishuConfigStore{configs: []*FeishuOrganizationSyncConfig{
+			{Owner: "finance", Name: FeishuOrganizationSyncDefaultConfigName, Organization: "finance", AppId: "cli-finance", AppSecret: "feishu-secret", IsEnabled: true},
+			{Owner: "sales", Name: FeishuOrganizationSyncDefaultConfigName, Organization: "sales", AppId: "cli-sales", AppSecret: "feishu-secret", IsEnabled: true},
+		}},
+	}
+
+	owned, err := service.DecideExecution("engineering", OrganizationDirectorySourceWeCom)
+	if err != nil {
+		t.Fatalf("DecideExecution(owned) error = %v", err)
+	}
+	if !owned.Allowed || owned.ReasonCode != "" {
+		t.Fatalf("owned decision = %#v, want allowed without reason", owned)
+	}
+
+	occupied, err := service.DecideExecution("finance", OrganizationDirectorySourceWeCom)
+	if err != nil {
+		t.Fatalf("DecideExecution(occupied) error = %v", err)
+	}
+	if occupied.Allowed || occupied.ReasonCode != OrganizationDirectorySourceReasonOccupied {
+		t.Fatalf("occupied decision = %#v, want source_occupied denial", occupied)
+	}
+
+	ambiguous, err := service.DecideExecution("sales", OrganizationDirectorySourceWeCom)
+	if err != nil {
+		t.Fatalf("DecideExecution(ambiguous) error = %v", err)
+	}
+	if ambiguous.Allowed || ambiguous.ReasonCode != OrganizationDirectorySourceReasonAmbiguous {
+		t.Fatalf("ambiguous decision = %#v, want source_ambiguous denial", ambiguous)
+	}
+}
+
+func TestOrganizationDirectorySourceStatusServiceDecisionFailsClosedWhenUnavailable(t *testing.T) {
+	boom := errors.New("status store failed")
+	service := &OrganizationDirectorySourceStatusService{
+		WecomConfigStore: &memoryWecomOrganizationSyncConfigStore{err: boom},
+	}
+
+	decision, err := service.DecideExecution("engineering", OrganizationDirectorySourceWeCom)
+	if !errors.Is(err, boom) {
+		t.Fatalf("DecideExecution() error = %v, want store failure", err)
+	}
+	if decision == nil || decision.Allowed || decision.ReasonCode != OrganizationDirectorySourceReasonUnavailable {
+		t.Fatalf("decision = %#v, want source_status_unavailable denial", decision)
+	}
+
+	err = service.RequireExecutionAllowed("engineering", OrganizationDirectorySourceWeCom)
+	var decisionErr *OrganizationDirectorySourceDecisionError
+	if !errors.As(err, &decisionErr) || decisionErr.ReasonCode != OrganizationDirectorySourceReasonUnavailable {
+		t.Fatalf("RequireExecutionAllowed() error = %v, want source_status_unavailable decision error", err)
+	}
+}
+
+func TestOrganizationDirectorySourceStatusServiceWithCurrentSummary(t *testing.T) {
+	service := &OrganizationDirectorySourceStatusService{
+		WecomConfigStore: &memoryWecomOrganizationSyncConfigStore{config: &WecomOrganizationSyncConfig{
+			Owner:        "engineering",
+			Name:         WecomOrganizationSyncDefaultConfigName,
+			Organization: "engineering",
+			CorpId:       "ww-engineering",
+			IsEnabled:    true,
+		}},
+		FeishuConfigStore: &fakeFeishuConfigStore{},
+	}
+
+	ambiguous, err := service.GetStatusWithSourceSummary(" engineering ", OrganizationDirectorySourceLark, &OrganizationDirectorySourceSummary{
+		Source:       "feishu",
+		Organization: " engineering ",
+		Configured:   true,
+		Enabled:      true,
+	})
+	if err != nil {
+		t.Fatalf("GetStatusWithSourceSummary(ambiguous) error = %v", err)
+	}
+	if ambiguous.State != OrganizationDirectorySourceStateAmbiguous || len(ambiguous.Sources) != 2 {
+		t.Fatalf("status = %#v, want ambiguous with WeCom and Lark summaries", ambiguous)
+	}
+
+	owned, err := service.GetStatusWithSourceSummary("engineering", OrganizationDirectorySourceWeCom, &OrganizationDirectorySourceSummary{
+		Source:       " wecom ",
+		Organization: "engineering",
+		Configured:   true,
+		Enabled:      true,
+	})
+	if err != nil {
+		t.Fatalf("GetStatusWithSourceSummary(owned) error = %v", err)
+	}
+	if owned.State != OrganizationDirectorySourceStateOwned || len(owned.Sources) != 1 || owned.Sources[0].Source != OrganizationDirectorySourceWeCom {
+		t.Fatalf("status = %#v, want owned current WeCom source without duplicate persisted summary", owned)
+	}
+
+	decision, err := service.DecideExecutionWithSourceSummary("engineering", OrganizationDirectorySourceLark, &OrganizationDirectorySourceSummary{
+		Source:       OrganizationDirectorySourceLark,
+		Organization: "engineering",
+		Configured:   true,
+		Enabled:      true,
+	})
+	if err != nil {
+		t.Fatalf("DecideExecutionWithSourceSummary() error = %v", err)
+	}
+	if decision.Allowed || decision.ReasonCode != OrganizationDirectorySourceReasonAmbiguous {
+		t.Fatalf("decision = %#v, want source_ambiguous denial", decision)
+	}
+}
+
+func TestOrganizationDirectorySourceDecisionErrorMessages(t *testing.T) {
+	var empty *OrganizationDirectorySourceDecisionError
+	if empty.Error() != "" {
+		t.Fatalf("nil decision error = %q, want empty string", empty.Error())
+	}
+
+	tests := []struct {
+		name       string
+		err        *OrganizationDirectorySourceDecisionError
+		contains   []string
+		notContain string
+	}{
+		{
+			name: "occupied with source display name",
+			err: &OrganizationDirectorySourceDecisionError{
+				ReasonCode:   OrganizationDirectorySourceReasonOccupied,
+				Organization: "engineering",
+				Source:       &OrganizationDirectorySourceSummary{DisplayName: "WeCom"},
+			},
+			contains: []string{"WeCom", "engineering", "create a new organization"},
+		},
+		{
+			name:     "ambiguous",
+			err:      &OrganizationDirectorySourceDecisionError{ReasonCode: OrganizationDirectorySourceReasonAmbiguous, Organization: "engineering"},
+			contains: []string{"multiple configured", "engineering"},
+		},
+		{
+			name:     "unavailable",
+			err:      &OrganizationDirectorySourceDecisionError{ReasonCode: OrganizationDirectorySourceReasonUnavailable, Organization: "engineering"},
+			contains: []string{"unavailable", "engineering"},
+		},
+		{
+			name:     "unknown reason",
+			err:      &OrganizationDirectorySourceDecisionError{ReasonCode: "custom_reason", Organization: "engineering"},
+			contains: []string{"decision denied", "engineering"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			message := tt.err.Error()
+			for _, expected := range tt.contains {
+				if !strings.Contains(message, expected) {
+					t.Fatalf("error = %q, want substring %q", message, expected)
+				}
+			}
+			if tt.notContain != "" && strings.Contains(message, tt.notContain) {
+				t.Fatalf("error = %q, should not contain %q", message, tt.notContain)
+			}
+		})
+	}
+}
+
+func TestOrganizationDirectorySourceHelpersNormalizeAndCompact(t *testing.T) {
+	if normalizeOrganizationDirectorySource(" Feishu ") != OrganizationDirectorySourceLark {
+		t.Fatalf("Feishu alias should normalize to lark")
+	}
+	if normalizeOrganizationDirectorySource(" DINGTALK ") != OrganizationDirectorySourceDingTalk {
+		t.Fatalf("DingTalk source should normalize case-insensitively")
+	}
+	if normalizeOrganizationDirectorySource(" custom ") != OrganizationDirectorySource("custom") {
+		t.Fatalf("unknown source should normalize whitespace and case")
+	}
+	if organizationDirectorySourceDisplayName(OrganizationDirectorySourceWeCom) != "WeCom" ||
+		organizationDirectorySourceDisplayName(OrganizationDirectorySourceLark) != "Feishu/Lark" ||
+		organizationDirectorySourceDisplayName(OrganizationDirectorySourceDingTalk) != "DingTalk" ||
+		organizationDirectorySourceDisplayName("custom") != "custom" {
+		t.Fatalf("display names are not stable")
+	}
+
+	compacted := compactOrganizationDirectorySourceSummaries([]*OrganizationDirectorySourceSummary{
+		nil,
+		{Source: "feishu", Organization: " engineering "},
+		{Source: OrganizationDirectorySourceLark, Organization: "engineering-duplicate"},
+		{Source: OrganizationDirectorySourceWeCom, Organization: " "},
+		{Source: OrganizationDirectorySourceDingTalk, Organization: "sales"},
+	})
+	if len(compacted) != 2 {
+		t.Fatalf("compacted = %#v, want lark and dingtalk summaries only", compacted)
+	}
+	if compacted[0].Source != OrganizationDirectorySourceLark || compacted[0].Organization != "engineering" {
+		t.Fatalf("first compacted summary = %#v, want normalized lark engineering", compacted[0])
+	}
+	if compacted[1].Source != OrganizationDirectorySourceDingTalk || compacted[1].Organization != "sales" {
+		t.Fatalf("second compacted summary = %#v, want dingtalk sales", compacted[1])
+	}
+
+	if newWecomOrganizationDirectorySourceSummary(nil) != nil || newFeishuOrganizationDirectorySourceSummary(nil) != nil {
+		t.Fatalf("nil configs should return nil source summaries")
+	}
+	wecomSummary := newWecomOrganizationDirectorySourceSummary(&WecomOrganizationSyncConfig{Organization: " engineering ", IsEnabled: true})
+	feishuSummary := newFeishuOrganizationDirectorySourceSummary(&FeishuOrganizationSyncConfig{Organization: " finance ", IsEnabled: false})
+	if wecomSummary.Organization != "engineering" || !wecomSummary.Enabled || wecomSummary.DisplayName != "WeCom" {
+		t.Fatalf("wecom summary = %#v, want sanitized enabled summary", wecomSummary)
+	}
+	if feishuSummary.Organization != "finance" || feishuSummary.Enabled || feishuSummary.DisplayName != "Feishu/Lark" {
+		t.Fatalf("feishu summary = %#v, want sanitized disabled summary", feishuSummary)
+	}
+}
+
+func TestOrganizationDirectorySourceStatusServiceReturnsCandidateStatus(t *testing.T) {
+	service := &OrganizationDirectorySourceStatusService{
+		WecomConfigStore: &memoryWecomOrganizationSyncConfigStore{configs: []*WecomOrganizationSyncConfig{
+			{Owner: "engineering", Name: WecomOrganizationSyncDefaultConfigName, Organization: "engineering", CorpId: "ww-engineering", IsEnabled: true},
+			{Owner: "sales", Name: WecomOrganizationSyncDefaultConfigName, Organization: "sales", CorpId: "ww-sales", IsEnabled: true},
+		}},
+		FeishuConfigStore: &fakeFeishuConfigStore{configs: []*FeishuOrganizationSyncConfig{
+			{Owner: "finance", Name: FeishuOrganizationSyncDefaultConfigName, Organization: "finance", AppId: "cli-finance", AppSecret: "feishu-secret", IsEnabled: true},
+			{Owner: "sales", Name: FeishuOrganizationSyncDefaultConfigName, Organization: "sales", AppId: "cli-sales", AppSecret: "feishu-secret", IsEnabled: false},
+		}},
+	}
+
+	status, err := service.GetCandidateStatus(OrganizationDirectorySourceWeCom)
+	if err != nil {
+		t.Fatalf("GetCandidateStatus() error = %v", err)
+	}
+	if status.CurrentSource != OrganizationDirectorySourceWeCom {
+		t.Fatalf("current source = %q, want wecom", status.CurrentSource)
+	}
+	if len(status.Statuses) != 2 {
+		t.Fatalf("candidate statuses = %#v, want finance occupied and sales ambiguous", status.Statuses)
+	}
+	states := map[string]OrganizationDirectorySourceState{}
+	for _, item := range status.Statuses {
+		states[item.Organization] = item.State
+	}
+	if states["finance"] != OrganizationDirectorySourceStateOccupied || states["sales"] != OrganizationDirectorySourceStateAmbiguous {
+		t.Fatalf("candidate states = %#v, want finance occupied and sales ambiguous", states)
+	}
+}
+
 func TestOrganizationSyncSourceGuardFiltersConfiguredOrganizations(t *testing.T) {
 	wecomOrganizations, err := getConfiguredWecomOrganizationSyncOrganizations(&memoryWecomOrganizationSyncConfigStore{configs: []*WecomOrganizationSyncConfig{
 		nil,
@@ -474,6 +766,27 @@ func TestOrganizationSyncSourceGuardHandlesEmptyAndStoreErrors(t *testing.T) {
 	}
 	if organization, err := getDefaultFeishuOrganizationSyncOrganization(&feishuOrganizationSyncConfigStoreWithoutList{}); err != nil || organization != "" {
 		t.Fatalf("getDefaultFeishuOrganizationSyncOrganization() = %q, %v; want empty nil", organization, err)
+	}
+}
+
+func TestOrganizationSyncSourceGuardRejectsConfiguredActivation(t *testing.T) {
+	err := validateWecomOrganizationSyncSourceActivation(" engineering ", &fakeFeishuConfigStore{config: &FeishuOrganizationSyncConfig{
+		Organization: "engineering",
+		AppId:        "cli-engineering",
+		AppSecret:    "feishu-secret",
+	}})
+	var conflictErr *OrganizationSyncSourceConflictError
+	if !errors.As(err, &conflictErr) || conflictErr.Provider != "Feishu/Lark" || conflictErr.Organization != "engineering" {
+		t.Fatalf("validateWecomOrganizationSyncSourceActivation() error = %v, want Feishu/Lark conflict", err)
+	}
+
+	err = validateFeishuOrganizationSyncSourceActivation(" engineering ", &memoryWecomOrganizationSyncConfigStore{config: &WecomOrganizationSyncConfig{
+		Organization:      "engineering",
+		CorpId:            "ww-engineering",
+		AddressBookSecret: "wecom-secret",
+	}})
+	if !errors.As(err, &conflictErr) || conflictErr.Provider != "WeCom" || conflictErr.Organization != "engineering" {
+		t.Fatalf("validateFeishuOrganizationSyncSourceActivation() error = %v, want WeCom conflict", err)
 	}
 }
 

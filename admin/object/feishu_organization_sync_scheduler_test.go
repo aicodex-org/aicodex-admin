@@ -7,7 +7,6 @@ package object
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 )
@@ -61,7 +60,7 @@ func TestFeishuOrganizationScheduledSyncExecutorHandlesSetupAndSuccessBranches(t
 	}
 }
 
-func TestFeishuOrganizationSyncServiceStartManualRunRejectsWecomConfiguredConflict(t *testing.T) {
+func TestFeishuOrganizationSyncServiceStartManualRunRejectsAmbiguousSource(t *testing.T) {
 	now := time.Date(2026, 6, 26, 10, 0, 0, 0, time.UTC)
 	runStore := &fakeFeishuRunStore{}
 	service := &FeishuOrganizationSyncService{
@@ -87,15 +86,16 @@ func TestFeishuOrganizationSyncServiceStartManualRunRejectsWecomConfiguredConfli
 		IsEnabled:    true,
 	}, "engineering/admin")
 
-	if err == nil || !strings.Contains(err.Error(), "WeCom") {
-		t.Fatalf("StartManualRunWithResult() error = %v, want WeCom conflict", err)
+	var decisionErr *OrganizationDirectorySourceDecisionError
+	if !errors.As(err, &decisionErr) || decisionErr.ReasonCode != OrganizationDirectorySourceReasonAmbiguous {
+		t.Fatalf("StartManualRunWithResult() error = %v, want source_ambiguous decision error", err)
 	}
 	if runStore.created != nil {
 		t.Fatalf("conflicting sync source must not create run: %#v", runStore.created)
 	}
 }
 
-func TestFeishuOrganizationScheduledSyncExecutorSkipsWecomConfiguredConflict(t *testing.T) {
+func TestFeishuOrganizationScheduledSyncExecutorSkipsAmbiguousWecomSource(t *testing.T) {
 	now := time.Date(2026, 6, 26, 10, 0, 0, 0, time.UTC)
 	runStore := &fakeFeishuRunStore{}
 	executor := &FeishuOrganizationScheduledSyncExecutor{
@@ -129,8 +129,8 @@ func TestFeishuOrganizationScheduledSyncExecutorSkipsWecomConfiguredConflict(t *
 	if err != nil {
 		t.Fatalf("ExecuteOrganizationSync() error = %v", err)
 	}
-	if result == nil || result.Status != OrganizationSyncScheduleFireStatusSkipped || result.ErrorCode != OrganizationSyncScheduleFireErrorSourceConflict {
-		t.Fatalf("conflict should return skipped source conflict result: %#v", result)
+	if result == nil || result.Status != OrganizationSyncScheduleFireStatusSkipped || result.ErrorCode != string(OrganizationDirectorySourceReasonAmbiguous) {
+		t.Fatalf("ambiguous source should return skipped source_ambiguous result: %#v", result)
 	}
 	if result.Diagnostics == nil || result.Diagnostics.FailedStage != FeishuOrganizationSyncDiagnosticStageScheduler {
 		t.Fatalf("conflict result should include scheduler diagnostics: %#v", result)

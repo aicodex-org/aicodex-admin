@@ -69,6 +69,14 @@ func (e *WecomOrganizationScheduledSyncExecutor) ExecuteOrganizationSync(ctx con
 			ErrorText: err.Error(),
 		}, nil
 	}
+	var sourceDecision *OrganizationDirectorySourceDecisionError
+	if errors.As(err, &sourceDecision) {
+		return &OrganizationSyncDispatchResult{
+			Status:    OrganizationSyncScheduleFireStatusSkipped,
+			ErrorCode: string(sourceDecision.ReasonCode),
+			ErrorText: err.Error(),
+		}, nil
+	}
 	if err != nil {
 		return nil, err
 	}

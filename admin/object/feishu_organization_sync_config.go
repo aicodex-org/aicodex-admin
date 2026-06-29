@@ -67,6 +67,14 @@ func (s *FeishuOrganizationSyncConfigService) GetSourceStatus(organization strin
 	if organization == "" {
 		organization = defaultOrganization
 	}
+	sourceStatus, err := (&OrganizationDirectorySourceStatusService{
+		WecomConfigStore:  s.wecomConfigStore(),
+		FeishuConfigStore: s.configStore(),
+	}).GetStatus(organization, OrganizationDirectorySourceLark)
+	if err != nil {
+		return nil, err
+	}
+	status.SourceStatus = sourceStatus
 	if organization == "" {
 		return status, nil
 	}
@@ -89,7 +97,10 @@ func (s *FeishuOrganizationSyncConfigService) SaveConfig(config *FeishuOrganizat
 	if err != nil {
 		return nil, false, err
 	}
-	if err := validateFeishuOrganizationSyncSourceActivation(prepared.Organization, s.wecomConfigStore()); err != nil {
+	if err := (&OrganizationDirectorySourceStatusService{
+		WecomConfigStore:  s.wecomConfigStore(),
+		FeishuConfigStore: s.configStore(),
+	}).RequireExecutionAllowed(prepared.Organization, OrganizationDirectorySourceLark); err != nil {
 		return nil, false, err
 	}
 	schedule, hasScheduleSettings, err := s.prepareScheduleForSave(prepared.Organization, config)

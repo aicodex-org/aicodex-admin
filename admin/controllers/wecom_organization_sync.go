@@ -26,16 +26,17 @@ import (
 )
 
 type wecomOrganizationSyncConfigResponse struct {
-	Organization              string                              `json:"organization"`
-	IsConfigured              bool                                `json:"isConfigured"`
-	Config                    *object.WecomOrganizationSyncConfig `json:"config"`
-	DefaultOrganization       string                              `json:"defaultOrganization,omitempty"`
-	DefaultOrganizationSource string                              `json:"defaultOrganizationSource,omitempty"`
-	ConflictingProvider       string                              `json:"conflictingProvider,omitempty"`
-	ConflictingOrganization   string                              `json:"conflictingOrganization,omitempty"`
-	ConflictingConfigured     bool                                `json:"conflictingConfigured"`
-	ConflictingEnabled        bool                                `json:"conflictingEnabled"`
-	ConflictingOrganizations  []string                            `json:"conflictingOrganizations,omitempty"`
+	Organization              string                                    `json:"organization"`
+	IsConfigured              bool                                      `json:"isConfigured"`
+	Config                    *object.WecomOrganizationSyncConfig       `json:"config"`
+	DefaultOrganization       string                                    `json:"defaultOrganization,omitempty"`
+	DefaultOrganizationSource string                                    `json:"defaultOrganizationSource,omitempty"`
+	ConflictingProvider       string                                    `json:"conflictingProvider,omitempty"`
+	ConflictingOrganization   string                                    `json:"conflictingOrganization,omitempty"`
+	ConflictingConfigured     bool                                      `json:"conflictingConfigured"`
+	ConflictingEnabled        bool                                      `json:"conflictingEnabled"`
+	ConflictingOrganizations  []string                                  `json:"conflictingOrganizations,omitempty"`
+	SourceStatus              *object.OrganizationDirectorySourceStatus `json:"sourceStatus,omitempty"`
 }
 
 type wecomOrganizationSyncRunRequest struct {
@@ -472,6 +473,7 @@ func applyWecomOrganizationSyncSourceStatus(response *wecomOrganizationSyncConfi
 	response.ConflictingConfigured = sourceStatus.ConflictingConfigured
 	response.ConflictingEnabled = sourceStatus.ConflictingEnabled
 	response.ConflictingOrganizations = sourceStatus.ConflictingOrganizations
+	response.SourceStatus = sourceStatus.SourceStatus
 }
 
 func newWecomOrganizationSyncRunStartResponse(result *object.WecomOrganizationSyncStartRunResult, sensitiveValues ...string) *wecomOrganizationSyncRunStartResponse {
