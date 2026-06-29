@@ -9,16 +9,20 @@ import {
   getServiceCredentialGovernanceCredentialPresenceLabel,
   getServiceCredentialGovernanceDiagnosticStatusLabel,
   getServiceCredentialGovernanceDiagnosticTone,
+  getServiceCredentialGovernanceDisplay,
   getServiceCredentialGovernanceHandoffReadinessLabel,
   getServiceCredentialGovernanceHandoffTone,
   getServiceCredentialGovernanceNextAction,
   getServiceCredentialGovernanceOperatorStatus,
   getServiceCredentialGovernancePrimaryGap,
+  getServiceCredentialGovernanceReferencePlaceholder,
+  getServiceCredentialGovernanceReferenceSourceHint,
   getServiceCredentialGovernanceRequiredConfigSummary,
   getServiceCredentialGovernanceSourceClassLabel,
   getServiceCredentialGovernanceSummary,
   getServiceCredentialGovernanceTone,
-  getServiceCredentialReferenceStatusLabel
+  getServiceCredentialReferenceStatusLabel,
+  serviceCredentialGovernanceNeedsCredentialReference
 } from "./ApplicationAccessServiceCredentialGovernancePanel";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
@@ -36,6 +40,7 @@ const mockGetServiceCredentialGovernanceConfig = jest.fn() as unknown as LooseMo
 const mockSaveServiceCredentialGovernanceConfig = jest.fn() as unknown as LooseMock;
 const mockDiagnoseServiceCredentialGovernanceConfig = jest.fn() as unknown as LooseMock;
 const mockBuildServiceCredentialGovernanceHandoffPackage = jest.fn();
+const mockCopyToClipboard = jest.fn((..._args: unknown[]) => true);
 
 const {fireEvent} = require("@testing-library/react") as {
   fireEvent: {
@@ -55,6 +60,8 @@ jest.mock("./backend/ApplicationAccessServiceCredentialGovernanceBackend", () =>
     buildServiceCredentialGovernanceHandoffPackage: (...args: unknown[]) => mockBuildServiceCredentialGovernanceHandoffPackage(...args),
   };
 });
+
+jest.mock("copy-to-clipboard", () => (...args: unknown[]) => mockCopyToClipboard(...args));
 
 async function useTestLanguage(language: string) {
   if (!i18next.isInitialized) {
@@ -168,6 +175,16 @@ const governanceConfigResponse = {
         nextAction: "核对 resolver 凭据引用",
       },
       {
+        key: "gateway_organization_projection",
+        label: "Gateway organization projection",
+        enabled: false,
+        owner: "admin_gateway_projection_producer",
+        sourceClass: "admin_config",
+        credentialReferenceStatus: "not_applicable",
+        callerPolicy: "aicodex-admin",
+        nextAction: "启用后核对 Gateway projection 凭据引用",
+      },
+      {
         key: "keep_in_env",
         label: "Keep in env/config",
         enabled: true,
@@ -227,32 +244,8 @@ function renderPage() {
 }
 
 async function openConfigDetails(view: ReturnType<typeof render>, key: string): Promise<HTMLElement> {
-  const row = await view.findByLabelText(`${key} 治理项对齐`);
-  const header = row.querySelector(".application-access-service-credential-row-details .ant-collapse-header");
-  if (!header) {
-    throw new Error(`Missing config details header for ${key}`);
-  }
-  fireEvent.click(header);
+  const row = await view.findByLabelText(`${key} 交接包检查`);
   return row as HTMLElement;
-}
-
-async function openAdvancedInformation(view: ReturnType<typeof render>): Promise<HTMLElement> {
-  const advancedLabel = await view.findByText("高级信息");
-  const header = advancedLabel.closest(".ant-collapse-header");
-  if (!header) {
-    throw new Error("Missing advanced information header");
-  }
-  fireEvent.click(header);
-  return view.findByLabelText("服务凭据治理高级信息");
-}
-
-function expandMetadataSections(view: ReturnType<typeof render>, label: string): void {
-  view.getAllByText(label).forEach((node: HTMLElement) => {
-    const header = node.closest(".ant-collapse-header");
-    if (header) {
-      fireEvent.click(header);
-    }
-  });
 }
 
 function clickButtonByText(view: ReturnType<typeof render>, label: string): void {
@@ -275,6 +268,8 @@ describe("ApplicationUsageAccessPage", () => {
     mockSaveServiceCredentialGovernanceConfig.mockReset();
     mockDiagnoseServiceCredentialGovernanceConfig.mockReset();
     mockBuildServiceCredentialGovernanceHandoffPackage.mockReset();
+    mockCopyToClipboard.mockReset();
+    mockCopyToClipboard.mockReturnValue(true);
     mockBuildServiceCredentialGovernanceHandoffPackage.mockReturnValue({
       schema: "aicodex.admin.serviceCredentialGovernanceHandoff",
       version: "2026-06-22",
@@ -309,6 +304,9 @@ describe("ApplicationUsageAccessPage", () => {
       if (serializedMessage.includes("not wrapped in act") && serializedMessage.includes("BaseSelect")) {
         return;
       }
+      if (serializedMessage.includes("current testing environment is not configured to support act")) {
+        return;
+      }
 
       consoleErrorSpy.mockRestore();
       throw new Error(serializedMessage);
@@ -328,7 +326,7 @@ describe("ApplicationUsageAccessPage", () => {
     expect(getServiceCredentialGovernanceTone("not_applicable")).toBe("default");
     expect(getServiceCredentialGovernanceSummary(null).label).toBe("待加载");
     expect(getServiceCredentialGovernanceSummary({generatedAt: "", source: "admin_runtime_config", groups: [{key: "blocked", label: "Blocked", owner: "admin", status: "blocked", credentialReferenceStatus: "missing"}]}).label).toBe("不可用");
-    expect(getServiceCredentialGovernanceSummary({generatedAt: "", source: "admin_runtime_config", groups: [{key: "partial", label: "Partial", owner: "admin", status: "partial", credentialReferenceStatus: "configured"}]}).label).toBe("需补配置");
+    expect(getServiceCredentialGovernanceSummary({generatedAt: "", source: "admin_runtime_config", groups: [{key: "partial", label: "Partial", owner: "admin", status: "partial", credentialReferenceStatus: "configured"}]}).label).toBe("需补材料");
     expect(getServiceCredentialGovernanceSummary({generatedAt: "", source: "admin_runtime_config", groups: [{key: "ok", label: "OK", owner: "admin", status: "configured", credentialReferenceStatus: "configured"}]}).label).toBe("可用");
     expect(getServiceCredentialGovernanceSourceClassLabel("external_secret_system")).toBe("外部凭据");
     expect(getServiceCredentialGovernanceSourceClassLabel("env_config")).toBe("环境配置");
@@ -352,11 +350,11 @@ describe("ApplicationUsageAccessPage", () => {
     expect(getServiceCredentialGovernanceHandoffTone("ready")).toBe("success");
     expect(getServiceCredentialGovernanceHandoffTone("keep_in_env")).toBe("warning");
     expect(getServiceCredentialGovernanceHandoffTone("blocked")).toBe("error");
-    expect(getServiceCredentialGovernanceHandoffReadinessLabel("ready")).toBe("可交接");
-    expect(getServiceCredentialGovernanceHandoffReadinessLabel("keep_in_env")).toBe("保留在 env/config");
-    expect(getServiceCredentialGovernanceHandoffReadinessLabel("cannot_infer")).toBe("不能推断");
-    expect(getServiceCredentialGovernanceHandoffReadinessLabel("blocked")).toBe("已阻断");
-    expect(getServiceCredentialGovernanceOperatorStatus("missing").label).toBe("未完成配置");
+    expect(getServiceCredentialGovernanceHandoffReadinessLabel("ready")).toBe("可交付");
+    expect(getServiceCredentialGovernanceHandoffReadinessLabel("keep_in_env")).toBe("由环境维护");
+    expect(getServiceCredentialGovernanceHandoffReadinessLabel("cannot_infer")).toBe("需下游确认");
+    expect(getServiceCredentialGovernanceHandoffReadinessLabel("blocked")).toBe("材料不全");
+    expect(getServiceCredentialGovernanceOperatorStatus("missing").label).toBe("材料不全");
     expect(getServiceCredentialGovernanceOperatorStatus(undefined).description).toBe("请刷新状态");
     expect(getServiceCredentialGovernancePrimaryGap({key: "resolver", label: "Resolver", owner: "admin", status: "partial", credentialReferenceStatus: "missing"})).toBe("缺少凭据");
     expect(getServiceCredentialGovernancePrimaryGap({key: "resolver", label: "Resolver", owner: "admin", status: "partial", credentialReferenceStatus: "configured", missingKeys: ["callerPolicy"]})).toBe("缺少调用策略");
@@ -370,6 +368,14 @@ describe("ApplicationUsageAccessPage", () => {
     expect(getServiceCredentialGovernanceCredentialPresenceLabel({key: "resolver", enabled: true, credentialReferenceStatus: "configured", credentialReferenceKey: "vault:resolver"})).toBe("已填写引用");
     expect(getServiceCredentialGovernanceCredentialPresenceLabel({key: "resolver", enabled: true, credentialReferenceStatus: "configured"})).toBe("待填写引用");
     expect(getServiceCredentialGovernanceCredentialPresenceLabel({key: "env", enabled: true, keepInEnv: true, credentialReferenceStatus: "external_secret"})).toBe("无需填写");
+    expect(getServiceCredentialGovernanceDisplay("insight_provider_trust").title).toBe("Insight 调用信任");
+    expect(getServiceCredentialGovernanceDisplay("usage_identity_resolver").title).toBe("用量身份解析");
+    expect(getServiceCredentialGovernanceDisplay("gateway_organization_projection").title).toBe("Gateway 组织投影");
+    expect(getServiceCredentialGovernanceDisplay("keep_in_env").title).toBe("环境维护项");
+    expect(getServiceCredentialGovernanceReferenceSourceHint("usage_identity_resolver")).toBe("在 Admin 部署配置补 insightUsageIdentityResolverToken；Docker/K8s 通常用 AICODEX_INSIGHT_USAGE_IDENTITY_RESOLVER_TOKEN。");
+    expect(getServiceCredentialGovernanceReferenceSourceHint("gateway_organization_projection")).toBe("在 Admin 部署配置补 gatewayOrganizationProjectionToken；如果部署模板没有环境变量映射，就补到 Admin config。");
+    expect(getServiceCredentialGovernanceReferencePlaceholder("gateway_organization_projection")).toBe("gatewayOrganizationProjectionToken");
+    expect(serviceCredentialGovernanceNeedsCredentialReference({key: "gateway", enabled: false, credentialReferenceStatus: "not_applicable"}, {key: "gateway", label: "Gateway", owner: "admin", status: "partial", credentialReferenceStatus: "not_applicable", missingKeys: ["gatewayOrganizationProjectionToken"]})).toBe(true);
   });
 
   test("renders the service credential governance panel as the focused usage access content", async() => {
@@ -380,24 +386,54 @@ describe("ApplicationUsageAccessPage", () => {
 
     expect(await view.findByText("用量接入")).not.toBeNull();
     expect(view.getByText("应用接入 / 用量接入")).not.toBeNull();
+    expect(view.queryByText("只维护 Admin 身份、组织、resolver、projection/trust 和服务凭据引用；API/Gateway 用量包不在这里生成。")).toBeNull();
+    expect(view.queryByText("生成给 Insight 使用的 Admin 接入交接包；只维护身份、组织、resolver、projection/trust 和服务凭据引用。")).toBeNull();
+    expect(view.queryByText("核对 Gateway 映射")).toBeNull();
     expect(view.getAllByText("服务凭据治理").length).toBeGreaterThan(0);
-    expect(view.getByLabelText("服务接入配置总览")).not.toBeNull();
-    expect(view.getByText("当前状态")).not.toBeNull();
-    expect(view.getByText("下一步")).not.toBeNull();
-    expect(view.getByText("治理项对齐")).not.toBeNull();
-    expect(view.getByText("保存配置")).not.toBeNull();
-    expect(view.getByText("刷新状态")).not.toBeNull();
-    expect(view.getByText("读取配置")).not.toBeNull();
-    expect(view.getByText("恢复回读")).not.toBeNull();
-    expect(view.getByText("Dry-run/Readiness")).not.toBeNull();
-    expect(view.getByText("Doctor")).not.toBeNull();
-    expect(view.getByText("Handoff/Evidence")).not.toBeNull();
-    expect(view.getAllByText("必填配置").length).toBeGreaterThan(0);
-    await openConfigDetails(view, "usage_identity_resolver");
-    expect((view.getByLabelText("usage_identity_resolver 凭据引用") as HTMLInputElement).value).toBe("vault:usage-identity-resolver");
-    expect((view.getByLabelText("usage_identity_resolver 调用策略") as HTMLInputElement).value).toBe("aicodex-admin");
-    expect(view.getAllByText("外部凭据").length).toBeGreaterThan(0);
-    expect(view.getAllByText("环境配置").length).toBeGreaterThan(0);
+    expect(view.queryByLabelText("交接包总览")).toBeNull();
+    expect(view.queryByText("当前状态")).toBeNull();
+    expect(view.getByText("下一步：在 Admin 部署配置补齐 2 项，重启后刷新本页")).not.toBeNull();
+    expect(view.queryByText("查看交接项")).toBeNull();
+    expect(view.getByText("待补配置")).not.toBeNull();
+    expect(view.queryByText("刷新状态")).toBeNull();
+    expect(view.queryByText("预检交接包")).toBeNull();
+    expect(view.getByText("生成 Admin 交接包")).not.toBeNull();
+    expect((view.getByText("生成 Admin 交接包").closest("button") as HTMLButtonElement).disabled).toBe(true);
+    expect(view.queryByText("保存配置")).toBeNull();
+    expect(view.queryByText("读取配置")).toBeNull();
+    expect(view.queryByText("保存修正")).toBeNull();
+    expect(view.queryByText("读取当前值")).toBeNull();
+    expect(view.queryByText("高级修正")).toBeNull();
+    expect(view.queryByText("Doctor")).toBeNull();
+    expect(view.queryByText("恢复回读")).toBeNull();
+    expect(view.queryByText("诊断详情")).toBeNull();
+    expect(view.queryByText("排障详情")).toBeNull();
+    expect(view.queryByText("机器字段")).toBeNull();
+    expect(view.queryByText("交接包材料")).toBeNull();
+    expect(view.getByText("Insight 调用信任")).not.toBeNull();
+    expect(view.queryByText("用量身份解析")).toBeNull();
+    expect(view.getByText("Gateway 组织投影")).not.toBeNull();
+    expect(view.queryByText("环境维护项")).toBeNull();
+    expect(view.queryByText("确认 Insight 调 Admin 接入接口时，调用来源在 Admin 信任范围内。")).toBeNull();
+    expect(view.queryByLabelText("insight_provider_trust 凭据引用")).toBeNull();
+    expect(view.queryByLabelText("usage_identity_resolver 凭据引用")).toBeNull();
+    expect(view.queryByText("查看环境维护说明")).toBeNull();
+    expect(view.queryByText("查看交接材料")).toBeNull();
+    await openConfigDetails(view, "gateway_organization_projection");
+    expect(view.queryByText("补凭据引用")).toBeNull();
+    expect(view.getByText("这里不保存密钥。请在 Admin 的 env/config 里补配置，补完重启后刷新。")).not.toBeNull();
+    expect(view.getByText("在 Admin 部署配置补 gatewayOrganizationProjectionToken；如果部署模板没有环境变量映射，就补到 Admin config。")).not.toBeNull();
+    expect(view.queryByText("只补缺少的 Vault/Secret 引用名")).toBeNull();
+    expect(view.queryByText("到 Vault/Secret 系统找到这项的引用名，填到下面；保存后再生成交接包。")).toBeNull();
+    expect(view.queryByText("引用名")).toBeNull();
+    expect(view.queryByText("允许调用方")).toBeNull();
+    expect(view.queryByText("材料维护位置")).toBeNull();
+    expect(view.queryByText("启用治理项")).toBeNull();
+    expect(view.queryByLabelText("gateway_organization_projection 凭据引用")).toBeNull();
+    expect(view.queryByPlaceholderText("gatewayOrganizationProjectionToken")).toBeNull();
+    expect(view.getByText("gatewayOrganizationProjectionToken")).not.toBeNull();
+    expect(view.getByText("insightProviderAllowedIssuers")).not.toBeNull();
+    expect(view.queryByLabelText("gateway_organization_projection 调用策略")).toBeNull();
     expect(view.container.textContent).not.toContain("resolver-secret-value");
     expect(view.container.textContent).not.toContain("resolver-token-value");
     expect(view.container.textContent).not.toContain("resolver.internal.example.invalid");
@@ -405,53 +441,66 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.container.textContent).not.toContain("admin_service_credential_reference_unresolved");
   });
 
-  test("saves, diagnoses, and previews service credential governance handoff from usage access", async() => {
-    mockGetServiceCredentialGovernanceStatus.mockResolvedValueOnce(governanceStatusResponse);
-    mockGetServiceCredentialGovernanceConfig.mockResolvedValueOnce(governanceConfigResponse);
-    mockSaveServiceCredentialGovernanceConfig.mockResolvedValueOnce({
-      ...governanceConfigResponse,
+  test("previews service credential governance handoff after Admin deployment config is ready", async() => {
+    mockGetServiceCredentialGovernanceStatus.mockResolvedValueOnce({
+      ...governanceStatusResponse,
       data: {
-        ...governanceConfigResponse.data,
-        groups: governanceConfigResponse.data.groups.map(group => group.key === "usage_identity_resolver"
-          ? {...group, credentialReferenceKey: "vault:usage-identity-resolver-updated", nextAction: "已回读脱敏配置"}
-          : group),
+        ...governanceStatusResponse.data,
+        groups: governanceStatusResponse.data.groups.map(group => ({
+          ...group,
+          status: "configured",
+          missingKeys: [],
+          credentialReferenceStatus: group.credentialReferenceStatus === "missing" ? "configured" : group.credentialReferenceStatus,
+          blockedReasons: [],
+        })),
       },
     });
-    mockDiagnoseServiceCredentialGovernanceConfig.mockResolvedValueOnce(governanceDiagnosticResponse);
+    mockGetServiceCredentialGovernanceConfig.mockResolvedValueOnce(governanceConfigResponse);
 
     const view = renderPage();
-    await openConfigDetails(view, "usage_identity_resolver");
-    const resolverReferenceInput = await view.findByLabelText("usage_identity_resolver 凭据引用");
-    fireEvent.change(resolverReferenceInput, {target: {value: "vault:usage-identity-resolver-updated"}});
-    fireEvent.click(view.getByText("保存配置"));
-
-    expect(await view.findByText("配置已保存")).not.toBeNull();
-    expect(mockSaveServiceCredentialGovernanceConfig).toHaveBeenCalledWith(expect.objectContaining({
-      source: "admin_service_credential_governance_config",
-      isConfigured: true,
-      groups: expect.any(Array),
-    }));
-    const savePayload = JSON.stringify(mockSaveServiceCredentialGovernanceConfig.mock.calls[0]?.[0]);
-    expect(savePayload).toContain("vault:usage-identity-resolver-updated");
-    expect(savePayload).not.toContain("resolver-token-value");
-    expect(savePayload).not.toContain("resolver.internal.example.invalid");
-
-    fireEvent.click(view.getByText("Dry-run/Readiness"));
-    const resolverRowAfterDiagnostic = await view.findByLabelText("usage_identity_resolver 治理项对齐");
-    expect(resolverRowAfterDiagnostic.textContent).toContain("预检");
-    expect(resolverRowAfterDiagnostic.textContent).toContain("需下游确认");
-    expect(resolverRowAfterDiagnostic.textContent).not.toContain("admin_service_credential_reference_unresolved");
+    expect(await view.findByText("材料已齐，点击生成 Admin 交接包。")).not.toBeNull();
+    expect(view.getByText("Admin 交接包")).not.toBeNull();
+    expect(view.queryByText("待补配置")).toBeNull();
+    expect(view.queryByText("下一步：材料已齐，可以生成 Admin 交接包")).toBeNull();
+    expect(view.queryByText("保存修正")).toBeNull();
+    expect(mockSaveServiceCredentialGovernanceConfig).not.toHaveBeenCalled();
     expect(view.container.textContent).not.toContain("admin_service_credential_reference_unresolved");
-    expect(mockDiagnoseServiceCredentialGovernanceConfig).toHaveBeenCalledTimes(1);
+    expect(mockDiagnoseServiceCredentialGovernanceConfig).not.toHaveBeenCalled();
+    const generateButton = view.getByText("生成 Admin 交接包").closest("button") as HTMLButtonElement;
+    expect(generateButton.disabled).toBe(false);
+    expect(generateButton.className).toContain("ant-btn-primary");
 
-    clickButtonByText(view, "Handoff/Evidence");
-    expect(await view.findByText("Evidence 已生成")).not.toBeNull();
-    await openAdvancedInformation(view);
-    expandMetadataSections(view, "Evidence 元数据");
-    expect(view.getByText("insight_business_service_access")).not.toBeNull();
-    expect(view.getByText("admin_identity_application_access")).not.toBeNull();
-    expect(view.container.textContent).not.toContain("vault:usage-identity-resolver-updated");
-    expect(view.container.textContent).toContain("cannotInferRuntimeTruth");
+    clickButtonByText(view, "生成 Admin 交接包");
+    expect((await view.findAllByText("Insight Admin 接入交接包已生成")).length).toBeGreaterThan(0);
+    const handoffInput = mockBuildServiceCredentialGovernanceHandoffPackage.mock.calls[0]?.[0] as {config?: unknown; status?: unknown};
+    expect(handoffInput).not.toHaveProperty("config");
+    expect(handoffInput).toEqual(expect.objectContaining({
+      status: expect.objectContaining({
+        groups: expect.arrayContaining([
+          expect.objectContaining({key: "usage_identity_resolver", status: "configured", credentialReferenceStatus: "configured"}),
+          expect.objectContaining({key: "gateway_organization_projection", status: "configured", credentialReferenceStatus: "configured"}),
+        ]),
+      }),
+    }));
+    expect(view.queryByText("材料已齐，点击生成 Admin 交接包。")).toBeNull();
+    const regenerateButton = view.getByText("重新生成 Admin 交接包").closest("button") as HTMLButtonElement;
+    expect(regenerateButton).not.toBeNull();
+    expect(regenerateButton.className).not.toContain("ant-btn-primary");
+    expect(view.getByText("本页只交付 Admin 身份、组织、resolver、projection/trust 和服务凭据引用材料；API/Gateway 用量交接包由 API/Gateway 侧生成。")).not.toBeNull();
+    clickButtonByText(view, "复制交接包 JSON");
+    expect(mockCopyToClipboard).toHaveBeenCalledTimes(1);
+    const copiedPackage = String(mockCopyToClipboard.mock.calls[0]?.[0] ?? "");
+    expect(copiedPackage).toContain("admin_service_credential_governance_handoff_package");
+    expect(copiedPackage).not.toContain("resolver-secret-value");
+    expect(copiedPackage).not.toContain("resolver-token-value");
+    expect(copiedPackage).not.toContain("resolver.internal.example.invalid");
+    expect(view.queryByText("高级修正")).toBeNull();
+    expect(view.queryByText("诊断详情")).toBeNull();
+    expect(view.queryByText("排障详情")).toBeNull();
+    expect(view.queryByText("机器字段")).toBeNull();
+    expect(view.container.textContent).not.toContain("insight_business_service_access");
+    expect(view.container.textContent).not.toContain("admin_identity_application_access");
+    expect(view.container.textContent).not.toContain("vault:gateway-organization-projection");
     expect(view.container.textContent).not.toContain("resolver-secret-value");
     expect(view.container.textContent).not.toContain("resolver-token-value");
     expect(view.container.textContent).not.toContain("resolver.internal.example.invalid");
@@ -463,27 +512,20 @@ describe("ApplicationUsageAccessPage", () => {
     mockDiagnoseServiceCredentialGovernanceConfig.mockResolvedValueOnce(governanceDiagnosticResponse);
 
     const view = renderPage();
-    await view.findByLabelText("usage_identity_resolver 治理项对齐");
+    await view.findByLabelText("gateway_organization_projection 交接包检查");
 
-    const resolverRowBeforeDiagnostic = view.getByLabelText("usage_identity_resolver 治理项对齐");
-    expect(resolverRowBeforeDiagnostic.textContent).toContain("可用");
-    expect(resolverRowBeforeDiagnostic.textContent).toContain("必填配置");
-    await openConfigDetails(view, "usage_identity_resolver");
-    expect((view.getByLabelText("usage_identity_resolver 凭据引用") as HTMLInputElement).value).toBe("vault:usage-identity-resolver");
-    expect(resolverRowBeforeDiagnostic.textContent).toContain("预检");
-    expect(resolverRowBeforeDiagnostic.textContent).toContain("尚未诊断");
+    const gatewayRowBeforeDiagnostic = view.getByLabelText("gateway_organization_projection 交接包检查");
+    expect(gatewayRowBeforeDiagnostic.textContent).toContain("待补 Admin 配置");
+    expect(gatewayRowBeforeDiagnostic.textContent).toContain("gatewayOrganizationProjectionToken");
+    expect(gatewayRowBeforeDiagnostic.textContent).not.toContain("不可用");
+    expect(gatewayRowBeforeDiagnostic.textContent).not.toContain("材料不全");
+    expect(view.queryByLabelText("usage_identity_resolver 凭据引用")).toBeNull();
 
-    fireEvent.click(view.getByText("Dry-run/Readiness"));
-
-    const resolverRowAfterDiagnostic = await view.findByLabelText("usage_identity_resolver 治理项对齐");
-    expect(resolverRowAfterDiagnostic.textContent).toContain("必填配置");
-    expect(resolverRowAfterDiagnostic.textContent).toContain("预检");
-    expect(resolverRowAfterDiagnostic.textContent).toContain("需下游确认");
-    expect(resolverRowAfterDiagnostic.textContent).not.toContain("admin_service_credential_reference_unresolved");
     expect(view.container.textContent).not.toContain("admin_service_credential_reference_unresolved");
-    await openAdvancedInformation(view);
-    expandMetadataSections(view, "诊断元数据");
-    expect(view.getAllByText("admin_service_credential_reference_unresolved").length).toBeGreaterThan(0);
+    expect(view.queryByText("高级修正")).toBeNull();
+    expect(view.container.textContent).not.toContain("admin_service_credential_reference_unresolved");
+    expect(view.queryByText("排障详情")).toBeNull();
+    expect(view.queryByText("机器字段")).toBeNull();
   });
 
   test("keeps loading, empty, and error states actionable", async() => {
@@ -497,14 +539,14 @@ describe("ApplicationUsageAccessPage", () => {
     });
     const emptyView = renderPage();
     expect(await emptyView.findByText("暂无服务凭据治理状态")).not.toBeNull();
-    expect(emptyView.getByText("接入中心").closest("a")?.getAttribute("href")).toBe("/applications");
+    expect(emptyView.queryByText("接入中心")).toBeNull();
     emptyView.unmount();
 
     mockGetServiceCredentialGovernanceStatus.mockRejectedValueOnce(new Error("unavailable"));
     mockGetServiceCredentialGovernanceConfig.mockRejectedValueOnce(new Error("unavailable"));
     const errorView = renderPage();
     expect(await errorView.findByText("服务凭据治理状态暂不可用")).not.toBeNull();
-    expect(errorView.getByText("接入中心").closest("a")?.getAttribute("href")).toBe("/applications");
+    expect(errorView.queryByText("接入中心")).toBeNull();
   });
 
   test("surfaces status and config API errors without blocking the application access fallback", async() => {
@@ -515,46 +557,9 @@ describe("ApplicationUsageAccessPage", () => {
 
     expect(await view.findByText("服务凭据治理状态暂不可用")).not.toBeNull();
     expect(view.getByText("服务凭据治理配置暂不可用")).not.toBeNull();
-    expect(view.getByText("接入中心").closest("a")?.getAttribute("href")).toBe("/applications");
-    expect((view.getByText("Dry-run/Readiness").closest("button") as HTMLButtonElement | null)?.disabled).toBe(true);
-    expect((view.getByText("Handoff/Evidence").closest("button") as HTMLButtonElement | null)?.disabled).toBe(true);
-  });
-
-  test("keeps save and diagnostic failures visible and resets stale diagnostic output after edits", async() => {
-    mockGetServiceCredentialGovernanceStatus.mockResolvedValueOnce(governanceStatusResponse);
-    mockGetServiceCredentialGovernanceConfig.mockResolvedValueOnce(governanceConfigResponse);
-    mockSaveServiceCredentialGovernanceConfig.mockRejectedValueOnce(new Error("save failed"));
-    mockDiagnoseServiceCredentialGovernanceConfig
-      .mockRejectedValueOnce(new Error("diagnostic failed"))
-      .mockResolvedValueOnce({
-        status: "ok",
-        data: {
-          generatedAt: "2026-06-23T08:06:00Z",
-          source: "admin_service_credential_governance_diagnostic",
-          groups: [],
-        },
-      });
-
-    const view = renderPage();
-    await openConfigDetails(view, "usage_identity_resolver");
-    const resolverReferenceInput = await view.findByLabelText("usage_identity_resolver 凭据引用");
-
-    fireEvent.click(view.getByText("保存配置"));
-    expect(await view.findByText("服务凭据治理配置保存失败")).not.toBeNull();
-
-    fireEvent.click(view.getByText("Dry-run/Readiness"));
-    expect((await view.findAllByText("诊断暂不可用")).length).toBeGreaterThan(0);
-
-    fireEvent.change(resolverReferenceInput, {target: {value: "vault:usage-identity-resolver-after-error"}});
-    const resolverRowAfterEdit = view.getByLabelText("usage_identity_resolver 治理项对齐");
-    expect(resolverRowAfterEdit.textContent).toContain("尚未诊断");
-    expect(resolverRowAfterEdit.textContent).not.toContain("诊断暂不可用");
-
-    fireEvent.click(view.getByText("Dry-run/Readiness"));
-    expect((await view.findAllByText("无诊断结果")).length).toBeGreaterThan(0);
-    const diagnosticPayload = JSON.stringify(mockDiagnoseServiceCredentialGovernanceConfig.mock.calls[1]?.[0]);
-    expect(diagnosticPayload).toContain("vault:usage-identity-resolver-after-error");
-    expect(diagnosticPayload).not.toContain("resolver-token-value");
+    expect(view.queryByText("接入中心")).toBeNull();
+    expect(view.queryByText("预检交接包")).toBeNull();
+    expect((view.getByText("生成 Admin 交接包").closest("button") as HTMLButtonElement | null)?.disabled).toBe(true);
   });
 
   test("maps diagnostic status labels for all focused service credential governance outcomes", async() => {
@@ -633,22 +638,35 @@ describe("ApplicationUsageAccessPage", () => {
     });
 
     const view = renderPage();
-    await view.findByLabelText("ready_group 治理项对齐");
-    expect(view.getByLabelText("disabled_group 治理项对齐").textContent).toContain("未启用");
-    expect(view.getByLabelText("missing_reference_group 治理项对齐").textContent).toContain("未完成配置");
-    expect(view.getByLabelText("blocked_group 治理项对齐").textContent).toContain("不可用");
-    expect(view.getByLabelText("blocked_group 治理项对齐").textContent).not.toContain("caller_policy_missing");
+    await view.findByText("材料已齐，点击生成 Admin 交接包。");
+    expect(view.queryByLabelText("ready_group 交接包检查")).toBeNull();
+    expect(view.queryByLabelText("disabled_group 交接包检查")).toBeNull();
+    expect(view.queryByLabelText("missing_reference_group 交接包检查")).toBeNull();
+    expect(view.queryByLabelText("blocked_group 交接包检查")).toBeNull();
+    expect(view.container.textContent).not.toContain("credentialReferenceKey");
+    expect(view.container.textContent).not.toContain("callerPolicy");
+    expect(view.container.textContent).not.toContain("caller_policy_missing");
 
-    fireEvent.click(view.getByText("Dry-run/Readiness"));
-
-    expect((await view.findAllByText("预检通过")).length).toBeGreaterThan(0);
-    expect(view.getAllByText("未启用").length).toBeGreaterThan(0);
-    expect(view.getAllByText("缺少凭据").length).toBeGreaterThan(0);
-    expect(view.getAllByText("策略未放行").length).toBeGreaterThan(0);
-    await openAdvancedInformation(view);
-    expandMetadataSections(view, "诊断元数据");
-    expect(view.getByText("ready_alias")).not.toBeNull();
-    expect(view.getByText("missing_reference_alias")).not.toBeNull();
+    expect(view.queryByText("预检通过")).toBeNull();
+    expect(view.queryByText("未启用")).toBeNull();
+    expect(view.queryByText("待补 Admin 配置")).toBeNull();
+    expect(view.queryByText("策略未放行")).toBeNull();
+    expect(view.queryByText("高级修正")).toBeNull();
+    expect(view.container.textContent).not.toContain("ready_alias");
+    expect(view.container.textContent).not.toContain("missing_reference_alias");
+    expect(view.queryByText("排障详情")).toBeNull();
+    expect(view.queryByText("机器字段")).toBeNull();
+    clickButtonByText(view, "生成 Admin 交接包");
+    const handoffInput = mockBuildServiceCredentialGovernanceHandoffPackage.mock.calls[0]?.[0] as {config?: unknown; status?: unknown};
+    expect(handoffInput).not.toHaveProperty("config");
+    expect(handoffInput).toEqual(expect.objectContaining({
+      status: expect.objectContaining({
+        groups: expect.arrayContaining([
+          expect.objectContaining({key: "missing_reference_group", status: "configured", missingKeys: [], blockedReasons: [], credentialReferenceStatus: "configured"}),
+          expect.objectContaining({key: "blocked_group", status: "configured", missingKeys: [], blockedReasons: []}),
+        ]),
+      }),
+    }));
   });
 
   test("previews handoff readiness labels without exposing unsafe runtime material", async() => {
@@ -732,16 +750,18 @@ describe("ApplicationUsageAccessPage", () => {
     });
 
     const view = renderPage();
-    await view.findByLabelText("ready_group 治理项对齐");
-    clickButtonByText(view, "Handoff/Evidence");
+    await view.findByLabelText("blocked_group 交接包检查");
+    expect(view.queryByLabelText("ready_group 交接包检查")).toBeNull();
+    expect((view.getByText("生成 Admin 交接包").closest("button") as HTMLButtonElement).disabled).toBe(true);
+    clickButtonByText(view, "生成 Admin 交接包");
 
-    expect(await view.findByText("可交接")).not.toBeNull();
-    expect(view.getAllByText("保留在 env/config").length).toBeGreaterThan(0);
-    expect(view.getAllByText("已阻断").length).toBeGreaterThan(0);
-    expect(view.container.textContent).toContain("调用策略缺失");
-    await openAdvancedInformation(view);
-    expandMetadataSections(view, "Evidence 元数据");
-    expect(view.getByText("admin_service_credential_reference_missing")).not.toBeNull();
+    expect(view.queryByText("Insight Admin 接入交接包已生成")).toBeNull();
+    expect(mockBuildServiceCredentialGovernanceHandoffPackage).not.toHaveBeenCalled();
+    expect(view.container.textContent).not.toContain("可交付");
+    expect(view.queryByText("高级修正")).toBeNull();
+    expect(view.container.textContent).not.toContain("调用策略缺失");
+    expect(view.container.textContent).not.toContain("admin_service_credential_reference_missing");
+    expect(view.queryByText("admin_service_credential_reference_missing")).toBeNull();
     expect(view.container.textContent).not.toContain("https://");
     expect(view.container.textContent).not.toContain("token-value");
   });

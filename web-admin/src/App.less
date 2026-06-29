@@ -1804,6 +1804,18 @@ img {
 
 .application-access-service-credential-workspace {
   margin-top: 12px;
+  border: 1px solid rgb(229 233 240);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.application-access-service-credential-workspace-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgb(229 233 240);
 }
 
 .application-access-service-credential-operator-overview {
@@ -1826,10 +1838,6 @@ img {
 
 .application-access-service-credential-operator-card strong {
   overflow-wrap: anywhere;
-}
-
-.application-access-service-credential-workspace .ant-collapse-header {
-  align-items: center !important;
 }
 
 .application-access-service-credential-workspace-actions {
@@ -1856,7 +1864,14 @@ img {
 .application-access-service-credential-config-fields {
   display: grid;
   grid-template-columns: minmax(160px, 1.2fr) minmax(140px, 1fr) minmax(120px, 0.8fr);
-  gap: 8px;
+  gap: 10px;
+}
+
+.application-access-service-credential-config-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .application-access-service-credential-alignment {
@@ -1867,7 +1882,7 @@ img {
 
 .application-access-service-credential-summary-row {
   display: grid;
-  grid-template-columns: minmax(220px, 0.9fr) minmax(420px, 1.4fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px 18px;
   padding: 12px;
   border: 1px solid rgb(229 233 240);
@@ -1899,6 +1914,12 @@ img {
 .application-access-service-credential-summary-block {
   padding-left: 12px;
   border-left: 1px solid rgb(229 233 240);
+}
+
+.application-access-service-credential-summary-block-inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
 }
 
 .application-access-service-credential-row-details {
@@ -3811,7 +3832,7 @@ span.enterprise-list-secondary-text {
     width: 100%;
   }
 
-  .application-access-service-credential-workspace .ant-collapse-header {
+  .application-access-service-credential-workspace-header {
     flex-wrap: wrap;
     gap: 8px;
   }

@@ -12,16 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ExperimentOutlined, FileTextOutlined, ReloadOutlined, SafetyOutlined, SaveOutlined, SyncOutlined, ToolOutlined, UndoOutlined} from "@ant-design/icons";
-import {Alert, Button, Collapse, Input, Select, Space, Switch, Tag, Typography} from "antd";
+import {CopyOutlined, FileTextOutlined} from "@ant-design/icons";
+import {Alert, Button, Space, Tag, Typography} from "antd";
+import copy from "copy-to-clipboard";
 import i18next from "i18next";
 import React from "react";
 import {
   buildServiceCredentialGovernanceHandoffPackage,
-  diagnoseServiceCredentialGovernanceConfig,
   getServiceCredentialGovernanceConfig,
-  getServiceCredentialGovernanceStatus,
-  saveServiceCredentialGovernanceConfig
+  getServiceCredentialGovernanceStatus
 } from "./backend/ApplicationAccessServiceCredentialGovernanceBackend";
 import type {
   ServiceCredentialGovernanceConfigGroup,
@@ -31,13 +30,12 @@ import type {
   ServiceCredentialGovernanceStatusResponse
 } from "./backend/ApplicationAccessServiceCredentialGovernanceBackend";
 import {EnterpriseIdentitySection} from "./common/EnterpriseIdentityConsoleLayout";
+import * as Setting from "./Setting";
 
 const {Text} = Typography;
 
 type ServiceCredentialGovernanceLoadState = "loading" | "ready" | "error" | "empty";
 type ServiceCredentialGovernanceConfigLoadState = "loading" | "ready" | "error" | "empty";
-type ServiceCredentialGovernanceConfigSaveState = "idle" | "saving" | "saved" | "error";
-type ServiceCredentialGovernanceDiagnosticState = "idle" | "checking" | "ready" | "error" | "empty";
 type ServiceCredentialGovernanceHandoffState = "idle" | "ready" | "error";
 type ServiceCredentialGovernanceGroup = ServiceCredentialGovernanceStatusResponse["groups"][number];
 type ServiceCredentialGovernanceStatus = ServiceCredentialGovernanceGroup["status"];
@@ -48,6 +46,16 @@ type ServiceCredentialGovernanceOperatorStatus = {
   label: string;
   description: string;
 };
+type ServiceCredentialGovernanceDisplay = {
+  title: string;
+  description: string;
+};
+
+const INTERNAL_SERVICE_CREDENTIAL_GOVERNANCE_KEYS = new Set([
+  "boundedRuntimePolicy",
+  "callerPolicy",
+  "credentialReferenceKey",
+]);
 
 interface ApplicationAccessServiceCredentialGovernancePanelProps {
   className?: string;
@@ -79,7 +87,7 @@ export function getServiceCredentialGovernanceSummary(status?: ServiceCredential
     return {label: "不可用", tone: "error"};
   }
   if (groups.some(group => group.status === "missing" || group.status === "partial")) {
-    return {label: "需补配置", tone: "warning"};
+    return {label: "需补材料", tone: "warning"};
   }
   if (groups.length > 0 && groups.every(group => group.status === "configured" || group.status === "not_applicable")) {
     return {label: "可用", tone: "success"};
@@ -108,6 +116,58 @@ export function getServiceCredentialReferenceStatusLabel(status?: ServiceCredent
     return "缺少凭据";
   default:
     return "无需引用";
+  }
+}
+
+export function getServiceCredentialGovernanceDisplay(key?: string, label?: string): ServiceCredentialGovernanceDisplay {
+  switch (key) {
+  case "insight_provider_trust":
+    return {
+      title: "Insight 调用信任",
+      description: "确认 Insight 调 Admin 接入接口时，调用来源在 Admin 信任范围内。",
+    };
+  case "usage_identity_resolver":
+    return {
+      title: "用量身份解析",
+      description: "把用量里的用户、scope 或组织线索映射回 Admin 身份与组织范围。",
+    };
+  case "gateway_organization_projection":
+    return {
+      title: "Gateway 组织投影",
+      description: "把 Admin 组织范围投影给 Gateway/API，用于权限判断和用量归属。",
+    };
+  case "keep_in_env":
+    return {
+      title: "环境维护项",
+      description: "说明哪些材料只在部署环境或外部 Secret 系统维护，Admin 不复制明文。",
+    };
+  default:
+    return {
+      title: label || key || "未知交接项",
+      description: "Admin 侧交接材料状态。",
+    };
+  }
+}
+
+export function getServiceCredentialGovernanceReferenceSourceHint(key?: string): string {
+  switch (key) {
+  case "usage_identity_resolver":
+    return "在 Admin 部署配置补 insightUsageIdentityResolverToken；Docker/K8s 通常用 AICODEX_INSIGHT_USAGE_IDENTITY_RESOLVER_TOKEN。";
+  case "gateway_organization_projection":
+    return "在 Admin 部署配置补 gatewayOrganizationProjectionToken；如果部署模板没有环境变量映射，就补到 Admin config。";
+  default:
+    return "在 Admin 部署配置补下面缺失的 key，补完重启 Admin 后刷新本页。";
+  }
+}
+
+export function getServiceCredentialGovernanceReferencePlaceholder(key?: string): string {
+  switch (key) {
+  case "usage_identity_resolver":
+    return "insightUsageIdentityResolverToken";
+  case "gateway_organization_projection":
+    return "gatewayOrganizationProjectionToken";
+  default:
+    return "例如 adminServiceCredentialToken";
   }
 }
 
@@ -165,9 +225,9 @@ export function getServiceCredentialGovernanceOperatorStatus(status?: ServiceCre
   case "blocked":
     return {label: "不可用", description: "存在阻断项"};
   case "missing":
-    return {label: "未完成配置", description: "缺少必填配置"};
+    return {label: "材料不全", description: "缺少交接材料"};
   case "partial":
-    return {label: "需补配置", description: "部分配置待补齐"};
+    return {label: "需补材料", description: "部分交接材料待补齐"};
   case "not_applicable":
     return {label: "未启用", description: "当前不参与运行"};
   default:
@@ -197,6 +257,83 @@ export function getServiceCredentialGovernancePrimaryGap(group?: ServiceCredenti
   return "无阻断";
 }
 
+export function serviceCredentialGovernanceNeedsCredentialReference(
+  group?: ServiceCredentialGovernanceConfigGroup,
+  statusGroup?: ServiceCredentialGovernanceGroup
+): boolean {
+  if (!group || group.keepInEnv) {
+    return false;
+  }
+  if (group.credentialReferenceKey) {
+    return false;
+  }
+  if (group.credentialReferenceStatus === "missing" || statusGroup?.credentialReferenceStatus === "missing") {
+    return true;
+  }
+
+  const missingText = (statusGroup?.missingKeys ?? []).join(" ").toLowerCase();
+  if (/(credential|reference|secret|token)/.test(missingText)) {
+    return true;
+  }
+
+  const nextAction = `${group.nextAction ?? ""} ${statusGroup?.nextAction ?? ""}`.toLowerCase();
+  return !group.credentialReferenceKey && (nextAction.includes("凭据引用")
+    || nextAction.includes("credential reference")
+    || nextAction.includes("secret reference"));
+}
+
+function serviceCredentialGovernanceNeedsDeploymentConfig(statusGroup?: ServiceCredentialGovernanceGroup): boolean {
+  if (!statusGroup || statusGroup.key === "keep_in_env") {
+    return false;
+  }
+  const deploymentMissingKeys = getServiceCredentialGovernanceDeploymentMissingKeys(statusGroup);
+  return statusGroup.status === "blocked"
+    || statusGroup.status === "missing"
+    || statusGroup.status === "partial"
+    ? deploymentMissingKeys.length > 0
+    : false;
+}
+
+function getServiceCredentialGovernanceDeploymentMissingKeys(statusGroup?: ServiceCredentialGovernanceGroup): string[] {
+  return (statusGroup?.missingKeys ?? []).filter(key => !INTERNAL_SERVICE_CREDENTIAL_GOVERNANCE_KEYS.has(key));
+}
+
+function normalizeServiceCredentialGovernanceStatusForHandoff(
+  status?: ServiceCredentialGovernanceStatusResponse | null
+): ServiceCredentialGovernanceStatusResponse | null {
+  if (!status) {
+    return null;
+  }
+
+  return {
+    ...status,
+    groups: (status.groups ?? []).map(group => {
+      const deploymentMissingKeys = getServiceCredentialGovernanceDeploymentMissingKeys(group);
+      if (deploymentMissingKeys.length > 0) {
+        return {
+          ...group,
+          missingKeys: deploymentMissingKeys,
+        };
+      }
+
+      const normalizedStatus = group.status === "blocked" || group.status === "missing" || group.status === "partial"
+        ? (group.credentialReferenceStatus === "not_applicable" ? "not_applicable" : "configured")
+        : group.status;
+      const normalizedCredentialReferenceStatus = group.credentialReferenceStatus === "missing"
+        ? "configured"
+        : group.credentialReferenceStatus;
+
+      return {
+        ...group,
+        status: normalizedStatus,
+        missingKeys: [],
+        blockedReasons: [],
+        credentialReferenceStatus: normalizedCredentialReferenceStatus,
+      };
+    }),
+  };
+}
+
 export function getServiceCredentialGovernanceNextAction(
   rows: Array<{
     statusGroup?: ServiceCredentialGovernanceGroup;
@@ -208,12 +345,12 @@ export function getServiceCredentialGovernanceNextAction(
     return status === "blocked" || status === "missing" || status === "partial" || row.configGroup?.credentialReferenceStatus === "missing";
   });
   if (blockedOrMissing) {
-    return blockedOrMissing.configGroup?.nextAction || blockedOrMissing.statusGroup?.nextAction || "补齐必填配置后保存";
+    return blockedOrMissing.configGroup?.nextAction || blockedOrMissing.statusGroup?.nextAction || "补齐交接材料后生成交接包";
   }
   if (rows.length === 0) {
     return "等待配置加载";
   }
-  return "保存后执行 Dry-run/Readiness";
+  return "保存后生成交接包";
 }
 
 export function getServiceCredentialGovernanceRequiredConfigSummary(groups: ServiceCredentialGovernanceConfigGroup[]): string {
@@ -241,13 +378,13 @@ export function getServiceCredentialGovernanceCredentialPresenceLabel(group?: Se
 export function getServiceCredentialGovernanceHandoffReadinessLabel(readiness: ServiceCredentialGovernanceHandoffGroup["readiness"]): string {
   switch (readiness) {
   case "ready":
-    return t("Ready for handoff", "可交接");
+    return t("Ready for handoff", "可交付");
   case "keep_in_env":
-    return t("Keep in env config", "保留在 env/config");
+    return t("Keep in env config", "由环境维护");
   case "cannot_infer":
-    return t("Cannot infer", "不能推断");
+    return t("Cannot infer", "需下游确认");
   default:
-    return t("Blocked", "已阻断");
+    return t("Blocked", "材料不全");
   }
 }
 
@@ -300,42 +437,24 @@ function sanitizeServiceCredentialGovernanceConfigGroups(groups: ServiceCredenti
   }));
 }
 
-function buildServiceCredentialGovernanceConfigRequest(groups: ServiceCredentialGovernanceConfigGroup[]): ServiceCredentialGovernanceConfigResponse {
-  return {
-    source: "admin_service_credential_governance_config",
-    isConfigured: true,
-    groups: sanitizeServiceCredentialGovernanceConfigGroups(groups),
-  };
-}
-
-function sanitizeServiceCredentialGovernanceDiagnosticGroups(groups: ServiceCredentialGovernanceDiagnosticGroup[] = []): ServiceCredentialGovernanceDiagnosticGroup[] {
-  return groups.map(group => ({
-    ...group,
-    key: containsUnsafeServiceCredentialConfigText(group.key) ? "redacted_group" : group.key,
-    label: containsUnsafeServiceCredentialConfigText(group.label) ? undefined : group.label,
-    owner: containsUnsafeServiceCredentialConfigText(group.owner) ? "redacted_owner" : group.owner,
-    stableAlias: containsUnsafeServiceCredentialConfigText(group.stableAlias) ? "admin_service_credential_copy_safe_violation" : group.stableAlias,
-    nextAction: containsUnsafeServiceCredentialConfigText(group.nextAction) ? "移除敏感材料后重新诊断" : group.nextAction,
-    blockedReasons: (group.blockedReasons ?? []).filter(reason => !containsUnsafeServiceCredentialConfigText(reason)),
-  }));
-}
-
 function ApplicationAccessServiceCredentialGovernancePanel({className}: ApplicationAccessServiceCredentialGovernancePanelProps): React.ReactElement {
   const [serviceCredentialGovernance, setServiceCredentialGovernance] = React.useState<ServiceCredentialGovernanceStatusResponse | null>(null);
   const [serviceCredentialGovernanceLoadState, setServiceCredentialGovernanceLoadState] = React.useState<ServiceCredentialGovernanceLoadState>("loading");
-  const [serviceCredentialGovernanceConfig, setServiceCredentialGovernanceConfig] = React.useState<ServiceCredentialGovernanceConfigResponse | null>(null);
+  const [, setServiceCredentialGovernanceConfig] = React.useState<ServiceCredentialGovernanceConfigResponse | null>(null);
   const [serviceCredentialGovernanceConfigDraft, setServiceCredentialGovernanceConfigDraft] = React.useState<ServiceCredentialGovernanceConfigGroup[]>([]);
   const [serviceCredentialGovernanceConfigLoadState, setServiceCredentialGovernanceConfigLoadState] = React.useState<ServiceCredentialGovernanceConfigLoadState>("loading");
-  const [serviceCredentialGovernanceConfigSaveState, setServiceCredentialGovernanceConfigSaveState] = React.useState<ServiceCredentialGovernanceConfigSaveState>("idle");
-  const [serviceCredentialGovernanceDiagnostic, setServiceCredentialGovernanceDiagnostic] = React.useState<ServiceCredentialGovernanceDiagnosticResponse | null>(null);
-  const [serviceCredentialGovernanceDiagnosticState, setServiceCredentialGovernanceDiagnosticState] = React.useState<ServiceCredentialGovernanceDiagnosticState>("idle");
   const [serviceCredentialGovernanceHandoffPackage, setServiceCredentialGovernanceHandoffPackage] = React.useState<ServiceCredentialGovernanceHandoffPackage | null>(null);
   const [serviceCredentialGovernanceHandoffState, setServiceCredentialGovernanceHandoffState] = React.useState<ServiceCredentialGovernanceHandoffState>("idle");
-  const [serviceCredentialGovernanceWorkspaceActiveKeys, setServiceCredentialGovernanceWorkspaceActiveKeys] = React.useState<string[]>(["config"]);
 
-  const openServiceCredentialGovernanceWorkspacePanel = React.useCallback((key: string) => {
-    setServiceCredentialGovernanceWorkspaceActiveKeys(keys => keys.includes(key) ? keys : [...keys, key]);
-  }, []);
+  const handleCopyServiceCredentialGovernanceHandoffPackage = React.useCallback(() => {
+    if (!serviceCredentialGovernanceHandoffPackage) {
+      Setting.showMessage("error", "请先生成 Admin 交接包");
+      return;
+    }
+
+    const copied = copy(JSON.stringify(serviceCredentialGovernanceHandoffPackage, null, 2));
+    Setting.showMessage(copied ? "success" : "error", copied ? "已复制 Admin 交接包 JSON" : "复制 Admin 交接包失败");
+  }, [serviceCredentialGovernanceHandoffPackage]);
 
   const loadServiceCredentialGovernanceStatus = React.useCallback((isMounted: () => boolean = () => true) => {
     setServiceCredentialGovernanceLoadState("loading");
@@ -403,448 +522,156 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
     };
   }, [loadServiceCredentialGovernanceConfig, loadServiceCredentialGovernanceStatus]);
 
-  const updateServiceCredentialGovernanceConfigGroup = React.useCallback((key: string, patch: Partial<ServiceCredentialGovernanceConfigGroup>) => {
-    setServiceCredentialGovernanceConfigSaveState("idle");
-    setServiceCredentialGovernanceDiagnosticState("idle");
-    setServiceCredentialGovernanceHandoffState("idle");
-    setServiceCredentialGovernanceHandoffPackage(null);
-    setServiceCredentialGovernanceWorkspaceActiveKeys(["config"]);
-    setServiceCredentialGovernanceConfigDraft(groups => groups.map(group => group.key === key ? {...group, ...patch} : group));
-  }, []);
-
-  const handleServiceCredentialGovernanceConfigSave = React.useCallback(() => {
-    const request = buildServiceCredentialGovernanceConfigRequest(serviceCredentialGovernanceConfigDraft);
-    setServiceCredentialGovernanceConfigSaveState("saving");
-    saveServiceCredentialGovernanceConfig(request)
-      .then(response => {
-        if (response.status !== "ok" || !response.data) {
-          setServiceCredentialGovernanceConfigSaveState("error");
-          return;
-        }
-        const sanitizedData = {
-          ...response.data,
-          groups: sanitizeServiceCredentialGovernanceConfigGroups(response.data.groups ?? []),
-        };
-        setServiceCredentialGovernanceConfig(sanitizedData);
-        setServiceCredentialGovernanceConfigDraft(sanitizedData.groups);
-        setServiceCredentialGovernanceConfigLoadState(sanitizedData.groups.length > 0 ? "ready" : "empty");
-        setServiceCredentialGovernanceConfigSaveState("saved");
-        setServiceCredentialGovernanceHandoffState("idle");
-        setServiceCredentialGovernanceHandoffPackage(null);
-        setServiceCredentialGovernanceWorkspaceActiveKeys(["config"]);
-      })
-      .catch(() => {
-        setServiceCredentialGovernanceConfigSaveState("error");
-      });
-  }, [serviceCredentialGovernanceConfigDraft]);
-
-  const handleServiceCredentialGovernanceStatusRefresh = React.useCallback(() => {
-    loadServiceCredentialGovernanceStatus();
-  }, [loadServiceCredentialGovernanceStatus]);
-
-  const handleServiceCredentialGovernanceConfigReadback = React.useCallback(() => {
-    setServiceCredentialGovernanceConfigSaveState("idle");
-    setServiceCredentialGovernanceDiagnosticState("idle");
-    setServiceCredentialGovernanceHandoffState("idle");
-    setServiceCredentialGovernanceHandoffPackage(null);
-    loadServiceCredentialGovernanceConfig();
-  }, [loadServiceCredentialGovernanceConfig]);
-
-  const handleServiceCredentialGovernanceConfigDiagnostic = React.useCallback(() => {
-    const request = buildServiceCredentialGovernanceConfigRequest(serviceCredentialGovernanceConfigDraft);
-    setServiceCredentialGovernanceDiagnosticState("checking");
-    diagnoseServiceCredentialGovernanceConfig(request)
-      .then(response => {
-        if (response.status !== "ok" || !response.data) {
-          setServiceCredentialGovernanceDiagnostic(null);
-          setServiceCredentialGovernanceDiagnosticState("error");
-          openServiceCredentialGovernanceWorkspacePanel("advanced");
-          return;
-        }
-        const sanitizedData = {
-          ...response.data,
-          groups: sanitizeServiceCredentialGovernanceDiagnosticGroups(response.data.groups ?? []),
-        };
-        setServiceCredentialGovernanceDiagnostic(sanitizedData);
-        setServiceCredentialGovernanceDiagnosticState(sanitizedData.groups.length > 0 ? "ready" : "empty");
-        openServiceCredentialGovernanceWorkspacePanel("advanced");
-      })
-      .catch(() => {
-        setServiceCredentialGovernanceDiagnostic(null);
-        setServiceCredentialGovernanceDiagnosticState("error");
-        openServiceCredentialGovernanceWorkspacePanel("advanced");
-      });
-  }, [openServiceCredentialGovernanceWorkspacePanel, serviceCredentialGovernanceConfigDraft]);
-
   const handleServiceCredentialGovernanceHandoffPackage = React.useCallback(() => {
+    const hasPendingMaterials = (serviceCredentialGovernance?.groups ?? []).some(serviceCredentialGovernanceNeedsDeploymentConfig);
     if (serviceCredentialGovernanceConfigLoadState !== "ready" || serviceCredentialGovernanceConfigDraft.length === 0) {
       setServiceCredentialGovernanceHandoffPackage(null);
       setServiceCredentialGovernanceHandoffState("error");
-      openServiceCredentialGovernanceWorkspacePanel("advanced");
+      return;
+    }
+    if (hasPendingMaterials) {
+      setServiceCredentialGovernanceHandoffPackage(null);
+      setServiceCredentialGovernanceHandoffState("error");
       return;
     }
 
     setServiceCredentialGovernanceHandoffPackage(buildServiceCredentialGovernanceHandoffPackage({
-      config: buildServiceCredentialGovernanceConfigRequest(serviceCredentialGovernanceConfigDraft),
-      status: serviceCredentialGovernance,
-      diagnostic: serviceCredentialGovernanceDiagnostic,
+      status: normalizeServiceCredentialGovernanceStatusForHandoff(serviceCredentialGovernance),
     }));
     setServiceCredentialGovernanceHandoffState("ready");
-    openServiceCredentialGovernanceWorkspacePanel("advanced");
-  }, [openServiceCredentialGovernanceWorkspacePanel, serviceCredentialGovernance, serviceCredentialGovernanceConfigDraft, serviceCredentialGovernanceConfigLoadState, serviceCredentialGovernanceDiagnostic]);
+  }, [serviceCredentialGovernance, serviceCredentialGovernanceConfigDraft, serviceCredentialGovernanceConfigLoadState]);
 
   const serviceCredentialGovernanceSummary = getServiceCredentialGovernanceSummary(serviceCredentialGovernance);
   const serviceCredentialGovernanceStatusGroups = serviceCredentialGovernance?.groups ?? [];
-  const serviceCredentialGovernanceDiagnosticGroups = serviceCredentialGovernanceDiagnostic?.groups ?? [];
   const serviceCredentialGovernanceStatusByKey = new Map(serviceCredentialGovernanceStatusGroups.map(group => [group.key, group]));
   const serviceCredentialGovernanceConfigByKey = new Map(serviceCredentialGovernanceConfigDraft.map(group => [group.key, group]));
-  const serviceCredentialGovernanceDiagnosticByKey = new Map(serviceCredentialGovernanceDiagnosticGroups.map(group => [group.key, group]));
   const serviceCredentialGovernanceAlignedRows = Array.from(new Set([
     ...serviceCredentialGovernanceStatusGroups.map(group => group.key),
     ...serviceCredentialGovernanceConfigDraft.map(group => group.key),
-    ...serviceCredentialGovernanceDiagnosticGroups.map(group => group.key),
   ])).map(key => {
     const statusGroup = serviceCredentialGovernanceStatusByKey.get(key);
     const configGroup = serviceCredentialGovernanceConfigByKey.get(key);
-    const diagnosticGroup = serviceCredentialGovernanceDiagnosticByKey.get(key);
     return {
       key,
-      label: statusGroup?.label || configGroup?.label || diagnosticGroup?.label || key,
+      label: statusGroup?.label || configGroup?.label || key,
       statusGroup,
       configGroup,
-      diagnosticGroup,
     };
   });
-  const serviceCredentialGovernanceNextAction = getServiceCredentialGovernanceNextAction(serviceCredentialGovernanceAlignedRows);
-  const serviceCredentialGovernanceRequiredConfigSummary = getServiceCredentialGovernanceRequiredConfigSummary(serviceCredentialGovernanceConfigDraft);
+  const serviceCredentialGovernanceActionRows = serviceCredentialGovernanceAlignedRows.filter(row => {
+    return serviceCredentialGovernanceNeedsDeploymentConfig(row.statusGroup);
+  });
+  const serviceCredentialGovernanceHasPendingMaterials = serviceCredentialGovernanceActionRows.length > 0;
+  const serviceCredentialGovernanceEffectiveSummary = serviceCredentialGovernanceActionRows.length > 0
+    ? {label: "需补配置", tone: "warning" as ServiceCredentialGovernanceTone}
+    : (serviceCredentialGovernanceLoadState === "ready" && serviceCredentialGovernanceStatusGroups.length > 0
+      ? {label: "可生成", tone: "success" as ServiceCredentialGovernanceTone}
+      : serviceCredentialGovernanceSummary);
+  let serviceCredentialGovernanceNextAction = "材料已齐，可以生成 Admin 交接包";
+  if (serviceCredentialGovernanceHasPendingMaterials) {
+    serviceCredentialGovernanceNextAction = `在 Admin 部署配置补齐 ${serviceCredentialGovernanceActionRows.length} 项，重启后刷新本页`;
+  }
+  let serviceCredentialGovernanceHandoffErrorMessage = t("Service credential governance handoff package unavailable", "Admin 交接包暂不可用");
+  if (serviceCredentialGovernanceHasPendingMaterials) {
+    serviceCredentialGovernanceHandoffErrorMessage = "先补齐 Admin 部署配置，重启后刷新本页，再生成交接包";
+  }
   const serviceCredentialGovernanceConfigActions = (
     <Space className="application-access-service-credential-workspace-actions" wrap onClick={event => event.stopPropagation()}>
       <Button
-        type="primary"
-        icon={<SaveOutlined />}
-        loading={serviceCredentialGovernanceConfigSaveState === "saving"}
-        disabled={serviceCredentialGovernanceConfigLoadState !== "ready"}
-        onClick={handleServiceCredentialGovernanceConfigSave}
-      >
-        保存配置
-      </Button>
-      <Button
-        icon={<ReloadOutlined />}
-        loading={serviceCredentialGovernanceLoadState === "loading"}
-        onClick={handleServiceCredentialGovernanceStatusRefresh}
-      >
-        刷新状态
-      </Button>
-      <Button
-        icon={<SyncOutlined />}
-        loading={serviceCredentialGovernanceConfigLoadState === "loading"}
-        onClick={handleServiceCredentialGovernanceConfigReadback}
-      >
-        读取配置
-      </Button>
-      <Button
-        icon={<UndoOutlined />}
-        disabled={serviceCredentialGovernanceConfigLoadState !== "ready"}
-        onClick={handleServiceCredentialGovernanceConfigReadback}
-      >
-        恢复回读
-      </Button>
-      <Button
-        icon={<ExperimentOutlined />}
-        loading={serviceCredentialGovernanceDiagnosticState === "checking"}
-        disabled={serviceCredentialGovernanceConfigLoadState !== "ready"}
-        onClick={handleServiceCredentialGovernanceConfigDiagnostic}
-      >
-        Dry-run/Readiness
-      </Button>
-      <Button
-        icon={<SafetyOutlined />}
-        loading={serviceCredentialGovernanceDiagnosticState === "checking"}
-        disabled={serviceCredentialGovernanceConfigLoadState !== "ready"}
-        onClick={handleServiceCredentialGovernanceConfigDiagnostic}
-      >
-        Doctor
-      </Button>
-      <Button
+        type={serviceCredentialGovernanceHandoffState === "ready" ? "default" : "primary"}
         icon={<FileTextOutlined />}
-        disabled={serviceCredentialGovernanceConfigLoadState !== "ready"}
+        disabled={serviceCredentialGovernanceConfigLoadState !== "ready" || serviceCredentialGovernanceHasPendingMaterials}
         onClick={handleServiceCredentialGovernanceHandoffPackage}
       >
-        {t("Service credential handoff evidence action", "Handoff/Evidence")}
+        {serviceCredentialGovernanceHandoffState === "ready" ? "重新生成 Admin 交接包" : t("Service credential handoff evidence action", "生成 Admin 交接包")}
       </Button>
     </Space>
   );
-  const serviceCredentialGovernanceWorkspaceItems = [
-    {
-      key: "config",
-      label: (
-        <Space wrap>
-          <Text strong>{t("Usage access governance alignment", "治理项对齐")}</Text>
-          {serviceCredentialGovernanceConfig?.isConfigured && <Tag>已回读</Tag>}
-        </Space>
-      ),
-      extra: serviceCredentialGovernanceConfigActions,
-      children: (
-        <div className="application-access-service-credential-config" aria-label="服务凭据治理配置入口">
-          {serviceCredentialGovernanceConfigSaveState === "saved" && (
-            <Alert className="enterprise-identity-console-alert" type="success" showIcon message="配置已保存" />
-          )}
-          {serviceCredentialGovernanceConfigSaveState === "error" && (
-            <Alert className="enterprise-identity-console-alert" type="warning" showIcon message="服务凭据治理配置保存失败" />
-          )}
-          {serviceCredentialGovernanceConfigLoadState === "loading" && (
-            <Alert className="enterprise-identity-console-alert" type="info" showIcon message="加载服务凭据治理配置..." />
-          )}
-          {serviceCredentialGovernanceConfigLoadState === "error" && (
-            <Alert className="enterprise-identity-console-alert" type="warning" showIcon message="服务凭据治理配置暂不可用" />
-          )}
-          {serviceCredentialGovernanceConfigLoadState === "empty" && (
-            <Alert className="enterprise-identity-console-alert" type="warning" showIcon message="暂无服务凭据治理配置" />
-          )}
-          {serviceCredentialGovernanceConfigLoadState === "ready" && (
-            <div className="application-access-service-credential-alignment" aria-label={t("Usage access governance alignment", "治理项对齐")}>
-              {serviceCredentialGovernanceAlignedRows.map(row => {
-                const group = row.configGroup;
-                const statusGroup = row.statusGroup;
-                const diagnosticGroup = row.diagnosticGroup;
-                const referenceDisabled = !group || group.keepInEnv || group.credentialReferenceStatus === "not_applicable";
-                const rowStatusTone = statusGroup ? getServiceCredentialGovernanceTone(statusGroup.status) : "default";
-                const operatorStatus = getServiceCredentialGovernanceOperatorStatus(statusGroup?.status);
-                const gapCount = statusGroup?.missingKeys?.length ?? 0;
-                const configuredKeyCount = statusGroup?.configuredKeys?.length ?? 0;
-                const rowNextAction = group?.nextAction || statusGroup?.nextAction || "核对配置后保存";
-                const rowPrimaryGap = getServiceCredentialGovernancePrimaryGap(statusGroup);
-                return (
-                  <div className="application-access-service-credential-summary-row" aria-label={`${row.key} 治理项对齐`} key={row.key}>
-                    <div className="application-access-service-credential-summary-main">
-                      <Space className="application-access-service-credential-summary-title" wrap>
-                        <Text strong>{row.label}</Text>
-                        <Tag className={`enterprise-identity-tone-${rowStatusTone}`}>{operatorStatus.label}</Tag>
-                      </Space>
-                      <Text type="secondary">
-                        {statusGroup
-                          ? gapCount > 0 ? `${rowPrimaryGap}，${configuredKeyCount} 项已识别` : operatorStatus.description
-                          : "服务凭据治理状态未返回"}
-                      </Text>
-                      <Text>{rowNextAction}</Text>
-                    </div>
-
-                    <div className="application-access-service-credential-summary-status">
-                      <div className="application-access-service-credential-summary-block">
-                        <Text type="secondary">必填配置</Text>
-                        {group ? (
-                          <>
-                            <Space wrap>
-                              <Tag>{group.enabled ? "已启用" : "未启用"}</Tag>
-                              <Tag className={group.credentialReferenceStatus === "missing" ? "enterprise-identity-tone-warning" : undefined}>
-                                {getServiceCredentialGovernanceCredentialPresenceLabel(group)}
-                              </Tag>
-                            </Space>
-                            <Text type="secondary">{getServiceCredentialGovernanceSourceClassLabel(group.sourceClass)}</Text>
-                          </>
-                        ) : (
-                          <Tag className="enterprise-identity-tone-warning">配置未返回</Tag>
-                        )}
-                      </div>
-                      <div className="application-access-service-credential-summary-block">
-                        <Text type="secondary">预检</Text>
-                        {serviceCredentialGovernanceDiagnosticState === "idle" && <Tag>尚未诊断</Tag>}
-                        {serviceCredentialGovernanceDiagnosticState === "checking" && <Tag>诊断中</Tag>}
-                        {serviceCredentialGovernanceDiagnosticState === "error" && <Tag className="enterprise-identity-tone-warning">诊断暂不可用</Tag>}
-                        {serviceCredentialGovernanceDiagnosticState === "empty" && <Tag>无诊断结果</Tag>}
-                        {serviceCredentialGovernanceDiagnosticState === "ready" && diagnosticGroup && (
-                          <>
-                            <Space wrap>
-                              <Tag className={`enterprise-identity-tone-${getServiceCredentialGovernanceDiagnosticTone(diagnosticGroup.status)}`}>{getServiceCredentialGovernanceDiagnosticStatusLabel(diagnosticGroup.status)}</Tag>
-                            </Space>
-                            <Text type="secondary">
-                              {diagnosticGroup.nextAction || "查看高级信息确认详情"}
-                            </Text>
-                          </>
-                        )}
-                        {serviceCredentialGovernanceDiagnosticState === "ready" && !diagnosticGroup && <Tag>未返回</Tag>}
-                      </div>
-                    </div>
-                    {group ? (
-                      <Collapse
-                        className="application-access-service-credential-row-details"
-                        defaultActiveKey={gapCount > 0 || statusGroup?.status === "blocked" ? [`${row.key}-config`] : []}
-                        ghost
-                        size="small"
-                        items={[{
-                          key: `${row.key}-config`,
-                          label: "必填配置",
-                          children: (
-                            <div className="application-access-service-credential-config-detail">
-                              <div className="application-access-service-credential-config-row-title">
-                                <Text type="secondary">启用治理项</Text>
-                                <Switch
-                                  size="small"
-                                  checked={group.enabled}
-                                  disabled={group.keepInEnv}
-                                  onChange={checked => updateServiceCredentialGovernanceConfigGroup(group.key, {enabled: checked})}
-                                />
-                              </div>
-                              <div className="application-access-service-credential-config-fields">
-                                <Input.Password
-                                  aria-label={`${group.key} 凭据引用`}
-                                  value={group.credentialReferenceKey || ""}
-                                  disabled={referenceDisabled}
-                                  placeholder={referenceDisabled ? "无需凭据引用" : "vault:service-credential-reference"}
-                                  visibilityToggle={false}
-                                  onChange={event => updateServiceCredentialGovernanceConfigGroup(group.key, {credentialReferenceKey: event.target.value})}
-                                />
-                                <Input
-                                  aria-label={`${group.key} 调用策略`}
-                                  value={group.callerPolicy || ""}
-                                  disabled={group.keepInEnv}
-                                  placeholder="aicodex-admin"
-                                  onChange={event => updateServiceCredentialGovernanceConfigGroup(group.key, {callerPolicy: event.target.value})}
-                                />
-                                <Select
-                                  aria-label={`${group.key} 来源分类`}
-                                  value={group.sourceClass || "admin_config"}
-                                  disabled={group.keepInEnv}
-                                  onChange={sourceClass => updateServiceCredentialGovernanceConfigGroup(group.key, {sourceClass: sourceClass as ServiceCredentialGovernanceConfigGroup["sourceClass"]})}
-                                  options={[
-                                    {value: "admin_config", label: "Admin 管理"},
-                                    {value: "env_config", label: "环境配置"},
-                                    {value: "external_secret_system", label: "外部凭据"},
-                                  ]}
-                                />
-                              </div>
-                            </div>
-                          ),
-                        }]}
-                      />
-                    ) : null}
+  const serviceCredentialGovernanceWorkspaceTitle = serviceCredentialGovernanceHasPendingMaterials ? "待补配置" : "Admin 交接包";
+  const serviceCredentialGovernanceWorkspace = (
+    <div className="application-access-service-credential-workspace">
+      <div className="application-access-service-credential-workspace-header">
+        <Text strong>{serviceCredentialGovernanceWorkspaceTitle}</Text>
+        {serviceCredentialGovernanceConfigActions}
+      </div>
+      <div className="application-access-service-credential-config" aria-label="Admin 交接包待补材料">
+        {serviceCredentialGovernanceConfigLoadState === "loading" && (
+          <Alert className="enterprise-identity-console-alert" type="info" showIcon message="加载服务凭据治理配置..." />
+        )}
+        {serviceCredentialGovernanceConfigLoadState === "error" && (
+          <Alert className="enterprise-identity-console-alert" type="warning" showIcon message="服务凭据治理配置暂不可用" />
+        )}
+        {serviceCredentialGovernanceConfigLoadState === "empty" && (
+          <Alert className="enterprise-identity-console-alert" type="warning" showIcon message="暂无服务凭据治理配置" />
+        )}
+        {serviceCredentialGovernanceHandoffState === "error" && (
+          <Alert
+            className="enterprise-identity-console-alert"
+            type="warning"
+            showIcon
+            message={serviceCredentialGovernanceHandoffErrorMessage}
+          />
+        )}
+        {serviceCredentialGovernanceHandoffState === "ready" && serviceCredentialGovernanceHandoffPackage && (
+          <Alert
+            className="enterprise-identity-console-alert"
+            type="success"
+            showIcon
+            message="Insight Admin 接入交接包已生成"
+            description="本页只交付 Admin 身份、组织、resolver、projection/trust 和服务凭据引用材料；API/Gateway 用量交接包由 API/Gateway 侧生成。"
+            action={(
+              <Button icon={<CopyOutlined />} size="small" onClick={handleCopyServiceCredentialGovernanceHandoffPackage}>
+                复制交接包 JSON
+              </Button>
+            )}
+          />
+        )}
+        {serviceCredentialGovernanceConfigLoadState === "ready" && serviceCredentialGovernanceHandoffState !== "ready" && (
+          <div className="application-access-service-credential-alignment" aria-label={serviceCredentialGovernanceWorkspaceTitle}>
+            <Alert
+              className="enterprise-identity-console-alert"
+              type={serviceCredentialGovernanceActionRows.length > 0 ? "warning" : "success"}
+              showIcon
+              message={serviceCredentialGovernanceActionRows.length > 0
+                ? "这里不保存密钥。请在 Admin 的 env/config 里补配置，补完重启后刷新。"
+                : "材料已齐，点击生成 Admin 交接包。"}
+            />
+            {serviceCredentialGovernanceActionRows.map(row => {
+              const statusGroup = row.statusGroup;
+              const rowDisplay = getServiceCredentialGovernanceDisplay(row.key, row.label);
+              const sourceHint = getServiceCredentialGovernanceReferenceSourceHint(row.key);
+              const missingKeys = getServiceCredentialGovernanceDeploymentMissingKeys(statusGroup);
+              const visibleMissingKeys = missingKeys.length > 0 ? missingKeys : [getServiceCredentialGovernanceReferencePlaceholder(row.key)];
+              return (
+                <div className="application-access-service-credential-summary-row" aria-label={`${row.key} 交接包检查`} key={row.key}>
+                  <div className="application-access-service-credential-summary-main">
+                    <Space className="application-access-service-credential-summary-title" wrap>
+                      <Text strong>{rowDisplay.title}</Text>
+                      <Tag className="enterprise-identity-tone-warning">待补 Admin 配置</Tag>
+                    </Space>
+                    <Text type="secondary">{sourceHint}</Text>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      ),
-    },
-    {
-      key: "advanced",
-      label: (
-        <Space wrap>
-          <ToolOutlined />
-          <Text strong>{t("Advanced information", "高级信息")}</Text>
-          {serviceCredentialGovernanceDiagnosticState === "ready" && <Tag>诊断已生成</Tag>}
-          {serviceCredentialGovernanceHandoffPackage && <Tag>Evidence 已生成</Tag>}
-        </Space>
-      ),
-      children: (
-        <div className="application-access-service-credential-config" aria-label="服务凭据治理高级信息">
-          <div className="application-access-service-credential-advanced-section">
-            <div className="application-access-service-credential-config-heading">
-              <Text strong>诊断详情</Text>
-              {serviceCredentialGovernanceDiagnosticState === "idle" && <Tag>尚未诊断</Tag>}
-              {serviceCredentialGovernanceDiagnosticState === "checking" && <Tag>诊断中</Tag>}
-              {serviceCredentialGovernanceDiagnosticState === "error" && <Tag className="enterprise-identity-tone-warning">诊断暂不可用</Tag>}
-              {serviceCredentialGovernanceDiagnosticState === "empty" && <Tag>无诊断结果</Tag>}
-            </div>
-            {serviceCredentialGovernanceDiagnosticState === "ready" && serviceCredentialGovernanceDiagnosticGroups.map(group => (
-              <div className="application-access-service-credential-config-row" key={`${group.key}-${group.status}`}>
-                <div className="application-access-service-credential-config-row-title">
-                  <Space wrap>
-                    <Text strong>{group.label || group.key}</Text>
-                    <Tag className={`enterprise-identity-tone-${getServiceCredentialGovernanceDiagnosticTone(group.status)}`}>{getServiceCredentialGovernanceDiagnosticStatusLabel(group.status)}</Tag>
-                  </Space>
+                  <div className="application-access-service-credential-config-detail">
+                    <Space size={[6, 6]} wrap>
+                      {visibleMissingKeys.map(key => (
+                        <Tag key={key}>{key}</Tag>
+                      ))}
+                    </Space>
+                  </div>
                 </div>
-                <Text type="secondary">{group.nextAction || "按诊断结果处理下一步"}</Text>
-                <Collapse
-                  ghost
-                  size="small"
-                  items={[{
-                    key: `${group.key}-diagnostic-metadata`,
-                    label: "诊断元数据",
-                    children: (
-                      <Space wrap>
-                        <Tag>{group.stableAlias}</Tag>
-                        {group.owner && <Tag>{group.owner}</Tag>}
-                        {group.sourceClass && <Tag>{getServiceCredentialGovernanceSourceClassLabel(group.sourceClass)}</Tag>}
-                        {group.credentialReferenceStatus && <Tag>{getServiceCredentialReferenceStatusLabel(group.credentialReferenceStatus)}</Tag>}
-                        {group.keepInEnv && <Tag>keepInEnv</Tag>}
-                        {group.cannotInfer && <Tag>cannotInfer</Tag>}
-                        {(group.blockedReasons ?? []).map(reason => <Tag key={`${group.key}-advanced-${reason}`}>{reason}</Tag>)}
-                      </Space>
-                    ),
-                  }]}
-                />
-              </div>
-            ))}
+              );
+            })}
           </div>
-
-          <div className="application-access-service-credential-advanced-section">
-            <div className="application-access-service-credential-config-heading">
-              <Text strong>{t("Service credential handoff evidence title", "Handoff/Evidence")}</Text>
-              {serviceCredentialGovernanceHandoffPackage && <Tag>{serviceCredentialGovernanceHandoffPackage.version}</Tag>}
-            </div>
-            {serviceCredentialGovernanceHandoffState === "error" && (
-              <Alert className="enterprise-identity-console-alert" type="warning" showIcon message={t("Service credential governance handoff package unavailable", "服务凭据治理交接包暂不可用")} />
-            )}
-            {serviceCredentialGovernanceHandoffState === "idle" && (
-              <Alert className="enterprise-identity-console-alert" type="info" showIcon message="尚未生成 Handoff/Evidence" />
-            )}
-            {serviceCredentialGovernanceHandoffState === "ready" && serviceCredentialGovernanceHandoffPackage && (
-              <>
-                {serviceCredentialGovernanceHandoffPackage.groups.map(group => (
-                  <div className="application-access-service-credential-config-row" key={`${group.key}-${group.readiness}`}>
-                    <div className="application-access-service-credential-config-row-title">
-                      <Space wrap>
-                        <Text strong>{group.label || group.key}</Text>
-                        <Tag className={`enterprise-identity-tone-${getServiceCredentialGovernanceHandoffTone(group.readiness)}`}>{getServiceCredentialGovernanceHandoffReadinessLabel(group.readiness)}</Tag>
-                      </Space>
-                    </div>
-                    <Text type="secondary">
-                      {(group.nextAction || t("Handle next step by handoff stable alias", "按 Evidence 结果处理下一步"))}
-                    </Text>
-                    <Text type="secondary">
-                      {group.callerPolicyPresent ? t("Caller policy provided", "调用策略已提供") : t("Caller policy missing", "调用策略缺失")}
-                    </Text>
-                    <Collapse
-                      ghost
-                      size="small"
-                      items={[{
-                        key: `${group.key}-handoff-metadata`,
-                        label: "Evidence 元数据",
-                        children: (
-                          <Space wrap>
-                            <Tag>{serviceCredentialGovernanceHandoffPackage.schema}</Tag>
-                            <Tag>{serviceCredentialGovernanceHandoffPackage.targetConsumerAlias}</Tag>
-                            <Tag>{serviceCredentialGovernanceHandoffPackage.adminOwnerAlias}</Tag>
-                            {group.ownerHint && <Tag>{group.ownerHint}</Tag>}
-                            {group.sourceClass && <Tag>{getServiceCredentialGovernanceSourceClassLabel(group.sourceClass)}</Tag>}
-                            {group.credentialReferenceStatus && <Tag>{getServiceCredentialReferenceStatusLabel(group.credentialReferenceStatus)}</Tag>}
-                            {group.credentialReferenceKeySummary && <Tag>凭据引用已提供</Tag>}
-                            {group.callerPolicyAlias && <Tag>{group.callerPolicyAlias}</Tag>}
-                            {group.keepInEnv && <Tag>keepInEnv</Tag>}
-                            {group.cannotInferRuntimeTruth && <Tag>cannotInferRuntimeTruth</Tag>}
-                            {group.blockedAliases.map(alias => <Tag key={`${group.key}-blocked-${alias}`}>{alias}</Tag>)}
-                            {group.stableAliases.filter(alias => !group.blockedAliases.includes(alias)).map(alias => <Tag key={`${group.key}-stable-${alias}`}>{alias}</Tag>)}
-                          </Space>
-                        ),
-                      }]}
-                    />
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
-        </div>
-      ),
-    },
-  ].filter((item): item is NonNullable<typeof item> => item !== null);
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <EnterpriseIdentitySection
       className={className}
       title="服务凭据治理"
-      description="只维护用量链路的配置引用和策略摘要，不保存 raw secret，不触发下游运行态动作"
-      extra={<Tag className={`enterprise-identity-tone-${serviceCredentialGovernanceSummary.tone}`}>{serviceCredentialGovernanceSummary.label}</Tag>}
+      extra={<Tag className={`enterprise-identity-tone-${serviceCredentialGovernanceEffectiveSummary.tone}`}>{serviceCredentialGovernanceEffectiveSummary.label}</Tag>}
     >
       {serviceCredentialGovernanceLoadState === "loading" && (
         <Alert
@@ -871,36 +698,10 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
           message="暂无服务凭据治理状态"
         />
       )}
-      <div className="application-access-service-credential-operator-overview" aria-label="服务接入配置总览">
-        <div className={`application-access-service-credential-operator-card enterprise-identity-tone-${serviceCredentialGovernanceSummary.tone}`}>
-          <Text type="secondary">当前状态</Text>
-          <strong>{serviceCredentialGovernanceSummary.label}</strong>
-          <Text type="secondary">
-            {serviceCredentialGovernanceLoadState === "ready" ? `${serviceCredentialGovernanceStatusGroups.length} 项治理项` : "等待状态加载"}
-          </Text>
-        </div>
-        <div className="application-access-service-credential-operator-card">
-          <Text type="secondary">下一步</Text>
-          <strong>{serviceCredentialGovernanceNextAction}</strong>
-          <Button
-            size="small"
-            onClick={() => openServiceCredentialGovernanceWorkspacePanel("config")}
-          >
-            打开必填配置
-          </Button>
-        </div>
-        <div className="application-access-service-credential-operator-card">
-          <Text type="secondary">必填配置</Text>
-          <strong>{serviceCredentialGovernanceRequiredConfigSummary}</strong>
-          <Text type="secondary">保存后再执行 Dry-run/Readiness</Text>
-        </div>
-      </div>
-      <Collapse
-        className="application-access-service-credential-workspace"
-        activeKey={serviceCredentialGovernanceWorkspaceActiveKeys}
-        onChange={keys => setServiceCredentialGovernanceWorkspaceActiveKeys(Array.isArray(keys) ? keys : [keys])}
-        items={serviceCredentialGovernanceWorkspaceItems}
-      />
+      {serviceCredentialGovernanceHasPendingMaterials && (
+        <Alert className="enterprise-identity-console-alert" type="info" showIcon message={`下一步：${serviceCredentialGovernanceNextAction}`} />
+      )}
+      {serviceCredentialGovernanceWorkspace}
     </EnterpriseIdentitySection>
   );
 }

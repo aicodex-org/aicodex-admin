@@ -5,7 +5,13 @@ import {MemoryRouter} from "react-router-dom";
 import {expect, jest} from "@jest/globals";
 import i18next from "i18next";
 import ApplicationAccessCenter, {buildApplicationAccessCenterSummary} from "./ApplicationAccessCenter";
-import {buildServiceCredentialGovernanceHandoffPackage} from "./backend/ApplicationAccessServiceCredentialGovernanceBackend";
+import {
+  buildServiceCredentialGovernanceHandoffPackage,
+  diagnoseServiceCredentialGovernanceConfig,
+  getServiceCredentialGovernanceConfig,
+  getServiceCredentialGovernanceStatus,
+  saveServiceCredentialGovernanceConfig
+} from "./backend/ApplicationAccessServiceCredentialGovernanceBackend";
 import type {ServiceCredentialGovernanceConfigResponse, ServiceCredentialGovernanceDiagnosticResponse, ServiceCredentialGovernanceStatusResponse} from "./backend/ApplicationAccessServiceCredentialGovernanceBackend";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
@@ -561,6 +567,57 @@ describe("ApplicationAccessCenter", () => {
     expect(serializedPackage).not.toContain("Authorization");
     expect(serializedPackage).not.toContain("Cookie");
     expect(serializedPackage).not.toContain("rawPayload");
+  });
+
+  test("does not mark not-applicable service credential groups as runtime ready", () => {
+    const handoffPackage = buildServiceCredentialGovernanceHandoffPackage({
+      status: {
+        generatedAt: "2026-06-29T11:46:26Z",
+        source: "admin_runtime_config",
+        groups: [
+          {
+            key: "gateway_organization_projection",
+            label: "Gateway organization projection",
+            owner: "admin_gateway_projection_producer",
+            status: "not_applicable",
+            credentialReferenceStatus: "not_applicable",
+            callerPolicy: "aicodex-admin",
+          },
+        ],
+      },
+    });
+
+    expect(handoffPackage.groups[0]).toMatchObject({
+      key: "gateway_organization_projection",
+      status: "not_applicable",
+      readiness: "cannot_infer",
+      cannotInferRuntimeTruth: true,
+      blockedAliases: [],
+    });
+  });
+
+  test("wraps service credential governance API requests with credentials and JSON body", async() => {
+    const fetchMock = global.fetch as unknown as MockFetch;
+    const config = serviceCredentialGovernanceConfigResponse.data as ServiceCredentialGovernanceConfigResponse;
+    fetchMock
+      .mockResolvedValueOnce({json: () => Promise.resolve(serviceCredentialGovernanceResponse)})
+      .mockResolvedValueOnce({json: () => Promise.resolve(serviceCredentialGovernanceConfigResponse)})
+      .mockResolvedValueOnce({json: () => Promise.resolve({status: "ok", data: config})})
+      .mockResolvedValueOnce({json: () => Promise.resolve(serviceCredentialGovernanceDiagnosticResponse)});
+
+    await expect(getServiceCredentialGovernanceStatus()).resolves.toBe(serviceCredentialGovernanceResponse);
+    await expect(getServiceCredentialGovernanceConfig()).resolves.toBe(serviceCredentialGovernanceConfigResponse);
+    await expect(saveServiceCredentialGovernanceConfig(config)).resolves.toMatchObject({status: "ok"});
+    await expect(diagnoseServiceCredentialGovernanceConfig(config)).resolves.toBe(serviceCredentialGovernanceDiagnosticResponse);
+
+    expect(fetchMock.mock.calls[0][0]).toContain("/api/application-access/service-credential-governance-status");
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({method: "GET", credentials: "include"});
+    expect(fetchMock.mock.calls[1][0]).toContain("/api/application-access/service-credential-governance-config");
+    expect(fetchMock.mock.calls[1][1]).toMatchObject({method: "GET", credentials: "include"});
+    expect(fetchMock.mock.calls[2][0]).toContain("/api/application-access/service-credential-governance-config");
+    expect(fetchMock.mock.calls[2][1]).toMatchObject({method: "POST", credentials: "include", body: JSON.stringify(config)});
+    expect(fetchMock.mock.calls[3][0]).toContain("/api/application-access/service-credential-governance-diagnostics");
+    expect(fetchMock.mock.calls[3][1]).toMatchObject({method: "POST", credentials: "include", body: JSON.stringify(config)});
   });
 
 });

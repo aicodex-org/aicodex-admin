@@ -1,0 +1,10 @@
+- [x] 1.1 复核当前用量接入服务凭据治理页面、测试和主规格，确认只做 Admin 前端展示降噪。
+- [x] 1.2 将页面收敛为 `待补配置` / `Admin 交接包` 两种主状态，移除诊断/Evidence 机器细节。
+- [x] 1.3 移除页头副标题和横向快捷入口，保留面包屑、标题和核心交接包工作区。
+- [x] 1.4 移除高级修正、保存修正、读取当前值、Dry-run/Readiness、Doctor/诊断详情和重复的交接包折叠区。
+- [x] 1.5 缺 Admin 部署配置时只展示缺失 key 与 env/config 补齐提示，不在页面内保存 secret 或引用。
+- [x] 1.6 材料齐备时提供 copy-safe Admin 交接包 JSON 生成和复制动作，且不输出 API/Gateway 用量主配置包。
+- [x] 1.7 校准 handoff package 语义：`not_applicable` 不自动等于 runtime ready，使用 `cannot_infer` 表达 Admin 不外推下游运行态真值。
+- [x] 1.8 更新聚焦测试，覆盖副标题移除、默认不展示机器 alias/诊断详情/排障详情、copy-safe 边界和 handoff 语义。
+- [x] 1.9 更新 60 操作知识库文档，明确 API/Gateway 主包、Admin 辅助包、Insight 导入和当前 Admin 包无服务端生命周期。
+- [x] 1.10 运行聚焦测试、typecheck、OpenSpec strict validate、前端构建和必要前端预览 smoke；浏览器自动化阻塞时记录降级验证。

@@ -249,6 +249,9 @@ export function buildServiceCredentialGovernanceHandoffPackage(input: ServiceCre
         cannotInferRuntimeTruth = true;
         addSafeAlias(stableAliases, "admin_service_credential_keep_in_env");
         addSafeAlias(blockedAliases, "admin_service_credential_keep_in_env");
+      } else if (status === "not_applicable") {
+        readiness = "cannot_infer";
+        cannotInferRuntimeTruth = true;
       } else if (configGroup?.enabled === false || diagnosticGroup?.status === "disabled") {
         readiness = "blocked";
         addSafeAlias(blockedAliases, "admin_service_credential_group_disabled");

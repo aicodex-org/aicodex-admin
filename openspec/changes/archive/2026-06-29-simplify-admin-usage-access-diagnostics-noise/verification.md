@@ -1,0 +1,215 @@
+## Verification
+
+- `yarn test ApplicationUsageAccessPage.test.tsx --watchAll=false --coverage --collectCoverageFrom=src/ApplicationAccessServiceCredentialGovernancePanel.tsx --collectCoverageFrom=src/ApplicationUsageAccessPage.tsx`
+  - Result: passed, 10 tests.
+- `yarn typecheck`
+  - Result: passed.
+- `openspec validate simplify-admin-usage-access-diagnostics-noise --strict`
+  - Result: passed.
+- `git diff --check`
+  - Result: passed.
+- `yarn build`
+  - Result: passed. Existing Browserslist and `fs.F_OK` warnings only.
+- 2026-06-26 KISS follow-up verification:
+  - `yarn test ApplicationUsageAccessPage.test.tsx --watchAll=false --coverage --collectCoverageFrom=src/ApplicationAccessServiceCredentialGovernancePanel.tsx --collectCoverageFrom=src/ApplicationUsageAccessPage.tsx`
+    - Result: passed, 10 tests.
+  - `yarn typecheck`
+    - Result: passed.
+  - `openspec validate simplify-admin-usage-access-diagnostics-noise --strict`
+    - Result: passed.
+  - `git diff --check`
+    - Result: passed.
+  - `yarn build`
+    - Result: passed. Existing Browserslist and `fs.F_OK` warnings only.
+- 2026-06-26 handoff-package-first follow-up verification:
+  - `yarn test ApplicationUsageAccessPage.test.tsx --watchAll=false --coverage --collectCoverageFrom=src/ApplicationAccessServiceCredentialGovernancePanel.tsx --collectCoverageFrom=src/ApplicationUsageAccessPage.tsx`
+    - Result: passed, 10 tests.
+  - `yarn typecheck`
+    - Result: passed.
+  - `openspec validate simplify-admin-usage-access-diagnostics-noise --strict`
+    - Result: passed.
+  - `git diff --check`
+    - Result: passed.
+  - `yarn build`
+    - Result: passed. Existing Browserslist and `fs.F_OK` warnings only.
+- 2026-06-26 explicit Admin/API handoff boundary follow-up verification:
+  - `yarn test ApplicationUsageAccessPage.test.tsx --watchAll=false --coverage --collectCoverageFrom=src/ApplicationAccessServiceCredentialGovernancePanel.tsx --collectCoverageFrom=src/ApplicationUsageAccessPage.tsx`
+    - Result: passed, 10 tests.
+  - `yarn typecheck`
+    - Result: passed.
+  - `openspec validate simplify-admin-usage-access-diagnostics-noise --strict`
+    - Result: passed.
+  - `git diff --check`
+    - Result: passed.
+  - `yarn build`
+    - Result: passed. Existing Browserslist and `fs.F_OK` warnings only.
+- Static preview smoke:
+  - Command: `npx serve -s build -l 7013`
+  - URL: `http://localhost:7013/application-usage-access`
+  - Result: HTTP 200.
+- Local dev preview:
+  - Command: `.\local-dev\start-frontend-remote-backend.ps1 start -Port 7003 -BackendUrl <redacted 60 Admin>`
+  - URL: `http://127.0.0.1:7003/application-usage-access`
+  - Result: frontend health check passed; backend `/api/get-account` returned JSON.
+- 2026-06-26 explicit package copy and human-readable governance labels follow-up verification:
+  - `yarn test ApplicationUsageAccessPage.test.tsx --watchAll=false --coverage --collectCoverageFrom=src/ApplicationAccessServiceCredentialGovernancePanel.tsx --collectCoverageFrom=src/ApplicationUsageAccessPage.tsx`
+    - Result: passed, 10 tests.
+  - `yarn typecheck`
+    - Result: passed.
+  - `openspec validate simplify-admin-usage-access-diagnostics-noise --strict`
+    - Result: passed.
+  - `git diff --check`
+    - Result: passed.
+  - `yarn build`
+    - Result: passed. Existing Browserslist, bundle size and `fs.F_OK` warnings only.
+  - `.\local-dev\start-frontend-remote-backend.ps1 status -Port 7003`
+    - Result: frontend running at `http://127.0.0.1:7003`; backend endpoint redacted by script output.
+  - Playwright open `http://127.0.0.1:7003/application-usage-access`
+    - Result: preview opened, but the isolated browser session redirected to `/login`; use an already-authenticated external Chrome session for visual review.
+- 2026-06-29 KISS/YAGNI duplicate-area follow-up verification:
+  - `yarn test ApplicationUsageAccessPage.test.tsx --watchAll=false --coverage --collectCoverageFrom=src/ApplicationAccessServiceCredentialGovernancePanel.tsx --collectCoverageFrom=src/ApplicationUsageAccessPage.tsx`
+    - Result: passed, 10 tests.
+  - `yarn typecheck`
+    - Result: passed.
+  - `git diff --check`
+    - Result: passed.
+- 2026-06-29 advanced-correction follow-up verification:
+  - `yarn test ApplicationUsageAccessPage.test.tsx --watchAll=false --coverage --collectCoverageFrom=src/ApplicationAccessServiceCredentialGovernancePanel.tsx --collectCoverageFrom=src/ApplicationUsageAccessPage.tsx`
+    - Result: passed, 10 tests.
+  - `yarn typecheck`
+    - Result: passed.
+- 2026-06-29 remove-duplicate-doctor-and-machine-diagnostics follow-up verification:
+  - `yarn test ApplicationUsageAccessPage.test.tsx --watchAll=false --coverage --collectCoverageFrom=src/ApplicationAccessServiceCredentialGovernancePanel.tsx --collectCoverageFrom=src/ApplicationUsageAccessPage.tsx`
+    - Result: passed, 10 tests. Coverage for `ApplicationAccessServiceCredentialGovernancePanel.tsx`: statements 88.92%, branches 84.06%, functions 90.27%, lines 88.97%.
+  - `yarn typecheck`
+    - Result: passed.
+  - `openspec validate simplify-admin-usage-access-diagnostics-noise --strict`
+    - Result: passed.
+  - `git diff --check`
+    - Result: passed.
+  - `yarn build`
+    - Result: passed. Existing Browserslist, bundle size and `fs.F_OK` warnings only.
+  - `.\local-dev\start-frontend-remote-backend.ps1 start -Port 7014 -BackendUrl <redacted 60 Admin> -SkipHealth`
+    - Result: frontend process started and `http://127.0.0.1:7014/` returned HTTP 200. Direct `http://127.0.0.1:7014/application-usage-access` returned HTTP 404 in this CRA dev-server/proxy setup, so use root URL plus authenticated client navigation for manual review.
+  - Playwright CLI wrapper open `http://127.0.0.1:7014/`
+    - Result: blocked; wrapper process hung without snapshot output and was stopped. No screenshot artifact is claimed for this pass.
+- 2026-06-29 remove-advanced-correction-and-clarify-supplemental-materials follow-up verification:
+  - `yarn test ApplicationUsageAccessPage.test.tsx --watchAll=false --coverage --collectCoverageFrom=src/ApplicationAccessServiceCredentialGovernancePanel.tsx --collectCoverageFrom=src/ApplicationUsageAccessPage.tsx`
+    - Result: passed, 10 tests. Coverage for `ApplicationAccessServiceCredentialGovernancePanel.tsx`: statements 88.53%, branches 83.72%, functions 88.88%, lines 88.54%.
+  - `yarn typecheck`
+    - Result: passed.
+  - `openspec validate simplify-admin-usage-access-diagnostics-noise --strict`
+    - Result: passed.
+  - `git diff --check`
+    - Result: passed.
+  - `yarn build`
+    - Result: passed. Existing Browserslist, bundle size and `fs.F_OK` warnings only.
+  - `.\local-dev\start-frontend-remote-backend.ps1 restart -Port 7014 -BackendUrl <redacted 60 Admin> -BackendHealthPath /api/get-account`
+    - Result: frontend running at `http://127.0.0.1:7014/`; backend health returned JSON from `/api/get-account`.
+- 2026-06-29 remove-handoff-check-outer-collapse follow-up verification:
+  - `yarn test ApplicationUsageAccessPage.test.tsx --watchAll=false --coverage --collectCoverageFrom=src/ApplicationAccessServiceCredentialGovernancePanel.tsx --collectCoverageFrom=src/ApplicationUsageAccessPage.tsx`
+    - Result: passed, 10 tests. Coverage for `ApplicationAccessServiceCredentialGovernancePanel.tsx`: statements 89.17%, branches 84.53%, functions 89.70%, lines 89.28%.
+  - `yarn typecheck`
+    - Result: passed.
+  - `openspec validate simplify-admin-usage-access-diagnostics-noise --strict`
+    - Result: passed.
+  - `git diff --check`
+    - Result: passed.
+  - `yarn build`
+    - Result: passed after single-file ESLint indentation fix. Existing Browserslist, bundle size and `fs.F_OK` warnings only.
+  - `.\local-dev\start-frontend-remote-backend.ps1 restart -Port 7014 -BackendUrl <redacted 60 Admin> -BackendHealthPath /api/get-account`
+    - Result: frontend running at `http://127.0.0.1:7014/`; backend health returned JSON from `/api/get-account`.
+- 2026-06-29 align-usage-access-header-owner-boundary follow-up verification:
+  - `yarn test ApplicationUsageAccessPage.test.tsx --watchAll=false --coverage --collectCoverageFrom=src/ApplicationAccessServiceCredentialGovernancePanel.tsx --collectCoverageFrom=src/ApplicationUsageAccessPage.tsx`
+    - Result: passed, 10 tests.
+  - `yarn typecheck`
+    - Result: passed.
+  - `openspec validate simplify-admin-usage-access-diagnostics-noise --strict`
+    - Result: passed.
+  - `git diff --check`
+    - Result: passed.
+  - `yarn build`
+    - Result: passed. Existing Browserslist, bundle size and `fs.F_OK` warnings only.
+  - `.\local-dev\start-frontend-remote-backend.ps1 restart -Port 7014 -BackendUrl <redacted 60 Admin> -BackendHealthPath /api/get-account`
+    - Result: frontend running at `http://127.0.0.1:7014/`; backend health returned JSON from `/api/get-account`.
+- 2026-06-29 remove-usage-access-header-shortcuts follow-up verification:
+  - `yarn test ApplicationUsageAccessPage.test.tsx --watchAll=false --coverage --collectCoverageFrom=src/ApplicationAccessServiceCredentialGovernancePanel.tsx --collectCoverageFrom=src/ApplicationUsageAccessPage.tsx`
+    - Result: passed, 10 tests.
+  - `yarn typecheck`
+    - Result: passed.
+  - `openspec validate simplify-admin-usage-access-diagnostics-noise --strict`
+    - Result: passed.
+  - `git diff --check`
+    - Result: passed.
+  - `yarn build`
+    - Result: passed. Existing Browserslist, bundle size and `fs.F_OK` warnings only.
+  - `.\local-dev\start-frontend-remote-backend.ps1 restart -Port 7014 -BackendUrl <redacted 60 Admin> -BackendHealthPath /api/get-account`
+    - Result: frontend running at `http://127.0.0.1:7014/`; backend health returned JSON from `/api/get-account`.
+- 2026-06-29 default-open-only-missing-supplemental-materials follow-up verification:
+  - `yarn test ApplicationUsageAccessPage.test.tsx --watchAll=false --coverage --collectCoverageFrom=src/ApplicationAccessServiceCredentialGovernancePanel.tsx --collectCoverageFrom=src/ApplicationUsageAccessPage.tsx`
+    - Result: passed, 10 tests. Coverage for `ApplicationAccessServiceCredentialGovernancePanel.tsx`: statements 89.45%, branches 85.29%, functions 89.85%, lines 89.57%.
+  - `yarn typecheck`
+    - Result: passed.
+  - `openspec validate simplify-admin-usage-access-diagnostics-noise --strict`
+    - Result: passed.
+  - `git diff --check`
+    - Result: passed.
+  - `yarn build`
+    - Result: passed. Existing Browserslist, bundle size and `fs.F_OK` warnings only.
+  - `.\local-dev\start-frontend-remote-backend.ps1 restart -Port 7014 -BackendUrl <redacted 60 Admin> -BackendHealthPath /api/get-account`
+    - Result: frontend running at `http://127.0.0.1:7014/`; backend health returned JSON from `/api/get-account`.
+- 2026-06-29 controlled-supplemental-material-collapse follow-up verification:
+  - `yarn test ApplicationUsageAccessPage.test.tsx --watchAll=false --coverage --collectCoverageFrom=src/ApplicationAccessServiceCredentialGovernancePanel.tsx --collectCoverageFrom=src/ApplicationUsageAccessPage.tsx`
+    - Result: passed, 10 tests. Coverage for `ApplicationAccessServiceCredentialGovernancePanel.tsx`: statements 89.71%, branches 85.16%, functions 90.14%, lines 89.81%.
+  - `yarn typecheck`
+    - Result: passed.
+  - `openspec validate simplify-admin-usage-access-diagnostics-noise --strict`
+    - Result: passed.
+  - `git diff --check`
+    - Result: passed.
+  - `yarn build`
+    - Result: passed. Existing Browserslist, bundle size and `fs.F_OK` warnings only.
+  - `.\local-dev\start-frontend-remote-backend.ps1 restart -Port 7014 -BackendUrl <redacted 60 Admin> -BackendHealthPath /api/get-account`
+    - Result: frontend running at `http://127.0.0.1:7014/`; backend health returned JSON from `/api/get-account`.
+- 2026-06-29 final KISS header and OpenSpec alignment verification:
+  - `yarn test ApplicationAccessCenter.test.tsx ApplicationUsageAccessPage.test.tsx --watchAll=false --coverage --collectCoverageFrom=src/ApplicationAccessServiceCredentialGovernancePanel.tsx --collectCoverageFrom=src/ApplicationUsageAccessPage.tsx --collectCoverageFrom=src/backend/ApplicationAccessServiceCredentialGovernanceBackend.ts`
+    - Result: passed, 20 tests. Coverage: `ApplicationAccessServiceCredentialGovernancePanel.tsx` statements 86.9%, branches 76.73%, functions 96.49%, lines 87.02%; `ApplicationUsageAccessPage.tsx` statements 100%, lines 100%; `ApplicationAccessServiceCredentialGovernanceBackend.ts` statements 87%, branches 85.71%, functions 96.42%, lines 86.66%.
+  - `yarn typecheck`
+    - Result: passed.
+  - `yarn build`
+    - Result: passed. Existing Browserslist, bundle size and `fs.F_OK` warnings only.
+  - `openspec status --change "simplify-admin-usage-access-diagnostics-noise" --json`
+    - Result: all planning artifacts are complete.
+  - `openspec validate simplify-admin-usage-access-diagnostics-noise --strict`
+    - Result: passed.
+  - `git diff --check`
+    - Result: passed.
+  - `.\local-dev\start-frontend-remote-backend.ps1 status -Port 7014`
+    - Result: frontend running at `http://127.0.0.1:7014/`; backend URL redacted by script output.
+  - `Invoke-WebRequest -Uri 'http://127.0.0.1:7014/' -UseBasicParsing -TimeoutSec 10`
+    - Result: HTTP 200. Dev server log ended with `Compiled successfully` and `No issues found`.
+- 2026-06-29 post-rebase final verification:
+  - `CI=true yarn test ApplicationAccessCenter.test.tsx ApplicationUsageAccessPage.test.tsx --watchAll=false --runInBand --coverage --collectCoverageFrom=src/ApplicationAccessServiceCredentialGovernancePanel.tsx --collectCoverageFrom=src/ApplicationUsageAccessPage.tsx --collectCoverageFrom=src/backend/ApplicationAccessServiceCredentialGovernanceBackend.ts`
+    - Result: passed, 20 tests. Coverage: `ApplicationAccessServiceCredentialGovernancePanel.tsx` statements 86.9%, branches 76.73%, functions 96.49%, lines 87.02%; `ApplicationUsageAccessPage.tsx` statements 100%, lines 100%; `ApplicationAccessServiceCredentialGovernanceBackend.ts` statements 87%, branches 85.71%, functions 96.42%, lines 86.66%.
+  - `yarn typecheck`
+    - Result: passed.
+  - `NODE_OPTIONS=--max-old-space-size=8192 yarn build`
+    - Result: passed. A normal `yarn build` attempt failed once at Terser minify with local out-of-memory (`Data cannot be cloned, out of memory`); retrying with higher Node heap completed successfully. Existing Browserslist, bundle size and `fs.F_OK` warnings only.
+  - `openspec validate simplify-admin-usage-access-diagnostics-noise --strict`
+    - Result: passed.
+  - `git diff --check`
+    - Result: passed.
+  - `.\local-dev\start-frontend-remote-backend.ps1 status -Port 7014`
+    - Result: frontend running at `http://127.0.0.1:7014/`; backend URL redacted by script output.
+  - `Invoke-WebRequest -Uri 'http://127.0.0.1:7014/' -UseBasicParsing -TimeoutSec 10`
+    - Result: HTTP 200. Dev server log ended with `Compiled successfully` and `No issues found`.
+
+## Browser Smoke Note
+
+Real browser smoke was attempted but not completed because local browser automation tooling did not return a usable session:
+
+- `playwright-cli open` through the configured wrapper hung without snapshot output.
+- Direct `playwright-cli close-all` returned, but `kill-all` and process command-line inspection hung in the local environment.
+- `browser-act get-skills core --skill-version 2.0.2` failed with `uv trampoline failed to canonicalize script path`.
+
+No screenshot artifact is claimed for this pass.

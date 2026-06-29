@@ -1,21 +1,4 @@
-# admin-enterprise-identity-usage-access-entry Specification
-
-## Purpose
-TBD - created by archiving change add-admin-usage-access-submenu. Update Purpose after archive.
-## Requirements
-### Requirement: 用量接入二级入口
-Admin 身份控制台 SHALL 在 `应用接入` 分组下提供 `用量接入` 二级入口，使管理员能够直接进入用量链路治理页面，而不需要在 `/applications` 通用应用接入中心中寻找服务凭据治理内容。
-
-#### Scenario: 管理员打开用量接入页面
-- **WHEN** 已登录 local admin 通过侧栏、移动抽屉、组织导航配置树或直接 URL 访问 `/application-usage-access`
-- **THEN** 系统 SHALL 展示 `用量接入` 页面
-- **AND** 页面 SHALL 位于 `应用接入` 导航分组下
-- **AND** `/applications` SHALL 继续展示为 `应用接入中心` 并保持可达
-
-#### Scenario: 二级入口保持权限过滤兼容
-- **WHEN** 组织配置了 `navItems` 或 `userNavItems`
-- **THEN** `用量接入` SHALL 使用稳定 route key `/application-usage-access` 参与既有权限过滤
-- **AND** 不得因为新增二级入口暴露未授权菜单
+## MODIFIED Requirements
 
 ### Requirement: 用量接入页面聚焦服务凭据治理
 `用量接入` 页面 SHALL 承接原 `应用接入中心` 中与 Admin 服务凭据治理直接相关的交接包能力，以 KISS 方式展示 `待补配置` 或 `Admin 交接包`，并避免成为新的配置中心或诊断中心。
@@ -45,18 +28,3 @@ Admin 身份控制台 SHALL 在 `应用接入` 分组下提供 `用量接入` �
 - **AND** UI SHALL NOT render advanced diagnostic aliases or metadata; the first version SHALL keep only copy-safe human-readable status, next action, deployment-config gap hints, and Admin handoff package generation/copy actions
 - **AND** generated Admin handoff package SHALL NOT include API/Gateway usage facts or API/Gateway provider runtime truth
 - **AND** groups whose status is `not_applicable` SHALL NOT be converted to runtime `ready`; UI and package summaries SHALL preserve `cannot_infer` semantics when Admin cannot infer downstream runtime truth
-
-### Requirement: 用量接入覆盖基础页面状态
-`用量接入` 页面 SHALL 覆盖加载、错误、无可用治理项和窄屏状态，并保持管理员可继续前往既有应用接入、Provider、API 映射或审计入口。
-
-#### Scenario: 加载错误和空态
-- **WHEN** 服务凭据治理请求加载中、失败、被拒绝或返回空治理项
-- **THEN** 页面 SHALL 展示紧凑 loading、error、unavailable 或 empty state
-- **AND** 页面 SHALL 保留进入 `应用接入中心`、Provider、API 映射或审计记录的低噪入口
-- **AND** 页面 SHALL NOT 因局部错误阻断 Admin 壳层导航
-
-#### Scenario: 桌面和移动端展示
-- **WHEN** 管理员在 `1440x900` 或 `390x844` 视口访问 `/application-usage-access`
-- **THEN** 文本、状态标签、按钮和治理项摘要 SHALL 不重叠、不撑破页面
-- **AND** 页面级 `documentElement.scrollWidth` SHALL NOT 大于 `documentElement.clientWidth + 1`
-- **AND** 核心治理项和错误/空态信息 SHALL 在可扫描位置可达
