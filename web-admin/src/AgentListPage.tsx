@@ -14,15 +14,16 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Table} from "antd";
+import {Button} from "antd";
 import type {TablePaginationConfig, TableProps} from "antd";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as AgentBackend from "./backend/AgentBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
-import PopconfirmModal from "./common/modal/PopconfirmModal";
-import LlmAiGatewayCenter from "./LlmAiGatewayCenter";
+import LegacyListPageToolbar from "./common/LegacyListPageToolbar";
+import ListPageRowActions, {ListPageRowDeleteAction, ListPageRowEditAction} from "./common/ListPageRowActions";
+import ListPageTable from "./common/ListPageTable";
 
 type FormItem = {
   name: string;
@@ -106,7 +107,6 @@ const agentBackend = AgentBackend as unknown as AgentBackendCompat;
 
 // BaseListPage 仍是 legacy JS；这里仅声明 Agent 列表页实际依赖的继承面。
 type LegacyBaseListPageCompat = React.Component<AgentListPageProps, AgentListPageState> & {
-  getColumnSearchProps: (dataIndex: string, customRender?: unknown) => Record<string, unknown>;
   getTablePaginationProps: (overrides?: Record<string, unknown>) => TablePaginationConfig;
   handleTableChange: NonNullable<TableProps<AgentRecord>["onChange"]>;
 };
@@ -118,6 +118,14 @@ const TypedBaseListPage = BaseListPage as unknown as {
 function t(key: string): string {
   return String(i18next.t(key));
 }
+
+const queryFields = [
+  {label: t("general:Name"), value: "name"},
+  {label: t("general:Organization"), value: "owner"},
+  {label: t("general:Display name"), value: "displayName"},
+  {label: t("general:Listening URL"), value: "url"},
+  {label: t("general:Application"), value: "application"},
+];
 
 class AgentListPage extends TypedBaseListPage {
   newAgent(): AgentRecord {
@@ -204,7 +212,6 @@ class AgentListPage extends TypedBaseListPage {
         key: "name",
         width: "160px",
         sorter: true,
-        ...this.getColumnSearchProps("name"),
         render: (text: string, record: AgentRecord) => {
           return (
             <Link to={`/agents/${record.owner}/${text}`}>
@@ -219,7 +226,6 @@ class AgentListPage extends TypedBaseListPage {
         key: "owner",
         width: "130px",
         sorter: true,
-        ...this.getColumnSearchProps("owner"),
       },
       {
         title: t("general:Created time"),
@@ -236,14 +242,12 @@ class AgentListPage extends TypedBaseListPage {
         dataIndex: "displayName",
         key: "displayName",
         sorter: true,
-        ...this.getColumnSearchProps("displayName"),
       },
       {
         title: t("general:Listening URL"),
         dataIndex: "url",
         key: "url",
         sorter: true,
-        ...this.getColumnSearchProps("url"),
         render: (text: string) => {
           if (!text) {
             return null;
@@ -262,21 +266,21 @@ class AgentListPage extends TypedBaseListPage {
         key: "application",
         width: "140px",
         sorter: true,
-        ...this.getColumnSearchProps("application"),
       },
       {
         title: t("general:Action"),
         dataIndex: "op",
         key: "op",
-        width: "180px",
-        fixed: (Setting.isMobile()) ? false : "right",
+        width: "136px",
         render: (_text: unknown, record: AgentRecord, index: number) => {
           return (
-            <div>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/agents/${record.owner}/${record.name}`)}>{t("general:Edit")}</Button>
-              <PopconfirmModal title={t("general:Sure to delete") + `: ${record.name} ?`} onConfirm={() => this.deleteAgent(index)}>
-              </PopconfirmModal>
-            </div>
+            <ListPageRowActions className="agent-row-actions">
+              <ListPageRowEditAction onClick={() => this.props.history.push(`/agents/${record.owner}/${record.name}`)} />
+              <ListPageRowDeleteAction
+                title={t("general:Sure to delete") + `: ${record.name} ?`}
+                onConfirm={() => this.deleteAgent(index)}
+              />
+            </ListPageRowActions>
           );
         },
       },
@@ -286,23 +290,23 @@ class AgentListPage extends TypedBaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <div>
-        <LlmAiGatewayCenter agents={agents} totalAgents={this.state.pagination.total} loading={this.state.loading} />
-        <Table
-          scroll={{x: "max-content"}}
+      <div className="enterprise-list-page-table-shell agent-list-page-table-shell">
+        <ListPageTable<AgentRecord>
           dataSource={agents}
           columns={filteredColumns}
           rowKey={record => `${record.owner}/${record.name}`}
           pagination={paginationProps}
           loading={this.state.loading}
           onChange={this.handleTableChange}
-          size="middle"
-          bordered
           title={() => (
-            <div>
-              {t("general:Agents")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button type="primary" size="small" onClick={() => this.addAgent()}>{t("general:Add")}</Button>
-            </div>
+            <LegacyListPageToolbar
+              host={this}
+              title={t("general:Agents")}
+              total={this.state.pagination.total}
+              fields={queryFields}
+              defaultField="name"
+              actions={<Button type="primary" onClick={() => this.addAgent()}>{t("general:Add")}</Button>}
+            />
           )}
         />
       </div>

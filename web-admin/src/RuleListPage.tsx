@@ -13,15 +13,18 @@
 // limitations under the License.
 
 import React from "react";
-import {Button, Popconfirm, Table, Tag} from "antd";
+import {Button, Tag, Typography} from "antd";
 import type {TablePaginationConfig, TableProps} from "antd";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as RuleBackend from "./backend/RuleBackend";
 import i18nextLib from "i18next";
 import BaseListPage from "./BaseListPage";
+import ListPageRowActions, {ListPageRowDeleteAction, ListPageRowEditAction} from "./common/ListPageRowActions";
+import ListPageTable from "./common/ListPageTable";
 
 const i18next = {t: (key: string) => i18nextLib.t(key) as string};
+const {Text} = Typography;
 
 interface RuleListPageProps {
   account: {owner: string; tag?: string; [key: string]: unknown};
@@ -56,6 +59,7 @@ interface RuleListPageState {
 
 type LegacyBaseListPageCompat = React.Component<RuleListPageProps, RuleListPageState> & {
   handleTableChange: NonNullable<TableProps<RuleRecord>["onChange"]>;
+  getTablePaginationProps: (overrides?: Record<string, unknown>) => TablePaginationConfig;
 };
 
 // BaseListPage 仍是 legacy JS；这里只声明 RuleListPage 使用到的最小成员。
@@ -92,6 +96,29 @@ type RuleBackendCompat = {
 const ruleBackend = RuleBackend as unknown as RuleBackendCompat;
 
 type RuleListColumns = TableProps<RuleRecord>["columns"];
+
+function formatResultCount(total?: number): string {
+  if (typeof total !== "number") {
+    return i18next.t("general:Current view");
+  }
+  return i18nextLib.t("general:Result count", {count: total}) as string;
+}
+
+function renderRuleListTitle(total: number | undefined, onAdd: () => void): JSX.Element {
+  return (
+    <div className="enterprise-list-query-toolbar">
+      <div className="enterprise-list-query-toolbar-header">
+        <div className="enterprise-list-query-toolbar-title">
+          <Text strong className="enterprise-list-query-toolbar-title-text">{i18next.t("general:Rules")}</Text>
+          <Text type="secondary" className="enterprise-list-query-toolbar-result-count">{formatResultCount(total)}</Text>
+        </div>
+        <div className="enterprise-list-query-toolbar-header-meta enterprise-list-query-toolbar-header-meta-top-right">
+          <Button type="primary" onClick={onAdd}>{i18next.t("general:Add")}</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 class RuleListPage extends TypedBaseListPage {
   UNSAFE_componentWillMount() {
@@ -269,39 +296,35 @@ class RuleListPage extends TypedBaseListPage {
         title: i18next.t("general:Action"),
         dataIndex: "",
         key: "op",
+        width: "136px",
         render: (text, rule, index) => {
           return (
-            <div>
-              <Popconfirm
+            <ListPageRowActions className="rule-row-actions">
+              <ListPageRowEditAction onClick={() => this.props.history.push(`/rules/${rule.owner}/${rule.name}`)} />
+              <ListPageRowDeleteAction
                 title={`Sure to delete rule: ${rule.name} ?`}
                 onConfirm={() => this.deleteRule(index)}
-              >
-                <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/rules/${rule.owner}/${rule.name}`)}>{i18next.t("general:Edit")}</Button>
-                <Button danger>{i18next.t("general:Delete")}</Button>
-              </Popconfirm>
-            </div>
+              />
+            </ListPageRowActions>
           );
         },
       },
     ];
 
     return (
-      <Table
-        dataSource={data}
-        columns={columns}
-        rowKey="name"
-        pagination={this.state.pagination}
-        loading={this.state.loading}
-        onChange={this.handleTableChange}
-        size="middle"
-        bordered
-        title={() => (
-          <div>
-            {i18next.t("general:Rules")}&nbsp;&nbsp;&nbsp;&nbsp;
-            <Button type="primary" size="small" onClick={() => this.addRule()}>{i18next.t("general:Add")}</Button>
-          </div>
-        )}
-      />
+      <div className="enterprise-list-page-table-shell rule-list-page-table-shell">
+        <ListPageTable<RuleRecord>
+          dataSource={data}
+          columns={columns}
+          rowKey={(record) => `${record.owner}/${record.name}`}
+          pagination={this.getTablePaginationProps()}
+          loading={this.state.loading}
+          onChange={this.handleTableChange}
+          title={() => (
+            renderRuleListTitle(this.state.pagination.total, () => this.addRule())
+          )}
+        />
+      </div>
     );
   }
 }

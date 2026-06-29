@@ -37,7 +37,15 @@ interface TestAgentRecord {
 interface TestTableColumn {
   key?: string;
   fixed?: unknown;
+  filterDropdown?: unknown;
+  filterIcon?: unknown;
   render?: (text: unknown, record: TestAgentRecord, index: number) => React.ReactNode;
+}
+
+function getRenderedTable(node: React.ReactNode): React.ReactElement<{columns: TestTableColumn[]; title: () => React.ReactNode}> {
+  const wrapper = node as React.ReactElement<{children: React.ReactNode; className?: string}>;
+  expect(wrapper.props.className).toContain("agent-list-page-table-shell");
+  return React.Children.only(wrapper.props.children) as React.ReactElement<{columns: TestTableColumn[]; title: () => React.ReactNode}>;
 }
 
 jest.mock("./backend/AgentBackend", () => {
@@ -195,15 +203,17 @@ describe("AgentListPage", () => {
     expect(fs.existsSync(path.join(__dirname, "AgentListPage.js"))).toBe(false);
   });
 
-  test("renders agent rows with the LLM AI gateway overview", async() => {
+  test("renders agent rows with the shared list shell", async() => {
     const view = renderPage();
 
     expect(await view.findByText("agent-one")).not.toBeNull();
-    expect(view.getByText("LLM AI 网关中心")).not.toBeNull();
+    expect(view.container.querySelector(".llm-ai-gateway-center")).toBeNull();
+    expect(view.container.querySelector(".enterprise-list-page-table-shell.agent-list-page-table-shell")).not.toBeNull();
+    expect(view.container.querySelector(".enterprise-list-query-toolbar")).not.toBeNull();
     expect(view.getByText("Agent One")).not.toBeNull();
     expect(agentBackendMock.getAgents).toHaveBeenCalledWith("engineering", expect.any(Number), expect.any(Number), undefined, undefined, undefined, undefined);
     expect(formBackendMock.getForm).toHaveBeenCalled();
-    expect(view.container.querySelector(".llm-ai-gateway-center")?.textContent).not.toMatch(/secret-token|agent\.example\.invalid/);
+    expect(view.container.textContent).not.toMatch(/secret-token/);
   });
 
   test("creates a default agent and navigates to the edit route", async() => {
@@ -345,13 +355,15 @@ describe("AgentListPage", () => {
     jest.spyOn(page, "addAgent").mockImplementation(() => {});
     jest.spyOn(page, "deleteAgent").mockImplementation(() => {});
 
-    const tableWrapper = page.renderTable([agent]) as React.ReactElement<{children: React.ReactNode}>;
-    const children = React.Children.toArray(tableWrapper.props.children) as React.ReactElement[];
-    const table = children[1] as React.ReactElement<{columns: TestTableColumn[]; title: () => React.ReactNode}>;
+    const table = getRenderedTable(page.renderTable([agent]));
     const columns = table.props.columns;
 
     expect(columns[0].key).toBe("name");
-    expect(columns[6].fixed).toBe("right");
+    expect(columns[6].fixed).toBeUndefined();
+    columns.forEach(column => {
+      expect(column.filterDropdown).toBeUndefined();
+      expect(column.filterIcon).toBeUndefined();
+    });
     expect(columns[4].render?.("", agent, 0)).toBeNull();
 
     const actionNode = columns[6].render?.(undefined, agent, 0) as React.ReactElement<{children: React.ReactNode}>;
@@ -372,10 +384,8 @@ describe("AgentListPage", () => {
     jest.spyOn(Setting, "isMobile").mockReturnValue(true);
     const page = createPage();
 
-    const tableWrapper = page.renderTable([agent]) as React.ReactElement<{children: React.ReactNode}>;
-    const children = React.Children.toArray(tableWrapper.props.children) as React.ReactElement[];
-    const table = children[1] as React.ReactElement<{columns: TestTableColumn[]}>;
+    const table = getRenderedTable(page.renderTable([agent]));
 
-    expect(table.props.columns[6].fixed).toBe(false);
+    expect(table.props.columns[6].fixed).toBeUndefined();
   });
 });

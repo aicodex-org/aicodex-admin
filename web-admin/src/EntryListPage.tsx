@@ -14,14 +14,16 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Table} from "antd";
+import {Button} from "antd";
 import type {TablePaginationConfig, TableProps} from "antd";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as EntryBackend from "./backend/EntryBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
-import PopconfirmModal from "./common/modal/PopconfirmModal";
+import LegacyListPageToolbar from "./common/LegacyListPageToolbar";
+import ListPageRowActions, {ListPageRowDeleteAction, ListPageRowEditAction} from "./common/ListPageRowActions";
+import ListPageTable from "./common/ListPageTable";
 
 type FormItem = {
   name: string;
@@ -106,7 +108,6 @@ const entryBackend = EntryBackend as unknown as EntryBackendCompat;
 
 // BaseListPage 仍是 legacy JS；这里仅声明入口配置列表页实际依赖的继承面。
 type LegacyBaseListPageCompat = React.Component<EntryListPageProps, EntryListPageState> & {
-  getColumnSearchProps: (dataIndex: string, customRender?: unknown) => Record<string, unknown>;
   getTablePaginationProps: (overrides?: Record<string, unknown>) => TablePaginationConfig;
   handleTableChange: NonNullable<TableProps<EntryRecord>["onChange"]>;
 };
@@ -118,6 +119,14 @@ const TypedBaseListPage = BaseListPage as unknown as {
 function t(key: string): string {
   return String(i18next.t(key));
 }
+
+const queryFields = [
+  {label: t("general:Name"), value: "name"},
+  {label: t("general:Organization"), value: "owner"},
+  {label: t("general:Display name"), value: "displayName"},
+  {label: t("general:Listening URL"), value: "url"},
+  {label: t("general:Application"), value: "application"},
+];
 
 class EntryListPage extends TypedBaseListPage {
   newEntry(): EntryRecord {
@@ -205,7 +214,6 @@ class EntryListPage extends TypedBaseListPage {
         key: "name",
         width: "160px",
         sorter: true,
-        ...this.getColumnSearchProps("name"),
         render: (text: string, record: EntryRecord) => {
           return (
             <Link to={`/entries/${record.owner}/${text}`}>
@@ -220,7 +228,6 @@ class EntryListPage extends TypedBaseListPage {
         key: "owner",
         width: "130px",
         sorter: true,
-        ...this.getColumnSearchProps("owner"),
       },
       {
         title: t("general:Created time"),
@@ -237,14 +244,12 @@ class EntryListPage extends TypedBaseListPage {
         dataIndex: "displayName",
         key: "displayName",
         sorter: true,
-        ...this.getColumnSearchProps("displayName"),
       },
       {
         title: t("general:Listening URL"),
         dataIndex: "url",
         key: "url",
         sorter: true,
-        ...this.getColumnSearchProps("url"),
         render: (text: string) => {
           if (!text) {
             return null;
@@ -263,21 +268,21 @@ class EntryListPage extends TypedBaseListPage {
         key: "application",
         width: "140px",
         sorter: true,
-        ...this.getColumnSearchProps("application"),
       },
       {
         title: t("general:Action"),
         dataIndex: "op",
         key: "op",
-        width: "180px",
-        fixed: (Setting.isMobile()) ? false : "right",
+        width: "136px",
         render: (_text: unknown, record: EntryRecord, index: number) => {
           return (
-            <div>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/entries/${record.owner}/${record.name}`)}>{t("general:Edit")}</Button>
-              <PopconfirmModal title={t("general:Sure to delete") + `: ${record.name} ?`} onConfirm={() => this.deleteEntry(index)}>
-              </PopconfirmModal>
-            </div>
+            <ListPageRowActions className="entry-row-actions">
+              <ListPageRowEditAction onClick={() => this.props.history.push(`/entries/${record.owner}/${record.name}`)} />
+              <ListPageRowDeleteAction
+                title={t("general:Sure to delete") + `: ${record.name} ?`}
+                onConfirm={() => this.deleteEntry(index)}
+              />
+            </ListPageRowActions>
           );
         },
       },
@@ -287,23 +292,26 @@ class EntryListPage extends TypedBaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <Table
-        scroll={{x: "max-content"}}
-        dataSource={entries}
-        columns={filteredColumns}
-        rowKey={record => `${record.owner}/${record.name}`}
-        pagination={paginationProps}
-        loading={this.state.loading}
-        onChange={this.handleTableChange}
-        size="middle"
-        bordered
-        title={() => (
-          <div>
-            {t("general:Entries")}&nbsp;&nbsp;&nbsp;&nbsp;
-            <Button type="primary" size="small" onClick={() => this.addEntry()}>{t("general:Add")}</Button>
-          </div>
-        )}
-      />
+      <div className="enterprise-list-page-table-shell entry-list-page-table-shell">
+        <ListPageTable<EntryRecord>
+          dataSource={entries}
+          columns={filteredColumns}
+          rowKey={record => `${record.owner}/${record.name}`}
+          pagination={paginationProps}
+          loading={this.state.loading}
+          onChange={this.handleTableChange}
+          title={() => (
+            <LegacyListPageToolbar
+              host={this}
+              title={t("general:Entries")}
+              total={this.state.pagination.total}
+              fields={queryFields}
+              defaultField="name"
+              actions={<Button type="primary" onClick={() => this.addEntry()}>{t("general:Add")}</Button>}
+            />
+          )}
+        />
+      </div>
     );
   }
 }

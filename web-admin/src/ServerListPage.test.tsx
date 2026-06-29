@@ -38,12 +38,15 @@ interface TestServerRecord {
 interface TestTableColumn {
   key?: string;
   fixed?: unknown;
+  filterDropdown?: unknown;
+  filterIcon?: unknown;
   render?: (text: unknown, record: TestServerRecord, index: number) => React.ReactNode;
 }
 
 function getRenderedTable(node: React.ReactNode): React.ReactElement<{columns: TestTableColumn[]; title: () => React.ReactNode}> {
-  const fragment = node as React.ReactElement<{children: React.ReactNode}>;
-  return React.Children.only(fragment.props.children) as React.ReactElement<{columns: TestTableColumn[]; title: () => React.ReactNode}>;
+  const wrapper = node as React.ReactElement<{children: React.ReactNode; className?: string}>;
+  expect(wrapper.props.className).toContain("server-list-page-table-shell");
+  return React.Children.only(wrapper.props.children) as React.ReactElement<{columns: TestTableColumn[]; title: () => React.ReactNode}>;
 }
 
 jest.mock("./backend/ServerBackend", () => {
@@ -352,7 +355,11 @@ describe("ServerListPage", () => {
     const columns = table.props.columns;
 
     expect(columns[0].key).toBe("name");
-    expect(columns[6].fixed).toBe("right");
+    expect(columns[6].fixed).toBeUndefined();
+    columns.forEach(column => {
+      expect(column.filterDropdown).toBeUndefined();
+      expect(column.filterIcon).toBeUndefined();
+    });
     expect(columns[4].render?.("", server, 0)).toBeNull();
 
     const actionNode = columns[6].render?.(undefined, server, 0) as React.ReactElement<{children: React.ReactNode}>;
@@ -377,6 +384,6 @@ describe("ServerListPage", () => {
 
     const table = getRenderedTable(page.renderTable([server]));
 
-    expect(table.props.columns[6].fixed).toBe(false);
+    expect(table.props.columns[6].fixed).toBeUndefined();
   });
 });

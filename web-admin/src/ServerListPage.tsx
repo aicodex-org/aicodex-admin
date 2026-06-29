@@ -14,14 +14,16 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Table} from "antd";
+import {Button} from "antd";
 import type {TablePaginationConfig, TableProps} from "antd";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as ServerBackend from "./backend/ServerBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
-import PopconfirmModal from "./common/modal/PopconfirmModal";
+import LegacyListPageToolbar from "./common/LegacyListPageToolbar";
+import ListPageRowActions, {ListPageRowDeleteAction, ListPageRowEditAction} from "./common/ListPageRowActions";
+import ListPageTable from "./common/ListPageTable";
 
 type FormItem = {
   name: string;
@@ -113,7 +115,6 @@ const serverBackend = ServerBackend as unknown as ServerBackendCompat;
 
 // BaseListPage 仍是 legacy JS；这里仅声明 MCP Server 列表页实际依赖的继承面。
 type LegacyBaseListPageCompat = React.Component<ServerListPageProps, ServerListPageState> & {
-  getColumnSearchProps: (dataIndex: string, customRender?: unknown) => Record<string, unknown>;
   getTablePaginationProps: (overrides?: Record<string, unknown>) => TablePaginationConfig;
   handleTableChange: NonNullable<TableProps<ServerRecord>["onChange"]>;
 };
@@ -125,6 +126,14 @@ const TypedBaseListPage = BaseListPage as unknown as {
 function t(key: string): string {
   return String(i18next.t(key));
 }
+
+const queryFields = [
+  {label: t("general:Name"), value: "name"},
+  {label: t("general:Organization"), value: "owner"},
+  {label: t("general:Display name"), value: "displayName"},
+  {label: t("general:URL"), value: "url"},
+  {label: t("general:Application"), value: "application"},
+];
 
 class ServerListPage extends TypedBaseListPage {
   newServer(): ServerRecord {
@@ -210,7 +219,6 @@ class ServerListPage extends TypedBaseListPage {
         key: "name",
         width: "160px",
         sorter: true,
-        ...this.getColumnSearchProps("name"),
         render: (text: string, record: ServerRecord) => {
           return (
             <Link to={`/servers/${record.owner}/${text}`}>
@@ -225,7 +233,6 @@ class ServerListPage extends TypedBaseListPage {
         key: "owner",
         width: "130px",
         sorter: true,
-        ...this.getColumnSearchProps("owner"),
       },
       {
         title: t("general:Created time"),
@@ -242,14 +249,12 @@ class ServerListPage extends TypedBaseListPage {
         dataIndex: "displayName",
         key: "displayName",
         sorter: true,
-        ...this.getColumnSearchProps("displayName"),
       },
       {
         title: t("general:URL"),
         dataIndex: "url",
         key: "url",
         sorter: true,
-        ...this.getColumnSearchProps("url"),
         render: (text: string) => {
           if (!text) {
             return null;
@@ -268,21 +273,21 @@ class ServerListPage extends TypedBaseListPage {
         key: "application",
         width: "140px",
         sorter: true,
-        ...this.getColumnSearchProps("application"),
       },
       {
         title: t("general:Action"),
         dataIndex: "op",
         key: "op",
-        width: "180px",
-        fixed: (Setting.isMobile()) ? false : "right",
+        width: "136px",
         render: (_text: unknown, record: ServerRecord, index: number) => {
           return (
-            <div>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/servers/${record.owner}/${record.name}`)}>{t("general:Edit")}</Button>
-              <PopconfirmModal title={t("general:Sure to delete") + `: ${record.name} ?`} onConfirm={() => this.deleteServer(index)}>
-              </PopconfirmModal>
-            </div>
+            <ListPageRowActions className="server-row-actions">
+              <ListPageRowEditAction onClick={() => this.props.history.push(`/servers/${record.owner}/${record.name}`)} />
+              <ListPageRowDeleteAction
+                title={t("general:Sure to delete") + `: ${record.name} ?`}
+                onConfirm={() => this.deleteServer(index)}
+              />
+            </ListPageRowActions>
           );
         },
       },
@@ -292,27 +297,31 @@ class ServerListPage extends TypedBaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <>
-        <Table
-          scroll={{x: "max-content"}}
+      <div className="enterprise-list-page-table-shell server-list-page-table-shell">
+        <ListPageTable<ServerRecord>
           dataSource={servers}
           columns={filteredColumns}
           rowKey={record => `${record.owner}/${record.name}`}
           pagination={paginationProps}
           loading={this.state.loading}
           onChange={this.handleTableChange}
-          size="middle"
-          bordered
           title={() => (
-            <div>
-              {t("server:Edit MCP Server")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button type="primary" size="small" onClick={() => this.addServer()}>{t("general:Add")}</Button>
-            &nbsp;
-              <Button size="small" onClick={() => this.props.history.push("/server-store")}>{t("general:MCP Store")}</Button>
-            </div>
+            <LegacyListPageToolbar
+              host={this}
+              title={t("general:MCP Servers")}
+              total={this.state.pagination.total}
+              fields={queryFields}
+              defaultField="name"
+              actions={(
+                <>
+                  <Button type="primary" onClick={() => this.addServer()}>{t("general:Add")}</Button>
+                  <Button onClick={() => this.props.history.push("/server-store")}>{t("general:MCP Store")}</Button>
+                </>
+              )}
+            />
           )}
         />
-      </>
+      </div>
     );
   }
 }

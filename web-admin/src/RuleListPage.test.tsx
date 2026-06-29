@@ -44,6 +44,12 @@ interface TestTableColumn {
   sorter?: (a: TestRuleRecord, b: TestRuleRecord) => number;
 }
 
+function getRenderedTable(node: React.ReactNode): React.ReactElement<{columns: TestTableColumn[]; title: () => React.ReactNode}> {
+  const wrapper = node as React.ReactElement<{children: React.ReactNode; className?: string}>;
+  expect(wrapper.props.className).toContain("rule-list-page-table-shell");
+  return React.Children.only(wrapper.props.children) as React.ReactElement<{columns: TestTableColumn[]; title: () => React.ReactNode}>;
+}
+
 jest.mock("./backend/RuleBackend", () => {
   const {jest: factoryJest} = require("@jest/globals");
   return {
@@ -299,11 +305,12 @@ describe("RuleListPage", () => {
     jest.spyOn(page, "addRule").mockImplementation(() => {});
     jest.spyOn(page, "deleteRule").mockImplementation(() => {});
 
-    const table = page.renderTable([rule]) as React.ReactElement<{columns: TestTableColumn[]; title: () => React.ReactNode}>;
+    const table = getRenderedTable(page.renderTable([rule]));
     const columns = table.props.columns;
 
     expect(columns[1].key).toBe("name");
     expect(columns[5].key).toBe("expressions");
+    expect(columns[9].key).toBe("op");
     const ruleLink = columns[1].render?.("rule-one", rule, 0) as React.ReactElement<{href: string; children: string}>;
     expect(ruleLink.props.href).toBe("/rules/engineering/rule-one");
     const expressionTags = columns[5].render?.(rule.expressions, rule, 0) as React.ReactElement[];
@@ -314,7 +321,7 @@ describe("RuleListPage", () => {
     const actionView = render(<>{actionNode}</>);
     fireEvent.click(actionView.getByText(/编\s*辑|Edit/));
     expect(history.push).toHaveBeenCalledWith("/rules/engineering/rule-one");
-    actionChildren[0].props.onConfirm();
+    actionChildren[1].props.onConfirm();
     expect(page.deleteRule).toHaveBeenCalledWith(0);
     actionView.unmount();
 
@@ -349,7 +356,7 @@ describe("RuleListPage", () => {
       }),
     };
 
-    const table = page.renderTable([rule]) as React.ReactElement<{columns: TestTableColumn[]}>;
+    const table = getRenderedTable(page.renderTable([rule]));
     const columns = table.props.columns;
 
     expect(typeof columns[0].sorter?.(rule, laterRule)).toBe("number");

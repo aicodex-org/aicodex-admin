@@ -14,13 +14,16 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Popconfirm, Table, Tag, Tooltip} from "antd";
+import {Button, Tag, Tooltip} from "antd";
 import type {TablePaginationConfig, TableProps} from "antd";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as SiteBackend from "./backend/SiteBackend";
 import i18nextLib from "i18next";
 import BaseListPage from "./BaseListPage";
+import LegacyListPageToolbar from "./common/LegacyListPageToolbar";
+import ListPageRowActions, {ListPageRowDeleteAction, ListPageRowEditAction} from "./common/ListPageRowActions";
+import ListPageTable from "./common/ListPageTable";
 
 const i18next = {t: (key: string) => i18nextLib.t(key) as string};
 
@@ -78,7 +81,6 @@ interface SiteListPageState {
 }
 
 type LegacyBaseListPageCompat = React.Component<SiteListPageProps, SiteListPageState> & {
-  getColumnSearchProps: (dataIndex: string, customRender?: unknown) => Record<string, unknown>;
   getTablePaginationProps: (overrides?: Record<string, unknown>) => TablePaginationConfig;
   handleTableChange: NonNullable<TableProps<SiteRecord>["onChange"]>;
 };
@@ -122,6 +124,14 @@ type SiteBackendCompat = {
 const siteBackend = SiteBackend as unknown as SiteBackendCompat;
 
 type SiteListColumns = TableProps<SiteRecord>["columns"];
+
+const queryFields = [
+  {label: i18next.t("general:Name"), value: "name"},
+  {label: i18next.t("general:Owner"), value: "owner"},
+  {label: i18next.t("general:Display name"), value: "displayName"},
+  {label: i18next.t("site:Domain"), value: "domain"},
+  {label: i18next.t("site:Host"), value: "host"},
+];
 
 class SiteListPage extends TypedBaseListPage {
 
@@ -496,35 +506,35 @@ class SiteListPage extends TypedBaseListPage {
         title: i18next.t("general:Action"),
         dataIndex: "action",
         key: "action",
-        width: "180px",
+        width: "136px",
         render: (text, record, index) => {
           return (
-            <div>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/sites/${record.owner}/${record.name}`)}>{i18next.t("general:Edit")}</Button>
-              <Popconfirm
+            <ListPageRowActions className="site-row-actions">
+              <ListPageRowEditAction onClick={() => this.props.history.push(`/sites/${record.owner}/${record.name}`)} />
+              <ListPageRowDeleteAction
                 title={`Sure to delete site: ${record.name} ?`}
                 onConfirm={() => this.deleteSite(index)}
-                okText="OK"
-                cancelText="Cancel"
-              >
-                <Button style={{marginBottom: "10px"}} danger>{i18next.t("general:Delete")}</Button>
-              </Popconfirm>
-            </div>
+              />
+            </ListPageRowActions>
           );
         },
       },
     ];
 
     return (
-      <div>
-        <Table columns={columns} dataSource={data} rowKey="name" size="middle" bordered pagination={this.state.pagination}
+      <div className="enterprise-list-page-table-shell site-list-page-table-shell">
+        <ListPageTable<SiteRecord> columns={columns} dataSource={data} rowKey={(record) => `${record.owner}/${record.name}`} pagination={this.getTablePaginationProps()}
           title={() => (
-            <div>
-              {i18next.t("general:Sites")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button type="primary" size="small" onClick={this.addSite.bind(this)}>{i18next.t("general:Add")}</Button>
-            </div>
+            <LegacyListPageToolbar
+              host={this}
+              title={i18next.t("general:Sites")}
+              total={this.state.pagination.total}
+              fields={queryFields}
+              defaultField="name"
+              actions={<Button type="primary" onClick={this.addSite.bind(this)}>{i18next.t("general:Add")}</Button>}
+            />
           )}
-          loading={data === null}
+          loading={this.state.loading}
           onChange={this.handleTableChange}
         />
       </div>
