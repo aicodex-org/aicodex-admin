@@ -268,12 +268,12 @@ function ManagementPage(props) {
           {
             renderAvatar()
           }
-          &nbsp;
-          &nbsp;
-          {Setting.isMobile() ? null : Setting.getShortText(Setting.getNameAtLeast(props.account.displayName), 30)} &nbsp; <DownOutlined />
-          &nbsp;
-          &nbsp;
-          &nbsp;
+          {!Setting.isMobile() && (
+            <span className="admin-shell-account-name">
+              {Setting.getShortText(Setting.getNameAtLeast(props.account.displayName), 30)}
+            </span>
+          )}
+          <DownOutlined className="admin-shell-account-caret" />
         </div>
       </Dropdown>
     );

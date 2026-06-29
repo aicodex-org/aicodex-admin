@@ -83,14 +83,34 @@ img {
 .rightDropDown {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  gap: 9px;
+  min-width: 164px;
+  height: 44px;
+  padding: 0 14px 0 8px;
   border-radius: 7px;
   float: right;
   cursor: pointer;
+  color: rgb(51 65 85);
 
   &:hover {
     background-color: #f5f5f5a5;
   }
+}
+
+.admin-shell-account-name {
+  max-width: 240px;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-shell-account-caret {
+  flex: 0 0 auto;
+  color: rgb(100 116 139);
+  font-size: 11px;
 }
 
 .content-warp-card {
@@ -103,6 +123,7 @@ img {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
   padding: 0 16px !important;
   margin-bottom: 0;
   border-bottom: 1px solid rgb(214 224 238);
@@ -121,7 +142,32 @@ img {
 .admin-shell-header-right {
   display: flex;
   align-items: center;
+  gap: 8px;
   flex-shrink: 0;
+}
+
+.admin-shell-header-right .select-box {
+  float: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 7px;
+}
+
+.admin-shell-header-right .select-box .anticon {
+  font-size: 21px !important;
+}
+
+.admin-shell-header-right .select-box svg {
+  width: 21px !important;
+  height: 21px !important;
+}
+
+.admin-shell-header-right .org-select {
+  align-items: center;
+  float: none;
+  transform: none;
+  margin: 0 0 0 8px !important;
+  max-width: 192px;
 }
 
 .admin-shell-brand {
