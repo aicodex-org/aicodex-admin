@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleDetection": "force",
+    "moduleResolution": "Node",
+    "lib": ["ES2020"],
+    "types": ["node"],
+    "typeRoots": ["../../../../web-admin/node_modules/@types"],
+    "strict": false,
+    "noImplicitAny": false,
+    "noEmitOnError": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "gatewayProjection*.ts",
+    "node-globals.d.ts"
+  ],
+  "exclude": [
+    "*.test.js",
+    "*.test.ts"
+  ]
+}

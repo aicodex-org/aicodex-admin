@@ -381,6 +381,24 @@ organizationTreeOperationsRebuildEnabled=true
 
 验证记录只能写入脱敏结果摘要，例如 health 通过、诊断字段存在、节点非空、`refresh_status` 返回 `traceId`、`refresh_read_model` 返回 `accepted/running/unavailable/error` 等；不得记录真实地址、token、Cookie、账号、手机号、邮箱、完整组织结构或完整响应体。
 
+### Gateway projection helper TS source generation
+
+`scripts/gatewayProjection*.ts` 是 Gateway projection 观测、release、controlled smoke 和 operator handoff helper 的 TypeScript 源文件；同名 `.js` 是提交到仓库的 CommonJS 输出，供 Bruno `require(...)` 和现有 `node --test ...*.test.js` 入口继续使用。修改这些 Gateway helper 后先重新生成输出：
+
+```powershell
+node web-admin/node_modules/typescript/lib/tsc.js -p api-tests/bruno/aicodex-admin/scripts/gatewayProjection.tsconfig.json
+```
+
+再跑一致性检查和 Gateway helper 测试：
+
+```powershell
+git diff --exit-code -- api-tests/bruno/aicodex-admin/scripts/gatewayProjection*.js
+$files = Get-ChildItem 'api-tests\bruno\aicodex-admin\scripts' -Filter 'gatewayProjection*.test.js' | Sort-Object Name | ForEach-Object { $_.FullName }
+node --test @files
+```
+
+本生成链路只覆盖 Gateway projection helper。`wecomSource*.js` 仍是后续 deferred 批次，不要混在 Gateway helper 改动里一起迁移。
+
 Gateway projection 观测 smoke 只读取 `/api/gateway-projection/observability`，用于确认 publisher/refresh worker 的启用状态、TTL/interval 关系和 latest publish audit 摘要。默认不要求 latest audit 存在；如果要把“发布链路最近确实执行过”作为通过条件，在私有环境设置：
 
 ```text
