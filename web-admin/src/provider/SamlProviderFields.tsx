@@ -18,16 +18,30 @@ import * as Setting from "../Setting";
 import i18next from "i18next";
 import {authConfig} from "../auth/Auth";
 import copy from "copy-to-clipboard";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {ProviderConfig, UpdateProviderField} from "./ProviderFieldTypes";
+
+const t = i18next.t.bind(i18next) as (key: string) => string;
 
 const {TextArea} = Input;
 
-export function renderSamlProviderFields(provider, updateProviderField, metadataConfig) {
+const samlAuthConfig = authConfig as {serverUrl: string};
+
+interface SamlMetadataConfig {
+  requestUrl: string;
+  setRequestUrl: (value: string) => void;
+  metadataLoading: boolean;
+  fetchSamlMetadata: () => void;
+  parseSamlMetadata: () => void;
+}
+
+export function renderSamlProviderFields(provider: ProviderConfig, updateProviderField: UpdateProviderField, metadataConfig: SamlMetadataConfig): React.ReactNode {
   const {requestUrl, setRequestUrl, metadataLoading, fetchSamlMetadata, parseSamlMetadata} = metadataConfig;
   return (
     <React.Fragment>
       <Row style={{marginTop: "20px"}} >
         <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-          {Setting.getLabel(i18next.t("provider:Sign request"), i18next.t("provider:Sign request - Tooltip"))} :
+          {Setting.getLabel(t("provider:Sign request"), t("provider:Sign request - Tooltip"))} :
         </Col>
         <Col span={22} >
           <Switch checked={provider.enableSignAuthnRequest} onChange={checked => {
@@ -37,7 +51,7 @@ export function renderSamlProviderFields(provider, updateProviderField, metadata
       </Row>
       <Row style={{marginTop: "20px"}} >
         <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-          {Setting.getLabel(i18next.t("provider:Metadata url"), i18next.t("provider:Metadata url - Tooltip"))} :
+          {Setting.getLabel(t("provider:Metadata url"), t("provider:Metadata url - Tooltip"))} :
         </Col>
         <Col span={6} >
           <Input value={requestUrl} onChange={e => {
@@ -45,12 +59,12 @@ export function renderSamlProviderFields(provider, updateProviderField, metadata
           }} />
         </Col>
         <Col span={16} >
-          <Button style={{marginLeft: "10px"}} type="primary" loading={metadataLoading} onClick={() => {fetchSamlMetadata();}}>{i18next.t("general:Request")}</Button>
+          <Button style={{marginLeft: "10px"}} type="primary" loading={metadataLoading} onClick={() => {fetchSamlMetadata();}}>{t("general:Request")}</Button>
         </Col>
       </Row>
       <Row style={{marginTop: "20px"}} >
         <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-          {Setting.getLabel(i18next.t("provider:Metadata"), i18next.t("provider:Metadata - Tooltip"))} :
+          {Setting.getLabel(t("provider:Metadata"), t("provider:Metadata - Tooltip"))} :
         </Col>
         <Col span={22}>
           <TextArea rows={4} value={provider.metadata} onChange={e => {
@@ -62,13 +76,13 @@ export function renderSamlProviderFields(provider, updateProviderField, metadata
         <Col style={{marginTop: "5px"}} span={2} />
         <Col span={2}>
           <Button type="primary" onClick={() => {parseSamlMetadata();}}>
-            {i18next.t("provider:Parse")}
+            {t("provider:Parse")}
           </Button>
         </Col>
       </Row>
       <Row style={{marginTop: "20px"}} >
         <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-          {Setting.getLabel(i18next.t("provider:Endpoint"), i18next.t("provider:SAML 2.0 Endpoint (HTTP)"))} :
+          {Setting.getLabel(t("provider:Endpoint"), t("provider:SAML 2.0 Endpoint (HTTP)"))} :
         </Col>
         <Col span={22} >
           <Input value={provider.endpoint} onChange={e => {
@@ -78,7 +92,7 @@ export function renderSamlProviderFields(provider, updateProviderField, metadata
       </Row>
       <Row style={{marginTop: "20px"}} >
         <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-          {Setting.getLabel(i18next.t("provider:IdP"), i18next.t("provider:IdP certificate"))} :
+          {Setting.getLabel(t("provider:IdP"), t("provider:IdP certificate"))} :
         </Col>
         <Col span={22} >
           <Input value={provider.idP} onChange={e => {
@@ -88,7 +102,7 @@ export function renderSamlProviderFields(provider, updateProviderField, metadata
       </Row>
       <Row style={{marginTop: "20px"}} >
         <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-          {Setting.getLabel(i18next.t("provider:Issuer URL"), i18next.t("provider:Issuer URL - Tooltip"))} :
+          {Setting.getLabel(t("provider:Issuer URL"), t("provider:Issuer URL - Tooltip"))} :
         </Col>
         <Col span={22} >
           <Input value={provider.issuerUrl} onChange={e => {
@@ -98,33 +112,33 @@ export function renderSamlProviderFields(provider, updateProviderField, metadata
       </Row>
       <Row style={{marginTop: "20px"}} >
         <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-          {Setting.getLabel(i18next.t("provider:SP ACS URL"), i18next.t("provider:SP ACS URL - Tooltip"))} :
+          {Setting.getLabel(t("provider:SP ACS URL"), t("provider:SP ACS URL - Tooltip"))} :
         </Col>
         <Col span={21} >
-          <Input value={`${authConfig.serverUrl}/api/acs`} readOnly="readonly" />
+          <Input value={`${samlAuthConfig.serverUrl}/api/acs`} readOnly />
         </Col>
         <Col span={1}>
           <Button type="primary" onClick={() => {
-            copy(`${authConfig.serverUrl}/api/acs`);
-            Setting.showMessage("success", i18next.t("general:Copied to clipboard successfully"));
+            copy(`${samlAuthConfig.serverUrl}/api/acs`);
+            Setting.showMessage("success", t("general:Copied to clipboard successfully"));
           }}>
-            {i18next.t("general:Copy")}
+            {t("general:Copy")}
           </Button>
         </Col>
       </Row>
       <Row style={{marginTop: "20px"}} >
         <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-          {Setting.getLabel(i18next.t("provider:SP Entity ID"), i18next.t("provider:SP Entity ID - Tooltip"))} :
+          {Setting.getLabel(t("provider:SP Entity ID"), t("provider:SP Entity ID - Tooltip"))} :
         </Col>
         <Col span={21} >
-          <Input value={`${authConfig.serverUrl}/api/acs`} readOnly="readonly" />
+          <Input value={`${samlAuthConfig.serverUrl}/api/acs`} readOnly />
         </Col>
         <Col span={1}>
           <Button type="primary" onClick={() => {
-            copy(`${authConfig.serverUrl}/api/acs`);
-            Setting.showMessage("success", i18next.t("general:Copied to clipboard successfully"));
+            copy(`${samlAuthConfig.serverUrl}/api/acs`);
+            Setting.showMessage("success", t("general:Copied to clipboard successfully"));
           }}>
-            {i18next.t("general:Copy")}
+            {t("general:Copy")}
           </Button>
         </Col>
       </Row>

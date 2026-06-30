@@ -17,17 +17,21 @@ import {Col, Input, Row, Select} from "antd";
 import * as Setting from "../Setting";
 import i18next from "i18next";
 import {LinkOutlined} from "@ant-design/icons";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {CertConfig, ProviderConfig, UpdateProviderField} from "./ProviderFieldTypes";
+
+const t = i18next.t.bind(i18next) as (key: string) => string;
 
 const {Option} = Select;
 
-export function renderPaymentProviderFields(provider, updateProviderField, certs) {
+export function renderPaymentProviderFields(provider: ProviderConfig, updateProviderField: UpdateProviderField, certs: CertConfig[]): React.ReactNode {
   return (
     <React.Fragment>
       {
         (provider.type === "Alipay" || provider.type === "WeChat Pay" || provider.type === "Casdoor") ? (
           <Row style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-              {Setting.getLabel(i18next.t("general:Cert"), i18next.t("general:Cert - Tooltip"))} :
+              {Setting.getLabel(t("general:Cert"), t("general:Cert - Tooltip"))} :
             </Col>
             <Col span={22} >
               <Select virtual={false} style={{width: "100%"}} value={provider.cert} onChange={(value => {updateProviderField("cert", value);})}>
@@ -43,7 +47,7 @@ export function renderPaymentProviderFields(provider, updateProviderField, certs
         (provider.type === "Alipay") ? (
           <Row style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-              {Setting.getLabel(i18next.t("general:Root cert"), i18next.t("general:Root cert - Tooltip"))} :
+              {Setting.getLabel(t("general:Root cert"), t("general:Root cert - Tooltip"))} :
             </Col>
             <Col span={22} >
               <Select virtual={false} style={{width: "100%"}} value={provider.metadata} onChange={(value => {updateProviderField("metadata", value);})}>
@@ -58,7 +62,7 @@ export function renderPaymentProviderFields(provider, updateProviderField, certs
       {(provider.type === "GC" || provider.type === "FastSpring") ? (
         <Row style={{marginTop: "20px"}}>
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("provider:Host"), i18next.t("provider:Host - Tooltip"))} :
+            {Setting.getLabel(t("provider:Host"), t("provider:Host - Tooltip"))} :
           </Col>
           <Col span={22}>
             <Input prefix={<LinkOutlined />} value={provider.host} onChange={e => {

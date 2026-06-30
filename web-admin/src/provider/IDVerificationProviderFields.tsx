@@ -17,12 +17,16 @@ import {Col, Input, Row} from "antd";
 import {LinkOutlined} from "@ant-design/icons";
 import * as Setting from "../Setting";
 import i18next from "i18next";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {ProviderConfig, UpdateProviderField} from "./ProviderFieldTypes";
 
-export function renderIDVerificationProviderFields(provider, updateProviderField) {
+const t = i18next.t.bind(i18next) as (key: string) => string;
+
+export function renderIDVerificationProviderFields(provider: ProviderConfig, updateProviderField: UpdateProviderField): React.ReactNode {
   return (
     <Row style={{marginTop: "20px"}} >
       <Col style={{marginTop: "5px"}} span={2}>
-        {Setting.getLabel(i18next.t("provider:Endpoint"), i18next.t("provider:Region endpoint for Internet"))} :
+        {Setting.getLabel(t("provider:Endpoint"), t("provider:Region endpoint for Internet"))} :
       </Col>
       <Col span={22} >
         <Input prefix={<LinkOutlined />} value={provider.endpoint} onChange={e => {

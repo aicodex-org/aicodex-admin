@@ -17,12 +17,16 @@ import {Col, Row} from "antd";
 import * as Setting from "../Setting";
 import i18next from "i18next";
 import {CaptchaPreview} from "../common/CaptchaPreview";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {ProviderConfig} from "./ProviderFieldTypes";
 
-export function renderCaptchaProviderFields(provider, providerName) {
+const t = i18next.t.bind(i18next) as (key: string) => string;
+
+export function renderCaptchaProviderFields(provider: ProviderConfig, providerName: string): React.ReactNode {
   return (
     <Row style={{marginTop: "20px"}} >
       <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-        {Setting.getLabel(i18next.t("general:Preview"), i18next.t("general:Preview - Tooltip"))} :
+        {Setting.getLabel(t("general:Preview"), t("general:Preview - Tooltip"))} :
       </Col>
       <Col span={22} >
         <CaptchaPreview

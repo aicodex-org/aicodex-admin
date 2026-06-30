@@ -1,6 +1,12 @@
 import i18next from "i18next";
 
-export function getWeComRequiredFields(provider) {
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {ProviderConfig} from "./ProviderFieldTypes";
+
+type Translate = (key: string) => string;
+type WeComRequiredField = "clientId" | "clientSecret" | "appId" | "scopes";
+
+export function getWeComRequiredFields(provider: ProviderConfig): WeComRequiredField[] {
   if (provider.subType === "Internal" && provider.method === "Normal") {
     return ["clientId", "clientSecret", "appId"];
   }
@@ -20,7 +26,7 @@ export function getWeComRequiredFields(provider) {
   return [];
 }
 
-export function validateWeComProviderFields(provider, translate = i18next.t.bind(i18next)) {
+export function validateWeComProviderFields(provider: ProviderConfig, translate: Translate = i18next.t.bind(i18next)): string {
   if (provider.type !== "WeCom") {
     return "";
   }
@@ -33,7 +39,7 @@ export function validateWeComProviderFields(provider, translate = i18next.t.bind
     return translate("provider:Please select WeCom login method first");
   }
 
-  const fieldLabels = {
+  const fieldLabels: Record<WeComRequiredField, string> = {
     clientId: provider.subType === "Internal" ? "Corp ID" : "Provider App ID",
     clientSecret: provider.subType === "Internal" ? "Secret" : "Provider Secret",
     appId: "Agent ID",

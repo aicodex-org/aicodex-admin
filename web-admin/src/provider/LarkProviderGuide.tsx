@@ -17,8 +17,12 @@ import {Alert, Col, Input, Row} from "antd";
 import i18next from "i18next";
 import * as Setting from "../Setting";
 import {getLarkProviderCallbackUrl, getLarkProviderEndpointModeInfo, isLarkProvider} from "./LarkProviderUtils";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {ProviderConfig} from "./ProviderFieldTypes";
 
-export function renderLarkProviderGuide(provider, origin = window.location.origin) {
+const t = i18next.t.bind(i18next) as (key: string) => string;
+
+export function renderLarkProviderGuide(provider: ProviderConfig, origin = window.location.origin): React.ReactNode {
   if (!isLarkProvider(provider)) {
     return null;
   }
@@ -33,14 +37,14 @@ export function renderLarkProviderGuide(provider, origin = window.location.origi
           <Alert
             type="info"
             showIcon
-            message={i18next.t("provider:Feishu / Lark login setup")}
+            message={t("provider:Feishu / Lark login setup")}
             description={(
               <div>
-                <div>{i18next.t("provider:Lark Provider type supports domestic Feishu and global Lark; no separate Feishu Provider type is required")}</div>
-                <div>{`${i18next.t("provider:Selected endpoint mode")}: ${i18next.t(`provider:${endpointModeInfo.modeName}`)}`}</div>
-                <div>{i18next.t("provider:Configure this callback URL in the matching Feishu or Lark open platform application")}</div>
-                <div>{i18next.t("provider:If an application uses forcedRedirectOrigin or shares this Provider, use the authentication center origin that actually starts login")}</div>
-                <div>{i18next.t("provider:The AICodex client redirect URI is downstream; desktop custom scheme deep link must not be configured as the Feishu or Lark callback URL")}</div>
+                <div>{t("provider:Lark Provider type supports domestic Feishu and global Lark; no separate Feishu Provider type is required")}</div>
+                <div>{`${t("provider:Selected endpoint mode")}: ${t(`provider:${endpointModeInfo.modeName}`)}`}</div>
+                <div>{t("provider:Configure this callback URL in the matching Feishu or Lark open platform application")}</div>
+                <div>{t("provider:If an application uses forcedRedirectOrigin or shares this Provider, use the authentication center origin that actually starts login")}</div>
+                <div>{t("provider:The AICodex client redirect URI is downstream; desktop custom scheme deep link must not be configured as the Feishu or Lark callback URL")}</div>
               </div>
             )}
           />
@@ -48,7 +52,7 @@ export function renderLarkProviderGuide(provider, origin = window.location.origi
       </Row>
       <Row style={{marginTop: "20px"}}>
         <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-          {Setting.getLabel(i18next.t("provider:Callback URL"), i18next.t("provider:Feishu / Lark callback URL - Tooltip"))} :
+          {Setting.getLabel(t("provider:Callback URL"), t("provider:Feishu / Lark callback URL - Tooltip"))} :
         </Col>
         <Col span={22}>
           <Input readOnly value={callbackUrl} />

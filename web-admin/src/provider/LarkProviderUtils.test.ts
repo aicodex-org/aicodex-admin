@@ -1,4 +1,5 @@
 /* eslint-env jest */
+import {expect} from "@jest/globals";
 
 import {
   getLarkProviderBrand,
@@ -88,7 +89,7 @@ describe("LarkProviderUtils", () => {
   });
 
   test("requires App ID and App Secret for Lark OAuth providers", () => {
-    const translate = key => key === "provider:This field is required" ? "is required" : key;
+    const translate = (key: string) => key === "provider:This field is required" ? "is required" : key;
 
     expect(validateLarkProviderFields({
       type: "Lark",

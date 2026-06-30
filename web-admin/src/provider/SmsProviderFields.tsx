@@ -20,20 +20,24 @@ import * as ProviderEditTestSms from "../common/TestSmsWidget";
 import {CountryCodeSelect} from "../common/select/CountryCodeSelect";
 import HttpHeaderTable from "../table/HttpHeaderTable";
 import {LinkOutlined} from "@ant-design/icons";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {AccountConfig, ProviderConfig, ProviderFieldValue, RenderProviderNode, UpdateProviderField} from "./ProviderFieldTypes";
+
+const t = i18next.t.bind(i18next) as (key: string) => string;
 
 const {Option} = Select;
 
 const SMS_PROVIDERS_WITHOUT_SIGN_NAME = ["Custom HTTP SMS", "Twilio SMS", "Amazon SNS", "Msg91 SMS", "Infobip SMS"];
 const SMS_PROVIDERS_WITHOUT_TEMPLATE_CODE = ["Infobip SMS", "Custom HTTP SMS"];
 
-export function renderSmsProviderFields(provider, updateProviderField, renderSmsMappingInput, account) {
+export function renderSmsProviderFields(provider: ProviderConfig, updateProviderField: UpdateProviderField, renderSmsMappingInput: RenderProviderNode, account: AccountConfig): React.ReactNode {
   return (
     <React.Fragment>
       {SMS_PROVIDERS_WITHOUT_SIGN_NAME.includes(provider.type) ?
         null :
         (<Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("provider:Sign Name"), i18next.t("provider:Sign Name - Tooltip"))} :
+            {Setting.getLabel(t("provider:Sign Name"), t("provider:Sign Name - Tooltip"))} :
           </Col>
           <Col span={22} >
             <Input value={provider.signName} onChange={e => {
@@ -47,7 +51,7 @@ export function renderSmsProviderFields(provider, updateProviderField, renderSms
         null :
         (<Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("provider:Template code"), i18next.t("provider:Template code - Tooltip"))} :
+            {Setting.getLabel(t("provider:Template code"), t("provider:Template code - Tooltip"))} :
           </Col>
           <Col span={22} >
             <Input value={provider.templateCode} onChange={e => {
@@ -62,7 +66,7 @@ export function renderSmsProviderFields(provider, updateProviderField, renderSms
           <React.Fragment>
             <Row style={{marginTop: "20px"}} >
               <Col style={{marginTop: "5px"}} span={2}>
-                {Setting.getLabel(i18next.t("provider:Endpoint"), i18next.t("provider:Region endpoint for Internet"))} :
+                {Setting.getLabel(t("provider:Endpoint"), t("provider:Region endpoint for Internet"))} :
               </Col>
               <Col span={22} >
                 <Input prefix={<LinkOutlined />} value={provider.endpoint} onChange={e => {
@@ -72,7 +76,7 @@ export function renderSmsProviderFields(provider, updateProviderField, renderSms
             </Row>
             <Row style={{marginTop: "20px"}} >
               <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                {Setting.getLabel(i18next.t("general:Method"), i18next.t("provider:Method - Tooltip"))} :
+                {Setting.getLabel(t("general:Method"), t("provider:Method - Tooltip"))} :
               </Col>
               <Col span={22} >
                 <Select virtual={false} style={{width: "100%"}} value={provider.method} onChange={value => {
@@ -92,7 +96,7 @@ export function renderSmsProviderFields(provider, updateProviderField, renderSms
             {
               provider.method !== "GET" ? (<Row style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                  {Setting.getLabel(i18next.t("webhook:Content type"), i18next.t("webhook:Content type - Tooltip"))} :
+                  {Setting.getLabel(t("webhook:Content type"), t("webhook:Content type - Tooltip"))} :
                 </Col>
                 <Col span={22} >
                   <Select virtual={false} style={{width: "100%"}} value={provider.issuerUrl === "" ? "application/x-www-form-urlencoded" : provider.issuerUrl} onChange={value => {
@@ -110,15 +114,15 @@ export function renderSmsProviderFields(provider, updateProviderField, renderSms
             }
             <Row style={{marginTop: "20px"}} >
               <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                {Setting.getLabel(i18next.t("provider:HTTP header"), i18next.t("provider:HTTP header - Tooltip"))} :
+                {Setting.getLabel(t("provider:HTTP header"), t("provider:HTTP header - Tooltip"))} :
               </Col>
               <Col span={22} >
-                <HttpHeaderTable httpHeaders={provider.httpHeaders} onUpdateTable={(value) => {updateProviderField("httpHeaders", value);}} />
+                <HttpHeaderTable httpHeaders={provider.httpHeaders} onUpdateTable={(value: ProviderFieldValue) => {updateProviderField("httpHeaders", value);}} />
               </Col>
             </Row>
             {provider.method !== "GET" ? <Row style={{marginTop: "20px"}}>
               <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                {Setting.getLabel(i18next.t("provider:HTTP body mapping"), i18next.t("provider:HTTP body mapping - Tooltip"))} :
+                {Setting.getLabel(t("provider:HTTP body mapping"), t("provider:HTTP body mapping - Tooltip"))} :
               </Col>
               <Col span={22}>
                 {renderSmsMappingInput()}
@@ -126,7 +130,7 @@ export function renderSmsProviderFields(provider, updateProviderField, renderSms
             </Row> : null}
             <Row style={{marginTop: "20px"}} >
               <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                {Setting.getLabel(i18next.t("provider:Parameter"), i18next.t("provider:Parameter - Tooltip"))} :
+                {Setting.getLabel(t("provider:Parameter"), t("provider:Parameter - Tooltip"))} :
               </Col>
               <Col span={22} >
                 <Input value={provider.title} onChange={e => {
@@ -139,7 +143,7 @@ export function renderSmsProviderFields(provider, updateProviderField, renderSms
       }
       <Row style={{marginTop: "20px"}} >
         <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-          {Setting.getLabel(i18next.t("provider:Enable proxy"), i18next.t("provider:Enable proxy - Tooltip"))} :
+          {Setting.getLabel(t("provider:Enable proxy"), t("provider:Enable proxy - Tooltip"))} :
         </Col>
         <Col span={1} >
           <Switch checked={provider.enableProxy} onChange={checked => {
@@ -149,21 +153,21 @@ export function renderSmsProviderFields(provider, updateProviderField, renderSms
       </Row>
       <Row style={{marginTop: "20px"}} >
         <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-          {Setting.getLabel(i18next.t("provider:SMS Test"), i18next.t("provider:SMS Test - Tooltip"))} :
+          {Setting.getLabel(t("provider:SMS Test"), t("provider:SMS Test - Tooltip"))} :
         </Col>
         <Col span={4} >
           <Input.Group compact>
             <CountryCodeSelect
               style={{width: "90px"}}
               initValue={provider.content}
-              onChange={(value) => {
+              onChange={(value: string) => {
                 updateProviderField("content", value);
               }}
-              countryCodes={account.organization.countryCodes}
+              countryCodes={account.organization?.countryCodes ?? []}
             />
             <Input value={provider.receiver}
               style={{width: "150px"}}
-              placeholder = {i18next.t("user:Input your phone number")}
+              placeholder = {t("user:Input your phone number")}
               onChange={e => {
                 updateProviderField("receiver", e.target.value);
               }} />
@@ -173,7 +177,7 @@ export function renderSmsProviderFields(provider, updateProviderField, renderSms
           <Button style={{marginLeft: "10px", marginBottom: "5px"}} type="primary"
             disabled={!Setting.isValidPhone(provider.receiver) || (provider.type === "Custom HTTP SMS" && provider.endpoint === "")}
             onClick={() => ProviderEditTestSms.sendTestSms(provider, "+" + Setting.getCountryCode(provider.content) + provider.receiver)} >
-            {i18next.t("provider:Send Testing SMS")}
+            {t("provider:Send Testing SMS")}
           </Button>
         </Col>
       </Row>

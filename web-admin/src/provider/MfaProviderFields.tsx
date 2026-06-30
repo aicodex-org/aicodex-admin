@@ -17,13 +17,17 @@ import {Col, Input, InputNumber, Row} from "antd";
 import {LinkOutlined} from "@ant-design/icons";
 import * as Setting from "../Setting";
 import i18next from "i18next";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {ProviderConfig, UpdateProviderField} from "./ProviderFieldTypes";
 
-export function renderMfaProviderFields(provider, updateProviderField) {
+const t = i18next.t.bind(i18next) as (key: string) => string;
+
+export function renderMfaProviderFields(provider: ProviderConfig, updateProviderField: UpdateProviderField): React.ReactNode {
   return (
     <React.Fragment>
       <Row style={{marginTop: "20px"}} >
         <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-          {Setting.getLabel(i18next.t("provider:Host"), i18next.t("provider:Host - Tooltip"))} :
+          {Setting.getLabel(t("provider:Host"), t("provider:Host - Tooltip"))} :
         </Col>
         <Col span={22} >
           <Input prefix={<LinkOutlined />} value={provider.host} placeholder="10.10.10.10" onChange={e => {
@@ -33,7 +37,7 @@ export function renderMfaProviderFields(provider, updateProviderField) {
       </Row>
       <Row style={{marginTop: "20px"}} >
         <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-          {Setting.getLabel(i18next.t("provider:Port"), i18next.t("provider:Port - Tooltip"))} :
+          {Setting.getLabel(t("provider:Port"), t("provider:Port - Tooltip"))} :
         </Col>
         <Col span={22} >
           <InputNumber value={provider.port} onChange={value => {
@@ -43,7 +47,7 @@ export function renderMfaProviderFields(provider, updateProviderField) {
       </Row>
       <Row style={{marginTop: "20px"}} >
         <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-          {Setting.getLabel(i18next.t("provider:Client secret"), i18next.t("provider:RADIUS Shared Secret - Tooltip"))} :
+          {Setting.getLabel(t("provider:Client secret"), t("provider:RADIUS Shared Secret - Tooltip"))} :
         </Col>
         <Col span={22} >
           <Input value={provider.clientSecret} placeholder="Shared secret" onChange={e => {

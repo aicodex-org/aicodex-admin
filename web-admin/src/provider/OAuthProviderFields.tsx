@@ -18,11 +18,15 @@ import {LinkOutlined} from "@ant-design/icons";
 import * as Setting from "../Setting";
 import i18next from "i18next";
 import {getLarkProviderEndpointModeInfo, isLarkProvider} from "./LarkProviderUtils";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {ProviderConfig, RenderProviderNode, UpdateProviderField} from "./ProviderFieldTypes";
+
+const t = i18next.t.bind(i18next) as (key: string) => string;
 
 const {TextArea} = Input;
 
-export function renderOAuthProviderFields(provider, updateProviderField, renderUserMappingInput) {
-  const renderLarkEndpointModeInfo = provider => {
+export function renderOAuthProviderFields(provider: ProviderConfig, updateProviderField: UpdateProviderField, renderUserMappingInput: RenderProviderNode): React.ReactNode {
+  const renderLarkEndpointModeInfo = (provider: ProviderConfig): React.ReactNode => {
     if (!isLarkProvider(provider)) {
       return null;
     }
@@ -32,25 +36,25 @@ export function renderOAuthProviderFields(provider, updateProviderField, renderU
     return (
       <Col span={21}>
         <div style={{lineHeight: "22px", color: "rgba(0, 0, 0, 0.65)"}}>
-          <div>{`${i18next.t("provider:Selected endpoint mode")}: ${i18next.t(`provider:${endpointModeInfo.modeName}`)}`}</div>
-          <div>{`${i18next.t("provider:Authorization domain")}: ${endpointModeInfo.authDomain}`}</div>
-          <div>{`${i18next.t("provider:API domain")}: ${endpointModeInfo.apiDomain}`}</div>
-          <div>{`${i18next.t("provider:App ID and App Secret must come from")}: ${i18next.t(`provider:${endpointModeInfo.credentialPlatform}`)}`}</div>
+          <div>{`${t("provider:Selected endpoint mode")}: ${t(`provider:${endpointModeInfo.modeName}`)}`}</div>
+          <div>{`${t("provider:Authorization domain")}: ${endpointModeInfo.authDomain}`}</div>
+          <div>{`${t("provider:API domain")}: ${endpointModeInfo.apiDomain}`}</div>
+          <div>{`${t("provider:App ID and App Secret must come from")}: ${t(`provider:${endpointModeInfo.credentialPlatform}`)}`}</div>
         </div>
       </Col>
     );
   };
 
-  const getDomainLabel = provider => {
+  const getDomainLabel = (provider: ProviderConfig): React.ReactNode => {
     switch (provider.category) {
     case "OAuth":
       if (provider.type === "AzureAD" || provider.type === "AzureADB2C") {
-        return Setting.getLabel(i18next.t("provider:Tenant ID"), i18next.t("provider:Tenant ID - Tooltip"));
+        return Setting.getLabel(t("provider:Tenant ID"), t("provider:Tenant ID - Tooltip"));
       } else {
-        return Setting.getLabel(i18next.t("provider:Domain"), i18next.t("provider:Domain - Tooltip"));
+        return Setting.getLabel(t("provider:Domain"), t("provider:Domain - Tooltip"));
       }
     default:
-      return Setting.getLabel(i18next.t("provider:Domain"), i18next.t("provider:Domain - Tooltip"));
+      return Setting.getLabel(t("provider:Domain"), t("provider:Domain - Tooltip"));
     }
   };
 
@@ -58,7 +62,7 @@ export function renderOAuthProviderFields(provider, updateProviderField, renderU
     <React.Fragment>
       <Row style={{marginTop: "20px"}} >
         <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-          {Setting.getLabel(i18next.t("provider:Email regex"), i18next.t("provider:Email regex - Tooltip"))} :
+          {Setting.getLabel(t("provider:Email regex"), t("provider:Email regex - Tooltip"))} :
         </Col>
         <Col span={22}>
           <TextArea rows={4} value={provider.emailRegex} onChange={e => {
@@ -71,7 +75,7 @@ export function renderOAuthProviderFields(provider, updateProviderField, renderU
           <React.Fragment>
             <Row style={{marginTop: "20px"}} >
               <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                {Setting.getLabel(i18next.t("provider:Use WeChat Media Platform in PC"), i18next.t("provider:Use WeChat Media Platform in PC - Tooltip"))} :
+                {Setting.getLabel(t("provider:Use WeChat Media Platform in PC"), t("provider:Use WeChat Media Platform in PC - Tooltip"))} :
               </Col>
               <Col span={1} >
                 <Switch disabled={!provider.clientId} checked={provider.disableSsl} onChange={checked => {
@@ -81,7 +85,7 @@ export function renderOAuthProviderFields(provider, updateProviderField, renderU
             </Row>
             <Row style={{marginTop: "20px"}} >
               <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                {Setting.getLabel(i18next.t("token:Access token"), i18next.t("token:Access token - Tooltip"))} :
+                {Setting.getLabel(t("token:Access token"), t("token:Access token - Tooltip"))} :
               </Col>
               <Col span={22} >
                 <Input value={provider.content} disabled={!provider.disableSsl || !provider.clientId2} onChange={e => {
@@ -91,7 +95,7 @@ export function renderOAuthProviderFields(provider, updateProviderField, renderU
             </Row>
             <Row style={{marginTop: "20px"}} >
               <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                {Setting.getLabel(i18next.t("provider:Follow-up action"), i18next.t("provider:Follow-up action - Tooltip"))} :
+                {Setting.getLabel(t("provider:Follow-up action"), t("provider:Follow-up action - Tooltip"))} :
               </Col>
               <Col>
                 <Radio.Group value={provider.signName}
@@ -100,8 +104,8 @@ export function renderOAuthProviderFields(provider, updateProviderField, renderU
                   onChange={e => {
                     updateProviderField("signName", e.target.value);
                   }}>
-                  <Radio.Button value="open">{i18next.t("provider:Use WeChat Open Platform to login")}</Radio.Button>
-                  <Radio.Button value="media">{i18next.t("provider:Use WeChat Media Platform to login")}</Radio.Button>
+                  <Radio.Button value="open">{t("provider:Use WeChat Open Platform to login")}</Radio.Button>
+                  <Radio.Button value="media">{t("provider:Use WeChat Media Platform to login")}</Radio.Button>
                 </Radio.Group>
               </Col>
             </Row>
@@ -129,8 +133,8 @@ export function renderOAuthProviderFields(provider, updateProviderField, renderU
           <Row style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
               {provider.type === "Google" ?
-                Setting.getLabel(i18next.t("provider:Get phone number"), i18next.t("provider:Get phone number - Tooltip"))
-                : Setting.getLabel(i18next.t("provider:Endpoint mode"), i18next.t("provider:Lark endpoint mode - Tooltip"))} :
+                Setting.getLabel(t("provider:Get phone number"), t("provider:Get phone number - Tooltip"))
+                : Setting.getLabel(t("provider:Endpoint mode"), t("provider:Lark endpoint mode - Tooltip"))} :
             </Col>
             <Col span={1} >
               <Switch disabled={!provider.clientId} checked={provider.disableSsl} onChange={checked => {
@@ -142,12 +146,12 @@ export function renderOAuthProviderFields(provider, updateProviderField, renderU
         )
       }
       {
-        provider.type.startsWith("Custom") ? (
+        (provider.type ?? "").startsWith("Custom") ? (
           <React.Fragment>
             <Col>
               <Row style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                  {Setting.getLabel(i18next.t("provider:Auth URL"), i18next.t("provider:Auth URL - Tooltip"))}
+                  {Setting.getLabel(t("provider:Auth URL"), t("provider:Auth URL - Tooltip"))}
                 </Col>
                 <Col span={22} >
                   <Input value={provider.customAuthUrl} onChange={e => {
@@ -157,7 +161,7 @@ export function renderOAuthProviderFields(provider, updateProviderField, renderU
               </Row>
               <Row style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                  {Setting.getLabel(i18next.t("provider:Token URL"), i18next.t("provider:Token URL - Tooltip"))}
+                  {Setting.getLabel(t("provider:Token URL"), t("provider:Token URL - Tooltip"))}
                 </Col>
                 <Col span={22} >
                   <Input value={provider.customTokenUrl} onChange={e => {
@@ -167,7 +171,7 @@ export function renderOAuthProviderFields(provider, updateProviderField, renderU
               </Row>
               <Row style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                  {Setting.getLabel(i18next.t("provider:Scope"), i18next.t("provider:Scope - Tooltip"))}
+                  {Setting.getLabel(t("provider:Scope"), t("provider:Scope - Tooltip"))}
                 </Col>
                 <Col span={22} >
                   <Input value={provider.scopes} onChange={e => {
@@ -177,7 +181,7 @@ export function renderOAuthProviderFields(provider, updateProviderField, renderU
               </Row>
               <Row style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                  {Setting.getLabel(i18next.t("provider:UserInfo URL"), i18next.t("provider:UserInfo URL - Tooltip"))}
+                  {Setting.getLabel(t("provider:UserInfo URL"), t("provider:UserInfo URL - Tooltip"))}
                 </Col>
                 <Col span={22} >
                   <Input value={provider.customUserInfoUrl} onChange={e => {
@@ -187,7 +191,7 @@ export function renderOAuthProviderFields(provider, updateProviderField, renderU
               </Row>
               <Row style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                  {Setting.getLabel(i18next.t("provider:Enable PKCE"), i18next.t("provider:Enable PKCE - Tooltip"))} :
+                  {Setting.getLabel(t("provider:Enable PKCE"), t("provider:Enable PKCE - Tooltip"))} :
                 </Col>
                 <Col span={22} >
                   <Switch checked={provider.enablePkce} onChange={checked => {
@@ -198,7 +202,7 @@ export function renderOAuthProviderFields(provider, updateProviderField, renderU
             </Col>
             <Row style={{marginTop: "20px"}} >
               <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                {Setting.getLabel(i18next.t("provider:User mapping"), i18next.t("provider:User mapping - Tooltip"))} :
+                {Setting.getLabel(t("provider:User mapping"), t("provider:User mapping - Tooltip"))} :
               </Col>
               <Col span={22} >
                 {renderUserMappingInput()}
@@ -206,12 +210,12 @@ export function renderOAuthProviderFields(provider, updateProviderField, renderU
             </Row>
             <Row style={{marginTop: "20px"}} >
               <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                {Setting.getLabel(i18next.t("general:Favicon"), i18next.t("general:Favicon - Tooltip"))} :
+                {Setting.getLabel(t("general:Favicon"), t("general:Favicon - Tooltip"))} :
               </Col>
               <Col span={22} >
                 <Row style={{marginTop: "20px"}} >
                   <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 1}>
-                    {Setting.getLabel(i18next.t("general:URL"), i18next.t("general:URL - Tooltip"))} :
+                    {Setting.getLabel(t("general:URL"), t("general:URL - Tooltip"))} :
                   </Col>
                   <Col span={23} >
                     <Input prefix={<LinkOutlined />} value={provider.customLogo} onChange={e => {
@@ -221,7 +225,7 @@ export function renderOAuthProviderFields(provider, updateProviderField, renderU
                 </Row>
                 <Row style={{marginTop: "20px"}} >
                   <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 1}>
-                    {i18next.t("general:Preview")}:
+                    {t("general:Preview")}:
                   </Col>
                   <Col span={23} >
                     <a target="_blank" rel="noreferrer" href={provider.customLogo}>

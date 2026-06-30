@@ -17,14 +17,18 @@ import {Col, Input, Row} from "antd";
 import {LinkOutlined} from "@ant-design/icons";
 import * as Setting from "../Setting";
 import i18next from "i18next";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {ProviderConfig, UpdateProviderField} from "./ProviderFieldTypes";
 
-export function renderStorageProviderFields(provider, updateProviderField) {
+const t = i18next.t.bind(i18next) as (key: string) => string;
+
+export function renderStorageProviderFields(provider: ProviderConfig, updateProviderField: UpdateProviderField): React.ReactNode {
   return (
     <React.Fragment>
       {["Local File System", "MinIO", "Tencent Cloud COS", "Google Cloud Storage", "Qiniu Cloud Kodo", "Synology", "Casdoor"].includes(provider.type) ? null : (
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={2}>
-            {Setting.getLabel(i18next.t("provider:Endpoint (Intranet)"), i18next.t("provider:Region endpoint for Intranet"))} :
+            {Setting.getLabel(t("provider:Endpoint (Intranet)"), t("provider:Region endpoint for Intranet"))} :
           </Col>
           <Col span={22} >
             <Input prefix={<LinkOutlined />} value={provider.intranetEndpoint} onChange={e => {
@@ -36,7 +40,7 @@ export function renderStorageProviderFields(provider, updateProviderField) {
       {["Local File System"].includes(provider.type) ? null : (
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={2}>
-            {Setting.getLabel(i18next.t("provider:Endpoint"), i18next.t("provider:Region endpoint for Internet"))} :
+            {Setting.getLabel(t("provider:Endpoint"), t("provider:Region endpoint for Internet"))} :
           </Col>
           <Col span={22} >
             <Input prefix={<LinkOutlined />} value={provider.endpoint} onChange={e => {
@@ -49,8 +53,8 @@ export function renderStorageProviderFields(provider, updateProviderField) {
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={2}>
             {["Casdoor"].includes(provider.type) ?
-              Setting.getLabel(i18next.t("general:Provider"), i18next.t("general:Provider - Tooltip"))
-              : Setting.getLabel(i18next.t("provider:Bucket"), i18next.t("provider:Bucket - Tooltip"))} :
+              Setting.getLabel(t("general:Provider"), t("general:Provider - Tooltip"))
+              : Setting.getLabel(t("provider:Bucket"), t("provider:Bucket - Tooltip"))} :
           </Col>
           <Col span={22} >
             <Input value={provider.bucket} onChange={e => {
@@ -61,7 +65,7 @@ export function renderStorageProviderFields(provider, updateProviderField) {
       )}
       <Row style={{marginTop: "20px"}} >
         <Col style={{marginTop: "5px"}} span={2}>
-          {Setting.getLabel(i18next.t("provider:Path prefix"), i18next.t("provider:Path prefix - Tooltip"))} :
+          {Setting.getLabel(t("provider:Path prefix"), t("provider:Path prefix - Tooltip"))} :
         </Col>
         <Col span={22} >
           <Input value={provider.pathPrefix} onChange={e => {
@@ -72,7 +76,7 @@ export function renderStorageProviderFields(provider, updateProviderField) {
       {["Synology", "Casdoor"].includes(provider.type) ? null : (
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={2}>
-            {Setting.getLabel(i18next.t("provider:Domain"), i18next.t("provider:Domain - Tooltip"))} :
+            {Setting.getLabel(t("provider:Domain"), t("provider:Domain - Tooltip"))} :
           </Col>
           <Col span={22} >
             <Input prefix={<LinkOutlined />} value={provider.domain} disabled={provider.type === "Local File System"} onChange={e => {
@@ -84,7 +88,7 @@ export function renderStorageProviderFields(provider, updateProviderField) {
       {["Casdoor"].includes(provider.type) ? (
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={2}>
-            {Setting.getLabel(i18next.t("general:Organization"), i18next.t("general:Organization - Tooltip"))} :
+            {Setting.getLabel(t("general:Organization"), t("general:Organization - Tooltip"))} :
           </Col>
           <Col span={22} >
             <Input value={provider.content} onChange={e => {
@@ -97,8 +101,8 @@ export function renderStorageProviderFields(provider, updateProviderField) {
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={2}>
             {["Casdoor"].includes(provider.type) ?
-              Setting.getLabel(i18next.t("general:Application"), i18next.t("general:Application - Tooltip")) :
-              Setting.getLabel(i18next.t("provider:Region ID"), i18next.t("provider:Region ID - Tooltip"))} :
+              Setting.getLabel(t("general:Application"), t("general:Application - Tooltip")) :
+              Setting.getLabel(t("provider:Region ID"), t("provider:Region ID - Tooltip"))} :
           </Col>
           <Col span={22} >
             <Input value={provider.regionId} onChange={e => {

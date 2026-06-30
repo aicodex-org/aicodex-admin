@@ -35,8 +35,13 @@ import {renderIDVerificationProviderFields} from "./provider/IDVerificationProvi
 import {getWeComRequiredFields, validateWeComProviderFields} from "./provider/WeComProviderUtils";
 import {renderLarkProviderGuide} from "./provider/LarkProviderGuide";
 import {validateLarkProviderFields} from "./provider/LarkProviderUtils";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {AccountConfig, CertConfig, ProviderConfig, ProviderFieldName, ProviderFieldValue} from "./provider/ProviderFieldTypes";
+
+const t = i18next.t.bind(i18next) as (key: string) => string;
 
 const {Option} = Select;
+
 const {TextArea} = Input;
 
 const defaultUserMapping = {
@@ -68,17 +73,66 @@ const defaultSmsMapping = {
   content: "content",
 };
 
-class ProviderEditPage extends React.Component {
-  constructor(props) {
+interface ProviderEditPageProps {
+  account: AccountConfig;
+  history: {
+    push: (path: string) => void;
+  };
+  location: {
+    mode?: "add" | "edit";
+  };
+  match: {
+    params: {
+      organizationName: string;
+      providerName: string;
+    };
+  };
+  organizationName?: string;
+}
+
+interface OrganizationConfig {
+  name: string;
+  [key: string]: unknown;
+}
+
+interface ProviderEditPageState {
+  classes: ProviderEditPageProps;
+  providerName: string;
+  owner: string;
+  provider: EditableProviderConfig;
+  certs: CertConfig[];
+  organizations: OrganizationConfig[];
+  mode: "add" | "edit";
+  requestUrl: string;
+  metadataLoading: boolean;
+}
+
+interface EditableProviderConfig extends ProviderConfig {
+  category: string;
+  name: string;
+  owner: string;
+  type: string;
+  userMapping: Record<string, string>;
+}
+
+interface ProviderSubTypeOption {
+  id: string;
+  name: string;
+}
+
+class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEditPageState> {
+  constructor(props: ProviderEditPageProps) {
     super(props);
     this.state = {
       classes: props,
       providerName: props.match.params.providerName,
       owner: props.organizationName !== undefined ? props.organizationName : props.match.params.organizationName,
-      provider: null,
+      provider: null as unknown as EditableProviderConfig,
       certs: [],
       organizations: [],
       mode: props.location.mode !== undefined ? props.location.mode : "edit",
+      requestUrl: "",
+      metadataLoading: false,
     };
   }
 
@@ -97,7 +151,7 @@ class ProviderEditPage extends React.Component {
         }
 
         if (res.status === "ok") {
-          const provider = res.data;
+          const provider = res.data as EditableProviderConfig;
           if (provider.type === "Custom HTTP Email") {
             if (!provider.userMapping) {
               provider.userMapping = provider.userMapping || defaultEmailMapping;
@@ -135,7 +189,7 @@ class ProviderEditPage extends React.Component {
     }
   }
 
-  getCerts(owner) {
+  getCerts(owner: string) {
     CertBackend.getCerts(owner)
       .then((res) => {
         if (res.status === "ok") {
@@ -146,21 +200,21 @@ class ProviderEditPage extends React.Component {
       });
   }
 
-  parseProviderField(key, value) {
+  parseProviderField(key: ProviderFieldName, value: ProviderFieldValue): ProviderFieldValue {
     if (["port"].includes(key)) {
       value = Setting.myParseInt(value);
     }
     return value;
   }
 
-  updateProviderField(key, value) {
+  updateProviderField(key: ProviderFieldName, value: ProviderFieldValue) {
     value = this.parseProviderField(key, value);
 
     const provider = this.state.provider;
     if (key === "owner" && provider["owner"] !== value) {
       // the provider change the owner, reset the cert
       provider["cert"] = "";
-      this.getCerts(value);
+      this.getCerts(String(value));
     }
 
     provider[key] = value;
@@ -196,27 +250,27 @@ class ProviderEditPage extends React.Component {
     });
   }
 
-  getWeComCallbackUrl() {
+  getWeComCallbackUrl(): string {
     return `${window.location.origin}/callback`;
   }
 
-  getWeComRequiredFields(provider) {
+  getWeComRequiredFields(provider: ProviderConfig) {
     return getWeComRequiredFields(provider);
   }
 
-  validateWeComProvider(provider) {
+  validateWeComProvider(provider: ProviderConfig): string {
     return validateWeComProviderFields(provider);
   }
 
-  validateLarkProvider(provider) {
+  validateLarkProvider(provider: ProviderConfig): string {
     return validateLarkProviderFields(provider);
   }
 
-  renderLarkGuide(provider) {
+  renderLarkGuide(provider: ProviderConfig): React.ReactNode {
     return renderLarkProviderGuide(provider);
   }
 
-  renderWeComGuide(provider) {
+  renderWeComGuide(provider: ProviderConfig): React.ReactNode {
     if (provider.type !== "WeCom") {
       return null;
     }
@@ -232,12 +286,12 @@ class ProviderEditPage extends React.Component {
             <Alert
               type="info"
               showIcon
-              message={i18next.t("provider:WeCom web login setup")}
+              message={t("provider:WeCom web login setup")}
               description={(
                 <div>
-                  <div>{i18next.t("provider:Homepage QR login currently targets Internal + Normal mode first")}</div>
-                  <div>{i18next.t("provider:Recommended mode")}: {recommendedMode}</div>
-                  <div>{i18next.t("provider:Configure the callback URL and trusted domain in WeCom admin before testing")}</div>
+                  <div>{t("provider:Homepage QR login currently targets Internal + Normal mode first")}</div>
+                  <div>{t("provider:Recommended mode")}: {recommendedMode}</div>
+                  <div>{t("provider:Configure the callback URL and trusted domain in WeCom admin before testing")}</div>
                 </div>
               )}
             />
@@ -245,7 +299,7 @@ class ProviderEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}}>
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("provider:Callback URL"), i18next.t("provider:Callback URL - Tooltip"))} :
+            {Setting.getLabel(t("provider:Callback URL"), t("provider:Callback URL - Tooltip"))} :
           </Col>
           <Col span={22}>
             <Input readOnly value={this.getWeComCallbackUrl()} />
@@ -255,18 +309,18 @@ class ProviderEditPage extends React.Component {
     );
   }
 
-  updateUserMappingField(key, value) {
+  updateUserMappingField(key: string, value: string) {
     const requiredKeys = ["id", "username", "displayName"];
     const provider = this.state.provider;
 
     if (provider.type === "Custom HTTP Email") {
       if (value === "") {
-        Setting.showMessage("error", i18next.t("provider:This field is required"));
+        Setting.showMessage("error", t("provider:This field is required"));
         return;
       }
     } else {
       if (value === "" && requiredKeys.includes(key)) {
-        Setting.showMessage("error", i18next.t("provider:This field is required"));
+        Setting.showMessage("error", t("provider:This field is required"));
         return;
       }
     }
@@ -282,58 +336,58 @@ class ProviderEditPage extends React.Component {
     });
   }
 
-  renderUserMappingInput() {
+  renderUserMappingInput(): React.ReactNode {
     return (
       <React.Fragment>
-        {Setting.getLabel(i18next.t("general:ID"), i18next.t("general:ID - Tooltip"))} :
+        {Setting.getLabel(t("general:ID"), t("general:ID - Tooltip"))} :
         <Input value={this.state.provider.userMapping.id} onChange={e => {
           this.updateUserMappingField("id", e.target.value);
         }} />
-        {Setting.getLabel(i18next.t("signup:Username"), i18next.t("signup:Username - Tooltip"))} :
+        {Setting.getLabel(t("signup:Username"), t("signup:Username - Tooltip"))} :
         <Input value={this.state.provider.userMapping.username} onChange={e => {
           this.updateUserMappingField("username", e.target.value);
         }} />
-        {Setting.getLabel(i18next.t("general:Display name"), i18next.t("general:Display name - Tooltip"))} :
+        {Setting.getLabel(t("general:Display name"), t("general:Display name - Tooltip"))} :
         <Input value={this.state.provider.userMapping.displayName} onChange={e => {
           this.updateUserMappingField("displayName", e.target.value);
         }} />
-        {Setting.getLabel(i18next.t("general:Email"), i18next.t("general:Email - Tooltip"))} :
+        {Setting.getLabel(t("general:Email"), t("general:Email - Tooltip"))} :
         <Input value={this.state.provider.userMapping.email} onChange={e => {
           this.updateUserMappingField("email", e.target.value);
         }} />
-        {Setting.getLabel(i18next.t("general:Avatar"), i18next.t("general:Avatar - Tooltip"))} :
+        {Setting.getLabel(t("general:Avatar"), t("general:Avatar - Tooltip"))} :
         <Input value={this.state.provider.userMapping.avatarUrl} onChange={e => {
           this.updateUserMappingField("avatarUrl", e.target.value);
         }} />
-        {Setting.getLabel(i18next.t("general:Phone"), i18next.t("general:Phone - Tooltip"))} :
+        {Setting.getLabel(t("general:Phone"), t("general:Phone - Tooltip"))} :
         <Input value={this.state.provider.userMapping.phone} onChange={e => {
           this.updateUserMappingField("phone", e.target.value);
         }} />
-        {Setting.getLabel(i18next.t("user:Country code"), i18next.t("user:Country code - Tooltip"))} :
+        {Setting.getLabel(t("user:Country code"), t("user:Country code - Tooltip"))} :
         <Input value={this.state.provider.userMapping.countryCode} onChange={e => {
           this.updateUserMappingField("countryCode", e.target.value);
         }} />
-        {Setting.getLabel(i18next.t("general:First name"), i18next.t("general:First name - Tooltip"))} :
+        {Setting.getLabel(t("general:First name"), t("general:First name - Tooltip"))} :
         <Input value={this.state.provider.userMapping.firstName} onChange={e => {
           this.updateUserMappingField("firstName", e.target.value);
         }} />
-        {Setting.getLabel(i18next.t("general:Last name"), i18next.t("general:Last name - Tooltip"))} :
+        {Setting.getLabel(t("general:Last name"), t("general:Last name - Tooltip"))} :
         <Input value={this.state.provider.userMapping.lastName} onChange={e => {
           this.updateUserMappingField("lastName", e.target.value);
         }} />
-        {Setting.getLabel(i18next.t("provider:Region"), i18next.t("provider:Region - Tooltip"))} :
+        {Setting.getLabel(t("provider:Region"), t("provider:Region - Tooltip"))} :
         <Input value={this.state.provider.userMapping.region} onChange={e => {
           this.updateUserMappingField("region", e.target.value);
         }} />
-        {Setting.getLabel(i18next.t("user:Location"), i18next.t("user:Location - Tooltip"))} :
+        {Setting.getLabel(t("user:Location"), t("user:Location - Tooltip"))} :
         <Input value={this.state.provider.userMapping.location} onChange={e => {
           this.updateUserMappingField("location", e.target.value);
         }} />
-        {Setting.getLabel(i18next.t("user:Affiliation"), i18next.t("user:Affiliation - Tooltip"))} :
+        {Setting.getLabel(t("user:Affiliation"), t("user:Affiliation - Tooltip"))} :
         <Input value={this.state.provider.userMapping.affiliation} onChange={e => {
           this.updateUserMappingField("affiliation", e.target.value);
         }} />
-        {Setting.getLabel(i18next.t("general:Title"), i18next.t("general:Title - Tooltip"))} :
+        {Setting.getLabel(t("general:Title"), t("general:Title - Tooltip"))} :
         <Input value={this.state.provider.userMapping.title} onChange={e => {
           this.updateUserMappingField("title", e.target.value);
         }} />
@@ -341,26 +395,26 @@ class ProviderEditPage extends React.Component {
     );
   }
 
-  renderEmailMappingInput() {
+  renderEmailMappingInput(): React.ReactNode {
     return (
       <React.Fragment>
-        {Setting.getLabel(i18next.t("provider:From name"), i18next.t("provider:From name - Tooltip"))} :
+        {Setting.getLabel(t("provider:From name"), t("provider:From name - Tooltip"))} :
         <Input value={this.state.provider.userMapping.fromName} onChange={e => {
           this.updateUserMappingField("fromName", e.target.value);
         }} />
-        {Setting.getLabel(i18next.t("provider:From address"), i18next.t("provider:From address - Tooltip"))} :
+        {Setting.getLabel(t("provider:From address"), t("provider:From address - Tooltip"))} :
         <Input value={this.state.provider.userMapping.fromAddress} onChange={e => {
           this.updateUserMappingField("fromAddress", e.target.value);
         }} />
-        {Setting.getLabel(i18next.t("provider:To address"), i18next.t("provider:To address - Tooltip"))} :
+        {Setting.getLabel(t("provider:To address"), t("provider:To address - Tooltip"))} :
         <Input value={this.state.provider.userMapping.toAddress} onChange={e => {
           this.updateUserMappingField("toAddress", e.target.value);
         }} />
-        {Setting.getLabel(i18next.t("provider:Subject"), i18next.t("provider:Subject - Tooltip"))} :
+        {Setting.getLabel(t("provider:Subject"), t("provider:Subject - Tooltip"))} :
         <Input value={this.state.provider.userMapping.subject} onChange={e => {
           this.updateUserMappingField("subject", e.target.value);
         }} />
-        {Setting.getLabel(i18next.t("provider:Email content"), i18next.t("provider:Email content - Tooltip"))} :
+        {Setting.getLabel(t("provider:Email content"), t("provider:Email content - Tooltip"))} :
         <Input value={this.state.provider.userMapping.content} onChange={e => {
           this.updateUserMappingField("content", e.target.value);
         }} />
@@ -368,14 +422,14 @@ class ProviderEditPage extends React.Component {
     );
   }
 
-  renderSmsMappingInput() {
+  renderSmsMappingInput(): React.ReactNode {
     return (
       <React.Fragment>
-        {Setting.getLabel(i18next.t("general:Phone"), i18next.t("general:Phone - Tooltip"))} :
+        {Setting.getLabel(t("general:Phone"), t("general:Phone - Tooltip"))} :
         <Input value={this.state.provider.userMapping.phoneNumber} onChange={e => {
           this.updateUserMappingField("phoneNumber", e.target.value);
         }} />
-        {Setting.getLabel(i18next.t("provider:Content"), i18next.t("provider:Content - Tooltip"))} :
+        {Setting.getLabel(t("provider:Content"), t("provider:Content - Tooltip"))} :
         <Input value={this.state.provider.userMapping.content} onChange={e => {
           this.updateUserMappingField("content", e.target.value);
         }} />
@@ -383,163 +437,163 @@ class ProviderEditPage extends React.Component {
     );
   }
 
-  getClientIdLabel(provider) {
+  getClientIdLabel(provider: ProviderConfig): React.ReactNode {
     switch (provider.category) {
     case "OAuth":
       if (provider.type === "Apple") {
-        return Setting.getLabel(i18next.t("provider:Service ID identifier"), i18next.t("provider:Service ID identifier - Tooltip"));
+        return Setting.getLabel(t("provider:Service ID identifier"), t("provider:Service ID identifier - Tooltip"));
       } else {
-        return Setting.getLabel(i18next.t("provider:Client ID"), i18next.t("provider:Client ID - Tooltip"));
+        return Setting.getLabel(t("provider:Client ID"), t("provider:Client ID - Tooltip"));
       }
     case "Email":
-      return Setting.getLabel(i18next.t("signup:Username"), i18next.t("signup:Username - Tooltip"));
+      return Setting.getLabel(t("signup:Username"), t("signup:Username - Tooltip"));
     case "SMS":
       if (provider.type === "Volc Engine SMS" || provider.type === "Amazon SNS" || provider.type === "Baidu Cloud SMS") {
-        return Setting.getLabel(i18next.t("general:Access key"), i18next.t("general:Access key - Tooltip"));
+        return Setting.getLabel(t("general:Access key"), t("general:Access key - Tooltip"));
       } else if (provider.type === "Huawei Cloud SMS") {
-        return Setting.getLabel(i18next.t("provider:App key"), i18next.t("provider:App key - Tooltip"));
+        return Setting.getLabel(t("provider:App key"), t("provider:App key - Tooltip"));
       } else if (provider.type === "UCloud SMS") {
-        return Setting.getLabel(i18next.t("provider:Public key"), i18next.t("provider:Public key - Tooltip"));
+        return Setting.getLabel(t("provider:Public key"), t("provider:Public key - Tooltip"));
       } else if (provider.type === "Msg91 SMS" || provider.type === "Infobip SMS" || provider.type === "OSON SMS") {
-        return Setting.getLabel(i18next.t("provider:Sender Id"), i18next.t("provider:Sender Id - Tooltip"));
+        return Setting.getLabel(t("provider:Sender Id"), t("provider:Sender Id - Tooltip"));
       } else {
-        return Setting.getLabel(i18next.t("provider:Client ID"), i18next.t("provider:Client ID - Tooltip"));
+        return Setting.getLabel(t("provider:Client ID"), t("provider:Client ID - Tooltip"));
       }
     case "Captcha":
       if (provider.type === "Aliyun Captcha") {
-        return Setting.getLabel(i18next.t("general:Access key"), i18next.t("general:Access key - Tooltip"));
+        return Setting.getLabel(t("general:Access key"), t("general:Access key - Tooltip"));
       } else {
-        return Setting.getLabel(i18next.t("provider:Site key"), i18next.t("provider:Site key - Tooltip"));
+        return Setting.getLabel(t("provider:Site key"), t("provider:Site key - Tooltip"));
       }
     case "Notification":
       if (provider.type === "DingTalk") {
-        return Setting.getLabel(i18next.t("general:Access key"), i18next.t("general:Access key - Tooltip"));
+        return Setting.getLabel(t("general:Access key"), t("general:Access key - Tooltip"));
       } else {
-        return Setting.getLabel(i18next.t("provider:Client ID"), i18next.t("provider:Client ID - Tooltip"));
+        return Setting.getLabel(t("provider:Client ID"), t("provider:Client ID - Tooltip"));
       }
     case "ID Verification":
       if (provider.type === "Alibaba Cloud") {
-        return Setting.getLabel(i18next.t("general:Access key"), i18next.t("general:Access key - Tooltip"));
+        return Setting.getLabel(t("general:Access key"), t("general:Access key - Tooltip"));
       } else {
-        return Setting.getLabel(i18next.t("provider:Client ID"), i18next.t("provider:Client ID - Tooltip"));
+        return Setting.getLabel(t("provider:Client ID"), t("provider:Client ID - Tooltip"));
       }
     default:
-      return Setting.getLabel(i18next.t("provider:Client ID"), i18next.t("provider:Client ID - Tooltip"));
+      return Setting.getLabel(t("provider:Client ID"), t("provider:Client ID - Tooltip"));
     }
   }
 
-  getClientSecretLabel(provider) {
+  getClientSecretLabel(provider: ProviderConfig): React.ReactNode {
     switch (provider.category) {
     case "OAuth":
       if (provider.type === "Apple") {
-        return Setting.getLabel(i18next.t("provider:Team ID"), i18next.t("provider:Team ID - Tooltip"));
+        return Setting.getLabel(t("provider:Team ID"), t("provider:Team ID - Tooltip"));
       } else {
-        return Setting.getLabel(i18next.t("provider:Client secret"), i18next.t("provider:Client secret - Tooltip"));
+        return Setting.getLabel(t("provider:Client secret"), t("provider:Client secret - Tooltip"));
       }
     case "Storage":
       if (provider.type === "Google Cloud Storage") {
-        return Setting.getLabel(i18next.t("provider:Service account JSON"), i18next.t("provider:Service account JSON - Tooltip"));
+        return Setting.getLabel(t("provider:Service account JSON"), t("provider:Service account JSON - Tooltip"));
       } else {
-        return Setting.getLabel(i18next.t("provider:Client secret"), i18next.t("provider:Client secret - Tooltip"));
+        return Setting.getLabel(t("provider:Client secret"), t("provider:Client secret - Tooltip"));
       }
     case "Email":
       if (provider.type === "Azure ACS" || provider.type === "SendGrid" || provider.type === "Resend") {
-        return Setting.getLabel(i18next.t("provider:Secret key"), i18next.t("provider:Secret key - Tooltip"));
+        return Setting.getLabel(t("provider:Secret key"), t("provider:Secret key - Tooltip"));
       } else {
-        return Setting.getLabel(i18next.t("general:Password"), i18next.t("general:Password - Tooltip"));
+        return Setting.getLabel(t("general:Password"), t("general:Password - Tooltip"));
       }
     case "SMS":
       if (provider.type === "Volc Engine SMS" || provider.type === "Amazon SNS" || provider.type === "Baidu Cloud SMS" || provider.type === "OSON SMS") {
-        return Setting.getLabel(i18next.t("provider:Secret access key"), i18next.t("provider:Secret access key - Tooltip"));
+        return Setting.getLabel(t("provider:Secret access key"), t("provider:Secret access key - Tooltip"));
       } else if (provider.type === "Huawei Cloud SMS") {
-        return Setting.getLabel(i18next.t("provider:App secret"), i18next.t("provider:AppSecret - Tooltip"));
+        return Setting.getLabel(t("provider:App secret"), t("provider:AppSecret - Tooltip"));
       } else if (provider.type === "UCloud SMS") {
-        return Setting.getLabel(i18next.t("provider:Private Key"), i18next.t("provider:Private Key - Tooltip"));
+        return Setting.getLabel(t("provider:Private Key"), t("provider:Private Key - Tooltip"));
       } else if (provider.type === "Msg91 SMS") {
-        return Setting.getLabel(i18next.t("provider:Auth Key"), i18next.t("provider:Auth Key - Tooltip"));
+        return Setting.getLabel(t("provider:Auth Key"), t("provider:Auth Key - Tooltip"));
       } else if (provider.type === "Infobip SMS") {
-        return Setting.getLabel(i18next.t("provider:Api Key"), i18next.t("provider:Api Key - Tooltip"));
+        return Setting.getLabel(t("provider:Api Key"), t("provider:Api Key - Tooltip"));
       } else {
-        return Setting.getLabel(i18next.t("provider:Client secret"), i18next.t("provider:Client secret - Tooltip"));
+        return Setting.getLabel(t("provider:Client secret"), t("provider:Client secret - Tooltip"));
       }
     case "Captcha":
       if (provider.type === "Aliyun Captcha") {
-        return Setting.getLabel(i18next.t("provider:Secret access key"), i18next.t("provider:Secret access key - Tooltip"));
+        return Setting.getLabel(t("provider:Secret access key"), t("provider:Secret access key - Tooltip"));
       } else {
-        return Setting.getLabel(i18next.t("provider:Secret key"), i18next.t("provider:Secret key - Tooltip"));
+        return Setting.getLabel(t("provider:Secret key"), t("provider:Secret key - Tooltip"));
       }
     case "Notification":
       if (provider.type === "Line" || provider.type === "Telegram" || provider.type === "Bark" || provider.type === "DingTalk" || provider.type === "Discord" || provider.type === "Slack" || provider.type === "Pushover" || provider.type === "Pushbullet") {
-        return Setting.getLabel(i18next.t("provider:Secret key"), i18next.t("provider:Secret key - Tooltip"));
+        return Setting.getLabel(t("provider:Secret key"), t("provider:Secret key - Tooltip"));
       } else if (provider.type === "Lark" || provider.type === "Microsoft Teams" || provider.type === "WeCom") {
-        return Setting.getLabel(i18next.t("provider:Endpoint"), i18next.t("provider:Endpoint - Tooltip"));
+        return Setting.getLabel(t("provider:Endpoint"), t("provider:Endpoint - Tooltip"));
       } else {
-        return Setting.getLabel(i18next.t("provider:Client secret"), i18next.t("provider:Client secret - Tooltip"));
+        return Setting.getLabel(t("provider:Client secret"), t("provider:Client secret - Tooltip"));
       }
     case "ID Verification":
       if (provider.type === "Alibaba Cloud") {
-        return Setting.getLabel(i18next.t("provider:Secret access key"), i18next.t("provider:Secret access key - Tooltip"));
+        return Setting.getLabel(t("provider:Secret access key"), t("provider:Secret access key - Tooltip"));
       } else {
-        return Setting.getLabel(i18next.t("provider:Client secret"), i18next.t("provider:Client secret - Tooltip"));
+        return Setting.getLabel(t("provider:Client secret"), t("provider:Client secret - Tooltip"));
       }
     default:
-      return Setting.getLabel(i18next.t("provider:Client secret"), i18next.t("provider:Client secret - Tooltip"));
+      return Setting.getLabel(t("provider:Client secret"), t("provider:Client secret - Tooltip"));
     }
   }
 
-  getClientId2Label(provider) {
+  getClientId2Label(provider: ProviderConfig): React.ReactNode {
     switch (provider.category) {
     case "OAuth":
       if (provider.type === "Apple") {
-        return Setting.getLabel(i18next.t("provider:Key ID"), i18next.t("provider:Key ID - Tooltip"));
+        return Setting.getLabel(t("provider:Key ID"), t("provider:Key ID - Tooltip"));
       } else {
-        return Setting.getLabel(i18next.t("provider:Client ID 2"), i18next.t("provider:Client ID 2 - Tooltip"));
+        return Setting.getLabel(t("provider:Client ID 2"), t("provider:Client ID 2 - Tooltip"));
       }
     case "Email":
-      return Setting.getLabel(i18next.t("provider:From address"), i18next.t("provider:From address - Tooltip"));
+      return Setting.getLabel(t("provider:From address"), t("provider:From address - Tooltip"));
     default:
       if (provider.type === "Aliyun Captcha") {
-        return Setting.getLabel(i18next.t("provider:Scene"), i18next.t("provider:Scene - Tooltip"));
+        return Setting.getLabel(t("provider:Scene"), t("provider:Scene - Tooltip"));
       } else if (provider.type === "WeChat Pay" || provider.type === "CUCloud") {
-        return Setting.getLabel(i18next.t("provider:App ID"), i18next.t("provider:App ID - Tooltip"));
+        return Setting.getLabel(t("provider:App ID"), t("provider:App ID - Tooltip"));
       } else {
-        return Setting.getLabel(i18next.t("provider:Client ID 2"), i18next.t("provider:Client ID 2 - Tooltip"));
+        return Setting.getLabel(t("provider:Client ID 2"), t("provider:Client ID 2 - Tooltip"));
       }
     }
   }
 
-  getClientSecret2Label(provider) {
+  getClientSecret2Label(provider: ProviderConfig): React.ReactNode {
     switch (provider.category) {
     case "OAuth":
       if (provider.type === "Apple") {
-        return Setting.getLabel(i18next.t("provider:Key text"), i18next.t("provider:Key text - Tooltip"));
+        return Setting.getLabel(t("provider:Key text"), t("provider:Key text - Tooltip"));
       } else {
-        return Setting.getLabel(i18next.t("provider:Client secret 2"), i18next.t("provider:Client secret 2 - Tooltip"));
+        return Setting.getLabel(t("provider:Client secret 2"), t("provider:Client secret 2 - Tooltip"));
       }
     case "Email":
-      return Setting.getLabel(i18next.t("provider:From name"), i18next.t("provider:From name - Tooltip"));
+      return Setting.getLabel(t("provider:From name"), t("provider:From name - Tooltip"));
     default:
       if (provider.type === "Aliyun Captcha") {
-        return Setting.getLabel(i18next.t("provider:App key"), i18next.t("provider:App key - Tooltip"));
+        return Setting.getLabel(t("provider:App key"), t("provider:App key - Tooltip"));
       } else {
-        return Setting.getLabel(i18next.t("provider:Client secret 2"), i18next.t("provider:Client secret 2 - Tooltip"));
+        return Setting.getLabel(t("provider:Client secret 2"), t("provider:Client secret 2 - Tooltip"));
       }
     }
   }
 
-  getProviderSubTypeOptions(type) {
+  getProviderSubTypeOptions(type?: string): ProviderSubTypeOption[] {
     if (type === "WeCom" || type === "Infoflow") {
       return (
         [
-          {id: "Internal", name: i18next.t("provider:Internal")},
-          {id: "Third-party", name: i18next.t("provider:Third-party")},
+          {id: "Internal", name: t("provider:Internal")},
+          {id: "Third-party", name: t("provider:Third-party")},
         ]
       );
     } else if (type === "WeChat") {
       return (
         [
-          {id: "Web", name: i18next.t("provider:Web")},
-          {id: "Mobile", name: i18next.t("provider:Mobile")},
+          {id: "Web", name: t("provider:Web")},
+          {id: "Mobile", name: t("provider:Mobile")},
         ]
       );
     } else {
@@ -547,59 +601,59 @@ class ProviderEditPage extends React.Component {
     }
   }
 
-  getAppIdRow(provider) {
+  getAppIdRow(provider: ProviderConfig): React.ReactNode {
     let text = "";
     let tooltip = "";
 
     if (provider.category === "OAuth") {
       if (provider.type === "WeCom" && provider.subType === "Internal") {
-        text = i18next.t("provider:Agent ID");
-        tooltip = i18next.t("provider:Agent ID - Tooltip");
+        text = t("provider:Agent ID");
+        tooltip = t("provider:Agent ID - Tooltip");
       } else if (provider.type === "Infoflow") {
-        text = i18next.t("provider:Agent ID");
-        tooltip = i18next.t("provider:Agent ID - Tooltip");
+        text = t("provider:Agent ID");
+        tooltip = t("provider:Agent ID - Tooltip");
       } else if (provider.type === "AzureADB2C") {
-        text = i18next.t("provider:User flow");
-        tooltip = i18next.t("provider:User flow - Tooltip");
+        text = t("provider:User flow");
+        tooltip = t("provider:User flow - Tooltip");
       }
     } else if (provider.category === "SMS") {
       if (provider.type === "Twilio SMS" || provider.type === "Azure ACS") {
-        text = i18next.t("provider:Sender number");
-        tooltip = i18next.t("provider:Sender number - Tooltip");
+        text = t("provider:Sender number");
+        tooltip = t("provider:Sender number - Tooltip");
       } else if (provider.type === "Tencent Cloud SMS") {
-        text = i18next.t("provider:App ID");
-        tooltip = i18next.t("provider:App ID - Tooltip");
+        text = t("provider:App ID");
+        tooltip = t("provider:App ID - Tooltip");
       } else if (provider.type === "Volc Engine SMS") {
-        text = i18next.t("provider:SMS account");
-        tooltip = i18next.t("provider:SMS account - Tooltip");
+        text = t("provider:SMS account");
+        tooltip = t("provider:SMS account - Tooltip");
       } else if (provider.type === "Huawei Cloud SMS") {
-        text = i18next.t("provider:Channel No.");
-        tooltip = i18next.t("provider:Channel No. - Tooltip");
+        text = t("provider:Channel No.");
+        tooltip = t("provider:Channel No. - Tooltip");
       } else if (provider.type === "Amazon SNS") {
-        text = i18next.t("provider:Region");
-        tooltip = i18next.t("provider:Region - Tooltip");
+        text = t("provider:Region");
+        tooltip = t("provider:Region - Tooltip");
       } else if (provider.type === "Baidu Cloud SMS") {
-        text = i18next.t("provider:Endpoint");
-        tooltip = i18next.t("provider:Endpoint - Tooltip");
+        text = t("provider:Endpoint");
+        tooltip = t("provider:Endpoint - Tooltip");
       } else if (provider.type === "Infobip SMS") {
-        text = i18next.t("provider:Base URL");
-        tooltip = i18next.t("provider:Base URL - Tooltip");
+        text = t("provider:Base URL");
+        tooltip = t("provider:Base URL - Tooltip");
       } else if (provider.type === "UCloud SMS") {
-        text = i18next.t("provider:Project Id");
-        tooltip = i18next.t("provider:Project Id - Tooltip");
+        text = t("provider:Project Id");
+        tooltip = t("provider:Project Id - Tooltip");
       }
     } else if (provider.category === "Email") {
       if (provider.type === "SUBMAIL") {
-        text = i18next.t("provider:App ID");
-        tooltip = i18next.t("provider:App ID - Tooltip");
+        text = t("provider:App ID");
+        tooltip = t("provider:App ID - Tooltip");
       }
     } else if (provider.category === "Notification") {
       if (provider.type === "Viber") {
-        text = i18next.t("provider:Domain");
-        tooltip = i18next.t("provider:Domain - Tooltip");
+        text = t("provider:Domain");
+        tooltip = t("provider:Domain - Tooltip");
       } else if (provider.type === "Line" || provider.type === "Matrix" || provider.type === "Rocket Chat") {
-        text = i18next.t("provider:App Key");
-        tooltip = i18next.t("provider:App Key - Tooltip");
+        text = t("provider:App Key");
+        tooltip = t("provider:App Key - Tooltip");
       } else if (provider.type === "CUCloud") {
         text = "Topic name";
         tooltip = "Topic name - Tooltip";
@@ -624,16 +678,16 @@ class ProviderEditPage extends React.Component {
     }
   }
 
-  getReceiverRow(provider) {
+  getReceiverRow(provider: ProviderConfig): React.ReactNode {
     let text = "";
     let tooltip = "";
 
     if (provider.type === "Telegram" || provider.type === "Pushover" || provider.type === "Pushbullet" || provider.type === "Slack" || provider.type === "Discord" || provider.type === "Line" || provider.type === "Twitter" || provider.type === "Reddit" || provider.type === "Rocket Chat" || provider.type === "Viber") {
-      text = i18next.t("provider:Chat ID");
-      tooltip = i18next.t("provider:Chat ID - Tooltip");
+      text = t("provider:Chat ID");
+      tooltip = t("provider:Chat ID - Tooltip");
     } else if (provider.type === "Custom HTTP" || provider.type === "Webpush" || provider.type === "Matrix") {
-      text = i18next.t("provider:Endpoint");
-      tooltip = i18next.t("provider:Endpoint - Tooltip");
+      text = t("provider:Endpoint");
+      tooltip = t("provider:Endpoint - Tooltip");
     }
 
     if (text === "" && tooltip === "") {
@@ -662,11 +716,11 @@ class ProviderEditPage extends React.Component {
 
   loadSamlConfiguration() {
     const parser = new DOMParser();
-    const rawXml = this.state.provider.metadata.replace("\n", "");
+    const rawXml = (this.state.provider.metadata ?? "").replace("\n", "");
     const xmlDoc = parser.parseFromString(rawXml, "text/xml");
-    const cert = xmlDoc.querySelector("X509Certificate").childNodes[0].nodeValue.replace(" ", "");
-    const endpoint = xmlDoc.querySelector("SingleSignOnService").getAttribute("Location");
-    const issuerUrl = xmlDoc.querySelector("EntityDescriptor").getAttribute("entityID");
+    const cert = xmlDoc.querySelector("X509Certificate")?.childNodes[0]?.nodeValue?.replace(" ", "") ?? "";
+    const endpoint = xmlDoc.querySelector("SingleSignOnService")?.getAttribute("Location") ?? "";
+    const issuerUrl = xmlDoc.querySelector("EntityDescriptor")?.getAttribute("entityID") ?? "";
     this.updateProviderField("idP", cert);
     this.updateProviderField("endpoint", endpoint);
     this.updateProviderField("issuerUrl", issuerUrl);
@@ -686,7 +740,7 @@ class ProviderEditPage extends React.Component {
     }).then(text => {
       this.updateProviderField("metadata", text);
       this.parseSamlMetadata();
-      Setting.showMessage("success", i18next.t("general:Successfully added"));
+      Setting.showMessage("success", t("general:Successfully added"));
     }).catch(err => {
       Setting.showMessage("error", err.message);
     }).finally(() => {
@@ -699,25 +753,25 @@ class ProviderEditPage extends React.Component {
   parseSamlMetadata() {
     try {
       this.loadSamlConfiguration();
-      Setting.showMessage("success", i18next.t("provider:Parse metadata successfully"));
+      Setting.showMessage("success", t("provider:Parse metadata successfully"));
     } catch (err) {
-      Setting.showMessage("error", i18next.t("provider:Can not parse metadata"));
+      Setting.showMessage("error", t("provider:Can not parse metadata"));
     }
   }
 
-  renderProvider() {
+  renderProvider(): React.ReactNode {
     return (
       <Card size="small" title={
         <div>
-          {this.state.mode === "add" ? i18next.t("provider:New Provider") : i18next.t("provider:Edit Provider")}&nbsp;&nbsp;&nbsp;&nbsp;
-          <Button onClick={() => this.submitProviderEdit(false)}>{i18next.t("general:Save")}</Button>
-          <Button style={{marginLeft: "20px"}} type="primary" onClick={() => this.submitProviderEdit(true)}>{i18next.t("general:Save & Exit")}</Button>
-          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteProvider()}>{i18next.t("general:Cancel")}</Button> : null}
+          {this.state.mode === "add" ? t("provider:New Provider") : t("provider:Edit Provider")}&nbsp;&nbsp;&nbsp;&nbsp;
+          <Button onClick={() => this.submitProviderEdit(false)}>{t("general:Save")}</Button>
+          <Button style={{marginLeft: "20px"}} type="primary" onClick={() => this.submitProviderEdit(true)}>{t("general:Save & Exit")}</Button>
+          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteProvider()}>{t("general:Cancel")}</Button> : null}
         </div>
       } style={(Setting.isMobile()) ? {margin: "5px"} : {}} type="inner">
         <Row style={{marginTop: "10px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Name"), i18next.t("general:Name - Tooltip"))} :
+            {Setting.getLabel(t("general:Name"), t("general:Name - Tooltip"))} :
           </Col>
           <Col span={22} >
             <Input value={this.state.provider.name} onChange={e => {
@@ -727,7 +781,7 @@ class ProviderEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Display name"), i18next.t("general:Display name - Tooltip"))} :
+            {Setting.getLabel(t("general:Display name"), t("general:Display name - Tooltip"))} :
           </Col>
           <Col span={22} >
             <Input value={this.state.provider.displayName} onChange={e => {
@@ -737,11 +791,11 @@ class ProviderEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Organization"), i18next.t("general:Organization - Tooltip"))} :
+            {Setting.getLabel(t("general:Organization"), t("general:Organization - Tooltip"))} :
           </Col>
           <Col span={22} >
             <Select virtual={false} style={{width: "100%"}} disabled={!Setting.isAdminUser(this.props.account)} value={this.state.provider.owner} onChange={(value => {this.updateProviderField("owner", value);})}>
-              {Setting.isAdminUser(this.props.account) ? <Option key={"admin"} value={"admin"}>{i18next.t("provider:admin (Shared)")}</Option> : null}
+              {Setting.isAdminUser(this.props.account) ? <Option key={"admin"} value={"admin"}>{t("provider:admin (Shared)")}</Option> : null}
               {
                 this.state.organizations.map((organization, index) => <Option key={index} value={organization.name}>{organization.name}</Option>)
               }
@@ -750,7 +804,7 @@ class ProviderEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Category"), i18next.t("general:Category - Tooltip"))} :
+            {Setting.getLabel(t("general:Category"), t("general:Category - Tooltip"))} :
           </Col>
           <Col span={22} >
             <Select virtual={false} style={{width: "100%"}} value={this.state.provider.category} onChange={(value => {
@@ -806,7 +860,7 @@ class ProviderEditPage extends React.Component {
                   {id: "Web3", name: "Web3"},
                   {id: "Face ID", name: "Face ID"},
                 ]
-                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .sort((a: {name: string}, b: {name: string}) => a.name.localeCompare(b.name))
                   .map((providerCategory, index) => <Option key={index} value={providerCategory.id}>{providerCategory.name}</Option>)
               }
             </Select>
@@ -814,14 +868,14 @@ class ProviderEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Type"), i18next.t("general:Type - Tooltip"))} :
+            {Setting.getLabel(t("general:Type"), t("general:Type - Tooltip"))} :
           </Col>
           <Col span={22} >
             <Select virtual={false} style={{width: "100%"}} showSearch value={this.state.provider.type} onChange={(value => {
               this.updateProviderField("type", value);
               if (value === "Local File System") {
                 this.updateProviderField("domain", Setting.getFullServerUrl());
-              } else if (value.startsWith("Custom") && this.state.provider.category === "OAuth") {
+              } else if (String(value).startsWith("Custom") && this.state.provider.category === "OAuth") {
                 const serverUrl = Setting.getFullServerUrl();
                 this.updateProviderField("customAuthUrl", `${serverUrl}/login/oauth/authorize`);
                 this.updateProviderField("scopes", "openid profile email");
@@ -845,8 +899,8 @@ class ProviderEditPage extends React.Component {
             })}>
               {
                 Setting.getProviderTypeOptions(this.state.provider.category)
-                  .sort((a, b) => a.name.localeCompare(b.name))
-                  .map((providerType, index) => <Option key={index} value={providerType.id}>
+                  .sort((a: {name: string}, b: {name: string}) => a.name.localeCompare(b.name))
+                  .map((providerType: {id: string; name: string}, index: number) => <Option key={index} value={providerType.id}>
                     <img width={20} height={20} style={{marginBottom: "3px", marginRight: "10px"}} src={Setting.getProviderLogoURL({category: this.state.provider.category, type: providerType.id})} alt={providerType.id} />
                     {providerType.name}
                   </Option>)
@@ -859,7 +913,7 @@ class ProviderEditPage extends React.Component {
             <React.Fragment>
               <Row style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={2}>
-                  {Setting.getLabel(i18next.t("provider:Sub type"), i18next.t("provider:Sub type - Tooltip"))} :
+                  {Setting.getLabel(t("provider:Sub type"), t("provider:Sub type - Tooltip"))} :
                 </Col>
                 <Col span={22} >
                   <Select virtual={false} style={{width: "100%"}} value={this.state.provider.subType} onChange={value => {
@@ -876,7 +930,7 @@ class ProviderEditPage extends React.Component {
                   <React.Fragment>
                     <Row style={{marginTop: "20px"}} >
                       <Col style={{marginTop: "5px"}} span={2}>
-                        {Setting.getLabel(i18next.t("general:Method"), i18next.t("provider:Method - Tooltip"))} :
+                        {Setting.getLabel(t("general:Method"), t("provider:Method - Tooltip"))} :
                       </Col>
                       <Col span={22} >
                         <Select virtual={false} style={{width: "100%"}} value={this.state.provider.method} onChange={value => {
@@ -884,8 +938,8 @@ class ProviderEditPage extends React.Component {
                         }}>
                           {
                             [
-                              {id: "Normal", name: i18next.t("application:Normal")},
-                              {id: "Silent", name: i18next.t("provider:Silent")},
+                              {id: "Normal", name: t("application:Normal")},
+                              {id: "Silent", name: t("provider:Silent")},
                             ].map((method, index) => <Option key={index} value={method.id}>{method.name}</Option>)
                           }
                         </Select>
@@ -893,7 +947,7 @@ class ProviderEditPage extends React.Component {
                     </Row>
                     <Row style={{marginTop: "20px"}} >
                       <Col style={{marginTop: "5px"}} span={2}>
-                        {Setting.getLabel(i18next.t("provider:Scope"), i18next.t("provider:Scope - Tooltip"))} :
+                        {Setting.getLabel(t("provider:Scope"), t("provider:Scope - Tooltip"))} :
                       </Col>
                       <Col span={22} >
                         <Select virtual={false} style={{width: "100%"}} value={this.state.provider.scopes} onChange={value => {
@@ -906,7 +960,7 @@ class ProviderEditPage extends React.Component {
                     </Row>
                     <Row style={{marginTop: "20px"}} >
                       <Col style={{marginTop: "5px"}} span={2}>
-                        {Setting.getLabel(i18next.t("provider:Use id as name"), i18next.t("provider:Use id as name - Tooltip"))} :
+                        {Setting.getLabel(t("provider:Use id as name"), t("provider:Use id as name - Tooltip"))} :
                       </Col>
                       <Col span={22} >
                         <Switch checked={this.state.provider.disableSsl} onChange={checked => {
@@ -1028,7 +1082,7 @@ class ProviderEditPage extends React.Component {
             this.updateProviderField.bind(this),
             {
               requestUrl: this.state.requestUrl,
-              setRequestUrl: (value) => this.setState({requestUrl: value}),
+              setRequestUrl: (value: string) => this.setState({requestUrl: value}),
               metadataLoading: this.state.metadataLoading,
               fetchSamlMetadata: this.fetchSamlMetadata.bind(this),
               parseSamlMetadata: this.parseSamlMetadata.bind(this),
@@ -1058,7 +1112,7 @@ class ProviderEditPage extends React.Component {
         ) : null}
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("provider:Provider URL"), i18next.t("provider:Provider URL - Tooltip"))} :
+            {Setting.getLabel(t("provider:Provider URL"), t("provider:Provider URL - Tooltip"))} :
           </Col>
           <Col span={22} >
             <Input prefix={<LinkOutlined />} value={this.state.provider.providerUrl} onChange={e => {
@@ -1076,7 +1130,7 @@ class ProviderEditPage extends React.Component {
     );
   }
 
-  submitProviderEdit(exitAfterSave) {
+  submitProviderEdit(exitAfterSave: boolean) {
     const provider = Setting.deepCopy(this.state.provider);
     const validationError = this.validateWeComProvider(provider) || this.validateLarkProvider(provider);
     if (validationError) {
@@ -1086,7 +1140,7 @@ class ProviderEditPage extends React.Component {
     ProviderBackend.updateProvider(this.state.owner, this.state.providerName, provider)
       .then((res) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully saved"));
+          Setting.showMessage("success", t("general:Successfully saved"));
           this.setState({
             owner: this.state.provider.owner,
             providerName: this.state.provider.name,
@@ -1098,12 +1152,12 @@ class ProviderEditPage extends React.Component {
             this.props.history.push(`/providers/${this.state.provider.owner}/${this.state.provider.name}`);
           }
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to save")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to save")}: ${res.msg}`);
           this.updateProviderField("name", this.state.providerName);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
@@ -1113,11 +1167,11 @@ class ProviderEditPage extends React.Component {
         if (res.status === "ok") {
           this.props.history.push("/providers");
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
         }
       })
       .catch(error => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
@@ -1128,9 +1182,9 @@ class ProviderEditPage extends React.Component {
           this.state.provider !== null ? this.renderProvider() : null
         }
         <div style={{marginTop: "20px", marginLeft: "40px"}}>
-          <Button size="large" onClick={() => this.submitProviderEdit(false)}>{i18next.t("general:Save")}</Button>
-          <Button style={{marginLeft: "20px"}} type="primary" size="large" onClick={() => this.submitProviderEdit(true)}>{i18next.t("general:Save & Exit")}</Button>
-          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} size="large" onClick={() => this.deleteProvider()}>{i18next.t("general:Cancel")}</Button> : null}
+          <Button size="large" onClick={() => this.submitProviderEdit(false)}>{t("general:Save")}</Button>
+          <Button style={{marginLeft: "20px"}} type="primary" size="large" onClick={() => this.submitProviderEdit(true)}>{t("general:Save & Exit")}</Button>
+          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} size="large" onClick={() => this.deleteProvider()}>{t("general:Cancel")}</Button> : null}
         </div>
       </div>
     );

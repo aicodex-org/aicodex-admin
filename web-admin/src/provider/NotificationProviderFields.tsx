@@ -17,19 +17,24 @@ import {Button, Col, Input, Row, Select} from "antd";
 import * as Setting from "../Setting";
 import i18next from "i18next";
 import * as ProviderNotification from "../common/TestNotificationWidget";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {ProviderConfig, UpdateProviderField} from "./ProviderFieldTypes";
+
+const t = i18next.t.bind(i18next) as (key: string) => string;
 
 const {Option} = Select;
+
 const {TextArea} = Input;
 
-export function renderNotificationProviderFields(provider, updateProviderField, getReceiverRow) {
+export function renderNotificationProviderFields(provider: ProviderConfig, updateProviderField: UpdateProviderField, getReceiverRow: (provider: ProviderConfig) => React.ReactNode): React.ReactNode {
   return (
     <React.Fragment>
       {["CUCloud"].includes(provider.type) ? (
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={2}>
             {["Casdoor"].includes(provider.type) ?
-              Setting.getLabel(i18next.t("general:Application"), i18next.t("general:Application - Tooltip")) :
-              Setting.getLabel(i18next.t("provider:Region ID"), i18next.t("provider:Region ID - Tooltip"))} :
+              Setting.getLabel(t("general:Application"), t("general:Application - Tooltip")) :
+              Setting.getLabel(t("provider:Region ID"), t("provider:Region ID - Tooltip"))} :
           </Col>
           <Col span={22} >
             <Input value={provider.regionId} onChange={e => {
@@ -41,7 +46,7 @@ export function renderNotificationProviderFields(provider, updateProviderField, 
       {["Custom HTTP"].includes(provider.type) ? (
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Method"), i18next.t("provider:Method - Tooltip"))} :
+            {Setting.getLabel(t("general:Method"), t("provider:Method - Tooltip"))} :
           </Col>
           <Col span={22} >
             <Select virtual={false} style={{width: "100%"}} value={provider.method} onChange={value => {
@@ -60,7 +65,7 @@ export function renderNotificationProviderFields(provider, updateProviderField, 
       {["Custom HTTP", "CUCloud"].includes(provider.type) ? (
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("provider:Parameter"), i18next.t("provider:Parameter - Tooltip"))} :
+            {Setting.getLabel(t("provider:Parameter"), t("provider:Parameter - Tooltip"))} :
           </Col>
           <Col span={22} >
             <Input value={provider.title} onChange={e => {
@@ -72,7 +77,7 @@ export function renderNotificationProviderFields(provider, updateProviderField, 
       {["Google Chat", "CUCloud"].includes(provider.type) ? (
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("provider:Metadata"), i18next.t("provider:Metadata - Tooltip"))} :
+            {Setting.getLabel(t("provider:Metadata"), t("provider:Metadata - Tooltip"))} :
           </Col>
           <Col span={22}>
             <TextArea rows={4} value={provider.metadata} onChange={e => {
@@ -83,7 +88,7 @@ export function renderNotificationProviderFields(provider, updateProviderField, 
       ) : null}
       <Row style={{marginTop: "20px"}} >
         <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-          {Setting.getLabel(i18next.t("provider:Content"), i18next.t("provider:Content - Tooltip"))} :
+          {Setting.getLabel(t("provider:Content"), t("provider:Content - Tooltip"))} :
         </Col>
         <Col span={22} >
           <TextArea autoSize={{minRows: 3, maxRows: 100}} value={provider.content} onChange={e => {
@@ -95,7 +100,7 @@ export function renderNotificationProviderFields(provider, updateProviderField, 
         {getReceiverRow(provider)}
         <Button style={{marginLeft: "10px", marginBottom: "5px"}} type="primary"
           onClick={() => ProviderNotification.sendTestNotification(provider)} >
-          {i18next.t("provider:Send Testing Notification")}
+          {t("provider:Send Testing Notification")}
         </Button>
       </Row>
     </React.Fragment>

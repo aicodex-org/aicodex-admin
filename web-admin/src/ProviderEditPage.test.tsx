@@ -1,4 +1,5 @@
 /* eslint-env jest */
+import {expect} from "@jest/globals";
 import {validateWeComProviderFields} from "./provider/WeComProviderUtils";
 
 describe("validateWeComProviderFields", () => {
@@ -11,7 +12,7 @@ describe("validateWeComProviderFields", () => {
       clientSecret: "corp-secret",
       appId: "",
       scopes: "snsapi_privateinfo",
-    }, key => key === "provider:This field is required" ? "is required" : key);
+    }, (key: string) => key === "provider:This field is required" ? "is required" : key);
 
     expect(result).toBe("Agent ID is required");
   });
@@ -25,7 +26,7 @@ describe("validateWeComProviderFields", () => {
       clientSecret: "corp-secret",
       appId: "1000001",
       scopes: "snsapi_privateinfo",
-    }, key => key);
+    }, (key: string) => key);
 
     expect(result).toBe("");
   });

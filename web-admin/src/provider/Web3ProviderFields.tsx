@@ -17,11 +17,16 @@ import {Checkbox, Col, Row} from "antd";
 import * as Setting from "../Setting";
 import i18next from "i18next";
 import * as Web3Auth from "../auth/Web3Auth";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {ProviderConfig, UpdateProviderField} from "./ProviderFieldTypes";
 
-export function renderWeb3ProviderFields(provider, updateProviderField) {
-  const getWalletValue = () => {
+const t = i18next.t.bind(i18next) as (key: string) => string;
+
+export function renderWeb3ProviderFields(provider: ProviderConfig, updateProviderField: UpdateProviderField): React.ReactNode {
+  const getWalletValue = (): string[] => {
     try {
-      return JSON.parse(provider.metadata);
+      const wallets = JSON.parse(provider.metadata ?? "");
+      return Array.isArray(wallets) ? wallets : ["injected"];
     } catch {
       return ["injected"];
     }
@@ -31,7 +36,7 @@ export function renderWeb3ProviderFields(provider, updateProviderField) {
     provider.type === "Web3Onboard" ? (
       <Row style={{marginTop: "20px"}} >
         <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-          {Setting.getLabel(i18next.t("provider:Wallets"), i18next.t("provider:Wallets - Tooltip"))} :
+          {Setting.getLabel(t("provider:Wallets"), t("provider:Wallets - Tooltip"))} :
         </Col>
         <Col span={22}>
           <Checkbox.Group
