@@ -1,5 +1,5 @@
 import React from "react";
-import {Button, Col, Row, Space, Typography} from "antd";
+import {Button, Space, Typography} from "antd";
 import type {ButtonProps} from "antd";
 import {
   type OrganizationSyncProvider,
@@ -19,28 +19,28 @@ export interface OrganizationSyncPageHeaderProps {
 
 export function OrganizationSyncPageHeader({className, provider, title, subtitle, statusText}: OrganizationSyncPageHeaderProps) {
   return (
-    <Row className={className} align="middle" justify="space-between" gutter={[16, 8]} style={{marginBottom: 12}}>
-      <Col flex="auto">
+    <div className={className}>
+      <div className="organization-sync-page-title-main">
         <Space align="center" size={10}>
           <img
+            className="organization-sync-provider-logo"
             src={getOrganizationSyncProviderLogoUrl(provider)}
             alt={getOrganizationSyncProviderLogoAlt(provider)}
             width={28}
             height={28}
-            style={{display: "block", borderRadius: 4}}
           />
           <Space direction="vertical" size={0}>
             <Text strong>{title}</Text>
             {subtitle && <Text type="secondary">{subtitle}</Text>}
           </Space>
         </Space>
-      </Col>
+      </div>
       {statusText && (
-        <Col>
+        <div className="organization-sync-page-title-status">
           <Text type="secondary">{statusText}</Text>
-        </Col>
+        </div>
       )}
-    </Row>
+    </div>
   );
 }
 
@@ -61,7 +61,7 @@ export interface OrganizationSyncActionBarProps {
 
 export function OrganizationSyncActionBar({className, actions}: OrganizationSyncActionBarProps) {
   return (
-    <Space className={className} style={{marginTop: 16}} wrap>
+    <div className={className}>
       {actions.map(action => (
         <Button
           key={action.key}
@@ -74,7 +74,25 @@ export function OrganizationSyncActionBar({className, actions}: OrganizationSync
           {action.label}
         </Button>
       ))}
-    </Space>
+    </div>
+  );
+}
+
+export interface OrganizationSyncSectionCardProps {
+  children: React.ReactNode;
+  className?: string;
+  variant?: "config" | "record";
+}
+
+function joinClassNames(...classNames: Array<string | undefined>): string {
+  return classNames.filter(Boolean).join(" ");
+}
+
+export function OrganizationSyncSectionCard({children, className, variant = "config"}: OrganizationSyncSectionCardProps) {
+  return (
+    <section className={joinClassNames("organization-sync-section-card", `organization-sync-${variant}-card`, className)}>
+      {children}
+    </section>
   );
 }
 
@@ -93,18 +111,18 @@ export interface OrganizationSyncRunRecordHeaderProps {
 
 export function OrganizationSyncRunRecordHeader({className, title, hint, hintType = "secondary", refreshAction}: OrganizationSyncRunRecordHeaderProps) {
   return (
-    <Row className={className} align="middle" justify="space-between" gutter={[12, 8]} style={{marginBottom: 12}}>
-      <Col>
+    <div className={className}>
+      <div className="organization-sync-record-header-main">
         <Space direction="vertical" size={2}>
           <Text strong>{title}</Text>
           <Text type={hintType}>{hint}</Text>
         </Space>
-      </Col>
-      <Col>
+      </div>
+      <div className="organization-sync-record-header-action">
         <Button icon={refreshAction.icon} loading={refreshAction.loading} onClick={refreshAction.onClick}>
           {refreshAction.label}
         </Button>
-      </Col>
-    </Row>
+      </div>
+    </div>
   );
 }

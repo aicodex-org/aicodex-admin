@@ -1175,7 +1175,7 @@ export default function OrganizationDirectoryQualityPage(props: OrganizationDire
           <Text type="secondary">{data?.boundary || "Admin producer diagnostics only."}</Text>
         </Space>
 
-        <div style={{border: "1px solid #f0f0f0", borderRadius: 6, padding: 16}}>
+        <div className="organization-directory-quality-remediation-panel">
           <Space direction="vertical" size={12} style={{width: "100%"}}>
             <Space align="center" wrap style={{justifyContent: "space-between", width: "100%"}}>
               <Space align="center" wrap>

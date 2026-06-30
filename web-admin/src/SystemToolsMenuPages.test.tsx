@@ -198,6 +198,10 @@ test("renders system information cards and cleans polling timer", () => {
 
   const view = render(<>{page.render()}</>);
 
+  expect(view.container.querySelector(".system-info-page")).not.toBeNull();
+  expect(view.container.querySelector(".system-info-metrics-grid")).not.toBeNull();
+  expect(view.container.querySelector(".system-info-data-grid")).not.toBeNull();
+  expect(view.container.querySelector(".system-info-page .ant-col-6")).toBeNull();
   expectAny(view.getByText(/CPU\s*Usage|CPU\s*使用率/)).not.toBeNull();
   expectAny(view.getByText(/Memory Usage|内存使用率/)).not.toBeNull();
   expectAny(view.getByText(/Network Usage|网络使用率/)).not.toBeNull();

@@ -5,7 +5,8 @@ import {CloudSyncOutlined, PlayCircleOutlined, ReloadOutlined, SaveOutlined, Too
 import {
   OrganizationSyncActionBar,
   OrganizationSyncPageHeader,
-  OrganizationSyncRunRecordHeader
+  OrganizationSyncRunRecordHeader,
+  OrganizationSyncSectionCard
 } from "./OrganizationSyncShell";
 
 const {fireEvent, screen} = require("@testing-library/react") as {
@@ -17,6 +18,8 @@ const {fireEvent, screen} = require("@testing-library/react") as {
     getByText: (text: string) => HTMLElement;
   };
 };
+const fs = require("fs") as {readFileSync: (filePath: string, encoding: string) => string};
+const path = require("path") as {join: (...parts: string[]) => string};
 
 function expectElement(element: HTMLElement | null): asserts element is HTMLElement {
   expect(element).not.toBeNull();
@@ -47,7 +50,10 @@ describe("OrganizationSyncPageHeader", () => {
     );
 
     expect(container.querySelector(".organization-sync-page-title")).not.toBeNull();
+    expect((container.querySelector(".organization-sync-page-title") as HTMLElement).getAttribute("style")).toBeNull();
     expect(screen.getByAltText("WeCom provider logo").getAttribute("src")).toContain("/img/social_wecom.png");
+    expect(screen.getByAltText("WeCom provider logo").className).toContain("organization-sync-provider-logo");
+    expect(screen.getByAltText("WeCom provider logo").getAttribute("style")).toBeNull();
     expectElement(screen.getByText("企业微信组织架构同步"));
     expectElement(screen.getByText("配置通讯录同步并查看正式同步记录。"));
     expectElement(screen.getByText("当前无运行中任务"));
@@ -77,6 +83,7 @@ describe("OrganizationSyncActionBar", () => {
 
     const buttons = Array.from(container.querySelectorAll("button")) as HTMLButtonElement[];
     expect(container.querySelector(".organization-sync-action-bar")).not.toBeNull();
+    expect((container.querySelector(".organization-sync-action-bar") as HTMLElement).getAttribute("style")).toBeNull();
     expect(buttons.map(button => button.textContent)).toEqual(["保存", "测试连接", "预览影响", "同步进行中"]);
     fireEvent.click(screen.getByText("保存"));
     fireEvent.click(screen.getByText("测试连接"));
@@ -84,6 +91,47 @@ describe("OrganizationSyncActionBar", () => {
     fireEvent.click(screen.getByText("同步进行中"));
 
     expect(calls).toEqual(["save", "test", "preview"]);
+  });
+});
+
+describe("OrganizationSyncSectionCard", () => {
+  test("renders separate config and record section cards without inline layout styles", () => {
+    const {container} = render(
+      <div>
+        <OrganizationSyncSectionCard variant="config">
+          <span>配置区</span>
+        </OrganizationSyncSectionCard>
+        <OrganizationSyncSectionCard variant="record" className="custom-record-section">
+          <span>同步记录</span>
+        </OrganizationSyncSectionCard>
+      </div>
+    );
+
+    const configCard = container.querySelector(".organization-sync-section-card.organization-sync-config-card") as HTMLElement | null;
+    const recordCard = container.querySelector(".organization-sync-section-card.organization-sync-record-card.custom-record-section") as HTMLElement | null;
+
+    expect(configCard).not.toBeNull();
+    expect(recordCard).not.toBeNull();
+    expect(configCard?.getAttribute("style")).toBeNull();
+    expect(recordCard?.getAttribute("style")).toBeNull();
+    expectElement(screen.getByText("配置区"));
+    expectElement(screen.getByText("同步记录"));
+  });
+
+  test("uses shared shell tokens for sync page cards and spacing", () => {
+    const appLess = fs.readFileSync(path.join(__dirname, "../App.less"), "utf8");
+    const pageBlock = appLess.match(/\.organization-sync-page \{([\s\S]*?)\}/)?.[1] ?? "";
+    const sectionCardBlock = appLess.match(/\.organization-sync-section-card \{([\s\S]*?)\}/)?.[1] ?? "";
+
+    expect(pageBlock).toContain("gap: 12px");
+    expect(sectionCardBlock).toContain("background: var(--admin-shell-surface-bg");
+    expect(sectionCardBlock).toContain("border: 1px solid var(--admin-shell-border");
+    expect(sectionCardBlock).toContain("box-shadow: var(--admin-shell-shadow-sm");
+    expect(appLess).toMatch(/\.organization-sync-provider-logo \{[\s\S]*display:\s*block;[\s\S]*border-radius:\s*4px;/);
+    expect(appLess).toMatch(/\.organization-sync-page \.ant-btn-default \{[\s\S]*background:\s*var\(--admin-shell-surface-soft-bg/);
+    expect(appLess).toMatch(/\.organization-sync-page \.ant-btn-default:hover,[\s\S]*border-color:\s*var\(--admin-shell-link-strong/);
+    expect(appLess).toMatch(/\.organization-sync-page-title \{[\s\S]*margin-bottom:\s*0;/);
+    expect(appLess).toMatch(/\.organization-sync-permission-alert \{[\s\S]*margin-top:\s*14px;/);
   });
 });
 
@@ -101,6 +149,7 @@ describe("OrganizationSyncRunRecordHeader", () => {
     );
 
     expect(container.querySelector(".organization-sync-record-header")).not.toBeNull();
+    expect((container.querySelector(".organization-sync-record-header") as HTMLElement).getAttribute("style")).toBeNull();
     expectElement(screen.getByText("同步记录"));
     expectElement(screen.getByText("当前无运行中任务，可手动刷新同步记录。"));
     fireEvent.click(screen.getByText("刷新"));

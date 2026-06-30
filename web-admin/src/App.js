@@ -132,6 +132,10 @@ class App extends Component {
     });
   }
 
+  componentDidMount() {
+    this.syncAdminShellBodyThemeClass();
+  }
+
   UNSAFE_componentWillMount() {
     this.updateMenuKey();
     this.getAccount();
@@ -139,6 +143,7 @@ class App extends Component {
   }
 
   componentDidUpdate(prevProps, prevState, snapshot) {
+    this.syncAdminShellBodyThemeClass();
     const uri = location.pathname;
     if (this.state.uri !== uri) {
       this.updateMenuKey();
@@ -158,6 +163,28 @@ class App extends Component {
         }
       }
     }
+  }
+
+  componentWillUnmount() {
+    this.clearAdminShellBodyThemeClass();
+  }
+
+  clearAdminShellBodyThemeClass() {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    document.body.classList.remove("admin-shell-theme-light", "admin-shell-theme-dark");
+  }
+
+  syncAdminShellBodyThemeClass() {
+    this.clearAdminShellBodyThemeClass();
+
+    if (typeof document === "undefined" || this.isDoorPages()) {
+      return;
+    }
+
+    document.body.classList.add(this.state.themeAlgorithm.includes("dark") ? "admin-shell-theme-dark" : "admin-shell-theme-light");
   }
 
   shouldFlattenMenu() {
@@ -684,7 +711,7 @@ class App extends Component {
         <CustomGithubCorner />
         {
           <Suspense fallback={null}>
-            <Layout id="parent-area" className="admin-shell-root">
+            <Layout id="parent-area" className={`admin-shell-root ${this.state.themeAlgorithm.includes("dark") ? "admin-shell-theme-dark" : "admin-shell-theme-light"}`}>
               <ManagementPage
                 account={this.state.account}
                 application={this.state.application}

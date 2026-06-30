@@ -432,6 +432,14 @@ test("list page layout spacing uses shared semantic tokens", () => {
     "--list-page-action-button-padding-inline",
     "--list-page-table-header-padding-y",
     "--list-page-table-cell-padding-y",
+    "--list-page-table-body-bg",
+    "--list-page-table-row-hover-bg",
+    "--list-page-control-bg",
+    "--list-page-control-hover-bg",
+    "--list-page-control-border-color",
+    "--list-page-control-hover-border-color",
+    "--list-page-control-text-color",
+    "--list-page-control-placeholder-color",
     "--list-page-advanced-filter-row-gap",
     "--list-page-advanced-filter-column-gap",
     "--list-page-query-field-min-width",
@@ -450,7 +458,7 @@ test("list page layout spacing uses shared semantic tokens", () => {
   expect(appLess).toMatch(/enterprise-list-query-toolbar \{[\s\S]*gap:\s*var\(--list-page-toolbar-gap\)/);
   expect(appLess).toMatch(/enterprise-list-query-toolbar-title[\s\S]*min-width:\s*0/);
   expect(appLess).toMatch(/enterprise-list-query-toolbar-title[\s\S]*gap:\s*8px var\(--list-page-title-meta-gap\)/);
-  expect(appLess).toMatch(/enterprise-list-query-toolbar-result-count[\s\S]*border-left:\s*1px solid rgb\(226 232 240\)/);
+  expect(appLess).toMatch(/enterprise-list-query-toolbar-result-count[\s\S]*border-left:\s*1px solid var\(--admin-shell-border-subtle,\s*rgb\(226 232 240\)\)/);
   expect(appLess).toMatch(/enterprise-list-query-toolbar-header[\s\S]*gap:\s*var\(--list-page-toolbar-control-gap\)/);
   expect(appLess).toMatch(/enterprise-list-query-toolbar-header-meta[\s\S]*gap:\s*var\(--list-page-toolbar-control-gap\)/);
   expect(appLess).toMatch(/enterprise-list-query-toolbar-header-meta-stacked[\s\S]*gap:\s*var\(--list-page-toolbar-context-gap\)/);
@@ -464,17 +472,28 @@ test("list page layout spacing uses shared semantic tokens", () => {
   expect(appLess).toMatch(/enterprise-list-query-toolbar-header-below-context[\s\S]*width:\s*fit-content/);
   expect(appLess).toMatch(/enterprise-list-query-toolbar-header-below-context[\s\S]*margin-left:\s*auto/);
   expect(appLess).toMatch(/enterprise-list-query-toolbar-header-meta-stacked > \.enterprise-list-query-toolbar-header-below-context[\s\S]*margin-top:\s*8px/);
-  expect(appLess).toMatch(/organization-list-directory-context \{[\s\S]*color:\s*rgb\(100 116 139\)/);
+  expect(appLess).toMatch(/organization-list-directory-context \{[\s\S]*color:\s*var\(--list-page-secondary-text-color,\s*rgb\(100 116 139\)\)/);
   expect(appLess).toMatch(/organization-list-directory-context-text strong[\s\S]*font-weight:\s*600/);
   expect(appLess).toMatch(/organization-list-directory-context-link[\s\S]*font-weight:\s*500/);
   expect(appLess).toMatch(/enterprise-list-query-toolbar-controls[\s\S]*gap:\s*var\(--list-page-toolbar-control-gap\)/);
+  expect(appLess).toMatch(/--list-page-primary-text-color:\s*var\(--admin-shell-link-strong/);
+  expect(appLess).toMatch(/--list-page-card-padding:\s*24px 24px 2px/);
+  expect(appLess).toMatch(/enterprise-list-query-toolbar \.ant-input,[\s\S]*enterprise-list-query-toolbar \.ant-input-affix-wrapper,[\s\S]*enterprise-list-query-toolbar \.ant-select \.ant-select-selector,[\s\S]*ant-pagination \.ant-select \.ant-select-selector \{[\s\S]*background:\s*var\(--list-page-control-bg/);
+  expect(appLess).toMatch(/enterprise-list-query-toolbar \.ant-input,[\s\S]*enterprise-list-query-toolbar \.ant-input-affix-wrapper,[\s\S]*enterprise-list-query-toolbar \.ant-select \.ant-select-selector,[\s\S]*ant-pagination \.ant-select \.ant-select-selector \{[\s\S]*border-color:\s*var\(--list-page-control-border-color/);
+  expect(appLess).toMatch(/enterprise-list-query-toolbar \.ant-btn-default \{[\s\S]*background:\s*var\(--list-page-control-bg/);
+  expect(appLess).toMatch(/enterprise-list-query-toolbar \.ant-btn-default \{[\s\S]*border-color:\s*var\(--list-page-control-border-color/);
   expect(appLess).toMatch(/ant-table-thead > tr > th[\s\S]*padding-top:\s*var\(--list-page-table-header-padding-y\)/);
   expect(appLess).toMatch(/ant-table-tbody > tr > td[\s\S]*padding-top:\s*var\(--list-page-table-cell-padding-y\)/);
+  expect(appLess).toMatch(/enterprise-list-table\.ant-table-wrapper \.ant-table-container,[\s\S]*enterprise-list-table\.ant-table-wrapper \.ant-table-body \{[\s\S]*background:\s*var\(--list-page-table-body-bg/);
+  expect(appLess).toMatch(/enterprise-list-table\.ant-table-wrapper \.ant-table\.ant-table-middle \.ant-table-tbody > tr > td \{[\s\S]*background:\s*var\(--list-page-table-body-bg/);
+  expect(appLess).toMatch(/\.enterprise-list-primary-text \{[\s\S]*color:\s*var\(--list-page-primary-text-color,\s*#311ce6\)\s*!important/);
+  expect(appLess).toMatch(/\.enterprise-list-inline-link \{[\s\S]*color:\s*var\(--list-page-primary-text-color,\s*#311ce6\)\s*!important/);
   expect(appLess).toMatch(/enterprise-list-page-table-shell[\s\S]*min-width:\s*0/);
   expect(appLess).toMatch(/organization-identity-compact-list-page \{[\s\S]*margin:\s*var\(--list-page-card-margin\)/);
   expect(appLess).toMatch(/organization-identity-compact-list-page \{[\s\S]*padding:\s*var\(--list-page-card-padding\)/);
   expect(appLess).toMatch(/organization-identity-compact-list-page \{[\s\S]*border:\s*1px solid var\(--list-page-panel-border-color\)/);
   expect(appLess).toMatch(/organization-identity-compact-list-page \{[\s\S]*border-radius:\s*var\(--list-page-panel-border-radius\)/);
+  expect(appLess).toMatch(/organization-identity-compact-list-page \{[\s\S]*background:\s*var\(--list-page-panel-bg,\s*#fff\)/);
   expect(appLess).not.toMatch(/organization-identity-compact-list-top/);
   expect(appLess).not.toMatch(/organization-identity-compact-list-page \.ant-table-wrapper/);
   expect(appLess).toMatch(/enterprise-list-query-toolbar-field[\s\S]*min-width:\s*var\(--list-page-query-field-min-width\)/);
@@ -489,6 +508,18 @@ test("list page layout spacing uses shared semantic tokens", () => {
   expect(appLess).toMatch(/enterprise-list-table\.ant-table-wrapper \.ant-table-body[\s\S]*scrollbar-color:\s*var\(--list-page-scrollbar-thumb-color\) transparent/);
   expect(appLess).toMatch(/enterprise-list-table\.ant-table-wrapper \.ant-table-body::-webkit-scrollbar[\s\S]*width:\s*var\(--list-page-scrollbar-width\)/);
   expect(appLess).toMatch(/enterprise-list-table\.ant-table-wrapper \.ant-table-body::-webkit-scrollbar-thumb[\s\S]*border-radius:\s*var\(--list-page-scrollbar-radius\)/);
+  expect(appLess).toMatch(/\.enterprise-list-table \.ant-tag-default,[\s\S]*background:\s*var\(--admin-shell-surface-soft-bg/);
   expect(appLess).not.toMatch(/\.organization-identity-compact-list-page \.ant-table-title/);
   expect(appLess).not.toMatch(/\.group-list-table\.ant-table-wrapper \.ant-table-body/);
+});
+
+test("dark mode sensitive custom cards reuse shared admin shell surface tokens", () => {
+  const appLess = fs.readFileSync(path.join(__dirname, "..", "App.less"), "utf8") as string;
+
+  expect(appLess).toMatch(/(^|,)\s*body\.admin-shell-theme-light\s*,/m);
+  expect(appLess).toMatch(/(^|,)\s*body\.admin-shell-theme-dark\s*,/m);
+  expect(appLess).toMatch(/access-wizard-domain-card \{[\s\S]*background:\s*var\(--admin-shell-surface-bg,\s*#fff\)/);
+  expect(appLess).toMatch(/access-wizard-link-list a \{[\s\S]*color:\s*var\(--admin-shell-link-strong,\s*rgb\(30 64 175\)\)/);
+  expect(appLess).toMatch(/identity-evidence-chain-selector-item \{[\s\S]*background:\s*var\(--admin-shell-surface-bg,\s*#fff\)/);
+  expect(appLess).toMatch(/audit-record-detail-content \{[\s\S]*background:\s*var\(--admin-shell-surface-bg,\s*#fff\)/);
 });

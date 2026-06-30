@@ -360,6 +360,7 @@ test("renders user rows and fetches users from the selected organization", async
 
   const view = renderPage();
 
+  expect(view.container.querySelector(".base-list-page-route-root")).not.toBeNull();
   expect(await view.findByText("alice")).not.toBeNull();
   expect(view.getByText("Alice")).not.toBeNull();
   expect(userBackendMock.getUsers).toHaveBeenCalledWith("engineering", expect.any(Number), expect.any(Number), undefined, undefined, undefined, undefined);

@@ -1,6 +1,8 @@
 /* eslint-env jest */
 import React from "react";
 import {expect, jest} from "@jest/globals";
+import fs from "fs";
+import path from "path";
 import {cleanup, render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import i18next from "i18next";
@@ -27,6 +29,10 @@ jest.mock("antd", () => {
 });
 
 jest.mock("./IdentityConsoleOverview", () => () => <main data-testid="identity-overview" />);
+jest.mock("./WecomOrganizationSyncPage", () => () => <main data-testid="wecom-org-sync-page" />);
+jest.mock("./SystemInfo", () => () => <main data-testid="system-info-page" />);
+jest.mock("./ServerStorePage", () => () => <main data-testid="server-store-page" />);
+jest.mock("./OrganizationTreeOperationsPage", () => () => <main data-testid="organization-tree-operations-page" />);
 jest.mock("./OrganizationEditPage", () => () => <main data-testid="organization-edit-page" />);
 jest.mock("./ApplicationListPage", () => () => <main data-testid="application-list-page" />);
 jest.mock("./ApplicationEditPage", () => () => <main data-testid="application-edit-page" />);
@@ -97,7 +103,7 @@ async function useTestLanguage(language: string) {
   await i18next.changeLanguage(language);
 }
 
-function renderShell({path = "/", isMobile = false}: {path?: string; isMobile?: boolean} = {}) {
+function renderShell({path = "/", isMobile = false, themeAlgorithm = ["default"]}: {path?: string; isMobile?: boolean; themeAlgorithm?: string[]} = {}) {
   window.history.pushState({}, "", path);
   jest.spyOn(Setting, "isMobile").mockReturnValue(isMobile);
 
@@ -108,7 +114,7 @@ function renderShell({path = "/", isMobile = false}: {path?: string; isMobile?: 
         application={undefined}
         uri={path}
         themeData={{colorPrimary: "#1677ff"}}
-        themeAlgorithm={["default"]}
+        themeAlgorithm={themeAlgorithm}
         selectedMenuKey="/"
         requiredEnableMfa={false}
         menuVisible={false}
@@ -169,6 +175,7 @@ describe("ManagementPage admin shell sidebar", () => {
       "admin-workspace-tabs-shell",
       "admin-shell-route-scroll admin-shell-route-scroll-without-card",
     ]);
+    expect(shellContent.classList.contains("admin-shell-content-without-card-route")).toBe(false);
   });
 
   test("wraps legacy card routes in the same route scroll container", () => {
@@ -177,8 +184,62 @@ describe("ManagementPage admin shell sidebar", () => {
 
     expect(routeScroll).not.toBeNull();
     expect(routeScroll.classList.contains("admin-shell-route-scroll-without-card")).toBe(false);
+    expect((view.container.querySelector(".admin-shell-content") as HTMLElement).classList.contains("admin-shell-content-without-card-route")).toBe(false);
     expect(routeScroll.querySelector(".content-warp-card")).not.toBeNull();
     expect(routeScroll.contains(view.getByTestId("application-list-page"))).toBe(true);
+    expect(routeScroll.contains(view.getByTestId("workspace-tabs"))).toBe(false);
+  });
+
+  test("legacy card route list roots fill the card body like cardless routes", () => {
+    const appLess = fs.readFileSync(path.join(__dirname, "App.less"), "utf8") as string;
+
+    expect(appLess).toMatch(/\.admin-shell-route-scroll > \.content-warp-card > \.ant-card-body > \.base-list-page-route-root \{[\s\S]*display:\s*flex/);
+    expect(appLess).toMatch(/\.admin-shell-route-scroll > \.content-warp-card > \.ant-card-body > \.base-list-page-route-root \{[\s\S]*flex:\s*1 1 auto/);
+    expect(appLess).toMatch(/\.admin-shell-route-scroll > \.content-warp-card > \.ant-card-body > \.base-list-page-route-root \{[\s\S]*min-height:\s*0/);
+  });
+
+  test("keeps organization sync configuration pages in the cardless internal scroll container", () => {
+    const view = renderShell({path: "/wecom-org-sync"});
+    const routeScroll = view.container.querySelector(".admin-shell-route-scroll") as HTMLElement;
+
+    expect(routeScroll).not.toBeNull();
+    expect(routeScroll.classList.contains("admin-shell-route-scroll-without-card")).toBe(true);
+    expect((view.container.querySelector(".admin-shell-content") as HTMLElement).classList.contains("admin-shell-content-without-card-route")).toBe(false);
+    expect(routeScroll.querySelector(".content-warp-card")).toBeNull();
+    expect(routeScroll.contains(view.getByTestId("wecom-org-sync-page"))).toBe(true);
+    expect(routeScroll.contains(view.getByTestId("workspace-tabs"))).toBe(false);
+  });
+
+  test("keeps system information in the cardless internal scroll container", () => {
+    const view = renderShell({path: "/sysinfo"});
+    const routeScroll = view.container.querySelector(".admin-shell-route-scroll") as HTMLElement;
+
+    expect(routeScroll).not.toBeNull();
+    expect(routeScroll.classList.contains("admin-shell-route-scroll-without-card")).toBe(true);
+    expect(routeScroll.querySelector(".content-warp-card")).toBeNull();
+    expect(routeScroll.contains(view.getByTestId("system-info-page"))).toBe(true);
+    expect(routeScroll.contains(view.getByTestId("workspace-tabs"))).toBe(false);
+  });
+
+  test("keeps MCP Store in the cardless internal scroll container", () => {
+    const view = renderShell({path: "/server-store"});
+    const routeScroll = view.container.querySelector(".admin-shell-route-scroll") as HTMLElement;
+
+    expect(routeScroll).not.toBeNull();
+    expect(routeScroll.classList.contains("admin-shell-route-scroll-without-card")).toBe(true);
+    expect(routeScroll.querySelector(".content-warp-card")).toBeNull();
+    expect(routeScroll.contains(view.getByTestId("server-store-page"))).toBe(true);
+    expect(routeScroll.contains(view.getByTestId("workspace-tabs"))).toBe(false);
+  });
+
+  test("keeps organization tree operations in the cardless diagnostic route container", () => {
+    const view = renderShell({path: "/organization-tree-operations"});
+    const routeScroll = view.container.querySelector(".admin-shell-route-scroll") as HTMLElement;
+
+    expect(routeScroll).not.toBeNull();
+    expect(routeScroll.classList.contains("admin-shell-route-scroll-without-card")).toBe(true);
+    expect(routeScroll.querySelector(".content-warp-card")).toBeNull();
+    expect(routeScroll.contains(view.getByTestId("organization-tree-operations-page"))).toBe(true);
     expect(routeScroll.contains(view.getByTestId("workspace-tabs"))).toBe(false);
   });
 
@@ -234,5 +295,153 @@ describe("ManagementPage admin shell sidebar", () => {
     expect(view.container.querySelector(".admin-shell-sider")).toBeNull();
     expect(view.queryByRole("button", {name: "展开侧边栏"})).toBeNull();
     expect(view.getByRole("button", {name: Conf.AdminCenterName})).not.toBeNull();
+  });
+
+  test("adds explicit dark theme classes to the shell header and body", () => {
+    const view = renderShell({themeAlgorithm: ["dark"]});
+    const header = view.container.querySelector(".admin-shell-header") as HTMLElement;
+    const body = view.container.querySelector(".admin-shell-body") as HTMLElement;
+
+    expect(header.classList.contains("admin-shell-theme-dark")).toBe(true);
+    expect(body.classList.contains("admin-shell-theme-dark")).toBe(true);
+    expect(header.classList.contains("admin-shell-theme-light")).toBe(false);
+    expect(body.classList.contains("admin-shell-theme-light")).toBe(false);
+  });
+
+  test("App mirrors the active admin shell theme class onto document.body for portal surfaces", () => {
+    const appJs = fs.readFileSync(path.join(__dirname, "App.js"), "utf8") as string;
+
+    expect(appJs).toMatch(/document\.body\.classList\.remove\("admin-shell-theme-light",\s*"admin-shell-theme-dark"\)/);
+    expect(appJs).toMatch(/document\.body\.classList\.add\(this\.state\.themeAlgorithm\.includes\("dark"\) \? "admin-shell-theme-dark" : "admin-shell-theme-light"\)/);
+  });
+
+  test("shell header background overrides the default Ant Design layout header color", () => {
+    const appLess = fs.readFileSync(path.join(__dirname, "App.less"), "utf8") as string;
+
+    expect(appLess).toMatch(/\.admin-shell-header \{[\s\S]*background:\s*var\(--admin-shell-header-bg,\s*#fff\)\s*!important/);
+  });
+
+  test("header organization select uses shell theme tokens instead of Ant Design default input colors", () => {
+    const appLess = fs.readFileSync(path.join(__dirname, "App.less"), "utf8") as string;
+
+    expect(appLess).toMatch(/\.admin-shell-header-right \.org-select \.ant-select-selector \{[\s\S]*background:\s*var\(--admin-shell-surface-soft-bg/);
+    expect(appLess).toMatch(/\.admin-shell-header-right \.org-select \.ant-select-selector \{[\s\S]*border-color:\s*var\(--admin-shell-border-strong/);
+    expect(appLess).toMatch(/\.admin-shell-header-right \.org-select \.ant-select-selection-item,[\s\S]*\.admin-shell-header-right \.org-select \.ant-select-arrow \{[\s\S]*color:\s*var\(--admin-shell-text-primary/);
+  });
+
+  test("organization sync pages only clip horizontal overflow without creating a nested vertical scroller", () => {
+    const appLess = fs.readFileSync(path.join(__dirname, "App.less"), "utf8") as string;
+
+    expect(appLess).toMatch(/\.organization-sync-page \{[\s\S]*overflow-x:\s*clip/);
+    expect(appLess).not.toMatch(/\.organization-sync-page \{[\s\S]*overflow-x:\s*hidden/);
+  });
+
+  test("organization sync form controls and run tables use shell theme tokens", () => {
+    const appLess = fs.readFileSync(path.join(__dirname, "App.less"), "utf8") as string;
+
+    expect(appLess).toMatch(/\.organization-sync-page \.ant-input,[\s\S]*\.organization-sync-page \.ant-input-affix-wrapper,[\s\S]*\.organization-sync-page \.ant-select \.ant-select-selector \{[\s\S]*background:\s*var\(--admin-shell-surface-soft-bg/);
+    expect(appLess).toMatch(/\.organization-sync-page \.ant-input,[\s\S]*\.organization-sync-page \.ant-input-affix-wrapper,[\s\S]*\.organization-sync-page \.ant-select \.ant-select-selector \{[\s\S]*border-color:\s*var\(--admin-shell-border-strong/);
+    expect(appLess).toMatch(/\.organization-sync-page \.ant-table,[\s\S]*\.organization-sync-page \.ant-table-body \{[\s\S]*background:\s*var\(--admin-shell-surface-bg/);
+    expect(appLess).toMatch(/\.organization-sync-page \.ant-table\.ant-table-middle \.ant-table-tbody > tr > td \{[\s\S]*background:\s*var\(--admin-shell-surface-bg/);
+  });
+
+  test("workspace tabs shell clips horizontally without becoming a vertical scroll container", () => {
+    const appLess = fs.readFileSync(path.join(__dirname, "App.less"), "utf8") as string;
+
+    expect(appLess).toMatch(/\.admin-workspace-tabs-shell \{[\s\S]*overflow-x:\s*clip/);
+    expect(appLess).toMatch(/\.admin-workspace-tabs-scroll-viewport \{[\s\S]*overflow-x:\s*auto/);
+    expect(appLess).not.toMatch(/\.admin-workspace-tabs-shell \{[\s\S]*overflow-x:\s*hidden/);
+  });
+
+  test("workspace tabs use compact browser-like density", () => {
+    const appLess = fs.readFileSync(path.join(__dirname, "App.less"), "utf8") as string;
+    const desktopBlock = appLess.match(/\.admin-workspace-tabs-desktop \{([\s\S]*?)\}/)?.[1] ?? "";
+    const tabBlock = appLess.match(/\.admin-workspace-tab \{([\s\S]*?)\}/)?.[1] ?? "";
+    const tabLabelBlock = appLess.match(/\.admin-workspace-tab-label \{([\s\S]*?)\}/)?.[1] ?? "";
+    const closeBlock = appLess.match(/\.admin-workspace-tab-close \{([\s\S]*?)\}/)?.[1] ?? "";
+    const menuBlock = appLess.match(/\.admin-workspace-tabs-shell \.admin-workspace-tabs-close-menu \{([\s\S]*?)\}/)?.[1] ?? "";
+
+    expect(desktopBlock).toContain("min-height: 32px");
+    expect(tabBlock).toContain("height: 26px");
+    expect(tabLabelBlock).toContain("font-size: 12px");
+    expect(closeBlock).toContain("width: 18px");
+    expect(closeBlock).toContain("height: 18px");
+    expect(menuBlock).toContain("top: 4px");
+    expect(menuBlock).toContain("height: 26px");
+  });
+
+  test("shell scroll containers use theme scrollbar tokens instead of browser default colors", () => {
+    const appLess = fs.readFileSync(path.join(__dirname, "App.less"), "utf8") as string;
+
+    expect(appLess).toMatch(/\.admin-shell-sider \.ant-menu,[\s\S]*\.admin-shell-route-scroll,[\s\S]*\.admin-page-scroll-shell-body,[\s\S]*\.session-id-drawer \.ant-drawer-body \{[\s\S]*scrollbar-color:\s*var\(--admin-shell-scrollbar-thumb/);
+    expect(appLess).toMatch(/\.admin-shell-route-scroll::-webkit-scrollbar-thumb,[\s\S]*\.admin-page-scroll-shell-body::-webkit-scrollbar-thumb,[\s\S]*\.session-id-drawer \.ant-drawer-body::-webkit-scrollbar-thumb \{[\s\S]*background:\s*var\(--admin-shell-scrollbar-thumb/);
+    expect(appLess).toMatch(/\.admin-shell-route-scroll::-webkit-scrollbar-track,[\s\S]*background:\s*transparent/);
+  });
+
+  test("route and page shells consume one shared spacing token set", () => {
+    const appLess = fs.readFileSync(path.join(__dirname, "App.less"), "utf8") as string;
+    const routeScrollBlock = appLess.match(/\.admin-shell-route-scroll \{([\s\S]*?)\}/)?.[1] ?? "";
+    const withoutCardBlock = appLess.match(/\.admin-shell-route-scroll-without-card \{([\s\S]*?)\}/)?.[1] ?? "";
+    const baseListRootBlock = appLess.match(/\.admin-shell-route-scroll-without-card > \.base-list-page-route-root,[\s\S]*?\.admin-shell-route-scroll > \.content-warp-card > \.ant-card-body > \.base-list-page-route-root \{([\s\S]*?)\}/)?.[1] ?? "";
+    const cardBlock = appLess.match(/\.admin-shell-route-scroll > \.content-warp-card \{([\s\S]*?)\}/)?.[1] ?? "";
+    const cardBodyBlock = appLess.match(/\.admin-shell-route-scroll > \.content-warp-card > \.ant-card-body \{([\s\S]*?)\}/)?.[1] ?? "";
+    const enterpriseConsoleBlock = appLess.match(/\.enterprise-identity-console \{([\s\S]*?)\}/)?.[1] ?? "";
+    const organizationConsoleBlock = appLess.match(/\.organization-identity-console \{([\s\S]*?)\}/)?.[1] ?? "";
+
+    expect(appLess).toMatch(/--admin-route-gap-x:\s*12px;/);
+    expect(appLess).toMatch(/--admin-route-gap-top:\s*8px;/);
+    expect(appLess).toMatch(/--admin-route-gap-bottom:\s*12px;/);
+    expect(routeScrollBlock).toContain("box-sizing: border-box;");
+    expect(withoutCardBlock).toContain("padding: var(--admin-route-gap-top) var(--admin-route-gap-x) var(--admin-route-gap-bottom);");
+    expect(appLess).toContain(".admin-shell-route-scroll > .content-warp-card > .ant-card-body > .base-list-page-route-root");
+    expect(baseListRootBlock).toContain("display: flex;");
+    expect(baseListRootBlock).toContain("flex: 1 1 auto;");
+    expect(baseListRootBlock).toContain("min-height: 0;");
+    expect(cardBodyBlock).toContain("padding: var(--list-page-card-padding, 24px 24px 2px);");
+    expect(cardBlock).toContain("margin: var(--admin-route-gap-top) var(--admin-route-gap-x) var(--admin-route-gap-bottom);");
+    expect(enterpriseConsoleBlock).toContain("padding: 0;");
+    expect(organizationConsoleBlock).toContain("padding: 0;");
+    expect(appLess).toMatch(/\.organization-identity-compact-list-page \{[\s\S]*flex:\s*1 1 auto;[\s\S]*min-height:\s*0;/);
+    expect(appLess).toMatch(/--list-page-card-margin:\s*0;/);
+    expect(appLess).toMatch(/@media[\s\S]*--admin-route-gap-x:\s*8px;[\s\S]*--admin-route-gap-top:\s*8px;[\s\S]*--admin-route-gap-bottom:\s*8px;/);
+    expect(enterpriseConsoleBlock).not.toContain("padding: 12px 16px");
+    expect(organizationConsoleBlock).not.toContain("padding: 12px 16px");
+    expect(appLess).not.toContain("admin-shell-content-without-card-route");
+    expect(withoutCardBlock).not.toContain("border-left:");
+    expect(withoutCardBlock).not.toContain("box-shadow:");
+  });
+
+  test("diagnostic card pages use shell tokens for Ant Design local surfaces", () => {
+    const appLess = fs.readFileSync(path.join(__dirname, "App.less"), "utf8") as string;
+    const organizationTreePageBlock = appLess.match(/\.organization-tree-operations-page \{([\s\S]*?)\}/)?.[1] ?? "";
+
+    expect(appLess).toMatch(/\.platform-api-mapping-page\.ant-card,[\s\S]*\.organization-tree-operations-page \.ant-card,[\s\S]*\.organization-directory-quality-remediation-panel \{[\s\S]*background:\s*var\(--admin-shell-surface-bg/);
+    expect(appLess).toMatch(/\.platform-api-mapping-page \.ant-input,[\s\S]*\.organization-tree-operations-page \.ant-select \.ant-select-selector,[\s\S]*\.organization-directory-quality-page \.ant-select \.ant-select-selector \{[\s\S]*background:\s*var\(--admin-shell-surface-soft-bg/);
+    expect(appLess).toMatch(/\.platform-api-mapping-page \.ant-btn-default,[\s\S]*\.organization-tree-operations-page \.ant-btn-default,[\s\S]*\.organization-directory-quality-page \.ant-btn-default \{[\s\S]*border-color:\s*var\(--admin-shell-border-strong/);
+    expect(appLess).toMatch(/\.platform-api-mapping-page \.ant-table,[\s\S]*\.organization-tree-operations-page \.ant-table,[\s\S]*\.organization-directory-quality-page \.ant-table-body \{[\s\S]*background:\s*var\(--admin-shell-surface-bg/);
+    expect(appLess).toMatch(/\.platform-api-mapping-page \.ant-table-thead > tr > th,[\s\S]*\.organization-directory-quality-page \.ant-table-thead > tr > th,/);
+    expect(appLess).toMatch(/\.platform-api-mapping-page \.ant-table-tbody > tr > td,[\s\S]*\.organization-directory-quality-page \.ant-table-tbody > tr > td,/);
+    expect(appLess).toMatch(/\.organization-tree-operations-page \.ant-segmented \{[\s\S]*background:\s*var\(--admin-shell-surface-soft-bg/);
+    expect(appLess).toMatch(/\.organization-tree-operations-page \.ant-tree \{[\s\S]*background:\s*var\(--admin-shell-surface-bg/);
+    expect(organizationTreePageBlock).toContain("display: flex;");
+    expect(organizationTreePageBlock).toContain("flex: 1 1 auto;");
+    expect(organizationTreePageBlock).toContain("min-height: 0;");
+    expect(organizationTreePageBlock).toContain("gap: 12px;");
+  });
+
+  test("system information page keeps dense metrics and bounded API tables", () => {
+    const appLess = fs.readFileSync(path.join(__dirname, "App.less"), "utf8") as string;
+    const metricsGridBlock = appLess.match(/\.system-info-metrics-grid \{([\s\S]*?)\}/)?.[1] ?? "";
+    const dataGridBlock = appLess.match(/\.system-info-data-grid \{([\s\S]*?)\}/)?.[1] ?? "";
+    const cpuCardBodyBlock = appLess.match(/\.system-info-card-cpu > \.ant-card-body \{([\s\S]*?)\}/)?.[1] ?? "";
+    const prometheusTableShellBlock = appLess.match(/\.prometheus-info-table-shell \{([\s\S]*?)\}/)?.[1] ?? "";
+
+    expect(metricsGridBlock).toContain("\"cpu cpu cpu\"");
+    expect(metricsGridBlock).toContain("\"memory disk network\"");
+    expect(metricsGridBlock).toContain("grid-template-columns: repeat(3, minmax(0, 1fr));");
+    expect(dataGridBlock).toContain("grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);");
+    expect(cpuCardBodyBlock).toContain("grid-template-columns: repeat(4, minmax(0, 1fr));");
+    expect(prometheusTableShellBlock).toContain("max-height: 320px;");
+    expect(prometheusTableShellBlock).toContain("overflow: auto;");
   });
 });

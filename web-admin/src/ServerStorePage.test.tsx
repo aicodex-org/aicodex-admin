@@ -70,7 +70,7 @@ jest.mock("./backend/ServerBackend", () => {
 });
 
 const serverBackendMock = ServerBackend as unknown as ServerBackendMock;
-const fs = require("fs") as {existsSync: (filePath: string) => boolean};
+const fs = require("fs") as {existsSync: (filePath: string) => boolean; readFileSync: (filePath: string, encoding: string) => string};
 const path = require("path") as {join: (...parts: string[]) => string};
 const {fireEvent} = require("@testing-library/react") as {
   fireEvent: {
@@ -229,11 +229,35 @@ describe("ServerStorePage", () => {
     expect(view.container.querySelector(".admin-page-scroll-shell.server-store-page")).not.toBeNull();
     expect(view.container.querySelector(".server-store-page-header-shell .server-store-page-toolbar")).not.toBeNull();
     expect(view.container.querySelector(".server-store-page-body")).not.toBeNull();
+    expect(view.container.querySelector(".server-store-page-card")).not.toBeNull();
+    expect(view.container.querySelector(".server-store-page-card-add")).not.toBeNull();
+    expect(view.container.querySelector(".server-store-page-card-description")).not.toBeNull();
+    expect(view.container.querySelector(".server-store-page-card-tags")).not.toBeNull();
     expect(view.getByText("Alpha tools")).not.toBeNull();
     expect(view.getByText("oauth")).not.toBeNull();
     expect(view.getByText("alpha.example.invalid")).not.toBeNull();
     expect(view.queryByText("No Production")).toBeNull();
     expect(serverBackendMock.getOnlineServers).toHaveBeenCalled();
+  });
+
+  test("uses shared shell tokens instead of page-local dark surfaces", () => {
+    const appLess = fs.readFileSync(path.join(__dirname, "App.less"), "utf8");
+    const pageBlock = appLess.match(/\.server-store-page \{([\s\S]*?)\}/)?.[1] ?? "";
+    const headerBlock = appLess.match(/\.server-store-page-header-shell \{([\s\S]*?)\}/)?.[1] ?? "";
+    const toolbarBlock = appLess.match(/\.server-store-page-toolbar \{([\s\S]*?)\}/)?.[1] ?? "";
+    const bodyBlock = appLess.match(/\.server-store-page-body \{([\s\S]*?)\}/)?.[1] ?? "";
+    const cardBlock = appLess.match(/\.server-store-page-card\.ant-card \{([\s\S]*?)\}/)?.[1] ?? "";
+
+    expect(pageBlock).not.toContain("padding:");
+    expect(headerBlock).toContain("background: transparent");
+    expect(toolbarBlock).toContain("background: var(--admin-shell-surface-bg");
+    expect(bodyBlock).toContain("background: transparent");
+    expect(cardBlock).toContain("background: var(--admin-shell-surface-bg");
+    expect(appLess).toMatch(/\.server-store-page-card > \.ant-card-head \{[\s\S]*background-color:\s*var\(--admin-shell-surface-emphasis-bg/);
+    expect(appLess).toMatch(/\.server-store-page-card-add\.ant-btn-primary \{[\s\S]*background:\s*var\(--admin-shell-info-bg/);
+    expect(appLess).toMatch(/\.server-store-page \.ant-input,[\s\S]*\.server-store-page \.ant-select \.ant-select-selector \{[\s\S]*background:\s*var\(--admin-shell-surface-soft-bg/);
+    expect(appLess).toMatch(/\.server-store-page \.ant-btn-default \{[\s\S]*background:\s*var\(--admin-shell-surface-soft-bg/);
+    expect(appLess).toMatch(/\.server-store-page-card \.ant-tag \{[\s\S]*background:\s*var\(--admin-shell-surface-bg/);
   });
 
   test("normalizes response shapes, filters unusable endpoints, and exposes tag options", () => {

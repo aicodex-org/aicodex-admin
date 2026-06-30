@@ -24,6 +24,17 @@ class PrometheusInfoTable extends React.Component {
     };
   }
   render() {
+    const getRowKey = (record) => {
+      const key = [
+        record.name,
+        record.path,
+        record.method,
+        record.count,
+        record.latency,
+        record.throughput,
+      ].filter(value => value !== undefined && value !== null && value !== "").join(":");
+      return key || JSON.stringify(record);
+    };
     const latencyColumns = [
       {
         title: i18next.t("general:Name"),
@@ -65,15 +76,15 @@ class PrometheusInfoTable extends React.Component {
     ];
     if (this.state.table === "latency") {
       return (
-        <div style={{height: "300px", overflow: "auto"}}>
-          <Table columns={latencyColumns} dataSource={this.props.prometheusInfo?.apiLatency} pagination={false} />
+        <div className="prometheus-info-table-shell">
+          <Table className="prometheus-info-table" rowKey={getRowKey} columns={latencyColumns} dataSource={this.props.prometheusInfo?.apiLatency} pagination={false} />
         </div>
       );
     } else if (this.state.table === "throughput") {
       return (
-        <div style={{height: "300px", overflow: "auto"}}>
-          {i18next.t("system:Total Throughput")}: {this.props.prometheusInfo?.totalThroughput}
-          <Table columns={throughputColumns} dataSource={this.props.prometheusInfo?.apiThroughput} pagination={false} />
+        <div className="prometheus-info-table-shell">
+          <div className="prometheus-info-table-summary">{i18next.t("system:Total Throughput")}: {this.props.prometheusInfo?.totalThroughput}</div>
+          <Table className="prometheus-info-table" rowKey={getRowKey} columns={throughputColumns} dataSource={this.props.prometheusInfo?.apiThroughput} pagination={false} />
         </div>
       );
     }

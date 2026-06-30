@@ -185,6 +185,7 @@ function ManagementPage(props) {
   const organization = props.account?.organization;
   const widgetItems = organization?.widgetItems;
   const isMobile = Setting.isMobile();
+  const adminShellThemeClassName = props.themeAlgorithm.includes("dark") ? "admin-shell-theme-dark" : "admin-shell-theme-light";
 
   function logout() {
     AuthBackend.logout()
@@ -547,6 +548,20 @@ function ManagementPage(props) {
       "/roles",
       "/permissions",
     ];
+    const organizationSyncConfigurationPaths = [
+      "/wecom-org-sync",
+      "/feishu-org-sync",
+    ];
+    const systemToolCardlessPaths = [
+      "/sysinfo",
+    ];
+    const aiGatewayCardlessPaths = [
+      "/server-store",
+    ];
+    const organizationDiagnosticCardlessPaths = [
+      // 诊断型页面内部已有业务卡片，外层再套 content Card 会形成双层面板。
+      "/organization-tree-operations",
+    ];
 
     return Setting.isMobile() ||
       pathname === "/" ||
@@ -556,6 +571,10 @@ function ManagementPage(props) {
       pathname === "/governance-tasks" ||
       pathname.startsWith("/trees") ||
       organizationIdentityCenterPaths.includes(pathname) ||
+      organizationSyncConfigurationPaths.includes(pathname) ||
+      systemToolCardlessPaths.includes(pathname) ||
+      aiGatewayCardlessPaths.includes(pathname) ||
+      organizationDiagnosticCardlessPaths.includes(pathname) ||
       /^\/organizations\/[^/]+\/users$/.test(pathname);
   }
 
@@ -631,11 +650,13 @@ function ManagementPage(props) {
     applyWorkspaceTabsCloseResult(closeAllWorkspaceTabs(workspaceTabs));
   };
 
+  const routeWithoutCard = isWithoutCard();
+
   function renderRouteContent() {
     const routeContent = renderRouter();
 
     // 路由内容单独滚动，避免工作区页面标签随长页面内容一起离开视口。
-    if (isWithoutCard()) {
+    if (routeWithoutCard) {
       return (
         <div className="admin-shell-route-scroll admin-shell-route-scroll-without-card">
           {routeContent}
@@ -666,7 +687,7 @@ function ManagementPage(props) {
           style={{height: "100%", borderInlineEnd: 0}}
         />
       </Drawer>
-      <Header className="admin-shell-header" style={{backgroundColor: props.themeAlgorithm.includes("dark") ? "black" : "white"}}>
+      <Header className={`admin-shell-header ${adminShellThemeClassName}`}>
         <div className="admin-shell-header-left">
           <Link to="/" className="admin-shell-brand">
             <img className="logo admin-shell-logo" src={getBrandLogo() ?? props.logo} alt={Conf.BrandName} />
@@ -688,7 +709,7 @@ function ManagementPage(props) {
           {renderAccountMenu()}
         </div>
       </Header>
-      <Layout className="admin-shell-body">
+      <Layout className={`admin-shell-body ${adminShellThemeClassName}`}>
         {!props.requiredEnableMfa && !isMobile && (
           <Sider
             width={ADMIN_SHELL_SIDEBAR_EXPANDED_WIDTH}

@@ -240,13 +240,14 @@ class ServerStorePage extends React.Component<ServerStorePageProps, ServerStoreP
 
   renderServerCard = (server: OnlineServerRecord): React.ReactNode => {
     return (
-      <Col xs={24} sm={12} md={8} lg={6} key={server.id} style={{marginBottom: "16px"}}>
+      <Col xs={24} sm={12} md={8} lg={6} xl={6} xxl={4} key={server.id}>
         <Card
+          className="server-store-page-card"
           title={server.name || "-"}
           hoverable
-          style={{height: "100%"}}
           extra={
             <Button
+              className="server-store-page-card-add"
               type="primary"
               size="small"
               loading={this.state.creatingOnlineServerId === server.id}
@@ -259,22 +260,22 @@ class ServerStorePage extends React.Component<ServerStorePageProps, ServerStoreP
             </Button>
           }
         >
-          <div style={{minHeight: "48px", marginBottom: "8px"}}>
+          <div className="server-store-page-card-description">
             <Text type="secondary">{server.description || "-"}</Text>
           </div>
-          <div style={{marginBottom: "8px"}}>
-            <Text strong>{t("application:Authentication")}: </Text>
+          <div className="server-store-page-card-meta">
+            <Text strong className="server-store-page-card-meta-label">{t("application:Authentication")}: </Text>
             <Text>{server.authentication || "-"}</Text>
           </div>
-          <div style={{marginBottom: "8px"}}>
-            <Text strong>{t("general:Website")}: </Text>
+          <div className="server-store-page-card-meta">
+            <Text strong className="server-store-page-card-meta-label">{t("general:Website")}: </Text>
             {server.website ? (
               <a target="_blank" rel="noreferrer" href={`https://${server.website}`}>{server.website}</a>
             ) : (
               <Text>-</Text>
             )}
           </div>
-          <div>
+          <div className="server-store-page-card-tags">
             {(server.tagsRaw || []).map((tag) => <Tag key={`${server.id}-${tag}`}>{tag}</Tag>)}
           </div>
         </Card>
@@ -305,10 +306,10 @@ class ServerStorePage extends React.Component<ServerStorePageProps, ServerStoreP
             options={this.getOnlineTagOptions()}
             className="server-store-page-tag-select"
           />
-          <Button onClick={() => this.setState({onlineNameFilter: "", onlineTagFilter: []})}>
+          <Button className="server-store-page-toolbar-secondary" onClick={() => this.setState({onlineNameFilter: "", onlineTagFilter: []})}>
             {t("general:Clear")}
           </Button>
-          <Button onClick={this.fetchOnlineServers}>
+          <Button className="server-store-page-toolbar-secondary" onClick={this.fetchOnlineServers}>
             {t("general:Refresh")}
           </Button>
         </div>

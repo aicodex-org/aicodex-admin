@@ -653,6 +653,7 @@ test("renders operator-friendly mapping labels while saving enum values", async(
   render(<PlatformApiMappingPage {...pageProps()} />);
 
   expectAny(await screen.findByText("AICodex API 组织与账号映射")).toBeInTheDocument();
+  expectAny(document.querySelector(".platform-api-mapping-page")).not.toBeNull();
   expectAny(screen.getAllByText("映射状态").length).toBeGreaterThan(0);
   expectAny(screen.getAllByText("映射来源").length).toBeGreaterThan(0);
   expectAny(screen.queryByText("血缘信息")).not.toBeInTheDocument();

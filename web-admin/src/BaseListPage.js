@@ -245,7 +245,7 @@ class BaseListPage extends React.Component {
     }
 
     return (
-      <div>
+      <div className="base-list-page-route-root">
         {
           this.renderTable(this.state.data)
         }

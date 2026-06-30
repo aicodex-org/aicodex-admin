@@ -547,6 +547,7 @@ test("renders organization directory quality list and details without leaking so
 
   expect(await screen.findByText("组织目录质量")).not.toBeNull();
   expect(document.querySelector(".organization-directory-quality-page")).not.toBeNull();
+  expect(document.querySelector(".organization-directory-quality-remediation-panel")).not.toBeNull();
   expect((await screen.findAllByText("修复计划")).length).toBeGreaterThan(0);
   expect((await screen.findAllByText("API 映射核对")).length).toBeGreaterThan(0);
   expect(screen.getByText("用户到 API 主体的一等映射缺失或不可信，需要 mapping owner 确认。")).not.toBeNull();

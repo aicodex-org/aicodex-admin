@@ -3,7 +3,7 @@
 // Licensed under the Apache License, Version 2.0 (the "License");
 
 import React from "react";
-import {Alert, Button, Col, Collapse, Divider, Drawer, Input, Modal, Row, Select, Space, Switch, Table, Tag, Tooltip, Typography} from "antd";
+import {Alert, Button, Col, Collapse, Drawer, Input, Modal, Row, Select, Space, Switch, Table, Tag, Tooltip, Typography} from "antd";
 import {CloudSyncOutlined, CopyOutlined, DownloadOutlined, PlayCircleOutlined, ReloadOutlined, SaveOutlined, ToolOutlined} from "@ant-design/icons";
 import * as Setting from "./Setting";
 import * as FeishuOrganizationSyncBackend from "./backend/FeishuOrganizationSyncBackend";
@@ -15,7 +15,8 @@ import {getFeishuBusinessOrganizationNameFromTenantKey} from "./FeishuOrganizati
 import {
   OrganizationSyncActionBar,
   OrganizationSyncPageHeader,
-  OrganizationSyncRunRecordHeader
+  OrganizationSyncRunRecordHeader,
+  OrganizationSyncSectionCard
 } from "./organizationSync/OrganizationSyncShell";
 import {getFeishuEndpointContextText} from "./organizationSync/FeishuOrganizationSyncTypes";
 import {getDirectorySourceUiStatus} from "./organizationDirectorySourceStatus";
@@ -2146,121 +2147,124 @@ class FeishuOrganizationSyncPage extends React.Component<FeishuOrganizationSyncP
           subtitle={`配置通讯录同步、预览影响并查看正式同步记录。${getFeishuEndpointContextText(config.endpointMode)}`}
         />
 
-        <Row className="organization-sync-config-grid" gutter={[16, 16]}>
-          <Col xs={24} md={12}>
-            <div style={{marginBottom: 8}}>同步目标组织</div>
-            <OrganizationSelect
-              initValue={this.state.organization}
-              onChange={(organization: string) => this.changeOrganization(organization)}
-              excludedOrganizations={["built-in", ...this.getExcludedSourceOrganizations()]}
-              style={{minWidth: 280, width: "100%"}}
-            />
-          </Col>
-          <Col xs={24} md={12}>
-            <div style={{marginBottom: 8}}>服务区域</div>
-            <Select
-              value={config.endpointMode}
-              onChange={value => this.updateConfigField("endpointMode", value)}
-              style={{width: "100%"}}
-              options={[
-                {value: "feishu", label: "飞书（中国大陆）"},
-                {value: "lark", label: "Lark（海外）"},
-              ]}
-            />
-          </Col>
-          <Col xs={24} md={12}>
-            <div style={{marginBottom: 8}}>App ID</div>
-            <Input
-              {...credentialTextInputProps}
-              name="feishu-organization-sync-app-id"
-              value={config.appId}
-              onChange={event => this.updateConfigField("appId", event.target.value)}
-            />
-          </Col>
-          <Col xs={24} md={12}>
-            <div style={{marginBottom: 8}}>App Secret</div>
-            <Input.Password
-              {...credentialSecretInputProps}
-              name="feishu-organization-sync-app-secret"
-              value={config.appSecret}
-              onChange={event => this.updateConfigField("appSecret", event.target.value)}
-            />
-          </Col>
-          <Col xs={24} md={12}>
-            <div style={{marginBottom: 8}}>同步选项</div>
-            <Space direction="vertical" size={8}>
-              <Space><Switch checked={config.isEnabled} disabled={hasSourceConflict} onChange={checked => this.updateSyncEnabled(checked)} /><span>启用同步</span></Space>
-              <Space><Switch checked={config.softDisableMissingData} onChange={checked => this.updateConfigField("softDisableMissingData", checked)} /><span>全量同步成功后软禁用缺失数据</span></Space>
-            </Space>
-          </Col>
-          <Col xs={24} md={12}>
-            <div style={{marginBottom: 8}}>定时同步</div>
-            <Space direction="vertical" size={8} style={{width: "100%"}}>
-              <Space><Switch checked={config.scheduleEnabled} onChange={checked => this.updateConfigField("scheduleEnabled", checked)} /><span>启用定时同步</span></Space>
-              {!config.scheduleEnabled ? (
-                <Text type="secondary">未启用定时同步</Text>
-              ) : (
-                <>
-                  <div>
-                    <div style={{marginBottom: 4}}>Cron 表达式</div>
-                    <Input value={config.scheduleCron} onChange={event => this.updateConfigField("scheduleCron", event.target.value)} placeholder="0 2 * * *" />
-                  </div>
-                  <div>
-                    <div style={{marginBottom: 4}}>时区</div>
-                    <Input value={config.scheduleTimezone} onChange={event => this.updateConfigField("scheduleTimezone", event.target.value)} placeholder="Asia/Shanghai" />
-                  </div>
-                  {config.scheduleLastFireAt && (
-                    <Text type="secondary">最近调度：{this.formatRunTime(config.scheduleLastFireAt)}</Text>
-                  )}
-                  {config.scheduleLastStatus && (
-                    <Text type="secondary">最近结果：{config.scheduleLastStatus}{config.scheduleLastErrorText ? `，${config.scheduleLastErrorText}` : ""}</Text>
-                  )}
-                </>
-              )}
-            </Space>
-          </Col>
-        </Row>
+        <OrganizationSyncSectionCard variant="config">
+          <Row className="organization-sync-config-grid" gutter={[16, 16]}>
+            <Col xs={24} md={12}>
+              <div style={{marginBottom: 8}}>同步目标组织</div>
+              <OrganizationSelect
+                initValue={this.state.organization}
+                onChange={(organization: string) => this.changeOrganization(organization)}
+                excludedOrganizations={["built-in", ...this.getExcludedSourceOrganizations()]}
+                style={{minWidth: 280, width: "100%"}}
+              />
+            </Col>
+            <Col xs={24} md={12}>
+              <div style={{marginBottom: 8}}>服务区域</div>
+              <Select
+                value={config.endpointMode}
+                onChange={value => this.updateConfigField("endpointMode", value)}
+                style={{width: "100%"}}
+                options={[
+                  {value: "feishu", label: "飞书（中国大陆）"},
+                  {value: "lark", label: "Lark（海外）"},
+                ]}
+              />
+            </Col>
+            <Col xs={24} md={12}>
+              <div style={{marginBottom: 8}}>App ID</div>
+              <Input
+                {...credentialTextInputProps}
+                name="feishu-organization-sync-app-id"
+                value={config.appId}
+                onChange={event => this.updateConfigField("appId", event.target.value)}
+              />
+            </Col>
+            <Col xs={24} md={12}>
+              <div style={{marginBottom: 8}}>App Secret</div>
+              <Input.Password
+                {...credentialSecretInputProps}
+                name="feishu-organization-sync-app-secret"
+                value={config.appSecret}
+                onChange={event => this.updateConfigField("appSecret", event.target.value)}
+              />
+            </Col>
+            <Col xs={24} md={12}>
+              <div style={{marginBottom: 8}}>同步选项</div>
+              <Space direction="vertical" size={8}>
+                <Space><Switch checked={config.isEnabled} disabled={hasSourceConflict} onChange={checked => this.updateSyncEnabled(checked)} /><span>启用同步</span></Space>
+                <Space><Switch checked={config.softDisableMissingData} onChange={checked => this.updateConfigField("softDisableMissingData", checked)} /><span>全量同步成功后软禁用缺失数据</span></Space>
+              </Space>
+            </Col>
+            <Col xs={24} md={12}>
+              <div style={{marginBottom: 8}}>定时同步</div>
+              <Space direction="vertical" size={8} style={{width: "100%"}}>
+                <Space><Switch checked={config.scheduleEnabled} onChange={checked => this.updateConfigField("scheduleEnabled", checked)} /><span>启用定时同步</span></Space>
+                {!config.scheduleEnabled ? (
+                  <Text type="secondary">未启用定时同步</Text>
+                ) : (
+                  <>
+                    <div>
+                      <div style={{marginBottom: 4}}>Cron 表达式</div>
+                      <Input value={config.scheduleCron} onChange={event => this.updateConfigField("scheduleCron", event.target.value)} placeholder="0 2 * * *" />
+                    </div>
+                    <div>
+                      <div style={{marginBottom: 4}}>时区</div>
+                      <Input value={config.scheduleTimezone} onChange={event => this.updateConfigField("scheduleTimezone", event.target.value)} placeholder="Asia/Shanghai" />
+                    </div>
+                    {config.scheduleLastFireAt && (
+                      <Text type="secondary">最近调度：{this.formatRunTime(config.scheduleLastFireAt)}</Text>
+                    )}
+                    {config.scheduleLastStatus && (
+                      <Text type="secondary">最近结果：{config.scheduleLastStatus}{config.scheduleLastErrorText ? `，${config.scheduleLastErrorText}` : ""}</Text>
+                    )}
+                  </>
+                )}
+              </Space>
+            </Col>
+          </Row>
 
-        {this.renderSourceConflictAlert()}
+          {this.renderSourceConflictAlert()}
 
-        <Alert
-          style={{marginTop: 16}}
-          type="info"
-          showIcon
-          message="通讯录读取权限要求"
-          description="请使用与 endpoint 模式匹配的飞书/Lark 自建应用凭证，并确保应用已获得 Contact v3 部门和用户读取权限；扫码登录可用不代表通讯录同步权限足够。"
-        />
-        {this.renderTestResult()}
+          <Alert
+            className="organization-sync-permission-alert"
+            type="info"
+            showIcon
+            message="通讯录读取权限要求"
+            description="请使用与 endpoint 模式匹配的飞书/Lark 自建应用凭证，并确保应用已获得 Contact v3 部门和用户读取权限；扫码登录可用不代表通讯录同步权限足够。"
+          />
+          {this.renderTestResult()}
 
-        <OrganizationSyncActionBar
-          className="organization-sync-action-bar"
-          actions={[
-            {key: "save", label: `${i18next.t("general:Save")}`, icon: <SaveOutlined />, type: "primary", loading: this.state.saving, disabled: hasSourceConflict, onClick: () => this.saveConfig()},
-            {key: "test", label: "测试连接", icon: <ToolOutlined />, loading: this.state.testing, onClick: () => this.testConfig()},
-            {key: "preview", label: "预览影响", icon: <CloudSyncOutlined />, loading: this.state.previewing, disabled: !config.isEnabled, onClick: () => this.previewSyncImpact()},
-            {key: "sync", label: hasRunningRuns ? "同步进行中" : "开始全量同步", icon: <PlayCircleOutlined />, loading: this.state.syncing, disabled: hasSourceConflict || !config.isEnabled || hasRunningRuns, onClick: () => this.startSync()},
-          ]}
-        />
-        {this.renderDryRunQuickAccess()}
-        {this.renderDryRunPreview()}
-        {this.renderDryRunHistory()}
+          <OrganizationSyncActionBar
+            className="organization-sync-action-bar"
+            actions={[
+              {key: "save", label: `${i18next.t("general:Save")}`, icon: <SaveOutlined />, type: "primary", loading: this.state.saving, disabled: hasSourceConflict, onClick: () => this.saveConfig()},
+              {key: "test", label: "测试连接", icon: <ToolOutlined />, loading: this.state.testing, onClick: () => this.testConfig()},
+              {key: "preview", label: "预览影响", icon: <CloudSyncOutlined />, loading: this.state.previewing, disabled: !config.isEnabled, onClick: () => this.previewSyncImpact()},
+              {key: "sync", label: hasRunningRuns ? "同步进行中" : "开始全量同步", icon: <PlayCircleOutlined />, loading: this.state.syncing, disabled: hasSourceConflict || !config.isEnabled || hasRunningRuns, onClick: () => this.startSync()},
+            ]}
+          />
+          {this.renderDryRunQuickAccess()}
+          {this.renderDryRunPreview()}
+          {this.renderDryRunHistory()}
 
-        {this.renderAuxiliaryChecks()}
+          {this.renderAuxiliaryChecks()}
+        </OrganizationSyncSectionCard>
 
-        <Divider />
-        <OrganizationSyncRunRecordHeader
-          className="organization-sync-record-header"
-          title="同步记录"
-          hint={runRefreshHint}
-          hintType={this.state.runRefreshError ? "danger" : "secondary"}
-          refreshAction={{
-            label: "刷新",
-            icon: <ReloadOutlined />,
-            loading: this.state.loading,
-            onClick: () => this.refreshRuns(this.state.organization).catch(() => {}),
-          }}
-        />
-        {this.renderRuns()}
+        <OrganizationSyncSectionCard variant="record">
+          <OrganizationSyncRunRecordHeader
+            className="organization-sync-record-header"
+            title="同步记录"
+            hint={runRefreshHint}
+            hintType={this.state.runRefreshError ? "danger" : "secondary"}
+            refreshAction={{
+              label: "刷新",
+              icon: <ReloadOutlined />,
+              loading: this.state.loading,
+              onClick: () => this.refreshRuns(this.state.organization).catch(() => {}),
+            }}
+          />
+          {this.renderRuns()}
+        </OrganizationSyncSectionCard>
       </div>
     );
   }

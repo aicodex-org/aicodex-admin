@@ -1,6 +1,6 @@
 import React from "react";
-import {Table} from "antd";
-import type {TableProps} from "antd";
+import {Pagination, Table} from "antd";
+import type {TablePaginationConfig, TableProps} from "antd";
 
 interface ListPageTableProps<RecordType extends object> extends TableProps<RecordType> {
 }
@@ -20,9 +20,12 @@ export default function ListPageTable<RecordType extends object>(props: ListPage
     showSorterTooltip = {target: "sorter-icon"},
     tableLayout = "fixed",
     title,
+    pagination,
+    onChange,
     ...restProps
   } = props;
   const mergedClassName = ["enterprise-list-table", className].filter(Boolean).join(" ");
+  const paginationConfig = pagination && typeof pagination === "object" ? pagination : undefined;
   const wrappedTitle = title === undefined ? undefined : (currentPageData: readonly RecordType[]) => {
     const titleContent = title(currentPageData);
     if (isToolbarShell(titleContent)) {
@@ -30,16 +33,47 @@ export default function ListPageTable<RecordType extends object>(props: ListPage
     }
     return <div className="enterprise-list-toolbar-shell">{titleContent}</div>;
   };
+  const handleTableChange: TableProps<RecordType>["onChange"] = (nextPagination, filters, sorter, extra) => {
+    const mergedPagination = paginationConfig === undefined ?
+      nextPagination :
+      {...paginationConfig, ...nextPagination};
+
+    onChange?.(mergedPagination, filters, sorter, extra);
+  };
+  const handleFooterPaginationChange: NonNullable<TablePaginationConfig["onChange"]> = (current, pageSize) => {
+    const nextPagination = {
+      ...paginationConfig,
+      current,
+      pageSize,
+    } as TablePaginationConfig;
+
+    paginationConfig?.onChange?.(current, pageSize);
+    onChange?.(nextPagination, {}, {}, {action: "paginate", currentDataSource: []});
+  };
 
   return (
-    <Table<RecordType>
-      {...restProps}
-      className={mergedClassName}
-      size={size}
-      bordered={bordered}
-      showSorterTooltip={showSorterTooltip}
-      tableLayout={tableLayout}
-      title={wrappedTitle}
-    />
+    <div className="enterprise-list-table-frame">
+      <Table<RecordType>
+        {...restProps}
+        className={mergedClassName}
+        size={size}
+        bordered={bordered}
+        showSorterTooltip={showSorterTooltip}
+        tableLayout={tableLayout}
+        title={wrappedTitle}
+        pagination={paginationConfig === undefined ? pagination : false}
+        onChange={handleTableChange}
+      />
+      {paginationConfig === undefined ? null : (
+        <div className="enterprise-list-pagination-footer">
+          <Pagination
+            {...paginationConfig}
+            className="enterprise-list-pagination-footer-control"
+            size={paginationConfig.size ?? "small"}
+            onChange={handleFooterPaginationChange}
+          />
+        </div>
+      )}
+    </div>
   );
 }

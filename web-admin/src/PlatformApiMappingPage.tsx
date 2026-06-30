@@ -2388,6 +2388,7 @@ class PlatformApiMappingPage extends React.Component<AdminRouteProps, LegacyAny>
   render() {
     return (
       <Card
+        className="platform-api-mapping-page"
         title={
           <Space wrap>
             {this.renderTitleWithTip("AICodex API 组织与账号映射", titleTips.platformApiMappings)}

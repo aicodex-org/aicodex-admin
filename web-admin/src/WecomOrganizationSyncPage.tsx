@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import React from "react";
-import {Alert, Button, Col, Divider, Empty, Input, Modal, Row, Space, Spin, Switch, Table, Tag, Tooltip, Typography} from "antd";
+import {Alert, Button, Col, Empty, Input, Modal, Row, Space, Spin, Switch, Table, Tag, Tooltip, Typography} from "antd";
 import {FileSearchOutlined, HistoryOutlined, PlayCircleOutlined, PlusOutlined, ReloadOutlined, SaveOutlined, ToolOutlined} from "@ant-design/icons";
 import * as Setting from "./Setting";
 import * as FeishuOrganizationSyncBackend from "./backend/FeishuOrganizationSyncBackend";
@@ -25,7 +25,8 @@ import {LegacyOrganizationSyncSourceStatus, OrganizationDirectorySourceStatus, g
 import {
   OrganizationSyncActionBar,
   OrganizationSyncPageHeader,
-  OrganizationSyncRunRecordHeader
+  OrganizationSyncRunRecordHeader,
+  OrganizationSyncSectionCard
 } from "./organizationSync/OrganizationSyncShell";
 
 const {Text} = Typography;
@@ -1507,73 +1508,76 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
           subtitle="配置通讯录同步并查看正式同步记录。"
         />
 
-        <Row className="organization-sync-config-grid" gutter={[16, 16]}>
-          <Col xs={24} md={12}>
-            {this.renderOrganizationSelector()}
-          </Col>
-          <Col xs={0} md={12} />
-          <Col xs={24} md={12}>
-            <div style={{marginBottom: 8}}>App ID（Corp ID）</div>
-            <Input
-              {...credentialTextInputProps}
-              name="wecom-organization-sync-corp-id"
-              value={config.corpId}
-              onChange={event => this.updateConfigField("corpId", event.target.value)}
-            />
-          </Col>
-          <Col xs={24} md={12}>
-            <div style={{marginBottom: 8}}>App Secret</div>
-            <Input.Password
-              {...credentialSecretInputProps}
-              name="wecom-organization-sync-address-book-secret"
-              value={config.addressBookSecret}
-              onChange={event => this.updateConfigField("addressBookSecret", event.target.value)}
-            />
-          </Col>
-          <Col xs={24} md={12}>
-            {this.renderSyncOptions(config)}
-          </Col>
-          <Col xs={24} md={12}>
-            {this.renderScheduleOptions(config)}
-          </Col>
-        </Row>
+        <OrganizationSyncSectionCard variant="config">
+          <Row className="organization-sync-config-grid" gutter={[16, 16]}>
+            <Col xs={24} md={12}>
+              {this.renderOrganizationSelector()}
+            </Col>
+            <Col xs={0} md={12} />
+            <Col xs={24} md={12}>
+              <div style={{marginBottom: 8}}>App ID（Corp ID）</div>
+              <Input
+                {...credentialTextInputProps}
+                name="wecom-organization-sync-corp-id"
+                value={config.corpId}
+                onChange={event => this.updateConfigField("corpId", event.target.value)}
+              />
+            </Col>
+            <Col xs={24} md={12}>
+              <div style={{marginBottom: 8}}>App Secret</div>
+              <Input.Password
+                {...credentialSecretInputProps}
+                name="wecom-organization-sync-address-book-secret"
+                value={config.addressBookSecret}
+                onChange={event => this.updateConfigField("addressBookSecret", event.target.value)}
+              />
+            </Col>
+            <Col xs={24} md={12}>
+              {this.renderSyncOptions(config)}
+            </Col>
+            <Col xs={24} md={12}>
+              {this.renderScheduleOptions(config)}
+            </Col>
+          </Row>
 
-        {this.renderSourceConflictAlert()}
+          {this.renderSourceConflictAlert()}
 
-        <Alert
-          style={{marginTop: 16}}
-          type="info"
-          showIcon
-          message="通讯录读取权限要求"
-          description="请填写 App Secret，并把应用可见范围设置为需要同步的部门和成员；通讯录同步 Secret 只适合写入或 ID 比对，读取详情时可能返回 48009。"
-        />
-        {this.renderTestResult()}
+          <Alert
+            className="organization-sync-permission-alert"
+            type="info"
+            showIcon
+            message="通讯录读取权限要求"
+            description="请填写 App Secret，并把应用可见范围设置为需要同步的部门和成员；通讯录同步 Secret 只适合写入或 ID 比对，读取详情时可能返回 48009。"
+          />
+          {this.renderTestResult()}
 
-        <OrganizationSyncActionBar
-          className="organization-sync-action-bar"
-          actions={[
-            {key: "save", label: String(i18next.t("general:Save")), icon: <SaveOutlined />, type: "primary", loading: this.state.saving, disabled: hasSourceConflict, onClick: () => this.saveConfig()},
-            {key: "test", label: "测试连接", icon: <ToolOutlined />, loading: this.state.testing, onClick: () => this.testConfig()},
-            {key: "dryRunPreview", label: "预览影响", icon: <FileSearchOutlined />, loading: this.state.dryRunPreviewLoading, disabled: !this.state.organization || !config.isEnabled, onClick: () => this.previewDryRun()},
-            {key: "dryRunHistory", label: "预览历史", icon: <HistoryOutlined />, loading: this.state.dryRunHistoryLoading, disabled: !this.state.organization, onClick: () => this.openDryRunHistory()},
-            {key: "sync", label: syncButtonLabel, icon: <PlayCircleOutlined />, loading: this.state.syncing, disabled: hasSourceConflict || !config.isEnabled || hasRunningRuns, onClick: () => this.startSync()},
-          ]}
-        />
+          <OrganizationSyncActionBar
+            className="organization-sync-action-bar"
+            actions={[
+              {key: "save", label: String(i18next.t("general:Save")), icon: <SaveOutlined />, type: "primary", loading: this.state.saving, disabled: hasSourceConflict, onClick: () => this.saveConfig()},
+              {key: "test", label: "测试连接", icon: <ToolOutlined />, loading: this.state.testing, onClick: () => this.testConfig()},
+              {key: "dryRunPreview", label: "预览影响", icon: <FileSearchOutlined />, loading: this.state.dryRunPreviewLoading, disabled: !this.state.organization || !config.isEnabled, onClick: () => this.previewDryRun()},
+              {key: "dryRunHistory", label: "预览历史", icon: <HistoryOutlined />, loading: this.state.dryRunHistoryLoading, disabled: !this.state.organization, onClick: () => this.openDryRunHistory()},
+              {key: "sync", label: syncButtonLabel, icon: <PlayCircleOutlined />, loading: this.state.syncing, disabled: hasSourceConflict || !config.isEnabled || hasRunningRuns, onClick: () => this.startSync()},
+            ]}
+          />
+        </OrganizationSyncSectionCard>
 
-        <Divider />
-        <OrganizationSyncRunRecordHeader
-          className="organization-sync-record-header"
-          title="同步记录"
-          hint={runRefreshHint.text}
-          hintType={runRefreshHint.type}
-          refreshAction={{
-            label: "刷新",
-            icon: <ReloadOutlined />,
-            loading: this.state.loading,
-            onClick: () => this.refreshRuns(this.state.organization).catch(() => {}),
-          }}
-        />
-        {this.renderRuns()}
+        <OrganizationSyncSectionCard variant="record">
+          <OrganizationSyncRunRecordHeader
+            className="organization-sync-record-header"
+            title="同步记录"
+            hint={runRefreshHint.text}
+            hintType={runRefreshHint.type}
+            refreshAction={{
+              label: "刷新",
+              icon: <ReloadOutlined />,
+              loading: this.state.loading,
+              onClick: () => this.refreshRuns(this.state.organization).catch(() => {}),
+            }}
+          />
+          {this.renderRuns()}
+        </OrganizationSyncSectionCard>
         {this.renderDryRunPreviewModal()}
         {this.renderDryRunHistoryModal()}
       </div>

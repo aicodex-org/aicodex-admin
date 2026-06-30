@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Card, Col, Divider, Progress, Row, Spin, Tour} from "antd";
+import {Card, Progress, Spin, Tour} from "antd";
 import * as SystemBackend from "./backend/SystemInfo";
 import React from "react";
 import * as Setting from "./Setting";
@@ -195,7 +195,7 @@ class SystemInfo extends React.Component<AdminRouteProps, SystemInfoState> {
       this.state.systemInfo.cpuUsage.map((usage: number, i: number) => {
         const percent = Number(usage.toFixed(1));
         return (
-          <Progress key={i} percent={percent} strokeColor={getProgressColor(percent)} format={p => `${p}%`} />
+          <Progress key={i} className="system-info-cpu-progress" percent={percent} strokeColor={getProgressColor(percent)} format={p => `${p}%`} />
         );
       });
 
@@ -220,7 +220,7 @@ class SystemInfo extends React.Component<AdminRouteProps, SystemInfoState> {
         <br />
         {t("system:Received")}: {Setting.getFriendlyFileSize(this.state.systemInfo.networkRecv)}
         <br /> <br />
-        <div style={{fontSize: "16px", fontWeight: "600", color: "rgba(0, 0, 0, 0.85)"}}>
+        <div className="system-info-network-total">
           {t("system:Total Throughput")}: {Setting.getFriendlyFileSize(this.state.systemInfo.networkTotal)}
         </div>
       </div>;
@@ -236,58 +236,47 @@ class SystemInfo extends React.Component<AdminRouteProps, SystemInfoState> {
       versionText += ` (ahead+${this.state.versionInfo.commitOffset})`;
     }
 
+    const pageContent = (
+      <div className="system-info-page">
+        <section className="system-info-metrics-grid" aria-label={t("system:System Information")}>
+          <Card id="cpu-card" className="system-info-card system-info-card-cpu" title={t("system:CPU Usage")} variant="outlined">
+            {this.state.loading ? <Spin size="large" /> : cpuUi}
+          </Card>
+          <Card id="memory-card" className="system-info-card system-info-card-memory" title={t("system:Memory Usage")} variant="outlined">
+            {this.state.loading ? <Spin size="large" /> : memUi}
+          </Card>
+          <Card id="disk-card" className="system-info-card system-info-card-disk" title={t("system:Disk Usage")} variant="outlined">
+            {this.state.loading ? <Spin size="large" /> : diskUi}
+          </Card>
+          <Card id="network-card" className="system-info-card system-info-card-network" title={t("system:Network Usage")} variant="outlined">
+            {this.state.loading ? <Spin size="large" /> : networkUi}
+          </Card>
+        </section>
+        <section className="system-info-data-grid">
+          <Card id="latency-card" className="system-info-card system-info-data-card" title={t("system:API Latency")} variant="outlined">
+            {this.state.loading ? <Spin size="large" /> : latencyUi}
+          </Card>
+          <Card id="throughput-card" className="system-info-card system-info-data-card" title={t("system:API Throughput")} variant="outlined">
+            {this.state.loading ? <Spin size="large" /> : throughputUi}
+          </Card>
+          <Card id="about-card" className="system-info-card system-info-about-card" title={t("system:About aicodex-admin")} variant="outlined">
+            <div>{t("system:An Identity and Access Management (IAM) / Single-Sign-On (SSO) platform with web UI supporting OAuth 2.0, OIDC, SAML and CAS")}</div>
+            Repository: <a target="_blank" rel="noreferrer" href={repoUrl}>aicodex-admin</a>
+            <br />
+            {t("system:Version")}: <a target="_blank" rel="noreferrer" href={link}>{versionText}</a>
+            <br />
+            {t("system:Official website")}: <a target="_blank" rel="noreferrer" href={repoUrl}>{repoUrl}</a>
+            <br />
+            {t("system:Community")}: <a target="_blank" rel="noreferrer" href={repoUrl}>Get in Touch!</a>
+          </Card>
+        </section>
+      </div>
+    );
+
     if (!Setting.isMobile()) {
       return (
         <>
-          <Row>
-            <Col span={6}></Col>
-            <Col span={12}>
-              <Row gutter={[10, 10]}>
-                <Col span={12}>
-                  <Card id="cpu-card" title={t("system:CPU Usage")} bordered={true} style={{textAlign: "center", height: "100%"}}>
-                    {this.state.loading ? <Spin size="large" /> : cpuUi}
-                  </Card>
-                </Col>
-                <Col span={12}>
-                  <Card id="memory-card" title={t("system:Memory Usage")} bordered={true} style={{textAlign: "center", height: "100%"}}>
-                    {this.state.loading ? <Spin size="large" /> : memUi}
-                  </Card>
-                </Col>
-                <Col span={12}>
-                  <Card id="disk-card" title={t("system:Disk Usage")} bordered={true} style={{textAlign: "center", height: "100%"}}>
-                    {this.state.loading ? <Spin size="large" /> : diskUi}
-                  </Card>
-                </Col>
-                <Col span={12}>
-                  <Card id="network-card" title={t("system:Network Usage")} bordered={true} style={{textAlign: "center", height: "100%"}}>
-                    {this.state.loading ? <Spin size="large" /> : networkUi}
-                  </Card>
-                </Col>
-                <Col span={24}>
-                  <Card id="latency-card" title={t("system:API Latency")} bordered={true} style={{textAlign: "center", height: "100%"}}>
-                    {this.state.loading ? <Spin size="large" /> : latencyUi}
-                  </Card>
-                </Col>
-                <Col span={24}>
-                  <Card id="throughput-card" title={t("system:API Throughput")} bordered={true} style={{textAlign: "center", height: "100%"}}>
-                    {this.state.loading ? <Spin size="large" /> : throughputUi}
-                  </Card>
-                </Col>
-              </Row>
-              <Divider />
-              <Card id="about-card" title={t("system:About aicodex-admin")} bordered={true} style={{textAlign: "center"}}>
-                <div>{t("system:An Identity and Access Management (IAM) / Single-Sign-On (SSO) platform with web UI supporting OAuth 2.0, OIDC, SAML and CAS")}</div>
-                Repository: <a target="_blank" rel="noreferrer" href={repoUrl}>aicodex-admin</a>
-                <br />
-                {t("system:Version")}: <a target="_blank" rel="noreferrer" href={link}>{versionText}</a>
-                <br />
-                {t("system:Official website")}: <a target="_blank" rel="noreferrer" href={repoUrl}>{repoUrl}</a>
-                <br />
-                {t("system:Community")}: <a target="_blank" rel="noreferrer" href={repoUrl}>Get in Touch!</a>
-              </Card>
-            </Col>
-            <Col span={6}></Col>
-          </Row>
+          {pageContent}
           <Tour
             open={Setting.isMobile() ? false : this.state.isTourVisible}
             onClose={this.setIsTourVisible}
@@ -302,42 +291,7 @@ class SystemInfo extends React.Component<AdminRouteProps, SystemInfoState> {
         </>
       );
     } else {
-      return (
-        <Row gutter={[16, 0]}>
-          <Col span={24}>
-            <Card title={t("system:CPU Usage")} bordered={true} style={{textAlign: "center", width: "100%"}}>
-              {this.state.loading ? <Spin size="large" /> : cpuUi}
-            </Card>
-          </Col>
-          <Col span={24}>
-            <Card title={t("system:Memory Usage")} bordered={true} style={{textAlign: "center", width: "100%"}}>
-              {this.state.loading ? <Spin size="large" /> : memUi}
-            </Card>
-          </Col>
-          <Col span={24}>
-            <Card title={t("system:Disk Usage")} bordered={true} style={{textAlign: "center", width: "100%"}}>
-              {this.state.loading ? <Spin size="large" /> : diskUi}
-            </Card>
-          </Col>
-          <Col span={24}>
-            <Card title={t("system:Network Usage")} bordered={true} style={{textAlign: "center", width: "100%"}}>
-              {this.state.loading ? <Spin size="large" /> : networkUi}
-            </Card>
-          </Col>
-          <Col span={24}>
-            <Card title={t("system:About aicodex-admin")} bordered={true} style={{textAlign: "center"}}>
-              <div>{t("system:An Identity and Access Management (IAM) / Single-Sign-On (SSO) platform with web UI supporting OAuth 2.0, OIDC, SAML and CAS")}</div>
-              Repository: <a target="_blank" rel="noreferrer" href={repoUrl}>aicodex-admin</a>
-              <br />
-              {t("system:Version")}: <a target="_blank" rel="noreferrer" href={link}>{versionText}</a>
-              <br />
-              {t("system:Official website")}: <a target="_blank" rel="noreferrer" href={repoUrl}>{repoUrl}</a>
-              <br />
-              {t("system:Community")}: <a target="_blank" rel="noreferrer" href={repoUrl}>Get in Touch!</a>
-            </Card>
-          </Col>
-        </Row>
-      );
+      return pageContent;
     }
   }
 }
