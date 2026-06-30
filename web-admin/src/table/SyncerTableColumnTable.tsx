@@ -19,52 +19,78 @@ import * as Setting from "../Setting";
 import i18next from "i18next";
 
 const {Option} = Select;
+type SyncerTableColumns = import("antd").TableProps<SyncerTableColumnRecord>["columns"];
 
-class SyncerTableColumnTable extends React.Component {
-  constructor(props) {
+function tr(key: string): string {
+  return i18next.t(key) as string;
+}
+
+// 同步器表格字段允许后端透传历史扩展字段，当前组件只编辑下面这些核心列属性。
+export interface SyncerTableColumnRecord {
+  name?: string;
+  type?: string;
+  casdoorName?: string;
+  isKey?: boolean;
+  isHashed?: boolean;
+  values?: unknown[];
+  [key: string]: unknown;
+}
+
+interface SyncerTableColumnTableProps {
+  title: string;
+  table?: SyncerTableColumnRecord[];
+  onUpdateTable: (table: SyncerTableColumnRecord[]) => void;
+}
+
+interface SyncerTableColumnTableState {
+  classes: SyncerTableColumnTableProps;
+}
+
+class SyncerTableColumnTable extends React.Component<SyncerTableColumnTableProps, SyncerTableColumnTableState> {
+  constructor(props: SyncerTableColumnTableProps) {
     super(props);
     this.state = {
       classes: props,
     };
   }
 
-  updateTable(table) {
+  updateTable(table: SyncerTableColumnRecord[]) {
     this.props.onUpdateTable(table);
   }
 
-  updateField(table, index, key, value) {
+  updateField(table: SyncerTableColumnRecord[], index: number, key: keyof SyncerTableColumnRecord, value: unknown) {
     table[index][key] = value;
     this.updateTable(table);
   }
 
-  addRow(table) {
-    const row = {name: `column${table.length}`, type: "string", values: [], isKey: table.filter(row => row.isKey).length === 0};
+  addRow(table: SyncerTableColumnRecord[] = []) {
+    const row: SyncerTableColumnRecord = {name: `column${table.length}`, type: "string", values: [], isKey: table.filter(row => row.isKey).length === 0};
     if (table === undefined) {
       table = [];
     }
-    table = Setting.addRow(table, row);
+    table = Setting.addRow(table, row) as SyncerTableColumnRecord[];
     this.updateTable(table);
   }
 
-  deleteRow(table, i) {
-    table = Setting.deleteRow(table, i);
+  deleteRow(table: SyncerTableColumnRecord[], i: number) {
+    table = Setting.deleteRow(table, i) as SyncerTableColumnRecord[];
     this.updateTable(table);
   }
 
-  upRow(table, i) {
-    table = Setting.swapRow(table, i - 1, i);
+  upRow(table: SyncerTableColumnRecord[], i: number) {
+    table = Setting.swapRow(table, i - 1, i) as SyncerTableColumnRecord[];
     this.updateTable(table);
   }
 
-  downRow(table, i) {
-    table = Setting.swapRow(table, i, i + 1);
+  downRow(table: SyncerTableColumnRecord[], i: number) {
+    table = Setting.swapRow(table, i, i + 1) as SyncerTableColumnRecord[];
     this.updateTable(table);
   }
 
-  renderTable(table) {
-    const columns = [
+  renderTable(table: SyncerTableColumnRecord[] = []) {
+    const columns: SyncerTableColumns = [
       {
-        title: i18next.t("syncer:Column name"),
+        title: tr("syncer:Column name"),
         dataIndex: "name",
         key: "name",
         render: (text, record, index) => {
@@ -76,7 +102,7 @@ class SyncerTableColumnTable extends React.Component {
         },
       },
       {
-        title: i18next.t("syncer:Column type"),
+        title: tr("syncer:Column type"),
         dataIndex: "type",
         key: "type",
         render: (text, record, index) => {
@@ -91,7 +117,7 @@ class SyncerTableColumnTable extends React.Component {
         },
       },
       {
-        title: i18next.t("syncer:aicodex-admin column"),
+        title: tr("syncer:aicodex-admin column"),
         dataIndex: "casdoorName",
         key: "casdoorName",
         render: (text, record, index) => {
@@ -105,12 +131,12 @@ class SyncerTableColumnTable extends React.Component {
         },
       },
       {
-        title: i18next.t("syncer:Is key"),
+        title: tr("syncer:Is key"),
         dataIndex: "isKey",
         key: "isKey",
         render: (text, record, index) => {
           return (
-            <Switch checked={text} onChange={checked => {
+            <Switch checked={Boolean(text)} onChange={checked => {
               if (!record.isKey && checked) {
                 table.forEach((row, i) => {
                   this.updateField(table, i, "isKey", false);
@@ -125,31 +151,31 @@ class SyncerTableColumnTable extends React.Component {
         },
       },
       {
-        title: i18next.t("syncer:Is hashed"),
+        title: tr("syncer:Is hashed"),
         dataIndex: "isHashed",
         key: "isHashed",
         render: (text, record, index) => {
           return (
-            <Switch checked={text} onChange={checked => {
+            <Switch checked={Boolean(text)} onChange={checked => {
               this.updateField(table, index, "isHashed", checked);
             }} />
           );
         },
       },
       {
-        title: i18next.t("general:Action"),
+        title: tr("general:Action"),
         key: "action",
         width: "100px",
         render: (text, record, index) => {
           return (
             <div>
-              <Tooltip placement="bottomLeft" title={i18next.t("general:Up")}>
+              <Tooltip placement="bottomLeft" title={tr("general:Up")}>
                 <Button style={{marginRight: "5px"}} disabled={index === 0} icon={<UpOutlined />} size="small" onClick={() => this.upRow(table, index)} />
               </Tooltip>
-              <Tooltip placement="topLeft" title={i18next.t("general:Down")}>
+              <Tooltip placement="topLeft" title={tr("general:Down")}>
                 <Button style={{marginRight: "5px"}} disabled={index === table.length - 1} icon={<DownOutlined />} size="small" onClick={() => this.downRow(table, index)} />
               </Tooltip>
-              <Tooltip placement="topLeft" title={i18next.t("general:Delete")}>
+              <Tooltip placement="topLeft" title={tr("general:Delete")}>
                 <Button icon={<DeleteOutlined />} disabled={record.isKey && table.length > 1} size="small" onClick={() => this.deleteRow(table, index)} />
               </Tooltip>
             </div>
@@ -163,7 +189,7 @@ class SyncerTableColumnTable extends React.Component {
         title={() => (
           <div>
             {this.props.title}&nbsp;&nbsp;&nbsp;&nbsp;
-            <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={() => this.addRow(table)}>{i18next.t("general:Add")}</Button>
+            <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={() => this.addRow(table)}>{tr("general:Add")}</Button>
           </div>
         )}
       />
