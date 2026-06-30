@@ -16,11 +16,17 @@ import React from "react";
 import {Button, Popconfirm, Table} from "antd";
 import * as Setting from "./Setting";
 import * as LdapBackend from "./backend/LdapBackend";
-import i18next from "i18next";
+import rawI18next from "i18next";
 import {Link} from "react-router-dom";
 
-class LdapSyncPage extends React.Component {
-  constructor(props) {
+const i18next = rawI18next as Omit<typeof rawI18next, "t"> & {
+  t: (key: string, defaultValue?: string) => string;
+};
+type LegacyAny = any;
+type AdminRouteProps = Record<string, LegacyAny>;
+
+class LdapSyncPage extends React.Component<AdminRouteProps, LegacyAny> {
+  constructor(props: AdminRouteProps) {
     super(props);
     this.state = {
       ldapId: props.match.params.ldapId,
@@ -48,21 +54,21 @@ class LdapSyncPage extends React.Component {
         if (res.status === "ok") {
           const exist = res.data.exist;
           const failed = res.data.failed;
-          const existUser = [];
-          const failedUser = [];
+          const existUser: string[] = [];
+          const failedUser: string[] = [];
 
           if ((!exist || exist.length === 0) && (!failed || failed.length === 0)) {
             Setting.goToLink(`/organizations/${this.state.ldap.owner}/users`);
           } else {
             if (exist && exist.length > 0) {
-              exist.forEach(elem => {
+              exist.forEach((elem: LegacyAny) => {
                 existUser.push(elem.cn);
               });
               Setting.showMessage("error", `${i18next.t("general:User already exists")}: [${existUser}]`);
             }
 
             if (failed && failed.length > 0) {
-              failed.forEach(elem => {
+              failed.forEach((elem: LegacyAny) => {
                 failedUser.push(elem.cn);
               });
               Setting.showMessage("error", `${i18next.t("general:Failed to sync")}: [${failedUser}]`);
@@ -92,9 +98,9 @@ class LdapSyncPage extends React.Component {
     LdapBackend.getLdapUser(this.state.organizationName, this.state.ldapId)
       .then((res) => {
         if (res.status === "ok") {
-          this.setState((prevState) => {
+          this.setState((prevState: LegacyAny) => {
             prevState.users = res.data.users;
-            prevState.existUuids = res.data.existUuids?.length > 0 ? res.data.existUuids.filter(uuid => uuid !== "") : [];
+            prevState.existUuids = res.data.existUuids?.length > 0 ? res.data.existUuids.filter((uuid: string) => uuid !== "") : [];
             return prevState;
           });
         } else {
@@ -103,11 +109,11 @@ class LdapSyncPage extends React.Component {
       });
   }
 
-  buildValArray(data, key) {
-    const valTypesArray = [];
+  buildValArray(data: LegacyAny[] | null, key: string): LegacyAny[] {
+    const valTypesArray: LegacyAny[] = [];
 
     if (data !== null && data.length > 0) {
-      data.forEach(elem => {
+      data.forEach((elem: LegacyAny) => {
         const val = elem[key];
         if (!valTypesArray.includes(val)) {
           valTypesArray.push(val);
@@ -117,12 +123,12 @@ class LdapSyncPage extends React.Component {
     return valTypesArray;
   }
 
-  buildFilter(data, key) {
-    const filterArray = [];
+  buildFilter(data: LegacyAny[] | null, key: string): LegacyAny[] {
+    const filterArray: LegacyAny[] = [];
 
     if (data !== null && data.length > 0) {
       const valArray = this.buildValArray(data, key);
-      valArray.forEach(elem => {
+      valArray.forEach((elem: LegacyAny) => {
         filterArray.push({
           text: elem,
           value: elem,
@@ -132,14 +138,14 @@ class LdapSyncPage extends React.Component {
     return filterArray;
   }
 
-  renderTable(users) {
+  renderTable(users: LegacyAny[]): React.ReactElement {
     const columns = [
       {
         title: i18next.t("ldap:CN"),
         dataIndex: "cn",
         key: "cn",
-        sorter: (a, b) => a.cn.localeCompare(b.cn),
-        render: (text, record, index) => {
+        sorter: (a: LegacyAny, b: LegacyAny) => a.cn.localeCompare(b.cn),
+        render: (text: LegacyAny, record: LegacyAny) => {
           return (<div style={{display: "flex", justifyContent: "space-between"}}>
             <div>
               {text}
@@ -155,8 +161,8 @@ class LdapSyncPage extends React.Component {
         title: "Uid",
         dataIndex: "uid",
         key: "uid",
-        sorter: (a, b) => a.uid.localeCompare(b.uid),
-        render: (text, record, index) => {
+        sorter: (a: LegacyAny, b: LegacyAny) => a.uid.localeCompare(b.uid),
+        render: (text: LegacyAny, record: LegacyAny) => {
           return (
             this.state.existUuids.includes(record.uuid) ?
               <Link to={`/users/${this.state.organizationName}/${text}`}>
@@ -170,8 +176,8 @@ class LdapSyncPage extends React.Component {
         title: "UidNumber",
         dataIndex: "uidNumber",
         key: "uidNumber",
-        sorter: (a, b) => a.uidNumber.localeCompare(b.uidNumber),
-        render: (text, record, index) => {
+        sorter: (a: LegacyAny, b: LegacyAny) => a.uidNumber.localeCompare(b.uidNumber),
+        render: (text: LegacyAny) => {
           return text;
         },
       },
@@ -179,37 +185,37 @@ class LdapSyncPage extends React.Component {
         title: i18next.t("ldap:Group ID"),
         dataIndex: "groupId",
         key: "groupId",
-        sorter: (a, b) => a.groupId.localeCompare(b.groupId),
+        sorter: (a: LegacyAny, b: LegacyAny) => a.groupId.localeCompare(b.groupId),
         filters: this.buildFilter(this.state.users, "groupId"),
-        onFilter: (value, record) => record.groupId.indexOf(value) === 0,
+        onFilter: (value: LegacyAny, record: LegacyAny) => record.groupId.indexOf(value) === 0,
       },
       {
         title: i18next.t("general:Email"),
         dataIndex: "email",
         key: "email",
-        sorter: (a, b) => a.email.localeCompare(b.email),
+        sorter: (a: LegacyAny, b: LegacyAny) => a.email.localeCompare(b.email),
       },
       {
         title: i18next.t("general:Phone"),
         dataIndex: "mobile",
         key: "mobile",
-        sorter: (a, b) => a.phone.localeCompare(b.phone),
+        sorter: (a: LegacyAny, b: LegacyAny) => a.phone.localeCompare(b.phone),
       },
       {
         title: i18next.t("user:Address"),
         dataIndex: "address",
         key: "address",
-        sorter: (a, b) => a.address.localeCompare(b.address),
+        sorter: (a: LegacyAny, b: LegacyAny) => a.address.localeCompare(b.address),
       },
     ];
 
     const rowSelection = {
-      onChange: (selectedRowKeys, selectedRows) => {
+      onChange: (selectedRowKeys: React.Key[], selectedRows: LegacyAny[]) => {
         this.setState({
           selectedUsers: selectedRows,
         });
       },
-      getCheckboxProps: record => ({
+      getCheckboxProps: (record: LegacyAny) => ({
         disabled: this.state.existUuids.indexOf(record.uuid) !== -1,
       }),
     };

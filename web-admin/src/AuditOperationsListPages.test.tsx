@@ -279,10 +279,10 @@ describe("audit operations list pages", () => {
   });
 
   const listPageCases: Array<[string, PageClass, string, unknown[], string, string, string]> = [
-    ["sessions", SessionListPage as PageClass, "/sessions", [sampleSession], "session-list-page-table-shell", "登录会话", "name"],
-    ["records", RecordListPage as PageClass, "/records", [sampleRecord], "record-list-page-table-shell", "操作日志", "action"],
-    ["tokens", TokenListPage as PageClass, "/tokens", [sampleToken], "token-list-page-table-shell", "令牌管理", "name"],
-    ["verifications", VerificationListPage as PageClass, "/verifications", [sampleVerification], "verification-list-page-table-shell", "验证码记录", "name"],
+    ["sessions", SessionListPage as unknown as PageClass, "/sessions", [sampleSession], "session-list-page-table-shell", "登录会话", "name"],
+    ["records", RecordListPage as unknown as PageClass, "/records", [sampleRecord], "record-list-page-table-shell", "操作日志", "action"],
+    ["tokens", TokenListPage as unknown as PageClass, "/tokens", [sampleToken], "token-list-page-table-shell", "令牌管理", "name"],
+    ["verifications", VerificationListPage as unknown as PageClass, "/verifications", [sampleVerification], "verification-list-page-table-shell", "验证码记录", "name"],
   ];
 
   listPageCases.forEach(([name, Page, path, rows, shellClass, titleText, defaultField]) => {
@@ -317,7 +317,7 @@ describe("audit operations list pages", () => {
   });
 
   test("moves token add button and row actions into the unified list affordances", () => {
-    const page = createPage(TokenListPage as PageClass, "/tokens", [sampleToken]) as TokenListHarness;
+    const page = createPage(TokenListPage as unknown as PageClass, "/tokens", [sampleToken]) as TokenListHarness;
     const addTokenSpy = jestValue.spyOn(page, "addToken").mockImplementation(() => undefined);
     const deleteTokenSpy = jestValue.spyOn(page, "deleteToken").mockImplementation(() => undefined);
     const history = (page.props as {history: ReturnType<typeof createHistory>}).history;
@@ -338,20 +338,20 @@ describe("audit operations list pages", () => {
   });
 
   test("keeps sensitive token and verification codes out of the list columns", () => {
-    const tokenPage = createPage(TokenListPage as PageClass, "/tokens", [sampleToken]);
+    const tokenPage = createPage(TokenListPage as unknown as PageClass, "/tokens", [sampleToken]);
     const tokenView = render(<MemoryRouter>{tokenPage.renderTable([sampleToken])}</MemoryRouter>);
 
     expect(tokenView.queryByText("code-a")).toBeNull();
     expect(tokenView.queryByText("access-token-a")).toBeNull();
 
-    const verificationPage = createPage(VerificationListPage as PageClass, "/verifications", [sampleVerification]);
+    const verificationPage = createPage(VerificationListPage as unknown as PageClass, "/verifications", [sampleVerification]);
     const verificationView = render(<MemoryRouter>{verificationPage.renderTable([sampleVerification])}</MemoryRouter>);
 
     expect(verificationView.queryByText("123456")).toBeNull();
   });
 
   test("keeps session delete and fetch behavior while using the compact list shell", async() => {
-    const page = createPage(SessionListPage as PageClass, "/sessions", [sampleSession], 1, false) as SessionListHarness;
+    const page = createPage(SessionListPage as unknown as PageClass, "/sessions", [sampleSession], 1, false) as SessionListHarness;
     const fetchSpy = jestValue.spyOn(page, "fetch");
     const getFormSpy = jestValue.spyOn(page, "getForm").mockImplementation(() => undefined);
     const closeEvent = {
@@ -460,7 +460,7 @@ describe("audit operations list pages", () => {
 
   test("keeps token create delete and fetch behavior", async() => {
     const history = createHistory();
-    const page = new (TokenListPage as PageClass)({
+    const page = new (TokenListPage as unknown as PageClass)({
       account: adminAccount,
       history,
       match: {path: "/tokens", params: {}},
@@ -527,7 +527,7 @@ describe("audit operations list pages", () => {
   });
 
   test("keeps record detail helpers and fetch behavior", async() => {
-    const page = createPage(RecordListPage as PageClass, "/records", [sampleRecord], 1, false) as LegacyPage & {
+    const page = createPage(RecordListPage as unknown as PageClass, "/records", [sampleRecord], 1, false) as LegacyPage & {
       getDetailField: (field: string) => unknown;
       getEditorMaxWidth: () => number;
       renderDetailContent: () => React.ReactNode;
@@ -607,7 +607,7 @@ describe("audit operations list pages", () => {
   });
 
   test("keeps verification fetch behavior and mobile formatting branches", async() => {
-    const page = createPage(VerificationListPage as PageClass, "/verifications", [sampleVerification], 1, false) as LegacyPage & {
+    const page = createPage(VerificationListPage as unknown as PageClass, "/verifications", [sampleVerification], 1, false) as LegacyPage & {
       newVerification: () => Record<string, unknown>;
     };
 

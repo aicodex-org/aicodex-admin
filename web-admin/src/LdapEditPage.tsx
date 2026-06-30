@@ -18,14 +18,20 @@ import {EyeInvisibleOutlined, EyeTwoTone, HolderOutlined, UsergroupAddOutlined} 
 import * as LddpBackend from "./backend/LdapBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as Setting from "./Setting";
-import i18next from "i18next";
+import rawI18next from "i18next";
 import * as GroupBackend from "./backend/GroupBackend";
 import AttributesMapperTable from "./table/AttributesMapperTable";
 
+const i18next = rawI18next as Omit<typeof rawI18next, "t"> & {
+  t: (key: string, defaultValue?: string) => string;
+};
+type LegacyAny = any;
+type AdminRouteProps = Record<string, LegacyAny>;
+
 const {Option} = Select;
 
-class LdapEditPage extends React.Component {
-  constructor(props) {
+class LdapEditPage extends React.Component<AdminRouteProps, LegacyAny> {
+  constructor(props: AdminRouteProps) {
     super(props);
     this.state = {
       ldapId: props.match.params.ldapId,
@@ -75,14 +81,14 @@ class LdapEditPage extends React.Component {
       });
   }
 
-  updateLdapField(key, value) {
-    this.setState((prevState) => {
+  updateLdapField(key: string, value: LegacyAny): void {
+    this.setState((prevState: LegacyAny) => {
       prevState.ldap[key] = value;
       return prevState;
     });
   }
 
-  renderAutoSyncWarn() {
+  renderAutoSyncWarn(): React.ReactNode {
     if (this.state.ldap.autoSync > 0) {
       return (
         <span style={{
@@ -93,7 +99,7 @@ class LdapEditPage extends React.Component {
     }
   }
 
-  renderLdap() {
+  renderLdap(): React.ReactElement {
     return (
       <Card size="small" title={
         <div>
@@ -116,7 +122,7 @@ class LdapEditPage extends React.Component {
                 this.updateLdapField("owner", value);
               })}>
               {
-                this.state.organizations.map((organization, index) => <Option key={index}
+                this.state.organizations.map((organization: LegacyAny, index: number) => <Option key={index}
                   value={organization.name}>{organization.name}</Option>)
               }
             </Select>
@@ -269,7 +275,7 @@ class LdapEditPage extends React.Component {
                 </Space>
               </Option>
               {
-                this.state.groups?.map((group) => <Option key={group.name} value={`${group.owner}/${group.name}`}>
+                this.state.groups?.map((group: LegacyAny) => <Option key={group.name} value={`${group.owner}/${group.name}`}>
                   <Space>
                     {group.type === "Physical" ? <UsergroupAddOutlined /> : <HolderOutlined />}
                     {group.displayName}
@@ -284,7 +290,7 @@ class LdapEditPage extends React.Component {
             {Setting.getLabel(i18next.t("ldap:Custom attributes"), i18next.t("ldap:Custom attributes - Tooltip"))} :
           </Col>
           <Col span={21} >
-            <AttributesMapperTable customAttributes={this.state.ldap.customAttributes} onUpdateTable={(value) => {this.updateLdapField("customAttributes", value);}} />
+            <AttributesMapperTable customAttributes={this.state.ldap.customAttributes} onUpdateTable={(value: LegacyAny) => {this.updateLdapField("customAttributes", value);}} />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}}>
@@ -303,7 +309,7 @@ class LdapEditPage extends React.Component {
     );
   }
 
-  submitLdapEdit(exitAfterSave) {
+  submitLdapEdit(exitAfterSave?: boolean): void {
     LddpBackend.updateLdap(this.state.ldap)
       .then((res) => {
         if (res.status === "ok") {

@@ -23,22 +23,64 @@ import {Switch} from "antd";
 import LegacyListPageToolbar from "./common/LegacyListPageToolbar";
 import ListPageTable from "./common/ListPageTable";
 import {getAuditOperationsTableScroll} from "./auditOperationsListTable";
+import type {AdminRouteProps, LegacyAny, LegacyBackendResponse, LegacyFetchParams, LegacyListState} from "./types/legacyPage";
+import {legacyColumns, textValue} from "./types/legacyPage";
+
+type VerificationRecord = {
+  owner: string;
+  name: string;
+  createdTime?: string;
+  type?: string;
+  user?: string;
+  provider?: string;
+  remoteAddr?: string;
+  receiver?: string;
+  code?: string;
+  isUsed?: boolean;
+  [key: string]: LegacyAny;
+};
+
+type VerificationListPageState = LegacyListState<VerificationRecord> & {
+  advancedFiltersOpen?: boolean;
+};
+
+type VerificationListResponse = LegacyBackendResponse<VerificationRecord[]> & {
+  data: VerificationRecord[];
+  data2: number;
+};
+
+type VerificationBackendApi = {
+  getVerifications: (
+    owner: string,
+    organization: string,
+    page?: number,
+    pageSize?: number,
+    field?: string,
+    value?: LegacyAny,
+    sortField?: string,
+    sortOrder?: string
+  ) => Promise<VerificationListResponse>;
+};
+
+const verificationBackend = VerificationBackend as unknown as VerificationBackendApi;
+const LegacyBaseListPage = BaseListPage as unknown as React.ComponentClass<AdminRouteProps, VerificationListPageState> & LegacyAny;
+const t = (key: string): string => i18next.t(key) as string;
 
 function getVerificationQueryFields() {
   return [
-    {label: i18next.t("general:Name"), value: "name"},
-    {label: i18next.t("general:Organization"), value: "owner"},
-    {label: i18next.t("general:Type"), value: "type"},
-    {label: i18next.t("general:User"), value: "user"},
-    {label: i18next.t("general:Provider"), value: "provider"},
-    {label: i18next.t("general:Client IP"), value: "remoteAddr"},
-    {label: i18next.t("verification:Receiver"), value: "receiver"},
-    {label: i18next.t("login:Verification code"), value: "code"},
+    {label: t("general:Name"), value: "name"},
+    {label: t("general:Organization"), value: "owner"},
+    {label: t("general:Type"), value: "type"},
+    {label: t("general:User"), value: "user"},
+    {label: t("general:Provider"), value: "provider"},
+    {label: t("general:Client IP"), value: "remoteAddr"},
+    {label: t("verification:Receiver"), value: "receiver"},
+    {label: t("login:Verification code"), value: "code"},
   ];
 }
 
-class VerificationListPage extends BaseListPage {
-  newVerification() {
+class VerificationListPage extends LegacyBaseListPage {
+  newVerification(): Pick<VerificationRecord, "owner" | "name" | "createdTime"> {
     const randomName = Setting.getRandomName();
 
     return {
@@ -48,10 +90,10 @@ class VerificationListPage extends BaseListPage {
     };
   }
 
-  renderTable(verifications) {
-    const columns = [
+  renderTable(verifications: VerificationRecord[]): React.ReactElement {
+    const columns = legacyColumns<VerificationRecord>([
       {
-        title: i18next.t("general:Organization"),
+        title: t("general:Organization"),
         dataIndex: "owner",
         key: "owner",
         width: "110px",
@@ -59,20 +101,21 @@ class VerificationListPage extends BaseListPage {
         ellipsis: {
           showTitle: false,
         },
-        render: (text, record, index) => {
-          if (text === "admin") {
-            return `(${i18next.t("general:empty")})`;
+        render: (text: unknown) => {
+          const owner = textValue(text);
+          if (owner === "admin") {
+            return `(${t("general:empty")})`;
           }
 
           return (
-            <Link to={`/organizations/${text}`}>
-              {text}
+            <Link to={`/organizations/${owner}`}>
+              {owner}
             </Link>
           );
         },
       },
       {
-        title: i18next.t("general:Name"),
+        title: t("general:Name"),
         dataIndex: "name",
         key: "name",
         width: "170px",
@@ -82,24 +125,24 @@ class VerificationListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("general:Created time"),
+        title: t("general:Created time"),
         dataIndex: "createdTime",
         key: "createdTime",
         width: "145px",
         sorter: true,
-        render: (text, record, index) => {
-          return Setting.getFormattedDate(text);
+        render: (text: unknown) => {
+          return Setting.getFormattedDate(textValue(text));
         },
       },
       {
-        title: i18next.t("general:Type"),
+        title: t("general:Type"),
         dataIndex: "type",
         key: "type",
         width: "80px",
         sorter: true,
       },
       {
-        title: i18next.t("general:User"),
+        title: t("general:User"),
         dataIndex: "user",
         key: "user",
         width: "120px",
@@ -107,16 +150,17 @@ class VerificationListPage extends BaseListPage {
         ellipsis: {
           showTitle: false,
         },
-        render: (text, record, index) => {
+        render: (text: unknown) => {
+          const user = textValue(text);
           return (
-            <Link to={`/users/${text}`}>
-              {text}
+            <Link to={`/users/${user}`}>
+              {user}
             </Link>
           );
         },
       },
       {
-        title: i18next.t("general:Provider"),
+        title: t("general:Provider"),
         dataIndex: "provider",
         key: "provider",
         width: "120px",
@@ -124,16 +168,17 @@ class VerificationListPage extends BaseListPage {
         ellipsis: {
           showTitle: false,
         },
-        render: (text, record, index) => {
+        render: (text: unknown, record: VerificationRecord) => {
+          const provider = textValue(text);
           return (
-            <Link to={`/providers/${record.owner}/${text}`}>
-              {text}
+            <Link to={`/providers/${record.owner}/${provider}`}>
+              {provider}
             </Link>
           );
         },
       },
       {
-        title: i18next.t("general:Client IP"),
+        title: t("general:Client IP"),
         dataIndex: "remoteAddr",
         key: "remoteAddr",
         width: "110px",
@@ -141,8 +186,8 @@ class VerificationListPage extends BaseListPage {
         ellipsis: {
           showTitle: false,
         },
-        render: (text, record, index) => {
-          let clientIp = text;
+        render: (text: unknown) => {
+          let clientIp = textValue(text);
           if (clientIp.endsWith(": ")) {
             clientIp = clientIp.slice(0, -2);
           }
@@ -155,7 +200,7 @@ class VerificationListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("verification:Receiver"),
+        title: t("verification:Receiver"),
         dataIndex: "receiver",
         key: "receiver",
         width: "145px",
@@ -165,18 +210,18 @@ class VerificationListPage extends BaseListPage {
         },
       },
       {
-        title: i18next.t("verification:Is used"),
+        title: t("verification:Is used"),
         dataIndex: "isUsed",
         key: "isUsed",
         width: "90px",
         sorter: true,
-        render: (text, record, index) => {
+        render: (text: unknown) => {
           return (
-            <Switch disabled checkedChildren={i18next.t("general:ON")} unCheckedChildren={i18next.t("general:OFF")} checked={text} />
+            <Switch disabled checkedChildren={t("general:ON")} unCheckedChildren={t("general:OFF")} checked={Boolean(text)} />
           );
         },
       },
-    ];
+    ]);
 
     const paginationProps = this.getTablePaginationProps();
 
@@ -187,7 +232,7 @@ class VerificationListPage extends BaseListPage {
             title={() => (
               <LegacyListPageToolbar
                 host={this}
-                title={i18next.t("general:Verification Review")}
+                title={t("general:Verification Review")}
                 total={this.state.pagination.total}
                 fields={getVerificationQueryFields()}
                 defaultField="name"
@@ -202,7 +247,7 @@ class VerificationListPage extends BaseListPage {
     );
   }
 
-  fetch = (params = {}) => {
+  fetch = (params = {} as LegacyFetchParams): void => {
     let field = params.searchedColumn, value = params.searchText;
     const sortField = params.sortField, sortOrder = params.sortOrder;
     if (params.type !== undefined && params.type !== null) {
@@ -210,8 +255,8 @@ class VerificationListPage extends BaseListPage {
       value = params.type;
     }
     this.setState({loading: true});
-    VerificationBackend.getVerifications("", Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
-      .then((res) => {
+    verificationBackend.getVerifications("", Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
+      .then((res: VerificationListResponse) => {
         this.setState({
           loading: false,
         });

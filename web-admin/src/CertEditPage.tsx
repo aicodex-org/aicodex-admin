@@ -17,15 +17,21 @@ import {Button, Card, Col, Input, InputNumber, Row, Select} from "antd";
 import * as CertBackend from "./backend/CertBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as Setting from "./Setting";
-import i18next from "i18next";
+import rawI18next from "i18next";
 import copy from "copy-to-clipboard";
 import FileSaver from "file-saver";
+
+const i18next = rawI18next as Omit<typeof rawI18next, "t"> & {
+  t: (key: string, defaultValue?: string) => string;
+};
+type LegacyAny = any;
+type AdminRouteProps = Record<string, LegacyAny>;
 
 const {Option} = Select;
 const {TextArea} = Input;
 
-class CertEditPage extends React.Component {
-  constructor(props) {
+class CertEditPage extends React.Component<AdminRouteProps, LegacyAny> {
+  constructor(props: AdminRouteProps) {
     super(props);
     this.state = {
       classes: props,
@@ -70,14 +76,14 @@ class CertEditPage extends React.Component {
       });
   }
 
-  parseCertField(key, value) {
+  parseCertField(key: string, value: LegacyAny): LegacyAny {
     if (["port"].includes(key)) {
       value = Setting.myParseInt(value);
     }
     return value;
   }
 
-  updateCertField(key, value) {
+  updateCertField(key: string, value: LegacyAny): void {
     value = this.parseCertField(key, value);
 
     const cert = this.state.cert;
@@ -124,7 +130,7 @@ class CertEditPage extends React.Component {
             <Select virtual={false} style={{width: "100%"}} disabled={!Setting.isAdminUser(this.props.account)} value={this.state.cert.owner} onChange={(value => {this.updateCertField("owner", value);})}>
               {Setting.isAdminUser(this.props.account) ? <Option key={"admin"} value={"admin"}>{i18next.t("provider:admin (Shared)")}</Option> : null}
               {
-                this.state.organizations.map((organization, index) => <Option key={index} value={organization.name}>{organization.name}</Option>)
+                this.state.organizations.map((organization: LegacyAny, index: number) => <Option key={index} value={organization.name}>{organization.name}</Option>)
               }
             </Select>
           </Col>
@@ -263,7 +269,7 @@ class CertEditPage extends React.Component {
                   {i18next.t("cert:Expire time")}:
                 </Col>
                 <Col span={22} >
-                  <Input disabled={true} value={Setting.getFormattedDate(this.state.cert.expireTime)} onChange={e => {
+                  <Input disabled={true} value={Setting.getFormattedDate(this.state.cert.expireTime) || undefined} onChange={e => {
                     this.updateCertField("expireTime", e.target.value);
                   }} />
                 </Col>
@@ -273,7 +279,7 @@ class CertEditPage extends React.Component {
                   {i18next.t("cert:Domain expire")}:
                 </Col>
                 <Col span={22} >
-                  <Input disabled={true} value={Setting.getFormattedDate(this.state.cert.domainExpireTime)} onChange={e => {
+                  <Input disabled={true} value={Setting.getFormattedDate(this.state.cert.domainExpireTime) || undefined} onChange={e => {
                     this.updateCertField("domainExpireTime", e.target.value);
                   }} />
                 </Col>
@@ -377,7 +383,7 @@ class CertEditPage extends React.Component {
     );
   }
 
-  submitCertEdit(exitAfterSave) {
+  submitCertEdit(exitAfterSave?: boolean): void {
     const cert = Setting.deepCopy(this.state.cert);
     CertBackend.updateCert(this.state.owner, this.state.certName, cert)
       .then((res) => {

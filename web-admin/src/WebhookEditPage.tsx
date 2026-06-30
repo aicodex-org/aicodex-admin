@@ -19,10 +19,16 @@ import * as WebhookBackend from "./backend/WebhookBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as Setting from "./Setting";
 import * as Conf from "./Conf";
-import i18next from "i18next";
+import rawI18next from "i18next";
 import WebhookHeaderTable from "./table/WebhookHeaderTable";
 
 import Editor from "./common/Editor";
+
+const i18next = rawI18next as Omit<typeof rawI18next, "t"> & {
+  t: (key: string, defaultValue?: string) => string;
+};
+type LegacyAny = any;
+type AdminRouteProps = Record<string, LegacyAny>;
 
 const {Option} = Select;
 
@@ -102,8 +108,8 @@ const userTemplate = {
   },
 };
 
-class WebhookEditPage extends React.Component {
-  constructor(props) {
+class WebhookEditPage extends React.Component<AdminRouteProps, LegacyAny> {
+  constructor(props: AdminRouteProps) {
     super(props);
     this.state = {
       classes: props,
@@ -142,7 +148,7 @@ class WebhookEditPage extends React.Component {
       });
   }
 
-  parseWebhookField(key, value) {
+  parseWebhookField(key: string, value: LegacyAny): LegacyAny {
     if (["port"].includes(key)) {
       value = Setting.myParseInt(value);
     }
@@ -152,7 +158,7 @@ class WebhookEditPage extends React.Component {
     return value;
   }
 
-  updateWebhookField(key, value) {
+  updateWebhookField(key: string, value: LegacyAny): void {
     value = this.parseWebhookField(key, value);
 
     const webhook = this.state.webhook;
@@ -166,10 +172,10 @@ class WebhookEditPage extends React.Component {
     const preview = Setting.deepCopy(previewTemplate);
     if (this.state.webhook.isUserExtended) {
       if (this.state.webhook.tokenFields && this.state.webhook.tokenFields.length !== 0) {
-        const extendedUser = {};
-        this.state.webhook.tokenFields.forEach(field => {
+        const extendedUser: Record<string, LegacyAny> = {};
+        this.state.webhook.tokenFields.forEach((field: string) => {
           const fieldTrans = field.replace(field[0], field[0].toLowerCase());
-          extendedUser[fieldTrans] = userTemplate[fieldTrans];
+          extendedUser[fieldTrans] = (userTemplate as Record<string, LegacyAny>)[fieldTrans];
         });
         preview["extendedUser"] = extendedUser;
       } else {
@@ -194,7 +200,7 @@ class WebhookEditPage extends React.Component {
           <Col span={22} >
             <Select virtual={false} style={{width: "100%"}} disabled={!Setting.isAdminUser(this.props.account)} value={this.state.webhook.organization} onChange={(value => {this.updateWebhookField("organization", value);})}>
               {
-                this.state.organizations.map((organization, index) => <Option key={index} value={organization.name}>{organization.name}</Option>)
+                this.state.organizations.map((organization: LegacyAny, index: number) => <Option key={index} value={organization.name}>{organization.name}</Option>)
               }
             </Select>
           </Col>
@@ -259,7 +265,7 @@ class WebhookEditPage extends React.Component {
             <WebhookHeaderTable
               title={i18next.t("webhook:Headers")}
               table={this.state.webhook.headers}
-              onUpdateTable={(value) => {this.updateWebhookField("headers", value);}}
+              onUpdateTable={(value: LegacyAny) => {this.updateWebhookField("headers", value);}}
             />
           </Col>
         </Row>
@@ -352,7 +358,7 @@ class WebhookEditPage extends React.Component {
     );
   }
 
-  submitWebhookEdit(exitAfterSave) {
+  submitWebhookEdit(exitAfterSave?: boolean): void {
     const webhook = Setting.deepCopy(this.state.webhook);
     WebhookBackend.updateWebhook(this.state.webhook.owner, this.state.webhookName, webhook)
       .then((res) => {

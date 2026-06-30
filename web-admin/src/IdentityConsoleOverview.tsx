@@ -31,16 +31,91 @@ import {
   EnterpriseIdentitySummaryStrip
 } from "./common/EnterpriseIdentityConsoleLayout";
 import * as Setting from "./Setting";
+import type {AdminAccount, AdminHistory, LegacyAny, LegacyBackendResponse} from "./types/legacyPage";
 
 const {Text} = Typography;
 
-function tGeneral(key, defaultValue = key) {
+type ConsoleTone = "success" | "warning" | "error" | "processing" | "default" | "info";
+
+type DashboardData = {
+  organizationCounts?: number[];
+  userCounts?: number[];
+  providerCounts?: number[];
+  applicationCounts?: number[];
+  resourceCounts?: number[];
+  roleCounts?: number[];
+  permissionCounts?: number[];
+  recordCounts?: number[];
+  [key: string]: LegacyAny;
+};
+
+type PendingReviewItem = {
+  key: string;
+  title: string;
+  description: string;
+  domain: string;
+  status: string;
+  tone: ConsoleTone;
+  to: string;
+  action: string;
+};
+
+type HealthItem = {
+  key: string;
+  label: string;
+  description: string;
+  value: React.ReactNode;
+};
+
+type AuditEvidenceItem = {
+  key: string;
+  type: string;
+  actor: string;
+  summary: string;
+  to: string;
+  action: string;
+};
+
+type StatusCardItem = {
+  key: string;
+  title: React.ReactNode;
+  icon?: React.ReactNode;
+  description?: React.ReactNode;
+  metricValue?: React.ReactNode;
+  metricLabel?: React.ReactNode;
+  actions?: Array<{
+    key: string;
+    to: string;
+    label: React.ReactNode;
+  }>;
+};
+
+type SummaryItem = {
+  key: string;
+  label: React.ReactNode;
+  value: React.ReactNode;
+  description?: React.ReactNode;
+  tone?: ConsoleTone;
+};
+
+type IdentityConsoleOverviewProps = {
+  account: AdminAccount;
+  history?: AdminHistory;
+};
+
+type DashboardBackendApi = {
+  getDashboard: (owner: string) => Promise<LegacyBackendResponse<DashboardData>>;
+};
+
+const dashboardBackend = DashboardBackend as unknown as DashboardBackendApi;
+
+function tGeneral(key: string, defaultValue = key): string {
   const namespacedKey = `general:${key}`;
-  const translated = i18next.t(namespacedKey, {defaultValue});
+  const translated = i18next.t(namespacedKey, {defaultValue}) as string;
   return translated === namespacedKey || translated === key ? defaultValue : translated;
 }
 
-function getLatestCount(values) {
+function getLatestCount(values?: number[]): number | null {
   if (!Array.isArray(values) || values.length === 0) {
     return null;
   }
@@ -49,16 +124,16 @@ function getLatestCount(values) {
   return Number.isFinite(value) ? value : null;
 }
 
-function getRequestOrganization(account) {
+function getRequestOrganization(account: AdminAccount): string {
   const selectedOrganization = Setting.getOrganization();
   if (!Setting.isAdminUser(account) && Setting.isLocalAdminUser(account)) {
-    return account.owner;
+    return account.owner || "";
   }
 
   return selectedOrganization === "All" ? "" : selectedOrganization;
 }
 
-function getUsageAttributionCompleteness(dashboardData, hasError) {
+function getUsageAttributionCompleteness(dashboardData: DashboardData | null, hasError: boolean): string {
   if (hasError) {
     return tGeneral("Identity overview status needs review", "待核对");
   }
@@ -67,7 +142,7 @@ function getUsageAttributionCompleteness(dashboardData, hasError) {
   return userCount === null ? "-" : "98%";
 }
 
-function buildProductDomainCards(dashboardData) {
+function buildProductDomainCards(dashboardData: DashboardData | null): StatusCardItem[] {
   const organizationCount = getLatestCount(dashboardData?.organizationCounts);
   const userCount = getLatestCount(dashboardData?.userCounts);
   const applicationCount = getLatestCount(dashboardData?.applicationCounts);
@@ -113,7 +188,7 @@ function buildProductDomainCards(dashboardData) {
   ];
 }
 
-function buildPendingReviewItems(hasError) {
+function buildPendingReviewItems(hasError: boolean): PendingReviewItem[] {
   return [
     {
       key: "gateway-mapping",
@@ -158,7 +233,7 @@ function buildPendingReviewItems(hasError) {
   ];
 }
 
-function buildSummaryItems(dashboardData, hasError) {
+function buildSummaryItems(dashboardData: DashboardData | null, hasError: boolean): SummaryItem[] {
   const organizationCount = getLatestCount(dashboardData?.organizationCounts);
   const userCount = getLatestCount(dashboardData?.userCounts);
   const applicationCount = getLatestCount(dashboardData?.applicationCounts);
@@ -196,7 +271,7 @@ function buildSummaryItems(dashboardData, hasError) {
   ];
 }
 
-function buildHealthItems(dashboardData) {
+function buildHealthItems(dashboardData: DashboardData | null): HealthItem[] {
   const providerCount = getLatestCount(dashboardData?.providerCounts);
   const applicationCount = getLatestCount(dashboardData?.applicationCounts);
   const recordCount = getLatestCount(dashboardData?.recordCounts);
@@ -223,7 +298,7 @@ function buildHealthItems(dashboardData) {
   ];
 }
 
-function buildAuditEvidenceItems(dashboardData) {
+function buildAuditEvidenceItems(dashboardData: DashboardData | null): AuditEvidenceItem[] {
   const recordCount = getLatestCount(dashboardData?.recordCounts);
 
   // 这里展示可核对的证据位置和数量，不伪造具体审计事件、时间或处理结果。
@@ -255,8 +330,8 @@ function buildAuditEvidenceItems(dashboardData) {
   ];
 }
 
-function IdentityConsoleOverview({account, history}) {
-  const [dashboardData, setDashboardData] = React.useState(null);
+function IdentityConsoleOverview({account, history}: IdentityConsoleOverviewProps): JSX.Element {
+  const [dashboardData, setDashboardData] = React.useState<DashboardData | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState("");
 
@@ -270,7 +345,7 @@ function IdentityConsoleOverview({account, history}) {
     setLoading(true);
     setErrorMessage("");
 
-    DashboardBackend.getDashboard(getRequestOrganization(account)).then((res) => {
+    dashboardBackend.getDashboard(getRequestOrganization(account)).then((res) => {
       if (cancelled) {
         return;
       }
@@ -281,13 +356,13 @@ function IdentityConsoleOverview({account, history}) {
         setDashboardData({});
         setErrorMessage(res.msg || tGeneral("Read-only status API error", "只读状态接口返回错误"));
       }
-    }).catch((error) => {
+    }).catch((error: unknown) => {
       if (cancelled) {
         return;
       }
 
       setDashboardData({});
-      setErrorMessage(error?.message || tGeneral("Read-only status API unavailable", "只读状态接口不可用"));
+      setErrorMessage(error instanceof Error ? error.message : tGeneral("Read-only status API unavailable", "只读状态接口不可用"));
     }).finally(() => {
       if (!cancelled) {
         setLoading(false);

@@ -27,20 +27,74 @@ import LegacyListPageToolbar from "./common/LegacyListPageToolbar";
 import ListPageRowActions, {ListPageRowActionButton} from "./common/ListPageRowActions";
 import ListPageTable from "./common/ListPageTable";
 import {getAuditOperationsTableScroll} from "./auditOperationsListTable";
+import type {AdminRouteProps, LegacyAny, LegacyBackendResponse, LegacyFetchParams, LegacyListState} from "./types/legacyPage";
+import {legacyColumns, textValue} from "./types/legacyPage";
 
-function tRecord(key, defaultValue = key) {
+type AuditCopyFeedback = {
+  label: string;
+  status: "success" | "error";
+};
+
+type AuditRecord = {
+  id?: string | number;
+  action?: string;
+  object?: string;
+  statusCode?: number | string;
+  user?: string;
+  organization?: string;
+  createdTime?: string;
+  response?: string;
+  clientIp?: string;
+  method?: string;
+  requestUri?: string;
+  language?: string;
+  [key: string]: LegacyAny;
+};
+
+interface RecordListPageState extends LegacyListState<AuditRecord> {
+  advancedFiltersOpen?: boolean;
+  detailShow?: boolean;
+  detailRecord?: AuditRecord | null;
+  auditDetailCopyFeedback?: AuditCopyFeedback | null;
+}
+
+type RecordListResponse = LegacyBackendResponse<AuditRecord[]> & {
+  data: AuditRecord[];
+  data2: number;
+};
+
+type RecordBackendApi = {
+  getRecords: (
+    owner: string,
+    page?: number,
+    pageSize?: number,
+    field?: string,
+    value?: LegacyAny,
+    sortField?: string,
+    sortOrder?: string
+  ) => Promise<RecordListResponse>;
+};
+
+const recordBackend = RecordBackend as unknown as RecordBackendApi;
+const LegacyBaseListPage = BaseListPage as unknown as React.ComponentClass<AdminRouteProps, RecordListPageState> & LegacyAny;
+
+function t(key: string): string {
+  return i18next.t(key) as string;
+}
+
+function tRecord(key: string, defaultValue = key): string {
   const namespacedKey = `record:${key}`;
-  const translated = i18next.t(namespacedKey);
+  const translated = t(namespacedKey);
   return translated === namespacedKey || translated === key ? defaultValue : translated;
 }
 
-const resultColorMap = {
+const resultColorMap: Record<string, string> = {
   Succeeded: "success",
   "Needs review": "warning",
   Failed: "error",
 };
 
-const riskColorMap = {
+const riskColorMap: Record<string, string> = {
   Low: "green",
   Medium: "gold",
   High: "red",
@@ -52,11 +106,13 @@ function getRecordQueryFields() {
     {label: tRecord("Audit object", "Audit object"), value: "object"},
     {label: tRecord("Result", "Result"), value: "statusCode"},
     {label: tRecord("Operator", "Operator"), value: "user"},
-    {label: i18next.t("general:Method"), value: "method"},
+    {label: t("general:Method"), value: "method"},
   ];
 }
 
-class RecordListPage extends BaseListPage {
+class RecordListPage extends LegacyBaseListPage {
+  auditDetailCopyFeedbackTimer?: ReturnType<typeof setTimeout>;
+
   UNSAFE_componentWillMount() {
     this.state.pagination.pageSize = 20;
   }
@@ -75,8 +131,8 @@ class RecordListPage extends BaseListPage {
     super.componentWillUnmount();
   }
 
-  renderTable(records) {
-    let columns = [
+  renderTable(records: AuditRecord[]): React.ReactElement {
+    let columns = legacyColumns<AuditRecord>([
       {
         title: tRecord("Event type", "Event type"),
         dataIndex: "action",
@@ -86,7 +142,7 @@ class RecordListPage extends BaseListPage {
         ellipsis: {
           showTitle: false,
         },
-        render: (_, record) => tRecord(buildAuditRecordPresentation(record).eventType),
+        render: (_: unknown, record: AuditRecord) => tRecord(buildAuditRecordPresentation(record).eventType),
       },
       {
         title: tRecord("Audit object", "Audit object"),
@@ -97,7 +153,7 @@ class RecordListPage extends BaseListPage {
         ellipsis: {
           showTitle: false,
         },
-        render: (_, record) => buildAuditRecordPresentation(record).objectSummary,
+        render: (_: unknown, record: AuditRecord) => buildAuditRecordPresentation(record).objectSummary,
       },
       {
         title: tRecord("Result", "Result"),
@@ -105,7 +161,7 @@ class RecordListPage extends BaseListPage {
         key: "result",
         width: 100,
         sorter: true,
-        render: (_, record) => {
+        render: (_: unknown, record: AuditRecord) => {
           const presentation = buildAuditRecordPresentation(record);
           return <Tag color={resultColorMap[presentation.result] || "default"}>{tRecord(presentation.result)}</Tag>;
         },
@@ -114,7 +170,7 @@ class RecordListPage extends BaseListPage {
         title: tRecord("Risk level", "Risk level"),
         key: "riskLevel",
         width: 100,
-        render: (_, record) => {
+        render: (_: unknown, record: AuditRecord) => {
           const presentation = buildAuditRecordPresentation(record);
           return <Tag color={riskColorMap[presentation.riskLevel] || "default"}>{tRecord(presentation.riskLevel)}</Tag>;
         },
@@ -126,7 +182,7 @@ class RecordListPage extends BaseListPage {
         ellipsis: {
           showTitle: false,
         },
-        render: (_, record) => tRecord(buildAuditRecordPresentation(record).evidenceStatus),
+        render: (_: unknown, record: AuditRecord) => tRecord(buildAuditRecordPresentation(record).evidenceStatus),
       },
       {
         title: tRecord("Operator", "Operator"),
@@ -137,7 +193,7 @@ class RecordListPage extends BaseListPage {
         ellipsis: {
           showTitle: false,
         },
-        render: (_, record) => buildAuditRecordPresentation(record).operator,
+        render: (_: unknown, record: AuditRecord) => buildAuditRecordPresentation(record).operator,
       },
       {
         title: tRecord("Time", "Time"),
@@ -145,13 +201,13 @@ class RecordListPage extends BaseListPage {
         key: "createdTime",
         width: 150,
         sorter: true,
-        render: text => Setting.getFormattedDate(text),
+        render: (text: unknown) => Setting.getFormattedDate(textValue(text)),
       },
       {
         title: tRecord("Action", "Action"),
         key: "op",
         width: 88,
-        render: (text, record, index) => (
+        render: (_text: unknown, record: AuditRecord) => (
           <ListPageRowActions className="record-row-actions">
             <ListPageRowActionButton icon={<FileSearchOutlined />} onClick={() => {
               this.setState({
@@ -159,12 +215,12 @@ class RecordListPage extends BaseListPage {
                 detailShow: true,
               });
             }}>
-              {i18next.t("general:Detail")}
+              {t("general:Detail")}
             </ListPageRowActionButton>
           </ListPageRowActions>
         ),
       },
-    ];
+    ]);
 
     if (Setting.isLocalAdminUser(this.props.account)) {
       columns = columns.filter(column => column.key !== "name");
@@ -179,7 +235,7 @@ class RecordListPage extends BaseListPage {
             title={() => (
               <LegacyListPageToolbar
                 host={this}
-                title={i18next.t("general:Audit Records")}
+                title={t("general:Audit Records")}
                 total={this.state.pagination.total}
                 fields={getRecordQueryFields()}
                 defaultField="action"
@@ -193,7 +249,7 @@ class RecordListPage extends BaseListPage {
         {/* TODO: Should be packaged as a component after confirm it run correctly.*/}
         <Drawer
           className="audit-record-detail-drawer"
-          title={i18next.t("general:Detail")}
+          title={t("general:Detail")}
           width={Setting.isMobile() ? "100%" : 720}
           placement="right"
           destroyOnClose
@@ -257,16 +313,16 @@ class RecordListPage extends BaseListPage {
               label: tRecord("Technical request details", "Technical request details"),
               children: (
                 <Descriptions bordered size="small" column={1} layout={Setting.isMobile() ? "vertical" : "horizontal"}>
-                  <Descriptions.Item label={i18next.t("general:ID")}>{this.getDetailField("id")}</Descriptions.Item>
-                  <Descriptions.Item label={i18next.t("general:Organization")}>
+                  <Descriptions.Item label={t("general:ID")}>{this.getDetailField("id")}</Descriptions.Item>
+                  <Descriptions.Item label={t("general:Organization")}>
                     <Link to={`/organizations/${this.getDetailField("organization")}`}>
                       {this.getDetailField("organization")}
                     </Link>
                   </Descriptions.Item>
-                  <Descriptions.Item label={i18next.t("general:Client IP")}>{sanitizeAuditDetailValue(this.getDetailField("clientIp"))}</Descriptions.Item>
-                  <Descriptions.Item label={i18next.t("general:Method")}>{this.getDetailField("method")}</Descriptions.Item>
-                  <Descriptions.Item label={i18next.t("general:Request URI")}>{sanitizeAuditDetailValue(this.getDetailField("requestUri"))}</Descriptions.Item>
-                  <Descriptions.Item label={i18next.t("user:Language")}>{this.getDetailField("language")}</Descriptions.Item>
+                  <Descriptions.Item label={t("general:Client IP")}>{sanitizeAuditDetailValue(this.getDetailField("clientIp"))}</Descriptions.Item>
+                  <Descriptions.Item label={t("general:Method")}>{this.getDetailField("method")}</Descriptions.Item>
+                  <Descriptions.Item label={t("general:Request URI")}>{sanitizeAuditDetailValue(this.getDetailField("requestUri"))}</Descriptions.Item>
+                  <Descriptions.Item label={t("user:Language")}>{this.getDetailField("language")}</Descriptions.Item>
                   <Descriptions.Item label={tRecord("Action", "Action")}>{sanitizeAuditDetailValue(this.getDetailField("action"))}</Descriptions.Item>
                 </Descriptions>
               ),
@@ -311,20 +367,20 @@ class RecordListPage extends BaseListPage {
     );
   }
 
-  renderCodeCopyAction = (label, value) => {
+  renderCodeCopyAction = (label: string, value: string): React.ReactElement => {
     const feedback = this.state.auditDetailCopyFeedback;
     const isCurrentFeedback = feedback?.label === label;
     const isCopied = isCurrentFeedback && feedback.status === "success";
     const isFailed = isCurrentFeedback && feedback.status === "error";
     const tooltipTitle = isCopied
-      ? i18next.t("general:Copied to clipboard successfully")
+      ? t("general:Copied to clipboard successfully")
       : isFailed
-        ? i18next.t("general:Failed to copy")
-        : i18next.t("general:Copy");
+        ? t("general:Failed to copy")
+        : t("general:Copy");
     return (
       <Tooltip title={tooltipTitle}>
         <Button
-          aria-label={`${i18next.t("general:Copy")} ${label}`}
+          aria-label={`${t("general:Copy")} ${label}`}
           className={[
             "audit-record-detail-copy-button",
             isCopied ? "audit-record-detail-copy-button-copied" : "",
@@ -340,7 +396,7 @@ class RecordListPage extends BaseListPage {
     );
   };
 
-  copyAuditDetailValue = (label, value, event) => {
+  copyAuditDetailValue = (label: string, value: string, event?: React.MouseEvent<HTMLElement>): void => {
     event?.stopPropagation();
     const copied = copy(value || "");
     if (this.auditDetailCopyFeedbackTimer) {
@@ -357,15 +413,15 @@ class RecordListPage extends BaseListPage {
     }, 2400);
   };
 
-  getEditorMaxWidth = () => {
+  getEditorMaxWidth = (): number | string => {
     return Setting.isMobile() ? window.innerWidth - 48 : "100%";
   };
 
-  getDetailField = dataIndex => {
+  getDetailField = (dataIndex: keyof AuditRecord): string => {
     return this.state.detailRecord ? this.state.detailRecord?.[dataIndex] ?? "" : "";
   };
 
-  fetch = (params = {}) => {
+  fetch = (params = {} as LegacyFetchParams): void => {
     let field = params.searchedColumn, value = params.searchText;
     const sortField = params.sortField, sortOrder = params.sortOrder;
     if (params.method !== undefined && params.method !== null) {
@@ -373,8 +429,8 @@ class RecordListPage extends BaseListPage {
       value = params.method;
     }
     this.setState({loading: true});
-    RecordBackend.getRecords(Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
-      .then((res) => {
+    recordBackend.getRecords(Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
+      .then((res: RecordListResponse) => {
         this.setState({
           loading: false,
         });
@@ -391,7 +447,7 @@ class RecordListPage extends BaseListPage {
             detailRecord: null,
           });
         } else {
-          if (res.data.includes("Please login first")) {
+          if (String(res.data).includes("Please login first")) {
             this.setState({
               loading: false,
               isAuthorized: false,

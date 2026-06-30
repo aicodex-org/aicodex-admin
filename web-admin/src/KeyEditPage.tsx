@@ -19,13 +19,19 @@ import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as ApplicationBackend from "./backend/ApplicationBackend";
 import * as UserBackend from "./backend/UserBackend";
 import * as Setting from "./Setting";
-import i18next from "i18next";
+import rawI18next from "i18next";
 import moment from "moment";
+
+const i18next = rawI18next as Omit<typeof rawI18next, "t"> & {
+  t: (key: string, defaultValue?: string) => string;
+};
+type LegacyAny = any;
+type AdminRouteProps = Record<string, LegacyAny>;
 
 const {Option} = Select;
 
-class KeyEditPage extends React.Component {
-  constructor(props) {
+class KeyEditPage extends React.Component<AdminRouteProps, LegacyAny> {
+  constructor(props: AdminRouteProps) {
     super(props);
     this.state = {
       classes: props,
@@ -75,7 +81,7 @@ class KeyEditPage extends React.Component {
       });
   }
 
-  getApplicationsByOrganization(organizationName) {
+  getApplicationsByOrganization(organizationName: string): void {
     ApplicationBackend.getApplicationsByOrganization("admin", organizationName)
       .then((res) => {
         this.setState({
@@ -84,7 +90,7 @@ class KeyEditPage extends React.Component {
       });
   }
 
-  getUsersByOrganization(organizationName) {
+  getUsersByOrganization(organizationName: string): void {
     UserBackend.getUsers(organizationName)
       .then((res) => {
         if (res.status === "ok") {
@@ -95,11 +101,11 @@ class KeyEditPage extends React.Component {
       });
   }
 
-  parseKeyField(key, value) {
+  parseKeyField(key: string, value: LegacyAny): LegacyAny {
     return value;
   }
 
-  updateKeyField(key, value) {
+  updateKeyField(key: string, value: LegacyAny): void {
     value = this.parseKeyField(key, value);
 
     const keyObj = this.state.key;
@@ -131,7 +137,7 @@ class KeyEditPage extends React.Component {
               this.getUsersByOrganization(value);
             })}>
               {
-                this.state.organizations.map((organization, index) => <Option key={index} value={organization.name}>{organization.name}</Option>)
+                this.state.organizations.map((organization: LegacyAny, index: number) => <Option key={index} value={organization.name}>{organization.name}</Option>)
               }
             </Select>
           </Col>
@@ -182,7 +188,7 @@ class KeyEditPage extends React.Component {
                   this.updateKeyField("application", value);
                 })}>
                   {
-                    this.state.applications.map((application, index) => <Option key={index} value={application.name}>{application.name}</Option>)
+                    this.state.applications.map((application: LegacyAny, index: number) => <Option key={index} value={application.name}>{application.name}</Option>)
                   }
                 </Select>
               </Col>
@@ -200,7 +206,7 @@ class KeyEditPage extends React.Component {
                   this.updateKeyField("user", value);
                 })}>
                   {
-                    this.state.users.map((user, index) => <Option key={index} value={user.name}>{user.name}</Option>)
+                    this.state.users.map((user: LegacyAny, index: number) => <Option key={index} value={user.name}>{user.name}</Option>)
                   }
                 </Select>
               </Col>
@@ -254,7 +260,7 @@ class KeyEditPage extends React.Component {
     );
   }
 
-  submitKeyEdit(exitAfterSave) {
+  submitKeyEdit(exitAfterSave?: boolean): void {
     const key = Setting.deepCopy(this.state.key);
     KeyBackend.updateKey(this.state.organizationName, this.state.keyName, key)
       .then((res) => {

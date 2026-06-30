@@ -1,9 +1,49 @@
 /* eslint-env jest */
 import React from "react";
 import {MemoryRouter} from "react-router-dom";
-import {render, screen} from "@testing-library/react";
+import {render} from "@testing-library/react";
+import {expect as jestExpect} from "@jest/globals";
 import IdentityConsoleOverview from "./IdentityConsoleOverview";
 import * as DashboardBackend from "./backend/DashboardBackend";
+
+declare const jest: {
+  mock: (moduleName: string) => void;
+};
+const {screen} = require("@testing-library/react") as {
+  screen: {
+    getByText: (text: string | RegExp) => HTMLElement;
+    queryByText: (text: string | RegExp) => HTMLElement | null;
+    getAllByText: (text: string | RegExp) => HTMLElement[];
+    queryAllByText: (text: string | RegExp) => HTMLElement[];
+    findByText: (text: string | RegExp) => Promise<HTMLElement>;
+    findAllByText: (text: string | RegExp) => Promise<HTMLElement[]>;
+  };
+};
+
+type LooseMock = {
+  mockReset: () => void;
+  mockResolvedValue: (value: unknown) => LooseMock;
+};
+
+type DomMatcherResult = ReturnType<typeof jestExpect> & {
+  toBeInTheDocument: () => void;
+  toHaveAttribute: (attr: string, value?: unknown) => void;
+  not: ReturnType<typeof jestExpect> & {
+    toBeInTheDocument: () => void;
+  };
+};
+
+type TestExpect = {
+  (actual: unknown): DomMatcherResult;
+  objectContaining: typeof jestExpect.objectContaining;
+  stringContaining: typeof jestExpect.stringContaining;
+};
+
+const expect = jestExpect as unknown as TestExpect;
+
+const dashboardBackendMock = DashboardBackend as unknown as {
+  getDashboard: LooseMock;
+};
 
 jest.mock("./backend/DashboardBackend");
 
@@ -19,12 +59,12 @@ const adminAccount = {
 
 describe("IdentityConsoleOverview", () => {
   beforeEach(() => {
-    DashboardBackend.getDashboard.mockReset();
+    dashboardBackendMock.getDashboard.mockReset();
     localStorage.clear();
   });
 
   test("renders AICodex identity infrastructure status from existing dashboard data", async() => {
-    DashboardBackend.getDashboard.mockResolvedValue({
+    dashboardBackendMock.getDashboard.mockResolvedValue({
       status: "ok",
       data: {
         organizationCounts: Array(31).fill(3),
@@ -59,7 +99,7 @@ describe("IdentityConsoleOverview", () => {
     expect(screen.getByText("待核对事项")).toBeInTheDocument();
     expect(screen.getByText("接入健康")).toBeInTheDocument();
     expect(screen.getByText("最近审计证据")).toBeInTheDocument();
-    expect(screen.getAllByText("进入应用接入").some(item => item.closest("a")?.getAttribute("href") === "/applications")).toBe(true);
+    expect(screen.getAllByText("进入应用接入").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/applications")).toBe(true);
     expect(screen.queryByText("查看记录")).not.toBeInTheDocument();
     expect(screen.getByText("核对审计记录").closest("a")).toHaveAttribute("href", "/records");
     expect(screen.getByText("核对同步记录").closest("a")).toHaveAttribute("href", "/records");
@@ -78,7 +118,7 @@ describe("IdentityConsoleOverview", () => {
   });
 
   test("keeps the page header separate while treating summary and workbench as body content", async() => {
-    DashboardBackend.getDashboard.mockResolvedValue({
+    dashboardBackendMock.getDashboard.mockResolvedValue({
       status: "ok",
       data: {
         organizationCounts: Array(31).fill(3),
@@ -116,7 +156,7 @@ describe("IdentityConsoleOverview", () => {
   });
 
   test("renders compact health and audit side sections instead of card-like detail blocks", async() => {
-    DashboardBackend.getDashboard.mockResolvedValue({
+    dashboardBackendMock.getDashboard.mockResolvedValue({
       status: "ok",
       data: {
         organizationCounts: Array(31).fill(3),
@@ -142,7 +182,7 @@ describe("IdentityConsoleOverview", () => {
   });
 
   test("keeps entry links available when dashboard data fails", async() => {
-    DashboardBackend.getDashboard.mockResolvedValue({
+    dashboardBackendMock.getDashboard.mockResolvedValue({
       status: "error",
       msg: "dashboard unavailable",
     });
@@ -160,7 +200,7 @@ describe("IdentityConsoleOverview", () => {
   });
 
   test("requests the owning organization for non-built-in local admins", async() => {
-    DashboardBackend.getDashboard.mockResolvedValue({
+    dashboardBackendMock.getDashboard.mockResolvedValue({
       status: "ok",
       data: {},
     });
@@ -172,11 +212,11 @@ describe("IdentityConsoleOverview", () => {
     );
 
     expect(await screen.findByText("AICodex 身份基础设施总览")).toBeInTheDocument();
-    expect(DashboardBackend.getDashboard).toHaveBeenCalledWith("demo");
+    expect(dashboardBackendMock.getDashboard).toHaveBeenCalledWith("demo");
   });
 
   test("demotes abstract governance centers into status-oriented pending summaries", async() => {
-    DashboardBackend.getDashboard.mockResolvedValue({
+    dashboardBackendMock.getDashboard.mockResolvedValue({
       status: "ok",
       data: {
         organizationCounts: Array(31).fill(2),
@@ -203,8 +243,8 @@ describe("IdentityConsoleOverview", () => {
     expect(screen.queryByText("进入任务中心")).not.toBeInTheDocument();
     expect(screen.queryByText("待处理")).not.toBeInTheDocument();
 
-    expect(screen.getAllByText("查看映射").some(item => item.closest("a")?.getAttribute("href") === "/platform-api-mappings")).toBe(true);
-    expect(screen.getAllByText("查看归因").some(item => item.closest("a")?.getAttribute("href") === "/users")).toBe(true);
+    expect(screen.getAllByText("查看映射").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/platform-api-mappings")).toBe(true);
+    expect(screen.getAllByText("查看归因").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/users")).toBe(true);
     expect(screen.getByText("查看规格").closest("a")).toHaveAttribute("href", "/applications");
   });
 
@@ -216,6 +256,6 @@ describe("IdentityConsoleOverview", () => {
     );
 
     expect(screen.getByText("正在进入应用工作台...")).toBeInTheDocument();
-    expect(DashboardBackend.getDashboard).not.toHaveBeenCalled();
+    expect(dashboardBackendMock.getDashboard).not.toHaveBeenCalled();
   });
 });

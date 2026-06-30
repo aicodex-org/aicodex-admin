@@ -16,14 +16,20 @@ import React from "react";
 import {Button, Card, Col, Input, Row} from "antd";
 import * as TokenBackend from "./backend/TokenBackend";
 import * as Setting from "./Setting";
-import i18next from "i18next";
+import rawI18next from "i18next";
 import copy from "copy-to-clipboard";
 import {jwtDecode} from "jwt-decode";
 
+const i18next = rawI18next as Omit<typeof rawI18next, "t"> & {
+  t: (key: string, defaultValue?: string) => string;
+};
+type LegacyAny = any;
+type AdminRouteProps = Record<string, LegacyAny>;
+
 const {TextArea} = Input;
 
-class TokenEditPage extends React.Component {
-  constructor(props) {
+class TokenEditPage extends React.Component<AdminRouteProps, LegacyAny> {
+  constructor(props: AdminRouteProps) {
     super(props);
     this.state = {
       classes: props,
@@ -56,14 +62,14 @@ class TokenEditPage extends React.Component {
       });
   }
 
-  parseTokenField(key, value) {
+  parseTokenField(key: string, value: LegacyAny): LegacyAny {
     // if ([].includes(key)) {
     //   value = Setting.myParseInt(value);
     // }
     return value;
   }
 
-  updateTokenField(key, value) {
+  updateTokenField(key: string, value: LegacyAny): void {
     value = this.parseTokenField(key, value);
 
     const token = this.state.token;
@@ -73,14 +79,14 @@ class TokenEditPage extends React.Component {
     });
   }
 
-  parseAccessToken(accessToken) {
+  parseAccessToken(accessToken: string): string {
     try {
       const parsedHeader = JSON.stringify(jwtDecode(accessToken, {header: true}), null, 2);
       const parsedPayload = JSON.stringify(jwtDecode(accessToken), null, 2);
       const res = parsedHeader + "." + parsedPayload;
       return res;
     } catch (error) {
-      return error.message;
+      return error instanceof Error ? error.message : String(error);
     }
   }
 
@@ -211,7 +217,7 @@ class TokenEditPage extends React.Component {
     );
   }
 
-  submitTokenEdit(exitAfterSave) {
+  submitTokenEdit(exitAfterSave?: boolean): void {
     const token = Setting.deepCopy(this.state.token);
     TokenBackend.updateToken(this.state.token.owner, this.state.tokenName, token)
       .then((res) => {

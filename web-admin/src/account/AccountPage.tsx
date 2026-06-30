@@ -14,14 +14,21 @@
 
 import React from "react";
 import UserEditPage from "../UserEditPage";
+import type {AdminAccount, LegacyAny} from "../types/legacyPage";
 
-class AccountPage extends React.Component {
+type AccountPageProps = {
+  account: AdminAccount;
+  location?: LegacyAny;
+  onUpdateAccount?: (...args: LegacyAny[]) => void;
+};
+
+class AccountPage extends React.Component<AccountPageProps> {
   render() {
     return (
       <UserEditPage
         organizationName={this.props.account.owner}
         userName={this.props.account.name}
-        account={this.props.account}
+        account={this.props.account as LegacyAny}
         location={this.props.location}
         onUpdateAccount={this.props.onUpdateAccount}
       />
