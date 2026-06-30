@@ -19,20 +19,24 @@ import i18next from "i18next";
 import Dragger from "antd/es/upload/Dragger";
 import * as Setting from "../../Setting";
 
-const FaceRecognitionModal = (props) => {
+type LegacyAny = import("../../types/legacyPage").LegacyAny;
+
+const t = (key: string) => String(i18next.t(key));
+
+const FaceRecognitionModal = (props: LegacyAny) => {
   const {visible, onOk, onCancel, withImage} = props;
   const [modelsLoaded, setModelsLoaded] = React.useState(false);
   const [isCameraCaptured, setIsCameraCaptured] = useState(false);
 
-  const videoRef = React.useRef();
-  const canvasRef = React.useRef();
-  const detection = React.useRef(null);
-  const mediaStreamRef = React.useRef(null);
+  const videoRef = React.useRef<HTMLVideoElement | null>(null);
+  const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
+  const detection = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const mediaStreamRef = React.useRef<MediaStream | null>(null);
   const [percent, setPercent] = useState(0);
 
-  const [files, setFiles] = useState([]);
-  const [currentFaceId, setCurrentFaceId] = React.useState();
-  const [currentFaceIndex, setCurrentFaceIndex] = React.useState();
+  const [files, setFiles] = useState<LegacyAny[]>([]);
+  const [currentFaceId, setCurrentFaceId] = React.useState<LegacyAny>();
+  const [currentFaceIndex, setCurrentFaceIndex] = React.useState<number>();
 
   React.useEffect(() => {
     if (!visible || modelsLoaded) {
@@ -47,10 +51,10 @@ const FaceRecognitionModal = (props) => {
         faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
         faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
         faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-      ]).then((val) => {
+      ]).then(() => {
         setModelsLoaded(true);
-      }).catch((err) => {
-        message.error(i18next.t("login:Model loading failure"));
+      }).catch(() => {
+        message.error(t("login:Model loading failure"));
         onCancel();
       });
     };
@@ -74,12 +78,16 @@ const FaceRecognitionModal = (props) => {
           });
       }
     } else {
-      clearInterval(detection.current);
+      if (detection.current) {
+        clearInterval(detection.current);
+      }
       detection.current = null;
       setIsCameraCaptured(false);
     }
     return () => {
-      clearInterval(detection.current);
+      if (detection.current) {
+        clearInterval(detection.current);
+      }
       detection.current = null;
       setIsCameraCaptured(false);
     };
@@ -104,7 +112,7 @@ const FaceRecognitionModal = (props) => {
         }
       }, 100);
     } else {
-      mediaStreamRef.current?.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current?.getTracks().forEach((track: MediaStreamTrack) => track.stop());
       if (videoRef.current) {
         videoRef.current.srcObject = null;
       }
@@ -124,9 +132,9 @@ const FaceRecognitionModal = (props) => {
 
           count++;
           if (count % 50 === 0) {
-            message.warning(i18next.t("login:Please ensure sufficient lighting and align your face in the center of the recognition box"));
+            message.warning(t("login:Please ensure sufficient lighting and align your face in the center of the recognition box"));
           } else if (count > 300) {
-            message.error(i18next.t("login:Face recognition failed"));
+            message.error(t("login:Face recognition failed"));
             onCancel();
           }
           if (faces.length === 1) {
@@ -136,7 +144,9 @@ const FaceRecognitionModal = (props) => {
             if (face.detection.score > 0.9) {
               goodCount++;
               if (face.detection.score > 0.99 || goodCount > 10) {
-                clearInterval(detection.current);
+                if (detection.current) {
+                  clearInterval(detection.current);
+                }
                 onOk(array);
               }
             }
@@ -148,28 +158,28 @@ const FaceRecognitionModal = (props) => {
     }
   };
 
-  const handleCameraError = (error) => {
+  const handleCameraError = (error: LegacyAny) => {
     onCancel();
     if (error instanceof DOMException) {
       if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
-        message.error(i18next.t("login:Please ensure that you have a camera device for facial recognition"));
+        message.error(t("login:Please ensure that you have a camera device for facial recognition"));
       } else if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
-        message.error(i18next.t("login:Please provide permission to access the camera"));
+        message.error(t("login:Please provide permission to access the camera"));
       } else if (error.name === "NotReadableError" || error.name === "TrackStartError") {
-        message.error(i18next.t("login:The camera is currently in use by another webpage"));
+        message.error(t("login:The camera is currently in use by another webpage"));
       } else if (error.name === "TypeError") {
-        message.error(i18next.t("login:Please load the webpage using HTTPS, otherwise the camera cannot be accessed"));
+        message.error(t("login:Please load the webpage using HTTPS, otherwise the camera cannot be accessed"));
       } else {
         message.error(error.message);
       }
     }
   };
 
-  const getBase64 = (file) => {
+  const getBase64 = (file: Blob): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result);
+      reader.onload = () => resolve(String(reader.result ?? ""));
       reader.onerror = (error) => reject(error);
     });
   };
@@ -182,7 +192,7 @@ const FaceRecognitionModal = (props) => {
           maskClosable={false}
           destroyOnClose={true}
           open={visible && isCameraCaptured}
-          title={i18next.t("login:Face Recognition")}
+          title={t("login:Face Recognition")}
           width={350}
           footer={[
             <Button key="back" onClick={onCancel}>
@@ -240,7 +250,7 @@ const FaceRecognitionModal = (props) => {
                 </div>
                 :
                 <div>
-                  <Spin tip={i18next.t("login:Loading")} size="large"
+                  <Spin tip={t("login:Loading")} size="large"
                     style={{display: "flex", justifyContent: "center", alignContent: "center"}}>
                     <div className="content" />
                   </Spin>
@@ -256,7 +266,7 @@ const FaceRecognitionModal = (props) => {
         maskClosable={false}
         destroyOnClose={true}
         open={visible}
-        title={i18next.t("login:Face Recognition")}
+        title={t("login:Face Recognition")}
         width={350}
         footer={[
           <Button key="ok" type={"primary"} disabled={!currentFaceId || currentFaceId?.length === 0} onClick={() => {
@@ -273,7 +283,7 @@ const FaceRecognitionModal = (props) => {
             multiple={true}
             defaultFileList={files}
             style={{width: "100%"}}
-            beforeUpload={(file) => {
+            beforeUpload={(file: LegacyAny) => {
               getBase64(file).then(res => {
                 file.base64 = res;
                 files.push(file);
@@ -281,7 +291,7 @@ const FaceRecognitionModal = (props) => {
               setCurrentFaceId([]);
               return false;
             }}
-            onRemove={(file) => {
+            onRemove={(file: LegacyAny) => {
               const index = files.indexOf(file);
               const newFileList = files.slice();
               newFileList.splice(index, 1);
@@ -289,7 +299,7 @@ const FaceRecognitionModal = (props) => {
               setCurrentFaceId([]);
             }}
           >
-            <p>{i18next.t("general:Click to Upload")}</p>
+            <p>{t("general:Click to Upload")}</p>
           </Dragger >
           {
             modelsLoaded ? <Button style={{width: "100%"}} onClick={async() => {
@@ -297,7 +307,7 @@ const FaceRecognitionModal = (props) => {
               for (const file of files) {
                 const fileIndex = files.indexOf(file);
                 const img = new Image();
-                img.src = file.base64;
+                img.src = String(file.base64 ?? "");
                 const faceIds = await faceapi.detectAllFaces(img, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptors();
                 if (faceIds[0]?.detection.score > 0.9 && faceIds[0]?.detection.score > maxScore) {
                   maxScore = faceIds[0]?.detection.score;
@@ -306,16 +316,16 @@ const FaceRecognitionModal = (props) => {
                 }
               }
               if (maxScore < 0.9) {
-                message.error(i18next.t("login:Face recognition failed"));
+                message.error(t("login:Face recognition failed"));
               }
-            }}> {i18next.t("general:Generate")}</Button> : null
+            }}> {t("general:Generate")}</Button> : null
           }
         </Space>
         {
           currentFaceId && currentFaceId.length !== 0 ? (
             <React.Fragment>
-              <div>{i18next.t("application:Select")}:{files[currentFaceIndex]?.name}</div>
-              <div><img src={files[currentFaceIndex]?.base64} alt="selected" style={{width: "100%"}} /></div>
+              <div>{t("application:Select")}:{files[currentFaceIndex ?? 0]?.name}</div>
+              <div><img src={files[currentFaceIndex ?? 0]?.base64} alt="selected" style={{width: "100%"}} /></div>
             </React.Fragment>
           ) : null
         }

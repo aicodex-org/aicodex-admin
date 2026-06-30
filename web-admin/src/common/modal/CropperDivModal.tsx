@@ -20,11 +20,15 @@ import {Button, Col, Modal, Row, Select} from "antd";
 import i18next from "i18next";
 import * as ResourceBackend from "../../backend/ResourceBackend";
 
-export const CropperDivModal = (props) => {
+type LegacyAny = import("../../types/legacyPage").LegacyAny;
+
+const t = (key: string) => String(i18next.t(key));
+
+export const CropperDivModal = (props: LegacyAny) => {
   const [loading, setLoading] = useState(true);
-  const [options, setOptions] = useState([]);
+  const [options, setOptions] = useState<LegacyAny[]>([]);
   const [image, setImage] = useState("");
-  const [cropper, setCropper] = useState();
+  const [cropper, setCropper] = useState<LegacyAny>();
   const [visible, setVisible] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const {title} = props;
@@ -35,9 +39,9 @@ export const CropperDivModal = (props) => {
   const {buttonText} = props;
   const {organization} = props;
   const {application} = props;
-  let uploadButton;
+  const uploadButton = React.useRef<HTMLInputElement | null>(null);
 
-  const onChange = (e) => {
+  const onChange = (e: LegacyAny) => {
     e.preventDefault();
     let files;
     if (e.dataTransfer) {
@@ -47,7 +51,7 @@ export const CropperDivModal = (props) => {
     }
     const reader = new FileReader();
     reader.onload = () => {
-      setImage(reader.result);
+      setImage(String(reader.result ?? ""));
     };
     if (!(files[0] instanceof Blob)) {
       return;
@@ -55,10 +59,10 @@ export const CropperDivModal = (props) => {
     reader.readAsDataURL(files[0]);
   };
 
-  const uploadAvatar = () => {
-    cropper.getCroppedCanvas().toBlob(blob => {
+  const uploadAvatar = (): LegacyAny => {
+    cropper.getCroppedCanvas().toBlob((blob: Blob | null) => {
       if (blob === null) {
-        Setting.showMessage("error", i18next.t("general:You must select a picture first"));
+        Setting.showMessage("error", t("general:You must select a picture first"));
         return false;
       }
       // Setting.showMessage("success", "uploading...");
@@ -93,11 +97,11 @@ export const CropperDivModal = (props) => {
   };
 
   const selectFile = () => {
-    uploadButton.click();
+    uploadButton.current?.click();
   };
 
-  const getOptions = (data) => {
-    const options = [];
+  const getOptions = (data: LegacyAny[]) => {
+    const options: LegacyAny[] = [];
     options.push({value: organization?.defaultAvatar});
 
     for (let i = 0; i < data.length; i++) {
@@ -111,7 +115,7 @@ export const CropperDivModal = (props) => {
     return options;
   };
 
-  const getBase64Image = (src) => {
+  const getBase64Image = (src: string): Promise<string> => {
     return new Promise((resolve) => {
       const image = new Image();
       image.src = src;
@@ -121,7 +125,7 @@ export const CropperDivModal = (props) => {
         canvas.width = image.width;
         canvas.height = image.height;
         const ctx = canvas.getContext("2d");
-        ctx.drawImage(image, 0, 0, image.width, image.height);
+        ctx?.drawImage(image, 0, 0, image.width, image.height);
         const dataURL = canvas.toDataURL("image/png");
         resolve(dataURL);
       };
@@ -161,13 +165,13 @@ export const CropperDivModal = (props) => {
       >
         <Col style={{margin: "0px auto 60px auto", width: 1000, height: 350}}>
           <Row style={{width: "100%", marginBottom: "20px"}}>
-            <input style={{display: "none"}} ref={input => uploadButton = input} type="file" accept="image/*" onChange={onChange} />
-            <Button block onClick={selectFile}>{i18next.t("user:Select a photo...")}</Button>
+            <input style={{display: "none"}} ref={uploadButton} type="file" accept="image/*" onChange={onChange} />
+            <Button block onClick={selectFile}>{t("user:Select a photo...")}</Button>
             <Select virtual={false}
               style={{width: "100%"}}
               loading={loading}
-              placeholder={i18next.t("user:Please select avatar from resources")}
-              onChange={(async value => {
+              placeholder={t("user:Please select avatar from resources")}
+              onChange={(async(value: LegacyAny) => {
                 setImage(await getBase64Image(value));
               })}
               options={options}
@@ -187,7 +191,7 @@ export const CropperDivModal = (props) => {
             responsive={true}
             autoCropArea={1}
             checkOrientation={false}
-            onInitialized={(instance) => {
+            onInitialized={(instance: LegacyAny) => {
               setCropper(instance);
             }}
           />

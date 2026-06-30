@@ -1,14 +1,18 @@
 import {Button, Space, Tag, notification} from "antd";
 import i18next from "i18next";
 import {useEffect} from "react";
-import {useHistory, useLocation} from "react-router-dom";
+import * as ReactRouterDom from "react-router-dom";
 import * as Setting from "../../Setting";
 import {MfaRulePrompted, MfaRuleRequired} from "../../Setting";
 
-const EnableMfaNotification = ({account}) => {
+type LegacyAny = import("../../types/legacyPage").LegacyAny;
+
+const t = (key: string) => String(i18next.t(key));
+
+const EnableMfaNotification = ({account}: {account: LegacyAny}) => {
   const [api, contextHolder] = notification.useNotification();
-  const history = useHistory();
-  const location = useLocation();
+  const history = (ReactRouterDom as LegacyAny).useHistory();
+  const location = (ReactRouterDom as LegacyAny).useLocation();
 
   useEffect(() => {
     if (account === null) {
@@ -18,42 +22,42 @@ const EnableMfaNotification = ({account}) => {
     const mfaItems = Setting.getMfaItemsByRules(account, account?.organization, [MfaRuleRequired, MfaRulePrompted]);
     if (location.state?.from === "/login" && mfaItems.length !== 0) {
       if (mfaItems.some((item) => item.rule === MfaRuleRequired)) {
-        openRequiredEnableNotification(mfaItems.find((item) => item.rule === MfaRuleRequired).name);
+        openRequiredEnableNotification(mfaItems.find((item: LegacyAny) => item.rule === MfaRuleRequired).name);
       } else {
-        openPromptEnableNotification(mfaItems.filter((item) => item.rule === MfaRulePrompted)?.map((item) => item.name));
+        openPromptEnableNotification(mfaItems.filter((item: LegacyAny) => item.rule === MfaRulePrompted)?.map((item: LegacyAny) => item.name));
       }
     }
   }, [account, location.state?.from]);
 
-  const openPromptEnableNotification = (mfaTypes) => {
+  const openPromptEnableNotification = (mfaTypes: string[]) => {
     const key = `open${Date.now()}`;
     const btn = (
       <Space>
         <Button type="link" size="small" onClick={() => api.destroy(key)}>
-          {i18next.t("general:Later")}
+          {t("general:Later")}
         </Button>
         <Button type="primary" size="small" onClick={() => {
           history.push(`/mfa/setup?mfaType=${mfaTypes[0]}`, {from: "/"});
           api.destroy(key);
         }}
         >
-          {i18next.t("general:Go to enable")}
+          {t("general:Go to enable")}
         </Button>
       </Space>
     );
     api.open({
-      message: i18next.t("mfa:Enable multi-factor authentication"),
+      message: t("mfa:Enable multi-factor authentication"),
       description:
       <Space direction={"vertical"}>
-        {i18next.t("mfa:To ensure the security of your account, it is recommended that you enable multi-factor authentication")}
-        <Space>{mfaTypes.map((item) => <Tag color="orange" key={item}>{item}</Tag>)}</Space>
+        {t("mfa:To ensure the security of your account, it is recommended that you enable multi-factor authentication")}
+        <Space>{mfaTypes.map((item: string) => <Tag color="orange" key={item}>{item}</Tag>)}</Space>
       </Space>,
       btn,
       key,
     });
   };
 
-  const openRequiredEnableNotification = (mfaType) => {
+  const openRequiredEnableNotification = (mfaType: string) => {
     const key = `open${Date.now()}`;
     const btn = (
       <Space>
@@ -61,15 +65,15 @@ const EnableMfaNotification = ({account}) => {
           api.destroy(key);
         }}
         >
-          {i18next.t("general:Confirm")}
+          {t("general:Confirm")}
         </Button>
       </Space>
     );
     api.open({
-      message: i18next.t("mfa:Enable multi-factor authentication"),
+      message: t("mfa:Enable multi-factor authentication"),
       description:
       <Space direction={"vertical"}>
-        {i18next.t("mfa:To ensure the security of your account, it is required to enable multi-factor authentication")}
+        {t("mfa:To ensure the security of your account, it is required to enable multi-factor authentication")}
         <Space><Tag color="orange">{mfaType}</Tag></Space>
       </Space>,
       btn,

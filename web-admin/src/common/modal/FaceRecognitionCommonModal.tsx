@@ -16,15 +16,19 @@ import {Button, Modal, Progress, message} from "antd";
 import React, {useState} from "react";
 import i18next from "i18next";
 
-const FaceRecognitionCommonModal = (props) => {
+type LegacyAny = import("../../types/legacyPage").LegacyAny;
+
+const t = (key: string) => String(i18next.t(key));
+
+const FaceRecognitionCommonModal = (props: LegacyAny) => {
   const {visible, onOk, onCancel} = props;
 
-  const videoRef = React.useRef();
-  const canvasRef = React.useRef();
+  const videoRef = React.useRef<HTMLVideoElement | null>(null);
+  const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
   const [percent, setPercent] = useState(0);
-  const mediaStreamRef = React.useRef(null);
+  const mediaStreamRef = React.useRef<MediaStream | null>(null);
   const [isCameraCaptured, setIsCameraCaptured] = useState(false);
-  const [capturedImageArray, setCapturedImageArray] = useState([]);
+  const [capturedImageArray, setCapturedImageArray] = useState<string[]>([]);
 
   React.useEffect(() => {
     if (isCameraCaptured) {
@@ -47,11 +51,15 @@ const FaceRecognitionCommonModal = (props) => {
               onOk(capturedImageArray);
             } else if (count2 > 3) {
               setPercent((count2 - 4) * 20);
+              const video = videoRef.current;
+              if (!video) {
+                return;
+              }
               const canvas = document.createElement("canvas");
-              canvas.width = videoRef.current.videoWidth;
-              canvas.height = videoRef.current.videoHeight;
+              canvas.width = video.videoWidth;
+              canvas.height = video.videoHeight;
               const context = canvas.getContext("2d");
-              context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+              context?.drawImage(video, 0, 0, canvas.width, canvas.height);
               const b64 = canvas.toDataURL("image/png");
               capturedImageArray.push(b64);
               setCapturedImageArray(capturedImageArray);
@@ -65,7 +73,7 @@ const FaceRecognitionCommonModal = (props) => {
         }
       }, 100);
     } else {
-      mediaStreamRef.current?.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current?.getTracks().forEach((track: MediaStreamTrack) => track.stop());
       if (videoRef.current) {
         videoRef.current.srcObject = null;
       }
@@ -79,7 +87,7 @@ const FaceRecognitionCommonModal = (props) => {
         .then((stream) => {
           mediaStreamRef.current = stream;
           setIsCameraCaptured(true);
-        }).catch((error) => {
+        }).catch((error: LegacyAny) => {
           handleCameraError(error);
         });
     } else {
@@ -88,16 +96,16 @@ const FaceRecognitionCommonModal = (props) => {
     }
   }, [visible]);
 
-  const handleCameraError = (error) => {
+  const handleCameraError = (error: LegacyAny) => {
     if (error instanceof DOMException) {
       if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
-        message.error(i18next.t("login:Please ensure that you have a camera device for facial recognition"));
+        message.error(t("login:Please ensure that you have a camera device for facial recognition"));
       } else if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
-        message.error(i18next.t("login:Please provide permission to access the camera"));
+        message.error(t("login:Please provide permission to access the camera"));
       } else if (error.name === "NotReadableError" || error.name === "TrackStartError") {
-        message.error(i18next.t("login:The camera is currently in use by another webpage"));
+        message.error(t("login:The camera is currently in use by another webpage"));
       } else if (error.name === "TypeError") {
-        message.error(i18next.t("login:Please load the webpage using HTTPS, otherwise the camera cannot be accessed"));
+        message.error(t("login:Please load the webpage using HTTPS, otherwise the camera cannot be accessed"));
       } else {
         message.error(error.message);
       }
@@ -108,7 +116,7 @@ const FaceRecognitionCommonModal = (props) => {
     <Modal
       closable={false}
       maskClosable={false}
-      title={i18next.t("login:Face Recognition")}
+      title={t("login:Face Recognition")}
       width={350}
       footer={[
         <Button key="ok" type={"primary"} disabled={capturedImageArray.length === 0} onClick={() => {

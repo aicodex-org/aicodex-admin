@@ -22,7 +22,37 @@ import {CaptchaModal} from "./modal/CaptchaModal";
 
 const {Search} = Input;
 
-export const SendCodeInput = ({value, disabled, captchaValue, useInlineCaptcha, textBefore, onChange, onButtonClickArgs, application, method, countryCode, refreshCaptcha}) => {
+type LegacyAny = import("../types/legacyPage").LegacyAny;
+
+interface SendCodeInputProps {
+  value?: string;
+  disabled?: boolean;
+  captchaValue?: LegacyAny;
+  useInlineCaptcha?: boolean;
+  textBefore?: LegacyAny;
+  onChange?: (value: string) => void;
+  onButtonClickArgs?: LegacyAny[];
+  application?: LegacyAny;
+  method?: string;
+  countryCode?: string;
+  refreshCaptcha?: () => void;
+}
+
+const t = (key: string) => String(i18next.t(key));
+
+export const SendCodeInput = ({
+  value,
+  disabled,
+  captchaValue,
+  useInlineCaptcha,
+  textBefore,
+  onChange = () => {},
+  onButtonClickArgs = [],
+  application = {},
+  method,
+  countryCode,
+  refreshCaptcha,
+}: SendCodeInputProps) => {
   const [visible, setVisible] = React.useState(false);
   const [buttonLeftTime, setButtonLeftTime] = React.useState(0);
   const [buttonLoading, setButtonLoading] = React.useState(false);
@@ -46,10 +76,11 @@ export const SendCodeInput = ({value, disabled, captchaValue, useInlineCaptcha, 
     setTimeout(countDown, 1000);
   };
 
-  const handleOk = (captchaType, captchaToken, clintSecret) => {
+  const handleOk = (captchaType?: string, captchaToken?: string, clintSecret?: string) => {
     setVisible(false);
     setButtonLoading(true);
-    UserBackend.sendCode(captchaType, captchaToken, clintSecret, method, countryCode, ...onButtonClickArgs).then(res => {
+    const [dest, type, applicationId, checkUser] = onButtonClickArgs;
+    UserBackend.sendCode(captchaType, captchaToken, clintSecret, method, countryCode, dest, type, applicationId, checkUser).then((res: LegacyAny) => {
       setButtonLoading(false);
       if (res) {
         handleCountDown(getCodeResendTimeout());
@@ -78,7 +109,7 @@ export const SendCodeInput = ({value, disabled, captchaValue, useInlineCaptcha, 
 
     // client secret is validated in backend 
     if (!captchaValue?.captchaType || !captchaValue?.captchaToken) {
-      Setting.showMessage("error", i18next.t("general:Please complete the captcha correctly"));
+      Setting.showMessage("error", t("general:Please complete the captcha correctly"));
       return;
     }
     handleOk(captchaValue.captchaType, captchaValue.captchaToken, captchaValue.clientSecret);
@@ -91,12 +122,12 @@ export const SendCodeInput = ({value, disabled, captchaValue, useInlineCaptcha, 
         disabled={disabled}
         value={value}
         prefix={<SafetyOutlined />}
-        placeholder={i18next.t("code:Enter your code")}
+        placeholder={t("code:Enter your code")}
         className="verification-code-input"
         onChange={e => onChange(e.target.value)}
         enterButton={
           <Button style={{fontSize: 14}} type={"primary"} disabled={disabled || buttonLeftTime > 0} loading={buttonLoading}>
-            {buttonLeftTime > 0 ? `${buttonLeftTime} s` : buttonLoading ? i18next.t("code:Sending") : i18next.t("code:Send Code")}
+            {buttonLeftTime > 0 ? `${buttonLeftTime} s` : buttonLoading ? t("code:Sending") : t("code:Send Code")}
           </Button>
         }
         onSearch={handleSearch}

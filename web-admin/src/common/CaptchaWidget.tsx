@@ -14,10 +14,13 @@
 
 import React, {useEffect} from "react";
 
-export const CaptchaWidget = (props) => {
-  const {captchaType, subType, siteKey, clientSecret, clientId2, clientSecret2, onChange} = props;
+type LegacyAny = import("../types/legacyPage").LegacyAny;
 
-  const loadScript = (src) => {
+export const CaptchaWidget = (props: LegacyAny) => {
+  const {captchaType, subType, siteKey, clientSecret, clientId2, clientSecret2, onChange} = props;
+  const win = window as LegacyAny;
+
+  const loadScript = (src: string) => {
     const tag = document.createElement("script");
     tag.async = false;
     tag.src = src;
@@ -30,11 +33,11 @@ export const CaptchaWidget = (props) => {
     case "reCAPTCHA" :
     case "reCAPTCHA v2": {
       const reTimer = setInterval(() => {
-        if (!window.grecaptcha) {
+        if (!win.grecaptcha) {
           loadScript("https://recaptcha.net/recaptcha/api.js");
         }
-        if (window.grecaptcha && window.grecaptcha.render) {
-          window.grecaptcha.render("captcha", {
+        if (win.grecaptcha && win.grecaptcha.render) {
+          win.grecaptcha.render("captcha", {
             sitekey: siteKey,
             callback: onChange,
           });
@@ -45,24 +48,24 @@ export const CaptchaWidget = (props) => {
     }
     case "reCAPTCHA v3": {
       const reTimer = setInterval(() => {
-        if (!window.grecaptcha) {
+        if (!win.grecaptcha) {
           loadScript(`https://recaptcha.net/recaptcha/api.js?render=${siteKey}`);
         }
-        if (window.grecaptcha && window.grecaptcha.render) {
-          const clientId = window.grecaptcha.render("captcha", {
+        if (win.grecaptcha && win.grecaptcha.render) {
+          const clientId = win.grecaptcha.render("captcha", {
             "sitekey": siteKey,
             "badge": "inline",
             "size": "invisible",
             "callback": onChange,
             "error-callback": function() {
-              const logoWidth = `${document.getElementById("captcha").offsetWidth + 40}px`;
-              document.getElementsByClassName("grecaptcha-logo")[0].firstChild.style.width = logoWidth;
-              document.getElementsByClassName("grecaptcha-badge")[0].style.width = logoWidth;
+              const logoWidth = `${document.getElementById("captcha")!.offsetWidth + 40}px`;
+              (document.getElementsByClassName("grecaptcha-logo")[0].firstChild as LegacyAny).style.width = logoWidth;
+              (document.getElementsByClassName("grecaptcha-badge")[0] as LegacyAny).style.width = logoWidth;
             },
           });
 
-          window.grecaptcha.ready(function() {
-            window.grecaptcha.execute(clientId, {action: "submit"});
+          win.grecaptcha.ready(function() {
+            win.grecaptcha.execute(clientId, {action: "submit"});
           });
           clearInterval(reTimer);
         }
@@ -71,11 +74,11 @@ export const CaptchaWidget = (props) => {
     }
     case "hCaptcha": {
       const hTimer = setInterval(() => {
-        if (!window.hcaptcha) {
+        if (!win.hcaptcha) {
           loadScript("https://js.hcaptcha.com/1/api.js");
         }
-        if (window.hcaptcha && window.hcaptcha.render) {
-          window.hcaptcha.render("captcha", {
+        if (win.hcaptcha && win.hcaptcha.render) {
+          win.hcaptcha.render("captcha", {
             sitekey: siteKey,
             callback: onChange,
           });
@@ -85,23 +88,23 @@ export const CaptchaWidget = (props) => {
       break;
     }
     case "Aliyun Captcha": {
-      window.AliyunCaptchaConfig = {
+      win.AliyunCaptchaConfig = {
         region: "cn",
         prefix: clientSecret2,
       };
 
       const AWSCTimer = setInterval(() => {
-        if (!window.initAliyunCaptcha) {
+        if (!win.initAliyunCaptcha) {
           loadScript("https://o.alicdn.com/captcha-frontend/aliyunCaptcha/AliyunCaptcha.js");
         }
 
-        if (window.initAliyunCaptcha) {
+        if (win.initAliyunCaptcha) {
           if (clientSecret2 && clientSecret2 !== "***") {
-            window.initAliyunCaptcha({
+            win.initAliyunCaptcha({
               SceneId: clientId2,
               mode: "embed",
               element: "#captcha",
-              captchaVerifyCallback: (data) => {
+              captchaVerifyCallback: (data: LegacyAny) => {
                 onChange(data.toString());
               },
               slideStyle: {
@@ -120,15 +123,15 @@ export const CaptchaWidget = (props) => {
     case "GEETEST": {
       let getLock = false;
       const gTimer = setInterval(() => {
-        if (!window.initGeetest4) {
+        if (!win.initGeetest4) {
           loadScript("https://static.geetest.com/v4/gt4.js");
         }
-        if (window.initGeetest4 && siteKey && !getLock) {
+        if (win.initGeetest4 && siteKey && !getLock) {
           const captchaId = String(siteKey);
-          window.initGeetest4({
+          win.initGeetest4({
             captchaId,
             product: "float",
-          }, function(captchaObj) {
+          }, function(captchaObj: LegacyAny) {
             if (!getLock) {
               captchaObj.appendTo("#captcha");
               getLock = true;
@@ -145,11 +148,11 @@ export const CaptchaWidget = (props) => {
     }
     case "Cloudflare Turnstile": {
       const tTimer = setInterval(() => {
-        if (!window.turnstile) {
+        if (!win.turnstile) {
           loadScript("https://challenges.cloudflare.com/turnstile/v0/api.js");
         }
-        if (window.turnstile && window.turnstile.render) {
-          window.turnstile.render("#captcha", {
+        if (win.turnstile && win.turnstile.render) {
+          win.turnstile.render("#captcha", {
             sitekey: siteKey,
             callback: onChange,
           });

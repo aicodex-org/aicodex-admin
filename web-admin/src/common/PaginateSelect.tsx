@@ -18,7 +18,9 @@ import * as Setting from "../Setting";
 
 const SCROLL_BOTTOM_OFFSET = 20;
 
-const defaultOptionMapper = (item) => {
+type LegacyAny = import("../types/legacyPage").LegacyAny;
+
+const defaultOptionMapper = (item: LegacyAny): LegacyAny => {
   if (item === null) {
     return null;
   }
@@ -33,7 +35,7 @@ const defaultOptionMapper = (item) => {
   return Setting.getOption(label, value);
 };
 
-function PaginateSelect(props) {
+function PaginateSelect(props: LegacyAny) {
   const {
     fetchPage,
     buildFetchArgs,
@@ -53,11 +55,11 @@ function PaginateSelect(props) {
     ...restProps
   } = props;
 
-  const [options, setOptions] = React.useState([]);
+  const [options, setOptions] = React.useState<LegacyAny[]>([]);
   const [hasMore, setHasMore] = React.useState(true);
   const [loading, setLoading] = React.useState(false);
 
-  const debounceRef = React.useRef(null);
+  const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestSearchRef = React.useRef("");
   const loadingRef = React.useRef(false);
   const requestIdRef = React.useRef(0);
@@ -78,7 +80,7 @@ function PaginateSelect(props) {
     optionMapperRef.current = optionMapper ?? defaultOptionMapper;
   }, [optionMapper]);
 
-  const handleError = React.useCallback((error) => {
+  const handleError = React.useCallback((error: LegacyAny) => {
     if (onError) {
       onError(error);
       return;
@@ -89,7 +91,7 @@ function PaginateSelect(props) {
     }
   }, [onError]);
 
-  const extractItems = React.useCallback((response) => {
+  const extractItems = React.useCallback((response: LegacyAny): LegacyAny[] => {
     if (Array.isArray(response)) {
       return response;
     }
@@ -105,13 +107,13 @@ function PaginateSelect(props) {
     return [];
   }, []);
 
-  const mergeOptions = React.useCallback((prev, next, reset) => {
+  const mergeOptions = React.useCallback((prev: LegacyAny[], next: LegacyAny[], reset: boolean) => {
     if (reset) {
       return next;
     }
 
     const merged = [...prev];
-    const indexByValue = new Map();
+    const indexByValue = new Map<LegacyAny, number>();
     merged.forEach((opt, idx) => {
       if (opt?.value !== undefined) {
         indexByValue.set(opt.value, idx);
@@ -128,7 +130,10 @@ function PaginateSelect(props) {
         return;
       }
       if (indexByValue.has(optionValue)) {
-        merged[indexByValue.get(optionValue)] = opt;
+        const existingIndex = indexByValue.get(optionValue);
+        if (existingIndex !== undefined) {
+          merged[existingIndex] = opt;
+        }
         return;
       }
       indexByValue.set(optionValue, merged.length);
@@ -138,7 +143,7 @@ function PaginateSelect(props) {
     return merged;
   }, []);
 
-  const loadPage = React.useCallback(async({pageToLoad = 1, reset = false, search = latestSearchRef.current} = {}) => {
+  const loadPage = React.useCallback(async({pageToLoad = 1, reset = false, search = latestSearchRef.current}: LegacyAny = {}) => {
     const fetcher = fetchPageRef.current;
     if (typeof fetcher !== "function") {
       return;
@@ -189,7 +194,7 @@ function PaginateSelect(props) {
       const items = extractItems(payload);
       const mapper = optionMapperRef.current ?? defaultOptionMapper;
       const mappedOptions = items.map(mapper).filter(Boolean);
-      setOptions((prev) => mergeOptions(prev, mappedOptions, reset));
+      setOptions((prev: LegacyAny[]) => mergeOptions(prev, mappedOptions, reset));
       pageRef.current = pageToLoad;
 
       const hasMoreFromPayload = typeof payload?.hasMore === "boolean" ? payload.hasMore : null;
@@ -225,7 +230,7 @@ function PaginateSelect(props) {
     };
   }, [resetAndLoad, reloadKey]);
 
-  const handleSearch = React.useCallback((value) => {
+  const handleSearch = React.useCallback((value: string) => {
     onSearchProp?.(value);
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
@@ -241,7 +246,7 @@ function PaginateSelect(props) {
     debounceRef.current = setTimeout(triggerSearch, debounceMs);
   }, [debounceMs, onSearchProp, resetAndLoad]);
 
-  const handlePopupScroll = React.useCallback((event) => {
+  const handlePopupScroll = React.useCallback((event: LegacyAny) => {
     onPopupScrollProp?.(event);
     const target = event?.target;
     if (!target || loadingRef.current || !hasMore) {

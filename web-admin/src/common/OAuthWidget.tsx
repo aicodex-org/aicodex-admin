@@ -23,8 +23,12 @@ import {goToWeb3Url} from "../auth/ProviderButton";
 import AccountAvatar from "../account/AccountAvatar";
 import {WechatOfficialAccountModal} from "../auth/Util";
 
-class OAuthWidget extends React.Component {
-  constructor(props) {
+type LegacyAny = import("../types/legacyPage").LegacyAny;
+
+const t = (key: string) => String(i18next.t(key));
+
+class OAuthWidget extends React.Component<LegacyAny, LegacyAny> {
+  constructor(props: LegacyAny) {
     super(props);
     this.state = {
       classes: props,
@@ -38,7 +42,7 @@ class OAuthWidget extends React.Component {
     this.getAffiliationOptions(this.props.application, this.props.user);
   }
 
-  getAddressOptions(application) {
+  getAddressOptions(application: LegacyAny) {
     if (application.affiliationUrl === "") {
       return;
     }
@@ -52,7 +56,7 @@ class OAuthWidget extends React.Component {
       });
   }
 
-  getAffiliationOptions(application, user) {
+  getAffiliationOptions(application: LegacyAny, user: LegacyAny) {
     if (application.affiliationUrl === "") {
       return;
     }
@@ -71,7 +75,7 @@ class OAuthWidget extends React.Component {
       });
   }
 
-  updateUserField(key, value) {
+  updateUserField(key: string, value: LegacyAny) {
     this.props.onUpdateUserField(key, value);
   }
 
@@ -79,7 +83,7 @@ class OAuthWidget extends React.Component {
     this.props.onUnlinked();
   }
 
-  getProviderLink(user, provider) {
+  getProviderLink(user: LegacyAny, provider: LegacyAny) {
     if (provider.type === "GitHub") {
       return `https://github.com/${this.getUserProperty(user, provider.type, "username")}`;
     } else if (provider.type === "Google") {
@@ -89,13 +93,13 @@ class OAuthWidget extends React.Component {
     }
   }
 
-  getUserProperty(user, providerType, propertyName) {
+  getUserProperty(user: LegacyAny, providerType: string, propertyName: string) {
     const key = `oauth_${providerType}_${propertyName}`;
     if (user.properties === null) {return "";}
     return user.properties[key];
   }
 
-  unlinkUser(providerType, linkedValue) {
+  unlinkUser(providerType: string, linkedValue: LegacyAny) {
     const body = {
       providerType: providerType,
       // should add the unlink user's info, cause the user may not be logged in, but a admin want to unlink the user.
@@ -131,7 +135,7 @@ class OAuthWidget extends React.Component {
       });
   }
 
-  renderIdp(user, application, providerItem) {
+  renderIdp(user: LegacyAny, application: LegacyAny, providerItem: LegacyAny) {
     const provider = providerItem.provider;
     const linkedValue = user[provider.type.toLowerCase()];
     const profileUrl = this.getProviderLink(user, provider);
@@ -185,7 +189,7 @@ class OAuthWidget extends React.Component {
           }} title={name}>
             {
               linkedValue === "" ? (
-                `(${i18next.t("general:empty")})`
+                `(${t("general:empty")})`
               ) : (
                 profileUrl === "" ? name : (
                   <a target="_blank" rel="noreferrer" href={profileUrl}>
@@ -200,7 +204,7 @@ class OAuthWidget extends React.Component {
           {
             linkedValue === "" ? (
               provider.category === "Web3" ? (
-                <Button style={{marginLeft: "20px", width: linkButtonWidth}} type="primary" disabled={user.id !== account.id} onClick={() => goToWeb3Url(application, provider, "link")}>{i18next.t("user:Link")}</Button>
+                <Button style={{marginLeft: "20px", width: linkButtonWidth}} type="primary" disabled={user.id !== account.id} onClick={() => goToWeb3Url(application, provider, "link")}>{t("user:Link")}</Button>
               ) : (
                 provider.type === "WeChat" && provider.clientId2 !== "" && provider.clientSecret2 !== "" && provider.disableSsl === true && !navigator.userAgent.includes("MicroMessenger") ? (
                   <a key={provider.displayName}>
@@ -208,16 +212,16 @@ class OAuthWidget extends React.Component {
                       () => {
                         WechatOfficialAccountModal(application, provider, "link");
                       }
-                    }>{i18next.t("user:Link")}</Button>
+                    }>{t("user:Link")}</Button>
                   </a>
                 ) : (
-                  <a key={provider.displayName} href={user.id !== account.id ? null : Provider.getAuthUrl(application, provider, "link")}>
-                    <Button style={{marginLeft: "20px", width: linkButtonWidth}} type="primary" disabled={user.id !== account.id}>{i18next.t("user:Link")}</Button>
+                  <a key={provider.displayName} href={user.id !== account.id ? undefined : Provider.getAuthUrl(application, provider, "link")}>
+                    <Button style={{marginLeft: "20px", width: linkButtonWidth}} type="primary" disabled={user.id !== account.id}>{t("user:Link")}</Button>
                   </a>
                 )
               )
             ) : (
-              <Button disabled={!providerItem.canUnlink && !Setting.isAdminUser(account)} style={{marginLeft: "20px", width: linkButtonWidth}} onClick={() => this.unlinkUser(provider.type, linkedValue)}>{i18next.t("user:Unlink")}</Button>
+              <Button disabled={!providerItem.canUnlink && !Setting.isAdminUser(account)} style={{marginLeft: "20px", width: linkButtonWidth}} onClick={() => this.unlinkUser(provider.type, linkedValue)}>{t("user:Unlink")}</Button>
             )
           }
         </Col>

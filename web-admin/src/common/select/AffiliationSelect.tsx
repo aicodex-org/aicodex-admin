@@ -18,8 +18,12 @@ import i18next from "i18next";
 import * as UserBackend from "../../backend/UserBackend";
 import * as Setting from "../../Setting";
 
-class AffiliationSelect extends React.Component {
-  constructor(props) {
+type LegacyAny = import("../../types/legacyPage").LegacyAny;
+
+const t = (key: string) => String(i18next.t(key));
+
+class AffiliationSelect extends React.Component<LegacyAny, LegacyAny> {
+  constructor(props: LegacyAny) {
     super(props);
     this.state = {
       classes: props,
@@ -33,7 +37,7 @@ class AffiliationSelect extends React.Component {
     this.getAffiliationOptions(this.props.application, this.props.user);
   }
 
-  getAddressOptions(application) {
+  getAddressOptions(application: LegacyAny) {
     if (application.affiliationUrl === "") {
       return;
     }
@@ -47,7 +51,7 @@ class AffiliationSelect extends React.Component {
       });
   }
 
-  getAffiliationOptions(application, user) {
+  getAffiliationOptions(application: LegacyAny, user: LegacyAny) {
     if (application.affiliationUrl === "") {
       return;
     }
@@ -66,7 +70,7 @@ class AffiliationSelect extends React.Component {
       });
   }
 
-  updateUserField(key, value) {
+  updateUserField(key: string, value: LegacyAny) {
     this.props.onUpdateUserField(key, value);
   }
 
@@ -77,22 +81,22 @@ class AffiliationSelect extends React.Component {
           this.props.application?.affiliationUrl === "" ? null : (
             <Row style={{marginTop: "20px"}} >
               <Col style={{marginTop: "5px"}} span={this.props.labelSpan}>
-                {Setting.getLabel(i18next.t("user:Address"), i18next.t("user:Address - Tooltip"))} :
+                {Setting.getLabel(t("user:Address"), t("user:Address - Tooltip"))} :
               </Col>
               <Col span={24 - this.props.labelSpan} >
-                <Cascader style={{width: "100%", maxWidth: "400px"}} value={this.props.user.address} options={this.state.addressOptions} onChange={value => {
+                <Cascader style={{width: "100%", maxWidth: "400px"}} value={this.props.user.address} options={this.state.addressOptions} onChange={(value: LegacyAny) => {
                   this.updateUserField("address", value);
                   this.updateUserField("affiliation", "");
                   this.updateUserField("score", 0);
                   this.getAffiliationOptions(this.props.application, this.props.user);
-                }} placeholder={i18next.t("signup:Please input your address!")} />
+                }} placeholder={t("signup:Please input your address!")} />
               </Col>
             </Row>
           )
         }
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={this.props.labelSpan}>
-            {Setting.getLabel(i18next.t("user:Affiliation"), i18next.t("user:Affiliation - Tooltip"))} :
+            {Setting.getLabel(t("user:Affiliation"), t("user:Affiliation - Tooltip"))} :
           </Col>
           <Col span={22} >
             {
@@ -102,14 +106,14 @@ class AffiliationSelect extends React.Component {
                 }} />
               ) : (
                 <Select virtual={false} style={{width: "100%"}} value={this.props.user.affiliation}
-                  onChange={(value => {
+                  onChange={((value: LegacyAny) => {
                     const name = value;
                     const affiliationOption = Setting.getArrayItem(this.state.affiliationOptions, "name", name);
                     const id = affiliationOption.id;
                     this.updateUserField("affiliation", name);
                     this.updateUserField("score", id);
                   })}
-                  options={[Setting.getOption(`(${i18next.t("general:empty")})`, "")].concat(this.state.affiliationOptions.map((affiliationOption) => Setting.getOption(affiliationOption.name, affiliationOption.name))
+                  options={[Setting.getOption(`(${t("general:empty")})`, "")].concat(this.state.affiliationOptions.map((affiliationOption: LegacyAny) => Setting.getOption(affiliationOption.name, affiliationOption.name))
                   )} />
               )
             }

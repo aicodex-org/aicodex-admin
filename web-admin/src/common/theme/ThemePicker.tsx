@@ -27,14 +27,18 @@ export const THEMES = {
   dark: `${Setting.StaticBaseUrl}/img/theme_dark.svg`,
   lark: `${Setting.StaticBaseUrl}/img/theme_lark.svg`,
   comic: `${Setting.StaticBaseUrl}/img/theme_comic.svg`,
-};
+} as const;
 
-const themeTypes = {
+type ThemeKey = keyof typeof THEMES;
+
+const themeTypes: Record<ThemeKey, string> = {
   default: "Default", // i18next.t("general:Default")
   dark: "Dark",       // i18next.t("theme:Dark")
   lark: "Document",   // i18next.t("theme:Document")
   comic: "Blossom",   // i18next.t("theme:Blossom")
 };
+
+const t = (key: string) => String(i18next.t(key));
 
 const useStyle = () => {
   const {token} = useToken();
@@ -74,13 +78,13 @@ const useStyle = () => {
   };
 };
 
-export default function ThemePicker({value, onChange}) {
+export default function ThemePicker({value, onChange}: {value?: string; onChange?: (value: string) => void}) {
   const {token} = useToken();
   const style = useStyle();
 
   return (
     <Space size={token.paddingLG}>
-      {Object.keys(THEMES).map((theme) => {
+      {(Object.keys(THEMES) as ThemeKey[]).map((theme) => {
         const url = THEMES[theme];
         return (
           <Space key={theme} direction="vertical" align="center">
@@ -93,7 +97,7 @@ export default function ThemePicker({value, onChange}) {
               <input type="radio" name="theme" />
               <img src={url} alt={theme} />
             </label>
-            <span>{i18next.t(`theme:${themeTypes[theme]}`)}</span>
+            <span>{t(`theme:${themeTypes[theme]}`)}</span>
           </Space>
         );
       })}

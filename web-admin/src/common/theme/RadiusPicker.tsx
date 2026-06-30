@@ -14,7 +14,9 @@
 
 import {InputNumber, Slider, Space} from "antd";
 
-export default function RadiusPicker({value, onChange}) {
+type LegacyAny = import("../../types/legacyPage").LegacyAny;
+
+export default function RadiusPicker({value, onChange}: {value?: LegacyAny; onChange?: (value: LegacyAny) => void}) {
   return (
     <Space size="large">
       <InputNumber

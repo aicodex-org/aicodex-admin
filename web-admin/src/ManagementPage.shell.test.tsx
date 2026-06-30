@@ -309,7 +309,7 @@ describe("ManagementPage admin shell sidebar", () => {
   });
 
   test("App mirrors the active admin shell theme class onto document.body for portal surfaces", () => {
-    const appJs = fs.readFileSync(path.join(__dirname, "App.js"), "utf8") as string;
+    const appJs = fs.readFileSync(path.join(__dirname, "App.tsx"), "utf8") as string;
 
     expect(appJs).toMatch(/document\.body\.classList\.remove\("admin-shell-theme-light",\s*"admin-shell-theme-dark"\)/);
     expect(appJs).toMatch(/document\.body\.classList\.add\(this\.state\.themeAlgorithm\.includes\("dark"\) \? "admin-shell-theme-dark" : "admin-shell-theme-light"\)/);

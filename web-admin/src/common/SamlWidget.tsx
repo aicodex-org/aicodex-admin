@@ -16,8 +16,10 @@ import React from "react";
 import {Col, Row} from "antd";
 import * as Setting from "../Setting";
 
-class SamlWidget extends React.Component {
-  constructor(props) {
+type LegacyAny = import("../types/legacyPage").LegacyAny;
+
+class SamlWidget extends React.Component<LegacyAny, LegacyAny> {
+  constructor(props: LegacyAny) {
     super(props);
     this.state = {
       classes: props,
@@ -26,7 +28,7 @@ class SamlWidget extends React.Component {
     };
   }
 
-  renderIdp(user, application, providerItem) {
+  renderIdp(user: LegacyAny, application: LegacyAny, providerItem: LegacyAny) {
     const provider = providerItem.provider;
     const name = user.name;
 

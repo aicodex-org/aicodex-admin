@@ -17,7 +17,11 @@ import i18next from "i18next";
 import React, {useEffect, useState} from "react";
 import * as Setting from "../../Setting";
 
-export const AgreementModal = (props) => {
+type LegacyAny = import("../../types/legacyPage").LegacyAny;
+
+const t = (key: string) => String(i18next.t(key));
+
+export const AgreementModal = (props: LegacyAny) => {
   const {open, onOk, onCancel, application} = props;
   const [doc, setDoc] = useState("");
 
@@ -30,12 +34,12 @@ export const AgreementModal = (props) => {
   return (
 
     <Modal
-      title={i18next.t("signup:Terms of Use")}
+      title={t("signup:Terms of Use")}
       open={open}
       width={Setting.isMobile() ? "100vw" : "55vw"}
       closable={false}
-      okText={i18next.t("signup:Accept")}
-      cancelText={i18next.t("signup:Decline")}
+      okText={t("signup:Accept")}
+      cancelText={t("signup:Decline")}
       onOk={onOk}
       onCancel={onCancel}
       style={{top: Setting.isMobile() ? "5px" : ""}}
@@ -46,19 +50,20 @@ export const AgreementModal = (props) => {
   );
 };
 
-function getTermsOfUseContent(url) {
+function getTermsOfUseContent(url: string): Promise<string> {
   return fetch(url, {
     method: "GET",
   })
     .then(r => r.text())
     .catch(error => {
-      Setting.showMessage("error", `${i18next.t("general:Failed to get")}: ${url}, ${error}`);
+      Setting.showMessage("error", `${t("general:Failed to get")}: ${url}, ${error}`);
+      return "";
     });
 }
 
-export function isAgreementRequired(application) {
+export function isAgreementRequired(application: LegacyAny) {
   if (application && application.signupItems) {
-    const agreementItem = application.signupItems.find(item => item.name === "Agreement");
+    const agreementItem = application.signupItems.find((item: LegacyAny) => item.name === "Agreement");
     if (!agreementItem || agreementItem.rule === "None" || !agreementItem.rule) {
       return false;
     }
@@ -69,17 +74,17 @@ export function isAgreementRequired(application) {
   return false;
 }
 
-function initDefaultValue(application) {
+function initDefaultValue(application: LegacyAny) {
   if (!application || !application.signupItems) {
     return false;
   }
 
-  const agreementItem = application.signupItems.find(item => item.name === "Agreement");
+  const agreementItem = application.signupItems.find((item: LegacyAny) => item.name === "Agreement");
 
   return isAgreementRequired(application) && agreementItem && agreementItem.rule === "Signin (Default True)";
 }
 
-export function renderAgreementFormItem(application, required, layout, ths) {
+export function renderAgreementFormItem(application: LegacyAny, required: boolean, layout: LegacyAny, ths: LegacyAny) {
   return (<React.Fragment>
     <Form.Item
       name="agreement"
@@ -91,13 +96,13 @@ export function renderAgreementFormItem(application, required, layout, ths) {
           required: required,
         },
         () => ({
-          validator: (_, value) => {
+          validator: (_: LegacyAny, value: LegacyAny) => {
             if (!required) {
               return Promise.resolve();
             }
 
             if (!value) {
-              return Promise.reject(i18next.t("signup:Please accept the agreement!"));
+              return Promise.reject(t("signup:Please accept the agreement!"));
             } else {
               return Promise.resolve();
             }
@@ -109,14 +114,14 @@ export function renderAgreementFormItem(application, required, layout, ths) {
       initialValue={initDefaultValue(application)}
     >
       <Checkbox style={{float: "left"}}>
-        {i18next.t("signup:Accept")}&nbsp;
+        {t("signup:Accept")}&nbsp;
         <a onClick={() => {
           ths.setState({
             isTermsOfUseVisible: true,
           });
         }}
         >
-          {i18next.t("signup:Terms of Use")}
+          {t("signup:Terms of Use")}
         </a>
       </Checkbox>
     </Form.Item>

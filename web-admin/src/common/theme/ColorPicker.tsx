@@ -20,6 +20,8 @@ import {css} from "@emotion/react";
 import {TinyColor} from "@ctrl/tinycolor";
 import ColorPanel from "antd-token-previewer/es/ColorPanel";
 
+type LegacyAny = import("../../types/legacyPage").LegacyAny;
+
 export const BLUE_COLOR = "#1677FF";
 export const PINK_COLOR = "#ED4192";
 export const GREEN_COLOR = "#00B96B";
@@ -79,7 +81,12 @@ const useStyle = () => {
   };
 };
 
-const DebouncedColorPanel = ({color, onChange}) => {
+interface ColorControlProps {
+  value?: string;
+  onChange?: (value: string) => void;
+}
+
+const DebouncedColorPanel = ({color, onChange}: {color: string; onChange?: (value: string) => void}) => {
   const [value, setValue] = useState(color);
 
   useEffect(() => {
@@ -93,14 +100,14 @@ const DebouncedColorPanel = ({color, onChange}) => {
     setValue(color);
   }, [color]);
 
-  return <ColorPanel color={value} onChange={setValue} />;
+  return <ColorPanel color={value} onChange={setValue as LegacyAny} />;
 };
 
-export default function ColorPicker({value, onChange}) {
+export default function ColorPicker({value, onChange}: ColorControlProps) {
   const style = useStyle();
 
   const matchColors = useMemo(() => {
-    const valueStr = new TinyColor(value).toRgbString();
+    const valueStr = new TinyColor(value ?? "").toRgbString();
     let existActive = false;
 
     const colors = PRESET_COLORS.map((color) => {
@@ -155,7 +162,7 @@ export default function ColorPicker({value, onChange}) {
                 key={color}
                 overlayInnerStyle={{padding: 0}}
                 content={
-                  <DebouncedColorPanel color={value || ""} onChange={(c) => onChange?.(c)} />
+                  <DebouncedColorPanel color={value || ""} onChange={(c: string) => onChange?.(c)} />
                 }
                 trigger="click"
                 showArrow={false}

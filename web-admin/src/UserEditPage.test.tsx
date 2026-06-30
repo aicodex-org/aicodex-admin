@@ -128,7 +128,7 @@ jest.mock("./common/modal/EnableMfaModal", () => function EnableMfaModalMock(pro
   return <button type="button" onClick={() => props.onSuccess?.()}>EnableMfaModal</button>;
 });
 
-jest.mock("./common/modal/CropperDivModal.js", () => function CropperDivModalMock(props: {tag?: string}) {
+jest.mock("./common/modal/CropperDivModal", () => function CropperDivModalMock(props: {tag?: string}) {
   return <button type="button">{`Cropper-${props.tag || ""}`}</button>;
 });
 

@@ -26,7 +26,7 @@ import * as AuthBackend from "./auth/AuthBackend";
 import EnableMfaModal from "./common/modal/EnableMfaModal";
 import * as Setting from "./Setting";
 import i18nextRaw from "i18next";
-import CropperDivModal from "./common/modal/CropperDivModal.js";
+import CropperDivModal from "./common/modal/CropperDivModal";
 import * as ApplicationBackend from "./backend/ApplicationBackend";
 import PasswordModal from "./common/modal/PasswordModal";
 import ResetModal from "./common/modal/ResetModal";

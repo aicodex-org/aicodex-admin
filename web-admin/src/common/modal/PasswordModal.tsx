@@ -20,7 +20,11 @@ import * as Setting from "../../Setting";
 import * as PasswordChecker from "../PasswordChecker";
 import * as Obfuscator from "../../auth/Obfuscator";
 
-export const PasswordModal = (props) => {
+type LegacyAny = import("../../types/legacyPage").LegacyAny;
+
+const t = (key: string) => String(i18next.t(key));
+
+export const PasswordModal = (props: LegacyAny) => {
   const [visible, setVisible] = React.useState(false);
   const [confirmLoading, setConfirmLoading] = React.useState(false);
   const [oldPassword, setOldPassword] = React.useState("");
@@ -31,13 +35,13 @@ export const PasswordModal = (props) => {
   const {organization} = props;
   const {account} = props;
 
-  const [passwordOptions, setPasswordOptions] = React.useState([]);
+  const [passwordOptions, setPasswordOptions] = React.useState<LegacyAny[]>([]);
   const [newPasswordValid, setNewPasswordValid] = React.useState(false);
   const [rePasswordValid, setRePasswordValid] = React.useState(false);
   const [newPasswordErrorMessage, setNewPasswordErrorMessage] = React.useState("");
   const [rePasswordErrorMessage, setRePasswordErrorMessage] = React.useState("");
   const [passwordPopoverOpen, setPasswordPopoverOpen] = React.useState(false);
-  const [passwordPopover, setPasswordPopover] = React.useState();
+  const [passwordPopover, setPasswordPopover] = React.useState<React.ReactNode>();
 
   React.useEffect(() => {
     if (organization) {
@@ -51,7 +55,7 @@ export const PasswordModal = (props) => {
   const handleCancel = () => {
     setVisible(false);
   };
-  const handleNewPassword = (value) => {
+  const handleNewPassword = (value: string) => {
     setNewPassword(value);
 
     const errorMessage = PasswordChecker.checkPasswordComplexity(value, passwordOptions);
@@ -59,11 +63,11 @@ export const PasswordModal = (props) => {
     setNewPasswordErrorMessage(errorMessage);
   };
 
-  const handleRePassword = (value) => {
+  const handleRePassword = (value: string) => {
     setRePassword(value);
 
     if (value !== newPassword) {
-      setRePasswordErrorMessage(i18next.t("signup:Your confirmed password is inconsistent with the password!"));
+      setRePasswordErrorMessage(t("signup:Your confirmed password is inconsistent with the password!"));
       setRePasswordValid(false);
     } else {
       setRePasswordValid(true);
@@ -72,17 +76,17 @@ export const PasswordModal = (props) => {
 
   const handleOk = () => {
     if (newPassword === "" || rePassword === "") {
-      Setting.showMessage("error", i18next.t("user:Empty input!"));
+      Setting.showMessage("error", t("user:Empty input!"));
       return;
     }
     if (newPassword !== rePassword) {
-      Setting.showMessage("error", i18next.t("user:Two passwords you typed do not match."));
+      Setting.showMessage("error", t("user:Two passwords you typed do not match."));
       return;
     }
     setConfirmLoading(true);
 
     if (organization === null) {
-      Setting.showMessage("error", i18next.t("general:Organization is null"));
+      Setting.showMessage("error", t("general:Organization is null"));
       setConfirmLoading(false);
       return;
     }
@@ -127,13 +131,13 @@ export const PasswordModal = (props) => {
     UserBackend.setPassword(user.owner, userName, encryptedOldPassword, encryptedNewPassword)
       .then((res) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("user:Password set successfully"));
+          Setting.showMessage("success", t("user:Password set successfully"));
           setVisible(false);
           if (account.owner === user.owner && account.name === userName) {
             account.needUpdatePassword = false;
           }
         } else {
-          Setting.showMessage("error", i18next.t(`user:${res.msg}`));
+          Setting.showMessage("error", t(`user:${res.msg}`));
         }
       })
       .finally(() => {
@@ -146,14 +150,14 @@ export const PasswordModal = (props) => {
   return (
     <Row>
       <Button type="primary" disabled={props.disabled} onClick={showModal}>
-        {hasOldPassword ? i18next.t("user:Modify password...") : i18next.t("user:Set password...")}
+        {hasOldPassword ? t("user:Modify password...") : t("user:Set password...")}
       </Button>
       <Modal
         maskClosable={false}
-        title={i18next.t("general:Password")}
+        title={t("general:Password")}
         open={visible}
-        okText={i18next.t("user:Set Password")}
-        cancelText={i18next.t("general:Cancel")}
+        okText={t("user:Set Password")}
+        cancelText={t("general:Cancel")}
         confirmLoading={confirmLoading}
         onCancel={handleCancel}
         onOk={handleOk}
@@ -162,14 +166,14 @@ export const PasswordModal = (props) => {
         <Col style={{margin: "0px auto 40px auto", width: 1000, height: 300}}>
           {(hasOldPassword && !Setting.isLocalAdminUser(account)) ? (
             <Row style={{width: "100%", marginBottom: "20px"}}>
-              <Input.Password addonBefore={i18next.t("user:Old Password")} placeholder={i18next.t("user:input password")} onChange={(e) => setOldPassword(e.target.value)} />
+              <Input.Password addonBefore={t("user:Old Password")} placeholder={t("user:input password")} onChange={(e) => setOldPassword(e.target.value)} />
             </Row>
           ) : null}
           <Row style={{width: "100%", marginBottom: "20px"}}>
             <Popover placement={window.innerWidth >= 960 ? "right" : "top"} content={passwordPopover} open={passwordPopoverOpen}>
               <Input.Password
-                addonBefore={i18next.t("user:New Password")}
-                placeholder={i18next.t("user:input password")}
+                addonBefore={t("user:New Password")}
+                placeholder={t("user:input password")}
                 onChange={(e) => {
                   handleNewPassword(e.target.value);
                   setPasswordPopoverOpen(passwordOptions?.length > 0);
@@ -190,8 +194,8 @@ export const PasswordModal = (props) => {
           {!newPasswordValid && newPasswordErrorMessage && <div style={{color: "red", marginTop: "-20px"}}>{newPasswordErrorMessage}</div>}
           <Row style={{width: "100%", marginBottom: "20px"}}>
             <Input.Password
-              addonBefore={i18next.t("user:Re-enter New")}
-              placeholder={i18next.t("user:input password")}
+              addonBefore={t("user:Re-enter New")}
+              placeholder={t("user:input password")}
               onChange={(e) => handleRePassword(e.target.value)}
               status={(!rePasswordValid && rePasswordErrorMessage) ? "error" : undefined}
             />

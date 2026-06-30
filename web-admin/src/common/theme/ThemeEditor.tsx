@@ -22,7 +22,11 @@ import {Content} from "antd/es/layout/layout";
 import i18next from "i18next";
 import * as Conf from "../../Conf";
 
-const ThemesInfo = {
+type LegacyAny = import("../../types/legacyPage").LegacyAny;
+
+const t = (key: string) => String(i18next.t(key));
+
+const ThemesInfo: Record<string, LegacyAny> = {
   default: {},
   dark: {
     borderRadius: 2,
@@ -39,7 +43,7 @@ const ThemesInfo = {
 
 const onChange = () => {};
 
-export default function ThemeEditor(props) {
+export default function ThemeEditor(props: LegacyAny) {
   const themeData = props.themeData ?? Conf.ThemeDefault;
   const onThemeChange = props.onThemeChange ?? onChange;
 
@@ -81,7 +85,7 @@ export default function ThemeEditor(props) {
       <Layout style={{width: "800px", backgroundColor: "white"}}>
         <Content >
           <Card
-            title={i18next.t("theme:Theme")}
+            title={t("theme:Theme")}
           >
             <Form
               form={form}
@@ -91,16 +95,16 @@ export default function ThemeEditor(props) {
               wrapperCol={{span: 20}}
               style={{width: "800px"}}
             >
-              <Form.Item label={i18next.t("theme:Theme")} name="themeType">
+              <Form.Item label={t("theme:Theme")} name="themeType">
                 <ThemePicker />
               </Form.Item>
-              <Form.Item label={i18next.t("theme:Primary color")} name="colorPrimary">
+              <Form.Item label={t("theme:Primary color")} name="colorPrimary">
                 <ColorPicker />
               </Form.Item>
-              <Form.Item label={i18next.t("theme:Border radius")} name="borderRadius">
+              <Form.Item label={t("theme:Border radius")} name="borderRadius">
                 <RadiusPicker />
               </Form.Item>
-              <Form.Item label={i18next.t("theme:Is compact")} valuePropName="checked" name="isCompact">
+              <Form.Item label={t("theme:Is compact")} valuePropName="checked" name="isCompact">
                 <Switch />
               </Form.Item>
             </Form>
