@@ -1,18 +1,44 @@
 /* eslint-env jest */
 import React from "react";
-import {fireEvent, render, screen} from "@testing-library/react";
+import {render} from "@testing-library/react";
+import {beforeEach, describe, expect, jest as jestValue, test} from "@jest/globals";
 import ProviderTable from "./ProviderTable";
 import i18next from "i18next";
 
-jest.mock("i18next", () => {
-  const i18next = {
-    t: jest.fn(key => {
-      const [, value] = key.split(":");
-      return value || key;
-    }),
-    use: jest.fn(() => i18next),
-    init: jest.fn(() => i18next),
+declare const jest: typeof jestValue;
+
+type I18nextMock = {
+  mockClear: () => void;
+  mockImplementation: (fn: (key: string) => string) => void;
+};
+
+type StyleMatcher = {
+  toHaveStyle: (style: string) => void;
+};
+
+const {fireEvent, screen} = require("@testing-library/react") as {
+  fireEvent: {
+    click: (element: Element | Node | Document | Window) => boolean;
   };
+  screen: {
+    getByText: (text: string) => HTMLElement;
+    getAllByText: (text: string) => HTMLElement[];
+  };
+};
+jest.mock("i18next", () => {
+  const mockJest = require("@jest/globals").jest as any;
+  const mockT = mockJest.fn((mockKey: string) => {
+    const [, value] = mockKey.split(":");
+    return value || mockKey;
+  });
+  const i18next: {
+    t: any;
+    use: any;
+    init: any;
+  } = {} as any;
+  i18next.t = mockT;
+  i18next.use = () => i18next;
+  i18next.init = () => i18next;
 
   return {
     __esModule: true,
@@ -23,28 +49,29 @@ jest.mock("i18next", () => {
 
 describe("ProviderTable", () => {
   beforeEach(() => {
-    i18next.t.mockClear();
-    i18next.t.mockImplementation(key => {
+    const mockedT = i18next.t as unknown as I18nextMock;
+    mockedT.mockClear();
+    mockedT.mockImplementation((key: string) => {
       const [, value] = `${key}`.split(":");
       return value || key;
     });
     Object.defineProperty(window, "matchMedia", {
       writable: true,
-      value: jest.fn().mockImplementation(query => ({
+      value: jestValue.fn().mockImplementation((query: unknown) => ({
         matches: false,
-        media: query,
+        media: String(query),
         onchange: null,
-        addListener: jest.fn(),
-        removeListener: jest.fn(),
-        addEventListener: jest.fn(),
-        removeEventListener: jest.fn(),
-        dispatchEvent: jest.fn(),
+        addListener: jestValue.fn(),
+        removeListener: jestValue.fn(),
+        addEventListener: jestValue.fn(),
+        removeEventListener: jestValue.fn(),
+        dispatchEvent: jestValue.fn(),
       })),
     });
   });
 
   test("adds provider row when application provider list is null", () => {
-    const onUpdateTable = jest.fn();
+    const onUpdateTable = jestValue.fn();
 
     render(
       <ProviderTable
@@ -71,7 +98,7 @@ describe("ProviderTable", () => {
   });
 
   test("shows runtime email default when binding rule is unset", () => {
-    const onUpdateTable = jest.fn();
+    const onUpdateTable = jestValue.fn();
 
     render(
       <ProviderTable
@@ -97,7 +124,7 @@ describe("ProviderTable", () => {
   });
 
   test("uses compact fixed table layout for application provider rows", () => {
-    const onUpdateTable = jest.fn();
+    const onUpdateTable = jestValue.fn();
 
     const {container} = render(
       <ProviderTable
@@ -120,8 +147,8 @@ describe("ProviderTable", () => {
     );
 
     const table = container.querySelector(".ant-table-content table");
-    expect(table).toHaveStyle("table-layout: fixed");
-    expect(table).toHaveStyle("width: 1260px");
+    (expect(table) as unknown as StyleMatcher).toHaveStyle("table-layout: fixed");
+    (expect(table) as unknown as StyleMatcher).toHaveStyle("width: 1260px");
   });
 
   test("explains provider binding option columns", () => {
@@ -143,7 +170,7 @@ describe("ProviderTable", () => {
         ]}
         providers={[{name: "WeCom", category: "OAuth", type: "WeCom"}]}
         application={{enableSignUp: true, organizationObj: {name: "built-in"}}}
-        onUpdateTable={jest.fn()}
+        onUpdateTable={jestValue.fn()}
       />
     );
 
@@ -155,7 +182,7 @@ describe("ProviderTable", () => {
   });
 
   test("updates provider row fields from column controls", () => {
-    const onUpdateTable = jest.fn();
+    const onUpdateTable = jestValue.fn();
     const rows = [
       {
         name: "WeCom",
@@ -195,7 +222,7 @@ describe("ProviderTable", () => {
     });
     const renderedTable = table.renderTable(rows);
     const columns = renderedTable.props.columns;
-    const getColumn = key => columns.find(column => column.key === key);
+    const getColumn = (key: string) => columns.find((column: any) => column.key === key);
 
     getColumn("canSignUp").render(true, rows[0], 0).props.onChange(false);
     getColumn("canSignIn").render(true, rows[0], 0).props.onChange(false);
@@ -227,7 +254,7 @@ describe("ProviderTable", () => {
   });
 
   test("updates provider-specific rule controls and row order actions", () => {
-    const onUpdateTable = jest.fn();
+    const onUpdateTable = jestValue.fn();
     const rows = [
       {name: "Google", provider: {category: "OAuth", type: "Google"}, rule: "None"},
       {name: "Captcha", provider: {category: "Captcha", type: "Default"}, rule: "None"},
@@ -241,7 +268,7 @@ describe("ProviderTable", () => {
       onUpdateTable,
     });
     const columns = table.renderTable(rows).props.columns;
-    const getColumn = key => columns.find(column => column.key === key);
+    const getColumn = (key: string) => columns.find((column: any) => column.key === key);
 
     getColumn("rule").render("None", rows[0], 0).props.onChange("OneTap");
     expect(onUpdateTable).toHaveBeenLastCalledWith(expect.arrayContaining([
@@ -259,7 +286,7 @@ describe("ProviderTable", () => {
     ]));
     expect(getColumn("rule").render("None", {provider: {category: "OAuth", type: "WeCom"}}, 0)).toBeNull();
 
-    const actionButtons = getColumn("action").render(null, rows[1], 1).props.children.map(tooltip => tooltip.props.children);
+    const actionButtons = getColumn("action").render(null, rows[1], 1).props.children.map((tooltip: any) => tooltip.props.children);
     actionButtons[0].props.onClick();
     expect(onUpdateTable).toHaveBeenCalledWith([rows[1], rows[0], rows[2]]);
     actionButtons[1].props.onClick();

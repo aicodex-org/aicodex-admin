@@ -14,14 +14,37 @@
 
 import React, {Suspense, lazy} from "react";
 import {Button, Col, Input, Row, Table, Upload} from "antd";
-import i18next from "i18next";
+import i18nextLib from "i18next";
 import * as Setting from "../Setting";
 import {UploadOutlined} from "@ant-design/icons";
 import * as ResourceBackend from "../backend/ResourceBackend";
 const FaceRecognitionModal = lazy(() => import("../common/modal/FaceRecognitionModal"));
 
-class FaceIdTable extends React.Component {
-  constructor(props) {
+type LegacyAny = any;
+type LegacyColumn = import("../types/legacyPage").LegacyColumn;
+
+const i18next = {t: (key: string, options?: LegacyAny): string => String(options === undefined ? i18nextLib.t(key) : i18nextLib.t(key, options))};
+
+interface FaceIdTableProps {
+  title?: React.ReactNode;
+  table?: LegacyAny[] | null;
+  account?: {
+    owner?: string;
+    name?: string;
+    [key: string]: LegacyAny;
+  } | null;
+  onUpdateTable: (table: LegacyAny[]) => void;
+}
+
+interface FaceIdTableState {
+  classes: FaceIdTableProps;
+  openFaceRecognitionModal: boolean;
+  uploading?: boolean;
+  withImage?: boolean;
+}
+
+class FaceIdTable extends React.Component<FaceIdTableProps, FaceIdTableState> {
+  constructor(props: FaceIdTableProps) {
     super(props);
     this.state = {
       classes: props,
@@ -29,21 +52,21 @@ class FaceIdTable extends React.Component {
     };
   }
 
-  updateTable(table) {
+  updateTable(table: LegacyAny[]) {
     this.props.onUpdateTable(table);
   }
 
-  updateField(table, index, key, value) {
+  updateField(table: LegacyAny[], index: number, key: string, value: LegacyAny) {
     table[index][key] = value;
     this.updateTable(table);
   }
 
-  deleteRow(table, i) {
+  deleteRow(table: LegacyAny[], i: number) {
     table = Setting.deleteRow(table, i);
     this.updateTable(table);
   }
 
-  addFaceId(table, faceIdData) {
+  addFaceId(table: LegacyAny[] | null | undefined, faceIdData: LegacyAny) {
     const faceId = {
       name: Setting.getRandomName(),
       faceIdData: faceIdData,
@@ -55,7 +78,7 @@ class FaceIdTable extends React.Component {
     this.updateTable(table);
   }
 
-  addFaceImage(table, imageUrl) {
+  addFaceImage(table: LegacyAny[] | null | undefined, imageUrl: string) {
     const faceId = {
       name: Setting.getRandomName(),
       imageUrl: imageUrl,
@@ -68,8 +91,8 @@ class FaceIdTable extends React.Component {
     this.updateTable(table);
   }
 
-  renderTable(table) {
-    const columns = [
+  renderTable(table: LegacyAny[] = []) {
+    const columns: LegacyColumn[] = [
       {
         title: i18next.t("general:Name"),
         dataIndex: "name",
@@ -115,11 +138,11 @@ class FaceIdTable extends React.Component {
       },
     ];
 
-    const handleUpload = (info) => {
+    const handleUpload = (info: LegacyAny) => {
       this.setState({uploading: true});
       const filename = info.fileList[0].name;
-      const fullFilePath = `resource/${this.props.account.owner}/${this.props.account.name}/${filename}`;
-      ResourceBackend.uploadResource(this.props.account.owner, this.props.account.name, "custom", "ResourceListPage", fullFilePath, info.file)
+      const fullFilePath = `resource/${this.props.account!.owner}/${this.props.account!.name}/${filename}`;
+      ResourceBackend.uploadResource(this.props.account!.owner, this.props.account!.name, "custom", "ResourceListPage", fullFilePath, info.file)
         .then(res => {
           if (res.status === "ok") {
             Setting.showMessage("success", i18next.t("application:File uploaded successfully"));
@@ -134,14 +157,14 @@ class FaceIdTable extends React.Component {
     };
 
     return (
-      <Table scroll={{x: "max-content"}} columns={columns} dataSource={this.props.table} size="middle" bordered pagination={false}
+      <Table scroll={{x: "max-content"}} columns={columns} dataSource={this.props.table ?? []} size="middle" bordered pagination={false}
         title={() => (
           <div>
             {i18next.t("user:Face IDs")}&nbsp;&nbsp;&nbsp;&nbsp;
-            <Button disabled={this.props.table?.length >= 5} style={{marginRight: "10px"}} type="primary" size="small" onClick={() => this.setState({openFaceRecognitionModal: true, withImage: false})}>
+            <Button disabled={(this.props.table?.length ?? 0) >= 5} style={{marginRight: "10px"}} type="primary" size="small" onClick={() => this.setState({openFaceRecognitionModal: true, withImage: false})}>
               {i18next.t("application:Add Face ID")}
             </Button>
-            <Button disabled={this.props.table?.length >= 5} style={{marginRight: "10px"}} size="small" onClick={() => this.setState({openFaceRecognitionModal: true, withImage: true})}>
+            <Button disabled={(this.props.table?.length ?? 0) >= 5} style={{marginRight: "10px"}} size="small" onClick={() => this.setState({openFaceRecognitionModal: true, withImage: true})}>
               {i18next.t("application:Add Face ID with Image")}
             </Button>
             <Upload maxCount={1} accept="image/*" showUploadList={false}
@@ -154,7 +177,7 @@ class FaceIdTable extends React.Component {
               <FaceRecognitionModal
                 visible={this.state.openFaceRecognitionModal}
                 withImage={this.state.withImage}
-                onOk={(faceIdData) => {
+                onOk={(faceIdData: LegacyAny) => {
                   this.addFaceId(table, faceIdData);
                   this.setState({openFaceRecognitionModal: false});
                 }}
@@ -173,7 +196,7 @@ class FaceIdTable extends React.Component {
         <Row style={{marginTop: "20px"}}>
           <Col span={24}>
             {
-              this.renderTable(this.props.table)
+              this.renderTable(this.props.table ?? [])
             }
           </Col>
         </Row>

@@ -18,9 +18,14 @@ import {Button, Col, Row, Select, Table, Tooltip} from "antd";
 import {EmailMfaType, PushMfaType, SmsMfaType, TotpMfaType} from "../auth/MfaSetupPage";
 import {MfaRuleOptional, MfaRulePrompted, MfaRuleRequired} from "../Setting";
 import * as Setting from "../Setting";
-import i18next from "i18next";
+import i18nextLib from "i18next";
 
 const {Option} = Select;
+
+type LegacyAny = any;
+type LegacyColumn = import("../types/legacyPage").LegacyColumn;
+
+const i18next = {t: (key: string, options?: LegacyAny): string => String(options === undefined ? i18nextLib.t(key) : i18nextLib.t(key, options))};
 
 const MfaItems = [
   {name: "Phone", value: SmsMfaType},
@@ -35,49 +40,56 @@ const RuleItems = [
   {value: MfaRuleRequired, label: i18next.t("organization:Required")},
 ];
 
-class MfaTable extends React.Component {
-  constructor(props) {
+interface MfaTableProps {
+  title?: React.ReactNode;
+  table?: LegacyAny[];
+  onUpdateTable: (table: LegacyAny[]) => void;
+}
+
+interface MfaTableState {
+  classes: MfaTableProps;
+}
+
+class MfaTable extends React.Component<MfaTableProps, MfaTableState> {
+  constructor(props: MfaTableProps) {
     super(props);
     this.state = {
       classes: props,
     };
   }
 
-  updateTable(table) {
+  updateTable(table: LegacyAny[]) {
     this.props.onUpdateTable(table);
   }
 
-  updateField(table, index, key, value) {
+  updateField(table: LegacyAny[], index: number, key: string, value: LegacyAny) {
     table[index][key] = value;
     this.updateTable(table);
   }
 
-  addRow(table) {
+  addRow(table: LegacyAny[] = []) {
     const row = {name: Setting.getNewRowNameForTable(table, "Please select a MFA method"), rule: "Optional"};
-    if (table === undefined) {
-      table = [];
-    }
     table = Setting.addRow(table, row);
     this.updateTable(table);
   }
 
-  deleteRow(table, i) {
+  deleteRow(table: LegacyAny[], i: number) {
     table = Setting.deleteRow(table, i);
     this.updateTable(table);
   }
 
-  upRow(table, i) {
+  upRow(table: LegacyAny[], i: number) {
     table = Setting.swapRow(table, i - 1, i);
     this.updateTable(table);
   }
 
-  downRow(table, i) {
+  downRow(table: LegacyAny[], i: number) {
     table = Setting.swapRow(table, i, i + 1);
     this.updateTable(table);
   }
 
-  renderTable(table) {
-    const columns = [
+  renderTable(table: LegacyAny[] = []) {
+    const columns: LegacyColumn[] = [
       {
         title: i18next.t("general:Name"),
         dataIndex: "name",
@@ -90,7 +102,7 @@ class MfaTable extends React.Component {
                 this.updateField(table, index, "name", value);
               }} >
               {
-                Setting.getDeduplicatedArray(MfaItems, table, "name").map((item, index) => <Option key={index} value={item.value}>{item.name}</Option>)
+                Setting.getDeduplicatedArray(MfaItems, table, "name").map((item: LegacyAny, index: number) => <Option key={index} value={item.value}>{item.name}</Option>)
               }
             </Select>
           );
@@ -111,7 +123,7 @@ class MfaTable extends React.Component {
               }
               onChange={value => {
                 let requiredCount = 0;
-                table.forEach((item) => {
+                table.forEach((item: LegacyAny) => {
                   if (item.rule === MfaRuleRequired) {
                     requiredCount++;
                   }
@@ -167,7 +179,7 @@ class MfaTable extends React.Component {
         <Row style={{marginTop: "20px"}} >
           <Col span={24}>
             {
-              this.renderTable(this.props.table)
+              this.renderTable(this.props.table ?? [])
             }
           </Col>
         </Row>

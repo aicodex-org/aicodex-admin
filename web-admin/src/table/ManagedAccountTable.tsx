@@ -16,16 +16,33 @@ import React from "react";
 import {DeleteOutlined, DownOutlined, LinkOutlined, UpOutlined} from "@ant-design/icons";
 import {Button, Col, Input, Row, Select, Table, Tooltip} from "antd";
 import * as Setting from "../Setting";
-import i18next from "i18next";
+import i18nextLib from "i18next";
 
 const {Option} = Select;
 
-class ManagedAccountTable extends React.Component {
-  constructor(props) {
+type LegacyAny = any;
+type LegacyColumn = import("../types/legacyPage").LegacyColumn;
+
+const i18next = {t: (key: string, options?: LegacyAny): string => String(options === undefined ? i18nextLib.t(key) : i18nextLib.t(key, options))};
+
+interface ManagedAccountTableProps {
+  title?: React.ReactNode;
+  table?: LegacyAny[] | null;
+  applications?: LegacyAny[];
+  onUpdateTable: (table: LegacyAny[]) => void;
+}
+
+interface ManagedAccountTableState {
+  classes: ManagedAccountTableProps;
+  managedAccounts: LegacyAny[];
+}
+
+class ManagedAccountTable extends React.Component<ManagedAccountTableProps, ManagedAccountTableState> {
+  constructor(props: ManagedAccountTableProps) {
     super(props);
     this.state = {
       classes: props,
-      managedAccounts: this.props.table !== null ? this.props.table.map((item, index) => {
+      managedAccounts: this.props.table !== null && this.props.table !== undefined ? this.props.table.map((item, index) => {
         item.key = index;
         return item;
       }) : [],
@@ -34,7 +51,7 @@ class ManagedAccountTable extends React.Component {
 
   count = this.props.table?.length ?? 0;
 
-  updateTable(table) {
+  updateTable(table: LegacyAny[]) {
     this.setState({
       managedAccounts: table,
     });
@@ -46,12 +63,12 @@ class ManagedAccountTable extends React.Component {
     }));
   }
 
-  updateField(table, index, key, value) {
+  updateField(table: LegacyAny[], index: number, key: string, value: LegacyAny) {
     table[index][key] = value;
     this.updateTable(table);
   }
 
-  addRow(table) {
+  addRow(table: LegacyAny[] | null | undefined) {
     const row = {key: this.count, application: "", username: "", password: ""};
     if (table === undefined || table === null) {
       table = [];
@@ -62,29 +79,29 @@ class ManagedAccountTable extends React.Component {
     this.updateTable(table);
   }
 
-  deleteRow(table, i) {
+  deleteRow(table: LegacyAny[], i: number) {
     table = Setting.deleteRow(table, i);
     this.updateTable(table);
   }
 
-  upRow(table, i) {
+  upRow(table: LegacyAny[], i: number) {
     table = Setting.swapRow(table, i - 1, i);
     this.updateTable(table);
   }
 
-  downRow(table, i) {
+  downRow(table: LegacyAny[], i: number) {
     table = Setting.swapRow(table, i, i + 1);
     this.updateTable(table);
   }
 
-  renderTable(table) {
-    const columns = [
+  renderTable(table: LegacyAny[] = []) {
+    const columns: LegacyColumn[] = [
       {
         title: i18next.t("general:Application"),
         dataIndex: "application",
         key: "application",
         render: (text, record, index) => {
-          const items = this.props.applications;
+          const items = this.props.applications ?? [];
           return (
             <Select virtual={false} size="small" style={{width: "100%"}}
               value={text}
@@ -92,7 +109,7 @@ class ManagedAccountTable extends React.Component {
                 this.updateField(table, index, "application", value);
               }} >
               {
-                items.map((item, index) => <Option key={index} value={item.name}>{item.name}</Option>)
+                items.map((item: LegacyAny, index: number) => <Option key={index} value={item.name}>{item.name}</Option>)
               }
             </Select>
           );

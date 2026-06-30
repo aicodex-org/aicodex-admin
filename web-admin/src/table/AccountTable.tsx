@@ -16,53 +16,65 @@ import React from "react";
 import {DeleteOutlined, DownOutlined, UpOutlined} from "@ant-design/icons";
 import {Button, Col, Input, Row, Select, Switch, Table, Tooltip} from "antd";
 import * as Setting from "../Setting";
-import i18next from "i18next";
+import i18nextLib from "i18next";
 
 const {Option} = Select;
 
-class AccountTable extends React.Component {
-  constructor(props) {
+type LegacyAny = any;
+type LegacyColumn = import("../types/legacyPage").LegacyColumn;
+
+const i18next = {t: (key: string, options?: LegacyAny): string => String(options === undefined ? i18nextLib.t(key) : i18nextLib.t(key, options))};
+
+interface AccountTableProps {
+  title?: React.ReactNode;
+  table?: LegacyAny[];
+  onUpdateTable: (table: LegacyAny[]) => void;
+}
+
+interface AccountTableState {
+  classes: AccountTableProps;
+}
+
+class AccountTable extends React.Component<AccountTableProps, AccountTableState> {
+  constructor(props: AccountTableProps) {
     super(props);
     this.state = {
       classes: props,
     };
   }
 
-  updateTable(table) {
+  updateTable(table: LegacyAny[]) {
     this.props.onUpdateTable(table);
   }
 
-  updateField(table, index, key, value) {
+  updateField(table: LegacyAny[], index: number, key: string, value: LegacyAny) {
     table[index][key] = value;
     this.updateTable(table);
   }
 
-  addRow(table) {
+  addRow(table: LegacyAny[] = []) {
     const row = {name: Setting.getNewRowNameForTable(table, "Please select an account item"), visible: true, viewRule: "Public", modifyRule: "Self", tab: ""};
-    if (table === undefined) {
-      table = [];
-    }
     table = Setting.addRow(table, row);
     this.updateTable(table);
   }
 
-  deleteRow(table, i) {
+  deleteRow(table: LegacyAny[], i: number) {
     table = Setting.deleteRow(table, i);
     this.updateTable(table);
   }
 
-  upRow(table, i) {
+  upRow(table: LegacyAny[], i: number) {
     table = Setting.swapRow(table, i - 1, i);
     this.updateTable(table);
   }
 
-  downRow(table, i) {
+  downRow(table: LegacyAny[], i: number) {
     table = Setting.swapRow(table, i, i + 1);
     this.updateTable(table);
   }
 
-  renderTable(table) {
-    const columns = [
+  renderTable(table: LegacyAny[] = []) {
+    const columns: LegacyColumn[] = [
       {
         title: i18next.t("general:Name"),
         dataIndex: "name",
@@ -71,7 +83,7 @@ class AccountTable extends React.Component {
           const items = Setting.GetTranslatedUserItems();
           return (
             <Select virtual={false} style={{width: "100%"}}
-              options={Setting.getDeduplicatedArray(items, table, "name").map(item => Setting.getOption(item.label, item.name))}
+              options={Setting.getDeduplicatedArray(items, table, "name").map((item: LegacyAny) => Setting.getOption(item.label, item.name))}
               value={text}
               onChange={value => {
                 this.updateField(table, index, "name", value);
@@ -147,7 +159,7 @@ class AccountTable extends React.Component {
               this.updateField(table, index, "viewRule", value);
             })}>
               {
-                options.map((item, index) => <Option key={index} value={item.id}>{item.name}</Option>)
+                options.map((item: LegacyAny, index: number) => <Option key={index} value={item.id}>{item.name}</Option>)
               }
             </Select>
           );
@@ -182,7 +194,7 @@ class AccountTable extends React.Component {
               this.updateField(table, index, "modifyRule", value);
             })}>
               {
-                options.map((item, index) => <Option key={index} value={item.id}>{item.name}</Option>)
+                options.map((item: LegacyAny, index: number) => <Option key={index} value={item.id}>{item.name}</Option>)
               }
             </Select>
           );
@@ -228,7 +240,7 @@ class AccountTable extends React.Component {
         <Row style={{marginTop: "20px"}} >
           <Col span={24}>
             {
-              this.renderTable(this.props.table)
+              this.renderTable(this.props.table ?? [])
             }
           </Col>
         </Row>

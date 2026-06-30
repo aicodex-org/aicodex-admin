@@ -15,24 +15,42 @@
 import React from "react";
 import {Button, Col, Row, Table} from "antd";
 import * as Setting from "../Setting";
-import i18next from "i18next";
+import i18nextLib from "i18next";
 import * as LdapBackend from "../backend/LdapBackend";
 import {Link} from "react-router-dom";
 import PopconfirmModal from "../common/modal/PopconfirmModal";
 
-class LdapTable extends React.Component {
-  constructor(props) {
+type LegacyAny = any;
+type LegacyColumn = import("../types/legacyPage").LegacyColumn & {
+  sorter?: (a: LegacyAny, b: LegacyAny) => number;
+};
+
+const i18next = {t: (key: string, options?: LegacyAny): string => String(options === undefined ? i18nextLib.t(key) : i18nextLib.t(key, options))};
+
+interface LdapTableProps {
+  title?: React.ReactNode;
+  table?: LegacyAny[] | null;
+  organizationName: string;
+  onUpdateTable: (table: LegacyAny[]) => void;
+}
+
+interface LdapTableState {
+  classes: LdapTableProps;
+}
+
+class LdapTable extends React.Component<LdapTableProps, LdapTableState> {
+  constructor(props: LdapTableProps) {
     super(props);
     this.state = {
       classes: props,
     };
   }
 
-  updateTable(table) {
+  updateTable(table: LegacyAny[]) {
     this.props.onUpdateTable(table);
   }
 
-  updateField(table, index, key, value) {
+  updateField(table: LegacyAny[], index: number, key: string, value: LegacyAny) {
     table[index][key] = value;
     this.updateTable(table);
   }
@@ -53,15 +71,12 @@ class LdapTable extends React.Component {
     };
   }
 
-  addRow(table) {
+  addRow(table: LegacyAny[] = []) {
     const newLdap = this.newLdap();
     LdapBackend.addLdap(newLdap)
       .then((res) => {
         if (res.status === "ok") {
           Setting.showMessage("success", i18next.t("general:Successfully added"));
-          if (table === undefined) {
-            table = [];
-          }
           table = Setting.addRow(table, res.data2);
           this.updateTable(table);
         } else {
@@ -69,12 +84,12 @@ class LdapTable extends React.Component {
         }
       }
       )
-      .catch(error => {
+      .catch((error: LegacyAny) => {
         Setting.showMessage("error", `${i18next.t("general:Failed to add")}: ${error}`);
       });
   }
 
-  deleteRow(table, i) {
+  deleteRow(table: LegacyAny[], i: number) {
     LdapBackend.deleteLdap(table[i])
       .then((res) => {
         if (res.status === "ok") {
@@ -85,13 +100,13 @@ class LdapTable extends React.Component {
           Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
         }
       })
-      .catch(error => {
+      .catch((error: LegacyAny) => {
         Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${error}`);
       });
   }
 
-  renderTable(table) {
-    const columns = [
+  renderTable(table: LegacyAny[] = []) {
+    const columns: LegacyColumn[] = [
       {
         title: i18next.t("ldap:Server name"),
         dataIndex: "serverName",
@@ -190,7 +205,7 @@ class LdapTable extends React.Component {
         <Row style={{marginTop: "20px"}}>
           <Col span={24}>
             {
-              this.renderTable(this.props.table)
+              this.renderTable(this.props.table ?? [])
             }
           </Col>
         </Row>

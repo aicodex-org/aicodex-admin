@@ -14,17 +14,45 @@
 
 import React from "react";
 import {Table} from "antd";
-import i18next from "i18next";
+import i18nextLib from "i18next";
 
-class PrometheusInfoTable extends React.Component {
-  constructor(props) {
+type LegacyAny = any;
+
+const i18next = {t: (key: string, options?: LegacyAny): string => String(options === undefined ? i18nextLib.t(key) : i18nextLib.t(key, options))};
+
+interface PrometheusInfoRow {
+  name?: string;
+  path?: string;
+  method?: string;
+  count?: number | string;
+  latency?: number | string;
+  throughput?: number | string;
+  [key: string]: LegacyAny;
+}
+
+interface PrometheusInfoTableProps {
+  table?: "latency" | "throughput" | string;
+  prometheusInfo?: {
+    apiLatency?: PrometheusInfoRow[];
+    apiThroughput?: PrometheusInfoRow[];
+    totalThroughput?: React.ReactNode;
+    [key: string]: LegacyAny;
+  };
+}
+
+interface PrometheusInfoTableState {
+  table?: PrometheusInfoTableProps["table"];
+}
+
+class PrometheusInfoTable extends React.Component<PrometheusInfoTableProps, PrometheusInfoTableState> {
+  constructor(props: PrometheusInfoTableProps) {
     super(props);
     this.state = {
       table: props.table,
     };
   }
   render() {
-    const getRowKey = (record) => {
+    const getRowKey = (record: PrometheusInfoRow) => {
       const key = [
         record.name,
         record.path,
@@ -35,7 +63,7 @@ class PrometheusInfoTable extends React.Component {
       ].filter(value => value !== undefined && value !== null && value !== "").join(":");
       return key || JSON.stringify(record);
     };
-    const latencyColumns = [
+    const latencyColumns: LegacyAny[] = [
       {
         title: i18next.t("general:Name"),
         dataIndex: "name",
@@ -57,7 +85,7 @@ class PrometheusInfoTable extends React.Component {
         key: "latency",
       },
     ];
-    const throughputColumns = [
+    const throughputColumns: LegacyAny[] = [
       {
         title: i18next.t("general:Name"),
         dataIndex: "name",
@@ -88,6 +116,7 @@ class PrometheusInfoTable extends React.Component {
         </div>
       );
     }
+    return null;
   }
 }
 

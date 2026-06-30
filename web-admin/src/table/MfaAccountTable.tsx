@@ -16,16 +16,35 @@ import React from "react";
 import {DeleteOutlined, DownOutlined, UpOutlined} from "@ant-design/icons";
 import {Button, Col, Image, Input, Popover, Row, Table, Tooltip} from "antd";
 import * as Setting from "../Setting";
-import i18next from "i18next";
+import i18nextLib from "i18next";
 import {CasdoorAppQrCode, CasdoorAppUrl} from "../common/CasdoorAppConnector";
 
-class MfaAccountTable extends React.Component {
-  constructor(props) {
+type LegacyAny = any;
+type LegacyColumn = import("../types/legacyPage").LegacyColumn;
+
+const i18next = {t: (key: string, options?: LegacyAny): string => String(options === undefined ? i18nextLib.t(key) : i18nextLib.t(key, options))};
+
+interface MfaAccountTableProps {
+  title?: React.ReactNode;
+  table?: LegacyAny[] | null;
+  icon?: string;
+  accessToken?: string;
+  onUpdateTable: (table: LegacyAny[]) => void;
+}
+
+interface MfaAccountTableState {
+  classes: MfaAccountTableProps;
+  icon?: string;
+  mfaAccounts: LegacyAny[];
+}
+
+class MfaAccountTable extends React.Component<MfaAccountTableProps, MfaAccountTableState> {
+  constructor(props: MfaAccountTableProps) {
     super(props);
     this.state = {
       classes: props,
       icon: this.props.icon,
-      mfaAccounts: this.props.table !== null ? this.props.table.map((item, index) => {
+      mfaAccounts: this.props.table !== null && this.props.table !== undefined ? this.props.table.map((item, index) => {
         item.key = index;
         return item;
       }) : [],
@@ -34,7 +53,7 @@ class MfaAccountTable extends React.Component {
 
   count = this.props.table?.length ?? 0;
 
-  updateTable(table) {
+  updateTable(table: LegacyAny[]) {
     this.setState({
       mfaAccounts: table,
     });
@@ -46,12 +65,12 @@ class MfaAccountTable extends React.Component {
     }));
   }
 
-  updateField(table, index, key, value) {
+  updateField(table: LegacyAny[], index: number, key: string, value: LegacyAny) {
     table[index][key] = value;
     this.updateTable(table);
   }
 
-  addRow(table) {
+  addRow(table: LegacyAny[] | null | undefined) {
     const row = {key: this.count, accountName: "", issuer: "", secretKey: ""};
     if (table === undefined || table === null) {
       table = [];
@@ -62,23 +81,23 @@ class MfaAccountTable extends React.Component {
     this.updateTable(table);
   }
 
-  deleteRow(table, i) {
+  deleteRow(table: LegacyAny[], i: number) {
     table = Setting.deleteRow(table, i);
     this.updateTable(table);
   }
 
-  upRow(table, i) {
+  upRow(table: LegacyAny[], i: number) {
     table = Setting.swapRow(table, i - 1, i);
     this.updateTable(table);
   }
 
-  downRow(table, i) {
+  downRow(table: LegacyAny[], i: number) {
     table = Setting.swapRow(table, i, i + 1);
     this.updateTable(table);
   }
 
-  renderTable(table) {
-    const columns = [
+  renderTable(table: LegacyAny[] = []) {
+    const columns: LegacyColumn[] = [
       {
         title: i18next.t("forget:Account"),
         dataIndex: "accountName",

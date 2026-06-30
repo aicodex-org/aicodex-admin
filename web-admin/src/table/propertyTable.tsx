@@ -14,39 +14,54 @@
 
 import React from "react";
 import {Button, Input, Table} from "antd";
-import i18next from "i18next";
+import i18nextLib from "i18next";
 import {DeleteOutlined} from "@ant-design/icons";
 import * as Setting from "../Setting";
 
-class PropertyTable extends React.Component {
-  constructor(props) {
+type LegacyAny = any;
+type LegacyColumn = import("../types/legacyPage").LegacyColumn;
+
+const i18next = {t: (key: string, options?: LegacyAny): string => String(options === undefined ? i18nextLib.t(key) : i18nextLib.t(key, options))};
+
+interface PropertyRow {
+  key: number;
+  name: string;
+  value: LegacyAny;
+}
+
+interface PropertyTableProps {
+  properties?: Record<string, LegacyAny> | null;
+  onUpdateTable: (properties: Record<string, LegacyAny>) => void;
+}
+
+interface PropertyTableState {
+  properties: PropertyRow[];
+}
+
+class PropertyTable extends React.Component<PropertyTableProps, PropertyTableState> {
+  constructor(props: PropertyTableProps) {
     super(props);
     this.state = {
-      properties: [],
+      properties: props.properties !== null && props.properties !== undefined
+        ? Object.entries(props.properties).map((item, index) => ({key: index, name: item[0], value: item[1]}))
+        : [],
     };
-
-    // transfer the Object to object[]
-    if (this.props.properties !== null) {
-      Object.entries(this.props.properties).map((item, index) => {
-        this.state.properties.push({key: index, name: item[0], value: item[1]});
-      });
-    }
   }
 
   page = 1;
   pageSize = 10;
-  count = this.props.properties !== null ? Object.entries(this.props.properties).length : 0;
+  count = this.props.properties !== null && this.props.properties !== undefined ? Object.entries(this.props.properties).length : 0;
 
-  updateTable(table) {
+  updateTable(table: PropertyRow[]) {
     this.setState({properties: table});
-    const properties = {};
-    table.map((item) => {
+    const properties: Record<string, LegacyAny> = {};
+    table.map((item: PropertyRow) => {
       properties[item.name] = item.value;
     });
     this.props.onUpdateTable(properties);
   }
 
-  addRow(table) {
+  addRow(table?: PropertyRow[]) {
     const row = {key: this.count, name: "", value: ""};
     if (table === undefined) {
       table = [];
@@ -56,23 +71,23 @@ class PropertyTable extends React.Component {
     this.updateTable(table);
   }
 
-  deleteRow(table, index) {
+  deleteRow(table: PropertyRow[], index: number) {
     table = Setting.deleteRow(table, this.getIndex(index));
     this.updateTable(table);
   }
 
-  getIndex(index) {
+  getIndex(index: number) {
     // Need to be used in all place when modify table. Parameter is the row index in table, need to calculate the index in dataSource.
     return index + (this.page - 1) * this.pageSize;
   }
 
-  updateField(table, index, key, value) {
+  updateField(table: PropertyRow[], index: number, key: "name" | "value", value: LegacyAny) {
     table[this.getIndex(index)][key] = value;
     this.updateTable(table);
   }
 
-  renderTable(table) {
-    const columns = [
+  renderTable(table: PropertyRow[]) {
+    const columns: LegacyColumn[] = [
       {
         title: i18next.t("user:Keys"),
         dataIndex: "name",

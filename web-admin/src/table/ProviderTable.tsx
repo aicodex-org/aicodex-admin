@@ -17,13 +17,61 @@ import {DeleteOutlined, DownOutlined, UpOutlined} from "@ant-design/icons";
 import {Button, Col, Input, Row, Select, Switch, Table, Tooltip} from "antd";
 import {CountryCodeSelect} from "../common/select/CountryCodeSelect";
 import * as Setting from "../Setting";
-import i18next from "i18next";
+import i18nextLib from "i18next";
 import * as Provider from "../auth/Provider";
 
 const {Option} = Select;
 
-class ProviderTable extends React.Component {
-  constructor(props) {
+type LegacyAny = any;
+type LegacyColumn = import("../types/legacyPage").LegacyColumn;
+
+const i18next = {t: (key: string, options?: LegacyAny): string => String(options === undefined ? i18nextLib.t(key) : i18nextLib.t(key, options))};
+
+interface ProviderInfo {
+  name?: string;
+  displayName?: string;
+  category?: string;
+  type?: string;
+  owner?: string;
+  [key: string]: LegacyAny;
+}
+
+interface ProviderTableRow {
+  name: string;
+  provider?: ProviderInfo;
+  canSignUp?: boolean;
+  canSignIn?: boolean;
+  canUnlink?: boolean;
+  prompted?: boolean;
+  signupGroup?: string;
+  rule?: string;
+  bindingRule?: string[];
+  countryCodes?: string[];
+  [key: string]: LegacyAny;
+}
+
+interface ProviderTableProps {
+  title?: React.ReactNode;
+  table?: ProviderTableRow[] | null;
+  providers: ProviderInfo[];
+  application: {
+    enableSignUp?: boolean;
+    organizationObj?: {
+      name?: string;
+      countryCodes?: string[];
+      [key: string]: LegacyAny;
+    };
+    [key: string]: LegacyAny;
+  };
+  onUpdateTable: (table: ProviderTableRow[]) => void;
+}
+
+interface ProviderTableState {
+  classes: ProviderTableProps;
+}
+
+class ProviderTable extends React.Component<ProviderTableProps, ProviderTableState> {
+  constructor(props: ProviderTableProps) {
     super(props);
     this.state = {
       classes: props,
@@ -34,40 +82,40 @@ class ProviderTable extends React.Component {
     return this.props.application?.organizationObj;
   }
 
-  updateTable(table) {
+  updateTable(table: ProviderTableRow[]) {
     this.props.onUpdateTable(table);
   }
 
-  updateField(table, index, key, value) {
+  updateField(table: ProviderTableRow[], index: number, key: string, value: LegacyAny) {
     table[index][key] = value;
     this.updateTable(table);
   }
 
-  addRow(table) {
+  addRow(table?: ProviderTableRow[] | null) {
     table = Array.isArray(table) ? table : [];
     const row = {name: Setting.getNewRowNameForTable(table, "Please select a provider"), canSignUp: true, canSignIn: true, canUnlink: true, prompted: false, signupGroup: "", rule: "None"};
     table = Setting.addRow(table, row);
     this.updateTable(table);
   }
 
-  deleteRow(table, i) {
+  deleteRow(table: ProviderTableRow[], i: number) {
     table = Setting.deleteRow(table, i);
     this.updateTable(table);
   }
 
-  upRow(table, i) {
+  upRow(table: ProviderTableRow[], i: number) {
     table = Setting.swapRow(table, i - 1, i);
     this.updateTable(table);
   }
 
-  downRow(table, i) {
+  downRow(table: ProviderTableRow[], i: number) {
     table = Setting.swapRow(table, i, i + 1);
     this.updateTable(table);
   }
 
-  renderTable(table) {
+  renderTable(table?: ProviderTableRow[] | null) {
     table = Array.isArray(table) ? table : [];
-    let columns = [
+    let columns: LegacyColumn[] = [
       {
         title: i18next.t("general:Name"),
         dataIndex: "name",
@@ -90,7 +138,7 @@ class ProviderTable extends React.Component {
                 }
               }} >
               {
-                Setting.getDeduplicatedArray(this.props.providers, table, "name").map((provider, index) => (
+                Setting.getDeduplicatedArray(this.props.providers, table, "name").map((provider: LegacyAny, index: number) => (
                   <Option key={index} value={provider.name} label={`${provider.name} ${provider.displayName || ""}`}>
                     <div style={{display: "flex", alignItems: "center", gap: "8px"}}>
                       <img width={20} height={20} src={Setting.getProviderLogoURL(provider)} alt={provider.type} />
@@ -159,7 +207,7 @@ class ProviderTable extends React.Component {
               hasDefault={true}
               mode={"multiple"}
               initValue={text ? text : ["All"]}
-              onChange={(value) => {
+              onChange={(value: LegacyAny) => {
                 this.updateField(table, index, "countryCodes", value);
               }}
               countryCodes={this.getUserOrganization()?.countryCodes}

@@ -16,56 +16,68 @@ import React from "react";
 import {DeleteOutlined, DownOutlined, UpOutlined} from "@ant-design/icons";
 import {Button, Col, Input, Row, Select, Table, Tooltip} from "antd";
 import * as Setting from "../Setting";
-import i18next from "i18next";
+import i18nextLib from "i18next";
 
 const {Option} = Select;
 
-class SigninMethodTable extends React.Component {
-  constructor(props) {
+type LegacyAny = any;
+type LegacyColumn = import("../types/legacyPage").LegacyColumn;
+
+const i18next = {t: (key: string, options?: LegacyAny): string => String(options === undefined ? i18nextLib.t(key) : i18nextLib.t(key, options))};
+
+interface SigninMethodTableProps {
+  title?: React.ReactNode;
+  table?: LegacyAny[];
+  onUpdateTable: (table: LegacyAny[]) => void;
+}
+
+interface SigninMethodTableState {
+  classes: SigninMethodTableProps;
+}
+
+class SigninMethodTable extends React.Component<SigninMethodTableProps, SigninMethodTableState> {
+  constructor(props: SigninMethodTableProps) {
     super(props);
     this.state = {
       classes: props,
     };
   }
 
-  updateTable(table) {
+  updateTable(table: LegacyAny[]) {
     this.props.onUpdateTable(table);
   }
 
-  updateField(table, index, key, value) {
+  updateField(table: LegacyAny[], index: number, key: string, value: LegacyAny) {
     table[index][key] = value;
     this.updateTable(table);
   }
 
-  addRow(table) {
+  addRow(table: LegacyAny[] = []) {
     const row = {
       name: Setting.getNewRowNameForTable(table, "Please select a signin method"),
       displayName: "",
       rule: "None",
     };
-    if (table === undefined) {
-      table = [];
-    }
     table = Setting.addRow(table, row);
     this.updateTable(table);
   }
 
-  deleteRow(items, table, i) {
+  deleteRow(items: LegacyAny[], table: LegacyAny[], i: number) {
     table = Setting.deleteRow(table, i);
     this.updateTable(table);
   }
 
-  upRow(table, i) {
+  upRow(table: LegacyAny[], i: number) {
     table = Setting.swapRow(table, i - 1, i);
     this.updateTable(table);
   }
 
-  downRow(table, i) {
+  downRow(table: LegacyAny[], i: number) {
     table = Setting.swapRow(table, i, i + 1);
     this.updateTable(table);
   }
 
-  renderTable(table) {
+  renderTable(table: LegacyAny[] = []) {
     const items = [
       {name: "Password", displayName: i18next.t("general:Password")},
       {name: "Verification code", displayName: i18next.t("login:Verification code")},
@@ -75,13 +87,13 @@ class SigninMethodTable extends React.Component {
       {name: "WeChat", displayName: i18next.t("login:WeChat")},
       {name: "WeCom", displayName: i18next.t("login:WeCom")},
     ];
-    const columns = [
+    const columns: LegacyColumn[] = [
       {
         title: i18next.t("general:Name"),
         dataIndex: "name",
         key: "name",
         render: (text, record, index) => {
-          const getItemDisplayName = (text) => {
+          const getItemDisplayName = (text: string) => {
             const item = items.filter(item => item.name === text);
             if (item.length === 0) {
               return "";
@@ -104,7 +116,7 @@ class SigninMethodTable extends React.Component {
                 }
               }} >
               {
-                Setting.getDeduplicatedArray(items, table, "name").map((item, index) => <Option key={index} value={item.name}>{item.displayName}</Option>)
+                Setting.getDeduplicatedArray(items, table, "name").map((item: LegacyAny, index: number) => <Option key={index} value={item.name}>{item.displayName}</Option>)
               }
             </Select>
           );
@@ -129,7 +141,7 @@ class SigninMethodTable extends React.Component {
         key: "rule",
         width: "155px",
         render: (text, record, index) => {
-          let options = [];
+          let options: LegacyAny[] = [];
           if (record.name === "Verification code") {
             options = [
               {id: "All", name: i18next.t("general:All")},
@@ -200,7 +212,7 @@ class SigninMethodTable extends React.Component {
         <Row style={{marginTop: "20px"}}>
           <Col span={24}>
             {
-              this.renderTable(this.props.table)
+              this.renderTable(this.props.table ?? [])
             }
           </Col>
         </Row>
