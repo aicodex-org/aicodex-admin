@@ -1,19 +1,77 @@
 /* eslint-env jest */
 import React from "react";
-import {act, fireEvent, render} from "@testing-library/react";
+import {jest, expect as jestExpect} from "@jest/globals";
+import {act, render} from "@testing-library/react";
+
+type LooseMock = {
+  (...args: unknown[]): unknown;
+  mockResolvedValue: (value: unknown) => LooseMock;
+  mockResolvedValueOnce: (value: unknown) => LooseMock;
+  mockRejectedValue: (value: unknown) => LooseMock;
+  mockReturnValue: (value: unknown) => LooseMock;
+};
+
+type DomMatcherResult = ReturnType<typeof jestExpect> & {
+  toBeInTheDocument: () => void;
+  toHaveAttribute: (name: string, value?: unknown) => void;
+  toHaveStyle: (style: string | Record<string, unknown>) => void;
+  not: ReturnType<typeof jestExpect> & {
+    toHaveBeenCalled: () => void;
+    toBeInTheDocument: () => void;
+  };
+};
+
+type TestExpect = {
+  (actual: unknown): DomMatcherResult;
+  objectContaining: typeof jestExpect.objectContaining;
+};
+
+const expect = jestExpect as unknown as TestExpect;
+
+const {fireEvent} = require("@testing-library/react") as {
+  fireEvent: {
+    click: (element: Element) => boolean;
+  };
+};
+
+type MockQrCodeProps = {
+  value?: string;
+  status?: string;
+  size?: number;
+  style?: React.CSSProperties;
+};
+
+type WeComIntentTestResponse = {
+  status: string;
+  msg?: string;
+  data?: {
+    intentId?: string;
+    authUrl?: string;
+    shortAuthUrl?: string;
+    expiresAt?: string;
+    pollToken?: string;
+    status?: string;
+    errorText?: string;
+  } | string;
+  data2?: Array<{
+    mfaType?: string;
+    isPreferred?: boolean;
+  }>;
+};
 
 jest.mock("i18next", () => ({
-  t: key => {
+  t: (key: string) => {
     const [, value] = key.split(":");
     return value || key;
   },
 }));
 
 jest.mock("antd", () => {
-  const actual = jest.requireActual("antd");
+  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jest};
+  const actual = factoryJest.requireActual("antd") as typeof import("antd");
   return {
     ...actual,
-    QRCode: ({value, status, size, style}) => (
+    QRCode: ({value, status, size, style}: MockQrCodeProps) => (
       <div data-testid="wecom-oauth-qrcode" data-value={value} data-status={status} data-size={size} style={style} />
     ),
   };
@@ -28,15 +86,32 @@ import WeComLoginPanel from "./WeComLoginPanel";
 import * as AuthBackend from "./AuthBackend";
 import * as Provider from "./Provider";
 
-jest.mock("./AuthBackend", () => ({
-  createWecomProfileConsentLoginIntent: jest.fn(),
-  getWecomProfileConsentIntentStatus: jest.fn(),
-  completeWecomProfileConsentLoginIntent: jest.fn(),
-}));
+jest.mock("./AuthBackend", () => {
+  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jest};
+  return {
+    createWecomProfileConsentLoginIntent: factoryJest.fn(),
+    getWecomProfileConsentIntentStatus: factoryJest.fn(),
+    completeWecomProfileConsentLoginIntent: factoryJest.fn(),
+  };
+});
 
-jest.mock("./Provider", () => ({
-  getAuthUrl: jest.fn(() => "https://login.work.weixin.qq.com/wwlogin/sso/login?appid=wx-test-appid&agentid=1000002&redirect_uri=https://example.com/callback&state=test-state&scope=snsapi_privateinfo"),
-}));
+jest.mock("./Provider", () => {
+  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jest};
+  return {
+    getAuthUrl: factoryJest.fn(() => "https://login.work.weixin.qq.com/wwlogin/sso/login?appid=wx-test-appid&agentid=1000002&redirect_uri=https://example.com/callback&state=test-state&scope=snsapi_privateinfo"),
+  };
+});
+
+const createWecomProfileConsentLoginIntentMock = AuthBackend.createWecomProfileConsentLoginIntent as unknown as LooseMock;
+const getWecomProfileConsentIntentStatusMock = AuthBackend.getWecomProfileConsentIntentStatus as unknown as LooseMock;
+const completeWecomProfileConsentLoginIntentMock = AuthBackend.completeWecomProfileConsentLoginIntent as unknown as LooseMock;
+const getAuthUrlMock = Provider.getAuthUrl as unknown as LooseMock;
+
+function installMockWeComWidget(): LooseMock {
+  const wwLoginMock = jest.fn() as unknown as LooseMock;
+  window.WwLogin = wwLoginMock as unknown as Window["WwLogin"];
+  return wwLoginMock;
+}
 
 describe("WeComLoginPanel", () => {
   const defaultWeComWidgetAuthUrl = "https://login.work.weixin.qq.com/wwlogin/sso/login?appid=wx-test-appid&agentid=1000002&redirect_uri=https://example.com/callback&state=test-state&scope=snsapi_privateinfo";
@@ -72,7 +147,7 @@ describe("WeComLoginPanel", () => {
     delete window.WwLogin;
     document.querySelectorAll("script[data-wecom-login-widget='true']").forEach(script => script.remove());
     jest.clearAllMocks();
-    Provider.getAuthUrl.mockReturnValue(defaultWeComWidgetAuthUrl);
+    getAuthUrlMock.mockReturnValue(defaultWeComWidgetAuthUrl);
   });
 
   test("shows a configuration warning when no WeCom provider is available", async() => {
@@ -149,7 +224,7 @@ describe("WeComLoginPanel", () => {
   });
 
   test("creates a profile consent intent and renders the OAuth2 QR code as the primary path", async() => {
-    AuthBackend.createWecomProfileConsentLoginIntent.mockResolvedValue({
+    createWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: {
         intentId: "intent-1",
@@ -169,7 +244,7 @@ describe("WeComLoginPanel", () => {
     );
 
     await flushEffects();
-    expect(AuthBackend.createWecomProfileConsentLoginIntent).toHaveBeenCalledWith({
+    expect(createWecomProfileConsentLoginIntentMock).toHaveBeenCalledWith({
       application: "app-built-in",
       provider: "built-in/wecom-internal",
       method: "signup",
@@ -188,7 +263,7 @@ describe("WeComLoginPanel", () => {
   });
 
   test("falls back to the full OAuth2 URL when short authorization URL is unavailable", async() => {
-    AuthBackend.createWecomProfileConsentLoginIntent.mockResolvedValue({
+    createWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: {
         intentId: "intent-1",
@@ -210,7 +285,7 @@ describe("WeComLoginPanel", () => {
   });
 
   test("uses the selected WeCom provider and return URL override when creating an intent", async() => {
-    AuthBackend.createWecomProfileConsentLoginIntent.mockResolvedValue({
+    createWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: {
         intentId: "intent-1",
@@ -230,14 +305,14 @@ describe("WeComLoginPanel", () => {
     );
 
     await flushEffects();
-    expect(AuthBackend.createWecomProfileConsentLoginIntent).toHaveBeenCalledWith(expect.objectContaining({
+    expect(createWecomProfileConsentLoginIntentMock).toHaveBeenCalledWith(expect.objectContaining({
       provider: "built-in/wecom-internal",
       returnUrl: "/login/oauth/authorize?client_id=app-built-in",
     }));
   });
 
   test("keeps the OAuth2 QR code complete with quiet-zone padding", async() => {
-    AuthBackend.createWecomProfileConsentLoginIntent.mockResolvedValue({
+    createWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: {
         intentId: "intent-1",
@@ -263,7 +338,7 @@ describe("WeComLoginPanel", () => {
   });
 
   test("refreshes the OAuth2 authorization QR code from the primary action", async() => {
-    AuthBackend.createWecomProfileConsentLoginIntent.mockResolvedValue({
+    createWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: {
         intentId: "intent-1",
@@ -283,12 +358,12 @@ describe("WeComLoginPanel", () => {
     await flushEffects();
     fireEvent.click(getByText("Refresh"));
     await flushEffects();
-    expect(AuthBackend.createWecomProfileConsentLoginIntent).toHaveBeenCalledTimes(2);
+    expect(createWecomProfileConsentLoginIntentMock).toHaveBeenCalledTimes(2);
   });
 
   test("shows expired status text when polling reports expiration without detail", async() => {
     jest.useFakeTimers();
-    AuthBackend.createWecomProfileConsentLoginIntent.mockResolvedValue({
+    createWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: {
         intentId: "intent-1",
@@ -297,7 +372,7 @@ describe("WeComLoginPanel", () => {
         pollToken: "poll-token-1",
       },
     });
-    AuthBackend.getWecomProfileConsentIntentStatus.mockResolvedValue({
+    getWecomProfileConsentIntentStatusMock.mockResolvedValue({
       status: "ok",
       data: {status: "expired"},
     });
@@ -319,7 +394,7 @@ describe("WeComLoginPanel", () => {
   });
 
   test("shows an error when creating the OAuth2 intent fails", async() => {
-    AuthBackend.createWecomProfileConsentLoginIntent.mockResolvedValue({
+    createWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "error",
       msg: "intent creation failed",
     });
@@ -337,7 +412,7 @@ describe("WeComLoginPanel", () => {
   });
 
   test("shows an error when creating the OAuth2 intent rejects", async() => {
-    AuthBackend.createWecomProfileConsentLoginIntent.mockRejectedValue(new Error("network failed"));
+    createWecomProfileConsentLoginIntentMock.mockRejectedValue(new Error("network failed"));
 
     const {getByText} = render(
       <WeComLoginPanel
@@ -353,7 +428,7 @@ describe("WeComLoginPanel", () => {
   test("polls authorization status and completes login after authorization", async() => {
     jest.useFakeTimers();
     const onLoginResponse = jest.fn();
-    AuthBackend.createWecomProfileConsentLoginIntent.mockResolvedValue({
+    createWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: {
         intentId: "intent-1",
@@ -362,11 +437,11 @@ describe("WeComLoginPanel", () => {
         pollToken: "poll-token-1",
       },
     });
-    AuthBackend.getWecomProfileConsentIntentStatus.mockResolvedValue({
+    getWecomProfileConsentIntentStatusMock.mockResolvedValue({
       status: "ok",
       data: {status: "authorized", expiresAt: "2026-06-04T12:05:00Z"},
     });
-    AuthBackend.completeWecomProfileConsentLoginIntent.mockResolvedValue({
+    completeWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: "/",
     });
@@ -385,15 +460,15 @@ describe("WeComLoginPanel", () => {
       await Promise.resolve();
     });
 
-    expect(AuthBackend.getWecomProfileConsentIntentStatus).toHaveBeenCalledWith("intent-1", "poll-token-1");
-    expect(AuthBackend.completeWecomProfileConsentLoginIntent).toHaveBeenCalledWith("intent-1", "poll-token-1", {});
+    expect(getWecomProfileConsentIntentStatusMock).toHaveBeenCalledWith("intent-1", "poll-token-1");
+    expect(completeWecomProfileConsentLoginIntentMock).toHaveBeenCalledWith("intent-1", "poll-token-1", {});
     expect(onLoginResponse).toHaveBeenCalledWith({status: "ok", data: "/"});
   });
 
   test("shows MFA form when intent completion requires MFA", async() => {
     jest.useFakeTimers();
     const onLoginResponse = jest.fn();
-    AuthBackend.createWecomProfileConsentLoginIntent.mockResolvedValue({
+    createWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: {
         intentId: "intent-1",
@@ -402,11 +477,11 @@ describe("WeComLoginPanel", () => {
         pollToken: "poll-token-1",
       },
     });
-    AuthBackend.getWecomProfileConsentIntentStatus.mockResolvedValue({
+    getWecomProfileConsentIntentStatusMock.mockResolvedValue({
       status: "ok",
       data: {status: "authorized", expiresAt: "2026-06-04T12:05:00Z"},
     });
-    AuthBackend.completeWecomProfileConsentLoginIntent.mockResolvedValue({
+    completeWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: "NextMfa",
       data2: [{mfaType: "totp", isPreferred: true}],
@@ -432,7 +507,7 @@ describe("WeComLoginPanel", () => {
 
   test("lets the user switch MFA method before completing WeCom sign-in", async() => {
     jest.useFakeTimers();
-    AuthBackend.createWecomProfileConsentLoginIntent.mockResolvedValue({
+    createWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: {
         intentId: "intent-1",
@@ -441,11 +516,11 @@ describe("WeComLoginPanel", () => {
         pollToken: "poll-token-1",
       },
     });
-    AuthBackend.getWecomProfileConsentIntentStatus.mockResolvedValue({
+    getWecomProfileConsentIntentStatusMock.mockResolvedValue({
       status: "ok",
       data: {status: "authorized", expiresAt: "2026-06-04T12:05:00Z"},
     });
-    AuthBackend.completeWecomProfileConsentLoginIntent.mockResolvedValue({
+    completeWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: "NextMfa",
       data2: [{mfaType: "totp", isPreferred: true}, {mfaType: "email"}],
@@ -471,7 +546,7 @@ describe("WeComLoginPanel", () => {
 
   test("shows expired state when polling reports the intent expired", async() => {
     jest.useFakeTimers();
-    AuthBackend.createWecomProfileConsentLoginIntent.mockResolvedValue({
+    createWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: {
         intentId: "intent-1",
@@ -480,7 +555,7 @@ describe("WeComLoginPanel", () => {
         pollToken: "poll-token-1",
       },
     });
-    AuthBackend.getWecomProfileConsentIntentStatus.mockResolvedValue({
+    getWecomProfileConsentIntentStatusMock.mockResolvedValue({
       status: "ok",
       data: {status: "expired", errorText: "scan expired"},
     });
@@ -504,7 +579,7 @@ describe("WeComLoginPanel", () => {
 
   test("marks the QR code as scanned when polling reports completion", async() => {
     jest.useFakeTimers();
-    AuthBackend.createWecomProfileConsentLoginIntent.mockResolvedValue({
+    createWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: {
         intentId: "intent-1",
@@ -513,7 +588,7 @@ describe("WeComLoginPanel", () => {
         pollToken: "poll-token-1",
       },
     });
-    AuthBackend.getWecomProfileConsentIntentStatus.mockResolvedValue({
+    getWecomProfileConsentIntentStatusMock.mockResolvedValue({
       status: "ok",
       data: {status: "completed"},
     });
@@ -537,7 +612,7 @@ describe("WeComLoginPanel", () => {
   test("shows polling and completion errors without logging in", async() => {
     jest.useFakeTimers();
     const onLoginResponse = jest.fn();
-    AuthBackend.createWecomProfileConsentLoginIntent.mockResolvedValue({
+    createWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: {
         intentId: "intent-1",
@@ -546,7 +621,7 @@ describe("WeComLoginPanel", () => {
         pollToken: "poll-token-1",
       },
     });
-    AuthBackend.getWecomProfileConsentIntentStatus.mockResolvedValueOnce({
+    getWecomProfileConsentIntentStatusMock.mockResolvedValueOnce({
       status: "error",
       msg: "poll failed",
     });
@@ -566,7 +641,7 @@ describe("WeComLoginPanel", () => {
     });
     expect(getByText("poll failed")).toBeInTheDocument();
 
-    AuthBackend.createWecomProfileConsentLoginIntent.mockResolvedValue({
+    createWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: {
         intentId: "intent-2",
@@ -575,11 +650,11 @@ describe("WeComLoginPanel", () => {
         pollToken: "poll-token-2",
       },
     });
-    AuthBackend.getWecomProfileConsentIntentStatus.mockResolvedValueOnce({
+    getWecomProfileConsentIntentStatusMock.mockResolvedValueOnce({
       status: "ok",
       data: {status: "authorized"},
     });
-    AuthBackend.completeWecomProfileConsentLoginIntent.mockResolvedValueOnce({
+    completeWecomProfileConsentLoginIntentMock.mockResolvedValueOnce({
       status: "error",
       msg: "complete failed",
     });
@@ -603,7 +678,7 @@ describe("WeComLoginPanel", () => {
 
   test("shows an error when polling the authorization intent rejects", async() => {
     jest.useFakeTimers();
-    AuthBackend.createWecomProfileConsentLoginIntent.mockResolvedValue({
+    createWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: {
         intentId: "intent-1",
@@ -612,7 +687,7 @@ describe("WeComLoginPanel", () => {
         pollToken: "poll-token-1",
       },
     });
-    AuthBackend.getWecomProfileConsentIntentStatus.mockRejectedValue(new Error("poll network failed"));
+    getWecomProfileConsentIntentStatusMock.mockRejectedValue(new Error("poll network failed"));
 
     const {getByText} = render(
       <WeComLoginPanel
@@ -634,8 +709,8 @@ describe("WeComLoginPanel", () => {
     const script = document.createElement("script");
     script.dataset.wecomLoginWidget = "true";
     document.head.appendChild(script);
-    window.WwLogin = jest.fn();
-    AuthBackend.createWecomProfileConsentLoginIntent.mockResolvedValue({
+    installMockWeComWidget();
+    createWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: {
         intentId: "intent-1",
@@ -644,7 +719,7 @@ describe("WeComLoginPanel", () => {
         pollToken: "poll-token-1",
       },
     });
-    Provider.getAuthUrl.mockReturnValue("https://login.work.weixin.qq.com/wwlogin/sso/login?appid=wx-test-appid&agentid=1000002&redirect_uri=https://example.com/callback&state=test-state&scope=snsapi_privateinfo");
+    getAuthUrlMock.mockReturnValue("https://login.work.weixin.qq.com/wwlogin/sso/login?appid=wx-test-appid&agentid=1000002&redirect_uri=https://example.com/callback&state=test-state&scope=snsapi_privateinfo");
 
     const {getByText, queryByTestId} = render(
       <WeComLoginPanel
@@ -676,8 +751,8 @@ describe("WeComLoginPanel", () => {
   });
 
   test("shows an error when the compatible fallback login URL cannot be parsed", async() => {
-    Provider.getAuthUrl.mockReturnValue("not-a-valid-wecom-url");
-    AuthBackend.createWecomProfileConsentLoginIntent.mockResolvedValue({
+    getAuthUrlMock.mockReturnValue("not-a-valid-wecom-url");
+    createWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: {
         intentId: "intent-1",
@@ -706,8 +781,8 @@ describe("WeComLoginPanel", () => {
     const script = document.createElement("script");
     script.dataset.wecomLoginWidget = "true";
     document.head.appendChild(script);
-    window.WwLogin = jest.fn();
-    AuthBackend.createWecomProfileConsentLoginIntent.mockResolvedValue({
+    installMockWeComWidget();
+    createWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: {
         intentId: "intent-1",
@@ -739,10 +814,10 @@ describe("WeComLoginPanel", () => {
     const script = document.createElement("script");
     script.dataset.wecomLoginWidget = "true";
     document.head.appendChild(script);
-    window.WwLogin = jest.fn();
+    installMockWeComWidget();
 
-    let resolveIntent;
-    AuthBackend.createWecomProfileConsentLoginIntent.mockReturnValue(new Promise(resolve => {
+    let resolveIntent: (value: WeComIntentTestResponse) => void = () => {};
+    createWecomProfileConsentLoginIntentMock.mockReturnValue(new Promise<WeComIntentTestResponse>(resolve => {
       resolveIntent = resolve;
     }));
 
@@ -778,6 +853,6 @@ describe("WeComLoginPanel", () => {
     });
 
     expect(queryByTestId("wecom-oauth-qrcode")).toBeNull();
-    expect(AuthBackend.getWecomProfileConsentIntentStatus).not.toHaveBeenCalled();
+    expect(getWecomProfileConsentIntentStatusMock).not.toHaveBeenCalled();
   });
 });

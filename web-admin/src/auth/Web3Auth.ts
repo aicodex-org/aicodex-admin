@@ -16,6 +16,7 @@ import {goToLink, showMessage} from "../Setting";
 import i18next from "i18next";
 import {v4 as uuidv4} from "uuid";
 import {SignTypedDataVersion, recoverTypedSignature} from "@metamask/eth-sig-util";
+import type {MessageTypes, TypedMessage} from "@metamask/eth-sig-util";
 import {getAuthUrl} from "./Provider";
 import {Buffer} from "buffer";
 import Onboard from "@web3-onboard/core";
@@ -37,34 +38,88 @@ import phantomModule from "@web3-onboard/phantom";
 // import fortmaticModule from "@web3-onboard/fortmatic";
 // import portisModule from "@web3-onboard/portis";
 // import magicModule from "@web3-onboard/magic";
+import type {AuthProvider} from "./AuthTypes";
 
-global.Buffer = Buffer;
+type EthereumRequestArgs = {
+  method: string;
+  params?: unknown[];
+};
 
-export function generateNonce() {
+interface EthereumProvider {
+  isMetaMask?: boolean;
+  chainId?: string | number;
+  request<T = unknown>(args: EthereumRequestArgs): Promise<T>;
+}
+
+declare global {
+  interface Window {
+    ethereum?: EthereumProvider;
+  }
+}
+
+interface Web3AuthToken {
+  address: string;
+  createAt?: number;
+  typedData?: string;
+  signature?: string;
+  walletType?: string;
+}
+
+interface Web3AuthApplication {
+  name?: string;
+  forcedRedirectOrigin?: string;
+}
+
+interface Web3AuthProvider extends AuthProvider {
+  metadata?: string;
+}
+
+type Web3OnboardWalletModule = ReturnType<typeof injectedModule>;
+type Web3WalletKey = keyof typeof web3Wallets;
+
+interface Web3OnboardConnectedWallet {
+  label: string;
+  accounts: Array<{
+    address: string;
+  }>;
+}
+
+type AuthTypedMessage = TypedMessage<MessageTypes>;
+
+(globalThis as typeof globalThis & {Buffer: typeof Buffer}).Buffer = Buffer;
+
+function getErrorMessage(error: unknown): string {
+  if (typeof error === "object" && error !== null && "message" in error) {
+    return String((error as {message?: unknown}).message);
+  }
+  return String(error);
+}
+
+export function generateNonce(): string {
   const nonce = uuidv4();
   return nonce;
 }
 
-export function getWeb3AuthTokenKey(address) {
+export function getWeb3AuthTokenKey(address: string): string {
   return `Web3AuthToken_${address}`;
 }
 
-export function setWeb3AuthToken(token) {
+export function setWeb3AuthToken(token: Web3AuthToken): void {
   const key = getWeb3AuthTokenKey(token.address);
   localStorage.setItem(key, JSON.stringify(token));
 }
 
-export function getWeb3AuthToken(address) {
+export function getWeb3AuthToken(address: string): Web3AuthToken | null {
   const key = getWeb3AuthTokenKey(address);
-  return JSON.parse(localStorage.getItem(key));
+  return JSON.parse(localStorage.getItem(key) ?? "null") as Web3AuthToken | null;
 }
 
-export function delWeb3AuthToken(address) {
+export function delWeb3AuthToken(address: string): void {
   const key = getWeb3AuthTokenKey(address);
   localStorage.removeItem(key);
 }
 
-export function clearWeb3AuthToken() {
+export function clearWeb3AuthToken(): void {
   const keys = Object.keys(localStorage);
   keys.forEach(key => {
     if (key.startsWith("Web3AuthToken_")) {
@@ -73,26 +128,26 @@ export function clearWeb3AuthToken() {
   });
 }
 
-export function detectMetaMaskPlugin() {
+export function detectMetaMaskPlugin(): boolean | undefined {
   // check if ethereum extension MetaMask is installed
-  return window.ethereum && window.ethereum.isMetaMask;
+  return window.ethereum?.isMetaMask;
 }
 
-export function requestEthereumAccount() {
+export function requestEthereumAccount(): Promise<string> {
   const method = "eth_requestAccounts";
-  const selectedAccount = window.ethereum.request({method})
+  const selectedAccount = window.ethereum!.request<string[]>({method})
     .then((accounts) => {
       return accounts[0];
     });
   return selectedAccount;
 }
 
-export function signEthereumTypedData(from, nonce) {
+export function signEthereumTypedData(from: string, nonce: string): Promise<Web3AuthToken> {
   // https://docs.metamask.io/wallet/how-to/sign-data/
   const date = new Date();
   const typedData = JSON.stringify({
     domain: {
-      chainId: window.ethereum.chainId,
+      chainId: window.ethereum!.chainId,
       name: "aicodex-admin",
       version: "1",
     },
@@ -119,7 +174,7 @@ export function signEthereumTypedData(from, nonce) {
   const method = "eth_signTypedData_v4";
   const params = [from, typedData];
 
-  return window.ethereum.request({method, params})
+  return window.ethereum!.request<string>({method, params})
     .then((sign) => {
       return {
         address: from,
@@ -130,13 +185,13 @@ export function signEthereumTypedData(from, nonce) {
     });
 }
 
-export function checkEthereumSignedTypedData(token) {
+export function checkEthereumSignedTypedData(token: Web3AuthToken | null | undefined): boolean {
   if (token === undefined || token === null) {
     return false;
   }
   if (token.address && token.typedData && token.signature) {
     const recoveredAddr = recoverTypedSignature({
-      data: JSON.parse(token.typedData),
+      data: JSON.parse(token.typedData) as AuthTypedMessage,
       signature: token.signature,
       version: SignTypedDataVersion.V4,
     });
@@ -147,7 +202,7 @@ export function checkEthereumSignedTypedData(token) {
   return false;
 }
 
-export async function authViaMetaMask(application, provider, method) {
+export async function authViaMetaMask(application: Web3AuthApplication, provider: AuthProvider, method: string): Promise<void> {
   if (!detectMetaMaskPlugin()) {
     showMessage("error", `${i18next.t("login:MetaMask plugin not detected")}`);
     return;
@@ -163,7 +218,7 @@ export async function authViaMetaMask(application, provider, method) {
     const redirectUri = `${getAuthUrl(application, provider, method)}&web3AuthTokenKey=${getWeb3AuthTokenKey(account)}`;
     goToLink(redirectUri);
   } catch (err) {
-    showMessage("error", `${i18next.t("login:Failed to obtain MetaMask authorization")}: ${err.message}`);
+    showMessage("error", `${i18next.t("login:Failed to obtain MetaMask authorization")}: ${getErrorMessage(err)}`);
   }
 }
 
@@ -238,29 +293,29 @@ const web3Wallets = {
   // });
 };
 
-export function getWeb3OnboardWalletsOptions() {
+export function getWeb3OnboardWalletsOptions(): Array<{label: string; value: Web3WalletKey}> {
   return Object.entries(web3Wallets).map(([key, value]) => ({
     label: value.label,
-    value: key,
+    value: key as Web3WalletKey,
   }));
 }
 
-function getWeb3OnboardWallets(options) {
+function getWeb3OnboardWallets(options: unknown): Array<Web3OnboardWalletModule | undefined> {
   if (options === null || options === undefined || !Array.isArray(options)) {
     return [];
   }
   return options.map(walletType => {
-    if (walletType && web3Wallets[walletType]?.wallet) {
-      return web3Wallets[walletType]?.wallet;
+    if (typeof walletType === "string" && walletType in web3Wallets) {
+      return web3Wallets[walletType as Web3WalletKey]?.wallet;
     }
   });
 }
 
-export function initWeb3Onboard(application, provider) {
+export function initWeb3Onboard(application: Web3AuthApplication, provider: Web3AuthProvider): ReturnType<typeof Onboard> {
   // init wallet
   // options = ["injected","coinbase",...]
-  const options = JSON.parse(provider.metadata);
-  const wallets = getWeb3OnboardWallets(options);
+  const options = JSON.parse(provider.metadata as string);
+  const wallets = getWeb3OnboardWallets(options) as Web3OnboardWalletModule[];
 
   // init chain
   // const InfuraKey = "2fa45cbe531e4e65be4fcbf408e651a8";
@@ -327,10 +382,10 @@ export function initWeb3Onboard(application, provider) {
   return web3Onboard;
 }
 
-export async function authViaWeb3Onboard(application, provider, method) {
+export async function authViaWeb3Onboard(application: Web3AuthApplication, provider: Web3AuthProvider, method: string): Promise<void> {
   try {
     const onboard = initWeb3Onboard(application, provider);
-    const connectedWallets = await onboard.connectWallet();
+    const connectedWallets = await onboard.connectWallet() as Web3OnboardConnectedWallet[];
     if (connectedWallets.length > 0) {
       const wallet = connectedWallets[0];
       const account = wallet.accounts[0];
