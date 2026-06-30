@@ -2,8 +2,11 @@ import {Button, Checkbox, Form, Input} from "antd";
 import i18next from "i18next";
 import React from "react";
 import {mfaAuth} from "./MfaVerifyForm";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {MfaVerifyChildProps} from "./MfaVerifyForm";
+const t = i18next.t as (key: string) => string;
 
-export const MfaVerifyRadiusForm = ({mfaProps, application, onFinish, method, user}) => {
+export const MfaVerifyPushForm = ({mfaProps, onFinish, method}: MfaVerifyChildProps) => {
   const [form] = Form.useForm();
   return (
     <Form
@@ -11,7 +14,6 @@ export const MfaVerifyRadiusForm = ({mfaProps, application, onFinish, method, us
       style={{width: "300px"}}
       onFinish={onFinish}
       initialValues={{
-        countryCode: mfaProps.countryCode,
         enableMfaRemember: false,
       }}
     >
@@ -19,22 +21,22 @@ export const MfaVerifyRadiusForm = ({mfaProps, application, onFinish, method, us
         method === mfaAuth ? null : (<Form.Item
           name="dest"
           noStyle
-          rules={[{required: true, message: i18next.t("login:Please input your RADIUS username!")}]}
+          rules={[{required: true, message: t("login:Please input your push notification receiver!")}]}
         >
           <Input
             style={{width: "100%"}}
-            placeholder={i18next.t("signup:Username")}
+            placeholder={t("mfa:Push notification receiver")}
           />
         </Form.Item>)
       }
       <Form.Item
         name="passcode"
         noStyle
-        rules={[{required: true, message: i18next.t("login:Please input your RADIUS password!")}]}
+        rules={[{required: true, message: t("code:Please input your verification code!")}]}
       >
         <Input
           style={{width: "100%", marginTop: 12}}
-          placeholder={i18next.t("general:Password")}
+          placeholder={t("login:Verification code")}
         />
       </Form.Item>
       <Form.Item
@@ -42,7 +44,7 @@ export const MfaVerifyRadiusForm = ({mfaProps, application, onFinish, method, us
         valuePropName="checked"
       >
         <Checkbox>
-          {i18next.t("mfa:Remember this account for {hour} hours").replace("{hour}", mfaProps?.mfaRememberInHours)}
+          {t("mfa:Remember this account for {hour} hours").replace("{hour}", `${mfaProps?.mfaRememberInHours ?? ""}`)}
         </Checkbox>
       </Form.Item>
       <Form.Item>
@@ -53,11 +55,11 @@ export const MfaVerifyRadiusForm = ({mfaProps, application, onFinish, method, us
           type="primary"
           htmlType="submit"
         >
-          {i18next.t("forget:Next Step")}
+          {t("forget:Next Step")}
         </Button>
       </Form.Item>
     </Form>
   );
 };
 
-export default MfaVerifyRadiusForm;
+export default MfaVerifyPushForm;

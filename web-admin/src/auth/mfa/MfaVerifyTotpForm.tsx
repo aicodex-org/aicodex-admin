@@ -5,12 +5,16 @@ import i18next from "i18next";
 import React from "react";
 import * as Setting from "../../Setting";
 import * as Conf from "../../Conf";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {MfaVerifyChildProps} from "./MfaVerifyForm";
+const t = i18next.t as (key: string) => string;
 
-export const MfaVerifyTotpForm = ({mfaProps, onFinish}) => {
+export const MfaVerifyTotpForm = ({mfaProps, onFinish}: Pick<MfaVerifyChildProps, "mfaProps" | "onFinish">) => {
   const [form] = Form.useForm();
+  const activeMfaProps = mfaProps as NonNullable<MfaVerifyChildProps["mfaProps"]>;
 
   const renderSecret = () => {
-    if (!mfaProps.secret) {
+    if (!activeMfaProps.secret) {
       return null;
     }
 
@@ -19,18 +23,18 @@ export const MfaVerifyTotpForm = ({mfaProps, onFinish}) => {
         <Col span={24} style={{display: "flex", justifyContent: "center"}}>
           <QRCode
             errorLevel="H"
-            value={mfaProps.url}
+            value={activeMfaProps.url}
             icon={Conf.BrandIcon}
           />
         </Col>
-        <p style={{textAlign: "center"}}>{i18next.t("mfa:Scan the QR code with your Authenticator App")}</p>
-        <p style={{textAlign: "center"}}>{i18next.t("mfa:Or copy the secret to your Authenticator App")}</p>
+        <p style={{textAlign: "center"}}>{t("mfa:Scan the QR code with your Authenticator App")}</p>
+        <p style={{textAlign: "center"}}>{t("mfa:Or copy the secret to your Authenticator App")}</p>
         <Col span={24}>
           <Space>
-            <Input value={mfaProps.secret} />
+            <Input value={activeMfaProps.secret} />
             <Button type="primary" shape="round" icon={<CopyOutlined />} onClick={() => {
-              copy(`${mfaProps.secret}`);
-              Setting.showMessage("success", i18next.t("general:Copied to clipboard successfully"));
+              copy(`${activeMfaProps.secret}`);
+              Setting.showMessage("success", t("general:Copied to clipboard successfully"));
             }} />
           </Space>
         </Col>
@@ -63,7 +67,7 @@ export const MfaVerifyTotpForm = ({mfaProps, onFinish}) => {
         valuePropName="checked"
       >
         <Checkbox>
-          {i18next.t("mfa:Remember this account for {hour} hours").replace("{hour}", mfaProps?.mfaRememberInHours)}
+          {t("mfa:Remember this account for {hour} hours").replace("{hour}", `${activeMfaProps.mfaRememberInHours ?? ""}`)}
         </Checkbox>
       </Form.Item>
       <Form.Item>
@@ -74,7 +78,7 @@ export const MfaVerifyTotpForm = ({mfaProps, onFinish}) => {
           type="primary"
           htmlType="submit"
         >
-          {i18next.t("forget:Next Step")}
+          {t("forget:Next Step")}
         </Button>
       </Form.Item>
     </Form>

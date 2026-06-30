@@ -12,8 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export let authConfig = {};
+import React from "react";
+import LoginPage from "./LoginPage";
+import {authConfig} from "./Auth";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {LegacyAny} from "./AuthCoreTypes";
 
-export function initAuthWithConfig(config) {
-  authConfig = config;
+class SelfLoginPage extends React.Component<LegacyAny> {
+  constructor(props: LegacyAny) {
+    super(props);
+    import("../ManagementPage");
+  }
+  render() {
+    return (
+      <LoginPage type={"login"} mode={"signin"} applicationName={authConfig.appName} {...this.props} />
+    );
+  }
 }
+
+export default SelfLoginPage;

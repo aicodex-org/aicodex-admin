@@ -13,19 +13,21 @@
 // limitations under the License.
 
 import React from "react";
-import LoginPage from "./LoginPage";
 import {authConfig} from "./Auth";
+import ForgetPage from "./ForgetPage";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {LegacyAny} from "./AuthCoreTypes";
 
-class SelfLoginPage extends React.Component {
-  constructor(props) {
-    super(props);
-    import("../ManagementPage");
-  }
+class SelfForgetPage extends React.Component<LegacyAny> {
   render() {
     return (
-      <LoginPage type={"login"} mode={"signin"} applicationName={authConfig.appName} {...this.props} />
+      <ForgetPage
+        type={"forgotPassword"}
+        applicationName={authConfig.appName}
+        {...this.props}
+      />
     );
   }
 }
 
-export default SelfLoginPage;
+export default SelfForgetPage;

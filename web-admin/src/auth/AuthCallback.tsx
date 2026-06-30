@@ -23,12 +23,15 @@ import * as Setting from "../Setting";
 import i18next from "i18next";
 import RedirectForm from "../common/RedirectForm";
 import {createFormAndSubmit, renderLoginPanel} from "../Setting";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {LegacyAny, LegacyRecord} from "./AuthCoreTypes";
 
 const reactFallbackKey = "__casdoor_callback_react";
 const reactFallbackPayloadKey = "casdoor_callback_react_fallback";
+const t = i18next.t as (key: string) => string;
 
-class AuthCallback extends React.Component {
-  constructor(props) {
+class AuthCallback extends React.Component<LegacyAny, LegacyAny> {
+  constructor(props: LegacyAny) {
     super(props);
     this.state = {
       classes: props,
@@ -39,7 +42,7 @@ class AuthCallback extends React.Component {
     };
   }
 
-  getNormalizedSearch(search) {
+  getNormalizedSearch(search: string) {
     const normalizedUrl = new URL(`${window.location.origin}/callback${search || ""}`);
     normalizedUrl.searchParams.delete(reactFallbackKey);
     return normalizedUrl.search;
@@ -65,8 +68,8 @@ class AuthCallback extends React.Component {
     }
   }
 
-  handleCasLoginResult(res, body, casService) {
-    const handleCasLogin = (res) => {
+  handleCasLoginResult(res: LegacyAny, body: LegacyRecord, casService: string) {
+    const handleCasLogin = (res: LegacyAny) => {
       let msg = "Logged in successfully.";
       if (casService === "") {
         msg += "Now you can visit apps protected by aicodex-admin.";
@@ -84,17 +87,17 @@ class AuthCallback extends React.Component {
     Setting.checkLoginMfa(res, body, {"service": casService}, handleCasLogin, this);
   }
 
-  handleOAuthLoginResult(res, body, innerParams, queryString, applicationName, responseType) {
+  handleOAuthLoginResult(res: LegacyAny, body: LegacyRecord, innerParams: URLSearchParams, queryString: string, applicationName: string | null, responseType: string) {
     const oAuthParams = Util.getOAuthGetParameters(innerParams);
     const concatChar = oAuthParams?.redirectUri?.includes("?") ? "&" : "?";
     const responseMode = oAuthParams?.responseMode || "query";
     const signinUrl = localStorage.getItem("signinUrl");
     const responseTypes = responseType.split(" ");
 
-    const handleLogin = (res) => {
+    const handleLogin = (res: LegacyAny) => {
       if (responseType === "login") {
         if (res.data3) {
-          sessionStorage.setItem("signinUrl", signinUrl);
+          sessionStorage.setItem("signinUrl", signinUrl ?? "");
           Setting.goToLinkSoft(this, "/account");
           return;
         }
@@ -103,7 +106,7 @@ class AuthCallback extends React.Component {
         Setting.goToLink(link);
       } else if (responseType === "code") {
         if (res.data3) {
-          sessionStorage.setItem("signinUrl", signinUrl);
+          sessionStorage.setItem("signinUrl", signinUrl ?? "");
           Setting.goToLinkSoft(this, "/account");
           return;
         }
@@ -116,11 +119,11 @@ class AuthCallback extends React.Component {
           createFormAndSubmit(oAuthParams?.redirectUri, params);
         } else {
           const code = res.data;
-          Setting.goToLink(`${oAuthParams.redirectUri}${concatChar}code=${encodeURIComponent(code)}&state=${encodeURIComponent(oAuthParams.state)}`);
+          Setting.goToLink(`${oAuthParams?.redirectUri}${concatChar}code=${encodeURIComponent(code)}&state=${encodeURIComponent(oAuthParams?.state ?? "")}`);
         }
       } else if (responseTypes.includes("token") || responseTypes.includes("id_token")) {
         if (res.data3) {
-          sessionStorage.setItem("signinUrl", signinUrl);
+          sessionStorage.setItem("signinUrl", signinUrl ?? "");
           Setting.goToLinkSoft(this, "/account");
           return;
         }
@@ -135,7 +138,7 @@ class AuthCallback extends React.Component {
           createFormAndSubmit(oAuthParams?.redirectUri, params);
         } else {
           const token = res.data;
-          Setting.goToLink(`${oAuthParams.redirectUri}${concatChar}${responseType}=${encodeURIComponent(token)}&state=${encodeURIComponent(oAuthParams.state)}&token_type=bearer`);
+          Setting.goToLink(`${oAuthParams?.redirectUri}${concatChar}${responseType}=${encodeURIComponent(token)}&state=${encodeURIComponent(oAuthParams?.state ?? "")}&token_type=bearer`);
         }
       } else if (responseType === "link") {
         let from = innerParams.get("from");
@@ -149,22 +152,22 @@ class AuthCallback extends React.Component {
           this.setState({
             samlResponse: res.data,
             redirectUrl: res.data2.redirectUrl,
-            relayState: oAuthParams.relayState,
+            relayState: oAuthParams?.relayState,
           });
         } else {
           if (res.data3) {
-            sessionStorage.setItem("signinUrl", signinUrl);
+            sessionStorage.setItem("signinUrl", signinUrl ?? "");
             Setting.goToLinkSoft(this, "/account");
             return;
           }
           const SAMLResponse = res.data;
           const redirectUri = res.data2.redirectUrl;
-          Setting.goToLink(`${redirectUri}${redirectUri.includes("?") ? "&" : "?"}SAMLResponse=${encodeURIComponent(SAMLResponse)}&RelayState=${oAuthParams.relayState}`);
+          Setting.goToLink(`${redirectUri}${redirectUri.includes("?") ? "&" : "?"}SAMLResponse=${encodeURIComponent(SAMLResponse)}&RelayState=${oAuthParams?.relayState ?? ""}`);
         }
       }
     };
 
-    Setting.checkLoginMfa(res, body, oAuthParams, handleLogin, this, window.location.origin);
+    (Setting.checkLoginMfa as LegacyAny)(res, body, oAuthParams, handleLogin, this, window.location.origin);
   }
 
   getInnerParams() {
@@ -233,7 +236,7 @@ class AuthCallback extends React.Component {
     // Due to the limited length of URLs, we only pass the web3AuthTokenKey
     if (code === null) {
       code = params.get("web3AuthTokenKey");
-      code = localStorage.getItem(code);
+      code = localStorage.getItem(code ?? "");
     }
     // Steam don't use code, so we should use all params as code.
     if (isSteam !== null && code === null) {
@@ -251,7 +254,7 @@ class AuthCallback extends React.Component {
     // Collect them and convert to JSON for backend processing
     const telegramId = params.get("id");
     if (telegramId !== null && (code === null || code === "")) {
-      const telegramAuthData = {
+      const telegramAuthData: LegacyRecord = {
         id: parseInt(telegramId, 10),
       };
 
@@ -280,7 +283,7 @@ class AuthCallback extends React.Component {
     const redirectUri = `${window.location.origin}/callback`;
 
     // Retrieve the code verifier for PKCE if it exists
-    const codeVerifier = Provider.getCodeVerifier(params.get("state"));
+    const codeVerifier = Provider.getCodeVerifier(params.get("state") ?? "");
 
     const body = {
       type: this.getResponseType(),
@@ -298,15 +301,15 @@ class AuthCallback extends React.Component {
 
     // Clean up the stored code verifier after using it
     if (codeVerifier) {
-      Provider.clearCodeVerifier(params.get("state"));
+      Provider.clearCodeVerifier(params.get("state") ?? "");
     }
 
     const reactFallbackPayload = this.consumeReactFallbackPayload();
     if (reactFallbackPayload !== null) {
       if (reactFallbackPayload.flow === "cas") {
-        this.handleCasLoginResult(reactFallbackPayload.res, reactFallbackPayload.body || body, reactFallbackPayload.casService || casService);
+        this.handleCasLoginResult(reactFallbackPayload.res, reactFallbackPayload.body || body, reactFallbackPayload.casService || casService || "");
       } else {
-        const fallbackInnerParams = new URLSearchParams(reactFallbackPayload.innerParams || Util.getQueryParamsFromState(params.get("state")));
+        const fallbackInnerParams = new URLSearchParams(reactFallbackPayload.innerParams || Util.getQueryParamsFromState(params.get("state") ?? ""));
         this.handleOAuthLoginResult(reactFallbackPayload.res, reactFallbackPayload.body || body, fallbackInnerParams, reactFallbackPayload.queryString, applicationName, reactFallbackPayload.responseType || this.getResponseType());
       }
       return;
@@ -316,9 +319,9 @@ class AuthCallback extends React.Component {
       // user is using casdoor as cas sso server, and wants the ticket to be acquired
       AuthBackend.loginCas(body, {"service": casService}).then((res) => {
         if (res.status === "ok") {
-          this.handleCasLoginResult(res, body, casService);
+          this.handleCasLoginResult(res, body, casService ?? "");
         } else {
-          Setting.showMessage("error", `${i18next.t("application:Failed to sign in")}: ${res.msg}`);
+          Setting.showMessage("error", `${t("application:Failed to sign in")}: ${res.msg}`);
         }
       });
       return;
@@ -352,7 +355,7 @@ class AuthCallback extends React.Component {
       <div style={{display: "flex", justifyContent: "center", alignItems: "center"}}>
         {
           (this.state.msg === null) ? (
-            <Spin size="large" tip={i18next.t("login:Signing in...")} style={{paddingTop: "10%"}} />
+            <Spin size="large" tip={t("login:Signing in...")} style={{paddingTop: "10%"}} />
           ) : (
             Util.renderMessageLarge(this, this.state.msg)
           )
@@ -362,4 +365,5 @@ class AuthCallback extends React.Component {
   }
 }
 
-export default withRouter(AuthCallback);
+const AuthCallbackWithRouter = withRouter(AuthCallback as LegacyAny) as LegacyAny;
+export default AuthCallbackWithRouter;

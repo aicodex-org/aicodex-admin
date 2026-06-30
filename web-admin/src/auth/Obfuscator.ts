@@ -14,8 +14,10 @@
 
 import CryptoJS from "crypto-js";
 import {Buffer} from "buffer";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {LegacyAny} from "./AuthCoreTypes";
 
-export function getRandomKeyForObfuscator(obfuscatorType) {
+export function getRandomKeyForObfuscator(obfuscatorType: string) {
   if (obfuscatorType === "DES") {
     return getRandomHexKey(16);
   } else if (obfuscatorType === "AES") {
@@ -30,7 +32,7 @@ export const passwordObfuscatorKeyRegexes = {
   "AES": /^[1-9a-f]{32}$/,
 };
 
-function encrypt(cipher, key, iv, password) {
+function encrypt(cipher: LegacyAny, key: string, iv: LegacyAny, password: string) {
   const encrypted = cipher.encrypt(
     CryptoJS.enc.Hex.parse(Buffer.from(password, "utf-8").toString("hex")),
     CryptoJS.enc.Hex.parse(key),
@@ -43,23 +45,24 @@ function encrypt(cipher, key, iv, password) {
   return iv.concat(encrypted.ciphertext).toString(CryptoJS.enc.Hex);
 }
 
-export function checkPasswordObfuscator(passwordObfuscatorType, passwordObfuscatorKey) {
+export function checkPasswordObfuscator(passwordObfuscatorType: LegacyAny, passwordObfuscatorKey: LegacyAny) {
   if (passwordObfuscatorType === undefined) {
     return "passwordObfuscatorType should not be undefined";
   } else if (passwordObfuscatorType === "Plain" || passwordObfuscatorType === "") {
     return "";
   } else if (passwordObfuscatorType === "AES" || passwordObfuscatorType === "DES") {
-    if (passwordObfuscatorKeyRegexes[passwordObfuscatorType].test(passwordObfuscatorKey)) {
+    const obfuscatorType = passwordObfuscatorType as keyof typeof passwordObfuscatorKeyRegexes;
+    if (passwordObfuscatorKeyRegexes[obfuscatorType].test(passwordObfuscatorKey)) {
       return "";
     } else {
-      return `The password obfuscator key doesn't match the regex: ${passwordObfuscatorKeyRegexes[passwordObfuscatorType].source}`;
+      return `The password obfuscator key doesn't match the regex: ${passwordObfuscatorKeyRegexes[obfuscatorType].source}`;
     }
   } else {
     return `unsupported password obfuscator type: ${passwordObfuscatorType}`;
   }
 }
 
-export function encryptByPasswordObfuscator(passwordObfuscatorType, passwordObfuscatorKey, password) {
+export function encryptByPasswordObfuscator(passwordObfuscatorType: LegacyAny, passwordObfuscatorKey: LegacyAny, password: string): [string, string] {
   const passwordObfuscatorErrorMessage = checkPasswordObfuscator(passwordObfuscatorType, passwordObfuscatorKey);
   if (passwordObfuscatorErrorMessage.length > 0) {
     return ["", passwordObfuscatorErrorMessage];
@@ -72,19 +75,20 @@ export function encryptByPasswordObfuscator(passwordObfuscatorType, passwordObfu
       return [encryptByDes(passwordObfuscatorKey, password), ""];
     }
   }
+  return ["", `unsupported password obfuscator type: ${passwordObfuscatorType}`];
 }
 
-function encryptByDes(key, password) {
+function encryptByDes(key: string, password: string) {
   const iv = CryptoJS.lib.WordArray.random(8);
   return encrypt(CryptoJS.DES, key, iv, password);
 }
 
-function encryptByAes(key, password) {
+function encryptByAes(key: string, password: string) {
   const iv = CryptoJS.lib.WordArray.random(16);
   return encrypt(CryptoJS.AES, key, iv, password);
 }
 
-function getRandomHexKey(length) {
+function getRandomHexKey(length: number) {
   const characters = "123456789abcdef";
   let key = "";
   for (let i = 0; i < length; i++) {

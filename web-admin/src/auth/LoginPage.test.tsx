@@ -1,13 +1,16 @@
 /* eslint-env jest */
 
+import {expect} from "@jest/globals";
 import {LoginPage} from "./LoginPage";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {LegacyAny} from "./AuthCoreTypes";
 
-function createLoginPage(loginMethod) {
+function createLoginPage(loginMethod: string) {
   const page = new LoginPage({
     location: {search: ""},
     match: {params: {}},
   });
-  page.state.loginMethod = loginMethod;
+  (page.state as LegacyAny).loginMethod = loginMethod;
   return page;
 }
 

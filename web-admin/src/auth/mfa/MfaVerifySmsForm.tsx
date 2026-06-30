@@ -7,44 +7,49 @@ import {SendCodeInput} from "../../common/SendCodeInput";
 import * as Setting from "../../Setting";
 import {EmailMfaType, SmsMfaType} from "../MfaSetupPage";
 import {mfaAuth} from "./MfaVerifyForm";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {MfaVerifyChildProps} from "./MfaVerifyForm";
+const t = i18next.t as (key: string) => string;
+const LegacySendCodeInput = SendCodeInput as React.ComponentType<any>;
 
-export const MfaVerifySmsForm = ({mfaProps, application, onFinish, method, user}) => {
+export const MfaVerifySmsForm = ({mfaProps, application, onFinish, method, user}: MfaVerifyChildProps) => {
   const [dest, setDest] = React.useState("");
   const [form] = Form.useForm();
+  const activeMfaProps = mfaProps as NonNullable<MfaVerifyChildProps["mfaProps"]>;
 
   useEffect(() => {
     if (method === mfaAuth) {
-      setDest(mfaProps.secret);
-      form.setFieldValue("dest", mfaProps.secret);
+      setDest(mfaProps?.secret ?? "");
+      form.setFieldValue("dest", mfaProps?.secret);
       return;
     }
-    if (mfaProps.mfaType === SmsMfaType) {
-      setDest(user.phone);
-      form.setFieldValue("dest", user.phone);
+    if (activeMfaProps.mfaType === SmsMfaType) {
+      setDest(user?.phone ?? "");
+      form.setFieldValue("dest", user?.phone);
       return;
     }
 
-    if (mfaProps.mfaType === EmailMfaType) {
-      setDest(user.email);
-      form.setFieldValue("dest", user.email);
+    if (activeMfaProps.mfaType === EmailMfaType) {
+      setDest(user?.email ?? "");
+      form.setFieldValue("dest", user?.email);
     }
-  }, [mfaProps.mfaType]);
+  }, [form, method, activeMfaProps.mfaType, activeMfaProps.secret, user]);
 
   const isShowText = () => {
     if (method === mfaAuth) {
       return true;
     }
-    if (mfaProps.mfaType === SmsMfaType && user.phone !== "") {
+    if (mfaProps?.mfaType === SmsMfaType && user?.phone !== "") {
       return true;
     }
-    if (mfaProps.mfaType === EmailMfaType && user.email !== "") {
+    if (mfaProps?.mfaType === EmailMfaType && user?.email !== "") {
       return true;
     }
     return false;
   };
 
   const isEmail = () => {
-    return mfaProps.mfaType === EmailMfaType;
+    return mfaProps?.mfaType === EmailMfaType;
   };
 
   return (
@@ -53,17 +58,17 @@ export const MfaVerifySmsForm = ({mfaProps, application, onFinish, method, user}
       style={{width: "300px"}}
       onFinish={onFinish}
       initialValues={{
-        countryCode: mfaProps.countryCode,
+        countryCode: activeMfaProps.countryCode,
         enableMfaRemember: false,
       }}
     >
       {isShowText() ?
         <div style={{marginBottom: 20, textAlign: "left", gap: 8}}>
-          {isEmail() ? i18next.t("mfa:Your email is") : i18next.t("mfa:Your phone is")} {dest}
+          {isEmail() ? t("mfa:Your email is") : t("mfa:Your phone is")} {dest}
         </div> :
         (
-          <p>{isEmail() ? i18next.t("mfa:Please bind your email first, the system will automatically uses the mail for multi-factor authentication") :
-            i18next.t("mfa:Please bind your phone first, the system automatically uses the phone for multi-factor authentication")}
+          <p>{isEmail() ? t("mfa:Please bind your email first, the system will automatically uses the mail for multi-factor authentication") :
+            t("mfa:Please bind your phone first, the system automatically uses the phone for multi-factor authentication")}
           </p>
         )
       }
@@ -75,38 +80,38 @@ export const MfaVerifySmsForm = ({mfaProps, application, onFinish, method, user}
             rules={[
               {
                 required: false,
-                message: i18next.t("signup:Please select your country code!"),
+                message: t("signup:Please select your country code!"),
               },
             ]}
           >
             <CountryCodeSelect
-              initValue={mfaProps.countryCode}
+              initValue={activeMfaProps.countryCode}
               style={{width: "30%"}}
-              countryCodes={application.organizationObj.countryCodes}
+              countryCodes={application?.organizationObj?.countryCodes}
             />
           </Form.Item>
         }
         <Form.Item
           name="dest"
           noStyle
-          rules={[{required: true, message: i18next.t("login:Please input your Email or Phone!")}]}
+          rules={[{required: true, message: t("login:Please input your Email or Phone!")}]}
         >
           <Input
             style={{width: isEmail() ? "100% " : "70%"}}
             onChange={(e) => {setDest(e.target.value);}}
             prefix={<UserOutlined />}
-            placeholder={isEmail() ? i18next.t("general:Email") : i18next.t("general:Phone")}
+            placeholder={isEmail() ? t("general:Email") : t("general:Phone")}
           />
         </Form.Item>
       </Space.Compact>
       <Form.Item
         name="passcode"
-        rules={[{required: true, message: i18next.t("login:Please input your code!")}]}
+        rules={[{required: true, message: t("login:Please input your code!")}]}
       >
-        <SendCodeInput
+        <LegacySendCodeInput
           countryCode={form.getFieldValue("countryCode")}
           method={method}
-          onButtonClickArgs={[mfaProps.secret || dest, isEmail() ? "email" : "phone", Setting.getApplicationName(application)]}
+          onButtonClickArgs={[activeMfaProps.secret || dest, isEmail() ? "email" : "phone", Setting.getApplicationName(application)]}
           application={application}
         />
       </Form.Item>
@@ -115,7 +120,7 @@ export const MfaVerifySmsForm = ({mfaProps, application, onFinish, method, user}
         valuePropName="checked"
       >
         <Checkbox>
-          {i18next.t("mfa:Remember this account for {hour} hours").replace("{hour}", mfaProps?.mfaRememberInHours)}
+          {t("mfa:Remember this account for {hour} hours").replace("{hour}", `${activeMfaProps.mfaRememberInHours ?? ""}`)}
         </Checkbox>
       </Form.Item>
       <Form.Item>
@@ -126,7 +131,7 @@ export const MfaVerifySmsForm = ({mfaProps, application, onFinish, method, user}
           type="primary"
           htmlType="submit"
         >
-          {i18next.t("forget:Next Step")}
+          {t("forget:Next Step")}
         </Button>
       </Form.Item>
     </Form>

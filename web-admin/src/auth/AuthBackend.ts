@@ -14,6 +14,8 @@
 
 import {authConfig} from "./Auth";
 import * as Setting from "../Setting";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {LegacyAny, LegacyRecord} from "./AuthCoreTypes";
 
 export function getAccount(query = "") {
   return fetch(`${authConfig.serverUrl}/api/get-account${query}`, {
@@ -25,7 +27,7 @@ export function getAccount(query = "") {
   }).then(res => res.json());
 }
 
-export function signup(values, oAuthParams) {
+export function signup(values: LegacyRecord, oAuthParams: LegacyAny) {
   return fetch(`${authConfig.serverUrl}/api/signup${oAuthParamsToQuery(oAuthParams)}`, {
     method: "POST",
     credentials: "include",
@@ -36,7 +38,7 @@ export function signup(values, oAuthParams) {
   }).then(res => res.json());
 }
 
-export function getEmailAndPhone(organization, username) {
+export function getEmailAndPhone(organization: LegacyAny, username: LegacyAny) {
   return fetch(`${authConfig.serverUrl}/api/get-email-and-phone?organization=${organization}&username=${encodeURIComponent(username)}`, {
     method: "GET",
     credentials: "include",
@@ -46,11 +48,11 @@ export function getEmailAndPhone(organization, username) {
   }).then((res) => res.json());
 }
 
-export function casLoginParamsToQuery(casParams) {
+export function casLoginParamsToQuery(casParams: LegacyAny) {
   return `?type=${casParams?.type}&id=${casParams?.id}&redirectUri=${casParams?.service}`;
 }
 
-export function oAuthParamsToQuery(oAuthParams) {
+export function oAuthParamsToQuery(oAuthParams: LegacyAny) {
   // login
   if (oAuthParams === null || oAuthParams === undefined) {
     return "";
@@ -67,7 +69,7 @@ export function oAuthParamsToQuery(oAuthParams) {
   return `?clientId=${oAuthParams.clientId}&responseType=${oAuthParams.responseType}&redirectUri=${encodeURIComponent(oAuthParams.redirectUri)}&type=${oAuthParams.type}&scope=${oAuthParams.scope}&state=${oAuthParams.state}&nonce=${oAuthParams.nonce}&code_challenge_method=${oAuthParams.challengeMethod}&code_challenge=${oAuthParams.codeChallenge}${resourceQuery}${organizationQuery}`;
 }
 
-export function getApplicationLogin(params) {
+export function getApplicationLogin(params: LegacyAny) {
   let queryParams = "";
   if (params?.type === "cas") {
     queryParams = casLoginParamsToQuery(params);
@@ -85,7 +87,7 @@ export function getApplicationLogin(params) {
   }).then(res => res.json());
 }
 
-export function login(values, oAuthParams) {
+export function login(values: LegacyRecord, oAuthParams: LegacyAny) {
   return fetch(`${authConfig.serverUrl}/api/login${oAuthParamsToQuery(oAuthParams)}`, {
     method: "POST",
     credentials: "include",
@@ -96,7 +98,7 @@ export function login(values, oAuthParams) {
   }).then(res => res.json());
 }
 
-export function loginCas(values, params) {
+export function loginCas(values: LegacyRecord, params: LegacyAny) {
   return fetch(`${authConfig.serverUrl}/api/login?service=${params.service}`, {
     method: "POST",
     credentials: "include",
@@ -117,7 +119,7 @@ export function logout() {
   }).then(res => res.json());
 }
 
-export function unlink(values) {
+export function unlink(values: LegacyRecord) {
   return fetch(`${authConfig.serverUrl}/api/unlink`, {
     method: "POST",
     credentials: "include",
@@ -128,7 +130,7 @@ export function unlink(values) {
   }).then(res => res.json());
 }
 
-export function getSamlLogin(providerId, relayState) {
+export function getSamlLogin(providerId: LegacyAny, relayState: LegacyAny) {
   return fetch(`${authConfig.serverUrl}/api/get-saml-login?id=${providerId}&relayState=${relayState}`, {
     method: "GET",
     credentials: "include",
@@ -138,7 +140,7 @@ export function getSamlLogin(providerId, relayState) {
   }).then(res => res.json());
 }
 
-export function loginWithSaml(values, param) {
+export function loginWithSaml(values: LegacyRecord, param: LegacyAny) {
   return fetch(`${authConfig.serverUrl}/api/login${param}`, {
     method: "POST",
     credentials: "include",
@@ -149,7 +151,7 @@ export function loginWithSaml(values, param) {
   }).then(res => res.json());
 }
 
-export function createWecomProfileConsentLoginIntent(values) {
+export function createWecomProfileConsentLoginIntent(values: LegacyRecord) {
   return fetch(`${authConfig.serverUrl}/api/wecom-profile-consent/login-intents`, {
     method: "POST",
     credentials: "include",
@@ -161,7 +163,7 @@ export function createWecomProfileConsentLoginIntent(values) {
   }).then(res => res.json());
 }
 
-export function createWecomProfileConsentProfileSyncIntent(values) {
+export function createWecomProfileConsentProfileSyncIntent(values: LegacyRecord) {
   return fetch(`${authConfig.serverUrl}/api/wecom-profile-consent/profile-sync-intents`, {
     method: "POST",
     credentials: "include",
@@ -173,7 +175,7 @@ export function createWecomProfileConsentProfileSyncIntent(values) {
   }).then(res => res.json());
 }
 
-export function getWecomProfileConsentIntentStatus(intentId, pollToken) {
+export function getWecomProfileConsentIntentStatus(intentId: string, pollToken: string) {
   return fetch(`${authConfig.serverUrl}/api/wecom-profile-consent/intents/${encodeURIComponent(intentId)}`, {
     method: "GET",
     credentials: "include",
@@ -184,7 +186,7 @@ export function getWecomProfileConsentIntentStatus(intentId, pollToken) {
   }).then(res => res.json());
 }
 
-export function completeWecomProfileConsentLoginIntent(intentId, pollToken, values = {}) {
+export function completeWecomProfileConsentLoginIntent(intentId: string, pollToken: string, values: LegacyRecord = {}) {
   return fetch(`${authConfig.serverUrl}/api/wecom-profile-consent/intents/${encodeURIComponent(intentId)}/complete`, {
     method: "POST",
     credentials: "include",
@@ -197,7 +199,7 @@ export function completeWecomProfileConsentLoginIntent(intentId, pollToken, valu
   }).then(res => res.json());
 }
 
-export function getWechatMessageEvent(ticket) {
+export function getWechatMessageEvent(ticket: LegacyAny) {
   return fetch(`${Setting.ServerUrl}/api/get-webhook-event?ticket=${ticket}`, {
     method: "GET",
     credentials: "include",
@@ -207,7 +209,7 @@ export function getWechatMessageEvent(ticket) {
   }).then(res => res.json());
 }
 
-export function getWechatQRCode(providerId) {
+export function getWechatQRCode(providerId: LegacyAny) {
   return fetch(`${Setting.ServerUrl}/api/get-qrcode?id=${providerId}`, {
     method: "GET",
     credentials: "include",
@@ -217,7 +219,7 @@ export function getWechatQRCode(providerId) {
   }).then(res => res.json());
 }
 
-export function getCaptchaStatus(values) {
+export function getCaptchaStatus(values: LegacyRecord) {
   return fetch(`${Setting.ServerUrl}/api/get-captcha-status?organization=${values["organization"]}&userId=${values["username"]}&application=${values["application"]}`, {
     method: "GET",
     credentials: "include",

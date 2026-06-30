@@ -19,12 +19,17 @@ import {getWechatMessageEvent} from "./AuthBackend";
 import * as Setting from "../Setting";
 import * as Provider from "./Provider";
 import * as AuthBackend from "./AuthBackend";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {AuthApplication, AuthProvider, OAuthParams} from "./AuthTypes";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {LegacyAny} from "./AuthCoreTypes";
 
 const ShortOAuthStatePrefix = "casdoorOauth";
 const ShortOAuthStateStoragePrefix = "casdoor.oauth.shortState.";
 const ShortOAuthStateTtl = 10 * 60 * 1000;
+const t = i18next.t as (key: string) => string;
 
-function getBrowserStorage(name) {
+function getBrowserStorage(name: "sessionStorage" | "localStorage"): Storage | null {
   try {
     return window?.[name] ?? null;
   } catch {
@@ -52,11 +57,11 @@ function generateShortOAuthState() {
   return token;
 }
 
-function isGeneratedShortOAuthState(state) {
+function isGeneratedShortOAuthState(state: string) {
   return typeof state === "string" && state.startsWith(ShortOAuthStatePrefix);
 }
 
-function storeShortOAuthState(state, query) {
+function storeShortOAuthState(state: string, query: string) {
   const session = getBrowserStorage("sessionStorage");
   const local = getBrowserStorage("localStorage");
 
@@ -76,7 +81,7 @@ function storeShortOAuthState(state, query) {
   }
 }
 
-function getStoredShortOAuthState(state) {
+function getStoredShortOAuthState(state: string): string | null {
   const session = getBrowserStorage("sessionStorage");
   const local = getBrowserStorage("localStorage");
 
@@ -106,18 +111,18 @@ function getStoredShortOAuthState(state) {
   }
 }
 
-export function renderMessage(msg) {
+export function renderMessage(msg: string | null) {
   if (msg !== null) {
     return (
       <div style={{display: "inline"}}>
         <Alert
-          message={i18next.t("application:Failed to sign in")}
+          message={t("application:Failed to sign in")}
           showIcon
           description={msg}
           type="error"
           action={
             <Button size="small" type="primary" danger>
-              {i18next.t("general:Detail")}
+              {t("general:Detail")}
             </Button>
           }
         />
@@ -128,19 +133,19 @@ export function renderMessage(msg) {
   }
 }
 
-export function renderMessageLarge(ths, msg) {
+export function renderMessageLarge(ths: LegacyAny, msg: string | null) {
   if (msg !== null) {
     return (
       <Result
         style={{margin: "0px auto"}}
         status="error"
-        title={i18next.t("general:There was a problem signing you in..")}
+        title={t("general:There was a problem signing you in..")}
         subTitle={msg}
         extra={[
           <Button type="primary" key="back" onClick={() => {
             window.history.go(-2);
           }}>
-            {i18next.t("general:Back")}
+            {t("general:Back")}
           </Button>,
         ]}
       >
@@ -151,11 +156,11 @@ export function renderMessageLarge(ths, msg) {
   }
 }
 
-function getRefinedValue(value) {
+function getRefinedValue(value: string | null | undefined) {
   return value ?? "";
 }
 
-export function getCasParameters(params) {
+export function getCasParameters(params?: URLSearchParams) {
   const queries = (params !== undefined) ? params : new URLSearchParams(window.location.search);
   const service = getRefinedValue(queries.get("service"));
   const renew = getRefinedValue(queries.get("renew"));
@@ -167,7 +172,7 @@ export function getCasParameters(params) {
   };
 }
 
-function getRawGetParameter(key) {
+function getRawGetParameter(key: string) {
   const fullUrl = window.location.href;
   const token = fullUrl.split(`${key}=`)[1];
   if (!token) {
@@ -183,7 +188,7 @@ function getRawGetParameter(key) {
   return res;
 }
 
-export function getCasLoginParameters(owner, name) {
+export function getCasLoginParameters(owner: LegacyAny, name: LegacyAny) {
   const queries = new URLSearchParams(window.location.search);
   // CAS service
   let service = getRawGetParameter("service");
@@ -197,10 +202,10 @@ export function getCasLoginParameters(owner, name) {
   };
 }
 
-export function getOAuthGetParameters(params) {
+export function getOAuthGetParameters(params?: URLSearchParams): OAuthParams | null {
   const queries = (params !== undefined) ? params : new URLSearchParams(window.location.search);
-  const lowercaseQueries = {};
-  queries.forEach((val, key) => {lowercaseQueries[key.toLowerCase()] = val;});
+  const lowercaseQueries: Record<string, string> = {};
+  queries.forEach((val: string, key: string) => {lowercaseQueries[key.toLowerCase()] = val;});
 
   const clientId = getRefinedValue(queries.get("client_id"));
   const responseType = getRefinedValue(queries.get("response_type"));
@@ -255,7 +260,7 @@ export function getOAuthGetParameters(params) {
   }
 }
 
-export function getStateFromQueryParams(applicationName, providerName, method, isShortState) {
+export function getStateFromQueryParams(applicationName: LegacyAny, providerName: LegacyAny, method: LegacyAny, isShortState: boolean) {
   let query = window.location.search;
   query = `${query}&application=${encodeURIComponent(applicationName)}&provider=${encodeURIComponent(providerName)}&method=${method}`;
   if (method === "link") {
@@ -271,7 +276,10 @@ export function getStateFromQueryParams(applicationName, providerName, method, i
   }
 }
 
-export function getQueryParamsFromState(state) {
+export function getQueryParamsFromState(state: LegacyAny) {
+  if (state === null) {
+    return "";
+  }
   const query = getStoredShortOAuthState(state);
   if (query !== null) {
     return query;
@@ -284,17 +292,17 @@ export function getQueryParamsFromState(state) {
   return atob(state);
 }
 
-export function getEvent(application, provider, ticket, method) {
+export function getEvent(application: AuthApplication | undefined, provider: AuthProvider, ticket: string, method?: string) {
   getWechatMessageEvent(ticket)
     .then(res => {
       if (res.data === "SCAN" || res.data === "subscribe") {
         const code = res?.data2;
-        Setting.goToLink(Provider.getAuthUrl(application, provider, method ?? "signup", code));
+        Setting.goToLink(Provider.getAuthUrl(application ?? null, provider, method ?? "signup", code));
       }
     });
 }
 
-export async function WechatOfficialAccountModal(application, provider, method) {
+export async function WechatOfficialAccountModal(application: AuthApplication | undefined, provider: AuthProvider, method?: string) {
   AuthBackend.getWechatQRCode(`${provider.owner}/${provider.name}`).then(
     async res => {
       if (res.status !== "ok") {
@@ -305,7 +313,7 @@ export async function WechatOfficialAccountModal(application, provider, method) 
       const t1 = setInterval(await getEvent, 1000, application, provider, res.data2, method);
       {
         Modal.info({
-          title: i18next.t("provider:Please use WeChat to scan the QR code and follow the official account for sign in"),
+          title: t("provider:Please use WeChat to scan the QR code and follow the official account for sign in"),
           content: (
             <div style={{marginRight: "34px"}}>
               <QRCode style={{padding: "20px", margin: "auto"}} bordered={false} value={res.data} size={230} />

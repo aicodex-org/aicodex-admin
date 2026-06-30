@@ -22,24 +22,49 @@ import MfaVerifySmsForm from "./MfaVerifySmsForm";
 import MfaVerifyTotpForm from "./MfaVerifyTotpForm";
 import MfaVerifyRadiusForm from "./MfaVerifyRadiusForm";
 import MfaVerifyPushForm from "./MfaVerifyPushForm";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {LegacyAny, LegacyRecord} from "../AuthCoreTypes";
 
 export const mfaAuth = "mfaAuth";
 export const mfaSetup = "mfaSetup";
 
-export function MfaVerifyForm({mfaProps, application, user, onSuccess, onFail}) {
+export interface MfaProps extends LegacyRecord {
+  mfaType?: string;
+  secret?: string;
+  countryCode?: string;
+  mfaRememberInHours?: string | number;
+}
+
+export interface MfaVerifyChildProps {
+  mfaProps?: MfaProps | null;
+  application?: LegacyAny;
+  user?: LegacyRecord;
+  method?: string;
+  onFinish: (values: LegacyRecord) => void;
+}
+
+interface MfaVerifyFormProps {
+  mfaProps?: MfaProps | null;
+  application?: LegacyAny;
+  user?: LegacyRecord | null;
+  onSuccess: (res: LegacyAny) => void;
+  onFail: (res: LegacyAny) => void;
+}
+
+export function MfaVerifyForm({mfaProps, application, user, onSuccess, onFail}: MfaVerifyFormProps) {
   const [form] = Form.useForm();
-  const onFinish = ({passcode, countryCode, dest}) => {
-    if (mfaProps.mfaType === "radius") {
-      const radiusProvider = application.providers.find(el => el.provider.type === "RADIUS")?.provider;
+  const onFinish = ({passcode, countryCode, dest}: LegacyRecord) => {
+    if (mfaProps?.mfaType === "radius") {
+      const radiusProvider = application.providers.find((el: LegacyAny) => el.provider.type === "RADIUS")?.provider;
       mfaProps.secret = `${radiusProvider.owner}/${radiusProvider.name}`;
     }
-    if (mfaProps.mfaType === "push") {
-      const pushProvider = application.providers.find(el => el.provider.category === "Notification")?.provider;
+    if (mfaProps?.mfaType === "push") {
+      const pushProvider = application.providers.find((el: LegacyAny) => el.provider.category === "Notification")?.provider;
       if (pushProvider) {
         mfaProps.secret = `${pushProvider.owner}/${pushProvider.name}`;
       }
     }
-    const data = {passcode, mfaType: mfaProps.mfaType, secret: mfaProps.secret, dest: dest, countryCode: countryCode, ...user};
+    const data = {passcode, mfaType: mfaProps?.mfaType, secret: mfaProps?.secret, dest: dest, countryCode: countryCode, ...user};
     MfaBackend.MfaSetupVerify(data)
       .then((res) => {
         if (res.status === "ok") {

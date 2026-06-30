@@ -1,18 +1,19 @@
 /* eslint-env jest */
+import {expect} from "@jest/globals";
 
 import {
   getQueryParamsFromState,
-  getStateFromQueryParams,
+  getStateFromQueryParams
 } from "./Util";
 
 describe("OAuth state utilities", () => {
-  let originalCrypto;
+  let originalCrypto: Crypto;
 
   beforeEach(() => {
     originalCrypto = window.crypto;
     Object.defineProperty(window, "crypto", {
       value: {
-        getRandomValues: array => {
+        getRandomValues: (array: Uint8Array) => {
           array.fill(1);
           return array;
         },

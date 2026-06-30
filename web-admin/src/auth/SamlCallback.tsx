@@ -22,9 +22,13 @@ import * as Conf from "../Conf";
 import i18next from "i18next";
 import {authConfig} from "./Auth";
 import {renderLoginPanel} from "../Setting";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {LegacyAny} from "./AuthCoreTypes";
 
-class SamlCallback extends React.Component {
-  constructor(props) {
+const t = i18next.t as (key: string) => string;
+
+class SamlCallback extends React.Component<LegacyAny, LegacyAny> {
+  constructor(props: LegacyAny) {
     super(props);
     this.state = {
       classes: props,
@@ -32,7 +36,7 @@ class SamlCallback extends React.Component {
     };
   }
 
-  getResponseType(redirectUri) {
+  getResponseType(redirectUri: string) {
     const authServerUrl = authConfig.serverUrl;
     // aicodex-admin's own login page, so "code" is not necessary
     if (redirectUri === "null") {
@@ -52,7 +56,7 @@ class SamlCallback extends React.Component {
     const relayState = params.get("relayState");
     const samlResponse = params.get("samlResponse");
 
-    const messages = atob(relayState).split("&");
+    const messages = atob(relayState ?? "").split("&");
     const clientId = messages[0] === "" ? "" : messages[0];
     const application = messages[0] === "" ? Conf.DefaultApplication : "";
     const state = messages[1];
@@ -69,7 +73,7 @@ class SamlCallback extends React.Component {
       redirectUri: `${window.location.origin}/callback`,
       method: "signup",
       relayState: relayState,
-      samlResponse: encodeURIComponent(samlResponse),
+      samlResponse: encodeURIComponent(samlResponse ?? ""),
     };
 
     let param;
@@ -83,7 +87,7 @@ class SamlCallback extends React.Component {
       .then((res) => {
         if (res.status === "ok") {
           const responseType = this.getResponseType(redirectUri);
-          const handleLogin = (res2) => {
+          const handleLogin = (res2: LegacyAny) => {
             if (responseType === "login") {
               Setting.showMessage("success", "Logged in successfully");
               Setting.goToLink("/");
@@ -114,14 +118,14 @@ class SamlCallback extends React.Component {
   render() {
     if (this.state.getVerifyTotp !== undefined) {
       const application = Setting.getApplicationObj(this);
-      return renderLoginPanel(application, this.state.getVerifyTotp, this, window.location.origin);
+      return (renderLoginPanel as LegacyAny)(application, this.state.getVerifyTotp, this, window.location.origin);
     }
 
     return (
       <div style={{display: "flex", justifyContent: "center", alignItems: "center"}}>
         {
           (this.state.msg === null) ? (
-            <Spin size="large" tip={i18next.t("login:Signing in...")} style={{paddingTop: "10%"}} />
+            <Spin size="large" tip={t("login:Signing in...")} style={{paddingTop: "10%"}} />
           ) : (
             Util.renderMessageLarge(this, this.state.msg)
           )
@@ -130,4 +134,5 @@ class SamlCallback extends React.Component {
     );
   }
 }
-export default withRouter(SamlCallback);
+const SamlCallbackWithRouter = withRouter(SamlCallback as LegacyAny) as LegacyAny;
+export default SamlCallbackWithRouter;

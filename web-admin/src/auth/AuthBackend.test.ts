@@ -1,4 +1,5 @@
 /* eslint-env jest */
+import {expect, jest} from "@jest/globals";
 import {initAuthWithConfig} from "./Auth";
 import {
   completeWecomProfileConsentLoginIntent,
@@ -12,12 +13,18 @@ jest.mock("../Setting", () => ({
   getAcceptLanguage: () => "en",
 }));
 
+type MockedFetch = typeof fetch & {
+  mock: {
+    calls: Array<[string, RequestInit]>;
+  };
+};
+
 describe("WeCom profile consent AuthBackend", () => {
   beforeEach(() => {
     initAuthWithConfig({serverUrl: "https://door.example.com"});
     global.fetch = jest.fn(() => Promise.resolve({
       json: () => Promise.resolve({status: "ok"}),
-    }));
+    })) as unknown as typeof fetch;
   });
 
   afterEach(() => {
@@ -78,7 +85,7 @@ describe("WeCom profile consent AuthBackend", () => {
   test("polls an intent by header without putting pollToken in the URL", async() => {
     await getWecomProfileConsentIntentStatus("intent-1", "poll-token-1");
 
-    const [url, options] = global.fetch.mock.calls[0];
+    const [url, options] = (global.fetch as MockedFetch).mock.calls[0];
     expect(url).toBe("https://door.example.com/api/wecom-profile-consent/intents/intent-1");
     expect(url).not.toContain("poll-token-1");
     expect(options.headers).toEqual(expect.objectContaining({
@@ -93,7 +100,7 @@ describe("WeCom profile consent AuthBackend", () => {
       passcode: "123456",
     });
 
-    const [url, options] = global.fetch.mock.calls[0];
+    const [url, options] = (global.fetch as MockedFetch).mock.calls[0];
     expect(url).toBe("https://door.example.com/api/wecom-profile-consent/intents/intent-1/complete");
     expect(url).not.toContain("poll-token-1");
     expect(options.headers).toEqual(expect.objectContaining({
@@ -101,7 +108,7 @@ describe("WeCom profile consent AuthBackend", () => {
       "Content-Type": "application/json",
       "X-WeCom-Profile-Consent-Poll-Token": "poll-token-1",
     }));
-    expect(JSON.parse(options.body)).toEqual({
+    expect(JSON.parse(options.body as string)).toEqual({
       mfaType: "totp",
       passcode: "123456",
     });

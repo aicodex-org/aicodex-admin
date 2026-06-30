@@ -43,11 +43,19 @@ import {CountryCodeSelect} from "../common/select/CountryCodeSelect";
 import {getSigninLanguageOverride} from "./LoginLanguage";
 import {getSigninMethodChoiceItems} from "./SigninMethodChoice";
 import {getLoginPanelClassName, shouldHidePasswordRecoveryForLoginMethod} from "./LoginPageVisibility";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {LegacyAny, LegacyRecord} from "./AuthCoreTypes";
 const FaceRecognitionCommonModal = lazy(() => import("../common/modal/FaceRecognitionCommonModal"));
 const FaceRecognitionModal = lazy(() => import("../common/modal/FaceRecognitionModal"));
+const t = i18next.t as (key: string) => string;
+const LegacySendCodeInput = SendCodeInput as React.ComponentType<LegacyAny>;
+const LegacyGoogleOneTapLoginVirtualButton = GoogleOneTapLoginVirtualButton as React.ComponentType<LegacyAny>;
 
-export class LoginPage extends React.Component {
-  constructor(props) {
+export class LoginPage extends React.Component<LegacyAny, LegacyAny> {
+  captchaRef: React.RefObject<LegacyAny>;
+  form: React.RefObject<LegacyAny>;
+
+  constructor(props: LegacyAny) {
     super(props);
     this.captchaRef = React.createRef();
     const urlParams = new URLSearchParams(this.props.location?.search);
@@ -78,8 +86,8 @@ export class LoginPage extends React.Component {
     };
 
     if (this.state.type === "cas" && props.match?.params.casApplicationName !== undefined) {
-      this.state.owner = props.match?.params?.owner;
-      this.state.applicationName = props.match?.params?.casApplicationName;
+      (this.state as LegacyAny).owner = props.match?.params?.owner;
+      (this.state as LegacyAny).applicationName = props.match?.params?.casApplicationName;
     }
 
     localStorage.setItem("signinUrl", window.location.pathname + window.location.search);
@@ -92,8 +100,8 @@ export class LoginPage extends React.Component {
     this.captchaRef.current?.loadCaptcha?.();
   }
 
-  isInlineCaptchaEnabled(application = this.getApplicationObj()) {
-    return application?.signinItems?.some(signinItem => signinItem.name === "Captcha" && signinItem.rule === "inline");
+  isInlineCaptchaEnabled(application: LegacyAny = this.getApplicationObj()) {
+    return application?.signinItems?.some((signinItem: LegacyAny) => signinItem.name === "Captcha" && signinItem.rule === "inline");
   }
 
   componentDidMount() {
@@ -103,12 +111,12 @@ export class LoginPage extends React.Component {
       } else if (this.state.type === "code" || this.state.type === "cas" || this.state.type === "device") {
         this.getApplicationLogin();
       } else {
-        Setting.showMessage("error", `${i18next.t("general:Unknown authentication type")}: ${this.state.type}`);
+        Setting.showMessage("error", `${t("general:Unknown authentication type")}: ${this.state.type}`);
       }
     }
   }
 
-  componentDidUpdate(prevProps, prevState, snapshot) {
+  componentDidUpdate(prevProps: LegacyAny, prevState: LegacyAny, snapshot: LegacyAny) {
     if (prevState.loginMethod === undefined && this.state.loginMethod === undefined) {
       const application = this.getApplicationObj();
       this.setState({loginMethod: this.getDefaultLoginMethod(application)});
@@ -127,7 +135,7 @@ export class LoginPage extends React.Component {
         if (silentSignin !== null) {
           this.sendSilentSigninData("signing-in");
 
-          const values = {};
+          const values: LegacyRecord = {};
           values["application"] = this.props.application.name;
           this.login(values);
         }
@@ -139,7 +147,7 @@ export class LoginPage extends React.Component {
         }
 
         if (this.props.application.enableAutoSignin && silentSignin === null) {
-          const values = {};
+          const values: LegacyRecord = {};
           values["application"] = this.props.application.name;
           this.login(values);
         }
@@ -147,14 +155,14 @@ export class LoginPage extends React.Component {
     }
   }
 
-  getCaptchaRule(application) {
+  getCaptchaRule(application: LegacyAny) {
     const captchaProviderItems = this.getCaptchaProviderItems(application);
     if (captchaProviderItems) {
-      if (captchaProviderItems.some(providerItem => providerItem.rule === "Always")) {
+      if (captchaProviderItems.some((providerItem: LegacyAny) => providerItem.rule === "Always")) {
         return CaptchaRule.Always;
-      } else if (captchaProviderItems.some(providerItem => providerItem.rule === "Dynamic")) {
+      } else if (captchaProviderItems.some((providerItem: LegacyAny) => providerItem.rule === "Dynamic")) {
         return CaptchaRule.Dynamic;
-      } else if (captchaProviderItems.some(providerItem => providerItem.rule === "Internet-Only")) {
+      } else if (captchaProviderItems.some((providerItem: LegacyAny) => providerItem.rule === "Internet-Only")) {
         return CaptchaRule.InternetOnly;
       } else {
         return CaptchaRule.Never;
@@ -162,7 +170,7 @@ export class LoginPage extends React.Component {
     }
   }
 
-  checkCaptchaStatus(values) {
+  checkCaptchaStatus(values: LegacyRecord) {
     AuthBackend.getCaptchaStatus(values)
       .then((res) => {
         if (res.status === "ok") {
@@ -227,10 +235,10 @@ export class LoginPage extends React.Component {
       OrganizationBackend.getDefaultApplication("admin", this.state.owner)
         .then((res) => {
           if (res.status === "ok") {
-            const application = res.data;
+            const application = res.data as LegacyAny;
             this.onUpdateApplication(application);
             this.setState({
-              applicationName: res.data.name,
+              applicationName: application.name,
             });
           } else {
             this.onUpdateApplication(null);
@@ -246,7 +254,7 @@ export class LoginPage extends React.Component {
     return this.props.application;
   }
 
-  getDefaultLoginMethod(application) {
+  getDefaultLoginMethod(application: LegacyAny) {
     if (application?.signinMethods?.length > 0) {
       switch (application?.signinMethods[0].name) {
       case "Password": return "password";
@@ -286,25 +294,25 @@ export class LoginPage extends React.Component {
     }
   }
 
-  getPlaceholder(defaultPlaceholder = null) {
+  getPlaceholder(defaultPlaceholder: string | null = null) {
     if (defaultPlaceholder) {
       return defaultPlaceholder;
     }
     switch (this.state.loginMethod) {
-    case "verificationCode": return i18next.t("login:Email or phone");
-    case "verificationCodeEmail": return i18next.t("general:Email");
-    case "verificationCodePhone": return i18next.t("general:Phone");
-    case "ldap": return i18next.t("login:LDAP username, Email or phone");
-    default: return i18next.t("login:username, Email or phone");
+    case "verificationCode": return t("login:Email or phone");
+    case "verificationCodeEmail": return t("general:Email");
+    case "verificationCodePhone": return t("general:Phone");
+    case "ldap": return t("login:LDAP username, Email or phone");
+    default: return t("login:username, Email or phone");
     }
   }
 
-  onUpdateAccount(account) {
-    this.props.onUpdateAccount(account);
+  onUpdateAccount(account: LegacyAny) {
+    this.props.onUpdateAccount?.(account);
   }
 
-  onUpdateApplication(application) {
-    this.props.onUpdateApplication(application);
+  onUpdateApplication(application: LegacyAny) {
+    this.props.onUpdateApplication?.(application);
     if (application === null) {
       return;
     }
@@ -317,7 +325,7 @@ export class LoginPage extends React.Component {
     }
   }
 
-  parseOffset(offset) {
+  parseOffset(offset: LegacyAny) {
     if (offset === 2 || offset === 4 || Setting.inIframe() || Setting.isMobile()) {
       return "0 auto";
     }
@@ -329,7 +337,7 @@ export class LoginPage extends React.Component {
     }
   }
 
-  populateOauthValues(values) {
+  populateOauthValues(values: LegacyRecord) {
     if (this.getApplicationObj()?.organization) {
       values["organization"] = this.getApplicationObj().organization;
     }
@@ -349,17 +357,17 @@ export class LoginPage extends React.Component {
     }
   }
 
-  sendPopupData(message, redirectUri) {
+  sendPopupData(message: LegacyAny, redirectUri: LegacyAny) {
     const params = new URLSearchParams(this.props.location.search);
     if (params.get("popup") === "1") {
       window.opener.postMessage(message, redirectUri);
     }
   }
 
-  postCodeLoginAction(resp) {
+  postCodeLoginAction(resp: LegacyAny) {
     const application = this.getApplicationObj();
     const ths = this;
-    const oAuthParams = Util.getOAuthGetParameters();
+    const oAuthParams = Util.getOAuthGetParameters() as LegacyAny;
     const code = resp.data;
     const concatChar = oAuthParams?.redirectUri?.includes("?") ? "&" : "?";
     const noRedirect = oAuthParams.noRedirect;
@@ -396,7 +404,7 @@ export class LoginPage extends React.Component {
               Setting.goToLinkSoft(ths, `/prompt/${application.name}?redirectUri=${oAuthParams.redirectUri}&code=${code}&state=${oAuthParams.state}`);
             }
           } else {
-            Setting.showMessage("error", `${i18next.t("application:Failed to sign in")}: ${res.msg}`);
+            Setting.showMessage("error", `${t("application:Failed to sign in")}: ${res.msg}`);
           }
         });
     } else {
@@ -455,8 +463,8 @@ export class LoginPage extends React.Component {
     };
   }
 
-  handleCasLoginResponse(res, values, casParams, shouldRefreshCaptcha = false) {
-    const loginHandler = (res) => {
+  handleCasLoginResponse(res: LegacyAny, values: LegacyRecord, casParams: LegacyAny, shouldRefreshCaptcha = false) {
+    const loginHandler = (res: LegacyAny) => {
       let msg = "Logged in successfully. ";
       if (casParams.service === "") {
         // If service was not specified, aicodex-admin must display a message notifying the client that it has successfully initiated a single sign-on session.
@@ -475,15 +483,15 @@ export class LoginPage extends React.Component {
     if (res.status === "ok") {
       Setting.checkLoginMfa(res, values, casParams, loginHandler, this);
     } else {
-      Setting.showMessage("error", `${i18next.t("application:Failed to sign in")}: ${res.msg}`);
+      Setting.showMessage("error", `${t("application:Failed to sign in")}: ${res.msg}`);
       if (shouldRefreshCaptcha) {
         this.refreshInlineCaptcha();
       }
     }
   }
 
-  handleOAuthLoginResponse(res, values, oAuthParams, shouldRefreshCaptcha = false) {
-    const loginHandler = (res) => {
+  handleOAuthLoginResponse(res: LegacyAny, values: LegacyRecord, oAuthParams: LegacyAny, shouldRefreshCaptcha = false) {
+    const loginHandler = (res: LegacyAny) => {
       const responseType = values["type"];
       const responseTypes = responseType.split(" ");
       const responseMode = oAuthParams?.responseMode || "query";
@@ -493,7 +501,7 @@ export class LoginPage extends React.Component {
           Setting.goToLinkSoft(this, "/account");
           return;
         }
-        Setting.showMessage("success", i18next.t("application:Logged in successfully"));
+        Setting.showMessage("success", t("application:Logged in successfully"));
         this.props.onLoginSuccess();
       } else if (responseType === "code") {
         this.postCodeLoginAction(res);
@@ -548,15 +556,15 @@ export class LoginPage extends React.Component {
     if (res.status === "ok") {
       Setting.checkLoginMfa(res, values, oAuthParams, loginHandler, this);
     } else {
-      Setting.showMessage("error", `${i18next.t("application:Failed to sign in")}: ${res.msg}`);
+      Setting.showMessage("error", `${t("application:Failed to sign in")}: ${res.msg}`);
       if (shouldRefreshCaptcha) {
         this.refreshInlineCaptcha();
       }
     }
   }
 
-  handleWeComProfileConsentLoginResponse(res) {
-    const values = {
+  handleWeComProfileConsentLoginResponse(res: LegacyAny) {
+    const values: LegacyRecord = {
       language: this.state.userLang ?? "",
     };
 
@@ -572,7 +580,7 @@ export class LoginPage extends React.Component {
     this.handleOAuthLoginResponse(res, values, oAuthParams);
   }
 
-  onFinish(values) {
+  onFinish(values: LegacyRecord) {
     this.setState({loginLoading: true});
     if (this.state.loginMethod === "webAuthn") {
       let username = this.state.username;
@@ -646,7 +654,7 @@ export class LoginPage extends React.Component {
     this.login(values);
   }
 
-  login(values) {
+  login(values: LegacyRecord) {
     // here we are supposed to determine whether aicodex-admin is working as an OAuth server or CAS server
     values["language"] = this.state.userLang ?? "";
     const usedCaptcha = this.state.captchaValues !== undefined;
@@ -676,7 +684,7 @@ export class LoginPage extends React.Component {
     }
   }
 
-  isProviderVisible(providerItem) {
+  isProviderVisible(providerItem: LegacyAny) {
     if (this.state.mode === "signup") {
       return Setting.isProviderVisibleForSignUp(providerItem);
     } else {
@@ -684,7 +692,7 @@ export class LoginPage extends React.Component {
     }
   }
 
-  renderOtherFormProvider(application) {
+  renderOtherFormProvider(application: LegacyAny) {
     if (Setting.inIframe()) {
       return null;
     }
@@ -692,7 +700,7 @@ export class LoginPage extends React.Component {
     for (const providerConf of application.providers) {
       if (providerConf.provider?.type === "Google" && providerConf.rule === "OneTap" && this.props.preview !== "auto") {
         return (
-          <GoogleOneTapLoginVirtualButton application={application} providerConf={providerConf} />
+          <LegacyGoogleOneTapLoginVirtualButton application={application} providerConf={providerConf} />
         );
       }
     }
@@ -700,7 +708,7 @@ export class LoginPage extends React.Component {
     return null;
   }
 
-  switchLoginOrganization(name) {
+  switchLoginOrganization(name: string) {
     const searchParams = new URLSearchParams(window.location.search);
 
     const clientId = searchParams.get("client_id");
@@ -725,7 +733,7 @@ export class LoginPage extends React.Component {
     Setting.goToLink(`/login/${name}?${searchParams.toString()}`);
   }
 
-  renderFormItem(application, signinItem) {
+  renderFormItem(application: LegacyAny, signinItem: LegacyAny) {
     if (!signinItem.visible && signinItem.name !== "Forgot password?") {
       return null;
     }
@@ -781,7 +789,7 @@ export class LoginPage extends React.Component {
             application={application}
             loginMethod={this.state.loginMethod}
             getLoginContext={() => this.getWeComProfileConsentLoginContext()}
-            onLoginResponse={(res) => this.handleWeComProfileConsentLoginResponse(res)}
+            onLoginResponse={(res: LegacyAny) => this.handleWeComProfileConsentLoginResponse(res)}
           />
         );
       }
@@ -795,7 +803,7 @@ export class LoginPage extends React.Component {
               rules={[
                 {
                   required: true,
-                  message: i18next.t("signup:Please select your country code!"),
+                  message: t("signup:Please select your country code!"),
                 },
               ]}
             >
@@ -811,7 +819,7 @@ export class LoginPage extends React.Component {
               rules={[
                 {
                   required: true,
-                  message: i18next.t("signup:Please input your phone number!"),
+                  message: t("signup:Please input your phone number!"),
                 },
                 ({getFieldValue}) => ({
                   validator: (_, value) => {
@@ -821,7 +829,7 @@ export class LoginPage extends React.Component {
 
                     if (value && !Setting.isValidPhone(value, getFieldValue("countryCode"))) {
                       this.setState({validEmailOrPhone: false});
-                      return Promise.reject(i18next.t("signup:The input is not valid Phone!"));
+                      return Promise.reject(t("signup:The input is not valid Phone!"));
                     }
 
                     this.setState({validEmailOrPhone: true});
@@ -851,18 +859,18 @@ export class LoginPage extends React.Component {
             rules={[
               {
                 required: this.state.loginMethod !== "webAuthn",
-                message: () => {
+                message: (() => {
                   switch (this.state.loginMethod) {
                   case "verificationCodeEmail":
-                    return i18next.t("login:Please input your Email!");
+                    return t("login:Please input your Email!");
                   case "verificationCodePhone":
-                    return i18next.t("login:Please input your Phone!");
+                    return t("login:Please input your Phone!");
                   case "ldap":
-                    return i18next.t("login:Please input your LDAP username!");
+                    return t("login:Please input your LDAP username!");
                   default:
-                    return i18next.t("login:Please input your Email or Phone!");
+                    return t("login:Please input your Email or Phone!");
                   }
-                },
+                }) as LegacyAny,
               },
               {
                 validator: (_, value) => {
@@ -873,7 +881,7 @@ export class LoginPage extends React.Component {
                   if (this.state.loginMethod === "verificationCode") {
                     if (!Setting.isValidEmail(value) && !Setting.isValidPhone(value)) {
                       this.setState({validEmailOrPhone: false});
-                      return Promise.reject(i18next.t("login:The input is not valid Email or phone number!"));
+                      return Promise.reject(t("login:The input is not valid Email or phone number!"));
                     }
 
                     if (Setting.isValidEmail(value)) {
@@ -885,14 +893,14 @@ export class LoginPage extends React.Component {
                     if (!Setting.isValidEmail(value)) {
                       this.setState({validEmail: false});
                       this.setState({validEmailOrPhone: false});
-                      return Promise.reject(i18next.t("login:The input is not valid Email!"));
+                      return Promise.reject(t("login:The input is not valid Email!"));
                     } else {
                       this.setState({validEmail: true});
                     }
                   } else if (this.state.loginMethod === "verificationCodePhone") {
                     if (!Setting.isValidPhone(value)) {
                       this.setState({validEmailOrPhone: false});
-                      return Promise.reject(i18next.t("login:The input is not valid phone number!"));
+                      return Promise.reject(t("login:The input is not valid phone number!"));
                     }
                   }
 
@@ -942,11 +950,11 @@ export class LoginPage extends React.Component {
           <div className="login-forget-password">
             <Form.Item name="autoSignin" valuePropName="checked" noStyle>
               <Checkbox style={{float: "left"}}>
-                {i18next.t("login:Auto sign in")}
+                {t("login:Auto sign in")}
               </Checkbox>
             </Form.Item>
             {
-              signinItem.visible ? Setting.renderForgetLink(application, signinItem.label ? signinItem.label : i18next.t("login:Forgot password?")) : null
+              signinItem.visible ? Setting.renderForgetLink(application, signinItem.label ? signinItem.label : t("login:Forgot password?")) : null
             }
           </div>
         </div>
@@ -967,14 +975,14 @@ export class LoginPage extends React.Component {
             className="login-button"
           >
             {
-              this.state.loginMethod === "webAuthn" ? i18next.t("login:Sign in with WebAuthn") :
-                this.state.loginMethod === "faceId" ? i18next.t("login:Sign in with Face ID") :
-                  signinItem.label ? signinItem.label : i18next.t("login:Sign In")
+              this.state.loginMethod === "webAuthn" ? t("login:Sign in with WebAuthn") :
+                this.state.loginMethod === "faceId" ? t("login:Sign in with Face ID") :
+                  signinItem.label ? signinItem.label : t("login:Sign In")
             }
           </Button>
           {
             this.state.loginMethod === "faceId" ?
-              this.state.haveFaceIdProvider ? <Suspense fallback={null}><FaceRecognitionCommonModal visible={this.state.openFaceRecognitionModal} onOk={(FaceIdImage) => {
+              this.state.haveFaceIdProvider ? <Suspense fallback={null}><FaceRecognitionCommonModal visible={this.state.openFaceRecognitionModal} onOk={(FaceIdImage: LegacyAny) => {
                 const values = this.state.values;
                 values["FaceIdImage"] = FaceIdImage;
                 this.login(values);
@@ -983,7 +991,7 @@ export class LoginPage extends React.Component {
                 <Suspense fallback={null}>
                   <FaceRecognitionModal
                     visible={this.state.openFaceRecognitionModal}
-                    onOk={(faceId) => {
+                    onOk={(faceId: LegacyAny) => {
                       const values = this.state.values;
                       values["faceId"] = faceId;
 
@@ -998,7 +1006,7 @@ export class LoginPage extends React.Component {
               </>
           }
           {
-            application?.signinItems.map(signinItem => signinItem.name === "Captcha" && signinItem.rule === "inline").includes(true) ? null : this.renderCaptchaModal(application, false)
+            application?.signinItems.map((signinItem: LegacyAny) => signinItem.name === "Captcha" && signinItem.rule === "inline").includes(true) ? null : this.renderCaptchaModal(application, false)
           }
         </Form.Item>
       );
@@ -1015,7 +1023,7 @@ export class LoginPage extends React.Component {
           <div dangerouslySetInnerHTML={{__html: ("<style>" + signinItem.customCss?.replaceAll("<style>", "").replaceAll("</style>", "") + "</style>")}} />
           <Form.Item>
             {
-              application.providers.filter(providerItem => this.isProviderVisible(providerItem)).map((providerItem, id) => {
+              application.providers.filter((providerItem: LegacyAny) => this.isProviderVisible(providerItem)).map((providerItem: LegacyAny, id: LegacyAny) => {
                 if (providerHint === providerItem.provider.name) {
                   goToLink(Provider.getAuthUrl(application, providerItem.provider, "signup"));
                   return;
@@ -1026,7 +1034,7 @@ export class LoginPage extends React.Component {
 
                     if (agreementChecked !== undefined && typeof agreementChecked === "boolean" && !agreementChecked) {
                       e.preventDefault();
-                      message.error(i18next.t("signup:Please accept the agreement!"));
+                      message.error(t("signup:Please accept the agreement!"));
                     }
                   }}>
                     {
@@ -1060,7 +1068,7 @@ export class LoginPage extends React.Component {
         <Form.Item>
           <div key={resultItemKey} style={{width: "100%"}} className="login-organization-select">
             <OrganizationSelect style={{width: "100%"}} initValue={application.organization}
-              onSelect={(value) => {
+              onSelect={(value: LegacyAny) => {
                 this.switchLoginOrganization(value);
               }} />
           </div>
@@ -1069,7 +1077,7 @@ export class LoginPage extends React.Component {
     }
   }
 
-  renderForm(application) {
+  renderForm(application: LegacyAny) {
     if (this.state.msg !== null) {
       return Util.renderMessage(this.state.msg);
     }
@@ -1078,13 +1086,13 @@ export class LoginPage extends React.Component {
       return (
         <Result
           status="error"
-          title={i18next.t("application:Sign Up Error")}
-          subTitle={i18next.t("application:The application does not allow to sign up new account")}
+          title={t("application:Sign Up Error")}
+          subTitle={t("application:The application does not allow to sign up new account")}
           extra={[
             <Button type="primary" key="signin"
               onClick={() => Setting.redirectToLoginPage(application, this.props.history)}>
               {
-                i18next.t("login:Sign In")
+                t("login:Sign In")
               }
             </Button>,
           ]}
@@ -1097,7 +1105,7 @@ export class LoginPage extends React.Component {
       return (
         <Result
           status="success"
-          title={i18next.t("application:Logged in successfully")}
+          title={t("application:Logged in successfully")}
         >
         </Result>
       );
@@ -1120,7 +1128,7 @@ export class LoginPage extends React.Component {
           initialValues={{
             organization: application.organization,
             application: application.name,
-            autoSignin: !application?.signinItems.map(signinItem => signinItem.name === "Forgot password?" && signinItem.rule === "Auto sign in - False")?.includes(true),
+            autoSignin: !application?.signinItems.map((signinItem: LegacyAny) => signinItem.name === "Forgot password?" && signinItem.rule === "Auto sign in - False")?.includes(true),
             username: this.state.prefilledUsername || (Conf.ShowGithubCorner ? "admin" : ""),
             password: Conf.ShowGithubCorner ? "123" : "",
           }}
@@ -1137,7 +1145,7 @@ export class LoginPage extends React.Component {
             rules={[
               {
                 required: true,
-                message: i18next.t("application:Please input your application!"),
+                message: t("application:Please input your application!"),
               },
             ]}
           >
@@ -1148,14 +1156,14 @@ export class LoginPage extends React.Component {
             rules={[
               {
                 required: true,
-                message: i18next.t("application:Please input your organization!"),
+                message: t("application:Please input your organization!"),
               },
             ]}
           >
           </Form.Item>
 
           {
-            application.signinItems?.map(signinItem => this.renderFormItem(application, signinItem))
+            application.signinItems?.map((signinItem: LegacyAny) => this.renderFormItem(application, signinItem))
           }
         </Form>
       );
@@ -1163,7 +1171,7 @@ export class LoginPage extends React.Component {
       return (
         <div style={{marginTop: "20px"}}>
           <div style={{fontSize: 16, textAlign: "left"}}>
-            {i18next.t("login:To access")}&nbsp;
+            {t("login:To access")}&nbsp;
             <a target="_blank" rel="noreferrer" href={application.homepageUrl}>
               <span style={{fontWeight: "bold"}}>
                 {application.displayName}
@@ -1173,21 +1181,21 @@ export class LoginPage extends React.Component {
           </div>
           <br />
           {
-            application?.signinItems.map(signinItem => signinItem.name === "Providers" || signinItem.name === "Signup link" ? this.renderFormItem(application, signinItem) : null)
+            application?.signinItems.map((signinItem: LegacyAny) => signinItem.name === "Providers" || signinItem.name === "Signup link" ? this.renderFormItem(application, signinItem) : null)
           }
         </div>
       );
     }
   }
 
-  getCaptchaProviderItems(application) {
+  getCaptchaProviderItems(application: LegacyAny) {
     const providers = application?.providers;
 
     if (providers === undefined || providers === null) {
       return null;
     }
 
-    return providers.filter(providerItem => {
+    return providers.filter((providerItem: LegacyAny) => {
       if (providerItem.provider === undefined || providerItem.provider === null) {
         return false;
       }
@@ -1196,14 +1204,14 @@ export class LoginPage extends React.Component {
     });
   }
 
-  renderCaptchaModal(application, noModal) {
+  renderCaptchaModal(application: LegacyAny, noModal: LegacyAny) {
     if (this.getCaptchaRule(this.getApplicationObj()) === CaptchaRule.Never) {
       return null;
     }
     const captchaProviderItems = this.getCaptchaProviderItems(application);
-    const alwaysProviderItems = captchaProviderItems.filter(providerItem => providerItem.rule === "Always");
-    const dynamicProviderItems = captchaProviderItems.filter(providerItem => providerItem.rule === "Dynamic");
-    const internetOnlyProviderItems = captchaProviderItems.filter(providerItem => providerItem.rule === "Internet-Only");
+    const alwaysProviderItems = captchaProviderItems.filter((providerItem: LegacyAny) => providerItem.rule === "Always");
+    const dynamicProviderItems = captchaProviderItems.filter((providerItem: LegacyAny) => providerItem.rule === "Dynamic");
+    const internetOnlyProviderItems = captchaProviderItems.filter((providerItem: LegacyAny) => providerItem.rule === "Internet-Only");
 
     // Select provider based on the active captcha rule, not fixed priority
     const captchaRule = this.getCaptchaRule(this.getApplicationObj());
@@ -1226,14 +1234,14 @@ export class LoginPage extends React.Component {
       name={provider.name}
       visible={this.state.openCaptchaModal}
       noModal={noModal}
-      onUpdateToken={(captchaType, captchaToken, clientSecret) => {
+      onUpdateToken={(captchaType: LegacyAny, captchaToken: LegacyAny, clientSecret: LegacyAny) => {
         this.setState({
           captchaValues: {
             captchaType, captchaToken, clientSecret,
           },
         });
       }}
-      onOk={(captchaType, captchaToken, clientSecret) => {
+      onOk={(captchaType: LegacyAny, captchaToken: LegacyAny, clientSecret: LegacyAny) => {
         const values = this.state.values;
         values["captchaType"] = captchaType;
         values["captchaToken"] = captchaToken;
@@ -1248,7 +1256,7 @@ export class LoginPage extends React.Component {
     />;
   }
 
-  renderFooter(application, signinItem) {
+  renderFooter(application: LegacyAny, signinItem: LegacyAny) {
     return (
       <div>
         {
@@ -1256,9 +1264,9 @@ export class LoginPage extends React.Component {
             signinItem.label ? Setting.renderSignupLink(application, signinItem.label) :
               (
                 <React.Fragment>
-                  {i18next.t("login:No account?")}&nbsp;
+                  {t("login:No account?")}&nbsp;
                   {
-                    Setting.renderSignupLink(application, i18next.t("login:sign up now"))
+                    Setting.renderSignupLink(application, t("login:sign up now"))
                   }
                 </React.Fragment>
               )
@@ -1268,7 +1276,7 @@ export class LoginPage extends React.Component {
     );
   }
 
-  sendSilentSigninData(data) {
+  sendSilentSigninData(data: LegacyAny) {
     if (Setting.inIframe()) {
       const message = {tag: "Casdoor", type: "SilentSignin", data: data};
       window.parent.postMessage(message, "*");
@@ -1297,11 +1305,11 @@ export class LoginPage extends React.Component {
     return (
       <div>
         <div style={{fontSize: 16, textAlign: "left"}}>
-          {i18next.t("login:Continue with")}&nbsp;:
+          {t("login:Continue with")}&nbsp;:
         </div>
         <br />
         <div onClick={() => {
-          const values = {};
+          const values: LegacyRecord = {};
           values["application"] = application.name;
           this.login(values);
         }}>
@@ -1310,14 +1318,14 @@ export class LoginPage extends React.Component {
         <br />
         <br />
         <div style={{fontSize: 16, textAlign: "left"}}>
-          {i18next.t("login:Or sign in with another account")}&nbsp;:
+          {t("login:Or sign in with another account")}&nbsp;:
         </div>
       </div>
     );
   }
 
-  signInWithWebAuthn(username, values) {
-    const oAuthParams = Util.getOAuthGetParameters();
+  signInWithWebAuthn(username: string, values: LegacyRecord) {
+    const oAuthParams = Util.getOAuthGetParameters() as LegacyAny;
     this.populateOauthValues(values);
     const application = this.getApplicationObj();
     const usernameParam = `&name=${encodeURIComponent(username)}`;
@@ -1333,7 +1341,7 @@ export class LoginPage extends React.Component {
         credentialRequestOptions.publicKey.challenge = UserWebauthnBackend.webAuthnBufferDecode(credentialRequestOptions.publicKey.challenge);
 
         if (username) {
-          credentialRequestOptions.publicKey.allowCredentials.forEach(function(listItem) {
+          credentialRequestOptions.publicKey.allowCredentials.forEach(function(listItem: LegacyAny) {
             listItem.id = UserWebauthnBackend.webAuthnBufferDecode(listItem.id);
           });
         }
@@ -1343,11 +1351,12 @@ export class LoginPage extends React.Component {
         });
       })
       .then((assertion) => {
-        const authData = assertion.response.authenticatorData;
-        const clientDataJSON = assertion.response.clientDataJSON;
-        const rawId = assertion.rawId;
-        const sig = assertion.response.signature;
-        const userHandle = assertion.response.userHandle;
+        const credential = assertion as LegacyAny;
+        const authData = credential.response.authenticatorData;
+        const clientDataJSON = credential.response.clientDataJSON;
+        const rawId = credential.rawId;
+        const sig = credential.response.signature;
+        const userHandle = credential.response.userHandle;
         const resourceQuery = oAuthParams?.resource
           ? `&resource=${encodeURIComponent(oAuthParams.resource)}`
           : "";
@@ -1359,9 +1368,9 @@ export class LoginPage extends React.Component {
           method: "POST",
           credentials: "include",
           body: JSON.stringify({
-            id: assertion.id,
+            id: credential.id,
             rawId: UserWebauthnBackend.webAuthnBufferEncode(rawId),
-            type: assertion.type,
+            type: credential.type,
             response: {
               authenticatorData: UserWebauthnBackend.webAuthnBufferEncode(authData),
               clientDataJSON: UserWebauthnBackend.webAuthnBufferEncode(clientDataJSON),
@@ -1379,7 +1388,7 @@ export class LoginPage extends React.Component {
                 const accessToken = res.data;
                 Setting.goToLink(`${oAuthParams.redirectUri}#${responseType}=${accessToken}?state=${oAuthParams.state}&token_type=bearer`);
               } else {
-                Setting.showMessage("success", i18next.t("login:Successfully logged in with WebAuthn credentials"));
+                Setting.showMessage("success", t("login:Successfully logged in with WebAuthn credentials"));
                 Setting.goToLink("/");
               }
             } else {
@@ -1387,7 +1396,7 @@ export class LoginPage extends React.Component {
             }
           })
           .catch(error => {
-            Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}${error}`);
+            Setting.showMessage("error", `${t("general:Failed to connect to server")}${error}`);
           });
       }).catch(error => {
         Setting.showMessage("error", `${error.message}`);
@@ -1398,15 +1407,15 @@ export class LoginPage extends React.Component {
       });
   }
 
-  hasVerificationCodeSigninItem(application) {
+  hasVerificationCodeSigninItem(application: LegacyAny) {
     const targetApp = application || this.getApplicationObj();
     if (!targetApp || !targetApp.signinItems) {
       return false;
     }
-    return targetApp.signinItems.some(item => item.name === "Verification code");
+    return targetApp.signinItems.some((item: LegacyAny) => item.name === "Verification code");
   }
 
-  renderPasswordOrCodeInput(signinItem) {
+  renderPasswordOrCodeInput(signinItem: LegacyAny) {
     const application = this.getApplicationObj();
     if (this.state.loginMethod === "password" || this.state.loginMethod === "ldap") {
       return (
@@ -1416,13 +1425,13 @@ export class LoginPage extends React.Component {
               name="password"
               className="login-password"
               label={signinItem.label ? signinItem.label : null}
-              rules={[{required: true, message: i18next.t("login:Please input your password!")}]}
+              rules={[{required: true, message: t("login:Please input your password!")}]}
             >
               <Input.Password
                 className="login-password-input"
                 prefix={<LockOutlined className="site-form-item-icon" />}
                 type="password"
-                placeholder={signinItem.placeholder ? signinItem.placeholder : i18next.t("general:Password")}
+                placeholder={signinItem.placeholder ? signinItem.placeholder : t("general:Password")}
                 disabled={this.state.loginMethod === "password" ? !Setting.isPasswordEnabled(application) : !Setting.isLdapEnabled(application)}
               />
             </Form.Item>
@@ -1435,9 +1444,9 @@ export class LoginPage extends React.Component {
           <div className="login-password">
             <Form.Item
               name="code"
-              rules={[{required: true, message: i18next.t("login:Please input your code!")}]}
+              rules={[{required: true, message: t("login:Please input your code!")}]}
             >
-              <SendCodeInput
+              <LegacySendCodeInput
                 disabled={this.state.username?.length === 0 || !this.state.validEmailOrPhone}
                 method={"login"}
                 onButtonClickArgs={[this.state.username, this.state.validEmail ? "email" : "phone", Setting.getApplicationName(application)]}
@@ -1455,7 +1464,7 @@ export class LoginPage extends React.Component {
     }
   }
 
-  renderCodeInput(signinItem) {
+  renderCodeInput(signinItem: LegacyAny) {
     const application = this.getApplicationObj();
     if (this.hasVerificationCodeSigninItem(application) && this.state.loginMethod?.includes("verificationCode")) {
       return (
@@ -1463,10 +1472,10 @@ export class LoginPage extends React.Component {
           <Form.Item
             name="code"
             label={signinItem.label ? signinItem.label : null}
-            rules={[{required: true, message: i18next.t("login:Please input your code!")}]}
+            rules={[{required: true, message: t("login:Please input your code!")}]}
             className="verification-code"
           >
-            <SendCodeInput
+            <LegacySendCodeInput
               disabled={this.state.username?.length === 0 || !this.state.validEmailOrPhone}
               method={"login"}
               onButtonClickArgs={[this.state.username, this.state.validEmail ? "email" : "phone", Setting.getApplicationName(application)]}
@@ -1485,7 +1494,7 @@ export class LoginPage extends React.Component {
 
   renderMethodChoiceBox() {
     const application = this.getApplicationObj();
-    const items = getSigninMethodChoiceItems(application?.signinMethods, key => i18next.t(key));
+    const items = getSigninMethodChoiceItems(application?.signinMethods, key => t(key));
     const activeKey = items.some(item => item.key === this.state.loginMethod) ? this.state.loginMethod : items[0]?.key;
 
     if (items.length > 1) {
@@ -1500,7 +1509,7 @@ export class LoginPage extends React.Component {
     }
   }
 
-  renderLoginPanel(application) {
+  renderLoginPanel(application: LegacyAny) {
     const orgChoiceMode = application.orgChoiceMode;
 
     if (this.isOrganizationChoiceBoxVisible(orgChoiceMode)) {
@@ -1519,7 +1528,7 @@ export class LoginPage extends React.Component {
     }
   }
 
-  renderOrganizationChoiceBox(orgChoiceMode) {
+  renderOrganizationChoiceBox(orgChoiceMode: LegacyAny) {
     const renderChoiceBox = () => {
       switch (orgChoiceMode) {
       case "None":
@@ -1528,10 +1537,10 @@ export class LoginPage extends React.Component {
         return (
           <div>
             <p style={{fontSize: "large"}}>
-              {i18next.t("login:Please select an organization to sign in")}
+              {t("login:Please select an organization to sign in")}
             </p>
             <OrganizationSelect style={{width: "70%"}}
-              onSelect={(value) => {
+              onSelect={(value: LegacyAny) => {
                 Setting.goToLink(`/login/${value}?orgChoiceMode=None`);
               }} />
           </div>
@@ -1540,7 +1549,7 @@ export class LoginPage extends React.Component {
         return (
           <div>
             <p style={{fontSize: "large"}}>
-              {i18next.t("login:Please type an organization to sign in")}
+              {t("login:Please type an organization to sign in")}
             </p>
             <Form
               name="basic"
@@ -1548,14 +1557,14 @@ export class LoginPage extends React.Component {
             >
               <Form.Item
                 name="organizationName"
-                rules={[{required: true, message: i18next.t("login:Please input your organization name!")}]}
+                rules={[{required: true, message: t("login:Please input your organization name!")}]}
               >
                 <Input style={{width: "70%"}} onPressEnter={(e) => {
-                  Setting.goToLink(`/login/${e.target.value}?orgChoiceMode=None`);
+                  Setting.goToLink(`/login/${(e.target as HTMLInputElement).value}?orgChoiceMode=None`);
                 }} />
               </Form.Item>
               <Button type="primary" htmlType="submit">
-                {i18next.t("general:Confirm")}
+                {t("general:Confirm")}
               </Button>
             </Form>
           </div>
@@ -1572,7 +1581,7 @@ export class LoginPage extends React.Component {
     );
   }
 
-  isOrganizationChoiceBoxVisible(orgChoiceMode) {
+  isOrganizationChoiceBoxVisible(orgChoiceMode: LegacyAny) {
     if (this.state.orgChoiceMode === "None") {
       return false;
     }
@@ -1600,7 +1609,7 @@ export class LoginPage extends React.Component {
       return <Result
         style={{width: "100%"}}
         status="error"
-        title={`Code ${i18next.t("subscription:Expired")}`}
+        title={`Code ${t("subscription:Expired")}`}
       >
       </Result>;
     }
@@ -1623,20 +1632,20 @@ export class LoginPage extends React.Component {
       );
     }
 
-    const visibleOAuthProviderItems = (application.providers === null) ? [] : application.providers.filter(providerItem => this.isProviderVisible(providerItem) && providerItem.provider?.category !== "SAML");
+    const visibleOAuthProviderItems = (application.providers === null) ? [] : application.providers.filter((providerItem: LegacyAny) => this.isProviderVisible(providerItem) && providerItem.provider?.category !== "SAML");
     if (this.props.preview !== "auto" && !Setting.isPasswordEnabled(application) && !Setting.isCodeSigninEnabled(application) && !Setting.isWebAuthnEnabled(application) && !Setting.isLdapEnabled(application) && !Setting.isWeComEnabled(application) && visibleOAuthProviderItems.length === 1 && visibleOAuthProviderItems[0].provider?.type !== "WeCom") {
       Setting.goToLink(Provider.getAuthUrl(application, visibleOAuthProviderItems[0].provider, "signup"));
       return (
         <div style={{display: "flex", justifyContent: "center", alignItems: "center", width: "100%"}}>
-          <Spin size="large" tip={i18next.t("login:Signing in...")} />
+          <Spin size="large" tip={t("login:Signing in...")} />
         </div>
       );
     }
 
-    const wechatSigninMethods = application.signinMethods?.filter(method => method.name === "WeChat" && method.rule === "Login page");
-    const wecomSigninMethods = application.signinMethods?.filter(method => method.name === "WeCom" && method.rule === "Login page");
-    const loginPageWeComProvider = visibleOAuthProviderItems.find(providerItem => providerItem.provider?.type === "WeCom" && providerItem.provider?.subType === "Internal" && providerItem.provider?.method === "Normal")
-      || visibleOAuthProviderItems.find(providerItem => providerItem.provider?.type === "WeCom");
+    const wechatSigninMethods = application.signinMethods?.filter((method: LegacyAny) => method.name === "WeChat" && method.rule === "Login page");
+    const wecomSigninMethods = application.signinMethods?.filter((method: LegacyAny) => method.name === "WeCom" && method.rule === "Login page");
+    const loginPageWeComProvider = visibleOAuthProviderItems.find((providerItem: LegacyAny) => providerItem.provider?.type === "WeCom" && providerItem.provider?.subType === "Internal" && providerItem.provider?.method === "Normal")
+      || visibleOAuthProviderItems.find((providerItem: LegacyAny) => providerItem.provider?.type === "WeCom");
 
     return (
       <React.Fragment>
@@ -1645,7 +1654,7 @@ export class LoginPage extends React.Component {
           {Setting.inIframe() || Setting.isMobile() ? null : <div dangerouslySetInnerHTML={{__html: application.formCss}} />}
           {Setting.inIframe() || !Setting.isMobile() ? null : <div dangerouslySetInnerHTML={{__html: application.formCssMobile}} />}
           <div className={getLoginPanelClassName(Setting.isDarkTheme(this.props.themeAlgorithm), this.state.loginMethod)}>
-            <div className="side-image" style={{display: application.formOffset !== 4 ? "none" : null}}>
+            <div className="side-image" style={{display: application.formOffset !== 4 ? "none" : undefined}}>
               <div dangerouslySetInnerHTML={{__html: application.formSideHtml}} />
             </div>
             <div className="login-form">
@@ -1658,7 +1667,7 @@ export class LoginPage extends React.Component {
             {
               wechatSigninMethods?.length > 0 ? (<div style={{display: "flex", justifyContent: "center", alignItems: "center"}}>
                 <div>
-                  <h3 style={{textAlign: "center", width: 320}}>{i18next.t("provider:Please use WeChat to scan the QR code and follow the official account for sign in")}</h3>
+                  <h3 style={{textAlign: "center", width: 320}}>{t("provider:Please use WeChat to scan the QR code and follow the official account for sign in")}</h3>
                   <WeChatLoginPanel application={application} loginMethod={this.state.loginMethod} />
                 </div>
               </div>
@@ -1668,13 +1677,13 @@ export class LoginPage extends React.Component {
               wecomSigninMethods?.length > 0 ? (
                 <div style={{display: "flex", justifyContent: "center", alignItems: "center"}}>
                   <div>
-                    <h3 style={{textAlign: "center", width: 320}}>{i18next.t("login:Use WeCom to scan the QR code and sign in")}</h3>
+                    <h3 style={{textAlign: "center", width: 320}}>{t("login:Use WeCom to scan the QR code and sign in")}</h3>
                     <WeComLoginPanel
                       application={application}
                       loginMethod={this.state.loginMethod}
-                      providerId={loginPageWeComProvider ? `${loginPageWeComProvider.provider.owner}/${loginPageWeComProvider.provider.name}` : null}
+                      providerId={loginPageWeComProvider ? `${loginPageWeComProvider.provider.owner}/${loginPageWeComProvider.provider.name}` : undefined}
                       getLoginContext={() => this.getWeComProfileConsentLoginContext()}
-                      onLoginResponse={(res) => this.handleWeComProfileConsentLoginResponse(res)}
+                      onLoginResponse={(res: LegacyAny) => this.handleWeComProfileConsentLoginResponse(res)}
                     />
                   </div>
                 </div>
@@ -1687,4 +1696,5 @@ export class LoginPage extends React.Component {
   }
 }
 
-export default withRouter(LoginPage);
+const LoginPageWithRouter = withRouter(LoginPage as LegacyAny) as LegacyAny;
+export default LoginPageWithRouter;

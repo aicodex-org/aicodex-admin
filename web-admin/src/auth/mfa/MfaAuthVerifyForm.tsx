@@ -22,23 +22,38 @@ import MfaVerifySmsForm from "./MfaVerifySmsForm";
 import MfaVerifyTotpForm from "./MfaVerifyTotpForm";
 import MfaVerifyRadiusForm from "./MfaVerifyRadiusForm";
 import MfaVerifyPushForm from "./MfaVerifyPushForm";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {AuthApiResponse, LegacyRecord} from "../AuthCoreTypes";
+import type {MfaProps} from "./MfaVerifyForm";
+const t = i18next.t as (key: string) => string;
 
 export const NextMfa = "NextMfa";
 export const RequiredMfa = "RequiredMfa";
 
-export function MfaAuthVerifyForm({formValues, authParams, mfaProps, application, onSuccess, onFail, verifyAuth, recoverAuth}) {
+interface MfaAuthVerifyFormProps {
+  formValues: LegacyRecord;
+  authParams: LegacyRecord | null;
+  mfaProps: MfaProps;
+  application?: LegacyRecord | null;
+  onSuccess: (res: AuthApiResponse) => void;
+  onFail: (message: string) => void;
+  verifyAuth?: (values: LegacyRecord) => Promise<AuthApiResponse>;
+  recoverAuth?: (values: LegacyRecord) => Promise<AuthApiResponse>;
+}
+
+export function MfaAuthVerifyForm({formValues, authParams, mfaProps, application, onSuccess, onFail, verifyAuth, recoverAuth}: MfaAuthVerifyFormProps) {
   formValues.password = "";
   formValues.username = "";
   const [loading, setLoading] = useState(false);
   const [mfaType, setMfaType] = useState(mfaProps.mfaType);
   const [recoveryCode, setRecoveryCode] = useState("");
 
-  const verify = ({passcode, enableMfaRemember}) => {
+  const verify = ({passcode, enableMfaRemember}: LegacyRecord) => {
     setLoading(true);
-    const values = {...formValues, passcode, enableMfaRemember};
+    const values: LegacyRecord = {...formValues, passcode, enableMfaRemember};
     values["mfaType"] = mfaProps.mfaType;
     const loginFunction = formValues.type === "cas" ? AuthBackend.loginCas : AuthBackend.login;
-    const authFunction = verifyAuth || ((values) => loginFunction(values, authParams));
+    const authFunction = verifyAuth || ((values: LegacyRecord) => loginFunction(values, authParams));
     authFunction(values).then((res) => {
       if (res.status === "ok") {
         onSuccess(res);
@@ -56,7 +71,7 @@ export function MfaAuthVerifyForm({formValues, authParams, mfaProps, application
     setLoading(true);
     const values = {...formValues, recoveryCode};
     const loginFunction = formValues.type === "cas" ? AuthBackend.loginCas : AuthBackend.login;
-    const authFunction = recoverAuth || ((values) => loginFunction(values, authParams));
+    const authFunction = recoverAuth || ((values: LegacyRecord) => loginFunction(values, authParams));
     authFunction(values).then((res) => {
       if (res.status === "ok") {
         onSuccess(res);
@@ -74,12 +89,12 @@ export function MfaAuthVerifyForm({formValues, authParams, mfaProps, application
     return (
       <div style={{width: 320, height: 350}}>
         <div style={{marginBottom: 24, textAlign: "center", fontSize: "24px"}}>
-          {i18next.t("mfa:Multi-factor authentication")}
+          {t("mfa:Multi-factor authentication")}
         </div>
         {mfaProps.mfaType === SmsMfaType || mfaProps.mfaType === EmailMfaType ? (
           <Fragment>
             <div style={{marginBottom: 24}}>
-              {i18next.t("mfa:You have enabled Multi-Factor Authentication, Please click 'Send Code' to continue")}
+              {t("mfa:You have enabled Multi-Factor Authentication, Please click 'Send Code' to continue")}
             </div>
             <MfaVerifySmsForm
               mfaProps={mfaProps}
@@ -91,7 +106,7 @@ export function MfaAuthVerifyForm({formValues, authParams, mfaProps, application
         ) : mfaProps.mfaType === TotpMfaType ? (
           <Fragment>
             <div style={{marginBottom: 24}}>
-              {i18next.t("mfa:You have enabled Multi-Factor Authentication, please enter the TOTP code")}
+              {t("mfa:You have enabled Multi-Factor Authentication, please enter the TOTP code")}
             </div>
             <MfaVerifyTotpForm
               mfaProps={mfaProps}
@@ -101,7 +116,7 @@ export function MfaAuthVerifyForm({formValues, authParams, mfaProps, application
         ) : mfaProps.mfaType === PushMfaType ? (
           <Fragment>
             <div style={{marginBottom: 24}}>
-              {i18next.t("mfa:You have enabled Multi-Factor Authentication, please enter the verification code from push notification")}
+              {t("mfa:You have enabled Multi-Factor Authentication, please enter the verification code from push notification")}
             </div>
             <MfaVerifyPushForm
               mfaProps={mfaProps}
@@ -112,7 +127,7 @@ export function MfaAuthVerifyForm({formValues, authParams, mfaProps, application
         ) : (
           <Fragment>
             <div style={{marginBottom: 24}}>
-              {i18next.t("mfa:You have enabled Multi-Factor Authentication, please enter the RADIUS password")}
+              {t("mfa:You have enabled Multi-Factor Authentication, please enter the RADIUS password")}
             </div>
             <MfaVerifyRadiusForm
               mfaProps={mfaProps}
@@ -122,11 +137,11 @@ export function MfaAuthVerifyForm({formValues, authParams, mfaProps, application
           </Fragment>
         )}
         <span style={{float: "right"}}>
-          {i18next.t("mfa:Have problems?")}
+          {t("mfa:Have problems?")}
           <a onClick={() => {
             setMfaType("recovery");
           }}>
-            {i18next.t("mfa:Use a recovery code")}
+            {t("mfa:Use a recovery code")}
           </a>
         </span>
       </div>
@@ -135,12 +150,12 @@ export function MfaAuthVerifyForm({formValues, authParams, mfaProps, application
     return (
       <div style={{width: 300, height: 350}}>
         <div style={{marginBottom: 24, textAlign: "center", fontSize: "24px"}}>
-          {i18next.t("mfa:Multi-factor recover")}
+          {t("mfa:Multi-factor recover")}
         </div>
         <div style={{marginBottom: 24}}>
-          {i18next.t("mfa:Multi-factor recover description")}
+          {t("mfa:Multi-factor recover description")}
         </div>
-        <Input placeholder={i18next.t("mfa:Recovery code")}
+        <Input placeholder={t("mfa:Recovery code")}
           style={{marginBottom: 24}}
           type={"passcode"}
           size={"large"}
@@ -149,14 +164,14 @@ export function MfaAuthVerifyForm({formValues, authParams, mfaProps, application
         <Button style={{width: "100%", marginBottom: 20}} size={"large"} loading={loading}
           type={"primary"} onClick={() => {
             recover();
-          }}>{i18next.t("forget:Verify")}
+          }}>{t("forget:Verify")}
         </Button>
         <span style={{float: "right"}}>
-          {i18next.t("mfa:Have problems?")}
+          {t("mfa:Have problems?")}
           <a onClick={() => {
             setMfaType(mfaProps.mfaType);
           }}>
-            {i18next.t("mfa:Use SMS verification code")}
+            {t("mfa:Use SMS verification code")}
           </a>
         </span>
       </div>

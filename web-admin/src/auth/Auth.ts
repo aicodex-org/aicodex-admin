@@ -12,20 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import React from "react";
-import {authConfig} from "./Auth";
-import ForgetPage from "./ForgetPage";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {AuthConfig} from "./AuthCoreTypes";
 
-class SelfForgetPage extends React.Component {
-  render() {
-    return (
-      <ForgetPage
-        type={"forgotPassword"}
-        applicationName={authConfig.appName}
-        {...this.props}
-      />
-    );
-  }
+export let authConfig: AuthConfig = {};
+
+export function initAuthWithConfig(config: AuthConfig) {
+  authConfig = config;
 }
-
-export default SelfForgetPage;

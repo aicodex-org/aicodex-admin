@@ -3,12 +3,21 @@ import {Button, Form, Input} from "antd";
 import i18next from "i18next";
 import React from "react";
 import * as UserBackend from "../../backend/UserBackend";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {AuthApiResponse, LegacyRecord} from "../AuthCoreTypes";
+const t = i18next.t as (key: string) => string;
 
-function CheckPasswordForm({user, onSuccess, onFail}) {
+interface CheckPasswordFormProps {
+  user?: LegacyRecord | null;
+  onSuccess: (res: AuthApiResponse) => void;
+  onFail: (res: AuthApiResponse) => void;
+}
+
+function CheckPasswordForm({user, onSuccess, onFail}: CheckPasswordFormProps) {
   const [form] = Form.useForm();
 
-  const onFinish = ({password}) => {
-    const data = {...user, password};
+  const onFinish = ({password}: {password: string}) => {
+    const data = {...(user ?? {}), password};
     UserBackend.checkUserPassword(data)
       .then((res) => {
         if (res.status === "ok") {
@@ -30,11 +39,11 @@ function CheckPasswordForm({user, onSuccess, onFail}) {
     >
       <Form.Item
         name="password"
-        rules={[{required: true, message: i18next.t("login:Please input your password!")}]}
+        rules={[{required: true, message: t("login:Please input your password!")}]}
       >
         <Input.Password
           prefix={<LockOutlined />}
-          placeholder={i18next.t("general:Password")}
+          placeholder={t("general:Password")}
         />
       </Form.Item>
 
@@ -46,7 +55,7 @@ function CheckPasswordForm({user, onSuccess, onFail}) {
           type="primary"
           htmlType="submit"
         >
-          {i18next.t("forget:Next Step")}
+          {t("forget:Next Step")}
         </Button>
       </Form.Item>
     </Form>
