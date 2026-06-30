@@ -1,11 +1,26 @@
+// @ts-check
+
 const CracoLessPlugin = require("craco-less");
+/** @type {typeof import("path")} */
 const path = require("path");
+
+/**
+ * @typedef {{module?: {resource: string}, details?: string}} WebpackWarning
+ * @typedef {{path: string}} WebpackOutput
+ * @typedef {{fallback?: Record<string, string | false>}} WebpackResolve
+ * @typedef {{output: WebpackOutput, resolve: WebpackResolve, ignoreWarnings?: Array<(warning: WebpackWarning) => unknown>}} WebpackConfig
+ * @typedef {{appBuild: string}} CracoPaths
+ * @typedef {{env: string, paths: CracoPaths}} CracoWebpackContext
+ * @typedef {{target: string, changeOrigin: boolean}} ProxyEntry
+ * @typedef {{devServer: {proxy: Record<string, ProxyEntry>}, plugins: Array<Record<string, unknown>>, webpack: {configure: (webpackConfig: WebpackConfig, context: CracoWebpackContext) => WebpackConfig}}} CracoConfig
+ */
 
 const devProxyTarget =
   process.env.AICODEX_ADMIN_DEV_PROXY_TARGET ||
   process.env.AICODEX_ADMIN_PROXY_TARGET ||
   "http://localhost:8000";
 
+/** @type {CracoConfig} */
 module.exports = {
   devServer: {
     proxy: {
@@ -69,6 +84,11 @@ module.exports = {
     },
   ],
   webpack: {
+    /**
+     * @param {WebpackConfig} webpackConfig
+     * @param {CracoWebpackContext} context
+     * @returns {WebpackConfig}
+     */
     configure: (webpackConfig, { env, paths }) => {
       paths.appBuild = path.resolve(__dirname, "build-temp");
       webpackConfig.output.path = path.resolve(__dirname, "build-temp");

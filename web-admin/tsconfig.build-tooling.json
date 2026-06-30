@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "noEmit": true,
+    "strict": true,
+    "target": "es2020",
+    "types": ["node"],
+    "skipLibCheck": true
+  },
+  "include": ["build-tooling.d.ts", "craco.config.js", "mv.js"]
+}

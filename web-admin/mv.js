@@ -1,4 +1,8 @@
+// @ts-check
+
+/** @type {typeof import("fs")} */
 const fs = require("fs");
+/** @type {typeof import("path")} */
 const path = require("path");
 
 const sourceDir = path.join(__dirname, "build-temp");
