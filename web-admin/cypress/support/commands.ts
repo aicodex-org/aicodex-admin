@@ -1,5 +1,5 @@
 // ***********************************************
-// This example commands.js shows you how to
+// This example commands.ts shows you how to
 // create various custom commands and overwrite
 // existing commands.
 //
@@ -28,10 +28,21 @@ const selector = {
   password: "#normal_login_password",
   loginButton: ".ant-btn",
 };
-Cypress.Commands.add('login', ()=>{
+
+declare global {
+  namespace Cypress {
+    interface Chainable {
+      login(): Chainable<void>;
+    }
+  }
+}
+
+Cypress.Commands.add("login", () => {
   cy.visit("http://localhost:7001");
   cy.get(selector.username).type("admin");
   cy.get(selector.password).type("123");
   cy.get(selector.loginButton).click();
   cy.url().should("eq", "http://localhost:7001/");
-})
+});
+
+export {};
