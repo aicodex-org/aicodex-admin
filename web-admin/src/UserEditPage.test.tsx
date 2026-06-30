@@ -516,6 +516,27 @@ test("normalizes stale signup application after user and applications load", asy
   expect(availableApplicationsPage.state.user.signupApplication).toBe("app-main");
 });
 
+test("keeps signup application read-only for directory synced users", () => {
+  const localUserPage = createPage();
+  const localUserView = render(<>{localUserPage.renderAccountItem({name: "Signup application", visible: true})}</>);
+  expect(localUserView.container.querySelector(".ant-select-disabled")).toBeNull();
+  localUserView.unmount();
+
+  ["wecom", "lark", "dingtalk"].forEach(source => {
+    const syncedUserPage = createPage();
+    syncedUserPage.state = {
+      ...syncedUserPage.state,
+      user: {
+        ...syncedUserPage.state.user,
+        [source]: `${source}-user-id`,
+      },
+    };
+    const syncedUserView = render(<>{syncedUserPage.renderAccountItem({name: "Signup application", visible: true})}</>);
+    expect(syncedUserView.container.querySelector(".ant-select-disabled")).not.toBeNull();
+    syncedUserView.unmount();
+  });
+});
+
 test("handles user loading 404, API error and transaction load failures", async() => {
   const page = createPage();
   const historyPush = page.props.history.push as ReturnType<typeof jestValue.fn>;

@@ -164,6 +164,9 @@ interface UserRecord {
   registerType?: string;
   registerSource?: string;
   externalId?: string;
+  dingtalk?: string;
+  wecom?: string;
+  lark?: string;
   groups?: string[];
   roles?: RoleRecord[];
   permissions?: RoleRecord[];
@@ -382,6 +385,20 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
     }
 
     this.updateUserField("signupApplication", signupApplication);
+  }
+
+  isDirectorySyncedUser(user?: UserRecord | null) {
+    if (!user) {
+      return false;
+    }
+
+    return this.hasNonEmptyString(user.wecom) ||
+      this.hasNonEmptyString(user.lark) ||
+      this.hasNonEmptyString(user.dingtalk);
+  }
+
+  hasNonEmptyString(value: unknown) {
+    return typeof value === "string" && value.trim() !== "";
   }
 
   getUserApplication() {
@@ -1238,7 +1255,7 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
             {Setting.getLabel(i18next.t("general:Signup application"), i18next.t("general:Signup application - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Select virtual={false} style={{width: "100%"}} disabled={disabled} value={this.state.user.signupApplication}
+            <Select virtual={false} style={{width: "100%"}} disabled={disabled || this.isDirectorySyncedUser(this.state.user)} value={this.state.user.signupApplication}
               onChange={(value => {this.updateUserField("signupApplication", value);})}
               options={this.state.applications.map((application) => Setting.getOption(application.name, application.name))
               } />

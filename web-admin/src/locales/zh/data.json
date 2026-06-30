@@ -1025,7 +1025,7 @@
     "Signup URL": "注册URL",
     "Signup URL - Tooltip": "自定义注册页面的URL，不设置时采用aicodex-admin默认的注册页面，设置后aicodex-admin各类页面的注册链接会跳转到该URL",
     "Signup application": "注册应用",
-    "Signup application - Tooltip": "用户注册时通过哪个应用注册的",
+    "Signup application - Tooltip": "用户注册时通过哪个应用注册。通讯录同步用户继承该值，不能在这里修改",
     "Signup link": "注册链接",
     "Sites": "站点范围",
     "Sorry, the page you visited does not exist.": "抱歉，您访问的页面不存在",

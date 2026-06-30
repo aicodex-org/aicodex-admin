@@ -1025,7 +1025,7 @@
     "Signup URL": "Signup URL",
     "Signup URL - Tooltip": "Custom URL for the registration page. If not set, the default aicodex-admin registration page will be used. When set, the registration links on various aicodex-admin pages will redirect to this URL",
     "Signup application": "Signup application",
-    "Signup application - Tooltip": "Which application the user registered through when they signed up",
+    "Signup application - Tooltip": "Which application the user registered through when they signed up. Directory-synced users inherit this value and cannot change it here",
     "Signup link": "Signup link",
     "Sites": "Site Scopes",
     "Sorry, the page you visited does not exist.": "Sorry, the page you visited does not exist.",
