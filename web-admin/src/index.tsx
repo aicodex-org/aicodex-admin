@@ -23,14 +23,18 @@ import App from "./App";
 import * as serviceWorker from "./serviceWorker";
 import {BrowserRouter} from "react-router-dom";
 import "./backend/FetchFilter";
+import type {LegacyAny} from "./types/legacyPage";
 
 if (!String.prototype.replaceAll) {
-  String.prototype.replaceAll = function(search, replace) {
+  (String.prototype as LegacyAny).replaceAll = function(search: string, replace: string) {
     return this.split(search).join(replace);
   };
 }
 
 const container = document.getElementById("root");
+if (container === null) {
+  throw new Error("Root container #root was not found");
+}
 
 const app = createRoot(container);
 

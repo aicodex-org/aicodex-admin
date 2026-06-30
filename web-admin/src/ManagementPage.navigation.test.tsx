@@ -1,4 +1,5 @@
 /* eslint-env jest */
+import {beforeEach, describe, expect, test} from "@jest/globals";
 import i18next from "i18next";
 import {
   buildEnterpriseNavigationConfigTreeData,
@@ -10,6 +11,37 @@ import {buildWorkspaceRouteItems, openWorkspaceTab} from "./common/workspaceTabS
 import {expectEnterprisePrimaryMenuLabels} from "./enterpriseNavigationLabelRules.testUtils";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
+import type {LegacyAny} from "./types/legacyPage";
+
+interface TestNavigationNodeList extends Array<TestNavigationNode> {
+  find(
+    predicate: (value: TestNavigationNode, index: number, obj: TestNavigationNode[]) => unknown,
+    thisArg?: LegacyAny
+  ): TestNavigationNode;
+}
+
+interface TestNavigationNode {
+  key: string;
+  label: LegacyAny;
+  title: LegacyAny;
+  icon: LegacyAny;
+  to?: string;
+  href?: string;
+  external?: boolean;
+  visible?: boolean;
+  matchPrefixes: string[];
+  matcher?: (uri: string) => boolean;
+  children: TestNavigationNodeList;
+  [key: string]: LegacyAny;
+}
+
+function getTestNavigationGroups(options: LegacyAny): TestNavigationNodeList {
+  return buildEnterpriseNavigationGroups(options) as TestNavigationNodeList;
+}
+
+function getTestNavigationTree(): TestNavigationNodeList {
+  return buildEnterpriseNavigationConfigTreeData() as TestNavigationNodeList;
+}
 
 const localAdminAccount = {
   owner: "built-in",
@@ -29,7 +61,7 @@ const nonLocalAdminAccount = {
   },
 };
 
-async function useTestLanguage(language) {
+async function useTestLanguage(language: string) {
   if (!i18next.isInitialized) {
     await i18next.init({
       lng: language,
@@ -52,7 +84,7 @@ describe("enterprise identity navigation", () => {
   });
 
   test("groups existing routes by enterprise identity console information architecture", () => {
-    const groups = buildEnterpriseNavigationGroups({
+    const groups = getTestNavigationGroups({
       account: localAdminAccount,
       themeData: {colorPrimary: "#1677ff"},
     });
@@ -112,7 +144,7 @@ describe("enterprise identity navigation", () => {
   test("localizes enterprise identity console labels instead of hard-coding Chinese", async() => {
     await useTestLanguage("en");
 
-    const groups = buildEnterpriseNavigationGroups({
+    const groups = getTestNavigationGroups({
       account: localAdminAccount,
       themeData: {colorPrimary: "#1677ff"},
     });
@@ -161,7 +193,7 @@ describe("enterprise identity navigation", () => {
   });
 
   test("keeps legacy app portal available for non-local-admin fallback with explicit portal wording", () => {
-    const groups = buildEnterpriseNavigationGroups({
+    const groups = getTestNavigationGroups({
       account: nonLocalAdminAccount,
       themeData: {colorPrimary: "#1677ff"},
     });
@@ -178,7 +210,7 @@ describe("enterprise identity navigation", () => {
   test("localizes the legacy app portal fallback label for non-local-admin users", async() => {
     await useTestLanguage("en");
 
-    const groups = buildEnterpriseNavigationGroups({
+    const groups = getTestNavigationGroups({
       account: nonLocalAdminAccount,
       themeData: {colorPrimary: "#1677ff"},
     });
@@ -188,7 +220,7 @@ describe("enterprise identity navigation", () => {
   });
 
   test("keeps leaf route keys compatible with navItems filtering and selection", () => {
-    const groups = buildEnterpriseNavigationGroups({
+    const groups = getTestNavigationGroups({
       account: {
         ...localAdminAccount,
         organization: {
@@ -230,7 +262,7 @@ describe("enterprise identity navigation", () => {
   });
 
   test("reuses runtime IA in organization navigation configuration tree", () => {
-    const tree = buildEnterpriseNavigationConfigTreeData();
+    const tree = getTestNavigationTree();
     const rootChildren = tree[0].children;
     const overview = rootChildren.find(node => node.key === "/overview-top");
     const organizationIdentity = rootChildren.find(node => node.key === "/organization-identity-top");
@@ -289,7 +321,7 @@ describe("enterprise identity navigation", () => {
   });
 
   test("uses enterprise navigation labels as route-driven workspace tabs", () => {
-    const groups = buildEnterpriseNavigationGroups({
+    const groups = getTestNavigationGroups({
       account: localAdminAccount,
       themeData: {colorPrimary: "#1677ff"},
     });
@@ -307,9 +339,9 @@ describe("enterprise identity navigation", () => {
   });
 
   test("covers matcher routes, empty state, and hidden admin-only entries", () => {
-    expect(buildEnterpriseNavigationGroups({account: null, themeData: {colorPrimary: "#1677ff"}})).toEqual([]);
+    expect(getTestNavigationGroups({account: null, themeData: {colorPrimary: "#1677ff"}})).toEqual([]);
 
-    const groups = buildEnterpriseNavigationGroups({
+    const groups = getTestNavigationGroups({
       account: localAdminAccount,
       themeData: {},
     });
@@ -326,7 +358,7 @@ describe("enterprise identity navigation", () => {
       itemKey: undefined,
     });
 
-    const userGroups = buildEnterpriseNavigationGroups({
+    const userGroups = getTestNavigationGroups({
       account: {
         owner: "demo",
         isAdmin: false,

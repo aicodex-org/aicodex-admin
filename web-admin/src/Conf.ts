@@ -14,6 +14,17 @@
 
 import * as Cookie from "cookie";
 
+type WebConfig = {
+  showGithubCorner?: boolean;
+  isDemoMode?: boolean;
+  forceLanguage?: string;
+  defaultLanguage?: string;
+  staticBaseUrl?: string;
+  aiAssistantUrl?: string;
+  defaultApplication?: string;
+  maxItemsForFlatMenu?: number;
+};
+
 export let DefaultApplication = "app-built-in";
 
 export let ShowGithubCorner = false;
@@ -50,7 +61,7 @@ export let AiAssistantUrl = "";
 export let MaxItemsForFlatMenu = 7;
 
 // setConfig updates the frontend configuration from backend
-export function setConfig(config) {
+export function setConfig(config?: WebConfig | null) {
   if (!config) {
     return;
   }
@@ -92,7 +103,7 @@ export function initConfigFromCookie() {
       return;
     }
 
-    const config = JSON.parse(raw);
+    const config = JSON.parse(raw) as WebConfig;
     setConfig(config);
   } catch {
     // Ignore malformed cookie and keep compile-time defaults.

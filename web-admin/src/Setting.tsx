@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Copyright 2021 The Casdoor Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,6 +30,8 @@ import {MfaAuthVerifyForm, NextMfa, RequiredMfa} from "./auth/mfa/MfaAuthVerifyF
 import {EmailMfaType, SmsMfaType, TotpMfaType} from "./auth/MfaSetupPage";
 import {getLarkProviderBrand, isLarkProvider} from "./provider/LarkProviderUtils";
 
+type LegacyAny = any;
+
 const {Option} = Select;
 
 export const ServerUrl = "";
@@ -52,7 +55,7 @@ export const Countries = [
   {label: "Українська", key: "uk", country: "UA", alt: "Українська"},
 ];
 
-export function getThemeData(organization, application) {
+export function getThemeData(organization: LegacyAny, application: LegacyAny = undefined): LegacyAny {
   if (application?.themeData?.isEnabled) {
     return application.themeData;
   } else if (organization?.themeData?.isEnabled) {
@@ -945,7 +948,7 @@ export function isRequiredEnableMfa(user, organization) {
   return getMfaItemsByRules(user, organization, [MfaRuleRequired]).length > 0;
 }
 
-export function getMfaItemsByRules(user, organization, mfaRules = []) {
+export function getMfaItemsByRules(user: LegacyAny, organization: LegacyAny, mfaRules: LegacyAny[] = []): LegacyAny[] {
   if (!user || !organization || (!organization.mfaItems && !user.mfaItems)) {
     return [];
   }
@@ -1021,7 +1024,7 @@ export function goToLinkSoftOrJumpSelf(ths, link) {
   ths.props.history.push(link);
 }
 
-export function showMessage(type, text) {
+export function showMessage(type: LegacyAny, text: LegacyAny): void {
   if (type === "success") {
     message.success(text);
   } else if (type === "error") {
@@ -1031,14 +1034,14 @@ export function showMessage(type, text) {
   }
 }
 
-export function isAdminUser(account) {
+export function isAdminUser(account: LegacyAny = undefined): boolean {
   if (account === undefined || account === null) {
     return false;
   }
   return account.owner === "built-in";
 }
 
-export function isLocalAdminUser(account) {
+export function isLocalAdminUser(account: LegacyAny): boolean {
   if (account === undefined || account === null) {
     return false;
   }
@@ -1650,7 +1653,7 @@ export function getLabel(text, tooltip) {
   );
 }
 
-export function getItem(label, key, icon, children, type) {
+export function getItem(label: LegacyAny, key: LegacyAny, icon: LegacyAny = undefined, children: LegacyAny = undefined, type: LegacyAny = undefined): LegacyAny {
   return {label: label, key: key, icon: icon, children: children, type: type};
 }
 
@@ -1684,7 +1687,7 @@ export function getTagColor(s) {
   return "processing";
 }
 
-export function getTags(tags, urlPrefix = null) {
+export function getTags(tags: LegacyAny, urlPrefix: LegacyAny = null): LegacyAny {
   const res = [];
   if (!tags) {
     return res;
@@ -1710,7 +1713,7 @@ export function getTags(tags, urlPrefix = null) {
   return res;
 }
 
-export function getTag(color, text, icon) {
+export function getTag(color: LegacyAny, text: LegacyAny, icon: LegacyAny = undefined): React.ReactElement {
   return (
     <Tag color={color} icon={icon}>
       {text}
@@ -1772,7 +1775,7 @@ export function setOrganization(organization) {
   window.dispatchEvent(new Event("storageOrganizationChanged"));
 }
 
-export function getRequestOrganization(account) {
+export function getRequestOrganization(account: LegacyAny): string {
   if (isAdminUser(account)) {
     return getOrganization() === "All" ? account.owner : getOrganization();
   }

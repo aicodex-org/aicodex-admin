@@ -12,14 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import React from "react";
-import {render} from "@testing-library/react";
-import App from "./App";
+// jest-dom adds custom jest matchers for asserting on DOM nodes.
+// allows you to do things like:
+// expect(element).toHaveTextContent(/react/i)
+// learn more: https://github.com/testing-library/jest-dom
+import "@testing-library/jest-dom/extend-expect";
 
-// eslint-disable-next-line no-undef
-test("renders learn react link", () => {
-  const {getByText} = render(<App />);
-  const linkElement = getByText(/learn react/i);
-  // eslint-disable-next-line no-undef
-  expect(linkElement).toBeInTheDocument();
-});
+if (!window.matchMedia) {
+  window.matchMedia = (query: string): MediaQueryList => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  });
+}

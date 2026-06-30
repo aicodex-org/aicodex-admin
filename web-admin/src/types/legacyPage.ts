@@ -18,7 +18,7 @@ export interface AdminAccount {
 }
 
 export interface AdminHistory {
-  push: (location: string | {pathname: string; mode?: string}) => void;
+  push: (location: string | {pathname: string; mode?: string; [key: string]: LegacyAny}, state?: LegacyAny) => void;
   [key: string]: LegacyAny;
 }
 

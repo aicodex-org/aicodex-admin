@@ -25,7 +25,7 @@ import {
 } from "@ant-design/icons";
 import IdentityConsoleOverview from "./IdentityConsoleOverview";
 import AppListPage from "./basic/AppListPage";
-import ShortcutsPage from "./basic/ShortcutsPage.tsx";
+import ShortcutsPage from "./basic/ShortcutsPage";
 import AccountPage from "./account/AccountPage";
 import OrganizationListPage from "./OrganizationListPage";
 import OrganizationEditPage from "./OrganizationEditPage";
@@ -144,6 +144,7 @@ import {
   readWorkspaceTabs,
   saveWorkspaceTabs
 } from "./common/workspaceTabState";
+import type {AdminAccount, AdminHistory, LegacyAny} from "./types/legacyPage";
 
 const {Content, Header, Sider} = Layout;
 const ADMIN_SHELL_SIDEBAR_EXPANDED_WIDTH = 224;
@@ -155,7 +156,32 @@ const ADMIN_SHELL_SIDEBAR_MENU_MOTION = {
   motionLeave: false,
 };
 
-function readSidebarCollapsedPreference() {
+interface ManagementPageProps {
+  account?: AdminAccount | null;
+  application?: LegacyAny;
+  uri?: string | null;
+  themeData: {
+    colorPrimary?: string;
+    [key: string]: LegacyAny;
+  };
+  themeAlgorithm: string[];
+  selectedMenuKey: string | number;
+  requiredEnableMfa: boolean;
+  menuVisible?: boolean;
+  logo?: string;
+  history?: AdminHistory;
+  onChangeTheme: (...args: LegacyAny[]) => void;
+  onClick: (event: {key: string}) => void;
+  onUpdateAccount: (account: LegacyAny) => void;
+  onfinish: () => void;
+  openAiAssistant: () => void;
+  setLogoAndThemeAlgorithm: (themeAlgorithm: string[]) => void;
+  setLogoutState: () => void;
+}
+
+type NavigationGroup = ReturnType<typeof buildEnterpriseNavigationGroups>[number];
+
+function readSidebarCollapsedPreference(): boolean {
   try {
     const storedValue = window.localStorage.getItem(ADMIN_SHELL_SIDEBAR_COLLAPSED_KEY);
 
@@ -165,7 +191,7 @@ function readSidebarCollapsedPreference() {
   }
 }
 
-function saveSidebarCollapsedPreference(collapsed) {
+function saveSidebarCollapsedPreference(collapsed: boolean) {
   try {
     window.localStorage.setItem(ADMIN_SHELL_SIDEBAR_COLLAPSED_KEY, collapsed ? "true" : "false");
   } catch {
@@ -173,16 +199,18 @@ function saveSidebarCollapsedPreference(collapsed) {
   }
 }
 
-function getMenuTitle(label) {
+function getMenuTitle(label: React.ReactNode): string | undefined {
   return typeof label === "string" ? label : undefined;
 }
 
-function ManagementPage(props) {
+function ManagementPage(props: ManagementPageProps) {
   const [menuVisible, setMenuVisible] = useState(false);
-  const [openKeys, setOpenKeys] = useState([]);
-  const [workspaceTabs, setWorkspaceTabs] = useState([]);
+  const [openKeys, setOpenKeys] = useState<string[]>([]);
+  const [workspaceTabs, setWorkspaceTabs] = useState<LegacyAny[]>([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsedPreference);
   const organization = props.account?.organization;
+  const history = props.history as AdminHistory;
+  const account = props.account as AdminAccount;
   const widgetItems = organization?.widgetItems;
   const isMobile = Setting.isMobile();
   const adminShellThemeClassName = props.themeAlgorithm.includes("dark") ? "admin-shell-theme-dark" : "admin-shell-theme-light";
@@ -191,7 +219,7 @@ function ManagementPage(props) {
     AuthBackend.logout()
       .then((res) => {
         if (res.status === "ok") {
-          const owner = props.account.owner;
+          const owner = account.owner;
           props.setLogoutState();
           clearWeb3AuthToken();
           Setting.showMessage("success", i18next.t("application:Logged out successfully"));
@@ -210,25 +238,25 @@ function ManagementPage(props) {
   }
 
   function renderAvatar() {
-    if (props.account.avatar === "") {
+    if (account.avatar === "") {
       return (
-        <Avatar style={{backgroundColor: Setting.getAvatarColor(props.account.name), verticalAlign: "middle"}} size="large">
-          {Setting.getShortName(props.account.name)}
+        <Avatar style={{backgroundColor: Setting.getAvatarColor(account.name), verticalAlign: "middle"}} size="large">
+          {Setting.getShortName(account.name)}
         </Avatar>
       );
     } else {
       return (
-        <Avatar src={props.account.avatar} style={{verticalAlign: "middle"}} size="large"
-          icon={<AccountAvatar src={props.account.avatar} style={{verticalAlign: "middle"}} size={40} />}
+        <Avatar src={account.avatar} style={{verticalAlign: "middle"}} size="large"
+          icon={<AccountAvatar src={account.avatar} style={{verticalAlign: "middle"}} size={40} />}
         >
-          {Setting.getShortName(props.account.name)}
+          {Setting.getShortName(account.name)}
         </Avatar>
       );
     }
   }
 
   function renderRightDropdown() {
-    const items = [];
+    const items: LegacyAny[] = [];
     if (props.requiredEnableMfa === false) {
       items.push(Setting.getItem(<><SettingOutlined />&nbsp;&nbsp;{i18next.t("account:My Account")}</>,
         "/account"
@@ -243,11 +271,11 @@ function ManagementPage(props) {
         "/logout"));
     }
 
-    const onClick = (e) => {
+    const onClick = (e: {key: string}) => {
       if (e.key === "/account") {
-        props.history.push("/account");
+        history.push("/account");
       } else if (e.key === "/subscription") {
-        props.history.push("/subscription");
+        history.push("/subscription");
       } else if (e.key === "/logout") {
         logout();
       } else if (e.key === "/exit-impersonation") {
@@ -271,7 +299,7 @@ function ManagementPage(props) {
           }
           {!Setting.isMobile() && (
             <span className="admin-shell-account-name">
-              {Setting.getShortText(Setting.getNameAtLeast(props.account.displayName), 30)}
+              {Setting.getShortText(Setting.getNameAtLeast(account.displayName), 30)}
             </span>
           )}
           <DownOutlined className="admin-shell-account-caret" />
@@ -287,7 +315,7 @@ function ManagementPage(props) {
   function renderWidgets() {
     const widgets = [
       Setting.getItem(<ThemeSelect themeAlgorithm={props.themeAlgorithm} onChange={props.setLogoAndThemeAlgorithm} />, "theme"),
-      Setting.getItem(<LanguageSelect languages={props.account.organization.languages} />, "language"),
+      Setting.getItem(<LanguageSelect languages={account.organization?.languages} />, "language"),
       Setting.getItem(Conf.AiAssistantUrl?.trim() && (
         <Tooltip title="Click to open AI assistant">
           <div className="select-box" onClick={props.openAiAssistant}>
@@ -321,13 +349,13 @@ function ManagementPage(props) {
         <React.Fragment>
           {renderRightDropdown()}
           {renderWidgets()}
-          {Setting.isAdminUser(props.account) && (props.uri.indexOf("/trees") === -1) &&
+          {Setting.isAdminUser(props.account) && ((props.uri ?? "").indexOf("/trees") === -1) &&
             <OrganizationSelect
               initValue={Setting.getOrganization()}
               withAll={true}
               className="org-select"
               style={{display: Setting.isMobile() ? "none" : "flex"}}
-              onChange={(value) => {
+              onChange={(value: LegacyAny) => {
                 Setting.setOrganization(value);
               }}
             />
@@ -356,10 +384,10 @@ function ManagementPage(props) {
     });
   }
 
-  function getSidebarMenuItems(groups) {
+  function getSidebarMenuItems(groups: NavigationGroup[]) {
     return groups.map((group) => {
       if (shouldRenderNavigationGroupAsSingleLeaf(group)) {
-        const item = group.children[0];
+        const item = group.children[0] as LegacyAny;
         return {
           ...Setting.getItem(<Link to={item.to}>{group.label}</Link>, item.key, group.icon),
           title: getMenuTitle(group.label),
@@ -367,7 +395,7 @@ function ManagementPage(props) {
       }
 
       return {
-        ...Setting.getItem(group.label, group.key, group.icon, group.children.map((item) => {
+        ...Setting.getItem(group.label, group.key, group.icon, group.children.map((item: LegacyAny) => {
           if (item.external) {
             return {
               ...Setting.getItem(<a target="_blank" rel="noreferrer" href={item.href}>{item.label}</a>, item.key),
@@ -403,7 +431,7 @@ function ManagementPage(props) {
       return;
     }
 
-    setWorkspaceTabs((currentTabs) => {
+    setWorkspaceTabs((currentTabs: LegacyAny[]) => {
       const baseTabs = currentTabs.length > 0 ?
         currentTabs :
         readWorkspaceTabs(window.sessionStorage, activeWorkspacePath, workspaceRoutes);
@@ -418,7 +446,7 @@ function ManagementPage(props) {
     });
   }, [activeWorkspacePath, navigationSelection.itemKey, workspaceRouteSignature]);
 
-  function renderLoginIfNotLoggedIn(component) {
+  function renderLoginIfNotLoggedIn(component: React.ReactNode) {
     if (props.account === null) {
       sessionStorage.setItem("from", window.location.pathname);
       return <Redirect to={getAdminLoginRedirectPath()} />;
@@ -436,106 +464,110 @@ function ManagementPage(props) {
   }
 
   function renderRouter() {
-    const account = props.account;
+    const account = props.account as LegacyAny;
     const onChangeTheme = props.onChangeTheme;
     const onfinish = props.onfinish;
+    const renderLegacyRoute = (Page: LegacyAny, routeProps: LegacyAny, extraProps: LegacyAny = {}) => (
+      renderLoginIfNotLoggedIn(React.createElement(Page, {account, ...extraProps, ...routeProps}))
+    );
+
     return (
       <Switch>
-        <Route exact path="/" render={(props) => renderLoginIfNotLoggedIn(<IdentityConsoleOverview account={account} {...props} />)} />
-        <Route exact path="/identity-assets" render={(props) => renderLoginIfNotLoggedIn(<IdentityEvidenceChainPage account={account} {...props} />)} />
-        <Route exact path="/access-wizard" render={(props) => renderLoginIfNotLoggedIn(<AccessWizardPage account={account} {...props} />)} />
-        <Route exact path="/governance-tasks" render={(props) => renderLoginIfNotLoggedIn(<GovernanceTaskCenter account={account} {...props} />)} />
-        <Route exact path="/apps" render={(props) => renderLoginIfNotLoggedIn(<AppListPage account={account} {...props} />)} />
-        <Route exact path="/shortcuts" render={(props) => renderLoginIfNotLoggedIn(<ShortcutsPage account={account} {...props} />)} />
-        <Route exact path="/account" render={(routeProps) => renderLoginIfNotLoggedIn(<AccountPage account={account} onUpdateAccount={props.onUpdateAccount} {...routeProps} />)} />
-        <Route exact path="/organizations" render={(props) => renderLoginIfNotLoggedIn(<OrganizationListPage account={account} {...props} />)} />
-        <Route exact path="/organizations/:organizationName" render={(props) => renderLoginIfNotLoggedIn(<OrganizationEditPage account={account} onChangeTheme={onChangeTheme} {...props} />)} />
-        <Route exact path="/organizations/:organizationName/users" render={(props) => renderLoginIfNotLoggedIn(<UserListPage account={account} {...props} />)} />
-        <Route exact path="/trees/:organizationName" render={(props) => renderLoginIfNotLoggedIn(<GroupTreePage account={account} {...props} />)} />
-        <Route exact path="/trees/:organizationName/:groupName" render={(props) => renderLoginIfNotLoggedIn(<GroupTreePage account={account} {...props} />)} />
-        <Route exact path="/groups" render={(props) => renderLoginIfNotLoggedIn(<GroupListPage account={account} {...props} />)} />
-        <Route exact path="/groups/:organizationName/:groupName" render={(props) => renderLoginIfNotLoggedIn(<GroupEditPage account={account} {...props} />)} />
-        <Route exact path="/users" render={(props) => renderLoginIfNotLoggedIn(<UserListPage account={account} {...props} />)} />
-        <Route exact path="/users/:organizationName/:userName" render={(props) => <UserEditPage account={account} {...props} />} />
-        <Route exact path="/invitations" render={(props) => renderLoginIfNotLoggedIn(<InvitationListPage account={account} {...props} />)} />
-        <Route exact path="/invitations/:organizationName/:invitationName" render={(props) => renderLoginIfNotLoggedIn(<InvitationEditPage account={account} {...props} />)} />
-        <Route exact path="/applications" render={(props) => renderLoginIfNotLoggedIn(<ApplicationListPage account={account} {...props} />)} />
-        <Route exact path="/application-usage-access" render={(props) => renderLoginIfNotLoggedIn(<ApplicationUsageAccessPage account={account} {...props} />)} />
-        <Route exact path="/applications/:organizationName/:applicationName" render={(props) => renderLoginIfNotLoggedIn(<ApplicationEditPage account={account} {...props} />)} />
-        <Route exact path="/providers" render={(props) => renderLoginIfNotLoggedIn(<ProviderListPage account={account} {...props} />)} />
-        <Route exact path="/providers/:organizationName/:providerName" render={(props) => renderLoginIfNotLoggedIn(<ProviderEditPage account={account} {...props} />)} />
-        <Route exact path="/records" render={(props) => renderLoginIfNotLoggedIn(<RecordListPage account={account} {...props} />)} />
-        <Route exact path="/resources" render={(props) => renderLoginIfNotLoggedIn(<ResourceListPage account={account} {...props} />)} />
-        <Route exact path="/certs" render={(props) => renderLoginIfNotLoggedIn(<CertListPage account={account} {...props} />)} />
-        <Route exact path="/certs/:organizationName/:certName" render={(props) => renderLoginIfNotLoggedIn(<CertEditPage account={account} {...props} />)} />
-        <Route exact path="/keys" render={(props) => renderLoginIfNotLoggedIn(<KeyListPage account={account} {...props} />)} />
-        <Route exact path="/keys/:organizationName/:keyName" render={(props) => renderLoginIfNotLoggedIn(<KeyEditPage account={account} {...props} />)} />
-        <Route exact path="/agents" render={(props) => renderLoginIfNotLoggedIn(<AgentListPage account={account} {...props} />)} />
-        <Route exact path="/agents/:organizationName/:agentName" render={(props) => renderLoginIfNotLoggedIn(<AgentEditPage account={account} {...props} />)} />
-        <Route exact path="/servers" render={(props) => renderLoginIfNotLoggedIn(<ServerListPage account={account} {...props} />)} />
-        <Route exact path="/server-store" render={(props) => renderLoginIfNotLoggedIn(<ServerStorePage account={account} {...props} />)} />
-        <Route exact path="/servers/:organizationName/:serverName" render={(props) => renderLoginIfNotLoggedIn(<ServerEditPage account={account} {...props} />)} />
-        <Route exact path="/entries" render={(props) => renderLoginIfNotLoggedIn(<EntryListPage account={account} {...props} />)} />
-        <Route exact path="/entries/:organizationName/:entryName" render={(props) => renderLoginIfNotLoggedIn(<EntryEditPage account={account} {...props} />)} />
-        <Route exact path="/sites" render={(props) => renderLoginIfNotLoggedIn(<SiteListPage account={account} {...props} />)} />
-        <Route exact path="/sites/:organizationName/:siteName" render={(props) => renderLoginIfNotLoggedIn(<SiteEditPage account={account} {...props} />)} />
-        <Route exact path="/rules" render={(props) => renderLoginIfNotLoggedIn(<RuleListPage account={account} {...props} />)} />
-        <Route exact path="/rules/:organizationName/:ruleName" render={(props) => renderLoginIfNotLoggedIn(<RuleEditPage account={account} {...props} />)} />
-        <Route exact path="/verifications" render={(props) => renderLoginIfNotLoggedIn(<VerificationListPage account={account} {...props} />)} />
-        <Route exact path="/roles" render={(props) => renderLoginIfNotLoggedIn(<RoleListPage account={account} {...props} />)} />
-        <Route exact path="/roles/:organizationName/:roleName" render={(props) => renderLoginIfNotLoggedIn(<RoleEditPage account={account} {...props} />)} />
-        <Route exact path="/permissions" render={(props) => renderLoginIfNotLoggedIn(<PermissionListPage account={account} {...props} />)} />
-        <Route exact path="/permissions/:organizationName/:permissionName" render={(props) => renderLoginIfNotLoggedIn(<PermissionEditPage account={account} {...props} />)} />
-        <Route exact path="/models" render={(props) => renderLoginIfNotLoggedIn(<ModelListPage account={account} {...props} />)} />
-        <Route exact path="/models/:organizationName/:modelName" render={(props) => renderLoginIfNotLoggedIn(<ModelEditPage account={account} {...props} />)} />
-        <Route exact path="/adapters" render={(props) => renderLoginIfNotLoggedIn(<AdapterListPage account={account} {...props} />)} />
-        <Route exact path="/adapters/:organizationName/:adapterName" render={(props) => renderLoginIfNotLoggedIn(<AdapterEditPage account={account} {...props} />)} />
-        <Route exact path="/enforcers" render={(props) => renderLoginIfNotLoggedIn(<EnforcerListPage account={account} {...props} />)} />
-        <Route exact path="/enforcers/:organizationName/:enforcerName" render={(props) => renderLoginIfNotLoggedIn(<EnforcerEditPage account={account} {...props} />)} />
-        <Route exact path="/sessions" render={(props) => renderLoginIfNotLoggedIn(<SessionListPage account={account} {...props} />)} />
-        <Route exact path="/tokens" render={(props) => renderLoginIfNotLoggedIn(<TokenListPage account={account} {...props} />)} />
-        <Route exact path="/tokens/:tokenName" render={(props) => renderLoginIfNotLoggedIn(<TokenEditPage account={account} {...props} />)} />
-        <Route exact path="/product-store" render={(props) => renderLoginIfNotLoggedIn(<ProductStorePage account={account} {...props} />)} />
-        <Route exact path="/products" render={(props) => renderLoginIfNotLoggedIn(<ProductListPage account={account} {...props} />)} />
-        <Route exact path="/products/:organizationName/:productName" render={(props) => renderLoginIfNotLoggedIn(<ProductEditPage account={account} {...props} />)} />
-        <Route exact path="/products/:organizationName/:productName/buy" render={(props) => renderLoginIfNotLoggedIn(<ProductBuyPage account={account} {...props} />)} />
-        <Route exact path="/cart" render={(props) => renderLoginIfNotLoggedIn(<CartListPage account={account} {...props} />)} />
-        <Route exact path="/orders" render={(props) => renderLoginIfNotLoggedIn(<OrderListPage account={account} {...props} />)} />
-        <Route exact path="/orders/:organizationName/:orderName" render={(props) => renderLoginIfNotLoggedIn(<OrderEditPage account={account} {...props} />)} />
-        <Route exact path="/orders/:organizationName/:orderName/pay" render={(props) => renderLoginIfNotLoggedIn(<OrderPayPage account={account} {...props} />)} />
-        <Route exact path="/payments" render={(props) => renderLoginIfNotLoggedIn(<PaymentListPage account={account} {...props} />)} />
-        <Route exact path="/payments/:organizationName/:paymentName" render={(props) => renderLoginIfNotLoggedIn(<PaymentEditPage account={account} {...props} />)} />
-        <Route exact path="/payments/:organizationName/:paymentName/result" render={(props) => renderLoginIfNotLoggedIn(<PaymentResultPage account={account} {...props} />)} />
-        <Route exact path="/plans" render={(props) => renderLoginIfNotLoggedIn(<PlanListPage account={account} {...props} />)} />
-        <Route exact path="/plans/:organizationName/:planName" render={(props) => renderLoginIfNotLoggedIn(<PlanEditPage account={account} {...props} />)} />
-        <Route exact path="/pricings" render={(props) => renderLoginIfNotLoggedIn(<PricingListPage account={account} {...props} />)} />
-        <Route exact path="/pricings/:organizationName/:pricingName" render={(props) => renderLoginIfNotLoggedIn(<PricingEditPage account={account} {...props} />)} />
-        <Route exact path="/subscriptions" render={(props) => renderLoginIfNotLoggedIn(<SubscriptionListPage account={account} {...props} />)} />
-        <Route exact path="/subscriptions/:organizationName/:subscriptionName" render={(props) => renderLoginIfNotLoggedIn(<SubscriptionEditPage account={account} {...props} />)} />
-        <Route exact path="/sysinfo" render={(props) => renderLoginIfNotLoggedIn(<SystemInfo account={account} {...props} />)} />
-        <Route exact path="/forms" render={(props) => renderLoginIfNotLoggedIn(<FormListPage account={account} {...props} />)} />
-        <Route exact path="/forms/:formName" render={(props) => renderLoginIfNotLoggedIn(<FormEditPage account={account} {...props} />)} />
-        <Route exact path="/syncers" render={(props) => renderLoginIfNotLoggedIn(<SyncerListPage account={account} {...props} />)} />
-        <Route exact path="/syncers/:syncerName" render={(props) => renderLoginIfNotLoggedIn(<SyncerEditPage account={account} {...props} />)} />
-        <Route exact path="/wecom-org-sync" render={(props) => renderLoginIfNotLoggedIn(<WecomOrganizationSyncPage account={account} {...props} />)} />
-        <Route exact path="/feishu-org-sync" render={(props) => renderLoginIfNotLoggedIn(<FeishuOrganizationSyncPage account={account} {...props} />)} />
-        <Route exact path="/organization-sync-api-keys" render={(props) => renderLoginIfNotLoggedIn(<OrganizationSyncApiKeyListPage account={account} {...props} />)} />
-        <Route exact path="/organization-tree-operations" render={(props) => renderLoginIfNotLoggedIn(<OrganizationTreeOperationsPage account={account} {...props} />)} />
-        <Route exact path="/organization-directory-quality" render={(props) => renderLoginIfNotLoggedIn(<OrganizationDirectoryQualityPage account={account} {...props} />)} />
-        <Route exact path="/platform-api-mappings" render={(props) => renderLoginIfNotLoggedIn(<PlatformApiMappingPage account={account} {...props} />)} />
-        <Route exact path="/transactions" render={(props) => renderLoginIfNotLoggedIn(<TransactionListPage account={account} {...props} />)} />
-        <Route exact path="/transactions/:organizationName/:transactionName" render={(props) => renderLoginIfNotLoggedIn(<TransactionEditPage account={account} {...props} />)} />
-        <Route exact path="/webhooks" render={(props) => renderLoginIfNotLoggedIn(<WebhookListPage account={account} {...props} />)} />
-        <Route exact path="/webhook-events" render={(props) => renderLoginIfNotLoggedIn(<WebhookEventListPage account={account} {...props} />)} />
-        <Route exact path="/webhooks/:webhookName" render={(props) => renderLoginIfNotLoggedIn(<WebhookEditPage account={account} {...props} />)} />
-        <Route exact path="/tickets" render={(props) => renderLoginIfNotLoggedIn(<TicketListPage account={account} {...props} />)} />
-        <Route exact path="/tickets/:organizationName/:ticketName" render={(props) => renderLoginIfNotLoggedIn(<TicketEditPage account={account} {...props} />)} />
-        <Route exact path="/ldap/:organizationName/:ldapId" render={(props) => renderLoginIfNotLoggedIn(<LdapEditPage account={account} {...props} />)} />
-        <Route exact path="/ldap/sync/:organizationName/:ldapId" render={(props) => renderLoginIfNotLoggedIn(<LdapSyncPage account={account} {...props} />)} />
-        <Route exact path="/mfa/setup" render={(props) => renderLoginIfNotLoggedIn(<MfaSetupPage account={account} onfinish={onfinish} {...props} />)} />
-        <Route exact path="/.well-known/openid-configuration" render={(props) => <OdicDiscoveryPage />} />
-        <Route path="" render={() => <Result status="404" title="404 NOT FOUND" subTitle={i18next.t("general:Sorry, the page you visited does not exist.")}
-          extra={<a href="/"><Button type="primary">{i18next.t("general:Back Home")}</Button></a>} />} />
+        <Route exact path="/" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<IdentityConsoleOverview account={account} {...props} />)} />
+        <Route exact path="/identity-assets" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<IdentityEvidenceChainPage account={account} {...props} />)} />
+        <Route exact path="/access-wizard" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<AccessWizardPage account={account} {...props} />)} />
+        <Route exact path="/governance-tasks" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<GovernanceTaskCenter account={account} {...props} />)} />
+        <Route exact path="/apps" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<AppListPage account={account} {...props} />)} />
+        <Route exact path="/shortcuts" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<ShortcutsPage account={account} {...props} />)} />
+        <Route exact path="/account" render={(routeProps: LegacyAny) => renderLoginIfNotLoggedIn(<AccountPage account={account} onUpdateAccount={props.onUpdateAccount} {...routeProps} />)} />
+        <Route exact path="/organizations" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<OrganizationListPage account={account} {...props} />)} />
+        <Route exact path="/organizations/:organizationName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<OrganizationEditPage account={account} onChangeTheme={onChangeTheme} {...props} />)} />
+        <Route exact path="/organizations/:organizationName/users" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<UserListPage account={account} {...props} />)} />
+        <Route exact path="/trees/:organizationName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<GroupTreePage account={account} {...props} />)} />
+        <Route exact path="/trees/:organizationName/:groupName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<GroupTreePage account={account} {...props} />)} />
+        <Route exact path="/groups" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<GroupListPage account={account} {...props} />)} />
+        <Route exact path="/groups/:organizationName/:groupName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<GroupEditPage account={account} {...props} />)} />
+        <Route exact path="/users" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<UserListPage account={account} {...props} />)} />
+        <Route exact path="/users/:organizationName/:userName" render={(props: LegacyAny) => <UserEditPage account={account} {...props} />} />
+        <Route exact path="/invitations" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<InvitationListPage account={account} {...props} />)} />
+        <Route exact path="/invitations/:organizationName/:invitationName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<InvitationEditPage account={account} {...props} />)} />
+        <Route exact path="/applications" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<ApplicationListPage account={account} {...props} />)} />
+        <Route exact path="/application-usage-access" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<ApplicationUsageAccessPage account={account} {...props} />)} />
+        <Route exact path="/applications/:organizationName/:applicationName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<ApplicationEditPage account={account} {...props} />)} />
+        <Route exact path="/providers" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<ProviderListPage account={account} {...props} />)} />
+        <Route exact path="/providers/:organizationName/:providerName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<ProviderEditPage account={account} {...props} />)} />
+        <Route exact path="/records" render={(props: LegacyAny) => renderLegacyRoute(RecordListPage, props)} />
+        <Route exact path="/resources" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<ResourceListPage account={account} {...props} />)} />
+        <Route exact path="/certs" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<CertListPage account={account} {...props} />)} />
+        <Route exact path="/certs/:organizationName/:certName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<CertEditPage account={account} {...props} />)} />
+        <Route exact path="/keys" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<KeyListPage account={account} {...props} />)} />
+        <Route exact path="/keys/:organizationName/:keyName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<KeyEditPage account={account} {...props} />)} />
+        <Route exact path="/agents" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<AgentListPage account={account} {...props} />)} />
+        <Route exact path="/agents/:organizationName/:agentName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<AgentEditPage account={account} {...props} />)} />
+        <Route exact path="/servers" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<ServerListPage account={account} {...props} />)} />
+        <Route exact path="/server-store" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<ServerStorePage account={account} {...props} />)} />
+        <Route exact path="/servers/:organizationName/:serverName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<ServerEditPage account={account} {...props} />)} />
+        <Route exact path="/entries" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<EntryListPage account={account} {...props} />)} />
+        <Route exact path="/entries/:organizationName/:entryName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<EntryEditPage account={account} {...props} />)} />
+        <Route exact path="/sites" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<SiteListPage account={account} {...props} />)} />
+        <Route exact path="/sites/:organizationName/:siteName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<SiteEditPage account={account} {...props} />)} />
+        <Route exact path="/rules" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<RuleListPage account={account} {...props} />)} />
+        <Route exact path="/rules/:organizationName/:ruleName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<RuleEditPage account={account} {...props} />)} />
+        <Route exact path="/verifications" render={(props: LegacyAny) => renderLegacyRoute(VerificationListPage, props)} />
+        <Route exact path="/roles" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<RoleListPage account={account} {...props} />)} />
+        <Route exact path="/roles/:organizationName/:roleName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<RoleEditPage account={account} {...props} />)} />
+        <Route exact path="/permissions" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<PermissionListPage account={account} {...props} />)} />
+        <Route exact path="/permissions/:organizationName/:permissionName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<PermissionEditPage account={account} {...props} />)} />
+        <Route exact path="/models" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<ModelListPage account={account} {...props} />)} />
+        <Route exact path="/models/:organizationName/:modelName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<ModelEditPage account={account} {...props} />)} />
+        <Route exact path="/adapters" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<AdapterListPage account={account} {...props} />)} />
+        <Route exact path="/adapters/:organizationName/:adapterName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<AdapterEditPage account={account} {...props} />)} />
+        <Route exact path="/enforcers" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<EnforcerListPage account={account} {...props} />)} />
+        <Route exact path="/enforcers/:organizationName/:enforcerName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<EnforcerEditPage account={account} {...props} />)} />
+        <Route exact path="/sessions" render={(props: LegacyAny) => renderLegacyRoute(SessionListPage, props)} />
+        <Route exact path="/tokens" render={(props: LegacyAny) => renderLegacyRoute(TokenListPage, props)} />
+        <Route exact path="/tokens/:tokenName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<TokenEditPage account={account} {...props} />)} />
+        <Route exact path="/product-store" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<ProductStorePage account={account} {...props} />)} />
+        <Route exact path="/products" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<ProductListPage account={account} {...props} />)} />
+        <Route exact path="/products/:organizationName/:productName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<ProductEditPage account={account} {...props} />)} />
+        <Route exact path="/products/:organizationName/:productName/buy" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<ProductBuyPage account={account} {...props} />)} />
+        <Route exact path="/cart" render={(props: LegacyAny) => renderLegacyRoute(CartListPage, props)} />
+        <Route exact path="/orders" render={(props: LegacyAny) => renderLegacyRoute(OrderListPage, props)} />
+        <Route exact path="/orders/:organizationName/:orderName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<OrderEditPage account={account} {...props} />)} />
+        <Route exact path="/orders/:organizationName/:orderName/pay" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<OrderPayPage account={account} {...props} />)} />
+        <Route exact path="/payments" render={(props: LegacyAny) => renderLegacyRoute(PaymentListPage, props)} />
+        <Route exact path="/payments/:organizationName/:paymentName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<PaymentEditPage account={account} {...props} />)} />
+        <Route exact path="/payments/:organizationName/:paymentName/result" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<PaymentResultPage account={account} {...props} />)} />
+        <Route exact path="/plans" render={(props: LegacyAny) => renderLegacyRoute(PlanListPage, props)} />
+        <Route exact path="/plans/:organizationName/:planName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<PlanEditPage account={account} {...props} />)} />
+        <Route exact path="/pricings" render={(props: LegacyAny) => renderLegacyRoute(PricingListPage, props)} />
+        <Route exact path="/pricings/:organizationName/:pricingName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<PricingEditPage account={account} {...props} />)} />
+        <Route exact path="/subscriptions" render={(props: LegacyAny) => renderLegacyRoute(SubscriptionListPage, props)} />
+        <Route exact path="/subscriptions/:organizationName/:subscriptionName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<SubscriptionEditPage account={account} {...props} />)} />
+        <Route exact path="/sysinfo" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<SystemInfo account={account} {...props} />)} />
+        <Route exact path="/forms" render={(props: LegacyAny) => renderLegacyRoute(FormListPage, props)} />
+        <Route exact path="/forms/:formName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<FormEditPage account={account} {...props} />)} />
+        <Route exact path="/syncers" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<SyncerListPage account={account} {...props} />)} />
+        <Route exact path="/syncers/:syncerName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<SyncerEditPage account={account} {...props} />)} />
+        <Route exact path="/wecom-org-sync" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<WecomOrganizationSyncPage account={account} {...props} />)} />
+        <Route exact path="/feishu-org-sync" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<FeishuOrganizationSyncPage account={account} {...props} />)} />
+        <Route exact path="/organization-sync-api-keys" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<OrganizationSyncApiKeyListPage account={account} {...props} />)} />
+        <Route exact path="/organization-tree-operations" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<OrganizationTreeOperationsPage account={account} {...props} />)} />
+        <Route exact path="/organization-directory-quality" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<OrganizationDirectoryQualityPage account={account} {...props} />)} />
+        <Route exact path="/platform-api-mappings" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<PlatformApiMappingPage account={account} {...props} />)} />
+        <Route exact path="/transactions" render={(props: LegacyAny) => renderLegacyRoute(TransactionListPage, props)} />
+        <Route exact path="/transactions/:organizationName/:transactionName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<TransactionEditPage account={account} {...props} />)} />
+        <Route exact path="/webhooks" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<WebhookListPage account={account} {...props} />)} />
+        <Route exact path="/webhook-events" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<WebhookEventListPage account={account} {...props} />)} />
+        <Route exact path="/webhooks/:webhookName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<WebhookEditPage account={account} {...props} />)} />
+        <Route exact path="/tickets" render={(props: LegacyAny) => renderLegacyRoute(TicketListPage, props)} />
+        <Route exact path="/tickets/:organizationName/:ticketName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<TicketEditPage account={account} {...props} />)} />
+        <Route exact path="/ldap/:organizationName/:ldapId" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<LdapEditPage account={account} {...props} />)} />
+        <Route exact path="/ldap/sync/:organizationName/:ldapId" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<LdapSyncPage account={account} {...props} />)} />
+        <Route exact path="/mfa/setup" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<MfaSetupPage account={account} onfinish={onfinish} {...props} />)} />
+        <Route exact path="/.well-known/openid-configuration" render={(props: LegacyAny) => <OdicDiscoveryPage />} />
+        <Route path="" render={() => <Result status="404" title="404 NOT FOUND" subTitle={String(i18next.t("general:Sorry, the page you visited does not exist."))}
+          extra={<a href="/"><Button type="primary">{String(i18next.t("general:Back Home"))}</Button></a>} />} />
       </Switch>
     );
   }
@@ -596,37 +628,37 @@ function ManagementPage(props) {
 
   const renderSidebarToggle = () => (
     <div className="admin-shell-sidebar-toggle-row">
-      <Tooltip title={i18next.t(sidebarCollapsed ? "general:Expand sidebar" : "general:Collapse sidebar")}>
+      <Tooltip title={String(i18next.t(sidebarCollapsed ? "general:Expand sidebar" : "general:Collapse sidebar"))}>
         <Button
           className="admin-shell-sidebar-toggle"
           type="text"
           icon={sidebarCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-          aria-label={i18next.t(sidebarCollapsed ? "general:Expand sidebar" : "general:Collapse sidebar")}
+          aria-label={String(i18next.t(sidebarCollapsed ? "general:Expand sidebar" : "general:Collapse sidebar"))}
           onClick={toggleSidebarCollapsed}
         />
       </Tooltip>
     </div>
   );
 
-  const navigateWorkspaceTab = (path) => {
+  const navigateWorkspaceTab = (path: string) => {
     if (path !== activeWorkspacePath) {
-      props.history.push(path);
+      history.push(path);
     }
   };
 
-  const closeWorkspaceTabByPath = (path) => {
+  const closeWorkspaceTabByPath = (path: string) => {
     const result = closeWorkspaceTab(workspaceTabs, path, activeWorkspacePath);
 
     applyWorkspaceTabsCloseResult(result);
   };
 
-  const applyWorkspaceTabsCloseResult = (result) => {
+  const applyWorkspaceTabsCloseResult = (result: LegacyAny) => {
     // 关闭菜单的批量动作统一走这里，确保 sessionStorage 与路由跳转保持一致。
 
     setWorkspaceTabs(result.tabs);
     saveWorkspaceTabs(window.sessionStorage, result.tabs);
     if (result.nextPath !== activeWorkspacePath) {
-      props.history.push(result.nextPath);
+      history.push(result.nextPath);
     }
   };
 
@@ -634,11 +666,11 @@ function ManagementPage(props) {
     applyWorkspaceTabsCloseResult(closeWorkspaceTab(workspaceTabs, path, activeWorkspacePath));
   };
 
-  const closeWorkspaceTabsLeftOfPath = (path) => {
+  const closeWorkspaceTabsLeftOfPath = (path: string) => {
     applyWorkspaceTabsCloseResult(closeWorkspaceTabsToLeft(workspaceTabs, path, activeWorkspacePath));
   };
 
-  const closeWorkspaceTabsRightOfPath = (path) => {
+  const closeWorkspaceTabsRightOfPath = (path: string) => {
     applyWorkspaceTabsCloseResult(closeWorkspaceTabsToRight(workspaceTabs, path, activeWorkspacePath));
   };
 
@@ -693,9 +725,9 @@ function ManagementPage(props) {
             <img className="logo admin-shell-logo" src={getBrandLogo() ?? props.logo} alt={Conf.BrandName} />
             {!isMobile && (
               <span className="admin-shell-brand-text">
-                <span className="admin-shell-brand-name">{i18next.t("general:AICodex Admin")}</span>
+                <span className="admin-shell-brand-name">{String(i18next.t("general:AICodex Admin"))}</span>
                 <span className="admin-shell-brand-separator" aria-hidden="true">·</span>
-                <span className="admin-shell-brand-module">{i18next.t("general:Authentication Center")}</span>
+                <span className="admin-shell-brand-module">{String(i18next.t("general:Authentication Center"))}</span>
               </span>
             )}
           </Link>

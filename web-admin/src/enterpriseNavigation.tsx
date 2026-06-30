@@ -12,8 +12,28 @@ import {
   ToolTwoTone
 } from "@ant-design/icons";
 import * as Setting from "./Setting";
+import type {LegacyAny} from "./types/legacyPage";
 
-function matchMenuItem(uri, item) {
+type NavigationItem = {
+  key: string;
+  label: LegacyAny;
+  to?: string;
+  href?: string;
+  external?: boolean;
+  icon?: React.ReactNode;
+  visible?: boolean;
+  matchPrefixes: string[];
+  matcher?: (uri: string) => boolean;
+};
+
+type NavigationGroup = {
+  key: string;
+  label: LegacyAny;
+  icon: React.ReactNode;
+  children: NavigationItem[];
+};
+
+function matchMenuItem(uri: string, item: NavigationItem) {
   if (typeof item.matcher === "function") {
     return item.matcher(uri);
   }
@@ -27,7 +47,7 @@ function matchMenuItem(uri, item) {
   });
 }
 
-export function findNavigationSelection(uri, groups) {
+export function findNavigationSelection(uri: string, groups: NavigationGroup[]) {
   for (const group of groups) {
     for (const item of group.children) {
       if (matchMenuItem(uri, item)) {
@@ -46,11 +66,11 @@ export function findNavigationSelection(uri, groups) {
 }
 
 // 身份总览组只有 `/` 一个叶子时，运行时侧栏直接显示一级入口，避免“身份总览 > 身份总览”的空层级。
-export function shouldRenderNavigationGroupAsSingleLeaf(group) {
+export function shouldRenderNavigationGroupAsSingleLeaf(group?: NavigationGroup) {
   return group?.key === "/overview" && group.children.length === 1 && group.children[0]?.key === "/";
 }
 
-function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin = true, twoToneColor} = {}) {
+function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin = true, twoToneColor}: {isAdmin?: boolean; isLocalAdmin?: boolean; twoToneColor?: string} = {}): NavigationGroup[] {
   const groups = [
     {
       key: "/overview",
@@ -66,9 +86,9 @@ function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin
       label: i18next.t("general:Organization & Accounts"),
       icon: <AppstoreTwoTone twoToneColor={twoToneColor} />,
       children: [
-        {key: "/organizations", label: i18next.t("general:Organizations"), to: "/organizations", matchPrefixes: ["/organizations"], matcher: (uri) => uri === "/organizations" || uri.startsWith("/organizations/") && !uri.includes("/users")},
+        {key: "/organizations", label: i18next.t("general:Organizations"), to: "/organizations", matchPrefixes: ["/organizations"], matcher: (uri: string) => uri === "/organizations" || uri.startsWith("/organizations/") && !uri.includes("/users")},
         {key: "/groups", label: i18next.t("general:Groups"), to: "/groups", matchPrefixes: ["/groups", "/trees"]},
-        {key: "/users", label: i18next.t("general:Users"), to: "/users", matchPrefixes: ["/users"], matcher: (uri) => uri === "/users" || uri.startsWith("/users/") || uri.includes("/users")},
+        {key: "/users", label: i18next.t("general:Users"), to: "/users", matchPrefixes: ["/users"], matcher: (uri: string) => uri === "/users" || uri.startsWith("/users/") || uri.includes("/users")},
         {key: "/invitations", label: i18next.t("general:Invitations"), to: "/invitations", matchPrefixes: ["/invitations"]},
         {key: "/organization-tree-operations", label: i18next.t("general:Organization Tree Operations"), to: "/organization-tree-operations", matchPrefixes: ["/organization-tree-operations"], visible: isAdmin},
         {key: "/organization-directory-quality", label: i18next.t("general:Organization Directory Quality"), to: "/organization-directory-quality", matchPrefixes: ["/organization-directory-quality"], visible: isAdmin},
@@ -172,11 +192,11 @@ function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin
   return groups;
 }
 
-function isNavigationItemVisible(item) {
+function isNavigationItemVisible(item: NavigationItem) {
   return item.visible !== false;
 }
 
-export function buildEnterpriseNavigationConfigTreeData() {
+export function buildEnterpriseNavigationConfigTreeData(): LegacyAny[] {
   const groups = buildEnterpriseNavigationGroupDefinitions({isAdmin: true, isLocalAdmin: true});
 
   return [
@@ -198,7 +218,7 @@ export function buildEnterpriseNavigationConfigTreeData() {
 }
 
 // 导航分组只改变身份控制台的信息架构语义，叶子 key 保持兼容组织级 navItems 配置。
-export function buildEnterpriseNavigationGroups({account, themeData}) {
+export function buildEnterpriseNavigationGroups({account, themeData}: {account?: LegacyAny | null; themeData?: {colorPrimary?: string}}): LegacyAny[] {
   if (account === null || account === undefined) {
     return [];
   }

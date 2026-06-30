@@ -21,9 +21,25 @@ import * as Setting from "./Setting";
 import * as TourConfig from "./TourConfig";
 import * as FormBackend from "./backend/FormBackend";
 import {getTablePaginationProps as buildTablePaginationProps, getDefaultTablePagination} from "./common/table/TablePagination";
+import type {AdminRouteProps, LegacyListState} from "./types/legacyPage";
 
-class BaseListPage extends React.Component {
-  constructor(props) {
+type LegacyAny = any;
+
+type BaseListPageState = LegacyListState & {
+  classes: AdminRouteProps;
+  organizationName: string;
+  pagination: LegacyListState["pagination"] & {
+    current: number;
+    pageSize: number;
+  };
+  intervalId?: ReturnType<typeof setInterval> | null;
+  isTourVisible: boolean;
+};
+
+class BaseListPage<P extends AdminRouteProps = AdminRouteProps, S extends BaseListPageState = BaseListPageState> extends React.Component<P, S> {
+  private searchInput: LegacyAny = null;
+
+  constructor(props: P) {
     super(props);
     this.state = {
       classes: props,
@@ -36,7 +52,7 @@ class BaseListPage extends React.Component {
       isAuthorized: true,
       isTourVisible: TourConfig.getTourVisible(),
       formItems: [],
-    };
+    } as unknown as S;
   }
 
   handleOrganizationChange = () => {
@@ -75,6 +91,15 @@ class BaseListPage extends React.Component {
     this.getForm();
   }
 
+  fetch(params?: LegacyAny): void {
+    void params;
+  }
+
+  renderTable(data: LegacyAny[]): React.ReactNode {
+    void data;
+    return null;
+  }
+
   getForm() {
     const tag = this.props.account.tag;
     const formType = this.props.match?.path?.replace(/^\//, "");
@@ -94,7 +119,7 @@ class BaseListPage extends React.Component {
     }
   }
 
-  fetchFormWithoutTag(formName) {
+  fetchFormWithoutTag(formName: string) {
     FormBackend.getForm(this.props.account.owner, formName)
       .then(res => {
         if (res.status === "ok" && res.data) {
@@ -105,8 +130,8 @@ class BaseListPage extends React.Component {
       });
   }
 
-  getColumnSearchProps = (dataIndex, customRender = null) => ({
-    filterDropdown: ({setSelectedKeys, selectedKeys, confirm, clearFilters}) => (
+  getColumnSearchProps = (dataIndex: string, customRender: LegacyAny = null) => ({
+    filterDropdown: ({setSelectedKeys, selectedKeys, confirm, clearFilters}: LegacyAny) => (
       <div style={{padding: 8}}>
         <Input
           ref={node => {
@@ -127,10 +152,10 @@ class BaseListPage extends React.Component {
             size="small"
             style={{width: 90}}
           >
-            {i18next.t("general:Search")}
+            {String(i18next.t("general:Search"))}
           </Button>
           <Button onClick={() => this.handleReset(clearFilters)} size="small" style={{width: 90}}>
-            {i18next.t("forget:Reset")}
+            {String(i18next.t("forget:Reset"))}
           </Button>
           <Button
             type="link"
@@ -143,24 +168,24 @@ class BaseListPage extends React.Component {
               });
             }}
           >
-            {i18next.t("general:Filter")}
+            {String(i18next.t("general:Filter"))}
           </Button>
         </Space>
       </div>
     ),
-    filterIcon: filtered => <SearchOutlined style={{color: filtered ? "#1890ff" : undefined}} />,
-    onFilter: (value, record) =>
+    filterIcon: (filtered: boolean) => <SearchOutlined style={{color: filtered ? "#1890ff" : undefined}} />,
+    onFilter: (value: LegacyAny, record: LegacyAny) =>
       record[dataIndex]
         ? record[dataIndex].toString().toLowerCase().includes(value.toLowerCase())
         : "",
     filterDropdownProps: {
-      onOpenChange: visible => {
+      onOpenChange: (visible: boolean) => {
         if (visible) {
-          setTimeout(() => this.searchInput.select(), 100);
+          setTimeout(() => this.searchInput?.select(), 100);
         }
       },
     },
-    render: (text, record, index) => {
+    render: (text: LegacyAny, record: LegacyAny, index: number) => {
       const highlightContent = this.state.searchedColumn === dataIndex ? (
         <Highlighter
           highlightStyle={{backgroundColor: "#ffc069", padding: 0}}
@@ -176,17 +201,17 @@ class BaseListPage extends React.Component {
     },
   });
 
-  handleSearch = (selectedKeys, confirm, dataIndex) => {
+  handleSearch = (selectedKeys: LegacyAny[], confirm: LegacyAny, dataIndex: string) => {
     this.fetch({searchText: selectedKeys[0], searchedColumn: dataIndex, pagination: this.state.pagination});
   };
 
-  handleReset = clearFilters => {
+  handleReset = (clearFilters: LegacyAny) => {
     clearFilters();
     const {pagination} = this.state;
     this.fetch({pagination});
   };
 
-  handleTableChange = (pagination, filters, sorter) => {
+  handleTableChange = (pagination: LegacyAny, filters: LegacyAny, sorter: LegacyAny) => {
     this.fetch({
       sortField: sorter.field,
       sortOrder: sorter.order,
@@ -197,7 +222,7 @@ class BaseListPage extends React.Component {
     });
   };
 
-  getTablePaginationProps = (overrides = {}) => {
+  getTablePaginationProps = (overrides: LegacyAny = {}) => {
     return buildTablePaginationProps(this.state.pagination, overrides);
   };
 
@@ -209,7 +234,7 @@ class BaseListPage extends React.Component {
   getSteps = () => {
     const nextPathName = TourConfig.getNextUrl();
     const steps = TourConfig.getSteps();
-    steps.map((item, index) => {
+    steps.map((item: LegacyAny, index: number) => {
       if (!index) {
         item.target = () => document.querySelector(".ant-table");
       } else {
@@ -238,8 +263,8 @@ class BaseListPage extends React.Component {
         <Result
           status="403"
           title="403 Unauthorized"
-          subTitle={i18next.t("general:Sorry, you do not have permission to access this page or logged in status invalid.")}
-          extra={<a href="/"><Button type="primary">{i18next.t("general:Back Home")}</Button></a>}
+          subTitle={String(i18next.t("general:Sorry, you do not have permission to access this page or logged in status invalid."))}
+          extra={<a href="/"><Button type="primary">{String(i18next.t("general:Back Home"))}</Button></a>}
         />
       );
     }

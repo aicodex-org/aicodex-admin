@@ -38,6 +38,7 @@ const {Footer, Content} = Layout;
 import {setTwoToneColor} from "@ant-design/icons";
 import * as ApplicationBackend from "./backend/ApplicationBackend";
 import * as Cookie from "cookie";
+import type {LegacyAny} from "./types/legacyPage";
 
 // Ant Design locale imports
 import enUS from "antd/locale/en_US";
@@ -68,7 +69,39 @@ import skSK from "antd/locale/sk_SK";
 
 setTwoToneColor("rgb(87,52,211)");
 
-function getAntdLocale(language) {
+type ThemeData = {
+  colorPrimary: string;
+  borderRadius: number;
+  [key: string]: LegacyAny;
+};
+
+interface AppProps {
+  history: {
+    push: (path: string, state?: LegacyAny) => void;
+  };
+  location: {
+    search: string;
+  };
+  [key: string]: LegacyAny;
+}
+
+interface AppState {
+  classes: AppProps;
+  selectedMenuKey: string | number;
+  account?: LegacyAny;
+  accessToken?: string | null;
+  uri: string | null;
+  themeAlgorithm: string[];
+  themeData: ThemeData;
+  logo: string;
+  requiredEnableMfa: boolean;
+  isAiAssistantOpen: boolean;
+  application?: LegacyAny;
+  menuVisible?: boolean;
+  organization?: LegacyAny;
+}
+
+function getAntdLocale(language: string) {
   const localeMap = {
     "en": enUS,
     "zh": zhCN,
@@ -98,16 +131,17 @@ function getAntdLocale(language) {
     "kk": ruRU, // Use Russian for Kazakh as antd doesn't have Kazakh
     "az": trTR, // Use Turkish for Azerbaijani as they're similar
   };
-  return localeMap[language] || enUS;
+  return (localeMap as Record<string, LegacyAny>)[language] || enUS;
 }
 
-class App extends Component {
-  constructor(props) {
+class App extends Component<AppProps, AppState> {
+  constructor(props: AppProps) {
     super(props);
     this.setThemeAlgorithm();
-    let storageThemeAlgorithm = [];
+    let storageThemeAlgorithm: string[] = [];
     try {
-      storageThemeAlgorithm = localStorage.getItem("themeAlgorithm") ? JSON.parse(localStorage.getItem("themeAlgorithm")) : ["default"];
+      const rawThemeAlgorithm = localStorage.getItem("themeAlgorithm");
+      storageThemeAlgorithm = rawThemeAlgorithm ? JSON.parse(rawThemeAlgorithm) : ["default"];
     } catch {
       storageThemeAlgorithm = ["default"];
     }
@@ -142,7 +176,7 @@ class App extends Component {
     this.getApplication();
   }
 
-  componentDidUpdate(prevProps, prevState, snapshot) {
+  componentDidUpdate(prevProps: AppProps, prevState: AppState, snapshot: LegacyAny) {
     this.syncAdminShellBodyThemeClass();
     const uri = location.pathname;
     if (this.state.uri !== uri) {
@@ -156,8 +190,8 @@ class App extends Component {
       });
 
       if (requiredEnableMfa === true) {
-        const mfaType = Setting.getMfaItemsByRules(this.state.account, this.state.account?.organization, [Setting.MfaRuleRequired])
-          .find((item) => item.rule === Setting.MfaRuleRequired)?.name;
+        const mfaType = (Setting.getMfaItemsByRules(this.state.account, this.state.account?.organization, [Setting.MfaRuleRequired]) as LegacyAny[])
+          .find((item: LegacyAny) => item.rule === Setting.MfaRuleRequired)?.name;
         if (mfaType !== undefined) {
           this.props.history.push(`/mfa/setup?mfaType=${mfaType}`, {from: "/login"});
         }
@@ -213,7 +247,7 @@ class App extends Component {
     return count <= Conf.MaxItemsForFlatMenu;
   }
 
-  getSelectedMenuKeyForFlatMenu(uri) {
+  getSelectedMenuKeyForFlatMenu(uri: string) {
     // For flattened menu, return the actual child path instead of parent group
     if (uri === "/" || uri.includes("/shortcuts") || uri.includes("/apps")) {
       if (uri === "/") {
@@ -370,13 +404,13 @@ class App extends Component {
     }
   }
 
-  getAccessTokenParam(params) {
+  getAccessTokenParam(params: URLSearchParams) {
     // "/page?access_token=123"
     const accessToken = params.get("access_token");
     return accessToken === null ? "" : `?accessToken=${accessToken}`;
   }
 
-  getCredentialParams(params) {
+  getCredentialParams(params: URLSearchParams) {
     // "/page?username=abc&password=123"
     if (params.get("username") === null || params.get("password") === null) {
       return "";
@@ -388,7 +422,7 @@ class App extends Component {
     return window.location.toString().replace(window.location.search, "");
   }
 
-  getLanguageParam(params) {
+  getLanguageParam(params: URLSearchParams) {
     // "/page?language=en"
     const language = params.get("language");
     if (language !== null) {
@@ -398,7 +432,7 @@ class App extends Component {
     return "";
   }
 
-  getLogo(themes) {
+  getLogo(themes: string[]) {
     return Setting.getLogo(themes);
   }
 
@@ -411,23 +445,23 @@ class App extends Component {
     }
   }
 
-  setLanguage(account) {
+  setLanguage(account: LegacyAny) {
     const language = account?.language;
     if (language !== null && language !== "" && language !== i18next.language) {
       Setting.setLanguage(language);
     }
   }
 
-  setTheme = (theme, initThemeAlgorithm) => {
+  setTheme = (theme: ThemeData, initThemeAlgorithm: boolean) => {
     this.setState({
       themeData: theme,
     });
 
     if (initThemeAlgorithm) {
       if (localStorage.getItem("themeAlgorithm")) {
-        let storageThemeAlgorithm = [];
+        let storageThemeAlgorithm: string[] = [];
         try {
-          storageThemeAlgorithm = JSON.parse(localStorage.getItem("themeAlgorithm"));
+          storageThemeAlgorithm = JSON.parse(localStorage.getItem("themeAlgorithm") || "[\"default\"]");
         } catch {
           storageThemeAlgorithm = ["default"];
         }
@@ -514,13 +548,13 @@ class App extends Component {
       });
   }
 
-  onUpdateAccount(account) {
+  onUpdateAccount(account: LegacyAny) {
     this.setState({
       account: account,
     });
   }
 
-  renderFooter(logo, footerHtml) {
+  renderFooter(logo?: string | null, footerHtml?: string | null) {
     logo = logo ?? this.state.logo;
     logo = Setting.getPreferredBrandAsset(logo, Conf.BrandIcon);
     footerHtml = footerHtml ?? this.state.application?.footerHtml;
@@ -540,7 +574,7 @@ class App extends Component {
               : (
                 Conf.CustomFooter !== null ? Conf.CustomFooter : (
                   <React.Fragment>
-                    Powered by <a href={Conf.BrandUrl}><img style={{paddingBottom: "3px"}} height={"18px"} alt={Conf.BrandName} src={logo} /></a>
+                    Powered by <a href={Conf.BrandUrl}><img style={{paddingBottom: "3px"}} height={"18px"} alt={Conf.BrandName} src={logo ?? undefined} /></a>
                   </React.Fragment>
                 )
               )
@@ -553,8 +587,8 @@ class App extends Component {
   renderAccountBridge() {
     return (
       <React.Fragment>
-        {!this.state.account ? null : <div style={{display: "none"}} id="CasdoorApplicationName" value={this.state.account.signupApplication} />}
-        {!this.state.account ? null : <div style={{display: "none"}} id="CasdoorAccessToken" value={this.state.accessToken} />}
+        {!this.state.account ? null : <div {...({style: {display: "none"}, id: "CasdoorApplicationName", value: this.state.account.signupApplication} as LegacyAny)} />}
+        {!this.state.account ? null : <div {...({style: {display: "none"}, id: "CasdoorAccessToken", value: this.state.accessToken} as LegacyAny)} />}
       </React.Fragment>
     );
   }
@@ -617,7 +651,7 @@ class App extends Component {
       window.location.pathname.startsWith("/captcha");
   }
 
-  onClick = ({key}) => {
+  onClick = ({key}: {key: string}) => {
     if (key !== "/swagger" && key !== "/records") {
       if (this.state.requiredEnableMfa) {
         Setting.showMessage("info", "Please enable MFA first!");
@@ -627,7 +661,7 @@ class App extends Component {
     }
   };
 
-  onLoginSuccess(redirectUrl) {
+  onLoginSuccess(redirectUrl?: string) {
     window.google?.accounts?.id?.cancel();
     if (redirectUrl) {
       localStorage.setItem("mfaRedirectUrl", redirectUrl);
@@ -673,21 +707,21 @@ class App extends Component {
                       theme={this.state.themeData}
                       themeAlgorithm={this.state.themeAlgorithm}
                       requiredEnableMfa={this.state.requiredEnableMfa}
-                      updateApplication={(application) => {
+                      updateApplication={(application: LegacyAny) => {
                         this.setState({
                           application: application,
                         });
                       }}
-                      onLoginSuccess={(redirectUrl) => {this.onLoginSuccess(redirectUrl);}}
-                      onUpdateAccount={(account) => this.onUpdateAccount(account)}
+                      onLoginSuccess={(redirectUrl: string) => {this.onLoginSuccess(redirectUrl);}}
+                      onUpdateAccount={(account: LegacyAny) => this.onUpdateAccount(account)}
                       updataThemeData={this.setTheme}
                     /> :
                     <Switch>
-                      <Route exact path="/callback" render={(props) => <AuthCallback {...props} {...this.props} application={this.state.application} onLoginSuccess={(redirectUrl) => {this.onLoginSuccess(redirectUrl);}} />} />
-                      <Route exact path="/callback/saml" render={(props) => <SamlCallback {...props} {...this.props} application={this.state.application} onLoginSuccess={(redirectUrl) => {this.onLoginSuccess(redirectUrl);}} />} />
-                      <Route exact path="/telegram-login" render={(props) => <TelegramLogin {...props} {...this.props} />} />
-                      <Route path="" render={() => <Result status="404" title="404 NOT FOUND" subTitle={i18next.t("general:Sorry, the page you visited does not exist.")}
-                        extra={<a href="/"><Button type="primary">{i18next.t("general:Back Home")}</Button></a>} />} />
+                      <Route exact path="/callback" render={(props: LegacyAny) => <AuthCallback {...props} {...this.props} application={this.state.application} onLoginSuccess={(redirectUrl: string) => {this.onLoginSuccess(redirectUrl);}} />} />
+                      <Route exact path="/callback/saml" render={(props: LegacyAny) => <SamlCallback {...props} {...this.props} application={this.state.application} onLoginSuccess={(redirectUrl: string) => {this.onLoginSuccess(redirectUrl);}} />} />
+                      <Route exact path="/telegram-login" render={(props: LegacyAny) => <TelegramLogin {...props} {...this.props} />} />
+                      <Route path="" render={() => <Result status="404" title="404 NOT FOUND" subTitle={String(i18next.t("general:Sorry, the page you visited does not exist."))}
+                        extra={<a href="/"><Button type="primary">{String(i18next.t("general:Back Home"))}</Button></a>} />} />
                     </Switch>
                 }
               </Content>
@@ -724,7 +758,7 @@ class App extends Component {
                 logo={this.state.logo}
                 onChangeTheme={this.setTheme}
                 onClick={this.onClick}
-                onUpdateAccount={(account) => this.onUpdateAccount(account)}
+                onUpdateAccount={(account: LegacyAny) => this.onUpdateAccount(account)}
                 onfinish={() => {
                   this.setState({requiredEnableMfa: false});
                 }}
@@ -733,7 +767,7 @@ class App extends Component {
                     isAiAssistantOpen: true,
                   });
                 }}
-                setLogoAndThemeAlgorithm={(nextThemeAlgorithm) => {
+                setLogoAndThemeAlgorithm={(nextThemeAlgorithm: string[]) => {
                   this.setState({
                     themeAlgorithm: nextThemeAlgorithm,
                     logo: this.getLogo(nextThemeAlgorithm),
@@ -774,7 +808,7 @@ class App extends Component {
         <div style={{textAlign: "center"}}>
           <InfoCircleFilled style={{color: "rgb(87,52,211)"}} />
           &nbsp;&nbsp;
-          {i18next.t("general:Found some texts still not translated? Please help us translate at")}
+          {String(i18next.t("general:Found some texts still not translated? Please help us translate at"))}
           &nbsp;
           <a target="_blank" rel="noreferrer" href={"https://git.leagsoft.com/aicodex/aicodex-admin"}>
             aicodex-admin

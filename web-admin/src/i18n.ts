@@ -16,20 +16,24 @@ import i18n from "i18next";
 import * as Conf from "./Conf";
 import {initReactI18next} from "react-i18next";
 import en from "./locales/en/data.json";
+import type {LegacyAny} from "./types/legacyPage";
 
 // Load backend-provided frontend config before language detection runs.
 Conf.initConfigFromCookie();
 
-const resourcesToBackend = (res) => ({
-  type: "backend",
-  init(services, backendOptions, i18nextOptions) {/* use services and options */},
-  read(language, namespace, callback) {
+type ResourceCallback = (error: unknown, data?: unknown) => void;
+type ResourceLoader = ((language: string, namespace: string, callback?: ResourceCallback) => unknown) | Record<string, Record<string, unknown>>;
+
+const resourcesToBackend = (res: ResourceLoader) => ({
+  type: "backend" as const,
+  init(_services: unknown, _backendOptions: unknown, _i18nextOptions: unknown) {/* use services and options */},
+  read(language: string, namespace: string, callback: ResourceCallback) {
     if (typeof res === "function") {
       if (res.length < 3) {
         try {
-          const r = res(language, namespace);
-          if (r && typeof r.then === "function") {
-            r.then((data) => callback(null, (data && data.default) || data)).catch(callback);
+          const r = res(language, namespace) as Promise<{default?: Record<string, unknown>}> | Record<string, unknown>;
+          if (r && typeof (r as Promise<unknown>).then === "function") {
+            (r as Promise<{default?: Record<string, unknown>}>).then((data) => callback(null, (data && data.default) || data)).catch(callback);
           } else {
             callback(null, r);
           }
@@ -62,11 +66,11 @@ function initLanguage() {
   return language;
 }
 
-i18n.use(resourcesToBackend(async(language, namespace) => {
+i18n.use(resourcesToBackend(async(language: string, namespace: string) => {
   const res = await import(`./locales/${language}/data.json`);
   return res.default[namespace];
 }
-))
+) as LegacyAny)
   .use(initReactI18next)
   .init({
     lng: initLanguage(),

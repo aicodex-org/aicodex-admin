@@ -12,19 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// jest-dom adds custom jest matchers for asserting on DOM nodes.
-// allows you to do things like:
-// expect(element).toHaveTextContent(/react/i)
-// learn more: https://github.com/testing-library/jest-dom
-import "@testing-library/jest-dom/extend-expect";
+import React from "react";
+import {expect, test} from "@jest/globals";
+import {render} from "@testing-library/react";
+import {MemoryRouter} from "react-router-dom";
+import App from "./App";
 
-if (!window.matchMedia) {
-  window.matchMedia = () => ({
-    matches: false,
-    addListener: () => {},
-    removeListener: () => {},
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    dispatchEvent: () => false,
-  });
-}
+test("renders the admin root shell", () => {
+  const {container} = render(
+    <MemoryRouter>
+      <React.Suspense fallback={null}>
+        <App />
+      </React.Suspense>
+    </MemoryRouter>
+  );
+
+  expect(container).toBeTruthy();
+});

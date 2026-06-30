@@ -37,13 +37,37 @@ Admin 前端后续新增 React 组件 SHALL 默认使用 `.tsx`；新增共享�
 - **WHEN** 后续 change 触碰身份源菜单下的同步器编辑页
 - **THEN** `SyncerEditPage` SHOULD 迁移为 `.tsx` 并使用明确局部类型描述 props、route params、state、同步器记录、动态历史字段和编辑表单回调
 - **AND** `SyncerTableColumnTable` SHOULD 迁移为 `.tsx` 并使用明确 props 类型描述字段行、表格数据和 `onUpdateTable` 回调
-- **AND** 迁移 SHALL 保持 `/syncers/:syncerName` 路由、`ManagementPage.js` 无后缀 import、同步器加载、字段编辑、测试连接、保存、保存并退出、删除和跳转行为不变
+- **AND** 迁移 SHALL 保持 `/syncers/:syncerName` 路由、`ManagementPage` 无后缀 import、同步器加载、字段编辑、测试连接、保存、保存并退出、删除和跳转行为不变
 - **AND** 迁移 SHALL NOT 修改同步器保存、源/目标配置、表格列编辑语义、后端 API 契约、真实数据库连接、真实外部同步器、Provider、Application、auth 或全局管理页壳
 
 #### Scenario: 同步器编辑页迁移验证
 - **WHEN** `SyncerEditPage` 和 `SyncerTableColumnTable` 被迁移为 TSX
 - **THEN** 增量 TypeScript gate、`yarn typecheck`、同步器相关聚焦 Jest 和 `yarn build` SHALL pass for touched TSX and JS coexistence paths
 - **AND** 本次触碰且包含 JSX 的新增测试 SHALL 使用 `.test.tsx`
+
+### Requirement: Admin root shell 与路由配置基础迁移
+Admin 前端 SHALL 支持将 root shell、routing、config foundation 从 legacy JavaScript 渐进迁移为 `.ts` / `.tsx`，并保持现有登录守卫、路由、菜单、workspace tabs、设置 helper、service worker、i18n 初始化和列表基类行为兼容。
+
+#### Scenario: root shell 文件迁移
+- **WHEN** root shell / routing / config foundation 被迁移
+- **THEN** `adminLoginRouting`、`Conf`、`enterpriseNavigation`、`i18n`、`serviceWorker` 和 `setupTests` SHALL 使用 `.ts` 或在包含 JSX 时使用 `.tsx`
+- **AND** `index`、`App`、`ManagementPage`、`Setting` 和 `BaseListPage` SHALL 使用 `.tsx`
+- **AND** `App.test`、`ManagementPage.test`、`ManagementPage.navigation.test` 和 `Setting.test` SHALL 使用 `.test.tsx`
+
+#### Scenario: root shell 行为保持兼容
+- **WHEN** root shell / routing / config foundation 被迁移为 TypeScript
+- **THEN** 迁移 SHALL 保持现有路由 path、菜单 key、无后缀 import、登录守卫、workspace tabs、setting helper、service worker 注册、i18n 初始化、列表页分页筛选排序基础契约和测试 setup 行为不变
+- **AND** 迁移 SHALL NOT 修改用户可见文案、locales、认证/登录/权限语义、后端 API 契约、Provider/Application/Syncer 编辑页、backend wrappers、shared UI primitives、auth 组件、basic/entry/account 批次文件或 `test` 分支
+
+#### Scenario: root shell 迁移类型边界
+- **WHEN** `App`、`ManagementPage`、`Setting` 或 `BaseListPage` 读取 props、state、route config、menu item、account、setting value、legacy page component 或第三方组件参数
+- **THEN** 迁移 SHALL 使用局部 TypeScript interface/type 描述当前文件实际消费字段
+- **AND** 对未迁移页面、历史动态字段、第三方库或全局配置的宽松断言 SHALL 保持在本文件局部 legacy boundary 内，不得扩散为新的全局宽松模型
+
+#### Scenario: root shell 迁移验证
+- **WHEN** root shell / routing / config foundation TS 迁移准备收口
+- **THEN** OpenSpec target validation、`git diff --check`、`App.test.tsx`、`ManagementPage.test.tsx`、`ManagementPage.navigation.test.tsx`、`Setting.test.tsx`、`yarn typecheck`、增量 TypeScript gate 和 `yarn build` SHALL pass
+- **AND** 聚焦 Jest SHALL 真实发现并运行测试 suite，`0 tests` SHALL NOT be accepted as validation evidence
 
 ### Requirement: Admin 核心后台路由页面 TypeScript batch 迁移
 Admin 前端 SHALL 支持将核心后台路由页面按渐进 TypeScript 路线批量迁移为 `.tsx`，并保持现有路由、菜单、权限、接口、查询、分页、排序、表单、详情抽屉、复制、删除、同步操作和敏感字段脱敏行为兼容。
@@ -52,7 +76,7 @@ Admin 前端 SHALL 支持将核心后台路由页面按渐进 TypeScript 路线�
 - **WHEN** 审计运维列表页、凭据/令牌中小编辑页、连接/同步中小编辑页和身份控制台总览页被迁移
 - **THEN** 页面文件 SHALL 使用 `.tsx` 承载 React 组件
 - **AND** `ManagementPage` 的无后缀 import SHALL 保持兼容
-- **AND** 迁移 SHALL NOT 要求同一 change 迁移 `ManagementPage.js`、`App.js`、`Setting.js`、`BaseListPage.js`、`LoginPage.js`、认证/OIDC、Provider/Application/Syncer 主编辑页或后端 API wrapper
+- **AND** 迁移 SHALL NOT 要求同一 change 迁移 `ManagementPage`、`App`、`Setting`、`BaseListPage`、`LoginPage`、认证/OIDC、Provider/Application/Syncer 主编辑页或后端 API wrapper
 
 #### Scenario: 审计运维行为保持兼容
 - **WHEN** 管理员访问 `/records`、`/sessions`、`/tokens` 或 `/verifications`
