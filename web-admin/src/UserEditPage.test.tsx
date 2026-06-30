@@ -24,7 +24,7 @@ type LooseMock = {
 
 type UserBackendMock = Record<"getUser" | "updateUser" | "deleteUser" | "verifyIdentification", LooseMock>;
 type GroupBackendMock = Record<"getGroups", LooseMock>;
-type OrganizationBackendMock = Record<"getOrganizations", LooseMock>;
+type OrganizationBackendMock = Record<"getOrganizations" | "getOrganization", LooseMock>;
 type ApplicationBackendMock = Record<"getApplicationsByOrganization" | "getUserApplication", LooseMock>;
 type AuthBackendMock = Record<"getAccount", LooseMock>;
 type MfaBackendMock = Record<"DeleteMfa" | "SetPreferredMfa", LooseMock>;
@@ -87,7 +87,10 @@ jest.mock("./backend/GroupBackend", () => {
 
 jest.mock("./backend/OrganizationBackend", () => {
   const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
-  return {getOrganizations: factoryJest.fn()};
+  return {
+    getOrganizations: factoryJest.fn(),
+    getOrganization: factoryJest.fn(),
+  };
 });
 
 jest.mock("./backend/ApplicationBackend", () => {
@@ -442,6 +445,7 @@ beforeEach(() => {
   userBackendMock.verifyIdentification.mockResolvedValue({status: "ok"});
   groupBackendMock.getGroups.mockResolvedValue({status: "ok", data: [{owner: "engineering", name: "group-a", displayName: "Group A", type: "Physical"}]});
   organizationBackendMock.getOrganizations.mockResolvedValue({status: "ok", data: [{name: "engineering"}, {name: "sales"}]});
+  organizationBackendMock.getOrganization.mockResolvedValue({status: "ok", data: application.organizationObj});
   applicationBackendMock.getApplicationsByOrganization.mockResolvedValue({status: "ok", data: [{name: "app-main"}]});
   applicationBackendMock.getUserApplication.mockResolvedValue({status: "ok", data: application});
   authBackendMock.getAccount.mockResolvedValue({status: "ok", data: {...baseUser}, data2: {name: "engineering"}});
@@ -625,10 +629,12 @@ test("handles return URL, account item visibility and tabbed layouts", async() =
   expect(page.state.activeMenuKey).toBe("Admin");
   view.unmount();
 
+  (organizationBackendMock.getOrganization as unknown as {mockClear: () => void}).mockClear();
   applicationBackendMock.getUserApplication.mockResolvedValueOnce({status: "error", msg: "application failed"});
   page.getUserApplication();
   await flushPromises();
   expect(Setting.showMessage).toHaveBeenCalledWith("error", "application failed");
+  expect(organizationBackendMock.getOrganization).not.toHaveBeenCalled();
 
   applicationBackendMock.getUserApplication.mockResolvedValueOnce({status: "ok", data: application});
   page.getUserApplication();
@@ -639,6 +645,88 @@ test("handles return URL, account item visibility and tabbed layouts", async() =
   expect(emptyImage.getByText(/\((空|无|empty)\)/)).not.toBeNull();
   expect(page.getIdCardType("unknown")).toContain("Unknown");
   expect(page.getIdCardText("unknown")).toContain("Unknown");
+});
+
+test("limits missing application fallback to Feishu synced users", async() => {
+  const missingApplicationMessage = "The organization: engineering should have one application at least";
+  const fallbackOrganization = {
+    ...application.organizationObj,
+    accountItems: [{name: "Display name", visible: true, modifyRule: "Self", viewRule: "Self"}],
+  };
+  const page = createPage();
+  page.state = {
+    ...page.state,
+    application: null,
+    userOrganization: null,
+  };
+
+  (Setting.showMessage as unknown as {mockClear: () => void}).mockClear();
+  (organizationBackendMock.getOrganization as unknown as {mockClear: () => void}).mockClear();
+  applicationBackendMock.getUserApplication.mockResolvedValueOnce({status: "error", msg: missingApplicationMessage});
+  page.getUserApplication();
+  await flushPromises();
+
+  expect(Setting.showMessage).toHaveBeenCalledWith("error", missingApplicationMessage);
+  expect(organizationBackendMock.getOrganization).not.toHaveBeenCalled();
+
+  (Setting.showMessage as unknown as {mockClear: () => void}).mockClear();
+  page.state = {
+    ...page.state,
+    user: {
+      ...page.state.user,
+      lark: "ou_feishu_user",
+      properties: {
+        oauth_Lark_userId: "ou_feishu_user",
+        oauth_Lark_tenantKey: "tenant-a",
+      },
+    },
+  };
+  applicationBackendMock.getUserApplication.mockResolvedValueOnce({status: "error", msg: missingApplicationMessage});
+  organizationBackendMock.getOrganization.mockResolvedValueOnce({status: "ok", data: fallbackOrganization});
+  page.getUserApplication();
+  await flushPromises();
+  await flushPromises();
+
+  expect(organizationBackendMock.getOrganization).toHaveBeenCalledWith("admin", "engineering");
+  expect(page.getUserOrganization()?.name).toBe("engineering");
+  const fallbackView = render(<>{page.renderUserForm()}</>);
+  expect(fallbackView.container.querySelector("[id='Display name']")).not.toBeNull();
+  expect(Setting.showMessage).not.toHaveBeenCalledWith("error", missingApplicationMessage);
+  fallbackView.unmount();
+
+  const pendingPage = createPage();
+  pendingPage.state = {
+    ...pendingPage.state,
+    user: null as unknown as PageState["user"],
+    application: null,
+    userOrganization: null,
+  };
+  (organizationBackendMock.getOrganization as unknown as {mockClear: () => void}).mockClear();
+  applicationBackendMock.getUserApplication.mockResolvedValueOnce({status: "error", msg: missingApplicationMessage});
+  pendingPage.getUserApplication();
+  await flushPromises();
+  expect(pendingPage.state.pendingUserApplicationError).toBe(missingApplicationMessage);
+  expect(organizationBackendMock.getOrganization).not.toHaveBeenCalled();
+
+  userBackendMock.getUser.mockResolvedValueOnce({
+    status: "ok",
+    data: {
+      ...baseUser,
+      lark: "ou_delayed_feishu_user",
+      properties: {
+        oauth_Lark_userId: "ou_delayed_feishu_user",
+        oauth_Lark_tenantKey: "tenant-a",
+      },
+    },
+  });
+  organizationBackendMock.getOrganization.mockResolvedValueOnce({status: "ok", data: fallbackOrganization});
+  pendingPage.getUser();
+  await flushPromises();
+  await flushPromises();
+
+  expect(organizationBackendMock.getOrganization).toHaveBeenCalledWith("admin", "engineering");
+  expect(pendingPage.state.pendingUserApplicationError).toBeNull();
+  expect(pendingPage.getUserOrganization()?.name).toBe("engineering");
 });
 
 test("shows field validation for physical group conflicts", () => {

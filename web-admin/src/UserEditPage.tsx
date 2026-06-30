@@ -163,6 +163,8 @@ interface UserRecord {
   signupApplication?: string;
   registerType?: string;
   registerSource?: string;
+  externalId?: string;
+  lark?: string;
   groups?: string[];
   roles?: RoleRecord[];
   permissions?: RoleRecord[];
@@ -221,6 +223,8 @@ interface UserEditPageState {
   userName: string;
   user: UserRecord;
   application: ApplicationRecord | null;
+  userOrganization: OrganizationRecord | null;
+  pendingUserApplicationError: string | null;
   groups: GroupRecord[] | null;
   organizations: OrganizationRecord[];
   applications: ApplicationRecord[];
@@ -263,6 +267,8 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
       // 保留历史 JS 行为：用户详情加载前为 null，render 中仍用 null guard 控制展示。
       user: null as unknown as UserRecord,
       application: null,
+      userOrganization: null,
+      pendingUserApplicationError: null,
       groups: null,
       organizations: [],
       applications: [],
@@ -289,7 +295,7 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
   }
 
   componentDidUpdate(prevProps: Readonly<UserEditPageProps>, prevState: Readonly<UserEditPageState>, snapshot?: unknown) {
-    if (prevState.application !== this.state.application) {
+    if (prevState.application !== this.state.application || prevState.userOrganization !== this.state.userOrganization) {
       this.getGroups(this.state.organizationName);
     }
   }
@@ -313,6 +319,8 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
           multiFactorAuths: user.multiFactorAuths ?? [],
           consents: user.applicationScopes ?? [],
           loading: false,
+        }, () => {
+          this.resolvePendingUserApplicationError();
         });
 
         // Load user transactions
@@ -369,19 +377,90 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
     ApplicationBackend.getUserApplication(this.state.organizationName, this.state.userName)
       .then((res) => {
         if (res.status === "error") {
-          Setting.showMessage("error", res.msg);
+          this.handleUserApplicationError(res.msg);
           return;
         }
 
+        const application = res.data as ApplicationRecord | null;
         this.setState({
-          menuMode: res.data?.organizationObj?.accountMenu ?? "Horizontal",
-          application: res.data,
+          menuMode: application?.organizationObj?.accountMenu ?? "Horizontal",
+          application: application,
+          userOrganization: application?.organizationObj ?? null,
+          pendingUserApplicationError: null,
         });
       });
   }
 
+  isMissingUserApplicationError(message?: string) {
+    const normalizedMessage = (message ?? "").toLowerCase();
+
+    return normalizedMessage.includes("one application at least") ||
+      normalizedMessage.includes("至少一个应用");
+  }
+
+  isFeishuSyncedUser(user?: UserRecord | null) {
+    if (!user) {
+      return false;
+    }
+
+    return this.hasNonEmptyString(user.lark) ||
+      typeof user.externalId === "string" && user.externalId.startsWith("feishu:") ||
+      this.hasNonEmptyString(user.properties?.oauth_Lark_userId) ||
+      this.hasNonEmptyString(user.properties?.oauth_Lark_tenantKey) ||
+      this.hasNonEmptyString(user.properties?.feishuAppId);
+  }
+
+  hasNonEmptyString(value: unknown) {
+    return typeof value === "string" && value.trim() !== "";
+  }
+
+  handleUserApplicationError(applicationError?: string) {
+    if (this.isMissingUserApplicationError(applicationError) && !this.state.user) {
+      this.setState({pendingUserApplicationError: applicationError ?? ""});
+      return;
+    }
+
+    if (this.isMissingUserApplicationError(applicationError) && this.isFeishuSyncedUser(this.state.user)) {
+      this.getUserOrganizationFallback(applicationError);
+      return;
+    }
+
+    Setting.showMessage("error", applicationError);
+    this.setState({pendingUserApplicationError: null});
+  }
+
+  resolvePendingUserApplicationError() {
+    if (this.state.pendingUserApplicationError === null) {
+      return;
+    }
+
+    this.handleUserApplicationError(this.state.pendingUserApplicationError);
+  }
+
+  getUserOrganizationFallback(applicationError?: string) {
+    OrganizationBackend.getOrganization("admin", this.state.organizationName)
+      .then((res: BackendResponse<OrganizationRecord>) => {
+        if (res.status === "error" || !res.data) {
+          Setting.showMessage("error", res.msg || applicationError);
+          this.setState({pendingUserApplicationError: null});
+          return;
+        }
+
+        this.setState({
+          menuMode: res.data.accountMenu ?? "Horizontal",
+          application: null,
+          userOrganization: res.data,
+          pendingUserApplicationError: null,
+        });
+      })
+      .catch(error => {
+        this.setState({pendingUserApplicationError: null});
+        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      });
+  }
+
   getUserOrganization() {
-    return this.state.application?.organizationObj;
+    return this.state.application?.organizationObj ?? this.state.userOrganization ?? undefined;
   }
 
   isGroupsVisible() {
