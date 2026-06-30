@@ -42,7 +42,7 @@ import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as ResourceBackend from "./backend/ResourceBackend";
 import SignupPage from "./auth/SignupPage";
 import LoginPage from "./auth/LoginPage";
-import i18next from "i18next";
+import i18nextRaw from "i18next";
 import UrlTable from "./table/UrlTable";
 import ProviderTable from "./table/ProviderTable";
 import ApplicationIdentitySourceBindings from "./ApplicationIdentitySourceBindings";
@@ -63,6 +63,170 @@ import Sider from "antd/es/layout/Sider";
 import PaginateSelect from "./common/PaginateSelect";
 
 const {Option} = Select;
+
+type LegacyAny = any;
+
+interface RouteParams {
+  organizationName: string;
+  applicationName: string;
+}
+
+interface ApplicationEditPageProps {
+  match: {
+    params: RouteParams;
+  };
+  location: {
+    mode?: string;
+    search?: string;
+    [key: string]: LegacyAny;
+  };
+  history: {
+    push: (path: string) => void;
+  };
+  account: {
+    owner: string;
+    name: string;
+    [key: string]: LegacyAny;
+  };
+  organizationName?: string;
+  owner?: string;
+}
+
+interface NamedRecord {
+  name: string;
+  displayName?: string;
+  [key: string]: LegacyAny;
+}
+
+interface ThemeDataRecord {
+  isEnabled?: boolean;
+  colorPrimary?: string;
+  borderRadius?: number;
+  [key: string]: LegacyAny;
+}
+
+interface ApplicationRecord {
+  owner?: string;
+  organization: string;
+  organizationObj?: {
+    ipWhitelist?: string;
+    [key: string]: LegacyAny;
+  };
+  name: string;
+  displayName?: string;
+  category?: string;
+  type?: string;
+  isShared?: boolean;
+  logo?: string;
+  title?: string;
+  favicon?: string;
+  homepageUrl?: string;
+  description?: string;
+  tags?: string[];
+  order?: number | null;
+  cookieExpireInHours?: number | null;
+  defaultGroup?: string;
+  enableSignUp?: boolean;
+  disableSignin?: boolean;
+  enableExclusiveSignin?: boolean;
+  enableSigninSession?: boolean;
+  enableAutoSignin?: boolean;
+  enableLinkWithEmail?: boolean;
+  signupUrl?: string;
+  signinUrl?: string;
+  forgetUrl?: string;
+  affiliationUrl?: string;
+  clientId?: string;
+  clientSecret?: string;
+  redirectUris?: string[];
+  forcedRedirectOrigin?: string;
+  grantTypes?: string[];
+  scopes?: LegacyAny[];
+  customScopes?: LegacyAny[];
+  tokenFormat?: string;
+  tokenSigningMethod?: string;
+  tokenFields?: string[];
+  tokenAttributes?: LegacyAny[];
+  expireInHours?: number | null;
+  refreshExpireInHours?: number | null;
+  samlReplyUrl?: string;
+  enableSamlCompress?: boolean;
+  enableSamlC14n10?: boolean;
+  useEmailAsSamlNameId?: boolean;
+  enableSamlPostBinding?: boolean;
+  samlHashAlgorithm?: string;
+  disableSamlAttributes?: boolean;
+  enableSamlAssertionSignature?: boolean;
+  samlAttributes?: LegacyAny[];
+  providers?: LegacyAny[];
+  orgChoiceMode?: string[];
+  signinMethods?: LegacyAny[];
+  signupHtml?: string;
+  signinHtml?: string;
+  signinItems?: LegacyAny[];
+  signupItems?: LegacyAny[];
+  formBackgroundUrl?: string;
+  formBackgroundUrlMobile?: string;
+  formCss?: string;
+  formCssMobile?: string;
+  formOffset?: number;
+  formSideHtml?: string;
+  themeData?: ThemeDataRecord;
+  headerHtml?: string;
+  footerHtml?: string;
+  cert?: string;
+  clientCert?: string;
+  failedSigninLimit?: number | null;
+  failedSigninFrozenTime?: number | null;
+  codeResendTimeout?: number | null;
+  ipWhitelist?: string;
+  termsOfUse?: string;
+  domain?: string;
+  otherDomains?: string[];
+  upstreamHost?: string;
+  sslMode?: string;
+  sslCert?: string;
+  organizationResolutionMode?: string;
+  allowedOrganizations?: string[];
+  allowedOrganizationStatus?: string;
+  apiMappingRequired?: boolean;
+  [key: string]: LegacyAny;
+}
+
+interface ApplicationEditPageState {
+  classes: ApplicationEditPageProps;
+  owner: string;
+  applicationName: string;
+  application: ApplicationRecord;
+  organizations: NamedRecord[];
+  certs: NamedRecord[];
+  providers: NamedRecord[];
+  uploading: boolean;
+  mode: string;
+  tokenAttributes: LegacyAny[];
+  samlAttributes: LegacyAny[];
+  samlMetadata: LegacyAny;
+  isAuthorized: boolean;
+  activeMenuKey: string;
+  menuMode: "horizontal" | "vertical" | string;
+  themeAlgorithm?: LegacyAny;
+}
+
+interface BackendResponse<T> {
+  status?: string;
+  data?: T | null;
+  msg?: string;
+}
+
+interface CustomScopeValidation {
+  ok: boolean;
+  scopes: LegacyAny[];
+}
+
+// 历史页面依赖大量 JS backend 和未迁移子组件，先在页面边界封住动态字段，避免扩大迁移范围。
+const i18next = {
+  t: (key: string, options?: Record<string, LegacyAny>): string => String(i18nextRaw.t(key, options)),
+};
 
 const template = `<style>
   .login-panel {
@@ -127,14 +291,14 @@ const sideTemplate = `<style>
 </div>
 `;
 
-class ApplicationEditPage extends React.Component {
-  constructor(props) {
+class ApplicationEditPage extends React.Component<ApplicationEditPageProps, ApplicationEditPageState> {
+  constructor(props: ApplicationEditPageProps) {
     super(props);
     this.state = {
       classes: props,
       owner: props.organizationName !== undefined ? props.organizationName : props.match.params.organizationName,
       applicationName: props.match.params.applicationName,
-      application: null,
+      application: null as unknown as ApplicationRecord,
       organizations: [],
       certs: [],
       providers: [],
@@ -149,15 +313,15 @@ class ApplicationEditPage extends React.Component {
     };
   }
 
-  UNSAFE_componentWillMount() {
+  UNSAFE_componentWillMount(): void {
     this.getApplication();
     this.getOrganizations();
   }
 
-  getApplication() {
+  getApplication(): void {
     ApplicationBackend.getApplication("admin", this.state.applicationName)
-      .then((res) => {
-        if (res.data === null) {
+      .then((res: BackendResponse<ApplicationRecord>) => {
+        if (res.data === null || res.data === undefined) {
           this.props.history.push("/404");
           return;
         }
@@ -193,9 +357,9 @@ class ApplicationEditPage extends React.Component {
       });
   }
 
-  getOrganizations() {
+  getOrganizations(): void {
     OrganizationBackend.getOrganizations("admin")
-      .then((res) => {
+      .then((res: BackendResponse<NamedRecord[]>) => {
         if (res.status === "error") {
           this.setState({
             isAuthorized: false,
@@ -208,29 +372,29 @@ class ApplicationEditPage extends React.Component {
       });
   }
 
-  getCerts(application) {
-    let owner = application.organization;
+  getCerts(application: ApplicationRecord): void {
+    let owner: string | undefined = application.organization;
     if (application.isShared) {
-      owner = this.props.owner;
+      owner = this.props.owner || owner;
     }
     CertBackend.getCerts(owner)
-      .then((res) => {
+      .then((res: BackendResponse<NamedRecord[]>) => {
         this.setState({
           certs: res.data || [],
         });
       });
   }
 
-  getProviders(application) {
+  getProviders(application: ApplicationRecord): void {
     let owner = application.organization;
     if (application.isShared) {
       owner = this.props.account.owner;
     }
     ProviderBackend.getProviders(owner)
-      .then((res) => {
+      .then((res: BackendResponse<NamedRecord[]>) => {
         if (res.status === "ok") {
           this.setState({
-            providers: res.data,
+            providers: res.data || [],
           });
         } else {
           Setting.showMessage("error", res.msg);
@@ -238,23 +402,23 @@ class ApplicationEditPage extends React.Component {
       });
   }
 
-  getSamlMetadata(checked) {
+  getSamlMetadata(checked: LegacyAny): void {
     ApplicationBackend.getSamlMetadata("admin", this.state.applicationName, checked)
-      .then((data) => {
+      .then((data: LegacyAny) => {
         this.setState({
           samlMetadata: data,
         });
       });
   }
 
-  parseApplicationField(key, value) {
+  parseApplicationField(key: string, value: LegacyAny): LegacyAny {
     if (["offset"].includes(key)) {
       value = Setting.myParseInt(value);
     }
     return value;
   }
 
-  trimCustomScopes(customScopes) {
+  trimCustomScopes(customScopes: LegacyAny): LegacyAny[] {
     if (!Array.isArray(customScopes)) {
       return [];
     }
@@ -271,7 +435,7 @@ class ApplicationEditPage extends React.Component {
     });
   }
 
-  validateCustomScopes(customScopes) {
+  validateCustomScopes(customScopes: LegacyAny): CustomScopeValidation {
     const trimmed = this.trimCustomScopes(customScopes);
     for (const item of trimmed) {
       if (!item || !item.scope || item.scope === "") {
@@ -281,7 +445,7 @@ class ApplicationEditPage extends React.Component {
     return {ok: true, scopes: trimmed};
   }
 
-  updateApplicationField(key, value) {
+  updateApplicationField(key: string, value: LegacyAny): void {
     value = this.parseApplicationField(key, value);
     const application = this.state.application;
     application[key] = value;
@@ -290,7 +454,7 @@ class ApplicationEditPage extends React.Component {
     });
   }
 
-  handleUpload(info) {
+  handleUpload(info: LegacyAny): void {
     if (info.file.type !== "text/html") {
       Setting.showMessage("error", i18next.t("application:Please select a HTML file"));
       return;
@@ -298,7 +462,7 @@ class ApplicationEditPage extends React.Component {
     this.setState({uploading: true});
     const fullFilePath = `termsOfUse/${this.state.application.owner}/${this.state.application.name}.html`;
     ResourceBackend.uploadResource(this.props.account.owner, this.props.account.name, "termsOfUse", "ApplicationEditPage", fullFilePath, info.file)
-      .then(res => {
+      .then((res: BackendResponse<string>) => {
         if (res.status === "ok") {
           Setting.showMessage("success", i18next.t("application:File uploaded successfully"));
           this.updateApplicationField("termsOfUse", res.data);
@@ -310,7 +474,7 @@ class ApplicationEditPage extends React.Component {
       });
   }
 
-  renderApplicationForm() {
+  renderApplicationForm(): React.ReactNode {
     return <>
       {this.state.activeMenuKey === "basic" && (
         <React.Fragment>
@@ -562,12 +726,12 @@ class ApplicationEditPage extends React.Component {
                 placeholder={i18next.t("general:Default")}
                 value={this.state.application.defaultGroup || undefined}
                 fetchPage={GroupBackend.getGroups}
-                buildFetchArgs={({page, pageSize, searchText}) => {
+                buildFetchArgs={({page, pageSize, searchText}: {page: number; pageSize: number; searchText: string}) => {
                   const field = searchText ? "name" : "";
                   return [this.state.owner, false, page, pageSize, field, searchText, "", ""];
                 }}
                 reloadKey={this.state.owner}
-                optionMapper={(group) => Setting.getOption(
+                optionMapper={(group: LegacyAny) => Setting.getOption(
                   <Space>
                     {group.type === "Physical" ? <UsergroupAddOutlined /> : <HolderOutlined />}
                     {group.displayName}
@@ -575,7 +739,7 @@ class ApplicationEditPage extends React.Component {
                   `${group.owner}/${group.name}`
                 )}
                 filterOption={false}
-                onChange={(value) => {
+                onChange={(value: LegacyAny) => {
                   this.updateApplicationField("defaultGroup", value || "");
                 }}
               />
@@ -778,7 +942,7 @@ class ApplicationEditPage extends React.Component {
               <UrlTable
                 title={i18next.t("application:Redirect URLs")}
                 table={this.state.application.redirectUris}
-                onUpdateTable={(value) => {this.updateApplicationField("redirectUris", value);}}
+                onUpdateTable={(value: LegacyAny) => {this.updateApplicationField("redirectUris", value);}}
               />
             </Col>
           </Row>
@@ -827,7 +991,7 @@ class ApplicationEditPage extends React.Component {
                   <ScopeTable
                     title={i18next.t("general:Scopes")}
                     table={this.state.application.scopes}
-                    onUpdateTable={(value) => {this.updateApplicationField("scopes", value);}}
+                    onUpdateTable={(value: LegacyAny) => {this.updateApplicationField("scopes", value);}}
                   />
                 </Col>
               </Row>
@@ -877,7 +1041,7 @@ class ApplicationEditPage extends React.Component {
                   title={i18next.t("general:Token attributes")}
                   table={this.state.application.tokenAttributes}
                   application={this.state.application}
-                  onUpdateTable={(value) => {this.updateApplicationField("tokenAttributes", value);}}
+                  onUpdateTable={(value: LegacyAny) => {this.updateApplicationField("tokenAttributes", value);}}
                 />
               </Col>
             </Row>) : null
@@ -1008,7 +1172,7 @@ class ApplicationEditPage extends React.Component {
                     title={i18next.t("general:SAML attributes")}
                     table={this.state.application.samlAttributes}
                     application={this.state.application}
-                    onUpdateTable={(value) => {this.updateApplicationField("samlAttributes", value);}}
+                    onUpdateTable={(value: LegacyAny) => {this.updateApplicationField("samlAttributes", value);}}
                   />
                 </Col>
               </Row>
@@ -1041,13 +1205,13 @@ class ApplicationEditPage extends React.Component {
                 table={this.state.application.providers}
                 providers={this.state.providers}
                 application={this.state.application}
-                onUpdateTable={(value) => {this.updateApplicationField("providers", value);}}
+                onUpdateTable={(value: LegacyAny) => {this.updateApplicationField("providers", value);}}
               />
               <ApplicationIdentitySourceBindings
                 application={this.state.application}
                 providers={this.state.providers}
                 organizations={this.state.organizations}
-                onChange={(value) => {this.updateApplicationField("providers", value);}}
+                onChange={(value: LegacyAny) => {this.updateApplicationField("providers", value);}}
               />
             </Col>
           </Row>
@@ -1083,7 +1247,7 @@ class ApplicationEditPage extends React.Component {
               <SigninMethodTable
                 title={i18next.t("application:Signin methods")}
                 table={this.state.application.signinMethods}
-                onUpdateTable={(value) => {
+                onUpdateTable={(value: LegacyAny) => {
                   this.updateApplicationField("signinMethods", value);
                 }}
               />
@@ -1096,7 +1260,7 @@ class ApplicationEditPage extends React.Component {
             <Col span={21} >
               <Popover placement="right" content={
                 <div style={{width: "900px", height: "300px"}} >
-                  <Editor value={this.state.application.signupHtml} lang="html" fillHeight dark onChange={value => {
+                  <Editor value={this.state.application.signupHtml} lang="html" fillHeight dark onChange={(value: LegacyAny) => {
                     this.updateApplicationField("signupHtml", value);
                   }} />
                 </div>
@@ -1114,7 +1278,7 @@ class ApplicationEditPage extends React.Component {
             <Col span={21} >
               <Popover placement="right" content={
                 <div style={{width: "900px", height: "300px"}} >
-                  <Editor value={this.state.application.signinHtml} lang="html" fillHeight dark onChange={value => {
+                  <Editor value={this.state.application.signinHtml} lang="html" fillHeight dark onChange={(value: LegacyAny) => {
                     this.updateApplicationField("signinHtml", value);
                   }} />
                 </div>
@@ -1134,7 +1298,7 @@ class ApplicationEditPage extends React.Component {
                 title={i18next.t("application:Signin items")}
                 table={this.state.application.signinItems}
                 themeAlgorithm={this.state.themeAlgorithm}
-                onUpdateTable={(value) => {
+                onUpdateTable={(value: LegacyAny) => {
                   this.updateApplicationField("signinItems", value);
                 }}
               />
@@ -1151,7 +1315,7 @@ class ApplicationEditPage extends React.Component {
                     <SignupTable
                       title={i18next.t("application:Signup items")}
                       table={this.state.application.signupItems}
-                      onUpdateTable={(value) => {
+                      onUpdateTable={(value: LegacyAny) => {
                         this.updateApplicationField("signupItems", value);
                       }}
                     />
@@ -1234,7 +1398,7 @@ class ApplicationEditPage extends React.Component {
                     lang="css"
                     fillHeight
                     dark
-                    onChange={value => {
+                    onChange={(value: LegacyAny) => {
                       this.updateApplicationField("formCss", value);
                     }}
                   />
@@ -1258,7 +1422,7 @@ class ApplicationEditPage extends React.Component {
                     lang="css"
                     fillHeight
                     dark
-                    onChange={value => {
+                    onChange={(value: LegacyAny) => {
                       this.updateApplicationField("formCssMobile", value);
                     }}
                   />
@@ -1298,7 +1462,7 @@ class ApplicationEditPage extends React.Component {
                           lang="html"
                           fillHeight
                           dark
-                          onChange={value => {
+                          onChange={(value: LegacyAny) => {
                             this.updateApplicationField("formSideHtml", value);
                           }}
                         />
@@ -1330,7 +1494,7 @@ class ApplicationEditPage extends React.Component {
               {
                 this.state.application.themeData?.isEnabled ?
                   <Row style={{marginTop: "20px"}}>
-                    <ThemeEditor themeData={this.state.application.themeData} onThemeChange={(_, nextThemeData) => {
+                    <ThemeEditor themeData={this.state.application.themeData} onThemeChange={(_: LegacyAny, nextThemeData: LegacyAny) => {
                       const {isEnabled} = this.state.application.themeData ?? {...Conf.ThemeDefault, isEnabled: false};
                       this.updateApplicationField("themeData", {...nextThemeData, isEnabled});
                     }} />
@@ -1350,7 +1514,7 @@ class ApplicationEditPage extends React.Component {
                     lang="html"
                     fillHeight
                     dark
-                    onChange={value => {
+                    onChange={(value: LegacyAny) => {
                       this.updateApplicationField("headerHtml", value);
                     }}
                   />
@@ -1374,7 +1538,7 @@ class ApplicationEditPage extends React.Component {
                     lang="html"
                     fillHeight
                     dark
-                    onChange={value => {
+                    onChange={(value: LegacyAny) => {
                       this.updateApplicationField("footerHtml", value);
                     }}
                   />
@@ -1508,7 +1672,7 @@ class ApplicationEditPage extends React.Component {
               <UrlTable
                 title={i18next.t("application:Other domains")}
                 table={this.state.application.otherDomains}
-                onUpdateTable={(value) => {this.updateApplicationField("otherDomains", value);}}
+                onUpdateTable={(value: LegacyAny) => {this.updateApplicationField("otherDomains", value);}}
               />
             </Col>
           </Row>
@@ -1552,7 +1716,7 @@ class ApplicationEditPage extends React.Component {
       )}</>;
   }
 
-  renderApplication() {
+  renderApplication(): React.ReactNode {
     return (
       <Card size="small" title={
         <div>
@@ -1561,7 +1725,7 @@ class ApplicationEditPage extends React.Component {
           <Button style={{marginLeft: "20px"}} type="primary" onClick={() => this.submitApplicationEdit(true)}>{i18next.t("general:Save & Exit")}</Button>
           {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteApplication()}>{i18next.t("general:Cancel")}</Button> : null}
         </div>
-      } style={{margin: (Setting.isMobile()) ? "5px" : {}, height: "calc(100vh - 145px - 48px)", overflow: "hidden"}}
+      } style={{margin: (Setting.isMobile()) ? "5px" : undefined, height: "calc(100vh - 145px - 48px)", overflow: "hidden"}}
       styles={{body: {height: "100%"}}} type="inner">
         <Layout style={{background: "inherit", height: "100%"}}>
           {
@@ -1626,13 +1790,14 @@ class ApplicationEditPage extends React.Component {
     );
   }
 
-  renderSignupSigninPreview() {
+  renderSignupSigninPreview(): React.ReactNode {
     const themeData = this.state.application.themeData ?? Conf.ThemeDefault;
     let signUpUrl = `/signup/${this.state.application.name}`;
 
-    let redirectUri;
-    if (this.state.application.redirectUris?.length > 0) {
-      redirectUri = this.state.application.redirectUris[0];
+    const redirectUris = this.state.application.redirectUris || [];
+    let redirectUri: string;
+    if (redirectUris.length > 0) {
+      redirectUri = redirectUris[0];
     } else {
       redirectUri = "\"ERROR: You must specify at least one Redirect URL in 'Redirect URLs'\"";
     }
@@ -1640,7 +1805,7 @@ class ApplicationEditPage extends React.Component {
     const clientId = this.state.application.clientId;
     const organizationQuery = this.state.application.isShared ? `&organization=${encodeURIComponent(this.props.account.owner)}` : "";
     const signInUrl = `/login/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${redirectUri}&scope=read&state=aicodex-admin${organizationQuery}`;
-    const maskStyle = {position: "absolute", top: "0px", left: "0px", zIndex: 10, height: "97%", width: "100%", background: "rgba(0,0,0,0.4)"};
+    const maskStyle: React.CSSProperties = {position: "absolute", top: "0px", left: "0px", zIndex: 10, height: "97%", width: "100%", background: "rgba(0,0,0,0.4)"};
     if (!Setting.isPasswordEnabled(this.state.application)) {
       signUpUrl = signInUrl.replace("/login/oauth/authorize", "/signup/oauth/authorize");
     }
@@ -1707,10 +1872,10 @@ class ApplicationEditPage extends React.Component {
     );
   }
 
-  renderPromptPreview() {
+  renderPromptPreview(): React.ReactNode {
     const themeData = this.state.application.themeData ?? Conf.ThemeDefault;
     const promptUrl = `/prompt/${this.state.application.name}`;
-    const maskStyle = {position: "absolute", top: "0px", left: "0px", zIndex: 10, height: "100%", width: "100%", background: "rgba(0,0,0,0.4)"};
+    const maskStyle: React.CSSProperties = {position: "absolute", top: "0px", left: "0px", zIndex: 10, height: "100%", width: "100%", background: "rgba(0,0,0,0.4)"};
     return (
       <Col span={previewGrid}>
         <Button style={{marginBottom: "10px"}} type="primary" shape="round" icon={<CopyOutlined />} onClick={() => {
@@ -1729,7 +1894,14 @@ class ApplicationEditPage extends React.Component {
           },
         }}>
           <div style={{position: "relative", width: previewWidth, border: "1px solid rgb(217,217,217)", boxShadow: "10px 10px 5px #888888", flexDirection: "column", flex: "auto"}}>
-            <PromptPage application={this.state.application} account={this.props.account} />
+            <PromptPage
+              application={this.state.application}
+              account={this.props.account}
+              location={{...this.props.location, search: this.props.location.search ?? ""}}
+              history={this.props.history}
+              onUpdateApplication={() => undefined}
+              onUpdateAccount={() => undefined}
+            />
             <div style={maskStyle} />
           </div>
         </ConfigProvider>
@@ -1737,10 +1909,10 @@ class ApplicationEditPage extends React.Component {
     );
   }
 
-  submitApplicationEdit(exitAfterSave) {
+  submitApplicationEdit(exitAfterSave: boolean): void {
     const application = Setting.deepCopy(this.state.application);
-    application.providers = application.providers?.filter(provider => this.state.providers.map(provider => provider.name).includes(provider.name));
-    application.signinMethods = application.signinMethods?.filter(signinMethod => ["Password", "Verification code", "WebAuthn", "LDAP", "Face ID", "WeChat", "WeCom"].includes(signinMethod.name));
+    application.providers = application.providers?.filter((provider: LegacyAny) => this.state.providers.map(provider => provider.name).includes(provider.name));
+    application.signinMethods = application.signinMethods?.filter((signinMethod: LegacyAny) => ["Password", "Verification code", "WebAuthn", "LDAP", "Face ID", "WeChat", "WeCom"].includes(signinMethod.name));
     const customScopeValidation = this.validateCustomScopes(application.customScopes);
     application.customScopes = customScopeValidation.scopes;
     if (!customScopeValidation.ok) {
@@ -1749,7 +1921,7 @@ class ApplicationEditPage extends React.Component {
     }
 
     ApplicationBackend.updateApplication("admin", this.state.applicationName, application)
-      .then((res) => {
+      .then((res: BackendResponse<ApplicationRecord>) => {
         if (res.status === "ok") {
           Setting.showMessage("success", i18next.t("general:Successfully saved"));
           this.setState({
@@ -1766,21 +1938,21 @@ class ApplicationEditPage extends React.Component {
           this.updateApplicationField("name", this.state.applicationName);
         }
       })
-      .catch(error => {
+      .catch((error: LegacyAny) => {
         Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
-  deleteApplication() {
+  deleteApplication(): void {
     ApplicationBackend.deleteApplication(this.state.application)
-      .then((res) => {
+      .then((res: BackendResponse<null>) => {
         if (res.status === "ok") {
           this.props.history.push("/applications");
         } else {
           Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
         }
       })
-      .catch(error => {
+      .catch((error: LegacyAny) => {
         Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
       });
   }
