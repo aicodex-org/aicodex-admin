@@ -1,0 +1,911 @@
+// Copyright 2026 The AICodex Authors. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import * as Setting from "../Setting";
+type BackendValue = import("./BackendTypes").BackendValue;
+
+function getHeaders() {
+  return {
+    "Accept-Language": Setting.getAcceptLanguage(),
+  };
+}
+
+function getJsonHeaders() {
+  return {
+    ...getHeaders(),
+    "Content-Type": "application/json",
+  };
+}
+
+export function getPlatformApiOrganizationMappings(organization: BackendValue) {
+  return fetch(`${Setting.ServerUrl}/api/get-platform-api-organization-mappings?organization=${encodeURIComponent(organization || "")}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
+export function updatePlatformApiOrganizationMapping(mapping: BackendValue) {
+  return fetch(`${Setting.ServerUrl}/api/update-platform-api-organization-mapping`, {
+    method: "POST",
+    credentials: "include",
+    body: JSON.stringify(mapping),
+    headers: getJsonHeaders(),
+  }).then(res => res.json());
+}
+
+export function getPlatformApiUserMappings(organization: BackendValue, options: BackendValue = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.current !== undefined && options.pageSize !== undefined) {
+    query.set("p", options.current);
+    query.set("pageSize", options.pageSize);
+  }
+  if (options.keyword) {
+    query.set("keyword", options.keyword);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/get-platform-api-user-mappings?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
+export function getPlatformApiUserMappingReadiness(organization: BackendValue, options: BackendValue = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.keyword) {
+    query.set("keyword", options.keyword);
+  }
+  if (options.readinessCategory) {
+    query.set("readinessCategory", options.readinessCategory);
+  }
+  if (options.mappingStatus) {
+    query.set("mappingStatus", options.mappingStatus);
+  }
+  if (options.limit) {
+    query.set("limit", options.limit);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/get-platform-api-user-mapping-readiness?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
+export function getOrganizationMasterDataQualityReadiness(organization: BackendValue) {
+  return fetch(`${Setting.ServerUrl}/api/get-organization-master-data-quality-readiness?organization=${encodeURIComponent(organization || "")}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
+export function getOrganizationDirectoryQuality(organization: BackendValue, options: BackendValue = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.entityType) {
+    query.set("entityType", options.entityType);
+  }
+  if (options.keyword) {
+    query.set("keyword", options.keyword);
+  }
+  if (options.sourceType) {
+    query.set("sourceType", options.sourceType);
+  }
+  if (options.sourceConnectionIdHash) {
+    query.set("sourceConnectionIdHash", options.sourceConnectionIdHash);
+  }
+  if (options.qualityStatus) {
+    query.set("qualityStatus", options.qualityStatus);
+  }
+  if (options.reasonCode) {
+    query.set("reasonCode", options.reasonCode);
+  }
+  if (options.lifecycleStatus) {
+    query.set("lifecycleStatus", options.lifecycleStatus);
+  }
+  if (options.current !== undefined && options.pageSize !== undefined) {
+    query.set("p", options.current);
+    query.set("pageSize", options.pageSize);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/organization-master-data-quality/directory?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
+export function getOrganizationDirectoryRemediationPlan(organization: BackendValue, options: BackendValue = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.entityType) {
+    query.set("entityType", options.entityType);
+  }
+  if (options.keyword) {
+    query.set("keyword", options.keyword);
+  }
+  if (options.sourceType) {
+    query.set("sourceType", options.sourceType);
+  }
+  if (options.sourceConnectionIdHash) {
+    query.set("sourceConnectionIdHash", options.sourceConnectionIdHash);
+  }
+  if (options.qualityStatus) {
+    query.set("qualityStatus", options.qualityStatus);
+  }
+  if (options.reasonCode) {
+    query.set("reasonCode", options.reasonCode);
+  }
+  if (options.lifecycleStatus) {
+    query.set("lifecycleStatus", options.lifecycleStatus);
+  }
+  if (options.limit) {
+    query.set("limit", options.limit);
+  }
+  if (options.topN) {
+    query.set("topN", options.topN);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/organization-master-data-quality/remediation-plan?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
+export function getOrganizationDirectoryRemediationActionDrafts(organization: BackendValue, options: BackendValue = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.actionAlias) {
+    query.set("actionAlias", options.actionAlias);
+  }
+  if (options.entityType) {
+    query.set("entityType", options.entityType);
+  }
+  if (options.keyword) {
+    query.set("keyword", options.keyword);
+  }
+  if (options.sourceType) {
+    query.set("sourceType", options.sourceType);
+  }
+  if (options.sourceConnectionIdHash) {
+    query.set("sourceConnectionIdHash", options.sourceConnectionIdHash);
+  }
+  if (options.qualityStatus) {
+    query.set("qualityStatus", options.qualityStatus);
+  }
+  if (options.reasonCode) {
+    query.set("reasonCode", options.reasonCode);
+  }
+  if (options.limit) {
+    query.set("limit", options.limit);
+  }
+  if (options.topN) {
+    query.set("topN", options.topN);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/organization-master-data-quality/remediation-action-drafts?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
+export function getOrganizationDirectoryRemediationPreflight(organization: BackendValue, options: BackendValue = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.draftId) {
+    query.set("draftId", options.draftId);
+  }
+  if (options.actionAlias) {
+    query.set("actionAlias", options.actionAlias);
+  }
+  if (options.entityType) {
+    query.set("entityType", options.entityType);
+  }
+  if (options.keyword) {
+    query.set("keyword", options.keyword);
+  }
+  if (options.sourceType) {
+    query.set("sourceType", options.sourceType);
+  }
+  if (options.sourceConnectionIdHash) {
+    query.set("sourceConnectionIdHash", options.sourceConnectionIdHash);
+  }
+  if (options.qualityStatus) {
+    query.set("qualityStatus", options.qualityStatus);
+  }
+  if (options.reasonCode) {
+    query.set("reasonCode", options.reasonCode);
+  }
+  if (options.limit) {
+    query.set("limit", options.limit);
+  }
+  if (options.topN) {
+    query.set("topN", options.topN);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/organization-master-data-quality/remediation-preflight?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
+export function getOrganizationDirectoryRemediationApprovalPreview(organization: BackendValue, options: BackendValue = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.draftId) {
+    query.set("draftId", options.draftId);
+  }
+  if (options.actionAlias) {
+    query.set("actionAlias", options.actionAlias);
+  }
+  if (options.entityType) {
+    query.set("entityType", options.entityType);
+  }
+  if (options.keyword) {
+    query.set("keyword", options.keyword);
+  }
+  if (options.sourceType) {
+    query.set("sourceType", options.sourceType);
+  }
+  if (options.sourceConnectionIdHash) {
+    query.set("sourceConnectionIdHash", options.sourceConnectionIdHash);
+  }
+  if (options.qualityStatus) {
+    query.set("qualityStatus", options.qualityStatus);
+  }
+  if (options.reasonCode) {
+    query.set("reasonCode", options.reasonCode);
+  }
+  if (options.limit) {
+    query.set("limit", options.limit);
+  }
+  if (options.topN) {
+    query.set("topN", options.topN);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/organization-master-data-quality/remediation-approval-preview?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
+export function getOrganizationDirectoryRemediationApprovalPacketAudit(organization: BackendValue, options: BackendValue = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.packetAuditId) {
+    query.set("packetAuditId", options.packetAuditId);
+  }
+  if (options.packetHash) {
+    query.set("packetHash", options.packetHash);
+  }
+  if (options.approvalPreviewId) {
+    query.set("approvalPreviewId", options.approvalPreviewId);
+  }
+  if (options.approvalPreviewHash) {
+    query.set("approvalPreviewHash", options.approvalPreviewHash);
+  }
+  if (options.draftId) {
+    query.set("draftId", options.draftId);
+  }
+  if (options.actionAlias) {
+    query.set("actionAlias", options.actionAlias);
+  }
+  if (options.entityType) {
+    query.set("entityType", options.entityType);
+  }
+  if (options.keyword) {
+    query.set("keyword", options.keyword);
+  }
+  if (options.sourceType) {
+    query.set("sourceType", options.sourceType);
+  }
+  if (options.sourceConnectionIdHash) {
+    query.set("sourceConnectionIdHash", options.sourceConnectionIdHash);
+  }
+  if (options.qualityStatus) {
+    query.set("qualityStatus", options.qualityStatus);
+  }
+  if (options.reasonCode) {
+    query.set("reasonCode", options.reasonCode);
+  }
+  if (options.riskLevel) {
+    query.set("riskLevel", options.riskLevel);
+  }
+  if (options.packetStatus) {
+    query.set("packetStatus", options.packetStatus);
+  }
+  if (options.limit) {
+    query.set("limit", options.limit);
+  }
+  if (options.topN) {
+    query.set("topN", options.topN);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/organization-master-data-quality/remediation-approval-packet-audit?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
+export function getOrganizationDirectoryRemediationApprovalPacketOperatorNotes(organization: BackendValue, options: BackendValue = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.noteId) {
+    query.set("noteId", options.noteId);
+  }
+  if (options.noteHash) {
+    query.set("noteHash", options.noteHash);
+  }
+  if (options.packetAuditId) {
+    query.set("packetAuditId", options.packetAuditId);
+  }
+  if (options.packetHash) {
+    query.set("packetHash", options.packetHash);
+  }
+  if (options.approvalPreviewId) {
+    query.set("approvalPreviewId", options.approvalPreviewId);
+  }
+  if (options.approvalPreviewHash) {
+    query.set("approvalPreviewHash", options.approvalPreviewHash);
+  }
+  if (options.draftId) {
+    query.set("draftId", options.draftId);
+  }
+  if (options.actionAlias) {
+    query.set("actionAlias", options.actionAlias);
+  }
+  if (options.entityType) {
+    query.set("entityType", options.entityType);
+  }
+  if (options.keyword) {
+    query.set("keyword", options.keyword);
+  }
+  if (options.sourceType) {
+    query.set("sourceType", options.sourceType);
+  }
+  if (options.sourceConnectionIdHash) {
+    query.set("sourceConnectionIdHash", options.sourceConnectionIdHash);
+  }
+  if (options.qualityStatus) {
+    query.set("qualityStatus", options.qualityStatus);
+  }
+  if (options.reasonCode) {
+    query.set("reasonCode", options.reasonCode);
+  }
+  if (options.riskLevel) {
+    query.set("riskLevel", options.riskLevel);
+  }
+  if (options.packetStatus) {
+    query.set("packetStatus", options.packetStatus);
+  }
+  if (options.limit) {
+    query.set("limit", options.limit);
+  }
+  if (options.topN) {
+    query.set("topN", options.topN);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/organization-master-data-quality/remediation-approval-packet-operator-notes?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
+export function getOrganizationDirectoryRemediationOperatorNotePersistenceReadiness(organization: BackendValue, options: BackendValue = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.readinessId) {
+    query.set("readinessId", options.readinessId);
+  }
+  if (options.readinessHash) {
+    query.set("readinessHash", options.readinessHash);
+  }
+  if (options.noteId) {
+    query.set("noteId", options.noteId);
+  }
+  if (options.noteHash) {
+    query.set("noteHash", options.noteHash);
+  }
+  if (options.packetAuditId) {
+    query.set("packetAuditId", options.packetAuditId);
+  }
+  if (options.packetHash) {
+    query.set("packetHash", options.packetHash);
+  }
+  if (options.approvalPreviewId) {
+    query.set("approvalPreviewId", options.approvalPreviewId);
+  }
+  if (options.approvalPreviewHash) {
+    query.set("approvalPreviewHash", options.approvalPreviewHash);
+  }
+  if (options.draftId) {
+    query.set("draftId", options.draftId);
+  }
+  if (options.actionAlias) {
+    query.set("actionAlias", options.actionAlias);
+  }
+  if (options.entityType) {
+    query.set("entityType", options.entityType);
+  }
+  if (options.keyword) {
+    query.set("keyword", options.keyword);
+  }
+  if (options.sourceType) {
+    query.set("sourceType", options.sourceType);
+  }
+  if (options.sourceConnectionIdHash) {
+    query.set("sourceConnectionIdHash", options.sourceConnectionIdHash);
+  }
+  if (options.qualityStatus) {
+    query.set("qualityStatus", options.qualityStatus);
+  }
+  if (options.reasonCode) {
+    query.set("reasonCode", options.reasonCode);
+  }
+  if (options.riskLevel) {
+    query.set("riskLevel", options.riskLevel);
+  }
+  if (options.packetStatus) {
+    query.set("packetStatus", options.packetStatus);
+  }
+  if (options.limit) {
+    query.set("limit", options.limit);
+  }
+  if (options.topN) {
+    query.set("topN", options.topN);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/organization-master-data-quality/remediation-operator-note-persistence-readiness?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
+export function getOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch(organization: BackendValue, options: BackendValue = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.searchId) {
+    query.set("searchId", options.searchId);
+  }
+  if (options.readinessId) {
+    query.set("readinessId", options.readinessId);
+  }
+  if (options.readinessHash) {
+    query.set("readinessHash", options.readinessHash);
+  }
+  if (options.noteId) {
+    query.set("noteId", options.noteId);
+  }
+  if (options.noteHash) {
+    query.set("noteHash", options.noteHash);
+  }
+  if (options.packetAuditId) {
+    query.set("packetAuditId", options.packetAuditId);
+  }
+  if (options.packetHash) {
+    query.set("packetHash", options.packetHash);
+  }
+  if (options.approvalPreviewId) {
+    query.set("approvalPreviewId", options.approvalPreviewId);
+  }
+  if (options.approvalPreviewHash) {
+    query.set("approvalPreviewHash", options.approvalPreviewHash);
+  }
+  if (options.draftId) {
+    query.set("draftId", options.draftId);
+  }
+  if (options.remediationRunId) {
+    query.set("remediationRunId", options.remediationRunId);
+  }
+  if (options.actionAlias) {
+    query.set("actionAlias", options.actionAlias);
+  }
+  if (options.entityType) {
+    query.set("entityType", options.entityType);
+  }
+  if (options.keyword) {
+    query.set("keyword", options.keyword);
+  }
+  if (options.sourceType) {
+    query.set("sourceType", options.sourceType);
+  }
+  if (options.sourceConnectionIdHash) {
+    query.set("sourceConnectionIdHash", options.sourceConnectionIdHash);
+  }
+  if (options.qualityStatus) {
+    query.set("qualityStatus", options.qualityStatus);
+  }
+  if (options.reasonCode) {
+    query.set("reasonCode", options.reasonCode);
+  }
+  if (options.checklistAlias) {
+    query.set("checklistAlias", options.checklistAlias);
+  }
+  if (options.riskLevel) {
+    query.set("riskLevel", options.riskLevel);
+  }
+  if (options.packetStatus) {
+    query.set("packetStatus", options.packetStatus);
+  }
+  if (options.readinessStatus) {
+    query.set("readinessStatus", options.readinessStatus);
+  }
+  if (options.includeHistorical !== undefined) {
+    query.set("includeHistorical", String(!!options.includeHistorical));
+  }
+  if (options.historyMode) {
+    query.set("historyMode", options.historyMode);
+  }
+  if (options.limit) {
+    query.set("limit", options.limit);
+  }
+  if (options.topN) {
+    query.set("topN", options.topN);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/organization-master-data-quality/remediation-operator-note-readonly-audit-search?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
+export function publishGatewayProjectionManually(organization: BackendValue, options: BackendValue = {}) {
+  return fetch(`${Setting.ServerUrl}/api/gateway-projection/manual-publish`, {
+    method: "POST",
+    credentials: "include",
+    body: JSON.stringify({
+      organizationId: organization || "",
+      traceId: options.traceId || "",
+      reason: options.reason || "operator-manual-publish",
+    }),
+    headers: getJsonHeaders(),
+  }).then(res => res.json());
+}
+
+export function getGatewayProjectionPublishAttempts(organization: BackendValue, options: BackendValue = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.source) {
+    query.set("source", options.source);
+  }
+  if (options.status) {
+    query.set("status", options.status);
+  }
+  if (options.failureCategory) {
+    query.set("failureCategory", options.failureCategory);
+  }
+  if (options.from) {
+    query.set("from", options.from);
+  }
+  if (options.to) {
+    query.set("to", options.to);
+  }
+  if (options.limit) {
+    query.set("limit", options.limit);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/gateway-projection/publish-attempts?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
+export function getGatewayProjectionPublishAttempt(organization: BackendValue, attemptId: BackendValue) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+
+  return fetch(`${Setting.ServerUrl}/api/gateway-projection/publish-attempts/${encodeURIComponent(attemptId || "")}?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
+export function getGatewayProjectionPublishAttemptRetentionReadiness(organization: BackendValue, options: BackendValue = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.source) {
+    query.set("source", options.source);
+  }
+  if (options.status) {
+    query.set("status", options.status);
+  }
+  if (options.failureCategory) {
+    query.set("failureCategory", options.failureCategory);
+  }
+  if (options.from) {
+    query.set("from", options.from);
+  }
+  if (options.to) {
+    query.set("to", options.to);
+  }
+  if (options.limit) {
+    query.set("limit", options.limit);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/gateway-projection/publish-attempt-retention-readiness?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
+export function getGatewayProjectionPublishAttemptCleanupDryRun(organization: BackendValue, options: BackendValue = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.source) {
+    query.set("source", options.source);
+  }
+  if (options.status) {
+    query.set("status", options.status);
+  }
+  if (options.failureCategory) {
+    query.set("failureCategory", options.failureCategory);
+  }
+  if (options.olderThan) {
+    query.set("olderThan", options.olderThan);
+  }
+  if (options.limit) {
+    query.set("limit", options.limit);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/gateway-projection/publish-attempt-retention-cleanup-dry-run?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
+export function getGatewayProjectionPublishAttemptCleanupExecuteReadiness(organization: BackendValue, options: BackendValue = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.source) {
+    query.set("source", options.source);
+  }
+  if (options.status) {
+    query.set("status", options.status);
+  }
+  if (options.failureCategory) {
+    query.set("failureCategory", options.failureCategory);
+  }
+  if (options.olderThan) {
+    query.set("olderThan", options.olderThan);
+  }
+  if (options.dryRunGeneratedAt) {
+    query.set("dryRunGeneratedAt", options.dryRunGeneratedAt);
+  }
+  if (options.maxDryRunAgeSeconds) {
+    query.set("maxDryRunAgeSeconds", options.maxDryRunAgeSeconds);
+  }
+  if (options.approvalEvidence) {
+    query.set("approvalEvidence", options.approvalEvidence);
+  }
+  if (options.limit) {
+    query.set("limit", options.limit);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/gateway-projection/publish-attempt-retention-cleanup-execute-readiness?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
+export function getGatewayProjectionPublishAttemptCleanupApprovalPolicyReadiness(organization: BackendValue, options: BackendValue = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.source) {
+    query.set("source", options.source);
+  }
+  if (options.status) {
+    query.set("status", options.status);
+  }
+  if (options.failureCategory) {
+    query.set("failureCategory", options.failureCategory);
+  }
+  if (options.olderThan) {
+    query.set("olderThan", options.olderThan);
+  }
+  if (options.readinessHash) {
+    query.set("readinessHash", options.readinessHash);
+  }
+  if (options.dryRunGeneratedAt) {
+    query.set("dryRunGeneratedAt", options.dryRunGeneratedAt);
+  }
+  if (options.maxDryRunAgeSeconds) {
+    query.set("maxDryRunAgeSeconds", options.maxDryRunAgeSeconds);
+  }
+  if (options.approvalEvidence) {
+    query.set("approvalEvidence", options.approvalEvidence);
+  }
+  if (options.limit) {
+    query.set("limit", options.limit);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/gateway-projection/publish-attempt-retention-cleanup-approval-policy-readiness?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
+export function getGatewayProjectionPublishAttemptCleanupApprovalDecisionDraftReadiness(organization: BackendValue, options: BackendValue = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.source) {
+    query.set("source", options.source);
+  }
+  if (options.status) {
+    query.set("status", options.status);
+  }
+  if (options.failureCategory) {
+    query.set("failureCategory", options.failureCategory);
+  }
+  if (options.olderThan) {
+    query.set("olderThan", options.olderThan);
+  }
+  if (options.readinessHash) {
+    query.set("readinessHash", options.readinessHash);
+  }
+  if (options.dryRunGeneratedAt) {
+    query.set("dryRunGeneratedAt", options.dryRunGeneratedAt);
+  }
+  if (options.maxDryRunAgeSeconds) {
+    query.set("maxDryRunAgeSeconds", options.maxDryRunAgeSeconds);
+  }
+  if (options.approvalEvidence) {
+    query.set("approvalEvidence", options.approvalEvidence);
+  }
+  if (options.limit) {
+    query.set("limit", options.limit);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/gateway-projection/publish-attempt-retention-cleanup-approval-decision-draft-readiness?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
+export function getGatewayProjectionPublishAttemptCleanupExecutionGateOwnerBoundaryPreflight(organization: BackendValue, options: BackendValue = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.source) {
+    query.set("source", options.source);
+  }
+  if (options.status) {
+    query.set("status", options.status);
+  }
+  if (options.failureCategory) {
+    query.set("failureCategory", options.failureCategory);
+  }
+  if (options.olderThan) {
+    query.set("olderThan", options.olderThan);
+  }
+  if (options.readinessHash) {
+    query.set("readinessHash", options.readinessHash);
+  }
+  if (options.dryRunGeneratedAt) {
+    query.set("dryRunGeneratedAt", options.dryRunGeneratedAt);
+  }
+  if (options.maxDryRunAgeSeconds) {
+    query.set("maxDryRunAgeSeconds", options.maxDryRunAgeSeconds);
+  }
+  if (options.approvalEvidence) {
+    query.set("approvalEvidence", options.approvalEvidence);
+  }
+  if (options.limit) {
+    query.set("limit", options.limit);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/gateway-projection/publish-attempt-retention-cleanup-execution-gate-owner-boundary-preflight?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
+export function getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail(organization: BackendValue, options: BackendValue = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.action) {
+    query.set("action", options.action);
+  }
+  if (options.approvalState) {
+    query.set("approvalState", options.approvalState);
+  }
+  if (options.readinessHash) {
+    query.set("readinessHash", options.readinessHash);
+  }
+  if (options.limit) {
+    query.set("limit", options.limit);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/gateway-projection/publish-attempt-retention-cleanup-approval-audit-trail?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
+export function recordGatewayProjectionPublishAttemptCleanupApprovalAuditTrail(payload: BackendValue = {}) {
+  return fetch(`${Setting.ServerUrl}/api/gateway-projection/publish-attempt-retention-cleanup-approval-audit-trail`, {
+    method: "POST",
+    credentials: "include",
+    body: JSON.stringify(payload),
+    headers: getJsonHeaders(),
+  }).then(res => res.json());
+}
+
+export function getGatewayProjectionRunReadiness(organization: BackendValue, options: BackendValue = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.traceId) {
+    query.set("traceId", options.traceId);
+  }
+  if (options.projectionBatchId) {
+    query.set("projectionBatchId", options.projectionBatchId);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/gateway-projection/run-readiness?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
+export function getGatewayProjectionIngestionStatus(organization: BackendValue, options: BackendValue = {}) {
+  const query = new URLSearchParams();
+  query.set("organization", organization || "");
+  if (options.latest !== undefined) {
+    query.set("latest", String(!!options.latest));
+  }
+  if (options.projectionBatchId) {
+    query.set("projectionBatchId", options.projectionBatchId);
+  }
+  if (options.orgVersion) {
+    query.set("orgVersion", options.orgVersion);
+  }
+  if (options.sourceVersion) {
+    query.set("sourceVersion", options.sourceVersion);
+  }
+
+  return fetch(`${Setting.ServerUrl}/api/gateway-projection/ingestion-status?${query.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(),
+  }).then(res => res.json());
+}
+
+export function updatePlatformApiUserMapping(mapping: BackendValue) {
+  return fetch(`${Setting.ServerUrl}/api/update-platform-api-user-mapping`, {
+    method: "POST",
+    credentials: "include",
+    body: JSON.stringify(mapping),
+    headers: getJsonHeaders(),
+  }).then(res => res.json());
+}
