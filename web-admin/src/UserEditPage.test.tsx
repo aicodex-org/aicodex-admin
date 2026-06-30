@@ -484,6 +484,38 @@ test("loads user data, transactions, organizations, applications and groups", as
   expect(page.state.groups).toEqual([{owner: "engineering", name: "group-a", displayName: "Group A", type: "Physical"}]);
 });
 
+test("normalizes stale signup application after user and applications load", async() => {
+  const emptyApplicationsPage = createPage();
+  emptyApplicationsPage.state = {
+    ...emptyApplicationsPage.state,
+    user: null as unknown as PageState["user"],
+    applications: [],
+  };
+  applicationBackendMock.getApplicationsByOrganization.mockResolvedValueOnce({status: "ok", data: []});
+  userBackendMock.getUser.mockResolvedValueOnce({status: "ok", data: {...baseUser, signupApplication: "app-deleted"}});
+
+  emptyApplicationsPage.getApplicationsByOrganization("engineering");
+  await flushPromises();
+  emptyApplicationsPage.getUser();
+  await flushPromises();
+
+  expect(emptyApplicationsPage.state.user.signupApplication).toBe("");
+
+  const availableApplicationsPage = createPage();
+  availableApplicationsPage.state = {
+    ...availableApplicationsPage.state,
+    user: null as unknown as PageState["user"],
+    applications: [{name: "app-main"}],
+    applicationsLoaded: true,
+  };
+  userBackendMock.getUser.mockResolvedValueOnce({status: "ok", data: {...baseUser, signupApplication: "app-deleted"}});
+
+  availableApplicationsPage.getUser();
+  await flushPromises();
+
+  expect(availableApplicationsPage.state.user.signupApplication).toBe("app-main");
+});
+
 test("handles user loading 404, API error and transaction load failures", async() => {
   const page = createPage();
   const historyPush = page.props.history.push as ReturnType<typeof jestValue.fn>;
@@ -647,7 +679,7 @@ test("handles return URL, account item visibility and tabbed layouts", async() =
   expect(page.getIdCardText("unknown")).toContain("Unknown");
 });
 
-test("limits missing application fallback to Feishu synced users", async() => {
+test("falls back to organization settings when user has no application", async() => {
   const missingApplicationMessage = "The organization: engineering should have one application at least";
   const fallbackOrganization = {
     ...application.organizationObj,
@@ -666,33 +698,23 @@ test("limits missing application fallback to Feishu synced users", async() => {
   page.getUserApplication();
   await flushPromises();
 
-  expect(Setting.showMessage).toHaveBeenCalledWith("error", missingApplicationMessage);
-  expect(organizationBackendMock.getOrganization).not.toHaveBeenCalled();
-
-  (Setting.showMessage as unknown as {mockClear: () => void}).mockClear();
-  page.state = {
-    ...page.state,
-    user: {
-      ...page.state.user,
-      lark: "ou_feishu_user",
-      properties: {
-        oauth_Lark_userId: "ou_feishu_user",
-        oauth_Lark_tenantKey: "tenant-a",
-      },
-    },
-  };
-  applicationBackendMock.getUserApplication.mockResolvedValueOnce({status: "error", msg: missingApplicationMessage});
-  organizationBackendMock.getOrganization.mockResolvedValueOnce({status: "ok", data: fallbackOrganization});
-  page.getUserApplication();
-  await flushPromises();
-  await flushPromises();
-
   expect(organizationBackendMock.getOrganization).toHaveBeenCalledWith("admin", "engineering");
   expect(page.getUserOrganization()?.name).toBe("engineering");
+  expect(Setting.showMessage).not.toHaveBeenCalledWith("error", missingApplicationMessage);
+
   const fallbackView = render(<>{page.renderUserForm()}</>);
   expect(fallbackView.container.querySelector("[id='Display name']")).not.toBeNull();
   expect(Setting.showMessage).not.toHaveBeenCalledWith("error", missingApplicationMessage);
   fallbackView.unmount();
+
+  (Setting.showMessage as unknown as {mockClear: () => void}).mockClear();
+  (organizationBackendMock.getOrganization as unknown as {mockClear: () => void}).mockClear();
+  applicationBackendMock.getUserApplication.mockResolvedValueOnce({status: "error", msg: "application failed"});
+  page.getUserApplication();
+  await flushPromises();
+
+  expect(Setting.showMessage).toHaveBeenCalledWith("error", "application failed");
+  expect(organizationBackendMock.getOrganization).not.toHaveBeenCalled();
 
   const pendingPage = createPage();
   pendingPage.state = {
@@ -710,14 +732,7 @@ test("limits missing application fallback to Feishu synced users", async() => {
 
   userBackendMock.getUser.mockResolvedValueOnce({
     status: "ok",
-    data: {
-      ...baseUser,
-      lark: "ou_delayed_feishu_user",
-      properties: {
-        oauth_Lark_userId: "ou_delayed_feishu_user",
-        oauth_Lark_tenantKey: "tenant-a",
-      },
-    },
+    data: {...baseUser},
   });
   organizationBackendMock.getOrganization.mockResolvedValueOnce({status: "ok", data: fallbackOrganization});
   pendingPage.getUser();

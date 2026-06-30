@@ -164,7 +164,6 @@ interface UserRecord {
   registerType?: string;
   registerSource?: string;
   externalId?: string;
-  lark?: string;
   groups?: string[];
   roles?: RoleRecord[];
   permissions?: RoleRecord[];
@@ -228,6 +227,7 @@ interface UserEditPageState {
   groups: GroupRecord[] | null;
   organizations: OrganizationRecord[];
   applications: ApplicationRecord[];
+  applicationsLoaded: boolean;
   mode: string;
   loading: boolean;
   returnUrl: string | null;
@@ -272,6 +272,7 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
       groups: null,
       organizations: [],
       applications: [],
+      applicationsLoaded: false,
       mode: props.location.mode !== undefined ? props.location.mode : "edit",
       loading: true,
       returnUrl: null,
@@ -320,6 +321,7 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
           consents: user.applicationScopes ?? [],
           loading: false,
         }, () => {
+          this.normalizeSignupApplication();
           this.resolvePendingUserApplicationError();
         });
 
@@ -359,18 +361,27 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
         const applications = res.data ?? [];
         this.setState({
           applications: applications,
-        });
-
-        if (this.state.user) {
-          if (this.state.user.signupApplication === "" || applications.filter(application => application.name === this.state.user.signupApplication).length === 0) {
-            if (applications.length > 0) {
-              this.updateUserField("signupApplication", applications[0].name);
-            } else {
-              this.updateUserField("signupApplication", "");
-            }
-          }
-        }
+          applicationsLoaded: true,
+        }, () => this.normalizeSignupApplication());
       });
+  }
+
+  normalizeSignupApplication() {
+    if (!this.state.user || !this.state.applicationsLoaded) {
+      return;
+    }
+
+    const applications = this.state.applications;
+    if (this.state.user.signupApplication && applications.some(application => application.name === this.state.user.signupApplication)) {
+      return;
+    }
+
+    const signupApplication = applications.length > 0 ? applications[0].name : "";
+    if (this.state.user.signupApplication === signupApplication) {
+      return;
+    }
+
+    this.updateUserField("signupApplication", signupApplication);
   }
 
   getUserApplication() {
@@ -398,29 +409,13 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
       normalizedMessage.includes("至少一个应用");
   }
 
-  isFeishuSyncedUser(user?: UserRecord | null) {
-    if (!user) {
-      return false;
-    }
-
-    return this.hasNonEmptyString(user.lark) ||
-      typeof user.externalId === "string" && user.externalId.startsWith("feishu:") ||
-      this.hasNonEmptyString(user.properties?.oauth_Lark_userId) ||
-      this.hasNonEmptyString(user.properties?.oauth_Lark_tenantKey) ||
-      this.hasNonEmptyString(user.properties?.feishuAppId);
-  }
-
-  hasNonEmptyString(value: unknown) {
-    return typeof value === "string" && value.trim() !== "";
-  }
-
   handleUserApplicationError(applicationError?: string) {
     if (this.isMissingUserApplicationError(applicationError) && !this.state.user) {
       this.setState({pendingUserApplicationError: applicationError ?? ""});
       return;
     }
 
-    if (this.isMissingUserApplicationError(applicationError) && this.isFeishuSyncedUser(this.state.user)) {
+    if (this.isMissingUserApplicationError(applicationError)) {
       this.getUserOrganizationFallback(applicationError);
       return;
     }
