@@ -1,4 +1,4 @@
-export function getSigninLanguageOverride(languages) {
+export function getSigninLanguageOverride(languages: unknown): string {
   if (!Array.isArray(languages)) {
     return "";
   }

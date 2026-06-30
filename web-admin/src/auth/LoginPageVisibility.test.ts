@@ -1,5 +1,6 @@
 /* eslint-env jest */
 
+import {expect} from "@jest/globals";
 import {getLoginPanelClassName, shouldHidePasswordRecoveryForLoginMethod} from "./LoginPageVisibility";
 
 describe("shouldHidePasswordRecoveryForLoginMethod", () => {

@@ -19,26 +19,41 @@ import {authConfig} from "./Auth";
 import * as ApplicationBackend from "../backend/ApplicationBackend";
 import * as Setting from "../Setting";
 import * as AuthBackend from "./AuthBackend";
+import type {AuthApplication, HistoryLike, RouteMatch} from "./AuthTypes";
 
-class ResultPage extends React.Component {
-  constructor(props) {
+const t = (key: string): string => i18next.t(key) as string;
+
+interface ResultPageProps {
+  match: RouteMatch<{applicationName?: string}>;
+  history: HistoryLike;
+  onUpdateApplication: (application: AuthApplication) => void;
+}
+
+interface ResultPageState {
+  classes: ResultPageProps;
+  applicationName?: string;
+  application: AuthApplication | null;
+}
+
+class ResultPage extends React.Component<ResultPageProps, ResultPageState> {
+  constructor(props: ResultPageProps) {
     super(props);
     this.state = {
       classes: props,
-      applicationName: props.match.params.applicationName !== undefined ? props.match.params.applicationName : authConfig.appName,
+      applicationName: props.match.params.applicationName !== undefined ? props.match.params.applicationName : (authConfig as {appName?: string}).appName,
       application: null,
     };
   }
 
-  UNSAFE_componentWillMount() {
+  UNSAFE_componentWillMount(): void {
     if (this.state.applicationName !== undefined) {
       this.getApplication();
     } else {
-      Setting.showMessage("error", `${i18next.t("general:Unknown application name")}: ${this.state.applicationName}`);
+      Setting.showMessage("error", `${t("general:Unknown application name")}: ${this.state.applicationName}`);
     }
   }
 
-  getApplication() {
+  getApplication(): void {
     if (this.state.applicationName === undefined) {
       return;
     }
@@ -57,11 +72,11 @@ class ResultPage extends React.Component {
       });
   }
 
-  onUpdateApplication(application) {
+  onUpdateApplication(application: AuthApplication): void {
     this.props.onUpdateApplication(application);
   }
 
-  handleSignIn = () => {
+  handleSignIn = (): void => {
     AuthBackend.getAccount()
       .then((res) => {
         if (res.status === "ok" && res.data) {
@@ -77,13 +92,13 @@ class ResultPage extends React.Component {
       });
   };
 
-  render() {
+  render(): React.ReactNode {
     const application = this.state.application;
 
     if (application === null) {
       return (
         <div style={{display: "flex", justifyContent: "center", alignItems: "center"}}>
-          <Spin size="large" tip={i18next.t("login:Loading")} style={{paddingTop: "10%"}} />
+          <Spin size="large" tip={t("login:Loading")} style={{paddingTop: "10%"}} />
         </div>
       );
     }
@@ -103,11 +118,11 @@ class ResultPage extends React.Component {
             }
             <Result
               status="success"
-              title={i18next.t("signup:Your account has been created!")}
-              subTitle={i18next.t("signup:Please click the below button to sign in")}
+              title={t("signup:Your account has been created!")}
+              subTitle={t("signup:Please click the below button to sign in")}
               extra={[
                 <Button type="primary" key="login" onClick={this.handleSignIn}>
-                  {i18next.t("login:Sign In")}
+                  {t("login:Sign In")}
                 </Button>,
               ]}
             />

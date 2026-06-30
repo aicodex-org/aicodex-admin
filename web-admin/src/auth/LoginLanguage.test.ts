@@ -1,5 +1,6 @@
 /* eslint-env jest */
 
+import {expect} from "@jest/globals";
 import {getSigninLanguageOverride} from "./LoginLanguage";
 
 describe("getSigninLanguageOverride", () => {

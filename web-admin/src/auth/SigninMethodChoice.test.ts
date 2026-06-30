@@ -1,8 +1,9 @@
 /* eslint-env jest */
 
+import {expect} from "@jest/globals";
 import {getSigninMethodChoiceItems} from "./SigninMethodChoice";
 
-const t = key => {
+const t = (key: string): string => {
   const [, value] = key.split(":");
   return value || key;
 };

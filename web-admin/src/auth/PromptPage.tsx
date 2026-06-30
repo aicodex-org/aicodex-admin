@@ -23,14 +23,52 @@ import OAuthWidget from "../common/OAuthWidget";
 import RegionSelect from "../common/select/RegionSelect";
 import {withRouter} from "react-router-dom";
 import * as AuthBackend from "./AuthBackend";
+import type {AuthApplication, HistoryLike, LocationLike, RouteMatch} from "./AuthTypes";
 
-class PromptPage extends React.Component {
-  constructor(props) {
+const t = (key: string): string => i18next.t(key) as string;
+
+interface PromptUser extends Record<string, unknown> {
+  owner: string;
+  name: string;
+  region?: string;
+}
+
+interface PromptStep {
+  content: React.ReactNode;
+  name: string;
+  title: string;
+}
+
+interface PromptPageProps {
+  type?: string;
+  applicationName?: string | null;
+  application?: AuthApplication | null;
+  account: PromptUser;
+  match?: RouteMatch<{applicationName?: string}>;
+  location: LocationLike;
+  history: HistoryLike;
+  onUpdateApplication: (application: AuthApplication) => void;
+  onUpdateAccount: (account: PromptUser | null) => void;
+}
+
+interface PromptPageState {
+  classes: PromptPageProps;
+  type?: string;
+  applicationName: string | null;
+  application: AuthApplication | null;
+  user: PromptUser | null;
+  steps: PromptStep[] | null;
+  current: number;
+  finished: boolean;
+}
+
+class PromptPage extends React.Component<PromptPageProps, PromptPageState> {
+  constructor(props: PromptPageProps) {
     super(props);
     this.state = {
       classes: props,
       type: props.type,
-      applicationName: props.applicationName ?? (props.match === undefined ? null : props.match.params.applicationName),
+      applicationName: props.applicationName ?? (props.match === undefined ? null : props.match.params.applicationName ?? null),
       application: null,
       user: null,
       steps: null,
@@ -39,20 +77,23 @@ class PromptPage extends React.Component {
     };
   }
 
-  UNSAFE_componentWillMount() {
+  UNSAFE_componentWillMount(): void {
     this.getUser();
     if (this.getApplicationObj() === null) {
       this.getApplication();
     }
   }
 
-  componentDidUpdate(prevProps, prevState, snapshot) {
+  componentDidUpdate(): void {
     if (this.state.user !== null && this.getApplicationObj() !== null && this.state.steps === null) {
-      this.initSteps(this.state.user, this.getApplicationObj());
+      const application = this.getApplicationObj();
+      if (application !== null) {
+        this.initSteps(this.state.user, application);
+      }
     }
   }
 
-  getUser() {
+  getUser(): void {
     const organizationName = this.props.account.owner;
     const userName = this.props.account.name;
     UserBackend.getUser(organizationName, userName)
@@ -63,12 +104,12 @@ class PromptPage extends React.Component {
         }
 
         this.setState({
-          user: res.data,
+          user: res.data as PromptUser,
         });
       });
   }
 
-  getApplication() {
+  getApplication(): void {
     if (this.state.applicationName === null) {
       return;
     }
@@ -87,25 +128,28 @@ class PromptPage extends React.Component {
       });
   }
 
-  getApplicationObj() {
+  getApplicationObj(): AuthApplication | null {
     return this.props.application ?? this.state.application;
   }
 
-  onUpdateApplication(application) {
+  onUpdateApplication(application: AuthApplication): void {
     this.props.onUpdateApplication(application);
   }
 
-  parseUserField(key, value) {
+  parseUserField(key: string, value: unknown): unknown {
     // if ([].includes(key)) {
     //   value = Setting.myParseInt(value);
     // }
     return value;
   }
 
-  updateUserField(key, value) {
+  updateUserField(key: string, value: unknown): void {
     value = this.parseUserField(key, value);
 
     const user = this.state.user;
+    if (user === null) {
+      return;
+    }
     user[key] = value;
     this.setState({
       user: user,
@@ -114,17 +158,20 @@ class PromptPage extends React.Component {
     this.submitUserEdit(false);
   }
 
-  updateUserFieldWithoutSubmit(key, value) {
+  updateUserFieldWithoutSubmit(key: string, value: unknown): void {
     value = this.parseUserField(key, value);
 
     const user = this.state.user;
+    if (user === null) {
+      return;
+    }
     user[key] = value;
     this.setState({
       user: user,
     });
   }
 
-  renderAffiliation(application) {
+  renderAffiliation(application: AuthApplication | null): React.ReactNode {
     if (!Setting.isAffiliationPrompted(application)) {
       return null;
     }
@@ -134,15 +181,16 @@ class PromptPage extends React.Component {
     }
 
     return (
-      <AffiliationSelect labelSpan={6} application={application} user={this.state.user} onUpdateUserField={(key, value) => {return this.updateUserField(key, value);}} />
+      <AffiliationSelect labelSpan={6} application={application} user={this.state.user} onUpdateUserField={(key: string, value: unknown) => {return this.updateUserField(key, value);}} />
     );
   }
 
-  unlinked() {
+  unlinked(): void {
     this.getUser();
   }
 
-  renderContent(application) {
+  renderContent(application: AuthApplication | null): React.ReactNode {
+    const user = this.state.user;
     return (
       <div style={{width: "500px"}}>
         {
@@ -150,13 +198,13 @@ class PromptPage extends React.Component {
         }
         <div>
           {
-            (application === null || this.state.user === null) ? null : (
-              application?.providers.filter(providerItem => Setting.isProviderPrompted(providerItem)).map((providerItem, index) => <OAuthWidget key={providerItem.name} labelSpan={6} user={this.state.user} application={application} providerItem={providerItem} account={this.props.account} onUnlinked={() => {return this.unlinked();}} />)
+            (application === null || user === null) ? null : (
+              application?.providers?.filter(providerItem => Setting.isProviderPrompted(providerItem)).map((providerItem) => <OAuthWidget key={providerItem.name} labelSpan={6} user={user} application={application} providerItem={providerItem} account={this.props.account} onUnlinked={() => {return this.unlinked();}} />)
             )
           }
           {
-            (application === null || this.state.user === null) ? null : (
-              application?.signupItems?.filter(signupItem => Setting.isSignupItemPrompted(signupItem)).map((signupItem, index) => {
+            (application === null || user === null) ? null : (
+              (application?.signupItems as Array<{name: string}> | undefined)?.filter(signupItem => Setting.isSignupItemPrompted(signupItem)).map((signupItem) => {
                 if (signupItem.name !== "Country/Region") {
                   return null;
                 }
@@ -165,12 +213,12 @@ class PromptPage extends React.Component {
                     <Col style={{marginTop: "5px"}} >
                       <span style={{marginLeft: "5px"}}>
                         {
-                          i18next.t("user:Country/Region")
+                          t("user:Country/Region")
                         }:
                       </span>
                     </Col>
                     <Col >
-                      <RegionSelect defaultValue={this.state.user.region} onChange={(value) => {
+                      <RegionSelect defaultValue={user.region} onChange={(value: unknown) => {
                         this.updateUserFieldWithoutSubmit("region", value);
                       }} />
                     </Col>
@@ -184,11 +232,11 @@ class PromptPage extends React.Component {
     );
   }
 
-  onUpdateAccount(account) {
+  onUpdateAccount(account: PromptUser | null): void {
     this.props.onUpdateAccount(account);
   }
 
-  getRedirectUrl() {
+  getRedirectUrl(): string | null {
     // "/prompt/app-example?redirectUri=http://localhost:2000/callback&code=8eb113b072296818f090&state=app-example"
     const params = new URLSearchParams(this.props.location.search);
     const redirectUri = params.get("redirectUri");
@@ -202,7 +250,7 @@ class PromptPage extends React.Component {
     return `${redirectUri}?code=${code}&state=${state}`;
   }
 
-  logout() {
+  logout(): void {
     AuthBackend.logout()
       .then((res) => {
         if (res.status === "ok") {
@@ -213,7 +261,7 @@ class PromptPage extends React.Component {
       });
   }
 
-  finishAndJump() {
+  finishAndJump(): void {
     this.setState({
       finished: true,
     }, () => {
@@ -226,13 +274,16 @@ class PromptPage extends React.Component {
     });
   }
 
-  submitUserEdit(isFinal) {
-    const user = Setting.deepCopy(this.state.user);
+  submitUserEdit(isFinal: boolean): void {
+    if (this.state.user === null) {
+      return;
+    }
+    const user = Setting.deepCopy(this.state.user) as PromptUser;
     UserBackend.updateUser(this.state.user.owner, this.state.user.name, user)
       .then((res) => {
         if (res.status === "ok") {
           if (isFinal) {
-            Setting.showMessage("success", i18next.t("general:Successfully saved"));
+            Setting.showMessage("success", t("general:Successfully saved"));
             this.finishAndJump();
           }
         } else {
@@ -241,14 +292,14 @@ class PromptPage extends React.Component {
           }
         }
       })
-      .catch(error => {
+      .catch((error: unknown) => {
         if (isFinal) {
-          Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+          Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
         }
       });
   }
 
-  renderPromptProvider(application) {
+  renderPromptProvider(application: AuthApplication | null): React.ReactNode {
     return (
       <div style={{display: "flex", alignItems: "center", flexDirection: "column"}}>
         {this.renderContent(application)}
@@ -257,18 +308,18 @@ class PromptPage extends React.Component {
           type="primary" size="large" onClick={() => {
             this.submitUserEdit(true);
           }}>
-          {i18next.t("code:Submit and complete")}
+          {t("code:Submit and complete")}
         </Button>
       </div>);
   }
 
-  initSteps(user, application) {
-    const steps = [];
+  initSteps(user: PromptUser, application: AuthApplication): void {
+    const steps: PromptStep[] = [];
     if (Setting.hasPromptPage(application)) {
       steps.push({
         content: this.renderPromptProvider(application),
         name: "provider",
-        title: i18next.t("application:Binding providers"),
+        title: t("application:Binding providers"),
       });
     }
 
@@ -277,7 +328,7 @@ class PromptPage extends React.Component {
     });
   }
 
-  renderSteps() {
+  renderSteps(): React.ReactNode {
     if (this.state.steps === null || this.state.steps?.length === 0) {
       return null;
     }
@@ -291,7 +342,7 @@ class PromptPage extends React.Component {
     );
   }
 
-  render() {
+  render(): React.ReactNode {
     const application = this.getApplicationObj();
     if (application === null) {
       return null;
@@ -302,12 +353,12 @@ class PromptPage extends React.Component {
         <Result
           style={{display: "flex", flex: "1 1 0%", justifyContent: "center", flexDirection: "column"}}
           status="error"
-          title={i18next.t("application:Sign Up Error")}
-          subTitle={i18next.t("application:You are unexpected to see this prompt page")}
+          title={t("application:Sign Up Error")}
+          subTitle={t("application:You are unexpected to see this prompt page")}
           extra={[
             <Button type="primary" key="signin" onClick={() => Setting.redirectToLoginPage(application, this.props.history)}>
               {
-                i18next.t("login:Sign In")
+                t("login:Sign In")
               }
             </Button>,
           ]}

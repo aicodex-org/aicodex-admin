@@ -12,7 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-const SigninMethodChoiceMap = new Map([
+interface SigninMethod {
+  name?: string;
+  displayName?: string;
+  rule?: string;
+}
+
+interface SigninMethodChoice {
+  labelKey: string;
+  key: string;
+}
+
+export interface SigninMethodChoiceItem {
+  label: string;
+  key: string;
+}
+
+type Translate = (key: string) => string;
+
+const SigninMethodChoiceMap = new Map<string, SigninMethodChoice>([
   ["Password-All", {labelKey: "general:Password", key: "password"}],
   ["Password-Non-LDAP", {labelKey: "general:Password", key: "password"}],
   ["Verification code-All", {labelKey: "login:Verification code", key: "verificationCode"}],
@@ -27,16 +45,16 @@ const SigninMethodChoiceMap = new Map([
   ["WeCom-None", {labelKey: "login:WeCom", key: "wecom"}],
 ]);
 
-function getChoiceMapKey(name, rule) {
+function getChoiceMapKey(name?: string, rule?: string): string {
   return `${name}-${rule}`;
 }
 
-export function getSigninMethodChoiceItems(signinMethods, translate) {
-  const t = typeof translate === "function" ? translate : key => key;
-  const methods = Array.isArray(signinMethods) ? signinMethods : [];
-  const seenKeys = new Set();
+export function getSigninMethodChoiceItems(signinMethods: unknown, translate?: Translate): SigninMethodChoiceItem[] {
+  const t = typeof translate === "function" ? translate : (key: string) => key;
+  const methods = Array.isArray(signinMethods) ? signinMethods as SigninMethod[] : [];
+  const seenKeys = new Set<string>();
 
-  return methods.reduce((items, signinMethod) => {
+  return methods.reduce<SigninMethodChoiceItem[]>((items, signinMethod) => {
     if (signinMethod?.rule === "Hide password") {
       return items;
     }
@@ -49,7 +67,7 @@ export function getSigninMethodChoiceItems(signinMethods, translate) {
     seenKeys.add(choice.key);
     const defaultLabel = t(choice.labelKey);
     const hasCustomLabel = signinMethod.displayName && signinMethod.name !== signinMethod.displayName;
-    let label = hasCustomLabel ? signinMethod.displayName : defaultLabel;
+    let label = hasCustomLabel ? signinMethod.displayName ?? defaultLabel : defaultLabel;
     if (methods.length >= 4 && label === "Verification code") {
       label = "Code";
     }

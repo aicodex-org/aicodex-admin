@@ -46,23 +46,51 @@ import {WechatOfficialAccountModal} from "./Util";
 import * as Setting from "../Setting";
 import {getLarkProviderBrand, isLarkProvider} from "../provider/LarkProviderUtils";
 
-function getProviderDisplayName(provider) {
+const t = (key: string): string => i18next.t(key) as string;
+
+interface AuthApplication {
+  name?: string;
+  [key: string]: unknown;
+}
+
+interface AuthProvider {
+  owner?: string;
+  name?: string;
+  category?: string;
+  type: string;
+  subType?: string;
+  method?: string;
+  displayName?: string;
+  clientId?: string;
+  clientId2?: string;
+  clientSecret?: string;
+  clientSecret2?: string;
+  appId?: string;
+  disableSsl?: boolean;
+  [key: string]: unknown;
+}
+
+interface LocationLike {
+  search: string;
+}
+
+function getProviderDisplayName(provider: AuthProvider): string {
   if (isLarkProvider(provider)) {
     return getLarkProviderBrand(provider).displayName;
   }
-  return provider.displayName !== "" ? provider.displayName : provider.type;
+  return (provider.displayName !== "" ? provider.displayName : provider.type) ?? provider.type;
 }
 
-function getProviderImageAlt(provider) {
+function getProviderImageAlt(provider: AuthProvider): string {
   if (isLarkProvider(provider)) {
     return getLarkProviderBrand(provider).altText;
   }
-  return provider.displayName;
+  return provider.displayName ?? provider.type;
 }
 
-function getSigninButton(provider) {
+function getSigninButton(provider: AuthProvider): React.ReactNode {
   const displayName = getProviderDisplayName(provider);
-  const text = i18next.t("login:Sign in with {type}").replace("{type}", displayName);
+  const text = t("login:Sign in with {type}").replace("{type}", displayName);
   if (provider.type === "GitHub") {
     return <GithubLoginButton text={text} align={"center"} />;
   } else if (provider.type === "Google") {
@@ -121,7 +149,7 @@ function getSigninButton(provider) {
   }
 }
 
-function goToSamlUrl(provider, location) {
+function goToSamlUrl(provider: AuthProvider, location: LocationLike): void {
   const params = new URLSearchParams(location.search);
   const clientId = params.get("client_id") ?? "";
   const state = params.get("state");
@@ -143,7 +171,7 @@ function goToSamlUrl(provider, location) {
   });
 }
 
-export function goToWeb3Url(application, provider, method) {
+export function goToWeb3Url(application: AuthApplication, provider: AuthProvider, method: string): void {
   if (provider.type === "MetaMask") {
     import("./Web3Auth")
       .then(module => {
@@ -159,16 +187,25 @@ export function goToWeb3Url(application, provider, method) {
   }
 }
 
-export function renderProviderLogo(provider, application, width, margin, size, location) {
+export function renderProviderLogo(
+  provider: AuthProvider,
+  application: AuthApplication,
+  width: number | null,
+  margin: React.CSSProperties["margin"] | null,
+  size: string,
+  location: LocationLike
+): React.ReactNode {
   const imageAlt = getProviderImageAlt(provider);
   const key = provider.name || provider.displayName || provider.type;
+  const imageWidth = width ?? undefined;
+  const imageMargin = margin ?? undefined;
 
   if (size === "small") {
     if (provider.category === "OAuth") {
       if (provider.type === "WeChat" && provider.clientId2 !== "" && provider.clientSecret2 !== "" && provider.disableSsl === true && !navigator.userAgent.includes("MicroMessenger")) {
         return (
           <a key={key} >
-            <img width={width} height={width} src={getProviderLogoURL(provider)} alt={imageAlt} className="provider-img" style={{margin: margin}} onClick={() => {
+            <img width={imageWidth} height={imageWidth} src={getProviderLogoURL(provider)} alt={imageAlt} className="provider-img" style={{margin: imageMargin}} onClick={() => {
               WechatOfficialAccountModal(application, provider, "signup");
             }} />
           </a>
@@ -176,30 +213,30 @@ export function renderProviderLogo(provider, application, width, margin, size, l
       } else {
         return (
           <a key={key} href={Provider.getAuthUrl(application, provider, "signup")}>
-            <img width={width} height={width} src={getProviderLogoURL(provider)} alt={imageAlt} className="provider-img" style={{margin: margin}} />
+            <img width={imageWidth} height={imageWidth} src={getProviderLogoURL(provider)} alt={imageAlt} className="provider-img" style={{margin: imageMargin}} />
           </a>
         );
       }
     } else if (provider.category === "SAML") {
       return (
         <a key={key} onClick={() => goToSamlUrl(provider, location)}>
-          <img width={width} height={width} src={getProviderLogoURL(provider)} alt={imageAlt} className="provider-img" style={{margin: margin}} />
+          <img width={imageWidth} height={imageWidth} src={getProviderLogoURL(provider)} alt={imageAlt} className="provider-img" style={{margin: imageMargin}} />
         </a>
       );
     } else if (provider.category === "Web3") {
       return (
         <a key={key} onClick={() => goToWeb3Url(application, provider, "signup")}>
-          <img width={width} height={width} src={getProviderLogoURL(provider)} alt={imageAlt} className="provider-img" style={{margin: margin}} />
+          <img width={imageWidth} height={imageWidth} src={getProviderLogoURL(provider)} alt={imageAlt} className="provider-img" style={{margin: imageMargin}} />
         </a>
       );
     }
   } else if (provider.type.startsWith("Custom")) {
     // style definition
-    const text = i18next.t("login:Sign in with {type}").replace("{type}", provider.displayName);
-    const customAStyle = {display: "block", height: "55px", color: "#000"};
-    const customButtonStyle = {display: "flex", alignItems: "center", width: "calc(100% - 10px)", height: "50px", margin: "5px", padding: "0 10px", backgroundColor: "transparent", boxShadow: "0px 1px 3px rgba(0,0,0,0.5)", border: "0px", borderRadius: "3px", cursor: "pointer"};
-    const customImgStyle = {justfyContent: "space-between"};
-    const customSpanStyle = {textAlign: "center", width: "100%", fontSize: "19px"};
+    const text = t("login:Sign in with {type}").replace("{type}", provider.displayName ?? provider.type);
+    const customAStyle: React.CSSProperties = {display: "block", height: "55px", color: "#000"};
+    const customButtonStyle: React.CSSProperties = {display: "flex", alignItems: "center", width: "calc(100% - 10px)", height: "50px", margin: "5px", padding: "0 10px", backgroundColor: "transparent", boxShadow: "0px 1px 3px rgba(0,0,0,0.5)", border: "0px", borderRadius: "3px", cursor: "pointer"};
+    const customImgStyle = {justfyContent: "space-between"} as React.CSSProperties;
+    const customSpanStyle: React.CSSProperties = {textAlign: "center", width: "100%", fontSize: "19px"};
     if (provider.category === "OAuth") {
       return (
         <a key={provider.displayName} href={Provider.getAuthUrl(application, provider, "signup")} style={customAStyle}>

@@ -1,5 +1,6 @@
 /* eslint-env jest */
 
+import {expect, jest} from "@jest/globals";
 import {getAuthUrl} from "./Provider";
 import * as Util from "./Util";
 
@@ -7,7 +8,7 @@ describe("Provider.getAuthUrl Lark authorization URL", () => {
   beforeEach(() => {
     Object.defineProperty(global, "crypto", {
       value: {
-        getRandomValues: array => {
+        getRandomValues: (array: Uint8Array) => {
           array.fill(1);
           return array;
         },
@@ -37,7 +38,7 @@ describe("Provider.getAuthUrl Lark authorization URL", () => {
 
   test("uses Feishu account authorization endpoint and standard parameters for domestic mode", () => {
     const authUrl = getAuthUrl(application, {...baseProvider, disableSsl: false}, "signup");
-    const url = new URL(authUrl);
+    const url = new URL(authUrl as string);
 
     expect(`${url.origin}${url.pathname}`).toBe("https://accounts.feishu.cn/open-apis/authen/v1/authorize");
     expect(url.searchParams.get("client_id")).toBe("cli_aabbcc");
@@ -49,7 +50,7 @@ describe("Provider.getAuthUrl Lark authorization URL", () => {
 
   test("uses Lark account authorization endpoint and standard parameters for global mode", () => {
     const authUrl = getAuthUrl(application, {...baseProvider, disableSsl: true}, "signup");
-    const url = new URL(authUrl);
+    const url = new URL(authUrl as string);
 
     expect(`${url.origin}${url.pathname}`).toBe("https://accounts.larksuite.com/open-apis/authen/v1/authorize");
     expect(url.searchParams.get("client_id")).toBe("cli_aabbcc");
@@ -64,7 +65,7 @@ describe("Provider.getAuthUrl WeCom authorization URL", () => {
   beforeEach(() => {
     Object.defineProperty(global, "crypto", {
       value: {
-        getRandomValues: array => {
+        getRandomValues: (array: Uint8Array) => {
           array.fill(1);
           return array;
         },
@@ -97,7 +98,7 @@ describe("Provider.getAuthUrl WeCom authorization URL", () => {
     };
 
     const authUrl = getAuthUrl(application, provider, "signup");
-    const url = new URL(authUrl);
+    const url = new URL(authUrl as string);
 
     expect(`${url.origin}${url.pathname}`).toBe("https://login.work.weixin.qq.com/wwlogin/sso/login");
     expect(url.searchParams.get("login_type")).toBe("CorpApp");

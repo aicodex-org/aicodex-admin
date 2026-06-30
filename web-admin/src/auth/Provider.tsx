@@ -19,22 +19,64 @@ import * as Util from "./Util";
 import * as Setting from "../Setting";
 import {getLarkProviderEndpoint} from "../provider/LarkProviderUtils";
 
+interface AuthInfo {
+  scope?: string;
+  endpoint: string;
+  endpoint2?: string;
+  mpScope?: string;
+  mpEndpoint?: string;
+  silentEndpoint?: string;
+  internalEndpoint?: string;
+}
+
+interface AuthProvider {
+  owner?: string;
+  name?: string;
+  category?: string;
+  type: string;
+  subType?: string;
+  method?: string;
+  displayName?: string;
+  clientId?: string;
+  clientId2?: string;
+  clientSecret?: string;
+  clientSecret2?: string;
+  appId?: string;
+  domain?: string;
+  scopes?: string;
+  customAuthUrl?: string;
+  disableSsl?: boolean;
+  signName?: string;
+  enablePkce?: boolean;
+}
+
+interface AuthApplication {
+  name?: string;
+  forcedRedirectOrigin?: string;
+}
+
+type ProviderLogoRecord = Partial<AuthProvider> & {
+  category?: string;
+  type?: string;
+  displayName?: string;
+};
+
 // PKCE helper functions
-function generateCodeVerifier() {
+function generateCodeVerifier(): string {
   const array = new Uint8Array(32);
   crypto.getRandomValues(array);
   return base64UrlEncode(array);
 }
 
-function base64UrlEncode(buffer) {
-  const base64 = btoa(String.fromCharCode.apply(null, buffer));
+function base64UrlEncode(buffer: Uint8Array): string {
+  const base64 = btoa(String.fromCharCode(...Array.from(buffer)));
   return base64
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=/g, "");
 }
 
-function generateCodeChallenge(verifier) {
+function generateCodeChallenge(verifier: string): string {
   // Convert verifier to UTF-8 bytes and compute SHA-256 hash
   const hash = CryptoJS.SHA256(CryptoJS.enc.Utf8.parse(verifier));
   const base64Hash = CryptoJS.enc.Base64.stringify(hash);
@@ -44,19 +86,19 @@ function generateCodeChallenge(verifier) {
     .replace(/=/g, "");
 }
 
-function storeCodeVerifier(state, verifier) {
+function storeCodeVerifier(state: string, verifier: string): void {
   localStorage.setItem(`pkce_verifier_${state}`, verifier);
 }
 
-export function getCodeVerifier(state) {
+export function getCodeVerifier(state: string): string | null {
   return localStorage.getItem(`pkce_verifier_${state}`);
 }
 
-export function clearCodeVerifier(state) {
+export function clearCodeVerifier(state: string): void {
   localStorage.removeItem(`pkce_verifier_${state}`);
 }
 
-const authInfo = {
+const authInfo: Record<string, AuthInfo> = {
   Google: {
     scope: "profile+email",
     endpoint: "https://accounts.google.com/signin/oauth",
@@ -379,9 +421,10 @@ const authInfo = {
   },
 };
 
-export function getProviderUrl(provider) {
+export function getProviderUrl(provider: ProviderLogoRecord): string {
+  const providerType = provider.type ?? "";
   if (provider.category === "OAuth") {
-    const type = provider.type.startsWith("Custom") ? "Custom" : provider.type;
+    const type = providerType.startsWith("Custom") ? "Custom" : providerType;
     const endpoint = authInfo[type].endpoint;
     const urlObj = new URL(endpoint);
 
@@ -394,7 +437,8 @@ export function getProviderUrl(provider) {
 
     return `${urlObj.protocol}//${host}`;
   } else {
-    const info = Setting.OtherProviderInfo[provider.category][provider.type];
+    const otherProviderInfo = Setting.OtherProviderInfo as Record<string, Record<string, {url: string} | undefined> | undefined>;
+    const info = otherProviderInfo[provider.category ?? ""]?.[providerType];
     // avoid crash when provider is not found
     if (info) {
       return info.url;
@@ -403,14 +447,14 @@ export function getProviderUrl(provider) {
   }
 }
 
-export function getProviderLogoWidget(provider, options = {}) {
+export function getProviderLogoWidget(provider?: ProviderLogoRecord, options: {disableLink?: boolean} = {}): React.ReactNode {
   if (provider === undefined) {
     return null;
   }
 
   const url = getProviderUrl(provider);
   const disableLink = options.disableLink === true;
-  const imgEl = <img width={36} height={36} src={Setting.getProviderLogoURL(provider)} alt={provider.displayName} />;
+  const imgEl = <img width={36} height={36} src={Setting.getProviderLogoURL(provider as AuthProvider)} alt={provider.displayName} />;
 
   if (url !== "" && !disableLink) {
     return (
@@ -429,7 +473,7 @@ export function getProviderLogoWidget(provider, options = {}) {
   }
 }
 
-export function getAuthUrl(application, provider, method, code) {
+export function getAuthUrl(application: AuthApplication | null, provider: AuthProvider | null, method: string, code?: string): string | undefined {
   if (application === null || provider === null) {
     return "";
   }
@@ -437,7 +481,7 @@ export function getAuthUrl(application, provider, method, code) {
   let endpoint = authInfo[type].endpoint;
   const redirectOrigin = application.forcedRedirectOrigin ? application.forcedRedirectOrigin : window.location.origin;
   let redirectUri = `${redirectOrigin}/callback`;
-  let scope = authInfo[type].scope;
+  let scope = authInfo[type].scope ?? "";
   // Allow provider.scopes to override default scope if specified
   if (provider.scopes && provider.scopes.trim() !== "") {
     scope = provider.scopes;
@@ -453,7 +497,7 @@ export function getAuthUrl(application, provider, method, code) {
 
   if (provider.type === "AzureAD") {
     if (provider.domain !== "") {
-      endpoint = endpoint.replace("common", provider.domain);
+      endpoint = endpoint.replace("common", String(provider.domain));
     }
   } else if (provider.type === "Apple") {
     redirectUri = `${redirectOrigin}/api/callback`;
@@ -495,27 +539,27 @@ export function getAuthUrl(application, provider, method, code) {
       return `${endpoint}?appid=${provider.clientId}&redirect_uri=${redirectUri}&scope=${scope}&response_type=code&state=${state}#wechat_redirect`;
     }
   } else if (provider.type === "WeCom") {
-    const buildWeComAuthUrl = (baseUrl, params, fragment = "") => {
+    const buildWeComAuthUrl = (baseUrl: string, params: Record<string, string>, fragment = ""): string => {
       const query = new URLSearchParams(params);
       return `${baseUrl}?${query.toString()}${fragment}`;
     };
 
     if (provider.subType === "Internal") {
       if (provider.method === "Silent") {
-        endpoint = authInfo[provider.type].silentEndpoint;
+        endpoint = String(authInfo[provider.type].silentEndpoint);
         return buildWeComAuthUrl(endpoint, {
-          appid: provider.clientId,
+          appid: String(provider.clientId),
           redirect_uri: redirectUri,
           state: state,
           scope: scope,
           response_type: "code",
         }, "#wechat_redirect");
       } else if (provider.method === "Normal") {
-        endpoint = authInfo[provider.type].internalEndpoint;
+        endpoint = String(authInfo[provider.type].internalEndpoint);
         return buildWeComAuthUrl(endpoint, {
           login_type: "CorpApp",
-          appid: provider.clientId,
-          agentid: provider.appId,
+          appid: String(provider.clientId),
+          agentid: String(provider.appId),
           redirect_uri: redirectUri,
           state: state,
           scope: scope,
@@ -525,9 +569,9 @@ export function getAuthUrl(application, provider, method, code) {
       }
     } else if (provider.subType === "Third-party") {
       if (provider.method === "Silent") {
-        endpoint = authInfo[provider.type].silentEndpoint;
+        endpoint = String(authInfo[provider.type].silentEndpoint);
         return buildWeComAuthUrl(endpoint, {
-          appid: provider.clientId,
+          appid: String(provider.clientId),
           redirect_uri: redirectUri,
           state: state,
           scope: scope,
@@ -537,7 +581,7 @@ export function getAuthUrl(application, provider, method, code) {
         endpoint = authInfo[provider.type].endpoint;
         return buildWeComAuthUrl(endpoint, {
           login_type: "ServiceApp",
-          appid: provider.clientId,
+          appid: String(provider.clientId),
           redirect_uri: redirectUri,
           state: state,
           scope: scope,
@@ -550,7 +594,7 @@ export function getAuthUrl(application, provider, method, code) {
     }
   } else if (provider.type === "Lark") {
     const query = new URLSearchParams({
-      client_id: provider.clientId,
+      client_id: String(provider.clientId),
       redirect_uri: redirectUri,
       response_type: "code",
       state: state,

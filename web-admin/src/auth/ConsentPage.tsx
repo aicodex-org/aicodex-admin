@@ -21,35 +21,52 @@ import * as Setting from "../Setting";
 import i18next from "i18next";
 import {withRouter} from "react-router-dom";
 import * as Util from "./Util";
+import type {AuthApplication, ConsentScope, OAuthParams, RouteMatch} from "./AuthTypes";
 
-class ConsentPage extends React.Component {
-  constructor(props) {
+const t = (key: string): string => i18next.t(key) as string;
+
+interface ConsentPageProps {
+  application?: AuthApplication | null;
+  match?: RouteMatch<{applicationName?: string}>;
+  themeAlgorithm?: unknown;
+  onUpdateApplication: (application: AuthApplication) => void;
+}
+
+interface ConsentPageState {
+  applicationName: string | null | undefined;
+  scopeDescriptions: ConsentScope[];
+  granting: boolean;
+  oAuthParams: OAuthParams | null;
+}
+
+class ConsentPage extends React.Component<ConsentPageProps, ConsentPageState> {
+  constructor(props: ConsentPageProps) {
     super(props);
     const params = new URLSearchParams(window.location.search);
     this.state = {
       applicationName: props.match?.params?.applicationName || params.get("application"),
       scopeDescriptions: [],
       granting: false,
-      oAuthParams: Util.getOAuthGetParameters(),
+      oAuthParams: Util.getOAuthGetParameters() as OAuthParams | null,
     };
   }
 
-  getApplicationObj() {
+  getApplicationObj(): AuthApplication | null | undefined {
     return this.props.application;
   }
 
-  componentDidMount() {
+  componentDidMount(): void {
     this.getApplication();
     this.loadScopeDescriptions();
   }
 
-  componentDidUpdate(prevProps) {
+  componentDidUpdate(prevProps: ConsentPageProps): void {
     if (this.props.application !== prevProps.application) {
       this.loadScopeDescriptions();
     }
   }
 
-  getApplication() {
+  getApplication(): void {
     if (!this.state.applicationName) {
       return;
     }
@@ -65,24 +82,24 @@ class ConsentPage extends React.Component {
       });
   }
 
-  loadScopeDescriptions() {
+  loadScopeDescriptions(): void {
     const {oAuthParams} = this.state;
     const application = this.getApplicationObj();
     if (!oAuthParams?.scope || !application) {
       return;
     }
     // Check if urlPar scope is within application scopes
-    const scopes = oAuthParams.scope.split(" ").map(s => s.trim()).filter(Boolean);
+    const scopes = oAuthParams.scope.split(" ").map((s: string) => s.trim()).filter(Boolean);
     const customScopes = application.customScopes || [];
-    const customScopesMap = {};
-    customScopes.forEach(s => {
+    const customScopesMap: Record<string, ConsentScope> = {};
+    customScopes.forEach((s: ConsentScope) => {
       if (s?.scope) {
         customScopesMap[s.scope] = s;
       }
     });
 
     const scopeDescriptions = scopes
-      .map(scope => {
+      .map((scope: string) => {
         const item = customScopesMap[scope];
         if (item) {
           return {
@@ -93,7 +110,7 @@ class ConsentPage extends React.Component {
         return {
           scope: scope,
           displayName: scope,
-          description: i18next.t("consent:This scope is not defined in the application"),
+          description: t("consent:This scope is not defined in the application"),
         };
       })
       .filter(Boolean);
@@ -103,16 +120,17 @@ class ConsentPage extends React.Component {
     });
   }
 
-  handleGrant() {
-    const {oAuthParams, scopeDescriptions} = this.state;
-    const application = this.getApplicationObj();
+  handleGrant(): void {
+    const {scopeDescriptions} = this.state;
+    const oAuthParams = this.state.oAuthParams as OAuthParams;
+    const application = this.getApplicationObj() as AuthApplication;
 
     this.setState({granting: true});
 
     const consent = {
       owner: application.owner,
       application: application.owner + "/" + application.name,
-      grantedScopes: scopeDescriptions.map(s => s.scope),
+      grantedScopes: scopeDescriptions.map((s: ConsentScope) => s.scope),
     };
 
     ConsentBackend.grantConsent(consent, oAuthParams)
@@ -130,13 +148,13 @@ class ConsentPage extends React.Component {
       });
   }
 
-  handleDeny() {
-    const {oAuthParams} = this.state;
+  handleDeny(): void {
+    const oAuthParams = this.state.oAuthParams as OAuthParams;
     const concatChar = oAuthParams?.redirectUri?.includes("?") ? "&" : "?";
     Setting.goToLink(`${oAuthParams.redirectUri}${concatChar}error=access_denied&error_description=User denied consent&state=${oAuthParams.state}`);
   }
 
-  render() {
+  render(): React.ReactNode {
     const application = this.getApplicationObj();
 
     if (application === undefined) {
@@ -147,7 +165,7 @@ class ConsentPage extends React.Component {
       return (
         <Result
           status="error"
-          title={i18next.t("general:Invalid application")}
+          title={t("general:Invalid application")}
         />
       );
     }
@@ -179,14 +197,14 @@ class ConsentPage extends React.Component {
                   </div>
                 )}
                 <h2 style={{margin: 0, fontWeight: 600, fontSize: "24px"}}>
-                  {i18next.t("consent:Authorization Request")}
+                  {t("consent:Authorization Request")}
                 </h2>
               </div>
 
               <div style={{marginBottom: 32}}>
                 <p style={{fontSize: 15, color: "#666", textAlign: "center", lineHeight: "1.6"}}>
                   <span style={{fontWeight: 600, color: "#000"}}>{application.displayName || application.name}</span>
-                  {" "}{i18next.t("consent:wants to access your account")}
+                  {" "}{t("consent:wants to access your account")}
                 </p>
                 {application.homepageUrl && (
                   <div style={{textAlign: "center", marginTop: 4}}>
@@ -199,14 +217,14 @@ class ConsentPage extends React.Component {
 
               <div style={{marginBottom: 32}}>
                 <div style={{fontSize: 14, color: "#8c8c8c", marginBottom: 16}}>
-                  <LockOutlined style={{marginRight: 8}} /> {i18next.t("consent:This application is requesting")}
+                  <LockOutlined style={{marginRight: 8}} /> {t("consent:This application is requesting")}
                 </div>
                 <div style={{display: "flex", justifyContent: "center"}}>
                   <List
                     size="small"
                     dataSource={scopeDescriptions}
                     style={{width: "100%"}}
-                    renderItem={item => (
+                    renderItem={(item: ConsentScope) => (
                       <List.Item style={{borderBottom: "none", width: "100%"}}>
                         <div style={{display: "inline-grid", gridTemplateColumns: "16px auto", columnGap: 8, alignItems: "start"}}>
                           <CheckOutlined style={{color: "#52c41a", fontSize: "14px", marginTop: "4px", justifySelf: "center"}} />
@@ -230,7 +248,7 @@ class ConsentPage extends React.Component {
                     disabled={granting || isScopeEmpty}
                     style={{minWidth: 120, height: 44, fontWeight: 500}}
                   >
-                    {i18next.t("consent:Allow")}
+                    {t("consent:Allow")}
                   </Button>
                   <Button
                     size="large"
@@ -239,14 +257,14 @@ class ConsentPage extends React.Component {
                     disabled={granting || isScopeEmpty}
                     style={{minWidth: 120, height: 44, fontWeight: 500}}
                   >
-                    {i18next.t("consent:Deny")}
+                    {t("consent:Deny")}
                   </Button>
                 </Space>
               </div>
 
               <div style={{padding: "16px", backgroundColor: "#fafafa", borderRadius: "8px", border: "1px solid #f0f0f0"}}>
                 <p style={{margin: 0, fontSize: 12, color: "#8c8c8c", textAlign: "center", lineHeight: "1.5"}}>
-                  {i18next.t("consent:By clicking Allow, you allow this app to use your information")}
+                  {t("consent:By clicking Allow, you allow this app to use your information")}
                 </p>
               </div>
             </Card>

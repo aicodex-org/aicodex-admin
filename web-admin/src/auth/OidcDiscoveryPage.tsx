@@ -16,13 +16,13 @@ import React from "react";
 import * as Setting from "../Setting";
 
 class OdicDiscoveryPage extends React.Component {
-  UNSAFE_componentWillMount() {
+  UNSAFE_componentWillMount(): void {
     if (Setting.isLocalhost()) {
       Setting.goToLink(`${Setting.ServerUrl}/.well-known/openid-configuration`);
     }
   }
 
-  render() {
+  render(): null {
     return null;
   }
 }
