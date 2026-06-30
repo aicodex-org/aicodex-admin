@@ -393,6 +393,16 @@ describe("OrganizationEditPage", () => {
     expect(transactionBackendMock.getTransactions).toHaveBeenCalledWith("engineering");
   });
 
+  test("scopes organization edit layout so long password labels can be styled locally", async() => {
+    const {view} = renderPage();
+
+    expect(await view.findByDisplayValue("Engineering")).not.toBeNull();
+    expect(view.container.querySelector(".organization-edit-page")).not.toBeNull();
+    expect(view.container.querySelector(".organization-edit-card")).not.toBeNull();
+    expect(view.getByText(/Password salt/).closest(".organization-edit-page")).not.toBeNull();
+    expect(view.getByText(/Password complexity options/).closest(".organization-edit-page")).not.toBeNull();
+  });
+
   test("redirects to 404 when organization is missing and shows backend load errors", async() => {
     organizationBackendMock.getOrganization.mockResolvedValueOnce({status: "ok", data: null});
 

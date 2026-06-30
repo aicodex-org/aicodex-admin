@@ -271,7 +271,7 @@ class OrganizationEditPage extends React.Component<OrganizationEditPageProps, Or
   renderOrganization(): React.ReactNode {
     const isNameLocked = isOrganizationNameLocked(this.state.organization, this.state.mode);
     return (
-      <Card size="small" title={
+      <Card className="organization-edit-card" size="small" title={
         <div>
           {this.state.mode === "add" ? i18next.t("organization:New Organization") : i18next.t("organization:Edit Organization")}&nbsp;&nbsp;&nbsp;&nbsp;
           <Button onClick={() => this.submitOrganizationEdit(false)}>{i18next.t("general:Save")}</Button>
@@ -1027,7 +1027,7 @@ class OrganizationEditPage extends React.Component<OrganizationEditPageProps, Or
 
   render() {
     return (
-      <div>
+      <div className="organization-edit-page">
         {
           this.state.organization !== null ? this.renderOrganization() : null
         }

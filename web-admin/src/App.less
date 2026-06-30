@@ -4739,6 +4739,45 @@ span.enterprise-list-secondary-text {
   box-shadow: var(--admin-shell-shadow-sm, 0 1px 2px rgb(15 23 42 / 5%));
 }
 
+.organization-edit-page {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.organization-edit-card > .ant-card-body > .ant-row {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.organization-edit-card > .ant-card-body > .ant-row > .ant-col:first-child {
+  flex: 0 0 184px;
+  max-width: 184px;
+  min-width: 0;
+  padding-right: 16px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.organization-edit-card > .ant-card-body > .ant-row > .ant-col:first-child + .ant-col {
+  flex: 1 1 0;
+  max-width: calc(100% - 184px);
+  min-width: 0;
+}
+
+@media screen and (max-width: 768px) {
+  .organization-edit-card > .ant-card-body > .ant-row {
+    flex-wrap: wrap;
+  }
+
+  .organization-edit-card > .ant-card-body > .ant-row > .ant-col:first-child,
+  .organization-edit-card > .ant-card-body > .ant-row > .ant-col:first-child + .ant-col {
+    flex: 0 0 100%;
+    max-width: 100%;
+    padding-right: 0;
+  }
+}
+
 .organization-list-directory-context {
   display: inline-flex;
   align-items: center;
