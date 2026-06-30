@@ -14,17 +14,33 @@
 
 import React, {forwardRef, useEffect, useImperativeHandle, useRef, useState} from "react";
 
-const IframeEditor = forwardRef(({initialModelText, onModelTextChange}, ref) => {
-  const iframeRef = useRef(null);
+export interface IframeEditorHandle {
+  getModelText: () => void;
+  updateModelText: (newModelText: string) => void;
+}
+
+interface IframeEditorProps {
+  initialModelText?: string;
+  onModelTextChange: (modelText: string) => void;
+  style?: React.CSSProperties;
+}
+
+interface CasbinEditorMessage {
+  type?: string;
+  modelText?: string;
+}
+
+const IframeEditor = forwardRef<IframeEditorHandle, IframeEditorProps>(({initialModelText, onModelTextChange, style}, ref) => {
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [iframeReady, setIframeReady] = useState(false);
   const currentLang = localStorage.getItem("language") || "en";
 
   useEffect(() => {
-    const handleMessage = (event) => {
+    const handleMessage = (event: MessageEvent<CasbinEditorMessage>) => {
       if (event.origin !== "https://editor.casbin.org") {return;}
 
       if (event.data.type === "modelUpdate") {
-        onModelTextChange(event.data.modelText);
+        onModelTextChange(event.data.modelText || "");
       } else if (event.data.type === "iframeReady") {
         setIframeReady(true);
         if (initialModelText && iframeRef.current?.contentWindow) {
@@ -49,7 +65,7 @@ const IframeEditor = forwardRef(({initialModelText, onModelTextChange}, ref) => 
         }, "*");
       }
     },
-    updateModelText: (newModelText) => {
+    updateModelText: (newModelText: string) => {
       if (iframeReady && iframeRef.current?.contentWindow) {
         iframeRef.current.contentWindow.postMessage({
           type: "updateModelText",
@@ -67,6 +83,7 @@ const IframeEditor = forwardRef(({initialModelText, onModelTextChange}, ref) => 
       width="100%"
       height="500px"
       title="Casbin Model Editor"
+      style={style}
     />
   );
 });

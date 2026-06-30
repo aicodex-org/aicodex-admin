@@ -21,8 +21,46 @@ import * as DashboardBackend from "../backend/DashboardBackend";
 import * as Setting from "../Setting";
 import * as TourConfig from "../TourConfig";
 
-const Dashboard = (props) => {
-  const [dashboardData, setDashboardData] = React.useState(null);
+interface DashboardProps {
+  owner?: string;
+  account: {
+    owner?: string;
+    isAdmin?: boolean;
+    tag?: string;
+    [key: string]: unknown;
+  };
+  history: {
+    push: (path: string) => void;
+  };
+}
+
+interface DashboardData {
+  organizationCounts: number[];
+  userCounts: number[];
+  providerCounts: number[];
+  applicationCounts: number[];
+  subscriptionCounts: number[];
+  roleCounts: number[];
+  groupCounts: number[];
+  resourceCounts: number[];
+  certCounts: number[];
+  permissionCounts: number[];
+  transactionCounts: number[];
+  modelCounts: number[];
+  adapterCounts: number[];
+  enforcerCounts: number[];
+}
+
+interface DashboardBackendResponse {
+  status?: string;
+  msg?: string;
+  data?: DashboardData;
+}
+
+const t = (key: string): string => String(i18next.t(key));
+
+const Dashboard = (props: DashboardProps) => {
+  const [dashboardData, setDashboardData] = React.useState<DashboardData | null>(null);
   const [isTourVisible, setIsTourVisible] = React.useState(TourConfig.getTourVisible());
   const nextPathName = TourConfig.getNextUrl("home");
 
@@ -42,12 +80,12 @@ const Dashboard = (props) => {
     }
   }, [props.account]);
 
-  const getOrganizationName = () => {
+  const getOrganizationName = (): string => {
     let organization = localStorage.getItem("organization") === "All" ? "" : localStorage.getItem("organization");
     if (!Setting.isAdminUser(props.account) && Setting.isLocalAdminUser(props.account)) {
-      organization = props.account.owner;
+      organization = props.account.owner || "";
     }
-    return organization;
+    return organization || "";
   };
 
   React.useEffect(() => {
@@ -56,9 +94,9 @@ const Dashboard = (props) => {
     }
 
     const organization = getOrganizationName();
-    DashboardBackend.getDashboard(organization).then((res) => {
+    DashboardBackend.getDashboard(organization).then((res: DashboardBackendResponse) => {
       if (res.status === "ok") {
-        setDashboardData(res.data);
+        setDashboardData(res.data || null);
       } else {
         Setting.showMessage("error", res.msg);
       }
@@ -77,9 +115,9 @@ const Dashboard = (props) => {
     setDashboardData(null);
 
     const organization = getOrganizationName();
-    DashboardBackend.getDashboard(organization).then((res) => {
+    DashboardBackend.getDashboard(organization).then((res: DashboardBackendResponse) => {
       if (res.status === "ok") {
-        setDashboardData(res.data);
+        setDashboardData(res.data || null);
       } else {
         Setting.showMessage("error", res.msg);
       }
@@ -101,7 +139,7 @@ const Dashboard = (props) => {
   const getSteps = () => {
     const steps = TourConfig.TourObj["home"];
     steps.map((item, index) => {
-      item.target = () => document.getElementById(item.id) || null;
+      item.target = (() => item.id ? document.getElementById(item.id) : null) as () => HTMLElement;
       if (index === steps.length - 1) {
         item.nextButtonProps = {
           children: TourConfig.getNextButtonChild(nextPathName),
@@ -123,59 +161,62 @@ const Dashboard = (props) => {
       }
       return (
         <div style={{display: "flex", justifyContent: "center", alignItems: "center"}}>
-          <Spin size="large" tip={i18next.t("login:Loading")} style={{paddingTop: "10%"}} />
+          <Spin size="large" tip={t("login:Loading")} style={{paddingTop: "10%"}} />
         </div>
       );
     }
 
+    if (!chartDom) {
+      return null;
+    }
     const myChart = echarts.init(chartDom);
     const currentDate = new Date();
     const dateArray = [];
     for (let i = 30; i >= 0; i--) {
       const date = new Date(currentDate);
       date.setDate(date.getDate() - i);
-      const month = parseInt(date.getMonth()) + 1;
-      const day = parseInt(date.getDate());
+      const month = date.getMonth() + 1;
+      const day = date.getDate();
       const formattedDate = `${month}-${day}`;
       dateArray.push(formattedDate);
     }
     const option = {
-      title: {text: i18next.t("home:Past 30 Days")},
+      title: {text: t("home:Past 30 Days")},
       tooltip: {trigger: "axis"},
       legend: {data: [
-        i18next.t("general:Users"),
-        i18next.t("application:Providers"),
-        i18next.t("general:Applications"),
-        i18next.t("general:Organizations"),
-        i18next.t("general:Subscriptions"),
-        i18next.t("general:Roles"),
-        i18next.t("general:Groups"),
-        i18next.t("general:Resources"),
-        i18next.t("general:Certs"),
-        i18next.t("general:Permissions"),
-        i18next.t("general:Transactions"),
-        i18next.t("general:Models"),
-        i18next.t("general:Adapters"),
-        i18next.t("general:Enforcers"),
+        t("general:Users"),
+        t("application:Providers"),
+        t("general:Applications"),
+        t("general:Organizations"),
+        t("general:Subscriptions"),
+        t("general:Roles"),
+        t("general:Groups"),
+        t("general:Resources"),
+        t("general:Certs"),
+        t("general:Permissions"),
+        t("general:Transactions"),
+        t("general:Models"),
+        t("general:Adapters"),
+        t("general:Enforcers"),
       ], top: "10%"},
       grid: {left: "3%", right: "4%", bottom: "0", top: "30%", containLabel: true},
       xAxis: {type: "category", boundaryGap: false, data: dateArray},
       yAxis: {type: "value"},
       series: [
-        {name: i18next.t("general:Organizations"), type: "line", data: dashboardData.organizationCounts},
-        {name: i18next.t("general:Users"), type: "line", data: dashboardData.userCounts},
-        {name: i18next.t("application:Providers"), type: "line", data: dashboardData.providerCounts},
-        {name: i18next.t("general:Applications"), type: "line", data: dashboardData.applicationCounts},
-        {name: i18next.t("general:Subscriptions"), type: "line", data: dashboardData.subscriptionCounts},
-        {name: i18next.t("general:Roles"), type: "line", data: dashboardData.roleCounts},
-        {name: i18next.t("general:Groups"), type: "line", data: dashboardData.groupCounts},
-        {name: i18next.t("general:Resources"), type: "line", data: dashboardData.resourceCounts},
-        {name: i18next.t("general:Certs"), type: "line", data: dashboardData.certCounts},
-        {name: i18next.t("general:Permissions"), type: "line", data: dashboardData.permissionCounts},
-        {name: i18next.t("general:Transactions"), type: "line", data: dashboardData.transactionCounts},
-        {name: i18next.t("general:Models"), type: "line", data: dashboardData.modelCounts},
-        {name: i18next.t("general:Adapters"), type: "line", data: dashboardData.adapterCounts},
-        {name: i18next.t("general:Enforcers"), type: "line", data: dashboardData.enforcerCounts},
+        {name: t("general:Organizations"), type: "line", data: dashboardData.organizationCounts},
+        {name: t("general:Users"), type: "line", data: dashboardData.userCounts},
+        {name: t("application:Providers"), type: "line", data: dashboardData.providerCounts},
+        {name: t("general:Applications"), type: "line", data: dashboardData.applicationCounts},
+        {name: t("general:Subscriptions"), type: "line", data: dashboardData.subscriptionCounts},
+        {name: t("general:Roles"), type: "line", data: dashboardData.roleCounts},
+        {name: t("general:Groups"), type: "line", data: dashboardData.groupCounts},
+        {name: t("general:Resources"), type: "line", data: dashboardData.resourceCounts},
+        {name: t("general:Certs"), type: "line", data: dashboardData.certCounts},
+        {name: t("general:Permissions"), type: "line", data: dashboardData.permissionCounts},
+        {name: t("general:Transactions"), type: "line", data: dashboardData.transactionCounts},
+        {name: t("general:Models"), type: "line", data: dashboardData.modelCounts},
+        {name: t("general:Adapters"), type: "line", data: dashboardData.adapterCounts},
+        {name: t("general:Enforcers"), type: "line", data: dashboardData.enforcerCounts},
       ],
     };
     myChart.setOption(option);
@@ -194,22 +235,22 @@ const Dashboard = (props) => {
       <Row id="statistic" gutter={80} justify={"center"}>
         <Col span={50} style={{marginBottom: "10px"}}>
           <Card variant="borderless" styles={cardStyles}>
-            <Statistic title={i18next.t("home:Total users")} fontSize="100px" value={dashboardData.userCounts[30]} valueStyle={{fontSize: "30px"}} style={{width: "200px", paddingLeft: "10px"}} />
+            <Statistic title={t("home:Total users")} value={dashboardData.userCounts[30]} valueStyle={{fontSize: "30px"}} style={{width: "200px", paddingLeft: "10px"}} />
           </Card>
         </Col>
         <Col span={50} style={{marginBottom: "10px"}}>
           <Card variant="borderless" styles={cardStyles}>
-            <Statistic title={i18next.t("home:New users today")} fontSize="100px" value={dashboardData.userCounts[30] - dashboardData.userCounts[30 - 1]} valueStyle={{fontSize: "30px"}} prefix={<ArrowUpOutlined />} style={{width: "200px", paddingLeft: "10px"}} />
+            <Statistic title={t("home:New users today")} value={dashboardData.userCounts[30] - dashboardData.userCounts[30 - 1]} valueStyle={{fontSize: "30px"}} prefix={<ArrowUpOutlined />} style={{width: "200px", paddingLeft: "10px"}} />
           </Card>
         </Col>
         <Col span={50} style={{marginBottom: "10px"}}>
           <Card variant="borderless" styles={cardStyles}>
-            <Statistic title={i18next.t("home:New users past 7 days")} value={dashboardData.userCounts[30] - dashboardData.userCounts[30 - 7]} valueStyle={{fontSize: "30px"}} prefix={<ArrowUpOutlined />} style={{width: "200px", paddingLeft: "10px"}} />
+            <Statistic title={t("home:New users past 7 days")} value={dashboardData.userCounts[30] - dashboardData.userCounts[30 - 7]} valueStyle={{fontSize: "30px"}} prefix={<ArrowUpOutlined />} style={{width: "200px", paddingLeft: "10px"}} />
           </Card>
         </Col>
         <Col span={50} style={{marginBottom: "10px"}}>
           <Card variant="borderless" styles={cardStyles}>
-            <Statistic title={i18next.t("home:New users past 30 days")} value={dashboardData.userCounts[30] - dashboardData.userCounts[30 - 30]} valueStyle={{fontSize: "30px"}} prefix={<ArrowUpOutlined />} style={{width: "200px", paddingLeft: "10px"}} />
+            <Statistic title={t("home:New users past 30 days")} value={dashboardData.userCounts[30] - dashboardData.userCounts[30 - 30]} valueStyle={{fontSize: "30px"}} prefix={<ArrowUpOutlined />} style={{width: "200px", paddingLeft: "10px"}} />
           </Card>
         </Col>
       </Row>

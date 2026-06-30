@@ -18,20 +18,54 @@ import GridCards from "./GridCards";
 import i18next from "i18next";
 import {Tag} from "antd";
 
-const AppListPage = (props) => {
-  const [applications, setApplications] = React.useState(null);
-  const [selectedTags, setSelectedTags] = React.useState([]);
-  const [allTags, setAllTags] = React.useState([]);
+interface AccountRecord {
+  owner: string;
+  homepage?: string;
+}
 
-  const sort = (applications) => {
+interface ApplicationRecord {
+  order: number;
+  homepageUrl?: string;
+  displayName?: string;
+  description?: string;
+  logo?: string;
+  tags?: string[];
+}
+
+interface AppCardTag {
+  name: string;
+  color: string;
+}
+
+interface AppCardItem {
+  link?: string;
+  name?: string;
+  description?: string;
+  logo?: string;
+  createdTime: string;
+  tags: AppCardTag[];
+}
+
+interface AppListPageProps {
+  account: AccountRecord | null;
+}
+
+const t = (key: string): string => String(i18next.t(key));
+
+const AppListPage = (props: AppListPageProps) => {
+  const [applications, setApplications] = React.useState<ApplicationRecord[] | null>(null);
+  const [selectedTags, setSelectedTags] = React.useState<string[]>([]);
+  const [allTags, setAllTags] = React.useState<string[]>([]);
+
+  const sort = (applications: ApplicationRecord[]): ApplicationRecord[] => {
     return [...applications].sort((a, b) => a.order - b.order);
   };
 
-  const extractTags = (applications) => {
-    const tagsSet = new Set();
-    applications.forEach(application => {
+  const extractTags = (applications: ApplicationRecord[]): string[] => {
+    const tagsSet = new Set<string>();
+    applications.forEach((application) => {
       if (application.tags && Array.isArray(application.tags)) {
-        application.tags.forEach(tag => tagsSet.add(tag));
+        application.tags.forEach((tag) => tagsSet.add(tag));
       }
     });
     return Array.from(tagsSet);
@@ -50,25 +84,26 @@ const AppListPage = (props) => {
       });
   }, [props.account]);
 
-  const handleTagChange = (tag, checked) => {
-    setSelectedTags(prev =>
+  const handleTagChange = (tag: string, checked: boolean): void => {
+    setSelectedTags((prev) =>
       checked
         ? [...prev, tag]
         : prev.filter(t => t !== tag)
     );
   };
 
-  const filterByTags = (applications) => {
+  const filterByTags = (applications: ApplicationRecord[]): ApplicationRecord[] => {
     if (selectedTags.length === 0) {return applications;}
 
     return applications.filter(application => {
       if (!application.tags || !Array.isArray(application.tags)) {return false;}
 
-      return selectedTags.every(tag => application.tags.includes(tag));
+      const tags = application.tags || [];
+      return selectedTags.every((tag) => tags.includes(tag));
     });
   };
 
-  const generateTagColor = (tag) => {
+  const generateTagColor = (tag: string): string => {
     const colors = [
       "#ff4d4f", "#f5222d", "#ff7a45", "#fa541c",
       "#ffa940", "#fa8c16", "#ffc53d", "#faad14",
@@ -83,7 +118,7 @@ const AppListPage = (props) => {
     return colors[Math.abs(hash) % colors.length];
   };
 
-  const getItems = () => {
+  const getItems = (): AppCardItem[] | null => {
     if (applications === null) {
       return null;
     }
@@ -93,10 +128,10 @@ const AppListPage = (props) => {
     return filteredApps.map(application => {
       let homepageUrl = application.homepageUrl;
       if (homepageUrl === "<custom-url>") {
-        homepageUrl = props.account.homepage;
+        homepageUrl = props.account?.homepage;
       }
 
-      const tagObjects = application.tags ? application.tags.map(tag => ({
+      const tagObjects = application.tags ? application.tags.map((tag) => ({
         name: tag,
         color: generateTagColor(tag),
       })) : [];
@@ -115,7 +150,7 @@ const AppListPage = (props) => {
   const TagFilterArea = () => {
     return (
       <div style={{marginBottom: "20px", display: "flex", flexWrap: "wrap", gap: "8px"}}>
-        <span style={{marginRight: "8px", fontWeight: "bold"}}>{i18next.t("organization:Tags")}</span>
+        <span style={{marginRight: "8px", fontWeight: "bold"}}>{t("organization:Tags")}</span>
         {allTags.map(tag => (
           <Tag.CheckableTag
             key={tag}
@@ -132,7 +167,7 @@ const AppListPage = (props) => {
             onClick={() => setSelectedTags([])}
             style={{marginLeft: "10px", padding: "2px 8px", background: "#ffffff", border: "2px solid #ddd", borderRadius: "4px", cursor: "pointer"}}
           >
-            {i18next.t("forget:Reset")}
+            {t("forget:Reset")}
           </button>
         )}
       </div>

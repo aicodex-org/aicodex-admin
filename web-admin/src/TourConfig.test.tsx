@@ -1,13 +1,14 @@
 import {
+  TourObj,
   getNextButtonChild,
   getNextUrl,
   getSteps,
   getTourVisible,
   setIsTourVisible,
   setOrgIsTourVisible,
-  setTourLogo,
-  TourObj,
+  setTourLogo
 } from "./TourConfig";
+import {expect, jest} from "@jest/globals";
 
 describe("TourConfig enterprise identity routes", () => {
   beforeEach(() => {
@@ -81,6 +82,7 @@ describe("TourConfig enterprise identity routes", () => {
     expect(TourObj.home[0].cover).toBe(originalCover);
 
     setTourLogo("/custom-logo.png");
-    expect(TourObj.home[0].cover.props.src).toBe("/custom-logo.png");
+    const cover = TourObj.home[0]?.cover as React.ReactElement<{src?: string}>;
+    expect(cover.props.src).toBe("/custom-logo.png");
   });
 });

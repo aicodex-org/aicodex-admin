@@ -20,8 +20,52 @@ import * as Setting from "./Setting";
 import * as ProviderBackend from "./backend/ProviderBackend";
 import i18next from "i18next";
 
-class QrCodePage extends React.Component {
-  constructor(props) {
+interface PaymentProvider {
+  owner?: string;
+  name?: string;
+  displayName?: string;
+  type?: string;
+  [key: string]: unknown;
+}
+
+interface PaymentRecord {
+  state?: string;
+  [key: string]: unknown;
+}
+
+interface QrCodePageProps {
+  owner?: string | null;
+  paymentName?: string | null;
+  providerName?: string | null;
+  payUrl?: string | null;
+  successUrl?: string | null;
+  provider?: PaymentProvider | null;
+  size?: number;
+  match?: {
+    params?: {
+      owner?: string;
+      paymentName?: string;
+    };
+  };
+  onUpdateApplication?: (application: null) => void;
+}
+
+interface QrCodePageState {
+  classes: QrCodePageProps;
+  owner: string | null;
+  paymentName: string | null;
+  providerName: string | null;
+  payUrl: string | null;
+  successUrl: string | null;
+  provider: PaymentProvider | null;
+  payment: PaymentRecord | null;
+  timer: number | null;
+}
+
+const getErrorMessage = (error: unknown): string => error instanceof Error ? error.message : String(error);
+
+class QrCodePage extends React.Component<QrCodePageProps, QrCodePageState> {
+  constructor(props: QrCodePageProps) {
     super(props);
     const params = new URLSearchParams(window.location.search);
     this.state = {
@@ -37,7 +81,7 @@ class QrCodePage extends React.Component {
     };
   }
 
-  async getProvider() {
+  async getProvider(): Promise<void> {
     if (!this.state.owner || !this.state.providerName) {
       return ;
     }
@@ -51,12 +95,12 @@ class QrCodePage extends React.Component {
         provider: provider,
       });
     } catch (err) {
-      Setting.showMessage("error", err.message);
+      Setting.showMessage("error", getErrorMessage(err));
       return ;
     }
   }
 
-  setNotifyTask() {
+  setNotifyTask(): void {
     if (!this.state.owner || !this.state.paymentName) {
       return ;
     }
@@ -69,16 +113,16 @@ class QrCodePage extends React.Component {
         }
         const payment = res.data;
         if (payment.state !== "Created") {
-          Setting.goToLink(this.state.successUrl);
+          Setting.goToLink(this.state.successUrl || "");
         }
       } catch (err) {
-        Setting.showMessage("error", err.message);
+        Setting.showMessage("error", getErrorMessage(err));
         return ;
       }
     };
 
     this.setState({
-      timer: setTimeout(async() => {
+      timer: window.setTimeout(async() => {
         await notifyTask();
         this.setNotifyTask();
       }, 2000),
@@ -94,14 +138,16 @@ class QrCodePage extends React.Component {
   }
 
   componentWillUnmount() {
-    clearInterval(this.state.timer);
+    if (this.state.timer !== null) {
+      window.clearInterval(this.state.timer);
+    }
   }
 
-  renderProviderInfo(provider) {
+  renderProviderInfo(provider: PaymentProvider | null): React.ReactNode {
     if (!provider) {
       return null;
     }
-    const text = i18next.t(`product:${provider.type}`);
+    const text = String(i18next.t(`product:${provider.type}`));
     return (
       <Button style={{height: "50px", borderWidth: "2px"}} shape="round" icon={
         <img style={{marginRight: "10px"}} width={36} height={36} src={Setting.getProviderLogoURL(provider)} alt={provider.displayName} />

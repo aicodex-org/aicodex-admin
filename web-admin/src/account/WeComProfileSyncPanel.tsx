@@ -17,8 +17,75 @@ import {Alert, Button, Modal, QRCode, Space, Spin} from "antd";
 import i18next from "i18next";
 import * as AuthBackend from "../auth/AuthBackend";
 
-class WeComProfileSyncPanel extends React.Component {
-  constructor(props) {
+type WeComSyncStatus = "idle" | "loading" | "pending" | "completed" | "expired" | "failed";
+
+interface WeComProviderRecord {
+  owner?: string;
+  name?: string;
+  type?: string;
+  subType?: string;
+  method?: string;
+  clientId?: string;
+  clientSecret?: string;
+  appId?: string;
+}
+
+interface ApplicationProviderItem {
+  provider?: WeComProviderRecord | null;
+}
+
+interface WeComProfileSyncApplication {
+  name?: string;
+  providers?: ApplicationProviderItem[];
+}
+
+interface WeComProfileSyncPanelProps {
+  application?: WeComProfileSyncApplication | null;
+  disabled?: boolean;
+  style?: React.CSSProperties;
+  onSynced?: () => void;
+}
+
+interface WeComProfileSyncPanelState {
+  modalOpen: boolean;
+  status: WeComSyncStatus;
+  authUrl: string;
+  expiresAt: string;
+  intentId: string;
+  pollToken: string;
+  errorMessage: string;
+}
+
+interface WeComSyncIntentResponse {
+  status?: string;
+  msg?: string;
+  data?: {
+    intentId?: string;
+    authUrl?: string;
+    expiresAt?: string;
+    pollToken?: string;
+  };
+}
+
+interface WeComSyncPollResponse {
+  status?: string;
+  msg?: string;
+  data?: {
+    status?: WeComSyncStatus;
+    expiresAt?: string;
+    errorText?: string;
+  };
+}
+
+const t = (key: string): string => String(i18next.t(key));
+const getErrorMessage = (error: unknown): string => error instanceof Error ? error.message : t("account:WeCom profile sync failed. Please retry");
+
+class WeComProfileSyncPanel extends React.Component<WeComProfileSyncPanelProps, WeComProfileSyncPanelState> {
+  private pollingTimer: ReturnType<typeof setInterval> | null;
+  private pollInFlight: boolean;
+  private synced: boolean;
+
+  constructor(props: WeComProfileSyncPanelProps) {
     super(props);
     this.state = {
       modalOpen: false,
@@ -38,40 +105,40 @@ class WeComProfileSyncPanel extends React.Component {
     this.clearPolling();
   }
 
-  getWeComProviderItem() {
+  getWeComProviderItem(): ApplicationProviderItem | null {
     const providers = this.props.application?.providers || [];
-    return providers.find(item => {
+    return providers.find((item) => {
       const provider = item?.provider;
       return provider?.type === "WeCom" && provider.subType === "Internal" && provider.method === "Normal";
     }) || null;
   }
 
-  getProviderId(providerItem) {
+  getProviderId(providerItem: ApplicationProviderItem | null): string {
     if (!providerItem?.provider) {
       return "";
     }
     return `${providerItem.provider.owner}/${providerItem.provider.name}`;
   }
 
-  getProviderError(providerItem) {
+  getProviderError(providerItem: ApplicationProviderItem | null): string {
     if (!providerItem?.provider) {
-      return i18next.t("account:WeCom profile sync is not configured for the current application");
+      return t("account:WeCom profile sync is not configured for the current application");
     }
     const provider = providerItem.provider;
     if (!provider.clientId || !provider.clientSecret || !provider.appId) {
-      return i18next.t("account:WeCom profile sync configuration is incomplete");
+      return t("account:WeCom profile sync configuration is incomplete");
     }
     return "";
   }
 
-  clearPolling() {
+  clearPolling(): void {
     if (this.pollingTimer) {
       clearInterval(this.pollingTimer);
       this.pollingTimer = null;
     }
   }
 
-  openSyncModal() {
+  openSyncModal(): void {
     this.setState({
       modalOpen: true,
       status: "loading",
@@ -83,12 +150,12 @@ class WeComProfileSyncPanel extends React.Component {
     }, () => this.prepareSyncIntent());
   }
 
-  closeSyncModal() {
+  closeSyncModal(): void {
     this.clearPolling();
     this.setState({modalOpen: false});
   }
 
-  async prepareSyncIntent() {
+  async prepareSyncIntent(): Promise<void> {
     this.clearPolling();
     this.synced = false;
     const providerItem = this.getWeComProviderItem();
@@ -102,11 +169,11 @@ class WeComProfileSyncPanel extends React.Component {
       const res = await AuthBackend.createWecomProfileConsentProfileSyncIntent({
         application: this.props.application?.name || "",
         provider: this.getProviderId(providerItem),
-      });
+      }) as WeComSyncIntentResponse;
       if (res.status !== "ok" || !res.data?.intentId || !res.data?.authUrl || !res.data?.pollToken) {
         this.setState({
           status: "failed",
-          errorMessage: res.msg || i18next.t("account:WeCom profile sync failed. Please retry"),
+          errorMessage: res.msg || t("account:WeCom profile sync failed. Please retry"),
         });
         return;
       }
@@ -114,7 +181,7 @@ class WeComProfileSyncPanel extends React.Component {
       this.setState({
         status: "pending",
         authUrl: res.data.authUrl,
-        expiresAt: res.data.expiresAt,
+        expiresAt: res.data.expiresAt || "",
         intentId: res.data.intentId,
         pollToken: res.data.pollToken,
         errorMessage: "",
@@ -122,29 +189,29 @@ class WeComProfileSyncPanel extends React.Component {
     } catch (error) {
       this.setState({
         status: "failed",
-        errorMessage: error?.message || i18next.t("account:WeCom profile sync failed. Please retry"),
+        errorMessage: getErrorMessage(error),
       });
     }
   }
 
-  startPolling() {
+  startPolling(): void {
     this.clearPolling();
     this.pollingTimer = setInterval(() => this.pollIntent(), 1500);
   }
 
-  async pollIntent() {
+  async pollIntent(): Promise<void> {
     if (this.pollInFlight || !this.state.intentId || !this.state.pollToken) {
       return;
     }
 
     this.pollInFlight = true;
     try {
-      const res = await AuthBackend.getWecomProfileConsentIntentStatus(this.state.intentId, this.state.pollToken);
+      const res = await AuthBackend.getWecomProfileConsentIntentStatus(this.state.intentId, this.state.pollToken) as WeComSyncPollResponse;
       if (res.status !== "ok") {
         this.clearPolling();
         this.setState({
           status: "failed",
-          errorMessage: res.msg || i18next.t("account:WeCom profile sync failed. Please retry"),
+          errorMessage: res.msg || t("account:WeCom profile sync failed. Please retry"),
         });
         return;
       }
@@ -170,14 +237,14 @@ class WeComProfileSyncPanel extends React.Component {
       this.clearPolling();
       this.setState({
         status: "failed",
-        errorMessage: error?.message || i18next.t("account:WeCom profile sync failed. Please retry"),
+        errorMessage: getErrorMessage(error),
       });
     } finally {
       this.pollInFlight = false;
     }
   }
 
-  renderQRCodeStatus() {
+  renderQRCodeStatus(): "active" | "expired" | "loading" | "scanned" {
     if (this.state.status === "loading") {
       return "loading";
     }
@@ -190,7 +257,7 @@ class WeComProfileSyncPanel extends React.Component {
     return "active";
   }
 
-  renderStatus() {
+  renderStatus(): React.ReactNode {
     if (this.state.status === "loading") {
       return <Spin />;
     }
@@ -199,7 +266,7 @@ class WeComProfileSyncPanel extends React.Component {
         <Alert
           type="success"
           showIcon
-          message={i18next.t("account:WeCom profile synced")}
+          message={t("account:WeCom profile synced")}
           style={{marginBottom: 16}}
         />
       );
@@ -209,7 +276,7 @@ class WeComProfileSyncPanel extends React.Component {
         <Alert
           type="warning"
           showIcon
-          message={i18next.t("account:WeCom profile sync QR code expired")}
+          message={t("account:WeCom profile sync QR code expired")}
           style={{marginBottom: 16}}
         />
       );
@@ -226,21 +293,21 @@ class WeComProfileSyncPanel extends React.Component {
     }
     return (
       <div style={{marginBottom: 12, color: "rgba(0, 0, 0, 0.65)"}}>
-        {i18next.t("account:Use WeCom to scan the QR code and consent to sync profile")}
+        {t("account:Use WeCom to scan the QR code and consent to sync profile")}
       </div>
     );
   }
 
-  renderModal() {
+  renderModal(): React.ReactNode {
     return (
       <Modal
-        title={i18next.t("account:Sync WeCom profile")}
+        title={t("account:Sync WeCom profile")}
         open={this.state.modalOpen}
         onCancel={() => this.closeSyncModal()}
         footer={(
           <Space>
-            <Button onClick={() => this.closeSyncModal()}>{i18next.t("account:Close")}</Button>
-            <Button onClick={() => this.prepareSyncIntent()}>{i18next.t("login:Refresh")}</Button>
+            <Button onClick={() => this.closeSyncModal()}>{t("account:Close")}</Button>
+            <Button onClick={() => this.prepareSyncIntent()}>{t("login:Refresh")}</Button>
           </Space>
         )}
       >
@@ -277,7 +344,7 @@ class WeComProfileSyncPanel extends React.Component {
           disabled={this.props.disabled || !!providerError}
           onClick={() => this.openSyncModal()}
         >
-          {i18next.t("account:Sync WeCom profile")}
+          {t("account:Sync WeCom profile")}
         </Button>
         {this.renderModal()}
       </React.Fragment>

@@ -18,13 +18,33 @@ import React from "react";
 import * as Setting from "../Setting";
 import SingleCard from "./SingleCard";
 
-const GridCards = (props) => {
+interface GridCardTag {
+  name: string;
+  color: string;
+}
+
+export interface GridCardItem {
+  link?: string;
+  name?: string;
+  description?: string;
+  logo?: string;
+  createdTime?: string;
+  tags?: GridCardTag[];
+}
+
+interface GridCardsProps {
+  items: GridCardItem[] | null;
+}
+
+const t = (key: string): string => String(i18next.t(key));
+
+const GridCards = (props: GridCardsProps) => {
   const items = props.items;
 
   if (items === null || items === undefined) {
     return (
       <div style={{display: "flex", justifyContent: "center", alignItems: "center", marginTop: "10%"}}>
-        <Spin size="large" tip={i18next.t("login:Loading")} style={{paddingTop: "10%"}} />
+        <Spin size="large" tip={t("login:Loading")} style={{paddingTop: "10%"}} />
       </div>
     );
   }

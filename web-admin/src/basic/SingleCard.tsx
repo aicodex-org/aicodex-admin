@@ -15,27 +15,46 @@
 import React from "react";
 import {Card, Col, Tag} from "antd";
 import * as Setting from "../Setting";
-import {withRouter} from "react-router-dom";
+import * as ReactRouterDom from "react-router-dom";
 
 const {Meta} = Card;
 
-class SingleCard extends React.Component {
-  constructor(props) {
+interface BasicCardTag {
+  name: string;
+  color: string;
+}
+
+interface SingleCardProps {
+  logo?: string;
+  link?: string;
+  title?: string;
+  desc?: string;
+  time?: string;
+  tags?: BasicCardTag[];
+  isSingle?: boolean;
+}
+
+const withRouter = (ReactRouterDom as unknown as {
+  withRouter: <P extends object>(component: React.ComponentType<P>) => React.ComponentType<P>;
+}).withRouter;
+
+class SingleCard extends React.Component<SingleCardProps> {
+  constructor(props: SingleCardProps) {
     super(props);
     this.state = {
       classes: props,
     };
   }
 
-  wrappedAsSilentSigninLink(link) {
+  wrappedAsSilentSigninLink(link: string = ""): string {
     if (link.startsWith("http")) {
       link += link.includes("?") ? "&silentSignin=1" : "?silentSignin=1";
     }
     return link;
   }
 
-  renderCardMobile(logo, link, title, desc, time, tags, isSingle) {
-    const gridStyle = {
+  renderCardMobile(logo?: string, link?: string, title?: string, desc?: string, _time?: string, tags?: BasicCardTag[], _isSingle?: boolean): React.ReactNode {
+    const gridStyle: React.CSSProperties = {
       width: "100vw",
       textAlign: "center",
       cursor: "pointer",
@@ -55,7 +74,7 @@ class SingleCard extends React.Component {
     );
   }
 
-  renderTags(tags) {
+  renderTags(tags?: BasicCardTag[]): React.ReactNode {
     if (!tags || !Array.isArray(tags) || tags.length === 0) {
       return null;
     }
@@ -71,7 +90,7 @@ class SingleCard extends React.Component {
     );
   }
 
-  renderCard(logo, link, title, desc, time, tags, isSingle) {
+  renderCard(logo?: string, link?: string, title?: string, desc?: string, time?: string, tags?: BasicCardTag[], isSingle?: boolean): React.ReactNode {
     const silentSigninLink = this.wrappedAsSilentSigninLink(link);
 
     return (

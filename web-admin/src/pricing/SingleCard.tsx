@@ -16,19 +16,32 @@ import i18next from "i18next";
 import React from "react";
 import {Button, Card, Col, Row} from "antd";
 import * as Setting from "../Setting";
-import {withRouter} from "react-router-dom";
+import * as ReactRouterDom from "react-router-dom";
+import type {PlanRecord} from "../types/businessPayment";
 
 const {Meta} = Card;
 
-class SingleCard extends React.Component {
-  constructor(props) {
+interface PricingSingleCardProps {
+  plan: PlanRecord;
+  isSingle?: boolean;
+  link: string;
+  style?: React.CSSProperties;
+}
+
+const withRouter = (ReactRouterDom as unknown as {
+  withRouter: <P extends object>(component: React.ComponentType<P>) => React.ComponentType<P>;
+}).withRouter;
+const t = (key: string): string => String(i18next.t(key));
+
+class SingleCard extends React.Component<PricingSingleCardProps> {
+  constructor(props: PricingSingleCardProps) {
     super(props);
     this.state = {
       classes: props,
     };
   }
 
-  renderCard(plan, isSingle, link) {
+  renderCard(plan: PlanRecord, isSingle: boolean | undefined, link: string): React.ReactNode {
     return (
       <Col style={{minWidth: "320px", paddingLeft: "20px", paddingRight: "20px", paddingBottom: "20px", marginBottom: "20px", paddingTop: "0px"}} span={6}>
         <Card
@@ -41,7 +54,7 @@ class SingleCard extends React.Component {
             <Row>
               <div style={{textAlign: "left"}} className="px-10 mt-5">
                 <span style={{fontSize: "40px", fontWeight: 700}}>{Setting.getCurrencySymbol(plan.currency)} {plan.price}</span>
-                <span style={{fontSize: "18px", fontWeight: 600, color: "gray"}}> {plan.period === "Yearly" ? i18next.t("plan:per year") : i18next.t("plan:per month")}</span>
+                <span style={{fontSize: "18px", fontWeight: 600, color: "gray"}}> {plan.period === "Yearly" ? t("plan:per year") : t("plan:per month")}</span>
               </div>
             </Row>
 
@@ -67,7 +80,7 @@ class SingleCard extends React.Component {
             <Row style={{paddingTop: "15px"}}>
               <Button style={{width: "100%", height: "50px", borderRadius: "0px", bottom: "0", left: "0"}} type="primary" key="subscribe" onClick={() => window.location.href = link}>
                 {
-                  i18next.t("pricing:Getting started")
+                  t("pricing:Getting started")
                 }
               </Button>
             </Row>

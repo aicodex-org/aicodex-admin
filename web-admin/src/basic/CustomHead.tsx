@@ -16,7 +16,11 @@ import {useEffect} from "react";
 
 let customHeadLoaded = false;
 
-function CustomHead(props) {
+interface CustomHeadProps {
+  headerHtml?: string;
+}
+
+function CustomHead(props: CustomHeadProps): null {
   useEffect(() => {
     if (!customHeadLoaded) {
       const suffix = new Date().getTime().toString();
@@ -29,7 +33,7 @@ function CustomHead(props) {
         if (el.nodeName === "#text") {
           return;
         }
-        let innerNode = el;
+        let innerNode = el as HTMLElement;
         innerNode.setAttribute("app-custom-head" + suffix, "");
 
         if (innerNode.localName === "script") {
@@ -37,7 +41,7 @@ function CustomHead(props) {
           Array.from(innerNode.attributes).forEach(attr => {
             scriptNode.setAttribute(attr.name, attr.value);
           });
-          scriptNode.text = innerNode.textContent;
+          scriptNode.text = innerNode.textContent || "";
           innerNode = scriptNode;
         }
         document.head.appendChild(innerNode);
@@ -45,6 +49,7 @@ function CustomHead(props) {
       customHeadLoaded = true;
     }
   });
+  return null;
 }
 
 export default CustomHead;

@@ -17,10 +17,47 @@ import {CaptchaModal} from "./common/modal/CaptchaModal";
 import * as ApplicationBackend from "./backend/ApplicationBackend";
 import * as Setting from "./Setting";
 
-class CaptchaPage extends React.Component {
-  constructor(props) {
+interface CaptchaPageProps {
+  location?: {
+    search?: string;
+  };
+}
+
+interface CaptchaProvider {
+  owner: string;
+  name: string;
+  category?: string;
+}
+
+interface CaptchaProviderItem {
+  rule?: string;
+  provider?: CaptchaProvider | null;
+}
+
+interface CaptchaApplication {
+  providers?: CaptchaProviderItem[] | null;
+}
+
+interface CaptchaPageState {
+  owner: string;
+  application: CaptchaApplication | null;
+  clientId: string | null;
+  applicationName: string | null;
+  redirectUri: string | null;
+  msg?: string;
+}
+
+interface CaptchaCallbackValues {
+  captchaType: string;
+  captchaToken: string;
+  clientSecret: string;
+  applicationId?: string;
+}
+
+class CaptchaPage extends React.Component<CaptchaPageProps, CaptchaPageState> {
+  constructor(props: CaptchaPageProps) {
     super(props);
-    const params = new URLSearchParams(this.props.location.search);
+    const params = new URLSearchParams(this.props.location?.search || "");
     this.state = {
       owner: "admin",
       application: null,
@@ -34,13 +71,13 @@ class CaptchaPage extends React.Component {
     this.getApplication();
   }
 
-  onUpdateApplication(application) {
+  onUpdateApplication(application: CaptchaApplication | null): void {
     this.setState({
       application: application,
     });
   }
 
-  getApplication() {
+  getApplication(): null | void {
     if (this.state.applicationName === null) {
       return null;
     }
@@ -58,14 +95,14 @@ class CaptchaPage extends React.Component {
       });
   }
 
-  getCaptchaProviderItems(application) {
+  getCaptchaProviderItems(application: CaptchaApplication | null): CaptchaProviderItem[] | null {
     const providers = application?.providers;
 
     if (providers === undefined || providers === null) {
       return null;
     }
 
-    return providers.filter(providerItem => {
+    return providers.filter((providerItem) => {
       if (providerItem.provider === undefined || providerItem.provider === null) {
         return false;
       }
@@ -74,11 +111,11 @@ class CaptchaPage extends React.Component {
     });
   }
 
-  callback(values) {
+  callback(values: CaptchaCallbackValues): void {
     Setting.goToLink(`${this.state.redirectUri}?code=${values.captchaToken}&type=${values.captchaType}&secret=${values.clientSecret}&applicationId=${values.applicationId}`);
   }
 
-  renderCaptchaModal(application) {
+  renderCaptchaModal(application: CaptchaApplication | null): React.ReactNode {
     const captchaProviderItems = this.getCaptchaProviderItems(application);
     if (captchaProviderItems === null) {
       return null;
@@ -88,12 +125,15 @@ class CaptchaPage extends React.Component {
     const provider = alwaysProviderItems.length > 0
       ? alwaysProviderItems[0].provider
       : dynamicProviderItems[0].provider;
+    if (!provider) {
+      return null;
+    }
 
     return <CaptchaModal
       owner={provider.owner}
       name={provider.name}
       visible={true}
-      onOk={(captchaType, captchaToken, clientSecret) => {
+      onOk={(captchaType: string, captchaToken: string, clientSecret: string) => {
         const values = {
           captchaType: captchaType,
           captchaToken: captchaToken,

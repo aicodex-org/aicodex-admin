@@ -16,12 +16,24 @@ import React from "react";
 import {Switch, Table} from "antd";
 import i18next from "i18next";
 
-class ToolTable extends React.Component {
-  updateTable(table) {
+export interface ToolRecord {
+  name?: string;
+  description?: string;
+  isAllowed?: boolean;
+  [key: string]: unknown;
+}
+
+interface ToolTableProps {
+  tools?: ToolRecord[];
+  onUpdateTable: (table: ToolRecord[]) => void;
+}
+
+class ToolTable extends React.Component<ToolTableProps> {
+  updateTable(table: ToolRecord[]): void {
     this.props.onUpdateTable(table);
   }
 
-  updateToolEnable(table, index, value) {
+  updateToolEnable(table: ToolRecord[], index: number, value: boolean): void {
     const newTable = [...(table || [])];
     newTable[index] = {
       ...newTable[index],
@@ -30,25 +42,25 @@ class ToolTable extends React.Component {
     this.updateTable(newTable);
   }
 
-  renderTable(table) {
-    const columns = [
+  renderTable(table: ToolRecord[]): React.ReactNode {
+    const columns: import("antd/es/table").ColumnsType<ToolRecord> = [
       {
-        title: i18next.t("general:Name"),
+        title: String(i18next.t("general:Name")),
         dataIndex: "name",
         key: "name",
         width: "260px",
       },
       {
-        title: i18next.t("general:Description"),
+        title: String(i18next.t("general:Description")),
         dataIndex: "description",
         key: "description",
       },
       {
-        title: i18next.t("general:Is allowed"),
+        title: String(i18next.t("general:Is allowed")),
         dataIndex: "isAllowed",
         key: "isAllowed",
         width: "120px",
-        render: (text, record, index) => {
+        render: (_text: boolean, record: ToolRecord, index: number) => {
           return (
             <Switch checked={record.isAllowed} onChange={(checked) => {
               this.updateToolEnable(table, index, checked);

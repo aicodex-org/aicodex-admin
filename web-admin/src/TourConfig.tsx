@@ -1,7 +1,18 @@
 import React from "react";
 import * as Conf from "./Conf";
 
-export const TourObj = {
+export interface TourStep {
+  title: string;
+  description: string;
+  id?: string;
+  cover?: React.ReactNode;
+  target?: HTMLElement | (() => HTMLElement) | (() => null) | null;
+  nextButtonProps?: {
+    children?: React.ReactNode;
+  };
+}
+
+export const TourObj: Record<string, TourStep[]> = {
   home: [
     {
       title: "Welcome to casdoor",
@@ -216,35 +227,35 @@ const EnterpriseIdentityTourClosedRoutes = new Set([
   "agents",
 ]);
 
-function getTourRouteKey(pathName = window.location.pathname) {
+function getTourRouteKey(pathName: string = window.location.pathname): string {
   return `${pathName}`.split("?")[0].replace(/^\/+/, "").split("/")[0];
 }
 
-export function getNextUrl(pathName = window.location.pathname) {
+export function getNextUrl(pathName: string = window.location.pathname): string {
   return TourUrlList[TourUrlList.indexOf(pathName.replace("/", "")) + 1] || "";
 }
 
 let orgIsTourVisible = true;
 
-export function setOrgIsTourVisible(visible) {
+export function setOrgIsTourVisible(visible: boolean): void {
   orgIsTourVisible = visible;
   if (orgIsTourVisible === false) {
     setIsTourVisible(false);
   }
 }
 
-export function setIsTourVisible(visible) {
-  localStorage.setItem("isTourVisible", visible);
+export function setIsTourVisible(visible: boolean): void {
+  localStorage.setItem("isTourVisible", String(visible));
   window.dispatchEvent(new Event("storageTourChanged"));
 }
 
-export function setTourLogo(tourLogoSrc) {
+export function setTourLogo(tourLogoSrc: string): void {
   if (tourLogoSrc !== "") {
     TourObj["home"][0]["cover"] = (<img alt="casdoor.png" src={tourLogoSrc} />);
   }
 }
 
-export function getTourVisible(pathName = window.location.pathname) {
+export function getTourVisible(pathName: string = window.location.pathname): boolean {
   if (EnterpriseIdentityTourClosedRoutes.has(getTourRouteKey(pathName))) {
     return false;
   }
@@ -252,13 +263,13 @@ export function getTourVisible(pathName = window.location.pathname) {
   return localStorage.getItem("isTourVisible") !== "false";
 }
 
-export function getNextButtonChild(nextPathName) {
+export function getNextButtonChild(nextPathName: string): string {
   return nextPathName !== "" ?
     `Go to "${nextPathName.charAt(0).toUpperCase()}${nextPathName.slice(1)} List"`
     : "Finish";
 }
 
-export function getSteps() {
+export function getSteps(): TourStep[] {
   const path = window.location.pathname.replace("/", "");
   const res = TourObj[path];
   if (res === undefined) {
