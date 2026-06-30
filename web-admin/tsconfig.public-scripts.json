@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["DOM", "ES2017"],
+    "strict": true,
+    "noImplicitAny": true,
+    "noEmitOnError": true,
+    "module": "none",
+    "rootDir": "public-scripts",
+    "outDir": "public",
+    "removeComments": false,
+    "skipLibCheck": true
+  },
+  "include": ["public-scripts/*.ts"]
+}
