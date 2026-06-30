@@ -38,6 +38,7 @@ jest.mock("./ApplicationListPage", () => () => <main data-testid="application-li
 jest.mock("./ApplicationEditPage", () => () => <main data-testid="application-edit-page" />);
 jest.mock("./ProviderEditPage", () => () => <main data-testid="provider-edit-page" />);
 jest.mock("./UserEditPage", () => () => <main data-testid="user-edit-page" />);
+jest.mock("./SyncerEditPage", () => () => <main data-testid="syncer-edit-page" />);
 jest.mock("./common/Editor", () => () => <pre data-testid="editor" />);
 jest.mock("./common/WorkspaceTabs", () => () => <div className="admin-workspace-tabs-shell" data-testid="workspace-tabs" />);
 jest.mock("./common/notifaction/EnableMfaNotification", () => () => null);
@@ -196,6 +197,28 @@ describe("ManagementPage admin shell sidebar", () => {
     expect(appLess).toMatch(/\.admin-shell-route-scroll > \.content-warp-card > \.ant-card-body > \.base-list-page-route-root \{[\s\S]*display:\s*flex/);
     expect(appLess).toMatch(/\.admin-shell-route-scroll > \.content-warp-card > \.ant-card-body > \.base-list-page-route-root \{[\s\S]*flex:\s*1 1 auto/);
     expect(appLess).toMatch(/\.admin-shell-route-scroll > \.content-warp-card > \.ant-card-body > \.base-list-page-route-root \{[\s\S]*min-height:\s*0/);
+  });
+
+  test("keeps large edit pages in the cardless internal scroll container", () => {
+    const editRoutes = [
+      {path: "/organizations/built-in", testId: "organization-edit-page"},
+      {path: "/users/built-in/admin", testId: "user-edit-page"},
+      {path: "/applications/built-in/app-built-in", testId: "application-edit-page"},
+      {path: "/providers/built-in/provider-built-in", testId: "provider-edit-page"},
+      {path: "/syncers/syncer-built-in", testId: "syncer-edit-page"},
+    ];
+
+    for (const editRoute of editRoutes) {
+      const view = renderShell({path: editRoute.path});
+      const routeScroll = view.container.querySelector(".admin-shell-route-scroll") as HTMLElement;
+
+      expect(routeScroll).not.toBeNull();
+      expect(routeScroll.classList.contains("admin-shell-route-scroll-without-card")).toBe(true);
+      expect(routeScroll.querySelector(".content-warp-card")).toBeNull();
+      expect(routeScroll.contains(view.getByTestId(editRoute.testId))).toBe(true);
+      expect(routeScroll.contains(view.getByTestId("workspace-tabs"))).toBe(false);
+      view.unmount();
+    }
   });
 
   test("keeps organization sync configuration pages in the cardless internal scroll container", () => {

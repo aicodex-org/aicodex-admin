@@ -874,9 +874,16 @@ test("deletes MFA and refreshes account after WeCom profile sync", async() => {
 test("renders user cards, loading and not-found states without changing default buttons", () => {
   const page = createPage();
   const userView = render(<>{page.renderUser()}</>);
+  expect(userView.container.querySelector(".user-edit-card")).not.toBeNull();
   expect(userView.getAllByText("PasswordModal").length).toBeGreaterThan(0);
   expect(userView.getByTestId("wecom-sync")).not.toBeNull();
   userView.unmount();
+
+  const fullPage = createPage();
+  const fullView = render(<>{fullPage.render()}</>);
+  expect(fullView.container.querySelector(".user-edit-page")).not.toBeNull();
+  expect(fullView.container.querySelector(".user-edit-page .user-edit-card")).not.toBeNull();
+  fullView.unmount();
 
   const loadingPage = createPage();
   loadingPage.state = {...loadingPage.state, loading: true};

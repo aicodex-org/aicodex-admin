@@ -399,6 +399,7 @@ describe("OrganizationEditPage", () => {
     expect(await view.findByDisplayValue("Engineering")).not.toBeNull();
     expect(view.container.querySelector(".organization-edit-page")).not.toBeNull();
     expect(view.container.querySelector(".organization-edit-card")).not.toBeNull();
+    expect(view.container.querySelector(".organization-edit-page > .organization-edit-card")).not.toBeNull();
     expect(view.getByText(/Password salt/).closest(".organization-edit-page")).not.toBeNull();
     expect(view.getByText(/Password complexity options/).closest(".organization-edit-page")).not.toBeNull();
   });

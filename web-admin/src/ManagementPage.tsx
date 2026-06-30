@@ -594,6 +594,13 @@ function ManagementPage(props: ManagementPageProps) {
       // 诊断型页面内部已有业务卡片，外层再套 content Card 会形成双层面板。
       "/organization-tree-operations",
     ];
+    const largeEditPageCardlessPatterns = [
+      /^\/organizations\/[^/]+$/,
+      /^\/users\/[^/]+\/[^/]+$/,
+      /^\/applications\/[^/]+\/[^/]+$/,
+      /^\/providers\/[^/]+\/[^/]+$/,
+      /^\/syncers\/[^/]+$/,
+    ];
 
     return Setting.isMobile() ||
       pathname === "/" ||
@@ -607,6 +614,7 @@ function ManagementPage(props: ManagementPageProps) {
       systemToolCardlessPaths.includes(pathname) ||
       aiGatewayCardlessPaths.includes(pathname) ||
       organizationDiagnosticCardlessPaths.includes(pathname) ||
+      largeEditPageCardlessPatterns.some(pattern => pattern.test(pathname)) ||
       /^\/organizations\/[^/]+\/users$/.test(pathname);
   }
 
