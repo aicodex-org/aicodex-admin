@@ -761,7 +761,7 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
 
   renderProvider(): React.ReactNode {
     return (
-      <Card size="small" title={
+      <Card className="admin-large-edit-card provider-edit-card" size="small" title={
         <div>
           {this.state.mode === "add" ? t("provider:New Provider") : t("provider:Edit Provider")}&nbsp;&nbsp;&nbsp;&nbsp;
           <Button onClick={() => this.submitProviderEdit(false)}>{t("general:Save")}</Button>
@@ -1177,7 +1177,7 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
 
   render() {
     return (
-      <div>
+      <div className="admin-large-edit-page provider-edit-page">
         {
           this.state.provider !== null ? this.renderProvider() : null
         }

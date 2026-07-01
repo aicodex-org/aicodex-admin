@@ -1718,7 +1718,7 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
 
   renderApplication(): React.ReactNode {
     return (
-      <Card size="small" title={
+      <Card className="admin-large-edit-card application-edit-card" size="small" title={
         <div>
           {this.state.mode === "add" ? i18next.t("application:New Application") : i18next.t("application:Edit Application")}&nbsp;&nbsp;&nbsp;&nbsp;
           <Button onClick={() => this.submitApplicationEdit(false)}>{i18next.t("general:Save")}</Button>
@@ -1778,7 +1778,7 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
                   </Menu>
                 </Sider>) : null
             }
-            <Content style={{padding: "15px",
+            <Content className="application-edit-form-content" style={{padding: "15px",
               overflowY: "auto",
               height: "100%",
               paddingBottom: "80px"}}>
@@ -1970,7 +1970,7 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
     }
 
     return (
-      <div>
+      <div className="admin-large-edit-page application-edit-page">
         {
           this.state.application !== null ? this.renderApplication() : null
         }

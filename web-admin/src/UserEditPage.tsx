@@ -1819,7 +1819,7 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
   renderUser() {
     return (
       <div>
-        <Card className="user-edit-card" size="small" title={
+        <Card className="admin-large-edit-card user-edit-card" size="small" title={
           (this.props.account === null) ? i18next.t("user:User Profile") : (
             <div>
               {this.state.mode === "add" ? i18next.t("user:New User") : (this.isSelf() ? i18next.t("account:My Account") : i18next.t("user:Edit User"))}&nbsp;&nbsp;&nbsp;&nbsp;
@@ -1922,7 +1922,7 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
 
   render() {
     return (
-      <div className="user-edit-page">
+      <div className="admin-large-edit-page user-edit-page">
         {
           this.state.loading ? <Spin size="large" style={{marginLeft: "50%", marginTop: "10%"}} /> : (
             this.state.user !== null ? this.renderUser() :

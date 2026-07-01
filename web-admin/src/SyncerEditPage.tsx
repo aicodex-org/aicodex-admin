@@ -879,7 +879,7 @@ class SyncerEditPage extends React.Component<SyncerEditProps, SyncerEditState> {
 
   renderSyncer() {
     return (
-      <Card size="small" title={
+      <Card className="admin-large-edit-card syncer-edit-card" size="small" title={
         <div>
           {this.state.mode === "add" ? tr("syncer:New Syncer") : tr("syncer:Edit Syncer")}&nbsp;&nbsp;&nbsp;&nbsp;
           <Button onClick={() => this.submitSyncerEdit(false)}>{tr("general:Save")}</Button>
@@ -1323,7 +1323,7 @@ class SyncerEditPage extends React.Component<SyncerEditProps, SyncerEditState> {
 
   render() {
     return (
-      <div>
+      <div className="admin-large-edit-page syncer-edit-page">
         {
           this.state.syncer !== null ? this.renderSyncer() : null
         }
