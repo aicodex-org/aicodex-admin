@@ -753,3 +753,14 @@ Admin 身份控制台 SHALL 为组织、用户、应用、Provider、Syncer 等�
 #### Scenario: 编辑页业务语义保持不变
 - **WHEN** 管理员保存、保存并退出、取消新增、删除或编辑这些页面的业务字段
 - **THEN** Admin SHALL 保持既有 API payload、路由跳转、按钮可用性和字段编辑语义不变
+
+#### Scenario: 应用编辑页 tab 内容不继承主字段行布局
+- **WHEN** 管理员在桌面端打开 `/applications/:organizationName/:applicationName` 并切换到 `提供商` tab
+- **THEN** Provider 绑定列表或表格 SHALL 使用 tab pane 的可用宽度
+- **AND** Provider tab 内的 full-width 内容 SHALL NOT 被主表单 label/content Row 规则压缩成固定 label 窄列
+
+#### Scenario: 应用编辑页界面定制 tab 可切换渲染
+- **WHEN** 管理员在应用编辑页切换到 `界面定制` tab
+- **THEN** 页面 SHALL 渲染界面定制内容
+- **AND** 页面 SHALL NOT 因 tab 切换出现白屏、React render exception 或 webpack overlay
+- **AND** 应用编辑页保存 payload、路由语义和后端接口 SHALL 保持不变

@@ -4829,14 +4829,14 @@ span.enterprise-list-secondary-text {
 }
 
 .admin-large-edit-card > .ant-card-body > .ant-row,
-.application-edit-card .application-edit-form-content > .ant-row,
+.application-edit-card .application-edit-form-content > .ant-row:not(.application-edit-full-width-row),
 .user-edit-card .ant-card-body .ant-form-item-control-input-content > .ant-row {
   flex-wrap: nowrap;
   min-width: 0;
 }
 
 .admin-large-edit-card > .ant-card-body > .ant-row > .ant-col:first-child,
-.application-edit-card .application-edit-form-content > .ant-row > .ant-col:first-child,
+.application-edit-card .application-edit-form-content > .ant-row:not(.application-edit-full-width-row) > .ant-col:first-child,
 .user-edit-card .ant-card-body .ant-form-item-control-input-content > .ant-row > .ant-col:first-child {
   flex: 0 0 184px;
   max-width: 184px;
@@ -4848,7 +4848,7 @@ span.enterprise-list-secondary-text {
 }
 
 .admin-large-edit-card > .ant-card-body > .ant-row > .ant-col:first-child + .ant-col,
-.application-edit-card .application-edit-form-content > .ant-row > .ant-col:first-child + .ant-col,
+.application-edit-card .application-edit-form-content > .ant-row:not(.application-edit-full-width-row) > .ant-col:first-child + .ant-col,
 .user-edit-card .ant-card-body .ant-form-item-control-input-content > .ant-row > .ant-col:first-child + .ant-col {
   flex: 1 1 0;
   max-width: calc(100% - 184px);
@@ -4887,15 +4887,15 @@ span.enterprise-list-secondary-text {
   }
 
   .admin-large-edit-card > .ant-card-body > .ant-row,
-  .application-edit-card .application-edit-form-content > .ant-row,
+  .application-edit-card .application-edit-form-content > .ant-row:not(.application-edit-full-width-row),
   .user-edit-card .ant-card-body .ant-form-item-control-input-content > .ant-row {
     flex-wrap: wrap;
   }
 
   .admin-large-edit-card > .ant-card-body > .ant-row > .ant-col:first-child,
   .admin-large-edit-card > .ant-card-body > .ant-row > .ant-col:first-child + .ant-col,
-  .application-edit-card .application-edit-form-content > .ant-row > .ant-col:first-child,
-  .application-edit-card .application-edit-form-content > .ant-row > .ant-col:first-child + .ant-col,
+  .application-edit-card .application-edit-form-content > .ant-row:not(.application-edit-full-width-row) > .ant-col:first-child,
+  .application-edit-card .application-edit-form-content > .ant-row:not(.application-edit-full-width-row) > .ant-col:first-child + .ant-col,
   .user-edit-card .ant-card-body .ant-form-item-control-input-content > .ant-row > .ant-col:first-child,
   .user-edit-card .ant-card-body .ant-form-item-control-input-content > .ant-row > .ant-col:first-child + .ant-col {
     flex: 0 0 100%;

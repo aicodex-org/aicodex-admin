@@ -1198,7 +1198,7 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
       )}
       {this.state.activeMenuKey === "providers" && (
         <React.Fragment>
-          <Row style={{marginTop: "10px"}} >
+          <Row className="application-edit-full-width-row" style={{marginTop: "10px"}} >
             <Col span={24}>
               <ProviderTable
                 title={i18next.t("application:Providers")}
