@@ -3,7 +3,8 @@ import {expect} from "@jest/globals";
 
 import {
   getQueryParamsFromState,
-  getStateFromQueryParams
+  getStateFromQueryParams,
+  renderMessageLarge
 } from "./Util";
 
 describe("OAuth state utilities", () => {
@@ -68,5 +69,9 @@ describe("OAuth state utilities", () => {
 
   test("does not decode missing generated short states as base64", () => {
     expect(getQueryParamsFromState("casdoorOauthMissingState000000")).toBe("");
+  });
+
+  test("renders authorization error message without losing i18next binding", () => {
+    expect(() => renderMessageLarge({}, "OAuth failed")).not.toThrow();
   });
 });

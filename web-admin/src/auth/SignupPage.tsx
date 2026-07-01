@@ -33,7 +33,7 @@ import * as InvitationBackend from "../backend/InvitationBackend";
 // eslint-disable-next-line unused-imports/no-unused-imports
 import type {LegacyAny, LegacyRecord} from "./AuthCoreTypes";
 
-const t = i18next.t as (key: string) => string;
+const t = (key: string): string => i18next.t(key) as string;
 const LegacySendCodeInput = SendCodeInput as React.ComponentType<LegacyAny>;
 
 const formItemLayout = {
