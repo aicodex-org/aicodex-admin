@@ -101,7 +101,7 @@ class LdapEditPage extends React.Component<AdminRouteProps, LegacyAny> {
 
   renderLdap(): React.ReactElement {
     return (
-      <Card size="small" title={
+      <Card className="admin-access-edit-card" size="small" title={
         <div>
           {i18next.t("ldap:Edit LDAP")}&nbsp;&nbsp;&nbsp;&nbsp;
           <Button onClick={() => this.submitLdapEdit()}>{i18next.t("general:Save")}</Button>
@@ -112,7 +112,7 @@ class LdapEditPage extends React.Component<AdminRouteProps, LegacyAny> {
           </Button>
         </div>
       } style={{marginLeft: "5px"}} type="inner">
-        <Row style={{marginTop: "10px"}}>
+        <Row className="admin-access-edit-field-row" style={{marginTop: "10px"}}>
           <Col style={{lineHeight: "32px", textAlign: "right", paddingRight: "25px"}} span={3}>
             {Setting.getLabel(i18next.t("general:Organization"), i18next.t("general:Organization - Tooltip"))} :
           </Col>
@@ -128,7 +128,7 @@ class LdapEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}}>
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}}>
           <Col style={{lineHeight: "32px", textAlign: "right", paddingRight: "25px"}} span={3}>
             {Setting.getLabel(i18next.t("general:ID"), i18next.t("general:ID - Tooltip"))} :
           </Col>
@@ -136,7 +136,7 @@ class LdapEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             <Input value={this.state.ldap.id} disabled={true} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}}>
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}}>
           <Col style={{lineHeight: "32px", textAlign: "right", paddingRight: "25px"}} span={3}>
             {Setting.getLabel(i18next.t("ldap:Server name"), i18next.t("ldap:Server name - Tooltip"))} :
           </Col>
@@ -146,7 +146,7 @@ class LdapEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}}>
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}}>
           <Col style={{lineHeight: "32px", textAlign: "right", paddingRight: "25px"}} span={3}>
             {Setting.getLabel(i18next.t("ldap:Server host"), i18next.t("ldap:Server host - Tooltip"))} :
           </Col>
@@ -156,7 +156,7 @@ class LdapEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}}>
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}}>
           <Col style={{lineHeight: "32px", textAlign: "right", paddingRight: "25px"}} span={3}>
             {Setting.getLabel(i18next.t("ldap:Server port"), i18next.t("ldap:Server port - Tooltip"))} :
           </Col>
@@ -167,7 +167,7 @@ class LdapEditPage extends React.Component<AdminRouteProps, LegacyAny> {
               }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{lineHeight: "32px", textAlign: "right", paddingRight: "25px"}} span={3}>
             {Setting.getLabel(i18next.t("ldap:Enable SSL"), i18next.t("ldap:Enable SSL - Tooltip"))} :
           </Col>
@@ -177,7 +177,7 @@ class LdapEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{lineHeight: "32px", textAlign: "right", paddingRight: "25px"}} span={3}>
             {Setting.getLabel(i18next.t("ldap:Allow self-signed certificate"), i18next.t("ldap:Allow self-signed certificate - Tooltip"))} :
           </Col>
@@ -187,7 +187,7 @@ class LdapEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}}>
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}}>
           <Col style={{lineHeight: "32px", textAlign: "right", paddingRight: "25px"}} span={3}>
             {Setting.getLabel(i18next.t("ldap:Base DN"), i18next.t("ldap:Base DN - Tooltip"))} :
           </Col>
@@ -197,7 +197,7 @@ class LdapEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}}>
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}}>
           <Col style={{lineHeight: "32px", textAlign: "right", paddingRight: "25px"}} span={3}>
             {Setting.getLabel(i18next.t("ldap:Search Filter"), i18next.t("ldap:Search Filter - Tooltip"))} :
           </Col>
@@ -207,7 +207,7 @@ class LdapEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}}>
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}}>
           <Col style={{lineHeight: "32px", textAlign: "right", paddingRight: "25px"}} span={3}>
             {Setting.getLabel(i18next.t("ldap:Filter fields"), i18next.t("ldap:Filter fields - Tooltip"))} :
           </Col>
@@ -222,7 +222,7 @@ class LdapEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}}>
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}}>
           <Col style={{lineHeight: "32px", textAlign: "right", paddingRight: "25px"}} span={3}>
             {Setting.getLabel(i18next.t("general:Admin"), i18next.t("ldap:Admin - Tooltip"))} :
           </Col>
@@ -232,7 +232,7 @@ class LdapEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}}>
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}}>
           <Col style={{lineHeight: "32px", textAlign: "right", paddingRight: "25px"}} span={3}>
             {Setting.getLabel(i18next.t("ldap:Admin Password"), i18next.t("ldap:Admin Password - Tooltip"))} :
           </Col>
@@ -245,7 +245,7 @@ class LdapEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{lineHeight: "32px", textAlign: "right", paddingRight: "25px"}} span={3}>
             {Setting.getLabel(i18next.t("general:Password type"), i18next.t("general:Password type - Tooltip"))} :
           </Col>
@@ -260,7 +260,7 @@ class LdapEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{lineHeight: "32px", textAlign: "right", paddingRight: "25px"}} span={3}>
             {Setting.getLabel(i18next.t("ldap:Default group"), i18next.t("ldap:Default group - Tooltip"))} :
           </Col>
@@ -285,7 +285,7 @@ class LdapEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{lineHeight: "32px", textAlign: "right", paddingRight: "25px"}} span={3}>
             {Setting.getLabel(i18next.t("ldap:Custom attributes"), i18next.t("ldap:Custom attributes - Tooltip"))} :
           </Col>
@@ -293,7 +293,7 @@ class LdapEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             <AttributesMapperTable customAttributes={this.state.ldap.customAttributes} onUpdateTable={(value: LegacyAny) => {this.updateLdapField("customAttributes", value);}} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}}>
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}}>
           <Col style={{lineHeight: "32px", textAlign: "right", paddingRight: "25px"}} span={3}>
             {Setting.getLabel(i18next.t("ldap:Auto Sync"), i18next.t("ldap:Auto Sync - Tooltip"))} :
           </Col>
@@ -332,7 +332,7 @@ class LdapEditPage extends React.Component<AdminRouteProps, LegacyAny> {
 
   render() {
     return (
-      <div>
+      <div className="admin-access-edit-page ldap-edit-page">
         {
           this.state.ldap !== null ? this.renderLdap() : null
         }

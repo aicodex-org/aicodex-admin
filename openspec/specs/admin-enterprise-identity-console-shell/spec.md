@@ -728,6 +728,12 @@ Admin 身份控制台 SHALL 为组织、用户、应用、Provider、Syncer 等�
 - **THEN** 页面内部主编辑 Card SHALL 暴露统一的 `admin-large-edit-card` 样式边界
 - **AND** 页面 MAY 同时保留页面专属 class 供测试、smoke 和后续局部修复定位
 
+#### Scenario: 应用接入与凭据编辑页暴露独立布局边界
+- **WHEN** 管理员打开证书、密钥、Webhook、Token、LDAP、Adapter 或 Enforcer 等应用接入、凭据或集成配置编辑页
+- **THEN** 页面内部主编辑 Card SHALL 暴露 scoped 的 `admin-access-edit-card` 样式边界
+- **AND** 页面根节点 MAY 暴露 `admin-access-edit-page` 以及页面专属 class 供测试、smoke 和后续局部修复定位
+- **AND** 字段行 SHALL 暴露 scoped 的 `admin-access-edit-field-row` 边界，供本类页面内部 label/content 布局使用
+
 #### Scenario: 桌面端主表单 label 与内容列稳定
 - **WHEN** 管理员在桌面端打开这些大编辑页
 - **THEN** 主表单行的 label 列 SHALL 使用稳定宽度而不是仅依赖 2/24 或 3/24 百分比宽度

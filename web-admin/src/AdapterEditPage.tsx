@@ -176,7 +176,7 @@ class AdapterEditPage extends React.Component<AdapterEditPageProps, AdapterEditP
     }
 
     return (
-      <Card size="small" title={
+      <Card className="admin-access-edit-card" size="small" title={
         <div>
           {this.state.mode === "add" ? t("adapter:New Adapter") : t("adapter:Edit Adapter")}&nbsp;&nbsp;&nbsp;&nbsp;
           <Button onClick={() => this.submitAdapterEdit(false)}>{t("general:Save")}</Button>
@@ -184,7 +184,7 @@ class AdapterEditPage extends React.Component<AdapterEditPageProps, AdapterEditP
           {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteAdapter()}>{t("general:Cancel")}</Button> : null}
         </div>
       } style={(Setting.isMobile()) ? {margin: "5px"} : {}} type="inner">
-        <Row style={{marginTop: "10px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "10px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Organization"), t("general:Organization - Tooltip"))} :
           </Col>
@@ -198,7 +198,7 @@ class AdapterEditPage extends React.Component<AdapterEditPageProps, AdapterEditP
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Name"), t("general:Name - Tooltip"))} :
           </Col>
@@ -208,7 +208,7 @@ class AdapterEditPage extends React.Component<AdapterEditPageProps, AdapterEditP
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("syncer:Table"), t("syncer:Table - Tooltip"))} :
           </Col>
@@ -219,7 +219,7 @@ class AdapterEditPage extends React.Component<AdapterEditPageProps, AdapterEditP
               }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 19 : 2}>
             {Setting.getLabel(t("adapter:Use same DB"), t("adapter:Use same DB - Tooltip"))} :
           </Col>
@@ -249,7 +249,7 @@ class AdapterEditPage extends React.Component<AdapterEditPageProps, AdapterEditP
         {
           (adapter.useSameDb || Setting.builtInObject(adapter)) ? null : (
             <React.Fragment>
-              <Row style={{marginTop: "20px"}} >
+              <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
                   {Setting.getLabel(t("general:Type"), t("general:Type - Tooltip"))} :
                 </Col>
@@ -269,7 +269,7 @@ class AdapterEditPage extends React.Component<AdapterEditPageProps, AdapterEditP
                   </Select>
                 </Col>
               </Row>
-              <Row style={{marginTop: "20px"}} >
+              <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
                   {Setting.getLabel(t("syncer:Database type"), t("syncer:Database type - Tooltip"))} :
                 </Col>
@@ -287,7 +287,7 @@ class AdapterEditPage extends React.Component<AdapterEditPageProps, AdapterEditP
                   </Select>
                 </Col>
               </Row>
-              <Row style={{marginTop: "20px"}} >
+              <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
                   {Setting.getLabel(t("provider:Host"), t("provider:Host - Tooltip"))} :
                 </Col>
@@ -297,7 +297,7 @@ class AdapterEditPage extends React.Component<AdapterEditPageProps, AdapterEditP
                   }} />
                 </Col>
               </Row>
-              <Row style={{marginTop: "20px"}} >
+              <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
                   {Setting.getLabel(t("provider:Port"), t("provider:Port - Tooltip"))} :
                 </Col>
@@ -307,7 +307,7 @@ class AdapterEditPage extends React.Component<AdapterEditPageProps, AdapterEditP
                   }} />
                 </Col>
               </Row>
-              <Row style={{marginTop: "20px"}} >
+              <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
                   {Setting.getLabel(t("general:User"), t("general:User - Tooltip"))} :
                 </Col>
@@ -317,7 +317,7 @@ class AdapterEditPage extends React.Component<AdapterEditPageProps, AdapterEditP
                   }} />
                 </Col>
               </Row>
-              <Row style={{marginTop: "20px"}} >
+              <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
                   {Setting.getLabel(t("general:Password"), t("general:Password - Tooltip"))} :
                 </Col>
@@ -327,7 +327,7 @@ class AdapterEditPage extends React.Component<AdapterEditPageProps, AdapterEditP
                   }} />
                 </Col>
               </Row>
-              <Row style={{marginTop: "20px"}} >
+              <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
                   {Setting.getLabel(t("syncer:Database"), t("syncer:Database - Tooltip"))} :
                 </Col>
@@ -340,7 +340,7 @@ class AdapterEditPage extends React.Component<AdapterEditPageProps, AdapterEditP
             </React.Fragment>
           )
         }
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("provider:DB test"), t("provider:DB test - Tooltip"))} :
           </Col>
@@ -417,7 +417,7 @@ class AdapterEditPage extends React.Component<AdapterEditPageProps, AdapterEditP
 
   render(): React.ReactElement {
     return (
-      <div>
+      <div className="admin-access-edit-page adapter-edit-page">
         {
           this.state.adapter !== null ? this.renderAdapter() : null
         }

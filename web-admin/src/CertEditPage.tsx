@@ -114,7 +114,7 @@ class CertEditPage extends React.Component<AdminRouteProps, LegacyAny> {
   renderCert() {
     const editorWidth = Setting.isMobile() ? 22 : 9;
     return (
-      <Card size="small" title={
+      <Card className="admin-access-edit-card" size="small" title={
         <div>
           {this.state.mode === "add" ? i18next.t("cert:New Cert") : i18next.t("cert:Edit Cert")}&nbsp;&nbsp;&nbsp;&nbsp;
           <Button onClick={() => this.submitCertEdit(false)}>{i18next.t("general:Save")}</Button>
@@ -122,7 +122,7 @@ class CertEditPage extends React.Component<AdminRouteProps, LegacyAny> {
           {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteCert()}>{i18next.t("general:Cancel")}</Button> : null}
         </div>
       } style={(Setting.isMobile()) ? {margin: "5px"} : {}} type="inner">
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("general:Organization"), i18next.t("general:Organization - Tooltip"))} :
           </Col>
@@ -135,7 +135,7 @@ class CertEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "10px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "10px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("general:Name"), i18next.t("general:Name - Tooltip"))} :
           </Col>
@@ -145,7 +145,7 @@ class CertEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("general:Display name"), i18next.t("general:Display name - Tooltip"))} :
           </Col>
@@ -155,7 +155,7 @@ class CertEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("provider:Scope"), i18next.t("provider:Scope - Tooltip"))} :
           </Col>
@@ -171,7 +171,7 @@ class CertEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("general:Type"), i18next.t("general:Type - Tooltip"))} :
           </Col>
@@ -189,7 +189,7 @@ class CertEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("cert:Crypto algorithm"), i18next.t("cert:Crypto algorithm - Tooltip"))} :
           </Col>
@@ -229,7 +229,7 @@ class CertEditPage extends React.Component<AdminRouteProps, LegacyAny> {
         </Row>
         {
           this.state.cert.cryptoAlgorithm.startsWith("ES") || this.state.cert.type === "SSL" ? null : (
-            <Row style={{marginTop: "20px"}} >
+            <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
               <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
                 {Setting.getLabel(i18next.t("cert:Bit size"), i18next.t("cert:Bit size - Tooltip"))} :
               </Col>
@@ -249,7 +249,7 @@ class CertEditPage extends React.Component<AdminRouteProps, LegacyAny> {
         }
         {
           this.state.cert.type === "SSL" ? null : (
-            <Row style={{marginTop: "20px"}} >
+            <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
               <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
                 {Setting.getLabel(i18next.t("cert:Expire in years"), i18next.t("cert:Expire in years - Tooltip"))} :
               </Col>
@@ -264,7 +264,7 @@ class CertEditPage extends React.Component<AdminRouteProps, LegacyAny> {
         {
           this.state.cert.type === "SSL" ? (
             <React.Fragment>
-              <Row style={{marginTop: "20px"}} >
+              <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={2}>
                   {i18next.t("cert:Expire time")}:
                 </Col>
@@ -274,7 +274,7 @@ class CertEditPage extends React.Component<AdminRouteProps, LegacyAny> {
                   }} />
                 </Col>
               </Row>
-              <Row style={{marginTop: "20px"}} >
+              <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={2}>
                   {i18next.t("cert:Domain expire")}:
                 </Col>
@@ -284,7 +284,7 @@ class CertEditPage extends React.Component<AdminRouteProps, LegacyAny> {
                   }} />
                 </Col>
               </Row>
-              <Row style={{marginTop: "20px"}} >
+              <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={2}>
                   {i18next.t("cert:Provider")}:
                 </Col>
@@ -299,7 +299,7 @@ class CertEditPage extends React.Component<AdminRouteProps, LegacyAny> {
                   </Select>
                 </Col>
               </Row>
-              <Row style={{marginTop: "20px"}} >
+              <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={2}>
                   {i18next.t("cert:Account")}:
                 </Col>
@@ -309,7 +309,7 @@ class CertEditPage extends React.Component<AdminRouteProps, LegacyAny> {
                   }} />
                 </Col>
               </Row>
-              <Row style={{marginTop: "20px"}} >
+              <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={2}>
                   {i18next.t("cert:Access key")}:
                 </Col>
@@ -319,7 +319,7 @@ class CertEditPage extends React.Component<AdminRouteProps, LegacyAny> {
                   }} />
                 </Col>
               </Row>
-              <Row style={{marginTop: "20px"}} >
+              <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={2}>
                   {i18next.t("cert:Access secret")}:
                 </Col>
@@ -332,7 +332,7 @@ class CertEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             </React.Fragment>
           ) : null
         }
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row admin-access-edit-editor-grid-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("cert:Certificate"), i18next.t("cert:Certificate - Tooltip"))} :
           </Col>
@@ -425,7 +425,7 @@ class CertEditPage extends React.Component<AdminRouteProps, LegacyAny> {
 
   render() {
     return (
-      <div>
+      <div className="admin-access-edit-page cert-edit-page">
         {
           this.state.cert !== null ? this.renderCert() : null
         }

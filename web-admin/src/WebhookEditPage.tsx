@@ -185,7 +185,7 @@ class WebhookEditPage extends React.Component<AdminRouteProps, LegacyAny> {
     const previewText = JSON.stringify(preview, null, 2);
 
     return (
-      <Card size="small" title={
+      <Card className="admin-access-edit-card" size="small" title={
         <div>
           {this.state.mode === "add" ? i18next.t("webhook:New Webhook") : i18next.t("webhook:Edit Webhook")}&nbsp;&nbsp;&nbsp;&nbsp;
           <Button onClick={() => this.submitWebhookEdit(false)}>{i18next.t("general:Save")}</Button>
@@ -193,7 +193,7 @@ class WebhookEditPage extends React.Component<AdminRouteProps, LegacyAny> {
           {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteWebhook()}>{i18next.t("general:Cancel")}</Button> : null}
         </div>
       } style={(Setting.isMobile()) ? {margin: "5px"} : {}} type="inner">
-        <Row style={{marginTop: "10px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "10px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("general:Organization"), i18next.t("general:Organization - Tooltip"))} :
           </Col>
@@ -205,7 +205,7 @@ class WebhookEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("general:Name"), i18next.t("general:Name - Tooltip"))} :
           </Col>
@@ -215,7 +215,7 @@ class WebhookEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("general:URL"), i18next.t("general:URL - Tooltip"))} :
           </Col>
@@ -225,7 +225,7 @@ class WebhookEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("general:Method"), i18next.t("provider:Method - Tooltip"))} :
           </Col>
@@ -242,7 +242,7 @@ class WebhookEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("webhook:Content type"), i18next.t("webhook:Content type - Tooltip"))} :
           </Col>
@@ -257,7 +257,7 @@ class WebhookEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("webhook:Headers"), i18next.t("webhook:Headers - Tooltip"))} :
           </Col>
@@ -269,7 +269,7 @@ class WebhookEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("webhook:Events"), i18next.t("webhook:Events - Tooltip"))} :
           </Col>
@@ -289,7 +289,7 @@ class WebhookEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("webhook:Object fields"), i18next.t("webhook:Object fields - Tooltip"))} :
           </Col>
@@ -302,7 +302,7 @@ class WebhookEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 19 : 2}>
             {Setting.getLabel(i18next.t("webhook:Is user extended"), i18next.t("webhook:Is user extended - Tooltip"))} :
           </Col>
@@ -312,7 +312,7 @@ class WebhookEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("webhook:Extended user fields"), i18next.t("webhook:Extended user fields - Tooltip"))} :
           </Col>
@@ -324,7 +324,7 @@ class WebhookEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("general:Preview"), i18next.t("general:Preview - Tooltip"))} :
           </Col>
@@ -334,7 +334,7 @@ class WebhookEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             </div>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 19 : 2}>
             {Setting.getLabel(i18next.t("webhook:Single org only"), i18next.t("webhook:Single org only - Tooltip"))} :
           </Col>
@@ -344,7 +344,7 @@ class WebhookEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 19 : 2}>
             {Setting.getLabel(i18next.t("general:Is enabled"), i18next.t("general:Is enabled - Tooltip"))} :
           </Col>
@@ -399,7 +399,7 @@ class WebhookEditPage extends React.Component<AdminRouteProps, LegacyAny> {
 
   render() {
     return (
-      <div>
+      <div className="admin-access-edit-page webhook-edit-page">
         {
           this.state.webhook !== null ? this.renderWebhook() : null
         }

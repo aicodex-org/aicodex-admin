@@ -94,7 +94,7 @@ class TokenEditPage extends React.Component<AdminRouteProps, LegacyAny> {
     const editorWidth = Setting.isMobile() ? 22 : 9;
     const parsedResult = this.parseAccessToken(this.state.token.accessToken);
     return (
-      <Card size="small" title={
+      <Card className="admin-access-edit-card" size="small" title={
         <div>
           {this.state.mode === "add" ? i18next.t("token:New Token") : i18next.t("token:Edit Token")}&nbsp;&nbsp;&nbsp;&nbsp;
           <Button onClick={() => this.submitTokenEdit(false)}>{i18next.t("general:Save")}</Button>
@@ -102,7 +102,7 @@ class TokenEditPage extends React.Component<AdminRouteProps, LegacyAny> {
           {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteToken()}>{i18next.t("general:Cancel")}</Button> : null}
         </div>
       } style={(Setting.isMobile()) ? {margin: "5px"} : {}} type="inner">
-        <Row style={{marginTop: "10px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "10px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("general:Name"), i18next.t("general:Name - Tooltip"))} :
           </Col>
@@ -112,7 +112,7 @@ class TokenEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("general:Application"), i18next.t("general:Application - Tooltip"))} :
           </Col>
@@ -122,7 +122,7 @@ class TokenEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("general:Organization"), i18next.t("general:Organization - Tooltip"))} :
           </Col>
@@ -132,7 +132,7 @@ class TokenEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("general:User"), i18next.t("general:User - Tooltip"))} :
           </Col>
@@ -142,7 +142,7 @@ class TokenEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("token:Authorization code"), i18next.t("token:Authorization code - Tooltip"))} :
           </Col>
@@ -152,7 +152,7 @@ class TokenEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("token:Expires in"), i18next.t("token:Expires in - Tooltip"))} :
           </Col>
@@ -162,7 +162,7 @@ class TokenEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("provider:Scope"), i18next.t("provider:Scope - Tooltip"))}
           </Col>
@@ -172,7 +172,7 @@ class TokenEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("token:Token type"), i18next.t("token:Token type - Tooltip"))} :
           </Col>
@@ -182,7 +182,7 @@ class TokenEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row admin-access-edit-editor-grid-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("token:Access token"), i18next.t("token:Access token - Tooltip"))} :
           </Col>
@@ -258,7 +258,7 @@ class TokenEditPage extends React.Component<AdminRouteProps, LegacyAny> {
 
   render() {
     return (
-      <div>
+      <div className="admin-access-edit-page token-edit-page">
         {
           this.state.token !== null ? this.renderToken() : null
         }

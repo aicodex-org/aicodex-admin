@@ -4749,6 +4749,60 @@ span.enterprise-list-secondary-text {
   overflow-x: clip;
 }
 
+.admin-access-edit-page {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.admin-access-edit-card > .ant-card-body > .admin-access-edit-field-row {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.admin-access-edit-card > .ant-card-body > .admin-access-edit-field-row > .ant-col:first-child {
+  flex: 0 0 184px;
+  max-width: 184px;
+  min-width: 0;
+  padding-right: 16px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.admin-access-edit-card > .ant-card-body > .admin-access-edit-field-row > .ant-col:first-child + .ant-col {
+  flex: 1 1 0;
+  max-width: calc(100% - 184px);
+  min-width: 0;
+}
+
+.admin-access-edit-card > .ant-card-body > .admin-access-edit-editor-grid-row {
+  flex-wrap: wrap;
+  column-gap: 12px;
+  row-gap: 12px;
+}
+
+.admin-access-edit-card > .ant-card-body > .admin-access-edit-editor-grid-row > .ant-col:nth-child(1),
+.admin-access-edit-card > .ant-card-body > .admin-access-edit-editor-grid-row > .ant-col:nth-child(4) {
+  flex: 0 0 184px;
+  max-width: 184px;
+  min-width: 0;
+  padding-right: 16px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.admin-access-edit-card > .ant-card-body > .admin-access-edit-editor-grid-row > .ant-col:nth-child(2),
+.admin-access-edit-card > .ant-card-body > .admin-access-edit-editor-grid-row > .ant-col:nth-child(5) {
+  flex: 1 1 calc((100% - 392px) / 2);
+  max-width: calc((100% - 392px) / 2);
+  min-width: 280px;
+}
+
+.admin-access-edit-card > .ant-card-body > .admin-access-edit-editor-grid-row > .ant-col:nth-child(3) {
+  display: none;
+}
+
 .admin-gateway-edit-card > .ant-card-body > .admin-gateway-edit-field-row {
   flex-wrap: nowrap;
   min-width: 0;
@@ -4798,6 +4852,22 @@ span.enterprise-list-secondary-text {
 }
 
 @media screen and (max-width: 768px) {
+  .admin-access-edit-card > .ant-card-body > .admin-access-edit-field-row {
+    flex-wrap: wrap;
+  }
+
+  .admin-access-edit-card > .ant-card-body > .admin-access-edit-field-row > .ant-col:first-child,
+  .admin-access-edit-card > .ant-card-body > .admin-access-edit-field-row > .ant-col:first-child + .ant-col,
+  .admin-access-edit-card > .ant-card-body > .admin-access-edit-editor-grid-row > .ant-col:nth-child(1),
+  .admin-access-edit-card > .ant-card-body > .admin-access-edit-editor-grid-row > .ant-col:nth-child(2),
+  .admin-access-edit-card > .ant-card-body > .admin-access-edit-editor-grid-row > .ant-col:nth-child(4),
+  .admin-access-edit-card > .ant-card-body > .admin-access-edit-editor-grid-row > .ant-col:nth-child(5) {
+    flex: 0 0 100%;
+    max-width: 100%;
+    min-width: 0;
+    padding-right: 0;
+  }
+
   .admin-gateway-edit-card > .ant-card-body > .admin-gateway-edit-field-row {
     flex-wrap: wrap;
   }

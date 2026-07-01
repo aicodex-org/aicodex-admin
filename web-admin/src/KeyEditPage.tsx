@@ -117,7 +117,7 @@ class KeyEditPage extends React.Component<AdminRouteProps, LegacyAny> {
 
   renderKey() {
     return (
-      <Card size="small" title={
+      <Card className="admin-access-edit-card" size="small" title={
         <div>
           {this.state.mode === "add" ? i18next.t("key:New Key") : i18next.t("key:Edit Key")}&nbsp;&nbsp;&nbsp;&nbsp;
           <Button onClick={() => this.submitKeyEdit(false)}>{i18next.t("general:Save")}</Button>
@@ -125,7 +125,7 @@ class KeyEditPage extends React.Component<AdminRouteProps, LegacyAny> {
           {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteKey()}>{i18next.t("general:Cancel")}</Button> : null}
         </div>
       } style={(Setting.isMobile()) ? {margin: "5px"} : {}} type="inner">
-        <Row style={{marginTop: "10px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "10px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("general:Organization"), i18next.t("general:Organization - Tooltip"))} :
           </Col>
@@ -142,7 +142,7 @@ class KeyEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("general:Name"), i18next.t("general:Name - Tooltip"))} :
           </Col>
@@ -152,7 +152,7 @@ class KeyEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("general:Display name"), i18next.t("general:Display name - Tooltip"))} :
           </Col>
@@ -162,7 +162,7 @@ class KeyEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("general:Type"), i18next.t("general:Type - Tooltip"))} :
           </Col>
@@ -179,7 +179,7 @@ class KeyEditPage extends React.Component<AdminRouteProps, LegacyAny> {
         </Row>
         {
           this.state.key.type === "Application" ? (
-            <Row style={{marginTop: "20px"}} >
+            <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
               <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
                 {Setting.getLabel(i18next.t("general:Application"), i18next.t("general:Application - Tooltip"))} :
               </Col>
@@ -197,7 +197,7 @@ class KeyEditPage extends React.Component<AdminRouteProps, LegacyAny> {
         }
         {
           this.state.key.type === "User" ? (
-            <Row style={{marginTop: "20px"}} >
+            <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
               <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
                 {Setting.getLabel(i18next.t("general:User"), i18next.t("general:User - Tooltip"))} :
               </Col>
@@ -213,7 +213,7 @@ class KeyEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             </Row>
           ) : null
         }
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("key:Access key"), i18next.t("key:Access key - Tooltip"))} :
           </Col>
@@ -221,7 +221,7 @@ class KeyEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             <Input value={this.state.key.accessKey} readOnly={true} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("key:Access secret"), i18next.t("key:Access secret - Tooltip"))} :
           </Col>
@@ -229,7 +229,7 @@ class KeyEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             <Input.Password value={this.state.key.accessSecret} readOnly={true} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("general:Expire time"), i18next.t("general:Expire time - Tooltip"))} :
           </Col>
@@ -243,7 +243,7 @@ class KeyEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("general:State"), i18next.t("general:State - Tooltip"))} :
           </Col>
@@ -303,7 +303,7 @@ class KeyEditPage extends React.Component<AdminRouteProps, LegacyAny> {
 
   render() {
     return (
-      <div>
+      <div className="admin-access-edit-page key-edit-page">
         {
           this.state.key !== null ? this.renderKey() : null
         }
