@@ -93,7 +93,7 @@ Admin 企业认证中心 SHALL 提供只读治理任务队列，使身份治理�
 - **AND** 系统 SHALL NOT 泄漏隐藏对象名称、真实账号、组织树、敏感配置或证据 payload
 
 ### Requirement: React TypeScript 实现与验证边界
-后续实现治理任务中心时，新增任务模型、分类器、队列页面和筛选组件 SHALL 遵循 web-admin 渐进 TypeScript 规则，并通过聚焦验证证明任务口径正确。
+后续实现治理任务中心时，新增任务模型、分类器、队列页面和筛选组件 SHALL 遵循 web-admin TypeScript 稳态规则，并通过聚焦验证证明任务口径正确。
 
 #### Scenario: 新增任务模型和队列组件
 - **WHEN** 后续 change 新增治理任务模型、任务分类、队列页面、筛选器或任务卡片

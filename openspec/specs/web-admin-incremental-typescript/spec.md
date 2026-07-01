@@ -1,20 +1,20 @@
 # web-admin-incremental-typescript Specification
 
 ## Purpose
-定义 `web-admin` 渐进式 TypeScript 基建规则，使 React 18 管理端可以在保持既有 JavaScript 行为兼容的前提下逐步新增或迁移 `.ts` / `.tsx` 文件，并通过 `yarn typecheck`、聚焦测试和构建形成后续 TS/TSX change 的标准验证入口。
+定义 `web-admin` TypeScript 稳态规则：`src/` 业务源码不再新增 `.js` / `.jsx`，新增 React、共享逻辑、接口模型和测试默认使用 `.tsx` / `.ts` / `.test.tsx` / `.test.ts`；保留的 public raw scripts、CRACO/Node 构建入口等 runtime JS 通过生成链路、`@ts-check` 或专用 typecheck 管控。后续前端 change 以增量 TypeScript gate 和 `yarn typecheck` 防回退，Jest、build、coverage 和浏览器验证按风险选择。
 ## Requirements
-### Requirement: 渐进式 TypeScript 工具链
-`web-admin` SHALL 支持 React 18 项目内 `.js`、`.ts`、`.tsx` 文件共存，并通过 TypeScript 配置和依赖让新增 TS/TSX 文件可以被本地验证、测试和生产构建接纳。
+### Requirement: TypeScript 稳态工具链
+`web-admin` SHALL 支持 React 18 项目内业务源码以 `.ts` / `.tsx` 为默认实现形态，并保留必要 runtime JS 入口的受控验证边界。
 
 #### Scenario: JS 和 TSX 共存构建
-- **WHEN** 开发者在 `web-admin/src` 下同时保留既有 `.js` 文件并新增或迁移 `.tsx` React 组件
+- **WHEN** 开发者在 `web-admin/src` 下新增或修改 `.ts` / `.tsx` 业务源码，同时仓库保留 public raw scripts、CRACO/Node 构建入口或历史兼容 JS 入口
 - **THEN** `yarn build` SHALL 能通过 CRACO/React Scripts 构建该混合源码树
-- **AND** 本 change 不要求全量迁移既有 `.js` 文件
+- **AND** 本 change 不要求把 served public JS 或构建工具 runtime JS 改造成 TypeScript runtime
 
 #### Scenario: TypeScript 配置不检查历史 JS
 - **WHEN** 开发者运行 TypeScript 静态检查
-- **THEN** TypeScript 配置 SHALL 允许 JS 文件参与模块解析
-- **AND** TypeScript 配置 SHALL NOT 强制 `checkJs` 检查全部历史 JS
+- **THEN** TypeScript 配置 SHALL 允许受控 JS runtime 入口参与模块解析
+- **AND** TypeScript 配置 SHALL NOT 强制 `checkJs` 检查全部 runtime JS；需要静态验证的构建入口 SHALL 使用专用 build-tooling typecheck 或等价边界
 
 ### Requirement: Typecheck 验证入口
 `web-admin` SHALL 提供 `yarn typecheck` 或等价脚本，用于执行 `tsc --noEmit`，并作为后续含 TS/TSX 前端 change 的标准验证项。
@@ -25,13 +25,27 @@
 - **AND** 命令 SHALL 在当前 TS/TSX smoke 迁移代码上返回成功
 
 ### Requirement: 后续新增代码约定
-Admin 前端后续新增 React 组件 SHALL 默认使用 `.tsx`；新增共享逻辑、接口模型和类型定义 SHALL 默认使用 `.ts`；既有 JS SHALL 只在被需求触及时渐进迁移。
+Admin 前端后续新增 React 组件 SHALL 默认使用 `.tsx`；新增共享逻辑、接口模型和类型定义 SHALL 默认使用 `.ts`；`web-admin/src` 业务源码 SHALL NOT 新增 `.js` / `.jsx`。
 
 #### Scenario: 新增代码默认采用 TypeScript
 - **WHEN** Admin 前端新增 React 组件、共享逻辑、接口模型或类型定义
 - **THEN** React 组件 SHOULD 默认使用 `.tsx`
 - **AND** 共享逻辑、接口模型和类型定义 SHOULD 默认使用 `.ts`
-- **AND** 既有 JS SHALL 只在被需求触及时渐进迁移
+- **AND** 保留的 public raw scripts、CRACO/Node 构建入口等 runtime JS SHALL 通过现有生成链路、`@ts-check` 或专用 typecheck 管控，而不是为了零 JS 数字改造运行入口
+
+### Requirement: TypeScript 稳态调度边界
+Admin 前端 SHALL treat archived page/component migration requirements in this specification as historical delivery records once `web-admin/src` has no remaining `.js` / `.jsx` business source.
+
+#### Scenario: 后续 worker 不再派发清 JS 存量任务
+- **WHEN** 主控或 worker 评估后续 Admin 前端候选任务
+- **THEN** historical migration requirements in this specification SHALL NOT be used as a backlog for additional cleanup-only TypeScript work
+- **AND** 新任务 SHALL focus on product behavior, UI quality, runtime correctness, tests, or maintainability needs tied to an actual touched feature or bugfix
+- **AND** the incremental TypeScript gate SHALL remain as a lightweight regression guard against new `src` JavaScript files
+
+#### Scenario: 低风险任务使用轻量验证组合
+- **WHEN** a change only touches documentation, copy, low-risk styles, or local TypeScript types without runtime behavior changes
+- **THEN** validation MAY use `git diff --check`, the incremental TypeScript gate, `yarn typecheck`, and focused tests or manual inspection according to risk
+- **AND** changed-file coverage, full `yarn build`, or browser smoke SHALL be required only when the changed surface justifies that cost or when the user explicitly requests it
 
 ### Requirement: Cypress E2E assets migrate conservatively to TypeScript
 Admin 前端 SHALL 支持将 `web-admin/cypress` E2E specs、support 和 Cypress config 从 legacy JavaScript 渐进迁移为 TypeScript，并保持现有 E2E 配置、测试流程、选择器和运行时行为兼容。

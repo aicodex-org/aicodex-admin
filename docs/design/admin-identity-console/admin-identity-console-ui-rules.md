@@ -40,10 +40,11 @@
 - 固定格式控件、卡片、表格和工具栏需要明确 `min/max`、grid track 或 overflow 策略，避免状态、标签、长文本导致布局跳动。
 - 字体不随 viewport 宽度缩放，按钮和标签要保证中英文长文本可读。
 
-## 渐进 TypeScript
+## TypeScript 稳态
 
 - 新增 React 页面、工作台、业务组件、展示组件默认 `.tsx`。
 - 新增共享逻辑、类型定义、接口模型、请求/响应结构和数据转换工具默认 `.ts`。
 - 新增组件测试默认 `.test.tsx`；新增纯逻辑测试默认 `.test.ts`。
-- 既有 `.js` 文件可以小范围修改；不要为了单个 UI change 做全量迁移、格式化或重命名。
-- 收口时运行 `web-admin/scripts/check-incremental-typescript-gate.mjs --base origin/hfl-test-base`，并按改动风险运行 `yarn typecheck`、聚焦 Jest、coverage、`yarn build` 和浏览器验证。
+- `web-admin/src` 业务源码不再新增 `.js/.jsx`；保留的 public raw script、CRACO/Node 构建入口等 runtime JS 按现有生成链路或 build-tooling typecheck 管控。
+- 不再为了单个 UI change 做全量迁移、格式化或重命名；后续重点是防止业务源码回退到 JS。
+- 收口时运行 `web-admin/scripts/check-incremental-typescript-gate.mjs --base origin/hfl-test-base`，并按改动风险运行 `yarn typecheck`、聚焦 Jest、`yarn build`、coverage 和浏览器验证；coverage/build 不作为低风险 UI/文案/样式任务的机械默认项。

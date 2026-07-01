@@ -474,7 +474,7 @@ Admin 身份控制台 UI 规则 SHALL 以 Ant Design / Ant Design Pro 为主准�
 #### Scenario: 规则可执行
 - **WHEN** 后续 change 修改 Admin 身份控制台菜单、总览、表格、工具栏、状态标签、移动布局或用户可见文案
 - **THEN** 项目规则 SHALL 要求菜单命名优先四字中文业务名、产品域使用业务名、仓库名仅作 code tag、禁止泛企业/内部实现文案、总览优先状态和证据、减少入口堆叠、表格/工具栏保持管理台密度、首屏不压低核心内容、桌面/移动均无页面级横向溢出
-- **AND** 新增 React 组件、共享逻辑和测试 SHALL 遵循 web-admin 渐进 TypeScript 规则
+- **AND** 新增 React 组件、共享逻辑和测试 SHALL 遵循 web-admin TypeScript 稳态规则
 
 ### Requirement: 工作区标签必须过滤无效路由并保持顺序稳定
 

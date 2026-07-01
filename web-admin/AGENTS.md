@@ -1,11 +1,12 @@
 # web-admin 前端工作指引
 
-## 技术栈与迁移原则
+## 技术栈与 TypeScript 稳态原则
 
-- Admin 前端使用 React 18 + Ant Design + CRACO，并采用渐进 TypeScript；当前允许 `.js`、`.ts`、`.tsx` 共存。
+- Admin 前端使用 React 18 + Ant Design + CRACO，业务源码已经进入 TypeScript 稳态：`src/` 下新增或迁移代码默认使用 `.ts` / `.tsx`。
 - 新增 React 页面、工作台、业务组件、展示组件默认使用 `.tsx`。
 - 新增纯逻辑、类型定义、接口模型、请求/响应结构、数据转换工具默认使用 `.ts`。
-- 既有 `.js`、`.jsx`、`.test.js` 不因为后缀单独大范围迁移；只有当前需求触碰且迁移风险低时才渐进迁移，并保持 diff 可 review。
+- 不再为“清 JS 存量”单独派发大批量 TS 迁移；后续业务任务只需保证不新增 `src/` 下的 `.js` / `.jsx`。
+- `public/` 下直接 served 的 raw JS、CRACO/Node 构建入口等运行时需要 JS 形态的文件可以保留；若已有 TS 源生成链路或 `@ts-check`/专用 typecheck，不要为了零 JS 数字改造运行入口。
 - 避免无解释的 `any`；优先使用明确接口、局部类型别名、`unknown` + 类型收窄或可辨识联合类型。
 
 ## 测试文件规则
@@ -13,7 +14,7 @@
 - 新增 `.tsx` 组件对应测试默认使用 `.test.tsx`。
 - 测试里包含 JSX、`render(<Component />)` 或需要校验 React 组件行为时，不要新建 `.test.js`；除非报告中明确记录 Jest/TypeScript blocker、替代验证和后续处理路径。
 - 新增 `.ts` 纯逻辑对应测试默认使用 `.test.ts`。
-- 既有 `.test.js` 可以在未触碰相关实现时保持不变；触碰对应 `.tsx` 或迁移组件时，优先把新测试或低风险增量测试落到 `.test.tsx`。
+- 既有保留的 runtime `.js` 入口若有对应测试，可按该入口的运行方式保留；新增业务测试默认使用 `.test.ts` / `.test.tsx`。
 
 ## UI 与 i18n
 
@@ -31,15 +32,16 @@
 
 ## 验证要求
 
-- 新 change 启动或前端收口时，先在 `web-admin` 下运行：
+- 新 change 启动或前端收口时，在 `web-admin` 下运行：
   `node scripts/check-incremental-typescript-gate.mjs --base origin/hfl-test-base`
-  该门禁会拦截新增 React `.js/.jsx`、新增 JSX `.test.js`、新增纯逻辑 `.js` 等不符合增量 TypeScript 约定的文件。
+  该门禁很轻量，主要拦截新增 `src/` 业务 `.js/.jsx`、新增 JSX `.test.js`、新增纯逻辑 `.js`，防止 TypeScript 稳态回退。
 - 任何 `.ts` / `.tsx` 改动必须在 `web-admin` 下运行 `yarn typecheck`。
-- 前端 UI 或行为改动按风险运行聚焦 Jest/coverage、`yarn build` 和浏览器/Playwright 验证。
+- 前端 UI 或行为改动按风险运行聚焦 Jest、`yarn build` 和浏览器/Playwright 验证；coverage 只用于高风险逻辑、既有覆盖率门槛或用户明确要求，不作为普通 UI/文案/样式任务的默认硬门禁。
+- 只改文案、样式、低风险 TS 类型或文档时，可以使用 `incremental gate + typecheck + 聚焦测试/人工检查` 的轻量组合；不需要机械追加全量 build 或 coverage，除非改动触及构建、路由入口、共享组件或发布产物。
 - 仅文档、规则或 skill 改动不需要运行前端构建；至少运行 `git diff --check`，并人工检查 Markdown 无乱码、无 secrets。
 
 ## 禁止事项
 
 - 不要在普通业务任务中顺手修改 `web-admin/package.json`、lockfile、`tsconfig.json`、构建基础设施或全局格式化配置。
 - 不要输出或提交 secrets、账号密码、token、Cookie、client secret、私钥、完整连接串或敏感环境信息。
-- 不要把 TypeScript 迁移与无关视觉重做、包升级、性能重构或大规模文件重命名混在同一个小任务里。
+- 不要把 TypeScript 类型收紧与无关视觉重做、包升级、性能重构或大规模文件重命名混在同一个小任务里。

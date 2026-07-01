@@ -149,7 +149,7 @@ function main() {
   if (options.json) {
     process.stdout.write(`${JSON.stringify(findings, null, 2)}\n`);
   } else if (findings.errors.length > 0) {
-    process.stderr.write("Incremental TypeScript gate failed:\n");
+    process.stderr.write("TypeScript steady-state gate failed:\n");
     for (const error of findings.errors) {
       process.stderr.write(`- ${error.path}: ${error.reason}; expected ${error.expectedExtension}\n`);
     }

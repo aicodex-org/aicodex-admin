@@ -4,7 +4,7 @@
 
 - 本仓库包含 Admin 后端、`web-admin` 前端、部署与 OpenSpec 文档；修改前先确认当前任务的子项目、分支和写集。
 - 不要在无明确授权时触碰 `test`、生产/类生产配置、真实密钥、真实认证链路、OAuth/OIDC 回调执行或破坏性数据操作。
-- 涉及前端 React / 渐进 TypeScript 的细则见 `web-admin/AGENTS.md`，以该文件作为 Admin 前端 worker 的默认约束。
+- 涉及前端 React / TypeScript 稳态的细则见 `web-admin/AGENTS.md`，以该文件作为 Admin 前端 worker 的默认约束。
 
 ## OpenSpec
 

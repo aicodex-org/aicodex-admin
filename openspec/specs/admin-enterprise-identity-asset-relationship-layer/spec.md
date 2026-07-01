@@ -79,7 +79,7 @@ Admin 企业认证中心 SHALL 为组织、用户、角色、权限、应用、�
 - **AND** 系统 SHALL NOT 泄漏隐藏对象名称、真实账号、组织树、敏感配置或证据 payload
 
 ### Requirement: React TypeScript 实现与验证边界
-后续实现身份资产关系层时，新增 React 详情、关系、时间线和证据组件 SHALL 遵循 web-admin 渐进 TypeScript 规则，并通过聚焦验证证明入口和状态可用。
+后续实现身份资产关系层时，新增 React 详情、关系、时间线和证据组件 SHALL 遵循 web-admin TypeScript 稳态规则，并通过聚焦验证证明入口和状态可用。
 
 #### Scenario: 新增前端组件和模型
 - **WHEN** 后续 change 新增身份资产详情、关系图、关系列表、时间线、证据链或对象模型
