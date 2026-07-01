@@ -522,6 +522,9 @@ test("loads model and organizations before rendering edit form", async() => {
   expect(page.state.organizations).toEqual([{name: "engineering"}]);
 
   const view = render(<MemoryRouter>{page.render()}</MemoryRouter>);
+  expect(view.container.querySelector(".admin-identity-object-edit-page.model-edit-page")).not.toBeNull();
+  expect(view.container.querySelector(".admin-identity-object-edit-card.model-edit-card")).not.toBeNull();
+  expect(view.container.querySelectorAll(".admin-identity-object-edit-field-row")).toHaveLength(5);
   expect(view.getByDisplayValue("rbac")).not.toBeNull();
   expect(view.getByDisplayValue("RBAC Model")).not.toBeNull();
   expect(view.getByDisplayValue("model description")).not.toBeNull();

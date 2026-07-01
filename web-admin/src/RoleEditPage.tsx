@@ -202,7 +202,7 @@ class RoleEditPage extends React.Component<RoleEditPageProps, RoleEditPageState>
     }
 
     return (
-      <Card size="small" title={
+      <Card className="admin-identity-object-edit-card role-edit-card" size="small" title={
         <div>
           {this.state.mode === "add" ? t("role:New Role") : t("role:Edit Role")}&nbsp;&nbsp;&nbsp;&nbsp;
           <Button onClick={() => this.submitRoleEdit(false)}>{t("general:Save")}</Button>
@@ -210,7 +210,7 @@ class RoleEditPage extends React.Component<RoleEditPageProps, RoleEditPageState>
           {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteRole()}>{t("general:Cancel")}</Button> : null}
         </div>
       } style={(Setting.isMobile()) ? {margin: "5px"} : {}} type="inner">
-        <Row style={{marginTop: "10px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "10px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Organization"), t("general:Organization - Tooltip"))} :
           </Col>
@@ -220,7 +220,7 @@ class RoleEditPage extends React.Component<RoleEditPageProps, RoleEditPageState>
               } />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Name"), t("general:Name - Tooltip"))} :
           </Col>
@@ -230,7 +230,7 @@ class RoleEditPage extends React.Component<RoleEditPageProps, RoleEditPageState>
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Display name"), t("general:Display name - Tooltip"))} :
           </Col>
@@ -240,7 +240,7 @@ class RoleEditPage extends React.Component<RoleEditPageProps, RoleEditPageState>
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Description"), t("general:Description - Tooltip"))} :
           </Col>
@@ -250,7 +250,7 @@ class RoleEditPage extends React.Component<RoleEditPageProps, RoleEditPageState>
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("role:Sub users"), t("role:Sub users - Tooltip"))} :
           </Col>
@@ -272,7 +272,7 @@ class RoleEditPage extends React.Component<RoleEditPageProps, RoleEditPageState>
             />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("role:Sub groups"), t("role:Sub groups - Tooltip"))} :
           </Col>
@@ -293,7 +293,7 @@ class RoleEditPage extends React.Component<RoleEditPageProps, RoleEditPageState>
             />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("role:Sub roles"), t("role:Sub roles - Tooltip"))} :
           </Col>
@@ -319,7 +319,7 @@ class RoleEditPage extends React.Component<RoleEditPageProps, RoleEditPageState>
             />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("role:Sub domains"), t("role:Sub domains - Tooltip"))} :
           </Col>
@@ -331,7 +331,7 @@ class RoleEditPage extends React.Component<RoleEditPageProps, RoleEditPageState>
             } />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 19 : 2}>
             {Setting.getLabel(t("general:Is enabled"), t("general:Is enabled - Tooltip"))} :
           </Col>
@@ -392,7 +392,7 @@ class RoleEditPage extends React.Component<RoleEditPageProps, RoleEditPageState>
 
   render(): React.ReactNode {
     return (
-      <div>
+      <div className="admin-identity-object-edit-page role-edit-page">
         {
           this.state.role !== null ? this.renderRole() : null
         }

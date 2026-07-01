@@ -452,6 +452,9 @@ test("renders modal and action buttons through the page surface", async() => {
   page.state = {...page.state, showSendModal: true};
   const view = render(<>{page.render()}</>);
 
+  expect(view.container.querySelector(".admin-identity-object-edit-page.invitation-edit-page")).not.toBeNull();
+  expect(view.container.querySelector(".admin-identity-object-edit-card.invitation-edit-card")).not.toBeNull();
+  expect(view.container.querySelectorAll(".admin-identity-object-edit-field-row")).toHaveLength(15);
   fireEvent.click(view.getAllByText("Save")[0]);
   await flushPromises();
   fireEvent.click(view.getAllByText("Save & Exit")[0]);

@@ -221,6 +221,9 @@ test("loads group, groups and organizations before rendering edit fields", async
   const {view} = renderPage();
 
   expect(await view.findByDisplayValue("Main Group")).not.toBeNull();
+  expect(view.container.querySelector(".admin-identity-object-edit-page.group-edit-page")).not.toBeNull();
+  expect(view.container.querySelector(".admin-identity-object-edit-card.group-edit-card")).not.toBeNull();
+  expect(view.container.querySelectorAll(".admin-identity-object-edit-field-row")).toHaveLength(7);
   expect(view.getByText("alice,bob")).not.toBeNull();
   expect(groupBackendMock.getGroup).toHaveBeenCalledWith("engineering", "group-main");
   expect(groupBackendMock.getGroups).toHaveBeenCalledWith("engineering");

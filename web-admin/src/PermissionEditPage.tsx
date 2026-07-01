@@ -317,7 +317,7 @@ class PermissionEditPage extends React.Component<PermissionEditPageProps, Permis
     }
 
     return (
-      <Card size="small" title={
+      <Card className="admin-identity-object-edit-card permission-edit-card" size="small" title={
         <div>
           {this.state.mode === "add" ? t("permission:New Permission") : t("permission:Edit Permission")}&nbsp;&nbsp;&nbsp;&nbsp;
           <Button onClick={() => this.submitPermissionEdit(false)}>{t("general:Save")}</Button>
@@ -325,7 +325,7 @@ class PermissionEditPage extends React.Component<PermissionEditPageProps, Permis
           {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deletePermission()}>{t("general:Cancel")}</Button> : null}
         </div>
       } style={(Setting.isMobile()) ? {margin: "5px"} : {}} type="inner">
-        <Row style={{marginTop: "10px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "10px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Organization"), t("general:Organization - Tooltip"))} :
           </Col>
@@ -339,7 +339,7 @@ class PermissionEditPage extends React.Component<PermissionEditPageProps, Permis
             } />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Name"), t("general:Name - Tooltip"))} :
           </Col>
@@ -349,7 +349,7 @@ class PermissionEditPage extends React.Component<PermissionEditPageProps, Permis
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Display name"), t("general:Display name - Tooltip"))} :
           </Col>
@@ -359,7 +359,7 @@ class PermissionEditPage extends React.Component<PermissionEditPageProps, Permis
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Description"), t("general:Description - Tooltip"))} :
           </Col>
@@ -369,7 +369,7 @@ class PermissionEditPage extends React.Component<PermissionEditPageProps, Permis
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Model"), t("general:Model - Tooltip"))} :
           </Col>
@@ -381,7 +381,7 @@ class PermissionEditPage extends React.Component<PermissionEditPageProps, Permis
             } />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("role:Sub users"), t("role:Sub users - Tooltip"))} :
           </Col>
@@ -415,7 +415,7 @@ class PermissionEditPage extends React.Component<PermissionEditPageProps, Permis
             />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("role:Sub groups"), t("role:Sub groups - Tooltip"))} :
           </Col>
@@ -449,7 +449,7 @@ class PermissionEditPage extends React.Component<PermissionEditPageProps, Permis
             />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("role:Sub roles"), t("role:Sub roles - Tooltip"))} :
           </Col>
@@ -484,7 +484,7 @@ class PermissionEditPage extends React.Component<PermissionEditPageProps, Permis
             />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("role:Sub domains"), t("role:Sub domains - Tooltip"))} :
           </Col>
@@ -500,7 +500,7 @@ class PermissionEditPage extends React.Component<PermissionEditPageProps, Permis
             />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("permission:Resource type"), t("permission:Resource type - Tooltip"))} :
           </Col>
@@ -518,7 +518,7 @@ class PermissionEditPage extends React.Component<PermissionEditPageProps, Permis
             />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Resources"), t("permission:Resources - Tooltip"))} :
           </Col>
@@ -534,7 +534,7 @@ class PermissionEditPage extends React.Component<PermissionEditPageProps, Permis
             />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("permission:Actions"), t("permission:Actions - Tooltip"))} :
           </Col>
@@ -553,7 +553,7 @@ class PermissionEditPage extends React.Component<PermissionEditPageProps, Permis
             />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("permission:Effect"), t("permission:Effect - Tooltip"))} :
           </Col>
@@ -568,7 +568,7 @@ class PermissionEditPage extends React.Component<PermissionEditPageProps, Permis
             />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 19 : 2}>
             {Setting.getLabel(t("general:Is enabled"), t("general:Is enabled - Tooltip"))} :
           </Col>
@@ -578,7 +578,7 @@ class PermissionEditPage extends React.Component<PermissionEditPageProps, Permis
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("permission:Submitter"), t("permission:Submitter - Tooltip"))} :
           </Col>
@@ -588,7 +588,7 @@ class PermissionEditPage extends React.Component<PermissionEditPageProps, Permis
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("permission:Approver"), t("permission:Approver - Tooltip"))} :
           </Col>
@@ -598,7 +598,7 @@ class PermissionEditPage extends React.Component<PermissionEditPageProps, Permis
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("permission:Approve time"), t("permission:Approve time - Tooltip"))} :
           </Col>
@@ -608,7 +608,7 @@ class PermissionEditPage extends React.Component<PermissionEditPageProps, Permis
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:State"), t("general:State - Tooltip"))} :
           </Col>
@@ -704,7 +704,7 @@ class PermissionEditPage extends React.Component<PermissionEditPageProps, Permis
 
   render(): React.ReactNode {
     return (
-      <div>
+      <div className="admin-identity-object-edit-page permission-edit-page">
         {
           this.state.permission !== null ? this.renderPermission() : null
         }

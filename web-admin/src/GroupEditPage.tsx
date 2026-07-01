@@ -159,7 +159,7 @@ class GroupEditPage extends React.Component<GroupEditPageProps, GroupEditPageSta
     }
 
     return (
-      <Card size="small" title={
+      <Card className="admin-identity-object-edit-card group-edit-card" size="small" title={
         <div>
           {this.state.mode === "add" ? t("group:New Group") : t("group:Edit Group")}&nbsp;&nbsp;&nbsp;&nbsp;
           <Button onClick={() => this.submitGroupEdit(false)}>{t("general:Save")}</Button>
@@ -170,7 +170,7 @@ class GroupEditPage extends React.Component<GroupEditPageProps, GroupEditPageSta
       style={(Setting.isMobile()) ? {margin: "5px"} : {}}
       type="inner"
       >
-        <Row style={{marginTop: "10px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "10px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Organization"), t("general:Organization - Tooltip"))} :
           </Col>
@@ -184,7 +184,7 @@ class GroupEditPage extends React.Component<GroupEditPageProps, GroupEditPageSta
               } />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Name"), t("general:Name - Tooltip"))} :
           </Col>
@@ -194,7 +194,7 @@ class GroupEditPage extends React.Component<GroupEditPageProps, GroupEditPageSta
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Display name"), t("general:Display name - Tooltip"))} :
           </Col>
@@ -204,7 +204,7 @@ class GroupEditPage extends React.Component<GroupEditPageProps, GroupEditPageSta
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Type"), t("general:Type - Tooltip"))} :
           </Col>
@@ -222,7 +222,7 @@ class GroupEditPage extends React.Component<GroupEditPageProps, GroupEditPageSta
               )} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("group:Parent group"), t("group:Parent group - Tooltip"))} :
           </Col>
@@ -235,7 +235,7 @@ class GroupEditPage extends React.Component<GroupEditPageProps, GroupEditPageSta
               )} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Users"), t("general:Users - Tooltip"))} :
           </Col>
@@ -245,7 +245,7 @@ class GroupEditPage extends React.Component<GroupEditPageProps, GroupEditPageSta
             }
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 19 : 2}>
             {Setting.getLabel(t("general:Is enabled"), t("general:Is enabled - Tooltip"))} :
           </Col>
@@ -314,7 +314,7 @@ class GroupEditPage extends React.Component<GroupEditPageProps, GroupEditPageSta
 
   render() {
     return (
-      <div>
+      <div className="admin-identity-object-edit-page group-edit-page">
         {
           this.state.group !== null ? this.renderGroup() : null
         }

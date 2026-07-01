@@ -1,0 +1,39 @@
+/* eslint-env jest */
+import {expect} from "@jest/globals";
+import fs from "fs";
+import path from "path";
+
+const readSrc = (fileName: string): string => fs.readFileSync(path.join(__dirname, fileName), "utf8") as string;
+
+describe("identity object edit form layout", () => {
+  const editPages = [
+    ["GroupEditPage.tsx", "group-edit-page", "group-edit-card"],
+    ["RoleEditPage.tsx", "role-edit-page", "role-edit-card"],
+    ["PermissionEditPage.tsx", "permission-edit-page", "permission-edit-card"],
+    ["InvitationEditPage.tsx", "invitation-edit-page", "invitation-edit-card"],
+    ["FormEditPage.tsx", "form-edit-page", "form-edit-card"],
+    ["ModelEditPage.tsx", "model-edit-page", "model-edit-card"],
+  ];
+
+  editPages.forEach(([fileName, pageClass, cardClass]) => {
+    test(`keeps ${fileName} inside the shared identity object edit layout boundary`, () => {
+      const source = readSrc(fileName);
+
+      expect(source).toContain(`admin-identity-object-edit-page ${pageClass}`);
+      expect(source).toContain(`admin-identity-object-edit-card ${cardClass}`);
+      expect(source).toContain("admin-identity-object-edit-field-row");
+    });
+  });
+
+  test("uses scoped CSS for identity object labels and mobile wrapping", () => {
+    const appLess = readSrc("App.less");
+
+    expect(appLess).toContain(".admin-identity-object-edit-page");
+    expect(appLess).toContain(".admin-identity-object-edit-card > .ant-card-body > .admin-identity-object-edit-field-row");
+    expect(appLess).toContain(".admin-identity-object-edit-card > .ant-card-body > .admin-identity-object-edit-field-row > .ant-col:first-child");
+    expect(appLess).toContain("flex: 0 0 184px;");
+    expect(appLess).toContain("max-width: calc(100% - 184px);");
+    expect(appLess).toContain("@media screen and (max-width: 768px)");
+    expect(appLess).toContain("flex: 0 0 100%;");
+  });
+});

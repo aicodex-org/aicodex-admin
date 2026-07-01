@@ -438,6 +438,8 @@ test("renders role edit controls and selector callbacks", () => {
   };
 
   const view = render(page.renderRole() as React.ReactElement);
+  expect(view.container.querySelector(".admin-identity-object-edit-card.role-edit-card")).not.toBeNull();
+  expect(view.container.querySelectorAll(".admin-identity-object-edit-field-row")).toHaveLength(9);
   expect(view.getByDisplayValue("role-main")).not.toBeNull();
 
   const paginateSelects = view.getAllByTestId("paginate-select");
@@ -612,6 +614,10 @@ test("keeps permission approval and resource type edit branches", () => {
   };
 
   const permissionView = page.renderPermission();
+  const renderedPermission = render(permissionView as React.ReactElement);
+  expect(renderedPermission.container.querySelector(".admin-identity-object-edit-card.permission-edit-card")).not.toBeNull();
+  expect(renderedPermission.container.querySelectorAll(".admin-identity-object-edit-field-row")).toHaveLength(18);
+  renderedPermission.unmount();
   const selectElements = collectElementsByType(permissionView, Select);
   const stateSelect = selectElements.find(element => (element.props as {value?: string}).value === "Pending");
   expect(stateSelect).not.toBeUndefined();

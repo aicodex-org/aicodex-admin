@@ -220,7 +220,7 @@ class InvitationEditPage extends React.Component<InvitationEditPageProps, Invita
 
     const isCreatedByPlan = invitation.tag === "auto_created_invitation_for_plan";
     return (
-      <Card size="small" title={
+      <Card className="admin-identity-object-edit-card invitation-edit-card" size="small" title={
         <div>
           {this.state.mode === "add" ? t("invitation:New Invitation") : t("invitation:Edit Invitation")}&nbsp;&nbsp;&nbsp;&nbsp;
           <Button onClick={() => this.submitInvitationEdit(false)}>{t("general:Save")}</Button>
@@ -228,7 +228,7 @@ class InvitationEditPage extends React.Component<InvitationEditPageProps, Invita
           {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteInvitation()}>{t("general:Cancel")}</Button> : null}
         </div>
       } style={(Setting.isMobile()) ? {margin: "5px"} : {}} type="inner">
-        <Row style={{marginTop: "10px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "10px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Organization"), t("general:Organization - Tooltip"))} :
           </Col>
@@ -240,7 +240,7 @@ class InvitationEditPage extends React.Component<InvitationEditPageProps, Invita
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Name"), t("general:Name - Tooltip"))} :
           </Col>
@@ -250,7 +250,7 @@ class InvitationEditPage extends React.Component<InvitationEditPageProps, Invita
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Display name"), t("general:Display name - Tooltip"))} :
           </Col>
@@ -260,7 +260,7 @@ class InvitationEditPage extends React.Component<InvitationEditPageProps, Invita
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("invitation:Code"), t("invitation:Code - Tooltip"))} :
           </Col>
@@ -274,7 +274,7 @@ class InvitationEditPage extends React.Component<InvitationEditPageProps, Invita
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("invitation:Default code"), t("invitation:Default code - Tooltip"))} :
           </Col>
@@ -284,7 +284,7 @@ class InvitationEditPage extends React.Component<InvitationEditPageProps, Invita
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
           </Col>
           <Col span={22} >
@@ -293,7 +293,7 @@ class InvitationEditPage extends React.Component<InvitationEditPageProps, Invita
             </Button>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {t("general:Send")}
           </Col>
@@ -304,7 +304,7 @@ class InvitationEditPage extends React.Component<InvitationEditPageProps, Invita
             <Button type="primary" style={{marginTop: "20px"}} onClick={() => this.setState({showSendModal: true})}>{t("general:Send")}</Button>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("invitation:Quota"), t("invitation:Quota - Tooltip"))} :
           </Col>
@@ -314,7 +314,7 @@ class InvitationEditPage extends React.Component<InvitationEditPageProps, Invita
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("invitation:Used count"), t("invitation:Used count - Tooltip"))} :
           </Col>
@@ -324,7 +324,7 @@ class InvitationEditPage extends React.Component<InvitationEditPageProps, Invita
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Application"), t("general:Application - Tooltip"))} :
           </Col>
@@ -337,7 +337,7 @@ class InvitationEditPage extends React.Component<InvitationEditPageProps, Invita
               ]} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("provider:Signup group"), t("provider:Signup group - Tooltip"))} :
           </Col>
@@ -352,7 +352,7 @@ class InvitationEditPage extends React.Component<InvitationEditPageProps, Invita
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("signup:Username"), t("signup:Username - Tooltip"))} :
           </Col>
@@ -362,7 +362,7 @@ class InvitationEditPage extends React.Component<InvitationEditPageProps, Invita
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Email"), t("general:Email - Tooltip"))} :
           </Col>
@@ -372,7 +372,7 @@ class InvitationEditPage extends React.Component<InvitationEditPageProps, Invita
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Phone"), t("general:Phone - Tooltip"))} :
           </Col>
@@ -382,7 +382,7 @@ class InvitationEditPage extends React.Component<InvitationEditPageProps, Invita
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:State"), t("general:State - Tooltip"))} :
           </Col>
@@ -442,7 +442,7 @@ class InvitationEditPage extends React.Component<InvitationEditPageProps, Invita
 
   render() {
     return (
-      <div>
+      <div className="admin-identity-object-edit-page invitation-edit-page">
         {this.state.showSendModal ? this.renderSendEmailModal() : null}
         {
           this.state.invitation !== null ? this.renderInvitation() : null

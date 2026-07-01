@@ -3,7 +3,7 @@ import React from "react";
 import {expect, jest} from "@jest/globals";
 import {cleanup, render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
-import {Input, Select} from "antd";
+import {Card, Input, Row, Select} from "antd";
 import SystemInfo from "./SystemInfo";
 import FormListPage from "./FormListPage";
 import FormEditPage from "./FormEditPage";
@@ -444,6 +444,9 @@ test("keeps form edit type defaults, preview link and save behavior", async() =>
 
   const typeSelect = findElementByType(page.renderForm(), Select);
   expect(typeSelect).not.toBeNull();
+  const formCard = findElementByType(page.renderForm(), Card);
+  expect(formCard?.props.className).toBe("admin-identity-object-edit-card form-edit-card");
+  expect(findElementsByType(page.renderForm(), Row).filter(row => row.props.className === "admin-identity-object-edit-field-row")).toHaveLength(6);
   typeSelect?.props.onChange("applications");
   expect(page.state.form.name).toBe("applications");
   expect(page.state.form.displayName).toBe("applications");

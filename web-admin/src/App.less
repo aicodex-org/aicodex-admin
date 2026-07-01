@@ -4744,7 +4744,8 @@ span.enterprise-list-secondary-text {
   overflow-x: clip;
 }
 
-.admin-gateway-edit-page {
+.admin-gateway-edit-page,
+.admin-identity-object-edit-page {
   max-width: 100%;
   overflow-x: clip;
 }
@@ -4803,12 +4804,14 @@ span.enterprise-list-secondary-text {
   display: none;
 }
 
-.admin-gateway-edit-card > .ant-card-body > .admin-gateway-edit-field-row {
+.admin-gateway-edit-card > .ant-card-body > .admin-gateway-edit-field-row,
+.admin-identity-object-edit-card > .ant-card-body > .admin-identity-object-edit-field-row {
   flex-wrap: nowrap;
   min-width: 0;
 }
 
-.admin-gateway-edit-card > .ant-card-body > .admin-gateway-edit-field-row > .ant-col:first-child {
+.admin-gateway-edit-card > .ant-card-body > .admin-gateway-edit-field-row > .ant-col:first-child,
+.admin-identity-object-edit-card > .ant-card-body > .admin-identity-object-edit-field-row > .ant-col:first-child {
   flex: 0 0 184px;
   max-width: 184px;
   min-width: 0;
@@ -4818,7 +4821,8 @@ span.enterprise-list-secondary-text {
   white-space: normal;
 }
 
-.admin-gateway-edit-card > .ant-card-body > .admin-gateway-edit-field-row > .ant-col:first-child + .ant-col {
+.admin-gateway-edit-card > .ant-card-body > .admin-gateway-edit-field-row > .ant-col:first-child + .ant-col,
+.admin-identity-object-edit-card > .ant-card-body > .admin-identity-object-edit-field-row > .ant-col:first-child + .ant-col {
   flex: 1 1 0;
   max-width: calc(100% - 184px);
   min-width: 0;
@@ -4868,12 +4872,15 @@ span.enterprise-list-secondary-text {
     padding-right: 0;
   }
 
-  .admin-gateway-edit-card > .ant-card-body > .admin-gateway-edit-field-row {
+  .admin-gateway-edit-card > .ant-card-body > .admin-gateway-edit-field-row,
+  .admin-identity-object-edit-card > .ant-card-body > .admin-identity-object-edit-field-row {
     flex-wrap: wrap;
   }
 
   .admin-gateway-edit-card > .ant-card-body > .admin-gateway-edit-field-row > .ant-col:first-child,
-  .admin-gateway-edit-card > .ant-card-body > .admin-gateway-edit-field-row > .ant-col:first-child + .ant-col {
+  .admin-gateway-edit-card > .ant-card-body > .admin-gateway-edit-field-row > .ant-col:first-child + .ant-col,
+  .admin-identity-object-edit-card > .ant-card-body > .admin-identity-object-edit-field-row > .ant-col:first-child,
+  .admin-identity-object-edit-card > .ant-card-body > .admin-identity-object-edit-field-row > .ant-col:first-child + .ant-col {
     flex: 0 0 100%;
     max-width: 100%;
     padding-right: 0;
