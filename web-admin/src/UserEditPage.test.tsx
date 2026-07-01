@@ -528,11 +528,13 @@ test("keeps signup application read-only for directory synced users", () => {
       ...syncedUserPage.state,
       user: {
         ...syncedUserPage.state.user,
+        signupApplication: "",
         [source]: `${source}-user-id`,
       },
     };
     const syncedUserView = render(<>{syncedUserPage.renderAccountItem({name: "Signup application", visible: true})}</>);
     expect(syncedUserView.container.querySelector(".ant-select-disabled")).not.toBeNull();
+    expect(syncedUserView.getByText("未设置")).toBeTruthy();
     syncedUserView.unmount();
   });
 });

@@ -1249,13 +1249,17 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
         </Row>
       );
     } else if (accountItem.name === "Signup application") {
+      const isDirectorySyncedUser = this.isDirectorySyncedUser(this.state.user);
+      const signupApplication = this.hasNonEmptyString(this.state.user.signupApplication) ? this.state.user.signupApplication : undefined;
+
       return (
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("general:Signup application"), i18next.t("general:Signup application - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Select virtual={false} style={{width: "100%"}} disabled={disabled || this.isDirectorySyncedUser(this.state.user)} value={this.state.user.signupApplication}
+            <Select virtual={false} style={{width: "100%"}} disabled={disabled || isDirectorySyncedUser} value={signupApplication}
+              placeholder={isDirectorySyncedUser ? i18next.t("general:Signup application not set") : undefined}
               onChange={(value => {this.updateUserField("signupApplication", value);})}
               options={this.state.applications.map((application) => Setting.getOption(application.name, application.name))
               } />
