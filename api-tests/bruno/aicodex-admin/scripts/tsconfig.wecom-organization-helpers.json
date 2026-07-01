@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "allowJs": false,
+    "checkJs": false,
+    "strict": false,
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "noEmitOnError": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": [
+    "wecomSource*.ts",
+    "wecomSource*.test.ts",
+    "organizationTreeOperations*.ts",
+    "organizationTreeOperations*.test.ts",
+    "wecomSource.types.d.ts",
+    "organizationTreeOperations.types.d.ts"
+  ],
+  "exclude": [
+    "gatewayProjection*",
+    "node_modules"
+  ]
+}
