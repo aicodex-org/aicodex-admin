@@ -384,6 +384,28 @@ function collectCallbacks(node: React.ReactNode, names: string[], callbacks: Arr
   return callbacks;
 }
 
+function findReactElement(node: React.ReactNode, predicate: (element: React.ReactElement<Record<string, unknown>>) => boolean): React.ReactElement<Record<string, unknown>> | null {
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const found = findReactElement(child, predicate);
+      if (found !== null) {
+        return found;
+      }
+    }
+    return null;
+  }
+
+  if (!React.isValidElement<Record<string, unknown>>(node)) {
+    return null;
+  }
+
+  if (predicate(node)) {
+    return node;
+  }
+
+  return findReactElement(node.props.children as React.ReactNode, predicate);
+}
+
 function invokeCallback(callback: (value?: unknown) => unknown) {
   const candidates: unknown[] = [
     ["engineering/group-a", "engineering/group-b"],
@@ -784,6 +806,31 @@ test("shows field validation for physical group conflicts", () => {
   fireEvent.click(groupBOptions[groupBOptions.length - 1]);
 
   expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.any(String));
+});
+
+test("keeps directory synced group membership read-only in user editor", () => {
+  const page = createPage();
+  page.state = {
+    ...page.state,
+    user: {
+      ...page.state.user,
+      groups: ["engineering/group-a", "engineering/wecom-dept-2"],
+    },
+    groups: [
+      {owner: "engineering", name: "group-a", displayName: "Group A", type: "Physical"},
+      {owner: "engineering", name: "wecom-dept-2", displayName: "WeCom Dept 2", type: "Virtual", isDirectorySynced: true},
+    ],
+  };
+
+  const groupsNode = page.renderAccountItem({name: "Groups", visible: true});
+  const syncedOption = findReactElement(groupsNode, element => element.props.value === "engineering/wecom-dept-2");
+  expect(syncedOption?.props.disabled).toBe(true);
+
+  const groupSelect = findReactElement(groupsNode, element => element.props.mode === "multiple");
+  (groupSelect?.props.onChange as ((value: string[]) => void) | undefined)?.(["engineering/group-a"]);
+
+  expect(page.state.user.groups).toEqual(["engineering/group-a", "engineering/wecom-dept-2"]);
+  expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringMatching(/Directory synced|通讯录同步/));
 });
 
 test("saves user, supports save-exit redirects and rolls owner/name back on failure", async() => {

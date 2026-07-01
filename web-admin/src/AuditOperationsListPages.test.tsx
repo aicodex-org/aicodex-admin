@@ -294,6 +294,7 @@ describe("audit operations list pages", () => {
       expect(view.container.querySelector(".audit-operations-rail")).toBeNull();
       expect(view.container.querySelector(".enterprise-identity-rail-section")).toBeNull();
       expect(view.container.querySelector(`.enterprise-list-page-table-shell.${shellClass}`)).not.toBeNull();
+      expect(view.container.querySelector(".audit-operations-list-route-body > .audit-operations-list-page-table-shell")).not.toBeNull();
       expect(view.container.querySelector(".audit-operations-list-page-table-shell")).not.toBeNull();
       expect(view.container.querySelector(".enterprise-list-table.audit-operations-list-table")).not.toBeNull();
       expect(view.container.querySelector(".enterprise-list-query-toolbar")).not.toBeNull();

@@ -109,6 +109,13 @@ test("lets the table body fill the shared frame above the fixed pagination foote
   expect(tableBodyBlock).toContain("height: auto !important");
 });
 
+test("removes the empty-state placeholder divider from shared list tables", () => {
+  const appLess = fs.readFileSync(path.join(__dirname, "..", "App.less"), "utf8") as string;
+  const emptyPlaceholderCellBlock = appLess.match(/\.enterprise-list-table\.ant-table-wrapper \.ant-table-tbody > tr\.ant-table-placeholder > td \{([\s\S]*?)\}/)?.[1] ?? "";
+
+  expect(emptyPlaceholderCellBlock).toContain("border-bottom: 0");
+});
+
 test("keeps the fixed pagination footer compact", () => {
   const appLess = fs.readFileSync(path.join(__dirname, "..", "App.less"), "utf8") as string;
   const footerBlock = appLess.match(/\.enterprise-list-pagination-footer \{([\s\S]*?)\}/)?.[1] ?? "";
@@ -124,4 +131,17 @@ test("keeps the fixed pagination footer compact", () => {
   expect(footerBlock).not.toContain("padding: 8px 8px 0");
   expect(miniItemBlock).toContain("min-width: 28px");
   expect(miniItemBlock).toContain("margin-inline: 2px");
+});
+
+test("keeps audit operations list pages bounded so pagination stays at the card bottom", () => {
+  const appLess = fs.readFileSync(path.join(__dirname, "..", "App.less"), "utf8") as string;
+  const routeBodyBlock = appLess.match(/\.audit-operations-list-route-body \{([\s\S]*?)\}/)?.[1] ?? "";
+  const shellBlock = appLess.match(/\.audit-operations-list-route-body > \.audit-operations-list-page-table-shell \{([\s\S]*?)\}/)?.[1] ?? "";
+
+  expect(routeBodyBlock).toContain("display: flex");
+  expect(routeBodyBlock).toContain("flex: 1 1 auto");
+  expect(routeBodyBlock).toContain("min-height: 0");
+  expect(routeBodyBlock).toContain("overflow: hidden");
+  expect(shellBlock).toContain("flex: 1 1 auto");
+  expect(shellBlock).toContain("margin-top: 0");
 });

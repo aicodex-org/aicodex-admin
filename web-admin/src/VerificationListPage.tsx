@@ -226,7 +226,7 @@ class VerificationListPage extends LegacyBaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <div>
+      <div className="audit-operations-list-route-body">
         <div className="enterprise-list-page-table-shell audit-operations-list-page-table-shell verification-list-page-table-shell">
           <ListPageTable className="audit-operations-list-table verification-list-table" scroll={getAuditOperationsTableScroll(this.state.advancedFiltersOpen)} columns={columns} dataSource={verifications} rowKey={(record) => `${record.owner}/${record.name}`} pagination={paginationProps}
             title={() => (

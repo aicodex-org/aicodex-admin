@@ -508,6 +508,8 @@
     "Disable": "Disable",
     "Display name": "Display name",
     "Display name - Tooltip": "A user-friendly, easily readable name displayed publicly in the UI",
+    "Directory synced": "Directory synced",
+    "Directory synced group membership cannot be changed here": "Directory synced group membership cannot be changed here. Change membership in the source directory and run sync again.",
     "Down": "Down",
     "Download template": "Download template",
     "Edit": "Edit",
@@ -1111,6 +1113,8 @@
   },
   "group": {
     "Edit Group": "Edit Group",
+    "Directory synced group members are managed by source system": "Directory synced group members are managed by the source system. Change membership in the source directory and run sync again.",
+    "Directory synced group members are read-only": "Directory synced group members are read-only",
     "New Group": "New Group",
     "Parent group": "Parent group",
     "Parent group - Tooltip": "Parent group of this group",

@@ -239,6 +239,20 @@ test("builds parent options from sibling groups and the owning organization", ()
   ]);
 });
 
+test("shows read-only membership notice for directory synced groups", () => {
+  const page = createPage({
+    group: {
+      isDirectorySynced: true,
+      directorySyncSources: ["wecom"],
+    } as Partial<typeof baseGroup>,
+  });
+
+  const view = render(<>{page.renderGroup()}</>);
+
+  expect(view.getByText("Directory synced group members are read-only")).not.toBeNull();
+  expect(view.getByText("Directory synced group members are managed by the source system. Change membership in the source directory and run sync again.")).not.toBeNull();
+});
+
 test("keeps empty parent options and legacy parse branch stable", () => {
   const page = createPage();
 

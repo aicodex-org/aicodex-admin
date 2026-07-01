@@ -267,7 +267,7 @@ class TokenListPage extends LegacyBaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <div>
+      <div className="audit-operations-list-route-body">
         <div className="enterprise-list-page-table-shell audit-operations-list-page-table-shell token-list-page-table-shell">
           <ListPageTable className="audit-operations-list-table token-list-table" scroll={getAuditOperationsTableScroll(this.state.advancedFiltersOpen)} columns={columns} dataSource={tokens} rowKey={(record) => `${record.owner}/${record.name}`} pagination={paginationProps}
             title={() => (

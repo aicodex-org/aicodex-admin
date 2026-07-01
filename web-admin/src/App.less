@@ -2307,8 +2307,22 @@ body.admin-shell-theme-dark,
   margin-top: 14px;
 }
 
+.audit-operations-list-route-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .audit-operations-list-page-table-shell {
   margin-top: 10px;
+}
+
+.audit-operations-list-route-body > .audit-operations-list-page-table-shell {
+  flex: 1 1 auto;
+  margin-top: 0;
 }
 
 .audit-operations-list-table .ant-table-cell {
@@ -3876,6 +3890,10 @@ body.admin-shell-theme-dark,
   background: var(--list-page-table-body-bg, #fff);
   border-bottom-color: var(--list-page-table-row-border-color, rgb(235 240 246)) !important;
   vertical-align: middle;
+}
+
+.enterprise-list-table.ant-table-wrapper .ant-table-tbody > tr.ant-table-placeholder > td {
+  border-bottom: 0 !important;
 }
 
 .enterprise-list-table.ant-table-wrapper .ant-table-container,

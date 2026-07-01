@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import React from "react";
-import {Button, Card, Col, Input, Row, Select, Switch} from "antd";
+import {Alert, Button, Card, Col, Input, Row, Select, Switch} from "antd";
 import type {SelectProps} from "antd";
 import * as GroupBackend from "./backend/GroupBackend";
 import type {GroupMutation, GroupRecord} from "./backend/GroupBackend";
@@ -65,6 +65,10 @@ type GroupEditPageState = {
 function t(key: string, defaultValue = key): string {
   const translated = i18next.t(key, {defaultValue}) as unknown;
   return typeof translated === "string" ? translated : defaultValue;
+}
+
+function isDirectorySyncedGroup(group?: GroupRecord | null): boolean {
+  return Boolean(group?.isDirectorySynced || (group?.directorySyncSources ?? []).length > 0);
 }
 
 class GroupEditPage extends React.Component<GroupEditPageProps, GroupEditPageState> {
@@ -157,6 +161,7 @@ class GroupEditPage extends React.Component<GroupEditPageProps, GroupEditPageSta
     if (group === null) {
       return null;
     }
+    const isDirectorySynced = isDirectorySyncedGroup(group);
 
     return (
       <Card className="admin-identity-object-edit-card group-edit-card" size="small" title={
@@ -235,6 +240,15 @@ class GroupEditPage extends React.Component<GroupEditPageProps, GroupEditPageSta
               )} />
           </Col>
         </Row>
+        {isDirectorySynced ? (
+          <Alert
+            style={{marginTop: "20px"}}
+            type="info"
+            showIcon
+            message={t("group:Directory synced group members are read-only")}
+            description={t("group:Directory synced group members are managed by source system")}
+          />
+        ) : null}
         <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Users"), t("general:Users - Tooltip"))} :

@@ -315,7 +315,7 @@ class SessionListPage extends LegacyBaseListPage {
     const paginationProps = this.getTablePaginationProps();
 
     return (
-      <div>
+      <div className="audit-operations-list-route-body">
         <div className="enterprise-list-page-table-shell audit-operations-list-page-table-shell session-list-page-table-shell">
           <ListPageTable className="audit-operations-list-table session-list-table" scroll={getAuditOperationsTableScroll(this.state.advancedFiltersOpen)} columns={columns} dataSource={sessions} rowKey={(record) => `${record.owner}/${record.name}/${record.application || ""}`} pagination={paginationProps}
             title={() => (

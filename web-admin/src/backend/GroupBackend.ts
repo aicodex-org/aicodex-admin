@@ -29,6 +29,8 @@ export interface GroupRecord {
   title?: string;
   isTopGroup?: boolean;
   haveChildren?: boolean;
+  isDirectorySynced?: boolean;
+  directorySyncSources?: string[];
   isEnabled?: boolean;
   [key: string]: unknown;
 }

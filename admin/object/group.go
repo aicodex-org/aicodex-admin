@@ -45,7 +45,9 @@ type Group struct {
 	HaveChildren bool     `xorm:"-" json:"haveChildren"`
 	Children     []*Group `json:"children,omitempty"`
 
-	IsEnabled bool `json:"isEnabled"`
+	IsDirectorySynced    bool     `xorm:"-" json:"isDirectorySynced"`
+	DirectorySyncSources []string `xorm:"-" json:"directorySyncSources,omitempty"`
+	IsEnabled            bool     `json:"isEnabled"`
 }
 
 type GroupNode struct{}
@@ -64,6 +66,9 @@ func GetGroups(owner string) ([]*Group, error) {
 	groups := []*Group{}
 	err := ormer.Engine.Desc("created_time").Find(&groups, &Group{Owner: owner})
 	if err != nil {
+		return nil, err
+	}
+	if err = ExtendGroupsWithDirectorySyncSources(groups); err != nil {
 		return nil, err
 	}
 
@@ -87,8 +92,113 @@ func GetPaginationGroups(owner string, offset, limit int, field, value, sortFiel
 	if err != nil {
 		return nil, err
 	}
+	if err = ExtendGroupsWithDirectorySyncSources(groups); err != nil {
+		return nil, err
+	}
 
 	return groups, nil
+}
+
+func GetGroupDirectorySyncSources(owner, name string) ([]string, error) {
+	sources := []string{}
+
+	count, err := ormer.Engine.Where("group_owner = ? AND group_name = ?", owner, name).Count(&WecomDepartmentMapping{})
+	if err != nil {
+		return nil, err
+	}
+	if count > 0 {
+		sources = append(sources, "wecom")
+	}
+
+	count, err = ormer.Engine.Where("group_owner = ? AND group_name = ?", owner, name).Count(&FeishuDepartmentMapping{})
+	if err != nil {
+		return nil, err
+	}
+	if count > 0 {
+		sources = append(sources, "feishu")
+	}
+
+	return sources, nil
+}
+
+func ExtendGroupWithDirectorySyncSources(group *Group) error {
+	if group == nil {
+		return nil
+	}
+
+	sources, err := GetGroupDirectorySyncSources(group.Owner, group.Name)
+	if err != nil {
+		return err
+	}
+	group.DirectorySyncSources = sources
+	group.IsDirectorySynced = len(sources) > 0
+	return nil
+}
+
+func ExtendGroupsWithDirectorySyncSources(groups []*Group) error {
+	for _, group := range groups {
+		if err := ExtendGroupWithDirectorySyncSources(group); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func CheckManualUserGroupsUpdate(oldUser, newUser *User) error {
+	if oldUser == nil || newUser == nil {
+		return nil
+	}
+
+	oldGroups := canonicalizeUserGroupIds(oldUser.Owner, oldUser.Groups)
+	newGroups := canonicalizeUserGroupIds(newUser.Owner, newUser.Groups)
+	for groupId := range oldGroups {
+		if _, ok := newGroups[groupId]; ok {
+			continue
+		}
+		if err := checkManualDirectorySyncedGroupChange(groupId); err != nil {
+			return err
+		}
+	}
+	for groupId := range newGroups {
+		if _, ok := oldGroups[groupId]; ok {
+			continue
+		}
+		if err := checkManualDirectorySyncedGroupChange(groupId); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func canonicalizeUserGroupIds(owner string, groups []string) map[string]struct{} {
+	result := map[string]struct{}{}
+	for _, group := range groups {
+		if group == "" {
+			continue
+		}
+		if strings.Contains(group, "/") {
+			result[group] = struct{}{}
+		} else {
+			result[util.GetId(owner, group)] = struct{}{}
+		}
+	}
+	return result
+}
+
+func checkManualDirectorySyncedGroupChange(groupId string) error {
+	owner, name, err := util.GetOwnerAndNameFromIdWithError(groupId)
+	if err != nil {
+		return err
+	}
+	sources, err := GetGroupDirectorySyncSources(owner, name)
+	if err != nil {
+		return err
+	}
+	if len(sources) > 0 {
+		return fmt.Errorf("directory synced group membership can't be changed manually: %s is managed by %s", groupId, strings.Join(sources, ","))
+	}
+	return nil
 }
 
 func GetGroupsHaveChildrenMap(groups []*Group) (map[string]*Group, error) {
@@ -139,7 +249,14 @@ func GetGroup(id string) (*Group, error) {
 	if err != nil {
 		return nil, err
 	}
-	return getGroup(owner, name)
+	group, err := getGroup(owner, name)
+	if err != nil {
+		return nil, err
+	}
+	if err = ExtendGroupWithDirectorySyncSources(group); err != nil {
+		return nil, err
+	}
+	return group, nil
 }
 
 func UpdateGroup(id string, group *Group) (bool, error) {
@@ -289,10 +406,12 @@ func ConvertToTreeData(groups []*Group, parentId string) []*Group {
 	for _, group := range groups {
 		if group.ParentId == parentId {
 			node := &Group{
-				Title: group.DisplayName,
-				Key:   group.Name,
-				Type:  group.Type,
-				Owner: group.Owner,
+				Title:                group.DisplayName,
+				Key:                  group.Name,
+				Type:                 group.Type,
+				Owner:                group.Owner,
+				IsDirectorySynced:    group.IsDirectorySynced,
+				DirectorySyncSources: group.DirectorySyncSources,
 			}
 			children := ConvertToTreeData(groups, group.Name)
 			if len(children) > 0 {

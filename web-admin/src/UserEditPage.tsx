@@ -87,6 +87,8 @@ interface GroupRecord {
   name: string;
   displayName?: string;
   type?: string;
+  isDirectorySynced?: boolean;
+  directorySyncSources?: string[];
   [key: string]: unknown;
 }
 
@@ -542,6 +544,40 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
     });
   }
 
+  getCanonicalGroupId(groupId: string, owner = this.state.user.owner): string {
+    return groupId.includes("/") ? groupId : `${owner}/${groupId}`;
+  }
+
+  getGroupRecordId(group: GroupRecord): string {
+    return `${group.owner}/${group.name}`;
+  }
+
+  isDirectorySyncedGroup(group?: GroupRecord | null): boolean {
+    return Boolean(group?.isDirectorySynced || (group?.directorySyncSources ?? []).length > 0);
+  }
+
+  findGroupById(groupId: string): GroupRecord | null {
+    const canonicalGroupId = this.getCanonicalGroupId(groupId);
+    return (this.state.groups ?? []).find(group => this.getGroupRecordId(group) === canonicalGroupId) ?? null;
+  }
+
+  getDirectorySyncedGroupChange(previousGroups: string[], nextGroups: string[]): GroupRecord | null {
+    const previousGroupIds = new Set(previousGroups.map(group => this.getCanonicalGroupId(group)));
+    const nextGroupIds = new Set(nextGroups.map(group => this.getCanonicalGroupId(group)));
+    const changedGroupIds = [
+      ...previousGroups.map(group => this.getCanonicalGroupId(group)).filter(groupId => !nextGroupIds.has(groupId)),
+      ...nextGroups.map(group => this.getCanonicalGroupId(group)).filter(groupId => !previousGroupIds.has(groupId)),
+    ];
+
+    for (const groupId of changedGroupIds) {
+      const group = this.findGroupById(groupId);
+      if (this.isDirectorySyncedGroup(group)) {
+        return group;
+      }
+    }
+    return null;
+  }
+
   unlinked() {
     this.getUser();
   }
@@ -705,8 +741,15 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
             {Setting.getLabel(i18next.t("general:Groups"), i18next.t("general:Groups - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Select virtual={false} mode="multiple" style={{width: "100%"}} disabled={disabled} value={this.state.user.groups ?? []} onChange={(value => {
-              if ((this.state.groups ?? []).filter(group => value.includes(`${group.owner}/${group.name}`))
+            <Select virtual={false} mode="multiple" style={{width: "100%"}} disabled={disabled} value={this.state.user.groups ?? []} onChange={((value: string[]) => {
+              const directorySyncedGroup = this.getDirectorySyncedGroupChange(this.state.user.groups ?? [], value);
+              if (directorySyncedGroup !== null) {
+                Setting.showMessage("error", i18next.t("general:Directory synced group membership cannot be changed here"));
+                return;
+              }
+
+              const selectedGroupIds = new Set(value.map(group => this.getCanonicalGroupId(group)));
+              if ((this.state.groups ?? []).filter(group => selectedGroupIds.has(this.getGroupRecordId(group)))
                 .filter(group => group.type === "Physical").length > 1) {
                 Setting.showMessage("error", i18next.t("general:You can only select one physical group"));
                 return;
@@ -716,10 +759,11 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
             })}
             >
               {
-                this.state.groups?.map((group) => <Option key={group.name} value={`${group.owner}/${group.name}`}>
+                this.state.groups?.map((group) => <Option key={group.name} value={`${group.owner}/${group.name}`} disabled={this.isDirectorySyncedGroup(group)}>
                   <Space>
                     {group.type === "Physical" ? <UsergroupAddOutlined /> : <HolderOutlined />}
                     {group.displayName}
+                    {this.isDirectorySyncedGroup(group) ? <Tag>{i18next.t("general:Directory synced")}</Tag> : null}
                   </Space>
                 </Option>)
               }

@@ -347,6 +347,13 @@ func (c *ApiController) UpdateUser() {
 		columns = strings.Split(columnsStr, ",")
 	}
 
+	if columnsStr == "" || util.InSlice(columns, "groups") {
+		if err := object.CheckManualUserGroupsUpdate(oldUser, &user); err != nil {
+			c.ResponseError(err.Error())
+			return
+		}
+	}
+
 	affected, err := object.UpdateUser(id, &user, columns, isAdmin)
 	if err != nil {
 		c.ResponseError(err.Error())
