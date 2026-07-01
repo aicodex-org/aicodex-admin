@@ -27,7 +27,7 @@ import type {LegacyAny} from "./AuthCoreTypes";
 const ShortOAuthStatePrefix = "casdoorOauth";
 const ShortOAuthStateStoragePrefix = "casdoor.oauth.shortState.";
 const ShortOAuthStateTtl = 10 * 60 * 1000;
-const t = i18next.t as (key: string) => string;
+const t = i18next.t.bind(i18next) as (key: string) => string;
 
 function getBrowserStorage(name: "sessionStorage" | "localStorage"): Storage | null {
   try {
