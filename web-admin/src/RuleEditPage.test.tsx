@@ -226,6 +226,15 @@ describe("RuleEditPage", () => {
     expect(organizationBackendMock.getOrganizations).toHaveBeenCalledWith("admin");
   });
 
+  test("uses scoped Gateway edit layout hooks", () => {
+    const page = createPage();
+    const view = render(<>{page.render()}</>);
+
+    expect(view.container.querySelector(".admin-gateway-edit-page")).not.toBeNull();
+    expect(view.container.querySelector(".admin-gateway-edit-card")).not.toBeNull();
+    expect(view.container.querySelectorAll(".admin-gateway-edit-field-row")).toHaveLength(8);
+  });
+
   test("skips organization loading for non-admin accounts", () => {
     jest.spyOn(Setting, "isAdminUser").mockReturnValue(false);
     const page = createPage();

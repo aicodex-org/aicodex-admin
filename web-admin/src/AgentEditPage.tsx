@@ -215,7 +215,7 @@ class AgentEditPage extends React.Component<AgentEditPageProps, AgentEditPageSta
     }
 
     return (
-      <Card size="small" title={
+      <Card className="admin-gateway-edit-card" size="small" title={
         <div>
           {this.state.mode === "add" ? t("agent:New Agent") : t("agent:Edit Agent")}&nbsp;&nbsp;&nbsp;&nbsp;
           <Button onClick={() => this.submitAgentEdit(false)}>{t("general:Save")}</Button>
@@ -223,7 +223,7 @@ class AgentEditPage extends React.Component<AgentEditPageProps, AgentEditPageSta
           {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteAgent()}>{t("general:Cancel")}</Button> : null}
         </div>
       } style={(Setting.isMobile()) ? {margin: "5px"} : {}} type="inner">
-        <Row style={{marginTop: "10px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "10px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Organization"), t("general:Organization - Tooltip"))} :
           </Col>
@@ -235,7 +235,7 @@ class AgentEditPage extends React.Component<AgentEditPageProps, AgentEditPageSta
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {t("general:Name")}:
           </Col>
@@ -245,7 +245,7 @@ class AgentEditPage extends React.Component<AgentEditPageProps, AgentEditPageSta
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {t("general:Display name")}:
           </Col>
@@ -255,7 +255,7 @@ class AgentEditPage extends React.Component<AgentEditPageProps, AgentEditPageSta
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Listening URL"), t("general:Listening URL - Tooltip"))} :
           </Col>
@@ -265,7 +265,7 @@ class AgentEditPage extends React.Component<AgentEditPageProps, AgentEditPageSta
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("token:Access token"), t("token:Access token - Tooltip"))} :
           </Col>
@@ -275,7 +275,7 @@ class AgentEditPage extends React.Component<AgentEditPageProps, AgentEditPageSta
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Application"), t("general:Application - Tooltip"))} :
           </Col>
@@ -297,7 +297,7 @@ class AgentEditPage extends React.Component<AgentEditPageProps, AgentEditPageSta
     }
 
     return (
-      <div>
+      <div className="admin-gateway-edit-page">
         {this.renderAgent()}
       </div>
     );

@@ -217,7 +217,7 @@ class EntryEditPage extends React.Component<EntryEditPageProps, EntryEditPageSta
     }
 
     return (
-      <Card size="small" title={
+      <Card className="admin-gateway-edit-card" size="small" title={
         <div>
           {this.state.mode === "add" ? t("entry:New Entry") : t("entry:Edit Entry")}&nbsp;&nbsp;&nbsp;&nbsp;
           <Button onClick={() => this.submitEntryEdit(false)}>{t("general:Save")}</Button>
@@ -225,7 +225,7 @@ class EntryEditPage extends React.Component<EntryEditPageProps, EntryEditPageSta
           {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteEntry()}>{t("general:Cancel")}</Button> : null}
         </div>
       } style={(Setting.isMobile()) ? {margin: "5px"} : {}} type="inner">
-        <Row style={{marginTop: "10px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "10px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Organization"), t("general:Organization - Tooltip"))} :
           </Col>
@@ -237,7 +237,7 @@ class EntryEditPage extends React.Component<EntryEditPageProps, EntryEditPageSta
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {t("general:Name")}:
           </Col>
@@ -247,7 +247,7 @@ class EntryEditPage extends React.Component<EntryEditPageProps, EntryEditPageSta
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {t("general:Display name")}:
           </Col>
@@ -257,7 +257,7 @@ class EntryEditPage extends React.Component<EntryEditPageProps, EntryEditPageSta
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Listening URL"), t("general:Listening URL - Tooltip"))} :
           </Col>
@@ -267,7 +267,7 @@ class EntryEditPage extends React.Component<EntryEditPageProps, EntryEditPageSta
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("token:Access token"), t("token:Access token - Tooltip"))} :
           </Col>
@@ -277,7 +277,7 @@ class EntryEditPage extends React.Component<EntryEditPageProps, EntryEditPageSta
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Application"), t("general:Application - Tooltip"))} :
           </Col>
@@ -289,7 +289,7 @@ class EntryEditPage extends React.Component<EntryEditPageProps, EntryEditPageSta
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {t("payment:Message")}:
           </Col>
@@ -309,7 +309,7 @@ class EntryEditPage extends React.Component<EntryEditPageProps, EntryEditPageSta
     }
 
     return (
-      <div>
+      <div className="admin-gateway-edit-page">
         {this.renderEntry()}
       </div>
     );

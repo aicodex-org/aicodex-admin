@@ -197,6 +197,15 @@ describe("AgentEditPage", () => {
     expect(applicationBackendMock.getApplicationsByOrganization).toHaveBeenCalledWith("admin", "engineering");
   });
 
+  test("uses scoped Gateway edit layout hooks", () => {
+    const page = createPage();
+    const view = render(<>{page.render()}</>);
+
+    expect(view.container.querySelector(".admin-gateway-edit-page")).not.toBeNull();
+    expect(view.container.querySelector(".admin-gateway-edit-card")).not.toBeNull();
+    expect(view.container.querySelectorAll(".admin-gateway-edit-field-row")).toHaveLength(6);
+  });
+
   test("redirects to 404 for missing agents and reports load failures", async() => {
     agentBackendMock.getAgent.mockResolvedValueOnce({status: "ok", data: null});
     const first = renderPage();

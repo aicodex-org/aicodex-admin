@@ -140,13 +140,13 @@ class RuleEditPage extends React.Component<RuleEditPageProps, RuleEditPageState>
     const rule = this.state.rule as RuleRecord;
 
     return (
-      <Card size="small" title={
+      <Card className="admin-gateway-edit-card" size="small" title={
         <div>
           {t("rule:Edit Rule")}&nbsp;&nbsp;&nbsp;&nbsp;
           <Button type="primary" onClick={this.submitRuleEdit.bind(this)}>{t("general:Save")}</Button>
         </div>
       } style={{marginTop: 10}} type="inner">
-        <Row style={{marginTop: "20px"}}>
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}}>
           <Col span={2} style={{marginTop: "5px"}}>
             {Setting.getLabel(t("general:Organization"), t("general:Organization - Tooltip"))} :
           </Col>
@@ -160,7 +160,7 @@ class RuleEditPage extends React.Component<RuleEditPageProps, RuleEditPageState>
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}}>
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}}>
           <Col span={2} style={{marginTop: "5px"}}>
             {t("general:Name")}:
           </Col>
@@ -170,7 +170,7 @@ class RuleEditPage extends React.Component<RuleEditPageProps, RuleEditPageState>
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}}>
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}}>
           <Col span={2} style={{marginTop: "5px"}}>
             {t("rule:Type")}:
           </Col>
@@ -190,7 +190,7 @@ class RuleEditPage extends React.Component<RuleEditPageProps, RuleEditPageState>
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={2}>
             {t("rule:Expressions")}:
           </Col>
@@ -253,7 +253,7 @@ class RuleEditPage extends React.Component<RuleEditPageProps, RuleEditPageState>
         </Row>
         {
           rule.type !== "WAF" && (
-            <Row style={{marginTop: "20px"}}>
+            <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}}>
               <Col span={2} style={{marginTop: "5px"}}>
                 {t("general:Action")}:
               </Col>
@@ -274,7 +274,7 @@ class RuleEditPage extends React.Component<RuleEditPageProps, RuleEditPageState>
         }
         {
           rule.type !== "WAF" && (rule.action === "Allow" || rule.action === "Block") && (
-            <Row style={{marginTop: "20px"}}>
+            <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}}>
               <Col span={2} style={{marginTop: "5px"}}>
                 {t("rule:Status code")}:
               </Col>
@@ -287,7 +287,7 @@ class RuleEditPage extends React.Component<RuleEditPageProps, RuleEditPageState>
           )
         }
         {
-          <Row style={{marginTop: "20px"}}>
+          <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}}>
             <Col span={2} style={{marginTop: "5px"}}>
               {t("rule:Reason")}:
             </Col>
@@ -300,7 +300,7 @@ class RuleEditPage extends React.Component<RuleEditPageProps, RuleEditPageState>
           </Row>
         }
         {
-          <Row style={{marginTop: "20px"}}>
+          <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}}>
             <Col span={2} style={{marginTop: "5px"}}>
               {t("rule:Verbose mode")}:
             </Col>
@@ -318,7 +318,7 @@ class RuleEditPage extends React.Component<RuleEditPageProps, RuleEditPageState>
 
   render(): React.ReactNode {
     return (
-      <div>
+      <div className="admin-gateway-edit-page">
         <Row style={{width: "100%"}}>
           <Col span={1}>
           </Col>

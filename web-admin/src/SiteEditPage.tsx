@@ -218,13 +218,13 @@ class SiteEditPage extends React.Component<SiteEditPageProps, SiteEditPageState>
 
   renderSite() {
     return (
-      <Card size="small" title={
+      <Card className="admin-gateway-edit-card" size="small" title={
         <div>
           {i18next.t("site:Edit Site")}&nbsp;&nbsp;&nbsp;&nbsp;
           <Button type="primary" onClick={this.submitSiteEdit.bind(this)}>{i18next.t("general:Save")}</Button>
         </div>
       } style={{marginLeft: "5px"}} type="inner">
-        <Row style={{marginTop: "10px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "10px"}} >
           <Col style={{marginTop: "5px"}} span={2}>
             {Setting.getLabel(i18next.t("general:Organization"), i18next.t("general:Organization - Tooltip"))} :
           </Col>
@@ -239,7 +239,7 @@ class SiteEditPage extends React.Component<SiteEditPageProps, SiteEditPageState>
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "10px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "10px"}} >
           <Col style={{marginTop: "5px"}} span={2}>
             {i18next.t("general:Name")}:
           </Col>
@@ -249,7 +249,7 @@ class SiteEditPage extends React.Component<SiteEditPageProps, SiteEditPageState>
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={2}>
             {i18next.t("general:Display name")}:
           </Col>
@@ -259,7 +259,7 @@ class SiteEditPage extends React.Component<SiteEditPageProps, SiteEditPageState>
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={2}>
             {i18next.t("general:Tag")}:
           </Col>
@@ -269,7 +269,7 @@ class SiteEditPage extends React.Component<SiteEditPageProps, SiteEditPageState>
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={2}>
             {i18next.t("site:Domain")}:
           </Col>
@@ -279,7 +279,7 @@ class SiteEditPage extends React.Component<SiteEditPageProps, SiteEditPageState>
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={2}>
             {i18next.t("site:Other domains")}:
           </Col>
@@ -291,7 +291,7 @@ class SiteEditPage extends React.Component<SiteEditPageProps, SiteEditPageState>
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={2}>
             {i18next.t("site:Need redirect")}:
           </Col>
@@ -301,7 +301,7 @@ class SiteEditPage extends React.Component<SiteEditPageProps, SiteEditPageState>
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={2}>
             {i18next.t("site:Disable verbose")}:
           </Col>
@@ -311,7 +311,7 @@ class SiteEditPage extends React.Component<SiteEditPageProps, SiteEditPageState>
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={2}>
             {i18next.t("site:Rules")}:
           </Col>
@@ -325,7 +325,7 @@ class SiteEditPage extends React.Component<SiteEditPageProps, SiteEditPageState>
             />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col span={2} style={{marginTop: "5px"}}>
             {i18next.t("site:Enable alert")}:
           </Col>
@@ -337,7 +337,7 @@ class SiteEditPage extends React.Component<SiteEditPageProps, SiteEditPageState>
         </Row>
         {
           this.state.site.enableAlert ? (
-            <Row style={{marginTop: "20px"}} >
+            <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
               <Col span={2} style={{marginTop: "5px"}}>
                 {i18next.t("site:Alert interval")}:
               </Col>
@@ -351,7 +351,7 @@ class SiteEditPage extends React.Component<SiteEditPageProps, SiteEditPageState>
         }
         {
           this.state.site.enableAlert ? (
-            <Row style={{marginTop: "20px"}} >
+            <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
               <Col span={2} style={{marginTop: "5px"}}>
                 {i18next.t("site:Alert try times")}:
               </Col>
@@ -365,7 +365,7 @@ class SiteEditPage extends React.Component<SiteEditPageProps, SiteEditPageState>
         }
         {
           this.state.site.enableAlert ? (
-            <Row style={{marginTop: "20px"}} >
+            <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
               <Col style={{marginTop: "5px"}} span={2}>
                 {i18next.t("site:Alert providers")}:
               </Col>
@@ -379,7 +379,7 @@ class SiteEditPage extends React.Component<SiteEditPageProps, SiteEditPageState>
             </Row>
           ) : null
         }
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={2}>
             {i18next.t("site:Challenges")}:
           </Col>
@@ -391,7 +391,7 @@ class SiteEditPage extends React.Component<SiteEditPageProps, SiteEditPageState>
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={2}>
             {i18next.t("site:Host")}:
           </Col>
@@ -401,7 +401,7 @@ class SiteEditPage extends React.Component<SiteEditPageProps, SiteEditPageState>
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={2}>
             {i18next.t("site:Port")}:
           </Col>
@@ -411,7 +411,7 @@ class SiteEditPage extends React.Component<SiteEditPageProps, SiteEditPageState>
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={2}>
             {i18next.t("site:Hosts")}:
           </Col>
@@ -423,7 +423,7 @@ class SiteEditPage extends React.Component<SiteEditPageProps, SiteEditPageState>
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={2}>
             {i18next.t("site:Public IP")}:
           </Col>
@@ -433,7 +433,7 @@ class SiteEditPage extends React.Component<SiteEditPageProps, SiteEditPageState>
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={2}>
             {i18next.t("site:Mode")}:
           </Col>
@@ -450,7 +450,7 @@ class SiteEditPage extends React.Component<SiteEditPageProps, SiteEditPageState>
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={2}>
             {i18next.t("site:SSL cert")}:
           </Col>
@@ -464,7 +464,7 @@ class SiteEditPage extends React.Component<SiteEditPageProps, SiteEditPageState>
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={2}>
             {i18next.t("site:aicodex-admin app")}:
           </Col>
@@ -478,7 +478,7 @@ class SiteEditPage extends React.Component<SiteEditPageProps, SiteEditPageState>
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={2}>
             {i18next.t("site:Status")}:
           </Col>
@@ -521,7 +521,7 @@ class SiteEditPage extends React.Component<SiteEditPageProps, SiteEditPageState>
 
   render() {
     return (
-      <div>
+      <div className="admin-gateway-edit-page">
         <Row style={{width: "100%"}}>
           <Col span={1}>
           </Col>

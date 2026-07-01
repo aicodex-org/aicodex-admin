@@ -234,7 +234,7 @@ class ServerEditPage extends React.Component<ServerEditPageProps, ServerEditPage
     const server = this.state.server;
 
     return (
-      <Card size="small" title={
+      <Card className="admin-gateway-edit-card" size="small" title={
         <div>
           {this.state.mode === "add" ? t("server:New MCP Server") : t("server:Edit MCP Server")}&nbsp;&nbsp;&nbsp;&nbsp;
           <Button onClick={() => this.submitServerEdit(false)}>{t("general:Save")}</Button>
@@ -242,7 +242,7 @@ class ServerEditPage extends React.Component<ServerEditPageProps, ServerEditPage
           {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteServer()}>{t("general:Cancel")}</Button> : null}
         </div>
       } style={(Setting.isMobile()) ? {margin: "5px"} : {}} type="inner">
-        <Row style={{marginTop: "10px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "10px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Organization"), t("general:Organization - Tooltip"))} :
           </Col>
@@ -254,7 +254,7 @@ class ServerEditPage extends React.Component<ServerEditPageProps, ServerEditPage
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {t("general:Name")}:
           </Col>
@@ -264,7 +264,7 @@ class ServerEditPage extends React.Component<ServerEditPageProps, ServerEditPage
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {t("general:Display name")}:
           </Col>
@@ -274,7 +274,7 @@ class ServerEditPage extends React.Component<ServerEditPageProps, ServerEditPage
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:URL"), t("general:URL - Tooltip"))} :
           </Col>
@@ -284,7 +284,7 @@ class ServerEditPage extends React.Component<ServerEditPageProps, ServerEditPage
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("token:Access token"), t("token:Access token - Tooltip"))} :
           </Col>
@@ -294,7 +294,7 @@ class ServerEditPage extends React.Component<ServerEditPageProps, ServerEditPage
             }} />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Application"), t("general:Application - Tooltip"))} :
           </Col>
@@ -306,7 +306,7 @@ class ServerEditPage extends React.Component<ServerEditPageProps, ServerEditPage
             </Select>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("general:Tool"), t("general:Tool - Tooltip"))} :
           </Col>
@@ -317,7 +317,7 @@ class ServerEditPage extends React.Component<ServerEditPageProps, ServerEditPage
             />
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
+        <Row className="admin-gateway-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(t("provider:Base URL"), t("provider:Base URL - Tooltip"))} :
           </Col>
@@ -335,7 +335,7 @@ class ServerEditPage extends React.Component<ServerEditPageProps, ServerEditPage
     }
 
     return (
-      <div>
+      <div className="admin-gateway-edit-page">
         {this.renderServer()}
       </div>
     );

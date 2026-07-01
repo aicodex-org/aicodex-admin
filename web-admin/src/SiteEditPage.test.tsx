@@ -350,6 +350,15 @@ describe("SiteEditPage", () => {
     expect(view.container.textContent).toMatch(/site:Rules|治理规则|Rules/);
   });
 
+  test("uses scoped Gateway edit layout hooks", () => {
+    const page = createPage();
+    const view = render(<>{page.render()}</>);
+
+    expect(view.container.querySelector(".admin-gateway-edit-page")).not.toBeNull();
+    expect(view.container.querySelector(".admin-gateway-edit-card")).not.toBeNull();
+    expect(view.container.querySelectorAll(".admin-gateway-edit-field-row").length).toBeGreaterThanOrEqual(20);
+  });
+
   test("keeps select, switch, number and RuleTable handlers wired to site state", () => {
     const page = createPage();
     const elements = flattenElements(page.renderSite());
