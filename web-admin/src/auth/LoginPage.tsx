@@ -47,7 +47,7 @@ import {getLoginPanelClassName, shouldHidePasswordRecoveryForLoginMethod} from "
 import type {LegacyAny, LegacyRecord} from "./AuthCoreTypes";
 const FaceRecognitionCommonModal = lazy(() => import("../common/modal/FaceRecognitionCommonModal"));
 const FaceRecognitionModal = lazy(() => import("../common/modal/FaceRecognitionModal"));
-const t = i18next.t.bind(i18next) as (key: string) => string;
+const t = (key: string): string => String(i18next.t(key));
 const LegacySendCodeInput = SendCodeInput as React.ComponentType<LegacyAny>;
 const LegacyGoogleOneTapLoginVirtualButton = GoogleOneTapLoginVirtualButton as React.ComponentType<LegacyAny>;
 

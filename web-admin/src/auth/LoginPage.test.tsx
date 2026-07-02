@@ -45,3 +45,16 @@ describe("LoginPage authorization errors", () => {
     expect(() => page.render()).not.toThrow();
   });
 });
+
+describe("LoginPage renderForm", () => {
+  test("keeps i18n translation callable when rendering signup-disabled result", () => {
+    const page = createLoginPage("password");
+    (page.state as LegacyAny).mode = "signup";
+
+    expect(() => page.renderForm({
+      organization: "built-in",
+      name: "app-built-in",
+      enableSignUp: false,
+    })).not.toThrow();
+  });
+});
