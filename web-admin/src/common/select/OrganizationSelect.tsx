@@ -48,6 +48,7 @@ function OrganizationSelect(props: LegacyAny) {
         if (res.status === "ok") {
           const organizationList = res.data ?? [];
           setOrganizations(organizationList);
+          props.onOrganizationsLoaded?.(organizationList);
           const items = getOrganizationItems(organizationList);
           const selectedValueExist = items.filter((organization: LegacyAny) => organization.value === value).length > 0;
           if ((initValue === undefined || !selectedValueExist) && items.length > 0) {

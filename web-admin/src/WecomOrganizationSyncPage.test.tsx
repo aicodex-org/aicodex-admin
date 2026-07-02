@@ -18,6 +18,7 @@ import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {act, render} from "@testing-library/react";
 import * as Setting from "./Setting";
 import * as FeishuOrganizationSyncBackend from "./backend/FeishuOrganizationSyncBackend";
+import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as WecomOrganizationSyncBackend from "./backend/WecomOrganizationSyncBackend";
 import WecomOrganizationSyncPage from "./WecomOrganizationSyncPage";
 
@@ -65,7 +66,23 @@ jest.mock("./backend/FeishuOrganizationSyncBackend", () => {
   };
 });
 
-jest.mock("./common/select/OrganizationSelect", () => (props: {initValue?: string; excludedOrganizations?: string[]; onChange: (value: string) => void}) => {
+jest.mock("./backend/OrganizationBackend", () => {
+  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+  return {
+    addOrganization: factoryJest.fn(),
+  };
+});
+
+jest.mock("./common/select/OrganizationSelect", () => (props: {initValue?: string; excludedOrganizations?: string[]; onChange: (value: string) => void; onOrganizationsLoaded?: (organizations: Array<{name: string; displayName: string}>) => void}) => {
+  const mockReact = require("react") as {useEffect: (effect: () => void, deps?: unknown[]) => void};
+  mockReact.useEffect(() => {
+    props.onOrganizationsLoaded?.([
+      {name: "built-in", displayName: "Built-in Organization"},
+      {name: "engineering", displayName: "测试组织"},
+      {name: "feishu-occupied", displayName: "Feishu Occupied"},
+      {name: "support", displayName: "Support"},
+    ]);
+  }, [props.onOrganizationsLoaded]);
   const organizations = [
     {value: "built-in", label: "Built-in Organization"},
     {value: "engineering", label: "engineering"},
@@ -87,9 +104,11 @@ type LooseMock = {
 };
 type WecomBackendMock = Record<keyof typeof WecomOrganizationSyncBackend, LooseMock>;
 type FeishuBackendMock = Record<keyof typeof FeishuOrganizationSyncBackend, LooseMock>;
+type OrganizationBackendMock = Record<keyof typeof OrganizationBackend, LooseMock>;
 
 const wecomBackendMock = WecomOrganizationSyncBackend as unknown as WecomBackendMock;
 const feishuBackendMock = FeishuOrganizationSyncBackend as unknown as FeishuBackendMock;
+const organizationBackendMock = OrganizationBackend as unknown as OrganizationBackendMock;
 const {fireEvent, screen} = require("@testing-library/react") as {
   fireEvent: {
     click: (element: Element | null) => boolean;
@@ -127,6 +146,8 @@ beforeEach(() => {
   localStorage.removeItem("organization");
   localStorage.removeItem("wecom-org-sync:lastOrganization");
   jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  jestValue.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
+  organizationBackendMock.addOrganization.mockResolvedValue({status: "ok"});
   mockConfig();
   feishuBackendMock.getFeishuOrganizationSyncConfig.mockResolvedValue({status: "ok", data: {config: null}});
   wecomBackendMock.getWecomOrganizationSyncRuns.mockResolvedValue({status: "ok", data: [], data2: 0});
@@ -308,7 +329,8 @@ test("shows source conflict warning and disables saving or enabling WeCom full s
   render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
   expect(await screen.findByText("Feishu/Lark 已选择为当前组织的通讯录同步来源")).toBeInTheDocument();
-  expect(screen.getByText(/已被 Feishu\/Lark 占用/)).toBeInTheDocument();
+  expect(await screen.findByText(/当前组织 测试组织 已被 Feishu\/Lark 占用/)).toBeInTheDocument();
+  expect(screen.queryByText(/当前组织 engineering 已被 Feishu\/Lark 占用/)).not.toBeInTheDocument();
   const enableSwitch = screen.getByText("启用同步").closest(".ant-space")?.querySelector("button") || null;
   expect(enableSwitch).toBeDisabled();
   expect(screen.getByText("开始全量同步").closest("button")).toBeDisabled();
@@ -367,13 +389,19 @@ test("filters organizations occupied by Feishu from the sync target selector", a
   expect(screen.getByText("保存").closest("button")).not.toBeDisabled();
 });
 
-test("navigates to organization list when creating sync target organization", async() => {
+test("pre-creates organization and opens edit page when creating WeCom sync target organization", async() => {
   const history = {push: jestValue.fn()};
   render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} history={history} />);
 
   fireEvent.click(await screen.findByText("新建组织"));
+  await flushMicrotasks();
 
-  expect(history.push).toHaveBeenCalledWith("/organizations");
+  expect(organizationBackendMock.addOrganization).toHaveBeenCalledWith(expect.objectContaining({
+    owner: "admin",
+    name: "organization_abc123",
+    displayName: "New Organization - abc123",
+  }));
+  expect(history.push).toHaveBeenCalledWith({pathname: "/organizations/organization_abc123", mode: "add"});
 });
 
 test("renders sync run history with status, counts, and safe error summary", async() => {

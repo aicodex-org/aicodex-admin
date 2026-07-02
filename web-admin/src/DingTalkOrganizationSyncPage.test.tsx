@@ -6,6 +6,7 @@ import {render} from "@testing-library/react";
 import i18next from "i18next";
 import * as Setting from "./Setting";
 import * as DingTalkOrganizationSyncBackend from "./backend/DingTalkOrganizationSyncBackend";
+import * as OrganizationBackend from "./backend/OrganizationBackend";
 import DingTalkOrganizationSyncPage from "./DingTalkOrganizationSyncPage";
 
 declare const jest: typeof jestValue;
@@ -41,7 +42,23 @@ jest.mock("./backend/DingTalkOrganizationSyncBackend", () => {
   };
 });
 
-jest.mock("./common/select/OrganizationSelect", () => function OrganizationSelectMock(props: {initValue?: string; excludedOrganizations?: string[]; onChange?: (value: string) => void}) {
+jest.mock("./backend/OrganizationBackend", () => {
+  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+  return {
+    addOrganization: factoryJest.fn(),
+  };
+});
+
+jest.mock("./common/select/OrganizationSelect", () => function OrganizationSelectMock(props: {initValue?: string; excludedOrganizations?: string[]; onChange?: (value: string) => void; onOrganizationsLoaded?: (organizations: Array<{name: string; displayName: string}>) => void}) {
+  const mockReact = require("react") as {useEffect: (effect: () => void, deps?: unknown[]) => void};
+  mockReact.useEffect(() => {
+    props.onOrganizationsLoaded?.([
+      {name: "built-in", displayName: "Built-in Organization"},
+      {name: "engineering", displayName: "测试组织"},
+      {name: "wecom-occupied", displayName: "WeCom Occupied"},
+      {name: "support", displayName: "Support"},
+    ]);
+  }, [props.onOrganizationsLoaded]);
   const organizations = [
     {value: "built-in", label: "Built-in Organization"},
     {value: "engineering", label: "engineering"},
@@ -62,8 +79,10 @@ type LooseMock = {
   mockRejectedValueOnce: (value: unknown) => LooseMock;
 };
 type DingTalkBackendMock = Record<keyof typeof DingTalkOrganizationSyncBackend, LooseMock>;
+type OrganizationBackendMock = Record<keyof typeof OrganizationBackend, LooseMock>;
 
 const dingtalkBackendMock = DingTalkOrganizationSyncBackend as unknown as DingTalkBackendMock;
+const organizationBackendMock = OrganizationBackend as unknown as OrganizationBackendMock;
 const {fireEvent, screen} = require("@testing-library/react") as {
   fireEvent: {
     click: (element: Element | null) => boolean;
@@ -99,6 +118,8 @@ beforeEach(() => {
   });
   localStorage.removeItem("dingtalk-org-sync:lastOrganization");
   jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  jestValue.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
+  organizationBackendMock.addOrganization.mockResolvedValue({status: "ok"});
   mockConfig();
   dingtalkBackendMock.getDingTalkOrganizationSyncRuns.mockResolvedValue({status: "ok", data: [], data2: 0});
   dingtalkBackendMock.testDingTalkOrganizationSyncConfig.mockResolvedValue({
@@ -292,7 +313,8 @@ test("shows source conflict warning, disables actions, and filters occupied orga
   render(<DingTalkOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
   expect(await screen.findByText("WeCom 已选择为当前组织的通讯录同步来源")).toBeInTheDocument();
-  expect(screen.getByText(/已被 WeCom 占用/)).toBeInTheDocument();
+  expect(await screen.findByText(/当前组织 测试组织 已被 WeCom 占用/)).toBeInTheDocument();
+  expect(screen.queryByText(/当前组织 engineering 已被 WeCom 占用/)).not.toBeInTheDocument();
   expect(screen.queryByText("wecom-occupied")).not.toBeInTheDocument();
   expect(screen.getByText("support")).toBeInTheDocument();
   const enableSwitch = screen.getByText("启用同步").closest(".ant-space")?.querySelector("button") || null;
@@ -301,7 +323,7 @@ test("shows source conflict warning, disables actions, and filters occupied orga
   expect(screen.getByText("保存").closest("button")).toBeDisabled();
 });
 
-test("renders DingTalk schedule diagnostics, organization changes, and navigation action", async() => {
+test("renders DingTalk schedule diagnostics, organization changes, and create-organization action", async() => {
   const history = {push: jestValue.fn()};
   mockConfig({
     scheduleEnabled: true,
@@ -321,7 +343,13 @@ test("renders DingTalk schedule diagnostics, organization changes, and navigatio
   expect(screen.getByText("最近结果：failed，safe schedule error")).toBeInTheDocument();
 
   fireEvent.click(screen.getByText("新建组织"));
-  expect(history.push).toHaveBeenCalledWith("/organizations");
+  await flushPromises();
+  expect(organizationBackendMock.addOrganization).toHaveBeenCalledWith(expect.objectContaining({
+    owner: "admin",
+    name: "organization_abc123",
+    displayName: "New Organization - abc123",
+  }));
+  expect(history.push).toHaveBeenCalledWith({pathname: "/organizations/organization_abc123", mode: "add"});
 
   fireEvent.change(screen.getByTestId("organization-select"), {target: {value: "support"}});
   await flushPromises();

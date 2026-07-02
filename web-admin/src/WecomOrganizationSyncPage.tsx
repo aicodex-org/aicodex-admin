@@ -28,6 +28,12 @@ import {
   OrganizationSyncRunRecordHeader,
   OrganizationSyncSectionCard
 } from "./organizationSync/OrganizationSyncShell";
+import {openNewSyncTargetOrganization} from "./organizationSync/SyncTargetOrganization";
+import {
+  areOrganizationDisplayNameMapsEqual,
+  buildOrganizationDisplayNameMap,
+  resolveOrganizationDisplayName
+} from "./organizationSync/OrganizationDisplayNames";
 
 const {Text} = Typography;
 const syncRunPollIntervalMs = 3000;
@@ -51,7 +57,7 @@ interface AdminAccount {
 interface WecomOrganizationSyncPageProps {
   account?: AdminAccount;
   history?: {
-    push?: (path: string) => void;
+    push?: (location: string | {pathname: string; mode?: string}) => void;
   };
 }
 
@@ -168,6 +174,7 @@ interface WecomOrganizationSyncTestResult {
 
 interface WecomOrganizationSyncPageState {
   organization: string;
+  organizationDisplayNames: OrganizationDisplayNameMap;
   config: WecomOrganizationSyncConfig | null;
   sourceStatus: OrganizationSyncSourceStatus;
   runs: WecomOrganizationSyncRun[];
@@ -207,6 +214,8 @@ interface ApiResponse<T = unknown> {
 }
 
 type OrganizationSyncSourceStatus = LegacyOrganizationSyncSourceStatus;
+type OrganizationDisplayNameMap = ReturnType<typeof buildOrganizationDisplayNameMap>;
+type OrganizationDisplayNameRecords = NonNullable<Parameters<typeof buildOrganizationDisplayNameMap>[0]>;
 
 interface WecomConfigResponseData {
   organization?: string;
@@ -259,6 +268,7 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
     const organization = this.getInitialOrganization(props.account);
     this.state = {
       organization,
+      organizationDisplayNames: {},
       config: null,
       sourceStatus: {},
       runs: [],
@@ -552,6 +562,18 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
       .filter(organization => organization && organization !== currentOrganization);
   }
 
+  updateOrganizationDisplayNames(organizations: OrganizationDisplayNameRecords): void {
+    const organizationDisplayNames = buildOrganizationDisplayNameMap(organizations);
+    if (areOrganizationDisplayNameMapsEqual(this.state.organizationDisplayNames, organizationDisplayNames)) {
+      return;
+    }
+    this.setState({organizationDisplayNames});
+  }
+
+  getOrganizationDisplayName(organization?: string): string {
+    return resolveOrganizationDisplayName(this.state.organizationDisplayNames, organization);
+  }
+
   hasStatusConflict(status: OrganizationSyncSourceStatus): boolean {
     return getDirectorySourceUiStatus(status).blocked;
   }
@@ -563,7 +585,7 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
   getSourceConflictActionMessage(actionText: string): string {
     const status = getDirectorySourceUiStatus(this.state.sourceStatus);
     if (status.abnormal) {
-      const organization = status.organization || this.state.organization || "-";
+      const organization = this.getOrganizationDisplayName(status.organization || this.state.organization);
       return `当前组织 ${organization} 存在多个已配置通讯录来源，属于数据异常，请排障或新建组织后再操作。`;
     }
     return `当前组织已被其他通讯录同步来源占用，${actionText}`;
@@ -658,12 +680,8 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
     }, () => this.refresh(targetOrganization));
   }
 
-  goToOrganizationList() {
-    if (this.props.history?.push) {
-      this.props.history.push("/organizations");
-      return;
-    }
-    window.location.href = "/organizations";
+  createSyncTargetOrganization() {
+    void openNewSyncTargetOrganization(this.props.history);
   }
 
   saveConfig() {
@@ -1364,10 +1382,11 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
           <OrganizationSelect
             initValue={this.state.organization}
             onChange={(organization: string) => this.changeOrganization(organization)}
+            onOrganizationsLoaded={(organizations: OrganizationDisplayNameRecords) => this.updateOrganizationDisplayNames(organizations)}
             excludedOrganizations={["built-in", ...this.getExcludedSourceOrganizations()]}
             style={{minWidth: 280, width: "100%"}}
           />
-          <Button icon={<PlusOutlined />} onClick={() => this.goToOrganizationList()}>
+          <Button icon={<PlusOutlined />} onClick={() => this.createSyncTargetOrganization()}>
             新建组织
           </Button>
         </Space.Compact>
@@ -1394,7 +1413,7 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
     }
     const status = getDirectorySourceUiStatus(this.state.sourceStatus);
     const provider = status.provider || "另一通讯录来源";
-    const organization = status.organization || this.state.organization || "-";
+    const organization = this.getOrganizationDisplayName(status.organization || this.state.organization);
     if (status.abnormal) {
       return (
         <Alert

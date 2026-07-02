@@ -4,7 +4,7 @@
 
 import React from "react";
 import {Alert, Button, Col, Collapse, Drawer, Input, Modal, Row, Select, Space, Switch, Table, Tag, Tooltip, Typography} from "antd";
-import {CloudSyncOutlined, CopyOutlined, DownloadOutlined, PlayCircleOutlined, ReloadOutlined, SaveOutlined, ToolOutlined} from "@ant-design/icons";
+import {CloudSyncOutlined, CopyOutlined, DownloadOutlined, PlayCircleOutlined, PlusOutlined, ReloadOutlined, SaveOutlined, ToolOutlined} from "@ant-design/icons";
 import * as Setting from "./Setting";
 import * as FeishuOrganizationSyncBackend from "./backend/FeishuOrganizationSyncBackend";
 import * as WecomOrganizationSyncBackend from "./backend/WecomOrganizationSyncBackend";
@@ -20,6 +20,12 @@ import {
 } from "./organizationSync/OrganizationSyncShell";
 import {getFeishuEndpointContextText} from "./organizationSync/FeishuOrganizationSyncTypes";
 import {getDirectorySourceUiStatus} from "./organizationDirectorySourceStatus";
+import {openNewSyncTargetOrganization} from "./organizationSync/SyncTargetOrganization";
+import {
+  areOrganizationDisplayNameMapsEqual,
+  buildOrganizationDisplayNameMap,
+  resolveOrganizationDisplayName
+} from "./organizationSync/OrganizationDisplayNames";
 
 const {Text} = Typography;
 const syncRunPollIntervalMs = 3000;
@@ -44,6 +50,8 @@ type FeishuHandoffCounts = FeishuOrganizationSyncBackend.FeishuHandoffCounts;
 type FeishuHandoffEvidence = FeishuOrganizationSyncBackend.FeishuHandoffEvidence;
 type FeishuOrganizationSyncConfig = FeishuOrganizationSyncBackend.FeishuOrganizationSyncConfig;
 type OrganizationSyncSourceStatus = FeishuOrganizationSyncBackend.OrganizationSyncSourceStatus;
+type OrganizationDisplayNameMap = ReturnType<typeof buildOrganizationDisplayNameMap>;
+type OrganizationDisplayNameRecords = NonNullable<Parameters<typeof buildOrganizationDisplayNameMap>[0]>;
 type FeishuOrganizationSyncRunRecord = FeishuOrganizationSyncBackend.FeishuOrganizationSyncRunRecord;
 type FeishuUserBindingConflictCounts = FeishuOrganizationSyncBackend.FeishuUserBindingConflictCounts;
 type FeishuUserBindingConflictIssue = FeishuOrganizationSyncBackend.FeishuUserBindingConflictIssue;
@@ -66,6 +74,9 @@ interface FeishuOrganizationSyncPageAccount {
 
 interface FeishuOrganizationSyncPageProps {
   account?: FeishuOrganizationSyncPageAccount;
+  history?: {
+    push?: (location: string | {pathname: string; mode?: string}) => void;
+  };
 }
 
 interface FeishuTablePagination {
@@ -98,6 +109,7 @@ type BindingDiagnosticsPayload = FeishuUserBindingConflictSummary | FeishuUserBi
 
 interface FeishuOrganizationSyncPageState {
   organization: string;
+  organizationDisplayNames: OrganizationDisplayNameMap;
   config: FeishuOrganizationSyncConfig | null;
   sourceStatus: OrganizationSyncSourceStatus;
   runs: FeishuOrganizationSyncRunRecord[];
@@ -296,6 +308,7 @@ class FeishuOrganizationSyncPage extends React.Component<FeishuOrganizationSyncP
     const organization = this.getInitialOrganization(props.account);
     this.state = {
       organization,
+      organizationDisplayNames: {},
       config: null,
       sourceStatus: {},
       runs: [],
@@ -688,6 +701,18 @@ class FeishuOrganizationSyncPage extends React.Component<FeishuOrganizationSyncP
       .filter(organization => organization && organization !== currentOrganization);
   }
 
+  updateOrganizationDisplayNames(organizations: OrganizationDisplayNameRecords): void {
+    const organizationDisplayNames = buildOrganizationDisplayNameMap(organizations);
+    if (areOrganizationDisplayNameMapsEqual(this.state.organizationDisplayNames, organizationDisplayNames)) {
+      return;
+    }
+    this.setState({organizationDisplayNames});
+  }
+
+  getOrganizationDisplayName(organization?: string): string {
+    return resolveOrganizationDisplayName(this.state.organizationDisplayNames, organization);
+  }
+
   hasStatusConflict(status: OrganizationSyncSourceStatus): boolean {
     return getDirectorySourceUiStatus(status).blocked;
   }
@@ -699,7 +724,7 @@ class FeishuOrganizationSyncPage extends React.Component<FeishuOrganizationSyncP
   getSourceConflictActionMessage(actionText: string): string {
     const status = getDirectorySourceUiStatus(this.state.sourceStatus);
     if (status.abnormal) {
-      const organization = status.organization || this.state.organization || "-";
+      const organization = this.getOrganizationDisplayName(status.organization || this.state.organization);
       return `当前组织 ${organization} 存在多个已配置通讯录来源，属于数据异常，请排障或新建组织后再操作。`;
     }
     return `当前组织已被其他通讯录同步来源占用，${actionText}`;
@@ -791,6 +816,10 @@ class FeishuOrganizationSyncPage extends React.Component<FeishuOrganizationSyncP
       handoffEvidenceError: "",
       handoffEvidenceDetailsOpen: false,
     }, () => this.refresh(targetOrganization));
+  }
+
+  createSyncTargetOrganization() {
+    void openNewSyncTargetOrganization(this.props.history);
   }
 
   saveConfig() {
@@ -2036,7 +2065,7 @@ class FeishuOrganizationSyncPage extends React.Component<FeishuOrganizationSyncP
     }
     const status = getDirectorySourceUiStatus(this.state.sourceStatus);
     const provider = status.provider || "另一通讯录来源";
-    const organization = status.organization || this.state.organization || "-";
+    const organization = this.getOrganizationDisplayName(status.organization || this.state.organization);
     if (status.abnormal) {
       return (
         <Alert
@@ -2119,6 +2148,33 @@ class FeishuOrganizationSyncPage extends React.Component<FeishuOrganizationSyncP
     );
   }
 
+  renderOrganizationSelector() {
+    return (
+      <div className="organization-sync-target-selector">
+        <Space style={{marginBottom: 8}}>
+          <Text strong>同步目标组织</Text>
+        </Space>
+        <Space.Compact style={{width: "100%"}}>
+          <OrganizationSelect
+            initValue={this.state.organization}
+            onChange={(organization: string) => this.changeOrganization(organization)}
+            onOrganizationsLoaded={(organizations: OrganizationDisplayNameRecords) => this.updateOrganizationDisplayNames(organizations)}
+            excludedOrganizations={["built-in", ...this.getExcludedSourceOrganizations()]}
+            style={{minWidth: 280, width: "100%"}}
+          />
+          <Button icon={<PlusOutlined />} onClick={() => this.createSyncTargetOrganization()}>
+            新建组织
+          </Button>
+        </Space.Compact>
+        <div style={{marginTop: 6}}>
+          <Text type="secondary">
+            选择要绑定飞书通讯录的 aicodex-admin 组织。不同组织的 App ID、App Secret 和同步记录互不混用。
+          </Text>
+        </div>
+      </div>
+    );
+  }
+
   render() {
     const config = this.state.config;
     if (config === null) {
@@ -2150,13 +2206,7 @@ class FeishuOrganizationSyncPage extends React.Component<FeishuOrganizationSyncP
         <OrganizationSyncSectionCard variant="config">
           <Row className="organization-sync-config-grid" gutter={[16, 16]}>
             <Col xs={24} md={12}>
-              <div style={{marginBottom: 8}}>同步目标组织</div>
-              <OrganizationSelect
-                initValue={this.state.organization}
-                onChange={(organization: string) => this.changeOrganization(organization)}
-                excludedOrganizations={["built-in", ...this.getExcludedSourceOrganizations()]}
-                style={{minWidth: 280, width: "100%"}}
-              />
+              {this.renderOrganizationSelector()}
             </Col>
             <Col xs={24} md={12}>
               <div style={{marginBottom: 8}}>服务区域</div>

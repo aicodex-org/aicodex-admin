@@ -33,6 +33,12 @@ import {
   OrganizationSyncRunRecordHeader,
   OrganizationSyncSectionCard
 } from "./organizationSync/OrganizationSyncShell";
+import {openNewSyncTargetOrganization} from "./organizationSync/SyncTargetOrganization";
+import {
+  areOrganizationDisplayNameMapsEqual,
+  buildOrganizationDisplayNameMap,
+  resolveOrganizationDisplayName
+} from "./organizationSync/OrganizationDisplayNames";
 
 const {Text} = Typography;
 const syncRunPollIntervalMs = 3000;
@@ -56,7 +62,7 @@ interface AdminAccount {
 interface DingTalkOrganizationSyncPageProps {
   account?: AdminAccount;
   history?: {
-    push?: (path: string) => void;
+    push?: (location: string | {pathname: string; mode?: string}) => void;
   };
 }
 
@@ -74,6 +80,7 @@ interface TablePaginationChange {
 
 interface DingTalkOrganizationSyncPageState {
   organization: string;
+  organizationDisplayNames: OrganizationDisplayNameMap;
   config: DingTalkOrganizationSyncConfig;
   sourceStatus: OrganizationSyncSourceStatus;
   runs: DingTalkOrganizationSyncRunRecord[];
@@ -94,6 +101,8 @@ interface RefreshRunsOptions {
 }
 
 type OrganizationSyncSourceStatus = LegacyOrganizationSyncSourceStatus;
+type OrganizationDisplayNameMap = ReturnType<typeof buildOrganizationDisplayNameMap>;
+type OrganizationDisplayNameRecords = NonNullable<Parameters<typeof buildOrganizationDisplayNameMap>[0]>;
 
 class DingTalkOrganizationSyncPage extends React.Component<DingTalkOrganizationSyncPageProps, DingTalkOrganizationSyncPageState> {
   private runRefreshTimer: ReturnType<typeof setTimeout> | null;
@@ -106,6 +115,7 @@ class DingTalkOrganizationSyncPage extends React.Component<DingTalkOrganizationS
     const organization = this.getInitialOrganization(props.account);
     this.state = {
       organization,
+      organizationDisplayNames: {},
       config: this.normalizeConfig(organization),
       sourceStatus: {},
       runs: [],
@@ -345,6 +355,18 @@ class DingTalkOrganizationSyncPage extends React.Component<DingTalkOrganizationS
       .filter(organization => organization && organization !== currentOrganization);
   }
 
+  updateOrganizationDisplayNames(organizations: OrganizationDisplayNameRecords): void {
+    const organizationDisplayNames = buildOrganizationDisplayNameMap(organizations);
+    if (areOrganizationDisplayNameMapsEqual(this.state.organizationDisplayNames, organizationDisplayNames)) {
+      return;
+    }
+    this.setState({organizationDisplayNames});
+  }
+
+  getOrganizationDisplayName(organization?: string): string {
+    return resolveOrganizationDisplayName(this.state.organizationDisplayNames, organization);
+  }
+
   hasStatusConflict(status: OrganizationSyncSourceStatus): boolean {
     return getDirectorySourceUiStatus(status).blocked;
   }
@@ -356,7 +378,7 @@ class DingTalkOrganizationSyncPage extends React.Component<DingTalkOrganizationS
   getSourceConflictActionMessage(actionText: string): string {
     const status = getDirectorySourceUiStatus(this.state.sourceStatus);
     if (status.abnormal) {
-      const organization = status.organization || this.state.organization || "-";
+      const organization = this.getOrganizationDisplayName(status.organization || this.state.organization);
       return `当前组织 ${organization} 存在多个已配置通讯录来源，属于数据异常，请排障或新建组织后再操作。`;
     }
     return `当前组织已被其他通讯录同步来源占用，${actionText}`;
@@ -416,12 +438,8 @@ class DingTalkOrganizationSyncPage extends React.Component<DingTalkOrganizationS
     }, () => this.refresh(targetOrganization));
   }
 
-  goToOrganizationList() {
-    if (this.props.history?.push) {
-      this.props.history.push("/organizations");
-      return;
-    }
-    window.location.href = "/organizations";
+  createSyncTargetOrganization() {
+    void openNewSyncTargetOrganization(this.props.history);
   }
 
   saveConfig() {
@@ -779,10 +797,11 @@ class DingTalkOrganizationSyncPage extends React.Component<DingTalkOrganizationS
           <OrganizationSelect
             initValue={this.state.organization}
             onChange={(organization: string) => this.changeOrganization(organization)}
+            onOrganizationsLoaded={(organizations: OrganizationDisplayNameRecords) => this.updateOrganizationDisplayNames(organizations)}
             excludedOrganizations={["built-in", ...this.getExcludedSourceOrganizations()]}
             style={{minWidth: 280, width: "100%"}}
           />
-          <Button icon={<PlusOutlined />} onClick={() => this.goToOrganizationList()}>
+          <Button icon={<PlusOutlined />} onClick={() => this.createSyncTargetOrganization()}>
             新建组织
           </Button>
         </Space.Compact>
@@ -801,7 +820,7 @@ class DingTalkOrganizationSyncPage extends React.Component<DingTalkOrganizationS
     }
     const status = getDirectorySourceUiStatus(this.state.sourceStatus);
     const provider = status.provider || "另一通讯录来源";
-    const organization = status.organization || this.state.organization || "-";
+    const organization = this.getOrganizationDisplayName(status.organization || this.state.organization);
     if (status.abnormal) {
       return (
         <Alert
