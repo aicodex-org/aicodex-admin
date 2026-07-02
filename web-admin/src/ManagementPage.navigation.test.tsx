@@ -114,7 +114,7 @@ describe("enterprise identity navigation", () => {
       .toBe("身份总览");
     expect(shouldRenderNavigationGroupAsSingleLeaf(groups.find(group => group.key === "/overview"))).toBe(true);
     expect(groups.find(group => group.key === "/identity-sources").children.map(item => item.key))
-      .toEqual(expect.arrayContaining(["/providers", "/wecom-org-sync", "/feishu-org-sync", "/syncers"]));
+      .toEqual(expect.arrayContaining(["/providers", "/wecom-org-sync", "/feishu-org-sync", "/dingtalk-org-sync", "/syncers"]));
     expect(groups.find(group => group.key === "/identity-sources").children.find(item => item.key === "/providers").label)
       .toBe("身份源中心");
     expect(groups.find(group => group.key === "/application-access").children.map(item => item.key))
@@ -175,6 +175,8 @@ describe("enterprise identity navigation", () => {
       .toBe("WeCom Sync");
     expect(groups.find(group => group.key === "/identity-sources").children.find(item => item.key === "/feishu-org-sync").label)
       .toBe("Feishu Sync");
+    expect(groups.find(group => group.key === "/identity-sources").children.find(item => item.key === "/dingtalk-org-sync").label)
+      .toBe("DingTalk Sync");
     expect(groups.find(group => group.key === "/application-access").children.find(item => item.key === "/applications").label)
       .toBe("Access Center");
     expect(groups.find(group => group.key === "/application-access").children.find(item => item.key === "/application-usage-access").label)
@@ -296,6 +298,7 @@ describe("enterprise identity navigation", () => {
       "/providers",
       "/wecom-org-sync",
       "/feishu-org-sync",
+      "/dingtalk-org-sync",
       "/organization-sync-api-keys",
       "/syncers",
     ]);
@@ -331,6 +334,7 @@ describe("enterprise identity navigation", () => {
     expect(routes.find(route => route.path === "/applications")?.label).toBe("接入中心");
     expect(routes.find(route => route.path === "/application-usage-access")?.label).toBe("用量接入");
     expect(routes.find(route => route.path === "/agents")?.label).toBe("AI Agent 入口");
+    expect(routes.find(route => route.path === "/dingtalk-org-sync")?.label).toBe("钉钉同步");
 
     const tabs = openWorkspaceTab([], "/agents/built-in/support-agent", routes);
 

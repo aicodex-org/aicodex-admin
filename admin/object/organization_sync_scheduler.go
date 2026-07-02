@@ -33,6 +33,7 @@ import (
 const (
 	OrganizationSyncProviderWeCom           = "wecom"
 	OrganizationSyncProviderLark            = "lark"
+	OrganizationSyncProviderDingTalk        = "dingtalk"
 	OrganizationSyncJobTypeFullDifferential = "full-differential"
 
 	OrganizationSyncDefaultCronExpression = "0 2 * * *"

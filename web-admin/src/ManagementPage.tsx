@@ -85,6 +85,7 @@ import SyncerListPage from "./SyncerListPage";
 import SyncerEditPage from "./SyncerEditPage";
 import WecomOrganizationSyncPage from "./WecomOrganizationSyncPage";
 import FeishuOrganizationSyncPage from "./FeishuOrganizationSyncPage";
+import DingTalkOrganizationSyncPage from "./DingTalkOrganizationSyncPage";
 import OrganizationTreeOperationsPage from "./OrganizationTreeOperationsPage";
 import OrganizationDirectoryQualityPage from "./OrganizationDirectoryQualityPage";
 import PlatformApiMappingPage from "./PlatformApiMappingPage";
@@ -551,6 +552,7 @@ function ManagementPage(props: ManagementPageProps) {
         <Route exact path="/syncers/:syncerName" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<SyncerEditPage account={account} {...props} />)} />
         <Route exact path="/wecom-org-sync" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<WecomOrganizationSyncPage account={account} {...props} />)} />
         <Route exact path="/feishu-org-sync" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<FeishuOrganizationSyncPage account={account} {...props} />)} />
+        <Route exact path="/dingtalk-org-sync" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<DingTalkOrganizationSyncPage account={account} {...props} />)} />
         <Route exact path="/organization-sync-api-keys" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<OrganizationSyncApiKeyListPage account={account} {...props} />)} />
         <Route exact path="/organization-tree-operations" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<OrganizationTreeOperationsPage account={account} {...props} />)} />
         <Route exact path="/organization-directory-quality" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<OrganizationDirectoryQualityPage account={account} {...props} />)} />
@@ -583,6 +585,7 @@ function ManagementPage(props: ManagementPageProps) {
     const organizationSyncConfigurationPaths = [
       "/wecom-org-sync",
       "/feishu-org-sync",
+      "/dingtalk-org-sync",
     ];
     const systemToolCardlessPaths = [
       "/sysinfo",

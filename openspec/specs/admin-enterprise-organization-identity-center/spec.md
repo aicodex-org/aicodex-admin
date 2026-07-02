@@ -417,3 +417,16 @@ Admin 组织编辑页 SHALL 在桌面端稳定展示包含密码策略在内的�
 - **THEN** 前端 SHALL 继续使用既有组织读取和保存契约
 - **AND** 密码盐、密码类型、密码复杂度选项和其它密码配置字段 SHALL 保持现有字段、选项和 payload 语义不变
 - **AND** 系统 SHALL NOT 新增后端 API、改变组织同步、认证、授权刷新或 Gateway projection publish 行为
+
+### Requirement: 身份控制台管理导航展示钉钉同步入口
+Web Admin 身份控制台 SHALL 将钉钉组织同步展示为管理导航入口，并且不新增抽象一级中心。
+
+#### Scenario: 展示钉钉同步菜单
+- **WHEN** 管理员打开身份控制台管理导航
+- **THEN** 导航 SHALL 在现有企业通讯录同步入口附近包含 `钉钉同步` 菜单项
+- **AND** 该菜单项 SHALL 跳转到 `/dingtalk-org-sync`
+
+#### Scenario: 保持已有同步入口语义
+- **WHEN** 钉钉同步入口被加入
+- **THEN** 既有 WeCom 和 Feishu/Lark 同步入口 SHALL 保持原路由路径和选中行为
+- **AND** 导航 SHALL NOT 新增抽象“中心”、“工作台”或“快捷入口”根节点

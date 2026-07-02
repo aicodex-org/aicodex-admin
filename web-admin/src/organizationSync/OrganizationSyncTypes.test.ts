@@ -2,6 +2,7 @@ import {expect} from "@jest/globals";
 import {
   formatImpactCounts,
   formatRunTimestamp,
+  getOrganizationSyncProviderLogoAlt,
   getOrganizationSyncProviderLogoUrl,
   getRunStatusColor,
   hasRunningOrganizationSyncRuns
@@ -11,6 +12,13 @@ describe("organization sync shared helpers", () => {
   test("resolves provider logo URLs through existing provider logo infrastructure", () => {
     expect(getOrganizationSyncProviderLogoUrl("wecom")).toContain("/img/social_wecom.png");
     expect(getOrganizationSyncProviderLogoUrl("feishu")).toContain("/img/social_lark.png");
+    expect(getOrganizationSyncProviderLogoUrl("dingtalk")).toContain("/img/social_dingtalk.png");
+  });
+
+  test("provides accessible provider logo alt text", () => {
+    expect(getOrganizationSyncProviderLogoAlt("wecom")).toBe("WeCom provider logo");
+    expect(getOrganizationSyncProviderLogoAlt("feishu")).toBe("Feishu/Lark provider logo");
+    expect(getOrganizationSyncProviderLogoAlt("dingtalk")).toBe("DingTalk provider logo");
   });
 
   test("detects running sync runs without depending on a provider-specific run shape", () => {

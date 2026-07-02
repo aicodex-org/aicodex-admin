@@ -379,6 +379,12 @@ func InitAPI() {
 	web.Router("/api/feishu-org-sync/runs", &controllers.ApiController{}, "POST:StartFeishuOrganizationSyncRun")
 	web.Router("/api/feishu-org-sync/runs", &controllers.ApiController{}, "GET:GetFeishuOrganizationSyncRuns")
 	web.Router("/api/feishu-org-sync/runs/:runId", &controllers.ApiController{}, "GET:GetFeishuOrganizationSyncRun")
+	web.Router("/api/dingtalk-org-sync/config", &controllers.ApiController{}, "GET:GetDingTalkOrganizationSyncConfig")
+	web.Router("/api/dingtalk-org-sync/config", &controllers.ApiController{}, "POST:SaveDingTalkOrganizationSyncConfig")
+	web.Router("/api/dingtalk-org-sync/config/test", &controllers.ApiController{}, "POST:TestDingTalkOrganizationSyncConfig")
+	web.Router("/api/dingtalk-org-sync/runs", &controllers.ApiController{}, "POST:StartDingTalkOrganizationSyncRun")
+	web.Router("/api/dingtalk-org-sync/runs", &controllers.ApiController{}, "GET:GetDingTalkOrganizationSyncRuns")
+	web.Router("/api/dingtalk-org-sync/runs/:runId", &controllers.ApiController{}, "GET:GetDingTalkOrganizationSyncRun")
 	web.Router("/api/org-management-scope/current", &controllers.ApiController{}, "GET:GetCurrentOrganizationManagementScope")
 
 	web.Router("/api/get-webhooks", &controllers.ApiController{}, "GET:GetWebhooks")

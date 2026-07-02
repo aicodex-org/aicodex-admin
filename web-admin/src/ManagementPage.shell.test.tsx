@@ -30,6 +30,7 @@ jest.mock("antd", () => {
 
 jest.mock("./IdentityConsoleOverview", () => () => <main data-testid="identity-overview" />);
 jest.mock("./WecomOrganizationSyncPage", () => () => <main data-testid="wecom-org-sync-page" />);
+jest.mock("./DingTalkOrganizationSyncPage", () => () => <main data-testid="dingtalk-org-sync-page" />);
 jest.mock("./SystemInfo", () => () => <main data-testid="system-info-page" />);
 jest.mock("./ServerStorePage", () => () => <main data-testid="server-store-page" />);
 jest.mock("./OrganizationTreeOperationsPage", () => () => <main data-testid="organization-tree-operations-page" />);
@@ -222,15 +223,23 @@ describe("ManagementPage admin shell sidebar", () => {
   });
 
   test("keeps organization sync configuration pages in the cardless internal scroll container", () => {
-    const view = renderShell({path: "/wecom-org-sync"});
-    const routeScroll = view.container.querySelector(".admin-shell-route-scroll") as HTMLElement;
+    const syncRoutes = [
+      {path: "/wecom-org-sync", testId: "wecom-org-sync-page"},
+      {path: "/dingtalk-org-sync", testId: "dingtalk-org-sync-page"},
+    ];
 
-    expect(routeScroll).not.toBeNull();
-    expect(routeScroll.classList.contains("admin-shell-route-scroll-without-card")).toBe(true);
-    expect((view.container.querySelector(".admin-shell-content") as HTMLElement).classList.contains("admin-shell-content-without-card-route")).toBe(false);
-    expect(routeScroll.querySelector(".content-warp-card")).toBeNull();
-    expect(routeScroll.contains(view.getByTestId("wecom-org-sync-page"))).toBe(true);
-    expect(routeScroll.contains(view.getByTestId("workspace-tabs"))).toBe(false);
+    for (const syncRoute of syncRoutes) {
+      const view = renderShell({path: syncRoute.path});
+      const routeScroll = view.container.querySelector(".admin-shell-route-scroll") as HTMLElement;
+
+      expect(routeScroll).not.toBeNull();
+      expect(routeScroll.classList.contains("admin-shell-route-scroll-without-card")).toBe(true);
+      expect((view.container.querySelector(".admin-shell-content") as HTMLElement).classList.contains("admin-shell-content-without-card-route")).toBe(false);
+      expect(routeScroll.querySelector(".content-warp-card")).toBeNull();
+      expect(routeScroll.contains(view.getByTestId(syncRoute.testId))).toBe(true);
+      expect(routeScroll.contains(view.getByTestId("workspace-tabs"))).toBe(false);
+      view.unmount();
+    }
   });
 
   test("keeps system information in the cardless internal scroll container", () => {

@@ -13,10 +13,14 @@
 // limitations under the License.
 
 import React from "react";
-import {expect, test} from "@jest/globals";
+import {expect, jest, test} from "@jest/globals";
 import {render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
+import fs from "fs";
+import path from "path";
 import App from "./App";
+
+jest.mock("./ManagementPage", () => () => <main data-testid="management-page" />);
 
 test("renders the admin root shell", () => {
   const {container} = render(
@@ -28,4 +32,11 @@ test("renders the admin root shell", () => {
   );
 
   expect(container).toBeTruthy();
+});
+
+test("recognizes DingTalk organization sync as an admin route for flattened menu selection", () => {
+  const appSource = fs.readFileSync(path.join(__dirname, "App.tsx"), "utf8");
+
+  expect(appSource).toContain("\"/dingtalk-org-sync\"");
+  expect(appSource).toMatch(/uri\.includes\("\/dingtalk-org-sync"\)[\s\S]*return "\/dingtalk-org-sync"/);
 });

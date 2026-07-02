@@ -1,6 +1,6 @@
 import * as Setting from "../Setting";
 
-export type OrganizationSyncProvider = "wecom" | "feishu";
+export type OrganizationSyncProvider = "wecom" | "feishu" | "dingtalk";
 
 export type OrganizationSyncRunStatus = "running" | "success" | "failed" | "partial_success" | "cancelled" | string;
 
@@ -18,6 +18,7 @@ export interface OrganizationSyncImpactCounts {
 const providerLogoConfig: Record<OrganizationSyncProvider, {category: "OAuth"; type: string}> = {
   wecom: {category: "OAuth", type: "WeCom"},
   feishu: {category: "OAuth", type: "Lark"},
+  dingtalk: {category: "OAuth", type: "DingTalk"},
 };
 
 export function getOrganizationSyncProviderLogoUrl(provider: OrganizationSyncProvider): string {
@@ -25,7 +26,13 @@ export function getOrganizationSyncProviderLogoUrl(provider: OrganizationSyncPro
 }
 
 export function getOrganizationSyncProviderLogoAlt(provider: OrganizationSyncProvider): string {
-  return provider === "wecom" ? "WeCom provider logo" : "Feishu/Lark provider logo";
+  if (provider === "wecom") {
+    return "WeCom provider logo";
+  }
+  if (provider === "dingtalk") {
+    return "DingTalk provider logo";
+  }
+  return "Feishu/Lark provider logo";
 }
 
 export function hasRunningOrganizationSyncRuns(runs: Array<OrganizationSyncRunLike | null | undefined>): boolean {

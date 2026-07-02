@@ -125,8 +125,9 @@ type OrganizationDirectorySourceDecision struct {
 
 // OrganizationDirectorySourceStatusService 聚合各 Provider 配置 store，集中计算组织通讯录来源归属。
 type OrganizationDirectorySourceStatusService struct {
-	WecomConfigStore  WecomOrganizationSyncConfigStore
-	FeishuConfigStore FeishuOrganizationSyncConfigStore
+	WecomConfigStore    WecomOrganizationSyncConfigStore
+	FeishuConfigStore   FeishuOrganizationSyncConfigStore
+	DingTalkConfigStore DingTalkOrganizationSyncConfigStore
 }
 
 type wecomOrganizationSyncConfigLister interface {
@@ -135,6 +136,10 @@ type wecomOrganizationSyncConfigLister interface {
 
 type feishuOrganizationSyncConfigLister interface {
 	ListFeishuOrganizationSyncConfigs() ([]*FeishuOrganizationSyncConfig, error)
+}
+
+type dingTalkOrganizationSyncConfigLister interface {
+	ListDingTalkOrganizationSyncConfigs() ([]*DingTalkOrganizationSyncConfig, error)
 }
 
 // GetStatus 返回单个组织相对当前 Provider 的来源状态，用于页面提示和后端执行判定。
@@ -295,6 +300,22 @@ func organizationDirectorySourceDecisionError(organization string, decision *Org
 	}
 }
 
+func firstConflictingOrganizationDirectorySource(status *OrganizationDirectorySourceStatus, currentSource OrganizationDirectorySource) *OrganizationDirectorySourceSummary {
+	if status == nil {
+		return nil
+	}
+	currentSource = normalizeOrganizationDirectorySource(currentSource)
+	if status.OccupyingSource != nil && normalizeOrganizationDirectorySource(status.OccupyingSource.Source) != currentSource {
+		return status.OccupyingSource
+	}
+	for _, source := range status.Sources {
+		if source != nil && normalizeOrganizationDirectorySource(source.Source) != currentSource {
+			return source
+		}
+	}
+	return nil
+}
+
 func appendCurrentOrganizationDirectorySourceSummary(sources []*OrganizationDirectorySourceSummary, currentSummary *OrganizationDirectorySourceSummary) []*OrganizationDirectorySourceSummary {
 	if currentSummary == nil {
 		return sources
@@ -360,6 +381,11 @@ func (s *OrganizationDirectorySourceStatusService) configuredOrganizationSet() (
 		return nil, err
 	}
 	appendOrganizations(feishuOrganizations)
+	dingTalkOrganizations, err := getConfiguredDingTalkOrganizationSyncOrganizations(s.dingTalkConfigStore())
+	if err != nil {
+		return nil, err
+	}
+	appendOrganizations(dingTalkOrganizations)
 	return organizations, nil
 }
 
@@ -384,6 +410,15 @@ func (s *OrganizationDirectorySourceStatusService) configuredSourcesForOrganizat
 			sources = append(sources, newFeishuOrganizationDirectorySourceSummary(feishuConfig))
 		}
 	}
+	if excludedSource != OrganizationDirectorySourceDingTalk {
+		dingTalkConfig, err := s.dingTalkConfigStore().GetDingTalkOrganizationSyncConfigByOrganization(organization)
+		if err != nil {
+			return nil, err
+		}
+		if dingTalkConfig != nil {
+			sources = append(sources, newDingTalkOrganizationDirectorySourceSummary(dingTalkConfig))
+		}
+	}
 	return sources, nil
 }
 
@@ -399,6 +434,13 @@ func (s *OrganizationDirectorySourceStatusService) feishuConfigStore() FeishuOrg
 		return s.FeishuConfigStore
 	}
 	return defaultFeishuOrganizationSyncConfigStore{}
+}
+
+func (s *OrganizationDirectorySourceStatusService) dingTalkConfigStore() DingTalkOrganizationSyncConfigStore {
+	if s != nil && s.DingTalkConfigStore != nil {
+		return s.DingTalkConfigStore
+	}
+	return defaultDingTalkOrganizationSyncConfigStore{}
 }
 
 func newWecomOrganizationDirectorySourceSummary(config *WecomOrganizationSyncConfig) *OrganizationDirectorySourceSummary {
@@ -421,6 +463,19 @@ func newFeishuOrganizationDirectorySourceSummary(config *FeishuOrganizationSyncC
 	return &OrganizationDirectorySourceSummary{
 		Source:       OrganizationDirectorySourceLark,
 		DisplayName:  organizationDirectorySourceDisplayName(OrganizationDirectorySourceLark),
+		Organization: strings.TrimSpace(config.Organization),
+		Configured:   true,
+		Enabled:      config.IsEnabled,
+	}
+}
+
+func newDingTalkOrganizationDirectorySourceSummary(config *DingTalkOrganizationSyncConfig) *OrganizationDirectorySourceSummary {
+	if config == nil {
+		return nil
+	}
+	return &OrganizationDirectorySourceSummary{
+		Source:       OrganizationDirectorySourceDingTalk,
+		DisplayName:  organizationDirectorySourceDisplayName(OrganizationDirectorySourceDingTalk),
 		Organization: strings.TrimSpace(config.Organization),
 		Configured:   true,
 		Enabled:      config.IsEnabled,
@@ -513,6 +568,17 @@ func getDefaultFeishuOrganizationSyncOrganization(store FeishuOrganizationSyncCo
 	return organizations[0], nil
 }
 
+func getDefaultDingTalkOrganizationSyncOrganization(store DingTalkOrganizationSyncConfigStore) (string, error) {
+	organizations, err := getConfiguredDingTalkOrganizationSyncOrganizations(store)
+	if err != nil {
+		return "", err
+	}
+	if len(organizations) == 0 {
+		return "", nil
+	}
+	return organizations[0], nil
+}
+
 func getConfiguredWecomOrganizationSyncOrganizations(store WecomOrganizationSyncConfigStore) ([]string, error) {
 	if store == nil {
 		store = defaultWecomOrganizationSyncConfigStore{}
@@ -550,6 +616,34 @@ func getConfiguredFeishuOrganizationSyncOrganizations(store FeishuOrganizationSy
 		return nil, nil
 	}
 	configs, err := lister.ListFeishuOrganizationSyncConfigs()
+	if err != nil {
+		return nil, err
+	}
+	organizations := []string{}
+	seen := map[string]bool{}
+	for _, config := range configs {
+		if config == nil {
+			continue
+		}
+		organization := strings.TrimSpace(config.Organization)
+		if organization == "" || organization == "built-in" || seen[organization] {
+			continue
+		}
+		seen[organization] = true
+		organizations = append(organizations, organization)
+	}
+	return organizations, nil
+}
+
+func getConfiguredDingTalkOrganizationSyncOrganizations(store DingTalkOrganizationSyncConfigStore) ([]string, error) {
+	if store == nil {
+		store = defaultDingTalkOrganizationSyncConfigStore{}
+	}
+	lister, ok := store.(dingTalkOrganizationSyncConfigLister)
+	if !ok {
+		return nil, nil
+	}
+	configs, err := lister.ListDingTalkOrganizationSyncConfigs()
 	if err != nil {
 		return nil, err
 	}

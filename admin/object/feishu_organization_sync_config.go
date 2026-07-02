@@ -25,6 +25,7 @@ type FeishuAddressBookConnectionTester interface {
 type FeishuOrganizationSyncConfigService struct {
 	Store                          FeishuOrganizationSyncConfigStore
 	WecomConfigStore               WecomOrganizationSyncConfigStore
+	DingTalkConfigStore            DingTalkOrganizationSyncConfigStore
 	OrganizationStore              FeishuBusinessOrganizationStore
 	ScheduleStore                  OrganizationSyncScheduleStore
 	NewAddressBookConnectionTester func(appId string, appSecret string, endpointMode string) FeishuAddressBookConnectionTester
@@ -61,15 +62,20 @@ func (s *FeishuOrganizationSyncConfigService) GetSourceStatus(organization strin
 	if err != nil {
 		return nil, err
 	}
-	status.ConflictingOrganizations = wecomOrganizations
+	dingTalkOrganizations, err := getConfiguredDingTalkOrganizationSyncOrganizations(s.dingTalkConfigStore())
+	if err != nil {
+		return nil, err
+	}
+	status.ConflictingOrganizations = append(wecomOrganizations, dingTalkOrganizations...)
 
 	organization = strings.TrimSpace(organization)
 	if organization == "" {
 		organization = defaultOrganization
 	}
 	sourceStatus, err := (&OrganizationDirectorySourceStatusService{
-		WecomConfigStore:  s.wecomConfigStore(),
-		FeishuConfigStore: s.configStore(),
+		WecomConfigStore:    s.wecomConfigStore(),
+		FeishuConfigStore:   s.configStore(),
+		DingTalkConfigStore: s.dingTalkConfigStore(),
 	}).GetStatus(organization, OrganizationDirectorySourceLark)
 	if err != nil {
 		return nil, err
@@ -88,6 +94,11 @@ func (s *FeishuOrganizationSyncConfigService) GetSourceStatus(organization strin
 		status.ConflictingOrganization = organization
 		status.ConflictingConfigured = true
 		status.ConflictingEnabled = config.IsEnabled
+	} else if source := firstConflictingOrganizationDirectorySource(sourceStatus, OrganizationDirectorySourceLark); source != nil {
+		status.ConflictingProvider = source.DisplayName
+		status.ConflictingOrganization = organization
+		status.ConflictingConfigured = true
+		status.ConflictingEnabled = source.Enabled
 	}
 	return status, nil
 }
@@ -98,8 +109,9 @@ func (s *FeishuOrganizationSyncConfigService) SaveConfig(config *FeishuOrganizat
 		return nil, false, err
 	}
 	if err := (&OrganizationDirectorySourceStatusService{
-		WecomConfigStore:  s.wecomConfigStore(),
-		FeishuConfigStore: s.configStore(),
+		WecomConfigStore:    s.wecomConfigStore(),
+		FeishuConfigStore:   s.configStore(),
+		DingTalkConfigStore: s.dingTalkConfigStore(),
 	}).RequireExecutionAllowed(prepared.Organization, OrganizationDirectorySourceLark); err != nil {
 		return nil, false, err
 	}
@@ -268,6 +280,13 @@ func (s *FeishuOrganizationSyncConfigService) wecomConfigStore() WecomOrganizati
 		return s.WecomConfigStore
 	}
 	return defaultWecomOrganizationSyncConfigStore{}
+}
+
+func (s *FeishuOrganizationSyncConfigService) dingTalkConfigStore() DingTalkOrganizationSyncConfigStore {
+	if s != nil && s.DingTalkConfigStore != nil {
+		return s.DingTalkConfigStore
+	}
+	return defaultDingTalkOrganizationSyncConfigStore{}
 }
 
 func (s *FeishuOrganizationSyncConfigService) organizationStore() FeishuBusinessOrganizationStore {

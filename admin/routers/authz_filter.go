@@ -234,7 +234,7 @@ func getModuleOrganizationObject(path string, method string, queryOrganization s
 		return strings.TrimSpace(obj.OrganizationId), obj.Name, true
 	}
 
-	if !strings.HasPrefix(path, "/api/wecom-org-sync/") && !strings.HasPrefix(path, "/api/feishu-org-sync/") {
+	if !strings.HasPrefix(path, "/api/wecom-org-sync/") && !strings.HasPrefix(path, "/api/feishu-org-sync/") && !strings.HasPrefix(path, "/api/dingtalk-org-sync/") {
 		return "", "", false
 	}
 

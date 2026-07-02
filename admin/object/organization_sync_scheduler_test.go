@@ -35,13 +35,43 @@ type recordingOrganizationSyncExecutor struct {
 	calls  []OrganizationSyncDispatchRequest
 }
 
+type signalingOrganizationSyncExecutor struct {
+	called chan OrganizationSyncDispatchRequest
+}
+
 type failingUpdateOrganizationSyncScheduleStore struct {
 	*memoryOrganizationSyncScheduleStore
 	err error
 }
 
+type failingListOrganizationSyncScheduleStore struct {
+	*memoryOrganizationSyncScheduleStore
+	err error
+}
+
+type failingAcquireOrganizationSyncScheduleStore struct {
+	*memoryOrganizationSyncScheduleStore
+	err error
+}
+
+type notAcquiredOrganizationSyncScheduleStore struct {
+	*memoryOrganizationSyncScheduleStore
+}
+
 func (s *failingUpdateOrganizationSyncScheduleStore) UpdateOrganizationSyncScheduleFire(fire *OrganizationSyncScheduleFire) error {
 	return s.err
+}
+
+func (s *failingListOrganizationSyncScheduleStore) GetEnabledOrganizationSyncSchedules() ([]*OrganizationSyncSchedule, error) {
+	return nil, s.err
+}
+
+func (s *failingAcquireOrganizationSyncScheduleStore) AcquireOrganizationSyncScheduleFire(schedule *OrganizationSyncSchedule, windowStart time.Time, nodeID string, now time.Time, leaseDuration time.Duration) (*OrganizationSyncScheduleFire, bool, error) {
+	return nil, false, s.err
+}
+
+func (s *notAcquiredOrganizationSyncScheduleStore) AcquireOrganizationSyncScheduleFire(schedule *OrganizationSyncSchedule, windowStart time.Time, nodeID string, now time.Time, leaseDuration time.Duration) (*OrganizationSyncScheduleFire, bool, error) {
+	return &OrganizationSyncScheduleFire{ScheduleName: schedule.Name, WindowStart: windowStart}, false, nil
 }
 
 func newMemoryOrganizationSyncScheduleStore() *memoryOrganizationSyncScheduleStore {
@@ -157,6 +187,11 @@ func (e *recordingOrganizationSyncExecutor) ExecuteOrganizationSync(ctx context.
 	return e.result, e.err
 }
 
+func (e *signalingOrganizationSyncExecutor) ExecuteOrganizationSync(ctx context.Context, request OrganizationSyncDispatchRequest) (*OrganizationSyncDispatchResult, error) {
+	e.called <- request
+	return &OrganizationSyncDispatchResult{Status: OrganizationSyncScheduleFireStatusDispatched, RunId: "run-start"}, nil
+}
+
 func TestOrganizationSyncSchedulerDefaultScheduleIsDisabled(t *testing.T) {
 	store := newMemoryOrganizationSyncScheduleStore()
 	service := &OrganizationSyncScheduleService{Store: store}
@@ -191,6 +226,35 @@ func TestOrganizationSyncSchedulerDefaultScheduleIsDisabled(t *testing.T) {
 	}
 }
 
+func TestOrganizationSyncSchedulerStartRunsInitialScan(t *testing.T) {
+	now := time.Date(2026, 6, 9, 1, 2, 30, 0, time.UTC)
+	store := newMemoryOrganizationSyncScheduleStore()
+	_, _ = store.SaveOrganizationSyncSchedule(newEnabledOrganizationSyncSchedule("engineering", "* * * * *"))
+	executor := &signalingOrganizationSyncExecutor{called: make(chan OrganizationSyncDispatchRequest, 1)}
+	registry := NewOrganizationSyncExecutorRegistry()
+	registry.Register(OrganizationSyncProviderWeCom, OrganizationSyncJobTypeFullDifferential, executor)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	scheduler := &OrganizationSyncScheduler{
+		Store:        store,
+		Registry:     registry,
+		NodeID:       "node-start",
+		Now:          func() time.Time { return now },
+		ScanInterval: time.Hour,
+	}
+
+	scheduler.Start(ctx)
+
+	select {
+	case request := <-executor.called:
+		if request.NodeID != "node-start" || request.Actor != "scheduler:node-start" || request.Schedule.Organization != "engineering" {
+			t.Fatalf("dispatch request = %#v, want node-start engineering", request)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatalf("scheduler initial scan did not dispatch")
+	}
+}
+
 func TestOrganizationSyncScheduleServiceSaveRejectsInvalidCronAndTimezone(t *testing.T) {
 	service := &OrganizationSyncScheduleService{Store: newMemoryOrganizationSyncScheduleStore()}
 
@@ -216,6 +280,62 @@ func TestOrganizationSyncScheduleServiceSaveRejectsInvalidCronAndTimezone(t *tes
 	})
 	if err == nil || !strings.Contains(err.Error(), "timezone") {
 		t.Fatalf("invalid timezone error = %v", err)
+	}
+}
+
+func TestOrganizationSyncSchedulerDefaultsAndValidationBranches(t *testing.T) {
+	registry := NewOrganizationSyncExecutorRegistry()
+	registry.Register(OrganizationSyncProviderWeCom, OrganizationSyncJobTypeFullDifferential, nil)
+	if registry.Get(OrganizationSyncProviderWeCom, OrganizationSyncJobTypeFullDifferential) != nil {
+		t.Fatalf("nil executor must not be registered")
+	}
+	var nilRegistry *OrganizationSyncExecutorRegistry
+	if nilRegistry.Get(OrganizationSyncProviderWeCom, OrganizationSyncJobTypeFullDifferential) != nil {
+		t.Fatalf("nil registry Get() must return nil")
+	}
+
+	var nilSchedule *OrganizationSyncSchedule
+	nilSchedule.ApplyDefaults()
+	validationCases := []struct {
+		name     string
+		schedule *OrganizationSyncSchedule
+		want     string
+	}{
+		{name: "nil schedule", want: "required"},
+		{name: "missing provider", schedule: &OrganizationSyncSchedule{JobType: OrganizationSyncJobTypeFullDifferential, Organization: "engineering"}, want: "provider"},
+		{name: "missing job type", schedule: &OrganizationSyncSchedule{Provider: OrganizationSyncProviderWeCom, Organization: "engineering"}, want: "job_type"},
+		{name: "missing organization", schedule: &OrganizationSyncSchedule{Provider: OrganizationSyncProviderWeCom, JobType: OrganizationSyncJobTypeFullDifferential}, want: "organization"},
+	}
+	for _, tc := range validationCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := prepareOrganizationSyncSchedule(tc.schedule)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("prepareOrganizationSyncSchedule() error = %v, want %q", err, tc.want)
+			}
+		})
+	}
+
+	now := time.Date(2026, 6, 9, 1, 2, 30, 0, time.UTC)
+	if _, due, err := getOrganizationSyncDueWindow(nil, now); err != nil || due {
+		t.Fatalf("getOrganizationSyncDueWindow(nil) = due:%v err:%v, want false nil", due, err)
+	}
+	disabled := newEnabledOrganizationSyncSchedule("engineering", "* * * * *")
+	disabled.IsEnabled = false
+	if _, due, err := getOrganizationSyncDueWindow(disabled, now); err != nil || due {
+		t.Fatalf("getOrganizationSyncDueWindow(disabled) = due:%v err:%v, want false nil", due, err)
+	}
+	alreadyFired := newEnabledOrganizationSyncSchedule("engineering", "* * * * *")
+	alreadyFired.LastFireAt = now
+	if _, due, err := getOrganizationSyncDueWindow(alreadyFired, now); err != nil || due {
+		t.Fatalf("getOrganizationSyncDueWindow(already fired) = due:%v err:%v, want false nil", due, err)
+	}
+
+	if got := safeOrganizationSyncErrorText("secret=real token abc password=pwd", "", "abc"); strings.Contains(got, "abc") || strings.Contains(got, "real") || strings.Contains(got, "pwd") {
+		t.Fatalf("safeOrganizationSyncErrorText() = %q, want sensitive values redacted", got)
+	}
+	scheduler := &OrganizationSyncScheduler{}
+	if scheduler.store() == nil || scheduler.registry() == nil || scheduler.now().IsZero() || scheduler.nodeID() == "" || scheduler.scanInterval() != OrganizationSyncDefaultScanInterval {
+		t.Fatalf("scheduler defaults are not populated")
 	}
 }
 
@@ -313,6 +433,63 @@ func TestOrganizationSyncSchedulerHandlesMissingExecutorSafely(t *testing.T) {
 	fire := firstMemoryOrganizationSyncScheduleFire(store)
 	if fire == nil || fire.Status != OrganizationSyncScheduleFireStatusFailed || fire.ErrorCode != OrganizationSyncScheduleFireErrorMissingExecutor {
 		t.Fatalf("missing executor should mark fire failed: %#v", fire)
+	}
+}
+
+func TestOrganizationSyncSchedulerStoreErrorsAndDefaultStoreBranches(t *testing.T) {
+	now := time.Date(2026, 6, 9, 1, 2, 30, 0, time.UTC)
+	storeErr := errors.New("schedule store failed")
+	listStore := &failingListOrganizationSyncScheduleStore{memoryOrganizationSyncScheduleStore: newMemoryOrganizationSyncScheduleStore(), err: storeErr}
+	if err := (&OrganizationSyncScheduler{Store: listStore}).RunOnce(context.Background()); !errors.Is(err, storeErr) {
+		t.Fatalf("RunOnce(list error) = %v, want %v", err, storeErr)
+	}
+
+	schedule := newEnabledOrganizationSyncSchedule("engineering", "* * * * *")
+	acquireStore := &failingAcquireOrganizationSyncScheduleStore{memoryOrganizationSyncScheduleStore: newMemoryOrganizationSyncScheduleStore(), err: storeErr}
+	if err := (&OrganizationSyncScheduler{Store: acquireStore, Now: func() time.Time { return now }}).runSchedule(context.Background(), schedule); !errors.Is(err, storeErr) {
+		t.Fatalf("runSchedule(acquire error) = %v, want %v", err, storeErr)
+	}
+
+	notAcquiredStore := &notAcquiredOrganizationSyncScheduleStore{memoryOrganizationSyncScheduleStore: newMemoryOrganizationSyncScheduleStore()}
+	executor := &recordingOrganizationSyncExecutor{}
+	registry := NewOrganizationSyncExecutorRegistry()
+	registry.Register(OrganizationSyncProviderWeCom, OrganizationSyncJobTypeFullDifferential, executor)
+	if err := (&OrganizationSyncScheduler{Store: notAcquiredStore, Registry: registry, Now: func() time.Time { return now }}).runSchedule(context.Background(), schedule); err != nil {
+		t.Fatalf("runSchedule(not acquired) error = %v, want nil", err)
+	}
+	if len(executor.calls) != 0 {
+		t.Fatalf("not acquired fire should not execute provider, calls = %#v", executor.calls)
+	}
+
+	updateStore := &failingUpdateOrganizationSyncScheduleStore{memoryOrganizationSyncScheduleStore: newMemoryOrganizationSyncScheduleStore(), err: storeErr}
+	if err := (&OrganizationSyncScheduler{Store: updateStore, Registry: registry, Now: func() time.Time { return now }}).runSchedule(context.Background(), schedule); !errors.Is(err, storeErr) {
+		t.Fatalf("runSchedule(update error) = %v, want %v", err, storeErr)
+	}
+	if err := (&OrganizationSyncScheduler{}).recordInvalidSchedule(nil, storeErr); !errors.Is(err, storeErr) {
+		t.Fatalf("recordInvalidSchedule(nil) = %v, want %v", err, storeErr)
+	}
+
+	oldOrmer := ormer
+	ormer = nil
+	t.Cleanup(func() { ormer = oldOrmer })
+	defaultStore := defaultOrganizationSyncScheduleStore{}
+	if schedule, err := defaultStore.GetOrganizationSyncSchedule(OrganizationSyncProviderWeCom, OrganizationSyncJobTypeFullDifferential, "engineering"); err != nil || schedule != nil {
+		t.Fatalf("default GetOrganizationSyncSchedule(nil ormer) = %#v, %v; want nil nil", schedule, err)
+	}
+	if affected, err := defaultStore.SaveOrganizationSyncSchedule(newEnabledOrganizationSyncSchedule("engineering", "* * * * *")); err != nil || affected {
+		t.Fatalf("default SaveOrganizationSyncSchedule(nil ormer) = %v, %v; want false nil", affected, err)
+	}
+	if schedules, err := defaultStore.GetEnabledOrganizationSyncSchedules(); err != nil || len(schedules) != 0 {
+		t.Fatalf("default GetEnabledOrganizationSyncSchedules(nil ormer) = %#v, %v; want empty nil", schedules, err)
+	}
+	if fire, acquired, err := defaultStore.AcquireOrganizationSyncScheduleFire(newEnabledOrganizationSyncSchedule("engineering", "* * * * *"), now, "node-a", now, time.Minute); err != nil || acquired || fire != nil {
+		t.Fatalf("default AcquireOrganizationSyncScheduleFire(nil ormer) = %#v acquired:%v err:%v; want nil false nil", fire, acquired, err)
+	}
+	if err := defaultStore.UpdateOrganizationSyncScheduleFire(nil); err != nil {
+		t.Fatalf("default UpdateOrganizationSyncScheduleFire(nil) error = %v", err)
+	}
+	if err := defaultStore.UpdateOrganizationSyncScheduleDispatchMetadata(nil, nil); err != nil {
+		t.Fatalf("default UpdateOrganizationSyncScheduleDispatchMetadata(nil) error = %v", err)
 	}
 }
 
@@ -434,6 +611,15 @@ func TestApplyOrganizationSyncDispatchResultPreservesDiagnostics(t *testing.T) {
 	applyOrganizationSyncDispatchResult(fire, nil)
 	if fire.Status != OrganizationSyncScheduleFireStatusDispatched {
 		t.Fatalf("nil result should default to dispatched, got %s", fire.Status)
+	}
+
+	applyOrganizationSyncDispatchResult(fire, &OrganizationSyncDispatchResult{
+		Status:      "",
+		RunId:       "run-default",
+		Diagnostics: diagnostics,
+	})
+	if fire.Status != OrganizationSyncScheduleFireStatusDispatched || fire.RunId != "run-default" {
+		t.Fatalf("empty status should default to dispatched, fire = %+v", fire)
 	}
 
 	applyOrganizationSyncDispatchResult(fire, &OrganizationSyncDispatchResult{

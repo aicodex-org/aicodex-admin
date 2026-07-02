@@ -618,6 +618,16 @@ func (a *Ormer) createTable() {
 		panic(err)
 	}
 
+	err = a.Engine.Sync2(new(DingTalkOrganizationSyncConfig))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(DingTalkOrganizationSyncRun))
+	if err != nil {
+		panic(err)
+	}
+
 	err = a.Engine.Sync2(new(FeishuOrganizationSyncRun))
 	if err != nil {
 		panic(err)
@@ -679,6 +689,31 @@ func (a *Ormer) createTable() {
 	}
 
 	err = a.Engine.Sync2(new(FeishuUserDepartment))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(DingTalkDepartmentMapping))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(DingTalkUserMapping))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(DingTalkUserDepartment))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(DingTalkDepartmentLeader))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(DingTalkUserDirectLeader))
 	if err != nil {
 		panic(err)
 	}

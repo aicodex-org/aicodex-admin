@@ -240,7 +240,7 @@ class App extends Component<AppProps, AppState> {
       "/agents", "/servers", "/server-store", "/entries", "/sites", "/rules", // LLM AI
       "/sessions", "/records", "/tokens", "/verifications", // Logging & Auditing
       "/products", "/orders", "/payments", "/plans", "/pricings", "/subscriptions", "/transactions", // Business
-      "/sysinfo", "/forms", "/syncers", "/wecom-org-sync", "/feishu-org-sync", "/organization-sync-api-keys", "/webhooks", "/webhook-events", "/tickets", "/swagger", // Admin
+      "/sysinfo", "/forms", "/syncers", "/wecom-org-sync", "/feishu-org-sync", "/dingtalk-org-sync", "/organization-sync-api-keys", "/webhooks", "/webhook-events", "/tickets", "/swagger", // Admin
     ];
 
     const count = navItems.filter(item => validMenuItems.includes(item)).length;
@@ -333,7 +333,7 @@ class App extends Component<AppProps, AppState> {
       } else if (uri.includes("/transactions")) {
         return "/transactions";
       }
-    } else if (uri.includes("/sysinfo") || uri.includes("/forms") || uri.includes("/syncers") || uri.includes("/wecom-org-sync") || uri.includes("/feishu-org-sync") || uri.includes("/organization-sync-api-keys") || uri.includes("/webhooks") || uri.includes("/webhook-events") || uri.includes("/tickets")) {
+    } else if (uri.includes("/sysinfo") || uri.includes("/forms") || uri.includes("/syncers") || uri.includes("/wecom-org-sync") || uri.includes("/feishu-org-sync") || uri.includes("/dingtalk-org-sync") || uri.includes("/organization-sync-api-keys") || uri.includes("/webhooks") || uri.includes("/webhook-events") || uri.includes("/tickets")) {
       if (uri.includes("/sysinfo")) {
         return "/sysinfo";
       } else if (uri.includes("/forms")) {
@@ -344,6 +344,8 @@ class App extends Component<AppProps, AppState> {
         return "/wecom-org-sync";
       } else if (uri.includes("/feishu-org-sync")) {
         return "/feishu-org-sync";
+      } else if (uri.includes("/dingtalk-org-sync")) {
+        return "/dingtalk-org-sync";
       } else if (uri.includes("/organization-sync-api-keys")) {
         return "/organization-sync-api-keys";
       } else if (uri.includes("/webhook-events")) {
@@ -391,7 +393,7 @@ class App extends Component<AppProps, AppState> {
       this.setState({selectedMenuKey: "/logs"});
     } else if (uri.includes("/product-store") || uri.includes("/products") || uri.includes("/orders") || uri.includes("/payments") || uri.includes("/plans") || uri.includes("/pricings") || uri.includes("/subscriptions") || uri.includes("/transactions")) {
       this.setState({selectedMenuKey: "/business"});
-    } else if (uri.includes("/sysinfo") || uri.includes("/forms") || uri.includes("/syncers") || uri.includes("/wecom-org-sync") || uri.includes("/feishu-org-sync") || uri.includes("/organization-sync-api-keys") || uri.includes("/webhooks") || uri.includes("/webhook-events") || uri.includes("/tickets")) {
+    } else if (uri.includes("/sysinfo") || uri.includes("/forms") || uri.includes("/syncers") || uri.includes("/wecom-org-sync") || uri.includes("/feishu-org-sync") || uri.includes("/dingtalk-org-sync") || uri.includes("/organization-sync-api-keys") || uri.includes("/webhooks") || uri.includes("/webhook-events") || uri.includes("/tickets")) {
       this.setState({selectedMenuKey: "/admin"});
     } else if (uri.includes("/signup")) {
       this.setState({selectedMenuKey: "/signup"});
