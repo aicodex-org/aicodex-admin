@@ -27,8 +27,8 @@ function ApplicationUsageAccessPage(): React.ReactElement {
   return (
     <EnterpriseIdentityConsolePage
       className="application-usage-access-page"
-      eyebrow={t("Usage access eyebrow", "应用接入 / 用量接入")}
-      title={t("Usage Access", "用量接入")}
+      eyebrow={t("Usage access handoff eyebrow", "应用接入 / 用量接入 / Admin Provider")}
+      title={t("Usage access handoff title", "Insight Admin Provider 交接")}
     >
       <ApplicationAccessServiceCredentialGovernancePanel className="application-usage-access-service-credential-panel" />
     </EnterpriseIdentityConsolePage>

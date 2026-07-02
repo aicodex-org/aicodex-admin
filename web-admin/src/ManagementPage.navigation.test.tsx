@@ -120,7 +120,7 @@ describe("enterprise identity navigation", () => {
     expect(groups.find(group => group.key === "/application-access").children.map(item => item.key))
       .toEqual(expect.arrayContaining(["/applications", "/application-usage-access", "/access-wizard", "/platform-api-mappings", "/webhooks"]));
     expect(groups.find(group => group.key === "/application-access").children.find(item => item.key === "/application-usage-access").label)
-      .toBe("用量接入");
+      .toBe("Admin Provider 交接");
     expect(groups.find(group => group.key === "/application-access").children.find(item => item.key === "/access-wizard").label)
       .toBe("接入预检");
     expect(groups.find(group => group.key === "/authorization-governance").children.map(item => item.key))
@@ -180,7 +180,7 @@ describe("enterprise identity navigation", () => {
     expect(groups.find(group => group.key === "/application-access").children.find(item => item.key === "/applications").label)
       .toBe("Access Center");
     expect(groups.find(group => group.key === "/application-access").children.find(item => item.key === "/application-usage-access").label)
-      .toBe("Usage Access");
+      .toBe("Admin Provider Handoff");
     expect(groups.find(group => group.key === "/application-access").children.find(item => item.key === "/access-wizard").label)
       .toBe("Access Preflight");
     expect(groups.find(group => group.key === "/application-access").children.find(item => item.key === "/platform-api-mappings").label)
@@ -332,7 +332,7 @@ describe("enterprise identity navigation", () => {
 
     expect(routes.find(route => route.path === "/")?.label).toBe("身份总览");
     expect(routes.find(route => route.path === "/applications")?.label).toBe("接入中心");
-    expect(routes.find(route => route.path === "/application-usage-access")?.label).toBe("用量接入");
+    expect(routes.find(route => route.path === "/application-usage-access")?.label).toBe("Admin Provider 交接");
     expect(routes.find(route => route.path === "/agents")?.label).toBe("AI Agent 入口");
     expect(routes.find(route => route.path === "/dingtalk-org-sync")?.label).toBe("钉钉同步");
 

@@ -243,11 +243,6 @@ function renderPage() {
   );
 }
 
-async function openConfigDetails(view: ReturnType<typeof render>, key: string): Promise<HTMLElement> {
-  const row = await view.findByLabelText(`${key} 交接包检查`);
-  return row as HTMLElement;
-}
-
 function clickButtonByText(view: ReturnType<typeof render>, label: string): void {
   const button = view.getAllByText(label)
     .map((node: HTMLElement) => node.closest("button"))
@@ -384,17 +379,23 @@ describe("ApplicationUsageAccessPage", () => {
 
     const view = renderPage();
 
-    expect(await view.findByText("用量接入")).not.toBeNull();
-    expect(view.getByText("应用接入 / 用量接入")).not.toBeNull();
+    expect(await view.findByText("Insight Admin Provider 交接")).not.toBeNull();
+    expect(view.getByText("应用接入 / 用量接入 / Admin Provider")).not.toBeNull();
     expect(view.queryByText("只维护 Admin 身份、组织、resolver、projection/trust 和服务凭据引用；API/Gateway 用量包不在这里生成。")).toBeNull();
     expect(view.queryByText("生成给 Insight 使用的 Admin 接入交接包；只维护身份、组织、resolver、projection/trust 和服务凭据引用。")).toBeNull();
     expect(view.queryByText("核对 Gateway 映射")).toBeNull();
-    expect(view.getAllByText("服务凭据治理").length).toBeGreaterThan(0);
+    expect(view.getAllByText("Insight Admin Provider 状态").length).toBeGreaterThan(0);
+    expect(view.getByText("Admin 只交付 current-user、scope、organization-tree、resolver、projection/trust 和服务凭据治理摘要；Insight P0 通过 copy-safe 交接包加 manual/secretRef binding 完成绑定。")).not.toBeNull();
+    expect(view.getByText("Owner evidence 摘要")).not.toBeNull();
+    expect(view.getByText("copy-safe 交接操作")).not.toBeNull();
+    expect(view.getByText("/api/admin-provider/insight/v1/current-user")).not.toBeNull();
+    expect(view.getByText("/current-user/scope")).not.toBeNull();
+    expect(view.getByText("/current-user/organization-tree")).not.toBeNull();
     expect(view.queryByLabelText("交接包总览")).toBeNull();
     expect(view.queryByText("当前状态")).toBeNull();
     expect(view.getByText("下一步：在 Admin 部署配置补齐 2 项，重启后刷新本页")).not.toBeNull();
     expect(view.queryByText("查看交接项")).toBeNull();
-    expect(view.getByText("待补配置")).not.toBeNull();
+    expect(view.getByText("需补配置")).not.toBeNull();
     expect(view.queryByText("刷新状态")).toBeNull();
     expect(view.queryByText("预检交接包")).toBeNull();
     expect(view.getByText("生成 Admin 交接包")).not.toBeNull();
@@ -411,18 +412,19 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.queryByText("机器字段")).toBeNull();
     expect(view.queryByText("交接包材料")).toBeNull();
     expect(view.getByText("Insight 调用信任")).not.toBeNull();
-    expect(view.queryByText("用量身份解析")).toBeNull();
+    expect(view.getByText("用量身份解析")).not.toBeNull();
     expect(view.getByText("Gateway 组织投影")).not.toBeNull();
-    expect(view.queryByText("环境维护项")).toBeNull();
+    expect(view.getByText("环境维护项")).not.toBeNull();
+    expect(view.getByLabelText("usage_identity_resolver owner evidence").textContent).toContain("admin_outbound_resolver");
+    expect(view.getByLabelText("keep_in_env owner evidence").textContent).toContain("环境配置");
     expect(view.queryByText("确认 Insight 调 Admin 接入接口时，调用来源在 Admin 信任范围内。")).toBeNull();
     expect(view.queryByLabelText("insight_provider_trust 凭据引用")).toBeNull();
     expect(view.queryByLabelText("usage_identity_resolver 凭据引用")).toBeNull();
     expect(view.queryByText("查看环境维护说明")).toBeNull();
     expect(view.queryByText("查看交接材料")).toBeNull();
-    await openConfigDetails(view, "gateway_organization_projection");
+    expect(await view.findByLabelText("gateway_organization_projection owner evidence")).not.toBeNull();
     expect(view.queryByText("补凭据引用")).toBeNull();
-    expect(view.getByText("这里不保存密钥。请在 Admin 的 env/config 里补配置，补完重启后刷新。")).not.toBeNull();
-    expect(view.getByText("在 Admin 部署配置补 gatewayOrganizationProjectionToken；如果部署模板没有环境变量映射，就补到 Admin config。")).not.toBeNull();
+    expect(view.getByText("这里不保存密钥，也不配置 API/Gateway 用量 provider。请在 Admin 的 env/config 里补配置，补完重启后刷新。")).not.toBeNull();
     expect(view.queryByText("只补缺少的 Vault/Secret 引用名")).toBeNull();
     expect(view.queryByText("到 Vault/Secret 系统找到这项的引用名，填到下面；保存后再生成交接包。")).toBeNull();
     expect(view.queryByText("引用名")).toBeNull();
@@ -459,7 +461,12 @@ describe("ApplicationUsageAccessPage", () => {
 
     const view = renderPage();
     expect(await view.findByText("材料已齐，点击生成 Admin 交接包。")).not.toBeNull();
-    expect(view.getByText("Admin 交接包")).not.toBeNull();
+    expect(view.getByText("copy-safe 交接操作")).not.toBeNull();
+    expect(view.getByText("Owner evidence 摘要")).not.toBeNull();
+    expect(view.getByLabelText("insight_provider_trust owner evidence").textContent).toContain("admin_provider_trust");
+    expect(view.getByLabelText("usage_identity_resolver owner evidence").textContent).toContain("用量身份解析");
+    expect(view.getByLabelText("gateway_organization_projection owner evidence").textContent).toContain("Gateway 组织投影");
+    expect(view.getByLabelText("keep_in_env owner evidence").textContent).toContain("环境维护项");
     expect(view.queryByText("待补配置")).toBeNull();
     expect(view.queryByText("下一步：材料已齐，可以生成 Admin 交接包")).toBeNull();
     expect(view.queryByText("保存修正")).toBeNull();
@@ -486,7 +493,7 @@ describe("ApplicationUsageAccessPage", () => {
     const regenerateButton = view.getByText("重新生成 Admin 交接包").closest("button") as HTMLButtonElement;
     expect(regenerateButton).not.toBeNull();
     expect(regenerateButton.className).not.toContain("ant-btn-primary");
-    expect(view.getByText("本页只交付 Admin 身份、组织、resolver、projection/trust 和服务凭据引用材料；API/Gateway 用量交接包由 API/Gateway 侧生成。")).not.toBeNull();
+    expect(view.getByText("本页只交付 Admin 身份、组织、resolver、projection/trust 和服务凭据引用材料；Insight P0 需使用 manual/secretRef binding，Admin secure handoff 不在 P0。")).not.toBeNull();
     clickButtonByText(view, "复制交接包 JSON");
     expect(mockCopyToClipboard).toHaveBeenCalledTimes(1);
     const copiedPackage = String(mockCopyToClipboard.mock.calls[0]?.[0] ?? "");
@@ -512,13 +519,12 @@ describe("ApplicationUsageAccessPage", () => {
     mockDiagnoseServiceCredentialGovernanceConfig.mockResolvedValueOnce(governanceDiagnosticResponse);
 
     const view = renderPage();
-    await view.findByLabelText("gateway_organization_projection 交接包检查");
+    await view.findByLabelText("gateway_organization_projection owner evidence");
 
-    const gatewayRowBeforeDiagnostic = view.getByLabelText("gateway_organization_projection 交接包检查");
-    expect(gatewayRowBeforeDiagnostic.textContent).toContain("待补 Admin 配置");
-    expect(gatewayRowBeforeDiagnostic.textContent).toContain("gatewayOrganizationProjectionToken");
-    expect(gatewayRowBeforeDiagnostic.textContent).not.toContain("不可用");
-    expect(gatewayRowBeforeDiagnostic.textContent).not.toContain("材料不全");
+    const gatewayRowBeforeDiagnostic = view.getByLabelText("gateway_organization_projection owner evidence");
+    expect(gatewayRowBeforeDiagnostic.textContent).toContain("不可用");
+    expect(gatewayRowBeforeDiagnostic.textContent).toContain("admin_gateway_projection_producer");
+    expect(view.getByText("gatewayOrganizationProjectionToken")).not.toBeNull();
     expect(view.queryByLabelText("usage_identity_resolver 凭据引用")).toBeNull();
 
     expect(view.container.textContent).not.toContain("admin_service_credential_reference_unresolved");
@@ -639,16 +645,15 @@ describe("ApplicationUsageAccessPage", () => {
 
     const view = renderPage();
     await view.findByText("材料已齐，点击生成 Admin 交接包。");
-    expect(view.queryByLabelText("ready_group 交接包检查")).toBeNull();
-    expect(view.queryByLabelText("disabled_group 交接包检查")).toBeNull();
-    expect(view.queryByLabelText("missing_reference_group 交接包检查")).toBeNull();
-    expect(view.queryByLabelText("blocked_group 交接包检查")).toBeNull();
+    expect(view.getByLabelText("ready_group owner evidence").textContent).toContain("Ready group");
+    expect(view.getByLabelText("disabled_group owner evidence").textContent).toContain("Disabled group");
+    expect(view.getByLabelText("missing_reference_group owner evidence").textContent).toContain("Missing reference group");
+    expect(view.getByLabelText("blocked_group owner evidence").textContent).toContain("Blocked group");
     expect(view.container.textContent).not.toContain("credentialReferenceKey");
     expect(view.container.textContent).not.toContain("callerPolicy");
     expect(view.container.textContent).not.toContain("caller_policy_missing");
 
     expect(view.queryByText("预检通过")).toBeNull();
-    expect(view.queryByText("未启用")).toBeNull();
     expect(view.queryByText("待补 Admin 配置")).toBeNull();
     expect(view.queryByText("策略未放行")).toBeNull();
     expect(view.queryByText("高级修正")).toBeNull();
@@ -750,8 +755,8 @@ describe("ApplicationUsageAccessPage", () => {
     });
 
     const view = renderPage();
-    await view.findByLabelText("blocked_group 交接包检查");
-    expect(view.queryByLabelText("ready_group 交接包检查")).toBeNull();
+    await view.findByLabelText("blocked_group owner evidence");
+    expect(view.getByLabelText("ready_group owner evidence").textContent).toContain("Ready group");
     expect((view.getByText("生成 Admin 交接包").closest("button") as HTMLButtonElement).disabled).toBe(true);
     clickButtonByText(view, "生成 Admin 交接包");
 

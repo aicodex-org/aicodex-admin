@@ -56,6 +56,11 @@ const INTERNAL_SERVICE_CREDENTIAL_GOVERNANCE_KEYS = new Set([
   "callerPolicy",
   "credentialReferenceKey",
 ]);
+const INSIGHT_ADMIN_PROVIDER_WRAPPER_ROUTES = [
+  "/api/admin-provider/insight/v1/current-user",
+  "/current-user/scope",
+  "/current-user/organization-tree",
+];
 
 interface ApplicationAccessServiceCredentialGovernancePanelProps {
   className?: string;
@@ -561,6 +566,22 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
   const serviceCredentialGovernanceActionRows = serviceCredentialGovernanceAlignedRows.filter(row => {
     return serviceCredentialGovernanceNeedsDeploymentConfig(row.statusGroup);
   });
+  const serviceCredentialGovernanceEvidenceRows = serviceCredentialGovernanceAlignedRows.map(row => {
+    const rowDisplay = getServiceCredentialGovernanceDisplay(row.key, row.label);
+    const status = getServiceCredentialGovernanceOperatorStatus(row.statusGroup?.status);
+    const sourceLabel = row.configGroup?.sourceClass
+      ? getServiceCredentialGovernanceSourceClassLabel(row.configGroup.sourceClass)
+      : getServiceCredentialReferenceStatusLabel(row.statusGroup?.credentialReferenceStatus);
+    return {
+      ...row,
+      display: rowDisplay,
+      operatorStatus: status,
+      sourceLabel,
+      owner: row.configGroup?.owner || row.statusGroup?.owner || "admin_owner",
+      nextAction: row.configGroup?.nextAction || row.statusGroup?.nextAction || getServiceCredentialGovernancePrimaryGap(row.statusGroup),
+      tone: getServiceCredentialGovernanceTone(row.statusGroup?.status ?? "not_applicable"),
+    };
+  });
   const serviceCredentialGovernanceHasPendingMaterials = serviceCredentialGovernanceActionRows.length > 0;
   const serviceCredentialGovernanceEffectiveSummary = serviceCredentialGovernanceActionRows.length > 0
     ? {label: "需补配置", tone: "warning" as ServiceCredentialGovernanceTone}
@@ -587,7 +608,51 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
       </Button>
     </Space>
   );
-  const serviceCredentialGovernanceWorkspaceTitle = serviceCredentialGovernanceHasPendingMaterials ? "待补配置" : "Admin 交接包";
+  const serviceCredentialGovernanceBoundarySummary = (
+    <Alert
+      className="enterprise-identity-console-alert"
+      type="info"
+      showIcon
+      message={t("Insight Admin Provider status boundary title", "状态与 P0 边界")}
+      description={t(
+        "Insight Admin Provider status description",
+        "Admin 只交付 current-user、scope、organization-tree、resolver、projection/trust 和服务凭据治理摘要；Insight P0 通过 copy-safe 交接包加 manual/secretRef binding 完成绑定。"
+      )}
+    />
+  );
+  const serviceCredentialGovernanceWrapperCapabilities = (
+    <div className="application-access-service-credential-evidence" aria-label="Insight Admin Provider wrapper capabilities">
+      <Text strong>{t("Insight Admin Provider wrapper capabilities title", "Wrapper 能力")}</Text>
+      <Space className="application-access-service-credential-wrapper-routes" size={[6, 6]} wrap>
+        {INSIGHT_ADMIN_PROVIDER_WRAPPER_ROUTES.map(route => (
+          <Tag className="enterprise-identity-code-tag" key={route}>{route}</Tag>
+        ))}
+      </Space>
+    </div>
+  );
+  const serviceCredentialGovernanceEvidenceSummary = (
+    <div className="application-access-service-credential-evidence" aria-label="Owner evidence summary">
+      <Text strong>{t("Insight Admin Provider owner evidence summary title", "Owner evidence 摘要")}</Text>
+      <div className="application-access-service-credential-alignment" aria-label="Owner evidence rows">
+        {serviceCredentialGovernanceEvidenceRows.map(row => (
+          <div className="application-access-service-credential-summary-row" aria-label={`${row.key} owner evidence`} key={row.key}>
+            <div className="application-access-service-credential-summary-main">
+              <Space className="application-access-service-credential-summary-title" wrap>
+                <Text strong>{row.display.title}</Text>
+                <Tag className={`enterprise-identity-tone-${row.tone}`}>{row.operatorStatus.label}</Tag>
+                <Tag>{row.sourceLabel}</Tag>
+              </Space>
+              <Text type="secondary">{row.owner}</Text>
+            </div>
+            <div className="application-access-service-credential-config-detail">
+              <Text type="secondary">{row.nextAction}</Text>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+  const serviceCredentialGovernanceWorkspaceTitle = t("Insight Admin Provider copy safe handoff actions title", "copy-safe 交接操作");
   const serviceCredentialGovernanceWorkspace = (
     <div className="application-access-service-credential-workspace">
       <div className="application-access-service-credential-workspace-header">
@@ -618,7 +683,10 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
             type="success"
             showIcon
             message="Insight Admin 接入交接包已生成"
-            description="本页只交付 Admin 身份、组织、resolver、projection/trust 和服务凭据引用材料；API/Gateway 用量交接包由 API/Gateway 侧生成。"
+            description={t(
+              "Insight Admin Provider handoff ready description",
+              "本页只交付 Admin 身份、组织、resolver、projection/trust 和服务凭据引用材料；Insight P0 需使用 manual/secretRef binding，Admin secure handoff 不在 P0。"
+            )}
             action={(
               <Button icon={<CopyOutlined />} size="small" onClick={handleCopyServiceCredentialGovernanceHandoffPackage}>
                 复制交接包 JSON
@@ -633,34 +701,22 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
               type={serviceCredentialGovernanceActionRows.length > 0 ? "warning" : "success"}
               showIcon
               message={serviceCredentialGovernanceActionRows.length > 0
-                ? "这里不保存密钥。请在 Admin 的 env/config 里补配置，补完重启后刷新。"
+                ? t(
+                  "Insight Admin Provider pending config message",
+                  "这里不保存密钥，也不配置 API/Gateway 用量 provider。请在 Admin 的 env/config 里补配置，补完重启后刷新。"
+                )
                 : "材料已齐，点击生成 Admin 交接包。"}
             />
-            {serviceCredentialGovernanceActionRows.map(row => {
-              const statusGroup = row.statusGroup;
-              const rowDisplay = getServiceCredentialGovernanceDisplay(row.key, row.label);
-              const sourceHint = getServiceCredentialGovernanceReferenceSourceHint(row.key);
-              const missingKeys = getServiceCredentialGovernanceDeploymentMissingKeys(statusGroup);
-              const visibleMissingKeys = missingKeys.length > 0 ? missingKeys : [getServiceCredentialGovernanceReferencePlaceholder(row.key)];
-              return (
-                <div className="application-access-service-credential-summary-row" aria-label={`${row.key} 交接包检查`} key={row.key}>
-                  <div className="application-access-service-credential-summary-main">
-                    <Space className="application-access-service-credential-summary-title" wrap>
-                      <Text strong>{rowDisplay.title}</Text>
-                      <Tag className="enterprise-identity-tone-warning">待补 Admin 配置</Tag>
-                    </Space>
-                    <Text type="secondary">{sourceHint}</Text>
-                  </div>
-                  <div className="application-access-service-credential-config-detail">
-                    <Space size={[6, 6]} wrap>
-                      {visibleMissingKeys.map(key => (
-                        <Tag key={key}>{key}</Tag>
-                      ))}
-                    </Space>
-                  </div>
-                </div>
-              );
-            })}
+            {serviceCredentialGovernanceActionRows.length > 0 && (
+              <Space size={[6, 6]} wrap>
+                {serviceCredentialGovernanceActionRows.flatMap(row => {
+                  const missingKeys = getServiceCredentialGovernanceDeploymentMissingKeys(row.statusGroup);
+                  return (missingKeys.length > 0 ? missingKeys : [getServiceCredentialGovernanceReferencePlaceholder(row.key)]).map(key => (
+                    <Tag key={`${row.key}-${key}`}>{key}</Tag>
+                  ));
+                })}
+              </Space>
+            )}
           </div>
         )}
       </div>
@@ -670,9 +726,13 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
   return (
     <EnterpriseIdentitySection
       className={className}
-      title="服务凭据治理"
+      title={t("Insight Admin Provider status title", "Insight Admin Provider 状态")}
+      description={t("Insight Admin Provider page description", "面向 Insight 的 Admin Provider copy-safe 元数据交接页。")}
       extra={<Tag className={`enterprise-identity-tone-${serviceCredentialGovernanceEffectiveSummary.tone}`}>{serviceCredentialGovernanceEffectiveSummary.label}</Tag>}
     >
+      {serviceCredentialGovernanceBoundarySummary}
+      {serviceCredentialGovernanceWrapperCapabilities}
+      {serviceCredentialGovernanceEvidenceSummary}
       {serviceCredentialGovernanceLoadState === "loading" && (
         <Alert
           className="enterprise-identity-console-alert"

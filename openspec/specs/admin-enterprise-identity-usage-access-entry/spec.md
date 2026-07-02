@@ -1,21 +1,26 @@
 # admin-enterprise-identity-usage-access-entry Specification
 
 ## Purpose
-TBD - created by archiving change add-admin-usage-access-submenu. Update Purpose after archive.
+
+定义 Admin 企业身份控制台中 `应用接入 / 用量接入` 二级入口的产品边界、copy-safe 交接安全约束、基础页面状态和主题一致性要求。
 ## Requirements
 ### Requirement: 用量接入二级入口
-Admin 身份控制台 SHALL 在 `应用接入` 分组下提供 `用量接入` 二级入口，使管理员能够直接进入用量链路治理页面，而不需要在 `/applications` 通用应用接入中心中寻找服务凭据治理内容。
 
-#### Scenario: 管理员打开用量接入页面
-- **WHEN** 已登录 local admin 通过侧栏、移动抽屉、组织导航配置树或直接 URL 访问 `/application-usage-access`
-- **THEN** 系统 SHALL 展示 `用量接入` 页面
-- **AND** 页面 SHALL 位于 `应用接入` 导航分组下
-- **AND** `/applications` SHALL 继续展示为 `应用接入中心` 并保持可达
+`用量接入` 页面 SHALL 承接原 `应用接入中心` 中的服务凭据治理详细能力，至少覆盖 `Insight provider trust`、`Usage identity resolver`、`Gateway organization projection` 和 `Keep in env/config` 四类治理项的状态、治理配置、保存配置、诊断/预检、交接包预览、owner 边界和下一步入口。
 
-#### Scenario: 二级入口保持权限过滤兼容
-- **WHEN** 组织配置了 `navItems` 或 `userNavItems`
-- **THEN** `用量接入` SHALL 使用稳定 route key `/application-usage-access` 参与既有权限过滤
-- **AND** 不得因为新增二级入口暴露未授权菜单
+#### Scenario: 入口表达为 Insight Admin Provider 交接
+
+- **WHEN** 管理员打开 Admin 侧用量接入页面
+- **THEN** 页面 SHALL 将主标题或主面板表达为 `Insight Admin Provider` 交接/状态
+- **AND** 页面 SHALL 明确 Admin 只提供身份、组织、resolver、projection/trust、服务凭据治理和 wrapper 能力摘要
+- **AND** 页面 SHALL 使用状态边界、wrapper 能力、owner evidence 摘要、copy-safe 交接操作四块固定交接布局
+- **AND** 页面 SHALL NOT 表达为 API/Gateway 用量 provider 配置中心
+
+#### Scenario: 默认展示固定 wrapper 能力
+
+- **WHEN** 页面展示 Admin 交接包生成入口
+- **THEN** 页面 SHALL 默认展示 `/api/admin-provider/insight/v1/current-user`、`/current-user/scope`、`/current-user/organization-tree` 三条 wrapper 能力摘要
+- **AND** 摘要 SHALL NOT 展示 raw payload、raw id、真实账号或完整组织树
 
 ### Requirement: 用量接入页面聚焦服务凭据治理
 `用量接入` 页面 SHALL 承接原 `应用接入中心` 中与 Admin 服务凭据治理直接相关的交接包能力，以 KISS 方式展示 `待补配置` 或 `Admin 交接包`，并避免成为新的配置中心或诊断中心。
@@ -36,15 +41,28 @@ Admin 身份控制台 SHALL 在 `应用接入` 分组下提供 `用量接入` �
 - **AND** reason code、stable alias、owner/provenance、handoff schema、metadata、doctor detail 和 evidence payload SHALL NOT 在 UI 中展示；需要排障时以开发日志或后续专门诊断入口处理
 
 ### Requirement: 用量接入 copy-safe 安全边界
-`用量接入` 页面 SHALL 只处理 Admin-owned 身份、组织、resolver、projection 和服务间凭据入口治理配置，不得承接 API/Gateway 或 Insight 自己的 truth，也不得执行真实下游动作。
 
-#### Scenario: 页面保持脱敏
-- **WHEN** 页面展示服务凭据治理状态、配置、诊断或交接包信息
-- **THEN** UI SHALL render only sanitized group labels, human-readable statuses, copy-safe summaries, credential reference presence, caller policy presence or alias, bounded runtime policy summary, keep-in-env/cannot-infer status and next-action fields
-- **AND** 首屏 MUST NOT render reason code, raw policy or boundary tags, owner/provenance details, doctor metadata, evidence payload, trace/debug fields, raw secret references, complete private URLs, token values, Authorization headers, Cookies, DSNs, client secrets, private keys, raw provider responses, raw downstream responses, raw ids, real accounts or complete organization trees
-- **AND** UI SHALL NOT render advanced diagnostic aliases or metadata; the first version SHALL keep only copy-safe human-readable status, next action, deployment-config gap hints, and Admin handoff package generation/copy actions
-- **AND** generated Admin handoff package SHALL NOT include API/Gateway usage facts or API/Gateway provider runtime truth
-- **AND** groups whose status is `not_applicable` SHALL NOT be converted to runtime `ready`; UI and package summaries SHALL preserve `cannot_infer` semantics when Admin cannot infer downstream runtime truth
+页面生成和展示 Admin 交接包时 SHALL 明确说明该交接包是 copy-safe Admin owner evidence，只用于 Insight Admin Provider 元数据交接和 manual/secretRef binding 指引，不包含可直接调用的运行态凭据。
+
+#### Scenario: 交接包生成成功
+
+- **WHEN** 管理员生成 Admin 交接包
+- **THEN** UI SHALL 只渲染脱敏治理项名称、人可读状态、copy-safe 摘要、凭据引用存在性、调用策略存在性或别名、有界运行策略摘要、keep-in-env/cannot-infer 状态和 next action 字段
+- **AND** UI SHALL 明确 Insight P0 使用 copy-safe handoff 加 manual/secretRef binding 绑定 Admin provider 凭据
+- **AND** UI SHALL NOT 将 Admin secure handoff 表达为默认动作
+
+#### Scenario: 异常态指向 Admin owner 下一步
+
+- **WHEN** Admin owner evidence 处于 blocked、missing 或 cannot infer runtime truth 状态
+- **THEN** UI SHALL 指引 operator 处理 Admin owner 修复、部署配置，或交由 Insight 侧验证 manual/secretRef binding
+- **AND** UI SHALL NOT 要求 operator 在 Admin 内配置 API/Gateway 用量 provider 凭据
+
+#### Scenario: 可用状态仍展示 owner evidence
+
+- **WHEN** Admin owner evidence 不存在待补部署配置
+- **THEN** UI SHALL 仍默认展示 Insight provider trust、usage identity resolver、Gateway organization projection 和 keep-in-env/config 的 owner evidence 行
+- **AND** 每行 SHALL 只展示 owner alias、readiness/status、source 或 credential class 以及 next action
+- **AND** UI SHALL NOT 将 evidence 行隐藏在交接包操作之后
 
 ### Requirement: 用量接入覆盖基础页面状态
 `用量接入` 页面 SHALL 覆盖加载、错误、无可用治理项和窄屏状态，并保持管理员可继续前往既有应用接入、Provider、API 映射或审计入口。
