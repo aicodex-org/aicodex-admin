@@ -84,19 +84,26 @@ describe("IdentityConsoleOverview", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText("AICodex 身份基础设施总览")).toBeInTheDocument();
-    expect(screen.getByText("关注接入覆盖、归因、授权和审计信号。")).toBeInTheDocument();
+    expect(screen.queryByText("AICodex 身份运行总览")).not.toBeInTheDocument();
+    expect(screen.queryByText("关注接入覆盖、归因、授权和审计信号。")).not.toBeInTheDocument();
     expect(screen.queryByText("统一查看应用规格、用量洞察、身份配置与 API 网关的身份运行状态，优先呈现接入覆盖、用量归因、授权映射和审计证据。")).not.toBeInTheDocument();
     expect(screen.getAllByText("身份控制台").length).toBeGreaterThan(0);
-    expect(screen.queryByText("身份控制台 / 身份总览")).not.toBeInTheDocument();
+    expect(screen.getByText("身份控制台 / 身份总览")).toBeInTheDocument();
     expect(screen.getByText("加载身份基础设施状态...")).toBeInTheDocument();
     expect((await screen.findAllByText("应用规格")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("98%")).toHaveLength(2);
+    expect(screen.getByText("4 个产品域")).toBeInTheDocument();
+    expect(screen.queryByText("API 网关映射有 1 项需复核，用量归因有 1 项等待身份关系补齐。")).not.toBeInTheDocument();
+    expect(screen.getByText("查看核对建议").closest("a")).toHaveAttribute("href", "/platform-api-mappings");
 
     expect(screen.getAllByText("用量洞察").length).toBeGreaterThan(0);
     expect(screen.getAllByText("身份控制台").length).toBeGreaterThan(0);
     expect(screen.getAllByText("API 网关").length).toBeGreaterThan(0);
-    expect(screen.getByText("待核对事项")).toBeInTheDocument();
+    expect(screen.getByText("aicodex-app-spec")).toBeInTheDocument();
+    expect(screen.getByText("aicodex-insight")).toBeInTheDocument();
+    expect(screen.getByText("aicodex-admin")).toBeInTheDocument();
+    expect(screen.getByText("aicodex-api")).toBeInTheDocument();
+    expect(screen.getAllByText("待核对事项").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("接入健康")).toBeInTheDocument();
     expect(screen.getByText("最近审计证据")).toBeInTheDocument();
     expect(screen.getAllByText("进入应用接入").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/applications")).toBe(true);
@@ -111,10 +118,6 @@ describe("IdentityConsoleOverview", () => {
     expect(screen.queryByText(/deep link/i)).not.toBeInTheDocument();
     expect(screen.queryByText("当前列表视图")).not.toBeInTheDocument();
     expect(screen.queryAllByText("系统标识")).toHaveLength(0);
-    expect(screen.queryByText("aicodex-app-spec")).not.toBeInTheDocument();
-    expect(screen.queryByText("aicodex-insight")).not.toBeInTheDocument();
-    expect(screen.queryByText("aicodex-admin")).not.toBeInTheDocument();
-    expect(screen.queryByText("aicodex-api")).not.toBeInTheDocument();
   });
 
   test("keeps the page header separate while treating summary and workbench as body content", async() => {
@@ -137,18 +140,27 @@ describe("IdentityConsoleOverview", () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText("待核对事项")).toBeInTheDocument();
+    expect((await screen.findAllByText("待核对事项")).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("能力与元数据")).toBeInTheDocument();
+    expect(screen.getByText("组织与模型归因")).toBeInTheDocument();
+    expect(screen.getByText("账号、来源、权限")).toBeInTheDocument();
+    expect(screen.getByText("授权与审计事实")).toBeInTheDocument();
+    expect(screen.getByText("按产品域核对下一步动作。")).toBeInTheDocument();
 
     const pageShell = view.container.querySelector(".admin-page-scroll-shell.identity-console-overview");
     const headerRegion = view.container.querySelector(".enterprise-identity-console-header");
     const bodyRegion = view.container.querySelector(".enterprise-identity-console-body");
+    const spotlightRegion = view.container.querySelector(".identity-console-overview-notice");
     const workbench = view.container.querySelector(".identity-console-overview-workbench");
     const summaryStrip = view.container.querySelector(".enterprise-identity-summary-strip");
     const statusGrid = view.container.querySelector(".enterprise-identity-status-grid");
 
     expect(pageShell).not.toBeNull();
     expect(pageShell?.classList.contains("enterprise-identity-console-density-compact")).toBe(true);
-    expect(headerRegion?.contains(screen.getByText("AICodex 身份基础设施总览"))).toBe(true);
+    expect(headerRegion?.contains(screen.getByText("身份控制台 / 身份总览"))).toBe(true);
+    expect(headerRegion?.querySelector(".enterprise-identity-console-title")).toBeNull();
+    expect(headerRegion?.contains(spotlightRegion)).toBe(true);
+    expect(spotlightRegion?.classList.contains("identity-console-overview-notice-compact")).toBe(true);
     expect(bodyRegion?.contains(summaryStrip)).toBe(true);
     expect(bodyRegion?.contains(statusGrid)).toBe(true);
     expect(bodyRegion?.contains(workbench)).toBe(true);
@@ -211,7 +223,7 @@ describe("IdentityConsoleOverview", () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText("AICodex 身份基础设施总览")).toBeInTheDocument();
+    expect(await screen.findByText("身份控制台 / 身份总览")).toBeInTheDocument();
     expect(dashboardBackendMock.getDashboard).toHaveBeenCalledWith("demo");
   });
 
@@ -235,7 +247,7 @@ describe("IdentityConsoleOverview", () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText("待核对事项")).toBeInTheDocument();
+    expect((await screen.findAllByText("待核对事项")).length).toBeGreaterThanOrEqual(2);
     expect(screen.queryByText("对象关系证据链")).not.toBeInTheDocument();
     expect(screen.queryByText("接入预检")).not.toBeInTheDocument();
     expect(screen.queryByText("进入身份资产关系")).not.toBeInTheDocument();

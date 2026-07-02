@@ -18,6 +18,7 @@
 
 ## UI 与 i18n
 
+- UI 新增或修改前，先读取仓库根目录 `DESIGN.md`；从 `web-admin` 目录访问为 `../DESIGN.md`。该文件补充 Admin 设计 token、视觉意图和一致性判断，不替代本文件的工程约束。
 - UI 改动优先复用既有企业化布局、Ant Design 组件、状态摘要、表格/筛选/空态/错误态模式，不引入营销式大块布局。
 - Admin 身份控制台路线的主设计准则是 Ant Design / Ant Design Pro；IBM Carbon 只参考表格、工具栏、筛选、列设置、批量操作和数据密度，Microsoft Fluent 2 只参考可访问性、焦点、对比度和工具型内容路径，Material Design 3 / Apple HIG 只做通用导航、层级、响应式和平台一致性检查，Vercel Web Interface Guidelines 只作为语义 HTML、焦点态、长文本、overflow、URL 状态和 i18n checklist。
 - 身份控制台路线新增页面或工作台时，用户可见产品名使用“身份控制台”，面向管理员使用清晰业务标签；不要把“企业认证中心”作为本路线产品名，也不要把内部实现术语、投影细节或 provider 原始字段直接作为主导航/主标题。
@@ -28,7 +29,7 @@
 - 桌面首屏不得用营销式 hero 或大空白压低核心内容；移动端以单列流式布局为准，表格可局部横向滚动，但页面级不得横向溢出。
 - 新增或修改用户可见文案、导航、菜单、按钮、状态、错误信息时，同步维护 `zh` / `en` i18n，不新增硬编码中英文菜单。
 - 交互必须覆盖加载中、空数据、错误、权限不足、提交中、重复提交和长文本溢出等基础状态。
-- 身份控制台更完整的 UI 规则见 `docs/design/admin-identity-console/admin-identity-console-ui-rules.md`。
+- 身份控制台路线规则见仓库根目录 `docs/design/admin-identity-console/admin-identity-console-ui-rules.md`；从 `web-admin` 目录访问为 `../docs/design/admin-identity-console/admin-identity-console-ui-rules.md`。
 
 ## 验证要求
 

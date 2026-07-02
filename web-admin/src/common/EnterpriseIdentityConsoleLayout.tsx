@@ -43,6 +43,7 @@ export interface EnterpriseIdentityStatusCard {
   title: React.ReactNode;
   description?: React.ReactNode;
   icon?: React.ReactNode;
+  code?: React.ReactNode;
   metricValue?: React.ReactNode;
   metricLabel?: React.ReactNode;
   tags?: Array<{
@@ -71,9 +72,10 @@ export interface EnterpriseIdentityRiskItem {
 
 interface EnterpriseIdentityConsolePageProps {
   eyebrow?: React.ReactNode;
-  title: React.ReactNode;
+  title?: React.ReactNode;
   description?: React.ReactNode;
   actions?: React.ReactNode;
+  spotlight?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
   density?: "default" | "compact";
@@ -96,6 +98,7 @@ export function EnterpriseIdentityConsolePage({
   title,
   description,
   actions,
+  spotlight,
   children,
   className = "",
   density = "default",
@@ -107,16 +110,19 @@ export function EnterpriseIdentityConsolePage({
       bodyClassName="enterprise-identity-console-body"
       header={(
         <>
-          <Space direction="vertical" size={density === "compact" ? 2 : 4} className="enterprise-identity-console-title-block">
-            {eyebrow && <Text className="enterprise-identity-console-eyebrow">{eyebrow}</Text>}
-            <Title level={3} className="enterprise-identity-console-title">{title}</Title>
-            {description && <Text type="secondary" className="enterprise-identity-console-description">{description}</Text>}
-          </Space>
-          {actions && (
-            <Space wrap className="enterprise-identity-console-header-actions">
-              {actions}
+          <div className="enterprise-identity-console-header-main">
+            <Space direction="vertical" size={density === "compact" ? 2 : 4} className="enterprise-identity-console-title-block">
+              {eyebrow && <Text className="enterprise-identity-console-eyebrow">{eyebrow}</Text>}
+              {title && <Title level={3} className="enterprise-identity-console-title">{title}</Title>}
+              {description && <Text type="secondary" className="enterprise-identity-console-description">{description}</Text>}
             </Space>
-          )}
+            {actions && (
+              <Space wrap className="enterprise-identity-console-header-actions">
+                {actions}
+              </Space>
+            )}
+          </div>
+          {spotlight && <div className="enterprise-identity-console-spotlight">{spotlight}</div>}
         </>
       )}
     >
@@ -212,6 +218,12 @@ export function EnterpriseIdentityStatusGrid({
           )}
 
           {item.details && <div className="enterprise-identity-status-details">{item.details}</div>}
+
+          {item.code && (
+            <Tag className="enterprise-identity-code-tag">
+              {item.code}
+            </Tag>
+          )}
 
           {item.actions && item.actions.length > 0 && (
             <div className="enterprise-identity-inline-actions">

@@ -80,6 +80,7 @@ type StatusCardItem = {
   key: string;
   title: React.ReactNode;
   icon?: React.ReactNode;
+  code?: React.ReactNode;
   description?: React.ReactNode;
   metricValue?: React.ReactNode;
   metricLabel?: React.ReactNode;
@@ -153,7 +154,8 @@ function buildProductDomainCards(dashboardData: DashboardData | null): StatusCar
       key: "app-spec",
       title: tGeneral("AICodex product app spec", "应用规格"),
       icon: <AppstoreOutlined />,
-      description: tGeneral("AICodex product app spec description", "应用能力、接入声明和元数据。"),
+      code: "aicodex-app-spec",
+      description: tGeneral("AICodex product app spec description", "能力与元数据"),
       metricValue: applicationCount ?? "-",
       metricLabel: tGeneral("Application access declaration", "接入声明"),
       actions: [{key: "applications", to: "/applications", label: tGeneral("Enter application access", "进入应用接入")}],
@@ -162,7 +164,8 @@ function buildProductDomainCards(dashboardData: DashboardData | null): StatusCar
       key: "insight",
       title: tGeneral("AICodex product insight", "用量洞察"),
       icon: <ProfileOutlined />,
-      description: tGeneral("AICodex product insight description", "组织、人员和模型用量归因。"),
+      code: "aicodex-insight",
+      description: tGeneral("AICodex product insight description", "组织与模型归因"),
       metricValue: userCount === null ? "-" : "98%",
       metricLabel: tGeneral("Usage attribution completeness", "用量归因完整度"),
       actions: [{key: "users", to: "/users", label: tGeneral("View attribution", "查看归因")}],
@@ -171,7 +174,8 @@ function buildProductDomainCards(dashboardData: DashboardData | null): StatusCar
       key: "admin",
       title: tGeneral("AICodex product admin", "身份控制台"),
       icon: <TeamOutlined />,
-      description: tGeneral("AICodex product admin description", "组织账号、身份来源、权限和审计配置。"),
+      code: "aicodex-admin",
+      description: tGeneral("AICodex product admin description", "账号、来源、权限"),
       metricValue: organizationCount ?? "-",
       metricLabel: userCount === null ? tGeneral("Users need review", "用户待核对") : tGeneral("Users metric", `用户 ${userCount}`),
       actions: [{key: "providers", to: "/providers", label: tGeneral("View identity source", "查看身份源")}],
@@ -180,7 +184,8 @@ function buildProductDomainCards(dashboardData: DashboardData | null): StatusCar
       key: "api",
       title: tGeneral("AICodex product api gateway", "API 网关"),
       icon: <DeploymentUnitOutlined />,
-      description: tGeneral("AICodex product api gateway description", "网关授权、运行态接口和审计事实。"),
+      code: "aicodex-api",
+      description: tGeneral("AICodex product api gateway description", "授权与审计事实"),
       metricValue: permissionCount ?? "-",
       metricLabel: tGeneral("Authorization mapping", "授权映射"),
       actions: [{key: "mappings", to: "/platform-api-mappings", label: tGeneral("View mapping", "查看映射")}],
@@ -388,12 +393,17 @@ function IdentityConsoleOverview({account, history}: IdentityConsoleOverviewProp
   const summaryItems = buildSummaryItems(dashboardData, !!errorMessage);
   const healthItems = buildHealthItems(dashboardData);
   const auditEvidenceItems = buildAuditEvidenceItems(dashboardData);
+  const pendingAttentionCount = pendingReviewItems.filter(item => item.tone === "warning").length;
 
   return (
     <EnterpriseIdentityConsolePage
       className="identity-console-overview"
-      title={tGeneral("AICodex identity infrastructure overview", "AICodex 身份基础设施总览")}
-      description={tGeneral("AICodex identity infrastructure overview description", "关注接入覆盖、归因、授权和审计信号。")}
+      eyebrow={(
+        <span className="identity-console-overview-eyebrow-line">
+          <span>{tGeneral("Identity console overview breadcrumb", "身份控制台 / 身份总览")}</span>
+          <Tag className="identity-console-overview-coverage-tag">{tGeneral("Identity overview product coverage", "4 个产品域")}</Tag>
+        </span>
+      )}
       density="compact"
       actions={(
         <Space wrap>
@@ -401,6 +411,15 @@ function IdentityConsoleOverview({account, history}: IdentityConsoleOverviewProp
           <Link to="/feishu-org-sync"><Button icon={<SafetyCertificateOutlined />}>{tGeneral("Feishu org sync action", "飞书同步")}</Button></Link>
           <Link to="/applications"><Button type="primary" icon={<AppstoreOutlined />}>{tGeneral("Application access action", "应用接入")}</Button></Link>
         </Space>
+      )}
+      spotlight={(
+        <aside className="identity-console-overview-notice identity-console-overview-notice-compact" aria-label={tGeneral("Pending review notice", "待核对事项提醒")}>
+          <div className="identity-console-overview-notice-heading">
+            <Text strong>{tGeneral("Pending review items", "待核对事项")}</Text>
+            <span>{pendingAttentionCount}</span>
+          </div>
+          <Link to="/platform-api-mappings">{tGeneral("View review suggestions", "查看核对建议")}</Link>
+        </aside>
       )}
     >
       {loading && (
@@ -428,7 +447,7 @@ function IdentityConsoleOverview({account, history}: IdentityConsoleOverviewProp
         <EnterpriseIdentitySection
           className="identity-console-review-section"
           title={tGeneral("Pending review items", "待核对事项")}
-          description={tGeneral("Pending review items description", "按影响产品和风险程度排序，帮助管理员判断下一步动作。")}
+          description={tGeneral("Pending review items description", "按产品域核对下一步动作。")}
           extra={(
             <Space size={[6, 6]} wrap>
               <Tag className="enterprise-identity-tone-processing">{tGeneral("All", "全部")}</Tag>

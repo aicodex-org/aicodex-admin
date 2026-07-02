@@ -17,10 +17,11 @@ describe("EnterpriseIdentityConsoleLayout", () => {
     const view = render(
       <MemoryRouter>
         <EnterpriseIdentityConsolePage
-          eyebrow="企业认证中心 / 总览"
+          eyebrow="身份控制台 / 总览"
           title="身份治理总览"
           description="组织、认证源、应用接入和审计风险"
           actions={<button type="button">刷新</button>}
+          spotlight={<aside>2 项待核对</aside>}
         >
           <EnterpriseIdentitySummaryStrip items={[
             {key: "sources", label: "认证源", value: 3, description: "2 个已启用", tone: "success"},
@@ -31,13 +32,14 @@ describe("EnterpriseIdentityConsoleLayout", () => {
               key: "wecom",
               title: "企业微信",
               description: "组织同步和登录入口",
+              code: "aicodex-admin",
               metricValue: "100%",
               metricLabel: "配置完整",
               tags: [{key: "ready", label: "已启用", tone: "success"}],
               actions: [{key: "config", label: "进入配置", to: "/providers"}],
             },
           ]} />
-          <EnterpriseIdentitySection title="风险待办" description="只读推导，不触发执行">
+          <EnterpriseIdentitySection title="风险待办" description="按审计证据核对，不触发执行">
             <EnterpriseIdentityRiskList items={[
               {
                 key: "audit",
@@ -56,12 +58,14 @@ describe("EnterpriseIdentityConsoleLayout", () => {
       </MemoryRouter>
     );
 
-    expect(view.getByText("企业认证中心 / 总览")).not.toBeNull();
+    expect(view.getByText("身份控制台 / 总览")).not.toBeNull();
     expect(view.getByText("身份治理总览")).not.toBeNull();
+    expect(view.getByText("2 项待核对")).not.toBeNull();
     expect(view.container.querySelector(".admin-page-scroll-shell.enterprise-identity-console")).not.toBeNull();
     expect(view.container.querySelector(".enterprise-identity-console-body .enterprise-identity-summary-strip")).not.toBeNull();
     expect(view.getByText("认证源")).not.toBeNull();
     expect(view.getByText("企业微信")).not.toBeNull();
+    expect(view.getByText("aicodex-admin")).not.toBeNull();
     expect(view.getByText("风险待办")).not.toBeNull();
     expect(view.getByText("应用接入").closest("a")?.getAttribute("href")).toBe("/applications");
     expect(view.getByText("进入配置").closest("a")?.getAttribute("href")).toBe("/providers");
