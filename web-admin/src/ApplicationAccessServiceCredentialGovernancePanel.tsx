@@ -674,7 +674,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
     ? t("Handoff generation blocked hint", "需补齐后生成")
     : (serviceCredentialGovernanceCanGenerate
       ? (serviceCredentialGovernanceHasPartialPackage
-        ? t("Handoff generation partial hint", "可生成元数据包，缺少凭据引用")
+        ? t("Handoff generation partial hint", "可生成元数据包，需补凭据引用")
         : t("Handoff generation complete hint", "可生成完整包"))
       : t("Handoff generation unavailable hint", "暂不可生成"));
   const serviceCredentialGovernanceBlockingRows = serviceCredentialGovernanceActionRows.length > 0
@@ -806,20 +806,19 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
     </div>
   );
   const serviceCredentialGovernanceBoundarySummary = (
-    <Alert
-      className="enterprise-identity-console-alert"
-      type="info"
-      showIcon
-      message={t(
-        "Insight Admin Provider concise boundary",
-        "Admin 只交付 copy-safe metadata；Insight P0 使用 manual/secretRef binding，Admin secure handoff 不在 P0。"
-      )}
-    />
+    <div className="application-access-service-credential-boundary-note">
+      <Text type="secondary">
+        {t(
+          "Insight Admin Provider concise boundary",
+          "Admin 只交付 copy-safe metadata；Insight P0 使用 manual/secretRef binding，Admin secure handoff 不在 P0。"
+        )}
+      </Text>
+    </div>
   );
   const serviceCredentialGovernanceBlockingSummary = (
     <div className="application-access-service-credential-evidence" aria-label="阻断项">
       <Text strong>{t("Insight Admin Provider blocker details title", "阻断项")}</Text>
-      <div className="application-access-service-credential-alignment">
+      <div className="application-access-service-credential-compact-list">
         {serviceCredentialGovernanceBlockingEvidenceRows.length > 0 ? serviceCredentialGovernanceBlockingEvidenceRows.map(row => {
           const isCredentialReferenceMissing = row.statusGroup?.credentialReferenceStatus === "missing"
             || row.configGroup?.credentialReferenceStatus === "missing";
@@ -827,7 +826,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
             ? t("Handoff blocker missing credential reference", "缺少凭据引用")
             : getServiceCredentialGovernancePrimaryGap(row.statusGroup);
           return (
-            <div className="application-access-service-credential-summary-row" aria-label={`${row.key} blocker evidence`} key={`${row.key}-blocker`}>
+            <div className="application-access-service-credential-compact-row" aria-label={`${row.key} blocker evidence`} key={`${row.key}-blocker`}>
               <div className="application-access-service-credential-summary-main">
                 <Space className="application-access-service-credential-summary-title" wrap>
                   <Text strong>{row.display.title}</Text>
@@ -855,24 +854,19 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
   const serviceCredentialGovernanceAvailableCapabilitySummary = (
     <div className="application-access-service-credential-evidence" aria-label="可用能力">
       <Text strong>{t("Insight Admin Provider available capability details title", "可用能力")}</Text>
-      <div className="application-access-service-credential-alignment" aria-label="Available capability rows">
+      <Space className="application-access-service-credential-capability-chips" aria-label="Available capability rows" size={[8, 8]} wrap>
         {serviceCredentialGovernanceReadyCapabilityRows.map(row => (
-          <div className="application-access-service-credential-summary-row" aria-label={`${row.key} available capability`} key={`${row.key}-available`}>
-            <div className="application-access-service-credential-summary-main">
-              <Space className="application-access-service-credential-summary-title" wrap>
-                <Text strong>{row.label}</Text>
-                <Tag className={`enterprise-identity-tone-${row.status.tone}`}>{row.status.label}</Tag>
-              </Space>
-            </div>
-          </div>
+          <Tag className={`application-access-service-credential-capability-chip enterprise-identity-tone-${row.status.tone}`} aria-label={`${row.key} available capability`} key={`${row.key}-available`}>
+            {row.label} · {row.status.label}
+          </Tag>
         ))}
-      </div>
+      </Space>
     </div>
   );
   const serviceCredentialGovernanceTechnicalEvidence = (
     <div className="application-access-service-credential-evidence" aria-label="技术证据">
       <Text strong>{t("Insight Admin Provider technical evidence title", "技术证据")}</Text>
-      <div className="application-access-service-credential-evidence" aria-label="Insight Admin Provider wrapper routes">
+      <div className="application-access-service-credential-technical-subsection" aria-label="Insight Admin Provider wrapper routes">
         <Text type="secondary">{t("Insight Admin Provider wrapper route details title", "Wrapper route")}</Text>
         <Space className="application-access-service-credential-wrapper-routes" size={[6, 6]} wrap>
           {INSIGHT_ADMIN_PROVIDER_WRAPPER_ROUTES.map(route => (
@@ -880,13 +874,13 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
           ))}
         </Space>
       </div>
-      <div className="application-access-service-credential-evidence" aria-label="Owner evidence technical details">
+      <div className="application-access-service-credential-technical-subsection" aria-label="Owner evidence technical details">
         <Text type="secondary">{t("Insight Admin Provider owner evidence details title", "Owner evidence")}</Text>
-        <div className="application-access-service-credential-alignment">
+        <div className="application-access-service-credential-compact-list">
           {serviceCredentialGovernanceEvidenceRows.map(row => {
             const missingKeys = getServiceCredentialGovernanceDeploymentMissingKeys(row.statusGroup);
             return (
-              <div className="application-access-service-credential-summary-row" aria-label={`${row.key} owner evidence`} key={row.key}>
+              <div className="application-access-service-credential-technical-row" aria-label={`${row.key} owner evidence`} key={row.key}>
                 <div className="application-access-service-credential-summary-main">
                   <Space className="application-access-service-credential-summary-title" wrap>
                     <Text strong>{row.display.title}</Text>
@@ -1000,17 +994,20 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
         )}
         {serviceCredentialGovernanceConfigLoadState === "ready" && serviceCredentialGovernanceHandoffState !== "ready" && serviceCredentialGovernanceActionRows.length === 0 && (
           <div className="application-access-service-credential-alignment" aria-label={serviceCredentialGovernanceWorkspaceTitle}>
-            <Alert
-              className="enterprise-identity-console-alert"
-              type={serviceCredentialGovernanceHasPartialPackage ? "warning" : "success"}
-              showIcon
-              message={serviceCredentialGovernanceHasPartialPackage
-                ? t("Handoff metadata package partial ready message", "可生成 copy-safe 元数据包，仍需补凭据引用。")
-                : t("Handoff metadata package ready message", "材料已齐，点击生成 Admin 交接包。")}
-              description={serviceCredentialGovernanceHasPartialPackage
-                ? t("Handoff metadata package partial ready description", "生成包后导入 Insight Profile；补齐 resolver 凭据引用后完成 P0 manual/secretRef binding。")
-                : undefined}
-            />
+            {serviceCredentialGovernanceHasPartialPackage ? (
+              <div className="application-access-service-credential-metadata-note">
+                <Text type="secondary">
+                  {t("Handoff metadata package partial ready message", "可生成元数据交接包，导入 Insight 后再完成 manual/secretRef binding。")}
+                </Text>
+              </div>
+            ) : (
+              <Alert
+                className="enterprise-identity-console-alert"
+                type="success"
+                showIcon
+                message={t("Handoff metadata package ready message", "材料已齐，点击生成 Admin 交接包。")}
+              />
+            )}
           </div>
         )}
       </div>

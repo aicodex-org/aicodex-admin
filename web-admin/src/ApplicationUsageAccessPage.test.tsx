@@ -410,7 +410,9 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.queryByText("生成给 Insight 使用的 Admin 接入交接包；只维护身份、组织、resolver、projection/trust 和服务凭据引用。")).toBeNull();
     expect(view.queryByText("核对 Gateway 映射")).toBeNull();
     expect(view.getAllByText("Insight Admin Provider 状态").length).toBeGreaterThan(0);
-    expect(view.getByText("Admin 只交付 copy-safe metadata；Insight P0 使用 manual/secretRef binding，Admin secure handoff 不在 P0。")).not.toBeNull();
+    const boundaryNote = view.getByText("Admin 只交付 copy-safe metadata；Insight P0 使用 manual/secretRef binding，Admin secure handoff 不在 P0。");
+    expect(boundaryNote).not.toBeNull();
+    expect(boundaryNote.closest(".ant-alert")).toBeNull();
     expect(view.getByLabelText("Admin 交接摘要")).not.toBeNull();
     expect(view.getByText("交接状态")).not.toBeNull();
     expect(view.getByText("目标消费方")).not.toBeNull();
@@ -480,13 +482,16 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.getByText("技术证据")).not.toBeNull();
     expect(view.getByText("收起诊断详情")).not.toBeNull();
     expect(view.queryByText("交接能力")).toBeNull();
-    expect(view.getByText("身份接口")).not.toBeNull();
-    expect(view.getByText("Scope 接口")).not.toBeNull();
-    expect(view.getByText("组织树接口")).not.toBeNull();
+    expect(view.getByText(/身份接口 · 已就绪/)).not.toBeNull();
+    expect(view.getByText(/Scope 接口 · 已就绪/)).not.toBeNull();
+    expect(view.getByText(/组织树接口 · 已就绪/)).not.toBeNull();
     expect(view.getAllByText("用量身份解析").length).toBeGreaterThan(0);
     expect(view.getAllByText("Gateway 组织投影").length).toBeGreaterThan(0);
     expect(view.getByLabelText("usage_identity_resolver available capability").textContent).toContain("已就绪");
-    expect(view.getByLabelText("gateway_organization_projection blocker evidence").textContent).toContain("缺少凭据引用");
+    expect(view.getByLabelText("usage_identity_resolver available capability").className).toContain("application-access-service-credential-capability-chip");
+    const gatewayBlockerEvidence = view.getByLabelText("gateway_organization_projection blocker evidence");
+    expect(gatewayBlockerEvidence.textContent).toContain("缺少凭据引用");
+    expect(gatewayBlockerEvidence.className).toContain("application-access-service-credential-compact-row");
     expect(await view.findByText("/api/admin-provider/insight/v1/current-user")).not.toBeNull();
     expect(view.getByText("/current-user/scope")).not.toBeNull();
     expect(view.getByText("/current-user/organization-tree")).not.toBeNull();
@@ -755,11 +760,14 @@ describe("ApplicationUsageAccessPage", () => {
     });
 
     const view = renderPage();
-    await view.findByText("可生成 copy-safe 元数据包，仍需补凭据引用。");
+    expect(await view.findByText("可生成元数据交接包，导入 Insight 后再完成 manual/secretRef binding。")).not.toBeNull();
+    expect(view.queryByText("可生成 copy-safe 元数据包，仍需补凭据引用。")).toBeNull();
+    const neutralMetadataNote = view.getByText("可生成元数据交接包，导入 Insight 后再完成 manual/secretRef binding。");
+    expect(neutralMetadataNote.closest(".ant-alert-warning")).toBeNull();
     expect(view.queryByText("材料已齐，点击生成 Admin 交接包。")).toBeNull();
     expect(view.getAllByText("部分缺失").length).toBeGreaterThan(0);
-    expect(view.getByText("可生成元数据包，缺少凭据引用")).not.toBeNull();
-    expect(view.getByText("生成包后导入 Insight Profile；补齐 resolver 凭据引用后完成 P0 manual/secretRef binding。")).not.toBeNull();
+    expect(view.getByText("可生成元数据包，需补凭据引用")).not.toBeNull();
+    expect(view.queryByText("生成包后导入 Insight Profile；补齐 resolver 凭据引用后完成 P0 manual/secretRef binding。")).toBeNull();
     expect(view.queryByText("Ready group")).toBeNull();
     expect(view.getByText("诊断摘要")).not.toBeNull();
     expect(view.getByText("查看诊断详情")).not.toBeNull();
@@ -768,6 +776,8 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.getByText("可用能力")).not.toBeNull();
     expect(view.getByText("技术证据")).not.toBeNull();
     expect(await view.findByLabelText("ready_group owner evidence")).not.toBeNull();
+    expect(view.getByLabelText("missing_reference_group blocker evidence").className).toContain("application-access-service-credential-compact-row");
+    expect(view.getByLabelText("current-user available capability").className).toContain("application-access-service-credential-capability-chip");
     expect(view.getByLabelText("ready_group owner evidence").textContent).toContain("Ready group");
     expect(view.getByLabelText("disabled_group owner evidence").textContent).toContain("Disabled group");
     expect(view.getByLabelText("missing_reference_group owner evidence").textContent).toContain("Missing reference group");

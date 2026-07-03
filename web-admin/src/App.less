@@ -2337,6 +2337,17 @@ body.admin-shell-theme-dark,
   background: #fff;
 }
 
+.application-access-service-credential-boundary-note,
+.application-access-service-credential-metadata-note {
+  display: flex;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--admin-shell-border-subtle, #f0f0f0);
+  border-radius: 8px;
+  background: var(--admin-shell-surface-muted-bg, rgb(250 251 253));
+  overflow-wrap: anywhere;
+}
+
 .application-access-service-credential-evidence {
   display: flex;
   min-width: 0;
@@ -2415,6 +2426,13 @@ body.admin-shell-theme-dark,
   gap: 10px;
 }
 
+.application-access-service-credential-compact-list {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .application-access-service-credential-summary-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -2423,6 +2441,22 @@ body.admin-shell-theme-dark,
   border: 1px solid var(--admin-shell-border-muted, rgb(229 233 240));
   border-radius: 8px;
   background: var(--admin-shell-surface-emphasis-bg, rgb(250 252 255));
+}
+
+.application-access-service-credential-compact-row,
+.application-access-service-credential-technical-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.9fr) minmax(0, 1.6fr);
+  gap: 8px 12px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--admin-shell-border-subtle, #f0f0f0);
+  border-radius: 6px;
+  background: var(--admin-shell-surface-bg, #fff);
+}
+
+.application-access-service-credential-technical-row {
+  grid-template-columns: minmax(180px, 1fr) minmax(0, 1fr);
 }
 
 .application-access-service-credential-summary-main,
@@ -2437,6 +2471,18 @@ body.admin-shell-theme-dark,
 
 .application-access-service-credential-summary-title {
   align-items: center;
+}
+
+.application-access-service-credential-capability-chips,
+.application-access-service-credential-wrapper-routes {
+  min-width: 0;
+}
+
+.application-access-service-credential-capability-chip.ant-tag {
+  margin-inline-end: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .application-access-service-credential-summary-status {
@@ -2489,6 +2535,13 @@ body.admin-shell-theme-dark,
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.application-access-service-credential-technical-subsection {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .audit-operations-table-section {
@@ -5375,6 +5428,8 @@ span.enterprise-list-secondary-text {
   }
 
   .application-access-service-credential-summary-row,
+  .application-access-service-credential-compact-row,
+  .application-access-service-credential-technical-row,
   .application-access-service-credential-summary-status,
   .application-access-service-credential-operator-overview,
   .application-access-service-credential-config-fields {

@@ -38,31 +38,23 @@
 
 `用量接入` 页面 SHALL 以 KISS 方式展示 `Insight Admin Provider` 交接状态和 copy-safe package 动作；旧服务凭据治理配置、诊断、修正或 provider 配置中心 UI SHALL NOT 作为默认产品 surface 保留。
 
-#### Scenario: 页面展示交接摘要和折叠诊断
+#### Scenario: partial 默认态只保留一个主阻断提示
 
-- **WHEN** 管理员打开 `/application-usage-access` 且 Admin owner evidence 状态或配置可用
-- **THEN** 页面 SHALL 保留 `应用接入 / 用量接入 / Admin Provider` 面包屑语义，并将页面标题或主面板表达为 `Insight Admin Provider` 交接
-- **AND** 页头 SHALL NOT 展示副标题说明文案，避免首屏重复解释 owner 边界
-- **AND** 页头 SHALL NOT 将 API/Gateway 映射作为主操作入口，避免把 Admin 页面误导成 Gateway truth 配置中心
-- **AND** 页头 SHALL NOT 重复展示可由左侧导航到达的横向快捷入口，避免分散交接包检查的主任务注意力
-- **AND** 首屏 SHALL 优先展示交接状态、一个明确下一步动作、目标消费方、包类型和 copy-safe 交接操作
-- **AND** 当存在 Admin 部署配置或凭据引用缺口时，默认层 SHALL 仅展示一条阻断摘要和一条修复建议，不在主工作区重复铺开技术 key 或多条诊断提示
-- **AND** 当不存在阻断性缺口时，主工作区 SHALL 展示 `生成 Admin 交接包` 动作
-- **AND** 交接包生成后 SHALL 提供明确的 copy-safe JSON 复制动作，作为 Insight 获取 Admin provider 辅助交接材料的默认方式
-- **AND** 页面 SHALL NOT 在 UI 内保存 secret、凭据引用、调用策略或运行策略修正
-- **AND** 页面 SHALL NOT 展示 `服务凭据治理`、`高级修正`、旧 handoff summary、旧配置保存、旧诊断、`Dry-run/Readiness`、`Doctor`、排障详情、读取当前值或二级机器字段作为默认入口
-- **AND** reason code、stable alias、handoff schema、metadata、doctor detail、evidence payload、raw payload、raw id、真实账号和完整组织树 SHALL NOT 在默认层展示
-- **AND** copy-safe wrapper route、owner alias、source class、capability/evidence 明细和缺失部署 key SHALL 只在诊断详情中展示
+- **WHEN** `/application-usage-access` 的 Admin handoff 状态为 partial、missing 或 blocked，且 copy-safe metadata package 仍可生成
+- **THEN** 页面默认层 SHALL 保留整体状态摘要、下一步 action 和一条 warning 主提示，说明缺少 resolver 凭据引用或同类阻断
+- **AND** copy-safe 交接操作区 SHALL 使用中性或 info 语义说明 `可生成元数据交接包，导入 Insight 后再完成 manual/secretRef binding`
+- **AND** 页面 SHALL NOT 在 copy-safe 操作区再渲染第二个黄色告警
+- **AND** P0 边界说明 SHALL 降级为低噪信息行、帮助说明或诊断摘要文案，不得成为默认视觉焦点
+- **AND** 页面 SHALL NOT 表达 Admin secure handoff 已完成或真实凭据绑定已完成
 
-#### Scenario: 诊断摘要和分组详情
+#### Scenario: 展开诊断详情使用紧凑信息结构
 
-- **WHEN** 页面存在 handoff status、wrapper capability 或 owner evidence 信息
-- **THEN** 页面 SHALL 默认展示紧凑诊断摘要行，包含阻断项数量、可用能力数量和 `Admin secure handoff 不在 P0` 边界
-- **AND** 页面 SHALL 提供明确的 `查看诊断详情` 动作，并在展开后提供 `收起诊断详情` 动作
-- **AND** 展开内容 SHALL 分为 `阻断项`、`可用能力` 和 `技术证据` 三组
-- **AND** `阻断项` SHALL 优先展示 owner、reason 和 next action
-- **AND** `可用能力` SHALL 只展示能力名称和状态
-- **AND** `技术证据` SHALL 集中展示 wrapper route、owner alias、source class 和缺失部署 key
+- **WHEN** 操作者点击 `查看诊断详情`
+- **THEN** 页面 SHALL 展开 `阻断项`、`可用能力` 和 `技术证据` 三组
+- **AND** `阻断项` SHALL 使用紧凑表格或列表呈现项目、状态、责任方、原因和建议动作，不得以多张大卡片堆叠为主
+- **AND** `可用能力` SHALL 使用紧凑 chips 或小列表呈现可用能力名称和状态，不得以每项大卡片堆叠为主
+- **AND** `技术证据` SHALL 保留 wrapper route、owner alias 和 owner evidence 等排障字段，但 SHALL 进一步降噪为 code chips、紧凑列表或二级 disclosure
+- **AND** 技术 alias、route、owner evidence 和长英文字段 SHALL 在 390px 窄屏下换行或截断，不得造成页面级横向溢出
 - **AND** 诊断详情 SHALL NOT 展示 token、Cookie、Authorization、client secret、DSN、raw payload、完整 private URL、真实账号或完整组织树
 
 ### Requirement: 用量接入 copy-safe 安全边界
