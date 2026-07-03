@@ -2355,7 +2355,7 @@ body.admin-shell-theme-dark,
 
 .application-access-service-credential-operator-overview {
   display: grid;
-  grid-template-columns: minmax(180px, 0.7fr) minmax(260px, 1.2fr) minmax(200px, 0.9fr);
+  grid-template-columns: minmax(140px, 0.8fr) minmax(240px, 1.4fr) minmax(140px, 0.8fr) minmax(160px, 0.9fr);
   gap: 10px;
   margin-bottom: 12px;
 }
@@ -2468,6 +2468,21 @@ body.admin-shell-theme-dark,
 
 .application-access-service-credential-row-details .ant-collapse-content-box {
   padding: 6px 0 0 !important;
+}
+
+.application-access-service-credential-technical-details {
+  border: 1px solid var(--admin-shell-border-muted, rgb(229 233 240));
+  border-radius: 8px;
+  background: var(--admin-shell-surface-bg, #fff);
+}
+
+.application-access-service-credential-technical-details > .ant-collapse-item > .ant-collapse-header {
+  align-items: center;
+  padding: 8px 12px !important;
+}
+
+.application-access-service-credential-technical-details > .ant-collapse-item > .ant-collapse-content > .ant-collapse-content-box {
+  padding: 0 12px 12px !important;
 }
 
 .application-access-service-credential-advanced-section {

@@ -1,9 +1,5 @@
-# admin-enterprise-identity-usage-access-entry Specification
+## MODIFIED Requirements
 
-## Purpose
-
-定义 Admin 企业身份控制台中 `应用接入 / 用量接入` 二级入口的产品边界、copy-safe 交接安全约束、基础页面状态和主题一致性要求。
-## Requirements
 ### Requirement: 用量接入二级入口
 
 `用量接入` 页面 SHALL 承接原 `应用接入中心` 中的服务凭据治理详细能力，至少覆盖 `Insight provider trust`、`Usage identity resolver`、`Gateway organization projection` 和 `Keep in env/config` 四类治理项的状态、治理配置、保存配置、诊断/预检、交接包预览、owner 边界和下一步入口。
@@ -75,31 +71,3 @@
 - **THEN** UI SHALL 默认展示身份接口、Scope 接口、组织树接口、用量身份解析和 Gateway 组织投影的人可读能力状态
 - **AND** owner alias、wrapper route、source class、缺失部署 key 和 owner evidence 技术细节 SHALL 只在 `技术细节` 折叠区或同等低噪详情中展示
 - **AND** UI SHALL NOT 将 copy-safe 技术细节隐藏在交接包生成动作之后
-
-### Requirement: 用量接入覆盖基础页面状态
-`用量接入` 页面 SHALL 覆盖加载、错误、无可用治理项和窄屏状态，并保持管理员可继续前往既有应用接入、Provider、API 映射或审计入口。
-
-#### Scenario: 加载错误和空态
-- **WHEN** 服务凭据治理请求加载中、失败、被拒绝或返回空治理项
-- **THEN** 页面 SHALL 展示紧凑 loading、error、unavailable 或 empty state
-- **AND** 页面 SHALL 保留进入 `应用接入中心`、Provider、API 映射或审计记录的低噪入口
-- **AND** 页面 SHALL NOT 因局部错误阻断 Admin 壳层导航
-
-#### Scenario: 桌面和移动端展示
-- **WHEN** 管理员在 `1440x900` 或 `390x844` 视口访问 `/application-usage-access`
-- **THEN** 文本、状态标签、按钮和治理项摘要 SHALL 不重叠、不撑破页面
-- **AND** 页面级 `documentElement.scrollWidth` SHALL NOT 大于 `documentElement.clientWidth + 1`
-- **AND** 核心治理项和错误/空态信息 SHALL 在可扫描位置可达
-
-### Requirement: 用量接入治理块暗黑主题一致性
-`用量接入` 页面中的服务凭据治理摘要、配置块、诊断块和辅助边界信息 SHALL 在明亮与暗黑模式下复用共享主题 token 呈现，避免暗黑模式下出现白底治理块、错误边框或不可读的弱信息。
-
-#### Scenario: 暗黑模式下治理摘要与配置块保持统一层级
-- **WHEN** 管理员在暗黑模式下访问 `/application-usage-access`
-- **THEN** 服务凭据治理摘要、配置块、状态条和辅助说明区域 SHALL 使用暗黑主题 surface、border 和 text token
-- **AND** 页面 SHALL NOT 在暗黑背景中留下白底治理块、浅色摘要条或突兀的亮色边界
-
-#### Scenario: 桌面与窄屏治理块都沿用同一主题语义
-- **WHEN** 页面在桌面或窄屏下展示治理块、加载态、错误态或可用态
-- **THEN** 这些区域 SHALL 继续沿用同一套主题 token 表达层级和状态
-- **AND** 实现 SHALL NOT 因布局分支或顶部分隔线单独保留固定浅色样式
