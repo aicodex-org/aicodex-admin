@@ -272,6 +272,31 @@ describe("ApplicationUsageAccessPage", () => {
       generatedAt: "2026-06-23T08:04:00Z",
       targetConsumerAlias: "insight_business_service_access",
       adminOwnerAlias: "admin_identity_application_access",
+      insightProfile: {
+        packageType: "copy_safe_handoff",
+        source: "admin_copy_safe_profile_draft",
+        targetConsumerAlias: "insight_business_service_access",
+        adminOwnerAlias: "admin_identity_application_access",
+        providerComponentAlias: "admin_owner_provider",
+        wrapperCapabilityReadiness: "ready",
+        wrapperCapabilities: [],
+        credentialReferenceStatus: "external_secret",
+        resolverCredentialReference: {
+          credentialReferenceStatus: "external_secret",
+          credentialReferenceKeySummary: "vault:usage-identity-resolver-updated",
+          bindingMode: "manual_or_secret_ref",
+          nextAction: "交由 Insight 消费方按引用解析",
+          stableAliases: ["admin_service_credential_reference_unresolved"],
+          blockedAliases: ["admin_service_credential_reference_unresolved"],
+          cannotInferRuntimeTruth: true,
+          keepInEnv: false,
+        },
+        stableAliases: ["admin_service_credential_reference_unresolved"],
+        blockedAliases: ["admin_service_credential_reference_unresolved"],
+        nextAction: "交由 Insight 消费方按引用解析",
+        cannotInferRuntimeTruth: true,
+        keepInEnv: false,
+      },
       groups: [
         {
           key: "usage_identity_resolver",
@@ -507,8 +532,24 @@ describe("ApplicationUsageAccessPage", () => {
     clickButtonByText(view, "生成 Admin 交接包");
     expect((await view.findAllByText("Insight Admin 接入交接包已生成")).length).toBeGreaterThan(0);
     const handoffInput = mockBuildServiceCredentialGovernanceHandoffPackage.mock.calls[0]?.[0] as {config?: unknown; status?: unknown};
-    expect(handoffInput).not.toHaveProperty("config");
+    expect(handoffInput).toHaveProperty("config");
     expect(handoffInput).toEqual(expect.objectContaining({
+      config: expect.objectContaining({
+        source: "admin_service_credential_governance_config",
+        isConfigured: true,
+        groups: expect.arrayContaining([
+          expect.objectContaining({
+            key: "usage_identity_resolver",
+            credentialReferenceStatus: "external_secret",
+            credentialReferenceKey: "vault:usage-identity-resolver",
+            boundedRuntimePolicy: {timeoutMs: 1500},
+          }),
+          expect.objectContaining({
+            key: "gateway_organization_projection",
+            credentialReferenceStatus: "not_applicable",
+          }),
+        ]),
+      }),
       status: expect.objectContaining({
         groups: expect.arrayContaining([
           expect.objectContaining({key: "usage_identity_resolver", status: "configured", credentialReferenceStatus: "configured"}),
@@ -525,6 +566,8 @@ describe("ApplicationUsageAccessPage", () => {
     expect(mockCopyToClipboard).toHaveBeenCalledTimes(1);
     const copiedPackage = String(mockCopyToClipboard.mock.calls[0]?.[0] ?? "");
     expect(copiedPackage).toContain("admin_service_credential_governance_handoff_package");
+    expect(copiedPackage).toContain("insightProfile");
+    expect(copiedPackage).toContain("copy_safe_handoff");
     expect(copiedPackage).not.toContain("resolver-secret-value");
     expect(copiedPackage).not.toContain("resolver-token-value");
     expect(copiedPackage).not.toContain("resolver.internal.example.invalid");
@@ -700,8 +743,14 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.queryByText("机器字段")).toBeNull();
     clickButtonByText(view, "生成 Admin 交接包");
     const handoffInput = mockBuildServiceCredentialGovernanceHandoffPackage.mock.calls[0]?.[0] as {config?: unknown; status?: unknown};
-    expect(handoffInput).not.toHaveProperty("config");
+    expect(handoffInput).toHaveProperty("config");
     expect(handoffInput).toEqual(expect.objectContaining({
+      config: expect.objectContaining({
+        groups: expect.arrayContaining([
+          expect.objectContaining({key: "missing_reference_group", credentialReferenceStatus: "missing"}),
+          expect.objectContaining({key: "blocked_group", credentialReferenceStatus: "configured", credentialReferenceKey: "blocked-reference"}),
+        ]),
+      }),
       status: expect.objectContaining({
         groups: expect.arrayContaining([
           expect.objectContaining({key: "missing_reference_group", status: "configured", missingKeys: [], blockedReasons: [], credentialReferenceStatus: "configured"}),

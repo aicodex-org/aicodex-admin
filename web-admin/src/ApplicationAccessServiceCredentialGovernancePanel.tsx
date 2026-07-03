@@ -487,7 +487,7 @@ function sanitizeServiceCredentialGovernanceConfigGroups(groups: ServiceCredenti
 function ApplicationAccessServiceCredentialGovernancePanel({className}: ApplicationAccessServiceCredentialGovernancePanelProps): React.ReactElement {
   const [serviceCredentialGovernance, setServiceCredentialGovernance] = React.useState<ServiceCredentialGovernanceStatusResponse | null>(null);
   const [serviceCredentialGovernanceLoadState, setServiceCredentialGovernanceLoadState] = React.useState<ServiceCredentialGovernanceLoadState>("loading");
-  const [, setServiceCredentialGovernanceConfig] = React.useState<ServiceCredentialGovernanceConfigResponse | null>(null);
+  const [serviceCredentialGovernanceConfig, setServiceCredentialGovernanceConfig] = React.useState<ServiceCredentialGovernanceConfigResponse | null>(null);
   const [serviceCredentialGovernanceConfigDraft, setServiceCredentialGovernanceConfigDraft] = React.useState<ServiceCredentialGovernanceConfigGroup[]>([]);
   const [serviceCredentialGovernanceConfigLoadState, setServiceCredentialGovernanceConfigLoadState] = React.useState<ServiceCredentialGovernanceConfigLoadState>("loading");
   const [serviceCredentialGovernanceHandoffPackage, setServiceCredentialGovernanceHandoffPackage] = React.useState<ServiceCredentialGovernanceHandoffPackage | null>(null);
@@ -583,10 +583,15 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
     }
 
     setServiceCredentialGovernanceHandoffPackage(buildServiceCredentialGovernanceHandoffPackage({
+      config: serviceCredentialGovernanceConfig ?? {
+        source: "admin_service_credential_governance_config",
+        isConfigured: serviceCredentialGovernanceConfigDraft.length > 0,
+        groups: serviceCredentialGovernanceConfigDraft,
+      },
       status: normalizeServiceCredentialGovernanceStatusForHandoff(serviceCredentialGovernance),
     }));
     setServiceCredentialGovernanceHandoffState("ready");
-  }, [serviceCredentialGovernance, serviceCredentialGovernanceConfigDraft, serviceCredentialGovernanceConfigLoadState]);
+  }, [serviceCredentialGovernance, serviceCredentialGovernanceConfig, serviceCredentialGovernanceConfigDraft, serviceCredentialGovernanceConfigLoadState]);
 
   const serviceCredentialGovernanceSummary = getServiceCredentialGovernanceSummary(serviceCredentialGovernance);
   const serviceCredentialGovernanceStatusGroups = serviceCredentialGovernance?.groups ?? [];

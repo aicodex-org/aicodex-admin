@@ -532,7 +532,70 @@ describe("ApplicationAccessCenter", () => {
       source: "admin_service_credential_governance_handoff_package",
       targetConsumerAlias: "insight_business_service_access",
       adminOwnerAlias: "admin_identity_application_access",
+      insightProfile: {
+        packageType: "copy_safe_handoff",
+        source: "admin_copy_safe_profile_draft",
+        targetConsumerAlias: "insight_business_service_access",
+        adminOwnerAlias: "admin_identity_application_access",
+        providerComponentAlias: "admin_owner_provider",
+        wrapperCapabilityReadiness: "ready",
+        credentialReferenceStatus: "external_secret",
+        resolverCredentialReference: {
+          credentialReferenceStatus: "external_secret",
+          credentialReferenceKeySummary: "vault:usage-identity-resolver",
+          bindingMode: "manual_or_secret_ref",
+          cannotInferRuntimeTruth: true,
+          keepInEnv: false,
+          nextAction: "核对 resolver 凭据引用",
+          stableAliases: expect.arrayContaining(["admin_service_credential_reference_unresolved"]),
+          blockedAliases: expect.arrayContaining(["admin_service_credential_reference_unresolved"]),
+        },
+        gatewayOrganizationProjection: {
+          credentialReferenceStatus: "external_secret",
+          credentialReferenceKeySummary: "vault:gateway-projection-publisher",
+          bindingMode: "manual_or_secret_ref",
+          cannotInferRuntimeTruth: true,
+          keepInEnv: false,
+          nextAction: "核对 Gateway projection 发布凭据引用",
+          stableAliases: expect.arrayContaining(["admin_service_credential_external_reference_unresolved"]),
+          blockedAliases: expect.arrayContaining(["admin_service_credential_external_reference_unresolved"]),
+        },
+        boundedRuntimePolicy: {
+          usage_identity_resolver: {timeoutMs: 1500},
+          gateway_organization_projection: {timeoutMs: 2500, maxRetries: 2},
+        },
+        stableAliases: expect.arrayContaining([
+          "admin_provider_current_user",
+          "admin_provider_current_user_scope",
+          "admin_provider_organization_tree",
+          "admin_service_credential_reference_unresolved",
+        ]),
+        blockedAliases: expect.arrayContaining(["admin_service_credential_reference_unresolved"]),
+        nextAction: "核对 resolver 凭据引用",
+        cannotInferRuntimeTruth: true,
+        keepInEnv: true,
+      },
     });
+    expect(handoffPackage.insightProfile.wrapperCapabilities).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        key: "current-user",
+        stableAlias: "admin_provider_current_user",
+        routeAlias: "/api/admin-provider/insight/v1/current-user",
+        readiness: "ready",
+      }),
+      expect.objectContaining({
+        key: "current-user-scope",
+        stableAlias: "admin_provider_current_user_scope",
+        routeAlias: "/current-user/scope",
+        readiness: "ready",
+      }),
+      expect.objectContaining({
+        key: "organization-tree",
+        stableAlias: "admin_provider_organization_tree",
+        routeAlias: "/current-user/organization-tree",
+        readiness: "ready",
+      }),
+    ]));
     expect(handoffPackage.groups.find(group => group.key === "usage_identity_resolver")).toMatchObject({
       readiness: "cannot_infer",
       credentialReferenceStatus: "external_secret",
@@ -567,6 +630,89 @@ describe("ApplicationAccessCenter", () => {
     expect(serializedPackage).not.toContain("Authorization");
     expect(serializedPackage).not.toContain("Cookie");
     expect(serializedPackage).not.toContain("rawPayload");
+  });
+
+  test("keeps missing Admin Profile credential guidance copy-safe and actionable", () => {
+    const handoffPackage = buildServiceCredentialGovernanceHandoffPackage({
+      config: {
+        updatedAt: "2026-07-03T02:00:00Z",
+        source: "admin_service_credential_governance_config",
+        isConfigured: true,
+        groups: [
+          {
+            key: "usage_identity_resolver",
+            label: "Usage identity resolver",
+            enabled: true,
+            owner: "admin_outbound_resolver",
+            sourceClass: "admin_config",
+            credentialReferenceStatus: "missing",
+            nextAction: "补充 resolver 凭据引用",
+          },
+          {
+            key: "gateway_organization_projection",
+            label: "Gateway organization projection",
+            enabled: true,
+            owner: "admin_gateway_projection_producer",
+            sourceClass: "admin_config",
+            credentialReferenceStatus: "missing",
+            blockedReasons: ["gateway_projection_owner_decision_required"],
+            nextAction: "Gateway 组织投影需 owner 决策后绑定 secretRef",
+          },
+        ],
+      },
+      status: {
+        generatedAt: "2026-07-03T02:00:30Z",
+        source: "admin_runtime_config",
+        groups: [
+          {
+            key: "usage_identity_resolver",
+            label: "Usage identity resolver",
+            owner: "admin_outbound_resolver",
+            status: "missing",
+            credentialReferenceStatus: "missing",
+            missingKeys: ["credentialReferenceKey"],
+            nextAction: "补充 resolver 凭据引用",
+          },
+          {
+            key: "gateway_organization_projection",
+            label: "Gateway organization projection",
+            owner: "admin_gateway_projection_producer",
+            status: "blocked",
+            credentialReferenceStatus: "missing",
+            missingKeys: ["gatewayOrganizationProjectionToken"],
+            blockedReasons: ["gateway_projection_owner_decision_required"],
+            nextAction: "Gateway 组织投影需 owner 决策后绑定 secretRef",
+          },
+        ],
+      },
+    });
+
+    expect(handoffPackage.insightProfile).toMatchObject({
+      credentialReferenceStatus: "missing",
+      resolverCredentialReference: {
+        credentialReferenceStatus: "missing",
+        bindingMode: "manual_or_secret_ref",
+        nextAction: "补充 resolver 凭据引用",
+        blockedAliases: expect.arrayContaining([
+          "admin_service_credential_reference_missing",
+          "admin_profile_manual_secret_ref_binding_required",
+        ]),
+      },
+      gatewayOrganizationProjection: {
+        credentialReferenceStatus: "missing",
+        bindingMode: "manual_or_secret_ref",
+        nextAction: "Gateway 组织投影需 owner 决策后绑定 secretRef",
+        blockedAliases: expect.arrayContaining([
+          "gateway_projection_owner_decision_required",
+          "admin_service_credential_reference_missing",
+        ]),
+      },
+      blockedAliases: expect.arrayContaining([
+        "admin_profile_manual_secret_ref_binding_required",
+        "gateway_projection_owner_decision_required",
+      ]),
+      nextAction: "补充 resolver 凭据引用",
+    });
   });
 
   test("does not mark not-applicable service credential groups as runtime ready", () => {
