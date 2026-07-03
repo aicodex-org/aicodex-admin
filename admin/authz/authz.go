@@ -61,6 +61,10 @@ p, *, *, GET, /api/user, *, *
 p, *, *, GET, /api/admin-provider/insight/v1/current-user, *, *
 p, *, *, GET, /api/admin-provider/insight/v1/current-user/scope, *, *
 p, *, *, GET, /api/admin-provider/insight/v1/current-user/organization-tree, *, *
+p, *, *, GET, /api/insight-admin-provider/handoff/status, *, *
+p, *, *, GET, /api/insight-admin-provider/handoff/config, *, *
+p, *, *, POST, /api/insight-admin-provider/handoff/config, *, *
+p, *, *, POST, /api/insight-admin-provider/handoff/diagnostics, *, *
 p, *, *, GET, /api/organization-tree-operations/diagnostics, *, *
 p, *, *, GET, /api/organization-tree-operations/members, *, *
 p, *, *, POST, /api/organization-tree-operations/refresh, *, *

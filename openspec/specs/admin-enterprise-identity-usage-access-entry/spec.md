@@ -6,38 +6,24 @@
 ## Requirements
 ### Requirement: 用量接入二级入口
 
-`用量接入` 页面 SHALL 承接原 `应用接入中心` 中的服务凭据治理详细能力，至少覆盖 `Insight provider trust`、`Usage identity resolver`、`Gateway organization projection` 和 `Keep in env/config` 四类治理项的状态、治理配置、保存配置、诊断/预检、交接包预览、owner 边界和下一步入口。
+`用量接入` 页面 SHALL 作为唯一的 `Insight Admin Provider` copy-safe metadata 交接入口，承接 Admin 身份、组织、resolver、projection/trust 和 owner evidence readiness 摘要，并生成 Insight Profile 可消费的 Admin handoff package。
 
 #### Scenario: 入口表达为 Insight Admin Provider 交接
 
 - **WHEN** 管理员打开 Admin 侧用量接入页面
 - **THEN** 页面 SHALL 将主标题或主面板表达为 `Insight Admin Provider` 交接/状态
-- **AND** 页面 SHALL 明确 Admin 只提供身份、组织、resolver、projection/trust、服务凭据治理和 wrapper 能力摘要
+- **AND** 页面 SHALL 明确 Admin 只提供身份、组织、resolver、projection/trust、owner evidence 和 wrapper 能力摘要
 - **AND** 页面 SHALL 默认展示交接状态、下一步、目标消费方和包类型
 - **AND** 页面 SHALL 将 P0 边界说明降级为一句低噪提示或帮助说明
 - **AND** 页面 SHALL NOT 表达为 API/Gateway 用量 provider 配置中心
-
-#### Scenario: 默认展示人话能力清单
-
-- **WHEN** 页面展示 Admin 交接包生成入口
-- **THEN** 页面 SHALL 默认展示 `身份接口`、`Scope 接口`、`组织树接口`、`用量身份解析` 和 `Gateway 组织投影` 的人可读状态
-- **AND** wrapper route、technical alias、owner evidence raw alias 和缺失配置 key SHALL 只出现在 `技术细节` 折叠区或同等低噪详情中
-- **AND** 摘要 SHALL NOT 展示 raw payload、raw id、真实账号或完整组织树
-
-#### Scenario: 交接主动作表达生成意图
-
-- **WHEN** 页面展示 copy-safe 交接操作
-- **THEN** 页面 SHALL 将主按钮表达为 `生成 Admin 交接包`
-- **AND** 页面 SHALL 在按钮附近说明当前可生成完整包、可生成部分包或需补齐后生成
-- **AND** 页面 SHALL 继续说明 Insight P0 使用 copy-safe metadata 加 manual/secretRef binding
-- **AND** 页面 SHALL NOT 将 Admin secure handoff 表达为默认动作
+- **AND** 页面 SHALL NOT 将旧 `服务凭据治理`、旧 handoff summary 或旧用量配置中心作为默认入口、标题、tab、按钮或高级区
 
 ### Requirement: 用量接入页面聚焦服务凭据治理
 
-`用量接入` 页面 SHALL 承接原 `应用接入中心` 中与 Admin 服务凭据治理直接相关的交接包能力，以 KISS 方式展示 Insight Admin Provider 交接状态、能力状态和 copy-safe 交接动作，并避免成为新的配置中心或诊断中心。
+`用量接入` 页面 SHALL 以 KISS 方式展示 `Insight Admin Provider` 交接状态、能力状态和 copy-safe package 动作；旧服务凭据治理配置、诊断、修正或 provider 配置中心 UI SHALL NOT 作为默认产品 surface 保留。
 
 #### Scenario: 页面展示交接摘要和能力状态
-- **WHEN** 管理员打开 `/application-usage-access` 且服务凭据治理状态或配置可用
+- **WHEN** 管理员打开 `/application-usage-access` 且 Admin owner evidence 状态或配置可用
 - **THEN** 页面 SHALL 保留 `应用接入 / 用量接入 / Admin Provider` 面包屑语义，并将页面标题或主面板表达为 `Insight Admin Provider` 交接
 - **AND** 页头 SHALL NOT 展示副标题说明文案，避免首屏重复解释 owner 边界
 - **AND** 页头 SHALL NOT 将 API/Gateway 映射作为主操作入口，避免把 Admin 页面误导成 Gateway truth 配置中心
@@ -47,8 +33,7 @@
 - **AND** 当不存在 Admin 部署配置缺口时，主工作区 SHALL 展示 copy-safe 交接操作，并提供 `生成 Admin 交接包` 动作
 - **AND** 交接包生成后 SHALL 提供明确的 copy-safe JSON 复制动作，作为 Insight 获取 Admin provider 辅助交接材料的默认方式
 - **AND** 页面 SHALL NOT 在 UI 内保存 secret、凭据引用、调用策略或运行策略修正
-- **AND** 页面 SHALL NOT 展示 `高级修正` 折叠区，且 SHALL NOT 暴露与读取当前值语义重复的恢复回读入口
-- **AND** 页面 SHALL NOT 展示 `Dry-run/Readiness`、`Doctor`、诊断详情、排障详情、保存修正、读取当前值或二级机器字段
+- **AND** 页面 SHALL NOT 展示 `服务凭据治理`、`高级修正`、旧 handoff summary、旧配置保存、旧诊断、`Dry-run/Readiness`、`Doctor`、排障详情、读取当前值或二级机器字段作为默认入口
 - **AND** reason code、stable alias、handoff schema、metadata、doctor detail、evidence payload、raw payload、raw id、真实账号和完整组织树 SHALL NOT 在 UI 中展示
 - **AND** copy-safe wrapper route、owner alias、source class 和缺失部署 key MAY 只在 `技术细节` 折叠区或同等低噪详情中展示
 
@@ -77,19 +62,15 @@
 - **AND** UI SHALL NOT 将 copy-safe 技术细节隐藏在交接包生成动作之后
 
 ### Requirement: 用量接入覆盖基础页面状态
-`用量接入` 页面 SHALL 覆盖加载、错误、无可用治理项和窄屏状态，并保持管理员可继续前往既有应用接入、Provider、API 映射或审计入口。
+
+`用量接入` 页面 SHALL 覆盖加载、错误、无可用交接配置和窄屏状态，并保持管理员可继续前往既有应用接入、Provider、API 映射或审计入口。
 
 #### Scenario: 加载错误和空态
-- **WHEN** 服务凭据治理请求加载中、失败、被拒绝或返回空治理项
+- **WHEN** Insight Admin Provider 交接状态或交接配置请求加载中、失败、被拒绝或返回空治理项
 - **THEN** 页面 SHALL 展示紧凑 loading、error、unavailable 或 empty state
 - **AND** 页面 SHALL 保留进入 `应用接入中心`、Provider、API 映射或审计记录的低噪入口
 - **AND** 页面 SHALL NOT 因局部错误阻断 Admin 壳层导航
-
-#### Scenario: 桌面和移动端展示
-- **WHEN** 管理员在 `1440x900` 或 `390x844` 视口访问 `/application-usage-access`
-- **THEN** 文本、状态标签、按钮和治理项摘要 SHALL 不重叠、不撑破页面
-- **AND** 页面级 `documentElement.scrollWidth` SHALL NOT 大于 `documentElement.clientWidth + 1`
-- **AND** 核心治理项和错误/空态信息 SHALL 在可扫描位置可达
+- **AND** 页面 SHALL NOT 使用旧 `服务凭据治理配置` 或 `服务凭据治理状态` 作为用户可见错误、空态或 loading 文案
 
 ### Requirement: 用量接入治理块暗黑主题一致性
 `用量接入` 页面中的服务凭据治理摘要、配置块、诊断块和辅助边界信息 SHALL 在明亮与暗黑模式下复用共享主题 token 呈现，避免暗黑模式下出现白底治理块、错误边框或不可读的弱信息。

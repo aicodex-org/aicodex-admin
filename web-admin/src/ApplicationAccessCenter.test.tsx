@@ -742,7 +742,7 @@ describe("ApplicationAccessCenter", () => {
     });
   });
 
-  test("wraps service credential governance API requests with credentials and JSON body", async() => {
+  test("wraps Insight Admin Provider handoff API requests with credentials and JSON body", async() => {
     const fetchMock = global.fetch as unknown as MockFetch;
     const config = serviceCredentialGovernanceConfigResponse.data as ServiceCredentialGovernanceConfigResponse;
     fetchMock
@@ -756,13 +756,13 @@ describe("ApplicationAccessCenter", () => {
     await expect(saveServiceCredentialGovernanceConfig(config)).resolves.toMatchObject({status: "ok"});
     await expect(diagnoseServiceCredentialGovernanceConfig(config)).resolves.toBe(serviceCredentialGovernanceDiagnosticResponse);
 
-    expect(fetchMock.mock.calls[0][0]).toContain("/api/application-access/service-credential-governance-status");
+    expect(fetchMock.mock.calls[0][0]).toContain("/api/insight-admin-provider/handoff/status");
     expect(fetchMock.mock.calls[0][1]).toMatchObject({method: "GET", credentials: "include"});
-    expect(fetchMock.mock.calls[1][0]).toContain("/api/application-access/service-credential-governance-config");
+    expect(fetchMock.mock.calls[1][0]).toContain("/api/insight-admin-provider/handoff/config");
     expect(fetchMock.mock.calls[1][1]).toMatchObject({method: "GET", credentials: "include"});
-    expect(fetchMock.mock.calls[2][0]).toContain("/api/application-access/service-credential-governance-config");
+    expect(fetchMock.mock.calls[2][0]).toContain("/api/insight-admin-provider/handoff/config");
     expect(fetchMock.mock.calls[2][1]).toMatchObject({method: "POST", credentials: "include", body: JSON.stringify(config)});
-    expect(fetchMock.mock.calls[3][0]).toContain("/api/application-access/service-credential-governance-diagnostics");
+    expect(fetchMock.mock.calls[3][0]).toContain("/api/insight-admin-provider/handoff/diagnostics");
     expect(fetchMock.mock.calls[3][1]).toMatchObject({method: "POST", credentials: "include", body: JSON.stringify(config)});
   });
 

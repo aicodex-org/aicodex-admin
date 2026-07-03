@@ -836,13 +836,28 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
       </div>
       <div className="application-access-service-credential-config" aria-label="Admin 交接包待补材料">
         {serviceCredentialGovernanceConfigLoadState === "loading" && (
-          <Alert className="enterprise-identity-console-alert" type="info" showIcon message="加载服务凭据治理配置..." />
+          <Alert
+            className="enterprise-identity-console-alert"
+            type="info"
+            showIcon
+            message={t("Insight Admin Provider handoff config loading", "加载 Insight Admin Provider 交接配置...")}
+          />
         )}
         {serviceCredentialGovernanceConfigLoadState === "error" && (
-          <Alert className="enterprise-identity-console-alert" type="warning" showIcon message="服务凭据治理配置暂不可用" />
+          <Alert
+            className="enterprise-identity-console-alert"
+            type="warning"
+            showIcon
+            message={t("Insight Admin Provider handoff config unavailable", "Insight Admin Provider 交接配置暂不可用")}
+          />
         )}
         {serviceCredentialGovernanceConfigLoadState === "empty" && (
-          <Alert className="enterprise-identity-console-alert" type="warning" showIcon message="暂无服务凭据治理配置" />
+          <Alert
+            className="enterprise-identity-console-alert"
+            type="warning"
+            showIcon
+            message={t("Insight Admin Provider handoff config empty", "暂无 Insight Admin Provider 交接配置")}
+          />
         )}
         {serviceCredentialGovernanceHandoffState === "error" && (
           <Alert
@@ -904,7 +919,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
           className="enterprise-identity-console-alert"
           type="info"
           showIcon
-          message="加载服务凭据治理状态..."
+          message={t("Insight Admin Provider handoff status loading", "加载 Insight Admin Provider 交接状态...")}
         />
       )}
       {serviceCredentialGovernanceLoadState === "error" && (
@@ -912,8 +927,11 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
           className="enterprise-identity-console-alert"
           type="warning"
           showIcon
-          message="服务凭据治理状态暂不可用"
-          description="应用列表操作不受影响；请稍后刷新或进入配置页核对。"
+          message={t("Insight Admin Provider handoff status unavailable", "Insight Admin Provider 交接状态暂不可用")}
+          description={t(
+            "Insight Admin Provider handoff status unavailable description",
+            "应用列表操作不受影响；请稍后刷新或请 Admin owner 核对部署配置。"
+          )}
         />
       )}
       {serviceCredentialGovernanceLoadState === "empty" && (
@@ -921,7 +939,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
           className="enterprise-identity-console-alert"
           type="warning"
           showIcon
-          message="暂无服务凭据治理状态"
+          message={t("Insight Admin Provider handoff status empty", "暂无 Insight Admin Provider 交接状态")}
         />
       )}
       {serviceCredentialGovernanceWorkspace}

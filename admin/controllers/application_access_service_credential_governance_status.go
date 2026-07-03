@@ -26,6 +26,12 @@ const (
 	serviceCredentialGovernanceSource = "admin_runtime_config"
 )
 
+const (
+	insightAdminProviderHandoffStatusPath      = "/api/insight-admin-provider/handoff/status"
+	insightAdminProviderHandoffConfigPath      = "/api/insight-admin-provider/handoff/config"
+	insightAdminProviderHandoffDiagnosticsPath = "/api/insight-admin-provider/handoff/diagnostics"
+)
+
 var applicationAccessServiceCredentialGovernanceConfigServiceFactory = func() *object.ServiceCredentialGovernanceConfigService {
 	return &object.ServiceCredentialGovernanceConfigService{}
 }
@@ -56,9 +62,9 @@ type ServiceCredentialGovernanceStatusGroup struct {
 	NextAction                string                 `json:"nextAction,omitempty"`
 }
 
-// GetApplicationAccessServiceCredentialGovernanceStatus 返回 Admin 运行态配置推导出的脱敏治理状态。
+// GetInsightAdminProviderHandoffStatus 返回 Admin 运行态配置推导出的脱敏交接状态。
 // 该接口只读，不触发 resolver、provider、Gateway projection publish 或 credential test。
-func (c *ApiController) GetApplicationAccessServiceCredentialGovernanceStatus() {
+func (c *ApiController) GetInsightAdminProviderHandoffStatus() {
 	if !c.requireServiceCredentialGovernanceGlobalAdmin() {
 		return
 	}
@@ -70,9 +76,14 @@ func (c *ApiController) GetApplicationAccessServiceCredentialGovernanceStatus() 
 	c.ResponseOk(status)
 }
 
-// GetApplicationAccessServiceCredentialGovernanceConfig 返回服务凭据治理配置入口的脱敏回读。
+// GetApplicationAccessServiceCredentialGovernanceStatus 拒绝旧服务凭据治理入口，避免继续暴露旧产品模型。
+func (c *ApiController) GetApplicationAccessServiceCredentialGovernanceStatus() {
+	c.respondLegacyServiceCredentialGovernanceEndpointDeprecated(insightAdminProviderHandoffStatusPath)
+}
+
+// GetInsightAdminProviderHandoffConfig 返回 Insight Admin Provider 交接配置的脱敏回读。
 // 该接口不测试凭据、不调用外部 provider，也不触发 Gateway projection 发布或刷新。
-func (c *ApiController) GetApplicationAccessServiceCredentialGovernanceConfig() {
+func (c *ApiController) GetInsightAdminProviderHandoffConfig() {
 	if !c.requireServiceCredentialGovernanceGlobalAdmin() {
 		return
 	}
@@ -84,9 +95,14 @@ func (c *ApiController) GetApplicationAccessServiceCredentialGovernanceConfig() 
 	c.ResponseOk(config)
 }
 
-// SaveApplicationAccessServiceCredentialGovernanceConfig 保存 Admin-owned copy-safe 配置引用元数据。
+// GetApplicationAccessServiceCredentialGovernanceConfig 拒绝旧服务凭据治理配置入口。
+func (c *ApiController) GetApplicationAccessServiceCredentialGovernanceConfig() {
+	c.respondLegacyServiceCredentialGovernanceEndpointDeprecated(insightAdminProviderHandoffConfigPath)
+}
+
+// SaveInsightAdminProviderHandoffConfig 保存 Admin-owned copy-safe 交接引用元数据。
 // 请求中的 raw secret、完整私有 URL 或未知分组会 fail closed，且错误不会回显敏感值。
-func (c *ApiController) SaveApplicationAccessServiceCredentialGovernanceConfig() {
+func (c *ApiController) SaveInsightAdminProviderHandoffConfig() {
 	if !c.requireServiceCredentialGovernanceGlobalAdmin() {
 		return
 	}
@@ -103,9 +119,14 @@ func (c *ApiController) SaveApplicationAccessServiceCredentialGovernanceConfig()
 	c.ResponseOk(savedConfig)
 }
 
-// DiagnoseApplicationAccessServiceCredentialGovernanceConfig 对 copy-safe draft/saved 配置做保存前预检。
+// SaveApplicationAccessServiceCredentialGovernanceConfig 拒绝旧服务凭据治理保存入口。
+func (c *ApiController) SaveApplicationAccessServiceCredentialGovernanceConfig() {
+	c.respondLegacyServiceCredentialGovernanceEndpointDeprecated(insightAdminProviderHandoffConfigPath)
+}
+
+// DiagnoseInsightAdminProviderHandoffConfig 对 copy-safe draft/saved 配置做保存前预检。
 // 该接口不保存配置、不解析 secret、不触发 resolver、provider、Gateway 或认证链路。
-func (c *ApiController) DiagnoseApplicationAccessServiceCredentialGovernanceConfig() {
+func (c *ApiController) DiagnoseInsightAdminProviderHandoffConfig() {
 	if !c.requireServiceCredentialGovernanceGlobalAdmin() {
 		return
 	}
@@ -115,6 +136,15 @@ func (c *ApiController) DiagnoseApplicationAccessServiceCredentialGovernanceConf
 		return
 	}
 	c.ResponseOk(object.BuildServiceCredentialGovernanceDiagnostics(&config, time.Now().UTC()))
+}
+
+// DiagnoseApplicationAccessServiceCredentialGovernanceConfig 拒绝旧服务凭据治理诊断入口。
+func (c *ApiController) DiagnoseApplicationAccessServiceCredentialGovernanceConfig() {
+	c.respondLegacyServiceCredentialGovernanceEndpointDeprecated(insightAdminProviderHandoffDiagnosticsPath)
+}
+
+func (c *ApiController) respondLegacyServiceCredentialGovernanceEndpointDeprecated(newPath string) {
+	c.ResponseError("旧服务凭据治理接口已废弃；请改用 Insight Admin Provider 交接接口 " + newPath)
 }
 
 func (c *ApiController) requireServiceCredentialGovernanceGlobalAdmin() bool {

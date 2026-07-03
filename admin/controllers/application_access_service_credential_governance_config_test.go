@@ -160,11 +160,11 @@ func TestServiceCredentialGovernanceConfigServiceRejectsSensitivePayload(t *test
 	}
 }
 
-func TestSaveApplicationAccessServiceCredentialGovernanceConfigRequiresAdminAndRejectsMalformedJson(t *testing.T) {
+func TestSaveInsightAdminProviderHandoffConfigRequiresAdminAndRejectsMalformedJson(t *testing.T) {
 	controller := newServiceCredentialGovernanceConfigTestController("POST", []byte(`{"groups":[]`))
 	controller.Ctx.Input.SetData("currentUserId", "built-in/admin")
 
-	controller.SaveApplicationAccessServiceCredentialGovernanceConfig()
+	controller.SaveInsightAdminProviderHandoffConfig()
 
 	resp, ok := controller.Data["json"].(*Response)
 	if !ok || resp.Status != "error" {
@@ -174,7 +174,7 @@ func TestSaveApplicationAccessServiceCredentialGovernanceConfigRequiresAdminAndR
 	controller = newServiceCredentialGovernanceConfigTestController("POST", []byte(`{"groups":[]}`))
 	controller.Ctx.Input.SetData("currentUserId", "tenant-a/operator")
 
-	controller.SaveApplicationAccessServiceCredentialGovernanceConfig()
+	controller.SaveInsightAdminProviderHandoffConfig()
 
 	resp, ok = controller.Data["json"].(*Response)
 	if !ok || resp.Status != "error" || !strings.Contains(resp.Msg, "administrator") {
@@ -182,10 +182,10 @@ func TestSaveApplicationAccessServiceCredentialGovernanceConfigRequiresAdminAndR
 	}
 }
 
-func TestGetApplicationAccessServiceCredentialGovernanceConfigRequiresLoginAndHandlesStoreError(t *testing.T) {
+func TestGetInsightAdminProviderHandoffConfigRequiresLoginAndHandlesStoreError(t *testing.T) {
 	controller := newServiceCredentialGovernanceConfigTestController("GET", nil)
 
-	controller.GetApplicationAccessServiceCredentialGovernanceConfig()
+	controller.GetInsightAdminProviderHandoffConfig()
 
 	resp, ok := controller.Data["json"].(*Response)
 	if !ok || resp.Status != "error" || !strings.Contains(resp.Msg, "Please login first") {
@@ -204,7 +204,7 @@ func TestGetApplicationAccessServiceCredentialGovernanceConfigRequiresLoginAndHa
 
 	controller = newServiceCredentialGovernanceConfigTestController("GET", nil)
 	controller.Ctx.Input.SetData("currentUserId", "built-in/admin")
-	controller.GetApplicationAccessServiceCredentialGovernanceConfig()
+	controller.GetInsightAdminProviderHandoffConfig()
 
 	resp, ok = controller.Data["json"].(*Response)
 	if !ok || resp.Status != "error" || !strings.Contains(resp.Msg, "metadata store unavailable") {
@@ -212,7 +212,7 @@ func TestGetApplicationAccessServiceCredentialGovernanceConfigRequiresLoginAndHa
 	}
 }
 
-func TestSaveApplicationAccessServiceCredentialGovernanceConfigHandlesStoreError(t *testing.T) {
+func TestSaveInsightAdminProviderHandoffConfigHandlesStoreError(t *testing.T) {
 	originalFactory := applicationAccessServiceCredentialGovernanceConfigServiceFactory
 	applicationAccessServiceCredentialGovernanceConfigServiceFactory = func() *object.ServiceCredentialGovernanceConfigService {
 		return &object.ServiceCredentialGovernanceConfigService{
@@ -225,7 +225,7 @@ func TestSaveApplicationAccessServiceCredentialGovernanceConfigHandlesStoreError
 
 	controller := newServiceCredentialGovernanceConfigTestController("POST", []byte(`{"groups":[{"key":"keep_in_env","sourceClass":"env_config","credentialReferenceStatus":"external_secret"}]}`))
 	controller.Ctx.Input.SetData("currentUserId", "built-in/admin")
-	controller.SaveApplicationAccessServiceCredentialGovernanceConfig()
+	controller.SaveInsightAdminProviderHandoffConfig()
 
 	resp, ok := controller.Data["json"].(*Response)
 	if !ok || resp.Status != "error" || !strings.Contains(resp.Msg, "metadata store unavailable") {
@@ -233,11 +233,11 @@ func TestSaveApplicationAccessServiceCredentialGovernanceConfigHandlesStoreError
 	}
 }
 
-func TestDiagnoseApplicationAccessServiceCredentialGovernanceConfigRequiresAdminAndRejectsMalformedJson(t *testing.T) {
+func TestDiagnoseInsightAdminProviderHandoffConfigRequiresAdminAndRejectsMalformedJson(t *testing.T) {
 	controller := newServiceCredentialGovernanceConfigTestController("POST", []byte(`{"groups":[]`))
 	controller.Ctx.Input.SetData("currentUserId", "built-in/admin")
 
-	controller.DiagnoseApplicationAccessServiceCredentialGovernanceConfig()
+	controller.DiagnoseInsightAdminProviderHandoffConfig()
 
 	resp, ok := controller.Data["json"].(*Response)
 	if !ok || resp.Status != "error" {
@@ -247,7 +247,7 @@ func TestDiagnoseApplicationAccessServiceCredentialGovernanceConfigRequiresAdmin
 	controller = newServiceCredentialGovernanceConfigTestController("POST", []byte(`{"groups":[]}`))
 	controller.Ctx.Input.SetData("currentUserId", "tenant-a/operator")
 
-	controller.DiagnoseApplicationAccessServiceCredentialGovernanceConfig()
+	controller.DiagnoseInsightAdminProviderHandoffConfig()
 
 	resp, ok = controller.Data["json"].(*Response)
 	if !ok || resp.Status != "error" || !strings.Contains(resp.Msg, "administrator") {
@@ -255,11 +255,11 @@ func TestDiagnoseApplicationAccessServiceCredentialGovernanceConfigRequiresAdmin
 	}
 }
 
-func TestDiagnoseApplicationAccessServiceCredentialGovernanceConfigReturnsCopySafeDiagnostic(t *testing.T) {
+func TestDiagnoseInsightAdminProviderHandoffConfigReturnsCopySafeDiagnostic(t *testing.T) {
 	controller := newServiceCredentialGovernanceConfigTestController("POST", []byte(`{"groups":[{"key":"usage_identity_resolver","enabled":true,"owner":"admin_outbound_resolver","sourceClass":"external_secret_system","credentialReferenceStatus":"external_secret","credentialReferenceKey":"vault:usage-identity-resolver","callerPolicy":"aicodex-admin","boundedRuntimePolicy":{"timeoutMs":1500,"maxItems":25},"nextAction":"核对 resolver 引用"}]}`))
 	controller.Ctx.Input.SetData("currentUserId", "built-in/admin")
 
-	controller.DiagnoseApplicationAccessServiceCredentialGovernanceConfig()
+	controller.DiagnoseInsightAdminProviderHandoffConfig()
 
 	resp, ok := controller.Data["json"].(*Response)
 	if !ok || resp.Status != "ok" {
@@ -283,7 +283,7 @@ func TestDiagnoseApplicationAccessServiceCredentialGovernanceConfigReturnsCopySa
 	}
 }
 
-func TestGetAndSaveApplicationAccessServiceCredentialGovernanceConfigRoundTrip(t *testing.T) {
+func TestGetAndSaveInsightAdminProviderHandoffConfigRoundTrip(t *testing.T) {
 	store := &memoryServiceCredentialGovernanceConfigStore{}
 	originalFactory := applicationAccessServiceCredentialGovernanceConfigServiceFactory
 	applicationAccessServiceCredentialGovernanceConfigServiceFactory = func() *object.ServiceCredentialGovernanceConfigService {
@@ -299,7 +299,7 @@ func TestGetAndSaveApplicationAccessServiceCredentialGovernanceConfigRoundTrip(t
 	controller := newServiceCredentialGovernanceConfigTestController("POST", []byte(`{"groups":[{"key":"usage_identity_resolver","enabled":true,"owner":"admin_outbound_resolver","sourceClass":"external_secret_system","credentialReferenceStatus":"external_secret","credentialReferenceKey":"vault:usage-identity-resolver","callerPolicy":"aicodex-admin","boundedRuntimePolicy":{"timeoutMs":1500},"remediationRoute":"/platform-api-mappings","nextAction":"核对 resolver 凭据引用"}]}`))
 	controller.Ctx.Input.SetData("currentUserId", "built-in/admin")
 
-	controller.SaveApplicationAccessServiceCredentialGovernanceConfig()
+	controller.SaveInsightAdminProviderHandoffConfig()
 
 	resp, ok := controller.Data["json"].(*Response)
 	if !ok || resp.Status != "ok" {
@@ -315,7 +315,7 @@ func TestGetAndSaveApplicationAccessServiceCredentialGovernanceConfigRoundTrip(t
 
 	getController := newServiceCredentialGovernanceConfigTestController("GET", nil)
 	getController.Ctx.Input.SetData("currentUserId", "built-in/admin")
-	getController.GetApplicationAccessServiceCredentialGovernanceConfig()
+	getController.GetInsightAdminProviderHandoffConfig()
 
 	getResp, ok := getController.Data["json"].(*Response)
 	if !ok || getResp.Status != "ok" {
@@ -341,6 +341,51 @@ func TestGetAndSaveApplicationAccessServiceCredentialGovernanceConfigRoundTrip(t
 	}
 }
 
+func TestApplicationAccessServiceCredentialGovernanceConfigHandlersRejectLegacyEndpoints(t *testing.T) {
+	cases := []struct {
+		name    string
+		method  string
+		body    []byte
+		call    func(*ApiController)
+		newPath string
+	}{
+		{
+			name:    "get config",
+			method:  "GET",
+			call:    (*ApiController).GetApplicationAccessServiceCredentialGovernanceConfig,
+			newPath: "/api/insight-admin-provider/handoff/config",
+		},
+		{
+			name:    "save config",
+			method:  "POST",
+			body:    []byte(`{"groups":[]}`),
+			call:    (*ApiController).SaveApplicationAccessServiceCredentialGovernanceConfig,
+			newPath: "/api/insight-admin-provider/handoff/config",
+		},
+		{
+			name:    "diagnostics",
+			method:  "POST",
+			body:    []byte(`{"groups":[]}`),
+			call:    (*ApiController).DiagnoseApplicationAccessServiceCredentialGovernanceConfig,
+			newPath: "/api/insight-admin-provider/handoff/diagnostics",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			controller := newServiceCredentialGovernanceConfigTestController(tc.method, tc.body)
+			controller.Ctx.Input.SetData("currentUserId", "built-in/admin")
+
+			tc.call(controller)
+
+			resp, ok := controller.Data["json"].(*Response)
+			if !ok || resp.Status != "error" || !strings.Contains(resp.Msg, tc.newPath) {
+				t.Fatalf("response = %#v, want deprecated endpoint error with %s", controller.Data["json"], tc.newPath)
+			}
+		})
+	}
+}
+
 func serviceCredentialGovernanceConfigGroupByKey(t *testing.T, groups []object.ServiceCredentialGovernanceConfigGroup, key string) object.ServiceCredentialGovernanceConfigGroup {
 	t.Helper()
 	for _, group := range groups {
@@ -353,7 +398,11 @@ func serviceCredentialGovernanceConfigGroupByKey(t *testing.T, groups []object.S
 }
 
 func newServiceCredentialGovernanceConfigTestController(method string, body []byte) *ApiController {
-	request := httptest.NewRequest(method, "/api/application-access/service-credential-governance-config", strings.NewReader(string(body)))
+	path := "/api/insight-admin-provider/handoff/config"
+	if method == "POST" {
+		path = "/api/insight-admin-provider/handoff/config"
+	}
+	request := httptest.NewRequest(method, path, strings.NewReader(string(body)))
 	recorder := httptest.NewRecorder()
 	ctx := webcontext.NewContext()
 	ctx.Reset(recorder, request)

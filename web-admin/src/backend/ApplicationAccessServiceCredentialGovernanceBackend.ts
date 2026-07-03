@@ -181,6 +181,7 @@ export interface ServiceCredentialGovernanceHandoffPackageInput {
 }
 
 const SUPPORTED_SERVICE_CREDENTIAL_SOURCE_CLASSES = new Set(["admin_config", "env_config", "external_secret_system"]);
+const INSIGHT_ADMIN_PROVIDER_HANDOFF_API_PREFIX = "/api/insight-admin-provider/handoff";
 const INSIGHT_ADMIN_PROVIDER_WRAPPER_CAPABILITIES: ServiceCredentialGovernanceHandoffWrapperCapability[] = [
   {
     key: "current-user",
@@ -495,7 +496,7 @@ function getHeaders(): Record<string, string> {
 }
 
 export function getServiceCredentialGovernanceStatus(): Promise<ServiceCredentialGovernanceApiResponse> {
-  return fetch(`${Setting.ServerUrl}/api/application-access/service-credential-governance-status`, {
+  return fetch(`${Setting.ServerUrl}${INSIGHT_ADMIN_PROVIDER_HANDOFF_API_PREFIX}/status`, {
     method: "GET",
     credentials: "include",
     headers: getHeaders(),
@@ -503,7 +504,7 @@ export function getServiceCredentialGovernanceStatus(): Promise<ServiceCredentia
 }
 
 export function getServiceCredentialGovernanceConfig(): Promise<ServiceCredentialGovernanceConfigApiResponse> {
-  return fetch(`${Setting.ServerUrl}/api/application-access/service-credential-governance-config`, {
+  return fetch(`${Setting.ServerUrl}${INSIGHT_ADMIN_PROVIDER_HANDOFF_API_PREFIX}/config`, {
     method: "GET",
     credentials: "include",
     headers: getHeaders(),
@@ -511,7 +512,7 @@ export function getServiceCredentialGovernanceConfig(): Promise<ServiceCredentia
 }
 
 export function saveServiceCredentialGovernanceConfig(config: ServiceCredentialGovernanceConfigResponse): Promise<ServiceCredentialGovernanceConfigApiResponse> {
-  return fetch(`${Setting.ServerUrl}/api/application-access/service-credential-governance-config`, {
+  return fetch(`${Setting.ServerUrl}${INSIGHT_ADMIN_PROVIDER_HANDOFF_API_PREFIX}/config`, {
     method: "POST",
     credentials: "include",
     headers: {
@@ -523,7 +524,7 @@ export function saveServiceCredentialGovernanceConfig(config: ServiceCredentialG
 }
 
 export function diagnoseServiceCredentialGovernanceConfig(config: ServiceCredentialGovernanceConfigResponse): Promise<ServiceCredentialGovernanceDiagnosticApiResponse> {
-  return fetch(`${Setting.ServerUrl}/api/application-access/service-credential-governance-diagnostics`, {
+  return fetch(`${Setting.ServerUrl}${INSIGHT_ADMIN_PROVIDER_HANDOFF_API_PREFIX}/diagnostics`, {
     method: "POST",
     credentials: "include",
     headers: {

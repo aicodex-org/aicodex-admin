@@ -398,7 +398,7 @@ describe("ApplicationUsageAccessPage", () => {
     expect(serviceCredentialGovernanceNeedsCredentialReference({key: "gateway", enabled: false, credentialReferenceStatus: "not_applicable"}, {key: "gateway", label: "Gateway", owner: "admin", status: "partial", credentialReferenceStatus: "not_applicable", missingKeys: ["gatewayOrganizationProjectionToken"]})).toBe(true);
   });
 
-  test("renders the service credential governance panel as the focused usage access content", async() => {
+  test("renders the Insight Admin Provider handoff page as the focused usage access content", async() => {
     mockGetServiceCredentialGovernanceStatus.mockResolvedValueOnce(governanceStatusResponse);
     mockGetServiceCredentialGovernanceConfig.mockResolvedValueOnce(governanceConfigResponse);
 
@@ -442,6 +442,8 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.queryByText("排障详情")).toBeNull();
     expect(view.queryByText("机器字段")).toBeNull();
     expect(view.queryByText("交接包材料")).toBeNull();
+    expect(view.container.textContent).not.toContain("服务凭据治理状态");
+    expect(view.container.textContent).not.toContain("服务凭据治理配置");
     expect(view.getByText("身份接口")).not.toBeNull();
     expect(view.getByText("Scope 接口")).not.toBeNull();
     expect(view.getByText("组织树接口")).not.toBeNull();
@@ -486,7 +488,7 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.container.textContent).not.toContain("admin_service_credential_reference_unresolved");
   });
 
-  test("previews service credential governance handoff after Admin deployment config is ready", async() => {
+  test("previews Insight Admin Provider handoff after Admin deployment config is ready", async() => {
     mockGetServiceCredentialGovernanceStatus.mockResolvedValueOnce({
       ...governanceStatusResponse,
       data: {
@@ -609,7 +611,7 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.queryByText("机器字段")).toBeNull();
   });
 
-  test("keeps loading, empty, and error states actionable", async() => {
+  test("keeps Insight Admin Provider loading, empty, and error states actionable", async() => {
     mockGetServiceCredentialGovernanceStatus.mockResolvedValueOnce({
       status: "ok",
       data: {generatedAt: "2026-06-23T08:02:00Z", source: "admin_runtime_config", groups: []},
@@ -619,14 +621,20 @@ describe("ApplicationUsageAccessPage", () => {
       data: {updatedAt: "2026-06-23T08:02:00Z", source: "admin_service_credential_governance_config", isConfigured: false, groups: []},
     });
     const emptyView = renderPage();
-    expect(await emptyView.findByText("暂无服务凭据治理状态")).not.toBeNull();
+    expect(await emptyView.findByText("暂无 Insight Admin Provider 交接状态")).not.toBeNull();
+    expect(emptyView.getByText("暂无 Insight Admin Provider 交接配置")).not.toBeNull();
+    expect(emptyView.container.textContent).not.toContain("服务凭据治理状态");
+    expect(emptyView.container.textContent).not.toContain("服务凭据治理配置");
     expect(emptyView.queryByText("接入中心")).toBeNull();
     emptyView.unmount();
 
     mockGetServiceCredentialGovernanceStatus.mockRejectedValueOnce(new Error("unavailable"));
     mockGetServiceCredentialGovernanceConfig.mockRejectedValueOnce(new Error("unavailable"));
     const errorView = renderPage();
-    expect(await errorView.findByText("服务凭据治理状态暂不可用")).not.toBeNull();
+    expect(await errorView.findByText("Insight Admin Provider 交接状态暂不可用")).not.toBeNull();
+    expect(errorView.getByText("Insight Admin Provider 交接配置暂不可用")).not.toBeNull();
+    expect(errorView.container.textContent).not.toContain("服务凭据治理状态");
+    expect(errorView.container.textContent).not.toContain("服务凭据治理配置");
     expect(errorView.queryByText("接入中心")).toBeNull();
   });
 
@@ -636,8 +644,10 @@ describe("ApplicationUsageAccessPage", () => {
 
     const view = renderPage();
 
-    expect(await view.findByText("服务凭据治理状态暂不可用")).not.toBeNull();
-    expect(view.getByText("服务凭据治理配置暂不可用")).not.toBeNull();
+    expect(await view.findByText("Insight Admin Provider 交接状态暂不可用")).not.toBeNull();
+    expect(view.getByText("Insight Admin Provider 交接配置暂不可用")).not.toBeNull();
+    expect(view.container.textContent).not.toContain("服务凭据治理状态");
+    expect(view.container.textContent).not.toContain("服务凭据治理配置");
     expect(view.queryByText("接入中心")).toBeNull();
     expect(view.queryByText("预检交接包")).toBeNull();
     expect((view.getByText("生成 Admin 交接包").closest("button") as HTMLButtonElement | null)?.disabled).toBe(true);

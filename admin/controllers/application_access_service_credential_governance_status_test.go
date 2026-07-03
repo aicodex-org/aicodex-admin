@@ -142,17 +142,17 @@ func TestBuildApplicationAccessServiceCredentialGovernanceStatusClassifiesMissin
 	}
 }
 
-func TestGetApplicationAccessServiceCredentialGovernanceStatusReturnsReadOnlyEnvelope(t *testing.T) {
+func TestGetInsightAdminProviderHandoffStatusReturnsReadOnlyEnvelope(t *testing.T) {
 	t.Setenv("insightProviderAllowedAudiences", "insight-client")
 	t.Setenv("insightProviderAllowedIssuers", "https://issuer.example.invalid")
 	t.Setenv("insightUsageIdentityResolverEndpoint", "")
 	t.Setenv("insightUsageIdentityResolverToken", "")
 	t.Setenv("gatewayOrganizationProjectionEnabled", "false")
 
-	controller := newApplicationAccessServiceCredentialGovernanceStatusTestController()
+	controller := newInsightAdminProviderHandoffStatusTestController()
 	controller.Ctx.Input.SetData("currentUserId", "built-in/admin")
 
-	controller.GetApplicationAccessServiceCredentialGovernanceStatus()
+	controller.GetInsightAdminProviderHandoffStatus()
 
 	resp, ok := controller.Data["json"].(*Response)
 	if !ok || resp.Status != "ok" {
@@ -167,10 +167,10 @@ func TestGetApplicationAccessServiceCredentialGovernanceStatusReturnsReadOnlyEnv
 	}
 }
 
-func TestGetApplicationAccessServiceCredentialGovernanceStatusRequiresAdmin(t *testing.T) {
-	controller := newApplicationAccessServiceCredentialGovernanceStatusTestController()
+func TestGetInsightAdminProviderHandoffStatusRequiresAdmin(t *testing.T) {
+	controller := newInsightAdminProviderHandoffStatusTestController()
 
-	controller.GetApplicationAccessServiceCredentialGovernanceStatus()
+	controller.GetInsightAdminProviderHandoffStatus()
 
 	resp, ok := controller.Data["json"].(*Response)
 	if !ok || resp.Status != "error" || !strings.Contains(resp.Msg, "Please login first") {
@@ -178,11 +178,11 @@ func TestGetApplicationAccessServiceCredentialGovernanceStatusRequiresAdmin(t *t
 	}
 }
 
-func TestGetApplicationAccessServiceCredentialGovernanceStatusRejectsNonGlobalAdmin(t *testing.T) {
-	controller := newApplicationAccessServiceCredentialGovernanceStatusTestController()
+func TestGetInsightAdminProviderHandoffStatusRejectsNonGlobalAdmin(t *testing.T) {
+	controller := newInsightAdminProviderHandoffStatusTestController()
 	controller.Ctx.Input.SetData("currentUserId", "tenant-a/operator")
 
-	controller.GetApplicationAccessServiceCredentialGovernanceStatus()
+	controller.GetInsightAdminProviderHandoffStatus()
 
 	resp, ok := controller.Data["json"].(*Response)
 	if !ok || resp.Status != "error" || !strings.Contains(resp.Msg, "administrator") {
@@ -522,7 +522,7 @@ func TestServiceCredentialGovernanceRuntimeRequiredPolicyKeys(t *testing.T) {
 	}
 }
 
-func TestGetApplicationAccessServiceCredentialGovernanceStatusReturnsConfigStoreError(t *testing.T) {
+func TestGetInsightAdminProviderHandoffStatusReturnsConfigStoreError(t *testing.T) {
 	storeErr := errors.New("metadata store unavailable")
 	originalFactory := applicationAccessServiceCredentialGovernanceConfigServiceFactory
 	applicationAccessServiceCredentialGovernanceConfigServiceFactory = func() *object.ServiceCredentialGovernanceConfigService {
@@ -534,13 +534,25 @@ func TestGetApplicationAccessServiceCredentialGovernanceStatusReturnsConfigStore
 		applicationAccessServiceCredentialGovernanceConfigServiceFactory = originalFactory
 	}()
 
-	controller := newApplicationAccessServiceCredentialGovernanceStatusTestController()
+	controller := newInsightAdminProviderHandoffStatusTestController()
 	controller.Ctx.Input.SetData("currentUserId", "built-in/admin")
-	controller.GetApplicationAccessServiceCredentialGovernanceStatus()
+	controller.GetInsightAdminProviderHandoffStatus()
 
 	resp, ok := controller.Data["json"].(*Response)
 	if !ok || resp.Status != "error" || !strings.Contains(resp.Msg, storeErr.Error()) {
 		t.Fatalf("response = %#v, want config store error", controller.Data["json"])
+	}
+}
+
+func TestGetApplicationAccessServiceCredentialGovernanceStatusRejectsLegacyEndpoint(t *testing.T) {
+	controller := newApplicationAccessServiceCredentialGovernanceStatusTestController()
+	controller.Ctx.Input.SetData("currentUserId", "built-in/admin")
+
+	controller.GetApplicationAccessServiceCredentialGovernanceStatus()
+
+	resp, ok := controller.Data["json"].(*Response)
+	if !ok || resp.Status != "error" || !strings.Contains(resp.Msg, "/api/insight-admin-provider/handoff/status") {
+		t.Fatalf("response = %#v, want deprecated endpoint error with new handoff path", controller.Data["json"])
 	}
 }
 
@@ -594,6 +606,17 @@ func newApplicationAccessServiceCredentialGovernanceStatusTestController() *ApiC
 	ctx.Reset(recorder, request)
 	controller := &ApiController{}
 	controller.Init(ctx, "ApiController", "GetApplicationAccessServiceCredentialGovernanceStatus", controller)
+	controller.Ctx.Input.SetData("currentUserId", "")
+	return controller
+}
+
+func newInsightAdminProviderHandoffStatusTestController() *ApiController {
+	request := httptest.NewRequest("GET", "/api/insight-admin-provider/handoff/status", nil)
+	recorder := httptest.NewRecorder()
+	ctx := webcontext.NewContext()
+	ctx.Reset(recorder, request)
+	controller := &ApiController{}
+	controller.Init(ctx, "ApiController", "GetInsightAdminProviderHandoffStatus", controller)
 	controller.Ctx.Input.SetData("currentUserId", "")
 	return controller
 }
