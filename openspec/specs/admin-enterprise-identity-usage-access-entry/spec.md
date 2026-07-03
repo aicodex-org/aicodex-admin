@@ -17,7 +17,7 @@
 - **AND** 页面 SHALL NOT 表达为 API/Gateway 用量 provider 配置中心
 - **AND** 页面 SHALL NOT 将旧 `服务凭据治理`、旧 handoff summary 或旧用量配置中心作为默认入口、标题、tab、按钮或高级区
 - **AND** 页面 SHALL NOT 在默认层铺开 wrapper route、owner alias、stable alias、blocked alias、reason code 或逐项 owner evidence 明细
-- **AND** 这些 wrapper/owner/capability 诊断信息 MAY 只在默认收起的 `诊断详情` 或 `技术细节` 中展示
+- **AND** 这些 wrapper/owner/capability 诊断信息 SHALL 只在默认收起的诊断详情中展示
 
 #### Scenario: 缺失状态以单一阻断摘要表达
 
@@ -25,6 +25,14 @@
 - **THEN** 页面默认层 SHALL 展示一个人可读阻断摘要
 - **AND** 页面默认层 SHALL 展示一个可操作修复建议，指向 manual/secretRef binding、Admin 部署配置或外部 secret system 维护
 - **AND** 页面 SHALL NOT 要求操作者先理解 `admin_outbound_resolver`、`admin_gateway_projection_producer` 或同类内部 alias 才能判断下一步
+
+#### Scenario: partial 状态区分元数据可生成和凭据闭环
+
+- **WHEN** Admin handoff 状态为 partial 且 copy-safe metadata package 可生成
+- **THEN** 页面 SHALL 继续保留 `生成 Admin 交接包` 主动作
+- **AND** 页面 SHALL 用非绿色成功语义表达 `交接材料元数据可生成`
+- **AND** 页面 SHALL 用 warning 语义表达 `Profile 凭据闭环可完成` 仍缺 resolver 凭据引用或其它 owner 决策
+- **AND** 页面 SHALL NOT 同时展示黄色阻断摘要和绿色 `材料已齐`、`可生成完整包` 或同等整体 ready 文案
 
 ### Requirement: 用量接入页面聚焦服务凭据治理
 
@@ -44,7 +52,18 @@
 - **AND** 页面 SHALL NOT 在 UI 内保存 secret、凭据引用、调用策略或运行策略修正
 - **AND** 页面 SHALL NOT 展示 `服务凭据治理`、`高级修正`、旧 handoff summary、旧配置保存、旧诊断、`Dry-run/Readiness`、`Doctor`、排障详情、读取当前值或二级机器字段作为默认入口
 - **AND** reason code、stable alias、handoff schema、metadata、doctor detail、evidence payload、raw payload、raw id、真实账号和完整组织树 SHALL NOT 在默认层展示
-- **AND** copy-safe wrapper route、owner alias、source class、capability/evidence 明细和缺失部署 key MAY 只在 `诊断详情` / `技术细节` 折叠区或同等低噪详情中展示
+- **AND** copy-safe wrapper route、owner alias、source class、capability/evidence 明细和缺失部署 key SHALL 只在诊断详情中展示
+
+#### Scenario: 诊断摘要和分组详情
+
+- **WHEN** 页面存在 handoff status、wrapper capability 或 owner evidence 信息
+- **THEN** 页面 SHALL 默认展示紧凑诊断摘要行，包含阻断项数量、可用能力数量和 `Admin secure handoff 不在 P0` 边界
+- **AND** 页面 SHALL 提供明确的 `查看诊断详情` 动作，并在展开后提供 `收起诊断详情` 动作
+- **AND** 展开内容 SHALL 分为 `阻断项`、`可用能力` 和 `技术证据` 三组
+- **AND** `阻断项` SHALL 优先展示 owner、reason 和 next action
+- **AND** `可用能力` SHALL 只展示能力名称和状态
+- **AND** `技术证据` SHALL 集中展示 wrapper route、owner alias、source class 和缺失部署 key
+- **AND** 诊断详情 SHALL NOT 展示 token、Cookie、Authorization、client secret、DSN、raw payload、完整 private URL、真实账号或完整组织树
 
 ### Requirement: 用量接入 copy-safe 安全边界
 
