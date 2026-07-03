@@ -402,7 +402,7 @@ export function getServiceCredentialGovernanceHandoffReadinessLabel(readiness: S
   }
 }
 
-// 默认能力层只表达交接可操作状态；具体 route、owner alias 和缺失 key 留在技术细节。
+// 诊断详情保留排障证据；默认层只表达交接动作和阻断摘要。
 function getServiceCredentialGovernanceCapabilityStatus(
   statusGroup?: ServiceCredentialGovernanceGroup,
   configGroup?: ServiceCredentialGovernanceConfigGroup
@@ -654,7 +654,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
   if (serviceCredentialGovernanceHasPendingMaterials) {
     serviceCredentialGovernanceNextAction = t(
       "Handoff complete admin config next action",
-      "补齐 Admin env/config，重启后刷新本页"
+      "补齐凭据引用后刷新本页"
     );
   } else if (serviceCredentialGovernanceCanGenerate && serviceCredentialGovernanceHasPartialPackage) {
     serviceCredentialGovernanceNextAction = getServiceCredentialGovernanceNextAction(serviceCredentialGovernanceAlignedRows);
@@ -676,9 +676,58 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
         ? t("Handoff generation partial hint", "可生成部分包")
         : t("Handoff generation complete hint", "可生成完整包"))
       : t("Handoff generation unavailable hint", "暂不可生成"));
+  const serviceCredentialGovernanceBlockingRows = serviceCredentialGovernanceActionRows.length > 0
+    ? serviceCredentialGovernanceActionRows
+    : serviceCredentialGovernanceHasPartialPackage
+      ? serviceCredentialGovernanceAlignedRows.filter(row => {
+        const status = row.statusGroup?.status;
+        return status === "blocked"
+          || status === "missing"
+          || status === "partial"
+          || row.configGroup?.credentialReferenceStatus === "missing"
+          || row.statusGroup?.credentialReferenceStatus === "missing";
+      })
+      : [];
+  const serviceCredentialGovernanceCredentialBlockingRow = serviceCredentialGovernanceBlockingRows.find(row => {
+    const blockingText = `${row.statusGroup?.missingKeys?.join(" ") ?? ""} ${row.statusGroup?.credentialReferenceStatus ?? ""} ${row.configGroup?.credentialReferenceStatus ?? ""}`.toLowerCase();
+    return row.statusGroup?.credentialReferenceStatus === "missing"
+      || row.configGroup?.credentialReferenceStatus === "missing"
+      || /credential|reference|secret|token/.test(blockingText);
+  });
+  const serviceCredentialGovernancePrimaryBlockingRow = serviceCredentialGovernanceCredentialBlockingRow
+    ?? serviceCredentialGovernanceBlockingRows[0];
+  const serviceCredentialGovernancePrimaryBlockingText = `${serviceCredentialGovernancePrimaryBlockingRow?.statusGroup?.missingKeys?.join(" ") ?? ""} ${serviceCredentialGovernancePrimaryBlockingRow?.statusGroup?.credentialReferenceStatus ?? ""} ${serviceCredentialGovernancePrimaryBlockingRow?.configGroup?.credentialReferenceStatus ?? ""}`.toLowerCase();
+  const serviceCredentialGovernancePrimaryBlockerIsCredentialReference = Boolean(serviceCredentialGovernancePrimaryBlockingRow)
+    && (
+      serviceCredentialGovernancePrimaryBlockingRow?.statusGroup?.credentialReferenceStatus === "missing"
+      || serviceCredentialGovernancePrimaryBlockingRow?.configGroup?.credentialReferenceStatus === "missing"
+      || /credential|reference|secret|token/.test(serviceCredentialGovernancePrimaryBlockingText)
+    );
+  const serviceCredentialGovernanceBlockerSummary = serviceCredentialGovernancePrimaryBlockingRow ? (
+    <Alert
+      className="enterprise-identity-console-alert application-access-service-credential-blocker"
+      type="warning"
+      showIcon
+      message={serviceCredentialGovernancePrimaryBlockerIsCredentialReference
+        ? t("Handoff blocker missing credential reference", "缺少凭据引用")
+        : t("Handoff blocker missing admin material", "交接材料不完整")}
+      description={serviceCredentialGovernancePrimaryBlockerIsCredentialReference
+        ? t(
+          "Handoff blocker credential reference suggestion",
+          "在 Admin 部署配置或外部 secret system 维护凭据引用，完成后刷新本页再生成。"
+        )
+        : t(
+          "Handoff blocker admin material suggestion",
+          "请由 Admin owner 补齐部署配置或 owner 决策，完成后刷新本页再生成。"
+        )}
+    />
+  ) : null;
   let serviceCredentialGovernanceHandoffErrorMessage = t("Service credential governance handoff package unavailable", "Admin 交接包暂不可用");
   if (serviceCredentialGovernanceHasPendingMaterials) {
-    serviceCredentialGovernanceHandoffErrorMessage = "先补齐 Admin 部署配置，重启后刷新本页，再生成交接包";
+    serviceCredentialGovernanceHandoffErrorMessage = t(
+      "Handoff package blocked by credential reference",
+      "先补齐凭据引用或部署配置，刷新本页后再生成交接包"
+    );
   }
   const serviceCredentialGovernanceConfigActions = (
     <Space className="application-access-service-credential-workspace-actions" wrap onClick={event => event.stopPropagation()}>
@@ -777,9 +826,10 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
       items={[
         {
           key: "technical-details",
-          label: <Text strong>{t("Insight Admin Provider technical details title", "技术细节")}</Text>,
+          label: <Text strong>{t("Insight Admin Provider technical details title", "诊断详情")}</Text>,
           children: (
             <div className="application-access-service-credential-advanced-section">
+              {serviceCredentialGovernanceCapabilitySummary}
               <div className="application-access-service-credential-evidence" aria-label="Insight Admin Provider wrapper routes">
                 <Text type="secondary">{t("Insight Admin Provider wrapper route details title", "Wrapper route")}</Text>
                 <Space className="application-access-service-credential-wrapper-routes" size={[6, 6]} wrap>
@@ -884,18 +934,13 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
             )}
           />
         )}
-        {serviceCredentialGovernanceConfigLoadState === "ready" && serviceCredentialGovernanceHandoffState !== "ready" && (
+        {serviceCredentialGovernanceConfigLoadState === "ready" && serviceCredentialGovernanceHandoffState !== "ready" && serviceCredentialGovernanceActionRows.length === 0 && (
           <div className="application-access-service-credential-alignment" aria-label={serviceCredentialGovernanceWorkspaceTitle}>
             <Alert
               className="enterprise-identity-console-alert"
-              type={serviceCredentialGovernanceActionRows.length > 0 ? "warning" : "success"}
+              type="success"
               showIcon
-              message={serviceCredentialGovernanceActionRows.length > 0
-                ? t(
-                  "Insight Admin Provider pending config message",
-                  "这里不保存密钥，也不配置 API/Gateway 用量 provider。请在 Admin 的 env/config 里补配置，补完重启后刷新。"
-                )
-                : "材料已齐，点击生成 Admin 交接包。"}
+              message="材料已齐，点击生成 Admin 交接包。"
             />
           </div>
         )}
@@ -911,9 +956,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
       extra={<Tag className={`enterprise-identity-tone-${serviceCredentialGovernanceEffectiveSummary.tone}`}>{serviceCredentialGovernanceEffectiveSummary.label}</Tag>}
     >
       {serviceCredentialGovernanceDeliverySummary}
-      {serviceCredentialGovernanceCapabilitySummary}
-      {serviceCredentialGovernanceBoundarySummary}
-      {serviceCredentialGovernanceTechnicalDetails}
+      {serviceCredentialGovernanceBlockerSummary}
       {serviceCredentialGovernanceLoadState === "loading" && (
         <Alert
           className="enterprise-identity-console-alert"
@@ -943,6 +986,8 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
         />
       )}
       {serviceCredentialGovernanceWorkspace}
+      {serviceCredentialGovernanceBoundarySummary}
+      {serviceCredentialGovernanceTechnicalDetails}
     </EnterpriseIdentitySection>
   );
 }
