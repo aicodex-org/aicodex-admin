@@ -13,14 +13,34 @@
 // limitations under the License.
 
 import React from "react";
-import {expect, jest, test} from "@jest/globals";
+import {beforeAll, expect, jest, test} from "@jest/globals";
 import {render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import fs from "fs";
 import path from "path";
-import App from "./App";
+import i18next from "i18next";
+import App, {getAdminDocumentTitle} from "./App";
+import en from "./locales/en/data.json";
+import zh from "./locales/zh/data.json";
 
 jest.mock("./ManagementPage", () => () => <main data-testid="management-page" />);
+
+beforeAll(async() => {
+  if (!i18next.isInitialized) {
+    await i18next.init({
+      lng: "zh",
+      fallbackLng: "en",
+      ns: ["general"],
+      defaultNS: "general",
+      resources: {},
+      keySeparator: false,
+      interpolation: {escapeValue: false},
+    });
+  }
+  i18next.addResourceBundle("en", "general", en.general, true, true);
+  i18next.addResourceBundle("zh", "general", zh.general, true, true);
+  await i18next.changeLanguage("zh");
+});
 
 test("renders the admin root shell", () => {
   const {container} = render(
@@ -32,6 +52,10 @@ test("renders the admin root shell", () => {
   );
 
   expect(container).toBeTruthy();
+});
+
+test("uses the Admin product title for the browser tab after login", () => {
+  expect(getAdminDocumentTitle({organization: {displayName: "Built-in Organization"}})).toBe("AICodex Admin · 认证中心");
 });
 
 test("recognizes DingTalk organization sync as an admin route for flattened menu selection", () => {

@@ -134,6 +134,10 @@ function getAntdLocale(language: string) {
   return (localeMap as Record<string, LegacyAny>)[language] || enUS;
 }
 
+export function getAdminDocumentTitle(_account?: LegacyAny) {
+  return `${String(i18next.t("general:AICodex Admin"))} · ${String(i18next.t("general:Authentication Center"))}`;
+}
+
 class App extends Component<AppProps, AppState> {
   constructor(props: AppProps) {
     super(props);
@@ -826,12 +830,12 @@ class App extends Component<AppProps, AppState> {
       <React.Fragment>
         {(this.state.account === undefined || this.state.account === null) ?
           <Helmet>
-            <title>{Conf.BrandName}</title>
+            <title>{getAdminDocumentTitle()}</title>
             <link rel="icon" href={Conf.BrandFavicon} />
             <link rel="apple-touch-icon" href={Conf.BrandTouchIcon} />
           </Helmet> :
           <Helmet>
-            <title>{this.state.account.organization?.displayName}</title>
+            <title>{getAdminDocumentTitle(this.state.account)}</title>
             <link rel="icon" href={Setting.getPreferredBrandAsset(this.state.account.organization?.favicon, Conf.BrandFavicon)} />
             <link rel="apple-touch-icon" href={Conf.BrandTouchIcon} />
           </Helmet>
