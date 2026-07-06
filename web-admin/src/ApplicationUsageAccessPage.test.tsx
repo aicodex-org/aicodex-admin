@@ -410,24 +410,28 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.queryByText("生成给 Insight 使用的 Admin 接入交接包；只维护身份、组织、resolver、projection/trust 和服务凭据引用。")).toBeNull();
     expect(view.queryByText("核对 Gateway 映射")).toBeNull();
     expect(view.getAllByText("Insight Admin Provider 状态").length).toBeGreaterThan(0);
-    const boundaryNote = view.getByText("Admin 只交付 copy-safe metadata；Insight P0 使用 manual/secretRef binding，Admin secure handoff 不在 P0。");
-    expect(boundaryNote).not.toBeNull();
-    expect(boundaryNote.closest(".ant-alert")).toBeNull();
+    expect(view.queryByText("Admin 交接包只包含元数据，不传递真实凭据。")).toBeNull();
+    expect(view.container.textContent).not.toContain("P0");
+    expect(view.container.textContent).not.toContain("secure handoff");
+    expect(view.container.textContent).not.toContain("Admin secure handoff 不在 P0");
+    expect(view.container.textContent).not.toContain("copy-safe metadata");
     expect(view.getByLabelText("Admin 交接摘要")).not.toBeNull();
     expect(view.getByText("交接状态")).not.toBeNull();
     expect(view.getByText("目标消费方")).not.toBeNull();
     expect(view.getByText("Insight")).not.toBeNull();
     expect(view.getByText("包类型")).not.toBeNull();
-    expect(view.getByText("copy-safe metadata")).not.toBeNull();
+    expect(view.getByText("元数据交接包")).not.toBeNull();
     expect(view.queryByText("交接能力")).toBeNull();
-    expect(view.getByText("copy-safe 交接操作")).not.toBeNull();
+    expect(view.getByText("交接包操作")).not.toBeNull();
     expect(view.queryByText("/api/admin-provider/insight/v1/current-user")).toBeNull();
     expect(view.queryByText("/current-user/scope")).toBeNull();
     expect(view.queryByText("/current-user/organization-tree")).toBeNull();
     expect(view.queryByText("当前状态")).toBeNull();
     expect(view.queryByText("补齐 Admin env/config，重启后刷新本页")).toBeNull();
     expect(view.getByText("缺少凭据引用")).not.toBeNull();
-    expect(view.getByText("交接包可生成；导入 Insight Profile 后通过 manual/secretRef binding 绑定 resolver 凭据。Admin 交接包只传递 copy-safe 引用，不传递真实凭据。")).not.toBeNull();
+    expect(view.getByText("交接包可生成；导入 Insight Profile 后通过 manual/secretRef binding 绑定 resolver 凭据。交接包只包含元数据，不传递真实凭据。")).not.toBeNull();
+    expect(view.queryByText("可生成元数据交接包，导入 Insight 后通过 manual/secretRef binding 绑定凭据。")).toBeNull();
+    expect(view.queryByText("Admin 只交付 copy-safe metadata；Insight P0 使用 manual/secretRef binding，Admin secure handoff 不在 P0。")).toBeNull();
     expect(view.queryByText("在 Admin 部署配置或外部 secret system 维护凭据引用，完成后刷新本页再生成。")).toBeNull();
     expect(view.container.textContent).not.toContain("部署 Secret");
     expect(view.container.textContent).not.toContain("外部 secret system");
@@ -469,7 +473,7 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.queryByText("查看环境维护说明")).toBeNull();
     expect(view.queryByText("查看交接材料")).toBeNull();
     expect(view.getByText("诊断摘要")).not.toBeNull();
-    expect(view.getByText(/\d+ 项阻断 · \d+ 项可用 · Admin secure handoff 不在 P0/)).not.toBeNull();
+    expect(view.getByText(/\d+ 项阻断 · \d+ 项可用 · 交接包不含真实凭据/)).not.toBeNull();
     expect(view.getByText("查看诊断详情")).not.toBeNull();
     expect(view.queryByText("补凭据引用")).toBeNull();
     expect(view.queryByText("这里不保存密钥，也不配置 API/Gateway 用量 provider。请在 Admin 的 env/config 里补配置，补完重启后刷新。")).toBeNull();
@@ -504,7 +508,9 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.getByText("/current-user/organization-tree")).not.toBeNull();
     expect(view.getByLabelText("gateway_organization_projection owner evidence")).not.toBeNull();
     expect(view.getByLabelText("usage_identity_resolver owner evidence").textContent).toContain("admin_outbound_resolver");
-    expect(view.getByLabelText("keep_in_env owner evidence").textContent).toContain("环境配置");
+    expect(view.queryByLabelText("keep_in_env owner evidence")).toBeNull();
+    expect(view.queryByText("环境维护项")).toBeNull();
+    expect(view.container.textContent).not.toContain("在部署配置或外部 secret system 中维护");
     expect(view.getByText("gatewayOrganizationProjectionToken")).not.toBeNull();
     expect(view.getByText("insightProviderAllowedIssuers")).not.toBeNull();
     expect(view.queryByLabelText("gateway_organization_projection 调用策略")).toBeNull();
@@ -533,7 +539,7 @@ describe("ApplicationUsageAccessPage", () => {
 
     const view = renderPage();
     expect(await view.findByText("材料已齐，点击生成 Admin 交接包。")).not.toBeNull();
-    expect(view.getByText("copy-safe 交接操作")).not.toBeNull();
+    expect(view.getByText("交接包操作")).not.toBeNull();
     expect(view.queryByText("交接能力")).toBeNull();
     expect(view.getByText("诊断摘要")).not.toBeNull();
     expect(view.getByText("查看诊断详情")).not.toBeNull();
@@ -555,7 +561,9 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.getByLabelText("insight_provider_trust owner evidence").textContent).toContain("admin_provider_trust");
     expect(view.getByLabelText("usage_identity_resolver owner evidence").textContent).toContain("用量身份解析");
     expect(view.getByLabelText("gateway_organization_projection owner evidence").textContent).toContain("Gateway 组织投影");
-    expect(view.getByLabelText("keep_in_env owner evidence").textContent).toContain("环境维护项");
+    expect(view.queryByLabelText("keep_in_env owner evidence")).toBeNull();
+    expect(view.queryByText("环境维护项")).toBeNull();
+    expect(view.container.textContent).not.toContain("在部署配置或外部 secret system 中维护");
     expect(view.queryByText("待补配置")).toBeNull();
     expect(view.queryByText("下一步：材料已齐，可以生成 Admin 交接包")).toBeNull();
     expect(view.queryByText("保存修正")).toBeNull();
@@ -598,7 +606,8 @@ describe("ApplicationUsageAccessPage", () => {
     const regenerateButton = view.getByText("重新生成 Admin 交接包").closest("button") as HTMLButtonElement;
     expect(regenerateButton).not.toBeNull();
     expect(regenerateButton.className).not.toContain("ant-btn-primary");
-    expect(view.getByText("本页只交付 Admin 身份、组织、resolver、projection/trust 和服务凭据引用材料；Insight P0 需使用 manual/secretRef binding，Admin secure handoff 不在 P0。")).not.toBeNull();
+    expect(view.getByText("Admin 交接包只包含元数据和引用，不传递真实凭据。")).not.toBeNull();
+    expect(view.container.textContent).not.toContain("Admin secure handoff 不在 P0");
     clickButtonByText(view, "复制交接包 JSON");
     expect(mockCopyToClipboard).toHaveBeenCalledTimes(1);
     const copiedPackage = String(mockCopyToClipboard.mock.calls[0]?.[0] ?? "");
@@ -767,10 +776,10 @@ describe("ApplicationUsageAccessPage", () => {
     });
 
     const view = renderPage();
-    expect(await view.findByText("可生成元数据交接包，导入 Insight 后通过 manual/secretRef binding 绑定凭据。")).not.toBeNull();
+    expect(await view.findByText("交接包操作")).not.toBeNull();
     expect(view.queryByText("可生成 copy-safe 元数据包，仍需补凭据引用。")).toBeNull();
-    const neutralMetadataNote = view.getByText("可生成元数据交接包，导入 Insight 后通过 manual/secretRef binding 绑定凭据。");
-    expect(neutralMetadataNote.closest(".ant-alert-warning")).toBeNull();
+    expect(view.queryByText("可生成元数据交接包，导入 Insight 后通过 manual/secretRef binding 绑定凭据。")).toBeNull();
+    expect(view.container.textContent).not.toContain("copy-safe metadata");
     expect(view.queryByText("材料已齐，点击生成 Admin 交接包。")).toBeNull();
     expect(view.getAllByText("部分缺失").length).toBeGreaterThan(0);
     expect(view.getByText("可生成元数据包，Insight 绑定凭据")).not.toBeNull();
@@ -811,7 +820,8 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.queryByText("机器字段")).toBeNull();
     clickButtonByText(view, "生成 Admin 交接包");
     expect((await view.findAllByText("Admin 元数据交接包已生成")).length).toBeGreaterThan(0);
-    expect(view.getByText("已生成 copy-safe metadata；导入 Insight 后仍需通过 manual/secretRef binding 绑定凭据。")).not.toBeNull();
+    expect(view.getByText("已生成元数据交接包；导入 Insight 后仍需通过 manual/secretRef binding 绑定凭据。")).not.toBeNull();
+    expect(view.container.textContent).not.toContain("copy-safe metadata");
     expect(view.queryByText("Insight Admin 接入交接包已生成")).toBeNull();
     const handoffInput = mockBuildServiceCredentialGovernanceHandoffPackage.mock.calls[0]?.[0] as {config?: unknown; status?: unknown};
     expect(handoffInput).toHaveProperty("config");
@@ -921,7 +931,8 @@ describe("ApplicationUsageAccessPage", () => {
     clickButtonByText(view, "生成 Admin 交接包");
 
     expect((await view.findAllByText("Admin 元数据交接包已生成")).length).toBeGreaterThan(0);
-    expect(view.getByText("已生成 copy-safe metadata；导入 Insight 后仍需通过 manual/secretRef binding 绑定凭据。")).not.toBeNull();
+    expect(view.getByText("已生成元数据交接包；导入 Insight 后仍需通过 manual/secretRef binding 绑定凭据。")).not.toBeNull();
+    expect(view.container.textContent).not.toContain("copy-safe metadata");
     expect(view.queryByText("Insight Admin 接入交接包已生成")).toBeNull();
     expect(mockBuildServiceCredentialGovernanceHandoffPackage).toHaveBeenCalledTimes(1);
     expect(view.container.textContent).not.toContain("可交付");

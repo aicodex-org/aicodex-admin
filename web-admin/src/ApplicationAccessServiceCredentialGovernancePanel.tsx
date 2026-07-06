@@ -91,7 +91,7 @@ function getServiceCredentialGovernanceInsightBindingNextAction(): string {
 function getServiceCredentialGovernanceInsightBindingGuidance(): string {
   return t(
     "Handoff blocker credential reference suggestion",
-    "交接包可生成；导入 Insight Profile 后通过 manual/secretRef binding 绑定 resolver 凭据。Admin 交接包只传递 copy-safe 引用，不传递真实凭据。"
+    "交接包可生成；导入 Insight Profile 后通过 manual/secretRef binding 绑定 resolver 凭据。交接包只包含元数据，不传递真实凭据。"
   );
 }
 
@@ -663,6 +663,10 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
       tone: getServiceCredentialGovernanceTone(row.statusGroup?.status ?? "not_applicable"),
     };
   });
+  // keep_in_env 是底层维护事实，不作为 Admin 交接页的诊断行动项展示。
+  const serviceCredentialGovernanceDiagnosticEvidenceRows = serviceCredentialGovernanceEvidenceRows.filter(row => {
+    return row.key !== "keep_in_env" && !row.configGroup?.keepInEnv;
+  });
   const serviceCredentialGovernanceHasPendingMaterials = serviceCredentialGovernanceActionRows.length > 0;
   const serviceCredentialGovernanceCanGenerate = serviceCredentialGovernanceConfigLoadState === "ready"
     && serviceCredentialGovernanceConfigDraft.length > 0
@@ -782,7 +786,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
       key: capability.key,
       label: t(capability.labelKey, capability.defaultLabel),
       status: {label: t("Capability ready", "已就绪"), tone: "success" as ServiceCredentialGovernanceTone},
-      nextAction: t("Wrapper capability ready description", "可用于 Insight copy-safe metadata 交接"),
+      nextAction: t("Wrapper capability ready description", "可用于 Insight 元数据交接"),
     })),
     ...[
       {key: "usage_identity_resolver", labelKey: "Insight Admin Provider usage identity resolver capability", defaultLabel: "用量身份解析"},
@@ -811,7 +815,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
   });
   const serviceCredentialGovernanceDiagnosticsSummary = t(
     "Insight Admin Provider diagnostics summary",
-    "{blocked} 项阻断 · {ready} 项可用 · Admin secure handoff 不在 P0"
+    "{blocked} 项阻断 · {ready} 项可用 · 交接包不含真实凭据"
   )
     .replace("{blocked}", `${serviceCredentialGovernanceBlockingEvidenceRows.length}`)
     .replace("{ready}", `${serviceCredentialGovernanceReadyCapabilityRows.length}`)
@@ -835,18 +839,8 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
       </div>
       <div className="application-access-service-credential-operator-card">
         <Text type="secondary">{t("Handoff package type label", "包类型")}</Text>
-        <Text strong>copy-safe metadata</Text>
+        <Text strong>{t("Handoff package type metadata value", "元数据交接包")}</Text>
       </div>
-    </div>
-  );
-  const serviceCredentialGovernanceBoundarySummary = (
-    <div className="application-access-service-credential-boundary-note">
-      <Text type="secondary">
-        {t(
-          "Insight Admin Provider concise boundary",
-          "Admin 只交付 copy-safe metadata；Insight P0 使用 manual/secretRef binding，Admin secure handoff 不在 P0。"
-        )}
-      </Text>
     </div>
   );
   const serviceCredentialGovernanceBlockingSummary = (
@@ -911,7 +905,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
       <div className="application-access-service-credential-technical-subsection" aria-label="Owner evidence technical details">
         <Text type="secondary">{t("Insight Admin Provider owner evidence details title", "Owner evidence")}</Text>
         <div className="application-access-service-credential-compact-list">
-          {serviceCredentialGovernanceEvidenceRows.map(row => {
+          {serviceCredentialGovernanceDiagnosticEvidenceRows.map(row => {
             const missingKeys = getServiceCredentialGovernanceDeploymentMissingKeys(row.statusGroup);
             return (
               <div className="application-access-service-credential-technical-row" aria-label={`${row.key} owner evidence`} key={row.key}>
@@ -966,7 +960,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
       )}
     </div>
   );
-  const serviceCredentialGovernanceWorkspaceTitle = t("Insight Admin Provider copy safe handoff actions title", "copy-safe 交接操作");
+  const serviceCredentialGovernanceWorkspaceTitle = t("Insight Admin Provider copy safe handoff actions title", "交接包操作");
   const serviceCredentialGovernanceWorkspace = (
     <div className="application-access-service-credential-workspace">
       <div className="application-access-service-credential-workspace-header">
@@ -1020,11 +1014,11 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
             description={serviceCredentialGovernanceHasPartialPackage
               ? t(
                 "Insight Admin Provider partial handoff ready description",
-                "已生成 copy-safe metadata；导入 Insight 后仍需通过 manual/secretRef binding 绑定凭据。"
+                "已生成元数据交接包；导入 Insight 后仍需通过 manual/secretRef binding 绑定凭据。"
               )
               : t(
                 "Insight Admin Provider handoff ready description",
-                "本页只交付 Admin 身份、组织、resolver、projection/trust 和服务凭据引用材料；Insight P0 需使用 manual/secretRef binding，Admin secure handoff 不在 P0。"
+                "Admin 交接包只包含元数据和引用，不传递真实凭据。"
               )}
             action={(
               <Button icon={<CopyOutlined />} size="small" onClick={handleCopyServiceCredentialGovernanceHandoffPackage}>
@@ -1033,22 +1027,14 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
             )}
           />
         )}
-        {serviceCredentialGovernanceConfigLoadState === "ready" && serviceCredentialGovernanceHandoffState !== "ready" && serviceCredentialGovernanceActionRows.length === 0 && (
+        {serviceCredentialGovernanceConfigLoadState === "ready" && serviceCredentialGovernanceHandoffState !== "ready" && serviceCredentialGovernanceActionRows.length === 0 && !serviceCredentialGovernanceHasPartialPackage && (
           <div className="application-access-service-credential-alignment" aria-label={serviceCredentialGovernanceWorkspaceTitle}>
-            {serviceCredentialGovernanceHasPartialPackage ? (
-              <div className="application-access-service-credential-metadata-note">
-                <Text type="secondary">
-                  {t("Handoff metadata package partial ready message", "可生成元数据交接包，导入 Insight 后通过 manual/secretRef binding 绑定凭据。")}
-                </Text>
-              </div>
-            ) : (
-              <Alert
-                className="enterprise-identity-console-alert"
-                type="success"
-                showIcon
-                message={t("Handoff metadata package ready message", "材料已齐，点击生成 Admin 交接包。")}
-              />
-            )}
+            <Alert
+              className="enterprise-identity-console-alert"
+              type="success"
+              showIcon
+              message={t("Handoff metadata package ready message", "材料已齐，点击生成 Admin 交接包。")}
+            />
           </div>
         )}
       </div>
@@ -1059,7 +1045,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
     <EnterpriseIdentitySection
       className={className}
       title={t("Insight Admin Provider status title", "Insight Admin Provider 状态")}
-      description={t("Insight Admin Provider page description", "面向 Insight 的 Admin Provider copy-safe 元数据交接页。")}
+      description={t("Insight Admin Provider page description", "面向 Insight 的 Admin Provider 元数据交接页。")}
       extra={<Tag className={`enterprise-identity-tone-${serviceCredentialGovernanceEffectiveSummary.tone}`}>{serviceCredentialGovernanceEffectiveSummary.label}</Tag>}
     >
       {serviceCredentialGovernanceDeliverySummary}
@@ -1093,7 +1079,6 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
         />
       )}
       {serviceCredentialGovernanceWorkspace}
-      {serviceCredentialGovernanceBoundarySummary}
       {serviceCredentialGovernanceTechnicalDetails}
     </EnterpriseIdentitySection>
   );

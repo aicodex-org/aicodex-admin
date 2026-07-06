@@ -13,7 +13,8 @@
 - **WHEN** Admin handoff 状态为 partial、missing 或 blocked，且阻断原因包含 resolver 或 projection credential reference 缺失
 - **THEN** 页面默认层 SHALL 展示一个人可读阻断摘要，说明 copy-safe metadata package 可生成但 Profile 凭据闭环仍未完成
 - **AND** 页面默认层 SHALL 将主下一步指向 `导入 Insight Profile 后通过 manual/secretRef binding 绑定凭据`
-- **AND** 页面默认层 SHALL NOT 展示 `部署 Secret`、`外部 secret system`、`.env`、K8s Secret、Vault 或 KMS 作为用户主提示或主操作路径
+- **AND** 页面默认层 SHALL 以产品化文案说明 `Admin 交接包只包含元数据，不传递真实凭据`
+- **AND** 页面默认层 SHALL NOT 展示 `Admin secure handoff 不在 P0`、`部署 Secret`、`外部 secret system`、`.env`、K8s Secret、Vault 或 KMS 作为用户主提示或主操作路径
 - **AND** 页面默认层 SHALL NOT 将 `在 Admin 部署配置或外部 secret system 维护凭据引用` 表达为修复建议
 - **AND** 页面 SHALL NOT 要求操作者先理解 `admin_outbound_resolver`、`admin_gateway_projection_producer` 或同类内部 alias 才能判断下一步
 
@@ -24,11 +25,18 @@
 #### Scenario: partial 默认态只保留一个主阻断提示
 
 - **WHEN** `/application-usage-access` 的 Admin handoff 状态为 partial、missing 或 blocked，且 copy-safe metadata package 仍可生成
-- **THEN** 页面默认层 SHALL 保留整体状态摘要、下一步 action 和一条 warning 主提示，说明缺少 resolver 凭据引用或同类阻断
-- **AND** copy-safe 交接操作区 SHALL 使用中性或 info 语义说明 `可生成元数据交接包，导入 Insight 后通过 manual/secretRef binding 绑定凭据`
-- **AND** 页面 SHALL NOT 在 copy-safe 操作区再渲染第二个黄色告警
-- **AND** P0 边界说明 SHALL 降级为低噪信息行、帮助说明或诊断摘要文案，不得成为默认视觉焦点
+- **THEN** 页面默认层 SHALL 保留整体状态摘要、下一步 action、一个 warning 主提示和 `生成 Admin 交接包` 主 CTA
+- **AND** copy-safe 交接操作区 SHALL NOT 再渲染灰底重复说明、第二个黄色告警或绿色 `材料已齐`
+- **AND** 页面默认层 SHALL NOT 展示 `P0`、`secure handoff 不在 P0`、`copy-safe metadata` 或同类内部路线/实现语言
 - **AND** 页面 SHALL NOT 表达 Admin secure handoff 已完成、真实凭据绑定已完成，或需要在 Admin 内配置 API/Gateway 用量 provider
+
+#### Scenario: 诊断展开层隐藏环境维护噪声
+
+- **WHEN** 管理员展开 `诊断摘要`
+- **THEN** 诊断详情 SHALL 保留阻断项、可用能力、wrapper route 和可操作 owner evidence
+- **AND** 诊断详情 SHALL NOT 展示 `环境维护项`
+- **AND** 诊断详情 SHALL NOT 将 `部署配置`、`外部 secret system`、`.env`、K8s Secret、Vault 或 KMS 表达为用户动作
+- **AND** 诊断详情 SHALL NOT 恢复旧 `服务凭据治理` 或 API/Gateway 用量 provider 配置中心式入口
 
 ### Requirement: 用量接入 copy-safe 安全边界
 
