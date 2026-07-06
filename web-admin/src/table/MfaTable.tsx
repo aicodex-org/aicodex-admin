@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import React from "react";
-import {DeleteOutlined, DownOutlined, UpOutlined} from "@ant-design/icons";
-import {Button, Col, Row, Select, Table, Tooltip} from "antd";
+import {DeleteOutlined, DownOutlined, InfoCircleOutlined, UpOutlined} from "@ant-design/icons";
+import {Button, Popconfirm, Select, Table, Tooltip} from "antd";
 import {EmailMfaType, PushMfaType, SmsMfaType, TotpMfaType} from "../auth/MfaSetupPage";
 import {MfaRuleOptional, MfaRulePrompted, MfaRuleRequired} from "../Setting";
 import * as Setting from "../Setting";
@@ -26,12 +26,13 @@ type LegacyAny = any;
 type LegacyColumn = import("../types/legacyPage").LegacyColumn;
 
 const i18next = {t: (key: string, options?: LegacyAny): string => String(options === undefined ? i18nextLib.t(key) : i18nextLib.t(key, options))};
+const MfaMethodPlaceholder = "Please select a MFA method";
 
-const MfaItems = [
-  {name: "Phone", value: SmsMfaType},
-  {name: "Email", value: EmailMfaType},
-  {name: "App", value: TotpMfaType},
-  {name: "Push", value: PushMfaType},
+const getMfaItems = () => [
+  {name: SmsMfaType, value: SmsMfaType, label: i18next.t("mfa:SMS")},
+  {name: EmailMfaType, value: EmailMfaType, label: i18next.t("general:Email")},
+  {name: TotpMfaType, value: TotpMfaType, label: i18next.t("mfa:Authenticator App")},
+  {name: PushMfaType, value: PushMfaType, label: i18next.t("mfa:Push Notification")},
 ];
 
 const RuleItems = [
@@ -68,7 +69,7 @@ class MfaTable extends React.Component<MfaTableProps, MfaTableState> {
   }
 
   addRow(table: LegacyAny[] = []) {
-    const row = {name: Setting.getNewRowNameForTable(table, "Please select a MFA method"), rule: "Optional"};
+    const row = {name: Setting.getNewRowNameForTable(table, MfaMethodPlaceholder), rule: "Optional"};
     table = Setting.addRow(table, row);
     this.updateTable(table);
   }
@@ -76,6 +77,7 @@ class MfaTable extends React.Component<MfaTableProps, MfaTableState> {
   deleteRow(table: LegacyAny[], i: number) {
     table = Setting.deleteRow(table, i);
     this.updateTable(table);
+    Setting.showMessage("info", i18next.t("organization:MFA method removed pending save"));
   }
 
   upRow(table: LegacyAny[], i: number) {
@@ -89,12 +91,23 @@ class MfaTable extends React.Component<MfaTableProps, MfaTableState> {
   }
 
   renderTable(table: LegacyAny[] = []) {
+    const mfaItems = getMfaItems();
+    const isAddDisabled = table.length >= mfaItems.length;
     const columns: LegacyColumn[] = [
       {
         title: i18next.t("general:Name"),
         dataIndex: "name",
         key: "name",
+        width: "520px",
         render: (text, record, index) => {
+          const value = String(text ?? "");
+          const isPlaceholder = value.trim() === MfaMethodPlaceholder;
+          const selectedMfaItem = mfaItems.find(item => item.value === value);
+          const options = [
+            ...(isPlaceholder ? [{name: value, value: value, label: i18next.t("organization:Please select a MFA method")}] : []),
+            ...(selectedMfaItem === undefined ? [] : [selectedMfaItem]),
+            ...Setting.getDeduplicatedArray(mfaItems, table, "name"),
+          ];
           return (
             <Select virtual={false} size="small" style={{width: "100%"}}
               value={text}
@@ -102,7 +115,7 @@ class MfaTable extends React.Component<MfaTableProps, MfaTableState> {
                 this.updateField(table, index, "name", value);
               }} >
               {
-                Setting.getDeduplicatedArray(MfaItems, table, "name").map((item: LegacyAny, index: number) => <Option key={index} value={item.value}>{item.name}</Option>)
+                options.map((item: LegacyAny, index: number) => <Option key={index} value={item.value}>{item.label}</Option>)
               }
             </Select>
           );
@@ -112,7 +125,7 @@ class MfaTable extends React.Component<MfaTableProps, MfaTableState> {
         title: i18next.t("application:Rule"),
         dataIndex: "rule",
         key: "rule",
-        width: "100px",
+        width: "140px",
         render: (text, record, index) => {
           return (
             <Select virtual={false} size="small" style={{width: "100%"}}
@@ -142,19 +155,35 @@ class MfaTable extends React.Component<MfaTableProps, MfaTableState> {
       {
         title: i18next.t("general:Action"),
         key: "action",
-        width: "100px",
+        width: "112px",
+        className: "organization-config-table-action-column",
         render: (text, record, index) => {
+          const isFirst = index === 0;
+          const isLast = index === table.length - 1;
+          const upTitle = isFirst ? i18next.t("organization:Already first MFA method") : i18next.t("organization:Move MFA method up");
+          const downTitle = isLast ? i18next.t("organization:Already last MFA method") : i18next.t("organization:Move MFA method down");
           return (
-            <div>
-              <Tooltip placement="bottomLeft" title={i18next.t("general:Up")}>
-                <Button style={{marginRight: "5px"}} disabled={index === 0} icon={<UpOutlined />} size="small" onClick={() => this.upRow(table, index)} />
+            <div className="organization-config-table-row-actions organization-config-table-row-actions-icons">
+              <Tooltip placement="bottomLeft" title={upTitle}>
+                <span className="organization-config-table-action-trigger" aria-disabled={isFirst} aria-label={upTitle} tabIndex={isFirst ? 0 : undefined}>
+                  <Button aria-label={i18next.t("organization:Move MFA method up")} disabled={isFirst} icon={<UpOutlined />} size="small" onClick={() => this.upRow(table, index)} />
+                </span>
               </Tooltip>
-              <Tooltip placement="topLeft" title={i18next.t("general:Down")}>
-                <Button style={{marginRight: "5px"}} disabled={index === table.length - 1} icon={<DownOutlined />} size="small" onClick={() => this.downRow(table, index)} />
+              <Tooltip placement="topLeft" title={downTitle}>
+                <span className="organization-config-table-action-trigger" aria-disabled={isLast} aria-label={downTitle} tabIndex={isLast ? 0 : undefined}>
+                  <Button aria-label={i18next.t("organization:Move MFA method down")} disabled={isLast} icon={<DownOutlined />} size="small" onClick={() => this.downRow(table, index)} />
+                </span>
               </Tooltip>
-              <Tooltip placement="topLeft" title={i18next.t("general:Delete")}>
-                <Button icon={<DeleteOutlined />} size="small" onClick={() => this.deleteRow(table, index)} />
-              </Tooltip>
+              <Popconfirm
+                title={i18next.t("organization:Remove MFA method confirmation")}
+                okText={i18next.t("general:OK")}
+                cancelText={i18next.t("general:Cancel")}
+                onConfirm={() => this.deleteRow(table, index)}
+              >
+                <Tooltip placement="topLeft" title={i18next.t("organization:Delete MFA method")}>
+                  <Button aria-label={i18next.t("organization:Delete MFA method")} icon={<DeleteOutlined />} size="small" />
+                </Tooltip>
+              </Popconfirm>
             </div>
           );
         },
@@ -163,10 +192,34 @@ class MfaTable extends React.Component<MfaTableProps, MfaTableState> {
 
     return (
       <Table scroll={{x: "max-content"}} rowKey="name" columns={columns} dataSource={table} size="middle" bordered pagination={false}
+        locale={{emptyText: i18next.t("organization:No MFA methods")}}
         title={() => (
-          <div>
-            {this.props.title}&nbsp;&nbsp;&nbsp;&nbsp;
-            <Button disabled={table.length >= MfaItems.length} style={{marginRight: "5px"}} type="primary" size="small" onClick={() => this.addRow(table)}>{i18next.t("general:Add")}</Button>
+          <div className="organization-config-table-toolbar">
+            {this.props.title === undefined || this.props.title === null ? null : (
+              <span className="organization-config-table-title organization-config-table-title-with-help">
+                {this.props.title}
+                <Tooltip title={i18next.t("organization:MFA methods order - Tooltip", {count: mfaItems.length})}>
+                  <span
+                    aria-label={i18next.t("organization:MFA methods order - Tooltip", {count: mfaItems.length})}
+                    className="organization-config-table-title-help-icon"
+                    role="img"
+                    tabIndex={0}
+                  >
+                    <InfoCircleOutlined />
+                  </span>
+                </Tooltip>
+              </span>
+            )}
+            <Tooltip title={isAddDisabled ? i18next.t("organization:Maximum MFA methods reached", {count: mfaItems.length}) : ""}>
+              <span
+                aria-disabled={isAddDisabled}
+                aria-label={isAddDisabled ? i18next.t("organization:Maximum MFA methods reached", {count: mfaItems.length}) : undefined}
+                className="organization-config-table-add-trigger"
+                tabIndex={isAddDisabled ? 0 : undefined}
+              >
+                <Button disabled={isAddDisabled} type="primary" size="small" onClick={() => this.addRow(table)}>{i18next.t("general:Add")}</Button>
+              </span>
+            </Tooltip>
           </div>
         )}
       />
@@ -175,14 +228,8 @@ class MfaTable extends React.Component<MfaTableProps, MfaTableState> {
 
   render() {
     return (
-      <div>
-        <Row style={{marginTop: "20px"}} >
-          <Col span={24}>
-            {
-              this.renderTable(this.props.table ?? [])
-            }
-          </Col>
-        </Row>
+      <div className="organization-config-table-section mfa-table-section">
+        {this.renderTable(this.props.table ?? [])}
       </div>
     );
   }

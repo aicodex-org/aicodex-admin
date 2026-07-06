@@ -117,6 +117,7 @@ describe("NavItemTree enterprise identity configuration", () => {
     expect(navTree.props.defaultExpandedKeys).toEqual(["all"]);
     expect(navTree.props.onCheck).toBe(onCheck);
     expect(getGroup(navTree.props.treeData, "组织账号")).toBeTruthy();
+    expect(navTree.props.virtual).toBe(false);
   });
 
   test("localizes the configuration tree for non-Chinese language modes", async() => {

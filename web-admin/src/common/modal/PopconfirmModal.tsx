@@ -22,6 +22,8 @@ const t = (key: string, options?: LegacyAny): string => String(i18next.t(key, op
 export const PopconfirmModal = (props: LegacyAny) => {
   const text = props.text ? props.text : t("general:Delete");
   const size = props.size ? props.size : "middle";
+  const type = props.type ? props.type : "primary";
+  const danger = props.danger === undefined ? true : props.danger;
   return (
     <Popconfirm
       title={props.title}
@@ -30,7 +32,7 @@ export const PopconfirmModal = (props: LegacyAny) => {
       okText={t("general:OK")}
       cancelText={t("general:Cancel")}
     >
-      <Button style={{...props.style}} size={size} disabled={props.disabled} type="primary" danger>{text}</Button>
+      <Button className={props.className} style={{...props.style}} size={size} disabled={props.disabled} loading={props.loading} type={type} danger={danger}>{text}</Button>
     </Popconfirm>
   );
 };

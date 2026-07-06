@@ -48,6 +48,72 @@ describe("large edit page form layout", () => {
     expect(source).toContain("className=\"admin-large-edit-card application-edit-card\"");
   });
 
+  test("keeps Organization edit tabs shell separated from tab business content", () => {
+    const source = readSrc("OrganizationEditPage.tsx");
+    const appLess = readSrc("App.less");
+
+    expect(source).toContain("className=\"organization-edit-shell\"");
+    expect(source).toContain("className=\"organization-edit-tabs\"");
+    expect(source).toContain("className=\"organization-edit-scroll-content\"");
+    expect(source).toContain("className=\"organization-edit-action-bar\"");
+    expect(appLess).toContain("grid-template-columns: repeat(2, minmax(320px, 1fr));");
+    expect(appLess).toContain("@media screen and (max-width: 1024px)");
+    expect(appLess).toContain("overflow-x: hidden;");
+  });
+
+  test("keeps Organization edit shell compatible with dark admin shell theme tokens", () => {
+    const appLess = readSrc("App.less");
+    const organizationEditCss = appLess.slice(
+      appLess.indexOf(".organization-edit-page"),
+      appLess.indexOf(".admin-gateway-edit-page")
+    );
+
+    expect(organizationEditCss).toContain("background: var(--admin-shell-surface-bg, #fff);");
+    expect(organizationEditCss).toContain("flex: 0 0 42px;");
+    expect(organizationEditCss).toContain("padding: 8px 0 7px;");
+    expect(organizationEditCss).toContain("flex: 0 0 54px;");
+    expect(organizationEditCss).toContain("color: var(--admin-shell-text-primary");
+    expect(organizationEditCss).toContain("padding: 14px 32px 24px;");
+    expect(organizationEditCss).not.toMatch(/\\.organization-edit-page \\.organization-edit-tabs\\.ant-tabs \\{[\s\S]*?border-bottom/);
+    expect(organizationEditCss).toContain("body.admin-shell-theme-dark .organization-edit-page .ant-input");
+    expect(organizationEditCss).toContain("body.admin-shell-theme-dark .organization-edit-page .ant-table");
+    expect(organizationEditCss).toContain("body.admin-shell-theme-dark .organization-edit-page .ant-tree");
+    expect(organizationEditCss).toContain("background: var(--admin-shell-surface-soft-bg");
+    expect(organizationEditCss).not.toMatch(/--ant-color-(bg|text|border|fill)/);
+  });
+
+  test("keeps Organization directory labels localized in Chinese", () => {
+    const zhLocale = JSON.parse(readSrc("locales/zh/data.json")) as {organization: Record<string, string>; ldap: Record<string, string>};
+
+    expect(zhLocale.organization["Account fields"]).toBe("账号资料");
+    expect(zhLocale.organization["Attribute"]).toBe("属性");
+    expect(zhLocale.organization["Navigation and menu"]).toBe("导航菜单");
+    expect(zhLocale.organization["Directory integration"]).toBe("目录服务");
+    expect(zhLocale.organization["View rule Public"]).toBe("所有人可见");
+    expect(zhLocale.organization["View rule Self"]).toBe("仅本人可见");
+    expect(zhLocale.organization["Modify rule Admin"]).toBe("管理员可改");
+    expect(zhLocale.organization["Modify rule Immutable"]).toBe("不可修改");
+    expect(zhLocale.organization["Multi-factor authentication"]).toBe("多因素认证");
+    expect(zhLocale.organization["MFA remember duration"]).toBe("认证记住时长");
+    expect(zhLocale.organization["Hours"]).toBe("小时");
+    expect(zhLocale.organization["LDAP attributes"]).toBe("LDAP 属性");
+    expect(zhLocale.ldap["LDAP servers"]).toBe("LDAP 服务器");
+    expect(zhLocale.organization["Kerberos realm"]).toBe("Kerberos 域");
+    expect(zhLocale.organization["Kerberos KDC host"]).toBe("Kerberos KDC 主机");
+    expect(zhLocale.organization["Kerberos service name"]).toBe("Kerberos 服务名");
+    expect(zhLocale.organization["Use permanent avatar"]).toBe("使用永久头像");
+    expect(zhLocale.organization["LDAP attributes - Tooltip"]).not.toBe("LDAP attributes - Tooltip");
+    expect(zhLocale.organization["Use permanent avatar - Tooltip"]).not.toBe("Use permanent avatar - Tooltip");
+  });
+
+  test("keeps Organization brand asset labels natural in Chinese", () => {
+    const zhLocale = JSON.parse(readSrc("locales/zh/data.json")) as {general: Record<string, string>};
+
+    expect(zhLocale.general["Favicon"]).toBe("组织图标");
+    expect(zhLocale.general["Favicon - Tooltip"]).toContain("Favicon");
+    expect(zhLocale.general["Favicon - Tooltip"]).toContain("浏览器标签页");
+  });
+
   test("keeps Application provider tab full-width content out of field row layout", () => {
     const source = readSrc("ApplicationEditPage.tsx");
     const appLess = readSrc("App.less");

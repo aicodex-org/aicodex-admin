@@ -5,8 +5,8 @@ type LegacyAny = import("../types/legacyPage").LegacyAny;
 
 const t = (key: string, options?: LegacyAny): string => String(i18next.t(key, options));
 
-export const WidgetItemTree = ({disabled, checkedKeys, defaultExpandedKeys, onCheck}: LegacyAny) => {
-  const WidgetItemNodes = [
+export function buildWidgetItemTreeData(): LegacyAny[] {
+  return [
     {
       title: t("general:All"),
       key: "all",
@@ -18,6 +18,10 @@ export const WidgetItemTree = ({disabled, checkedKeys, defaultExpandedKeys, onCh
       ],
     },
   ];
+}
+
+export const WidgetItemTree = ({disabled, checkedKeys, defaultExpandedKeys, onCheck}: LegacyAny) => {
+  const WidgetItemNodes = buildWidgetItemTreeData();
 
   return (
     <Tree
@@ -27,6 +31,7 @@ export const WidgetItemTree = ({disabled, checkedKeys, defaultExpandedKeys, onCh
       defaultExpandedKeys={defaultExpandedKeys}
       onCheck={onCheck}
       treeData={WidgetItemNodes}
+      virtual={false}
     />
   );
 };

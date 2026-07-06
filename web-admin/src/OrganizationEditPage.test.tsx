@@ -2,6 +2,7 @@
 import React from "react";
 import {act, cleanup, fireEvent, render} from "@testing-library/react";
 import {expect, jest} from "@jest/globals";
+import {Input, InputNumber, Modal, Select} from "antd";
 import i18next from "i18next";
 import OrganizationEditPage from "./OrganizationEditPage";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
@@ -86,8 +87,14 @@ jest.mock("./backend/TransactionBackend", () => {
   };
 });
 
-jest.mock("./table/LdapTable", () => function LdapTableMock() {
-  return <div data-testid="ldap-table">ldap-table</div>;
+jest.mock("./table/LdapTable", () => function LdapTableMock(props: {title?: React.ReactNode; description?: React.ReactNode; onUpdateTable?: (value: unknown[]) => void}) {
+  return (
+    <div>
+      {props.title}
+      {props.description === undefined || props.description === null ? null : <span>{String(props.description)}</span>}
+      <button type="button" data-testid="ldap-table" onClick={() => props.onUpdateTable?.([{id: "ldap-1"}])}>ldap-table</button>
+    </div>
+  );
 });
 
 jest.mock("./table/AccountTable", () => function AccountTableMock(props: {onUpdateTable?: (value: unknown[]) => void}) {
@@ -109,6 +116,9 @@ jest.mock("./common/NavItemTree", () => ({
 }));
 
 jest.mock("./common/WidgetItemTree", () => ({
+  buildWidgetItemTreeData: () => [
+    {key: "all", children: [{key: "tour"}, {key: "ai-assistant"}]},
+  ],
   WidgetItemTree: function WidgetItemTreeMock(props: {onCheck?: (checked: string[], event: unknown) => void}) {
     return <button type="button" onClick={() => props.onCheck?.(["all"], {})}>widget-tree</button>;
   },
@@ -295,6 +305,16 @@ function invokeEditableHandler(props: ElementProps): void {
   props.onChange({target: {value: "updated"}});
 }
 
+function getSecurityTabFieldControls(page: OrganizationEditPage): React.ReactElement[] {
+  const tabChildren = React.Children.toArray((page.renderSecurityTab() as React.ReactElement).props.children);
+  const passwordPolicyGrid = tabChildren[1] as React.ReactElement;
+  return React.Children.toArray(passwordPolicyGrid.props.children).map((row) => {
+    const rowChildren = React.Children.toArray((row as React.ReactElement).props.children);
+    const controlWrapper = rowChildren[1] as React.ReactElement;
+    return React.Children.toArray(controlWrapper.props.children)[0] as React.ReactElement;
+  });
+}
+
 function setupBackend(overrides: {
   organization?: unknown;
   organizationResponse?: unknown;
@@ -353,6 +373,7 @@ async function flushPromises() {
 describe("OrganizationEditPage", () => {
   beforeEach(async() => {
     await useTestLanguage("en");
+    window.location.hash = "";
     consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
       if (`${message}`.includes("ReactDOM.render is no longer supported")) {
         return;
@@ -385,8 +406,26 @@ describe("OrganizationEditPage", () => {
     const {view} = renderPage();
 
     expect(await view.findByDisplayValue("Engineering")).not.toBeNull();
-    expect(view.getByTestId("ldap-table").textContent).toBe("ldap-table");
-    expect(view.getByTestId("transaction-table").textContent).toBe("transactions:1");
+    expect(view.getByText("Organization & Accounts / Organizations /")).not.toBeNull();
+    expect(view.getByText("Basic")).not.toBeNull();
+    expect(view.getByText("Brand")).not.toBeNull();
+    expect(view.getByText("Login security")).not.toBeNull();
+    expect(view.getByText("Navigation menu")).not.toBeNull();
+    expect(view.getByText("Account profile")).not.toBeNull();
+    expect(view.getByText("Multi-factor authentication")).not.toBeNull();
+    expect(view.getByText("Directory services")).not.toBeNull();
+    expect(view.getByText("Transactions")).not.toBeNull();
+
+    fireEvent.click(view.getByText("Directory services"));
+    expect((await view.findByTestId("ldap-table")).textContent).toBe("ldap-table");
+
+    fireEvent.click(view.getByText("Transactions"));
+    expect((await view.findByTestId("transaction-table")).textContent).toBe("transactions:1");
+    expect(Array.from(view.container.querySelectorAll(".organization-edit-action-bar button")).map(button => button.textContent)).toEqual([
+      "Cancel",
+      "Save",
+      "Save and return",
+    ]);
     expect(organizationBackendMock.getOrganization).toHaveBeenCalledWith("admin", "engineering");
     expect(applicationBackendMock.getApplicationsByOrganization).toHaveBeenCalledWith("admin", "engineering");
     expect(ldapBackendMock.getLdaps).toHaveBeenCalledWith("engineering");
@@ -400,8 +439,26 @@ describe("OrganizationEditPage", () => {
     expect(view.container.querySelector(".organization-edit-page")).not.toBeNull();
     expect(view.container.querySelector(".organization-edit-card")).not.toBeNull();
     expect(view.container.querySelector(".organization-edit-page > .organization-edit-card")).not.toBeNull();
+    expect(view.container.querySelector(".organization-edit-shell")).not.toBeNull();
+    expect(view.container.querySelector(".organization-edit-tabs")).not.toBeNull();
+    expect(view.container.querySelector(".organization-edit-scroll-content")).not.toBeNull();
+    expect(view.container.querySelector(".organization-edit-action-bar")).not.toBeNull();
+
+    fireEvent.click(view.getByText("Login security"));
     expect(view.getByText(/Password salt/).closest(".organization-edit-page")).not.toBeNull();
     expect(view.getByText(/Password complexity options/).closest(".organization-edit-page")).not.toBeNull();
+  });
+
+  test("keeps immediate LDAP resource updates out of organization dirty state", async() => {
+    const {view} = renderPage();
+
+    expect(await view.findByDisplayValue("Engineering")).not.toBeNull();
+    fireEvent.click(view.getByText("Directory services"));
+    expect(view.getByText("LDAP servers are independent resources. Add, edit, and delete actions take effect immediately. User sync runs on the sync page and is not controlled by the footer Save or Cancel buttons.")).not.toBeNull();
+
+    fireEvent.click(await view.findByTestId("ldap-table"));
+
+    expect(view.queryByText("Unsaved changes")).toBeNull();
   });
 
   test("redirects to 404 when organization is missing and shows backend load errors", async() => {
@@ -427,13 +484,24 @@ describe("OrganizationEditPage", () => {
 
     expect(await view.findByDisplayValue("Engineering")).not.toBeNull();
     expect(view.queryByTestId("transaction-table")).toBeNull();
+    expect(view.queryByText("Transactions")).toBeNull();
   });
 
   test("keeps editable field handlers wired to organization state updates", () => {
     const page = createPageInstance();
 
-    visitReactNode(page.renderOrganization(), (element) => {
-      invokeEditableHandler(element.props as ElementProps);
+    [
+      page.renderBasicTab(),
+      page.renderBrandTab(),
+      page.renderSecurityTab(),
+      page.renderNavigationTab(),
+      page.renderAccountFieldsTab(),
+      page.renderMfaTab(),
+      page.renderDirectoryTab(),
+    ].forEach(tabContent => {
+      visitReactNode(tabContent, (element) => {
+        invokeEditableHandler(element.props as ElementProps);
+      });
     });
 
     expect(page.state.organization.displayName).toBe("updated");
@@ -448,6 +516,200 @@ describe("OrganizationEditPage", () => {
     expect(page.state.organization.mfaItems).toEqual([{name: "updated-table-item"}]);
     expect(page.state.organization.themeData).toMatchObject({isEnabled: true, primaryColor: "#111111"});
     expect(page.state.ldaps).toEqual([{name: "updated-table-item"}]);
+  });
+
+  test("keeps MFA section title aligned with the shared tab content edge", () => {
+    const page = createPageInstance();
+    const mfaTab = page.renderMfaTab() as React.ReactElement;
+    const children = React.Children.toArray(mfaTab.props.children) as React.ReactElement[];
+
+    expect(children[0].props.className).toBe("organization-edit-section-title");
+    expect(children[1].props.className).toBe("organization-edit-tab-panel-narrow");
+  });
+
+  test("uses clear basic tab empty states and read-only balance affordance", () => {
+    const page = createPageInstance({organization: {defaultApplication: undefined, userBalance: 12}});
+    page.state = {
+      ...page.state,
+      applications: [],
+    };
+    const basicTab = page.renderBasicTab();
+    const matchingElements: React.ReactElement[] = [];
+
+    visitReactNode(basicTab, (element) => {
+      const props = element.props as ElementProps & {
+        className?: string;
+        disabled?: boolean;
+        notFoundContent?: React.ReactNode;
+        placeholder?: React.ReactNode;
+        title?: React.ReactNode;
+      };
+      if (
+        props.placeholder === "No default applications" ||
+        props.title === "This organization has no available applications. Create an application before selecting a default application here." ||
+        props.title === "User balance is calculated from user accounts and cannot be edited on the organization page." ||
+        props.className === "organization-edit-control-tooltip-wrapper" ||
+        props.className === "organization-edit-disabled-field-help" ||
+        props.className === "organization-edit-number-input organization-edit-number-input-right"
+      ) {
+        matchingElements.push(element);
+      }
+    });
+
+    const defaultApplicationSelect = matchingElements.find(element => {
+      const props = element.props as ElementProps & {placeholder?: React.ReactNode};
+      return props.placeholder === "No default applications";
+    });
+    expect(defaultApplicationSelect?.props.disabled).toBe(true);
+    expect(defaultApplicationSelect?.props.notFoundContent).toBe("No default applications");
+
+    const defaultApplicationTooltip = matchingElements.find(element => {
+      const props = element.props as {title?: React.ReactNode};
+      return props.title === "This organization has no available applications. Create an application before selecting a default application here.";
+    });
+    expect(defaultApplicationTooltip).toBeDefined();
+
+    const defaultApplicationWrapper = matchingElements.find(element => {
+      const props = element.props as {className?: string; children?: React.ReactNode};
+      return props.className === "organization-edit-control-tooltip-wrapper" && React.isValidElement(props.children) && props.children.type === Select;
+    });
+    expect(defaultApplicationWrapper).toBeDefined();
+
+    const userBalanceTooltip = matchingElements.find(element => {
+      const props = element.props as {title?: React.ReactNode};
+      return props.title === "User balance is calculated from user accounts and cannot be edited on the organization page.";
+    });
+    expect(userBalanceTooltip).toBeDefined();
+
+    const userBalanceWrapper = matchingElements.find(element => {
+      const props = element.props as {className?: string; children?: React.ReactNode};
+      return props.className === "organization-edit-disabled-field-help" && React.isValidElement(props.children) && props.children.type === InputNumber;
+    });
+    expect(userBalanceWrapper).toBeDefined();
+    expect((userBalanceWrapper!.props.children as React.ReactElement).props.className).toBe("organization-edit-number-input organization-edit-number-input-right");
+    expect((userBalanceWrapper!.props.children as React.ReactElement).props.disabled).toBe(true);
+  });
+
+  test("uses security-appropriate controls and help text on the login security tab", () => {
+    const page = createPageInstance();
+    const controls = getSecurityTabFieldControls(page);
+
+    expect(controls[1].type).toBe(Input.Password);
+    expect(controls[4].type).toBe(Input.Password);
+    expect(controls[6].type).toBe(Input.Password);
+    expect(controls[7].type).toBe(Input.Password);
+    expect(controls[8].type).toBe(Input.Password);
+    expect(controls[9].type).toBe(Input.TextArea);
+    expect(controls[5].props.placeholder).toBe("0 means passwords never expire.");
+    expect(controls[9].props.placeholder).toBe("Example: 192.168.1.10, 10.0.0.0/24");
+
+    expect(i18next.t("organization:Password expire days - Tooltip")).toContain("0 means passwords never expire");
+    expect(i18next.t("general:IP whitelist - Tooltip")).toContain("CIDR");
+    expect(i18next.t("organization:Soft deletion - Tooltip")).toContain("not permanently removed");
+    expect(i18next.t("application:Disable signin - Tooltip")).toContain("prevents all users");
+    expect(i18next.t("general:Password obfuscator - Tooltip")).toContain("not the password hash storage");
+  });
+
+  test("renders brand asset previews with default, empty, and failure states", async() => {
+    setupBackend({
+      organization: {
+        ...baseOrganization,
+        logo: "",
+        favicon: "",
+        defaultAvatar: "",
+        themeData: {isEnabled: false},
+      },
+    });
+
+    const {view} = renderPage();
+
+    expect(await view.findByDisplayValue("Engineering")).not.toBeNull();
+    fireEvent.click(view.getByText("Brand"));
+
+    expect(view.getByText("Using default")).not.toBeNull();
+    expect(view.getAllByText("Not configured").length).toBeGreaterThanOrEqual(2);
+    expect(view.getByLabelText("View logo")).not.toBeNull();
+    expect(view.getAllByText("View").length).toBeGreaterThanOrEqual(1);
+
+    fireEvent.error(view.getByAltText("Logo preview"));
+    expect(view.getByText("Preview failed")).not.toBeNull();
+  });
+
+  test("shows theme summaries for global and custom brand theme modes", async() => {
+    setupBackend({
+      organization: {
+        ...baseOrganization,
+        themeData: {isEnabled: false},
+      },
+    });
+
+    const {view} = renderPage();
+
+    expect(await view.findByDisplayValue("Engineering")).not.toBeNull();
+    fireEvent.click(view.getByText("Brand"));
+    expect(view.getByText("Following global theme settings.")).not.toBeNull();
+
+    fireEvent.click(view.getByText("Customize theme"));
+    expect(view.getByText("This organization uses custom theme settings.")).not.toBeNull();
+    expect(view.getByText("theme-editor")).not.toBeNull();
+  });
+
+  test("restores the active tab from hash and writes hash on tab changes", async() => {
+    window.location.hash = "#security";
+
+    const {view} = renderPage();
+
+    expect(await view.findByText("Password policy")).not.toBeNull();
+    fireEvent.click(view.getByText("Brand"));
+
+    expect(window.location.hash).toBe("#brand");
+    expect(await view.findByText("Brand assets")).not.toBeNull();
+  });
+
+  test("blocks save and returns to the basic tab when required organization fields are empty", async() => {
+    const {view} = renderPage();
+
+    fireEvent.change(await view.findByDisplayValue("engineering"), {target: {value: " "}});
+    fireEvent.change(view.getByDisplayValue("Engineering"), {target: {value: " "}});
+    fireEvent.click(view.getByText("Save"));
+
+    expect(organizationBackendMock.updateOrganization).not.toHaveBeenCalled();
+    expect(window.location.hash).toBe("#basic");
+    expect(view.getAllByText("This field is required").length).toBeGreaterThanOrEqual(2);
+    expect(Setting.showMessage).toHaveBeenCalledWith("error", "Name: This field is required");
+  });
+
+  test("switches to login security tab when password obfuscator validation fails", async() => {
+    jest.spyOn(Obfuscator, "checkPasswordObfuscator").mockReturnValueOnce("Invalid obfuscator key");
+    const {view} = renderPage();
+
+    expect(await view.findByDisplayValue("Engineering")).not.toBeNull();
+    fireEvent.click(view.getByText("Save"));
+
+    expect(organizationBackendMock.updateOrganization).not.toHaveBeenCalled();
+    expect(window.location.hash).toBe("#security");
+    expect(view.getByText("Password policy")).not.toBeNull();
+    expect(Setting.showMessage).toHaveBeenCalledWith("error", "Invalid obfuscator key");
+  });
+
+  test("asks for confirmation before leaving dirty edit pages", async() => {
+    const confirmSpy = jest.spyOn(Modal, "confirm").mockImplementation((config: Parameters<typeof Modal.confirm>[0]) => {
+      (config.onOk as (() => void) | undefined)?.();
+      return {destroy: jest.fn(), update: jest.fn()} as ReturnType<typeof Modal.confirm>;
+    });
+    const {history, view} = renderPage();
+
+    fireEvent.change(await view.findByDisplayValue("Engineering"), {target: {value: "Changed Engineering"}});
+    fireEvent.click(view.getByText("Back"));
+
+    expect(confirmSpy).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Unsaved changes",
+      content: "Current organization settings have unsaved changes. Leave without saving?",
+      okText: "OK",
+      cancelText: "Cancel",
+      onOk: expect.any(Function),
+    }));
+    expect(history.push).toHaveBeenCalledWith("/organizations");
   });
 
   test("saves organization, refreshes current theme, dispatches storage event, and navigates", async() => {

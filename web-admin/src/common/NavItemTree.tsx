@@ -14,6 +14,7 @@ export const NavItemTree = ({disabled, checkedKeys, defaultExpandedKeys, onCheck
       defaultExpandedKeys={defaultExpandedKeys}
       onCheck={onCheck}
       treeData={NavItemNodes}
+      virtual={false}
     />
   );
 };

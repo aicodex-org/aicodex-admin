@@ -13,12 +13,13 @@
 // limitations under the License.
 
 import React from "react";
-import {Button, Col, Row, Table} from "antd";
+import {Button, Table, Tooltip} from "antd";
 import * as Setting from "../Setting";
 import i18nextLib from "i18next";
 import * as LdapBackend from "../backend/LdapBackend";
 import {Link} from "react-router-dom";
 import PopconfirmModal from "../common/modal/PopconfirmModal";
+import {InfoCircleOutlined} from "@ant-design/icons";
 
 type LegacyAny = any;
 type LegacyColumn = import("../types/legacyPage").LegacyColumn & {
@@ -29,6 +30,7 @@ const i18next = {t: (key: string, options?: LegacyAny): string => String(options
 
 interface LdapTableProps {
   title?: React.ReactNode;
+  description?: React.ReactNode;
   table?: LegacyAny[] | null;
   organizationName: string;
   onUpdateTable: (table: LegacyAny[]) => void;
@@ -36,6 +38,8 @@ interface LdapTableProps {
 
 interface LdapTableState {
   classes: LdapTableProps;
+  addingLdap: boolean;
+  deletingLdapIds: Record<string, boolean>;
 }
 
 class LdapTable extends React.Component<LdapTableProps, LdapTableState> {
@@ -43,6 +47,8 @@ class LdapTable extends React.Component<LdapTableProps, LdapTableState> {
     super(props);
     this.state = {
       classes: props,
+      addingLdap: false,
+      deletingLdapIds: {},
     };
   }
 
@@ -71,9 +77,18 @@ class LdapTable extends React.Component<LdapTableProps, LdapTableState> {
     };
   }
 
+  getLdapOperationKey(record: LegacyAny, index: number) {
+    return `${record?.id ?? index}`;
+  }
+
   addRow(table: LegacyAny[] = []) {
+    if (this.state.addingLdap) {
+      return Promise.resolve();
+    }
+
+    this.setState({addingLdap: true});
     const newLdap = this.newLdap();
-    LdapBackend.addLdap(newLdap)
+    return LdapBackend.addLdap(newLdap)
       .then((res) => {
         if (res.status === "ok") {
           Setting.showMessage("success", i18next.t("general:Successfully added"));
@@ -86,11 +101,24 @@ class LdapTable extends React.Component<LdapTableProps, LdapTableState> {
       )
       .catch((error: LegacyAny) => {
         Setting.showMessage("error", `${i18next.t("general:Failed to add")}: ${error}`);
+      })
+      .finally(() => {
+        this.setState({addingLdap: false});
       });
   }
 
   deleteRow(table: LegacyAny[], i: number) {
-    LdapBackend.deleteLdap(table[i])
+    const ldap = table[i];
+    const operationKey = this.getLdapOperationKey(ldap, i);
+    if (this.state.deletingLdapIds[operationKey]) {
+      return Promise.resolve();
+    }
+
+    this.setState((prevState) => ({
+      deletingLdapIds: {...prevState.deletingLdapIds, [operationKey]: true},
+    }));
+
+    return LdapBackend.deleteLdap(ldap)
       .then((res) => {
         if (res.status === "ok") {
           Setting.showMessage("success", i18next.t("general:Successfully deleted"));
@@ -102,13 +130,20 @@ class LdapTable extends React.Component<LdapTableProps, LdapTableState> {
       })
       .catch((error: LegacyAny) => {
         Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${error}`);
+      })
+      .finally(() => {
+        this.setState((prevState) => {
+          const deletingLdapIds = {...prevState.deletingLdapIds};
+          delete deletingLdapIds[operationKey];
+          return {deletingLdapIds};
+        });
       });
   }
 
   renderTable(table: LegacyAny[] = []) {
     const columns: LegacyColumn[] = [
       {
-        title: i18next.t("ldap:Server name"),
+        title: i18next.t("general:Name"),
         dataIndex: "serverName",
         key: "serverName",
         width: "160px",
@@ -145,8 +180,8 @@ class LdapTable extends React.Component<LdapTableProps, LdapTableState> {
         width: "120px",
         sorter: (a, b) => a.autoSync.localeCompare(b.autoSync),
         render: (text, record, index) => {
-          return text === 0 ? (<span style={{color: "#faad14"}}>Disable</span>) : (
-            <span style={{color: "#52c41a"}}>{text + " mins"}</span>);
+          return text === 0 ? (<span style={{color: "#faad14"}}>{i18next.t("ldap:Disabled")}</span>) : (
+            <span style={{color: "#52c41a"}}>{i18next.t("ldap:Every N minutes", {minutes: text})}</span>);
         },
       },
       {
@@ -156,27 +191,35 @@ class LdapTable extends React.Component<LdapTableProps, LdapTableState> {
         ellipsis: true,
         sorter: (a, b) => a.lastSync.localeCompare(b.lastSync),
         render: (text, record, index) => {
-          return text;
+          return `${text ?? ""}`.trim() === "" ? "-" : text;
         },
       },
       {
         title: i18next.t("general:Action"),
         dataIndex: "",
         key: "op",
-        width: "240px",
+        width: "180px",
+        className: "ldap-table-action-column",
         render: (text, record, index) => {
+          const isDeleting = Boolean(this.state.deletingLdapIds[this.getLdapOperationKey(record, index)]);
           return (
-            <div>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary"
-                onClick={() => Setting.goToLink(`/ldap/sync/${record.owner}/${record.id}`)}>
-                {i18next.t("general:Sync")}
-              </Button>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}}
+            <div className="ldap-table-row-actions">
+              <Tooltip title={i18next.t("ldap:Open LDAP user sync page")}>
+                <Button size="small"
+                  onClick={() => Setting.goToLink(`/ldap/sync/${record.owner}/${record.id}`)}>
+                  {i18next.t("ldap:Sync users")}
+                </Button>
+              </Tooltip>
+              <Button size="small"
                 onClick={() => Setting.goToLink(`/ldap/${record.owner}/${record.id}`)}>
                 {i18next.t("general:Edit")}
               </Button>
               <PopconfirmModal
-                title={i18next.t("general:Sure to delete") + `: ${record.serverName} ?`}
+                size="small"
+                type="default"
+                disabled={isDeleting}
+                loading={isDeleting}
+                title={i18next.t("ldap:Delete LDAP server confirmation", {name: record.serverName})}
                 onConfirm={() => this.deleteRow(table, index)}
               >
               </PopconfirmModal>
@@ -187,12 +230,19 @@ class LdapTable extends React.Component<LdapTableProps, LdapTableState> {
     ];
 
     return (
-      <Table scroll={{x: "max-content"}} rowKey="id" columns={columns} dataSource={table} size="middle" bordered pagination={false}
+      <Table scroll={{x: "max-content"}} rowKey="id" columns={columns} dataSource={table} size="middle" bordered pagination={false} showSorterTooltip={false}
         title={() => (
-          <div>
-            {this.props.title}&nbsp;&nbsp;&nbsp;&nbsp;
-            <Button style={{marginRight: "5px"}} type="primary" size="small"
-              onClick={() => this.addRow(table)}>{i18next.t("general:Add")}</Button>
+          <div className="ldap-table-title-content">
+            <div className="ldap-table-toolbar">
+              {this.props.title === undefined || this.props.title === null ? null : <span className="ldap-table-title">{this.props.title}</span>}
+              <Button type="primary" size="small" loading={this.state.addingLdap} disabled={this.state.addingLdap} onClick={() => this.addRow(table)}>{i18next.t("general:Add")}</Button>
+            </div>
+            {this.props.description === undefined || this.props.description === null ? null : (
+              <div className="ldap-table-description">
+                <InfoCircleOutlined />
+                <span>{this.props.description}</span>
+              </div>
+            )}
           </div>
         )}
       />
@@ -200,15 +250,10 @@ class LdapTable extends React.Component<LdapTableProps, LdapTableState> {
   }
 
   render() {
+    const table = this.props.table ?? [];
     return (
-      <div>
-        <Row style={{marginTop: "20px"}}>
-          <Col span={24}>
-            {
-              this.renderTable(this.props.table ?? [])
-            }
-          </Col>
-        </Row>
+      <div className="ldap-table-section">
+        {this.renderTable(table)}
       </div>
     );
   }

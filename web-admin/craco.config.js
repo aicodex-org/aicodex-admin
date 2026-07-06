@@ -5,14 +5,15 @@ const CracoLessPlugin = require("craco-less");
 const path = require("path");
 
 /**
+ * @typedef {string | string[] | Record<string, any> | undefined} WebpackEntry
  * @typedef {{module?: {resource: string}, details?: string}} WebpackWarning
  * @typedef {{path: string}} WebpackOutput
  * @typedef {{fallback?: Record<string, string | false>}} WebpackResolve
- * @typedef {{output: WebpackOutput, resolve: WebpackResolve, ignoreWarnings?: Array<(warning: WebpackWarning) => unknown>}} WebpackConfig
+ * @typedef {{entry?: string | string[] | Record<string, string | string[]>, output: WebpackOutput, resolve: WebpackResolve, ignoreWarnings?: Array<(warning: WebpackWarning) => unknown>}} WebpackConfig
  * @typedef {{appBuild: string}} CracoPaths
  * @typedef {{env: string, paths: CracoPaths}} CracoWebpackContext
  * @typedef {{target: string, changeOrigin: boolean}} ProxyEntry
- * @typedef {{devServer: {proxy: Record<string, ProxyEntry>}, plugins: Array<Record<string, unknown>>, webpack: {configure: (webpackConfig: WebpackConfig, context: CracoWebpackContext) => WebpackConfig}}} CracoConfig
+ * @typedef {{devServer: {client?: {overlay?: {errors?: boolean, warnings?: boolean, runtimeErrors?: (error: Error) => boolean}}, proxy: Record<string, ProxyEntry>}, plugins: Array<Record<string, unknown>>, webpack: {configure: (webpackConfig: WebpackConfig, context: CracoWebpackContext) => WebpackConfig}}} CracoConfig
  */
 
 const devProxyTarget =
@@ -20,9 +21,60 @@ const devProxyTarget =
   process.env.AICODEX_ADMIN_PROXY_TARGET ||
   "http://localhost:8000";
 
+const resizeObserverLoopErrorMessages = [
+  "ResizeObserver loop completed with undelivered notifications",
+  "ResizeObserver loop limit exceeded",
+];
+
+/**
+ * @param {unknown} message
+ * @returns {boolean}
+ */
+function isResizeObserverLoopError(message) {
+  return resizeObserverLoopErrorMessages.some(errorMessage => `${message || ""}`.includes(errorMessage));
+}
+
+/**
+ * @param {Error} error
+ * @returns {boolean}
+ */
+function shouldShowRuntimeErrorOverlay(error) {
+  return !isResizeObserverLoopError(error && error.message);
+}
+
+/**
+ * @param {WebpackEntry} entry
+ * @param {string} preflightEntry
+ * @returns {WebpackEntry}
+ */
+function prependEntry(entry, preflightEntry) {
+  if (typeof entry === "string") {
+    return [preflightEntry, entry];
+  }
+
+  if (Array.isArray(entry)) {
+    return entry.includes(preflightEntry) ? entry : [preflightEntry, ...entry];
+  }
+
+  if (entry !== null && typeof entry === "object") {
+    return Object.fromEntries(
+      Object.entries(entry).map(([key, value]) => [key, prependEntry(value, preflightEntry)])
+    );
+  }
+
+  return entry;
+}
+
 /** @type {CracoConfig} */
 module.exports = {
   devServer: {
+    client: {
+      overlay: {
+        errors: true,
+        warnings: false,
+        runtimeErrors: shouldShowRuntimeErrorOverlay,
+      },
+    },
     proxy: {
       "/api": {
         target: devProxyTarget,
@@ -123,6 +175,11 @@ module.exports = {
         os: false,
         fs: false,
       };
+
+      if (env === "development") {
+        const resizeObserverPreflightEntry = path.resolve(__dirname, "src/common/resizeObserverLoopErrorPreflight.ts");
+        webpackConfig.entry = prependEntry(webpackConfig.entry, resizeObserverPreflightEntry);
+      }
 
       return webpackConfig;
     },

@@ -23,7 +23,10 @@ import App from "./App";
 import * as serviceWorker from "./serviceWorker";
 import {BrowserRouter} from "react-router-dom";
 import "./backend/FetchFilter";
+import {installResizeObserverLoopErrorGuard} from "./common/resizeObserverLoopErrorGuard";
 import type {LegacyAny} from "./types/legacyPage";
+
+installResizeObserverLoopErrorGuard();
 
 if (!String.prototype.replaceAll) {
   (String.prototype as LegacyAny).replaceAll = function(search: string, replace: string) {

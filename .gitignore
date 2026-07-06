@@ -42,6 +42,7 @@ server
 !manifests/casdoor
 
 node_modules/
+docs/superpowers/
 
 .playwright-mcp
 .playwright-cli
