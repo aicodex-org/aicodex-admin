@@ -133,6 +133,8 @@ import AccessWizardPage from "./AccessWizardPage";
 import IdentityEvidenceChainPage from "./IdentityEvidenceChainPage";
 import WorkspaceTabs from "./common/WorkspaceTabs";
 import {
+  WORKSPACE_TAB_LABEL_UPDATE_EVENT,
+  type WorkspaceTabLabelUpdateDetail,
   areWorkspaceTabsEqual,
   buildWorkspaceRouteItems,
   closeAllWorkspaceTabs,
@@ -143,7 +145,8 @@ import {
   normalizeWorkspacePath,
   openWorkspaceTab,
   readWorkspaceTabs,
-  saveWorkspaceTabs
+  saveWorkspaceTabs,
+  updateWorkspaceTabLabel
 } from "./common/workspaceTabState";
 import type {AdminAccount, AdminHistory, LegacyAny} from "./types/legacyPage";
 
@@ -446,6 +449,29 @@ function ManagementPage(props: ManagementPageProps) {
       return nextTabs;
     });
   }, [activeWorkspacePath, navigationSelection.itemKey, workspaceRouteSignature]);
+
+  useEffect(() => {
+    const handleWorkspaceTabLabelUpdate = (event: Event) => {
+      const detail = (event as CustomEvent<WorkspaceTabLabelUpdateDetail>).detail;
+      if (detail === undefined || detail.path === undefined || detail.label === undefined) {
+        return;
+      }
+
+      // 详情页可在业务对象加载完成后更新当前 tab 标题，shell 仍保持路径和打开顺序不变。
+      setWorkspaceTabs((currentTabs: LegacyAny[]) => {
+        const nextTabs = updateWorkspaceTabLabel(currentTabs, detail);
+        if (areWorkspaceTabsEqual(currentTabs, nextTabs)) {
+          return currentTabs;
+        }
+
+        saveWorkspaceTabs(window.sessionStorage, nextTabs);
+        return nextTabs;
+      });
+    };
+
+    window.addEventListener(WORKSPACE_TAB_LABEL_UPDATE_EVENT, handleWorkspaceTabLabelUpdate);
+    return () => window.removeEventListener(WORKSPACE_TAB_LABEL_UPDATE_EVENT, handleWorkspaceTabLabelUpdate);
+  }, []);
 
   function renderLoginIfNotLoggedIn(component: React.ReactNode) {
     if (props.account === null) {

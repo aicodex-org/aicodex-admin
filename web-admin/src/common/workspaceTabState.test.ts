@@ -17,7 +17,8 @@ import {
   normalizeWorkspacePath,
   openWorkspaceTab,
   readWorkspaceTabs,
-  saveWorkspaceTabs
+  saveWorkspaceTabs,
+  updateWorkspaceTabLabel
 } from "./workspaceTabState";
 
 const routes = [
@@ -122,6 +123,26 @@ describe("workspaceTabState", () => {
     expect(routeItems.map(route => route.path)).toEqual(["/", "/custom"]);
     expect(routeItems[1]).toMatchObject({label: "/custom", groupLabel: ""});
     expect(openWorkspaceTab([], "/custom/child", routeItems).map(tab => tab.path)).toEqual(["/", "/custom/child"]);
+  });
+
+  test("distinguishes group detail workspace tabs and accepts display-name updates", () => {
+    const groupRoutes = [
+      {key: "/", path: "/", label: "身份总览", matchPrefixes: ["/"]},
+      {key: "/groups", path: "/groups", label: "群组", matchPrefixes: ["/groups", "/trees"]},
+    ];
+
+    const tabs = openWorkspaceTab([], "/groups/engineering/group-main", groupRoutes);
+    expect(tabs.map(tab => tab.label)).toEqual(["身份总览", "群组：group-main"]);
+
+    const updatedTabs = updateWorkspaceTabLabel(tabs, {
+      path: "/groups/engineering/group-main",
+      label: "群组：湖北销售",
+    });
+
+    expect(updatedTabs[1]).toMatchObject({
+      path: "/groups/engineering/group-main",
+      label: "群组：湖北销售",
+    });
   });
 
   test("reads and saves session storage with restricted-storage fallback", () => {

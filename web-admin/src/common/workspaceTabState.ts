@@ -2,6 +2,7 @@ import type {ReactNode} from "react";
 
 export const WORKSPACE_TABS_MAX_VISIBLE = 8;
 export const WORKSPACE_TABS_STORAGE_KEY = "aicodex.admin.workspaceTabs.v1";
+export const WORKSPACE_TAB_LABEL_UPDATE_EVENT = "aicodex.admin.workspaceTabLabelUpdate";
 export const WORKSPACE_TAB_MIN_WIDTH = 92;
 export const WORKSPACE_TAB_GAP = 6;
 export const WORKSPACE_TABS_MORE_WIDTH = 88;
@@ -45,6 +46,13 @@ export interface WorkspaceTabItem {
   closable: boolean;
 }
 
+/** 业务详情页在数据加载后更新已打开 workspace tab 标题的轻量事件载荷。 */
+export interface WorkspaceTabLabelUpdateDetail {
+  path: string;
+  label: string;
+  groupLabel?: string;
+}
+
 /** 可见标签与溢出标签的拆分结果。 */
 export interface VisibleWorkspaceTabs {
   visibleTabs: WorkspaceTabItem[];
@@ -64,6 +72,38 @@ interface StoredWorkspaceTabs {
 
 function toLabelText(label: ReactNode, fallback: string) {
   return typeof label === "string" && label.trim() !== "" ? label : fallback;
+}
+
+function decodeWorkspacePathSegment(segment: string | undefined) {
+  if (segment === undefined || segment.trim() === "") {
+    return "";
+  }
+
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
+function getWorkspaceLabelSeparator(label: string) {
+  return /[\u3400-\u9fff]/.test(label) ? "：" : ": ";
+}
+
+/** 群组详情和群组树共用群组路由实例标题，避免多开标签都显示同一个菜单名。 */
+function getRouteInstanceLabel(route: WorkspaceRouteItem, normalizedPath: string) {
+  if (route.path !== "/groups") {
+    return route.label;
+  }
+
+  const segments = normalizedPath.split("/").filter(Boolean);
+  const isGroupDetailPath = (segments[0] === "groups" || segments[0] === "trees") && segments.length >= 3;
+  if (!isGroupDetailPath) {
+    return route.label;
+  }
+
+  const groupName = decodeWorkspacePathSegment(segments[2]);
+  return groupName === "" ? route.label : `${route.label}${getWorkspaceLabelSeparator(route.label)}${groupName}`;
 }
 
 /** 统一去除 query/hash/trailing slash，让标签状态只跟 route path 绑定。 */
@@ -148,7 +188,7 @@ function resolveWorkspaceTab(path: string, routes: WorkspaceRouteItem[]): Worksp
   return {
     key: normalizedPath,
     path: normalizedPath,
-    label: route?.label ?? normalizedPath,
+    label: route === undefined ? normalizedPath : getRouteInstanceLabel(route, normalizedPath),
     groupLabel: route?.groupLabel,
     fixed,
     closable: !fixed,
@@ -271,6 +311,33 @@ export function saveWorkspaceTabs(storage: Storage | undefined, tabs: WorkspaceT
   } catch {
     // 隐私模式或受限浏览器环境可能禁用 sessionStorage。
   }
+}
+
+/** 只更新当前已打开标签的显示标题，不改变标签路径、顺序或路由解析规则。 */
+export function updateWorkspaceTabLabel(tabs: WorkspaceTabItem[], detail: WorkspaceTabLabelUpdateDetail) {
+  const normalizedPath = normalizeWorkspacePath(detail.path);
+  const label = detail.label.trim();
+
+  if (label === "") {
+    return tabs;
+  }
+
+  let changed = false;
+  const nextTabs = tabs.map((tab) => {
+    if (tab.path !== normalizedPath) {
+      return tab;
+    }
+
+    const nextTab = {
+      ...tab,
+      label,
+      groupLabel: detail.groupLabel ?? tab.groupLabel,
+    };
+    changed = tab.label !== nextTab.label || tab.groupLabel !== nextTab.groupLabel;
+    return nextTab;
+  });
+
+  return changed ? nextTabs : tabs;
 }
 
 /** 关闭标签并计算下一跳，关闭当前页时回到最近仍打开的页面。 */

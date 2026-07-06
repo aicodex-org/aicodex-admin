@@ -3,16 +3,20 @@ import React from "react";
 import {expect, jest} from "@jest/globals";
 import fs from "fs";
 import path from "path";
-import {cleanup, render} from "@testing-library/react";
+import {act, cleanup, render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import i18next from "i18next";
 import ManagementPage from "./ManagementPage";
+import {WORKSPACE_TAB_LABEL_UPDATE_EVENT} from "./common/workspaceTabState";
 import * as Conf from "./Conf";
 import * as Setting from "./Setting";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
 
 const mockMenuProps: Array<Record<string, unknown>> = [];
+const mockWorkspaceTabsProps: Array<{
+  tabs?: Array<{path: string; label: string}>;
+}> = [];
 
 jest.mock("antd", () => {
   const React = require("react");
@@ -35,13 +39,18 @@ jest.mock("./SystemInfo", () => () => <main data-testid="system-info-page" />);
 jest.mock("./ServerStorePage", () => () => <main data-testid="server-store-page" />);
 jest.mock("./OrganizationTreeOperationsPage", () => () => <main data-testid="organization-tree-operations-page" />);
 jest.mock("./OrganizationEditPage", () => () => <main data-testid="organization-edit-page" />);
+jest.mock("./GroupEditPage", () => () => <main data-testid="group-edit-page" />);
 jest.mock("./ApplicationListPage", () => () => <main data-testid="application-list-page" />);
 jest.mock("./ApplicationEditPage", () => () => <main data-testid="application-edit-page" />);
 jest.mock("./ProviderEditPage", () => () => <main data-testid="provider-edit-page" />);
 jest.mock("./UserEditPage", () => () => <main data-testid="user-edit-page" />);
 jest.mock("./SyncerEditPage", () => () => <main data-testid="syncer-edit-page" />);
 jest.mock("./common/Editor", () => () => <pre data-testid="editor" />);
-jest.mock("./common/WorkspaceTabs", () => () => <div className="admin-workspace-tabs-shell" data-testid="workspace-tabs" />);
+jest.mock("./common/WorkspaceTabs", () => (props: {tabs?: Array<{path: string; label: string}>}) => {
+  mockWorkspaceTabsProps.push(props);
+
+  return <div className="admin-workspace-tabs-shell" data-testid="workspace-tabs" />;
+});
 jest.mock("./common/notifaction/EnableMfaNotification", () => () => null);
 jest.mock("./common/select/LanguageSelect", () => () => <span data-testid="language-select" />);
 jest.mock("./common/select/ThemeSelect", () => () => <span data-testid="theme-select" />);
@@ -137,6 +146,7 @@ describe("ManagementPage admin shell sidebar", () => {
   beforeEach(async() => {
     localStorage.clear();
     mockMenuProps.length = 0;
+    mockWorkspaceTabsProps.length = 0;
     jest.restoreAllMocks();
     await useTestLanguage("zh");
   });
@@ -178,6 +188,25 @@ describe("ManagementPage admin shell sidebar", () => {
       "admin-shell-route-scroll admin-shell-route-scroll-without-card",
     ]);
     expect(shellContent.classList.contains("admin-shell-content-without-card-route")).toBe(false);
+  });
+
+  test("updates workspace tab labels from page detail events", async() => {
+    renderShell({path: "/groups/engineering/group-main"});
+    await act(async() => {
+      await Promise.resolve();
+    });
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent(WORKSPACE_TAB_LABEL_UPDATE_EVENT, {
+        detail: {
+          path: "/groups/engineering/group-main",
+          label: "群组：湖北销售",
+        },
+      }));
+    });
+
+    const latestTabs = mockWorkspaceTabsProps.at(-1)?.tabs ?? [];
+    expect(latestTabs.find(tab => tab.path === "/groups/engineering/group-main")?.label).toBe("群组：湖北销售");
   });
 
   test("wraps legacy card routes in the same route scroll container", () => {
@@ -363,9 +392,10 @@ describe("ManagementPage admin shell sidebar", () => {
 
   test("organization sync pages only clip horizontal overflow without creating a nested vertical scroller", () => {
     const appLess = fs.readFileSync(path.join(__dirname, "App.less"), "utf8") as string;
+    const organizationSyncPageBlock = appLess.match(/\.organization-sync-page \{([\s\S]*?)\}/)?.[1] ?? "";
 
-    expect(appLess).toMatch(/\.organization-sync-page \{[\s\S]*overflow-x:\s*clip/);
-    expect(appLess).not.toMatch(/\.organization-sync-page \{[\s\S]*overflow-x:\s*hidden/);
+    expect(organizationSyncPageBlock).toContain("overflow-x: clip");
+    expect(organizationSyncPageBlock).not.toContain("overflow-x: hidden");
   });
 
   test("organization sync form controls and run tables use shell theme tokens", () => {
@@ -379,10 +409,11 @@ describe("ManagementPage admin shell sidebar", () => {
 
   test("workspace tabs shell clips horizontally without becoming a vertical scroll container", () => {
     const appLess = fs.readFileSync(path.join(__dirname, "App.less"), "utf8") as string;
+    const workspaceTabsShellBlock = appLess.match(/\.admin-workspace-tabs-shell \{([\s\S]*?)\}/)?.[1] ?? "";
 
-    expect(appLess).toMatch(/\.admin-workspace-tabs-shell \{[\s\S]*overflow-x:\s*clip/);
+    expect(workspaceTabsShellBlock).toContain("overflow-x: clip");
     expect(appLess).toMatch(/\.admin-workspace-tabs-scroll-viewport \{[\s\S]*overflow-x:\s*auto/);
-    expect(appLess).not.toMatch(/\.admin-workspace-tabs-shell \{[\s\S]*overflow-x:\s*hidden/);
+    expect(workspaceTabsShellBlock).not.toContain("overflow-x: hidden");
   });
 
   test("workspace tabs use compact browser-like density", () => {
