@@ -142,6 +142,11 @@ function renderShell({path = "/", isMobile = false, themeAlgorithm = ["default"]
   );
 }
 
+function readCssRuleBlock(source: string, selector: string) {
+  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return source.match(new RegExp(`${escapedSelector}\\s*\\{([\\s\\S]*?)\\}`))?.[1] ?? "";
+}
+
 describe("ManagementPage admin shell sidebar", () => {
   beforeEach(async() => {
     localStorage.clear();
@@ -358,6 +363,22 @@ describe("ManagementPage admin shell sidebar", () => {
     expect(view.getByRole("button", {name: Conf.AdminCenterName})).not.toBeNull();
   });
 
+  test("uses compact navigation on narrow viewport even when user agent is desktop", () => {
+    const originalInnerWidth = window.innerWidth;
+    Object.defineProperty(window, "innerWidth", {configurable: true, writable: true, value: 390});
+
+    try {
+      const view = renderShell({isMobile: false});
+
+      expect(view.container.querySelector(".admin-shell-sider")).toBeNull();
+      expect(view.queryByRole("button", {name: "展开侧边栏"})).toBeNull();
+      expect(view.getByRole("button", {name: Conf.AdminCenterName})).not.toBeNull();
+      expect((view.container.querySelector(".admin-shell-content") as HTMLElement).style.minWidth).toBe("0");
+    } finally {
+      Object.defineProperty(window, "innerWidth", {configurable: true, writable: true, value: originalInnerWidth});
+    }
+  });
+
   test("adds explicit dark theme classes to the shell header and body", () => {
     const view = renderShell({themeAlgorithm: ["dark"]});
     const header = view.container.querySelector(".admin-shell-header") as HTMLElement;
@@ -392,10 +413,10 @@ describe("ManagementPage admin shell sidebar", () => {
 
   test("organization sync pages only clip horizontal overflow without creating a nested vertical scroller", () => {
     const appLess = fs.readFileSync(path.join(__dirname, "App.less"), "utf8") as string;
-    const organizationSyncPageBlock = appLess.match(/\.organization-sync-page \{([\s\S]*?)\}/)?.[1] ?? "";
+    const organizationSyncPageBlock = readCssRuleBlock(appLess, ".organization-sync-page");
 
-    expect(organizationSyncPageBlock).toContain("overflow-x: clip");
-    expect(organizationSyncPageBlock).not.toContain("overflow-x: hidden");
+    expect(organizationSyncPageBlock).toMatch(/overflow-x:\s*clip/);
+    expect(organizationSyncPageBlock).not.toMatch(/overflow-x:\s*hidden/);
   });
 
   test("organization sync form controls and run tables use shell theme tokens", () => {
@@ -409,11 +430,11 @@ describe("ManagementPage admin shell sidebar", () => {
 
   test("workspace tabs shell clips horizontally without becoming a vertical scroll container", () => {
     const appLess = fs.readFileSync(path.join(__dirname, "App.less"), "utf8") as string;
-    const workspaceTabsShellBlock = appLess.match(/\.admin-workspace-tabs-shell \{([\s\S]*?)\}/)?.[1] ?? "";
+    const workspaceTabsShellBlock = readCssRuleBlock(appLess, ".admin-workspace-tabs-shell");
 
-    expect(workspaceTabsShellBlock).toContain("overflow-x: clip");
+    expect(workspaceTabsShellBlock).toMatch(/overflow-x:\s*clip/);
     expect(appLess).toMatch(/\.admin-workspace-tabs-scroll-viewport \{[\s\S]*overflow-x:\s*auto/);
-    expect(workspaceTabsShellBlock).not.toContain("overflow-x: hidden");
+    expect(workspaceTabsShellBlock).not.toMatch(/overflow-x:\s*hidden/);
   });
 
   test("workspace tabs use compact browser-like density", () => {

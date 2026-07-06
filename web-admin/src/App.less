@@ -1365,13 +1365,34 @@ body.admin-shell-theme-dark,
 
 .enterprise-identity-code-tag.ant-tag {
   align-self: flex-start;
+  max-width: 100%;
   margin-top: auto;
   margin-inline-end: 0;
+  overflow: hidden;
   color: var(--admin-shell-text-muted, rgb(71 85 105));
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-all;
   background: var(--admin-shell-surface-soft-bg, rgb(248 250 252));
   border-color: var(--admin-shell-border-strong, rgb(199 215 235));
+}
+
+.enterprise-identity-code-text {
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 0;
+  align-items: center;
+  color: var(--admin-shell-text-muted, rgb(71 85 105));
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  vertical-align: bottom;
+}
+
+.enterprise-identity-code-text .ant-typography-copy {
+  flex: 0 0 auto;
 }
 
 .identity-console-overview .enterprise-identity-code-tag.ant-tag {
@@ -2335,6 +2356,7 @@ body.admin-shell-theme-dark,
   border: 1px solid rgb(229 233 240);
   border-radius: 8px;
   background: #fff;
+  scroll-margin-top: 88px;
 }
 
 .application-access-service-credential-boundary-note,
@@ -2353,6 +2375,43 @@ body.admin-shell-theme-dark,
   min-width: 0;
   flex-direction: column;
   gap: 10px;
+}
+
+.application-access-service-credential-blocker-table {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--admin-shell-border-subtle, #f0f0f0);
+  border-radius: 6px;
+
+  .ant-table {
+    background: var(--admin-shell-surface-bg, #fff);
+  }
+
+  .ant-table-container {
+    border-start-start-radius: 6px;
+    border-start-end-radius: 6px;
+  }
+
+  .ant-table-thead > tr > th {
+    color: var(--admin-shell-text-secondary, rgb(100 116 139));
+    font-weight: 600;
+    background: var(--admin-shell-surface-muted-bg, rgb(250 251 253));
+  }
+
+  .ant-table-thead > tr > th,
+  .ant-table-tbody > tr > td {
+    padding: 9px 10px;
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  .ant-table-tbody > tr > td {
+    vertical-align: top;
+  }
+
+  .ant-table-cell {
+    min-width: 0;
+  }
 }
 
 .application-access-service-credential-workspace-header {
@@ -2520,21 +2579,15 @@ body.admin-shell-theme-dark,
   border: 1px solid var(--admin-shell-border-muted, rgb(229 233 240));
   border-radius: 8px;
   background: var(--admin-shell-surface-bg, #fff);
-}
-
-.application-access-service-credential-technical-details > .ant-collapse-item > .ant-collapse-header {
-  align-items: center;
-  padding: 8px 12px !important;
-}
-
-.application-access-service-credential-technical-details > .ant-collapse-item > .ant-collapse-content > .ant-collapse-content-box {
-  padding: 0 12px 12px !important;
+  overflow: hidden;
 }
 
 .application-access-service-credential-advanced-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 14px;
+  padding: 16px 18px 18px;
+  border-top: 1px solid var(--admin-shell-border-subtle, #f0f0f0);
 }
 
 .application-access-service-credential-technical-subsection {
@@ -2542,6 +2595,37 @@ body.admin-shell-theme-dark,
   min-width: 0;
   flex-direction: column;
   gap: 6px;
+}
+
+.application-access-service-credential-technical-collapse {
+  border-top: 1px solid var(--admin-shell-border-subtle, #f0f0f0);
+  padding-top: 4px;
+}
+
+.application-access-service-credential-technical-collapse > .ant-collapse-item > .ant-collapse-header {
+  padding: 0 !important;
+}
+
+.application-access-service-credential-technical-collapse > .ant-collapse-item > .ant-collapse-content > .ant-collapse-content-box {
+  padding: 8px 0 0 !important;
+}
+
+.application-access-service-credential-technical-body {
+  width: 100%;
+  min-width: 0;
+}
+
+.application-access-service-credential-technical-row {
+  grid-template-columns: minmax(180px, 0.8fr) minmax(0, 1.2fr);
+  padding: 8px 0;
+  border: 0;
+  border-top: 1px solid var(--admin-shell-border-subtle, #f0f0f0);
+  border-radius: 0;
+  background: transparent;
+}
+
+.application-access-service-credential-technical-row:first-child {
+  border-top: 0;
 }
 
 .audit-operations-table-section {

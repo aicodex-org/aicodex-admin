@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {CopyOutlined, DownOutlined, FileTextOutlined, UpOutlined} from "@ant-design/icons";
-import {Alert, Button, Space, Tag, Typography} from "antd";
+import {Alert, Button, Collapse, Space, Table, Tag, Typography} from "antd";
 import copy from "copy-to-clipboard";
 import i18next from "i18next";
 import React from "react";
@@ -54,6 +54,15 @@ type ServiceCredentialGovernanceCapabilityStatus = {
   label: string;
   tone: ServiceCredentialGovernanceTone;
 };
+type ServiceCredentialGovernanceBlockerTableRow = {
+  key: string;
+  capability: string;
+  statusLabel: string;
+  tone: ServiceCredentialGovernanceTone;
+  owner: string;
+  reason: string;
+  nextAction: string;
+};
 
 const INTERNAL_SERVICE_CREDENTIAL_GOVERNANCE_KEYS = new Set([
   "boundedRuntimePolicy",
@@ -70,6 +79,8 @@ const INSIGHT_ADMIN_PROVIDER_FIXED_CAPABILITIES = [
   {key: "current-user-scope", labelKey: "Insight Admin Provider scope capability", defaultLabel: "Scope 接口"},
   {key: "organization-tree", labelKey: "Insight Admin Provider organization tree capability", defaultLabel: "组织树接口"},
 ];
+const INSIGHT_ADMIN_PROVIDER_DIAGNOSTICS_QUERY_PARAM = "diagnostics";
+const INSIGHT_ADMIN_PROVIDER_HANDOFF_PACKAGE_SECTION_ID = "admin-provider-handoff-package";
 
 interface ApplicationAccessServiceCredentialGovernancePanelProps {
   className?: string;
@@ -79,6 +90,40 @@ function t(key: string, defaultValue = key): string {
   const namespacedKey = `general:${key}`;
   const translated = i18next.t(namespacedKey, {defaultValue});
   return translated === namespacedKey || translated === key ? defaultValue : String(translated);
+}
+
+function isInsightAdminProviderDiagnosticsOpenFromUrl() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  return new URLSearchParams(window.location.search).get(INSIGHT_ADMIN_PROVIDER_DIAGNOSTICS_QUERY_PARAM) === "1";
+}
+
+function replaceInsightAdminProviderDiagnosticsUrlState(open: boolean) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const nextUrl = new URL(window.location.href);
+  if (open) {
+    nextUrl.searchParams.set(INSIGHT_ADMIN_PROVIDER_DIAGNOSTICS_QUERY_PARAM, "1");
+  } else {
+    nextUrl.searchParams.delete(INSIGHT_ADMIN_PROVIDER_DIAGNOSTICS_QUERY_PARAM);
+  }
+  window.history.replaceState(window.history.state, "", `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
+}
+
+function renderInsightAdminProviderCodeText(value: string, ariaLabel?: string) {
+  return (
+    <Typography.Text
+      className="enterprise-identity-code-text"
+      copyable={{text: value}}
+      ellipsis={{tooltip: value}}
+      aria-label={ariaLabel}
+    >
+      <span translate="no">{value}</span>
+    </Typography.Text>
+  );
 }
 
 function getServiceCredentialGovernanceInsightBindingNextAction(): string {
@@ -523,7 +568,16 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
   const [serviceCredentialGovernanceConfigLoadState, setServiceCredentialGovernanceConfigLoadState] = React.useState<ServiceCredentialGovernanceConfigLoadState>("loading");
   const [serviceCredentialGovernanceHandoffPackage, setServiceCredentialGovernanceHandoffPackage] = React.useState<ServiceCredentialGovernanceHandoffPackage | null>(null);
   const [serviceCredentialGovernanceHandoffState, setServiceCredentialGovernanceHandoffState] = React.useState<ServiceCredentialGovernanceHandoffState>("idle");
-  const [serviceCredentialGovernanceDiagnosticsOpen, setServiceCredentialGovernanceDiagnosticsOpen] = React.useState(false);
+  const [serviceCredentialGovernanceDiagnosticsOpen, setServiceCredentialGovernanceDiagnosticsOpen] = React.useState(isInsightAdminProviderDiagnosticsOpenFromUrl);
+
+  React.useEffect(() => {
+    const syncDiagnosticsOpenFromUrl = () => {
+      setServiceCredentialGovernanceDiagnosticsOpen(isInsightAdminProviderDiagnosticsOpenFromUrl());
+    };
+
+    window.addEventListener("popstate", syncDiagnosticsOpenFromUrl);
+    return () => window.removeEventListener("popstate", syncDiagnosticsOpenFromUrl);
+  }, []);
 
   const handleCopyServiceCredentialGovernanceHandoffPackage = React.useCallback(() => {
     if (!serviceCredentialGovernanceHandoffPackage) {
@@ -738,9 +792,6 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
   });
   const serviceCredentialGovernancePrimaryBlockingRow = serviceCredentialGovernanceCredentialBlockingRow
     ?? serviceCredentialGovernanceBlockingRows[0];
-  const serviceCredentialGovernancePrimaryBlockingEvidenceRow = serviceCredentialGovernancePrimaryBlockingRow
-    ? serviceCredentialGovernanceEvidenceRows.find(row => row.key === serviceCredentialGovernancePrimaryBlockingRow.key)
-    : undefined;
   const serviceCredentialGovernancePrimaryBlockingText = `${serviceCredentialGovernancePrimaryBlockingRow?.statusGroup?.missingKeys?.join(" ") ?? ""} ${serviceCredentialGovernancePrimaryBlockingRow?.statusGroup?.credentialReferenceStatus ?? ""} ${serviceCredentialGovernancePrimaryBlockingRow?.configGroup?.credentialReferenceStatus ?? ""}`.toLowerCase();
   const serviceCredentialGovernancePrimaryBlockerIsCredentialReference = Boolean(serviceCredentialGovernancePrimaryBlockingRow)
     && (
@@ -851,58 +902,82 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
   const serviceCredentialGovernanceBlockingSummary = (
     <div className="application-access-service-credential-evidence" aria-label="阻断项">
       <Text strong>{t("Insight Admin Provider blocker details title", "阻断项")}</Text>
-      <div className="application-access-service-credential-compact-list">
-        {serviceCredentialGovernanceBlockingEvidenceRows.length > 0 ? serviceCredentialGovernanceBlockingEvidenceRows.map(row => {
-          const isCredentialReferenceMissing = row.statusGroup?.credentialReferenceStatus === "missing"
-            || row.configGroup?.credentialReferenceStatus === "missing";
-          const reason = isCredentialReferenceMissing
-            ? t("Handoff blocker missing credential reference", "缺少凭据引用")
-            : getServiceCredentialGovernancePrimaryGap(row.statusGroup);
-          return (
-            <div className="application-access-service-credential-compact-row" aria-label={`${row.key} blocker evidence`} key={`${row.key}-blocker`}>
-              <div className="application-access-service-credential-summary-main">
-                <Space className="application-access-service-credential-summary-title" wrap>
-                  <Text strong>{row.display.title}</Text>
-                  <Tag className={`enterprise-identity-tone-${row.tone}`}>{row.operatorStatus.label}</Tag>
-                </Space>
-                <Text type="secondary">{t("Insight Admin Provider blocker owner label", "责任方")}：{row.owner}</Text>
-              </div>
-              <div className="application-access-service-credential-config-detail">
-                <Text type="secondary">{t("Insight Admin Provider blocker reason label", "原因")}：{reason}</Text>
-                <Text type="secondary">{t("Insight Admin Provider blocker next action label", "建议动作")}：{row.nextAction}</Text>
-              </div>
-            </div>
-          );
-        }) : (
-          <Alert
-            className="enterprise-identity-console-alert"
-            type="success"
-            showIcon
-            message={t("Insight Admin Provider blockers empty", "暂无阻断项")}
-          />
-        )}
-      </div>
+      {serviceCredentialGovernanceBlockingEvidenceRows.length > 0 ? (
+        <Table<ServiceCredentialGovernanceBlockerTableRow>
+          className="application-access-service-credential-blocker-table"
+          size="small"
+          pagination={false}
+          rowKey="key"
+          scroll={{x: 920}}
+          tableLayout="fixed"
+          dataSource={serviceCredentialGovernanceBlockingEvidenceRows.map(row => {
+            const isCredentialReferenceMissing = row.statusGroup?.credentialReferenceStatus === "missing"
+              || row.configGroup?.credentialReferenceStatus === "missing";
+            const reason = isCredentialReferenceMissing
+              ? t("Handoff blocker missing credential reference", "缺少凭据引用")
+              : getServiceCredentialGovernancePrimaryGap(row.statusGroup);
+            return {
+              key: row.key,
+              capability: row.display.title,
+              statusLabel: row.operatorStatus.label,
+              tone: row.tone,
+              owner: row.owner,
+              reason,
+              nextAction: row.nextAction,
+            };
+          })}
+          columns={[
+            {
+              title: t("Insight Admin Provider blocker capability column", "能力"),
+              dataIndex: "capability",
+              key: "capability",
+              width: 180,
+              render: (value: string) => <Text strong>{value}</Text>,
+            },
+            {
+              title: t("Insight Admin Provider blocker status column", "状态"),
+              dataIndex: "statusLabel",
+              key: "statusLabel",
+              width: 96,
+              render: (value: string, row: ServiceCredentialGovernanceBlockerTableRow) => (
+                <Tag className={`enterprise-identity-tone-${row.tone}`}>{value}</Tag>
+              ),
+            },
+            {
+              title: t("Insight Admin Provider blocker owner label", "责任方"),
+              dataIndex: "owner",
+              key: "owner",
+              width: 280,
+              render: (value: string, row: ServiceCredentialGovernanceBlockerTableRow) => renderInsightAdminProviderCodeText(value, `${row.key} owner alias`),
+            },
+            {
+              title: t("Insight Admin Provider blocker reason label", "原因"),
+              dataIndex: "reason",
+              key: "reason",
+              width: 200,
+              render: (value: string) => <Text type="secondary">{value}</Text>,
+            },
+            {
+              title: t("Insight Admin Provider blocker next action label", "建议动作"),
+              dataIndex: "nextAction",
+              key: "nextAction",
+              render: (value: string) => <Text type="secondary">{value}</Text>,
+            },
+          ]}
+          onRow={row => ({
+            "aria-label": `${row.key} blocker evidence`,
+          })}
+        />
+      ) : (
+        <Alert
+          className="enterprise-identity-console-alert"
+          type="success"
+          showIcon
+          message={t("Insight Admin Provider blockers empty", "暂无阻断项")}
+        />
+      )}
     </div>
   );
-  const serviceCredentialGovernancePrimaryBlockingReason = serviceCredentialGovernancePrimaryBlockerIsCredentialReference
-    ? t("Handoff blocker missing credential reference", "缺少凭据引用")
-    : getServiceCredentialGovernancePrimaryGap(serviceCredentialGovernancePrimaryBlockingRow?.statusGroup);
-  const serviceCredentialGovernanceDefaultBlockingSummary = serviceCredentialGovernancePrimaryBlockingEvidenceRow ? (
-    <div className="application-access-service-credential-compact-row application-access-service-credential-default-blocker" aria-label="默认阻断摘要">
-      <div className="application-access-service-credential-summary-main">
-        <Space className="application-access-service-credential-summary-title" wrap>
-          <Text strong>{serviceCredentialGovernancePrimaryBlockingEvidenceRow.display.title}</Text>
-          <Tag className={`enterprise-identity-tone-${serviceCredentialGovernancePrimaryBlockingEvidenceRow.tone}`}>
-            {serviceCredentialGovernancePrimaryBlockingEvidenceRow.operatorStatus.label}
-          </Tag>
-        </Space>
-      </div>
-      <div className="application-access-service-credential-config-detail">
-        <Text type="secondary">{t("Insight Admin Provider blocker reason label", "原因")}：{serviceCredentialGovernancePrimaryBlockingReason}</Text>
-        <Text type="secondary">{t("Insight Admin Provider blocker next action label", "建议动作")}：{serviceCredentialGovernancePrimaryBlockingEvidenceRow.nextAction}</Text>
-      </div>
-    </div>
-  ) : null;
   const serviceCredentialGovernanceAvailableCapabilitySummary = (
     <div className="application-access-service-credential-evidence" aria-label="可用能力">
       <Text strong>{t("Insight Admin Provider available capability details title", "可用能力")}</Text>
@@ -917,45 +992,62 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
   );
   const serviceCredentialGovernanceTechnicalEvidence = (
     <div className="application-access-service-credential-evidence" aria-label="技术证据">
-      <Text strong>{t("Insight Admin Provider technical evidence title", "技术证据")}</Text>
-      <div className="application-access-service-credential-technical-subsection" aria-label="Insight Admin Provider wrapper routes">
-        <Text type="secondary">{t("Insight Admin Provider wrapper route details title", "Wrapper route")}</Text>
-        <Space className="application-access-service-credential-wrapper-routes" size={[6, 6]} wrap>
-          {INSIGHT_ADMIN_PROVIDER_WRAPPER_ROUTES.map(route => (
-            <Tag className="enterprise-identity-code-tag" key={route}>{route}</Tag>
-          ))}
-        </Space>
-      </div>
-      <div className="application-access-service-credential-technical-subsection" aria-label="Owner evidence technical details">
-        <Text type="secondary">{t("Insight Admin Provider owner evidence details title", "Owner evidence")}</Text>
-        <div className="application-access-service-credential-compact-list">
-          {serviceCredentialGovernanceDiagnosticEvidenceRows.map(row => {
-            const missingKeys = getServiceCredentialGovernanceDeploymentMissingKeys(row.statusGroup);
-            return (
-              <div className="application-access-service-credential-technical-row" aria-label={`${row.key} owner evidence`} key={row.key}>
-                <div className="application-access-service-credential-summary-main">
-                  <Space className="application-access-service-credential-summary-title" wrap>
-                    <Text strong>{row.display.title}</Text>
-                    <Tag className={`enterprise-identity-tone-${row.tone}`}>{row.operatorStatus.label}</Tag>
-                    <Tag>{row.sourceLabel}</Tag>
-                  </Space>
-                  <Text type="secondary">{t("Handoff owner alias label", "Owner alias")}：{row.owner}</Text>
-                </div>
-                <div className="application-access-service-credential-config-detail">
-                  <Text type="secondary">{row.nextAction}</Text>
-                  {missingKeys.length > 0 && (
-                    <Space size={[6, 6]} wrap>
-                      {missingKeys.map(key => (
-                        <Tag key={`${row.key}-${key}`}>{key}</Tag>
-                      ))}
-                    </Space>
-                  )}
+      <Collapse
+        className="application-access-service-credential-technical-collapse"
+        ghost
+        items={[{
+          key: "technical-evidence",
+          label: <Text strong>{t("Insight Admin Provider technical evidence title", "技术证据")}</Text>,
+          children: (
+            <Space className="application-access-service-credential-technical-body" direction="vertical" size={10}>
+              <div className="application-access-service-credential-technical-subsection" aria-label="Insight Admin Provider wrapper routes">
+                <Text type="secondary">{t("Insight Admin Provider wrapper route details title", "包装路由")}</Text>
+                <Space className="application-access-service-credential-wrapper-routes" size={[6, 6]} wrap>
+                  {INSIGHT_ADMIN_PROVIDER_WRAPPER_ROUTES.map(route => (
+                    <Tag className="enterprise-identity-code-tag" key={route}>
+                      <span translate="no">{route}</span>
+                    </Tag>
+                  ))}
+                </Space>
+              </div>
+              <div className="application-access-service-credential-technical-subsection" aria-label="Owner evidence technical details">
+                <Text type="secondary">{t("Insight Admin Provider owner evidence details title", "所有者证据")}</Text>
+                <div className="application-access-service-credential-compact-list">
+                  {serviceCredentialGovernanceDiagnosticEvidenceRows.map(row => {
+                    const missingKeys = getServiceCredentialGovernanceDeploymentMissingKeys(row.statusGroup);
+                    return (
+                      <div className="application-access-service-credential-technical-row" aria-label={`${row.key} owner evidence`} key={row.key}>
+                        <div className="application-access-service-credential-summary-main">
+                          <Space className="application-access-service-credential-summary-title" wrap>
+                            <Text strong>{row.display.title}</Text>
+                            <Tag className={`enterprise-identity-tone-${row.tone}`}>{row.operatorStatus.label}</Tag>
+                            <Tag>{row.sourceLabel}</Tag>
+                          </Space>
+                          <Text type="secondary">
+                            {t("Handoff owner alias label", "所有者证据 alias")}：{renderInsightAdminProviderCodeText(row.owner)}
+                          </Text>
+                        </div>
+                        <div className="application-access-service-credential-config-detail">
+                          <Text type="secondary">{row.nextAction}</Text>
+                          {missingKeys.length > 0 && (
+                            <Space size={[6, 6]} wrap>
+                              {missingKeys.map(key => (
+                                <Tag className="enterprise-identity-code-tag" key={`${row.key}-${key}`}>
+                                  <span translate="no">{key}</span>
+                                </Tag>
+                              ))}
+                            </Space>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-            );
-          })}
-        </div>
-      </div>
+            </Space>
+          ),
+        }]}
+      />
     </div>
   );
   const serviceCredentialGovernanceTechnicalDetails = (
@@ -972,7 +1064,11 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
           aria-label={serviceCredentialGovernanceDiagnosticsOpen
             ? t("Insight Admin Provider diagnostics collapse action", "收起诊断详情")
             : t("Insight Admin Provider diagnostics expand action", "查看诊断详情")}
-          onClick={() => setServiceCredentialGovernanceDiagnosticsOpen(open => !open)}
+          onClick={() => {
+            const nextOpen = !serviceCredentialGovernanceDiagnosticsOpen;
+            setServiceCredentialGovernanceDiagnosticsOpen(nextOpen);
+            replaceInsightAdminProviderDiagnosticsUrlState(nextOpen);
+          }}
         >
           {serviceCredentialGovernanceDiagnosticsOpen
             ? t("Insight Admin Provider diagnostics collapse action", "收起诊断详情")
@@ -990,7 +1086,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
   );
   const serviceCredentialGovernanceWorkspaceTitle = t("Insight Admin Provider copy safe handoff actions title", "交接包操作");
   const serviceCredentialGovernanceWorkspace = (
-    <div className="application-access-service-credential-workspace">
+    <div className="application-access-service-credential-workspace" id={INSIGHT_ADMIN_PROVIDER_HANDOFF_PACKAGE_SECTION_ID}>
       <div className="application-access-service-credential-workspace-header">
         <div className="application-access-service-credential-summary-main">
           <Text strong>{serviceCredentialGovernanceWorkspaceTitle}</Text>
@@ -1072,13 +1168,11 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
   return (
     <EnterpriseIdentitySection
       className={className}
-      title={t("Insight Admin Provider status title", "Insight Admin Provider 状态")}
-      description={t("Insight Admin Provider page description", "面向 Insight 的 Admin Provider 元数据交接页。")}
+      title={t("Insight Admin Provider status title", "交接状态")}
       extra={<Tag className={`enterprise-identity-tone-${serviceCredentialGovernanceEffectiveSummary.tone}`}>{serviceCredentialGovernanceEffectiveSummary.label}</Tag>}
     >
       {serviceCredentialGovernanceDeliverySummary}
       {serviceCredentialGovernanceBlockerSummary}
-      {serviceCredentialGovernanceDefaultBlockingSummary}
       {serviceCredentialGovernanceLoadState === "loading" && (
         <Alert
           className="enterprise-identity-console-alert"

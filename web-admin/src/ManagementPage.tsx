@@ -153,6 +153,7 @@ import type {AdminAccount, AdminHistory, LegacyAny} from "./types/legacyPage";
 const {Content, Header, Sider} = Layout;
 const ADMIN_SHELL_SIDEBAR_EXPANDED_WIDTH = 224;
 const ADMIN_SHELL_SIDEBAR_COLLAPSED_WIDTH = 72;
+const ADMIN_SHELL_COMPACT_VIEWPORT_WIDTH = 768;
 const ADMIN_SHELL_SIDEBAR_COLLAPSED_KEY = "adminShellSidebarCollapsed";
 const ADMIN_SHELL_SIDEBAR_MENU_MOTION = {
   motionAppear: false,
@@ -212,12 +213,26 @@ function ManagementPage(props: ManagementPageProps) {
   const [openKeys, setOpenKeys] = useState<string[]>([]);
   const [workspaceTabs, setWorkspaceTabs] = useState<LegacyAny[]>([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsedPreference);
+  const [isNarrowViewport, setIsNarrowViewport] = useState(() => {
+    return typeof window !== "undefined" && window.innerWidth <= ADMIN_SHELL_COMPACT_VIEWPORT_WIDTH;
+  });
   const organization = props.account?.organization;
   const history = props.history as AdminHistory;
   const account = props.account as AdminAccount;
   const widgetItems = organization?.widgetItems;
   const isMobile = Setting.isMobile();
+  const isCompactShell = isMobile || isNarrowViewport;
   const adminShellThemeClassName = props.themeAlgorithm.includes("dark") ? "admin-shell-theme-dark" : "admin-shell-theme-light";
+
+  useEffect(() => {
+    const updateViewportMode = () => {
+      setIsNarrowViewport(window.innerWidth <= ADMIN_SHELL_COMPACT_VIEWPORT_WIDTH);
+    };
+
+    updateViewportMode();
+    window.addEventListener("resize", updateViewportMode);
+    return () => window.removeEventListener("resize", updateViewportMode);
+  }, []);
 
   function logout() {
     AuthBackend.logout()
@@ -760,7 +775,7 @@ function ManagementPage(props: ManagementPageProps) {
         <div className="admin-shell-header-left">
           <Link to="/" className="admin-shell-brand">
             <img className="logo admin-shell-logo" src={getBrandLogo() ?? props.logo} alt={Conf.BrandName} />
-            {!isMobile && (
+            {!isCompactShell && (
               <span className="admin-shell-brand-text">
                 <span className="admin-shell-brand-name">{String(i18next.t("general:AICodex Admin"))}</span>
                 <span className="admin-shell-brand-separator" aria-hidden="true">·</span>
@@ -768,7 +783,7 @@ function ManagementPage(props: ManagementPageProps) {
               </span>
             )}
           </Link>
-          {!props.requiredEnableMfa && isMobile && (
+          {!props.requiredEnableMfa && isCompactShell && (
             <Button icon={<BarsOutlined />} onClick={showMenu} type="text" aria-label={Conf.AdminCenterName}>
               {Conf.AdminCenterName}
             </Button>
@@ -779,7 +794,7 @@ function ManagementPage(props: ManagementPageProps) {
         </div>
       </Header>
       <Layout className={`admin-shell-body ${adminShellThemeClassName}`}>
-        {!props.requiredEnableMfa && !isMobile && (
+        {!props.requiredEnableMfa && !isCompactShell && (
           <Sider
             width={ADMIN_SHELL_SIDEBAR_EXPANDED_WIDTH}
             collapsedWidth={ADMIN_SHELL_SIDEBAR_COLLAPSED_WIDTH}
@@ -813,7 +828,7 @@ function ManagementPage(props: ManagementPageProps) {
             <WorkspaceTabs
               tabs={workspaceTabs}
               activePath={activeWorkspacePath}
-              isMobile={Setting.isMobile()}
+              isMobile={isCompactShell}
               onNavigate={navigateWorkspaceTab}
               onClose={closeWorkspaceTabByPath}
               onCloseCurrent={closeCurrentWorkspaceTab}
