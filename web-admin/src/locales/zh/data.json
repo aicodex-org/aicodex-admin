@@ -429,7 +429,7 @@
     "Handoff generation unavailable hint": "暂不可生成",
     "Handoff blocker missing credential reference": "缺少凭据引用",
     "Handoff blocker missing admin material": "交接材料不完整",
-    "Handoff blocker credential reference suggestion": "交接包可生成；导入 Insight Profile 后通过 manual/secretRef binding 绑定 resolver 凭据。真实凭据由 Insight secret binding、部署 Secret 或外部 secret system 承载，交接包只传递引用。",
+    "Handoff blocker credential reference suggestion": "交接包可生成；导入 Insight Profile 后通过 manual/secretRef binding 绑定 resolver 凭据。Admin 交接包只传递 copy-safe 引用，不传递真实凭据。",
     "Handoff blocker admin material suggestion": "请由 Admin owner 补齐部署配置或 owner 决策，完成后刷新本页再生成。",
     "Handoff package blocked by credential reference": "补齐 Admin owner 材料后再生成交接包；凭据绑定在 Insight manual/secretRef binding 中完成",
     "Handoff metadata package partial ready message": "可生成元数据交接包，导入 Insight 后通过 manual/secretRef binding 绑定凭据。",

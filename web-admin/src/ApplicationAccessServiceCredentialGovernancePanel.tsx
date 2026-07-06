@@ -91,7 +91,7 @@ function getServiceCredentialGovernanceInsightBindingNextAction(): string {
 function getServiceCredentialGovernanceInsightBindingGuidance(): string {
   return t(
     "Handoff blocker credential reference suggestion",
-    "交接包可生成；导入 Insight Profile 后通过 manual/secretRef binding 绑定 resolver 凭据。真实凭据由 Insight secret binding、部署 Secret 或外部 secret system 承载，交接包只传递引用。"
+    "交接包可生成；导入 Insight Profile 后通过 manual/secretRef binding 绑定 resolver 凭据。Admin 交接包只传递 copy-safe 引用，不传递真实凭据。"
   );
 }
 

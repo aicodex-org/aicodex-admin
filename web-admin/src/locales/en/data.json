@@ -429,7 +429,7 @@
     "Handoff generation unavailable hint": "Not available yet",
     "Handoff blocker missing credential reference": "Missing credential reference",
     "Handoff blocker missing admin material": "Handoff material is incomplete",
-    "Handoff blocker credential reference suggestion": "The handoff package can be generated; import it into Insight Profile, then bind the resolver credential through manual/secretRef binding. The real credential is carried by Insight secret binding, deployment Secret, or an external secret system; the package only carries references.",
+    "Handoff blocker credential reference suggestion": "The handoff package can be generated; import it into Insight Profile, then bind the resolver credential through manual/secretRef binding. The Admin package only carries copy-safe references and never carries the real credential.",
     "Handoff blocker admin material suggestion": "Ask the Admin owner to complete deployment config or owner decisions, then refresh this page before generating again.",
     "Handoff package blocked by credential reference": "Complete Admin owner materials before generating; credential binding is finished in Insight manual/secretRef binding",
     "Handoff metadata package partial ready message": "Generate the metadata handoff package, import it into Insight, then bind credentials through manual/secretRef binding.",

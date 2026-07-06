@@ -427,8 +427,14 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.queryByText("当前状态")).toBeNull();
     expect(view.queryByText("补齐 Admin env/config，重启后刷新本页")).toBeNull();
     expect(view.getByText("缺少凭据引用")).not.toBeNull();
-    expect(view.getByText("交接包可生成；导入 Insight Profile 后通过 manual/secretRef binding 绑定 resolver 凭据。真实凭据由 Insight secret binding、部署 Secret 或外部 secret system 承载，交接包只传递引用。")).not.toBeNull();
+    expect(view.getByText("交接包可生成；导入 Insight Profile 后通过 manual/secretRef binding 绑定 resolver 凭据。Admin 交接包只传递 copy-safe 引用，不传递真实凭据。")).not.toBeNull();
     expect(view.queryByText("在 Admin 部署配置或外部 secret system 维护凭据引用，完成后刷新本页再生成。")).toBeNull();
+    expect(view.container.textContent).not.toContain("部署 Secret");
+    expect(view.container.textContent).not.toContain("外部 secret system");
+    expect(view.container.textContent).not.toContain(".env");
+    expect(view.container.textContent).not.toContain("K8s Secret");
+    expect(view.container.textContent).not.toContain("Vault");
+    expect(view.container.textContent).not.toContain("KMS");
     expect(view.queryByText("查看交接项")).toBeNull();
     expect(view.getAllByText("部分缺失").length).toBeGreaterThan(0);
     expect(view.queryByText("刷新状态")).toBeNull();
@@ -771,6 +777,12 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.getByText("导入 Insight Profile 后通过 manual/secretRef binding 绑定 resolver 凭据")).not.toBeNull();
     expect(view.queryByText("生成包后导入 Insight Profile；补齐 resolver 凭据引用后完成 P0 manual/secretRef binding。")).toBeNull();
     expect(view.queryByText("在 Admin 部署配置或外部 secret system 维护凭据引用，完成后刷新本页再生成。")).toBeNull();
+    expect(view.container.textContent).not.toContain("部署 Secret");
+    expect(view.container.textContent).not.toContain("外部 secret system");
+    expect(view.container.textContent).not.toContain(".env");
+    expect(view.container.textContent).not.toContain("K8s Secret");
+    expect(view.container.textContent).not.toContain("Vault");
+    expect(view.container.textContent).not.toContain("KMS");
     expect(view.queryByText("Ready group")).toBeNull();
     expect(view.getByText("诊断摘要")).not.toBeNull();
     expect(view.getByText("查看诊断详情")).not.toBeNull();
