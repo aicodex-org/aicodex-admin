@@ -8,31 +8,13 @@
 
 `用量接入` 页面 SHALL 作为唯一的 `Insight Admin Provider` copy-safe metadata 交接入口，承接 Admin 身份、组织、resolver、projection/trust 和 owner evidence readiness 摘要，并生成 Insight Profile 可消费的 Admin handoff package。
 
-#### Scenario: 入口表达为低噪声 Insight Admin Provider 交接
+#### Scenario: 缺失状态以 Insight 绑定下一步表达
 
-- **WHEN** 管理员打开 Admin 侧用量接入页面
-- **THEN** 页面 SHALL 将主标题或主面板表达为 `Insight Admin Provider` 交接/状态
-- **AND** 页面 SHALL 默认展示整体交接状态、目标消费方 `Insight`、包类型 `copy-safe metadata`、下一步 action 和 `生成 Admin 交接包` 主动作
-- **AND** 页面 SHALL 将 P0 边界说明降级为一句低噪提示或帮助说明
-- **AND** 页面 SHALL NOT 表达为 API/Gateway 用量 provider 配置中心
-- **AND** 页面 SHALL NOT 将旧 `服务凭据治理`、旧 handoff summary 或旧用量配置中心作为默认入口、标题、tab、按钮或高级区
-- **AND** 页面 SHALL NOT 在默认层铺开 wrapper route、owner alias、stable alias、blocked alias、reason code 或逐项 owner evidence 明细
-- **AND** 这些 wrapper/owner/capability 诊断信息 SHALL 只在默认收起的诊断详情中展示
-
-#### Scenario: 缺失状态以单一阻断摘要表达
-
-- **WHEN** Admin handoff 状态为 partial、missing 或 blocked
-- **THEN** 页面默认层 SHALL 展示一个人可读阻断摘要
-- **AND** 页面默认层 SHALL 展示一个可操作修复建议，指向 manual/secretRef binding、Admin 部署配置或外部 secret system 维护
+- **WHEN** Admin handoff 状态为 partial、missing 或 blocked，且阻断原因包含 resolver 或 projection credential reference 缺失
+- **THEN** 页面默认层 SHALL 展示一个人可读阻断摘要，说明 copy-safe metadata package 可生成但 Profile 凭据闭环仍未完成
+- **AND** 页面默认层 SHALL 将主下一步指向 `导入 Insight Profile 后通过 manual/secretRef binding 绑定凭据`
+- **AND** 页面默认层 SHALL NOT 将 `在 Admin 部署配置或外部 secret system 维护凭据引用`、`.env`、K8s Secret、Vault 或 KMS 表达为主操作路径
 - **AND** 页面 SHALL NOT 要求操作者先理解 `admin_outbound_resolver`、`admin_gateway_projection_producer` 或同类内部 alias 才能判断下一步
-
-#### Scenario: partial 状态区分元数据可生成和凭据闭环
-
-- **WHEN** Admin handoff 状态为 partial 且 copy-safe metadata package 可生成
-- **THEN** 页面 SHALL 继续保留 `生成 Admin 交接包` 主动作
-- **AND** 页面 SHALL 用非绿色成功语义表达 `交接材料元数据可生成`
-- **AND** 页面 SHALL 用 warning 语义表达 `Profile 凭据闭环可完成` 仍缺 resolver 凭据引用或其它 owner 决策
-- **AND** 页面 SHALL NOT 同时展示黄色阻断摘要和绿色 `材料已齐`、`可生成完整包` 或同等整体 ready 文案
 
 ### Requirement: 用量接入页面聚焦服务凭据治理
 
@@ -42,20 +24,10 @@
 
 - **WHEN** `/application-usage-access` 的 Admin handoff 状态为 partial、missing 或 blocked，且 copy-safe metadata package 仍可生成
 - **THEN** 页面默认层 SHALL 保留整体状态摘要、下一步 action 和一条 warning 主提示，说明缺少 resolver 凭据引用或同类阻断
-- **AND** copy-safe 交接操作区 SHALL 使用中性或 info 语义说明 `可生成元数据交接包，导入 Insight 后再完成 manual/secretRef binding`
+- **AND** copy-safe 交接操作区 SHALL 使用中性或 info 语义说明 `可生成元数据交接包，导入 Insight 后通过 manual/secretRef binding 绑定凭据`
 - **AND** 页面 SHALL NOT 在 copy-safe 操作区再渲染第二个黄色告警
 - **AND** P0 边界说明 SHALL 降级为低噪信息行、帮助说明或诊断摘要文案，不得成为默认视觉焦点
-- **AND** 页面 SHALL NOT 表达 Admin secure handoff 已完成或真实凭据绑定已完成
-
-#### Scenario: 展开诊断详情使用紧凑信息结构
-
-- **WHEN** 操作者点击 `查看诊断详情`
-- **THEN** 页面 SHALL 展开 `阻断项`、`可用能力` 和 `技术证据` 三组
-- **AND** `阻断项` SHALL 使用紧凑表格或列表呈现项目、状态、责任方、原因和建议动作，不得以多张大卡片堆叠为主
-- **AND** `可用能力` SHALL 使用紧凑 chips 或小列表呈现可用能力名称和状态，不得以每项大卡片堆叠为主
-- **AND** `技术证据` SHALL 保留 wrapper route、owner alias 和 owner evidence 等排障字段，但 SHALL 进一步降噪为 code chips、紧凑列表或二级 disclosure
-- **AND** 技术 alias、route、owner evidence 和长英文字段 SHALL 在 390px 窄屏下换行或截断，不得造成页面级横向溢出
-- **AND** 诊断详情 SHALL NOT 展示 token、Cookie、Authorization、client secret、DSN、raw payload、完整 private URL、真实账号或完整组织树
+- **AND** 页面 SHALL NOT 表达 Admin secure handoff 已完成、真实凭据绑定已完成，或需要在 Admin 内配置 API/Gateway 用量 provider
 
 ### Requirement: 用量接入 copy-safe 安全边界
 
@@ -66,20 +38,8 @@
 - **WHEN** 管理员生成 Admin 交接包
 - **THEN** UI SHALL 只渲染脱敏治理项名称、人可读状态、copy-safe 摘要、凭据引用存在性、调用策略存在性或别名、有界运行策略摘要、keep-in-env/cannot-infer 状态和 next action 字段
 - **AND** UI SHALL 明确 Insight P0 使用 copy-safe handoff 加 manual/secretRef binding 绑定 Admin provider 凭据
+- **AND** partial/generated 状态 SHALL 使用中性或 warning 语义说明 `已生成元数据包，仍需在 Insight 绑定凭据`
 - **AND** UI SHALL NOT 将 Admin secure handoff 表达为默认动作
-
-#### Scenario: 异常态指向 Admin owner 下一步
-
-- **WHEN** Admin owner evidence 处于 blocked、missing 或 cannot infer runtime truth 状态
-- **THEN** UI SHALL 指引 operator 处理 Admin owner 修复、部署配置，或交由 Insight 侧验证 manual/secretRef binding
-- **AND** UI SHALL NOT 要求 operator 在 Admin 内配置 API/Gateway 用量 provider 凭据
-
-#### Scenario: 可用状态默认呈现人话能力
-
-- **WHEN** Admin owner evidence 不存在待补部署配置
-- **THEN** UI SHALL 默认展示身份接口、Scope 接口、组织树接口、用量身份解析和 Gateway 组织投影的人可读能力状态
-- **AND** owner alias、wrapper route、source class、缺失部署 key 和 owner evidence 技术细节 SHALL 只在 `技术细节` 折叠区或同等低噪详情中展示
-- **AND** UI SHALL NOT 将 copy-safe 技术细节隐藏在交接包生成动作之后
 
 ### Requirement: 用量接入覆盖基础页面状态
 

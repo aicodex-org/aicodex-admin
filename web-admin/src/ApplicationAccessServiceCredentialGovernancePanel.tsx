@@ -81,6 +81,24 @@ function t(key: string, defaultValue = key): string {
   return translated === namespacedKey || translated === key ? defaultValue : String(translated);
 }
 
+function getServiceCredentialGovernanceInsightBindingNextAction(): string {
+  return t(
+    "Handoff bind credential in Insight next action",
+    "导入 Insight Profile 后通过 manual/secretRef binding 绑定 resolver 凭据"
+  );
+}
+
+function getServiceCredentialGovernanceInsightBindingGuidance(): string {
+  return t(
+    "Handoff blocker credential reference suggestion",
+    "交接包可生成；导入 Insight Profile 后通过 manual/secretRef binding 绑定 resolver 凭据。真实凭据由 Insight secret binding、部署 Secret 或外部 secret system 承载，交接包只传递引用。"
+  );
+}
+
+function isServiceCredentialGovernanceCredentialReferenceKey(value?: string): boolean {
+  return /(credential|reference|secret|token)/.test(`${value ?? ""}`.toLowerCase());
+}
+
 export function getServiceCredentialGovernanceTone(status: ServiceCredentialGovernanceStatus): ServiceCredentialGovernanceTone {
   switch (status) {
   case "configured":
@@ -166,11 +184,11 @@ export function getServiceCredentialGovernanceDisplay(key?: string, label?: stri
 export function getServiceCredentialGovernanceReferenceSourceHint(key?: string): string {
   switch (key) {
   case "usage_identity_resolver":
-    return "在 Admin 部署配置补 insightUsageIdentityResolverToken；Docker/K8s 通常用 AICODEX_INSIGHT_USAGE_IDENTITY_RESOLVER_TOKEN。";
+    return "导入 Insight Profile 后，通过 manual/secretRef binding 选择 resolver 凭据引用。";
   case "gateway_organization_projection":
-    return "在 Admin 部署配置补 gatewayOrganizationProjectionToken；如果部署模板没有环境变量映射，就补到 Admin config。";
+    return "导入 Insight Profile 后，通过 manual/secretRef binding 选择 Gateway projection 凭据引用。";
   default:
-    return "在 Admin 部署配置补下面缺失的 key，补完重启 Admin 后刷新本页。";
+    return "导入 Insight Profile 后，通过 manual/secretRef binding 选择对应凭据引用。";
   }
 }
 
@@ -286,7 +304,7 @@ export function serviceCredentialGovernanceNeedsCredentialReference(
   }
 
   const missingText = (statusGroup?.missingKeys ?? []).join(" ").toLowerCase();
-  if (/(credential|reference|secret|token)/.test(missingText)) {
+  if (isServiceCredentialGovernanceCredentialReferenceKey(missingText)) {
     return true;
   }
 
@@ -304,8 +322,18 @@ function serviceCredentialGovernanceNeedsDeploymentConfig(statusGroup?: ServiceC
   return statusGroup.status === "blocked"
     || statusGroup.status === "missing"
     || statusGroup.status === "partial"
-    ? deploymentMissingKeys.length > 0
+    ? deploymentMissingKeys.some(key => !isServiceCredentialGovernanceCredentialReferenceKey(key))
     : false;
+}
+
+function serviceCredentialGovernanceRowHasCredentialReferenceGap(row: {
+  statusGroup?: ServiceCredentialGovernanceGroup;
+  configGroup?: ServiceCredentialGovernanceConfigGroup;
+}): boolean {
+  const missingText = row.statusGroup?.missingKeys?.join(" ") ?? "";
+  return row.statusGroup?.credentialReferenceStatus === "missing"
+    || row.configGroup?.credentialReferenceStatus === "missing"
+    || isServiceCredentialGovernanceCredentialReferenceKey(missingText);
 }
 
 function getServiceCredentialGovernanceDeploymentMissingKeys(statusGroup?: ServiceCredentialGovernanceGroup): string[] {
@@ -359,6 +387,9 @@ export function getServiceCredentialGovernanceNextAction(
     return status === "blocked" || status === "missing" || status === "partial" || row.configGroup?.credentialReferenceStatus === "missing";
   });
   if (blockedOrMissing) {
+    if (serviceCredentialGovernanceRowHasCredentialReferenceGap(blockedOrMissing)) {
+      return getServiceCredentialGovernanceInsightBindingNextAction();
+    }
     return blockedOrMissing.configGroup?.nextAction || blockedOrMissing.statusGroup?.nextAction || "补齐交接材料后生成交接包";
   }
   if (rows.length === 0) {
@@ -409,7 +440,7 @@ function getServiceCredentialGovernanceCapabilityStatus(
 ): ServiceCredentialGovernanceCapabilityStatus {
   if (serviceCredentialGovernanceNeedsDeploymentConfig(statusGroup)) {
     const missingText = (statusGroup?.missingKeys ?? []).join(" ").toLowerCase();
-    if (statusGroup?.credentialReferenceStatus === "missing" || /credential|reference|secret|token/.test(missingText)) {
+    if (statusGroup?.credentialReferenceStatus === "missing" || isServiceCredentialGovernanceCredentialReferenceKey(missingText)) {
       return {label: t("Capability missing credential reference", "缺凭据引用"), tone: "warning"};
     }
     return {label: t("Capability missing deployment config", "缺部署配置"), tone: "warning"};
@@ -626,7 +657,9 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
       operatorStatus: status,
       sourceLabel,
       owner: row.configGroup?.owner || row.statusGroup?.owner || "admin_owner",
-      nextAction: row.configGroup?.nextAction || row.statusGroup?.nextAction || getServiceCredentialGovernancePrimaryGap(row.statusGroup),
+      nextAction: serviceCredentialGovernanceRowHasCredentialReferenceGap(row)
+        ? getServiceCredentialGovernanceInsightBindingNextAction()
+        : row.configGroup?.nextAction || row.statusGroup?.nextAction || getServiceCredentialGovernancePrimaryGap(row.statusGroup),
       tone: getServiceCredentialGovernanceTone(row.statusGroup?.status ?? "not_applicable"),
     };
   });
@@ -648,14 +681,17 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
     : (serviceCredentialGovernanceHasPendingMaterials
       ? {label: t("Handoff status partially missing", "部分缺失"), tone: "warning" as ServiceCredentialGovernanceTone}
       : {label: t("Handoff status unavailable", "不可生成"), tone: serviceCredentialGovernanceSummary.tone === "default" ? "default" as ServiceCredentialGovernanceTone : "error" as ServiceCredentialGovernanceTone});
+  const serviceCredentialGovernanceHasCredentialReferenceGap = serviceCredentialGovernanceAlignedRows.some(serviceCredentialGovernanceRowHasCredentialReferenceGap);
   let serviceCredentialGovernanceNextAction = t(
     "Handoff waiting for status next action",
     "等待状态加载后生成交接包"
   );
-  if (serviceCredentialGovernanceHasPendingMaterials) {
+  if (serviceCredentialGovernanceHasCredentialReferenceGap) {
+    serviceCredentialGovernanceNextAction = getServiceCredentialGovernanceInsightBindingNextAction();
+  } else if (serviceCredentialGovernanceHasPendingMaterials) {
     serviceCredentialGovernanceNextAction = t(
       "Handoff complete admin config next action",
-      "补齐凭据引用后刷新本页"
+      "补齐 Admin owner 材料后生成"
     );
   } else if (serviceCredentialGovernanceCanGenerate && serviceCredentialGovernanceHasPartialPackage) {
     serviceCredentialGovernanceNextAction = getServiceCredentialGovernanceNextAction(serviceCredentialGovernanceAlignedRows);
@@ -671,29 +707,30 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
     );
   }
   const serviceCredentialGovernanceActionHint = serviceCredentialGovernanceHasPendingMaterials
-    ? t("Handoff generation blocked hint", "需补齐后生成")
+    ? t("Handoff generation blocked hint", "补齐 Admin owner 材料后生成")
     : (serviceCredentialGovernanceCanGenerate
       ? (serviceCredentialGovernanceHasPartialPackage
-        ? t("Handoff generation partial hint", "可生成元数据包，需补凭据引用")
+        ? t("Handoff generation partial hint", "可生成元数据包，Insight 绑定凭据")
         : t("Handoff generation complete hint", "可生成完整包"))
       : t("Handoff generation unavailable hint", "暂不可生成"));
-  const serviceCredentialGovernanceBlockingRows = serviceCredentialGovernanceActionRows.length > 0
-    ? serviceCredentialGovernanceActionRows
-    : serviceCredentialGovernanceHasPartialPackage
-      ? serviceCredentialGovernanceAlignedRows.filter(row => {
-        const status = row.statusGroup?.status;
-        return status === "blocked"
-          || status === "missing"
-          || status === "partial"
-          || row.configGroup?.credentialReferenceStatus === "missing"
-          || row.statusGroup?.credentialReferenceStatus === "missing";
-      })
-      : [];
+  const serviceCredentialGovernanceCredentialGapRows = serviceCredentialGovernanceAlignedRows.filter(serviceCredentialGovernanceRowHasCredentialReferenceGap);
+  const serviceCredentialGovernancePartialBlockingRows = serviceCredentialGovernanceHasPartialPackage
+    ? serviceCredentialGovernanceAlignedRows.filter(row => {
+      const status = row.statusGroup?.status;
+      return status === "blocked"
+        || status === "missing"
+        || status === "partial"
+        || row.configGroup?.credentialReferenceStatus === "missing"
+        || row.statusGroup?.credentialReferenceStatus === "missing";
+    })
+    : [];
+  const serviceCredentialGovernanceBlockingRows = [
+    ...serviceCredentialGovernanceCredentialGapRows,
+    ...serviceCredentialGovernanceActionRows,
+    ...serviceCredentialGovernancePartialBlockingRows,
+  ].filter((row, index, rows) => rows.findIndex(candidate => candidate.key === row.key) === index);
   const serviceCredentialGovernanceCredentialBlockingRow = serviceCredentialGovernanceBlockingRows.find(row => {
-    const blockingText = `${row.statusGroup?.missingKeys?.join(" ") ?? ""} ${row.statusGroup?.credentialReferenceStatus ?? ""} ${row.configGroup?.credentialReferenceStatus ?? ""}`.toLowerCase();
-    return row.statusGroup?.credentialReferenceStatus === "missing"
-      || row.configGroup?.credentialReferenceStatus === "missing"
-      || /credential|reference|secret|token/.test(blockingText);
+    return serviceCredentialGovernanceRowHasCredentialReferenceGap(row);
   });
   const serviceCredentialGovernancePrimaryBlockingRow = serviceCredentialGovernanceCredentialBlockingRow
     ?? serviceCredentialGovernanceBlockingRows[0];
@@ -702,7 +739,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
     && (
       serviceCredentialGovernancePrimaryBlockingRow?.statusGroup?.credentialReferenceStatus === "missing"
       || serviceCredentialGovernancePrimaryBlockingRow?.configGroup?.credentialReferenceStatus === "missing"
-      || /credential|reference|secret|token/.test(serviceCredentialGovernancePrimaryBlockingText)
+      || isServiceCredentialGovernanceCredentialReferenceKey(serviceCredentialGovernancePrimaryBlockingText)
     );
   const serviceCredentialGovernanceBlockerSummary = serviceCredentialGovernancePrimaryBlockingRow ? (
     <Alert
@@ -713,10 +750,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
         ? t("Handoff blocker missing credential reference", "缺少凭据引用")
         : t("Handoff blocker missing admin material", "交接材料不完整")}
       description={serviceCredentialGovernancePrimaryBlockerIsCredentialReference
-        ? t(
-          "Handoff blocker credential reference suggestion",
-          "在 Admin 部署配置或外部 secret system 维护凭据引用，完成后刷新本页再生成。"
-        )
+        ? getServiceCredentialGovernanceInsightBindingGuidance()
         : t(
           "Handoff blocker admin material suggestion",
           "请由 Admin owner 补齐部署配置或 owner 决策，完成后刷新本页再生成。"
@@ -727,7 +761,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
   if (serviceCredentialGovernanceHasPendingMaterials) {
     serviceCredentialGovernanceHandoffErrorMessage = t(
       "Handoff package blocked by credential reference",
-      "先补齐凭据引用或部署配置，刷新本页后再生成交接包"
+      "补齐 Admin owner 材料后再生成交接包；凭据绑定在 Insight manual/secretRef binding 中完成"
     );
   }
   const serviceCredentialGovernanceConfigActions = (
@@ -978,13 +1012,20 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
         {serviceCredentialGovernanceHandoffState === "ready" && serviceCredentialGovernanceHandoffPackage && (
           <Alert
             className="enterprise-identity-console-alert"
-            type="success"
+            type={serviceCredentialGovernanceHasPartialPackage ? "warning" : "success"}
             showIcon
-            message="Insight Admin 接入交接包已生成"
-            description={t(
-              "Insight Admin Provider handoff ready description",
-              "本页只交付 Admin 身份、组织、resolver、projection/trust 和服务凭据引用材料；Insight P0 需使用 manual/secretRef binding，Admin secure handoff 不在 P0。"
-            )}
+            message={serviceCredentialGovernanceHasPartialPackage
+              ? t("Insight Admin Provider partial handoff ready message", "Admin 元数据交接包已生成")
+              : t("Insight Admin Provider handoff ready message", "Insight Admin 接入交接包已生成")}
+            description={serviceCredentialGovernanceHasPartialPackage
+              ? t(
+                "Insight Admin Provider partial handoff ready description",
+                "已生成 copy-safe metadata；导入 Insight 后仍需通过 manual/secretRef binding 绑定凭据。"
+              )
+              : t(
+                "Insight Admin Provider handoff ready description",
+                "本页只交付 Admin 身份、组织、resolver、projection/trust 和服务凭据引用材料；Insight P0 需使用 manual/secretRef binding，Admin secure handoff 不在 P0。"
+              )}
             action={(
               <Button icon={<CopyOutlined />} size="small" onClick={handleCopyServiceCredentialGovernanceHandoffPackage}>
                 复制交接包 JSON
@@ -997,7 +1038,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
             {serviceCredentialGovernanceHasPartialPackage ? (
               <div className="application-access-service-credential-metadata-note">
                 <Text type="secondary">
-                  {t("Handoff metadata package partial ready message", "可生成元数据交接包，导入 Insight 后再完成 manual/secretRef binding。")}
+                  {t("Handoff metadata package partial ready message", "可生成元数据交接包，导入 Insight 后通过 manual/secretRef binding 绑定凭据。")}
                 </Text>
               </div>
             ) : (

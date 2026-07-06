@@ -159,7 +159,7 @@ func defaultServiceCredentialGovernanceConfigResponse() *ServiceCredentialGovern
 				OwnerManaged:              true,
 				CallerPolicy:              "aicodex-admin",
 				RemediationRoute:          "/platform-api-mappings",
-				NextAction:                "补充 resolver 凭据引用",
+				NextAction:                "导入 Insight Profile 后通过 manual/secretRef binding 绑定 resolver 凭据",
 			},
 			{
 				Key:                       "gateway_organization_projection",
@@ -182,7 +182,7 @@ func defaultServiceCredentialGovernanceConfigResponse() *ServiceCredentialGovern
 				CredentialReferenceStatus: "external_secret",
 				KeepInEnv:                 true,
 				RemediationRoute:          "env/config",
-				NextAction:                "在部署配置或外部 secret system 中维护",
+				NextAction:                "作为底层 secret 落点保留；默认通过 Insight manual/secretRef binding 完成绑定",
 				KeepInEnvKeys: []string{
 					"driverName",
 					"dataSourceName",
