@@ -84,14 +84,14 @@ function t(key: string, defaultValue = key): string {
 function getServiceCredentialGovernanceInsightBindingNextAction(): string {
   return t(
     "Handoff bind credential in Insight next action",
-    "导入 Insight Profile 后通过 manual/secretRef binding 绑定 resolver 凭据"
+    "导入 Insight Profile 后，绑定 manual/secretRef 凭据解析器"
   );
 }
 
 function getServiceCredentialGovernanceInsightBindingGuidance(): string {
   return t(
     "Handoff blocker credential reference suggestion",
-    "交接包可生成；导入 Insight Profile 后通过 manual/secretRef binding 绑定 resolver 凭据。交接包只包含元数据，不传递真实凭据。"
+    "可生成元数据交接包；真实凭据需在 Insight Profile 中绑定 manual/secretRef 凭据解析器后补齐。"
   );
 }
 
@@ -184,11 +184,11 @@ export function getServiceCredentialGovernanceDisplay(key?: string, label?: stri
 export function getServiceCredentialGovernanceReferenceSourceHint(key?: string): string {
   switch (key) {
   case "usage_identity_resolver":
-    return "导入 Insight Profile 后，通过 manual/secretRef binding 选择 resolver 凭据引用。";
+    return "导入 Insight Profile 后，绑定 manual/secretRef 凭据解析器。";
   case "gateway_organization_projection":
-    return "导入 Insight Profile 后，通过 manual/secretRef binding 选择 Gateway projection 凭据引用。";
+    return "导入 Insight Profile 后，绑定 manual/secretRef 凭据解析器。";
   default:
-    return "导入 Insight Profile 后，通过 manual/secretRef binding 选择对应凭据引用。";
+    return "导入 Insight Profile 后，绑定 manual/secretRef 凭据解析器。";
   }
 }
 
@@ -527,7 +527,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
 
   const handleCopyServiceCredentialGovernanceHandoffPackage = React.useCallback(() => {
     if (!serviceCredentialGovernanceHandoffPackage) {
-      Setting.showMessage("error", "请先生成 Admin 交接包");
+      Setting.showMessage("error", t("Handoff package copy requires generation", "请先生成元数据交接包"));
       return;
     }
 
@@ -702,7 +702,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
   } else if (serviceCredentialGovernanceCanGenerate) {
     serviceCredentialGovernanceNextAction = t(
       "Handoff generate and bind next action",
-      "生成 Admin 交接包并交给 Insight 绑定"
+      "生成元数据交接包并交给 Insight 绑定"
     );
   } else if (serviceCredentialGovernanceLoadState === "error" || serviceCredentialGovernanceConfigLoadState === "error") {
     serviceCredentialGovernanceNextAction = t(
@@ -738,6 +738,9 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
   });
   const serviceCredentialGovernancePrimaryBlockingRow = serviceCredentialGovernanceCredentialBlockingRow
     ?? serviceCredentialGovernanceBlockingRows[0];
+  const serviceCredentialGovernancePrimaryBlockingEvidenceRow = serviceCredentialGovernancePrimaryBlockingRow
+    ? serviceCredentialGovernanceEvidenceRows.find(row => row.key === serviceCredentialGovernancePrimaryBlockingRow.key)
+    : undefined;
   const serviceCredentialGovernancePrimaryBlockingText = `${serviceCredentialGovernancePrimaryBlockingRow?.statusGroup?.missingKeys?.join(" ") ?? ""} ${serviceCredentialGovernancePrimaryBlockingRow?.statusGroup?.credentialReferenceStatus ?? ""} ${serviceCredentialGovernancePrimaryBlockingRow?.configGroup?.credentialReferenceStatus ?? ""}`.toLowerCase();
   const serviceCredentialGovernancePrimaryBlockerIsCredentialReference = Boolean(serviceCredentialGovernancePrimaryBlockingRow)
     && (
@@ -776,7 +779,9 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
         disabled={!serviceCredentialGovernanceCanGenerate}
         onClick={handleServiceCredentialGovernanceHandoffPackage}
       >
-        {serviceCredentialGovernanceHandoffState === "ready" ? "重新生成 Admin 交接包" : t("Service credential handoff evidence action", "生成 Admin 交接包")}
+        {serviceCredentialGovernanceHandoffState === "ready"
+          ? t("Service credential handoff evidence regenerate action", "重新生成元数据交接包")
+          : t("Service credential handoff evidence action", "生成元数据交接包")}
       </Button>
     </Space>
   );
@@ -879,6 +884,25 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
       </div>
     </div>
   );
+  const serviceCredentialGovernancePrimaryBlockingReason = serviceCredentialGovernancePrimaryBlockerIsCredentialReference
+    ? t("Handoff blocker missing credential reference", "缺少凭据引用")
+    : getServiceCredentialGovernancePrimaryGap(serviceCredentialGovernancePrimaryBlockingRow?.statusGroup);
+  const serviceCredentialGovernanceDefaultBlockingSummary = serviceCredentialGovernancePrimaryBlockingEvidenceRow ? (
+    <div className="application-access-service-credential-compact-row application-access-service-credential-default-blocker" aria-label="默认阻断摘要">
+      <div className="application-access-service-credential-summary-main">
+        <Space className="application-access-service-credential-summary-title" wrap>
+          <Text strong>{serviceCredentialGovernancePrimaryBlockingEvidenceRow.display.title}</Text>
+          <Tag className={`enterprise-identity-tone-${serviceCredentialGovernancePrimaryBlockingEvidenceRow.tone}`}>
+            {serviceCredentialGovernancePrimaryBlockingEvidenceRow.operatorStatus.label}
+          </Tag>
+        </Space>
+      </div>
+      <div className="application-access-service-credential-config-detail">
+        <Text type="secondary">{t("Insight Admin Provider blocker reason label", "原因")}：{serviceCredentialGovernancePrimaryBlockingReason}</Text>
+        <Text type="secondary">{t("Insight Admin Provider blocker next action label", "建议动作")}：{serviceCredentialGovernancePrimaryBlockingEvidenceRow.nextAction}</Text>
+      </div>
+    </div>
+  ) : null;
   const serviceCredentialGovernanceAvailableCapabilitySummary = (
     <div className="application-access-service-credential-evidence" aria-label="可用能力">
       <Text strong>{t("Insight Admin Provider available capability details title", "可用能力")}</Text>
@@ -944,6 +968,10 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
         <Button
           type="link"
           icon={serviceCredentialGovernanceDiagnosticsOpen ? <UpOutlined /> : <DownOutlined />}
+          aria-expanded={serviceCredentialGovernanceDiagnosticsOpen}
+          aria-label={serviceCredentialGovernanceDiagnosticsOpen
+            ? t("Insight Admin Provider diagnostics collapse action", "收起诊断详情")
+            : t("Insight Admin Provider diagnostics expand action", "查看诊断详情")}
           onClick={() => setServiceCredentialGovernanceDiagnosticsOpen(open => !open)}
         >
           {serviceCredentialGovernanceDiagnosticsOpen
@@ -1014,7 +1042,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
             description={serviceCredentialGovernanceHasPartialPackage
               ? t(
                 "Insight Admin Provider partial handoff ready description",
-                "已生成元数据交接包；导入 Insight 后仍需通过 manual/secretRef binding 绑定凭据。"
+                "已生成元数据交接包；仍需在 Insight Profile 绑定真实凭据。"
               )
               : t(
                 "Insight Admin Provider handoff ready description",
@@ -1033,7 +1061,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
               className="enterprise-identity-console-alert"
               type="success"
               showIcon
-              message={t("Handoff metadata package ready message", "材料已齐，点击生成 Admin 交接包。")}
+              message={t("Handoff metadata package ready message", "材料已齐，点击生成元数据交接包。")}
             />
           </div>
         )}
@@ -1050,6 +1078,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
     >
       {serviceCredentialGovernanceDeliverySummary}
       {serviceCredentialGovernanceBlockerSummary}
+      {serviceCredentialGovernanceDefaultBlockingSummary}
       {serviceCredentialGovernanceLoadState === "loading" && (
         <Alert
           className="enterprise-identity-console-alert"
