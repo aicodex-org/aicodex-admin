@@ -56,6 +56,14 @@ type fakeWecomProfileConsentCallbackAuthorizer struct {
 	err        error
 }
 
+type fakeWecomProfileConsentIdProvider struct {
+	client      *http.Client
+	token       *oauth2.Token
+	userInfo    *idp.UserInfo
+	tokenErr    error
+	userInfoErr error
+}
+
 func (f *fakeWecomProfileConsentCallbackAuthorizer) AuthorizeLoginIntent(c *ApiController, intent *object.WecomProfileConsentIntent, code string) (*wecomProfileConsentCallbackAuthorizeResult, error) {
 	f.intent = intent
 	f.code = code
@@ -85,6 +93,27 @@ func (f *fakeWecomProfileConsentLoginIntentIssuer) IssueProfileSyncIntent(reques
 	f.syncRequest = request
 	f.provider = provider
 	return f.result, f.err
+}
+
+func (f *fakeWecomProfileConsentIdProvider) SetHttpClient(client *http.Client) {
+	f.client = client
+}
+
+func (f *fakeWecomProfileConsentIdProvider) GetToken(code string) (*oauth2.Token, error) {
+	if f.tokenErr != nil {
+		return nil, f.tokenErr
+	}
+	if f.token != nil {
+		return f.token, nil
+	}
+	return &oauth2.Token{AccessToken: "access-token"}, nil
+}
+
+func (f *fakeWecomProfileConsentIdProvider) GetUserInfo(token *oauth2.Token) (*idp.UserInfo, error) {
+	if f.userInfoErr != nil {
+		return nil, f.userInfoErr
+	}
+	return f.userInfo, nil
 }
 
 func TestSaveWecomProfileConsentOAuthProfileDoesNotPersistToken(t *testing.T) {
@@ -152,6 +181,49 @@ func TestRequireWecomProfileConsentUserTicketRejectsContactOnlyProfile(t *testin
 	}
 }
 
+func TestRequiresEmailClaimForWecomProfileConsent(t *testing.T) {
+	if requiresEmailClaimForWecomProfileConsent(nil) {
+		t.Fatal("nil intent must not require email")
+	}
+	if requiresEmailClaimForWecomProfileConsent(&object.WecomProfileConsentIntent{}) {
+		t.Fatal("missing login context must not require email")
+	}
+	if requiresEmailClaimForWecomProfileConsent(&object.WecomProfileConsentIntent{LoginContextJSON: "{"}) {
+		t.Fatal("invalid login context must not require email")
+	}
+
+	intent := &object.WecomProfileConsentIntent{}
+	if err := intent.SetLoginContext(&object.WecomProfileConsentLoginContext{Scope: "openid profile email"}); err != nil {
+		t.Fatalf("SetLoginContext() error = %v", err)
+	}
+	if !requiresEmailClaimForWecomProfileConsent(intent) {
+		t.Fatal("email scope must require email")
+	}
+}
+
+func TestWecomProfileConsentScopeIncludesMatchesExactTokens(t *testing.T) {
+	tests := []struct {
+		name  string
+		scope string
+		want  bool
+	}{
+		{name: "space separated", scope: "openid profile email", want: true},
+		{name: "plus separated", scope: "openid+profile+email", want: true},
+		{name: "encoded space separated", scope: "openid%20profile%20email", want: true},
+		{name: "comma separated", scope: "openid,profile,email", want: true},
+		{name: "case insensitive", scope: "openid PROFILE EMAIL", want: true},
+		{name: "does not match suffix scope", scope: "openid login:email", want: false},
+		{name: "does not match prefixed scope", scope: "openid email_verified", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := wecomProfileConsentScopeIncludes(tt.scope, "email"); got != tt.want {
+				t.Fatalf("wecomProfileConsentScopeIncludes(%q) = %v, want %v", tt.scope, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestCreateWecomProfileConsentLoginIntent(t *testing.T) {
 	oldGetApplication := getWecomProfileConsentApplication
 	oldGetProvider := getWecomProfileConsentProvider
@@ -169,8 +241,9 @@ func TestCreateWecomProfileConsentLoginIntent(t *testing.T) {
 			Organization: "built-in",
 			Providers: []*object.ProviderItem{
 				{
-					Owner: "admin",
-					Name:  "wecom-internal",
+					Owner:              "admin",
+					Name:               "wecom-internal",
+					TargetOrganization: "built-in",
 					Provider: &object.Provider{
 						Category: "OAuth",
 						Type:     "WeCom",
@@ -972,6 +1045,104 @@ func TestHandleWecomProfileConsentCallbackMarksFailedWhenAuthorizationFails(t *t
 	}
 }
 
+func TestHandleWecomProfileConsentCallbackMarksEmailPermissionFailure(t *testing.T) {
+	oldGetIntent := getWecomProfileConsentIntentByName
+	oldExpireIntent := expireWecomProfileConsentIntentIfNeeded
+	oldTransition := transitionWecomProfileConsentIntent
+	oldNewAuthorizer := newWecomProfileConsentCallbackAuthorizer
+	defer func() {
+		getWecomProfileConsentIntentByName = oldGetIntent
+		expireWecomProfileConsentIntentIfNeeded = oldExpireIntent
+		transitionWecomProfileConsentIntent = oldTransition
+		newWecomProfileConsentCallbackAuthorizer = oldNewAuthorizer
+	}()
+
+	intent, issued := newWecomProfileConsentCompleteTestIntent(t, "intent-callback-email-permission", object.WecomProfileConsentIntentStatusPending)
+	getWecomProfileConsentIntentByName = func(name string) (*object.WecomProfileConsentIntent, error) {
+		return intent, nil
+	}
+	expireWecomProfileConsentIntentIfNeeded = func(name string, now time.Time) (*object.WecomProfileConsentIntent, bool, error) {
+		return intent, false, nil
+	}
+	transitionWecomProfileConsentIntent = newWecomProfileConsentTransitionStub(t, intent)
+
+	fakeAuthorizer := &fakeWecomProfileConsentCallbackAuthorizer{
+		err: errWecomProfileConsentEmailPermissionRequired,
+	}
+	newWecomProfileConsentCallbackAuthorizer = func() wecomProfileConsentCallbackAuthorizer {
+		return fakeAuthorizer
+	}
+
+	controller, recorder := newWecomProfileConsentTestControllerWithRequest(t, http.MethodGet, "/api/wecom-profile-consent/callback?code=auth-code&state="+issued.State, "")
+	controller.HandleWecomProfileConsentCallback()
+
+	if fakeAuthorizer.intent == nil || fakeAuthorizer.code != "auth-code" {
+		t.Fatalf("authorizer call = %#v", fakeAuthorizer)
+	}
+	if intent.Status != object.WecomProfileConsentIntentStatusFailed || intent.ErrorCode != wecomProfileConsentEmailPermissionRequiredCode {
+		t.Fatalf("failed intent = %#v", intent)
+	}
+	if !strings.Contains(intent.ErrorText, "个人敏感信息管理") || !strings.Contains(intent.ErrorText, "邮箱") {
+		t.Fatalf("error text = %q, want WeCom private email permission guidance", intent.ErrorText)
+	}
+	if !strings.Contains(recorder.Body.String(), "授权失败") {
+		t.Fatalf("callback body = %q, want failure page", recorder.Body.String())
+	}
+}
+
+func TestHandleWecomProfileConsentCallbackMarksFailedWhenAuthorizeTransitionFails(t *testing.T) {
+	oldGetIntent := getWecomProfileConsentIntentByName
+	oldExpireIntent := expireWecomProfileConsentIntentIfNeeded
+	oldTransition := transitionWecomProfileConsentIntent
+	oldNewAuthorizer := newWecomProfileConsentCallbackAuthorizer
+	defer func() {
+		getWecomProfileConsentIntentByName = oldGetIntent
+		expireWecomProfileConsentIntentIfNeeded = oldExpireIntent
+		transitionWecomProfileConsentIntent = oldTransition
+		newWecomProfileConsentCallbackAuthorizer = oldNewAuthorizer
+	}()
+
+	intent, issued := newWecomProfileConsentCompleteTestIntent(t, "intent-callback-transition-failed", object.WecomProfileConsentIntentStatusPending)
+	getWecomProfileConsentIntentByName = func(name string) (*object.WecomProfileConsentIntent, error) {
+		return intent, nil
+	}
+	expireWecomProfileConsentIntentIfNeeded = func(name string, now time.Time) (*object.WecomProfileConsentIntent, bool, error) {
+		return intent, false, nil
+	}
+	transitionCalls := 0
+	transitionWecomProfileConsentIntent = func(name string, allowedStatuses []object.WecomProfileConsentIntentStatus, mutate object.WecomProfileConsentIntentMutator) (*object.WecomProfileConsentIntent, bool, error) {
+		transitionCalls++
+		if transitionCalls == 1 {
+			return intent, false, errors.New("transition failed")
+		}
+		changed, err := mutate(intent)
+		return intent, changed, err
+	}
+
+	fakeAuthorizer := &fakeWecomProfileConsentCallbackAuthorizer{
+		result: &wecomProfileConsentCallbackAuthorizeResult{
+			User:        &object.User{Owner: "built-in", Name: "alice"},
+			WecomUserId: "zhangsan",
+		},
+	}
+	newWecomProfileConsentCallbackAuthorizer = func() wecomProfileConsentCallbackAuthorizer {
+		return fakeAuthorizer
+	}
+
+	controller, recorder := newWecomProfileConsentTestControllerWithRequest(t, http.MethodGet, "/api/wecom-profile-consent/callback?code=auth-code&state="+issued.State, "")
+	controller.HandleWecomProfileConsentCallback()
+
+	if transitionCalls != 2 {
+		t.Fatalf("transitionCalls = %d, want authorize failure plus mark failed", transitionCalls)
+	}
+	if intent.Status != object.WecomProfileConsentIntentStatusFailed || intent.ErrorCode != "authorization_failed" {
+		t.Fatalf("failed intent = %#v", intent)
+	}
+	if !strings.Contains(recorder.Body.String(), "授权失败") {
+		t.Fatalf("callback body = %q, want failure page", recorder.Body.String())
+	}
+}
+
 func TestHandleWecomProfileConsentCallbackRejectsExpiredIntentBeforeAuthorizing(t *testing.T) {
 	oldGetIntent := getWecomProfileConsentIntentByName
 	oldExpireIntent := expireWecomProfileConsentIntentIfNeeded
@@ -1045,6 +1216,292 @@ func TestDefaultWecomProfileConsentCallbackAuthorizerRejectsCorpBoundaryMismatch
 	}, "auth-code")
 	if err == nil || !strings.Contains(err.Error(), "corp boundary mismatch") {
 		t.Fatalf("AuthorizeLoginIntent() error = %v, want corp boundary mismatch", err)
+	}
+}
+
+func TestDefaultWecomProfileConsentCallbackAuthorizerRejectsOIDCEmailScopeWithoutEmail(t *testing.T) {
+	oldGetApplication := getWecomProfileConsentApplication
+	oldGetProvider := getWecomProfileConsentProvider
+	oldGetOrganization := getWecomProfileConsentOrganization
+	oldGetIdProvider := getWecomProfileConsentIdProvider
+	oldGetUserByField := getWecomProfileConsentUserByField
+	oldFindLarkUser := findWecomProfileConsentLarkUser
+	defer func() {
+		getWecomProfileConsentApplication = oldGetApplication
+		getWecomProfileConsentProvider = oldGetProvider
+		getWecomProfileConsentOrganization = oldGetOrganization
+		getWecomProfileConsentIdProvider = oldGetIdProvider
+		getWecomProfileConsentUserByField = oldGetUserByField
+		findWecomProfileConsentLarkUser = oldFindLarkUser
+	}()
+
+	getWecomProfileConsentApplication = func(id string) (*object.Application, error) {
+		return newWecomProfileConsentTestApplication(), nil
+	}
+	getWecomProfileConsentProvider = func(id string) (*object.Provider, error) {
+		return newWecomProfileConsentTestProvider(), nil
+	}
+	getWecomProfileConsentOrganization = func(id string) (*object.Organization, error) {
+		return &object.Organization{Owner: "admin", Name: "built-in"}, nil
+	}
+	getWecomProfileConsentUserByField = func(organizationName string, field string, value string) (*object.User, error) {
+		t.Fatalf("must reject missing email before user lookup, got %s=%s", field, value)
+		return nil, nil
+	}
+	findWecomProfileConsentLarkUser = func(owner string, userInfo *idp.UserInfo) (*object.User, string, error) {
+		t.Fatalf("must reject missing email before fallback user lookup")
+		return nil, "", nil
+	}
+	getWecomProfileConsentIdProvider = func(idpInfo *idp.ProviderInfo, redirectURL string) (idp.IdProvider, error) {
+		return &fakeWecomProfileConsentIdProvider{
+			userInfo: &idp.UserInfo{
+				Id: "zhangsan",
+				Extra: map[string]string{
+					"userid":                            "zhangsan",
+					"corp_id":                           "ww123",
+					idp.WeComInternalExtraHasUserTicket: "true",
+				},
+			},
+		}, nil
+	}
+
+	intent, _ := newWecomProfileConsentCompleteTestIntent(t, "intent-callback-email-scope", object.WecomProfileConsentIntentStatusPending)
+	if err := intent.SetLoginContext(&object.WecomProfileConsentLoginContext{
+		Type:         "login",
+		Method:       "signup",
+		ResponseType: "code",
+		Scope:        "openid profile email",
+	}); err != nil {
+		t.Fatalf("SetLoginContext() error = %v", err)
+	}
+
+	controller, _ := newWecomProfileConsentTestControllerWithRequest(t, http.MethodGet, "/api/wecom-profile-consent/callback", "")
+	result, err := (&defaultWecomProfileConsentCallbackAuthorizer{}).AuthorizeLoginIntent(controller, intent, "auth-code")
+	if result != nil {
+		t.Fatalf("AuthorizeLoginIntent() result = %#v, want nil", result)
+	}
+	if !errors.Is(err, errWecomProfileConsentEmailPermissionRequired) {
+		t.Fatalf("AuthorizeLoginIntent() error = %v, want email permission required", err)
+	}
+}
+
+func TestDefaultWecomProfileConsentCallbackAuthorizerAllowsOIDCEmailScopeWithEmail(t *testing.T) {
+	oldGetApplication := getWecomProfileConsentApplication
+	oldGetProvider := getWecomProfileConsentProvider
+	oldGetOrganization := getWecomProfileConsentOrganization
+	oldGetIdProvider := getWecomProfileConsentIdProvider
+	oldGetUserByField := getWecomProfileConsentUserByField
+	oldSetProfile := setWecomProfileConsentUserOAuthProfile
+	oldLinkAccount := linkWecomProfileConsentUserAccount
+	defer func() {
+		getWecomProfileConsentApplication = oldGetApplication
+		getWecomProfileConsentProvider = oldGetProvider
+		getWecomProfileConsentOrganization = oldGetOrganization
+		getWecomProfileConsentIdProvider = oldGetIdProvider
+		getWecomProfileConsentUserByField = oldGetUserByField
+		setWecomProfileConsentUserOAuthProfile = oldSetProfile
+		linkWecomProfileConsentUserAccount = oldLinkAccount
+	}()
+
+	getWecomProfileConsentApplication = func(id string) (*object.Application, error) {
+		return newWecomProfileConsentTestApplication(), nil
+	}
+	getWecomProfileConsentProvider = func(id string) (*object.Provider, error) {
+		return newWecomProfileConsentTestProvider(), nil
+	}
+	getWecomProfileConsentOrganization = func(id string) (*object.Organization, error) {
+		return &object.Organization{Owner: "admin", Name: "built-in"}, nil
+	}
+	getWecomProfileConsentIdProvider = func(idpInfo *idp.ProviderInfo, redirectURL string) (idp.IdProvider, error) {
+		return &fakeWecomProfileConsentIdProvider{
+			userInfo: &idp.UserInfo{
+				Id:    "zhangsan",
+				Email: "zhangsan@example.com",
+				Extra: map[string]string{
+					"userid":                            "zhangsan",
+					"corp_id":                           "ww123",
+					idp.WeComInternalExtraHasUserTicket: "true",
+				},
+			},
+		}, nil
+	}
+	getWecomProfileConsentUserByField = func(organizationName string, field string, value string) (*object.User, error) {
+		if organizationName != "built-in" || field != "WeCom" || value != "zhangsan" {
+			t.Fatalf("GetUserByField(%q, %q, %q)", organizationName, field, value)
+		}
+		return &object.User{Owner: "built-in", Name: "alice"}, nil
+	}
+	setWecomProfileConsentUserOAuthProfile = func(organization *object.Organization, user *object.User, providerType string, userInfo *idp.UserInfo, token *oauth2.Token, userMapping ...map[string]string) (bool, error) {
+		if token != nil {
+			t.Fatalf("token persisted for sensitive consent flow: %#v", token)
+		}
+		if providerType != "WeCom" || userInfo.Email != "zhangsan@example.com" {
+			t.Fatalf("profile save providerType=%q userInfo=%#v", providerType, userInfo)
+		}
+		return true, nil
+	}
+	linkWecomProfileConsentUserAccount = func(user *object.User, field string, value string) (bool, error) {
+		if user.Name != "alice" || field != "WeCom" || value != "zhangsan" {
+			t.Fatalf("LinkUserAccount(%#v, %q, %q)", user, field, value)
+		}
+		return true, nil
+	}
+
+	intent, _ := newWecomProfileConsentCompleteTestIntent(t, "intent-callback-email-scope-success", object.WecomProfileConsentIntentStatusPending)
+	if err := intent.SetLoginContext(&object.WecomProfileConsentLoginContext{
+		Type:         "login",
+		Method:       "signup",
+		ResponseType: "code",
+		Scope:        "openid profile email",
+	}); err != nil {
+		t.Fatalf("SetLoginContext() error = %v", err)
+	}
+
+	controller, _ := newWecomProfileConsentTestControllerWithRequest(t, http.MethodGet, "/api/wecom-profile-consent/callback", "")
+	result, err := (&defaultWecomProfileConsentCallbackAuthorizer{}).AuthorizeLoginIntent(controller, intent, "auth-code")
+	if err != nil {
+		t.Fatalf("AuthorizeLoginIntent() error = %v", err)
+	}
+	if result == nil || result.User == nil || result.User.Name != "alice" || result.WecomUserId != "zhangsan" {
+		t.Fatalf("AuthorizeLoginIntent() result = %#v", result)
+	}
+}
+
+func TestDefaultWecomProfileConsentCallbackAuthorizerRejectsInvalidLoginInputs(t *testing.T) {
+	tests := []struct {
+		name            string
+		configure       func(intent *object.WecomProfileConsentIntent)
+		application     *object.Application
+		applicationErr  error
+		organization    *object.Organization
+		organizationErr error
+		provider        *object.Provider
+		providerErr     error
+		idProvider      idp.IdProvider
+		idProviderErr   error
+		userLookupErr   error
+		wantErr         string
+	}{
+		{name: "application lookup error", applicationErr: errors.New("application lookup failed"), wantErr: "application lookup failed"},
+		{name: "application missing", application: nil, wantErr: "application is invalid"},
+		{name: "provider item missing", application: &object.Application{Owner: "admin", Name: "app-built-in", Organization: "built-in"}, wantErr: "provider is not enabled"},
+		{name: "organization lookup error", organizationErr: errors.New("organization lookup failed"), wantErr: "organization lookup failed"},
+		{name: "organization missing", organization: nil, wantErr: "organization is unavailable"},
+		{name: "provider lookup error", providerErr: errors.New("provider lookup failed"), wantErr: "provider lookup failed"},
+		{name: "provider missing", provider: nil, wantErr: "provider is invalid"},
+		{name: "provider incomplete", provider: func() *object.Provider {
+			provider := newWecomProfileConsentTestProvider()
+			provider.ClientSecret = ""
+			return provider
+		}(), wantErr: "configuration is incomplete"},
+		{name: "corp boundary mismatch", configure: func(intent *object.WecomProfileConsentIntent) {
+			intent.CorpId = "ww-other"
+		}, wantErr: "corp boundary mismatch"},
+		{name: "agent boundary mismatch", configure: func(intent *object.WecomProfileConsentIntent) {
+			intent.AgentId = "1000003"
+		}, wantErr: "agent boundary mismatch"},
+		{name: "id provider lookup error", idProviderErr: errors.New("id provider failed"), wantErr: "id provider failed"},
+		{name: "id provider missing", idProvider: nil, wantErr: "provider is unsupported"},
+		{name: "token exchange error", idProvider: &fakeWecomProfileConsentIdProvider{tokenErr: errors.New("token failed")}, wantErr: "token failed"},
+		{name: "token invalid", idProvider: &fakeWecomProfileConsentIdProvider{token: &oauth2.Token{}}, wantErr: "token is invalid"},
+		{name: "userinfo error", idProvider: &fakeWecomProfileConsentIdProvider{userInfoErr: errors.New("userinfo failed")}, wantErr: "userinfo failed"},
+		{name: "userinfo missing", idProvider: &fakeWecomProfileConsentIdProvider{}, wantErr: "user info is invalid"},
+		{name: "user ticket missing", idProvider: &fakeWecomProfileConsentIdProvider{userInfo: &idp.UserInfo{Id: "zhangsan"}}, wantErr: "user ticket is missing"},
+		{name: "wecom user missing", idProvider: &fakeWecomProfileConsentIdProvider{userInfo: &idp.UserInfo{
+			Extra: map[string]string{idp.WeComInternalExtraHasUserTicket: "true"},
+		}}, wantErr: "wecom user is invalid"},
+		{name: "userinfo corp mismatch", idProvider: &fakeWecomProfileConsentIdProvider{userInfo: &idp.UserInfo{
+			Id: "zhangsan",
+			Extra: map[string]string{
+				"corp_id":                           "ww-other",
+				idp.WeComInternalExtraHasUserTicket: "true",
+			},
+		}}, wantErr: "corp boundary mismatch"},
+		{name: "user lookup error", userLookupErr: errors.New("user lookup failed"), wantErr: "user lookup failed"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			oldGetApplication := getWecomProfileConsentApplication
+			oldGetProvider := getWecomProfileConsentProvider
+			oldGetOrganization := getWecomProfileConsentOrganization
+			oldGetIdProvider := getWecomProfileConsentIdProvider
+			oldGetUserByField := getWecomProfileConsentUserByField
+			oldSetProfile := setWecomProfileConsentUserOAuthProfile
+			oldLinkAccount := linkWecomProfileConsentUserAccount
+			defer func() {
+				getWecomProfileConsentApplication = oldGetApplication
+				getWecomProfileConsentProvider = oldGetProvider
+				getWecomProfileConsentOrganization = oldGetOrganization
+				getWecomProfileConsentIdProvider = oldGetIdProvider
+				getWecomProfileConsentUserByField = oldGetUserByField
+				setWecomProfileConsentUserOAuthProfile = oldSetProfile
+				linkWecomProfileConsentUserAccount = oldLinkAccount
+			}()
+
+			application := tt.application
+			if application == nil && tt.applicationErr == nil && tt.wantErr != "application is invalid" {
+				application = newWecomProfileConsentTestApplication()
+			}
+			organization := tt.organization
+			if organization == nil && tt.organizationErr == nil && tt.wantErr != "organization is invalid" && tt.wantErr != "organization is unavailable" {
+				organization = &object.Organization{Owner: "admin", Name: "built-in"}
+			}
+			provider := tt.provider
+			if provider == nil && tt.providerErr == nil && tt.wantErr != "provider is invalid" {
+				provider = newWecomProfileConsentTestProvider()
+			}
+			idProvider := tt.idProvider
+			if idProvider == nil && tt.idProviderErr == nil && tt.wantErr != "provider is unsupported" {
+				idProvider = &fakeWecomProfileConsentIdProvider{userInfo: &idp.UserInfo{
+					Id:    "zhangsan",
+					Email: "zhangsan@example.com",
+					Extra: map[string]string{
+						"userid":                            "zhangsan",
+						"corp_id":                           "ww123",
+						idp.WeComInternalExtraHasUserTicket: "true",
+					},
+				}}
+			}
+
+			getWecomProfileConsentApplication = func(id string) (*object.Application, error) {
+				return application, tt.applicationErr
+			}
+			getWecomProfileConsentProvider = func(id string) (*object.Provider, error) {
+				return provider, tt.providerErr
+			}
+			getWecomProfileConsentOrganization = func(id string) (*object.Organization, error) {
+				return organization, tt.organizationErr
+			}
+			getWecomProfileConsentIdProvider = func(idpInfo *idp.ProviderInfo, redirectURL string) (idp.IdProvider, error) {
+				return idProvider, tt.idProviderErr
+			}
+			getWecomProfileConsentUserByField = func(organizationName string, field string, value string) (*object.User, error) {
+				if tt.userLookupErr != nil {
+					return nil, tt.userLookupErr
+				}
+				return &object.User{Owner: "built-in", Name: "alice"}, nil
+			}
+			setWecomProfileConsentUserOAuthProfile = func(organization *object.Organization, user *object.User, providerType string, userInfo *idp.UserInfo, token *oauth2.Token, userMapping ...map[string]string) (bool, error) {
+				return true, nil
+			}
+			linkWecomProfileConsentUserAccount = func(user *object.User, field string, value string) (bool, error) {
+				return true, nil
+			}
+
+			intent, _ := newWecomProfileConsentCompleteTestIntent(t, "intent-callback-invalid-"+strings.ReplaceAll(tt.name, " ", "-"), object.WecomProfileConsentIntentStatusPending)
+			if tt.configure != nil {
+				tt.configure(intent)
+			}
+			controller, _ := newWecomProfileConsentTestControllerWithRequest(t, http.MethodGet, "/api/wecom-profile-consent/callback", "")
+			result, err := (&defaultWecomProfileConsentCallbackAuthorizer{}).AuthorizeLoginIntent(controller, intent, "auth-code")
+			if result != nil {
+				t.Fatalf("AuthorizeLoginIntent() result = %#v, want nil", result)
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("AuthorizeLoginIntent() error = %v, want containing %q", err, tt.wantErr)
+			}
+		})
 	}
 }
 
@@ -1989,8 +2446,9 @@ func newWecomProfileConsentTestApplication() *object.Application {
 		Organization: "built-in",
 		Providers: []*object.ProviderItem{
 			{
-				Owner: "admin",
-				Name:  "wecom-internal",
+				Owner:              "admin",
+				Name:               "wecom-internal",
+				TargetOrganization: "built-in",
 				Provider: &object.Provider{
 					Category: "OAuth",
 					Type:     "WeCom",

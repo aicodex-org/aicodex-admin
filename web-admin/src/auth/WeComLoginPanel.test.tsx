@@ -51,6 +51,7 @@ type WeComIntentTestResponse = {
     expiresAt?: string;
     pollToken?: string;
     status?: string;
+    errorCode?: string;
     errorText?: string;
   } | string;
   data2?: Array<{
@@ -425,6 +426,29 @@ describe("WeComLoginPanel", () => {
     expect(getByText("network failed")).toBeInTheDocument();
   });
 
+  test("normalizes non-Error rejection messages", async() => {
+    createWecomProfileConsentLoginIntentMock.mockRejectedValue({message: "object message failed"});
+
+    const {getByText, rerender} = render(
+      <WeComLoginPanel
+        application={internalWeComApplication}
+        loginMethod="wecom"
+      />
+    );
+    await flushEffects();
+    expect(getByText("object message failed")).toBeInTheDocument();
+
+    createWecomProfileConsentLoginIntentMock.mockRejectedValue("string rejection");
+    rerender(
+      <WeComLoginPanel
+        application={{...internalWeComApplication}}
+        loginMethod="wecom"
+      />
+    );
+    await flushEffects();
+    expect(getByText("Failed to create WeCom authorization QR code")).toBeInTheDocument();
+  });
+
   test("polls authorization status and completes login after authorization", async() => {
     jest.useFakeTimers();
     const onLoginResponse = jest.fn();
@@ -574,6 +598,42 @@ describe("WeComLoginPanel", () => {
     });
 
     expect(getByText("scan expired")).toBeInTheDocument();
+    expect(getByTestId("wecom-oauth-qrcode")).toHaveAttribute("data-status", "expired");
+  });
+
+  test("shows email permission guidance when WeCom did not return email", async() => {
+    jest.useFakeTimers();
+    createWecomProfileConsentLoginIntentMock.mockResolvedValue({
+      status: "ok",
+      data: {
+        intentId: "intent-1",
+        authUrl: "https://open.weixin.qq.com/connect/oauth2/authorize?scope=snsapi_privateinfo",
+        expiresAt: "2026-06-04T12:05:00Z",
+        pollToken: "poll-token-1",
+      },
+    });
+    getWecomProfileConsentIntentStatusMock.mockResolvedValue({
+      status: "ok",
+      data: {
+        status: "failed",
+        errorCode: "wecom_profile_email_permission_required",
+      },
+    });
+
+    const {getByText, getByTestId} = render(
+      <WeComLoginPanel
+        application={internalWeComApplication}
+        loginMethod="wecom"
+      />
+    );
+
+    await flushEffects();
+    await act(async() => {
+      jest.advanceTimersByTime(1500);
+      await Promise.resolve();
+    });
+
+    expect(getByText("WeCom email permission is required. Enable email in WeCom personal sensitive information management, then scan again")).toBeInTheDocument();
     expect(getByTestId("wecom-oauth-qrcode")).toHaveAttribute("data-status", "expired");
   });
 

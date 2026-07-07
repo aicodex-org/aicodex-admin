@@ -2,10 +2,10 @@
 
 当前仓库已经具备部分企业微信登录基础能力，但能力分布是断裂的：
 
-- 前端登录页 [`web-admin/src/auth/LoginPage.js`](/Users/mt/code/mt-ai/aicodex/aicodex-admin/web-admin/src/auth/LoginPage.js) 仍以密码、验证码、WebAuthn、LDAP、Face ID 和 WeChat 为主，没有像参考项目 `../CRM-Agent` 那样提供明确的企业微信扫码登录页签、扫码容器和反馈状态。
-- OAuth 登录跳转构造逻辑已在 [`web-admin/src/auth/Provider.js`](/Users/mt/code/mt-ai/aicodex/aicodex-admin/web-admin/src/auth/Provider.js) 中区分 `WeCom` 的 `Internal` / `Third-party` 与 `Normal` / `Silent` 模式，并已经兼容回调中的 `auth_code`。
-- 后端企业微信 IdP 已存在 [`admin/idp/wecom_internal.go`](/Users/mt/code/mt-ai/aicodex/aicodex-admin/admin/idp/wecom_internal.go) 和 [`admin/idp/wecom_third_party.go`](/Users/mt/code/mt-ai/aicodex/aicodex-admin/admin/idp/wecom_third_party.go)，但内部应用链路仍使用旧式用户信息换取接口和字段模型，和当前前端登录入口存在协议错位风险。
-- 后台 Provider 编辑页 [`web-admin/src/ProviderEditPage.js`](/Users/mt/code/mt-ai/aicodex/aicodex-admin/web-admin/src/ProviderEditPage.js) 虽然暴露了 `Sub type`、`Method`、`Scope`、`Agent ID` 等字段，但缺少基于企业微信登录场景的字段解释、必填约束、推荐配置和联调提示；部分字段复用了历史命名，如 `disableSsl` 被当作 “Use id as name”，语义不直观。
+- 前端登录页 `web-admin/src/auth/LoginPage.js` 仍以密码、验证码、WebAuthn、LDAP、Face ID 和 WeChat 为主，没有像参考项目 `../CRM-Agent` 那样提供明确的企业微信扫码登录页签、扫码容器和反馈状态。
+- OAuth 登录跳转构造逻辑已在 `web-admin/src/auth/Provider.js` 中区分 `WeCom` 的 `Internal` / `Third-party` 与 `Normal` / `Silent` 模式，并已经兼容回调中的 `auth_code`。
+- 后端企业微信 IdP 已存在 `admin/idp/wecom_internal.go` 和 `admin/idp/wecom_third_party.go`，但内部应用链路仍使用旧式用户信息换取接口和字段模型，和当前前端登录入口存在协议错位风险。
+- 后台 Provider 编辑页 `web-admin/src/ProviderEditPage.js` 虽然暴露了 `Sub type`、`Method`、`Scope`、`Agent ID` 等字段，但缺少基于企业微信登录场景的字段解释、必填约束、推荐配置和联调提示；部分字段复用了历史命名，如 `disableSsl` 被当作 “Use id as name”，语义不直观。
 
 用户明确希望参考 `../CRM-Agent` 的已实现方案，并在当前主页中加入企业微信扫码登录，同时补齐后台企业微信登录配置。因此本次设计既要覆盖首页交互，也要覆盖运营配置和登录链路的一致性。
 

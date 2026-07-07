@@ -1369,6 +1369,7 @@
     "Verification code": "Verification code",
     "WeChat": "WeChat",
     "WeCom authorization failed. Please retry": "WeCom authorization failed. Please retry",
+    "WeCom email permission is required. Enable email in WeCom personal sensitive information management, then scan again": "WeCom email permission is required. Enable email in WeCom personal sensitive information management, then scan again",
     "WeCom": "WeCom",
     "WeCom QR code has expired": "WeCom QR code has expired",
     "WeCom login configuration is incomplete. Please check Corp ID, Secret and Agent ID": "WeCom login configuration is incomplete. Please check Corp ID, Secret and Agent ID",

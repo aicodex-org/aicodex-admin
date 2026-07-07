@@ -27,6 +27,7 @@ const WeComWidgetScript = "https://wwcdn.weixin.qq.com/node/wework/wwopen/js/wwL
 const WeComOAuthQRCodeSize = 256;
 const WeComOAuthQRCodeQuietZone = 12;
 const WeComOAuthScanPanelMinHeight = WeComOAuthQRCodeSize + WeComOAuthQRCodeQuietZone * 2 + 20;
+const WeComEmailPermissionRequiredCode = "wecom_profile_email_permission_required";
 
 interface WeComLoginWidgetOptions {
   id: string;
@@ -123,6 +124,20 @@ function getErrorMessage(error: unknown, fallback: string): string {
     return error.message;
   }
   return fallback;
+}
+
+// 后端用稳定 errorCode 标识企业微信邮箱敏感权限缺失，前端负责按当前语言给出可操作修复提示。
+function getIntentStatusErrorMessage(data: unknown): string {
+  if (typeof data !== "object" || data === null) {
+    return "";
+  }
+
+  const errorCode = "errorCode" in data && typeof data.errorCode === "string" ? data.errorCode : "";
+  if (errorCode === WeComEmailPermissionRequiredCode) {
+    return t("login:WeCom email permission is required. Enable email in WeCom personal sensitive information management, then scan again");
+  }
+
+  return "errorText" in data && typeof data.errorText === "string" ? data.errorText : "";
 }
 
 let widgetScriptPromise: Promise<void> | null = null;
@@ -431,7 +446,7 @@ class WeComLoginPanel extends React.Component<WeComLoginPanelProps, WeComLoginPa
         this.clearPolling();
         this.setState({
           status: nextStatus,
-          errorMessage: res.data?.errorText || "",
+          errorMessage: getIntentStatusErrorMessage(res.data),
         });
       } else if (nextStatus === "completed") {
         this.clearPolling();

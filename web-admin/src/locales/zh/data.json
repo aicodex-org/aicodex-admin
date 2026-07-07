@@ -1369,6 +1369,7 @@
     "Verification code": "验证码",
     "WeChat": "微信",
     "WeCom authorization failed. Please retry": "企业微信授权失败，请重试",
+    "WeCom email permission is required. Enable email in WeCom personal sensitive information management, then scan again": "企业微信未返回邮箱。请在企业微信个人敏感信息管理中允许邮箱权限后，重新扫码登录。",
     "WeCom": "企业微信",
     "WeCom QR code has expired": "企业微信二维码已过期",
     "WeCom login configuration is incomplete. Please check Corp ID, Secret and Agent ID": "企业微信登录配置不完整，请检查 Corp ID、Secret 和 Agent ID",

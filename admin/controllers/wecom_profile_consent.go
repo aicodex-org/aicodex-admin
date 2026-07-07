@@ -16,6 +16,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -28,7 +29,13 @@ import (
 	"git.leagsoft.com/aicodex/aicodex-admin/util"
 )
 
-const wecomProfileConsentPollTokenHeader = "X-WeCom-Profile-Consent-Poll-Token"
+const (
+	wecomProfileConsentPollTokenHeader                  = "X-WeCom-Profile-Consent-Poll-Token"
+	wecomProfileConsentEmailPermissionRequiredCode      = "wecom_profile_email_permission_required"
+	wecomProfileConsentEmailPermissionRequiredErrorText = "企业微信未返回邮箱。请在企业微信「个人敏感信息管理」中允许邮箱权限后，重新扫码登录。"
+)
+
+var errWecomProfileConsentEmailPermissionRequired = errors.New(wecomProfileConsentEmailPermissionRequiredCode)
 
 type wecomProfileConsentLoginIntentIssuer interface {
 	IssueLoginIntent(request *object.WecomProfileConsentLoginIntentIssueRequest, provider *object.Provider) (*object.WecomProfileConsentLoginIntentIssueResult, error)
@@ -57,6 +64,7 @@ var (
 	getWecomProfileConsentIntentByName      = object.GetWecomProfileConsentIntentByName
 	expireWecomProfileConsentIntentIfNeeded = object.ExpireWecomProfileConsentIntentIfNeeded
 	transitionWecomProfileConsentIntent     = object.TransitionWecomProfileConsentIntent
+	getWecomProfileConsentIdProvider        = idp.GetIdProvider
 	checkWecomProfileConsentMasterCode      = func(c *ApiController, user *object.User, code string) (bool, error) {
 		return c.checkOrgMasterVerificationCode(user, code)
 	}
@@ -623,7 +631,13 @@ func (c *ApiController) HandleWecomProfileConsentCallback() {
 func (c *ApiController) handleWecomProfileConsentLoginCallback(intent *object.WecomProfileConsentIntent, rawState string, code string) {
 	result, err := newWecomProfileConsentCallbackAuthorizer().AuthorizeLoginIntent(c, intent, code)
 	if err != nil || result == nil || result.User == nil {
-		c.markWecomProfileConsentIntentFailed(intent.Name, "authorization_failed")
+		errorCode := "authorization_failed"
+		errorText := ""
+		if errors.Is(err, errWecomProfileConsentEmailPermissionRequired) {
+			errorCode = wecomProfileConsentEmailPermissionRequiredCode
+			errorText = wecomProfileConsentEmailPermissionRequiredErrorText
+		}
+		c.markWecomProfileConsentIntentFailed(intent.Name, errorCode, errorText)
 		c.renderWecomProfileConsentCallbackPage(false)
 		return
 	}
@@ -696,13 +710,17 @@ func (c *ApiController) renderWecomProfileConsentCallbackPage(success bool) {
 	_, _ = c.Ctx.ResponseWriter.Write([]byte(fmt.Sprintf(`<!doctype html><html><head><meta charset="utf-8"><title>%s</title></head><body><main><h1>%s</h1><p>%s</p></main></body></html>`, title, title, message)))
 }
 
-func (c *ApiController) markWecomProfileConsentIntentFailed(intentName string, errorCode string) {
+func (c *ApiController) markWecomProfileConsentIntentFailed(intentName string, errorCode string, errorText ...string) {
+	resolvedErrorText := "wecom profile consent authorization failed"
+	if len(errorText) > 0 && strings.TrimSpace(errorText[0]) != "" {
+		resolvedErrorText = strings.TrimSpace(errorText[0])
+	}
 	_, _, _ = transitionWecomProfileConsentIntent(intentName, []object.WecomProfileConsentIntentStatus{
 		object.WecomProfileConsentIntentStatusPending,
 	}, func(intent *object.WecomProfileConsentIntent) (bool, error) {
 		intent.Status = object.WecomProfileConsentIntentStatusFailed
 		intent.ErrorCode = strings.TrimSpace(errorCode)
-		intent.ErrorText = "wecom profile consent authorization failed"
+		intent.ErrorText = resolvedErrorText
 		return true, nil
 	})
 }
@@ -796,7 +814,7 @@ func (s *defaultWecomProfileConsentCallbackAuthorizer) AuthorizeLoginIntent(c *A
 	if err != nil {
 		return nil, err
 	}
-	idProvider, err := idp.GetIdProvider(idpInfo, object.BuildWecomProfileConsentCallbackURL(c.Ctx.Request.Host))
+	idProvider, err := getWecomProfileConsentIdProvider(idpInfo, object.BuildWecomProfileConsentCallbackURL(c.Ctx.Request.Host))
 	if err != nil {
 		return nil, err
 	}
@@ -829,6 +847,9 @@ func (s *defaultWecomProfileConsentCallbackAuthorizer) AuthorizeLoginIntent(c *A
 	}
 	if corpId := strings.TrimSpace(userInfo.Extra["corp_id"]); corpId != "" && corpId != provider.ClientId {
 		return nil, fmt.Errorf("wecom profile consent corp boundary mismatch")
+	}
+	if requiresEmailClaimForWecomProfileConsent(intent) && strings.TrimSpace(userInfo.Email) == "" {
+		return nil, errWecomProfileConsentEmailPermissionRequired
 	}
 
 	user, err := resolveWecomProfileConsentLoginUser(c, application, organization, providerItem, provider, userInfo, wecomUserId)
@@ -928,6 +949,33 @@ func requireWecomProfileConsentUserTicket(userInfo *idp.UserInfo) error {
 		return fmt.Errorf("wecom profile consent user ticket is missing")
 	}
 	return nil
+}
+
+// requiresEmailClaimForWecomProfileConsent 判断当前扫码意图是否承接了要求 email claim 的 OIDC 登录请求。
+func requiresEmailClaimForWecomProfileConsent(intent *object.WecomProfileConsentIntent) bool {
+	loginContext, err := intent.GetLoginContext()
+	if err != nil || loginContext == nil {
+		return false
+	}
+	return wecomProfileConsentScopeIncludes(loginContext.Scope, "email")
+}
+
+// wecomProfileConsentScopeIncludes 按 OAuth/OIDC scope token 精确匹配，避免把 login:email 等非 email claim scope 误判为邮箱要求。
+func wecomProfileConsentScopeIncludes(scope string, expected string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(scope))
+	normalized = strings.NewReplacer(
+		"+", " ",
+		",", " ",
+		"%20", " ",
+		"%2c", " ",
+		"%2C", " ",
+	).Replace(normalized)
+	for _, token := range strings.Fields(normalized) {
+		if token == expected {
+			return true
+		}
+	}
+	return false
 }
 
 func resolveWecomProfileConsentLoginUser(c *ApiController, application *object.Application, organization *object.Organization, providerItem *object.ProviderItem, provider *object.Provider, userInfo *idp.UserInfo, wecomUserId string) (*object.User, error) {
