@@ -2,7 +2,7 @@
 import React from "react";
 import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {cleanup, render} from "@testing-library/react";
-import {Button, Input, Select, Switch} from "antd";
+import {Button, Input, Modal, Select, Switch} from "antd";
 import * as Setting from "./Setting";
 import * as RoleBackend from "./backend/RoleBackend";
 import * as PermissionBackend from "./backend/PermissionBackend";
@@ -438,9 +438,13 @@ test("renders role edit controls and selector callbacks", () => {
   };
 
   const view = render(page.renderRole() as React.ReactElement);
-  expect(view.container.querySelector(".admin-identity-object-edit-card.role-edit-card")).not.toBeNull();
-  expect(view.container.querySelectorAll(".admin-identity-object-edit-field-row")).toHaveLength(9);
+  expect(view.container.querySelector(".identity-object-edit-card.role-edit-card")).not.toBeNull();
+  expect(view.container.querySelector(".identity-object-edit-header")).not.toBeNull();
+  expect(view.container.querySelector(".identity-object-edit-action-bar")).not.toBeNull();
+  expect(view.container.querySelectorAll(".identity-object-edit-section")).toHaveLength(2);
+  expect(view.container.querySelectorAll(".identity-object-edit-field-row")).toHaveLength(9);
   expect(view.getByDisplayValue("role-main")).not.toBeNull();
+  expect(view.container.querySelectorAll(".identity-object-edit-action-bar .ant-btn")).toHaveLength(3);
 
   const paginateSelects = view.getAllByTestId("paginate-select");
   paginateSelects[0].dispatchEvent(new MouseEvent("click", {bubbles: true}));
@@ -448,6 +452,68 @@ test("renders role edit controls and selector callbacks", () => {
 
   jestValue.spyOn(Setting, "isMobile").mockReturnValue(true);
   expect(page.renderRole()).not.toBeNull();
+});
+
+test("renders role page root with shared identity edit class", () => {
+  const page = createRolePage();
+  page.state = {
+    ...page.state,
+    role: {...role},
+  };
+
+  const view = render(page.render() as React.ReactElement);
+
+  expect(view.container.querySelector(".identity-object-edit-page.role-edit-page")).not.toBeNull();
+});
+
+test("blocks role save before required fields are filled", () => {
+  const page = createRolePage();
+  page.state = {
+    ...page.state,
+    role: {...role, name: " ", displayName: ""},
+  };
+
+  page.submitRoleEdit(false);
+
+  expect(roleBackendMock.updateRole).not.toHaveBeenCalled();
+  expect(page.state.fieldErrors).toEqual({
+    name: "此字段必填",
+    displayName: "此字段必填",
+  });
+  expect(Setting.showMessage).toHaveBeenCalledWith("error", "请补齐角色必填字段。");
+});
+
+test("confirms dirty role cancel and back before leaving", async() => {
+  const confirmSpy = jestValue.spyOn(Modal, "confirm").mockImplementation((config) => {
+    config.onOk?.();
+    return {destroy: jestValue.fn(), update: jestValue.fn()};
+  });
+  const page = createRolePage();
+  const history = page.props.history as ReturnType<typeof createHistory>;
+  page.state = {
+    ...page.state,
+    role: {...role},
+    dirty: true,
+  };
+
+  page.handleCancel();
+
+  expect(confirmSpy).toHaveBeenCalledWith(expect.objectContaining({
+    title: "当前角色有未保存修改，确认不保存并离开？",
+  }));
+  expect(history.push).toHaveBeenCalledWith("/roles");
+
+  const addPage = createRolePage(adminAccount, {mode: "add"});
+  addPage.state = {
+    ...addPage.state,
+    mode: "add",
+    role: {...role},
+    dirty: true,
+  };
+  addPage.handleBack();
+  await flushPromises();
+
+  expect(roleBackendMock.deleteRole).toHaveBeenCalledWith(expect.objectContaining({name: "role-main"}));
 });
 
 test("keeps role edit form handlers and guard branches", async() => {

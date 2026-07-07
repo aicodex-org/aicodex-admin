@@ -312,23 +312,24 @@ class GroupEditPage extends React.Component<GroupEditPageProps, GroupEditPageSta
 
   renderRequiredLabel(label: React.ReactNode, required = false): React.ReactNode {
     return (
-      <span className="group-edit-field-label-text">
-        {required ? <span className="group-edit-required-mark" aria-hidden="true">*</span> : null}
+      <span className="identity-object-edit-field-label-text group-edit-field-label-text">
+        {required ? <span className="identity-object-edit-required-mark group-edit-required-mark" aria-hidden="true">*</span> : null}
         <span>{label}</span>
-        <span className="group-edit-label-colon">:</span>
+        <span className="identity-object-edit-label-colon group-edit-label-colon">:</span>
       </span>
     );
   }
 
   renderFieldRow(label: React.ReactNode, control: React.ReactNode, options: {required?: boolean; error?: string; wide?: boolean} = {}) {
+    const wideClassName = options.wide === true ? " identity-object-edit-field-row-wide group-edit-field-row-wide" : "";
     return (
-      <div className={`group-edit-field-row${options.wide === true ? " group-edit-field-row-wide" : ""}`}>
-        <div className="group-edit-field-label">
+      <div className={`identity-object-edit-field-row group-edit-field-row${wideClassName}`}>
+        <div className="identity-object-edit-field-label group-edit-field-label">
           {this.renderRequiredLabel(label, options.required)}
         </div>
-        <div className="group-edit-field-control">
+        <div className="identity-object-edit-field-control group-edit-field-control">
           {control}
-          {options.error !== undefined ? <div className="group-edit-field-error">{options.error}</div> : null}
+          {options.error !== undefined ? <div className="identity-object-edit-field-error group-edit-field-error">{options.error}</div> : null}
         </div>
       </div>
     );
@@ -445,23 +446,30 @@ class GroupEditPage extends React.Component<GroupEditPageProps, GroupEditPageSta
     const sourceManagedFieldsDisabled = isDirectorySynced;
 
     return (
-      <Card className="admin-identity-object-edit-card group-edit-card" size="small" variant="borderless" style={(Setting.isMobile()) ? {margin: "5px"} : {}}>
-        <div className="group-edit-shell">
-          <div className="group-edit-header">
-            <Button className="group-edit-back-button" type="text" icon={<ArrowLeftOutlined />} onClick={() => this.handleBack()}>
+      <Card
+        className="identity-object-edit-card group-edit-card"
+        size="small"
+        variant="borderless"
+        style={(Setting.isMobile()) ? {margin: "5px"} : {}}
+        styles={{body: {height: "100%", padding: 0}}}
+        type="inner"
+      >
+        <div className="identity-object-edit-shell group-edit-shell">
+          <div className="identity-object-edit-header group-edit-header">
+            <Button className="identity-object-edit-back-button group-edit-back-button" type="text" icon={<ArrowLeftOutlined />} onClick={() => this.handleBack()}>
               {t("general:Back")}
             </Button>
-            <span className="group-edit-breadcrumb">{t("general:Organization & Accounts")} / {t("general:Groups")} /</span>
-            <span className="group-edit-title">
+            <span className="identity-object-edit-breadcrumb group-edit-breadcrumb">{t("general:Organization & Accounts")} / {t("general:Groups")} /</span>
+            <span className="identity-object-edit-title group-edit-title">
               {this.state.mode === "add" ? t("group:New Group") : `${t("group:Edit Group")} (${group.displayName || group.name})`}
             </span>
-            {this.state.dirty ? <span className="group-edit-dirty-state">{t("group:Unsaved changes")}</span> : null}
+            {this.state.dirty ? <span className="identity-object-edit-dirty-state group-edit-dirty-state">{t("group:Unsaved changes")}</span> : null}
           </div>
 
-          <div className="group-edit-scroll-content">
-            <section className="group-edit-section">
-              <h2 className="group-edit-section-title">{t("group:Basic information")}</h2>
-              <div className="group-edit-field-grid">
+          <div className="identity-object-edit-scroll-content group-edit-scroll-content">
+            <section className="identity-object-edit-section group-edit-section">
+              <h2 className="identity-object-edit-section-title group-edit-section-title">{t("group:Basic information")}</h2>
+              <div className="identity-object-edit-field-grid group-edit-field-grid">
                 {this.renderFieldRow(
                   Setting.getLabel(t("general:Organization"), t("general:Organization - Tooltip")),
                   <Select virtual={false} disabled={sourceManagedFieldsDisabled || !Setting.isAdminUser(this.props.account)} value={group.owner}
@@ -515,7 +523,7 @@ class GroupEditPage extends React.Component<GroupEditPageProps, GroupEditPageSta
                   }} />
                 )}
                 {isDirectorySynced ? (
-                  <div className="group-edit-field-row-wide group-edit-directory-alert">
+                  <div className="identity-object-edit-field-row-wide group-edit-field-row-wide group-edit-directory-alert">
                     <Alert
                       type="info"
                       showIcon
@@ -533,10 +541,10 @@ class GroupEditPage extends React.Component<GroupEditPageProps, GroupEditPageSta
             </section>
           </div>
 
-          <div className="group-edit-action-bar">
+          <div className="identity-object-edit-action-bar group-edit-action-bar">
             <Button disabled={this.state.submitting} onClick={() => this.handleCancel()}>{t("general:Cancel")}</Button>
-            <Button loading={this.state.submitting} onClick={() => this.submitGroupEdit(false)}>{t("general:Save")}</Button>
-            <Button type="primary" loading={this.state.submitting} onClick={() => this.submitGroupEdit(true)}>{t("group:Save and return")}</Button>
+            <Button type="primary" loading={this.state.submitting} onClick={() => this.submitGroupEdit(false)}>{t("general:Save")}</Button>
+            <Button disabled={this.state.submitting} onClick={() => this.submitGroupEdit(true)}>{t("group:Save and return")}</Button>
           </div>
         </div>
       </Card>
@@ -605,7 +613,7 @@ class GroupEditPage extends React.Component<GroupEditPageProps, GroupEditPageSta
 
   render() {
     return (
-      <div className="admin-identity-object-edit-page group-edit-page">
+      <div className="identity-object-edit-page group-edit-page">
         {
           this.state.group !== null ? this.renderGroup() : null
         }

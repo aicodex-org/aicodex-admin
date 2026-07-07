@@ -40,6 +40,7 @@ jest.mock("./ServerStorePage", () => () => <main data-testid="server-store-page"
 jest.mock("./OrganizationTreeOperationsPage", () => () => <main data-testid="organization-tree-operations-page" />);
 jest.mock("./OrganizationEditPage", () => () => <main data-testid="organization-edit-page" />);
 jest.mock("./GroupEditPage", () => () => <main data-testid="group-edit-page" />);
+jest.mock("./RoleEditPage", () => () => <main data-testid="role-edit-page" />);
 jest.mock("./ApplicationListPage", () => () => <main data-testid="application-list-page" />);
 jest.mock("./ApplicationEditPage", () => () => <main data-testid="application-edit-page" />);
 jest.mock("./ProviderEditPage", () => () => <main data-testid="provider-edit-page" />);
@@ -237,7 +238,9 @@ describe("ManagementPage admin shell sidebar", () => {
   test("keeps large edit pages in the cardless internal scroll container", () => {
     const editRoutes = [
       {path: "/organizations/built-in", testId: "organization-edit-page"},
+      {path: "/groups/built-in/group-main", testId: "group-edit-page"},
       {path: "/users/built-in/admin", testId: "user-edit-page"},
+      {path: "/roles/built-in/admin-role", testId: "role-edit-page"},
       {path: "/applications/built-in/app-built-in", testId: "application-edit-page"},
       {path: "/providers/built-in/provider-built-in", testId: "provider-edit-page"},
       {path: "/syncers/syncer-built-in", testId: "syncer-edit-page"},

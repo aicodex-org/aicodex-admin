@@ -2011,16 +2011,27 @@
     "Upload a file...": "上传文件..."
   },
   "role": {
+    "Authorization scope": "授权范围",
+    "Basic information": "基础信息",
+    "Discard unsaved changes confirmation": "当前角色有未保存修改，确认不保存并离开？",
     "Edit Role": "编辑角色",
     "New Role": "添加角色",
+    "Please fill required role fields": "请补齐角色必填字段。",
+    "Role description - Tooltip": "用于帮助管理员理解该角色用途的备注说明。",
+    "Role display name - Tooltip": "在管理界面中展示的易读角色名称。",
+    "Role enabled - Tooltip": "控制该角色是否启用。关闭后不会删除角色或授权范围。",
+    "Role name - Tooltip": "角色的内部标识，用于路由、接口和角色引用。建议只在创建时谨慎设置。",
+    "Save and return": "保存并返回",
     "Sub domains": "包含域",
-    "Sub domains - Tooltip": "当前角色所包含的子域",
+    "Sub domains - Tooltip": "该角色生效的域名范围。不按域限制时可留空。",
     "Sub groups": "包含群组",
-    "Sub groups - Tooltip": "当前角色所包含的群组",
+    "Sub groups - Tooltip": "纳入该角色授权范围的群组。",
     "Sub roles": "包含角色",
-    "Sub roles - Tooltip": "当前角色所包含的子角色",
+    "Sub roles - Tooltip": "该角色继承的子角色。当前角色不能包含自身。",
     "Sub users": "包含用户",
-    "Sub users - Tooltip": "当前角色所包含的用户"
+    "Sub users - Tooltip": "直接纳入该角色授权范围的用户。",
+    "This field is required": "此字段必填",
+    "Unsaved changes": "未保存"
   },
   "rule": {
     "Allow": "允许",

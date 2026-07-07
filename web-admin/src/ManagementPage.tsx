@@ -640,7 +640,9 @@ function ManagementPage(props: ManagementPageProps) {
     ];
     const largeEditPageCardlessPatterns = [
       /^\/organizations\/[^/]+$/,
+      /^\/groups\/[^/]+\/[^/]+$/,
       /^\/users\/[^/]+\/[^/]+$/,
+      /^\/roles\/[^/]+\/[^/]+$/,
       /^\/applications\/[^/]+\/[^/]+$/,
       /^\/providers\/[^/]+\/[^/]+$/,
       /^\/syncers\/[^/]+$/,

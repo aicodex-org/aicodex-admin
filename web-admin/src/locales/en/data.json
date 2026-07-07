@@ -2011,16 +2011,27 @@
     "Upload a file...": "Upload a file..."
   },
   "role": {
+    "Authorization scope": "Authorization scope",
+    "Basic information": "Basic information",
+    "Discard unsaved changes confirmation": "This role has unsaved changes. Leave without saving?",
     "Edit Role": "Edit Role",
     "New Role": "New Role",
+    "Please fill required role fields": "Please fill in required role fields.",
+    "Role description - Tooltip": "Optional note that helps administrators understand what this role is used for.",
+    "Role display name - Tooltip": "User-friendly role name shown in the admin UI.",
+    "Role enabled - Tooltip": "Controls whether this role is enabled. Turning it off does not delete the role or its authorization scope.",
+    "Role name - Tooltip": "Internal role identifier used in routes, APIs, and role references. Set it carefully when creating the role.",
+    "Save and return": "Save and return",
     "Sub domains": "Sub domains",
-    "Sub domains - Tooltip": "Domains included in the current role",
+    "Sub domains - Tooltip": "Domains where this role is effective. Leave empty when the role is not domain-scoped.",
     "Sub groups": "Sub groups",
-    "Sub groups - Tooltip": "Groups included in the current role",
+    "Sub groups - Tooltip": "Groups that are included in this role's authorization scope.",
     "Sub roles": "Sub roles",
-    "Sub roles - Tooltip": "Roles included in the current role",
+    "Sub roles - Tooltip": "Child roles inherited by this role. The current role cannot include itself.",
     "Sub users": "Sub users",
-    "Sub users - Tooltip": "Users included in the current role"
+    "Sub users - Tooltip": "Users directly included in this role's authorization scope.",
+    "This field is required": "This field is required",
+    "Unsaved changes": "Unsaved changes"
   },
   "rule": {
     "Allow": "Allow",

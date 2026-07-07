@@ -13,7 +13,8 @@
 // limitations under the License.
 
 import React from "react";
-import {Button, Card, Col, Input, Row, Select, Switch} from "antd";
+import {ArrowLeftOutlined} from "@ant-design/icons";
+import {Button, Card, Input, Modal, Select, Switch} from "antd";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as UserBackend from "./backend/UserBackend";
 import * as GroupBackend from "./backend/GroupBackend";
@@ -105,7 +106,12 @@ type RoleEditPageState = {
   role: RoleRecord | null;
   organizations: OrganizationRecord[];
   mode: string;
+  dirty: boolean;
+  submitting: boolean;
+  fieldErrors: RoleFieldErrors;
 };
+
+type RoleFieldErrors = Partial<Record<"name" | "displayName", string>>;
 
 type RoleBackendApi = {
   getRole: (organizationName: string, roleName: string) => Promise<BackendResponse<RoleRecord>>;
@@ -141,6 +147,9 @@ class RoleEditPage extends React.Component<RoleEditPageProps, RoleEditPageState>
       role: null,
       organizations: [],
       mode: props.location?.mode !== undefined ? props.location.mode : "edit",
+      dirty: false,
+      submitting: false,
+      fieldErrors: {},
     };
   }
 
@@ -187,12 +196,111 @@ class RoleEditPage extends React.Component<RoleEditPageProps, RoleEditPageState>
       return;
     }
 
+    const fieldErrors = {...this.state.fieldErrors};
+    if (key === "name" || key === "displayName") {
+      delete fieldErrors[key];
+    }
+
     this.setState({
       role: {
         ...role,
         [key]: parsedValue,
       },
+      dirty: true,
+      fieldErrors,
     });
+  }
+
+  returnToRoleList(): void {
+    this.props.history.push("/roles");
+  }
+
+  confirmDiscardChanges(onConfirm: () => void): void {
+    if (!this.state.dirty) {
+      onConfirm();
+      return;
+    }
+
+    Modal.confirm({
+      title: t("role:Discard unsaved changes confirmation"),
+      okText: t("general:OK"),
+      cancelText: t("general:Cancel"),
+      onOk: onConfirm,
+    });
+  }
+
+  handleBack(): void {
+    this.confirmDiscardChanges(() => {
+      if (this.state.mode === "add") {
+        this.deleteRole();
+      } else {
+        this.returnToRoleList();
+      }
+    });
+  }
+
+  handleCancel(): void {
+    this.handleBack();
+  }
+
+  validateRole(): boolean {
+    const role = this.state.role;
+    if (role === null) {
+      return false;
+    }
+
+    const fieldErrors: RoleFieldErrors = {};
+    const requiredMessage = t("role:This field is required");
+    if ((role.name ?? "").trim() === "") {
+      fieldErrors.name = requiredMessage;
+    }
+    if ((role.displayName ?? "").trim() === "") {
+      fieldErrors.displayName = requiredMessage;
+    }
+
+    if (Object.keys(fieldErrors).length > 0) {
+      this.setState({fieldErrors});
+      Setting.showMessage("error", t("role:Please fill required role fields"));
+      return false;
+    }
+
+    this.setState({fieldErrors: {}});
+    return true;
+  }
+
+  renderRequiredLabel(label: React.ReactNode, required = false): React.ReactNode {
+    return (
+      <span className="identity-object-edit-field-label-text">
+        {required ? <span className="identity-object-edit-required-mark" aria-hidden="true">*</span> : null}
+        <span>{label}</span>
+        <span className="identity-object-edit-label-colon">:</span>
+      </span>
+    );
+  }
+
+  renderFieldRow(label: React.ReactNode, control: React.ReactNode, options: {required?: boolean; error?: string; wide?: boolean} = {}): React.ReactNode {
+    return (
+      <div className={`identity-object-edit-field-row${options.wide === true ? " identity-object-edit-field-row-wide" : ""}`}>
+        <div className="identity-object-edit-field-label">
+          {this.renderRequiredLabel(label, options.required)}
+        </div>
+        <div className="identity-object-edit-field-control">
+          {control}
+          {options.error !== undefined ? <div className="identity-object-edit-field-error">{options.error}</div> : null}
+        </div>
+      </div>
+    );
+  }
+
+  renderSection(title: string, children: React.ReactNode): React.ReactNode {
+    return (
+      <section className="identity-object-edit-section">
+        <h2 className="identity-object-edit-section-title">{title}</h2>
+        <div className="identity-object-edit-field-grid">
+          {children}
+        </div>
+      </section>
+    );
   }
 
   renderRole(): React.ReactNode {
@@ -202,205 +310,202 @@ class RoleEditPage extends React.Component<RoleEditPageProps, RoleEditPageState>
     }
 
     return (
-      <Card className="admin-identity-object-edit-card role-edit-card" size="small" title={
-        <div>
-          {this.state.mode === "add" ? t("role:New Role") : t("role:Edit Role")}&nbsp;&nbsp;&nbsp;&nbsp;
-          <Button onClick={() => this.submitRoleEdit(false)}>{t("general:Save")}</Button>
-          <Button style={{marginLeft: "20px"}} type="primary" onClick={() => this.submitRoleEdit(true)}>{t("general:Save & Exit")}</Button>
-          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteRole()}>{t("general:Cancel")}</Button> : null}
+      <Card
+        className="identity-object-edit-card role-edit-card"
+        size="small"
+        variant="borderless"
+        style={(Setting.isMobile()) ? {margin: "5px"} : {}}
+        styles={{body: {height: "100%", padding: 0}}}
+        type="inner"
+      >
+        <div className="identity-object-edit-shell">
+          <div className="identity-object-edit-header">
+            <Button className="identity-object-edit-back-button" type="text" icon={<ArrowLeftOutlined />} onClick={() => this.handleBack()}>
+              {t("general:Back")}
+            </Button>
+            <span className="identity-object-edit-breadcrumb">{t("general:Organization & Accounts")} / {t("general:Roles")} /</span>
+            <span className="identity-object-edit-title">
+              {this.state.mode === "add" ? t("role:New Role") : `${t("role:Edit Role")} (${role.displayName || role.name})`}
+            </span>
+            {this.state.dirty ? <span className="identity-object-edit-dirty-state">{t("role:Unsaved changes")}</span> : null}
+          </div>
+
+          <div className="identity-object-edit-scroll-content">
+            {this.renderSection(t("role:Basic information"), (
+              <>
+                {this.renderFieldRow(
+                  Setting.getLabel(t("general:Organization"), t("general:Organization - Tooltip")),
+                  <Select virtual={false} disabled={!Setting.isAdminUser(this.props.account)} value={role.owner} onChange={(value: string) => {this.updateRoleField("owner", value);}}
+                    options={this.state.organizations.map((organization) => Setting.getOption(organization.name, organization.name))} />
+                )}
+                {this.renderFieldRow(
+                  Setting.getLabel(t("general:Name"), t("role:Role name - Tooltip")),
+                  <Input status={this.state.fieldErrors.name !== undefined ? "error" : undefined} value={role.name} onChange={e => {
+                    this.updateRoleField("name", e.target.value);
+                  }} />,
+                  {required: true, error: this.state.fieldErrors.name}
+                )}
+                {this.renderFieldRow(
+                  Setting.getLabel(t("general:Display name"), t("role:Role display name - Tooltip")),
+                  <Input status={this.state.fieldErrors.displayName !== undefined ? "error" : undefined} value={role.displayName} onChange={e => {
+                    this.updateRoleField("displayName", e.target.value);
+                  }} />,
+                  {required: true, error: this.state.fieldErrors.displayName}
+                )}
+                {this.renderFieldRow(
+                  Setting.getLabel(t("general:Description"), t("role:Role description - Tooltip")),
+                  <Input value={role.description} onChange={e => {
+                    this.updateRoleField("description", e.target.value);
+                  }} />
+                )}
+                {this.renderFieldRow(
+                  Setting.getLabel(t("general:Is enabled"), t("role:Role enabled - Tooltip")),
+                  <Switch checked={role.isEnabled} onChange={(checked: boolean) => {
+                    this.updateRoleField("isEnabled", checked);
+                  }} />
+                )}
+              </>
+            ))}
+
+            {this.renderSection(t("role:Authorization scope"), (
+              <>
+                {this.renderFieldRow(
+                  Setting.getLabel(t("role:Sub users"), t("role:Sub users - Tooltip")),
+                  <PaginateSelect
+                    virtual
+                    mode="multiple"
+                    value={role.users}
+                    fetchPage={userBackend.getUsers}
+                    buildFetchArgs={({page, pageSize, searchText}: PaginateFetchArgs) => {
+                      const field = searchText ? "name" : "";
+                      return [role.owner, page, pageSize, field, searchText];
+                    }}
+                    reloadKey={role.owner}
+                    optionMapper={(user: UserRecord) => Setting.getOption(`${user.owner}/${user.name}`, `${user.owner}/${user.name}`)}
+                    filterOption={false}
+                    onChange={(value: string[]) => {this.updateRoleField("users", value);}}
+                  />
+                )}
+                {this.renderFieldRow(
+                  Setting.getLabel(t("role:Sub groups"), t("role:Sub groups - Tooltip")),
+                  <PaginateSelect
+                    mode="multiple"
+                    value={role.groups}
+                    fetchPage={groupBackend.getGroups}
+                    buildFetchArgs={({page, pageSize, searchText}: PaginateFetchArgs) => {
+                      const field = searchText ? "name" : "";
+                      return [role.owner, false, page, pageSize, field, searchText, "", ""];
+                    }}
+                    reloadKey={role.owner}
+                    optionMapper={(group: GroupRecord) => Setting.getOption(`${group.owner}/${group.name}`, `${group.owner}/${group.name}`)}
+                    filterOption={false}
+                    onChange={(value: string[]) => {this.updateRoleField("groups", value);}}
+                  />
+                )}
+                {this.renderFieldRow(
+                  Setting.getLabel(t("role:Sub roles"), t("role:Sub roles - Tooltip")),
+                  <PaginateSelect
+                    mode="multiple"
+                    value={role.roles}
+                    fetchPage={roleBackend.getRoles}
+                    buildFetchArgs={({page, pageSize, searchText}: PaginateFetchArgs) => {
+                      const field = searchText ? "name" : "";
+                      return [role.owner, page, pageSize, field, searchText, "", ""];
+                    }}
+                    reloadKey={`${role.owner}/${role.name}`}
+                    optionMapper={(item: RoleRecord) => {
+                      if (item.owner === role.owner && item.name === role.name) {
+                        return null;
+                      }
+                      return Setting.getOption(`${item.owner}/${item.name}`, `${item.owner}/${item.name}`);
+                    }}
+                    filterOption={false}
+                    onChange={(value: string[]) => {this.updateRoleField("roles", value);}}
+                  />
+                )}
+                {this.renderFieldRow(
+                  Setting.getLabel(t("role:Sub domains"), t("role:Sub domains - Tooltip")),
+                  <Select virtual={false} mode="tags" value={role.domains} onChange={(value: string[]) => {
+                    this.updateRoleField("domains", value);
+                  }}
+                  options={role.domains?.map((domain) => Setting.getOption(domain, domain))} />
+                )}
+              </>
+            ))}
+          </div>
+
+          <div className="identity-object-edit-action-bar">
+            <Button disabled={this.state.submitting} onClick={() => this.handleCancel()}>{t("general:Cancel")}</Button>
+            <Button type="primary" loading={this.state.submitting} onClick={() => this.submitRoleEdit(false)}>{t("general:Save")}</Button>
+            <Button disabled={this.state.submitting} onClick={() => this.submitRoleEdit(true)}>{t("role:Save and return")}</Button>
+          </div>
         </div>
-      } style={(Setting.isMobile()) ? {margin: "5px"} : {}} type="inner">
-        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "10px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(t("general:Organization"), t("general:Organization - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <Select virtual={false} style={{width: "100%"}} disabled={!Setting.isAdminUser(this.props.account)} value={role.owner} onChange={(value: string) => {this.updateRoleField("owner", value);}}
-              options={this.state.organizations.map((organization) => Setting.getOption(organization.name, organization.name))
-              } />
-          </Col>
-        </Row>
-        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(t("general:Name"), t("general:Name - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <Input value={role.name} onChange={e => {
-              this.updateRoleField("name", e.target.value);
-            }} />
-          </Col>
-        </Row>
-        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(t("general:Display name"), t("general:Display name - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <Input value={role.displayName} onChange={e => {
-              this.updateRoleField("displayName", e.target.value);
-            }} />
-          </Col>
-        </Row>
-        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(t("general:Description"), t("general:Description - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <Input value={role.description} onChange={e => {
-              this.updateRoleField("description", e.target.value);
-            }} />
-          </Col>
-        </Row>
-        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(t("role:Sub users"), t("role:Sub users - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <PaginateSelect
-              virtual
-              mode="multiple"
-              style={{width: "100%"}}
-              value={role.users}
-              fetchPage={userBackend.getUsers}
-              buildFetchArgs={({page, pageSize, searchText}: PaginateFetchArgs) => {
-                const field = searchText ? "name" : "";
-                return [role.owner, page, pageSize, field, searchText];
-              }}
-              reloadKey={role.owner}
-              optionMapper={(user: UserRecord) => Setting.getOption(`${user.owner}/${user.name}`, `${user.owner}/${user.name}`)}
-              filterOption={false}
-              onChange={(value: string[]) => {this.updateRoleField("users", value);}}
-            />
-          </Col>
-        </Row>
-        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(t("role:Sub groups"), t("role:Sub groups - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <PaginateSelect
-              mode="multiple"
-              style={{width: "100%"}}
-              value={role.groups}
-              fetchPage={groupBackend.getGroups}
-              buildFetchArgs={({page, pageSize, searchText}: PaginateFetchArgs) => {
-                const field = searchText ? "name" : "";
-                return [role.owner, false, page, pageSize, field, searchText, "", ""];
-              }}
-              reloadKey={role.owner}
-              optionMapper={(group: GroupRecord) => Setting.getOption(`${group.owner}/${group.name}`, `${group.owner}/${group.name}`)}
-              filterOption={false}
-              onChange={(value: string[]) => {this.updateRoleField("groups", value);}}
-            />
-          </Col>
-        </Row>
-        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(t("role:Sub roles"), t("role:Sub roles - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <PaginateSelect
-              mode="multiple"
-              style={{width: "100%"}}
-              value={role.roles}
-              fetchPage={roleBackend.getRoles}
-              buildFetchArgs={({page, pageSize, searchText}: PaginateFetchArgs) => {
-                const field = searchText ? "name" : "";
-                return [role.owner, page, pageSize, field, searchText, "", ""];
-              }}
-              reloadKey={`${role.owner}/${role.name}`}
-              optionMapper={(item: RoleRecord) => {
-                if (item.owner === role.owner && item.name === role.name) {
-                  return null;
-                }
-                return Setting.getOption(`${item.owner}/${item.name}`, `${item.owner}/${item.name}`);
-              }}
-              filterOption={false}
-              onChange={(value: string[]) => {this.updateRoleField("roles", value);}}
-            />
-          </Col>
-        </Row>
-        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(t("role:Sub domains"), t("role:Sub domains - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <Select virtual={false} mode="tags" style={{width: "100%"}} value={role.domains} onChange={(value: string[]) => {
-              this.updateRoleField("domains", value);
-            }}
-            options={role.domains?.map((domain) => Setting.getOption(domain, domain))
-            } />
-          </Col>
-        </Row>
-        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 19 : 2}>
-            {Setting.getLabel(t("general:Is enabled"), t("general:Is enabled - Tooltip"))} :
-          </Col>
-          <Col span={1} >
-            <Switch checked={role.isEnabled} onChange={(checked: boolean) => {
-              this.updateRoleField("isEnabled", checked);
-            }} />
-          </Col>
-        </Row>
       </Card>
     );
   }
 
   submitRoleEdit(exitAfterSave: boolean): void {
-    if (this.state.role === null) {
+    if (this.state.submitting || this.state.role === null || !this.validateRole()) {
       return;
     }
     const role = Setting.deepCopy(this.state.role) as RoleRecord;
+    this.setState({submitting: true});
     roleBackend.updateRole(this.state.organizationName, this.state.roleName, role)
       .then((res: MutationResponse) => {
         if (res.status === "ok") {
           Setting.showMessage("success", t("general:Successfully saved"));
           this.setState({
-            roleName: this.state.role?.name || this.state.roleName,
+            roleName: role.name || this.state.roleName,
+            dirty: false,
+            submitting: false,
           });
 
           if (exitAfterSave) {
-            this.props.history.push("/roles");
-          } else if (this.state.role !== null) {
-            this.props.history.push(`/roles/${this.state.role.owner}/${encodeURIComponent(this.state.role.name)}`);
+            this.returnToRoleList();
+          } else {
+            this.props.history.push(`/roles/${role.owner}/${encodeURIComponent(role.name)}`);
           }
         } else {
           Setting.showMessage("error", `${t("general:Failed to save")}: ${res.msg}`);
-          this.updateRoleField("name", this.state.roleName);
+          this.setState(state => ({
+            submitting: false,
+            role: state.role === null ? state.role : {...state.role, name: state.roleName},
+          }));
         }
       })
       .catch((error: unknown) => {
+        this.setState({submitting: false});
         Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
   deleteRole(): void {
-    if (this.state.role === null) {
+    if (this.state.submitting || this.state.role === null) {
       return;
     }
+    this.setState({submitting: true});
     roleBackend.deleteRole(this.state.role)
       .then((res: MutationResponse) => {
         if (res.status === "ok") {
-          this.props.history.push("/roles");
+          this.setState({dirty: false, submitting: false});
+          this.returnToRoleList();
         } else {
+          this.setState({submitting: false});
           Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
         }
       })
       .catch((error: unknown) => {
+        this.setState({submitting: false});
         Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
   render(): React.ReactNode {
     return (
-      <div className="admin-identity-object-edit-page role-edit-page">
+      <div className="identity-object-edit-page role-edit-page">
         {
           this.state.role !== null ? this.renderRole() : null
         }
-        <div style={{marginTop: "20px", marginLeft: "40px"}}>
-          <Button size="large" onClick={() => this.submitRoleEdit(false)}>{t("general:Save")}</Button>
-          <Button style={{marginLeft: "20px"}} type="primary" size="large" onClick={() => this.submitRoleEdit(true)}>{t("general:Save & Exit")}</Button>
-          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} size="large" onClick={() => this.deleteRole()}>{t("general:Cancel")}</Button> : null}
-        </div>
       </div>
     );
   }
