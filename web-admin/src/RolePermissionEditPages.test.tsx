@@ -284,8 +284,9 @@ function collectElementsByType(node: React.ReactNode, type: React.ElementType, m
   if (node.type === type) {
     matches.push(node);
   }
-  const props = node.props as {children?: React.ReactNode; title?: React.ReactNode};
+  const props = node.props as {actions?: React.ReactNode; children?: React.ReactNode; title?: React.ReactNode};
   collectElementsByType(props.title, type, matches);
+  collectElementsByType(props.actions, type, matches);
   React.Children.forEach(props.children, child => collectElementsByType(child, type, matches));
   return matches;
 }
@@ -294,11 +295,12 @@ function collectElementsByProp(node: React.ReactNode, propName: string, matches:
   if (!React.isValidElement(node)) {
     return matches;
   }
-  const props = node.props as Record<string, unknown> & {children?: React.ReactNode; title?: React.ReactNode};
+  const props = node.props as Record<string, unknown> & {actions?: React.ReactNode; children?: React.ReactNode; title?: React.ReactNode};
   if (propName in props) {
     matches.push(node);
   }
   collectElementsByProp(props.title, propName, matches);
+  collectElementsByProp(props.actions, propName, matches);
   React.Children.forEach(props.children, child => collectElementsByProp(child, propName, matches));
   return matches;
 }

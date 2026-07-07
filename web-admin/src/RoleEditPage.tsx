@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import React from "react";
-import {ArrowLeftOutlined} from "@ant-design/icons";
 import {Button, Card, Input, Modal, Select, Switch} from "antd";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as UserBackend from "./backend/UserBackend";
@@ -22,6 +21,7 @@ import * as RoleBackend from "./backend/RoleBackend";
 import * as Setting from "./Setting";
 import i18next from "i18next";
 import PaginateSelect from "./common/PaginateSelect";
+import LargeEditShell from "./common/LargeEditShell";
 
 function t(key: string, defaultValue = key): string {
   const translated = i18next.t(key, {defaultValue}) as unknown;
@@ -318,128 +318,124 @@ class RoleEditPage extends React.Component<RoleEditPageProps, RoleEditPageState>
         styles={{body: {height: "100%", padding: 0}}}
         type="inner"
       >
-        <div className="identity-object-edit-shell">
-          <div className="identity-object-edit-header">
-            <Button className="identity-object-edit-back-button" type="text" icon={<ArrowLeftOutlined />} onClick={() => this.handleBack()}>
-              {t("general:Back")}
-            </Button>
-            <span className="identity-object-edit-breadcrumb">{t("general:Organization & Accounts")} / {t("general:Roles")} /</span>
-            <span className="identity-object-edit-title">
-              {this.state.mode === "add" ? t("role:New Role") : `${t("role:Edit Role")} (${role.displayName || role.name})`}
-            </span>
-            {this.state.dirty ? <span className="identity-object-edit-dirty-state">{t("role:Unsaved changes")}</span> : null}
-          </div>
+        <LargeEditShell
+          classPrefix="identity-object-edit"
+          backLabel={t("general:Back")}
+          breadcrumb={<>{t("general:Organization & Accounts")} / {t("general:Roles")} /</>}
+          title={this.state.mode === "add" ? t("role:New Role") : `${t("role:Edit Role")} (${role.displayName || role.name})`}
+          dirty={this.state.dirty}
+          dirtyLabel={t("role:Unsaved changes")}
+          onBack={() => this.handleBack()}
+          actions={(
+            <>
+              <Button disabled={this.state.submitting} onClick={() => this.handleCancel()}>{t("general:Cancel")}</Button>
+              <Button type="primary" loading={this.state.submitting} onClick={() => this.submitRoleEdit(false)}>{t("general:Save")}</Button>
+              <Button disabled={this.state.submitting} onClick={() => this.submitRoleEdit(true)}>{t("role:Save and return")}</Button>
+            </>
+          )}
+        >
+          {this.renderSection(t("role:Basic information"), (
+            <>
+              {this.renderFieldRow(
+                Setting.getLabel(t("general:Organization"), t("general:Organization - Tooltip")),
+                <Select virtual={false} disabled={!Setting.isAdminUser(this.props.account)} value={role.owner} onChange={(value: string) => {this.updateRoleField("owner", value);}}
+                  options={this.state.organizations.map((organization) => Setting.getOption(organization.name, organization.name))} />
+              )}
+              {this.renderFieldRow(
+                Setting.getLabel(t("general:Name"), t("role:Role name - Tooltip")),
+                <Input status={this.state.fieldErrors.name !== undefined ? "error" : undefined} value={role.name} onChange={e => {
+                  this.updateRoleField("name", e.target.value);
+                }} />,
+                {required: true, error: this.state.fieldErrors.name}
+              )}
+              {this.renderFieldRow(
+                Setting.getLabel(t("general:Display name"), t("role:Role display name - Tooltip")),
+                <Input status={this.state.fieldErrors.displayName !== undefined ? "error" : undefined} value={role.displayName} onChange={e => {
+                  this.updateRoleField("displayName", e.target.value);
+                }} />,
+                {required: true, error: this.state.fieldErrors.displayName}
+              )}
+              {this.renderFieldRow(
+                Setting.getLabel(t("general:Description"), t("role:Role description - Tooltip")),
+                <Input value={role.description} onChange={e => {
+                  this.updateRoleField("description", e.target.value);
+                }} />
+              )}
+              {this.renderFieldRow(
+                Setting.getLabel(t("general:Is enabled"), t("role:Role enabled - Tooltip")),
+                <Switch checked={role.isEnabled} onChange={(checked: boolean) => {
+                  this.updateRoleField("isEnabled", checked);
+                }} />
+              )}
+            </>
+          ))}
 
-          <div className="identity-object-edit-scroll-content">
-            {this.renderSection(t("role:Basic information"), (
-              <>
-                {this.renderFieldRow(
-                  Setting.getLabel(t("general:Organization"), t("general:Organization - Tooltip")),
-                  <Select virtual={false} disabled={!Setting.isAdminUser(this.props.account)} value={role.owner} onChange={(value: string) => {this.updateRoleField("owner", value);}}
-                    options={this.state.organizations.map((organization) => Setting.getOption(organization.name, organization.name))} />
-                )}
-                {this.renderFieldRow(
-                  Setting.getLabel(t("general:Name"), t("role:Role name - Tooltip")),
-                  <Input status={this.state.fieldErrors.name !== undefined ? "error" : undefined} value={role.name} onChange={e => {
-                    this.updateRoleField("name", e.target.value);
-                  }} />,
-                  {required: true, error: this.state.fieldErrors.name}
-                )}
-                {this.renderFieldRow(
-                  Setting.getLabel(t("general:Display name"), t("role:Role display name - Tooltip")),
-                  <Input status={this.state.fieldErrors.displayName !== undefined ? "error" : undefined} value={role.displayName} onChange={e => {
-                    this.updateRoleField("displayName", e.target.value);
-                  }} />,
-                  {required: true, error: this.state.fieldErrors.displayName}
-                )}
-                {this.renderFieldRow(
-                  Setting.getLabel(t("general:Description"), t("role:Role description - Tooltip")),
-                  <Input value={role.description} onChange={e => {
-                    this.updateRoleField("description", e.target.value);
-                  }} />
-                )}
-                {this.renderFieldRow(
-                  Setting.getLabel(t("general:Is enabled"), t("role:Role enabled - Tooltip")),
-                  <Switch checked={role.isEnabled} onChange={(checked: boolean) => {
-                    this.updateRoleField("isEnabled", checked);
-                  }} />
-                )}
-              </>
-            ))}
-
-            {this.renderSection(t("role:Authorization scope"), (
-              <>
-                {this.renderFieldRow(
-                  Setting.getLabel(t("role:Sub users"), t("role:Sub users - Tooltip")),
-                  <PaginateSelect
-                    virtual
-                    mode="multiple"
-                    value={role.users}
-                    fetchPage={userBackend.getUsers}
-                    buildFetchArgs={({page, pageSize, searchText}: PaginateFetchArgs) => {
-                      const field = searchText ? "name" : "";
-                      return [role.owner, page, pageSize, field, searchText];
-                    }}
-                    reloadKey={role.owner}
-                    optionMapper={(user: UserRecord) => Setting.getOption(`${user.owner}/${user.name}`, `${user.owner}/${user.name}`)}
-                    filterOption={false}
-                    onChange={(value: string[]) => {this.updateRoleField("users", value);}}
-                  />
-                )}
-                {this.renderFieldRow(
-                  Setting.getLabel(t("role:Sub groups"), t("role:Sub groups - Tooltip")),
-                  <PaginateSelect
-                    mode="multiple"
-                    value={role.groups}
-                    fetchPage={groupBackend.getGroups}
-                    buildFetchArgs={({page, pageSize, searchText}: PaginateFetchArgs) => {
-                      const field = searchText ? "name" : "";
-                      return [role.owner, false, page, pageSize, field, searchText, "", ""];
-                    }}
-                    reloadKey={role.owner}
-                    optionMapper={(group: GroupRecord) => Setting.getOption(`${group.owner}/${group.name}`, `${group.owner}/${group.name}`)}
-                    filterOption={false}
-                    onChange={(value: string[]) => {this.updateRoleField("groups", value);}}
-                  />
-                )}
-                {this.renderFieldRow(
-                  Setting.getLabel(t("role:Sub roles"), t("role:Sub roles - Tooltip")),
-                  <PaginateSelect
-                    mode="multiple"
-                    value={role.roles}
-                    fetchPage={roleBackend.getRoles}
-                    buildFetchArgs={({page, pageSize, searchText}: PaginateFetchArgs) => {
-                      const field = searchText ? "name" : "";
-                      return [role.owner, page, pageSize, field, searchText, "", ""];
-                    }}
-                    reloadKey={`${role.owner}/${role.name}`}
-                    optionMapper={(item: RoleRecord) => {
-                      if (item.owner === role.owner && item.name === role.name) {
-                        return null;
-                      }
-                      return Setting.getOption(`${item.owner}/${item.name}`, `${item.owner}/${item.name}`);
-                    }}
-                    filterOption={false}
-                    onChange={(value: string[]) => {this.updateRoleField("roles", value);}}
-                  />
-                )}
-                {this.renderFieldRow(
-                  Setting.getLabel(t("role:Sub domains"), t("role:Sub domains - Tooltip")),
-                  <Select virtual={false} mode="tags" value={role.domains} onChange={(value: string[]) => {
-                    this.updateRoleField("domains", value);
+          {this.renderSection(t("role:Authorization scope"), (
+            <>
+              {this.renderFieldRow(
+                Setting.getLabel(t("role:Sub users"), t("role:Sub users - Tooltip")),
+                <PaginateSelect
+                  virtual
+                  mode="multiple"
+                  value={role.users}
+                  fetchPage={userBackend.getUsers}
+                  buildFetchArgs={({page, pageSize, searchText}: PaginateFetchArgs) => {
+                    const field = searchText ? "name" : "";
+                    return [role.owner, page, pageSize, field, searchText];
                   }}
-                  options={role.domains?.map((domain) => Setting.getOption(domain, domain))} />
-                )}
-              </>
-            ))}
-          </div>
-
-          <div className="identity-object-edit-action-bar">
-            <Button disabled={this.state.submitting} onClick={() => this.handleCancel()}>{t("general:Cancel")}</Button>
-            <Button type="primary" loading={this.state.submitting} onClick={() => this.submitRoleEdit(false)}>{t("general:Save")}</Button>
-            <Button disabled={this.state.submitting} onClick={() => this.submitRoleEdit(true)}>{t("role:Save and return")}</Button>
-          </div>
-        </div>
+                  reloadKey={role.owner}
+                  optionMapper={(user: UserRecord) => Setting.getOption(`${user.owner}/${user.name}`, `${user.owner}/${user.name}`)}
+                  filterOption={false}
+                  onChange={(value: string[]) => {this.updateRoleField("users", value);}}
+                />
+              )}
+              {this.renderFieldRow(
+                Setting.getLabel(t("role:Sub groups"), t("role:Sub groups - Tooltip")),
+                <PaginateSelect
+                  mode="multiple"
+                  value={role.groups}
+                  fetchPage={groupBackend.getGroups}
+                  buildFetchArgs={({page, pageSize, searchText}: PaginateFetchArgs) => {
+                    const field = searchText ? "name" : "";
+                    return [role.owner, false, page, pageSize, field, searchText, "", ""];
+                  }}
+                  reloadKey={role.owner}
+                  optionMapper={(group: GroupRecord) => Setting.getOption(`${group.owner}/${group.name}`, `${group.owner}/${group.name}`)}
+                  filterOption={false}
+                  onChange={(value: string[]) => {this.updateRoleField("groups", value);}}
+                />
+              )}
+              {this.renderFieldRow(
+                Setting.getLabel(t("role:Sub roles"), t("role:Sub roles - Tooltip")),
+                <PaginateSelect
+                  mode="multiple"
+                  value={role.roles}
+                  fetchPage={roleBackend.getRoles}
+                  buildFetchArgs={({page, pageSize, searchText}: PaginateFetchArgs) => {
+                    const field = searchText ? "name" : "";
+                    return [role.owner, page, pageSize, field, searchText, "", ""];
+                  }}
+                  reloadKey={`${role.owner}/${role.name}`}
+                  optionMapper={(item: RoleRecord) => {
+                    if (item.owner === role.owner && item.name === role.name) {
+                      return null;
+                    }
+                    return Setting.getOption(`${item.owner}/${item.name}`, `${item.owner}/${item.name}`);
+                  }}
+                  filterOption={false}
+                  onChange={(value: string[]) => {this.updateRoleField("roles", value);}}
+                />
+              )}
+              {this.renderFieldRow(
+                Setting.getLabel(t("role:Sub domains"), t("role:Sub domains - Tooltip")),
+                <Select virtual={false} mode="tags" value={role.domains} onChange={(value: string[]) => {
+                  this.updateRoleField("domains", value);
+                }}
+                options={role.domains?.map((domain) => Setting.getOption(domain, domain))} />
+              )}
+            </>
+          ))}
+        </LargeEditShell>
       </Card>
     );
   }

@@ -91,7 +91,7 @@ class AddressTable extends React.Component<LegacyAny, LegacyAny> {
         title: t("user:Tag"),
         dataIndex: "tag",
         key: "tag",
-        width: "100px",
+        width: 86,
         render: (text: LegacyAny, record: LegacyAny, index: number) => {
           const tagOptions = TAG_OPTIONS.map(opt => ({...opt, label: opt.value === "Home" ? t("general:Home") : opt.value === "Work" ? t("user:Work") : t("user:Other")}));
           return (
@@ -114,7 +114,7 @@ class AddressTable extends React.Component<LegacyAny, LegacyAny> {
         title: t("user:Line 1"),
         dataIndex: "line1",
         key: "line1",
-        width: "150px",
+        width: 160,
         render: (text: LegacyAny, record: LegacyAny, index: number) => {
           return (
             <Input size="small" value={text} onChange={e => {
@@ -127,7 +127,7 @@ class AddressTable extends React.Component<LegacyAny, LegacyAny> {
         title: t("user:Line 2"),
         dataIndex: "line2",
         key: "line2",
-        width: "150px",
+        width: 140,
         render: (text: LegacyAny, record: LegacyAny, index: number) => {
           return (
             <Input size="small" value={text} onChange={e => {
@@ -140,7 +140,7 @@ class AddressTable extends React.Component<LegacyAny, LegacyAny> {
         title: t("user:City"),
         dataIndex: "city",
         key: "city",
-        width: "120px",
+        width: 100,
         render: (text: LegacyAny, record: LegacyAny, index: number) => {
           return (
             <Input size="small" value={text} onChange={e => {
@@ -153,7 +153,7 @@ class AddressTable extends React.Component<LegacyAny, LegacyAny> {
         title: t("general:State"),
         dataIndex: "state",
         key: "state",
-        width: "100px",
+        width: 90,
         render: (text: LegacyAny, record: LegacyAny, index: number) => {
           return (
             <Input size="small" value={text} onChange={e => {
@@ -166,7 +166,7 @@ class AddressTable extends React.Component<LegacyAny, LegacyAny> {
         title: t("user:Zip code"),
         dataIndex: "zipCode",
         key: "zipCode",
-        width: "100px",
+        width: 96,
         render: (text: LegacyAny, record: LegacyAny, index: number) => {
           return (
             <Input size="small" value={text} onChange={e => {
@@ -179,7 +179,7 @@ class AddressTable extends React.Component<LegacyAny, LegacyAny> {
         title: t("provider:Region"),
         dataIndex: "region",
         key: "region",
-        width: "150px",
+        width: 180,
         render: (text: LegacyAny, record: LegacyAny, index: number) => {
           return (
             <RegionSelect
@@ -195,18 +195,18 @@ class AddressTable extends React.Component<LegacyAny, LegacyAny> {
       {
         title: t("general:Action"),
         key: "action",
-        width: "100px",
+        width: 92,
         render: (text: LegacyAny, record: LegacyAny, index: number) => {
           return (
-            <div>
+            <div className="organization-config-table-row-actions organization-config-table-row-actions-icons">
               <Tooltip placement="bottomLeft" title={t("general:Up")}>
-                <Button style={{marginRight: "5px"}} disabled={index === 0} icon={<UpOutlined />} size="small" onClick={() => this.upRow(table, index)} />
+                <Button aria-label={t("general:Up")} disabled={index === 0} icon={<UpOutlined />} size="small" onClick={() => this.upRow(table, index)} />
               </Tooltip>
               <Tooltip placement="topLeft" title={t("general:Down")}>
-                <Button style={{marginRight: "5px"}} disabled={index === table.length - 1} icon={<DownOutlined />} size="small" onClick={() => this.downRow(table, index)} />
+                <Button aria-label={t("general:Down")} disabled={index === table.length - 1} icon={<DownOutlined />} size="small" onClick={() => this.downRow(table, index)} />
               </Tooltip>
               <Tooltip placement="topLeft" title={t("general:Delete")}>
-                <Button icon={<DeleteOutlined />} size="small" onClick={() => this.deleteRow(table, index)} />
+                <Button aria-label={t("general:Delete")} icon={<DeleteOutlined />} size="small" onClick={() => this.deleteRow(table, index)} />
               </Tooltip>
             </div>
           );
@@ -215,11 +215,13 @@ class AddressTable extends React.Component<LegacyAny, LegacyAny> {
     ];
 
     return (
-      <Table scroll={{x: "max-content"}} rowKey="key" columns={columns} dataSource={table} size="middle" bordered pagination={false}
+      <Table className="user-edit-embedded-table user-edit-address-table" scroll={{x: 944}} tableLayout="fixed" rowKey="key" columns={columns} dataSource={table} size="middle" bordered pagination={false}
         title={() => (
-          <div>
-            {this.props.title}&nbsp;&nbsp;&nbsp;&nbsp;
-            <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={() => this.addRow(table)}>{t("general:Add")}</Button>
+          <div className="user-edit-table-toolbar">
+            {this.props.showTitle === false ? null : <span className="user-edit-table-title">{this.props.title}</span>}
+            <div className="user-edit-table-toolbar-actions">
+              <Button className="organization-config-table-add-trigger" type="primary" size="small" onClick={() => this.addRow(table)}>{t("general:Add")}</Button>
+            </div>
           </div>
         )}
       />

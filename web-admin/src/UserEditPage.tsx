@@ -1088,6 +1088,7 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
           <Col span={22} >
             <AddressTable
               title={i18next.t("user:Addresses")}
+              showTitle={false}
               table={this.state.user.addresses}
               onUpdateTable={(value: unknown) => {
                 this.updateUserField("addresses", value);

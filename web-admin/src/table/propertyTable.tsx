@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import React from "react";
-import {Button, Input, Table} from "antd";
+import {Button, Input, Table, Tooltip} from "antd";
 import i18nextLib from "i18next";
 import {DeleteOutlined} from "@ant-design/icons";
 import * as Setting from "../Setting";
@@ -31,6 +31,7 @@ interface PropertyRow {
 
 interface PropertyTableProps {
   properties?: Record<string, LegacyAny> | null;
+  title?: React.ReactNode;
   onUpdateTable: (properties: Record<string, LegacyAny>) => void;
 }
 
@@ -115,19 +116,24 @@ class PropertyTable extends React.Component<PropertyTableProps, PropertyTableSta
       {
         title: i18next.t("general:Action"),
         dataIndex: "operation",
-        width: "20px",
+        width: 56,
         render: (text, record, index) => {
           return (
-            <Button icon={<DeleteOutlined />} size="small" onClick={() => this.deleteRow(table, index)} />
+            <Tooltip placement="topLeft" title={i18next.t("general:Delete")}>
+              <Button aria-label={i18next.t("general:Delete")} icon={<DeleteOutlined />} size="small" onClick={() => this.deleteRow(table, index)} />
+            </Tooltip>
           );
         },
       },
     ];
 
     return (
-      <Table title={() => (
-        <div>
-          <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={() => this.addRow(table)}>{i18next.t("general:Add")}</Button>
+      <Table className="user-edit-embedded-table user-edit-property-table" tableLayout="fixed" title={() => (
+        <div className="user-edit-table-toolbar">
+          {this.props.title === undefined ? null : <span className="user-edit-table-title">{this.props.title}</span>}
+          <div className="user-edit-table-toolbar-actions">
+            <Button className="organization-config-table-add-trigger" type="primary" size="small" onClick={() => this.addRow(table)}>{i18next.t("general:Add")}</Button>
+          </div>
         </div>
       )}
       pagination={{
