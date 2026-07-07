@@ -102,7 +102,7 @@ class MfaAccountTable extends React.Component<MfaAccountTableProps, MfaAccountTa
         title: i18next.t("forget:Account"),
         dataIndex: "accountName",
         key: "accountName",
-        width: "400px",
+        width: 180,
         render: (text, record, index) => {
           return (
             <Input size="small" value={text} onChange={e => {
@@ -112,10 +112,10 @@ class MfaAccountTable extends React.Component<MfaAccountTableProps, MfaAccountTa
         },
       },
       {
-        title: "Issuer",
+        title: i18next.t("provider:Issuer"),
         dataIndex: "issuer",
         key: "issuer",
-        width: "300px",
+        width: 140,
         render: (text, record, index) => {
           return (
             <Input size="small" value={text} onChange={e => {
@@ -125,9 +125,10 @@ class MfaAccountTable extends React.Component<MfaAccountTableProps, MfaAccountTa
         },
       },
       {
-        title: "Origin",
+        title: i18next.t("provider:Origin"),
         dataIndex: "origin",
         key: "origin",
+        width: 130,
         render: (text, record, index) => {
           return (
             <Input size="small" value={text} onChange={e => {
@@ -140,6 +141,7 @@ class MfaAccountTable extends React.Component<MfaAccountTableProps, MfaAccountTa
         title: i18next.t("provider:Secret key"),
         dataIndex: "secretKey",
         key: "secretKey",
+        width: 160,
         render: (text, record, index) => {
           return (
             <Input.Password size="small" value={text} onChange={e => {
@@ -152,7 +154,7 @@ class MfaAccountTable extends React.Component<MfaAccountTableProps, MfaAccountTa
         title: i18next.t("general:Logo"),
         dataIndex: "issuer",
         key: "logo",
-        width: "60px",
+        width: 52,
         render: (text, record, index) => (
           <Tooltip>
             {text ? (
@@ -167,15 +169,15 @@ class MfaAccountTable extends React.Component<MfaAccountTableProps, MfaAccountTa
       {
         title: i18next.t("general:Action"),
         key: "action",
-        width: "100px",
+        width: 92,
         render: (text, record, index) => {
           return (
-            <div>
+            <div className="organization-config-table-row-actions organization-config-table-row-actions-icons">
               <Tooltip placement="bottomLeft" title={i18next.t("general:Up")}>
-                <Button style={{marginRight: "5px"}} disabled={index === 0} icon={<UpOutlined />} size="small" onClick={() => this.upRow(table, index)} />
+                <Button disabled={index === 0} icon={<UpOutlined />} size="small" onClick={() => this.upRow(table, index)} />
               </Tooltip>
               <Tooltip placement="topLeft" title={i18next.t("general:Down")}>
-                <Button style={{marginRight: "5px"}} disabled={index === table.length - 1} icon={<DownOutlined />} size="small" onClick={() => this.downRow(table, index)} />
+                <Button disabled={index === table.length - 1} icon={<DownOutlined />} size="small" onClick={() => this.downRow(table, index)} />
               </Tooltip>
               <Tooltip placement="topLeft" title={i18next.t("general:Delete")}>
                 <Button icon={<DeleteOutlined />} size="small" onClick={() => this.deleteRow(table, index)} />
@@ -185,31 +187,35 @@ class MfaAccountTable extends React.Component<MfaAccountTableProps, MfaAccountTa
         },
       },
     ];
+    const title = this.props.title === undefined ? i18next.t("user:MFA accounts") : this.props.title;
+
     return (
-      <Table scroll={{x: "max-content"}} rowKey="key" columns={columns} dataSource={table} size="middle" bordered pagination={false}
+      <Table tableLayout="fixed" rowKey="key" columns={columns} dataSource={table} size="middle" bordered pagination={false}
         title={() => (
-          <div>
-            {this.props.title}&nbsp;&nbsp;&nbsp;&nbsp;
-            <Button style={{marginRight: "10px"}} type="primary" size="small" onClick={() => this.addRow(table)}>
-              {i18next.t("general:Add")}
-            </Button>
-            <Popover
-              trigger="focus"
-              overlayInnerStyle={{padding: 0}}
-              content={<CasdoorAppQrCode accessToken={this.props.accessToken} icon={this.state.icon} />}
-            >
-              <Button style={{marginRight: "10px"}} size="small">
-                {i18next.t("general:QR Code")}
+          <div className="user-edit-table-toolbar">
+            {title === null ? null : <span className="user-edit-table-title">{title}</span>}
+            <div className="user-edit-table-toolbar-actions">
+              <Button type="primary" size="small" onClick={() => this.addRow(table)}>
+                {i18next.t("general:Add")}
               </Button>
-            </Popover>
-            <Popover
-              trigger="click"
-              content={<CasdoorAppUrl accessToken={this.props.accessToken} />}
-            >
-              <Button size="small">
-                {i18next.t("general:URL")}
-              </Button>
-            </Popover>
+              <Popover
+                trigger="focus"
+                overlayInnerStyle={{padding: 0}}
+                content={<CasdoorAppQrCode accessToken={this.props.accessToken} icon={this.state.icon} />}
+              >
+                <Button size="small">
+                  {i18next.t("general:QR Code")}
+                </Button>
+              </Popover>
+              <Popover
+                trigger="click"
+                content={<CasdoorAppUrl accessToken={this.props.accessToken} />}
+              >
+                <Button size="small">
+                  {i18next.t("general:URL")}
+                </Button>
+              </Popover>
+            </div>
           </div>
         )}
       />

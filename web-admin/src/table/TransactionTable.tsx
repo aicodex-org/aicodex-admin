@@ -22,12 +22,14 @@ import {getTransactionTableColumns} from "./TransactionTableColumns";
 const i18next = rawI18next as unknown as {t: (key: string) => string};
 type TransactionRecord = import("../types/businessPayment").TransactionRecord;
 type LegacyAny = import("../types/legacyPage").LegacyAny;
+type LegacyColumn = import("../types/legacyPage").LegacyColumn<TransactionRecord>;
 
 interface TransactionTableProps {
   transactions?: TransactionRecord[];
   includeUser?: boolean;
   hideTag?: boolean;
   title?: React.ReactNode;
+  embedded?: boolean;
 }
 
 interface TransactionTableState {
@@ -132,6 +134,27 @@ class TransactionTable extends React.Component<TransactionTableProps, Transactio
     this.setState({searchText: ""});
   };
 
+  getEmbeddedColumns(columns: LegacyColumn[]): LegacyColumn[] {
+    const embeddedColumnKeys = ["name", "createdTime", "application", "domain", "amount"];
+    const embeddedColumnWidths: Record<string, number> = {
+      name: 180,
+      createdTime: 136,
+      application: 112,
+      domain: 190,
+      amount: 132,
+    };
+
+    return columns
+      .filter(column => embeddedColumnKeys.includes(`${column.key}`))
+      .map(column => ({
+        ...column,
+        fixed: undefined,
+        width: embeddedColumnWidths[`${column.key}`] ?? column.width,
+        ellipsis: true,
+        align: column.key === "amount" ? "right" : column.align,
+      }));
+  }
+
   render() {
     const columns = getTransactionTableColumns({
       includeOrganization: false,
@@ -143,11 +166,14 @@ class TransactionTable extends React.Component<TransactionTableProps, Transactio
       onEdit: null,
       onDelete: null,
     });
+    const tableColumns = this.props.embedded ? this.getEmbeddedColumns(columns) : columns;
 
     return (
       <Table
-        scroll={{x: "max-content"}}
-        columns={columns}
+        className={this.props.embedded ? "transaction-table-embedded" : undefined}
+        scroll={this.props.embedded ? undefined : {x: "max-content"}}
+        tableLayout={this.props.embedded ? "fixed" : undefined}
+        columns={tableColumns}
         dataSource={this.props.transactions || []}
         rowKey={(record) => `${record.owner || ""}/${record.name || ""}`}
         size="middle"

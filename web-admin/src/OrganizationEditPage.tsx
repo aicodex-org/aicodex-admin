@@ -21,7 +21,7 @@ import * as Setting from "./Setting";
 import * as Conf from "./Conf";
 import * as Obfuscator from "./auth/Obfuscator";
 import i18nextRaw from "i18next";
-import {ArrowLeftOutlined, CopyOutlined, EyeOutlined, LinkOutlined} from "@ant-design/icons";
+import {CopyOutlined, EyeOutlined, LinkOutlined} from "@ant-design/icons";
 import copy from "copy-to-clipboard";
 import LdapTable from "./table/LdapTable";
 import AccountTable from "./table/AccountTable";
@@ -33,6 +33,7 @@ import TransactionTable from "./table/TransactionTable";
 import * as TransactionBackend from "./backend/TransactionBackend";
 import {getOrganizationNameTooltipKey, isOrganizationNameLocked} from "./OrganizationEditPageUtils";
 import {buildEnterpriseNavigationConfigTreeData} from "./enterpriseNavigation";
+import LargeEditShell from "./common/LargeEditShell";
 
 const {Option} = Select;
 
@@ -1214,18 +1215,8 @@ class OrganizationEditPage extends React.Component<OrganizationEditPageProps, Or
     });
   }
 
-  renderEditHeader(): React.ReactNode {
-    const title = this.state.mode === "add" ? i18next.t("organization:New Organization") : `${i18next.t("organization:Edit Organization")} (${this.state.organization.displayName || this.state.organization.name})`;
-    return (
-      <div className="organization-edit-header">
-        <Button className="organization-edit-back-button" type="text" icon={<ArrowLeftOutlined />} onClick={() => this.handleBack()}>
-          {i18next.t("general:Back")}
-        </Button>
-        <span className="organization-edit-breadcrumb">{i18next.t("general:Organization & Accounts")} / {i18next.t("general:Organizations")} /</span>
-        <span className="organization-edit-title">{title}</span>
-        {this.state.isDirty ? <span className="organization-edit-dirty-state">{i18next.t("organization:Unsaved changes")}</span> : null}
-      </div>
-    );
+  getOrganizationEditTitle(): string {
+    return this.state.mode === "add" ? i18next.t("organization:New Organization") : `${i18next.t("organization:Edit Organization")} (${this.state.organization.displayName || this.state.organization.name})`;
   }
 
   renderEditTabs(): React.ReactNode {
@@ -1241,11 +1232,11 @@ class OrganizationEditPage extends React.Component<OrganizationEditPageProps, Or
 
   renderEditFooter(): React.ReactNode {
     return (
-      <div className="organization-edit-action-bar">
+      <React.Fragment>
         <Button onClick={() => this.handleCancel()} disabled={this.state.submitting}>{i18next.t("general:Cancel")}</Button>
         <Button type="primary" loading={this.state.submitting} onClick={() => this.submitOrganizationEdit(false)}>{i18next.t("general:Save")}</Button>
         <Button onClick={() => this.submitOrganizationEdit(true)} disabled={this.state.submitting}>{i18next.t("organization:Save and return")}</Button>
-      </div>
+      </React.Fragment>
     );
   }
 
@@ -1259,14 +1250,19 @@ class OrganizationEditPage extends React.Component<OrganizationEditPageProps, Or
         styles={{body: {height: "100%", padding: 0}}}
         type="inner"
       >
-        <div className="organization-edit-shell">
-          {this.renderEditHeader()}
-          {this.renderEditTabs()}
-          <div className="organization-edit-scroll-content">
-            {this.renderActiveTabContent()}
-          </div>
-          {this.renderEditFooter()}
-        </div>
+        <LargeEditShell
+          classPrefix="organization-edit"
+          backLabel={i18next.t("general:Back")}
+          breadcrumb={<React.Fragment>{i18next.t("general:Organization & Accounts")} / {i18next.t("general:Organizations")} /</React.Fragment>}
+          title={this.getOrganizationEditTitle()}
+          dirty={this.state.isDirty}
+          dirtyLabel={i18next.t("organization:Unsaved changes")}
+          tabs={this.renderEditTabs()}
+          actions={this.renderEditFooter()}
+          onBack={() => this.handleBack()}
+        >
+          {this.renderActiveTabContent()}
+        </LargeEditShell>
       </Card>
     );
   }

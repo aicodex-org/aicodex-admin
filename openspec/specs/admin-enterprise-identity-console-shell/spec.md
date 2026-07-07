@@ -698,6 +698,13 @@ Admin 身份控制台共享 shell 与共享页壳 SHALL 通过统一主题 token
 
 Admin 身份控制台 Shell SHALL 在组织、用户、应用、Provider、Syncer 等长编辑页中避免外层内容 Card 与页面内部编辑壳叠加，页面 SHALL 只保留一个主要编辑页面壳。
 
+#### Scenario: 组织用户群组复用统一编辑壳
+- **WHEN** 管理员访问组织、用户或群组编辑页
+- **THEN** 页面内部编辑壳 SHALL 使用同一套头部、滚动正文容器和底部动作栏结构
+- **AND** 多 tabs 与单正文 SHALL 只是正文区域的差异
+- **AND** 组织和用户 MAY 在正文上方提供页内 Tabs
+- **AND** 群组 MAY 不提供页内 Tabs 并直接展示单正文
+
 #### Scenario: 组织编辑页不叠加外层内容 Card
 - **WHEN** 管理员在桌面端访问 `/organizations/:organizationName`
 - **THEN** Shell SHALL 使用 cardless route 滚动容器承载组织编辑页
@@ -709,7 +716,8 @@ Admin 身份控制台 Shell SHALL 在组织、用户、应用、Provider、Synce
 - **WHEN** 管理员在桌面端访问 `/users/:organizationName/:userName`
 - **THEN** Shell SHALL 使用 cardless route 滚动容器承载用户编辑页
 - **AND** route scroll 容器内 SHALL NOT 渲染 `.content-warp-card`
-- **AND** 用户编辑页内部主编辑 Card SHALL 继续承载标题、保存动作、Tabs 和表单内容
+- **AND** 用户编辑页内部主编辑壳 SHALL 承载返回路径、用户编辑标题、Tabs 或单分组正文、表单内容和固定底部动作栏
+- **AND** 用户编辑页主要保存动作 SHALL 位于同一编辑壳的固定底部栏，而不是 Card 标题或页面正文末尾的重复按钮组
 
 #### Scenario: 其它大编辑页复用同一单壳规则
 - **WHEN** 管理员在桌面端访问应用、Provider 或 Syncer 的长编辑页

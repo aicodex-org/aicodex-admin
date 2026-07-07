@@ -156,23 +156,27 @@ class FaceIdTable extends React.Component<FaceIdTableProps, FaceIdTableState> {
         });
     };
 
+    const title = this.props.title === undefined ? i18next.t("user:Face IDs") : this.props.title;
+
     return (
-      <Table scroll={{x: "max-content"}} columns={columns} dataSource={this.props.table ?? []} size="middle" bordered pagination={false}
+      <Table scroll={{x: "max-content"}} rowKey="name" columns={columns} dataSource={this.props.table ?? []} size="middle" bordered pagination={false}
         title={() => (
-          <div>
-            {i18next.t("user:Face IDs")}&nbsp;&nbsp;&nbsp;&nbsp;
-            <Button disabled={(this.props.table?.length ?? 0) >= 5} style={{marginRight: "10px"}} type="primary" size="small" onClick={() => this.setState({openFaceRecognitionModal: true, withImage: false})}>
-              {i18next.t("application:Add Face ID")}
-            </Button>
-            <Button disabled={(this.props.table?.length ?? 0) >= 5} style={{marginRight: "10px"}} size="small" onClick={() => this.setState({openFaceRecognitionModal: true, withImage: true})}>
-              {i18next.t("application:Add Face ID with Image")}
-            </Button>
-            <Upload maxCount={1} accept="image/*" showUploadList={false}
-              beforeUpload={file => {return false;}} onChange={info => {handleUpload(info);}}>
-              <Button id="upload-button" icon={<UploadOutlined />} loading={this.state.uploading} size="small">
-                {i18next.t("resource:Upload a file...")}
+          <div className="user-edit-table-toolbar">
+            {title === null ? null : <span className="user-edit-table-title">{title}</span>}
+            <div className="user-edit-table-toolbar-actions">
+              <Button disabled={(this.props.table?.length ?? 0) >= 5} type="primary" size="small" onClick={() => this.setState({openFaceRecognitionModal: true, withImage: false})}>
+                {i18next.t("application:Add Face ID")}
               </Button>
-            </Upload>
+              <Button disabled={(this.props.table?.length ?? 0) >= 5} size="small" onClick={() => this.setState({openFaceRecognitionModal: true, withImage: true})}>
+                {i18next.t("application:Add Face ID with Image")}
+              </Button>
+              <Upload maxCount={1} accept="image/*" showUploadList={false}
+                beforeUpload={file => {return false;}} onChange={info => {handleUpload(info);}}>
+                <Button id="upload-button" icon={<UploadOutlined />} loading={this.state.uploading} size="small">
+                  {i18next.t("resource:Upload a file...")}
+                </Button>
+              </Upload>
+            </div>
             <Suspense fallback={null}>
               <FaceRecognitionModal
                 visible={this.state.openFaceRecognitionModal}

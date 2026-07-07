@@ -2,6 +2,7 @@
 
 import React from "react";
 import {expect as jestExpect, jest as jestValue} from "@jest/globals";
+import {Modal} from "antd";
 import {render} from "@testing-library/react";
 import {UserEditPage} from "./UserEditPage";
 import * as Setting from "./Setting";
@@ -37,6 +38,9 @@ type PageHarness = UserEditPage & {
   state: PageState;
   props: PageProps;
   setState: (patch: StatePatch, callback?: () => void) => void;
+};
+type UserEditShellHarness = PageHarness & {
+  handleCancel: () => void;
 };
 
 const expect = jestExpect;
@@ -209,8 +213,8 @@ jest.mock("./table/MfaAccountTable", () => function MfaAccountTableMock(props: {
   return <button type="button" data-testid="mfa-account-table" onClick={() => props.onUpdateTable?.([{name: "mfa-account"}])}>MfaAccountTable</button>;
 });
 
-jest.mock("./table/TransactionTable", () => function TransactionTableMock(props: {transactions?: unknown[]}) {
-  return <div data-testid="transaction-table">{`Transactions-${props.transactions?.length || 0}`}</div>;
+jest.mock("./table/TransactionTable", () => function TransactionTableMock(props: {transactions?: unknown[]; embedded?: boolean}) {
+  return <div data-testid="transaction-table" data-embedded={props.embedded ? "true" : "false"}>{`Transactions-${props.transactions?.length || 0}`}</div>;
 });
 
 jest.mock("./table/CartTable", () => function CartTableMock() {
@@ -337,7 +341,7 @@ function createPage(propsOverride: Partial<PageProps> = {}): PageHarness {
       {owner: "engineering", name: "group-a", displayName: "Group A", type: "Physical"},
       {owner: "engineering", name: "group-b", displayName: "Group B", type: "Virtual"},
     ],
-    organizations: [{name: "engineering"}, {name: "sales"}],
+    organizations: [{name: "engineering", displayName: "Engineering Org"}, {name: "sales", displayName: "Sales Org"}],
     applications: [{name: "app-main"}, {name: "app-secondary"}],
     loading: false,
     transactions: [{name: "tx-1"}],
@@ -358,6 +362,18 @@ function createPage(propsOverride: Partial<PageProps> = {}): PageHarness {
     },
   });
   return page;
+}
+
+function setActiveUserTab(page: PageHarness, tabKey: PageState["activeTabKey"]) {
+  page.state = {
+    ...page.state,
+    activeTabKey: tabKey,
+  };
+}
+
+function renderUserFormForTab(page: PageHarness, tabKey: PageState["activeTabKey"]) {
+  setActiveUserTab(page, tabKey);
+  return render(<>{page.renderUserForm()}</>);
 }
 
 async function flushPromises() {
@@ -446,6 +462,7 @@ function installConsoleErrorFilter() {
 
 beforeEach(() => {
   installConsoleErrorFilter();
+  window.location.hash = "";
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: mockMatchMedia,
@@ -466,7 +483,7 @@ beforeEach(() => {
   userBackendMock.deleteUser.mockResolvedValue({status: "ok"});
   userBackendMock.verifyIdentification.mockResolvedValue({status: "ok"});
   groupBackendMock.getGroups.mockResolvedValue({status: "ok", data: [{owner: "engineering", name: "group-a", displayName: "Group A", type: "Physical"}]});
-  organizationBackendMock.getOrganizations.mockResolvedValue({status: "ok", data: [{name: "engineering"}, {name: "sales"}]});
+  organizationBackendMock.getOrganizations.mockResolvedValue({status: "ok", data: [{name: "engineering", displayName: "Engineering Org"}, {name: "sales", displayName: "Sales Org"}]});
   organizationBackendMock.getOrganization.mockResolvedValue({status: "ok", data: application.organizationObj});
   applicationBackendMock.getApplicationsByOrganization.mockResolvedValue({status: "ok", data: [{name: "app-main"}]});
   applicationBackendMock.getUserApplication.mockResolvedValue({status: "ok", data: application});
@@ -495,7 +512,7 @@ test("loads user data, transactions, organizations, applications and groups", as
 
   page.getOrganizations();
   await flushPromises();
-  expect(page.state.organizations).toEqual([{name: "engineering"}, {name: "sales"}]);
+  expect(page.state.organizations).toEqual([{name: "engineering", displayName: "Engineering Org"}, {name: "sales", displayName: "Sales Org"}]);
 
   page.getApplicationsByOrganization("engineering");
   await flushPromises();
@@ -561,6 +578,34 @@ test("keeps signup application read-only for directory synced users", () => {
   });
 });
 
+test("shows organization display names while keeping owner identifier as submitted value", () => {
+  const page = createPage();
+  const getApplicationsSpy = jestValue.spyOn(page, "getApplicationsByOrganization");
+  const getGroupsSpy = jestValue.spyOn(page, "getGroups");
+  const organizationNode = page.renderAccountItem({name: "Organization", visible: true});
+  const organizationSelect = findReactElement(organizationNode, element =>
+    element.props.optionLabelProp === "label" && element.props.value === "engineering"
+  );
+
+  expect(organizationSelect).not.toBeNull();
+  const options = React.Children.toArray(organizationSelect?.props.children as React.ReactNode) as Array<React.ReactElement<Record<string, unknown>>>;
+  expect(options[0].props.value).toBe("engineering");
+  expect(options[0].props.label).toBe("Engineering Org");
+  expect(options[1].props.value).toBe("sales");
+  expect(options[1].props.label).toBe("Sales Org");
+
+  const filterOption = organizationSelect?.props.filterOption as ((input: string, option?: {label?: string; value?: string}) => boolean) | undefined;
+  expect(filterOption?.("Sales Org", {label: "Sales Org", value: "sales"})).toBe(true);
+  expect(filterOption?.("sales", {label: "Sales Org", value: "sales"})).toBe(true);
+
+  const onChange = organizationSelect?.props.onChange as ((value: string) => void) | undefined;
+  onChange?.("sales");
+
+  expect(page.state.user.owner).toBe("sales");
+  expect(getApplicationsSpy).toHaveBeenCalledWith("sales");
+  expect(getGroupsSpy).toHaveBeenCalledWith("sales");
+});
+
 test("handles user loading 404, API error and transaction load failures", async() => {
   const page = createPage();
   const historyPush = page.props.history.push as ReturnType<typeof jestValue.fn>;
@@ -589,55 +634,89 @@ test("handles user loading 404, API error and transaction load failures", async(
 test("renders all configured account items and keeps table callbacks wired", () => {
   const page = createPage();
   const getUserSpy = jestValue.spyOn(page, "getUser");
-  const view = render(<>{page.renderUserForm()}</>);
+  const basicView = renderUserFormForTab(page, "basic");
 
-  expect(view.getByTestId("address-table")).not.toBeNull();
-  expect(view.getByTestId("transaction-table").textContent).toContain("Transactions-1");
-  expect(view.getByTestId("oauth-widget")).not.toBeNull();
-  expect(view.getByTestId("saml-widget")).not.toBeNull();
-  expect(view.getByText("PasswordModal")).not.toBeNull();
-  expect(view.getByText("ResetModal-email")).not.toBeNull();
-  expect(view.getByText("ResetModal-phone")).not.toBeNull();
-  expect(view.getByTestId("cart-table")).not.toBeNull();
+  expect(basicView.getByTestId("address-table")).not.toBeNull();
+  expect(basicView.getByText("ResetModal-email")).not.toBeNull();
+  expect(basicView.getByText("ResetModal-phone")).not.toBeNull();
 
-  fireEvent.click(view.getByTestId("address-table"));
+  const addressInputs = basicView.container.querySelectorAll(".user-edit-address-line input") as NodeListOf<HTMLInputElement>;
+  expect(addressInputs.length).toBe(2);
+  fireEvent.change(addressInputs[0], {target: {value: "line 1 updated"}});
+  fireEvent.change(addressInputs[1], {target: {value: "line 2 updated"}});
+  expect(page.state.user.address).toEqual(["line 1 updated", "line 2 updated"]);
+
+  fireEvent.click(basicView.getByTestId("address-table"));
   expect(page.state.user.addresses).toEqual([{city: "Shanghai"}]);
-  fireEvent.click(view.getByTestId("property-table"));
+  fireEvent.click(basicView.getByTestId("property-table"));
   expect(page.state.user.properties).toEqual({level: "gold"});
-  fireEvent.click(view.getByTestId("mfa-table"));
-  expect(page.state.user.mfaItems).toEqual([{mfaType: "totp"}]);
-  fireEvent.click(view.getByTestId("webauthn-table"));
-  expect(page.state.user.webauthnCredentials).toEqual([{id: "cred-1"}]);
-  expect(getUserSpy).toHaveBeenCalled();
-  fireEvent.click(view.getByTestId("managed-account-table"));
-  expect(page.state.user.managedAccounts).toEqual([{name: "managed"}]);
-  fireEvent.click(view.getByTestId("face-id-table"));
-  expect(page.state.user.faceIds).toEqual([{id: "face"}]);
-  fireEvent.click(view.getByTestId("mfa-account-table"));
-  expect(page.state.user.mfaAccounts).toEqual([{name: "mfa-account"}]);
-  fireEvent.click(view.getByTestId("affiliation-select"));
+  fireEvent.click(basicView.getByTestId("affiliation-select"));
   expect(page.state.user.affiliation).toBe("team-a");
-  fireEvent.click(view.getByTestId("consent-table"));
-  expect(getUserSpy).toHaveBeenCalled();
-  fireEvent.click(view.getByTestId("oauth-widget"));
-  fireEvent.click(view.getByTestId("saml-widget"));
-  expect(getUserSpy.mock.calls.length).toBeGreaterThanOrEqual(3);
 
-  Array.from(view.container.querySelectorAll("input") as NodeListOf<HTMLInputElement>).forEach((input, index) => {
+  Array.from(basicView.container.querySelectorAll("input") as NodeListOf<HTMLInputElement>).forEach((input, index) => {
     fireEvent.change(input, {target: {value: `changed-${index}`}});
   });
-  fireEvent.change(view.getByTestId("country-code-select"), {target: {value: "CN"}});
-  fireEvent.change(view.getByTestId("region-select"), {target: {value: "CN"}});
+  fireEvent.change(basicView.getByTestId("country-code-select"), {target: {value: "CN"}});
+  fireEvent.change(basicView.getByTestId("region-select"), {target: {value: "CN"}});
 
   expect(page.state.user.countryCode).toBe("CN");
   expect(page.state.user.region).toBe("CN");
+  basicView.unmount();
+
+  const securityView = renderUserFormForTab(page, "security");
+  expect(securityView.getByText("PasswordModal")).not.toBeNull();
+  fireEvent.click(securityView.getByTestId("mfa-table"));
+  expect(page.state.user.mfaItems).toEqual([{mfaType: "totp"}]);
+  fireEvent.click(securityView.getByTestId("webauthn-table"));
+  expect(page.state.user.webauthnCredentials).toEqual([{id: "cred-1"}]);
+  expect(getUserSpy).toHaveBeenCalled();
+  fireEvent.click(securityView.getByTestId("managed-account-table"));
+  expect(page.state.user.managedAccounts).toEqual([{name: "managed"}]);
+  fireEvent.click(securityView.getByTestId("face-id-table"));
+  expect(page.state.user.faceIds).toEqual([{id: "face"}]);
+  fireEvent.click(securityView.getByTestId("mfa-account-table"));
+  expect(page.state.user.mfaAccounts).toEqual([{name: "mfa-account"}]);
+  securityView.unmount();
+
+  const connectionsView = renderUserFormForTab(page, "connections");
+  expect(connectionsView.getByTestId("oauth-widget")).not.toBeNull();
+  expect(connectionsView.getByTestId("saml-widget")).not.toBeNull();
+  fireEvent.click(connectionsView.getByTestId("oauth-widget"));
+  fireEvent.click(connectionsView.getByTestId("saml-widget"));
+  expect(getUserSpy.mock.calls.length).toBeGreaterThanOrEqual(3);
+  connectionsView.unmount();
+
+  const recordsView = renderUserFormForTab(page, "records");
+  expect(recordsView.getByTestId("transaction-table").textContent).toContain("Transactions-1");
+  expect(recordsView.getByTestId("transaction-table").getAttribute("data-embedded")).toBe("true");
+  expect(recordsView.getByTestId("cart-table")).not.toBeNull();
+  fireEvent.click(recordsView.getByTestId("consent-table"));
+  expect(getUserSpy).toHaveBeenCalled();
+});
+
+test("renders an explicit empty state when the application has no visible third-party login providers", () => {
+  const page = createPage();
+  page.state = {
+    ...page.state,
+    application: {
+      ...application,
+      providers: [],
+    },
+  };
+
+  const connectionsView = renderUserFormForTab(page, "connections");
+
+  expect(connectionsView.queryByTestId("oauth-widget")).toBeNull();
+  expect(connectionsView.queryByTestId("saml-widget")).toBeNull();
+  expect(connectionsView.getByText("当前应用未配置可展示的第三方登录 Provider")).not.toBeNull();
+  expect(connectionsView.container.querySelector(".user-edit-third-party-empty")).not.toBeNull();
+  connectionsView.unmount();
 });
 
 test("invokes configured form callbacks across migrated JSX branches", async() => {
   const page = createPage();
   const getUserSpy = jestValue.spyOn(page, "getUser");
-  const userForm = page.renderUserForm();
-  const callbacks = collectCallbacks(userForm, [
+  const callbackNames = [
     "onChange",
     "onClick",
     "onConfirm",
@@ -646,7 +725,11 @@ test("invokes configured form callbacks across migrated JSX branches", async() =
     "onUpdateTable",
     "updateTable",
     "refresh",
-  ]);
+  ];
+  const callbacks = page.getAvailableTabs().flatMap(tab => {
+    setActiveUserTab(page, tab.key);
+    return collectCallbacks(page.renderUserForm(), callbackNames);
+  });
 
   callbacks.forEach(invokeCallback);
   await flushPromises();
@@ -672,7 +755,30 @@ test("updates scalar, address and parsed numeric user fields", () => {
   expect(page.state.user.ranking).toBe(44);
 });
 
-test("handles return URL, account item visibility and tabbed layouts", async() => {
+test("hides empty roles and permissions without removing populated tags", () => {
+  const page = createPage();
+  const populatedRolesView = render(<>{page.renderAccountItem({name: "Roles", visible: true})}</>);
+  const populatedPermissionsView = render(<>{page.renderAccountItem({name: "Permissions", visible: true})}</>);
+
+  expect(populatedRolesView.getByText("role-a")).not.toBeNull();
+  expect(populatedPermissionsView.getByText("permission-a")).not.toBeNull();
+  populatedRolesView.unmount();
+  populatedPermissionsView.unmount();
+
+  page.state = {
+    ...page.state,
+    user: {
+      ...page.state.user,
+      roles: [],
+      permissions: [],
+    },
+  };
+
+  expect(page.renderAccountItem({name: "Roles", visible: true})).toBeNull();
+  expect(page.renderAccountItem({name: "Permissions", visible: true})).toBeNull();
+});
+
+test("handles return URL, account item visibility and fixed edit tabs", async() => {
   const page = createPage({location: {search: "?returnUrl=%2Faccount%23profile"}});
 
   page.setReturnUrl();
@@ -696,14 +802,40 @@ test("handles return URL, account item visibility and tabbed layouts", async() =
   };
 
   expect(page.isAccountItemVisible({name: "Phone", visible: false})).toBe(false);
-  expect(page.getAccountItemsByTab("Contact").map(item => item.name)).toEqual(["Email"]);
-  expect(page.getUniqueTabs()).toEqual(["", "Admin", "Contact"]);
+  expect(page.getAccountItemsByUserEditTab("basic").map(item => item.name)).toEqual(["Display name", "Email"]);
+  expect(page.getAccountItemsByUserEditTab("access").map(item => item.name)).toEqual(["Is admin"]);
+  expect(page.getAvailableTabs().map(tab => tab.key)).toEqual(["basic", "access"]);
 
-  const view = render(<>{page.renderUserForm()}</>);
-  expect(view.getByText("Contact")).not.toBeNull();
-  expect(view.container.querySelector("aside")).not.toBeNull();
-  fireEvent.click(view.getByText("Admin"));
-  expect(page.state.activeMenuKey).toBe("Admin");
+  const accessOnlyPage = createPage();
+  accessOnlyPage.state = {
+    ...accessOnlyPage.state,
+    application: {
+      ...application,
+      organizationObj: {
+        ...application.organizationObj,
+        accountItems: [
+          {name: "Is admin", visible: true, viewRule: "Admin", tab: "Admin"},
+        ],
+      },
+    },
+    activeTabKey: "records",
+  };
+  expect(accessOnlyPage.getAvailableTabs().map(tab => tab.key)).toEqual(["access"]);
+  expect(accessOnlyPage.getActiveTabKey()).toBe("access");
+  const accessOnlyView = render(<>{accessOnlyPage.renderUserForm()}</>);
+  expect(accessOnlyView.container.querySelector(".ant-switch")).not.toBeNull();
+  accessOnlyView.unmount();
+
+  const view = render(<>{page.renderEditTabs()}</>);
+  const basicTab = view.getByText(/^(基础|Basic)$/);
+  const accessTab = view.getByText(/^(权限管理|Authorization)$/);
+  expect(basicTab).not.toBeNull();
+  expect(accessTab).not.toBeNull();
+  expect(view.queryByText("Contact")).toBeNull();
+  expect(view.queryByText("Admin")).toBeNull();
+  expect(view.container.querySelector("aside")).toBeNull();
+  fireEvent.click(accessTab);
+  expect(page.state.activeTabKey).toBe("access");
   view.unmount();
 
   (organizationBackendMock.getOrganization as unknown as {mockClear: () => void}).mockClear();
@@ -722,6 +854,75 @@ test("handles return URL, account item visibility and tabbed layouts", async() =
   expect(emptyImage.getByText(/\((空|无|empty)\)/)).not.toBeNull();
   expect(page.getIdCardType("unknown")).toContain("Unknown");
   expect(page.getIdCardText("unknown")).toContain("Unknown");
+});
+
+test("renders organization-style fixed user tabs in the page shell with one fixed action bar", () => {
+  const page = createPage();
+  page.state = {
+    ...page.state,
+    application: {
+      ...application,
+      organizationObj: {
+        ...application.organizationObj,
+        accountItems: [
+          {name: "Display name", visible: true, tab: "", regex: "^[A-Z].*"},
+          {name: "Email", visible: true, tab: "Contact"},
+          {name: "Is admin", visible: true, viewRule: "Admin", tab: "Admin"},
+        ],
+      },
+    },
+    activeTabKey: "basic",
+    menuMode: "Vertical",
+  };
+
+  const view = render(<>{page.renderUser()}</>);
+  expect(view.container.querySelector(".user-edit-shell")).not.toBeNull();
+  expect(view.container.querySelector(".user-edit-header")).not.toBeNull();
+  expect(view.container.querySelector(".user-edit-tabs")).not.toBeNull();
+  expect(view.container.querySelector(".user-edit-scroll-content")).not.toBeNull();
+  expect(view.container.querySelector(".user-edit-action-bar")).not.toBeNull();
+  expect(view.container.querySelector("aside")).toBeNull();
+  const basicTab = view.getByText(/^(基础|Basic)$/);
+  const accessTab = view.getByText(/^(权限管理|Authorization)$/);
+  expect(basicTab).not.toBeNull();
+  expect(accessTab).not.toBeNull();
+  expect(view.queryByText("Contact")).toBeNull();
+  expect(view.queryByText("Admin")).toBeNull();
+
+  fireEvent.click(accessTab);
+  expect(page.state.activeTabKey).toBe("access");
+  expect(window.location.hash).toBe("#access");
+  expect(view.container.querySelectorAll(".user-edit-action-bar button").length).toBe(3);
+});
+
+test("protects dirty cancel and ignores duplicate user saves while submitting", async() => {
+  const page = createPage() as unknown as UserEditShellHarness;
+  const historyPush = page.props.history.push as ReturnType<typeof jestValue.fn>;
+  const confirmSpy = jestValue.spyOn(Modal, "confirm").mockImplementation((config) => {
+    (config as {onOk?: () => void}).onOk?.();
+    return {destroy: jestValue.fn(), update: jestValue.fn()} as never;
+  });
+
+  page.state = {
+    ...page.state,
+    dirty: true,
+  };
+  page.handleCancel();
+
+  expect(confirmSpy).toHaveBeenCalled();
+  expect(historyPush).toHaveBeenCalledWith("/users");
+
+  (userBackendMock.updateUser as unknown as {mockClear: () => void}).mockClear();
+  const submittingPage = createPage();
+  submittingPage.state = {
+    ...submittingPage.state,
+    submitting: true,
+  };
+
+  submittingPage.submitUserEdit(false);
+  await flushPromises();
+
+  expect(userBackendMock.updateUser).not.toHaveBeenCalled();
 });
 
 test("falls back to organization settings when user has no application", async() => {
@@ -922,6 +1123,7 @@ test("deletes MFA and refreshes account after WeCom profile sync", async() => {
 
 test("renders user cards, loading and not-found states without changing default buttons", () => {
   const page = createPage();
+  setActiveUserTab(page, "security");
   const userView = render(<>{page.renderUser()}</>);
   expect(userView.container.querySelector(".user-edit-card")).not.toBeNull();
   expect(userView.getAllByText("PasswordModal").length).toBeGreaterThan(0);

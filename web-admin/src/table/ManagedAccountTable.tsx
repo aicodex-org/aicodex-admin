@@ -132,7 +132,7 @@ class ManagedAccountTable extends React.Component<ManagedAccountTableProps, Mana
         title: i18next.t("signup:Username"),
         dataIndex: "username",
         key: "username",
-        width: "200px",
+        width: "180px",
         render: (text, record, index) => {
           return (
             <Input size="small" value={text} onChange={e => {
@@ -145,7 +145,7 @@ class ManagedAccountTable extends React.Component<ManagedAccountTableProps, Mana
         title: i18next.t("general:Password"),
         dataIndex: "password",
         key: "password",
-        width: "200px",
+        width: "180px",
         render: (text, record, index) => {
           return (
             <Input.Password size="small" value={text} onChange={e => {
@@ -176,12 +176,16 @@ class ManagedAccountTable extends React.Component<ManagedAccountTableProps, Mana
       },
     ];
 
+    const title = this.props.title === undefined ? i18next.t("user:Managed accounts") : this.props.title;
+
     return (
       <Table scroll={{x: "max-content"}} rowKey="key" columns={columns} dataSource={table} size="middle" bordered pagination={false}
         title={() => (
-          <div>
-            {this.props.title}&nbsp;&nbsp;&nbsp;&nbsp;
-            <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={() => this.addRow(table)}>{i18next.t("general:Add")}</Button>
+          <div className="user-edit-table-toolbar">
+            {title === null ? null : <span className="user-edit-table-title">{title}</span>}
+            <div className="user-edit-table-toolbar-actions">
+              <Button type="primary" size="small" onClick={() => this.addRow(table)}>{i18next.t("general:Add")}</Button>
+            </div>
           </div>
         )}
       />

@@ -14,8 +14,8 @@
 
 import React from "react";
 import {
-  Button, Card, Col, Form, Input, InputNumber, Layout, List,
-  Menu, Result, Row, Select, Space, Spin, Switch, Tabs, Tag, Tooltip
+  Button, Card, Col, Empty, Form, Input, InputNumber, List, Modal,
+  Result, Row, Select, Space, Spin, Switch, Tabs, Tag, Tooltip
 } from "antd";
 import * as ReactRouterDom from "react-router-dom";
 import {TotpMfaType} from "./auth/MfaSetupPage";
@@ -53,8 +53,7 @@ import CartTable from "./table/CartTable";
 import * as TransactionBackend from "./backend/TransactionBackend";
 import WeComProfileSyncPanel from "./account/WeComProfileSyncPanel";
 import ConsentTable from "./table/ConsentTable";
-import {Content, Header} from "antd/es/layout/layout";
-import Sider from "antd/es/layout/Sider";
+import LargeEditShell from "./common/LargeEditShell";
 
 const {Option} = Select;
 
@@ -67,6 +66,7 @@ interface BackendResponse<T> {
 
 interface OrganizationRecord {
   name: string;
+  displayName?: string;
   accountMenu?: string;
   accountItems?: AccountItemRecord[];
   userTypes?: string[];
@@ -115,6 +115,14 @@ interface AccountItemRecord {
   regex?: string;
   rule?: string;
   [key: string]: unknown;
+}
+
+type UserEditTabKey = "basic" | "identity" | "access" | "security" | "connections" | "records";
+
+interface UserEditTabItem {
+  key: UserEditTabKey;
+  label: string;
+  accountItemNames: string[];
 }
 
 interface RoleRecord {
@@ -240,8 +248,10 @@ interface UserEditPageState {
   openFaceRecognitionModal: boolean;
   transactions: Record<string, unknown>[];
   consents: unknown[];
-  activeMenuKey: string;
+  activeTabKey: UserEditTabKey;
   menuMode: "Horizontal" | "Vertical" | string;
+  dirty: boolean;
+  submitting: boolean;
   multiFactorAuths?: MfaPropsRecord[];
   RemoveMfaLoading?: boolean;
   [key: string]: unknown;
@@ -285,8 +295,10 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
       openFaceRecognitionModal: false,
       transactions: [],
       consents: [],
-      activeMenuKey: window.location.hash?.slice(1) || "",
+      activeTabKey: this.getInitialTabKey(),
       menuMode: "Horizontal",
+      dirty: false,
+      submitting: false,
     };
   }
 
@@ -325,6 +337,7 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
           multiFactorAuths: user.multiFactorAuths ?? [],
           consents: user.applicationScopes ?? [],
           loading: false,
+          dirty: false,
         }, () => {
           this.normalizeSignupApplication();
           this.resolvePendingUserApplicationError();
@@ -386,7 +399,7 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
       return;
     }
 
-    this.updateUserField("signupApplication", signupApplication);
+    this.updateUserField("signupApplication", signupApplication, undefined, {dirty: false});
   }
 
   isDirectorySyncedUser(user?: UserRecord | null) {
@@ -401,6 +414,84 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
 
   hasNonEmptyString(value: unknown) {
     return typeof value === "string" && value.trim() !== "";
+  }
+
+  getOrganizationDisplayName(organization: OrganizationRecord): string {
+    const displayName = organization.displayName;
+    return typeof displayName === "string" && displayName.trim() !== "" ? displayName.trim() : organization.name;
+  }
+
+  normalizeTooltipText(value: string): string {
+    return value.trim().replace(/\s+/g, " ");
+  }
+
+  isUsefulAccountItemTooltip(label: string, tooltip: string): boolean {
+    const normalizedLabel = this.normalizeTooltipText(label);
+    const normalizedTooltip = this.normalizeTooltipText(tooltip);
+
+    if (normalizedTooltip === "" || normalizedTooltip === normalizedLabel) {
+      return false;
+    }
+
+    return !/ - Tooltip$/i.test(normalizedTooltip);
+  }
+
+  renderAccountItemLabel(label: string, tooltip: string): React.ReactNode {
+    if (!this.isUsefulAccountItemTooltip(label, tooltip)) {
+      return <span>{label}</span>;
+    }
+
+    return Setting.getLabel(label, tooltip);
+  }
+
+  renderAccountItemTags(tags: string[], keyPrefix: string): React.ReactNode {
+    return Setting.getTags(tags).map((tag: React.ReactNode, index: number) => (
+      <React.Fragment key={`${keyPrefix}-${tags[index]}-${index}`}>
+        {tag}
+      </React.Fragment>
+    ));
+  }
+
+  getVisibleApplicationProviders(): ProviderItemRecord[] {
+    return (this.state.application?.providers ?? []).filter(providerItem => Setting.isProviderVisible(providerItem));
+  }
+
+  renderThirdPartyLoginItems(): React.ReactNode {
+    if (this.state.application === null || this.state.user === null) {
+      return null;
+    }
+
+    const visibleProviders = this.getVisibleApplicationProviders();
+    if (visibleProviders.length === 0) {
+      return (
+        <Empty
+          className="user-edit-third-party-empty"
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description={i18next.t("user:No third-party login providers")}
+        />
+      );
+    }
+
+    return visibleProviders.map((providerItem) =>
+      (providerItem.provider.category === "OAuth" || providerItem.provider.category === "Web3") ? (
+        <OAuthWidget
+          key={providerItem.name}
+          labelSpan={(Setting.isMobile()) ? 10 : 3}
+          user={this.state.user}
+          application={this.state.application as ApplicationRecord}
+          providerItem={providerItem}
+          account={this.props.account}
+          onUnlinked={() => {return this.unlinked();}} />
+      ) : (
+        <SamlWidget
+          key={providerItem.name}
+          labelSpan={(Setting.isMobile()) ? 10 : 3}
+          user={this.state.user}
+          application={this.state.application as ApplicationRecord}
+          providerItem={providerItem}
+          onUnlinked={() => {return this.unlinked();}} />
+      )
+    );
   }
 
   getUserApplication() {
@@ -520,7 +611,7 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
     return value;
   }
 
-  updateUserField(key: string, value: unknown, idx?: number) {
+  updateUserField(key: string, value: unknown, idx?: number, options: {dirty?: boolean} = {}) {
     if (this.props.account === null) {
       return;
     }
@@ -541,6 +632,7 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
 
     this.setState({
       user: user,
+      dirty: options.dirty === false ? this.state.dirty : true,
     });
   }
 
@@ -722,13 +814,37 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
             {Setting.getLabel(i18next.t("general:Organization"), i18next.t("general:Organization - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Select virtual={false} style={{width: "100%"}} disabled={disabled} value={this.state.user.owner} onChange={(value => {
-              this.getApplicationsByOrganization(value);
-              this.updateUserField("owner", value);
-              this.getGroups(value);
-            })}>
+            <Select
+              virtual={false}
+              showSearch
+              optionLabelProp="label"
+              style={{width: "100%"}}
+              disabled={disabled}
+              value={this.state.user.owner}
+              filterOption={(input, option) => {
+                const optionText = `${option?.label ?? ""} ${option?.value ?? ""}`.toLowerCase();
+                return optionText.includes(input.toLowerCase());
+              }}
+              onChange={(value => {
+                this.getApplicationsByOrganization(value);
+                this.updateUserField("owner", value);
+                this.getGroups(value);
+              })}
+            >
               {
-                this.state.organizations.map((organization, index) => <Option key={index} value={organization.name}>{organization.name}</Option>)
+                this.state.organizations.map((organization) => {
+                  const displayName = this.getOrganizationDisplayName(organization);
+                  return (
+                    <Option key={organization.name} value={organization.name} label={displayName}>
+                      <div className="user-edit-organization-option">
+                        <span className="user-edit-organization-option-name">{displayName}</span>
+                        {displayName !== organization.name ? (
+                          <span className="user-edit-organization-option-id">{organization.name}</span>
+                        ) : null}
+                      </div>
+                    </Option>
+                  );
+                })
               }
             </Select>
           </Col>
@@ -844,7 +960,7 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
       return (
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Password"), i18next.t("general:Password - Tooltip"))} :
+            {this.renderAccountItemLabel(i18next.t("general:Password"), i18next.t("general:Password - Tooltip"))} :
           </Col>
           <Col span={22} >
             {
@@ -941,39 +1057,33 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
       );
     } else if (accountItem.name === "Address") {
       return (
-        <React.Fragment>
-          <Row style={{marginTop: "20px"}} >
-            <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-              {Setting.getLabel(i18next.t("user:Address"), i18next.t("user:Address - Tooltip"))} :
-            </Col>
-            <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-              <span>{i18next.t("user:Address line") + " 1"}</span> :
-            </Col>
-            <Col span={20} >
-              <Input value={!this.state.user.address ? "" : this.state.user.address[0]} onChange={e => {
-                this.updateUserField("address", e.target.value, 0);
-              }} />
-            </Col>
-          </Row>
-          <Row style={{marginTop: "20px"}} >
-            <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            </Col>
-            <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-              <span>{i18next.t("user:Address line") + " 2"}</span> :
-            </Col>
-            <Col span={20} >
-              <Input value={!this.state.user.address ? "" : this.state.user.address[1]} onChange={e => {
-                this.updateUserField("address", e.target.value, 1);
-              }} />
-            </Col>
-          </Row>
-        </React.Fragment>
+        <Row style={{marginTop: "20px"}} >
+          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+            {Setting.getLabel(i18next.t("user:Address"), i18next.t("user:Address - Tooltip"))} :
+          </Col>
+          <Col span={22} >
+            <div className="user-edit-address-lines">
+              <div className="user-edit-address-line">
+                <span className="user-edit-address-line-label">{i18next.t("user:Address line") + " 1"} :</span>
+                <Input value={!this.state.user.address ? "" : this.state.user.address[0]} onChange={e => {
+                  this.updateUserField("address", e.target.value, 0);
+                }} />
+              </div>
+              <div className="user-edit-address-line">
+                <span className="user-edit-address-line-label">{i18next.t("user:Address line") + " 2"} :</span>
+                <Input value={!this.state.user.address ? "" : this.state.user.address[1]} onChange={e => {
+                  this.updateUserField("address", e.target.value, 1);
+                }} />
+              </div>
+            </div>
+          </Col>
+        </Row>
       );
     } else if (accountItem.name === "Addresses") {
       return (
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("user:Addresses"), i18next.t("user:Addresses"))} :
+            {this.renderAccountItemLabel(i18next.t("user:Addresses"), i18next.t("user:Addresses"))} :
           </Col>
           <Col span={22} >
             <AddressTable
@@ -1235,7 +1345,7 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
       return (
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Cart"), i18next.t("general:Cart"))} :
+            {this.renderAccountItemLabel(i18next.t("general:Cart"), i18next.t("general:Cart"))} :
           </Col>
           <Col span={22}>
             <CartTable cart={this.state.user.cart} />
@@ -1246,10 +1356,10 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
       return (
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Transactions"), i18next.t("general:Transactions"))} :
+            {this.renderAccountItemLabel(i18next.t("general:Transactions"), i18next.t("general:Transactions"))} :
           </Col>
           <Col span={22}>
-            <TransactionTable title={i18next.t("general:Transactions")} transactions={this.state.transactions} hideTag={true} />
+            <TransactionTable transactions={this.state.transactions} hideTag={true} embedded />
           </Col>
         </Row>
       );
@@ -1335,6 +1445,11 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
         </Row>
       );
     } else if (accountItem.name === "Roles") {
+      const roleNames = (this.state.user.roles ?? []).map(role => role.name).filter(Boolean);
+      if (roleNames.length === 0) {
+        return null;
+      }
+
       return (
         <Row style={{marginTop: "20px", alignItems: "center"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
@@ -1342,12 +1457,17 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
           </Col>
           <Col span={22} >
             {
-              Setting.getTags((this.state.user.roles ?? []).map(role => role.name))
+              this.renderAccountItemTags(roleNames, "role")
             }
           </Col>
         </Row>
       );
     } else if (accountItem.name === "Permissions") {
+      const permissionNames = (this.state.user.permissions ?? []).map(permission => permission.name).filter(Boolean);
+      if (permissionNames.length === 0) {
+        return null;
+      }
+
       return (
         <Row style={{marginTop: "20px", alignItems: "center"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
@@ -1355,7 +1475,7 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
           </Col>
           <Col span={22} >
             {
-              Setting.getTags((this.state.user.permissions ?? []).map(permission => permission.name))
+              this.renderAccountItemTags(permissionNames, "permission")
             }
           </Col>
         </Row>
@@ -1368,31 +1488,8 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
               {Setting.getLabel(i18next.t("user:3rd-party logins"), i18next.t("user:3rd-party logins - Tooltip"))} :
             </Col>
             <Col span={22} >
-              <div style={{marginBottom: 20}}>
-                {
-                  (this.state.application === null || this.state.user === null) ? null : (
-                    (this.state.application?.providers ?? []).filter(providerItem => Setting.isProviderVisible(providerItem)).map((providerItem) =>
-                      (providerItem.provider.category === "OAuth" || providerItem.provider.category === "Web3") ? (
-                        <OAuthWidget
-                          key={providerItem.name}
-                          labelSpan={(Setting.isMobile()) ? 10 : 3}
-                          user={this.state.user}
-                          application={this.state.application}
-                          providerItem={providerItem}
-                          account={this.props.account}
-                          onUnlinked={() => {return this.unlinked();}} />
-                      ) : (
-                        <SamlWidget
-                          key={providerItem.name}
-                          labelSpan={(Setting.isMobile()) ? 10 : 3}
-                          user={this.state.user}
-                          application={this.state.application}
-                          providerItem={providerItem}
-                          onUnlinked={() => {return this.unlinked();}} />
-                      )
-                    )
-                  )
-                }
+              <div className="user-edit-third-party-login-list">
+                {this.renderThirdPartyLoginItems()}
               </div>
             </Col>
           </Row>
@@ -1452,11 +1549,11 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
     } else if (accountItem.name === "MFA items") {
       return (<Row style={{marginTop: "20px"}} >
         <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-          {Setting.getLabel(i18next.t("general:MFA items"), i18next.t("general:MFA items - Tooltip"))} :
+          {this.renderAccountItemLabel(i18next.t("general:MFA items"), i18next.t("general:MFA items - Tooltip"))} :
         </Col>
         <Col span={22} >
           <MfaTable
-            title={i18next.t("general:MFA items")}
+            title={null}
             table={this.state.user.mfaItems ?? []}
             onUpdateTable={(value: unknown) => {this.updateUserField("mfaItems", value);}}
           />
@@ -1466,11 +1563,11 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
       return (
         <Row style={{marginTop: "20px"}}>
           <Col style={{marginTop: "5px"}} span={Setting.isMobile() ? 22 : 2}>
-            {Setting.getLabel(i18next.t("consent:Consents"), i18next.t("consent:Consents - Tooltip"))} :
+            {this.renderAccountItemLabel(i18next.t("consent:Consents"), i18next.t("consent:Consents - Tooltip"))} :
           </Col>
           <Col span={22}>
             <ConsentTable
-              title={i18next.t("consent:Consents")}
+              title={null}
               table={this.state.consents}
               onUpdateTable={() => this.getUser()}
             />
@@ -1482,7 +1579,7 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
         !this.isSelfOrAdmin() ? null : (
           <Row style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={Setting.isMobile() ? 22 : 2}>
-              {Setting.getLabel(i18next.t("mfa:Multi-factor authentication"), i18next.t("mfa:Multi-factor authentication - Tooltip "))} :
+              {this.renderAccountItemLabel(i18next.t("mfa:Multi-factor authentication"), i18next.t("mfa:Multi-factor authentication - Tooltip "))} :
             </Col>
             <Col span={22} >
               <Card size="small" title={
@@ -1565,10 +1662,10 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
       return (
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("user:WebAuthn credentials"), i18next.t("user:WebAuthn credentials"))} :
+            {this.renderAccountItemLabel(i18next.t("user:WebAuthn credentials"), i18next.t("user:WebAuthn credentials - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <WebAuthnCredentialTable isSelf={this.isSelf()} table={this.state.user.webauthnCredentials} updateTable={(table: unknown) => {this.updateUserField("webauthnCredentials", table);}} refresh={this.getUser.bind(this)} />
+            <WebAuthnCredentialTable title={null} isSelf={this.isSelf()} table={this.state.user.webauthnCredentials} updateTable={(table: unknown) => {this.updateUserField("webauthnCredentials", table);}} refresh={this.getUser.bind(this)} />
           </Col>
         </Row>
       );
@@ -1576,7 +1673,7 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
       return (
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("user:Last change password time"), i18next.t("user:Last change password time"))} :
+            {this.renderAccountItemLabel(i18next.t("user:Last change password time"), i18next.t("user:Last change password time - Tooltip"))} :
           </Col>
           <Col span={22}>
             <Input value={this.state.user.lastChangePasswordTime} onChange={e => {
@@ -1589,11 +1686,11 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
       return (
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("user:Managed accounts"), i18next.t("user:Managed accounts"))} :
+            {this.renderAccountItemLabel(i18next.t("user:Managed accounts"), i18next.t("user:Managed accounts - Tooltip"))} :
           </Col>
           <Col span={22} >
             <ManagedAccountTable
-              title={i18next.t("user:Managed accounts")}
+              title={null}
               table={this.state.user.managedAccounts}
               onUpdateTable={(table: unknown) => {this.updateUserField("managedAccounts", table);}}
               applications={this.state.applications}
@@ -1605,11 +1702,11 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
       return (
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("user:Face IDs"), i18next.t("user:Face IDs"))} :
+            {this.renderAccountItemLabel(i18next.t("user:Face IDs"), i18next.t("user:Face IDs - Tooltip"))} :
           </Col>
           <Col span={22} >
             <FaceIdTable
-              title={i18next.t("user:Face IDs")}
+              title={null}
               table={this.state.user.faceIds}
               {...this.props}
               onUpdateTable={(table: unknown) => {this.updateUserField("faceIds", table);}}
@@ -1621,11 +1718,11 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
       return (
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("user:MFA accounts"), i18next.t("user:MFA accounts"))} :
+            {this.renderAccountItemLabel(i18next.t("user:MFA accounts"), i18next.t("user:MFA accounts - Tooltip"))} :
           </Col>
           <Col span={22} >
             <MfaAccountTable
-              title={i18next.t("user:MFA accounts")}
+              title={null}
               table={this.state.user.mfaAccounts}
               accessToken={this.props.account?.accessToken}
               icon={this.state.user.avatar}
@@ -1733,148 +1830,261 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
     return true;
   }
 
-  getAccountItemsByTab(tab: string): AccountItemRecord[] {
-    const accountItems = this.getUserOrganization()?.accountItems || [];
-    return accountItems.filter(item => {
-      if (!this.isAccountItemVisible(item)) {
-        return false;
-      }
-
-      const itemTab = item.tab || "";
-      return itemTab === tab;
-    });
+  getUserEditTabDefinitions(): UserEditTabItem[] {
+    return [
+      {
+        key: "basic",
+        label: i18next.t("user:Basic"),
+        accountItemNames: [
+          "Organization", "ID", "Name", "Display name", "Avatar", "User type", "Email", "Phone",
+          "Country/Region", "Location", "Address", "Addresses", "Affiliation", "Title", "Homepage",
+          "Bio", "Tag", "Language", "Gender", "Birthday", "Education", "First name", "Last name",
+          "Properties",
+        ],
+      },
+      {
+        key: "identity",
+        label: i18next.t("user:Identity"),
+        accountItemNames: [
+          "ID card type", "ID card", "ID card info", "Real name", "ID verification",
+          "Signup application", "Register type", "Register source",
+        ],
+      },
+      {
+        key: "access",
+        label: i18next.t("user:Authorization"),
+        accountItemNames: [
+          "Groups", "Roles", "Permissions", "Is admin", "Is forbidden", "Is deleted",
+          "Need update password", "IP whitelist",
+        ],
+      },
+      {
+        key: "security",
+        label: i18next.t("user:Security"),
+        accountItemNames: [
+          "Password", "MFA items", "Multi-factor authentication", "WebAuthn credentials",
+          "Last change password time", "Managed accounts", "Face ID", "MFA accounts",
+        ],
+      },
+      {
+        key: "connections",
+        label: i18next.t("user:3rd-party logins"),
+        accountItemNames: ["3rd-party logins"],
+      },
+      {
+        key: "records",
+        label: i18next.t("user:Records"),
+        accountItemNames: [
+          "Balance", "Balance credit", "Balance currency", "Cart", "Transactions",
+          "Score", "Karma", "Ranking", "Consents",
+        ],
+      },
+    ];
   }
 
-  getUniqueTabs(): string[] {
+  isKnownTabKey(key: unknown): key is UserEditTabKey {
+    return ["basic", "identity", "access", "security", "connections", "records"].includes(`${key}`);
+  }
+
+  getInitialTabKey(): UserEditTabKey {
+    const hashKey = window.location.hash?.slice(1);
+    return this.isKnownTabKey(hashKey) ? hashKey : "basic";
+  }
+
+  getUserEditTabKeyForAccountItem(accountItem: AccountItemRecord): UserEditTabKey {
+    const itemName = accountItem.name ?? "";
+    return this.getUserEditTabDefinitions().find(tab => tab.accountItemNames.includes(itemName))?.key ?? "basic";
+  }
+
+  getAccountItemsByUserEditTab(tabKey: UserEditTabKey): AccountItemRecord[] {
     const accountItems = this.getUserOrganization()?.accountItems || [];
-    const tabs = new Set<string>();
+    return accountItems.filter(item => this.isAccountItemVisible(item) && this.getUserEditTabKeyForAccountItem(item) === tabKey);
+  }
 
-    accountItems.forEach(item => {
-      if (this.isAccountItemVisible(item)) {
-        tabs.add(item.tab || "");
-      }
-    });
+  getAvailableTabs(): UserEditTabItem[] {
+    const tabs = this.getUserEditTabDefinitions().filter(tab => this.getAccountItemsByUserEditTab(tab.key).length > 0);
+    return tabs.length > 0 ? tabs : [this.getUserEditTabDefinitions()[0]];
+  }
 
-    return Array.from(tabs).sort((a, b) => {
-      // Empty string (default tab) comes first
-      if (a === "") {
-        return -1;
-      }
-      if (b === "") {
-        return 1;
-      }
-      return a.localeCompare(b);
-    });
+  getActiveTabKey(): UserEditTabKey {
+    const availableTabs = this.getAvailableTabs();
+    const availableKeys = availableTabs.map(tab => tab.key);
+    return availableKeys.includes(this.state.activeTabKey) ? this.state.activeTabKey : availableTabs[0]?.key ?? "basic";
+  }
+
+  setActiveTabKey(key: string) {
+    const nextKey = this.isKnownTabKey(key) ? key : "basic";
+    this.setState({activeTabKey: nextKey});
+    window.location.hash = nextKey;
+  }
+
+  renderEditTabs(): React.ReactNode {
+    const tabs = this.getAvailableTabs();
+    if (tabs.length <= 1) {
+      return null;
+    }
+
+    return (
+      <Tabs
+        className="user-edit-tabs"
+        activeKey={this.getActiveTabKey()}
+        onChange={(key) => this.setActiveTabKey(key)}
+        items={tabs.map(tab => ({
+          label: tab.label,
+          key: tab.key,
+        }))}
+      />
+    );
+  }
+
+  getAccountItemFormItemClassName(accountItem: AccountItemRecord): string {
+    const itemName = accountItem.name ?? "unknown";
+    const itemSlug = itemName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "unknown";
+    const wideItemNames = new Set([
+      "Avatar", "Address", "Addresses", "ID card info", "Groups", "Roles", "Permissions", "3rd-party logins",
+      "Properties", "MFA items", "Multi-factor authentication", "WebAuthn credentials", "Managed accounts",
+      "Face ID", "MFA accounts", "Cart", "Transactions", "Consents",
+    ]);
+
+    return [
+      "user-edit-form-item",
+      `user-edit-form-item-${itemSlug}`,
+      wideItemNames.has(itemName) ? "user-edit-form-item-wide" : "user-edit-form-item-compact",
+    ].filter(Boolean).join(" ");
+  }
+
+  renderAccountItemFormItems(tabKey: UserEditTabKey): React.ReactNode {
+    return (
+      this.getAccountItemsByUserEditTab(tabKey).map(accountItem => (
+        <React.Fragment key={accountItem.name}>
+          <Form.Item name={accountItem.name}
+            className={this.getAccountItemFormItemClassName(accountItem)}
+            validateTrigger="onChange"
+            rules={[
+              {
+                pattern: accountItem.regex ? new RegExp(accountItem.regex, "g") : undefined,
+                message: i18next.t("user:This field value doesn't match the pattern rule"),
+              },
+            ]}
+            style={{margin: 0}}>
+            {this.renderAccountItem(accountItem)}
+          </Form.Item>
+        </React.Fragment>
+      ))
+    );
   }
 
   renderUserForm() {
-    const tabs = this.getUniqueTabs();
+    return (
+      <Form className="user-edit-form">
+        {this.renderAccountItemFormItems(this.getActiveTabKey())}
+      </Form>
+    );
+  }
 
-    // If there are no tabs or only one tab (default), render without tab navigation
-    if (tabs.length === 0 || (tabs.length === 1 && tabs[0] === "")) {
-      const accountItems = this.getAccountItemsByTab("");
-      return (
-        <Form>
-          {accountItems.map(accountItem => (
-            <React.Fragment key={accountItem.name}>
-              <Form.Item name={accountItem.name}
-                validateTrigger="onChange"
-                rules={[
-                  {
-                    pattern: accountItem.regex ? new RegExp(accountItem.regex, "g") : undefined,
-                    message: i18next.t("user:This field value doesn't match the pattern rule"),
-                  },
-                ]}
-                style={{margin: 0}}>
-                {this.renderAccountItem(accountItem)}
-              </Form.Item>
-            </React.Fragment>
-          ))}
-        </Form>
-      );
+  getUserListReturnPath(): string {
+    const userListUrl = sessionStorage.getItem("userListUrl");
+    if (userListUrl !== null) {
+      return userListUrl;
     }
 
-    // Render with tabs
-    const activeKey = this.state.activeMenuKey || tabs[0] || "";
+    if (Setting.isLocalAdminUser(this.props.account)) {
+      return "/users";
+    }
 
+    return "/";
+  }
+
+  returnToUserList() {
+    if (this.state.returnUrl) {
+      window.location.href = this.state.returnUrl;
+      return;
+    }
+
+    this.props.history.push(this.getUserListReturnPath());
+  }
+
+  confirmDiscardChanges(onConfirm: () => void) {
+    if (!this.state.dirty) {
+      onConfirm();
+      return;
+    }
+
+    Modal.confirm({
+      title: i18next.t("user:Discard unsaved changes confirmation"),
+      okText: i18next.t("general:OK"),
+      cancelText: i18next.t("general:Cancel"),
+      onOk: onConfirm,
+    });
+  }
+
+  handleBack() {
+    this.confirmDiscardChanges(() => {
+      if (this.state.mode === "add") {
+        this.deleteUser();
+        return;
+      }
+
+      this.returnToUserList();
+    });
+  }
+
+  handleCancel() {
+    this.confirmDiscardChanges(() => {
+      if (this.state.mode === "add") {
+        this.deleteUser();
+        return;
+      }
+
+      this.returnToUserList();
+    });
+  }
+
+  getUserEditTitle(): string {
+    if (this.state.mode === "add") {
+      return i18next.t("user:New User");
+    }
+
+    const title = this.state.user?.displayName || this.state.user?.name || this.state.userName;
+    const actionTitle = this.isSelf() ? i18next.t("account:My Account") : i18next.t("user:Edit User");
+    return `${actionTitle} (${title})`;
+  }
+
+  renderEditFooter(): React.ReactNode {
     return (
-      <Layout style={{background: "inherit"}}>
-        {
-          this.state.menuMode === "Vertical" ? null : (
-            <Header style={{background: "inherit", padding: "0px"}}>
-              <Tabs
-                onChange={(key) => {
-                  this.setState({activeMenuKey: key});
-                  window.location.hash = key;
-                }}
-                type="card"
-                activeKey={activeKey}
-                items={tabs.map(tab => ({
-                  label: tab === "" ? i18next.t("general:Default") : tab,
-                  key: tab,
-                }))}
-              />
-            </Header>
-          )
-        }
-        <Layout style={{background: "inherit", maxHeight: "70vh", overflow: "auto"}}>
-          {
-            this.state.menuMode === "Vertical" ? (
-              <Sider width={200} style={{background: "inherit", position: "sticky", top: 0}}>
-                <Menu
-                  mode="vertical"
-                  selectedKeys={[activeKey]}
-                  onClick={({key}) => {
-                    this.setState({activeMenuKey: key});
-                    window.location.hash = key;
-                  }}
-                  style={{marginBottom: "20px", height: "100%"}}
-                  items={tabs.map(tab => ({
-                    label: tab === "" ? i18next.t("general:Default") : tab,
-                    key: tab,
-                  }))}
-                />
-              </Sider>) : null
-          }
-          <Content style={{padding: "15px"}}>
-            <Form>
-              {this.getAccountItemsByTab(activeKey).map(accountItem => (
-                <React.Fragment key={accountItem.name}>
-                  <Form.Item name={accountItem.name}
-                    validateTrigger="onChange"
-                    rules={[
-                      {
-                        pattern: accountItem.regex ? new RegExp(accountItem.regex, "g") : undefined,
-                        message: i18next.t("user:This field value doesn't match the pattern rule"),
-                      },
-                    ]}
-                    style={{margin: 0}}>
-                    {this.renderAccountItem(accountItem)}
-                  </Form.Item>
-                </React.Fragment>
-              ))}
-            </Form>
-          </Content>
-        </Layout>
-      </Layout>
+      <React.Fragment>
+        <Button disabled={this.state.submitting} onClick={() => this.handleCancel()}>{i18next.t("general:Cancel")}</Button>
+        <Button type="primary" loading={this.state.submitting} onClick={() => this.submitUserEdit(false)}>{i18next.t("general:Save")}</Button>
+        <Button disabled={this.state.submitting} onClick={() => this.submitUserEdit(true)}>{i18next.t("user:Save and return")}</Button>
+      </React.Fragment>
     );
   }
 
   renderUser() {
     return (
-      <div>
-        <Card className="admin-large-edit-card user-edit-card" size="small" title={
-          (this.props.account === null) ? i18next.t("user:User Profile") : (
-            <div>
-              {this.state.mode === "add" ? i18next.t("user:New User") : (this.isSelf() ? i18next.t("account:My Account") : i18next.t("user:Edit User"))}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button onClick={() => this.submitUserEdit(false)}>{i18next.t("general:Save")}</Button>
-              <Button style={{marginLeft: "20px"}} type="primary" onClick={() => this.submitUserEdit(true)}>{i18next.t("general:Save & Exit")}</Button>
-              {this.renderWeComProfileSyncPanel()}
-              {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteUser()}>{i18next.t("general:Cancel")}</Button> : null}
-            </div>
-          )
-        } style={(Setting.isMobile()) ? {margin: "5px"} : {}} type="inner">
-          {this.renderUserForm()}
+      <div className="user-edit-card-wrap">
+        <Card
+          className="admin-large-edit-card user-edit-card"
+          size="small"
+          variant="borderless"
+          style={(Setting.isMobile()) ? {margin: "5px"} : {}}
+          styles={{body: {height: "100%", padding: 0}}}
+          type="inner"
+        >
+          <LargeEditShell
+            classPrefix="user-edit"
+            backLabel={i18next.t("general:Back")}
+            breadcrumb={<React.Fragment>{i18next.t("general:Organization & Accounts")} / {i18next.t("general:Users")} /</React.Fragment>}
+            title={this.getUserEditTitle()}
+            dirty={this.state.dirty}
+            dirtyLabel={i18next.t("user:Unsaved changes")}
+            extra={this.renderWeComProfileSyncPanel()}
+            tabs={this.renderEditTabs()}
+            actions={this.props.account === null ? null : this.renderEditFooter()}
+            onBack={() => this.handleBack()}
+          >
+            {this.renderUserForm()}
+          </LargeEditShell>
         </Card>
       </div>
     );
@@ -1905,61 +2115,65 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
   }
 
   submitUserEdit(exitAfterSave: boolean) {
+    if (this.state.submitting) {
+      return;
+    }
+
     const user = Setting.deepCopy(this.state.user);
+    this.setState({submitting: true});
     UserBackend.updateUser(this.state.organizationName, this.state.userName, user)
       .then((res) => {
         if (res.status === "ok") {
           Setting.showMessage("success", i18next.t("general:Successfully saved"));
           this.setState({
-            organizationName: this.state.user.owner,
-            userName: this.state.user.name,
+            organizationName: user.owner,
+            userName: user.name,
+            dirty: false,
+            submitting: false,
           });
           if (exitAfterSave) {
-            if (this.state.returnUrl) {
-              window.location.href = this.state.returnUrl;
-              return;
-            }
-            const userListUrl = sessionStorage.getItem("userListUrl");
-            if (userListUrl !== null) {
-              this.props.history.push(userListUrl);
-            } else {
-              if (Setting.isLocalAdminUser(this.props.account)) {
-                this.props.history.push("/users");
-              } else {
-                this.props.history.push("/");
-              }
-            }
+            this.returnToUserList();
           } else {
             if (location.pathname !== "/account") {
-              this.props.history.push(`/users/${this.state.user.owner}/${this.state.user.name}`);
+              this.props.history.push(`/users/${user.owner}/${user.name}`);
             }
           }
         } else {
           Setting.showMessage("error", `${i18next.t("general:Failed to save")}: ${res.msg}`);
-          this.updateUserField("owner", this.state.organizationName);
-          this.updateUserField("name", this.state.userName);
+          this.setState(state => ({
+            user: {
+              ...state.user,
+              owner: state.organizationName,
+              name: state.userName,
+            },
+            submitting: false,
+          }));
         }
       })
       .catch(error => {
+        this.setState({submitting: false});
         Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
   deleteUser() {
+    if (this.state.submitting) {
+      return;
+    }
+
+    this.setState({submitting: true});
     UserBackend.deleteUser(this.state.user)
       .then((res) => {
         if (res.status === "ok") {
-          const userListUrl = sessionStorage.getItem("userListUrl");
-          if (userListUrl !== null) {
-            this.props.history.push(userListUrl);
-          } else {
-            this.props.history.push("/users");
-          }
+          this.setState({dirty: false, submitting: false});
+          this.returnToUserList();
         } else {
+          this.setState({submitting: false});
           Setting.showMessage("error", `${i18next.t("general:Failed to delete")}: ${res.msg}`);
         }
       })
       .catch(error => {
+        this.setState({submitting: false});
         Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
       });
   }
@@ -1977,14 +2191,6 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
                 extra={<a href="/"><Button type="primary">{i18next.t("general:Back Home")}</Button></a>}
               />
           )
-        }
-        {
-          (this.state.user === null || this.props.account === null) ? null :
-            <div style={{marginTop: "20px", marginLeft: "40px"}}>
-              <Button size="large" onClick={() => this.submitUserEdit(false)}>{i18next.t("general:Save")}</Button>
-              <Button style={{marginLeft: "20px"}} type="primary" size="large" onClick={() => this.submitUserEdit(true)}>{i18next.t("general:Save & Exit")}</Button>
-              {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} size="large" onClick={() => this.deleteUser()}>{i18next.t("general:Cancel")}</Button> : null}
-            </div>
         }
       </div>
     );

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import React from "react";
-import {ArrowLeftOutlined, TeamOutlined} from "@ant-design/icons";
+import {TeamOutlined} from "@ant-design/icons";
 import {Alert, Button, Card, Input, Modal, Select, Switch, Tag, Tooltip} from "antd";
 import type {SelectProps} from "antd";
 import * as GroupBackend from "./backend/GroupBackend";
@@ -23,6 +23,7 @@ import * as UserBackend from "./backend/UserBackend";
 import * as Setting from "./Setting";
 import {WORKSPACE_TAB_LABEL_UPDATE_EVENT} from "./common/workspaceTabState";
 import i18next from "i18next";
+import LargeEditShell from "./common/LargeEditShell";
 
 type HistoryLike = {
   push: (location: string | {pathname: string; mode?: string}) => void;
@@ -444,6 +445,7 @@ class GroupEditPage extends React.Component<GroupEditPageProps, GroupEditPageSta
     }
     const isDirectorySynced = isDirectorySyncedGroup(group);
     const sourceManagedFieldsDisabled = isDirectorySynced;
+    const title = this.state.mode === "add" ? t("group:New Group") : `${t("group:Edit Group")} (${group.displayName || group.name})`;
 
     return (
       <Card
@@ -454,99 +456,95 @@ class GroupEditPage extends React.Component<GroupEditPageProps, GroupEditPageSta
         styles={{body: {height: "100%", padding: 0}}}
         type="inner"
       >
-        <div className="identity-object-edit-shell group-edit-shell">
-          <div className="identity-object-edit-header group-edit-header">
-            <Button className="identity-object-edit-back-button group-edit-back-button" type="text" icon={<ArrowLeftOutlined />} onClick={() => this.handleBack()}>
-              {t("general:Back")}
-            </Button>
-            <span className="identity-object-edit-breadcrumb group-edit-breadcrumb">{t("general:Organization & Accounts")} / {t("general:Groups")} /</span>
-            <span className="identity-object-edit-title group-edit-title">
-              {this.state.mode === "add" ? t("group:New Group") : `${t("group:Edit Group")} (${group.displayName || group.name})`}
-            </span>
-            {this.state.dirty ? <span className="identity-object-edit-dirty-state group-edit-dirty-state">{t("group:Unsaved changes")}</span> : null}
-          </div>
-
-          <div className="identity-object-edit-scroll-content group-edit-scroll-content">
-            <section className="identity-object-edit-section group-edit-section">
-              <h2 className="identity-object-edit-section-title group-edit-section-title">{t("group:Basic information")}</h2>
-              <div className="identity-object-edit-field-grid group-edit-field-grid">
-                {this.renderFieldRow(
-                  Setting.getLabel(t("general:Organization"), t("general:Organization - Tooltip")),
-                  <Select virtual={false} disabled={sourceManagedFieldsDisabled || !Setting.isAdminUser(this.props.account)} value={group.owner}
-                    onChange={(value => {
-                      this.updateGroupField("owner", value);
-                      this.getGroups(value);
-                    })}
-                    options={this.state.organizations.map((organization) => Setting.getOption(organization.displayName, organization.name))} />
-                )}
-                {this.renderFieldRow(
-                  isDirectorySynced
-                    ? Setting.getLabel(t("group:Sync identifier"), t("group:Sync identifier - Tooltip"))
-                    : Setting.getLabel(t("group:Group identifier"), t("group:Group name - Tooltip")),
-                  <Input disabled={sourceManagedFieldsDisabled} status={this.state.fieldErrors.name !== undefined ? "error" : undefined} value={group.name} onChange={e => {
-                    this.updateGroupField("name", e.target.value);
-                  }} />,
-                  {required: !sourceManagedFieldsDisabled, error: this.state.fieldErrors.name}
-                )}
-                {this.renderFieldRow(
-                  Setting.getLabel(t("general:Display name"), t("general:Display name - Tooltip")),
-                  <Input status={this.state.fieldErrors.displayName !== undefined ? "error" : undefined} value={group.displayName} onChange={e => {
-                    this.updateGroupField("displayName", e.target.value);
-                  }} />,
-                  {required: true, error: this.state.fieldErrors.displayName}
-                )}
-                {this.renderFieldRow(
-                  Setting.getLabel(t("general:Type"), t("group:Group type - Tooltip")),
-                  <Select
-                    disabled={sourceManagedFieldsDisabled}
-                    options={[
-                      {label: t("group:Virtual"), value: "Virtual"},
-                      {label: t("group:Physical"), value: "Physical"},
-                    ]}
-                    value={group.type} onChange={(value => {
-                      this.updateGroupField("type", value);
-                    })} />
-                )}
-                {this.renderFieldRow(
-                  Setting.getLabel(t("group:Parent group"), t("group:Parent group - Tooltip")),
-                  <Select
-                    disabled={sourceManagedFieldsDisabled}
-                    options={this.getParentIdOptions()}
-                    value={group.parentId} onChange={(value => {
-                      this.updateGroupField("parentId", value);
-                    })} />
-                )}
-                {this.renderFieldRow(
-                  Setting.getLabel(t("general:Is enabled"), t("group:Group enabled - Tooltip")),
-                  <Switch checked={group.isEnabled} onChange={checked => {
-                    this.updateGroupField("isEnabled", checked);
-                  }} />
-                )}
-                {isDirectorySynced ? (
-                  <div className="identity-object-edit-field-row-wide group-edit-field-row-wide group-edit-directory-alert">
-                    <Alert
-                      type="info"
-                      showIcon
-                      message={t("group:Directory synced group has source-managed fields")}
-                      description={t("group:Directory synced group fields are managed by source system")}
-                    />
-                  </div>
-                ) : null}
-                {this.renderFieldRow(
-                  Setting.getLabel(t("group:Current members"), t("group:Current members - Tooltip")),
-                  this.renderMemberControl(group),
-                  {wide: true}
-                )}
-              </div>
-            </section>
-          </div>
-
-          <div className="identity-object-edit-action-bar group-edit-action-bar">
-            <Button disabled={this.state.submitting} onClick={() => this.handleCancel()}>{t("general:Cancel")}</Button>
-            <Button type="primary" loading={this.state.submitting} onClick={() => this.submitGroupEdit(false)}>{t("general:Save")}</Button>
-            <Button disabled={this.state.submitting} onClick={() => this.submitGroupEdit(true)}>{t("group:Save and return")}</Button>
-          </div>
-        </div>
+        <LargeEditShell
+          classPrefix="group-edit"
+          backLabel={t("general:Back")}
+          breadcrumb={<React.Fragment>{t("general:Organization & Accounts")} / {t("general:Groups")} /</React.Fragment>}
+          title={title}
+          dirty={this.state.dirty}
+          dirtyLabel={t("group:Unsaved changes")}
+          actions={(
+            <React.Fragment>
+              <Button disabled={this.state.submitting} onClick={() => this.handleCancel()}>{t("general:Cancel")}</Button>
+              <Button type="primary" loading={this.state.submitting} onClick={() => this.submitGroupEdit(false)}>{t("general:Save")}</Button>
+              <Button disabled={this.state.submitting} onClick={() => this.submitGroupEdit(true)}>{t("group:Save and return")}</Button>
+            </React.Fragment>
+          )}
+          onBack={() => this.handleBack()}
+        >
+          <section className="identity-object-edit-section group-edit-section">
+            <h2 className="identity-object-edit-section-title group-edit-section-title">{t("group:Basic information")}</h2>
+            <div className="identity-object-edit-field-grid group-edit-field-grid">
+              {this.renderFieldRow(
+                Setting.getLabel(t("general:Organization"), t("general:Organization - Tooltip")),
+                <Select virtual={false} disabled={sourceManagedFieldsDisabled || !Setting.isAdminUser(this.props.account)} value={group.owner}
+                  onChange={(value => {
+                    this.updateGroupField("owner", value);
+                    this.getGroups(value);
+                  })}
+                  options={this.state.organizations.map((organization) => Setting.getOption(organization.displayName, organization.name))} />
+              )}
+              {this.renderFieldRow(
+                isDirectorySynced
+                  ? Setting.getLabel(t("group:Sync identifier"), t("group:Sync identifier - Tooltip"))
+                  : Setting.getLabel(t("group:Group identifier"), t("group:Group name - Tooltip")),
+                <Input disabled={sourceManagedFieldsDisabled} status={this.state.fieldErrors.name !== undefined ? "error" : undefined} value={group.name} onChange={e => {
+                  this.updateGroupField("name", e.target.value);
+                }} />,
+                {required: !sourceManagedFieldsDisabled, error: this.state.fieldErrors.name}
+              )}
+              {this.renderFieldRow(
+                Setting.getLabel(t("general:Display name"), t("general:Display name - Tooltip")),
+                <Input status={this.state.fieldErrors.displayName !== undefined ? "error" : undefined} value={group.displayName} onChange={e => {
+                  this.updateGroupField("displayName", e.target.value);
+                }} />,
+                {required: true, error: this.state.fieldErrors.displayName}
+              )}
+              {this.renderFieldRow(
+                Setting.getLabel(t("general:Type"), t("group:Group type - Tooltip")),
+                <Select
+                  disabled={sourceManagedFieldsDisabled}
+                  options={[
+                    {label: t("group:Virtual"), value: "Virtual"},
+                    {label: t("group:Physical"), value: "Physical"},
+                  ]}
+                  value={group.type} onChange={(value => {
+                    this.updateGroupField("type", value);
+                  })} />
+              )}
+              {this.renderFieldRow(
+                Setting.getLabel(t("group:Parent group"), t("group:Parent group - Tooltip")),
+                <Select
+                  disabled={sourceManagedFieldsDisabled}
+                  options={this.getParentIdOptions()}
+                  value={group.parentId} onChange={(value => {
+                    this.updateGroupField("parentId", value);
+                  })} />
+              )}
+              {this.renderFieldRow(
+                Setting.getLabel(t("general:Is enabled"), t("group:Group enabled - Tooltip")),
+                <Switch checked={group.isEnabled} onChange={checked => {
+                  this.updateGroupField("isEnabled", checked);
+                }} />
+              )}
+              {isDirectorySynced ? (
+                <div className="identity-object-edit-field-row-wide group-edit-field-row-wide group-edit-directory-alert">
+                  <Alert
+                    type="info"
+                    showIcon
+                    message={t("group:Directory synced group has source-managed fields")}
+                    description={t("group:Directory synced group fields are managed by source system")}
+                  />
+                </div>
+              ) : null}
+              {this.renderFieldRow(
+                Setting.getLabel(t("group:Current members"), t("group:Current members - Tooltip")),
+                this.renderMemberControl(group),
+                {wide: true}
+              )}
+            </div>
+          </section>
+        </LargeEditShell>
       </Card>
     );
   }

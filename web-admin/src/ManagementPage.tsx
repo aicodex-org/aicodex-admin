@@ -34,6 +34,7 @@ import GroupTreePage from "./GroupTreePage";
 import GroupListPage from "./GroupListPage";
 import GroupEditPage from "./GroupEditPage";
 import UserEditPage from "./UserEditPage";
+import UserEditVisualReviewPage from "./UserEditVisualReviewPage";
 import InvitationListPage from "./InvitationListPage";
 import InvitationEditPage from "./InvitationEditPage";
 import ApplicationListPage from "./ApplicationListPage";
@@ -515,6 +516,9 @@ function ManagementPage(props: ManagementPageProps) {
 
     return (
       <Switch>
+        {process.env.NODE_ENV === "development" ? (
+          <Route exact path="/__preview/user-edit-tabs" render={(props: LegacyAny) => <UserEditVisualReviewPage {...props} />} />
+        ) : null}
         <Route exact path="/" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<IdentityConsoleOverview account={account} {...props} />)} />
         <Route exact path="/identity-assets" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<IdentityEvidenceChainPage account={account} {...props} />)} />
         <Route exact path="/access-wizard" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<AccessWizardPage account={account} {...props} />)} />

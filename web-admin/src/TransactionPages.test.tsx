@@ -555,6 +555,19 @@ test("keeps transaction table columns links search and action behavior stable", 
   expect(table.getAllByText("tx_123").length).toBeGreaterThan(0);
   table.unmount();
 
+  const embeddedTableElement = new TransactionTable({transactions: [transaction], hideTag: true, embedded: true}).render() as React.ReactElement<{
+    columns: Array<{key?: string; fixed?: string; width?: number; ellipsis?: boolean}>;
+    scroll?: unknown;
+    tableLayout?: string;
+    className?: string;
+  }>;
+  expect(embeddedTableElement.props.className).toBe("transaction-table-embedded");
+  expect(embeddedTableElement.props.scroll).toBeUndefined();
+  expect(embeddedTableElement.props.tableLayout).toBe("fixed");
+  expect(embeddedTableElement.props.columns.map(column => column.key)).toEqual(["name", "createdTime", "application", "domain", "amount"]);
+  expect(embeddedTableElement.props.columns.find(column => column.key === "amount")?.fixed).toBeUndefined();
+  expect(embeddedTableElement.props.columns.every(column => column.ellipsis)).toBe(true);
+
   const tableInstance = new TransactionTable({transactions: [transaction]}) as unknown as Harness<TransactionTable>;
   installSynchronousSetState(tableInstance);
   (tableInstance as unknown as {searchInput: {select: () => void}}).searchInput = {select: jestValue.fn()};

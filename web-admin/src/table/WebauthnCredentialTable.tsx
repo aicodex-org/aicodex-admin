@@ -30,7 +30,7 @@ class WebAuthnCredentialTable extends React.Component<LegacyAny, LegacyAny> {
   registerWebAuthn() {
     UserWebauthnBackend.registerWebauthnCredential().then((res) => {
       if (res.status === "ok") {
-        Setting.showMessage("success", "Successfully added webauthn credentials");
+        Setting.showMessage("success", t("user:Successfully added WebAuthn credentials"));
       } else {
         Setting.showMessage("error", res.msg);
       }
@@ -63,14 +63,18 @@ class WebAuthnCredentialTable extends React.Component<LegacyAny, LegacyAny> {
       },
     ];
 
+    const title = this.props.title === undefined ? t("user:WebAuthn credentials") : this.props.title;
+
     return (
       <Table rowKey={"id"} columns={columns} dataSource={this.props.table} size="middle" bordered pagination={false}
         title={() => (
-          <div>
-            {t("user:WebAuthn credentials")}&nbsp;&nbsp;&nbsp;&nbsp;
-            <Button disabled={!this.props.isSelf} style={{marginRight: "5px"}} type="primary" size="small" onClick={() => {this.registerWebAuthn();}}>
-              {t("general:Add")}
-            </Button>
+          <div className="user-edit-table-toolbar">
+            {title === null ? null : <span className="user-edit-table-title">{title}</span>}
+            <div className="user-edit-table-toolbar-actions">
+              <Button disabled={!this.props.isSelf} type="primary" size="small" onClick={() => {this.registerWebAuthn();}}>
+                {t("general:Add")}
+              </Button>
+            </div>
           </div>
         )}
       />

@@ -98,7 +98,7 @@ class MfaTable extends React.Component<MfaTableProps, MfaTableState> {
         title: i18next.t("general:Name"),
         dataIndex: "name",
         key: "name",
-        width: "520px",
+        width: "500px",
         render: (text, record, index) => {
           const value = String(text ?? "");
           const isPlaceholder = value.trim() === MfaMethodPlaceholder;
