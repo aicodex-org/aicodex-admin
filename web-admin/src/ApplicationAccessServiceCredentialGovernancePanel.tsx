@@ -488,7 +488,7 @@ function getServiceCredentialGovernanceCapabilityStatus(
     if (statusGroup?.credentialReferenceStatus === "missing" || isServiceCredentialGovernanceCredentialReferenceKey(missingText)) {
       return {label: t("Capability missing credential reference", "缺凭据引用"), tone: "warning"};
     }
-    return {label: t("Capability missing deployment config", "缺部署配置"), tone: "warning"};
+    return {label: t("Capability missing deployment config", "缺交接材料"), tone: "warning"};
   }
   if (configGroup?.credentialReferenceStatus === "missing" || statusGroup?.credentialReferenceStatus === "missing") {
     return {label: t("Capability missing credential reference", "缺凭据引用"), tone: "warning"};
@@ -761,7 +761,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
   } else if (serviceCredentialGovernanceLoadState === "error" || serviceCredentialGovernanceConfigLoadState === "error") {
     serviceCredentialGovernanceNextAction = t(
       "Handoff refresh or contact admin owner next action",
-      "刷新状态或请 Admin owner 核对部署配置"
+      "刷新状态或请 Admin owner 核对交接材料"
     );
   }
   const serviceCredentialGovernanceActionHint = serviceCredentialGovernanceHasPendingMaterials
@@ -811,7 +811,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
         ? getServiceCredentialGovernanceInsightBindingGuidance()
         : t(
           "Handoff blocker admin material suggestion",
-          "请由 Admin owner 补齐部署配置或 owner 决策，完成后刷新本页再生成。"
+          "请由 Admin owner 补齐交接材料或 owner 决策，完成后刷新本页再生成。"
         )}
     />
   ) : null;
@@ -1189,7 +1189,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
           message={t("Insight Admin Provider handoff status unavailable", "Insight Admin Provider 交接状态暂不可用")}
           description={t(
             "Insight Admin Provider handoff status unavailable description",
-            "应用列表操作不受影响；请稍后刷新或请 Admin owner 核对部署配置。"
+            "应用列表操作不受影响；请稍后刷新或请 Admin owner 核对交接材料。"
           )}
         />
       )}

@@ -576,6 +576,9 @@ describe("ApplicationAccessCenter", () => {
         keepInEnv: true,
       },
     });
+    expect(handoffPackage.insightProfile.blockedAliases).not.toContain("admin_service_credential_keep_in_env");
+    expect(handoffPackage.insightProfile.nextAction).not.toContain("env");
+    expect(handoffPackage.insightProfile.nextAction).not.toContain("config");
     expect(handoffPackage.insightProfile.wrapperCapabilities).toEqual(expect.arrayContaining([
       expect.objectContaining({
         key: "current-user",
@@ -613,11 +616,14 @@ describe("ApplicationAccessCenter", () => {
       blockedAliases: expect.arrayContaining(["admin_service_credential_external_reference_unresolved"]),
     });
     expect(handoffPackage.groups.find(group => group.key === "keep_in_env")).toMatchObject({
+      label: "兼容凭据位置",
       readiness: "keep_in_env",
       keepInEnv: true,
       cannotInferRuntimeTruth: true,
-      blockedAliases: expect.arrayContaining(["admin_service_credential_keep_in_env"]),
+      stableAliases: expect.arrayContaining(["admin_service_credential_keep_in_env"]),
+      blockedAliases: [],
     });
+    expect(handoffPackage.groups.find(group => group.key === "keep_in_env")).not.toHaveProperty("nextAction");
 
     const serializedPackage = JSON.stringify(handoffPackage);
     expect(serializedPackage).not.toContain("resolver-secret-value");
@@ -630,6 +636,13 @@ describe("ApplicationAccessCenter", () => {
     expect(serializedPackage).not.toContain("Authorization");
     expect(serializedPackage).not.toContain("Cookie");
     expect(serializedPackage).not.toContain("rawPayload");
+    expect(serializedPackage).not.toContain("secure_handoff_grant");
+    expect(serializedPackage).not.toContain("grantId");
+    expect(serializedPackage).not.toContain("expiresAt");
+    expect(serializedPackage).not.toContain("nonce");
+    expect(serializedPackage).not.toContain("targetRegistrationId");
+    expect(serializedPackage).not.toContain("Keep in env/config");
+    expect(serializedPackage).not.toContain("在部署配置或外部 secret system 中维护");
   });
 
   test("keeps missing Admin Profile credential guidance copy-safe and actionable", () => {
@@ -658,6 +671,16 @@ describe("ApplicationAccessCenter", () => {
             blockedReasons: ["gateway_projection_owner_decision_required"],
             nextAction: "Gateway 组织投影需 owner 决策后绑定 secretRef",
           },
+          {
+            key: "keep_in_env",
+            label: "Keep in env/config",
+            enabled: true,
+            owner: "deployment_env_config",
+            sourceClass: "env_config",
+            credentialReferenceStatus: "external_secret",
+            keepInEnv: true,
+            nextAction: "Keep in env/config",
+          },
         ],
       },
       status: {
@@ -683,6 +706,14 @@ describe("ApplicationAccessCenter", () => {
             blockedReasons: ["gateway_projection_owner_decision_required"],
             nextAction: "Gateway 组织投影需 owner 决策后绑定 secretRef",
           },
+          {
+            key: "keep_in_env",
+            label: "Keep in env/config",
+            owner: "deployment_env_config",
+            status: "configured",
+            credentialReferenceStatus: "external_secret",
+            nextAction: "Keep in env/config",
+          },
         ],
       },
     });
@@ -692,7 +723,7 @@ describe("ApplicationAccessCenter", () => {
       resolverCredentialReference: {
         credentialReferenceStatus: "missing",
         bindingMode: "manual_or_secret_ref",
-        nextAction: "补充 resolver 凭据引用",
+        nextAction: "在 Insight Profile 中绑定 Admin resolver 凭据引用或凭据材料",
         blockedAliases: expect.arrayContaining([
           "admin_service_credential_reference_missing",
           "admin_profile_manual_secret_ref_binding_required",
@@ -701,7 +732,7 @@ describe("ApplicationAccessCenter", () => {
       gatewayOrganizationProjection: {
         credentialReferenceStatus: "missing",
         bindingMode: "manual_or_secret_ref",
-        nextAction: "Gateway 组织投影需 owner 决策后绑定 secretRef",
+        nextAction: "在 Insight Profile 中绑定 Admin resolver 凭据引用或凭据材料",
         blockedAliases: expect.arrayContaining([
           "gateway_projection_owner_decision_required",
           "admin_service_credential_reference_missing",
@@ -711,8 +742,22 @@ describe("ApplicationAccessCenter", () => {
         "admin_profile_manual_secret_ref_binding_required",
         "gateway_projection_owner_decision_required",
       ]),
-      nextAction: "补充 resolver 凭据引用",
+      nextAction: "在 Insight Profile 中绑定 Admin resolver 凭据引用或凭据材料",
+      keepInEnv: true,
     });
+    expect(handoffPackage.insightProfile.blockedAliases).not.toContain("admin_service_credential_keep_in_env");
+    expect(handoffPackage.groups.find(group => group.key === "keep_in_env")).toMatchObject({
+      label: "兼容凭据位置",
+      readiness: "keep_in_env",
+      keepInEnv: true,
+      stableAliases: expect.arrayContaining(["admin_service_credential_keep_in_env"]),
+      blockedAliases: [],
+    });
+    expect(handoffPackage.groups.find(group => group.key === "keep_in_env")).not.toHaveProperty("nextAction");
+    expect(JSON.stringify(handoffPackage)).not.toContain("secure_handoff_grant");
+    expect(JSON.stringify(handoffPackage)).not.toContain("grantId");
+    expect(JSON.stringify(handoffPackage)).not.toContain("Keep in env/config");
+    expect(JSON.stringify(handoffPackage)).not.toContain("在部署配置或外部 secret system 中维护");
   });
 
   test("does not mark not-applicable service credential groups as runtime ready", () => {

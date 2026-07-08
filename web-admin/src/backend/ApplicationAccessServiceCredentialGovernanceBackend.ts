@@ -209,6 +209,8 @@ const INSIGHT_ADMIN_PROVIDER_WRAPPER_CAPABILITIES: ServiceCredentialGovernanceHa
   },
 ];
 
+const INSIGHT_PROFILE_SECRET_BINDING_NEXT_ACTION = "在 Insight Profile 中绑定 Admin resolver 凭据引用或凭据材料";
+
 function containsUnsafeHandoffText(value: unknown): boolean {
   const text = `${value ?? ""}`.trim().toLowerCase();
   if (!text) {
@@ -334,7 +336,9 @@ function buildProfileCredentialReference(
     boundedRuntimePolicy: group.boundedRuntimePolicy,
     stableAliases: Array.from(stableAliases),
     blockedAliases: Array.from(blockedAliases),
-    nextAction: group.nextAction,
+    nextAction: group.credentialReferenceStatus === "missing"
+      ? INSIGHT_PROFILE_SECRET_BINDING_NEXT_ACTION
+      : group.nextAction,
     cannotInferRuntimeTruth: group.cannotInferRuntimeTruth,
     keepInEnv: group.keepInEnv,
   };
@@ -369,9 +373,10 @@ function buildInsightProfileHandoffSummary(
     reference?.blockedAliases.forEach(alias => addSafeAlias(blockedAliases, alias));
   });
 
-  const nextAction = credentialReferences.find(reference => reference?.nextAction)?.nextAction
-    ?? groups.find(group => group.nextAction)?.nextAction
-    ?? "导入 Admin copy-safe metadata，并在 Insight 中校验 manual/secretRef 绑定";
+  const nextAction = credentialReferences.find(reference => reference?.credentialReferenceStatus === "missing")?.nextAction
+    ?? credentialReferences.find(reference => reference?.nextAction)?.nextAction
+    ?? groups.find(group => !group.keepInEnv && group.nextAction)?.nextAction
+    ?? "导入 Admin 元数据交接包，并在 Insight 中校验 manual/secretRef 绑定";
 
   return {
     packageType: "copy_safe_handoff",
@@ -427,7 +432,6 @@ export function buildServiceCredentialGovernanceHandoffPackage(input: ServiceCre
       readiness = "keep_in_env";
       cannotInferRuntimeTruth = true;
       addSafeAlias(stableAliases, "admin_service_credential_keep_in_env");
-      addSafeAlias(blockedAliases, "admin_service_credential_keep_in_env");
     } else if (status === "not_applicable") {
       readiness = "cannot_infer";
       cannotInferRuntimeTruth = true;
@@ -456,10 +460,16 @@ export function buildServiceCredentialGovernanceHandoffPackage(input: ServiceCre
     }
 
     blockedAliases.forEach(alias => addSafeAlias(stableAliases, alias));
+    const label = keepInEnv
+      ? "兼容凭据位置"
+      : getSafeHandoffText(configGroup?.label ?? statusGroup?.label ?? diagnosticGroup?.label);
+    const nextAction = keepInEnv
+      ? undefined
+      : getSafeHandoffText(configGroup?.nextAction ?? diagnosticGroup?.nextAction ?? statusGroup?.nextAction);
 
     return {
       key,
-      label: getSafeHandoffText(configGroup?.label ?? statusGroup?.label ?? diagnosticGroup?.label),
+      label,
       status,
       readiness,
       ownerHint: getSafeHandoffText(configGroup?.owner ?? statusGroup?.owner ?? diagnosticGroup?.owner),
@@ -471,7 +481,7 @@ export function buildServiceCredentialGovernanceHandoffPackage(input: ServiceCre
       boundedRuntimePolicy: getSafeHandoffRuntimePolicy(configGroup?.boundedRuntimePolicy ?? statusGroup?.boundedRuntimePolicy),
       keepInEnv,
       cannotInferRuntimeTruth,
-      nextAction: getSafeHandoffText(configGroup?.nextAction ?? diagnosticGroup?.nextAction ?? statusGroup?.nextAction),
+      ...(nextAction ? {nextAction} : {}),
       stableAliases: Array.from(stableAliases),
       blockedAliases: Array.from(blockedAliases),
     };

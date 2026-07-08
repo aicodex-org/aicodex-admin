@@ -344,14 +344,16 @@ Admin SHALL apply saved copy-safe service credential governance configuration as
 
 ### Requirement: Admin 必须生成服务凭据治理交接包
 
-Admin SHALL generate a copy-safe `Insight Admin Provider` handoff package for Insight Profile consumers without exposing reusable credentials or claiming downstream runtime truth.
+Admin SHALL 为 Insight consumer 构建只包含 copy-safe metadata 的 service credential governance handoff package，并且 SHALL 将 runtime credential truth 和 credential binding 保持在 Admin package 之外。
 
-#### Scenario: 交接包包含稳定 owner-boundary 摘要
+#### Scenario: 缺凭据引用时默认指向 Insight 绑定
 
-- **WHEN** Admin generates an `Insight Admin Provider` handoff package
-- **THEN** the package SHALL include `schema`, `version`, `source`, `generatedAt`, `targetConsumerAlias`, `adminOwnerAlias`, `insightProfile` and `groups[]`
-- **AND** `insightProfile` SHALL expose package type, target consumer alias, Admin owner alias, wrapper capability readiness, credential reference guidance, bounded runtime policy, stable aliases, blocked aliases, next action, `cannotInferRuntimeTruth` and `keepInEnv`
-- **AND** each group SHALL include group key/label, status/readiness, owner hint, `sourceClass`, credential reference status, safe credential reference key summary, caller policy presence/alias, bounded runtime policy summary, `keepInEnv`, `cannotInferRuntimeTruth`, next action, stable aliases and blocked aliases when applicable
+- **GIVEN** resolver 或 Gateway projection credential reference status 为 missing
+- **WHEN** Admin 构建 copy-safe handoff package
+- **THEN** package SHALL 保持 `bindingMode=manual_or_secret_ref`
+- **AND** 默认可操作 next action SHALL 指向 Insight 侧 Profile credential binding
+- **AND** `keepInEnv` 出现时 SHALL 只表示 fallback 或兼容证据
+- **AND** Admin SHALL NOT 输出 secure handoff grant、grant id、nonce、target registration id、expiry、raw secret、token、Authorization header、Cookie、client secret、完整私有 URL、raw payload、raw id、真实账号或完整组织树
 
 ### Requirement: 旧 Application Access service-credential-governance API 必须下线
 
