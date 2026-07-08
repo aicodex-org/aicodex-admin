@@ -66,22 +66,24 @@ flowchart LR
 
 几个入口最关键：
 
-- [`web-admin/src/App.js`](../web-admin/src/App.js)：应用入口、登录/回调/后台路由的外层装配。
-- [`web-admin/src/ManagementPage.js`](../web-admin/src/ManagementPage.js)：认证中心后台壳层、顶部工具区、左侧菜单、主要页面路由。
-- [`web-admin/src/Conf.js`](../web-admin/src/Conf.js)：品牌、默认语言、主题、静态资源等前端默认配置。
-- [`web-admin/src/auth/LoginPage.js`](../web-admin/src/auth/LoginPage.js)：登录页主入口。
-- [`web-admin/src/auth/Provider.js`](../web-admin/src/auth/Provider.js)：第三方登录 Provider 发起逻辑。
-- [`web-admin/src/auth/AuthCallback.js`](../web-admin/src/auth/AuthCallback.js)：OAuth/企业微信等回调落地。
+- [`web-admin/src/App.tsx`](../web-admin/src/App.tsx)：应用入口、登录/回调/后台路由的外层装配。
+- [`web-admin/src/ManagementPage.tsx`](../web-admin/src/ManagementPage.tsx)：认证中心后台壳层、顶部工具区、左侧菜单、主要页面路由。
+- [`web-admin/src/Conf.ts`](../web-admin/src/Conf.ts)：品牌、默认语言、主题、静态资源等前端默认配置。
+- [`web-admin/src/auth/LoginPage.tsx`](../web-admin/src/auth/LoginPage.tsx)：登录页主入口。
+- [`web-admin/src/auth/Provider.tsx`](../web-admin/src/auth/Provider.tsx)：第三方登录 Provider 发起逻辑。
+- [`web-admin/src/auth/AuthCallback.tsx`](../web-admin/src/auth/AuthCallback.tsx)：OAuth/企业微信等回调落地。
 - [`web-admin/src/backend/`](../web-admin/src/backend)：前端调用后端 API 的封装。
 
 ### 2.5 OpenSpec 是当前需求脉络
 
-本仓库已有 [`openspec/`](../openspec) 用来记录较大的产品和架构改动。新人不用一开始读完所有规格，但要先知道当前主线：
+本仓库已有 [`openspec/`](../openspec) 用来记录较大的产品和架构改动。新人不用一开始读完所有规格，但要先区分 active change 和已经归档/固化的主规格：
 
-- [`add-wecom-homepage-login-and-admin-config`](../openspec/changes/add-wecom-homepage-login-and-admin-config)：企业微信首页扫码登录和后台 Provider 配置。
-- [`refactor-web-admin-auth-center-shell`](../openspec/changes/refactor-web-admin-auth-center-shell)：认证中心后台壳层、品牌、左侧导航、默认中文。
+- 运行 `openspec list` 查看当前仍在推进的 active change，不要根据历史文档猜测。
+- [`openspec/specs/admin-enterprise-identity-console-shell/spec.md`](../openspec/specs/admin-enterprise-identity-console-shell/spec.md)：认证中心后台壳层、左侧导航、工作区和响应式行为。
+- [`openspec/specs/admin-login-entry-routing/spec.md`](../openspec/specs/admin-login-entry-routing/spec.md)：登录、OAuth/OIDC 授权入口和回调路由边界。
+- [`openspec/specs/wecom-homepage-signin/spec.md`](../openspec/specs/wecom-homepage-signin/spec.md) 与 [`openspec/specs/wecom-provider-configuration/spec.md`](../openspec/specs/wecom-provider-configuration/spec.md)：企业微信首页扫码登录和后台 Provider 配置。
 
-如果你要改登录、Provider、后台壳层、导航、默认语言，先读对应 change 的 `proposal.md` 和 `tasks.md`，再动代码。
+如果你要改登录、Provider、后台壳层、导航、默认语言，先读对应主规格；只有 `openspec list` 中仍显示 active change 时，才继续读该 change 的 `proposal.md`、`design.md` 和 `tasks.md`。
 
 ## 3. 仓库结构怎么读
 
