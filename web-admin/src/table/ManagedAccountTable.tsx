@@ -29,6 +29,7 @@ interface ManagedAccountTableProps {
   title?: React.ReactNode;
   table?: LegacyAny[] | null;
   applications?: LegacyAny[];
+  embedded?: boolean;
   onUpdateTable: (table: LegacyAny[]) => void;
 }
 
@@ -179,7 +180,10 @@ class ManagedAccountTable extends React.Component<ManagedAccountTableProps, Mana
     const title = this.props.title === undefined ? i18next.t("user:Managed accounts") : this.props.title;
 
     return (
-      <Table scroll={{x: "max-content"}} rowKey="key" columns={columns} dataSource={table} size="middle" bordered pagination={false}
+      <Table className={this.props.embedded ? "user-edit-embedded-table" : undefined}
+        scroll={{x: "max-content"}} rowKey="key" columns={columns} dataSource={table} size="middle" bordered pagination={false}
+        showHeader={!this.props.embedded || table.length > 0}
+        locale={{emptyText: <span className="user-edit-table-empty-text">{i18next.t("general:No data")}</span>}}
         title={() => (
           <div className="user-edit-table-toolbar">
             {title === null ? null : <span className="user-edit-table-title">{title}</span>}

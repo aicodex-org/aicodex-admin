@@ -28,6 +28,7 @@ const i18next = {t: (key: string, options?: LegacyAny): string => String(options
 interface FaceIdTableProps {
   title?: React.ReactNode;
   table?: LegacyAny[] | null;
+  embedded?: boolean;
   account?: {
     owner?: string;
     name?: string;
@@ -159,7 +160,10 @@ class FaceIdTable extends React.Component<FaceIdTableProps, FaceIdTableState> {
     const title = this.props.title === undefined ? i18next.t("user:Face IDs") : this.props.title;
 
     return (
-      <Table scroll={{x: "max-content"}} rowKey="name" columns={columns} dataSource={this.props.table ?? []} size="middle" bordered pagination={false}
+      <Table className={this.props.embedded ? "user-edit-embedded-table" : undefined}
+        scroll={{x: "max-content"}} rowKey="name" columns={columns} dataSource={this.props.table ?? []} size="middle" bordered pagination={false}
+        showHeader={!this.props.embedded || (this.props.table ?? []).length > 0}
+        locale={{emptyText: <span className="user-edit-table-empty-text">{i18next.t("general:No data")}</span>}}
         title={() => (
           <div className="user-edit-table-toolbar">
             {title === null ? null : <span className="user-edit-table-title">{title}</span>}

@@ -2,6 +2,7 @@
 import React from "react";
 import {expect, jest} from "@jest/globals";
 import i18next from "i18next";
+import CartTable from "./CartTable";
 import ConsentTable from "./ConsentTable";
 import FaceIdTable from "./FaceIdTable";
 import ManagedAccountTable from "./ManagedAccountTable";
@@ -46,6 +47,10 @@ function getToolbarActions(toolbar: React.ReactElement): React.ReactElement {
   return toolbar.props.children[1];
 }
 
+function getToolbarTitle(toolbar: React.ReactElement): React.ReactElement {
+  return toolbar.props.children[0];
+}
+
 function getToolbarButtonText(node: React.ReactElement): React.ReactNode {
   const child = node.props.children;
   return React.isValidElement<{children?: React.ReactNode}>(child) ? child.props.children : child;
@@ -64,27 +69,27 @@ async function flushPromises() {
 }
 
 describe("User edit embedded table polish", () => {
-  test("hides duplicated table titles while keeping toolbar actions reachable", async() => {
+  test("keeps table titles in the toolbar while keeping actions reachable", async() => {
     await useTestLanguage("zh");
-    const managedTable = new ManagedAccountTable({title: null, table: [], applications: [], onUpdateTable: jest.fn()});
+    const managedTable = new ManagedAccountTable({title: "托管账户", table: [], applications: [], onUpdateTable: jest.fn()});
     const managedToolbar = getToolbar((managedTable as LegacyAny).renderTable([]));
-    expect(managedToolbar.props.children[0]).toBeNull();
+    expect(getToolbarTitle(managedToolbar).props.children).toBe("托管账户");
     expect(getToolbarActions(managedToolbar).props.className).toBe("user-edit-table-toolbar-actions");
     expect(getToolbarActions(managedToolbar).props.children.props.children).toBe("添加");
 
-    const mfaAccountTable = new MfaAccountTable({title: null, table: [], onUpdateTable: jest.fn()});
+    const mfaAccountTable = new MfaAccountTable({title: "MFA账户", table: [], onUpdateTable: jest.fn()});
     const mfaToolbar = getToolbar((mfaAccountTable as LegacyAny).renderTable([]));
-    expect(mfaToolbar.props.children[0]).toBeNull();
+    expect(getToolbarTitle(mfaToolbar).props.children).toBe("MFA账户");
     expect(getToolbarActions(mfaToolbar).props.children.map((node: React.ReactElement) => getToolbarButtonText(node))).toEqual(["添加", "二维码", "链接"]);
 
-    const faceIdTable = new FaceIdTable({title: null, table: [], account: {owner: "built-in", name: "alice"}, onUpdateTable: jest.fn()});
+    const faceIdTable = new FaceIdTable({title: "Face IDs", table: [], account: {owner: "built-in", name: "alice"}, onUpdateTable: jest.fn()});
     const faceToolbar = getToolbar((faceIdTable as LegacyAny).renderTable([]));
-    expect(faceToolbar.props.children[0]).toBeNull();
+    expect(getToolbarTitle(faceToolbar).props.children).toBe("Face IDs");
     expect(getToolbarActions(faceToolbar).props.children[0].props.children).toBe("添加人脸ID");
 
-    const webAuthnTable = new WebAuthnCredentialTable({title: null, table: [], isSelf: true, updateTable: jest.fn(), refresh: jest.fn()});
+    const webAuthnTable = new WebAuthnCredentialTable({title: "WebAuthn 凭据", table: [], isSelf: true, updateTable: jest.fn(), refresh: jest.fn()});
     const webAuthnToolbar = getToolbar(webAuthnTable.render());
-    expect(webAuthnToolbar.props.children[0]).toBeNull();
+    expect(getToolbarTitle(webAuthnToolbar).props.children).toBe("WebAuthn 凭据");
     expect(getToolbarActions(webAuthnToolbar).props.children.props.children).toBe("添加");
   });
 
@@ -239,12 +244,52 @@ describe("User edit embedded table polish", () => {
     const transactionTable = new TransactionTable({transactions: [transaction], hideTag: true, embedded: true});
     const transactionElement = transactionTable.render();
 
-    expect(transactionElement.props.className).toBe("transaction-table-embedded");
+    expect(transactionElement.props.className).toBe("transaction-table-embedded user-edit-embedded-table");
     expect(transactionElement.props.scroll).toBeUndefined();
     expect(transactionElement.props.tableLayout).toBe("fixed");
     expect(transactionElement.props.columns.map((column: LegacyAny) => column.key)).toEqual(["name", "createdTime", "application", "domain", "amount"]);
     expect(transactionElement.props.columns.map((column: LegacyAny) => column.width)).toEqual([180, 136, 112, 190, 132]);
     expect(transactionElement.props.columns[4].align).toBe("right");
+  });
+
+  test("uses compact empty state for embedded user edit tables", async() => {
+    await useTestLanguage("zh");
+
+    const managedTable = new ManagedAccountTable({title: "托管账户", table: [], applications: [], embedded: true, onUpdateTable: jest.fn()});
+    const managedElement = (managedTable as LegacyAny).renderTable([]);
+    expect(managedElement.props.className).toBe("user-edit-embedded-table");
+    expect(managedElement.props.showHeader).toBe(false);
+    expect(managedElement.props.locale.emptyText.props.children).toBe("暂无数据");
+
+    const mfaAccountTable = new MfaAccountTable({title: "MFA账户", table: [], embedded: true, onUpdateTable: jest.fn()});
+    const mfaAccountElement = (mfaAccountTable as LegacyAny).renderTable([]);
+    expect(mfaAccountElement.props.showHeader).toBe(false);
+    expect(mfaAccountElement.props.locale.emptyText.props.children).toBe("暂无数据");
+
+    const faceIdTable = new FaceIdTable({title: "Face IDs", table: [], embedded: true, account: {owner: "built-in", name: "alice"}, onUpdateTable: jest.fn()});
+    const faceIdElement = (faceIdTable as LegacyAny).renderTable([]);
+    expect(faceIdElement.props.showHeader).toBe(false);
+    expect(faceIdElement.props.locale.emptyText.props.children).toBe("暂无数据");
+
+    const webAuthnTable = new WebAuthnCredentialTable({title: "WebAuthn 凭据", table: [], embedded: true, isSelf: true, updateTable: jest.fn(), refresh: jest.fn()});
+    const webAuthnElement = webAuthnTable.render();
+    expect(webAuthnElement.props.showHeader).toBe(false);
+    expect(webAuthnElement.props.locale.emptyText.props.children).toBe("暂无数据");
+
+    const consentTable = new ConsentTable({table: [], embedded: true, title: null, onUpdateTable: jest.fn()});
+    const consentElement = (consentTable as LegacyAny).renderTable([]);
+    expect(consentElement.props.showHeader).toBe(false);
+    expect(consentElement.props.locale.emptyText.props.children).toBe("暂无数据");
+
+    const transactionTable = new TransactionTable({transactions: [], hideTag: true, embedded: true});
+    const transactionElement = transactionTable.render();
+    expect(transactionElement.props.showHeader).toBe(false);
+    expect(transactionElement.props.locale.emptyText.props.children).toBe("暂无数据");
+
+    const cartTable = new CartTable({cart: [], embedded: true});
+    const cartElement = cartTable.render();
+    expect(cartElement.props.showHeader).toBe(false);
+    expect(cartElement.props.locale.emptyText.props.children).toBe("暂无数据");
   });
 
   test("keeps consent table i18n and removes title area when field label already names it", async() => {

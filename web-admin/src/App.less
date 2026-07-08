@@ -5172,6 +5172,20 @@ span.enterprise-list-secondary-text {
   font-size: 12px;
 }
 
+.identity-object-edit-page,
+.organization-edit-page,
+.user-edit-page {
+  --identity-edit-inline-action-height: 24px;
+  --identity-edit-inline-action-min-width: 42px;
+  --identity-edit-inline-action-padding: 0 10px;
+  --identity-edit-inline-action-font-size: 12px;
+  --identity-edit-inline-action-line-height: 22px;
+  --identity-edit-table-toolbar-action-height: 22px;
+  --identity-edit-table-toolbar-action-padding: 0 10px;
+  --identity-edit-table-toolbar-action-font-size: 12px;
+  --identity-edit-table-toolbar-action-line-height: 20px;
+}
+
 body.admin-shell-theme-dark .admin-large-edit-shell,
 body.admin-shell-theme-dark .admin-large-edit-action-bar {
   background: var(--admin-shell-surface-bg, rgb(15 23 42));
@@ -5893,10 +5907,10 @@ body.admin-shell-theme-dark .admin-large-edit-action-bar {
 
 .organization-edit-page .organization-config-table-toolbar .ant-btn-sm,
 .organization-edit-page .ldap-table-toolbar .ant-btn-sm {
-  height: 22px;
-  padding: 0 10px;
-  font-size: 12px;
-  line-height: 20px;
+  height: var(--identity-edit-table-toolbar-action-height);
+  padding: var(--identity-edit-table-toolbar-action-padding);
+  font-size: var(--identity-edit-table-toolbar-action-font-size);
+  line-height: var(--identity-edit-table-toolbar-action-line-height);
 }
 
 .organization-edit-page .organization-config-table-section .ant-table,
@@ -6024,11 +6038,11 @@ body.admin-shell-theme-dark .admin-large-edit-action-bar {
 
 .organization-edit-page .organization-config-table-row-actions .ant-btn-sm,
 .organization-edit-page .ldap-table-row-actions .ant-btn-sm {
-  height: 24px;
-  min-width: 42px;
-  padding: 0 10px;
-  font-size: 12px;
-  line-height: 22px;
+  height: var(--identity-edit-inline-action-height);
+  min-width: var(--identity-edit-inline-action-min-width);
+  padding: var(--identity-edit-inline-action-padding);
+  font-size: var(--identity-edit-inline-action-font-size);
+  line-height: var(--identity-edit-inline-action-line-height);
 }
 
 .organization-edit-page .organization-config-table-row-actions-icons .ant-btn-sm {
@@ -6071,6 +6085,21 @@ body.admin-shell-theme-dark .admin-large-edit-action-bar {
   margin-top: 16px;
 }
 
+.organization-edit-theme-mode-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.organization-edit-theme-mode-group .ant-radio-button-wrapper {
+  height: var(--identity-edit-inline-action-height);
+  min-width: var(--identity-edit-inline-action-min-width);
+  padding: var(--identity-edit-inline-action-padding);
+  font-size: var(--identity-edit-inline-action-font-size);
+  line-height: var(--identity-edit-inline-action-line-height);
+}
+
 .organization-edit-theme-summary {
   display: inline-flex;
   align-items: center;
@@ -6089,6 +6118,10 @@ body.admin-shell-theme-dark .admin-large-edit-action-bar {
   border-radius: 50%;
   background: var(--admin-shell-text-tertiary, #8b90a0);
   content: "";
+}
+
+.organization-edit-theme-mode-control .organization-edit-theme-summary {
+  margin-top: 0;
 }
 
 .organization-edit-number-input {
@@ -6704,17 +6737,60 @@ body.user-edit-visual-review-active .ant-message {
 }
 
 .user-edit-form {
-  max-width: 1180px;
+  max-width: 1120px;
   min-width: 0;
   padding: 8px 0 24px;
+}
+
+.user-edit-section {
+  max-width: 1120px;
+  min-width: 0;
+}
+
+.user-edit-section + .user-edit-section {
+  margin-top: 26px;
+}
+
+.user-edit-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 18px;
+  color: var(--admin-shell-text-primary, #172033);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.user-edit-section-title::before {
+  display: block;
+  width: 3px;
+  height: 16px;
+  border-radius: 2px;
+  background: var(--admin-shell-link-strong, #1677ff);
+  content: "";
+}
+
+.user-edit-section-body {
+  display: grid;
+  max-width: 1060px;
+  min-width: 0;
+  grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr));
+  column-gap: 32px;
+  row-gap: 16px;
 }
 
 .user-edit-page .user-edit-form-item.ant-form-item {
   margin-bottom: 0;
 }
 
-.user-edit-page .user-edit-form-item + .user-edit-form-item {
+.user-edit-page .user-edit-form-item-table-section.ant-form-item,
+.user-edit-page .user-edit-form-item-3rd-party-logins.ant-form-item,
+.user-edit-page .user-edit-form-item-multi-factor-authentication.ant-form-item {
   margin-top: 0;
+}
+
+.user-edit-page .user-edit-form-item-wide.ant-form-item {
+  grid-column: 1 / -1;
 }
 
 .user-edit-page .user-edit-form-item > .ant-row {
@@ -6727,12 +6803,12 @@ body.user-edit-visual-review-active .ant-message {
 
 .user-edit-page .user-edit-form-item .ant-form-item-control-input-content > .ant-row {
   display: grid;
-  grid-template-columns: 144px minmax(0, 1fr);
-  column-gap: 16px;
+  grid-template-columns: 132px minmax(0, 1fr);
+  column-gap: 12px;
   align-items: start;
   min-width: 0;
   margin: 0 !important;
-  padding: 9px 0;
+  padding: 0;
 }
 
 .user-edit-page .user-edit-form-item .ant-form-item-control-input-content > .ant-row > .ant-col:first-child {
@@ -6748,17 +6824,17 @@ body.user-edit-visual-review-active .ant-message {
 
 .user-edit-page .user-edit-form-item .ant-form-item-control-input-content > .ant-row > .ant-col:not(:first-child) {
   width: 100%;
-  max-width: 880px;
+  max-width: 340px;
   min-width: 0;
 }
 
 .user-edit-page .user-edit-form-item-wide .ant-form-item-control-input-content > .ant-row > .ant-col:not(:first-child) {
-  max-width: 100%;
+  max-width: 880px;
 }
 
 .user-edit-page .user-edit-form-item-email .ant-form-item-control-input-content > .ant-row,
 .user-edit-page .user-edit-form-item-phone .ant-form-item-control-input-content > .ant-row {
-  grid-template-columns: 144px minmax(280px, 340px) minmax(0, 1fr);
+  grid-template-columns: 132px minmax(280px, 340px) minmax(0, 1fr);
 }
 
 .user-edit-page .user-edit-form-item-email .ant-form-item-control-input-content > .ant-row > .ant-col:not(:first-child),
@@ -6787,8 +6863,8 @@ body.user-edit-visual-review-active .ant-message {
 }
 
 .user-edit-page .user-edit-form-item-avatar .ant-form-item-control-input-content > .ant-row > .ant-col:first-child {
-  flex: 0 0 144px;
-  max-width: 144px;
+  flex: 0 0 132px;
+  max-width: 132px;
 }
 
 .user-edit-page .user-edit-form-item-avatar .ant-form-item-control-input-content > .ant-row > .ant-col:not(:first-child),
@@ -6848,6 +6924,40 @@ body.user-edit-visual-review-active .ant-message {
   align-items: center;
 }
 
+.user-edit-page .user-edit-table-section,
+.user-edit-page .user-edit-content-section {
+  max-width: 1060px;
+  min-width: 0;
+}
+
+.user-edit-page .user-edit-form-item-addresses .user-edit-table-section,
+.user-edit-page .user-edit-form-item-transactions .user-edit-table-section {
+  max-width: 1120px;
+}
+
+.user-edit-page .user-edit-content-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  color: var(--admin-shell-text-primary, #333542);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.user-edit-page .user-edit-content-section-title::before {
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--admin-shell-link, #5b35d5);
+  content: "";
+}
+
+.user-edit-page .user-edit-content-section-body {
+  min-width: 0;
+}
+
 .user-edit-organization-option {
   display: flex;
   min-width: 0;
@@ -6876,12 +6986,90 @@ body.user-edit-visual-review-active .ant-message {
 .user-edit-page .user-edit-third-party-login-list {
   display: grid;
   gap: 0;
-  max-width: 760px;
   margin-bottom: 0 !important;
   padding: 0 14px;
   border: 1px solid var(--admin-shell-border-subtle, #e4e9f2);
   border-radius: 6px;
   background: var(--admin-shell-surface-soft-bg, #fbfcff);
+}
+
+.user-edit-page .user-edit-mfa-methods-panel {
+  width: 100%;
+  max-width: 640px;
+  overflow: hidden;
+  border: 1px solid var(--admin-shell-border-subtle, #e4e9f2);
+  border-radius: 6px;
+  background: var(--admin-shell-surface-bg, #fff);
+}
+
+.user-edit-page .user-edit-mfa-methods-panel > .user-edit-table-toolbar {
+  min-height: 34px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--admin-shell-border-subtle, #e4e9f2);
+  background: var(--admin-shell-surface-muted-bg, #f8fafc);
+}
+
+.user-edit-page .user-edit-mfa-methods-list.ant-list {
+  font-size: 12px;
+}
+
+.user-edit-page .user-edit-mfa-methods-list .ant-list-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 16px;
+  align-items: center;
+  min-height: 48px;
+  padding: 10px 16px !important;
+}
+
+.user-edit-page .user-edit-mfa-method-info {
+  min-width: 0;
+}
+
+.user-edit-page .user-edit-mfa-methods-list .ant-list-item > .ant-space:last-child {
+  justify-self: end;
+}
+
+.user-edit-page .user-edit-mfa-method-name {
+  font-weight: 500;
+  color: var(--admin-shell-text, #0f172a);
+}
+
+.user-edit-page .user-edit-mfa-method-code,
+.user-edit-page .user-edit-mfa-method-secret {
+  overflow: hidden;
+  color: var(--admin-shell-text-tertiary, #64748b);
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+  text-overflow: ellipsis;
+}
+
+.user-edit-page .user-edit-mfa-methods-list .ant-list-item + .ant-list-item {
+  border-top: 1px solid var(--admin-shell-border-subtle, #edf1f7);
+}
+
+.user-edit-page .user-edit-form-item-password .ant-form-item-control-input-content > .ant-row > .ant-col:not(:first-child) .ant-btn,
+.user-edit-page .user-edit-form-item-id-verification .ant-btn {
+  height: var(--identity-edit-inline-action-height);
+  min-width: var(--identity-edit-inline-action-min-width);
+  padding: var(--identity-edit-inline-action-padding);
+  font-size: var(--identity-edit-inline-action-font-size);
+  line-height: var(--identity-edit-inline-action-line-height);
+}
+
+.user-edit-page .user-edit-mfa-methods-list .ant-list-item .ant-btn {
+  height: var(--identity-edit-inline-action-height);
+  min-width: var(--identity-edit-inline-action-min-width);
+  padding: var(--identity-edit-inline-action-padding);
+  font-size: var(--identity-edit-inline-action-font-size);
+  line-height: var(--identity-edit-inline-action-line-height);
+}
+
+.user-edit-page .user-edit-form-item-mfa-accounts .ant-image,
+.user-edit-page .user-edit-form-item-mfa-accounts .ant-image-img {
+  width: 24px !important;
+  height: 24px !important;
+  object-fit: contain;
 }
 
 .user-edit-page .user-edit-third-party-empty.ant-empty {
@@ -6934,9 +7122,8 @@ body.user-edit-visual-review-active .ant-message {
 .user-edit-page .user-edit-form-item-mfa-accounts .ant-table-wrapper {
   max-width: 100%;
   overflow: hidden;
-  border: 1px solid var(--admin-shell-border-subtle, #e4e9f2);
-  border-radius: 6px;
-  background: var(--admin-shell-surface-bg, #fff);
+  border: 0;
+  background: transparent;
 }
 
 .user-edit-page .user-edit-embedded-table .ant-table-title,
@@ -6948,12 +7135,12 @@ body.user-edit-visual-review-active .ant-message {
 .user-edit-page .user-edit-form-item-managed-accounts .ant-table-title,
 .user-edit-page .user-edit-form-item-face-id .ant-table-title,
 .user-edit-page .user-edit-form-item-mfa-accounts .ant-table-title {
-  padding: 4px 8px 6px;
-  border-bottom: 1px solid var(--admin-shell-border-subtle, #e4e9f2);
+  padding: 0 0 6px;
+  border-bottom: 0;
   color: var(--admin-shell-text-primary, #333542);
   font-size: 12px;
   line-height: 22px;
-  background: var(--admin-shell-surface-muted-bg, #f8fafc);
+  background: transparent;
 }
 
 .user-edit-page .user-edit-table-toolbar,
@@ -6965,8 +7152,15 @@ body.user-edit-visual-review-active .ant-message {
   min-height: 24px;
 }
 
+.user-edit-page .user-edit-table-section > div > .ant-row {
+  margin-top: 12px !important;
+}
+
 .user-edit-page .user-edit-table-title,
 .user-edit-page .organization-config-table-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   min-width: 0;
   overflow: hidden;
   color: var(--admin-shell-text-primary, #333542);
@@ -6975,6 +7169,41 @@ body.user-edit-visual-review-active .ant-message {
   line-height: 20px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.user-edit-page .user-edit-account-item-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  line-height: inherit;
+  vertical-align: middle;
+}
+
+.user-edit-page .user-edit-account-item-label-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-edit-page .user-edit-account-item-label-help-icon,
+.user-edit-page .organization-config-table-title-help-icon {
+  display: inline-flex;
+  flex: 0 0 14px;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  color: var(--admin-shell-text-secondary, #71727a);
+  font-size: 12px;
+  line-height: 14px;
+}
+
+.user-edit-page .organization-config-table-title-with-help {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .user-edit-page .user-edit-table-toolbar-actions {
@@ -6990,6 +7219,7 @@ body.user-edit-visual-review-active .ant-message {
   margin-left: auto;
 }
 
+.user-edit-page .user-edit-account-item-label-help-icon:focus-visible,
 .user-edit-page .organization-config-table-title-help-icon:focus-visible,
 .user-edit-page .organization-config-table-add-trigger:focus-visible,
 .user-edit-page .organization-config-table-action-trigger:focus-visible {
@@ -7000,10 +7230,10 @@ body.user-edit-visual-review-active .ant-message {
 
 .user-edit-page .user-edit-table-toolbar .ant-btn-sm,
 .user-edit-page .organization-config-table-toolbar .ant-btn-sm {
-  height: 22px;
-  padding: 0 10px;
-  font-size: 12px;
-  line-height: 20px;
+  height: var(--identity-edit-table-toolbar-action-height);
+  padding: var(--identity-edit-table-toolbar-action-padding);
+  font-size: var(--identity-edit-table-toolbar-action-font-size);
+  line-height: var(--identity-edit-table-toolbar-action-line-height);
 }
 
 .user-edit-page .organization-config-table-row-actions {
@@ -7014,11 +7244,11 @@ body.user-edit-visual-review-active .ant-message {
 }
 
 .user-edit-page .organization-config-table-row-actions .ant-btn-sm {
-  height: 24px;
-  min-width: 42px;
-  padding: 0 10px;
-  font-size: 12px;
-  line-height: 22px;
+  height: var(--identity-edit-inline-action-height);
+  min-width: var(--identity-edit-inline-action-min-width);
+  padding: var(--identity-edit-inline-action-padding);
+  font-size: var(--identity-edit-inline-action-font-size);
+  line-height: var(--identity-edit-inline-action-line-height);
 }
 
 .user-edit-page .organization-config-table-row-actions-icons .ant-btn-sm {
@@ -7047,6 +7277,40 @@ body.user-edit-visual-review-active .ant-message {
   background: var(--admin-shell-surface-muted-bg, #f8fafc) !important;
 }
 
+.user-edit-page .user-edit-form-item .ant-table-container {
+  overflow: hidden;
+  border: 1px solid var(--admin-shell-border-subtle, #e4e9f2);
+  border-radius: 4px;
+}
+
+.user-edit-page .user-edit-form-item .ant-table-tbody > tr.ant-table-placeholder > td {
+  height: 34px;
+  padding: 6px 8px !important;
+  background: var(--admin-shell-surface-bg, #fff) !important;
+}
+
+.user-edit-page .user-edit-form-item .ant-empty-normal {
+  margin: 0;
+}
+
+.user-edit-page .user-edit-form-item .ant-empty-normal .ant-empty-image {
+  display: none;
+}
+
+.user-edit-page .user-edit-form-item .ant-empty-description {
+  color: var(--admin-shell-text-secondary, #71727a);
+  font-size: 12px;
+}
+
+.user-edit-page .user-edit-table-empty-text {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  color: var(--admin-shell-text-secondary, #71727a);
+  font-size: 12px;
+  line-height: 20px;
+}
+
 .user-edit-page .user-edit-form-item-transactions .transaction-table-embedded .ant-table-cell {
   white-space: nowrap;
 }
@@ -7066,6 +7330,10 @@ body.user-edit-visual-review-active .ant-message {
 .user-edit-page .ant-form-item-control-input-content .ant-btn,
 .user-edit-page .ant-form-item-control-input-content .ant-tag,
 .user-edit-page .ant-form-item-control-input-content .ant-table {
+  font-size: 12px;
+}
+
+.user-edit-page .user-edit-form-item-id-verification .ant-form-item-control-input-content .ant-btn {
   font-size: 12px;
 }
 
@@ -7095,13 +7363,28 @@ body.admin-shell-theme-dark .user-edit-card {
 
 body.admin-shell-theme-dark .user-edit-page .user-edit-form-item + .user-edit-form-item,
 body.admin-shell-theme-dark .user-edit-page .user-edit-third-party-login-list,
+body.admin-shell-theme-dark .user-edit-page .user-edit-mfa-methods-panel,
 body.admin-shell-theme-dark .user-edit-page .user-edit-form-item .ant-table-wrapper {
   border-color: var(--admin-shell-border, rgb(51 65 85));
 }
 
 body.admin-shell-theme-dark .user-edit-page .user-edit-third-party-login-list,
+body.admin-shell-theme-dark .user-edit-page .user-edit-mfa-methods-panel,
 body.admin-shell-theme-dark .user-edit-page .user-edit-form-item .ant-table-title {
   background: var(--admin-shell-surface-soft-bg, rgb(15 23 42));
+}
+
+body.admin-shell-theme-dark .user-edit-page .user-edit-form-item .ant-table-title {
+  background: transparent;
+}
+
+body.admin-shell-theme-dark .user-edit-page .user-edit-form-item .ant-table-container {
+  border-color: var(--admin-shell-border, rgb(51 65 85));
+}
+
+body.admin-shell-theme-dark .user-edit-page .user-edit-mfa-methods-panel > .user-edit-table-toolbar,
+body.admin-shell-theme-dark .user-edit-page .user-edit-mfa-methods-list .ant-list-item + .ant-list-item {
+  border-color: var(--admin-shell-border, rgb(51 65 85));
 }
 
 body.admin-shell-theme-dark .user-edit-page .ant-input,

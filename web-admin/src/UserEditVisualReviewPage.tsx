@@ -66,7 +66,9 @@ const previewUser = {
   balance: 128.5,
   balanceCredit: 42,
   balanceCurrency: "USD",
-  cart: {items: [{name: "starter-plan"}]},
+  cart: [
+    {owner: "engineering", name: "starter-plan", displayName: "Starter Plan", price: 128.5, currency: "USD", quantity: 1, detail: "Monthly identity workspace plan"},
+  ],
   score: 87,
   karma: 1200,
   ranking: 12,
@@ -90,7 +92,7 @@ const previewUser = {
   isAdmin: true,
   isForbidden: false,
   isDeleted: false,
-  mfaItems: [{name: "totp-primary", type: "totp"}],
+  mfaItems: [{name: "totp-primary", rule: "Optional"}],
   multiFactorAuths: [
     {mfaType: "email", enabled: true, secret: "review-email", isPreferred: false},
     {mfaType: "totp", enabled: true, secret: "review-totp", isPreferred: true},
@@ -98,9 +100,9 @@ const previewUser = {
   webauthnCredentials: [{id: "credential-primary", name: "Security Key"}],
   github: "alice-chen",
   lastChangePasswordTime: "2026-06-21T08:30:00Z",
-  managedAccounts: [{name: "service-account-a"}],
+  managedAccounts: [{application: "admin-console", signinUrl: "https://admin.example.test/login", username: "alice.chen", password: "managed-secret"}],
   faceIds: [{name: "face-primary", imageUrl: "https://example.test/face-primary.png", faceIdData: [0.12, 0.24, 0.36, 0.48, 0.6, 0.72]}],
-  mfaAccounts: [{name: "mfa-account-a"}],
+  mfaAccounts: [{accountName: "alice.chen", issuer: "github", origin: "totp", secretKey: "mfa-secret"}],
   mfaProps: {enabled: true},
   needUpdatePassword: false,
   ipWhitelist: "10.0.0.0/24, 192.168.1.12",
@@ -108,6 +110,24 @@ const previewUser = {
   lastName: "Chen",
   applicationScopes: [{application: "admin-console", scope: "profile"}],
 };
+
+const previewAdminAccount = {
+  ...previewUser,
+  owner: "built-in",
+  name: "admin",
+  id: "usr_visual_admin",
+  displayName: "Visual Admin",
+  isAdmin: true,
+  accessToken: "visual-review",
+};
+
+const previewAvailableMfaMethods = [
+  {mfaType: "sms", enabled: false, secret: "", isPreferred: false},
+  {mfaType: "email", enabled: false, secret: "", isPreferred: false},
+  {mfaType: "app", enabled: false, secret: "", isPreferred: false},
+  {mfaType: "radius", enabled: false, secret: "", isPreferred: false},
+  {mfaType: "push", enabled: false, secret: "", isPreferred: false},
+];
 
 const previewApplication = {
   name: "admin-console",
@@ -161,8 +181,10 @@ class PreviewUserEditPage extends UserEditPage {
   }
 
   private setPreviewState() {
+    const user = this.getPreviewUser();
+
     this.setState({
-      user: this.getPreviewUser(),
+      user,
       application: this.getPreviewApplication(),
       userOrganization: previewOrganization,
       groups: this.getPreviewGroups(),
@@ -171,10 +193,8 @@ class PreviewUserEditPage extends UserEditPage {
       applicationsLoaded: true,
       loading: false,
       transactions: this.getPreviewTransactions(),
-      consents: [
-        {application: "admin-console", grantedScopes: ["profile", "audit"]},
-      ],
-      multiFactorAuths: [...previewUser.multiFactorAuths],
+      consents: this.getPreviewConsents(),
+      multiFactorAuths: [...(user.multiFactorAuths ?? [])],
       dirty: false,
       submitting: false,
     });
@@ -182,12 +202,29 @@ class PreviewUserEditPage extends UserEditPage {
 
   private getPreviewUser() {
     const search = this.props.location?.search ?? "";
-    const accessMode = new URLSearchParams(search).get("access");
-    const user = {...previewUser};
+    const params = new URLSearchParams(search);
+    const accessMode = params.get("access");
+    const tablesMode = params.get("tables");
+    const mfaMode = params.get("mfa");
+    const user = {...previewUser, multiFactorAuths: [...previewUser.multiFactorAuths]};
 
     if (accessMode === "empty") {
       user.roles = [];
       user.permissions = [];
+    }
+
+    if (tablesMode === "empty") {
+      user.addresses = [];
+      user.cart = [];
+      user.mfaItems = [];
+      user.webauthnCredentials = [];
+      user.managedAccounts = [];
+      user.faceIds = [];
+      user.mfaAccounts = [];
+    }
+
+    if (mfaMode === "available") {
+      user.multiFactorAuths = previewAvailableMfaMethods;
     }
 
     return user;
@@ -230,14 +267,33 @@ class PreviewUserEditPage extends UserEditPage {
   }
 
   private getPreviewTransactions() {
+    const search = this.props.location?.search ?? "";
+    if (new URLSearchParams(search).get("tables") === "empty") {
+      return [];
+    }
+
     return [
-      {name: "tx-10001", createdTime: "2026-06-30T10:00:00Z", amount: 128.5, currency: "USD"},
-      {name: "tx-10002", createdTime: "2026-07-01T09:20:00Z", amount: 42, currency: "USD"},
+      {owner: "engineering", name: "tx-10001", createdTime: "2026-06-30T10:00:00Z", amount: 128.5, currency: "USD"},
+      {owner: "engineering", name: "tx-10002", createdTime: "2026-07-01T09:20:00Z", amount: 42, currency: "USD"},
+    ];
+  }
+
+  private getPreviewConsents() {
+    const search = this.props.location?.search ?? "";
+    if (new URLSearchParams(search).get("tables") === "empty") {
+      return [];
+    }
+
+    return [
+      {application: "admin-console", grantedScopes: ["profile", "audit"]},
     ];
   }
 }
 
 export default function UserEditVisualReviewPage(props: PreviewRouteProps): JSX.Element {
+  const params = new URLSearchParams(props.location?.search ?? "");
+  const account = params.get("self") === "false" ? previewAdminAccount : {...previewUser, isAdmin: true, accessToken: "visual-review"};
+
   React.useEffect(() => {
     document.body.classList.add("user-edit-visual-review-active");
     return () => {
@@ -247,7 +303,7 @@ export default function UserEditVisualReviewPage(props: PreviewRouteProps): JSX.
 
   return (
     <PreviewUserEditPage
-      account={{...previewUser, isAdmin: true, accessToken: "visual-review"}}
+      account={account}
       match={{params: {organizationName: "engineering", userName: "alice.chen"}}}
       location={{search: props.location?.search ?? ""}}
       history={props.history}

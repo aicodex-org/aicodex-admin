@@ -29,6 +29,7 @@ interface MfaAccountTableProps {
   table?: LegacyAny[] | null;
   icon?: string;
   accessToken?: string;
+  embedded?: boolean;
   onUpdateTable: (table: LegacyAny[]) => void;
 }
 
@@ -190,7 +191,10 @@ class MfaAccountTable extends React.Component<MfaAccountTableProps, MfaAccountTa
     const title = this.props.title === undefined ? i18next.t("user:MFA accounts") : this.props.title;
 
     return (
-      <Table tableLayout="fixed" rowKey="key" columns={columns} dataSource={table} size="middle" bordered pagination={false}
+      <Table className={this.props.embedded ? "user-edit-embedded-table" : undefined}
+        tableLayout="fixed" rowKey="key" columns={columns} dataSource={table} size="middle" bordered pagination={false}
+        showHeader={!this.props.embedded || table.length > 0}
+        locale={{emptyText: <span className="user-edit-table-empty-text">{i18next.t("general:No data")}</span>}}
         title={() => (
           <div className="user-edit-table-toolbar">
             {title === null ? null : <span className="user-edit-table-title">{title}</span>}
@@ -200,7 +204,7 @@ class MfaAccountTable extends React.Component<MfaAccountTableProps, MfaAccountTa
               </Button>
               <Popover
                 trigger="focus"
-                overlayInnerStyle={{padding: 0}}
+                styles={{body: {padding: 0}}}
                 content={<CasdoorAppQrCode accessToken={this.props.accessToken} icon={this.state.icon} />}
               >
                 <Button size="small">

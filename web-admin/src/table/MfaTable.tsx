@@ -44,6 +44,7 @@ const RuleItems = [
 interface MfaTableProps {
   title?: React.ReactNode;
   table?: LegacyAny[];
+  embedded?: boolean;
   onUpdateTable: (table: LegacyAny[]) => void;
 }
 
@@ -191,8 +192,10 @@ class MfaTable extends React.Component<MfaTableProps, MfaTableState> {
     ];
 
     return (
-      <Table scroll={{x: "max-content"}} rowKey="name" columns={columns} dataSource={table} size="middle" bordered pagination={false}
-        locale={{emptyText: i18next.t("organization:No MFA methods")}}
+      <Table className={this.props.embedded ? "user-edit-embedded-table" : undefined}
+        scroll={{x: "max-content"}} rowKey="name" columns={columns} dataSource={table} size="middle" bordered pagination={false}
+        showHeader={!this.props.embedded || table.length > 0}
+        locale={{emptyText: <span className="user-edit-table-empty-text">{i18next.t("organization:No MFA methods")}</span>}}
         title={() => (
           <div className="organization-config-table-toolbar">
             {this.props.title === undefined || this.props.title === null ? null : (

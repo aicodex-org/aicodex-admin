@@ -65,8 +65,13 @@ class WebAuthnCredentialTable extends React.Component<LegacyAny, LegacyAny> {
 
     const title = this.props.title === undefined ? t("user:WebAuthn credentials") : this.props.title;
 
+    const rows = Array.isArray(this.props.table) ? this.props.table : [];
+
     return (
-      <Table rowKey={"id"} columns={columns} dataSource={this.props.table} size="middle" bordered pagination={false}
+      <Table className={this.props.embedded ? "user-edit-embedded-table" : undefined}
+        rowKey={"id"} columns={columns} dataSource={this.props.table} size="middle" bordered pagination={false}
+        showHeader={!this.props.embedded || rows.length > 0}
+        locale={{emptyText: <span className="user-edit-table-empty-text">{t("general:No data")}</span>}}
         title={() => (
           <div className="user-edit-table-toolbar">
             {title === null ? null : <span className="user-edit-table-title">{title}</span>}

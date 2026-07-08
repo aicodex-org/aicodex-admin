@@ -59,7 +59,13 @@ const authBackendMock = AuthBackend as unknown as AuthBackendMock;
 const mfaBackendMock = MfaBackend as unknown as MfaBackendMock;
 const transactionBackendMock = TransactionBackend as unknown as TransactionBackendMock;
 
-jest.mock("./auth/MfaSetupPage", () => ({TotpMfaType: "totp"}));
+jest.mock("./auth/MfaSetupPage", () => ({
+  EmailMfaType: "email",
+  PushMfaType: "push",
+  RadiusMfaType: "radius",
+  SmsMfaType: "sms",
+  TotpMfaType: "app",
+}));
 
 jest.mock("antd/es/layout/layout", () => ({
   Content: function ContentMock(props: {children?: React.ReactNode; style?: React.CSSProperties}) {
@@ -893,6 +899,37 @@ test("renders organization-style fixed user tabs in the page shell with one fixe
   expect(page.state.activeTabKey).toBe("access");
   expect(window.location.hash).toBe("#access");
   expect(view.container.querySelectorAll(".user-edit-action-bar button").length).toBe(3);
+});
+
+test("groups user edit tab fields with organization-style section titles", () => {
+  const page = createPage();
+  page.state = {
+    ...page.state,
+    application: {
+      ...application,
+      organizationObj: {
+        ...application.organizationObj,
+        accountItems: [
+          {name: "Organization", visible: true},
+          {name: "Display name", visible: true},
+          {name: "Email", visible: true},
+          {name: "Properties", visible: true},
+          {name: "Unimplemented custom field", visible: true},
+        ],
+      },
+    },
+    activeTabKey: "basic",
+  };
+
+  const view = render(<>{page.renderUserForm()}</>);
+  const sectionTitles = [...view.container.querySelectorAll(".user-edit-section-title")].map(element => element.textContent);
+  expect(sectionTitles).toHaveLength(3);
+  expect(sectionTitles[0]).toMatch(/^(基础信息|Basic information)$/);
+  expect(sectionTitles[1]).toMatch(/^(联系方式|Contact information)$/);
+  expect(sectionTitles[2]).toMatch(/^(扩展属性|Extended properties)$/);
+  expect(view.queryByText(/^(其他信息|Other information)$/)).toBeNull();
+  expect(view.container.querySelector(".user-edit-section-body .user-edit-form-item-organization")).not.toBeNull();
+  expect(view.container.querySelector(".user-edit-section-body .user-edit-form-item-properties")).not.toBeNull();
 });
 
 test("protects dirty cancel and ignores duplicate user saves while submitting", async() => {

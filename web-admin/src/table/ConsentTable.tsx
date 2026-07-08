@@ -112,8 +112,13 @@ class ConsentTable extends React.Component<LegacyAny, LegacyAny> {
 
     const title = this.props.title === undefined ? t("consent:Consents") : this.props.title;
 
+    const rows = Array.isArray(table) ? table : [];
+
     return (
-      <Table scroll={{x: "max-content"}} rowKey="application" columns={columns} dataSource={table} size="middle" bordered pagination={false}
+      <Table className={this.props.embedded ? "user-edit-embedded-table" : undefined}
+        scroll={{x: "max-content"}} rowKey="application" columns={columns} dataSource={table} size="middle" bordered pagination={false}
+        showHeader={!this.props.embedded || rows.length > 0}
+        locale={{emptyText: <span className="user-edit-table-empty-text">{t("general:No data")}</span>}}
         title={title === null ? undefined : () => (
           <div className="user-edit-table-toolbar">
             <span className="user-edit-table-title">{title}</span>

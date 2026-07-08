@@ -20,6 +20,8 @@ import type {BusinessPaymentCartItem} from "../types/businessPayment";
 
 interface CartTableProps {
   cart?: unknown;
+  title?: React.ReactNode;
+  embedded?: boolean;
 }
 
 class CartTable extends React.Component<CartTableProps> {
@@ -74,11 +76,19 @@ class CartTable extends React.Component<CartTableProps> {
 
     return (
       <Table
+        className={this.props.embedded ? "user-edit-embedded-table" : undefined}
         columns={columns}
         dataSource={cart}
         rowKey={(record) => `${record.owner}/${record.name}`}
         size="small"
+        showHeader={!this.props.embedded || cart.length > 0}
         pagination={false}
+        locale={{emptyText: <span className="user-edit-table-empty-text">{String(i18next.t("general:No data"))}</span>}}
+        title={this.props.title === undefined ? undefined : () => (
+          <div className="user-edit-table-toolbar">
+            <span className="user-edit-table-title">{this.props.title}</span>
+          </div>
+        )}
       />
     );
   }

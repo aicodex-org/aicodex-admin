@@ -170,7 +170,7 @@ class TransactionTable extends React.Component<TransactionTableProps, Transactio
 
     return (
       <Table
-        className={this.props.embedded ? "transaction-table-embedded" : undefined}
+        className={this.props.embedded ? "transaction-table-embedded user-edit-embedded-table" : undefined}
         scroll={this.props.embedded ? undefined : {x: "max-content"}}
         tableLayout={this.props.embedded ? "fixed" : undefined}
         columns={tableColumns}
@@ -178,14 +178,16 @@ class TransactionTable extends React.Component<TransactionTableProps, Transactio
         rowKey={(record) => `${record.owner || ""}/${record.name || ""}`}
         size="middle"
         bordered
+        showHeader={!this.props.embedded || (this.props.transactions || []).length > 0}
+        locale={{emptyText: <span className="user-edit-table-empty-text">{i18next.t("general:No data")}</span>}}
         pagination={{
           pageSize: 10,
           showSizeChanger: true,
           pageSizeOptions: ["10", "20", "50", "100"],
         }}
         title={this.props.title ? () => (
-          <div>
-            {this.props.title}&nbsp;&nbsp;&nbsp;&nbsp;
+          <div className="user-edit-table-toolbar">
+            <span className="user-edit-table-title">{this.props.title}</span>
           </div>
         ) : undefined}
       />

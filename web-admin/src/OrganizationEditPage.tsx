@@ -760,15 +760,17 @@ class OrganizationEditPage extends React.Component<OrganizationEditPageProps, Or
           i18next.t("organization:Theme mode"),
           i18next.t("theme:Theme - Tooltip"),
           <React.Fragment>
-            <Radio.Group buttonStyle="solid" value={this.state.organization.themeData?.isEnabled ?? false} onChange={e => {
-              const {_, ...theme} = this.state.organization.themeData ?? {...Conf.ThemeDefault, isEnabled: false};
-              this.updateOrganizationField("themeData", {...theme, isEnabled: e.target.value});
-            }} >
-              <Radio.Button value={false}>{i18next.t("organization:Follow global theme")}</Radio.Button>
-              <Radio.Button value={true}>{i18next.t("theme:Customize theme")}</Radio.Button>
-            </Radio.Group>
-            <div className="organization-edit-theme-summary">
-              {this.state.organization.themeData?.isEnabled ? i18next.t("organization:Custom theme summary") : i18next.t("organization:Global theme summary")}
+            <div className="organization-edit-theme-mode-control">
+              <Radio.Group className="organization-edit-theme-mode-group" buttonStyle="solid" value={this.state.organization.themeData?.isEnabled ?? false} onChange={e => {
+                const {_, ...theme} = this.state.organization.themeData ?? {...Conf.ThemeDefault, isEnabled: false};
+                this.updateOrganizationField("themeData", {...theme, isEnabled: e.target.value});
+              }} >
+                <Radio.Button value={false}>{i18next.t("organization:Follow global theme")}</Radio.Button>
+                <Radio.Button value={true}>{i18next.t("theme:Customize theme")}</Radio.Button>
+              </Radio.Group>
+              <div className="organization-edit-theme-summary">
+                {this.state.organization.themeData?.isEnabled ? i18next.t("organization:Custom theme summary") : i18next.t("organization:Global theme summary")}
+              </div>
             </div>
             {
               this.state.organization.themeData?.isEnabled ?

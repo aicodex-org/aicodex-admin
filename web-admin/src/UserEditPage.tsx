@@ -18,7 +18,7 @@ import {
   Result, Row, Select, Space, Spin, Switch, Tabs, Tag, Tooltip
 } from "antd";
 import * as ReactRouterDom from "react-router-dom";
-import {TotpMfaType} from "./auth/MfaSetupPage";
+import {EmailMfaType, PushMfaType, RadiusMfaType, SmsMfaType, TotpMfaType} from "./auth/MfaSetupPage";
 import * as GroupBackend from "./backend/GroupBackend";
 import * as UserBackend from "./backend/UserBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
@@ -42,7 +42,7 @@ import PropertyTable from "./table/propertyTable";
 import {CountryCodeSelect} from "./common/select/CountryCodeSelect";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
 import {DeleteMfa} from "./backend/MfaBackend";
-import {CheckCircleOutlined, HolderOutlined, UsergroupAddOutlined} from "@ant-design/icons";
+import {CheckCircleOutlined, HolderOutlined, InfoCircleOutlined, UsergroupAddOutlined} from "@ant-design/icons";
 import * as MfaBackend from "./backend/MfaBackend";
 import AccountAvatar from "./account/AccountAvatar";
 import FaceIdTable from "./table/FaceIdTable";
@@ -122,6 +122,12 @@ type UserEditTabKey = "basic" | "identity" | "access" | "security" | "connection
 interface UserEditTabItem {
   key: UserEditTabKey;
   label: string;
+  accountItemNames: string[];
+}
+
+interface UserEditSectionItem {
+  key: string;
+  title: string;
   accountItemNames: string[];
 }
 
@@ -312,6 +318,23 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
     this.setReturnUrl();
   }
 
+  getMfaMethodLabel(mfaType: string): string {
+    switch (mfaType) {
+    case SmsMfaType:
+      return i18next.t("mfa:SMS");
+    case EmailMfaType:
+      return i18next.t("mfa:Email");
+    case TotpMfaType:
+      return i18next.t("mfa:Authenticator App");
+    case RadiusMfaType:
+      return i18next.t("mfa:Radius");
+    case PushMfaType:
+      return i18next.t("mfa:Push Notification");
+    default:
+      return mfaType;
+    }
+  }
+
   componentDidUpdate(prevProps: Readonly<UserEditPageProps>, prevState: Readonly<UserEditPageState>, snapshot?: unknown) {
     if (prevState.application !== this.state.application || prevState.userOrganization !== this.state.userOrganization) {
       this.getGroups(this.state.organizationName);
@@ -438,10 +461,24 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
 
   renderAccountItemLabel(label: string, tooltip: string): React.ReactNode {
     if (!this.isUsefulAccountItemTooltip(label, tooltip)) {
-      return <span>{label}</span>;
+      return <span className="user-edit-account-item-label-text">{label}</span>;
     }
 
-    return Setting.getLabel(label, tooltip);
+    return (
+      <span className="user-edit-account-item-label user-edit-account-item-label-with-help">
+        <span className="user-edit-account-item-label-text">{label}</span>
+        <Tooltip placement="top" title={tooltip}>
+          <span
+            aria-label={tooltip}
+            className="user-edit-account-item-label-help-icon"
+            role="img"
+            tabIndex={0}
+          >
+            <InfoCircleOutlined />
+          </span>
+        </Tooltip>
+      </span>
+    );
   }
 
   renderAccountItemTags(tags: string[], keyPrefix: string): React.ReactNode {
@@ -450,6 +487,37 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
         {tag}
       </React.Fragment>
     ));
+  }
+
+  renderAccountItemTableSection(content: React.ReactNode): React.ReactNode {
+    return (
+      <div className="user-edit-table-section">
+        {content}
+      </div>
+    );
+  }
+
+  renderAccountItemContentSection(title: string, tooltip: string, content: React.ReactNode, className?: string, showTitle = true): React.ReactNode {
+    return (
+      <div className={["user-edit-content-section", className ?? ""].filter(Boolean).join(" ")}>
+        {showTitle ? (
+          <div className="user-edit-content-section-title">
+            {this.renderAccountItemLabel(title, tooltip)}
+          </div>
+        ) : null}
+        <div className="user-edit-content-section-body">
+          {content}
+        </div>
+      </div>
+    );
+  }
+
+  renderUserEditSectionTitle(title: string): React.ReactNode {
+    return (
+      <div className="user-edit-section-title">
+        <span>{title}</span>
+      </div>
+    );
   }
 
   getVisibleApplicationProviders(): ProviderItemRecord[] {
@@ -1080,22 +1148,14 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
         </Row>
       );
     } else if (accountItem.name === "Addresses") {
-      return (
-        <Row style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {this.renderAccountItemLabel(i18next.t("user:Addresses"), i18next.t("user:Addresses"))} :
-          </Col>
-          <Col span={22} >
-            <AddressTable
-              title={i18next.t("user:Addresses")}
-              showTitle={false}
-              table={this.state.user.addresses}
-              onUpdateTable={(value: unknown) => {
-                this.updateUserField("addresses", value);
-              }}
-            />
-          </Col>
-        </Row>
+      return this.renderAccountItemTableSection(
+        <AddressTable
+          title={this.renderAccountItemLabel(i18next.t("user:Addresses"), i18next.t("user:Addresses"))}
+          table={this.state.user.addresses}
+          onUpdateTable={(value: unknown) => {
+            this.updateUserField("addresses", value);
+          }}
+        />
       );
     } else if (accountItem.name === "Affiliation") {
       return (
@@ -1343,26 +1403,21 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
         </Row>
       );
     } else if (accountItem.name === "Cart") {
-      return (
-        <Row style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {this.renderAccountItemLabel(i18next.t("general:Cart"), i18next.t("general:Cart"))} :
-          </Col>
-          <Col span={22}>
-            <CartTable cart={this.state.user.cart} />
-          </Col>
-        </Row>
+      return this.renderAccountItemTableSection(
+        <CartTable
+          title={this.renderAccountItemLabel(i18next.t("general:Cart"), i18next.t("general:Cart"))}
+          cart={this.state.user.cart}
+          embedded
+        />
       );
     } else if (accountItem.name === "Transactions") {
-      return (
-        <Row style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {this.renderAccountItemLabel(i18next.t("general:Transactions"), i18next.t("general:Transactions"))} :
-          </Col>
-          <Col span={22}>
-            <TransactionTable transactions={this.state.transactions} hideTag={true} embedded />
-          </Col>
-        </Row>
+      return this.renderAccountItemTableSection(
+        <TransactionTable
+          title={this.renderAccountItemLabel(i18next.t("general:Transactions"), i18next.t("general:Transactions"))}
+          transactions={this.state.transactions}
+          hideTag={true}
+          embedded
+        />
       );
     } else if (accountItem.name === "Score") {
       return (
@@ -1484,28 +1539,26 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
     } else if (accountItem.name === "3rd-party logins") {
       return (
         !this.isSelfOrAdmin() ? null : (
-          <Row style={{marginTop: "20px"}} >
-            <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-              {Setting.getLabel(i18next.t("user:3rd-party logins"), i18next.t("user:3rd-party logins - Tooltip"))} :
-            </Col>
-            <Col span={22} >
+          this.renderAccountItemContentSection(
+            i18next.t("user:3rd-party logins"),
+            i18next.t("user:3rd-party logins - Tooltip"),
+            (
               <div className="user-edit-third-party-login-list">
                 {this.renderThirdPartyLoginItems()}
               </div>
-            </Col>
-          </Row>
+            ),
+            "user-edit-third-party-section",
+            false
+          )
         )
       );
     } else if (accountItem.name === "Properties") {
-      return (
-        <Row style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("user:Properties"), i18next.t("user:Properties - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <PropertyTable properties={this.state.user.properties} onUpdateTable={(value: unknown) => {this.updateUserField("properties", value);}} />
-          </Col>
-        </Row>
+      return this.renderAccountItemTableSection(
+        <PropertyTable
+          title={this.renderAccountItemLabel(i18next.t("user:Properties"), i18next.t("user:Properties - Tooltip"))}
+          properties={this.state.user.properties}
+          onUpdateTable={(value: unknown) => {this.updateUserField("properties", value);}}
+        />
       );
     } else if (accountItem.name === "Is admin") {
       return (
@@ -1548,127 +1601,128 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
         </Row>
       );
     } else if (accountItem.name === "MFA items") {
-      return (<Row style={{marginTop: "20px"}} >
-        <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-          {this.renderAccountItemLabel(i18next.t("general:MFA items"), i18next.t("general:MFA items - Tooltip"))} :
-        </Col>
-        <Col span={22} >
-          <MfaTable
-            title={null}
-            table={this.state.user.mfaItems ?? []}
-            onUpdateTable={(value: unknown) => {this.updateUserField("mfaItems", value);}}
-          />
-        </Col>
-      </Row>);
+      return this.renderAccountItemTableSection(
+        <MfaTable
+          title={i18next.t("general:MFA items")}
+          table={this.state.user.mfaItems ?? []}
+          embedded
+          onUpdateTable={(value: unknown) => {this.updateUserField("mfaItems", value);}}
+        />
+      );
     } else if (accountItem.name === "Consents") {
-      return (
-        <Row style={{marginTop: "20px"}}>
-          <Col style={{marginTop: "5px"}} span={Setting.isMobile() ? 22 : 2}>
-            {this.renderAccountItemLabel(i18next.t("consent:Consents"), i18next.t("consent:Consents - Tooltip"))} :
-          </Col>
-          <Col span={22}>
-            <ConsentTable
-              title={null}
-              table={this.state.consents}
-              onUpdateTable={() => this.getUser()}
-            />
-          </Col>
-        </Row>
+      return this.renderAccountItemTableSection(
+        <ConsentTable
+          title={null}
+          table={this.state.consents}
+          embedded
+          onUpdateTable={() => this.getUser()}
+        />
       );
     } else if (accountItem.name === "Multi-factor authentication") {
       return (
         !this.isSelfOrAdmin() ? null : (
-          <Row style={{marginTop: "20px"}} >
-            <Col style={{marginTop: "5px"}} span={Setting.isMobile() ? 22 : 2}>
-              {this.renderAccountItemLabel(i18next.t("mfa:Multi-factor authentication"), i18next.t("mfa:Multi-factor authentication - Tooltip "))} :
-            </Col>
-            <Col span={22} >
-              <Card size="small" title={
-                <div>
-                  {i18next.t("mfa:Multi-factor methods")}&nbsp;&nbsp;&nbsp;&nbsp;
-                  {this.state.multiFactorAuths?.some(mfaProps => mfaProps.enabled) ?
-                    <PopconfirmModal
-                      text={i18next.t("general:Disable")}
-                      title={i18next.t("general:Sure to disable") + "?"}
-                      onConfirm={() => this.deleteMfa()}
-                      size="small"
-                    /> : null
-                  }
+          this.renderAccountItemContentSection(
+            i18next.t("mfa:Multi-factor authentication"),
+            i18next.t("mfa:Multi-factor authentication - Tooltip "),
+            (
+              <div className="user-edit-mfa-methods-panel">
+                <div className="user-edit-table-toolbar">
+                  <span className="user-edit-table-title">{i18next.t("mfa:Multi-factor methods")}</span>
+                  <div className="user-edit-table-toolbar-actions">
+                    {this.state.multiFactorAuths?.some(mfaProps => mfaProps.enabled) ?
+                      <PopconfirmModal
+                        text={i18next.t("general:Disable")}
+                        title={i18next.t("general:Sure to disable") + "?"}
+                        onConfirm={() => this.deleteMfa()}
+                        size="small"
+                      /> : null
+                    }
+                  </div>
                 </div>
-              }>
                 <List
+                  className="user-edit-mfa-methods-list"
                   size="small"
                   rowKey="mfaType"
                   itemLayout="horizontal"
                   dataSource={this.state.multiFactorAuths}
-                  renderItem={(item, index) => (
-                    <List.Item>
-                      <Space>
-                        {i18next.t("general:Type")}: {item.mfaType}
-                        {item.secret}
-                      </Space>
-                      {item.enabled ? (
-                        <Space>
-                          <Tag icon={<CheckCircleOutlined />} color="success">
-                            {i18next.t("general:Enabled")}
-                          </Tag>
-                          {item.isPreferred ?
-                            <Tag icon={<CheckCircleOutlined />} color="blue" style={{marginRight: 20}} >
-                              {i18next.t("mfa:preferred")}
-                            </Tag> :
-                            <Button type="primary" style={{marginRight: 20}} onClick={() => {
-                              const values = {
-                                owner: this.state.user.owner,
-                                name: this.state.user.name,
-                                mfaType: item.mfaType,
-                              };
-                              MfaBackend.SetPreferredMfa(values).then((res) => {
-                                if (res.status === "ok") {
-                                  this.setState({
-                                    multiFactorAuths: res.data,
-                                  });
-                                }
-                              });
-                            }}>
-                              {i18next.t("mfa:Set preferred")}
-                            </Button>
-                          }
-                          {this.isSelf() ? <Button type={"default"} onClick={() => {
-                            this.props.history.push(`/mfa/setup?mfaType=${item.mfaType}`);
-                          }}>
-                            {i18next.t("general:Edit")}
-                          </Button> : null}
+                  renderItem={(item) => {
+                    const canAdminEnableMfa = item.mfaType !== TotpMfaType && Setting.isLocalAdminUser(this.props.account) && !this.isSelf();
+                    const requiresSelfSetup = item.mfaType === TotpMfaType && Setting.isLocalAdminUser(this.props.account) && !this.isSelf();
+
+                    return (
+                      <List.Item>
+                        <Space className="user-edit-mfa-method-info">
+                          <span>{i18next.t("general:Type")}:</span>
+                          <span className="user-edit-mfa-method-name">{this.getMfaMethodLabel(item.mfaType)}</span>
+                          <span className="user-edit-mfa-method-code">{item.mfaType}</span>
+                          {item.secret ? <span className="user-edit-mfa-method-secret">{item.secret}</span> : null}
                         </Space>
-                      ) :
-                        <Space>
-                          {item.mfaType !== TotpMfaType && Setting.isLocalAdminUser(this.props.account) && !this.isSelf() ?
-                            <EnableMfaModal user={this.state.user} mfaType={item.mfaType} onSuccess={() => {
-                              this.getUser();
-                            }} /> : null}
-                          {this.isSelf() ? <Button type={"default"} onClick={() => {
-                            this.props.history.push(`/mfa/setup?mfaType=${item.mfaType}`);
-                          }}>
-                            {i18next.t("mfa:Setup")}
-                          </Button> : null}
-                        </Space>}
-                    </List.Item>
-                  )}
+                        {item.enabled ? (
+                          <Space>
+                            <Tag icon={<CheckCircleOutlined />} color="success">
+                              {i18next.t("general:Enabled")}
+                            </Tag>
+                            {item.isPreferred ?
+                              <Tag icon={<CheckCircleOutlined />} color="blue" style={{marginRight: 20}} >
+                                {i18next.t("mfa:preferred")}
+                              </Tag> :
+                              <Button type="primary" style={{marginRight: 20}} onClick={() => {
+                                const values = {
+                                  owner: this.state.user.owner,
+                                  name: this.state.user.name,
+                                  mfaType: item.mfaType,
+                                };
+                                MfaBackend.SetPreferredMfa(values).then((res) => {
+                                  if (res.status === "ok") {
+                                    this.setState({
+                                      multiFactorAuths: res.data,
+                                    });
+                                  }
+                                });
+                              }}>
+                                {i18next.t("mfa:Set preferred")}
+                              </Button>
+                            }
+                            {this.isSelf() ? <Button type={"default"} onClick={() => {
+                              this.props.history.push(`/mfa/setup?mfaType=${item.mfaType}`);
+                            }}>
+                              {i18next.t("general:Edit")}
+                            </Button> : null}
+                          </Space>
+                        ) :
+                          <Space>
+                            {canAdminEnableMfa ?
+                              <EnableMfaModal user={this.state.user} mfaType={item.mfaType} onSuccess={() => {
+                                this.getUser();
+                              }} /> : null}
+                            {this.isSelf() ? <Button type={"default"} onClick={() => {
+                              this.props.history.push(`/mfa/setup?mfaType=${item.mfaType}`);
+                            }}>
+                              {i18next.t("mfa:Setup")}
+                            </Button> : null}
+                            {requiresSelfSetup ? <Tag>{i18next.t("mfa:User setup required")}</Tag> : null}
+                          </Space>}
+                      </List.Item>
+                    );
+                  }}
                 />
-              </Card>
-            </Col>
-          </Row>
+              </div>
+            ),
+            "user-edit-mfa-methods-section",
+            false
+          )
         )
       );
     } else if (accountItem.name === "WebAuthn credentials") {
-      return (
-        <Row style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {this.renderAccountItemLabel(i18next.t("user:WebAuthn credentials"), i18next.t("user:WebAuthn credentials - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <WebAuthnCredentialTable title={null} isSelf={this.isSelf()} table={this.state.user.webauthnCredentials} updateTable={(table: unknown) => {this.updateUserField("webauthnCredentials", table);}} refresh={this.getUser.bind(this)} />
-          </Col>
-        </Row>
+      return this.renderAccountItemTableSection(
+        <WebAuthnCredentialTable
+          title={this.renderAccountItemLabel(i18next.t("user:WebAuthn credentials"), i18next.t("user:WebAuthn credentials - Tooltip"))}
+          isSelf={this.isSelf()}
+          table={this.state.user.webauthnCredentials}
+          embedded
+          updateTable={(table: unknown) => {this.updateUserField("webauthnCredentials", table);}}
+          refresh={this.getUser.bind(this)}
+        />
       );
     } else if (accountItem.name === "Last change password time") {
       return (
@@ -1684,53 +1738,35 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
         </Row>
       );
     } else if (accountItem.name === "Managed accounts") {
-      return (
-        <Row style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {this.renderAccountItemLabel(i18next.t("user:Managed accounts"), i18next.t("user:Managed accounts - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <ManagedAccountTable
-              title={null}
-              table={this.state.user.managedAccounts}
-              onUpdateTable={(table: unknown) => {this.updateUserField("managedAccounts", table);}}
-              applications={this.state.applications}
-            />
-          </Col>
-        </Row>
+      return this.renderAccountItemTableSection(
+        <ManagedAccountTable
+          title={this.renderAccountItemLabel(i18next.t("user:Managed accounts"), i18next.t("user:Managed accounts - Tooltip"))}
+          table={this.state.user.managedAccounts}
+          embedded
+          onUpdateTable={(table: unknown) => {this.updateUserField("managedAccounts", table);}}
+          applications={this.state.applications}
+        />
       );
     } else if (accountItem.name === "Face ID") {
-      return (
-        <Row style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {this.renderAccountItemLabel(i18next.t("user:Face IDs"), i18next.t("user:Face IDs - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <FaceIdTable
-              title={null}
-              table={this.state.user.faceIds}
-              {...this.props}
-              onUpdateTable={(table: unknown) => {this.updateUserField("faceIds", table);}}
-            />
-          </Col>
-        </Row>
+      return this.renderAccountItemTableSection(
+        <FaceIdTable
+          title={this.renderAccountItemLabel(i18next.t("user:Face IDs"), i18next.t("user:Face IDs - Tooltip"))}
+          table={this.state.user.faceIds}
+          embedded
+          {...this.props}
+          onUpdateTable={(table: unknown) => {this.updateUserField("faceIds", table);}}
+        />
       );
     } else if (accountItem.name === "MFA accounts") {
-      return (
-        <Row style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {this.renderAccountItemLabel(i18next.t("user:MFA accounts"), i18next.t("user:MFA accounts - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <MfaAccountTable
-              title={null}
-              table={this.state.user.mfaAccounts}
-              accessToken={this.props.account?.accessToken}
-              icon={this.state.user.avatar}
-              onUpdateTable={(table: unknown) => {this.updateUserField("mfaAccounts", table);}}
-            />
-          </Col>
-        </Row>
+      return this.renderAccountItemTableSection(
+        <MfaAccountTable
+          title={this.renderAccountItemLabel(i18next.t("user:MFA accounts"), i18next.t("user:MFA accounts - Tooltip"))}
+          table={this.state.user.mfaAccounts}
+          accessToken={this.props.account?.accessToken}
+          icon={this.state.user.avatar}
+          embedded
+          onUpdateTable={(table: unknown) => {this.updateUserField("mfaAccounts", table);}}
+        />
       );
     } else if (accountItem.name === "Need update password") {
       return (
@@ -1883,6 +1919,105 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
     ];
   }
 
+  getUserEditSectionDefinitions(tabKey: UserEditTabKey): UserEditSectionItem[] {
+    const sectionDefinitions: Record<UserEditTabKey, UserEditSectionItem[]> = {
+      basic: [
+        {
+          key: "basic-information",
+          title: i18next.t("user:Basic information"),
+          accountItemNames: ["Organization", "ID", "Name", "Display name", "First name", "Last name", "Avatar", "User type"],
+        },
+        {
+          key: "contact-information",
+          title: i18next.t("user:Contact information"),
+          accountItemNames: ["Email", "Phone", "Country/Region", "Location", "Address", "Addresses"],
+        },
+        {
+          key: "profile-information",
+          title: i18next.t("user:Profile information"),
+          accountItemNames: ["Affiliation", "Title", "Homepage", "Bio", "Tag", "Language", "Gender", "Birthday", "Education"],
+        },
+        {
+          key: "extended-properties",
+          title: i18next.t("user:Extended properties"),
+          accountItemNames: ["Properties"],
+        },
+      ],
+      identity: [
+        {
+          key: "identity-document",
+          title: i18next.t("user:Identity document"),
+          accountItemNames: ["ID card type", "ID card", "ID card info", "Real name", "ID verification"],
+        },
+        {
+          key: "registration-information",
+          title: i18next.t("user:Registration information"),
+          accountItemNames: ["Signup application", "Register type", "Register source"],
+        },
+      ],
+      access: [
+        {
+          key: "access-assignments",
+          title: i18next.t("user:Access assignments"),
+          accountItemNames: ["Groups", "Roles", "Permissions"],
+        },
+        {
+          key: "account-state",
+          title: i18next.t("user:Account state"),
+          accountItemNames: ["Is admin", "Is forbidden", "Is deleted", "Need update password", "IP whitelist"],
+        },
+      ],
+      security: [
+        {
+          key: "password-authentication",
+          title: i18next.t("user:Password and authentication"),
+          accountItemNames: ["Password", "Last change password time"],
+        },
+        {
+          key: "mfa-settings",
+          title: i18next.t("user:MFA settings"),
+          accountItemNames: ["Multi-factor authentication", "MFA items"],
+        },
+        {
+          key: "security-credentials",
+          title: i18next.t("user:Security credentials"),
+          accountItemNames: ["WebAuthn credentials", "Face ID"],
+        },
+        {
+          key: "linked-accounts",
+          title: i18next.t("user:Linked accounts"),
+          accountItemNames: ["Managed accounts", "MFA accounts"],
+        },
+      ],
+      connections: [
+        {
+          key: "linked-login-providers",
+          title: i18next.t("user:Linked login providers"),
+          accountItemNames: ["3rd-party logins"],
+        },
+      ],
+      records: [
+        {
+          key: "balance-score",
+          title: i18next.t("user:Balance and score"),
+          accountItemNames: ["Balance", "Balance credit", "Balance currency", "Score", "Karma", "Ranking"],
+        },
+        {
+          key: "payment-records",
+          title: i18next.t("user:Payment records"),
+          accountItemNames: ["Cart", "Transactions"],
+        },
+        {
+          key: "consent-records",
+          title: i18next.t("user:Consent records"),
+          accountItemNames: ["Consents"],
+        },
+      ],
+    };
+
+    return sectionDefinitions[tabKey];
+  }
+
   isKnownTabKey(key: unknown): key is UserEditTabKey {
     return ["basic", "identity", "access", "security", "connections", "records"].includes(`${key}`);
   }
@@ -1942,8 +2077,12 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
     const itemName = accountItem.name ?? "unknown";
     const itemSlug = itemName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "unknown";
     const wideItemNames = new Set([
-      "Avatar", "Address", "Addresses", "ID card info", "Groups", "Roles", "Permissions", "3rd-party logins",
+      "Avatar", "Address", "Addresses", "ID card info", "Email", "Phone", "Groups", "Roles", "Permissions", "3rd-party logins",
       "Properties", "MFA items", "Multi-factor authentication", "WebAuthn credentials", "Managed accounts",
+      "Face ID", "MFA accounts", "Cart", "Transactions", "Consents",
+    ]);
+    const tableItemNames = new Set([
+      "Addresses", "Properties", "MFA items", "WebAuthn credentials", "Managed accounts",
       "Face ID", "MFA accounts", "Cart", "Transactions", "Consents",
     ]);
 
@@ -1951,12 +2090,34 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
       "user-edit-form-item",
       `user-edit-form-item-${itemSlug}`,
       wideItemNames.has(itemName) ? "user-edit-form-item-wide" : "user-edit-form-item-compact",
+      tableItemNames.has(itemName) ? "user-edit-form-item-table-section" : "",
     ].filter(Boolean).join(" ");
   }
 
   renderAccountItemFormItems(tabKey: UserEditTabKey): React.ReactNode {
-    return (
-      this.getAccountItemsByUserEditTab(tabKey).map(accountItem => (
+    const accountItems = this.getAccountItemsByUserEditTab(tabKey);
+    const sectionDefinitions = this.getUserEditSectionDefinitions(tabKey);
+    const assignedItemNames = new Set(sectionDefinitions.flatMap(section => section.accountItemNames));
+    const sections = [
+      ...sectionDefinitions.map(section => ({
+        ...section,
+        accountItems: accountItems.filter(accountItem => section.accountItemNames.includes(accountItem.name ?? "")),
+      })),
+      {
+        key: "other",
+        title: i18next.t("user:Other information"),
+        accountItemNames: [],
+        accountItems: accountItems.filter(accountItem => !assignedItemNames.has(accountItem.name ?? "")),
+      },
+    ].filter(section => section.accountItems.length > 0);
+
+    const renderItems = (items: AccountItemRecord[]) => items.map(accountItem => {
+      const content = this.renderAccountItem(accountItem);
+      if (content === null || content === undefined || content === false) {
+        return null;
+      }
+
+      return (
         <React.Fragment key={accountItem.name}>
           <Form.Item name={accountItem.name}
             className={this.getAccountItemFormItemClassName(accountItem)}
@@ -1968,11 +2129,27 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
               },
             ]}
             style={{margin: 0}}>
-            {this.renderAccountItem(accountItem)}
+            {content}
           </Form.Item>
         </React.Fragment>
-      ))
-    );
+      );
+    }).filter((item): item is React.ReactElement => item !== null);
+
+    return sections.map(section => {
+      const renderedItems = renderItems(section.accountItems);
+      if (renderedItems.length === 0) {
+        return null;
+      }
+
+      return (
+        <section className="user-edit-section" key={section.key}>
+          {this.renderUserEditSectionTitle(section.title)}
+          <div className="user-edit-section-body">
+            {renderedItems}
+          </div>
+        </section>
+      );
+    });
   }
 
   renderUserForm() {
