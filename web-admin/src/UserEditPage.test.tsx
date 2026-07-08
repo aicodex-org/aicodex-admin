@@ -670,6 +670,7 @@ test("renders all configured account items and keeps table callbacks wired", () 
   basicView.unmount();
 
   const securityView = renderUserFormForTab(page, "security");
+  expect(securityView.container.querySelector(".user-edit-section-password-authentication")).not.toBeNull();
   expect(securityView.getByText("PasswordModal")).not.toBeNull();
   fireEvent.click(securityView.getByTestId("mfa-table"));
   expect(page.state.user.mfaItems).toEqual([{mfaType: "totp"}]);
@@ -928,6 +929,7 @@ test("groups user edit tab fields with organization-style section titles", () =>
   expect(sectionTitles[1]).toMatch(/^(联系方式|Contact information)$/);
   expect(sectionTitles[2]).toMatch(/^(扩展属性|Extended properties)$/);
   expect(view.queryByText(/^(其他信息|Other information)$/)).toBeNull();
+  expect(view.container.querySelector(".user-edit-section-basic-information")).not.toBeNull();
   expect(view.container.querySelector(".user-edit-section-body .user-edit-form-item-organization")).not.toBeNull();
   expect(view.container.querySelector(".user-edit-section-body .user-edit-form-item-properties")).not.toBeNull();
 });

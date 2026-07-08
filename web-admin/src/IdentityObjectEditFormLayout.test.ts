@@ -4,6 +4,10 @@ import fs from "fs";
 import path from "path";
 
 const readSrc = (fileName: string): string => fs.readFileSync(path.join(__dirname, fileName), "utf8") as string;
+const readAppLess = (): string => [
+  readSrc("App.less"),
+  readSrc("styles/large-edit-pages.less"),
+].join("\n");
 
 describe("identity object edit form layout", () => {
   const editPages = [
@@ -19,17 +23,28 @@ describe("identity object edit form layout", () => {
     test(`keeps ${fileName} inside the shared identity object edit layout boundary`, () => {
       const source = readSrc(fileName);
 
-      expect(source).toContain(`admin-identity-object-edit-page ${pageClass}`);
-      expect(source).toContain(`admin-identity-object-edit-card ${cardClass}`);
-      expect(source).toContain("admin-identity-object-edit-field-row");
+      expect(
+        source.includes(`admin-identity-object-edit-page ${pageClass}`) ||
+        source.includes(`identity-object-edit-page ${pageClass}`)
+      ).toBe(true);
+      expect(
+        source.includes(`admin-identity-object-edit-card ${cardClass}`) ||
+        source.includes(`identity-object-edit-card ${cardClass}`)
+      ).toBe(true);
+      expect(
+        source.includes("admin-identity-object-edit-field-row") ||
+        source.includes("identity-object-edit-field-row")
+      ).toBe(true);
     });
   });
 
   test("uses scoped CSS for identity object labels and mobile wrapping", () => {
-    const appLess = readSrc("App.less");
+    const appLess = readAppLess();
 
     expect(appLess).toContain(".admin-identity-object-edit-page");
+    expect(appLess).toContain(".identity-object-edit-page");
     expect(appLess).toContain(".admin-identity-object-edit-card > .ant-card-body > .admin-identity-object-edit-field-row");
+    expect(appLess).toContain(".identity-object-edit-field-row");
     expect(appLess).toContain(".admin-identity-object-edit-card > .ant-card-body > .admin-identity-object-edit-field-row > .ant-col:first-child");
     expect(appLess).toContain("flex: 0 0 184px;");
     expect(appLess).toContain("max-width: calc(100% - 184px);");

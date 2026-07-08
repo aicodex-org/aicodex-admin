@@ -22,6 +22,15 @@ jest.mock("antd/es/layout/Sider", () => "aside");
 const ApplicationEditPage = require("./ApplicationEditPage").default;
 
 const readSrc = (fileName: string): string => fs.readFileSync(path.join(__dirname, fileName), "utf8") as string;
+const readAppLess = (): string => readSrc("App.less")
+  .replace(
+    /\/\* stylelint-disable-next-line no-invalid-position-at-import-rule \*\/\n@import "\.\/styles\/list-pages\.less";/,
+    readSrc("styles/list-pages.less")
+  )
+  .replace(
+    /\/\* stylelint-disable-next-line no-invalid-position-at-import-rule \*\/\n@import "\.\/styles\/large-edit-pages\.less";/,
+    readSrc("styles/large-edit-pages.less")
+  );
 
 describe("large edit page form layout", () => {
   const editPages = [
@@ -50,28 +59,36 @@ describe("large edit page form layout", () => {
 
   test("keeps Organization edit tabs shell separated from tab business content", () => {
     const source = readSrc("OrganizationEditPage.tsx");
-    const appLess = readSrc("App.less");
+    const shellSource = readSrc("common/LargeEditShell.tsx");
+    const appLess = readAppLess();
 
-    expect(source).toContain("className=\"organization-edit-shell\"");
+    expect(source).toContain("classPrefix=\"organization-edit\"");
     expect(source).toContain("className=\"organization-edit-tabs\"");
-    expect(source).toContain("className=\"organization-edit-scroll-content\"");
-    expect(source).toContain("className=\"organization-edit-action-bar\"");
+    expect(source).toContain("tabs={this.renderEditTabs()}");
+    expect(source).toContain("actions={this.renderEditFooter()}");
+    expect(shellSource).toContain("\"admin-large-edit-shell\", `${classPrefix}-shell`");
+    expect(shellSource).toContain("\"admin-large-edit-scroll-content\", `${classPrefix}-scroll-content`");
+    expect(shellSource).toContain("\"admin-large-edit-action-bar\", `${classPrefix}-action-bar`");
     expect(appLess).toContain("grid-template-columns: repeat(2, minmax(320px, 1fr));");
     expect(appLess).toContain("@media screen and (max-width: 1024px)");
     expect(appLess).toContain("overflow-x: hidden;");
   });
 
   test("keeps Organization edit shell compatible with dark admin shell theme tokens", () => {
-    const appLess = readSrc("App.less");
+    const appLess = readAppLess();
+    const largeEditCss = appLess.slice(
+      appLess.indexOf(".admin-large-edit-page"),
+      appLess.indexOf(".admin-shell-route-scroll-without-card:has(> .organization-edit-page)")
+    );
     const organizationEditCss = appLess.slice(
-      appLess.indexOf(".organization-edit-page"),
+      appLess.indexOf(".organization-edit-page {"),
       appLess.indexOf(".admin-gateway-edit-page")
     );
 
-    expect(organizationEditCss).toContain("background: var(--admin-shell-surface-bg, #fff);");
-    expect(organizationEditCss).toContain("flex: 0 0 42px;");
+    expect(largeEditCss).toContain("background: var(--admin-shell-surface-bg, #fff);");
+    expect(largeEditCss).toContain("flex: 0 0 42px;");
     expect(organizationEditCss).toContain("padding: 8px 0 7px;");
-    expect(organizationEditCss).toContain("flex: 0 0 54px;");
+    expect(largeEditCss).toContain("flex: 0 0 54px;");
     expect(organizationEditCss).toContain("color: var(--admin-shell-text-primary");
     expect(organizationEditCss).toContain("padding: 14px 32px 24px;");
     expect(organizationEditCss).not.toMatch(/\\.organization-edit-page \\.organization-edit-tabs\\.ant-tabs \\{[\s\S]*?border-bottom/);
@@ -116,7 +133,7 @@ describe("large edit page form layout", () => {
 
   test("keeps Application provider tab full-width content out of field row layout", () => {
     const source = readSrc("ApplicationEditPage.tsx");
-    const appLess = readSrc("App.less");
+    const appLess = readAppLess();
 
     expect(source).toContain("className=\"application-edit-full-width-row\"");
     expect(appLess).toContain(".application-edit-card .application-edit-form-content > .ant-row:not(.application-edit-full-width-row)");
@@ -168,11 +185,12 @@ describe("large edit page form layout", () => {
   });
 
   test("uses scoped CSS for desktop labels and mobile wrapping", () => {
-    const appLess = readSrc("App.less");
+    const appLess = readAppLess();
 
     expect(appLess).toContain(".admin-large-edit-card > .ant-card-body > .ant-row");
     expect(appLess).toContain(".application-edit-card .application-edit-form-content > .ant-row:not(.application-edit-full-width-row)");
-    expect(appLess).toContain(".user-edit-card .ant-card-body .ant-form-item-control-input-content > .ant-row");
+    expect(appLess).toContain(".user-edit-page .user-edit-form-item .ant-form-item-control-input-content > .ant-row");
+    expect(appLess).toContain(".user-edit-section-password-authentication .user-edit-section-body");
     expect(appLess).toContain("flex: 0 0 184px;");
     expect(appLess).toContain("max-width: calc(100% - 184px);");
     expect(appLess).toContain("@media screen and (max-width: 768px)");

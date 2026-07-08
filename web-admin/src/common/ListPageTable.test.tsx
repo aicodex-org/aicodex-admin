@@ -13,6 +13,12 @@ const {fireEvent} = require("@testing-library/react") as {
   };
 };
 
+const readSrc = (fileName: string): string => fs.readFileSync(path.join(__dirname, "..", fileName), "utf8") as string;
+const readAppLess = (): string => [
+  readSrc("App.less"),
+  readSrc("styles/list-pages.less"),
+].join("\n");
+
 afterEach(() => {
   cleanup();
   jestValue.clearAllMocks();
@@ -96,7 +102,7 @@ test("keeps table pagination change contract from the shared footer", () => {
 });
 
 test("lets the table body fill the shared frame above the fixed pagination footer", () => {
-  const appLess = fs.readFileSync(path.join(__dirname, "..", "App.less"), "utf8") as string;
+  const appLess = readAppLess();
   const antTableBlock = appLess.match(/\.enterprise-list-table\.ant-table-wrapper \.ant-table \{([\s\S]*?)\}/)?.[1] ?? "";
   const tableContainerBlock = appLess.match(/\.enterprise-list-table-frame > \.enterprise-list-table\.ant-table-wrapper \.ant-table-container \{([\s\S]*?)\}/)?.[1] ?? "";
   const tableBodyBlock = appLess.match(/\.enterprise-list-table-frame > \.enterprise-list-table\.ant-table-wrapper \.ant-table-body \{([\s\S]*?)\}/)?.[1] ?? "";
@@ -110,14 +116,14 @@ test("lets the table body fill the shared frame above the fixed pagination foote
 });
 
 test("removes the empty-state placeholder divider from shared list tables", () => {
-  const appLess = fs.readFileSync(path.join(__dirname, "..", "App.less"), "utf8") as string;
+  const appLess = readAppLess();
   const emptyPlaceholderCellBlock = appLess.match(/\.enterprise-list-table\.ant-table-wrapper \.ant-table-tbody > tr\.ant-table-placeholder > td \{([\s\S]*?)\}/)?.[1] ?? "";
 
   expect(emptyPlaceholderCellBlock).toContain("border-bottom: 0");
 });
 
 test("keeps the fixed pagination footer compact", () => {
-  const appLess = fs.readFileSync(path.join(__dirname, "..", "App.less"), "utf8") as string;
+  const appLess = readAppLess();
   const footerBlock = appLess.match(/\.enterprise-list-pagination-footer \{([\s\S]*?)\}/)?.[1] ?? "";
   const miniItemBlock = appLess.match(/\.enterprise-list-pagination-footer \.ant-pagination\.ant-pagination-mini \.ant-pagination-item[\s\S]*?\{([\s\S]*?)\}/)?.[1] ?? "";
 
@@ -134,7 +140,7 @@ test("keeps the fixed pagination footer compact", () => {
 });
 
 test("keeps audit operations list pages bounded so pagination stays at the card bottom", () => {
-  const appLess = fs.readFileSync(path.join(__dirname, "..", "App.less"), "utf8") as string;
+  const appLess = readAppLess();
   const routeBodyBlock = appLess.match(/\.audit-operations-list-route-body \{([\s\S]*?)\}/)?.[1] ?? "";
   const shellBlock = appLess.match(/\.audit-operations-list-route-body > \.audit-operations-list-page-table-shell \{([\s\S]*?)\}/)?.[1] ?? "";
 

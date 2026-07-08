@@ -2142,7 +2142,7 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
       }
 
       return (
-        <section className="user-edit-section" key={section.key}>
+        <section className={["user-edit-section", `user-edit-section-${section.key}`].join(" ")} key={section.key}>
           {this.renderUserEditSectionTitle(section.title)}
           <div className="user-edit-section-body">
             {renderedItems}

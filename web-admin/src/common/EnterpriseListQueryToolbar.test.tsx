@@ -17,6 +17,12 @@ const {fireEvent} = require("@testing-library/react") as {
 const fs = require("fs") as typeof import("fs");
 const path = require("path") as typeof import("path");
 
+const readSrc = (fileName: string): string => fs.readFileSync(path.join(__dirname, "..", fileName), "utf8") as string;
+const readAppLess = (): string => [
+  readSrc("App.less"),
+  readSrc("styles/list-pages.less"),
+].join("\n");
+
 afterEach(() => {
   cleanup();
   jestValue.clearAllMocks();
@@ -390,7 +396,7 @@ test("legacy list toolbar keeps legacy single-field query semantics across advan
 });
 
 test("list page typography uses shared semantic tokens", () => {
-  const appLess = fs.readFileSync(path.join(__dirname, "..", "App.less"), "utf8") as string;
+  const appLess = readAppLess();
 
   [
     "--list-page-title-font-size",
@@ -410,7 +416,7 @@ test("list page typography uses shared semantic tokens", () => {
 });
 
 test("list page layout spacing uses shared semantic tokens", () => {
-  const appLess = fs.readFileSync(path.join(__dirname, "..", "App.less"), "utf8") as string;
+  const appLess = readAppLess();
 
   [
     "--list-page-shell-padding",
@@ -514,7 +520,7 @@ test("list page layout spacing uses shared semantic tokens", () => {
 });
 
 test("dark mode sensitive custom cards reuse shared admin shell surface tokens", () => {
-  const appLess = fs.readFileSync(path.join(__dirname, "..", "App.less"), "utf8") as string;
+  const appLess = readAppLess();
 
   expect(appLess).toMatch(/(^|,)\s*body\.admin-shell-theme-light\s*,/m);
   expect(appLess).toMatch(/(^|,)\s*body\.admin-shell-theme-dark\s*,/m);

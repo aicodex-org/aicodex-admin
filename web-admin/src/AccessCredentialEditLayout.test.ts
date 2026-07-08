@@ -4,6 +4,10 @@ import fs from "fs";
 import path from "path";
 
 const readSrc = (fileName: string): string => fs.readFileSync(path.join(__dirname, fileName), "utf8") as string;
+const readAppLess = (): string => [
+  readSrc("App.less"),
+  readSrc("styles/large-edit-pages.less"),
+].join("\n");
 
 describe("access and credential edit page form layout", () => {
   const editPages = [
@@ -27,7 +31,7 @@ describe("access and credential edit page form layout", () => {
   });
 
   test("keeps access edit layout CSS scoped to its own pages", () => {
-    const appLess = readSrc("App.less");
+    const appLess = readAppLess();
 
     expect(appLess).toContain(".admin-access-edit-page");
     expect(appLess).toContain(".admin-access-edit-card > .ant-card-body > .admin-access-edit-field-row");

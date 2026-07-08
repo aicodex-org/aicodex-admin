@@ -142,6 +142,53 @@ EditPage
 
 抽象边界以“能被至少两个编辑页稳定复用”为准，不为了当前页面好看而制造公共组件负担。
 
+## 后续页面迁移约定
+
+后续继续改造应用、Provider、Syncer、证书、密钥等编辑页时，先沿用当前编辑页 contract，不要先做新的视觉抽象。
+
+### 壳层 contract
+
+- 多 tab 或大型编辑页使用 `admin-large-edit-page xxx-edit-page` 作为页面根节点，并复用 `LargeEditShell`。
+- `LargeEditShell` 只负责公共壳：顶部返回/路径/标题/脏状态、tabs 插槽、滚动正文、底部操作栏。
+- 页面正文仍由业务页自己控制。多 tab 和单 tab 的差异应该主要留在正文区域，不要影响公共头部和底部。
+- 单 tab 身份对象页继续使用 `identity-object-edit-page xxx-edit-page` 这类作用域，不必强行改成多 tab 结构。
+- 老式短表单可以先接入 `admin-access-edit-page` / `admin-identity-object-edit-page` 的兼容样式，等页面价值足够再迁移到完整壳层。
+
+### 单 tab 与多 tab 边界
+
+当前稳定边界如下：
+
+- 多 tab 编辑页：组织、用户。它们有多个相对独立的配置域，适合显示 tabs，并通过 hash 记住当前 tab。
+- 单 tab 编辑页：群组、角色。它们字段和表格较少，适合直接在正文中分区，不需要为了形式统一渲染一个“单独 tab”。
+- 两类页面应共用同一套编辑壳：返回、路径、标题、脏状态、滚动正文和底部操作栏一致。
+- 两类页面的差异只体现在 `LargeEditShell` 的 `tabs` 插槽是否传入，以及正文内部是 tab 面板还是单页分区。
+- 如果单 tab 页面后续增长为多 tab，优先保留原页面根 class 和 `classPrefix`，新增 tabs/hash 行为；不要因为升级为多 tab 重命名已有 selector。
+- 如果多 tab 页面某个 tab 只有少量字段，也不要拆成新的壳。tab 内部可以用 section 或 item class 做局部收敛。
+
+### 样式边界
+
+- `web-admin/src/styles/large-edit-pages.less` 当前定位为“编辑页样式集合”，不是纯公共壳文件。里面出现 `.organization-edit-*`、`.user-edit-*` 等页面作用域 selector 是合理的。
+- 不要为了“公共文件里不能有业务 selector”而重命名 `.organization-edit-page`、`.user-edit-page` 等类名。它们是页面作用域边界，能防止 AntD 覆盖样式外溢。
+- 新增页面正文样式必须挂在 `.xxx-edit-page` 下；避免裸写 `.ant-form-item`、`.ant-table`、`.ant-btn`。
+- 特例布局优先使用 section 或 item 级 class，例如 `user-edit-section-password-authentication`，不要把单个字段问题升级成全局规则。
+- 后续只有当 2-3 个新迁移页面出现稳定重复时，再抽公共变量、mixin 或组件；不要基于一个页面提前抽象。
+
+### 迁移步骤建议
+
+1. 先接入页面根 class、`LargeEditShell`、底部操作栏和脏数据确认，确保壳层行为一致。
+2. 再迁移 tabs 或单 tab 正文，先保留原字段语义和保存 payload，不在样式迁移中顺手改业务。
+3. 给页面正文建立 `.xxx-edit-page` 作用域，迁移表单网格、区块标题、表格 toolbar 和移动端规则。
+4. 对表格模块统一处理标题、右上操作、空态、行内小按钮、Tooltip、`aria-label` 和删除确认。
+5. 用浏览器检查每个 tab 的首屏、滚动尾部、空态、长文本、禁用态和暗色主题；发现页面特例时先写局部 class。
+6. 最后再评估是否有真实重复值得沉淀为公共配置。
+
+### 不建议现在做的优化
+
+- 不建议把 `large-edit-pages.less` 继续拆成每个页面一个文件，除非该文件继续膨胀到影响定位和 review。
+- 不建议把组织、用户、群组、角色的正文网格强行抽成同一个公共组件。它们的字段密度、表格比例和业务交互差异较大。
+- 不建议为了减少 CSS 行数牺牲作用域清晰度。后台编辑页更需要可预测的局部覆盖和可回归验证。
+- 不建议把视觉 smoke 截图、临时 Playwright 输出、本地 dev 日志写入仓库。
+
 ## 验收清单
 
 每个编辑页迁移完成后至少检查：
@@ -158,7 +205,7 @@ EditPage
 建议验证命令：
 
 ```powershell
-cd D:\CodeRepo\LeagProject\aicodex-1\aicodex-admin\web-admin
+cd web-admin
 yarn test src/OrganizationEditPage.test.tsx --watchAll=false --runInBand
 yarn typecheck --pretty false
 cd ..
