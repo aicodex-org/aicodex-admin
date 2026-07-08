@@ -70,6 +70,7 @@ type RoleRecord = {
 
 type OrganizationRecord = {
   name: string;
+  displayName?: string;
 };
 
 type UserRecord = {
@@ -136,6 +137,7 @@ const roleBackend = RoleBackend as unknown as RoleBackendApi;
 const organizationBackend = OrganizationBackend as unknown as OrganizationBackendApi;
 const userBackend = UserBackend as unknown as UserBackendApi;
 const groupBackend = GroupBackend as unknown as GroupBackendApi;
+const {Option} = Select;
 
 class RoleEditPage extends React.Component<RoleEditPageProps, RoleEditPageState> {
   constructor(props: RoleEditPageProps) {
@@ -183,6 +185,27 @@ class RoleEditPage extends React.Component<RoleEditPageProps, RoleEditPageState>
           organizations: res.data || [],
         });
       });
+  }
+
+  getOrganizationDisplayName(organization: OrganizationRecord): string {
+    const displayName = organization.displayName;
+    return typeof displayName === "string" && displayName.trim() !== "" ? displayName.trim() : organization.name;
+  }
+
+  renderOrganizationOptions(): React.ReactNode {
+    return this.state.organizations.map((organization) => {
+      const displayName = this.getOrganizationDisplayName(organization);
+      return (
+        <Option key={organization.name} value={organization.name} label={displayName}>
+          <div className="admin-large-edit-identity-option identity-object-edit-organization-option">
+            <span className="admin-large-edit-identity-option-name identity-object-edit-organization-option-name">{displayName}</span>
+            {displayName !== organization.name ? (
+              <span className="admin-large-edit-identity-option-id identity-object-edit-organization-option-id">{organization.name}</span>
+            ) : null}
+          </div>
+        </Option>
+      );
+    });
   }
 
   parseRoleField(_key: keyof RoleRecord, value: unknown): unknown {
@@ -338,8 +361,20 @@ class RoleEditPage extends React.Component<RoleEditPageProps, RoleEditPageState>
             <>
               {this.renderFieldRow(
                 Setting.getLabel(t("general:Organization"), t("general:Organization - Tooltip")),
-                <Select virtual={false} disabled={!Setting.isAdminUser(this.props.account)} value={role.owner} onChange={(value: string) => {this.updateRoleField("owner", value);}}
-                  options={this.state.organizations.map((organization) => Setting.getOption(organization.name, organization.name))} />
+                <Select
+                  virtual={false}
+                  showSearch
+                  optionLabelProp="label"
+                  disabled={!Setting.isAdminUser(this.props.account)}
+                  value={role.owner}
+                  filterOption={(input, option) => {
+                    const optionText = `${option?.label ?? ""} ${option?.value ?? ""}`.toLowerCase();
+                    return optionText.includes(input.toLowerCase());
+                  }}
+                  onChange={(value: string) => {this.updateRoleField("owner", value);}}
+                >
+                  {this.renderOrganizationOptions()}
+                </Select>
               )}
               {this.renderFieldRow(
                 Setting.getLabel(t("general:Name"), t("role:Role name - Tooltip")),

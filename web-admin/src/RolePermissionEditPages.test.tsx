@@ -2,7 +2,7 @@
 import React from "react";
 import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {cleanup, render} from "@testing-library/react";
-import {Button, Input, Modal, Select, Switch} from "antd";
+import {Button, Input, Modal, Select, Switch, Tabs} from "antd";
 import * as Setting from "./Setting";
 import * as RoleBackend from "./backend/RoleBackend";
 import * as PermissionBackend from "./backend/PermissionBackend";
@@ -284,8 +284,9 @@ function collectElementsByType(node: React.ReactNode, type: React.ElementType, m
   if (node.type === type) {
     matches.push(node);
   }
-  const props = node.props as {actions?: React.ReactNode; children?: React.ReactNode; title?: React.ReactNode};
+  const props = node.props as {actions?: React.ReactNode; children?: React.ReactNode; tabs?: React.ReactNode; title?: React.ReactNode};
   collectElementsByType(props.title, type, matches);
+  collectElementsByType(props.tabs, type, matches);
   collectElementsByType(props.actions, type, matches);
   React.Children.forEach(props.children, child => collectElementsByType(child, type, matches));
   return matches;
@@ -631,14 +632,104 @@ test("keeps permission validation and normal submitter restriction", async() => 
   page.state = {...page.state, permission: {...permission, users: [], roles: []}};
   page.submitPermissionEdit(false);
   expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringMatching(/users and roles|用户.*角色/));
+  expect(page.state.activeTabKey).toBe("basic");
 
   page.state = {...page.state, permission: {...permission, resources: []}};
   page.submitPermissionEdit(false);
   expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringMatching(/resources|资源/));
+  expect(page.state.activeTabKey).toBe("rule");
 
   page.state = {...page.state, permission: {...permission, actions: []}};
   page.submitPermissionEdit(false);
   expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringMatching(/actions|操作/));
+  expect(page.state.activeTabKey).toBe("rule");
+});
+
+test("blocks permission save before required fields are filled", () => {
+  const page = createPermissionPage();
+  page.state = {
+    ...page.state,
+    permission: {...permission, name: " ", displayName: ""},
+    activeTabKey: "rule",
+  };
+
+  page.submitPermissionEdit(false);
+
+  expect(permissionBackendMock.updatePermission).not.toHaveBeenCalled();
+  expect(page.state.activeTabKey).toBe("basic");
+  expect(page.state.fieldErrors).toEqual({
+    name: "此字段必填",
+    displayName: "此字段必填",
+  });
+  expect(Setting.showMessage).toHaveBeenCalledWith("error", "请补齐权限必填字段。");
+});
+
+test("confirms dirty permission cancel and back before leaving", async() => {
+  const confirmSpy = jestValue.spyOn(Modal, "confirm").mockImplementation((config) => {
+    config.onOk?.();
+    return {destroy: jestValue.fn(), update: jestValue.fn()};
+  });
+  const page = createPermissionPage();
+  const history = page.props.history as ReturnType<typeof createHistory>;
+  page.state = {
+    ...page.state,
+    permission: {...permission},
+    dirty: true,
+  };
+
+  page.handleCancel();
+
+  expect(confirmSpy).toHaveBeenCalledWith(expect.objectContaining({
+    title: "当前权限有未保存修改，确认不保存并离开？",
+  }));
+  expect(history.push).toHaveBeenCalledWith("/permissions");
+
+  const addPage = createPermissionPage(adminAccount, {mode: "add"});
+  addPage.state = {
+    ...addPage.state,
+    mode: "add",
+    permission: {...permission},
+    dirty: true,
+  };
+  addPage.handleBack();
+  await flushPromises();
+
+  expect(permissionBackendMock.deletePermission).toHaveBeenCalledWith(expect.objectContaining({name: "permission-main"}));
+});
+
+test("keeps permission tab callbacks and multi-field update guards", () => {
+  const page = createPermissionPage();
+  const history = page.props.history as ReturnType<typeof createHistory>;
+  page.state = {
+    ...page.state,
+    permission: {...permission},
+    fieldErrors: {name: "required", displayName: "required"},
+  };
+
+  page.updatePermissionFields({name: "permission-updated", displayName: "Updated permission"});
+  expect(page.state.permission).toEqual(expect.objectContaining({
+    name: "permission-updated",
+    displayName: "Updated permission",
+  }));
+  expect(page.state.fieldErrors).toEqual({});
+  expect(page.state.dirty).toBe(true);
+
+  const permissionView = page.renderPermission();
+  const tabs = collectElementsByType(permissionView, Tabs);
+  elementProps<{onChange: (key: string) => void}>(tabs[0]).onChange("rule");
+  expect(page.state.activeTabKey).toBe("rule");
+
+  page.state = {...page.state, dirty: false};
+  const renderedPermission = render(permissionView as React.ReactElement);
+  renderedPermission.getByText("返回").dispatchEvent(new MouseEvent("click", {bubbles: true}));
+  expect(history.push).toHaveBeenCalledWith("/permissions");
+  renderedPermission.unmount();
+
+  page.state = {...page.state, permission: null};
+  page.updatePermissionFields({name: "ignored"});
+  expect(page.state.permission).toBeNull();
+  expect(page.validatePermissionRequiredFields()).toBe(false);
+  expect(page.validatePermissionBusinessRules()).toBe(false);
 });
 
 test("saves and deletes permission while preserving navigation and rollback", async() => {
@@ -683,10 +774,20 @@ test("keeps permission approval and resource type edit branches", () => {
 
   const permissionView = page.renderPermission();
   const renderedPermission = render(permissionView as React.ReactElement);
-  expect(renderedPermission.container.querySelector(".admin-identity-object-edit-card.permission-edit-card")).not.toBeNull();
-  expect(renderedPermission.container.querySelectorAll(".admin-identity-object-edit-field-row")).toHaveLength(18);
+  expect(renderedPermission.container.querySelector(".permission-edit-card")).not.toBeNull();
+  expect(renderedPermission.container.querySelector(".permission-edit-tabs")).not.toBeNull();
+  expect(renderedPermission.container.querySelector(".permission-edit-action-bar")).not.toBeNull();
+  expect(renderedPermission.container.querySelectorAll(".permission-edit-section")).toHaveLength(2);
+  expect(renderedPermission.container.querySelectorAll(".permission-edit-field-row")).toHaveLength(10);
+  expect(renderedPermission.container.querySelectorAll(".permission-edit-action-bar .ant-btn")).toHaveLength(3);
   renderedPermission.unmount();
-  const selectElements = collectElementsByType(permissionView, Select);
+  page.state = {...page.state, activeTabKey: "rule"};
+  const ruleView = page.renderPermission();
+  const renderedRule = render(ruleView as React.ReactElement);
+  expect(renderedRule.container.querySelectorAll(".permission-edit-section")).toHaveLength(2);
+  expect(renderedRule.container.querySelectorAll(".permission-edit-field-row")).toHaveLength(8);
+  renderedRule.unmount();
+  const selectElements = collectElementsByType(ruleView, Select);
   const stateSelect = selectElements.find(element => (element.props as {value?: string}).value === "Pending");
   expect(stateSelect).not.toBeUndefined();
 
@@ -745,6 +846,7 @@ test("renders mobile edit layouts and alternate route prop branches", async() =>
     models: [model],
     resources: [{name: "app-main"}],
     model: {...model, modelText: "[request_definition]"},
+    activeTabKey: "rule",
   };
   expect(permissionPage.renderPermission()).not.toBeNull();
 
@@ -783,16 +885,10 @@ test("keeps permission form handlers, fetch adapters and API resource branches",
   elementProps<{onChange: (event: {target: {value: string}}) => void}>(inputs[0]).onChange({target: {value: "permission-updated"}});
   elementProps<{onChange: (event: {target: {value: string}}) => void}>(inputs[1]).onChange({target: {value: "Updated permission"}});
   elementProps<{onChange: (event: {target: {value: string}}) => void}>(inputs[2]).onChange({target: {value: "Updated description"}});
-  elementProps<{onChange: (event: {target: {value: string}}) => void}>(inputs[3]).onChange({target: {value: "submitter-updated"}});
-  elementProps<{onChange: (event: {target: {value: string}}) => void}>(inputs[4]).onChange({target: {value: "approver-updated"}});
-  elementProps<{onChange: (event: {target: {value: string}}) => void}>(inputs[5]).onChange({target: {value: "2026-06-20"}});
   expect(page.state.permission).toEqual(expect.objectContaining({
     name: "permission-updated",
     displayName: "Updated permission",
     description: "Updated description",
-    submitter: "submitter-updated",
-    approver: "approver-updated",
-    approveTime: "2026-06-20",
   }));
 
   const selects = collectElementsByType(permissionView, Select);
@@ -808,19 +904,32 @@ test("keeps permission form handlers, fetch adapters and API resource branches",
   elementProps<{onChange: (value: string[]) => void}>(selects.find(select => Array.isArray(elementProps<{value?: unknown}>(select).value) && (elementProps<{value?: unknown}>(select).value as string[]).includes("domain-a")) as React.ReactElement).onChange(["*"]);
   expect(page.state.permission?.domains).toEqual(["*"]);
 
-  elementProps<{onChange: (value: string[]) => void}>(selects.find(select => Array.isArray(elementProps<{value?: unknown}>(select).value) && (elementProps<{value?: unknown}>(select).value as string[]).includes("app-main")) as React.ReactElement).onChange(["app-secondary"]);
+  page.state = {...page.state, activeTabKey: "rule"};
+  const ruleView = page.renderPermission();
+  const ruleInputs = collectElementsByType(ruleView, Input);
+  elementProps<{onChange: (event: {target: {value: string}}) => void}>(ruleInputs[0]).onChange({target: {value: "submitter-updated"}});
+  elementProps<{onChange: (event: {target: {value: string}}) => void}>(ruleInputs[1]).onChange({target: {value: "approver-updated"}});
+  elementProps<{onChange: (event: {target: {value: string}}) => void}>(ruleInputs[2]).onChange({target: {value: "2026-06-20"}});
+  expect(page.state.permission).toEqual(expect.objectContaining({
+    submitter: "submitter-updated",
+    approver: "approver-updated",
+    approveTime: "2026-06-20",
+  }));
+
+  const ruleSelects = collectElementsByType(ruleView, Select);
+  elementProps<{onChange: (value: string[]) => void}>(ruleSelects.find(select => Array.isArray(elementProps<{value?: unknown}>(select).value) && (elementProps<{value?: unknown}>(select).value as string[]).includes("app-main")) as React.ReactElement).onChange(["app-secondary"]);
   expect(page.state.permission?.resources).toEqual(["app-secondary"]);
 
-  elementProps<{onChange: (value: string[]) => void}>(selects.find(select => Array.isArray(elementProps<{value?: unknown}>(select).value) && (elementProps<{value?: unknown}>(select).value as string[]).includes("Read")) as React.ReactElement).onChange(["Write"]);
+  elementProps<{onChange: (value: string[]) => void}>(ruleSelects.find(select => Array.isArray(elementProps<{value?: unknown}>(select).value) && (elementProps<{value?: unknown}>(select).value as string[]).includes("Read")) as React.ReactElement).onChange(["Write"]);
   expect(page.state.permission?.actions).toEqual(["Write"]);
 
-  elementProps<{onChange: (value: string) => void}>(selects.find(select => elementProps<{value?: unknown}>(select).value === "Allow") as React.ReactElement).onChange("Deny");
+  elementProps<{onChange: (value: string) => void}>(ruleSelects.find(select => elementProps<{value?: unknown}>(select).value === "Allow") as React.ReactElement).onChange("Deny");
   expect(page.state.permission?.effect).toBe("Deny");
 
   elementProps<{onChange: (checked: boolean) => void}>(collectElementsByType(permissionView, Switch)[0]).onChange(false);
   expect(page.state.permission?.isEnabled).toBe(false);
 
-  const resourceTypeSelect = selects.find(select => elementProps<{value?: unknown}>(select).value === "Application") as React.ReactElement;
+  const resourceTypeSelect = ruleSelects.find(select => elementProps<{value?: unknown}>(select).value === "Application") as React.ReactElement;
   elementProps<{onChange: (value: string) => void}>(resourceTypeSelect).onChange("API");
   expect(page.state.permission).toEqual(expect.objectContaining({resourceType: "API", resources: []}));
   expect(collectElementsByType(page.renderPermission(), Select).some(select => {
@@ -828,7 +937,7 @@ test("keeps permission form handlers, fetch adapters and API resource branches",
     return options.some(option => option.value === "/api/main");
   })).toBe(true);
 
-  const pendingStateSelect = collectElementsByType(permissionView, Select).find(select => elementProps<{value?: unknown}>(select).value === "Pending") as React.ReactElement;
+  const pendingStateSelect = collectElementsByType(ruleView, Select).find(select => elementProps<{value?: unknown}>(select).value === "Pending") as React.ReactElement;
   elementProps<{onChange: (value: string) => void}>(pendingStateSelect).onChange("Approved");
   page.state = {...page.state, permission: {...page.state.permission as PermissionRecord, state: "Approved", approver: "admin", approveTime: "2026-06-20"}};
   const approvedStateSelect = collectElementsByType(page.renderPermission(), Select).find(select => elementProps<{value?: unknown}>(select).value === "Approved") as React.ReactElement;
@@ -883,6 +992,11 @@ test("keeps permission form handlers, fetch adapters and API resource branches",
       actions: ["GET"],
     },
   };
+
+  jestValue.spyOn(Modal, "confirm").mockImplementation((config) => {
+    config.onOk?.();
+    return {destroy: jestValue.fn(), update: jestValue.fn()};
+  });
 
   for (const button of collectElementsByType(permissionView, Button)) {
     elementProps<{onClick?: () => void}>(button).onClick?.();

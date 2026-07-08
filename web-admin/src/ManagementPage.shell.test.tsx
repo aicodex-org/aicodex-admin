@@ -41,10 +41,12 @@ jest.mock("./OrganizationTreeOperationsPage", () => () => <main data-testid="org
 jest.mock("./OrganizationEditPage", () => () => <main data-testid="organization-edit-page" />);
 jest.mock("./GroupEditPage", () => () => <main data-testid="group-edit-page" />);
 jest.mock("./RoleEditPage", () => () => <main data-testid="role-edit-page" />);
+jest.mock("./PermissionEditPage", () => () => <main data-testid="permission-edit-page" />);
 jest.mock("./ApplicationListPage", () => () => <main data-testid="application-list-page" />);
 jest.mock("./ApplicationEditPage", () => () => <main data-testid="application-edit-page" />);
 jest.mock("./ProviderEditPage", () => () => <main data-testid="provider-edit-page" />);
 jest.mock("./UserEditPage", () => () => <main data-testid="user-edit-page" />);
+jest.mock("./UserEditVisualReviewPage", () => () => <main data-testid="user-edit-visual-review-page" />);
 jest.mock("./SyncerEditPage", () => () => <main data-testid="syncer-edit-page" />);
 jest.mock("./common/Editor", () => () => <pre data-testid="editor" />);
 jest.mock("./common/WorkspaceTabs", () => (props: {tabs?: Array<{path: string; label: string}>}) => {
@@ -241,6 +243,7 @@ describe("ManagementPage admin shell sidebar", () => {
       {path: "/groups/built-in/group-main", testId: "group-edit-page"},
       {path: "/users/built-in/admin", testId: "user-edit-page"},
       {path: "/roles/built-in/admin-role", testId: "role-edit-page"},
+      {path: "/permissions/built-in/permission-main", testId: "permission-edit-page"},
       {path: "/applications/built-in/app-built-in", testId: "application-edit-page"},
       {path: "/providers/built-in/provider-built-in", testId: "provider-edit-page"},
       {path: "/syncers/syncer-built-in", testId: "syncer-edit-page"},
@@ -466,7 +469,10 @@ describe("ManagementPage admin shell sidebar", () => {
   });
 
   test("route and page shells consume one shared spacing token set", () => {
-    const appLess = fs.readFileSync(path.join(__dirname, "App.less"), "utf8") as string;
+    const appLess = [
+      fs.readFileSync(path.join(__dirname, "App.less"), "utf8") as string,
+      fs.readFileSync(path.join(__dirname, "styles/list-pages.less"), "utf8") as string,
+    ].join("\n");
     const routeScrollBlock = appLess.match(/\.admin-shell-route-scroll \{([\s\S]*?)\}/)?.[1] ?? "";
     const withoutCardBlock = appLess.match(/\.admin-shell-route-scroll-without-card \{([\s\S]*?)\}/)?.[1] ?? "";
     const baseListRootBlock = appLess.match(/\.admin-shell-route-scroll-without-card > \.base-list-page-route-root,[\s\S]*?\.admin-shell-route-scroll > \.content-warp-card > \.ant-card-body > \.base-list-page-route-root \{([\s\S]*?)\}/)?.[1] ?? "";
