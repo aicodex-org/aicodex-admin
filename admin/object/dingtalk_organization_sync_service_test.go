@@ -86,6 +86,8 @@ type memoryDingTalkOrganizationObjectStore struct {
 	memberships   map[string]*DingTalkUserDepartment
 	leaders       map[string]*DingTalkDepartmentLeader
 	directLeaders map[string]*DingTalkUserDirectLeader
+	localGroups   map[string]*Group
+	localUsers    map[string]*User
 }
 
 type fakeDingTalkOrganizationSnapshotClient struct {
@@ -128,6 +130,8 @@ func newMemoryDingTalkOrganizationObjectStore() *memoryDingTalkOrganizationObjec
 		memberships:   map[string]*DingTalkUserDepartment{},
 		leaders:       map[string]*DingTalkDepartmentLeader{},
 		directLeaders: map[string]*DingTalkUserDirectLeader{},
+		localGroups:   map[string]*Group{},
+		localUsers:    map[string]*User{},
 	}
 }
 
@@ -141,6 +145,19 @@ func dingtalkUserKey(organization string, appKey string, userId string) string {
 
 func dingtalkRelationshipKey(organization string, appKey string, left string, right string) string {
 	return organization + "|" + appKey + "|" + left + "|" + right
+}
+
+func localDingTalkObjectKey(owner string, name string) string {
+	return owner + "|" + name
+}
+
+func hasDingTalkString(values []string, value string) bool {
+	for _, item := range values {
+		if item == value {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *memoryDingTalkOrganizationObjectStore) GetDingTalkDepartmentMapping(organization string, appKey string, departmentId string) (*DingTalkDepartmentMapping, error) {
@@ -273,6 +290,73 @@ func (s *memoryDingTalkOrganizationObjectStore) GetDingTalkUserDirectLeaders(org
 	return out, nil
 }
 
+func (s *memoryDingTalkOrganizationObjectStore) GetGroup(owner string, name string) (*Group, error) {
+	group := s.localGroups[localDingTalkObjectKey(owner, name)]
+	if group == nil {
+		return nil, nil
+	}
+	copied := *group
+	return &copied, nil
+}
+
+func (s *memoryDingTalkOrganizationObjectStore) SaveGroup(group *Group) error {
+	if group == nil {
+		return nil
+	}
+	copied := *group
+	s.localGroups[localDingTalkObjectKey(group.Owner, group.Name)] = &copied
+	return nil
+}
+
+func (s *memoryDingTalkOrganizationObjectStore) GetUser(owner string, name string) (*User, error) {
+	user := s.localUsers[localDingTalkObjectKey(owner, name)]
+	if user == nil {
+		return nil, nil
+	}
+	copied := *user
+	return &copied, nil
+}
+
+func (s *memoryDingTalkOrganizationObjectStore) GetUserByField(owner string, field string, value string) (*User, error) {
+	for _, user := range s.localUsers {
+		if user.Owner != owner {
+			continue
+		}
+		if strings.EqualFold(field, "DingTalk") && user.DingTalk == value {
+			copied := *user
+			return &copied, nil
+		}
+		if strings.EqualFold(field, "ExternalId") && user.ExternalId == value {
+			copied := *user
+			return &copied, nil
+		}
+	}
+	return nil, nil
+}
+
+func (s *memoryDingTalkOrganizationObjectStore) SaveUser(user *User) error {
+	if user == nil {
+		return nil
+	}
+	copied := *user
+	s.localUsers[localDingTalkObjectKey(user.Owner, user.Name)] = &copied
+	return nil
+}
+
+func (s *memoryDingTalkOrganizationObjectStore) SaveUserGroups(user *User) error {
+	if user == nil {
+		return nil
+	}
+	existing := s.localUsers[localDingTalkObjectKey(user.Owner, user.Name)]
+	if existing == nil {
+		copied := *user
+		s.localUsers[localDingTalkObjectKey(user.Owner, user.Name)] = &copied
+		return nil
+	}
+	existing.Groups = append([]string{}, user.Groups...)
+	return nil
+}
+
 func TestDingTalkOrganizationSyncServiceStartManualRunResultReportsStaleRecovery(t *testing.T) {
 	now := time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
 	store := &memoryDingTalkOrganizationSyncRunStore{
@@ -356,14 +440,20 @@ func TestDingTalkOrganizationSyncServiceStartManualRunRejectsActiveRunningRun(t 
 func TestDingTalkOrganizationSyncServiceApplyFullSnapshotPersistsMappingsRelationshipsAndSoftDisables(t *testing.T) {
 	now := time.Date(2026, 7, 1, 12, 30, 0, 0, time.UTC)
 	store := newMemoryDingTalkOrganizationObjectStore()
+	store.localGroups[localDingTalkObjectKey("engineering", "stale-group")] = &Group{
+		Owner: "engineering", Name: "stale-group", IsEnabled: true,
+	}
+	store.localUsers[localDingTalkObjectKey("engineering", "stale-local-user")] = &User{
+		Owner: "engineering", Name: "stale-local-user", Groups: []string{"stale-group"},
+	}
 	store.departments[dingtalkDepartmentKey("engineering", "ding-app", "stale-dept")] = &DingTalkDepartmentMapping{
-		Organization: "engineering", AppKey: "ding-app", DepartmentId: "stale-dept", IsEnabled: true,
+		Organization: "engineering", AppKey: "ding-app", DepartmentId: "stale-dept", GroupOwner: "engineering", GroupName: "stale-group", IsEnabled: true,
 	}
 	store.users[dingtalkUserKey("engineering", "ding-app", "stale-user")] = &DingTalkUserMapping{
-		Organization: "engineering", AppKey: "ding-app", DingTalkUserId: "stale-user", IsEnabled: true,
+		Organization: "engineering", AppKey: "ding-app", DingTalkUserId: "stale-user", UserOwner: "engineering", UserName: "stale-local-user", IsEnabled: true,
 	}
 	store.memberships[dingtalkRelationshipKey("engineering", "ding-app", "stale-user", "stale-dept")] = &DingTalkUserDepartment{
-		Organization: "engineering", AppKey: "ding-app", DingTalkUserId: "stale-user", DepartmentId: "stale-dept", IsEnabled: true,
+		Organization: "engineering", AppKey: "ding-app", DingTalkUserId: "stale-user", DepartmentId: "stale-dept", UserOwner: "engineering", UserName: "stale-local-user", GroupOwner: "engineering", GroupName: "stale-group", IsEnabled: true,
 	}
 	store.leaders[dingtalkRelationshipKey("engineering", "ding-app", "stale-dept", "stale-user")] = &DingTalkDepartmentLeader{
 		Organization: "engineering", AppKey: "ding-app", DepartmentId: "stale-dept", DingTalkUserId: "stale-user", IsEnabled: true,
@@ -419,6 +509,17 @@ func TestDingTalkOrganizationSyncServiceApplyFullSnapshotPersistsMappingsRelatio
 	if user == nil || !user.IsEnabled || user.UnionId != "union-u1" || user.MainDepartmentId != "2" || user.Status != "active" {
 		t.Fatalf("user mapping = %#v, want enabled normalized user", user)
 	}
+	localGroup := store.localGroups[localDingTalkObjectKey("engineering", GetDingTalkDepartmentGroupName("ding-app", "2"))]
+	if localGroup == nil || localGroup.DisplayName != "研发中心" || localGroup.Type != DingTalkDepartmentGroupType || !localGroup.IsEnabled || !localGroup.IsTopGroup {
+		t.Fatalf("local group = %#v, want enabled top DingTalk department group", localGroup)
+	}
+	localUser := store.localUsers[localDingTalkObjectKey("engineering", GetDingTalkUserName("ding-app", "u1"))]
+	if localUser == nil || localUser.DisplayName != "张三" || localUser.DingTalk != "u1" || localUser.ExternalId != GetLengthSafeDingTalkUserExternalId("ding-app", "u1") || localUser.IsForbidden {
+		t.Fatalf("local user = %#v, want visible active DingTalk user", localUser)
+	}
+	if !hasDingTalkString(localUser.Groups, GetDingTalkDepartmentGroupName("ding-app", "2")) || !hasDingTalkString(localUser.Groups, GetDingTalkDepartmentGroupName("ding-app", "4")) {
+		t.Fatalf("local user groups = %#v, want DingTalk department groups", localUser.Groups)
+	}
 	membership := store.memberships[dingtalkRelationshipKey("engineering", "ding-app", "u1", "2")]
 	if membership == nil || !membership.IsEnabled || !membership.IsMain || !membership.IsLeader {
 		t.Fatalf("membership = %#v, want main leader membership", membership)
@@ -433,6 +534,12 @@ func TestDingTalkOrganizationSyncServiceApplyFullSnapshotPersistsMappingsRelatio
 	}
 	if stale := store.departments[dingtalkDepartmentKey("engineering", "ding-app", "stale-dept")]; stale == nil || stale.IsEnabled || stale.MissingSinceRunId != "run-1" {
 		t.Fatalf("stale department = %#v, want soft disabled by run-1", stale)
+	}
+	if staleGroup := store.localGroups[localDingTalkObjectKey("engineering", "stale-group")]; staleGroup == nil || staleGroup.IsEnabled {
+		t.Fatalf("stale local group = %#v, want disabled", staleGroup)
+	}
+	if staleUser := store.localUsers[localDingTalkObjectKey("engineering", "stale-local-user")]; staleUser == nil || !staleUser.IsForbidden || hasDingTalkString(staleUser.Groups, "stale-group") {
+		t.Fatalf("stale local user = %#v, want forbidden and removed from stale group", staleUser)
 	}
 	if stale := store.directLeaders[dingtalkRelationshipKey("engineering", "ding-app", "stale-user", "u2")]; stale == nil || stale.IsEnabled || stale.MissingSinceRunId != "run-1" {
 		t.Fatalf("stale direct leader = %#v, want soft disabled by run-1", stale)
@@ -487,6 +594,10 @@ func TestDingTalkOrganizationSyncServiceApplyFullSnapshotUpdatesExistingMappings
 	user := store.users[dingtalkUserKey("engineering", "ding-app", "u1")]
 	if user.UnionId != "union-u1" || user.Status != "inactive" || user.LastSeenRunId != "run-2" {
 		t.Fatalf("updated user = %#v, want updated identity/status and run marker", user)
+	}
+	localUser := store.localUsers[localDingTalkObjectKey("engineering", GetDingTalkUserName("ding-app", "u1"))]
+	if localUser.DisplayName != "张三-更新" || !localUser.IsForbidden {
+		t.Fatalf("updated local user = %#v, want inactive DingTalk user forbidden", localUser)
 	}
 	membership := store.memberships[dingtalkRelationshipKey("engineering", "ding-app", "u1", "2")]
 	if membership.IsLeader || membership.LastSeenRunId != "run-2" {

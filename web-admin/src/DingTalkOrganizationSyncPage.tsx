@@ -848,7 +848,7 @@ class DingTalkOrganizationSyncPage extends React.Component<DingTalkOrganizationS
     return (
       <div>
         <div style={{marginBottom: 8}}>同步选项</div>
-        <Space direction="vertical" size={8}>
+        <Space className="dingtalk-organization-sync-options" direction="vertical" size={12}>
           <Space>
             <Switch checked={Boolean(config.isEnabled)} disabled={enableDisabled} onChange={checked => this.updateSyncEnabled(checked)} />
             <span>启用同步</span>
@@ -965,7 +965,7 @@ class DingTalkOrganizationSyncPage extends React.Component<DingTalkOrganizationS
           {this.renderSourceConflictAlert()}
 
           <Alert
-            className="organization-sync-permission-alert"
+            className="organization-sync-permission-alert dingtalk-organization-sync-permission-alert"
             type="info"
             showIcon
             message="通讯录读取权限要求"

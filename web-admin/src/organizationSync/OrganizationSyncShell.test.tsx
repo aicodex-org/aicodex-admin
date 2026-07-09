@@ -132,6 +132,8 @@ describe("OrganizationSyncSectionCard", () => {
     expect(appLess).toMatch(/\.organization-sync-page \.ant-btn-default:hover,[\s\S]*border-color:\s*var\(--admin-shell-link-strong/);
     expect(appLess).toMatch(/\.organization-sync-page-title \{[\s\S]*margin-bottom:\s*0;/);
     expect(appLess).toMatch(/\.organization-sync-permission-alert \{[\s\S]*margin-top:\s*14px;/);
+    expect(appLess).toMatch(/\.dingtalk-organization-sync-options \{[\s\S]*width:\s*100%;/);
+    expect(appLess).toMatch(/\.dingtalk-organization-sync-permission-alert \{[\s\S]*margin-top:\s*20px;/);
   });
 });
 

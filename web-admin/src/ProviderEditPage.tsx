@@ -442,6 +442,8 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
     case "OAuth":
       if (provider.type === "Apple") {
         return Setting.getLabel(t("provider:Service ID identifier"), t("provider:Service ID identifier - Tooltip"));
+      } else if (provider.type === "DingTalk") {
+        return Setting.getLabel(t("provider:DingTalk AppKey"), t("provider:DingTalk AppKey - Tooltip"));
       } else {
         return Setting.getLabel(t("provider:Client ID"), t("provider:Client ID - Tooltip"));
       }
@@ -487,6 +489,8 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
     case "OAuth":
       if (provider.type === "Apple") {
         return Setting.getLabel(t("provider:Team ID"), t("provider:Team ID - Tooltip"));
+      } else if (provider.type === "DingTalk") {
+        return Setting.getLabel(t("provider:DingTalk AppSecret"), t("provider:DingTalk AppSecret - Tooltip"));
       } else {
         return Setting.getLabel(t("provider:Client secret"), t("provider:Client secret - Tooltip"));
       }

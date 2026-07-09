@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/beego/beego/v2/core/logs"
 	"github.com/xorm-io/core"
 )
@@ -52,6 +53,12 @@ type DingTalkOrganizationObjectStore interface {
 	GetDingTalkUserDirectLeader(organization string, appKey string, userId string, leaderUserId string) (*DingTalkUserDirectLeader, error)
 	SaveDingTalkUserDirectLeader(mapping *DingTalkUserDirectLeader) error
 	GetDingTalkUserDirectLeaders(organization string, appKey string) ([]*DingTalkUserDirectLeader, error)
+	GetGroup(owner string, name string) (*Group, error)
+	SaveGroup(group *Group) error
+	GetUser(owner string, name string) (*User, error)
+	GetUserByField(owner string, field string, value string) (*User, error)
+	SaveUser(user *User) error
+	SaveUserGroups(user *User) error
 }
 
 type defaultDingTalkOrganizationObjectStore struct{}
@@ -263,12 +270,37 @@ func (s *DingTalkOrganizationSyncService) upsertDepartment(config *DingTalkOrgan
 	if err != nil {
 		return false, err
 	}
-	created := existing == nil
 	now := s.now()
 	groupName := GetDingTalkDepartmentGroupName(config.AppKey, snapshot.Id)
+	if existing != nil && existing.GroupName != "" {
+		groupName = existing.GroupName
+	}
 	parentGroupName := ""
 	if snapshot.ParentId != "" && snapshot.ParentId != "1" {
 		parentGroupName = GetDingTalkDepartmentGroupName(config.AppKey, snapshot.ParentId)
+	}
+	group, err := store.GetGroup(config.Organization, groupName)
+	if err != nil {
+		return false, err
+	}
+	created := group == nil
+	if group == nil {
+		group = &Group{
+			Owner:       config.Organization,
+			Name:        groupName,
+			CreatedTime: util.GetCurrentTime(),
+		}
+	}
+	group.Owner = config.Organization
+	group.Name = groupName
+	group.UpdatedTime = util.GetCurrentTime()
+	group.DisplayName = firstNonEmpty(snapshot.Name, snapshot.Id)
+	group.ParentId = parentGroupName
+	group.Type = DingTalkDepartmentGroupType
+	group.IsTopGroup = parentGroupName == ""
+	group.IsEnabled = true
+	if err := store.SaveGroup(group); err != nil {
+		return false, err
 	}
 	mapping := &DingTalkDepartmentMapping{
 		Owner:              config.Organization,
@@ -281,10 +313,11 @@ func (s *DingTalkOrganizationSyncService) upsertDepartment(config *DingTalkOrgan
 		ParentDepartmentId: snapshot.ParentId,
 		ParentGroupOwner:   config.Organization,
 		ParentGroupName:    parentGroupName,
-		DisplayName:        firstNonEmpty(snapshot.Name, snapshot.Id),
+		DisplayName:        group.DisplayName,
 		Order:              snapshot.Order,
 		LeaderUserIdCache:  strings.Join(snapshot.DepartmentLeader, ","),
 		IsEnabled:          true,
+		MissingSinceRunId:  "",
 		LastSeenRunId:      run.Name,
 		LastSyncedAt:       now,
 	}
@@ -305,34 +338,77 @@ func (s *DingTalkOrganizationSyncService) upsertUser(config *DingTalkOrganizatio
 	if err != nil {
 		return false, err
 	}
-	created := existing == nil
 	now := s.now()
+	userName := GetDingTalkUserName(config.AppKey, snapshot.UserId)
+	var user *User
+	if existing != nil {
+		if existing.UserName != "" {
+			userName = existing.UserName
+		}
+		if existing.UserOwner != "" && existing.UserName != "" {
+			user, err = store.GetUser(existing.UserOwner, existing.UserName)
+			if err != nil {
+				return false, err
+			}
+		}
+	}
+	if user == nil {
+		user, err = store.GetUserByField(config.Organization, "DingTalk", snapshot.UserId)
+		if err != nil {
+			return false, err
+		}
+	}
+	created := user == nil
+	if user == nil {
+		user = &User{
+			Owner:     config.Organization,
+			Name:      userName,
+			Type:      "normal-user",
+			IsAdmin:   false,
+			IsDeleted: false,
+		}
+	}
+	user.DingTalk = snapshot.UserId
+	user.ExternalId = GetLengthSafeDingTalkUserExternalId(config.AppKey, snapshot.UserId)
+	user.DisplayName = firstNonEmpty(snapshot.Name, snapshot.UserId)
+	user.Title = firstNonEmpty(snapshot.Position, user.Title)
+	if snapshot.Email != "" {
+		user.Email = snapshot.Email
+	}
+	if snapshot.Mobile != "" {
+		user.Phone = snapshot.Mobile
+	}
+	if snapshot.Avatar != "" {
+		user.Avatar = snapshot.Avatar
+	}
+	if user.Type == "" {
+		user.Type = "normal-user"
+	}
+	user.IsForbidden = !isEnabledDingTalkUserStatus(snapshot.Status)
+	if err := store.SaveUser(user); err != nil {
+		return false, err
+	}
 	mapping := &DingTalkUserMapping{
-		Owner:            config.Organization,
-		Name:             "dingtalk-user-map-" + shortDingTalkOrganizationSyncHash(config.Organization, config.AppKey, snapshot.UserId),
-		Organization:     config.Organization,
-		AppKey:           config.AppKey,
-		DingTalkUserId:   snapshot.UserId,
-		UnionId:          snapshot.UnionId,
-		UserOwner:        config.Organization,
-		UserName:         GetDingTalkUserName(config.AppKey, snapshot.UserId),
-		ExternalId:       GetLengthSafeDingTalkUserExternalId(config.AppKey, snapshot.UserId),
-		MainDepartmentId: snapshot.MainDepartmentId,
-		Status:           snapshot.Status,
-		IsEnabled:        true,
-		LastSeenRunId:    run.Name,
-		LastSyncedAt:     now,
+		Owner:             config.Organization,
+		Name:              "dingtalk-user-map-" + shortDingTalkOrganizationSyncHash(config.Organization, config.AppKey, snapshot.UserId),
+		Organization:      config.Organization,
+		AppKey:            config.AppKey,
+		DingTalkUserId:    snapshot.UserId,
+		UnionId:           snapshot.UnionId,
+		UserOwner:         user.Owner,
+		UserName:          user.Name,
+		ExternalId:        GetFullDingTalkUserExternalId(config.AppKey, snapshot.UserId),
+		MainDepartmentId:  snapshot.MainDepartmentId,
+		Status:            snapshot.Status,
+		IsEnabled:         true,
+		MissingSinceRunId: "",
+		LastSeenRunId:     run.Name,
+		LastSyncedAt:      now,
 	}
 	if existing != nil {
 		mapping.Owner = existing.Owner
 		mapping.Name = existing.Name
 		mapping.CreatedAt = existing.CreatedAt
-		if existing.UserOwner != "" {
-			mapping.UserOwner = existing.UserOwner
-		}
-		if existing.UserName != "" {
-			mapping.UserName = existing.UserName
-		}
 	}
 	return created, store.SaveDingTalkUserMapping(mapping)
 }
@@ -377,7 +453,20 @@ func (s *DingTalkOrganizationSyncService) upsertMembership(config *DingTalkOrgan
 		membership.Name = existing.Name
 		membership.CreatedAt = existing.CreatedAt
 	}
-	return true, store.SaveDingTalkUserDepartment(membership)
+	if err := store.SaveDingTalkUserDepartment(membership); err != nil {
+		return false, err
+	}
+	user, err := store.GetUser(userMapping.UserOwner, userMapping.UserName)
+	if err != nil {
+		return false, err
+	}
+	if user != nil {
+		user.Groups = addStringIfMissing(removeDisabledDingTalkGroups(store, user.Groups, config.Organization, config.AppKey, userId, departmentId), departmentMapping.GroupName)
+		if err := store.SaveUserGroups(user); err != nil {
+			return false, err
+		}
+	}
+	return true, nil
 }
 
 func (s *DingTalkOrganizationSyncService) upsertDepartmentLeader(config *DingTalkOrganizationSyncConfig, run *DingTalkOrganizationSyncRun, departmentId string, userId string, isPrimary bool) (bool, error) {
@@ -505,6 +594,14 @@ func (s *DingTalkOrganizationSyncService) softDisableMissingData(config *DingTal
 		if err := store.SaveDingTalkDepartmentMapping(mapping); err != nil {
 			return nil, err
 		}
+		if group, err := store.GetGroup(mapping.GroupOwner, mapping.GroupName); err != nil {
+			return nil, err
+		} else if group != nil {
+			group.IsEnabled = false
+			if err := store.SaveGroup(group); err != nil {
+				return nil, err
+			}
+		}
 		stats.DepartmentDisabledCount++
 	}
 	users, err := store.GetDingTalkUserMappings(config.Organization, config.AppKey)
@@ -520,6 +617,14 @@ func (s *DingTalkOrganizationSyncService) softDisableMissingData(config *DingTal
 		if err := store.SaveDingTalkUserMapping(mapping); err != nil {
 			return nil, err
 		}
+		if user, err := store.GetUser(mapping.UserOwner, mapping.UserName); err != nil {
+			return nil, err
+		} else if user != nil {
+			user.IsForbidden = true
+			if err := store.SaveUser(user); err != nil {
+				return nil, err
+			}
+		}
 		stats.UserDisabledCount++
 	}
 	memberships, err := store.GetDingTalkUserDepartments(config.Organization, config.AppKey)
@@ -534,6 +639,14 @@ func (s *DingTalkOrganizationSyncService) softDisableMissingData(config *DingTal
 		mapping.MissingSinceRunId = run.Name
 		if err := store.SaveDingTalkUserDepartment(mapping); err != nil {
 			return nil, err
+		}
+		if user, err := store.GetUser(mapping.UserOwner, mapping.UserName); err != nil {
+			return nil, err
+		} else if user != nil {
+			user.Groups = removeString(user.Groups, mapping.GroupName)
+			if err := store.SaveUserGroups(user); err != nil {
+				return nil, err
+			}
 		}
 		stats.MembershipDisabledCount++
 	}
@@ -738,6 +851,111 @@ func (s *DingTalkOrganizationSyncService) syncTimeout() time.Duration {
 		return s.SyncTimeout
 	}
 	return 0
+}
+
+func isEnabledDingTalkUserStatus(status string) bool {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "inactive", "disabled", "forbidden":
+		return false
+	default:
+		return true
+	}
+}
+
+func removeDisabledDingTalkGroups(store DingTalkOrganizationObjectStore, groups []string, organization string, appKey string, userId string, keepDepartmentId string) []string {
+	if store == nil {
+		return groups
+	}
+	memberships, err := store.GetDingTalkUserDepartments(organization, appKey)
+	if err != nil {
+		return groups
+	}
+	disabled := map[string]bool{}
+	for _, membership := range memberships {
+		if membership.DingTalkUserId == userId && !membership.IsEnabled && membership.DepartmentId != keepDepartmentId {
+			disabled[membership.GroupName] = true
+		}
+	}
+	res := make([]string, 0, len(groups))
+	for _, group := range groups {
+		if !disabled[group] {
+			res = append(res, group)
+		}
+	}
+	return res
+}
+
+func dingtalkUserSaveColumns() []string {
+	return []string{
+		"external_id",
+		"display_name",
+		"avatar",
+		"email",
+		"phone",
+		"title",
+		"type",
+		"dingtalk",
+		"is_forbidden",
+		"updated_time",
+	}
+}
+
+func (s defaultDingTalkOrganizationObjectStore) GetGroup(owner string, name string) (*Group, error) {
+	return getGroup(owner, name)
+}
+
+func (s defaultDingTalkOrganizationObjectStore) SaveGroup(group *Group) error {
+	if group == nil {
+		return nil
+	}
+	existing, err := getGroup(group.Owner, group.Name)
+	if err != nil {
+		return err
+	}
+	if existing == nil {
+		_, err = AddGroup(group)
+		return err
+	}
+	if group.CreatedTime == "" {
+		group.CreatedTime = existing.CreatedTime
+	}
+	_, err = UpdateGroup(existing.GetId(), group)
+	return err
+}
+
+func (s defaultDingTalkOrganizationObjectStore) GetUser(owner string, name string) (*User, error) {
+	return getUser(owner, name)
+}
+
+func (s defaultDingTalkOrganizationObjectStore) GetUserByField(owner string, field string, value string) (*User, error) {
+	return GetUserByField(owner, field, value)
+}
+
+func (s defaultDingTalkOrganizationObjectStore) SaveUser(user *User) error {
+	if user == nil {
+		return nil
+	}
+	existing, err := getUser(user.Owner, user.Name)
+	if err != nil {
+		return err
+	}
+	if existing == nil {
+		_, err = AddUsers([]*User{user})
+		return err
+	}
+	if user.CreatedTime == "" {
+		user.CreatedTime = existing.CreatedTime
+	}
+	_, err = updateUser(user.GetId(), user, dingtalkUserSaveColumns())
+	return err
+}
+
+func (s defaultDingTalkOrganizationObjectStore) SaveUserGroups(user *User) error {
+	if user == nil {
+		return nil
+	}
+	_, err := UpdateUser(user.GetId(), user, []string{"groups"}, false)
+	return err
 }
 
 func (s defaultDingTalkOrganizationObjectStore) GetDingTalkDepartmentMapping(organization string, appKey string, departmentId string) (*DingTalkDepartmentMapping, error) {

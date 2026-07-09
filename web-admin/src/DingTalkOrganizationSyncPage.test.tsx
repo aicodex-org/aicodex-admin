@@ -171,7 +171,7 @@ async function flushPromises() {
 }
 
 test("renders DingTalk organization sync configuration and empty formal records", async() => {
-  render(<DingTalkOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+  const {container} = render(<DingTalkOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
   expect(await screen.findByText("钉钉组织架构同步")).toBeInTheDocument();
   expect(screen.getByAltText("DingTalk provider logo")).toHaveAttribute("src", expect.stringContaining("/img/social_dingtalk.png"));
@@ -186,6 +186,8 @@ test("renders DingTalk organization sync configuration and empty formal records"
   expect(screen.getByText("通讯录读取权限要求")).toBeInTheDocument();
   expect(screen.getByText("开始全量同步")).toBeInTheDocument();
   expect(screen.getByText("暂无同步记录")).toBeInTheDocument();
+  expect(container.querySelector(".dingtalk-organization-sync-options")).not.toBeNull();
+  expect(container.querySelector(".dingtalk-organization-sync-permission-alert")).not.toBeNull();
   expect(dingtalkBackendMock.getDingTalkOrganizationSyncConfig).toHaveBeenCalledWith("engineering");
   expect(dingtalkBackendMock.getDingTalkOrganizationSyncRuns).toHaveBeenCalledWith("engineering", 1, 10);
 });
