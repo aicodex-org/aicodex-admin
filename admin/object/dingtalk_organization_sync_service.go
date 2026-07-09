@@ -384,6 +384,9 @@ func (s *DingTalkOrganizationSyncService) upsertUser(config *DingTalkOrganizatio
 	if user.Type == "" {
 		user.Type = "normal-user"
 	}
+	if user.Id == "" {
+		user.Id = util.GenerateId()
+	}
 	user.IsForbidden = !isEnabledDingTalkUserStatus(snapshot.Status)
 	if err := store.SaveUser(user); err != nil {
 		return false, err

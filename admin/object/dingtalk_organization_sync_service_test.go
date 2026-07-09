@@ -486,7 +486,7 @@ func TestDingTalkOrganizationSyncServiceApplyFullSnapshotPersistsMappingsRelatio
 			{Id: "4", ParentId: "2", Name: "平台组", Order: 5},
 		},
 		Users: []DingTalkUserSnapshot{
-			{UserId: "u1", UnionId: "union-u1", Name: "张三", Departments: []string{"2", "4"}, DepartmentOrders: []int{20, 10}, IsLeaderInDepartment: []bool{true, false}, DirectLeaders: []string{"u2"}, MainDepartmentId: "2", Status: "active"},
+			{UserId: "u1", UnionId: "union-u1", Name: "张三", Mobile: "13000000000", Email: "zhangsan@example.com", Avatar: "https://example.com/avatar.png", Position: "研发负责人", Departments: []string{"2", "4"}, DepartmentOrders: []int{20, 10}, IsLeaderInDepartment: []bool{true, false}, DirectLeaders: []string{"u2"}, MainDepartmentId: "2", Status: "active"},
 			{UserId: "u2", Name: "李四", Departments: []string{"2"}, MainDepartmentId: "2", Status: "active"},
 		},
 	})
@@ -514,7 +514,7 @@ func TestDingTalkOrganizationSyncServiceApplyFullSnapshotPersistsMappingsRelatio
 		t.Fatalf("local group = %#v, want enabled top DingTalk department group", localGroup)
 	}
 	localUser := store.localUsers[localDingTalkObjectKey("engineering", GetDingTalkUserName("ding-app", "u1"))]
-	if localUser == nil || localUser.DisplayName != "张三" || localUser.DingTalk != "u1" || localUser.ExternalId != GetLengthSafeDingTalkUserExternalId("ding-app", "u1") || localUser.IsForbidden {
+	if localUser == nil || localUser.Id == "" || localUser.DisplayName != "张三" || localUser.Title != "研发负责人" || localUser.Email != "zhangsan@example.com" || localUser.Phone != "13000000000" || localUser.Avatar != "https://example.com/avatar.png" || localUser.DingTalk != "u1" || localUser.ExternalId != GetLengthSafeDingTalkUserExternalId("ding-app", "u1") || localUser.IsForbidden {
 		t.Fatalf("local user = %#v, want visible active DingTalk user", localUser)
 	}
 	if !hasDingTalkString(localUser.Groups, GetDingTalkDepartmentGroupName("ding-app", "2")) || !hasDingTalkString(localUser.Groups, GetDingTalkDepartmentGroupName("ding-app", "4")) {
@@ -573,6 +573,11 @@ func TestDingTalkOrganizationSyncServiceApplyFullSnapshotUpdatesExistingMappings
 	if err != nil {
 		t.Fatalf("first ApplyFullSnapshot() error = %v", err)
 	}
+	firstLocalUser := store.localUsers[localDingTalkObjectKey("engineering", GetDingTalkUserName("ding-app", "u1"))]
+	if firstLocalUser == nil || firstLocalUser.Id == "" {
+		t.Fatalf("first local user = %#v, want generated ID", firstLocalUser)
+	}
+	firstUserId := firstLocalUser.Id
 
 	stats, err := service.ApplyFullSnapshot(config, secondRun, &DingTalkOrganizationFullSnapshot{
 		Departments: []DingTalkDepartmentSnapshot{{Id: "2", ParentId: "1", Name: "研发平台", Order: 30, DepartmentLeader: []string{"u2"}}},
@@ -598,6 +603,9 @@ func TestDingTalkOrganizationSyncServiceApplyFullSnapshotUpdatesExistingMappings
 	localUser := store.localUsers[localDingTalkObjectKey("engineering", GetDingTalkUserName("ding-app", "u1"))]
 	if localUser.DisplayName != "张三-更新" || !localUser.IsForbidden {
 		t.Fatalf("updated local user = %#v, want inactive DingTalk user forbidden", localUser)
+	}
+	if localUser.Id != firstUserId {
+		t.Fatalf("updated local user ID = %q, want preserved ID %q", localUser.Id, firstUserId)
 	}
 	membership := store.memberships[dingtalkRelationshipKey("engineering", "ding-app", "u1", "2")]
 	if membership.IsLeader || membership.LastSeenRunId != "run-2" {
