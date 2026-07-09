@@ -137,18 +137,33 @@ export function renderMessageLarge(ths: LegacyAny, msg: string | null) {
   if (msg !== null) {
     return (
       <Result
-        style={{margin: "0px auto"}}
+        style={{margin: "64px auto", maxWidth: 720, padding: "32px 24px"}}
         status="error"
-        title={t("general:There was a problem signing you in..")}
-        subTitle={msg}
+        title={t("application:Failed to sign in")}
+        subTitle={
+          <div style={{whiteSpace: "pre-wrap", wordBreak: "break-word", textAlign: "left"}}>
+            {msg}
+          </div>
+        }
         extra={[
           <Button type="primary" key="back" onClick={() => {
             window.history.go(-2);
           }}>
-            {t("general:Back")}
+            {t("login:Return to authorization login")}
+          </Button>,
+          <Button key="home" onClick={() => {
+            Setting.goToLink("/");
+          }}>
+            {t("general:Back Home")}
           </Button>,
         ]}
       >
+        <Alert
+          type="info"
+          showIcon
+          message={t("application:Sign-in error recovery hint")}
+          style={{textAlign: "left"}}
+        />
       </Result>
     );
   } else {

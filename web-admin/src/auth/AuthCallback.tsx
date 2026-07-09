@@ -352,7 +352,7 @@ class AuthCallback extends React.Component<LegacyAny, LegacyAny> {
     }
 
     return (
-      <div style={{display: "flex", justifyContent: "center", alignItems: "center"}}>
+      <div style={{display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh", width: "100%", padding: 24, boxSizing: "border-box"}}>
         {
           (this.state.msg === null) ? (
             <Spin size="large" tip={t("login:Signing in...")} style={{paddingTop: "10%"}} />

@@ -94,6 +94,7 @@
     "Failed signin limit": "Failed signin limit",
     "Failed signin limit - Tooltip": "Maximum number of failed login attempts allowed in a short period. After exceeding the limit, login will be prohibited for a period of time. Default value is 5. The set value must be a positive integer",
     "Failed to sign in": "Failed to sign in",
+    "Sign-in error recovery hint": "Check the provider account mapping, directory sync result, or sign-up policy. If this account should have access, contact your administrator.",
     "File uploaded successfully": "File uploaded successfully",
     "First, last": "First, last",
     "Follow organization theme": "Follow organization theme",

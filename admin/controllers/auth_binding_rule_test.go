@@ -272,3 +272,22 @@ func TestGetExistUserByBindingRuleFallsThroughToExplicitName(t *testing.T) {
 		t.Fatalf("field lookup calls = %#v, want email then phone before name fallback", calls)
 	}
 }
+
+func TestGetOAuthLinkIdentifierUsesDingTalkSyncedUserId(t *testing.T) {
+	userInfo := &idp.UserInfo{
+		Id:      "open-id",
+		UnionId: "union-id",
+		Extra: map[string]string{
+			"user_id":  "ding-user",
+			"open_id":  "open-id",
+			"union_id": "union-id",
+		},
+	}
+
+	if identifier := getOAuthLinkIdentifier("DingTalk", userInfo); identifier != "ding-user" {
+		t.Fatalf("DingTalk link identifier = %s, want ding-user", identifier)
+	}
+	if identifier := getOAuthLinkIdentifier("GitHub", userInfo); identifier != "open-id" {
+		t.Fatalf("GitHub link identifier = %s, want open-id", identifier)
+	}
+}

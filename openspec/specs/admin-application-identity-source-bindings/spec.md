@@ -37,6 +37,12 @@ Admin SHALL apply existing Provider-specific matching rules inside the resolved 
 - **AND** the Provider binding targets `wecom-wwe7e01c69367e67bf`
 - **THEN** Admin MUST match `User.Wecom` within `wecom-wwe7e01c69367e67bf`
 
+#### Scenario: 钉钉标识使用目标组织
+- **WHEN** 钉钉 Provider 登录返回 `user_id`、`open_id` 或 `union_id`
+- **AND** Provider binding 指向钉钉组织同步目标，例如 `dingtalk-test`
+- **THEN** Admin MUST 在该目标组织内按钉钉兼容标识匹配本地用户
+- **AND** Admin MUST 优先使用通讯录同步写入的 `user_id`，并继续拒绝多个标识命中不同本地用户的冲突情况
+
 ### Requirement: Identity source bindings are safe by default
 Admin SHALL treat identity source bindings as configuration metadata and SHALL NOT expose secrets, raw upstream payloads, or cross-organization user details.
 

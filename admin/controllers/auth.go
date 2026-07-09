@@ -572,6 +572,31 @@ func getExistUserByBindingRule(providerItem *object.ProviderItem, organizationNa
 	return user, nil
 }
 
+func findExistingOAuthUserByProviderIdentifiers(organizationName string, providerType string, userInfo *idp.UserInfo) (*object.User, error) {
+	if userInfo == nil {
+		return nil, nil
+	}
+	if providerType == "Lark" {
+		user, _, err := object.FindLarkUserByIdentifiers(organizationName, userInfo)
+		return user, err
+	}
+	if providerType == "DingTalk" {
+		user, _, err := object.FindDingTalkUserByIdentifiers(organizationName, userInfo)
+		return user, err
+	}
+	return object.GetUserByField(organizationName, providerType, userInfo.Id)
+}
+
+func getOAuthLinkIdentifier(providerType string, userInfo *idp.UserInfo) string {
+	if providerType == "DingTalk" {
+		return object.GetDingTalkPrimaryIdentifier(userInfo)
+	}
+	if userInfo == nil {
+		return ""
+	}
+	return userInfo.Id
+}
+
 // Login ...
 // @Title Login
 // @Tag Login API
@@ -937,11 +962,7 @@ func (c *ApiController) Login() {
 					return
 				}
 			} else if provider.Category == "OAuth" || provider.Category == "Web3" {
-				if provider.Type == "Lark" {
-					user, _, err = object.FindLarkUserByIdentifiers(providerLoginOrganizationName, userInfo)
-				} else {
-					user, err = object.GetUserByField(providerLoginOrganizationName, provider.Type, userInfo.Id)
-				}
+				user, err = findExistingOAuthUserByProviderIdentifiers(providerLoginOrganizationName, provider.Type, userInfo)
 				if err != nil {
 					c.ResponseError(err.Error())
 					return
@@ -1104,7 +1125,7 @@ func (c *ApiController) Login() {
 					return
 				}
 
-				_, err = object.LinkUserAccount(user, provider.Type, userInfo.Id)
+				_, err = object.LinkUserAccount(user, provider.Type, getOAuthLinkIdentifier(provider.Type, userInfo))
 				if err != nil {
 					c.ResponseError(err.Error())
 					return
@@ -1127,11 +1148,7 @@ func (c *ApiController) Login() {
 			}
 
 			var oldUser *object.User
-			if provider.Type == "Lark" {
-				oldUser, _, err = object.FindLarkUserByIdentifiers(providerLoginOrganizationName, userInfo)
-			} else {
-				oldUser, err = object.GetUserByField(providerLoginOrganizationName, provider.Type, userInfo.Id)
-			}
+			oldUser, err = findExistingOAuthUserByProviderIdentifiers(providerLoginOrganizationName, provider.Type, userInfo)
 			if err != nil {
 				c.ResponseError(err.Error())
 				return
@@ -1157,7 +1174,7 @@ func (c *ApiController) Login() {
 			}
 
 			var isLinked bool
-			isLinked, err = object.LinkUserAccount(user, provider.Type, userInfo.Id)
+			isLinked, err = object.LinkUserAccount(user, provider.Type, getOAuthLinkIdentifier(provider.Type, userInfo))
 			if err != nil {
 				c.ResponseError(err.Error())
 				return

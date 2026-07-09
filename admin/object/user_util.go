@@ -216,6 +216,9 @@ func SetUserOAuthProperties(organization *Organization, user *User, providerType
 	if providerType == "Lark" {
 		ApplyLarkOAuthIdentifierProperties(user, userInfo)
 	}
+	if providerType == "DingTalk" {
+		ApplyDingTalkOAuthIdentifierProperties(user, userInfo)
+	}
 
 	applyUserOAuthProfileProperties(user, providerType, userInfo)
 
@@ -396,6 +399,107 @@ func ApplyLarkOAuthIdentifierProperties(user *User, userInfo *idp.UserInfo) {
 
 	if userId := strings.TrimSpace(userInfo.Extra["user_id"]); userId != "" {
 		user.Lark = userId
+	}
+}
+
+// GetDingTalkIdentifierCandidates 返回钉钉登录匹配候选，优先使用通讯录同步写入的 user_id。
+func GetDingTalkIdentifierCandidates(userInfo *idp.UserInfo) []string {
+	if userInfo == nil {
+		return nil
+	}
+
+	candidates := []string{
+		userInfo.Extra["user_id"],
+		userInfo.Extra["open_id"],
+		userInfo.Extra["union_id"],
+	}
+	if len(userInfo.Extra) == 0 {
+		candidates = []string{userInfo.Id, userInfo.UnionId}
+	}
+
+	seen := map[string]bool{}
+	res := []string{}
+	for _, candidate := range candidates {
+		candidate = strings.TrimSpace(candidate)
+		if candidate == "" || seen[candidate] {
+			continue
+		}
+		seen[candidate] = true
+		res = append(res, candidate)
+	}
+
+	return res
+}
+
+// ResolveDingTalkUserByIdentifierCandidates 在多个钉钉标识中解析同一个本地用户，并拒绝冲突绑定。
+func ResolveDingTalkUserByIdentifierCandidates(candidates []string, findUser func(identifier string) (*User, error)) (*User, string, error) {
+	var matchedUser *User
+	matchedIdentifier := ""
+
+	for _, candidate := range candidates {
+		user, err := findUser(candidate)
+		if err != nil {
+			return nil, "", err
+		}
+		if user == nil {
+			continue
+		}
+
+		if matchedUser != nil && matchedUser.GetId() != user.GetId() {
+			return nil, "", fmt.Errorf("multiple DingTalk identifiers match different users: %s and %s", matchedUser.GetId(), user.GetId())
+		}
+
+		if matchedUser == nil {
+			matchedUser = user
+			matchedIdentifier = candidate
+		}
+	}
+
+	return matchedUser, matchedIdentifier, nil
+}
+
+// FindDingTalkUserByIdentifiers 通过 User.DingTalk 中保存的 user_id、open_id 或 union_id 查找本地用户。
+func FindDingTalkUserByIdentifiers(organizationName string, userInfo *idp.UserInfo) (*User, string, error) {
+	return ResolveDingTalkUserByIdentifierCandidates(GetDingTalkIdentifierCandidates(userInfo), func(identifier string) (*User, error) {
+		return GetUserByField(organizationName, "DingTalk", identifier)
+	})
+}
+
+// GetDingTalkPrimaryIdentifier 返回应写入 User.DingTalk 的主标识。
+func GetDingTalkPrimaryIdentifier(userInfo *idp.UserInfo) string {
+	if userInfo == nil {
+		return ""
+	}
+	if userInfo.Extra != nil {
+		if userId := strings.TrimSpace(userInfo.Extra["user_id"]); userId != "" {
+			return userId
+		}
+	}
+	if id := strings.TrimSpace(userInfo.Id); id != "" {
+		return id
+	}
+	return strings.TrimSpace(userInfo.UnionId)
+}
+
+// ApplyDingTalkOAuthIdentifierProperties 保留钉钉原始标识，并在存在 user_id 时回填 User.DingTalk。
+func ApplyDingTalkOAuthIdentifierProperties(user *User, userInfo *idp.UserInfo) {
+	if user == nil || userInfo == nil || userInfo.Extra == nil {
+		return
+	}
+
+	rawPropertyKeys := map[string]string{
+		"user_id":  "oauth_DingTalk_userId",
+		"open_id":  "oauth_DingTalk_openId",
+		"union_id": "oauth_DingTalk_unionId",
+	}
+	for rawKey, propertyKey := range rawPropertyKeys {
+		if value := strings.TrimSpace(userInfo.Extra[rawKey]); value != "" {
+			setUserProperty(user, propertyKey, value)
+		}
+	}
+
+	if userId := strings.TrimSpace(userInfo.Extra["user_id"]); userId != "" {
+		user.DingTalk = userId
 	}
 }
 

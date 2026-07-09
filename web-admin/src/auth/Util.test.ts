@@ -1,5 +1,6 @@
 /* eslint-env jest */
 import {expect} from "@jest/globals";
+import React from "react";
 
 import {
   getQueryParamsFromState,
@@ -72,6 +73,17 @@ describe("OAuth state utilities", () => {
   });
 
   test("renders authorization error message without losing i18next binding", () => {
-    expect(() => renderMessageLarge({}, "OAuth failed")).not.toThrow();
+    const result = renderMessageLarge({}, "OAuth failed") as React.ReactElement<{
+      extra: React.ReactNode[];
+      style: React.CSSProperties;
+      subTitle: React.ReactNode;
+      title: React.ReactNode;
+    }>;
+
+    expect(result.props.title).toBe("Failed to sign in");
+    expect(result.props.style.maxWidth).toBe(720);
+    expect(result.props.extra).toHaveLength(2);
+    expect(React.isValidElement(result.props.subTitle)).toBe(true);
+    expect((result.props.subTitle as React.ReactElement).props.children).toBe("OAuth failed");
   });
 });

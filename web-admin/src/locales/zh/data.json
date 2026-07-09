@@ -94,6 +94,7 @@
     "Failed signin limit": "登入错误次数限制",
     "Failed signin limit - Tooltip": "短时间内允许的最大登入错误重试次数，超过次数限制后将在一段时间内禁止登入，默认值为5，设置的值需为正整数",
     "Failed to sign in": "登录失败",
+    "Sign-in error recovery hint": "请检查 Provider 账号映射、通讯录同步结果或注册策略。如果该账号应被允许访问，请联系管理员处理。",
     "File uploaded successfully": "文件上传成功",
     "First, last": "名字, 姓氏",
     "Follow organization theme": "使用组织主题",

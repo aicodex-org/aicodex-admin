@@ -176,12 +176,19 @@ func (idp *DingTalkIdProvider) GetUserInfo(token *oauth2.Token) (*UserInfo, erro
 		Phone:       dtUserInfo.Mobile,
 		CountryCode: countryCode,
 		AvatarUrl:   dtUserInfo.AvatarUrl,
+		Extra: map[string]string{
+			"open_id":  dtUserInfo.OpenId,
+			"union_id": dtUserInfo.UnionId,
+		},
 	}
 
 	corpAccessToken := idp.getInnerAppAccessToken()
 	userId, err := idp.getUserId(userInfo.UnionId, corpAccessToken)
 	if err != nil {
 		return nil, err
+	}
+	if userId != "" {
+		userInfo.Extra["user_id"] = userId
 	}
 
 	corpMobile, corpEmail, unionId, err := idp.getUserCorpEmail(userId, corpAccessToken)
@@ -196,6 +203,7 @@ func (idp *DingTalkIdProvider) GetUserInfo(token *oauth2.Token) (*UserInfo, erro
 
 		if unionId != "" {
 			userInfo.Username = unionId
+			userInfo.Extra["union_id"] = unionId
 		}
 	}
 
