@@ -98,6 +98,9 @@ const createRuntimeApplication = () => ({
 
 describe("ApplicationEditPage UI customization preview", () => {
   let ApplicationEditPage: any;
+  let SigninMethodTable: any;
+  let SigninTable: any;
+  let SignupTable: any;
 
   beforeAll(async() => {
     if (!i18next.isInitialized) {
@@ -112,6 +115,9 @@ describe("ApplicationEditPage UI customization preview", () => {
       });
     }
     ApplicationEditPage = require("./ApplicationEditPage").default;
+    SigninMethodTable = require("./table/SigninMethodTable").default;
+    SigninTable = require("./table/SigninTable").default;
+    SignupTable = require("./table/SignupTable").default;
   });
 
   afterEach(() => cleanup());
@@ -135,5 +141,39 @@ describe("ApplicationEditPage UI customization preview", () => {
     };
 
     expect(() => render(<MemoryRouter>{page.renderApplication()}</MemoryRouter>)).not.toThrow();
+  });
+
+  test("keeps UI customization table columns content-aware instead of stretching the first column", () => {
+    const onUpdateTable = jest.fn();
+    const methodTable = new SigninMethodTable({title: "登录方式", onUpdateTable}) as any;
+    const signinTable = new SigninTable({title: "登录项", onUpdateTable}) as any;
+    const signupTable = new SignupTable({title: "注册项", onUpdateTable}) as any;
+
+    const methodElement = methodTable.renderTable(createRuntimeApplication().signinMethods);
+    const signinElement = signinTable.renderTable(createRuntimeApplication().signinItems);
+    const signupElement = signupTable.renderTable([]);
+
+    expect(methodElement.props.tableLayout).toBe("fixed");
+    expect(methodElement.props.className).toContain("application-edit-ui-table-control");
+    expect(methodElement.props.className).toContain("application-edit-ui-table-signin-method");
+    expect(methodElement.props.scroll?.x).toBe(900);
+    expect(methodElement.props.columns.map((column: any) => [column.key, column.width])).toEqual([
+      ["name", 300],
+      ["displayName", 300],
+      ["rule", 160],
+      ["action", 112],
+    ]);
+
+    expect(signinElement.props.tableLayout).toBe("fixed");
+    expect(signinElement.props.className).toContain("application-edit-ui-table-control");
+    expect(signinElement.props.className).toContain("application-edit-ui-table-signin-items");
+    expect(signinElement.props.scroll?.x).toBe(1220);
+    expect(signinElement.props.columns.find((column: any) => column.key === "name")?.width).toBe(240);
+
+    expect(signupElement.props.tableLayout).toBe("fixed");
+    expect(signupElement.props.className).toContain("application-edit-ui-table-wide");
+    expect(signupElement.props.className).toContain("application-edit-ui-table-signup-items");
+    expect(signupElement.props.scroll?.x).toBe(1660);
+    expect(signupElement.props.columns.find((column: any) => column.key === "name")?.width).toBe(220);
   });
 });

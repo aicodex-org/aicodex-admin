@@ -14,7 +14,7 @@
 
 import React from "react";
 import {DeleteOutlined, DownOutlined, UpOutlined} from "@ant-design/icons";
-import {Button, Col, Input, Popover, Row, Select, Switch, Table, Tooltip} from "antd";
+import {Button, Input, Popover, Select, Switch, Table, Tooltip} from "antd";
 import * as Setting from "../Setting";
 import i18next from "i18next";
 import Editor from "../common/Editor";
@@ -92,6 +92,7 @@ class SignupTable extends React.Component<LegacyAny, LegacyAny> {
         title: t("general:Name"),
         dataIndex: "name",
         key: "name",
+        width: 220,
         render: (text: LegacyAny, record: LegacyAny, index: number) => {
           const items = [
             {name: "Username", displayName: t("signup:Username")},
@@ -389,7 +390,8 @@ class SignupTable extends React.Component<LegacyAny, LegacyAny> {
       {
         title: t("general:Action"),
         key: "action",
-        width: "100px",
+        width: 112,
+        fixed: "right" as const,
         render: (text: LegacyAny, record: LegacyAny, index: number) => {
           return (
             <div>
@@ -409,10 +411,10 @@ class SignupTable extends React.Component<LegacyAny, LegacyAny> {
     ];
 
     return (
-      <Table scroll={{x: "max-content"}} rowKey="name" columns={columns} dataSource={table} size="middle" bordered pagination={false}
+      <Table className="application-edit-ui-table application-edit-ui-table-wide application-edit-ui-table-signup-items" scroll={{x: 1660}} tableLayout="fixed" rowKey="name" columns={columns} dataSource={table} size="middle" bordered pagination={false}
         title={() => (
-          <div>
-            {this.props.title}&nbsp;&nbsp;&nbsp;&nbsp;
+          <div className="organization-config-table-toolbar">
+            <span className="organization-config-table-title">{this.props.title}</span>
             <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={() => this.addRow(table)}>{t("general:Add")}</Button>
           </div>
         )}
@@ -423,13 +425,7 @@ class SignupTable extends React.Component<LegacyAny, LegacyAny> {
   render() {
     return (
       <div>
-        <Row style={{marginTop: "20px"}} >
-          <Col span={24}>
-            {
-              this.renderTable(this.props.table)
-            }
-          </Col>
-        </Row>
+        {this.renderTable(this.props.table)}
       </div>
     );
   }

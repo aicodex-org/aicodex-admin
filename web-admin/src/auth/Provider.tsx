@@ -454,11 +454,47 @@ export function getProviderLogoWidget(provider?: ProviderLogoRecord, options: {d
 
   const url = getProviderUrl(provider);
   const disableLink = options.disableLink === true;
-  const imgEl = <img width={36} height={36} src={Setting.getProviderLogoURL(provider as AuthProvider)} alt={provider.displayName} />;
+  const providerLabel = provider.displayName || provider.type || provider.category || "Provider";
+  const providerType = provider.type || provider.category || "Provider";
+  const logoUrl = provider.type && provider.category ? Setting.getProviderLogoURL(provider as AuthProvider) : "";
+  const imgEl = logoUrl ? (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: 36,
+        height: 36,
+        borderRadius: 6,
+        background: "#ffffff",
+        border: "1px solid rgba(15, 23, 42, 0.10)",
+      }}
+    >
+      <img width={28} height={28} style={{objectFit: "contain"}} src={logoUrl} alt={providerLabel} />
+    </span>
+  ) : (
+    <span
+      aria-label={`${providerLabel} logo`}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: 36,
+        height: 36,
+        borderRadius: 6,
+        color: "#1677ff",
+        background: "rgba(22, 119, 255, 0.08)",
+        fontSize: 11,
+        fontWeight: 600,
+      }}
+    >
+      {providerType.slice(0, 4).toUpperCase()}
+    </span>
+  );
 
   if (url !== "" && !disableLink) {
     return (
-      <Tooltip title={provider.type}>
+      <Tooltip title={providerType}>
         <a target="_blank" rel="noreferrer" href={getProviderUrl(provider)}>
           {imgEl}
         </a>
@@ -466,7 +502,7 @@ export function getProviderLogoWidget(provider?: ProviderLogoRecord, options: {d
     );
   } else {
     return (
-      <Tooltip title={provider.type}>
+      <Tooltip title={providerType}>
         {imgEl}
       </Tooltip>
     );

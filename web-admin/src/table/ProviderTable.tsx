@@ -14,7 +14,7 @@
 
 import React from "react";
 import {DeleteOutlined, DownOutlined, UpOutlined} from "@ant-design/icons";
-import {Button, Col, Input, Row, Select, Switch, Table, Tooltip} from "antd";
+import {Button, Input, Select, Switch, Table, Tooltip} from "antd";
 import {CountryCodeSelect} from "../common/select/CountryCodeSelect";
 import * as Setting from "../Setting";
 import i18nextLib from "i18next";
@@ -431,8 +431,8 @@ class ProviderTable extends React.Component<ProviderTableProps, ProviderTableSta
     return (
       <Table scroll={{x: 1260}} tableLayout="fixed" rowKey="name" columns={columns} dataSource={table} size="middle" bordered pagination={false}
         title={() => (
-          <div>
-            {this.props.title}&nbsp;&nbsp;&nbsp;&nbsp;
+          <div className="organization-config-table-toolbar">
+            <span className="organization-config-table-title">{this.props.title}</span>
             <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={() => this.addRow(table)}>{i18next.t("general:Add")}</Button>
           </div>
         )}
@@ -443,13 +443,7 @@ class ProviderTable extends React.Component<ProviderTableProps, ProviderTableSta
   render() {
     return (
       <div>
-        <Row style={{marginTop: "20px"}} >
-          <Col span={24}>
-            {
-              this.renderTable(this.props.table)
-            }
-          </Col>
-        </Row>
+        {this.renderTable(this.props.table)}
       </div>
     );
   }

@@ -1,7 +1,8 @@
 /* eslint-env jest */
 
+import React from "react";
 import {expect, jest} from "@jest/globals";
-import {getAuthUrl} from "./Provider";
+import {getAuthUrl, getProviderLogoWidget} from "./Provider";
 import * as Util from "./Util";
 
 describe("Provider.getAuthUrl Lark authorization URL", () => {
@@ -108,5 +109,33 @@ describe("Provider.getAuthUrl WeCom authorization URL", () => {
     expect(url.searchParams.get("state")).toBe("state value");
     expect(url.searchParams.get("scope")).toBe("snsapi_privateinfo");
     expect(Util.getStateFromQueryParams).toHaveBeenCalledWith("aicodex-web", "wecom-provider", "signup", true);
+  });
+});
+
+describe("Provider.getProviderLogoWidget", () => {
+  test("wraps image logos in a neutral badge so transparent dark icons stay visible", () => {
+    const widget = getProviderLogoWidget(
+      {category: "OAuth", type: "GitHub", displayName: "GitHub Login"},
+      {disableLink: true}
+    ) as React.ReactElement<{children: React.ReactElement<{children: React.ReactNode; style: React.CSSProperties}>}>;
+    const badge = widget.props.children;
+    const image = badge.props.children as React.ReactElement<{alt: string}>;
+
+    expect(badge.type).toBe("span");
+    expect(badge.props.style.background).toBe("#ffffff");
+    expect(image.type).toBe("img");
+    expect(image.props.alt).toBe("GitHub Login");
+  });
+
+  test("uses a text fallback instead of an empty image when logo URL is unavailable", () => {
+    const widget = getProviderLogoWidget(
+      {category: "SAML", type: "SAML", displayName: "SAML Enterprise"},
+      {disableLink: true}
+    ) as React.ReactElement<{children: React.ReactElement<{children: string; "aria-label": string}>}>;
+    const fallback = widget.props.children;
+
+    expect(fallback.type).toBe("span");
+    expect(fallback.props["aria-label"]).toBe("SAML Enterprise logo");
+    expect(fallback.props.children).toBe("SAML");
   });
 });

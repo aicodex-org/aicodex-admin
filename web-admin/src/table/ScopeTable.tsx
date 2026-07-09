@@ -14,7 +14,7 @@
 
 import React from "react";
 import {DeleteOutlined, DownOutlined, UpOutlined} from "@ant-design/icons";
-import {Button, Input, Table, Tooltip} from "antd";
+import {Button, Input, Popconfirm, Table, Tooltip} from "antd";
 import * as Setting from "../Setting";
 import i18next from "i18next";
 type LegacyAny = import("../types/legacyPage").LegacyAny;
@@ -60,6 +60,23 @@ class ScopeTable extends React.Component<LegacyAny, LegacyAny> {
   downRow(table: LegacyAny, i: number) {
     table = Setting.swapRow(table, i, i + 1);
     this.updateTable(table);
+  }
+
+  getTableDataSource(table: LegacyAny) {
+    if (!Array.isArray(table)) {
+      return [];
+    }
+
+    return table.map((row: LegacyAny, index: number) => ({
+      ...row,
+      __uiKey: [
+        "scope",
+        index,
+        row?.name ?? "",
+        row?.displayName ?? "",
+        row?.description ?? "",
+      ].join(":"),
+    }));
   }
 
   renderTable(table: LegacyAny) {
@@ -127,13 +144,20 @@ class ScopeTable extends React.Component<LegacyAny, LegacyAny> {
           return (
             <div>
               <Tooltip placement="bottomLeft" title={t("general:Up")}>
-                <Button style={{marginRight: "5px"}} disabled={index === 0} icon={<UpOutlined />} size="small" onClick={() => this.upRow(table, index)} />
+                <Button aria-label={t("general:Up")} style={{marginRight: "5px"}} disabled={index === 0} icon={<UpOutlined />} size="small" onClick={() => this.upRow(table, index)} />
               </Tooltip>
               <Tooltip placement="topLeft" title={t("general:Down")}>
-                <Button style={{marginRight: "5px"}} disabled={index === table.length - 1} icon={<DownOutlined />} size="small" onClick={() => this.downRow(table, index)} />
+                <Button aria-label={t("general:Down")} style={{marginRight: "5px"}} disabled={index === table.length - 1} icon={<DownOutlined />} size="small" onClick={() => this.downRow(table, index)} />
               </Tooltip>
               <Tooltip placement="topLeft" title={t("general:Delete")}>
-                <Button icon={<DeleteOutlined />} size="small" onClick={() => this.deleteRow(table, index)} />
+                <Popconfirm
+                  title={`${t("general:Sure to delete")} ?`}
+                  okText={t("general:OK")}
+                  cancelText={t("general:Cancel")}
+                  onConfirm={() => this.deleteRow(table, index)}
+                >
+                  <Button aria-label={t("general:Delete")} icon={<DeleteOutlined />} size="small" />
+                </Popconfirm>
               </Tooltip>
             </div>
           );
@@ -143,10 +167,10 @@ class ScopeTable extends React.Component<LegacyAny, LegacyAny> {
 
     return (
       <div>
-        <Table scroll={{x: "max-content"}} rowKey={(_record: LegacyAny, index?: number) => index ?? 0} columns={columns} dataSource={table} size="middle" bordered pagination={false}
+        <Table scroll={{x: "max-content"}} rowKey="__uiKey" columns={columns} dataSource={this.getTableDataSource(table)} size="middle" bordered pagination={false}
           title={() => (
-            <div>
-              {this.props.title}&nbsp;&nbsp;&nbsp;&nbsp;
+            <div className="organization-config-table-toolbar">
+              <span className="organization-config-table-title">{this.props.title}</span>
               <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={() => this.addRow(table)}>{t("general:Add")}</Button>
             </div>
           )}

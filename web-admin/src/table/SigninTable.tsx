@@ -14,7 +14,7 @@
 
 import React from "react";
 import {DeleteOutlined, DownOutlined, UpOutlined} from "@ant-design/icons";
-import {Button, Col, Input, Popover, Row, Select, Space, Switch, Table, Tooltip} from "antd";
+import {Button, Input, Popover, Select, Space, Switch, Table, Tooltip} from "antd";
 import * as Setting from "../Setting";
 import i18next from "i18next";
 import Editor from "../common/Editor";
@@ -100,6 +100,7 @@ class SigninTable extends React.Component<LegacyAny, LegacyAny> {
         title: t("general:Name"),
         dataIndex: "name",
         key: "name",
+        width: 240,
         render: (text: LegacyAny, record: LegacyAny, index: number) => {
           if (record.isCustom) {
             return <Input style={{width: "100%"}}
@@ -153,7 +154,7 @@ class SigninTable extends React.Component<LegacyAny, LegacyAny> {
         title: t("organization:Visible"),
         dataIndex: "visible",
         key: "visible",
-        width: "120px",
+        width: 96,
         render: (text: LegacyAny, record: LegacyAny, index: number) => {
           if (record.name === "ID") {
             return null;
@@ -175,7 +176,7 @@ class SigninTable extends React.Component<LegacyAny, LegacyAny> {
         title: t("signup:Label"),
         dataIndex: "label",
         key: "label",
-        width: "200px",
+        width: 180,
         render: (text: LegacyAny, record: LegacyAny, index: number) => {
           if (record.name.startsWith("Text ") || record?.isCustom) {
             return (
@@ -203,7 +204,7 @@ class SigninTable extends React.Component<LegacyAny, LegacyAny> {
         title: t("application:Custom CSS"),
         dataIndex: "customCss",
         key: "customCss",
-        width: "200px",
+        width: 240,
         render: (text: LegacyAny, record: LegacyAny, index: number) => {
           if (!record.name.startsWith("Text ") && !record?.isCustom) {
             return (
@@ -234,7 +235,7 @@ class SigninTable extends React.Component<LegacyAny, LegacyAny> {
         title: t("signup:Placeholder"),
         dataIndex: "placeholder",
         key: "placeholder",
-        width: "200px",
+        width: 180,
         render: (text: LegacyAny, record: LegacyAny, index: number) => {
           if (record.name !== "Username" && record.name !== "Password") {
             return null;
@@ -251,7 +252,7 @@ class SigninTable extends React.Component<LegacyAny, LegacyAny> {
         title: t("application:Rule"),
         dataIndex: "rule",
         key: "rule",
-        width: "155px",
+        width: 170,
         render: (text: LegacyAny, record: LegacyAny, index: number) => {
           let options: LegacyAny[] = [];
           if (record.name === "Providers") {
@@ -293,7 +294,8 @@ class SigninTable extends React.Component<LegacyAny, LegacyAny> {
       {
         title: t("general:Action"),
         key: "action",
-        width: "100px",
+        width: 112,
+        fixed: "right" as const,
         render: (text: LegacyAny, record: LegacyAny, index: number) => {
           return (
             <div>
@@ -313,13 +315,15 @@ class SigninTable extends React.Component<LegacyAny, LegacyAny> {
     ];
 
     return (
-      <Table scroll={{x: "max-content"}} rowKey="name" columns={columns} dataSource={table} size="middle" bordered pagination={false}
+      <Table className="application-edit-ui-table application-edit-ui-table-control application-edit-ui-table-signin-items" scroll={{x: 1220}} tableLayout="fixed" rowKey="name" columns={columns} dataSource={table} size="middle" bordered pagination={false}
         title={() => (
-          <Space>
-            {this.props.title}
-            <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={() => this.addRow(table)}>{t("general:Add")}</Button>
-            <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={() => this.addCustomRow(table)}>{t("general:Add custom item")}</Button>
-          </Space>
+          <div className="organization-config-table-toolbar">
+            <span className="organization-config-table-title">{this.props.title}</span>
+            <Space size={8}>
+              <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={() => this.addRow(table)}>{t("general:Add")}</Button>
+              <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={() => this.addCustomRow(table)}>{t("general:Add custom item")}</Button>
+            </Space>
+          </div>
         )}
       />
     );
@@ -328,13 +332,7 @@ class SigninTable extends React.Component<LegacyAny, LegacyAny> {
   render() {
     return (
       <div>
-        <Row style={{marginTop: "20px"}} >
-          <Col span={24}>
-            {
-              this.renderTable(this.props.table)
-            }
-          </Col>
-        </Row>
+        {this.renderTable(this.props.table)}
       </div>
     );
   }

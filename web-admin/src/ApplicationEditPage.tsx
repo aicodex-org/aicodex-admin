@@ -17,11 +17,9 @@ import {
   Button,
   Card,
   Col,
-  ConfigProvider,
   Input,
   InputNumber,
-  Layout,
-  Menu,
+  Modal,
   Popover,
   Radio,
   Result,
@@ -29,7 +27,7 @@ import {
   Select,
   Space,
   Switch,
-  Tabs,
+  Tooltip,
   Upload, message
 } from "antd";
 import {CopyOutlined, HolderOutlined, LinkOutlined, UploadOutlined, UsergroupAddOutlined} from "@ant-design/icons";
@@ -40,8 +38,6 @@ import * as Conf from "./Conf";
 import * as ProviderBackend from "./backend/ProviderBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as ResourceBackend from "./backend/ResourceBackend";
-import SignupPage from "./auth/SignupPage";
-import LoginPage from "./auth/LoginPage";
 import i18nextRaw from "i18next";
 import UrlTable from "./table/UrlTable";
 import ProviderTable from "./table/ProviderTable";
@@ -50,7 +46,6 @@ import SigninMethodTable from "./table/SigninMethodTable";
 import SignupTable from "./table/SignupTable";
 import SamlAttributeTable from "./table/SamlAttributeTable";
 import ScopeTable from "./table/ScopeTable";
-import PromptPage from "./auth/PromptPage";
 import copy from "copy-to-clipboard";
 import ThemeEditor from "./common/theme/ThemeEditor";
 
@@ -58,13 +53,31 @@ import SigninTable from "./table/SigninTable";
 import Editor from "./common/Editor";
 import * as GroupBackend from "./backend/GroupBackend";
 import TokenAttributeTable from "./table/TokenAttributeTable";
-import {Content, Header} from "antd/es/layout/layout";
-import Sider from "antd/es/layout/Sider";
 import PaginateSelect from "./common/PaginateSelect";
+import LargeEditShell, {LargeEditTabs} from "./common/LargeEditShell";
 
 const {Option} = Select;
 
 type LegacyAny = any;
+
+type ApplicationEditTabKey = "basic" | "authentication" | "oidc-oauth" | "saml" | "providers" | "ui-customization" | "security" | "reverse-proxy";
+type ApplicationImageUrlField = "logo" | "favicon" | "formBackgroundUrl" | "formBackgroundUrlMobile";
+
+interface ApplicationEditTabItem {
+  key: ApplicationEditTabKey;
+  label: React.ReactNode;
+}
+
+const applicationEditTabKeys: ApplicationEditTabKey[] = [
+  "basic",
+  "authentication",
+  "oidc-oauth",
+  "saml",
+  "providers",
+  "ui-customization",
+  "security",
+  "reverse-proxy",
+];
 
 interface RouteParams {
   organizationName: string;
@@ -207,8 +220,11 @@ interface ApplicationEditPageState {
   samlAttributes: LegacyAny[];
   samlMetadata: LegacyAny;
   isAuthorized: boolean;
-  activeMenuKey: string;
+  activeMenuKey: ApplicationEditTabKey;
   menuMode: "horizontal" | "vertical" | string;
+  dirty: boolean;
+  submitting: boolean;
+  fieldErrors: Record<string, string | undefined>;
   themeAlgorithm?: LegacyAny;
 }
 
@@ -252,7 +268,6 @@ const template = `<style>
 </style>`;
 
 const previewGrid = Setting.isMobile() ? 22 : 11;
-const previewWidth = Setting.isMobile() ? "110%" : "90%";
 
 const sideTemplate = `<style>
   .left-model{
@@ -308,8 +323,11 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
       samlAttributes: [],
       samlMetadata: null,
       isAuthorized: true,
-      activeMenuKey: window.location.hash?.slice(1) || "basic",
+      activeMenuKey: this.getInitialTabKey(),
       menuMode: "horizontal",
+      dirty: false,
+      submitting: false,
+      fieldErrors: {},
     };
   }
 
@@ -347,6 +365,8 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
 
         this.setState({
           application: application,
+          dirty: false,
+          fieldErrors: {},
         });
 
         this.getProviders(application);
@@ -447,11 +467,134 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
 
   updateApplicationField(key: string, value: LegacyAny): void {
     value = this.parseApplicationField(key, value);
-    const application = this.state.application;
-    application[key] = value;
+    const application = {
+      ...this.state.application,
+      [key]: value,
+    };
+    const fieldErrors = {...this.state.fieldErrors};
+    delete fieldErrors[key];
     this.setState({
       application: application,
+      dirty: true,
+      fieldErrors: fieldErrors,
     });
+  }
+
+  isKnownTabKey(key: unknown): key is ApplicationEditTabKey {
+    return applicationEditTabKeys.includes(`${key}` as ApplicationEditTabKey);
+  }
+
+  getInitialTabKey(): ApplicationEditTabKey {
+    const hashKey = window.location.hash?.slice(1);
+    return this.isKnownTabKey(hashKey) ? hashKey : "basic";
+  }
+
+  getActiveTabKey(): ApplicationEditTabKey {
+    return this.isKnownTabKey(this.state.activeMenuKey) ? this.state.activeMenuKey : "basic";
+  }
+
+  setActiveTabKey(key: string): void {
+    const nextKey = this.isKnownTabKey(key) ? key : "basic";
+    this.setState({activeMenuKey: nextKey});
+    window.location.hash = nextKey;
+  }
+
+  getApplicationEditTabDefinitions(): ApplicationEditTabItem[] {
+    return [
+      {label: i18next.t("application:Basic"), key: "basic"},
+      {label: i18next.t("application:Authentication"), key: "authentication"},
+      {label: "OIDC/OAuth", key: "oidc-oauth"},
+      {label: <Tooltip title={i18next.t("application:SAML - Tooltip")}><span>SAML</span></Tooltip>, key: "saml"},
+      {label: i18next.t("application:Providers"), key: "providers"},
+      {label: i18next.t("application:UI Customization"), key: "ui-customization"},
+      {label: i18next.t("application:Security"), key: "security"},
+      {label: i18next.t("application:Reverse Proxy"), key: "reverse-proxy"},
+    ];
+  }
+
+  renderEditTabs(): React.ReactNode {
+    return (
+      <LargeEditTabs
+        classPrefix="application-edit"
+        activeKey={this.getActiveTabKey()}
+        onChange={(key) => this.setActiveTabKey(key)}
+        items={this.getApplicationEditTabDefinitions().map(tab => ({
+          label: tab.label,
+          key: tab.key,
+        }))}
+      />
+    );
+  }
+
+  renderApplicationSectionTitle(title: string): React.ReactNode {
+    return (
+      <div className="admin-large-edit-content-section-title application-edit-section-title">
+        <span>{title}</span>
+      </div>
+    );
+  }
+
+  renderFullWidthContentRow(children: React.ReactNode, options: {className?: string; marginTop?: string} = {}): React.ReactNode {
+    const className = [
+      "admin-large-edit-full-width-row",
+      "application-edit-full-width-row",
+      options.className,
+    ].filter(Boolean).join(" ");
+
+    return (
+      <Row className={className} style={{marginTop: options.marginTop ?? "20px"}} >
+        <Col span={24}>
+          {children}
+        </Col>
+      </Row>
+    );
+  }
+
+  renderRequiredFieldLabel(label: string, tooltip: string): React.ReactNode {
+    return (
+      <span className="admin-large-edit-required-label application-edit-required-label">
+        <span className="admin-large-edit-required-mark application-edit-required-mark">*</span>
+        {Setting.getLabel(label, tooltip)}
+      </span>
+    );
+  }
+
+  renderFieldError(fieldName: string): React.ReactNode {
+    const error = this.state.fieldErrors[fieldName];
+    if (!error) {
+      return null;
+    }
+
+    return <div className="admin-large-edit-field-error application-edit-field-error">{error}</div>;
+  }
+
+  renderApplicationAssetField(fieldName: ApplicationImageUrlField, label: string, tooltip: string): React.ReactNode {
+    const value = this.state.application[fieldName] || "";
+    const previewLabel = `${label} ${i18next.t("general:Preview")}`;
+
+    return (
+      <Row className="application-edit-control-row-medium application-edit-asset-row application-edit-image-url-row" style={{marginTop: "20px"}} >
+        <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
+          {Setting.getLabel(label, tooltip)} :
+        </Col>
+        <Col span={21} >
+          <div className="application-edit-asset-control">
+            <Input prefix={<LinkOutlined />} value={value} onChange={e => {
+              this.updateApplicationField(fieldName, e.target.value);
+            }} />
+            <div className="application-edit-asset-preview" aria-label={previewLabel}>
+              {value ? (
+                <a target="_blank" rel="noreferrer" href={value}>
+                  <img src={value} alt={previewLabel} />
+                </a>
+              ) : (
+                <span className="application-edit-asset-preview-placeholder">{i18next.t("application:Not configured")}</span>
+              )}
+            </div>
+          </div>
+        </Col>
+      </Row>
+    );
   }
 
   handleUpload(info: LegacyAny): void {
@@ -475,15 +618,17 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
   }
 
   renderApplicationForm(): React.ReactNode {
+    const activeTabKey = this.getActiveTabKey();
     return <>
-      {this.state.activeMenuKey === "basic" && (
+      {activeTabKey === "basic" && (
         <React.Fragment>
-          <Row style={{marginTop: "10px"}} >
+          {this.renderApplicationSectionTitle(i18next.t("application:Basic information"))}
+          <Row className="application-edit-control-row-medium" style={{marginTop: "10px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
-              {Setting.getLabel(i18next.t("general:Name"), i18next.t("general:Name - Tooltip"))} :
+              {this.renderRequiredFieldLabel(i18next.t("general:Name"), i18next.t("general:Name - Tooltip"))} :
             </Col>
             <Col span={21} >
-              <Input value={this.state.application.name} disabled={this.state.application.name === "app-built-in"} onChange={e => {
+              <Input status={this.state.fieldErrors.name ? "error" : undefined} value={this.state.application.name} disabled={this.state.application.name === "app-built-in"} onChange={e => {
                 const value = e.target.value;
                 if (/[/?:@#&%=+;]/.test(value)) {
                   const invalidChars = "/ ? : @ # & % = + ;";
@@ -493,19 +638,21 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
                 }
                 this.updateApplicationField("name", e.target.value);
               }} />
+              {this.renderFieldError("name")}
             </Col>
           </Row>
-          <Row style={{marginTop: "20px"}} >
+          <Row className="application-edit-control-row-medium" style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
-              {Setting.getLabel(i18next.t("general:Display name"), i18next.t("general:Display name - Tooltip"))} :
+              {this.renderRequiredFieldLabel(i18next.t("general:Display name"), i18next.t("general:Display name - Tooltip"))} :
             </Col>
             <Col span={21} >
-              <Input value={this.state.application.displayName} onChange={e => {
+              <Input status={this.state.fieldErrors.displayName ? "error" : undefined} value={this.state.application.displayName} onChange={e => {
                 this.updateApplicationField("displayName", e.target.value);
               }} />
+              {this.renderFieldError("displayName")}
             </Col>
           </Row>
-          <Row style={{marginTop: "20px"}} >
+          <Row className="application-edit-control-row-compact" style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("general:Category"), i18next.t("general:Category - Tooltip"))} :
             </Col>
@@ -528,7 +675,7 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
               </Select>
             </Col>
           </Row>
-          <Row style={{marginTop: "20px"}} >
+          <Row className="application-edit-control-row-compact" style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("general:Type"), i18next.t("general:Type - Tooltip"))} :
             </Col>
@@ -571,34 +718,8 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
               }} />
             </Col>
           </Row>
-          <Row style={{marginTop: "20px"}} >
-            <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
-              {Setting.getLabel(i18next.t("general:Logo"), i18next.t("general:Logo - Tooltip"))} :
-            </Col>
-            <Col span={21} style={(Setting.isMobile()) ? {maxWidth: "100%"} : {}}>
-              <Row style={{marginTop: "20px"}} >
-                <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 1}>
-                  {Setting.getLabel(i18next.t("general:URL"), i18next.t("general:URL - Tooltip"))} :
-                </Col>
-                <Col span={23} >
-                  <Input prefix={<LinkOutlined />} value={this.state.application.logo} onChange={e => {
-                    this.updateApplicationField("logo", e.target.value);
-                  }} />
-                </Col>
-              </Row>
-              <Row style={{marginTop: "20px"}} >
-                <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 1}>
-                  {i18next.t("general:Preview")}:
-                </Col>
-                <Col span={23} >
-                  <a target="_blank" rel="noreferrer" href={this.state.application.logo}>
-                    <img src={this.state.application.logo} alt={this.state.application.logo} height={90} style={{marginBottom: "20px"}} />
-                  </a>
-                </Col>
-              </Row>
-            </Col>
-          </Row>
-          <Row style={{marginTop: "20px"}} >
+          {this.renderApplicationAssetField("logo", i18next.t("general:Logo"), i18next.t("general:Logo - Tooltip"))}
+          <Row className="application-edit-control-row-medium" style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("general:Title"), i18next.t("general:Title - Tooltip"))} :
             </Col>
@@ -608,33 +729,7 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
               }} />
             </Col>
           </Row>
-          <Row style={{marginTop: "20px"}} >
-            <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
-              {Setting.getLabel(i18next.t("general:Favicon"), i18next.t("general:Favicon - Tooltip"))} :
-            </Col>
-            <Col span={21} style={(Setting.isMobile()) ? {maxWidth: "100%"} : {}}>
-              <Row style={{marginTop: "20px"}} >
-                <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 1}>
-                  {Setting.getLabel(i18next.t("general:URL"), i18next.t("general:URL - Tooltip"))} :
-                </Col>
-                <Col span={23} >
-                  <Input prefix={<LinkOutlined />} value={this.state.application.favicon} onChange={e => {
-                    this.updateApplicationField("favicon", e.target.value);
-                  }} />
-                </Col>
-              </Row>
-              <Row style={{marginTop: "20px"}} >
-                <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 1}>
-                  {i18next.t("general:Preview")}:
-                </Col>
-                <Col span={23} >
-                  <a target="_blank" rel="noreferrer" href={this.state.application.favicon}>
-                    <img src={this.state.application.favicon} alt={this.state.application.favicon} height={90} style={{marginBottom: "20px"}} />
-                  </a>
-                </Col>
-              </Row>
-            </Col>
-          </Row>
+          {this.renderApplicationAssetField("favicon", i18next.t("general:Favicon"), i18next.t("general:Favicon - Tooltip"))}
           <Row style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("general:Home"), i18next.t("general:Home - Tooltip"))} :
@@ -645,7 +740,7 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
               }} />
             </Col>
           </Row>
-          <Row style={{marginTop: "20px"}} >
+          <Row className="application-edit-control-row-medium" style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("general:Description"), i18next.t("general:Description - Tooltip"))} :
             </Col>
@@ -655,7 +750,7 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
               }} />
             </Col>
           </Row>
-          <Row style={{marginTop: "20px"}} >
+          <Row className="application-edit-control-row-medium" style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("general:Organization"), i18next.t("general:Organization - Tooltip"))} :
             </Col>
@@ -667,7 +762,7 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
               </Select>
             </Col>
           </Row>
-          <Row style={{marginTop: "20px"}} >
+          <Row className="application-edit-control-row-medium" style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("organization:Tags"), i18next.t("application:Tags - Tooltip"))} :
             </Col>
@@ -702,19 +797,20 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
           </Row>
         </React.Fragment>
       )}
-      {this.state.activeMenuKey === "authentication" && (
+      {activeTabKey === "authentication" && (
         <React.Fragment>
+          {this.renderApplicationSectionTitle(i18next.t("application:Authentication settings"))}
           <Row style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("application:Cookie expire"), i18next.t("application:Cookie expire - Tooltip"))} :
             </Col>
             <Col span={21} >
-              <InputNumber style={{width: "150px"}} value={this.state.application.cookieExpireInHours || 720} min={1} step={1} precision={0} addonAfter="Hours" onChange={value => {
+              <InputNumber style={{width: "150px"}} value={this.state.application.cookieExpireInHours || 720} min={1} step={1} precision={0} addonAfter={i18next.t("application:Hours")} onChange={value => {
                 this.updateApplicationField("cookieExpireInHours", value);
               }} />
             </Col>
           </Row>
-          <Row style={{marginTop: "20px"}} >
+          <Row className="application-edit-control-row-medium" style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("ldap:Default group"), i18next.t("ldap:Default group - Tooltip"))} :
             </Col>
@@ -856,8 +952,9 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
           </Row>
         </React.Fragment>
       )}
-      {this.state.activeMenuKey === "oidc-oauth" && (
+      {activeTabKey === "oidc-oauth" && (
         <React.Fragment>
+          {this.renderApplicationSectionTitle(i18next.t("application:OIDC/OAuth settings"))}
           <Row style={{marginTop: "10px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("provider:Client ID"), i18next.t("provider:Client ID - Tooltip"))} :
@@ -868,9 +965,9 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
               }} />
             </Col>
           </Row>
-          <Row style={{marginTop: "20px"}} >
+          <Row className="application-edit-control-row-compact" style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
-              Organization resolution mode :
+              {Setting.getLabel(i18next.t("application:Organization resolution mode"), i18next.t("application:Organization resolution mode - Tooltip"))} :
             </Col>
             <Col span={21} >
               <Select virtual={false} style={{width: "100%"}}
@@ -879,14 +976,14 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
                   this.updateApplicationField("organizationResolutionMode", value);
                   this.updateApplicationField("isShared", value === "shared_application");
                 }} >
-                <Option value="organization_bound">organization_bound</Option>
-                <Option value="shared_application">shared_application</Option>
+                <Option value="organization_bound">{i18next.t("application:Organization bound")}</Option>
+                <Option value="shared_application">{i18next.t("application:Shared application")}</Option>
               </Select>
             </Col>
           </Row>
-          <Row style={{marginTop: "20px"}} >
+          <Row className="application-edit-control-row-medium" style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
-              Allowed organizations :
+              {Setting.getLabel(i18next.t("application:Allowed organizations"), i18next.t("application:Allowed organizations - Tooltip"))} :
             </Col>
             <Col span={21} >
               <Select virtual={false} mode="multiple" style={{width: "100%"}}
@@ -899,24 +996,24 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
               </Select>
             </Col>
           </Row>
-          <Row style={{marginTop: "20px"}} >
+          <Row className="application-edit-control-row-compact" style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
-              Allowed organization policy :
+              {Setting.getLabel(i18next.t("application:Allowed organization policy"), i18next.t("application:Allowed organization policy - Tooltip"))} :
             </Col>
             <Col span={21} >
               <Select virtual={false} style={{width: "100%"}}
                 value={this.state.application.allowedOrganizationStatus || "PENDING_REVIEW"}
                 onChange={(value) => this.updateApplicationField("allowedOrganizationStatus", value)} >
-                <Option value="CONFIRMED">CONFIRMED</Option>
-                <Option value="PENDING_REVIEW">PENDING_REVIEW</Option>
-                <Option value="CONFLICTED">CONFLICTED</Option>
-                <Option value="DISABLED">DISABLED</Option>
+                <Option value="CONFIRMED">{i18next.t("application:Confirmed")}</Option>
+                <Option value="PENDING_REVIEW">{i18next.t("application:Pending review")}</Option>
+                <Option value="CONFLICTED">{i18next.t("application:Conflicted")}</Option>
+                <Option value="DISABLED">{i18next.t("application:Disabled")}</Option>
               </Select>
             </Col>
           </Row>
           <Row style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
-              Require API mapping :
+              {Setting.getLabel(i18next.t("application:Require API mapping"), i18next.t("application:Require API mapping - Tooltip"))} :
             </Col>
             <Col span={21} >
               <Switch checked={this.state.application.apiMappingRequired} onChange={checked => {
@@ -934,18 +1031,14 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
               }} />
             </Col>
           </Row>
-          <Row style={{marginTop: "20px"}} >
-            <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
-              {Setting.getLabel(i18next.t("application:Redirect URLs"), i18next.t("application:Redirect URLs - Tooltip"))} :
-            </Col>
-            <Col span={21} >
-              <UrlTable
-                title={i18next.t("application:Redirect URLs")}
-                table={this.state.application.redirectUris}
-                onUpdateTable={(value: LegacyAny) => {this.updateApplicationField("redirectUris", value);}}
-              />
-            </Col>
-          </Row>
+          {this.renderFullWidthContentRow(
+            <UrlTable
+              title={i18next.t("application:Redirect URLs")}
+              table={this.state.application.redirectUris}
+              onUpdateTable={(value: LegacyAny) => {this.updateApplicationField("redirectUris", value);}}
+            />,
+            {className: "application-edit-table-row"}
+          )}
           <Row style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("application:Forced redirect origin"), i18next.t("general:Forced redirect origin - Tooltip"))} :
@@ -956,7 +1049,7 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
               }} />
             </Col>
           </Row>
-          <Row style={{marginTop: "20px"}} >
+          <Row className="application-edit-control-row-medium" style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("application:Grant types"), i18next.t("application:Grant types - Tooltip"))} :
             </Col>
@@ -983,21 +1076,17 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
           </Row>
           {
             (this.state.application.category === "Agent") ? (
-              <Row style={{marginTop: "20px"}} >
-                <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
-                  {Setting.getLabel(i18next.t("general:Scopes"), i18next.t("general:Scopes - Tooltip"))} :
-                </Col>
-                <Col span={21} >
-                  <ScopeTable
-                    title={i18next.t("general:Scopes")}
-                    table={this.state.application.scopes}
-                    onUpdateTable={(value: LegacyAny) => {this.updateApplicationField("scopes", value);}}
-                  />
-                </Col>
-              </Row>
+              this.renderFullWidthContentRow(
+                <ScopeTable
+                  title={i18next.t("general:Scopes")}
+                  table={this.state.application.scopes}
+                  onUpdateTable={(value: LegacyAny) => {this.updateApplicationField("scopes", value);}}
+                />,
+                {className: "application-edit-table-row"}
+              )
             ) : null
           }
-          <Row style={{marginTop: "20px"}} >
+          <Row className="application-edit-control-row-compact" style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("application:Token format"), i18next.t("application:Token format - Tooltip"))} :
             </Col>
@@ -1007,7 +1096,7 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
               />
             </Col>
           </Row>
-          <Row style={{marginTop: "20px"}} >
+          <Row className="application-edit-control-row-compact" style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("application:Token signing method"), i18next.t("application:Token signing method - Tooltip"))} :
             </Col>
@@ -1017,7 +1106,7 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
               />
             </Col>
           </Row>
-          <Row style={{marginTop: "20px"}} >
+          <Row className="application-edit-control-row-medium" style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("application:Token fields"), i18next.t("application:Token fields - Tooltip"))} :
             </Col>
@@ -1032,26 +1121,22 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
             </Col>
           </Row>
           {
-            this.state.application.tokenFormat === "JWT-Custom" ? (<Row style={{marginTop: "20px"}} >
-              <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                {Setting.getLabel(i18next.t("general:Token attributes"), i18next.t("general:Token attributes - Tooltip"))} :
-              </Col>
-              <Col span={22} >
-                <TokenAttributeTable
-                  title={i18next.t("general:Token attributes")}
-                  table={this.state.application.tokenAttributes}
-                  application={this.state.application}
-                  onUpdateTable={(value: LegacyAny) => {this.updateApplicationField("tokenAttributes", value);}}
-                />
-              </Col>
-            </Row>) : null
+            this.state.application.tokenFormat === "JWT-Custom" ? this.renderFullWidthContentRow(
+              <TokenAttributeTable
+                title={i18next.t("general:Token attributes")}
+                table={this.state.application.tokenAttributes}
+                application={this.state.application}
+                onUpdateTable={(value: LegacyAny) => {this.updateApplicationField("tokenAttributes", value);}}
+              />,
+              {className: "application-edit-table-row"}
+            ) : null
           }
           <Row style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("application:Token expire"), i18next.t("application:Token expire - Tooltip"))} :
             </Col>
             <Col span={21} >
-              <InputNumber style={{width: "150px"}} value={this.state.application.expireInHours} min={0.01} step={1} precision={2} addonAfter="Hours" onChange={value => {
+              <InputNumber style={{width: "150px"}} value={this.state.application.expireInHours} min={0.01} step={1} precision={2} addonAfter={i18next.t("application:Hours")} onChange={value => {
                 this.updateApplicationField("expireInHours", value);
               }} />
             </Col>
@@ -1061,15 +1146,16 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
               {Setting.getLabel(i18next.t("application:Refresh token expire"), i18next.t("application:Refresh token expire - Tooltip"))} :
             </Col>
             <Col span={21} >
-              <InputNumber style={{width: "150px"}} value={this.state.application.refreshExpireInHours} min={0.01} step={1} precision={2} addonAfter="Hours" onChange={value => {
+              <InputNumber style={{width: "150px"}} value={this.state.application.refreshExpireInHours} min={0.01} step={1} precision={2} addonAfter={i18next.t("application:Hours")} onChange={value => {
                 this.updateApplicationField("refreshExpireInHours", value);
               }} />
             </Col>
           </Row>
         </React.Fragment>
       )}
-      {this.state.activeMenuKey === "saml" && (
+      {activeTabKey === "saml" && (
         <React.Fragment>
+          {this.renderApplicationSectionTitle(i18next.t("application:SAML settings"))}
           <Row style={{marginTop: "10px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("application:SAML reply URL"), i18next.t("application:Redirect URL (Assertion Consumer Service POST Binding URL) - Tooltip"))} :
@@ -1121,7 +1207,7 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
               }} />
             </Col>
           </Row>
-          <Row style={{marginTop: "20px"}} >
+          <Row className="application-edit-control-row-compact" style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("application:SAML hash algorithm"), i18next.t("application:SAML hash algorithm - Tooltip"))} :
             </Col>
@@ -1163,19 +1249,15 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
           </Row>
           {
             !this.state.application.disableSamlAttributes ? (
-              <Row style={{marginTop: "20px"}} >
-                <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
-                  {Setting.getLabel(i18next.t("general:SAML attributes"), i18next.t("general:SAML attributes - Tooltip"))} :
-                </Col>
-                <Col span={21} >
-                  <SamlAttributeTable
-                    title={i18next.t("general:SAML attributes")}
-                    table={this.state.application.samlAttributes}
-                    application={this.state.application}
-                    onUpdateTable={(value: LegacyAny) => {this.updateApplicationField("samlAttributes", value);}}
-                  />
-                </Col>
-              </Row>
+              this.renderFullWidthContentRow(
+                <SamlAttributeTable
+                  title={i18next.t("general:SAML attributes")}
+                  table={this.state.application.samlAttributes}
+                  application={this.state.application}
+                  onUpdateTable={(value: LegacyAny) => {this.updateApplicationField("samlAttributes", value);}}
+                />,
+                {className: "application-edit-table-row"}
+              )
             ) : null
           }
           <Row style={{marginTop: "20px"}} >
@@ -1196,10 +1278,11 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
           </Row>
         </React.Fragment>
       )}
-      {this.state.activeMenuKey === "providers" && (
+      {activeTabKey === "providers" && (
         <React.Fragment>
-          <Row className="application-edit-full-width-row" style={{marginTop: "10px"}} >
-            <Col span={24}>
+          {this.renderApplicationSectionTitle(i18next.t("application:Provider bindings"))}
+          {this.renderFullWidthContentRow(
+            <>
               <ProviderTable
                 title={i18next.t("application:Providers")}
                 table={this.state.application.providers}
@@ -1213,13 +1296,15 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
                 organizations={this.state.organizations}
                 onChange={(value: LegacyAny) => {this.updateApplicationField("providers", value);}}
               />
-            </Col>
-          </Row>
+            </>,
+            {className: "application-edit-table-row", marginTop: "10px"}
+          )}
         </React.Fragment>
       )}
-      {this.state.activeMenuKey === "ui-customization" && (
+      {activeTabKey === "ui-customization" && (
         <React.Fragment>
-          <Row style={{marginTop: "20px"}} >
+          {this.renderApplicationSectionTitle(i18next.t("application:UI customization settings"))}
+          <Row className="application-edit-control-row-compact" style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("application:Org choice mode"), i18next.t("application:Org choice mode - Tooltip"))} :
             </Col>
@@ -1239,20 +1324,16 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
               </Select>
             </Col>
           </Row>
-          <Row style={{marginTop: "20px"}} >
-            <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
-              {Setting.getLabel(i18next.t("application:Signin methods"), i18next.t("application:Signin methods - Tooltip"))} :
-            </Col>
-            <Col span={21} >
-              <SigninMethodTable
-                title={i18next.t("application:Signin methods")}
-                table={this.state.application.signinMethods}
-                onUpdateTable={(value: LegacyAny) => {
-                  this.updateApplicationField("signinMethods", value);
-                }}
-              />
-            </Col>
-          </Row>
+          {this.renderFullWidthContentRow(
+            <SigninMethodTable
+              title={i18next.t("application:Signin methods")}
+              table={this.state.application.signinMethods}
+              onUpdateTable={(value: LegacyAny) => {
+                this.updateApplicationField("signinMethods", value);
+              }}
+            />,
+            {className: "application-edit-table-row"}
+          )}
           <Row style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("provider:Signup HTML"), i18next.t("provider:Signup HTML - Tooltip"))} :
@@ -1289,42 +1370,34 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
               </Popover>
             </Col>
           </Row>
-          <Row style={{marginTop: "20px"}} >
-            <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
-              {Setting.getLabel(i18next.t("application:Signin items"), i18next.t("application:Signin items - Tooltip"))} :
-            </Col>
-            <Col span={21} >
-              <SigninTable
-                title={i18next.t("application:Signin items")}
-                table={this.state.application.signinItems}
-                themeAlgorithm={this.state.themeAlgorithm}
-                onUpdateTable={(value: LegacyAny) => {
-                  this.updateApplicationField("signinItems", value);
-                }}
-              />
-            </Col>
-          </Row>
+          {this.renderFullWidthContentRow(
+            <SigninTable
+              title={i18next.t("application:Signin items")}
+              table={this.state.application.signinItems}
+              themeAlgorithm={this.state.themeAlgorithm}
+              onUpdateTable={(value: LegacyAny) => {
+                this.updateApplicationField("signinItems", value);
+              }}
+            />,
+            {className: "application-edit-table-row"}
+          )}
           {
             !this.state.application.enableSignUp ? null : (
               <React.Fragment>
-                <Row style={{marginTop: "20px"}} >
-                  <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
-                    {Setting.getLabel(i18next.t("application:Signup items"), i18next.t("application:Signup items - Tooltip"))} :
-                  </Col>
-                  <Col span={21} >
-                    <SignupTable
-                      title={i18next.t("application:Signup items")}
-                      table={this.state.application.signupItems}
-                      onUpdateTable={(value: LegacyAny) => {
-                        this.updateApplicationField("signupItems", value);
-                      }}
-                    />
-                  </Col>
-                </Row>
+                {this.renderFullWidthContentRow(
+                  <SignupTable
+                    title={i18next.t("application:Signup items")}
+                    table={this.state.application.signupItems}
+                    onUpdateTable={(value: LegacyAny) => {
+                      this.updateApplicationField("signupItems", value);
+                    }}
+                  />,
+                  {className: "application-edit-table-row"}
+                )}
               </React.Fragment>
             )
           }
-          <Row style={{marginTop: "10px"}} >
+          <Row className="admin-large-edit-full-width-row application-edit-full-width-row application-edit-preview-row" style={{marginTop: "10px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("general:Preview"), i18next.t("general:Preview - Tooltip"))} :
             </Col>
@@ -1332,60 +1405,8 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
               this.renderSignupSigninPreview()
             }
           </Row>
-          <Row style={{marginTop: "20px"}} >
-            <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
-              {Setting.getLabel(i18next.t("application:Background URL"), i18next.t("application:Background URL - Tooltip"))} :
-            </Col>
-            <Col span={21} style={(Setting.isMobile()) ? {maxWidth: "100%"} : {}}>
-              <Row style={{marginTop: "20px"}} >
-                <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
-                  {Setting.getLabel(i18next.t("general:URL"), i18next.t("general:URL - Tooltip"))} :
-                </Col>
-                <Col span={21} >
-                  <Input prefix={<LinkOutlined />} value={this.state.application.formBackgroundUrl} onChange={e => {
-                    this.updateApplicationField("formBackgroundUrl", e.target.value);
-                  }} />
-                </Col>
-              </Row>
-              <Row style={{marginTop: "20px"}} >
-                <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
-                  {i18next.t("general:Preview")}:
-                </Col>
-                <Col span={21} >
-                  <a target="_blank" rel="noreferrer" href={this.state.application.formBackgroundUrl}>
-                    <img src={this.state.application.formBackgroundUrl} alt={this.state.application.formBackgroundUrl} height={90} style={{marginBottom: "20px"}} />
-                  </a>
-                </Col>
-              </Row>
-            </Col>
-          </Row>
-          <Row style={{marginTop: "20px"}} >
-            <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
-              {Setting.getLabel(i18next.t("application:Background URL Mobile"), i18next.t("application:Background URL Mobile - Tooltip"))} :
-            </Col>
-            <Col span={21} style={(Setting.isMobile()) ? {maxWidth: "100%"} : {}}>
-              <Row style={{marginTop: "20px"}} >
-                <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
-                  {Setting.getLabel(i18next.t("general:URL"), i18next.t("general:URL - Tooltip"))} :
-                </Col>
-                <Col span={21} >
-                  <Input prefix={<LinkOutlined />} value={this.state.application.formBackgroundUrlMobile} onChange={e => {
-                    this.updateApplicationField("formBackgroundUrlMobile", e.target.value);
-                  }} />
-                </Col>
-              </Row>
-              <Row style={{marginTop: "20px"}} >
-                <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
-                  {i18next.t("general:Preview")}:
-                </Col>
-                <Col span={21} >
-                  <a target="_blank" rel="noreferrer" href={this.state.application.formBackgroundUrlMobile}>
-                    <img src={this.state.application.formBackgroundUrlMobile} alt={this.state.application.formBackgroundUrlMobile} height={90} style={{marginBottom: "20px"}} />
-                  </a>
-                </Col>
-              </Row>
-            </Col>
-          </Row>
+          {this.renderApplicationAssetField("formBackgroundUrl", i18next.t("application:Background URL"), i18next.t("application:Background URL - Tooltip"))}
+          {this.renderApplicationAssetField("formBackgroundUrlMobile", i18next.t("application:Background URL Mobile"), i18next.t("application:Background URL Mobile - Tooltip"))}
           <Row>
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("application:Custom CSS"), i18next.t("application:Custom CSS - Tooltip"))} :
@@ -1560,7 +1581,7 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
               {i18next.t("application:Reset to Empty")}
             </Button>
           </Row>
-          <Row style={{marginTop: "20px"}} >
+          <Row className="admin-large-edit-full-width-row application-edit-full-width-row application-edit-preview-row" style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("general:Preview"), i18next.t("general:Preview - Tooltip"))} :
             </Col>
@@ -1570,9 +1591,10 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
           </Row>
         </React.Fragment>
       )}
-      {this.state.activeMenuKey === "security" && (
+      {activeTabKey === "security" && (
         <React.Fragment>
-          <Row style={{marginTop: "20px"}} >
+          {this.renderApplicationSectionTitle(i18next.t("application:Security settings"))}
+          <Row className="application-edit-control-row-medium" style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("application:Token cert"), i18next.t("application:Token cert - Tooltip"))} :
             </Col>
@@ -1584,7 +1606,7 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
               </Select>
             </Col>
           </Row>
-          <Row style={{marginTop: "20px"}} >
+          <Row className="application-edit-control-row-medium" style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("application:Client cert"), i18next.t("application:Client cert - Tooltip"))} :
             </Col>
@@ -1601,7 +1623,7 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
               {Setting.getLabel(i18next.t("application:Failed signin limit"), i18next.t("application:Failed signin limit - Tooltip"))} :
             </Col>
             <Col span={21} >
-              <InputNumber style={{width: "150px"}} value={this.state.application.failedSigninLimit} min={1} step={1} precision={0} addonAfter="Times" onChange={value => {
+              <InputNumber style={{width: "150px"}} value={this.state.application.failedSigninLimit} min={1} step={1} precision={0} addonAfter={i18next.t("application:Times")} onChange={value => {
                 this.updateApplicationField("failedSigninLimit", value);
               }} />
             </Col>
@@ -1611,7 +1633,7 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
               {Setting.getLabel(i18next.t("application:Failed signin frozen time"), i18next.t("application:Failed signin frozen time - Tooltip"))} :
             </Col>
             <Col span={21} >
-              <InputNumber style={{width: "150px"}} value={this.state.application.failedSigninFrozenTime} min={1} step={1} precision={0} addonAfter="Minutes" onChange={value => {
+              <InputNumber style={{width: "150px"}} value={this.state.application.failedSigninFrozenTime} min={1} step={1} precision={0} addonAfter={i18next.t("application:Minutes")} onChange={value => {
                 this.updateApplicationField("failedSigninFrozenTime", value);
               }} />
             </Col>
@@ -1621,7 +1643,7 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
               {Setting.getLabel(i18next.t("application:Code resend timeout"), i18next.t("application:Code resend timeout - Tooltip"))} :
             </Col>
             <Col span={21} >
-              <InputNumber style={{width: "150px"}} value={this.state.application.codeResendTimeout} min={0} step={1} precision={0} addonAfter="Seconds" onChange={value => {
+              <InputNumber style={{width: "150px"}} value={this.state.application.codeResendTimeout} min={0} step={1} precision={0} addonAfter={i18next.t("application:Seconds")} onChange={value => {
                 this.updateApplicationField("codeResendTimeout", value);
               }} />
             </Col>
@@ -1652,8 +1674,9 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
           </Row>
         </React.Fragment>
       )}
-      {this.state.activeMenuKey === "reverse-proxy" && (
+      {activeTabKey === "reverse-proxy" && (
         <React.Fragment>
+          {this.renderApplicationSectionTitle(i18next.t("application:Reverse Proxy settings"))}
           <Row style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("provider:Domain"), i18next.t("provider:Domain - Tooltip"))} :
@@ -1664,18 +1687,15 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
               }} />
             </Col>
           </Row>
-          <Row style={{marginTop: "20px"}} >
-            <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
-              {Setting.getLabel(i18next.t("application:Other domains"), i18next.t("application:Other domains - Tooltip"))} :
-            </Col>
-            <Col span={21} >
-              <UrlTable
-                title={i18next.t("application:Other domains")}
-                table={this.state.application.otherDomains}
-                onUpdateTable={(value: LegacyAny) => {this.updateApplicationField("otherDomains", value);}}
-              />
-            </Col>
-          </Row>
+          {this.renderFullWidthContentRow(
+            <UrlTable
+              title={i18next.t("application:Other domains")}
+              columnTitle={i18next.t("application:Domain")}
+              table={this.state.application.otherDomains}
+              onUpdateTable={(value: LegacyAny) => {this.updateApplicationField("otherDomains", value);}}
+            />,
+            {className: "application-edit-table-row"}
+          )}
           <Row style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("application:Upstream host"), i18next.t("application:Upstream host - Tooltip"))} :
@@ -1686,7 +1706,7 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
               }} />
             </Col>
           </Row>
-          <Row style={{marginTop: "20px"}} >
+          <Row className="application-edit-control-row-compact" style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("provider:SSL mode"), i18next.t("provider:SSL mode - Tooltip"))} :
             </Col>
@@ -1699,7 +1719,7 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
               </Select>
             </Col>
           </Row>
-          <Row style={{marginTop: "20px"}} >
+          <Row className="application-edit-control-row-medium" style={{marginTop: "20px"}} >
             <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 3}>
               {Setting.getLabel(i18next.t("application:SSL cert"), i18next.t("application:SSL cert - Tooltip"))} :
             </Col>
@@ -1718,80 +1738,91 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
 
   renderApplication(): React.ReactNode {
     return (
-      <Card className="admin-large-edit-card application-edit-card" size="small" title={
-        <div>
-          {this.state.mode === "add" ? i18next.t("application:New Application") : i18next.t("application:Edit Application")}&nbsp;&nbsp;&nbsp;&nbsp;
-          <Button onClick={() => this.submitApplicationEdit(false)}>{i18next.t("general:Save")}</Button>
-          <Button style={{marginLeft: "20px"}} type="primary" onClick={() => this.submitApplicationEdit(true)}>{i18next.t("general:Save & Exit")}</Button>
-          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteApplication()}>{i18next.t("general:Cancel")}</Button> : null}
-        </div>
-      } style={{margin: (Setting.isMobile()) ? "5px" : undefined, height: "calc(100vh - 145px - 48px)", overflow: "hidden"}}
-      styles={{body: {height: "100%"}}} type="inner">
-        <Layout style={{background: "inherit", height: "100%"}}>
-          {
-            this.state.menuMode === "horizontal" || !this.state.menuMode ? (
-              <Header style={{background: "inherit", padding: "0px", position: "sticky", top: 0, height: 38, minHeight: 38}}>
-                <div className="demo-logo" />
-                <Tabs
-                  onChange={(key) => {
-                    this.setState({activeMenuKey: key});
-                    window.location.hash = key;
-                  }}
-                  type="card"
-                  activeKey={this.state.activeMenuKey}
-                  tabBarStyle={{marginBottom: 0}}
-                  items={[
-                    {label: i18next.t("application:Basic"), key: "basic"},
-                    {label: i18next.t("application:Authentication"), key: "authentication"},
-                    {label: "OIDC/OAuth", key: "oidc-oauth"},
-                    {label: "SAML", key: "saml"},
-                    {label: i18next.t("application:Providers"), key: "providers"},
-                    {label: i18next.t("application:UI Customization"), key: "ui-customization"},
-                    {label: i18next.t("application:Security"), key: "security"},
-                    {label: i18next.t("application:Reverse Proxy"), key: "reverse-proxy"},
-                  ]}
-                />
-              </Header>
-            ) : null
-          }
-          <Layout style={{background: "inherit", overflow: "auto"}}>
-            {
-              this.state.menuMode === "vertical" ? (
-                <Sider width={200} style={{background: "inherit", position: "sticky", top: 0}}>
-                  <Menu
-                    mode="vertical"
-                    selectedKeys={[this.state.activeMenuKey]}
-                    onClick={({key}) => {
-                      this.setState({activeMenuKey: key});
-                      window.location.hash = key;
-                    }}
-                    style={{marginBottom: "20px", height: "100%"}}
-                  >
-                    <Menu.Item key="basic">{i18next.t("application:Basic")}</Menu.Item>
-                    <Menu.Item key="authentication">{i18next.t("application:Authentication")}</Menu.Item>
-                    <Menu.Item key="oidc-oauth">OIDC/OAuth</Menu.Item>
-                    <Menu.Item key="saml">SAML</Menu.Item>
-                    <Menu.Item key="providers">{i18next.t("application:Providers")}</Menu.Item>
-                    <Menu.Item key="ui-customization">{i18next.t("application:UI Customization")}</Menu.Item>
-                    <Menu.Item key="security">{i18next.t("application:Security")}</Menu.Item>
-                    <Menu.Item key="reverse-proxy">{i18next.t("application:Reverse Proxy")}</Menu.Item>
-                  </Menu>
-                </Sider>) : null
-            }
-            <Content className="application-edit-form-content" style={{padding: "15px",
-              overflowY: "auto",
-              height: "100%",
-              paddingBottom: "80px"}}>
-              {this.renderApplicationForm()}
-            </Content>
-          </Layout>
-        </Layout>
+      <Card
+        className="admin-large-edit-card application-edit-card"
+        size="small"
+        variant="borderless"
+        style={(Setting.isMobile()) ? {margin: "5px"} : {}}
+        styles={{body: {height: "100%", padding: 0}}}
+        type="inner"
+      >
+        <LargeEditShell
+          classPrefix="application-edit"
+          backLabel={i18next.t("general:Back")}
+          breadcrumb={<React.Fragment>{i18next.t("general:Application Access")} / {i18next.t("general:Applications")} /</React.Fragment>}
+          title={this.getApplicationEditTitle()}
+          dirty={this.state.dirty}
+          dirtyLabel={i18next.t("application:Unsaved changes")}
+          tabs={this.renderEditTabs()}
+          actions={this.renderEditFooter()}
+          onBack={() => this.handleBack()}
+        >
+          <div className="admin-large-edit-form-content application-edit-form-content">
+            {this.renderApplicationForm()}
+          </div>
+        </LargeEditShell>
       </Card>
     );
   }
 
+  getPreviewThemeColor(): string {
+    return this.state.application.themeData?.colorPrimary || Conf.ThemeDefault.colorPrimary || "#1677ff";
+  }
+
+  getPreviewLogoText(): string {
+    const displayName = String(this.state.application.displayName || this.state.application.name || "A");
+    return displayName.trim().slice(0, 2).toUpperCase();
+  }
+
+  getVisiblePreviewItemLabels(items: LegacyAny, fallbackLabels: string[]): string[] {
+    if (!Array.isArray(items)) {
+      return fallbackLabels;
+    }
+
+    const labels = items
+      .filter((item: LegacyAny) => item?.visible !== false)
+      .map((item: LegacyAny) => item?.displayName || item?.label || item?.name)
+      .filter(Boolean)
+      .map((item: LegacyAny) => String(item));
+
+    return labels.length > 0 ? labels.slice(0, 4) : fallbackLabels;
+  }
+
+  renderStaticPreviewPanel(title: string, actionLabel: string, fields: string[], variant: string): React.ReactNode {
+    const themeColor = this.getPreviewThemeColor();
+    const backgroundUrl = this.state.application.formBackgroundUrl;
+    const backgroundStyle: React.CSSProperties = backgroundUrl ? {
+      backgroundImage: `linear-gradient(135deg, rgba(15, 23, 42, 0.54), rgba(15, 23, 42, 0.18)), url(${backgroundUrl})`,
+    } : {};
+
+    return (
+      <div className={`application-edit-static-preview application-edit-static-preview-${variant}`} style={backgroundStyle}>
+        <div className="application-edit-static-preview-card">
+          <div className="application-edit-static-preview-logo" style={{backgroundColor: themeColor}}>
+            {this.getPreviewLogoText()}
+          </div>
+          <div className="application-edit-static-preview-app-name">
+            {this.state.application.displayName || this.state.application.name}
+          </div>
+          <div className="application-edit-static-preview-title">
+            {title}
+          </div>
+          <div className="application-edit-static-preview-fields">
+            {fields.map((field, index) => (
+              <div className="application-edit-static-preview-field" key={`${variant}-${field}-${index}`}>
+                {field}
+              </div>
+            ))}
+          </div>
+          <div className="application-edit-static-preview-action" style={{backgroundColor: themeColor}}>
+            {actionLabel}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   renderSignupSigninPreview(): React.ReactNode {
-    const themeData = this.state.application.themeData ?? Conf.ThemeDefault;
     let signUpUrl = `/signup/${this.state.application.name}`;
 
     const redirectUris = this.state.application.redirectUris || [];
@@ -1805,14 +1836,21 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
     const clientId = this.state.application.clientId;
     const organizationQuery = this.state.application.isShared ? `&organization=${encodeURIComponent(this.props.account.owner)}` : "";
     const signInUrl = `/login/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${redirectUri}&scope=read&state=aicodex-admin${organizationQuery}`;
-    const maskStyle: React.CSSProperties = {position: "absolute", top: "0px", left: "0px", zIndex: 10, height: "97%", width: "100%", background: "rgba(0,0,0,0.4)"};
     if (!Setting.isPasswordEnabled(this.state.application)) {
       signUpUrl = signInUrl.replace("/login/oauth/authorize", "/signup/oauth/authorize");
     }
+    const signupFields = this.getVisiblePreviewItemLabels(this.state.application.signupItems, [
+      i18next.t("general:Email"),
+      i18next.t("general:Display name"),
+    ]);
+    const signinFields = this.getVisiblePreviewItemLabels(this.state.application.signinItems, [
+      i18next.t("general:Email"),
+      i18next.t("general:Password"),
+    ]);
 
     return (
       <React.Fragment>
-        <Col span={previewGrid}>
+        <Col className="application-edit-preview-column" span={previewGrid}>
           <Button style={{marginBottom: "10px"}} type="primary" shape="round" icon={<CopyOutlined />} onClick={() => {
             copy(`${window.location.origin}${signUpUrl}`);
             Setting.showMessage("success", i18next.t("general:Copied to clipboard successfully"));
@@ -1821,30 +1859,9 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
             {i18next.t("application:Copy signup page URL")}
           </Button>
           <br />
-          <ConfigProvider theme={{
-            token: {
-              colorPrimary: themeData.colorPrimary,
-              colorInfo: themeData.colorPrimary,
-              borderRadius: themeData.borderRadius,
-            },
-          }}>
-            <div style={{position: "relative", width: previewWidth, border: "1px solid rgb(217,217,217)", boxShadow: "10px 10px 5px #888888", overflow: "auto"}}>
-              {
-                Setting.isPasswordEnabled(this.state.application) ? (
-                  <div className="loginBackground" style={{backgroundImage: `url(${this.state.application?.formBackgroundUrl})`, overflow: "auto"}}>
-                    <SignupPage application={this.state.application} preview="auto" />
-                  </div>
-                ) : (
-                  <div className="loginBackground" style={{backgroundImage: `url(${this.state.application?.formBackgroundUrl})`, overflow: "auto"}}>
-                    <LoginPage type={"login"} mode={"signup"} application={this.state.application} preview="auto" />
-                  </div>
-                )
-              }
-              <div style={{overflow: "auto", ...maskStyle}} />
-            </div>
-          </ConfigProvider>
+          {this.renderStaticPreviewPanel(i18next.t("account:Sign Up"), i18next.t("account:Sign Up"), signupFields, "signup")}
         </Col>
-        <Col span={previewGrid}>
+        <Col className="application-edit-preview-column" span={previewGrid}>
           <Button style={{marginBottom: "10px", marginTop: Setting.isMobile() ? "15px" : "0"}} type="primary" shape="round" icon={<CopyOutlined />} onClick={() => {
             copy(`${window.location.origin}${signInUrl}`);
             Setting.showMessage("success", i18next.t("general:Copied to clipboard successfully"));
@@ -1853,31 +1870,25 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
             {i18next.t("application:Copy signin page URL")}
           </Button>
           <br />
-          <ConfigProvider theme={{
-            token: {
-              colorPrimary: themeData.colorPrimary,
-              colorInfo: themeData.colorPrimary,
-              borderRadius: themeData.borderRadius,
-            },
-          }}>
-            <div style={{position: "relative", width: previewWidth, border: "1px solid rgb(217,217,217)", boxShadow: "10px 10px 5px #888888", overflow: "auto"}}>
-              <div className="loginBackground" style={{backgroundImage: `url(${this.state.application?.formBackgroundUrl})`, overflow: "auto"}}>
-                <LoginPage type={"login"} mode={"signin"} application={this.state.application} preview="auto" />
-              </div>
-              <div style={{overflow: "auto", ...maskStyle}} />
-            </div>
-          </ConfigProvider>
+          {this.renderStaticPreviewPanel(i18next.t("login:Sign In"), i18next.t("login:Sign In"), signinFields, "signin")}
         </Col>
       </React.Fragment>
     );
   }
 
   renderPromptPreview(): React.ReactNode {
-    const themeData = this.state.application.themeData ?? Conf.ThemeDefault;
     const promptUrl = `/prompt/${this.state.application.name}`;
-    const maskStyle: React.CSSProperties = {position: "absolute", top: "0px", left: "0px", zIndex: 10, height: "100%", width: "100%", background: "rgba(0,0,0,0.4)"};
+    const promptedProviders = (this.state.application.providers || [])
+      .filter((providerItem: LegacyAny) => Setting.isProviderPrompted(providerItem))
+      .map((providerItem: LegacyAny) => providerItem?.provider?.displayName || providerItem?.provider?.name || providerItem?.name)
+      .filter(Boolean)
+      .map((name: LegacyAny) => String(name));
+    const fields = promptedProviders.length > 0 ? promptedProviders.slice(0, 4) : [
+      i18next.t("application:Binding providers"),
+    ];
+
     return (
-      <Col span={previewGrid}>
+      <Col className="application-edit-preview-column" span={previewGrid}>
         <Button style={{marginBottom: "10px"}} type="primary" shape="round" icon={<CopyOutlined />} onClick={() => {
           copy(`${window.location.origin}${promptUrl}`);
           Setting.showMessage("success", i18next.t("general:Copied to clipboard successfully"));
@@ -1886,61 +1897,140 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
           {i18next.t("application:Copy prompt page URL")}
         </Button>
         <br />
-        <ConfigProvider theme={{
-          token: {
-            colorPrimary: themeData.colorPrimary,
-            colorInfo: themeData.colorPrimary,
-            borderRadius: themeData.borderRadius,
-          },
-        }}>
-          <div style={{position: "relative", width: previewWidth, border: "1px solid rgb(217,217,217)", boxShadow: "10px 10px 5px #888888", flexDirection: "column", flex: "auto"}}>
-            <PromptPage
-              application={this.state.application}
-              account={this.props.account}
-              location={{...this.props.location, search: this.props.location.search ?? ""}}
-              history={this.props.history}
-              onUpdateApplication={() => undefined}
-              onUpdateAccount={() => undefined}
-            />
-            <div style={maskStyle} />
-          </div>
-        </ConfigProvider>
+        {this.renderStaticPreviewPanel(i18next.t("application:Binding providers"), i18next.t("code:Submit and complete"), fields, "prompt")}
       </Col>
     );
   }
 
   submitApplicationEdit(exitAfterSave: boolean): void {
+    if (this.state.submitting) {
+      return;
+    }
+
     const application = Setting.deepCopy(this.state.application);
+    if (!this.validateApplicationBeforeSave(application)) {
+      return;
+    }
+
     application.providers = application.providers?.filter((provider: LegacyAny) => this.state.providers.map(provider => provider.name).includes(provider.name));
     application.signinMethods = application.signinMethods?.filter((signinMethod: LegacyAny) => ["Password", "Verification code", "WebAuthn", "LDAP", "Face ID", "WeChat", "WeCom"].includes(signinMethod.name));
     const customScopeValidation = this.validateCustomScopes(application.customScopes);
     application.customScopes = customScopeValidation.scopes;
     if (!customScopeValidation.ok) {
+      this.setActiveTabKey("oidc-oauth");
       Setting.showMessage("error", `${i18next.t("general:Name")}: ${i18next.t("provider:This field is required")}`);
       return;
     }
 
+    this.setState({submitting: true});
     ApplicationBackend.updateApplication("admin", this.state.applicationName, application)
       .then((res: BackendResponse<ApplicationRecord>) => {
         if (res.status === "ok") {
           Setting.showMessage("success", i18next.t("general:Successfully saved"));
           this.setState({
-            applicationName: this.state.application.name,
+            applicationName: application.name,
+            dirty: false,
+            submitting: false,
+            fieldErrors: {},
           });
 
           if (exitAfterSave) {
             this.props.history.push("/applications");
           } else {
-            this.props.history.push(`/applications/${this.state.application.organization}/${this.state.application.name}`);
+            this.props.history.push(`/applications/${application.organization}/${application.name}`);
           }
         } else {
           Setting.showMessage("error", `${i18next.t("general:Failed to save")}: ${res.msg}`);
-          this.updateApplicationField("name", this.state.applicationName);
+          this.setState(state => ({
+            application: {
+              ...state.application,
+              name: state.applicationName,
+            },
+            submitting: false,
+          }));
         }
       })
       .catch((error: LegacyAny) => {
+        this.setState({submitting: false});
         Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
       });
+  }
+
+  validateApplicationBeforeSave(application: ApplicationRecord): boolean {
+    const requiredError = i18next.t("provider:This field is required");
+    const fieldErrors: Record<string, string> = {};
+    if (!`${application.name ?? ""}`.trim()) {
+      fieldErrors.name = requiredError;
+    }
+    if (!`${application.displayName ?? ""}`.trim()) {
+      fieldErrors.displayName = requiredError;
+    }
+
+    if (Object.keys(fieldErrors).length === 0) {
+      this.setState({fieldErrors: {}});
+      return true;
+    }
+
+    this.setActiveTabKey("basic");
+    this.setState({fieldErrors});
+    const firstErrorLabel = fieldErrors.name ? i18next.t("general:Name") : i18next.t("general:Display name");
+    Setting.showMessage("error", `${firstErrorLabel}: ${requiredError}`);
+    return false;
+  }
+
+  confirmDiscardChanges(onConfirm: () => void): void {
+    if (!this.state.dirty) {
+      onConfirm();
+      return;
+    }
+
+    Modal.confirm({
+      title: i18next.t("application:Unsaved changes"),
+      content: i18next.t("application:Discard unsaved changes confirmation"),
+      okText: i18next.t("general:OK"),
+      cancelText: i18next.t("general:Cancel"),
+      onOk: onConfirm,
+    });
+  }
+
+  returnToApplicationList(): void {
+    this.props.history.push("/applications");
+  }
+
+  handleBack(): void {
+    this.confirmDiscardChanges(() => {
+      if (this.state.mode === "add") {
+        this.deleteApplication();
+        return;
+      }
+
+      this.returnToApplicationList();
+    });
+  }
+
+  handleCancel(): void {
+    this.confirmDiscardChanges(() => {
+      if (this.state.mode === "add") {
+        this.deleteApplication();
+        return;
+      }
+
+      this.returnToApplicationList();
+    });
+  }
+
+  getApplicationEditTitle(): string {
+    return this.state.mode === "add" ? i18next.t("application:New Application") : i18next.t("application:Edit Application");
+  }
+
+  renderEditFooter(): React.ReactNode {
+    return (
+      <React.Fragment>
+        <Button disabled={this.state.submitting} onClick={() => this.handleCancel()}>{i18next.t("general:Cancel")}</Button>
+        <Button type="primary" loading={this.state.submitting} onClick={() => this.submitApplicationEdit(false)}>{i18next.t("general:Save")}</Button>
+        <Button disabled={this.state.submitting} onClick={() => this.submitApplicationEdit(true)}>{i18next.t("application:Save and return")}</Button>
+      </React.Fragment>
+    );
   }
 
   deleteApplication(): void {

@@ -274,7 +274,7 @@ function PaginateSelect(props: LegacyAny) {
       notFoundContent={mergedNotFound}
       onSearch={showSearch ? handleSearch : undefined}
       onPopupScroll={handlePopupScroll}
-      dropdownMatchSelectWidth={dropdownMatchSelectWidth}
+      popupMatchSelectWidth={dropdownMatchSelectWidth}
     />
   );
 }

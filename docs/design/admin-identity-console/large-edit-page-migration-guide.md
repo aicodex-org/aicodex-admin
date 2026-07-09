@@ -59,6 +59,7 @@ EditPage
 - 表格标题放在表格 title/toolbar 左侧，操作按钮放右侧。
 - 标题字号和正文保持克制，通常 12px、500 字重即可。
 - 表格宽度按信息量控制，不默认全屏铺开。
+- 列很多的配置表可以保留表内横向滚动，但行内操作列应固定在右侧，避免管理员需要先横向滚动才能找到上移、下移、删除等常用操作。
 - 操作列的 icon-only 按钮必须有 Tooltip 和 `aria-label`。
 - 删除、移除类动作必须有确认；如果底部保存才生效，文案用“移除”比“删除”更准确。
 - 禁用按钮必须说明原因，例如“最多支持 4 种认证方式，移除后可继续添加”。
@@ -114,6 +115,17 @@ EditPage
 - Kerberos 表单可以两列输入 + 大文本域，但 `keytab` 是否应该是上传文件需要按业务再确认。
 - 表格状态避免中英混杂，例如 `Disable` 应本地化为“禁用”。
 
+### 应用
+
+- 应用编辑页属于多 tab 大编辑页，和组织、用户更接近，不应套用群组、角色这类单页正文形态。
+- 应用页正文可以保留业务 tab 的原始语义，但壳层必须复用同一套返回、路径、tabs、滚动正文和底部操作栏。
+- OIDC/OAuth、SAML、Provider 绑定、Reverse Proxy 这类宽配置表优先保证列语义和可读性。必要时保留表内横向滚动，不要为了消除横滚强行压缩列宽。
+- 通用 URL 表如果复用于不同业务字段，要允许覆盖列名。`其他域名` 不应继续显示“重定向 URL”这种来自 Redirect URI 场景的列名。
+- 界面定制 tab 不要直接嵌入有登录、授权或 Prompt 副作用的运行时页面作为预览。编辑页内优先使用静态只读预览，避免触发 OAuthWidget、登录态检查、callback 或白屏。
+- 应用页里的技术专有名词可以保留英文，例如 `OIDC/OAuth`、`SAML`、`Reverse Proxy`、`Token`、`Client`；但 `Other domains`、`Upstream host`、`SSL cert` 这类后台字段仍应补齐 zh/en locale，不能落成占位英文。
+- Provider 目标组织、允许组织、API 映射等字段有真实认证语义。样式迁移只整理呈现和校验定位，不顺手改变保存 payload 或运行时解析规则。
+- Provider logo 可能是透明底深色图标，暗色表格内需要浅色徽标容器或等价 fallback；不要直接渲染空 `src` 或让黑色图标贴在暗色单元格上。
+
 ## 已踩坑
 
 - Tooltip 包住禁用控件后，控件可能塌宽。需要 wrapper `display: block; width: 100%`，并给内部 Select/InputNumber 显式宽度。
@@ -144,7 +156,7 @@ EditPage
 
 ## 后续页面迁移约定
 
-后续继续改造应用、Provider、Syncer、证书、密钥等编辑页时，先沿用当前编辑页 contract，不要先做新的视觉抽象。
+后续继续改造 Provider、Syncer、证书、密钥等编辑页时，先沿用当前编辑页 contract，不要先做新的视觉抽象。
 
 ### 壳层 contract
 
@@ -158,7 +170,7 @@ EditPage
 
 当前稳定边界如下：
 
-- 多 tab 编辑页：组织、用户。它们有多个相对独立的配置域，适合显示 tabs，并通过 hash 记住当前 tab。
+- 多 tab 编辑页：组织、用户、应用。它们有多个相对独立的配置域，适合显示 tabs，并通过 hash 记住当前 tab。
 - 单 tab 编辑页：群组、角色。它们字段和表格较少，适合直接在正文中分区，不需要为了形式统一渲染一个“单独 tab”。
 - 两类页面应共用同一套编辑壳：返回、路径、标题、脏状态、滚动正文和底部操作栏一致。
 - 两类页面的差异只体现在 `LargeEditShell` 的 `tabs` 插槽是否传入，以及正文内部是 tab 面板还是单页分区。
@@ -170,14 +182,19 @@ EditPage
 - `web-admin/src/styles/large-edit-pages.less` 当前定位为“编辑页样式集合”，不是纯公共壳文件。里面出现 `.organization-edit-*`、`.user-edit-*` 等页面作用域 selector 是合理的。
 - 不要为了“公共文件里不能有业务 selector”而重命名 `.organization-edit-page`、`.user-edit-page` 等类名。它们是页面作用域边界，能防止 AntD 覆盖样式外溢。
 - 新增页面正文样式必须挂在 `.xxx-edit-page` 下；避免裸写 `.ant-form-item`、`.ant-table`、`.ant-btn`。
+- 已迁移编辑页挂到 `admin-shell-route-scroll-without-card` 时，`padding: 0` 和页面根节点 `flex: 1 1 auto` 属于公共壳层挂载 contract，后续新增页面应并入同一组 selector，不要每页复制一段。
+- tab 正文里可稳定复用的呈现骨架应优先挂公共 class：`admin-large-edit-form-content`、`admin-large-edit-content-section-title`、`admin-large-edit-full-width-row`、`admin-large-edit-form-content .ant-table-*` 和 `admin-large-edit-form-content .ant-btn-sm`。页面私有 class 只补业务特例。
+- 字段 label、legacy Row/Col 首列 label、单 tab 身份对象页 label 统一引用 `--admin-large-edit-label-color`；不要在新迁移页里重新硬编码深灰或次级灰，避免组织、用户、应用、群组、角色、权限之间出现黑/灰不一致。
+- 页面 root、card、card body、移动端 root/card、暗色表单控件状态、字段 grid、字段 row、宽字段 row、section 标题、标题 marker、字段 label、必填星号、冒号、字段 control、字段错误、legacy Row/Col 首列 label 这类同语义同视觉原子应通过 `admin-large-edit-*-base()` LESS mixin 收敛，并保留页面 selector 作为作用域边界。
+- 表格标题工具栏、标题文字、标题帮助图标、focus ring、toolbar 小按钮、行内小操作按钮和 icon-only 操作按钮也属于可复用样式原子，应优先使用 `admin-large-edit-table-*` / `admin-large-edit-*-action-*` mixin；业务列宽、树、LDAP、账号资料等内部结构继续保留页面局部样式。
 - 特例布局优先使用 section 或 item 级 class，例如 `user-edit-section-password-authentication`，不要把单个字段问题升级成全局规则。
-- 后续只有当 2-3 个新迁移页面出现稳定重复时，再抽公共变量、mixin 或组件；不要基于一个页面提前抽象。
+- 组织 LDAP、导航树、应用静态预览、账号资料表格、权限规则表格等业务特例不要硬抽成公共 mixin 或公共组件；后续只有当 2-3 个新迁移页面出现稳定重复时，再抽新的公共变量、mixin 或组件。已有公共正文 class 可以直接复用，不需要每个页面重新微调。
 
 ### 迁移步骤建议
 
 1. 先接入页面根 class、`LargeEditShell`、底部操作栏和脏数据确认，确保壳层行为一致。
 2. 再迁移 tabs 或单 tab 正文，先保留原字段语义和保存 payload，不在样式迁移中顺手改业务。
-3. 给页面正文建立 `.xxx-edit-page` 作用域，迁移表单网格、区块标题、表格 toolbar 和移动端规则。
+3. 给页面正文建立 `.xxx-edit-page` 作用域，并优先挂公共正文 class，迁移表单网格、区块标题、表格 toolbar 和移动端规则。
 4. 对表格模块统一处理标题、右上操作、空态、行内小按钮、Tooltip、`aria-label` 和删除确认。
 5. 用浏览器检查每个 tab 的首屏、滚动尾部、空态、长文本、禁用态和暗色主题；发现页面特例时先写局部 class。
 6. 最后再评估是否有真实重复值得沉淀为公共配置。

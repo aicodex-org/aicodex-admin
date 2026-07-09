@@ -14,7 +14,7 @@
 
 import React from "react";
 import {DeleteOutlined, DownOutlined, UpOutlined} from "@ant-design/icons";
-import {Button, Col, Input, Row, Select, Table, Tooltip} from "antd";
+import {Button, Input, Popconfirm, Select, Table, Tooltip} from "antd";
 import * as Setting from "../Setting";
 import i18next from "i18next";
 type LegacyAny = import("../types/legacyPage").LegacyAny;
@@ -65,6 +65,24 @@ class TokenAttributeTable extends React.Component<LegacyAny, LegacyAny> {
   downRow(table: LegacyAny, i: number) {
     table = Setting.swapRow(table, i, i + 1);
     this.updateTable(table);
+  }
+
+  getTableDataSource(table: LegacyAny) {
+    if (!Array.isArray(table)) {
+      return [];
+    }
+
+    return table.map((row: LegacyAny, index: number) => ({
+      ...row,
+      __uiKey: [
+        "token-attribute",
+        index,
+        row?.name ?? "",
+        row?.category ?? "",
+        row?.value ?? "",
+        row?.type ?? "",
+      ].join(":"),
+    }));
   }
 
   renderTable(table: LegacyAny) {
@@ -165,13 +183,20 @@ class TokenAttributeTable extends React.Component<LegacyAny, LegacyAny> {
           return (
             <div>
               <Tooltip placement="bottomLeft" title={t("general:Up")}>
-                <Button style={{marginRight: "5px"}} disabled={index === 0} icon={<UpOutlined />} size="small" onClick={() => this.upRow(table, index)} />
+                <Button aria-label={t("general:Up")} style={{marginRight: "5px"}} disabled={index === 0} icon={<UpOutlined />} size="small" onClick={() => this.upRow(table, index)} />
               </Tooltip>
               <Tooltip placement="topLeft" title={t("general:Down")}>
-                <Button style={{marginRight: "5px"}} disabled={index === table.length - 1} icon={<DownOutlined />} size="small" onClick={() => this.downRow(table, index)} />
+                <Button aria-label={t("general:Down")} style={{marginRight: "5px"}} disabled={index === table.length - 1} icon={<DownOutlined />} size="small" onClick={() => this.downRow(table, index)} />
               </Tooltip>
               <Tooltip placement="topLeft" title={t("general:Delete")}>
-                <Button icon={<DeleteOutlined />} size="small" onClick={() => this.deleteRow(table, index)} />
+                <Popconfirm
+                  title={`${t("general:Sure to delete")} ?`}
+                  okText={t("general:OK")}
+                  cancelText={t("general:Cancel")}
+                  onConfirm={() => this.deleteRow(table, index)}
+                >
+                  <Button aria-label={t("general:Delete")} icon={<DeleteOutlined />} size="small" />
+                </Popconfirm>
               </Tooltip>
             </div>
           );
@@ -181,11 +206,12 @@ class TokenAttributeTable extends React.Component<LegacyAny, LegacyAny> {
 
     return (
       <Table title={() => (
-        <div>
+        <div className="organization-config-table-toolbar">
+          <span className="organization-config-table-title">{this.props.title}</span>
           <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={() => this.addRow(table)}>{t("general:Add")}</Button>
         </div>
       )}
-      columns={columns} dataSource={table} rowKey="key" size="middle" bordered
+      columns={columns} dataSource={this.getTableDataSource(table)} rowKey="__uiKey" size="middle" bordered
       />
     );
   }
@@ -193,13 +219,7 @@ class TokenAttributeTable extends React.Component<LegacyAny, LegacyAny> {
   render() {
     return (
       <div>
-        <Row style={{marginTop: "20px"}} >
-          <Col span={24}>
-            {
-              this.renderTable(this.props.table)
-            }
-          </Col>
-        </Row>
+        {this.renderTable(this.props.table)}
       </div>
     );
   }

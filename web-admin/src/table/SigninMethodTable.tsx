@@ -14,7 +14,7 @@
 
 import React from "react";
 import {DeleteOutlined, DownOutlined, UpOutlined} from "@ant-design/icons";
-import {Button, Col, Input, Row, Select, Table, Tooltip} from "antd";
+import {Button, Input, Select, Table, Tooltip} from "antd";
 import * as Setting from "../Setting";
 import i18nextLib from "i18next";
 
@@ -92,6 +92,7 @@ class SigninMethodTable extends React.Component<SigninMethodTableProps, SigninMe
         title: i18next.t("general:Name"),
         dataIndex: "name",
         key: "name",
+        width: 300,
         render: (text, record, index) => {
           const getItemDisplayName = (text: string) => {
             const item = items.filter(item => item.name === text);
@@ -126,7 +127,7 @@ class SigninMethodTable extends React.Component<SigninMethodTableProps, SigninMe
         title: i18next.t("general:Display name"),
         dataIndex: "displayName",
         key: "displayName",
-        width: "300px",
+        width: 300,
         render: (text, record, index) => {
           return (
             <Input value={text} onChange={e => {
@@ -139,7 +140,7 @@ class SigninMethodTable extends React.Component<SigninMethodTableProps, SigninMe
         title: i18next.t("application:Rule"),
         dataIndex: "rule",
         key: "rule",
-        width: "155px",
+        width: 160,
         render: (text, record, index) => {
           let options: LegacyAny[] = [];
           if (record.name === "Verification code") {
@@ -175,7 +176,7 @@ class SigninMethodTable extends React.Component<SigninMethodTableProps, SigninMe
       {
         title: i18next.t("general:Action"),
         key: "action",
-        width: "100px",
+        width: 112,
         render: (text, record, index) => {
           return (
             <div>
@@ -195,10 +196,10 @@ class SigninMethodTable extends React.Component<SigninMethodTableProps, SigninMe
     ];
 
     return (
-      <Table scroll={{x: "max-content"}} rowKey="name" columns={columns} dataSource={table} size="middle" bordered pagination={false}
+      <Table className="application-edit-ui-table application-edit-ui-table-control application-edit-ui-table-signin-method" scroll={{x: 900}} tableLayout="fixed" rowKey="name" columns={columns} dataSource={table} size="middle" bordered pagination={false}
         title={() => (
-          <div>
-            {this.props.title}&nbsp;&nbsp;&nbsp;&nbsp;
+          <div className="organization-config-table-toolbar">
+            <span className="organization-config-table-title">{this.props.title}</span>
             <Button style={{marginRight: "5px"}} type="primary" size="small" disabled={Setting.getDeduplicatedArray(items, table, "name").length === 0} onClick={() => this.addRow(table)}>{i18next.t("general:Add")}</Button>
           </div>
         )}
@@ -209,13 +210,7 @@ class SigninMethodTable extends React.Component<SigninMethodTableProps, SigninMe
   render() {
     return (
       <div>
-        <Row style={{marginTop: "20px"}}>
-          <Col span={24}>
-            {
-              this.renderTable(this.props.table ?? [])
-            }
-          </Col>
-        </Row>
+        {this.renderTable(this.props.table ?? [])}
       </div>
     );
   }

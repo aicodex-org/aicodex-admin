@@ -1,7 +1,7 @@
 import React from "react";
-import {QuestionCircleOutlined} from "@ant-design/icons";
-import {Alert, Select, Space, Table, Tag, Tooltip, Typography} from "antd";
+import {Alert, Select, Space, Table, Tag, Typography} from "antd";
 import i18next from "i18next";
+import * as Setting from "./Setting";
 
 type ProviderCategory = "OAuth" | "Web3" | "SAML" | string;
 
@@ -44,7 +44,6 @@ type Props = {
 };
 
 const loginProviderCategories = new Set(["OAuth", "Web3", "SAML"]);
-const helpIconStyle = {color: "#1677ff", cursor: "help"};
 
 function normalizeText(value?: string): string {
   return (value || "").trim();
@@ -174,16 +173,9 @@ const ApplicationIdentitySourceBindings = ({application, providers = [], organiz
               ),
             },
             {
-              title: (
-                <Space size={4}>
-                  <span>{t("application:Target organization", "目标组织")}</span>
-                  <Tooltip title={t(
-                    "application:Target organization - Tooltip",
-                    "显式指定该 Provider 登录时查找用户的组织。"
-                  )}>
-                    <QuestionCircleOutlined style={helpIconStyle} />
-                  </Tooltip>
-                </Space>
+              title: Setting.getLabel(
+                t("application:Target organization", "目标组织"),
+                t("application:Target organization - Tooltip", "显式指定该 Provider 登录时查找用户的组织。")
               ),
               dataIndex: "targetOrganization",
               key: "targetOrganization",
@@ -213,16 +205,9 @@ const ApplicationIdentitySourceBindings = ({application, providers = [], organiz
               ),
             },
             {
-              title: (
-                <Space size={4}>
-                  <span>{t("application:Effective organization", "生效组织")}</span>
-                  <Tooltip title={t(
-                    "application:Effective organization - Tooltip",
-                    "实际用于匹配用户的组织；未配置时 Provider 登录会失败。"
-                  )}>
-                    <QuestionCircleOutlined style={helpIconStyle} />
-                  </Tooltip>
-                </Space>
+              title: Setting.getLabel(
+                t("application:Effective organization", "生效组织"),
+                t("application:Effective organization - Tooltip", "实际用于匹配用户的组织；未配置时 Provider 登录会失败。")
               ),
               dataIndex: "effectiveOrganization",
               key: "effectiveOrganization",

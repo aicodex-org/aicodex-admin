@@ -49,7 +49,7 @@ export const CountryCodeSelect = (props: LegacyAny) => {
       disabled={disabled}
       value={value}
       mode={mode}
-      dropdownMatchSelectWidth={false}
+      popupMatchSelectWidth={false}
       optionLabelProp={"label"}
       onChange={handleOnChange}
       filterOption={(input: string, option: LegacyAny) => (option?.text ?? "").toLowerCase().includes(input.toLowerCase())}

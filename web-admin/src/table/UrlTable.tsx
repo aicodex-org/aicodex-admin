@@ -14,7 +14,7 @@
 
 import React from "react";
 import {DeleteOutlined, DownOutlined, LinkOutlined, UpOutlined} from "@ant-design/icons";
-import {Button, Col, Input, Row, Table, Tooltip} from "antd";
+import {Button, Input, Popconfirm, Table, Tooltip} from "antd";
 import * as Setting from "../Setting";
 import i18next from "i18next";
 type LegacyAny = import("../types/legacyPage").LegacyAny;
@@ -69,7 +69,7 @@ class UrlTable extends React.Component<LegacyAny, LegacyAny> {
 
     const columns = [
       {
-        title: t("application:Redirect URL"),
+        title: this.props.columnTitle ?? t("application:Redirect URL"),
         dataIndex: "id",
         key: "id",
         render: (text: LegacyAny, record: LegacyAny, index: number) => {
@@ -88,13 +88,20 @@ class UrlTable extends React.Component<LegacyAny, LegacyAny> {
           return (
             <div>
               <Tooltip placement="bottomLeft" title={t("general:Up")}>
-                <Button style={{marginRight: "5px"}} disabled={index === 0} icon={<UpOutlined />} size="small" onClick={() => this.upRow(table, index)} />
+                <Button aria-label={t("general:Up")} style={{marginRight: "5px"}} disabled={index === 0} icon={<UpOutlined />} size="small" onClick={() => this.upRow(table, index)} />
               </Tooltip>
               <Tooltip placement="topLeft" title={t("general:Down")}>
-                <Button style={{marginRight: "5px"}} disabled={index === table.length - 1} icon={<DownOutlined />} size="small" onClick={() => this.downRow(table, index)} />
+                <Button aria-label={t("general:Down")} style={{marginRight: "5px"}} disabled={index === table.length - 1} icon={<DownOutlined />} size="small" onClick={() => this.downRow(table, index)} />
               </Tooltip>
               <Tooltip placement="topLeft" title={t("general:Delete")}>
-                <Button icon={<DeleteOutlined />} size="small" onClick={() => this.deleteRow(table, index)} />
+                <Popconfirm
+                  title={`${t("general:Sure to delete")} ?`}
+                  okText={t("general:OK")}
+                  cancelText={t("general:Cancel")}
+                  onConfirm={() => this.deleteRow(table, index)}
+                >
+                  <Button aria-label={t("general:Delete")} icon={<DeleteOutlined />} size="small" />
+                </Popconfirm>
               </Tooltip>
             </div>
           );
@@ -105,8 +112,8 @@ class UrlTable extends React.Component<LegacyAny, LegacyAny> {
     return (
       <Table rowKey="index" columns={columns} dataSource={table.map((row: LegacyAny, i: number) => ({id: row, index: i}))} size="middle" bordered pagination={false}
         title={() => (
-          <div>
-            {this.props.title}&nbsp;&nbsp;&nbsp;&nbsp;
+          <div className="organization-config-table-toolbar">
+            <span className="organization-config-table-title">{this.props.title}</span>
             <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={() => this.addRow(table)}>{t("general:Add")}</Button>
           </div>
         )}
@@ -117,13 +124,7 @@ class UrlTable extends React.Component<LegacyAny, LegacyAny> {
   render() {
     return (
       <div>
-        <Row style={{marginTop: "20px"}} >
-          <Col span={24}>
-            {
-              this.renderTable(this.props.table)
-            }
-          </Col>
-        </Row>
+        {this.renderTable(this.props.table)}
       </div>
     );
   }

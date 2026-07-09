@@ -25,15 +25,20 @@ describe("identity object edit form layout", () => {
 
       expect(
         source.includes(`admin-identity-object-edit-page ${pageClass}`) ||
-        source.includes(`identity-object-edit-page ${pageClass}`)
+        source.includes(`identity-object-edit-page ${pageClass}`) ||
+        source.includes(`admin-large-edit-page ${pageClass}`)
       ).toBe(true);
       expect(
         source.includes(`admin-identity-object-edit-card ${cardClass}`) ||
-        source.includes(`identity-object-edit-card ${cardClass}`)
+        source.includes(`identity-object-edit-card ${cardClass}`) ||
+        source.includes(`admin-large-edit-card ${cardClass}`) ||
+        source.includes(`className="${cardClass}"`)
       ).toBe(true);
       expect(
         source.includes("admin-identity-object-edit-field-row") ||
-        source.includes("identity-object-edit-field-row")
+        source.includes("identity-object-edit-field-row") ||
+        source.includes("admin-large-edit-field-row") ||
+        source.includes("LargeEditFieldRow")
       ).toBe(true);
     });
   });
