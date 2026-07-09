@@ -194,7 +194,7 @@ async function flushMicrotasks() {
 }
 
 test("renders localized WeCom organization sync configuration entry", async() => {
-  render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+  const {container} = render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
   expect(await screen.findByText("企业微信组织架构同步")).toBeInTheDocument();
   expect(screen.getByAltText("WeCom provider logo")).toHaveAttribute("src", expect.stringContaining("/img/social_wecom.png"));
@@ -213,6 +213,11 @@ test("renders localized WeCom organization sync configuration entry", async() =>
   expect(screen.queryByText("时区")).not.toBeInTheDocument();
   expect(screen.getByText("通讯录读取权限要求")).toBeInTheDocument();
   expect(screen.getByText("开始全量同步")).toBeInTheDocument();
+  const permissionAlert = container.querySelector(".organization-sync-permission-alert");
+  const permissionAlertRow = permissionAlert?.closest(".organization-sync-permission-alert-row");
+  expect(permissionAlert).not.toBeNull();
+  expect(permissionAlertRow).not.toBeNull();
+  expect(permissionAlertRow?.classList.contains("ant-col-24")).toBe(true);
   expect(Setting.showMessage).not.toHaveBeenCalled();
 });
 

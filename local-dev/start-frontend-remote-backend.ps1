@@ -4,25 +4,92 @@
 
 .DESCRIPTION
   这个脚本用于只验证前端 UI 的场景。它不会启动 Go 后端，也不会读取
-  local-dev/runtime.toml。前端端口和后台地址都显式传入，方便同一项目
-  同时启动多个本地前端预览实例。
+  local-dev/runtime.toml。
+
+  推荐把个人私有配置放在 local-dev/.env：
+    AICODEX_ADMIN_FRONTEND_PORT=7003
+    AICODEX_ADMIN_DEV_PROXY_TARGET=http://<60-test-backend>:18080
+    AICODEX_ADMIN_BACKEND_HEALTH_PATH=/api/get-account
+
+  local-dev/.env 已被 git 忽略，适合保存本机测试后台地址。仓库只提交
+  local-dev/.env.example。配置优先级为：
+    1. 命令行参数，例如 -Port、-BackendUrl、-BackendHealthPath
+    2. local-dev/.env
+    3. 当前 PowerShell 进程环境变量
+    4. 脚本默认值
+
+  常用用法速查：
+    .\local-dev\start-frontend-remote-backend.ps1 restart
+      使用 local-dev/.env 启动或重启本地前端。
+
+    .\local-dev\start-frontend-remote-backend.ps1 restart -Port 7003
+      显式指定前端端口，后台地址仍使用 local-dev/.env。
+
+    .\local-dev\start-frontend-remote-backend.ps1 restart -Port 7003 -BackendUrl "http://<test-backend>:18080"
+      临时覆盖后台地址，端口仍使用 local-dev/.env。
+
+    .\local-dev\start-frontend-remote-backend.ps1 status
+      查看当前端口、PID、日志文件和脱敏后的代理目标。
+
+    .\local-dev\start-frontend-remote-backend.ps1 logs -Follow
+      持续查看本地前端编译日志。
+
+    .\local-dev\start-frontend-remote-backend.ps1 stop
+      只停止当前 workspace 由本脚本管理的本地前端进程。
 
 .PARAMETER Action
   start/stop/restart/status/logs。默认 status，避免误启动或误停止。
 
 .PARAMETER Port
-  本地前端开发服务器端口。默认 7002。
+  本地前端开发服务器端口。默认 7003；也可在 local-dev/.env 中设置
+  AICODEX_ADMIN_FRONTEND_PORT。
 
 .PARAMETER BackendUrl
-  远端后台基础地址。start/restart 时必须传入，除非当前进程已经设置
-  AICODEX_ADMIN_DEV_PROXY_TARGET 或 AICODEX_ADMIN_PROXY_TARGET。
+  远端后台基础地址。start/restart 时必须通过参数、local-dev/.env、
+  AICODEX_ADMIN_DEV_PROXY_TARGET 或 AICODEX_ADMIN_PROXY_TARGET 提供。
 
 .PARAMETER BackendHealthPath
   用于确认目标后台的轻量 JSON 接口。默认 /api/get-account；脚本不会把
-  这个路径和完整后台私有地址一起打印。
+  这个路径和完整后台私有地址一起打印。也可在 local-dev/.env 中设置
+  AICODEX_ADMIN_BACKEND_HEALTH_PATH。
 
 .PARAMETER DryRun
   只解析启动命令和环境变量，不启动或停止进程。
+
+.EXAMPLE
+  .\local-dev\start-frontend-remote-backend.ps1 restart
+
+  使用 local-dev/.env 里的端口和后台地址启动。适合日常手动启动。
+
+.EXAMPLE
+  .\local-dev\start-frontend-remote-backend.ps1 restart -Port 7003
+
+  显式指定本地前端端口；后台地址仍读取 local-dev/.env。
+
+.EXAMPLE
+  .\local-dev\start-frontend-remote-backend.ps1 restart -Port 7003 -BackendUrl "http://<test-backend>:18080"
+
+  同时显式指定本地端口和后台地址。
+
+.EXAMPLE
+  .\local-dev\start-frontend-remote-backend.ps1 restart -DryRun
+
+  只解析最终启动命令，验证 local-dev/.env 和命令行参数是否生效，不启动或停止进程。
+
+.EXAMPLE
+  .\local-dev\start-frontend-remote-backend.ps1 status
+
+  查看当前实例状态、PID、日志路径和脱敏后的代理目标。
+
+.EXAMPLE
+  .\local-dev\start-frontend-remote-backend.ps1 logs -Follow
+
+  持续查看本地前端日志；退出查看可按 Ctrl+C。
+
+.EXAMPLE
+  .\local-dev\start-frontend-remote-backend.ps1 stop
+
+  停止当前端口对应且可归因到本 workspace 的前端进程。
 #>
 
 param(
@@ -31,7 +98,7 @@ param(
   [string]$Action = 'status',
 
   [ValidateRange(1, 65535)]
-  [int]$Port = 7002,
+  [int]$Port = 7003,
 
   [string]$BackendUrl = '',
   [string]$BackendHealthPath = '/api/get-account',
@@ -51,8 +118,144 @@ $ScriptCompleted = $false
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $WebDir = Join-Path $RepoRoot 'web-admin'
+$EnvFile = Join-Path $PSScriptRoot '.env'
 $RunDir = Join-Path $PSScriptRoot 'run'
 $LogDir = Join-Path $PSScriptRoot 'logs'
+
+function Read-LocalEnvFile {
+  param([string]$Path)
+
+  $values = @{}
+  if (-not (Test-Path -LiteralPath $Path)) {
+    return $values
+  }
+
+  $lineNumber = 0
+  foreach ($line in Get-Content -LiteralPath $Path) {
+    $lineNumber++
+    $trimmed = $line.Trim()
+    if ($trimmed -eq '' -or $trimmed.StartsWith('#')) {
+      continue
+    }
+    if ($trimmed.StartsWith('export ')) {
+      $trimmed = $trimmed.Substring(7).Trim()
+    }
+
+    $separatorIndex = $trimmed.IndexOf('=')
+    if ($separatorIndex -lt 1) {
+      throw ("{0}:{1}: expected KEY=VALUE" -f $Path, $lineNumber)
+    }
+
+    $key = $trimmed.Substring(0, $separatorIndex).Trim()
+    if ($key -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') {
+      throw ("{0}:{1}: invalid environment variable name '{2}'" -f $Path, $lineNumber, $key)
+    }
+
+    $value = $trimmed.Substring($separatorIndex + 1).Trim()
+    if (($value.StartsWith('"') -and $value.EndsWith('"')) -or ($value.StartsWith("'") -and $value.EndsWith("'"))) {
+      $value = $value.Substring(1, $value.Length - 2)
+    }
+    $values[$key] = $value
+  }
+
+  return $values
+}
+
+function Get-LocalEnvValue {
+  param(
+    [hashtable]$Values,
+    [string[]]$Names
+  )
+
+  foreach ($name in $Names) {
+    if ($Values.ContainsKey($name) -and -not [string]::IsNullOrWhiteSpace([string]$Values[$name])) {
+      return [string]$Values[$name]
+    }
+  }
+  return ''
+}
+
+function Get-ProcessEnvValue {
+  param(
+    [string[]]$Names
+  )
+
+  foreach ($name in $Names) {
+    $value = [Environment]::GetEnvironmentVariable($name, 'Process')
+    if (-not [string]::IsNullOrWhiteSpace($value)) {
+      return $value
+    }
+  }
+  return ''
+}
+
+function Resolve-IntegerRangeValue {
+  param(
+    [string]$Value,
+    [string]$Source,
+    [int]$Min,
+    [int]$Max
+  )
+
+  $resolvedValue = 0
+  if (-not [int]::TryParse($Value, [ref]$resolvedValue) -or $resolvedValue -lt $Min -or $resolvedValue -gt $Max) {
+    throw ("{0} must be an integer between {1} and {2}." -f $Source, $Min, $Max)
+  }
+  return $resolvedValue
+}
+
+$LocalEnv = Read-LocalEnvFile -Path $EnvFile
+
+if (-not $PSBoundParameters.ContainsKey('Port')) {
+  $envPort = Get-LocalEnvValue -Values $LocalEnv -Names @('AICODEX_ADMIN_FRONTEND_PORT', 'FRONTEND_PORT', 'PORT')
+  if ([string]::IsNullOrWhiteSpace($envPort)) {
+    $envPort = Get-ProcessEnvValue -Names @('AICODEX_ADMIN_FRONTEND_PORT', 'FRONTEND_PORT', 'PORT')
+  }
+  if (-not [string]::IsNullOrWhiteSpace($envPort)) {
+    $Port = Resolve-IntegerRangeValue -Value $envPort -Source 'AICODEX_ADMIN_FRONTEND_PORT' -Min 1 -Max 65535
+  }
+}
+
+if ((-not $PSBoundParameters.ContainsKey('BackendUrl')) -or [string]::IsNullOrWhiteSpace($BackendUrl)) {
+  $envBackendUrl = Get-LocalEnvValue -Values $LocalEnv -Names @('AICODEX_ADMIN_DEV_PROXY_TARGET', 'AICODEX_ADMIN_PROXY_TARGET', 'BACKEND_URL')
+  if ([string]::IsNullOrWhiteSpace($envBackendUrl)) {
+    $envBackendUrl = Get-ProcessEnvValue -Names @('AICODEX_ADMIN_DEV_PROXY_TARGET', 'AICODEX_ADMIN_PROXY_TARGET', 'BACKEND_URL')
+  }
+  if (-not [string]::IsNullOrWhiteSpace($envBackendUrl)) {
+    $BackendUrl = $envBackendUrl
+  }
+}
+
+if (-not $PSBoundParameters.ContainsKey('BackendHealthPath')) {
+  $envBackendHealthPath = Get-LocalEnvValue -Values $LocalEnv -Names @('AICODEX_ADMIN_BACKEND_HEALTH_PATH', 'BACKEND_HEALTH_PATH')
+  if ([string]::IsNullOrWhiteSpace($envBackendHealthPath)) {
+    $envBackendHealthPath = Get-ProcessEnvValue -Names @('AICODEX_ADMIN_BACKEND_HEALTH_PATH', 'BACKEND_HEALTH_PATH')
+  }
+  if (-not [string]::IsNullOrWhiteSpace($envBackendHealthPath)) {
+    $BackendHealthPath = $envBackendHealthPath
+  }
+}
+
+if (-not $PSBoundParameters.ContainsKey('WebWaitSeconds')) {
+  $envWebWaitSeconds = Get-LocalEnvValue -Values $LocalEnv -Names @('AICODEX_ADMIN_FRONTEND_WAIT_SECONDS', 'WEB_WAIT_SECONDS')
+  if ([string]::IsNullOrWhiteSpace($envWebWaitSeconds)) {
+    $envWebWaitSeconds = Get-ProcessEnvValue -Names @('AICODEX_ADMIN_FRONTEND_WAIT_SECONDS', 'WEB_WAIT_SECONDS')
+  }
+  if (-not [string]::IsNullOrWhiteSpace($envWebWaitSeconds)) {
+    $WebWaitSeconds = Resolve-IntegerRangeValue -Value $envWebWaitSeconds -Source 'AICODEX_ADMIN_FRONTEND_WAIT_SECONDS' -Min 1 -Max 86400
+  }
+}
+
+if (-not $PSBoundParameters.ContainsKey('Tail')) {
+  $envTail = Get-LocalEnvValue -Values $LocalEnv -Names @('AICODEX_ADMIN_LOG_TAIL', 'LOG_TAIL')
+  if ([string]::IsNullOrWhiteSpace($envTail)) {
+    $envTail = Get-ProcessEnvValue -Names @('AICODEX_ADMIN_LOG_TAIL', 'LOG_TAIL')
+  }
+  if (-not [string]::IsNullOrWhiteSpace($envTail)) {
+    $Tail = Resolve-IntegerRangeValue -Value $envTail -Source 'AICODEX_ADMIN_LOG_TAIL' -Min 1 -Max 100000
+  }
+}
+
 $InstanceName = "frontend-remote-$Port"
 $WebLog = Join-Path $LogDir "$InstanceName.log"
 $WebPidFile = Join-Path $RunDir "$InstanceName.pid"
@@ -84,6 +287,9 @@ function Write-RunStarted {
   Write-Step 'Run started'
   Write-Host ("action:     {0}" -f $Action)
   Write-Host ("port:       {0}" -f $Port)
+  if (Test-Path -LiteralPath $EnvFile) {
+    Write-Host ("env_file:   {0}" -f $EnvFile)
+  }
   Write-Host ("started_at: {0}" -f (Format-RunTimestamp $ScriptStartedAt))
 }
 
@@ -357,8 +563,7 @@ function Test-BackendHealth {
 }
 
 function Resolve-FrontendStartCommand {
-  # 不调用 "yarn start"：package.json 里固定了 PORT=7002。直接调用 Craco
-  # 才能让 -Port 参数生效，支持多个本地前端预览并行启动。
+  # 不调用 "yarn start"：直接调用 Craco 才能让脚本默认端口和 -Port 参数生效。
   $localCraco = Join-Path $WebDir 'node_modules\.bin\craco.cmd'
   if (Test-Path -LiteralPath $localCraco) {
     return ('"{0}" start' -f $localCraco)

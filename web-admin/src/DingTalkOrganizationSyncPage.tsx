@@ -960,17 +960,19 @@ class DingTalkOrganizationSyncPage extends React.Component<DingTalkOrganizationS
             <Col xs={24} md={12}>
               {this.renderScheduleOptions(config)}
             </Col>
+            <Col span={24} className="organization-sync-permission-alert-row">
+              <Alert
+                className="organization-sync-permission-alert dingtalk-organization-sync-permission-alert"
+                type="info"
+                showIcon
+                message="通讯录读取权限要求"
+                description="请填写钉钉企业内部应用的 AppKey 和 AppSecret，并确认应用已获得通讯录部门与成员读取权限。"
+              />
+            </Col>
           </Row>
 
           {this.renderSourceConflictAlert()}
 
-          <Alert
-            className="organization-sync-permission-alert dingtalk-organization-sync-permission-alert"
-            type="info"
-            showIcon
-            message="通讯录读取权限要求"
-            description="请填写钉钉企业内部应用的 AppKey 和 AppSecret，并确认应用已获得通讯录部门与成员读取权限。"
-          />
           {this.renderTestResult()}
 
           <OrganizationSyncActionBar

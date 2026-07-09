@@ -520,7 +520,7 @@ function createFeishuPageHarness(): FeishuPageHarness {
 }
 
 test("renders Feishu organization sync config and endpoint mode", async() => {
-  render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+  const {container} = render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
   expect(await screen.findByText("飞书组织架构同步")).toBeInTheDocument();
   expect(screen.getByAltText("Feishu/Lark provider logo")).toHaveAttribute("src", expect.stringContaining("/img/social_lark.png"));
@@ -532,6 +532,11 @@ test("renders Feishu organization sync config and endpoint mode", async() => {
   expect(screen.queryByText("Cron 表达式")).not.toBeInTheDocument();
   expect(screen.queryByText("时区")).not.toBeInTheDocument();
   expect(screen.getByDisplayValue("cli_123")).toBeInTheDocument();
+  const permissionAlert = container.querySelector(".organization-sync-permission-alert");
+  const permissionAlertRow = permissionAlert?.closest(".organization-sync-permission-alert-row");
+  expect(permissionAlert).not.toBeNull();
+  expect(permissionAlertRow).not.toBeNull();
+  expect(permissionAlertRow?.classList.contains("ant-col-24")).toBe(true);
 });
 
 test("expands Feishu schedule fields only after enabling scheduled sync", async() => {

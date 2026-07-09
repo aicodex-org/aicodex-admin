@@ -1557,17 +1557,19 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
             <Col xs={24} md={12}>
               {this.renderScheduleOptions(config)}
             </Col>
+            <Col span={24} className="organization-sync-permission-alert-row">
+              <Alert
+                className="organization-sync-permission-alert"
+                type="info"
+                showIcon
+                message="通讯录读取权限要求"
+                description="请填写 App Secret，并把应用可见范围设置为需要同步的部门和成员；通讯录同步 Secret 只适合写入或 ID 比对，读取详情时可能返回 48009。"
+              />
+            </Col>
           </Row>
 
           {this.renderSourceConflictAlert()}
 
-          <Alert
-            className="organization-sync-permission-alert"
-            type="info"
-            showIcon
-            message="通讯录读取权限要求"
-            description="请填写 App Secret，并把应用可见范围设置为需要同步的部门和成员；通讯录同步 Secret 只适合写入或 ID 比对，读取详情时可能返回 48009。"
-          />
           {this.renderTestResult()}
 
           <OrganizationSyncActionBar

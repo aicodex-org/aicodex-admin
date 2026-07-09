@@ -11,3 +11,4 @@ runtime.toml
 *.zip
 .env
 .env.*
+!.env.example

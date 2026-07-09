@@ -187,7 +187,11 @@ test("renders DingTalk organization sync configuration and empty formal records"
   expect(screen.getByText("开始全量同步")).toBeInTheDocument();
   expect(screen.getByText("暂无同步记录")).toBeInTheDocument();
   expect(container.querySelector(".dingtalk-organization-sync-options")).not.toBeNull();
-  expect(container.querySelector(".dingtalk-organization-sync-permission-alert")).not.toBeNull();
+  const permissionAlert = container.querySelector(".dingtalk-organization-sync-permission-alert");
+  const permissionAlertRow = permissionAlert?.closest(".organization-sync-permission-alert-row");
+  expect(permissionAlert).not.toBeNull();
+  expect(permissionAlertRow).not.toBeNull();
+  expect(permissionAlertRow?.classList.contains("ant-col-24")).toBe(true);
   expect(dingtalkBackendMock.getDingTalkOrganizationSyncConfig).toHaveBeenCalledWith("engineering");
   expect(dingtalkBackendMock.getDingTalkOrganizationSyncRuns).toHaveBeenCalledWith("engineering", 1, 10);
 });

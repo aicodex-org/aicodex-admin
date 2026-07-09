@@ -2271,17 +2271,19 @@ class FeishuOrganizationSyncPage extends React.Component<FeishuOrganizationSyncP
                 )}
               </Space>
             </Col>
+            <Col span={24} className="organization-sync-permission-alert-row">
+              <Alert
+                className="organization-sync-permission-alert"
+                type="info"
+                showIcon
+                message="通讯录读取权限要求"
+                description="请使用与 endpoint 模式匹配的飞书/Lark 自建应用凭证，并确保应用已获得 Contact v3 部门和用户读取权限；扫码登录可用不代表通讯录同步权限足够。"
+              />
+            </Col>
           </Row>
 
           {this.renderSourceConflictAlert()}
 
-          <Alert
-            className="organization-sync-permission-alert"
-            type="info"
-            showIcon
-            message="通讯录读取权限要求"
-            description="请使用与 endpoint 模式匹配的飞书/Lark 自建应用凭证，并确保应用已获得 Contact v3 部门和用户读取权限；扫码登录可用不代表通讯录同步权限足够。"
-          />
           {this.renderTestResult()}
 
           <OrganizationSyncActionBar
