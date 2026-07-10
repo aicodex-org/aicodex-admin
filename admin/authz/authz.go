@@ -65,6 +65,13 @@ p, *, *, GET, /api/insight-admin-provider/handoff/status, *, *
 p, *, *, GET, /api/insight-admin-provider/handoff/config, *, *
 p, *, *, POST, /api/insight-admin-provider/handoff/config, *, *
 p, *, *, POST, /api/insight-admin-provider/handoff/diagnostics, *, *
+p, *, *, POST, /api/insight-admin-provider/handoff/access-package, *, *
+p, *, *, POST, /api/insight-admin-provider/handoff/secure-grants, *, *
+p, *, *, GET, /api/insight-admin-provider/handoff/secure-grants/:grantId/status, *, *
+p, *, *, POST, /api/insight-admin-provider/handoff/secure-grants/:grantId/redeem, *, *
+p, *, *, POST, /api/insight-admin-provider/handoff/secure-grants/:grantId/confirm, *, *
+p, *, *, POST, /api/insight-admin-provider/handoff/secure-grants/:grantId/fail, *, *
+p, *, *, POST, /api/insight-admin-provider/handoff/secure-grants/:grantId/revoke, *, *
 p, *, *, GET, /api/organization-tree-operations/diagnostics, *, *
 p, *, *, GET, /api/organization-tree-operations/members, *, *
 p, *, *, POST, /api/organization-tree-operations/refresh, *, *

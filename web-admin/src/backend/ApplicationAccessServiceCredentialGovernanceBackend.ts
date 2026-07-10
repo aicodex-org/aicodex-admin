@@ -180,6 +180,82 @@ export interface ServiceCredentialGovernanceHandoffPackageInput {
   adminOwnerAlias?: string;
 }
 
+export interface AdminSecureHandoffGrantEnvelope {
+  schema: "aicodex.admin.secure_handoff_grant";
+  version: "2026-07-09";
+  grantId: string;
+  nonce: string;
+  issuer: "aicodex-admin";
+  environmentId: string;
+  providerType: "admin_owner_provider";
+  targetRegistrationId: string;
+  targetWorkspaceId: string;
+  expiresAt: string;
+  traceMarker: string;
+  credentialSuffix?: string;
+  ownerRegistryReadiness: string;
+  ownerRegistry: {
+    trustedEndpointAlias: string;
+    audience: string;
+    serviceIdentity: string;
+    endpointReadiness: string;
+    targetRegistrationStatus: string;
+  };
+  packageHash: string;
+  audience: string;
+  status: "issued" | "delivered" | "confirmed" | "failed" | "revoked" | "expired";
+  state: "issued" | "delivered" | "confirmed" | "failed" | "revoked" | "expired";
+}
+
+export interface AdminInsightAccessPackage {
+  schemaVersion: "aicodex.insight.access-package.v1";
+  target: "insight.connection-profile.import";
+  legacySchema?: "aicodex.admin.insightAdminAccessPackage";
+  legacyVersion?: "2026-07-09";
+  packageType: "insight_admin_access_package";
+  source: "admin_owner_secure_handoff";
+  generatedAt: string;
+  targetConsumerAlias: string;
+  adminOwnerAlias: string;
+  copySafeHandoff: ServiceCredentialGovernanceHandoffPackage;
+  copySafeMetadata: ServiceCredentialGovernanceHandoffPackage;
+  secureHandoffGrant: AdminSecureHandoffGrantEnvelope;
+  fallbackBindingMode: "manual_or_secret_ref";
+  nextAction: string;
+}
+
+export interface AdminInsightAccessPackageApiResponse {
+  status: "ok" | "error";
+  msg?: string;
+  data?: AdminInsightAccessPackage;
+}
+
+function isAdminInsightAccessPackageApiResponse(value: unknown): value is AdminInsightAccessPackageApiResponse {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const status = (value as {status?: unknown}).status;
+  return status === "ok" || status === "error";
+}
+
+async function readJsonResponse(response: Response): Promise<unknown | null> {
+  try {
+    return await response.json();
+  } catch (_error) {
+    return null;
+  }
+}
+
+function getAdminSecureHandoffHttpErrorMessage(status?: number): string {
+  if (status === 401 || status === 403) {
+    return "admin_secure_handoff_unauthorized";
+  }
+  if (status === 404) {
+    return "admin_secure_handoff_endpoint_not_deployed";
+  }
+  return "admin_secure_handoff_response_invalid";
+}
+
 const SUPPORTED_SERVICE_CREDENTIAL_SOURCE_CLASSES = new Set(["admin_config", "env_config", "external_secret_system"]);
 const INSIGHT_ADMIN_PROVIDER_HANDOFF_API_PREFIX = "/api/insight-admin-provider/handoff";
 const INSIGHT_ADMIN_PROVIDER_WRAPPER_CAPABILITIES: ServiceCredentialGovernanceHandoffWrapperCapability[] = [
@@ -376,7 +452,7 @@ function buildInsightProfileHandoffSummary(
   const nextAction = credentialReferences.find(reference => reference?.credentialReferenceStatus === "missing")?.nextAction
     ?? credentialReferences.find(reference => reference?.nextAction)?.nextAction
     ?? groups.find(group => !group.keepInEnv && group.nextAction)?.nextAction
-    ?? "导入 Admin 元数据交接包，并在 Insight 中校验 manual/secretRef 绑定";
+    ?? "导入 Insight Profile 后由 Insight 后端兑换 secure handoff grant 并完成凭据绑定";
 
   return {
     packageType: "copy_safe_handoff",
@@ -543,4 +619,32 @@ export function diagnoseServiceCredentialGovernanceConfig(config: ServiceCredent
     },
     body: JSON.stringify(config),
   }).then(res => res.json());
+}
+
+export function createInsightAdminAccessPackage(copySafeMetadata: ServiceCredentialGovernanceHandoffPackage): Promise<AdminInsightAccessPackageApiResponse> {
+  return fetch(`${Setting.ServerUrl}${INSIGHT_ADMIN_PROVIDER_HANDOFF_API_PREFIX}/access-package`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      ...getHeaders(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({copySafeMetadata}),
+  }).then(async res => {
+    const payload = await readJsonResponse(res);
+    if (isAdminInsightAccessPackageApiResponse(payload)) {
+      if (res.ok === false || (res.status >= 400 && !payload.msg)) {
+        return {
+          ...payload,
+          status: "error",
+          msg: getAdminSecureHandoffHttpErrorMessage(res.status),
+        };
+      }
+      return payload;
+    }
+    return {
+      status: "error",
+      msg: getAdminSecureHandoffHttpErrorMessage(res.status),
+    };
+  });
 }

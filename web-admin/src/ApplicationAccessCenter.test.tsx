@@ -7,6 +7,7 @@ import i18next from "i18next";
 import ApplicationAccessCenter, {buildApplicationAccessCenterSummary} from "./ApplicationAccessCenter";
 import {
   buildServiceCredentialGovernanceHandoffPackage,
+  createInsightAdminAccessPackage,
   diagnoseServiceCredentialGovernanceConfig,
   getServiceCredentialGovernanceConfig,
   getServiceCredentialGovernanceStatus,
@@ -794,12 +795,55 @@ describe("ApplicationAccessCenter", () => {
       .mockResolvedValueOnce({json: () => Promise.resolve(serviceCredentialGovernanceResponse)})
       .mockResolvedValueOnce({json: () => Promise.resolve(serviceCredentialGovernanceConfigResponse)})
       .mockResolvedValueOnce({json: () => Promise.resolve({status: "ok", data: config})})
-      .mockResolvedValueOnce({json: () => Promise.resolve(serviceCredentialGovernanceDiagnosticResponse)});
+      .mockResolvedValueOnce({json: () => Promise.resolve(serviceCredentialGovernanceDiagnosticResponse)})
+      .mockResolvedValueOnce({json: () => Promise.resolve({status: "ok", data: {
+        schemaVersion: "aicodex.insight.access-package.v1",
+        target: "insight.connection-profile.import",
+        legacySchema: "aicodex.admin.insightAdminAccessPackage",
+        legacyVersion: "2026-07-09",
+        packageType: "insight_admin_access_package",
+        copySafeHandoff: {schema: "aicodex.admin.serviceCredentialGovernanceHandoff"},
+        copySafeMetadata: {schema: "aicodex.admin.serviceCredentialGovernanceHandoff"},
+        secureHandoffGrant: {
+          schema: "aicodex.admin.secure_handoff_grant",
+          grantId: "adm-grant-1",
+          nonce: "adm-nonce-1",
+          audience: "insight_profile_admin_handoff",
+          ownerRegistry: {
+            trustedEndpointAlias: "admin-secure-handoff",
+            audience: "insight_profile_admin_handoff",
+            serviceIdentity: "svc:aicodex-admin",
+            endpointReadiness: "ready",
+            targetRegistrationStatus: "approved",
+          },
+          status: "issued",
+          state: "issued",
+        },
+      }})});
 
     await expect(getServiceCredentialGovernanceStatus()).resolves.toBe(serviceCredentialGovernanceResponse);
     await expect(getServiceCredentialGovernanceConfig()).resolves.toBe(serviceCredentialGovernanceConfigResponse);
     await expect(saveServiceCredentialGovernanceConfig(config)).resolves.toMatchObject({status: "ok"});
     await expect(diagnoseServiceCredentialGovernanceConfig(config)).resolves.toBe(serviceCredentialGovernanceDiagnosticResponse);
+    const handoffPackage = buildServiceCredentialGovernanceHandoffPackage({config});
+    await expect(createInsightAdminAccessPackage(handoffPackage)).resolves.toMatchObject({
+      status: "ok",
+      data: {
+        schemaVersion: "aicodex.insight.access-package.v1",
+        target: "insight.connection-profile.import",
+        copySafeHandoff: expect.objectContaining({schema: "aicodex.admin.serviceCredentialGovernanceHandoff"}),
+        secureHandoffGrant: expect.objectContaining({
+          grantId: "adm-grant-1",
+          nonce: "adm-nonce-1",
+          ownerRegistry: expect.objectContaining({
+            trustedEndpointAlias: "admin-secure-handoff",
+            audience: "insight_profile_admin_handoff",
+            serviceIdentity: "svc:aicodex-admin",
+            targetRegistrationStatus: "approved",
+          }),
+        }),
+      },
+    });
 
     expect(fetchMock.mock.calls[0][0]).toContain("/api/insight-admin-provider/handoff/status");
     expect(fetchMock.mock.calls[0][1]).toMatchObject({method: "GET", credentials: "include"});
@@ -809,6 +853,27 @@ describe("ApplicationAccessCenter", () => {
     expect(fetchMock.mock.calls[2][1]).toMatchObject({method: "POST", credentials: "include", body: JSON.stringify(config)});
     expect(fetchMock.mock.calls[3][0]).toContain("/api/insight-admin-provider/handoff/diagnostics");
     expect(fetchMock.mock.calls[3][1]).toMatchObject({method: "POST", credentials: "include", body: JSON.stringify(config)});
+    expect(fetchMock.mock.calls[4][0]).toContain("/api/insight-admin-provider/handoff/access-package");
+    expect(fetchMock.mock.calls[4][1]).toMatchObject({method: "POST", credentials: "include", body: JSON.stringify({copySafeMetadata: handoffPackage})});
+  });
+
+  test("maps Insight Admin access-package HTTP errors to safe diagnostic aliases", async() => {
+    const fetchMock = global.fetch as unknown as MockFetch;
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      json: () => Promise.reject(new Error("not json")),
+    });
+
+    const handoffPackage = buildServiceCredentialGovernanceHandoffPackage({
+      config: serviceCredentialGovernanceConfigResponse.data as ServiceCredentialGovernanceConfigResponse,
+    });
+
+    await expect(createInsightAdminAccessPackage(handoffPackage)).resolves.toMatchObject({
+      status: "error",
+      msg: "admin_secure_handoff_unauthorized",
+    });
+    expect(fetchMock.mock.calls[0][0]).toContain("/api/insight-admin-provider/handoff/access-package");
   });
 
 });

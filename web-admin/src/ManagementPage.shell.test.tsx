@@ -118,14 +118,27 @@ async function useTestLanguage(language: string) {
   await i18next.changeLanguage(language);
 }
 
-function renderShell({path = "/", isMobile = false, themeAlgorithm = ["default"]}: {path?: string; isMobile?: boolean; themeAlgorithm?: string[]} = {}) {
+function renderShell({
+  path = "/",
+  isMobile = false,
+  themeAlgorithm = ["default"],
+  accountOverride = account,
+  accountLoading = false,
+}: {
+  path?: string;
+  isMobile?: boolean;
+  themeAlgorithm?: string[];
+  accountOverride?: typeof account | null;
+  accountLoading?: boolean;
+} = {}) {
   window.history.pushState({}, "", path);
   jest.spyOn(Setting, "isMobile").mockReturnValue(isMobile);
+  const shellAccount = accountLoading ? undefined : accountOverride;
 
   return render(
     <MemoryRouter initialEntries={[path]}>
       <ManagementPage
-        account={account}
+        account={shellAccount}
         application={undefined}
         uri={path}
         themeData={{colorPrimary: "#1677ff"}}
@@ -199,6 +212,15 @@ describe("ManagementPage admin shell sidebar", () => {
       "admin-shell-route-scroll admin-shell-route-scroll-without-card",
     ]);
     expect(shellContent.classList.contains("admin-shell-content-without-card-route")).toBe(false);
+  });
+
+  test("shows route loading state instead of a blank content area while account is loading", () => {
+    const view = renderShell({path: "/application-usage-access", accountLoading: true});
+    const routeScroll = view.container.querySelector(".admin-shell-route-scroll") as HTMLElement;
+
+    expect(routeScroll).not.toBeNull();
+    expect(routeScroll.textContent).toMatch(/加载中|Loading/);
+    expect(routeScroll.textContent?.trim()).not.toBe("");
   });
 
   test("updates workspace tab labels from page detail events", async() => {

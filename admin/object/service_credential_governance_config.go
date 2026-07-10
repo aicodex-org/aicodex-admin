@@ -477,6 +477,13 @@ func containsServiceCredentialGovernanceSensitiveMaterial(value string) bool {
 	return false
 }
 
+// ContainsServiceCredentialGovernanceSensitiveMaterial exposes the copy-safe
+// guard for controller/package boundaries that must reject operator-facing
+// handoff payloads containing raw secrets or private endpoints.
+func ContainsServiceCredentialGovernanceSensitiveMaterial(value string) bool {
+	return containsServiceCredentialGovernanceSensitiveMaterial(value)
+}
+
 // serviceCredentialGovernancePolicyStringSlice 统一处理 JSON 数组和 Go slice，避免 copy-safe list 被降级成字符串。
 func serviceCredentialGovernancePolicyStringSlice(policy map[string]interface{}, key string) []string {
 	if len(policy) == 0 {

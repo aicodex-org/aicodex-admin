@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import * as Setting from "./Setting";
-import {Avatar, Button, Card, Drawer, Dropdown, Layout, Menu, Result, Tooltip} from "antd";
+import {Avatar, Button, Card, Drawer, Dropdown, Layout, Menu, Result, Spin, Tooltip} from "antd";
 import EnableMfaNotification from "./common/notifaction/EnableMfaNotification";
 import {Link, Redirect, Route, Switch, withRouter} from "react-router-dom";
 import React, {useEffect, useState} from "react";
@@ -494,7 +494,12 @@ function ManagementPage(props: ManagementPageProps) {
       sessionStorage.setItem("from", window.location.pathname);
       return <Redirect to={getAdminLoginRedirectPath()} />;
     } else if (props.account === undefined) {
-      return null;
+      return (
+        <div className="admin-shell-route-loading" role="status" aria-live="polite">
+          <Spin />
+          <span>{String(i18next.t("general:Loading"))}</span>
+        </div>
+      );
     } else if (props.account.needUpdatePassword) {
       if (window.location.pathname === "/account") {
         return component;

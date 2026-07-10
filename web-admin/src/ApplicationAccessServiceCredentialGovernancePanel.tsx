@@ -19,10 +19,12 @@ import i18next from "i18next";
 import React from "react";
 import {
   buildServiceCredentialGovernanceHandoffPackage,
+  createInsightAdminAccessPackage,
   getServiceCredentialGovernanceConfig,
   getServiceCredentialGovernanceStatus
 } from "./backend/ApplicationAccessServiceCredentialGovernanceBackend";
 import type {
+  AdminInsightAccessPackage,
   ServiceCredentialGovernanceConfigGroup,
   ServiceCredentialGovernanceConfigResponse,
   ServiceCredentialGovernanceDiagnosticResponse,
@@ -36,7 +38,7 @@ const {Text} = Typography;
 
 type ServiceCredentialGovernanceLoadState = "loading" | "ready" | "error" | "empty";
 type ServiceCredentialGovernanceConfigLoadState = "loading" | "ready" | "error" | "empty";
-type ServiceCredentialGovernanceHandoffState = "idle" | "ready" | "error";
+type ServiceCredentialGovernanceHandoffState = "idle" | "loading" | "ready" | "error";
 type ServiceCredentialGovernanceGroup = ServiceCredentialGovernanceStatusResponse["groups"][number];
 type ServiceCredentialGovernanceStatus = ServiceCredentialGovernanceGroup["status"];
 type ServiceCredentialGovernanceDiagnosticGroup = ServiceCredentialGovernanceDiagnosticResponse["groups"][number];
@@ -129,15 +131,60 @@ function renderInsightAdminProviderCodeText(value: string, ariaLabel?: string) {
 function getServiceCredentialGovernanceInsightBindingNextAction(): string {
   return t(
     "Handoff bind credential in Insight next action",
-    "导入 Insight Profile 后，绑定 manual/secretRef 凭据解析器"
+    "导入 Insight Profile 后，由 Insight 后端兑换安全交接授权并完成凭据绑定"
   );
 }
 
 function getServiceCredentialGovernanceInsightBindingGuidance(): string {
   return t(
     "Handoff blocker credential reference suggestion",
-    "可生成元数据交接包；真实凭据需在 Insight Profile 中绑定 manual/secretRef 凭据解析器后补齐。"
+    "可复制 Insight Admin 接入包；包内不含真实凭据，Insight 后端通过安全交接授权兑换绑定。"
   );
+}
+
+function getInsightAdminAccessPackageErrorMessage(message?: string): string {
+  const normalizedMessage = `${message ?? ""}`.toLowerCase();
+  if (normalizedMessage.includes("unauthorized")
+    || normalizedMessage.includes("forbidden")
+    || normalizedMessage.includes("admin_secure_handoff_unauthorized")) {
+    return t(
+      "Insight Admin access package unauthorized",
+      "当前登录态无权生成 Insight Admin 接入包，请使用 Admin owner 权限重试。"
+    );
+  }
+  if (normalizedMessage.includes("not found")
+    || normalizedMessage.includes("404")
+    || normalizedMessage.includes("admin_secure_handoff_endpoint_not_deployed")) {
+    return t(
+      "Insight Admin access package endpoint unavailable",
+      "当前后台尚未部署 Admin secure handoff 接入包接口，请更新 Admin 后端后重试。"
+    );
+  }
+  if (normalizedMessage.includes("owner_registry")
+    || normalizedMessage.includes("target_registration")
+    || normalizedMessage.includes("registration")
+    || normalizedMessage.includes("not_ready")) {
+    return t(
+      "Insight Admin access package target registration not ready",
+      "目标 Insight 注册或 Admin owner registry 未就绪，暂不能生成安全交接授权。"
+    );
+  }
+  if (normalizedMessage.includes("issuer")
+    || normalizedMessage.includes("credential")
+    || normalizedMessage.includes("secure_handoff_grant_unavailable")) {
+    return t(
+      "Insight Admin access package issuer unavailable",
+      "Admin owner secure handoff 凭据源未就绪，无法生成安全交接授权。"
+    );
+  }
+  if (normalizedMessage.includes("admin_secure_handoff_response_invalid")) {
+    return t(
+      "Insight Admin access package invalid response",
+      "Admin secure handoff 接入包接口返回异常，请刷新后重试。"
+    );
+  }
+
+  return message || t("Service credential governance handoff package unavailable", "Admin 交接包暂不可用");
 }
 
 function isServiceCredentialGovernanceCredentialReferenceKey(value?: string): boolean {
@@ -229,11 +276,11 @@ export function getServiceCredentialGovernanceDisplay(key?: string, label?: stri
 export function getServiceCredentialGovernanceReferenceSourceHint(key?: string): string {
   switch (key) {
   case "usage_identity_resolver":
-    return "导入 Insight Profile 后，绑定 manual/secretRef 凭据解析器。";
+    return "导入 Insight Profile 后，由 Insight 后端兑换安全交接授权并完成凭据绑定。";
   case "gateway_organization_projection":
-    return "导入 Insight Profile 后，绑定 manual/secretRef 凭据解析器。";
+    return "导入 Insight Profile 后，由 Insight 后端兑换安全交接授权并完成凭据绑定。";
   default:
-    return "导入 Insight Profile 后，绑定 manual/secretRef 凭据解析器。";
+    return "导入 Insight Profile 后，由 Insight 后端兑换安全交接授权并完成凭据绑定。";
   }
 }
 
@@ -396,10 +443,11 @@ function normalizeServiceCredentialGovernanceStatusForHandoff(
     ...status,
     groups: (status.groups ?? []).map(group => {
       const deploymentMissingKeys = getServiceCredentialGovernanceDeploymentMissingKeys(group);
-      if (deploymentMissingKeys.length > 0) {
+      const nonCredentialMissingKeys = deploymentMissingKeys.filter(key => !isServiceCredentialGovernanceCredentialReferenceKey(key));
+      if (nonCredentialMissingKeys.length > 0) {
         return {
           ...group,
-          missingKeys: deploymentMissingKeys,
+          missingKeys: nonCredentialMissingKeys,
         };
       }
 
@@ -566,8 +614,9 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
   const [serviceCredentialGovernanceConfig, setServiceCredentialGovernanceConfig] = React.useState<ServiceCredentialGovernanceConfigResponse | null>(null);
   const [serviceCredentialGovernanceConfigDraft, setServiceCredentialGovernanceConfigDraft] = React.useState<ServiceCredentialGovernanceConfigGroup[]>([]);
   const [serviceCredentialGovernanceConfigLoadState, setServiceCredentialGovernanceConfigLoadState] = React.useState<ServiceCredentialGovernanceConfigLoadState>("loading");
-  const [serviceCredentialGovernanceHandoffPackage, setServiceCredentialGovernanceHandoffPackage] = React.useState<ServiceCredentialGovernanceHandoffPackage | null>(null);
+  const [serviceCredentialGovernanceHandoffPackage, setServiceCredentialGovernanceHandoffPackage] = React.useState<AdminInsightAccessPackage | null>(null);
   const [serviceCredentialGovernanceHandoffState, setServiceCredentialGovernanceHandoffState] = React.useState<ServiceCredentialGovernanceHandoffState>("idle");
+  const [serviceCredentialGovernanceHandoffErrorMessage, setServiceCredentialGovernanceHandoffErrorMessage] = React.useState<string | null>(null);
   const [serviceCredentialGovernanceDiagnosticsOpen, setServiceCredentialGovernanceDiagnosticsOpen] = React.useState(isInsightAdminProviderDiagnosticsOpenFromUrl);
 
   React.useEffect(() => {
@@ -581,12 +630,12 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
 
   const handleCopyServiceCredentialGovernanceHandoffPackage = React.useCallback(() => {
     if (!serviceCredentialGovernanceHandoffPackage) {
-      Setting.showMessage("error", t("Handoff package copy requires generation", "请先生成元数据交接包"));
+      Setting.showMessage("error", t("Handoff package copy requires generation", "请先生成 Insight Admin 接入包"));
       return;
     }
 
     const copied = copy(JSON.stringify(serviceCredentialGovernanceHandoffPackage, null, 2));
-    Setting.showMessage(copied ? "success" : "error", copied ? "已复制 Admin 交接包 JSON" : "复制 Admin 交接包失败");
+    Setting.showMessage(copied ? "success" : "error", copied ? "已复制 Insight Admin 接入包 JSON" : "复制 Insight Admin 接入包失败");
   }, [serviceCredentialGovernanceHandoffPackage]);
 
   const loadServiceCredentialGovernanceStatus = React.useCallback((isMounted: () => boolean = () => true) => {
@@ -656,27 +705,63 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
   }, [loadServiceCredentialGovernanceConfig, loadServiceCredentialGovernanceStatus]);
 
   const handleServiceCredentialGovernanceHandoffPackage = React.useCallback(() => {
-    const hasPendingMaterials = (serviceCredentialGovernance?.groups ?? []).some(serviceCredentialGovernanceNeedsDeploymentConfig);
+    const configByKey = new Map(serviceCredentialGovernanceConfigDraft.map(group => [group.key, group]));
+    const hasBlockingAdminMaterials = (serviceCredentialGovernance?.groups ?? []).some(group => {
+      return serviceCredentialGovernanceNeedsDeploymentConfig(group)
+        && !serviceCredentialGovernanceRowHasCredentialReferenceGap({
+          statusGroup: group,
+          configGroup: configByKey.get(group.key),
+        });
+    });
     if (serviceCredentialGovernanceConfigLoadState !== "ready" || serviceCredentialGovernanceConfigDraft.length === 0) {
       setServiceCredentialGovernanceHandoffPackage(null);
       setServiceCredentialGovernanceHandoffState("error");
+      setServiceCredentialGovernanceHandoffErrorMessage(t("Service credential governance handoff package unavailable", "Admin 交接包暂不可用"));
       return;
     }
-    if (hasPendingMaterials) {
+    if (hasBlockingAdminMaterials) {
       setServiceCredentialGovernanceHandoffPackage(null);
       setServiceCredentialGovernanceHandoffState("error");
+      setServiceCredentialGovernanceHandoffErrorMessage(t(
+        "Handoff package blocked by admin material",
+        "Admin owner 交接材料不完整，暂不能生成安全交接授权。"
+      ));
       return;
     }
 
-    setServiceCredentialGovernanceHandoffPackage(buildServiceCredentialGovernanceHandoffPackage({
+    const copySafeMetadata = buildServiceCredentialGovernanceHandoffPackage({
       config: serviceCredentialGovernanceConfig ?? {
         source: "admin_service_credential_governance_config",
         isConfigured: serviceCredentialGovernanceConfigDraft.length > 0,
         groups: serviceCredentialGovernanceConfigDraft,
       },
       status: normalizeServiceCredentialGovernanceStatusForHandoff(serviceCredentialGovernance),
-    }));
-    setServiceCredentialGovernanceHandoffState("ready");
+    });
+    setServiceCredentialGovernanceHandoffState("loading");
+    setServiceCredentialGovernanceHandoffErrorMessage(null);
+    createInsightAdminAccessPackage(copySafeMetadata)
+      .then(response => {
+        if (response.status !== "ok" || !response.data) {
+          const errorMessage = getInsightAdminAccessPackageErrorMessage(response.msg);
+          setServiceCredentialGovernanceHandoffPackage(null);
+          setServiceCredentialGovernanceHandoffState("error");
+          setServiceCredentialGovernanceHandoffErrorMessage(errorMessage);
+          Setting.showMessage("error", errorMessage);
+          return;
+        }
+        setServiceCredentialGovernanceHandoffPackage(response.data);
+        setServiceCredentialGovernanceHandoffState("ready");
+        setServiceCredentialGovernanceHandoffErrorMessage(null);
+        const copied = copy(JSON.stringify(response.data, null, 2));
+        Setting.showMessage(copied ? "success" : "error", copied ? "已复制 Insight Admin 接入包 JSON" : "复制 Insight Admin 接入包失败");
+      })
+      .catch(() => {
+        const errorMessage = t("Service credential governance handoff package unavailable", "Admin 交接包暂不可用");
+        setServiceCredentialGovernanceHandoffPackage(null);
+        setServiceCredentialGovernanceHandoffState("error");
+        setServiceCredentialGovernanceHandoffErrorMessage(errorMessage);
+        Setting.showMessage("error", errorMessage);
+      });
   }, [serviceCredentialGovernance, serviceCredentialGovernanceConfig, serviceCredentialGovernanceConfigDraft, serviceCredentialGovernanceConfigLoadState]);
 
   const serviceCredentialGovernanceSummary = getServiceCredentialGovernanceSummary(serviceCredentialGovernance);
@@ -697,7 +782,8 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
     };
   });
   const serviceCredentialGovernanceActionRows = serviceCredentialGovernanceAlignedRows.filter(row => {
-    return serviceCredentialGovernanceNeedsDeploymentConfig(row.statusGroup);
+    return serviceCredentialGovernanceNeedsDeploymentConfig(row.statusGroup)
+      && !serviceCredentialGovernanceRowHasCredentialReferenceGap(row);
   });
   const serviceCredentialGovernanceEvidenceRows = serviceCredentialGovernanceAlignedRows.map(row => {
     const rowDisplay = getServiceCredentialGovernanceDisplay(row.key, row.label);
@@ -756,7 +842,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
   } else if (serviceCredentialGovernanceCanGenerate) {
     serviceCredentialGovernanceNextAction = t(
       "Handoff generate and bind next action",
-      "生成元数据交接包并交给 Insight 绑定"
+      "复制 Insight Admin 接入包并导入 Insight Profile"
     );
   } else if (serviceCredentialGovernanceLoadState === "error" || serviceCredentialGovernanceConfigLoadState === "error") {
     serviceCredentialGovernanceNextAction = t(
@@ -768,8 +854,8 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
     ? t("Handoff generation blocked hint", "补齐 Admin owner 材料后生成")
     : (serviceCredentialGovernanceCanGenerate
       ? (serviceCredentialGovernanceHasPartialPackage
-        ? t("Handoff generation partial hint", "可生成元数据包，Insight 绑定凭据")
-        : t("Handoff generation complete hint", "可生成完整包"))
+        ? t("Handoff generation partial hint", "可复制接入包，Insight 兑换绑定")
+        : t("Handoff generation complete hint", "可复制 Insight Admin 接入包"))
       : t("Handoff generation unavailable hint", "暂不可生成"));
   const serviceCredentialGovernanceCredentialGapRows = serviceCredentialGovernanceAlignedRows.filter(serviceCredentialGovernanceRowHasCredentialReferenceGap);
   const serviceCredentialGovernancePartialBlockingRows = serviceCredentialGovernanceHasPartialPackage
@@ -815,11 +901,12 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
         )}
     />
   ) : null;
-  let serviceCredentialGovernanceHandoffErrorMessage = t("Service credential governance handoff package unavailable", "Admin 交接包暂不可用");
+  let serviceCredentialGovernanceHandoffAlertMessage = serviceCredentialGovernanceHandoffErrorMessage
+    ?? t("Service credential governance handoff package unavailable", "Admin 交接包暂不可用");
   if (serviceCredentialGovernanceHasPendingMaterials) {
-    serviceCredentialGovernanceHandoffErrorMessage = t(
-      "Handoff package blocked by credential reference",
-      "补齐 Admin owner 材料后再生成交接包；凭据绑定在 Insight manual/secretRef binding 中完成"
+    serviceCredentialGovernanceHandoffAlertMessage = t(
+      "Handoff package blocked by admin material",
+      "Admin owner 交接材料不完整，暂不能生成安全交接授权。"
     );
   }
   const serviceCredentialGovernanceConfigActions = (
@@ -827,12 +914,13 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
       <Button
         type={serviceCredentialGovernanceHandoffState === "ready" ? "default" : "primary"}
         icon={<FileTextOutlined />}
-        disabled={!serviceCredentialGovernanceCanGenerate}
+        disabled={!serviceCredentialGovernanceCanGenerate || serviceCredentialGovernanceHandoffState === "loading"}
+        loading={serviceCredentialGovernanceHandoffState === "loading"}
         onClick={handleServiceCredentialGovernanceHandoffPackage}
       >
         {serviceCredentialGovernanceHandoffState === "ready"
-          ? t("Service credential handoff evidence regenerate action", "重新生成元数据交接包")
-          : t("Service credential handoff evidence action", "生成元数据交接包")}
+          ? t("Service credential handoff evidence regenerate action", "重新复制 Insight Admin 接入包")
+          : t("Service credential handoff evidence action", "复制 Insight Admin 接入包")}
       </Button>
     </Space>
   );
@@ -895,7 +983,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
       </div>
       <div className="application-access-service-credential-operator-card">
         <Text type="secondary">{t("Handoff package type label", "包类型")}</Text>
-        <Text strong>{t("Handoff package type metadata value", "元数据交接包")}</Text>
+        <Text strong>{t("Handoff package type metadata value", "Insight Admin 接入包")}</Text>
       </div>
     </div>
   );
@@ -1124,7 +1212,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
             className="enterprise-identity-console-alert"
             type="warning"
             showIcon
-            message={serviceCredentialGovernanceHandoffErrorMessage}
+            message={serviceCredentialGovernanceHandoffAlertMessage}
           />
         )}
         {serviceCredentialGovernanceHandoffState === "ready" && serviceCredentialGovernanceHandoffPackage && (
@@ -1133,20 +1221,20 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
             type={serviceCredentialGovernanceHasPartialPackage ? "warning" : "success"}
             showIcon
             message={serviceCredentialGovernanceHasPartialPackage
-              ? t("Insight Admin Provider partial handoff ready message", "Admin 元数据交接包已生成")
-              : t("Insight Admin Provider handoff ready message", "Insight Admin 接入交接包已生成")}
+              ? t("Insight Admin Provider partial handoff ready message", "Insight Admin 接入包已复制")
+              : t("Insight Admin Provider handoff ready message", "Insight Admin 接入包已复制")}
             description={serviceCredentialGovernanceHasPartialPackage
               ? t(
                 "Insight Admin Provider partial handoff ready description",
-                "已生成元数据交接包；仍需在 Insight Profile 绑定真实凭据。"
+                "接入包包含脱敏元数据和安全交接授权摘要；真实凭据只由 Insight 后端兑换。"
               )
               : t(
                 "Insight Admin Provider handoff ready description",
-                "Admin 交接包只包含元数据和引用，不传递真实凭据。"
+                "接入包不直接包含真实凭据；导入 Insight 后由后端完成兑换和绑定。"
               )}
             action={(
               <Button icon={<CopyOutlined />} size="small" onClick={handleCopyServiceCredentialGovernanceHandoffPackage}>
-                复制交接包 JSON
+                复制接入包 JSON
               </Button>
             )}
           />
@@ -1157,7 +1245,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
               className="enterprise-identity-console-alert"
               type="success"
               showIcon
-              message={t("Handoff metadata package ready message", "材料已齐，点击生成元数据交接包。")}
+              message={t("Handoff metadata package ready message", "材料已齐，点击复制 Insight Admin 接入包。")}
             />
           </div>
         )}

@@ -40,6 +40,7 @@ const mockGetServiceCredentialGovernanceConfig = jest.fn() as unknown as LooseMo
 const mockSaveServiceCredentialGovernanceConfig = jest.fn() as unknown as LooseMock;
 const mockDiagnoseServiceCredentialGovernanceConfig = jest.fn() as unknown as LooseMock;
 const mockBuildServiceCredentialGovernanceHandoffPackage = jest.fn();
+const mockCreateInsightAdminAccessPackage = jest.fn() as unknown as LooseMock;
 const mockCopyToClipboard = jest.fn((..._args: unknown[]) => true);
 
 const {fireEvent} = require("@testing-library/react") as {
@@ -58,6 +59,7 @@ jest.mock("./backend/ApplicationAccessServiceCredentialGovernanceBackend", () =>
     saveServiceCredentialGovernanceConfig: (...args: unknown[]) => mockSaveServiceCredentialGovernanceConfig(...args),
     diagnoseServiceCredentialGovernanceConfig: (...args: unknown[]) => mockDiagnoseServiceCredentialGovernanceConfig(...args),
     buildServiceCredentialGovernanceHandoffPackage: (...args: unknown[]) => mockBuildServiceCredentialGovernanceHandoffPackage(...args),
+    createInsightAdminAccessPackage: (...args: unknown[]) => mockCreateInsightAdminAccessPackage(...args),
   };
 });
 
@@ -263,6 +265,7 @@ describe("ApplicationUsageAccessPage", () => {
     mockGetServiceCredentialGovernanceConfig.mockReset();
     mockSaveServiceCredentialGovernanceConfig.mockReset();
     mockDiagnoseServiceCredentialGovernanceConfig.mockReset();
+    mockCreateInsightAdminAccessPackage.mockReset();
     mockBuildServiceCredentialGovernanceHandoffPackage.mockReset();
     mockCopyToClipboard.mockReset();
     mockCopyToClipboard.mockReturnValue(true);
@@ -316,6 +319,58 @@ describe("ApplicationUsageAccessPage", () => {
           blockedAliases: ["admin_service_credential_reference_unresolved"],
         },
       ],
+    });
+    mockCreateInsightAdminAccessPackage.mockResolvedValueOnce({
+      status: "ok",
+      data: {
+        schemaVersion: "aicodex.insight.access-package.v1",
+        target: "insight.connection-profile.import",
+        legacySchema: "aicodex.admin.insightAdminAccessPackage",
+        legacyVersion: "2026-07-09",
+        packageType: "insight_admin_access_package",
+        source: "admin_owner_secure_handoff",
+        generatedAt: "2026-06-23T08:04:00Z",
+        targetConsumerAlias: "insight_business_service_access",
+        adminOwnerAlias: "admin_identity_application_access",
+        copySafeHandoff: {
+          schema: "aicodex.admin.serviceCredentialGovernanceHandoff",
+          version: "2026-06-22",
+          source: "admin_service_credential_governance_handoff_package",
+        },
+        copySafeMetadata: {
+          schema: "aicodex.admin.serviceCredentialGovernanceHandoff",
+          version: "2026-06-22",
+          source: "admin_service_credential_governance_handoff_package",
+        },
+        secureHandoffGrant: {
+          schema: "aicodex.admin.secure_handoff_grant",
+          version: "2026-07-09",
+          grantId: "adm-grant-test",
+          nonce: "adm-nonce-test",
+          issuer: "aicodex-admin",
+          environmentId: "admin-runtime",
+          providerType: "admin_owner_provider",
+          targetRegistrationId: "insight-profile-import-v1",
+          targetWorkspaceId: "insight_business_service_access",
+          expiresAt: "2026-06-23T08:14:00Z",
+          traceMarker: "adm-trace-test",
+          credentialSuffix: "test",
+          ownerRegistryReadiness: "ready",
+          ownerRegistry: {
+            trustedEndpointAlias: "admin-secure-handoff",
+            audience: "insight_profile_admin_handoff",
+            serviceIdentity: "svc:aicodex-admin",
+            endpointReadiness: "ready",
+            targetRegistrationStatus: "approved",
+          },
+          packageHash: "sha256:test",
+          audience: "insight_profile_admin_handoff",
+          status: "issued",
+          state: "issued",
+        },
+        fallbackBindingMode: "manual_or_secret_ref",
+        nextAction: "导入 Insight Profile 后由 Insight 后端兑换安全交接授权并完成凭据绑定",
+      },
     });
     consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
       if (`${message}`.includes("ReactDOM.render is no longer supported")) {
@@ -381,7 +436,7 @@ describe("ApplicationUsageAccessPage", () => {
     expect(getServiceCredentialGovernancePrimaryGap({key: "resolver", label: "Resolver", owner: "admin", status: "partial", credentialReferenceStatus: "configured", missingKeys: ["callerPolicy"]})).toBe("缺少调用策略");
     expect(getServiceCredentialGovernancePrimaryGap({key: "resolver", label: "Resolver", owner: "admin", status: "partial", credentialReferenceStatus: "configured", missingKeys: ["boundedRuntimePolicy"]})).toBe("缺少运行策略");
     expect(getServiceCredentialGovernancePrimaryGap({key: "resolver", label: "Resolver", owner: "admin", status: "blocked", credentialReferenceStatus: "configured"})).toBe("策略未放行");
-    expect(getServiceCredentialGovernanceNextAction([{statusGroup: {key: "resolver", label: "Resolver", owner: "admin", status: "missing", credentialReferenceStatus: "missing"}, configGroup: {key: "resolver", enabled: true, credentialReferenceStatus: "missing", nextAction: "补充 resolver 凭据引用"}}])).toBe("导入 Insight Profile 后，绑定 manual/secretRef 凭据解析器");
+    expect(getServiceCredentialGovernanceNextAction([{statusGroup: {key: "resolver", label: "Resolver", owner: "admin", status: "missing", credentialReferenceStatus: "missing"}, configGroup: {key: "resolver", enabled: true, credentialReferenceStatus: "missing", nextAction: "补充 resolver 凭据引用"}}])).toBe("导入 Insight Profile 后，由 Insight 后端兑换安全交接授权并完成凭据绑定");
     expect(getServiceCredentialGovernanceNextAction([])).toBe("等待配置加载");
     expect(getServiceCredentialGovernanceRequiredConfigSummary([{key: "resolver", enabled: true, credentialReferenceStatus: "missing"}, {key: "env", enabled: true, keepInEnv: true, credentialReferenceStatus: "external_secret"}])).toBe("1 项缺少凭据引用");
     expect(getServiceCredentialGovernanceRequiredConfigSummary([{key: "resolver", enabled: true, credentialReferenceStatus: "configured"}])).toBe("1 项可维护配置");
@@ -393,8 +448,8 @@ describe("ApplicationUsageAccessPage", () => {
     expect(getServiceCredentialGovernanceDisplay("usage_identity_resolver").title).toBe("用量身份解析");
     expect(getServiceCredentialGovernanceDisplay("gateway_organization_projection").title).toBe("Gateway 组织投影");
     expect(getServiceCredentialGovernanceDisplay("keep_in_env").title).toBe("环境维护项");
-    expect(getServiceCredentialGovernanceReferenceSourceHint("usage_identity_resolver")).toBe("导入 Insight Profile 后，绑定 manual/secretRef 凭据解析器。");
-    expect(getServiceCredentialGovernanceReferenceSourceHint("gateway_organization_projection")).toBe("导入 Insight Profile 后，绑定 manual/secretRef 凭据解析器。");
+    expect(getServiceCredentialGovernanceReferenceSourceHint("usage_identity_resolver")).toBe("导入 Insight Profile 后，由 Insight 后端兑换安全交接授权并完成凭据绑定。");
+    expect(getServiceCredentialGovernanceReferenceSourceHint("gateway_organization_projection")).toBe("导入 Insight Profile 后，由 Insight 后端兑换安全交接授权并完成凭据绑定。");
     expect(getServiceCredentialGovernanceReferencePlaceholder("gateway_organization_projection")).toBe("gatewayOrganizationProjectionToken");
     expect(serviceCredentialGovernanceNeedsCredentialReference({key: "gateway", enabled: false, credentialReferenceStatus: "not_applicable"}, {key: "gateway", label: "Gateway", owner: "admin", status: "partial", credentialReferenceStatus: "not_applicable", missingKeys: ["gatewayOrganizationProjectionToken"]})).toBe(true);
   });
@@ -414,7 +469,6 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.queryByText("面向 Insight 的 Admin Provider 元数据交接页。")).toBeNull();
     expect(view.queryByText("Admin 交接包只包含元数据，不传递真实凭据。")).toBeNull();
     expect(view.container.textContent).not.toContain("P0");
-    expect(view.container.textContent).not.toContain("secure handoff");
     expect(view.container.textContent).not.toContain("Admin secure handoff 不在 P0");
     expect(view.container.textContent).not.toContain("copy-safe metadata");
     expect(view.getByLabelText("Admin 交接摘要")).not.toBeNull();
@@ -422,7 +476,7 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.getByText("目标消费方")).not.toBeNull();
     expect(view.getByText("Insight")).not.toBeNull();
     expect(view.getByText("包类型")).not.toBeNull();
-    expect(view.getByText("元数据交接包")).not.toBeNull();
+    expect(view.getByText("Insight Admin 接入包")).not.toBeNull();
     expect(view.queryByText("交接能力")).toBeNull();
     expect(view.getByText("交接包操作")).not.toBeNull();
     expect(view.queryByText("/api/admin-provider/insight/v1/current-user")).toBeNull();
@@ -431,8 +485,8 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.queryByText("当前状态")).toBeNull();
     expect(view.queryByText("补齐 Admin env/config，重启后刷新本页")).toBeNull();
     expect(view.getByText("缺少凭据引用")).not.toBeNull();
-    expect(view.getByText("可生成元数据交接包；真实凭据需在 Insight Profile 中绑定 manual/secretRef 凭据解析器后补齐。")).not.toBeNull();
-    expect(view.getByText("导入 Insight Profile 后，绑定 manual/secretRef 凭据解析器")).not.toBeNull();
+    expect(view.getByText("可复制 Insight Admin 接入包；包内不含真实凭据，Insight 后端通过安全交接授权兑换绑定。")).not.toBeNull();
+    expect(view.getByText("导入 Insight Profile 后，由 Insight 后端兑换安全交接授权并完成凭据绑定")).not.toBeNull();
     expect(view.queryByLabelText("关键阻断")).toBeNull();
     expect(view.queryByText("交接包可生成；导入 Insight Profile 后通过 manual/secretRef binding 绑定 resolver 凭据。交接包只包含元数据，不传递真实凭据。")).toBeNull();
     expect(view.queryByText("可生成元数据交接包，导入 Insight 后通过 manual/secretRef binding 绑定凭据。")).toBeNull();
@@ -448,8 +502,8 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.getAllByText("部分缺失").length).toBeGreaterThan(0);
     expect(view.queryByText("刷新状态")).toBeNull();
     expect(view.queryByText("预检交接包")).toBeNull();
-    expect(view.getByText("生成元数据交接包")).not.toBeNull();
-    expect((view.getByText("生成元数据交接包").closest("button") as HTMLButtonElement).disabled).toBe(true);
+    expect(view.getByText("复制 Insight Admin 接入包")).not.toBeNull();
+    expect((view.getByText("复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(true);
     expect(view.getByText("补齐 Admin owner 材料后生成")).not.toBeNull();
     expect(view.queryByText("保存配置")).toBeNull();
     expect(view.queryByText("读取配置")).toBeNull();
@@ -559,15 +613,15 @@ describe("ApplicationUsageAccessPage", () => {
     mockGetServiceCredentialGovernanceConfig.mockResolvedValueOnce(governanceConfigResponse);
 
     const view = renderPage();
-    expect(await view.findByText("材料已齐，点击生成元数据交接包。")).not.toBeNull();
+    expect(await view.findByText("材料已齐，点击复制 Insight Admin 接入包。")).not.toBeNull();
     expect(view.getByText("交接包操作")).not.toBeNull();
     expect(view.queryByText("交接能力")).toBeNull();
     expect(view.getByText("诊断摘要")).not.toBeNull();
     expect(view.getByText("查看诊断详情")).not.toBeNull();
     expect(view.getByText("交接状态")).not.toBeNull();
     expect(view.getAllByText("可生成").length).toBeGreaterThan(0);
-    expect(view.getByText("生成元数据交接包并交给 Insight 绑定")).not.toBeNull();
-    expect(view.getByText("可生成完整包")).not.toBeNull();
+    expect(view.getByText("复制 Insight Admin 接入包并导入 Insight Profile")).not.toBeNull();
+    expect(view.getByText("可复制 Insight Admin 接入包")).not.toBeNull();
     expect(view.queryByLabelText("usage_identity_resolver capability status")).toBeNull();
     expect(view.queryByLabelText("gateway_organization_projection capability status")).toBeNull();
     expect(view.queryByText("admin_provider_trust")).toBeNull();
@@ -592,12 +646,13 @@ describe("ApplicationUsageAccessPage", () => {
     expect(mockSaveServiceCredentialGovernanceConfig).not.toHaveBeenCalled();
     expect(view.container.textContent).not.toContain("admin_service_credential_reference_unresolved");
     expect(mockDiagnoseServiceCredentialGovernanceConfig).not.toHaveBeenCalled();
-    const generateButton = view.getByText("生成元数据交接包").closest("button") as HTMLButtonElement;
+    const generateButton = view.getByText("复制 Insight Admin 接入包").closest("button") as HTMLButtonElement;
     expect(generateButton.disabled).toBe(false);
     expect(generateButton.className).toContain("ant-btn-primary");
 
-    clickButtonByText(view, "生成元数据交接包");
-    expect((await view.findAllByText("Insight Admin 接入交接包已生成")).length).toBeGreaterThan(0);
+    clickButtonByText(view, "复制 Insight Admin 接入包");
+    expect((await view.findAllByText("Insight Admin 接入包已复制")).length).toBeGreaterThan(0);
+    expect(mockCreateInsightAdminAccessPackage).toHaveBeenCalledTimes(1);
     const handoffInput = mockBuildServiceCredentialGovernanceHandoffPackage.mock.calls[0]?.[0] as {config?: unknown; status?: unknown};
     expect(handoffInput).toHaveProperty("config");
     expect(handoffInput).toEqual(expect.objectContaining({
@@ -624,18 +679,20 @@ describe("ApplicationUsageAccessPage", () => {
         ]),
       }),
     }));
-    expect(view.queryByText("材料已齐，点击生成元数据交接包。")).toBeNull();
-    const regenerateButton = view.getByText("重新生成元数据交接包").closest("button") as HTMLButtonElement;
+    expect(view.queryByText("材料已齐，点击复制 Insight Admin 接入包。")).toBeNull();
+    const regenerateButton = view.getByText("重新复制 Insight Admin 接入包").closest("button") as HTMLButtonElement;
     expect(regenerateButton).not.toBeNull();
     expect(regenerateButton.className).not.toContain("ant-btn-primary");
-    expect(view.getByText("Admin 交接包只包含元数据和引用，不传递真实凭据。")).not.toBeNull();
+    expect(view.getByText("接入包不直接包含真实凭据；导入 Insight 后由后端完成兑换和绑定。")).not.toBeNull();
     expect(view.container.textContent).not.toContain("Admin secure handoff 不在 P0");
-    clickButtonByText(view, "复制交接包 JSON");
-    expect(mockCopyToClipboard).toHaveBeenCalledTimes(1);
-    const copiedPackage = String(mockCopyToClipboard.mock.calls[0]?.[0] ?? "");
-    expect(copiedPackage).toContain("admin_service_credential_governance_handoff_package");
-    expect(copiedPackage).toContain("insightProfile");
-    expect(copiedPackage).toContain("copy_safe_handoff");
+    clickButtonByText(view, "复制接入包 JSON");
+    expect(mockCopyToClipboard).toHaveBeenCalledTimes(2);
+    const copiedPackage = String(mockCopyToClipboard.mock.calls[mockCopyToClipboard.mock.calls.length - 1]?.[0] ?? "");
+    expect(copiedPackage).toContain("aicodex.insight.access-package.v1");
+    expect(copiedPackage).toContain("insight.connection-profile.import");
+    expect(copiedPackage).toContain("secureHandoffGrant");
+    expect(copiedPackage).toContain("\"nonce\": \"adm-nonce-test\"");
+    expect(copiedPackage).toContain("copySafeHandoff");
     expect(copiedPackage).not.toContain("resolver-secret-value");
     expect(copiedPackage).not.toContain("resolver-token-value");
     expect(copiedPackage).not.toContain("resolver.internal.example.invalid");
@@ -720,7 +777,7 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.container.textContent).not.toContain("服务凭据治理配置");
     expect(view.queryByText("接入中心")).toBeNull();
     expect(view.queryByText("预检交接包")).toBeNull();
-    expect((view.getByText("生成元数据交接包").closest("button") as HTMLButtonElement | null)?.disabled).toBe(true);
+    expect((view.getByText("复制 Insight Admin 接入包").closest("button") as HTMLButtonElement | null)?.disabled).toBe(true);
   });
 
   test("maps diagnostic status labels for all focused service credential governance outcomes", async() => {
@@ -803,10 +860,10 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.queryByText("可生成 copy-safe 元数据包，仍需补凭据引用。")).toBeNull();
     expect(view.queryByText("可生成元数据交接包，导入 Insight 后通过 manual/secretRef binding 绑定凭据。")).toBeNull();
     expect(view.container.textContent).not.toContain("copy-safe metadata");
-    expect(view.queryByText("材料已齐，点击生成元数据交接包。")).toBeNull();
+    expect(view.queryByText("材料已齐，点击复制 Insight Admin 接入包。")).toBeNull();
     expect(view.getAllByText("部分缺失").length).toBeGreaterThan(0);
-    expect(view.getByText("可生成元数据包，Insight 绑定凭据")).not.toBeNull();
-    expect(view.getByText("导入 Insight Profile 后，绑定 manual/secretRef 凭据解析器")).not.toBeNull();
+    expect(view.getByText("可复制接入包，Insight 兑换绑定")).not.toBeNull();
+    expect(view.getByText("导入 Insight Profile 后，由 Insight 后端兑换安全交接授权并完成凭据绑定")).not.toBeNull();
     expect(view.queryByLabelText("关键阻断")).toBeNull();
     expect(view.queryByText("导入 Insight Profile 后通过 manual/secretRef binding 绑定 resolver 凭据")).toBeNull();
     expect(view.queryByText("生成包后导入 Insight Profile；补齐 resolver 凭据引用后完成 P0 manual/secretRef binding。")).toBeNull();
@@ -844,11 +901,12 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.container.textContent).not.toContain("missing_reference_alias");
     expect(view.queryByText("排障详情")).toBeNull();
     expect(view.queryByText("机器字段")).toBeNull();
-    clickButtonByText(view, "生成元数据交接包");
-    expect((await view.findAllByText("Admin 元数据交接包已生成")).length).toBeGreaterThan(0);
-    expect(view.getByText("已生成元数据交接包；仍需在 Insight Profile 绑定真实凭据。")).not.toBeNull();
+    clickButtonByText(view, "复制 Insight Admin 接入包");
+    expect((await view.findAllByText("Insight Admin 接入包已复制")).length).toBeGreaterThan(0);
+    expect(view.getByText("接入包包含脱敏元数据和安全交接授权摘要；真实凭据只由 Insight 后端兑换。")).not.toBeNull();
     expect(view.container.textContent).not.toContain("copy-safe metadata");
     expect(view.queryByText("Insight Admin 接入交接包已生成")).toBeNull();
+    expect(mockCreateInsightAdminAccessPackage).toHaveBeenCalledTimes(1);
     const handoffInput = mockBuildServiceCredentialGovernanceHandoffPackage.mock.calls[0]?.[0] as {config?: unknown; status?: unknown};
     expect(handoffInput).toHaveProperty("config");
     expect(handoffInput).toEqual(expect.objectContaining({
@@ -865,6 +923,85 @@ describe("ApplicationUsageAccessPage", () => {
         ]),
       }),
     }));
+  });
+
+  test("allows access-package generation when only the legacy credential reference is missing", async() => {
+    mockGetServiceCredentialGovernanceStatus.mockResolvedValueOnce({
+      status: "ok",
+      data: {
+        generatedAt: "2026-07-09T02:20:00Z",
+        source: "admin_runtime_config",
+        groups: [
+          {key: "usage_identity_resolver", label: "Usage identity resolver", owner: "admin_outbound_resolver", status: "partial", configuredKeys: [], missingKeys: ["insightUsageIdentityResolverToken"], credentialReferenceStatus: "missing"},
+        ],
+      },
+    });
+    mockGetServiceCredentialGovernanceConfig.mockResolvedValueOnce({
+      status: "ok",
+      data: {
+        updatedAt: "2026-07-09T02:20:30Z",
+        source: "admin_service_credential_governance_config",
+        isConfigured: true,
+        groups: [
+          {key: "usage_identity_resolver", label: "Usage identity resolver", enabled: true, sourceClass: "admin_config", credentialReferenceStatus: "missing"},
+        ],
+      },
+    });
+
+    const view = renderPage();
+
+    expect(await view.findByText("交接包操作")).not.toBeNull();
+    expect(view.getByText("缺少凭据引用")).not.toBeNull();
+    expect(view.getByText("可复制接入包，Insight 兑换绑定")).not.toBeNull();
+    expect((view.getByText("复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(false);
+    clickButtonByText(view, "复制 Insight Admin 接入包");
+
+    expect((await view.findAllByText("Insight Admin 接入包已复制")).length).toBeGreaterThan(0);
+    expect(mockCreateInsightAdminAccessPackage).toHaveBeenCalledTimes(1);
+    expect(view.queryByText("Admin 交接包暂不可用")).toBeNull();
+    const handoffInput = mockBuildServiceCredentialGovernanceHandoffPackage.mock.calls[0]?.[0] as {status?: unknown};
+    expect(handoffInput).toEqual(expect.objectContaining({
+      status: expect.objectContaining({
+        groups: expect.arrayContaining([
+          expect.objectContaining({key: "usage_identity_resolver", status: "configured", missingKeys: [], blockedReasons: [], credentialReferenceStatus: "configured"}),
+        ]),
+      }),
+    }));
+  });
+
+  test("shows a specific access-package permission error instead of the generic unavailable message", async() => {
+    mockGetServiceCredentialGovernanceStatus.mockResolvedValueOnce({
+      status: "ok",
+      data: {
+        generatedAt: "2026-07-09T02:30:00Z",
+        source: "admin_runtime_config",
+        groups: [
+          {key: "usage_identity_resolver", label: "Usage identity resolver", owner: "admin_outbound_resolver", status: "partial", configuredKeys: [], missingKeys: ["insightUsageIdentityResolverToken"], credentialReferenceStatus: "missing"},
+        ],
+      },
+    });
+    mockGetServiceCredentialGovernanceConfig.mockResolvedValueOnce({
+      status: "ok",
+      data: {
+        updatedAt: "2026-07-09T02:30:30Z",
+        source: "admin_service_credential_governance_config",
+        isConfigured: true,
+        groups: [
+          {key: "usage_identity_resolver", label: "Usage identity resolver", enabled: true, sourceClass: "admin_config", credentialReferenceStatus: "missing"},
+        ],
+      },
+    });
+    mockCreateInsightAdminAccessPackage.mockReset();
+    mockCreateInsightAdminAccessPackage.mockResolvedValueOnce({status: "error", msg: "Unauthorized operation"});
+
+    const view = renderPage();
+
+    expect(await view.findByText("交接包操作")).not.toBeNull();
+    expect((view.getByText("复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(false);
+    clickButtonByText(view, "复制 Insight Admin 接入包");
+
+    expect(await view.findByText("当前登录态无权生成 Insight Admin 接入包，请使用 Admin owner 权限重试。")).not.toBeNull();
+    expect(view.queryByText("Admin 交接包暂不可用")).toBeNull();
   });
 
   test("previews handoff readiness labels without exposing unsafe runtime material", async() => {
@@ -954,14 +1091,19 @@ describe("ApplicationUsageAccessPage", () => {
     fireEvent.click(await view.findByText("技术证据"));
     await view.findByLabelText("blocked_group owner evidence");
     expect(view.getByLabelText("ready_group owner evidence").textContent).toContain("Ready group");
-    expect((view.getByText("生成元数据交接包").closest("button") as HTMLButtonElement).disabled).toBe(false);
-    clickButtonByText(view, "生成元数据交接包");
+    expect((view.getByText("复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(false);
+    clickButtonByText(view, "复制 Insight Admin 接入包");
 
-    expect((await view.findAllByText("Admin 元数据交接包已生成")).length).toBeGreaterThan(0);
-    expect(view.getByText("已生成元数据交接包；仍需在 Insight Profile 绑定真实凭据。")).not.toBeNull();
+    expect((await view.findAllByText("Insight Admin 接入包已复制")).length).toBeGreaterThan(0);
+    expect(view.getByText("接入包包含脱敏元数据和安全交接授权摘要；真实凭据只由 Insight 后端兑换。")).not.toBeNull();
     expect(view.container.textContent).not.toContain("copy-safe metadata");
     expect(view.queryByText("Insight Admin 接入交接包已生成")).toBeNull();
     expect(mockBuildServiceCredentialGovernanceHandoffPackage).toHaveBeenCalledTimes(1);
+    expect(mockCreateInsightAdminAccessPackage).toHaveBeenCalledTimes(1);
+    expect(mockCopyToClipboard).toHaveBeenCalledWith(expect.stringContaining("\"ownerRegistry\""));
+    expect(mockCopyToClipboard).toHaveBeenCalledWith(expect.stringContaining("\"trustedEndpointAlias\": \"admin-secure-handoff\""));
+    expect(mockCopyToClipboard).toHaveBeenCalledWith(expect.stringContaining("\"serviceIdentity\": \"svc:aicodex-admin\""));
+    expect(mockCopyToClipboard).toHaveBeenCalledWith(expect.stringContaining("\"targetRegistrationStatus\": \"approved\""));
     expect(view.container.textContent).not.toContain("可交付");
     expect(view.queryByText("高级修正")).toBeNull();
     expect(view.container.textContent).not.toContain("调用策略缺失");
