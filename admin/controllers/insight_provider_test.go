@@ -601,6 +601,115 @@ func TestInsightScopeUsesSavedResolverPolicyWhenLocalMappingMissing(t *testing.T
 	}
 }
 
+func TestInsightQueryableScopesSkipResolverUnavailableMissingMembers(t *testing.T) {
+	generatedAt := time.Date(2026, 7, 10, 8, 0, 0, 0, time.UTC)
+	withInsightUsageIdentityResolverRuntimePolicyConfigForTest(t, &object.ServiceCredentialGovernanceConfigResponse{
+		Groups: []object.ServiceCredentialGovernanceConfigGroup{{
+			Key:                       "usage_identity_resolver",
+			Enabled:                   false,
+			SourceClass:               "env_config",
+			CredentialReferenceStatus: "configured",
+			CallerPolicy:              "saved-resolver-caller",
+			BoundedRuntimePolicy:      map[string]interface{}{"timeoutMs": 1200.0, "maxItems": 25.0},
+		}},
+	})
+	t.Setenv("insightUsageIdentityResolverEndpoint", "")
+	t.Setenv("insightUsageIdentityResolverToken", "")
+
+	newMissingUser := func(name string) *object.User {
+		return &object.User{
+			Owner:  "org-a",
+			Name:   name,
+			Wecom:  name,
+			Groups: []string{"org-a/dev"},
+			Properties: map[string]string{
+				object.WecomUserPropertyCorpId: "ww123",
+				object.WecomUserPropertyUserId: name,
+			},
+		}
+	}
+
+	t.Run("all company", func(t *testing.T) {
+		currentUser := &object.User{Owner: "org-a", Name: "owner", IsAdmin: true}
+		mapped := &object.User{Owner: "org-a", Name: "mapped", Groups: []string{"org-a/dev"}}
+		missing := newMissingUser("missing")
+		installInsightPlatformApiMappingFixtures(t, "org-a", "", map[string]string{
+			"org-a/owner":  "100",
+			"org-a/mapped": "101",
+		})
+
+		got, providerErr := calculateInsightScope(currentUser, []*object.User{currentUser, mapped, missing}, []*object.Group{{Owner: "org-a", Name: "dev", DisplayName: "Dev"}}, generatedAt)
+		if providerErr != nil {
+			t.Fatalf("calculateInsightScope returned error: %+v", providerErr)
+		}
+		if got.ScopeType != ScopeTypeAllCompany || !containsString(got.ApiUserIds, "100") || !containsString(got.ApiUserIds, "101") {
+			t.Fatalf("scope = %+v, want mapped all-company members", got)
+		}
+		if containsString(got.AdminUserIds, missing.GetId()) {
+			t.Fatalf("scope retained resolver-unavailable missing member: %+v", got)
+		}
+	})
+
+	t.Run("department tree", func(t *testing.T) {
+		currentUser := &object.User{Owner: "org-a", Name: "lead"}
+		mapped := &object.User{Owner: "org-a", Name: "mapped", Groups: []string{"org-a/dev"}}
+		missing := newMissingUser("missing")
+		installInsightPlatformApiMappingFixtures(t, "org-a", "", map[string]string{
+			"org-a/lead":   "200",
+			"org-a/mapped": "201",
+		})
+
+		got, providerErr := calculateInsightScope(currentUser, []*object.User{currentUser, mapped, missing}, []*object.Group{{Owner: "org-a", Name: "dev", DisplayName: "Dev", Manager: currentUser.GetId()}}, generatedAt)
+		if providerErr != nil {
+			t.Fatalf("calculateInsightScope returned error: %+v", providerErr)
+		}
+		if got.ScopeType != ScopeTypeDepartmentTree || !containsString(got.ApiUserIds, "201") {
+			t.Fatalf("scope = %+v, want mapped department member", got)
+		}
+		if containsString(got.AdminUserIds, missing.GetId()) {
+			t.Fatalf("scope retained resolver-unavailable missing member: %+v", got)
+		}
+	})
+}
+
+func TestInsightExactScopesFailClosedWhenResolverUnavailable(t *testing.T) {
+	generatedAt := time.Date(2026, 7, 10, 8, 0, 0, 0, time.UTC)
+	withInsightUsageIdentityResolverRuntimePolicyConfigForTest(t, &object.ServiceCredentialGovernanceConfigResponse{
+		Groups: []object.ServiceCredentialGovernanceConfigGroup{{
+			Key:                       "usage_identity_resolver",
+			Enabled:                   false,
+			SourceClass:               "env_config",
+			CredentialReferenceStatus: "configured",
+		}},
+	})
+	t.Setenv("insightUsageIdentityResolverEndpoint", "")
+	t.Setenv("insightUsageIdentityResolverToken", "")
+	missing := &object.User{
+		Owner: "org-a",
+		Name:  "missing",
+		Wecom: "missing",
+		Properties: map[string]string{
+			object.WecomUserPropertyCorpId: "ww123",
+			object.WecomUserPropertyUserId: "missing",
+		},
+	}
+	installInsightPlatformApiMappingFixtures(t, "org-a", "", nil)
+
+	t.Run("self", func(t *testing.T) {
+		got, providerErr := calculateInsightScope(missing, []*object.User{missing}, nil, generatedAt)
+		if got != nil || providerErr == nil || providerErr.Code != InsightProviderErrorAuthorizationFailed || providerErr.MappingStatus != MappingStatusMissing {
+			t.Fatalf("scope = %+v, providerErr = %+v, want AUTHORIZATION_FAILED with MISSING", got, providerErr)
+		}
+	})
+
+	t.Run("custom users", func(t *testing.T) {
+		got, providerErr := buildInsightCustomUsersScope("org-a/operator", "org-a", "", []*object.User{missing}, generatedAt, "trace-custom-unavailable")
+		if got != nil || providerErr == nil || providerErr.Code != InsightProviderErrorAuthorizationFailed || providerErr.MappingStatus != MappingStatusMissing {
+			t.Fatalf("scope = %+v, providerErr = %+v, want AUTHORIZATION_FAILED with MISSING", got, providerErr)
+		}
+	})
+}
+
 func TestInsightCurrentUserDisplayNamePrefersOrganizationDisplayName(t *testing.T) {
 	user := &object.User{
 		Owner:       "org-a",

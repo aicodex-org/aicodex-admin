@@ -1732,7 +1732,7 @@ func mapInsightUsersToUsageIdsWithPolicyAndCache(users []*object.User, skipMissi
 	if cache == nil {
 		cache = newInsightUsageIdentityCache()
 	}
-	if providerErr := preloadInsightUsageIdentityCache(users, cache); providerErr != nil {
+	if providerErr := preloadInsightUsageIdentityCacheWithPolicy(users, cache, skipMissing); providerErr != nil {
 		return nil, nil, firstNonEmptyInsightString(providerErr.MappingStatus, MappingStatusMissing), providerErr
 	}
 	for _, user := range users {
@@ -1758,6 +1758,12 @@ func mapInsightUsersToUsageIdsWithPolicyAndCache(users []*object.User, skipMissi
 // preloadInsightUsageIdentityCache 把 scope 路径中的 local-missing 用户合并成一次 resolver 调用。
 // 这样 saved caller/maxItems/timeout gate 由 resolver 统一执行，同时避免每个用户重复构造 outbound client。
 func preloadInsightUsageIdentityCache(users []*object.User, cache *insightUsageIdentityCache) *InsightProviderError {
+	return preloadInsightUsageIdentityCacheWithPolicy(users, cache, false)
+}
+
+// preloadInsightUsageIdentityCacheWithPolicy 仅允许聚合 queryable scope 把 unavailable+missing 降级为可跳过成员。
+// 精确 scope、非法或歧义映射仍保持 fail-closed，避免用不确定身份扩大查询范围。
+func preloadInsightUsageIdentityCacheWithPolicy(users []*object.User, cache *insightUsageIdentityCache, skipUnavailableMissing bool) *InsightProviderError {
 	if cache == nil {
 		return nil
 	}
@@ -1791,17 +1797,24 @@ func preloadInsightUsageIdentityCache(users []*object.User, cache *insightUsageI
 	if resolver == nil || !resolver.Enabled() {
 		runtimePolicy := getInsightUsageIdentityResolverRuntimePolicyDecision()
 		if runtimePolicy.SavedConfigured {
-			return newInsightProviderError(InsightProviderErrorUnavailable, "usage identity resolver unavailable", "", MappingStatusMissing)
+			providerErr := newInsightProviderError(InsightProviderErrorUnavailable, "usage identity resolver unavailable", "", MappingStatusMissing)
+			if skipUnavailableMissing {
+				cacheInsightMissingUsageIdentities(pendingItems, pendingUsers, cache)
+				return nil
+			}
+			return providerErr
 		}
-		for _, item := range pendingItems {
-			cache.items[item.RequestId] = withInsightSourceIdentity(InsightUsageIdentity{MappingStatus: MappingStatusMissing}, pendingUsers[item.RequestId])
-		}
+		cacheInsightMissingUsageIdentities(pendingItems, pendingUsers, cache)
 		return nil
 	}
 	results, providerErr := resolver.Resolve("", pendingItems)
 	if providerErr != nil {
 		if providerErr.MappingStatus == "" {
 			providerErr.MappingStatus = MappingStatusMissing
+		}
+		if skipUnavailableMissing && providerErr.Code == InsightProviderErrorUnavailable && providerErr.MappingStatus == MappingStatusMissing {
+			cacheInsightMissingUsageIdentities(pendingItems, pendingUsers, cache)
+			return nil
 		}
 		return providerErr
 	}
@@ -1813,6 +1826,12 @@ func preloadInsightUsageIdentityCache(users []*object.User, cache *insightUsageI
 		cache.items[item.RequestId] = withInsightSourceIdentity(identity, pendingUsers[item.RequestId])
 	}
 	return nil
+}
+
+func cacheInsightMissingUsageIdentities(pendingItems []insightUsageIdentityResolveItem, pendingUsers map[string]*object.User, cache *insightUsageIdentityCache) {
+	for _, item := range pendingItems {
+		cache.items[item.RequestId] = withInsightSourceIdentity(InsightUsageIdentity{MappingStatus: MappingStatusMissing}, pendingUsers[item.RequestId])
+	}
 }
 
 func appendInsightUsageMapping(adminUserId string, apiUserId string, adminToApiUserId map[string]string, apiToAdminUserId map[string]string, adminUserIds *[]string, apiUserIds *[]string) string {
