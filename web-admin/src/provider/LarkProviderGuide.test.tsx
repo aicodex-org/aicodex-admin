@@ -48,16 +48,22 @@ describe("renderLarkProviderGuide", () => {
   });
 
   test("renders Feishu/Lark shared type and callback guidance", () => {
-    const {getByDisplayValue, getByText} = render(renderLarkProviderGuide({
+    const {container, getByDisplayValue, getByText} = render(renderLarkProviderGuide({
       type: "Lark",
       disableSsl: false,
     }, "https://auth.example.com") as ReactElement);
 
+    expect(container.querySelector(".provider-edit-guide-row.admin-large-edit-full-width-row")).toBeInTheDocument();
+    expect(container.querySelector(".provider-edit-endpoint-mode-panel")).toBeInTheDocument();
     expect(getByText("Feishu / Lark login setup")).toBeInTheDocument();
     expect(getByText(/Lark Provider type supports domestic Feishu and global Lark/)).toBeInTheDocument();
     expect(getByText(/Domestic Feishu/)).toBeInTheDocument();
     expect(getByText(/AICodex client redirect URI/)).toBeInTheDocument();
     expect(getByText(/custom scheme deep link/)).toBeInTheDocument();
     expect(getByDisplayValue("https://auth.example.com/callback")).toBeInTheDocument();
+  });
+
+  test("does not render Lark setup guidance for other providers", () => {
+    expect(renderLarkProviderGuide({type: "GitHub"}, "https://auth.example.com")).toBeNull();
   });
 });

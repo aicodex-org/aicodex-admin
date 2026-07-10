@@ -1,6 +1,538 @@
 /* eslint-env jest */
-import {expect} from "@jest/globals";
+import React from "react";
+import {Input, Select, Switch} from "antd";
+import {cleanup, render} from "@testing-library/react";
+import {expect, jest} from "@jest/globals";
+import i18next from "i18next";
+import "./i18n";
+import ProviderEditPage from "./ProviderEditPage";
+import * as Setting from "./Setting";
+import * as ProviderBackend from "./backend/ProviderBackend";
+import * as OrganizationBackend from "./backend/OrganizationBackend";
+import * as CertBackend from "./backend/CertBackend";
 import {validateWeComProviderFields} from "./provider/WeComProviderUtils";
+import en from "./locales/en/data.json";
+import zh from "./locales/zh/data.json";
+
+const {fireEvent} = require("@testing-library/react") as {fireEvent: {click: (element: Element) => boolean}};
+
+type PageHarness = ProviderEditPage & {
+  state: any;
+  props: any;
+  deleteProvider: () => void;
+  submitProviderEdit: (exitAfterSave: boolean) => void;
+  renderOrganizationOptions: () => React.ReactNode;
+  renderWeComGuide: (provider: any) => React.ReactNode;
+  renderProviderBasicSection: (provider: any) => React.ReactNode;
+  getProvider: () => void;
+  getOrganizations: () => void;
+  getCerts: (owner: string) => void;
+  updateProviderField: (key: string, value: any) => void;
+  updateUserMappingField: (key: string, value: string) => void;
+  updateProviderCategory: (value: string) => void;
+  updateProviderType: (value: string) => void;
+};
+
+jest.mock("./provider/OAuthProviderFields", () => {
+  const ReactFactory = require("react");
+  return {
+    renderOAuthProviderFields: () => ReactFactory.createElement("div", {"data-testid": "oauth-provider-fields"}, "OAuth fields"),
+  };
+});
+
+jest.mock("./provider/NotificationProviderFields", () => ({renderNotificationProviderFields: () => null}));
+jest.mock("./provider/EmailProviderFields", () => ({renderEmailProviderFields: () => null}));
+jest.mock("./provider/SmsProviderFields", () => ({renderSmsProviderFields: () => null}));
+jest.mock("./provider/MfaProviderFields", () => ({renderMfaProviderFields: () => null}));
+jest.mock("./provider/SamlProviderFields", () => ({renderSamlProviderFields: () => null}));
+jest.mock("./provider/CaptchaProviderFields", () => ({renderCaptchaProviderFields: () => null}));
+jest.mock("./provider/PaymentProviderFields", () => ({renderPaymentProviderFields: () => null}));
+jest.mock("./provider/Web3ProviderFields", () => ({renderWeb3ProviderFields: () => null}));
+jest.mock("./provider/StorageProviderFields", () => ({renderStorageProviderFields: () => null}));
+jest.mock("./provider/FaceIDProviderFields", () => ({renderFaceIdProviderFields: () => null}));
+jest.mock("./provider/IDVerificationProviderFields", () => ({renderIDVerificationProviderFields: () => null}));
+jest.mock("./provider/LarkProviderGuide", () => ({renderLarkProviderGuide: () => null}));
+
+const baseProvider = {
+  owner: "engineering",
+  name: "github-main",
+  displayName: "GitHub Main",
+  category: "OAuth",
+  type: "GitHub",
+  clientId: "client-id",
+  clientSecret: "client-secret",
+  providerUrl: "https://github.com/organizations/example/settings/applications/123",
+  userMapping: {
+    id: "id",
+    username: "username",
+    displayName: "displayName",
+  },
+};
+
+async function useTestLanguage(language: string) {
+  if (!i18next.isInitialized) {
+    await i18next.init({
+      lng: language,
+      fallbackLng: "en",
+      resources: {en, zh},
+      ns: Object.keys(en),
+      keySeparator: false,
+    });
+    return;
+  }
+
+  Object.entries(en).forEach(([namespace, values]) => {
+    i18next.addResourceBundle("en", namespace, values, true, true);
+  });
+  Object.entries(zh).forEach(([namespace, values]) => {
+    i18next.addResourceBundle("zh", namespace, values, true, true);
+  });
+  await i18next.changeLanguage(language);
+}
+
+async function flushPromises(): Promise<void> {
+  await new Promise(resolve => setTimeout(resolve, 0));
+}
+
+function collectElementsByType(node: React.ReactNode, type: React.ElementType): React.ReactElement[] {
+  if (!React.isValidElement(node)) {
+    return [];
+  }
+
+  const current = node.type === type ? [node] : [];
+  const children = (node.props as {children?: React.ReactNode}).children;
+  React.Children.forEach(children, child => current.push(...collectElementsByType(child, type)));
+  return current;
+}
+
+function elementProps<T>(element: React.ReactElement): T {
+  return element.props as T;
+}
+
+function findElementByValue(elements: React.ReactElement[], value: unknown): React.ReactElement {
+  const element = elements.find(item => elementProps<{value?: unknown}>(item).value === value);
+  if (!element) {
+    throw new Error(`Unable to find test element with value: ${String(value)}`);
+  }
+  return element;
+}
+
+function createPage(options: {mode?: "add" | "edit"} = {}): PageHarness {
+  const page = new ProviderEditPage({
+    match: {params: {organizationName: "engineering", providerName: "github-main"}},
+    location: {mode: options.mode},
+    history: {push: jest.fn()},
+    account: {owner: "engineering", name: "admin", email: "admin@example.test", isAdmin: true},
+  } as any) as unknown as PageHarness;
+
+  page.state = {
+    ...page.state,
+    provider: {...baseProvider},
+    organizations: [{name: "admin", displayName: "Admin"}, {name: "engineering", displayName: "Engineering"}],
+    certs: [{name: "cert-main"}],
+    mode: options.mode ?? "edit",
+  };
+  page.setState = ((patch: any, callback?: () => void) => {
+    const nextState = typeof patch === "function" ? patch(page.state, page.props) : patch;
+    page.state = {
+      ...page.state,
+      ...nextState,
+    };
+    callback?.();
+  }) as typeof page.setState;
+  return page;
+}
+
+beforeEach(async() => {
+  await useTestLanguage("en");
+  jest.spyOn(Setting, "isMobile").mockReturnValue(false);
+  jest.spyOn(Setting, "isAdminUser").mockReturnValue(true);
+});
+
+afterEach(() => {
+  cleanup();
+  jest.restoreAllMocks();
+});
+
+test("renders provider edit in the shared large edit shell without duplicate legacy actions", () => {
+  const page = createPage();
+  const view = render(<>{page.renderProvider()}</>);
+
+  expect(view.container.querySelector(".provider-edit-shell")).not.toBeNull();
+  expect(view.container.querySelector(".provider-edit-header")).not.toBeNull();
+  expect(view.container.querySelector(".provider-edit-scroll-content")).not.toBeNull();
+  expect(view.container.querySelector(".provider-edit-action-bar")).not.toBeNull();
+  expect(view.container.querySelector(".provider-edit-card .ant-card-head")).toBeNull();
+  expect(view.getByText("Identity Source Center / Providers /")).not.toBeNull();
+  expect(view.getByText("Edit Provider (GitHub Main)")).not.toBeNull();
+  expect(view.getByText("Basic information")).not.toBeNull();
+  expect(view.getByText("Provider configuration")).not.toBeNull();
+  expect(view.getByText("Provider URL")).not.toBeNull();
+  expect(view.getByTestId("oauth-provider-fields")).not.toBeNull();
+
+  const actionButtons = Array.from(view.container.querySelectorAll(".provider-edit-action-bar button")) as HTMLButtonElement[];
+  expect(actionButtons.map(button => button.textContent)).toEqual([
+    "Cancel",
+    "Save",
+    "Save and return",
+  ]);
+  expect(view.queryByText("Save & Exit")).toBeNull();
+});
+
+test("routes edit cancel and shell back to provider list", () => {
+  const page = createPage();
+  const view = render(<>{page.renderProvider()}</>);
+
+  fireEvent.click(view.getByText("Cancel"));
+  fireEvent.click(view.getByText("Back"));
+
+  expect(page.props.history.push).toHaveBeenNthCalledWith(1, "/providers");
+  expect(page.props.history.push).toHaveBeenNthCalledWith(2, "/providers");
+});
+
+test("keeps shared footer save actions wired to the existing provider submit method", () => {
+  const page = createPage();
+  const submitProviderEdit = jest.spyOn(page, "submitProviderEdit").mockImplementation(() => undefined);
+  const view = render(<>{page.renderProvider()}</>);
+
+  fireEvent.click(view.getByText("Save"));
+  fireEvent.click(view.getByText("Save and return"));
+
+  expect(submitProviderEdit).toHaveBeenNthCalledWith(1, false);
+  expect(submitProviderEdit).toHaveBeenNthCalledWith(2, true);
+});
+
+test("renders provider organization options with shared admin semantics and no duplicate admin organization", () => {
+  const page = createPage();
+  const options = React.Children.toArray(page.renderOrganizationOptions()) as Array<React.ReactElement<any>>;
+
+  expect(options.map(option => option.props.value)).toEqual(["admin", "engineering"]);
+  expect(options[0].props.label).toBe("admin (Shared)");
+  expect(options[1].props.label).toBe("Engineering");
+});
+
+test("keeps provider-specific tooltip copy available in zh and en locales", async() => {
+  await useTestLanguage("en");
+  expect(i18next.t("provider:Provider category - Tooltip")).toContain("OAuth sign-in");
+  expect(i18next.t("provider:Email regex - Tooltip")).toContain("OAuth Provider");
+
+  await useTestLanguage("zh");
+  expect(i18next.t("provider:Provider category - Tooltip")).toContain("OAuth 登录");
+  expect(i18next.t("provider:Email regex - Tooltip")).toContain("OAuth Provider");
+});
+
+test("renders WeCom setup guide as a full-width legacy form row", () => {
+  const page = createPage();
+  const view = render(<>{page.renderWeComGuide({type: "WeCom", subType: "Internal", method: "Normal"})}</>);
+
+  expect(view.container.querySelector(".provider-edit-guide-row.admin-large-edit-full-width-row")).not.toBeNull();
+  expect(view.getByText("WeCom web login setup")).not.toBeNull();
+});
+
+test("keeps add cancel deleting the pre-created provider", () => {
+  const page = createPage({mode: "add"});
+  const deleteProvider = jest.spyOn(page, "deleteProvider").mockImplementation(() => undefined);
+  const view = render(<>{page.renderProvider()}</>);
+
+  fireEvent.click(view.getByText("Cancel"));
+
+  expect(deleteProvider).toHaveBeenCalledTimes(1);
+});
+
+([
+  ["Custom HTTP Email", undefined, {fromName: "fromName", toAddress: "toAddress"}],
+  ["Custom HTTP SMS", {}, {phoneNumber: "phoneNumber", content: "content"}],
+  ["GitHub", undefined, {id: "id", username: "username"}],
+] as Array<[string, Record<string, string> | undefined, Record<string, string>]>).forEach(([type, userMapping, expectedMapping]) => {
+  test(`loads ${type} providers with the mapping required by their editor`, async() => {
+    const page = createPage();
+    jest.spyOn(ProviderBackend, "getProvider").mockResolvedValue({
+      status: "ok",
+      data: {...baseProvider, type, userMapping},
+    } as any);
+
+    page.getProvider();
+    await flushPromises();
+
+    expect(page.state.provider.userMapping).toEqual(expect.objectContaining(expectedMapping));
+  });
+});
+
+test("redirects missing providers and surfaces load failures", async() => {
+  const page = createPage();
+  const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  const getProvider = jest.spyOn(ProviderBackend, "getProvider")
+    .mockResolvedValueOnce({status: "ok", data: null} as any)
+    .mockResolvedValueOnce({status: "error", data: baseProvider, msg: "not allowed"} as any);
+
+  page.getProvider();
+  await flushPromises();
+  expect(page.props.history.push).toHaveBeenCalledWith("/404");
+
+  page.getProvider();
+  await flushPromises();
+  expect(getProvider).toHaveBeenLastCalledWith("engineering", "github-main");
+  expect(showMessage).toHaveBeenCalledWith("error", "not allowed");
+});
+
+test("loads organizations and certificates only through their allowed boundaries", async() => {
+  const page = createPage();
+  const getOrganizations = jest.spyOn(OrganizationBackend, "getOrganizations").mockResolvedValue({
+    status: "ok",
+    data: [{name: "engineering", displayName: "Engineering"}],
+  });
+  const getCerts = jest.spyOn(CertBackend, "getCerts").mockResolvedValue({
+    status: "ok",
+    data: [{name: "cert-engineering"}],
+  } as any);
+
+  page.getOrganizations();
+  page.getCerts("engineering");
+  await flushPromises();
+
+  expect(page.state.organizations).toEqual([{name: "engineering", displayName: "Engineering"}]);
+  expect(page.state.certs).toEqual([{name: "cert-engineering"}]);
+
+  jest.spyOn(Setting, "isAdminUser").mockReturnValue(false);
+  page.getOrganizations();
+  expect(getOrganizations).toHaveBeenCalledTimes(1);
+
+  getCerts.mockResolvedValueOnce({status: "error", data: [{name: "ignored"}]} as any);
+  page.getCerts("other");
+  await flushPromises();
+  expect(page.state.certs).toEqual([{name: "cert-engineering"}]);
+});
+
+test("keeps owner, numeric and provider-specific defaults consistent while editing", () => {
+  const page = createPage();
+  const getCerts = jest.spyOn(page, "getCerts").mockImplementation(() => undefined);
+  page.state.provider.cert = "old-cert";
+
+  page.updateProviderField("owner", "platform");
+  page.updateProviderField("port", "1812");
+  page.state.provider.type = "WeCom";
+  page.updateProviderField("displayName", "Enterprise WeCom");
+
+  expect(page.state.provider).toEqual(expect.objectContaining({
+    owner: "platform",
+    cert: "",
+    port: 1812,
+    displayName: "Enterprise WeCom",
+    subType: "Internal",
+    method: "Normal",
+    scopes: "snsapi_privateinfo",
+  }));
+  expect(getCerts).toHaveBeenCalledWith("platform");
+});
+
+test("wires every shared basic field and organization search to the provider state", () => {
+  const page = createPage();
+  page.state.provider = {
+    ...page.state.provider,
+    type: "WeCom",
+    subType: "Internal",
+    method: "Normal",
+    scopes: "snsapi_privateinfo",
+    disableSsl: false,
+  };
+  jest.spyOn(page, "getCerts").mockImplementation(() => undefined);
+  const section = page.renderProviderBasicSection(page.state.provider);
+  const inputs = collectElementsByType(section, Input);
+  const selects = collectElementsByType(section, Select);
+  const switches = collectElementsByType(section, Switch);
+
+  elementProps<{onChange: (event: {target: {value: string}}) => void}>(findElementByValue(inputs, "github-main")).onChange({target: {value: "provider-renamed"}});
+  elementProps<{onChange: (event: {target: {value: string}}) => void}>(findElementByValue(inputs, "GitHub Main")).onChange({target: {value: "Provider Renamed"}});
+  elementProps<{onChange: (event: {target: {value: string}}) => void}>(findElementByValue(inputs, baseProvider.providerUrl)).onChange({target: {value: "https://provider.example.test"}});
+
+  const ownerSelect = elementProps<{
+    filterOption: (input: string, option?: {label?: unknown; value?: unknown}) => boolean;
+    onChange: (value: string) => void;
+      }>(findElementByValue(selects, "engineering"));
+  expect(ownerSelect.filterOption("engine", {label: "Engineering", value: "engineering"})).toBe(true);
+  expect(ownerSelect.filterOption("missing", undefined)).toBe(false);
+  ownerSelect.onChange("platform");
+
+  elementProps<{onChange: (value: string) => void}>(findElementByValue(selects, "OAuth")).onChange("OAuth");
+  elementProps<{onChange: (value: string) => void}>(findElementByValue(selects, "WeCom")).onChange("WeCom");
+  elementProps<{onChange: (value: string) => void}>(findElementByValue(selects, "Internal")).onChange("Third-party");
+  elementProps<{onChange: (value: string) => void}>(findElementByValue(selects, "Normal")).onChange("Silent");
+  elementProps<{onChange: (value: string) => void}>(findElementByValue(selects, "snsapi_privateinfo")).onChange("snsapi_userinfo");
+  elementProps<{onChange: (checked: boolean) => void}>(switches[0]).onChange(true);
+
+  expect(page.state.provider).toEqual(expect.objectContaining({
+    name: "provider-renamed",
+    displayName: "Provider Renamed",
+    owner: "platform",
+    category: "OAuth",
+    type: "WeCom",
+    subType: "Third-party",
+    method: "Silent",
+    scopes: "snsapi_userinfo",
+    disableSsl: true,
+    providerUrl: "https://provider.example.test",
+  }));
+});
+
+test("keeps WeChat platform selection coherent as credentials change", () => {
+  const page = createPage();
+  page.state.provider = {
+    ...page.state.provider,
+    type: "WeChat",
+    clientId: "",
+    clientId2: "open-app",
+    disableSsl: false,
+  };
+
+  page.updateProviderField("clientId", "");
+  expect(page.state.provider).toEqual(expect.objectContaining({signName: "media", disableSsl: true}));
+
+  page.state.provider.clientId = "media-app";
+  page.state.provider.clientId2 = "";
+  page.updateProviderField("clientId2", "");
+  expect(page.state.provider).toEqual(expect.objectContaining({signName: "open", disableSsl: false}));
+});
+
+([
+  ["OAuth", {type: "Google"}],
+  ["Email", {type: "Default", host: "smtp.example.com", port: 465, sslMode: "Auto", receiver: "admin@example.test"}],
+  ["SMS", {type: "Twilio SMS"}],
+  ["Storage", {type: "AWS S3"}],
+  ["SAML", {type: "Keycloak"}],
+  ["Payment", {type: "PayPal"}],
+  ["Captcha", {type: "Default"}],
+  ["Web3", {type: "MetaMask"}],
+  ["Notification", {type: "Telegram"}],
+  ["Face ID", {type: "Alibaba Cloud Facebody"}],
+  ["MFA", {type: "RADIUS", host: "", port: 1812}],
+  ["ID Verification", {type: "Jumio", endpoint: ""}],
+] as Array<[string, Record<string, unknown>]>).forEach(([category, expectedDefaults]) => {
+  test(`applies meaningful defaults when switching to the ${category} category`, () => {
+    const page = createPage();
+
+    page.updateProviderCategory(category);
+
+    expect(page.state.provider).toEqual(expect.objectContaining({category, ...expectedDefaults}));
+  });
+});
+
+([
+  ["Storage", "Local File System", {domain: "https://admin.example.test"}],
+  ["OAuth", "Custom OAuth", {
+    customAuthUrl: "https://admin.example.test/login/oauth/authorize",
+    scopes: "openid profile email",
+    customTokenUrl: "https://admin.example.test/api/login/oauth/access_token",
+    customUserInfoUrl: "https://admin.example.test/api/userinfo",
+  }],
+  ["SMS", "Custom HTTP SMS", {endpoint: "https://example.com/send-custom-http-sms", method: "GET", title: "code"}],
+  ["Email", "Custom HTTP Email", {endpoint: "https://example.com/send-custom-http-email", method: "POST"}],
+  ["OAuth", "WeCom", {subType: "Internal", method: "Normal", scopes: "snsapi_privateinfo"}],
+  ["Notification", "Custom HTTP", {method: "GET", title: ""}],
+] as Array<[string, string, Record<string, unknown>]>).forEach(([category, type, expectedDefaults]) => {
+  test(`applies meaningful defaults when switching ${category} providers to ${type}`, () => {
+    const page = createPage();
+    page.state.provider.category = category;
+    jest.spyOn(Setting, "getFullServerUrl").mockReturnValue("https://admin.example.test");
+
+    page.updateProviderType(type);
+
+    expect(page.state.provider).toEqual(expect.objectContaining({category, type, ...expectedDefaults}));
+  });
+});
+
+test("enforces required user mappings while allowing optional mappings to be cleared", () => {
+  const page = createPage();
+  const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+
+  page.updateUserMappingField("id", "");
+  expect(page.state.provider.userMapping.id).toBe("id");
+  expect(showMessage).toHaveBeenCalledWith("error", expect.any(String));
+
+  page.updateUserMappingField("email", "");
+  expect(page.state.provider.userMapping.email).toBeUndefined();
+
+  page.updateUserMappingField("email", "mail");
+  expect(page.state.provider.userMapping.email).toBe("mail");
+
+  page.state.provider.type = "Custom HTTP Email";
+  page.state.provider.userMapping.fromName = "fromName";
+  page.updateUserMappingField("fromName", "");
+  expect(page.state.provider.userMapping.fromName).toBe("fromName");
+});
+
+test("blocks invalid Lark credentials before saving", () => {
+  const page = createPage();
+  page.state.provider = {...page.state.provider, type: "Lark", clientId: "", clientSecret: ""};
+  const updateProvider = jest.spyOn(ProviderBackend, "updateProvider");
+  const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+
+  page.submitProviderEdit(false);
+
+  expect(updateProvider).not.toHaveBeenCalled();
+  expect(showMessage).toHaveBeenCalledWith("error", expect.stringContaining("App ID"));
+});
+
+([
+  [false, "/providers/platform/github-renamed"],
+  [true, "/providers"],
+] as Array<[boolean, string]>).forEach(([exitAfterSave, expectedPath]) => {
+  test(`saves valid providers and follows the ${exitAfterSave ? "return" : "stay"} mode`, async() => {
+    const page = createPage();
+    page.state.provider = {...page.state.provider, owner: "platform", name: "github-renamed"};
+    const updateProvider = jest.spyOn(ProviderBackend, "updateProvider").mockResolvedValue({status: "ok"} as any);
+    const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+
+    page.submitProviderEdit(exitAfterSave);
+    await flushPromises();
+
+    expect(updateProvider).toHaveBeenCalledWith("engineering", "github-main", expect.objectContaining({
+      owner: "platform",
+      name: "github-renamed",
+    }));
+    expect(page.state).toEqual(expect.objectContaining({owner: "platform", providerName: "github-renamed"}));
+    expect(page.props.history.push).toHaveBeenCalledWith(expectedPath);
+    expect(showMessage).toHaveBeenCalledWith("success", expect.any(String));
+  });
+});
+
+test("restores the persisted name on save rejection and surfaces connection failures", async() => {
+  const page = createPage();
+  const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  jest.spyOn(ProviderBackend, "updateProvider")
+    .mockResolvedValueOnce({status: "error", msg: "duplicate name"} as any)
+    .mockRejectedValueOnce(new Error("offline"));
+  page.state.provider.name = "duplicate";
+
+  page.submitProviderEdit(false);
+  await flushPromises();
+  expect(page.state.provider.name).toBe("github-main");
+  expect(showMessage).toHaveBeenCalledWith("error", expect.stringContaining("duplicate name"));
+
+  page.submitProviderEdit(false);
+  await flushPromises();
+  expect(showMessage).toHaveBeenCalledWith("error", expect.stringContaining("offline"));
+});
+
+test("handles add-cancel deletion success, backend rejection and connection failure", async() => {
+  const page = createPage({mode: "add"});
+  const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  jest.spyOn(ProviderBackend, "deleteProvider")
+    .mockResolvedValueOnce({status: "ok"} as any)
+    .mockResolvedValueOnce({status: "error", msg: "in use"} as any)
+    .mockRejectedValueOnce(new Error("offline"));
+
+  page.deleteProvider();
+  await flushPromises();
+  expect(page.props.history.push).toHaveBeenCalledWith("/providers");
+
+  page.deleteProvider();
+  await flushPromises();
+  expect(showMessage).toHaveBeenCalledWith("error", expect.stringContaining("in use"));
+
+  page.deleteProvider();
+  await flushPromises();
+  expect(showMessage).toHaveBeenCalledWith("error", expect.stringContaining("offline"));
+});
 
 describe("validateWeComProviderFields", () => {
   test("requires Agent ID for Internal + Normal mode", () => {

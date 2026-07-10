@@ -17,7 +17,7 @@ import {Col, Input, Radio, Row, Switch} from "antd";
 import {LinkOutlined} from "@ant-design/icons";
 import * as Setting from "../Setting";
 import i18next from "i18next";
-import {getLarkProviderEndpointModeInfo, isLarkProvider} from "./LarkProviderUtils";
+import {LarkProviderEndpointModeSummary} from "./LarkProviderEndpointModeSummary";
 // eslint-disable-next-line unused-imports/no-unused-imports
 import type {ProviderConfig, RenderProviderNode, UpdateProviderField} from "./ProviderFieldTypes";
 
@@ -26,25 +26,6 @@ const t = i18next.t.bind(i18next) as (key: string) => string;
 const {TextArea} = Input;
 
 export function renderOAuthProviderFields(provider: ProviderConfig, updateProviderField: UpdateProviderField, renderUserMappingInput: RenderProviderNode): React.ReactNode {
-  const renderLarkEndpointModeInfo = (provider: ProviderConfig): React.ReactNode => {
-    if (!isLarkProvider(provider)) {
-      return null;
-    }
-
-    const endpointModeInfo = getLarkProviderEndpointModeInfo(provider);
-
-    return (
-      <Col span={21}>
-        <div style={{lineHeight: "22px", color: "rgba(0, 0, 0, 0.65)"}}>
-          <div>{`${t("provider:Selected endpoint mode")}: ${t(`provider:${endpointModeInfo.modeName}`)}`}</div>
-          <div>{`${t("provider:Authorization domain")}: ${endpointModeInfo.authDomain}`}</div>
-          <div>{`${t("provider:API domain")}: ${endpointModeInfo.apiDomain}`}</div>
-          <div>{`${t("provider:App ID and App Secret must come from")}: ${t(`provider:${endpointModeInfo.credentialPlatform}`)}`}</div>
-        </div>
-      </Col>
-    );
-  };
-
   const getDomainLabel = (provider: ProviderConfig): React.ReactNode => {
     switch (provider.category) {
     case "OAuth":
@@ -136,12 +117,12 @@ export function renderOAuthProviderFields(provider: ProviderConfig, updateProvid
                 Setting.getLabel(t("provider:Get phone number"), t("provider:Get phone number - Tooltip"))
                 : Setting.getLabel(t("provider:Endpoint mode"), t("provider:Lark endpoint mode - Tooltip"))} :
             </Col>
-            <Col span={1} >
+            <Col span={provider.type === "Lark" ? 22 : 1} className={provider.type === "Lark" ? "provider-edit-endpoint-mode-control" : undefined}>
               <Switch disabled={!provider.clientId} checked={provider.disableSsl} onChange={checked => {
                 updateProviderField("disableSsl", checked);
               }} />
+              <LarkProviderEndpointModeSummary provider={provider} />
             </Col>
-            {renderLarkEndpointModeInfo(provider)}
           </Row>
         )
       }
