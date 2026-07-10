@@ -1,0 +1,484 @@
+/* stylelint-disable at-rule-name-case */
+/* stylelint-disable selector-class-pattern */
+/* stylelint-disable no-descending-specificity */
+/* stylelint-disable no-duplicate-selectors */
+/* stylelint-disable max-line-length */
+/* stylelint-disable declaration-block-no-redundant-longhand-properties */
+
+/* Cross-page responsive rules kept after list and edit modules to preserve cascade. */
+
+@media screen and (max-width: 1180px) {
+  .enterprise-identity-status-grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .enterprise-identity-status-grid-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .enterprise-identity-two-column,
+  .enterprise-identity-two-column-wide-right {
+    grid-template-columns: 1fr;
+  }
+
+  .identity-console-overview-workbench {
+    grid-template-columns: 1fr;
+  }
+
+  .access-wizard-domain-grid,
+  .access-wizard-detail-grid,
+  .access-wizard-result-evidence-grid,
+  .identity-evidence-chain-layout,
+  .identity-evidence-chain-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .enterprise-identity-compact-rail,
+  .enterprise-identity-compact-rail-wide {
+    grid-template-columns: 1fr;
+  }
+
+  .enterprise-identity-rail-list {
+    grid-template-columns: 1fr;
+  }
+
+  .application-access-risk-checklist .enterprise-identity-risk-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .system-info-metrics-grid {
+    grid-template-areas:
+      "cpu cpu"
+      "memory disk"
+      "network network";
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .system-info-data-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .system-info-about-card {
+    grid-column: auto;
+  }
+
+  .system-info-card-cpu > .ant-card-body {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .admin-shell-header {
+    gap: 8px;
+  }
+
+  .admin-shell-header-left,
+  .admin-shell-header-right {
+    min-width: 0;
+  }
+
+  .admin-shell-header-right {
+    flex: 1 1 auto;
+    justify-content: flex-end;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .admin-shell-header-right .org-select {
+    flex: 0 1 120px;
+    min-width: 96px;
+    margin: 0 6px !important;
+  }
+
+  .admin-workspace-tabs-desktop {
+    min-width: 0;
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+
+  .admin-workspace-tabs-more {
+    flex: 0 1 auto;
+    max-width: 64px;
+  }
+
+  .admin-shell-content {
+    --admin-route-gap-x: 8px;
+    --admin-route-gap-top: 8px;
+    --admin-route-gap-bottom: 8px;
+  }
+
+  .admin-page-scroll-shell {
+    flex: 0 0 auto;
+    height: auto;
+    min-height: 100%;
+  }
+
+  .admin-page-scroll-shell-body {
+    flex: 0 0 auto;
+    overflow: visible;
+  }
+
+  .enterprise-identity-console-header {
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    margin-bottom: 8px;
+  }
+
+  .enterprise-identity-console-header-main,
+  .enterprise-identity-console-spotlight {
+    width: 100%;
+    flex-basis: auto;
+    min-width: 0;
+  }
+
+  .enterprise-identity-console-header-main {
+    gap: 10px;
+  }
+
+  .enterprise-identity-console-header-actions {
+    justify-content: flex-start;
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .enterprise-identity-console-header-actions,
+  .enterprise-identity-console-header-actions .ant-space {
+    flex-wrap: nowrap !important;
+  }
+
+  .enterprise-identity-console-header-actions .ant-space-item {
+    flex: 0 0 auto;
+  }
+
+  .enterprise-identity-console-header-actions .ant-btn {
+    white-space: nowrap;
+  }
+
+  .identity-console-overview-notice {
+    min-height: 0;
+    padding: 12px;
+  }
+
+  .server-store-page-header-shell {
+    padding: 0 0 10px;
+  }
+
+  .server-store-page-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .server-store-page-body {
+    padding: 0 0 12px;
+  }
+
+  .server-store-page-toolbar > .ant-input-affix-wrapper,
+  .server-store-page-toolbar > .ant-input-outlined,
+  .server-store-page-tag-select,
+  .server-store-page-toolbar > .ant-btn {
+    width: 100%;
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+
+  .application-usage-access-page .enterprise-identity-console-header-actions,
+  .application-usage-access-page .enterprise-identity-console-header-actions .ant-space {
+    width: 100%;
+    min-width: 0;
+    flex-wrap: wrap !important;
+    overflow-x: visible;
+  }
+
+  .application-usage-access-page .enterprise-identity-console-header-actions .ant-space-item {
+    flex: 1 1 calc(50% - 6px);
+    min-width: 128px;
+  }
+
+  .application-usage-access-page .enterprise-identity-console-header-actions a,
+  .application-usage-access-page .enterprise-identity-console-header-actions .ant-btn {
+    width: 100%;
+  }
+
+  .application-access-service-credential-workspace-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .application-usage-access-service-credential-panel .ant-alert-with-description {
+    padding: 10px;
+  }
+
+  .application-usage-access-service-credential-panel .ant-alert-with-description .ant-alert-icon {
+    display: none;
+  }
+
+  .application-access-service-credential-workspace-actions,
+  .application-access-service-credential-workspace-actions .ant-space-item,
+  .application-access-service-credential-workspace-actions .ant-btn {
+    width: 100%;
+  }
+
+  .application-access-service-credential-summary-row,
+  .application-access-service-credential-compact-row,
+  .application-access-service-credential-technical-row,
+  .application-access-service-credential-summary-status,
+  .application-access-service-credential-operator-overview,
+  .application-access-service-credential-config-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .application-access-service-credential-summary-block {
+    padding-left: 0;
+    border-left: 0;
+    border-top: 1px solid var(--admin-shell-border-muted, rgb(229 233 240));
+    padding-top: 10px;
+  }
+
+  .enterprise-identity-summary-strip,
+  .enterprise-identity-status-grid-2,
+  .enterprise-identity-status-grid-3,
+  .enterprise-identity-status-grid-4,
+  .enterprise-identity-action-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .identity-console-review-table {
+    min-width: 620px;
+  }
+
+  .identity-console-health-item {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .governance-task-filter-bar,
+  .governance-task-item-main {
+    grid-template-columns: 1fr;
+  }
+
+  .access-wizard-domain-card {
+    min-height: auto;
+  }
+
+  .access-wizard-domain-meta {
+    flex-direction: column;
+  }
+
+  .access-wizard-step-actions {
+    align-items: flex-start;
+  }
+
+  .access-wizard-step-actions .ant-space-item {
+    max-width: 100%;
+  }
+
+  .governance-task-actions {
+    width: 100%;
+  }
+
+  .enterprise-identity-rail-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .auth-source-compact-overview {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .auth-source-compact-cards {
+    display: flex;
+    grid-template-columns: none;
+    gap: 8px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding-bottom: 2px;
+  }
+
+  .enterprise-identity-segmented-rail,
+  .enterprise-identity-link-rail,
+  .application-access-center .enterprise-identity-action-grid,
+  .auth-source-center .enterprise-identity-rail-list {
+    display: flex;
+    grid-template-columns: none;
+    gap: 8px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding-bottom: 2px;
+  }
+
+  .application-access-center .enterprise-identity-action-grid {
+    flex-wrap: nowrap;
+  }
+
+  .enterprise-identity-rail-summary-item,
+  .enterprise-identity-rail-source,
+  .enterprise-identity-rail-section {
+    padding: 8px;
+  }
+
+  .enterprise-identity-compact-rail {
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .enterprise-identity-rail-summary-item {
+    min-height: 50px;
+  }
+
+  .enterprise-identity-rail-summary-item strong {
+    font-size: 18px;
+  }
+
+  .auth-source-center .enterprise-identity-rail-source {
+    flex: 0 0 258px;
+  }
+
+  .auth-source-compact-card {
+    flex: 0 0 258px;
+    padding: 8px;
+  }
+
+  .enterprise-identity-segmented-item,
+  .enterprise-identity-link-rail a,
+  .application-access-center .enterprise-identity-action-grid a {
+    flex: 0 0 220px;
+  }
+
+  .auth-source-center .auth-source-failure-section,
+  .application-access-center .application-access-readiness-rail .enterprise-identity-rail-section:first-of-type,
+  .audit-operations-center .audit-operations-rail .enterprise-identity-rail-section:last-child {
+    display: none;
+  }
+
+  .application-access-center .application-access-readiness-rail .application-access-risk-checklist:first-of-type {
+    display: block;
+  }
+
+  .application-access-risk-checklist .enterprise-identity-risk-list {
+    grid-template-columns: 1fr;
+  }
+
+  .enterprise-identity-section-header {
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .enterprise-identity-risk-item {
+    padding: 8px 0;
+  }
+
+  .organization-sync-page {
+    overflow-x: clip;
+  }
+
+  .organization-sync-section-card {
+    padding: 12px;
+  }
+
+  .organization-sync-page .ant-row {
+    margin-right: 0 !important;
+    margin-left: 0 !important;
+  }
+
+  .organization-sync-page .ant-col {
+    max-width: 100%;
+  }
+
+  .organization-sync-target-selector .ant-space-compact {
+    display: grid;
+    gap: 8px;
+  }
+
+  .organization-sync-target-selector .ant-space-compact .ant-btn,
+  .organization-sync-action-bar .ant-btn {
+    width: 100%;
+    height: auto;
+    min-height: 32px;
+    white-space: normal;
+  }
+
+  .organization-sync-action-bar,
+  .organization-sync-action-bar .ant-btn {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .organization-sync-record-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .organization-sync-record-header-main,
+  .organization-sync-record-header-action {
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .organization-sync-page .ant-table-wrapper {
+    overflow-x: auto;
+  }
+
+  .system-info-metrics-grid,
+  .system-info-data-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .system-info-metrics-grid {
+    grid-template-areas:
+      "cpu"
+      "memory"
+      "disk"
+      "network";
+  }
+
+  .system-info-card-cpu > .ant-card-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .organization-tree-operations-page {
+    overflow-x: clip;
+  }
+
+  .organization-tree-operations-page .ant-row {
+    margin-right: 0 !important;
+    margin-left: 0 !important;
+  }
+
+  .organization-tree-operations-page .ant-col {
+    max-width: 100%;
+  }
+
+  .organization-tree-operations-page .ant-table-wrapper {
+    overflow-x: auto;
+  }
+
+  .organization-tree-operations-page .ant-space,
+  .organization-tree-operations-page .ant-space-item {
+    max-width: 100%;
+  }
+
+  .organization-directory-quality-page {
+    overflow-x: clip;
+    padding: 12px !important;
+  }
+
+  .organization-directory-quality-page .ant-table-wrapper {
+    overflow-x: auto;
+  }
+
+  .organization-directory-quality-page .ant-input,
+  .organization-directory-quality-page .ant-select,
+  .organization-directory-quality-page .ant-space,
+  .organization-directory-quality-page .ant-space-item {
+    max-width: 100%;
+  }
+
+  .enterprise-identity-status-card {
+    min-height: auto;
+  }
+
+  .enterprise-identity-section-header {
+    flex-direction: column;
+  }
+}

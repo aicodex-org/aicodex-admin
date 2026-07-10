@@ -1,0 +1,452 @@
+/* stylelint-disable at-rule-name-case */
+/* stylelint-disable selector-class-pattern */
+/* stylelint-disable no-descending-specificity */
+/* stylelint-disable no-duplicate-selectors */
+/* stylelint-disable max-line-length */
+/* stylelint-disable declaration-block-no-redundant-longhand-properties */
+
+/* Enterprise identity two-column layouts, action/risk rails, auth-source compact cards, and segmented rails. */
+
+.enterprise-identity-two-column {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.enterprise-identity-two-column-wide-right {
+  grid-template-columns: minmax(300px, 0.8fr) minmax(0, 1.2fr);
+}
+
+.enterprise-identity-section + .enterprise-identity-two-column {
+  margin-top: 14px;
+}
+
+.enterprise-identity-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.enterprise-identity-action-grid a {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 58px;
+  padding: 11px 12px;
+  border: 1px solid var(--admin-shell-border-muted, rgb(220 226 235));
+  border-radius: 8px;
+  background: var(--admin-shell-surface-soft-bg, rgb(248 250 252));
+  color: var(--admin-shell-text-primary, rgb(15 23 42));
+}
+
+.enterprise-identity-action-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.enterprise-identity-risk-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.enterprise-identity-risk-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--admin-shell-border-subtle, rgb(226 232 240));
+}
+
+.enterprise-identity-risk-item:first-child {
+  padding-top: 0;
+}
+
+.enterprise-identity-risk-item:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.enterprise-identity-tone-success {
+  border-color: var(--admin-shell-success-border, rgb(22 163 74)) !important;
+}
+
+.enterprise-identity-tone-warning {
+  border-color: var(--admin-shell-warning-border, rgb(217 119 6)) !important;
+}
+
+.enterprise-identity-tone-error {
+  border-color: var(--admin-shell-error-border, rgb(220 38 38)) !important;
+}
+
+.enterprise-identity-tone-processing,
+.enterprise-identity-tone-info {
+  border-color: var(--admin-shell-info-border, rgb(37 99 235)) !important;
+}
+
+.enterprise-identity-status-tags .enterprise-identity-tone-success,
+.enterprise-identity-risk-copy .enterprise-identity-tone-success {
+  color: var(--admin-shell-success-color, rgb(21 128 61));
+  background: var(--admin-shell-success-bg, rgb(240 253 244));
+  border-color: var(--admin-shell-success-border, rgb(187 247 208));
+}
+
+.enterprise-identity-status-tags .enterprise-identity-tone-warning,
+.enterprise-identity-risk-copy .enterprise-identity-tone-warning {
+  color: var(--admin-shell-warning-color, rgb(146 64 14));
+  background: var(--admin-shell-warning-bg, rgb(255 251 235));
+  border-color: var(--admin-shell-warning-border, rgb(253 230 138));
+}
+
+.enterprise-identity-status-tags .enterprise-identity-tone-error,
+.enterprise-identity-risk-copy .enterprise-identity-tone-error {
+  color: var(--admin-shell-error-color, rgb(185 28 28));
+  background: var(--admin-shell-error-bg, rgb(254 242 242));
+  border-color: var(--admin-shell-error-border, rgb(254 202 202));
+}
+
+.enterprise-identity-status-tags .enterprise-identity-tone-processing,
+.enterprise-identity-risk-copy .enterprise-identity-tone-processing,
+.enterprise-identity-status-tags .enterprise-identity-tone-info,
+.enterprise-identity-risk-copy .enterprise-identity-tone-info {
+  color: var(--admin-shell-info-color, rgb(29 78 216));
+  background: var(--admin-shell-info-bg, rgb(239 246 255));
+  border-color: var(--admin-shell-info-border, rgb(191 219 254));
+}
+
+.identity-console-review-table .enterprise-identity-tone-success,
+.identity-console-health-list .enterprise-identity-tone-success,
+.identity-console-audit-list .enterprise-identity-tone-success {
+  color: var(--admin-shell-success-color, rgb(21 128 61));
+  background: var(--admin-shell-success-bg, rgb(240 253 244));
+  border-color: var(--admin-shell-success-border, rgb(187 247 208));
+}
+
+.identity-console-review-table .enterprise-identity-tone-warning,
+.identity-console-health-list .enterprise-identity-tone-warning,
+.identity-console-audit-list .enterprise-identity-tone-warning {
+  color: var(--admin-shell-warning-color, rgb(146 64 14));
+  background: var(--admin-shell-warning-bg, rgb(255 251 235));
+  border-color: var(--admin-shell-warning-border, rgb(253 230 138));
+}
+
+.identity-console-review-table .enterprise-identity-tone-processing,
+.identity-console-health-list .enterprise-identity-tone-processing,
+.identity-console-audit-list .enterprise-identity-tone-processing {
+  color: var(--admin-shell-info-color, rgb(29 78 216));
+  background: var(--admin-shell-info-bg, rgb(239 246 255));
+  border-color: var(--admin-shell-info-border, rgb(191 219 254));
+}
+
+.enterprise-identity-compact-rail {
+  display: grid;
+  grid-template-columns: minmax(230px, 0.55fr) minmax(0, 1.45fr);
+  gap: 8px;
+  align-items: stretch;
+  margin-bottom: 10px;
+}
+
+.application-access-readiness-rail-compact {
+  grid-template-columns: minmax(360px, 0.46fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.application-access-readiness-rail-compact .enterprise-identity-rail-summary-item {
+  min-height: 52px;
+  padding: 7px 9px;
+}
+
+.application-access-readiness-rail-compact .enterprise-identity-rail-section {
+  min-height: 0;
+}
+
+.application-access-risk-checklist.enterprise-identity-rail-section {
+  padding: 8px 10px;
+}
+
+.application-access-risk-checklist .enterprise-identity-section-header {
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.application-access-risk-checklist .enterprise-identity-risk-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 12px;
+}
+
+.application-access-risk-checklist .enterprise-identity-risk-item {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-height: 42px;
+  padding: 6px 0;
+}
+
+.application-access-risk-checklist .enterprise-identity-risk-copy {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px !important;
+  align-items: center;
+  width: 100%;
+}
+
+.application-access-risk-checklist .enterprise-identity-risk-copy > .ant-space-item {
+  min-width: 0;
+}
+
+.application-access-risk-checklist .enterprise-identity-risk-copy > .ant-space-item:last-child {
+  justify-self: end;
+}
+
+.application-access-risk-checklist .enterprise-identity-risk-copy a {
+  white-space: nowrap;
+}
+
+.enterprise-identity-compact-rail-wide {
+  grid-template-columns: minmax(190px, 0.45fr) minmax(260px, 0.65fr) minmax(420px, 1.35fr);
+}
+
+.auth-source-diagnostics-rail {
+  grid-template-columns: minmax(190px, 0.4fr) minmax(520px, 1.25fr) minmax(260px, 0.55fr);
+}
+
+.auth-source-compact-overview {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.42fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+  margin-bottom: 10px;
+}
+
+.auth-source-compact-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--admin-shell-border-muted, rgb(220 226 235));
+  border-radius: 8px;
+  background: var(--admin-shell-border-muted, rgb(220 226 235));
+}
+
+.auth-source-compact-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 52px;
+  padding: 7px 9px;
+  overflow-wrap: anywhere;
+  border-top: 3px solid var(--admin-shell-text-secondary, rgb(100 116 139));
+  background: var(--admin-shell-surface-bg, #fff);
+}
+
+.auth-source-compact-metric strong {
+  color: var(--admin-shell-text-primary, rgb(15 23 42));
+  font-size: 20px;
+  line-height: 1.08;
+}
+
+.auth-source-compact-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.auth-source-compact-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--admin-shell-border-muted, rgb(220 226 235));
+  border-radius: 8px;
+  background: var(--admin-shell-surface-bg, #fff);
+}
+
+.auth-source-compact-card-heading {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.auth-source-compact-progress {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 8px;
+  align-items: center;
+}
+
+.auth-source-compact-progress .ant-progress {
+  grid-column: 1 / -1;
+  margin-bottom: 0;
+}
+
+.auth-source-compact-card-meta {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.auth-source-compact-card-meta .ant-typography,
+.auth-source-compact-audit .ant-typography {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auth-source-compact-audit {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--admin-shell-border-muted, rgb(220 226 235));
+  border-radius: 8px;
+  background: var(--admin-shell-surface-bg, #fff);
+}
+
+.enterprise-identity-rail-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--admin-shell-border-muted, rgb(220 226 235));
+  border-radius: 8px;
+  background: var(--admin-shell-border-muted, rgb(220 226 235));
+}
+
+.enterprise-identity-rail-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 56px;
+  padding: 8px 10px;
+  background: var(--admin-shell-surface-bg, #fff);
+  border-top: 3px solid var(--admin-shell-text-secondary, rgb(100 116 139));
+  overflow-wrap: anywhere;
+}
+
+.enterprise-identity-rail-summary-item strong {
+  color: var(--admin-shell-text-primary, rgb(15 23 42));
+  font-size: 20px;
+  line-height: 1.08;
+}
+
+.enterprise-identity-rail-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.enterprise-identity-rail-source {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--admin-shell-border-muted, rgb(220 226 235));
+  border-radius: 8px;
+  background: var(--admin-shell-surface-bg, #fff);
+}
+
+.enterprise-identity-rail-source-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.enterprise-identity-rail-progress {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 8px;
+  align-items: center;
+}
+
+.enterprise-identity-rail-progress .ant-progress {
+  grid-column: 1 / -1;
+  margin-bottom: 0;
+}
+
+.enterprise-identity-rail-section {
+  padding: 10px;
+}
+
+.enterprise-identity-rail-section .enterprise-identity-section-header {
+  margin-bottom: 8px;
+}
+
+.enterprise-identity-rail-section .enterprise-identity-risk-item {
+  padding: 6px 0;
+}
+
+.enterprise-identity-rail-section .enterprise-identity-action-grid a {
+  min-height: 46px;
+  padding: 8px 10px;
+}
+
+.enterprise-identity-segmented-rail,
+.enterprise-identity-link-rail {
+  display: grid;
+  gap: 8px;
+}
+
+.enterprise-identity-segmented-rail,
+.enterprise-identity-link-rail {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.enterprise-identity-segmented-item,
+.enterprise-identity-link-rail a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 40px;
+  padding: 7px 9px;
+  border: 1px solid var(--admin-shell-border-muted, rgb(220 226 235));
+  border-radius: 8px;
+  background: var(--admin-shell-surface-soft-bg, rgb(248 250 252));
+  color: var(--admin-shell-text-primary, rgb(15 23 42));
+}
+
+.enterprise-identity-segmented-item-active {
+  border-color: var(--admin-shell-info-border, rgb(37 99 235));
+  background: var(--admin-shell-surface-accent-bg, rgb(239 246 255));
+}
+
+.enterprise-identity-segmented-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: var(--admin-shell-surface-bg, #fff);
+  color: var(--admin-shell-text-primary, rgb(51 65 85));
+}
+
+.enterprise-identity-segmented-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.auth-source-center-loading,
+.application-access-center-loading {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+}

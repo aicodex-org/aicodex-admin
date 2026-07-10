@@ -1,0 +1,339 @@
+/* stylelint-disable at-rule-name-case */
+/* stylelint-disable selector-class-pattern */
+/* stylelint-disable no-descending-specificity */
+/* stylelint-disable no-duplicate-selectors */
+/* stylelint-disable max-line-length */
+/* stylelint-disable declaration-block-no-redundant-longhand-properties */
+
+/* Application edit, access edit, gateway edit, and compatibility edit page styles. */
+
+.admin-gateway-edit-page {
+  --admin-large-edit-label-color: var(--admin-shell-text-primary, #333542);
+}
+
+.admin-gateway-edit-page,
+.admin-identity-object-edit-page {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.admin-access-edit-page {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.application-edit-page {
+  --application-edit-label-width: 184px;
+
+  .admin-large-edit-page-root-base();
+
+  min-height: 0;
+}
+
+.application-edit-card {
+  .admin-large-edit-card-base();
+}
+
+.application-edit-card > .ant-card-body {
+  .admin-large-edit-card-body-base();
+}
+
+body.admin-shell-theme-dark .application-edit-card,
+body.admin-shell-theme-dark .application-edit-card > .ant-card-body {
+  background: var(--admin-shell-surface-bg, rgb(17 24 39)) !important;
+}
+
+.application-edit-page .application-edit-control-row-medium,
+.application-edit-page .application-edit-control-row-compact {
+  --application-edit-control-width: 720px;
+
+  > .ant-col:first-child + .ant-col {
+    flex: 0 1 min(var(--application-edit-control-width), calc(100% - var(--application-edit-label-width)));
+    max-width: min(var(--application-edit-control-width), calc(100% - var(--application-edit-label-width)));
+  }
+}
+
+.application-edit-page .application-edit-control-row-compact {
+  --application-edit-control-width: 420px;
+}
+
+.application-edit-page .application-edit-asset-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  align-items: center;
+  column-gap: 12px;
+  min-width: 0;
+}
+
+.application-edit-page .application-edit-asset-control > .ant-input-affix-wrapper {
+  width: 100%;
+  min-width: 0;
+}
+
+.application-edit-page .application-edit-asset-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 112px;
+  height: 40px;
+  border: 1px solid var(--admin-shell-border-subtle, #e4e9f2);
+  border-radius: 4px;
+  color: var(--admin-shell-text-tertiary, #8b90a0);
+  background: var(--admin-shell-surface-muted-bg, #f8fafc);
+  font-size: 12px;
+  line-height: 18px;
+  overflow: hidden;
+}
+
+.application-edit-page .application-edit-asset-preview a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.application-edit-page .application-edit-asset-preview img {
+  max-width: 96px;
+  max-height: 32px;
+  object-fit: contain;
+}
+
+.application-edit-page .application-edit-asset-preview-placeholder {
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.application-edit-page .application-edit-control-row-medium > .ant-col:first-child + .ant-col > .ant-input,
+.application-edit-page .application-edit-control-row-medium > .ant-col:first-child + .ant-col > .ant-input-affix-wrapper,
+.application-edit-page .application-edit-control-row-medium > .ant-col:first-child + .ant-col > .ant-select,
+.application-edit-page .application-edit-control-row-compact > .ant-col:first-child + .ant-col > .ant-input,
+.application-edit-page .application-edit-control-row-compact > .ant-col:first-child + .ant-col > .ant-input-affix-wrapper,
+.application-edit-page .application-edit-control-row-compact > .ant-col:first-child + .ant-col > .ant-select {
+  width: 100%;
+}
+
+.application-edit-page .application-edit-ui-table {
+  max-width: var(--application-edit-ui-table-max-width);
+  margin-right: auto;
+}
+
+.application-edit-page .application-edit-ui-table-control {
+  margin-left: clamp(0px, calc(100% - var(--application-edit-ui-table-max-width)), var(--application-edit-label-width));
+}
+
+.application-edit-page .application-edit-ui-table-wide {
+  margin-left: 0;
+}
+
+.application-edit-page .application-edit-ui-table-signin-method {
+  --application-edit-ui-table-max-width: 921px;
+}
+
+.application-edit-page .application-edit-ui-table-signin-items {
+  --application-edit-ui-table-max-width: 1221px;
+}
+
+.application-edit-page .application-edit-ui-table-signup-items {
+  --application-edit-ui-table-max-width: 1660px;
+}
+
+.application-edit-page .application-edit-static-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 90%;
+  min-height: 340px;
+  border: 1px solid var(--admin-shell-border-subtle, #d9d9d9);
+  border-radius: 8px;
+  background-color: var(--admin-shell-surface-soft-bg, #f5f7fb);
+  background-position: center;
+  background-size: cover;
+  box-shadow: 0 8px 22px rgb(15 23 42 / 12%);
+  overflow: hidden;
+}
+
+.application-edit-page .application-edit-preview-row {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  column-gap: 12px;
+  row-gap: 14px;
+}
+
+.application-edit-page .application-edit-preview-row > .ant-col:first-child {
+  .admin-large-edit-legacy-row-label-base();
+
+  font-size: 12px;
+  text-align: right;
+}
+
+.application-edit-page .application-edit-preview-row > .application-edit-preview-column {
+  flex: 1 1 360px;
+  max-width: 460px;
+  min-width: min(100%, 320px);
+}
+
+.application-edit-page .application-edit-preview-row .application-edit-static-preview {
+  width: 100%;
+}
+
+.application-edit-page .application-edit-static-preview-card {
+  width: min(320px, calc(100% - 32px));
+  padding: 24px;
+  border: 1px solid rgb(255 255 255 / 72%);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 92%);
+  box-shadow: 0 16px 32px rgb(15 23 42 / 18%);
+}
+
+.application-edit-page .application-edit-static-preview-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 14px;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.application-edit-page .application-edit-static-preview-app-name {
+  color: var(--admin-shell-text-primary, #172033);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.application-edit-page .application-edit-static-preview-title {
+  margin-top: 4px;
+  color: var(--admin-shell-text-secondary, #5f667a);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.application-edit-page .application-edit-static-preview-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.application-edit-page .application-edit-static-preview-field {
+  min-height: 32px;
+  padding: 7px 10px;
+  border: 1px solid var(--admin-shell-border-subtle, #d9d9d9);
+  border-radius: 6px;
+  background: var(--admin-shell-surface-bg, #fff);
+  color: var(--admin-shell-text-secondary, #5f667a);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.application-edit-page .application-edit-static-preview-action {
+  margin-top: 18px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: center;
+}
+
+body.admin-shell-theme-dark .application-edit-page .application-edit-static-preview {
+  border-color: var(--admin-shell-border-subtle, rgb(51 65 85));
+  background-color: var(--admin-shell-surface-soft-bg, rgb(15 23 42));
+  box-shadow: 0 8px 22px rgb(0 0 0 / 32%);
+}
+
+body.admin-shell-theme-dark .application-edit-page .application-edit-static-preview-card {
+  border-color: rgb(51 65 85 / 78%);
+  background: rgb(15 23 42 / 92%);
+}
+
+body.admin-shell-theme-dark .application-edit-page .application-edit-static-preview-field {
+  border-color: var(--admin-shell-border-subtle, rgb(51 65 85));
+  background: var(--admin-shell-surface-bg, rgb(15 23 42));
+}
+
+.admin-access-edit-card > .ant-card-body > .admin-access-edit-field-row {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.admin-access-edit-card > .ant-card-body > .admin-access-edit-field-row > .ant-col:first-child {
+  .admin-large-edit-legacy-row-label-base();
+}
+
+.admin-access-edit-card > .ant-card-body > .admin-access-edit-field-row > .ant-col:first-child + .ant-col {
+  flex: 1 1 0;
+  max-width: calc(100% - 184px);
+  min-width: 0;
+}
+
+.admin-access-edit-card > .ant-card-body > .admin-access-edit-editor-grid-row {
+  flex-wrap: wrap;
+  column-gap: 12px;
+  row-gap: 12px;
+}
+
+.admin-access-edit-card > .ant-card-body > .admin-access-edit-editor-grid-row > .ant-col:nth-child(1),
+.admin-access-edit-card > .ant-card-body > .admin-access-edit-editor-grid-row > .ant-col:nth-child(4) {
+  .admin-large-edit-legacy-row-label-base();
+}
+
+.admin-access-edit-card > .ant-card-body > .admin-access-edit-editor-grid-row > .ant-col:nth-child(2),
+.admin-access-edit-card > .ant-card-body > .admin-access-edit-editor-grid-row > .ant-col:nth-child(5) {
+  flex: 1 1 calc((100% - 392px) / 2);
+  max-width: calc((100% - 392px) / 2);
+  min-width: 280px;
+}
+
+.admin-access-edit-card > .ant-card-body > .admin-access-edit-editor-grid-row > .ant-col:nth-child(3) {
+  display: none;
+}
+
+.admin-gateway-edit-card > .ant-card-body > .admin-gateway-edit-field-row,
+.admin-identity-object-edit-card > .ant-card-body > .admin-identity-object-edit-field-row {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.admin-gateway-edit-card > .ant-card-body > .admin-gateway-edit-field-row > .ant-col:first-child,
+.admin-identity-object-edit-card > .ant-card-body > .admin-identity-object-edit-field-row > .ant-col:first-child {
+  .admin-large-edit-legacy-row-label-base();
+}
+
+.admin-gateway-edit-card > .ant-card-body > .admin-gateway-edit-field-row > .ant-col:first-child + .ant-col,
+.admin-identity-object-edit-card > .ant-card-body > .admin-identity-object-edit-field-row > .ant-col:first-child + .ant-col {
+  flex: 1 1 0;
+  max-width: calc(100% - 184px);
+  min-width: 0;
+}
+
+.admin-large-edit-card > .ant-card-body > .ant-row {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.admin-large-edit-card > .ant-card-body > .ant-row > .ant-col:first-child {
+  .admin-large-edit-legacy-row-label-base();
+}
+
+.admin-large-edit-card > .ant-card-body > .ant-row > .ant-col:first-child + .ant-col {
+  flex: 1 1 0;
+  max-width: calc(100% - 184px);
+  min-width: 0;
+}
+
+.application-edit-page .admin-large-edit-card .admin-large-edit-form-content > .application-edit-control-row-medium:not(.admin-large-edit-full-width-row) > .ant-col:first-child + .ant-col,
+.application-edit-page .admin-large-edit-card .admin-large-edit-form-content > .application-edit-control-row-compact:not(.admin-large-edit-full-width-row) > .ant-col:first-child + .ant-col {
+  flex: 0 1 var(--application-edit-control-width);
+  max-width: var(--application-edit-control-width);
+}

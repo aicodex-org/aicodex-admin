@@ -1,0 +1,844 @@
+/* stylelint-disable at-rule-name-case */
+/* stylelint-disable selector-class-pattern */
+/* stylelint-disable no-descending-specificity */
+/* stylelint-disable no-duplicate-selectors */
+/* stylelint-disable max-line-length */
+/* stylelint-disable declaration-block-no-redundant-longhand-properties */
+
+/* Organization edit page sections, tables, assets, navigation, and dark theme rules. */
+
+.organization-edit-page {
+  --organization-edit-label-width: 160px;
+
+  .admin-large-edit-page-root-base();
+
+  min-height: 0;
+}
+
+.organization-edit-card {
+  .admin-large-edit-card-base();
+}
+
+.organization-edit-card > .ant-card-body {
+  .admin-large-edit-card-body-base();
+}
+
+.organization-edit-page .organization-edit-tabs.ant-tabs {
+  flex: 0 0 auto;
+  padding: 0 32px;
+}
+
+.organization-edit-tabs > .ant-tabs-nav {
+  margin: 0;
+}
+
+.organization-edit-tabs .ant-tabs-tab {
+  padding: 8px 0 7px;
+  color: var(--admin-shell-text-primary, #333542);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.organization-edit-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--admin-shell-link, #02133c);
+  font-weight: 600;
+}
+
+.organization-edit-scroll-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 14px 32px 24px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.organization-edit-section-title {
+  .admin-large-edit-section-title-base();
+}
+
+.organization-edit-section-title::before {
+  .admin-large-edit-section-title-marker-base();
+}
+
+.organization-edit-field-grid {
+  .admin-large-edit-field-grid-base();
+}
+
+.organization-edit-field-grid-compact {
+  grid-template-columns: repeat(2, minmax(280px, 420px));
+}
+
+.organization-edit-default-scope-grid {
+  row-gap: 12px;
+}
+
+.organization-edit-switch-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(300px, 420px));
+  gap: 14px 36px;
+  max-width: 900px;
+  margin-bottom: 28px;
+}
+
+.organization-edit-switch-item {
+  display: grid;
+  grid-template-columns: var(--organization-edit-label-width) auto;
+  align-items: center;
+  column-gap: 12px;
+  min-width: 0;
+}
+
+.organization-edit-switch-label {
+  .admin-large-edit-switch-label-base();
+}
+
+.organization-edit-switch-label .organization-edit-field-label-text > span:not(.organization-edit-required-mark, .organization-edit-label-colon) {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.organization-edit-switch-control {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 44px;
+}
+
+.organization-edit-field-row,
+.organization-edit-asset-row {
+  .admin-large-edit-field-row-base(var(--organization-edit-label-width));
+}
+
+.organization-edit-field-row-wide {
+  .admin-large-edit-field-row-wide-base();
+}
+
+.organization-edit-field-label,
+.organization-edit-full-width-label {
+  .admin-large-edit-field-label-base();
+}
+
+.organization-edit-field-label-text {
+  .admin-large-edit-field-label-text-base();
+}
+
+.organization-edit-field-label-text > span:not(.organization-edit-required-mark, .organization-edit-label-colon) {
+  .admin-large-edit-field-label-text-content-base();
+}
+
+.organization-edit-field-label-text .anticon,
+.organization-edit-label-colon {
+  flex: 0 0 auto;
+}
+
+.organization-edit-field-control,
+.organization-edit-asset-control {
+  .admin-large-edit-field-control-base();
+}
+
+.organization-edit-asset-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 186px;
+  align-items: center;
+  column-gap: 12px;
+}
+
+.organization-edit-asset-input {
+  min-width: 0;
+}
+
+.organization-edit-asset-input > .ant-input-affix-wrapper {
+  width: 100%;
+}
+
+.organization-edit-field-control > .ant-input,
+.organization-edit-field-control > .ant-input-affix-wrapper,
+.organization-edit-field-control > .ant-select,
+.organization-edit-field-control > .ant-input-number {
+  width: 100%;
+}
+
+.organization-edit-field-control .ant-input,
+.organization-edit-field-control .ant-input-number-input,
+.organization-edit-field-control .ant-select-selector,
+.organization-edit-field-control .ant-select-selection-item,
+.organization-edit-field-control .ant-select-selection-placeholder,
+.organization-edit-field-control .ant-radio-wrapper,
+.organization-edit-field-control .ant-checkbox-wrapper,
+.organization-edit-field-control .ant-btn,
+.organization-edit-full-width-content .ant-table,
+.organization-edit-full-width-content .ant-table-wrapper,
+.organization-edit-full-width-content .ant-table-cell,
+.organization-edit-page .organization-edit-full-width-content .ant-tree,
+.organization-edit-page .organization-edit-full-width-content .ant-tree .ant-tree-title,
+.organization-edit-page .organization-edit-content-section-body .ant-tree,
+.organization-edit-page .organization-edit-content-section-body .ant-tree .ant-tree-title,
+.organization-edit-full-width-content .ant-select,
+.organization-edit-full-width-content .ant-select-selector,
+.organization-edit-full-width-content .ant-select-selection-item,
+.organization-edit-full-width-content .ant-btn {
+  font-size: 12px;
+}
+
+.organization-edit-page .organization-edit-full-width-content .ant-tree .ant-tree-treenode,
+.organization-edit-page .organization-edit-content-section-body .ant-tree .ant-tree-treenode {
+  min-height: 28px;
+  padding: 0 0 4px;
+}
+
+.organization-edit-page .organization-edit-full-width-content .ant-tree .ant-tree-node-content-wrapper,
+.organization-edit-page .organization-edit-content-section-body .ant-tree .ant-tree-node-content-wrapper {
+  min-height: 24px;
+  line-height: 24px;
+}
+
+.organization-edit-page .organization-edit-full-width-content .ant-tree .ant-tree-switcher,
+.organization-edit-page .organization-edit-full-width-content .ant-tree .ant-tree-checkbox,
+.organization-edit-page .organization-edit-content-section-body .ant-tree .ant-tree-switcher,
+.organization-edit-page .organization-edit-content-section-body .ant-tree .ant-tree-checkbox {
+  line-height: 24px;
+}
+
+.organization-edit-field-control .ant-input,
+.organization-edit-field-control .ant-input-number,
+.organization-edit-field-control .ant-select-selector {
+  border-radius: 4px;
+}
+
+.organization-edit-required-mark {
+  .admin-large-edit-required-mark-base();
+}
+
+.organization-edit-label-colon {
+  margin-left: 2px;
+}
+
+.organization-edit-field-error {
+  .admin-large-edit-field-error-base();
+}
+
+.organization-edit-asset-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 1060px;
+  margin-bottom: 28px;
+}
+
+.organization-edit-asset-preview {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  min-width: 0;
+  color: var(--admin-shell-link-strong, #1677ff);
+  font-size: 12px;
+}
+
+.organization-edit-asset-preview-card {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.organization-edit-asset-preview-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 30px;
+  border: 1px solid var(--admin-shell-border-subtle, #e4e9f2);
+  border-radius: 4px;
+  color: var(--admin-shell-text-tertiary, #8b90a0);
+  background: var(--admin-shell-surface-muted-bg, #f8fafc);
+}
+
+.organization-edit-asset-preview-frame img {
+  max-width: 36px;
+  max-height: 24px;
+  object-fit: contain;
+}
+
+.organization-edit-asset-preview-placeholder {
+  max-width: 36px;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.organization-edit-asset-preview-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.organization-edit-asset-preview-status {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--admin-shell-text-secondary, #71727a);
+  font-size: 12px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.organization-edit-asset-preview-meta .ant-btn-link {
+  flex: 0 0 auto;
+  height: 22px;
+  padding: 0 4px;
+  font-size: 12px;
+  line-height: 22px;
+}
+
+.organization-edit-asset-preview img {
+  width: 44px;
+  height: 32px;
+  border: 1px solid var(--admin-shell-border-subtle, #e4e9f2);
+  border-radius: 4px;
+  object-fit: contain;
+}
+
+.organization-edit-full-width-section {
+  max-width: 100%;
+  margin-bottom: 28px;
+}
+
+.organization-edit-full-width-label {
+  margin-bottom: 10px;
+  text-align: left;
+}
+
+.organization-edit-full-width-content {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.organization-edit-content-section {
+  max-width: 1060px;
+  margin-bottom: 24px;
+}
+
+.organization-edit-content-section-wide {
+  max-width: 100%;
+}
+
+.organization-edit-content-section-title {
+  margin-bottom: 4px;
+  color: var(--admin-shell-text-primary, #333542);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.organization-edit-content-section-body {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.organization-edit-navigation-tab {
+  max-width: 1280px;
+}
+
+.organization-edit-navigation-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(360px, 1fr));
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.organization-edit-navigation-tools-section {
+  max-width: 1280px;
+  padding-top: 18px;
+  border-top: 1px solid var(--admin-shell-border-subtle, #e4e9f2);
+}
+
+.organization-edit-navigation-tools-section > .organization-edit-navigation-panel,
+.organization-edit-account-menu-row {
+  max-width: 632px;
+}
+
+.organization-edit-navigation-panel {
+  min-width: 0;
+  border: 1px solid var(--admin-shell-border-subtle, #e4e9f2);
+  border-radius: 4px;
+  background: var(--admin-shell-surface-bg, #fff);
+}
+
+.organization-edit-navigation-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 32px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--admin-shell-border-subtle, #e4e9f2);
+  background: var(--admin-shell-surface-muted-bg, #f8fafc);
+}
+
+.organization-edit-navigation-panel-title {
+  min-width: 0;
+  color: var(--admin-shell-text-primary, #333542);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.organization-edit-navigation-panel-count {
+  flex: 0 0 auto;
+  color: var(--admin-shell-text-tertiary, #8b90a0);
+  font-size: 12px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.organization-edit-navigation-tree {
+  max-height: 360px;
+  min-height: 220px;
+  padding: 8px 10px;
+  overflow: auto;
+}
+
+.organization-edit-page .organization-edit-navigation-tree .ant-tree {
+  border: 0;
+  background: transparent;
+}
+
+.organization-edit-page .organization-edit-navigation-tree .ant-tree .ant-tree-treenode {
+  min-height: 28px;
+  padding-bottom: 4px;
+}
+
+.organization-edit-page .organization-edit-navigation-tree .ant-tree-node-content-wrapper {
+  min-width: 0;
+}
+
+.organization-edit-page .organization-edit-navigation-tree .ant-tree-title {
+  color: var(--admin-shell-text-primary, #333542);
+  font-size: 12px;
+}
+
+.organization-edit-account-menu-row {
+  margin-top: 14px;
+}
+
+.organization-edit-account-menu-row .organization-edit-field-row {
+  grid-template-columns: 128px minmax(0, 220px);
+}
+
+.organization-edit-ldap-attributes-row .organization-edit-field-control {
+  max-width: 680px;
+}
+
+.organization-edit-ldap-table-section {
+  max-width: 1280px;
+}
+
+.organization-edit-directory-section-kerberos {
+  margin-top: 28px;
+  padding-top: 22px;
+  border-top: 1px solid var(--admin-shell-border-subtle, #e4e9f2);
+}
+
+.organization-edit-account-table-section {
+  max-width: 1360px;
+}
+
+.organization-edit-tab-panel-narrow {
+  max-width: 960px;
+  margin-left: calc(var(--organization-edit-label-width) + 12px);
+}
+
+.organization-edit-page .ldap-table-section {
+  max-width: 1280px;
+}
+
+.organization-edit-page .organization-config-table-section {
+  max-width: 100%;
+}
+
+.organization-edit-page .mfa-table-section {
+  max-width: 960px;
+}
+
+.organization-edit-mfa-field-grid {
+  --organization-edit-label-width: 128px;
+
+  grid-template-columns: minmax(0, 420px);
+}
+
+.organization-edit-page .account-table-section {
+  max-width: 1360px;
+}
+
+.organization-edit-page .account-table-section .ant-table-title {
+  padding: 8px 10px 10px;
+  border-bottom: 1px solid var(--admin-shell-border-subtle, #e4e9f2);
+  background: var(--admin-shell-surface-muted-bg, #f8fafc);
+}
+
+.organization-edit-page .account-table-section .organization-config-table-toolbar {
+  min-height: 24px;
+}
+
+.organization-edit-page .account-table-section .organization-config-table-title {
+  font-weight: 500;
+}
+
+.organization-edit-page .account-table-section .ant-table-title {
+  padding: 8px 10px 10px;
+}
+
+.organization-edit-page .organization-account-table-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.organization-edit-page .organization-account-table-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  min-width: 0;
+  color: var(--admin-shell-text-secondary, #71727a);
+  font-size: 12px;
+}
+
+.organization-edit-page .organization-account-table-search {
+  width: 220px;
+}
+
+.organization-edit-page .organization-account-table-filters .ant-checkbox-wrapper {
+  color: var(--admin-shell-text-secondary, #71727a);
+  font-size: 12px;
+}
+
+.organization-edit-page .organization-account-table-count {
+  margin-left: auto;
+  color: var(--admin-shell-text-tertiary, #8b90a0);
+  white-space: nowrap;
+}
+
+.organization-edit-page .organization-account-item-label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.organization-edit-page .organization-account-item-label-primary {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--admin-shell-text-primary, #333542);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.organization-edit-page .organization-account-item-label-secondary {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--admin-shell-text-tertiary, #8b90a0);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.organization-edit-page .mfa-table-section .ant-table-title {
+  border-bottom: 1px solid var(--admin-shell-border-subtle, #e4e9f2);
+  background: var(--admin-shell-surface-muted-bg, #f8fafc);
+}
+
+.organization-edit-page .ldap-table-section .ant-table-title {
+  border-bottom: 1px solid var(--admin-shell-border-subtle, #e4e9f2);
+  background: var(--admin-shell-surface-muted-bg, #f8fafc);
+}
+
+.organization-edit-page .organization-config-table-section .ant-table-title,
+.organization-edit-page .ldap-table-section .ant-table-title {
+  padding: 4px 8px 6px;
+  font-size: 12px;
+  line-height: 22px;
+}
+
+.organization-edit-page .account-table-section .ant-table-title {
+  padding: 8px 10px 10px;
+}
+
+.organization-edit-page .ldap-table-section .ant-table-title {
+  padding: 8px 10px 12px;
+}
+
+.organization-edit-page .ldap-table-section .ant-table-container {
+  padding-bottom: 8px;
+  background: var(--admin-shell-surface-bg, #fff);
+}
+
+.organization-edit-page .organization-config-table-toolbar,
+.organization-edit-page .ldap-table-toolbar {
+  .admin-large-edit-table-toolbar-base();
+}
+
+.organization-edit-page .organization-config-table-title,
+.organization-edit-page .ldap-table-title {
+  .admin-large-edit-table-title-text-base();
+}
+
+.organization-edit-page .organization-config-table-title-with-help {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.organization-edit-page .organization-config-table-title-help-icon {
+  .admin-large-edit-help-icon-base();
+}
+
+.organization-edit-page .organization-config-table-title-help-icon:focus-visible,
+.organization-edit-page .organization-config-table-add-trigger:focus-visible,
+.organization-edit-page .organization-config-table-action-trigger:focus-visible {
+  .admin-large-edit-focus-ring-base();
+}
+
+.organization-edit-page .organization-config-table-toolbar .ant-btn-sm,
+.organization-edit-page .ldap-table-toolbar .ant-btn-sm {
+  .admin-large-edit-table-toolbar-action-button-base();
+}
+
+.organization-edit-page .organization-config-table-section .ant-table,
+.organization-edit-page .ldap-table-section .ant-table {
+  font-size: 12px;
+}
+
+.organization-edit-page .organization-config-table-section .ant-table-thead > tr > th,
+.organization-edit-page .organization-config-table-section .ant-table-tbody > tr > td,
+.organization-edit-page .ldap-table-section .ant-table-thead > tr > th,
+.organization-edit-page .ldap-table-section .ant-table-tbody > tr > td {
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.organization-edit-page .organization-config-table-section .ant-table-thead > tr > th,
+.organization-edit-page .ldap-table-section .ant-table-thead > tr > th,
+.organization-edit-page .account-table-section .ant-table-thead > tr > th {
+  color: var(--admin-shell-text-primary, #333542);
+  font-weight: 500;
+}
+
+.organization-edit-page .mfa-table-section .ant-table-tbody > tr > td {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.organization-edit-page .account-table-section .ant-table-tbody > tr > td {
+  height: 34px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  vertical-align: middle;
+  background: var(--admin-shell-surface-bg, #fff);
+}
+
+.organization-edit-page .account-table-section .ant-select-selector,
+.organization-edit-page .account-table-section .ant-input,
+.organization-edit-page .account-table-section .ant-switch {
+  font-size: 12px;
+}
+
+.organization-edit-page .account-table-section .ant-input-sm,
+.organization-edit-page .account-table-section .ant-select-single.ant-select-sm .ant-select-selector {
+  min-height: 24px;
+}
+
+.organization-edit-page .account-table-section .ant-table-container,
+.organization-edit-page .account-table-section .ant-table-header,
+.organization-edit-page .account-table-section .ant-table-body {
+  background: var(--admin-shell-surface-bg, #fff);
+}
+
+.organization-edit-page .account-table-section .ant-table-header {
+  position: relative;
+  z-index: 4;
+}
+
+.organization-edit-page .account-table-section .ant-table-thead > tr > th {
+  z-index: 4;
+  background: var(--admin-shell-surface-muted-bg, #f8fafc) !important;
+}
+
+.organization-edit-page .account-table-section .ant-table-thead > tr > th.ant-table-cell-fix-left,
+.organization-edit-page .account-table-section .ant-table-thead > tr > th.ant-table-cell-fix-right {
+  z-index: 5;
+}
+
+.organization-edit-page .account-table-section .ant-table-body {
+  padding-bottom: 78px;
+  scrollbar-gutter: stable;
+}
+
+.organization-edit-page .account-table-section .ant-table-body > table {
+  margin-bottom: 0;
+}
+
+.organization-edit-page .account-table-section .ant-table-cell-fix-left,
+.organization-edit-page .account-table-section .ant-table-cell-fix-right {
+  z-index: 2;
+  background: var(--admin-shell-surface-bg, #fff);
+}
+
+.organization-edit-page .account-table-section .ant-table-thead .ant-table-cell-fix-left,
+.organization-edit-page .account-table-section .ant-table-thead .ant-table-cell-fix-right {
+  background: var(--admin-shell-surface-muted-bg, #f8fafc);
+}
+
+.organization-edit-page .account-table-section .ant-table-cell-fix-left-last::after,
+.organization-edit-page .account-table-section .ant-table-cell-fix-right-first::after {
+  pointer-events: none;
+}
+
+.organization-edit-page .account-table-section .ant-table-tbody > tr.ant-table-row:hover > td,
+.organization-edit-page .account-table-section .ant-table-tbody > tr.ant-table-row:hover > td.ant-table-cell-fix-left,
+.organization-edit-page .account-table-section .ant-table-tbody > tr.ant-table-row:hover > td.ant-table-cell-fix-right {
+  background: var(--admin-shell-control-hover-bg, #f3f6fd);
+}
+
+.organization-edit-page .account-table-section .organization-account-table-quiet-input:not(:hover, :focus) {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.organization-edit-page .account-table-section .organization-account-table-quiet-input {
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.organization-edit-page .account-table-section .organization-account-table-quiet-input:hover {
+  border-color: var(--admin-shell-border-subtle, #e4e9f2);
+  background: var(--admin-shell-surface-muted-bg, #f8fafc);
+}
+
+.organization-edit-page .account-table-section .organization-account-table-quiet-input::placeholder {
+  color: var(--admin-shell-text-tertiary, #8b90a0);
+}
+
+.organization-edit-page .organization-config-table-row-actions,
+.organization-edit-page .ldap-table-row-actions {
+  .admin-large-edit-row-actions-base();
+}
+
+.organization-edit-page .organization-config-table-row-actions .ant-btn-sm,
+.organization-edit-page .ldap-table-row-actions .ant-btn-sm {
+  .admin-large-edit-inline-action-button-base();
+}
+
+.organization-edit-page .organization-config-table-row-actions-icons .ant-btn-sm {
+  .admin-large-edit-icon-action-button-base();
+}
+
+.organization-edit-page .organization-config-table-section .organization-config-table-action-column,
+.organization-edit-page .ldap-table-section .ldap-table-action-column {
+  padding-right: 12px;
+  padding-left: 10px;
+}
+
+.organization-edit-page .ldap-table-description {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 900px;
+  margin-top: 8px;
+  padding: 4px 8px;
+  border: 1px solid var(--admin-shell-info-border, #c7dbff);
+  border-radius: 4px;
+  color: var(--admin-shell-text-primary, #333542);
+  font-size: 12px;
+  line-height: 18px;
+  background: var(--admin-shell-info-bg, #eef4ff);
+}
+
+.organization-edit-page .ldap-table-description .anticon {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--admin-shell-link-strong, #1677ff);
+}
+
+.organization-edit-page .ldap-table-description span:last-child {
+  min-width: 0;
+}
+
+.organization-edit-theme-editor {
+  margin-top: 16px;
+}
+
+.organization-edit-theme-mode-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.organization-edit-theme-mode-group .ant-radio-button-wrapper {
+  height: var(--identity-edit-inline-action-height);
+  min-width: var(--identity-edit-inline-action-min-width);
+  padding: var(--identity-edit-inline-action-padding);
+  font-size: var(--identity-edit-inline-action-font-size);
+  line-height: var(--identity-edit-inline-action-line-height);
+}
+
+.organization-edit-theme-summary {
+  display: inline-flex;
+  align-items: center;
+  max-width: 520px;
+  margin-top: 8px;
+  color: var(--admin-shell-text-secondary, #71727a);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.organization-edit-theme-summary::before {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--admin-shell-text-tertiary, #8b90a0);
+  content: "";
+}
+
+.organization-edit-theme-mode-control .organization-edit-theme-summary {
+  margin-top: 0;
+}
+
+.organization-edit-number-input {
+  width: 150px;
+}
+
+.organization-edit-number-input-right .ant-input-number-input {
+  text-align: right;
+}
+
+.organization-edit-control-tooltip-wrapper {
+  display: block;
+  width: 100%;
+}
+
+.organization-edit-control-tooltip-wrapper > .ant-select {
+  width: 100%;
+}
+
+.organization-edit-disabled-field-help {
+  display: block;
+  width: 100%;
+}
+
+.organization-edit-disabled-field-help .ant-input-number {
+  width: 100%;
+}

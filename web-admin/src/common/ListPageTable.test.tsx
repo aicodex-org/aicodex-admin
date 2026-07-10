@@ -3,9 +3,9 @@ import React from "react";
 import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {cleanup, render} from "@testing-library/react";
 import ListPageTable from "./ListPageTable";
+import {readLessWithImports} from "../testUtils/less";
 
 const expect = jestExpect;
-const fs = require("fs") as typeof import("fs");
 const path = require("path") as typeof import("path");
 const {fireEvent} = require("@testing-library/react") as {
   fireEvent: {
@@ -13,11 +13,7 @@ const {fireEvent} = require("@testing-library/react") as {
   };
 };
 
-const readSrc = (fileName: string): string => fs.readFileSync(path.join(__dirname, "..", fileName), "utf8") as string;
-const readAppLess = (): string => [
-  readSrc("App.less"),
-  readSrc("styles/list-pages.less"),
-].join("\n");
+const readAppLess = (): string => readLessWithImports(path.join(__dirname, "..", "App.less"));
 
 afterEach(() => {
   cleanup();

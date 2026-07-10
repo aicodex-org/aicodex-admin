@@ -1,0 +1,89 @@
+/* stylelint-disable at-rule-name-case */
+/* stylelint-disable selector-class-pattern */
+/* stylelint-disable no-descending-specificity */
+/* stylelint-disable no-duplicate-selectors */
+/* stylelint-disable max-line-length */
+/* stylelint-disable declaration-block-no-redundant-longhand-properties */
+
+/* Login page and login background styles. */
+
+.side-image {
+  display: none;
+
+  @media screen and (min-width: 1100px) {
+    display: block;
+    position: relative;
+    width: 500px;
+    border-right: 0.5px solid rgb(196 203 215);
+  }
+}
+
+.forget-content {
+  padding: 10px 100px 20px;
+  margin: 30px auto;
+  border: 2px solid #fff;
+  border-radius: 7px;
+  background-color: rgb(255 255 255);
+  box-shadow: 0 0 20px rgb(0 0 0 / 20%);
+}
+
+.login-panel {
+  margin-top: 50px;
+  margin-bottom: 50px;
+  display: flex;
+  background-color: rgb(255 255 255);
+  overflow: hidden;
+}
+
+.login-form {
+  text-align: center;
+  padding: 30px;
+}
+
+.login-panel-wecom-compact {
+  margin-top: 16px;
+  margin-bottom: 16px;
+
+  .panel-logo {
+    width: 180px;
+    height: auto;
+    margin-bottom: 12px;
+  }
+
+  .login-form {
+    padding-top: 20px;
+    padding-bottom: 20px;
+  }
+}
+
+.login-content {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  margin: 0 auto;
+  position: relative;
+}
+
+.loginBackground {
+  flex: auto;
+  display: flex;
+  align-items: center;
+  background: #fff no-repeat;
+  background-size: 100% 100%;
+  background-attachment: fixed;
+}
+
+.loginBackgroundDark {
+  flex: auto;
+  display: flex;
+  align-items: center;
+  background: #000 no-repeat;
+  background-size: 100% 100%;
+  background-attachment: fixed;
+}
+
+.ant-menu-horizontal {
+  border-bottom: none !important;
+}

@@ -179,9 +179,13 @@ EditPage
 
 ### 样式边界
 
-- `web-admin/src/styles/large-edit-pages.less` 当前定位为“编辑页样式集合”，不是纯公共壳文件。里面出现 `.organization-edit-*`、`.user-edit-*` 等页面作用域 selector 是合理的。
+- `web-admin/src/App.less` 只做后台样式顶层聚合入口，按顺序引入全局 shell、身份控制台页面、列表页、编辑页、响应式规则和登录页模块。不要把新页面的大段样式直接写回 `App.less`。
+- `web-admin/src/styles/identity-console-pages.less` 是身份控制台和相关后台工作页的聚合入口；页面族样式放入 `web-admin/src/styles/identity/`，例如概览/共享控制台、Server Store、应用接入、审计治理、组织同步、系统信息、平台运维和证据链。
+- `web-admin/src/styles/list-pages.less` 是列表页样式聚合入口；公共列表壳、组织/用户类列表、应用/Provider 类列表、查询工具栏分别放入 `web-admin/src/styles/list/`。
+- `web-admin/src/styles/large-edit-pages.less` 是大型编辑页样式聚合入口；公共编辑壳和 mixin 放在 `web-admin/src/styles/edit/large-edit-common.less`，页面私有正文样式放在 `web-admin/src/styles/edit/` 下对应业务模块。
 - 不要为了“公共文件里不能有业务 selector”而重命名 `.organization-edit-page`、`.user-edit-page` 等类名。它们是页面作用域边界，能防止 AntD 覆盖样式外溢。
 - 新增页面正文样式必须挂在 `.xxx-edit-page` 下；避免裸写 `.ant-form-item`、`.ant-table`、`.ant-btn`。
+- 样式入口文件只维护 import 顺序和页面族归属。除非明确需要改变视觉，否则迁移页面时不要顺手调整颜色、字号、间距、按钮尺寸或表格密度。
 - 已迁移编辑页挂到 `admin-shell-route-scroll-without-card` 时，`padding: 0` 和页面根节点 `flex: 1 1 auto` 属于公共壳层挂载 contract，后续新增页面应并入同一组 selector，不要每页复制一段。
 - tab 正文里可稳定复用的呈现骨架应优先挂公共 class：`admin-large-edit-form-content`、`admin-large-edit-content-section-title`、`admin-large-edit-full-width-row`、`admin-large-edit-form-content .ant-table-*` 和 `admin-large-edit-form-content .ant-btn-sm`。页面私有 class 只补业务特例。
 - 字段 label、legacy Row/Col 首列 label、单 tab 身份对象页 label 统一引用 `--admin-large-edit-label-color`；不要在新迁移页里重新硬编码深灰或次级灰，避免组织、用户、应用、群组、角色、权限之间出现黑/灰不一致。
@@ -201,7 +205,8 @@ EditPage
 
 ### 不建议现在做的优化
 
-- 不建议把 `large-edit-pages.less` 继续拆成每个页面一个文件，除非该文件继续膨胀到影响定位和 review。
+- 不建议绕过聚合入口从 `App.less` 直接引入某个业务页子模块；入口文件负责稳定 cascade，业务页只维护自己的模块。
+- 不建议把页面私有模块继续拆到单字段、单表格或单组件粒度，除非该页面域已经大到影响定位，并且存在清晰的二级页面族边界。
 - 不建议把组织、用户、群组、角色的正文网格强行抽成同一个公共组件。它们的字段密度、表格比例和业务交互差异较大。
 - 不建议为了减少 CSS 行数牺牲作用域清晰度。后台编辑页更需要可预测的局部覆盖和可回归验证。
 - 不建议把视觉 smoke 截图、临时 Playwright 输出、本地 dev 日志写入仓库。

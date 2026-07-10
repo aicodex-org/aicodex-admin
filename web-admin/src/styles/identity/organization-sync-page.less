@@ -1,0 +1,162 @@
+/* stylelint-disable at-rule-name-case */
+/* stylelint-disable selector-class-pattern */
+/* stylelint-disable no-descending-specificity */
+/* stylelint-disable no-duplicate-selectors */
+/* stylelint-disable max-line-length */
+/* stylelint-disable declaration-block-no-redundant-longhand-properties */
+
+/* Organization sync page form, cards, controls, and table surfaces. */
+
+.organization-sync-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.organization-sync-page-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  max-width: 100%;
+  margin-bottom: 0;
+}
+
+.organization-sync-provider-logo {
+  display: block;
+  border-radius: 4px;
+}
+
+.organization-sync-section-card {
+  min-width: 0;
+  max-width: 100%;
+  padding: 14px;
+  border: 1px solid var(--admin-shell-border, rgb(205 218 237));
+  border-radius: 8px;
+  background: var(--admin-shell-surface-bg, #fff);
+  box-shadow: var(--admin-shell-shadow-sm, 0 1px 2px rgb(15 23 42 / 5%));
+}
+
+.organization-sync-record-card {
+  padding-bottom: 12px;
+}
+
+.organization-sync-permission-alert {
+  margin-top: 14px;
+}
+
+.dingtalk-organization-sync-options {
+  width: 100%;
+}
+
+.dingtalk-organization-sync-permission-alert {
+  margin-top: 20px;
+}
+
+.organization-sync-page-title-main,
+.organization-sync-record-header-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.organization-sync-page-title-status,
+.organization-sync-record-header-action {
+  flex: 0 0 auto;
+  max-width: 100%;
+}
+
+.organization-sync-config-grid {
+  max-width: 100%;
+}
+
+.organization-sync-config-grid > .ant-col {
+  min-width: 0;
+}
+
+.organization-sync-target-selector,
+.organization-sync-target-selector .ant-space-compact,
+.organization-sync-page .ant-input,
+.organization-sync-page .ant-input-affix-wrapper,
+.organization-sync-page .ant-input-password,
+.organization-sync-page .ant-select,
+.organization-sync-page .ant-table-wrapper {
+  max-width: 100%;
+}
+
+.organization-sync-page .ant-input,
+.organization-sync-page .ant-input-affix-wrapper,
+.organization-sync-page .ant-select .ant-select-selector {
+  color: var(--admin-shell-text-primary, rgb(15 23 42));
+  background: var(--admin-shell-surface-soft-bg, rgb(248 250 252)) !important;
+  border-color: var(--admin-shell-border-strong, rgb(199 215 235)) !important;
+  box-shadow: none !important;
+}
+
+.organization-sync-page .ant-input:hover,
+.organization-sync-page .ant-input:focus,
+.organization-sync-page .ant-input-affix-wrapper:hover,
+.organization-sync-page .ant-input-affix-wrapper-focused,
+.organization-sync-page .ant-select:hover .ant-select-selector,
+.organization-sync-page .ant-select-focused .ant-select-selector,
+.organization-sync-page .ant-select-open .ant-select-selector {
+  background: var(--admin-shell-surface-emphasis-bg, rgb(248 251 255)) !important;
+  border-color: var(--admin-shell-link-strong, rgb(30 64 175)) !important;
+  box-shadow: none !important;
+}
+
+.organization-sync-page .ant-input::placeholder,
+.organization-sync-page .ant-select-selection-placeholder {
+  color: var(--admin-shell-text-secondary, rgb(100 116 139)) !important;
+}
+
+.organization-sync-page .ant-input-affix-wrapper .ant-input {
+  background: transparent !important;
+  border-color: transparent !important;
+}
+
+.organization-sync-page .ant-input-password-icon,
+.organization-sync-page .ant-select-arrow {
+  color: var(--admin-shell-text-secondary, rgb(100 116 139)) !important;
+}
+
+.organization-sync-page .ant-btn-default {
+  color: var(--admin-shell-text-primary, rgb(15 23 42));
+  background: var(--admin-shell-surface-soft-bg, rgb(248 250 252)) !important;
+  border-color: var(--admin-shell-border-strong, rgb(199 215 235)) !important;
+  box-shadow: none !important;
+}
+
+.organization-sync-page .ant-btn-default:hover,
+.organization-sync-page .ant-btn-default:focus-visible {
+  color: var(--admin-shell-text-primary, rgb(15 23 42)) !important;
+  background: var(--admin-shell-surface-emphasis-bg, rgb(248 251 255)) !important;
+  border-color: var(--admin-shell-link-strong, rgb(30 64 175)) !important;
+  box-shadow: none !important;
+}
+
+.organization-sync-page .ant-table,
+.organization-sync-page .ant-table-container,
+.organization-sync-page .ant-table-content,
+.organization-sync-page .ant-table-body {
+  color: var(--admin-shell-text-primary, rgb(15 23 42));
+  background: var(--admin-shell-surface-bg, #fff) !important;
+}
+
+.organization-sync-page .ant-table.ant-table-middle .ant-table-thead > tr > th {
+  color: var(--admin-shell-text-muted, rgb(71 85 105));
+  background: var(--admin-shell-surface-soft-bg, rgb(248 250 252)) !important;
+  border-bottom-color: var(--admin-shell-border-subtle, rgb(226 232 240)) !important;
+}
+
+.organization-sync-page .ant-table.ant-table-middle .ant-table-tbody > tr > td {
+  color: var(--admin-shell-text-primary, rgb(15 23 42));
+  background: var(--admin-shell-surface-bg, #fff);
+  border-bottom-color: var(--admin-shell-border-subtle, rgb(226 232 240)) !important;
+}
+
+.organization-sync-page .ant-table-tbody > tr.ant-table-row:hover > td,
+.organization-sync-page .ant-table-tbody > tr > td.ant-table-cell-row-hover {
+  background: var(--admin-shell-surface-emphasis-bg, rgb(248 251 255)) !important;
+}

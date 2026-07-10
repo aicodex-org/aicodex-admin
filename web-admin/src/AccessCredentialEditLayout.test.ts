@@ -2,12 +2,10 @@
 import {expect} from "@jest/globals";
 import fs from "fs";
 import path from "path";
+import {readLessWithImports} from "./testUtils/less";
 
 const readSrc = (fileName: string): string => fs.readFileSync(path.join(__dirname, fileName), "utf8") as string;
-const readAppLess = (): string => [
-  readSrc("App.less"),
-  readSrc("styles/large-edit-pages.less"),
-].join("\n");
+const readAppLess = (): string => readLessWithImports(path.join(__dirname, "App.less"));
 
 describe("access and credential edit page form layout", () => {
   const editPages = [

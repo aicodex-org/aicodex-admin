@@ -1,0 +1,802 @@
+/* stylelint-disable at-rule-name-case */
+/* stylelint-disable selector-class-pattern */
+/* stylelint-disable no-descending-specificity */
+/* stylelint-disable no-duplicate-selectors */
+/* stylelint-disable max-line-length */
+/* stylelint-disable declaration-block-no-redundant-longhand-properties */
+
+/* Shared large edit shell, form primitives, table action mixins, route mounting, and base dark/mobile rules. */
+
+/* Large edit shell and object edit pages. Imported by App.less to preserve cascade order. */
+.admin-large-edit-page,
+.identity-object-edit-page,
+.admin-identity-object-edit-page,
+.admin-access-edit-page {
+  --admin-large-edit-label-color: var(--admin-shell-text-primary, #333542);
+}
+
+.admin-large-edit-section-title-base() {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 18px;
+  color: var(--admin-shell-text-primary, #172033);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.admin-large-edit-section-title-marker-base() {
+  display: block;
+  width: 3px;
+  height: 16px;
+  border-radius: 2px;
+  background: var(--admin-shell-link-strong, #1677ff);
+  content: "";
+}
+
+.admin-large-edit-field-label-base() {
+  min-width: 0;
+  padding-top: 5px;
+  color: var(--admin-large-edit-label-color);
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.admin-large-edit-switch-label-base() {
+  min-width: 0;
+  color: var(--admin-large-edit-label-color);
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: right;
+}
+
+.admin-large-edit-field-label-text-base() {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  max-width: 100%;
+  vertical-align: top;
+}
+
+.admin-large-edit-field-label-text-content-base() {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-large-edit-required-mark-base() {
+  display: inline-block;
+  margin-right: 4px;
+  color: var(--admin-shell-error-color, #ff4d4f);
+  font-family: Arial, sans-serif;
+  font-weight: 600;
+}
+
+.admin-large-edit-label-colon-base() {
+  flex: 0 0 auto;
+  margin-left: 2px;
+}
+
+.admin-large-edit-field-control-base() {
+  min-width: 0;
+  color: var(--admin-shell-text-primary, #333542);
+  font-size: 12px;
+}
+
+.admin-large-edit-field-error-base() {
+  margin-top: 4px;
+  color: var(--admin-shell-error-color, #ff4d4f);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.admin-large-edit-legacy-row-label-base() {
+  flex: 0 0 184px;
+  max-width: 184px;
+  min-width: 0;
+  padding-right: 16px;
+  color: var(--admin-large-edit-label-color);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.admin-large-edit-field-grid-base(@columns: repeat(2, minmax(320px, 1fr)); @max-width: 1060px; @margin-bottom: 28px) {
+  display: grid;
+  grid-template-columns: @columns;
+  column-gap: 32px;
+  row-gap: 16px;
+  max-width: @max-width;
+  margin-bottom: @margin-bottom;
+}
+
+.admin-large-edit-field-row-base(@label-width) {
+  display: grid;
+  grid-template-columns: @label-width minmax(0, 1fr);
+  align-items: start;
+  column-gap: 12px;
+  min-width: 0;
+}
+
+.admin-large-edit-field-row-wide-base() {
+  grid-column: 1 / -1;
+}
+
+.admin-large-edit-page-root-base() {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.admin-large-edit-card-frame-base() {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.admin-large-edit-card-base() {
+  .admin-large-edit-card-frame-base();
+
+  background: var(--admin-shell-surface-bg, #fff);
+}
+
+.admin-large-edit-card-body-base() {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.admin-large-edit-mobile-page-base() {
+  height: auto;
+  min-height: 0;
+}
+
+.admin-large-edit-mobile-card-base() {
+  min-height: calc(100vh - 120px);
+}
+
+.admin-large-edit-dark-control-base() {
+  border-color: var(--admin-shell-border-strong, rgb(71 85 105)) !important;
+  color: var(--admin-shell-text-primary, rgb(226 232 240)) !important;
+  background: var(--admin-shell-surface-soft-bg, rgb(15 23 42)) !important;
+}
+
+.admin-large-edit-dark-control-focus-base() {
+  border-color: var(--admin-shell-link-strong, rgb(191 219 254)) !important;
+  box-shadow: 0 0 0 2px var(--admin-shell-info-bg, rgb(30 64 175 / 24%)) !important;
+}
+
+.admin-large-edit-dark-control-disabled-base() {
+  border-color: var(--admin-shell-border, rgb(51 65 85)) !important;
+  color: var(--admin-shell-text-secondary, rgb(148 163 184)) !important;
+  background: var(--admin-shell-surface-muted-bg, rgb(30 41 59)) !important;
+}
+
+.admin-large-edit-dark-control-text-base() {
+  color: var(--admin-shell-text-primary, rgb(226 232 240)) !important;
+}
+
+.admin-large-edit-dark-transparent-control-base() {
+  color: var(--admin-shell-text-primary, rgb(226 232 240)) !important;
+  background: transparent !important;
+}
+
+.admin-large-edit-dark-card-base() {
+  background: var(--admin-shell-surface-bg, rgb(15 23 42));
+}
+
+.admin-large-edit-dark-table-surface-base() {
+  color: var(--admin-shell-text-primary, rgb(226 232 240)) !important;
+  background: var(--admin-shell-surface-soft-bg, rgb(15 23 42)) !important;
+}
+
+.admin-large-edit-dark-table-header-cell-base() {
+  border-color: var(--admin-shell-border, rgb(51 65 85)) !important;
+  color: var(--admin-shell-text-primary, rgb(226 232 240)) !important;
+  background: var(--admin-shell-surface-muted-bg, rgb(30 41 59)) !important;
+}
+
+.admin-large-edit-dark-table-body-cell-base() {
+  border-color: var(--admin-shell-border, rgb(51 65 85)) !important;
+  color: var(--admin-shell-text-primary, rgb(226 232 240)) !important;
+  background: var(--admin-shell-surface-soft-bg, rgb(15 23 42)) !important;
+}
+
+.admin-large-edit-dark-table-hover-cell-base() {
+  background: var(--admin-shell-surface-muted-bg, rgb(30 41 59)) !important;
+}
+
+.admin-large-edit-dark-table-empty-base() {
+  color: var(--admin-shell-text-secondary, rgb(148 163 184)) !important;
+  background: var(--admin-shell-surface-soft-bg, rgb(15 23 42)) !important;
+}
+
+.admin-large-edit-table-toolbar-base() {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 24px;
+}
+
+.admin-large-edit-table-title-text-base() {
+  color: var(--admin-shell-text-primary, #333542);
+  font-size: 12px !important;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.admin-large-edit-help-icon-base() {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--admin-shell-text-secondary, #71727a);
+  font-size: 12px;
+}
+
+.admin-large-edit-focus-ring-base() {
+  border-radius: 4px;
+  outline: 2px solid var(--admin-shell-link-strong, #1677ff);
+  outline-offset: 2px;
+}
+
+.admin-large-edit-table-toolbar-action-button-base() {
+  height: var(--identity-edit-table-toolbar-action-height);
+  padding: var(--identity-edit-table-toolbar-action-padding);
+  font-size: var(--identity-edit-table-toolbar-action-font-size);
+  line-height: var(--identity-edit-table-toolbar-action-line-height);
+}
+
+.admin-large-edit-inline-action-button-base() {
+  height: var(--identity-edit-inline-action-height);
+  min-width: var(--identity-edit-inline-action-min-width);
+  padding: var(--identity-edit-inline-action-padding);
+  font-size: var(--identity-edit-inline-action-font-size);
+  line-height: var(--identity-edit-inline-action-line-height);
+}
+
+.admin-large-edit-icon-action-button-base() {
+  min-width: 24px;
+  padding: 0;
+}
+
+.admin-large-edit-row-actions-base() {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.admin-large-edit-page {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.admin-large-edit-shell {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  background: var(--admin-shell-surface-bg, #fff);
+}
+
+.admin-large-edit-header {
+  display: flex;
+  flex: 0 0 42px;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 0 32px;
+  border-bottom: 1px solid var(--admin-shell-border-subtle, #e4e9f2);
+}
+
+.admin-large-edit-back-button.ant-btn {
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 4px;
+  color: var(--admin-shell-text-secondary, #71727a);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 28px;
+}
+
+.admin-large-edit-back-button.ant-btn:hover,
+.admin-large-edit-back-button.ant-btn:focus {
+  color: var(--admin-shell-link-strong, #2d67ef);
+  background: var(--admin-shell-control-hover-bg, #f3f6fd);
+}
+
+.admin-large-edit-breadcrumb,
+.admin-large-edit-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-large-edit-breadcrumb {
+  color: var(--admin-shell-text-secondary, #71727a);
+  font-size: 12px;
+}
+
+.admin-large-edit-title {
+  color: var(--admin-shell-text-primary, #172033);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.admin-large-edit-dirty-state {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 2px 10px;
+  border: 1px solid var(--admin-shell-info-border, #c7dbff);
+  border-radius: 12px;
+  color: var(--admin-shell-text-secondary, #71727a);
+  font-size: 12px;
+  line-height: 18px;
+  background: var(--admin-shell-info-bg, #eef4ff);
+}
+
+.admin-large-edit-action-bar {
+  display: flex;
+  flex: 0 0 54px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border-top: 1px solid var(--admin-shell-border-subtle, #e4e9f2);
+  background: var(--admin-shell-surface-bg, #fff);
+}
+
+.admin-large-edit-action-bar .ant-btn {
+  min-width: 74px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.admin-large-edit-tabs.ant-tabs {
+  flex: 0 0 auto;
+  padding: 0 32px;
+}
+
+.admin-large-edit-tabs > .ant-tabs-nav {
+  margin: 0;
+}
+
+.admin-large-edit-tabs .ant-tabs-tab {
+  padding: 8px 0 7px;
+  color: var(--admin-shell-text-primary, #333542);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.admin-large-edit-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--admin-shell-link, #02133c);
+  font-weight: 600;
+}
+
+.admin-large-edit-scroll-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 14px 32px 24px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.admin-large-edit-section {
+  max-width: 1060px;
+  margin-bottom: 24px;
+}
+
+.admin-large-edit-section:last-child {
+  margin-bottom: 0;
+}
+
+.admin-large-edit-section-title {
+  .admin-large-edit-section-title-base();
+}
+
+.admin-large-edit-section-title::before {
+  .admin-large-edit-section-title-marker-base();
+}
+
+.admin-large-edit-field-grid {
+  .admin-large-edit-field-grid-base();
+}
+
+.admin-large-edit-field-row {
+  .admin-large-edit-field-row-base(var(--admin-large-edit-label-width, 160px));
+}
+
+.admin-large-edit-field-row-wide {
+  .admin-large-edit-field-row-wide-base();
+}
+
+.admin-large-edit-field-label {
+  .admin-large-edit-field-label-base();
+}
+
+.admin-large-edit-field-label-text {
+  .admin-large-edit-field-label-text-base();
+}
+
+.admin-large-edit-field-label-text > span:not(.admin-large-edit-required-mark, .admin-large-edit-label-colon) {
+  .admin-large-edit-field-label-text-content-base();
+}
+
+.admin-large-edit-required-mark {
+  .admin-large-edit-required-mark-base();
+}
+
+.admin-large-edit-label-colon {
+  .admin-large-edit-label-colon-base();
+}
+
+.admin-large-edit-field-control {
+  .admin-large-edit-field-control-base();
+}
+
+.admin-large-edit-field-control > .ant-input,
+.admin-large-edit-field-control > .ant-input-affix-wrapper,
+.admin-large-edit-field-control > .ant-input-number,
+.admin-large-edit-field-control > .ant-select,
+.admin-large-edit-field-control .ant-select {
+  width: 100%;
+}
+
+.admin-large-edit-field-control .ant-input,
+.admin-large-edit-field-control .ant-input-number-input,
+.admin-large-edit-field-control .ant-select-selector,
+.admin-large-edit-field-control .ant-select-selection-item,
+.admin-large-edit-field-control .ant-select-selection-placeholder,
+.admin-large-edit-field-control .ant-radio-wrapper,
+.admin-large-edit-field-control .ant-checkbox-wrapper,
+.admin-large-edit-field-control .ant-btn {
+  font-size: 12px;
+}
+
+.admin-large-edit-field-control .ant-input,
+.admin-large-edit-field-control .ant-input-number,
+.admin-large-edit-field-control .ant-select-selector {
+  border-radius: 4px;
+}
+
+.admin-large-edit-field-error {
+  .admin-large-edit-field-error-base();
+}
+
+.admin-large-edit-form-content {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.admin-large-edit-content-section-title {
+  .admin-large-edit-section-title-base();
+}
+
+.admin-large-edit-content-section-title::before {
+  .admin-large-edit-section-title-marker-base();
+}
+
+.admin-large-edit-required-label {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.admin-large-edit-full-width-row {
+  width: 100%;
+}
+
+.admin-large-edit-full-width-row > .ant-col {
+  flex: 0 0 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.admin-large-edit-card .admin-large-edit-form-content > .admin-large-edit-content-section-title + .ant-row {
+  margin-top: 0 !important;
+}
+
+.admin-large-edit-card .admin-large-edit-form-content > .ant-row:not(.admin-large-edit-full-width-row) {
+  align-items: flex-start;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.admin-large-edit-card .admin-large-edit-form-content > .ant-row:not(.admin-large-edit-full-width-row) > .ant-col:first-child {
+  .admin-large-edit-legacy-row-label-base();
+
+  font-size: 12px;
+  text-align: right;
+}
+
+.admin-large-edit-card .admin-large-edit-form-content > .ant-row:not(.admin-large-edit-full-width-row) > .ant-col:first-child + .ant-col {
+  flex: 1 1 0;
+  max-width: calc(100% - 184px);
+  min-width: 0;
+  color: var(--admin-shell-text-primary, #172033);
+}
+
+.admin-large-edit-form-content .ant-input,
+.admin-large-edit-form-content .ant-input-number-input,
+.admin-large-edit-form-content .ant-select-selector,
+.admin-large-edit-form-content .ant-select-selection-item,
+.admin-large-edit-form-content .ant-select-selection-placeholder,
+.admin-large-edit-form-content .ant-radio-wrapper,
+.admin-large-edit-form-content .ant-btn,
+.admin-large-edit-form-content .ant-table,
+.admin-large-edit-form-content .ant-table-wrapper,
+.admin-large-edit-form-content .ant-table-cell {
+  font-size: 12px;
+}
+
+.admin-large-edit-form-content .ant-input,
+.admin-large-edit-form-content .ant-input-affix-wrapper,
+.admin-large-edit-form-content .ant-select,
+.admin-large-edit-form-content .ant-input-number {
+  max-width: 100%;
+}
+
+.admin-large-edit-form-content .ant-table-wrapper {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.admin-large-edit-form-content .ant-table-title {
+  padding: 8px 12px;
+  color: var(--admin-shell-text-primary, #172033);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.admin-large-edit-form-content .organization-config-table-toolbar {
+  .admin-large-edit-table-toolbar-base();
+}
+
+.admin-large-edit-form-content .organization-config-table-title {
+  .admin-large-edit-table-title-text-base();
+}
+
+.admin-large-edit-form-content .organization-config-table-toolbar .ant-btn-sm {
+  .admin-large-edit-table-toolbar-action-button-base();
+}
+
+.admin-large-edit-form-content .ant-table-thead > tr > th,
+.admin-large-edit-form-content .ant-table-tbody > tr > td {
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.admin-large-edit-form-content .ant-table-thead > tr > th {
+  font-weight: 500;
+}
+
+.admin-large-edit-form-content .ant-btn-sm {
+  .admin-large-edit-inline-action-button-base();
+}
+
+.admin-large-edit-identity-option,
+.admin-large-edit-organization-option {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-large-edit-identity-option-name,
+.admin-large-edit-identity-option-id,
+.admin-large-edit-organization-option-name,
+.admin-large-edit-organization-option-id {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-large-edit-identity-option-name,
+.admin-large-edit-organization-option-name {
+  color: var(--admin-shell-text-primary, #333542);
+  font-weight: 500;
+}
+
+.admin-large-edit-identity-option-id,
+.admin-large-edit-organization-option-id {
+  color: var(--admin-shell-text-secondary, #71727a);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.identity-object-edit-page,
+.organization-edit-page,
+.user-edit-page,
+.application-edit-page {
+  --identity-edit-inline-action-height: 24px;
+  --identity-edit-inline-action-min-width: 42px;
+  --identity-edit-inline-action-padding: 0 10px;
+  --identity-edit-inline-action-font-size: 12px;
+  --identity-edit-inline-action-line-height: 22px;
+  --identity-edit-table-toolbar-action-height: 22px;
+  --identity-edit-table-toolbar-action-padding: 0 10px;
+  --identity-edit-table-toolbar-action-font-size: 12px;
+  --identity-edit-table-toolbar-action-line-height: 20px;
+}
+
+body.admin-shell-theme-dark .admin-large-edit-shell,
+body.admin-shell-theme-dark .admin-large-edit-action-bar {
+  background: var(--admin-shell-surface-bg, rgb(15 23 42));
+}
+
+body.admin-shell-theme-dark .admin-large-edit-tabs .ant-tabs-tab .ant-tabs-tab-btn {
+  color: var(--admin-shell-text-secondary, rgb(148 163 184));
+}
+
+body.admin-shell-theme-dark .admin-large-edit-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--admin-shell-link-strong, rgb(191 219 254));
+}
+
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-input,
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-input-affix-wrapper,
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-input-number,
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-select .ant-select-selector,
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content textarea.ant-input {
+  .admin-large-edit-dark-control-base();
+}
+
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-input:hover,
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-input:focus,
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-input-affix-wrapper:hover,
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-input-affix-wrapper-focused,
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-input-number:hover,
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-input-number-focused,
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-select:hover .ant-select-selector,
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-select-focused .ant-select-selector,
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-select-open .ant-select-selector {
+  .admin-large-edit-dark-control-focus-base();
+}
+
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-input-affix-wrapper .ant-input,
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-input-number-input {
+  .admin-large-edit-dark-transparent-control-base();
+}
+
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-select-selection-item,
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-select-arrow,
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-input-prefix,
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-input-suffix {
+  .admin-large-edit-dark-control-text-base();
+}
+
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-input[disabled],
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-input-disabled,
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-input-number-disabled,
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-select-disabled .ant-select-selector {
+  .admin-large-edit-dark-control-disabled-base();
+}
+
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-table-wrapper,
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-table,
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-table-container,
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-table-content,
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-table-header,
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-table-body {
+  .admin-large-edit-dark-table-surface-base();
+}
+
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-table-thead > tr > th {
+  .admin-large-edit-dark-table-header-cell-base();
+}
+
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-table-tbody > tr > td {
+  .admin-large-edit-dark-table-body-cell-base();
+}
+
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-table-tbody > tr.ant-table-row:hover > td,
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-table-tbody > tr > td.ant-table-cell-row-hover {
+  .admin-large-edit-dark-table-hover-cell-base();
+}
+
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-table-tbody > tr.ant-table-placeholder > td,
+body.admin-shell-theme-dark .admin-large-edit-page .admin-large-edit-form-content .ant-empty-description {
+  .admin-large-edit-dark-table-empty-base();
+}
+
+@media screen and (max-width: 768px) {
+  .admin-large-edit-header {
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 48px;
+    gap: 6px 10px;
+    padding: 10px 16px;
+  }
+
+  .admin-large-edit-breadcrumb,
+  .admin-large-edit-title {
+    flex: 1 0 100%;
+    white-space: normal;
+  }
+
+  .admin-large-edit-title {
+    overflow-wrap: anywhere;
+  }
+
+  .admin-large-edit-dirty-state {
+    margin-left: 0;
+  }
+
+  .admin-large-edit-action-bar {
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    min-height: 62px;
+    padding: 10px 16px;
+  }
+
+  .admin-large-edit-action-bar .ant-btn {
+    max-width: 100%;
+  }
+
+  .admin-large-edit-tabs.ant-tabs,
+  .admin-large-edit-scroll-content {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .admin-large-edit-tabs {
+    overflow-x: auto;
+  }
+
+  .admin-large-edit-field-grid {
+    grid-template-columns: 1fr;
+    row-gap: 14px;
+  }
+
+  .admin-large-edit-field-row {
+    grid-template-columns: 1fr;
+    row-gap: 6px;
+  }
+
+  .admin-large-edit-field-label {
+    text-align: left;
+  }
+
+  .admin-large-edit-card .admin-large-edit-form-content > .ant-row:not(.admin-large-edit-full-width-row) {
+    flex-wrap: wrap;
+  }
+
+  .admin-large-edit-card .admin-large-edit-form-content > .ant-row:not(.admin-large-edit-full-width-row) > .ant-col:first-child,
+  .admin-large-edit-card .admin-large-edit-form-content > .ant-row:not(.admin-large-edit-full-width-row) > .ant-col:first-child + .ant-col,
+  .admin-large-edit-full-width-row > .ant-col {
+    flex: 0 0 100%;
+    max-width: 100%;
+    min-width: 0;
+    padding-right: 0;
+    text-align: left;
+  }
+}
+
+.admin-shell-route-scroll-without-card:has(> .organization-edit-page),
+.admin-shell-route-scroll-without-card:has(> .identity-object-edit-page),
+.admin-shell-route-scroll-without-card:has(> .permission-edit-page),
+.admin-shell-route-scroll-without-card:has(> .group-edit-page),
+.admin-shell-route-scroll-without-card:has(> .user-edit-page),
+.admin-shell-route-scroll-without-card:has(> .application-edit-page) {
+  padding: 0;
+}
+
+.admin-shell-route-scroll-without-card > .organization-edit-page,
+.admin-shell-route-scroll-without-card > .identity-object-edit-page,
+.admin-shell-route-scroll-without-card > .permission-edit-page,
+.admin-shell-route-scroll-without-card > .group-edit-page,
+.admin-shell-route-scroll-without-card > .user-edit-page,
+.admin-shell-route-scroll-without-card > .application-edit-page {
+  flex: 1 1 auto;
+}

@@ -8,6 +8,7 @@ import * as ServerBackend from "./backend/ServerBackend";
 import * as Setting from "./Setting";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
+import {readLessWithImports} from "./testUtils/less";
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -241,7 +242,7 @@ describe("ServerStorePage", () => {
   });
 
   test("uses shared shell tokens instead of page-local dark surfaces", () => {
-    const appLess = fs.readFileSync(path.join(__dirname, "App.less"), "utf8");
+    const appLess = readLessWithImports(path.join(__dirname, "App.less"));
     const pageBlock = appLess.match(/\.server-store-page \{([\s\S]*?)\}/)?.[1] ?? "";
     const headerBlock = appLess.match(/\.server-store-page-header-shell \{([\s\S]*?)\}/)?.[1] ?? "";
     const toolbarBlock = appLess.match(/\.server-store-page-toolbar \{([\s\S]*?)\}/)?.[1] ?? "";

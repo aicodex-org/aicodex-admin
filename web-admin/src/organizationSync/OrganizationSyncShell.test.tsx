@@ -8,6 +8,7 @@ import {
   OrganizationSyncRunRecordHeader,
   OrganizationSyncSectionCard
 } from "./OrganizationSyncShell";
+import {readLessWithImports} from "../testUtils/less";
 
 const {fireEvent, screen} = require("@testing-library/react") as {
   fireEvent: {
@@ -18,7 +19,6 @@ const {fireEvent, screen} = require("@testing-library/react") as {
     getByText: (text: string) => HTMLElement;
   };
 };
-const fs = require("fs") as {readFileSync: (filePath: string, encoding: string) => string};
 const path = require("path") as {join: (...parts: string[]) => string};
 
 function expectElement(element: HTMLElement | null): asserts element is HTMLElement {
@@ -119,7 +119,7 @@ describe("OrganizationSyncSectionCard", () => {
   });
 
   test("uses shared shell tokens for sync page cards and spacing", () => {
-    const appLess = fs.readFileSync(path.join(__dirname, "../App.less"), "utf8");
+    const appLess = readLessWithImports(path.join(__dirname, "../App.less"));
     const pageBlock = appLess.match(/\.organization-sync-page \{([\s\S]*?)\}/)?.[1] ?? "";
     const sectionCardBlock = appLess.match(/\.organization-sync-section-card \{([\s\S]*?)\}/)?.[1] ?? "";
 

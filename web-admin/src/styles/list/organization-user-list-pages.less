@@ -1,0 +1,343 @@
+/* stylelint-disable at-rule-name-case */
+/* stylelint-disable selector-class-pattern */
+/* stylelint-disable no-descending-specificity */
+/* stylelint-disable no-duplicate-selectors */
+/* stylelint-disable max-line-length */
+/* stylelint-disable declaration-block-no-redundant-longhand-properties */
+
+/* Organization, group, and user list page cells and actions. */
+
+.group-table-id-link,
+.group-table-parent-link,
+.group-table-id-text {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.group-table-id-link,
+.group-table-parent-link {
+  font-size: var(--list-page-table-cell-font-size);
+}
+
+.group-table-group-cell,
+.organization-table-identity-cell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 3px;
+  min-width: 0;
+}
+
+.organization-table-identity-cell {
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 8px;
+}
+
+.group-table-group-content,
+.organization-table-identity-content {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.organization-table-identity-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  overflow: hidden;
+  border: 1px solid var(--admin-shell-border-subtle, rgb(226 232 240));
+  border-radius: 6px;
+  background: var(--admin-shell-surface-bg, #fff);
+}
+
+.organization-table-identity-icon img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+.group-table-group-name,
+.organization-table-identity-name {
+  display: inline-block;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--list-page-primary-text-color, #311ce6);
+  font-size: var(--list-page-table-cell-font-size);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.group-table-group-meta,
+.organization-table-identity-meta {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+  color: var(--list-page-secondary-text-color, rgb(100 116 139));
+  font-size: var(--list-page-secondary-font-size);
+  line-height: 18px;
+}
+
+.group-table-group-id,
+.organization-table-identity-id {
+  display: inline-block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.organization-table-copy-id.ant-btn,
+.group-table-copy-id.ant-btn {
+  flex: none;
+  width: 22px;
+  height: 20px;
+  padding: 0;
+  color: var(--list-page-secondary-text-color, rgb(100 116 139)) !important;
+  opacity: 0.08;
+  transition: color 0.16s ease, opacity 0.16s ease, background-color 0.16s ease;
+}
+
+.enterprise-list-table.ant-table-wrapper .ant-table-row:hover .organization-table-copy-id.ant-btn,
+.enterprise-list-table.ant-table-wrapper .ant-table-row:hover .group-table-copy-id.ant-btn,
+.organization-table-copy-id.ant-btn:focus-visible,
+.group-table-copy-id.ant-btn:focus-visible {
+  opacity: 0.48;
+}
+
+.enterprise-list-table.ant-table-wrapper .organization-table-copy-id.ant-btn:hover,
+.enterprise-list-table.ant-table-wrapper .organization-table-copy-id.ant-btn:focus-visible,
+.enterprise-list-table.ant-table-wrapper .group-table-copy-id.ant-btn:hover,
+.enterprise-list-table.ant-table-wrapper .group-table-copy-id.ant-btn:focus-visible {
+  color: var(--list-page-primary-text-color, #311ce6) !important;
+  opacity: 0.88;
+}
+
+.organization-table-source-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  min-width: 0;
+  color: var(--admin-shell-text-muted, rgb(71 85 105));
+  font-size: var(--list-page-table-cell-font-size);
+}
+
+.organization-table-source-link span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.organization-table-source-empty {
+  color: var(--admin-shell-text-secondary, rgb(148 163 184));
+}
+
+.group-table-users {
+  max-width: 238px;
+}
+
+.group-table-user-link {
+  display: inline-flex;
+  max-width: 112px;
+  min-width: 0;
+}
+
+.group-table-user-tag {
+  max-width: 112px;
+  margin-right: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
+
+.group-table-user-more {
+  margin-right: 0;
+  color: var(--list-page-secondary-text-color, rgb(100 116 139));
+  background: var(--admin-shell-surface-soft-bg, rgb(248 250 252));
+  border-color: var(--admin-shell-border-subtle, rgb(226 232 240));
+}
+
+.group-table-user-count {
+  margin-right: 0;
+  color: var(--admin-shell-text-muted, rgb(71 85 105));
+  font-size: var(--list-page-secondary-font-size);
+  line-height: 18px;
+  background: var(--admin-shell-surface-soft-bg, rgb(248 250 252));
+  border-color: var(--admin-shell-border-subtle, rgb(226 232 240));
+  border-radius: 999px;
+}
+
+.group-table-user-count-empty {
+  color: var(--admin-shell-text-secondary, rgb(148 163 184));
+  background: var(--admin-shell-surface-soft-bg, rgb(249 250 251));
+}
+
+.group-row-actions {
+  white-space: nowrap;
+}
+
+.organization-row-actions {
+  max-width: 100%;
+}
+
+.group-row-actions .ant-btn,
+.organization-row-actions .ant-btn {
+  height: 24px;
+  padding-inline: 5px;
+  font-size: var(--list-page-action-font-size);
+}
+
+.organization-row-actions .ant-btn {
+  gap: 3px;
+  padding-inline: 2px;
+}
+
+.group-row-action-edit,
+.organization-row-action-edit {
+  font-weight: 500;
+}
+
+.group-row-action-delete[disabled],
+.organization-row-action-delete[disabled] {
+  color: rgb(148 163 184) !important;
+  background: transparent !important;
+  border-color: transparent !important;
+}
+
+.group-row-disabled-action {
+  display: inline-block;
+}
+
+.user-list-page-table-shell {
+  min-width: 0;
+}
+
+.user-list-table.ant-table-wrapper .ant-table-body {
+  scrollbar-color: var(--admin-shell-scrollbar-thumb, rgb(203 213 225)) transparent;
+  scrollbar-width: thin;
+}
+
+.user-list-table.ant-table-wrapper .ant-table-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.user-list-table.ant-table-wrapper .ant-table-body::-webkit-scrollbar-thumb {
+  background: var(--admin-shell-scrollbar-thumb, rgb(203 213 225));
+  border-radius: 999px;
+}
+
+.user-list-table.ant-table-wrapper .ant-table-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.user-table-user-cell {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.user-table-avatar {
+  flex: none;
+  color: var(--admin-shell-info-color, #1d4ed8);
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--admin-shell-info-bg, #dbeafe);
+}
+
+.user-table-user-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+}
+
+.user-table-user-content,
+.user-table-contact-cell,
+.user-table-source-cell {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.user-table-user-name,
+.user-table-contact-link,
+.user-table-source-link,
+.user-table-source-subtle {
+  display: inline-block;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.user-table-user-name {
+  color: var(--list-page-primary-text-color, #311ce6);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.user-table-user-id,
+.user-table-source-subtle,
+.user-table-contact-phone,
+.user-table-empty-text {
+  display: inline-block;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--list-page-secondary-text-color, rgb(100 116 139));
+  font-size: 12px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-table-source-link,
+.user-table-contact-link {
+  font-size: 13px;
+}
+
+.user-table-status-tags {
+  max-width: 100%;
+}
+
+.user-table-status-verified {
+  color: var(--admin-shell-success-color, #166534);
+  background: var(--admin-shell-success-bg, #dcfce7);
+  border-color: var(--admin-shell-success-border, #bbf7d0);
+}
+
+.user-table-status-unverified {
+  color: var(--list-page-secondary-text-color, rgb(100 116 139));
+  background: var(--admin-shell-surface-soft-bg, rgb(248 250 252));
+  border-color: var(--admin-shell-border-subtle, rgb(226 232 240));
+}
+
+.user-row-action-impersonate.ant-btn {
+  width: 24px;
+  padding-inline: 0;
+  color: var(--admin-shell-text-muted, rgb(71 85 105));
+}
+
+.user-row-action-delete[disabled],
+.user-row-action-remove[disabled] {
+  color: rgb(148 163 184) !important;
+  background: transparent !important;
+  border-color: transparent !important;
+}

@@ -1,0 +1,233 @@
+/* stylelint-disable at-rule-name-case */
+/* stylelint-disable selector-class-pattern */
+/* stylelint-disable no-descending-specificity */
+/* stylelint-disable no-duplicate-selectors */
+/* stylelint-disable max-line-length */
+/* stylelint-disable declaration-block-no-redundant-longhand-properties */
+
+/* Group edit page styles. */
+
+.group-edit-page {
+  --group-edit-label-width: 128px;
+
+  .admin-large-edit-page-root-base();
+
+  height: calc(100vh - 104px);
+  min-height: 520px;
+}
+
+.group-edit-card {
+  .admin-large-edit-card-base();
+
+  height: 100%;
+}
+
+.group-edit-card > .ant-card-body {
+  .admin-large-edit-card-body-base();
+
+  display: flex;
+  padding: 0;
+}
+
+.group-edit-scroll-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 18px 32px 24px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.group-edit-section {
+  max-width: 940px;
+}
+
+.group-edit-section-title {
+  .admin-large-edit-section-title-base();
+}
+
+.group-edit-section-title::before {
+  .admin-large-edit-section-title-marker-base();
+}
+
+.group-edit-field-grid {
+  .admin-large-edit-field-grid-base(repeat(2, minmax(280px, 420px)); 900px; 0);
+}
+
+.group-edit-field-row {
+  .admin-large-edit-field-row-base(var(--group-edit-label-width));
+}
+
+.group-edit-field-row-wide,
+.group-edit-directory-alert {
+  .admin-large-edit-field-row-wide-base();
+}
+
+.group-edit-field-label {
+  .admin-large-edit-field-label-base();
+}
+
+.group-edit-field-label-text {
+  .admin-large-edit-field-label-text-base();
+}
+
+.group-edit-field-label-text > span:not(.group-edit-required-mark, .group-edit-label-colon) {
+  .admin-large-edit-field-label-text-content-base();
+}
+
+.group-edit-required-mark {
+  .admin-large-edit-required-mark-base();
+}
+
+.group-edit-label-colon {
+  .admin-large-edit-label-colon-base();
+}
+
+.group-edit-field-control {
+  .admin-large-edit-field-control-base();
+}
+
+.group-edit-field-control > .ant-input,
+.group-edit-field-control > .ant-select {
+  width: 100%;
+}
+
+.group-edit-field-control .ant-input,
+.group-edit-field-control .ant-select-selector,
+.group-edit-field-control .ant-select-selection-item,
+.group-edit-field-control .ant-select-selection-placeholder,
+.group-edit-field-control .ant-btn {
+  font-size: 12px;
+}
+
+.group-edit-field-control .ant-input,
+.group-edit-field-control .ant-select-selector {
+  border-radius: 4px;
+}
+
+.group-edit-field-error {
+  .admin-large-edit-field-error-base();
+}
+
+body.admin-shell-theme-dark .group-edit-page .ant-input,
+body.admin-shell-theme-dark .group-edit-page .ant-select .ant-select-selector {
+  .admin-large-edit-dark-control-base();
+}
+
+body.admin-shell-theme-dark .group-edit-page .ant-input:hover,
+body.admin-shell-theme-dark .group-edit-page .ant-input:focus,
+body.admin-shell-theme-dark .group-edit-page .ant-select:hover .ant-select-selector,
+body.admin-shell-theme-dark .group-edit-page .ant-select-focused .ant-select-selector,
+body.admin-shell-theme-dark .group-edit-page .ant-select-open .ant-select-selector {
+  .admin-large-edit-dark-control-focus-base();
+}
+
+body.admin-shell-theme-dark .group-edit-page .ant-select-selection-item,
+body.admin-shell-theme-dark .group-edit-page .ant-select-arrow {
+  .admin-large-edit-dark-control-text-base();
+}
+
+body.admin-shell-theme-dark .group-edit-page .ant-input[disabled],
+body.admin-shell-theme-dark .group-edit-page .ant-select-disabled .ant-select-selector {
+  .admin-large-edit-dark-control-disabled-base();
+}
+
+body.admin-shell-theme-dark .group-edit-card {
+  .admin-large-edit-dark-card-base();
+}
+
+.group-edit-member-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 24px;
+  padding-top: 4px;
+}
+
+.group-edit-member-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.group-edit-member-action.ant-btn {
+  flex: 0 0 auto;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.group-edit-member-tag.ant-tag {
+  max-width: 180px;
+  margin-right: 0;
+  border-color: var(--admin-shell-border-subtle, #d7e0ef);
+  border-radius: 4px;
+  color: var(--admin-shell-link-strong, #2d67ef);
+  font-size: 12px;
+  line-height: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--admin-shell-info-bg, #eef4ff);
+}
+
+.group-edit-member-more-tag.ant-tag {
+  min-width: 34px;
+  border-style: dashed;
+  color: var(--admin-shell-text-secondary, #71727a);
+  text-align: center;
+  background: var(--admin-shell-surface-soft-bg, #f8fafc);
+}
+
+.group-edit-empty-text {
+  display: inline-block;
+  padding-top: 5px;
+  color: var(--admin-shell-text-secondary, #71727a);
+  font-size: 12px;
+}
+
+body.admin-shell-theme-dark .group-edit-member-tag.ant-tag {
+  border-color: var(--admin-shell-border-strong, rgb(71 85 105));
+  color: var(--admin-shell-link-strong, rgb(147 197 253));
+  background: var(--admin-shell-surface-muted-bg, rgb(30 41 59));
+}
+
+body.admin-shell-theme-dark .group-edit-member-more-tag.ant-tag {
+  color: var(--admin-shell-text-secondary, rgb(148 163 184));
+  background: var(--admin-shell-surface-soft-bg, rgb(15 23 42));
+}
+
+@media screen and (max-width: 768px) {
+  .group-edit-page {
+    .admin-large-edit-mobile-page-base();
+  }
+
+  .group-edit-card {
+    .admin-large-edit-mobile-card-base();
+  }
+
+  .group-edit-scroll-content {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .group-edit-field-grid {
+    grid-template-columns: 1fr;
+    row-gap: 14px;
+  }
+
+  .group-edit-field-row {
+    grid-template-columns: 1fr;
+    row-gap: 6px;
+  }
+
+  .group-edit-field-label {
+    text-align: left;
+  }
+}
+
+body.user-edit-visual-review-active .ant-message {
+  display: none !important;
+}

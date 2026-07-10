@@ -1,0 +1,149 @@
+/* stylelint-disable at-rule-name-case */
+/* stylelint-disable selector-class-pattern */
+/* stylelint-disable no-descending-specificity */
+/* stylelint-disable no-duplicate-selectors */
+/* stylelint-disable max-line-length */
+/* stylelint-disable declaration-block-no-redundant-longhand-properties */
+
+/* Responsive rules for large edit and compatibility edit pages. */
+
+@media screen and (max-width: 768px) {
+  .organization-edit-page {
+    .admin-large-edit-mobile-page-base();
+  }
+
+  .organization-edit-card {
+    .admin-large-edit-mobile-card-base();
+  }
+
+  .organization-edit-page .organization-edit-tabs.ant-tabs,
+  .organization-edit-scroll-content {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .organization-edit-field-grid,
+  .organization-edit-field-grid-compact {
+    grid-template-columns: 1fr;
+    row-gap: 14px;
+  }
+
+  .organization-edit-switch-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .organization-edit-switch-item {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .organization-edit-field-row,
+  .organization-edit-asset-row {
+    grid-template-columns: 1fr;
+    row-gap: 6px;
+  }
+
+  .organization-edit-asset-control {
+    grid-template-columns: 1fr;
+    row-gap: 8px;
+  }
+
+  .organization-edit-field-label,
+  .organization-edit-switch-label {
+    text-align: left;
+  }
+
+  .organization-edit-tab-panel-narrow {
+    max-width: 100%;
+    margin-left: 0;
+  }
+
+  .organization-edit-asset-preview {
+    justify-content: flex-start;
+  }
+
+  .organization-edit-asset-preview-card {
+    grid-template-columns: 44px minmax(0, 1fr);
+  }
+
+  .organization-edit-tabs {
+    overflow-x: auto;
+  }
+
+  .application-edit-page {
+    .admin-large-edit-mobile-page-base();
+  }
+
+  .application-edit-card {
+    .admin-large-edit-mobile-card-base();
+  }
+
+  .application-edit-page .application-edit-static-preview {
+    width: 100%;
+    min-height: 300px;
+  }
+
+  .application-edit-page .application-edit-asset-control {
+    grid-template-columns: 1fr;
+    row-gap: 8px;
+  }
+
+  .application-edit-page .application-edit-asset-preview {
+    justify-content: flex-start;
+  }
+
+  .application-edit-page .application-edit-control-row-medium > .ant-col:first-child + .ant-col,
+  .application-edit-page .application-edit-control-row-compact > .ant-col:first-child + .ant-col {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+
+  .application-edit-page .application-edit-preview-row > .ant-col:first-child,
+  .application-edit-page .application-edit-preview-row > .application-edit-preview-column {
+    flex: 0 0 100%;
+    max-width: 100%;
+    min-width: 0;
+    padding-right: 0;
+    text-align: left;
+  }
+
+  .admin-access-edit-card > .ant-card-body > .admin-access-edit-field-row {
+    flex-wrap: wrap;
+  }
+
+  .admin-access-edit-card > .ant-card-body > .admin-access-edit-field-row > .ant-col:first-child,
+  .admin-access-edit-card > .ant-card-body > .admin-access-edit-field-row > .ant-col:first-child + .ant-col,
+  .admin-access-edit-card > .ant-card-body > .admin-access-edit-editor-grid-row > .ant-col:nth-child(1),
+  .admin-access-edit-card > .ant-card-body > .admin-access-edit-editor-grid-row > .ant-col:nth-child(2),
+  .admin-access-edit-card > .ant-card-body > .admin-access-edit-editor-grid-row > .ant-col:nth-child(4),
+  .admin-access-edit-card > .ant-card-body > .admin-access-edit-editor-grid-row > .ant-col:nth-child(5) {
+    flex: 0 0 100%;
+    max-width: 100%;
+    min-width: 0;
+    padding-right: 0;
+  }
+
+  .admin-gateway-edit-card > .ant-card-body > .admin-gateway-edit-field-row,
+  .admin-identity-object-edit-card > .ant-card-body > .admin-identity-object-edit-field-row {
+    flex-wrap: wrap;
+  }
+
+  .admin-gateway-edit-card > .ant-card-body > .admin-gateway-edit-field-row > .ant-col:first-child,
+  .admin-gateway-edit-card > .ant-card-body > .admin-gateway-edit-field-row > .ant-col:first-child + .ant-col,
+  .admin-identity-object-edit-card > .ant-card-body > .admin-identity-object-edit-field-row > .ant-col:first-child,
+  .admin-identity-object-edit-card > .ant-card-body > .admin-identity-object-edit-field-row > .ant-col:first-child + .ant-col {
+    flex: 0 0 100%;
+    max-width: 100%;
+    padding-right: 0;
+  }
+
+  .admin-large-edit-card > .ant-card-body > .ant-row {
+    flex-wrap: wrap;
+  }
+
+  .admin-large-edit-card > .ant-card-body > .ant-row > .ant-col:first-child,
+  .admin-large-edit-card > .ant-card-body > .ant-row > .ant-col:first-child + .ant-col {
+    flex: 0 0 100%;
+    max-width: 100%;
+    padding-right: 0;
+  }
+}

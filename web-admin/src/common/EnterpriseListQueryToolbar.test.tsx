@@ -5,6 +5,7 @@ import {Button} from "antd";
 import {cleanup, render} from "@testing-library/react";
 import EnterpriseListQueryToolbar from "./EnterpriseListQueryToolbar";
 import LegacyListPageToolbar from "./LegacyListPageToolbar";
+import {readLessWithImports} from "../testUtils/less";
 
 const expect = jestExpect;
 const {fireEvent} = require("@testing-library/react") as {
@@ -14,14 +15,9 @@ const {fireEvent} = require("@testing-library/react") as {
     mouseDown: (element: Element | null) => boolean;
   };
 };
-const fs = require("fs") as typeof import("fs");
 const path = require("path") as typeof import("path");
 
-const readSrc = (fileName: string): string => fs.readFileSync(path.join(__dirname, "..", fileName), "utf8") as string;
-const readAppLess = (): string => [
-  readSrc("App.less"),
-  readSrc("styles/list-pages.less"),
-].join("\n");
+const readAppLess = (): string => readLessWithImports(path.join(__dirname, "..", "App.less"));
 
 afterEach(() => {
   cleanup();

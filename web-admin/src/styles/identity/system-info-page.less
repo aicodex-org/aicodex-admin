@@ -1,0 +1,146 @@
+/* stylelint-disable at-rule-name-case */
+/* stylelint-disable selector-class-pattern */
+/* stylelint-disable no-descending-specificity */
+/* stylelint-disable no-duplicate-selectors */
+/* stylelint-disable max-line-length */
+/* stylelint-disable declaration-block-no-redundant-longhand-properties */
+
+/* System information metrics, cards, tables, and links. */
+
+.system-info-page {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.system-info-metrics-grid {
+  display: grid;
+  grid-template-areas:
+    "cpu cpu cpu"
+    "memory disk network";
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+}
+
+.system-info-data-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+}
+
+.system-info-card-cpu {
+  grid-area: cpu;
+}
+
+.system-info-card-memory {
+  grid-area: memory;
+}
+
+.system-info-card-disk {
+  grid-area: disk;
+}
+
+.system-info-card-network {
+  grid-area: network;
+}
+
+.system-info-about-card {
+  grid-column: 1 / -1;
+}
+
+.system-info-card.ant-card {
+  min-width: 0;
+  color: var(--admin-shell-text-primary, rgb(15 23 42));
+  background: var(--admin-shell-surface-bg, #fff);
+  border-color: var(--admin-shell-border, rgb(205 218 237));
+  border-radius: 8px;
+  box-shadow: var(--admin-shell-shadow-sm, 0 1px 2px rgb(15 23 42 / 5%));
+}
+
+.system-info-card > .ant-card-head {
+  min-height: 42px;
+  color: var(--admin-shell-text-primary, rgb(15 23 42));
+  background: var(--admin-shell-surface-soft-bg, rgb(248 250 252));
+  border-bottom-color: var(--admin-shell-border-subtle, rgb(226 232 240));
+}
+
+.system-info-card > .ant-card-head .ant-card-head-title {
+  padding: 11px 0;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.system-info-card > .ant-card-body {
+  min-width: 0;
+  color: var(--admin-shell-text-primary, rgb(15 23 42));
+  text-align: center;
+}
+
+.system-info-card-cpu > .ant-card-body {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px 16px;
+  align-content: start;
+  text-align: left;
+}
+
+.system-info-cpu-progress.ant-progress-line {
+  margin-bottom: 0;
+}
+
+.system-info-page .ant-progress-text,
+.system-info-page .ant-spin-text {
+  color: var(--admin-shell-text-primary, rgb(15 23 42));
+}
+
+.system-info-network-total,
+.prometheus-info-table-summary {
+  color: var(--admin-shell-text-primary, rgb(15 23 42));
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.prometheus-info-table-shell {
+  width: 100%;
+  min-width: 0;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.system-info-page .ant-table,
+.system-info-page .ant-table-container,
+.system-info-page .ant-table-content,
+.system-info-page .ant-table-body {
+  color: var(--admin-shell-text-primary, rgb(15 23 42));
+  background: var(--admin-shell-surface-bg, #fff) !important;
+}
+
+.system-info-page .ant-table-thead > tr > th {
+  color: var(--admin-shell-text-muted, rgb(71 85 105));
+  background: var(--admin-shell-surface-soft-bg, rgb(248 250 252)) !important;
+  border-bottom-color: var(--admin-shell-border-subtle, rgb(226 232 240)) !important;
+}
+
+.system-info-page .ant-table-tbody > tr > td {
+  color: var(--admin-shell-text-primary, rgb(15 23 42));
+  background: var(--admin-shell-surface-bg, #fff);
+  border-bottom-color: var(--admin-shell-border-subtle, rgb(226 232 240)) !important;
+}
+
+.system-info-page .ant-table-tbody > tr.ant-table-row:hover > td,
+.system-info-page .ant-table-tbody > tr > td.ant-table-cell-row-hover {
+  background: var(--admin-shell-surface-emphasis-bg, rgb(248 251 255)) !important;
+}
+
+.system-info-page a {
+  color: var(--admin-shell-link, #311ce6);
+}
+
+.system-info-page a:hover {
+  color: var(--admin-shell-link-hover, #311ce6);
+}

@@ -2,6 +2,7 @@
 import {expect, jest} from "@jest/globals";
 import fs from "fs";
 import path from "path";
+import {readLessWithImports} from "./testUtils/less";
 
 const mockComponent = (testId: string) => {
   const mockReact = require("react");
@@ -22,18 +23,39 @@ jest.mock("antd/es/layout/Sider", () => "aside");
 const ApplicationEditPage = require("./ApplicationEditPage").default;
 
 const readSrc = (fileName: string): string => fs.readFileSync(path.join(__dirname, fileName), "utf8") as string;
-const readAppLess = (): string => readSrc("App.less")
-  .replace(
-    /\/\* stylelint-disable-next-line no-invalid-position-at-import-rule \*\/\n@import "\.\/styles\/list-pages\.less";/,
-    readSrc("styles/list-pages.less")
-  )
-  .replace(
-    /\/\* stylelint-disable-next-line no-invalid-position-at-import-rule \*\/\n@import "\.\/styles\/large-edit-pages\.less";/,
-    readSrc("styles/large-edit-pages.less")
-  );
+const readAppLess = (): string => readLessWithImports(path.join(__dirname, "App.less"));
 const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const splitSelectorList = (selector: string): string[] => {
+  const selectors: string[] = [];
+  let currentSelector = "";
+  let parenthesisDepth = 0;
+
+  for (const character of selector) {
+    if (character === "(") {
+      parenthesisDepth += 1;
+    } else if (character === ")") {
+      parenthesisDepth = Math.max(0, parenthesisDepth - 1);
+    }
+
+    if (character === "," && parenthesisDepth === 0) {
+      selectors.push(currentSelector.replace(/\s+/g, " ").trim());
+      currentSelector = "";
+      continue;
+    }
+
+    currentSelector += character;
+  }
+
+  selectors.push(currentSelector.replace(/\s+/g, " ").trim());
+
+  return selectors.filter(Boolean);
+};
+
 const expectCssRuleContains = (css: string, selector: string, declaration: string): void => {
-  expect(css).toMatch(new RegExp(`${escapeRegExp(selector)}\\s*\\{[\\s\\S]*?${escapeRegExp(declaration)}`));
+  splitSelectorList(selector).forEach((currentSelector) => {
+    expect(css).toMatch(new RegExp(`${escapeRegExp(currentSelector)}[^{}]*\\{[^{}]*${escapeRegExp(declaration)}`));
+  });
 };
 const expectCssRuleUsesMixin = (css: string, selector: string, mixin: string): void => {
   expectCssRuleContains(css, selector, `${mixin};`);

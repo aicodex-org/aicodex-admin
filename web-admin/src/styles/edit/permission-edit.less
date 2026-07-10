@@ -1,0 +1,66 @@
+/* stylelint-disable at-rule-name-case */
+/* stylelint-disable selector-class-pattern */
+/* stylelint-disable no-descending-specificity */
+/* stylelint-disable no-duplicate-selectors */
+/* stylelint-disable max-line-length */
+/* stylelint-disable declaration-block-no-redundant-longhand-properties */
+
+/* Permission edit page styles. */
+
+.permission-edit-page {
+  --admin-large-edit-label-width: 160px;
+  --permission-edit-label-width: 160px;
+
+  .admin-large-edit-page-root-base();
+
+  min-height: 0;
+}
+
+.permission-edit-card {
+  .admin-large-edit-card-base();
+
+  box-shadow: none;
+}
+
+.permission-edit-card > .ant-card-body {
+  .admin-large-edit-card-body-base();
+
+  display: flex;
+}
+
+body.admin-shell-theme-dark .permission-edit-page .ant-input,
+body.admin-shell-theme-dark .permission-edit-page .ant-select .ant-select-selector {
+  .admin-large-edit-dark-control-base();
+}
+
+body.admin-shell-theme-dark .permission-edit-page .ant-input:hover,
+body.admin-shell-theme-dark .permission-edit-page .ant-input:focus,
+body.admin-shell-theme-dark .permission-edit-page .ant-select:hover .ant-select-selector,
+body.admin-shell-theme-dark .permission-edit-page .ant-select-focused .ant-select-selector,
+body.admin-shell-theme-dark .permission-edit-page .ant-select-open .ant-select-selector {
+  .admin-large-edit-dark-control-focus-base();
+}
+
+body.admin-shell-theme-dark .permission-edit-page .ant-select-selection-item,
+body.admin-shell-theme-dark .permission-edit-page .ant-select-arrow {
+  .admin-large-edit-dark-control-text-base();
+}
+
+body.admin-shell-theme-dark .permission-edit-page .ant-input[disabled],
+body.admin-shell-theme-dark .permission-edit-page .ant-select-disabled .ant-select-selector {
+  .admin-large-edit-dark-control-disabled-base();
+}
+
+body.admin-shell-theme-dark .permission-edit-card {
+  .admin-large-edit-dark-card-base();
+}
+
+@media screen and (max-width: 768px) {
+  .permission-edit-page {
+    .admin-large-edit-mobile-page-base();
+  }
+
+  .permission-edit-card {
+    .admin-large-edit-mobile-card-base();
+  }
+}

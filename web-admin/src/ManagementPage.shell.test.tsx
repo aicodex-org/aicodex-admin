@@ -12,6 +12,7 @@ import * as Conf from "./Conf";
 import * as Setting from "./Setting";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
+import {readLessWithImports} from "./testUtils/less";
 
 const mockMenuProps: Array<Record<string, unknown>> = [];
 const mockWorkspaceTabsProps: Array<{
@@ -150,6 +151,8 @@ function readCssRuleBlock(source: string, selector: string) {
   return source.match(new RegExp(`${escapedSelector}\\s*\\{([\\s\\S]*?)\\}`))?.[1] ?? "";
 }
 
+const readAppLess = (): string => readLessWithImports(path.join(__dirname, "App.less"));
+
 describe("ManagementPage admin shell sidebar", () => {
   beforeEach(async() => {
     localStorage.clear();
@@ -230,7 +233,7 @@ describe("ManagementPage admin shell sidebar", () => {
   });
 
   test("legacy card route list roots fill the card body like cardless routes", () => {
-    const appLess = fs.readFileSync(path.join(__dirname, "App.less"), "utf8") as string;
+    const appLess = readAppLess();
 
     expect(appLess).toMatch(/\.admin-shell-route-scroll > \.content-warp-card > \.ant-card-body > \.base-list-page-route-root \{[\s\S]*display:\s*flex/);
     expect(appLess).toMatch(/\.admin-shell-route-scroll > \.content-warp-card > \.ant-card-body > \.base-list-page-route-root \{[\s\S]*flex:\s*1 1 auto/);
@@ -404,13 +407,13 @@ describe("ManagementPage admin shell sidebar", () => {
   });
 
   test("shell header background overrides the default Ant Design layout header color", () => {
-    const appLess = fs.readFileSync(path.join(__dirname, "App.less"), "utf8") as string;
+    const appLess = readAppLess();
 
     expect(appLess).toMatch(/\.admin-shell-header \{[\s\S]*background:\s*var\(--admin-shell-header-bg,\s*#fff\)\s*!important/);
   });
 
   test("header organization select uses shell theme tokens instead of Ant Design default input colors", () => {
-    const appLess = fs.readFileSync(path.join(__dirname, "App.less"), "utf8") as string;
+    const appLess = readAppLess();
 
     expect(appLess).toMatch(/\.admin-shell-header-right \.org-select \.ant-select-selector \{[\s\S]*background:\s*var\(--admin-shell-surface-soft-bg/);
     expect(appLess).toMatch(/\.admin-shell-header-right \.org-select \.ant-select-selector \{[\s\S]*border-color:\s*var\(--admin-shell-border-strong/);
@@ -418,7 +421,7 @@ describe("ManagementPage admin shell sidebar", () => {
   });
 
   test("organization sync pages only clip horizontal overflow without creating a nested vertical scroller", () => {
-    const appLess = fs.readFileSync(path.join(__dirname, "App.less"), "utf8") as string;
+    const appLess = readAppLess();
     const organizationSyncPageBlock = readCssRuleBlock(appLess, ".organization-sync-page");
 
     expect(organizationSyncPageBlock).toMatch(/overflow-x:\s*clip/);
@@ -426,7 +429,7 @@ describe("ManagementPage admin shell sidebar", () => {
   });
 
   test("organization sync form controls and run tables use shell theme tokens", () => {
-    const appLess = fs.readFileSync(path.join(__dirname, "App.less"), "utf8") as string;
+    const appLess = readAppLess();
 
     expect(appLess).toMatch(/\.organization-sync-page \.ant-input,[\s\S]*\.organization-sync-page \.ant-input-affix-wrapper,[\s\S]*\.organization-sync-page \.ant-select \.ant-select-selector \{[\s\S]*background:\s*var\(--admin-shell-surface-soft-bg/);
     expect(appLess).toMatch(/\.organization-sync-page \.ant-input,[\s\S]*\.organization-sync-page \.ant-input-affix-wrapper,[\s\S]*\.organization-sync-page \.ant-select \.ant-select-selector \{[\s\S]*border-color:\s*var\(--admin-shell-border-strong/);
@@ -435,7 +438,7 @@ describe("ManagementPage admin shell sidebar", () => {
   });
 
   test("workspace tabs shell clips horizontally without becoming a vertical scroll container", () => {
-    const appLess = fs.readFileSync(path.join(__dirname, "App.less"), "utf8") as string;
+    const appLess = readAppLess();
     const workspaceTabsShellBlock = readCssRuleBlock(appLess, ".admin-workspace-tabs-shell");
 
     expect(workspaceTabsShellBlock).toMatch(/overflow-x:\s*clip/);
@@ -444,7 +447,7 @@ describe("ManagementPage admin shell sidebar", () => {
   });
 
   test("workspace tabs use compact browser-like density", () => {
-    const appLess = fs.readFileSync(path.join(__dirname, "App.less"), "utf8") as string;
+    const appLess = readAppLess();
     const desktopBlock = appLess.match(/\.admin-workspace-tabs-desktop \{([\s\S]*?)\}/)?.[1] ?? "";
     const tabBlock = appLess.match(/\.admin-workspace-tab \{([\s\S]*?)\}/)?.[1] ?? "";
     const tabLabelBlock = appLess.match(/\.admin-workspace-tab-label \{([\s\S]*?)\}/)?.[1] ?? "";
@@ -461,7 +464,7 @@ describe("ManagementPage admin shell sidebar", () => {
   });
 
   test("shell scroll containers use theme scrollbar tokens instead of browser default colors", () => {
-    const appLess = fs.readFileSync(path.join(__dirname, "App.less"), "utf8") as string;
+    const appLess = readAppLess();
 
     expect(appLess).toMatch(/\.admin-shell-sider \.ant-menu,[\s\S]*\.admin-shell-route-scroll,[\s\S]*\.admin-page-scroll-shell-body,[\s\S]*\.session-id-drawer \.ant-drawer-body \{[\s\S]*scrollbar-color:\s*var\(--admin-shell-scrollbar-thumb/);
     expect(appLess).toMatch(/\.admin-shell-route-scroll::-webkit-scrollbar-thumb,[\s\S]*\.admin-page-scroll-shell-body::-webkit-scrollbar-thumb,[\s\S]*\.session-id-drawer \.ant-drawer-body::-webkit-scrollbar-thumb \{[\s\S]*background:\s*var\(--admin-shell-scrollbar-thumb/);
@@ -469,10 +472,7 @@ describe("ManagementPage admin shell sidebar", () => {
   });
 
   test("route and page shells consume one shared spacing token set", () => {
-    const appLess = [
-      fs.readFileSync(path.join(__dirname, "App.less"), "utf8") as string,
-      fs.readFileSync(path.join(__dirname, "styles/list-pages.less"), "utf8") as string,
-    ].join("\n");
+    const appLess = readAppLess();
     const routeScrollBlock = appLess.match(/\.admin-shell-route-scroll \{([\s\S]*?)\}/)?.[1] ?? "";
     const withoutCardBlock = appLess.match(/\.admin-shell-route-scroll-without-card \{([\s\S]*?)\}/)?.[1] ?? "";
     const baseListRootBlock = appLess.match(/\.admin-shell-route-scroll-without-card > \.base-list-page-route-root,[\s\S]*?\.admin-shell-route-scroll > \.content-warp-card > \.ant-card-body > \.base-list-page-route-root \{([\s\S]*?)\}/)?.[1] ?? "";
@@ -505,7 +505,7 @@ describe("ManagementPage admin shell sidebar", () => {
   });
 
   test("diagnostic card pages use shell tokens for Ant Design local surfaces", () => {
-    const appLess = fs.readFileSync(path.join(__dirname, "App.less"), "utf8") as string;
+    const appLess = readAppLess();
     const organizationTreePageBlock = appLess.match(/\.organization-tree-operations-page \{([\s\S]*?)\}/)?.[1] ?? "";
 
     expect(appLess).toMatch(/\.platform-api-mapping-page\.ant-card,[\s\S]*\.organization-tree-operations-page \.ant-card,[\s\S]*\.organization-directory-quality-remediation-panel \{[\s\S]*background:\s*var\(--admin-shell-surface-bg/);
@@ -523,7 +523,7 @@ describe("ManagementPage admin shell sidebar", () => {
   });
 
   test("system information page keeps dense metrics and bounded API tables", () => {
-    const appLess = fs.readFileSync(path.join(__dirname, "App.less"), "utf8") as string;
+    const appLess = readAppLess();
     const metricsGridBlock = appLess.match(/\.system-info-metrics-grid \{([\s\S]*?)\}/)?.[1] ?? "";
     const dataGridBlock = appLess.match(/\.system-info-data-grid \{([\s\S]*?)\}/)?.[1] ?? "";
     const cpuCardBodyBlock = appLess.match(/\.system-info-card-cpu > \.ant-card-body \{([\s\S]*?)\}/)?.[1] ?? "";
