@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import React from "react";
-import {Button, Card, Col, Input, InputNumber, Modal, Row, Select, Table} from "antd";
+import {Button, Card, Input, InputNumber, Modal, Select, Table} from "antd";
 import {CopyOutlined} from "@ant-design/icons";
 import * as InvitationBackend from "./backend/InvitationBackend";
 import type {InvitationMutation, InvitationRecord} from "./backend/InvitationBackend";
@@ -26,11 +26,12 @@ import i18next from "i18next";
 import copy from "copy-to-clipboard";
 import * as GroupBackend from "./backend/GroupBackend";
 import type {GroupRecord} from "./backend/GroupBackend";
+import LargeEditShell, {LargeEditFieldRow, LargeEditSection} from "./common/LargeEditShell";
 
 const {Option} = Select;
 
 type HistoryLike = {
-  push: (location: string | {pathname: string; mode?: string}) => void;
+  push: (location: string | {pathname: string; state?: {mode: string; invitation: InvitationRecord}}) => void;
 };
 
 type InvitationEditRouteParams = {
@@ -43,6 +44,10 @@ type InvitationEditPageProps = {
   history: HistoryLike;
   location: {
     mode?: string;
+    state?: {
+      mode?: string;
+      invitation?: InvitationRecord;
+    };
     [key: string]: unknown;
   };
   match: {
@@ -72,6 +77,7 @@ type InvitationEditPageState = {
   emails?: string;
   showSendModal?: boolean;
   sendLoading: boolean;
+  fieldErrors: Partial<Record<"name" | "email", string>>;
 };
 
 function t(key: string, defaultValue = key): string {
@@ -82,21 +88,31 @@ function t(key: string, defaultValue = key): string {
 class InvitationEditPage extends React.Component<InvitationEditPageProps, InvitationEditPageState> {
   constructor(props: InvitationEditPageProps) {
     super(props);
+    const mode = props.location.state?.mode ?? props.location.mode ?? "edit";
+    const draftInvitation = mode === "add" ? props.location.state?.invitation : undefined;
     this.state = {
       classes: props,
       organizationName: props.organizationName !== undefined ? props.organizationName : props.match.params.organizationName,
       invitationName: props.match.params.invitationName,
-      invitation: null,
+      invitation: draftInvitation ? {...draftInvitation} : null,
       organizations: [],
       applications: [],
       groups: [],
-      mode: props.location.mode !== undefined ? props.location.mode : "edit",
+      mode: mode,
       sendLoading: false,
+      fieldErrors: {},
     };
   }
 
   UNSAFE_componentWillMount() {
-    this.getInvitation();
+    if (this.state.mode === "add") {
+      if (this.state.invitation === null) {
+        this.returnToInvitationList();
+        return;
+      }
+    } else {
+      this.getInvitation();
+    }
     this.getOrganizations();
     this.getApplicationsByOrganization(this.state.organizationName);
     this.getGroupsByOrganization(this.state.organizationName);
@@ -155,10 +171,15 @@ class InvitationEditPage extends React.Component<InvitationEditPageProps, Invita
   updateInvitationField(key: keyof InvitationRecord, value: unknown) {
     value = this.parseInvitationField(key, value);
 
-    const invitation = this.state.invitation!;
+    const invitation = {...this.state.invitation!};
     invitation[key] = value as never;
+    const fieldErrors = {...this.state.fieldErrors};
+    if (key === "name" || key === "email") {
+      delete fieldErrors[key];
+    }
     this.setState({
       invitation: invitation,
+      fieldErrors,
     });
   }
 
@@ -212,6 +233,54 @@ class InvitationEditPage extends React.Component<InvitationEditPageProps, Invita
     </Modal>;
   }
 
+  returnToInvitationList(): void {
+    this.props.history.push("/invitations");
+  }
+
+  handleCancel(): void {
+    this.returnToInvitationList();
+  }
+
+  renderFieldRow(label: React.ReactNode, control: React.ReactNode, options: {required?: boolean; error?: string; wide?: boolean} = {}): React.ReactNode {
+    return (
+      <LargeEditFieldRow classPrefix="invitation-edit" label={label} required={options.required} error={options.error} wide={options.wide}>
+        {control}
+      </LargeEditFieldRow>
+    );
+  }
+
+  validateInvitationBeforeSave(): boolean {
+    const invitation = this.state.invitation;
+    if (invitation === null) {
+      return false;
+    }
+
+    const fieldErrors: InvitationEditPageState["fieldErrors"] = {};
+    const name = invitation.name.trim();
+    if (name === "") {
+      fieldErrors.name = t("provider:This field is required");
+    // 邀请码名称是路由和持久化使用的技术 ID，只允许稳定的 ASCII 标识符字符。
+    } else if (!/^[A-Za-z0-9_-]+$/.test(name)) {
+      fieldErrors.name = t("invitation:Invalid invitation name characters");
+    }
+
+    const email = (invitation.email ?? "").trim();
+    if (email !== "" && !Setting.isValidEmail(email)) {
+      fieldErrors.email = t("login:The input is not valid Email!");
+    }
+
+    this.setState({fieldErrors});
+    return Object.keys(fieldErrors).length === 0;
+  }
+
+  renderSection(title: string, children: React.ReactNode): React.ReactNode {
+    return (
+      <LargeEditSection classPrefix="invitation-edit" title={title}>
+        {children}
+      </LargeEditSection>
+    );
+  }
+
   renderInvitation() {
     const invitation = this.state.invitation;
     if (invitation === null) {
@@ -219,196 +288,158 @@ class InvitationEditPage extends React.Component<InvitationEditPageProps, Invita
     }
 
     const isCreatedByPlan = invitation.tag === "auto_created_invitation_for_plan";
+    const title = this.state.mode === "add" ? t("invitation:New Invitation") : `${t("invitation:Edit Invitation")} (${invitation.displayName || invitation.name})`;
+
     return (
-      <Card className="admin-identity-object-edit-card invitation-edit-card" size="small" title={
-        <div>
-          {this.state.mode === "add" ? t("invitation:New Invitation") : t("invitation:Edit Invitation")}&nbsp;&nbsp;&nbsp;&nbsp;
-          <Button onClick={() => this.submitInvitationEdit(false)}>{t("general:Save")}</Button>
-          <Button style={{marginLeft: "20px"}} type="primary" onClick={() => this.submitInvitationEdit(true)}>{t("general:Save & Exit")}</Button>
-          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteInvitation()}>{t("general:Cancel")}</Button> : null}
-        </div>
-      } style={(Setting.isMobile()) ? {margin: "5px"} : {}} type="inner">
-        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "10px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(t("general:Organization"), t("general:Organization - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <Select virtual={false} style={{width: "100%"}} disabled={!Setting.isAdminUser(this.props.account) || isCreatedByPlan} value={invitation.owner} onChange={(value => {const organizationName = value as string; this.updateInvitationField("owner", organizationName); this.getApplicationsByOrganization(organizationName);this.getGroupsByOrganization(organizationName);})}>
-              {
-                this.state.organizations.map((organization, index) => <Option key={index} value={organization.name}>{organization.name}</Option>)
-              }
-            </Select>
-          </Col>
-        </Row>
-        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(t("general:Name"), t("general:Name - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <Input value={invitation.name} disabled={isCreatedByPlan} onChange={e => {
-              this.updateInvitationField("name", e.target.value);
-            }} />
-          </Col>
-        </Row>
-        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(t("general:Display name"), t("general:Display name - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <Input value={invitation.displayName} onChange={e => {
-              this.updateInvitationField("displayName", e.target.value);
-            }} />
-          </Col>
-        </Row>
-        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(t("invitation:Code"), t("invitation:Code - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <Input value={invitation.code} onChange={e => {
-              const regex = /[^a-zA-Z0-9]/;
-              if (!regex.test(e.target.value)) {
-                this.updateInvitationField("defaultCode", e.target.value);
-              }
-              this.updateInvitationField("code", e.target.value);
-            }} />
-          </Col>
-        </Row>
-        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(t("invitation:Default code"), t("invitation:Default code - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <Input value={invitation.defaultCode} onChange={e => {
-              this.updateInvitationField("defaultCode", e.target.value);
-            }} />
-          </Col>
-        </Row>
-        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-          </Col>
-          <Col span={22} >
-            <Button style={{marginBottom: "10px"}} type="primary" shape="round" icon={<CopyOutlined />} onClick={_ => this.copySignupLink()}>
-              {t("application:Copy signup page URL")}
-            </Button>
-          </Col>
-        </Row>
-        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {t("general:Send")}
-          </Col>
-          <Col span={22} >
-            <Input.TextArea autoSize={{minRows: 3, maxRows: 10}} value={this.state.emails} onChange={(value) => {
-              this.setState({emails: value.target.value});
-            }}></Input.TextArea>
-            <Button type="primary" style={{marginTop: "20px"}} onClick={() => this.setState({showSendModal: true})}>{t("general:Send")}</Button>
-          </Col>
-        </Row>
-        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(t("invitation:Quota"), t("invitation:Quota - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <InputNumber min={0} value={invitation.quota} onChange={value => {
-              this.updateInvitationField("quota", value);
-            }} />
-          </Col>
-        </Row>
-        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(t("invitation:Used count"), t("invitation:Used count - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <InputNumber min={0} max={invitation.quota} value={invitation.usedCount} onChange={value => {
-              this.updateInvitationField("usedCount", value);
-            }} />
-          </Col>
-        </Row>
-        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(t("general:Application"), t("general:Application - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <Select virtual={false} style={{width: "100%"}} value={invitation.application}
-              onChange={(value => {this.updateInvitationField("application", value);})}
-              options={[
-                {label: t("general:All"), value: "All"},
-                ...this.state.applications.map((application) => Setting.getOption(application.name, application.name)),
-              ]} />
-          </Col>
-        </Row>
-        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(t("provider:Signup group"), t("provider:Signup group - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <Select virtual={false} style={{width: "100%"}} value={invitation.signupGroup} onChange={(value => {this.updateInvitationField("signupGroup", value);})}>
-              <Option key={""} value={""}>
-                {t("general:Default")}
-              </Option>
-              {
-                this.state.groups.map((group, index) => <Option key={index} value={`${group.owner}/${group.name}`}>{group.name}</Option>)
-              }
-            </Select>
-          </Col>
-        </Row>
-        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(t("signup:Username"), t("signup:Username - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <Input value={invitation.username} onChange={e => {
-              this.updateInvitationField("username", e.target.value);
-            }} />
-          </Col>
-        </Row>
-        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(t("general:Email"), t("general:Email - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <Input value={invitation.email} onChange={e => {
-              this.updateInvitationField("email", e.target.value);
-            }} />
-          </Col>
-        </Row>
-        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(t("general:Phone"), t("general:Phone - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <Input value={invitation.phone} onChange={e => {
-              this.updateInvitationField("phone", e.target.value);
-            }} />
-          </Col>
-        </Row>
-        <Row className="admin-identity-object-edit-field-row" style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(t("general:State"), t("general:State - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <Select virtual={false} style={{width: "100%"}} value={invitation.state} onChange={(value => {
-              this.updateInvitationField("state", value);
-            })}
-            options={[
-              {value: "Active", name: t("subscription:Active")},
-              {value: "Suspended", name: t("subscription:Suspended")},
-            ].map((item) => Setting.getOption(item.name, item.value))}
-            />
-          </Col>
-        </Row>
+      <Card
+        className="identity-object-edit-card admin-identity-object-edit-card invitation-edit-card"
+        size="small"
+        variant="borderless"
+        style={Setting.isMobile() ? {margin: "5px"} : {}}
+        styles={{body: {height: "100%", padding: 0}}}
+        type="inner"
+      >
+        <LargeEditShell
+          classPrefix="invitation-edit"
+          backLabel={t("general:Back")}
+          breadcrumb={<>{t("general:Organization & Accounts")} / {t("general:Invitations")} /</>}
+          title={title}
+          onBack={() => this.handleCancel()}
+          actions={(
+            <>
+              <Button onClick={() => this.handleCancel()}>{t("general:Cancel")}</Button>
+              <Button type="primary" onClick={() => this.submitInvitationEdit(false)}>{t("general:Save")}</Button>
+              <Button onClick={() => this.submitInvitationEdit(true)}>{t("invitation:Save and return")}</Button>
+            </>
+          )}
+        >
+          {this.renderSection(t("invitation:Basic information"), (
+            <>
+              {this.renderFieldRow(
+                Setting.getLabel(t("general:Organization"), t("general:Organization - Tooltip")),
+                <Select virtual={false} disabled={!Setting.isAdminUser(this.props.account) || isCreatedByPlan} value={invitation.owner} onChange={(value: string) => {
+                  this.updateInvitationField("owner", value);
+                  this.getApplicationsByOrganization(value);
+                  this.getGroupsByOrganization(value);
+                }} options={this.state.organizations.map((organization) => Setting.getOption(organization.displayName || organization.name, organization.name))} />
+              )}
+              {this.renderFieldRow(
+                Setting.getLabel(t("general:Name"), t("general:Name - Tooltip")),
+                <Input status={this.state.fieldErrors.name ? "error" : undefined} value={invitation.name} disabled={isCreatedByPlan} onChange={e => this.updateInvitationField("name", e.target.value)} />,
+                {required: true, error: this.state.fieldErrors.name}
+              )}
+              {this.renderFieldRow(
+                Setting.getLabel(t("general:Display name"), t("general:Display name - Tooltip")),
+                <Input value={invitation.displayName} onChange={e => this.updateInvitationField("displayName", e.target.value)} />
+              )}
+            </>
+          ))}
+
+          {this.renderSection(t("invitation:Invitation configuration"), (
+            <>
+              {this.renderFieldRow(
+                Setting.getLabel(t("invitation:Code"), t("invitation:Code - Tooltip")),
+                <Input value={invitation.code} onChange={e => {
+                  const regex = /[^a-zA-Z0-9]/;
+                  if (!regex.test(e.target.value)) {
+                    this.updateInvitationField("defaultCode", e.target.value);
+                  }
+                  this.updateInvitationField("code", e.target.value);
+                }} />
+              )}
+              {this.renderFieldRow(
+                Setting.getLabel(t("invitation:Default code"), t("invitation:Default code - Tooltip")),
+                <div className="invitation-edit-default-code-control">
+                  <Input value={invitation.defaultCode} onChange={e => this.updateInvitationField("defaultCode", e.target.value)} />
+                  <Button icon={<CopyOutlined />} onClick={() => this.copySignupLink()}>{t("application:Copy signup page URL")}</Button>
+                </div>,
+                {wide: true}
+              )}
+              {this.renderFieldRow(
+                t("general:Send"),
+                <div className="invitation-edit-send-control">
+                  <Input.TextArea autoSize={{minRows: 3, maxRows: 10}} value={this.state.emails} onChange={event => this.setState({emails: event.target.value})} />
+                  <Button size="small" type="primary" onClick={() => this.setState({showSendModal: true})}>{t("general:Send")}</Button>
+                </div>,
+                {wide: true}
+              )}
+              {this.renderFieldRow(
+                Setting.getLabel(t("invitation:Quota"), t("invitation:Quota - Tooltip")),
+                <InputNumber min={0} value={invitation.quota} onChange={value => this.updateInvitationField("quota", value)} />
+              )}
+              {this.renderFieldRow(
+                Setting.getLabel(t("invitation:Used count"), t("invitation:Used count - Tooltip")),
+                <InputNumber min={0} max={invitation.quota} value={invitation.usedCount} onChange={value => this.updateInvitationField("usedCount", value)} />
+              )}
+            </>
+          ))}
+
+          {this.renderSection(t("invitation:Registration target"), (
+            <>
+              {this.renderFieldRow(
+                Setting.getLabel(t("general:Application"), t("general:Application - Tooltip")),
+                <Select virtual={false} value={invitation.application} onChange={(value: string) => this.updateInvitationField("application", value)} options={[
+                  {label: t("general:All"), value: "All"},
+                  ...this.state.applications.map((application) => Setting.getOption(application.name, application.name)),
+                ]} />
+              )}
+              {this.renderFieldRow(
+                Setting.getLabel(t("provider:Signup group"), t("provider:Signup group - Tooltip")),
+                <Select virtual={false} value={invitation.signupGroup} onChange={(value: string) => this.updateInvitationField("signupGroup", value)}>
+                  <Option key="" value="">{t("general:Default")}</Option>
+                  {this.state.groups.map((group) => <Option key={`${group.owner}/${group.name}`} value={`${group.owner}/${group.name}`}>{group.name}</Option>)}
+                </Select>
+              )}
+            </>
+          ))}
+
+          {this.renderSection(t("invitation:Registration information"), (
+            <>
+              {this.renderFieldRow(
+                Setting.getLabel(t("signup:Username"), t("signup:Username - Tooltip")),
+                <Input value={invitation.username} onChange={e => this.updateInvitationField("username", e.target.value)} />
+              )}
+              {this.renderFieldRow(
+                Setting.getLabel(t("general:Email"), t("general:Email - Tooltip")),
+                <Input status={this.state.fieldErrors.email ? "error" : undefined} value={invitation.email} onChange={e => this.updateInvitationField("email", e.target.value)} />,
+                {error: this.state.fieldErrors.email}
+              )}
+              {this.renderFieldRow(
+                Setting.getLabel(t("general:Phone"), t("general:Phone - Tooltip")),
+                <Input value={invitation.phone} onChange={e => this.updateInvitationField("phone", e.target.value)} />
+              )}
+              {this.renderFieldRow(
+                Setting.getLabel(t("general:State"), t("general:State - Tooltip")),
+                <Select virtual={false} value={invitation.state} onChange={(value: string) => this.updateInvitationField("state", value)} options={[
+                  {value: "Active", name: t("subscription:Active")},
+                  {value: "Suspended", name: t("subscription:Suspended")},
+                ].map((item) => Setting.getOption(item.name, item.value))} />
+              )}
+            </>
+          ))}
+        </LargeEditShell>
       </Card>
     );
   }
 
   submitInvitationEdit(exitAfterSave: boolean) {
+    if (!this.validateInvitationBeforeSave()) {
+      return;
+    }
+
     const invitation = Setting.deepCopy(this.state.invitation) as InvitationMutation;
-    InvitationBackend.updateInvitation(this.state.organizationName, this.state.invitationName, invitation)
+    const saveInvitation = this.state.mode === "add"
+      ? InvitationBackend.addInvitation(invitation)
+      : InvitationBackend.updateInvitation(this.state.organizationName, this.state.invitationName, invitation);
+    saveInvitation
       .then((res) => {
         if (res.status === "ok") {
           Setting.showMessage("success", t("general:Successfully saved"));
           this.setState({
+            organizationName: this.state.invitation!.owner,
             invitationName: this.state.invitation!.name,
+            // 新建成功后后续保存应走更新接口，避免再次创建同一邀请码。
+            mode: "edit",
           });
 
           if (exitAfterSave) {
@@ -426,32 +457,13 @@ class InvitationEditPage extends React.Component<InvitationEditPageProps, Invita
       });
   }
 
-  deleteInvitation() {
-    InvitationBackend.deleteInvitation(this.state.invitation!)
-      .then((res) => {
-        if (res.status === "ok") {
-          this.props.history.push("/invitations");
-        } else {
-          Setting.showMessage("error", `${t("general:Failed to delete")}: ${res.msg}`);
-        }
-      })
-      .catch(error => {
-        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
-      });
-  }
-
   render() {
     return (
-      <div className="admin-identity-object-edit-page invitation-edit-page">
+      <div className="identity-object-edit-page admin-identity-object-edit-page invitation-edit-page">
         {this.state.showSendModal ? this.renderSendEmailModal() : null}
         {
           this.state.invitation !== null ? this.renderInvitation() : null
         }
-        <div style={{marginTop: "20px", marginLeft: "40px"}}>
-          <Button size="large" onClick={() => this.submitInvitationEdit(false)}>{t("general:Save")}</Button>
-          <Button style={{marginLeft: "20px"}} type="primary" size="large" onClick={() => this.submitInvitationEdit(true)}>{t("general:Save & Exit")}</Button>
-          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} size="large" onClick={() => this.deleteInvitation()}>{t("general:Cancel")}</Button> : null}
-        </div>
       </div>
     );
   }

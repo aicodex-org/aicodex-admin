@@ -30,7 +30,7 @@ import ListPageTable from "./common/ListPageTable";
 interface InvitationListPageProps {
   account?: Record<string, unknown>;
   history: {
-    push: (location: string | {pathname: string; mode?: string}) => void;
+    push: (location: string | {pathname: string; state?: {mode: string; invitation: InvitationRecord}}) => void;
   };
   match?: {
     path?: string;
@@ -111,18 +111,11 @@ class InvitationListPage extends TypedBaseListPage {
 
   addInvitation(): void {
     const newInvitation = this.newInvitation();
-    InvitationBackend.addInvitation(newInvitation)
-      .then((res) => {
-        if (res.status === "ok") {
-          this.props.history.push({pathname: `/invitations/${newInvitation.owner}/${newInvitation.name}`, mode: "add"});
-          Setting.showMessage("success", t("general:Successfully added"));
-        } else {
-          Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
-        }
-      })
-      .catch(error => {
-        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
-      });
+    // 新增页使用路由草稿，避免取消或返回时留下已创建的邀请码记录。
+    this.props.history.push({
+      pathname: `/invitations/${newInvitation.owner}/${newInvitation.name}`,
+      state: {mode: "add", invitation: newInvitation},
+    });
   }
 
   deleteInvitation(i: number): void {

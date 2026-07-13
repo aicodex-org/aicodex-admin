@@ -47,6 +47,7 @@ jest.mock("./ApplicationListPage", () => () => <main data-testid="application-li
 jest.mock("./ApplicationEditPage", () => () => <main data-testid="application-edit-page" />);
 jest.mock("./ProviderEditPage", () => () => <main data-testid="provider-edit-page" />);
 jest.mock("./UserEditPage", () => () => <main data-testid="user-edit-page" />);
+jest.mock("./InvitationEditPage", () => () => <main data-testid="invitation-edit-page" />);
 jest.mock("./UserEditVisualReviewPage", () => () => <main data-testid="user-edit-visual-review-page" />);
 jest.mock("./SyncerEditPage", () => () => <main data-testid="syncer-edit-page" />);
 jest.mock("./common/Editor", () => () => <pre data-testid="editor" />);
@@ -272,6 +273,7 @@ describe("ManagementPage admin shell sidebar", () => {
       {path: "/applications/built-in/app-built-in", testId: "application-edit-page"},
       {path: "/providers/built-in/provider-built-in", testId: "provider-edit-page"},
       {path: "/syncers/syncer-built-in", testId: "syncer-edit-page"},
+      {path: "/invitations/built-in/invite-main", testId: "invitation-edit-page"},
     ];
 
     for (const editRoute of editRoutes) {

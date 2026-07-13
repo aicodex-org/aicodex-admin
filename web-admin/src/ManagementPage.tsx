@@ -656,6 +656,7 @@ function ManagementPage(props: ManagementPageProps) {
       /^\/applications\/[^/]+\/[^/]+$/,
       /^\/providers\/[^/]+\/[^/]+$/,
       /^\/syncers\/[^/]+$/,
+      /^\/invitations\/[^/]+\/[^/]+$/,
     ];
 
     return Setting.isMobile() ||

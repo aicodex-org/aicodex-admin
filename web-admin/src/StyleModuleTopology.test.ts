@@ -72,6 +72,7 @@ describe("admin style module topology", () => {
       "./edit/large-edit-common.less",
       "./edit/organization-edit.less",
       "./edit/identity-object-edit.less",
+      "./edit/invitation-edit.less",
       "./edit/permission-edit.less",
       "./edit/provider-edit.less",
       "./edit/group-edit.less",
@@ -111,6 +112,7 @@ describe("admin style module topology", () => {
     expectStyleRuleForSelector(appLess, ".enterprise-list-table-frame");
     expectStyleRuleForSelector(appLess, ".admin-large-edit-shell");
     expectStyleRuleForSelector(appLess, ".organization-edit-page");
+    expectStyleRuleForSelector(appLess, ".invitation-edit-default-code-control");
     expectStyleRuleForSelector(appLess, ".provider-edit-page");
     expectStyleRuleForSelector(appLess, ".user-edit-page");
     expectStyleRuleForSelector(appLess, ".login-form");

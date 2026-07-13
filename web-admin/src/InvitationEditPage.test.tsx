@@ -23,7 +23,7 @@ type LooseMock = {
   mockRejectedValueOnce: (value: unknown) => LooseMock;
 };
 
-type InvitationBackendMock = Record<"getInvitation" | "updateInvitation" | "deleteInvitation" | "sendInvitation", LooseMock>;
+type InvitationBackendMock = Record<"addInvitation" | "getInvitation" | "updateInvitation" | "sendInvitation", LooseMock>;
 type OrganizationBackendMock = Record<"getOrganizations", LooseMock>;
 type ApplicationBackendMock = Record<"getApplicationsByOrganization", LooseMock>;
 type GroupBackendMock = Record<"getGroups", LooseMock>;
@@ -31,7 +31,7 @@ type GroupBackendMock = Record<"getGroups", LooseMock>;
 type PageProps = {
   account?: unknown;
   history: {push: ReturnType<typeof jestValue.fn>};
-  location: {mode?: string};
+  location: {mode?: string; invitation?: TestInvitationRecord};
   match: {params: {organizationName: string; invitationName: string}};
   organizationName?: string;
 };
@@ -65,6 +65,7 @@ type PageState = {
   emails?: string;
   showSendModal?: boolean;
   sendLoading: boolean;
+  fieldErrors?: Record<"name" | "email", string | undefined>;
 };
 
 type StatePatch = Partial<PageState> | ((state: PageState, props: PageProps) => Partial<PageState> | null) | null;
@@ -83,6 +84,7 @@ type ElementProps = {
   onClick?: (value?: unknown) => void;
   value?: unknown;
   virtual?: boolean;
+  options?: Array<{label: React.ReactNode; value: string}>;
 };
 
 const expect = jestExpect;
@@ -106,9 +108,9 @@ jest.mock("copy-to-clipboard", () => {
 jest.mock("./backend/InvitationBackend", () => {
   const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
   return {
+    addInvitation: factoryJest.fn(),
     getInvitation: factoryJest.fn(),
     updateInvitation: factoryJest.fn(),
-    deleteInvitation: factoryJest.fn(),
     sendInvitation: factoryJest.fn(),
   };
 });
@@ -230,11 +232,11 @@ function visitReactNode(node: React.ReactNode, visitor: (element: React.ReactEle
 
 function setupBackend() {
   invitationBackendMock.getInvitation.mockResolvedValue({status: "ok", data: {...baseInvitation}});
+  invitationBackendMock.addInvitation.mockResolvedValue({status: "ok"});
   organizationBackendMock.getOrganizations.mockResolvedValue({status: "ok", data: [...organizations]});
   applicationBackendMock.getApplicationsByOrganization.mockResolvedValue({status: "ok", data: [...applications]});
   groupBackendMock.getGroups.mockResolvedValue({status: "ok", data: [...groups]});
   invitationBackendMock.updateInvitation.mockResolvedValue({status: "ok"});
-  invitationBackendMock.deleteInvitation.mockResolvedValue({status: "ok"});
   invitationBackendMock.sendInvitation.mockResolvedValue({status: "ok"});
 }
 
@@ -284,6 +286,28 @@ test("redirects to 404 when invitation detail is missing", async() => {
   await flushPromises();
 
   expect(historyPush).toHaveBeenCalledWith("/404");
+});
+
+test("keeps lifecycle loading and non-success group responses compatible", async() => {
+  const page = createPage();
+  const getInvitationSpy = jestValue.spyOn(page, "getInvitation").mockImplementation(() => undefined);
+  const getOrganizationsSpy = jestValue.spyOn(page, "getOrganizations").mockImplementation(() => undefined);
+  const getApplicationsSpy = jestValue.spyOn(page, "getApplicationsByOrganization").mockImplementation(() => undefined);
+  const getGroupsSpy = jestValue.spyOn(page, "getGroupsByOrganization").mockImplementation(() => undefined);
+
+  page.UNSAFE_componentWillMount();
+
+  expect(getInvitationSpy).toHaveBeenCalledTimes(1);
+  expect(getOrganizationsSpy).toHaveBeenCalledTimes(1);
+  expect(getApplicationsSpy).toHaveBeenCalledWith("engineering");
+  expect(getGroupsSpy).toHaveBeenCalledWith("engineering");
+
+  getGroupsSpy.mockRestore();
+  groupBackendMock.getGroups.mockResolvedValueOnce({status: "error", data: [...groups]});
+  page.state = {...page.state, groups: []};
+  page.getGroupsByOrganization("engineering");
+  await flushPromises();
+  expect(page.state.groups).toEqual([]);
 });
 
 test("keeps rendered edit controls wired to invitation state updates", () => {
@@ -348,6 +372,39 @@ test("keeps rendered edit controls wired to invitation state updates", () => {
   });
   expect(getApplicationsSpy).toHaveBeenCalledWith("sales");
   expect(getGroupsSpy).toHaveBeenCalledWith("sales");
+});
+
+test("uses organization display names while preserving technical organization values", () => {
+  const page = createPage();
+  let organizationOptions: Array<{label: React.ReactNode; value: string}> | undefined;
+
+  visitReactNode(page.renderInvitation(), (element) => {
+    if (element.props.value === "engineering" && element.props.virtual === false) {
+      organizationOptions = element.props.options;
+    }
+  });
+
+  expect(organizationOptions).toEqual([
+    {label: "Engineering", value: "engineering"},
+    {label: "Sales", value: "sales"},
+  ]);
+});
+
+test("keeps regex invitation codes from replacing the explicit default code", () => {
+  const page = createPage();
+  let codeUpdated = false;
+
+  visitReactNode(page.renderInvitation(), (element) => {
+    if (!codeUpdated && element.props.value === "code-main") {
+      codeUpdated = true;
+      element.props.onChange?.({target: {value: "^code-[0-9]+$"}});
+    }
+  });
+
+  expect(page.state.invitation).toMatchObject({
+    code: "^code-[0-9]+$",
+    defaultCode: "code-main",
+  });
 });
 
 test("copies signup link for built-in or organization default application and reports missing defaults", () => {
@@ -427,42 +484,158 @@ test("saves invitation, supports save-exit redirects and rolls name back on fail
   expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("save network"));
 });
 
-test("deletes invitation or reports delete failures", async() => {
-  const page = createPage({mode: "add"});
+test("blocks saving invitations with an invalid name or email and exposes field errors", async() => {
+  const page = createPage({invitation: {name: "invite/main", email: "not-an-email"}});
+
+  page.submitInvitationEdit(false);
+  await flushPromises();
+
+  expect(invitationBackendMock.updateInvitation).not.toHaveBeenCalled();
+  expect(invitationBackendMock.addInvitation).not.toHaveBeenCalled();
+  expect(page.state.fieldErrors).toEqual({
+    name: "Name can only contain letters, numbers, underscores, and hyphens",
+    email: "The input is not valid Email!",
+  });
+});
+
+test("blocks saving invitation names that contain Chinese characters", async() => {
+  const page = createPage({invitation: {name: "邀请码", email: "alice@example.test"}});
+
+  page.submitInvitationEdit(false);
+  await flushPromises();
+
+  expect(invitationBackendMock.updateInvitation).not.toHaveBeenCalled();
+  expect(invitationBackendMock.addInvitation).not.toHaveBeenCalled();
+  expect(page.state.fieldErrors).toEqual({
+    name: "Name can only contain letters, numbers, underscores, and hyphens",
+  });
+});
+
+test("persists an invitation draft only when the add form is saved", async() => {
+  const page = createPage({mode: "add", invitation: {name: "draft-invitation"}});
   const historyPush = page.props.history.push;
 
-  page.deleteInvitation();
+  page.submitInvitationEdit(false);
   await flushPromises();
-  expect(invitationBackendMock.deleteInvitation).toHaveBeenCalledWith(expect.objectContaining({name: "invite-main"}));
-  expect(historyPush).toHaveBeenCalledWith("/invitations");
+  expect(invitationBackendMock.addInvitation).toHaveBeenCalledWith(expect.objectContaining({name: "draft-invitation"}));
+  expect(invitationBackendMock.updateInvitation).not.toHaveBeenCalled();
+  expect(historyPush).toHaveBeenCalledWith("/invitations/engineering/draft-invitation");
 
-  invitationBackendMock.deleteInvitation.mockResolvedValueOnce({status: "error", msg: "delete failed"});
-  page.deleteInvitation();
+  page.submitInvitationEdit(true);
   await flushPromises();
-  expect(Setting.showMessage).toHaveBeenCalledWith("error", "Failed to delete: delete failed");
+  expect(historyPush).toHaveBeenLastCalledWith("/invitations");
+  expect(invitationBackendMock.updateInvitation).toHaveBeenCalledWith("engineering", "draft-invitation", expect.objectContaining({name: "draft-invitation"}));
+});
 
-  invitationBackendMock.deleteInvitation.mockRejectedValueOnce(new Error("delete network"));
-  page.deleteInvitation();
-  await flushPromises();
-  expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("delete network"));
+test("loads a route draft locally and never writes when cancelling or returning", () => {
+  const draft = {...baseInvitation, name: "route-draft"};
+  const props = {
+    account: {owner: "admin", name: "admin", isAdmin: true},
+    history: createHistory(),
+    location: {state: {mode: "add", invitation: draft}},
+    match: {params: {organizationName: "engineering", invitationName: "route-draft"}},
+  } as PageProps;
+  const page = new InvitationEditPage(props) as PageHarness;
+  // 仅验证生命周期是否跳过详情读取，避免未挂载实例处理辅助 GET 回调。
+  page.setState = jestValue.fn() as unknown as PageHarness["setState"];
+
+  expect(page.state.invitation).toEqual(draft);
+  page.UNSAFE_componentWillMount();
+  expect(invitationBackendMock.getInvitation).not.toHaveBeenCalled();
+
+  page.handleCancel();
+  expect(page.props.history.push).toHaveBeenCalledWith("/invitations");
+
+  let onBack: (() => void) | undefined;
+  visitReactNode(page.renderInvitation(), (element) => {
+    const shellProps = element.props as ElementProps & {classPrefix?: string; onBack?: () => void};
+    if (shellProps.classPrefix === "invitation-edit") {
+      onBack = shellProps.onBack;
+    }
+  });
+  onBack?.();
+  expect(page.props.history.push).toHaveBeenLastCalledWith("/invitations");
+  expect(invitationBackendMock.addInvitation).not.toHaveBeenCalled();
+  expect(invitationBackendMock.updateInvitation).not.toHaveBeenCalled();
 });
 
 test("renders modal and action buttons through the page surface", async() => {
   const page = createPage({mode: "add"});
-  page.state = {...page.state, showSendModal: true};
   const view = render(<>{page.render()}</>);
 
   expect(view.container.querySelector(".admin-identity-object-edit-page.invitation-edit-page")).not.toBeNull();
   expect(view.container.querySelector(".admin-identity-object-edit-card.invitation-edit-card")).not.toBeNull();
-  expect(view.container.querySelectorAll(".admin-identity-object-edit-field-row")).toHaveLength(15);
+  expect(view.container.querySelectorAll(".invitation-edit-field-row")).toHaveLength(14);
   fireEvent.click(view.getAllByText("Save")[0]);
   await flushPromises();
-  fireEvent.click(view.getAllByText("Save & Exit")[0]);
+  fireEvent.click(view.getAllByText("Save and return")[0]);
   await flushPromises();
   fireEvent.click(view.getAllByText("Cancel")[0]);
   await flushPromises();
 
-  expect(invitationBackendMock.updateInvitation).toHaveBeenCalledTimes(2);
-  expect(invitationBackendMock.deleteInvitation).toHaveBeenCalledTimes(1);
+  expect(invitationBackendMock.addInvitation).toHaveBeenCalledTimes(1);
+  expect(invitationBackendMock.updateInvitation).toHaveBeenCalledTimes(1);
   expect(view.getAllByText("Send").length).toBeGreaterThan(0);
+});
+
+test("renders the inline send action at the compact AntD size", () => {
+  const page = createPage();
+  const view = render(<>{page.render()}</>);
+
+  expect(view.container.querySelector(".invitation-edit-send-control .ant-btn-sm")).not.toBeNull();
+});
+
+test("keeps the shared three-button footer in edit mode and cancels without writing", () => {
+  const page = createPage({mode: "edit"});
+  const view = render(<>{page.render()}</>);
+
+  expect(view.getAllByText("Cancel")).toHaveLength(1);
+  expect(view.getAllByText("Save")).toHaveLength(1);
+  expect(view.getAllByText("Save and return")).toHaveLength(1);
+
+  fireEvent.click(view.getByText("Cancel"));
+
+  expect(page.props.history.push).toHaveBeenCalledWith("/invitations");
+  expect(invitationBackendMock.addInvitation).not.toHaveBeenCalled();
+  expect(invitationBackendMock.updateInvitation).not.toHaveBeenCalled();
+});
+
+test("keeps loading, edit title fallback and shared back navigation explicit", () => {
+  const page = createPage({mode: "edit", invitation: {displayName: ""}});
+  let shellTitle: React.ReactNode = null;
+
+  visitReactNode(page.renderInvitation(), (element) => {
+    const shellProps = element.props as ElementProps & {classPrefix?: string; title?: React.ReactNode};
+    if (shellTitle === null && shellProps.classPrefix === "invitation-edit" && shellProps.title !== undefined) {
+      shellTitle = shellProps.title;
+    }
+  });
+
+  expect(shellTitle).toBe("Edit Invitation (invite-main)");
+  const view = render(<>{page.render()}</>);
+  fireEvent.click(view.getByText("Back"));
+  expect(page.props.history.push).toHaveBeenCalledWith("/invitations");
+  page.state = {...page.state, invitation: null};
+  expect(page.renderInvitation()).toBeNull();
+});
+
+test("renders the shared edit shell, semantic sections and one fixed action bar", () => {
+  const page = createPage({mode: "add"});
+  const view = render(<>{page.render()}</>);
+
+  expect(view.container.querySelector(".invitation-edit-shell")).not.toBeNull();
+  expect(view.container.querySelector(".invitation-edit-header")).not.toBeNull();
+  expect(view.container.querySelector(".invitation-edit-scroll-content")).not.toBeNull();
+  expect(view.container.querySelectorAll(".invitation-edit-action-bar")).toHaveLength(1);
+  expect(view.container.querySelector(".invitation-edit-card .ant-card-head")).toBeNull();
+  expect(view.container.querySelectorAll(".invitation-edit-section")).toHaveLength(4);
+  expect(view.container.querySelectorAll(".invitation-edit-field-row")).toHaveLength(14);
+  expect(view.getByText("Organization & Accounts / Invitations /")).not.toBeNull();
+  expect(view.getByText("Basic information")).not.toBeNull();
+  expect(view.getByText("Invitation configuration")).not.toBeNull();
+  expect(view.getByText("Registration target")).not.toBeNull();
+  expect(view.getByText("Registration information")).not.toBeNull();
+  expect(view.getAllByText("Save")).toHaveLength(1);
+  expect(view.getAllByText("Save and return")).toHaveLength(1);
+  expect(view.getAllByText("Cancel")).toHaveLength(1);
 });

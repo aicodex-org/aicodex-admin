@@ -1,0 +1,40 @@
+/* stylelint-disable selector-class-pattern */
+
+/* 邀请码页只维护组合控件布局；页面壳与字段网格继续复用公共样式。 */
+
+.invitation-edit-default-code-control,
+.invitation-edit-send-control {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  gap: 12px;
+}
+
+.invitation-edit-default-code-control {
+  align-items: center;
+}
+
+.invitation-edit-default-code-control > .ant-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.invitation-edit-default-code-control > .ant-btn {
+  flex: 0 0 auto;
+}
+
+.invitation-edit-send-control {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.invitation-edit-send-control > .ant-input {
+  width: 100%;
+}
+
+@media screen and (max-width: 768px) {
+  .invitation-edit-default-code-control {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

@@ -1282,14 +1282,20 @@
     "Total users": "用户总数"
   },
   "invitation": {
+    "Invalid invitation name characters": "名称只能包含字母、数字、下划线和连字符",
+    "Basic information": "基础信息",
     "Code": "邀请码",
     "Code - Tooltip": "可以是一个单独的字符串作为邀请码，也可以是正则表达式，所有符合正则表达式的字符串都是合法的邀请码",
     "Default code": "默认邀请码",
     "Default code - Tooltip": "当邀请码为正则表达式时，请输入符合正则表达式规则的邀请码作为邀请链接的默认邀请码",
     "Edit Invitation": "编辑邀请码",
+    "Invitation configuration": "邀请配置",
     "New Invitation": "新建邀请码",
+    "Save and return": "保存并返回",
     "Quota": "配额",
     "Quota - Tooltip": "该邀请码最多能注册多少个用户",
+    "Registration information": "注册信息",
+    "Registration target": "注册目标",
     "Used count": "已使用个数",
     "Used count - Tooltip": "该邀请码已使用次数",
     "You need to first specify a default application for organization: ": "你需要先为组织指定一个默认应用程序: "

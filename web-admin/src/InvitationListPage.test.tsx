@@ -150,7 +150,7 @@ test("renders invitation rows and fetches the selected organization", async() =>
   expect(formBackendMock.getForm).toHaveBeenCalled();
 });
 
-test("creates a default invitation and navigates to edit page", async() => {
+test("creates an in-memory invitation draft and navigates to edit page without persisting it", () => {
   const history = createHistory();
   const page = new InvitationListPage({
     account,
@@ -169,15 +169,20 @@ test("creates a default invitation and navigates to edit page", async() => {
   }));
 
   page.addInvitation();
-  await flushPromises();
 
-  expect(backendMock.addInvitation).toHaveBeenCalledWith(expect.objectContaining({
-    owner: "engineering",
-    name: "invitation_abc123",
-    defaultCode: expect.any(String),
+  expect(backendMock.addInvitation).not.toHaveBeenCalled();
+  expect(history.push).toHaveBeenCalledWith(expect.objectContaining({
+    pathname: "/invitations/engineering/invitation_abc123",
+    state: expect.objectContaining({
+      mode: "add",
+      invitation: expect.objectContaining({
+        owner: "engineering",
+        name: "invitation_abc123",
+        defaultCode: expect.any(String),
+      }),
+    }),
   }));
-  expect(history.push).toHaveBeenCalledWith({pathname: "/invitations/engineering/invitation_abc123", mode: "add"});
-  expect(Setting.showMessage).toHaveBeenCalledWith("success", expect.any(String));
+  expect(Setting.showMessage).not.toHaveBeenCalled();
 });
 
 test("fetches all organizations when default organization is selected", async() => {
@@ -252,24 +257,14 @@ test("deletes invitation and rolls back pagination for the last row", async() =>
   expect(Setting.showMessage).toHaveBeenCalledWith("success", expect.any(String));
 });
 
-test("reports add and delete failures", async() => {
+test("reports delete failures", async() => {
   const page = createPage();
   page.state = {
     ...page.state,
     data: [invitation],
   };
-  backendMock.addInvitation.mockResolvedValueOnce({status: "error", msg: "add failed"});
-  backendMock.addInvitation.mockRejectedValueOnce(new Error("add network"));
   backendMock.deleteInvitation.mockResolvedValueOnce({status: "error", msg: "delete failed"});
   backendMock.deleteInvitation.mockRejectedValueOnce(new Error("delete network"));
-
-  page.addInvitation();
-  await flushPromises();
-  expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("add failed"));
-
-  page.addInvitation();
-  await flushPromises();
-  expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("add network"));
 
   page.deleteInvitation(0);
   await flushPromises();
