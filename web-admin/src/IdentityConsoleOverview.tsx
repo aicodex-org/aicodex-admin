@@ -217,8 +217,8 @@ function buildPendingReviewItems(hasError: boolean): PendingReviewItem[] {
     },
     {
       key: "directory-quality",
-      title: tGeneral("WeCom directory quality", "企业微信目录质量"),
-      description: tGeneral("WeCom directory quality description", "同步记录已更新，建议复查目录边界"),
+      title: tGeneral("Directory sync quality", "组织同步目录质量"),
+      description: tGeneral("Directory sync quality description", "企业微信、飞书和钉钉同步记录已更新，建议复查目录边界"),
       domain: tGeneral("AICodex product admin", "身份控制台"),
       status: tGeneral("Identity overview status needs review", "待核对"),
       tone: "processing",
@@ -285,7 +285,7 @@ function buildHealthItems(dashboardData: DashboardData | null): HealthItem[] {
     {
       key: "sources",
       label: tGeneral("Identity sources", "认证来源"),
-      description: tGeneral("Identity source examples", "企业微信、飞书、内置账号"),
+      description: tGeneral("Identity source examples", "企业微信、飞书、钉钉、内置账号"),
       value: providerCount ?? "-",
     },
     {
@@ -409,6 +409,7 @@ function IdentityConsoleOverview({account, history}: IdentityConsoleOverviewProp
         <Space wrap>
           <Link to="/wecom-org-sync"><Button icon={<SafetyCertificateOutlined />}>{tGeneral("WeCom org sync action", "企业微信同步")}</Button></Link>
           <Link to="/feishu-org-sync"><Button icon={<SafetyCertificateOutlined />}>{tGeneral("Feishu org sync action", "飞书同步")}</Button></Link>
+          <Link to="/dingtalk-org-sync"><Button icon={<SafetyCertificateOutlined />}>{tGeneral("DingTalk org sync action", "钉钉同步")}</Button></Link>
           <Link to="/applications"><Button type="primary" icon={<AppstoreOutlined />}>{tGeneral("Application access action", "应用接入")}</Button></Link>
         </Space>
       )}

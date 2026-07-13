@@ -107,6 +107,11 @@ describe("IdentityConsoleOverview", () => {
     expect(screen.getByText("接入健康")).toBeInTheDocument();
     expect(screen.getByText("最近审计证据")).toBeInTheDocument();
     expect(screen.getAllByText("进入应用接入").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/applications")).toBe(true);
+    expect(screen.getAllByText("企业微信同步").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/wecom-org-sync")).toBe(true);
+    expect(screen.getAllByText("飞书同步").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/feishu-org-sync")).toBe(true);
+    expect(screen.getAllByText("钉钉同步").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/dingtalk-org-sync")).toBe(true);
+    expect(screen.getByText("企业微信、飞书、钉钉、内置账号")).toBeInTheDocument();
+    expect(screen.getByText("组织同步目录质量")).toBeInTheDocument();
     expect(screen.queryByText("查看记录")).not.toBeInTheDocument();
     expect(screen.getByText("核对审计记录").closest("a")).toHaveAttribute("href", "/records");
     expect(screen.getByText("核对同步记录").closest("a")).toHaveAttribute("href", "/records");

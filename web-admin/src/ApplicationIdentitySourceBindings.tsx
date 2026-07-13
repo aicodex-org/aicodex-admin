@@ -143,7 +143,7 @@ const ApplicationIdentitySourceBindings = ({application, providers = [], organiz
             message={t("application:Provider target organization is required", "Provider 目标组织必填")}
             description={t(
               "application:Provider sign-in fails when target organization is missing",
-              "企业微信、飞书/Lark、SAML 或 Web3 登录不会再沿用应用组织；请为每个登录 Provider 选择与同步配置一致的目标组织。"
+              "企业微信、飞书/Lark、钉钉、SAML 或 Web3 登录不会再沿用应用组织；请为每个登录 Provider 选择与同步配置一致的目标组织。"
             )}
           />
         ) : null}

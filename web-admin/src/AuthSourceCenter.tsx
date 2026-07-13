@@ -27,7 +27,7 @@ import {
 
 const {Text} = Typography;
 
-type AuthSourceKey = "wecom" | "feishu" | "oidc";
+type AuthSourceKey = "wecom" | "feishu" | "dingtalk" | "oidc";
 type AuthSourceStatus = "已启用" | "待补全" | "未启用";
 type AuthSourceTone = "success" | "warning" | "default" | "processing";
 type AuthProviderRequiredField = "clientId" | "clientSecret" | "providerUrl";
@@ -110,6 +110,17 @@ const AUTH_SOURCE_DEFINITIONS: AuthSourceDefinition[] = [
     configPath: "/providers",
     diagnosticPath: "/feishu-org-sync",
     diagnosticLabel: "飞书诊断",
+    authStatus: "同步状态待巡检",
+  },
+  {
+    key: "dingtalk",
+    title: "钉钉",
+    description: "钉钉扫码登录与组织同步入口",
+    matchers: ["dingtalk", "dingding", "钉钉"],
+    requiredFields: ["clientId", "clientSecret", "providerUrl"],
+    configPath: "/providers",
+    diagnosticPath: "/dingtalk-org-sync",
+    diagnosticLabel: "钉钉诊断",
     authStatus: "同步状态待巡检",
   },
   {
@@ -262,7 +273,7 @@ function AuthSourceCenter({providers = [], loading = false}: AuthSourceCenterPro
       className="auth-source-center"
       eyebrow="企业认证中心 / 身份认证"
       title="认证源中心"
-      description="把企业微信、飞书和 OIDC 组织成可扫描的身份源接入、同步诊断和失败核对工作台"
+      description={t("Auth source center description", "把企业微信、飞书、钉钉和 OIDC 组织成可扫描的身份源接入、同步诊断和失败核对工作台")}
       actions={(
         <Space wrap>
           <Link to="/providers"><Button icon={<SettingOutlined />}>配置认证源</Button></Link>

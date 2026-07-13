@@ -30,6 +30,16 @@ const providers = [
   },
   {
     owner: "admin",
+    name: "dingtalk-main",
+    displayName: "钉钉 SSO",
+    category: "OAuth",
+    type: "DingTalk",
+    clientId: "ding-client",
+    clientSecret: "ding-secret-value",
+    providerUrl: "https://api.dingtalk.com",
+  },
+  {
+    owner: "admin",
     name: "enterprise-oidc",
     displayName: "Enterprise OIDC",
     category: "OAuth",
@@ -65,7 +75,7 @@ describe("AuthSourceCenter", () => {
   test("builds auth source cards from existing providers without exposing secrets", () => {
     const cards = buildAuthSourceCenterCards(providers);
 
-    expect(cards.map(card => card.title)).toEqual(["企业微信", "飞书", "OIDC"]);
+    expect(cards.map(card => card.title)).toEqual(["企业微信", "飞书", "钉钉", "OIDC"]);
     expect(cards[0]).toMatchObject({
       status: "已启用",
       completeness: 100,
@@ -77,6 +87,11 @@ describe("AuthSourceCenter", () => {
       providerName: "feishu-main",
     });
     expect(cards[2]).toMatchObject({
+      status: "已启用",
+      completeness: 100,
+      providerName: "dingtalk-main",
+    });
+    expect(cards[3]).toMatchObject({
       status: "已启用",
       completeness: 100,
       providerName: "enterprise-oidc",
@@ -97,16 +112,20 @@ describe("AuthSourceCenter", () => {
     expect(container.querySelector(".enterprise-identity-status-card")).toBeNull();
     expect(view.getAllByText("企业微信").length).toBeGreaterThan(0);
     expect(view.getAllByText("飞书").length).toBeGreaterThan(0);
+    expect(view.getAllByText("钉钉").length).toBeGreaterThan(0);
     expect(view.getAllByText("OIDC").length).toBeGreaterThan(0);
     expect(view.getByText(/企业微信主认证/)).not.toBeNull();
-    expect(view.getAllByText("100%")).toHaveLength(2);
+    expect(view.getByText(/钉钉 SSO/)).not.toBeNull();
+    expect(view.getAllByText("100%")).toHaveLength(3);
     expect(view.getByText("67%")).not.toBeNull();
     expect(view.getByText(/以同步页面和审计记录为准/)).not.toBeNull();
     expect(view.getAllByText("企业微信诊断").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/wecom-org-sync")).toBe(true);
     expect(view.getAllByText("飞书诊断").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/feishu-org-sync")).toBe(true);
+    expect(view.getAllByText("钉钉诊断").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/dingtalk-org-sync")).toBe(true);
     expect(view.getAllByText("查看审计记录").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/records")).toBe(true);
     expect(view.queryByText("失败摘要")).toBeNull();
     expect(view.queryByText("wecom-secret-value")).toBeNull();
+    expect(view.queryByText("ding-secret-value")).toBeNull();
   });
 
   test("keeps the overview compact above the provider list", () => {
@@ -119,7 +138,7 @@ describe("AuthSourceCenter", () => {
 
     expect(container.querySelector(".auth-source-compact-overview")).not.toBeNull();
     expect(container.querySelectorAll(".auth-source-compact-metric")).toHaveLength(4);
-    expect(container.querySelectorAll(".auth-source-compact-card")).toHaveLength(3);
+    expect(container.querySelectorAll(".auth-source-compact-card")).toHaveLength(4);
     expect(container.querySelector(".auth-source-failure-section")).toBeNull();
     expect(view.queryByText("失败摘要")).toBeNull();
     expect(view.getAllByText("查看审计记录").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/records")).toBe(true);
@@ -132,7 +151,7 @@ describe("AuthSourceCenter", () => {
       </MemoryRouter>
     );
 
-    expect(view.getAllByText("未启用").length).toBeGreaterThanOrEqual(3);
+    expect(view.getAllByText("未启用").length).toBeGreaterThanOrEqual(4);
     expect(view.getByText("暂无认证源配置，先从 Provider 列表新增或进入同步诊断页面核对。")).not.toBeNull();
     expect(view.getByText("配置认证源").closest("a")?.getAttribute("href")).toBe("/providers");
     expect(view.getAllByText("OIDC 配置").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/providers")).toBe(true);
@@ -149,7 +168,7 @@ describe("AuthSourceCenter", () => {
       },
     ]);
 
-    expect(buildAuthSourceCenterCards()).toHaveLength(3);
+    expect(buildAuthSourceCenterCards()).toHaveLength(4);
     expect(cards[0]).toMatchObject({
       status: "待补全",
       completeness: 0,
@@ -163,6 +182,6 @@ describe("AuthSourceCenter", () => {
     );
 
     expect(view.getByText("加载认证源状态...")).not.toBeNull();
-    expect(view.getAllByText("未启用").length).toBeGreaterThanOrEqual(3);
+    expect(view.getAllByText("未启用").length).toBeGreaterThanOrEqual(4);
   });
 });
