@@ -30,7 +30,7 @@ import ListPageTable from "./common/ListPageTable";
 interface SyncerListPageProps {
   account?: Record<string, unknown>;
   history: {
-    push: (location: string | {pathname: string; mode?: string}) => void;
+    push: (location: string | {pathname: string; mode?: string; syncer?: SyncerRecord}) => void;
   };
   match?: {
     path?: string;
@@ -62,6 +62,7 @@ type SyncerListFetchParams = {
 
 // BaseListPage 仍是 legacy JS；本 change 只声明当前列表页实际使用到的继承边界。
 type LegacyBaseListPageCompat = React.Component<SyncerListPageProps, SyncerListPageState> & {
+  isUnmounted: boolean;
   getColumnSearchProps: (dataIndex: string, customRender?: unknown) => Record<string, unknown>;
   getTablePaginationProps: (overrides?: Record<string, unknown>) => TablePaginationConfig;
   handleTableChange: NonNullable<TableProps<SyncerRecord>["onChange"]>;
@@ -121,18 +122,7 @@ class SyncerListPage extends TypedBaseListPage {
 
   addSyncer(): void {
     const newSyncer = this.newSyncer();
-    SyncerBackend.addSyncer(newSyncer)
-      .then((res) => {
-        if (res.status === "ok") {
-          this.props.history.push({pathname: `/syncers/${newSyncer.name}`, mode: "add"});
-          Setting.showMessage("success", t("general:Successfully added"));
-        } else {
-          Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
-        }
-      })
-      .catch(error => {
-        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
-      });
+    this.props.history.push({pathname: `/syncers/${newSyncer.name}`, mode: "add", syncer: newSyncer});
   }
 
   deleteSyncer(i: number): void {
@@ -310,6 +300,10 @@ class SyncerListPage extends TypedBaseListPage {
     const pagination = params.pagination || this.state.pagination;
     SyncerBackend.getSyncers("admin", Setting.isDefaultOrganizationSelected(this.props.account) ? "" : Setting.getRequestOrganization(this.props.account), pagination.current, pagination.pageSize, field, value, sortField, sortOrder)
       .then((res) => {
+        if (this.isUnmounted) {
+          return;
+        }
+
         this.setState({
           loading: false,
         });

@@ -31,10 +31,6 @@ class LanguageSelect extends React.Component<LegacyAny, LegacyAny> {
     this.state = {
       selectedLanguage: Setting.getLanguage(),
     };
-
-    Setting.Countries.forEach((country: LegacyAny) => {
-      new Image().src = `${Setting.StaticBaseUrl}/flag-icons/${country.country}.svg`;
-    });
   }
 
   getLanguages(): LegacyAny[] {

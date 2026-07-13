@@ -38,6 +38,7 @@ type BaseListPageState = LegacyListState & {
 
 class BaseListPage<P extends AdminRouteProps = AdminRouteProps, S extends BaseListPageState = BaseListPageState> extends React.Component<P, S> {
   private searchInput: LegacyAny = null;
+  protected isUnmounted = false;
 
   constructor(props: P) {
     super(props);
@@ -70,6 +71,7 @@ class BaseListPage<P extends AdminRouteProps = AdminRouteProps, S extends BaseLi
   };
 
   componentDidMount() {
+    this.isUnmounted = false;
     window.addEventListener("storageOrganizationChanged", this.handleOrganizationChange);
     window.addEventListener("storageTourChanged", this.handleTourChange);
     if (!Setting.isAdminUser(this.props.account)) {
@@ -78,6 +80,7 @@ class BaseListPage<P extends AdminRouteProps = AdminRouteProps, S extends BaseLi
   }
 
   componentWillUnmount() {
+    this.isUnmounted = true;
     if (this.state.intervalId !== null) {
       clearInterval(this.state.intervalId);
     }
@@ -108,6 +111,10 @@ class BaseListPage<P extends AdminRouteProps = AdminRouteProps, S extends BaseLi
       formName = formType + "-tag-" + tag;
       FormBackend.getForm(this.props.account.owner, formName)
         .then(res => {
+          if (this.isUnmounted) {
+            return;
+          }
+
           if (res.status === "ok" && res.data) {
             this.setState({formItems: res.data.formItems});
           } else {
@@ -122,6 +129,10 @@ class BaseListPage<P extends AdminRouteProps = AdminRouteProps, S extends BaseLi
   fetchFormWithoutTag(formName: string) {
     FormBackend.getForm(this.props.account.owner, formName)
       .then(res => {
+        if (this.isUnmounted) {
+          return;
+        }
+
         if (res.status === "ok" && res.data) {
           this.setState({formItems: res.data.formItems});
         } else {

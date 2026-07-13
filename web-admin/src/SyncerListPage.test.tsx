@@ -146,7 +146,7 @@ test("renders syncer rows and fetches the selected organization", async() => {
   expect(formBackendMock.getForm).toHaveBeenCalled();
 });
 
-test("creates a default syncer and navigates to edit page", async() => {
+test("opens a default syncer draft without creating it on the backend", () => {
   const history = createHistory();
   const page = new SyncerListPage({
     account,
@@ -165,14 +165,17 @@ test("creates a default syncer and navigates to edit page", async() => {
   }));
 
   page.addSyncer();
-  await flushPromises();
 
-  expect(backendMock.addSyncer).toHaveBeenCalledWith(expect.objectContaining({
-    name: "syncer_abc123",
-    organization: "engineering",
-  }));
-  expect(history.push).toHaveBeenCalledWith({pathname: "/syncers/syncer_abc123", mode: "add"});
-  expect(Setting.showMessage).toHaveBeenCalledWith("success", expect.any(String));
+  expect(backendMock.addSyncer).not.toHaveBeenCalled();
+  expect(history.push).toHaveBeenCalledWith({
+    pathname: "/syncers/syncer_abc123",
+    mode: "add",
+    syncer: expect.objectContaining({
+      name: "syncer_abc123",
+      organization: "engineering",
+    }),
+  });
+  expect(Setting.showMessage).not.toHaveBeenCalled();
 });
 
 test("fetches all organizations when default organization is selected", async() => {
@@ -260,24 +263,14 @@ test("deletes syncer and rolls back pagination for the last row", async() => {
   expect(Setting.showMessage).toHaveBeenCalledWith("success", expect.any(String));
 });
 
-test("reports add and delete failures", async() => {
+test("reports delete failures", async() => {
   const page = createPage();
   page.state = {
     ...page.state,
     data: [{owner: "admin", name: "syncer-main"}],
   };
-  backendMock.addSyncer.mockResolvedValueOnce({status: "error", msg: "add failed"});
-  backendMock.addSyncer.mockRejectedValueOnce(new Error("add network"));
   backendMock.deleteSyncer.mockResolvedValueOnce({status: "error", msg: "delete failed"});
   backendMock.deleteSyncer.mockRejectedValueOnce(new Error("delete network"));
-
-  page.addSyncer();
-  await flushPromises();
-  expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("add failed"));
-
-  page.addSyncer();
-  await flushPromises();
-  expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("add network"));
 
   page.deleteSyncer(0);
   await flushPromises();
@@ -365,4 +358,14 @@ test("reports list fetch server errors", async() => {
   await flushPromises();
 
   expect(Setting.showMessage).toHaveBeenCalledWith("error", "list failed");
+});
+
+test("does not update list state after the page has unmounted", async() => {
+  const page = createPage();
+  (page as unknown as {isUnmounted: boolean}).isUnmounted = true;
+
+  page.fetch();
+  await flushPromises();
+
+  expect(page.state.loading).toBe(true);
 });

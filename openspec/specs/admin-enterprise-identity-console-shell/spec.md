@@ -723,10 +723,12 @@ Admin 身份控制台 Shell SHALL 在组织、用户、应用、Provider、Synce
 - **WHEN** 管理员在桌面端访问应用、Provider 或 Syncer 的长编辑页
 - **THEN** Shell SHALL 使用 cardless route 滚动容器承载页面
 - **AND** route scroll 容器内 SHALL NOT 渲染 `.content-warp-card`
-- **AND** 页面内部编辑 Card SHALL 保持既有标题、操作和业务表单行为
+- **AND** 页面内部编辑壳 SHALL 使用共享头部、滚动正文和固定底部动作栏
+- **AND** 多 tabs 与单正文 SHALL 只是正文区域的差异
+- **AND** 页面 SHALL NOT 在内部 Card 标题或正文末尾保留重复保存按钮组
 
 #### Scenario: 大编辑页不制造页面级横向溢出
-- **WHEN** 管理员在 `1280px` 或 `1920px` 桌面宽度访问组织或用户长编辑页
+- **WHEN** 管理员在 `1280px` 或 `1920px` 桌面宽度访问组织、用户、应用、Provider 或 Syncer 长编辑页
 - **THEN** Shell 根文档 SHALL NOT 因外层内容卡、表单 label gutter 或内部编辑壳叠加产生不必要的页面级横向 overflow
 - **AND** 需要横向滚动的表格或局部组件 SHALL 在自身容器内处理
 

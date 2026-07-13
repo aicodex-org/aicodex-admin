@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import React from "react";
-import {Button, Card, Col, Input, InputNumber, Radio, Row, Select, Switch} from "antd";
+import {Button, Card, Col, Empty, Input, InputNumber, Radio, Row, Select, Switch} from "antd";
 import {LinkOutlined} from "@ant-design/icons";
 import * as SyncerBackend from "./backend/SyncerBackend";
 import type {SyncerRecord} from "./backend/SyncerBackend";
@@ -25,6 +25,7 @@ import type {SyncerTableColumnRecord} from "./table/SyncerTableColumnTable";
 
 import * as CertBackend from "./backend/CertBackend";
 import Editor from "./common/Editor";
+import LargeEditShell, {LargeEditTabs} from "./common/LargeEditShell";
 
 const {Option} = Select;
 
@@ -49,6 +50,7 @@ interface RouteMatch {
 
 interface RouteLocation {
   mode?: "add" | "edit" | string;
+  syncer?: SyncerRecord;
 }
 
 interface RouteHistory {
@@ -64,7 +66,12 @@ interface SyncerEditProps {
 
 interface NamedRecord {
   name: string;
+  displayName?: string;
 }
+
+type SyncerEditTabKey = "basic" | "connection" | "mapping-status";
+
+const syncerEditTabKeys: SyncerEditTabKey[] = ["basic", "connection", "mapping-status"];
 
 interface BackendResponse<T> {
   status?: string;
@@ -109,6 +116,7 @@ interface SyncerEditState {
   organizations: NamedRecord[];
   mode: string;
   testDbLoading: boolean;
+  activeTabKey: SyncerEditTabKey;
 }
 
 class SyncerEditPage extends React.Component<SyncerEditProps, SyncerEditState> {
@@ -122,6 +130,7 @@ class SyncerEditPage extends React.Component<SyncerEditProps, SyncerEditState> {
       organizations: [],
       mode: props.location.mode !== undefined ? props.location.mode : "edit",
       testDbLoading: false,
+      activeTabKey: this.getInitialTabKey(),
     };
   }
 
@@ -131,6 +140,15 @@ class SyncerEditPage extends React.Component<SyncerEditProps, SyncerEditState> {
   }
 
   getSyncer() {
+    if (this.state.mode === "add" && this.props.location.syncer !== undefined) {
+      const syncer = this.props.location.syncer as SyncerEditRecord;
+      this.setState({syncer});
+      if (syncer.organization) {
+        this.getCerts(syncer.organization);
+      }
+      return;
+    }
+
     SyncerBackend.getSyncer("admin", this.state.syncerName)
       .then((res) => {
         if (res.data === null) {
@@ -877,419 +895,550 @@ class SyncerEditPage extends React.Component<SyncerEditProps, SyncerEditState> {
     return this.state.syncer.type === "Database" && (this.state.syncer.databaseType === "mysql" || this.state.syncer.databaseType === "mssql" || this.state.syncer.databaseType === "postgres");
   }
 
-  renderSyncer() {
+  getSyncerEditTitle(): string {
+    if (this.state.mode === "add") {
+      return tr("syncer:New Syncer");
+    }
+
+    return `${tr("syncer:Edit Syncer")} (${this.state.syncer.name})`;
+  }
+
+  handleBack(): void {
+    this.props.history.push("/syncers");
+  }
+
+  renderEditFooter(): React.ReactNode {
     return (
-      <Card className="admin-large-edit-card syncer-edit-card" size="small" title={
-        <div>
-          {this.state.mode === "add" ? tr("syncer:New Syncer") : tr("syncer:Edit Syncer")}&nbsp;&nbsp;&nbsp;&nbsp;
-          <Button onClick={() => this.submitSyncerEdit(false)}>{tr("general:Save")}</Button>
-          <Button style={{marginLeft: "20px"}} type="primary" onClick={() => this.submitSyncerEdit(true)}>{tr("general:Save & Exit")}</Button>
-          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteSyncer()}>{tr("general:Cancel")}</Button> : null}
-        </div>
-      } style={(Setting.isMobile()) ? {margin: "5px"} : {}} type="inner">
-        <Row style={{marginTop: "10px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(tr("general:Organization"), tr("general:Organization - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <Select virtual={false} style={{width: "100%"}} disabled={!Setting.isAdminUser(this.props.account)} value={this.state.syncer.organization} onChange={(value => {this.updateSyncerField("organization", value);})}>
-              {
-                this.state.organizations.map((organization, index) => <Option key={index} value={organization.name}>{organization.name}</Option>)
-              }
-            </Select>
-          </Col>
-        </Row>
-        <Row style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(tr("general:Name"), tr("general:Name - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <Input value={this.state.syncer.name} onChange={e => {
-              this.updateSyncerField("name", e.target.value);
-            }} />
-          </Col>
-        </Row>
-        <Row style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(tr("general:Type"), tr("general:Type - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <Select virtual={false} style={{width: "100%"}} value={this.state.syncer.type} onChange={(value => {
-              this.updateSyncerField("type", value);
-              const syncer = this.state.syncer;
-              syncer["tableColumns"] = this.getSyncerTableColumns(this.state.syncer);
-              syncer.table = (value === "Keycloak") ? "user_entity" : this.state.syncer.table;
-              this.setState({
-                syncer: syncer,
-              });
-            })}>
-              {
-                ["Database", "Keycloak", "WeCom", "Azure AD", "Active Directory", "Google Workspace", "DingTalk", "Lark", "Okta", "SCIM", "AWS IAM"]
-                  .map((item, index) => <Option key={index} value={item}>{item}</Option>)
-              }
-            </Select>
-          </Col>
-        </Row>
-        {
-          this.state.syncer.type === "WeCom" || this.state.syncer.type === "Azure AD" || this.state.syncer.type === "Active Directory" || this.state.syncer.type === "Google Workspace" || this.state.syncer.type === "DingTalk" || this.state.syncer.type === "Lark" || this.state.syncer.type === "Okta" || this.state.syncer.type === "SCIM" || this.state.syncer.type === "AWS IAM" ? null : (
-            <Row style={{marginTop: "20px"}} >
+      <React.Fragment>
+        <Button onClick={() => this.handleBack()}>{tr("general:Cancel")}</Button>
+        <Button type="primary" onClick={() => this.submitSyncerEdit(false)}>{tr("general:Save")}</Button>
+        <Button onClick={() => this.submitSyncerEdit(true)}>{tr("syncer:Save and return")}</Button>
+      </React.Fragment>
+    );
+  }
+
+  getOrganizationDisplayName(organization: NamedRecord): string {
+    const displayName = organization.displayName;
+    return typeof displayName === "string" && displayName.trim() !== "" ? displayName.trim() : organization.name;
+  }
+
+  renderOrganizationOptions(): React.ReactNode {
+    return this.state.organizations.map((organization) => {
+      const displayName = this.getOrganizationDisplayName(organization);
+      return (
+        <Option key={organization.name} value={organization.name} label={displayName}>
+          <div className="admin-large-edit-organization-option syncer-edit-organization-option">
+            <span className="admin-large-edit-organization-option-name syncer-edit-organization-option-name">{displayName}</span>
+            {displayName !== organization.name ? (
+              <span className="admin-large-edit-organization-option-id syncer-edit-organization-option-id">{organization.name}</span>
+            ) : null}
+          </div>
+        </Option>
+      );
+    });
+  }
+
+  isKnownTabKey(key: unknown): key is SyncerEditTabKey {
+    return syncerEditTabKeys.includes(`${key}` as SyncerEditTabKey);
+  }
+
+  getInitialTabKey(): SyncerEditTabKey {
+    const hashKey = window.location.hash?.slice(1);
+    return this.isKnownTabKey(hashKey) ? hashKey : "basic";
+  }
+
+  getActiveTabKey(): SyncerEditTabKey {
+    return this.isKnownTabKey(this.state.activeTabKey) ? this.state.activeTabKey : "basic";
+  }
+
+  setActiveTabKey(key: string): void {
+    const nextKey = this.isKnownTabKey(key) ? key : "basic";
+    this.setState({activeTabKey: nextKey});
+    window.location.hash = nextKey;
+  }
+
+  renderEditTabs(): React.ReactNode {
+    return (
+      <LargeEditTabs
+        classPrefix="syncer-edit"
+        activeKey={this.getActiveTabKey()}
+        onChange={(key) => this.setActiveTabKey(key)}
+        items={[
+          {key: "basic", label: tr("syncer:Basic information")},
+          {key: "connection", label: tr("syncer:Connection configuration")},
+          {key: "mapping-status", label: tr("syncer:Mapping and status")},
+        ]}
+      />
+    );
+  }
+
+  renderSyncerForm(): React.ReactNode {
+    const activeTabKey = this.getActiveTabKey();
+    const errorText = typeof this.state.syncer.errorText === "string" ? this.state.syncer.errorText.trim() : "";
+
+    return (
+      <div className="syncer-edit-form-content">
+        {activeTabKey === "basic" ? (
+          <div className="admin-large-edit-form-content syncer-edit-tab-panel syncer-edit-tab-panel-basic">
+            <h2 className="admin-large-edit-content-section-title syncer-edit-section-title">{tr("syncer:Basic information")}</h2>
+            <Row style={{marginTop: "10px"}} >
               <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                {Setting.getLabel(tr("syncer:Database type"), tr("syncer:Database type - Tooltip"))} :
+                {Setting.getLabel(tr("general:Organization"), tr("general:Organization - Tooltip"))} :
               </Col>
               <Col span={22} >
-                <Select virtual={false} style={{width: "100%"}} value={this.state.syncer.databaseType} onChange={(value => {
-                  this.updateSyncerField("databaseType", value);
-                  if (value === "postgres") {
-                    this.updateSyncerField("sslMode", "disable");
-                  } else {
-                    this.updateSyncerField("sslMode", "");
-                  }
+                <Select
+                  virtual={false}
+                  showSearch
+                  optionLabelProp="label"
+                  style={{width: "100%"}}
+                  disabled={!Setting.isAdminUser(this.props.account)}
+                  value={this.state.syncer.organization}
+                  filterOption={(input, option) => {
+                    const optionText = `${option?.label ?? ""} ${option?.value ?? ""}`.toLowerCase();
+                    return optionText.includes(input.toLowerCase());
+                  }}
+                  onChange={(value => {this.updateSyncerField("organization", value);})}
+                >
+                  {this.renderOrganizationOptions()}
+                </Select>
+              </Col>
+            </Row>
+            <Row style={{marginTop: "20px"}} >
+              <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                {Setting.getLabel(tr("general:Name"), tr("general:Name - Tooltip"))} :
+              </Col>
+              <Col span={22} >
+                <Input value={this.state.syncer.name} onChange={e => {
+                  this.updateSyncerField("name", e.target.value);
+                }} />
+              </Col>
+            </Row>
+            <Row style={{marginTop: "20px"}} >
+              <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                {Setting.getLabel(tr("general:Type"), tr("general:Type - Tooltip"))} :
+              </Col>
+              <Col span={22} >
+                <Select virtual={false} style={{width: "100%"}} value={this.state.syncer.type} onChange={(value => {
+                  this.updateSyncerField("type", value);
+                  const syncer = this.state.syncer;
+                  syncer["tableColumns"] = this.getSyncerTableColumns(this.state.syncer);
+                  syncer.table = (value === "Keycloak") ? "user_entity" : this.state.syncer.table;
+                  this.setState({
+                    syncer: syncer,
+                  });
                 })}>
                   {
-                    [
-                      {id: "mysql", name: "MySQL"},
-                      {id: "postgres", name: "PostgreSQL"},
-                      {id: "mssql", name: "SQL Server"},
-                      {id: "oracle", name: "Oracle"},
-                      {id: "sqlite3", name: "Sqlite 3"},
-                    ].map((item, index) => <Option key={index} value={item.id}>{item.name}</Option>)
+                    ["Database", "Keycloak", "WeCom", "Azure AD", "Active Directory", "Google Workspace", "DingTalk", "Lark", "Okta", "SCIM", "AWS IAM"]
+                      .map((item, index) => <Option key={index} value={item}>{item}</Option>)
                   }
                 </Select>
               </Col>
             </Row>
-          )
-        }
-        {
-          this.state.syncer.databaseType !== "postgres" ? null : (
-            <Row style={{marginTop: "20px"}} >
-              <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                {Setting.getLabel(tr("provider:SSL mode"), tr("provider:SSL mode - Tooltip"))} :
-              </Col>
-              <Col span={22} >
-                <Select virtual={false} style={{width: "100%"}} value={this.state.syncer.sslMode} onChange={(value => {this.updateSyncerField("sslMode", value);})}>
-                  {
-                    [
-                      {id: "disable", name: "disable"},
-                      // {id: "allow", name: "allow"},
-                      // {id: "prefer", name: "prefer"},
-                      {id: "require", name: "require"},
-                      {id: "verify-ca", name: "verify-ca"},
-                      {id: "verify-full", name: "verify-full"},
-                    ].map((item, index) => <Option key={index} value={item.id}>{item.name}</Option>)
-                  }
-                </Select>
-              </Col>
-            </Row>
-          )
-        }
-        {
-          this.state.syncer.type === "WeCom" || this.state.syncer.type === "DingTalk" || this.state.syncer.type === "Lark" ? null : (
-            <Row style={{marginTop: "20px"}} >
-              <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                {Setting.getLabel(this.state.syncer.type === "Azure AD" ? tr("provider:Tenant ID") : this.state.syncer.type === "Google Workspace" ? tr("syncer:Admin Email") : this.state.syncer.type === "Active Directory" ? tr("ldap:Server") : this.state.syncer.type === "SCIM" ? tr("syncer:SCIM Server URL") : this.state.syncer.type === "AWS IAM" ? tr("syncer:AWS Region") : tr("provider:Host"), tr("provider:Host - Tooltip"))} :
-              </Col>
-              <Col span={22} >
-                <Input prefix={<LinkOutlined />} value={this.state.syncer.host} onChange={e => {
-                  this.updateSyncerField("host", e.target.value);
-                }} />
-              </Col>
-            </Row>
-          )
-        }
-        {
-          this.state.syncer.type === "WeCom" || this.state.syncer.type === "Azure AD" || this.state.syncer.type === "Google Workspace" || this.state.syncer.type === "DingTalk" || this.state.syncer.type === "Lark" || this.state.syncer.type === "Okta" || this.state.syncer.type === "SCIM" || this.state.syncer.type === "AWS IAM" ? null : (
-            <Row style={{marginTop: "20px"}} >
-              <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                {Setting.getLabel(this.state.syncer.type === "Active Directory" ? tr("provider:LDAP port") : tr("provider:Port"), tr("provider:Port - Tooltip"))} :
-              </Col>
-              <Col span={22} >
-                <InputNumber value={this.state.syncer.port} onChange={value => {
-                  this.updateSyncerField("port", value);
-                }} />
-              </Col>
-            </Row>
-          )
-        }
-        {
-          this.state.syncer.type === "Google Workspace" ? null : (
+          </div>
+        ) : null}
+        {activeTabKey === "connection" ? (
+          <div className="admin-large-edit-form-content syncer-edit-tab-panel syncer-edit-tab-panel-connection">
+            <h2 className="admin-large-edit-content-section-title syncer-edit-section-title">{tr("syncer:Connection configuration")}</h2>
+            {
+              this.state.syncer.type === "WeCom" || this.state.syncer.type === "Azure AD" || this.state.syncer.type === "Active Directory" || this.state.syncer.type === "Google Workspace" || this.state.syncer.type === "DingTalk" || this.state.syncer.type === "Lark" || this.state.syncer.type === "Okta" || this.state.syncer.type === "SCIM" || this.state.syncer.type === "AWS IAM" ? null : (
+                <Row style={{marginTop: "20px"}} >
+                  <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                    {Setting.getLabel(tr("syncer:Database type"), tr("syncer:Database type - Tooltip"))} :
+                  </Col>
+                  <Col span={22} >
+                    <Select virtual={false} style={{width: "100%"}} value={this.state.syncer.databaseType} onChange={(value => {
+                      this.updateSyncerField("databaseType", value);
+                      if (value === "postgres") {
+                        this.updateSyncerField("sslMode", "disable");
+                      } else {
+                        this.updateSyncerField("sslMode", "");
+                      }
+                    })}>
+                      {
+                        [
+                          {id: "mysql", name: "MySQL"},
+                          {id: "postgres", name: "PostgreSQL"},
+                          {id: "mssql", name: "SQL Server"},
+                          {id: "oracle", name: "Oracle"},
+                          {id: "sqlite3", name: "Sqlite 3"},
+                        ].map((item, index) => <Option key={index} value={item.id}>{item.name}</Option>)
+                      }
+                    </Select>
+                  </Col>
+                </Row>
+              )
+            }
+            {
+              this.state.syncer.databaseType !== "postgres" ? null : (
+                <Row style={{marginTop: "20px"}} >
+                  <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                    {Setting.getLabel(tr("provider:SSL mode"), tr("provider:SSL mode - Tooltip"))} :
+                  </Col>
+                  <Col span={22} >
+                    <Select virtual={false} style={{width: "100%"}} value={this.state.syncer.sslMode} onChange={(value => {this.updateSyncerField("sslMode", value);})}>
+                      {
+                        [
+                          {id: "disable", name: "disable"},
+                          // {id: "allow", name: "allow"},
+                          // {id: "prefer", name: "prefer"},
+                          {id: "require", name: "require"},
+                          {id: "verify-ca", name: "verify-ca"},
+                          {id: "verify-full", name: "verify-full"},
+                        ].map((item, index) => <Option key={index} value={item.id}>{item.name}</Option>)
+                      }
+                    </Select>
+                  </Col>
+                </Row>
+              )
+            }
+            {
+              this.state.syncer.type === "WeCom" || this.state.syncer.type === "DingTalk" || this.state.syncer.type === "Lark" ? null : (
+                <Row style={{marginTop: "20px"}} >
+                  <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                    {Setting.getLabel(this.state.syncer.type === "Azure AD" ? tr("provider:Tenant ID") : this.state.syncer.type === "Google Workspace" ? tr("syncer:Admin Email") : this.state.syncer.type === "Active Directory" ? tr("ldap:Server") : this.state.syncer.type === "SCIM" ? tr("syncer:SCIM Server URL") : this.state.syncer.type === "AWS IAM" ? tr("syncer:AWS Region") : tr("provider:Host"), tr("provider:Host - Tooltip"))} :
+                  </Col>
+                  <Col span={22} >
+                    <Input prefix={<LinkOutlined />} value={this.state.syncer.host} onChange={e => {
+                      this.updateSyncerField("host", e.target.value);
+                    }} />
+                  </Col>
+                </Row>
+              )
+            }
+            {
+              this.state.syncer.type === "WeCom" || this.state.syncer.type === "Azure AD" || this.state.syncer.type === "Google Workspace" || this.state.syncer.type === "DingTalk" || this.state.syncer.type === "Lark" || this.state.syncer.type === "Okta" || this.state.syncer.type === "SCIM" || this.state.syncer.type === "AWS IAM" ? null : (
+                <Row style={{marginTop: "20px"}} >
+                  <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                    {Setting.getLabel(this.state.syncer.type === "Active Directory" ? tr("provider:LDAP port") : tr("provider:Port"), tr("provider:Port - Tooltip"))} :
+                  </Col>
+                  <Col span={22} >
+                    <InputNumber value={this.state.syncer.port} onChange={value => {
+                      this.updateSyncerField("port", value);
+                    }} />
+                  </Col>
+                </Row>
+              )
+            }
+            {
+              this.state.syncer.type === "Google Workspace" ? null : (
+                <Row style={{marginTop: "20px"}} >
+                  <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                    {Setting.getLabel(
+                      this.state.syncer.type === "WeCom" ? tr("syncer:Corp ID") :
+                        this.state.syncer.type === "DingTalk" ? tr("provider:App Key") :
+                          this.state.syncer.type === "Lark" ? tr("provider:App ID") :
+                            this.state.syncer.type === "Azure AD" ? tr("provider:Client ID") :
+                              this.state.syncer.type === "Active Directory" ? tr("syncer:Bind DN") :
+                                this.state.syncer.type === "SCIM" ? tr("syncer:Username (optional)") :
+                                  this.state.syncer.type === "AWS IAM" ? tr("syncer:AWS Access Key ID") :
+                                    tr("general:User"),
+                      tr("general:User - Tooltip")
+                    )} :
+                  </Col>
+                  <Col span={22} >
+                    <Input value={this.state.syncer.user} onChange={e => {
+                      this.updateSyncerField("user", e.target.value);
+                    }} />
+                  </Col>
+                </Row>
+              )
+            }
             <Row style={{marginTop: "20px"}} >
               <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
                 {Setting.getLabel(
-                  this.state.syncer.type === "WeCom" ? tr("syncer:Corp ID") :
-                    this.state.syncer.type === "DingTalk" ? tr("provider:App Key") :
-                      this.state.syncer.type === "Lark" ? tr("provider:App ID") :
-                        this.state.syncer.type === "Azure AD" ? tr("provider:Client ID") :
-                          this.state.syncer.type === "Active Directory" ? tr("syncer:Bind DN") :
-                            this.state.syncer.type === "SCIM" ? tr("syncer:Username (optional)") :
-                              this.state.syncer.type === "AWS IAM" ? tr("syncer:AWS Access Key ID") :
-                                tr("general:User"),
-                  tr("general:User - Tooltip")
+                  this.state.syncer.type === "WeCom" ? tr("syncer:Corp secret") :
+                    this.state.syncer.type === "DingTalk" ? tr("provider:App secret") :
+                      this.state.syncer.type === "Lark" ? tr("provider:App secret") :
+                        this.state.syncer.type === "Azure AD" ? tr("provider:Client secret") :
+                          this.state.syncer.type === "Google Workspace" ? tr("syncer:Service account key") :
+                            this.state.syncer.type === "SCIM" ? tr("syncer:API Token / Password") :
+                              this.state.syncer.type === "AWS IAM" ? tr("syncer:AWS Secret Access Key") :
+                                tr("general:Password"),
+                  tr("general:Password - Tooltip")
                 )} :
               </Col>
               <Col span={22} >
-                <Input value={this.state.syncer.user} onChange={e => {
-                  this.updateSyncerField("user", e.target.value);
-                }} />
+                {
+                  this.state.syncer.type === "Google Workspace" ? (
+                    <Input.TextArea rows={4} value={this.state.syncer.password} onChange={e => {
+                      this.updateSyncerField("password", e.target.value);
+                    }} placeholder={tr("syncer:Paste your Google Workspace service account JSON key here")} />
+                  ) : (
+                    <Input.Password value={this.state.syncer.password} onChange={e => {
+                      this.updateSyncerField("password", e.target.value);
+                    }} />
+                  )
+                }
               </Col>
             </Row>
-          )
-        }
-        <Row style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(
-              this.state.syncer.type === "WeCom" ? tr("syncer:Corp secret") :
-                this.state.syncer.type === "DingTalk" ? tr("provider:App secret") :
-                  this.state.syncer.type === "Lark" ? tr("provider:App secret") :
-                    this.state.syncer.type === "Azure AD" ? tr("provider:Client secret") :
-                      this.state.syncer.type === "Google Workspace" ? tr("syncer:Service account key") :
-                        this.state.syncer.type === "SCIM" ? tr("syncer:API Token / Password") :
-                          this.state.syncer.type === "AWS IAM" ? tr("syncer:AWS Secret Access Key") :
-                            tr("general:Password"),
-              tr("general:Password - Tooltip")
-            )} :
-          </Col>
-          <Col span={22} >
             {
-              this.state.syncer.type === "Google Workspace" ? (
-                <Input.TextArea rows={4} value={this.state.syncer.password} onChange={e => {
-                  this.updateSyncerField("password", e.target.value);
-                }} placeholder={tr("syncer:Paste your Google Workspace service account JSON key here")} />
-              ) : (
-                <Input.Password value={this.state.syncer.password} onChange={e => {
-                  this.updateSyncerField("password", e.target.value);
-                }} />
+              this.state.syncer.type === "WeCom" || this.state.syncer.type === "Azure AD" || this.state.syncer.type === "Google Workspace" || this.state.syncer.type === "DingTalk" || this.state.syncer.type === "Lark" || this.state.syncer.type === "Okta" || this.state.syncer.type === "SCIM" || this.state.syncer.type === "AWS IAM" ? null : (
+                <Row style={{marginTop: "20px"}} >
+                  <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                    {Setting.getLabel(this.state.syncer.type === "Active Directory" ? tr("ldap:Base DN") : tr("syncer:Database"), tr("syncer:Database - Tooltip"))} :
+                  </Col>
+                  <Col span={22} >
+                    <Input value={this.state.syncer.database} onChange={e => {
+                      this.updateSyncerField("database", e.target.value);
+                    }} />
+                  </Col>
+                </Row>
               )
             }
-          </Col>
-        </Row>
-        {
-          this.state.syncer.type === "WeCom" || this.state.syncer.type === "Azure AD" || this.state.syncer.type === "Google Workspace" || this.state.syncer.type === "DingTalk" || this.state.syncer.type === "Lark" || this.state.syncer.type === "Okta" || this.state.syncer.type === "SCIM" || this.state.syncer.type === "AWS IAM" ? null : (
-            <Row style={{marginTop: "20px"}} >
-              <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                {Setting.getLabel(this.state.syncer.type === "Active Directory" ? tr("ldap:Base DN") : tr("syncer:Database"), tr("syncer:Database - Tooltip"))} :
-              </Col>
-              <Col span={22} >
-                <Input value={this.state.syncer.database} onChange={e => {
-                  this.updateSyncerField("database", e.target.value);
-                }} />
-              </Col>
-            </Row>
-          )
-        }
-        {
-          this.needSshfields() ? (
-            <Row style={{marginTop: "20px"}} >
-              <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                {Setting.getLabel(tr("general:SSH type"), tr("general:SSH type - Tooltip"))} :
-              </Col>
-              <Col span={22} >
-                <Radio.Group value={this.state.syncer.sshType} buttonStyle="solid" onChange={e => {
-                  this.updateSyncerField("sshType", e.target.value);
-                }}>
-                  <Radio.Button value="">{tr("general:None")}</Radio.Button>
-                  <Radio.Button value="password">{tr("general:Password")}</Radio.Button>
-                  <Radio.Button value="cert">{tr("general:Cert")}</Radio.Button>
-                </Radio.Group>
-              </Col>
-            </Row>
-          ) : null
-        }
-        {
-          this.state.syncer.sshType && this.needSshfields() ? (
-            <React.Fragment>
-              <Row style={{marginTop: "20px"}} >
-                <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                  {Setting.getLabel(tr("syncer:SSH host"), tr("provider:Host - Tooltip"))} :
-                </Col>
-                <Col span={22} >
-                  <Input prefix={<LinkOutlined />} value={this.state.syncer.sshHost} onChange={e => {
-                    this.updateSyncerField("sshHost", e.target.value);
-                  }} />
-                </Col>
-              </Row>
-              <Row style={{marginTop: "20px"}} >
-                <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                  {Setting.getLabel(tr("syncer:SSH port"), tr("provider:Port - Tooltip"))} :
-                </Col>
-                <Col span={22} >
-                  <InputNumber value={this.state.syncer.sshPort} onChange={value => {
-                    this.updateSyncerField("sshPort", value);
-                  }} />
-                </Col>
-              </Row>
-              <Row style={{marginTop: "20px"}} >
-                <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                  {Setting.getLabel(tr("syncer:SSH user"), tr("general:User - Tooltip"))} :
-                </Col>
-                <Col span={22} >
-                  <Input value={this.state.syncer.sshUser} onChange={e => {
-                    this.updateSyncerField("sshUser", e.target.value);
-                  }} />
-                </Col>
-              </Row>
-              {
-                this.state.syncer.sshType === "password" && this.needSshfields() ?
-                  (
-                    <Row style={{marginTop: "20px"}} >
-                      <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                        {Setting.getLabel(tr("syncer:SSH password"), tr("general:Password - Tooltip"))} :
-                      </Col>
-                      <Col span={22} >
-                        <Input.Password value={this.state.syncer.sshPassword} onChange={e => {
-                          this.updateSyncerField("ssh " + "sshPassword", e.target.value);
-                        }} />
-                      </Col>
-                    </Row>
-                  ) : (
-                    <Row style={{marginTop: "20px"}} >
-                      <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                        {Setting.getLabel(tr("general:SSH cert"), tr("general:Cert - Tooltip"))} :
-                      </Col>
-                      <Col span={22} >
-                        <Select virtual={false} style={{width: "100%"}} value={this.state.syncer.cert} onChange={(value => {this.updateSyncerField("cert", value);})}>
-                          {
-                            this.state?.certs.map((cert, index) => <Option key={index} value={cert.name}>{cert.name}</Option>)
-                          }
-                        </Select>
-                      </Col>
-                    </Row>
-                  )
-              }
-            </React.Fragment>
-          ) : null
-        }
-        {
-          this.state.syncer.type === "WeCom" || this.state.syncer.type === "Azure AD" || this.state.syncer.type === "Google Workspace" || this.state.syncer.type === "DingTalk" || this.state.syncer.type === "Lark" || this.state.syncer.type === "Okta" || this.state.syncer.type === "SCIM" || this.state.syncer.type === "AWS IAM" ? null : (
-            <Row style={{marginTop: "20px"}} >
-              <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                {Setting.getLabel(tr("syncer:Table"), tr("syncer:Table - Tooltip"))} :
-              </Col>
-              <Col span={22} >
-                <Input value={this.state.syncer.table} onChange={e => {
-                  this.updateSyncerField("table", e.target.value);
-                }} />
-              </Col>
-            </Row>
-          )
-        }
-        <Row style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(tr("provider:Syncer test"), tr("provider:Syncer test - Tooltip"))} :
-          </Col>
-          <Col span={2} >
-            <Button type={"primary"} loading={this.state.testDbLoading} onClick={() => {
-              this.setState({testDbLoading: true});
-              SyncerBackend.testSyncerDb(this.state.syncer)
-                .then((res) => {
-                  if (res.status === "ok") {
-                    this.setState({testDbLoading: false});
-                    Setting.showMessage("success", tr("syncer:Connect successfully"));
-                  } else {
-                    this.setState({testDbLoading: false});
-                    Setting.showMessage("error", `${tr("syncer:Failed to connect")}: ${res.msg}`);
-                  }
-                })
-                .catch(error => {
-                  this.setState({testDbLoading: false});
-                  Setting.showMessage("error", `${tr("general:Failed to connect to server")}: ${error}`);
-                });
+            {
+              this.needSshfields() ? (
+                <Row style={{marginTop: "20px"}} >
+                  <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                    {Setting.getLabel(tr("general:SSH type"), tr("general:SSH type - Tooltip"))} :
+                  </Col>
+                  <Col span={22} >
+                    <Radio.Group value={this.state.syncer.sshType} buttonStyle="solid" onChange={e => {
+                      this.updateSyncerField("sshType", e.target.value);
+                    }}>
+                      <Radio.Button value="">{tr("general:None")}</Radio.Button>
+                      <Radio.Button value="password">{tr("general:Password")}</Radio.Button>
+                      <Radio.Button value="cert">{tr("general:Cert")}</Radio.Button>
+                    </Radio.Group>
+                  </Col>
+                </Row>
+              ) : null
             }
-            }>{tr("syncer:Test Connection")}</Button>
-          </Col>
-        </Row>
-        <Row style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(tr("syncer:Table columns"), tr("syncer:Table columns - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <SyncerTableColumnTable
-              title={tr("syncer:Table columns")}
-              table={this.state.syncer.tableColumns}
-              onUpdateTable={(value) => {this.updateSyncerField("tableColumns", value);}}
-            />
-          </Col>
-        </Row>
-        <Row style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(tr("syncer:Affiliation table"), tr("syncer:Affiliation table - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <Input value={this.state.syncer.affiliationTable} onChange={e => {
-              this.updateSyncerField("affiliationTable", e.target.value);
-            }} />
-          </Col>
-        </Row>
-        <Row style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(tr("syncer:Avatar base URL"), tr("syncer:Avatar base URL - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <Input prefix={<LinkOutlined />} value={this.state.syncer.avatarBaseUrl} onChange={e => {
-              this.updateSyncerField("avatarBaseUrl", e.target.value);
-            }} />
-          </Col>
-        </Row>
-        <Row style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(tr("syncer:Sync interval"), tr("syncer:Sync interval - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <InputNumber value={this.state.syncer.syncInterval} onChange={value => {
-              this.updateSyncerField("syncInterval", value);
-            }} />
-          </Col>
-        </Row>
-        <Row style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(tr("syncer:Error text"), tr("syncer:Error text - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <div style={{width: "100%", height: "300px"}} >
-              <Editor
-                value={this.state.syncer.errorText}
-                fillHeight
-                readOnly
-                dark
-                lang="js"
-                onChange={(value: string) => {
-                  this.updateSyncerField("errorText", value);
-                }}
-              />
-            </div>
-          </Col>
-        </Row>
-        <Row style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 19 : 2}>
-            {Setting.getLabel(tr("syncer:Is read-only"), tr("syncer:Is read-only - Tooltip"))} :
-          </Col>
-          <Col span={1} >
-            <Switch checked={this.state.syncer.isReadOnly} onChange={checked => {
-              this.updateSyncerField("isReadOnly", checked);
-            }} />
-          </Col>
-        </Row>
-        <Row style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 19 : 2}>
-            {Setting.getLabel(tr("general:Is enabled"), tr("general:Is enabled - Tooltip"))} :
-          </Col>
-          <Col span={1} >
-            <Switch checked={this.state.syncer.isEnabled} onChange={checked => {
-              this.updateSyncerField("isEnabled", checked);
-            }} />
-          </Col>
-        </Row>
+            {
+              this.state.syncer.sshType && this.needSshfields() ? (
+                <React.Fragment>
+                  <Row style={{marginTop: "20px"}} >
+                    <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                      {Setting.getLabel(tr("syncer:SSH host"), tr("provider:Host - Tooltip"))} :
+                    </Col>
+                    <Col span={22} >
+                      <Input prefix={<LinkOutlined />} value={this.state.syncer.sshHost} onChange={e => {
+                        this.updateSyncerField("sshHost", e.target.value);
+                      }} />
+                    </Col>
+                  </Row>
+                  <Row style={{marginTop: "20px"}} >
+                    <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                      {Setting.getLabel(tr("syncer:SSH port"), tr("provider:Port - Tooltip"))} :
+                    </Col>
+                    <Col span={22} >
+                      <InputNumber value={this.state.syncer.sshPort} onChange={value => {
+                        this.updateSyncerField("sshPort", value);
+                      }} />
+                    </Col>
+                  </Row>
+                  <Row style={{marginTop: "20px"}} >
+                    <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                      {Setting.getLabel(tr("syncer:SSH user"), tr("general:User - Tooltip"))} :
+                    </Col>
+                    <Col span={22} >
+                      <Input value={this.state.syncer.sshUser} onChange={e => {
+                        this.updateSyncerField("sshUser", e.target.value);
+                      }} />
+                    </Col>
+                  </Row>
+                  {
+                    this.state.syncer.sshType === "password" && this.needSshfields() ?
+                      (
+                        <Row style={{marginTop: "20px"}} >
+                          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                            {Setting.getLabel(tr("syncer:SSH password"), tr("general:Password - Tooltip"))} :
+                          </Col>
+                          <Col span={22} >
+                            <Input.Password value={this.state.syncer.sshPassword} onChange={e => {
+                              this.updateSyncerField("ssh " + "sshPassword", e.target.value);
+                            }} />
+                          </Col>
+                        </Row>
+                      ) : (
+                        <Row style={{marginTop: "20px"}} >
+                          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                            {Setting.getLabel(tr("general:SSH cert"), tr("general:Cert - Tooltip"))} :
+                          </Col>
+                          <Col span={22} >
+                            <Select virtual={false} style={{width: "100%"}} value={this.state.syncer.cert} onChange={(value => {this.updateSyncerField("cert", value);})}>
+                              {
+                                this.state?.certs.map((cert, index) => <Option key={index} value={cert.name}>{cert.name}</Option>)
+                              }
+                            </Select>
+                          </Col>
+                        </Row>
+                      )
+                  }
+                </React.Fragment>
+              ) : null
+            }
+            {
+              this.state.syncer.type === "WeCom" || this.state.syncer.type === "Azure AD" || this.state.syncer.type === "Google Workspace" || this.state.syncer.type === "DingTalk" || this.state.syncer.type === "Lark" || this.state.syncer.type === "Okta" || this.state.syncer.type === "SCIM" || this.state.syncer.type === "AWS IAM" ? null : (
+                <Row style={{marginTop: "20px"}} >
+                  <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                    {Setting.getLabel(tr("syncer:Table"), tr("syncer:Table - Tooltip"))} :
+                  </Col>
+                  <Col span={22} >
+                    <Input value={this.state.syncer.table} onChange={e => {
+                      this.updateSyncerField("table", e.target.value);
+                    }} />
+                  </Col>
+                </Row>
+              )
+            }
+            <Row style={{marginTop: "20px"}} >
+              <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                {Setting.getLabel(tr("provider:Syncer test"), tr("provider:Syncer test - Tooltip"))} :
+              </Col>
+              <Col span={2} >
+                <Button type={"primary"} loading={this.state.testDbLoading} onClick={() => {
+                  this.setState({testDbLoading: true});
+                  SyncerBackend.testSyncerDb(this.state.syncer)
+                    .then((res) => {
+                      if (res.status === "ok") {
+                        this.setState({testDbLoading: false});
+                        Setting.showMessage("success", tr("syncer:Connect successfully"));
+                      } else {
+                        this.setState({testDbLoading: false});
+                        Setting.showMessage("error", `${tr("syncer:Failed to connect")}: ${res.msg}`);
+                      }
+                    })
+                    .catch(error => {
+                      this.setState({testDbLoading: false});
+                      Setting.showMessage("error", `${tr("general:Failed to connect to server")}: ${error}`);
+                    });
+                }
+                }>{tr("syncer:Test Connection")}</Button>
+              </Col>
+            </Row>
+          </div>
+        ) : null}
+        {activeTabKey === "mapping-status" ? (
+          <div className="admin-large-edit-form-content syncer-edit-tab-panel syncer-edit-tab-panel-mapping-status">
+            <h2 className="admin-large-edit-content-section-title syncer-edit-section-title">{tr("syncer:Mapping and status")}</h2>
+            <Row style={{marginTop: "20px"}} >
+              <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                {Setting.getLabel(tr("syncer:Table columns"), tr("syncer:Table columns - Tooltip"))} :
+              </Col>
+              <Col span={22} >
+                <SyncerTableColumnTable
+                  table={this.state.syncer.tableColumns}
+                  onUpdateTable={(value) => {this.updateSyncerField("tableColumns", value);}}
+                />
+              </Col>
+            </Row>
+            <Row style={{marginTop: "20px"}} >
+              <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                {Setting.getLabel(tr("syncer:Affiliation table"), tr("syncer:Affiliation table - Tooltip"))} :
+              </Col>
+              <Col span={22} >
+                <Input value={this.state.syncer.affiliationTable} onChange={e => {
+                  this.updateSyncerField("affiliationTable", e.target.value);
+                }} />
+              </Col>
+            </Row>
+            <Row style={{marginTop: "20px"}} >
+              <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                {Setting.getLabel(tr("syncer:Avatar base URL"), tr("syncer:Avatar base URL - Tooltip"))} :
+              </Col>
+              <Col span={22} >
+                <Input prefix={<LinkOutlined />} value={this.state.syncer.avatarBaseUrl} onChange={e => {
+                  this.updateSyncerField("avatarBaseUrl", e.target.value);
+                }} />
+              </Col>
+            </Row>
+            <Row style={{marginTop: "20px"}} >
+              <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                {Setting.getLabel(tr("syncer:Sync interval"), tr("syncer:Sync interval - Tooltip"))} :
+              </Col>
+              <Col span={22} >
+                <InputNumber value={this.state.syncer.syncInterval} onChange={value => {
+                  this.updateSyncerField("syncInterval", value);
+                }} />
+              </Col>
+            </Row>
+            <Row style={{marginTop: "20px"}} >
+              <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                {Setting.getLabel(tr("syncer:Error text"), tr("syncer:Error text - Tooltip"))} :
+              </Col>
+              <Col span={22} >
+                <div className={`syncer-edit-error-panel ${errorText === "" ? "syncer-edit-error-empty" : "syncer-edit-error-content"}`}>
+                  {errorText === "" ? (
+                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                  ) : (
+                    <Editor
+                      value={this.state.syncer.errorText}
+                      fillHeight
+                      readOnly
+                      dark
+                      lang="js"
+                      onChange={(value: string) => {
+                        this.updateSyncerField("errorText", value);
+                      }}
+                    />
+                  )}
+                </div>
+              </Col>
+            </Row>
+            <Row style={{marginTop: "20px"}} >
+              <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 19 : 2}>
+                {Setting.getLabel(tr("syncer:Is read-only"), tr("syncer:Is read-only - Tooltip"))} :
+              </Col>
+              <Col span={1} >
+                <Switch checked={this.state.syncer.isReadOnly} onChange={checked => {
+                  this.updateSyncerField("isReadOnly", checked);
+                }} />
+              </Col>
+            </Row>
+            <Row style={{marginTop: "20px"}} >
+              <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 19 : 2}>
+                {Setting.getLabel(tr("general:Is enabled"), tr("general:Is enabled - Tooltip"))} :
+              </Col>
+              <Col span={1} >
+                <Switch checked={this.state.syncer.isEnabled} onChange={checked => {
+                  this.updateSyncerField("isEnabled", checked);
+                }} />
+              </Col>
+            </Row>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  renderSyncer(): React.ReactNode {
+    return (
+      <Card
+        className="admin-large-edit-card syncer-edit-card"
+        size="small"
+        variant="borderless"
+        style={(Setting.isMobile()) ? {margin: "5px"} : {}}
+        styles={{body: {height: "100%", padding: 0}}}
+        type="inner"
+      >
+        <LargeEditShell
+          classPrefix="syncer-edit"
+          backLabel={tr("general:Back")}
+          breadcrumb={<React.Fragment>{tr("general:Authentication Source Center")} / {tr("general:Syncers")} /</React.Fragment>}
+          title={this.getSyncerEditTitle()}
+          tabs={this.renderEditTabs()}
+          actions={this.renderEditFooter()}
+          onBack={() => this.handleBack()}
+        >
+          {this.renderSyncerForm()}
+        </LargeEditShell>
       </Card>
     );
   }
 
   submitSyncerEdit(exitAfterSave: boolean) {
     const syncer = Setting.deepCopy(this.state.syncer) as SyncerEditRecord;
-    SyncerBackend.updateSyncer(this.state.syncer.owner, this.state.syncerName, syncer)
+    const request = this.state.mode === "add"
+      ? SyncerBackend.addSyncer(syncer)
+      : SyncerBackend.updateSyncer(this.state.syncer.owner, this.state.syncerName, syncer);
+
+    request
       .then((res) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", tr("general:Successfully saved"));
+          Setting.showMessage("success", this.state.mode === "add" ? tr("general:Successfully added") : tr("general:Successfully saved"));
           this.setState({
             syncerName: this.state.syncer.name,
+            mode: "edit",
           });
 
           if (exitAfterSave) {
@@ -1298,22 +1447,10 @@ class SyncerEditPage extends React.Component<SyncerEditProps, SyncerEditState> {
             this.props.history.push(`/syncers/${this.state.syncer.name}`);
           }
         } else {
-          Setting.showMessage("error", `${tr("general:Failed to save")}: ${res.msg}`);
-          this.updateSyncerField("name", this.state.syncerName);
-        }
-      })
-      .catch(error => {
-        Setting.showMessage("error", `${tr("general:Failed to connect to server")}: ${error}`);
-      });
-  }
-
-  deleteSyncer() {
-    SyncerBackend.deleteSyncer(this.state.syncer)
-      .then((res) => {
-        if (res.status === "ok") {
-          this.props.history.push("/syncers");
-        } else {
-          Setting.showMessage("error", `${tr("general:Failed to delete")}: ${res.msg}`);
+          Setting.showMessage("error", `${this.state.mode === "add" ? tr("general:Failed to add") : tr("general:Failed to save")}: ${res.msg}`);
+          if (this.state.mode !== "add") {
+            this.updateSyncerField("name", this.state.syncerName);
+          }
         }
       })
       .catch(error => {
@@ -1327,11 +1464,6 @@ class SyncerEditPage extends React.Component<SyncerEditProps, SyncerEditState> {
         {
           this.state.syncer !== null ? this.renderSyncer() : null
         }
-        <div style={{marginTop: "20px", marginLeft: "40px"}}>
-          <Button size="large" onClick={() => this.submitSyncerEdit(false)}>{tr("general:Save")}</Button>
-          <Button style={{marginLeft: "20px"}} type="primary" size="large" onClick={() => this.submitSyncerEdit(true)}>{tr("general:Save & Exit")}</Button>
-          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} size="large" onClick={() => this.deleteSyncer()}>{tr("general:Cancel")}</Button> : null}
-        </div>
       </div>
     );
   }

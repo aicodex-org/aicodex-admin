@@ -1,0 +1,106 @@
+/* stylelint-disable at-rule-name-case */
+/* stylelint-disable selector-class-pattern */
+/* stylelint-disable no-descending-specificity */
+
+/* Syncer edit page styles. Dynamic fields keep the shared legacy row boundary. */
+
+.syncer-edit-page {
+  --admin-large-edit-label-width: 168px;
+  --identity-edit-inline-action-height: 24px;
+  --identity-edit-inline-action-min-width: 42px;
+  --identity-edit-inline-action-padding: 0 10px;
+  --identity-edit-inline-action-font-size: 12px;
+  --identity-edit-inline-action-line-height: 22px;
+  --identity-edit-table-toolbar-action-height: 22px;
+  --identity-edit-table-toolbar-action-padding: 0 10px;
+  --identity-edit-table-toolbar-action-font-size: 12px;
+  --identity-edit-table-toolbar-action-line-height: 20px;
+
+  .admin-large-edit-page-root-base();
+
+  min-height: 0;
+}
+
+.syncer-edit-card {
+  .admin-large-edit-card-base();
+
+  box-shadow: none;
+}
+
+.syncer-edit-card > .ant-card-body {
+  .admin-large-edit-card-body-base();
+
+  display: flex;
+}
+
+.syncer-edit-tab-panel > .ant-row:first-child {
+  margin-top: 0 !important;
+}
+
+.syncer-edit-form-content .ant-input-number,
+.syncer-edit-form-content .ant-select {
+  max-width: 100%;
+}
+
+.syncer-edit-form-content .ant-table-wrapper {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.syncer-edit-page .syncer-table-column-toolbar {
+  .admin-large-edit-table-toolbar-base();
+
+  justify-content: flex-end;
+}
+
+.syncer-edit-page .syncer-table-column-toolbar .ant-btn-sm {
+  .admin-large-edit-table-toolbar-action-button-base();
+}
+
+.syncer-edit-page .syncer-table-column-table .ant-table-placeholder > td {
+  padding-top: 24px;
+  padding-bottom: 24px;
+}
+
+.syncer-edit-error-panel {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 4px;
+}
+
+.syncer-edit-error-content {
+  height: 180px;
+}
+
+.syncer-edit-error-empty {
+  display: flex;
+  min-height: 96px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--admin-shell-border-subtle, #e5e7eb);
+  background: var(--admin-shell-surface-soft-bg, #fafafa);
+}
+
+.syncer-edit-error-empty .ant-empty {
+  margin-block: 8px;
+}
+
+body.admin-shell-theme-dark .syncer-edit-card {
+  .admin-large-edit-dark-card-base();
+}
+
+body.admin-shell-theme-dark .syncer-edit-error-empty {
+  color: var(--admin-shell-text-secondary, rgb(148 163 184));
+  border-color: var(--admin-shell-border-subtle, rgb(51 65 85));
+  background: var(--admin-shell-surface-soft-bg, rgb(15 23 42));
+}
+
+@media screen and (max-width: 768px) {
+  .syncer-edit-page {
+    .admin-large-edit-mobile-page-base();
+  }
+
+  .syncer-edit-card {
+    .admin-large-edit-mobile-card-base();
+  }
+}

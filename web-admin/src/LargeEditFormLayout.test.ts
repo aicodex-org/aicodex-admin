@@ -315,6 +315,7 @@ describe("large edit page form layout", () => {
     expectCssRuleUsesMixin(appLess, ".group-edit-page", ".admin-large-edit-page-root-base()");
     expectCssRuleUsesMixin(appLess, ".user-edit-page", ".admin-large-edit-page-root-base()");
     expectCssRuleUsesMixin(appLess, ".application-edit-page", ".admin-large-edit-page-root-base()");
+    expectCssRuleUsesMixin(appLess, ".syncer-edit-page", ".admin-large-edit-page-root-base()");
     expectCssRuleUsesMixin(appLess, ".organization-edit-card", ".admin-large-edit-card-base()");
     expectCssRuleUsesMixin(appLess, ".identity-object-edit-card", ".admin-large-edit-card-base()");
     expectCssRuleUsesMixin(appLess, ".permission-edit-card", ".admin-large-edit-card-base()");
@@ -322,14 +323,18 @@ describe("large edit page form layout", () => {
     expectCssRuleUsesMixin(appLess, ".user-edit-card-wrap", ".admin-large-edit-card-frame-base()");
     expectCssRuleUsesMixin(appLess, ".user-edit-card", ".admin-large-edit-card-base()");
     expectCssRuleUsesMixin(appLess, ".application-edit-card", ".admin-large-edit-card-base()");
+    expectCssRuleUsesMixin(appLess, ".syncer-edit-card", ".admin-large-edit-card-base()");
     expectCssRuleUsesMixin(appLess, ".organization-edit-card > .ant-card-body", ".admin-large-edit-card-body-base()");
     expectCssRuleUsesMixin(appLess, ".identity-object-edit-card > .ant-card-body", ".admin-large-edit-card-body-base()");
     expectCssRuleUsesMixin(appLess, ".permission-edit-card > .ant-card-body", ".admin-large-edit-card-body-base()");
     expectCssRuleUsesMixin(appLess, ".group-edit-card > .ant-card-body", ".admin-large-edit-card-body-base()");
     expectCssRuleUsesMixin(appLess, ".user-edit-card > .ant-card-body", ".admin-large-edit-card-body-base()");
     expectCssRuleUsesMixin(appLess, ".application-edit-card > .ant-card-body", ".admin-large-edit-card-body-base()");
-    expect(appLess.match(/\.admin-large-edit-mobile-page-base\(\);/g) ?? []).toHaveLength(6);
-    expect(appLess.match(/\.admin-large-edit-mobile-card-base\(\);/g) ?? []).toHaveLength(6);
+    expectCssRuleUsesMixin(appLess, ".syncer-edit-card > .ant-card-body", ".admin-large-edit-card-body-base()");
+    const mobilePageMixinCount = (appLess.match(/\.admin-large-edit-mobile-page-base\(\);/g) ?? []).length;
+    const mobileCardMixinCount = (appLess.match(/\.admin-large-edit-mobile-card-base\(\);/g) ?? []).length;
+    expect(mobilePageMixinCount).toBe(mobileCardMixinCount);
+    expect(mobilePageMixinCount).toBeGreaterThanOrEqual(7);
     expectCssRuleUsesMixin(
       appLess,
       "body.admin-shell-theme-dark .identity-object-edit-page .ant-input,\nbody.admin-shell-theme-dark .identity-object-edit-page .ant-select .ant-select-selector",

@@ -14,7 +14,7 @@
 
 import React from "react";
 import {DeleteOutlined, DownOutlined, UpOutlined} from "@ant-design/icons";
-import {Button, Col, Input, Row, Select, Switch, Table, Tooltip} from "antd";
+import {Button, Input, Select, Switch, Table, Tooltip} from "antd";
 import * as Setting from "../Setting";
 import i18next from "i18next";
 
@@ -37,7 +37,6 @@ export interface SyncerTableColumnRecord {
 }
 
 interface SyncerTableColumnTableProps {
-  title: string;
   table?: SyncerTableColumnRecord[];
   onUpdateTable: (table: SyncerTableColumnRecord[]) => void;
 }
@@ -88,6 +87,11 @@ class SyncerTableColumnTable extends React.Component<SyncerTableColumnTableProps
   }
 
   renderTable(table: SyncerTableColumnRecord[] = []) {
+    const tableData = table.map((row, index) => ({
+      ...row,
+      syncerTableColumnKey: `${row.name || "column"}-${index}`,
+    }));
+
     const columns: SyncerTableColumns = [
       {
         title: tr("syncer:Column name"),
@@ -170,13 +174,13 @@ class SyncerTableColumnTable extends React.Component<SyncerTableColumnTableProps
           return (
             <div>
               <Tooltip placement="bottomLeft" title={tr("general:Up")}>
-                <Button style={{marginRight: "5px"}} disabled={index === 0} icon={<UpOutlined />} size="small" onClick={() => this.upRow(table, index)} />
+                <Button aria-label={tr("general:Up")} style={{marginRight: "5px"}} disabled={index === 0} icon={<UpOutlined />} size="small" onClick={() => this.upRow(table, index)} />
               </Tooltip>
               <Tooltip placement="topLeft" title={tr("general:Down")}>
-                <Button style={{marginRight: "5px"}} disabled={index === table.length - 1} icon={<DownOutlined />} size="small" onClick={() => this.downRow(table, index)} />
+                <Button aria-label={tr("general:Down")} style={{marginRight: "5px"}} disabled={index === table.length - 1} icon={<DownOutlined />} size="small" onClick={() => this.downRow(table, index)} />
               </Tooltip>
               <Tooltip placement="topLeft" title={tr("general:Delete")}>
-                <Button icon={<DeleteOutlined />} disabled={record.isKey && table.length > 1} size="small" onClick={() => this.deleteRow(table, index)} />
+                <Button aria-label={tr("general:Delete")} icon={<DeleteOutlined />} disabled={record.isKey && table.length > 1} size="small" onClick={() => this.deleteRow(table, index)} />
               </Tooltip>
             </div>
           );
@@ -185,11 +189,10 @@ class SyncerTableColumnTable extends React.Component<SyncerTableColumnTableProps
     ];
 
     return (
-      <Table rowKey="index" columns={columns} dataSource={table} size="middle" bordered pagination={false}
+      <Table rowKey="syncerTableColumnKey" columns={columns} dataSource={tableData} size="middle" bordered pagination={false}
         title={() => (
-          <div>
-            {this.props.title}&nbsp;&nbsp;&nbsp;&nbsp;
-            <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={() => this.addRow(table)}>{tr("general:Add")}</Button>
+          <div className="syncer-table-column-toolbar">
+            <Button aria-label={tr("general:Add")} type="primary" size="small" onClick={() => this.addRow(table)}>{tr("general:Add")}</Button>
           </div>
         )}
       />
@@ -198,14 +201,8 @@ class SyncerTableColumnTable extends React.Component<SyncerTableColumnTableProps
 
   render() {
     return (
-      <div>
-        <Row style={{marginTop: "20px"}} >
-          <Col span={24}>
-            {
-              this.renderTable(this.props.table)
-            }
-          </Col>
-        </Row>
+      <div className="syncer-table-column-table">
+        {this.renderTable(this.props.table)}
       </div>
     );
   }
