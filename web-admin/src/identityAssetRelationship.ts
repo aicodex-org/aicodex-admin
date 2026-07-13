@@ -164,6 +164,20 @@ function normalizeText(value: unknown): string {
   return `${value ?? ""}`.trim();
 }
 
+function getProviderSyncDiagnostics(providerSearchText: string): {label: string; to: string} {
+  const normalized = providerSearchText.toLowerCase();
+  if (normalized.includes("lark") || normalized.includes("feishu") || normalized.includes("飞书")) {
+    return {label: t("Feishu diagnostics", "Feishu diagnostics"), to: "/feishu-org-sync"};
+  }
+  if (normalized.includes("wecom") || normalized.includes("wechat") || normalized.includes("企业微信")) {
+    return {label: t("WeCom diagnostics", "WeCom diagnostics"), to: "/wecom-org-sync"};
+  }
+  if (normalized.includes("dingtalk") || normalized.includes("dingding") || normalized.includes("钉钉")) {
+    return {label: t("DingTalk diagnostics", "DingTalk diagnostics"), to: "/dingtalk-org-sync"};
+  }
+  return {label: t("Audit records", "Audit records"), to: "/records"};
+}
+
 function toArray(value: unknown): unknown[] {
   if (Array.isArray(value)) {
     return value;
@@ -493,6 +507,10 @@ export function buildProviderIdentityAssetDetail(
   const source = buildSource(context, {type: "Provider", id: objectId});
   const objectSource = buildCurrentObjectSource(context.pagePath, "Provider", objectId);
   const providerType = normalizeText(provider.type || provider.category || "Provider");
+  const providerSearchText = [provider.type, provider.category, provider.name, provider.displayName, provider.providerUrl]
+    .map(normalizeText)
+    .join(" ");
+  const diagnostics = getProviderSyncDiagnostics(providerSearchText || providerType);
   const configFields = [provider.clientId, provider.providerUrl].filter(value => normalizeText(value) !== "").length;
 
   const relationships: RelationshipItem[] = [
@@ -510,10 +528,10 @@ export function buildProviderIdentityAssetDetail(
       key: "sync-diagnostics",
       type: "sync_diagnostics",
       label: t("Sync diagnostics", "Sync diagnostics"),
-      value: providerType.toLowerCase().includes("lark") ? t("Feishu diagnostics", "Feishu diagnostics") : providerType.toLowerCase().includes("wecom") ? t("WeCom diagnostics", "WeCom diagnostics") : t("Audit records", "Audit records"),
+      value: diagnostics.label,
       status: "info",
       source: objectSource,
-      to: providerType.toLowerCase().includes("lark") ? "/feishu-org-sync" : providerType.toLowerCase().includes("wecom") ? "/wecom-org-sync" : "/records",
+      to: diagnostics.to,
       description: t("Provider diagnostics no execution description", "Open existing diagnostics or audit pages without executing sync or login."),
     },
     {

@@ -139,7 +139,7 @@ export function buildIdentityEvidenceChainCatalog(): IdentityEvidenceAsset[] {
       type: "Provider",
       id: "auth-source",
       displayName: t("Identity source", "认证源"),
-      organization: t("Identity source scope", "企业微信 / 飞书 / OIDC"),
+      organization: t("Identity source scope", "企业微信 / 飞书 / 钉钉 / OIDC"),
       status: t("Sync diagnostics", "同步诊断"),
       pagePath: "/providers",
       summary: t("Identity source summary", "核对身份源配置、组织同步诊断、目标组织和应用绑定缺口。"),

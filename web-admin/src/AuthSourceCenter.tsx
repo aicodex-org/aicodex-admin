@@ -221,7 +221,7 @@ function buildSummaryItems(cards: AuthSourceCenterCard[], providers: AuthProvide
       key: "enabled",
       label: "已启用认证源",
       value: enabledCount,
-      description: "企业微信 / 飞书 / OIDC",
+      description: t("Enabled auth source examples", "企业微信 / 飞书 / 钉钉 / OIDC"),
       tone: enabledCount > 0 ? "success" : "warning",
     },
     {
@@ -345,8 +345,9 @@ function AuthSourceCenter({providers = [], loading = false}: AuthSourceCenterPro
           <Text type="secondary">{t("Recent failure based on sync pages and audit records", "最近失败：以同步页面和审计记录为准")}</Text>
           <div className="enterprise-identity-inline-actions">
             <Link to="/records">查看审计记录</Link>
-            <Link to="/wecom-org-sync">企业微信诊断</Link>
-            <Link to="/feishu-org-sync">飞书诊断</Link>
+            <Link to="/wecom-org-sync">{t("Auth source wecom diagnostic", "企业微信诊断")}</Link>
+            <Link to="/feishu-org-sync">{t("Auth source feishu diagnostic", "飞书诊断")}</Link>
+            <Link to="/dingtalk-org-sync">{t("Auth source dingtalk diagnostic", "钉钉诊断")}</Link>
           </div>
         </div>
       </div>

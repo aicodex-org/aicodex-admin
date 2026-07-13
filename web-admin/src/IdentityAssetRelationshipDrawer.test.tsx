@@ -201,4 +201,36 @@ describe("IdentityAssetRelationshipDrawer", () => {
     expect(view.getByText("无权查看该对象关系")).not.toBeNull();
     expect(view.queryByText("Enterprise OIDC")).toBeNull();
   });
+
+  test("maps provider diagnostics to synced organization source pages", () => {
+    const feishuDetail = buildProviderIdentityAssetDetail({
+      owner: "admin",
+      name: "feishu-main",
+      displayName: "飞书 SSO",
+      category: "OAuth",
+      type: "Feishu",
+    }, {
+      pagePath: "/providers",
+      loadedRows: 1,
+    });
+    const dingtalkDetail = buildProviderIdentityAssetDetail({
+      owner: "admin",
+      name: "dingtalk-main",
+      displayName: "钉钉 SSO",
+      category: "OAuth",
+      type: "DingTalk",
+    }, {
+      pagePath: "/providers",
+      loadedRows: 1,
+    });
+
+    expect(feishuDetail.relationships.find(item => item.key === "sync-diagnostics")).toMatchObject({
+      value: "飞书诊断",
+      to: "/feishu-org-sync",
+    });
+    expect(dingtalkDetail.relationships.find(item => item.key === "sync-diagnostics")).toMatchObject({
+      value: "钉钉诊断",
+      to: "/dingtalk-org-sync",
+    });
+  });
 });

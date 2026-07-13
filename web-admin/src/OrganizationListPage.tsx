@@ -514,7 +514,7 @@ class OrganizationListPage extends TypedBaseListPage {
           {" · "}
           {t("general:Sync sources")}
           {": "}
-          {t("general:WeCom / Feishu")}
+          {t("general:WeCom / Feishu / DingTalk")}
           {" · "}
           {t("general:Boundary")}
           {": "}

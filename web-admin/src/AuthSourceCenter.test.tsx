@@ -122,6 +122,7 @@ describe("AuthSourceCenter", () => {
     expect(view.getAllByText("企业微信诊断").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/wecom-org-sync")).toBe(true);
     expect(view.getAllByText("飞书诊断").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/feishu-org-sync")).toBe(true);
     expect(view.getAllByText("钉钉诊断").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/dingtalk-org-sync")).toBe(true);
+    expect(container.querySelector(".auth-source-compact-audit a[href='/dingtalk-org-sync']")?.textContent).toBe("钉钉诊断");
     expect(view.getAllByText("查看审计记录").some((item: HTMLElement) => item.closest("a")?.getAttribute("href") === "/records")).toBe(true);
     expect(view.queryByText("失败摘要")).toBeNull();
     expect(view.queryByText("wecom-secret-value")).toBeNull();
