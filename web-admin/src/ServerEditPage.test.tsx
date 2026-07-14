@@ -218,6 +218,35 @@ describe("ServerEditPage", () => {
     expect(applicationBackendMock.getApplicationsByOrganization).toHaveBeenCalledWith("admin", "engineering");
   });
 
+  test("publishes the server display name for its workspace tab after loading", async() => {
+    const dispatchSpy = jest.spyOn(window, "dispatchEvent");
+    const page = createPage();
+    serverBackendMock.getServer.mockResolvedValue({status: "ok", data: {...server, displayName: "Search MCP"}});
+
+    page.getServer();
+    await flushPromises();
+
+    const dispatchedEvent = dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined;
+    expect(dispatchedEvent?.type).toBe("aicodex.admin.workspaceTabLabelUpdate");
+    expect(dispatchedEvent?.detail?.path).toBe("/servers/engineering/server-one");
+    expect(dispatchedEvent?.detail?.label).toMatch(/Search MCP$/);
+  });
+
+  test("only republishes the server workspace label for top-level display name changes", () => {
+    const dispatchSpy = jest.spyOn(window, "dispatchEvent");
+    const page = createPage();
+
+    page.updateServerField("name", "server-two");
+    page.updateServerField("tools", [{displayName: "Nested tool name"}]);
+    expect(dispatchSpy).not.toHaveBeenCalled();
+
+    page.updateServerField("displayName", "   ");
+
+    const dispatchedEvent = dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined;
+    expect(dispatchedEvent?.detail?.path).toBe("/servers/engineering/server-one");
+    expect(dispatchedEvent?.detail?.label).toMatch(/server-two$/);
+  });
+
   test("uses scoped Gateway edit layout hooks", () => {
     const page = createPage();
     const view = render(<>{page.render()}</>);

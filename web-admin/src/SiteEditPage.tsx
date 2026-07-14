@@ -24,6 +24,7 @@ import * as Setting from "./Setting";
 import i18nextLib from "i18next";
 import RuleTable from "./table/RuleTable";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
+import {WORKSPACE_TAB_LABEL_UPDATE_EVENT} from "./common/workspaceTabState";
 
 const {Option} = Select;
 const i18next = {t: (key: string) => i18nextLib.t(key) as string};
@@ -133,7 +134,7 @@ class SiteEditPage extends React.Component<SiteEditPageProps, SiteEditPageState>
         if (res.status === "ok") {
           this.setState({
             site: res.data,
-          });
+          }, () => this.publishWorkspaceTabLabel(res.data));
         } else {
           Setting.showMessage("error", `Failed to get site: ${res.msg}`);
         }
@@ -213,7 +214,38 @@ class SiteEditPage extends React.Component<SiteEditPageProps, SiteEditPageState>
     site[key] = value;
     this.setState({
       site: site,
+    }, () => {
+      if (key === "displayName") {
+        this.publishWorkspaceTabLabel(site);
+      }
     });
+  }
+
+  getCurrentWorkspaceTabPath(): string {
+    return `/sites/${this.state.owner}/${this.state.siteName}`;
+  }
+
+  getSiteWorkspaceTabLabel(site: SiteRecord): string {
+    const displayName = `${site.displayName ?? ""}`.trim();
+    const technicalName = `${site.name || this.state.siteName}`.trim() || this.state.siteName;
+    const editLabel = i18next.t("site:Edit Site");
+    const separator = /[\u3400-\u9fff]/.test(editLabel) ? "：" : ": ";
+
+    return `${editLabel}${separator}${displayName || technicalName}`;
+  }
+
+  // Site 成功加载或顶层显示名称变化后，只更新当前工作页标签，不改变编辑路由与标签顺序。
+  publishWorkspaceTabLabel(site: SiteRecord): void {
+    if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") {
+      return;
+    }
+
+    window.dispatchEvent(new CustomEvent(WORKSPACE_TAB_LABEL_UPDATE_EVENT, {
+      detail: {
+        path: this.getCurrentWorkspaceTabPath(),
+        label: this.getSiteWorkspaceTabLabel(site),
+      },
+    }));
   }
 
   renderSite() {

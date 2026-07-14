@@ -25,6 +25,7 @@ import * as Setting from "./Setting";
 import rawI18next from "i18next";
 import type {AdminRouteProps} from "./types/legacyPage";
 import type {PaymentApplicationRecord, PaymentOrganizationRecord, PlanRecord, PricingRecord} from "./types/businessPayment";
+import {WORKSPACE_TAB_LABEL_UPDATE_EVENT} from "./common/workspaceTabState";
 type LegacyAny = import("./types/legacyPage").LegacyAny;
 const i18next = rawI18next as unknown as {t: (key: string) => string};
 
@@ -79,7 +80,7 @@ class PricingEditPage extends React.Component<PricingEditProps, PricingEditState
 
         this.setState({
           pricing: res.data,
-        });
+        }, () => this.publishWorkspaceTabLabel(res.data));
         this.getPlans(this.state.organizationName);
       });
   }
@@ -134,7 +135,38 @@ class PricingEditPage extends React.Component<PricingEditProps, PricingEditState
 
     this.setState({
       pricing: pricing,
+    }, () => {
+      if (key === "displayName") {
+        this.publishWorkspaceTabLabel(pricing);
+      }
     });
+  }
+
+  getCurrentWorkspaceTabPath(): string {
+    return `/pricings/${this.state.organizationName}/${this.state.pricingName}`;
+  }
+
+  getPricingWorkspaceTabLabel(pricing: PricingRecord): string {
+    const displayName = typeof pricing.displayName === "string" ? pricing.displayName.trim() : "";
+    const objectName = displayName || `${pricing.name || this.state.pricingName}`.trim();
+    const editLabel = i18next.t("pricing:Edit Pricing");
+    const separator = /[\u3400-\u9fff]/.test(editLabel) ? "：" : ": ";
+
+    return `${editLabel}${separator}${objectName}`;
+  }
+
+  // 定价详情加载或顶层显示名称变化后，只更新当前工作页标签。
+  publishWorkspaceTabLabel(pricing: PricingRecord): void {
+    if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") {
+      return;
+    }
+
+    window.dispatchEvent(new CustomEvent(WORKSPACE_TAB_LABEL_UPDATE_EVENT, {
+      detail: {
+        path: this.getCurrentWorkspaceTabPath(),
+        label: this.getPricingWorkspaceTabLabel(pricing),
+      },
+    }));
   }
 
   renderPricing() {

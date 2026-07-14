@@ -23,6 +23,7 @@ import * as Setting from "./Setting";
 import rawI18next from "i18next";
 import type {AdminRouteProps, LegacyAny} from "./types/legacyPage";
 import type {PaymentOrganizationRecord, PaymentProviderRecord, PlanRecord} from "./types/businessPayment";
+import {WORKSPACE_TAB_LABEL_UPDATE_EVENT} from "./common/workspaceTabState";
 
 const {Option} = Select;
 const i18next = rawI18next as unknown as {t: (key: string) => string};
@@ -79,7 +80,7 @@ class PlanEditPage extends React.Component<PlanEditProps, PlanEditState> {
 
         this.setState({
           plan: res.data,
-        });
+        }, () => this.publishWorkspaceTabLabel(res.data));
 
         this.getPaymentProviders(this.state.organizationName);
       });
@@ -125,7 +126,38 @@ class PlanEditPage extends React.Component<PlanEditProps, PlanEditState> {
     plan[key] = value;
     this.setState({
       plan: plan,
+    }, () => {
+      if (key === "displayName") {
+        this.publishWorkspaceTabLabel(plan);
+      }
     });
+  }
+
+  getCurrentWorkspaceTabPath(): string {
+    return `/plans/${this.state.organizationName}/${this.state.planName}`;
+  }
+
+  getPlanWorkspaceTabLabel(plan: PlanRecord): string {
+    const displayName = typeof plan.displayName === "string" ? plan.displayName.trim() : "";
+    const objectName = displayName || `${plan.name || this.state.planName}`.trim();
+    const editLabel = i18next.t("plan:Edit Plan");
+    const separator = /[\u3400-\u9fff]/.test(editLabel) ? "：" : ": ";
+
+    return `${editLabel}${separator}${objectName}`;
+  }
+
+  // 套餐详情加载或顶层显示名称变化后，只更新当前工作页标签。
+  publishWorkspaceTabLabel(plan: PlanRecord): void {
+    if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") {
+      return;
+    }
+
+    window.dispatchEvent(new CustomEvent(WORKSPACE_TAB_LABEL_UPDATE_EVENT, {
+      detail: {
+        path: this.getCurrentWorkspaceTabPath(),
+        label: this.getPlanWorkspaceTabLabel(plan),
+      },
+    }));
   }
 
   renderPlan() {

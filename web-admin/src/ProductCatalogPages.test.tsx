@@ -586,6 +586,33 @@ test("keeps product list default organization, mobile and disabled action branch
   toolbarView.unmount();
 });
 
+test("publishes the product display name for its workspace tab after loading and editing", async() => {
+  const dispatchSpy = jestValue.spyOn(window, "dispatchEvent");
+  const page = createProductEditPage();
+
+  productBackendMock.getProduct.mockResolvedValueOnce({status: "ok", data: {...product, displayName: "Workspace Credits"}});
+  page.getProduct();
+  await flushPromises();
+
+  const loadedEvent = dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined;
+  expect(loadedEvent?.type).toBe("aicodex.admin.workspaceTabLabelUpdate");
+  expect(loadedEvent?.detail).toEqual({
+    path: "/products/built-in/workspace_credits",
+    label: "Edit Product: Workspace Credits",
+  });
+
+  const eventCountBeforeOtherFieldUpdate = dispatchSpy.mock.calls.length;
+  page.updateProductField("state", "Draft");
+  expect(dispatchSpy).toHaveBeenCalledTimes(eventCountBeforeOtherFieldUpdate);
+
+  page.updateProductField("displayName", "");
+  const updatedEvent = dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined;
+  expect(updatedEvent?.detail).toEqual({
+    path: "/products/built-in/workspace_credits",
+    label: "Edit Product: workspace_credits",
+  });
+});
+
 test("keeps product edit loading, provider filtering, rendering and field updates stable", async() => {
   const history = createHistory();
   const page = createProductEditPage({history});

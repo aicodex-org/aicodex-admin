@@ -23,6 +23,7 @@ import * as Setting from "./Setting";
 import i18next from "i18next";
 import type {AdminRouteProps, LegacyAny} from "./types/legacyPage";
 import type {OrderRecord, PaymentProductRecord, PaymentRecord} from "./types/businessPayment";
+import {WORKSPACE_TAB_LABEL_UPDATE_EVENT} from "./common/workspaceTabState";
 
 const {Option} = Select;
 
@@ -86,7 +87,7 @@ class OrderEditPage extends React.Component<OrderEditProps, OrderEditState> {
 
         this.setState({
           order: res.data,
-        });
+        }, () => this.publishWorkspaceTabLabel(res.data));
       });
   }
 
@@ -133,7 +134,38 @@ class OrderEditPage extends React.Component<OrderEditProps, OrderEditState> {
     order[key] = value;
     this.setState({
       order: order,
+    }, () => {
+      if (key === "displayName") {
+        this.publishWorkspaceTabLabel(order);
+      }
     });
+  }
+
+  getCurrentWorkspaceTabPath(): string {
+    return `/orders/${this.state.organizationName}/${this.state.orderName}`;
+  }
+
+  getOrderWorkspaceTabLabel(order: OrderRecord): string {
+    const displayName = typeof order.displayName === "string" ? order.displayName.trim() : "";
+    const objectName = displayName || `${order.name || this.state.orderName}`.trim();
+    const editLabel = t("order:Edit Order");
+    const separator = /[\u3400-\u9fff]/.test(editLabel) ? "：" : ": ";
+
+    return `${editLabel}${separator}${objectName}`;
+  }
+
+  // 订单详情加载或顶层显示名称变化后，只更新当前工作页标签，不读取关联商品名称。
+  publishWorkspaceTabLabel(order: OrderRecord): void {
+    if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") {
+      return;
+    }
+
+    window.dispatchEvent(new CustomEvent(WORKSPACE_TAB_LABEL_UPDATE_EVENT, {
+      detail: {
+        path: this.getCurrentWorkspaceTabPath(),
+        label: this.getOrderWorkspaceTabLabel(order),
+      },
+    }));
   }
 
   renderOrder() {

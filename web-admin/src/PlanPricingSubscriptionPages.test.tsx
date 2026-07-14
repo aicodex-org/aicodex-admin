@@ -619,6 +619,49 @@ test("keeps subscription list creation status renderers and failure branches sta
   expect(Setting.showMessage).toHaveBeenCalledWith("error", "Failed to delete: delete failed");
 });
 
+test("publishes plan pricing and subscription display names for their workspace tabs", async() => {
+  const dispatchSpy = jestValue.spyOn(window, "dispatchEvent");
+  const planPage = createPlanEditPage();
+  const pricingPage = createPricingEditPage();
+  const subscriptionPage = createSubscriptionEditPage();
+
+  planPage.getPlan();
+  await flushAsyncWork();
+  expect((dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined)?.detail).toEqual({
+    path: "/plans/built-in/plan_basic",
+    label: "Edit Plan: Basic Plan",
+  });
+  const planEventCountBeforeOtherFieldUpdate = dispatchSpy.mock.calls.length;
+  planPage.updatePlanField("price", 29);
+  expect(dispatchSpy).toHaveBeenCalledTimes(planEventCountBeforeOtherFieldUpdate);
+  planPage.updatePlanField("displayName", "");
+  expect((dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined)?.detail.label).toBe("Edit Plan: plan_basic");
+
+  pricingPage.getPricing();
+  await flushAsyncWork();
+  expect((dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined)?.detail).toEqual({
+    path: "/pricings/built-in/pricing_monthly",
+    label: "Edit Pricing: Workspace Pricing",
+  });
+  const pricingEventCountBeforeOtherFieldUpdate = dispatchSpy.mock.calls.length;
+  pricingPage.updatePricingField("trialDuration", 14);
+  expect(dispatchSpy).toHaveBeenCalledTimes(pricingEventCountBeforeOtherFieldUpdate);
+  pricingPage.updatePricingField("displayName", "");
+  expect((dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined)?.detail.label).toBe("Edit Pricing: pricing_monthly");
+
+  subscriptionPage.getSubscription();
+  await flushAsyncWork();
+  expect((dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined)?.detail).toEqual({
+    path: "/subscriptions/built-in/sub_123",
+    label: "Edit Subscription: Alice Subscription",
+  });
+  const subscriptionEventCountBeforeOtherFieldUpdate = dispatchSpy.mock.calls.length;
+  subscriptionPage.updateSubscriptionField("state", "Suspended");
+  expect(dispatchSpy).toHaveBeenCalledTimes(subscriptionEventCountBeforeOtherFieldUpdate);
+  subscriptionPage.updateSubscriptionField("displayName", "");
+  expect((dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined)?.detail.label).toBe("Edit Subscription: sub_123");
+});
+
 test("keeps plan edit loading field updates save delete and provider filtering stable", async() => {
   const history = createHistory();
   const page = createPlanEditPage({history});

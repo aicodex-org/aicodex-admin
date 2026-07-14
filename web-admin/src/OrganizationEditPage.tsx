@@ -34,6 +34,7 @@ import * as TransactionBackend from "./backend/TransactionBackend";
 import {getOrganizationNameTooltipKey, isOrganizationNameLocked} from "./OrganizationEditPageUtils";
 import {buildEnterpriseNavigationConfigTreeData} from "./enterpriseNavigation";
 import LargeEditShell from "./common/LargeEditShell";
+import {WORKSPACE_TAB_LABEL_UPDATE_EVENT} from "./common/workspaceTabState";
 
 const {Option} = Select;
 
@@ -255,7 +256,7 @@ class OrganizationEditPage extends React.Component<OrganizationEditPageProps, Or
             isDirty: false,
             validationErrors: {},
             assetPreviewErrors: {},
-          });
+          }, () => this.publishWorkspaceTabLabel(organization));
         } else {
           Setting.showMessage("error", res.msg);
         }
@@ -326,7 +327,37 @@ class OrganizationEditPage extends React.Component<OrganizationEditPageProps, Or
       organization: organization,
       isDirty: true,
       validationErrors: validationErrors,
+    }, () => {
+      if (key === "displayName") {
+        this.publishWorkspaceTabLabel(organization);
+      }
     });
+  }
+
+  getCurrentWorkspaceTabPath(): string {
+    return `/organizations/${this.state.organizationName}`;
+  }
+
+  getOrganizationWorkspaceTabLabel(organization: OrganizationRecord): string {
+    const displayName = `${organization.displayName || organization.name || this.state.organizationName}`.trim();
+    const editLabel = i18next.t("organization:Edit Organization");
+    const separator = /[\u3400-\u9fff]/.test(editLabel) ? "：" : ": ";
+
+    return `${editLabel}${separator}${displayName}`;
+  }
+
+  // 组织详情加载或显示名称变化后，只更新当前 workspace tab 的文字，不干预路由和标签顺序。
+  publishWorkspaceTabLabel(organization: OrganizationRecord): void {
+    if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") {
+      return;
+    }
+
+    window.dispatchEvent(new CustomEvent(WORKSPACE_TAB_LABEL_UPDATE_EVENT, {
+      detail: {
+        path: this.getCurrentWorkspaceTabPath(),
+        label: this.getOrganizationWorkspaceTabLabel(organization),
+      },
+    }));
   }
 
   updatePasswordObfuscator(key: "type" | "key", value: string): void {

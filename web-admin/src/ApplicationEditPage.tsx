@@ -55,6 +55,7 @@ import * as GroupBackend from "./backend/GroupBackend";
 import TokenAttributeTable from "./table/TokenAttributeTable";
 import PaginateSelect from "./common/PaginateSelect";
 import LargeEditShell, {LargeEditTabs} from "./common/LargeEditShell";
+import {WORKSPACE_TAB_LABEL_UPDATE_EVENT} from "./common/workspaceTabState";
 
 const {Option} = Select;
 
@@ -393,7 +394,7 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
       dirty: false,
       fieldErrors: {},
       postCreateReloadStatus: "idle",
-    });
+    }, () => this.publishWorkspaceTabLabel(application));
     this.getProviders(application);
     this.getCerts(application);
     this.getSamlMetadata(application.enableSamlPostBinding);
@@ -527,7 +528,37 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
       application: application,
       dirty: true,
       fieldErrors: fieldErrors,
+    }, () => {
+      if (key === "displayName") {
+        this.publishWorkspaceTabLabel(application);
+      }
     });
+  }
+
+  getCurrentWorkspaceTabPath(): string {
+    return `/applications/${this.props.match.params.organizationName}/${this.state.applicationName}`;
+  }
+
+  getApplicationWorkspaceTabLabel(application: ApplicationRecord): string {
+    const displayName = `${application.displayName || application.name || this.state.applicationName}`.trim();
+    const editLabel = String(i18next.t("application:Edit Application"));
+    const separator = /[\u3400-\u9fff]/.test(editLabel) ? "：" : ": ";
+
+    return `${editLabel}${separator}${displayName}`;
+  }
+
+  // 应用详情加载或显示名称变化后，只更新当前 workspace tab 的文字，不干预路由和标签顺序。
+  publishWorkspaceTabLabel(application: ApplicationRecord): void {
+    if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") {
+      return;
+    }
+
+    window.dispatchEvent(new CustomEvent(WORKSPACE_TAB_LABEL_UPDATE_EVENT, {
+      detail: {
+        path: this.getCurrentWorkspaceTabPath(),
+        label: this.getApplicationWorkspaceTabLabel(application),
+      },
+    }));
   }
 
   isKnownTabKey(key: unknown): key is ApplicationEditTabKey {

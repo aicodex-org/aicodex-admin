@@ -20,6 +20,7 @@ import * as Setting from "./Setting";
 import i18next from "i18next";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as ApplicationBackend from "./backend/ApplicationBackend";
+import {WORKSPACE_TAB_LABEL_UPDATE_EVENT} from "./common/workspaceTabState";
 
 const {Option} = Select;
 const {TextArea} = Input;
@@ -117,8 +118,13 @@ class EntryEditPage extends React.Component<EntryEditPageProps, EntryEditPageSta
         }
 
         if (res.status === "ok") {
+          const entry = res.data ?? null;
           this.setState({
-            entry: res.data ?? null,
+            entry: entry,
+          }, () => {
+            if (entry !== null) {
+              this.publishWorkspaceTabLabel(entry);
+            }
           });
         } else {
           Setting.showMessage("error", `${t("general:Failed to get")}: ${res.msg}`);
@@ -160,7 +166,37 @@ class EntryEditPage extends React.Component<EntryEditPageProps, EntryEditPageSta
     entry[key] = value as string;
     this.setState({
       entry: entry,
+    }, () => {
+      if (key === "displayName") {
+        this.publishWorkspaceTabLabel(entry);
+      }
     });
+  }
+
+  getCurrentWorkspaceTabPath(): string {
+    return `/entries/${this.state.owner}/${this.state.entryName}`;
+  }
+
+  getEntryWorkspaceTabLabel(entry: EntryRecord): string {
+    const displayName = `${entry.displayName || ""}`.trim() || `${entry.name || this.state.entryName}`.trim();
+    const editLabel = t("entry:Edit Entry");
+    const separator = /[\u3400-\u9fff]/.test(editLabel) ? "：" : ": ";
+
+    return `${editLabel}${separator}${displayName}`;
+  }
+
+  // 对象加载或顶层显示名称变化后，只更新当前编辑路由对应的工作页标签。
+  publishWorkspaceTabLabel(entry: EntryRecord): void {
+    if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") {
+      return;
+    }
+
+    window.dispatchEvent(new CustomEvent(WORKSPACE_TAB_LABEL_UPDATE_EVENT, {
+      detail: {
+        path: this.getCurrentWorkspaceTabPath(),
+        label: this.getEntryWorkspaceTabLabel(entry),
+      },
+    }));
   }
 
   submitEntryEdit(willExit: boolean): void {

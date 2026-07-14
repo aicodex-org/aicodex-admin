@@ -200,6 +200,33 @@ describe("EntryEditPage", () => {
     expect(applicationBackendMock.getApplicationsByOrganization).toHaveBeenCalledWith("admin", "engineering");
   });
 
+  test("publishes the entry display name for its workspace tab after loading and display-name edits", async() => {
+    const dispatchSpy = jest.spyOn(window, "dispatchEvent");
+    const page = createPage();
+
+    page.getEntry();
+    await flushPromises();
+
+    const loadedEvent = dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined;
+    expect(loadedEvent?.type).toBe("aicodex.admin.workspaceTabLabelUpdate");
+    expect(loadedEvent?.detail).toEqual({
+      path: "/entries/engineering/entry-one",
+      label: expect.stringMatching(/Entry One$/),
+    });
+
+    const loadDispatchCount = dispatchSpy.mock.calls.length;
+    page.updateEntryField("message", "updated message");
+    expect(dispatchSpy).toHaveBeenCalledTimes(loadDispatchCount);
+
+    page.updateEntryField("displayName", "   ");
+    expect(dispatchSpy).toHaveBeenCalledTimes(loadDispatchCount + 1);
+    const fallbackEvent = dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined;
+    expect(fallbackEvent?.detail).toEqual({
+      path: "/entries/engineering/entry-one",
+      label: expect.stringMatching(/entry-one$/),
+    });
+  });
+
   test("uses scoped Gateway edit layout hooks", () => {
     const page = createPage();
     const view = render(<>{page.render()}</>);

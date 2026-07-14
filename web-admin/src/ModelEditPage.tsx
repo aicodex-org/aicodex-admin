@@ -19,6 +19,7 @@ import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as Setting from "./Setting";
 import i18next from "i18next";
 import ModelEditor from "./CasbinEditor";
+import {WORKSPACE_TAB_LABEL_UPDATE_EVENT} from "./common/workspaceTabState";
 
 const {Option} = Select;
 
@@ -121,9 +122,10 @@ class ModelEditPage extends React.Component<ModelEditPageProps, ModelEditPageSta
           return;
         }
 
+        const model = res.data;
         this.setState({
-          model: res.data,
-        });
+          model: model,
+        }, () => this.publishWorkspaceTabLabel(model));
       });
   }
 
@@ -153,7 +155,37 @@ class ModelEditPage extends React.Component<ModelEditPageProps, ModelEditPageSta
     model[key] = value;
     this.setState({
       model: model,
+    }, () => {
+      if (key === "displayName") {
+        this.publishWorkspaceTabLabel(model);
+      }
     });
+  }
+
+  getCurrentWorkspaceTabPath(): string {
+    return `/models/${this.state.organizationName}/${this.state.modelName}`;
+  }
+
+  getModelWorkspaceTabLabel(model: ModelRecord): string {
+    const displayName = `${model.displayName || ""}`.trim() || `${model.name || this.state.modelName}`.trim();
+    const editLabel = t("model:Edit Model");
+    const separator = /[\u3400-\u9fff]/.test(editLabel) ? "：" : ": ";
+
+    return `${editLabel}${separator}${displayName}`;
+  }
+
+  // 对象加载或顶层显示名称变化后，只更新当前编辑路由对应的工作页标签。
+  publishWorkspaceTabLabel(model: ModelRecord): void {
+    if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") {
+      return;
+    }
+
+    window.dispatchEvent(new CustomEvent(WORKSPACE_TAB_LABEL_UPDATE_EVENT, {
+      detail: {
+        path: this.getCurrentWorkspaceTabPath(),
+        label: this.getModelWorkspaceTabLabel(model),
+      },
+    }));
   }
 
   renderModel(): React.ReactElement | null {

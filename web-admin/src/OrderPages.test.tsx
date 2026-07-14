@@ -556,6 +556,33 @@ test("keeps OrderListPage error branches and non-admin renderers stable", async(
   expect(Setting.showMessage).toHaveBeenCalledWith("error", "list failed");
 });
 
+test("publishes the order display name for its workspace tab after loading and editing", async() => {
+  const dispatchSpy = jestValue.spyOn(window, "dispatchEvent");
+  const page = createOrderEditPage();
+
+  orderBackendMock.getOrder.mockResolvedValueOnce({status: "ok", data: makeOrder({displayName: "Workspace Order"})});
+  page.getOrder();
+  await flushAsyncWork();
+
+  const loadedEvent = dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined;
+  expect(loadedEvent?.type).toBe("aicodex.admin.workspaceTabLabelUpdate");
+  expect(loadedEvent?.detail).toEqual({
+    path: "/orders/built-in/order_123",
+    label: "Edit Order: Workspace Order",
+  });
+
+  const eventCountBeforeOtherFieldUpdate = dispatchSpy.mock.calls.length;
+  page.updateOrderField("state", "Paid");
+  expect(dispatchSpy).toHaveBeenCalledTimes(eventCountBeforeOtherFieldUpdate);
+
+  page.updateOrderField("displayName", "");
+  const updatedEvent = dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined;
+  expect(updatedEvent?.detail).toEqual({
+    path: "/orders/built-in/order_123",
+    label: "Edit Order: order_123",
+  });
+});
+
 test("keeps OrderEditPage loading, field updates, save and delete behavior stable", async() => {
   const history = createHistory();
   const page = createOrderEditPage({history});

@@ -21,6 +21,7 @@ import i18next from "i18next";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as ApplicationBackend from "./backend/ApplicationBackend";
 import ToolTable from "./ToolTable";
+import {WORKSPACE_TAB_LABEL_UPDATE_EVENT} from "./common/workspaceTabState";
 
 const {Option} = Select;
 
@@ -132,8 +133,13 @@ class ServerEditPage extends React.Component<ServerEditPageProps, ServerEditPage
         }
 
         if (res.status === "ok") {
+          const server = res.data ?? null;
           this.setState({
-            server: res.data ?? null,
+            server: server,
+          }, () => {
+            if (server !== null) {
+              this.publishWorkspaceTabLabel(server);
+            }
           });
         } else {
           Setting.showMessage("error", `${t("general:Failed to get")}: ${res.msg}`);
@@ -175,7 +181,38 @@ class ServerEditPage extends React.Component<ServerEditPageProps, ServerEditPage
     server[key] = value;
     this.setState({
       server: server,
+    }, () => {
+      if (key === "displayName") {
+        this.publishWorkspaceTabLabel(server);
+      }
     });
+  }
+
+  getCurrentWorkspaceTabPath(): string {
+    return `/servers/${this.state.owner}/${this.state.serverName}`;
+  }
+
+  getServerWorkspaceTabLabel(server: ServerRecord): string {
+    const displayName = `${server.displayName ?? ""}`.trim();
+    const technicalName = `${server.name || this.state.serverName}`.trim() || this.state.serverName;
+    const editLabel = t("server:Edit MCP Server");
+    const separator = /[\u3400-\u9fff]/.test(editLabel) ? "：" : ": ";
+
+    return `${editLabel}${separator}${displayName || technicalName}`;
+  }
+
+  // Server 成功加载或顶层显示名称变化后，只更新当前工作页标签，不改变编辑路由与标签顺序。
+  publishWorkspaceTabLabel(server: ServerRecord): void {
+    if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") {
+      return;
+    }
+
+    window.dispatchEvent(new CustomEvent(WORKSPACE_TAB_LABEL_UPDATE_EVENT, {
+      detail: {
+        path: this.getCurrentWorkspaceTabPath(),
+        label: this.getServerWorkspaceTabLabel(server),
+      },
+    }));
   }
 
   submitServerEdit(willExit: boolean): void {

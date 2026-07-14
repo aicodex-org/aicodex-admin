@@ -21,6 +21,7 @@ import * as OrganizationBackend from "./backend/OrganizationBackend";
 import PolicyTable from "./table/PolicyTable";
 import * as Setting from "./Setting";
 import i18next from "i18next";
+import {WORKSPACE_TAB_LABEL_UPDATE_EVENT} from "./common/workspaceTabState";
 
 type Account = {
   owner: string;
@@ -146,9 +147,10 @@ class EnforcerEditPage extends React.Component<EnforcerEditPageProps, EnforcerEd
           return;
         }
 
+        const enforcer = res.data;
         this.setState({
-          enforcer: res.data,
-        });
+          enforcer: enforcer,
+        }, () => this.publishWorkspaceTabLabel(enforcer));
 
         this.getModels(this.state.organizationName);
         this.getAdapters(this.state.organizationName);
@@ -199,7 +201,37 @@ class EnforcerEditPage extends React.Component<EnforcerEditPageProps, EnforcerEd
     enforcer[key] = value;
     this.setState({
       enforcer: enforcer,
+    }, () => {
+      if (key === "displayName") {
+        this.publishWorkspaceTabLabel(enforcer);
+      }
     });
+  }
+
+  getCurrentWorkspaceTabPath(): string {
+    return `/enforcers/${this.state.organizationName}/${this.state.enforcerName}`;
+  }
+
+  getEnforcerWorkspaceTabLabel(enforcer: EnforcerRecord): string {
+    const displayName = `${enforcer.displayName || ""}`.trim() || `${enforcer.name || this.state.enforcerName}`.trim();
+    const editLabel = t("enforcer:Edit Enforcer");
+    const separator = /[\u3400-\u9fff]/.test(editLabel) ? "：" : ": ";
+
+    return `${editLabel}${separator}${displayName}`;
+  }
+
+  // 对象加载或顶层显示名称变化后，只更新当前编辑路由对应的工作页标签。
+  publishWorkspaceTabLabel(enforcer: EnforcerRecord): void {
+    if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") {
+      return;
+    }
+
+    window.dispatchEvent(new CustomEvent(WORKSPACE_TAB_LABEL_UPDATE_EVENT, {
+      detail: {
+        path: this.getCurrentWorkspaceTabPath(),
+        label: this.getEnforcerWorkspaceTabLabel(enforcer),
+      },
+    }));
   }
 
   renderEnforcer(): React.ReactElement | null {

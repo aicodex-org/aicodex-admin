@@ -354,7 +354,7 @@ describe("enterprise identity navigation", () => {
     const tabs = openWorkspaceTab([], "/agents/built-in/support-agent", routes);
 
     expect(tabs.map(tab => tab.path)).toEqual(["/", "/agents/built-in/support-agent"]);
-    expect(tabs[1].label).toBe("AI Agent 入口");
+    expect(tabs[1].label).toBe("编辑：support-agent");
   });
 
   test("covers matcher routes, empty state, and hidden admin-only entries", () => {

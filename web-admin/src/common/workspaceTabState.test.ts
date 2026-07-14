@@ -145,6 +145,64 @@ describe("workspaceTabState", () => {
     });
   });
 
+  test("uses an edit-specific label for application detail workspace tabs", () => {
+    const applicationRoutes = buildWorkspaceRouteItems([{
+      label: "应用接入",
+      children: [
+        {key: "/applications", label: "接入中心", detailLabel: "编辑应用", detailPathDepth: 3, to: "/applications", matchPrefixes: ["/applications"]},
+      ],
+    }]);
+    const tabs = openWorkspaceTab([], "/applications/engineering/portal", applicationRoutes);
+    const actionTabs = openWorkspaceTab([], "/applications/engineering/portal/buy", applicationRoutes);
+
+    expect(tabs.map(tab => tab.label)).toEqual(["/", "编辑应用：portal"]);
+    expect(actionTabs.map(tab => tab.label)).toEqual(["/", "接入中心"]);
+  });
+
+  test("reuses a list tab while keeping multiple object edit paths independent", () => {
+    const applicationRoutes = buildWorkspaceRouteItems([{
+      label: "应用接入",
+      children: [
+        {key: "/applications", label: "接入中心", detailLabel: "编辑应用", detailPathDepth: 3, to: "/applications", matchPrefixes: ["/applications"]},
+      ],
+    }]);
+    const listTabs = openWorkspaceTab([], "/applications", applicationRoutes);
+    const firstDraftTabs = openWorkspaceTab(listTabs, "/applications/engineering/application_draft_one", applicationRoutes);
+    const secondDraftTabs = openWorkspaceTab(firstDraftTabs, "/applications/engineering/application_draft_two", applicationRoutes);
+    const reopenedTabs = openWorkspaceTab(secondDraftTabs, "/applications/engineering/application_draft_one", applicationRoutes);
+
+    expect(reopenedTabs.map(tab => tab.path)).toEqual([
+      "/",
+      "/applications",
+      "/applications/engineering/application_draft_one",
+      "/applications/engineering/application_draft_two",
+    ]);
+    expect(reopenedTabs.map(tab => tab.label)).toEqual([
+      "/",
+      "接入中心",
+      "编辑应用：application_draft_one",
+      "编辑应用：application_draft_two",
+    ]);
+  });
+
+  test("preserves detail labels when opening another workspace route", () => {
+    const applicationRoutes = buildWorkspaceRouteItems([{
+      label: "应用接入",
+      children: [
+        {key: "/applications", label: "接入中心", detailLabel: "编辑应用", detailPathDepth: 3, to: "/applications", matchPrefixes: ["/applications"]},
+        {key: "/providers", label: "身份源中心", to: "/providers", matchPrefixes: ["/providers"]},
+      ],
+    }]);
+    const openedTabs = openWorkspaceTab([], "/applications/engineering/portal", applicationRoutes);
+    const detailTabs = updateWorkspaceTabLabel(openedTabs, {
+      path: "/applications/engineering/portal",
+      label: "编辑应用：AICodex Portal",
+    });
+    const navigatedTabs = openWorkspaceTab(detailTabs, "/providers", applicationRoutes);
+
+    expect(navigatedTabs.find(tab => tab.path === "/applications/engineering/portal")?.label).toBe("编辑应用：AICodex Portal");
+  });
+
   test("reads and saves session storage with restricted-storage fallback", () => {
     const stored: Record<string, string> = {};
     const storage = {

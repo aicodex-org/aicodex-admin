@@ -666,6 +666,54 @@ test("keeps ticket edit loading, message sending and navigation behavior", async
   expect(page.state.messageText).toBe("");
 });
 
+test("publishes the ticket display name for its workspace tab after loading", async() => {
+  const dispatchSpy = jest.spyOn(window, "dispatchEvent");
+  jest.spyOn(TicketBackend, "getTicket").mockResolvedValue({status: "ok", data: ticketRecord({displayName: "Tenant support"})});
+  const page = new (TicketEditPage as LegacyAny)({
+    ...routeProps,
+    history: {push: jest.fn()},
+    match: {params: {organizationName: "org-alpha", ticketName: "ticket_alpha"}},
+    location: {},
+  });
+  page.setState = jest.fn((patch: LegacyAny, callback?: () => void) => {
+    page.state = {...page.state, ...(typeof patch === "function" ? patch(page.state, page.props) : patch)};
+    callback?.();
+  });
+
+  page.getTicket();
+  await flushPromises();
+
+  const dispatchedEvent = dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined;
+  expect(dispatchedEvent?.type).toBe("aicodex.admin.workspaceTabLabelUpdate");
+  expect(dispatchedEvent?.detail?.path).toBe("/tickets/org-alpha/ticket_alpha");
+  expect(dispatchedEvent?.detail?.label).toMatch(/Tenant support$/);
+});
+
+test("only republishes the ticket workspace label for top-level display name changes", () => {
+  const dispatchSpy = jest.spyOn(window, "dispatchEvent");
+  const page = new (TicketEditPage as LegacyAny)({
+    ...routeProps,
+    history: {push: jest.fn()},
+    match: {params: {organizationName: "org-alpha", ticketName: "ticket_alpha"}},
+    location: {},
+  });
+  page.state.ticket = ticketRecord();
+  page.setState = jest.fn((patch: LegacyAny, callback?: () => void) => {
+    page.state = {...page.state, ...(typeof patch === "function" ? patch(page.state, page.props) : patch)};
+    callback?.();
+  });
+
+  page.updateTicketField("name", "ticket_beta");
+  page.updateTicketField("messages", [{displayName: "Nested message name"}]);
+  expect(dispatchSpy).not.toHaveBeenCalled();
+
+  page.updateTicketField("displayName", "   ");
+
+  const dispatchedEvent = dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined;
+  expect(dispatchedEvent?.detail?.path).toBe("/tickets/org-alpha/ticket_alpha");
+  expect(dispatchedEvent?.detail?.label).toMatch(/ticket_beta$/);
+});
+
 test("keeps ticket edit field controls, send failure and send shortcut behavior", async() => {
   const addTicketMessage = jest.spyOn(TicketBackend, "addTicketMessage")
     .mockResolvedValueOnce({status: "error", msg: "blocked"})

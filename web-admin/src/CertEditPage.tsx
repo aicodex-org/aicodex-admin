@@ -21,6 +21,7 @@ import rawI18next from "i18next";
 import copy from "copy-to-clipboard";
 import FileSaver from "file-saver";
 import LargeEditShell, {LargeEditTabs} from "./common/LargeEditShell";
+import {WORKSPACE_TAB_LABEL_UPDATE_EVENT} from "./common/workspaceTabState";
 
 const i18next = rawI18next as Omit<typeof rawI18next, "t"> & {
   t: (key: string, defaultValue?: string) => string;
@@ -53,7 +54,7 @@ class CertEditPage extends React.Component<AdminRouteProps, LegacyAny> {
 
   getCert() {
     if (this.state.mode === "add" && this.props.location.cert !== undefined) {
-      this.setState({cert: this.props.location.cert});
+      this.setState({cert: this.props.location.cert}, () => this.publishWorkspaceTabLabel(this.props.location.cert));
       return;
     }
 
@@ -71,7 +72,7 @@ class CertEditPage extends React.Component<AdminRouteProps, LegacyAny> {
 
         this.setState({
           cert: res.data,
-        });
+        }, () => this.publishWorkspaceTabLabel(res.data));
       });
   }
 
@@ -116,7 +117,40 @@ class CertEditPage extends React.Component<AdminRouteProps, LegacyAny> {
     cert[key] = value;
     this.setState({
       cert: cert,
+    }, () => {
+      if (key === "displayName") {
+        this.publishWorkspaceTabLabel(cert);
+      }
     });
+  }
+
+  getCurrentWorkspaceTabPath(): string {
+    return `/certs/${this.props.match.params.organizationName}/${this.props.match.params.certName}`;
+  }
+
+  getCertDisplayName(cert: LegacyAny): string {
+    return `${cert?.displayName || cert?.name || this.state.certName}`.trim();
+  }
+
+  getCertWorkspaceTabLabel(cert: LegacyAny): string {
+    const editLabel = i18next.t("general:Edit");
+    const separator = /[\u3400-\u9fff]/.test(editLabel) ? "：" : ": ";
+
+    return `${editLabel}${separator}${this.getCertDisplayName(cert)}`;
+  }
+
+  // 证书详情加载或显示名称变化后，只更新当前工作页标签，保持编辑路由与标签顺序不变。
+  publishWorkspaceTabLabel(cert: LegacyAny): void {
+    if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") {
+      return;
+    }
+
+    window.dispatchEvent(new CustomEvent(WORKSPACE_TAB_LABEL_UPDATE_EVENT, {
+      detail: {
+        path: this.getCurrentWorkspaceTabPath(),
+        label: this.getCertWorkspaceTabLabel(cert),
+      },
+    }));
   }
 
   getOrganizationDisplayName(organization: LegacyAny): string {
@@ -447,7 +481,7 @@ class CertEditPage extends React.Component<AdminRouteProps, LegacyAny> {
   }
 
   renderCert() {
-    const title = this.state.mode === "add" ? i18next.t("cert:New Cert") : `${i18next.t("cert:Edit Cert")} (${this.state.cert.name})`;
+    const title = this.state.mode === "add" ? i18next.t("cert:New Cert") : `${i18next.t("cert:Edit Cert")} (${this.getCertDisplayName(this.state.cert)})`;
     return (
       <Card className="admin-large-edit-card cert-edit-card admin-access-edit-card" size="small" variant="borderless" styles={{body: {height: "100%", padding: 0}}}>
         <LargeEditShell

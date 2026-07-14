@@ -530,6 +530,34 @@ test("loads model and organizations before rendering edit form", async() => {
   expect(view.getByDisplayValue("model description")).not.toBeNull();
 });
 
+test("publishes the model display name for its workspace tab after loading and display-name edits", async() => {
+  const dispatchSpy = jestValue.spyOn(window, "dispatchEvent");
+  const page = createEditPage();
+  modelBackendMock.getModel.mockResolvedValueOnce({status: "ok", data: {...model}});
+
+  page.getModel();
+  await flushPromises();
+
+  const loadedEvent = dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined;
+  expect(loadedEvent?.type).toBe("aicodex.admin.workspaceTabLabelUpdate");
+  expect(loadedEvent?.detail).toEqual({
+    path: "/models/engineering/rbac",
+    label: expect.stringMatching(/RBAC Model$/),
+  });
+
+  const loadDispatchCount = dispatchSpy.mock.calls.length;
+  page.updateModelField("description", "updated description");
+  expect(dispatchSpy).toHaveBeenCalledTimes(loadDispatchCount);
+
+  page.updateModelField("displayName", "   ");
+  expect(dispatchSpy).toHaveBeenCalledTimes(loadDispatchCount + 1);
+  const fallbackEvent = dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined;
+  expect(fallbackEvent?.detail).toEqual({
+    path: "/models/engineering/rbac",
+    label: expect.stringMatching(/rbac$/),
+  });
+});
+
 test("handles edit loading errors and null-safe operations", async() => {
   const history = createHistory();
   const page = createEditPage({history} as Partial<React.ComponentProps<typeof ModelEditPage>>);

@@ -605,6 +605,42 @@ test("keeps PaymentListPage permission and error branches stable", async() => {
   expect(Setting.showMessage).toHaveBeenCalledWith("error", "list failed");
 });
 
+test("publishes the payment display name for its workspace tab and keeps read-only updates silent", async() => {
+  const dispatchSpy = jestValue.spyOn(window, "dispatchEvent");
+  const page = createPaymentEditPage();
+
+  paymentBackendMock.getPayment.mockResolvedValueOnce({status: "ok", data: makePayment({displayName: "Workspace Payment"})});
+  page.getPayment();
+  await flushAsyncWork();
+
+  const loadedEvent = dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined;
+  expect(loadedEvent?.type).toBe("aicodex.admin.workspaceTabLabelUpdate");
+  expect(loadedEvent?.detail).toEqual({
+    path: "/payments/built-in/payment_123",
+    label: "Edit Payment: Workspace Payment",
+  });
+
+  const eventCountBeforeOtherFieldUpdate = dispatchSpy.mock.calls.length;
+  page.updatePaymentField("state", "Paid");
+  expect(dispatchSpy).toHaveBeenCalledTimes(eventCountBeforeOtherFieldUpdate);
+
+  page.updatePaymentField("displayName", "");
+  const updatedEvent = dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined;
+  expect(updatedEvent?.detail).toEqual({
+    path: "/payments/built-in/payment_123",
+    label: "Edit Payment: payment_123",
+  });
+
+  const readOnlyPage = createPaymentEditPage({location: {mode: "view"}});
+  paymentBackendMock.getPayment.mockResolvedValueOnce({status: "ok", data: makePayment({displayName: "Read-only Payment"})});
+  readOnlyPage.getPayment();
+  await flushAsyncWork();
+  const eventCountAfterReadOnlyLoad = dispatchSpy.mock.calls.length;
+
+  readOnlyPage.updatePaymentField("displayName", "Ignored Payment");
+  expect(dispatchSpy).toHaveBeenCalledTimes(eventCountAfterReadOnlyLoad);
+});
+
 test("keeps PaymentEditPage loading, invoice actions, save and delete behavior stable", async() => {
   const history = createHistory();
   const page = createPaymentEditPage({history});

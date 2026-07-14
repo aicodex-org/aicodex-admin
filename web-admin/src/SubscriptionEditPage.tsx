@@ -26,6 +26,7 @@ import rawI18next from "i18next";
 import dayjs from "dayjs";
 import type {AdminRouteProps, LegacyAny} from "./types/legacyPage";
 import type {PaymentOrganizationRecord, PlanRecord, PricingRecord, SubscriptionRecord} from "./types/businessPayment";
+import {WORKSPACE_TAB_LABEL_UPDATE_EVENT} from "./common/workspaceTabState";
 const i18next = rawI18next as unknown as {t: (key: string) => string};
 
 interface SubscriptionEditProps extends AdminRouteProps {
@@ -87,7 +88,7 @@ class SubscriptionEditPage extends React.Component<SubscriptionEditProps, Subscr
 
         this.setState({
           subscription: res.data,
-        });
+        }, () => this.publishWorkspaceTabLabel(res.data));
 
         this.getPricings(this.state.organizationName);
         this.getPlans(this.state.organizationName);
@@ -138,7 +139,38 @@ class SubscriptionEditPage extends React.Component<SubscriptionEditProps, Subscr
     subscription[key] = value;
     this.setState({
       subscription: subscription,
+    }, () => {
+      if (key === "displayName") {
+        this.publishWorkspaceTabLabel(subscription);
+      }
     });
+  }
+
+  getCurrentWorkspaceTabPath(): string {
+    return `/subscriptions/${this.state.organizationName}/${this.state.subscriptionName}`;
+  }
+
+  getSubscriptionWorkspaceTabLabel(subscription: SubscriptionRecord): string {
+    const displayName = typeof subscription.displayName === "string" ? subscription.displayName.trim() : "";
+    const objectName = displayName || `${subscription.name || this.state.subscriptionName}`.trim();
+    const editLabel = i18next.t("subscription:Edit Subscription");
+    const separator = /[\u3400-\u9fff]/.test(editLabel) ? "：" : ": ";
+
+    return `${editLabel}${separator}${objectName}`;
+  }
+
+  // 订阅详情加载或顶层显示名称变化后，只更新当前工作页标签，不读取关联套餐名称。
+  publishWorkspaceTabLabel(subscription: SubscriptionRecord): void {
+    if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") {
+      return;
+    }
+
+    window.dispatchEvent(new CustomEvent(WORKSPACE_TAB_LABEL_UPDATE_EVENT, {
+      detail: {
+        path: this.getCurrentWorkspaceTabPath(),
+        label: this.getSubscriptionWorkspaceTabLabel(subscription),
+      },
+    }));
   }
 
   renderSubscription() {

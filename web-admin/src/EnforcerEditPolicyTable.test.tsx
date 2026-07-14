@@ -451,6 +451,34 @@ test("loads enforcer edit data and renders policy table props", async() => {
   expect(view.getByDisplayValue("enforcer description")).not.toBeNull();
 });
 
+test("publishes the enforcer display name for its workspace tab after loading and display-name edits", async() => {
+  const dispatchSpy = jestValue.spyOn(window, "dispatchEvent");
+  const page = createEditPage();
+  enforcerBackendMock.getEnforcer.mockResolvedValueOnce({status: "ok", data: {...enforcer}});
+
+  page.getEnforcer();
+  await flushPromises();
+
+  const loadedEvent = dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined;
+  expect(loadedEvent?.type).toBe("aicodex.admin.workspaceTabLabelUpdate");
+  expect(loadedEvent?.detail).toEqual({
+    path: "/enforcers/engineering/main-enforcer",
+    label: expect.stringMatching(/Main Enforcer$/),
+  });
+
+  const loadDispatchCount = dispatchSpy.mock.calls.length;
+  page.updateEnforcerField("description", "updated description");
+  expect(dispatchSpy).toHaveBeenCalledTimes(loadDispatchCount);
+
+  page.updateEnforcerField("displayName", "   ");
+  expect(dispatchSpy).toHaveBeenCalledTimes(loadDispatchCount + 1);
+  const fallbackEvent = dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined;
+  expect(fallbackEvent?.detail).toEqual({
+    path: "/enforcers/engineering/main-enforcer",
+    label: expect.stringMatching(/main-enforcer$/),
+  });
+});
+
 test("updates enforcer fields and saves navigation paths", async() => {
   const history = createHistory();
   const page = createEditPage({history} as Partial<React.ComponentProps<typeof EnforcerEditPage>>);

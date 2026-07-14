@@ -17,6 +17,8 @@ import type {LegacyAny} from "./types/legacyPage";
 type NavigationItem = {
   key: string;
   label: LegacyAny;
+  detailLabel?: LegacyAny;
+  detailPathDepth?: number;
   to?: string;
   href?: string;
   external?: boolean;
@@ -32,6 +34,59 @@ type NavigationGroup = {
   icon: React.ReactNode;
   children: NavigationItem[];
 };
+
+// 只为确实存在对象编辑页的导航项声明详情深度，避免将购买、支付等动作子页误标为编辑对象。
+const workspaceDetailPathDepths: Readonly<Record<string, number>> = {
+  "/organizations": 2,
+  "/users": 3,
+  "/invitations": 3,
+  "/applications": 3,
+  "/providers": 3,
+  "/certs": 3,
+  "/keys": 3,
+  "/roles": 3,
+  "/permissions": 3,
+  "/models": 3,
+  "/adapters": 3,
+  "/enforcers": 3,
+  "/tokens": 2,
+  "/agents": 3,
+  "/servers": 3,
+  "/entries": 3,
+  "/sites": 3,
+  "/rules": 3,
+  "/forms": 2,
+  "/tickets": 3,
+  "/syncers": 2,
+  "/products": 3,
+  "/orders": 3,
+  "/payments": 3,
+  "/plans": 3,
+  "/pricings": 3,
+  "/subscriptions": 3,
+  "/transactions": 3,
+  "/webhooks": 2,
+};
+
+function addWorkspaceDetailMetadata(groups: NavigationGroup[]): NavigationGroup[] {
+  const editLabel = i18next.t("general:Edit");
+
+  return groups.map((group) => ({
+    ...group,
+    children: group.children.map((item) => {
+      const detailPathDepth = workspaceDetailPathDepths[item.key];
+      if (detailPathDepth === undefined) {
+        return item;
+      }
+
+      return {
+        ...item,
+        detailLabel: editLabel,
+        detailPathDepth,
+      };
+    }),
+  }));
+}
 
 function matchMenuItem(uri: string, item: NavigationItem) {
   if (typeof item.matcher === "function") {
@@ -190,7 +245,7 @@ function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin
     },
   ];
 
-  return groups;
+  return addWorkspaceDetailMetadata(groups);
 }
 
 function isNavigationItemVisible(item: NavigationItem) {

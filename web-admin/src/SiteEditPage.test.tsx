@@ -298,6 +298,35 @@ describe("SiteEditPage", () => {
     expect(page.state.providers).toEqual(["Email/mail", "SMS/sms"]);
   });
 
+  test("publishes the site display name for its workspace tab after loading", async() => {
+    const dispatchSpy = jest.spyOn(window, "dispatchEvent");
+    const page = createPage();
+    siteBackendMock.getSite.mockResolvedValue({status: "ok", data: {...site, displayName: "Admin Gateway"}});
+
+    page.getSite();
+    await flushPromises();
+
+    const dispatchedEvent = dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined;
+    expect(dispatchedEvent?.type).toBe("aicodex.admin.workspaceTabLabelUpdate");
+    expect(dispatchedEvent?.detail?.path).toBe("/sites/engineering/site-one");
+    expect(dispatchedEvent?.detail?.label).toMatch(/Admin Gateway$/);
+  });
+
+  test("only republishes the site workspace label for top-level display name changes", () => {
+    const dispatchSpy = jest.spyOn(window, "dispatchEvent");
+    const page = createPage();
+
+    page.updateSiteField("name", "site-two");
+    page.updateSiteField("rules", [{displayName: "Nested rule name"}]);
+    expect(dispatchSpy).not.toHaveBeenCalled();
+
+    page.updateSiteField("displayName", "");
+
+    const dispatchedEvent = dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined;
+    expect(dispatchedEvent?.detail?.path).toBe("/sites/engineering/site-one");
+    expect(dispatchedEvent?.detail?.label).toMatch(/site-two$/);
+  });
+
   test("calls the legacy data loaders during unsafe mount", () => {
     const page = createPage();
     jest.spyOn(page, "getOrganizations").mockImplementation(() => {});

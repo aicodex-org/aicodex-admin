@@ -551,6 +551,33 @@ test("renders UI customization image URLs on the standard field axis", () => {
   expect(view.getAllByText("Not configured").length).toBeGreaterThanOrEqual(1);
 });
 
+test("publishes the application display name for its workspace tab after loading and editing", async() => {
+  const dispatchSpy = jest.spyOn(window, "dispatchEvent");
+  const page = createPage({application: {displayName: "AICodex Portal"}});
+  applicationBackendMock.getApplication.mockResolvedValue({
+    status: "ok",
+    data: {...baseApplication, displayName: "AICodex Portal"},
+  });
+
+  page.getApplication();
+  await flushPromises();
+
+  const dispatchedEvent = dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined;
+  expect(dispatchedEvent?.type).toBe("aicodex.admin.workspaceTabLabelUpdate");
+  expect(dispatchedEvent?.detail).toEqual({
+    path: "/applications/engineering/portal",
+    label: "Edit Application: AICodex Portal",
+  });
+
+  page.updateApplicationField("displayName", "Portal Updated");
+
+  const updatedEvent = dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined;
+  expect(updatedEvent?.detail).toEqual({
+    path: "/applications/engineering/portal",
+    label: "Edit Application: Portal Updated",
+  });
+});
+
 test("marks application dirty on field updates and confirms before canceling", () => {
   const page = createPage();
   const confirmSpy = jest.spyOn(Modal, "confirm").mockImplementation((config: Parameters<typeof Modal.confirm>[0]) => {

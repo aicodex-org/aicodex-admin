@@ -20,6 +20,7 @@ import * as Setting from "./Setting";
 import i18next from "i18next";
 import type {AdminRouteProps, LegacyAny} from "./types/legacyPage";
 import type {PaymentRecord} from "./types/businessPayment";
+import {WORKSPACE_TAB_LABEL_UPDATE_EVENT} from "./common/workspaceTabState";
 
 const {Option} = Select;
 
@@ -79,7 +80,7 @@ class PaymentEditPage extends React.Component<PaymentEditProps, PaymentEditState
 
         this.setState({
           payment: res.data,
-        });
+        }, () => this.publishWorkspaceTabLabel(res.data));
 
         Setting.scrollToDiv("invoice-area");
       });
@@ -115,7 +116,38 @@ class PaymentEditPage extends React.Component<PaymentEditProps, PaymentEditState
     payment[key] = value;
     this.setState({
       payment: payment,
+    }, () => {
+      if (key === "displayName" && this.state.mode !== "view") {
+        this.publishWorkspaceTabLabel(payment);
+      }
     });
+  }
+
+  getCurrentWorkspaceTabPath(): string {
+    return `/payments/${this.state.organizationName}/${this.state.paymentName}`;
+  }
+
+  getPaymentWorkspaceTabLabel(payment: PaymentRecord): string {
+    const displayName = typeof payment.displayName === "string" ? payment.displayName.trim() : "";
+    const objectName = displayName || `${payment.name || this.state.paymentName}`.trim();
+    const editLabel = t("payment:Edit Payment");
+    const separator = /[\u3400-\u9fff]/.test(editLabel) ? "：" : ": ";
+
+    return `${editLabel}${separator}${objectName}`;
+  }
+
+  // 支付详情加载后更新工作页标签；只读模式中的字段调用不发布编辑态标题。
+  publishWorkspaceTabLabel(payment: PaymentRecord): void {
+    if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") {
+      return;
+    }
+
+    window.dispatchEvent(new CustomEvent(WORKSPACE_TAB_LABEL_UPDATE_EVENT, {
+      detail: {
+        path: this.getCurrentWorkspaceTabPath(),
+        label: this.getPaymentWorkspaceTabLabel(payment),
+      },
+    }));
   }
 
   issueInvoice() {

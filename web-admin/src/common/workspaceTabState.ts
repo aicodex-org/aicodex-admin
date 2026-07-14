@@ -13,6 +13,8 @@ type WorkspaceMatcher = (uri: string) => boolean;
 export interface WorkspaceNavigationItem {
   key: string;
   label: ReactNode;
+  detailLabel?: ReactNode;
+  detailPathDepth?: number;
   to?: string;
   external?: boolean;
   fixed?: boolean;
@@ -30,6 +32,8 @@ export interface WorkspaceRouteItem {
   key: string;
   path: string;
   label: string;
+  detailLabel?: string;
+  detailPathDepth?: number;
   groupLabel?: string;
   fixed?: boolean;
   matchPrefixes?: string[];
@@ -41,6 +45,7 @@ export interface WorkspaceTabItem {
   key: string;
   path: string;
   label: string;
+  labelSource?: "route" | "detail";
   groupLabel?: string;
   fixed: boolean;
   closable: boolean;
@@ -92,18 +97,23 @@ function getWorkspaceLabelSeparator(label: string) {
 
 /** 群组详情和群组树共用群组路由实例标题，避免多开标签都显示同一个菜单名。 */
 function getRouteInstanceLabel(route: WorkspaceRouteItem, normalizedPath: string) {
-  if (route.path !== "/groups") {
-    return route.label;
-  }
-
   const segments = normalizedPath.split("/").filter(Boolean);
-  const isGroupDetailPath = (segments[0] === "groups" || segments[0] === "trees") && segments.length >= 3;
-  if (!isGroupDetailPath) {
+  if (route.path === "/groups") {
+    const isGroupDetailPath = (segments[0] === "groups" || segments[0] === "trees") && segments.length >= 3;
+    if (!isGroupDetailPath) {
+      return route.label;
+    }
+
+    const groupName = decodeWorkspacePathSegment(segments[2]);
+    return groupName === "" ? route.label : `${route.label}${getWorkspaceLabelSeparator(route.label)}${groupName}`;
+  }
+
+  if (route.detailLabel === undefined || route.detailPathDepth !== segments.length) {
     return route.label;
   }
 
-  const groupName = decodeWorkspacePathSegment(segments[2]);
-  return groupName === "" ? route.label : `${route.label}${getWorkspaceLabelSeparator(route.label)}${groupName}`;
+  const instanceName = decodeWorkspacePathSegment(segments.at(-1));
+  return instanceName === "" ? route.label : `${route.detailLabel}${getWorkspaceLabelSeparator(route.detailLabel)}${instanceName}`;
 }
 
 /** 统一去除 query/hash/trailing slash，让标签状态只跟 route path 绑定。 */
@@ -146,6 +156,8 @@ export function buildWorkspaceRouteItems(groups: WorkspaceNavigationGroup[]) {
         key: item.key,
         path,
         label: toLabelText(item.label, item.key),
+        detailLabel: item.detailLabel === undefined ? undefined : toLabelText(item.detailLabel, ""),
+        detailPathDepth: item.detailPathDepth,
         groupLabel: toLabelText(group.label, ""),
         fixed: item.fixed === true,
         matchPrefixes: item.matchPrefixes,
@@ -158,6 +170,8 @@ export function buildWorkspaceRouteItems(groups: WorkspaceNavigationGroup[]) {
       key: "/",
       path: "/",
       label: "/",
+      detailLabel: undefined,
+      detailPathDepth: undefined,
       groupLabel: undefined,
       fixed: false,
       matchPrefixes: ["/"],
@@ -189,6 +203,7 @@ function resolveWorkspaceTab(path: string, routes: WorkspaceRouteItem[]): Worksp
     key: normalizedPath,
     path: normalizedPath,
     label: route === undefined ? normalizedPath : getRouteInstanceLabel(route, normalizedPath),
+    labelSource: "route",
     groupLabel: route?.groupLabel,
     fixed,
     closable: !fixed,
@@ -212,9 +227,24 @@ function uniquePaths(paths: string[]) {
 
 function ensureOverviewFirst(tabs: WorkspaceTabItem[], routes: WorkspaceRouteItem[]) {
   const paths = uniquePaths(["/", ...tabs.map(tab => tab.path)]);
+  const tabsByPath = new Map(tabs.map(tab => [tab.path, tab]));
 
   return paths
-    .map(path => resolveWorkspaceTab(path, routes))
+    .map((path) => {
+      const routeTab = resolveWorkspaceTab(path, routes);
+      const existingTab = tabsByPath.get(path);
+
+      if (routeTab === undefined || existingTab?.labelSource !== "detail") {
+        return routeTab;
+      }
+
+      return {
+        ...routeTab,
+        label: existingTab.label,
+        labelSource: "detail" as const,
+        groupLabel: existingTab.groupLabel ?? routeTab.groupLabel,
+      };
+    })
     .filter((tab): tab is WorkspaceTabItem => tab !== undefined);
 }
 
@@ -225,6 +255,7 @@ function getOverviewFallbackTab(tabs: WorkspaceTabItem[]) {
     key: "/",
     path: "/",
     label: overviewTab?.label ?? "/",
+    labelSource: overviewTab?.labelSource,
     groupLabel: overviewTab?.groupLabel,
     fixed: false,
     closable: true,
@@ -331,9 +362,10 @@ export function updateWorkspaceTabLabel(tabs: WorkspaceTabItem[], detail: Worksp
     const nextTab = {
       ...tab,
       label,
+      labelSource: "detail" as const,
       groupLabel: detail.groupLabel ?? tab.groupLabel,
     };
-    changed = tab.label !== nextTab.label || tab.groupLabel !== nextTab.groupLabel;
+    changed = tab.label !== nextTab.label || tab.labelSource !== nextTab.labelSource || tab.groupLabel !== nextTab.groupLabel;
     return nextTab;
   });
 
@@ -462,6 +494,7 @@ export function areWorkspaceTabsEqual(left: WorkspaceTabItem[], right: Workspace
     return rightTab !== undefined &&
       leftTab.path === rightTab.path &&
       leftTab.label === rightTab.label &&
+      leftTab.labelSource === rightTab.labelSource &&
       leftTab.fixed === rightTab.fixed &&
       leftTab.closable === rightTab.closable;
   });

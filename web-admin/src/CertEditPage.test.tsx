@@ -51,6 +51,18 @@ test("renders a shared two-tab certificate shell with one action bar", () => {
   expect(submitCertEdit).toHaveBeenNthCalledWith(2, true);
 });
 
+test("uses the certificate display name in the page title with a technical-name fallback", () => {
+  const page = createPage();
+  const view = render(<>{page.renderCert()}</>);
+
+  expect(view.container.querySelector(".cert-edit-title")?.textContent).toMatch(/Draft/);
+  expect(view.container.querySelector(".cert-edit-title")?.textContent).not.toContain("cert_draft");
+
+  page.state.cert.displayName = "";
+  const fallbackView = render(<>{page.renderCert()}</>);
+  expect(fallbackView.container.querySelector(".cert-edit-title")?.textContent).toContain("cert_draft");
+});
+
 test("renders certificate organization display names with one shared admin option", () => {
   jest.spyOn(Setting, "isMobile").mockReturnValue(false);
   jest.spyOn(Setting, "isAdminUser").mockReturnValue(true);
@@ -96,6 +108,29 @@ test("loads an add-mode certificate draft without requesting generated material"
 
   expect(getCert).not.toHaveBeenCalled();
   expect(page.state.cert).toEqual(draft);
+});
+
+test("publishes the certificate display name for its workspace tab after loading and editing", async() => {
+  const dispatchSpy = jest.spyOn(window, "dispatchEvent");
+  const page = createPage("edit");
+  jest.spyOn(CertBackend, "getCert").mockResolvedValue({
+    status: "ok",
+    data: {...draft, displayName: "Built-in Cert"},
+  } as any);
+
+  page.getCert();
+  await flushPromises();
+
+  const loadedEvent = dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined;
+  expect(loadedEvent?.type).toBe("aicodex.admin.workspaceTabLabelUpdate");
+  expect(loadedEvent?.detail?.path).toBe("/certs/engineering/cert_draft");
+  expect(loadedEvent?.detail?.label).toMatch(/Built-in Cert$/);
+
+  page.updateCertField("displayName", "Built-in Cert 2");
+
+  const updatedEvent = dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined;
+  expect(updatedEvent?.detail?.path).toBe("/certs/engineering/cert_draft");
+  expect(updatedEvent?.detail?.label).toMatch(/Built-in Cert 2$/);
 });
 
 test("returns from an unsaved certificate draft without deleting it", () => {

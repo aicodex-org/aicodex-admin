@@ -20,6 +20,7 @@ import * as Setting from "./Setting";
 import i18next from "i18next";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as ApplicationBackend from "./backend/ApplicationBackend";
+import {WORKSPACE_TAB_LABEL_UPDATE_EVENT} from "./common/workspaceTabState";
 
 const {Option} = Select;
 
@@ -115,8 +116,13 @@ class AgentEditPage extends React.Component<AgentEditPageProps, AgentEditPageSta
         }
 
         if (res.status === "ok") {
+          const agent = res.data ?? null;
           this.setState({
-            agent: res.data ?? null,
+            agent: agent,
+          }, () => {
+            if (agent !== null) {
+              this.publishWorkspaceTabLabel(agent);
+            }
           });
         } else {
           Setting.showMessage("error", `${t("general:Failed to get")}: ${res.msg}`);
@@ -158,7 +164,37 @@ class AgentEditPage extends React.Component<AgentEditPageProps, AgentEditPageSta
     agent[key] = value as string;
     this.setState({
       agent: agent,
+    }, () => {
+      if (key === "displayName") {
+        this.publishWorkspaceTabLabel(agent);
+      }
     });
+  }
+
+  getCurrentWorkspaceTabPath(): string {
+    return `/agents/${this.state.owner}/${this.state.agentName}`;
+  }
+
+  getAgentWorkspaceTabLabel(agent: AgentRecord): string {
+    const displayName = `${agent.displayName || ""}`.trim() || `${agent.name || this.state.agentName}`.trim();
+    const editLabel = t("agent:Edit Agent");
+    const separator = /[\u3400-\u9fff]/.test(editLabel) ? "：" : ": ";
+
+    return `${editLabel}${separator}${displayName}`;
+  }
+
+  // 对象加载或顶层显示名称变化后，只更新当前编辑路由对应的工作页标签。
+  publishWorkspaceTabLabel(agent: AgentRecord): void {
+    if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") {
+      return;
+    }
+
+    window.dispatchEvent(new CustomEvent(WORKSPACE_TAB_LABEL_UPDATE_EVENT, {
+      detail: {
+        path: this.getCurrentWorkspaceTabPath(),
+        label: this.getAgentWorkspaceTabLabel(agent),
+      },
+    }));
   }
 
   submitAgentEdit(willExit: boolean): void {

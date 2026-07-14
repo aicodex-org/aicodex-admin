@@ -19,6 +19,7 @@ import * as TicketBackend from "./backend/TicketBackend";
 import * as Setting from "./Setting";
 import i18next from "i18next";
 import moment from "moment";
+import {WORKSPACE_TAB_LABEL_UPDATE_EVENT} from "./common/workspaceTabState";
 
 const {Option} = Select;
 const {TextArea} = Input;
@@ -109,7 +110,7 @@ class TicketEditPage extends React.Component<TicketEditProps, TicketEditState> {
 
         this.setState({
           ticket: res.data,
-        });
+        }, () => this.publishWorkspaceTabLabel(res.data));
       });
   }
 
@@ -130,7 +131,38 @@ class TicketEditPage extends React.Component<TicketEditProps, TicketEditState> {
     ticket[key] = value;
     this.setState({
       ticket: ticket,
+    }, () => {
+      if (key === "displayName") {
+        this.publishWorkspaceTabLabel(ticket);
+      }
     });
+  }
+
+  getCurrentWorkspaceTabPath(): string {
+    return `/tickets/${this.state.organizationName}/${this.state.ticketName}`;
+  }
+
+  getTicketWorkspaceTabLabel(ticket: TicketRecord): string {
+    const displayName = `${ticket.displayName ?? ""}`.trim();
+    const technicalName = `${ticket.name || this.state.ticketName}`.trim() || this.state.ticketName;
+    const editLabel = t("ticket:Edit Ticket");
+    const separator = /[\u3400-\u9fff]/.test(editLabel) ? "：" : ": ";
+
+    return `${editLabel}${separator}${displayName || technicalName}`;
+  }
+
+  // Ticket 成功加载或顶层显示名称变化后，只更新当前工作页标签，不改变编辑路由与标签顺序。
+  publishWorkspaceTabLabel(ticket: TicketRecord): void {
+    if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") {
+      return;
+    }
+
+    window.dispatchEvent(new CustomEvent(WORKSPACE_TAB_LABEL_UPDATE_EVENT, {
+      detail: {
+        path: this.getCurrentWorkspaceTabPath(),
+        label: this.getTicketWorkspaceTabLabel(ticket),
+      },
+    }));
   }
 
   submitTicketEdit(willExist: boolean) {

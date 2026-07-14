@@ -225,11 +225,12 @@ function createPageInstance(options: {mode?: string; organization?: Record<strin
       : {mode: options.mode},
     match: {params: {organizationName: "engineering"}},
   });
-  page.setState = ((stateUpdate: unknown) => {
+  page.setState = ((stateUpdate: unknown, callback?: () => void) => {
     const nextState = typeof stateUpdate === "function"
       ? (stateUpdate as (state: unknown, props: unknown) => unknown)(page.state, page.props)
       : stateUpdate;
     page.state = {...page.state, ...(nextState as Record<string, unknown>)};
+    callback?.();
   }) as typeof page.setState;
   page.state = {
     ...page.state,
@@ -458,6 +459,31 @@ describe("OrganizationEditPage", () => {
     expect(await view.findByDisplayValue("Engineering")).not.toBeNull();
     fireEvent.click(view.getByText("Transactions"));
     expect((await view.findByTestId("transaction-table")).textContent).toBe("transactions:1");
+  });
+
+  test("publishes the organization display name for its workspace tab after loading and editing", async() => {
+    const dispatchSpy = jest.spyOn(window, "dispatchEvent");
+    setupBackend({organization: {...baseOrganization, name: "dingding6091", displayName: "钉钉-自建"}});
+    const page = createPageInstance();
+    page.state.organizationName = "dingding6091";
+
+    page.getOrganization();
+    await flushPromises();
+
+    const loadedEvent = dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined;
+    expect(loadedEvent?.type).toBe("aicodex.admin.workspaceTabLabelUpdate");
+    expect(loadedEvent?.detail).toEqual({
+      path: "/organizations/dingding6091",
+      label: "Edit Organization: 钉钉-自建",
+    });
+
+    page.updateOrganizationField("displayName", "钉钉-自建二号");
+
+    const updatedEvent = dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined;
+    expect(updatedEvent?.detail).toEqual({
+      path: "/organizations/dingding6091",
+      label: "Edit Organization: 钉钉-自建二号",
+    });
   });
 
   test("scopes organization edit layout so long password labels can be styled locally", async() => {

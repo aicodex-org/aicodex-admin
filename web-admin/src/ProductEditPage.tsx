@@ -23,6 +23,7 @@ import ProductBuyPage from "./ProductBuyPage";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import type {LegacyAny} from "./types/legacyPage";
 import type {OrganizationOption, PaymentProviderRecord, ProductRecord, ProductRouteProps} from "./types/productCatalog";
+import {WORKSPACE_TAB_LABEL_UPDATE_EVENT} from "./common/workspaceTabState";
 
 const {Option} = Select;
 const t = i18next.t.bind(i18next) as (key: string) => string;
@@ -71,7 +72,7 @@ class ProductEditPage extends React.Component<ProductRouteProps, ProductEditStat
 
         this.setState({
           product: res.data,
-        });
+        }, () => this.publishWorkspaceTabLabel(res.data));
       });
   }
 
@@ -111,7 +112,38 @@ class ProductEditPage extends React.Component<ProductRouteProps, ProductEditStat
     product[key] = value;
     this.setState({
       product: product,
+    }, () => {
+      if (key === "displayName") {
+        this.publishWorkspaceTabLabel(product);
+      }
     });
+  }
+
+  getCurrentWorkspaceTabPath(): string {
+    return `/products/${this.state.organizationName}/${this.state.productName}`;
+  }
+
+  getProductWorkspaceTabLabel(product: ProductRecord): string {
+    const displayName = typeof product.displayName === "string" ? product.displayName.trim() : "";
+    const objectName = displayName || `${product.name || this.state.productName}`.trim();
+    const editLabel = t("product:Edit Product");
+    const separator = /[\u3400-\u9fff]/.test(editLabel) ? "：" : ": ";
+
+    return `${editLabel}${separator}${objectName}`;
+  }
+
+  // 商品详情加载或顶层显示名称变化后，只更新当前工作页标签，不读取 provider 显示名称。
+  publishWorkspaceTabLabel(product: ProductRecord): void {
+    if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") {
+      return;
+    }
+
+    window.dispatchEvent(new CustomEvent(WORKSPACE_TAB_LABEL_UPDATE_EVENT, {
+      detail: {
+        path: this.getCurrentWorkspaceTabPath(),
+        label: this.getProductWorkspaceTabLabel(product),
+      },
+    }));
   }
 
   renderProduct() {
