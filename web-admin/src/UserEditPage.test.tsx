@@ -18,12 +18,15 @@ declare const jest: typeof jestValue;
 
 type LooseMock = {
   (...args: unknown[]): unknown;
+  mockClear: () => LooseMock;
+  mockImplementation: (implementation: (...args: unknown[]) => unknown) => LooseMock;
+  mockImplementationOnce: (implementation: (...args: unknown[]) => unknown) => LooseMock;
   mockResolvedValue: (value: unknown) => LooseMock;
   mockResolvedValueOnce: (value: unknown) => LooseMock;
   mockRejectedValueOnce: (value: unknown) => LooseMock;
 };
 
-type UserBackendMock = Record<"getUser" | "updateUser" | "deleteUser" | "verifyIdentification", LooseMock>;
+type UserBackendMock = Record<"getUser" | "addUser" | "updateUser" | "deleteUser" | "verifyIdentification", LooseMock>;
 type GroupBackendMock = Record<"getGroups", LooseMock>;
 type OrganizationBackendMock = Record<"getOrganizations" | "getOrganization", LooseMock>;
 type ApplicationBackendMock = Record<"getApplicationsByOrganization" | "getUserApplication", LooseMock>;
@@ -84,6 +87,7 @@ jest.mock("./backend/UserBackend", () => {
   const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
   return {
     getUser: factoryJest.fn(),
+    addUser: factoryJest.fn(),
     updateUser: factoryJest.fn(),
     deleteUser: factoryJest.fn(),
     verifyIdentification: factoryJest.fn(),
@@ -353,6 +357,7 @@ function createPage(propsOverride: Partial<PageProps> = {}): PageHarness {
     transactions: [{name: "tx-1"}],
     consents: [{name: "consent-1"}],
     multiFactorAuths: [...(baseUser.multiFactorAuths || [])],
+    organizationContextStatus: "ready",
   } as PageState;
   Object.defineProperty(page, "setState", {
     configurable: true,
@@ -384,6 +389,17 @@ function renderUserFormForTab(page: PageHarness, tabKey: PageState["activeTabKey
 
 async function flushPromises() {
   await new Promise(resolve => setTimeout(resolve, 0));
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+
+  return {promise, resolve, reject};
 }
 
 function collectCallbacks(node: React.ReactNode, names: string[], callbacks: Array<(value?: unknown) => unknown> = []): Array<(value?: unknown) => unknown> {
@@ -485,6 +501,7 @@ beforeEach(() => {
   jestValue.spyOn(Setting, "isProviderVisible").mockReturnValue(true);
 
   userBackendMock.getUser.mockResolvedValue({status: "ok", data: {...baseUser}});
+  userBackendMock.addUser.mockResolvedValue({status: "ok"});
   userBackendMock.updateUser.mockResolvedValue({status: "ok"});
   userBackendMock.deleteUser.mockResolvedValue({status: "ok"});
   userBackendMock.verifyIdentification.mockResolvedValue({status: "ok"});
@@ -527,6 +544,168 @@ test("loads user data, transactions, organizations, applications and groups", as
   page.getGroups("engineering");
   await flushPromises();
   expect(page.state.groups).toEqual([{owner: "engineering", name: "group-a", displayName: "Group A", type: "Physical"}]);
+});
+
+test("loads the draft organization for a new user and preserves rejected draft identity", async() => {
+  const draftUser = {...baseUser, owner: "engineering", name: "custom-draft"};
+  const page = createPage({location: {search: "", state: {mode: "add", user: draftUser}}} as Partial<PageProps>);
+  page.state = {...page.state, user: draftUser, application: null, userOrganization: null};
+
+  page.UNSAFE_componentWillMount();
+  await flushPromises();
+
+  expect(userBackendMock.getUser).not.toHaveBeenCalled();
+  expect(organizationBackendMock.getOrganization).toHaveBeenCalledWith("admin", "engineering");
+  expect(page.state.userOrganization).toEqual(application.organizationObj);
+
+  userBackendMock.addUser.mockResolvedValueOnce({status: "error", msg: "duplicate"});
+  page.submitUserEdit(false);
+  await flushPromises();
+  expect(page.state.user).toEqual(expect.objectContaining({owner: "engineering", name: "custom-draft"}));
+});
+
+test("reloads the persisted user and application context before allowing a second save", async() => {
+  const draftUser = {...baseUser, owner: "engineering", name: "custom-draft"};
+  const persistedUser = {
+    ...draftUser,
+    id: "server-user-id",
+    createdTime: "2026-07-14T10:00:00Z",
+    password: "server-password-hash",
+    registerSource: "engineering/admin",
+  };
+  const userRequest = createDeferred<unknown>();
+  const userApplicationRequest = createDeferred<unknown>();
+  userBackendMock.getUser.mockImplementationOnce(() => userRequest.promise);
+  applicationBackendMock.getUserApplication.mockImplementationOnce(() => userApplicationRequest.promise);
+  const page = createPage({location: {search: "", state: {mode: "add", user: draftUser}}} as Partial<PageProps>);
+  page.state = {...page.state, mode: "add", user: draftUser};
+
+  page.submitUserEdit(false);
+  await Promise.resolve();
+  await Promise.resolve();
+
+  expect(userBackendMock.getUser).toHaveBeenCalledWith("engineering", "custom-draft");
+  expect(applicationBackendMock.getUserApplication).toHaveBeenCalledWith("engineering", "custom-draft");
+  expect(findReactElement(page.renderEditFooter(), element => element.props.type === "primary")?.props.disabled).toBe(true);
+  page.submitUserEdit(false);
+  expect(userBackendMock.updateUser).not.toHaveBeenCalled();
+
+  userRequest.resolve({status: "ok", data: persistedUser});
+  await flushPromises();
+  expect(page.state.user).toEqual(expect.objectContaining({
+    id: "server-user-id",
+    createdTime: "2026-07-14T10:00:00Z",
+    password: "server-password-hash",
+    registerSource: "engineering/admin",
+  }));
+  page.submitUserEdit(false);
+  expect(userBackendMock.updateUser).not.toHaveBeenCalled();
+
+  userApplicationRequest.resolve({status: "ok", data: application});
+  await flushPromises();
+  expect(findReactElement(page.renderEditFooter(), element => element.props.type === "primary")?.props.disabled).toBe(false);
+  page.submitUserEdit(false);
+  await flushPromises();
+
+  expect(userBackendMock.addUser).toHaveBeenCalledTimes(1);
+  expect(userBackendMock.updateUser).toHaveBeenCalledWith("engineering", "custom-draft", expect.objectContaining({
+    id: "server-user-id",
+    createdTime: "2026-07-14T10:00:00Z",
+    password: "server-password-hash",
+    registerSource: "engineering/admin",
+  }));
+  expect(page.state.mode).toBe("edit");
+  expect(page.state.userName).toBe("custom-draft");
+  expect(page.state.application).toEqual(expect.objectContaining({name: application.name}));
+});
+
+test("keeps update blocked while either post-create user read or application context is pending", async() => {
+  const draftUser = {...baseUser, owner: "engineering", name: "custom-draft"};
+  const userRequest = createDeferred<unknown>();
+  const userApplicationRequest = createDeferred<unknown>();
+  userBackendMock.getUser.mockImplementationOnce(() => userRequest.promise);
+  applicationBackendMock.getUserApplication.mockImplementationOnce(() => userApplicationRequest.promise);
+  const page = createPage({location: {search: "", state: {mode: "add", user: draftUser}}} as Partial<PageProps>);
+  page.state = {...page.state, mode: "add", user: draftUser};
+
+  page.submitUserEdit(false);
+  await Promise.resolve();
+  await Promise.resolve();
+  page.submitUserEdit(false);
+  expect(userBackendMock.updateUser).not.toHaveBeenCalled();
+
+  userApplicationRequest.resolve({status: "ok", data: application});
+  await flushPromises();
+  page.submitUserEdit(false);
+  expect(userBackendMock.updateUser).not.toHaveBeenCalled();
+
+  userRequest.resolve({status: "ok", data: {...draftUser, id: "server-user-id"}});
+  await flushPromises();
+  page.submitUserEdit(false);
+  await flushPromises();
+  expect(userBackendMock.updateUser).toHaveBeenCalledTimes(1);
+});
+
+[
+  {name: "business error", arrange: () => userBackendMock.getUser.mockResolvedValueOnce({status: "error", msg: "user reload failed"})},
+  {name: "missing data", arrange: () => userBackendMock.getUser.mockResolvedValueOnce({status: "ok", data: null})},
+  {name: "network rejection", arrange: () => userBackendMock.getUser.mockRejectedValueOnce(new Error("user reload unavailable"))},
+].forEach(({name, arrange}) => {
+  test(`keeps update fail-closed when the post-create user read has ${name}`, async() => {
+    arrange();
+    const draftUser = {...baseUser, owner: "engineering", name: "custom-draft"};
+    const page = createPage({location: {search: "", state: {mode: "add", user: draftUser}}} as Partial<PageProps>);
+    page.state = {...page.state, mode: "add", user: draftUser};
+
+    page.submitUserEdit(false);
+    await flushPromises();
+    page.submitUserEdit(false);
+    await flushPromises();
+
+    expect(page.state.mode).toBe("edit");
+    expect(userBackendMock.updateUser).not.toHaveBeenCalled();
+    page.handleCancel();
+    expect(page.props.history.push).toHaveBeenCalled();
+    expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.any(String));
+  });
+});
+
+test("returns after creating a user without reloading the editor that is leaving", async() => {
+  const draftUser = {...baseUser, owner: "engineering", name: "custom-draft"};
+  const page = createPage({location: {search: "", state: {mode: "add", user: draftUser}}} as Partial<PageProps>);
+  page.state = {...page.state, mode: "add", user: draftUser};
+
+  page.submitUserEdit(true);
+  await flushPromises();
+
+  expect(userBackendMock.addUser).toHaveBeenCalledTimes(1);
+  expect(userBackendMock.getUser).not.toHaveBeenCalled();
+  expect(applicationBackendMock.getUserApplication).not.toHaveBeenCalled();
+});
+
+(["success", "reject"] as const).forEach(result => {
+  test(`ignores a late post-create user ${result} after unmount`, async() => {
+    const draftUser = {...baseUser, owner: "engineering", name: "custom-draft"};
+    const userRequest = createDeferred<unknown>();
+    userBackendMock.getUser.mockImplementationOnce(() => userRequest.promise);
+    const page = createPage({location: {search: "", state: {mode: "add", user: draftUser}}} as Partial<PageProps>);
+    page.state = {...page.state, mode: "add", user: draftUser};
+
+    page.submitUserEdit(false);
+    await Promise.resolve();
+    await Promise.resolve();
+    (Setting.showMessage as unknown as {mockClear: () => void}).mockClear();
+    page.componentWillUnmount();
+    if (result === "success") {
+      userRequest.resolve({status: "ok", data: {...draftUser, id: "late-user-id"}});
+    } else {
+      userRequest.reject(new Error("late user reload failure"));
+    }
+    await flushPromises();
+
+    expect(page.state.user.id).not.toBe("late-user-id");
+    expect(Setting.showMessage).not.toHaveBeenCalled();
+  });
 });
 
 test("normalizes stale signup application after user and applications load", async() => {
@@ -584,10 +763,17 @@ test("keeps signup application read-only for directory synced users", () => {
   });
 });
 
-test("shows organization display names while keeping owner identifier as submitted value", () => {
+test("shows organization display names while keeping owner identifier as submitted value", async() => {
   const page = createPage();
-  const getApplicationsSpy = jestValue.spyOn(page, "getApplicationsByOrganization");
-  const getGroupsSpy = jestValue.spyOn(page, "getGroups");
+  const salesOrganization = {
+    name: "sales",
+    accountMenu: "Vertical",
+    accountItems: [{name: "Groups", visible: true}],
+    tags: ["sales"],
+  };
+  organizationBackendMock.getOrganization.mockResolvedValueOnce({status: "ok", data: salesOrganization});
+  applicationBackendMock.getApplicationsByOrganization.mockResolvedValueOnce({status: "ok", data: [{name: "sales-app"}]});
+  groupBackendMock.getGroups.mockResolvedValueOnce({status: "ok", data: [{owner: "sales", name: "sales-group"}]});
   const organizationNode = page.renderAccountItem({name: "Organization", visible: true});
   const organizationSelect = findReactElement(organizationNode, element =>
     element.props.optionLabelProp === "label" && element.props.value === "engineering"
@@ -604,12 +790,373 @@ test("shows organization display names while keeping owner identifier as submitt
   expect(filterOption?.("Sales Org", {label: "Sales Org", value: "sales"})).toBe(true);
   expect(filterOption?.("sales", {label: "Sales Org", value: "sales"})).toBe(true);
 
-  const onChange = organizationSelect?.props.onChange as ((value: string) => void) | undefined;
-  onChange?.("sales");
+  const view = render(<>{organizationNode}</>);
+  fireEvent.mouseDown(view.container.querySelector(".ant-select-selector"));
+  const salesOptions = view.getAllByText("Sales Org");
+  fireEvent.click(salesOptions[salesOptions.length - 1]);
+  await flushPromises();
 
   expect(page.state.user.owner).toBe("sales");
-  expect(getApplicationsSpy).toHaveBeenCalledWith("sales");
-  expect(getGroupsSpy).toHaveBeenCalledWith("sales");
+  expect(organizationBackendMock.getOrganization).toHaveBeenCalledWith("admin", "sales");
+  expect(applicationBackendMock.getApplicationsByOrganization).toHaveBeenCalledWith("admin", "sales");
+  expect(groupBackendMock.getGroups).toHaveBeenCalledWith("sales");
+  expect(page.state.userOrganization).toEqual(salesOrganization);
+  expect(page.state.menuMode).toBe("Vertical");
+  expect(page.state.applications).toEqual([{name: "sales-app"}]);
+  expect(page.state.groups).toEqual([{owner: "sales", name: "sales-group"}]);
+  expect(page.state.user.signupApplication).toBe("sales-app");
+  view.unmount();
+});
+
+test("loads user application atomically only when an edit page switches organization", async() => {
+  const editPage = createPage();
+  const editNode = editPage.renderAccountItem({name: "Organization", visible: true});
+  const editSelect = findReactElement(editNode, element => element.props.optionLabelProp === "label");
+  applicationBackendMock.getUserApplication.mockClear();
+
+  (editSelect?.props.onChange as ((value: string) => void) | undefined)?.("sales");
+  await flushPromises();
+
+  expect(applicationBackendMock.getUserApplication).toHaveBeenCalledWith("sales", "alice");
+
+  const draftUser = {...baseUser, name: "new-user"};
+  const addPage = createPage({location: {search: "", state: {mode: "add", user: draftUser}}} as Partial<PageProps>);
+  const addNode = addPage.renderAccountItem({name: "Organization", visible: true});
+  const addSelect = findReactElement(addNode, element => element.props.optionLabelProp === "label");
+  applicationBackendMock.getUserApplication.mockClear();
+
+  (addSelect?.props.onChange as ((value: string) => void) | undefined)?.("sales");
+  await flushPromises();
+
+  expect(applicationBackendMock.getUserApplication).not.toHaveBeenCalled();
+});
+
+test("keeps edit organization switching fail-closed until user application finishes", async() => {
+  const page = createPage();
+  const userApplicationRequest = createDeferred<unknown>();
+  applicationBackendMock.getUserApplication.mockImplementationOnce(() => userApplicationRequest.promise);
+  const organizationNode = page.renderAccountItem({name: "Organization", visible: true});
+  const organizationSelect = findReactElement(organizationNode, element => element.props.optionLabelProp === "label");
+
+  (organizationSelect?.props.onChange as ((value: string) => void) | undefined)?.("sales");
+  await flushPromises();
+
+  expect(page.state.organizationContextStatus).toBe("loading");
+  (userBackendMock.updateUser as unknown as {mockClear: () => void}).mockClear();
+  page.submitUserEdit(false);
+  expect(userBackendMock.updateUser).not.toHaveBeenCalled();
+
+  userApplicationRequest.resolve({status: "ok", data: {...application, name: "sales-app"}});
+  await flushPromises();
+  expect(page.state.organizationContextStatus).toBe("ready");
+  expect(page.state.application?.name).toBe("sales-app");
+});
+
+test("blocks edit save when switched user application fails but allows the known missing-application fallback", async() => {
+  const failedPage = createPage();
+  applicationBackendMock.getUserApplication.mockResolvedValueOnce({status: "error", msg: "user application failed"});
+  const failedNode = failedPage.renderAccountItem({name: "Organization", visible: true});
+  const failedSelect = findReactElement(failedNode, element => element.props.optionLabelProp === "label");
+
+  (failedSelect?.props.onChange as ((value: string) => void) | undefined)?.("sales");
+  await flushPromises();
+
+  expect(failedPage.state.organizationContextStatus).toBe("error");
+  (userBackendMock.updateUser as unknown as {mockClear: () => void}).mockClear();
+  failedPage.submitUserEdit(false);
+  expect(userBackendMock.updateUser).not.toHaveBeenCalled();
+
+  const missingPage = createPage();
+  applicationBackendMock.getUserApplication.mockResolvedValueOnce({status: "error", msg: "one application at least"});
+  const missingNode = missingPage.renderAccountItem({name: "Organization", visible: true});
+  const missingSelect = findReactElement(missingNode, element => element.props.optionLabelProp === "label");
+  (missingSelect?.props.onChange as ((value: string) => void) | undefined)?.("sales");
+  await flushPromises();
+
+  expect(missingPage.state.organizationContextStatus).toBe("ready");
+  expect(missingPage.state.application).toBeNull();
+});
+
+test("keeps only the latest organization context when owner requests resolve out of order", async() => {
+  const page = createPage();
+  const salesOrganization = {name: "sales", accountMenu: "Horizontal", accountItems: [{name: "Groups", visible: true}]};
+  const supportOrganization = {name: "support", accountMenu: "Vertical", accountItems: [{name: "Groups", visible: true}]};
+  const salesOrganizationRequest = createDeferred<unknown>();
+  const supportOrganizationRequest = createDeferred<unknown>();
+  const initialApplicationsRequest = createDeferred<unknown>();
+  const salesApplicationsRequest = createDeferred<unknown>();
+  const supportApplicationsRequest = createDeferred<unknown>();
+  const salesGroupsRequest = createDeferred<unknown>();
+  const supportGroupsRequest = createDeferred<unknown>();
+
+  organizationBackendMock.getOrganization.mockImplementation((_owner, organizationName) =>
+    organizationName === "sales" ? salesOrganizationRequest.promise : supportOrganizationRequest.promise
+  );
+  applicationBackendMock.getApplicationsByOrganization.mockImplementation((_owner, organizationName) =>
+    organizationName === "engineering" ? initialApplicationsRequest.promise :
+      organizationName === "sales" ? salesApplicationsRequest.promise : supportApplicationsRequest.promise
+  );
+  groupBackendMock.getGroups.mockImplementation((organizationName) =>
+    organizationName === "sales" ? salesGroupsRequest.promise : supportGroupsRequest.promise
+  );
+
+  const organizationNode = page.renderAccountItem({name: "Organization", visible: true});
+  const organizationSelect = findReactElement(organizationNode, element => element.props.optionLabelProp === "label");
+  const onChange = organizationSelect?.props.onChange as ((value: string) => void) | undefined;
+  page.getApplicationsByOrganization("engineering");
+  onChange?.("sales");
+  onChange?.("support");
+
+  supportOrganizationRequest.resolve({status: "ok", data: supportOrganization});
+  supportApplicationsRequest.resolve({status: "ok", data: [{name: "support-app"}]});
+  supportGroupsRequest.resolve({status: "ok", data: [{owner: "support", name: "support-group"}]});
+  await flushPromises();
+
+  salesOrganizationRequest.resolve({status: "ok", data: salesOrganization});
+  salesApplicationsRequest.resolve({status: "ok", data: [{name: "sales-app"}]});
+  salesGroupsRequest.resolve({status: "ok", data: [{owner: "sales", name: "sales-group"}]});
+  await flushPromises();
+
+  initialApplicationsRequest.resolve({status: "ok", data: [{name: "engineering-app"}]});
+  await flushPromises();
+
+  expect(page.state.user.owner).toBe("support");
+  expect(page.state.userOrganization).toEqual(supportOrganization);
+  expect(page.state.menuMode).toBe("Vertical");
+  expect(page.state.applications).toEqual([{name: "support-app"}]);
+  expect(page.state.groups).toEqual([{owner: "support", name: "support-group"}]);
+  expect(page.state.user.signupApplication).toBe("support-app");
+});
+
+test("fails closed when switched organization data is missing or a context request rejects", async() => {
+  const missingOrganizationPage = createPage();
+  organizationBackendMock.getOrganization.mockResolvedValueOnce({status: "ok", data: null});
+  const missingNode = missingOrganizationPage.renderAccountItem({name: "Organization", visible: true});
+  const missingSelect = findReactElement(missingNode, element => element.props.optionLabelProp === "label");
+  (missingSelect?.props.onChange as ((value: string) => void) | undefined)?.("sales");
+  await flushPromises();
+
+  const missingFooter = missingOrganizationPage.renderEditFooter();
+  const missingSave = findReactElement(missingFooter, element => element.props.type === "primary");
+  expect(missingSave?.props.disabled).toBe(true);
+
+  (userBackendMock.addUser as unknown as {mockClear: () => void}).mockClear();
+  (userBackendMock.updateUser as unknown as {mockClear: () => void}).mockClear();
+  (userBackendMock.deleteUser as unknown as {mockClear: () => void}).mockClear();
+  missingOrganizationPage.submitUserEdit(false);
+  missingOrganizationPage.deleteUser();
+  await flushPromises();
+  expect(userBackendMock.addUser).not.toHaveBeenCalled();
+  expect(userBackendMock.updateUser).not.toHaveBeenCalled();
+  expect(userBackendMock.deleteUser).toHaveBeenCalledTimes(1);
+
+  const rejectedPage = createPage();
+  organizationBackendMock.getOrganization.mockRejectedValueOnce(new Error("organization unavailable"));
+  const rejectedNode = rejectedPage.renderAccountItem({name: "Organization", visible: true});
+  const rejectedSelect = findReactElement(rejectedNode, element => element.props.optionLabelProp === "label");
+  (rejectedSelect?.props.onChange as ((value: string) => void) | undefined)?.("sales");
+  await flushPromises();
+
+  const rejectedFooter = rejectedPage.renderEditFooter();
+  const rejectedSave = findReactElement(rejectedFooter, element => element.props.type === "primary");
+  expect(rejectedSave?.props.disabled).toBe(true);
+  rejectedPage.submitUserEdit(false);
+  expect(userBackendMock.addUser).not.toHaveBeenCalled();
+  expect(userBackendMock.updateUser).not.toHaveBeenCalled();
+});
+
+([
+  ["applications status error", "applications", "error"],
+  ["applications reject", "applications", "reject"],
+  ["groups status error", "groups", "error"],
+  ["groups reject", "groups", "reject"],
+] as const).forEach(([name, target, failureType]) => {
+  test(`fails closed when ${name}`, async() => {
+    const page = createPage();
+    const salesOrganization = {name: "sales", accountItems: [{name: "Groups", visible: true}]};
+    organizationBackendMock.getOrganization.mockResolvedValueOnce({status: "ok", data: salesOrganization});
+
+    const failure = failureType === "error"
+      ? Promise.resolve({status: "error", msg: `${target} failed`})
+      : Promise.reject(new Error(`${target} unavailable`));
+    if (target === "applications") {
+      applicationBackendMock.getApplicationsByOrganization.mockImplementation(() => failure);
+      groupBackendMock.getGroups.mockResolvedValueOnce({status: "ok", data: []});
+    } else {
+      applicationBackendMock.getApplicationsByOrganization.mockResolvedValueOnce({status: "ok", data: []});
+      groupBackendMock.getGroups.mockImplementation(() => failure);
+    }
+
+    const organizationNode = page.renderAccountItem({name: "Organization", visible: true});
+    const organizationSelect = findReactElement(organizationNode, element => element.props.optionLabelProp === "label");
+    (organizationSelect?.props.onChange as ((value: string) => void) | undefined)?.("sales");
+    await flushPromises();
+
+    expect(page.state.organizationContextStatus).toBe("error");
+    const save = findReactElement(page.renderEditFooter(), element => element.props.type === "primary");
+    expect(save?.props.disabled).toBe(true);
+    (userBackendMock.addUser as unknown as {mockClear: () => void}).mockClear();
+    (userBackendMock.updateUser as unknown as {mockClear: () => void}).mockClear();
+    page.submitUserEdit(false);
+    expect(userBackendMock.addUser).not.toHaveBeenCalled();
+    expect(userBackendMock.updateUser).not.toHaveBeenCalled();
+    if (failureType === "error") {
+      expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining(`${target} failed`));
+      expect(Setting.showMessage).not.toHaveBeenCalledWith("error", expect.stringContaining("Failed to connect"));
+    } else {
+      expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringMatching(/Failed to connect|连接服务器失败/));
+    }
+  });
+});
+
+test("keeps initial add context loading until organization applications and groups all finish", async() => {
+  const draftUser = {...baseUser, name: "new-user"};
+  const page = createPage({location: {search: "", state: {mode: "add", user: draftUser}}} as Partial<PageProps>);
+  const organizationRequest = createDeferred<unknown>();
+  const applicationsRequest = createDeferred<unknown>();
+  const groupsRequest = createDeferred<unknown>();
+  organizationBackendMock.getOrganization.mockImplementation(() => organizationRequest.promise);
+  applicationBackendMock.getApplicationsByOrganization.mockImplementation(() => applicationsRequest.promise);
+  groupBackendMock.getGroups.mockImplementation(() => groupsRequest.promise);
+
+  page.UNSAFE_componentWillMount();
+  expect(page.state.organizationContextStatus).toBe("loading");
+  expect(findReactElement(page.renderEditFooter(), element => element.props.type === "primary")?.props.disabled).toBe(true);
+  (userBackendMock.addUser as unknown as {mockClear: () => void}).mockClear();
+  page.submitUserEdit(false);
+  expect(userBackendMock.addUser).not.toHaveBeenCalled();
+
+  organizationRequest.resolve({status: "ok", data: application.organizationObj});
+  applicationsRequest.resolve({status: "ok", data: [{name: "app-main"}]});
+  await flushPromises();
+  expect(page.state.organizationContextStatus).toBe("loading");
+  groupsRequest.resolve({status: "ok", data: []});
+  await flushPromises();
+  expect(page.state.organizationContextStatus).toBe("ready");
+});
+
+test("keeps initial edit context loading until user application and shared context finish", async() => {
+  const page = createPage();
+  const userApplicationRequest = createDeferred<unknown>();
+  applicationBackendMock.getUserApplication.mockImplementation(() => userApplicationRequest.promise);
+
+  page.UNSAFE_componentWillMount();
+  expect(page.state.organizationContextStatus).toBe("loading");
+  (userBackendMock.updateUser as unknown as {mockClear: () => void}).mockClear();
+  page.submitUserEdit(false);
+  expect(userBackendMock.updateUser).not.toHaveBeenCalled();
+
+  await flushPromises();
+  expect(page.state.organizationContextStatus).toBe("loading");
+  userApplicationRequest.resolve({status: "ok", data: application});
+  await flushPromises();
+  expect(page.state.organizationContextStatus).toBe("ready");
+  expect(page.state.application?.providers).toEqual(application.providers);
+});
+
+test("invalidates organization context requests when the mounted page unmounts", async() => {
+  const organizationRequest = createDeferred<unknown>();
+  const applicationsRequest = createDeferred<unknown>();
+  const groupsRequest = createDeferred<unknown>();
+  const userApplicationRequest = createDeferred<unknown>();
+  organizationBackendMock.getOrganization.mockImplementation(() => organizationRequest.promise);
+  applicationBackendMock.getApplicationsByOrganization.mockImplementation(() => applicationsRequest.promise);
+  groupBackendMock.getGroups.mockImplementation(() => groupsRequest.promise);
+  applicationBackendMock.getUserApplication.mockImplementation(() => userApplicationRequest.promise);
+  userBackendMock.getUser.mockImplementation(() => new Promise(() => {}));
+  organizationBackendMock.getOrganizations.mockImplementation(() => new Promise(() => {}));
+  const props = createPage().props;
+  const pageRef = React.createRef<UserEditPage>();
+  const view = render(<UserEditPage {...props} ref={pageRef} />);
+  const mountedPage = pageRef.current as UserEditPage;
+  const requestId = mountedPage.organizationContextRequestId;
+  (Setting.showMessage as unknown as {mockClear: () => void}).mockClear();
+
+  view.unmount();
+  organizationRequest.resolve({status: "ok", data: application.organizationObj});
+  applicationsRequest.resolve({status: "ok", data: [{name: "app-main"}]});
+  groupsRequest.resolve({status: "ok", data: []});
+  userApplicationRequest.resolve({status: "error", msg: "late error"});
+  await flushPromises();
+
+  expect(mountedPage.isOrganizationContextRequestCurrent(requestId, "engineering")).toBe(false);
+  expect(Setting.showMessage).not.toHaveBeenCalled();
+});
+
+test("ignores late initial application responses after a mounted page switches owner", async() => {
+  const page = createPage();
+  const initialUserApplicationRequest = createDeferred<unknown>();
+  const initialApplicationsRequest = createDeferred<unknown>();
+  const supportOrganizationRequest = createDeferred<unknown>();
+  const supportApplicationsRequest = createDeferred<unknown>();
+  const supportGroupsRequest = createDeferred<unknown>();
+  const supportOrganization = {name: "support", accountMenu: "Vertical", accountItems: [{name: "Groups", visible: true}]};
+
+  applicationBackendMock.getUserApplication.mockImplementation((organizationName) =>
+    organizationName === "engineering"
+      ? initialUserApplicationRequest.promise
+      : Promise.resolve({status: "error", msg: "one application at least"})
+  );
+  applicationBackendMock.getApplicationsByOrganization.mockImplementation((_owner, organizationName) =>
+    organizationName === "engineering" ? initialApplicationsRequest.promise : supportApplicationsRequest.promise
+  );
+  organizationBackendMock.getOrganization.mockImplementation(() => supportOrganizationRequest.promise);
+  groupBackendMock.getGroups.mockImplementation(() => supportGroupsRequest.promise);
+
+  page.UNSAFE_componentWillMount();
+  await flushPromises();
+
+  const organizationNode = page.renderAccountItem({name: "Organization", visible: true});
+  const organizationSelect = findReactElement(organizationNode, element => element.props.optionLabelProp === "label");
+  (organizationSelect?.props.onChange as ((value: string) => void) | undefined)?.("support");
+  supportOrganizationRequest.resolve({status: "ok", data: supportOrganization});
+  supportApplicationsRequest.resolve({status: "ok", data: [{name: "support-app"}]});
+  supportGroupsRequest.resolve({status: "ok", data: [{owner: "support", name: "support-group"}]});
+  await flushPromises();
+
+  initialUserApplicationRequest.resolve({status: "ok", data: application});
+  initialApplicationsRequest.resolve({status: "ok", data: [{name: "engineering-app"}]});
+  await flushPromises();
+
+  expect(page.state.user.owner).toBe("support");
+  expect(page.state.application).toBeNull();
+  expect(page.state.userOrganization).toEqual(supportOrganization);
+  expect(page.state.applications).toEqual([{name: "support-app"}]);
+  expect(page.state.groups).toEqual([{owner: "support", name: "support-group"}]);
+  expect(page.state.user.signupApplication).toBe("support-app");
+});
+
+test("blocks saves while organization context loads and enables them after it succeeds", async() => {
+  const page = createPage();
+  const organizationRequest = createDeferred<unknown>();
+  const applicationsRequest = createDeferred<unknown>();
+  const groupsRequest = createDeferred<unknown>();
+  organizationBackendMock.getOrganization.mockImplementation(() => organizationRequest.promise);
+  applicationBackendMock.getApplicationsByOrganization.mockImplementation(() => applicationsRequest.promise);
+  groupBackendMock.getGroups.mockImplementation(() => groupsRequest.promise);
+  const organizationNode = page.renderAccountItem({name: "Organization", visible: true});
+  const organizationSelect = findReactElement(organizationNode, element => element.props.optionLabelProp === "label");
+
+  (organizationSelect?.props.onChange as ((value: string) => void) | undefined)?.("sales");
+  const loadingSave = findReactElement(page.renderEditFooter(), element => element.props.type === "primary");
+  expect(loadingSave?.props.disabled).toBe(true);
+  (userBackendMock.updateUser as unknown as {mockClear: () => void}).mockClear();
+  page.submitUserEdit(false);
+  expect(userBackendMock.updateUser).not.toHaveBeenCalled();
+
+  organizationRequest.resolve({
+    status: "ok",
+    data: {name: "sales", accountMenu: "Vertical", accountItems: [{name: "Groups", visible: true}]},
+  });
+  applicationsRequest.resolve({status: "ok", data: [{name: "sales-app"}]});
+  groupsRequest.resolve({status: "ok", data: [{owner: "sales", name: "sales-group"}]});
+  await flushPromises();
+
+  const readySave = findReactElement(page.renderEditFooter(), element => element.props.type === "primary");
+  expect(readySave?.props.disabled).toBe(false);
+  page.submitUserEdit(false);
+  await flushPromises();
+  expect(userBackendMock.updateUser).toHaveBeenCalledTimes(1);
 });
 
 test("handles user loading 404, API error and transaction load failures", async() => {

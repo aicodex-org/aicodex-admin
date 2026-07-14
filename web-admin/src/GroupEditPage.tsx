@@ -39,6 +39,7 @@ type GroupEditPageProps = {
   history: HistoryLike;
   location: {
     mode?: string;
+    state?: {group?: GroupRecord; mode?: string};
     [key: string]: unknown;
   };
   match: {
@@ -102,15 +103,18 @@ function isDirectorySyncedGroup(group?: GroupRecord | null): boolean {
 class GroupEditPage extends React.Component<GroupEditPageProps, GroupEditPageState> {
   constructor(props: GroupEditPageProps) {
     super(props);
+    const draftGroup = props.location.state?.group;
+    const requestedMode = props.location.state?.mode ?? props.location.mode ?? "edit";
+    const mode = requestedMode === "add" && draftGroup === undefined ? "edit" : requestedMode;
     this.state = {
       classes: props,
-      groupName: props.match.params.groupName,
-      organizationName: props.organizationName !== undefined ? props.organizationName : props.match.params.organizationName,
-      group: null,
+      groupName: draftGroup?.name ?? props.match.params.groupName,
+      organizationName: draftGroup?.owner ?? (props.organizationName !== undefined ? props.organizationName : props.match.params.organizationName),
+      group: draftGroup ?? null,
       users: [],
       groups: [],
       organizations: [],
-      mode: props.location.mode !== undefined ? props.location.mode : "edit",
+      mode,
       dirty: false,
       submitting: false,
       fieldErrors: {},
@@ -119,7 +123,9 @@ class GroupEditPage extends React.Component<GroupEditPageProps, GroupEditPageSta
   }
 
   UNSAFE_componentWillMount() {
-    this.getGroup();
+    if (this.state.mode !== "add") {
+      this.getGroup();
+    }
     this.getGroups(this.state.organizationName);
     this.getOrganizations();
   }
@@ -268,21 +274,13 @@ class GroupEditPage extends React.Component<GroupEditPageProps, GroupEditPageSta
 
   handleBack() {
     this.confirmDiscardChanges(() => {
-      if (this.state.mode === "add") {
-        this.deleteGroup();
-      } else {
-        this.returnToGroupList();
-      }
+      this.returnToGroupList();
     });
   }
 
   handleCancel() {
     this.confirmDiscardChanges(() => {
-      if (this.state.mode === "add") {
-        this.deleteGroup();
-      } else {
-        this.returnToGroupList();
-      }
+      this.returnToGroupList();
     });
   }
 
@@ -558,12 +556,17 @@ class GroupEditPage extends React.Component<GroupEditPageProps, GroupEditPageSta
     group["isTopGroup"] = this.state.organizations.some((organization) => organization.name === group.parentId);
 
     this.setState({submitting: true});
-    GroupBackend.updateGroup(this.state.organizationName, this.state.groupName, group)
+    const saveGroup = this.state.mode === "add"
+      ? GroupBackend.addGroup(group)
+      : GroupBackend.updateGroup(this.state.organizationName, this.state.groupName, group);
+    saveGroup
       .then((res) => {
         if (res.status === "ok") {
           Setting.showMessage("success", t("general:Successfully saved"));
           this.setState({
+            organizationName: group.owner,
             groupName: group.name,
+            mode: "edit",
             dirty: false,
             submitting: false,
           });
@@ -575,10 +578,14 @@ class GroupEditPage extends React.Component<GroupEditPageProps, GroupEditPageSta
           }
         } else {
           Setting.showMessage("error", `${t("general:Failed to save")}: ${res.msg}`);
-          this.setState(state => ({
-            submitting: false,
-            group: state.group === null ? state.group : {...state.group, name: state.groupName},
-          }));
+          if (this.state.mode === "add") {
+            this.setState({submitting: false});
+          } else {
+            this.setState(state => ({
+              submitting: false,
+              group: state.group === null ? state.group : {...state.group, name: state.groupName},
+            }));
+          }
         }
       })
       .catch(error => {

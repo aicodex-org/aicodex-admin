@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import React from "react";
-import {Alert, Button, Card, Col, Input, Row, Select, Switch} from "antd";
+import {Alert, Button, Card, Col, Input, Modal, Row, Select, Switch} from "antd";
 import {LinkOutlined} from "@ant-design/icons";
 import * as ProviderBackend from "./backend/ProviderBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
@@ -77,10 +77,11 @@ const defaultSmsMapping = {
 interface ProviderEditPageProps {
   account: AccountConfig;
   history: {
-    push: (path: string) => void;
+    push: (path: string | {pathname: string; state?: unknown}) => void;
   };
   location: {
     mode?: "add" | "edit";
+    state?: {provider?: EditableProviderConfig; mode?: "add" | "edit"};
   };
   match: {
     params: {
@@ -105,6 +106,8 @@ interface ProviderEditPageState {
   certs: CertConfig[];
   organizations: OrganizationConfig[];
   mode: "add" | "edit";
+  dirty: boolean;
+  submitting: boolean;
   requestUrl: string;
   metadataLoading: boolean;
 }
@@ -122,17 +125,37 @@ interface ProviderSubTypeOption {
   name: string;
 }
 
+// 默认映射和路由草稿都必须复制，避免一个编辑实例污染后续新建草稿。
+function normalizeProviderUserMapping(provider: EditableProviderConfig): EditableProviderConfig {
+  let userMapping: Record<string, string>;
+  if (provider.type === "Custom HTTP Email") {
+    userMapping = provider.userMapping?.fromName ? provider.userMapping : defaultEmailMapping;
+  } else if (provider.type === "Custom HTTP SMS") {
+    userMapping = provider.userMapping?.phoneNumber ? provider.userMapping : defaultSmsMapping;
+  } else {
+    userMapping = provider.userMapping || defaultUserMapping;
+  }
+  return {...provider, userMapping: {...userMapping}};
+}
+
 class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEditPageState> {
   constructor(props: ProviderEditPageProps) {
     super(props);
+    const draftProvider = props.location.state?.provider
+      ? normalizeProviderUserMapping({...props.location.state.provider})
+      : undefined;
+    const requestedMode = props.location.state?.mode ?? props.location.mode ?? "edit";
+    const mode = requestedMode === "add" && draftProvider === undefined ? "edit" : requestedMode;
     this.state = {
       classes: props,
-      providerName: props.match.params.providerName,
-      owner: props.organizationName !== undefined ? props.organizationName : props.match.params.organizationName,
-      provider: null as unknown as EditableProviderConfig,
+      providerName: draftProvider?.name ?? props.match.params.providerName,
+      owner: draftProvider?.owner ?? (props.organizationName !== undefined ? props.organizationName : props.match.params.organizationName),
+      provider: draftProvider ?? null as unknown as EditableProviderConfig,
       certs: [],
       organizations: [],
-      mode: props.location.mode !== undefined ? props.location.mode : "edit",
+      mode,
+      dirty: false,
+      submitting: false,
       requestUrl: "",
       metadataLoading: false,
     };
@@ -140,7 +163,9 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
 
   UNSAFE_componentWillMount() {
     this.getOrganizations();
-    this.getProvider();
+    if (this.state.mode !== "add") {
+      this.getProvider();
+    }
     this.getCerts(this.state.owner);
   }
 
@@ -153,26 +178,10 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
         }
 
         if (res.status === "ok") {
-          const provider = res.data as EditableProviderConfig;
-          if (provider.type === "Custom HTTP Email") {
-            if (!provider.userMapping) {
-              provider.userMapping = provider.userMapping || defaultEmailMapping;
-            }
-            if (!provider.userMapping?.fromName) {
-              provider.userMapping = defaultEmailMapping;
-            }
-          } else if (provider.type === "Custom HTTP SMS") {
-            if (!provider.userMapping) {
-              provider.userMapping = provider.userMapping || defaultSmsMapping;
-            }
-            if (!provider.userMapping?.phoneNumber) {
-              provider.userMapping = defaultSmsMapping;
-            }
-          } else {
-            provider.userMapping = provider.userMapping || defaultUserMapping;
-          }
+          const provider = normalizeProviderUserMapping(res.data as EditableProviderConfig);
           this.setState({
             provider: provider,
+            dirty: false,
           });
         } else {
           Setting.showMessage("error", res.msg);
@@ -212,7 +221,10 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
   updateProviderField(key: ProviderFieldName, value: ProviderFieldValue) {
     value = this.parseProviderField(key, value);
 
-    const provider = this.state.provider;
+    const provider: EditableProviderConfig = {
+      ...this.state.provider,
+      userMapping: {...this.state.provider.userMapping},
+    };
     if (key === "owner" && provider["owner"] !== value) {
       // the provider change the owner, reset the cert
       provider["cert"] = "";
@@ -249,6 +261,7 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
 
     this.setState({
       provider: provider,
+      dirty: true,
     });
   }
 
@@ -282,20 +295,32 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
   }
 
   handleBack(): void {
-    if (this.state.mode === "add") {
-      this.deleteProvider();
+    this.confirmDiscardChanges(() => {
+      this.returnToProviderList();
+    });
+  }
+
+  confirmDiscardChanges(onConfirm: () => void): void {
+    if (!this.state.dirty) {
+      onConfirm();
       return;
     }
 
-    this.returnToProviderList();
+    Modal.confirm({
+      title: t("provider:Unsaved changes"),
+      content: t("provider:Discard unsaved changes confirmation"),
+      okText: t("general:OK"),
+      cancelText: t("general:Cancel"),
+      onOk: onConfirm,
+    });
   }
 
   renderEditFooter(): React.ReactNode {
     return (
       <React.Fragment>
-        <Button onClick={() => this.handleBack()}>{t("general:Cancel")}</Button>
-        <Button type="primary" onClick={() => this.submitProviderEdit(false)}>{t("general:Save")}</Button>
-        <Button onClick={() => this.submitProviderEdit(true)}>{t("provider:Save and return")}</Button>
+        <Button disabled={this.state.submitting} onClick={() => this.handleBack()}>{t("general:Cancel")}</Button>
+        <Button type="primary" loading={this.state.submitting} onClick={() => this.submitProviderEdit(false)}>{t("general:Save")}</Button>
+        <Button disabled={this.state.submitting} onClick={() => this.submitProviderEdit(true)}>{t("provider:Save and return")}</Button>
       </React.Fragment>
     );
   }
@@ -411,7 +436,10 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
 
   updateUserMappingField(key: string, value: string) {
     const requiredKeys = ["id", "username", "displayName"];
-    const provider = this.state.provider;
+    const provider: EditableProviderConfig = {
+      ...this.state.provider,
+      userMapping: {...this.state.provider.userMapping},
+    };
 
     if (provider.type === "Custom HTTP Email") {
       if (value === "") {
@@ -433,6 +461,7 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
 
     this.setState({
       provider: provider,
+      dirty: true,
     });
   }
 
@@ -1223,6 +1252,8 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
           backLabel={t("general:Back")}
           breadcrumb={<React.Fragment>{t("general:Authentication Source Center")} / {t("provider:Providers")} /</React.Fragment>}
           title={this.getProviderEditTitle(provider)}
+          dirty={this.state.dirty}
+          dirtyLabel={t("provider:Unsaved changes")}
           actions={this.renderEditFooter()}
           onBack={() => this.handleBack()}
         >
@@ -1234,19 +1265,29 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
   }
 
   submitProviderEdit(exitAfterSave: boolean) {
+    if (this.state.submitting) {
+      return;
+    }
     const provider = Setting.deepCopy(this.state.provider);
     const validationError = this.validateWeComProvider(provider) || this.validateLarkProvider(provider);
     if (validationError) {
       Setting.showMessage("error", validationError);
       return;
     }
-    ProviderBackend.updateProvider(this.state.owner, this.state.providerName, provider)
+    this.setState({submitting: true});
+    const saveProvider = this.state.mode === "add"
+      ? ProviderBackend.addProvider(provider)
+      : ProviderBackend.updateProvider(this.state.owner, this.state.providerName, provider);
+    saveProvider
       .then((res) => {
         if (res.status === "ok") {
           Setting.showMessage("success", t("general:Successfully saved"));
           this.setState({
             owner: this.state.provider.owner,
             providerName: this.state.provider.name,
+            mode: "edit",
+            dirty: false,
+            submitting: false,
           });
 
           if (exitAfterSave) {
@@ -1256,10 +1297,14 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
           }
         } else {
           Setting.showMessage("error", `${t("general:Failed to save")}: ${res.msg}`);
-          this.updateProviderField("name", this.state.providerName);
+          if (this.state.mode !== "add") {
+            this.updateProviderField("name", this.state.providerName);
+          }
+          this.setState({submitting: false});
         }
       })
       .catch(error => {
+        this.setState({submitting: false});
         Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }

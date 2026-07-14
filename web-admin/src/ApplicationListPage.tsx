@@ -217,18 +217,7 @@ class ApplicationListPage extends LegacyBaseListPage {
 
   addApplication() {
     const newApplication = this.newApplication();
-    ApplicationBackend.addApplication(newApplication)
-      .then((res) => {
-        if (res.status === "ok") {
-          this.props.history.push({pathname: `/applications/${newApplication.organization}/${newApplication.name}`, mode: "add"});
-          Setting.showMessage("success", t("general:Successfully added"));
-        } else {
-          Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
-        }
-      })
-      .catch((error: unknown) => {
-        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
-      });
+    this.props.history.push({pathname: `/applications/${newApplication.organization}/${newApplication.name}`, state: {mode: "add", application: newApplication}} as LegacyAny);
   }
 
   deleteApplication(i: number) {
@@ -265,18 +254,7 @@ class ApplicationListPage extends LegacyBaseListPage {
       clientSecret: "",
     };
 
-    ApplicationBackend.addApplication(copiedApplication)
-      .then((res) => {
-        if (res.status === "ok") {
-          this.props.history.push({pathname: `/applications/${copiedApplication.organization}/${newName}`, mode: "add"});
-          Setting.showMessage("success", t("general:Successfully copied"));
-        } else {
-          Setting.showMessage("error", `${t("general:Failed to copy")}: ${res.msg}`);
-        }
-      })
-      .catch((error: unknown) => {
-        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
-      });
+    this.props.history.push({pathname: `/applications/${copiedApplication.organization}/${newName}`, state: {mode: "add", application: copiedApplication}} as LegacyAny);
   }
 
   handleToolbarSearch = (): void => {

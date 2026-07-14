@@ -1825,6 +1825,7 @@
     "WeChat Pay": "微信支付"
   },
   "provider": {
+    "Discard unsaved changes confirmation": "当前提供商配置有未保存修改，确认不保存并离开？",
     "Agent ID": "代理ID",
     "Agent ID - Tooltip": "标识代理身份的唯一编号，用于区分不同代理实体",
     "Api Key": "API密钥",
@@ -1990,6 +1991,7 @@
     "SP Entity ID": "SP 实体 ID",
     "SP Entity ID - Tooltip": "SP Entity ID - Tooltip",
     "Save and return": "保存并返回",
+    "Unsaved changes": "未保存",
     "SSL mode": "SSL 模式",
     "SSL mode - Tooltip": "反向代理域名的 HTTPS 访问策略。",
     "Scene": "场景",

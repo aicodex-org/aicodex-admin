@@ -244,13 +244,13 @@ test("creates a default organization, navigates to edit page, and waits for save
   page.addOrganization();
   await flushPromises();
 
-  expect(backendMock.addOrganization).toHaveBeenCalledWith(expect.objectContaining({
+  expect(backendMock.addOrganization).not.toHaveBeenCalled();
+  expect(history.push).toHaveBeenCalledWith(expect.objectContaining({pathname: "/organizations/organization_abc123", state: expect.objectContaining({mode: "add", organization: expect.objectContaining({
     owner: "admin",
     name: "organization_abc123",
-  }));
-  expect(history.push).toHaveBeenCalledWith({pathname: "/organizations/organization_abc123", mode: "add"});
+  })})}));
   expect(Setting.showMessage).not.toHaveBeenCalledWith("success", expect.any(String));
-  expect(storageListener).toHaveBeenCalled();
+  expect(storageListener).not.toHaveBeenCalled();
   window.removeEventListener("storageOrganizationsChanged", storageListener);
 });
 
@@ -311,25 +311,15 @@ test("deletes organization and rolls back pagination for the last row", async() 
   window.removeEventListener("storageOrganizationsChanged", storageListener);
 });
 
-test("reports add, delete and list response errors", async() => {
+test("reports delete and list response errors", async() => {
   const page = createPage();
   page.state = {
     ...page.state,
     data: [organization],
   };
-  backendMock.addOrganization.mockResolvedValueOnce({status: "error", msg: "add failed"});
-  backendMock.addOrganization.mockRejectedValueOnce(new Error("add network"));
   backendMock.deleteOrganization.mockResolvedValueOnce({status: "error", msg: "delete failed"});
   backendMock.deleteOrganization.mockRejectedValueOnce(new Error("delete network"));
   backendMock.getOrganizations.mockResolvedValueOnce({status: "error", msg: "list failed"});
-
-  page.addOrganization();
-  await flushPromises();
-  expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("add failed"));
-
-  page.addOrganization();
-  await flushPromises();
-  expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("add network"));
 
   page.deleteOrganization(0);
   await flushPromises();

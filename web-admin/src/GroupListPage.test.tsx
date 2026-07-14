@@ -284,11 +284,11 @@ test("creates a default group, navigates to edit page, and waits for save before
   page.addGroup();
   await flushPromises();
 
-  expect(backendMock.addGroup).toHaveBeenCalledWith(expect.objectContaining({
+  expect(backendMock.addGroup).not.toHaveBeenCalled();
+  expect(history.push).toHaveBeenCalledWith(expect.objectContaining({pathname: "/groups/engineering/group_abc123", state: expect.objectContaining({mode: "add", group: expect.objectContaining({
     owner: "engineering",
     name: "group_abc123",
-  }));
-  expect(history.push).toHaveBeenCalledWith({pathname: "/groups/engineering/group_abc123", mode: "add"});
+  })})}));
   expect(Setting.showMessage).not.toHaveBeenCalledWith("success", expect.any(String));
 });
 
@@ -353,25 +353,15 @@ test("deletes group and rolls back pagination for the last row", async() => {
   expect(Setting.showMessage).toHaveBeenCalledWith("success", expect.any(String));
 });
 
-test("reports add, delete and list fetch errors without changing contracts", async() => {
+test("reports delete and list fetch errors without changing contracts", async() => {
   const page = createPage();
   page.state = {
     ...page.state,
     data: [group],
   };
-  backendMock.addGroup.mockResolvedValueOnce({status: "error", msg: "add failed"});
-  backendMock.addGroup.mockRejectedValueOnce(new Error("add network"));
   backendMock.deleteGroup.mockResolvedValueOnce({status: "error", msg: "delete failed"});
   backendMock.deleteGroup.mockRejectedValueOnce(new Error("delete network"));
   backendMock.getGroups.mockRejectedValueOnce(new Error("list network"));
-
-  page.addGroup();
-  await flushPromises();
-  expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("add failed"));
-
-  page.addGroup();
-  await flushPromises();
-  expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("add network"));
 
   page.deleteGroup(0);
   await flushPromises();
@@ -456,7 +446,8 @@ test("builds table columns, toolbar and action handlers", () => {
 });
 
 test("list page table centralizes shared table defaults", () => {
-  const sharedTable = ListPageTable<TestGroupRecord>({columns: [], dataSource: []}) as TestSharedTableElement;
+  const sharedTableFrame = ListPageTable<TestGroupRecord>({columns: [], dataSource: []});
+  const sharedTable = React.Children.toArray(sharedTableFrame.props.children)[0] as TestSharedTableElement;
 
   expect(sharedTable.props.className).toBe("enterprise-list-table");
   expect(sharedTable.props.size).toBe("middle");
@@ -466,11 +457,12 @@ test("list page table centralizes shared table defaults", () => {
 });
 
 test("list page table wraps title content in the shared toolbar shell", () => {
-  const sharedTable = ListPageTable<TestGroupRecord>({
+  const sharedTableFrame = ListPageTable<TestGroupRecord>({
     columns: [],
     dataSource: [],
     title: () => <span>Shared toolbar</span>,
-  }) as React.ReactElement<{title?: () => React.ReactNode}>;
+  });
+  const sharedTable = React.Children.toArray(sharedTableFrame.props.children)[0] as React.ReactElement<{title?: () => React.ReactNode}>;
 
   const titleNode = sharedTable.props.title?.() as React.ReactElement<{className?: string; children?: React.ReactNode}>;
 

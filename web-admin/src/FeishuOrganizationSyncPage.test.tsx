@@ -59,6 +59,8 @@ jest.mock("./backend/OrganizationBackend", () => {
   const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
   return {
     addOrganization: factoryJest.fn(),
+    updateOrganization: factoryJest.fn(),
+    deleteOrganization: factoryJest.fn(),
   };
 });
 
@@ -139,6 +141,8 @@ beforeEach(() => {
   jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
   jestValue.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
   organizationBackendMock.addOrganization.mockResolvedValue({status: "ok"});
+  organizationBackendMock.updateOrganization.mockResolvedValue({status: "ok"});
+  organizationBackendMock.deleteOrganization.mockResolvedValue({status: "ok"});
   feishuBackendMock.getFeishuOrganizationSyncConfig.mockResolvedValue({
     status: "ok",
     data: {
@@ -352,19 +356,32 @@ test("restores configured Feishu organization when account owner is built-in", a
   expect(feishuBackendMock.getFeishuOrganizationSyncRuns).toHaveBeenCalledWith("engineering", 1, 10);
 });
 
-test("pre-creates organization and opens edit page when creating Feishu sync target organization", async() => {
+test("opens an unsaved organization draft when creating Feishu sync target organization", async() => {
   const history = {push: jestValue.fn()};
+  const dispatchEventSpy = jestValue.spyOn(window, "dispatchEvent");
   render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} history={history} />);
 
   fireEvent.click(await screen.findByText("新建组织"));
   await flushPromises();
 
-  expect(organizationBackendMock.addOrganization).toHaveBeenCalledWith(expect.objectContaining({
-    owner: "admin",
-    name: "organization_abc123",
-    displayName: "New Organization - abc123",
-  }));
-  expect(history.push).toHaveBeenCalledWith({pathname: "/organizations/organization_abc123", mode: "add"});
+  expect(organizationBackendMock.addOrganization).not.toHaveBeenCalled();
+  expect(organizationBackendMock.updateOrganization).not.toHaveBeenCalled();
+  expect(organizationBackendMock.deleteOrganization).not.toHaveBeenCalled();
+  expect(Setting.showMessage).not.toHaveBeenCalled();
+  expect(dispatchEventSpy).not.toHaveBeenCalledWith(expect.objectContaining({type: "storageOrganizationsChanged"}));
+  expect(history.push).toHaveBeenCalledWith({
+    pathname: "/organizations/organization_abc123",
+    state: {
+      mode: "add",
+      organization: expect.objectContaining({
+        owner: "admin",
+        name: "organization_abc123",
+        displayName: "New Organization - abc123",
+        passwordType: "bcrypt",
+        countryCodes: ["US"],
+      }),
+    },
+  });
 });
 
 test("shows source conflict warning and disables saving or enabling Feishu full sync", async() => {

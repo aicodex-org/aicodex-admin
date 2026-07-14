@@ -853,20 +853,28 @@ Admin 身份控制台 Shell SHALL 允许角色编辑页使用共享编辑框架�
 - **AND** 页面 SHALL NOT 同时保留旧 Card 标题内保存按钮和正文底部重复保存按钮
 
 #### Scenario: 角色编辑页保存语义保持兼容
-- **WHEN** 管理员点击 `保存`
+- **WHEN** 管理员在编辑态点击 `保存`
 - **THEN** 页面 SHALL 使用现有 `RoleBackend.updateRole` 保存角色并停留在当前角色编辑页
 - **AND** 页面 SHALL 保持现有保存 payload、角色名路由更新和错误回滚语义
 - **WHEN** 管理员点击 `保存并返回`
 - **THEN** 页面 SHALL 保存角色并返回 `/roles`
 
+#### Scenario: 角色新增草稿只在保存时创建
+- **WHEN** 管理员在角色列表点击新增
+- **THEN** 页面 SHALL 打开带既有默认值的路由草稿且 SHALL NOT 调用 `addRole` 或显示新增成功提示
+- **WHEN** 管理员在新增编辑页点击保存或保存并返回
+- **THEN** 页面 SHALL 在既有校验通过后调用 `addRole`，成功后转为编辑模式
+- **AND** 后续保存 SHALL 继续使用 `RoleBackend.updateRole`
+
 #### Scenario: 角色编辑页取消和返回保护未保存修改
 - **WHEN** 管理员修改角色字段后点击返回或取消
 - **THEN** 页面 SHALL 在离开前要求确认未保存修改
-- **AND** 新增模式点击取消并确认离开后 SHALL 保留既有删除临时角色对象语义
+- **WHEN** 管理员在角色新增草稿确认离开
+- **THEN** 页面 SHALL 返回 `/roles` 且 SHALL NOT 调用新增、更新或删除 API
 
 #### Scenario: 角色编辑页必填字段保存前校验
 - **WHEN** 管理员清空角色 `名称` 或 `显示名称` 后点击保存类按钮
-- **THEN** 页面 SHALL 阻止提交到角色保存 API
+- **THEN** 页面 SHALL 阻止提交到角色新增或保存 API
 - **AND** 缺失字段 SHALL 展示红色 `*` 和可读错误提示
 - **AND** 页面 SHALL 展示本地化错误消息说明需补齐必填字段
 
@@ -891,24 +899,32 @@ Admin 身份控制台 Shell SHALL 允许权限编辑页使用共享大型编辑�
 - **AND** 页面 SHALL NOT 同时保留旧 Card 标题内保存按钮和正文底部重复保存按钮
 
 #### Scenario: 权限编辑页保存语义保持兼容
-- **WHEN** 管理员点击 `保存`
+- **WHEN** 管理员在编辑态点击 `保存`
 - **THEN** 页面 SHALL 使用现有 `PermissionBackend.updatePermission` 保存权限并停留在当前权限编辑页
 - **AND** 页面 SHALL 保持现有保存 payload、权限名路由更新和错误回滚语义
 - **WHEN** 管理员点击 `保存并返回`
 - **THEN** 页面 SHALL 保存权限并返回 `/permissions`
 
+#### Scenario: 权限新增草稿只在保存时创建
+- **WHEN** 管理员在权限列表点击新增
+- **THEN** 页面 SHALL 打开路由草稿且 SHALL NOT 调用 `addPermission` 或显示新增成功提示
+- **WHEN** 管理员在新增编辑页点击保存或保存并返回
+- **THEN** 页面 SHALL 在既有必填与业务校验通过后调用 `addPermission`，成功后转为编辑模式
+- **AND** 后续保存 SHALL 继续使用 `PermissionBackend.updatePermission`
+
 #### Scenario: 权限编辑页取消和返回保护未保存修改
 - **WHEN** 管理员修改权限字段后点击返回或取消
 - **THEN** 页面 SHALL 在离开前要求确认未保存修改
-- **AND** 新增模式点击取消并确认离开后 SHALL 保留既有删除临时权限对象语义
+- **WHEN** 管理员在权限新增草稿确认离开
+- **THEN** 页面 SHALL 返回 `/permissions` 且 SHALL NOT 调用新增、更新或删除 API
 
 #### Scenario: 权限编辑页保存前校验
 - **WHEN** 管理员清空权限 `名称` 或 `显示名称` 后点击保存类按钮
-- **THEN** 页面 SHALL 阻止提交到权限保存 API
+- **THEN** 页面 SHALL 阻止提交到权限新增或保存 API
 - **AND** 缺失字段 SHALL 展示红色 `*` 和可读错误提示
 - **AND** 页面 SHALL 展示本地化错误消息说明需补齐必填字段
 - **WHEN** 现有权限业务校验失败
-- **THEN** 页面 SHALL 保留现有本地化错误提示并阻止提交到权限保存 API
+- **THEN** 页面 SHALL 保留现有本地化错误提示并阻止提交到权限新增或保存 API
 
 ### Requirement: 应用编辑页应使用多 tab 固定操作栏编辑壳
 
@@ -931,7 +947,7 @@ Admin 身份控制台 Shell SHALL 让应用编辑页按多 tab 大编辑页形�
 - **THEN** 页面底部 SHALL 保留固定操作栏
 - **AND** 操作栏按钮顺序 SHALL 为 `取消`、`保存`、`保存并返回`
 - **AND** 保存中 SHALL 禁用重复提交或展示提交中状态
-- **AND** 新增模式取消 SHALL 保持既有删除临时应用对象语义
+- **AND** 新增草稿取消 SHALL 返回应用列表且不调用新增、更新或删除 API
 
 #### Scenario: 应用编辑页不制造页面级横向溢出
 - **WHEN** 管理员在 `1280px` 或 `1920px` 桌面宽度访问应用编辑页任一 tab
@@ -940,9 +956,28 @@ Admin 身份控制台 Shell SHALL 让应用编辑页按多 tab 大编辑页形�
 
 #### Scenario: 应用编辑页保存前错误定位到对应 tab
 - **WHEN** 管理员在应用编辑页提交缺少必填字段或存在可前端发现的配置错误
-- **THEN** 页面 SHALL 阻止调用应用保存 API
+- **THEN** 页面 SHALL 阻止调用应用新增或更新 API
 - **AND** 页面 SHALL 展示本地化错误提示
 - **AND** 页面 SHALL 激活第一个错误所在 tab
+
+#### Scenario: 应用新增和复制仅打开草稿
+- **WHEN** 管理员在应用列表点击新增或复制
+- **THEN** 页面 SHALL 打开带既有默认值或复制值的路由草稿
+- **AND** 页面 SHALL NOT 调用 `ApplicationBackend.addApplication` 或显示新增、复制成功提示
+- **AND** 新增模式 SHALL 跳过尚不存在应用的详情读取
+
+#### Scenario: 应用草稿保存后进入编辑模式
+- **WHEN** 管理员在新增或复制草稿点击保存或保存并返回
+- **THEN** 页面 SHALL 在既有校验通过后调用 `ApplicationBackend.addApplication` 一次
+- **AND** 保存并返回 SHALL 直接返回应用列表
+- **AND** 保存并停留 SHALL 先进入禁止更新的回读状态，并在详情 GET 成功替换前端草稿后恢复编辑保存
+- **AND** 回读失败、缺失数据或网络异常时 SHALL 保持更新 fail-closed，但取消和返回仍 SHALL 可用
+- **AND** 后续保存 SHALL 调用既有更新 API，并保留后端生成的 `clientId`、`clientSecret` 等持久化字段
+- **AND** 应用 payload、tab hash、字段规则和返回语义 SHALL 保持兼容
+
+#### Scenario: 应用草稿取消或返回不写入
+- **WHEN** 管理员在新增或复制草稿点击取消、顶部返回或确认放弃未保存修改
+- **THEN** 页面 SHALL 返回应用列表且 SHALL NOT 调用新增、更新或删除 API
 
 ### Requirement: 后台页面样式模块按职责维护
 

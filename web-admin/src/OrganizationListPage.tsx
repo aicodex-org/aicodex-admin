@@ -208,19 +208,7 @@ class OrganizationListPage extends TypedBaseListPage {
 
   addOrganization(): void {
     const newOrganization = this.newOrganization();
-    OrganizationBackend.addOrganization(newOrganization)
-      .then((res) => {
-        if (res.status === "ok") {
-          this.props.history.push({pathname: `/organizations/${newOrganization.name}`, mode: "add"});
-          // 新增入口只是进入预创建后的编辑页，保存动作再给成功反馈，避免误报为表单已完成。
-          window.dispatchEvent(new Event("storageOrganizationsChanged"));
-        } else {
-          Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
-        }
-      })
-      .catch(error => {
-        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
-      });
+    this.props.history.push({pathname: `/organizations/${newOrganization.name}`, state: {mode: "add", organization: newOrganization}} as never);
   }
 
   deleteOrganization(i: number): void {

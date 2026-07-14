@@ -482,7 +482,7 @@ describe("ProviderListPage enterprise table polish", () => {
     });
   });
 
-  test("adds provider through the existing backend and navigates to edit page", async() => {
+  test("opens a provider draft without calling the add backend", async() => {
     const history = {push: jest.fn()};
     const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
     jest.spyOn(Setting, "getRandomName").mockReturnValue("fixed");
@@ -499,37 +499,14 @@ describe("ProviderListPage enterprise table polish", () => {
     page.addProvider();
     await flushPromises();
 
-    expect(addProvider).toHaveBeenCalledWith(expect.objectContaining({
+    expect(addProvider).not.toHaveBeenCalled();
+    expect(history.push).toHaveBeenCalledWith(expect.objectContaining({pathname: "/providers/admin/provider_fixed", state: expect.objectContaining({mode: "add", provider: expect.objectContaining({
       owner: "admin",
       name: "provider_fixed",
       category: "OAuth",
       type: "GitHub",
-    }));
-    expect(history.push).toHaveBeenCalledWith({pathname: "/providers/admin/provider_fixed", mode: "add"});
-    expect(showMessage).toHaveBeenCalledWith("success", expect.any(String));
-  });
-
-  test("surfaces add provider backend and connection failures", async() => {
-    const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
-    jest.spyOn(Setting, "getRandomName").mockReturnValue("failed");
-    jest.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(true);
-    const page = attachPageState(new ProviderListPage({
-      account,
-      history: {push: jest.fn()},
-      match: {path: "/providers", params: {}},
-    }), {
-      owner: "admin",
-    });
-    jest.spyOn(ProviderBackend, "addProvider").mockResolvedValueOnce({status: "error", msg: "invalid"} as LegacyAny);
-
-    page.addProvider();
-    await flushPromises();
-    expect(showMessage).toHaveBeenCalledWith("error", expect.stringContaining("invalid"));
-
-    jest.spyOn(ProviderBackend, "addProvider").mockRejectedValueOnce(new Error("offline"));
-    page.addProvider();
-    await flushPromises();
-    expect(showMessage).toHaveBeenCalledWith("error", expect.stringContaining("offline"));
+    })})}));
+    expect(showMessage).not.toHaveBeenCalledWith("success", expect.any(String));
   });
 
   test("deletes provider and falls back to previous page when current page becomes empty", async() => {

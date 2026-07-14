@@ -118,6 +118,8 @@ interface AccountItemRecord {
 }
 
 type UserEditTabKey = "basic" | "identity" | "access" | "security" | "connections" | "records";
+type OrganizationContextStatus = "ready" | "loading" | "error";
+type PostCreateReloadStatus = "idle" | "loading" | "error";
 
 interface UserEditTabItem {
   key: UserEditTabKey;
@@ -224,6 +226,7 @@ interface UserEditPageProps {
   };
   location: {
     mode?: string;
+    state?: {user?: UserRecord; mode?: string};
     search?: string;
     [key: string]: unknown;
   };
@@ -258,6 +261,8 @@ interface UserEditPageState {
   menuMode: "Horizontal" | "Vertical" | string;
   dirty: boolean;
   submitting: boolean;
+  organizationContextStatus: OrganizationContextStatus;
+  postCreateReloadStatus: PostCreateReloadStatus;
   multiFactorAuths?: MfaPropsRecord[];
   RemoveMfaLoading?: boolean;
   [key: string]: unknown;
@@ -279,14 +284,21 @@ const i18next = {
 };
 
 export class UserEditPage extends React.Component<UserEditPageProps, UserEditPageState> {
+  organizationContextRequestId = 0;
+  postCreateReloadRequestId = 0;
+  isUnmounted = false;
+
   constructor(props: UserEditPageProps) {
     super(props);
+    const draftUser = props.location.state?.user;
+    const requestedMode = props.location.state?.mode ?? props.location.mode ?? "edit";
+    const mode = requestedMode === "add" && draftUser === undefined ? "edit" : requestedMode;
     this.state = {
       classes: props,
-      organizationName: props.organizationName !== undefined ? props.organizationName : props.match.params.organizationName,
-      userName: props.userName !== undefined ? props.userName : props.match.params.userName,
+      organizationName: draftUser?.owner ?? (props.organizationName !== undefined ? props.organizationName : props.match.params.organizationName),
+      userName: draftUser?.name ?? (props.userName !== undefined ? props.userName : props.match.params.userName),
       // 保留历史 JS 行为：用户详情加载前为 null，render 中仍用 null guard 控制展示。
-      user: null as unknown as UserRecord,
+      user: draftUser ?? null as unknown as UserRecord,
       application: null,
       userOrganization: null,
       pendingUserApplicationError: null,
@@ -294,8 +306,8 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
       organizations: [],
       applications: [],
       applicationsLoaded: false,
-      mode: props.location.mode !== undefined ? props.location.mode : "edit",
-      loading: true,
+      mode,
+      loading: mode !== "add",
       returnUrl: null,
       idCardInfo: ["ID card front", "ID card back", "ID card with person"],
       openFaceRecognitionModal: false,
@@ -305,17 +317,26 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
       menuMode: "Horizontal",
       dirty: false,
       submitting: false,
+      organizationContextStatus: "loading",
+      postCreateReloadStatus: "idle",
     };
   }
 
   UNSAFE_componentWillMount() {
-    this.getUser();
+    if (this.state.mode !== "add") {
+      this.getUser();
+    }
     if (Setting.isLocalAdminUser(this.props.account)) {
       this.getOrganizations();
     }
-    this.getApplicationsByOrganization(this.state.organizationName);
-    this.getUserApplication();
+    this.loadOrganizationContext(this.state.organizationName, this.state.mode !== "add");
     this.setReturnUrl();
+  }
+
+  componentWillUnmount() {
+    this.isUnmounted = true;
+    this.organizationContextRequestId += 1;
+    this.postCreateReloadRequestId += 1;
   }
 
   getMfaMethodLabel(mfaType: string): string {
@@ -336,7 +357,8 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
   }
 
   componentDidUpdate(prevProps: Readonly<UserEditPageProps>, prevState: Readonly<UserEditPageState>, snapshot?: unknown) {
-    if (prevState.application !== this.state.application || prevState.userOrganization !== this.state.userOrganization) {
+    if ((prevState.application !== this.state.application || prevState.userOrganization !== this.state.userOrganization) &&
+      this.state.groups === null && this.state.organizationContextStatus !== "loading") {
       this.getGroups(this.state.organizationName);
     }
   }
@@ -397,13 +419,123 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
   }
 
   getApplicationsByOrganization(organizationName: string) {
+    const requestId = this.organizationContextRequestId;
     ApplicationBackend.getApplicationsByOrganization("admin", organizationName)
       .then((res: BackendResponse<ApplicationRecord[]>) => {
+        if (!this.isOrganizationContextRequestCurrent(requestId, organizationName)) {
+          return;
+        }
+
         const applications = res.data ?? [];
         this.setState({
           applications: applications,
           applicationsLoaded: true,
         }, () => this.normalizeSignupApplication());
+      });
+  }
+
+  isOrganizationContextRequestCurrent(requestId: number, organizationName: string) {
+    const currentOwner = this.state.user?.owner ?? this.state.organizationName;
+    return !this.isUnmounted && requestId === this.organizationContextRequestId && currentOwner === organizationName;
+  }
+
+  loadOrganizationContext(organizationName: string, includeUserApplication = false) {
+    const requestId = ++this.organizationContextRequestId;
+    this.setState({
+      application: null,
+      userOrganization: null,
+      applications: [],
+      applicationsLoaded: false,
+      groups: null,
+      menuMode: "Horizontal",
+      organizationContextStatus: "loading",
+    });
+
+    const groupsRequest: Promise<BackendResponse<GroupRecord[]>> = Setting.isLocalAdminUser(this.props.account)
+      ? GroupBackend.getGroups(organizationName)
+      : Promise.resolve({status: "ok", data: []});
+    const userApplicationRequest: Promise<BackendResponse<ApplicationRecord>> = includeUserApplication
+      ? ApplicationBackend.getUserApplication(organizationName, this.state.userName)
+      : Promise.resolve({status: "ok", data: null});
+
+    Promise.all([
+      OrganizationBackend.getOrganization("admin", organizationName) as Promise<BackendResponse<OrganizationRecord>>,
+      ApplicationBackend.getApplicationsByOrganization("admin", organizationName) as Promise<BackendResponse<ApplicationRecord[]>>,
+      groupsRequest,
+      userApplicationRequest,
+    ])
+      .then(([organizationResponse, applicationsResponse, groupsResponse, userApplicationResponse]) => {
+        // 组织上下文只允许最后一次且仍匹配当前 owner 的完整响应落地，任一关键请求失败都保持关闭。
+        if (!this.isOrganizationContextRequestCurrent(requestId, organizationName)) {
+          return;
+        }
+
+        const businessError = organizationResponse.status !== "ok" || !organizationResponse.data
+          ? organizationResponse.msg || i18next.t("general:Failed to load")
+          : applicationsResponse.status !== "ok"
+            ? applicationsResponse.msg || i18next.t("general:Failed to load")
+            : groupsResponse.status !== "ok"
+              ? groupsResponse.msg || i18next.t("general:Failed to load")
+              : userApplicationResponse.status === "error" && !this.isMissingUserApplicationError(userApplicationResponse.msg)
+                ? userApplicationResponse.msg || i18next.t("general:Failed to load")
+                : null;
+        if (businessError !== null) {
+          this.setState({organizationContextStatus: "error"});
+          Setting.showMessage("error", `${i18next.t("general:Failed to load")}: ${businessError}`);
+          return;
+        }
+
+        const organization = organizationResponse.data as OrganizationRecord;
+        const userApplication = userApplicationResponse.status === "ok" && userApplicationResponse.data
+          ? {...userApplicationResponse.data, organizationObj: organization}
+          : null;
+        this.setState({
+          application: userApplication,
+          userOrganization: organization,
+          applications: applicationsResponse.data ?? [],
+          applicationsLoaded: true,
+          groups: groupsResponse.data ?? [],
+          menuMode: organization.accountMenu ?? "Horizontal",
+          organizationContextStatus: "ready",
+        }, () => this.normalizeSignupApplication());
+      })
+      .catch(error => {
+        if (!this.isOrganizationContextRequestCurrent(requestId, organizationName)) {
+          return;
+        }
+
+        this.setState({organizationContextStatus: "error"});
+        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+      });
+  }
+
+  reloadPersistedUserAfterCreate(organizationName: string, userName: string) {
+    const requestId = ++this.postCreateReloadRequestId;
+    UserBackend.getUser(organizationName, userName)
+      .then((res: BackendResponse<UserRecord>) => {
+        if (this.isUnmounted || requestId !== this.postCreateReloadRequestId) {
+          return;
+        }
+
+        if (res.status !== "ok" || !res.data) {
+          this.setState({postCreateReloadStatus: "error"});
+          Setting.showMessage("error", `${i18next.t("general:Failed to load")}: ${res.msg ?? i18next.t("general:Failed to load")}`);
+          return;
+        }
+
+        // AddUser 会补齐或归一化多个字段；后续更新必须以持久化对象为基线。
+        this.setState({
+          user: res.data,
+          postCreateReloadStatus: "idle",
+        });
+      })
+      .catch(error => {
+        if (this.isUnmounted || requestId !== this.postCreateReloadRequestId) {
+          return;
+        }
+
+        this.setState({postCreateReloadStatus: "error"});
+        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
@@ -563,20 +695,40 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
   }
 
   getUserApplication() {
-    ApplicationBackend.getUserApplication(this.state.organizationName, this.state.userName)
+    const organizationName = this.state.organizationName;
+    const requestId = this.organizationContextRequestId;
+    ApplicationBackend.getUserApplication(organizationName, this.state.userName)
       .then((res) => {
+        if (!this.isOrganizationContextRequestCurrent(requestId, organizationName)) {
+          return;
+        }
+
         if (res.status === "error") {
           this.handleUserApplicationError(res.msg);
           return;
         }
 
         const application = res.data as ApplicationRecord | null;
+        if (!application?.organizationObj) {
+          this.getUserOrganizationFallback();
+          return;
+        }
+
         this.setState({
           menuMode: application?.organizationObj?.accountMenu ?? "Horizontal",
           application: application,
           userOrganization: application?.organizationObj ?? null,
           pendingUserApplicationError: null,
+          organizationContextStatus: "ready",
         });
+      })
+      .catch(error => {
+        if (!this.isOrganizationContextRequestCurrent(requestId, organizationName)) {
+          return;
+        }
+
+        this.setState({organizationContextStatus: "error"});
+        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
@@ -611,11 +763,18 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
   }
 
   getUserOrganizationFallback(applicationError?: string) {
-    OrganizationBackend.getOrganization("admin", this.state.organizationName)
+    const organizationName = this.state.organizationName;
+    const requestId = this.organizationContextRequestId;
+    this.setState({organizationContextStatus: "loading"});
+    OrganizationBackend.getOrganization("admin", organizationName)
       .then((res: BackendResponse<OrganizationRecord>) => {
+        if (!this.isOrganizationContextRequestCurrent(requestId, organizationName)) {
+          return;
+        }
+
         if (res.status === "error" || !res.data) {
           Setting.showMessage("error", res.msg || applicationError);
-          this.setState({pendingUserApplicationError: null});
+          this.setState({pendingUserApplicationError: null, organizationContextStatus: "error"});
           return;
         }
 
@@ -624,10 +783,15 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
           application: null,
           userOrganization: res.data,
           pendingUserApplicationError: null,
+          organizationContextStatus: "ready",
         });
       })
       .catch(error => {
-        this.setState({pendingUserApplicationError: null});
+        if (!this.isOrganizationContextRequestCurrent(requestId, organizationName)) {
+          return;
+        }
+
+        this.setState({pendingUserApplicationError: null, organizationContextStatus: "error"});
         Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
       });
   }
@@ -651,8 +815,13 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
     }
 
     if (this.isGroupsVisible()) {
+      const requestId = this.organizationContextRequestId;
       GroupBackend.getGroups(organizationName)
         .then((res: BackendResponse<GroupRecord[]>) => {
+          if (!this.isOrganizationContextRequestCurrent(requestId, organizationName)) {
+            return;
+          }
+
           if (res.status === "ok") {
             this.setState({
               groups: res.data ?? [],
@@ -894,9 +1063,8 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
                 return optionText.includes(input.toLowerCase());
               }}
               onChange={(value => {
-                this.getApplicationsByOrganization(value);
                 this.updateUserField("owner", value);
-                this.getGroups(value);
+                this.loadOrganizationContext(value, this.state.mode !== "add");
               })}
             >
               {
@@ -2198,22 +2366,12 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
 
   handleBack() {
     this.confirmDiscardChanges(() => {
-      if (this.state.mode === "add") {
-        this.deleteUser();
-        return;
-      }
-
       this.returnToUserList();
     });
   }
 
   handleCancel() {
     this.confirmDiscardChanges(() => {
-      if (this.state.mode === "add") {
-        this.deleteUser();
-        return;
-      }
-
       this.returnToUserList();
     });
   }
@@ -2229,11 +2387,12 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
   }
 
   renderEditFooter(): React.ReactNode {
+    const contextUnavailable = this.state.organizationContextStatus !== "ready" || this.state.postCreateReloadStatus !== "idle";
     return (
       <React.Fragment>
         <Button disabled={this.state.submitting} onClick={() => this.handleCancel()}>{i18next.t("general:Cancel")}</Button>
-        <Button type="primary" loading={this.state.submitting} onClick={() => this.submitUserEdit(false)}>{i18next.t("general:Save")}</Button>
-        <Button disabled={this.state.submitting} onClick={() => this.submitUserEdit(true)}>{i18next.t("user:Save and return")}</Button>
+        <Button type="primary" disabled={this.state.submitting || contextUnavailable} loading={this.state.submitting} onClick={() => this.submitUserEdit(false)}>{i18next.t("general:Save")}</Button>
+        <Button disabled={this.state.submitting || contextUnavailable} onClick={() => this.submitUserEdit(true)}>{i18next.t("user:Save and return")}</Button>
       </React.Fragment>
     );
   }
@@ -2293,21 +2452,33 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
   }
 
   submitUserEdit(exitAfterSave: boolean) {
-    if (this.state.submitting) {
+    if (this.state.submitting || this.state.organizationContextStatus !== "ready" || this.state.postCreateReloadStatus !== "idle") {
       return;
     }
 
     const user = Setting.deepCopy(this.state.user);
     this.setState({submitting: true});
-    UserBackend.updateUser(this.state.organizationName, this.state.userName, user)
+    const saveUser = this.state.mode === "add"
+      ? UserBackend.addUser(user)
+      : UserBackend.updateUser(this.state.organizationName, this.state.userName, user);
+    saveUser
       .then((res) => {
         if (res.status === "ok") {
           Setting.showMessage("success", i18next.t("general:Successfully saved"));
+          const wasAdding = this.state.mode === "add";
           this.setState({
             organizationName: user.owner,
             userName: user.name,
+            mode: "edit",
             dirty: false,
             submitting: false,
+            postCreateReloadStatus: wasAdding && !exitAfterSave ? "loading" : "idle",
+          }, () => {
+            if (wasAdding && !exitAfterSave) {
+              // 两次读取相互独立，均完成前保存保持 fail-closed。
+              this.reloadPersistedUserAfterCreate(user.owner, user.name);
+              this.loadOrganizationContext(user.owner, true);
+            }
           });
           if (exitAfterSave) {
             this.returnToUserList();
@@ -2318,14 +2489,18 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
           }
         } else {
           Setting.showMessage("error", `${i18next.t("general:Failed to save")}: ${res.msg}`);
-          this.setState(state => ({
-            user: {
-              ...state.user,
-              owner: state.organizationName,
-              name: state.userName,
-            },
-            submitting: false,
-          }));
+          if (this.state.mode === "add") {
+            this.setState({submitting: false});
+          } else {
+            this.setState(state => ({
+              user: {
+                ...state.user,
+                owner: state.organizationName,
+                name: state.userName,
+              },
+              submitting: false,
+            }));
+          }
         }
       })
       .catch(error => {

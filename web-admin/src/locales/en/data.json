@@ -1825,6 +1825,7 @@
     "WeChat Pay": "WeChat Pay"
   },
   "provider": {
+    "Discard unsaved changes confirmation": "Current provider settings have unsaved changes. Leave without saving?",
     "Agent ID": "Agent ID",
     "Agent ID - Tooltip": "Unique identifier for the agent, used to distinguish different agent entities",
     "Api Key": "Api Key",
@@ -1990,6 +1991,7 @@
     "SP Entity ID": "SP Entity ID",
     "SP Entity ID - Tooltip": "SP Entity ID - Tooltip",
     "Save and return": "Save and return",
+    "Unsaved changes": "Unsaved changes",
     "SSL mode": "SSL mode",
     "SSL mode - Tooltip": "HTTPS access policy for the reverse proxy domain.",
     "Scene": "Scene",

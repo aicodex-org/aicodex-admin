@@ -23,7 +23,7 @@ type LooseMock = {
   mockRejectedValueOnce: (value: unknown) => LooseMock;
 };
 
-type GroupBackendMock = Record<"getGroup" | "getGroups" | "updateGroup" | "deleteGroup", LooseMock>;
+type GroupBackendMock = Record<"getGroup" | "getGroups" | "addGroup" | "updateGroup" | "deleteGroup", LooseMock>;
 type OrganizationBackendMock = Record<"getOrganizationNames", LooseMock>;
 type UserBackendMock = Record<"getUsers", LooseMock>;
 type PageProps = ConstructorParameters<typeof GroupEditPage>[0];
@@ -60,6 +60,7 @@ jest.mock("./backend/GroupBackend", () => {
   return {
     getGroup: factoryJest.fn(),
     getGroups: factoryJest.fn(),
+    addGroup: factoryJest.fn(),
     updateGroup: factoryJest.fn(),
     deleteGroup: factoryJest.fn(),
   };
@@ -140,10 +141,11 @@ function createPage(options: {
   organizationName?: string;
   groupName?: string;
 } = {}): PageHarness {
+  const draftGroup = {...baseGroup, ...options.group};
   const props = {
     account: {owner: "admin", name: "admin", isAdmin: true},
     history: createHistory(),
-    location: {mode: options.mode},
+    location: options.mode === "add" ? {state: {mode: "add", group: draftGroup}} : {},
     match: {
       params: {
         organizationName: options.organizationName ?? "engineering",
@@ -164,7 +166,7 @@ function createPage(options: {
   }) as PageHarness["setState"];
   page.state = {
     ...page.state,
-    group: {...baseGroup, ...options.group},
+    group: draftGroup,
     groups: [...groups],
     organizations: [...organizations],
   };
@@ -210,6 +212,7 @@ function setupBackend() {
     ],
   });
   groupBackendMock.updateGroup.mockResolvedValue({status: "ok"});
+  groupBackendMock.addGroup.mockResolvedValue({status: "ok"});
   groupBackendMock.deleteGroup.mockResolvedValue({status: "ok"});
 }
 
@@ -495,6 +498,30 @@ test("restores group name and reports errors when save fails", async() => {
   expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network down"));
 });
 
+test("keeps an edited group draft name when add is rejected", async() => {
+  groupBackendMock.addGroup.mockResolvedValueOnce({status: "error", msg: "duplicate"});
+  const page = createPage({mode: "add", group: {name: "custom-draft"}});
+
+  page.submitGroupEdit(false);
+  await flushPromises();
+
+  expect(page.state.group?.name).toBe("custom-draft");
+});
+
+test("creates a group once and uses update for the next save", async() => {
+  const page = createPage({mode: "add", group: {name: "custom-draft"}});
+
+  page.submitGroupEdit(false);
+  await flushPromises();
+  page.submitGroupEdit(false);
+  await flushPromises();
+
+  expect(groupBackendMock.addGroup).toHaveBeenCalledTimes(1);
+  expect(groupBackendMock.updateGroup).toHaveBeenCalledTimes(1);
+  expect(page.state.mode).toBe("edit");
+  expect(page.state.groupName).toBe("custom-draft");
+});
+
 test("deletes groups with existing return semantics and reports failures", async() => {
   const page = createPage({mode: "add"});
   const historyPush = page.props.history.push as ReturnType<typeof jestValue.fn>;
@@ -546,11 +573,11 @@ test("confirms dirty cancel and back before leaving", async() => {
   addPage.handleBack();
   await flushPromises();
 
-  expect(groupBackendMock.deleteGroup).toHaveBeenCalledWith(expect.objectContaining({name: "group-main"}));
+  expect(groupBackendMock.deleteGroup).not.toHaveBeenCalled();
 });
 
 test("renders one fixed action bar with existing callbacks", async() => {
-  const {view} = renderPage({mode: "add"});
+  const {view} = renderPage();
 
   expect(await view.findByDisplayValue("Main Group")).not.toBeNull();
 
@@ -566,5 +593,5 @@ test("renders one fixed action bar with existing callbacks", async() => {
   await flushPromises();
 
   expect(groupBackendMock.updateGroup).toHaveBeenCalledTimes(2);
-  expect(groupBackendMock.deleteGroup).toHaveBeenCalledTimes(1);
+  expect(groupBackendMock.deleteGroup).not.toHaveBeenCalled();
 });

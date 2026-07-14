@@ -186,18 +186,7 @@ class ProviderListPage extends TypedBaseListPage {
 
   addProvider(): void {
     const newProvider = this.newProvider();
-    ProviderBackend.addProvider(newProvider)
-      .then((res) => {
-        if (res.status === "ok") {
-          this.props.history.push({pathname: `/providers/${newProvider.owner}/${newProvider.name}`, mode: "add"});
-          Setting.showMessage("success", t("general:Successfully added"));
-        } else {
-          Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
-        }
-      })
-      .catch((error: unknown) => {
-        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
-      });
+    this.props.history.push({pathname: `/providers/${newProvider.owner}/${newProvider.name}`, state: {mode: "add", provider: newProvider}} as never);
   }
 
   deleteProvider(i: number): void {

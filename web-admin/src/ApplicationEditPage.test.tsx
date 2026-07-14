@@ -20,10 +20,13 @@ const {fireEvent} = require("@testing-library/react") as {fireEvent: {click: (el
 type LooseMock = {
   (...args: unknown[]): unknown;
   mockClear: () => LooseMock;
+  mockImplementationOnce: (implementation: (...args: unknown[]) => unknown) => LooseMock;
   mockResolvedValue: (value: unknown) => LooseMock;
+  mockResolvedValueOnce: (value: unknown) => LooseMock;
+  mockRejectedValueOnce: (value: unknown) => LooseMock;
 };
 
-type ApplicationBackendMock = Record<"getApplication" | "updateApplication" | "deleteApplication" | "getSamlMetadata", LooseMock>;
+type ApplicationBackendMock = Record<"getApplication" | "addApplication" | "updateApplication" | "deleteApplication" | "getSamlMetadata", LooseMock>;
 type ProviderBackendMock = Record<"getProviders", LooseMock>;
 type OrganizationBackendMock = Record<"getOrganizations", LooseMock>;
 type CertBackendMock = Record<"getCerts", LooseMock>;
@@ -40,6 +43,7 @@ jest.mock("./backend/ApplicationBackend", () => {
   const {jest: factoryJest} = require("@jest/globals");
   return {
     getApplication: factoryJest.fn(),
+    addApplication: factoryJest.fn(),
     updateApplication: factoryJest.fn(),
     deleteApplication: factoryJest.fn(),
     getSamlMetadata: factoryJest.fn(),
@@ -164,20 +168,23 @@ async function useTestLanguage(language: string) {
   await i18next.changeLanguage(language);
 }
 
-function createPage(options: {mode?: string; application?: Record<string, unknown>} = {}): PageHarness {
+function createPage(options: {mode?: string; application?: Record<string, unknown>; legacyAdd?: boolean} = {}): PageHarness {
+  const draftApplication = {
+    ...baseApplication,
+    ...options.application,
+  };
   const page = new ApplicationEditPage({
     match: {params: {organizationName: "engineering", applicationName: "portal"}},
-    location: {mode: options.mode, search: ""},
+    location: options.mode === "add" && !options.legacyAdd
+      ? {state: {mode: "add", application: draftApplication}, search: ""}
+      : {mode: options.legacyAdd ? "add" : options.mode, search: ""},
     history: {push: jest.fn()},
     account: {owner: "engineering", name: "admin"},
   } as any) as unknown as PageHarness;
 
   page.state = {
     ...page.state,
-    application: {
-      ...baseApplication,
-      ...options.application,
-    },
+    application: draftApplication,
     organizations: [{name: "engineering", displayName: "Engineering"}],
     certs: [{name: "cert-main"}],
     providers: [{name: "provider-main"}],
@@ -201,6 +208,17 @@ async function flushPromises() {
   await new Promise(resolve => setTimeout(resolve, 0));
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+
+  return {promise, resolve, reject};
+}
+
 beforeEach(async() => {
   await useTestLanguage("en");
   window.location.hash = "";
@@ -213,6 +231,7 @@ beforeEach(async() => {
   jest.spyOn(Setting, "deepCopy").mockImplementation((value: unknown) => JSON.parse(JSON.stringify(value)));
   jest.spyOn(Setting, "myParseInt").mockImplementation((value: unknown) => Number.parseInt(String(value), 10));
   applicationBackendMock.getApplication.mockResolvedValue({status: "ok", data: {...baseApplication}});
+  applicationBackendMock.addApplication.mockResolvedValue({status: "ok"});
   applicationBackendMock.updateApplication.mockResolvedValue({status: "ok"});
   applicationBackendMock.deleteApplication.mockResolvedValue({status: "ok"});
   applicationBackendMock.getSamlMetadata.mockResolvedValue("<xml />");
@@ -224,6 +243,172 @@ beforeEach(async() => {
 afterEach(() => {
   cleanup();
   jest.restoreAllMocks();
+});
+
+test("loads add-draft dependencies without reading a missing application", async() => {
+  const draft = {...baseApplication, providers: [{name: "provider-main"}]};
+  const getApplication = jest.spyOn(ApplicationBackend, "getApplication");
+  const page = new ApplicationEditPage({
+    match: {params: {organizationName: draft.organization, applicationName: draft.name}},
+    location: {state: {mode: "add", application: draft}, search: ""},
+    history: {push: jest.fn()},
+    account: {owner: draft.organization, name: "admin"},
+  } as any) as unknown as PageHarness;
+  Object.defineProperty(page, "setState", {
+    configurable: true,
+    value: (patch: any) => {
+      const nextPatch = typeof patch === "function" ? patch(page.state, page.props) : patch;
+      page.state = {...page.state, ...(nextPatch || {})};
+    },
+  });
+
+  page.UNSAFE_componentWillMount();
+  await flushPromises();
+
+  expect(getApplication).not.toHaveBeenCalled();
+  expect(providerBackendMock.getProviders).toHaveBeenCalledWith(draft.organization);
+  expect(certBackendMock.getCerts).toHaveBeenCalledWith(draft.organization);
+  expect(page.state.providers).toEqual([{name: "provider-main"}]);
+  expect(page.state.application.providers).toEqual([{name: "provider-main"}]);
+});
+
+test("preserves draft providers when saving before provider options finish loading", async() => {
+  const page = createPage({mode: "add", application: {providers: [{name: "provider-main"}]}});
+  page.state = {...page.state, providers: [], providersLoaded: false};
+
+  page.submitApplicationEdit(false);
+  await flushPromises();
+
+  expect(applicationBackendMock.addApplication).toHaveBeenCalledWith(expect.objectContaining({
+    providers: [{name: "provider-main"}],
+  }));
+  expect(page.state.mode).toBe("edit");
+
+  page.submitApplicationEdit(false);
+  await flushPromises();
+  expect(applicationBackendMock.addApplication).toHaveBeenCalledTimes(1);
+  expect(applicationBackendMock.updateApplication).toHaveBeenCalledTimes(1);
+});
+
+test("reloads the persisted application before allowing a second save", async() => {
+  const persistedApplication = {
+    ...baseApplication,
+    clientId: "generated-client-id",
+    clientSecret: "***",
+  };
+  const reloadRequest = new Promise(resolve => {
+    setTimeout(() => resolve({status: "ok", data: persistedApplication}), 0);
+  });
+  applicationBackendMock.getApplication.mockImplementationOnce(() => reloadRequest);
+  const page = createPage({mode: "add", application: {clientId: "", clientSecret: ""}});
+
+  page.submitApplicationEdit(false);
+  await Promise.resolve();
+  await Promise.resolve();
+
+  expect(page.state.mode).toBe("edit");
+  expect(applicationBackendMock.getApplication).toHaveBeenCalledWith("admin", "portal");
+  page.submitApplicationEdit(false);
+  expect(applicationBackendMock.updateApplication).not.toHaveBeenCalled();
+
+  await flushPromises();
+  expect(page.state.application.clientId).toBe("generated-client-id");
+  expect(page.state.application.clientSecret).toBe("***");
+
+  page.submitApplicationEdit(false);
+  await flushPromises();
+  expect(applicationBackendMock.updateApplication).toHaveBeenCalledWith("admin", "portal", expect.objectContaining({
+    clientId: "generated-client-id",
+    clientSecret: "***",
+  }));
+});
+
+test("ignores a successful post-create reload after the editor unmounts", async() => {
+  const reloadRequest = createDeferred<unknown>();
+  applicationBackendMock.getApplication.mockImplementationOnce(() => reloadRequest.promise);
+  const page = createPage({mode: "add", application: {clientId: "", clientSecret: ""}});
+
+  page.submitApplicationEdit(false);
+  await Promise.resolve();
+  await Promise.resolve();
+  (Setting.showMessage as unknown as {mockClear: () => void}).mockClear();
+  const stateBeforeUnmount = page.state;
+  (page as unknown as {componentWillUnmount?: () => void}).componentWillUnmount?.();
+  reloadRequest.resolve({status: "ok", data: {...baseApplication, clientId: "late-client-id", clientSecret: "***"}});
+  await flushPromises();
+
+  expect(page.state).toBe(stateBeforeUnmount);
+  expect(page.state.application.clientId).toBe("");
+  expect(page.state.postCreateReloadStatus).toBe("loading");
+  expect(Setting.showMessage).not.toHaveBeenCalled();
+});
+
+test("ignores a rejected post-create reload after the editor unmounts", async() => {
+  const reloadRequest = createDeferred<unknown>();
+  applicationBackendMock.getApplication.mockImplementationOnce(() => reloadRequest.promise);
+  const page = createPage({mode: "add"});
+
+  page.submitApplicationEdit(false);
+  await Promise.resolve();
+  await Promise.resolve();
+  (Setting.showMessage as unknown as {mockClear: () => void}).mockClear();
+  const stateBeforeUnmount = page.state;
+  (page as unknown as {componentWillUnmount?: () => void}).componentWillUnmount?.();
+  reloadRequest.reject(new Error("late reload failure"));
+  await flushPromises();
+
+  expect(page.state).toBe(stateBeforeUnmount);
+  expect(page.state.postCreateReloadStatus).toBe("loading");
+  expect(Setting.showMessage).not.toHaveBeenCalled();
+});
+
+[
+  {name: "business error", arrangeReload: () => applicationBackendMock.getApplication.mockResolvedValueOnce({status: "error", msg: "reload failed"})},
+  {name: "missing data", arrangeReload: () => applicationBackendMock.getApplication.mockResolvedValueOnce({status: "ok", data: null})},
+  {name: "network rejection", arrangeReload: () => applicationBackendMock.getApplication.mockRejectedValueOnce(new Error("reload unavailable"))},
+].forEach(({name, arrangeReload}) => {
+  test(`keeps update fail-closed when post-create reload has ${name}`, async() => {
+    arrangeReload();
+    const page = createPage({mode: "add"});
+
+    page.submitApplicationEdit(false);
+    await flushPromises();
+    page.submitApplicationEdit(false);
+    await flushPromises();
+
+    expect(page.state.mode).toBe("edit");
+    expect(applicationBackendMock.updateApplication).not.toHaveBeenCalled();
+    page.handleCancel();
+    expect(page.props.history.push).toHaveBeenCalledWith("/applications");
+    expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.any(String));
+  });
+});
+
+test("returns after creating without reloading an editor that is leaving", async() => {
+  const page = createPage({mode: "add"});
+
+  page.submitApplicationEdit(true);
+  await flushPromises();
+
+  expect(applicationBackendMock.addApplication).toHaveBeenCalledTimes(1);
+  expect(applicationBackendMock.getApplication).not.toHaveBeenCalled();
+  expect(page.props.history.push).toHaveBeenCalledWith("/applications");
+});
+
+test("keeps an edited application draft name when add is rejected", async() => {
+  applicationBackendMock.addApplication.mockResolvedValueOnce({status: "error", msg: "duplicate"});
+  const page = createPage({mode: "add", application: {name: "custom-draft"}});
+
+  page.submitApplicationEdit(false);
+  await flushPromises();
+
+  expect(page.state.application.name).toBe("custom-draft");
+});
+
+test("falls back to detail loading when legacy add mode has no route draft", () => {
+  const page = createPage({legacyAdd: true});
+  page.UNSAFE_componentWillMount();
+  expect(applicationBackendMock.getApplication).toHaveBeenCalledWith("admin", "portal");
 });
 
 test("renders application edit in the shared large edit shell with fixed tabs and action bar", () => {

@@ -16,7 +16,7 @@ type LooseMock = {
   mockImplementation: (implementation: (...args: unknown[]) => unknown) => LooseMock;
 };
 
-type GroupBackendMock = Record<"getGroups" | "addGroup" | "deleteGroup", LooseMock>;
+type GroupBackendMock = Record<"getGroups" | "addGroup" | "updateGroup" | "deleteGroup", LooseMock>;
 type GroupTreePageProps = React.ComponentProps<typeof GroupTreePage>;
 
 const groupBackendMock = GroupBackend as unknown as GroupBackendMock;
@@ -37,6 +37,7 @@ jest.mock("./backend/GroupBackend", () => {
   return {
     getGroups: factoryJest.fn(),
     addGroup: factoryJest.fn(),
+    updateGroup: factoryJest.fn(),
     deleteGroup: factoryJest.fn(),
   };
 });
@@ -114,6 +115,7 @@ beforeEach(() => {
   sessionStorage.clear();
   groupBackendMock.getGroups.mockResolvedValue({status: "ok", data: treeData});
   groupBackendMock.addGroup.mockResolvedValue({status: "ok"});
+  groupBackendMock.updateGroup.mockResolvedValue({status: "ok"});
   groupBackendMock.deleteGroup.mockResolvedValue({status: "ok"});
   jestValue.spyOn(Setting, "isAdminUser").mockImplementation((account: unknown) => {
     return Boolean((account as {isAdmin?: boolean})?.isAdmin);
@@ -149,11 +151,20 @@ test("selects tree node and clears selected group through existing routes", asyn
   expect(props.history.push).toHaveBeenCalledWith("/trees/engineering");
 
   fireEvent.click(buttons[1]);
-  await flushPromises();
-  expect(groupBackendMock.addGroup).toHaveBeenCalledWith(expect.objectContaining({
-    parentId: "engineering",
-    isTopGroup: true,
-  }));
+  expect(groupBackendMock.addGroup).not.toHaveBeenCalled();
+  expect(groupBackendMock.updateGroup).not.toHaveBeenCalled();
+  expect(groupBackendMock.deleteGroup).not.toHaveBeenCalled();
+  expect(props.history.push).toHaveBeenCalledWith({
+    pathname: "/groups/engineering/group_seed",
+    state: {
+      mode: "add",
+      group: expect.objectContaining({
+        owner: "engineering",
+        parentId: "engineering",
+        isTopGroup: true,
+      }),
+    },
+  });
 
   fireEvent.click(view.container.querySelector(".ant-tree-switcher"));
 });
@@ -196,7 +207,7 @@ test("renders empty state and reports group tree fetch errors", async() => {
   expect(Setting.showMessage).toHaveBeenCalledWith("error", "tree unavailable");
 });
 
-test("creates root and child groups with existing generated defaults", async() => {
+test("opens root and child group route drafts without persistence or success messages", () => {
   const page = createPage({match: {params: {organizationName: "engineering", groupName: "root"}}});
   page.state = {
     ...page.state,
@@ -217,29 +228,38 @@ test("creates root and child groups with existing generated defaults", async() =
   }));
 
   page.addGroup(true);
-  await flushPromises();
+  expect(groupBackendMock.addGroup).not.toHaveBeenCalled();
+  expect(groupBackendMock.updateGroup).not.toHaveBeenCalled();
+  expect(groupBackendMock.deleteGroup).not.toHaveBeenCalled();
 
-  expect(groupBackendMock.addGroup).toHaveBeenCalledWith(expect.objectContaining({
-    owner: "engineering",
-    name: "group_seed",
-    parentId: "engineering",
-  }));
-  expect(page.props.history.push).toHaveBeenCalledWith({pathname: "/groups/engineering/group_seed", mode: "add"});
-  expect(Setting.showMessage).toHaveBeenCalledWith("success", expect.any(String));
-});
-
-test("reports add group server and network errors", async() => {
-  const page = createPage();
-  groupBackendMock.addGroup.mockResolvedValueOnce({status: "error", msg: "add rejected"});
-  groupBackendMock.addGroup.mockRejectedValueOnce(new Error("offline"));
-
-  page.addGroup(true);
-  await flushPromises();
-  expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("add rejected"));
-
-  page.addGroup(true);
-  await flushPromises();
-  expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("offline"));
+  page.addGroup(false);
+  expect(groupBackendMock.addGroup).not.toHaveBeenCalled();
+  expect(groupBackendMock.updateGroup).not.toHaveBeenCalled();
+  expect(groupBackendMock.deleteGroup).not.toHaveBeenCalled();
+  expect(page.props.history.push).toHaveBeenNthCalledWith(1, {
+    pathname: "/groups/engineering/group_seed",
+    state: {
+      mode: "add",
+      group: expect.objectContaining({
+        owner: "engineering",
+        parentId: "engineering",
+        isTopGroup: true,
+      }),
+    },
+  });
+  expect(page.props.history.push).toHaveBeenNthCalledWith(2, {
+    pathname: "/groups/engineering/group_seed",
+    state: {
+      mode: "add",
+      group: expect.objectContaining({
+        owner: "engineering",
+        parentId: "root",
+        isTopGroup: false,
+      }),
+    },
+  });
+  expect(sessionStorage.getItem("groupTreeUrl")).toBe(window.location.pathname);
+  expect(Setting.showMessage).not.toHaveBeenCalled();
 });
 
 test("keeps selected node actions for child add edit and delete", async() => {
@@ -260,10 +280,20 @@ test("keeps selected node actions for child add edit and delete", async() => {
   });
 
   fireEvent.click(icons[1]);
-  await flushPromises();
-  expect(groupBackendMock.addGroup).toHaveBeenCalledWith(expect.objectContaining({
-    parentId: "leaf",
-  }));
+  expect(groupBackendMock.addGroup).not.toHaveBeenCalled();
+  expect(groupBackendMock.updateGroup).not.toHaveBeenCalled();
+  expect(groupBackendMock.deleteGroup).not.toHaveBeenCalled();
+  expect(page.props.history.push).toHaveBeenCalledWith({
+    pathname: "/groups/engineering/group_seed",
+    state: {
+      mode: "add",
+      group: expect.objectContaining({
+        owner: "engineering",
+        parentId: "leaf",
+        isTopGroup: false,
+      }),
+    },
+  });
 
   fireEvent.click(icons[2]);
   expect(page.props.history.push).toHaveBeenCalledWith("/groups/engineering/leaf");

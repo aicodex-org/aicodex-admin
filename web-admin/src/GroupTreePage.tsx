@@ -34,7 +34,7 @@ type RouteParams = {
 };
 
 type HistoryLike = {
-  push: (location: string | {pathname: string; mode?: string}) => void;
+  push: (location: string | {pathname: string; state?: {mode: "add"; group: GroupDraft}}) => void;
 };
 
 type GroupTreePageProps = {
@@ -159,7 +159,6 @@ class GroupTreePage extends React.Component<GroupTreePageProps, GroupTreePageSta
               }}
               onClick={(e: React.MouseEvent<HTMLSpanElement>) => {
                 e.stopPropagation();
-                sessionStorage.setItem("groupTreeUrl", window.location.pathname);
                 this.addGroup();
               }}
             />
@@ -317,19 +316,11 @@ class GroupTreePage extends React.Component<GroupTreePageProps, GroupTreePageSta
 
   addGroup(isRoot = false): void {
     const newGroup = this.newGroup(isRoot);
-    GroupBackend.addGroup(newGroup)
-      .then((res: ApiResponse) => {
-        if (res.status === "ok") {
-          sessionStorage.setItem("groupTreeUrl", window.location.pathname);
-          this.props.history.push({pathname: `/groups/${newGroup.owner}/${newGroup.name}`, mode: "add"});
-          Setting.showMessage("success", i18next.t("general:Successfully added"));
-        } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to add")}: ${res.msg}`);
-        }
-      })
-      .catch((error: unknown) => {
-        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
-      });
+    sessionStorage.setItem("groupTreeUrl", window.location.pathname);
+    this.props.history.push({
+      pathname: `/groups/${newGroup.owner}/${newGroup.name}`,
+      state: {mode: "add", group: newGroup},
+    });
   }
 
   render(): React.ReactNode {

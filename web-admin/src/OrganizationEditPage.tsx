@@ -128,10 +128,11 @@ interface OrganizationEditPageProps {
   };
   location: {
     mode?: string;
+    state?: {organization?: OrganizationRecord; mode?: string};
     [key: string]: unknown;
   };
   history: {
-    push: (path: string) => void;
+    push: (path: string | {pathname: string; state?: unknown}) => void;
   };
   account: {
     organization?: {
@@ -171,14 +172,17 @@ const i18next = {
 class OrganizationEditPage extends React.Component<OrganizationEditPageProps, OrganizationEditPageState> {
   constructor(props: OrganizationEditPageProps) {
     super(props);
+    const draftOrganization = props.location.state?.organization;
+    const requestedMode = props.location.state?.mode ?? props.location.mode ?? "edit";
+    const mode = requestedMode === "add" && draftOrganization === undefined ? "edit" : requestedMode;
     this.state = {
       classes: props,
-      organizationName: props.match.params.organizationName,
+      organizationName: draftOrganization?.name ?? props.match.params.organizationName,
       // Preserve the legacy null loading state; render still guards before use.
-      organization: null as unknown as OrganizationRecord,
+      organization: draftOrganization ?? null as unknown as OrganizationRecord,
       applications: [],
       ldaps: null,
-      mode: props.location.mode !== undefined ? props.location.mode : "edit",
+      mode,
       transactions: [],
       activeTabKey: this.getInitialTabKey(),
       isDirty: false,
@@ -227,7 +231,9 @@ class OrganizationEditPage extends React.Component<OrganizationEditPageProps, Or
   }
 
   UNSAFE_componentWillMount() {
-    this.getOrganization();
+    if (this.state.mode !== "add") {
+      this.getOrganization();
+    }
     this.getApplications();
     this.getLdaps();
     this.getOrganizationTransactions();
@@ -1208,11 +1214,6 @@ class OrganizationEditPage extends React.Component<OrganizationEditPageProps, Or
 
   handleCancel(): void {
     this.confirmLeave(() => {
-      if (this.state.mode === "add") {
-        this.deleteOrganization();
-        return;
-      }
-
       this.props.history.push("/organizations");
     });
   }
@@ -1281,6 +1282,9 @@ class OrganizationEditPage extends React.Component<OrganizationEditPageProps, Or
   }
 
   submitOrganizationEdit(exitAfterSave: boolean): void {
+    if (this.state.submitting) {
+      return;
+    }
     const validationErrors = this.validateOrganizationBeforeSave();
     if (Object.keys(validationErrors).length > 0) {
       this.setState({
@@ -1305,7 +1309,10 @@ class OrganizationEditPage extends React.Component<OrganizationEditPageProps, Or
     }
 
     this.setState({submitting: true});
-    OrganizationBackend.updateOrganization(this.state.organization.owner!, this.state.organizationName, organization)
+    const saveOrganization = this.state.mode === "add"
+      ? OrganizationBackend.addOrganization(organization)
+      : OrganizationBackend.updateOrganization(this.state.organization.owner!, this.state.organizationName, organization);
+    saveOrganization
       .then((res: BackendResponse<unknown>) => {
         if (res.status === "ok") {
           Setting.showMessage("success", i18next.t("general:Successfully saved"));
@@ -1316,6 +1323,7 @@ class OrganizationEditPage extends React.Component<OrganizationEditPageProps, Or
 
           this.setState({
             organizationName: this.state.organization.name,
+            mode: "edit",
             isDirty: false,
             validationErrors: {},
             submitting: false,
@@ -1329,12 +1337,14 @@ class OrganizationEditPage extends React.Component<OrganizationEditPageProps, Or
           }
         } else {
           Setting.showMessage("error", `${i18next.t("general:Failed to save")}: ${res.msg}`);
-          const nextOrganization = this.state.organization;
-          nextOrganization.name = this.state.organizationName;
-          this.setState({
-            organization: nextOrganization,
-            submitting: false,
-          });
+          if (this.state.mode === "add") {
+            this.setState({submitting: false});
+          } else {
+            this.setState(state => ({
+              organization: {...state.organization, name: state.organizationName},
+              submitting: false,
+            }));
+          }
         }
       })
       .catch((error: unknown) => {

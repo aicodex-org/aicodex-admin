@@ -46,6 +46,8 @@ jest.mock("./backend/OrganizationBackend", () => {
   const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
   return {
     addOrganization: factoryJest.fn(),
+    updateOrganization: factoryJest.fn(),
+    deleteOrganization: factoryJest.fn(),
   };
 });
 
@@ -120,6 +122,8 @@ beforeEach(() => {
   jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
   jestValue.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
   organizationBackendMock.addOrganization.mockResolvedValue({status: "ok"});
+  organizationBackendMock.updateOrganization.mockResolvedValue({status: "ok"});
+  organizationBackendMock.deleteOrganization.mockResolvedValue({status: "ok"});
   mockConfig();
   dingtalkBackendMock.getDingTalkOrganizationSyncRuns.mockResolvedValue({status: "ok", data: [], data2: 0});
   dingtalkBackendMock.testDingTalkOrganizationSyncConfig.mockResolvedValue({
@@ -331,6 +335,7 @@ test("shows source conflict warning, disables actions, and filters occupied orga
 
 test("renders DingTalk schedule diagnostics, organization changes, and create-organization action", async() => {
   const history = {push: jestValue.fn()};
+  const dispatchEventSpy = jestValue.spyOn(window, "dispatchEvent");
   mockConfig({
     scheduleEnabled: true,
     scheduleCron: "*/30 * * * *",
@@ -350,12 +355,24 @@ test("renders DingTalk schedule diagnostics, organization changes, and create-or
 
   fireEvent.click(screen.getByText("新建组织"));
   await flushPromises();
-  expect(organizationBackendMock.addOrganization).toHaveBeenCalledWith(expect.objectContaining({
-    owner: "admin",
-    name: "organization_abc123",
-    displayName: "New Organization - abc123",
-  }));
-  expect(history.push).toHaveBeenCalledWith({pathname: "/organizations/organization_abc123", mode: "add"});
+  expect(organizationBackendMock.addOrganization).not.toHaveBeenCalled();
+  expect(organizationBackendMock.updateOrganization).not.toHaveBeenCalled();
+  expect(organizationBackendMock.deleteOrganization).not.toHaveBeenCalled();
+  expect(Setting.showMessage).not.toHaveBeenCalled();
+  expect(dispatchEventSpy).not.toHaveBeenCalledWith(expect.objectContaining({type: "storageOrganizationsChanged"}));
+  expect(history.push).toHaveBeenCalledWith({
+    pathname: "/organizations/organization_abc123",
+    state: {
+      mode: "add",
+      organization: expect.objectContaining({
+        owner: "admin",
+        name: "organization_abc123",
+        displayName: "New Organization - abc123",
+        passwordType: "bcrypt",
+        countryCodes: ["US"],
+      }),
+    },
+  });
 
   fireEvent.change(screen.getByTestId("organization-select"), {target: {value: "support"}});
   await flushPromises();

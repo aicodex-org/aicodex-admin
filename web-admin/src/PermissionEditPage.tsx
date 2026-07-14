@@ -49,10 +49,11 @@ type RouteMatch = {
 type PermissionEditPageProps = {
   account: Account;
   history: {
-    push: (location: string) => void;
+    push: (location: string | {pathname: string; state?: unknown}) => void;
   };
   location?: {
     mode?: string;
+    state?: {permission?: PermissionRecord; mode?: string};
   };
   match: RouteMatch;
   organizationName?: string;
@@ -152,6 +153,7 @@ type PermissionTabKey = "basic" | "rule";
 type PermissionFieldErrors = Partial<Record<"name" | "displayName", string>>;
 
 type PermissionBackendApi = {
+  addPermission: (permission: PermissionRecord) => Promise<MutationResponse>;
   getPermission: (organizationName: string, permissionName: string) => Promise<BackendResponse<PermissionRecord>>;
   updatePermission: (organizationName: string, permissionName: string, permission: PermissionRecord) => Promise<MutationResponse>;
   deletePermission: (permission: PermissionRecord) => Promise<MutationResponse>;
@@ -194,11 +196,14 @@ const {Option} = Select;
 class PermissionEditPage extends React.Component<PermissionEditPageProps, PermissionEditPageState> {
   constructor(props: PermissionEditPageProps) {
     super(props);
+    const draftPermission = props.location?.state?.permission;
+    const requestedMode = props.location?.state?.mode ?? props.location?.mode ?? "edit";
+    const mode = requestedMode === "add" && draftPermission === undefined ? "edit" : requestedMode;
     this.state = {
       classes: props,
       organizationName: props.organizationName !== undefined ? props.organizationName : props.match.params.organizationName,
-      permissionName: decodeURIComponent(props.match.params.permissionName),
-      permission: null,
+      permissionName: draftPermission?.name ?? decodeURIComponent(props.match.params.permissionName),
+      permission: draftPermission ?? null,
       organizations: [],
       model: null,
       users: [],
@@ -206,7 +211,7 @@ class PermissionEditPage extends React.Component<PermissionEditPageProps, Permis
       roles: [],
       models: [],
       resources: [],
-      mode: props.location?.mode !== undefined ? props.location.mode : "edit",
+      mode,
       dirty: false,
       submitting: false,
       activeTabKey: "basic",
@@ -215,7 +220,13 @@ class PermissionEditPage extends React.Component<PermissionEditPageProps, Permis
   }
 
   UNSAFE_componentWillMount(): void {
-    this.getPermission();
+    if (this.state.mode === "add" && this.state.permission !== null) {
+      this.getModels(this.state.permission.owner);
+      this.getResources(this.state.permission.owner);
+      this.getModel(this.state.permission.model);
+    } else {
+      this.getPermission();
+    }
     this.getOrganizations();
   }
 
@@ -318,8 +329,8 @@ class PermissionEditPage extends React.Component<PermissionEditPageProps, Permis
       });
   }
 
-  getModel(modelId: string): void {
-    if (modelId === "") {
+  getModel(modelId?: string): void {
+    if (!modelId) {
       return;
     }
 
@@ -424,11 +435,7 @@ class PermissionEditPage extends React.Component<PermissionEditPageProps, Permis
 
   handleBack(): void {
     this.confirmDiscardChanges(() => {
-      if (this.state.mode === "add") {
-        this.deletePermission();
-      } else {
-        this.returnToPermissionList();
-      }
+      this.returnToPermissionList();
     });
   }
 
@@ -855,13 +862,17 @@ class PermissionEditPage extends React.Component<PermissionEditPageProps, Permis
     const permission = this.state.permission;
     const permissionPayload = Setting.deepCopy(permission) as PermissionRecord;
     this.setState({submitting: true});
-    permissionBackend.updatePermission(this.state.organizationName, this.state.permissionName, permissionPayload)
+    const savePermission = this.state.mode === "add"
+      ? permissionBackend.addPermission(permissionPayload)
+      : permissionBackend.updatePermission(this.state.organizationName, this.state.permissionName, permissionPayload);
+    savePermission
       .then((res: MutationResponse) => {
         if (res.status === "ok") {
           Setting.showMessage("success", t("general:Successfully saved"));
           this.setState({
             organizationName: permission.owner,
             permissionName: permission.name,
+            mode: "edit",
             dirty: false,
             submitting: false,
           });
@@ -873,10 +884,14 @@ class PermissionEditPage extends React.Component<PermissionEditPageProps, Permis
           }
         } else {
           Setting.showMessage("error", `${t("general:Failed to save")}: ${res.msg}`);
-          this.setState(state => ({
-            submitting: false,
-            permission: state.permission === null ? state.permission : {...state.permission, name: state.permissionName},
-          }));
+          if (this.state.mode === "add") {
+            this.setState({submitting: false});
+          } else {
+            this.setState(state => ({
+              submitting: false,
+              permission: state.permission === null ? state.permission : {...state.permission, name: state.permissionName},
+            }));
+          }
         }
       })
       .catch((error: unknown) => {

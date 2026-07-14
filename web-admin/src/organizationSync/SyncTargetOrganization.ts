@@ -3,20 +3,26 @@
 // Licensed under the Apache License, Version 2.0 (the "License");
 
 import moment from "moment";
-import i18next from "i18next";
 import * as Conf from "../Conf";
 import * as Setting from "../Setting";
-import * as OrganizationBackend from "../backend/OrganizationBackend";
+
+type OrganizationRecord = import("../backend/OrganizationBackend").OrganizationRecord;
 
 export type SyncTargetOrganizationHistory = {
-  push?: (location: string | {pathname: string; mode?: string}) => void;
+  push?: (location: string | {
+    pathname: string;
+    state: {
+      mode: "add";
+      organization: OrganizationRecord;
+    };
+  }) => void;
 };
 
 function getCountryKeys(): string[] {
   return (Setting.Countries as Array<{key: string}>).map(item => item.key);
 }
 
-export function createDefaultOrganization(): OrganizationBackend.OrganizationRecord {
+export function createDefaultOrganization(): OrganizationRecord {
   const randomName = Setting.getRandomName();
   const DefaultMfaRememberInHours = 12;
   return {
@@ -110,25 +116,23 @@ export function createDefaultOrganization(): OrganizationBackend.OrganizationRec
   };
 }
 
-export function openNewSyncTargetOrganization(history?: SyncTargetOrganizationHistory): Promise<OrganizationBackend.OrganizationRecord | null> {
+export function openNewSyncTargetOrganization(history?: SyncTargetOrganizationHistory): Promise<OrganizationRecord | null> {
   const newOrganization = createDefaultOrganization();
-  return OrganizationBackend.addOrganization(newOrganization)
-    .then(res => {
-      if (res.status === "ok") {
-        const location = {pathname: `/organizations/${newOrganization.name}`, mode: "add"};
-        if (history?.push) {
-          history.push(location);
-        } else {
-          window.location.href = location.pathname;
-        }
-        window.dispatchEvent(new Event("storageOrganizationsChanged"));
-        return newOrganization;
-      }
-      Setting.showMessage("error", `${i18next.t("general:Failed to add")}: ${res.msg}`);
-      return null;
+  if (!history?.push) {
+    // 未保存草稿只能通过路由状态传递，旧 URL 跳转会丢失草稿。
+    return Promise.resolve(null);
+  }
+
+  return Promise.resolve()
+    .then(() => {
+      history.push!({
+        pathname: `/organizations/${newOrganization.name}`,
+        state: {
+          mode: "add",
+          organization: newOrganization,
+        },
+      });
+      return newOrganization;
     })
-    .catch(error => {
-      Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
-      return null;
-    });
+    .catch(() => null);
 }

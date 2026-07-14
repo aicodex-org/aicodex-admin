@@ -122,6 +122,7 @@ interface UserListPageState {
   formItems?: FormItem[];
   organizationName: string;
   organization: OrganizationRecord | null;
+  loadedOrganizationName: string | null;
   uploadJsonData: Record<string, unknown>[];
   uploadColumns: TableProps<Record<string, unknown>>["columns"];
   showUploadModal: boolean;
@@ -328,11 +329,14 @@ function renderUserStatus(record: UserRecord): React.ReactNode {
 }
 
 class UserListPage extends TypedBaseListPage {
+  private organizationRequestSequence = 0;
+
   constructor(props: UserListPageProps) {
     super(props);
     this.state = {
       ...this.state,
       organization: null,
+      loadedOrganizationName: null,
       pagination: {
         ...this.state.pagination,
         pageSize: 20,
@@ -385,6 +389,7 @@ class UserListPage extends TypedBaseListPage {
       phone: Setting.getRandomNumber(),
       countryCode: (this.state.organization!.countryCodes?.length || 0) > 0 ? this.state.organization!.countryCodes![0] : "",
       address: [],
+      addresses: [],
       groups: this.props.groupName ? [`${owner}/${this.props.groupName}`] : [],
       affiliation: "Example Inc.",
       tag: "staff",
@@ -404,20 +409,12 @@ class UserListPage extends TypedBaseListPage {
   }
 
   addUser(): void {
+    if (this.state.organization === null || this.state.loadedOrganizationName !== this.state.organizationName) {
+      return;
+    }
     const newUser = this.newUser();
-    TypedUserBackend.addUser(newUser)
-      .then((res) => {
-        if (res.status === "ok") {
-          sessionStorage.setItem("userListUrl", window.location.pathname);
-          this.props.history.push({pathname: `/users/${newUser.owner}/${newUser.name}`, mode: "add"});
-          Setting.showMessage("success", t("general:Successfully added"));
-        } else {
-          Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
-        }
-      })
-      .catch(error => {
-        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
-      });
+    sessionStorage.setItem("userListUrl", window.location.pathname);
+    this.props.history.push({pathname: `/users/${newUser.owner}/${newUser.name}`, state: {mode: "add", user: newUser}} as never);
   }
 
   deleteUser(i: number): void {
@@ -485,11 +482,18 @@ class UserListPage extends TypedBaseListPage {
   };
 
   getOrganization(organizationName: string): void {
+    const requestSequence = ++this.organizationRequestSequence;
+    this.setState({organization: null, loadedOrganizationName: null});
     TypedOrganizationBackend.getOrganization("admin", organizationName)
       .then((res) => {
-        if (res.status === "ok") {
+        // 路由复用切换组织时，只允许最后一次且仍匹配当前组织的响应启用新增。
+        if (requestSequence !== this.organizationRequestSequence || organizationName !== this.state.organizationName) {
+          return;
+        }
+        if (res.status === "ok" && res.data) {
           this.setState({
             organization: res.data as OrganizationRecord,
+            loadedOrganizationName: organizationName,
           });
         } else {
           Setting.showMessage("error", `${t("general:Failed to get")}: ${res.msg}`);
@@ -659,9 +663,10 @@ class UserListPage extends TypedBaseListPage {
   };
 
   renderListActions(): React.ReactNode {
+    const isOrganizationReady = this.state.organization !== null && this.state.loadedOrganizationName === this.state.organizationName;
     return (
       <>
-        <Button type="primary" size="small" onClick={this.addUser.bind(this)}>{t("general:Add")}</Button>
+        <Button type="primary" size="small" disabled={!isOrganizationReady} onClick={this.addUser.bind(this)}>{t("general:Add")}</Button>
         <Button size="small" onClick={this.generateDownloadTemplate}>{t("general:Download template")} </Button>
         {this.renderUpload()}
       </>

@@ -22,6 +22,7 @@ type LooseMock = {
 };
 
 type OrganizationBackendMock = {
+  addOrganization: LooseMock;
   getOrganization: LooseMock;
   updateOrganization: LooseMock;
   deleteOrganization: LooseMock;
@@ -60,6 +61,7 @@ interface ElementProps {
 jest.mock("./backend/OrganizationBackend", () => {
   const {jest: factoryJest} = require("@jest/globals");
   return {
+    addOrganization: factoryJest.fn(),
     getOrganization: factoryJest.fn(),
     updateOrganization: factoryJest.fn(),
     deleteOrganization: factoryJest.fn(),
@@ -205,11 +207,22 @@ function mockMatchMedia(query: string): MediaQueryList {
 }
 
 function createPageInstance(options: {mode?: string; organization?: Record<string, unknown>} = {}) {
+  const draftOrganization = {
+    ...baseOrganization,
+    name: "built-in",
+    hasPrivilegeConsent: false,
+    passwordObfuscatorType: "AES",
+    passwordObfuscatorKey: "old-key",
+    themeData: {isEnabled: true},
+    ...options.organization,
+  };
   const page = new OrganizationEditPage({
     account: adminAccount,
     onChangeTheme: jest.fn(),
     history: {push: jest.fn()},
-    location: {mode: options.mode},
+    location: options.mode === "add"
+      ? {state: {mode: "add", organization: draftOrganization}}
+      : {mode: options.mode},
     match: {params: {organizationName: "engineering"}},
   });
   page.setState = ((stateUpdate: unknown) => {
@@ -220,15 +233,7 @@ function createPageInstance(options: {mode?: string; organization?: Record<strin
   }) as typeof page.setState;
   page.state = {
     ...page.state,
-    organization: {
-      ...baseOrganization,
-      name: "built-in",
-      hasPrivilegeConsent: false,
-      passwordObfuscatorType: "AES",
-      passwordObfuscatorKey: "old-key",
-      themeData: {isEnabled: true},
-      ...options.organization,
-    },
+    organization: draftOrganization,
     applications: [{name: "app-main"}],
     ldaps: [],
     transactions: [],
@@ -337,6 +342,7 @@ function setupBackend(overrides: {
     data: overrides.transactions ?? [],
   });
   organizationBackendMock.updateOrganization.mockResolvedValue({status: "ok"});
+  organizationBackendMock.addOrganization.mockResolvedValue({status: "ok"});
   organizationBackendMock.deleteOrganization.mockResolvedValue({status: "ok"});
 }
 
@@ -356,7 +362,15 @@ function renderPage(options: {
       }}
       onChangeTheme={onChangeTheme}
       history={history}
-      location={{mode: options.mode}}
+      location={options.mode === "add" ? {
+        state: {
+          mode: "add",
+          organization: {
+            ...baseOrganization,
+            name: options.organizationName ?? "engineering",
+          },
+        },
+      } : {}}
       match={{params: {organizationName: options.organizationName ?? "engineering"}}}
     />
   );
@@ -746,24 +760,45 @@ describe("OrganizationEditPage", () => {
     expect(view.getByDisplayValue("engineering")).not.toBeNull();
   });
 
-  test("cancel in add mode deletes draft organization and reports delete failures", async() => {
+  test("keeps an edited organization draft name when add is rejected", async() => {
+    organizationBackendMock.addOrganization.mockResolvedValueOnce({status: "error", msg: "duplicate"});
+    const page = renderPage({mode: "add"});
+
+    const nameInput = await page.view.findByDisplayValue("engineering");
+    fireEvent.change(nameInput, {target: {value: "custom-draft"}});
+    fireEvent.click(page.view.getAllByText("Save")[0]);
+    await flushPromises();
+
+    expect(page.view.getByDisplayValue("custom-draft")).not.toBeNull();
+  });
+
+  test("guards duplicate organization submits and updates after the first add", async() => {
+    const page = createPageInstance({mode: "add", organization: {name: "custom-draft", displayName: "Custom Draft"}});
+    page.state = {...page.state, submitting: false};
+
+    page.submitOrganizationEdit(false);
+    page.submitOrganizationEdit(false);
+    expect(organizationBackendMock.addOrganization).toHaveBeenCalledTimes(1);
+    await flushPromises();
+    expect(page.state.mode).toBe("edit");
+
+    page.submitOrganizationEdit(false);
+    await flushPromises();
+    expect(organizationBackendMock.addOrganization).toHaveBeenCalledTimes(1);
+    expect(organizationBackendMock.updateOrganization).toHaveBeenCalledTimes(1);
+  });
+
+  test("cancel in add mode leaves without mutating the draft organization", async() => {
     const eventSpy = jest.spyOn(window, "dispatchEvent");
-    const success = renderPage({mode: "add"});
+    const page = renderPage({mode: "add"});
 
-    expect(await success.view.findByDisplayValue("Engineering")).not.toBeNull();
-    fireEvent.click(success.view.getAllByText("Cancel")[0]);
+    expect(await page.view.findByDisplayValue("Engineering")).not.toBeNull();
+    fireEvent.click(page.view.getAllByText("Cancel")[0]);
     await flushPromises();
-    expect(organizationBackendMock.deleteOrganization).toHaveBeenCalledWith(expect.objectContaining({name: "engineering"}));
-    expect(success.history.push).toHaveBeenCalledWith("/organizations");
-    expect(eventSpy).toHaveBeenCalledWith(expect.objectContaining({type: "storageOrganizationsChanged"}));
-
-    cleanup();
-    setupBackend();
-    organizationBackendMock.deleteOrganization.mockResolvedValueOnce({status: "error", msg: "delete failed"});
-    const failure = renderPage({mode: "add"});
-    expect(await failure.view.findByDisplayValue("Engineering")).not.toBeNull();
-    fireEvent.click(failure.view.getAllByText("Cancel")[0]);
-    await flushPromises();
-    expect(Setting.showMessage).toHaveBeenCalledWith("error", "Failed to delete: delete failed");
+    expect(organizationBackendMock.addOrganization).not.toHaveBeenCalled();
+    expect(organizationBackendMock.updateOrganization).not.toHaveBeenCalled();
+    expect(organizationBackendMock.deleteOrganization).not.toHaveBeenCalled();
+    expect(page.history.push).toHaveBeenCalledWith("/organizations");
+    expect(eventSpy).not.toHaveBeenCalledWith(expect.objectContaining({type: "storageOrganizationsChanged"}));
   });
 });

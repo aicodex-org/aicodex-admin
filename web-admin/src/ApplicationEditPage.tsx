@@ -90,11 +90,12 @@ interface ApplicationEditPageProps {
   };
   location: {
     mode?: string;
+    state?: {application?: ApplicationRecord; mode?: string};
     search?: string;
     [key: string]: LegacyAny;
   };
   history: {
-    push: (path: string) => void;
+    push: (path: string | {pathname: string; state?: unknown}) => void;
   };
   account: {
     owner: string;
@@ -214,6 +215,7 @@ interface ApplicationEditPageState {
   organizations: NamedRecord[];
   certs: NamedRecord[];
   providers: NamedRecord[];
+  providersLoaded: boolean;
   uploading: boolean;
   mode: string;
   tokenAttributes: LegacyAny[];
@@ -224,6 +226,7 @@ interface ApplicationEditPageState {
   menuMode: "horizontal" | "vertical" | string;
   dirty: boolean;
   submitting: boolean;
+  postCreateReloadStatus: "idle" | "loading" | "error";
   fieldErrors: Record<string, string | undefined>;
   themeAlgorithm?: LegacyAny;
 }
@@ -307,18 +310,25 @@ const sideTemplate = `<style>
 `;
 
 class ApplicationEditPage extends React.Component<ApplicationEditPageProps, ApplicationEditPageState> {
+  postCreateReloadRequestId = 0;
+  isUnmounted = false;
+
   constructor(props: ApplicationEditPageProps) {
     super(props);
+    const draftApplication = props.location.state?.application;
+    const requestedMode = props.location.state?.mode ?? props.location.mode ?? "edit";
+    const mode = requestedMode === "add" && draftApplication === undefined ? "edit" : requestedMode;
     this.state = {
       classes: props,
-      owner: props.organizationName !== undefined ? props.organizationName : props.match.params.organizationName,
-      applicationName: props.match.params.applicationName,
-      application: null as unknown as ApplicationRecord,
+      owner: draftApplication?.organization ?? (props.organizationName !== undefined ? props.organizationName : props.match.params.organizationName),
+      applicationName: draftApplication?.name ?? props.match.params.applicationName,
+      application: draftApplication ?? null as unknown as ApplicationRecord,
       organizations: [],
       certs: [],
       providers: [],
+      providersLoaded: false,
       uploading: false,
-      mode: props.location.mode !== undefined ? props.location.mode : "edit",
+      mode,
       tokenAttributes: [],
       samlAttributes: [],
       samlMetadata: null,
@@ -327,13 +337,24 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
       menuMode: "horizontal",
       dirty: false,
       submitting: false,
+      postCreateReloadStatus: "idle",
       fieldErrors: {},
     };
   }
 
   UNSAFE_componentWillMount(): void {
-    this.getApplication();
+    if (this.state.mode === "add") {
+      this.getProviders(this.state.application);
+      this.getCerts(this.state.application);
+    } else {
+      this.getApplication();
+    }
     this.getOrganizations();
+  }
+
+  componentWillUnmount(): void {
+    this.isUnmounted = true;
+    this.postCreateReloadRequestId += 1;
   }
 
   getApplication(): void {
@@ -349,31 +370,58 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
           return;
         }
 
-        const application = res.data;
-        if (application.grantTypes === null || application.grantTypes === undefined || application.grantTypes.length === 0) {
-          application.grantTypes = ["authorization_code"];
+        this.applyLoadedApplication(res.data);
+      });
+  }
+
+  applyLoadedApplication(application: ApplicationRecord): void {
+    if (application.grantTypes === null || application.grantTypes === undefined || application.grantTypes.length === 0) {
+      application.grantTypes = ["authorization_code"];
+    }
+
+    if (application.tags === null || application.tags === undefined) {
+      application.tags = [];
+    }
+
+    if (application.providers === null || application.providers === undefined) {
+      // 后端空切片可能序列化为 null，编辑页统一按空数组处理，避免空表格操作崩溃。
+      application.providers = [];
+    }
+
+    this.setState({
+      application,
+      dirty: false,
+      fieldErrors: {},
+      postCreateReloadStatus: "idle",
+    });
+    this.getProviders(application);
+    this.getCerts(application);
+    this.getSamlMetadata(application.enableSamlPostBinding);
+  }
+
+  reloadCreatedApplication(): void {
+    const requestId = ++this.postCreateReloadRequestId;
+    ApplicationBackend.getApplication("admin", this.state.applicationName)
+      .then((res: BackendResponse<ApplicationRecord>) => {
+        if (this.isUnmounted || requestId !== this.postCreateReloadRequestId) {
+          return;
         }
 
-        if (application.tags === null || application.tags === undefined) {
-          application.tags = [];
+        if (res.status !== "ok" || !res.data) {
+          this.setState({postCreateReloadStatus: "error"});
+          Setting.showMessage("error", `${i18next.t("general:Failed to load")}: ${res.msg || this.state.applicationName}`);
+          return;
         }
 
-        if (application.providers === null || application.providers === undefined) {
-          // 后端空切片可能序列化为 null，编辑页统一按空数组处理，避免空表格操作崩溃。
-          application.providers = [];
+        this.applyLoadedApplication(res.data);
+      })
+      .catch((error: LegacyAny) => {
+        if (this.isUnmounted || requestId !== this.postCreateReloadRequestId) {
+          return;
         }
 
-        this.setState({
-          application: application,
-          dirty: false,
-          fieldErrors: {},
-        });
-
-        this.getProviders(application);
-
-        this.getCerts(application);
-
-        this.getSamlMetadata(application.enableSamlPostBinding);
+        this.setState({postCreateReloadStatus: "error"});
+        Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
       });
   }
 
@@ -410,11 +458,13 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
     if (application.isShared) {
       owner = this.props.account.owner;
     }
+    this.setState({providersLoaded: false});
     ProviderBackend.getProviders(owner)
       .then((res: BackendResponse<NamedRecord[]>) => {
         if (res.status === "ok") {
           this.setState({
             providers: res.data || [],
+            providersLoaded: true,
           });
         } else {
           Setting.showMessage("error", res.msg);
@@ -1903,7 +1953,7 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
   }
 
   submitApplicationEdit(exitAfterSave: boolean): void {
-    if (this.state.submitting) {
+    if (this.state.submitting || this.state.postCreateReloadStatus !== "idle") {
       return;
     }
 
@@ -1912,7 +1962,10 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
       return;
     }
 
-    application.providers = application.providers?.filter((provider: LegacyAny) => this.state.providers.map(provider => provider.name).includes(provider.name));
+    // Provider 选项异步加载完成前保留草稿绑定，避免快速保存把新增或复制来源静默过滤掉。
+    if (this.state.providersLoaded) {
+      application.providers = application.providers?.filter((provider: LegacyAny) => this.state.providers.map(provider => provider.name).includes(provider.name));
+    }
     application.signinMethods = application.signinMethods?.filter((signinMethod: LegacyAny) => ["Password", "Verification code", "WebAuthn", "LDAP", "Face ID", "WeChat", "WeCom"].includes(signinMethod.name));
     const customScopeValidation = this.validateCustomScopes(application.customScopes);
     application.customScopes = customScopeValidation.scopes;
@@ -1923,31 +1976,52 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
     }
 
     this.setState({submitting: true});
-    ApplicationBackend.updateApplication("admin", this.state.applicationName, application)
+    const isAdding = this.state.mode === "add";
+    const saveApplication = isAdding
+      ? ApplicationBackend.addApplication(application)
+      : ApplicationBackend.updateApplication("admin", this.state.applicationName, application);
+    saveApplication
       .then((res: BackendResponse<ApplicationRecord>) => {
         if (res.status === "ok") {
           Setting.showMessage("success", i18next.t("general:Successfully saved"));
-          this.setState({
+          const completedSaveState = {
             applicationName: application.name,
+            mode: "edit",
             dirty: false,
             submitting: false,
             fieldErrors: {},
-          });
+          };
 
           if (exitAfterSave) {
+            this.setState(completedSaveState);
             this.props.history.push("/applications");
           } else {
-            this.props.history.push(`/applications/${application.organization}/${application.name}`);
+            const afterSave = () => {
+              this.props.history.push(`/applications/${application.organization}/${application.name}`);
+              if (isAdding) {
+                this.reloadCreatedApplication();
+              }
+            };
+            if (isAdding) {
+              // 新增接口会生成凭据等服务端字段；回读成功前禁止用不完整草稿执行 update。
+              this.setState({...completedSaveState, postCreateReloadStatus: "loading"}, afterSave);
+            } else {
+              this.setState(completedSaveState, afterSave);
+            }
           }
         } else {
           Setting.showMessage("error", `${i18next.t("general:Failed to save")}: ${res.msg}`);
-          this.setState(state => ({
-            application: {
-              ...state.application,
-              name: state.applicationName,
-            },
-            submitting: false,
-          }));
+          if (this.state.mode === "add") {
+            this.setState({submitting: false});
+          } else {
+            this.setState(state => ({
+              application: {
+                ...state.application,
+                name: state.applicationName,
+              },
+              submitting: false,
+            }));
+          }
         }
       })
       .catch((error: LegacyAny) => {
@@ -1999,22 +2073,12 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
 
   handleBack(): void {
     this.confirmDiscardChanges(() => {
-      if (this.state.mode === "add") {
-        this.deleteApplication();
-        return;
-      }
-
       this.returnToApplicationList();
     });
   }
 
   handleCancel(): void {
     this.confirmDiscardChanges(() => {
-      if (this.state.mode === "add") {
-        this.deleteApplication();
-        return;
-      }
-
       this.returnToApplicationList();
     });
   }
@@ -2024,11 +2088,12 @@ class ApplicationEditPage extends React.Component<ApplicationEditPageProps, Appl
   }
 
   renderEditFooter(): React.ReactNode {
+    const saveBlocked = this.state.submitting || this.state.postCreateReloadStatus !== "idle";
     return (
       <React.Fragment>
         <Button disabled={this.state.submitting} onClick={() => this.handleCancel()}>{i18next.t("general:Cancel")}</Button>
-        <Button type="primary" loading={this.state.submitting} onClick={() => this.submitApplicationEdit(false)}>{i18next.t("general:Save")}</Button>
-        <Button disabled={this.state.submitting} onClick={() => this.submitApplicationEdit(true)}>{i18next.t("application:Save and return")}</Button>
+        <Button type="primary" disabled={saveBlocked} loading={this.state.submitting || this.state.postCreateReloadStatus === "loading"} onClick={() => this.submitApplicationEdit(false)}>{i18next.t("general:Save")}</Button>
+        <Button disabled={saveBlocked} onClick={() => this.submitApplicationEdit(true)}>{i18next.t("application:Save and return")}</Button>
       </React.Fragment>
     );
   }

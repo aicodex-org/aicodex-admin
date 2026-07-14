@@ -189,6 +189,7 @@ class PermissionListPage extends TypedBaseListPage {
       groups: [],
       roles: [],
       domains: [],
+      model: "",
       resourceType: "Application",
       resources: [Conf.DefaultApplication],
       actions: ["Read"],
@@ -203,18 +204,7 @@ class PermissionListPage extends TypedBaseListPage {
 
   addPermission(): void {
     const newPermission = this.newPermission();
-    permissionBackend.addPermission(newPermission)
-      .then((res: MutationResponse) => {
-        if (res.status === "ok") {
-          this.props.history.push({pathname: `/permissions/${newPermission.owner}/${newPermission.name}`, mode: "add"});
-          Setting.showMessage("success", t("general:Successfully added"));
-        } else {
-          Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
-        }
-      })
-      .catch((error: unknown) => {
-        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
-      });
+    this.props.history.push({pathname: `/permissions/${newPermission.owner}/${newPermission.name}`, state: {mode: "add", permission: newPermission}} as never);
   }
 
   deletePermission(i: number): void {

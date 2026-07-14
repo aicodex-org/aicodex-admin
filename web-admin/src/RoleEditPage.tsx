@@ -45,10 +45,11 @@ type RouteMatch = {
 type RoleEditPageProps = {
   account: Account;
   history: {
-    push: (location: string) => void;
+    push: (location: string | {pathname: string; state?: unknown}) => void;
   };
   location?: {
     mode?: string;
+    state?: {role?: RoleRecord; mode?: string};
   };
   match: RouteMatch;
   organizationName?: string;
@@ -115,6 +116,7 @@ type RoleEditPageState = {
 type RoleFieldErrors = Partial<Record<"name" | "displayName", string>>;
 
 type RoleBackendApi = {
+  addRole: (role: RoleRecord) => Promise<MutationResponse>;
   getRole: (organizationName: string, roleName: string) => Promise<BackendResponse<RoleRecord>>;
   getRoles: (...args: unknown[]) => Promise<BackendResponse<RoleRecord[]>>;
   updateRole: (organizationName: string, roleName: string, role: RoleRecord) => Promise<MutationResponse>;
@@ -142,13 +144,16 @@ const {Option} = Select;
 class RoleEditPage extends React.Component<RoleEditPageProps, RoleEditPageState> {
   constructor(props: RoleEditPageProps) {
     super(props);
+    const draftRole = props.location?.state?.role;
+    const requestedMode = props.location?.state?.mode ?? props.location?.mode ?? "edit";
+    const mode = requestedMode === "add" && draftRole === undefined ? "edit" : requestedMode;
     this.state = {
       classes: props,
       organizationName: props.organizationName !== undefined ? props.organizationName : props.match.params.organizationName,
-      roleName: decodeURIComponent(props.match.params.roleName),
-      role: null,
+      roleName: draftRole?.name ?? decodeURIComponent(props.match.params.roleName),
+      role: draftRole ?? null,
       organizations: [],
-      mode: props.location?.mode !== undefined ? props.location.mode : "edit",
+      mode,
       dirty: false,
       submitting: false,
       fieldErrors: {},
@@ -156,7 +161,9 @@ class RoleEditPage extends React.Component<RoleEditPageProps, RoleEditPageState>
   }
 
   UNSAFE_componentWillMount(): void {
-    this.getRole();
+    if (this.state.mode !== "add") {
+      this.getRole();
+    }
     this.getOrganizations();
   }
 
@@ -254,11 +261,7 @@ class RoleEditPage extends React.Component<RoleEditPageProps, RoleEditPageState>
 
   handleBack(): void {
     this.confirmDiscardChanges(() => {
-      if (this.state.mode === "add") {
-        this.deleteRole();
-      } else {
-        this.returnToRoleList();
-      }
+      this.returnToRoleList();
     });
   }
 
@@ -481,12 +484,17 @@ class RoleEditPage extends React.Component<RoleEditPageProps, RoleEditPageState>
     }
     const role = Setting.deepCopy(this.state.role) as RoleRecord;
     this.setState({submitting: true});
-    roleBackend.updateRole(this.state.organizationName, this.state.roleName, role)
+    const saveRole = this.state.mode === "add"
+      ? roleBackend.addRole(role)
+      : roleBackend.updateRole(this.state.organizationName, this.state.roleName, role);
+    saveRole
       .then((res: MutationResponse) => {
         if (res.status === "ok") {
           Setting.showMessage("success", t("general:Successfully saved"));
           this.setState({
+            organizationName: role.owner,
             roleName: role.name || this.state.roleName,
+            mode: "edit",
             dirty: false,
             submitting: false,
           });
@@ -498,10 +506,14 @@ class RoleEditPage extends React.Component<RoleEditPageProps, RoleEditPageState>
           }
         } else {
           Setting.showMessage("error", `${t("general:Failed to save")}: ${res.msg}`);
-          this.setState(state => ({
-            submitting: false,
-            role: state.role === null ? state.role : {...state.role, name: state.roleName},
-          }));
+          if (this.state.mode === "add") {
+            this.setState({submitting: false});
+          } else {
+            this.setState(state => ({
+              submitting: false,
+              role: state.role === null ? state.role : {...state.role, name: state.roleName},
+            }));
+          }
         }
       })
       .catch((error: unknown) => {

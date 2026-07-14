@@ -330,10 +330,12 @@ beforeEach(() => {
   jestValue.spyOn(Setting, "isLocalAdminUser").mockImplementation((account: unknown) => Boolean((account as Account).isAdmin));
   jestValue.spyOn(Setting, "getApiPaths").mockReturnValue(["/api/main"]);
   roleBackendMock.getRole.mockResolvedValue({status: "ok", data: role});
+  roleBackendMock.addRole.mockResolvedValue({status: "ok"});
   roleBackendMock.updateRole.mockResolvedValue({status: "ok"});
   roleBackendMock.deleteRole.mockResolvedValue({status: "ok"});
   roleBackendMock.getRoles.mockResolvedValue({status: "ok", data: [role], data2: 1});
   permissionBackendMock.getPermission.mockResolvedValue({status: "ok", data: permission});
+  permissionBackendMock.addPermission.mockResolvedValue({status: "ok"});
   permissionBackendMock.updatePermission.mockResolvedValue({status: "ok"});
   permissionBackendMock.deletePermission.mockResolvedValue({status: "ok"});
   organizationBackendMock.getOrganizations.mockResolvedValue({status: "ok", data: [{name: "engineering"}]});
@@ -386,6 +388,20 @@ test("loads role edit data and keeps field update and save navigation", async() 
   expect(history.push).toHaveBeenCalledWith("/roles");
 });
 
+test("creates a role once and uses update for the next save", async() => {
+  const page = createRolePage(adminAccount, {state: {mode: "add", role: {...role, name: "custom-draft"}}});
+
+  page.submitRoleEdit(false);
+  await flushPromises();
+  page.submitRoleEdit(false);
+  await flushPromises();
+
+  expect(roleBackendMock.addRole).toHaveBeenCalledTimes(1);
+  expect(roleBackendMock.updateRole).toHaveBeenCalledTimes(1);
+  expect(page.state.mode).toBe("edit");
+  expect(page.state.roleName).toBe("custom-draft");
+});
+
 test("keeps role edit delete, add-mode cancel and error branches", async() => {
   const page = createRolePage(adminAccount, {mode: "add"});
   const history = page.props.history as ReturnType<typeof createHistory>;
@@ -395,20 +411,22 @@ test("keeps role edit delete, add-mode cancel and error branches", async() => {
     role: {...role, name: "bad-name"},
   };
 
-  roleBackendMock.updateRole.mockResolvedValueOnce({status: "error", msg: "save failed"});
+  roleBackendMock.addRole.mockResolvedValueOnce({status: "error", msg: "save failed"});
   page.submitRoleEdit(false);
   await flushPromises();
   expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("save failed"));
-  expect(page.state.role?.name).toBe("role-main");
+  expect(page.state.role?.name).toBe("bad-name");
 
-  roleBackendMock.updateRole.mockRejectedValueOnce(new Error("save network"));
+  roleBackendMock.addRole.mockRejectedValueOnce(new Error("save network"));
   page.submitRoleEdit(false);
   await flushPromises();
   expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("save network"));
 
   page.deleteRole();
   await flushPromises();
-  expect(roleBackendMock.deleteRole).toHaveBeenCalledWith(expect.objectContaining({name: "role-main"}));
+  expect(roleBackendMock.addRole).toHaveBeenCalledTimes(2);
+  expect(roleBackendMock.updateRole).not.toHaveBeenCalled();
+  expect(roleBackendMock.deleteRole).toHaveBeenCalledWith(expect.objectContaining({name: "bad-name"}));
   expect(history.push).toHaveBeenCalledWith("/roles");
 
   roleBackendMock.deleteRole.mockResolvedValueOnce({status: "error", msg: "delete failed"});
@@ -516,7 +534,9 @@ test("confirms dirty role cancel and back before leaving", async() => {
   addPage.handleBack();
   await flushPromises();
 
-  expect(roleBackendMock.deleteRole).toHaveBeenCalledWith(expect.objectContaining({name: "role-main"}));
+  expect(roleBackendMock.addRole).not.toHaveBeenCalled();
+  expect(roleBackendMock.updateRole).not.toHaveBeenCalled();
+  expect(roleBackendMock.deleteRole).not.toHaveBeenCalled();
 });
 
 test("keeps role edit form handlers and guard branches", async() => {
@@ -596,8 +616,9 @@ test("keeps role edit form handlers and guard branches", async() => {
     elementProps<{onClick?: () => void}>(button).onClick?.();
     await flushPromises();
   }
+  expect(roleBackendMock.addRole).toHaveBeenCalled();
   expect(roleBackendMock.updateRole).toHaveBeenCalled();
-  expect(roleBackendMock.deleteRole).toHaveBeenCalled();
+  expect(roleBackendMock.deleteRole).not.toHaveBeenCalled();
 });
 
 test("loads permission edit data, model and application resources", async() => {
@@ -616,6 +637,56 @@ test("loads permission edit data, model and application resources", async() => {
   expect(page.state.resources).toEqual([{name: "app-main"}]);
   expect(page.hasRoleDefinition(model)).toBe(true);
   expect(page.hasRoleDefinition({...model, modelText: "[request_definition]"})).toBe(false);
+});
+
+test("creates a permission once and uses update for the next save", async() => {
+  const page = createPermissionPage(adminAccount, {state: {mode: "add", permission: {...permission, name: "custom-draft"}}});
+
+  page.submitPermissionEdit(false);
+  await flushPromises();
+  page.submitPermissionEdit(false);
+  await flushPromises();
+
+  expect(permissionBackendMock.addPermission).toHaveBeenCalledTimes(1);
+  expect(permissionBackendMock.updatePermission).toHaveBeenCalledTimes(1);
+  expect(page.state.mode).toBe("edit");
+  expect(page.state.permissionName).toBe("custom-draft");
+});
+
+test("loads permission draft dependencies without reading a missing permission", async() => {
+  const page = createPermissionPage(adminAccount, {state: {mode: "add", permission: {...permission}}});
+
+  page.UNSAFE_componentWillMount();
+  await flushPromises();
+
+  expect(permissionBackendMock.getPermission).not.toHaveBeenCalled();
+  expect(modelBackendMock.getModels).toHaveBeenCalledWith("engineering");
+  expect(modelBackendMock.getModel).toHaveBeenCalledWith("engineering", "rbac");
+  expect(applicationBackendMock.getApplicationsByOrganization).toHaveBeenCalledWith("admin", "engineering");
+  expect(page.state.models).toEqual([model]);
+  expect(page.state.resources).toEqual([{name: "app-main"}]);
+});
+
+test("initializes a permission draft without a selected model", async() => {
+  const page = createPermissionPage(adminAccount, {
+    state: {mode: "add", permission: {...permission, model: undefined}},
+  });
+
+  expect(() => page.UNSAFE_componentWillMount()).not.toThrow();
+  await flushPromises();
+
+  expect(permissionBackendMock.getPermission).not.toHaveBeenCalled();
+  expect(modelBackendMock.getModel).not.toHaveBeenCalled();
+});
+
+test("keeps an edited permission draft name when add is rejected", async() => {
+  permissionBackendMock.addPermission.mockResolvedValueOnce({status: "error", msg: "duplicate"});
+  const page = createPermissionPage(adminAccount, {state: {mode: "add", permission: {...permission, name: "custom-draft"}}});
+
+  page.submitPermissionEdit(false);
+  await flushPromises();
+
+  expect(page.state.permission?.name).toBe("custom-draft");
 });
 
 test("keeps permission validation and normal submitter restriction", async() => {
@@ -694,7 +765,9 @@ test("confirms dirty permission cancel and back before leaving", async() => {
   addPage.handleBack();
   await flushPromises();
 
-  expect(permissionBackendMock.deletePermission).toHaveBeenCalledWith(expect.objectContaining({name: "permission-main"}));
+  expect(permissionBackendMock.addPermission).not.toHaveBeenCalled();
+  expect(permissionBackendMock.updatePermission).not.toHaveBeenCalled();
+  expect(permissionBackendMock.deletePermission).not.toHaveBeenCalled();
 });
 
 test("keeps permission tab callbacks and multi-field update guards", () => {
@@ -1007,8 +1080,9 @@ test("keeps permission form handlers, fetch adapters and API resource branches",
     elementProps<{onClick?: () => void}>(button).onClick?.();
     await flushPromises();
   }
+  expect(permissionBackendMock.addPermission).toHaveBeenCalled();
   expect(permissionBackendMock.updatePermission).toHaveBeenCalled();
-  expect(permissionBackendMock.deletePermission).toHaveBeenCalled();
+  expect(permissionBackendMock.deletePermission).not.toHaveBeenCalled();
 });
 
 test("keeps permission defensive and backend error branches", async() => {

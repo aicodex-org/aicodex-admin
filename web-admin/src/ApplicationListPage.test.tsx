@@ -276,24 +276,24 @@ describe("ApplicationListPage enterprise table polish", () => {
 
     page.addApplication();
     await flushPromises();
-    expect(ApplicationBackend.addApplication).toHaveBeenCalledWith(expect.objectContaining({
+    expect(ApplicationBackend.addApplication).not.toHaveBeenCalled();
+    expect(history.push).toHaveBeenCalledWith(expect.objectContaining({pathname: "/applications/org-alpha/application_fixed", state: expect.objectContaining({mode: "add", application: expect.objectContaining({
       owner: "admin",
       organization: "org-alpha",
       name: "application_fixed",
       enablePassword: true,
       tokenFormat: "JWT",
-    }));
-    expect(history.push).toHaveBeenCalledWith({pathname: "/applications/org-alpha/application_fixed", mode: "add"});
+    })})}));
 
     page.copyApplication(0);
     await flushPromises();
-    expect(ApplicationBackend.addApplication).toHaveBeenCalledWith(expect.objectContaining({
+    expect(ApplicationBackend.addApplication).not.toHaveBeenCalled();
+    expect(history.push).toHaveBeenCalledWith(expect.objectContaining({pathname: "/applications/org-alpha/portal_fixed", state: expect.objectContaining({mode: "add", application: expect.objectContaining({
       organization: "org-alpha",
       name: "portal_fixed",
       clientId: "",
       clientSecret: "",
-    }));
-    expect(history.push).toHaveBeenCalledWith({pathname: "/applications/org-alpha/portal_fixed", mode: "add"});
+    })})}));
 
     page.fetch = jest.fn();
     page.deleteApplication(0);

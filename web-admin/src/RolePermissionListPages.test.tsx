@@ -433,10 +433,10 @@ test("creates default role and permission records and navigates to add routes", 
   permissionPage.addPermission();
   await flushPromises();
 
-  expect(roleBackendMock.addRole).toHaveBeenCalledWith(expect.objectContaining({name: "role_abc123"}));
-  expect(roleHistory.push).toHaveBeenCalledWith({pathname: "/roles/engineering/role_abc123", mode: "add"});
-  expect(permissionBackendMock.addPermission).toHaveBeenCalledWith(expect.objectContaining({name: "permission_abc123"}));
-  expect(permissionHistory.push).toHaveBeenCalledWith({pathname: "/permissions/engineering/permission_abc123", mode: "add"});
+  expect(roleBackendMock.addRole).not.toHaveBeenCalled();
+  expect(roleHistory.push).toHaveBeenCalledWith(expect.objectContaining({pathname: "/roles/engineering/role_abc123", state: expect.objectContaining({mode: "add", role: expect.objectContaining({name: "role_abc123"})})}));
+  expect(permissionBackendMock.addPermission).not.toHaveBeenCalled();
+  expect(permissionHistory.push).toHaveBeenCalledWith(expect.objectContaining({pathname: "/permissions/engineering/permission_abc123", state: expect.objectContaining({mode: "add", permission: expect.objectContaining({name: "permission_abc123"})})}));
 });
 
 test("keeps role table columns, links, toolbar and delete refresh behavior", async() => {
@@ -638,20 +638,10 @@ test("keeps permission submitter fetch branch for non-local-admin users", async(
   expect(permissionBackendMock.getPermissions).not.toHaveBeenCalled();
 });
 
-test("keeps role error, fallback and upload failure branches", async() => {
+test("keeps role delete, fallback and upload failure branches", async() => {
   const page = createRolePage();
   const file = new File(["content"], "roles.xlsx");
   const {upload, modal} = getRoleUploadAndModal(page);
-
-  roleBackendMock.addRole.mockResolvedValueOnce({status: "error", msg: "duplicate"});
-  page.addRole();
-  await flushPromises();
-  expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("duplicate"));
-
-  roleBackendMock.addRole.mockRejectedValueOnce(new Error("network down"));
-  page.addRole();
-  await flushPromises();
-  expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network down"));
 
   page.state = {
     ...page.state,
@@ -717,22 +707,13 @@ test("keeps role error, fallback and upload failure branches", async() => {
   expect(page.state.pagination.total).toBe(3);
 });
 
-test("keeps permission error, fallback and upload failure branches", async() => {
+test("keeps permission delete, fallback and upload failure branches", async() => {
   const page = createPermissionPage();
   const file = new File(["content"], "permissions.xlsx");
   const {modal} = getPermissionUploadAndModal(page);
 
   expect(createPermissionPage({owner: "engineering", name: "bob", tag: "", isAdmin: false}).newPermission().state).toBe("Pending");
-
-  permissionBackendMock.addPermission.mockResolvedValueOnce({status: "error", msg: "duplicate"});
-  page.addPermission();
-  await flushPromises();
-  expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("duplicate"));
-
-  permissionBackendMock.addPermission.mockRejectedValueOnce(new Error("network down"));
-  page.addPermission();
-  await flushPromises();
-  expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network down"));
+  expect(createPermissionPage().newPermission().model).toBe("");
 
   page.state = {
     ...page.state,

@@ -1,6 +1,6 @@
 /* eslint-env jest */
 import React from "react";
-import {Input, Select, Switch} from "antd";
+import {Input, Modal, Select, Switch} from "antd";
 import {cleanup, render} from "@testing-library/react";
 import {expect, jest} from "@jest/globals";
 import i18next from "i18next";
@@ -120,7 +120,9 @@ function findElementByValue(elements: React.ReactElement[], value: unknown): Rea
 function createPage(options: {mode?: "add" | "edit"} = {}): PageHarness {
   const page = new ProviderEditPage({
     match: {params: {organizationName: "engineering", providerName: "github-main"}},
-    location: {mode: options.mode},
+    location: options.mode === "add"
+      ? {state: {mode: "add", provider: {...baseProvider}}}
+      : {mode: options.mode},
     history: {push: jest.fn()},
     account: {owner: "engineering", name: "admin", email: "admin@example.test", isAdmin: true},
   } as any) as unknown as PageHarness;
@@ -190,6 +192,61 @@ test("routes edit cancel and shell back to provider list", () => {
   expect(page.props.history.push).toHaveBeenNthCalledWith(2, "/providers");
 });
 
+([
+  {mode: "add" as const, actionLabel: "Cancel"},
+  {mode: "edit" as const, actionLabel: "Back"},
+]).forEach(({mode, actionLabel}) => {
+  test(`confirms before ${actionLabel} leaves a dirty ${mode} provider without mutations`, () => {
+    const page = createPage({mode});
+    const addProvider = jest.spyOn(ProviderBackend, "addProvider");
+    const updateProvider = jest.spyOn(ProviderBackend, "updateProvider");
+    const deleteProvider = jest.spyOn(ProviderBackend, "deleteProvider");
+    let confirmOptions: {onOk?: () => void} | undefined;
+    const confirm = jest.spyOn(Modal, "confirm").mockImplementation(options => {
+      confirmOptions = options as {onOk?: () => void};
+      return {destroy: jest.fn(), update: jest.fn()} as any;
+    });
+
+    page.updateProviderField("displayName", "Changed Provider");
+    const view = render(<>{page.renderProvider()}</>);
+    fireEvent.click(view.getByText(actionLabel));
+
+    expect(page.state.dirty).toBe(true);
+    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Unsaved changes",
+      content: "Current provider settings have unsaved changes. Leave without saving?",
+      okText: "OK",
+      cancelText: "Cancel",
+      onOk: expect.any(Function),
+    }));
+    expect(page.props.history.push).not.toHaveBeenCalled();
+    expect(addProvider).not.toHaveBeenCalled();
+    expect(updateProvider).not.toHaveBeenCalled();
+    expect(deleteProvider).not.toHaveBeenCalled();
+
+    confirmOptions?.onOk?.();
+    expect(page.props.history.push).toHaveBeenCalledWith("/providers");
+  });
+});
+
+test("confirms before leaving after a provider mapping edit", () => {
+  const page = createPage();
+  const addProvider = jest.spyOn(ProviderBackend, "addProvider");
+  const updateProvider = jest.spyOn(ProviderBackend, "updateProvider");
+  const deleteProvider = jest.spyOn(ProviderBackend, "deleteProvider");
+  const confirm = jest.spyOn(Modal, "confirm").mockImplementation(() => ({destroy: jest.fn(), update: jest.fn()}) as any);
+
+  page.updateUserMappingField("email", "mail");
+  page.handleBack();
+
+  expect(page.state.dirty).toBe(true);
+  expect(confirm).toHaveBeenCalledWith(expect.objectContaining({onOk: expect.any(Function)}));
+  expect(page.props.history.push).not.toHaveBeenCalled();
+  expect(addProvider).not.toHaveBeenCalled();
+  expect(updateProvider).not.toHaveBeenCalled();
+  expect(deleteProvider).not.toHaveBeenCalled();
+});
+
 test("keeps shared footer save actions wired to the existing provider submit method", () => {
   const page = createPage();
   const submitProviderEdit = jest.spyOn(page, "submitProviderEdit").mockImplementation(() => undefined);
@@ -229,14 +286,125 @@ test("renders WeCom setup guide as a full-width legacy form row", () => {
   expect(view.getByText("WeCom web login setup")).not.toBeNull();
 });
 
-test("keeps add cancel deleting the pre-created provider", () => {
-  const page = createPage({mode: "add"});
-  const deleteProvider = jest.spyOn(page, "deleteProvider").mockImplementation(() => undefined);
-  const view = render(<>{page.renderProvider()}</>);
+test("keeps credential labels aligned with provider category and type contracts", () => {
+  const page = createPage() as any;
+  const getText = (node: React.ReactNode) => {
+    const view = render(<>{node}</>);
+    const text = view.container.textContent || "";
+    view.unmount();
+    return text;
+  };
+  const cases = [
+    [{category: "OAuth", type: "Apple"}, ["Service ID identifier", "Team ID", "Key ID", "Key text"]],
+    [{category: "OAuth", type: "DingTalk"}, ["AppKey", "AppSecret", "Client ID 2", "Client secret 2"]],
+    [{category: "Email", type: "SMTP"}, ["Username", "Password", "From address", "From name"]],
+    [{category: "SMS", type: "Volc Engine SMS"}, ["Access key", "Secret access key", "Client ID 2", "Client secret 2"]],
+    [{category: "SMS", type: "Huawei Cloud SMS"}, ["App key", "App secret", "Client ID 2", "Client secret 2"]],
+    [{category: "SMS", type: "UCloud SMS"}, ["Public key", "Private Key", "Client ID 2", "Client secret 2"]],
+    [{category: "SMS", type: "Msg91 SMS"}, ["Sender Id", "Auth Key", "Client ID 2", "Client secret 2"]],
+    [{category: "Captcha", type: "Aliyun Captcha"}, ["Access key", "Secret access key", "Scene", "App key"]],
+    [{category: "Notification", type: "DingTalk"}, ["Access key", "Secret key", "Client ID 2", "Client secret 2"]],
+    [{category: "Notification", type: "WeCom"}, ["Client ID", "Endpoint", "Client ID 2", "Client secret 2"]],
+    [{category: "ID Verification", type: "Alibaba Cloud"}, ["Access key", "Secret access key", "Client ID 2", "Client secret 2"]],
+    [{category: "Storage", type: "Google Cloud Storage"}, ["Client ID", "Service account JSON", "Client ID 2", "Client secret 2"]],
+  ] as const;
+
+  cases.forEach(([provider, expected]) => {
+    const actual = [
+      getText(page.getClientIdLabel(provider)),
+      getText(page.getClientSecretLabel(provider)),
+      getText(page.getClientId2Label(provider)),
+      getText(page.getClientSecret2Label(provider)),
+    ];
+    expected.forEach((label, index) => expect(actual[index]).toContain(label));
+  });
+});
+
+test("keeps subtype, app-id and notification receiver fields available for supported providers", () => {
+  const page = createPage() as any;
+
+  expect(page.getProviderSubTypeOptions("WeCom").map((item: any) => item.id)).toEqual(["Internal", "Third-party"]);
+  expect(page.getProviderSubTypeOptions("Infoflow").map((item: any) => item.id)).toEqual(["Internal", "Third-party"]);
+  expect(page.getProviderSubTypeOptions("WeChat").map((item: any) => item.id)).toEqual(["Web", "Mobile"]);
+  expect(page.getProviderSubTypeOptions("GitHub")).toEqual([]);
+
+  const appIdProviders = [
+    {category: "OAuth", type: "WeCom", subType: "Internal"},
+    {category: "OAuth", type: "Infoflow"},
+    {category: "OAuth", type: "AzureADB2C"},
+    {category: "SMS", type: "Twilio SMS"},
+    {category: "SMS", type: "Tencent Cloud SMS"},
+    {category: "SMS", type: "Volc Engine SMS"},
+    {category: "SMS", type: "Huawei Cloud SMS"},
+    {category: "SMS", type: "Amazon SNS"},
+    {category: "SMS", type: "Baidu Cloud SMS"},
+    {category: "SMS", type: "Infobip SMS"},
+    {category: "SMS", type: "UCloud SMS"},
+    {category: "Email", type: "SUBMAIL"},
+    {category: "Notification", type: "Viber"},
+    {category: "Notification", type: "Line"},
+    {category: "Notification", type: "CUCloud"},
+  ];
+  appIdProviders.forEach(provider => expect(page.getAppIdRow({...baseProvider, ...provider})).not.toBeNull());
+  expect(page.getAppIdRow(baseProvider)).toBeNull();
+
+  ["Telegram", "Custom HTTP", "Matrix"].forEach(type => {
+    const view = render(<>{page.getReceiverRow({...baseProvider, type})}</>);
+    expect(view.container.querySelector("input")).not.toBeNull();
+    view.unmount();
+  });
+  const defaultReceiver = render(<>{page.getReceiverRow(baseProvider)}</>);
+  expect(defaultReceiver.getByText("Test Notification")).not.toBeNull();
+});
+
+test("updates every user, email and SMS mapping field through rendered controls", () => {
+  const page = createPage() as any;
+  const updateMapping = jest.spyOn(page, "updateUserMappingField");
+  [page.renderUserMappingInput(), page.renderEmailMappingInput(), page.renderSmsMappingInput()].forEach(node => {
+    collectElementsByType(node, Input).forEach(input => {
+      elementProps<{onChange: (event: {target: {value: string}}) => void}>(input).onChange({target: {value: "mapped"}});
+    });
+  });
+
+  expect(updateMapping).toHaveBeenCalledWith("id", "mapped");
+  expect(updateMapping).toHaveBeenCalledWith("fromAddress", "mapped");
+  expect(updateMapping).toHaveBeenCalledWith("phoneNumber", "mapped");
+});
+
+test("initializes an add draft without loading or deleting a provider", async() => {
+  const getProvider = jest.spyOn(ProviderBackend, "getProvider").mockResolvedValue({status: "ok", data: baseProvider} as any);
+  jest.spyOn(OrganizationBackend, "getOrganizations").mockResolvedValue({status: "ok", data: []});
+  jest.spyOn(CertBackend, "getCerts").mockResolvedValue({status: "ok", data: []} as any);
+  const draft = {...baseProvider, userMapping: undefined};
+  const page = new ProviderEditPage({
+    match: {params: {organizationName: draft.owner, providerName: draft.name}},
+    location: {state: {mode: "add", provider: draft}},
+    history: {push: jest.fn()},
+    account: {owner: draft.owner, name: "admin", isAdmin: true},
+  } as any) as unknown as PageHarness;
+  page.UNSAFE_componentWillMount();
+  await flushPromises();
+
+  expect(getProvider).not.toHaveBeenCalled();
+  expect(page.state.provider.userMapping).toEqual(expect.objectContaining({id: "id", username: "username"}));
+  expect(() => page.renderProvider()).not.toThrow();
+
+  page.updateUserMappingField("id", "mutated-id");
+  const nextDraftPage = new ProviderEditPage({
+    match: {params: {organizationName: draft.owner, providerName: "next-draft"}},
+    location: {state: {mode: "add", provider: {...draft, name: "next-draft", userMapping: undefined}}},
+    history: {push: jest.fn()},
+    account: {owner: draft.owner, name: "admin", isAdmin: true},
+  } as any) as unknown as PageHarness;
+  expect(nextDraftPage.state.provider.userMapping.id).toBe("id");
+
+  const addPage = createPage({mode: "add"});
+  const deleteProvider = jest.spyOn(addPage, "deleteProvider").mockImplementation(() => undefined);
+  const view = render(<>{addPage.renderProvider()}</>);
 
   fireEvent.click(view.getByText("Cancel"));
 
-  expect(deleteProvider).toHaveBeenCalledTimes(1);
+  expect(deleteProvider).not.toHaveBeenCalled();
 });
 
 ([
@@ -513,8 +681,35 @@ test("restores the persisted name on save rejection and surfaces connection fail
   expect(showMessage).toHaveBeenCalledWith("error", expect.stringContaining("offline"));
 });
 
-test("handles add-cancel deletion success, backend rejection and connection failure", async() => {
+test("keeps an edited provider draft name when add is rejected", async() => {
   const page = createPage({mode: "add"});
+  jest.spyOn(ProviderBackend, "addProvider").mockResolvedValueOnce({status: "error", msg: "duplicate"} as any);
+  page.state.provider.name = "custom-draft";
+
+  page.submitProviderEdit(false);
+  await flushPromises();
+
+  expect(page.state.provider.name).toBe("custom-draft");
+});
+
+test("creates a provider once and uses update for the next save", async() => {
+  const page = createPage({mode: "add"});
+  const addProvider = jest.spyOn(ProviderBackend, "addProvider").mockResolvedValue({status: "ok"} as any);
+  const updateProvider = jest.spyOn(ProviderBackend, "updateProvider").mockResolvedValue({status: "ok"} as any);
+
+  page.submitProviderEdit(false);
+  await flushPromises();
+  page.submitProviderEdit(false);
+  await flushPromises();
+
+  expect(addProvider).toHaveBeenCalledTimes(1);
+  expect(updateProvider).toHaveBeenCalledTimes(1);
+  expect(page.state.mode).toBe("edit");
+  expect(page.state.providerName).toBe("github-main");
+});
+
+test("handles explicit deletion success, backend rejection and connection failure", async() => {
+  const page = createPage();
   const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
   jest.spyOn(ProviderBackend, "deleteProvider")
     .mockResolvedValueOnce({status: "ok"} as any)

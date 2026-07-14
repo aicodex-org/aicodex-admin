@@ -253,6 +253,7 @@ function createPage(props: Partial<React.ComponentProps<typeof UserListPage>> = 
   page.state = {
     ...page.state,
     organization,
+    loadedOrganizationName: "engineering",
   };
   return page;
 }
@@ -409,6 +410,7 @@ test("creates default users from organization defaults and navigates to edit pag
     password: "123",
     avatar: "/default-avatar.png",
     countryCode: "US",
+    addresses: [],
     score: 5,
     signupApplication: "app-main",
     registerSource: "built-in/admin",
@@ -418,13 +420,87 @@ test("creates default users from organization defaults and navigates to edit pag
   page.addUser();
   await flushPromises();
 
-  expect(userBackendMock.addUser).toHaveBeenCalledWith(expect.objectContaining({
+  expect(userBackendMock.addUser).not.toHaveBeenCalled();
+  expect(history.push).toHaveBeenCalledWith(expect.objectContaining({pathname: "/users/engineering/user_abc123", state: expect.objectContaining({mode: "add", user: expect.objectContaining({
     owner: "engineering",
     name: "user_abc123",
-  }));
+  })})}));
   expect(sessionStorage.getItem("userListUrl")).toBe("/");
-  expect(history.push).toHaveBeenCalledWith({pathname: "/users/engineering/user_abc123", mode: "add"});
-  expect(Setting.showMessage).toHaveBeenCalledWith("success", expect.any(String));
+  expect(Setting.showMessage).not.toHaveBeenCalledWith("success", expect.any(String));
+});
+
+test("keeps add disabled until the selected organization configuration is ready", () => {
+  const history = createHistory();
+  const page = createPage({history});
+  page.state = {...page.state, organization: null};
+
+  const actions = render(<>{page.renderListActions()}</>);
+  expect((actions.getByText(/添\s*加|Add/).closest("button") as HTMLButtonElement).disabled).toBe(true);
+  expect(() => page.addUser()).not.toThrow();
+  expect(history.push).not.toHaveBeenCalled();
+});
+
+test("keeps add disabled and ignores stale organization configuration responses", async() => {
+  const history = createHistory();
+  const page = createPage({history});
+  const designOrganization = {
+    ...organization,
+    name: "design",
+    defaultAvatar: "/design-avatar.png",
+    defaultApplication: "design-app",
+  };
+  let resolveEngineering: (response: {status: string; data: typeof organization}) => void = () => undefined;
+  let resolveDesign: (response: {status: string; data: typeof designOrganization}) => void = () => undefined;
+  organizationBackendMock.getOrganization.mockImplementation((...args: unknown[]) => new Promise(resolve => {
+    const name = args[1] as string;
+    if (name === "engineering") {
+      resolveEngineering = resolve;
+    } else {
+      resolveDesign = resolve;
+    }
+  }));
+
+  page.state = {...page.state, organizationName: "engineering"};
+  page.getOrganization("engineering");
+  let actions = render(<>{page.renderListActions()}</>);
+  expect((actions.getByText(/添\s*加|Add/).closest("button") as HTMLButtonElement).disabled).toBe(true);
+  actions.unmount();
+
+  page.state = {...page.state, organizationName: "design"};
+  page.getOrganization("design");
+  resolveDesign({status: "ok", data: designOrganization});
+  await flushPromises();
+  resolveEngineering({status: "ok", data: organization});
+  await flushPromises();
+
+  actions = render(<>{page.renderListActions()}</>);
+  expect((actions.getByText(/添\s*加|Add/).closest("button") as HTMLButtonElement).disabled).toBe(false);
+  localStorage.setItem("organization", "design");
+  page.addUser();
+  expect(history.push).toHaveBeenCalledWith(expect.objectContaining({
+    state: expect.objectContaining({
+      user: expect.objectContaining({
+        owner: "design",
+        avatar: "/design-avatar.png",
+        signupApplication: "design-app",
+      }),
+    }),
+  }));
+});
+
+test("keeps add disabled when organization lookup succeeds without data", async() => {
+  const history = createHistory();
+  const page = createPage({history});
+  page.state = {...page.state, organizationName: "missing"};
+  organizationBackendMock.getOrganization.mockResolvedValueOnce({status: "ok"});
+
+  page.getOrganization("missing");
+  await flushPromises();
+
+  const actions = render(<>{page.renderListActions()}</>);
+  expect((actions.getByText(/添\s*加|Add/).closest("button") as HTMLButtonElement).disabled).toBe(true);
+  expect(() => page.addUser()).not.toThrow();
+  expect(history.push).not.toHaveBeenCalled();
 });
 
 test("deletes users and removes users from groups", async() => {
@@ -450,27 +526,17 @@ test("deletes users and removes users from groups", async() => {
   expect(page.state.pagination).toEqual({total: 0});
 });
 
-test("reports add, delete, remove and list response errors", async() => {
+test("reports delete, remove and list response errors", async() => {
   const page = createPage({groupName: "platform"});
   page.state = {
     ...page.state,
     data: [user],
   };
-  userBackendMock.addUser.mockResolvedValueOnce({status: "error", msg: "add failed"});
-  userBackendMock.addUser.mockRejectedValueOnce(new Error("add network"));
   userBackendMock.deleteUser.mockResolvedValueOnce({status: "error", msg: "delete failed"});
   userBackendMock.deleteUser.mockRejectedValueOnce(new Error("delete network"));
   userBackendMock.removeUserFromGroup.mockResolvedValueOnce({status: "error", msg: "remove failed"});
   userBackendMock.removeUserFromGroup.mockRejectedValueOnce(new Error("remove network"));
   userBackendMock.getUsers.mockResolvedValueOnce({status: "error", msg: "list failed"});
-
-  page.addUser();
-  await flushPromises();
-  expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("add failed"));
-
-  page.addUser();
-  await flushPromises();
-  expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("add network"));
 
   page.deleteUser(0);
   await flushPromises();
@@ -580,6 +646,7 @@ test("renders unauthorized state when user list request is denied", async() => {
 test("builds table actions for edit, impersonation, remove and delete", () => {
   const history = createHistory();
   const page = createPage({history, groupName: "platform"});
+  jestValue.spyOn(page, "addUser").mockImplementation(() => {});
   jestValue.spyOn(page, "impersonateUser").mockImplementation(() => {});
   jestValue.spyOn(page, "deleteUser").mockImplementation(() => {});
   jestValue.spyOn(page, "removeUserFromGroup").mockImplementation(() => {});
@@ -624,7 +691,7 @@ test("builds table actions for edit, impersonation, remove and delete", () => {
 
   const listActionView = render(<>{toolbar.props.actions}</>);
   fireEvent.click(listActionView.getByText(/添\s*加|Add/));
-  expect(userBackendMock.addUser).toHaveBeenCalled();
+  expect(page.addUser).toHaveBeenCalled();
   listActionView.unmount();
 
   const toolbarView = render(<>{table.props.title()}</>);

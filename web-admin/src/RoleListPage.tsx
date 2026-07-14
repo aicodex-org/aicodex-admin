@@ -181,18 +181,7 @@ class RoleListPage extends TypedBaseListPage {
 
   addRole(): void {
     const newRole = this.newRole();
-    roleBackend.addRole(newRole)
-      .then((res: MutationResponse) => {
-        if (res.status === "ok") {
-          this.props.history.push({pathname: `/roles/${newRole.owner}/${newRole.name}`, mode: "add"});
-          Setting.showMessage("success", t("general:Successfully added"));
-        } else {
-          Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
-        }
-      })
-      .catch((error: unknown) => {
-        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
-      });
+    this.props.history.push({pathname: `/roles/${newRole.owner}/${newRole.name}`, state: {mode: "add", role: newRole}} as never);
   }
 
   deleteRole(i: number): void {
