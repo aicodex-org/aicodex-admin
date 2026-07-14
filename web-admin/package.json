@@ -68,6 +68,7 @@
     "build": "cross-env GENERATE_SOURCEMAP=false craco build",
     "postbuild": "node mv.js",
     "test": "craco test",
+    "test:ci": "cross-env CI=true craco test --watchAll=false --runInBand --silent",
     "typecheck": "tsc --noEmit",
     "typecheck:build-tooling": "tsc -p tsconfig.build-tooling.json",
     "public-scripts:check": "tsc -p tsconfig.public-scripts.json --noEmit",

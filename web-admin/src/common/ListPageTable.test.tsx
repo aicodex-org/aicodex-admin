@@ -38,6 +38,39 @@ const dataSource: TestRecord[] = [
   {id: "2", name: "Beta"},
 ];
 
+test("centralizes shared table defaults inside the frame", () => {
+  const frame = ListPageTable<TestRecord>({columns, dataSource}) as React.ReactElement<{children: React.ReactNode}>;
+  const table = React.Children.toArray(frame.props.children)[0] as React.ReactElement<{
+    bordered?: boolean;
+    className?: string;
+    showSorterTooltip?: {target?: string};
+    size?: string;
+    tableLayout?: string;
+  }>;
+
+  expect(frame.props.children).toBeDefined();
+  expect(table.props.className).toBe("enterprise-list-table");
+  expect(table.props.size).toBe("middle");
+  expect(table.props.bordered).toBe(false);
+  expect(table.props.tableLayout).toBe("fixed");
+  expect(table.props.showSorterTooltip).toEqual({target: "sorter-icon"});
+});
+
+test("wraps plain title content in the shared toolbar shell", () => {
+  const frame = ListPageTable<TestRecord>({
+    columns,
+    dataSource,
+    title: () => <span>Shared toolbar</span>,
+  }) as React.ReactElement<{children: React.ReactNode}>;
+  const table = React.Children.toArray(frame.props.children)[0] as React.ReactElement<{
+    title?: (currentPageData: readonly TestRecord[]) => React.ReactNode;
+  }>;
+  const titleNode = table.props.title?.(dataSource) as React.ReactElement<{className?: string; children?: React.ReactNode}>;
+
+  expect(titleNode.props.className).toBe("enterprise-list-toolbar-shell");
+  expect(titleNode.props.children).toEqual(<span>Shared toolbar</span>);
+});
+
 test("renders shared pagination in the list table footer", () => {
   const view = render(
     <ListPageTable<TestRecord>

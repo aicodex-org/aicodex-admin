@@ -61,14 +61,6 @@ type TestGroupTableElement = React.ReactElement<{
   tableLayout?: string;
   title: () => React.ReactNode;
 }>;
-type TestSharedTableElement = React.ReactElement<{
-  bordered?: boolean;
-  className?: string;
-  showSorterTooltip?: {target?: string};
-  size?: string;
-  tableLayout?: string;
-}>;
-
 const backendMock = GroupBackend as unknown as BackendMock;
 const formBackendMock = FormBackend as unknown as FormBackendMock;
 const xlsxMock = XLSX as unknown as XlsxMock;
@@ -443,31 +435,6 @@ test("builds table columns, toolbar and action handlers", () => {
   expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-header-meta")?.className).toContain("enterprise-list-query-toolbar-header-meta-top-right");
   fireEvent.click(toolbarView.getByText(/添\s*加|Add/));
   expect(page.addGroup).toHaveBeenCalled();
-});
-
-test("list page table centralizes shared table defaults", () => {
-  const sharedTableFrame = ListPageTable<TestGroupRecord>({columns: [], dataSource: []});
-  const sharedTable = React.Children.toArray(sharedTableFrame.props.children)[0] as TestSharedTableElement;
-
-  expect(sharedTable.props.className).toBe("enterprise-list-table");
-  expect(sharedTable.props.size).toBe("middle");
-  expect(sharedTable.props.bordered).toBe(false);
-  expect(sharedTable.props.tableLayout).toBe("fixed");
-  expect(sharedTable.props.showSorterTooltip).toEqual({target: "sorter-icon"});
-});
-
-test("list page table wraps title content in the shared toolbar shell", () => {
-  const sharedTableFrame = ListPageTable<TestGroupRecord>({
-    columns: [],
-    dataSource: [],
-    title: () => <span>Shared toolbar</span>,
-  });
-  const sharedTable = React.Children.toArray(sharedTableFrame.props.children)[0] as React.ReactElement<{title?: () => React.ReactNode}>;
-
-  const titleNode = sharedTable.props.title?.() as React.ReactElement<{className?: string; children?: React.ReactNode}>;
-
-  expect(titleNode.props.className).toBe("enterprise-list-toolbar-shell");
-  expect(titleNode.props.children).toEqual(<span>Shared toolbar</span>);
 });
 
 test("keeps mobile group table horizontally scrollable without desktop vertical lock", () => {

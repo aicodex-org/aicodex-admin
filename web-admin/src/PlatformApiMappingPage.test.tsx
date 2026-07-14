@@ -51,7 +51,16 @@ function pageProps() {
   };
 }
 
-jest.setTimeout(15000);
+function createPageHarness(state: Record<string, LegacyAny> = {}): LegacyAny {
+  const page = new PlatformApiMappingPage(pageProps()) as LegacyAny;
+  page.state = {...page.state, ...state};
+  page.setState = jest.fn((update: LegacyAny, callback?: () => void) => {
+    const patch = typeof update === "function" ? update(page.state, page.props) : update;
+    page.state = {...page.state, ...patch};
+    callback?.();
+  });
+  return page;
+}
 
 jest.mock("./backend/PlatformApiMappingBackend", () => ({
   getPlatformApiOrganizationMappings: mockFn(),
@@ -675,71 +684,66 @@ test("renders operator-friendly mapping labels while saving enum values", async(
   }));
 });
 
-test("separates organization and user mapping tabs and loads user mappings on demand", async() => {
+test("wires the user mapping tab to on-demand loading", async() => {
+  const pendingRequest = new Promise(() => {});
+  [
+    "getPlatformApiUserMappings",
+    "getPlatformApiUserMappingReadiness",
+    "getGatewayProjectionRunReadiness",
+    "getGatewayProjectionIngestionStatus",
+    "getGatewayProjectionPublishAttempts",
+    "getGatewayProjectionPublishAttemptRetentionReadiness",
+    "getGatewayProjectionPublishAttemptCleanupDryRun",
+    "getGatewayProjectionPublishAttemptCleanupExecuteReadiness",
+    "getGatewayProjectionPublishAttemptCleanupApprovalPolicyReadiness",
+    "getGatewayProjectionPublishAttemptCleanupApprovalDecisionDraftReadiness",
+    "getGatewayProjectionPublishAttemptCleanupExecutionGateOwnerBoundaryPreflight",
+    "getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail",
+    "getOrganizationMasterDataQualityReadiness",
+  ].forEach(name => PlatformApiMappingBackend[name].mockReturnValue(pendingRequest));
   render(<PlatformApiMappingPage {...pageProps()} />);
 
   expectAny((await screen.findAllByText("平台组织映射")).length).toBeGreaterThan(0);
+  expectAny(screen.getByText("用户映射")).toBeInTheDocument();
   expectAny(PlatformApiMappingBackend.getPlatformApiOrganizationMappings).toHaveBeenCalledWith("org-alpha");
   expectAny(PlatformApiMappingBackend.getPlatformApiUserMappings).not.toHaveBeenCalled();
 
   fireEvent.click(screen.getByText("用户映射"));
-
-  await wait(() => expectAny(PlatformApiMappingBackend.getPlatformApiUserMappings).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+  expectAny(PlatformApiMappingBackend.getPlatformApiUserMappings).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     current: 1,
     pageSize: 10,
     keyword: "",
-  })));
-  await wait(() => expectAny(PlatformApiMappingBackend.getPlatformApiUserMappingReadiness).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
-    keyword: "",
-    readinessCategory: "",
-    mappingStatus: "",
-  })));
-  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionRunReadiness).toHaveBeenCalledWith("org-alpha", expect.any(Object)));
-  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttempts).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
-    source: "",
-    status: "",
-    limit: 20,
-  })));
-  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptRetentionReadiness).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
-    source: "",
-    status: "",
-    limit: 100,
-  })));
-  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupDryRun).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
-    source: "",
-    status: "",
-    limit: 100,
-  })));
-  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupExecuteReadiness).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
-    source: "",
-    status: "",
-    limit: 100,
-  })));
-  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalPolicyReadiness).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
-    source: "",
-    status: "",
-    approvalEvidence: "dry_run_export_reviewed,candidate_count_reviewed,receipt_hint_coverage_reviewed,no_blocked_attempts_confirmed",
-    limit: 100,
-  })));
-  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalDecisionDraftReadiness).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
-    source: "",
-    status: "",
-    approvalEvidence: "dry_run_export_reviewed,candidate_count_reviewed,receipt_hint_coverage_reviewed,no_blocked_attempts_confirmed",
-    limit: 100,
-  })));
-  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupExecutionGateOwnerBoundaryPreflight).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
-    source: "",
-    status: "",
-    approvalEvidence: "dry_run_export_reviewed,candidate_count_reviewed,receipt_hint_coverage_reviewed,no_blocked_attempts_confirmed",
-    limit: 100,
-  })));
-  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
-    limit: 20,
-  })));
-  await wait(() => expectAny(PlatformApiMappingBackend.getOrganizationMasterDataQualityReadiness).toHaveBeenCalledWith("org-alpha"));
-  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionIngestionStatus).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
-    latest: true,
-  })));
+  }));
+});
+
+test("loads user mapping diagnostics on demand", async() => {
+  const page = createPageHarness();
+  page.changeTab("user");
+
+  await wait(() => {
+    expectAny(PlatformApiMappingBackend.getPlatformApiUserMappings).toHaveBeenCalledWith("org-alpha", expect.objectContaining({current: 1, pageSize: 10, keyword: ""}));
+    expectAny(PlatformApiMappingBackend.getPlatformApiUserMappingReadiness).toHaveBeenCalledWith("org-alpha", expect.objectContaining({keyword: "", readinessCategory: "", mappingStatus: ""}));
+    expectAny(PlatformApiMappingBackend.getGatewayProjectionRunReadiness).toHaveBeenCalledWith("org-alpha", expect.any(Object));
+    expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttempts).toHaveBeenCalledWith("org-alpha", expect.objectContaining({source: "", status: "", limit: 20}));
+    expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptRetentionReadiness).toHaveBeenCalledWith("org-alpha", expect.objectContaining({source: "", status: "", limit: 100}));
+    expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupDryRun).toHaveBeenCalledWith("org-alpha", expect.objectContaining({source: "", status: "", limit: 100}));
+    expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupExecuteReadiness).toHaveBeenCalledWith("org-alpha", expect.objectContaining({source: "", status: "", limit: 100}));
+    expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalPolicyReadiness).toHaveBeenCalledWith("org-alpha", expect.objectContaining({approvalEvidence: "dry_run_export_reviewed,candidate_count_reviewed,receipt_hint_coverage_reviewed,no_blocked_attempts_confirmed", limit: 100}));
+    expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalDecisionDraftReadiness).toHaveBeenCalledWith("org-alpha", expect.objectContaining({approvalEvidence: "dry_run_export_reviewed,candidate_count_reviewed,receipt_hint_coverage_reviewed,no_blocked_attempts_confirmed", limit: 100}));
+    expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupExecutionGateOwnerBoundaryPreflight).toHaveBeenCalledWith("org-alpha", expect.objectContaining({approvalEvidence: "dry_run_export_reviewed,candidate_count_reviewed,receipt_hint_coverage_reviewed,no_blocked_attempts_confirmed", limit: 100}));
+    expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail).toHaveBeenCalledWith("org-alpha", expect.objectContaining({limit: 20}));
+    expectAny(PlatformApiMappingBackend.getOrganizationMasterDataQualityReadiness).toHaveBeenCalledWith("org-alpha");
+    expectAny(PlatformApiMappingBackend.getGatewayProjectionIngestionStatus).toHaveBeenCalledWith("org-alpha", expect.objectContaining({latest: true}));
+  });
+  expectAny(page.state.userMappingsLoaded).toBe(true);
+});
+
+test("renders loaded user mapping diagnostics without raw gateway data", async() => {
+  const page = createPageHarness();
+  page.changeTab("user");
+  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail).toHaveBeenCalled());
+  render(page.renderUserMappingTab());
+
   expectAny(await screen.findByDisplayValue("org-alpha/user-one")).toBeInTheDocument();
   expectAny(screen.getByText("组织主数据质量 readiness")).toBeInTheDocument();
   expectAny(screen.getByText("质量状态：")).toBeInTheDocument();
@@ -838,24 +842,69 @@ test("uses attempt receipt query hint to refresh gateway ingestion status", () =
 });
 
 test("allows operator to trigger manual gateway projection publish when readiness is available", async() => {
-  render(<PlatformApiMappingPage {...pageProps()} />);
+  const page = createPageHarness({
+    organization: "org-alpha",
+    readiness: {counts: {active_publishable: 1, tombstone_publishable: 0}},
+  });
+  page.refreshUserMappingReadiness = mockFn();
+  page.refreshGatewayProjectionRunReadiness = mockFn();
+  page.refreshGatewayProjectionIngestionStatus = mockFn();
+  page.refreshGatewayProjectionPublishAttempts = mockFn();
+  page.refreshGatewayProjectionPublishAttemptRetentionReadiness = mockFn();
+  page.refreshGatewayProjectionPublishAttemptCleanupDryRun = mockFn();
+  page.refreshGatewayProjectionPublishAttemptCleanupExecuteReadiness = mockFn();
 
-  fireEvent.click(await screen.findByText("用户映射"));
-  const button = await screen.findByText("手动同步");
-  fireEvent.click(button);
+  await page.publishGatewayProjectionManually();
 
-  await wait(() => expectAny(PlatformApiMappingBackend.publishGatewayProjectionManually).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
+  expectAny(PlatformApiMappingBackend.publishGatewayProjectionManually).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     reason: "operator-manual-publish",
-  })));
-  expectAny(await screen.findByText("accepted: true")).toBeInTheDocument();
-  expectAny(screen.getByText("batch-synthetic")).toBeInTheDocument();
-  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionRunReadiness).toHaveBeenCalled());
-  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionIngestionStatus).toHaveBeenCalled());
-  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttempts).toHaveBeenCalled());
-  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptRetentionReadiness).toHaveBeenCalled());
-  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupDryRun).toHaveBeenCalled());
-  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupExecuteReadiness).toHaveBeenCalled());
-  expectAny(screen.queryByText(/projection-secret|gateway.example.invalid|rawGatewayResponse/)).not.toBeInTheDocument();
+  }));
+  expectAny(page.state.manualPublishResult).toEqual(expect.objectContaining({accepted: true, projectionBatchId: "batch-synthetic"}));
+  expectAny(page.refreshGatewayProjectionRunReadiness).toHaveBeenCalled();
+  expectAny(page.refreshGatewayProjectionIngestionStatus).toHaveBeenCalled();
+  expectAny(page.refreshGatewayProjectionPublishAttempts).toHaveBeenCalled();
+  expectAny(page.refreshGatewayProjectionPublishAttemptRetentionReadiness).toHaveBeenCalled();
+  expectAny(page.refreshGatewayProjectionPublishAttemptCleanupDryRun).toHaveBeenCalled();
+  expectAny(page.refreshGatewayProjectionPublishAttemptCleanupExecuteReadiness).toHaveBeenCalled();
+
+  const result = render(page.renderManualPublishConsole());
+  expectAny(result.getByText("accepted: true")).toBeInTheDocument();
+  expectAny(result.getByText("batch-synthetic")).toBeInTheDocument();
+  expectAny(result.queryByText(/projection-secret|gateway.example.invalid|rawGatewayResponse/)).not.toBeInTheDocument();
+});
+
+test("wires the manual publish button to the publish handler", () => {
+  const page = createPageHarness({
+    organization: "org-alpha",
+    readiness: {counts: {active_publishable: 1, tombstone_publishable: 0}},
+  });
+  page.publishGatewayProjectionManually = mockFn();
+  const view = render(page.renderManualPublishConsole());
+
+  fireEvent.click(view.getByText("手动同步"));
+
+  expectAny(page.publishGatewayProjectionManually).toHaveBeenCalled();
+});
+
+test("wires cleanup copy buttons to their dedicated handlers", () => {
+  const page = createPageHarness({
+    cleanupExecuteReadiness: {},
+    cleanupApprovalDecisionDraftReadiness: {},
+    cleanupExecutionGatePreflight: {},
+    cleanupApprovalAuditTrail: {records: []},
+  });
+  page.copyCleanupExecuteReadinessExport = mockFn();
+  page.copyCleanupApprovalDecisionDraftReadinessExport = mockFn();
+  page.copyCleanupExecutionGatePreflightExport = mockFn();
+  const view = render(page.renderPublishAttemptHistory());
+
+  fireEvent.click(view.getByText("复制脱敏 JSON"));
+  fireEvent.click(view.getByText("复制草案 JSON"));
+  fireEvent.click(view.getByText("复制预检 JSON"));
+
+  expectAny(page.copyCleanupExecuteReadinessExport).toHaveBeenCalled();
+  expectAny(page.copyCleanupApprovalDecisionDraftReadinessExport).toHaveBeenCalled();
+  expectAny(page.copyCleanupExecutionGatePreflightExport).toHaveBeenCalled();
 });
 
 test("copies redacted cleanup execute readiness export", async() => {
@@ -864,11 +913,18 @@ test("copies redacted cleanup execute readiness export", async() => {
     configurable: true,
     value: {writeText},
   });
+  const page = createPageHarness({
+    organization: "org-alpha",
+    cleanupExecuteReadiness: {
+      dryRunHash: "dryrun-hash-synthetic",
+      export: {
+        readiness: "approval_required",
+        dryRunHash: "dryrun-hash-synthetic",
+      },
+    },
+  });
 
-  render(<PlatformApiMappingPage {...pageProps()} />);
-
-  fireEvent.click(await screen.findByText("用户映射"));
-  fireEvent.click(await screen.findByText("复制脱敏 JSON"));
+  page.copyCleanupExecuteReadinessExport();
 
   await wait(() => expectAny(writeText).toHaveBeenCalled());
   const copied = writeText.mock.calls[0][0];
@@ -883,11 +939,20 @@ test("copies redacted cleanup approval decision draft export", async() => {
     configurable: true,
     value: {writeText},
   });
+  const page = createPageHarness({
+    organization: "org-alpha",
+    cleanupExecuteReadiness: {dryRunHash: "dryrun-hash-synthetic", dryRunId: "dryrun-synthetic", candidateCount: 1, blockedCount: 0, safeNextAction: "collect_approval_package"},
+    cleanupApprovalDecisionDraftReadiness: {
+      export: {
+        decisionDraftId: "decision-draft-synthetic",
+        decisionReadiness: "draft_ready",
+        executionMode: "manual_review_only",
+        cleanupExecutionAllowed: false,
+      },
+    },
+  });
 
-  render(<PlatformApiMappingPage {...pageProps()} />);
-
-  fireEvent.click(await screen.findByText("用户映射"));
-  fireEvent.click(await screen.findByText("复制草案 JSON"));
+  page.copyCleanupApprovalDecisionDraftReadinessExport();
 
   await wait(() => expectAny(writeText).toHaveBeenCalled());
   const copied = writeText.mock.calls[0][0];
@@ -908,11 +973,20 @@ test("copies redacted cleanup execution gate preflight export", async() => {
     configurable: true,
     value: {writeText},
   });
+  const page = createPageHarness({
+    organization: "org-alpha",
+    cleanupExecuteReadiness: {dryRunHash: "dryrun-hash-synthetic", dryRunId: "dryrun-synthetic", candidateCount: 1, blockedCount: 0, safeNextAction: "collect_approval_package"},
+    cleanupExecutionGatePreflight: {
+      export: {
+        gatePreflightId: "execution-gate-preflight-synthetic",
+        gateReadiness: "owner_boundary_ready",
+        executionMode: "manual_review_only",
+        cleanupExecutionAllowed: false,
+      },
+    },
+  });
 
-  render(<PlatformApiMappingPage {...pageProps()} />);
-
-  fireEvent.click(await screen.findByText("用户映射"));
-  fireEvent.click(await screen.findByText("复制预检 JSON"));
+  page.copyCleanupExecutionGatePreflightExport();
 
   await wait(() => expectAny(writeText).toHaveBeenCalled());
   const copied = writeText.mock.calls[0][0];
@@ -932,12 +1006,11 @@ test("keeps cleanup approval decision draft panel disabled on error", async() =>
     status: "error",
     msg: "decision draft unavailable",
   });
+  const page = createPageHarness({organization: "org-alpha"});
+  await page.refreshGatewayProjectionPublishAttemptCleanupApprovalDecisionDraftReadiness();
 
-  render(<PlatformApiMappingPage {...pageProps()} />);
-
-  fireEvent.click(await screen.findByText("用户映射"));
-
-  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", "decision draft unavailable"));
+  expectAny(Setting.showMessage).toHaveBeenCalledWith("error", "decision draft unavailable");
+  render(page.renderPublishAttemptHistory());
   expectAny(screen.getByText(/Decision draft: 未加载/)).toBeInTheDocument();
   expectAny(screen.getByText("复制草案 JSON").closest("button")).toBeDisabled();
 });
@@ -947,22 +1020,22 @@ test("keeps cleanup execution gate preflight panel disabled on error", async() =
     status: "error",
     msg: "execution gate preflight unavailable",
   });
+  const page = createPageHarness({organization: "org-alpha"});
+  await page.refreshGatewayProjectionPublishAttemptCleanupExecutionGateOwnerBoundaryPreflight();
 
-  render(<PlatformApiMappingPage {...pageProps()} />);
-
-  fireEvent.click(await screen.findByText("用户映射"));
-
-  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", "execution gate preflight unavailable"));
+  expectAny(Setting.showMessage).toHaveBeenCalledWith("error", "execution gate preflight unavailable");
+  render(page.renderPublishAttemptHistory());
   expectAny(screen.getByText(/Execution gate preflight: 未加载/)).toBeInTheDocument();
   expectAny(screen.getByText("复制预检 JSON").closest("button")).toBeDisabled();
 });
 
 test("renders read-only remediation guidance for readiness categories", async() => {
-  render(<PlatformApiMappingPage {...pageProps()} />);
+  const page = createPageHarness();
+  page.changeTab("user");
+  await wait(() => expectAny(PlatformApiMappingBackend.getPlatformApiUserMappingReadiness).toHaveBeenCalled());
+  render(page.renderReadinessGuidance());
 
-  fireEvent.click(await screen.findByText("用户映射"));
-
-  expectAny(await screen.findByText("缺少一等 API user mapping")).toBeInTheDocument();
+  expectAny(screen.getByText("缺少一等 API user mapping")).toBeInTheDocument();
   expectAny(screen.getByText("补齐同一 organizationId + adminSubject 的 PlatformApiUserMapping.ApiUserId")).toBeInTheDocument();
   expectAny(screen.getByText(/confirmed PlatformApiUserMapping.ApiUserId/)).toBeInTheDocument();
   expectAny(screen.getByText(/display\/phone\/email\/legacy lineage/)).toBeInTheDocument();

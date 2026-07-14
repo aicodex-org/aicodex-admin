@@ -121,6 +121,37 @@ function expectButtonDisabled(text: string) {
   expect(button?.disabled).toBe(true);
 }
 
+async function openApprovalPacketAudit(): Promise<void> {
+  render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
+  await screen.findAllByText("API 映射核对");
+  fireEvent.click(screen.getByText("草案"));
+  expect(await screen.findByText("manual_review_only")).not.toBeNull();
+  fireEvent.click(screen.getByText("预检"));
+  expect(await screen.findByText("readyForManualReview: true")).not.toBeNull();
+  fireEvent.click(screen.getByText("审批预览"));
+  expect(await screen.findByText("readyForApproval: true")).not.toBeNull();
+  fireEvent.click(screen.getByText("审批包审计"));
+  expect((await screen.findAllByText("审批包审计")).length).toBeGreaterThan(0);
+}
+
+async function openApprovalPacketOperatorNotes(): Promise<void> {
+  await openApprovalPacketAudit();
+  fireEvent.click(screen.getByText("交接备注"));
+  expect((await screen.findAllByText("交接备注")).length).toBeGreaterThan(0);
+}
+
+async function openOperatorNotePersistenceReadiness(): Promise<void> {
+  await openApprovalPacketOperatorNotes();
+  fireEvent.click(screen.getByText("持久化准入"));
+  expect((await screen.findAllByText("持久化准入")).length).toBeGreaterThan(0);
+}
+
+async function openOperatorNoteAuditSearch(): Promise<void> {
+  await openOperatorNotePersistenceReadiness();
+  fireEvent.click(screen.getByText("备注审计检索"));
+  expect((await screen.findAllByText("备注审计检索")).length).toBeGreaterThan(0);
+}
+
 beforeEach(() => {
   Object.defineProperty(window, "matchMedia", {
     writable: true,
@@ -658,18 +689,7 @@ test("opens sanitized approval preview from preflight without repair actions", a
 });
 
 test("opens sanitized approval packet audit from approval preview without repair actions", async() => {
-  render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
-
-  await screen.findAllByText("API 映射核对");
-  fireEvent.click(screen.getByText("草案"));
-  expect(await screen.findByText("manual_review_only")).not.toBeNull();
-  fireEvent.click(screen.getByText("预检"));
-  expect(await screen.findByText("readyForManualReview: true")).not.toBeNull();
-  fireEvent.click(screen.getByText("审批预览"));
-  expect(await screen.findByText("readyForApproval: true")).not.toBeNull();
-  fireEvent.click(screen.getByText("审批包审计"));
-
-  expect((await screen.findAllByText("审批包审计")).length).toBeGreaterThan(0);
+  await openApprovalPacketAudit();
   expect(screen.getByText("ready_for_approval")).not.toBeNull();
   expect(screen.getByText("derived_non_persistent / not_persisted")).not.toBeNull();
   expect(screen.getByText("generated_preview")).not.toBeNull();
@@ -692,9 +712,10 @@ test("opens sanitized approval packet audit from approval preview without repair
   expect(exportedBlob.parts.join("")).toContain("sha256:packet-audit");
   expect(exportedBlob.parts.join("")).toContain("not_persisted");
   expect(exportedBlob.parts.join("")).not.toContain("org-alpha/alice");
+});
 
-  fireEvent.click(screen.getByText("交接备注"));
-  expect((await screen.findAllByText("交接备注")).length).toBeGreaterThan(0);
+test("opens sanitized approval packet operator notes without repair actions", async() => {
+  await openApprovalPacketOperatorNotes();
   expect(screen.getByText("derived_note_draft")).not.toBeNull();
   expect(screen.getByText("derived_note_draft / not_persisted")).not.toBeNull();
   expect(screen.getByText("real_person_identity")).not.toBeNull();
@@ -715,17 +736,18 @@ test("opens sanitized approval packet audit from approval preview without repair
   await wait(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("cannotInfer")));
 
   fireEvent.click(screen.getByText("导出交接备注JSON"));
-  const exportedNotesJson = exportedBlobAt(1);
+  const exportedNotesJson = exportedBlobAt(0);
   expect(exportedNotesJson.parts.join("")).toContain("sha256:operator-note");
   expect(exportedNotesJson.parts.join("")).not.toContain("org-alpha/alice");
 
   fireEvent.click(screen.getByText("导出交接备注Markdown"));
-  const exportedNotesMarkdown = exportedBlobAt(2);
+  const exportedNotesMarkdown = exportedBlobAt(1);
   expect(exportedNotesMarkdown.parts.join("")).toContain("manual_review_only");
   expect(exportedNotesMarkdown.parts.join("")).not.toContain("org-alpha/alice");
+});
 
-  fireEvent.click(screen.getByText("持久化准入"));
-  expect((await screen.findAllByText("持久化准入")).length).toBeGreaterThan(0);
+test("opens sanitized operator note persistence readiness without writes", async() => {
+  await openOperatorNotePersistenceReadiness();
   expect(screen.getByText("ready_for_design_review")).not.toBeNull();
   expect(screen.getByText("readiness_only / persistenceAllowed=false / storeDecisionRequired=true")).not.toBeNull();
   expect(screen.getByText("operator-note-persistence:sample")).not.toBeNull();
@@ -746,13 +768,14 @@ test("opens sanitized approval packet audit from approval preview without repair
   await wait(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("readiness_only")));
 
   fireEvent.click(screen.getByText("导出持久化准入JSON"));
-  const exportedReadinessJson = exportedBlobAt(3);
+  const exportedReadinessJson = exportedBlobAt(0);
   expect(exportedReadinessJson.parts.join("")).toContain("sha256:persistence-readiness");
   expect(exportedReadinessJson.parts.join("")).toContain("storeDecisionRequired");
   expect(exportedReadinessJson.parts.join("")).not.toContain("org-alpha/alice");
+});
 
-  fireEvent.click(screen.getByText("备注审计检索"));
-  expect((await screen.findAllByText("备注审计检索")).length).toBeGreaterThan(0);
+test("opens sanitized operator note audit search without writes", async() => {
+  await openOperatorNoteAuditSearch();
   expect(screen.getByText("current_derived_non_persistent")).not.toBeNull();
   expect(screen.getByText("persistenceRequiredForHistoricalSearch: true")).not.toBeNull();
   expect(screen.getAllByText("historical_search_completeness").length).toBeGreaterThan(0);
@@ -780,7 +803,7 @@ test("opens sanitized approval packet audit from approval preview without repair
   await wait(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("persistenceRequiredForHistoricalSearch")));
 
   fireEvent.click(screen.getByText("导出备注审计检索JSON"));
-  const exportedSearchJson = exportedBlobAt(4);
+  const exportedSearchJson = exportedBlobAt(0);
   expect(exportedSearchJson.parts.join("")).toContain("sha256:persistence-readiness");
   expect(exportedSearchJson.parts.join("")).toContain("manual_review_only");
   expect(exportedSearchJson.parts.join("")).not.toContain("org-alpha/alice");

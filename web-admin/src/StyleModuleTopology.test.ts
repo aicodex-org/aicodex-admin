@@ -75,9 +75,11 @@ describe("admin style module topology", () => {
       "./edit/invitation-edit.less",
       "./edit/permission-edit.less",
       "./edit/provider-edit.less",
+      "./edit/syncer-edit.less",
       "./edit/group-edit.less",
       "./edit/user-edit.less",
       "./edit/application-access-edit.less",
+      "./edit/credential-edit.less",
       "./edit/large-edit-responsive.less",
     ]);
     expect(extractLessImports(readStyle("styles/identity-console-pages.less"))).toEqual([

@@ -414,12 +414,20 @@ describe("OrganizationEditPage", () => {
     jest.restoreAllMocks();
   });
 
-  test("loads organization data and renders edit sections with transactions in edit mode", async() => {
-    setupBackend({transactions: [{name: "transaction-1"}]});
-
+  test("loads organization data from existing backends", async() => {
     const {view} = renderPage();
 
     expect(await view.findByDisplayValue("Engineering")).not.toBeNull();
+    expect(organizationBackendMock.getOrganization).toHaveBeenCalledWith("admin", "engineering");
+    expect(applicationBackendMock.getApplicationsByOrganization).toHaveBeenCalledWith("admin", "engineering");
+    expect(ldapBackendMock.getLdaps).toHaveBeenCalledWith("engineering");
+    expect(transactionBackendMock.getTransactions).toHaveBeenCalledWith("engineering");
+  });
+
+  test("renders edit section navigation and action bar from loaded state", () => {
+    const page = createPageInstance({organization: {displayName: "Engineering"}});
+    const view = render(<>{page.render()}</>);
+
     expect(view.getByText("Organization & Accounts / Organizations /")).not.toBeNull();
     expect(view.getByText("Basic")).not.toBeNull();
     expect(view.getByText("Brand")).not.toBeNull();
@@ -428,22 +436,28 @@ describe("OrganizationEditPage", () => {
     expect(view.getByText("Account profile")).not.toBeNull();
     expect(view.getByText("Multi-factor authentication")).not.toBeNull();
     expect(view.getByText("Directory services")).not.toBeNull();
-    expect(view.getByText("Transactions")).not.toBeNull();
-
-    fireEvent.click(view.getByText("Directory services"));
-    expect((await view.findByTestId("ldap-table")).textContent).toBe("ldap-table");
-
-    fireEvent.click(view.getByText("Transactions"));
-    expect((await view.findByTestId("transaction-table")).textContent).toBe("transactions:1");
     expect(Array.from(view.container.querySelectorAll(".organization-edit-action-bar button")).map(button => button.textContent)).toEqual([
       "Cancel",
       "Save",
       "Save and return",
     ]);
-    expect(organizationBackendMock.getOrganization).toHaveBeenCalledWith("admin", "engineering");
-    expect(applicationBackendMock.getApplicationsByOrganization).toHaveBeenCalledWith("admin", "engineering");
-    expect(ldapBackendMock.getLdaps).toHaveBeenCalledWith("engineering");
-    expect(transactionBackendMock.getTransactions).toHaveBeenCalledWith("engineering");
+  });
+
+  test("renders the directory services section after organization load", async() => {
+    const {view} = renderPage();
+
+    expect(await view.findByDisplayValue("Engineering")).not.toBeNull();
+    fireEvent.click(view.getByText("Directory services"));
+    expect((await view.findByTestId("ldap-table")).textContent).toBe("ldap-table");
+  });
+
+  test("renders organization transactions in edit mode", async() => {
+    setupBackend({transactions: [{name: "transaction-1"}]});
+    const {view} = renderPage();
+
+    expect(await view.findByDisplayValue("Engineering")).not.toBeNull();
+    fireEvent.click(view.getByText("Transactions"));
+    expect((await view.findByTestId("transaction-table")).textContent).toBe("transactions:1");
   });
 
   test("scopes organization edit layout so long password labels can be styled locally", async() => {

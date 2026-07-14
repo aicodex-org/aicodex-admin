@@ -7,6 +7,12 @@ import {readLessWithImports} from "./testUtils/less";
 const readSrc = (fileName: string): string => fs.readFileSync(path.join(__dirname, fileName), "utf8") as string;
 const readAppLess = (): string => readLessWithImports(path.join(__dirname, "App.less"));
 
+const expectClassTokens = (source: string, tokens: string[]): void => {
+  for (const token of tokens) {
+    expect(source).toMatch(new RegExp(`className=["'][^"']*\\b${token}\\b[^"']*["']`));
+  }
+};
+
 describe("access and credential edit page form layout", () => {
   const editPages = [
     ["CertEditPage.tsx", "cert-edit-page"],
@@ -22,7 +28,7 @@ describe("access and credential edit page form layout", () => {
     test(`keeps ${fileName} inside the scoped access edit layout boundary`, () => {
       const source = readSrc(fileName);
 
-      expect(source).toContain(`admin-access-edit-page ${pageClass}`);
+      expectClassTokens(source, ["admin-access-edit-page", pageClass]);
       expect(source).toContain("admin-access-edit-card");
       expect(source).toContain("admin-access-edit-field-row");
     });

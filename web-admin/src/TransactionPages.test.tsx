@@ -561,7 +561,10 @@ test("keeps transaction table columns links search and action behavior stable", 
     tableLayout?: string;
     className?: string;
   }>;
-  expect(embeddedTableElement.props.className).toBe("transaction-table-embedded");
+  expect(new Set(embeddedTableElement.props.className?.split(/\s+/))).toEqual(new Set([
+    "transaction-table-embedded",
+    "user-edit-embedded-table",
+  ]));
   expect(embeddedTableElement.props.scroll).toBeUndefined();
   expect(embeddedTableElement.props.tableLayout).toBe("fixed");
   expect(embeddedTableElement.props.columns.map(column => column.key)).toEqual(["name", "createdTime", "application", "domain", "amount"]);

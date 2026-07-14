@@ -33,10 +33,69 @@ jobs:
           go test -v $(go list ./...) -tags skipCi
         working-directory: ./admin
 
+  frontend-checks:
+    name: Front-end checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 20
+          cache: "yarn"
+          cache-dependency-path: ./web-admin/yarn.lock
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+        working-directory: ./web-admin
+      - name: Typecheck
+        run: yarn typecheck
+        working-directory: ./web-admin
+      - name: Resolve incremental TypeScript gate base
+        id: ts-gate-base
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+
+          is_commit() {
+            local sha="$1"
+            [[ "$sha" =~ ^[0-9a-fA-F]{40}$ ]] &&
+              [[ ! "$sha" =~ ^0{40}$ ]] &&
+              git cat-file -e "$sha^{commit}" 2>/dev/null
+          }
+
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            base_sha="$PR_BASE_SHA"
+          else
+            base_sha="$PUSH_BEFORE_SHA"
+            if ! is_commit "$base_sha"; then
+              base_sha="$(git rev-parse HEAD^ 2>/dev/null || true)"
+            fi
+          fi
+
+          if ! is_commit "$base_sha"; then
+            echo "::error::Unable to resolve an incremental TypeScript gate base revision." >&2
+            exit 1
+          fi
+
+          echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
+      - name: Incremental TypeScript gate
+        env:
+          BASE_SHA: ${{ steps.ts-gate-base.outputs.base_sha }}
+        run: node scripts/check-incremental-typescript-gate.mjs --base "$BASE_SHA"
+        working-directory: ./web-admin
+      - name: Jest
+        run: yarn test:ci
+        working-directory: ./web-admin
+
   frontend:
     name: Front-end
     runs-on: ubuntu-latest
-    needs: [go-tests]
+    needs: [go-tests, frontend-checks]
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3

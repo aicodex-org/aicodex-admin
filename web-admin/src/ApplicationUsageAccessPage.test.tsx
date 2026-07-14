@@ -50,8 +50,6 @@ const {fireEvent} = require("@testing-library/react") as {
   };
 };
 
-jest.setTimeout(15000);
-
 jest.mock("./backend/ApplicationAccessServiceCredentialGovernanceBackend", () => {
   return {
     getServiceCredentialGovernanceStatus: (...args: unknown[]) => mockGetServiceCredentialGovernanceStatus(...args),

@@ -173,6 +173,13 @@ function mockOrganizationScope() {
   jest.spyOn(Setting, "getRequestOrganization").mockReturnValue("org-alpha");
 }
 
+async function settleBackendRequest(request: Promise<unknown>): Promise<void> {
+  await request.catch(() => undefined);
+  // Legacy 页面方法不返回 request chain，因此显式刷新后续 catch/finally microtask。
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 beforeEach(() => {
   Object.defineProperty(window, "matchMedia", {
     writable: true,
@@ -447,42 +454,47 @@ test("keeps migrated list page fetch contracts and state updates", async() => {
   await wait(() => expectAny(webhookPage.setState).toHaveBeenCalledWith(expect.objectContaining({data: expect.any(Array)})));
 });
 
-test("keeps migrated add and delete actions wired to existing backends", async() => {
+test("keeps migrated certificate and key add actions routed with local drafts", () => {
   mockOrganizationScope();
   jest.spyOn(Setting, "getRandomName").mockReturnValue("fixed");
   const history = {push: jest.fn()};
   const props = {...routeProps, history};
-  const addCert = jest.spyOn(CertBackend, "addCert").mockResolvedValue({status: "ok"});
-  const addKey = jest.spyOn(KeyBackend, "addKey").mockResolvedValue({status: "ok"});
-  const addWebhook = jest.spyOn(WebhookBackend, "addWebhook").mockResolvedValue({status: "ok"});
-  const deleteResource = jest.spyOn(ResourceBackend, "deleteResource").mockResolvedValue({status: "ok"});
 
   const certPage = attachLegacyState(new (CertListPage as LegacyAny)(props), {owner: "org-alpha"});
   certPage.addCert();
-  await wait(() => expectAny(addCert).toHaveBeenCalledWith(expect.objectContaining({
-    owner: "org-alpha",
-    name: "cert_fixed",
-    privateKey: "",
-    certificate: "",
-  })));
-  expectAny(history.push).toHaveBeenCalledWith({pathname: "/certs/org-alpha/cert_fixed", mode: "add"});
+  expectAny(history.push).toHaveBeenCalledWith(expect.objectContaining({
+    pathname: "/certs/org-alpha/cert_fixed",
+    mode: "add",
+    cert: expect.objectContaining({owner: "org-alpha", name: "cert_fixed", privateKey: "", certificate: ""}),
+  }));
 
   const keyPage = attachLegacyState(new (KeyListPage as LegacyAny)(props));
   keyPage.addKey();
-  await wait(() => expectAny(addKey).toHaveBeenCalledWith(expect.objectContaining({
-    owner: "org-alpha",
-    name: "key_fixed",
-    accessSecret: "",
-  })));
-  expectAny(history.push).toHaveBeenCalledWith({pathname: "/keys/org-alpha/key_fixed", mode: "add"});
+  expectAny(history.push).toHaveBeenCalledWith(expect.objectContaining({
+    pathname: "/keys/org-alpha/key_fixed",
+    mode: "add",
+    keyDraft: expect.objectContaining({owner: "org-alpha", name: "key_fixed", accessSecret: ""}),
+  }));
+});
+
+test("keeps migrated webhook add and resource delete actions wired to existing backends", async() => {
+  mockOrganizationScope();
+  jest.spyOn(Setting, "getRandomName").mockReturnValue("fixed");
+  const history = {push: jest.fn()};
+  const props = {...routeProps, history};
+  const addWebhookRequest = Promise.resolve({status: "ok"});
+  const deleteResourceRequest = Promise.resolve({status: "ok"});
+  const addWebhook = jest.spyOn(WebhookBackend, "addWebhook").mockReturnValue(addWebhookRequest);
+  const deleteResource = jest.spyOn(ResourceBackend, "deleteResource").mockReturnValue(deleteResourceRequest);
 
   const webhookPage = attachLegacyState(new (WebhookListPage as LegacyAny)(props));
   webhookPage.addWebhook();
-  await wait(() => expectAny(addWebhook).toHaveBeenCalledWith(expect.objectContaining({
+  await settleBackendRequest(addWebhookRequest);
+  expectAny(addWebhook).toHaveBeenCalledWith(expect.objectContaining({
     owner: "admin",
     name: "webhook_fixed",
     organization: "org-alpha",
-  })));
+  }));
   expectAny(history.push).toHaveBeenCalledWith({pathname: "/webhooks/webhook_fixed", mode: "add"});
 
   const resourcePage = attachLegacyState(new (ResourceListPage as LegacyAny)(props), {
@@ -491,14 +503,15 @@ test("keeps migrated add and delete actions wired to existing backends", async()
   });
   resourcePage.fetch = jest.fn();
   resourcePage.deleteResource(0);
-
-  await wait(() => expectAny(deleteResource).toHaveBeenCalledWith({owner: "org-alpha", name: "resource-alpha"}));
+  await settleBackendRequest(deleteResourceRequest);
+  expectAny(deleteResource).toHaveBeenCalledWith({owner: "org-alpha", name: "resource-alpha"});
   expectAny(resourcePage.fetch).toHaveBeenCalledWith({pagination: expect.objectContaining({current: 1})});
 });
 
 test("keeps migrated webhook event helpers and replay behavior", async() => {
   mockOrganizationScope();
-  const replayWebhookEvent = jest.spyOn(WebhookEventBackend, "replayWebhookEvent").mockResolvedValue({status: "ok", data: "queued"});
+  const replayRequest = Promise.resolve({status: "ok", data: "queued"});
+  const replayWebhookEvent = jest.spyOn(WebhookEventBackend, "replayWebhookEvent").mockReturnValue(replayRequest);
   const page = attachLegacyState(new WebhookEventListPage(routeProps) as LegacyAny, {
     statusFilter: "",
     sortField: "",
@@ -522,8 +535,9 @@ test("keeps migrated webhook event helpers and replay behavior", async() => {
   expectAny(page.state.detailShow).toBe(false);
 
   page.replayWebhookEvent({owner: "admin", name: "event-alpha"});
-  await wait(() => expectAny(replayWebhookEvent).toHaveBeenCalledWith("admin/event-alpha"));
-  await wait(() => expectAny(page.fetchWebhookEvents).toHaveBeenCalled());
+  await settleBackendRequest(replayRequest);
+  expectAny(replayWebhookEvent).toHaveBeenCalledWith("admin/event-alpha");
+  expectAny(page.fetchWebhookEvents).toHaveBeenCalled();
   expectAny(page.state.replayingId).toBe("");
 });
 
@@ -719,29 +733,51 @@ test("keeps migrated list backend failure and authorization handling", async() =
   await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network")));
 });
 
-test("keeps migrated create delete upload refresh and replay failure branches", async() => {
+test("keeps migrated resource upload and delete failure branches", async() => {
   mockOrganizationScope();
-  jest.spyOn(Setting, "getRandomName").mockReturnValue("fixed");
   const history = {push: jest.fn()};
   const props = {...routeProps, history};
-
   const resourcePage = attachLegacyState(new (ResourceListPage as LegacyAny)(props) as LegacyAny, {
     data: [{owner: "org-alpha", name: "resource-alpha"}],
     pagination: {current: 1, pageSize: 10, total: 1},
   });
   resourcePage.fetch = jest.fn();
-  jest.spyOn(ResourceBackend, "uploadResource").mockResolvedValueOnce({status: "ok"}).mockResolvedValueOnce({status: "error", msg: "upload failed"});
-  await resourcePage.handleUpload({fileList: [{name: "asset.png"}], file: {uid: "1"}});
+  const uploadBackend = jest.spyOn(ResourceBackend, "uploadResource");
+  let request: Promise<LegacyAny> = Promise.resolve({status: "ok"});
+  uploadBackend.mockReturnValue(request);
+  resourcePage.handleUpload({fileList: [{name: "asset.png"}], file: {uid: "1"}});
+  await settleBackendRequest(request);
   expectAny(ResourceBackend.uploadResource).toHaveBeenCalledWith("org-alpha", "admin", "custom", "ResourceListPage", "resource/org-alpha/admin/asset.png", {uid: "1"});
   expectAny(resourcePage.fetch).toHaveBeenCalledWith({pagination: resourcePage.state.pagination});
-  await resourcePage.handleUpload({fileList: [{name: "bad.png"}], file: {uid: "2"}});
-  expect(resourcePage.state.uploading).toBe(false);
 
-  jest.spyOn(ResourceBackend, "deleteResource").mockResolvedValueOnce({status: "error", msg: "delete failed"}).mockRejectedValueOnce(new Error("network"));
+  request = Promise.resolve({status: "error", msg: "upload failed"});
+  uploadBackend.mockReturnValue(request);
+  (Setting.showMessage as LegacyAny).mockClear();
+  resourcePage.handleUpload({fileList: [{name: "bad.png"}], file: {uid: "2"}});
+  await settleBackendRequest(request);
+  expect(resourcePage.state.uploading).toBe(false);
+  expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("upload failed"));
+
+  const deleteBackend = jest.spyOn(ResourceBackend, "deleteResource");
+  request = Promise.resolve({status: "error", msg: "delete failed"});
+  deleteBackend.mockReturnValue(request);
+  (Setting.showMessage as LegacyAny).mockClear();
   resourcePage.deleteResource(0);
-  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("delete failed")));
+  await settleBackendRequest(request);
+  expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("delete failed"));
+
+  request = Promise.reject(new Error("network"));
+  deleteBackend.mockReturnValue(request);
+  (Setting.showMessage as LegacyAny).mockClear();
   resourcePage.deleteResource(0);
-  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network")));
+  await settleBackendRequest(request);
+  expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network"));
+});
+
+test("keeps migrated certificate and key delete and refresh failure branches", async() => {
+  mockOrganizationScope();
+  const history = {push: jest.fn()};
+  const props = {...routeProps, history};
 
   const certPage = attachLegacyState(new (CertListPage as LegacyAny)(props) as LegacyAny, {
     owner: "org-alpha",
@@ -749,72 +785,138 @@ test("keeps migrated create delete upload refresh and replay failure branches", 
     pagination: {current: 2, pageSize: 10, total: 1},
   });
   certPage.fetch = jest.fn();
-  jest.spyOn(CertBackend, "addCert").mockResolvedValueOnce({status: "error", msg: "add failed"}).mockRejectedValueOnce(new Error("network"));
-  certPage.addCert();
-  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("add failed")));
-  certPage.addCert();
-  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network")));
+  const deleteCertBackend = jest.spyOn(CertBackend, "deleteCert");
+  let request: Promise<LegacyAny> = Promise.resolve({status: "ok"});
+  deleteCertBackend.mockReturnValue(request);
+  certPage.deleteCert(0);
+  await settleBackendRequest(request);
+  expectAny(certPage.fetch).toHaveBeenCalledWith({pagination: expect.objectContaining({current: 1})});
 
-  jest.spyOn(CertBackend, "deleteCert").mockResolvedValueOnce({status: "ok"}).mockResolvedValueOnce({status: "error", msg: "delete failed"}).mockRejectedValueOnce(new Error("network"));
+  request = Promise.resolve({status: "error", msg: "delete failed"});
+  deleteCertBackend.mockReturnValue(request);
+  (Setting.showMessage as LegacyAny).mockClear();
   certPage.deleteCert(0);
-  await wait(() => expectAny(certPage.fetch).toHaveBeenCalledWith({pagination: expect.objectContaining({current: 1})}));
-  certPage.deleteCert(0);
-  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("delete failed")));
-  certPage.deleteCert(0);
-  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network")));
+  await settleBackendRequest(request);
+  expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("delete failed"));
 
-  jest.spyOn(CertBackend, "refreshDomainExpire").mockResolvedValueOnce({status: "ok"}).mockResolvedValueOnce({status: "error", msg: "refresh failed"}).mockRejectedValueOnce(new Error("network"));
+  request = Promise.reject(new Error("network"));
+  deleteCertBackend.mockReturnValue(request);
+  (Setting.showMessage as LegacyAny).mockClear();
+  certPage.deleteCert(0);
+  await settleBackendRequest(request);
+  expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network"));
+
+  const refreshCertBackend = jest.spyOn(CertBackend, "refreshDomainExpire");
+  request = Promise.resolve({status: "ok"});
+  refreshCertBackend.mockReturnValue(request);
+  certPage.fetch.mockClear();
   certPage.refreshCert(0);
-  await wait(() => expectAny(certPage.fetch).toHaveBeenCalled());
+  await settleBackendRequest(request);
+  expectAny(certPage.fetch).toHaveBeenCalled();
+
+  request = Promise.resolve({status: "error", msg: "refresh failed"});
+  refreshCertBackend.mockReturnValue(request);
+  (Setting.showMessage as LegacyAny).mockClear();
   certPage.refreshCert(0);
-  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("refresh failed")));
+  await settleBackendRequest(request);
+  expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("refresh failed"));
+
+  request = Promise.reject(new Error("network"));
+  refreshCertBackend.mockReturnValue(request);
+  (Setting.showMessage as LegacyAny).mockClear();
   certPage.refreshCert(0);
-  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network")));
+  await settleBackendRequest(request);
+  expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network"));
 
   const keyPage = attachLegacyState(new (KeyListPage as LegacyAny)(props) as LegacyAny, {
     data: [{owner: "org-alpha", name: "key-alpha"}],
     pagination: {current: 2, pageSize: 10, total: 1},
   });
   keyPage.fetch = jest.fn();
-  jest.spyOn(KeyBackend, "addKey").mockResolvedValueOnce({status: "error", msg: "add failed"}).mockRejectedValueOnce(new Error("network"));
-  keyPage.addKey();
-  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("add failed")));
-  keyPage.addKey();
-  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network")));
+  const deleteKeyBackend = jest.spyOn(KeyBackend, "deleteKey");
+  request = Promise.resolve({status: "ok"});
+  deleteKeyBackend.mockReturnValue(request);
+  keyPage.deleteKey(0);
+  await settleBackendRequest(request);
+  expectAny(keyPage.fetch).toHaveBeenCalledWith({pagination: expect.objectContaining({current: 1})});
 
-  jest.spyOn(KeyBackend, "deleteKey").mockResolvedValueOnce({status: "ok"}).mockResolvedValueOnce({status: "error", msg: "delete failed"}).mockRejectedValueOnce(new Error("network"));
+  request = Promise.resolve({status: "error", msg: "delete failed"});
+  deleteKeyBackend.mockReturnValue(request);
+  (Setting.showMessage as LegacyAny).mockClear();
   keyPage.deleteKey(0);
-  await wait(() => expectAny(keyPage.fetch).toHaveBeenCalledWith({pagination: expect.objectContaining({current: 1})}));
+  await settleBackendRequest(request);
+  expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("delete failed"));
+
+  request = Promise.reject(new Error("network"));
+  deleteKeyBackend.mockReturnValue(request);
+  (Setting.showMessage as LegacyAny).mockClear();
   keyPage.deleteKey(0);
-  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("delete failed")));
-  keyPage.deleteKey(0);
-  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network")));
+  await settleBackendRequest(request);
+  expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network"));
+});
+
+test("keeps migrated webhook create delete and replay failure branches", async() => {
+  mockOrganizationScope();
+  jest.spyOn(Setting, "getRandomName").mockReturnValue("fixed");
+  const history = {push: jest.fn()};
+  const props = {...routeProps, history};
 
   const webhookPage = attachLegacyState(new (WebhookListPage as LegacyAny)(props) as LegacyAny, {
     data: [{owner: "admin", name: "webhook-alpha"}],
     pagination: {current: 2, pageSize: 10, total: 1},
   });
   webhookPage.fetch = jest.fn();
-  jest.spyOn(WebhookBackend, "addWebhook").mockResolvedValueOnce({status: "error", msg: "add failed"}).mockRejectedValueOnce(new Error("network"));
+  const addWebhookBackend = jest.spyOn(WebhookBackend, "addWebhook");
+  let request: Promise<LegacyAny> = Promise.resolve({status: "error", msg: "add failed"});
+  addWebhookBackend.mockReturnValue(request);
+  (Setting.showMessage as LegacyAny).mockClear();
   webhookPage.addWebhook();
-  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("add failed")));
-  webhookPage.addWebhook();
-  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network")));
+  await settleBackendRequest(request);
+  expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("add failed"));
 
-  jest.spyOn(WebhookBackend, "deleteWebhook").mockResolvedValueOnce({status: "ok"}).mockResolvedValueOnce({status: "error", msg: "delete failed"}).mockRejectedValueOnce(new Error("network"));
+  request = Promise.reject(new Error("network"));
+  addWebhookBackend.mockReturnValue(request);
+  (Setting.showMessage as LegacyAny).mockClear();
+  webhookPage.addWebhook();
+  await settleBackendRequest(request);
+  expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network"));
+
+  const deleteWebhookBackend = jest.spyOn(WebhookBackend, "deleteWebhook");
+  request = Promise.resolve({status: "ok"});
+  deleteWebhookBackend.mockReturnValue(request);
   webhookPage.deleteWebhook(0);
-  await wait(() => expectAny(webhookPage.fetch).toHaveBeenCalledWith({pagination: expect.objectContaining({current: 1})}));
+  await settleBackendRequest(request);
+  expectAny(webhookPage.fetch).toHaveBeenCalledWith({pagination: expect.objectContaining({current: 1})});
+
+  request = Promise.resolve({status: "error", msg: "delete failed"});
+  deleteWebhookBackend.mockReturnValue(request);
+  (Setting.showMessage as LegacyAny).mockClear();
   webhookPage.deleteWebhook(0);
-  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("delete failed")));
+  await settleBackendRequest(request);
+  expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("delete failed"));
+
+  request = Promise.reject(new Error("network"));
+  deleteWebhookBackend.mockReturnValue(request);
+  (Setting.showMessage as LegacyAny).mockClear();
   webhookPage.deleteWebhook(0);
-  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network")));
+  await settleBackendRequest(request);
+  expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network"));
 
   const eventPage = attachLegacyState(new WebhookEventListPage(props) as LegacyAny);
-  jest.spyOn(WebhookEventBackend, "replayWebhookEvent").mockResolvedValueOnce({status: "error", msg: "replay failed"}).mockRejectedValueOnce(new Error("network"));
+  const replayBackend = jest.spyOn(WebhookEventBackend, "replayWebhookEvent");
+  request = Promise.resolve({status: "error", msg: "replay failed"});
+  replayBackend.mockReturnValue(request);
+  (Setting.showMessage as LegacyAny).mockClear();
   eventPage.replayWebhookEvent({owner: "admin", name: "event-alpha"});
-  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("replay failed")));
+  await settleBackendRequest(request);
+  expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("replay failed"));
+
+  request = Promise.reject(new Error("network"));
+  replayBackend.mockReturnValue(request);
+  (Setting.showMessage as LegacyAny).mockClear();
   eventPage.replayWebhookEvent({owner: "admin", name: "event-alpha"});
-  await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network")));
+  await settleBackendRequest(request);
+  expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network"));
 });
 
 test("keeps webhook event lifecycle detail drawer and unauthorized render branches", async() => {
