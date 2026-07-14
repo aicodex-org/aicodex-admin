@@ -351,7 +351,7 @@ body.admin-shell-theme-dark,
 
 .admin-shell-sidebar-toggle-row {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   flex: 0 0 auto;
   padding: 8px 10px 10px;
   border-top: 1px solid var(--admin-shell-divider, rgb(219 230 244));
@@ -461,9 +461,11 @@ body.admin-shell-theme-dark,
 
 .admin-shell-sider .ant-menu-item,
 .admin-shell-sider .ant-menu-submenu-title {
-  margin: 3px 6px !important;
+  height: 36px;
+  margin: 2px 6px !important;
+  line-height: 36px;
   width: calc(100% - 12px) !important;
-  border-radius: 8px;
+  border-radius: 6px;
   color: var(--admin-shell-text-secondary, rgb(100 116 139));
   transition: color 0.16s ease, background-color 0.16s ease !important;
 }
@@ -478,9 +480,21 @@ body.admin-shell-theme-dark,
 }
 
 .admin-shell-sider .ant-menu-item-icon,
-.admin-shell-sider .ant-menu-submenu-arrow,
 .admin-shell-sider .anticon {
+  color: inherit;
+  font-size: 16px;
   transition: none !important;
+}
+
+.admin-shell-sider .ant-menu-submenu-arrow {
+  color: var(--admin-shell-text-secondary, rgb(100 116 139));
+  opacity: 0.65;
+  transition: color 0.16s ease, opacity 0.16s ease !important;
+}
+
+.admin-shell-sider .ant-menu-submenu-open > .ant-menu-submenu-title .ant-menu-submenu-arrow {
+  color: var(--admin-shell-icon-color, rgb(37 99 235));
+  opacity: 1;
 }
 
 .admin-shell-sider.admin-shell-sider-collapsed .ant-menu-title-content,
@@ -501,7 +515,7 @@ body.admin-shell-theme-dark,
 .admin-shell-sider .ant-menu-item-selected {
   color: var(--admin-shell-icon-color, rgb(37 99 235)) !important;
   background: var(--admin-shell-sidebar-selected-bg, rgb(232 238 252)) !important;
-  box-shadow: none;
+  box-shadow: inset 3px 0 0 var(--admin-shell-icon-color, rgb(37 99 235));
 }
 
 .admin-shell-sider .ant-menu-submenu-selected > .ant-menu-submenu-title {

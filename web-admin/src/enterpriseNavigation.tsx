@@ -1,15 +1,15 @@
 import React from "react";
 import i18next from "i18next";
 import {
-  ApiTwoTone,
-  AppstoreTwoTone,
-  CheckCircleTwoTone,
-  DollarCircleTwoTone,
-  HomeTwoTone,
-  LockTwoTone,
-  ProfileTwoTone,
-  SecurityScanTwoTone,
-  ToolTwoTone
+  AppstoreOutlined,
+  AuditOutlined,
+  CreditCardOutlined,
+  DeploymentUnitOutlined,
+  HomeOutlined,
+  KeyOutlined,
+  SafetyCertificateOutlined,
+  TeamOutlined,
+  ToolOutlined
 } from "@ant-design/icons";
 import * as Setting from "./Setting";
 import type {LegacyAny} from "./types/legacyPage";
@@ -70,12 +70,12 @@ export function shouldRenderNavigationGroupAsSingleLeaf(group?: NavigationGroup)
   return group?.key === "/overview" && group.children.length === 1 && group.children[0]?.key === "/";
 }
 
-function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin = true, twoToneColor}: {isAdmin?: boolean; isLocalAdmin?: boolean; twoToneColor?: string} = {}): NavigationGroup[] {
+function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin = true}: {isAdmin?: boolean; isLocalAdmin?: boolean} = {}): NavigationGroup[] {
   const groups = [
     {
       key: "/overview",
       label: i18next.t("general:Overview"),
-      icon: <HomeTwoTone twoToneColor={twoToneColor} />,
+      icon: <HomeOutlined />,
       children: [
         {key: "/", label: i18next.t("general:Enterprise Identity Overview"), to: "/", matchPrefixes: ["/"]},
         {key: "/apps", label: i18next.t("general:Application Portal"), to: "/apps", matchPrefixes: ["/apps"], visible: !isLocalAdmin},
@@ -84,7 +84,7 @@ function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin
     {
       key: "/organization-identity",
       label: i18next.t("general:Organization & Accounts"),
-      icon: <AppstoreTwoTone twoToneColor={twoToneColor} />,
+      icon: <TeamOutlined />,
       children: [
         {key: "/organizations", label: i18next.t("general:Organizations"), to: "/organizations", matchPrefixes: ["/organizations"], matcher: (uri: string) => uri === "/organizations" || uri.startsWith("/organizations/") && !uri.includes("/users")},
         {key: "/groups", label: i18next.t("general:Groups"), to: "/groups", matchPrefixes: ["/groups", "/trees"]},
@@ -97,7 +97,7 @@ function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin
     {
       key: "/application-access",
       label: i18next.t("general:Application Access"),
-      icon: <ApiTwoTone twoToneColor={twoToneColor} />,
+      icon: <AppstoreOutlined />,
       children: [
         {key: "/applications", label: i18next.t("general:Access Center"), to: "/applications", matchPrefixes: ["/applications"]},
         {key: "/application-usage-access", label: i18next.t("general:Usage Access"), to: "/application-usage-access", matchPrefixes: ["/application-usage-access"]},
@@ -113,7 +113,7 @@ function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin
     {
       key: "/identity-sources",
       label: i18next.t("general:Identity Sources"),
-      icon: <LockTwoTone twoToneColor={twoToneColor} />,
+      icon: <SafetyCertificateOutlined />,
       children: [
         {key: "/providers", label: i18next.t("general:Authentication Source Center"), to: "/providers", matchPrefixes: ["/providers"]},
         {key: "/wecom-org-sync", label: i18next.t("general:WeCom Sync"), to: "/wecom-org-sync", matchPrefixes: ["/wecom-org-sync"]},
@@ -126,7 +126,7 @@ function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin
     {
       key: "/authorization-governance",
       label: i18next.t("general:Permissions & Roles"),
-      icon: <SecurityScanTwoTone twoToneColor={twoToneColor} />,
+      icon: <KeyOutlined />,
       children: [
         {key: "/roles", label: i18next.t("general:Roles"), to: "/roles", matchPrefixes: ["/roles"]},
         {key: "/permissions", label: i18next.t("general:Permissions"), to: "/permissions", matchPrefixes: ["/permissions"]},
@@ -139,7 +139,7 @@ function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin
     {
       key: "/audit-operations",
       label: i18next.t("general:Audit & Operations"),
-      icon: <ProfileTwoTone twoToneColor={twoToneColor} />,
+      icon: <AuditOutlined />,
       children: [
         {key: "/sessions", label: i18next.t("general:Login Sessions"), to: "/sessions", matchPrefixes: ["/sessions"]},
         {key: "/records", label: i18next.t("general:Audit Records"), to: "/records", matchPrefixes: ["/records"]},
@@ -151,7 +151,7 @@ function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin
     {
       key: "/llm-ai-gateway",
       label: i18next.t("general:LLM AI/Gateway"),
-      icon: <CheckCircleTwoTone twoToneColor={twoToneColor} />,
+      icon: <DeploymentUnitOutlined />,
       children: [
         {key: "/agents", label: i18next.t("general:Agents"), to: "/agents", matchPrefixes: ["/agents"]},
         {key: "/servers", label: i18next.t("general:MCP Servers"), to: "/servers", matchPrefixes: ["/servers"]},
@@ -164,7 +164,7 @@ function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin
     {
       key: "/system-tools",
       label: i18next.t("general:System Tools"),
-      icon: <ToolTwoTone twoToneColor={twoToneColor} />,
+      icon: <ToolOutlined />,
       children: [
         {key: "/sysinfo", label: i18next.t("general:System Info"), to: "/sysinfo", matchPrefixes: ["/sysinfo"], visible: isAdmin},
         {key: "/forms", label: i18next.t("general:Forms"), to: "/forms", matchPrefixes: ["/forms"]},
@@ -175,7 +175,7 @@ function buildEnterpriseNavigationGroupDefinitions({isAdmin = true, isLocalAdmin
     {
       key: "/commerce-billing",
       label: i18next.t("general:Business & Payments"),
-      icon: <DollarCircleTwoTone twoToneColor={twoToneColor} />,
+      icon: <CreditCardOutlined />,
       children: [
         {key: "/product-store", label: i18next.t("general:Product Store"), to: "/product-store", matchPrefixes: ["/product-store"]},
         {key: "/products", label: i18next.t("general:Products"), to: "/products", matchPrefixes: ["/products"]},
@@ -230,7 +230,6 @@ export function buildEnterpriseNavigationGroups({account, themeData}: {account?:
   const groups = buildEnterpriseNavigationGroupDefinitions({
     isAdmin: Setting.isAdminUser(account),
     isLocalAdmin: Setting.isLocalAdminUser(account),
-    twoToneColor: themeData?.colorPrimary,
   });
   const allowedItems = navItemsIsAll ? null : new Set(navItems);
 

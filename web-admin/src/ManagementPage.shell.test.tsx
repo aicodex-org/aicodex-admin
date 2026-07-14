@@ -201,6 +201,15 @@ describe("ManagementPage admin shell sidebar", () => {
     expect(view.container.querySelector(".admin-workspace-tabs-shell")).not.toBeNull();
   });
 
+  test("uses compact menu rows and a clear selected location in the sidebar", () => {
+    const appLess = readAppLess();
+
+    expect(appLess).toMatch(/\.admin-shell-sider \.ant-menu-item,[\s\S]*height:\s*36px;/);
+    expect(appLess).toMatch(/\.admin-shell-sider \.ant-menu-item-selected \{[\s\S]*box-shadow:\s*inset 3px 0 0 var\(--admin-shell-icon-color/);
+    expect(appLess).toMatch(/\.admin-shell-sider \.ant-menu-submenu-arrow \{[\s\S]*opacity:\s*0\.65;/);
+    expect(appLess).toMatch(/\.admin-shell-sidebar-toggle-row \{[\s\S]*justify-content:\s*center;/);
+  });
+
   test("keeps workspace tabs outside the route scroll container", () => {
     const view = renderShell();
     const shellContent = view.container.querySelector(".admin-shell-content") as HTMLElement;

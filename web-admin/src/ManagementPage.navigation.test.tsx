@@ -43,6 +43,10 @@ function getTestNavigationTree(): TestNavigationNodeList {
   return buildEnterpriseNavigationConfigTreeData() as TestNavigationNodeList;
 }
 
+function getNavigationIconName(icon: LegacyAny): string | undefined {
+  return icon?.type?.displayName;
+}
+
 const localAdminAccount = {
   owner: "built-in",
   isAdmin: true,
@@ -99,6 +103,17 @@ describe("enterprise identity navigation", () => {
       "AI 网关",
       "管理工具",
       "商业付款",
+    ]);
+    expect(groups.map(group => getNavigationIconName(group.icon))).toEqual([
+      "HomeOutlined",
+      "TeamOutlined",
+      "AppstoreOutlined",
+      "SafetyCertificateOutlined",
+      "KeyOutlined",
+      "AuditOutlined",
+      "DeploymentUnitOutlined",
+      "ToolOutlined",
+      "CreditCardOutlined",
     ]);
     expectEnterprisePrimaryMenuLabels(groups.map(group => group.label));
     expect(groups.map(group => group.label)).not.toContain("Gateway 投影");
