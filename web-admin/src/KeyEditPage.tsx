@@ -21,6 +21,7 @@ import * as UserBackend from "./backend/UserBackend";
 import * as Setting from "./Setting";
 import rawI18next from "i18next";
 import moment from "moment";
+import LargeEditShell from "./common/LargeEditShell";
 
 const i18next = rawI18next as Omit<typeof rawI18next, "t"> & {
   t: (key: string, defaultValue?: string) => string;
@@ -42,6 +43,7 @@ class KeyEditPage extends React.Component<AdminRouteProps, LegacyAny> {
       applications: [],
       users: [],
       mode: props.location.mode !== undefined ? props.location.mode : "edit",
+      submitting: false,
     };
   }
 
@@ -51,6 +53,14 @@ class KeyEditPage extends React.Component<AdminRouteProps, LegacyAny> {
   }
 
   getKey() {
+    if (this.state.mode === "add" && this.props.location.keyDraft !== undefined) {
+      const key = this.props.location.keyDraft;
+      this.setState({key});
+      this.getApplicationsByOrganization(key.organization || this.state.organizationName);
+      this.getUsersByOrganization(key.organization || this.state.organizationName);
+      return;
+    }
+
     KeyBackend.getKey(this.state.organizationName, this.state.keyName)
       .then((res) => {
         if (res.data === null) {
@@ -115,36 +125,61 @@ class KeyEditPage extends React.Component<AdminRouteProps, LegacyAny> {
     });
   }
 
-  renderKey() {
+  getOrganizationDisplayName(organization: LegacyAny): string {
+    const displayName = organization.displayName;
+    return typeof displayName === "string" && displayName.trim() !== "" ? displayName.trim() : organization.name;
+  }
+
+  renderOrganizationOptions(): React.ReactNode {
+    return this.state.organizations.map((organization: LegacyAny) => {
+      const displayName = this.getOrganizationDisplayName(organization);
+      return (
+        <Option key={organization.name} value={organization.name} label={displayName}>
+          <div className="admin-large-edit-organization-option key-edit-organization-option">
+            <span className="admin-large-edit-organization-option-name key-edit-organization-option-name">{displayName}</span>
+            {displayName !== organization.name ? (
+              <span className="admin-large-edit-organization-option-id key-edit-organization-option-id">{organization.name}</span>
+            ) : null}
+          </div>
+        </Option>
+      );
+    });
+  }
+
+  renderKeyForm() {
     return (
-      <Card className="admin-access-edit-card" size="small" title={
-        <div>
-          {this.state.mode === "add" ? i18next.t("key:New Key") : i18next.t("key:Edit Key")}&nbsp;&nbsp;&nbsp;&nbsp;
-          <Button onClick={() => this.submitKeyEdit(false)}>{i18next.t("general:Save")}</Button>
-          <Button style={{marginLeft: "20px"}} type="primary" onClick={() => this.submitKeyEdit(true)}>{i18next.t("general:Save & Exit")}</Button>
-          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteKey()}>{i18next.t("general:Cancel")}</Button> : null}
-        </div>
-      } style={(Setting.isMobile()) ? {margin: "5px"} : {}} type="inner">
+      <div className="admin-large-edit-form-content key-edit-form-content">
+        <h2 className="admin-large-edit-content-section-title key-edit-section-title">{i18next.t("general:Basic information")}</h2>
         <Row className="admin-access-edit-field-row" style={{marginTop: "10px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Organization"), i18next.t("general:Organization - Tooltip"))} :
+            {i18next.t("general:Organization")} :
           </Col>
           <Col span={22} >
-            <Select virtual={false} style={{width: "100%"}} disabled={!Setting.isAdminUser(this.props.account)} value={this.state.key.owner} onChange={(value => {
-              this.updateKeyField("owner", value);
-              this.updateKeyField("organization", value);
-              this.getApplicationsByOrganization(value);
-              this.getUsersByOrganization(value);
-            })}>
-              {
-                this.state.organizations.map((organization: LegacyAny, index: number) => <Option key={index} value={organization.name}>{organization.name}</Option>)
-              }
+            <Select
+              virtual={false}
+              showSearch
+              optionLabelProp="label"
+              style={{width: "100%"}}
+              disabled={!Setting.isAdminUser(this.props.account)}
+              value={this.state.key.owner}
+              filterOption={(input, option) => {
+                const optionText = `${option?.label ?? ""} ${option?.value ?? ""}`.toLowerCase();
+                return optionText.includes(input.toLowerCase());
+              }}
+              onChange={(value => {
+                this.updateKeyField("owner", value);
+                this.updateKeyField("organization", value);
+                this.getApplicationsByOrganization(value);
+                this.getUsersByOrganization(value);
+              })}
+            >
+              {this.renderOrganizationOptions()}
             </Select>
           </Col>
         </Row>
         <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Name"), i18next.t("general:Name - Tooltip"))} :
+            {Setting.getLabel(i18next.t("general:Name"), i18next.t("key:Name - Tooltip"))} :
           </Col>
           <Col span={22} >
             <Input value={this.state.key.name} onChange={e => {
@@ -154,7 +189,7 @@ class KeyEditPage extends React.Component<AdminRouteProps, LegacyAny> {
         </Row>
         <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Display name"), i18next.t("general:Display name - Tooltip"))} :
+            {i18next.t("general:Display name")} :
           </Col>
           <Col span={22} >
             <Input value={this.state.key.displayName} onChange={e => {
@@ -164,7 +199,7 @@ class KeyEditPage extends React.Component<AdminRouteProps, LegacyAny> {
         </Row>
         <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Type"), i18next.t("general:Type - Tooltip"))} :
+            {Setting.getLabel(i18next.t("general:Type"), i18next.t("key:Type - Tooltip"))} :
           </Col>
           <Col span={22} >
             <Select virtual={false} style={{width: "100%"}} value={this.state.key.type} onChange={(value => {
@@ -181,7 +216,7 @@ class KeyEditPage extends React.Component<AdminRouteProps, LegacyAny> {
           this.state.key.type === "Application" ? (
             <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
               <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                {Setting.getLabel(i18next.t("general:Application"), i18next.t("general:Application - Tooltip"))} :
+                {i18next.t("general:Application")} :
               </Col>
               <Col span={22} >
                 <Select virtual={false} style={{width: "100%"}} value={this.state.key.application} onChange={(value => {
@@ -199,7 +234,7 @@ class KeyEditPage extends React.Component<AdminRouteProps, LegacyAny> {
           this.state.key.type === "User" ? (
             <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
               <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                {Setting.getLabel(i18next.t("general:User"), i18next.t("general:User - Tooltip"))} :
+                {i18next.t("general:User")} :
               </Col>
               <Col span={22} >
                 <Select virtual={false} style={{width: "100%"}} value={this.state.key.user} onChange={(value => {
@@ -213,6 +248,7 @@ class KeyEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             </Row>
           ) : null
         }
+        <h2 className="admin-large-edit-content-section-title key-edit-section-title key-edit-credential-section-title">{i18next.t("key:Credentials and status", "Credentials and status")}</h2>
         <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("key:Access key"), i18next.t("key:Access key - Tooltip"))} :
@@ -231,7 +267,7 @@ class KeyEditPage extends React.Component<AdminRouteProps, LegacyAny> {
         </Row>
         <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Expire time"), i18next.t("general:Expire time - Tooltip"))} :
+            {i18next.t("general:Expire time")} :
           </Col>
           <Col span={22} >
             <DatePicker
@@ -245,7 +281,7 @@ class KeyEditPage extends React.Component<AdminRouteProps, LegacyAny> {
         </Row>
         <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:State"), i18next.t("general:State - Tooltip"))} :
+            {i18next.t("general:State")} :
           </Col>
           <Col span={22} >
             <Select virtual={false} style={{width: "100%"}} value={this.state.key.state} onChange={(value => {
@@ -256,33 +292,71 @@ class KeyEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             </Select>
           </Col>
         </Row>
+      </div>
+    );
+  }
+
+  handleBack(): void {
+    this.props.history.push("/keys");
+  }
+
+  renderKey() {
+    const title = this.state.mode === "add" ? i18next.t("key:New Key") : `${i18next.t("key:Edit Key")} (${this.state.key.name})`;
+    return (
+      <Card className="admin-large-edit-card key-edit-card admin-access-edit-card" size="small" variant="borderless" styles={{body: {height: "100%", padding: 0}}}>
+        <LargeEditShell
+          classPrefix="key-edit"
+          backLabel={i18next.t("general:Back")}
+          breadcrumb={<React.Fragment>{i18next.t("general:Application Access")} / {i18next.t("general:Keys")} /</React.Fragment>}
+          title={title}
+          actions={<React.Fragment>
+            <Button onClick={() => this.handleBack()}>{i18next.t("general:Cancel")}</Button>
+            <Button type="primary" loading={this.state.submitting} disabled={this.state.submitting} onClick={() => this.submitKeyEdit(false)}>{i18next.t("general:Save")}</Button>
+            <Button disabled={this.state.submitting} onClick={() => this.submitKeyEdit(true)}>{i18next.t("general:Save and return")}</Button>
+          </React.Fragment>}
+          onBack={() => this.handleBack()}
+        >
+          {this.renderKeyForm()}
+        </LargeEditShell>
       </Card>
     );
   }
 
   submitKeyEdit(exitAfterSave?: boolean): void {
+    if (this.state.submitting) {
+      return;
+    }
     const key = Setting.deepCopy(this.state.key);
-    KeyBackend.updateKey(this.state.organizationName, this.state.keyName, key)
+    this.setState({submitting: true});
+    const request = this.state.mode === "add" ? KeyBackend.addKey(key) : KeyBackend.updateKey(this.state.organizationName, this.state.keyName, key);
+    request
       .then((res) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully saved"));
+          Setting.showMessage("success", this.state.mode === "add" ? i18next.t("general:Successfully added") : i18next.t("general:Successfully saved"));
           this.setState({
             organizationName: this.state.key.owner,
             keyName: this.state.key.name,
+            mode: "edit",
+            submitting: false,
+          }, () => {
+            if (exitAfterSave) {
+              this.props.history.push("/keys");
+            } else {
+              this.props.history.push(`/keys/${this.state.key.owner}/${this.state.key.name}`);
+              this.getKey();
+            }
           });
-
-          if (exitAfterSave) {
-            this.props.history.push("/keys");
-          } else {
-            this.props.history.push(`/keys/${this.state.key.owner}/${this.state.key.name}`);
-          }
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to save")}: ${res.msg}`);
-          this.updateKeyField("owner", this.state.organizationName);
-          this.updateKeyField("name", this.state.keyName);
+          this.setState({submitting: false});
+          Setting.showMessage("error", `${this.state.mode === "add" ? i18next.t("general:Failed to add") : i18next.t("general:Failed to save")}: ${res.msg}`);
+          if (this.state.mode !== "add") {
+            this.updateKeyField("owner", this.state.organizationName);
+            this.updateKeyField("name", this.state.keyName);
+          }
         }
       })
       .catch(error => {
+        this.setState({submitting: false});
         Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
       });
   }
@@ -303,14 +377,10 @@ class KeyEditPage extends React.Component<AdminRouteProps, LegacyAny> {
 
   render() {
     return (
-      <div className="admin-access-edit-page key-edit-page">
+      <div className="admin-large-edit-page key-edit-page admin-access-edit-page">
         {
           this.state.key !== null ? this.renderKey() : null
         }
-        <div style={{marginTop: "20px", marginLeft: "40px"}}>
-          <Button size="large" onClick={() => this.submitKeyEdit(false)}>{i18next.t("general:Save")}</Button>
-          <Button style={{marginLeft: "20px"}} type="primary" size="large" onClick={() => this.submitKeyEdit(true)}>{i18next.t("general:Save & Exit")}</Button>
-        </div>
       </div>
     );
   }

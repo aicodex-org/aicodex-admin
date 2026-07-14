@@ -20,6 +20,7 @@ import * as Setting from "./Setting";
 import rawI18next from "i18next";
 import copy from "copy-to-clipboard";
 import FileSaver from "file-saver";
+import LargeEditShell, {LargeEditTabs} from "./common/LargeEditShell";
 
 const i18next = rawI18next as Omit<typeof rawI18next, "t"> & {
   t: (key: string, defaultValue?: string) => string;
@@ -40,6 +41,8 @@ class CertEditPage extends React.Component<AdminRouteProps, LegacyAny> {
       cert: null,
       organizations: [],
       mode: props.location.mode !== undefined ? props.location.mode : "edit",
+      activeTabKey: ["basic", "material"].includes(window.location.hash.slice(1)) ? window.location.hash.slice(1) : "basic",
+      submitting: false,
     };
   }
 
@@ -49,6 +52,11 @@ class CertEditPage extends React.Component<AdminRouteProps, LegacyAny> {
   }
 
   getCert() {
+    if (this.state.mode === "add" && this.props.location.cert !== undefined) {
+      this.setState({cert: this.props.location.cert});
+      return;
+    }
+
     CertBackend.getCert(this.state.owner, this.state.certName)
       .then((res) => {
         if (res.data === null) {
@@ -111,286 +119,375 @@ class CertEditPage extends React.Component<AdminRouteProps, LegacyAny> {
     });
   }
 
-  renderCert() {
+  getOrganizationDisplayName(organization: LegacyAny): string {
+    const displayName = organization.displayName;
+    return typeof displayName === "string" && displayName.trim() !== "" ? displayName.trim() : organization.name;
+  }
+
+  renderOrganizationOptions(): React.ReactNode {
+    const options: React.ReactNode[] = [];
+
+    if (Setting.isAdminUser(this.props.account)) {
+      options.push(
+        <Option key="admin" value="admin" label={i18next.t("provider:admin (Shared)")}>
+          <div className="admin-large-edit-organization-option cert-edit-organization-option">
+            <span className="admin-large-edit-organization-option-name cert-edit-organization-option-name">{i18next.t("provider:admin (Shared)")}</span>
+          </div>
+        </Option>
+      );
+    }
+
+    this.state.organizations
+      .filter((organization: LegacyAny) => organization.name !== "admin")
+      .forEach((organization: LegacyAny) => {
+        const displayName = this.getOrganizationDisplayName(organization);
+        options.push(
+          <Option key={organization.name} value={organization.name} label={displayName}>
+            <div className="admin-large-edit-organization-option cert-edit-organization-option">
+              <span className="admin-large-edit-organization-option-name cert-edit-organization-option-name">{displayName}</span>
+              {displayName !== organization.name ? (
+                <span className="admin-large-edit-organization-option-id cert-edit-organization-option-id">{organization.name}</span>
+              ) : null}
+            </div>
+          </Option>
+        );
+      });
+
+    return options;
+  }
+
+  renderCertForm() {
     const editorWidth = Setting.isMobile() ? 22 : 9;
     return (
-      <Card className="admin-access-edit-card" size="small" title={
-        <div>
-          {this.state.mode === "add" ? i18next.t("cert:New Cert") : i18next.t("cert:Edit Cert")}&nbsp;&nbsp;&nbsp;&nbsp;
-          <Button onClick={() => this.submitCertEdit(false)}>{i18next.t("general:Save")}</Button>
-          <Button style={{marginLeft: "20px"}} type="primary" onClick={() => this.submitCertEdit(true)}>{i18next.t("general:Save & Exit")}</Button>
-          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} onClick={() => this.deleteCert()}>{i18next.t("general:Cancel")}</Button> : null}
-        </div>
-      } style={(Setting.isMobile()) ? {margin: "5px"} : {}} type="inner">
-        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Organization"), i18next.t("general:Organization - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <Select virtual={false} style={{width: "100%"}} disabled={!Setting.isAdminUser(this.props.account)} value={this.state.cert.owner} onChange={(value => {this.updateCertField("owner", value);})}>
-              {Setting.isAdminUser(this.props.account) ? <Option key={"admin"} value={"admin"}>{i18next.t("provider:admin (Shared)")}</Option> : null}
-              {
-                this.state.organizations.map((organization: LegacyAny, index: number) => <Option key={index} value={organization.name}>{organization.name}</Option>)
-              }
-            </Select>
-          </Col>
-        </Row>
-        <Row className="admin-access-edit-field-row" style={{marginTop: "10px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Name"), i18next.t("general:Name - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <Input value={this.state.cert.name} onChange={e => {
-              this.updateCertField("name", e.target.value);
-            }} />
-          </Col>
-        </Row>
-        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Display name"), i18next.t("general:Display name - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <Input value={this.state.cert.displayName} onChange={e => {
-              this.updateCertField("displayName", e.target.value);
-            }} />
-          </Col>
-        </Row>
-        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("provider:Scope"), i18next.t("provider:Scope - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <Select virtual={false} style={{width: "100%"}} value={this.state.cert.scope} onChange={(value => {
-              this.updateCertField("scope", value);
-            })}>
-              {
-                [
-                  {id: "JWT", name: "JWT"},
-                ].map((item, index) => <Option key={index} value={item.id}>{item.name}</Option>)
-              }
-            </Select>
-          </Col>
-        </Row>
-        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("general:Type"), i18next.t("general:Type - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <Select virtual={false} style={{width: "100%"}} value={this.state.cert.type} onChange={(value => {
-              this.updateCertField("type", value);
-            })}>
-              {
-                [
-                  {id: "SSL", name: "SSL"},
-                  {id: "x509", name: "x509"},
-                  {id: "Payment", name: "Payment"},
-                ].map((item, index) => <Option key={index} value={item.id}>{item.name}</Option>)
-              }
-            </Select>
-          </Col>
-        </Row>
-        <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("cert:Crypto algorithm"), i18next.t("cert:Crypto algorithm - Tooltip"))} :
-          </Col>
-          <Col span={22} >
-            <Select virtual={false} style={{width: "100%"}} value={this.state.cert.cryptoAlgorithm} onChange={(value => {
-              this.updateCertField("cryptoAlgorithm", value);
-
-              if (value.startsWith("ES")) {
-                this.updateCertField("bitSize", 0);
-              } else {
-                if (this.state.cert.bitSize !== 1024 && this.state.cert.bitSize !== 2048 && this.state.cert.bitSize !== 4096) {
-                  this.updateCertField("bitSize", 2048);
+      <div className="cert-edit-form-content">
+        <div className="admin-large-edit-form-content cert-edit-tab-panel cert-edit-tab-panel-basic" hidden={this.state.activeTabKey !== "basic"}>
+          <h2 className="admin-large-edit-content-section-title cert-edit-section-title">{i18next.t("general:Basic information")}</h2>
+          <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
+            <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+              {i18next.t("general:Organization")} :
+            </Col>
+            <Col span={22} >
+              <Select
+                virtual={false}
+                showSearch
+                optionLabelProp="label"
+                style={{width: "100%"}}
+                disabled={!Setting.isAdminUser(this.props.account)}
+                value={this.state.cert.owner}
+                filterOption={(input, option) => {
+                  const optionText = `${option?.label ?? ""} ${option?.value ?? ""}`.toLowerCase();
+                  return optionText.includes(input.toLowerCase());
+                }}
+                onChange={(value => {this.updateCertField("owner", value);})}
+              >
+                {this.renderOrganizationOptions()}
+              </Select>
+            </Col>
+          </Row>
+          <Row className="admin-access-edit-field-row" style={{marginTop: "10px"}} >
+            <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+              {Setting.getLabel(i18next.t("general:Name"), i18next.t("cert:Name - Tooltip"))} :
+            </Col>
+            <Col span={22} >
+              <Input value={this.state.cert.name} onChange={e => {
+                this.updateCertField("name", e.target.value);
+              }} />
+            </Col>
+          </Row>
+          <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
+            <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+              {i18next.t("general:Display name")} :
+            </Col>
+            <Col span={22} >
+              <Input value={this.state.cert.displayName} onChange={e => {
+                this.updateCertField("displayName", e.target.value);
+              }} />
+            </Col>
+          </Row>
+          <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
+            <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+              {Setting.getLabel(i18next.t("provider:Scope"), i18next.t("cert:Scope - Tooltip"))} :
+            </Col>
+            <Col span={22} >
+              <Select virtual={false} style={{width: "100%"}} value={this.state.cert.scope} onChange={(value => {
+                this.updateCertField("scope", value);
+              })}>
+                {
+                  [
+                    {id: "JWT", name: "JWT"},
+                  ].map((item, index) => <Option key={index} value={item.id}>{item.name}</Option>)
                 }
-              }
+              </Select>
+            </Col>
+          </Row>
+          <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
+            <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+              {Setting.getLabel(i18next.t("general:Type"), i18next.t("cert:Type - Tooltip"))} :
+            </Col>
+            <Col span={22} >
+              <Select virtual={false} style={{width: "100%"}} value={this.state.cert.type} onChange={(value => {
+                this.updateCertField("type", value);
+              })}>
+                {
+                  [
+                    {id: "SSL", name: "SSL"},
+                    {id: "x509", name: "x509"},
+                    {id: "Payment", name: "Payment"},
+                  ].map((item, index) => <Option key={index} value={item.id}>{item.name}</Option>)
+                }
+              </Select>
+            </Col>
+          </Row>
+          <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
+            <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+              {Setting.getLabel(i18next.t("cert:Crypto algorithm"), i18next.t("cert:Crypto algorithm - Tooltip"))} :
+            </Col>
+            <Col span={22} >
+              <Select virtual={false} style={{width: "100%"}} value={this.state.cert.cryptoAlgorithm} onChange={(value => {
+                this.updateCertField("cryptoAlgorithm", value);
 
-              this.updateCertField("certificate", "");
-              this.updateCertField("privateKey", "");
-            })}>
-              {
-                (this.state.cert.type === "SSL" ? [
-                  {id: "RSA", name: "RSA"},
-                  {id: "ECC", name: "ECC"},
-                ] : [
-                  {id: "RS256", name: "RS256 (RSA + SHA256)"},
-                  {id: "RS384", name: "RS384 (RSA + SHA384)"},
-                  {id: "RS512", name: "RS512 (RSA + SHA512)"},
-                  {id: "ES256", name: "ES256 (ECDSA using P-256 + SHA256)"},
-                  {id: "ES384", name: "ES384 (ECDSA using P-384 + SHA384)"},
-                  {id: "ES512", name: "ES512 (ECDSA using P-521 + SHA512)"},
-                  {id: "PS256", name: "PS256 (RSASSA-PSS using SHA256 and MGF1 with SHA256)"},
-                  {id: "PS384", name: "PS384 (RSASSA-PSS using SHA384 and MGF1 with SHA384)"},
-                  {id: "PS512", name: "PS512 (RSASSA-PSS using SHA512 and MGF1 with SHA512)"},
-                ]).map((item, index) => <Option key={index} value={item.id}>{item.name}</Option>)
-              }
-            </Select>
-          </Col>
-        </Row>
-        {
-          this.state.cert.cryptoAlgorithm.startsWith("ES") || this.state.cert.type === "SSL" ? null : (
-            <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
-              <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                {Setting.getLabel(i18next.t("cert:Bit size"), i18next.t("cert:Bit size - Tooltip"))} :
-              </Col>
-              <Col span={22} >
-                <Select virtual={false} style={{width: "100%"}} value={this.state.cert.bitSize} onChange={(value => {
-                  this.updateCertField("bitSize", value);
-                  this.updateCertField("certificate", "");
-                  this.updateCertField("privateKey", "");
-                })}>
-                  {
-                    Setting.getCryptoAlgorithmOptions(this.state.cert.cryptoAlgorithm).map((item, index) => <Option key={index} value={item.id}>{item.name}</Option>)
+                if (value.startsWith("ES")) {
+                  this.updateCertField("bitSize", 0);
+                } else {
+                  if (this.state.cert.bitSize !== 1024 && this.state.cert.bitSize !== 2048 && this.state.cert.bitSize !== 4096) {
+                    this.updateCertField("bitSize", 2048);
                   }
-                </Select>
-              </Col>
-            </Row>
-          )
-        }
-        {
-          this.state.cert.type === "SSL" ? null : (
-            <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
-              <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                {Setting.getLabel(i18next.t("cert:Expire in years"), i18next.t("cert:Expire in years - Tooltip"))} :
-              </Col>
-              <Col span={22} >
-                <InputNumber value={this.state.cert.expireInYears} onChange={value => {
-                  this.updateCertField("expireInYears", value);
-                }} />
-              </Col>
-            </Row>
-          )
-        }
-        {
-          this.state.cert.type === "SSL" ? (
-            <React.Fragment>
+                }
+
+                this.updateCertField("certificate", "");
+                this.updateCertField("privateKey", "");
+              })}>
+                {
+                  (this.state.cert.type === "SSL" ? [
+                    {id: "RSA", name: "RSA"},
+                    {id: "ECC", name: "ECC"},
+                  ] : [
+                    {id: "RS256", name: "RS256 (RSA + SHA256)"},
+                    {id: "RS384", name: "RS384 (RSA + SHA384)"},
+                    {id: "RS512", name: "RS512 (RSA + SHA512)"},
+                    {id: "ES256", name: "ES256 (ECDSA using P-256 + SHA256)"},
+                    {id: "ES384", name: "ES384 (ECDSA using P-384 + SHA384)"},
+                    {id: "ES512", name: "ES512 (ECDSA using P-521 + SHA512)"},
+                    {id: "PS256", name: "PS256 (RSASSA-PSS using SHA256 and MGF1 with SHA256)"},
+                    {id: "PS384", name: "PS384 (RSASSA-PSS using SHA384 and MGF1 with SHA384)"},
+                    {id: "PS512", name: "PS512 (RSASSA-PSS using SHA512 and MGF1 with SHA512)"},
+                  ]).map((item, index) => <Option key={index} value={item.id}>{item.name}</Option>)
+                }
+              </Select>
+            </Col>
+          </Row>
+          {
+            this.state.cert.cryptoAlgorithm.startsWith("ES") || this.state.cert.type === "SSL" ? null : (
               <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
-                <Col style={{marginTop: "5px"}} span={2}>
-                  {i18next.t("cert:Expire time")}:
+                <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                  {Setting.getLabel(i18next.t("cert:Bit size"), i18next.t("cert:Bit size - Tooltip"))} :
                 </Col>
                 <Col span={22} >
-                  <Input disabled={true} value={Setting.getFormattedDate(this.state.cert.expireTime) || undefined} onChange={e => {
-                    this.updateCertField("expireTime", e.target.value);
-                  }} />
-                </Col>
-              </Row>
-              <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
-                <Col style={{marginTop: "5px"}} span={2}>
-                  {i18next.t("cert:Domain expire")}:
-                </Col>
-                <Col span={22} >
-                  <Input disabled={true} value={Setting.getFormattedDate(this.state.cert.domainExpireTime) || undefined} onChange={e => {
-                    this.updateCertField("domainExpireTime", e.target.value);
-                  }} />
-                </Col>
-              </Row>
-              <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
-                <Col style={{marginTop: "5px"}} span={2}>
-                  {i18next.t("cert:Provider")}:
-                </Col>
-                <Col span={22} >
-                  <Select virtual={false} style={{width: "100%"}} value={this.state.cert.provider} onChange={(value => {this.updateCertField("provider", value);})}>
+                  <Select virtual={false} style={{width: "100%"}} value={this.state.cert.bitSize} onChange={(value => {
+                    this.updateCertField("bitSize", value);
+                    this.updateCertField("certificate", "");
+                    this.updateCertField("privateKey", "");
+                  })}>
                     {
-                      [
-                        {id: "GoDaddy", name: "GoDaddy"},
-                        {id: "Aliyun", name: "Aliyun"},
-                      ].map((item, index) => <Option key={index} value={item.id}>{item.name}</Option>)
+                      Setting.getCryptoAlgorithmOptions(this.state.cert.cryptoAlgorithm).map((item, index) => <Option key={index} value={item.id}>{item.name}</Option>)
                     }
                   </Select>
                 </Col>
               </Row>
+            )
+          }
+          {
+            this.state.cert.type === "SSL" ? null : (
               <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
-                <Col style={{marginTop: "5px"}} span={2}>
-                  {i18next.t("cert:Account")}:
+                <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                  {Setting.getLabel(i18next.t("cert:Expire in years"), i18next.t("cert:Expire in years - Tooltip"))} :
                 </Col>
                 <Col span={22} >
-                  <Input value={this.state.cert.account} onChange={e => {
-                    this.updateCertField("account", e.target.value);
+                  <InputNumber value={this.state.cert.expireInYears} onChange={value => {
+                    this.updateCertField("expireInYears", value);
                   }} />
                 </Col>
               </Row>
-              <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
-                <Col style={{marginTop: "5px"}} span={2}>
-                  {i18next.t("cert:Access key")}:
-                </Col>
-                <Col span={22} >
-                  <Input value={this.state.cert.accessKey} onChange={e => {
-                    this.updateCertField("accessKey", e.target.value);
-                  }} />
-                </Col>
-              </Row>
-              <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
-                <Col style={{marginTop: "5px"}} span={2}>
-                  {i18next.t("cert:Access secret")}:
-                </Col>
-                <Col span={22} >
-                  <Input.Password value={this.state.cert.accessSecret} onChange={e => {
-                    this.updateCertField("accessSecret", e.target.value);
-                  }} />
-                </Col>
-              </Row>
-            </React.Fragment>
-          ) : null
-        }
-        <Row className="admin-access-edit-field-row admin-access-edit-editor-grid-row" style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("cert:Certificate"), i18next.t("cert:Certificate - Tooltip"))} :
-          </Col>
-          <Col span={editorWidth} >
-            <Button style={{marginRight: "10px", marginBottom: "10px"}} disabled={this.state.cert.certificate === ""} onClick={() => {
-              copy(this.state.cert.certificate);
-              Setting.showMessage("success", i18next.t("general:Copied to clipboard successfully"));
-            }}
-            >
-              {i18next.t("cert:Copy certificate")}
-            </Button>
-            <Button type="primary" disabled={this.state.cert.certificate === ""} onClick={() => {
-              const blob = new Blob([this.state.cert.certificate], {type: "text/plain;charset=utf-8"});
-              FileSaver.saveAs(blob, "token_jwt_key.pem");
-            }}
-            >
-              {i18next.t("cert:Download certificate")}
-            </Button>
-            <TextArea autoSize={{minRows: 30, maxRows: 30}} value={this.state.cert.certificate} onChange={e => {
-              this.updateCertField("certificate", e.target.value);
-            }} />
-          </Col>
-          <Col span={1} />
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("cert:Private key"), i18next.t("cert:Private key - Tooltip"))} :
-          </Col>
-          <Col span={editorWidth} >
-            <Button style={{marginRight: "10px", marginBottom: "10px"}} disabled={this.state.cert.privateKey === ""} onClick={() => {
-              copy(this.state.cert.privateKey);
-              Setting.showMessage("success", i18next.t("general:Copied to clipboard successfully"));
-            }}
-            >
-              {i18next.t("cert:Copy private key")}
-            </Button>
-            <Button type="primary" disabled={this.state.cert.privateKey === ""} onClick={() => {
-              const blob = new Blob([this.state.cert.privateKey], {type: "text/plain;charset=utf-8"});
-              FileSaver.saveAs(blob, "token_jwt_key.key");
-            }}
-            >
-              {i18next.t("cert:Download private key")}
-            </Button>
-            <TextArea autoSize={{minRows: 30, maxRows: 30}} value={this.state.cert.privateKey} onChange={e => {
-              this.updateCertField("privateKey", e.target.value);
-            }} />
-          </Col>
-        </Row>
+            )
+          }
+          {
+            this.state.cert.type === "SSL" ? (
+              <React.Fragment>
+                <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
+                  <Col style={{marginTop: "5px"}} span={2}>
+                    {i18next.t("cert:Expire time")}:
+                  </Col>
+                  <Col span={22} >
+                    <Input disabled={true} value={Setting.getFormattedDate(this.state.cert.expireTime) || undefined} onChange={e => {
+                      this.updateCertField("expireTime", e.target.value);
+                    }} />
+                  </Col>
+                </Row>
+                <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
+                  <Col style={{marginTop: "5px"}} span={2}>
+                    {i18next.t("cert:Domain expire")}:
+                  </Col>
+                  <Col span={22} >
+                    <Input disabled={true} value={Setting.getFormattedDate(this.state.cert.domainExpireTime) || undefined} onChange={e => {
+                      this.updateCertField("domainExpireTime", e.target.value);
+                    }} />
+                  </Col>
+                </Row>
+                <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
+                  <Col style={{marginTop: "5px"}} span={2}>
+                    {i18next.t("cert:Provider")}:
+                  </Col>
+                  <Col span={22} >
+                    <Select virtual={false} style={{width: "100%"}} value={this.state.cert.provider} onChange={(value => {this.updateCertField("provider", value);})}>
+                      {
+                        [
+                          {id: "GoDaddy", name: "GoDaddy"},
+                          {id: "Aliyun", name: "Aliyun"},
+                        ].map((item, index) => <Option key={index} value={item.id}>{item.name}</Option>)
+                      }
+                    </Select>
+                  </Col>
+                </Row>
+                <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
+                  <Col style={{marginTop: "5px"}} span={2}>
+                    {i18next.t("cert:Account")}:
+                  </Col>
+                  <Col span={22} >
+                    <Input value={this.state.cert.account} onChange={e => {
+                      this.updateCertField("account", e.target.value);
+                    }} />
+                  </Col>
+                </Row>
+                <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
+                  <Col style={{marginTop: "5px"}} span={2}>
+                    {i18next.t("cert:Access key")}:
+                  </Col>
+                  <Col span={22} >
+                    <Input value={this.state.cert.accessKey} onChange={e => {
+                      this.updateCertField("accessKey", e.target.value);
+                    }} />
+                  </Col>
+                </Row>
+                <Row className="admin-access-edit-field-row" style={{marginTop: "20px"}} >
+                  <Col style={{marginTop: "5px"}} span={2}>
+                    {i18next.t("cert:Access secret")}:
+                  </Col>
+                  <Col span={22} >
+                    <Input.Password value={this.state.cert.accessSecret} onChange={e => {
+                      this.updateCertField("accessSecret", e.target.value);
+                    }} />
+                  </Col>
+                </Row>
+              </React.Fragment>
+            ) : null
+          }
+        </div>
+        <div className="admin-large-edit-form-content cert-edit-tab-panel cert-edit-tab-panel-material" hidden={this.state.activeTabKey !== "material"}>
+          <h2 className="admin-large-edit-content-section-title cert-edit-section-title">{i18next.t("cert:Certificate material", "Certificate material")}</h2>
+          <Row className="admin-access-edit-field-row admin-access-edit-editor-grid-row" style={{marginTop: "20px"}} >
+            <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+              {Setting.getLabel(i18next.t("cert:Certificate"), i18next.t("cert:Certificate - Tooltip"))} :
+            </Col>
+            <Col span={editorWidth} >
+              <Button style={{marginRight: "10px", marginBottom: "10px"}} disabled={this.state.cert.certificate === ""} onClick={() => {
+                copy(this.state.cert.certificate);
+                Setting.showMessage("success", i18next.t("general:Copied to clipboard successfully"));
+              }}
+              >
+                {i18next.t("cert:Copy certificate")}
+              </Button>
+              <Button type="primary" disabled={this.state.cert.certificate === ""} onClick={() => {
+                const blob = new Blob([this.state.cert.certificate], {type: "text/plain;charset=utf-8"});
+                FileSaver.saveAs(blob, "token_jwt_key.pem");
+              }}
+              >
+                {i18next.t("cert:Download certificate")}
+              </Button>
+              <TextArea autoSize={{minRows: 30, maxRows: 30}} value={this.state.cert.certificate} onChange={e => {
+                this.updateCertField("certificate", e.target.value);
+              }} />
+            </Col>
+            <Col span={1} />
+            <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+              {Setting.getLabel(i18next.t("cert:Private key"), i18next.t("cert:Private key - Tooltip"))} :
+            </Col>
+            <Col span={editorWidth} >
+              <Button style={{marginRight: "10px", marginBottom: "10px"}} disabled={this.state.cert.privateKey === ""} onClick={() => {
+                copy(this.state.cert.privateKey);
+                Setting.showMessage("success", i18next.t("general:Copied to clipboard successfully"));
+              }}
+              >
+                {i18next.t("cert:Copy private key")}
+              </Button>
+              <Button type="primary" disabled={this.state.cert.privateKey === ""} onClick={() => {
+                const blob = new Blob([this.state.cert.privateKey], {type: "text/plain;charset=utf-8"});
+                FileSaver.saveAs(blob, "token_jwt_key.key");
+              }}
+              >
+                {i18next.t("cert:Download private key")}
+              </Button>
+              <TextArea autoSize={{minRows: 30, maxRows: 30}} value={this.state.cert.privateKey} onChange={e => {
+                this.updateCertField("privateKey", e.target.value);
+              }} />
+            </Col>
+          </Row>
+        </div>
+      </div>
+    );
+  }
+
+  setActiveTabKey(key: string): void {
+    const nextKey = ["basic", "material"].includes(key) ? key : "basic";
+    this.setState({activeTabKey: nextKey});
+    window.location.hash = nextKey;
+  }
+
+  handleBack(): void {
+    this.props.history.push("/certs");
+  }
+
+  renderCert() {
+    const title = this.state.mode === "add" ? i18next.t("cert:New Cert") : `${i18next.t("cert:Edit Cert")} (${this.state.cert.name})`;
+    return (
+      <Card className="admin-large-edit-card cert-edit-card admin-access-edit-card" size="small" variant="borderless" styles={{body: {height: "100%", padding: 0}}}>
+        <LargeEditShell
+          classPrefix="cert-edit"
+          backLabel={i18next.t("general:Back")}
+          breadcrumb={<React.Fragment>{i18next.t("general:Application Access")} / {i18next.t("general:Certs")} /</React.Fragment>}
+          title={title}
+          tabs={<LargeEditTabs classPrefix="cert-edit" activeKey={this.state.activeTabKey} onChange={(key) => this.setActiveTabKey(key)} items={[
+            {key: "basic", label: i18next.t("general:Basic information")},
+            {key: "material", label: i18next.t("cert:Certificate material", "Certificate material")},
+          ]} />}
+          actions={<React.Fragment>
+            <Button onClick={() => this.handleBack()}>{i18next.t("general:Cancel")}</Button>
+            <Button type="primary" loading={this.state.submitting} disabled={this.state.submitting} onClick={() => this.submitCertEdit(false)}>{i18next.t("general:Save")}</Button>
+            <Button disabled={this.state.submitting} onClick={() => this.submitCertEdit(true)}>{i18next.t("general:Save and return")}</Button>
+          </React.Fragment>}
+          onBack={() => this.handleBack()}
+        >
+          {this.renderCertForm()}
+        </LargeEditShell>
       </Card>
     );
   }
 
   submitCertEdit(exitAfterSave?: boolean): void {
+    if (this.state.submitting) {
+      return;
+    }
     const cert = Setting.deepCopy(this.state.cert);
-    CertBackend.updateCert(this.state.owner, this.state.certName, cert)
+    this.setState({submitting: true});
+    const request = this.state.mode === "add" ? CertBackend.addCert(cert) : CertBackend.updateCert(this.state.owner, this.state.certName, cert);
+    request
       .then((res) => {
         if (res.status === "ok") {
-          Setting.showMessage("success", i18next.t("general:Successfully saved"));
+          Setting.showMessage("success", this.state.mode === "add" ? i18next.t("general:Successfully added") : i18next.t("general:Successfully saved"));
           this.setState({
+            owner: this.state.cert.owner,
             certName: this.state.cert.name,
+            mode: "edit",
+            submitting: false,
           }, () => {
             if (exitAfterSave) {
               this.props.history.push("/certs");
@@ -400,11 +497,13 @@ class CertEditPage extends React.Component<AdminRouteProps, LegacyAny> {
             }
           });
         } else {
-          Setting.showMessage("error", `${i18next.t("general:Failed to save")}: ${res.msg}`);
-          this.updateCertField("name", this.state.certName);
+          this.setState({submitting: false});
+          Setting.showMessage("error", `${this.state.mode === "add" ? i18next.t("general:Failed to add") : i18next.t("general:Failed to save")}: ${res.msg}`);
+          if (this.state.mode !== "add") {this.updateCertField("name", this.state.certName);}
         }
       })
       .catch(error => {
+        this.setState({submitting: false});
         Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
       });
   }
@@ -425,15 +524,10 @@ class CertEditPage extends React.Component<AdminRouteProps, LegacyAny> {
 
   render() {
     return (
-      <div className="admin-access-edit-page cert-edit-page">
+      <div className="admin-large-edit-page cert-edit-page admin-access-edit-page">
         {
           this.state.cert !== null ? this.renderCert() : null
         }
-        <div style={{marginTop: "20px", marginLeft: "40px"}}>
-          <Button size="large" onClick={() => this.submitCertEdit(false)}>{i18next.t("general:Save")}</Button>
-          <Button style={{marginLeft: "20px"}} type="primary" size="large" onClick={() => this.submitCertEdit(true)}>{i18next.t("general:Save & Exit")}</Button>
-          {this.state.mode === "add" ? <Button style={{marginLeft: "20px"}} size="large" onClick={() => this.deleteCert()}>{i18next.t("general:Cancel")}</Button> : null}
-        </div>
       </div>
     );
   }

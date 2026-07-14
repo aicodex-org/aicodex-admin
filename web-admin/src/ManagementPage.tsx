@@ -655,6 +655,8 @@ function ManagementPage(props: ManagementPageProps) {
       /^\/permissions\/[^/]+\/[^/]+$/,
       /^\/applications\/[^/]+\/[^/]+$/,
       /^\/providers\/[^/]+\/[^/]+$/,
+      /^\/certs\/[^/]+\/[^/]+$/,
+      /^\/keys\/[^/]+\/[^/]+$/,
       /^\/syncers\/[^/]+$/,
       /^\/invitations\/[^/]+\/[^/]+$/,
     ];

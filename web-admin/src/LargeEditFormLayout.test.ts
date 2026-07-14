@@ -68,6 +68,8 @@ describe("large edit page form layout", () => {
     ["ApplicationEditPage.tsx", "application-edit-page", "application-edit-card"],
     ["ProviderEditPage.tsx", "provider-edit-page", "provider-edit-card"],
     ["SyncerEditPage.tsx", "syncer-edit-page", "syncer-edit-card"],
+    ["CertEditPage.tsx", "cert-edit-page", "cert-edit-card"],
+    ["KeyEditPage.tsx", "key-edit-page", "key-edit-card"],
   ];
 
   editPages.forEach(([fileName, pageClass, cardClass]) => {
@@ -84,6 +86,83 @@ describe("large edit page form layout", () => {
 
     expect(source).toContain("className=\"admin-large-edit-form-content application-edit-form-content\"");
     expect(source).toContain("className=\"admin-large-edit-card application-edit-card\"");
+  });
+
+  test("keeps shared credential shell labels localized", () => {
+    const zhLocale = JSON.parse(readSrc("locales/zh/data.json")) as {general: Record<string, string>; key: Record<string, string>};
+    const enLocale = JSON.parse(readSrc("locales/en/data.json")) as {general: Record<string, string>; key: Record<string, string>};
+
+    expect(zhLocale.general["Basic information"]).toBe("基础信息");
+    expect(zhLocale.general["Save and return"]).toBe("保存并返回");
+    expect(enLocale.general["Basic information"]).toBe("Basic information");
+    expect(enLocale.general["Save and return"]).toBe("Save and return");
+    expect(zhLocale.key["Access key"]).toBe("访问密钥 ID");
+    expect(zhLocale.key["Access key - Tooltip"]).not.toBe("Access key - Tooltip");
+    expect(zhLocale.key["Access secret"]).toBe("访问密钥 Secret");
+    expect(enLocale.key["Access secret - Tooltip"]).not.toBe("Access secret - Tooltip");
+  });
+
+  test("keeps credential tooltips limited to actionable page-specific guidance", () => {
+    const keySource = readSrc("KeyEditPage.tsx");
+    const certSource = readSrc("CertEditPage.tsx");
+    const zhLocale = JSON.parse(readSrc("locales/zh/data.json")) as {cert: Record<string, string>; key: Record<string, string>};
+    const enLocale = JSON.parse(readSrc("locales/en/data.json")) as {cert: Record<string, string>; key: Record<string, string>};
+
+    [
+      "general:Organization - Tooltip",
+      "general:Display name - Tooltip",
+      "general:Application - Tooltip",
+      "general:User - Tooltip",
+      "general:Expire time - Tooltip",
+      "general:State - Tooltip",
+    ].forEach(tooltipKey => expect(keySource).not.toContain(tooltipKey));
+    expect(keySource).not.toContain("general:Name - Tooltip");
+    expect(keySource).not.toContain("general:Type - Tooltip");
+    expect(keySource).toContain("key:Name - Tooltip");
+    expect(keySource).toContain("key:Type - Tooltip");
+
+    expect(certSource).not.toContain("general:Organization - Tooltip");
+    expect(certSource).not.toContain("general:Display name - Tooltip");
+    expect(certSource).not.toContain("general:Name - Tooltip");
+    expect(certSource).not.toContain("general:Type - Tooltip");
+    expect(certSource).not.toContain("provider:Scope - Tooltip");
+    expect(certSource).toContain("cert:Name - Tooltip");
+    expect(certSource).toContain("cert:Type - Tooltip");
+    expect(certSource).toContain("cert:Scope - Tooltip");
+
+    [zhLocale.key, enLocale.key].forEach(locale => {
+      expect(locale["Name - Tooltip"]).not.toMatch(/Name - Tooltip/);
+      expect(locale["Type - Tooltip"]).not.toMatch(/Type - Tooltip/);
+    });
+    [zhLocale.cert, enLocale.cert].forEach(locale => {
+      expect(locale["Name - Tooltip"]).not.toMatch(/Name - Tooltip/);
+      expect(locale["Type - Tooltip"]).not.toMatch(/Type - Tooltip/);
+      expect(locale["Scope - Tooltip"]).not.toMatch(/Scope - Tooltip/);
+    });
+  });
+
+  test("keeps certificate material editors aligned to their equal grid tracks", () => {
+    const appLess = readAppLess();
+    const materialGridStart = appLess.indexOf(".cert-edit-page .admin-large-edit-card .admin-large-edit-form-content {");
+    const materialGridEnd = appLess.indexOf(".cert-edit-page .admin-access-edit-editor-grid-row > .ant-col:nth-child(1),", materialGridStart);
+    const materialGridRule = appLess.slice(materialGridStart, materialGridEnd);
+
+    expect(materialGridRule).toContain(".admin-access-edit-editor-grid-row > .ant-col:nth-child(2)");
+    expect(materialGridRule).toContain(".admin-access-edit-editor-grid-row > .ant-col:nth-child(5)");
+    expect(materialGridRule).toContain("flex: none");
+    expect(materialGridRule).toContain("width: 100%");
+    expect(materialGridRule).toContain("max-width: 100%");
+
+    const firstEditorOverrideStart = appLess.indexOf(
+      "> .admin-access-edit-editor-grid-row:not(.admin-large-edit-full-width-row) > .ant-col:first-child + .ant-col {",
+      materialGridStart
+    );
+    const firstEditorOverride = appLess.slice(firstEditorOverrideStart, appLess.indexOf("\n  }", firstEditorOverrideStart));
+
+    expect(firstEditorOverrideStart).toBeGreaterThanOrEqual(0);
+    expect(firstEditorOverride).toContain("flex: none");
+    expect(firstEditorOverride).toContain("width: 100%");
+    expect(firstEditorOverride).toContain("max-width: 100%");
   });
 
   test("keeps Application edit shell aligned with other multi-tab edit pages", () => {
@@ -316,6 +395,7 @@ describe("large edit page form layout", () => {
     expectCssRuleUsesMixin(appLess, ".user-edit-page", ".admin-large-edit-page-root-base()");
     expectCssRuleUsesMixin(appLess, ".application-edit-page", ".admin-large-edit-page-root-base()");
     expectCssRuleUsesMixin(appLess, ".syncer-edit-page", ".admin-large-edit-page-root-base()");
+    expectCssRuleUsesMixin(appLess, ".cert-edit-page,\n.key-edit-page", ".admin-large-edit-page-root-base()");
     expectCssRuleUsesMixin(appLess, ".organization-edit-card", ".admin-large-edit-card-base()");
     expectCssRuleUsesMixin(appLess, ".identity-object-edit-card", ".admin-large-edit-card-base()");
     expectCssRuleUsesMixin(appLess, ".permission-edit-card", ".admin-large-edit-card-base()");
@@ -324,6 +404,7 @@ describe("large edit page form layout", () => {
     expectCssRuleUsesMixin(appLess, ".user-edit-card", ".admin-large-edit-card-base()");
     expectCssRuleUsesMixin(appLess, ".application-edit-card", ".admin-large-edit-card-base()");
     expectCssRuleUsesMixin(appLess, ".syncer-edit-card", ".admin-large-edit-card-base()");
+    expectCssRuleUsesMixin(appLess, ".cert-edit-card,\n.key-edit-card", ".admin-large-edit-card-base()");
     expectCssRuleUsesMixin(appLess, ".organization-edit-card > .ant-card-body", ".admin-large-edit-card-body-base()");
     expectCssRuleUsesMixin(appLess, ".identity-object-edit-card > .ant-card-body", ".admin-large-edit-card-body-base()");
     expectCssRuleUsesMixin(appLess, ".permission-edit-card > .ant-card-body", ".admin-large-edit-card-body-base()");
@@ -331,6 +412,11 @@ describe("large edit page form layout", () => {
     expectCssRuleUsesMixin(appLess, ".user-edit-card > .ant-card-body", ".admin-large-edit-card-body-base()");
     expectCssRuleUsesMixin(appLess, ".application-edit-card > .ant-card-body", ".admin-large-edit-card-body-base()");
     expectCssRuleUsesMixin(appLess, ".syncer-edit-card > .ant-card-body", ".admin-large-edit-card-body-base()");
+    expectCssRuleUsesMixin(
+      appLess,
+      ".cert-edit-card > .ant-card-body,\n.key-edit-card > .ant-card-body",
+      ".admin-large-edit-card-body-base()"
+    );
     const mobilePageMixinCount = (appLess.match(/\.admin-large-edit-mobile-page-base\(\);/g) ?? []).length;
     const mobileCardMixinCount = (appLess.match(/\.admin-large-edit-mobile-card-base\(\);/g) ?? []).length;
     expect(mobilePageMixinCount).toBe(mobileCardMixinCount);
@@ -480,5 +566,10 @@ describe("large edit page form layout", () => {
       ".admin-shell-route-scroll-without-card > .organization-edit-page,\n.admin-shell-route-scroll-without-card > .identity-object-edit-page,\n.admin-shell-route-scroll-without-card > .permission-edit-page,\n.admin-shell-route-scroll-without-card > .group-edit-page,\n.admin-shell-route-scroll-without-card > .user-edit-page,\n.admin-shell-route-scroll-without-card > .application-edit-page",
       "flex: 1 1 auto;"
     );
+
+    expect(appLess).toContain(".admin-shell-route-scroll-without-card:has(> .cert-edit-page)");
+    expect(appLess).toContain(".admin-shell-route-scroll-without-card:has(> .key-edit-page)");
+    expect(appLess).toContain(".admin-shell-route-scroll-without-card > .cert-edit-page");
+    expect(appLess).toContain(".admin-shell-route-scroll-without-card > .key-edit-page");
   });
 });

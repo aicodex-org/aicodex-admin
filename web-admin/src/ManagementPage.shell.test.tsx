@@ -46,6 +46,8 @@ jest.mock("./PermissionEditPage", () => () => <main data-testid="permission-edit
 jest.mock("./ApplicationListPage", () => () => <main data-testid="application-list-page" />);
 jest.mock("./ApplicationEditPage", () => () => <main data-testid="application-edit-page" />);
 jest.mock("./ProviderEditPage", () => () => <main data-testid="provider-edit-page" />);
+jest.mock("./CertEditPage", () => () => <main data-testid="cert-edit-page" />);
+jest.mock("./KeyEditPage", () => () => <main data-testid="key-edit-page" />);
 jest.mock("./UserEditPage", () => () => <main data-testid="user-edit-page" />);
 jest.mock("./InvitationEditPage", () => () => <main data-testid="invitation-edit-page" />);
 jest.mock("./UserEditVisualReviewPage", () => () => <main data-testid="user-edit-visual-review-page" />);
@@ -272,6 +274,8 @@ describe("ManagementPage admin shell sidebar", () => {
       {path: "/permissions/built-in/permission-main", testId: "permission-edit-page"},
       {path: "/applications/built-in/app-built-in", testId: "application-edit-page"},
       {path: "/providers/built-in/provider-built-in", testId: "provider-edit-page"},
+      {path: "/certs/built-in/cert-built-in", testId: "cert-edit-page"},
+      {path: "/keys/built-in/key-built-in", testId: "key-edit-page"},
       {path: "/syncers/syncer-built-in", testId: "syncer-edit-page"},
       {path: "/invitations/built-in/invite-main", testId: "invitation-edit-page"},
     ];

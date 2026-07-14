@@ -112,18 +112,7 @@ class CertListPage extends LegacyBaseListPage {
 
   addCert() {
     const newCert = this.newCert();
-    CertBackend.addCert(newCert)
-      .then((res) => {
-        if (res.status === "ok") {
-          this.props.history.push({pathname: `/certs/${newCert.owner}/${newCert.name}`, mode: "add"});
-          Setting.showMessage("success", t("general:Successfully added"));
-        } else {
-          Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
-        }
-      })
-      .catch(error => {
-        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
-      });
+    this.props.history.push({pathname: `/certs/${newCert.owner}/${newCert.name}`, mode: "add", cert: newCert});
   }
 
   deleteCert(i: number) {

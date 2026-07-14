@@ -115,18 +115,7 @@ class KeyListPage extends LegacyBaseListPage {
 
   addKey() {
     const newKey = this.newKey();
-    KeyBackend.addKey(newKey)
-      .then((res) => {
-        if (res.status === "ok") {
-          this.props.history.push({pathname: `/keys/${newKey.owner}/${newKey.name}`, mode: "add"});
-          Setting.showMessage("success", t("general:Successfully added"));
-        } else {
-          Setting.showMessage("error", `${t("general:Failed to add")}: ${res.msg}`);
-        }
-      })
-      .catch(error => {
-        Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
-      });
+    this.props.history.push({pathname: `/keys/${newKey.owner}/${newKey.name}`, mode: "add", keyDraft: newKey});
   }
 
   deleteKey(i: number) {
