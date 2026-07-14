@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {CopyOutlined, DownOutlined, FileTextOutlined, UpOutlined} from "@ant-design/icons";
-import {Alert, Button, Collapse, Space, Table, Tag, Typography} from "antd";
+import {Alert, Button, Modal, Space, Tag, Typography} from "antd";
 import copy from "copy-to-clipboard";
 import i18next from "i18next";
 import React from "react";
@@ -56,15 +56,6 @@ type ServiceCredentialGovernanceCapabilityStatus = {
   label: string;
   tone: ServiceCredentialGovernanceTone;
 };
-type ServiceCredentialGovernanceBlockerTableRow = {
-  key: string;
-  capability: string;
-  statusLabel: string;
-  tone: ServiceCredentialGovernanceTone;
-  owner: string;
-  reason: string;
-  nextAction: string;
-};
 
 const INTERNAL_SERVICE_CREDENTIAL_GOVERNANCE_KEYS = new Set([
   "boundedRuntimePolicy",
@@ -80,6 +71,10 @@ const INSIGHT_ADMIN_PROVIDER_FIXED_CAPABILITIES = [
   {key: "current-user", labelKey: "Insight Admin Provider identity capability", defaultLabel: "身份接口"},
   {key: "current-user-scope", labelKey: "Insight Admin Provider scope capability", defaultLabel: "Scope 接口"},
   {key: "organization-tree", labelKey: "Insight Admin Provider organization tree capability", defaultLabel: "组织树接口"},
+];
+const INSIGHT_ADMIN_PROVIDER_RUNTIME_CAPABILITIES = [
+  {key: "usage_identity_resolver", labelKey: "Insight Admin Provider usage identity resolver capability", defaultLabel: "用量身份映射"},
+  {key: "gateway_organization_projection", labelKey: "Insight Admin Provider gateway projection capability", defaultLabel: "Gateway 组织投影"},
 ];
 const INSIGHT_ADMIN_PROVIDER_DIAGNOSTICS_QUERY_PARAM = "diagnostics";
 const INSIGHT_ADMIN_PROVIDER_HANDOFF_PACKAGE_SECTION_ID = "admin-provider-handoff-package";
@@ -132,13 +127,6 @@ function getServiceCredentialGovernanceInsightBindingNextAction(): string {
   return t(
     "Handoff bind credential in Insight next action",
     "导入 Insight Profile 后，由 Insight 后端兑换安全交接授权并完成凭据绑定"
-  );
-}
-
-function getServiceCredentialGovernanceInsightBindingGuidance(): string {
-  return t(
-    "Handoff blocker credential reference suggestion",
-    "可复制 Insight Admin 接入包；包内不含真实凭据，Insight 后端通过安全交接授权兑换绑定。"
   );
 }
 
@@ -526,7 +514,7 @@ export function getServiceCredentialGovernanceHandoffReadinessLabel(readiness: S
   }
 }
 
-// 诊断详情保留排障证据；默认层只表达交接动作和阻断摘要。
+// 默认层只表达接入包是否可复制与运行能力是否完整；排障证据只在按需打开的技术诊断 Modal 中显示。
 function getServiceCredentialGovernanceCapabilityStatus(
   statusGroup?: ServiceCredentialGovernanceGroup,
   configGroup?: ServiceCredentialGovernanceConfigGroup
@@ -617,15 +605,28 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
   const [serviceCredentialGovernanceHandoffPackage, setServiceCredentialGovernanceHandoffPackage] = React.useState<AdminInsightAccessPackage | null>(null);
   const [serviceCredentialGovernanceHandoffState, setServiceCredentialGovernanceHandoffState] = React.useState<ServiceCredentialGovernanceHandoffState>("idle");
   const [serviceCredentialGovernanceHandoffErrorMessage, setServiceCredentialGovernanceHandoffErrorMessage] = React.useState<string | null>(null);
-  const [serviceCredentialGovernanceDiagnosticsOpen, setServiceCredentialGovernanceDiagnosticsOpen] = React.useState(isInsightAdminProviderDiagnosticsOpenFromUrl);
+  const [serviceCredentialGovernanceCapabilityDetailsOpen, setServiceCredentialGovernanceCapabilityDetailsOpen] = React.useState(false);
+  const [serviceCredentialGovernanceTechnicalDiagnosticsOpen, setServiceCredentialGovernanceTechnicalDiagnosticsOpen] = React.useState(isInsightAdminProviderDiagnosticsOpenFromUrl);
+  const serviceCredentialGovernanceTechnicalDiagnosticsTriggerRef = React.useRef<HTMLButtonElement>(null);
 
   React.useEffect(() => {
     const syncDiagnosticsOpenFromUrl = () => {
-      setServiceCredentialGovernanceDiagnosticsOpen(isInsightAdminProviderDiagnosticsOpenFromUrl());
+      setServiceCredentialGovernanceTechnicalDiagnosticsOpen(isInsightAdminProviderDiagnosticsOpenFromUrl());
     };
 
     window.addEventListener("popstate", syncDiagnosticsOpenFromUrl);
     return () => window.removeEventListener("popstate", syncDiagnosticsOpenFromUrl);
+  }, []);
+
+  const openServiceCredentialGovernanceTechnicalDiagnostics = React.useCallback(() => {
+    setServiceCredentialGovernanceTechnicalDiagnosticsOpen(true);
+    replaceInsightAdminProviderDiagnosticsUrlState(true);
+  }, []);
+
+  const closeServiceCredentialGovernanceTechnicalDiagnostics = React.useCallback(() => {
+    setServiceCredentialGovernanceTechnicalDiagnosticsOpen(false);
+    replaceInsightAdminProviderDiagnosticsUrlState(false);
+    serviceCredentialGovernanceTechnicalDiagnosticsTriggerRef.current?.focus();
   }, []);
 
   const handleCopyServiceCredentialGovernanceHandoffPackage = React.useCallback(() => {
@@ -811,34 +812,48 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
   const serviceCredentialGovernanceCanGenerate = serviceCredentialGovernanceConfigLoadState === "ready"
     && serviceCredentialGovernanceConfigDraft.length > 0
     && !serviceCredentialGovernanceHasPendingMaterials;
-  const serviceCredentialGovernanceHasPartialPackage = serviceCredentialGovernanceCanGenerate
-    && serviceCredentialGovernanceStatusGroups.some(group => {
-      return group.status === "blocked"
-        || group.status === "missing"
-        || group.status === "partial"
-        || group.credentialReferenceStatus === "missing";
-    });
-  const serviceCredentialGovernanceEffectiveSummary = serviceCredentialGovernanceCanGenerate
-    ? (serviceCredentialGovernanceHasPartialPackage
-      ? {label: t("Handoff status partially missing", "部分缺失"), tone: "warning" as ServiceCredentialGovernanceTone}
-      : {label: t("Handoff status generatable", "可生成"), tone: "success" as ServiceCredentialGovernanceTone})
-    : (serviceCredentialGovernanceHasPendingMaterials
-      ? {label: t("Handoff status partially missing", "部分缺失"), tone: "warning" as ServiceCredentialGovernanceTone}
-      : {label: t("Handoff status unavailable", "不可生成"), tone: serviceCredentialGovernanceSummary.tone === "default" ? "default" as ServiceCredentialGovernanceTone : "error" as ServiceCredentialGovernanceTone});
-  const serviceCredentialGovernanceHasCredentialReferenceGap = serviceCredentialGovernanceAlignedRows.some(serviceCredentialGovernanceRowHasCredentialReferenceGap);
+  const serviceCredentialGovernanceRuntimeCapabilityRows = INSIGHT_ADMIN_PROVIDER_RUNTIME_CAPABILITIES.map(capability => {
+    const row = serviceCredentialGovernanceAlignedRows.find(candidate => candidate.key === capability.key);
+    const status = getServiceCredentialGovernanceCapabilityStatus(row?.statusGroup, row?.configGroup);
+    return {
+      key: capability.key,
+      label: t(capability.labelKey, capability.defaultLabel),
+      status,
+      impact: status.tone === "success"
+        ? t("Runtime capability ready impact", "该运行能力可用")
+        : t("Runtime capability incomplete impact", "不影响接入包导入与 Profile 启用；可能影响后续运行数据完整度"),
+      nextAction: status.tone === "success"
+        ? t("Handoff capability ready next action", "可进入交接包")
+        : (row?.configGroup?.nextAction || row?.statusGroup?.nextAction || getServiceCredentialGovernancePrimaryGap(row?.statusGroup)),
+    };
+  });
+  const serviceCredentialGovernanceRuntimePendingCapabilityRows = serviceCredentialGovernanceRuntimeCapabilityRows.filter(row => row.status.tone !== "success");
+  const serviceCredentialGovernanceRuntimeReadyCapabilityRows = serviceCredentialGovernanceRuntimeCapabilityRows.filter(row => row.status.tone === "success");
+  const serviceCredentialGovernancePackageReadiness = serviceCredentialGovernanceCanGenerate
+    ? {label: t("Handoff package copy ready", "接入包可复制"), tone: "success" as ServiceCredentialGovernanceTone}
+    : (serviceCredentialGovernanceConfigLoadState === "loading"
+      ? {label: t("Handoff package copy loading", "正在确认接入包"), tone: "default" as ServiceCredentialGovernanceTone}
+      : {label: t("Handoff package copy blocked", "接入包暂不可复制"), tone: serviceCredentialGovernanceSummary.tone === "default" ? "default" as ServiceCredentialGovernanceTone : "error" as ServiceCredentialGovernanceTone});
+  const serviceCredentialGovernanceRuntimeReadiness = serviceCredentialGovernanceRuntimePendingCapabilityRows.length > 0
+    ? {
+      label: t("Runtime capability pending count", "{count} 项扩展能力待配置").replace("{count}", `${serviceCredentialGovernanceRuntimePendingCapabilityRows.length}`),
+      tone: "warning" as ServiceCredentialGovernanceTone,
+    }
+    : {label: t("Runtime capability all ready", "Provider 运行能力全部可用"), tone: "success" as ServiceCredentialGovernanceTone};
   let serviceCredentialGovernanceNextAction = t(
     "Handoff waiting for status next action",
     "等待状态加载后生成交接包"
   );
-  if (serviceCredentialGovernanceHasCredentialReferenceGap) {
-    serviceCredentialGovernanceNextAction = getServiceCredentialGovernanceInsightBindingNextAction();
-  } else if (serviceCredentialGovernanceHasPendingMaterials) {
+  if (serviceCredentialGovernanceHasPendingMaterials) {
     serviceCredentialGovernanceNextAction = t(
-      "Handoff complete admin config next action",
-      "补齐 Admin owner 材料后生成"
+      "Handoff package blocked next action",
+      "请补齐交接包生成前置条件后重试"
     );
-  } else if (serviceCredentialGovernanceCanGenerate && serviceCredentialGovernanceHasPartialPackage) {
-    serviceCredentialGovernanceNextAction = getServiceCredentialGovernanceNextAction(serviceCredentialGovernanceAlignedRows);
+  } else if (serviceCredentialGovernanceCanGenerate && serviceCredentialGovernanceRuntimePendingCapabilityRows.length > 0) {
+    serviceCredentialGovernanceNextAction = t(
+      "Handoff copy ready runtime pending next action",
+      "可继续导入；扩展能力配置不影响接入包导入与 Profile 启用"
+    );
   } else if (serviceCredentialGovernanceCanGenerate) {
     serviceCredentialGovernanceNextAction = t(
       "Handoff generate and bind next action",
@@ -851,62 +866,28 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
     );
   }
   const serviceCredentialGovernanceActionHint = serviceCredentialGovernanceHasPendingMaterials
-    ? t("Handoff generation blocked hint", "补齐 Admin owner 材料后生成")
+    ? t("Handoff package blocked hint", "请补齐交接包生成前置条件后重试")
     : (serviceCredentialGovernanceCanGenerate
-      ? (serviceCredentialGovernanceHasPartialPackage
-        ? t("Handoff generation partial hint", "可复制接入包，Insight 兑换绑定")
+      ? (serviceCredentialGovernanceRuntimePendingCapabilityRows.length > 0
+        ? t("Handoff generation partial hint", "可继续导入；扩展能力配置不影响接入包导入与 Profile 启用")
         : t("Handoff generation complete hint", "可复制 Insight Admin 接入包"))
       : t("Handoff generation unavailable hint", "暂不可生成"));
-  const serviceCredentialGovernanceCredentialGapRows = serviceCredentialGovernanceAlignedRows.filter(serviceCredentialGovernanceRowHasCredentialReferenceGap);
-  const serviceCredentialGovernancePartialBlockingRows = serviceCredentialGovernanceHasPartialPackage
-    ? serviceCredentialGovernanceAlignedRows.filter(row => {
-      const status = row.statusGroup?.status;
-      return status === "blocked"
-        || status === "missing"
-        || status === "partial"
-        || row.configGroup?.credentialReferenceStatus === "missing"
-        || row.statusGroup?.credentialReferenceStatus === "missing";
-    })
-    : [];
-  const serviceCredentialGovernanceBlockingRows = [
-    ...serviceCredentialGovernanceCredentialGapRows,
-    ...serviceCredentialGovernanceActionRows,
-    ...serviceCredentialGovernancePartialBlockingRows,
-  ].filter((row, index, rows) => rows.findIndex(candidate => candidate.key === row.key) === index);
-  const serviceCredentialGovernanceCredentialBlockingRow = serviceCredentialGovernanceBlockingRows.find(row => {
-    return serviceCredentialGovernanceRowHasCredentialReferenceGap(row);
-  });
-  const serviceCredentialGovernancePrimaryBlockingRow = serviceCredentialGovernanceCredentialBlockingRow
-    ?? serviceCredentialGovernanceBlockingRows[0];
-  const serviceCredentialGovernancePrimaryBlockingText = `${serviceCredentialGovernancePrimaryBlockingRow?.statusGroup?.missingKeys?.join(" ") ?? ""} ${serviceCredentialGovernancePrimaryBlockingRow?.statusGroup?.credentialReferenceStatus ?? ""} ${serviceCredentialGovernancePrimaryBlockingRow?.configGroup?.credentialReferenceStatus ?? ""}`.toLowerCase();
-  const serviceCredentialGovernancePrimaryBlockerIsCredentialReference = Boolean(serviceCredentialGovernancePrimaryBlockingRow)
-    && (
-      serviceCredentialGovernancePrimaryBlockingRow?.statusGroup?.credentialReferenceStatus === "missing"
-      || serviceCredentialGovernancePrimaryBlockingRow?.configGroup?.credentialReferenceStatus === "missing"
-      || isServiceCredentialGovernanceCredentialReferenceKey(serviceCredentialGovernancePrimaryBlockingText)
-    );
-  const serviceCredentialGovernanceBlockerSummary = serviceCredentialGovernancePrimaryBlockingRow ? (
+  const serviceCredentialGovernancePackageBlockingRow = serviceCredentialGovernanceActionRows[0];
+  const serviceCredentialGovernancePackageBlockerSummary = serviceCredentialGovernancePackageBlockingRow ? (
     <Alert
       className="enterprise-identity-console-alert application-access-service-credential-blocker"
-      type="warning"
+      type="error"
       showIcon
-      message={serviceCredentialGovernancePrimaryBlockerIsCredentialReference
-        ? t("Handoff blocker missing credential reference", "缺少凭据引用")
-        : t("Handoff blocker missing admin material", "交接材料不完整")}
-      description={serviceCredentialGovernancePrimaryBlockerIsCredentialReference
-        ? getServiceCredentialGovernanceInsightBindingGuidance()
-        : t(
-          "Handoff blocker admin material suggestion",
-          "请由 Admin owner 补齐交接材料或 owner 决策，完成后刷新本页再生成。"
-        )}
+      message={t("Handoff package copy blocked", "接入包暂不可复制")}
+      description={t("Handoff package blocked hint", "请补齐交接包生成前置条件后重试")}
     />
   ) : null;
   let serviceCredentialGovernanceHandoffAlertMessage = serviceCredentialGovernanceHandoffErrorMessage
     ?? t("Service credential governance handoff package unavailable", "Admin 交接包暂不可用");
   if (serviceCredentialGovernanceHasPendingMaterials) {
     serviceCredentialGovernanceHandoffAlertMessage = t(
-      "Handoff package blocked by admin material",
-      "Admin owner 交接材料不完整，暂不能生成安全交接授权。"
+      "Handoff package blocked hint",
+      "请补齐交接包生成前置条件后重试"
     );
   }
   const serviceCredentialGovernanceConfigActions = (
@@ -924,7 +905,6 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
       </Button>
     </Space>
   );
-  const serviceCredentialGovernanceRowByKey = new Map(serviceCredentialGovernanceAlignedRows.map(row => [row.key, row]));
   const serviceCredentialGovernanceCapabilityRows = [
     ...INSIGHT_ADMIN_PROVIDER_FIXED_CAPABILITIES.map(capability => ({
       key: capability.key,
@@ -932,137 +912,57 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
       status: {label: t("Capability ready", "已就绪"), tone: "success" as ServiceCredentialGovernanceTone},
       nextAction: t("Wrapper capability ready description", "可用于 Insight 元数据交接"),
     })),
-    ...[
-      {key: "usage_identity_resolver", labelKey: "Insight Admin Provider usage identity resolver capability", defaultLabel: "用量身份解析"},
-      {key: "gateway_organization_projection", labelKey: "Insight Admin Provider gateway projection capability", defaultLabel: "Gateway 组织投影"},
-    ].map(capability => {
-      const row = serviceCredentialGovernanceRowByKey.get(capability.key);
-      const status = getServiceCredentialGovernanceCapabilityStatus(row?.statusGroup, row?.configGroup);
-      return {
-        key: capability.key,
-        label: t(capability.labelKey, capability.defaultLabel),
-        status,
-        nextAction: status.tone === "success"
-          ? t("Handoff capability ready next action", "可进入交接包")
-          : (row?.configGroup?.nextAction || row?.statusGroup?.nextAction || getServiceCredentialGovernancePrimaryGap(row?.statusGroup)),
-      };
-    }),
+    ...serviceCredentialGovernanceRuntimeCapabilityRows,
   ];
   const serviceCredentialGovernanceReadyCapabilityRows = serviceCredentialGovernanceCapabilityRows.filter(row => row.status.tone === "success");
-  const serviceCredentialGovernanceBlockingEvidenceRows = serviceCredentialGovernanceEvidenceRows.filter(row => {
-    const status = row.statusGroup?.status;
-    return status === "blocked"
-      || status === "missing"
-      || status === "partial"
-      || row.statusGroup?.credentialReferenceStatus === "missing"
-      || row.configGroup?.credentialReferenceStatus === "missing";
-  });
   const serviceCredentialGovernanceDiagnosticsSummary = t(
-    "Insight Admin Provider diagnostics summary",
-    "{blocked} 项阻断 · {ready} 项可用 · 交接包不含真实凭据"
+    "Runtime capability diagnostics summary",
+    "{pending} 项扩展能力待配置 · {ready} 项运行能力可用"
   )
-    .replace("{blocked}", `${serviceCredentialGovernanceBlockingEvidenceRows.length}`)
-    .replace("{ready}", `${serviceCredentialGovernanceReadyCapabilityRows.length}`)
-    .replace("{{blocked}}", `${serviceCredentialGovernanceBlockingEvidenceRows.length}`)
-    .replace("{{ready}}", `${serviceCredentialGovernanceReadyCapabilityRows.length}`);
+    .replace("{pending}", `${serviceCredentialGovernanceRuntimePendingCapabilityRows.length}`)
+    .replace("{ready}", `${serviceCredentialGovernanceRuntimeReadyCapabilityRows.length}`)
+    .replace("{{pending}}", `${serviceCredentialGovernanceRuntimePendingCapabilityRows.length}`)
+    .replace("{{ready}}", `${serviceCredentialGovernanceRuntimeReadyCapabilityRows.length}`);
   const serviceCredentialGovernanceDeliverySummary = (
     <div className="application-access-service-credential-operator-overview" aria-label="Admin 交接摘要">
       <div className="application-access-service-credential-operator-card">
-        <Text type="secondary">{t("Handoff delivery status label", "交接状态")}</Text>
-        <Tag className={`enterprise-identity-tone-${serviceCredentialGovernanceEffectiveSummary.tone}`}>
-          {serviceCredentialGovernanceEffectiveSummary.label}
+        <Text type="secondary">{t("Handoff package readiness label", "接入包状态")}</Text>
+        <Tag className={`enterprise-identity-tone-${serviceCredentialGovernancePackageReadiness.tone}`}>
+          {serviceCredentialGovernancePackageReadiness.label}
+        </Tag>
+      </div>
+      <div className="application-access-service-credential-operator-card">
+        <Text type="secondary">{t("Runtime capability readiness label", "Provider 运行能力")}</Text>
+        <Tag className={`enterprise-identity-tone-${serviceCredentialGovernanceRuntimeReadiness.tone}`}>
+          {serviceCredentialGovernanceRuntimeReadiness.label}
         </Tag>
       </div>
       <div className="application-access-service-credential-operator-card">
         <Text type="secondary">{t("Handoff delivery next action label", "下一步")}</Text>
         <Text strong>{serviceCredentialGovernanceNextAction}</Text>
       </div>
-      <div className="application-access-service-credential-operator-card">
-        <Text type="secondary">{t("Handoff target consumer label", "目标消费方")}</Text>
-        <Text strong>Insight</Text>
-      </div>
-      <div className="application-access-service-credential-operator-card">
-        <Text type="secondary">{t("Handoff package type label", "包类型")}</Text>
-        <Text strong>{t("Handoff package type metadata value", "Insight Admin 接入包")}</Text>
-      </div>
     </div>
   );
-  const serviceCredentialGovernanceBlockingSummary = (
-    <div className="application-access-service-credential-evidence" aria-label="阻断项">
-      <Text strong>{t("Insight Admin Provider blocker details title", "阻断项")}</Text>
-      {serviceCredentialGovernanceBlockingEvidenceRows.length > 0 ? (
-        <Table<ServiceCredentialGovernanceBlockerTableRow>
-          className="application-access-service-credential-blocker-table"
-          size="small"
-          pagination={false}
-          rowKey="key"
-          scroll={{x: 920}}
-          tableLayout="fixed"
-          dataSource={serviceCredentialGovernanceBlockingEvidenceRows.map(row => {
-            const isCredentialReferenceMissing = row.statusGroup?.credentialReferenceStatus === "missing"
-              || row.configGroup?.credentialReferenceStatus === "missing";
-            const reason = isCredentialReferenceMissing
-              ? t("Handoff blocker missing credential reference", "缺少凭据引用")
-              : getServiceCredentialGovernancePrimaryGap(row.statusGroup);
-            return {
-              key: row.key,
-              capability: row.display.title,
-              statusLabel: row.operatorStatus.label,
-              tone: row.tone,
-              owner: row.owner,
-              reason,
-              nextAction: row.nextAction,
-            };
-          })}
-          columns={[
-            {
-              title: t("Insight Admin Provider blocker capability column", "能力"),
-              dataIndex: "capability",
-              key: "capability",
-              width: 180,
-              render: (value: string) => <Text strong>{value}</Text>,
-            },
-            {
-              title: t("Insight Admin Provider blocker status column", "状态"),
-              dataIndex: "statusLabel",
-              key: "statusLabel",
-              width: 96,
-              render: (value: string, row: ServiceCredentialGovernanceBlockerTableRow) => (
-                <Tag className={`enterprise-identity-tone-${row.tone}`}>{value}</Tag>
-              ),
-            },
-            {
-              title: t("Insight Admin Provider blocker owner label", "责任方"),
-              dataIndex: "owner",
-              key: "owner",
-              width: 280,
-              render: (value: string, row: ServiceCredentialGovernanceBlockerTableRow) => renderInsightAdminProviderCodeText(value, `${row.key} owner alias`),
-            },
-            {
-              title: t("Insight Admin Provider blocker reason label", "原因"),
-              dataIndex: "reason",
-              key: "reason",
-              width: 200,
-              render: (value: string) => <Text type="secondary">{value}</Text>,
-            },
-            {
-              title: t("Insight Admin Provider blocker next action label", "建议动作"),
-              dataIndex: "nextAction",
-              key: "nextAction",
-              render: (value: string) => <Text type="secondary">{value}</Text>,
-            },
-          ]}
-          onRow={row => ({
-            "aria-label": `${row.key} blocker evidence`,
-          })}
-        />
+  const serviceCredentialGovernancePendingCapabilitySummary = (
+    <div className="application-access-service-credential-evidence" aria-label={t("Runtime capability pending details title", "待配置的扩展能力")}>
+      <Text strong>{t("Runtime capability pending details title", "待配置的扩展能力")}</Text>
+      {serviceCredentialGovernanceRuntimePendingCapabilityRows.length > 0 ? (
+        <div className="application-access-service-credential-compact-list">
+          {serviceCredentialGovernanceRuntimePendingCapabilityRows.map(row => (
+            <div className="application-access-service-credential-compact-row" aria-label={`${row.key} runtime capability`} key={row.key}>
+              <Space className="application-access-service-credential-summary-title" wrap>
+                <Text strong>{row.label}</Text>
+                <Tag className={`enterprise-identity-tone-${row.status.tone}`}>{row.status.label}</Tag>
+              </Space>
+              <div className="application-access-service-credential-config-detail">
+                <Text type="secondary">{row.impact}</Text>
+                <Text type="secondary">{row.nextAction}</Text>
+              </div>
+            </div>
+          ))}
+        </div>
       ) : (
-        <Alert
-          className="enterprise-identity-console-alert"
-          type="success"
-          showIcon
-          message={t("Insight Admin Provider blockers empty", "暂无阻断项")}
-        />
+        <Alert className="enterprise-identity-console-alert" type="success" showIcon message={t("Runtime capability all ready", "Provider 运行能力全部可用")} />
       )}
     </div>
   );
@@ -1078,96 +978,92 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
       </Space>
     </div>
   );
-  const serviceCredentialGovernanceTechnicalEvidence = (
-    <div className="application-access-service-credential-evidence" aria-label="技术证据">
-      <Collapse
-        className="application-access-service-credential-technical-collapse"
-        ghost
-        items={[{
-          key: "technical-evidence",
-          label: <Text strong>{t("Insight Admin Provider technical evidence title", "技术证据")}</Text>,
-          children: (
-            <Space className="application-access-service-credential-technical-body" direction="vertical" size={10}>
-              <div className="application-access-service-credential-technical-subsection" aria-label="Insight Admin Provider wrapper routes">
-                <Text type="secondary">{t("Insight Admin Provider wrapper route details title", "包装路由")}</Text>
-                <Space className="application-access-service-credential-wrapper-routes" size={[6, 6]} wrap>
-                  {INSIGHT_ADMIN_PROVIDER_WRAPPER_ROUTES.map(route => (
-                    <Tag className="enterprise-identity-code-tag" key={route}>
-                      <span translate="no">{route}</span>
-                    </Tag>
-                  ))}
-                </Space>
-              </div>
-              <div className="application-access-service-credential-technical-subsection" aria-label="Owner evidence technical details">
-                <Text type="secondary">{t("Insight Admin Provider owner evidence details title", "所有者证据")}</Text>
-                <div className="application-access-service-credential-compact-list">
-                  {serviceCredentialGovernanceDiagnosticEvidenceRows.map(row => {
-                    const missingKeys = getServiceCredentialGovernanceDeploymentMissingKeys(row.statusGroup);
-                    return (
-                      <div className="application-access-service-credential-technical-row" aria-label={`${row.key} owner evidence`} key={row.key}>
-                        <div className="application-access-service-credential-summary-main">
-                          <Space className="application-access-service-credential-summary-title" wrap>
-                            <Text strong>{row.display.title}</Text>
-                            <Tag className={`enterprise-identity-tone-${row.tone}`}>{row.operatorStatus.label}</Tag>
-                            <Tag>{row.sourceLabel}</Tag>
-                          </Space>
-                          <Text type="secondary">
-                            {t("Handoff owner alias label", "所有者证据 alias")}：{renderInsightAdminProviderCodeText(row.owner)}
-                          </Text>
-                        </div>
-                        <div className="application-access-service-credential-config-detail">
-                          <Text type="secondary">{row.nextAction}</Text>
-                          {missingKeys.length > 0 && (
-                            <Space size={[6, 6]} wrap>
-                              {missingKeys.map(key => (
-                                <Tag className="enterprise-identity-code-tag" key={`${row.key}-${key}`}>
-                                  <span translate="no">{key}</span>
-                                </Tag>
-                              ))}
-                            </Space>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+  const serviceCredentialGovernanceTechnicalDiagnostics = serviceCredentialGovernanceTechnicalDiagnosticsOpen ? (
+    <Modal
+      centered
+      footer={<Button onClick={closeServiceCredentialGovernanceTechnicalDiagnostics}>{t("Close technical diagnostics action", "关闭技术诊断")}</Button>}
+      open={serviceCredentialGovernanceTechnicalDiagnosticsOpen}
+      title={t("Technical diagnostics title", "技术诊断（仅供排障）")}
+      width={800}
+      wrapClassName="application-access-service-credential-technical-modal"
+      onCancel={closeServiceCredentialGovernanceTechnicalDiagnostics}
+    >
+      <Space className="application-access-service-credential-technical-body" direction="vertical" size={10}>
+        <Text type="secondary">{t("Technical diagnostics description", "用于排查接入包和运行能力问题；不包含真实凭据。")}</Text>
+        <div className="application-access-service-credential-technical-subsection" aria-label="Insight Admin Provider wrapper routes">
+          <Text type="secondary">{t("Insight Admin Provider wrapper route details title", "包装路由")}</Text>
+          <Space className="application-access-service-credential-wrapper-routes" size={[6, 6]} wrap>
+            {INSIGHT_ADMIN_PROVIDER_WRAPPER_ROUTES.map(route => (
+              <Tag className="enterprise-identity-code-tag" key={route}>
+                <span translate="no">{route}</span>
+              </Tag>
+            ))}
+          </Space>
+        </div>
+        <div className="application-access-service-credential-technical-subsection" aria-label="Owner evidence technical details">
+          <Text type="secondary">{t("Insight Admin Provider owner evidence details title", "所有者证据")}</Text>
+          <div className="application-access-service-credential-compact-list">
+            {serviceCredentialGovernanceDiagnosticEvidenceRows.map(row => {
+              const missingKeys = getServiceCredentialGovernanceDeploymentMissingKeys(row.statusGroup);
+              return (
+                <div className="application-access-service-credential-technical-row" aria-label={`${row.key} owner evidence`} key={row.key}>
+                  <div className="application-access-service-credential-summary-main">
+                    <Space className="application-access-service-credential-summary-title" wrap>
+                      <Text strong>{row.display.title}</Text>
+                      <Tag className={`enterprise-identity-tone-${row.tone}`}>{row.operatorStatus.label}</Tag>
+                      <Tag>{row.sourceLabel}</Tag>
+                    </Space>
+                    <Text type="secondary">
+                      {t("Handoff owner alias label", "所有者证据 alias")}：{renderInsightAdminProviderCodeText(row.owner)}
+                    </Text>
+                  </div>
+                  <div className="application-access-service-credential-config-detail">
+                    <Text type="secondary">{row.nextAction}</Text>
+                    {missingKeys.length > 0 && (
+                      <Space size={[6, 6]} wrap>
+                        {missingKeys.map(key => (
+                          <Tag className="enterprise-identity-code-tag" key={`${row.key}-${key}`}>
+                            <span translate="no">{key}</span>
+                          </Tag>
+                        ))}
+                      </Space>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </Space>
-          ),
-        }]}
-      />
-    </div>
-  );
+              );
+            })}
+          </div>
+        </div>
+      </Space>
+    </Modal>
+  ) : null;
   const serviceCredentialGovernanceTechnicalDetails = (
-    <div className="application-access-service-credential-technical-details" aria-label="诊断摘要">
+    <div className="application-access-service-credential-technical-details" aria-label="能力详情">
       <div className="application-access-service-credential-workspace-header">
         <div className="application-access-service-credential-summary-main">
-          <Text strong>{t("Insight Admin Provider diagnostics summary title", "诊断摘要")}</Text>
+          <Text strong>{t("Runtime capability details title", "能力详情")}</Text>
           <Text type="secondary">{serviceCredentialGovernanceDiagnosticsSummary}</Text>
         </div>
         <Button
           type="link"
-          icon={serviceCredentialGovernanceDiagnosticsOpen ? <UpOutlined /> : <DownOutlined />}
-          aria-expanded={serviceCredentialGovernanceDiagnosticsOpen}
-          aria-label={serviceCredentialGovernanceDiagnosticsOpen
-            ? t("Insight Admin Provider diagnostics collapse action", "收起诊断详情")
-            : t("Insight Admin Provider diagnostics expand action", "查看诊断详情")}
+          icon={serviceCredentialGovernanceCapabilityDetailsOpen ? <UpOutlined /> : <DownOutlined />}
+          aria-expanded={serviceCredentialGovernanceCapabilityDetailsOpen}
+          aria-label={serviceCredentialGovernanceCapabilityDetailsOpen
+            ? t("Runtime capability details collapse action", "收起能力详情")
+            : t("Runtime capability details expand action", "查看能力详情")}
           onClick={() => {
-            const nextOpen = !serviceCredentialGovernanceDiagnosticsOpen;
-            setServiceCredentialGovernanceDiagnosticsOpen(nextOpen);
-            replaceInsightAdminProviderDiagnosticsUrlState(nextOpen);
+            setServiceCredentialGovernanceCapabilityDetailsOpen(current => !current);
           }}
         >
-          {serviceCredentialGovernanceDiagnosticsOpen
-            ? t("Insight Admin Provider diagnostics collapse action", "收起诊断详情")
-            : t("Insight Admin Provider diagnostics expand action", "查看诊断详情")}
+          {serviceCredentialGovernanceCapabilityDetailsOpen
+            ? t("Runtime capability details collapse action", "收起能力详情")
+            : t("Runtime capability details expand action", "查看能力详情")}
         </Button>
       </div>
-      {serviceCredentialGovernanceDiagnosticsOpen && (
+      {serviceCredentialGovernanceCapabilityDetailsOpen && (
         <div className="application-access-service-credential-advanced-section">
-          {serviceCredentialGovernanceBlockingSummary}
+          {serviceCredentialGovernancePendingCapabilitySummary}
           {serviceCredentialGovernanceAvailableCapabilitySummary}
-          {serviceCredentialGovernanceTechnicalEvidence}
         </div>
       )}
     </div>
@@ -1179,8 +1075,18 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
         <div className="application-access-service-credential-summary-main">
           <Text strong>{serviceCredentialGovernanceWorkspaceTitle}</Text>
           <Text type="secondary">{serviceCredentialGovernanceActionHint}</Text>
+          <Text type="secondary">{t("Handoff package credential safety note", "交接包不含真实凭据")}</Text>
         </div>
-        {serviceCredentialGovernanceConfigActions}
+        <Space className="application-access-service-credential-workspace-actions" size={4} wrap>
+          {serviceCredentialGovernanceConfigActions}
+          <Button
+            ref={serviceCredentialGovernanceTechnicalDiagnosticsTriggerRef}
+            type="link"
+            onClick={openServiceCredentialGovernanceTechnicalDiagnostics}
+          >
+            {t("View technical diagnostics action", "查看技术诊断")}
+          </Button>
+        </Space>
       </div>
       <div className="application-access-service-credential-config" aria-label="Admin 交接包待补材料">
         {serviceCredentialGovernanceConfigLoadState === "loading" && (
@@ -1218,12 +1124,12 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
         {serviceCredentialGovernanceHandoffState === "ready" && serviceCredentialGovernanceHandoffPackage && (
           <Alert
             className="enterprise-identity-console-alert"
-            type={serviceCredentialGovernanceHasPartialPackage ? "warning" : "success"}
+            type={serviceCredentialGovernanceRuntimePendingCapabilityRows.length > 0 ? "warning" : "success"}
             showIcon
-            message={serviceCredentialGovernanceHasPartialPackage
+            message={serviceCredentialGovernanceRuntimePendingCapabilityRows.length > 0
               ? t("Insight Admin Provider partial handoff ready message", "Insight Admin 接入包已复制")
               : t("Insight Admin Provider handoff ready message", "Insight Admin 接入包已复制")}
-            description={serviceCredentialGovernanceHasPartialPackage
+            description={serviceCredentialGovernanceRuntimePendingCapabilityRows.length > 0
               ? t(
                 "Insight Admin Provider partial handoff ready description",
                 "接入包包含脱敏元数据和安全交接授权摘要；真实凭据只由 Insight 后端兑换。"
@@ -1239,7 +1145,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
             )}
           />
         )}
-        {serviceCredentialGovernanceConfigLoadState === "ready" && serviceCredentialGovernanceHandoffState !== "ready" && serviceCredentialGovernanceActionRows.length === 0 && !serviceCredentialGovernanceHasPartialPackage && (
+        {serviceCredentialGovernanceConfigLoadState === "ready" && serviceCredentialGovernanceHandoffState !== "ready" && serviceCredentialGovernanceActionRows.length === 0 && serviceCredentialGovernanceRuntimePendingCapabilityRows.length === 0 && (
           <div className="application-access-service-credential-alignment" aria-label={serviceCredentialGovernanceWorkspaceTitle}>
             <Alert
               className="enterprise-identity-console-alert"
@@ -1256,11 +1162,11 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
   return (
     <EnterpriseIdentitySection
       className={className}
-      title={t("Insight Admin Provider status title", "交接状态")}
-      extra={<Tag className={`enterprise-identity-tone-${serviceCredentialGovernanceEffectiveSummary.tone}`}>{serviceCredentialGovernanceEffectiveSummary.label}</Tag>}
+      title={t("Insight Admin Provider status title", "接入状态")}
+      extra={<Tag className={`enterprise-identity-tone-${serviceCredentialGovernancePackageReadiness.tone}`}>{serviceCredentialGovernancePackageReadiness.label}</Tag>}
     >
       {serviceCredentialGovernanceDeliverySummary}
-      {serviceCredentialGovernanceBlockerSummary}
+      {serviceCredentialGovernancePackageBlockerSummary}
       {serviceCredentialGovernanceLoadState === "loading" && (
         <Alert
           className="enterprise-identity-console-alert"
@@ -1291,6 +1197,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
       )}
       {serviceCredentialGovernanceWorkspace}
       {serviceCredentialGovernanceTechnicalDetails}
+      {serviceCredentialGovernanceTechnicalDiagnostics}
     </EnterpriseIdentitySection>
   );
 }

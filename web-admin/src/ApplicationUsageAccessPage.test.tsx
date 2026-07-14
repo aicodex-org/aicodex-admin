@@ -460,23 +460,22 @@ describe("ApplicationUsageAccessPage", () => {
 
     const view = renderPage();
 
-    expect(await view.findByText("Insight Admin Provider 交接")).not.toBeNull();
-    expect(view.getByText("应用接入 / 用量接入 / Admin Provider")).not.toBeNull();
+    expect(await view.findByText("Insight 接入包")).not.toBeNull();
+    expect(view.getByText("应用接入 / 用量接入")).not.toBeNull();
     expect(view.queryByText("只维护 Admin 身份、组织、resolver、projection/trust 和服务凭据引用；API/Gateway 用量包不在这里生成。")).toBeNull();
     expect(view.queryByText("生成给 Insight 使用的 Admin 接入交接包；只维护身份、组织、resolver、projection/trust 和服务凭据引用。")).toBeNull();
     expect(view.queryByText("核对 Gateway 映射")).toBeNull();
-    expect(view.getAllByText("交接状态").length).toBeGreaterThan(0);
+    expect(view.getAllByText("接入状态").length).toBeGreaterThan(0);
     expect(view.queryByText("面向 Insight 的 Admin Provider 元数据交接页。")).toBeNull();
     expect(view.queryByText("Admin 交接包只包含元数据，不传递真实凭据。")).toBeNull();
     expect(view.container.textContent).not.toContain("P0");
     expect(view.container.textContent).not.toContain("Admin secure handoff 不在 P0");
     expect(view.container.textContent).not.toContain("copy-safe metadata");
     expect(view.getByLabelText("Admin 交接摘要")).not.toBeNull();
-    expect(view.getByText("交接状态")).not.toBeNull();
-    expect(view.getByText("目标消费方")).not.toBeNull();
-    expect(view.getByText("Insight")).not.toBeNull();
-    expect(view.getByText("包类型")).not.toBeNull();
-    expect(view.getByText("Insight Admin 接入包")).not.toBeNull();
+    expect(view.getByText("接入包状态")).not.toBeNull();
+    expect(view.getByText("Provider 运行能力")).not.toBeNull();
+    expect(view.queryByText("目标消费方")).toBeNull();
+    expect(view.queryByText("包类型")).toBeNull();
     expect(view.queryByText("交接能力")).toBeNull();
     expect(view.getByText("交接包操作")).not.toBeNull();
     expect(view.queryByText("/api/admin-provider/insight/v1/current-user")).toBeNull();
@@ -484,9 +483,8 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.queryByText("/current-user/organization-tree")).toBeNull();
     expect(view.queryByText("当前状态")).toBeNull();
     expect(view.queryByText("补齐 Admin env/config，重启后刷新本页")).toBeNull();
-    expect(view.getByText("缺少凭据引用")).not.toBeNull();
-    expect(view.getByText("可复制 Insight Admin 接入包；包内不含真实凭据，Insight 后端通过安全交接授权兑换绑定。")).not.toBeNull();
-    expect(view.getByText("导入 Insight Profile 后，由 Insight 后端兑换安全交接授权并完成凭据绑定")).not.toBeNull();
+    expect(view.getAllByText("接入包暂不可复制").length).toBeGreaterThan(0);
+    expect(view.getByText("交接包不含真实凭据")).not.toBeNull();
     expect(view.queryByLabelText("关键阻断")).toBeNull();
     expect(view.queryByText("交接包可生成；导入 Insight Profile 后通过 manual/secretRef binding 绑定 resolver 凭据。交接包只包含元数据，不传递真实凭据。")).toBeNull();
     expect(view.queryByText("可生成元数据交接包，导入 Insight 后通过 manual/secretRef binding 绑定凭据。")).toBeNull();
@@ -499,12 +497,12 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.container.textContent).not.toContain("Vault");
     expect(view.container.textContent).not.toContain("KMS");
     expect(view.queryByText("查看交接项")).toBeNull();
-    expect(view.getAllByText("部分缺失").length).toBeGreaterThan(0);
+    expect(view.queryByText("部分缺失")).toBeNull();
     expect(view.queryByText("刷新状态")).toBeNull();
     expect(view.queryByText("预检交接包")).toBeNull();
     expect(view.getByText("复制 Insight Admin 接入包")).not.toBeNull();
     expect((view.getByText("复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(true);
-    expect(view.getByText("补齐 Admin owner 材料后生成")).not.toBeNull();
+    expect(view.getAllByText("请补齐交接包生成前置条件后重试").length).toBeGreaterThan(0);
     expect(view.queryByText("保存配置")).toBeNull();
     expect(view.queryByText("读取配置")).toBeNull();
     expect(view.queryByText("保存修正")).toBeNull();
@@ -531,10 +529,10 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.queryByLabelText("usage_identity_resolver 凭据引用")).toBeNull();
     expect(view.queryByText("查看环境维护说明")).toBeNull();
     expect(view.queryByText("查看交接材料")).toBeNull();
-    expect(view.getByText("诊断摘要")).not.toBeNull();
-    expect(view.getByText(/\d+ 项阻断 · \d+ 项可用 · 交接包不含真实凭据/)).not.toBeNull();
-    expect(view.getByText("查看诊断详情")).not.toBeNull();
-    const diagnosticsButton = view.getByLabelText("查看诊断详情") as HTMLButtonElement;
+    expect(view.getByText("能力详情")).not.toBeNull();
+    expect(view.getByText(/\d+ 项扩展能力待配置 · \d+ 项运行能力可用/)).not.toBeNull();
+    expect(view.getByText("查看能力详情")).not.toBeNull();
+    const diagnosticsButton = view.getByLabelText("查看能力详情") as HTMLButtonElement;
     expect(diagnosticsButton.getAttribute("aria-expanded")).toBe("false");
     expect(view.queryByText("补凭据引用")).toBeNull();
     expect(view.queryByText("这里不保存密钥，也不配置 API/Gateway 用量 provider。请在 Admin 的 env/config 里补配置，补完重启后刷新。")).toBeNull();
@@ -548,34 +546,27 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.queryByPlaceholderText("gatewayOrganizationProjectionToken")).toBeNull();
     expect(view.queryByText("gatewayOrganizationProjectionToken")).toBeNull();
     expect(view.queryByText("insightProviderAllowedIssuers")).toBeNull();
-    fireEvent.click(view.getByText("查看诊断详情"));
+    fireEvent.click(view.getByText("查看能力详情"));
     expect(diagnosticsButton.getAttribute("aria-expanded")).toBe("true");
-    expect(await view.findByText("阻断项")).not.toBeNull();
-    expect(view.getByText("能力")).not.toBeNull();
-    expect(view.getByText("状态")).not.toBeNull();
-    expect(view.getByText("责任方")).not.toBeNull();
-    expect(view.getByText("原因")).not.toBeNull();
-    expect(view.getByText("建议动作")).not.toBeNull();
+    expect(await view.findByText("待配置的扩展能力")).not.toBeNull();
     expect(view.getByText("可用能力")).not.toBeNull();
-    expect(view.getByText("技术证据")).not.toBeNull();
-    expect(view.getByText("收起诊断详情")).not.toBeNull();
-    expect(window.location.search).toContain("diagnostics=1");
+    expect(view.queryByText("技术详情")).toBeNull();
+    expect(view.getByText("收起能力详情")).not.toBeNull();
+    expect(window.location.search).not.toContain("diagnostics=1");
     expect(view.queryByText("交接能力")).toBeNull();
     expect(view.getByText(/身份接口 · 已就绪/)).not.toBeNull();
     expect(view.getByText(/Scope 接口 · 已就绪/)).not.toBeNull();
     expect(view.getByText(/组织树接口 · 已就绪/)).not.toBeNull();
     expect(view.getByLabelText("usage_identity_resolver available capability").textContent).toContain("已就绪");
     expect(view.getByLabelText("usage_identity_resolver available capability").className).toContain("application-access-service-credential-capability-chip");
-    const gatewayBlockerEvidence = view.getByLabelText("gateway_organization_projection blocker evidence");
-    expect(gatewayBlockerEvidence.textContent).toContain("Gateway 组织投影");
-    expect(gatewayBlockerEvidence.textContent).toContain("缺少凭据引用");
-    expect(gatewayBlockerEvidence.closest("tr")).not.toBeNull();
+    const gatewayCapability = view.getByLabelText("gateway_organization_projection runtime capability");
+    expect(gatewayCapability.textContent).toContain("Gateway 组织投影");
+    expect(gatewayCapability.textContent).toContain("缺凭据引用");
     expect(view.queryByText("跳到生成区")).toBeNull();
-    fireEvent.click(view.getByText("收起诊断详情"));
+    fireEvent.click(view.getByText("收起能力详情"));
     expect(diagnosticsButton.getAttribute("aria-expanded")).toBe("false");
     expect(window.location.search).not.toContain("diagnostics=1");
-    fireEvent.click(view.getByText("查看诊断详情"));
-    fireEvent.click(await view.findByText("技术证据"));
+    fireEvent.click(view.getByText("查看技术诊断"));
     expect(await view.findByText("/api/admin-provider/insight/v1/current-user")).not.toBeNull();
     expect(view.getByText("/api/admin-provider/insight/v1/current-user").getAttribute("translate")).toBe("no");
     expect(view.getByText("/current-user/scope")).not.toBeNull();
@@ -592,6 +583,7 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.container.textContent).not.toContain("resolver-secret-value");
     expect(view.container.textContent).not.toContain("resolver-token-value");
     expect(view.container.textContent).not.toContain("resolver.internal.example.invalid");
+    fireEvent.click(view.getByText("关闭技术诊断"));
     expect(view.container.textContent).not.toContain("gateway_projection_token_missing");
     expect(view.container.textContent).not.toContain("admin_service_credential_reference_unresolved");
   });
@@ -616,23 +608,24 @@ describe("ApplicationUsageAccessPage", () => {
     expect(await view.findByText("材料已齐，点击复制 Insight Admin 接入包。")).not.toBeNull();
     expect(view.getByText("交接包操作")).not.toBeNull();
     expect(view.queryByText("交接能力")).toBeNull();
-    expect(view.getByText("诊断摘要")).not.toBeNull();
-    expect(view.getByText("查看诊断详情")).not.toBeNull();
-    expect(view.getByText("交接状态")).not.toBeNull();
-    expect(view.getAllByText("可生成").length).toBeGreaterThan(0);
+    expect(view.getByText("能力详情")).not.toBeNull();
+    expect(view.getByText("查看能力详情")).not.toBeNull();
+    expect(view.getByText("接入状态")).not.toBeNull();
+    expect((view.getAllByText("接入包可复制")).length).toBeGreaterThan(0);
+    expect(view.getByText("Provider 运行能力全部可用")).not.toBeNull();
     expect(view.getByText("复制 Insight Admin 接入包并导入 Insight Profile")).not.toBeNull();
     expect(view.getByText("可复制 Insight Admin 接入包")).not.toBeNull();
     expect(view.queryByLabelText("usage_identity_resolver capability status")).toBeNull();
     expect(view.queryByLabelText("gateway_organization_projection capability status")).toBeNull();
     expect(view.queryByText("admin_provider_trust")).toBeNull();
-    fireEvent.click(view.getByText("查看诊断详情"));
-    expect(await view.findByText("阻断项")).not.toBeNull();
+    fireEvent.click(view.getByText("查看能力详情"));
+    expect(await view.findByText("待配置的扩展能力")).not.toBeNull();
     expect(view.getByText("可用能力")).not.toBeNull();
-    expect(view.getByText("技术证据")).not.toBeNull();
+    expect(view.queryByText("技术详情")).toBeNull();
     expect(view.queryByText("交接能力")).toBeNull();
     expect(view.getByLabelText("usage_identity_resolver available capability").textContent).toContain("已就绪");
     expect(view.getByLabelText("gateway_organization_projection available capability").textContent).toContain("已就绪");
-    fireEvent.click(view.getByText("技术证据"));
+    fireEvent.click(view.getByText("查看技术诊断"));
     expect(await view.findByLabelText("insight_provider_trust owner evidence")).not.toBeNull();
     expect(view.getByLabelText("insight_provider_trust owner evidence").textContent).toContain("admin_provider_trust");
     expect(view.getByLabelText("usage_identity_resolver owner evidence").textContent).toContain("用量身份解析");
@@ -707,25 +700,103 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.container.textContent).not.toContain("resolver.internal.example.invalid");
   });
 
+  test("separates a copy-ready package from two runtime capabilities that still need attention", async() => {
+    mockGetServiceCredentialGovernanceStatus.mockResolvedValueOnce({
+      status: "ok",
+      data: {
+        generatedAt: "2026-07-14T08:00:00Z",
+        source: "admin_runtime_config",
+        groups: [
+          {key: "usage_identity_resolver", label: "Usage identity resolver", owner: "admin_outbound_resolver", status: "partial", configuredKeys: [], missingKeys: ["resolverReference"], credentialReferenceStatus: "missing"},
+          {key: "gateway_organization_projection", label: "Gateway organization projection", owner: "admin_gateway_projection_producer", status: "blocked", configuredKeys: [], missingKeys: ["gatewayReference"], credentialReferenceStatus: "missing"},
+        ],
+      },
+    });
+    mockGetServiceCredentialGovernanceConfig.mockResolvedValueOnce({
+      status: "ok",
+      data: {
+        updatedAt: "2026-07-14T08:00:00Z",
+        source: "admin_service_credential_governance_config",
+        isConfigured: true,
+        groups: [
+          {key: "usage_identity_resolver", label: "Usage identity resolver", enabled: true, sourceClass: "admin_config", credentialReferenceStatus: "missing"},
+          {key: "gateway_organization_projection", label: "Gateway organization projection", enabled: true, sourceClass: "admin_config", credentialReferenceStatus: "missing"},
+        ],
+      },
+    });
+
+    const view = renderPage();
+
+    expect((await view.findAllByText("接入包可复制")).length).toBeGreaterThan(0);
+    expect(view.getByText("2 项扩展能力待配置")).not.toBeNull();
+    expect(view.getAllByText("可继续导入；扩展能力配置不影响接入包导入与 Profile 启用").length).toBeGreaterThan(0);
+    expect((view.getByText("复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(false);
+    expect(view.queryByText("部分缺失")).toBeNull();
+    expect(view.queryByText("阻断项")).toBeNull();
+    expect(view.getByText("交接包不含真实凭据")).not.toBeNull();
+
+    fireEvent.click(view.getByText("查看能力详情"));
+    expect(await view.findByText("待配置的扩展能力")).not.toBeNull();
+    expect(view.getByLabelText("待配置的扩展能力")).not.toBeNull();
+    expect((await view.findByLabelText("usage_identity_resolver runtime capability")).textContent).toContain("用量身份映射");
+    expect((await view.findByLabelText("gateway_organization_projection runtime capability")).textContent).toContain("Gateway 组织投影");
+    expect(view.queryByText("admin_outbound_resolver")).toBeNull();
+    expect(view.queryByText("/api/admin-provider/insight/v1/current-user")).toBeNull();
+
+    fireEvent.click(view.getByText("查看技术诊断"));
+    expect(await view.findByText("admin_outbound_resolver")).not.toBeNull();
+    fireEvent.click(view.getByText("关闭技术诊断"));
+  });
+
+  test("keeps the package CTA fail-closed when package generation prerequisites are blocked", async() => {
+    mockGetServiceCredentialGovernanceStatus.mockResolvedValueOnce({
+      status: "ok",
+      data: {
+        generatedAt: "2026-07-14T08:00:00Z",
+        source: "admin_runtime_config",
+        groups: [
+          {key: "insight_provider_trust", label: "Insight provider trust", status: "missing", configuredKeys: [], missingKeys: ["issuer"], credentialReferenceStatus: "configured"},
+        ],
+      },
+    });
+    mockGetServiceCredentialGovernanceConfig.mockResolvedValueOnce({
+      status: "ok",
+      data: {
+        updatedAt: "2026-07-14T08:00:00Z",
+        source: "admin_service_credential_governance_config",
+        isConfigured: true,
+        groups: [
+          {key: "insight_provider_trust", label: "Insight provider trust", enabled: true, sourceClass: "admin_config", credentialReferenceStatus: "configured"},
+        ],
+      },
+    });
+
+    const view = renderPage();
+
+    expect((await view.findAllByText("接入包暂不可复制")).length).toBeGreaterThan(0);
+    expect((view.getByText("复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(true);
+    expect((await view.findAllByText("请补齐交接包生成前置条件后重试")).length).toBeGreaterThan(0);
+  });
+
   test("aligns status, config, and diagnostics by governance item key", async() => {
     mockGetServiceCredentialGovernanceStatus.mockResolvedValueOnce(governanceStatusResponse);
     mockGetServiceCredentialGovernanceConfig.mockResolvedValueOnce(governanceConfigResponse);
     mockDiagnoseServiceCredentialGovernanceConfig.mockResolvedValueOnce(governanceDiagnosticResponse);
 
     const view = renderPage();
-    await view.findByText("缺少凭据引用");
+    await view.findAllByText("接入包暂不可复制");
 
     expect(view.queryByLabelText("gateway_organization_projection capability status")).toBeNull();
     expect(view.queryByText("admin_gateway_projection_producer")).toBeNull();
     expect(view.queryByText("gatewayOrganizationProjectionToken")).toBeNull();
     expect(view.queryByLabelText("usage_identity_resolver 凭据引用")).toBeNull();
-    fireEvent.click(view.getByText("查看诊断详情"));
-    expect(await view.findByText("阻断项")).not.toBeNull();
+    fireEvent.click(view.getByText("查看能力详情"));
+    expect(await view.findByText("待配置的扩展能力")).not.toBeNull();
     expect(view.getByText("可用能力")).not.toBeNull();
-    expect(view.getByText("技术证据")).not.toBeNull();
-    const gatewayCapabilityBeforeDiagnostic = await view.findByLabelText("gateway_organization_projection blocker evidence");
-    expect(gatewayCapabilityBeforeDiagnostic.textContent).toContain("缺少凭据引用");
-    fireEvent.click(view.getByText("技术证据"));
+    expect(view.queryByText("技术详情")).toBeNull();
+    const gatewayCapabilityBeforeDiagnostic = await view.findByLabelText("gateway_organization_projection runtime capability");
+    expect(gatewayCapabilityBeforeDiagnostic.textContent).toContain("缺凭据引用");
+    fireEvent.click(view.getByText("查看技术诊断"));
     const gatewayRowBeforeDiagnostic = await view.findByLabelText("gateway_organization_projection owner evidence");
     expect(gatewayRowBeforeDiagnostic.textContent).toContain("不可用");
     expect(gatewayRowBeforeDiagnostic.textContent).toContain("admin_gateway_projection_producer");
@@ -736,6 +807,7 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.container.textContent).not.toContain("admin_service_credential_reference_unresolved");
     expect(view.queryByText("排障详情")).toBeNull();
     expect(view.queryByText("机器字段")).toBeNull();
+    fireEvent.click(view.getByText("关闭技术诊断"));
   });
 
   test("keeps Insight Admin Provider loading, empty, and error states actionable", async() => {
@@ -861,9 +933,10 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.queryByText("可生成元数据交接包，导入 Insight 后通过 manual/secretRef binding 绑定凭据。")).toBeNull();
     expect(view.container.textContent).not.toContain("copy-safe metadata");
     expect(view.queryByText("材料已齐，点击复制 Insight Admin 接入包。")).toBeNull();
-    expect(view.getAllByText("部分缺失").length).toBeGreaterThan(0);
-    expect(view.getByText("可复制接入包，Insight 兑换绑定")).not.toBeNull();
-    expect(view.getByText("导入 Insight Profile 后，由 Insight 后端兑换安全交接授权并完成凭据绑定")).not.toBeNull();
+    expect(view.queryByText("部分缺失")).toBeNull();
+    expect((view.getAllByText("接入包可复制")).length).toBeGreaterThan(0);
+    expect(view.getByText("2 项扩展能力待配置")).not.toBeNull();
+    expect(view.getAllByText("可继续导入；扩展能力配置不影响接入包导入与 Profile 启用").length).toBeGreaterThan(0);
     expect(view.queryByLabelText("关键阻断")).toBeNull();
     expect(view.queryByText("导入 Insight Profile 后通过 manual/secretRef binding 绑定 resolver 凭据")).toBeNull();
     expect(view.queryByText("生成包后导入 Insight Profile；补齐 resolver 凭据引用后完成 P0 manual/secretRef binding。")).toBeNull();
@@ -875,15 +948,14 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.container.textContent).not.toContain("Vault");
     expect(view.container.textContent).not.toContain("KMS");
     expect(view.queryByText("Ready group")).toBeNull();
-    expect(view.getByText("诊断摘要")).not.toBeNull();
-    expect(view.getByText("查看诊断详情")).not.toBeNull();
-    fireEvent.click(view.getByText("查看诊断详情"));
-    expect(await view.findByText("阻断项")).not.toBeNull();
+    expect(view.getByText("能力详情")).not.toBeNull();
+    expect(view.getByText("查看能力详情")).not.toBeNull();
+    fireEvent.click(view.getByText("查看能力详情"));
+    expect(await view.findByText("待配置的扩展能力")).not.toBeNull();
     expect(view.getByText("可用能力")).not.toBeNull();
-    expect(view.getByText("技术证据")).not.toBeNull();
-    fireEvent.click(view.getByText("技术证据"));
+    expect(view.queryByText("技术详情")).toBeNull();
+    fireEvent.click(view.getByText("查看技术诊断"));
     expect(await view.findByLabelText("ready_group owner evidence")).not.toBeNull();
-    expect(view.getByLabelText("missing_reference_group blocker evidence").closest("tr")).not.toBeNull();
     expect(view.getByLabelText("current-user available capability").className).toContain("application-access-service-credential-capability-chip");
     expect(view.getByLabelText("ready_group owner evidence").textContent).toContain("Ready group");
     expect(view.getByLabelText("disabled_group owner evidence").textContent).toContain("Disabled group");
@@ -923,6 +995,7 @@ describe("ApplicationUsageAccessPage", () => {
         ]),
       }),
     }));
+    fireEvent.click(view.getByText("关闭技术诊断"));
   });
 
   test("allows access-package generation when only the legacy credential reference is missing", async() => {
@@ -951,8 +1024,9 @@ describe("ApplicationUsageAccessPage", () => {
     const view = renderPage();
 
     expect(await view.findByText("交接包操作")).not.toBeNull();
-    expect(view.getByText("缺少凭据引用")).not.toBeNull();
-    expect(view.getByText("可复制接入包，Insight 兑换绑定")).not.toBeNull();
+    expect((await view.findAllByText("接入包可复制")).length).toBeGreaterThan(0);
+    expect(view.getByText("2 项扩展能力待配置")).not.toBeNull();
+    expect(view.getAllByText("可继续导入；扩展能力配置不影响接入包导入与 Profile 启用").length).toBeGreaterThan(0);
     expect((view.getByText("复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(false);
     clickButtonByText(view, "复制 Insight Admin 接入包");
 
@@ -1085,10 +1159,9 @@ describe("ApplicationUsageAccessPage", () => {
     });
 
     const view = renderPage();
-    await view.findByText("缺少凭据引用");
+    await view.findAllByText("接入包可复制");
     expect(view.queryByLabelText("blocked_group owner evidence")).toBeNull();
-    fireEvent.click(view.getByText("查看诊断详情"));
-    fireEvent.click(await view.findByText("技术证据"));
+    fireEvent.click(view.getByText("查看技术诊断"));
     await view.findByLabelText("blocked_group owner evidence");
     expect(view.getByLabelText("ready_group owner evidence").textContent).toContain("Ready group");
     expect((view.getByText("复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(false);
@@ -1111,6 +1184,7 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.queryByText("admin_service_credential_reference_missing")).toBeNull();
     expect(view.container.textContent).not.toContain("https://");
     expect(view.container.textContent).not.toContain("token-value");
+    fireEvent.click(view.getByText("关闭技术诊断"));
   });
 
   test("opens diagnostics from URL query for shareable troubleshooting links", async() => {
@@ -1119,7 +1193,26 @@ describe("ApplicationUsageAccessPage", () => {
 
     const view = renderPage("/application-usage-access?diagnostics=1");
 
-    expect(await view.findByText("阻断项")).not.toBeNull();
-    expect((view.getByLabelText("收起诊断详情") as HTMLButtonElement).getAttribute("aria-expanded")).toBe("true");
+    expect(await view.findByText("技术诊断（仅供排障）")).not.toBeNull();
+    expect((view.getByLabelText("查看能力详情") as HTMLButtonElement).getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(view.getByText("关闭技术诊断"));
+  });
+
+  test("opens technical diagnostics in a modal without nesting it in capability details", async() => {
+    mockGetServiceCredentialGovernanceStatus.mockResolvedValueOnce(governanceStatusResponse);
+    mockGetServiceCredentialGovernanceConfig.mockResolvedValueOnce(governanceConfigResponse);
+
+    const view = renderPage();
+    await view.findByText("能力详情");
+
+    expect(view.getByText("查看技术诊断")).not.toBeNull();
+    expect(view.queryByText("技术详情")).toBeNull();
+    fireEvent.click(view.getByText("查看技术诊断"));
+    expect(await view.findByText("技术诊断（仅供排障）")).not.toBeNull();
+    expect(window.location.search).toContain("diagnostics=1");
+
+    fireEvent.click(view.getByText("关闭技术诊断"));
+    expect(view.queryByText("技术诊断（仅供排障）")).toBeNull();
+    expect(window.location.search).not.toContain("diagnostics=1");
   });
 });
