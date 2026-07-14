@@ -399,6 +399,18 @@ describe("ManagementPage admin shell sidebar", () => {
     expect(collapsedDesktopMenuProps?.onOpenChange).toBeUndefined();
   });
 
+  test("does not attach tooltips to entries shown in collapsed submenu popups", () => {
+    renderShell();
+
+    const desktopMenuProps = mockMenuProps
+      .filter(props => props.mode === "inline" && props.inlineCollapsed === false)
+      .at(-1);
+    const menuItems = desktopMenuProps?.items as Array<{key: string; title?: string; children?: Array<{key: string; title?: string}>}>;
+    const gatewayGroup = menuItems.find(item => item.key === "/llm-ai-gateway");
+
+    expect(gatewayGroup?.children?.find(item => item.key === "/agents")?.title).toBeUndefined();
+  });
+
   test("keeps mobile drawer behavior independent from persisted desktop collapsed state", () => {
     localStorage.setItem("adminShellSidebarCollapsed", "true");
 

@@ -419,13 +419,11 @@ function ManagementPage(props: ManagementPageProps) {
           if (item.external) {
             return {
               ...Setting.getItem(<a target="_blank" rel="noreferrer" href={item.href}>{item.label}</a>, item.key),
-              title: getMenuTitle(item.label),
             };
           }
 
           return {
             ...Setting.getItem(<Link to={item.to}>{item.label}</Link>, item.key),
-            title: getMenuTitle(item.label),
           };
         })),
         title: getMenuTitle(group.label),
