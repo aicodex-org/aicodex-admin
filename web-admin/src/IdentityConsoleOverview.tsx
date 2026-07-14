@@ -26,8 +26,7 @@ import * as DashboardBackend from "./backend/DashboardBackend";
 import {
   EnterpriseIdentityConsolePage,
   EnterpriseIdentitySection,
-  EnterpriseIdentityStatusGrid,
-  EnterpriseIdentitySummaryStrip
+  EnterpriseIdentityStatusGrid
 } from "./common/EnterpriseIdentityConsoleLayout";
 import * as Setting from "./Setting";
 import {getOrganizationSyncProviderLogoUrl} from "./organizationSync/OrganizationSyncTypes";
@@ -80,7 +79,6 @@ type StatusCardItem = {
   key: string;
   title: React.ReactNode;
   icon?: React.ReactNode;
-  code?: React.ReactNode;
   description?: React.ReactNode;
   metricValue?: React.ReactNode;
   metricLabel?: React.ReactNode;
@@ -89,14 +87,6 @@ type StatusCardItem = {
     to: string;
     label: React.ReactNode;
   }>;
-};
-
-type SummaryItem = {
-  key: string;
-  label: React.ReactNode;
-  value: React.ReactNode;
-  description?: React.ReactNode;
-  tone?: ConsoleTone;
 };
 
 type IdentityConsoleOverviewProps = {
@@ -147,15 +137,6 @@ function getRequestOrganization(account: AdminAccount): string {
   return selectedOrganization === "All" ? "" : selectedOrganization;
 }
 
-function getUsageAttributionCompleteness(dashboardData: DashboardData | null, hasError: boolean): string {
-  if (hasError) {
-    return tGeneral("Identity overview status needs review", "待核对");
-  }
-
-  const userCount = getLatestCount(dashboardData?.userCounts);
-  return userCount === null ? "-" : "98%";
-}
-
 function buildProductDomainCards(dashboardData: DashboardData | null): StatusCardItem[] {
   const organizationCount = getLatestCount(dashboardData?.organizationCounts);
   const userCount = getLatestCount(dashboardData?.userCounts);
@@ -167,7 +148,6 @@ function buildProductDomainCards(dashboardData: DashboardData | null): StatusCar
       key: "app-spec",
       title: tGeneral("AICodex product app spec", "应用规格"),
       icon: <AppstoreOutlined />,
-      code: "aicodex-app-spec",
       description: tGeneral("AICodex product app spec description", "能力与元数据"),
       metricValue: applicationCount ?? "-",
       metricLabel: tGeneral("Application access declaration", "接入声明"),
@@ -177,7 +157,6 @@ function buildProductDomainCards(dashboardData: DashboardData | null): StatusCar
       key: "insight",
       title: tGeneral("AICodex product insight", "用量洞察"),
       icon: <ProfileOutlined />,
-      code: "aicodex-insight",
       description: tGeneral("AICodex product insight description", "组织与模型归因"),
       metricValue: userCount === null ? "-" : "98%",
       metricLabel: tGeneral("Usage attribution completeness", "用量归因完整度"),
@@ -187,17 +166,15 @@ function buildProductDomainCards(dashboardData: DashboardData | null): StatusCar
       key: "admin",
       title: tGeneral("AICodex product admin", "身份控制台"),
       icon: <TeamOutlined />,
-      code: "aicodex-admin",
       description: tGeneral("AICodex product admin description", "账号、来源、权限"),
-      metricValue: organizationCount ?? "-",
-      metricLabel: userCount === null ? tGeneral("Users need review", "用户待核对") : tGeneral("Users metric", `用户 ${userCount}`),
+      metricValue: userCount ?? "-",
+      metricLabel: organizationCount === null ? tGeneral("Organization domains need review", "组织域待核对") : tGeneral("Users and organization domains", `用户 / ${organizationCount} 个组织域`),
       actions: [{key: "providers", to: "/providers", label: tGeneral("View identity source", "查看身份源")}],
     },
     {
       key: "api",
       title: tGeneral("AICodex product api gateway", "API 网关"),
       icon: <DeploymentUnitOutlined />,
-      code: "aicodex-api",
       description: tGeneral("AICodex product api gateway description", "授权与审计事实"),
       metricValue: permissionCount ?? "-",
       metricLabel: tGeneral("Authorization mapping", "授权映射"),
@@ -247,44 +224,6 @@ function buildPendingReviewItems(hasError: boolean): PendingReviewItem[] {
       tone: "success",
       to: "/applications",
       action: tGeneral("View spec", "查看规格"),
-    },
-  ];
-}
-
-function buildSummaryItems(dashboardData: DashboardData | null, hasError: boolean): SummaryItem[] {
-  const organizationCount = getLatestCount(dashboardData?.organizationCounts);
-  const userCount = getLatestCount(dashboardData?.userCounts);
-  const applicationCount = getLatestCount(dashboardData?.applicationCounts);
-  const usageAttributionCompleteness = getUsageAttributionCompleteness(dashboardData, hasError);
-
-  return [
-    {
-      key: "account-coverage",
-      label: tGeneral("Account coverage", "组织账号覆盖"),
-      value: userCount ?? "-",
-      description: organizationCount === null ? tGeneral("Organization domains need review", "组织域待核对") : tGeneral("Users and organization domains", `用户 / ${organizationCount} 个组织域`),
-      tone: organizationCount === null ? "warning" : "success",
-    },
-    {
-      key: "application-access-coverage",
-      label: tGeneral("Application access coverage", "应用接入覆盖"),
-      value: applicationCount ?? "-",
-      description: tGeneral("AICodex four product domains", "应用规格、洞察、控制台、网关"),
-      tone: applicationCount === null || applicationCount === 0 ? "warning" : "success",
-    },
-    {
-      key: "usage-attribution-completeness",
-      label: tGeneral("Usage attribution completeness", "用量归因完整度"),
-      value: usageAttributionCompleteness,
-      description: tGeneral("Organization and user dimensions", "组织与人员维度"),
-      tone: hasError ? "error" : "processing",
-    },
-    {
-      key: "authorization-review",
-      label: tGeneral("Authorization review items", "授权核对事项"),
-      value: hasError ? tGeneral("Identity overview status needs review", "待核对") : "2",
-      description: tGeneral("Gateway mapping and audit evidence", "网关映射与审计证据"),
-      tone: hasError ? "warning" : "processing",
     },
   ];
 }
@@ -403,7 +342,6 @@ function IdentityConsoleOverview({account, history}: IdentityConsoleOverviewProp
 
   const productDomainCards = buildProductDomainCards(dashboardData);
   const pendingReviewItems = buildPendingReviewItems(!!errorMessage);
-  const summaryItems = buildSummaryItems(dashboardData, !!errorMessage);
   const healthItems = buildHealthItems(dashboardData);
   const auditEvidenceItems = buildAuditEvidenceItems(dashboardData);
   const pendingAttentionCount = pendingReviewItems.filter(item => item.tone === "warning").length;
@@ -413,8 +351,7 @@ function IdentityConsoleOverview({account, history}: IdentityConsoleOverviewProp
       className="identity-console-overview"
       eyebrow={(
         <span className="identity-console-overview-eyebrow-line">
-          <span>{tGeneral("Identity console overview breadcrumb", "身份控制台 / 身份总览")}</span>
-          <Tag className="identity-console-overview-coverage-tag">{tGeneral("Identity overview product coverage", "4 个产品域")}</Tag>
+          <span>{tGeneral("Identity console overview breadcrumb", "身份总览")}</span>
         </span>
       )}
       density="compact"
@@ -454,28 +391,20 @@ function IdentityConsoleOverview({account, history}: IdentityConsoleOverviewProp
         />
       )}
 
-      <EnterpriseIdentitySummaryStrip items={summaryItems} />
       <EnterpriseIdentityStatusGrid items={productDomainCards} minColumns={4} />
 
       <div className="identity-console-overview-workbench">
         <EnterpriseIdentitySection
           className="identity-console-review-section"
-          title={tGeneral("Pending review items", "待核对事项")}
-          description={tGeneral("Pending review items description", "按产品域核对下一步动作。")}
-          extra={(
-            <Space size={[6, 6]} wrap>
-              <Tag className="enterprise-identity-tone-processing">{tGeneral("All", "全部")}</Tag>
-              <Tag>{tGeneral("High impact", "高影响")}</Tag>
-              <Tag>{tGeneral("Already normal", "已正常")}</Tag>
-            </Space>
-          )}
+          title={tGeneral("Key identity items", "重点事项")}
+          description={tGeneral("Key identity items description", "查看各模块当前状态与下一步动作。")}
         >
           <div className="identity-console-review-table-wrap">
             <table className="identity-console-review-table">
               <thead>
                 <tr>
                   <th>{tGeneral("Item", "事项")}</th>
-                  <th>{tGeneral("Product domain", "产品域")}</th>
+                  <th>{tGeneral("Product domain", "关联模块")}</th>
                   <th>{tGeneral("Status", "状态")}</th>
                   <th>{tGeneral("Action", "操作")}</th>
                 </tr>
@@ -500,8 +429,8 @@ function IdentityConsoleOverview({account, history}: IdentityConsoleOverviewProp
         <div className="identity-console-overview-side">
           <EnterpriseIdentitySection
             className="identity-console-health-section"
-            title={tGeneral("Access health", "接入健康")}
-            description={tGeneral("Access health description", "关键对象、状态和动作直接可见。")}
+            title={tGeneral("Access health", "接入概况")}
+            description={tGeneral("Access health description", "认证来源、OAuth 应用和审计状态。")}
           >
             <div className="identity-console-health-list identity-console-health-list-compact">
               {healthItems.map(item => (
