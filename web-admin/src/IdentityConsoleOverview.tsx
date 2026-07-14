@@ -16,7 +16,6 @@ import {
   AppstoreOutlined,
   DeploymentUnitOutlined,
   ProfileOutlined,
-  SafetyCertificateOutlined,
   TeamOutlined
 } from "@ant-design/icons";
 import {Alert, Button, Space, Spin, Tag, Typography} from "antd";
@@ -31,6 +30,7 @@ import {
   EnterpriseIdentitySummaryStrip
 } from "./common/EnterpriseIdentityConsoleLayout";
 import * as Setting from "./Setting";
+import {getOrganizationSyncProviderLogoUrl} from "./organizationSync/OrganizationSyncTypes";
 import type {AdminAccount, AdminHistory, LegacyAny, LegacyBackendResponse} from "./types/legacyPage";
 
 const {Text} = Typography;
@@ -114,6 +114,19 @@ function tGeneral(key: string, defaultValue = key): string {
   const namespacedKey = `general:${key}`;
   const translated = i18next.t(namespacedKey, {defaultValue}) as string;
   return translated === namespacedKey || translated === key ? defaultValue : translated;
+}
+
+function getOrganizationSyncShortcutIcon(provider: Parameters<typeof getOrganizationSyncProviderLogoUrl>[0]): JSX.Element {
+  return (
+    <img
+      className="identity-console-overview-sync-provider-logo"
+      src={getOrganizationSyncProviderLogoUrl(provider)}
+      alt=""
+      aria-hidden="true"
+      width={16}
+      height={16}
+    />
+  );
 }
 
 function getLatestCount(values?: number[]): number | null {
@@ -407,9 +420,9 @@ function IdentityConsoleOverview({account, history}: IdentityConsoleOverviewProp
       density="compact"
       actions={(
         <Space wrap>
-          <Link to="/wecom-org-sync"><Button icon={<SafetyCertificateOutlined />}>{tGeneral("WeCom org sync action", "企业微信同步")}</Button></Link>
-          <Link to="/feishu-org-sync"><Button icon={<SafetyCertificateOutlined />}>{tGeneral("Feishu org sync action", "飞书同步")}</Button></Link>
-          <Link to="/dingtalk-org-sync"><Button icon={<SafetyCertificateOutlined />}>{tGeneral("DingTalk org sync action", "钉钉同步")}</Button></Link>
+          <Link to="/wecom-org-sync"><Button icon={getOrganizationSyncShortcutIcon("wecom")}>{tGeneral("WeCom org sync action", "企业微信同步")}</Button></Link>
+          <Link to="/feishu-org-sync"><Button icon={getOrganizationSyncShortcutIcon("feishu")}>{tGeneral("Feishu org sync action", "飞书同步")}</Button></Link>
+          <Link to="/dingtalk-org-sync"><Button icon={getOrganizationSyncShortcutIcon("dingtalk")}>{tGeneral("DingTalk org sync action", "钉钉同步")}</Button></Link>
           <Link to="/applications"><Button type="primary" icon={<AppstoreOutlined />}>{tGeneral("Application access action", "应用接入")}</Button></Link>
         </Space>
       )}

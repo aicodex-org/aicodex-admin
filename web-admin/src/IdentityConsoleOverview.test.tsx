@@ -5,6 +5,7 @@ import {render} from "@testing-library/react";
 import {expect as jestExpect} from "@jest/globals";
 import IdentityConsoleOverview from "./IdentityConsoleOverview";
 import * as DashboardBackend from "./backend/DashboardBackend";
+import {getOrganizationSyncProviderLogoUrl} from "./organizationSync/OrganizationSyncTypes";
 
 declare const jest: {
   mock: (moduleName: string) => void;
@@ -123,6 +124,33 @@ describe("IdentityConsoleOverview", () => {
     expect(screen.queryByText(/deep link/i)).not.toBeInTheDocument();
     expect(screen.queryByText("当前列表视图")).not.toBeInTheDocument();
     expect(screen.queryAllByText("系统标识")).toHaveLength(0);
+  });
+
+  test("renders provider-specific logos for organization sync shortcuts", async() => {
+    dashboardBackendMock.getDashboard.mockResolvedValue({
+      status: "ok",
+      data: {},
+    });
+
+    const view = render(
+      <MemoryRouter>
+        <IdentityConsoleOverview account={adminAccount} />
+      </MemoryRouter>
+    );
+
+    await screen.findAllByText("待核对事项");
+
+    const providerLogos = Array.from(view.container.querySelectorAll<HTMLImageElement>(".identity-console-overview-sync-provider-logo"));
+
+    expect(providerLogos).toHaveLength(3);
+    expect(providerLogos[0]).toHaveAttribute("src", getOrganizationSyncProviderLogoUrl("wecom"));
+    expect(providerLogos[1]).toHaveAttribute("src", getOrganizationSyncProviderLogoUrl("feishu"));
+    expect(providerLogos[2]).toHaveAttribute("src", getOrganizationSyncProviderLogoUrl("dingtalk"));
+    providerLogos.forEach(logo => {
+      expect(logo).toHaveAttribute("width", "16");
+      expect(logo).toHaveAttribute("height", "16");
+      expect(logo).toHaveAttribute("alt", "");
+    });
   });
 
   test("keeps the page header separate while treating summary and workbench as body content", async() => {
