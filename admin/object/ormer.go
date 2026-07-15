@@ -453,7 +453,7 @@ func (a *Ormer) createTable() {
 		panic(err)
 	}
 
-	err = syncAICodexOwnedSchema(a.Engine)
+	err = migrateAICodexOwnedSchema(a.Engine)
 	if err != nil {
 		panic(err)
 	}

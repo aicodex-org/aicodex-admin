@@ -14,10 +14,8 @@
 
 package object
 
-import "github.com/xorm-io/xorm"
-
 // aicodexOwnedSchemaModels 为 AICodex-owned bootstrap 边界返回全新的模型指针。
-// versioned migration 明确保留在本 change 范围外。
+// versioned migration、生产 bootstrap 与测试 fixture 均只从这里取得模型集合。
 func aicodexOwnedSchemaModels() []interface{} {
 	return []interface{}{
 		new(OrganizationSyncApiKey),
@@ -60,10 +58,4 @@ func aicodexOwnedSchemaModels() []interface{} {
 		new(DingTalkDepartmentLeader),
 		new(DingTalkUserDirectLeader),
 	}
-}
-
-// syncAICodexOwnedSchema 让生产 bootstrap 与测试 fixture 复用同一模型集合，
-// 同时继续沿用现有 Xorm Sync2 行为。
-func syncAICodexOwnedSchema(engine *xorm.Engine) error {
-	return engine.Sync2(aicodexOwnedSchemaModels()...)
 }

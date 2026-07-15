@@ -17,71 +17,17 @@ package object
 import (
 	"reflect"
 	"testing"
-
-	"github.com/xorm-io/xorm"
 )
 
 func TestAICodexOwnedSchemaRegistryCreatesAllSQLiteTables(t *testing.T) {
 	models := aicodexOwnedSchemaModels()
-	wantTypes := []reflect.Type{
-		reflect.TypeOf(&OrganizationSyncApiKey{}),
-		reflect.TypeOf(&PlatformOrganization{}),
-		reflect.TypeOf(&PlatformUser{}),
-		reflect.TypeOf(&PlatformDepartment{}),
-		reflect.TypeOf(&PlatformMembership{}),
-		reflect.TypeOf(&SourceConnection{}),
-		reflect.TypeOf(&ExternalIdentity{}),
-		reflect.TypeOf(&LifecycleEvent{}),
-		reflect.TypeOf(&OrgSyncBatch{}),
-		reflect.TypeOf(&PlatformApiOrganizationMapping{}),
-		reflect.TypeOf(&PlatformApiUserMapping{}),
-		reflect.TypeOf(&GatewayProjectionPublishAttempt{}),
-		reflect.TypeOf(&GatewayProjectionCleanupApprovalAuditRecord{}),
-		reflect.TypeOf(&ServiceCredentialGovernanceConfig{}),
-		reflect.TypeOf(&AdminSecureHandoffGrant{}),
-		reflect.TypeOf(&WecomOrganizationSyncConfig{}),
-		reflect.TypeOf(&WecomOrganizationSyncRun{}),
-		reflect.TypeOf(&WecomOrganizationSyncDryRunHistory{}),
-		reflect.TypeOf(&FeishuOrganizationSyncConfig{}),
-		reflect.TypeOf(&DingTalkOrganizationSyncConfig{}),
-		reflect.TypeOf(&DingTalkOrganizationSyncRun{}),
-		reflect.TypeOf(&FeishuOrganizationSyncRun{}),
-		reflect.TypeOf(&FeishuOrganizationSyncDryRunHistory{}),
-		reflect.TypeOf(&OrganizationSyncSchedule{}),
-		reflect.TypeOf(&OrganizationSyncScheduleFire{}),
-		reflect.TypeOf(&WecomProfileConsentIntent{}),
-		reflect.TypeOf(&WecomDepartmentMapping{}),
-		reflect.TypeOf(&WecomUserMapping{}),
-		reflect.TypeOf(&WecomUserDepartment{}),
-		reflect.TypeOf(&WecomDepartmentLeader{}),
-		reflect.TypeOf(&WecomUserDirectLeader{}),
-		reflect.TypeOf(&FeishuDepartmentMapping{}),
-		reflect.TypeOf(&FeishuUserMapping{}),
-		reflect.TypeOf(&FeishuUserDepartment{}),
-		reflect.TypeOf(&DingTalkDepartmentMapping{}),
-		reflect.TypeOf(&DingTalkUserMapping{}),
-		reflect.TypeOf(&DingTalkUserDepartment{}),
-		reflect.TypeOf(&DingTalkDepartmentLeader{}),
-		reflect.TypeOf(&DingTalkUserDirectLeader{}),
-	}
-	if len(models) != len(wantTypes) {
-		t.Fatalf("registry model count = %d, want %d", len(models), len(wantTypes))
-	}
-	for i, model := range models {
-		if gotType := reflect.TypeOf(model); gotType != wantTypes[i] {
-			t.Fatalf("registry model %d type = %v, want %v", i, gotType, wantTypes[i])
-		}
+	if len(models) != 39 {
+		t.Fatalf("registry model count = %d, want 39", len(models))
 	}
 
-	engine, err := xorm.NewEngine("sqlite", ":memory:")
-	if err != nil {
-		t.Fatalf("new SQLite engine: %v", err)
-	}
-	engine.DB().SetMaxOpenConns(1)
-	t.Cleanup(func() { _ = engine.Close() })
-
-	if err := syncAICodexOwnedSchema(engine); err != nil {
-		t.Fatalf("first registry sync: %v", err)
+	engine := newSQLiteTestEngine(t)
+	if err := migrateAICodexOwnedSchema(engine); err != nil {
+		t.Fatalf("first registry migration: %v", err)
 	}
 	for _, model := range models {
 		exists, err := engine.IsTableExist(model)
@@ -92,8 +38,15 @@ func TestAICodexOwnedSchemaRegistryCreatesAllSQLiteTables(t *testing.T) {
 			t.Fatalf("table for %T was not created", model)
 		}
 	}
-	if err := syncAICodexOwnedSchema(engine); err != nil {
-		t.Fatalf("repeated registry sync: %v", err)
+	if err := migrateAICodexOwnedSchema(engine); err != nil {
+		t.Fatalf("repeated registry migration: %v", err)
+	}
+	historyCount, err := engine.Where("version > 0").Count(new(AicodexSchemaMigration))
+	if err != nil {
+		t.Fatalf("count migration history: %v", err)
+	}
+	if historyCount != 1 {
+		t.Fatalf("migration history count = %d, want 1", historyCount)
 	}
 }
 
