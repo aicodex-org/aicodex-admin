@@ -12,7 +12,7 @@ interface WorkspaceTabsProps {
   activePath: string;
   isMobile: boolean;
   maxVisible?: number;
-  onNavigate: (path: string) => void;
+  onNavigate: (path: string, locationState?: unknown) => void;
   onClose: (path: string) => void;
   onCloseCurrent?: (path: string) => void;
   onCloseLeft?: (path: string) => void;
@@ -30,7 +30,7 @@ function getActiveTab(tabs: WorkspaceTabItem[], activePath: string) {
 function buildOverflowItems(
   tabs: WorkspaceTabItem[],
   activePath: string,
-  onNavigate: (path: string) => void,
+  onNavigate: (path: string, locationState?: unknown) => void,
   onClose: (path: string) => void,
   closePrefix: string
 ) {
@@ -56,12 +56,21 @@ function buildOverflowItems(
       </span>
     ),
     className: tab.path === activePath ? "admin-workspace-tabs-overflow-item-active" : undefined,
-    onClick: () => onNavigate(tab.path),
+    onClick: () => navigateWorkspaceTab(onNavigate, tab),
   }));
 }
 
 function tText(key: string) {
   return String(i18next.t(key));
+}
+
+function navigateWorkspaceTab(onNavigate: (path: string, locationState?: unknown) => void, tab: WorkspaceTabItem) {
+  if (tab.locationState === undefined) {
+    onNavigate(tab.path);
+    return;
+  }
+
+  onNavigate(tab.path, tab.locationState);
 }
 
 interface ScrollState {
@@ -203,7 +212,7 @@ function WorkspaceTabs(props: WorkspaceTabsProps) {
           className="admin-workspace-tab-label"
           aria-current={active ? "page" : undefined}
           title={tab.label}
-          onClick={() => props.onNavigate(tab.path)}
+          onClick={() => navigateWorkspaceTab(props.onNavigate, tab)}
         >
           {tab.fixed ? (
             <Tooltip title={tText("general:Fixed workspace tab")}>

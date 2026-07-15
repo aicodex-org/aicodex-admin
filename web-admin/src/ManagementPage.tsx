@@ -167,6 +167,10 @@ interface ManagementPageProps {
   account?: AdminAccount | null;
   application?: LegacyAny;
   uri?: string | null;
+  location?: {
+    state?: unknown;
+    [key: string]: LegacyAny;
+  };
   themeData: {
     colorPrimary?: string;
     [key: string]: LegacyAny;
@@ -438,6 +442,7 @@ function ManagementPage(props: ManagementPageProps) {
   const workspaceRoutes = buildWorkspaceRouteItems(navigationGroups);
   const workspaceRouteSignature = workspaceRoutes.map(route => `${route.path}:${route.label}`).join("|");
   const activeWorkspacePath = normalizeWorkspacePath(props.uri || window.location.pathname);
+  const activeWorkspaceLocationState = props.location?.state;
 
   useEffect(() => {
     if (navigationSelection.groupKey) {
@@ -454,7 +459,7 @@ function ManagementPage(props: ManagementPageProps) {
       const baseTabs = currentTabs.length > 0 ?
         currentTabs :
         readWorkspaceTabs(window.sessionStorage, activeWorkspacePath, workspaceRoutes);
-      const nextTabs = openWorkspaceTab(baseTabs, activeWorkspacePath, workspaceRoutes);
+      const nextTabs = openWorkspaceTab(baseTabs, activeWorkspacePath, workspaceRoutes, activeWorkspaceLocationState);
 
       if (areWorkspaceTabsEqual(currentTabs, nextTabs)) {
         return currentTabs;
@@ -463,7 +468,7 @@ function ManagementPage(props: ManagementPageProps) {
       saveWorkspaceTabs(window.sessionStorage, nextTabs);
       return nextTabs;
     });
-  }, [activeWorkspacePath, navigationSelection.itemKey, workspaceRouteSignature]);
+  }, [activeWorkspacePath, activeWorkspaceLocationState, navigationSelection.itemKey, workspaceRouteSignature]);
 
   useEffect(() => {
     const handleWorkspaceTabLabelUpdate = (event: Event) => {
@@ -706,9 +711,23 @@ function ManagementPage(props: ManagementPageProps) {
     </div>
   );
 
-  const navigateWorkspaceTab = (path: string) => {
-    if (path !== activeWorkspacePath) {
+  const getWorkspaceTabLocationState = (path: string, tabs = workspaceTabs) => {
+    const normalizedPath = normalizeWorkspacePath(path);
+    return tabs.find((tab: LegacyAny) => tab.path === normalizedPath)?.locationState;
+  };
+
+  const pushWorkspacePath = (path: string, locationState?: unknown) => {
+    if (locationState === undefined) {
       history.push(path);
+      return;
+    }
+
+    history.push({pathname: path, state: locationState});
+  };
+
+  const navigateWorkspaceTab = (path: string, locationState?: unknown) => {
+    if (path !== activeWorkspacePath) {
+      pushWorkspacePath(path, locationState ?? getWorkspaceTabLocationState(path));
     }
   };
 
@@ -724,7 +743,7 @@ function ManagementPage(props: ManagementPageProps) {
     setWorkspaceTabs(result.tabs);
     saveWorkspaceTabs(window.sessionStorage, result.tabs);
     if (result.nextPath !== activeWorkspacePath) {
-      history.push(result.nextPath);
+      pushWorkspacePath(result.nextPath, getWorkspaceTabLocationState(result.nextPath, result.tabs));
     }
   };
 

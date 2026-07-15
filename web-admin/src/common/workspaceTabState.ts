@@ -47,6 +47,7 @@ export interface WorkspaceTabItem {
   label: string;
   labelSource?: "route" | "detail";
   groupLabel?: string;
+  locationState?: unknown;
   fixed: boolean;
   closable: boolean;
 }
@@ -117,7 +118,7 @@ function getRouteInstanceLabel(route: WorkspaceRouteItem, normalizedPath: string
 }
 
 /** 统一去除 query/hash/trailing slash，让标签状态只跟 route path 绑定。 */
-export function normalizeWorkspacePath(path: string | undefined | null) {
+export function normalizeWorkspacePath(path: string | undefined | null): string {
   const rawPath = (path ?? "").trim();
   const withoutHash = rawPath.split("#")[0] ?? "";
   const withoutQuery = withoutHash.split("?")[0] ?? "";
@@ -127,7 +128,7 @@ export function normalizeWorkspacePath(path: string | undefined | null) {
   return normalized === "" ? "/" : normalized;
 }
 
-function routeMatchesPath(route: WorkspaceRouteItem, path: string) {
+function routeMatchesPath(route: WorkspaceRouteItem, path: string): boolean {
   if (typeof route.matcher === "function" && route.matcher(path)) {
     return true;
   }
@@ -146,7 +147,7 @@ function routeMatchesPath(route: WorkspaceRouteItem, path: string) {
 }
 
 /** 将现有企业认证中心导航分组转换为 workspace tabs 可消费的 route metadata。 */
-export function buildWorkspaceRouteItems(groups: WorkspaceNavigationGroup[]) {
+export function buildWorkspaceRouteItems(groups: WorkspaceNavigationGroup[]): WorkspaceRouteItem[] {
   const routes: WorkspaceRouteItem[] = groups.flatMap((group) => group.children
     .filter((item) => !item.external && item.to)
     .map((item) => {
@@ -183,7 +184,7 @@ export function buildWorkspaceRouteItems(groups: WorkspaceNavigationGroup[]) {
 }
 
 /** 按 matcher 和路径前缀查找当前 route 对应的导航标签。 */
-export function findWorkspaceRoute(path: string, routes: WorkspaceRouteItem[]) {
+export function findWorkspaceRoute(path: string, routes: WorkspaceRouteItem[]): WorkspaceRouteItem | undefined {
   const normalizedPath = normalizeWorkspacePath(path);
 
   return routes.find(route => routeMatchesPath(route, normalizedPath));
@@ -210,7 +211,7 @@ function resolveWorkspaceTab(path: string, routes: WorkspaceRouteItem[]): Worksp
   };
 }
 
-function uniquePaths(paths: string[]) {
+function uniquePaths(paths: string[]): string[] {
   const seen = new Set<string>();
   const normalizedPaths: string[] = [];
 
@@ -225,7 +226,7 @@ function uniquePaths(paths: string[]) {
   return normalizedPaths;
 }
 
-function ensureOverviewFirst(tabs: WorkspaceTabItem[], routes: WorkspaceRouteItem[]) {
+function ensureOverviewFirst(tabs: WorkspaceTabItem[], routes: WorkspaceRouteItem[]): WorkspaceTabItem[] {
   const paths = uniquePaths(["/", ...tabs.map(tab => tab.path)]);
   const tabsByPath = new Map(tabs.map(tab => [tab.path, tab]));
 
@@ -234,21 +235,31 @@ function ensureOverviewFirst(tabs: WorkspaceTabItem[], routes: WorkspaceRouteIte
       const routeTab = resolveWorkspaceTab(path, routes);
       const existingTab = tabsByPath.get(path);
 
-      if (routeTab === undefined || existingTab?.labelSource !== "detail") {
-        return routeTab;
+      if (routeTab === undefined) {
+        return undefined;
       }
 
-      return {
+      if (existingTab?.labelSource !== "detail") {
+        const nextTab: WorkspaceTabItem = {
+          ...routeTab,
+          locationState: existingTab?.locationState,
+        };
+        return nextTab;
+      }
+
+      const nextTab: WorkspaceTabItem = {
         ...routeTab,
         label: existingTab.label,
         labelSource: "detail" as const,
         groupLabel: existingTab.groupLabel ?? routeTab.groupLabel,
+        locationState: existingTab.locationState,
       };
+      return nextTab;
     })
     .filter((tab): tab is WorkspaceTabItem => tab !== undefined);
 }
 
-function getOverviewFallbackTab(tabs: WorkspaceTabItem[]) {
+function getOverviewFallbackTab(tabs: WorkspaceTabItem[]): WorkspaceTabItem {
   const overviewTab = tabs.find(tab => tab.path === "/");
 
   return {
@@ -262,11 +273,16 @@ function getOverviewFallbackTab(tabs: WorkspaceTabItem[]) {
   };
 }
 
-function ensureNonEmptyTabs(tabs: WorkspaceTabItem[], sourceTabs: WorkspaceTabItem[]) {
+function ensureNonEmptyTabs(tabs: WorkspaceTabItem[], sourceTabs: WorkspaceTabItem[]): WorkspaceTabItem[] {
   return tabs.length > 0 ? tabs : [getOverviewFallbackTab(sourceTabs)];
 }
 
-function resolveNextPathAfterBatchClose(nextTabs: WorkspaceTabItem[], activePath: string, preferredPath: string, sourceTabs: WorkspaceTabItem[]) {
+function resolveNextPathAfterBatchClose(
+  nextTabs: WorkspaceTabItem[],
+  activePath: string,
+  preferredPath: string,
+  sourceTabs: WorkspaceTabItem[]
+): CloseWorkspaceTabResult {
   const normalizedActivePath = normalizeWorkspacePath(activePath);
   const normalizedPreferredPath = normalizeWorkspacePath(preferredPath);
   const safeTabs = ensureNonEmptyTabs(nextTabs, sourceTabs);
@@ -292,20 +308,40 @@ function resolveNextPathAfterBatchClose(nextTabs: WorkspaceTabItem[], activePath
 }
 
 /** 打开当前 route 对应标签，同时保证总览 fallback 标签始终可用于空工作区恢复。 */
-export function openWorkspaceTab(currentTabs: WorkspaceTabItem[], path: string, routes: WorkspaceRouteItem[]) {
+export function openWorkspaceTab(
+  currentTabs: WorkspaceTabItem[],
+  path: string,
+  routes: WorkspaceRouteItem[],
+  locationState?: unknown
+): WorkspaceTabItem[] {
   const normalizedPath = normalizeWorkspacePath(path);
   const normalizedTabs = ensureOverviewFirst(currentTabs, routes);
   const targetTab = resolveWorkspaceTab(normalizedPath, routes);
 
-  if (targetTab === undefined || normalizedPath === "/" || normalizedTabs.some(tab => tab.path === normalizedPath)) {
+  if (targetTab === undefined || normalizedPath === "/") {
     return normalizedTabs;
   }
 
-  return ensureOverviewFirst([...normalizedTabs, targetTab], routes);
+  const existingIndex = normalizedTabs.findIndex(tab => tab.path === normalizedPath);
+  if (existingIndex !== -1) {
+    const existingTab = normalizedTabs[existingIndex];
+    if (existingTab === undefined || locationState === undefined || existingTab.locationState === locationState) {
+      return normalizedTabs;
+    }
+
+    return normalizedTabs.map((tab, index) => index === existingIndex ? {...tab, locationState} : tab);
+  }
+
+  const nextTab: WorkspaceTabItem = locationState === undefined ? targetTab : {...targetTab, locationState};
+  return ensureOverviewFirst([...normalizedTabs, nextTab], routes);
 }
 
 /** 从 sessionStorage payload 恢复标签顺序，异常或版本不匹配时安全降级。 */
-export function hydrateWorkspaceTabs(serializedTabs: string | null | undefined, currentPath: string, routes: WorkspaceRouteItem[]) {
+export function hydrateWorkspaceTabs(
+  serializedTabs: string | null | undefined,
+  currentPath: string,
+  routes: WorkspaceRouteItem[]
+): WorkspaceTabItem[] {
   try {
     const parsed = JSON.parse(serializedTabs ?? "") as Partial<StoredWorkspaceTabs>;
     if (parsed.version !== 1 || !Array.isArray(parsed.paths)) {
@@ -322,7 +358,7 @@ export function hydrateWorkspaceTabs(serializedTabs: string | null | undefined, 
 }
 
 /** 读取会话级标签状态；受限浏览器环境下回退到总览加当前页。 */
-export function readWorkspaceTabs(storage: Storage | undefined, currentPath: string, routes: WorkspaceRouteItem[]) {
+export function readWorkspaceTabs(storage: Storage | undefined, currentPath: string, routes: WorkspaceRouteItem[]): WorkspaceTabItem[] {
   try {
     return hydrateWorkspaceTabs(storage?.getItem(WORKSPACE_TABS_STORAGE_KEY), currentPath, routes);
   } catch {
@@ -345,7 +381,7 @@ export function saveWorkspaceTabs(storage: Storage | undefined, tabs: WorkspaceT
 }
 
 /** 只更新当前已打开标签的显示标题，不改变标签路径、顺序或路由解析规则。 */
-export function updateWorkspaceTabLabel(tabs: WorkspaceTabItem[], detail: WorkspaceTabLabelUpdateDetail) {
+export function updateWorkspaceTabLabel(tabs: WorkspaceTabItem[], detail: WorkspaceTabLabelUpdateDetail): WorkspaceTabItem[] {
   const normalizedPath = normalizeWorkspacePath(detail.path);
   const label = detail.label.trim();
 
@@ -468,7 +504,7 @@ export function getVisibleWorkspaceTabs(
 }
 
 /** 根据标签栏实际宽度估算可见标签容量，宽屏尽量不提前出现“更多”。 */
-export function calculateWorkspaceTabsCapacity(stripWidth: number, tabCount: number) {
+export function calculateWorkspaceTabsCapacity(stripWidth: number, tabCount: number): number {
   const normalizedTabCount = Math.max(1, tabCount);
   const usableWidth = Math.max(0, stripWidth);
   const fitWithoutOverflow = Math.floor((usableWidth + WORKSPACE_TAB_GAP) / (WORKSPACE_TAB_MIN_WIDTH + WORKSPACE_TAB_GAP));
@@ -483,7 +519,7 @@ export function calculateWorkspaceTabsCapacity(stripWidth: number, tabCount: num
 }
 
 /** 比较影响 shell 渲染的字段，避免 route effect 在标签未变化时重复 setState。 */
-export function areWorkspaceTabsEqual(left: WorkspaceTabItem[], right: WorkspaceTabItem[]) {
+export function areWorkspaceTabsEqual(left: WorkspaceTabItem[], right: WorkspaceTabItem[]): boolean {
   if (left.length !== right.length) {
     return false;
   }
@@ -496,6 +532,7 @@ export function areWorkspaceTabsEqual(left: WorkspaceTabItem[], right: Workspace
       leftTab.label === rightTab.label &&
       leftTab.labelSource === rightTab.labelSource &&
       leftTab.fixed === rightTab.fixed &&
-      leftTab.closable === rightTab.closable;
+      leftTab.closable === rightTab.closable &&
+      leftTab.locationState === rightTab.locationState;
   });
 }

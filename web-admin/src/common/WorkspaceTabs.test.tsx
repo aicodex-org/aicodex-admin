@@ -136,6 +136,40 @@ describe("WorkspaceTabs", () => {
     expect(onNavigate).toHaveBeenCalledWith("/");
   });
 
+  test("passes draft route state back when navigating a workspace tab", () => {
+    const onNavigate = jest.fn();
+    const draftState = {
+      mode: "add",
+      user: {
+        owner: "built-in",
+        name: "user_draft",
+      },
+    };
+    const view = render(
+      <WorkspaceTabs
+        tabs={[
+          ...tabs,
+          {
+            key: "/users/built-in/user_draft",
+            path: "/users/built-in/user_draft",
+            label: "编辑：user_draft",
+            fixed: false,
+            closable: true,
+            locationState: draftState,
+          },
+        ]}
+        activePath="/applications"
+        isMobile={false}
+        onNavigate={onNavigate}
+        onClose={jest.fn()}
+      />
+    );
+
+    fireEvent.click(view.getByText("编辑：user_draft"));
+
+    expect(onNavigate).toHaveBeenCalledWith("/users/built-in/user_draft", draftState);
+  });
+
   test("renders desktop context menu with close current left right other and all actions", () => {
     const onCloseCurrent = jest.fn();
     const onCloseLeft = jest.fn();

@@ -185,6 +185,34 @@ describe("workspaceTabState", () => {
     ]);
   });
 
+  test("keeps add-draft route state in memory while saving only route paths", () => {
+    const storage: Record<string, string> = {};
+    const draftUser = {
+      mode: "add",
+      user: {
+        owner: "built-in",
+        name: "user_draft",
+        displayName: "New User - draft",
+      },
+    };
+    const tabs = openWorkspaceTab([], "/users/built-in/user_draft", routes, draftUser);
+
+    expect(tabs.find(tab => tab.path === "/users/built-in/user_draft")?.locationState).toEqual(draftUser);
+
+    saveWorkspaceTabs({
+      getItem: (key: string) => storage[key] ?? null,
+      setItem: (key: string, value: string) => {
+        storage[key] = value;
+      },
+    } as Storage, tabs);
+
+    const storedPayload = JSON.parse(storage[WORKSPACE_TABS_STORAGE_KEY]);
+    expect(storedPayload.paths).toEqual(["/", "/users/built-in/user_draft"]);
+    expect(JSON.stringify(storedPayload)).not.toContain("New User - draft");
+    expect(hydrateWorkspaceTabs(storage[WORKSPACE_TABS_STORAGE_KEY], "/users", routes)
+      .find(tab => tab.path === "/users/built-in/user_draft")?.locationState).toBeUndefined();
+  });
+
   test("preserves detail labels when opening another workspace route", () => {
     const applicationRoutes = buildWorkspaceRouteItems([{
       label: "应用接入",
