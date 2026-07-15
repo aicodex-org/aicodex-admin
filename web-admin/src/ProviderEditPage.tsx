@@ -36,6 +36,7 @@ import {getWeComRequiredFields, validateWeComProviderFields} from "./provider/We
 import {renderLarkProviderGuide} from "./provider/LarkProviderGuide";
 import {validateLarkProviderFields} from "./provider/LarkProviderUtils";
 import LargeEditShell, {LargeEditFieldRow, LargeEditSection} from "./common/LargeEditShell";
+import {WORKSPACE_TAB_LABEL_UPDATE_EVENT} from "./common/workspaceTabState";
 // eslint-disable-next-line unused-imports/no-unused-imports
 import type {AccountConfig, CertConfig, ProviderConfig, ProviderFieldName, ProviderFieldValue} from "./provider/ProviderFieldTypes";
 
@@ -182,7 +183,7 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
           this.setState({
             provider: provider,
             dirty: false,
-          });
+          }, () => this.publishWorkspaceTabLabel(provider));
         } else {
           Setting.showMessage("error", res.msg);
         }
@@ -262,7 +263,37 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
     this.setState({
       provider: provider,
       dirty: true,
+    }, () => {
+      if (key === "displayName") {
+        this.publishWorkspaceTabLabel(provider);
+      }
     });
+  }
+
+  getCurrentWorkspaceTabPath(): string {
+    return `/providers/${this.props.match.params.organizationName}/${this.state.providerName}`;
+  }
+
+  getProviderWorkspaceTabLabel(provider: ProviderConfig): string {
+    const displayName = `${provider.displayName || provider.name || this.state.providerName}`.trim();
+    const editLabel = String(t("provider:Edit Provider"));
+    const separator = /[\u3400-\u9fff]/.test(editLabel) ? "：" : ": ";
+
+    return `${editLabel}${separator}${displayName}`;
+  }
+
+  // 提供商详情加载或显示名称变化后，只更新当前 workspace tab 的文字，不干预路由和标签顺序。
+  publishWorkspaceTabLabel(provider: ProviderConfig): void {
+    if (this.state.mode === "add" || typeof window === "undefined" || typeof window.dispatchEvent !== "function") {
+      return;
+    }
+
+    window.dispatchEvent(new CustomEvent(WORKSPACE_TAB_LABEL_UPDATE_EVENT, {
+      detail: {
+        path: this.getCurrentWorkspaceTabPath(),
+        label: this.getProviderWorkspaceTabLabel(provider),
+      },
+    }));
   }
 
   getWeComCallbackUrl(): string {

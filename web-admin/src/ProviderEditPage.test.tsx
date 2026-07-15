@@ -192,6 +192,36 @@ test("routes edit cancel and shell back to provider list", () => {
   expect(page.props.history.push).toHaveBeenNthCalledWith(2, "/providers");
 });
 
+test("publishes the provider display name for its workspace tab after loading and editing", async() => {
+  const dispatchSpy = jest.spyOn(window, "dispatchEvent");
+  const page = createPage();
+  page.state.owner = "admin";
+  page.state.providerName = "dingding";
+  page.props.match.params.organizationName = "admin";
+  jest.spyOn(ProviderBackend, "getProvider").mockResolvedValue({
+    status: "ok",
+    data: {...baseProvider, owner: "admin", name: "dingding", displayName: "钉钉-自建"},
+  } as any);
+
+  page.getProvider();
+  await flushPromises();
+
+  const loadedEvent = dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined;
+  expect(loadedEvent?.type).toBe("aicodex.admin.workspaceTabLabelUpdate");
+  expect(loadedEvent?.detail).toEqual({
+    path: "/providers/admin/dingding",
+    label: "Edit Provider: 钉钉-自建",
+  });
+
+  page.updateProviderField("displayName", "钉钉二号");
+
+  const updatedEvent = dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined;
+  expect(updatedEvent?.detail).toEqual({
+    path: "/providers/admin/dingding",
+    label: "Edit Provider: 钉钉二号",
+  });
+});
+
 ([
   {mode: "add" as const, actionLabel: "Cancel"},
   {mode: "edit" as const, actionLabel: "Back"},
