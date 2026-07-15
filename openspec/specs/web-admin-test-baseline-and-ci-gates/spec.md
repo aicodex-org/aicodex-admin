@@ -46,10 +46,11 @@ GitHub Actions SHALL 在 pull request 和受控 push 中显式执行 `yarn typec
 - **AND** build SHALL 生成 `web-admin/build` 供 artifact、release 与 Docker 流程消费
 
 ### Requirement: 测试基线修复保持生产行为兼容
-本 change SHALL 保持现有生产页面、路由、权限、后端请求契约和用户可见行为兼容，并 SHALL 不新增或升级运行时/测试依赖。
+测试工具链与基线 change SHALL 保持现有生产页面、路由、权限、后端请求契约和用户可见行为兼容。为使 Jest 脱离 React Scripts，change MAY 将当前实际使用的 Jest、Babel transform、jsdom、module mapper 与 watch plugin 固定为显式开发依赖并更新 `yarn.lock`，但 SHALL NOT 新增或升级 React、React Router、Testing Library、业务运行时依赖或 production build 工具链。
 
-#### Scenario: 验证 change 写集
-- **WHEN** review 本 change 最终 diff
-- **THEN** 实现写集 SHALL 限于 Jest 测试、测试脚本、CI workflow 和 OpenSpec artifacts
-- **AND** `yarn.lock` SHALL 保持不变
-- **AND** 生产组件 SHALL 无行为修改
+#### Scenario: 验证 Jest 解耦 change 写集
+- **WHEN** review Jest 解耦 change 的最终 diff
+- **THEN** 实现写集 SHALL 限于 Jest config/transform/mock、测试与测试 scripts、必要的测试开发依赖/lockfile、frontend Jest CI step 和 OpenSpec artifacts
+- **AND** `react-scripts` 及只为其服务的重复 package 配置 SHALL 被移除
+- **AND** 生产组件、Vite `start/build`、public scripts、Go tests、backend/integration/linter jobs SHALL 无行为修改
+- **AND** `yarn.lock` 变化 SHALL 只对应显式测试依赖、React Scripts 移除及其不再被其它 owner 使用的传递依赖

@@ -4,7 +4,31 @@ import fs from "fs";
 import path from "path";
 
 interface PackageJson {
+  dependencies: Record<string, string>;
+  devDependencies: Record<string, string>;
+  eslintConfig?: unknown;
   scripts: Record<string, string>;
+}
+
+interface JestConfig {
+  collectCoverageFrom?: string[];
+  coverageDirectory?: string;
+  coverageProvider?: string;
+  coverageReporters?: string[];
+  moduleFileExtensions?: string[];
+  moduleNameMapper?: Record<string, string>;
+  resetMocks?: boolean;
+  roots?: string[];
+  setupFiles?: string[];
+  setupFilesAfterEnv?: string[];
+  testEnvironment?: string;
+  testEnvironmentOptions?: {url?: string};
+  testMatch?: string[];
+  testPathIgnorePatterns?: string[];
+  testRunner?: string;
+  transform?: Record<string, string>;
+  transformIgnorePatterns?: string[];
+  watchPlugins?: string[];
 }
 
 const repoRoot = path.resolve(__dirname, "../..");
@@ -13,6 +37,7 @@ const packageJson = JSON.parse(
 ) as PackageJson;
 const workflow = fs.readFileSync(path.join(repoRoot, ".github/workflows/build.yml"), "utf8");
 const viteConfig = fs.readFileSync(path.join(repoRoot, "web-admin/vite.config.ts"), "utf8");
+const jestConfigPath = path.join(repoRoot, "web-admin/jest.config.cjs");
 
 const readJob = (jobName: string): string => {
   const lines = workflow.split(/\r?\n/);
@@ -28,9 +53,107 @@ const readJob = (jobName: string): string => {
 
 describe("web-admin CI gates", () => {
   test("provides a fixed non-watch single-process Jest entry for CI", () => {
-    expect(packageJson.scripts["test:ci"]).toBe(
-      "cross-env CI=true react-scripts test --watchAll=false --runInBand --silent"
+    expect(packageJson.scripts.test).toBe(
+      "cross-env BABEL_ENV=test NODE_ENV=test PUBLIC_URL= jest --watch"
     );
+    expect(packageJson.scripts["test:ci"]).toBe(
+      "cross-env BABEL_ENV=test NODE_ENV=test PUBLIC_URL= CI=true jest --watchAll=false --runInBand --silent"
+    );
+    expect(packageJson.scripts.test).not.toContain("react-scripts");
+    expect(packageJson.scripts["test:ci"]).not.toContain("react-scripts");
+    expect(packageJson.scripts["test:ci"]).not.toContain("--passWithNoTests");
+  });
+
+  test("owns the Jest transform, environment, discovery and coverage contract", () => {
+    expect(fs.existsSync(jestConfigPath)).toBe(true);
+    if (!fs.existsSync(jestConfigPath)) {
+      return;
+    }
+
+    const jestConfig = require(jestConfigPath) as JestConfig;
+
+    expect(jestConfig.roots).toEqual(["<rootDir>/src"]);
+    expect(jestConfig.testMatch).toEqual([
+      "<rootDir>/src/**/__tests__/**/*.{js,jsx,ts,tsx}",
+      "<rootDir>/src/**/*.{spec,test}.{js,jsx,ts,tsx}",
+    ]);
+    expect(jestConfig.testPathIgnorePatterns).toBeUndefined();
+    expect(jestConfig.testEnvironment).toBe("jest-environment-jsdom");
+    expect(jestConfig.testEnvironmentOptions).toEqual({url: "http://localhost"});
+    expect(jestConfig.setupFiles).toEqual(["react-app-polyfill/jsdom"]);
+    expect(jestConfig.setupFilesAfterEnv).toEqual(["<rootDir>/src/setupTests.ts"]);
+    expect(jestConfig.transform).toMatchObject({
+      "^.+\\.(js|jsx|mjs|cjs|ts|tsx)$": "<rootDir>/config/jest/babelTransform.cjs",
+    });
+    expect(jestConfig.transformIgnorePatterns).toEqual([
+      "[/\\\\]node_modules[/\\\\].+\\.(js|jsx|mjs|cjs|ts|tsx)$",
+      "^.+\\.module\\.(css|sass|scss|less)$",
+    ]);
+    expect(jestConfig.moduleNameMapper).toMatchObject({
+      "^react-native$": "react-native-web",
+      "^.+\\.module\\.(css|sass|scss|less)$": "identity-obj-proxy",
+      "^.+\\.(css|sass|scss|less)$": "<rootDir>/config/jest/styleMock.cjs",
+      "^.+\\.svg$": "<rootDir>/config/jest/svgMock.cjs",
+    });
+    expect(jestConfig.moduleFileExtensions).toEqual([
+      "web.js",
+      "js",
+      "web.ts",
+      "ts",
+      "web.tsx",
+      "tsx",
+      "json",
+      "web.jsx",
+      "jsx",
+      "node",
+    ]);
+    expect(jestConfig.resetMocks).toBe(true);
+    expect(jestConfig.testRunner).toBe("jest-circus/runner");
+    expect(jestConfig.collectCoverageFrom).toEqual([
+      "src/**/*.{js,jsx,ts,tsx}",
+      "!src/**/*.d.ts",
+    ]);
+    expect(jestConfig.coverageDirectory).toBe("coverage");
+    expect(jestConfig.coverageProvider).toBe("babel");
+    expect(jestConfig.coverageReporters).toEqual(["json", "text", "lcov", "clover"]);
+    expect(jestConfig.watchPlugins).toEqual([
+      "jest-watch-typeahead/filename",
+      "jest-watch-typeahead/testname",
+    ]);
+
+    const jestSupportDir = path.join(repoRoot, "web-admin/config/jest");
+    const supportFiles = [
+      "babelTransform.cjs",
+      "fileMock.cjs",
+      "styleMock.cjs",
+      "svgMock.cjs",
+    ];
+    supportFiles.forEach((file) => {
+      expect(fs.existsSync(path.join(jestSupportDir, file))).toBe(true);
+    });
+
+    expect(require(path.join(jestSupportDir, "styleMock.cjs"))).toEqual({});
+    expect(require(path.join(jestSupportDir, "fileMock.cjs"))).toBe("test-file-stub");
+    const svgMock = require(path.join(jestSupportDir, "svgMock.cjs")) as {
+      default?: string;
+      ReactComponent?: unknown;
+    };
+    expect(svgMock.default).toBe("test-file-stub.svg");
+    expect(svgMock.ReactComponent).toBeDefined();
+  });
+
+  test("declares the standalone Jest dependencies and removes CRA ownership", () => {
+    expect(packageJson.dependencies["react-scripts"]).toBeUndefined();
+    expect(packageJson.devDependencies).toMatchObject({
+      "@jest/globals": "27.5.1",
+      "babel-jest": "27.5.1",
+      "babel-preset-react-app": "10.0.1",
+      "identity-obj-proxy": "3.0.0",
+      "jest": "27.5.1",
+      "jest-environment-jsdom": "27.5.1",
+      "jest-watch-typeahead": "1.1.0",
+    });
+    expect(packageJson.eslintConfig).toBeUndefined();
   });
 
   test("runs frontend checks independently from Go tests", () => {
