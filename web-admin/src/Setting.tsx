@@ -29,6 +29,10 @@ import moment from "moment";
 import {MfaAuthVerifyForm, NextMfa, RequiredMfa} from "./auth/mfa/MfaAuthVerifyForm";
 import {EmailMfaType, SmsMfaType, TotpMfaType} from "./auth/MfaSetupPage";
 import {getLarkProviderBrand, isLarkProvider} from "./provider/LarkProviderUtils";
+import * as countries from "i18n-iso-countries";
+import {getCountryLocale} from "./config/countryLocales";
+import {normalizeSupportedLanguage} from "./config/supportedLocales";
+import {resolvePublicAssetUrl, runtimeEnv} from "./config/runtimeEnv";
 
 type LegacyAny = any;
 
@@ -115,7 +119,7 @@ export function getPreferredBrandAsset(url, fallback) {
     return fallback;
   }
 
-  return url;
+  return resolvePublicAssetUrl(runtimeEnv.publicBaseUrl, url);
 }
 
 export const OtherProviderInfo = {
@@ -667,8 +671,7 @@ export function getPermissionColumns() {
 }
 
 export function initCountries() {
-  const countries = require("i18n-iso-countries");
-  countries.registerLocale(require("i18n-iso-countries/langs/" + getLanguage() + ".json"));
+  countries.registerLocale(getCountryLocale(getLanguage()));
   return countries;
 }
 
@@ -685,7 +688,7 @@ export function getCountryCodeData(countryCodes = phoneNumber.getCountries()) {
   }
   return countryCodes?.map((countryCode) => {
     if (phoneNumber.isSupportedCountry(countryCode)) {
-      const name = initCountries().getName(countryCode, getLanguage());
+      const name = initCountries().getName(countryCode, normalizeSupportedLanguage(getLanguage()));
       return {
         code: countryCode,
         name: name || "",
@@ -1632,7 +1635,10 @@ export function renderHelmet(application) {
 
   // Application's title and favicon have higher priority than organization's values
   const title = application.title || application.organizationObj.displayName;
-  const favicon = application.favicon || application.organizationObj.favicon;
+  const favicon = getPreferredBrandAsset(
+    application.favicon || application.organizationObj.favicon,
+    Conf.BrandFavicon
+  );
 
   return (
     <Helmet>

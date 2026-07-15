@@ -12,6 +12,7 @@ const packageJson = JSON.parse(
   fs.readFileSync(path.join(repoRoot, "web-admin/package.json"), "utf8")
 ) as PackageJson;
 const workflow = fs.readFileSync(path.join(repoRoot, ".github/workflows/build.yml"), "utf8");
+const viteConfig = fs.readFileSync(path.join(repoRoot, "web-admin/vite.config.ts"), "utf8");
 
 const readJob = (jobName: string): string => {
   const lines = workflow.split(/\r?\n/);
@@ -28,7 +29,7 @@ const readJob = (jobName: string): string => {
 describe("web-admin CI gates", () => {
   test("provides a fixed non-watch single-process Jest entry for CI", () => {
     expect(packageJson.scripts["test:ci"]).toBe(
-      "cross-env CI=true craco test --watchAll=false --runInBand --silent"
+      "cross-env CI=true react-scripts test --watchAll=false --runInBand --silent"
     );
   });
 
@@ -60,12 +61,22 @@ describe("web-admin CI gates", () => {
     expect(frontendChecks).toContain("node scripts/check-incremental-typescript-gate.mjs --base \"$BASE_SHA\"");
   });
 
-  test("runs typecheck and Jest before allowing the frontend build", () => {
+  test("runs explicit Vite-era static, public script and Jest gates before the frontend build", () => {
     const frontendChecks = readJob("frontend-checks");
     const frontend = readJob("frontend");
 
     expect(frontendChecks).toContain("yarn typecheck");
+    expect(frontendChecks).toContain("yarn typecheck:build-tooling");
+    expect(frontendChecks).toContain("yarn public-scripts:check");
+    expect(frontendChecks).toContain("yarn public-scripts:build");
+    expect(frontendChecks).toContain("yarn public-scripts:smoke");
+    expect(frontendChecks).toContain("yarn lint");
     expect(frontendChecks).toContain("yarn test:ci");
     expect(frontend).toContain("needs: [go-tests, frontend-checks]");
+    expect(frontend).toContain("yarn run build");
+  });
+
+  test("resolves the browser Buffer package instead of Vite's Node builtin shim", () => {
+    expect(viteConfig).toContain("buffer: \"buffer/\"");
   });
 });

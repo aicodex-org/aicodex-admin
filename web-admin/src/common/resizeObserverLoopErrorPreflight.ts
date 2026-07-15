@@ -28,7 +28,7 @@ function handleResizeObserverErrorEvent(event: Event): boolean {
   return true;
 }
 
-// 在 CRA runtime overlay 注册前包装 error listener，只提前吞掉 ResizeObserver loop 噪声。
+// 在应用与第三方 error listener 注册前完成包装，只提前吞掉 ResizeObserver loop 噪声。
 export function installResizeObserverLoopErrorPreflight(targetWindow: Window & typeof globalThis = window): void {
   const globalState = targetWindow as unknown as Record<string, unknown>;
   if (globalState[installFlag] === true) {

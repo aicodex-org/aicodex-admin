@@ -379,7 +379,10 @@ function Test-OwnedFrontendProcess {
 
   $normalizedCommand = $process.CommandLine.ToLowerInvariant()
   $normalizedWebDir = $WebDir.ToLowerInvariant()
-  return $normalizedCommand.Contains($normalizedWebDir) -and $normalizedCommand.Contains('craco') -and $normalizedCommand.Contains('start')
+  $isViteCommand = $normalizedCommand.Contains('vite.cmd') `
+    -or $normalizedCommand.Contains(' exec vite') `
+    -or $normalizedCommand.Contains(' vite ')
+  return $normalizedCommand.Contains($normalizedWebDir) -and $isViteCommand
 }
 
 function Stop-FrontendRemote {
@@ -399,7 +402,7 @@ function Stop-FrontendRemote {
 
   foreach ($ownerId in Get-PortOwnerProcessIds -Ports @($Port)) {
     # 端口可能被其它项目或手工启动的 dev server 占用；只有 PID 文件已管理，
-    # 或命令行能证明它属于当前 workspace 的 web-admin Craco 进程时才清理。
+    # 或命令行能证明它属于当前 workspace 的 web-admin Vite 进程时才清理。
     if ($managedPidIsCurrent -or (Test-OwnedFrontendProcess -ProcessId $ownerId)) {
       $processIds.Add($ownerId)
     } else {
@@ -563,23 +566,23 @@ function Test-BackendHealth {
 }
 
 function Resolve-FrontendStartCommand {
-  # 不调用 "yarn start"：直接调用 Craco 才能让脚本默认端口和 -Port 参数生效。
-  $localCraco = Join-Path $WebDir 'node_modules\.bin\craco.cmd'
-  if (Test-Path -LiteralPath $localCraco) {
-    return ('"{0}" start' -f $localCraco)
+  # 直接调用 Vite CLI，让脚本通过 PORT 覆盖 package 默认端口，同时保留 workspace 进程归属信号。
+  $localVite = Join-Path $WebDir 'node_modules\.bin\vite.cmd'
+  if (Test-Path -LiteralPath $localVite) {
+    return ('"{0}"' -f $localVite)
   }
 
   $yarn = Get-Command 'yarn.cmd' -ErrorAction SilentlyContinue
   if ($null -ne $yarn) {
-    return ('"{0}" craco start' -f $yarn.Source)
+    return ('"{0}" vite' -f $yarn.Source)
   }
 
   $npm = Get-Command 'npm.cmd' -ErrorAction SilentlyContinue
   if ($null -ne $npm) {
-    return ('"{0}" exec craco -- start' -f $npm.Source)
+    return ('"{0}" exec vite --' -f $npm.Source)
   }
 
-  throw 'Neither local craco.cmd, yarn.cmd nor npm.cmd was found. Install web-admin dependencies before starting the frontend.'
+  throw 'Neither local vite.cmd, yarn.cmd nor npm.cmd was found. Install web-admin dependencies before starting the frontend.'
 }
 
 function Start-ManagedCommand {

@@ -43,6 +43,7 @@ import {CountryCodeSelect} from "../common/select/CountryCodeSelect";
 import {getSigninLanguageOverride} from "./LoginLanguage";
 import {getSigninMethodChoiceItems} from "./SigninMethodChoice";
 import {getLoginPanelClassName, shouldHidePasswordRecoveryForLoginMethod} from "./LoginPageVisibility";
+import {getRuntimePathname, runtimeEnv} from "../config/runtimeEnv";
 // eslint-disable-next-line unused-imports/no-unused-imports
 import type {LegacyAny, LegacyRecord} from "./AuthCoreTypes";
 const FaceRecognitionCommonModal = lazy(() => import("../common/modal/FaceRecognitionCommonModal"));
@@ -720,12 +721,13 @@ export class LoginPage extends React.Component<LegacyAny, LegacyAny> {
     }
 
     const application = this.getApplicationObj();
-    if (window.location.pathname.startsWith("/login/saml/authorize")) {
+    const pathname = getRuntimePathname(window.location.pathname, runtimeEnv.routerBasename);
+    if (pathname.startsWith("/login/saml/authorize")) {
       Setting.goToLink(`/login/saml/authorize/${name}/${application.name}-org-${name}?${searchParams.toString()}`);
       return;
     }
 
-    if (window.location.pathname.startsWith("/cas")) {
+    if (pathname.startsWith("/cas")) {
       Setting.goToLink(`/cas/${application.name}-org-${name}/${name}/login?${searchParams.toString()}`);
       return;
     }

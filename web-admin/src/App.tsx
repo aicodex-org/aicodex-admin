@@ -39,6 +39,7 @@ import {setTwoToneColor} from "@ant-design/icons";
 import * as ApplicationBackend from "./backend/ApplicationBackend";
 import * as Cookie from "cookie";
 import type {LegacyAny} from "./types/legacyPage";
+import {getRuntimePathname, runtimeEnv} from "./config/runtimeEnv";
 
 // Ant Design locale imports
 import enUS from "antd/locale/en_US";
@@ -182,7 +183,7 @@ class App extends Component<AppProps, AppState> {
 
   componentDidUpdate(prevProps: AppProps, prevState: AppState, snapshot: LegacyAny) {
     this.syncAdminShellBodyThemeClass();
-    const uri = location.pathname;
+    const uri = getRuntimePathname(location.pathname, runtimeEnv.routerBasename);
     if (this.state.uri !== uri) {
       this.updateMenuKey();
     }
@@ -370,7 +371,7 @@ class App extends Component<AppProps, AppState> {
   }
 
   updateMenuKey() {
-    const uri = location.pathname;
+    const uri = getRuntimePathname(location.pathname, runtimeEnv.routerBasename);
     this.setState({
       uri: uri,
     });
@@ -638,23 +639,25 @@ class App extends Component<AppProps, AppState> {
   }
 
   isDoorPages() {
+    const pathname = getRuntimePathname(window.location.pathname, runtimeEnv.routerBasename);
     return this.isEntryPages() ||
-      window.location.pathname.startsWith("/callback") ||
-      window.location.pathname.startsWith("/telegram-login");
+      pathname.startsWith("/callback") ||
+      pathname.startsWith("/telegram-login");
   }
 
   isEntryPages() {
-    return window.location.pathname.startsWith("/signup") ||
-      window.location.pathname.startsWith("/login") ||
-      window.location.pathname.startsWith("/forget") ||
-      window.location.pathname.startsWith("/prompt") ||
-      window.location.pathname.startsWith("/result") ||
-      window.location.pathname.startsWith("/cas") ||
-      window.location.pathname.startsWith("/select-plan") ||
-      window.location.pathname.startsWith("/buy-plan") ||
-      window.location.pathname.startsWith("/qrcode") ||
-      window.location.pathname.startsWith("/consent") ||
-      window.location.pathname.startsWith("/captcha");
+    const pathname = getRuntimePathname(window.location.pathname, runtimeEnv.routerBasename);
+    return pathname.startsWith("/signup") ||
+      pathname.startsWith("/login") ||
+      pathname.startsWith("/forget") ||
+      pathname.startsWith("/prompt") ||
+      pathname.startsWith("/result") ||
+      pathname.startsWith("/cas") ||
+      pathname.startsWith("/select-plan") ||
+      pathname.startsWith("/buy-plan") ||
+      pathname.startsWith("/qrcode") ||
+      pathname.startsWith("/consent") ||
+      pathname.startsWith("/captcha");
   }
 
   onClick = ({key}: {key: string}) => {

@@ -28,7 +28,7 @@ import type {LegacyAny, LegacyRecord} from "./AuthCoreTypes";
 
 const reactFallbackKey = "__casdoor_callback_react";
 const reactFallbackPayloadKey = "casdoor_callback_react_fallback";
-const t = i18next.t as (key: string) => string;
+const t = (key: string): string => i18next.t(key);
 
 class AuthCallback extends React.Component<LegacyAny, LegacyAny> {
   constructor(props: LegacyAny) {

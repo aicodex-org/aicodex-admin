@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import * as Cookie from "cookie";
+import {getPublicAssetUrl} from "./config/runtimeEnv";
 
 type WebConfig = {
   showGithubCorner?: boolean;
@@ -36,11 +37,11 @@ export let DefaultLanguage = "zh";
 export const BrandName = "aicodex-admin";
 export const AdminCenterName = "认证中心";
 export const BrandUrl = "/";
-export const BrandIcon = `${process.env.PUBLIC_URL || ""}/branding/icon-only-transparent.svg`;
-export const BrandLogo = `${process.env.PUBLIC_URL || ""}/branding/icon-only-transparent.svg`;
-export const LoginBrandLogo = `${process.env.PUBLIC_URL || ""}/branding/login-icon-transparent.svg`;
-export const BrandFavicon = `${process.env.PUBLIC_URL || ""}/branding/favicon-32-transparent.png`;
-export const BrandTouchIcon = `${process.env.PUBLIC_URL || ""}/branding/app-icon-512-transparent.png`;
+export const BrandIcon = getPublicAssetUrl("branding/icon-only-transparent.svg");
+export const BrandLogo = getPublicAssetUrl("branding/icon-only-transparent.svg");
+export const LoginBrandLogo = getPublicAssetUrl("branding/login-icon-transparent.svg");
+export const BrandFavicon = getPublicAssetUrl("branding/favicon-32-transparent.png");
+export const BrandTouchIcon = getPublicAssetUrl("branding/app-icon-512-transparent.png");
 
 export let StaticBaseUrl = "https://cdn.casbin.org";
 

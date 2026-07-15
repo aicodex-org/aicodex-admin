@@ -1,7 +1,7 @@
 ---
 name: AICodex Admin
 product: 身份控制台
-framework: React 18 + Ant Design + CRACO
+framework: React 18 + Ant Design + Vite
 colors:
   primary: "var(--ant-color-primary)"
   success: "var(--ant-color-success)"
@@ -28,7 +28,7 @@ spacing:
 
 ## 来源与定位
 
-本文档采用 `voltagent/awesome-design-md` 的工作法，但规则来自 AICodex Admin 当前仓库：React 18 + Ant Design + CRACO、身份控制台路线、既有后台壳层和本次身份总览试点。
+本文档采用 `voltagent/awesome-design-md` 的工作法，但规则来自 AICodex Admin 当前仓库：React 18 + Ant Design + Vite、身份控制台路线、既有后台壳层和本次身份总览试点。
 
 它补充视觉和交互判断，不替代 `web-admin/AGENTS.md` 的工程约束，也不是任务日志。只有稳定、可复用、能指导后续 Admin UI 的规则才写入这里。
 

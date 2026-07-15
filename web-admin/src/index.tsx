@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import "./common/resizeObserverLoopErrorPreflight";
 import "core-js/es";
 import "react-app-polyfill/ie9";
 import "react-app-polyfill/stable";
@@ -24,6 +25,7 @@ import * as serviceWorker from "./serviceWorker";
 import {BrowserRouter} from "react-router-dom";
 import "./backend/FetchFilter";
 import {installResizeObserverLoopErrorGuard} from "./common/resizeObserverLoopErrorGuard";
+import {runtimeEnv} from "./config/runtimeEnv";
 import type {LegacyAny} from "./types/legacyPage";
 
 installResizeObserverLoopErrorGuard();
@@ -41,7 +43,7 @@ if (container === null) {
 
 const app = createRoot(container);
 
-app.render(<BrowserRouter>
+app.render(<BrowserRouter basename={runtimeEnv.routerBasename}>
   <App />
 </BrowserRouter>);
 

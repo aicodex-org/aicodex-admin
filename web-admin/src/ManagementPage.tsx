@@ -105,6 +105,7 @@ import OrganizationSelect from "./common/select/OrganizationSelect";
 import AccountAvatar from "./account/AccountAvatar";
 import * as AuthBackend from "./auth/AuthBackend";
 import {clearWeb3AuthToken} from "./auth/Web3Auth";
+import {runtimeEnv} from "./config/runtimeEnv";
 import TransactionListPage from "./TransactionListPage";
 import TransactionEditPage from "./TransactionEditPage";
 import VerificationListPage from "./VerificationListPage";
@@ -519,7 +520,7 @@ function ManagementPage(props: ManagementPageProps) {
 
     return (
       <Switch>
-        {process.env.NODE_ENV === "development" ? (
+        {runtimeEnv.isDevelopment ? (
           <Route exact path="/__preview/user-edit-tabs" render={(props: LegacyAny) => <UserEditVisualReviewPage {...props} />} />
         ) : null}
         <Route exact path="/" render={(props: LegacyAny) => renderLoginIfNotLoggedIn(<IdentityConsoleOverview account={account} {...props} />)} />

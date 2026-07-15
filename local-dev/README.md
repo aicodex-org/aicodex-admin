@@ -84,7 +84,8 @@ Copy-Item .\local-dev\runtime.toml.example .\local-dev\runtime.toml
 - 前端源码目录：`web-admin/`
 - 前端启动命令：优先 `yarn start`，未安装 Yarn 时回退 `npm run start`
 - 前端本机端口：`7002`
-- 远端后台预览脚本：`start-frontend-remote-backend.ps1` 直接调用 `web-admin/node_modules/.bin/craco.cmd start`，通过 `PORT` 与 `AICODEX_ADMIN_DEV_PROXY_TARGET` 控制端口和代理目标，避免 `package.json` 中 `yarn start` 固定 `PORT=7002`。
+- 前端 Node.js 版本：`^20.19.0 || >=22.12.0`，与 Vite 8 的最低运行要求一致。
+- 远端后台预览脚本：`start-frontend-remote-backend.ps1` 直接调用 `web-admin/node_modules/.bin/vite.cmd`，通过 `PORT` 与 `AICODEX_ADMIN_DEV_PROXY_TARGET` 控制端口和代理目标，并保留 workspace 进程归属校验。
 - 远端后台预览 PID 与日志按端口隔离，例如 `local-dev/run/frontend-remote-7002.pid`、`local-dev/logs/frontend-remote-7002.log`。
 - 非跟随模式的脚本动作会打印 `Run started` 和 `Run completed`，包含 `started_at`、`completed_at` 与 `duration`，用于确认最近一次启动或重启时间。
 

@@ -4,12 +4,13 @@
 定义 `web-admin` TypeScript 稳态规则：`src/` 业务源码不再新增 `.js` / `.jsx`，新增 React、共享逻辑、接口模型和测试默认使用 `.tsx` / `.ts` / `.test.tsx` / `.test.ts`；保留的 public raw scripts、CRACO/Node 构建入口等 runtime JS 通过生成链路、`@ts-check` 或专用 typecheck 管控。后续前端 change 以增量 TypeScript gate 和 `yarn typecheck` 防回退，Jest、build、coverage 和浏览器验证按风险选择。
 ## Requirements
 ### Requirement: TypeScript 稳态工具链
-`web-admin` SHALL 支持 React 18 项目内业务源码以 `.ts` / `.tsx` 为默认实现形态，并保留必要 runtime JS 入口的受控验证边界。
+`web-admin` SHALL 支持 React 18 项目内业务源码以 `.ts` / `.tsx` 为默认实现形态，并 SHALL 使用 typed Vite 配置构建应用，同时保留必要 runtime JS 与 Jest/React Scripts 的受控验证边界。
 
 #### Scenario: JS 和 TSX 共存构建
-- **WHEN** 开发者在 `web-admin/src` 下新增或修改 `.ts` / `.tsx` 业务源码，同时仓库保留 public raw scripts、CRACO/Node 构建入口或历史兼容 JS 入口
-- **THEN** `yarn build` SHALL 能通过 CRACO/React Scripts 构建该混合源码树
-- **AND** 本 change 不要求把 served public JS 或构建工具 runtime JS 改造成 TypeScript runtime
+- **WHEN** 开发者在 `web-admin/src` 下新增或修改 `.ts` / `.tsx` 业务源码，同时仓库保留 public raw scripts、Node 构建入口或历史兼容 JS 入口
+- **THEN** `yarn build` SHALL 能通过 Vite 构建该混合源码树
+- **AND** `yarn typecheck:build-tooling` SHALL 检查 typed Vite config 与直接相关构建 helper
+- **AND** 本 change 不要求把 served public JS 改造成 TypeScript runtime
 
 #### Scenario: TypeScript 配置不检查历史 JS
 - **WHEN** 开发者运行 TypeScript 静态检查
@@ -31,7 +32,7 @@ Admin 前端后续新增 React 组件 SHALL 默认使用 `.tsx`；新增共享�
 - **WHEN** Admin 前端新增 React 组件、共享逻辑、接口模型或类型定义
 - **THEN** React 组件 SHOULD 默认使用 `.tsx`
 - **AND** 共享逻辑、接口模型和类型定义 SHOULD 默认使用 `.ts`
-- **AND** 保留的 public raw scripts、CRACO/Node 构建入口等 runtime JS SHALL 通过现有生成链路、`@ts-check` 或专用 typecheck 管控，而不是为了零 JS 数字改造运行入口
+- **AND** 保留的 public raw scripts、Node 构建入口等 runtime JS SHALL 通过现有生成链路、`@ts-check` 或专用 typecheck 管控，而不是为了零 JS 数字改造运行入口
 
 ### Requirement: TypeScript 稳态调度边界
 Admin 前端 SHALL treat archived page/component migration requirements in this specification as historical delivery records once `web-admin/src` has no remaining `.js` / `.jsx` business source.

@@ -17,6 +17,7 @@ import * as Conf from "./Conf";
 import {initReactI18next} from "react-i18next";
 import en from "./locales/en/data.json";
 import type {LegacyAny} from "./types/legacyPage";
+import {loadAppLocaleNamespace} from "./config/supportedLocales";
 
 // Load backend-provided frontend config before language detection runs.
 Conf.initConfigFromCookie();
@@ -66,11 +67,7 @@ function initLanguage() {
   return language;
 }
 
-i18n.use(resourcesToBackend(async(language: string, namespace: string) => {
-  const res = await import(`./locales/${language}/data.json`);
-  return res.default[namespace];
-}
-) as LegacyAny)
+i18n.use(resourcesToBackend(loadAppLocaleNamespace) as LegacyAny)
   .use(initReactI18next)
   .init({
     lng: initLanguage(),

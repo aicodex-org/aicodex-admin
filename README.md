@@ -40,6 +40,8 @@ go run ./main.go
 
 ### Frontend
 
+前端开发与生产构建使用 Vite 8，需要 Node.js `^20.19.0 || >=22.12.0`；Jest 暂时继续由 React Scripts 提供。
+
 ```bash
 cd web-admin
 yarn

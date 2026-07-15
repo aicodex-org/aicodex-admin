@@ -16,7 +16,7 @@ function createResizeObserverErrorEvent(): Event {
 }
 
 describe("resizeObserverLoopErrorPreflight", () => {
-  test("wraps early error listeners before CRA runtime overlay sees ResizeObserver noise", () => {
+  test("wraps early error listeners before runtime observers see ResizeObserver noise", () => {
     const targetWindow = new EventTarget() as Window & typeof globalThis;
     const overlayHandler = jest.fn();
 

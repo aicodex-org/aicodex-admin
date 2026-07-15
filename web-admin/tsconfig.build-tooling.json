@@ -1,14 +1,13 @@
 {
   "compilerOptions": {
-    "allowJs": true,
-    "checkJs": true,
-    "module": "commonjs",
-    "moduleResolution": "node",
+    "allowJs": false,
+    "module": "esnext",
+    "moduleResolution": "bundler",
     "noEmit": true,
     "strict": true,
-    "target": "es2020",
+    "target": "es2022",
     "types": ["node"],
     "skipLibCheck": true
   },
-  "include": ["build-tooling.d.ts", "craco.config.js", "mv.js"]
+  "include": ["vite.config.ts", "src/vite-env.d.ts", "src/config/runtimeEnv.ts"]
 }
