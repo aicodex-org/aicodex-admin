@@ -486,6 +486,50 @@ describe("OrganizationEditPage", () => {
     });
   });
 
+  test("reloads organization state when switching between organization edit tabs", async() => {
+    organizationBackendMock.getOrganization.mockImplementation((_owner: unknown, organizationName: unknown) => Promise.resolve({
+      status: "ok",
+      data: {
+        ...baseOrganization,
+        name: organizationName,
+        displayName: organizationName === "dingding6091" ? "钉钉-自建" : "飞书-自建",
+      },
+    }));
+    applicationBackendMock.getApplicationsByOrganization.mockResolvedValue({status: "ok", data: []});
+    ldapBackendMock.getLdaps.mockResolvedValue({status: "ok", data: []});
+    transactionBackendMock.getTransactions.mockResolvedValue({status: "ok", data: []});
+    const history = {push: jest.fn()};
+    const onChangeTheme = jest.fn();
+    const {findByDisplayValue, rerender} = render(
+      <OrganizationEditPage
+        account={{...adminAccount, organization: {name: "feishu6091"}}}
+        onChangeTheme={onChangeTheme}
+        history={history}
+        location={{}}
+        match={{params: {organizationName: "feishu6091"}}}
+      />
+    );
+
+    expect(await findByDisplayValue("飞书-自建")).not.toBeNull();
+
+    rerender(
+      <OrganizationEditPage
+        account={{...adminAccount, organization: {name: "dingding6091"}}}
+        onChangeTheme={onChangeTheme}
+        history={history}
+        location={{}}
+        match={{params: {organizationName: "dingding6091"}}}
+      />
+    );
+    await flushPromises();
+
+    expect(await findByDisplayValue("钉钉-自建")).not.toBeNull();
+    expect(organizationBackendMock.getOrganization).toHaveBeenCalledWith("admin", "dingding6091");
+    expect(applicationBackendMock.getApplicationsByOrganization).toHaveBeenCalledWith("admin", "dingding6091");
+    expect(ldapBackendMock.getLdaps).toHaveBeenCalledWith("dingding6091");
+    expect(transactionBackendMock.getTransactions).toHaveBeenCalledWith("dingding6091");
+  });
+
   test("scopes organization edit layout so long password labels can be styled locally", async() => {
     const {view} = renderPage();
 

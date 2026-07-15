@@ -546,6 +546,30 @@ test("loads user data, transactions, organizations, applications and groups", as
   expect(page.state.groups).toEqual([{owner: "engineering", name: "group-a", displayName: "Group A", type: "Physical"}]);
 });
 
+test("publishes the user display name for its workspace tab after loading", async() => {
+  const dispatchSpy = jestValue.spyOn(window, "dispatchEvent");
+  userBackendMock.getUser.mockResolvedValueOnce({
+    status: "ok",
+    data: {...baseUser, name: "feishu-user-9d79gbdc", displayName: "黄凡力"},
+  });
+  const page = createPage({match: {params: {organizationName: "feishu6091", userName: "feishu-user-9d79gbdc"}}} as Partial<PageProps>);
+  page.state = {
+    ...page.state,
+    organizationName: "feishu6091",
+    userName: "feishu-user-9d79gbdc",
+  };
+
+  page.getUser();
+  await flushPromises();
+
+  const loadedEvent = dispatchSpy.mock.calls.at(-1)?.[0] as CustomEvent | undefined;
+  expect(loadedEvent?.type).toBe("aicodex.admin.workspaceTabLabelUpdate");
+  expect(loadedEvent?.detail).toEqual({
+    path: "/users/feishu6091/feishu-user-9d79gbdc",
+    label: "编辑用户：黄凡力",
+  });
+});
+
 test("loads the draft organization for a new user and preserves rejected draft identity", async() => {
   const draftUser = {...baseUser, owner: "engineering", name: "custom-draft"};
   const page = createPage({location: {search: "", state: {mode: "add", user: draftUser}}} as Partial<PageProps>);

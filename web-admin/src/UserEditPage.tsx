@@ -54,6 +54,7 @@ import * as TransactionBackend from "./backend/TransactionBackend";
 import WeComProfileSyncPanel from "./account/WeComProfileSyncPanel";
 import ConsentTable from "./table/ConsentTable";
 import LargeEditShell from "./common/LargeEditShell";
+import {WORKSPACE_TAB_LABEL_UPDATE_EVENT} from "./common/workspaceTabState";
 
 const {Option} = Select;
 
@@ -384,6 +385,7 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
           loading: false,
           dirty: false,
         }, () => {
+          this.publishWorkspaceTabLabel(user);
           this.normalizeSignupApplication();
           this.resolvePendingUserApplicationError();
         });
@@ -870,7 +872,37 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
     this.setState({
       user: user,
       dirty: options.dirty === false ? this.state.dirty : true,
+    }, () => {
+      if (key === "displayName") {
+        this.publishWorkspaceTabLabel(user);
+      }
     });
+  }
+
+  getCurrentWorkspaceTabPath(): string {
+    return `/users/${this.state.organizationName}/${this.state.userName}`;
+  }
+
+  getUserWorkspaceTabLabel(user: UserRecord): string {
+    const displayName = `${user.displayName || user.name || this.state.userName}`.trim();
+    const editLabel = i18next.t("user:Edit User");
+    const separator = /[\u3400-\u9fff]/.test(editLabel) ? "：" : ": ";
+
+    return `${editLabel}${separator}${displayName}`;
+  }
+
+  // 用户详情数据加载或显示名称变化后，只更新当前 workspace tab 文案，不改变路由和标签顺序。
+  publishWorkspaceTabLabel(user: UserRecord): void {
+    if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") {
+      return;
+    }
+
+    window.dispatchEvent(new CustomEvent(WORKSPACE_TAB_LABEL_UPDATE_EVENT, {
+      detail: {
+        path: this.getCurrentWorkspaceTabPath(),
+        label: this.getUserWorkspaceTabLabel(user),
+      },
+    }));
   }
 
   getCanonicalGroupId(groupId: string, owner = this.state.user.owner): string {

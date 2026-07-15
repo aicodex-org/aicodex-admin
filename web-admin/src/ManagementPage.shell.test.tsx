@@ -13,11 +13,16 @@ import * as Setting from "./Setting";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
 import {readLessWithImports} from "./testUtils/less";
+import type {LegacyAny} from "./types/legacyPage";
 
 const mockMenuProps: Array<Record<string, unknown>> = [];
 const mockWorkspaceTabsProps: Array<{
   tabs?: Array<{path: string; label: string}>;
 }> = [];
+const mockOrganizationEditLifecycle = {
+  mounts: 0,
+  unmounts: 0,
+};
 
 jest.mock("antd", () => {
   const React = require("react");
@@ -39,7 +44,20 @@ jest.mock("./DingTalkOrganizationSyncPage", () => () => <main data-testid="dingt
 jest.mock("./SystemInfo", () => () => <main data-testid="system-info-page" />);
 jest.mock("./ServerStorePage", () => () => <main data-testid="server-store-page" />);
 jest.mock("./OrganizationTreeOperationsPage", () => () => <main data-testid="organization-tree-operations-page" />);
-jest.mock("./OrganizationEditPage", () => () => <main data-testid="organization-edit-page" />);
+jest.mock("./OrganizationEditPage", () => {
+  const React = require("react");
+
+  return function OrganizationEditPageMock() {
+    React.useEffect(() => {
+      mockOrganizationEditLifecycle.mounts += 1;
+      return () => {
+        mockOrganizationEditLifecycle.unmounts += 1;
+      };
+    }, []);
+
+    return <main data-testid="organization-edit-page" />;
+  };
+});
 jest.mock("./GroupEditPage", () => () => <main data-testid="group-edit-page" />);
 jest.mock("./RoleEditPage", () => () => <main data-testid="role-edit-page" />);
 jest.mock("./PermissionEditPage", () => () => <main data-testid="permission-edit-page" />);
@@ -83,6 +101,12 @@ const {fireEvent} = require("@testing-library/react") as {
   fireEvent: {
     click: (element: Element) => void;
   };
+};
+const {createMemoryHistory} = require("history") as {
+  createMemoryHistory: (options: LegacyAny) => LegacyAny;
+};
+const {Router} = require("react-router-dom") as {
+  Router: React.ComponentType<LegacyAny>;
 };
 
 const account = {
@@ -174,6 +198,8 @@ describe("ManagementPage admin shell sidebar", () => {
     localStorage.clear();
     mockMenuProps.length = 0;
     mockWorkspaceTabsProps.length = 0;
+    mockOrganizationEditLifecycle.mounts = 0;
+    mockOrganizationEditLifecycle.unmounts = 0;
     jest.restoreAllMocks();
     await useTestLanguage("zh");
   });
@@ -300,6 +326,67 @@ describe("ManagementPage admin shell sidebar", () => {
       expect(routeScroll.contains(view.getByTestId("workspace-tabs"))).toBe(false);
       view.unmount();
     }
+  });
+
+  test("remounts route content when switching between two records of the same edit route", () => {
+    const history = createMemoryHistory({initialEntries: ["/organizations/feishu6091"]});
+    window.history.pushState({}, "", "/organizations/feishu6091");
+    jest.spyOn(Setting, "isMobile").mockReturnValue(false);
+    const view = render(
+      <Router history={history}>
+        <ManagementPage
+          account={account}
+          application={undefined}
+          uri="/organizations/feishu6091"
+          themeData={{colorPrimary: "#1677ff"}}
+          themeAlgorithm={["default"]}
+          selectedMenuKey="/"
+          requiredEnableMfa={false}
+          menuVisible={false}
+          logo="/logo.png"
+          onChangeTheme={jest.fn()}
+          onClick={jest.fn()}
+          onUpdateAccount={jest.fn()}
+          onfinish={jest.fn()}
+          openAiAssistant={jest.fn()}
+          setLogoAndThemeAlgorithm={jest.fn()}
+          setLogoutState={jest.fn()}
+        />
+      </Router>
+    );
+
+    expect(view.getByTestId("organization-edit-page")).not.toBeNull();
+    expect(mockOrganizationEditLifecycle.mounts).toBe(1);
+    expect(mockOrganizationEditLifecycle.unmounts).toBe(0);
+
+    history.push("/organizations/dingding6091");
+    window.history.pushState({}, "", "/organizations/dingding6091");
+    view.rerender(
+      <Router history={history}>
+        <ManagementPage
+          account={account}
+          application={undefined}
+          uri="/organizations/dingding6091"
+          themeData={{colorPrimary: "#1677ff"}}
+          themeAlgorithm={["default"]}
+          selectedMenuKey="/"
+          requiredEnableMfa={false}
+          menuVisible={false}
+          logo="/logo.png"
+          onChangeTheme={jest.fn()}
+          onClick={jest.fn()}
+          onUpdateAccount={jest.fn()}
+          onfinish={jest.fn()}
+          openAiAssistant={jest.fn()}
+          setLogoAndThemeAlgorithm={jest.fn()}
+          setLogoutState={jest.fn()}
+        />
+      </Router>
+    );
+
+    expect(view.getByTestId("organization-edit-page")).not.toBeNull();
+    expect(mockOrganizationEditLifecycle.mounts).toBe(2);
+    expect(mockOrganizationEditLifecycle.unmounts).toBe(1);
   });
 
   test("keeps organization sync configuration pages in the cardless internal scroll container", () => {

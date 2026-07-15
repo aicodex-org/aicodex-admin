@@ -231,6 +231,44 @@ describe("workspaceTabState", () => {
     expect(navigatedTabs.find(tab => tab.path === "/applications/engineering/portal")?.label).toBe("编辑应用：AICodex Portal");
   });
 
+  test("persists detail labels without storing draft route state", () => {
+    const storage: Record<string, string> = {};
+    const applicationRoutes = buildWorkspaceRouteItems([{
+      label: "应用接入",
+      children: [
+        {key: "/applications", label: "接入中心", detailLabel: "编辑应用", detailPathDepth: 3, to: "/applications", matchPrefixes: ["/applications"]},
+        {key: "/providers", label: "身份源中心", to: "/providers", matchPrefixes: ["/providers"]},
+      ],
+    }]);
+    const openedTabs = openWorkspaceTab([], "/applications/engineering/application_draft_one", applicationRoutes, {
+      mode: "add",
+      application: {displayName: "Unsaved Draft"},
+    });
+    const detailTabs = updateWorkspaceTabLabel(openedTabs, {
+      path: "/applications/engineering/application_draft_one",
+      label: "编辑应用：AICodex Portal",
+    });
+
+    saveWorkspaceTabs({
+      getItem: (key: string) => storage[key] ?? null,
+      setItem: (key: string, value: string) => {
+        storage[key] = value;
+      },
+    } as Storage, detailTabs);
+
+    const storedPayload = JSON.parse(storage[WORKSPACE_TABS_STORAGE_KEY]);
+    expect(storedPayload.paths).toEqual(["/", "/applications/engineering/application_draft_one"]);
+    expect(storedPayload.details["/applications/engineering/application_draft_one"].label).toBe("编辑应用：AICodex Portal");
+    expect(JSON.stringify(storedPayload)).not.toContain("Unsaved Draft");
+
+    const restoredTabs = hydrateWorkspaceTabs(storage[WORKSPACE_TABS_STORAGE_KEY], "/providers", applicationRoutes);
+    expect(restoredTabs.find(tab => tab.path === "/applications/engineering/application_draft_one")).toMatchObject({
+      label: "编辑应用：AICodex Portal",
+      labelSource: "detail",
+      locationState: undefined,
+    });
+  });
+
   test("reads and saves session storage with restricted-storage fallback", () => {
     const stored: Record<string, string> = {};
     const storage = {

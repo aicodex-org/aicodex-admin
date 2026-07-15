@@ -74,6 +74,10 @@ export interface CloseWorkspaceTabResult {
 interface StoredWorkspaceTabs {
   version: 1;
   paths: string[];
+  details?: Record<string, {
+    label: string;
+    groupLabel?: string;
+  }>;
 }
 
 function toLabelText(label: ReactNode, fallback: string) {
@@ -349,7 +353,24 @@ export function hydrateWorkspaceTabs(
     }
 
     const restoredTabs = parsed.paths
-      .map(path => resolveWorkspaceTab(path, routes))
+      .map((path) => {
+        const tab = resolveWorkspaceTab(path, routes);
+        if (tab === undefined) {
+          return undefined;
+        }
+
+        const detail = parsed.details?.[tab.path];
+        if (detail?.label === undefined || detail.label.trim() === "") {
+          return tab;
+        }
+
+        return {
+          ...tab,
+          label: detail.label.trim(),
+          labelSource: "detail" as const,
+          groupLabel: detail.groupLabel ?? tab.groupLabel,
+        };
+      })
       .filter((tab): tab is WorkspaceTabItem => tab !== undefined);
     return openWorkspaceTab(restoredTabs, currentPath, routes);
   } catch {
@@ -369,9 +390,23 @@ export function readWorkspaceTabs(storage: Storage | undefined, currentPath: str
 /** 保存会话级标签顺序，不保存业务页面内部状态。 */
 export function saveWorkspaceTabs(storage: Storage | undefined, tabs: WorkspaceTabItem[]) {
   try {
+    const details = tabs.reduce<StoredWorkspaceTabs["details"]>((result, tab) => {
+      if (tab.labelSource !== "detail") {
+        return result;
+      }
+
+      return {
+        ...result,
+        [tab.path]: {
+          label: tab.label,
+          groupLabel: tab.groupLabel,
+        },
+      };
+    }, {});
     const payload: StoredWorkspaceTabs = {
       version: 1,
       paths: tabs.map(tab => tab.path),
+      details: Object.keys(details ?? {}).length === 0 ? undefined : details,
     };
 
     storage?.setItem(WORKSPACE_TABS_STORAGE_KEY, JSON.stringify(payload));

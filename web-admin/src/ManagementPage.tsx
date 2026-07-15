@@ -524,7 +524,8 @@ function ManagementPage(props: ManagementPageProps) {
     );
 
     return (
-      <Switch>
+      // 同一路由模式切换不同对象时强制重挂页面，避免编辑页复用旧 state 导致标签和表单串对象。
+      <Switch key={activeWorkspacePath}>
         {runtimeEnv.isDevelopment ? (
           <Route exact path="/__preview/user-edit-tabs" render={(props: LegacyAny) => <UserEditVisualReviewPage {...props} />} />
         ) : null}

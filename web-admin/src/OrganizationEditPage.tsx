@@ -240,9 +240,53 @@ class OrganizationEditPage extends React.Component<OrganizationEditPageProps, Or
     this.getOrganizationTransactions();
   }
 
+  componentDidUpdate(prevProps: Readonly<OrganizationEditPageProps>): void {
+    const previousOrganizationName = prevProps.match.params.organizationName;
+    const nextOrganizationName = this.props.match.params.organizationName;
+    if (previousOrganizationName === nextOrganizationName) {
+      return;
+    }
+
+    this.resetOrganizationRouteState();
+  }
+
+  resetOrganizationRouteState(): void {
+    const draftOrganization = this.props.location.state?.organization;
+    const requestedMode = this.props.location.state?.mode ?? this.props.location.mode ?? "edit";
+    const mode = requestedMode === "add" && draftOrganization === undefined ? "edit" : requestedMode;
+    const organizationName = draftOrganization?.name ?? this.props.match.params.organizationName;
+
+    this.setState({
+      classes: this.props,
+      organizationName,
+      organization: draftOrganization ?? null as unknown as OrganizationRecord,
+      applications: [],
+      ldaps: null,
+      mode,
+      transactions: [],
+      activeTabKey: this.getInitialTabKey(),
+      isDirty: false,
+      validationErrors: {},
+      submitting: false,
+      assetPreviewErrors: {},
+    }, () => {
+      if (this.state.mode !== "add") {
+        this.getOrganization();
+      }
+      this.getApplications();
+      this.getLdaps();
+      this.getOrganizationTransactions();
+    });
+  }
+
   getOrganization(): void {
-    OrganizationBackend.getOrganization("admin", this.state.organizationName)
+    const organizationName = this.state.organizationName;
+    OrganizationBackend.getOrganization("admin", organizationName)
       .then((res: BackendResponse<OrganizationRecord>) => {
+        if (this.state.organizationName !== organizationName) {
+          return;
+        }
+
         if (res.status === "ok") {
           const organization = res.data;
           if (organization === null || organization === undefined) {
@@ -264,8 +308,13 @@ class OrganizationEditPage extends React.Component<OrganizationEditPageProps, Or
   }
 
   getApplications(): void {
-    ApplicationBackend.getApplicationsByOrganization("admin", this.state.organizationName)
+    const organizationName = this.state.organizationName;
+    ApplicationBackend.getApplicationsByOrganization("admin", organizationName)
       .then((res: BackendResponse<ApplicationRecord[]>) => {
+        if (this.state.organizationName !== organizationName) {
+          return;
+        }
+
         if (res.status === "error") {
           Setting.showMessage("error", res.msg);
           return;
@@ -278,8 +327,13 @@ class OrganizationEditPage extends React.Component<OrganizationEditPageProps, Or
   }
 
   getLdaps(): void {
-    LdapBackend.getLdaps(this.state.organizationName)
+    const organizationName = this.state.organizationName;
+    LdapBackend.getLdaps(organizationName)
       .then((res: BackendResponse<LdapRecord[]>) => {
+        if (this.state.organizationName !== organizationName) {
+          return;
+        }
+
         let resdata: LdapRecord[] = [];
         if (res.status === "ok") {
           if (res.data !== null) {
@@ -293,8 +347,13 @@ class OrganizationEditPage extends React.Component<OrganizationEditPageProps, Or
   }
 
   getOrganizationTransactions(): void {
-    TransactionBackend.getTransactions(this.state.organizationName)
+    const organizationName = this.state.organizationName;
+    TransactionBackend.getTransactions(organizationName)
       .then((res: BackendResponse<TransactionRecord[]>) => {
+        if (this.state.organizationName !== organizationName) {
+          return;
+        }
+
         if (res.status === "ok") {
           this.setState({
             transactions: res.data ?? [],
@@ -304,6 +363,10 @@ class OrganizationEditPage extends React.Component<OrganizationEditPageProps, Or
         }
       })
       .catch((error: unknown) => {
+        if (this.state.organizationName !== organizationName) {
+          return;
+        }
+
         Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
       });
   }
