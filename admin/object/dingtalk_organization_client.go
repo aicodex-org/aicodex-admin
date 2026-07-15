@@ -108,7 +108,7 @@ func NewDingTalkAddressBookClient(appKey string, appSecret string) *DingTalkAddr
 		AppKey:     appKey,
 		AppSecret:  appSecret,
 		BaseUrl:    DefaultDingTalkApiBaseUrl,
-		HttpClient: http.DefaultClient,
+		HttpClient: newDefaultOrganizationHTTPClient(),
 	}
 }
 
@@ -338,7 +338,7 @@ func (c *DingTalkAddressBookClient) do(ctx context.Context, method string, path 
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 	resp, err := c.httpClient().Do(req)
 	if err != nil {
-		return nil, &DingTalkApiError{Operation: operation, ErrCode: -1, ErrMsg: "request failed", Cause: err}
+		return nil, &DingTalkApiError{Operation: operation, ErrCode: -1, ErrMsg: "request failed", Cause: safeOrganizationHTTPErrorCause(err)}
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
@@ -369,10 +369,7 @@ func (c *DingTalkAddressBookClient) buildUrl(path string, query map[string]strin
 }
 
 func (c *DingTalkAddressBookClient) httpClient() *http.Client {
-	if c.HttpClient != nil {
-		return c.HttpClient
-	}
-	return http.DefaultClient
+	return organizationHTTPClient(c.HttpClient)
 }
 
 func newDingTalkUserSnapshotFromRaw(operation string, raw map[string]json.RawMessage) (*DingTalkUserSnapshot, error) {

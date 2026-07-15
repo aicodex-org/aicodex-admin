@@ -150,7 +150,7 @@ func NewWecomAddressBookClient(corpId string, addressBookSecret string) *WecomAd
 		CorpId:            corpId,
 		AddressBookSecret: addressBookSecret,
 		BaseUrl:           DefaultWecomApiBaseUrl,
-		HttpClient:        http.DefaultClient,
+		HttpClient:        newDefaultOrganizationHTTPClient(),
 	}
 }
 
@@ -720,10 +720,7 @@ func (c *WecomAddressBookClient) buildUrl(path string, query map[string]string) 
 }
 
 func (c *WecomAddressBookClient) httpClient() *http.Client {
-	if c.HttpClient != nil {
-		return c.HttpClient
-	}
-	return http.DefaultClient
+	return organizationHTTPClient(c.HttpClient)
 }
 
 func decodeWecomResponse(reader io.Reader, target any) error {

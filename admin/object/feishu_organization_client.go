@@ -62,8 +62,14 @@ func (e *FeishuApiError) Error() string {
 	return text
 }
 
+// NewFeishuAddressBookClient 创建带有界默认 timeout 的飞书通讯录 client。
 func NewFeishuAddressBookClient(appId string, appSecret string, endpointMode string) *FeishuAddressBookClient {
-	return &FeishuAddressBookClient{AppId: appId, AppSecret: appSecret, EndpointMode: normalizeFeishuEndpointMode(endpointMode)}
+	return &FeishuAddressBookClient{
+		AppId:        appId,
+		AppSecret:    appSecret,
+		EndpointMode: normalizeFeishuEndpointMode(endpointMode),
+		HttpClient:   newDefaultOrganizationHTTPClient(),
+	}
 }
 
 func (c *FeishuAddressBookClient) GetAccessToken(ctx context.Context) (*FeishuAccessToken, error) {
@@ -290,7 +296,7 @@ func (c *FeishuAddressBookClient) do(ctx context.Context, method string, path st
 	}
 	resp, err := c.httpClient().Do(req)
 	if err != nil {
-		return nil, &FeishuApiError{Operation: operation, Code: -1, Msg: "request failed", Cause: err}
+		return nil, &FeishuApiError{Operation: operation, Code: -1, Msg: "request failed", Cause: safeOrganizationHTTPErrorCause(err)}
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
@@ -325,10 +331,7 @@ func (c *FeishuAddressBookClient) buildUrl(path string, query map[string]string)
 }
 
 func (c *FeishuAddressBookClient) httpClient() *http.Client {
-	if c.HttpClient != nil {
-		return c.HttpClient
-	}
-	return http.DefaultClient
+	return organizationHTTPClient(c.HttpClient)
 }
 
 func newFeishuUserSnapshotFromRaw(operation string, raw map[string]json.RawMessage) (*FeishuUserSnapshot, error) {

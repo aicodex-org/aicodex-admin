@@ -15,6 +15,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestDingTalkAddressBookClientGetAccessToken(t *testing.T) {
@@ -276,8 +277,9 @@ func TestDingTalkAddressBookClientUsesDefaultsAndPropagatesRequestErrors(t *test
 		BaseUrl:    ":// bad-url",
 		HttpClient: nil,
 	}
-	if client.httpClient() != http.DefaultClient {
-		t.Fatalf("httpClient() should fall back to http.DefaultClient")
+	fallback := client.httpClient()
+	if fallback == nil || fallback == http.DefaultClient || fallback.Timeout != 30*time.Second {
+		t.Fatalf("httpClient() fallback = %#v, want dedicated client with 30s timeout", fallback)
 	}
 	if _, err := client.buildUrl("/gettoken", map[string]string{"appkey": "ding-app"}); err == nil {
 		t.Fatalf("buildUrl(invalid base) error = nil, want parse error")
