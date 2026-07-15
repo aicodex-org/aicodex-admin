@@ -586,7 +586,6 @@
     "Loading audit operations state": "正在加载审计运维状态",
     "Failed Status Review": "失败状态核对",
     "HTTP 4xx or 5xx records are visible in the current audit view": "当前操作日志视图存在 HTTP 4xx 或 5xx 记录",
-    "Review audit records": "复核操作日志",
     "View audit records": "查看操作日志",
     "Token Visibility Review": "令牌可见性核对",
     "Token rows are visible in the current view; inspect expiry and ownership without exposing token values": "当前视图存在令牌记录；请结合到期时间和归属复核，不展示令牌原值",

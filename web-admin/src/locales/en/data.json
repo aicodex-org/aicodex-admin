@@ -586,7 +586,6 @@
     "Loading audit operations state": "Loading audit operations state",
     "Failed Status Review": "Failed Status Review",
     "HTTP 4xx or 5xx records are visible in the current audit view": "HTTP 4xx or 5xx entries are visible in the current operation log view",
-    "Review audit records": "Review operation logs",
     "View audit records": "View operation logs",
     "Token Visibility Review": "Token Visibility Review",
     "Token rows are visible in the current view; inspect expiry and ownership without exposing token values": "Token rows are visible in the current view; inspect expiry and ownership without exposing token values",
