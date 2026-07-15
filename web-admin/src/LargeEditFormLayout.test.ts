@@ -251,7 +251,7 @@ describe("large edit page form layout", () => {
   });
 
   test("keeps Application provider tab full-width content out of field row layout", () => {
-    const source = readSrc("ApplicationEditPage.tsx");
+    const source = readSrc("ApplicationEditForm.tsx");
     const appLess = readAppLess();
 
     expect(source).toContain("admin-large-edit-full-width-row application-edit-full-width-row");
@@ -260,7 +260,7 @@ describe("large edit page form layout", () => {
   });
 
   test("keeps shared tab content primitives available to Application edit", () => {
-    const source = readSrc("ApplicationEditPage.tsx");
+    const source = `${readSrc("ApplicationEditPage.tsx")}\n${readSrc("ApplicationEditForm.tsx")}`;
     const appLess = readAppLess();
 
     expect(source).toContain("admin-large-edit-content-section-title application-edit-section-title");

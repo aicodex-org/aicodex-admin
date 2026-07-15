@@ -8,8 +8,19 @@ import "./i18n";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
 
+let ApplicationEditPage: any;
+
+const {fireEvent} = require("@testing-library/react") as {fireEvent: {
+  click: (element: Element) => boolean;
+  change: (element: Element, init: {target: Record<string, unknown>}) => boolean;
+}};
+
 jest.mock("./common/Editor", () => () => <pre data-testid="editor" />);
-jest.mock("./common/theme/ThemeEditor", () => () => <span data-testid="theme-editor" />);
+jest.mock("./common/theme/ThemeEditor", () => ({onThemeChange}: {onThemeChange?: (_: unknown, themeData: Record<string, unknown>) => void}) => (
+  <button type="button" data-testid="theme-editor" onClick={() => onThemeChange?.(undefined, {colorPrimary: "#123456"})}>
+    Theme editor
+  </button>
+));
 jest.mock("./common/CustomGithubCorner", () => () => null);
 jest.mock("./common/select/LanguageSelect", () => () => <span data-testid="language-select" />);
 jest.mock("./common/select/CountryCodeSelect", () => () => <span data-testid="country-code-select" />);
@@ -96,8 +107,56 @@ const createRuntimeApplication = () => ({
   orgChoiceMode: "",
 });
 
+function createPage(applicationOverrides: Record<string, unknown> = {}): any {
+  const page = new ApplicationEditPage({
+    match: {params: {organizationName: "wecom-wwe7e01c69367e67bf", applicationName: "app-aicodex-api-60"}},
+    location: {search: ""},
+    history: {push: jest.fn()},
+    account: {owner: "wecom-wwe7e01c69367e67bf", name: "admin"},
+  } as any) as any;
+
+  page.state = {
+    ...page.state,
+    activeMenuKey: "ui-customization",
+    application: {...createRuntimeApplication(), ...applicationOverrides},
+    providers: [],
+    organizations: [{name: "wecom-wwe7e01c69367e67bf"}],
+    certs: [],
+  };
+  page.setState = (patch: Record<string, unknown>, callback?: () => void) => {
+    page.state = {...page.state, ...patch};
+    callback?.();
+  };
+  return page;
+}
+
+function getFieldColumns(container: HTMLElement, label: RegExp): HTMLElement[] {
+  const row = Array.from(container.querySelectorAll(".ant-row")).find(element => {
+    const columns = Array.from(element.children).filter(child => child.classList.contains("ant-col")) as HTMLElement[];
+    return columns.length >= 2 && label.test(columns[0].textContent || "");
+  });
+  return row ? Array.from(row.children).filter(child => child.classList.contains("ant-col")) as HTMLElement[] : [];
+}
+
+function getFieldInput(container: HTMLElement, label: RegExp): HTMLInputElement {
+  const columns = getFieldColumns(container, label);
+  const input = columns[1]?.querySelector("input") as HTMLInputElement | null;
+  if (!input) {
+    throw new Error(`未找到字段输入框: ${label}`);
+  }
+  return input;
+}
+
+function getFieldSwitch(container: HTMLElement, label: RegExp): HTMLButtonElement {
+  const columns = getFieldColumns(container, label);
+  const input = columns[1]?.querySelector("button[role='switch']") as HTMLButtonElement | null;
+  if (!input) {
+    throw new Error(`未找到字段开关: ${label}`);
+  }
+  return input;
+}
+
 describe("ApplicationEditPage UI customization preview", () => {
-  let ApplicationEditPage: any;
   let SigninMethodTable: any;
   let SigninTable: any;
   let SignupTable: any;
@@ -141,6 +200,67 @@ describe("ApplicationEditPage UI customization preview", () => {
     };
 
     expect(() => render(<MemoryRouter>{page.renderApplication()}</MemoryRouter>)).not.toThrow();
+  });
+
+  test("updates the signup switch and reflects its enabled state", () => {
+    const page = createPage({enableSignUp: false});
+    page.state.activeMenuKey = "authentication";
+    const view = render(<MemoryRouter>{page.renderApplication()}</MemoryRouter>);
+
+    const signupSwitch = getFieldSwitch(view.container, /Enable signup|启用注册/);
+    expect(signupSwitch.getAttribute("aria-checked")).toBe("false");
+
+    fireEvent.click(signupSwitch);
+    view.rerender(<MemoryRouter>{page.renderApplication()}</MemoryRouter>);
+
+    expect(page.state.application.enableSignUp).toBe(true);
+    expect(getFieldSwitch(view.container, /Enable signup|启用注册/).getAttribute("aria-checked")).toBe("true");
+  });
+
+  test("shows the side panel HTML field after enabling the side panel and keeps entered content", () => {
+    const page = createPage({formOffset: 2, formSideHtml: ""});
+    const view = render(<MemoryRouter>{page.renderApplication()}</MemoryRouter>);
+
+    expect(view.queryByText(/Side panel HTML|侧面板HTML/)).toBeNull();
+    fireEvent.click(view.getByText(/Enable side panel|启用侧面板/));
+    view.rerender(<MemoryRouter>{page.renderApplication()}</MemoryRouter>);
+
+    const sidePanelInput = getFieldInput(view.container, /Side panel HTML|侧面板HTML/);
+    fireEvent.change(sidePanelInput, {target: {value: "<aside>Support</aside>"}});
+    view.rerender(<MemoryRouter>{page.renderApplication()}</MemoryRouter>);
+
+    expect(page.state.application.formOffset).toBe(4);
+    expect(page.state.application.formSideHtml).toBe("<aside>Support</aside>");
+    expect(getFieldInput(view.container, /Side panel HTML|侧面板HTML/).value).toBe("<aside>Support</aside>");
+  });
+
+  test("enables the custom theme and applies the editor color to the static previews", () => {
+    const page = createPage({themeData: null});
+    const view = render(<MemoryRouter>{page.renderApplication()}</MemoryRouter>);
+
+    expect(view.queryByTestId("theme-editor")).toBeNull();
+    fireEvent.click(view.getByText(/Customize theme|定制主题/));
+    view.rerender(<MemoryRouter>{page.renderApplication()}</MemoryRouter>);
+
+    fireEvent.click(view.getByTestId("theme-editor"));
+    view.rerender(<MemoryRouter>{page.renderApplication()}</MemoryRouter>);
+
+    expect(page.state.application.themeData).toEqual(expect.objectContaining({isEnabled: true, colorPrimary: "#123456"}));
+    expect((view.container.querySelector(".application-edit-static-preview-logo") as HTMLElement).style.backgroundColor).toBe("rgb(18, 52, 86)");
+  });
+
+  test("writes custom CSS and header HTML back to the rendered form", () => {
+    const page = createPage({formCss: "", headerHtml: ""});
+    const view = render(<MemoryRouter>{page.renderApplication()}</MemoryRouter>);
+
+    fireEvent.change(getFieldInput(view.container, /Custom CSS|表单CSS/), {target: {value: ".login { color: red; }"}});
+    fireEvent.change(getFieldInput(view.container, /Header HTML|页头 HTML/), {target: {value: "<header>AICodex</header>"}});
+    view.rerender(<MemoryRouter>{page.renderApplication()}</MemoryRouter>);
+
+    expect(page.state.application.formCss).toBe(".login { color: red; }");
+    expect(page.state.application.headerHtml).toBe("<header>AICodex</header>");
+    expect(getFieldInput(view.container, /Custom CSS|表单CSS/).value).toBe(".login { color: red; }");
+    expect(getFieldInput(view.container, /Header HTML|页头 HTML/).value).toBe("<header>AICodex</header>");
   });
 
   test("keeps UI customization table columns content-aware instead of stretching the first column", () => {
