@@ -36,7 +36,6 @@ func forwardHandler(targetUrl string, writer http.ResponseWriter, request *http.
 
 	if nil != err {
 		panic(err)
-		return
 	}
 
 	proxy := httputil.NewSingleHostReverseProxy(target)

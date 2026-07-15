@@ -4,6 +4,8 @@ run:
   modules-download-mode: vendor
 linters:
   default: none
+  enable:
+    - govet
   exclusions:
     generated: lax
     presets:

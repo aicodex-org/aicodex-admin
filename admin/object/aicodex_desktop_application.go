@@ -19,8 +19,10 @@ const (
 	aicodexDesktopPkceVerifierMessage    = "PKCE code verifier is invalid for AICodex desktop public client"
 )
 
-var aicodexDesktopPkceChallengePattern = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`)
-var aicodexDesktopPkceVerifierPattern = regexp.MustCompile(`^[A-Za-z0-9._~-]{43,128}$`)
+var (
+	aicodexDesktopPkceChallengePattern = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`)
+	aicodexDesktopPkceVerifierPattern  = regexp.MustCompile(`^[A-Za-z0-9._~-]{43,128}$`)
+)
 
 var aicodexDesktopIdentityScopes = []string{
 	"openid",

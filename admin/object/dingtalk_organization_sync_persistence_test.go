@@ -302,7 +302,6 @@ func TestOrganizationSyncDefaultScheduleStoreUpdatesAndReacquiresStaleFire(t *te
 	if loaded.CronExpression != "0 3 * * *" || loaded.Timezone != "Asia/Shanghai" || loaded.IsEnabled || loaded.LastRunId != "run-skipped" || loaded.LastErrorCode != OrganizationSyncScheduleFireErrorAlreadyRunning {
 		t.Fatalf("updated schedule = %#v, want edited schedule preserving dispatch metadata", loaded)
 	}
-
 }
 
 func TestOrganizationSyncProviderConfigDefaultWrappersPersistAndAttachSchedules(t *testing.T) {

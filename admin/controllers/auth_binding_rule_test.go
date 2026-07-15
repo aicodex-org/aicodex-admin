@@ -67,7 +67,6 @@ func TestGetExistUserByBindingRuleDefaultsToEmailOnly(t *testing.T) {
 		Phone:    "13800138000",
 		Username: "alice",
 	})
-
 	if err != nil {
 		t.Fatalf("getExistUserByBindingRule() error = %v", err)
 	}
@@ -108,7 +107,6 @@ func TestGetExistUserByBindingRuleDoesNotDefaultToPhoneOrName(t *testing.T) {
 		Phone:    "13800138000",
 		Username: "alice",
 	})
-
 	if err != nil {
 		t.Fatalf("getExistUserByBindingRule() error = %v", err)
 	}
@@ -147,7 +145,6 @@ func TestGetExistUserByBindingRuleSkipsBlankValuesAndKeepsExplicitRules(t *testi
 		Phone:    " 13800138000 ",
 		Username: " ",
 	})
-
 	if err != nil {
 		t.Fatalf("getExistUserByBindingRule() error = %v", err)
 	}
@@ -173,7 +170,6 @@ func TestGetExistUserByBindingRuleSkipsBlankDefaultEmail(t *testing.T) {
 		Phone:    "13800138000",
 		Username: "alice",
 	})
-
 	if err != nil {
 		t.Fatalf("getExistUserByBindingRule() error = %v", err)
 	}

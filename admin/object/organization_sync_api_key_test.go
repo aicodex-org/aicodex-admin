@@ -484,7 +484,7 @@ func TestBuildOrganizationSyncExportGroupsFiltersAndDeduplicatesMembers(t *testi
 func TestOrganizationSyncExportHelperEdgeCases(t *testing.T) {
 	setupOrganizationSyncApiKeyTestDB(t)
 
-	exportGroups, err := BuildOrganizationSyncExportGroups("", []*Group{nil, &Group{Owner: "engineering", Name: "empty"}})
+	exportGroups, err := BuildOrganizationSyncExportGroups("", []*Group{nil, {Owner: "engineering", Name: "empty"}})
 	if err != nil {
 		t.Fatalf("BuildOrganizationSyncExportGroups() blank org error = %v", err)
 	}
@@ -494,8 +494,8 @@ func TestOrganizationSyncExportHelperEdgeCases(t *testing.T) {
 
 	departmentIndex := buildOrganizationSyncGroupDepartmentIndex([]*Group{
 		nil,
-		&Group{Owner: "engineering", Name: ""},
-		&Group{Owner: "engineering", Name: "rd"},
+		{Owner: "engineering", Name: ""},
+		{Owner: "engineering", Name: "rd"},
 	})
 	if departmentIndex["rd"] != "rd" || departmentIndex["engineering/rd"] != "rd" {
 		t.Fatalf("department index = %#v", departmentIndex)

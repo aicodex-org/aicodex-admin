@@ -48,7 +48,6 @@ func TestApplicationResolveProviderLoginOrganizationUsesTargetOrganization(t *te
 	organization, err := application.ResolveProviderLoginOrganization("admin/lark-main", func(name string) (bool, error) {
 		return name == "feishu-test", nil
 	})
-
 	if err != nil {
 		t.Fatalf("ResolveProviderLoginOrganization() error = %v", err)
 	}
@@ -147,7 +146,6 @@ func TestApplicationResolveProviderLoginOrganizationObjectLoadsTargetOrganizatio
 	}
 
 	organizationName, organization, err := application.ResolveProviderLoginOrganizationObject("lark-main")
-
 	if err != nil {
 		t.Fatalf("ResolveProviderLoginOrganizationObject() error = %v", err)
 	}
