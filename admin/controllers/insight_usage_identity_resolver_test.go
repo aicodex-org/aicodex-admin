@@ -46,6 +46,9 @@ func TestInsightUsageIdentityResolverConfigFallsBackWithoutSavedGovernanceConfig
 	if !ok {
 		t.Fatalf("resolver should use legacy config when no saved governance config exists")
 	}
+	if config.Resolution.AdoptedSource != object.ServiceCredentialRuntimeSourceLegacyEnvConfig {
+		t.Fatalf("legacy resolver source = %#v", config.Resolution)
+	}
 	if config.Caller != "legacy-resolver-caller" || config.MaxItems != 12 || config.LookupTimeout != 1300*time.Millisecond {
 		t.Fatalf("legacy resolver config mismatch: %#v", config)
 	}
@@ -113,8 +116,32 @@ func TestInsightUsageIdentityResolverConfigSavedEnvPolicyOverlaysLegacyBounds(t 
 	if !ok {
 		t.Fatalf("saved env_config resolver policy should allow legacy credentials")
 	}
+	if config.Resolution.AdoptedSource != object.ServiceCredentialRuntimeSourceSavedKeepInEnv {
+		t.Fatalf("saved resolver source = %#v", config.Resolution)
+	}
 	if config.Caller != "saved-resolver-caller" || config.MaxItems != 25 || config.LookupTimeout != 1200*time.Millisecond {
 		t.Fatalf("saved bounded resolver policy should overlay legacy defaults: %#v", config)
+	}
+}
+
+func TestInsightUsageIdentityResolverConfigStoreErrorFailsClosedWithStableBlocker(t *testing.T) {
+	original := insightUsageIdentityResolverRuntimePolicyConfigLoader
+	insightUsageIdentityResolverRuntimePolicyConfigLoader = func() (*object.ServiceCredentialGovernanceConfigResponse, error) {
+		return nil, errors.New("private metadata store detail")
+	}
+	t.Cleanup(func() {
+		insightUsageIdentityResolverRuntimePolicyConfigLoader = original
+	})
+	t.Setenv("insightUsageIdentityResolverEndpoint", "https://legacy.example.invalid/resolve")
+	t.Setenv("insightUsageIdentityResolverToken", "legacy-token")
+
+	config, ok := getInsightUsageIdentityResolverConfig()
+
+	if ok || config.Resolution.ErrorCode != object.ServiceCredentialRuntimeBlockerSavedConfigUnavailable {
+		t.Fatalf("store error config = %#v/%t", config, ok)
+	}
+	if config.Endpoint != "" || config.Token != "" {
+		t.Fatalf("store error must not retain legacy material: %#v", config)
 	}
 }
 

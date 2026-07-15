@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"git.leagsoft.com/aicodex/aicodex-admin/conf"
 	"git.leagsoft.com/aicodex/aicodex-admin/object"
 	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/beego/beego/v2/core/logs"
@@ -1211,11 +1210,15 @@ func getInsightProviderUserByBearerToken(token string, host string, traceId stri
 	}
 
 	audiences := extractInsightAudiences(mapClaims["aud"])
-	if !isInsightAudienceAllowed(audiences) {
+	trustPolicy := getInsightProviderTrustRuntimePolicy()
+	if !isInsightProviderTrustPolicyReady(trustPolicy) {
+		return nil, newInsightProviderError(InsightProviderErrorAuthorizationFailed, "insight provider trust policy is not ready", traceId, "")
+	}
+	if !isInsightAudienceAllowedWithPolicy(trustPolicy, audiences) {
 		return nil, newInsightProviderError(InsightProviderErrorAuthorizationFailed, "token audience is not allowed for insight provider", traceId, "")
 	}
 
-	application, err := getInsightApplicationByAudience(audiences)
+	application, err := getInsightApplicationByAudienceWithPolicy(audiences, trustPolicy)
 	if err != nil {
 		return nil, newInsightProviderError(InsightProviderErrorUnavailable, err.Error(), traceId, "")
 	}
@@ -1228,16 +1231,16 @@ func getInsightProviderUserByBearerToken(token string, host string, traceId stri
 	if err != nil {
 		return nil, newInsightProviderError(InsightProviderErrorUnauthenticated, "invalid bearer token signature or expiry", traceId, "")
 	}
-	if !isInsightAudienceAllowed([]string(claims.Audience)) {
+	if !isInsightAudienceAllowedWithPolicy(trustPolicy, []string(claims.Audience)) {
 		return nil, newInsightProviderError(InsightProviderErrorAuthorizationFailed, "token audience is not allowed for insight provider", traceId, "")
 	}
 	if claims.TokenType != "" && claims.TokenType != "access-token" {
 		return nil, newInsightProviderError(InsightProviderErrorUnauthenticated, "bearer token is not an access token", traceId, "")
 	}
-	if !isInsightIssuerAllowed(claims.Issuer) {
+	if !isInsightIssuerAllowedWithPolicy(trustPolicy, claims.Issuer) {
 		return nil, newInsightProviderError(InsightProviderErrorAuthorizationFailed, "token issuer is not allowed for insight provider", traceId, "")
 	}
-	if !hasInsightRequiredScopes(claims.Scope) {
+	if !hasInsightRequiredScopesWithPolicy(trustPolicy, claims.Scope) {
 		return nil, newInsightProviderError(InsightProviderErrorAuthorizationFailed, "token scope is not allowed for insight provider", traceId, "")
 	}
 
@@ -1515,10 +1518,9 @@ func resolveInsightUsageIdentityWithResolver(user *object.User, traceId string, 
 	if !ok {
 		return withInsightSourceIdentity(fallback, user), nil
 	}
-	resolver := newInsightUsageIdentityResolverFromConfig()
+	resolver, runtimeConfig := newInsightUsageIdentityResolverFromConfig()
 	if resolver == nil || !resolver.Enabled() {
-		runtimePolicy := getInsightUsageIdentityResolverRuntimePolicyDecision()
-		if runtimePolicy.SavedConfigured {
+		if runtimeConfig.Resolution.SavedPolicy {
 			return InsightUsageIdentity{}, newInsightProviderError(InsightProviderErrorUnavailable, "usage identity resolver unavailable", traceId, MappingStatusMissing)
 		}
 		return withInsightSourceIdentity(fallback, user), nil
@@ -1793,10 +1795,9 @@ func preloadInsightUsageIdentityCacheWithPolicy(users []*object.User, cache *ins
 	if len(pendingItems) == 0 {
 		return nil
 	}
-	resolver := newInsightUsageIdentityResolverFromConfig()
+	resolver, runtimeConfig := newInsightUsageIdentityResolverFromConfig()
 	if resolver == nil || !resolver.Enabled() {
-		runtimePolicy := getInsightUsageIdentityResolverRuntimePolicyDecision()
-		if runtimePolicy.SavedConfigured {
+		if runtimeConfig.Resolution.SavedPolicy {
 			providerErr := newInsightProviderError(InsightProviderErrorUnavailable, "usage identity resolver unavailable", "", MappingStatusMissing)
 			if skipUnavailableMissing {
 				cacheInsightMissingUsageIdentities(pendingItems, pendingUsers, cache)
@@ -2075,9 +2076,15 @@ func extractInsightAudiences(value interface{}) []string {
 	}
 }
 
+var getInsightApplicationByClientID = object.GetApplicationByClientId
+
 func getInsightApplicationByAudience(audiences []string) (*object.Application, error) {
-	for _, audience := range getInsightAllowedTokenAudiences(audiences) {
-		application, err := object.GetApplicationByClientId(audience)
+	return getInsightApplicationByAudienceWithPolicy(audiences, getInsightProviderTrustRuntimePolicy())
+}
+
+func getInsightApplicationByAudienceWithPolicy(audiences []string, policy insightProviderTrustRuntimePolicy) (*object.Application, error) {
+	for _, audience := range getInsightAllowedTokenAudiencesWithPolicy(policy, audiences) {
+		application, err := getInsightApplicationByClientID(audience)
 		if err != nil {
 			return nil, err
 		}
@@ -2092,45 +2099,35 @@ type insightProviderTrustRuntimePolicy struct {
 	Explicit                bool
 	Enabled                 bool
 	AllowedAudiences        []string
+	AllowedIssuers          []string
 	RequiredScopes          []string
 	AllowedIssuerDigests    []string
 	IssuerMode              string
 	RequiredScopesDefaulted bool
 	CannotInfer             bool
 	BlockedReasons          []string
+	Resolution              object.ServiceCredentialRuntimeResolution
 }
 
 func isInsightAudienceAllowed(audiences []string) bool {
-	return len(getInsightAllowedTokenAudiences(audiences)) > 0
+	return isInsightAudienceAllowedWithPolicy(getInsightProviderTrustRuntimePolicy(), audiences)
 }
 
 func getInsightAllowedTokenAudiences(audiences []string) []string {
+	return getInsightAllowedTokenAudiencesWithPolicy(getInsightProviderTrustRuntimePolicy(), audiences)
+}
+
+func isInsightAudienceAllowedWithPolicy(policy insightProviderTrustRuntimePolicy, audiences []string) bool {
+	return len(getInsightAllowedTokenAudiencesWithPolicy(policy, audiences)) > 0
+}
+
+func getInsightAllowedTokenAudiencesWithPolicy(policy insightProviderTrustRuntimePolicy, audiences []string) []string {
 	audiences = deduplicateStrings(audiences)
-	if policy := getInsightProviderTrustRuntimePolicy(); policy.Explicit {
-		if !policy.Enabled || len(policy.AllowedAudiences) == 0 {
-			return []string{}
-		}
-		allowedSet := map[string]bool{}
-		for _, audience := range policy.AllowedAudiences {
-			allowedSet[audience] = true
-		}
-		result := []string{}
-		for _, audience := range audiences {
-			if allowedSet[audience] {
-				result = append(result, audience)
-			}
-		}
-		return result
-	}
-	allowedAudiences := splitInsightCsv(conf.GetConfigString("insightProviderAllowedAudiences"))
-	if len(allowedAudiences) == 0 {
-		allowedAudiences = splitInsightCsv(conf.GetConfigString("insightProviderAudience"))
-	}
-	if len(allowedAudiences) == 0 {
+	if !policy.Enabled || (policy.Explicit && !policy.Resolution.Ready) || len(policy.AllowedAudiences) == 0 {
 		return []string{}
 	}
 	allowedSet := map[string]bool{}
-	for _, audience := range allowedAudiences {
+	for _, audience := range policy.AllowedAudiences {
 		allowedSet[audience] = true
 	}
 	result := []string{}
@@ -2143,14 +2140,25 @@ func getInsightAllowedTokenAudiences(audiences []string) []string {
 }
 
 func isInsightIssuerAllowed(issuer string) bool {
+	return isInsightIssuerAllowedWithPolicy(getInsightProviderTrustRuntimePolicy(), issuer)
+}
+
+func isInsightIssuerAllowedWithPolicy(policy insightProviderTrustRuntimePolicy, issuer string) bool {
 	issuer = strings.TrimSpace(issuer)
-	if policy := getInsightProviderTrustRuntimePolicy(); policy.Explicit {
-		if !policy.Enabled || issuer == "" {
-			return false
+	if !policy.Enabled || (policy.Explicit && !policy.Resolution.Ready) || issuer == "" {
+		return false
+	}
+	switch policy.IssuerMode {
+	case "any_non_empty":
+		return true
+	case "legacy_allowlist":
+		for _, allowedIssuer := range policy.AllowedIssuers {
+			if issuer == allowedIssuer {
+				return true
+			}
 		}
-		if policy.IssuerMode == "any_non_empty" {
-			return true
-		}
+		return false
+	case "digest_allowlist":
 		issuerDigest := insightStableHash("sha256:", issuer)
 		for _, allowedDigest := range policy.AllowedIssuerDigests {
 			if strings.EqualFold(issuerDigest, allowedDigest) {
@@ -2158,32 +2166,24 @@ func isInsightIssuerAllowed(issuer string) bool {
 			}
 		}
 		return false
+	default:
+		return false
 	}
-	allowedIssuers := splitInsightCsv(conf.GetConfigString("insightProviderAllowedIssuers"))
-	if len(allowedIssuers) == 0 {
-		return issuer != ""
-	}
-	for _, allowedIssuer := range allowedIssuers {
-		if issuer == allowedIssuer {
-			return true
-		}
-	}
-	return false
 }
 
 func hasInsightRequiredScopes(scope string) bool {
-	if policy := getInsightProviderTrustRuntimePolicy(); policy.Explicit {
-		if !policy.Enabled {
-			return false
-		}
-		return insightScopeContainsRequired(scope, policy.RequiredScopes)
+	return hasInsightRequiredScopesWithPolicy(getInsightProviderTrustRuntimePolicy(), scope)
+}
+
+func hasInsightRequiredScopesWithPolicy(policy insightProviderTrustRuntimePolicy, scope string) bool {
+	if !policy.Enabled || (policy.Explicit && !policy.Resolution.Ready) {
+		return false
 	}
-	requiredScopes := splitInsightCsv(conf.GetConfigString("insightProviderRequiredScopes"))
-	if len(requiredScopes) == 0 {
-		// 默认要求 insight 专用 scope，避免生产漏配时任意 admin token 都可调用 provider。
-		requiredScopes = splitInsightCsv(insightProviderDefaultRequiredScopes)
-	}
-	return insightScopeContainsRequired(scope, requiredScopes)
+	return insightScopeContainsRequired(scope, policy.RequiredScopes)
+}
+
+func isInsightProviderTrustPolicyReady(policy insightProviderTrustRuntimePolicy) bool {
+	return policy.Enabled && policy.Resolution.Ready
 }
 
 func insightScopeContainsRequired(scope string, requiredScopes []string) bool {
@@ -2202,53 +2202,28 @@ func insightScopeContainsRequired(scope string, requiredScopes []string) bool {
 // getInsightProviderTrustRuntimePolicy 读取 Admin saved trust policy；配置 store 不可判定时按安全边界 fail closed。
 func getInsightProviderTrustRuntimePolicy() insightProviderTrustRuntimePolicy {
 	config, err := applicationAccessServiceCredentialGovernanceConfigServiceFactory().GetConfig()
-	if err != nil {
-		return insightProviderTrustRuntimePolicy{
-			Explicit:       true,
-			Enabled:        false,
-			CannotInfer:    true,
-			BlockedReasons: []string{"insight_provider_trust_policy_store_unavailable"},
-		}
-	}
-	return buildInsightProviderTrustRuntimePolicyFromConfig(config)
+	return buildInsightProviderTrustRuntimePolicy(object.ResolveInsightProviderTrustRuntimeConfig(config, err))
 }
 
 // buildInsightProviderTrustRuntimePolicyFromConfig 只在 insight_provider_trust 存在显式 runtime policy 字段时覆盖 legacy env/config。
 func buildInsightProviderTrustRuntimePolicyFromConfig(config *object.ServiceCredentialGovernanceConfigResponse) insightProviderTrustRuntimePolicy {
-	if config == nil || !config.IsConfigured {
-		return insightProviderTrustRuntimePolicy{}
+	return buildInsightProviderTrustRuntimePolicy(object.ResolveInsightProviderTrustRuntimeConfig(config, nil))
+}
+
+func buildInsightProviderTrustRuntimePolicy(config object.InsightProviderTrustRuntimeConfig) insightProviderTrustRuntimePolicy {
+	return insightProviderTrustRuntimePolicy{
+		Explicit:                config.Resolution.SavedPolicy,
+		Enabled:                 config.Enabled,
+		AllowedAudiences:        append([]string{}, config.AllowedAudiences...),
+		AllowedIssuers:          append([]string{}, config.AllowedIssuers...),
+		RequiredScopes:          append([]string{}, config.RequiredScopes...),
+		AllowedIssuerDigests:    append([]string{}, config.AllowedIssuerDigests...),
+		IssuerMode:              config.IssuerMode,
+		RequiredScopesDefaulted: config.RequiredScopesDefaulted,
+		CannotInfer:             config.CannotInfer,
+		BlockedReasons:          append([]string{}, config.Resolution.BlockedReasons...),
+		Resolution:              config.Resolution,
 	}
-	for _, group := range config.Groups {
-		if group.Key != "insight_provider_trust" {
-			continue
-		}
-		explicit := hasInsightProviderTrustRuntimePolicyFields(group)
-		if !group.Enabled {
-			explicit = true
-		}
-		if !explicit {
-			return insightProviderTrustRuntimePolicy{}
-		}
-		policy := insightProviderTrustRuntimePolicy{
-			Explicit:             true,
-			Enabled:              group.Enabled,
-			AllowedAudiences:     insightPolicyStringSlice(group.BoundedRuntimePolicy, "allowedAudiences"),
-			RequiredScopes:       insightPolicyStringSlice(group.BoundedRuntimePolicy, "requiredScopes"),
-			AllowedIssuerDigests: insightPolicyStringSlice(group.BoundedRuntimePolicy, "allowedIssuerDigests"),
-			IssuerMode:           insightPolicyString(group.BoundedRuntimePolicy, "issuerMode"),
-			BlockedReasons:       deduplicateStrings(group.BlockedReasons),
-		}
-		if len(policy.RequiredScopes) == 0 {
-			policy.RequiredScopes = splitInsightCsv(insightProviderDefaultRequiredScopes)
-			policy.RequiredScopesDefaulted = true
-		}
-		if policy.IssuerMode == "" {
-			policy.IssuerMode = "digest_allowlist"
-		}
-		policy.CannotInfer = policy.IssuerMode == "any_non_empty"
-		return policy
-	}
-	return insightProviderTrustRuntimePolicy{}
 }
 
 // hasInsightProviderTrustRuntimePolicyFields 区分默认分组 metadata 和真正可执行的 provider trust runtime policy。

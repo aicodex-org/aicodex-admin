@@ -522,7 +522,7 @@ func TestServiceCredentialGovernanceRuntimeRequiredPolicyKeys(t *testing.T) {
 	}
 }
 
-func TestGetInsightAdminProviderHandoffStatusReturnsConfigStoreError(t *testing.T) {
+func TestGetInsightAdminProviderHandoffStatusReturnsStableBlockedResolutionForConfigStoreError(t *testing.T) {
 	storeErr := errors.New("metadata store unavailable")
 	originalFactory := applicationAccessServiceCredentialGovernanceConfigServiceFactory
 	applicationAccessServiceCredentialGovernanceConfigServiceFactory = func() *object.ServiceCredentialGovernanceConfigService {
@@ -539,8 +539,20 @@ func TestGetInsightAdminProviderHandoffStatusReturnsConfigStoreError(t *testing.
 	controller.GetInsightAdminProviderHandoffStatus()
 
 	resp, ok := controller.Data["json"].(*Response)
-	if !ok || resp.Status != "error" || !strings.Contains(resp.Msg, storeErr.Error()) {
-		t.Fatalf("response = %#v, want config store error", controller.Data["json"])
+	if !ok || resp.Status != "ok" {
+		t.Fatalf("response = %#v, want copy-safe blocked status", controller.Data["json"])
+	}
+	status, ok := resp.Data.(ServiceCredentialGovernanceStatusResponse)
+	if !ok {
+		t.Fatalf("response data = %#v", resp.Data)
+	}
+	resolver := serviceCredentialGovernanceGroupByKey(t, status.Groups, "usage_identity_resolver")
+	if resolver.Status != "blocked" || resolver.ErrorCode != object.ServiceCredentialRuntimeBlockerSavedConfigUnavailable || resolver.AdoptedSource != object.ServiceCredentialRuntimeSourceSavedConfig {
+		t.Fatalf("store error resolver status = %#v", resolver)
+	}
+	body, err := json.Marshal(resp)
+	if err != nil || strings.Contains(string(body), storeErr.Error()) {
+		t.Fatalf("store error leaked private detail: %s / %v", string(body), err)
 	}
 }
 
@@ -556,7 +568,7 @@ func TestGetApplicationAccessServiceCredentialGovernanceStatusRejectsLegacyEndpo
 	}
 }
 
-func TestBuildApplicationAccessServiceCredentialGovernanceStatusFallsBackToLegacyOnConfigStoreError(t *testing.T) {
+func TestBuildApplicationAccessServiceCredentialGovernanceStatusDoesNotFallbackOnConfigStoreError(t *testing.T) {
 	t.Setenv("insightProviderAllowedAudiences", "insight-client")
 	t.Setenv("insightProviderAllowedIssuers", "https://issuer.example.invalid")
 	t.Setenv("insightUsageIdentityResolverEndpoint", "https://resolver.internal.example.invalid/api/usage")
@@ -574,8 +586,8 @@ func TestBuildApplicationAccessServiceCredentialGovernanceStatusFallsBackToLegac
 	status := buildApplicationAccessServiceCredentialGovernanceStatus(time.Date(2026, 6, 21, 8, 30, 0, 0, time.UTC))
 
 	resolver := serviceCredentialGovernanceGroupByKey(t, status.Groups, "usage_identity_resolver")
-	if resolver.Status != "configured" || resolver.CredentialReferenceStatus != "configured" {
-		t.Fatalf("legacy helper should preserve legacy fallback on config store error, got %#v", resolver)
+	if resolver.Status != "blocked" || resolver.ErrorCode != object.ServiceCredentialRuntimeBlockerSavedConfigUnavailable || resolver.AdoptedSource != object.ServiceCredentialRuntimeSourceSavedConfig {
+		t.Fatalf("config store error must fail closed, got %#v", resolver)
 	}
 }
 

@@ -136,7 +136,7 @@ func (s GatewayProjectionManualPublishService) snapshotStore() GatewayProjection
 }
 
 func (s GatewayProjectionManualPublishService) publisherConfig() GatewayProjectionPublisherConfig {
-	if s.Config.Endpoint != "" || s.Config.Token != "" || s.Config.Caller != "" || s.Config.FreshnessTTL > 0 || s.Config.Enabled {
+	if s.Config.Endpoint != "" || s.Config.Token != "" || s.Config.Caller != "" || s.Config.FreshnessTTL > 0 || s.Config.Enabled || s.Config.Resolution.GroupKey != "" {
 		config := s.Config
 		config.Caller = firstNonEmpty(config.Caller, GatewayProjectionDefaultCaller)
 		if config.FreshnessTTL <= 0 {
@@ -173,18 +173,18 @@ func (s GatewayProjectionManualPublishService) recordAttempt(organizationID stri
 
 func (s GatewayProjectionManualPublishService) publisherSummary(config GatewayProjectionPublisherConfig) GatewayProjectionPublisherObservability {
 	configured := strings.TrimSpace(config.Endpoint) != "" && strings.TrimSpace(config.Token) != ""
-	disabledReason := ""
-	if !config.Enabled {
-		disabledReason = gatewayProjectionManualFailurePublisherDisabled
-	} else if !configured {
-		disabledReason = GatewayProjectionFailureProjectionTokenMissing
-	}
+	disabledReason := gatewayProjectionPublisherDisabledReason(config)
 	return GatewayProjectionPublisherObservability{
-		Enabled:             config.Enabled,
-		Configured:          configured,
-		DisabledReason:      disabledReason,
-		FreshnessTTLSeconds: int64(config.FreshnessTTL / time.Second),
-		MaxRetries:          normalizeGatewayProjectionMaxRetries(config.MaxRetries),
+		Enabled:                config.Enabled,
+		Configured:             configured,
+		DisabledReason:         disabledReason,
+		FreshnessTTLSeconds:    int64(config.FreshnessTTL / time.Second),
+		MaxRetries:             normalizeGatewayProjectionMaxRetries(config.MaxRetries),
+		AdoptedSource:          config.Resolution.AdoptedSource,
+		CredentialReferenceKey: config.Resolution.CredentialReferenceKey,
+		Diagnostics:            append([]string{}, config.Resolution.Diagnostics...),
+		BlockedReasons:         append([]string{}, config.Resolution.BlockedReasons...),
+		ErrorCode:              config.Resolution.ErrorCode,
 	}
 }
 
@@ -228,11 +228,8 @@ func buildGatewayProjectionManualPublishReadiness(snapshot *GatewayProjectionSna
 
 func gatewayProjectionManualPublishDisabledReasons(config GatewayProjectionPublisherConfig, sourceSummary GatewayProjectionSourceConnectionSummary, build GatewayProjectionBuildResult, buildErr error) []string {
 	reasons := []string{}
-	configured := strings.TrimSpace(config.Endpoint) != "" && strings.TrimSpace(config.Token) != ""
-	if !config.Enabled {
-		reasons = append(reasons, gatewayProjectionManualFailurePublisherDisabled)
-	} else if !configured {
-		reasons = append(reasons, GatewayProjectionFailureProjectionTokenMissing)
+	if disabledReason := gatewayProjectionPublisherDisabledReason(config); disabledReason != "" {
+		reasons = append(reasons, disabledReason)
 	}
 	if sourceSummary.StatusCounts[SourceConnectionStatusDisabled] > 0 {
 		reasons = append(reasons, GatewayProjectionFailureSourceConnectionDisabled)
@@ -247,6 +244,22 @@ func gatewayProjectionManualPublishDisabledReasons(config GatewayProjectionPubli
 		reasons = append(reasons, GatewayProjectionFailureNoPublishableSubjects)
 	}
 	return uniqueGatewayProjectionManualReasons(reasons)
+}
+
+func gatewayProjectionPublisherDisabledReason(config GatewayProjectionPublisherConfig) string {
+	configured := strings.TrimSpace(config.Endpoint) != "" && strings.TrimSpace(config.Token) != ""
+	// saved group 即使已启用，typed resolution 失败也代表运行材料不可用。
+	// 对外保留既有 projection_token_missing alias，更精确的原因由 copy-safe blocker 承载。
+	if config.Resolution.ErrorCode != "" && config.Resolution.ErrorCode != ServiceCredentialRuntimeBlockerGroupDisabled {
+		return GatewayProjectionFailureProjectionTokenMissing
+	}
+	if !config.Enabled {
+		return gatewayProjectionManualFailurePublisherDisabled
+	}
+	if !configured {
+		return GatewayProjectionFailureProjectionTokenMissing
+	}
+	return ""
 }
 
 func buildGatewayProjectionManualPublishDryRun(config GatewayProjectionPublisherConfig, snapshot *GatewayProjectionSnapshot, organizationID string, traceID string, generatedAt time.Time) (GatewayProjectionBuildResult, error) {

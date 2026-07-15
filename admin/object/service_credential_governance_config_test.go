@@ -198,6 +198,10 @@ func TestServiceCredentialGovernanceConfigServiceRejectsInvalidInsightTrustPolic
 		{name: "invalid digest alias", policy: map[string]interface{}{"allowedIssuerDigests": []string{"issuer-alias"}, "issuerMode": "digest_allowlist"}},
 		{name: "raw audience url", policy: map[string]interface{}{"allowedAudiences": []interface{}{"https://audience.internal.example.invalid"}}},
 		{name: "raw scope material", policy: map[string]interface{}{"requiredScopes": []interface{}{"Authorization: Bearer secret-value"}}},
+		{name: "numeric required scopes", policy: map[string]interface{}{"allowedAudiences": []string{"saved-client"}, "requiredScopes": 123, "issuerMode": "any_non_empty"}},
+		{name: "mixed audience list", policy: map[string]interface{}{"allowedAudiences": []interface{}{"saved-client", 42}, "issuerMode": "any_non_empty"}},
+		{name: "numeric issuer digest", policy: map[string]interface{}{"allowedAudiences": []string{"saved-client"}, "allowedIssuerDigests": []interface{}{123}, "issuerMode": "digest_allowlist"}},
+		{name: "non string issuer mode", policy: map[string]interface{}{"allowedAudiences": []string{"saved-client"}, "issuerMode": true}},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {

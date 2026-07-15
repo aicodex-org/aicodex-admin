@@ -164,7 +164,7 @@ func (s GatewayProjectionRunReadinessService) snapshotStore() GatewayProjectionS
 }
 
 func (s GatewayProjectionRunReadinessService) publisherConfig() GatewayProjectionPublisherConfig {
-	if s.Config.Endpoint != "" || s.Config.Token != "" || s.Config.Caller != "" || s.Config.FreshnessTTL > 0 || s.Config.Enabled {
+	if s.Config.Endpoint != "" || s.Config.Token != "" || s.Config.Caller != "" || s.Config.FreshnessTTL > 0 || s.Config.Enabled || s.Config.Resolution.GroupKey != "" {
 		config := s.Config
 		config.Caller = firstNonEmpty(config.Caller, GatewayProjectionDefaultCaller)
 		if config.FreshnessTTL <= 0 {
@@ -318,11 +318,8 @@ func buildGatewayProjectionRetrySummary(config GatewayProjectionPublisherConfig,
 	reasons := []string{}
 	configured := strings.TrimSpace(config.Endpoint) != "" && strings.TrimSpace(config.Token) != ""
 	if !config.Enabled || !configured {
-		if !config.Enabled {
-			reasons = append(reasons, gatewayProjectionManualFailurePublisherDisabled)
-		} else {
-			reasons = append(reasons, GatewayProjectionFailureProjectionTokenMissing)
-		}
+		reasons = append(reasons, gatewayProjectionPublisherDisabledReason(config))
+		reasons = append(reasons, config.BlockedReasons...)
 		return newGatewayProjectionRetrySummary(GatewayProjectionRetryReadinessFixPublisherConfig, false, "修复 Admin gateway projection publisher 配置后再评估 retry。", reasons)
 	}
 	sourceFailure := gatewayProjectionSourceConnectionFailureCategory(sourceSummary)

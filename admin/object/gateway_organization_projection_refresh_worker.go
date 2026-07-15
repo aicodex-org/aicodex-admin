@@ -18,11 +18,9 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
-	"git.leagsoft.com/aicodex/aicodex-admin/conf"
 	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/beego/beego/v2/core/logs"
 )
@@ -51,6 +49,8 @@ type GatewayProjectionRefreshConfig struct {
 	Interval       time.Duration
 	InitialDelay   time.Duration
 	BatchSize      int
+	FreshnessTTL   time.Duration
+	Resolution     ServiceCredentialRuntimeResolution `json:"-"`
 }
 
 // GatewayProjectionRefreshOrganizationStore 隔离 refresh worker 对平台组织主模型的枚举。
@@ -83,28 +83,7 @@ type defaultGatewayProjectionRefreshOrganizationStore struct{}
 
 // GetGatewayProjectionRefreshConfig 读取 refresh worker 配置并确保 refresh 周期小于 projection freshness TTL。
 func GetGatewayProjectionRefreshConfig() GatewayProjectionRefreshConfig {
-	publisherConfig := GetGatewayProjectionPublisherConfig()
-	refreshEnabled := publisherConfig.Enabled
-	if enabled, ok := gatewayProjectionOptionalBoolConfig("gatewayOrganizationProjectionRefreshEnabled"); ok {
-		refreshEnabled = enabled
-	}
-
-	config := GatewayProjectionRefreshConfig{
-		Enabled:      refreshEnabled && publisherConfig.Enabled,
-		Interval:     time.Duration(gatewayProjectionIntConfig("gatewayOrganizationProjectionRefreshIntervalSeconds", gatewayProjectionRefreshDefaultIntervalSeconds)) * time.Second,
-		InitialDelay: time.Duration(gatewayProjectionIntConfig("gatewayOrganizationProjectionRefreshInitialDelaySeconds", gatewayProjectionRefreshDefaultInitialDelaySeconds)) * time.Second,
-		BatchSize:    gatewayProjectionIntConfig("gatewayOrganizationProjectionRefreshBatchSize", gatewayProjectionRefreshDefaultBatchSize),
-	}
-	if strings.TrimSpace(publisherConfig.Endpoint) == "" || strings.TrimSpace(publisherConfig.Token) == "" {
-		config.Enabled = false
-		if refreshEnabled && publisherConfig.Enabled {
-			config.DisabledReason = GatewayProjectionRefreshErrorInvalidConfig
-		}
-	}
-	config.Interval = normalizeGatewayProjectionRefreshInterval(config.Interval, publisherConfig.FreshnessTTL)
-	config.InitialDelay = normalizeGatewayProjectionRefreshInitialDelay(config.InitialDelay)
-	config.BatchSize = normalizeGatewayProjectionRefreshBatchSize(config.BatchSize)
-	return config
+	return GetGatewayProjectionRuntimeConfig().Refresh
 }
 
 // StartGatewayProjectionRefreshWorker 启动进程内 refresh worker；默认配置不满足时只记录脱敏状态并跳过。
@@ -246,7 +225,11 @@ func (w *GatewayProjectionRefreshWorker) run(stopCh <-chan struct{}) {
 
 func (w *GatewayProjectionRefreshWorker) normalizedConfig() GatewayProjectionRefreshConfig {
 	config := w.Config
-	config.Interval = normalizeGatewayProjectionRefreshInterval(config.Interval, GetGatewayProjectionPublisherConfig().FreshnessTTL)
+	freshnessTTL := config.FreshnessTTL
+	if freshnessTTL <= 0 {
+		freshnessTTL = GatewayProjectionDefaultFreshnessTTL
+	}
+	config.Interval = normalizeGatewayProjectionRefreshInterval(config.Interval, freshnessTTL)
 	config.InitialDelay = normalizeGatewayProjectionRefreshInitialDelay(config.InitialDelay)
 	config.BatchSize = normalizeGatewayProjectionRefreshBatchSize(config.BatchSize)
 	return config
@@ -365,12 +348,4 @@ func normalizeGatewayProjectionRefreshBatchSize(batchSize int) int {
 		return gatewayProjectionRefreshDefaultBatchSize
 	}
 	return batchSize
-}
-
-func gatewayProjectionOptionalBoolConfig(key string) (bool, bool) {
-	value := strings.TrimSpace(conf.GetConfigString(key))
-	if value == "" {
-		return false, false
-	}
-	return strings.EqualFold(value, "true"), true
 }

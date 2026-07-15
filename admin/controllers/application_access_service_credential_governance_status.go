@@ -2,11 +2,11 @@ package controllers
 
 import (
 	"encoding/json"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
 
-	"git.leagsoft.com/aicodex/aicodex-admin/conf"
 	"git.leagsoft.com/aicodex/aicodex-admin/object"
 	"git.leagsoft.com/aicodex/aicodex-admin/util"
 )
@@ -60,6 +60,10 @@ type ServiceCredentialGovernanceStatusGroup struct {
 	BlockedReasons            []string               `json:"blockedReasons,omitempty"`
 	RemediationRoute          string                 `json:"remediationRoute,omitempty"`
 	NextAction                string                 `json:"nextAction,omitempty"`
+	AdoptedSource             string                 `json:"adoptedSource,omitempty"`
+	CredentialReferenceKey    string                 `json:"credentialReferenceKey,omitempty"`
+	Diagnostics               []string               `json:"diagnostics,omitempty"`
+	ErrorCode                 string                 `json:"errorCode,omitempty"`
 }
 
 // GetInsightAdminProviderHandoffStatus 返回 Admin 运行态配置推导出的脱敏交接状态。
@@ -89,7 +93,7 @@ func (c *ApiController) GetInsightAdminProviderHandoffConfig() {
 	}
 	config, err := applicationAccessServiceCredentialGovernanceConfigServiceFactory().GetConfig()
 	if err != nil {
-		c.ResponseError(err.Error())
+		c.ResponseError(serviceCredentialGovernancePublicError(err))
 		return
 	}
 	c.ResponseOk(config)
@@ -113,7 +117,7 @@ func (c *ApiController) SaveInsightAdminProviderHandoffConfig() {
 	}
 	savedConfig, _, err := applicationAccessServiceCredentialGovernanceConfigServiceFactory().SaveConfig(&config)
 	if err != nil {
-		c.ResponseError(err.Error())
+		c.ResponseError(serviceCredentialGovernancePublicError(err))
 		return
 	}
 	c.ResponseOk(savedConfig)
@@ -160,6 +164,13 @@ func (c *ApiController) requireServiceCredentialGovernanceGlobalAdmin() bool {
 	return true
 }
 
+func serviceCredentialGovernancePublicError(err error) string {
+	if errors.Is(err, object.ErrServiceCredentialGovernanceConfigUnavailable) {
+		return object.ServiceCredentialRuntimeBlockerSavedConfigUnavailable
+	}
+	return err.Error()
+}
+
 func buildApplicationAccessServiceCredentialGovernanceStatus(generatedAt time.Time) ServiceCredentialGovernanceStatusResponse {
 	status, err := buildApplicationAccessServiceCredentialGovernanceStatusWithConfig(generatedAt)
 	if err != nil {
@@ -172,12 +183,15 @@ func buildApplicationAccessServiceCredentialGovernanceStatusWithConfig(generated
 	status := buildApplicationAccessServiceCredentialGovernanceLegacyStatus(generatedAt)
 	config, err := applicationAccessServiceCredentialGovernanceConfigServiceFactory().GetConfig()
 	if err != nil {
-		return ServiceCredentialGovernanceStatusResponse{}, err
+		status.Groups = applyServiceCredentialRuntimeResolutionStatus(status.Groups, nil, err)
+		return status, nil
 	}
 	if config == nil || !config.IsConfigured {
+		status.Groups = applyServiceCredentialRuntimeResolutionStatus(status.Groups, nil, nil)
 		return status, nil
 	}
 	status.Groups = applyServiceCredentialGovernanceStatusConfigOverlay(status.Groups, config.Groups)
+	status.Groups = applyServiceCredentialRuntimeResolutionStatus(status.Groups, config, nil)
 	return status, nil
 }
 
@@ -374,6 +388,43 @@ func serviceCredentialGovernanceReferenceIsReady(status string) bool {
 	return status == serviceCredentialReferenceConfigured || status == serviceCredentialReferenceExternal
 }
 
+// applyServiceCredentialRuntimeResolutionStatus 用 typed resolver 的结果覆盖最终 readiness/source/blocker。
+// 旧 status builder 只保留兼容展示字段，不再决定 saved config 是否可执行。
+func applyServiceCredentialRuntimeResolutionStatus(groups []ServiceCredentialGovernanceStatusGroup, config *object.ServiceCredentialGovernanceConfigResponse, loadErr error) []ServiceCredentialGovernanceStatusGroup {
+	resolutions := map[string]object.ServiceCredentialRuntimeResolution{
+		object.ServiceCredentialRuntimeGroupInsightProviderTrust:  object.ResolveInsightProviderTrustRuntimeConfig(config, loadErr).Resolution,
+		object.ServiceCredentialRuntimeGroupUsageIdentityResolver: object.ResolveUsageIdentityResolverRuntimeConfig(config, loadErr, nil).Resolution,
+		object.ServiceCredentialRuntimeGroupGatewayProjection:     object.ResolveGatewayProjectionRuntimeConfig(config, loadErr, nil).Resolution,
+	}
+	result := make([]ServiceCredentialGovernanceStatusGroup, 0, len(groups))
+	for _, group := range groups {
+		resolution, ok := resolutions[group.Key]
+		if !ok {
+			result = append(result, group)
+			continue
+		}
+		group.AdoptedSource = resolution.AdoptedSource
+		group.CredentialReferenceKey = resolution.CredentialReferenceKey
+		group.Diagnostics = append([]string{}, resolution.Diagnostics...)
+		group.ErrorCode = resolution.ErrorCode
+		group.BlockedReasons = deduplicateStrings(append(group.BlockedReasons, resolution.BlockedReasons...))
+
+		if resolution.Ready {
+			if group.Status == serviceCredentialGovernanceStatusBlocked && len(group.BlockedReasons) == 0 {
+				group.Status = serviceCredentialGovernanceStatusConfigured
+			}
+			result = append(result, group)
+			continue
+		}
+
+		if loadErr != nil || resolution.SavedPolicy || resolution.ErrorCode == object.ServiceCredentialRuntimeBlockerInvalid {
+			group.Status = serviceCredentialGovernanceStatusBlocked
+		}
+		result = append(result, group)
+	}
+	return result
+}
+
 func serviceCredentialGovernanceStringSliceContains(values []string, target string) bool {
 	for _, value := range values {
 		if value == target {
@@ -384,21 +435,12 @@ func serviceCredentialGovernanceStringSliceContains(values []string, target stri
 }
 
 func buildInsightProviderTrustGovernanceGroup() ServiceCredentialGovernanceStatusGroup {
-	allowedAudiences := splitInsightCsv(conf.GetConfigString("insightProviderAllowedAudiences"))
-	audienceKey := "insightProviderAllowedAudiences"
-	if len(allowedAudiences) == 0 {
-		allowedAudiences = splitInsightCsv(conf.GetConfigString("insightProviderAudience"))
-		if len(allowedAudiences) > 0 {
-			audienceKey = "insightProviderAudience"
-		}
-	}
-	allowedIssuers := splitInsightCsv(conf.GetConfigString("insightProviderAllowedIssuers"))
-	requiredScopes := splitInsightCsv(conf.GetConfigString("insightProviderRequiredScopes"))
-	requiredScopesDefaulted := false
-	if len(requiredScopes) == 0 {
-		requiredScopes = splitInsightCsv(insightProviderDefaultRequiredScopes)
-		requiredScopesDefaulted = true
-	}
+	runtimeConfig := object.ResolveInsightProviderTrustRuntimeConfig(nil, nil)
+	allowedAudiences := runtimeConfig.AllowedAudiences
+	audienceKey := runtimeConfig.AudienceConfigKey
+	allowedIssuers := runtimeConfig.AllowedIssuers
+	requiredScopes := runtimeConfig.RequiredScopes
+	requiredScopesDefaulted := runtimeConfig.RequiredScopesDefaulted
 
 	configuredKeys := []string{"insightProviderRequiredScopes"}
 	missingKeys := []string{}
@@ -443,11 +485,12 @@ func buildInsightProviderTrustGovernanceGroup() ServiceCredentialGovernanceStatu
 }
 
 func buildUsageIdentityResolverGovernanceGroup() ServiceCredentialGovernanceStatusGroup {
-	endpointConfigured := strings.TrimSpace(conf.GetConfigString("insightUsageIdentityResolverEndpoint")) != ""
-	tokenConfigured := strings.TrimSpace(conf.GetConfigString("insightUsageIdentityResolverToken")) != ""
-	caller := firstNonEmptyInsightString(conf.GetConfigString("insightUsageIdentityResolverCaller"), insightUsageIdentityResolverDefaultCaller)
-	maxItems := normalizeInsightUsageIdentityResolverMaxItems(getInsightUsageIdentityResolverIntConfig("insightUsageIdentityResolverMaxItems", insightUsageIdentityResolverDefaultMaxItems))
-	timeoutMs := normalizeInsightUsageIdentityResolverTimeoutMs(getInsightUsageIdentityResolverIntConfig("insightUsageIdentityResolverTimeoutMs", insightUsageIdentityResolverDefaultTimeoutMs))
+	runtimeConfig := object.ResolveUsageIdentityResolverRuntimeConfig(nil, nil, nil)
+	endpointConfigured := runtimeConfig.EndpointConfigured
+	tokenConfigured := runtimeConfig.TokenConfigured
+	caller := runtimeConfig.Caller
+	maxItems := runtimeConfig.MaxItems
+	timeoutMs := int(runtimeConfig.LookupTimeout / time.Millisecond)
 
 	configuredKeys, missingKeys := serviceCredentialGovernanceConfiguredMissingKeys(map[string]bool{
 		"insightUsageIdentityResolverEndpoint":  endpointConfigured,
@@ -489,11 +532,12 @@ func buildUsageIdentityResolverGovernanceGroup() ServiceCredentialGovernanceStat
 }
 
 func buildGatewayOrganizationProjectionGovernanceGroup() ServiceCredentialGovernanceStatusGroup {
-	publisherConfig := object.GetGatewayProjectionPublisherConfig()
-	refreshConfig := object.GetGatewayProjectionRefreshConfig()
-	endpointConfigured := strings.TrimSpace(publisherConfig.Endpoint) != ""
-	statusEndpointConfigured := strings.TrimSpace(publisherConfig.StatusEndpoint) != ""
-	tokenConfigured := strings.TrimSpace(publisherConfig.Token) != ""
+	runtimeConfig := object.ResolveGatewayProjectionRuntimeConfig(nil, nil, nil)
+	publisherConfig := runtimeConfig.Publisher
+	refreshConfig := runtimeConfig.Refresh
+	endpointConfigured := runtimeConfig.PublisherEndpointConfigured
+	statusEndpointConfigured := runtimeConfig.PublisherStatusEndpointConfigured
+	tokenConfigured := runtimeConfig.PublisherTokenConfigured
 
 	configuredKeys, missingKeys := serviceCredentialGovernanceConfiguredMissingKeys(map[string]bool{
 		"gatewayOrganizationProjectionEnabled":                    publisherConfig.Enabled,

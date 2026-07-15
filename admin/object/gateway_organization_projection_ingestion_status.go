@@ -172,7 +172,7 @@ func (s GatewayProjectionIngestionStatusService) GetStatus(ctx context.Context, 
 }
 
 func (s GatewayProjectionIngestionStatusService) publisherConfig() GatewayProjectionPublisherConfig {
-	if s.Config.Endpoint != "" || s.Config.StatusEndpoint != "" || s.Config.Token != "" || s.Config.Caller != "" || s.Config.Timeout > 0 || s.Config.Enabled {
+	if s.Config.Endpoint != "" || s.Config.StatusEndpoint != "" || s.Config.Token != "" || s.Config.Caller != "" || s.Config.Timeout > 0 || s.Config.Enabled || s.Config.Resolution.GroupKey != "" {
 		config := s.Config
 		if config.Timeout <= 0 {
 			config.Timeout = time.Duration(gatewayProjectionPublisherDefaultTimeoutMs) * time.Millisecond

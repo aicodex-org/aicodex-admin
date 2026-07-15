@@ -17,6 +17,9 @@ const (
 	ServiceCredentialGovernanceConfigSource = "admin_service_credential_governance_config"
 )
 
+// ErrServiceCredentialGovernanceConfigUnavailable 用于把 store/持久化损坏映射为稳定、可脱敏的 API blocker。
+var ErrServiceCredentialGovernanceConfigUnavailable = errors.New(ServiceCredentialRuntimeBlockerSavedConfigUnavailable)
+
 // ServiceCredentialGovernanceConfig 是服务凭据治理配置入口的持久化记录。
 // ConfigJson 只保存 copy-safe 元数据，不保存 token、secret、完整 URL 或 provider 响应。
 type ServiceCredentialGovernanceConfig struct {
@@ -74,7 +77,7 @@ type defaultServiceCredentialGovernanceConfigStore struct{}
 func (s *ServiceCredentialGovernanceConfigService) GetConfig() (*ServiceCredentialGovernanceConfigResponse, error) {
 	config, err := s.configStore().GetServiceCredentialGovernanceConfig()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrServiceCredentialGovernanceConfigUnavailable, err)
 	}
 	response := defaultServiceCredentialGovernanceConfigResponse()
 	if config == nil || strings.TrimSpace(config.ConfigJson) == "" {
@@ -83,11 +86,11 @@ func (s *ServiceCredentialGovernanceConfigService) GetConfig() (*ServiceCredenti
 
 	var persisted ServiceCredentialGovernanceConfigResponse
 	if err := json.Unmarshal([]byte(config.ConfigJson), &persisted); err != nil {
-		return nil, errors.New("service credential governance config is invalid")
+		return nil, ErrServiceCredentialGovernanceConfigUnavailable
 	}
 	normalized, err := normalizeServiceCredentialGovernanceConfig(&persisted, true)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrServiceCredentialGovernanceConfigUnavailable, err)
 	}
 	normalized.UpdatedAt = formatServiceCredentialGovernanceConfigTime(config.UpdatedAt)
 	normalized.IsConfigured = true
@@ -114,7 +117,7 @@ func (s *ServiceCredentialGovernanceConfigService) SaveConfig(config *ServiceCre
 	}
 	affected, err := s.configStore().SaveServiceCredentialGovernanceConfig(record)
 	if err != nil {
-		return nil, false, err
+		return nil, false, fmt.Errorf("%w: %w", ErrServiceCredentialGovernanceConfigUnavailable, err)
 	}
 	return normalized, affected, nil
 }
@@ -255,6 +258,11 @@ func normalizeServiceCredentialGovernanceConfigGroup(group ServiceCredentialGove
 	if !isAllowedServiceCredentialGovernanceConfigGroupKey(group.Key) {
 		return ServiceCredentialGovernanceConfigGroup{}, errors.New("service credential governance config group is not supported")
 	}
+	if group.Key == ServiceCredentialRuntimeGroupInsightProviderTrust {
+		if err := validateInsightProviderTrustRuntimePolicyTypes(group.BoundedRuntimePolicy); err != nil {
+			return ServiceCredentialGovernanceConfigGroup{}, err
+		}
+	}
 	group.Label = strings.TrimSpace(group.Label)
 	group.Owner = strings.TrimSpace(group.Owner)
 	group.SourceClass = strings.TrimSpace(group.SourceClass)
@@ -267,6 +275,39 @@ func normalizeServiceCredentialGovernanceConfigGroup(group ServiceCredentialGove
 	group.KeepInEnvKeys = sanitizeServiceCredentialGovernanceConfigStringSlice(group.KeepInEnvKeys)
 	group.BoundedRuntimePolicy = sanitizeServiceCredentialGovernanceConfigPolicy(group.BoundedRuntimePolicy)
 	return group, nil
+}
+
+// validateInsightProviderTrustRuntimePolicyTypes 在通用 policy 归一化前拒绝非字符串 trust 元素，
+// 避免数字或布尔值被格式化成字符串后形成看似可执行的授权策略。
+func validateInsightProviderTrustRuntimePolicyTypes(policy map[string]interface{}) error {
+	for _, key := range []string{"allowedAudiences", "requiredScopes", "allowedIssuerDigests"} {
+		value, ok := policy[key]
+		if ok && !isInsightProviderTrustStringListValue(value) {
+			return errors.New("service credential governance trust policy type is not supported")
+		}
+	}
+	if value, ok := policy["issuerMode"]; ok {
+		if _, valid := value.(string); !valid {
+			return errors.New("service credential governance trust policy type is not supported")
+		}
+	}
+	return nil
+}
+
+func isInsightProviderTrustStringListValue(value interface{}) bool {
+	switch typed := value.(type) {
+	case string, []string:
+		return true
+	case []interface{}:
+		for _, item := range typed {
+			if _, ok := item.(string); !ok {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
 }
 
 func mergeServiceCredentialGovernanceConfigGroup(base ServiceCredentialGovernanceConfigGroup, override ServiceCredentialGovernanceConfigGroup) ServiceCredentialGovernanceConfigGroup {

@@ -219,6 +219,46 @@ func TestInsightCurrentUserSavedResolverDisabledFailsClosedBeforeOutbound(t *tes
 	}
 }
 
+func TestInsightUsageIdentityResolverFailClosedUsesSingleResolutionSnapshot(t *testing.T) {
+	original := insightUsageIdentityResolverRuntimePolicyConfigLoader
+	configLoads := 0
+	insightUsageIdentityResolverRuntimePolicyConfigLoader = func() (*object.ServiceCredentialGovernanceConfigResponse, error) {
+		configLoads++
+		if configLoads == 1 {
+			return &object.ServiceCredentialGovernanceConfigResponse{
+				IsConfigured: true,
+				Groups: []object.ServiceCredentialGovernanceConfigGroup{{
+					Key:         object.ServiceCredentialRuntimeGroupUsageIdentityResolver,
+					Enabled:     false,
+					SourceClass: "env_config",
+				}},
+			}, nil
+		}
+		return nil, nil
+	}
+	t.Cleanup(func() {
+		insightUsageIdentityResolverRuntimePolicyConfigLoader = original
+	})
+
+	identity, providerErr := resolveInsightUsageIdentityWithResolver(&object.User{
+		Owner: "org-a",
+		Name:  "huangfanli",
+		Id:    "admin-subject-huangfanli",
+		Wecom: "huangfanli",
+		Properties: map[string]string{
+			object.WecomUserPropertyCorpId: "ww123",
+			object.WecomUserPropertyUserId: "huangfanli",
+		},
+	}, "trace-resolver-snapshot", InsightUsageIdentity{MappingStatus: MappingStatusMissing})
+
+	if identity.MappingStatus != "" || providerErr == nil || providerErr.Code != InsightProviderErrorUnavailable {
+		t.Fatalf("saved disabled snapshot must fail closed: identity=%#v error=%#v", identity, providerErr)
+	}
+	if configLoads != 1 {
+		t.Fatalf("resolver config loads = %d, want exactly one resolution snapshot", configLoads)
+	}
+}
+
 func TestInsightCurrentUserSavedResolverExternalReferenceFailsClosedBeforeOutbound(t *testing.T) {
 	generatedAt := time.Date(2026, 6, 22, 8, 0, 0, 0, time.UTC)
 	calls := 0
@@ -1754,6 +1794,9 @@ func TestInsightProviderTrustPolicyKeepsLegacyFallbackWithoutExplicitFields(t *t
 	if policy.Explicit {
 		t.Fatalf("sparse saved trust group should not override legacy config: %#v", policy)
 	}
+	if policy.Resolution.AdoptedSource != object.ServiceCredentialRuntimeSourceLegacyEnvConfig {
+		t.Fatalf("sparse saved trust source = %#v", policy.Resolution)
+	}
 	if !isInsightAudienceAllowed([]string{"legacy-client"}) {
 		t.Fatalf("legacy audience should still be accepted without explicit saved policy")
 	}
@@ -1773,6 +1816,9 @@ func TestInsightProviderTrustPolicySupportsAnyNonEmptyIssuerModeAndDefaultsScope
 	policy := getInsightProviderTrustRuntimePolicy()
 	if !policy.Explicit || !policy.RequiredScopesDefaulted || !policy.CannotInfer {
 		t.Fatalf("policy should default scopes and mark cannotInfer for any_non_empty: %#v", policy)
+	}
+	if policy.Resolution.AdoptedSource != object.ServiceCredentialRuntimeSourceSavedManual || !policy.Resolution.Ready {
+		t.Fatalf("saved trust resolution = %#v", policy.Resolution)
 	}
 	if !isInsightIssuerAllowed("any-saved-issuer") {
 		t.Fatalf("any_non_empty issuer mode should accept non-empty issuer")
@@ -1794,6 +1840,86 @@ func TestInsightProviderTrustPolicyStoreErrorFailsClosed(t *testing.T) {
 
 	if isInsightAudienceAllowed([]string{"legacy-client"}) || isInsightIssuerAllowed("legacy-issuer") || hasInsightRequiredScopes("profile insight.scope.read") {
 		t.Fatalf("metadata store error should fail closed")
+	}
+}
+
+func TestInsightProviderTrustInvalidResolutionRejectsAllAuthorizationChecks(t *testing.T) {
+	policy := buildInsightProviderTrustRuntimePolicyFromConfig(&object.ServiceCredentialGovernanceConfigResponse{
+		IsConfigured: true,
+		Groups: []object.ServiceCredentialGovernanceConfigGroup{{
+			Key:         object.ServiceCredentialRuntimeGroupInsightProviderTrust,
+			Enabled:     true,
+			SourceClass: "admin_config",
+			BoundedRuntimePolicy: map[string]interface{}{
+				"allowedAudiences": []string{"saved-client"},
+				"requiredScopes":   123,
+				"issuerMode":       "any_non_empty",
+			},
+		}},
+	})
+	if policy.Resolution.Ready || isInsightProviderTrustPolicyReady(policy) {
+		t.Fatalf("invalid trust resolution must not be authorization-ready: %#v", policy)
+	}
+	if isInsightAudienceAllowedWithPolicy(policy, []string{"saved-client"}) || isInsightIssuerAllowedWithPolicy(policy, "saved-issuer") || hasInsightRequiredScopesWithPolicy(policy, "profile insight.scope.read") {
+		t.Fatalf("invalid trust policy must reject audience, issuer and scopes: %#v", policy)
+	}
+}
+
+func TestInsightBearerTrustUsesSingleResolutionSnapshot(t *testing.T) {
+	store := &memoryServiceCredentialGovernanceConfigStore{}
+	service := &object.ServiceCredentialGovernanceConfigService{Store: store}
+	if _, _, err := service.SaveConfig(&object.ServiceCredentialGovernanceConfigResponse{Groups: []object.ServiceCredentialGovernanceConfigGroup{{
+		Key:                       object.ServiceCredentialRuntimeGroupInsightProviderTrust,
+		Enabled:                   true,
+		SourceClass:               "admin_config",
+		CredentialReferenceStatus: "not_applicable",
+		BoundedRuntimePolicy: map[string]interface{}{
+			"allowedAudiences": []string{"saved-client"},
+			"issuerMode":       "any_non_empty",
+		},
+	}}}); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	originalFactory := applicationAccessServiceCredentialGovernanceConfigServiceFactory
+	originalApplicationLookup := getInsightApplicationByClientID
+	originalStandardParser := parseInsightStandardJwtTokenByApplication
+	t.Cleanup(func() {
+		applicationAccessServiceCredentialGovernanceConfigServiceFactory = originalFactory
+		getInsightApplicationByClientID = originalApplicationLookup
+		parseInsightStandardJwtTokenByApplication = originalStandardParser
+	})
+	configLoads := 0
+	applicationAccessServiceCredentialGovernanceConfigServiceFactory = func() *object.ServiceCredentialGovernanceConfigService {
+		configLoads++
+		return service
+	}
+	getInsightApplicationByClientID = func(clientID string) (*object.Application, error) {
+		if clientID != "saved-client" {
+			t.Fatalf("application client id = %q", clientID)
+		}
+		return &object.Application{ClientId: clientID, TokenFormat: "JWT-Standard"}, nil
+	}
+	parseInsightStandardJwtTokenByApplication = func(string, *object.Application) (*object.ClaimsStandard, error) {
+		return &object.ClaimsStandard{
+			TokenType: "access-token",
+			Scope:     "profile",
+			RegisteredClaims: jwt.RegisteredClaims{
+				Audience: jwt.ClaimStrings{"saved-client"},
+				Issuer:   "saved-issuer",
+			},
+		}, nil
+	}
+	token, err := jwt.NewWithClaims(jwt.SigningMethodNone, jwt.MapClaims{"aud": "saved-client"}).SignedString(jwt.UnsafeAllowNoneSignatureType)
+	if err != nil {
+		t.Fatalf("build token: %v", err)
+	}
+	user, providerErr := getInsightProviderUserByBearerToken(token, "admin.example.test", "trace-trust-snapshot")
+	if user != nil || providerErr == nil || providerErr.Code != InsightProviderErrorAuthorizationFailed {
+		t.Fatalf("scope rejection = user:%#v error:%#v", user, providerErr)
+	}
+	if configLoads != 1 {
+		t.Fatalf("trust config loads = %d, want exactly one resolution snapshot per bearer request", configLoads)
 	}
 }
 

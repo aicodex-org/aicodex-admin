@@ -6,11 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
-	"git.leagsoft.com/aicodex/aicodex-admin/conf"
 	"git.leagsoft.com/aicodex/aicodex-admin/object"
 	"github.com/beego/beego/v2/core/logs"
 )
@@ -22,13 +20,7 @@ const (
 	insightUsageIdentityResolverTransportRetries = 1
 )
 
-type insightUsageIdentityResolverConfig struct {
-	Endpoint      string
-	Token         string
-	Caller        string
-	MaxItems      int
-	LookupTimeout time.Duration
-}
+type insightUsageIdentityResolverConfig = object.UsageIdentityResolverRuntimeConfig
 
 type insightUsageIdentityResolveRequest struct {
 	TraceId string                            `json:"traceId"`
@@ -82,51 +74,26 @@ var insightUsageIdentityResolverRuntimePolicyConfigLoader = func() (*object.Serv
 	return (&object.ServiceCredentialGovernanceConfigService{}).GetConfig()
 }
 
-func getInsightUsageIdentityResolverRuntimePolicyDecision() object.ServiceCredentialRuntimePolicyDecision {
-	runtimeConfig, runtimeConfigErr := insightUsageIdentityResolverRuntimePolicyConfigLoader()
-	return object.BuildServiceCredentialRuntimePolicyDecision(runtimeConfig, runtimeConfigErr, "usage_identity_resolver", []string{"timeoutMs", "maxItems"})
-}
-
 func getInsightUsageIdentityResolverConfig() (insightUsageIdentityResolverConfig, bool) {
-	runtimePolicy := getInsightUsageIdentityResolverRuntimePolicyDecision()
-	if runtimePolicy.SavedConfigured && !runtimePolicy.AllowLegacy {
-		return insightUsageIdentityResolverConfig{}, false
-	}
-
-	endpoint := strings.TrimSpace(conf.GetConfigString("insightUsageIdentityResolverEndpoint"))
-	token := strings.TrimSpace(conf.GetConfigString("insightUsageIdentityResolverToken"))
-	if endpoint == "" || token == "" {
-		return insightUsageIdentityResolverConfig{}, false
-	}
-	caller := strings.TrimSpace(conf.GetConfigString("insightUsageIdentityResolverCaller"))
-	if caller == "" {
-		caller = insightUsageIdentityResolverDefaultCaller
-	}
-	maxItems := getInsightUsageIdentityResolverIntConfig("insightUsageIdentityResolverMaxItems", insightUsageIdentityResolverDefaultMaxItems)
-	timeoutMs := getInsightUsageIdentityResolverIntConfig("insightUsageIdentityResolverTimeoutMs", insightUsageIdentityResolverDefaultTimeoutMs)
-	if runtimePolicy.SavedConfigured && runtimePolicy.AllowLegacy {
-		caller = firstNonEmptyInsightString(runtimePolicy.CallerPolicy, caller)
-		maxItems = object.ServiceCredentialRuntimePolicyInt(runtimePolicy.BoundedRuntimePolicy, "maxItems", maxItems)
-		timeoutMs = object.ServiceCredentialRuntimePolicyInt(runtimePolicy.BoundedRuntimePolicy, "timeoutMs", timeoutMs)
-	}
-	return insightUsageIdentityResolverConfig{
-		Endpoint:      endpoint,
-		Token:         token,
-		Caller:        caller,
-		MaxItems:      normalizeInsightUsageIdentityResolverMaxItems(maxItems),
-		LookupTimeout: time.Duration(normalizeInsightUsageIdentityResolverTimeoutMs(timeoutMs)) * time.Millisecond,
-	}, true
+	runtimeConfig, runtimeConfigErr := insightUsageIdentityResolverRuntimePolicyConfigLoader()
+	config := object.ResolveUsageIdentityResolverRuntimeConfig(runtimeConfig, runtimeConfigErr, nil)
+	return config, config.Resolution.Ready
 }
 
-func newInsightUsageIdentityResolverFromConfig() insightUsageIdentityResolver {
+// newInsightUsageIdentityResolverFromConfig 返回 resolver 及同一次加载产生的 typed config。
+// 调用方必须复用该 config 判断 saved policy，避免单个请求混用两个配置快照。
+func newInsightUsageIdentityResolverFromConfig() (insightUsageIdentityResolver, insightUsageIdentityResolverConfig) {
 	config, ok := getInsightUsageIdentityResolverConfig()
 	if !ok {
-		return nil
+		return nil, config
 	}
-	return insightUsageIdentityHTTPResolver{config: config, client: newInsightUsageIdentityResolverHTTPClient(config.LookupTimeout)}
+	return insightUsageIdentityHTTPResolver{config: config, client: newInsightUsageIdentityResolverHTTPClient(config.LookupTimeout)}, config
 }
 
 func (r insightUsageIdentityHTTPResolver) Enabled() bool {
+	if r.config.Resolution.GroupKey != "" && !r.config.Resolution.Ready {
+		return false
+	}
 	return strings.TrimSpace(r.config.Endpoint) != "" && strings.TrimSpace(r.config.Token) != ""
 }
 
@@ -225,8 +192,8 @@ func (r insightUsageIdentityHTTPResolver) writeAudit(traceId string, batchSize i
 		status = "error"
 	}
 	// 审计日志不输出 token、手机号、邮箱或完整身份原文，只保留批量统计和错误码。
-	logs.Info("insight_usage_identity_resolver_audit traceId=%s resolverCaller=%s resolverBatchSize=%d resolverOkCount=%d resolverMissingCount=%d resolverAmbiguousCount=%d resolverInvalidCount=%d status=%s errorCode=%s durationMs=%d",
-		traceId, r.config.Caller, batchSize, okCount, missingCount, ambiguousCount, invalidCount, status, errorCode, time.Since(startedAt).Milliseconds())
+	logs.Info("insight_usage_identity_resolver_audit traceId=%s resolverCaller=%s resolverSource=%s resolverConfigError=%s resolverBatchSize=%d resolverOkCount=%d resolverMissingCount=%d resolverAmbiguousCount=%d resolverInvalidCount=%d status=%s errorCode=%s durationMs=%d",
+		traceId, r.config.Caller, r.config.Resolution.AdoptedSource, r.config.Resolution.ErrorCode, batchSize, okCount, missingCount, ambiguousCount, invalidCount, status, errorCode, time.Since(startedAt).Milliseconds())
 }
 
 func countInsightUsageIdentityResolveStatuses(results []insightUsageIdentityResolveResult) (int, int, int, int) {
@@ -262,18 +229,6 @@ func newInsightUsageIdentityResolverHTTPClient(timeout time.Duration) *http.Clie
 
 func shouldRetryInsightUsageIdentityResolverTransportError(ctx context.Context, attempt int) bool {
 	return attempt < insightUsageIdentityResolverTransportRetries && ctx.Err() == nil
-}
-
-func getInsightUsageIdentityResolverIntConfig(key string, fallback int) int {
-	value := strings.TrimSpace(conf.GetConfigString(key))
-	if value == "" {
-		return fallback
-	}
-	parsed, err := strconv.Atoi(value)
-	if err != nil {
-		return fallback
-	}
-	return parsed
 }
 
 func normalizeInsightUsageIdentityResolverMaxItems(value int) int {

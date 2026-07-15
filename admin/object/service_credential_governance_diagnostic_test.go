@@ -51,6 +51,9 @@ func TestBuildServiceCredentialGovernanceDiagnosticsClassifiesReadyAndFailClosed
 	if !ready.CallerPolicyPresent || ready.Owner != "admin_outbound_resolver" || ready.NextAction == "" {
 		t.Fatalf("ready metadata = %#v", ready)
 	}
+	if ready.ErrorCode != ServiceCredentialRuntimeBlockerReferenceUnresolved || len(ready.RuntimeBlockedReasons) == 0 {
+		t.Fatalf("ready preflight should expose separate runtime blockers without changing its legacy status: %#v", ready)
+	}
 
 	disabled := serviceCredentialGovernanceDiagnosticGroupByKey(t, response.Groups, "gateway_organization_projection")
 	if disabled.Status != "disabled" || disabled.StableAlias != ServiceCredentialRuntimeBlockerGroupDisabled {

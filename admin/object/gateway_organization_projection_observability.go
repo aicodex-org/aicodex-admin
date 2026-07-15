@@ -44,11 +44,16 @@ type GatewayProjectionObservabilitySnapshot struct {
 }
 
 type GatewayProjectionPublisherObservability struct {
-	Enabled             bool   `json:"enabled"`
-	Configured          bool   `json:"configured"`
-	DisabledReason      string `json:"disabledReason,omitempty"`
-	FreshnessTTLSeconds int64  `json:"freshnessTtlSeconds"`
-	MaxRetries          int    `json:"maxRetries"`
+	Enabled                bool     `json:"enabled"`
+	Configured             bool     `json:"configured"`
+	DisabledReason         string   `json:"disabledReason,omitempty"`
+	FreshnessTTLSeconds    int64    `json:"freshnessTtlSeconds"`
+	MaxRetries             int      `json:"maxRetries"`
+	AdoptedSource          string   `json:"adoptedSource,omitempty"`
+	CredentialReferenceKey string   `json:"credentialReferenceKey,omitempty"`
+	Diagnostics            []string `json:"diagnostics,omitempty"`
+	BlockedReasons         []string `json:"blockedReasons,omitempty"`
+	ErrorCode              string   `json:"errorCode,omitempty"`
 }
 
 type GatewayProjectionRefreshObservability struct {
@@ -119,19 +124,15 @@ func GetGatewayProjectionObservabilitySnapshot(now time.Time) GatewayProjectionO
 	if now.IsZero() {
 		now = time.Now()
 	}
-	publisherConfig := GetGatewayProjectionPublisherConfig()
-	refreshConfig := GetGatewayProjectionRefreshConfig()
+	runtimeConfig := GetGatewayProjectionRuntimeConfig()
+	publisherConfig := runtimeConfig.Publisher
+	refreshConfig := runtimeConfig.Refresh
 	freshnessTTL := publisherConfig.FreshnessTTL
 	if freshnessTTL <= 0 {
 		freshnessTTL = GatewayProjectionDefaultFreshnessTTL
 	}
 	configured := strings.TrimSpace(publisherConfig.Endpoint) != "" && strings.TrimSpace(publisherConfig.Token) != ""
-	disabledReason := ""
-	if !publisherConfig.Enabled {
-		disabledReason = "publisher_disabled"
-	} else if !configured {
-		disabledReason = GatewayProjectionFailureProjectionTokenMissing
-	}
+	disabledReason := gatewayProjectionPublisherDisabledReason(publisherConfig)
 
 	gatewayProjectionObservability.mu.Lock()
 	latest := cloneGatewayProjectionLatestPublish(gatewayProjectionObservability.latest)
@@ -162,11 +163,16 @@ func GetGatewayProjectionObservabilitySnapshot(now time.Time) GatewayProjectionO
 	return GatewayProjectionObservabilitySnapshot{
 		GeneratedAt: formatGatewayProjectionObservabilityTime(now),
 		Publisher: GatewayProjectionPublisherObservability{
-			Enabled:             publisherConfig.Enabled,
-			Configured:          configured,
-			DisabledReason:      disabledReason,
-			FreshnessTTLSeconds: int64(freshnessTTL / time.Second),
-			MaxRetries:          normalizeGatewayProjectionMaxRetries(publisherConfig.MaxRetries),
+			Enabled:                publisherConfig.Enabled,
+			Configured:             configured,
+			DisabledReason:         disabledReason,
+			FreshnessTTLSeconds:    int64(freshnessTTL / time.Second),
+			MaxRetries:             normalizeGatewayProjectionMaxRetries(publisherConfig.MaxRetries),
+			AdoptedSource:          runtimeConfig.Resolution.AdoptedSource,
+			CredentialReferenceKey: runtimeConfig.Resolution.CredentialReferenceKey,
+			Diagnostics:            append([]string{}, runtimeConfig.Resolution.Diagnostics...),
+			BlockedReasons:         append([]string{}, runtimeConfig.Resolution.BlockedReasons...),
+			ErrorCode:              runtimeConfig.Resolution.ErrorCode,
 		},
 		Refresh: refresh,
 		Latest:  latest,

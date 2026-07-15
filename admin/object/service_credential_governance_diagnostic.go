@@ -43,6 +43,11 @@ type ServiceCredentialGovernanceDiagnosticGroup struct {
 	NextAction                string   `json:"nextAction,omitempty"`
 	CannotInfer               bool     `json:"cannotInfer"`
 	BlockedReasons            []string `json:"blockedReasons,omitempty"`
+	AdoptedSource             string   `json:"adoptedSource,omitempty"`
+	CredentialReferenceKey    string   `json:"credentialReferenceKey,omitempty"`
+	Diagnostics               []string `json:"diagnostics,omitempty"`
+	ErrorCode                 string   `json:"errorCode,omitempty"`
+	RuntimeBlockedReasons     []string `json:"runtimeBlockedReasons,omitempty"`
 }
 
 // BuildServiceCredentialGovernanceDiagnostics 将服务凭据治理 draft/saved config 转换为 copy-safe 诊断结果。
@@ -59,9 +64,35 @@ func BuildServiceCredentialGovernanceDiagnostics(input *ServiceCredentialGoverna
 		return response
 	}
 	for _, group := range input.Groups {
-		response.Groups = append(response.Groups, buildServiceCredentialGovernanceDiagnosticGroup(group))
+		diagnostic := buildServiceCredentialGovernanceDiagnosticGroup(group)
+		if isAllowedServiceCredentialGovernanceConfigGroupKey(strings.TrimSpace(group.Key)) && !containsServiceCredentialGovernanceDiagnosticSensitiveMaterial(group) {
+			diagnostic = applyServiceCredentialGovernanceDiagnosticRuntimeResolution(diagnostic, serviceCredentialGovernanceDiagnosticRuntimeResolution(group))
+		}
+		response.Groups = append(response.Groups, diagnostic)
 	}
 	return response
+}
+
+func serviceCredentialGovernanceDiagnosticRuntimeResolution(group ServiceCredentialGovernanceConfigGroup) ServiceCredentialRuntimeResolution {
+	config := &ServiceCredentialGovernanceConfigResponse{IsConfigured: true, Groups: []ServiceCredentialGovernanceConfigGroup{group}}
+	switch strings.TrimSpace(group.Key) {
+	case ServiceCredentialRuntimeGroupInsightProviderTrust:
+		return ResolveInsightProviderTrustRuntimeConfig(config, nil).Resolution
+	case ServiceCredentialRuntimeGroupGatewayProjection:
+		return ResolveGatewayProjectionRuntimeConfig(config, nil, nil).Resolution
+	default:
+		return ResolveUsageIdentityResolverRuntimeConfig(config, nil, nil).Resolution
+	}
+}
+
+func applyServiceCredentialGovernanceDiagnosticRuntimeResolution(diagnostic ServiceCredentialGovernanceDiagnosticGroup, resolution ServiceCredentialRuntimeResolution) ServiceCredentialGovernanceDiagnosticGroup {
+	diagnostic.AdoptedSource = resolution.AdoptedSource
+	diagnostic.CredentialReferenceKey = resolution.CredentialReferenceKey
+	diagnostic.Diagnostics = append([]string{}, resolution.Diagnostics...)
+	diagnostic.ErrorCode = resolution.ErrorCode
+	// blockedReasons/cannotInfer 是既有 metadata preflight 契约；runtime blocker 单独投影，避免内部重构改写旧 alias/DTO 语义。
+	diagnostic.RuntimeBlockedReasons = append([]string{}, resolution.BlockedReasons...)
+	return diagnostic
 }
 
 func buildServiceCredentialGovernanceDiagnosticGroup(group ServiceCredentialGovernanceConfigGroup) ServiceCredentialGovernanceDiagnosticGroup {

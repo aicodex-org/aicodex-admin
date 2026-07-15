@@ -21,11 +21,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
-	"git.leagsoft.com/aicodex/aicodex-admin/conf"
 	"github.com/beego/beego/v2/core/logs"
 )
 
@@ -51,6 +49,7 @@ type GatewayProjectionPublisherConfig struct {
 	FreshnessTTL   time.Duration
 	MaxRetries     int
 	BlockedReasons []string
+	Resolution     ServiceCredentialRuntimeResolution
 }
 
 // GatewayProjectionPublisher 封装 gateway projection HTTP push 行为和脱敏审计出口。
@@ -86,6 +85,8 @@ type GatewayProjectionPublishAuditEvent struct {
 	Accepted          bool
 	Idempotent        bool
 	DurationMs        int64
+	ConfigSource      string
+	ConfigErrorCode   string
 }
 
 type gatewayProjectionPublishEnvelope struct {
@@ -109,36 +110,7 @@ type gatewayProjectionPublishError struct {
 // GetGatewayProjectionPublisherConfig 读取 admin-to-gateway projection 发布配置。
 // token 和 endpoint 只来自环境或私有配置；调用方记录验证结果时不得输出真实值。
 func GetGatewayProjectionPublisherConfig() GatewayProjectionPublisherConfig {
-	timeoutMs := gatewayProjectionIntConfig("gatewayOrganizationProjectionTimeoutMs", gatewayProjectionPublisherDefaultTimeoutMs)
-	freshnessSeconds := gatewayProjectionIntConfig("gatewayOrganizationProjectionFreshnessTTLSeconds", int(GatewayProjectionDefaultFreshnessTTL/time.Second))
-	config := GatewayProjectionPublisherConfig{
-		Enabled:        conf.GetConfigBool("gatewayOrganizationProjectionEnabled"),
-		Endpoint:       strings.TrimSpace(conf.GetConfigString("gatewayOrganizationProjectionEndpoint")),
-		StatusEndpoint: strings.TrimSpace(conf.GetConfigString("gatewayOrganizationProjectionStatusEndpoint")),
-		Token:          strings.TrimSpace(conf.GetConfigString("gatewayOrganizationProjectionToken")),
-		Caller:         firstNonEmpty(conf.GetConfigString("gatewayOrganizationProjectionCaller"), GatewayProjectionDefaultCaller),
-		Timeout:        time.Duration(timeoutMs) * time.Millisecond,
-		FreshnessTTL:   time.Duration(freshnessSeconds) * time.Second,
-		MaxRetries:     gatewayProjectionIntConfig("gatewayOrganizationProjectionMaxRetries", gatewayProjectionPublisherDefaultRetries),
-	}
-	decision := GetServiceCredentialRuntimePolicyDecision("gateway_organization_projection", []string{"timeoutMs", "freshnessTTLSeconds", "maxRetries"})
-	if !decision.SavedConfigured {
-		return config
-	}
-	if !decision.AllowLegacy {
-		return GatewayProjectionPublisherConfig{
-			Caller:         firstNonEmpty(decision.CallerPolicy, GatewayProjectionDefaultCaller),
-			FreshnessTTL:   GatewayProjectionDefaultFreshnessTTL,
-			Timeout:        time.Duration(gatewayProjectionPublisherDefaultTimeoutMs) * time.Millisecond,
-			MaxRetries:     gatewayProjectionPublisherDefaultRetries,
-			BlockedReasons: decision.BlockedReasons,
-		}
-	}
-	config.Caller = firstNonEmpty(decision.CallerPolicy, config.Caller, GatewayProjectionDefaultCaller)
-	config.Timeout = time.Duration(normalizeGatewayProjectionTimeoutMs(ServiceCredentialRuntimePolicyInt(decision.BoundedRuntimePolicy, "timeoutMs", timeoutMs))) * time.Millisecond
-	config.FreshnessTTL = time.Duration(ServiceCredentialRuntimePolicyInt(decision.BoundedRuntimePolicy, "freshnessTTLSeconds", freshnessSeconds)) * time.Second
-	config.MaxRetries = normalizeGatewayProjectionMaxRetries(ServiceCredentialRuntimePolicyInt(decision.BoundedRuntimePolicy, "maxRetries", config.MaxRetries))
-	return config
+	return GetGatewayProjectionRuntimeConfig().Publisher
 }
 
 // Publish 使用服务间 Bearer token 推送 projection batch。
@@ -258,13 +230,15 @@ func (p GatewayProjectionPublisher) writeAudit(request GatewayProjectionBatchReq
 		Accepted:          result.Accepted,
 		Idempotent:        result.Idempotent,
 		DurationMs:        time.Since(startedAt).Milliseconds(),
+		ConfigSource:      p.Config.Resolution.AdoptedSource,
+		ConfigErrorCode:   p.Config.Resolution.ErrorCode,
 	}
 	if p.Audit != nil {
 		p.Audit(event)
 	} else {
 		// 审计日志只记录批次、状态和错误码，不输出 token、完整 endpoint、Cookie 或原始响应。
-		logs.Info("gateway_projection_publish_audit traceId=%s caller=%s projectionBatchId=%s orgVersion=%d sourceVersion=%s generatedAt=%s freshnessExpiresAt=%s subjectCount=%d activeSubjectCount=%d tombstoneSubjectCount=%d status=%s statusCode=%d errorCode=%s failureCategory=%s attempts=%d accepted=%t idempotent=%t durationMs=%d",
-			event.TraceID, event.Caller, event.ProjectionBatchID, event.OrgVersion, request.Lineage.SourceVersion, request.GeneratedAt.UTC().Format(time.RFC3339), request.Freshness.ExpiresAt.UTC().Format(time.RFC3339), len(request.Subjects), gatewayProjectionActiveSubjectCount(request.Subjects), gatewayProjectionTombstoneSubjectCount(request.Subjects), event.Status, event.StatusCode, event.ErrorCode, GatewayProjectionFailureCategory(event.ErrorCode), event.Attempts, event.Accepted, event.Idempotent, event.DurationMs)
+		logs.Info("gateway_projection_publish_audit traceId=%s caller=%s configSource=%s configErrorCode=%s projectionBatchId=%s orgVersion=%d sourceVersion=%s generatedAt=%s freshnessExpiresAt=%s subjectCount=%d activeSubjectCount=%d tombstoneSubjectCount=%d status=%s statusCode=%d errorCode=%s failureCategory=%s attempts=%d accepted=%t idempotent=%t durationMs=%d",
+			event.TraceID, event.Caller, event.ConfigSource, event.ConfigErrorCode, event.ProjectionBatchID, event.OrgVersion, request.Lineage.SourceVersion, request.GeneratedAt.UTC().Format(time.RFC3339), request.Freshness.ExpiresAt.UTC().Format(time.RFC3339), len(request.Subjects), gatewayProjectionActiveSubjectCount(request.Subjects), gatewayProjectionTombstoneSubjectCount(request.Subjects), event.Status, event.StatusCode, event.ErrorCode, GatewayProjectionFailureCategory(event.ErrorCode), event.Attempts, event.Accepted, event.Idempotent, event.DurationMs)
 	}
 	recordGatewayProjectionPublishAudit(event, request)
 }
@@ -390,18 +364,6 @@ func normalizeGatewayProjectionTimeoutMs(value int) int {
 		return gatewayProjectionPublisherDefaultTimeoutMs
 	}
 	return value
-}
-
-func gatewayProjectionIntConfig(key string, fallback int) int {
-	value := strings.TrimSpace(conf.GetConfigString(key))
-	if value == "" {
-		return fallback
-	}
-	parsed, err := strconv.Atoi(value)
-	if err != nil {
-		return fallback
-	}
-	return parsed
 }
 
 func (r GatewayProjectionPublishResult) String() string {

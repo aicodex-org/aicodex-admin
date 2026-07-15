@@ -207,8 +207,8 @@ func TestGetInsightAdminProviderHandoffConfigRequiresLoginAndHandlesStoreError(t
 	controller.GetInsightAdminProviderHandoffConfig()
 
 	resp, ok = controller.Data["json"].(*Response)
-	if !ok || resp.Status != "error" || !strings.Contains(resp.Msg, "metadata store unavailable") {
-		t.Fatalf("response = %#v, want store error", controller.Data["json"])
+	if !ok || resp.Status != "error" || resp.Msg != object.ServiceCredentialRuntimeBlockerSavedConfigUnavailable {
+		t.Fatalf("response = %#v, want stable store blocker", controller.Data["json"])
 	}
 }
 
@@ -228,8 +228,8 @@ func TestSaveInsightAdminProviderHandoffConfigHandlesStoreError(t *testing.T) {
 	controller.SaveInsightAdminProviderHandoffConfig()
 
 	resp, ok := controller.Data["json"].(*Response)
-	if !ok || resp.Status != "error" || !strings.Contains(resp.Msg, "metadata store unavailable") {
-		t.Fatalf("response = %#v, want store error", controller.Data["json"])
+	if !ok || resp.Status != "error" || resp.Msg != object.ServiceCredentialRuntimeBlockerSavedConfigUnavailable {
+		t.Fatalf("response = %#v, want stable store blocker", controller.Data["json"])
 	}
 }
 
@@ -271,6 +271,9 @@ func TestDiagnoseInsightAdminProviderHandoffConfigReturnsCopySafeDiagnostic(t *t
 	}
 	if len(diagnostic.Groups) != 1 || diagnostic.Groups[0].StableAlias != object.ServiceCredentialRuntimeBlockerReferenceUnresolved {
 		t.Fatalf("diagnostic groups = %#v", diagnostic.Groups)
+	}
+	if diagnostic.Groups[0].AdoptedSource != object.ServiceCredentialRuntimeSourceSavedSecretRef || diagnostic.Groups[0].CredentialReferenceKey != "vault:usage-identity-resolver" || diagnostic.Groups[0].ErrorCode != object.ServiceCredentialRuntimeBlockerReferenceUnresolved {
+		t.Fatalf("diagnostic runtime resolution = %#v", diagnostic.Groups[0])
 	}
 	body, err := json.Marshal(diagnostic)
 	if err != nil {

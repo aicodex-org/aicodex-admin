@@ -119,7 +119,7 @@ func (s *GatewayProjectionService) snapshotStore() GatewayProjectionSnapshotStor
 }
 
 func (s *GatewayProjectionService) publisherConfig() GatewayProjectionPublisherConfig {
-	if s != nil && (s.Config.Endpoint != "" || s.Config.Token != "" || s.Config.Caller != "" || s.Config.FreshnessTTL > 0) {
+	if s != nil && (s.Config.Endpoint != "" || s.Config.Token != "" || s.Config.Caller != "" || s.Config.FreshnessTTL > 0 || s.Config.Resolution.GroupKey != "") {
 		config := s.Config
 		config.Caller = firstNonEmpty(config.Caller, GatewayProjectionDefaultCaller)
 		if config.FreshnessTTL <= 0 {
