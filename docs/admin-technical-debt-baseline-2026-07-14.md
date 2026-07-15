@@ -17,6 +17,7 @@
 - `stabilize-admin-go-test-baseline-and-fixtures` 已归档并合入，commit 为 `fdd7cef0`。
 - `decouple-web-admin-jest-from-react-scripts` 当前正在独立 change 中实施。
 - `establish-aicodex-owned-schema-migration-baseline` 当前正在独立 RC worktree 中实施。
+- `migrate-web-admin-package-manager-to-bun` 已完成 `EVALUATE_AFTER_JEST` 评估，结论为 `NO-GO`：两次隔离 Bun frozen lifecycle install 均因依赖链接缺失而失败，同环境 Yarn frozen control 成功，因此没有有效 Bun 冷安装样本可计算 20% 收益阈值；当前继续保留 Yarn、`yarn.lock` 和既有工具链调用方。
 - 本文中的文件数、调用次数、suite 数量和工具输出均为 2026-07-14 审计快照；正式创建后续 proposal 前必须基于最新基线重新验证。
 - 当前正文继续保留审计时上下文，避免把历史证据改写成实时状态；本节只记录已经确认的后续状态变化。
 
@@ -338,7 +339,7 @@ Gateway refresh、webhook 和组织同步 scheduler 已有部分 Stop/context �
 4. `[已完成]` 完成并归档 `stabilize-admin-go-test-baseline-and-fixtures`。
 5. `establish-aicodex-owned-schema-migration-baseline` 已进入独立 RC worktree 实施，继续按其独立边界收口。
 6. `[已完成]` 完成并归档 `migrate-web-admin-build-toolchain-to-vite`；当前继续独立实施 `decouple-web-admin-jest-from-react-scripts`。
-7. Jest 解耦收口后评估 `migrate-web-admin-package-manager-to-bun`；只有基准收益达到 proposal 的量化 go/no-go threshold 才实施。
+7. `[已完成评估，NO-GO]` `migrate-web-admin-package-manager-to-bun` 未通过 frozen lifecycle 兼容门禁，性能收益阈值不可计算；保持 Yarn 单一真值，未来仅在 Bun linker 或依赖树发生独立、可证明变化后重新立项评估。
 8. 重新根据 60 运行态证据判断 lifecycle、API contract、React Router/Testing Library 升级和其它前端架构债是否进入下一阶段。
 
 ## 本次审计验证记录
