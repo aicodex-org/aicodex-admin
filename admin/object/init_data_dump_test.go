@@ -12,17 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build !skipCi
+//go:build integration
 
 package object
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
 func TestDumpToFile(t *testing.T) {
 	createDatabase = false
 	InitConfig()
 
-	err := DumpToFile("./init_data_dump.json")
+	err := DumpToFile(filepath.Join(t.TempDir(), "init_data_dump.json"))
 	if err != nil {
 		panic(err)
 	}

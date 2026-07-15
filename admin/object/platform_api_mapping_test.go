@@ -17,11 +17,8 @@ package object
 import (
 	"encoding/json"
 	"errors"
-	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/xorm-io/xorm"
 )
 
 func TestSavePlatformApiOrganizationMappingPopulatesDefaultLineage(t *testing.T) {
@@ -558,18 +555,11 @@ func TestBindApplicationToStoredTokenOrganizationRestoresSharedOrganization(t *t
 func setupPlatformApiMappingTestOrmer(t *testing.T) {
 	t.Helper()
 
-	engine, err := xorm.NewEngine("sqlite", filepath.Join(t.TempDir(), "platform-api-mapping.db"))
-	if err != nil {
-		t.Fatalf("new sqlite engine error = %v", err)
-	}
-	if err := engine.Sync2(new(Organization), new(PlatformUser), new(PlatformApiOrganizationMapping), new(PlatformApiUserMapping)); err != nil {
-		t.Fatalf("sync platform api mapping tables error = %v", err)
-	}
+	engine := newSQLiteTestEngine(t, new(Organization), new(PlatformUser), new(PlatformApiOrganizationMapping), new(PlatformApiUserMapping))
 
 	oldOrmer := ormer
 	ormer = &Ormer{Engine: engine}
 	t.Cleanup(func() {
-		_ = engine.Close()
 		ormer = oldOrmer
 	})
 }

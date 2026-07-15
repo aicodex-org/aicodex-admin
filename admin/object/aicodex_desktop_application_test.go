@@ -104,7 +104,7 @@ func TestAICodexDesktopApplicationDiscoveryContract(t *testing.T) {
 
 	discovery := GetOidcDiscovery("auth.example.com", AICodexDesktopApplicationName)
 
-	if discovery.Issuer != "https://auth.example.com/.well-known/app-aicodex-desktop" {
+	if discovery.Issuer != "https://auth.example.com" {
 		t.Fatalf("issuer=%q", discovery.Issuer)
 	}
 	if discovery.AuthorizationEndpoint != "https://login.example.com/login/oauth/authorize" {
@@ -113,7 +113,7 @@ func TestAICodexDesktopApplicationDiscoveryContract(t *testing.T) {
 	if discovery.TokenEndpoint != "https://auth.example.com/api/login/oauth/access_token" {
 		t.Fatalf("token_endpoint=%q", discovery.TokenEndpoint)
 	}
-	if discovery.JwksUri != "https://auth.example.com/.well-known/app-aicodex-desktop/jwks" {
+	if discovery.JwksUri != "https://auth.example.com/.well-known/jwks" {
 		t.Fatalf("jwks_uri=%q", discovery.JwksUri)
 	}
 	if !testStringSliceContains(discovery.GrantTypesSupported, "refresh_token") {

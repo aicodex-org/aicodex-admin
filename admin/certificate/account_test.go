@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build !skipCi
-// +build !skipCi
+//go:build external
 
 package certificate
 
@@ -35,13 +34,11 @@ func TestGetClient(t *testing.T) {
 	proxy.InitHttpClient()
 
 	eccKey := util.ReadStringFromPath("acme_account.key")
-	println(eccKey)
 
 	client, err := GetAcmeClient("acme2@casbin.org", eccKey, false)
 	assert.Nil(t, err)
 	pem, key, err := ObtainCertificateAli(client, "casbin.com", accessKeyId, accessKeySecret)
 	assert.Nil(t, err)
-	println(pem)
-	println()
-	println(key)
+	assert.NotEmpty(t, pem)
+	assert.NotEmpty(t, key)
 }

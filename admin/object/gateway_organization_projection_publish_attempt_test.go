@@ -20,12 +20,10 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/xorm-io/xorm"
 	_ "modernc.org/sqlite"
 )
 
@@ -1291,21 +1289,11 @@ func TestGatewayProjectionServiceRecordsScheduledAttempt(t *testing.T) {
 func setupGatewayProjectionPublishAttemptTestOrmer(t *testing.T) {
 	t.Helper()
 
-	engine, err := xorm.NewEngine("sqlite", filepath.Join(t.TempDir(), "gateway-projection-attempt.db"))
-	if err != nil {
-		t.Fatalf("new sqlite engine error = %v", err)
-	}
-	if err := engine.Sync2(new(GatewayProjectionPublishAttempt)); err != nil {
-		t.Fatalf("sync attempt table error = %v", err)
-	}
-	if err := engine.Sync2(new(GatewayProjectionCleanupApprovalAuditRecord)); err != nil {
-		t.Fatalf("sync cleanup approval audit table error = %v", err)
-	}
+	engine := newSQLiteTestEngine(t, new(GatewayProjectionPublishAttempt), new(GatewayProjectionCleanupApprovalAuditRecord))
 
 	oldOrmer := ormer
 	ormer = &Ormer{Engine: engine}
 	t.Cleanup(func() {
-		_ = engine.Close()
 		ormer = oldOrmer
 	})
 }

@@ -15,12 +15,9 @@
 package object
 
 import (
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/xorm-io/xorm"
 )
 
 func TestWecomProfileConsentIntentServiceNewIntentHashesSecretsAndStoresLoginContext(t *testing.T) {
@@ -484,17 +481,9 @@ func setupWecomProfileConsentIntentTestDB(t *testing.T) {
 	t.Helper()
 
 	oldOrmer := ormer
-	dbPath := filepath.Join(t.TempDir(), "wecom-profile-consent-intent.db")
-	engine, err := xorm.NewEngine("sqlite", dbPath)
-	if err != nil {
-		t.Fatalf("new sqlite engine error = %v", err)
-	}
-	if err := engine.Sync2(new(WecomProfileConsentIntent)); err != nil {
-		t.Fatalf("sync intent table error = %v", err)
-	}
+	engine := newSQLiteTestEngine(t, new(WecomProfileConsentIntent))
 	ormer = &Ormer{Engine: engine}
 	t.Cleanup(func() {
-		_ = engine.Close()
 		ormer = oldOrmer
 	})
 }

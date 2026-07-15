@@ -19,10 +19,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
-// DuplicateInfo represents information about a duplicate key
+// DuplicateInfo 描述一个重复的 namespace:key。
 type DuplicateInfo struct {
 	Key          string
 	OldPrefix    string
@@ -31,25 +32,17 @@ type DuplicateInfo struct {
 	NewPrefixKey string // e.g., "permission:Submitter"
 }
 
-// findDuplicateKeysInJSON finds duplicate keys across the entire JSON file
-// Returns a list of duplicate information showing old and new prefix:key pairs
-// The order is determined by the order keys appear in the JSON file (git history)
+// findDuplicateKeysInJSON 在保留 JSON token 顺序的同时查找重复 namespace:key。
 func findDuplicateKeysInJSON(filePath string) ([]DuplicateInfo, error) {
-	// Read the JSON file
 	fileContent, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file %s: %w", filePath, err)
 	}
 
-	// Track the first occurrence of each key (prefix where it was first seen)
-	keyFirstPrefix := make(map[string]string)
+	seenKeys := make(map[string]struct{})
 	var duplicates []DuplicateInfo
-
-	// To preserve order, we need to parse the JSON with order preservation
-	// We'll use a decoder to read through the top-level object
 	decoder := json.NewDecoder(bytes.NewReader(fileContent))
 
-	// Read the opening brace of the top-level object
 	token, err := decoder.Token()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read token: %w", err)
@@ -58,9 +51,7 @@ func findDuplicateKeysInJSON(filePath string) ([]DuplicateInfo, error) {
 		return nil, fmt.Errorf("expected object start, got %v", token)
 	}
 
-	// Read all namespaces in order
 	for decoder.More() {
-		// Read the namespace (prefix) name
 		token, err := decoder.Token()
 		if err != nil {
 			return nil, fmt.Errorf("failed to read namespace: %w", err)
@@ -71,35 +62,99 @@ func findDuplicateKeysInJSON(filePath string) ([]DuplicateInfo, error) {
 			return nil, fmt.Errorf("expected string namespace, got %v", token)
 		}
 
-		// Read the namespace object as raw message
-		var namespaceData map[string]string
-		if err := decoder.Decode(&namespaceData); err != nil {
-			return nil, fmt.Errorf("failed to decode namespace %s: %w", prefix, err)
+		token, err = decoder.Token()
+		if err != nil {
+			return nil, fmt.Errorf("failed to read namespace %s object: %w", prefix, err)
+		}
+		if delim, ok := token.(json.Delim); !ok || delim != '{' {
+			return nil, fmt.Errorf("expected namespace %s object start, got %v", prefix, token)
 		}
 
-		// Now check each key in this namespace
-		for key := range namespaceData {
-			// Check if this key was already seen in a different prefix
-			if firstPrefix, exists := keyFirstPrefix[key]; exists {
-				// This is a duplicate - the key exists in another prefix
+		for decoder.More() {
+			token, err = decoder.Token()
+			if err != nil {
+				return nil, fmt.Errorf("failed to read key in namespace %s: %w", prefix, err)
+			}
+			key, ok := token.(string)
+			if !ok {
+				return nil, fmt.Errorf("expected string key in namespace %s, got %v", prefix, token)
+			}
+
+			identity := prefix + "\x00" + key
+			if _, exists := seenKeys[identity]; exists {
 				duplicates = append(duplicates, DuplicateInfo{
 					Key:          key,
-					OldPrefix:    firstPrefix,
+					OldPrefix:    prefix,
 					NewPrefix:    prefix,
-					OldPrefixKey: fmt.Sprintf("%s:%s", firstPrefix, key),
+					OldPrefixKey: fmt.Sprintf("%s:%s", prefix, key),
 					NewPrefixKey: fmt.Sprintf("%s:%s", prefix, key),
 				})
 			} else {
-				// First time seeing this key, record the prefix
-				keyFirstPrefix[key] = prefix
+				seenKeys[identity] = struct{}{}
+			}
+
+			var value interface{}
+			if err := decoder.Decode(&value); err != nil {
+				return nil, fmt.Errorf("failed to decode %s:%s: %w", prefix, key, err)
 			}
 		}
+
+		token, err = decoder.Token()
+		if err != nil {
+			return nil, fmt.Errorf("failed to close namespace %s object: %w", prefix, err)
+		}
+		if delim, ok := token.(json.Delim); !ok || delim != '}' {
+			return nil, fmt.Errorf("expected namespace %s object end, got %v", prefix, token)
+		}
+	}
+
+	token, err = decoder.Token()
+	if err != nil {
+		return nil, fmt.Errorf("failed to close top-level object: %w", err)
+	}
+	if delim, ok := token.(json.Delim); !ok || delim != '}' {
+		return nil, fmt.Errorf("expected object end, got %v", token)
 	}
 
 	return duplicates, nil
 }
 
-// TestDeduplicateFrontendI18n checks for duplicate i18n keys in the frontend en.json file
+func TestFindDuplicateKeysInJSONAllowsSameKeyAcrossNamespaces(t *testing.T) {
+	filePath := filepath.Join(t.TempDir(), "cross-namespace.json")
+	content := []byte(`{"general":{"Save":"Save"},"user":{"Save":"Save"}}`)
+	if err := os.WriteFile(filePath, content, 0o600); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	duplicates, err := findDuplicateKeysInJSON(filePath)
+	if err != nil {
+		t.Fatalf("findDuplicateKeysInJSON() error = %v", err)
+	}
+	if len(duplicates) != 0 {
+		t.Fatalf("duplicates = %#v, want none across namespaces", duplicates)
+	}
+}
+
+func TestFindDuplicateKeysInJSONReportsDuplicateWithinNamespace(t *testing.T) {
+	filePath := filepath.Join(t.TempDir(), "same-namespace.json")
+	content := []byte(`{"general":{"Save":"Save","Save":"Save again"}}`)
+	if err := os.WriteFile(filePath, content, 0o600); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	duplicates, err := findDuplicateKeysInJSON(filePath)
+	if err != nil {
+		t.Fatalf("findDuplicateKeysInJSON() error = %v", err)
+	}
+	if len(duplicates) != 1 {
+		t.Fatalf("duplicates = %#v, want one same-namespace duplicate", duplicates)
+	}
+	if duplicates[0].OldPrefixKey != "general:Save" || duplicates[0].NewPrefixKey != "general:Save" {
+		t.Fatalf("duplicate = %#v, want complete namespace:key identity", duplicates[0])
+	}
+}
+
+// TestDeduplicateFrontendI18n 检查前端 en.json 中同 namespace 的重复 i18n key。
 func TestDeduplicateFrontendI18n(t *testing.T) {
 	filePath := "../../web-admin/src/locales/en/data.json"
 
@@ -119,7 +174,7 @@ func TestDeduplicateFrontendI18n(t *testing.T) {
 	}
 }
 
-// TestDeduplicateBackendI18n checks for duplicate i18n keys in the backend en.json file
+// TestDeduplicateBackendI18n 检查后端 en.json 中同 namespace 的重复 i18n key。
 func TestDeduplicateBackendI18n(t *testing.T) {
 	filePath := "../i18n/locales/en/data.json"
 

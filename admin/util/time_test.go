@@ -24,10 +24,14 @@ import (
 )
 
 func Test_GetCurrentTime(t *testing.T) {
+	before := time.Now().Add(-time.Second)
 	test := GetCurrentTime()
-	expected := time.Now().Format(time.RFC3339)
+	after := time.Now().Add(time.Second)
 
-	assert.Equal(t, test, expected, "The times not are equals")
+	parsed, err := time.Parse(time.RFC3339, test)
+	assert.NoError(t, err)
+	assert.False(t, parsed.Before(before), "GetCurrentTime returned a stale timestamp")
+	assert.False(t, parsed.After(after), "GetCurrentTime returned a future timestamp")
 
 	types := reflect.TypeOf(test).Kind()
 	assert.Equal(t, types, reflect.String, "GetCurrentUnixTime should be return string")

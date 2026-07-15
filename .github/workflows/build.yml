@@ -11,7 +11,19 @@ on:
 
 jobs:
   go-tests:
-    name: Running Go tests
+    name: Go tests (hermetic)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: ./admin/go.mod
+      - name: Hermetic tests
+        run: make test-go-hermetic
+
+  go-tests-mysql-compatibility:
+    name: Go tests (MySQL 5.7 compatibility)
     runs-on: ubuntu-latest
     services:
       mysql:
@@ -28,10 +40,48 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: ./admin/go.mod
-      - name: Tests
+      - name: MySQL compatibility tests
+        env:
+          AICODEX_TEST_DB_DSN: root:123456@tcp(127.0.0.1:3306)/casdoor?parseTime=true
+        run: make test-go-integration-mysql
+
+  go-tests-postgres-integration:
+    name: Go tests (PostgreSQL integration status)
+    runs-on: ubuntu-latest
+    env:
+      RUN_POSTGRES_INTEGRATION: ${{ vars.AICODEX_RUN_POSTGRES_INTEGRATION }}
+      AICODEX_TEST_DB_DSN: ${{ secrets.AICODEX_TEST_POSTGRES_DSN }}
+    steps:
+      - name: Record PostgreSQL integration not run
+        if: env.RUN_POSTGRES_INTEGRATION != 'true'
         run: |
-          go test -v $(go list ./...) -tags skipCi
-        working-directory: ./admin
+          echo "### PostgreSQL integration: NOT_RUN" >> "$GITHUB_STEP_SUMMARY"
+          echo "This workflow requires separate release-candidate PostgreSQL evidence unless AICODEX_RUN_POSTGRES_INTEGRATION=true." >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/checkout@v3
+        if: env.RUN_POSTGRES_INTEGRATION == 'true'
+      - uses: actions/setup-go@v4
+        if: env.RUN_POSTGRES_INTEGRATION == 'true'
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: ./admin/go.mod
+      - name: Check PostgreSQL integration prerequisites
+        if: env.RUN_POSTGRES_INTEGRATION == 'true'
+        shell: bash
+        run: |
+          if [[ -z "${AICODEX_TEST_DB_DSN:-}" ]]; then
+            echo "::error::Missing secret AICODEX_TEST_POSTGRES_DSN while PostgreSQL integration is enabled."
+            exit 1
+          fi
+      - name: PostgreSQL schema registry integration
+        id: postgres_integration
+        if: env.RUN_POSTGRES_INTEGRATION == 'true'
+        run: make test-go-integration-postgres
+      - name: Record PostgreSQL integration result
+        if: always() && env.RUN_POSTGRES_INTEGRATION == 'true'
+        env:
+          TEST_OUTCOME: ${{ steps.postgres_integration.outcome }}
+        run: |
+          echo "### PostgreSQL integration: ${TEST_OUTCOME:-not-run}" >> "$GITHUB_STEP_SUMMARY"
 
   frontend-checks:
     name: Front-end checks
@@ -130,7 +180,7 @@ jobs:
   backend:
     name: Back-end
     runs-on: ubuntu-latest
-    needs: [go-tests]
+    needs: [go-tests, go-tests-mysql-compatibility]
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4

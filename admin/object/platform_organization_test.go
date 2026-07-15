@@ -15,13 +15,10 @@
 package object
 
 import (
-	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/xorm-io/xorm"
 )
 
 func TestPlatformOrganizationMasterModelsExposeStableContractFields(t *testing.T) {
@@ -291,18 +288,11 @@ func hasJSONField(modelType reflect.Type, jsonName string) bool {
 func setupPlatformOrganizationSnapshotTestOrmer(t *testing.T) {
 	t.Helper()
 
-	engine, err := xorm.NewEngine("sqlite", filepath.Join(t.TempDir(), "platform-organization-snapshot.db"))
-	if err != nil {
-		t.Fatalf("new sqlite engine error = %v", err)
-	}
-	if err := engine.Sync2(new(PlatformDepartment), new(PlatformUser), new(PlatformMembership), new(ExternalIdentity), new(SourceConnection), new(OrgSyncBatch)); err != nil {
-		t.Fatalf("sync platform organization snapshot tables error = %v", err)
-	}
+	engine := newSQLiteTestEngine(t, new(PlatformDepartment), new(PlatformUser), new(PlatformMembership), new(ExternalIdentity), new(SourceConnection), new(OrgSyncBatch))
 
 	oldOrmer := ormer
 	ormer = &Ormer{Engine: engine}
 	t.Cleanup(func() {
-		_ = engine.Close()
 		ormer = oldOrmer
 	})
 }

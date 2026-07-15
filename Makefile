@@ -9,6 +9,7 @@ HOST ?= test.com
 GO_DIR ?= admin
 FRONTEND_DIR ?= web-admin
 CHART ?= manifests/aicodex-admin
+GO_TEST_RESULTS_DIR ?= $(CURDIR)/tmp/test-results
 
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
@@ -55,9 +56,25 @@ vet: ## Run go vet against code.
 	cd $(GO_DIR) && go vet ./...
 
 .PHONY: ut
-ut: ## UT test
-	cd $(GO_DIR) && go test -v -cover -coverprofile=coverage.out ./...
-	cd $(GO_DIR) && go tool cover -func=coverage.out
+ut: test-go-hermetic-cover ## Run the hermetic Go suite with coverage.
+
+.PHONY: test-go-hermetic
+test-go-hermetic: ## Run Go tests without external databases or providers.
+	cd $(GO_DIR) && go test -count=1 -tags skipCi ./...
+
+.PHONY: test-go-hermetic-cover
+test-go-hermetic-cover: ## Run hermetic Go tests and write coverage under ignored tmp/.
+	mkdir -p "$(GO_TEST_RESULTS_DIR)"
+	cd $(GO_DIR) && go test -count=1 -tags skipCi -coverprofile="$(GO_TEST_RESULTS_DIR)/hermetic.coverage.out" ./...
+	cd $(GO_DIR) && go tool cover -func="$(GO_TEST_RESULTS_DIR)/hermetic.coverage.out"
+
+.PHONY: test-go-integration-postgres
+test-go-integration-postgres: ## Run the PostgreSQL schema registry integration test; requires AICODEX_TEST_DB_DSN.
+	cd $(GO_DIR) && AICODEX_TEST_DB_DRIVER=postgres go test -count=1 -tags 'skipCi integration' ./object -run '^TestAICodexOwnedSchemaRegistryIntegration$$' -v
+
+.PHONY: test-go-integration-mysql
+test-go-integration-mysql: ## Run legacy MySQL compatibility tests; requires AICODEX_TEST_DB_DSN.
+	cd $(GO_DIR) && AICODEX_TEST_DB_DRIVER=mysql go test -count=1 -tags 'skipCi integration' ./...
 
 ##@ Build
 

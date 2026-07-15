@@ -15,11 +15,8 @@
 package object
 
 import (
-	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/xorm-io/xorm"
 )
 
 func TestCheckManualUserGroupsUpdateRejectsDirectorySyncedGroups(t *testing.T) {
@@ -103,20 +100,12 @@ func setupGroupDirectorySyncTestDB(t *testing.T) {
 	t.Helper()
 
 	oldOrmer := ormer
-	dbPath := filepath.Join(t.TempDir(), "group-directory-sync.db")
-	engine, err := xorm.NewEngine("sqlite", dbPath)
-	if err != nil {
-		t.Fatalf("new sqlite engine error = %v", err)
-	}
-	if err := engine.Sync2(
+	engine := newSQLiteTestEngine(t,
 		new(WecomDepartmentMapping),
 		new(FeishuDepartmentMapping),
-	); err != nil {
-		t.Fatalf("sync tables error = %v", err)
-	}
+	)
 	ormer = &Ormer{Engine: engine}
 	t.Cleanup(func() {
-		_ = engine.Close()
 		ormer = oldOrmer
 	})
 }

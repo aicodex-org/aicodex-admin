@@ -16,14 +16,12 @@ package object
 
 import (
 	"encoding/json"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/casbin/casbin/v2"
 	casbinmodel "github.com/casbin/casbin/v2/model"
-	"github.com/xorm-io/xorm"
 )
 
 func TestOrganizationSyncApiKeyLifecycleStoresHashAndRotates(t *testing.T) {
@@ -565,12 +563,7 @@ func setupOrganizationSyncApiKeyTestDB(t *testing.T) {
 	t.Helper()
 
 	oldOrmer := ormer
-	dbPath := filepath.Join(t.TempDir(), "organization-sync-api-key.db")
-	engine, err := xorm.NewEngine("sqlite", dbPath)
-	if err != nil {
-		t.Fatalf("new sqlite engine error = %v", err)
-	}
-	if err := engine.Sync2(
+	engine := newSQLiteTestEngine(t,
 		new(Organization),
 		new(User),
 		new(Group),
@@ -581,12 +574,12 @@ func setupOrganizationSyncApiKeyTestDB(t *testing.T) {
 		new(PlatformMembership),
 		new(SourceConnection),
 		new(ExternalIdentity),
-	); err != nil {
-		t.Fatalf("sync tables error = %v", err)
-	}
+		new(WecomDepartmentMapping),
+		new(FeishuDepartmentMapping),
+		new(DingTalkDepartmentMapping),
+	)
 	ormer = &Ormer{Engine: engine}
 	t.Cleanup(func() {
-		_ = engine.Close()
 		ormer = oldOrmer
 	})
 }

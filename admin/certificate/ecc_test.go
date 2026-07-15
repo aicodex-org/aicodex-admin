@@ -12,15 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build !skipCi
-// +build !skipCi
-
 package certificate
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
-	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -29,6 +27,9 @@ func TestGenerateEccKey(t *testing.T) {
 	assert.Nil(t, err)
 	eccKeyStr, err := encodeEccKey(eccKey)
 	assert.Nil(t, err)
-	println(eccKeyStr)
-	util.WriteStringToPath(eccKeyStr, "acme_account.key")
+	keyPath := filepath.Join(t.TempDir(), "acme_account.key")
+	assert.NoError(t, os.WriteFile(keyPath, []byte(eccKeyStr), 0o600))
+	stored, err := os.ReadFile(keyPath)
+	assert.NoError(t, err)
+	assert.Equal(t, eccKeyStr, string(stored))
 }

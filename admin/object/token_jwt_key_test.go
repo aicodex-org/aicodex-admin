@@ -15,50 +15,52 @@
 package object
 
 import (
-	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
-
-	"git.leagsoft.com/aicodex/aicodex-admin/util"
 )
 
 func TestGenerateRsaKeys(t *testing.T) {
-	fileId := "token_jwt_key"
 	certificate, privateKey, err := generateRsaKeys(4096, 512, 20, "Casdoor Cert", "Casdoor Organization")
 	if err != nil {
-		panic(err)
+		t.Fatalf("generateRsaKeys() error = %v", err)
 	}
-
-	// Write certificate (aka certificate) to file.
-	util.WriteStringToPath(certificate, fmt.Sprintf("%s.pem", fileId))
-
-	// Write private key to file.
-	util.WriteStringToPath(privateKey, fmt.Sprintf("%s.key", fileId))
+	assertGeneratedKeyPairFiles(t, certificate, privateKey)
 }
 
 func TestGenerateEsKeys(t *testing.T) {
-	fileId := "token_jwt_key"
 	certificate, privateKey, err := generateEsKeys(256, 20, "Casdoor Cert", "Casdoor Organization")
 	if err != nil {
-		panic(err)
+		t.Fatalf("generateEsKeys() error = %v", err)
 	}
-
-	// Write certificate (aka certificate) to file.
-	util.WriteStringToPath(certificate, fmt.Sprintf("%s.pem", fileId))
-
-	// Write private key to file.
-	util.WriteStringToPath(privateKey, fmt.Sprintf("%s.key", fileId))
+	assertGeneratedKeyPairFiles(t, certificate, privateKey)
 }
 
 func TestGenerateRsaPssKeys(t *testing.T) {
-	fileId := "token_jwt_key"
 	certificate, privateKey, err := generateRsaPssKeys(4096, 256, 20, "Casdoor Cert", "Casdoor Organization")
 	if err != nil {
-		panic(err)
+		t.Fatalf("generateRsaPssKeys() error = %v", err)
 	}
+	assertGeneratedKeyPairFiles(t, certificate, privateKey)
+}
 
-	// Write certificate (aka certificate) to file.
-	util.WriteStringToPath(certificate, fmt.Sprintf("%s.pem", fileId))
-
-	// Write private key to file.
-	util.WriteStringToPath(privateKey, fmt.Sprintf("%s.key", fileId))
+func assertGeneratedKeyPairFiles(t *testing.T, certificate string, privateKey string) {
+	t.Helper()
+	tempDir := t.TempDir()
+	files := map[string]string{
+		filepath.Join(tempDir, "certificate.pem"): certificate,
+		filepath.Join(tempDir, "private.key"):     privateKey,
+	}
+	for path, content := range files {
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatalf("write generated key material: %v", err)
+		}
+		got, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read generated key material: %v", err)
+		}
+		if string(got) != content {
+			t.Fatalf("generated key material changed after temporary file round trip")
+		}
+	}
 }
