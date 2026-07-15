@@ -1,7 +1,8 @@
 # organization-sync-scheduler Specification
 
 ## Purpose
-TBD - created by archiving change add-cluster-safe-organization-sync-scheduler. Update Purpose after archive.
+定义组织同步 schedule 的配置、集群安全触发、Provider 派发、诊断与进程级 cancel/wait 契约，确保多节点环境只产生一次有效派发并能在 Admin shutdown 时有界停止扫描。
+
 ## Requirements
 ### Requirement: Organization sync schedule configuration
 The system SHALL persist organization sync schedules by target organization, provider, and job type, with cron expression, timezone, enablement, and latest dispatch metadata.
@@ -179,3 +180,26 @@ The organization sync scheduler SHALL enforce the same single configured address
 - **WHEN** 已启用的钉钉调度触发记录被获取，但目标组织已被另一种通讯录来源配置占用
 - **THEN** 调度器 SHALL NOT 创建钉钉同步 run
 - **AND** 调度触发记录 SHALL 记录安全的来源冲突原因码
+
+### Requirement: 默认组织同步调度器 SHALL 支持进程级 cancel 与 wait
+默认 Organization sync scheduler SHALL 在数据库初始化后保持现有启动行为，并 SHALL 暴露线程安全、幂等的 cancel/stop/wait 契约供 Admin 顶层 lifecycle 收口。
+
+#### Scenario: Cancel 后不再产生新 tick
+- **WHEN** 默认组织同步调度器收到 cancel 或 Stop
+- **THEN** scheduler SHALL 不再开始新的 initial scan 或 periodic scan
+- **AND** SHALL 停止其 ticker 并最终关闭本次运行的完成信号
+
+#### Scenario: Cancel 传播到正在执行的扫描
+- **WHEN** scheduler 正在执行 initial scan、periodic scan 或 provider executor dispatch 时收到 cancel
+- **THEN** 同一 context SHALL 向当前扫描和 executor 传播取消
+- **AND** Stop SHALL 等待当前 scheduler goroutine 退出或在调用方 context 到期时有界返回
+
+#### Scenario: 重复 Start 和 Stop 幂等
+- **WHEN** 同一 scheduler generation 被重复 Start、Stop 或 Wait
+- **THEN** scheduler MUST NOT 创建重复 tick loop、重复调用 cancel、关闭 channel 两次或 panic
+- **AND** 只有在上一 generation 已退出后才可启动新的 generation
+
+#### Scenario: 保持调度安全与脱敏契约
+- **WHEN** scheduler 因进程 shutdown 被取消
+- **THEN** 已有持久化 fire acquisition、provider execution lock 和安全错误文本契约 SHALL 保持不变
+- **AND** shutdown 日志 MUST NOT 包含 provider secret、token、Cookie 或原始外部响应

@@ -36,9 +36,15 @@ const (
 )
 
 var (
-	gatewayProjectionRefreshWorkerMu      sync.Mutex
-	gatewayProjectionRefreshWorkerRunning bool
-	gatewayProjectionRefreshWorkerStop    chan struct{}
+	gatewayProjectionRefreshWorkerMu             sync.Mutex
+	gatewayProjectionRefreshWorkerRunning        bool
+	gatewayProjectionRefreshWorkerCancel         context.CancelFunc
+	gatewayProjectionRefreshWorkerDone           chan struct{}
+	gatewayProjectionRefreshWorkerConfigProvider = GetGatewayProjectionRefreshConfig
+	gatewayProjectionRefreshWorkerFactory        = func(config GatewayProjectionRefreshConfig) *GatewayProjectionRefreshWorker {
+		return &GatewayProjectionRefreshWorker{Config: config}
+	}
+	gatewayProjectionRefreshMinimumInterval = time.Duration(gatewayProjectionRefreshMinimumIntervalSeconds) * time.Second
 )
 
 // GatewayProjectionRefreshConfig 控制 admin 周期刷新 gateway projection freshness 的轻量 worker。
@@ -88,7 +94,7 @@ func GetGatewayProjectionRefreshConfig() GatewayProjectionRefreshConfig {
 
 // StartGatewayProjectionRefreshWorker 启动进程内 refresh worker；默认配置不满足时只记录脱敏状态并跳过。
 func StartGatewayProjectionRefreshWorker() {
-	config := GetGatewayProjectionRefreshConfig()
+	config := gatewayProjectionRefreshWorkerConfigProvider()
 	if !config.Enabled {
 		if config.DisabledReason != "" {
 			logs.Warning("gateway_projection_refresh_worker_disabled reason=%s", config.DisabledReason)
@@ -102,38 +108,61 @@ func StartGatewayProjectionRefreshWorker() {
 		return
 	}
 
-	stopCh := make(chan struct{})
-	gatewayProjectionRefreshWorkerStop = stopCh
+	ctx, cancel := context.WithCancel(context.Background())
+	doneCh := make(chan struct{})
+	gatewayProjectionRefreshWorkerCancel = cancel
+	gatewayProjectionRefreshWorkerDone = doneCh
 	gatewayProjectionRefreshWorkerRunning = true
-	worker := &GatewayProjectionRefreshWorker{Config: config}
+	worker := gatewayProjectionRefreshWorkerFactory(config)
 	logs.Info("gateway_projection_refresh_worker_started intervalSeconds=%d initialDelaySeconds=%d batchSize=%d",
 		int(config.Interval/time.Second), int(config.InitialDelay/time.Second), config.BatchSize)
 
 	util.SafeGoroutine(func() {
 		defer func() {
 			gatewayProjectionRefreshWorkerMu.Lock()
-			defer gatewayProjectionRefreshWorkerMu.Unlock()
-			if gatewayProjectionRefreshWorkerStop == stopCh {
+			if gatewayProjectionRefreshWorkerDone == doneCh {
 				gatewayProjectionRefreshWorkerRunning = false
-				gatewayProjectionRefreshWorkerStop = nil
+				gatewayProjectionRefreshWorkerCancel = nil
+				gatewayProjectionRefreshWorkerDone = nil
 			}
+			gatewayProjectionRefreshWorkerMu.Unlock()
+			close(doneCh)
 		}()
-		worker.run(stopCh)
+		worker.run(ctx)
 	})
 }
 
 // StopGatewayProjectionRefreshWorker 停止 refresh worker，主要供测试和进程收口使用。
 func StopGatewayProjectionRefreshWorker() {
+	_ = signalGatewayProjectionRefreshWorkerStop()
+}
+
+// StopGatewayProjectionRefreshWorkerAndWait 停止默认 refresh worker 并等待当前 generation 退出。
+func StopGatewayProjectionRefreshWorkerAndWait(ctx context.Context) error {
+	doneCh := signalGatewayProjectionRefreshWorkerStop()
+	if doneCh == nil {
+		return nil
+	}
+	select {
+	case <-doneCh:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func signalGatewayProjectionRefreshWorkerStop() <-chan struct{} {
 	gatewayProjectionRefreshWorkerMu.Lock()
 	defer gatewayProjectionRefreshWorkerMu.Unlock()
 	if !gatewayProjectionRefreshWorkerRunning {
-		return
+		return nil
 	}
-	if gatewayProjectionRefreshWorkerStop != nil {
-		close(gatewayProjectionRefreshWorkerStop)
-		gatewayProjectionRefreshWorkerStop = nil
+	doneCh := gatewayProjectionRefreshWorkerDone
+	if gatewayProjectionRefreshWorkerCancel != nil {
+		gatewayProjectionRefreshWorkerCancel()
+		gatewayProjectionRefreshWorkerCancel = nil
 	}
-	gatewayProjectionRefreshWorkerRunning = false
+	return doneCh
 }
 
 // RunOnce 执行一轮 projection refresh。它在本进程内非重入，避免慢请求导致同一轮堆叠。
@@ -199,26 +228,29 @@ func (w *GatewayProjectionRefreshWorker) RunOnce(ctx context.Context) (GatewayPr
 	return result, nil
 }
 
-func (w *GatewayProjectionRefreshWorker) run(stopCh <-chan struct{}) {
+func (w *GatewayProjectionRefreshWorker) run(ctx context.Context) {
 	config := w.normalizedConfig()
 	if config.InitialDelay > 0 {
 		timer := time.NewTimer(config.InitialDelay)
 		select {
-		case <-stopCh:
+		case <-ctx.Done():
 			timer.Stop()
 			return
 		case <-timer.C:
 		}
 	}
-	_, _ = w.RunOnce(context.Background())
+	_, _ = w.RunOnce(ctx)
 	ticker := time.NewTicker(config.Interval)
 	defer ticker.Stop()
 	for {
 		select {
-		case <-stopCh:
+		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			_, _ = w.RunOnce(context.Background())
+			if ctx.Err() != nil {
+				return
+			}
+			_, _ = w.RunOnce(ctx)
 		}
 	}
 }
@@ -323,7 +355,7 @@ func normalizeGatewayProjectionRefreshInterval(interval time.Duration, freshness
 	if safeDefault >= freshnessTTL {
 		safeDefault = freshnessTTL / 2
 	}
-	minimum := time.Duration(gatewayProjectionRefreshMinimumIntervalSeconds) * time.Second
+	minimum := gatewayProjectionRefreshMinimumInterval
 	if safeDefault < minimum {
 		safeDefault = minimum
 	}

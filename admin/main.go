@@ -17,11 +17,15 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"git.leagsoft.com/aicodex/aicodex-admin/authz"
 	"git.leagsoft.com/aicodex/aicodex-admin/conf"
 	"git.leagsoft.com/aicodex/aicodex-admin/controllers"
 	"git.leagsoft.com/aicodex/aicodex-admin/ldap"
+	adminlifecycle "git.leagsoft.com/aicodex/aicodex-admin/lifecycle"
 	"git.leagsoft.com/aicodex/aicodex-admin/object"
 	"git.leagsoft.com/aicodex/aicodex-admin/proxy"
 	"git.leagsoft.com/aicodex/aicodex-admin/radius"
@@ -132,14 +136,12 @@ func main() {
 	go radius.StartRadiusServer()
 	go object.ClearThroughputPerSecond()
 
-	// Start webhook delivery worker
-	object.StartWebhookDeliveryWorker()
-	object.StartGatewayProjectionRefreshWorker()
-	object.StartOrganizationSyncScheduler()
-
 	if len(object.SiteMap) != 0 {
 		service.Start()
 	}
 
-	web.Run(fmt.Sprintf(":%v", port))
+	shutdownSignals := make(chan os.Signal, 2)
+	signal.Notify(shutdownSignals, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(shutdownSignals)
+	_ = adminlifecycle.NewAdminProcessLifecycle(fmt.Sprintf(":%v", port), shutdownSignals).Run()
 }

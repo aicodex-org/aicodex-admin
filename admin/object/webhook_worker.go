@@ -15,6 +15,7 @@
 package object
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -25,11 +26,13 @@ import (
 )
 
 var (
-	webhookWorkerMu        sync.Mutex
-	webhookWorkerRunning   = false
-	webhookWorkerStop      chan struct{}
-	webhookPollingInterval = 30 * time.Second // Configurable polling interval
-	webhookBatchSize       = 100              // Configurable batch size for processing events
+	webhookWorkerMu            sync.Mutex
+	webhookWorkerRunning       = false
+	webhookWorkerStop          chan struct{}
+	webhookWorkerDone          chan struct{}
+	webhookWorkerProcessEvents = processWebhookEvents
+	webhookPollingInterval     = 30 * time.Second // Configurable polling interval
+	webhookBatchSize           = 100              // Configurable batch size for processing events
 )
 
 // StartWebhookDeliveryWorker starts the background worker for webhook delivery
@@ -42,7 +45,9 @@ func StartWebhookDeliveryWorker() {
 	}
 
 	stopCh := make(chan struct{})
+	doneCh := make(chan struct{})
 	webhookWorkerStop = stopCh
+	webhookWorkerDone = doneCh
 	webhookWorkerRunning = true
 
 	util.SafeGoroutine(func() {
@@ -50,12 +55,13 @@ func StartWebhookDeliveryWorker() {
 		defer ticker.Stop()
 		defer func() {
 			webhookWorkerMu.Lock()
-			defer webhookWorkerMu.Unlock()
-
-			if webhookWorkerStop == stopCh {
+			if webhookWorkerDone == doneCh {
 				webhookWorkerRunning = false
 				webhookWorkerStop = nil
+				webhookWorkerDone = nil
 			}
+			webhookWorkerMu.Unlock()
+			close(doneCh)
 		}()
 
 		for {
@@ -63,7 +69,12 @@ func StartWebhookDeliveryWorker() {
 			case <-stopCh:
 				return
 			case <-ticker.C:
-				processWebhookEvents()
+				select {
+				case <-stopCh:
+					return
+				default:
+				}
+				webhookWorkerProcessEvents()
 			}
 		}
 	})
@@ -71,21 +82,36 @@ func StartWebhookDeliveryWorker() {
 
 // StopWebhookDeliveryWorker stops the background worker
 func StopWebhookDeliveryWorker() {
+	_ = signalWebhookDeliveryWorkerStop()
+}
+
+// StopWebhookDeliveryWorkerAndWait 停止默认 worker，并等待当前 generation 退出。
+func StopWebhookDeliveryWorkerAndWait(ctx context.Context) error {
+	doneCh := signalWebhookDeliveryWorkerStop()
+	if doneCh == nil {
+		return nil
+	}
+	select {
+	case <-doneCh:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func signalWebhookDeliveryWorkerStop() <-chan struct{} {
 	webhookWorkerMu.Lock()
 	defer webhookWorkerMu.Unlock()
 
 	if !webhookWorkerRunning {
-		return
+		return nil
 	}
-
-	if webhookWorkerStop == nil {
-		webhookWorkerRunning = false
-		return
+	doneCh := webhookWorkerDone
+	if webhookWorkerStop != nil {
+		close(webhookWorkerStop)
+		webhookWorkerStop = nil
 	}
-
-	close(webhookWorkerStop)
-	webhookWorkerStop = nil
-	webhookWorkerRunning = false
+	return doneCh
 }
 
 // processWebhookEvents processes pending webhook events

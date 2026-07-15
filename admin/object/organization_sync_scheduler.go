@@ -161,11 +161,27 @@ type OrganizationSyncScheduler struct {
 	LeaseDuration   time.Duration
 	ScanInterval    time.Duration
 	SensitiveValues []string
+
+	lifecycleMu      sync.Mutex
+	lifecycleRunning bool
+	lifecycleCancel  context.CancelFunc
+	lifecycleDone    chan struct{}
 }
 
 type defaultOrganizationSyncScheduleStore struct{}
 
-var defaultOrganizationSyncExecutorRegistry = NewOrganizationSyncExecutorRegistry()
+var (
+	defaultOrganizationSyncExecutorRegistry = NewOrganizationSyncExecutorRegistry()
+	defaultOrganizationSyncSchedulerMu      sync.Mutex
+	defaultOrganizationSyncScheduler        *OrganizationSyncScheduler
+	defaultOrganizationSyncSchedulerFactory = func() *OrganizationSyncScheduler {
+		return &OrganizationSyncScheduler{
+			Store:    defaultOrganizationSyncScheduleStore{},
+			Registry: defaultOrganizationSyncExecutorRegistry,
+			NodeID:   defaultOrganizationSyncSchedulerNodeID(),
+		}
+	}
+)
 
 func NewOrganizationSyncExecutorRegistry() *OrganizationSyncExecutorRegistry {
 	return &OrganizationSyncExecutorRegistry{executors: map[string]OrganizationSyncExecutor{}}
@@ -299,22 +315,55 @@ func (s *OrganizationSyncScheduler) RunOnce(ctx context.Context) error {
 
 // Start 启动本地轻量 tick；集群安全仍由数据库 fire 唯一窗口和租约保证。
 func (s *OrganizationSyncScheduler) Start(ctx context.Context) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	interval := s.scanInterval()
 	if interval <= 0 {
 		interval = OrganizationSyncDefaultScanInterval
 	}
+	s.lifecycleMu.Lock()
+	if s.lifecycleRunning {
+		s.lifecycleMu.Unlock()
+		return
+	}
+	runCtx, cancel := context.WithCancel(ctx)
+	doneCh := make(chan struct{})
+	s.lifecycleRunning = true
+	s.lifecycleCancel = cancel
+	s.lifecycleDone = doneCh
+	s.lifecycleMu.Unlock()
+
 	go func() {
-		if err := s.RunOnce(ctx); err != nil {
+		defer func() {
+			s.lifecycleMu.Lock()
+			if s.lifecycleDone == doneCh {
+				s.lifecycleRunning = false
+				s.lifecycleCancel = nil
+				s.lifecycleDone = nil
+			}
+			s.lifecycleMu.Unlock()
+			close(doneCh)
+		}()
+		select {
+		case <-runCtx.Done():
+			return
+		default:
+		}
+		if err := s.RunOnce(runCtx); err != nil {
 			logs.Warning(fmt.Sprintf("organization sync scheduler initial scan failed: %v", err))
 		}
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
 			select {
-			case <-ctx.Done():
+			case <-runCtx.Done():
 				return
 			case <-ticker.C:
-				if err := s.RunOnce(ctx); err != nil {
+				if runCtx.Err() != nil {
+					return
+				}
+				if err := s.RunOnce(runCtx); err != nil {
 					logs.Warning(fmt.Sprintf("organization sync scheduler scan failed: %v", err))
 				}
 			}
@@ -322,14 +371,97 @@ func (s *OrganizationSyncScheduler) Start(ctx context.Context) {
 	}()
 }
 
+// Stop 取消并等待当前 scheduler generation 退出。
+func (s *OrganizationSyncScheduler) Stop(ctx context.Context) error {
+	doneCh := s.signalStop()
+	if doneCh == nil {
+		return nil
+	}
+	select {
+	case <-doneCh:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// Wait 等待当前 scheduler generation 退出，但不主动取消。
+func (s *OrganizationSyncScheduler) Wait(ctx context.Context) error {
+	if s == nil {
+		return nil
+	}
+	s.lifecycleMu.Lock()
+	doneCh := s.lifecycleDone
+	s.lifecycleMu.Unlock()
+	if doneCh == nil {
+		return nil
+	}
+	select {
+	case <-doneCh:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (s *OrganizationSyncScheduler) signalStop() <-chan struct{} {
+	if s == nil {
+		return nil
+	}
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	if !s.lifecycleRunning {
+		return nil
+	}
+	doneCh := s.lifecycleDone
+	if s.lifecycleCancel != nil {
+		s.lifecycleCancel()
+		s.lifecycleCancel = nil
+	}
+	return doneCh
+}
+
 // StartOrganizationSyncScheduler 在数据库表初始化后启动默认组织同步调度器。
 func StartOrganizationSyncScheduler() {
-	scheduler := &OrganizationSyncScheduler{
-		Store:    defaultOrganizationSyncScheduleStore{},
-		Registry: defaultOrganizationSyncExecutorRegistry,
-		NodeID:   defaultOrganizationSyncSchedulerNodeID(),
+	defaultOrganizationSyncSchedulerMu.Lock()
+	if defaultOrganizationSyncScheduler == nil {
+		defaultOrganizationSyncScheduler = defaultOrganizationSyncSchedulerFactory()
 	}
+	scheduler := defaultOrganizationSyncScheduler
+	defaultOrganizationSyncSchedulerMu.Unlock()
 	scheduler.Start(context.Background())
+}
+
+// StopOrganizationSyncScheduler 请求停止默认 scheduler，但不等待完成。
+func StopOrganizationSyncScheduler() {
+	defaultOrganizationSyncSchedulerMu.Lock()
+	scheduler := defaultOrganizationSyncScheduler
+	defaultOrganizationSyncSchedulerMu.Unlock()
+	if scheduler != nil {
+		_ = scheduler.signalStop()
+	}
+}
+
+// StopOrganizationSyncSchedulerAndWait 停止默认 scheduler 并等待当前 generation 退出。
+func StopOrganizationSyncSchedulerAndWait(ctx context.Context) error {
+	defaultOrganizationSyncSchedulerMu.Lock()
+	scheduler := defaultOrganizationSyncScheduler
+	defaultOrganizationSyncSchedulerMu.Unlock()
+	if scheduler == nil {
+		return nil
+	}
+	return scheduler.Stop(ctx)
+}
+
+// WaitOrganizationSyncScheduler 等待默认 scheduler 当前 generation 退出。
+func WaitOrganizationSyncScheduler(ctx context.Context) error {
+	defaultOrganizationSyncSchedulerMu.Lock()
+	scheduler := defaultOrganizationSyncScheduler
+	defaultOrganizationSyncSchedulerMu.Unlock()
+	if scheduler == nil {
+		return nil
+	}
+	return scheduler.Wait(ctx)
 }
 
 func (s *OrganizationSyncScheduler) runSchedule(ctx context.Context, schedule *OrganizationSyncSchedule) error {
