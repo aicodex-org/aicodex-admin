@@ -1,365 +1,165 @@
-# Admin 技术债基线（2026-07-14）
+# Admin 技术债基线与实施路线
 
-## 文档定位
+> 初始审计日期：2026-07-14
+>
+> 最近整理日期：2026-07-16
+>
+> 代码审阅基线：`hfl-test-base@310025a7`
 
-本文记录 `aicodex-admin` 当前技术债审计结论，用于后续选择 OpenSpec change 和安排实施顺序。
+## 文档用途
 
-- 本文是日期化审计快照，不是正在实施的规格，也不授权直接修改代码。
-- 审计时唯一 active change 是 `stabilize-web-admin-test-baseline-and-ci-gates`，当时由独立任务实施。
-- 本文不接管、不扩展该 change 的写集，也没有把其审计时的进行中 diff 计入存量技术债。
-- 排序优先对齐审计时的产品 P0：Connection Profile / Provider 认证与交接、Admin copy-safe handoff、Insight manual/secretRef binding、Provider Doctor、Profile 启用/回滚及 60 运行态验收。
+本文用于选择后续 Admin 技术债 OpenSpec change、确定实施顺序和避免重复派工。
 
-## 状态更新（2026-07-16）
+- 本文记录当前决策和仍有价值的技术证据，不复制已完成 change 的完整设计、测试日志或 closeout 报告。
+- 已完成能力以 `openspec/specs/` 和对应 `openspec/changes/archive/` 为准。
+- worker 实时状态、workspace lease 和回传路由不写入本文，由主控台账维护。
+- 本文不是实施授权。创建新 change 前必须基于最新 `origin/hfl-test-base` 重新检查依赖版本、调用面、active change 和写集冲突。
+- 技术债 change 应产生可验证的稳定性、安全性、兼容性或维护收益；不为占用空闲 workspace 派发 support-only 或全仓机械重构。
 
-截至 `a79f52c5`，本基线最初列出的主干治理项已完成：
+## 已完成基线
 
-- 前端测试基线与 CI、Go correctness、Go hermetic fixture、AICodex 自有表版本化迁移、Insight runtime config resolution 均已归档并合入。
-- CRA/CRACO 已迁移到 Vite，Jest 已脱离 React Scripts；Cypress 已由 typed Playwright 取代，当前基线为 19 个 spec / 22 个 Chromium test。
-- 后台任务 lifecycle/graceful shutdown、组织同步 HTTP timeout/context 和 SOCKS5 出站传输策略已按业务域完成，不再作为待派技术债。
-- Yarn 到 Bun、Cypress 15 到 Bun、Bun `--backend=copyfile` 三轮评估均为 `NO-GO`。Bun 1.3.14 在 Windows 隔离安装中未形成可用依赖树，当前继续以 Yarn 和 `yarn.lock` 为唯一依赖真值。
+以下方向已经完成，不再作为后续候选重复派发。
 
-当前正在独立 change 中实施：
+| 方向 | 已完成 change | 结果 |
+|---|---|---|
+| 前端测试与 CI 基线 | `stabilize-web-admin-test-baseline-and-ci-gates` | TypeScript、Jest、lint、build 与浏览器门禁形成稳定入口 |
+| Go correctness | `enable-incremental-go-correctness-gates` | `gofumpt`、`govet` 和固定 golangci-lint 基线可执行 |
+| Go 测试隔离与 fixture | `stabilize-admin-go-test-baseline-and-fixtures` | hermetic suite、integration 边界和 AICodex-owned schema registry 已建立 |
+| AICodex 表迁移 | `establish-aicodex-owned-schema-migration-baseline` | 自有表具备版本化 migration 基线，legacy Casdoor 表继续保留原边界 |
+| Insight runtime config | `consolidate-insight-runtime-config-resolution` | resolver、provider trust、Gateway projection 使用 typed resolution 和 copy-safe diagnostics |
+| 前端构建 | `migrate-web-admin-build-toolchain-to-vite` | CRA/CRACO 已由 Vite 替代，继续输出 `web-admin/build` |
+| Jest 工具链 | `decouple-web-admin-jest-from-react-scripts` | Jest 已显式配置，不再依赖 React Scripts |
+| 浏览器 E2E | `migrate-admin-e2e-from-cypress-to-playwright` | Cypress 已移除；Playwright 保持 19 个 spec / 22 个 Chromium test |
+| 后台任务生命周期 | `stabilize-admin-background-task-lifecycle-and-graceful-shutdown` | 顶层任务启动、停止和 graceful shutdown 已形成统一边界 |
+| 组织同步 HTTP | `stabilize-admin-organization-sync-http-client-policy` | timeout、context cancellation 和 client 注入已按域收口 |
+| SOCKS5 出站传输 | `harden-admin-socks5-proxy-transport-policy` | 默认 transport、代理 transport 和 TLS 行为已有稳定契约 |
 
-- `retire-unused-admin-web3-wallet-auth`：先核对 60 存量，再退役未启用的钱包认证入口及专属依赖；存量非零或无法确认时必须停止。
-- `stabilize-admin-idp-http-client-contract`：按 IDP 域统一注入 client、timeout、response body、错误处理和敏感参数边界。
+TypeScript 增量迁移也已进入稳态：`web-admin/src` 不再把普通业务 `.js/.jsx` 迁移作为独立路线，后续由增量 TS gate 防止回退。
 
-本文中的文件数、调用次数和工具输出仍是 2026-07-14 审计快照；本节及下方“当前路线摘要”是最新决策入口，正式创建 proposal 前仍须基于最新 `hfl-test-base` 复核写集、依赖版本和运行态证据。
+## 当前实施入口
 
-## 当前路线摘要
+以下 change 已由独立 worker 实施。本节只标识路线占用和后续依赖，不代替主控实时台账。
 
-| 顺序 | 候选方向 | 决策 | 并发/前置条件 |
-|---|---|---|---|
-| 1 | 退役未使用的 Web3 钱包认证 | `ACTIVE` | 独占前端依赖锁；先完成 60 只读存量核验 |
-| 2 | 收口 IDP HTTP client 契约 | `ACTIVE` | 与 Web3 写集独立，可并行 |
-| 3 | 企业自签证书与 TLS 兼容策略 | `GO_AFTER_IDP` | 等 IDP change 释放 `admin/idp/adfs.go`；必须先设计兼容与迁移，不直接关闭旧部署能力 |
-| 4 | React 18 兼容 Testing Library 升级 | `GO_AFTER_WEB3` | 等前端依赖锁释放；当前 29 个测试文件仍过滤 `ReactDOM.render` 告警 |
-| 5 | AntD 5 deprecated API 清理 | `GO_AFTER_WEB3` | 等登录页/Web3 写集释放；当前约 9 处 `Input.Group`、7 处 `visible`、11 处 `destroyOnClose` |
-| 6 | CRA/IE polyfill 残留清理 | `EVALUATE` | 先明确浏览器支持基线和 bundle 收益；当前仍加载 `react-app-polyfill/ie9` |
-| 7 | Bun package manager 重评 | `BLOCKED` | 仅在稳定 Bun 修复 Windows 依赖物化问题，或 Web3 退役后依赖树发生可证明变化时重跑；不因 Cypress 已移除自动转为 GO |
+### 退役未使用的 Web3 钱包认证
 
-全局 fetch 重写、`Setting.tsx` 大拆分、React Router 5 到 6、全量 class component 到 hooks 继续 `DEFER`；它们影响面大且没有当前用户验收 blocker，不作为空闲 worker 的填充任务。
+Change：`retire-unused-admin-web3-wallet-auth`
 
-## 审计时正在实施的质量基线
+- 产品决策是退役区块链钱包认证，不迁移到 EIP-6963。
+- 必须先对 60 环境做只读、脱敏存量核验；Provider、应用绑定、用户钱包绑定或审计引用任一非零，或无法可靠确认时，停止破坏性删除并请求决策。
+- 第一阶段删除创建、配置和登录入口及其专属前端依赖；历史记录保持可读、可禁用和可删除。
+- 不删除数据库字段，不批量改历史数据，不借机重评 Bun。
 
-`stabilize-web-admin-test-baseline-and-ci-gates` 在审计时已有完整 proposal、design、spec 和 tasks，范围包括：
+### 收口 IDP HTTP client 契约
 
-- 修复当前 6 个失败 Jest suite、9 个失败测试；
-- 增加稳定的 `yarn test:ci`；
-- 在 CI 中执行 TypeScript typecheck、增量 TS gate 和全量 Jest；
-- 保持生产页面、路由、权限和后端接口行为不变。
+Change：`stabilize-admin-idp-http-client-contract`
 
-该 change 明确不处理：
+- 按 IDP 域统一注入 client、timeout、request error、response body close 和状态码处理。
+- 禁止把 client secret 放入 URL query 或普通日志。
+- 不扩大为全仓 HTTP client 重写，也不在该 change 中改变企业自签证书兼容策略。
 
-- Go 测试和 Go correctness lint；
-- 数据库 fixture 和 schema migration；
-- React、Testing Library、CRACO、React Router 等依赖升级；
-- 后端生产架构。
+## 下一批候选
 
-因此，下述后端候选不是对该 change 的重复建设。
+### P1：企业 TLS 兼容策略
 
-## GO-1 `[已完成]`：增量启用 Go correctness gate
+建议 change：`stabilize-admin-enterprise-tls-compatibility-policy`
 
-### 现状证据
+当前仍有 3 处硬编码 `InsecureSkipVerify: true`：
 
-- `.golangci.yml` 设置 `linters.default: none`，仅启用 `gofumpt` formatter。
-- `.github/workflows/build.yml` 中的 `Go-Linter` job 已运行 golangci-lint，但当前只形成格式化门禁。
-- `go vet ./...` 当前稳定只有两个基线错误：
-  - `admin/storage/casdoor.go`：外部 `casdoor.Config` 使用 unkeyed struct literal；
-  - `admin/service/proxy.go`：`panic(err)` 后存在 unreachable `return`。
+- `admin/idp/adfs.go`
+- `admin/object/syncer_activedirectory.go`
+- `admin/email/smtp.go`
 
-### 建议 change
-
-`enable-incremental-go-correctness-gates`
-
-### 建议范围
-
-- 修复上述两个确定性问题；
-- 在 `.golangci.yml` 中增量启用 `govet`；
-- 复用现有 CI linter job；审计时不修改前端 change 正在调整的 workflow；
-- 暂不一次性启用 `errcheck`、`staticcheck` 等所有规则。
-
-### 验收标准
-
-- `go vet ./...` 通过；
-- `golangci-lint` 使用仓库配置执行通过；
-- 不新增大面积排除规则；
-- 不改变业务接口和运行时行为。
-
-## GO-2 `[已完成]`：P0 runtime config owner/resolution 收口
-
-### 现状证据
-
-- Admin 中约 44 个 Go 文件直接调用 `conf.GetConfig*`。
-- `admin/conf/conf.go` 通过裸字符串 key 读取环境变量或 Beego 配置，缺少统一的 owner、默认值、必填/互斥校验、敏感级别和启动诊断。
-- `admin/controllers/insight_usage_identity_resolver.go` 已有 typed request/response、超时、有限重试和脱敏审计，但配置决策仍分散：
-  - saved runtime policy 决定是否允许 legacy；
-  - endpoint/token 仍从 legacy `conf` 读取；
-  - caller、timeout、maxItems 分别进行二次解析。
-- `ServiceCredentialGovernanceConfig` 保存的是 copy-safe metadata，不应保存真实 credential material。
-
-### 建议 change
-
-`consolidate-insight-runtime-config-resolution`
-
-### 建议范围
-
-- 只覆盖当前 P0 的 usage identity resolver、provider trust、Gateway projection 等 runtime 配置；
-- 建立 typed runtime config resolver，统一解析 source、owner、policy 和阻塞原因；
-- 保持真实 token 位于环境或 secret provider；
-- Admin API、状态页和日志只暴露 copy-safe reference、来源和诊断，不回显 credential material；
-- 不借机建设全仓配置中心或 Admin secret 管理系统。
-
-### 验收标准
-
-- 每组 P0 runtime 配置只有一个解析入口；
-- missing、invalid、saved config unavailable、legacy disabled 等状态有稳定错误码或 blocker；
-- endpoint/token 不进入 UI response、普通日志和审计日志；
-- manual/secretRef/legacy 的优先级和 fail-closed 行为有自动化测试；
-- Provider Doctor 能解释实际采用的配置来源，但不泄露敏感值。
-
-## GO-3 `[已完成]`：Go 测试隔离与 fixture 基线
-
-### 现状证据
-
-当前 Go 全量测试基线包含多类不同问题：
-
-- OIDC discovery 测试存在陈旧行为断言；
-- `admin/i18n/deduplicate_test.go` 将不同 namespace 中的同名 key 也判定为重复，门禁语义与当前 i18n 组织方式存在冲突；
-- SQLite fixture 缺少近期新增表，已经出现 `wecom_department_mapping` 不存在；
-- 部分测试依赖本机或 CI MySQL；
-- token key 测试会将生成的证书写入仓库路径，测试运行后可能产生 tracked diff。
-
-### 建议 change
-
-`stabilize-admin-go-test-baseline-and-fixtures`
-
-### 建议范围
-
-- 区分 hermetic unit test 与 MySQL/integration test；
-- 明确本地和 CI 的测试入口、build tags 及环境前置条件；
-- 所有测试产物写入 `t.TempDir()`；
-- 抽取 AICodex-owned schema registry，供生产 schema bootstrap 和 SQLite fixture 复用；
-- 修复陈旧断言和错误门禁语义，不通过永久 skip 制造绿灯。
-
-### 验收标准
-
-- hermetic Go 测试可在无本机 MySQL 时确定性执行；
-- integration 测试通过明确命令运行，并能识别缺失环境；
-- 测试执行前后 `git status` 不新增变化；
-- SQLite fixture 与生产注册的 AICodex-owned 表集合一致；
-- CI 记录 unit/integration 两类结果，不把环境失败伪装成业务回归。
-
-### 并发约束
-
-该 change 最终可能修改 `.github/workflows/build.yml`。审计时要求等待前端 CI change 完成后再实施；该前置条件现已解除，但正式立项前仍需确认最新 workflow 写集没有并行冲突。
-
-## GO-4 `[已完成]`：AICodex 自有表版本化迁移基线
-
-### 现状证据
-
-- `admin/object/ormer.go` 在应用启动时执行 `CreateTables()`。
-- `createTable()` 当前包含约 77 次 `xorm.Engine.Sync2(...)`，失败直接 panic。
-- 未发现独立的 schema version 或 versioned migration 目录。
-- Admin 同时支持 MySQL、PostgreSQL、MSSQL 和 SQLite。
-- 近期 secure handoff、Gateway projection、service credential governance、企业组织同步等能力持续追加新表，schema 变更速度较高。
-- schema 注册、应用启动和测试 fixture 目前没有稳定的单一真值来源。
-
-### 建议 change
-
-`establish-aicodex-owned-schema-migration-baseline`
-
-### 建议范围
-
-第一阶段只治理近期 AICodex-owned 表，不一次替换全部 legacy Casdoor `Sync2`：
-
-- 建立有顺序、不可变的 migration registry 和 schema version；
-- 让生产启动和测试 fixture 复用同一 AICodex schema 注册入口；
-- 为新 migration 提供重复执行保护和明确失败诊断；
-- legacy 表暂时继续使用现有 `Sync2`，避免一次性迁移多数据库历史结构。
-
-### 验收标准
-
-- 已应用 migration 不重复执行；
-- 新环境可从空库迁移到目标版本；
-- 至少覆盖 SQLite 和实际主部署数据库方言的验证；
-- schema 版本不兼容时启动失败并输出可操作诊断；
-- fixture 不再手工维护另一份表清单；
-- migration 文件不可在合入后静默改写。
-
-## GO_AFTER_BASELINE `[已完成]`：CRA/CRACO dev/build 渐进迁移到 Vite
-
-### 决策
-
-该方向已经完成：`migrate-web-admin-build-toolchain-to-vite`、`decouple-web-admin-jest-from-react-scripts` 和 `migrate-admin-e2e-from-cypress-to-playwright` 均已归档。当前默认工具链为 Vite + 显式 Jest + Playwright，CRA、CRACO、React Scripts 与 Cypress 不再是有效运行时或测试依赖。
-
-以下内容保留为迁移前审计证据和边界说明，不应再据此派发 Vite/Jest/Cypress 迁移任务。
-
-### 现状证据
-
-- `web-admin/package.json` 当前使用 `react-scripts 5.0.1`、`@craco/craco 6.4.5` 和 `craco-less 2.0.0`；
-- `web-admin/craco.config.js` 已承载 dev proxy、Less variables、Webpack resolve fallback、runtime overlay、开发入口注入和 `build-temp` 输出路径改写；
-- `web-admin/src` 没有 `require.context` 和自定义 SVG/file loader 链，Less 定制也较简单，应用构建本身具备迁移条件；
-- 审计时约有 136 个 Jest 测试文件，其中约 72 个文件使用 `jest.mock`，测试仍依赖 `craco test`/React Scripts 的 transform、jsdom 和默认配置；
-- `web-admin/src/Setting.tsx` 使用动态 CommonJS `require("i18n-iso-countries/langs/" + language + ".json")`，需要在 Vite 下改成可静态分析的显式映射或受控 glob；
-- `Conf.ts`、`ManagementPage.tsx`、`serviceWorker.ts` 和 `public/index.html` 仍使用 `process.env.PUBLIC_URL`、`process.env.NODE_ENV` 或 `%PUBLIC_URL%`；
-- `local-dev/start-frontend-remote-backend.ps1` 会直接查找 `craco.cmd`，并通过 `craco start` 判断进程归属；
-- Docker 当前从 `/web-admin/build` 复制静态产物，Vite 切换后必须保持该交付路径；
-- 现有 Browserslist/TS 配置仍声明 ES5/IE 兼容，而 React 18 已不再支持 IE，迁移前需要明确真实浏览器支持基线。
-
-### 迁移原则
-
-- Vite migration 的目标首先是降低构建工具维护成本、缩短开发反馈链路，不把“自然减少生产 bundle”作为未经验证的收益；
-- 保持路由、权限、认证回调、public auth scripts、后端契约和用户可见行为不变；
-- 保持开发端口 `7002`、后端代理目标配置方式和 `web-admin/build` 交付目录；
-- 保持现有 Jest 绿基线，不在 dev/build migration 中批量改写 136 个测试文件；
-- CRA production build 隐式执行的 lint 能力必须改为显式、非修改式 CI gate，不能在切换 Vite 后静默丢失；
-- Web3、MetaMask、Web3 Onboard、Buffer 和其它 CommonJS 依赖必须通过真实 production build 与安全 smoke 验证，不能只验证首页启动；
-- 不把 React Router、Testing Library、React 版本或 class-to-hooks 重构混入构建工具迁移。
-
-### 建议 Change A：迁移 dev/build
-
-建议名称：
-
-`migrate-web-admin-build-toolchain-to-vite`
+该问题值得处理，但不能直接把默认值改成严格校验。ADFS、Active Directory 和 SMTP 的旧部署可能依赖自签证书，直接关闭兼容会造成认证、同步或邮件中断。
 
 建议范围：
 
-- 增加 typed `vite.config.ts`，迁移 CRACO 中的 dev proxy、Less、overlay/preflight 和构建输出约定；
-- 将 CRA 环境变量收口到 typed build/runtime env adapter，避免在业务文件中散落 `import.meta.env`；
-- 将动态国家语言包加载改成 Vite 可静态分析的显式映射或受控 glob；
-- 迁移 `public/index.html` 和 public asset base path；
-- 保持 `public-scripts:build`、`public-scripts:smoke` 和 auth callback 脚本行为；
-- 先增加并行的 Vite start/build 验证入口，对照 CRACO 产物和运行行为，再切换默认 `start`/`build`；
-- 同步 Docker、local-dev 脚本、新人文档和 CI，但不修改业务页面。
+- 定义按连接或 provider 生效的显式 TLS policy，区分系统信任、自定义 CA 和受控的不安全兼容模式。
+- 规定旧配置迁移、默认值、copy-safe 状态诊断和告警，不回显证书或连接凭据。
+- ADFS 不得覆盖上游注入的 transport；AD 同步和 SMTP 复用同一策略语义，但保持各自业务 client 边界。
+- 为默认严格、自定义 CA、显式 legacy opt-in 和无效配置补契约测试。
 
-### 建议 Change B：测试运行器脱离 React Scripts
+前置条件：等待 `stabilize-admin-idp-http-client-contract` 释放 `admin/idp/adfs.go` 写集。
 
-建议名称：
+### P1：React 18 兼容 Testing Library 升级
 
-`decouple-web-admin-jest-from-react-scripts`
+建议 change：`upgrade-web-admin-react-testing-library-for-react-18`
 
-建议先为现有 Jest 建立显式 transform、jsdom、setup、module mapping 和 coverage 配置，再移除 React Scripts 的测试依赖。不要默认把 Jest → Vitest 与 Vite dev/build 切换合并；是否迁移 Vitest 应在 Jest 解耦后根据实际收益单独评估。
+当前 `@testing-library/react` 仍为 `9.3.2`，29 个测试文件过滤 `ReactDOM.render is no longer supported in React 18` 告警。这会掩盖真实 console regression，并增加每个新测试的样板代码。
 
-### 验收标准
+建议范围：
 
-- `yarn start` 仍监听 `7002`，所有 `/api`、`/swagger`、`/files`、OIDC discovery、CAS 和 `/scim` proxy path 行为一致；
-- `yarn build` 输出到 `web-admin/build`，Docker 和静态部署路径保持兼容；
-- `yarn typecheck`、增量 TypeScript gate、现有全量 Jest、public scripts check/build/smoke 和显式 lint gate 通过；
-- CRA 与 Vite production build 的入口、静态资源 base path、懒加载 chunk 和主要 bundle size 有对照记录，Vite 产物不出现无依据的明显回退；
-- Admin 首页、登录壳、页面刷新、OIDC/CAS callback 路由、Provider/Web3 懒加载完成浏览器 smoke；
-- build warning、Node polyfill 和 CommonJS compatibility 问题有明确处置，不通过全局兼容插件无边界兜底；
-- 完成 dev/build 切换前保留可回退的 CRACO build 证据，切换后不长期维护两个默认生产构建入口。
+- 升级到与 React 18 兼容的 Testing Library 版本，保持 Jest 27、Vite、Playwright 和业务运行时不变。
+- 迁移确实受影响的 render/cleanup/act 用法，删除各测试文件中的告警过滤。
+- 保持全量 Jest discovery 和断言语义，不通过静默 console mock 制造绿灯。
+- 验证全量 Jest、typecheck、lint、build 和关键组件测试。
 
-## 后续候选：Yarn 到 Bun package manager
+前置条件：等待 Web3 change 释放 `web-admin/package.json` 和 `yarn.lock` 依赖锁。
 
-### 决策
+### P1：AntD 5 deprecated API 清理
 
-- 当前决策：`NO-GO / BLOCKED`，继续使用 Yarn 和 `yarn.lock`。
-- 已完成并归档三轮评估：基础 package manager 迁移、Cypress 15.18.1 兼容性、Bun `--backend=copyfile` workaround。Bun 1.3.14 在 Windows 干净缓存和干净 `node_modules` 下均未形成有效依赖树，不能进入性能、完整 Jest、Vite build、Docker 或 E2E 比较阶段。
-- Cypress 已被 Playwright 完整替代，消除了一个旧依赖面，但 copyfile 评估同时在 Web3 深层依赖中观察到缺文件，因此不能把问题归结为 Cypress，也不能据此立即重启 Bun 迁移。
-- Web3 退役若成功，会显著缩小依赖树，可作为未来重评触发条件之一；仍需稳定 Bun 版本或上游 Windows 依赖物化问题有可验证变化。
+建议 change：`remove-web-admin-antd5-deprecated-api-usage`
 
-### 当前绑定与预期收益
+当前基线约有 9 处 `Input.Group`、7 处 `visible` 和 11 处 `destroyOnClose`。这些调用会持续产生开发与测试告警，并阻碍后续 AntD 升级。
 
-- `yarn.lock` 是当前唯一依赖真值，`preinstall` 会拒绝非 Yarn 安装；CI、Docker、Makefile、local-dev、README 和 `FrontendCiGates` tests 均绑定 Yarn。
-- 预期收益主要来自冷安装、缓存安装和脚本启动。Vite 已改善 dev/build；在保留 Jest 的前提下，完整测试耗时不会仅因更换 package manager 而大幅下降。
+建议范围：
 
-### 范围与明确拒绝项
+- 按组件语义迁移到 `Space.Compact`、`open`、`destroyOnHidden` 等当前 API，不做全局样式重写。
+- 优先处理登录、用户编辑、Provider、组织同步和公共 modal；保留表单布局、焦点、关闭后清理和权限行为。
+- 用聚焦 Jest 与浏览器 smoke 验证弹窗开关、表单重置、长文本和窄屏布局。
 
-- 只迁移 package manager、lockfile、依赖安装和 script orchestration，保持 Vite + Jest。
-- 不同时迁移 `bun test`、React、React Router、Testing Library 或业务代码。
-- 迁移成功后只保留 Bun lockfile，不长期维护 `yarn.lock` 与 Bun lockfile 双真值。
-- **REJECT**：把 Bun package manager 迁移和 Jest → `bun test` 混成一个 change。
+前置条件：等待 Web3 change 释放登录页写集；可与企业 TLS change 并行。
 
-### 未来重评分阶段
+### P2：移除 CRA/IE polyfill 残留
 
-1. 仅在 Bun 稳定版、相关 Windows 上游问题或合法依赖树发生可证明变化后重建隔离样本。
-2. 至少连续 3 次 frozen lifecycle install 成功且 lock/tree 可复现，才进入 Yarn/Bun 冷安装、缓存安装、完整 Jest、Vite build 和 Docker build 对比。
-3. 达到收益门槛后，才允许另建实施 change 切换 CI、Docker、Makefile、local-dev 和文档；最后清理 Yarn guard，且不长期维护双 lockfile。
+建议先评估，不直接实施。`web-admin/src/index.tsx` 仍加载 `react-app-polyfill/ie9`，但 React 18 已不支持 IE，构建工具也已迁移到 Vite。
 
-建议阈值如下，正式 proposal 可以在提供证据后调整，但不能取消量化门槛：
+只有在明确浏览器支持基线、production build 差异和关键认证回调 smoke 后才移除。若没有可观察的 bundle、兼容或维护收益，不单独立项。
 
-- 依赖安装或 CI dependency 阶段应有明确收益，建议至少提升 20%；
-- 完整 Jest 和 Vite build 不应出现超过 10% 的无依据回退。
+## Bun package manager 决策
 
-### 验收要求
+当前结论为 `NO-GO / BLOCKED`，继续以 Yarn 和 `yarn.lock` 为唯一依赖真值。
 
-- Bun frozen lock 安装可复现，且依赖解析结果经过审计；
-- 完整 Jest discovery 数量和通过数与切换前一致；
-- typecheck、lint、public scripts、Vite build、Docker build、local-dev 和浏览器 smoke 通过；
-- 记录依赖解析差异，以及剩余 Web3、native dependency、postinstall 和 Playwright browser install 的兼容性与处置风险。
+已归档三轮评估：
 
-## DEFER：存在债务，但当前不应抢占 P0
+- `migrate-web-admin-package-manager-to-bun`
+- `evaluate-admin-cypress-15-bun-compatibility`
+- `evaluate-admin-bun-copyfile-backend-workaround`
 
-### 后台任务 lifecycle 与 graceful shutdown `[已完成]`
+Bun 1.3.14 在 Windows 隔离环境中没有形成可用且可复现的依赖树；`--backend=copyfile` 和降低 lifecycle 并发均未解除 cache/extraction 阶段缺文件。Cypress 已由 Playwright 替代，但失败样本还涉及 Web3 深层依赖，因此不能把旧阻断只归因于 Cypress。
 
-该项已由 `stabilize-admin-background-task-lifecycle-and-graceful-shutdown` 完成并以 `ff5d6ae8` 合入。后续只在新增 worker 或发现具体 shutdown 回归时按业务域补测试，不再立项重写顶层 lifecycle。
+只有满足以下任一触发条件才重新评估：
 
-### API response/error contract 全仓迁移
+- Bun 稳定版或相关 Windows 上游问题有明确修复；
+- Web3 退役后依赖树显著缩小，并能证明失败面发生变化。
 
-- controller 中约有 1,203 次 `ResponseError`；
-- 显式设置 HTTP status 的调用约 13 次；
-- legacy 客户端普遍依赖 `{status, msg, data}` envelope；
-- P0 provider 已局部使用 typed error、traceId 和 HTTP status。
+重评必须先连续 3 次完成干净 frozen lifecycle install，且 lock/tree 可复现；随后才能比较冷安装、缓存安装、完整 Jest、Vite build 和 Docker build。依赖安装或 CI dependency 阶段建议至少有 20% 收益，完整 Jest 与 Vite build 不应出现超过 10% 的无依据回退。未达到门槛时不得进入实施 change，也不同时迁移到 `bun test`。
 
-建议只要求新接口和 P0 接口使用窄 typed contract，并补 contract test；不发起全仓响应格式迁移。
+## 继续延后
 
-### 前端非 TypeScript 架构债
+以下问题存在，但当前影响面或迁移风险大于可验证收益：
 
-- `web-admin/src` 约有 505 个 TS/TSX 文件，仍存在约 170 个 class component 匹配；
-- `web-admin/src/Setting.tsx` 超过 2,000 行，导出约 149 个符号；
-- backend 中约有 276 处重复的 `res.json()`；
-- `web-admin/src/backend/FetchFilter.tsx` 通过覆盖 `window.fetch` 注入全局行为；
-- React 18 与较旧的 Testing Library React 9.3.2、React Router 5 并存；CRA/CRACO 已移除。
+- 全局 fetch/request 层重写。
+- `Setting.tsx` 大拆分。
+- React Router 5 到 6 全量迁移。
+- 全量 class component 到 hooks。
+- 全仓 controller response/error contract 统一。
+- 全仓统一 HTTP client、全仓消除 panic 或一次性启用全部 linter。
+- 仅为缩短文件行数而重写历史 OpenSpec 主规格。
 
-下一步优先升级 Testing Library，消除 29 个测试文件对 React 18 `ReactDOM.render` 告警的过滤；随后按页面域清理 AntD 5 deprecated API。class component、`Setting.tsx`、全局请求层和 React Router 仍按单一业务域渐进治理，不混成一次大迁移。
+这些方向只有在出现明确业务 blocker、升级前置或可量化维护成本时，才按单一业务域建立窄 change。不得把文件数量、行数或告警总数本身当作立项收益。
 
-### HTTP client 策略
+## 推荐顺序
 
-组织同步 HTTP timeout/context 和 SOCKS5 出站传输已经完成；IDP 域 client 契约正在独立 change 中收口。下一阶段只处理企业 TLS 兼容设计：ADFS、Active Directory 同步和 SMTP 仍有 3 处硬编码 `InsecureSkipVerify: true`。这涉及旧部署的自签证书兼容，必须先定义显式配置、默认值、迁移和诊断，不能直接改成严格校验造成存量中断。
+1. 完成并 closeout 当前 Web3 退役与 IDP HTTP client 两个独立 change。
+2. IDP 写集释放后实施企业 TLS 兼容策略。
+3. 前端依赖锁释放后实施 React 18 Testing Library 升级。
+4. 随后按页面域清理 AntD 5 deprecated API；该任务可与企业 TLS 并行。
+5. 明确浏览器支持基线后决定是否移除 IE polyfill。
+6. Bun 保持关闭，直到满足重评触发条件。
 
-### OpenSpec 主规格体积
+## 维护规则
 
-当前约有 34 个主规格、8,555 行和 257 个 archive；部分主规格超过 1,000 行。其主要问题是检索、review 和冲突成本，尚未形成运行态 blocker。后续可在新增 change 时改善 capability 边界，不建议仅为降低行数重写历史规格。
-
-## REJECT_FILLER：当前不建议立项
-
-以下方向存在局部合理性，但当前影响面远大于产品收益：
-
-- 全仓 controller → service layer 重写；
-- 全量 class component → hooks；
-- Vite、Vitest、React、Router、Testing Library 和 class-to-hooks 一次性迁移；
-- 全仓统一 HTTP client；
-- 全仓“消灭 panic”；
-- 为压缩文档体积大规模拆写历史 OpenSpec。
-
-若未来实施，只能从明确业务域和可验收问题切入，不能以文件行数、class 数量或 TODO 数量作为独立立项依据。
-
-## 推荐实施顺序
-
-1. `[已完成]` 完成并归档 `stabilize-web-admin-test-baseline-and-ci-gates`。
-2. `[已完成]` 完成并归档 `enable-incremental-go-correctness-gates`。
-3. `[已完成]` 完成并归档 `consolidate-insight-runtime-config-resolution`。
-4. `[已完成]` 完成并归档 `stabilize-admin-go-test-baseline-and-fixtures`。
-5. `[已完成]` 完成并归档 `establish-aicodex-owned-schema-migration-baseline`。
-6. `[已完成]` 完成 Vite、显式 Jest 和 Cypress 到 Playwright 的前端工具链收口。
-7. `[已完成]` 完成后台任务 lifecycle、组织同步 HTTP 策略和 SOCKS5 出站传输策略。
-8. `[在途]` 并行完成 `retire-unused-admin-web3-wallet-auth` 与 `stabilize-admin-idp-http-client-contract`。
-9. `[下一批]` IDP change 释放写集后，先设计并实施企业 TLS 兼容策略；Web3 change 释放依赖锁后，依次推进 React Testing Library 兼容升级和 AntD 5 deprecated API 清理。
-10. `[可选评估]` 明确浏览器支持基线后评估移除 IE polyfill；无明确 bundle、兼容或维护收益则不立项。
-11. `[阻塞，NO-GO]` Bun 迁移保持关闭，直到稳定版本或依赖树变化满足重评门槛。
-12. `[继续延后]` 全局 fetch、`Setting.tsx`、Router 6、全量 hooks 和全仓 response contract 只在出现明确业务 blocker 时按域立项。
-
-## 本次审计验证记录
-
-本次为只读代码与仓库结构审计，没有运行真实认证链路、生产配置或破坏性数据库操作。
-
-已执行的关键检查包括：
-
-- `go vet ./...`：失败，确认两个稳定基线错误；
-- `rg` 量化 `Sync2`、配置读取、controller response、HTTP client 和前端请求模式；
-- 检查 `.golangci.yml`、`.github/workflows/build.yml`、`admin/main.go`、`admin/object/ormer.go`；
-- 检查审计时 active OpenSpec change 的 proposal、design、spec 和 tasks；
-- 检查工作区状态，区分当前实施任务的 diff 与本次审计结论。
-
-本文只新增审计文档，未修改业务代码、测试、CI 或 active change artifacts。
+- change 完成后只更新“已完成基线”和“推荐顺序”，不把 closeout 长报告复制进本文。
+- 新候选必须写明收益、边界、前置条件和可执行验收；缺任一项时先评估，不直接派工。
+- 数量和依赖版本是时间点证据。正式 proposal 必须重新运行搜索和依赖检查，不照抄本文数字。
+- 路线状态与 OpenSpec 冲突时，以已归档主规格、最新代码和主控实时台账为准，并及时修正文档。
