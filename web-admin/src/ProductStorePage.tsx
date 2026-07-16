@@ -23,7 +23,7 @@ import {FloatingCartButton, QuantityStepper} from "./common/product/CartControls
 import type {LegacyAny} from "./types/legacyPage";
 import type {ProductCartItem, ProductRecord} from "./types/productCatalog";
 
-const {Text, Title} = Typography;
+const {Paragraph, Text, Title} = Typography;
 const t = i18next.t.bind(i18next) as (key: string) => string;
 const productBackend = ProductBackend as LegacyAny;
 const userBackend = UserBackend as LegacyAny;
@@ -277,16 +277,16 @@ class ProductStorePage extends React.Component<ProductStoreProps, ProductStoreSt
               </Button>
             </div>,
           ]}
-          bodyStyle={{flex: 1, display: "flex", flexDirection: "column"}}
+          styles={{body: {flex: 1, display: "flex", flexDirection: "column"}}}
         >
           <div style={{flex: 1, display: "flex", flexDirection: "column"}}>
             <Title level={5} ellipsis={{rows: 2}} style={{margin: "0 0 12px 0", minHeight: "44px", fontWeight: 600}}>
               {Setting.getLanguageText(product.displayName)}
             </Title>
             {product.detail && (
-              <Text type="secondary" style={{display: "block", marginBottom: 12, fontSize: "13px", lineHeight: "1.5"}} ellipsis={{rows: 2} as LegacyAny}>
+              <Paragraph type="secondary" style={{display: "block", marginBottom: 12, fontSize: "13px", lineHeight: "1.5"}} ellipsis={{rows: 2}}>
                 {Setting.getLanguageText(product.detail)}
-              </Text>
+              </Paragraph>
             )}
             {product.tag && (
               <div style={{marginBottom: 12}}>

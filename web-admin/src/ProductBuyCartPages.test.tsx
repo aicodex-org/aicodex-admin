@@ -14,8 +14,10 @@ import * as OrderBackend from "./backend/OrderBackend";
 import * as UserBackend from "./backend/UserBackend";
 import * as Setting from "./Setting";
 import type {LegacyAny} from "./types/legacyPage";
+import {type ConsoleCallSpy, getAntdWarnings} from "./testUtils/reactAsyncWarnings";
 
 declare const jest: typeof jestValue;
+let consoleErrorSpy: ConsoleCallSpy;
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -237,6 +239,7 @@ function createCartListPage(props: Record<string, LegacyAny> = {}) {
 
 beforeEach(() => {
   cleanup();
+  consoleErrorSpy = jestValue.spyOn(console, "error") as unknown as ConsoleCallSpy;
   localStorage.clear();
   sessionStorage.clear();
   window.history.pushState({}, "", "/");
@@ -264,9 +267,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  cleanup();
+  const antdWarnings = getAntdWarnings(consoleErrorSpy.mock.calls);
+  consoleErrorSpy.mockRestore();
   jestValue.restoreAllMocks();
   jestValue.clearAllMocks();
-  cleanup();
+  expect(antdWarnings).toEqual([]);
 });
 
 test("uses TSX files for migrated product buy and cart pages", () => {
@@ -603,9 +609,17 @@ test("keeps CartListPage table column renderers and fetch sorting branches stabl
   const invalidRecord: CartRecord = {...product, name: "bad_product", quantity: 1, pricingName: "legacy", planName: "old", isInvalid: true};
   page.setState({data: [validRecord, invalidRecord], user: {owner: "built-in", name: "admin", cart: []}});
 
-  const table = page.renderTable([validRecord, invalidRecord]) as React.ReactElement<{children: React.ReactElement<{columns: Array<{key?: string; render?: LegacyAny; title?: () => React.ReactNode}>; title: () => React.ReactNode}>}>;
-  const tableElement = React.Children.toArray(table.props.children)[0] as React.ReactElement<{columns: Array<{key?: string; render?: LegacyAny; title?: () => React.ReactNode}>; title: () => React.ReactNode}>;
+  const table = page.renderTable([validRecord, invalidRecord]) as React.ReactElement<{children: React.ReactElement<{columns: Array<{key?: string; render?: LegacyAny; title?: () => React.ReactNode}>; rowKey: (record: CartRecord) => React.Key; title: () => React.ReactNode}>}>;
+  const tableElement = React.Children.toArray(table.props.children)[0] as React.ReactElement<{columns: Array<{key?: string; render?: LegacyAny; title?: () => React.ReactNode}>; rowKey: (record: CartRecord) => React.Key; title: () => React.ReactNode}>;
   const columns = tableElement.props.columns;
+  const alternatePriceRecord = {...validRecord, price: validRecord.price + 10};
+
+  expect(tableElement.props.rowKey(validRecord)).toBe(tableElement.props.rowKey(validRecord));
+  expect(tableElement.props.rowKey(validRecord)).not.toBe(tableElement.props.rowKey(alternatePriceRecord));
+  expect([alternatePriceRecord, validRecord].map(tableElement.props.rowKey)).toEqual([
+    tableElement.props.rowKey(alternatePriceRecord),
+    tableElement.props.rowKey(validRecord),
+  ]);
 
   const nameView = render(<MemoryRouter>{columns.find(column => column.key === "name")?.render?.("workspace_credits", validRecord, 0)}</MemoryRouter>);
   expect(nameView.getByText("workspace_credits").closest("a")?.getAttribute("href")).toBe("/products/built-in/workspace_credits");

@@ -8,7 +8,7 @@ import * as FeishuOrganizationSyncBackend from "./backend/FeishuOrganizationSync
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as WecomOrganizationSyncBackend from "./backend/WecomOrganizationSyncBackend";
 import * as Setting from "./Setting";
-import {type ConsoleCallSpy, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
+import {type ConsoleCallSpy, getAntdWarnings, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
 
 declare const jest: typeof jestValue;
 
@@ -337,10 +337,12 @@ beforeEach(() => {
 
 afterEach(() => {
   const actWarnings = getReactActWarnings(consoleErrorSpy.mock.calls);
+  const antdWarnings = getAntdWarnings(consoleErrorSpy.mock.calls);
   consoleErrorSpy.mockRestore();
   jestValue.restoreAllMocks();
   jestValue.clearAllMocks();
   expect(actWarnings).toEqual([]);
+  expect(antdWarnings).toEqual([]);
 });
 
 async function flushPromises() {
@@ -1495,4 +1497,27 @@ test("renders full handoff checklist and uses fallback copy/export helpers", () 
   expect(revokeObjectURL).toHaveBeenCalled();
   expect(Setting.showMessage).toHaveBeenCalledWith("success", "已复制脱敏 JSON");
   expect(Setting.showMessage).toHaveBeenCalledWith("success", "已复制交接资料 JSON");
+});
+
+test("destroys compact handoff audit details after the panel is hidden", () => {
+  const page = new FeishuOrganizationSyncPage({account: {owner: "engineering", isAdmin: true}});
+  const checklist = {
+    version: "feishu-handoff-acceptance-checklist-v1",
+    manualReviewOnly: true,
+    summary: {total: 1, passed: 0, needsReview: 1, blocked: 0, missing: 0, cannotInfer: 0, derivedOnly: true, noFallback: true},
+    items: [{id: "operator_review", status: "needs_review", source: "admin_local_metadata", safeSummary: "需要管理员复核脱敏交接资料。", manualReviewOnly: true}],
+    providerOwnedEvidenceMissing: [],
+    manualReviewActions: [],
+    cannotInfer: [],
+    noFallback: [],
+  };
+
+  render(page.renderHandoffAcceptanceChecklist(checklist, {compact: true, showAuditDetails: true}));
+  expect(screen.queryByText("需要管理员复核脱敏交接资料。")).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByText("详细清单和安全别名"));
+  expect(screen.getByText("需要管理员复核脱敏交接资料。")).toBeInTheDocument();
+
+  fireEvent.click(screen.getByText("详细清单和安全别名"));
+  expect(screen.queryByText("需要管理员复核脱敏交接资料。")).not.toBeInTheDocument();
 });

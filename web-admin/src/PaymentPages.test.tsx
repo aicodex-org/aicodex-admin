@@ -14,8 +14,10 @@ import * as SubscriptionBackend from "./backend/SubscriptionBackend";
 import * as UserBackend from "./backend/UserBackend";
 import * as Setting from "./Setting";
 import type {LegacyAny} from "./types/legacyPage";
+import {type ConsoleCallSpy, getAntdWarnings} from "./testUtils/reactAsyncWarnings";
 
 declare const jest: typeof jestValue;
+let consoleErrorSpy: ConsoleCallSpy;
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -324,6 +326,7 @@ function collectElements(node: React.ReactNode, predicate: (element: React.React
 
 beforeEach(() => {
   cleanup();
+  consoleErrorSpy = jestValue.spyOn(console, "error") as unknown as ConsoleCallSpy;
   window.history.pushState({}, "", "/");
   Object.defineProperty(window, "matchMedia", {
     writable: true,
@@ -372,10 +375,13 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  cleanup();
+  const antdWarnings = getAntdWarnings(consoleErrorSpy.mock.calls);
+  consoleErrorSpy.mockRestore();
   jestValue.restoreAllMocks();
   jestValue.useRealTimers();
   jestValue.clearAllMocks();
-  cleanup();
+  expect(antdWarnings).toEqual([]);
 });
 
 test("uses TSX files for migrated payment pages", () => {
@@ -409,6 +415,12 @@ test("keeps PaymentResultPage result states and navigation stable", () => {
     page.setState({payment: makePayment({state, message: "failed reason"})});
     const stateView = render(<>{page.render()}</>);
     expect(stateView.container.textContent).toContain(state === "Created" ? "still under processing" : state);
+    if (state === "Created") {
+      const processingStatus = stateView.getByRole("status");
+      expect(processingStatus.getAttribute("aria-live")).toBe("polite");
+      expect(processingStatus.textContent).toContain("Processing...");
+      expect(processingStatus.querySelector(".ant-spin")).not.toBeNull();
+    }
     if (state !== "Created") {
       fireEvent.click(stateView.getByText("View Order"));
       expect(history.push).toHaveBeenCalledWith("/orders/built-in/order_123/pay");

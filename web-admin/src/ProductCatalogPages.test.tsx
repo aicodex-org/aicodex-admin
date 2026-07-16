@@ -16,7 +16,7 @@ import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as FormBackend from "./backend/FormBackend";
 import * as Setting from "./Setting";
 import type {LegacyAny} from "./types/legacyPage";
-import {type ConsoleCallSpy, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
+import {type ConsoleCallSpy, getAntdWarnings, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
 
 declare const jest: typeof jestValue;
 let consoleErrorSpy: ConsoleCallSpy;
@@ -313,10 +313,12 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   const actWarnings = getReactActWarnings(consoleErrorSpy.mock.calls);
+  const antdWarnings = getAntdWarnings(consoleErrorSpy.mock.calls);
   consoleErrorSpy.mockRestore();
   jestValue.restoreAllMocks();
   jestValue.clearAllMocks();
   expect(actWarnings).toEqual([]);
+  expect(antdWarnings).toEqual([]);
 });
 
 test("uses TSX files for migrated product catalog pages and shared cart controls", () => {
@@ -458,6 +460,10 @@ test("keeps product store lifecycle, empty state, quantity controls and failed u
   emptyView.unmount();
 
   const cardView = render(<MemoryRouter>{page.renderProductCard(product)}</MemoryRouter>);
+  const cardBody = cardView.container.querySelector(".ant-card-body") as HTMLElement;
+  const detail = cardView.getByText("Credits for usage");
+  expect(cardBody.getAttribute("style")).toContain("flex: 1");
+  expect(detail.classList.contains("ant-typography-ellipsis-multiple-line")).toBe(true);
   const buttons = cardView.getAllByRole("button");
   fireEvent.click(buttons[0]);
   fireEvent.click(buttons[1]);

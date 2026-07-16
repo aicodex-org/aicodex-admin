@@ -3,7 +3,7 @@
 import React from "react";
 import {cleanup, render} from "@testing-library/react";
 import {expect, jest} from "@jest/globals";
-import {Modal, message} from "antd";
+import {InputNumber, Modal, message} from "antd";
 import i18next from "i18next";
 import copy from "copy-to-clipboard";
 import "./i18n";
@@ -16,6 +16,9 @@ import * as ResourceBackend from "./backend/ResourceBackend";
 import * as Setting from "./Setting";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
+import {type ConsoleCallSpy, getAntdWarnings} from "./testUtils/reactAsyncWarnings";
+
+let consoleErrorSpy: ConsoleCallSpy;
 
 const {fireEvent} = require("@testing-library/react") as {fireEvent: {
   click: (element: Element) => boolean;
@@ -281,6 +284,7 @@ function findRenderedElements(node: React.ReactNode, predicate: (element: React.
 }
 
 beforeEach(async() => {
+  consoleErrorSpy = jest.spyOn(console, "error") as unknown as ConsoleCallSpy;
   await useTestLanguage("en");
   window.location.hash = "";
   Object.defineProperty(window, "matchMedia", {
@@ -306,7 +310,10 @@ beforeEach(async() => {
 
 afterEach(() => {
   cleanup();
+  const antdWarnings = getAntdWarnings(consoleErrorSpy.mock.calls);
+  consoleErrorSpy.mockRestore();
   jest.restoreAllMocks();
+  expect(antdWarnings).toEqual([]);
 });
 
 test("loads add-draft dependencies without reading a missing application", async() => {
@@ -598,6 +605,55 @@ test("localizes application edit unit add-ons", async() => {
 
   expect(view.getByText("页头 HTML")).not.toBeNull();
   expect(view.getByText("页脚 HTML")).not.toBeNull();
+});
+
+test("keeps application numeric input precision, width, units and update callbacks", () => {
+  const page = createPage({
+    application: {
+      order: 2,
+      cookieExpireInHours: 720,
+      expireInHours: 1.25,
+      refreshExpireInHours: 168.5,
+      failedSigninLimit: 5,
+      failedSigninFrozenTime: 15,
+      codeResendTimeout: 60,
+    },
+  });
+  const getInputNumbers = () => findRenderedElements(page.renderApplicationForm(), element => element.type === InputNumber);
+
+  page.state.activeMenuKey = "general";
+  let controls = getInputNumbers();
+  expect(controls.map(control => control.props)).toEqual([
+    expect.objectContaining({style: {width: "150px"}, value: 2, min: 0, step: 1, precision: 0}),
+  ]);
+  expect(controls[0].props).not.toHaveProperty("addonAfter");
+  controls[0].props.onChange(3);
+  expect(page.state.application.order).toBe(3);
+
+  page.state.activeMenuKey = "authentication";
+  controls = getInputNumbers();
+  expect(controls.map(control => control.props)).toEqual([
+    expect.objectContaining({style: {width: "150px"}, value: 720, min: 1, step: 1, precision: 0, suffix: "Hours"}),
+  ]);
+
+  page.state.activeMenuKey = "oidc-oauth";
+  controls = getInputNumbers();
+  expect(controls.map(control => control.props)).toEqual([
+    expect.objectContaining({style: {width: "150px"}, value: 1.25, min: 0.01, step: 1, precision: 2, suffix: "Hours"}),
+    expect.objectContaining({style: {width: "150px"}, value: 168.5, min: 0.01, step: 1, precision: 2, suffix: "Hours"}),
+  ]);
+  controls[0].props.onChange(2.5);
+  controls[1].props.onChange(336);
+  expect(page.state.application).toEqual(expect.objectContaining({expireInHours: 2.5, refreshExpireInHours: 336}));
+
+  page.state.activeMenuKey = "security";
+  controls = getInputNumbers();
+  expect(controls.map(control => control.props)).toEqual([
+    expect.objectContaining({style: {width: "150px"}, value: 5, min: 1, step: 1, precision: 0, suffix: "Times"}),
+    expect.objectContaining({style: {width: "150px"}, value: 15, min: 1, step: 1, precision: 0, suffix: "Minutes"}),
+    expect.objectContaining({style: {width: "150px"}, value: 60, min: 0, step: 1, precision: 0, suffix: "Seconds"}),
+  ]);
+  controls.forEach(control => expect(control.props).not.toHaveProperty("addonAfter"));
 });
 
 test("renders UI customization image URLs on the standard field axis", () => {

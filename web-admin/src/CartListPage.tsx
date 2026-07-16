@@ -39,6 +39,11 @@ interface CartProductRecord extends ProductRecord {
   isInvalid?: boolean;
 }
 
+// 充值商品允许同名但金额不同的条目，row key需与购物车四元组身份一致且不依赖数组顺序。
+function getCartRowKey(record: CartProductRecord): string {
+  return JSON.stringify([record.name, record.price, record.pricingName, record.planName]);
+}
+
 interface CartListState {
   data: CartProductRecord[];
   user: ProductUserRecord | null;
@@ -414,7 +419,7 @@ class CartListPage extends LegacyBaseListPage {
           scroll={{x: "max-content"}}
           columns={columns as LegacyAny}
           dataSource={carts || []}
-          rowKey={(record: CartProductRecord, index?: number) => `${record.name}-${record.pricingName}-${record.planName}-${index}`}
+          rowKey={getCartRowKey}
           size="middle"
           bordered
           pagination={false}

@@ -1,5 +1,6 @@
 const actWarningText = ["not wrapped", "in act"].join(" ");
 const unsupportedActEnvironmentText = ["current testing environment", "is not configured to support act"].join(" ");
+const antdWarningText = "Warning: [antd:";
 
 export type ConsoleCallSpy = {
   mock: {calls: unknown[][]};
@@ -16,6 +17,13 @@ export function getReactActWarnings(calls: ReadonlyArray<ReadonlyArray<unknown>>
   return calls
     .map(args => args.map(value => String(value)).join(" "))
     .filter(isReactActWarning);
+}
+
+// 只识别 AntD 自身的 runtime warning；React 和其它 console 诊断继续由各 suite 独立处理。
+export function getAntdWarnings(calls: ReadonlyArray<ReadonlyArray<unknown>>): string[] {
+  return calls
+    .map(args => args.map(value => String(value)).join(" "))
+    .filter(message => message.includes(antdWarningText));
 }
 
 // 返回用文本匹配后直接 return 的测试源码行，防止重新引入局部 act warning suppression。

@@ -282,7 +282,7 @@ export function renderApplicationEditForm(context: ApplicationEditFormContext): 
             {Setting.getLabel(i18next.t("application:Order"), i18next.t("application:Order - Tooltip"))} :
           </Col>
           <Col span={21} >
-            <InputNumber style={{width: "150px"}} value={context.state.application.order} min={0} step={1} precision={0} addonAfter="" onChange={value => {
+            <InputNumber style={{width: "150px"}} value={context.state.application.order} min={0} step={1} precision={0} onChange={value => {
               context.updateApplicationField("order", value);
             }} />
           </Col>
@@ -308,7 +308,7 @@ export function renderApplicationEditForm(context: ApplicationEditFormContext): 
             {Setting.getLabel(i18next.t("application:Cookie expire"), i18next.t("application:Cookie expire - Tooltip"))} :
           </Col>
           <Col span={21} >
-            <InputNumber style={{width: "150px"}} value={context.state.application.cookieExpireInHours || 720} min={1} step={1} precision={0} addonAfter={i18next.t("application:Hours")} onChange={value => {
+            <InputNumber style={{width: "150px"}} value={context.state.application.cookieExpireInHours || 720} min={1} step={1} precision={0} suffix={i18next.t("application:Hours")} onChange={value => {
               context.updateApplicationField("cookieExpireInHours", value);
             }} />
           </Col>
@@ -639,7 +639,7 @@ export function renderApplicationEditForm(context: ApplicationEditFormContext): 
             {Setting.getLabel(i18next.t("application:Token expire"), i18next.t("application:Token expire - Tooltip"))} :
           </Col>
           <Col span={21} >
-            <InputNumber style={{width: "150px"}} value={context.state.application.expireInHours} min={0.01} step={1} precision={2} addonAfter={i18next.t("application:Hours")} onChange={value => {
+            <InputNumber style={{width: "150px"}} value={context.state.application.expireInHours} min={0.01} step={1} precision={2} suffix={i18next.t("application:Hours")} onChange={value => {
               context.updateApplicationField("expireInHours", value);
             }} />
           </Col>
@@ -649,7 +649,7 @@ export function renderApplicationEditForm(context: ApplicationEditFormContext): 
             {Setting.getLabel(i18next.t("application:Refresh token expire"), i18next.t("application:Refresh token expire - Tooltip"))} :
           </Col>
           <Col span={21} >
-            <InputNumber style={{width: "150px"}} value={context.state.application.refreshExpireInHours} min={0.01} step={1} precision={2} addonAfter={i18next.t("application:Hours")} onChange={value => {
+            <InputNumber style={{width: "150px"}} value={context.state.application.refreshExpireInHours} min={0.01} step={1} precision={2} suffix={i18next.t("application:Hours")} onChange={value => {
               context.updateApplicationField("refreshExpireInHours", value);
             }} />
           </Col>
@@ -1126,7 +1126,7 @@ export function renderApplicationEditForm(context: ApplicationEditFormContext): 
             {Setting.getLabel(i18next.t("application:Failed signin limit"), i18next.t("application:Failed signin limit - Tooltip"))} :
           </Col>
           <Col span={21} >
-            <InputNumber style={{width: "150px"}} value={context.state.application.failedSigninLimit} min={1} step={1} precision={0} addonAfter={i18next.t("application:Times")} onChange={value => {
+            <InputNumber style={{width: "150px"}} value={context.state.application.failedSigninLimit} min={1} step={1} precision={0} suffix={i18next.t("application:Times")} onChange={value => {
               context.updateApplicationField("failedSigninLimit", value);
             }} />
           </Col>
@@ -1136,7 +1136,7 @@ export function renderApplicationEditForm(context: ApplicationEditFormContext): 
             {Setting.getLabel(i18next.t("application:Failed signin frozen time"), i18next.t("application:Failed signin frozen time - Tooltip"))} :
           </Col>
           <Col span={21} >
-            <InputNumber style={{width: "150px"}} value={context.state.application.failedSigninFrozenTime} min={1} step={1} precision={0} addonAfter={i18next.t("application:Minutes")} onChange={value => {
+            <InputNumber style={{width: "150px"}} value={context.state.application.failedSigninFrozenTime} min={1} step={1} precision={0} suffix={i18next.t("application:Minutes")} onChange={value => {
               context.updateApplicationField("failedSigninFrozenTime", value);
             }} />
           </Col>
@@ -1146,7 +1146,7 @@ export function renderApplicationEditForm(context: ApplicationEditFormContext): 
             {Setting.getLabel(i18next.t("application:Code resend timeout"), i18next.t("application:Code resend timeout - Tooltip"))} :
           </Col>
           <Col span={21} >
-            <InputNumber style={{width: "150px"}} value={context.state.application.codeResendTimeout} min={0} step={1} precision={0} addonAfter={i18next.t("application:Seconds")} onChange={value => {
+            <InputNumber style={{width: "150px"}} value={context.state.application.codeResendTimeout} min={0} step={1} precision={0} suffix={i18next.t("application:Seconds")} onChange={value => {
               context.updateApplicationField("codeResendTimeout", value);
             }} />
           </Col>

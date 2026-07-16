@@ -252,7 +252,7 @@ class OrderPayPage extends React.Component<OrderPayProps, OrderPayState> {
 
     return (
       <div key={product.name} style={{marginBottom: "20px", border: "1px solid #f0f0f0", borderRadius: "2px", padding: "1px"}}>
-        <Descriptions bordered column={2} size="middle" labelStyle={{width: "150px"}}>
+        <Descriptions bordered column={2} size="middle" styles={{label: {width: "150px"}}}>
           <Descriptions.Item label={t("general:Name")} span={2}>
             <span style={{fontSize: 20, fontWeight: "500"}}>
               {Setting.getLanguageText(product?.displayName)}

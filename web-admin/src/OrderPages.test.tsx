@@ -5,6 +5,7 @@ import * as path from "path";
 import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {cleanup, render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
+import {Descriptions} from "antd";
 import OrderListPage from "./OrderListPage";
 import OrderEditPage from "./OrderEditPage";
 import OrderPayPage from "./OrderPayPage";
@@ -14,8 +15,10 @@ import * as UserBackend from "./backend/UserBackend";
 import * as PaymentBackend from "./backend/PaymentBackend";
 import * as Setting from "./Setting";
 import type {LegacyAny} from "./types/legacyPage";
+import {type ConsoleCallSpy, getAntdWarnings} from "./testUtils/reactAsyncWarnings";
 
 declare const jest: typeof jestValue;
+let consoleErrorSpy: ConsoleCallSpy;
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -337,6 +340,7 @@ function collectElements(node: React.ReactNode, predicate: (element: React.React
 
 beforeEach(() => {
   cleanup();
+  consoleErrorSpy = jestValue.spyOn(console, "error") as unknown as ConsoleCallSpy;
   window.history.pushState({}, "", "/");
   Object.defineProperty(window, "matchMedia", {
     writable: true,
@@ -378,10 +382,13 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  cleanup();
+  const antdWarnings = getAntdWarnings(consoleErrorSpy.mock.calls);
+  consoleErrorSpy.mockRestore();
   jestValue.restoreAllMocks();
   jestValue.clearAllMocks();
-  cleanup();
   delete (window as unknown as {WeixinJSBridge?: LegacyAny}).WeixinJSBridge;
+  expect(antdWarnings).toEqual([]);
 });
 
 test("uses TSX files for migrated order pages", () => {
@@ -743,6 +750,23 @@ test("keeps OrderPayPage loading, render and normal payment behavior stable", as
   await flushAsyncWork();
   expect(orderBackendMock.payOrder).toHaveBeenCalledWith("built-in", "order_123", "stripe-main", "");
   expect(Setting.goToLink).toHaveBeenCalledWith("/pay");
+});
+
+test("keeps OrderPayPage product description width, columns and spans", () => {
+  const page = createOrderPayPage();
+  const productTree = page.renderProduct({...productInfo, pricingName: "monthly", planName: "pro"});
+  const descriptions = collectElements(productTree, element => element.type === Descriptions);
+  const items = collectElements(productTree, element => element.type === Descriptions.Item);
+
+  expect(descriptions).toHaveLength(1);
+  expect(descriptions[0].props).toEqual(expect.objectContaining({
+    bordered: true,
+    column: 2,
+    size: "middle",
+    styles: {label: {width: "150px"}},
+  }));
+  expect(descriptions[0].props).not.toHaveProperty("labelStyle");
+  expect(items.map(item => item.props.span)).toEqual([2, 2, 1, 1, 2, 1, 1]);
 });
 
 test("keeps OrderPayPage WeChat, QR code and failure branches stable", async() => {

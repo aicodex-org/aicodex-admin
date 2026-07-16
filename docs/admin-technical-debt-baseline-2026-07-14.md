@@ -4,7 +4,7 @@
 >
 > 最近整理日期：2026-07-17
 >
-> 代码审阅基线：`hfl-test-base@f955924d`
+> 代码审阅基线：`hfl-test-base@5b66c580`
 
 ## 文档用途
 
@@ -35,7 +35,7 @@
 | SOCKS5 出站传输 | `harden-admin-socks5-proxy-transport-policy` | 默认 transport、代理 transport 和 TLS 行为已有稳定契约 |
 | IDP HTTP client | `stabilize-admin-idp-http-client-contract` | 五个目标 Provider 统一注入 client、bounded fallback、body/status/error 与凭据脱敏契约 |
 | Web3 钱包认证退役 | `retire-unused-admin-web3-wallet-auth` | 60 零存量门禁通过；创建/登录入口、专属后端和 13 个直接依赖已移除，历史记录保持受控只读兼容 |
-| AntD 5 当前 API 清理 | `remove-web-admin-antd5-input-group-and-visible-deprecations`、`upgrade-web-admin-antd5-and-migrate-modal-destroy-semantics` | 4 处 `Input.Group` 与 3 个 modal wrapper / 7 个调用点已迁移到 `Space.Compact` / `open`；AntD 精确升级到 5.29.3，11 处 overlay 销毁语义已迁移到 `destroyOnHidden`，AntD 6 继续排除 |
+| AntD 5 当前 API 清理 | `remove-web-admin-antd5-input-group-and-visible-deprecations`、`upgrade-web-admin-antd5-and-migrate-modal-destroy-semantics`、`eliminate-web-admin-antd-runtime-warning-owners` | 4 处 `Input.Group` 与 3 个 modal wrapper / 7 个调用点已迁移到 `Space.Compact` / `open`；AntD 精确升级到 5.29.3，11 处 overlay销毁语义使用`destroyOnHidden`；InputNumber/Card/Typography/Descriptions/Table/Spin/Collapse的47条production owner warning已按当前API收口并由局部non-silent guard保护，AntD 6继续排除 |
 | CRA/IE polyfill 退役 | `retire-web-admin-cra-ie-polyfill` | React 18 + Vite `es2020` 与 production browserslist 成为浏览器支持真值；CRA production/Jest polyfill owner 已移除，`core-js`、`replaceAll` 与显式 Jest/jsdom 边界继续保留 |
 | 注册页响应式 | `fix-web-admin-signup-mobile-overflow` | Signup 固定 logo/Form/模式组已收敛到页面局部响应式边界；320/360/390px 与桌面端无页面级横向溢出，长标签、校验错误和键盘路径保持可用 |
 | React 18 测试异步边界 | `upgrade-web-admin-react-testing-library-for-react-18`、`stabilize-web-admin-react18-async-test-boundaries` | RTL 已使用 `createRoot`；历史 act warning、FakeTimers/native timer 污染和局部文本 suppression 已按 owner 收口，并由 non-silent 全量 Jest 与 test-only 防回退契约保护 |
@@ -102,7 +102,7 @@ Testing Library change 释放前端依赖锁后可建立新的隔离评估。重
 
 ## 推荐顺序
 
-1. 保持 AntD 5.29.3、`destroyOnHidden=11` 与 React 18 Testing Library 基线，不在后续业务 change 顺手升级 AntD 6。
+1. 保持 AntD 5.29.3、`destroyOnHidden`、runtime warning局部guard与React 18 Testing Library基线，不在后续业务change顺手升级AntD 6或用console过滤隐藏诊断。
 2. 前端依赖锁释放后，基于已缩小的依赖树重新评估 Bun；评估通过前继续使用 Yarn。
 
 ## 维护规则

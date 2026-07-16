@@ -4,6 +4,7 @@ import * as path from "path";
 import {expect, test} from "@jest/globals";
 import {
   findReactActWarningSuppressions,
+  getAntdWarnings,
   getReactActWarnings
 } from "./testUtils/reactAsyncWarnings";
 
@@ -36,6 +37,19 @@ test("classifies React act warnings without hiding other console diagnostics", (
   expect(getReactActWarnings(calls)).toEqual([
     "Warning: An update to Panel inside a test was not wrapped in act(...).",
     "Warning:  The current testing environment is not configured to support act(...)",
+  ]);
+  expect(calls).toHaveLength(3);
+});
+
+test("classifies AntD runtime warnings without hiding React or other diagnostics", () => {
+  const calls = [
+    ["Warning: [antd: Card] bodyStyle is deprecated"],
+    ["Warning: An update to Panel inside a test was not wrapped in act(...)."],
+    ["An unrelated runtime diagnostic"],
+  ];
+
+  expect(getAntdWarnings(calls)).toEqual([
+    "Warning: [antd: Card] bodyStyle is deprecated",
   ]);
   expect(calls).toHaveLength(3);
 });

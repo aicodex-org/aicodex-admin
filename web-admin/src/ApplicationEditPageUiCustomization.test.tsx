@@ -7,7 +7,7 @@ import i18next from "i18next";
 import "./i18n";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
-import {type ConsoleCallSpy, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
+import {type ConsoleCallSpy, getAntdWarnings, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
 
 let ApplicationEditPage: any;
 
@@ -188,8 +188,10 @@ describe("ApplicationEditPage UI customization preview", () => {
   afterEach(() => {
     cleanup();
     const actWarnings = getReactActWarnings(consoleErrorSpy.mock.calls);
+    const antdWarnings = getAntdWarnings(consoleErrorSpy.mock.calls);
     consoleErrorSpy.mockRestore();
     expect(actWarnings).toEqual([]);
+    expect(antdWarnings).toEqual([]);
   });
 
   test("renders runtime-shaped UI customization tab without a white screen", () => {

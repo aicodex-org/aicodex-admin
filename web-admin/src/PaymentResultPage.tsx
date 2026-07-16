@@ -263,7 +263,10 @@ class PaymentResultPage extends React.Component<PaymentResultProps, PaymentResul
             title={`${t("payment:The payment is still under processing")}: ${payment.productsDisplayName}, ${t("payment:the current state is")}: ${payment.state}, ${t("payment:please wait for a few seconds...")}`}
             subTitle={t("payment:You can view your order details or return to the order list")}
             extra={[
-              <Spin key="returnUrl" size="large" tip={t("payment:Processing...")} />,
+              <div key="returnUrl" role="status" aria-live="polite" style={{display: "flex", flexDirection: "column", alignItems: "center", gap: 8}}>
+                <Spin size="large" />
+                <span>{t("payment:Processing...")}</span>
+              </div>,
             ]}
           />
         </div>

@@ -1366,7 +1366,7 @@ class FeishuOrganizationSyncPage extends React.Component<FeishuOrganizationSyncP
         {compact ? (showAuditDetails ? (
           <Collapse
             size="small"
-            destroyInactivePanel
+            destroyOnHidden
             items={[{
               key: "details",
               label: "详细清单和安全别名",
