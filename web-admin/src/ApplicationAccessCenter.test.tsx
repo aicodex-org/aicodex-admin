@@ -262,10 +262,6 @@ describe("ApplicationAccessCenter", () => {
       writable: true,
     });
     const spy = jest.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
-      if (`${message}`.includes("ReactDOM.render is no longer supported")) {
-        return;
-      }
-
       consoleErrorSpy.mockRestore();
       throw new Error([message, ...args].map(item => `${item}`).join(" "));
     });

@@ -1,7 +1,7 @@
 /* eslint-env jest */
 import React from "react";
 import {expect, jest} from "@jest/globals";
-import {cleanup, render} from "@testing-library/react";
+import {cleanup, fireEvent, render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import i18next from "i18next";
 import IdentityEvidenceChainPage from "./IdentityEvidenceChainPage";
@@ -41,10 +41,6 @@ describe("IdentityEvidenceChainPage", () => {
 
   beforeEach(async() => {
     consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
-      if (typeof args[0] === "string" && args[0].includes("ReactDOM.render is no longer supported")) {
-        return;
-      }
-
       throw new Error(args.map(item => String(item)).join(" "));
     });
     Object.defineProperty(window, "matchMedia", {
@@ -96,7 +92,7 @@ describe("IdentityEvidenceChainPage", () => {
 
     const gatewayButton = view.getByText("Gateway / LLM AI").closest("button");
     expect(gatewayButton).not.toBeNull();
-    gatewayButton?.dispatchEvent(new MouseEvent("click", {bubbles: true}));
+    fireEvent.click(gatewayButton as HTMLButtonElement);
 
     expect(view.getByText("Gateway mapping")).not.toBeNull();
     expect(view.getAllByText("网关身份映射").length).toBeGreaterThan(0);

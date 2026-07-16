@@ -1,7 +1,7 @@
 /* eslint-env jest */
 import React from "react";
 import {expect, jest} from "@jest/globals";
-import {cleanup, render} from "@testing-library/react";
+import {cleanup, fireEvent, render, waitFor} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import {Card, Input, Row, Select} from "antd";
 import SystemInfo from "./SystemInfo";
@@ -333,8 +333,8 @@ test("keeps form list table display, add and delete behavior", async() => {
   expect(view.container.querySelector(".enterprise-list-query-toolbar")).not.toBeNull();
   expect(view.container.querySelector(".enterprise-list-row-actions.form-row-actions")).not.toBeNull();
   expect(view.container.querySelector(".ant-table-filter-trigger")).toBeNull();
-  view.getByText(/更\s*多\s*筛\s*选|More filters/).click();
-  expect(view.container.querySelector(".enterprise-list-query-toolbar-advanced")).not.toBeNull();
+  fireEvent.click(view.getByText(/更\s*多\s*筛\s*选|More filters/));
+  await waitFor(() => expect(view.container.querySelector(".enterprise-list-query-toolbar-advanced")).not.toBeNull());
 
   page.addForm();
   await flushPromises();
@@ -533,8 +533,8 @@ test("keeps ticket list state labels, add and delete behavior", async() => {
   expect(view.container.querySelector(".enterprise-list-query-toolbar")).not.toBeNull();
   expect(view.container.querySelector(".enterprise-list-row-actions.ticket-row-actions")).not.toBeNull();
   expect(view.container.querySelector(".ant-table-filter-trigger")).toBeNull();
-  view.getByText(/更\s*多\s*筛\s*选|More filters/).click();
-  expect(view.container.querySelector(".enterprise-list-query-toolbar-advanced")).not.toBeNull();
+  fireEvent.click(view.getByText(/更\s*多\s*筛\s*选|More filters/));
+  await waitFor(() => expect(view.container.querySelector(".enterprise-list-query-toolbar-advanced")).not.toBeNull());
 
   page.addTicket();
   await flushPromises();

@@ -179,7 +179,7 @@ async function flushPromises() {
 describe("ServerEditPage", () => {
   beforeEach(() => {
     consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
-      if (`${message}`.includes("ReactDOM.render is no longer supported") || `${message}`.includes("Invalid DOM property")) {
+      if (`${message}`.includes("Invalid DOM property")) {
         return;
       }
 

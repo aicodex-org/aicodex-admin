@@ -93,9 +93,6 @@ function attachPageState(page: LegacyAny, extra: Record<string, LegacyAny> = {})
 describe("ProviderListPage enterprise table polish", () => {
   beforeEach(() => {
     jest.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
-      if (typeof message === "string" && message.includes("ReactDOM.render is no longer supported in React 18")) {
-        return;
-      }
       throw new Error([message, ...args].map(item => String(item)).join(" "));
     });
   });

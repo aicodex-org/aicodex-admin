@@ -187,10 +187,6 @@ describe("ServerStorePage", () => {
   beforeEach(async() => {
     await useTestLanguage("zh");
     consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
-      if (`${message}`.includes("ReactDOM.render is no longer supported")) {
-        return;
-      }
-
       throw new Error([message, ...args].map(item => `${item}`).join(" "));
     });
     Object.defineProperty(window, "matchMedia", {
@@ -370,6 +366,7 @@ describe("ServerStorePage", () => {
     expect(await view.findByText("Alpha MCP")).not.toBeNull();
     fireEvent.click(getButtonByNormalizedText(view.container, "清空"));
     fireEvent.click(getButtonByNormalizedText(view.container, "Refresh"));
+    await flushPromises();
 
     expect(serverBackendMock.getOnlineServers).toHaveBeenCalledTimes(2);
   });

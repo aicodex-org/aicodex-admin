@@ -64,7 +64,7 @@ type CreateObjectURLMock = LooseMock & {
 
 const backendMock = PlatformApiMappingBackend as unknown as PlatformApiMappingBackendMock;
 const expect = jestExpect;
-const {fireEvent, screen, wait} = require("@testing-library/react") as {
+const {fireEvent, screen, waitFor} = require("@testing-library/react") as {
   fireEvent: {
     click: (element: Element | null) => boolean;
     change: (element: Element | null, event: unknown) => boolean;
@@ -77,7 +77,7 @@ const {fireEvent, screen, wait} = require("@testing-library/react") as {
     queryByText: (text: string | RegExp) => HTMLElement | null;
     getByTestId: (id: string) => HTMLElement;
   };
-  wait: (callback: () => unknown) => Promise<unknown>;
+  waitFor: (callback: () => unknown) => Promise<unknown>;
 };
 
 jest.mock("./backend/PlatformApiMappingBackend", () => {
@@ -619,7 +619,7 @@ test("opens sanitized manual-review action draft drawer from remediation plan", 
   }));
 
   fireEvent.click(screen.getByText("复制草案"));
-  await wait(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("manual_review_only")));
+  await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("manual_review_only")));
 
   fireEvent.click(screen.getByText("导出草案"));
   const exportedBlob = exportedBlobAt(0);
@@ -679,7 +679,7 @@ test("opens sanitized approval preview from preflight without repair actions", a
   }));
 
   fireEvent.click(screen.getByText("复制审批预览"));
-  await wait(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("approval-preview")));
+  await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("approval-preview")));
 
   fireEvent.click(screen.getByText("导出审批预览"));
   const exportedBlob = exportedBlobAt(0);
@@ -705,7 +705,7 @@ test("opens sanitized approval packet audit from approval preview without repair
   }));
 
   fireEvent.click(screen.getByText("复制审批包审计"));
-  await wait(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("derived_non_persistent")));
+  await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("derived_non_persistent")));
 
   fireEvent.click(screen.getByText("导出审批包审计"));
   const exportedBlob = exportedBlobAt(0);
@@ -731,9 +731,9 @@ test("opens sanitized approval packet operator notes without repair actions", as
   }));
 
   fireEvent.click(screen.getByText("复制交接备注JSON"));
-  await wait(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("derived_note_draft")));
+  await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("derived_note_draft")));
   fireEvent.click(screen.getByText("复制交接备注Markdown"));
-  await wait(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("cannotInfer")));
+  await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("cannotInfer")));
 
   fireEvent.click(screen.getByText("导出交接备注JSON"));
   const exportedNotesJson = exportedBlobAt(0);
@@ -765,7 +765,7 @@ test("opens sanitized operator note persistence readiness without writes", async
   }));
 
   fireEvent.click(screen.getByText("复制持久化准入JSON"));
-  await wait(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("readiness_only")));
+  await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("readiness_only")));
 
   fireEvent.click(screen.getByText("导出持久化准入JSON"));
   const exportedReadinessJson = exportedBlobAt(0);
@@ -798,9 +798,9 @@ test("opens sanitized operator note audit search without writes", async() => {
   }));
 
   fireEvent.click(screen.getByText("复制备注审计检索JSON"));
-  await wait(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("current_derived_non_persistent")));
+  await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("current_derived_non_persistent")));
   fireEvent.click(screen.getByText("复制备注审计检索Markdown"));
-  await wait(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("persistenceRequiredForHistoricalSearch")));
+  await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("persistenceRequiredForHistoricalSearch")));
 
   fireEvent.click(screen.getByText("导出备注审计检索JSON"));
   const exportedSearchJson = exportedBlobAt(0);
@@ -810,11 +810,11 @@ test("opens sanitized operator note audit search without writes", async() => {
 
   (navigator.clipboard.writeText as unknown as LooseMock).mockRejectedValueOnce(new Error("copy failed"));
   fireEvent.click(screen.getByText("复制备注审计检索JSON"));
-  await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "复制脱敏备注审计检索JSON失败"));
+  await waitFor(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "复制脱敏备注审计检索JSON失败"));
 
   (navigator.clipboard.writeText as unknown as LooseMock).mockRejectedValueOnce(new Error("copy failed"));
   fireEvent.click(screen.getByText("复制备注审计检索Markdown"));
-  await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "复制脱敏备注审计检索Markdown失败"));
+  await waitFor(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "复制脱敏备注审计检索Markdown失败"));
 });
 
 test("shows blocked approval preview and fails closed on approval preview errors", async() => {
@@ -857,7 +857,7 @@ test("shows blocked approval preview and fails closed on approval preview errors
   expect(screen.queryByText("执行修复")).toBeNull();
 
   fireEvent.click(screen.getByText("审批预览"));
-  await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "approval failed"));
+  await waitFor(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "approval failed"));
 });
 
 test("fails closed on approval packet audit errors", async() => {
@@ -873,7 +873,7 @@ test("fails closed on approval packet audit errors", async() => {
   expect(await screen.findByText("readyForApproval: true")).not.toBeNull();
   fireEvent.click(screen.getByText("审批包审计"));
 
-  await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "audit failed"));
+  await waitFor(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "audit failed"));
   expect(screen.queryByText("执行修复")).toBeNull();
 });
 
@@ -890,7 +890,7 @@ test("fails closed on approval packet operator notes errors", async() => {
   expect(await screen.findByText("ready_for_approval")).not.toBeNull();
   fireEvent.click(screen.getByText("交接备注"));
 
-  await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "notes failed"));
+  await waitFor(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "notes failed"));
   expect(screen.queryByText("执行修复")).toBeNull();
 });
 
@@ -909,7 +909,7 @@ test("fails closed on operator note persistence readiness errors", async() => {
   expect(await screen.findByText("derived_note_draft")).not.toBeNull();
   fireEvent.click(screen.getByText("持久化准入"));
 
-  await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "readiness failed"));
+  await waitFor(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "readiness failed"));
   expect(screen.queryByText("保存备注")).toBeNull();
 });
 
@@ -930,7 +930,7 @@ test("fails closed on operator note readonly audit search errors", async() => {
   expect(await screen.findByText("ready_for_design_review")).not.toBeNull();
   fireEvent.click(screen.getByText("备注审计检索"));
 
-  await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "search failed"));
+  await waitFor(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "search failed"));
   expect(screen.queryByText("保存备注")).toBeNull();
   expect(screen.queryByText("执行修复")).toBeNull();
 });
@@ -1065,7 +1065,7 @@ test("shows blocked preflight errors without repair actions", async() => {
   expect(await screen.findByText("manual_review_only")).not.toBeNull();
   fireEvent.click(screen.getByText("预检"));
 
-  await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "preflight failed"));
+  await waitFor(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "preflight failed"));
   expect(screen.queryByText("执行修复")).toBeNull();
 });
 
@@ -1076,8 +1076,8 @@ test("refreshes directory quality with selected filters", async() => {
   fireEvent.change(screen.getByTestId("organization-select"), {target: {value: "org-alpha"}});
   fireEvent.click(screen.getByText("刷新"));
 
-  await wait(() => expect(backendMock.getOrganizationDirectoryQuality).toHaveBeenCalledTimes(2));
-  await wait(() => expect(backendMock.getOrganizationDirectoryRemediationPlan).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(backendMock.getOrganizationDirectoryQuality).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(backendMock.getOrganizationDirectoryRemediationPlan).toHaveBeenCalledTimes(2));
 });
 
 test("shows business labels for no manageable department directory quality aliases while preserving export values", async() => {
@@ -1163,7 +1163,7 @@ test("fails closed when directory quality or remediation plan loading fails", as
 
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
 
-  await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "quality failed"));
+  await waitFor(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "quality failed"));
   expect(Setting.showMessage).toHaveBeenCalledWith("error", "plan failed");
   expect(screen.getByText("暂无待处理修复计划")).not.toBeNull();
 });
@@ -1196,7 +1196,7 @@ test("handles empty plan export and action draft load failure without writes", a
   expect(Setting.showMessage).toHaveBeenCalledWith("warning", "暂无可导出的修复计划");
 
   fireEvent.click(screen.getByText("草案"));
-  await wait(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "draft failed"));
+  await waitFor(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "draft failed"));
 });
 
 test("keeps copy action fail-closed when clipboard is unavailable", async() => {

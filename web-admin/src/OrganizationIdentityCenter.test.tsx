@@ -1,5 +1,5 @@
 /* eslint-env jest */
-import {afterAll, beforeAll, expect, jest} from "@jest/globals";
+import {expect} from "@jest/globals";
 import React from "react";
 import {render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
@@ -23,20 +23,6 @@ function renderIdentityPage(page: OrganizationIdentityPage) {
 }
 
 describe("OrganizationIdentityCenter", () => {
-  let consoleErrorSpy: ReturnType<typeof jest.spyOn>;
-
-  beforeAll(() => {
-    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
-      if (typeof args[0] === "string" && args[0].includes("ReactDOM.render is no longer supported in React 18")) {
-        return;
-      }
-    });
-  });
-
-  afterAll(() => {
-    consoleErrorSpy.mockRestore();
-  });
-
   (["organizations", "users", "roles", "permissions"] as OrganizationIdentityPage[]).forEach(page => {
     test(`renders ${page} as the shared compact list shell`, () => {
       const view = renderIdentityPage(page);

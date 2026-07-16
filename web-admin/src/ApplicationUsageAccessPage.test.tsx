@@ -1,6 +1,7 @@
 /* eslint-env jest */
 import React from "react";
-import {render} from "@testing-library/react";
+import {act, render} from "@testing-library/react";
+import {message} from "antd";
 import {MemoryRouter} from "react-router-dom";
 import {expect, jest} from "@jest/globals";
 import i18next from "i18next";
@@ -254,6 +255,20 @@ function clickButtonByText(view: ReturnType<typeof render>, label: string): void
   fireEvent.click(button);
 }
 
+async function settleMotionFrames(): Promise<void> {
+  // rc-motion 的完整状态队列每次推进需要两个 animation frame；等待八帧覆盖 open/close 全阶段。
+  for (let frame = 0; frame < 8; frame += 1) {
+    await new Promise<void>(resolve => window.requestAnimationFrame(() => resolve()));
+  }
+}
+
+async function clickAndSettleMotion(element: Element): Promise<void> {
+  await act(async() => {
+    fireEvent.click(element);
+    await settleMotionFrames();
+  });
+}
+
 describe("ApplicationUsageAccessPage", () => {
   let consoleErrorSpy: {mockRestore: () => void};
 
@@ -371,9 +386,6 @@ describe("ApplicationUsageAccessPage", () => {
       },
     });
     consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
-      if (`${message}`.includes("ReactDOM.render is no longer supported")) {
-        return;
-      }
       const serializedMessage = [message, ...args].map(item => `${item}`).join(" ");
       if (serializedMessage.includes("not wrapped in act") && serializedMessage.includes("BaseSelect")) {
         return;
@@ -388,7 +400,10 @@ describe("ApplicationUsageAccessPage", () => {
   });
 
   afterEach(async() => {
-    await new Promise(resolve => setTimeout(resolve, 20));
+    await act(async() => {
+      message.destroy();
+      await settleMotionFrames();
+    });
     consoleErrorSpy.mockRestore();
     jest.clearAllMocks();
   });
@@ -564,7 +579,7 @@ describe("ApplicationUsageAccessPage", () => {
     fireEvent.click(view.getByText("收起能力详情"));
     expect(diagnosticsButton.getAttribute("aria-expanded")).toBe("false");
     expect(window.location.search).not.toContain("diagnostics=1");
-    fireEvent.click(view.getByText("查看技术诊断"));
+    await clickAndSettleMotion(view.getByText("查看技术诊断"));
     expect(await view.findByText("/api/admin-provider/insight/v1/current-user")).not.toBeNull();
     expect(view.getByText("/api/admin-provider/insight/v1/current-user").getAttribute("translate")).toBe("no");
     expect(view.getByText("/current-user/scope")).not.toBeNull();
@@ -581,7 +596,7 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.container.textContent).not.toContain("resolver-secret-value");
     expect(view.container.textContent).not.toContain("resolver-token-value");
     expect(view.container.textContent).not.toContain("resolver.internal.example.invalid");
-    fireEvent.click(view.getByText("关闭技术诊断"));
+    await clickAndSettleMotion(view.getByText("关闭技术诊断"));
     expect(view.container.textContent).not.toContain("gateway_projection_token_missing");
     expect(view.container.textContent).not.toContain("admin_service_credential_reference_unresolved");
   });
@@ -623,7 +638,7 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.queryByText("交接能力")).toBeNull();
     expect(view.getByLabelText("usage_identity_resolver available capability").textContent).toContain("已就绪");
     expect(view.getByLabelText("gateway_organization_projection available capability").textContent).toContain("已就绪");
-    fireEvent.click(view.getByText("查看技术诊断"));
+    await clickAndSettleMotion(view.getByText("查看技术诊断"));
     expect(await view.findByLabelText("insight_provider_trust owner evidence")).not.toBeNull();
     expect(view.getByLabelText("insight_provider_trust owner evidence").textContent).toContain("admin_provider_trust");
     expect(view.getByLabelText("usage_identity_resolver owner evidence").textContent).toContain("用量身份解析");
@@ -696,6 +711,7 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.container.textContent).not.toContain("resolver-secret-value");
     expect(view.container.textContent).not.toContain("resolver-token-value");
     expect(view.container.textContent).not.toContain("resolver.internal.example.invalid");
+    await clickAndSettleMotion(view.getByText("关闭技术诊断"));
   });
 
   test("separates a copy-ready package from two runtime capabilities that still need attention", async() => {
@@ -741,9 +757,9 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.queryByText("admin_outbound_resolver")).toBeNull();
     expect(view.queryByText("/api/admin-provider/insight/v1/current-user")).toBeNull();
 
-    fireEvent.click(view.getByText("查看技术诊断"));
+    await clickAndSettleMotion(view.getByText("查看技术诊断"));
     expect(await view.findByText("admin_outbound_resolver")).not.toBeNull();
-    fireEvent.click(view.getByText("关闭技术诊断"));
+    await clickAndSettleMotion(view.getByText("关闭技术诊断"));
   });
 
   test("keeps the package CTA fail-closed when package generation prerequisites are blocked", async() => {
@@ -794,7 +810,7 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.queryByText("技术详情")).toBeNull();
     const gatewayCapabilityBeforeDiagnostic = await view.findByLabelText("gateway_organization_projection runtime capability");
     expect(gatewayCapabilityBeforeDiagnostic.textContent).toContain("缺凭据引用");
-    fireEvent.click(view.getByText("查看技术诊断"));
+    await clickAndSettleMotion(view.getByText("查看技术诊断"));
     const gatewayRowBeforeDiagnostic = await view.findByLabelText("gateway_organization_projection owner evidence");
     expect(gatewayRowBeforeDiagnostic.textContent).toContain("不可用");
     expect(gatewayRowBeforeDiagnostic.textContent).toContain("admin_gateway_projection_producer");
@@ -805,7 +821,7 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.container.textContent).not.toContain("admin_service_credential_reference_unresolved");
     expect(view.queryByText("排障详情")).toBeNull();
     expect(view.queryByText("机器字段")).toBeNull();
-    fireEvent.click(view.getByText("关闭技术诊断"));
+    await clickAndSettleMotion(view.getByText("关闭技术诊断"));
   });
 
   test("keeps Insight Admin Provider loading, empty, and error states actionable", async() => {
@@ -952,7 +968,7 @@ describe("ApplicationUsageAccessPage", () => {
     expect(await view.findByText("待配置的扩展能力")).not.toBeNull();
     expect(view.getByText("可用能力")).not.toBeNull();
     expect(view.queryByText("技术详情")).toBeNull();
-    fireEvent.click(view.getByText("查看技术诊断"));
+    await clickAndSettleMotion(view.getByText("查看技术诊断"));
     expect(await view.findByLabelText("ready_group owner evidence")).not.toBeNull();
     expect(view.getByLabelText("current-user available capability").className).toContain("application-access-service-credential-capability-chip");
     expect(view.getByLabelText("ready_group owner evidence").textContent).toContain("Ready group");
@@ -993,7 +1009,7 @@ describe("ApplicationUsageAccessPage", () => {
         ]),
       }),
     }));
-    fireEvent.click(view.getByText("关闭技术诊断"));
+    await clickAndSettleMotion(view.getByText("关闭技术诊断"));
   });
 
   test("allows access-package generation when only the legacy credential reference is missing", async() => {
@@ -1159,7 +1175,7 @@ describe("ApplicationUsageAccessPage", () => {
     const view = renderPage();
     await view.findAllByText("接入包可复制");
     expect(view.queryByLabelText("blocked_group owner evidence")).toBeNull();
-    fireEvent.click(view.getByText("查看技术诊断"));
+    await clickAndSettleMotion(view.getByText("查看技术诊断"));
     await view.findByLabelText("blocked_group owner evidence");
     expect(view.getByLabelText("ready_group owner evidence").textContent).toContain("Ready group");
     expect((view.getByText("复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(false);
@@ -1182,7 +1198,7 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.queryByText("admin_service_credential_reference_missing")).toBeNull();
     expect(view.container.textContent).not.toContain("https://");
     expect(view.container.textContent).not.toContain("token-value");
-    fireEvent.click(view.getByText("关闭技术诊断"));
+    await clickAndSettleMotion(view.getByText("关闭技术诊断"));
   });
 
   test("opens diagnostics from URL query for shareable troubleshooting links", async() => {
@@ -1193,7 +1209,7 @@ describe("ApplicationUsageAccessPage", () => {
 
     expect(await view.findByText("技术诊断（仅供排障）")).not.toBeNull();
     expect((view.getByLabelText("查看能力详情") as HTMLButtonElement).getAttribute("aria-expanded")).toBe("false");
-    fireEvent.click(view.getByText("关闭技术诊断"));
+    await clickAndSettleMotion(view.getByText("关闭技术诊断"));
   });
 
   test("opens technical diagnostics in a modal without nesting it in capability details", async() => {
@@ -1205,11 +1221,11 @@ describe("ApplicationUsageAccessPage", () => {
 
     expect(view.getByText("查看技术诊断")).not.toBeNull();
     expect(view.queryByText("技术详情")).toBeNull();
-    fireEvent.click(view.getByText("查看技术诊断"));
+    await clickAndSettleMotion(view.getByText("查看技术诊断"));
     expect(await view.findByText("技术诊断（仅供排障）")).not.toBeNull();
     expect(window.location.search).toContain("diagnostics=1");
 
-    fireEvent.click(view.getByText("关闭技术诊断"));
+    await clickAndSettleMotion(view.getByText("关闭技术诊断"));
     expect(view.queryByText("技术诊断（仅供排障）")).toBeNull();
     expect(window.location.search).not.toContain("diagnostics=1");
   });

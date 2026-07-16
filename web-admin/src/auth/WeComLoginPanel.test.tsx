@@ -332,10 +332,11 @@ describe("WeComLoginPanel", () => {
 
     await flushEffects();
     const qrCode = getByTestId("wecom-oauth-qrcode");
+    const qrCodeContainer = qrCode.parentElement as HTMLElement;
     expect(qrCode).toHaveAttribute("data-size", "256");
-    expect(qrCode.parentElement).toHaveStyle("padding: 12px");
-    expect(qrCode.parentElement).toHaveStyle("background-color: rgb(255, 255, 255)");
-    expect(qrCode.parentElement.parentElement).toHaveStyle("min-height: 300px");
+    expect(qrCodeContainer).toHaveStyle("padding: 12px");
+    expect(qrCodeContainer).toHaveStyle("background-color: rgb(255, 255, 255)");
+    expect(qrCodeContainer.parentElement).toHaveStyle("min-height: 300px");
   });
 
   test("refreshes the OAuth2 authorization QR code from the primary action", async() => {

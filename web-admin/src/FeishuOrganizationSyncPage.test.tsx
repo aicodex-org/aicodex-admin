@@ -346,7 +346,7 @@ test("restores configured Feishu organization when account owner is built-in", a
   render(<FeishuOrganizationSyncPage account={{owner: "built-in"}} />);
 
   expect(await screen.findByText("飞书组织架构同步")).toBeInTheDocument();
-  expect(screen.getByText("同步目标组织")).toBeInTheDocument();
+  expect(await screen.findByText("同步目标组织")).toBeInTheDocument();
   expect(screen.getByText("新建组织")).toBeInTheDocument();
   expect(screen.getByDisplayValue("cli_123")).toBeInTheDocument();
   expect(screen.getByDisplayValue("cli_123")).toHaveAttribute("name", "feishu-organization-sync-app-id");
@@ -900,7 +900,7 @@ test("renders sync runs without forcing horizontal table scroll", async() => {
   const runIndexCell = container.querySelector("tbody tr[data-row-key='feishu-sync-run-1781681971079340586'] td:first-child");
   expect(runIndexCell?.textContent).toBe("1");
   expect(container.querySelector(".ant-typography-copy")).not.toBeInTheDocument();
-  const runIndexButton = runIndexCell?.querySelector("[role='button']");
+  const runIndexButton = runIndexCell?.querySelector("[role='button']") || null;
   fireEvent.click(runIndexButton);
   fireEvent.keyDown(runIndexButton, {key: " "});
   expect(writeText).toHaveBeenCalledWith("feishu-sync-run-1781681971079340586");
@@ -914,7 +914,7 @@ test("renders sync runs without forcing horizontal table scroll", async() => {
   expect(screen.queryByText("诊断 / 错误")).not.toBeInTheDocument();
   expect(screen.getByText("新 0 / 更 0 / 禁 0")).toBeInTheDocument();
   expect(screen.getAllByText("新 0 / 更 56 / 禁 0").length).toBeGreaterThan(1);
-  const horizontallyScrollableTables = [...container.querySelectorAll(".ant-table-content")]
+  const horizontallyScrollableTables = Array.from(container.querySelectorAll(".ant-table-content"))
     .filter(element => element.getAttribute("style")?.includes("overflow-x: auto"));
   expect(horizontallyScrollableTables).toHaveLength(0);
 });

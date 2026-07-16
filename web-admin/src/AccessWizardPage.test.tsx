@@ -127,10 +127,6 @@ describe("AccessWizardPage", () => {
   beforeEach(async() => {
     resetMockBackendResponses();
     consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
-      if (typeof args[0] === "string" && args[0].includes("ReactDOM.render is no longer supported")) {
-        return;
-      }
-
       throw new Error(args.map(item => String(item)).join(" "));
     });
     Object.defineProperty(window, "matchMedia", {

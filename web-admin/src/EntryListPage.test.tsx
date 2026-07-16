@@ -167,10 +167,6 @@ describe("EntryListPage", () => {
   beforeEach(async() => {
     await useTestLanguage("zh");
     consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
-      if (`${message}`.includes("ReactDOM.render is no longer supported")) {
-        return;
-      }
-
       throw new Error([message, ...args].map(item => `${item}`).join(" "));
     });
     Object.defineProperty(window, "matchMedia", {

@@ -27,8 +27,7 @@ test("renders backend table columns with stable row keys", () => {
   );
 
   const warnings = consoleError.mock.calls
-    .map(call => call.map(item => String(item)).join(" "))
-    .filter(message => !message.includes("ReactDOM.render is no longer supported"));
+    .map(call => call.map(item => String(item)).join(" "));
 
   expect(warnings).toEqual([]);
   expect(view.container.querySelector(".syncer-table-column-toolbar")).not.toBeNull();

@@ -25,14 +25,6 @@ function expectElement(element: HTMLElement | null): asserts element is HTMLElem
   expect(element).not.toBeNull();
 }
 
-beforeEach(() => {
-  jestValue.spyOn(console, "error").mockImplementation((message?: unknown) => {
-    if (typeof message === "string" && message.includes("ReactDOM.render is no longer supported in React 18")) {
-      return;
-    }
-  });
-});
-
 afterEach(() => {
   jestValue.restoreAllMocks();
 });

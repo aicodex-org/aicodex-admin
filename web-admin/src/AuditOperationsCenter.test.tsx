@@ -53,10 +53,6 @@ describe("AuditOperationsCenter", () => {
     const testConsole = globalThis.console;
     const originalConsoleError = testConsole.error;
     consoleErrorSpy = jest.spyOn(testConsole, "error").mockImplementation((...args: unknown[]) => {
-      if (typeof args[0] === "string" && args[0].includes("ReactDOM.render is no longer supported in React 18")) {
-        return;
-      }
-
       originalConsoleError(...args);
     });
 

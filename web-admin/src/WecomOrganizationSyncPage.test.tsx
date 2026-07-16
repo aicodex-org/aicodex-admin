@@ -15,7 +15,7 @@
 
 import React from "react";
 import {expect as jestExpect, jest as jestValue} from "@jest/globals";
-import {act, render} from "@testing-library/react";
+import {act, render, waitFor} from "@testing-library/react";
 import * as Setting from "./Setting";
 import * as FeishuOrganizationSyncBackend from "./backend/FeishuOrganizationSyncBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
@@ -202,7 +202,7 @@ test("renders localized WeCom organization sync configuration entry", async() =>
 
   expect(await screen.findByText("企业微信组织架构同步")).toBeInTheDocument();
   expect(screen.getByAltText("WeCom provider logo")).toHaveAttribute("src", expect.stringContaining("/img/social_wecom.png"));
-  expect(screen.getByText("同步目标组织")).toBeInTheDocument();
+  expect(await screen.findByText("同步目标组织")).toBeInTheDocument();
   expect(screen.getByText("新建组织")).toBeInTheDocument();
   expect(screen.queryByText("Built-in Organization")).not.toBeInTheDocument();
   expect(screen.getByText("选择要绑定企业微信通讯录的 aicodex-admin 组织。不同组织的 Corp ID、Secret 和同步记录互不混用。")).toBeInTheDocument();
@@ -624,10 +624,12 @@ test("shows WeCom dry-run history empty and error states in a modal", async() =>
   expect(screen.getByText("暂无预览历史")).toBeInTheDocument();
 
   wecomBackendMock.getWecomOrganizationSyncDryRunHistories.mockResolvedValueOnce({status: "error", msg: "history unavailable"});
-  fireEvent.click(screen.getByText("刷新历史"));
-  await flushPromises();
+  const refreshHistoryButton = screen.getByText("刷新历史").closest("button");
+  await waitFor(() => expect(refreshHistoryButton).not.toBeDisabled());
+  fireEvent.click(refreshHistoryButton);
+  await waitFor(() => expect(wecomBackendMock.getWecomOrganizationSyncDryRunHistories).toHaveBeenCalledTimes(2));
 
-  expect(screen.getByText("预览历史加载失败，请稍后重试。")).toBeInTheDocument();
+  expect(await screen.findByText("预览历史加载失败，请稍后重试。")).toBeInTheDocument();
   expect(Setting.showMessage).toHaveBeenCalledWith("error", "预览历史加载失败：history unavailable");
 });
 
@@ -750,7 +752,7 @@ test("loads the selected history page when pagination changes", async() => {
   expect(screen.queryByText("run-page-1-0")).not.toBeInTheDocument();
 
   const page2Item = container.querySelector(".ant-pagination-item-2");
-  fireEvent.click(page2Item.querySelector("a") || page2Item);
+  fireEvent.click(page2Item?.querySelector("a") || page2Item);
 
   await flushPromises();
   expect(wecomBackendMock.getWecomOrganizationSyncRuns).toHaveBeenNthCalledWith(2, "engineering", 2, 10);

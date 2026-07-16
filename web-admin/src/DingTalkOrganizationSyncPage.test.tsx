@@ -2,7 +2,7 @@
 
 import React from "react";
 import {expect as jestExpect, jest as jestValue} from "@jest/globals";
-import {render} from "@testing-library/react";
+import {render, waitFor} from "@testing-library/react";
 import i18next from "i18next";
 import * as Setting from "./Setting";
 import * as DingTalkOrganizationSyncBackend from "./backend/DingTalkOrganizationSyncBackend";
@@ -231,18 +231,19 @@ test("saves DingTalk sync configuration from the form", async() => {
   fireEvent.change(screen.getByDisplayValue("Asia/Shanghai"), {target: {value: "UTC"}});
   fireEvent.click(screen.getByText("保存"));
 
-  await flushPromises();
-  expect(dingtalkBackendMock.saveDingTalkOrganizationSyncConfig).toHaveBeenCalledWith(expect.objectContaining({
-    organization: "engineering",
-    appKey: "ding-next",
-    appSecret: "next-secret",
-    isEnabled: false,
-    softDisableMissingData: false,
-    scheduleEnabled: true,
-    scheduleCron: "*/15 * * * *",
-    scheduleTimezone: "UTC",
-  }));
-  expect(Setting.showMessage).toHaveBeenCalledWith("success", i18next.t("general:Successfully saved"));
+  await waitFor(() => {
+    expect(dingtalkBackendMock.saveDingTalkOrganizationSyncConfig).toHaveBeenCalledWith(expect.objectContaining({
+      organization: "engineering",
+      appKey: "ding-next",
+      appSecret: "next-secret",
+      isEnabled: false,
+      softDisableMissingData: false,
+      scheduleEnabled: true,
+      scheduleCron: "*/15 * * * *",
+      scheduleTimezone: "UTC",
+    }));
+    expect(Setting.showMessage).toHaveBeenCalledWith("success", i18next.t("general:Successfully saved"));
+  });
 });
 
 test("shows DingTalk address book permission result after connection test", async() => {
@@ -348,7 +349,7 @@ test("renders DingTalk schedule diagnostics, organization changes, and create-or
   render(<DingTalkOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} history={history} />);
 
   expect(await screen.findByText("钉钉组织架构同步")).toBeInTheDocument();
-  expect(screen.getByDisplayValue("*/30 * * * *")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByDisplayValue("*/30 * * * *")).toBeInTheDocument());
   expect(screen.getByDisplayValue("UTC")).toBeInTheDocument();
   expect(screen.getByText(/最近调度：/)).toBeInTheDocument();
   expect(screen.getByText("最近结果：failed，safe schedule error")).toBeInTheDocument();
@@ -403,10 +404,10 @@ test("refreshes the resolved organization after save response switches target or
 
   await screen.findByText("钉钉组织架构同步");
   fireEvent.click(screen.getByText("保存"));
-  await flushPromises();
-
-  expect(dingtalkBackendMock.getDingTalkOrganizationSyncConfig).toHaveBeenCalledWith("support");
-  expect(Setting.showMessage).toHaveBeenCalledWith("success", "已保存，当前同步组织：support");
+  await waitFor(() => {
+    expect(dingtalkBackendMock.getDingTalkOrganizationSyncConfig).toHaveBeenCalledWith("support");
+    expect(Setting.showMessage).toHaveBeenCalledWith("success", "已保存，当前同步组织：support");
+  });
 });
 
 test("surfaces safe refresh and action errors without exposing raw provider payloads", async() => {
@@ -419,8 +420,7 @@ test("surfaces safe refresh and action errors without exposing raw provider payl
 
   dingtalkBackendMock.saveDingTalkOrganizationSyncConfig.mockResolvedValueOnce({status: "error", msg: "safe save error"});
   fireEvent.click(screen.getByText("保存"));
-  await flushPromises();
-  expect(Setting.showMessage).toHaveBeenCalledWith("error", `${i18next.t("general:Failed to save")}: safe save error`);
+  await waitFor(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", `${i18next.t("general:Failed to save")}: safe save error`));
 
   dingtalkBackendMock.testDingTalkOrganizationSyncConfig.mockResolvedValueOnce({
     status: "ok",
@@ -439,23 +439,19 @@ test("surfaces safe refresh and action errors without exposing raw provider payl
 
   dingtalkBackendMock.testDingTalkOrganizationSyncConfig.mockResolvedValueOnce({status: "error", msg: "safe test error"});
   fireEvent.click(screen.getByText("测试连接"));
-  await flushPromises();
-  expect(Setting.showMessage).toHaveBeenCalledWith("error", "连接测试失败：safe test error");
+  await waitFor(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "连接测试失败：safe test error"));
 
   dingtalkBackendMock.startDingTalkOrganizationSyncRun.mockResolvedValueOnce({status: "error", msg: "already running"});
   fireEvent.click(screen.getByText("开始全量同步"));
-  await flushPromises();
-  expect(Setting.showMessage).toHaveBeenCalledWith("info", "已有同步任务在运行，已刷新同步记录。");
+  await waitFor(() => expect(Setting.showMessage).toHaveBeenCalledWith("info", "已有同步任务在运行，已刷新同步记录。"));
 
   dingtalkBackendMock.startDingTalkOrganizationSyncRun.mockResolvedValueOnce({status: "error", msg: "provider unavailable"});
   fireEvent.click(screen.getByText("开始全量同步"));
-  await flushPromises();
-  expect(Setting.showMessage).toHaveBeenCalledWith("error", "同步失败：provider unavailable");
+  await waitFor(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "同步失败：provider unavailable"));
 
   dingtalkBackendMock.startDingTalkOrganizationSyncRun.mockRejectedValueOnce("network down");
   fireEvent.click(screen.getByText("开始全量同步"));
-  await flushPromises();
-  expect(Setting.showMessage).toHaveBeenCalledWith("error", `${i18next.t("general:Failed to connect to server")}: network down`);
+  await waitFor(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", `${i18next.t("general:Failed to connect to server")}: network down`));
 });
 
 test("pauses run refresh when the backend rejects refresh request", async() => {

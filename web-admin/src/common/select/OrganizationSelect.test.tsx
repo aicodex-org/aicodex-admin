@@ -21,7 +21,7 @@ type LegacyAny = import("../../types/legacyPage").LegacyAny;
 declare const jest: LegacyAny;
 declare const expect: LegacyAny;
 
-const {fireEvent, render, screen, wait} = TestingLibrary as LegacyAny;
+const {fireEvent, render, screen, waitFor} = TestingLibrary as LegacyAny;
 const mockGetOrganizationNames = jest.fn();
 
 jest.mock("../../backend/OrganizationBackend", () => ({
@@ -99,6 +99,6 @@ test("does not emit blank organization when all options are excluded", async() =
 
   render(<OrganizationSelect initValue="built-in" excludedOrganizations={["built-in"]} onChange={handleChange} />);
 
-  await wait(() => expect(mockGetOrganizationNames).toHaveBeenCalled());
+  await waitFor(() => expect(mockGetOrganizationNames).toHaveBeenCalled());
   expect(handleChange).not.toHaveBeenCalled();
 });

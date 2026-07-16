@@ -122,10 +122,6 @@ function selectOptionValues(selectElement: React.ReactElement<LegacyAny> | undef
 
 beforeEach(() => {
   consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
-    if (`${message}`.includes("ReactDOM.render is no longer supported")) {
-      return;
-    }
-
     throw new Error([message, ...args].map(item => `${item}`).join(" "));
   });
 });

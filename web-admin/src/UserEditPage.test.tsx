@@ -471,7 +471,6 @@ function installConsoleErrorFilter() {
   jestValue.spyOn(testConsole, "error").mockImplementation((...args: Parameters<typeof testConsole.error>) => {
     const message = String(args[0] || "");
     if (
-      message.includes("ReactDOM.render is no longer supported in React 18") ||
       message.includes("[antd: Input.Group]") ||
       message.includes("[antd: Form.Item]") ||
       message.includes("not wrapped in act")
@@ -1531,7 +1530,7 @@ test("groups user edit tab fields with organization-style section titles", () =>
   };
 
   const view = render(<>{page.renderUserForm()}</>);
-  const sectionTitles = [...view.container.querySelectorAll(".user-edit-section-title")].map(element => element.textContent);
+  const sectionTitles = Array.from(view.container.querySelectorAll(".user-edit-section-title")).map(element => element.textContent);
   expect(sectionTitles).toHaveLength(3);
   expect(sectionTitles[0]).toMatch(/^(基础信息|Basic information)$/);
   expect(sectionTitles[1]).toMatch(/^(联系方式|Contact information)$/);

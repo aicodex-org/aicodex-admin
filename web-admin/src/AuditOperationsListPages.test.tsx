@@ -247,9 +247,6 @@ describe("audit operations list pages", () => {
     const testConsole = globalThis.console;
     const originalConsoleError = testConsole.error;
     consoleErrorSpy = jestValue.spyOn(testConsole, "error").mockImplementation((...args: unknown[]) => {
-      if (typeof args[0] === "string" && args[0].includes("ReactDOM.render is no longer supported in React 18")) {
-        return;
-      }
       originalConsoleError(...args);
     });
     localStorage.clear();
