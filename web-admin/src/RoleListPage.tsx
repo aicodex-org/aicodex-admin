@@ -14,7 +14,7 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Modal, Switch, Table, Upload} from "antd";
+import {Button, Modal, Switch, Table, Tag, Upload} from "antd";
 import type {TablePaginationConfig, TableProps} from "antd";
 import moment from "moment";
 import * as Setting from "./Setting";
@@ -121,8 +121,6 @@ const TypedBaseListPage = BaseListPage as unknown as {
 };
 
 const roleBackend = RoleBackend as unknown as RoleBackendApi;
-const getTags = Setting.getTags as (tags?: string[], urlPrefix?: string | null) => React.ReactNode;
-
 const queryFields = [
   {label: t("general:Name"), value: "name"},
   {label: t("general:Organization"), value: "owner"},
@@ -151,6 +149,24 @@ function getErrorMessage(error: unknown): string {
     return message === undefined ? String(error) : String(message);
   }
   return String(error);
+}
+
+function renderRoleIdentityTags(tags: string[] | undefined, scope: string, urlPrefix?: string): React.ReactElement[] {
+  // scope/value 保持跨重排稳定，occurrence 仅补足同一字段内重复值的唯一性。
+  const occurrences = new Map<string, number>();
+  return (tags || []).map(tag => {
+    const occurrence = occurrences.get(tag) || 0;
+    occurrences.set(tag, occurrence + 1);
+    const key = JSON.stringify([scope, tag, occurrence]);
+    if (urlPrefix === undefined) {
+      return <Tag key={key} color={Setting.getTagColor(tag)}>{tag}</Tag>;
+    }
+    return (
+      <Link key={key} to={`/${urlPrefix}/${tag}`}>
+        <Tag color={Setting.getTagColor(tag)}>{tag}</Tag>
+      </Link>
+    );
+  });
 }
 
 class RoleListPage extends TypedBaseListPage {
@@ -362,7 +378,7 @@ class RoleListPage extends TypedBaseListPage {
         // width: '100px',
         sorter: true,
         render: (text: string[]) => {
-          return getTags(text, "users");
+          return renderRoleIdentityTags(text, "role-users", "users");
         },
       },
       {
@@ -372,7 +388,7 @@ class RoleListPage extends TypedBaseListPage {
         // width: '100px',
         sorter: true,
         render: (text: string[]) => {
-          return getTags(text, "groups");
+          return renderRoleIdentityTags(text, "role-groups", "groups");
         },
       },
       {
@@ -382,7 +398,7 @@ class RoleListPage extends TypedBaseListPage {
         // width: '100px',
         sorter: true,
         render: (text: string[]) => {
-          return getTags(text, "roles");
+          return renderRoleIdentityTags(text, "role-roles", "roles");
         },
       },
       {
@@ -391,7 +407,7 @@ class RoleListPage extends TypedBaseListPage {
         key: "domains",
         sorter: true,
         render: (text: string[]) => {
-          return Setting.getTags(text);
+          return renderRoleIdentityTags(text, "role-domains");
         },
       },
       {

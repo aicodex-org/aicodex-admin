@@ -14,7 +14,7 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Modal, Table, Upload} from "antd";
+import {Button, Modal, Table, Tag, Upload} from "antd";
 import type {TablePaginationConfig, TableProps} from "antd";
 import moment from "moment";
 import * as Setting from "./Setting";
@@ -165,6 +165,21 @@ function getErrorMessage(error: unknown): string {
     return message === undefined ? String(error) : String(message);
   }
   return String(error);
+}
+
+function renderPermissionTags(tags: string[] | undefined, scope: string, getLabel: (tag: string) => string = tag => tag): React.ReactElement[] {
+  // key 使用未翻译业务值，避免语言切换改变 React identity；label 只负责可见文案与颜色。
+  const occurrences = new Map<string, number>();
+  return (tags || []).map(tag => {
+    const occurrence = occurrences.get(tag) || 0;
+    occurrences.set(tag, occurrence + 1);
+    const label = getLabel(tag);
+    return (
+      <Tag key={JSON.stringify([scope, tag, occurrence])} color={Setting.getTagColor(label)}>
+        {label}
+      </Tag>
+    );
+  });
 }
 
 class PermissionListPage extends TypedBaseListPage {
@@ -384,7 +399,7 @@ class PermissionListPage extends TypedBaseListPage {
         width: "120px",
         sorter: true,
         render: (text: string[]) => {
-          return Setting.getTags(text);
+          return renderPermissionTags(text, "permission-resources");
         },
       },
       {
@@ -394,7 +409,7 @@ class PermissionListPage extends TypedBaseListPage {
         width: "100px",
         sorter: true,
         render: (text: string[]) => {
-          const tags = text.map((tag, i) => {
+          return renderPermissionTags(text, "permission-actions", tag => {
             switch (tag) {
             case "Read":
               return t("permission:Read");
@@ -403,10 +418,9 @@ class PermissionListPage extends TypedBaseListPage {
             case "Admin":
               return t("general:Admin");
             default:
-              return tag || null;
+              return tag;
             }
           });
-          return Setting.getTags(tags);
         },
       },
       {

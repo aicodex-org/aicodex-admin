@@ -343,6 +343,16 @@ function textFromNode(node: React.ReactNode): string {
   return String(node);
 }
 
+function getUniqueKeyWarnings(calls: unknown[][]): string[] {
+  return calls
+    .map(call => call.map(value => String(value)).join(" "))
+    .filter(message => message.includes("Each child in a list should have a unique key"));
+}
+
+function keyByVisibleText(nodes: React.ReactNode): Record<string, React.Key | null> {
+  return Object.fromEntries((nodes as React.ReactElement[]).map(node => [textFromNode(node), node.key]));
+}
+
 beforeEach(() => {
   cleanup();
   localStorage.clear();
@@ -440,6 +450,7 @@ test("creates default role and permission records and navigates to add routes", 
 });
 
 test("keeps role table columns, links, toolbar and delete refresh behavior", async() => {
+  const consoleError = jestValue.spyOn(console, "error");
   const history = createHistory();
   const page = new RoleListPage({
     account,
@@ -457,6 +468,11 @@ test("keeps role table columns, links, toolbar and delete refresh behavior", asy
 
   const {tree: tableWrapper, table} = getRoleTable(page, [role]);
   const columns = table.props.columns;
+  const usersColumn = columns.find(column => column.key === "users");
+  const domainsColumn = columns.find(column => column.key === "domains");
+  const repeatedUsers = usersColumn?.render?.(["alice", "alice", "bob"], role, 0) as React.ReactElement[];
+  const reorderedUsers = usersColumn?.render?.(["bob", "alice", "alice"], role, 0) as React.ReactElement[];
+  const repeatedDomains = domainsColumn?.render?.(["domain-a", "domain-a"], role, 0) as React.ReactElement[];
 
   const tableView = render(<MemoryRouter>{tableWrapper}</MemoryRouter>);
   expect(tableView.container.querySelector(".enterprise-list-page-table-shell.role-list-page-table-shell")).not.toBeNull();
@@ -467,6 +483,9 @@ test("keeps role table columns, links, toolbar and delete refresh behavior", asy
   expect(columns[0].fixed).toBeUndefined();
   expect(columns[9].fixed).toBeUndefined();
   expect(table.props.rowKey(role)).toBe("engineering/role-main");
+  expect(new Set(repeatedUsers.map(node => node.key)).size).toBe(repeatedUsers.length);
+  expect(new Set(repeatedDomains.map(node => node.key)).size).toBe(repeatedDomains.length);
+  expect(keyByVisibleText(reorderedUsers).bob).toBe(keyByVisibleText(repeatedUsers).bob);
 
   const nameView = render(<MemoryRouter>{columns[0].render?.(role.name, role, 0)}</MemoryRouter>);
   expect(nameView.getByText("role-main").closest("a")?.getAttribute("href")).toBe("/roles/engineering/role-main");
@@ -491,9 +510,12 @@ test("keeps role table columns, links, toolbar and delete refresh behavior", asy
   expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-header-meta")?.className).toContain("enterprise-list-query-toolbar-header-meta-top-right");
   fireEvent.click(toolbarView.getByText(/添\s*加|Add/));
   expect(page.addRole).toHaveBeenCalled();
+  expect(getUniqueKeyWarnings(consoleError.mock.calls)).toEqual([]);
+  consoleError.mockRestore();
 });
 
 test("keeps permission table columns, links, tags and delete refresh behavior", async() => {
+  const consoleError = jestValue.spyOn(console, "error");
   const history = createHistory();
   const page = new PermissionListPage({
     account,
@@ -511,6 +533,11 @@ test("keeps permission table columns, links, tags and delete refresh behavior", 
 
   const {tree: tableWrapper, table} = getPermissionTable(page, [permission]);
   const columns = table.props.columns;
+  const resourcesColumn = columns.find(column => column.key === "resources");
+  const actionsColumn = columns.find(column => column.key === "actions");
+  const repeatedResources = resourcesColumn?.render?.(["resource-a", "resource-a", "resource-b"], permission, 0) as React.ReactElement[];
+  const reorderedResources = resourcesColumn?.render?.(["resource-b", "resource-a", "resource-a"], permission, 0) as React.ReactElement[];
+  const repeatedActions = actionsColumn?.render?.(["Read", "Read", "Custom"], permission, 0) as React.ReactElement[];
 
   const tableView = render(<MemoryRouter>{tableWrapper}</MemoryRouter>);
   expect(tableView.container.querySelector(".enterprise-list-page-table-shell.permission-list-page-table-shell")).not.toBeNull();
@@ -521,6 +548,9 @@ test("keeps permission table columns, links, tags and delete refresh behavior", 
   expect(columns[0].fixed).toBeUndefined();
   const actionColumn = columns.find(column => column.key === "op");
   expect(actionColumn?.fixed).toBeUndefined();
+  expect(new Set(repeatedResources.map(node => node.key)).size).toBe(repeatedResources.length);
+  expect(new Set(repeatedActions.map(node => node.key)).size).toBe(repeatedActions.length);
+  expect(keyByVisibleText(reorderedResources)["resource-b"]).toBe(keyByVisibleText(repeatedResources)["resource-b"]);
 
   const nameView = render(<MemoryRouter>{columns[0].render?.(permission.name, permission, 0)}</MemoryRouter>);
   expect(nameView.getByText("permission-main").closest("a")?.getAttribute("href")).toBe("/permissions/engineering/permission-main");
@@ -555,6 +585,8 @@ test("keeps permission table columns, links, tags and delete refresh behavior", 
   expect(toolbarView.container.querySelector(".enterprise-list-query-toolbar-header-meta")?.className).toContain("enterprise-list-query-toolbar-header-meta-top-right");
   fireEvent.click(toolbarView.getByText(/添\s*加|Add/));
   expect(page.addPermission).toHaveBeenCalled();
+  expect(getUniqueKeyWarnings(consoleError.mock.calls)).toEqual([]);
+  consoleError.mockRestore();
 });
 
 test("keeps remaining role column renderers without mobile fixed behavior", () => {

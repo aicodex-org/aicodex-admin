@@ -150,35 +150,91 @@ function normalizeProviderUserMapping(provider: EditableProviderConfig): Editabl
   return {...provider, userMapping: {...userMapping}};
 }
 
+function createProviderRouteState(props: ProviderEditPageProps): ProviderEditPageState {
+  const rawDraftProvider = props.location.state?.provider
+    ? normalizeProviderUserMapping({...props.location.state.provider})
+    : undefined;
+  const requestedMode = props.location.state?.mode ?? props.location.mode ?? "edit";
+  const mode = requestedMode === "add" && rawDraftProvider === undefined ? "edit" : requestedMode;
+  const draftProvider = rawDraftProvider === undefined
+    ? undefined
+    : prepareEnterpriseTlsRecord(rawDraftProvider, isEnterpriseTlsProvider(rawDraftProvider), mode === "add");
+  return {
+    classes: props,
+    providerName: draftProvider?.name ?? props.match.params.providerName,
+    owner: draftProvider?.owner ?? (props.organizationName !== undefined ? props.organizationName : props.match.params.organizationName),
+    provider: draftProvider ?? null as unknown as EditableProviderConfig,
+    certs: [],
+    organizations: [],
+    mode,
+    dirty: false,
+    submitting: false,
+    requestUrl: "",
+    metadataLoading: false,
+  };
+}
+
+function getProviderRouteIdentity(props: ProviderEditPageProps): string {
+  const draftProvider = props.location.state?.provider;
+  const requestedMode = props.location.state?.mode ?? props.location.mode ?? "edit";
+  const mode = requestedMode === "add" && draftProvider === undefined ? "edit" : requestedMode;
+  const owner = draftProvider?.owner ?? (props.organizationName !== undefined ? props.organizationName : props.match.params.organizationName);
+  const providerName = draftProvider?.name ?? props.match.params.providerName;
+  return JSON.stringify([mode, owner, providerName]);
+}
+
 class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEditPageState> {
-  private providerSaveInFlight = false;
+  // 同一 class 实例可跨 Provider 路由复用；route 与各请求世代共同阻止旧 completion 提交 UI 副作用。
+  private lifecycleMounted = false;
+  private routeGeneration = 0;
+  private providerRequestGeneration = 0;
+  private organizationRequestGeneration = 0;
+  private certRequestGeneration = 0;
+  private metadataRequestGeneration = 0;
+  private deleteRequestGeneration = 0;
+  private saveRequestGeneration = 0;
+  private providerSaveInFlight: number | null = null;
 
   constructor(props: ProviderEditPageProps) {
     super(props);
-    const rawDraftProvider = props.location.state?.provider
-      ? normalizeProviderUserMapping({...props.location.state.provider})
-      : undefined;
-    const requestedMode = props.location.state?.mode ?? props.location.mode ?? "edit";
-    const mode = requestedMode === "add" && rawDraftProvider === undefined ? "edit" : requestedMode;
-    const draftProvider = rawDraftProvider === undefined
-      ? undefined
-      : prepareEnterpriseTlsRecord(rawDraftProvider, isEnterpriseTlsProvider(rawDraftProvider), mode === "add");
-    this.state = {
-      classes: props,
-      providerName: draftProvider?.name ?? props.match.params.providerName,
-      owner: draftProvider?.owner ?? (props.organizationName !== undefined ? props.organizationName : props.match.params.organizationName),
-      provider: draftProvider ?? null as unknown as EditableProviderConfig,
-      certs: [],
-      organizations: [],
-      mode,
-      dirty: false,
-      submitting: false,
-      requestUrl: "",
-      metadataLoading: false,
-    };
+    this.state = createProviderRouteState(props);
   }
 
-  UNSAFE_componentWillMount() {
+  componentDidMount() {
+    this.lifecycleMounted = true;
+    this.loadProviderRoute();
+  }
+
+  componentDidUpdate(prevProps: ProviderEditPageProps) {
+    if (getProviderRouteIdentity(prevProps) === getProviderRouteIdentity(this.props)) {
+      return;
+    }
+
+    this.invalidateAsyncWork();
+    this.setState(createProviderRouteState(this.props), () => this.loadProviderRoute());
+  }
+
+  componentWillUnmount() {
+    this.lifecycleMounted = false;
+    this.invalidateAsyncWork();
+  }
+
+  private invalidateAsyncWork() {
+    this.routeGeneration += 1;
+    this.providerRequestGeneration += 1;
+    this.organizationRequestGeneration += 1;
+    this.certRequestGeneration += 1;
+    this.metadataRequestGeneration += 1;
+    this.deleteRequestGeneration += 1;
+    this.saveRequestGeneration += 1;
+    this.providerSaveInFlight = null;
+  }
+
+  private isCurrentRequest(routeGeneration: number, requestGeneration: number, currentRequestGeneration: number): boolean {
+    return this.lifecycleMounted && routeGeneration === this.routeGeneration && requestGeneration === currentRequestGeneration;
+  }
+
+  private loadProviderRoute() {
     this.getOrganizations();
     if (this.state.mode !== "add") {
       this.getProvider();
@@ -187,8 +243,15 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
   }
 
   getProvider() {
-    ProviderBackend.getProvider(this.state.owner, this.state.providerName)
+    const routeGeneration = this.routeGeneration;
+    const requestGeneration = ++this.providerRequestGeneration;
+    const owner = this.state.owner;
+    const providerName = this.state.providerName;
+    ProviderBackend.getProvider(owner, providerName)
       .then((res) => {
+        if (!this.isCurrentRequest(routeGeneration, requestGeneration, this.providerRequestGeneration)) {
+          return;
+        }
         if (res.data === null) {
           this.props.history.push("/404");
           return;
@@ -209,8 +272,13 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
 
   getOrganizations() {
     if (Setting.isAdminUser(this.props.account)) {
+      const routeGeneration = this.routeGeneration;
+      const requestGeneration = ++this.organizationRequestGeneration;
       OrganizationBackend.getOrganizations("admin")
         .then((res) => {
+          if (!this.isCurrentRequest(routeGeneration, requestGeneration, this.organizationRequestGeneration)) {
+            return;
+          }
           this.setState({
             organizations: res.data || [],
           });
@@ -219,8 +287,13 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
   }
 
   getCerts(owner: string) {
+    const routeGeneration = this.routeGeneration;
+    const requestGeneration = ++this.certRequestGeneration;
     CertBackend.getCerts(owner)
       .then((res) => {
+        if (!this.isCurrentRequest(routeGeneration, requestGeneration, this.certRequestGeneration)) {
+          return;
+        }
         if (res.status === "ok") {
           this.setState({
             certs: res.data || [],
@@ -941,10 +1014,13 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
   }
 
   fetchSamlMetadata() {
+    const routeGeneration = this.routeGeneration;
+    const requestGeneration = ++this.metadataRequestGeneration;
+    const requestUrl = this.state.requestUrl;
     this.setState({
       metadataLoading: true,
     });
-    fetch(this.state.requestUrl, {
+    fetch(requestUrl, {
       method: "GET",
     }).then(res => {
       if (!res.ok) {
@@ -952,12 +1028,21 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
       }
       return res.text();
     }).then(text => {
+      if (!this.isCurrentRequest(routeGeneration, requestGeneration, this.metadataRequestGeneration)) {
+        return;
+      }
       this.updateProviderField("metadata", text);
       this.parseSamlMetadata();
       Setting.showMessage("success", t("general:Successfully added"));
     }).catch(err => {
+      if (!this.isCurrentRequest(routeGeneration, requestGeneration, this.metadataRequestGeneration)) {
+        return;
+      }
       Setting.showMessage("error", err.message);
     }).finally(() => {
+      if (!this.isCurrentRequest(routeGeneration, requestGeneration, this.metadataRequestGeneration)) {
+        return;
+      }
       this.setState({
         metadataLoading: false,
       });
@@ -1380,7 +1465,7 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
   }
 
   submitProviderEdit(exitAfterSave: boolean) {
-    if (this.providerSaveInFlight || this.state.submitting) {
+    if (this.providerSaveInFlight !== null || this.state.submitting) {
       return;
     }
     const provider = Setting.deepCopy(this.state.provider);
@@ -1398,15 +1483,19 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
       Setting.showMessage("error", validationError);
       return;
     }
-    this.providerSaveInFlight = true;
+    const routeGeneration = this.routeGeneration;
+    const requestGeneration = ++this.saveRequestGeneration;
+    this.providerSaveInFlight = requestGeneration;
     this.setState({submitting: true});
     const saveProvider = this.state.mode === "add"
       ? ProviderBackend.addProvider(provider)
       : ProviderBackend.updateProvider(this.state.owner, this.state.providerName, provider);
     saveProvider
       .then((res) => {
+        if (!this.isCurrentRequest(routeGeneration, requestGeneration, this.saveRequestGeneration)) {
+          return;
+        }
         if (res.status === "ok") {
-          this.providerSaveInFlight = false;
           Setting.showMessage("success", t("general:Successfully saved"));
           this.setState({
             owner: this.state.provider.owner,
@@ -1422,7 +1511,6 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
             this.props.history.push(`/providers/${this.state.provider.owner}/${this.state.provider.name}`);
           }
         } else {
-          this.providerSaveInFlight = false;
           Setting.showMessage("error", `${t("general:Failed to save")}: ${res.msg}`);
           if (this.state.mode !== "add") {
             this.updateProviderField("name", this.state.providerName);
@@ -1431,15 +1519,27 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
         }
       })
       .catch(error => {
-        this.providerSaveInFlight = false;
+        if (!this.isCurrentRequest(routeGeneration, requestGeneration, this.saveRequestGeneration)) {
+          return;
+        }
         this.setState({submitting: false});
         Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
+      })
+      .finally(() => {
+        if (this.providerSaveInFlight === requestGeneration) {
+          this.providerSaveInFlight = null;
+        }
       });
   }
 
   deleteProvider() {
+    const routeGeneration = this.routeGeneration;
+    const requestGeneration = ++this.deleteRequestGeneration;
     ProviderBackend.deleteProvider(this.state.provider)
       .then((res) => {
+        if (!this.isCurrentRequest(routeGeneration, requestGeneration, this.deleteRequestGeneration)) {
+          return;
+        }
         if (res.status === "ok") {
           this.props.history.push("/providers");
         } else {
@@ -1447,6 +1547,9 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
         }
       })
       .catch(error => {
+        if (!this.isCurrentRequest(routeGeneration, requestGeneration, this.deleteRequestGeneration)) {
+          return;
+        }
         Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });
   }

@@ -14,7 +14,7 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Popconfirm, Switch, Tooltip} from "antd";
+import {Button, Popconfirm, Switch, Tag, Tooltip} from "antd";
 import {DeleteOutlined, EditOutlined} from "@ant-design/icons";
 import moment from "moment";
 import * as Setting from "./Setting";
@@ -72,6 +72,20 @@ function getWebhookTableScroll(advancedFiltersOpen: boolean): {x?: number; y?: s
     return {x: 920};
   }
   return {y: advancedFiltersOpen ? "calc(100vh - 414px)" : "calc(100vh - 360px)"};
+}
+
+function renderWebhookEventTags(events?: string[]): React.ReactElement[] {
+  // 业务值保证重排 identity，同值出现序号只用于区分真实重复项。
+  const occurrences = new Map<string, number>();
+  return (events || []).map(event => {
+    const occurrence = occurrences.get(event) || 0;
+    occurrences.set(event, occurrence + 1);
+    return (
+      <Tag key={JSON.stringify(["webhook-events", event, occurrence])} color={Setting.getTagColor(event)}>
+        {event}
+      </Tag>
+    );
+  });
 }
 
 const LegacyBaseListPage = BaseListPage as unknown as React.ComponentClass<AdminRouteProps, LegacyAny> & LegacyAny;
@@ -287,7 +301,7 @@ class WebhookListPage extends LegacyBaseListPage {
         width: "16%",
         sorter: true,
         render: (text, record, index) => {
-          return Setting.getTags(text);
+          return renderWebhookEventTags(text);
         },
       },
       {

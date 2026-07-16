@@ -87,6 +87,16 @@ function attachLegacyState(page: LegacyAny, extra: Record<string, LegacyAny> = {
   return page;
 }
 
+function getUniqueKeyWarnings(calls: unknown[][]): string[] {
+  return calls
+    .map(call => call.map(value => String(value)).join(" "))
+    .filter(message => message.includes("Each child in a list should have a unique key"));
+}
+
+function getElementKeys(nodes: React.ReactNode): Array<React.Key | null> {
+  return (nodes as React.ReactElement[]).map(node => node.key);
+}
+
 function getSharedListTable(element: React.ReactNode): TestTableElement {
   const node = element as React.ReactElement<LegacyAny>;
   if (React.isValidElement(node) && node.type === ListPageTable) {
@@ -375,22 +385,34 @@ test("renders migrated cert and key list rows without exposing secrets", () => {
 });
 
 test("renders migrated webhook list row and keeps callback secret out of the table", () => {
+  const consoleError = jest.spyOn(console, "error");
   const page = new (WebhookListPage as LegacyAny)(routeProps) as LegacyAny;
-  const view = renderLegacyPageTable(page, page.renderTable([{
+  const row = {
     owner: "admin",
     name: "webhook_alpha",
     organization: "org-alpha",
     url: "https://callback.example.invalid/hook",
     method: "POST",
     contentType: "application/json",
-    events: ["login", "signup"],
+    events: ["login", "login", "signup"],
     secret: "webhook-secret-should-not-render",
     isEnabled: true,
-  }]));
+  };
+  const table = getSharedListTable(page.renderTable([row]));
+  const eventsColumn = table.props.columns.find(column => column.key === "events");
+  const initialTags = eventsColumn?.render?.(row.events, row, 0) as React.ReactElement[];
+  const reorderedTags = eventsColumn?.render?.(["signup", "login", "login"], row, 0) as React.ReactElement[];
+  const view = renderLegacyPageTable(page, page.renderTable([row]));
 
   expectAny(view.getByText("webhook_alpha")).not.toBeNull();
   expectAny(view.getByText("POST")).not.toBeNull();
+  expectAny(view.getAllByText("login")).toHaveLength(2);
   expectAny(view.queryByText("webhook-secret-should-not-render")).toBeNull();
+  expect(new Set(getElementKeys(initialTags)).size).toBe(initialTags.length);
+  expect(reorderedTags[0].key).toBe(initialTags[2].key);
+  expect(reorderedTags.slice(1).map(tag => tag.key)).toEqual(initialTags.slice(0, 2).map(tag => tag.key));
+  expect(getUniqueKeyWarnings(consoleError.mock.calls)).toEqual([]);
+  consoleError.mockRestore();
 });
 
 test("renders migrated webhook event table with replay action", () => {

@@ -31,11 +31,18 @@ type PageHarness = ProviderEditPage & {
   getProvider: () => void;
   getOrganizations: () => void;
   getCerts: (owner: string) => void;
+  fetchSamlMetadata: () => void;
   updateProviderField: (key: string, value: any) => void;
   updateUserMappingField: (key: string, value: string) => void;
   updateProviderCategory: (value: string) => void;
   updateProviderType: (value: string) => void;
   updateProviderTlsPolicy: (value: "system" | "custom-ca" | "legacy-insecure") => void;
+};
+
+type Deferred<T> = {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (reason?: unknown) => void;
 };
 
 jest.mock("./provider/OAuthProviderFields", () => {
@@ -100,6 +107,53 @@ async function flushPromises(): Promise<void> {
   });
 }
 
+function createDeferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return {promise, resolve, reject};
+}
+
+async function resolveDeferred<T>(deferred: Deferred<T>, value: T): Promise<void> {
+  await act(async() => {
+    deferred.resolve(value);
+    await deferred.promise;
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
+async function rejectDeferred<T>(deferred: Deferred<T>, reason: unknown): Promise<void> {
+  await act(async() => {
+    deferred.reject(reason);
+    await deferred.promise.catch(() => undefined);
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
+function neverResolvingPromise<T>(): Promise<T> {
+  return new Promise<T>(() => undefined);
+}
+
+function getProviderLifecycleWarnings(calls: unknown[][]): string[] {
+  return calls
+    .map(call => call.map(value => String(value)).join(" "))
+    .filter(message => message.includes("setState on a component that is not yet mounted") || message.includes("state update on an unmounted component"));
+}
+
+function createProviderProps(owner = "engineering", name = "github-main") {
+  return {
+    match: {params: {organizationName: owner, providerName: name}},
+    location: {mode: "edit" as const},
+    history: {push: jest.fn()},
+    account: {owner, name: "admin", email: "admin@example.test", isAdmin: true},
+  };
+}
+
 function collectElementsByType(node: React.ReactNode, type: React.ElementType): React.ReactElement[] {
   if (!React.isValidElement(node)) {
     return [];
@@ -148,6 +202,7 @@ function createPage(options: {mode?: "add" | "edit"} = {}): PageHarness {
     };
     callback?.();
   }) as typeof page.setState;
+  (page as any).lifecycleMounted = true;
   return page;
 }
 
@@ -161,9 +216,11 @@ beforeEach(async() => {
 afterEach(() => {
   cleanup();
   const actWarnings = getReactActWarnings(consoleErrorSpy.mock.calls);
+  const lifecycleWarnings = getProviderLifecycleWarnings(consoleErrorSpy.mock.calls);
   consoleErrorSpy.mockRestore();
   jest.restoreAllMocks();
   expect(actWarnings).toEqual([]);
+  expect(lifecycleWarnings).toEqual([]);
 });
 
 test("renders provider edit in the shared large edit shell without duplicate legacy actions", () => {
@@ -431,23 +488,30 @@ test("updates every user, email and SMS mapping field through rendered controls"
 
 test("initializes an add draft without loading or deleting a provider", async() => {
   const getProvider = jest.spyOn(ProviderBackend, "getProvider").mockResolvedValue({status: "ok", data: baseProvider} as any);
-  jest.spyOn(OrganizationBackend, "getOrganizations").mockResolvedValue({status: "ok", data: []});
-  jest.spyOn(CertBackend, "getCerts").mockResolvedValue({status: "ok", data: []} as any);
+  const organizationsRequest = Promise.resolve({status: "ok", data: []});
+  const certsRequest = Promise.resolve({status: "ok", data: []} as any);
+  jest.spyOn(OrganizationBackend, "getOrganizations").mockReturnValue(organizationsRequest);
+  jest.spyOn(CertBackend, "getCerts").mockReturnValue(certsRequest);
   const draft = {...baseProvider, userMapping: undefined};
-  const page = new ProviderEditPage({
+  const props = {
     match: {params: {organizationName: draft.owner, providerName: draft.name}},
     location: {state: {mode: "add", provider: draft}},
     history: {push: jest.fn()},
     account: {owner: draft.owner, name: "admin", isAdmin: true},
-  } as any) as unknown as PageHarness;
-  page.UNSAFE_componentWillMount();
-  await flushPromises();
+  } as any;
+  const pageRef = React.createRef<ProviderEditPage>();
+  const mountedPage = render(<ProviderEditPage ref={pageRef} {...props} />);
+  await act(async() => {
+    await Promise.all([organizationsRequest, certsRequest]);
+    await Promise.resolve();
+  });
+  const page = pageRef.current as PageHarness;
 
   expect(getProvider).not.toHaveBeenCalled();
   expect(page.state.provider.userMapping).toEqual(expect.objectContaining({id: "id", username: "username"}));
   expect(() => page.renderProvider()).not.toThrow();
 
-  page.updateUserMappingField("id", "mutated-id");
+  act(() => page.updateUserMappingField("id", "mutated-id"));
   const nextDraftPage = new ProviderEditPage({
     match: {params: {organizationName: draft.owner, providerName: "next-draft"}},
     location: {state: {mode: "add", provider: {...draft, name: "next-draft", userMapping: undefined}}},
@@ -455,6 +519,7 @@ test("initializes an add draft without loading or deleting a provider", async() 
     account: {owner: draft.owner, name: "admin", isAdmin: true},
   } as any) as unknown as PageHarness;
   expect(nextDraftPage.state.provider.userMapping.id).toBe("id");
+  mountedPage.unmount();
 
   const addPage = createPage({mode: "add"});
   const deleteProvider = jest.spyOn(addPage, "deleteProvider").mockImplementation(() => undefined);
@@ -463,6 +528,168 @@ test("initializes an add draft without loading or deleting a provider", async() 
   fireEvent.click(view.getByText("Cancel"));
 
   expect(deleteProvider).not.toHaveBeenCalled();
+});
+
+test("ignores stale Provider route responses and keeps the latest route state", async() => {
+  const firstProvider = createDeferred<any>();
+  const secondProvider = createDeferred<any>();
+  jest.spyOn(ProviderBackend, "getProvider")
+    .mockReturnValueOnce(firstProvider.promise)
+    .mockReturnValueOnce(secondProvider.promise);
+  jest.spyOn(OrganizationBackend, "getOrganizations").mockReturnValue(neverResolvingPromise());
+  jest.spyOn(CertBackend, "getCerts").mockReturnValue(neverResolvingPromise());
+  const firstProps = createProviderProps("engineering", "github-main");
+  const secondProps = createProviderProps("platform", "gitlab-main");
+  const pageRef = React.createRef<ProviderEditPage>();
+  const view = render(<ProviderEditPage ref={pageRef} {...firstProps} />);
+
+  view.rerender(<ProviderEditPage ref={pageRef} {...secondProps} />);
+  expect(ProviderBackend.getProvider).toHaveBeenNthCalledWith(1, "engineering", "github-main");
+  expect(ProviderBackend.getProvider).toHaveBeenNthCalledWith(2, "platform", "gitlab-main");
+
+  await resolveDeferred(secondProvider, {status: "ok", data: {...baseProvider, owner: "platform", name: "gitlab-main", displayName: "GitLab Current"}} as any);
+  await resolveDeferred(firstProvider, {status: "ok", data: {...baseProvider, displayName: "GitHub Stale"}} as any);
+
+  expect(pageRef.current?.state).toEqual(expect.objectContaining({owner: "platform", providerName: "gitlab-main"}));
+  expect(view.getByText("Edit Provider (GitLab Current)")).not.toBeNull();
+  expect(view.queryByText("Edit Provider (GitHub Stale)")).toBeNull();
+});
+
+test("keeps the latest certificate owner when certificate responses finish out of order", async() => {
+  const providerRequest = Promise.resolve({status: "ok", data: baseProvider} as any);
+  const organizationsRequest = Promise.resolve({status: "ok", data: []});
+  jest.spyOn(ProviderBackend, "getProvider").mockReturnValue(providerRequest);
+  jest.spyOn(OrganizationBackend, "getOrganizations").mockReturnValue(organizationsRequest);
+  const initialCerts = createDeferred<any>();
+  const oldOwnerCerts = createDeferred<any>();
+  const currentOwnerCerts = createDeferred<any>();
+  jest.spyOn(CertBackend, "getCerts")
+    .mockReturnValueOnce(initialCerts.promise)
+    .mockReturnValueOnce(oldOwnerCerts.promise)
+    .mockReturnValueOnce(currentOwnerCerts.promise);
+  const pageRef = React.createRef<ProviderEditPage>();
+  render(<ProviderEditPage ref={pageRef} {...createProviderProps()} />);
+  await act(async() => {
+    initialCerts.resolve({status: "ok", data: []} as any);
+    await Promise.all([providerRequest, organizationsRequest, initialCerts.promise]);
+    await Promise.resolve();
+  });
+
+  const page = pageRef.current as PageHarness;
+  page.getCerts("old-owner");
+  page.getCerts("current-owner");
+  await resolveDeferred(currentOwnerCerts, {status: "ok", data: [{name: "current-cert"}]} as any);
+  await resolveDeferred(oldOwnerCerts, {status: "ok", data: [{name: "stale-cert"}]} as any);
+
+  expect(page.state.certs).toEqual([{name: "current-cert"}]);
+});
+
+test("does not navigate or report completion after pending Provider work is unmounted", async() => {
+  jest.spyOn(ProviderBackend, "getProvider").mockReturnValue(neverResolvingPromise());
+  jest.spyOn(OrganizationBackend, "getOrganizations").mockReturnValue(neverResolvingPromise());
+  jest.spyOn(CertBackend, "getCerts").mockReturnValue(neverResolvingPromise());
+  const deleteRequest = createDeferred<any>();
+  jest.spyOn(ProviderBackend, "deleteProvider").mockReturnValue(deleteRequest.promise);
+  const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  const props = createProviderProps();
+  const pageRef = React.createRef<ProviderEditPage>();
+  const view = render(<ProviderEditPage ref={pageRef} {...props} />);
+
+  (pageRef.current as PageHarness).deleteProvider();
+  view.unmount();
+  await resolveDeferred(deleteRequest, {status: "ok"} as any);
+
+  expect(props.history.push).not.toHaveBeenCalled();
+  expect(showMessage).not.toHaveBeenCalled();
+});
+
+test("does not finish stale SAML metadata loading after unmount", async() => {
+  jest.spyOn(ProviderBackend, "getProvider").mockReturnValue(neverResolvingPromise());
+  jest.spyOn(OrganizationBackend, "getOrganizations").mockReturnValue(neverResolvingPromise());
+  jest.spyOn(CertBackend, "getCerts").mockReturnValue(neverResolvingPromise());
+  const metadataRequest = createDeferred<Response>();
+  global.fetch = jest.fn(() => metadataRequest.promise) as unknown as typeof fetch;
+  const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  const pageRef = React.createRef<ProviderEditPage>();
+  const view = render(<ProviderEditPage ref={pageRef} {...createProviderProps()} />);
+  const page = pageRef.current as PageHarness;
+  await act(async() => {
+    page.setState({requestUrl: "https://metadata.example.invalid"});
+  });
+
+  act(() => page.fetchSamlMetadata());
+  view.unmount();
+  await resolveDeferred(metadataRequest, {ok: true, text: () => Promise.resolve("<xml />")} as Response);
+
+  expect(showMessage).not.toHaveBeenCalled();
+});
+
+test("ignores a stale save after route change and releases the save lock for the current route", async() => {
+  const firstLoad = Promise.resolve({status: "ok", data: baseProvider} as any);
+  const secondLoad = createDeferred<any>();
+  jest.spyOn(ProviderBackend, "getProvider")
+    .mockReturnValueOnce(firstLoad)
+    .mockReturnValueOnce(secondLoad.promise);
+  jest.spyOn(OrganizationBackend, "getOrganizations").mockReturnValue(neverResolvingPromise());
+  jest.spyOn(CertBackend, "getCerts").mockReturnValue(neverResolvingPromise());
+  const staleSave = createDeferred<any>();
+  const currentSave = Promise.resolve({status: "ok"} as any);
+  const updateProvider = jest.spyOn(ProviderBackend, "updateProvider")
+    .mockReturnValueOnce(staleSave.promise)
+    .mockReturnValueOnce(currentSave);
+  const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  const firstProps = createProviderProps("engineering", "github-main");
+  const secondProps = createProviderProps("platform", "gitlab-main");
+  secondProps.history = firstProps.history;
+  const pageRef = React.createRef<ProviderEditPage>();
+  const view = render(<ProviderEditPage ref={pageRef} {...firstProps} />);
+  await act(async() => {
+    await firstLoad;
+    await Promise.resolve();
+  });
+
+  act(() => (pageRef.current as PageHarness).submitProviderEdit(false));
+  expect(pageRef.current?.state.submitting).toBe(true);
+  view.rerender(<ProviderEditPage ref={pageRef} {...secondProps} />);
+  await resolveDeferred(secondLoad, {status: "ok", data: {...baseProvider, owner: "platform", name: "gitlab-main", displayName: "GitLab Current"}} as any);
+  await resolveDeferred(staleSave, {status: "ok"} as any);
+
+  expect(showMessage).not.toHaveBeenCalled();
+  expect(firstProps.history.push).not.toHaveBeenCalled();
+  expect(pageRef.current?.state).toEqual(expect.objectContaining({owner: "platform", providerName: "gitlab-main", submitting: false}));
+
+  act(() => (pageRef.current as PageHarness).submitProviderEdit(false));
+  await act(async() => {
+    await currentSave;
+    await Promise.resolve();
+  });
+  expect(updateProvider).toHaveBeenCalledTimes(2);
+  expect(firstProps.history.push).toHaveBeenCalledWith("/providers/platform/gitlab-main");
+  expect(showMessage).toHaveBeenCalledWith("success", expect.any(String));
+});
+
+test("restores SAML metadata loading after current success and failure", async() => {
+  const page = createPage();
+  page.state.requestUrl = "https://metadata.example.invalid";
+  const successRequest = createDeferred<Response>();
+  const failureRequest = createDeferred<Response>();
+  global.fetch = jest.fn()
+    .mockReturnValueOnce(successRequest.promise)
+    .mockReturnValueOnce(failureRequest.promise) as unknown as typeof fetch;
+  const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+
+  page.fetchSamlMetadata();
+  expect(page.state.metadataLoading).toBe(true);
+  await resolveDeferred(successRequest, {ok: true, text: () => Promise.resolve("<EntityDescriptor />")} as Response);
+  expect(page.state.metadataLoading).toBe(false);
+  expect(page.state.provider.metadata).toBe("<EntityDescriptor />");
+  expect(showMessage).toHaveBeenCalledWith("success", expect.any(String));
+
+  page.fetchSamlMetadata();
+  expect(page.state.metadataLoading).toBe(true);
+  await rejectDeferred(failureRequest, new Error("offline"));
+  expect(page.state.metadataLoading).toBe(false);
+  expect(showMessage).toHaveBeenCalledWith("error", "offline");
 });
 
 test("defaults new target Provider drafts to system without migrating edit records", () => {
