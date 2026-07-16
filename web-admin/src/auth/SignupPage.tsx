@@ -30,6 +30,7 @@ import {withRouter} from "react-router-dom";
 import {CountryCodeSelect} from "../common/select/CountryCodeSelect";
 import * as PasswordChecker from "../common/PasswordChecker";
 import * as InvitationBackend from "../backend/InvitationBackend";
+import "./SignupPage.less";
 // eslint-disable-next-line unused-imports/no-unused-imports
 import type {LegacyAny, LegacyRecord} from "./AuthCoreTypes";
 
@@ -723,7 +724,7 @@ class SignupPage extends React.Component<LegacyAny, LegacyAny> {
         return (
           <React.Fragment>
             <Row style={{marginTop: "30px", marginBottom: "20px"}} >
-              <Radio.Group style={{width: "400px"}} buttonStyle="solid" onChange={e => {
+              <Radio.Group className="signup-mode-selector" buttonStyle="solid" onChange={e => {
                 this.setState({
                   emailOrPhoneMode: e.target.value,
                 });
@@ -844,21 +845,26 @@ class SignupPage extends React.Component<LegacyAny, LegacyAny> {
       );
     } else if (signupItem.name === "Signup button") {
       return (
-        <Form.Item {...tailFormItemLayout}>
-          <Button type="primary" htmlType="submit" className="signup-button">
-            {t("account:Sign Up")}
-          </Button>
-          &nbsp;&nbsp;{t("signup:Have account?")}&nbsp;
-          <a className="signup-link" onClick={() => {
-            const linkInStorage = sessionStorage.getItem("signinUrl");
-            if (linkInStorage !== null && linkInStorage !== "") {
-              Setting.goToLinkSoft(this, linkInStorage);
-            } else {
-              Setting.redirectToLoginPage(application, this.props.history);
-            }
-          }}>
-            {t("signup:sign in now")}
-          </a>
+        <Form.Item {...tailFormItemLayout} className="signup-actions">
+          <Space className="signup-action-content" wrap>
+            <Button type="primary" htmlType="submit" className="signup-button">
+              {t("account:Sign Up")}
+            </Button>
+            <span className="signup-action-text">
+              {t("signup:Have account?")} {" "}
+              <a className="signup-link" href={sessionStorage.getItem("signinUrl") || Setting.getLoginLink(application)} onClick={(event) => {
+                event.preventDefault();
+                const linkInStorage = sessionStorage.getItem("signinUrl");
+                if (linkInStorage !== null && linkInStorage !== "") {
+                  Setting.goToLinkSoft(this, linkInStorage);
+                } else {
+                  Setting.redirectToLoginPage(application, this.props.history);
+                }
+              }}>
+                {t("signup:sign in now")}
+              </a>
+            </span>
+          </Space>
         </Form.Item>
       );
     } else if (signupItem.name === "Providers") {
@@ -931,6 +937,7 @@ class SignupPage extends React.Component<LegacyAny, LegacyAny> {
     return (
       <Form
         {...formItemLayout}
+        className="signup-form"
         ref={this.form}
         name="signup"
         onFinish={(values) => this.onFinish(values)}
@@ -941,8 +948,8 @@ class SignupPage extends React.Component<LegacyAny, LegacyAny> {
           countryCode: application.organizationObj.countryCodes?.[0],
         }}
         size="large"
+        labelWrap
         layout={Setting.isMobile() ? "vertical" : "horizontal"}
-        style={{width: Setting.isMobile() ? "300px" : "400px"}}
       >
         <Form.Item
           name="application"
@@ -1016,7 +1023,7 @@ class SignupPage extends React.Component<LegacyAny, LegacyAny> {
             <div className="side-image" style={{display: application.formOffset !== 4 ? "none" : undefined}}>
               <div dangerouslySetInnerHTML={{__html: application.formSideHtml}} />
             </div>
-            <div className="login-form">
+            <div className="login-form signup-login-form">
               {
                 Setting.renderHelmet(application)
               }
