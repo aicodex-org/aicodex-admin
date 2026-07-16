@@ -4,7 +4,7 @@
 >
 > 最近整理日期：2026-07-16
 >
-> 代码审阅基线：`hfl-test-base@716b7f82`
+> 代码审阅基线：`hfl-test-base@a754a5ca`
 
 ## 文档用途
 
@@ -34,6 +34,7 @@
 | 组织同步 HTTP | `stabilize-admin-organization-sync-http-client-policy` | timeout、context cancellation 和 client 注入已按域收口 |
 | SOCKS5 出站传输 | `harden-admin-socks5-proxy-transport-policy` | 默认 transport、代理 transport 和 TLS 行为已有稳定契约 |
 | IDP HTTP client | `stabilize-admin-idp-http-client-contract` | 五个目标 Provider 统一注入 client、bounded fallback、body/status/error 与凭据脱敏契约 |
+| Web3 钱包认证退役 | `retire-unused-admin-web3-wallet-auth` | 60 零存量门禁通过；创建/登录入口、专属后端和 13 个直接依赖已移除，历史记录保持受控只读兼容 |
 
 TypeScript 增量迁移也已进入稳态：`web-admin/src` 不再把普通业务 `.js/.jsx` 迁移作为独立路线，后续由增量 TS gate 防止回退。
 
@@ -41,14 +42,13 @@ TypeScript 增量迁移也已进入稳态：`web-admin/src` 不再把普通业�
 
 以下 change 已由独立 worker 实施。本节只标识路线占用和后续依赖，不代替主控实时台账。
 
-### 退役未使用的 Web3 钱包认证
+### 升级 React 18 Testing Library
 
-Change：`retire-unused-admin-web3-wallet-auth`
+Change：`upgrade-web-admin-react-testing-library-for-react-18`
 
-- 产品决策是退役区块链钱包认证，不迁移到 EIP-6963。
-- 必须先对 60 环境做只读、脱敏存量核验；Provider、应用绑定、用户钱包绑定或审计引用任一非零，或无法可靠确认时，停止破坏性删除并请求决策。
-- 第一阶段删除创建、配置和登录入口及其专属前端依赖；历史记录保持可读、可禁用和可删除。
-- 不删除数据库字段，不批量改历史数据，不借机重评 Bun。
+- 将 `@testing-library/react` 9.3.2 升级到与 React 18.2、Jest 27 和当前 Node/TypeScript 基线兼容的维护版本。
+- 删除 29 个测试文件对 `ReactDOM.render` 告警的局部过滤，不换成全局 console ignore。
+- 保持全量 Jest discovery、Vite、Playwright 和业务运行时行为，不混入 React、Router、Jest 或 AntD 升级。
 
 ### 收口企业 TLS 兼容策略
 
@@ -73,21 +73,6 @@ Change：`stabilize-admin-enterprise-tls-compatibility-policy`
 
 ## 下一批候选
 
-### P1：React 18 兼容 Testing Library 升级
-
-建议 change：`upgrade-web-admin-react-testing-library-for-react-18`
-
-当前 `@testing-library/react` 仍为 `9.3.2`，29 个测试文件过滤 `ReactDOM.render is no longer supported in React 18` 告警。这会掩盖真实 console regression，并增加每个新测试的样板代码。
-
-建议范围：
-
-- 升级到与 React 18 兼容的 Testing Library 版本，保持 Jest 27、Vite、Playwright 和业务运行时不变。
-- 迁移确实受影响的 render/cleanup/act 用法，删除各测试文件中的告警过滤。
-- 保持全量 Jest discovery 和断言语义，不通过静默 console mock 制造绿灯。
-- 验证全量 Jest、typecheck、lint、build 和关键组件测试。
-
-前置条件：等待 Web3 change 释放 `web-admin/package.json` 和 `yarn.lock` 依赖锁。
-
 ### P1：AntD 5 deprecated API 清理
 
 建议 change：`remove-web-admin-antd5-deprecated-api-usage`
@@ -100,7 +85,7 @@ Change：`stabilize-admin-enterprise-tls-compatibility-policy`
 - 优先处理登录、用户编辑、Provider、组织同步和公共 modal；保留表单布局、焦点、关闭后清理和权限行为。
 - 用聚焦 Jest 与浏览器 smoke 验证弹窗开关、表单重置、长文本和窄屏布局。
 
-前置条件：等待 Web3 change 释放登录页写集；可与企业 TLS change 并行。
+前置条件：等待 Testing Library change 释放前端测试写集，并与企业 TLS change 的 Provider/Syncer UI 写集对账。
 
 ### P2：移除 CRA/IE polyfill 残留
 
@@ -110,7 +95,7 @@ Change：`stabilize-admin-enterprise-tls-compatibility-policy`
 
 ## Bun package manager 决策
 
-当前结论为 `NO-GO / BLOCKED`，继续以 Yarn 和 `yarn.lock` 为唯一依赖真值。
+当前结论为 `NO-GO / REEVALUATE_AFTER_FRONTEND_LOCK`，继续以 Yarn 和 `yarn.lock` 为唯一依赖真值；该状态只授权重新评估，不授权迁移。
 
 已归档三轮评估：
 
@@ -118,14 +103,14 @@ Change：`stabilize-admin-enterprise-tls-compatibility-policy`
 - `evaluate-admin-cypress-15-bun-compatibility`
 - `evaluate-admin-bun-copyfile-backend-workaround`
 
-Bun 1.3.14 在 Windows 隔离环境中没有形成可用且可复现的依赖树；`--backend=copyfile` 和降低 lifecycle 并发均未解除 cache/extraction 阶段缺文件。Cypress 已由 Playwright 替代，但失败样本还涉及 Web3 深层依赖，因此不能把旧阻断只归因于 Cypress。
+Bun 1.3.14 在 Windows 隔离环境中没有形成可用且可复现的依赖树；`--backend=copyfile` 和降低 lifecycle 并发均未解除 cache/extraction 阶段缺文件。现在 Cypress 已由 Playwright 替代，Web3 退役又删除 13 个直接依赖和 291 个专属 lock 条目，旧失败依赖树已经发生实质变化，满足一次重新评估的触发条件。
 
-只有满足以下任一触发条件才重新评估：
+以下触发条件中第二项已经满足：
 
 - Bun 稳定版或相关 Windows 上游问题有明确修复；
-- Web3 退役后依赖树显著缩小，并能证明失败面发生变化。
+- Web3 退役后依赖树显著缩小，并能证明失败面发生变化（已满足）。
 
-重评必须先连续 3 次完成干净 frozen lifecycle install，且 lock/tree 可复现；随后才能比较冷安装、缓存安装、完整 Jest、Vite build 和 Docker build。依赖安装或 CI dependency 阶段建议至少有 20% 收益，完整 Jest 与 Vite build 不应出现超过 10% 的无依据回退。未达到门槛时不得进入实施 change，也不同时迁移到 `bun test`。
+Testing Library change 释放前端依赖锁后可建立新的隔离评估。重评必须先连续 3 次完成干净 frozen lifecycle install，且 lock/tree 可复现；随后才能比较冷安装、缓存安装、完整 Jest、Vite build 和 Docker build。依赖安装或 CI dependency 阶段建议至少有 20% 收益，完整 Jest 与 Vite build 不应出现超过 10% 的无依据回退。未达到门槛时不得进入实施 change，也不同时迁移到 `bun test`。
 
 ## 继续延后
 
@@ -143,11 +128,10 @@ Bun 1.3.14 在 Windows 隔离环境中没有形成可用且可复现的依赖树
 
 ## 推荐顺序
 
-1. 完成并 closeout 当前 Web3 退役与企业 TLS 兼容策略两个独立 change。
-2. 前端依赖锁释放后实施 React 18 Testing Library 升级。
-3. 随后按页面域清理 AntD 5 deprecated API；该任务可与企业 TLS 并行。
+1. 完成并 closeout 当前企业 TLS 兼容策略与 React 18 Testing Library 升级。
+2. 前端测试写集释放后，按页面域清理 AntD 5 deprecated API。
+3. 前端依赖锁释放后，基于已缩小的依赖树重新评估 Bun；评估通过前继续使用 Yarn。
 4. 明确浏览器支持基线后决定是否移除 IE polyfill。
-5. Bun 保持关闭，直到满足重评触发条件。
 
 ## 维护规则
 
