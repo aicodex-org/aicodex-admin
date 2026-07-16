@@ -16,6 +16,7 @@ package object
 
 import (
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"reflect"
 	"sort"
@@ -234,14 +235,12 @@ func ensureAICodexSchemaMigrationHistory(engine *xorm.Engine) error {
 		return fmt.Errorf("check AICodex schema migration history: %w", err)
 	}
 	if !exists {
-		if createErr := createAICodexSchemaMigrationHistoryInTransaction(engine, func(session *xorm.Session) error {
-			return session.Sync2(new(AicodexSchemaMigration))
-		}); createErr != nil {
+		if createErr := createAICodexSchemaMigrationHistoryInTransaction(engine, createAICodexSchemaMigrationHistory); createErr != nil {
 			if reconcileErr := reconcileConcurrentAICodexSchemaMigrationHistoryCreate(engine); reconcileErr != nil {
 				return newAICodexSchemaMigrationError(
 					aicodexSchemaMigrationCodeHistoryIncompatible,
 					"cannot create or reconcile migration history table",
-					createErr,
+					errors.Join(createErr, reconcileErr),
 				)
 			}
 		}
@@ -278,6 +277,20 @@ func ensureAICodexSchemaMigrationHistory(engine *xorm.Engine) error {
 	return nil
 }
 
+// createAICodexSchemaMigrationHistory 只通过当前 transaction session 执行新表 DDL。
+// Xorm v1.1.6 的 Session.Sync2 遇到已存在表时会从 engine pool 另取连接；
+// 单连接 SQLite transaction 会因此等待自己占用的连接，并与另一 migration 写锁形成循环。
+func createAICodexSchemaMigrationHistory(session *xorm.Session) error {
+	history := new(AicodexSchemaMigration)
+	if err := session.CreateTable(history); err != nil {
+		return err
+	}
+	if err := session.CreateUniques(history); err != nil {
+		return err
+	}
+	return session.CreateIndexes(history)
+}
+
 // createAICodexSchemaMigrationHistoryInTransaction 确保 PostgreSQL/SQLite 不会留下
 // “表已创建但约束/history 尚未就绪”的半完成版本表；create 参数仅用于注入失败恢复测试。
 func createAICodexSchemaMigrationHistoryInTransaction(engine *xorm.Engine, create func(*xorm.Session) error) (err error) {
@@ -301,19 +314,16 @@ func createAICodexSchemaMigrationHistoryInTransaction(engine *xorm.Engine, creat
 }
 
 // reconcileConcurrentAICodexSchemaMigrationHistoryCreate 只处理首次建表竞争：
-// 另一实例的结果在有限重读内完全兼容才可继续，未知建表错误不会被吞掉。
+// 当前 create transaction rollback 后，另一实例的结果完全兼容才可继续，未知建表错误不会被吞掉。
 func reconcileConcurrentAICodexSchemaMigrationHistoryCreate(engine *xorm.Engine) error {
-	const attempts = 5
-	for attempt := 0; attempt < attempts; attempt++ {
-		issues, err := inspectModelTableCompatibility(engine, new(AicodexSchemaMigration))
-		if err == nil && len(issues) == 0 {
-			return nil
-		}
-		if attempt+1 < attempts {
-			time.Sleep(10 * time.Millisecond)
-		}
+	issues, err := inspectModelTableCompatibility(engine, new(AicodexSchemaMigration))
+	if err != nil {
+		return fmt.Errorf("inspect migration history after concurrent create: %w", err)
 	}
-	return fmt.Errorf("migration history did not become compatible after concurrent create")
+	if len(issues) > 0 {
+		return fmt.Errorf("migration history is not compatible after concurrent create: %s", strings.Join(limitSchemaIssues(issues), "; "))
+	}
+	return nil
 }
 
 type aicodexOwnedSchemaState int

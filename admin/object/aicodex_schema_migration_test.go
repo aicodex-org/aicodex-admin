@@ -454,6 +454,134 @@ func TestReconcileConcurrentAICodexSchemaMigrationHistoryRequiresCompatibleTable
 	}
 }
 
+func TestReconcileConcurrentAICodexSchemaMigrationHistoryReturnsMetadataErrors(t *testing.T) {
+	engine := newSQLiteTestEngine(t)
+	if err := engine.Close(); err != nil {
+		t.Fatalf("close SQLite engine: %v", err)
+	}
+
+	err := reconcileConcurrentAICodexSchemaMigrationHistoryCreate(engine)
+	if err == nil || !strings.Contains(err.Error(), "inspect migration history after concurrent create") {
+		t.Fatalf("reconcile metadata error = %v", err)
+	}
+}
+
+func TestEnsureAICodexSchemaMigrationHistoryReturnsTableInspectionErrors(t *testing.T) {
+	engine := newSQLiteTestEngine(t)
+	if err := engine.Close(); err != nil {
+		t.Fatalf("close SQLite engine: %v", err)
+	}
+	if err := ensureAICodexSchemaMigrationHistory(engine); err == nil {
+		t.Fatal("history inspection error was not returned")
+	}
+}
+
+func TestEnsureAICodexSchemaMigrationHistoryRejectsIncompatibleLockRow(t *testing.T) {
+	engine := newSQLiteTestEngine(t, new(AicodexSchemaMigration))
+	if _, err := engine.Insert(&AicodexSchemaMigration{
+		Identity:   aicodexSchemaMigrationLockIdentity,
+		Version:    0,
+		Checksum:   aicodexSchemaMigrationLockChecksum,
+		Mode:       "tampered",
+		RecordedAt: "2026-07-16T00:00:00Z",
+	}); err != nil {
+		t.Fatalf("seed incompatible migration lock row: %v", err)
+	}
+
+	err := ensureAICodexSchemaMigrationHistory(engine)
+	assertAICodexSchemaMigrationErrorCode(t, err, aicodexSchemaMigrationCodeHistoryIncompatible)
+}
+
+func TestEnsureAICodexSchemaMigrationHistoryPreservesCreateAndReconcileErrors(t *testing.T) {
+	engine := newReadOnlySQLiteMigrationEngine(t)
+
+	err := ensureAICodexSchemaMigrationHistory(engine)
+	assertAICodexSchemaMigrationErrorCode(t, err, aicodexSchemaMigrationCodeHistoryIncompatible)
+	var migrationErr *aicodexSchemaMigrationError
+	if !errors.As(err, &migrationErr) {
+		t.Fatalf("migration error type = %T", err)
+	}
+	joined, ok := migrationErr.Cause.(interface{ Unwrap() []error })
+	if !ok || len(joined.Unwrap()) != 2 {
+		t.Fatalf("migration error cause = %T, want joined create and reconcile errors", migrationErr.Cause)
+	}
+	if !strings.Contains(joined.Unwrap()[1].Error(), "not compatible after concurrent create") {
+		t.Fatalf("reconcile error was not preserved: %v", joined.Unwrap()[1])
+	}
+}
+
+func TestEnsureAICodexSchemaMigrationHistoryDoesNotRepairPreexistingPartialTable(t *testing.T) {
+	engine := newSQLiteTestEngine(t)
+	session := engine.NewSession()
+	if err := session.CreateTable(new(AicodexSchemaMigration)); err != nil {
+		_ = session.Close()
+		t.Fatalf("create history table without unique constraint: %v", err)
+	}
+	if err := session.Close(); err != nil {
+		t.Fatalf("close partial history session: %v", err)
+	}
+
+	err := ensureAICodexSchemaMigrationHistory(engine)
+	assertAICodexSchemaMigrationErrorCode(t, err, aicodexSchemaMigrationCodeHistoryIncompatible)
+	issues, inspectErr := inspectModelTableCompatibility(engine, new(AicodexSchemaMigration))
+	if inspectErr != nil {
+		t.Fatalf("inspect partial history table: %v", inspectErr)
+	}
+	if !strings.Contains(strings.Join(issues, "; "), "unique") {
+		t.Fatalf("partial history issues = %v, want missing unique constraint", issues)
+	}
+}
+
+func TestCreateAICodexSchemaMigrationHistoryAvoidsSessionMetadataSelfWait(t *testing.T) {
+	engine := newSQLiteTestEngine(t)
+	if err := createAICodexSchemaMigrationHistoryInTransaction(engine, createAICodexSchemaMigrationHistory); err != nil {
+		t.Fatalf("create migration history: %v", err)
+	}
+
+	// 第二次显式建表模拟“另一 engine 已提交 history”的竞争结果。create transaction
+	// 必须直接返回错误并 rollback，随后只能在 transaction 外重新证明表结构兼容。
+	if err := createAICodexSchemaMigrationHistoryInTransaction(engine, createAICodexSchemaMigrationHistory); err == nil {
+		t.Fatal("duplicate migration history create unexpectedly succeeded")
+	}
+	if err := reconcileConcurrentAICodexSchemaMigrationHistoryCreate(engine); err != nil {
+		t.Fatalf("reconcile existing migration history: %v", err)
+	}
+}
+
+func TestCreateAICodexSchemaMigrationHistoryReturnsReadOnlyDDLError(t *testing.T) {
+	readOnly := newReadOnlySQLiteMigrationEngine(t)
+
+	err := createAICodexSchemaMigrationHistoryInTransaction(readOnly, createAICodexSchemaMigrationHistory)
+	if err == nil || !strings.Contains(strings.ToLower(err.Error()), "readonly") {
+		t.Fatalf("read-only history DDL error = %v", err)
+	}
+}
+
+func newReadOnlySQLiteMigrationEngine(t *testing.T) *xorm.Engine {
+	t.Helper()
+	databasePath := filepath.Join(t.TempDir(), "readonly-history.db")
+	writable, err := xorm.NewEngine("sqlite", databasePath)
+	if err != nil {
+		t.Fatalf("new writable SQLite engine: %v", err)
+	}
+	if _, err := writable.Exec("CREATE TABLE seed (id INTEGER PRIMARY KEY)"); err != nil {
+		_ = writable.Close()
+		t.Fatalf("seed SQLite database file: %v", err)
+	}
+	if err := writable.Close(); err != nil {
+		t.Fatalf("close writable SQLite engine: %v", err)
+	}
+
+	readOnlyDSN := "file:" + filepath.ToSlash(databasePath) + "?mode=ro"
+	readOnly, err := xorm.NewEngine("sqlite", readOnlyDSN)
+	if err != nil {
+		t.Fatalf("new read-only SQLite engine: %v", err)
+	}
+	readOnly.DB().SetMaxOpenConns(1)
+	t.Cleanup(func() { _ = readOnly.Close() })
+	return readOnly
+}
+
 func TestAssertAICodexOwnedSchemaTablesExistFailsInsideTransaction(t *testing.T) {
 	engine := newSQLiteTestEngine(t)
 	session := engine.NewSession()
@@ -476,7 +604,7 @@ func TestMigrateAICodexOwnedSchemaRejectsEmptyMigrationRegistry(t *testing.T) {
 func TestCreateAICodexSchemaMigrationHistoryRollsBackAndRecovers(t *testing.T) {
 	engine := newSQLiteTestEngine(t)
 	err := createAICodexSchemaMigrationHistoryInTransaction(engine, func(session *xorm.Session) error {
-		if err := session.Sync2(new(AicodexSchemaMigration)); err != nil {
+		if err := createAICodexSchemaMigrationHistory(session); err != nil {
 			return err
 		}
 		return errors.New("injected history creation failure")
