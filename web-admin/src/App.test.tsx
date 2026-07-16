@@ -43,13 +43,27 @@ beforeAll(async() => {
 });
 
 test("renders the admin root shell", () => {
-  const {container} = render(
-    <MemoryRouter>
-      <React.Suspense fallback={null}>
-        <App />
-      </React.Suspense>
-    </MemoryRouter>
-  );
+  const testGlobal = globalThis as typeof globalThis & {fetch?: typeof fetch};
+  const originalFetch = testGlobal.fetch;
+  // 根壳测试不验证后端回包，使用 suite-local fetch 避免重新依赖全局 CRA polyfill。
+  testGlobal.fetch = jest.fn(() => new Promise<Response>(() => undefined)) as typeof fetch;
+
+  let container: HTMLElement;
+  try {
+    ({container} = render(
+      <MemoryRouter>
+        <React.Suspense fallback={null}>
+          <App />
+        </React.Suspense>
+      </MemoryRouter>
+    ));
+  } finally {
+    if (originalFetch === undefined) {
+      Reflect.deleteProperty(testGlobal, "fetch");
+    } else {
+      testGlobal.fetch = originalFetch;
+    }
+  }
 
   expect(container).toBeTruthy();
 });

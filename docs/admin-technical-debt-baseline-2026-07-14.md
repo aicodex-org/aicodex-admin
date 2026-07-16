@@ -36,6 +36,7 @@
 | IDP HTTP client | `stabilize-admin-idp-http-client-contract` | 五个目标 Provider 统一注入 client、bounded fallback、body/status/error 与凭据脱敏契约 |
 | Web3 钱包认证退役 | `retire-unused-admin-web3-wallet-auth` | 60 零存量门禁通过；创建/登录入口、专属后端和 13 个直接依赖已移除，历史记录保持受控只读兼容 |
 | AntD 5 当前 API 清理 | `remove-web-admin-antd5-input-group-and-visible-deprecations` | 4 处 `Input.Group` 与 3 个 modal wrapper / 7 个调用点已迁移到 `Space.Compact` / `open`；5.24.1 不支持的销毁 API 留待升级后评估 |
+| CRA/IE polyfill 退役 | `retire-web-admin-cra-ie-polyfill` | React 18 + Vite `es2020` 与 production browserslist 成为浏览器支持真值；CRA production/Jest polyfill owner 已移除，`core-js`、`replaceAll` 与显式 Jest/jsdom 边界继续保留 |
 
 TypeScript 增量迁移也已进入稳态：`web-admin/src` 不再把普通业务 `.js/.jsx` 迁移作为独立路线，后续由增量 TS gate 防止回退。
 
@@ -71,14 +72,6 @@ Change：`stabilize-admin-enterprise-tls-compatibility-policy`
 - 为默认严格、自定义 CA、显式 legacy opt-in 和无效配置补契约测试。
 
 前置条件已满足：`stabilize-admin-idp-http-client-contract` 已完成。TLS change 必须保持其 `SetHttpClient`、bounded fallback、body/status/error 和凭据脱敏契约。
-
-## 下一批候选
-
-### P2：移除 CRA/IE polyfill 残留
-
-建议先评估，不直接实施。`web-admin/src/index.tsx` 仍加载 `react-app-polyfill/ie9`，但 React 18 已不支持 IE，构建工具也已迁移到 Vite。
-
-只有在明确浏览器支持基线、production build 差异和关键认证回调 smoke 后才移除。若没有可观察的 bundle、兼容或维护收益，不单独立项。
 
 ## Bun package manager 决策
 
@@ -119,7 +112,6 @@ Testing Library change 释放前端依赖锁后可建立新的隔离评估。重
 1. 完成并 closeout 当前企业 TLS 兼容策略与 React 18 Testing Library 升级。
 2. AntD minor 升级后重新评估 `destroyOnClose`；升级前保持当前 11 处销毁语义不变。
 3. 前端依赖锁释放后，基于已缩小的依赖树重新评估 Bun；评估通过前继续使用 Yarn。
-4. 明确浏览器支持基线后决定是否移除 IE polyfill。
 
 ## 维护规则
 

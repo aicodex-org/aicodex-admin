@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 
 interface PackageJson {
+  browserslist?: {production?: string[]};
   dependencies: Record<string, string>;
   devDependencies: Record<string, string>;
   eslintConfig?: unknown;
@@ -38,6 +39,7 @@ const packageJson = JSON.parse(
 const workflow = fs.readFileSync(path.join(repoRoot, ".github/workflows/build.yml"), "utf8");
 const viteConfig = fs.readFileSync(path.join(repoRoot, "web-admin/vite.config.ts"), "utf8");
 const jestConfigPath = path.join(repoRoot, "web-admin/jest.config.cjs");
+const appEntry = fs.readFileSync(path.join(repoRoot, "web-admin/src/index.tsx"), "utf8");
 
 const readJob = (jobName: string): string => {
   const lines = workflow.split(/\r?\n/);
@@ -80,7 +82,7 @@ describe("web-admin CI gates", () => {
     expect(jestConfig.testPathIgnorePatterns).toBeUndefined();
     expect(jestConfig.testEnvironment).toBe("jest-environment-jsdom");
     expect(jestConfig.testEnvironmentOptions).toEqual({url: "http://localhost"});
-    expect(jestConfig.setupFiles).toEqual(["react-app-polyfill/jsdom"]);
+    expect(jestConfig.setupFiles).toBeUndefined();
     expect(jestConfig.setupFilesAfterEnv).toEqual(["<rootDir>/src/setupTests.ts"]);
     expect(jestConfig.transform).toMatchObject({
       "^.+\\.(js|jsx|mjs|cjs|ts|tsx)$": "<rootDir>/config/jest/babelTransform.cjs",
@@ -140,6 +142,18 @@ describe("web-admin CI gates", () => {
     };
     expect(svgMock.default).toBe("test-file-stub.svg");
     expect(svgMock.ReactComponent).toBeDefined();
+  });
+
+  test("keeps the Vite browser boundary free of retired CRA and IE polyfills", () => {
+    expect(appEntry).not.toContain("react-app-polyfill/ie9");
+    expect(appEntry).not.toContain("react-app-polyfill/ie11");
+    expect(appEntry).not.toContain("react-app-polyfill/stable");
+    expect(appEntry).toContain("import \"core-js/es\"");
+    expect(appEntry).toContain("if (!String.prototype.replaceAll)");
+    expect(packageJson.dependencies["react-app-polyfill"]).toBeUndefined();
+    expect(viteConfig).toContain("target: \"es2020\"");
+    expect(packageJson.browserslist?.production).toContain("not dead");
+    expect(packageJson.browserslist?.production?.join(" ")).not.toMatch(/\bie\b/i);
   });
 
   test("declares the standalone Jest dependencies and removes CRA ownership", () => {

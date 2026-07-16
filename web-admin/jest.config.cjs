@@ -8,7 +8,6 @@ module.exports = {
   coverageDirectory: "coverage",
   coverageProvider: "babel",
   coverageReporters: ["json", "text", "lcov", "clover"],
-  setupFiles: ["react-app-polyfill/jsdom"],
   setupFilesAfterEnv: ["<rootDir>/src/setupTests.ts"],
   testEnvironment: "jest-environment-jsdom",
   testEnvironmentOptions: {url: "http://localhost"},
