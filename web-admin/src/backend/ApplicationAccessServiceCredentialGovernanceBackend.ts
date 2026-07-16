@@ -190,6 +190,7 @@ export interface AdminSecureHandoffGrantEnvelope {
   providerType: "admin_owner_provider";
   targetRegistrationId: string;
   targetWorkspaceId: string;
+  targetOrganizationAlias: string;
   expiresAt: string;
   traceMarker: string;
   credentialSuffix?: string;
@@ -621,7 +622,7 @@ export function diagnoseServiceCredentialGovernanceConfig(config: ServiceCredent
   }).then(res => res.json());
 }
 
-export function createInsightAdminAccessPackage(copySafeMetadata: ServiceCredentialGovernanceHandoffPackage): Promise<AdminInsightAccessPackageApiResponse> {
+export function createInsightAdminAccessPackage(copySafeMetadata: ServiceCredentialGovernanceHandoffPackage, targetOrganization: string): Promise<AdminInsightAccessPackageApiResponse> {
   return fetch(`${Setting.ServerUrl}${INSIGHT_ADMIN_PROVIDER_HANDOFF_API_PREFIX}/access-package`, {
     method: "POST",
     credentials: "include",
@@ -629,7 +630,7 @@ export function createInsightAdminAccessPackage(copySafeMetadata: ServiceCredent
       ...getHeaders(),
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({copySafeMetadata}),
+    body: JSON.stringify({copySafeMetadata, targetOrganization}),
   }).then(async res => {
     const payload = await readJsonResponse(res);
     if (isAdminInsightAccessPackageApiResponse(payload)) {

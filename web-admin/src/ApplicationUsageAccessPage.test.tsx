@@ -28,11 +28,14 @@ import {
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
 
+jest.setTimeout(15000);
+
 type LooseMock = {
   (...args: unknown[]): Promise<unknown>;
   mock: {calls: unknown[][]};
   mockReset: () => void;
   mockRejectedValueOnce: (value: unknown) => LooseMock;
+  mockResolvedValue: (value: unknown) => LooseMock;
   mockResolvedValueOnce: (value: unknown) => LooseMock;
 };
 
@@ -42,12 +45,14 @@ const mockSaveServiceCredentialGovernanceConfig = jest.fn() as unknown as LooseM
 const mockDiagnoseServiceCredentialGovernanceConfig = jest.fn() as unknown as LooseMock;
 const mockBuildServiceCredentialGovernanceHandoffPackage = jest.fn();
 const mockCreateInsightAdminAccessPackage = jest.fn() as unknown as LooseMock;
+const mockGetOrganizations = jest.fn() as unknown as LooseMock;
 const mockCopyToClipboard = jest.fn((..._args: unknown[]) => true);
 
 const {fireEvent} = require("@testing-library/react") as {
   fireEvent: {
     change: (element: Element | null, event: unknown) => boolean;
     click: (element: Element | null) => boolean;
+    mouseDown: (element: Element | null) => boolean;
   };
 };
 
@@ -61,6 +66,10 @@ jest.mock("./backend/ApplicationAccessServiceCredentialGovernanceBackend", () =>
     createInsightAdminAccessPackage: (...args: unknown[]) => mockCreateInsightAdminAccessPackage(...args),
   };
 });
+
+jest.mock("./backend/OrganizationBackend", () => ({
+  getOrganizations: (...args: unknown[]) => mockGetOrganizations(...args),
+}));
 
 jest.mock("copy-to-clipboard", () => (...args: unknown[]) => mockCopyToClipboard(...args));
 
@@ -269,6 +278,12 @@ async function clickAndSettleMotion(element: Element): Promise<void> {
   });
 }
 
+async function selectBusinessOrganization(view: ReturnType<typeof render>): Promise<void> {
+  const selector = await view.findByRole("combobox", {name: "目标业务组织"});
+  fireEvent.mouseDown(selector);
+  fireEvent.click(await view.findByText("Business Organization (business-org)"));
+}
+
 describe("ApplicationUsageAccessPage", () => {
   let consoleErrorSpy: {mockRestore: () => void};
 
@@ -279,9 +294,17 @@ describe("ApplicationUsageAccessPage", () => {
     mockSaveServiceCredentialGovernanceConfig.mockReset();
     mockDiagnoseServiceCredentialGovernanceConfig.mockReset();
     mockCreateInsightAdminAccessPackage.mockReset();
+    mockGetOrganizations.mockReset();
     mockBuildServiceCredentialGovernanceHandoffPackage.mockReset();
     mockCopyToClipboard.mockReset();
     mockCopyToClipboard.mockReturnValue(true);
+    mockGetOrganizations.mockResolvedValue({
+      status: "ok",
+      data: [
+        {owner: "admin", name: "built-in", displayName: "Built-in Organization"},
+        {owner: "admin", name: "business-org", displayName: "Business Organization"},
+      ],
+    });
     mockBuildServiceCredentialGovernanceHandoffPackage.mockReturnValue({
       schema: "aicodex.admin.serviceCredentialGovernanceHandoff",
       version: "2026-06-22",
@@ -365,6 +388,7 @@ describe("ApplicationUsageAccessPage", () => {
           providerType: "admin_owner_provider",
           targetRegistrationId: "insight-profile-import-v1",
           targetWorkspaceId: "insight_business_service_access",
+          targetOrganizationAlias: "business-org",
           expiresAt: "2026-06-23T08:14:00Z",
           traceMarker: "adm-trace-test",
           credentialSuffix: "test",
@@ -611,6 +635,7 @@ describe("ApplicationUsageAccessPage", () => {
     mockGetServiceCredentialGovernanceConfig.mockResolvedValueOnce(governanceConfigResponse);
 
     const view = renderPage();
+    await selectBusinessOrganization(view);
     expect(await view.findByText("材料已齐，点击复制 Insight Admin 接入包。")).not.toBeNull();
     expect(view.getByText("交接包操作")).not.toBeNull();
     expect(view.queryByText("交接能力")).toBeNull();
@@ -652,6 +677,7 @@ describe("ApplicationUsageAccessPage", () => {
     clickButtonByText(view, "复制 Insight Admin 接入包");
     expect((await view.findAllByText("Insight Admin 接入包已复制")).length).toBeGreaterThan(0);
     expect(mockCreateInsightAdminAccessPackage).toHaveBeenCalledTimes(1);
+    expect(mockCreateInsightAdminAccessPackage).toHaveBeenCalledWith(expect.any(Object), "business-org");
     const handoffInput = mockBuildServiceCredentialGovernanceHandoffPackage.mock.calls[0]?.[0] as {config?: unknown; status?: unknown};
     expect(handoffInput).toHaveProperty("config");
     expect(handoffInput).toEqual(expect.objectContaining({
@@ -707,6 +733,81 @@ describe("ApplicationUsageAccessPage", () => {
     await clickAndSettleMotion(view.getByText("关闭技术诊断"));
   });
 
+  test("requires an explicit target and locks the selector while generating a package", async() => {
+    mockGetServiceCredentialGovernanceStatus.mockResolvedValueOnce({
+      ...governanceStatusResponse,
+      data: {
+        ...governanceStatusResponse.data,
+        groups: governanceStatusResponse.data.groups.map(group => ({
+          ...group,
+          status: "configured",
+          missingKeys: [],
+          credentialReferenceStatus: group.credentialReferenceStatus === "missing" ? "configured" : group.credentialReferenceStatus,
+          blockedReasons: [],
+        })),
+      },
+    });
+    mockGetServiceCredentialGovernanceConfig.mockResolvedValueOnce(governanceConfigResponse);
+    mockCreateInsightAdminAccessPackage.mockReset();
+    mockCreateInsightAdminAccessPackage.mockResolvedValueOnce(new Promise(() => {}));
+
+    const view = renderPage();
+    const generateButton = view.getByText("复制 Insight Admin 接入包").closest("button") as HTMLButtonElement;
+    expect(generateButton.disabled).toBe(true);
+
+    await selectBusinessOrganization(view);
+    await view.findAllByText("接入包可复制");
+    expect(generateButton.disabled).toBe(false);
+
+    clickButtonByText(view, "复制 Insight Admin 接入包");
+    expect(generateButton.disabled).toBe(true);
+    expect((view.getByRole("combobox", {name: "目标业务组织"}) as HTMLInputElement).disabled).toBe(true);
+  });
+
+  test("blocks access-package generation when no eligible business organization exists", async() => {
+    mockGetOrganizations.mockReset();
+    mockGetOrganizations.mockResolvedValueOnce({
+      status: "ok",
+      data: [{owner: "admin", name: "built-in", displayName: "Built-in Organization"}],
+    });
+    mockGetServiceCredentialGovernanceStatus.mockResolvedValueOnce({
+      ...governanceStatusResponse,
+      data: {
+        ...governanceStatusResponse.data,
+        groups: governanceStatusResponse.data.groups.map(group => ({
+          ...group,
+          status: "configured",
+          missingKeys: [],
+          credentialReferenceStatus: group.credentialReferenceStatus === "missing" ? "configured" : group.credentialReferenceStatus,
+          blockedReasons: [],
+        })),
+      },
+    });
+    mockGetServiceCredentialGovernanceConfig.mockResolvedValueOnce(governanceConfigResponse);
+
+    const view = renderPage();
+    expect(view.getByText("加载可用业务组织...")).not.toBeNull();
+    const selector = await view.findByRole("combobox", {name: "目标业务组织"});
+    const selectorRoot = selector.closest(".ant-select") as HTMLElement | null;
+    expect(selectorRoot?.style.width).toBe("100%");
+    expect(selectorRoot?.style.maxWidth).toBe("360px");
+    expect(await view.findByText("暂无可用于接入包的业务组织")).not.toBeNull();
+    expect((view.getByText("复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(true);
+    expect(mockCreateInsightAdminAccessPackage).not.toHaveBeenCalled();
+  });
+
+  test("shows a retryable target organization error", async() => {
+    mockGetOrganizations.mockReset();
+    mockGetOrganizations.mockRejectedValueOnce(new Error("organization list unavailable"));
+    mockGetServiceCredentialGovernanceStatus.mockResolvedValueOnce(governanceStatusResponse);
+    mockGetServiceCredentialGovernanceConfig.mockResolvedValueOnce(governanceConfigResponse);
+
+    const view = renderPage();
+    expect(await view.findByText("业务组织加载失败，请刷新后重试")).not.toBeNull();
+    expect(view.container.textContent).not.toContain("organization list unavailable");
+    expect((view.getByText("复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(true);
+  });
+
   test("separates a copy-ready package from two runtime capabilities that still need attention", async() => {
     mockGetServiceCredentialGovernanceStatus.mockResolvedValueOnce({
       status: "ok",
@@ -734,6 +835,7 @@ describe("ApplicationUsageAccessPage", () => {
 
     const view = renderPage();
 
+    await selectBusinessOrganization(view);
     expect((await view.findAllByText("接入包可复制")).length).toBeGreaterThan(0);
     expect(view.getByText("2 项扩展能力待配置")).not.toBeNull();
     expect(view.getAllByText("可继续导入；扩展能力配置不影响接入包导入与 Profile 启用").length).toBeGreaterThan(0);
@@ -936,6 +1038,7 @@ describe("ApplicationUsageAccessPage", () => {
 
     const view = renderPage();
     expect(await view.findByText("交接包操作")).not.toBeNull();
+    await selectBusinessOrganization(view);
     expect(view.queryByText("可生成 copy-safe 元数据包，仍需补凭据引用。")).toBeNull();
     expect(view.queryByText("可生成元数据交接包，导入 Insight 后通过 manual/secretRef binding 绑定凭据。")).toBeNull();
     expect(view.container.textContent).not.toContain("copy-safe metadata");
@@ -1031,6 +1134,7 @@ describe("ApplicationUsageAccessPage", () => {
     const view = renderPage();
 
     expect(await view.findByText("交接包操作")).not.toBeNull();
+    await selectBusinessOrganization(view);
     expect((await view.findAllByText("接入包可复制")).length).toBeGreaterThan(0);
     expect(view.getByText("2 项扩展能力待配置")).not.toBeNull();
     expect(view.getAllByText("可继续导入；扩展能力配置不影响接入包导入与 Profile 启用").length).toBeGreaterThan(0);
@@ -1078,6 +1182,7 @@ describe("ApplicationUsageAccessPage", () => {
     const view = renderPage();
 
     expect(await view.findByText("交接包操作")).not.toBeNull();
+    await selectBusinessOrganization(view);
     expect((view.getByText("复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(false);
     clickButtonByText(view, "复制 Insight Admin 接入包");
 
@@ -1166,6 +1271,7 @@ describe("ApplicationUsageAccessPage", () => {
     });
 
     const view = renderPage();
+    await selectBusinessOrganization(view);
     await view.findAllByText("接入包可复制");
     expect(view.queryByLabelText("blocked_group owner evidence")).toBeNull();
     await clickAndSettleMotion(view.getByText("查看技术诊断"));

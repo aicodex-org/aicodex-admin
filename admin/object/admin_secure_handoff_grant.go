@@ -43,24 +43,26 @@ const (
 // AdminSecureHandoffGrantEnvelope 是 operator 可复制的脱敏 grant 摘要。
 // 它不包含 credential material、完整 secretRef、redeem URL 或可还原凭据。
 type AdminSecureHandoffGrantEnvelope struct {
-	Schema                 string                          `json:"schema"`
-	Version                string                          `json:"version"`
-	GrantId                string                          `json:"grantId"`
-	Nonce                  string                          `json:"nonce"`
-	Issuer                 string                          `json:"issuer"`
-	EnvironmentId          string                          `json:"environmentId"`
-	ProviderType           string                          `json:"providerType"`
-	TargetRegistrationId   string                          `json:"targetRegistrationId"`
-	TargetWorkspaceId      string                          `json:"targetWorkspaceId"`
-	ExpiresAt              string                          `json:"expiresAt"`
-	TraceMarker            string                          `json:"traceMarker"`
-	CredentialSuffix       string                          `json:"credentialSuffix,omitempty"`
-	OwnerRegistryReadiness string                          `json:"ownerRegistryReadiness"`
-	OwnerRegistry          AdminSecureHandoffOwnerRegistry `json:"ownerRegistry"`
-	PackageHash            string                          `json:"packageHash"`
-	Audience               string                          `json:"audience"`
-	Status                 string                          `json:"status"`
-	State                  string                          `json:"state"`
+	Schema               string `json:"schema"`
+	Version              string `json:"version"`
+	GrantId              string `json:"grantId"`
+	Nonce                string `json:"nonce"`
+	Issuer               string `json:"issuer"`
+	EnvironmentId        string `json:"environmentId"`
+	ProviderType         string `json:"providerType"`
+	TargetRegistrationId string `json:"targetRegistrationId"`
+	TargetWorkspaceId    string `json:"targetWorkspaceId"`
+	// TargetOrganizationAlias 是 operator 可复制的业务组织别名，不包含凭据或私有连接信息。
+	TargetOrganizationAlias string                          `json:"targetOrganizationAlias"`
+	ExpiresAt               string                          `json:"expiresAt"`
+	TraceMarker             string                          `json:"traceMarker"`
+	CredentialSuffix        string                          `json:"credentialSuffix,omitempty"`
+	OwnerRegistryReadiness  string                          `json:"ownerRegistryReadiness"`
+	OwnerRegistry           AdminSecureHandoffOwnerRegistry `json:"ownerRegistry"`
+	PackageHash             string                          `json:"packageHash"`
+	Audience                string                          `json:"audience"`
+	Status                  string                          `json:"status"`
+	State                   string                          `json:"state"`
 }
 
 type AdminSecureHandoffOwnerRegistry struct {
@@ -78,11 +80,18 @@ type AdminSecureHandoffCreateGrantResult struct {
 type AdminSecureHandoffCreateGrantRequest struct {
 	TargetRegistrationId string `json:"targetRegistrationId"`
 	TargetWorkspaceId    string `json:"targetWorkspaceId"`
-	EnvironmentId        string `json:"environmentId"`
-	ProviderType         string `json:"providerType"`
-	Audience             string `json:"audience"`
-	PackageHash          string `json:"packageHash"`
-	TTLSeconds           int    `json:"ttlSeconds,omitempty"`
+	// TargetOrganization 是运行凭据唯一允许访问的非 built-in Admin 业务组织。
+	TargetOrganization string `json:"targetOrganization"`
+	EnvironmentId      string `json:"environmentId"`
+	ProviderType       string `json:"providerType"`
+	Audience           string `json:"audience"`
+	PackageHash        string `json:"packageHash"`
+	TTLSeconds         int    `json:"ttlSeconds,omitempty"`
+	// 以下字段只由已鉴权的 Admin controller/service 注入，外部 JSON 不能声明运行身份或签发时间。
+	Subject          string    `json:"-"`
+	GrantId          string    `json:"-"`
+	IssuedAt         time.Time `json:"-"`
+	RuntimeExpiresAt time.Time `json:"-"`
 }
 
 type AdminSecureHandoffRedeemGrantRequest struct {
@@ -153,10 +162,12 @@ func (i StaticAdminSecureHandoffCredentialIssuer) IssueAdminSecureHandoffCredent
 type AdminSecureHandoffGrantStore interface {
 	SaveAdminSecureHandoffGrant(grant *AdminSecureHandoffGrantRecord) error
 	GetAdminSecureHandoffGrant(grantId string) (*AdminSecureHandoffGrantRecord, error)
+	// DeliverAdminSecureHandoffGrant 以 issued 状态为 compare-and-set 条件，保证并发兑换只交付一次。
+	DeliverAdminSecureHandoffGrant(grantId string, deliveredAt time.Time, credentialVerifier string) (bool, error)
 }
 
 // AdminSecureHandoffGrant 是 Admin owner secure handoff 的持久化记录。
-// CredentialMaterial 只用于短 TTL server-to-server redeem，任何 operator-facing 响应都不得回显。
+// CredentialMaterial 在 issued 阶段保存一次性交付值，redeem 后只保存不可逆 verifier；任何 operator-facing 响应都不得回显。
 type AdminSecureHandoffGrant struct {
 	GrantId              string    `xorm:"varchar(100) notnull pk" json:"grantId"`
 	Issuer               string    `xorm:"varchar(100)" json:"issuer"`
@@ -209,6 +220,23 @@ func (s *memoryAdminSecureHandoffGrantStore) GetAdminSecureHandoffGrant(grantId 
 	}
 	copy := *grant
 	return &copy, nil
+}
+
+func (s *memoryAdminSecureHandoffGrantStore) DeliverAdminSecureHandoffGrant(grantId string, deliveredAt time.Time, credentialVerifier string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	record, ok := s.grants[grantId]
+	if !ok {
+		return false, errors.New("admin secure handoff grant not found")
+	}
+	if record.Status != AdminSecureHandoffStatusIssued {
+		return false, nil
+	}
+	record.Status = AdminSecureHandoffStatusDelivered
+	record.DeliveredAt = deliveredAt
+	record.CredentialMaterial = credentialVerifier
+	record.ReasonCode = ""
+	return true, nil
 }
 
 type AdminSecureHandoffGrantRecord struct {
@@ -288,14 +316,12 @@ type AdminSecureHandoffGrantService struct {
 	Store  AdminSecureHandoffGrantStore
 	Now    func() time.Time
 	Issuer AdminSecureHandoffCredentialIssuer
+	// UserLookup 允许测试注入；生产默认读取持久化 Admin user 并核对 credential subject。
+	UserLookup func(userId string) (*User, error)
 }
 
 func (s *AdminSecureHandoffGrantService) CreateGrant(request AdminSecureHandoffCreateGrantRequest) (AdminSecureHandoffCreateGrantResult, error) {
 	normalized, err := normalizeAdminSecureHandoffCreateGrantRequest(request)
-	if err != nil {
-		return AdminSecureHandoffCreateGrantResult{}, err
-	}
-	credential, err := s.credentialIssuer().IssueAdminSecureHandoffCredential(normalized)
 	if err != nil {
 		return AdminSecureHandoffCreateGrantResult{}, err
 	}
@@ -307,8 +333,16 @@ func (s *AdminSecureHandoffGrantService) CreateGrant(request AdminSecureHandoffC
 	if ttl > maxAdminSecureHandoffTTLSeconds {
 		ttl = maxAdminSecureHandoffTTLSeconds
 	}
+	grantId := "adm-grant-" + randomHex(12)
+	normalized.GrantId = grantId
+	normalized.IssuedAt = now
+	normalized.RuntimeExpiresAt = now.Add(AdminSecureHandoffProviderRuntimeCredentialTTL)
+	credential, err := s.credentialIssuer().IssueAdminSecureHandoffCredential(normalized)
+	if err != nil {
+		return AdminSecureHandoffCreateGrantResult{}, err
+	}
 	record := &AdminSecureHandoffGrantRecord{
-		GrantId:              "adm-grant-" + randomHex(12),
+		GrantId:              grantId,
 		Issuer:               AdminSecureHandoffIssuer,
 		EnvironmentId:        normalized.EnvironmentId,
 		ProviderType:         normalized.ProviderType,
@@ -327,7 +361,7 @@ func (s *AdminSecureHandoffGrantService) CreateGrant(request AdminSecureHandoffC
 	if err := s.store().SaveAdminSecureHandoffGrant(record); err != nil {
 		return AdminSecureHandoffCreateGrantResult{}, err
 	}
-	return AdminSecureHandoffCreateGrantResult{SecureHandoffGrant: record.envelope()}, nil
+	return AdminSecureHandoffCreateGrantResult{SecureHandoffGrant: record.envelope(normalized.TargetOrganization)}, nil
 }
 
 func (s *AdminSecureHandoffGrantService) RedeemGrant(request AdminSecureHandoffRedeemGrantRequest) (AdminSecureHandoffGrantStatusResponse, error) {
@@ -340,13 +374,33 @@ func (s *AdminSecureHandoffGrantService) RedeemGrant(request AdminSecureHandoffR
 		return response, err
 	}
 	now := s.now()
-	record.Status = AdminSecureHandoffStatusDelivered
-	record.DeliveredAt = now
-	if err := s.store().SaveAdminSecureHandoffGrant(record); err != nil {
+	credentialMaterial := record.CredentialMaterial
+	if strings.TrimSpace(credentialMaterial) == "" {
+		return record.statusResponse(), errors.New("admin secure handoff credential material is unavailable")
+	}
+	persistedCredential := credentialMaterial
+	if IsAdminSecureHandoffProviderRuntimeCredential(credentialMaterial) {
+		persistedCredential = adminSecureHandoffProviderCredentialVerifier(credentialMaterial)
+	}
+	// 状态条件更新是一次性交付的最终边界，避免多个实例同时读到 issued 后重复返回 raw material。
+	delivered, err := s.store().DeliverAdminSecureHandoffGrant(record.GrantId, now, persistedCredential)
+	if err != nil {
 		return AdminSecureHandoffGrantStatusResponse{}, err
 	}
+	if !delivered {
+		latest, latestErr := s.store().GetAdminSecureHandoffGrant(record.GrantId)
+		if latestErr == nil && latest != nil {
+			latest.ReasonCode = AdminSecureHandoffReasonReplayBlocked
+			return latest.statusResponse(), errors.New("admin secure handoff grant replay blocked")
+		}
+		return AdminSecureHandoffGrantStatusResponse{GrantId: record.GrantId, ReasonCode: AdminSecureHandoffReasonReplayBlocked}, errors.New("admin secure handoff grant replay blocked")
+	}
+	record.Status = AdminSecureHandoffStatusDelivered
+	record.DeliveredAt = now
+	record.CredentialMaterial = persistedCredential
+	record.ReasonCode = ""
 	response := record.statusResponse()
-	response.CredentialMaterial = record.CredentialMaterial
+	response.CredentialMaterial = credentialMaterial
 	return response, nil
 }
 
@@ -367,7 +421,9 @@ func (s *AdminSecureHandoffGrantService) ConfirmGrant(request AdminSecureHandoff
 	}
 	record.Status = AdminSecureHandoffStatusConfirmed
 	record.ConfirmedAt = s.now()
-	record.CredentialMaterial = ""
+	if !isAdminSecureHandoffProviderCredentialVerifier(record.CredentialMaterial) {
+		record.CredentialMaterial = ""
+	}
 	record.ReasonCode = ""
 	if err := s.store().SaveAdminSecureHandoffGrant(record); err != nil {
 		return AdminSecureHandoffGrantStatusResponse{}, err
@@ -463,21 +519,22 @@ func (record *AdminSecureHandoffGrantRecord) matchesRedeemRequest(request AdminS
 		record.PackageHash == strings.TrimSpace(request.PackageHash)
 }
 
-func (record *AdminSecureHandoffGrantRecord) envelope() AdminSecureHandoffGrantEnvelope {
+func (record *AdminSecureHandoffGrantRecord) envelope(targetOrganization string) AdminSecureHandoffGrantEnvelope {
 	return AdminSecureHandoffGrantEnvelope{
-		Schema:                 AdminSecureHandoffGrantSchema,
-		Version:                AdminSecureHandoffGrantVersion,
-		GrantId:                record.GrantId,
-		Nonce:                  record.Nonce,
-		Issuer:                 record.Issuer,
-		EnvironmentId:          record.EnvironmentId,
-		ProviderType:           record.ProviderType,
-		TargetRegistrationId:   record.TargetRegistrationId,
-		TargetWorkspaceId:      record.TargetWorkspaceId,
-		ExpiresAt:              record.ExpiresAt.UTC().Format(time.RFC3339),
-		TraceMarker:            record.TraceMarker,
-		CredentialSuffix:       record.CredentialSuffix,
-		OwnerRegistryReadiness: "ready",
+		Schema:                  AdminSecureHandoffGrantSchema,
+		Version:                 AdminSecureHandoffGrantVersion,
+		GrantId:                 record.GrantId,
+		Nonce:                   record.Nonce,
+		Issuer:                  record.Issuer,
+		EnvironmentId:           record.EnvironmentId,
+		ProviderType:            record.ProviderType,
+		TargetRegistrationId:    record.TargetRegistrationId,
+		TargetWorkspaceId:       record.TargetWorkspaceId,
+		TargetOrganizationAlias: sanitizeAdminSecureHandoffText(targetOrganization),
+		ExpiresAt:               record.ExpiresAt.UTC().Format(time.RFC3339),
+		TraceMarker:             record.TraceMarker,
+		CredentialSuffix:        record.CredentialSuffix,
+		OwnerRegistryReadiness:  "ready",
 		OwnerRegistry: AdminSecureHandoffOwnerRegistry{
 			TrustedEndpointAlias:     AdminSecureHandoffTrustedEndpointAlias,
 			Audience:                 record.Audience,
@@ -573,26 +630,42 @@ func (s defaultAdminSecureHandoffGrantStore) GetAdminSecureHandoffGrant(grantId 
 	return adminSecureHandoffGrantRecordFromPersistence(record), nil
 }
 
+func (s defaultAdminSecureHandoffGrantStore) DeliverAdminSecureHandoffGrant(grantId string, deliveredAt time.Time, credentialVerifier string) (bool, error) {
+	if ormer == nil || ormer.Engine == nil {
+		return false, errors.New("admin secure handoff persistent store is unavailable")
+	}
+	result, err := ormer.Engine.
+		Where("grant_id = ? AND status = ?", strings.TrimSpace(grantId), AdminSecureHandoffStatusIssued).
+		Cols("status", "delivered_at", "credential_material", "reason_code").
+		Update(&AdminSecureHandoffGrant{
+			Status:             AdminSecureHandoffStatusDelivered,
+			DeliveredAt:        deliveredAt,
+			CredentialMaterial: credentialVerifier,
+			ReasonCode:         "",
+		})
+	if err != nil {
+		return false, err
+	}
+	return result == 1, nil
+}
+
 func (i defaultAdminSecureHandoffCredentialIssuer) IssueAdminSecureHandoffCredential(request AdminSecureHandoffCreateGrantRequest) (AdminSecureHandoffIssuedCredential, error) {
-	seed := fmt.Sprintf("%s:%s:%s", request.TargetRegistrationId, request.TargetWorkspaceId, randomHex(16))
-	return AdminSecureHandoffIssuedCredential{
-		Material:  "adm-" + randomHex(32),
-		Reference: "admin-owner-provider-credential",
-		Suffix:    safeCredentialSuffix(seed),
-	}, nil
+	return issueAdminSecureHandoffProviderRuntimeCredential(request)
 }
 
 func normalizeAdminSecureHandoffCreateGrantRequest(request AdminSecureHandoffCreateGrantRequest) (AdminSecureHandoffCreateGrantRequest, error) {
 	request.TargetRegistrationId = sanitizeAdminSecureHandoffText(request.TargetRegistrationId)
 	request.TargetWorkspaceId = sanitizeAdminSecureHandoffText(request.TargetWorkspaceId)
+	request.TargetOrganization = sanitizeAdminSecureHandoffText(request.TargetOrganization)
 	request.EnvironmentId = sanitizeAdminSecureHandoffText(request.EnvironmentId)
 	request.ProviderType = sanitizeAdminSecureHandoffText(request.ProviderType)
 	request.Audience = sanitizeAdminSecureHandoffText(request.Audience)
 	request.PackageHash = sanitizeAdminSecureHandoffText(request.PackageHash)
+	request.Subject = sanitizeAdminSecureHandoffText(request.Subject)
 	if request.ProviderType == "" {
 		request.ProviderType = AdminSecureHandoffProviderType
 	}
-	for _, required := range []string{request.TargetRegistrationId, request.TargetWorkspaceId, request.EnvironmentId, request.ProviderType, request.Audience, request.PackageHash} {
+	for _, required := range []string{request.TargetRegistrationId, request.TargetWorkspaceId, request.TargetOrganization, request.EnvironmentId, request.ProviderType, request.Audience, request.PackageHash} {
 		if required == "" {
 			return AdminSecureHandoffCreateGrantRequest{}, errors.New("admin secure handoff grant request is incomplete")
 		}
@@ -600,14 +673,24 @@ func normalizeAdminSecureHandoffCreateGrantRequest(request AdminSecureHandoffCre
 	if request.ProviderType != AdminSecureHandoffProviderType {
 		return AdminSecureHandoffCreateGrantRequest{}, errors.New("admin secure handoff provider type is not supported")
 	}
+	if !isAdminSecureHandoffBusinessTargetOrganization(request.TargetOrganization) {
+		return AdminSecureHandoffCreateGrantRequest{}, errors.New("admin secure handoff target organization is not eligible")
+	}
 	if containsServiceCredentialGovernanceSensitiveMaterial(request.TargetRegistrationId) ||
 		containsServiceCredentialGovernanceSensitiveMaterial(request.TargetWorkspaceId) ||
+		containsServiceCredentialGovernanceSensitiveMaterial(request.TargetOrganization) ||
 		containsServiceCredentialGovernanceSensitiveMaterial(request.EnvironmentId) ||
 		containsServiceCredentialGovernanceSensitiveMaterial(request.Audience) ||
 		containsServiceCredentialGovernanceSensitiveMaterial(request.PackageHash) {
 		return AdminSecureHandoffCreateGrantRequest{}, errors.New("admin secure handoff grant request contains unsupported sensitive material")
 	}
 	return request, nil
+}
+
+// isAdminSecureHandoffBusinessTargetOrganization 阻止把内置签发域当成下游业务授权域。
+func isAdminSecureHandoffBusinessTargetOrganization(organization string) bool {
+	organization = strings.TrimSpace(organization)
+	return organization != "" && organization != "built-in"
 }
 
 func sanitizeAdminSecureHandoffText(value string) string {

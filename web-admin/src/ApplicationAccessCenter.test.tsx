@@ -847,7 +847,7 @@ describe("ApplicationAccessCenter", () => {
     await expect(saveServiceCredentialGovernanceConfig(config)).resolves.toMatchObject({status: "ok"});
     await expect(diagnoseServiceCredentialGovernanceConfig(config)).resolves.toBe(serviceCredentialGovernanceDiagnosticResponse);
     const handoffPackage = buildServiceCredentialGovernanceHandoffPackage({config});
-    await expect(createInsightAdminAccessPackage(handoffPackage)).resolves.toMatchObject({
+    await expect(createInsightAdminAccessPackage(handoffPackage, "business-org")).resolves.toMatchObject({
       status: "ok",
       data: {
         schemaVersion: "aicodex.insight.access-package.v1",
@@ -875,7 +875,7 @@ describe("ApplicationAccessCenter", () => {
     expect(fetchMock.mock.calls[3][0]).toContain("/api/insight-admin-provider/handoff/diagnostics");
     expect(fetchMock.mock.calls[3][1]).toMatchObject({method: "POST", credentials: "include", body: JSON.stringify(config)});
     expect(fetchMock.mock.calls[4][0]).toContain("/api/insight-admin-provider/handoff/access-package");
-    expect(fetchMock.mock.calls[4][1]).toMatchObject({method: "POST", credentials: "include", body: JSON.stringify({copySafeMetadata: handoffPackage})});
+    expect(fetchMock.mock.calls[4][1]).toMatchObject({method: "POST", credentials: "include", body: JSON.stringify({copySafeMetadata: handoffPackage, targetOrganization: "business-org"})});
   });
 
   test("maps Insight Admin access-package HTTP errors to safe diagnostic aliases", async() => {
@@ -890,7 +890,7 @@ describe("ApplicationAccessCenter", () => {
       config: serviceCredentialGovernanceConfigResponse.data as ServiceCredentialGovernanceConfigResponse,
     });
 
-    await expect(createInsightAdminAccessPackage(handoffPackage)).resolves.toMatchObject({
+    await expect(createInsightAdminAccessPackage(handoffPackage, "business-org")).resolves.toMatchObject({
       status: "error",
       msg: "admin_secure_handoff_unauthorized",
     });

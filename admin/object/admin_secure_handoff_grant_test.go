@@ -25,6 +25,7 @@ func TestAdminSecureHandoffGrantLifecycleRedactsEnvelopeAndPreventsReplay(t *tes
 	created, err := service.CreateGrant(AdminSecureHandoffCreateGrantRequest{
 		TargetRegistrationId: "insight-target-60",
 		TargetWorkspaceId:    "workspace-60",
+		TargetOrganization:   "business-org",
 		EnvironmentId:        "test-60",
 		ProviderType:         AdminSecureHandoffProviderType,
 		Audience:             "insight",
@@ -39,6 +40,9 @@ func TestAdminSecureHandoffGrantLifecycleRedactsEnvelopeAndPreventsReplay(t *tes
 	}
 	if created.SecureHandoffGrant.CredentialSuffix != "3456" || created.SecureHandoffGrant.OwnerRegistryReadiness != "ready" {
 		t.Fatalf("created redacted summary = %#v", created.SecureHandoffGrant)
+	}
+	if created.SecureHandoffGrant.TargetOrganizationAlias != "business-org" {
+		t.Fatalf("target organization alias = %q, want business-org", created.SecureHandoffGrant.TargetOrganizationAlias)
 	}
 	if created.SecureHandoffGrant.Nonce == "" {
 		t.Fatalf("created envelope should include one-time nonce: %#v", created.SecureHandoffGrant)
@@ -108,6 +112,28 @@ func TestAdminSecureHandoffGrantLifecycleRedactsEnvelopeAndPreventsReplay(t *tes
 	}
 }
 
+func TestAdminSecureHandoffGrantRequiresBusinessTargetOrganization(t *testing.T) {
+	service := &AdminSecureHandoffGrantService{
+		Store:  NewMemoryAdminSecureHandoffGrantStore(),
+		Issuer: StaticAdminSecureHandoffCredentialIssuer{CredentialMaterial: "redacted-test-material"},
+	}
+	base := AdminSecureHandoffCreateGrantRequest{
+		TargetRegistrationId: "insight-target",
+		TargetWorkspaceId:    "insight-workspace",
+		EnvironmentId:        "admin-runtime",
+		ProviderType:         AdminSecureHandoffProviderType,
+		Audience:             "insight_profile_admin_handoff",
+		PackageHash:          "sha256:target-organization",
+	}
+	for _, targetOrganization := range []string{"", "built-in"} {
+		request := base
+		request.TargetOrganization = targetOrganization
+		if created, err := service.CreateGrant(request); err == nil || created.SecureHandoffGrant.GrantId != "" {
+			t.Fatalf("target organization %q created grant %#v error=%v, want rejection", targetOrganization, created, err)
+		}
+	}
+}
+
 func TestAdminSecureHandoffGrantRejectsMismatchedExpiredAndRevokedRedeem(t *testing.T) {
 	now := time.Date(2026, 7, 9, 2, 0, 0, 0, time.UTC)
 	service := &AdminSecureHandoffGrantService{
@@ -122,6 +148,7 @@ func TestAdminSecureHandoffGrantRejectsMismatchedExpiredAndRevokedRedeem(t *test
 	created, err := service.CreateGrant(AdminSecureHandoffCreateGrantRequest{
 		TargetRegistrationId: "insight-target-60",
 		TargetWorkspaceId:    "workspace-60",
+		TargetOrganization:   "business-org",
 		EnvironmentId:        "test-60",
 		ProviderType:         AdminSecureHandoffProviderType,
 		Audience:             "insight",
@@ -184,6 +211,7 @@ func TestAdminSecureHandoffGrantRejectsMismatchedExpiredAndRevokedRedeem(t *test
 	expiring, err := service.CreateGrant(AdminSecureHandoffCreateGrantRequest{
 		TargetRegistrationId: "insight-target-60",
 		TargetWorkspaceId:    "workspace-60",
+		TargetOrganization:   "business-org",
 		EnvironmentId:        "test-60",
 		ProviderType:         AdminSecureHandoffProviderType,
 		Audience:             "insight",
@@ -223,6 +251,7 @@ func TestAdminSecureHandoffGrantDefaultStorePersistsAcrossServiceInstances(t *te
 	created, err := creator.CreateGrant(AdminSecureHandoffCreateGrantRequest{
 		TargetRegistrationId: "insight-target-persisted",
 		TargetWorkspaceId:    "workspace-persisted",
+		TargetOrganization:   "business-org",
 		EnvironmentId:        "test-persisted",
 		ProviderType:         AdminSecureHandoffProviderType,
 		Audience:             "insight",

@@ -220,6 +220,10 @@ var (
 	getInsightPlatformApiUserMappingByAdminSubjectFunc = object.GetConfirmedPlatformApiUserMapping
 	parseInsightJwtTokenByApplication                  = object.ParseJwtTokenByApplication
 	parseInsightStandardJwtTokenByApplication          = object.ParseStandardJwtTokenByApplication
+	getInsightProviderScopeSourceFunc                  = getInsightProviderScopeSource
+	getInsightProviderOrganizationTreeSourceFunc       = getInsightProviderOrganizationTreeSource
+	getInsightProviderRoleIdsFunc                      = getInsightProviderRoleIds
+	getInsightProviderUserGroupsFunc                   = getInsightProviderUserGroups
 )
 
 // GetInsightCurrentUser 返回 insight 只读消费的当前 admin 用户白名单字段。
@@ -228,30 +232,31 @@ func (c *ApiController) GetInsightCurrentUser() {
 	generatedAt := time.Now().UTC()
 	user, providerErr := c.requireInsightProviderUser(traceId)
 	if providerErr != nil {
-		c.writeInsightProviderError(http.StatusUnauthorized, providerErr, insightProviderAuditEvent{TraceId: traceId, Status: "error", ErrorCode: providerErr.Code})
+		c.writeInsightProviderError(getInsightProviderHTTPStatus(providerErr), providerErr, insightProviderAuditEvent{TraceId: traceId, Status: "error", ErrorCode: providerErr.Code})
 		return
 	}
 
-	roles, err := getInsightProviderRoleIds(user)
+	roles, err := getInsightProviderRoleIdsFunc(user)
 	if err != nil {
 		c.writeInsightProviderError(http.StatusInternalServerError, newInsightProviderError(InsightProviderErrorUnavailable, err.Error(), traceId, ""), insightProviderAuditEvent{TraceId: traceId, AdminUserId: user.GetId(), Organization: user.Owner, Status: "error", ErrorCode: InsightProviderErrorUnavailable})
 		return
 	}
-	groups, err := getInsightProviderUserGroups(user)
+	groups, err := getInsightProviderUserGroupsFunc(user)
 	if err != nil {
 		c.writeInsightProviderError(http.StatusInternalServerError, newInsightProviderError(InsightProviderErrorUnavailable, err.Error(), traceId, ""), insightProviderAuditEvent{TraceId: traceId, AdminUserId: user.GetId(), Organization: user.Owner, Status: "error", ErrorCode: InsightProviderErrorUnavailable})
 		return
 	}
 
-	data, providerErr := buildInsightCurrentUserResponseWithTrace(user, roles, groups, generatedAt, traceId)
+	organization := c.getInsightProviderScopeOrganization(user)
+	data, providerErr := buildInsightCurrentUserResponseForOrganizationWithTrace(user, roles, groups, organization, generatedAt, traceId)
 	if providerErr != nil {
-		c.writeInsightProviderError(getInsightProviderHTTPStatus(providerErr), providerErr, insightProviderAuditEvent{TraceId: traceId, AdminUserId: user.GetId(), Organization: user.Owner, MappingStatus: providerErr.MappingStatus, Status: "error", ErrorCode: providerErr.Code})
+		c.writeInsightProviderError(getInsightProviderHTTPStatus(providerErr), providerErr, insightProviderAuditEvent{TraceId: traceId, AdminUserId: user.GetId(), Organization: organization, MappingStatus: providerErr.MappingStatus, Status: "error", ErrorCode: providerErr.Code})
 		return
 	}
 	c.writeInsightProviderSuccess(traceId, data, insightProviderAuditEvent{
 		TraceId:        traceId,
 		AdminUserId:    user.GetId(),
-		Organization:   user.Owner,
+		Organization:   organization,
 		GroupCount:     len(groups),
 		AdminUserCount: 1,
 		ApiUserCount:   countNonEmptyStrings([]string{data.UsageIdentity.ApiUserId}),
@@ -266,12 +271,12 @@ func (c *ApiController) GetInsightCurrentUserScope() {
 	generatedAt := time.Now().UTC()
 	user, providerErr := c.requireInsightProviderUser(traceId)
 	if providerErr != nil {
-		c.writeInsightProviderError(http.StatusUnauthorized, providerErr, insightProviderAuditEvent{TraceId: traceId, Status: "error", ErrorCode: providerErr.Code})
+		c.writeInsightProviderError(getInsightProviderHTTPStatus(providerErr), providerErr, insightProviderAuditEvent{TraceId: traceId, Status: "error", ErrorCode: providerErr.Code})
 		return
 	}
 
 	organization := c.getInsightProviderScopeOrganization(user)
-	users, groups, platformDepartments, err := getInsightProviderScopeSource(organization)
+	users, groups, platformDepartments, err := getInsightProviderScopeSourceFunc(organization)
 	if err != nil {
 		c.writeInsightProviderError(http.StatusInternalServerError, newInsightProviderError(InsightProviderErrorUnavailable, err.Error(), traceId, ""), insightProviderAuditEvent{TraceId: traceId, AdminUserId: user.GetId(), Organization: organization, Status: "error", ErrorCode: InsightProviderErrorUnavailable})
 		return
@@ -303,32 +308,12 @@ func (c *ApiController) GetInsightCurrentUserOrganizationTree() {
 	traceId := c.getInsightProviderTraceId()
 	user, providerErr := c.requireInsightProviderUser(traceId)
 	if providerErr != nil {
-		c.writeInsightProviderError(http.StatusUnauthorized, providerErr, insightProviderAuditEvent{TraceId: traceId, Status: "error", ErrorCode: providerErr.Code})
+		c.writeInsightProviderError(getInsightProviderHTTPStatus(providerErr), providerErr, insightProviderAuditEvent{TraceId: traceId, Status: "error", ErrorCode: providerErr.Code})
 		return
 	}
 
 	organization := c.getInsightProviderScopeOrganization(user)
-	scope, err := (&object.OrganizationManagementScopeService{}).GetCurrentScope(user, organization, user.IsGlobalAdmin() || user.IsAdmin)
-	if err != nil {
-		c.writeInsightProviderError(http.StatusInternalServerError, newInsightProviderError(InsightProviderErrorUnavailable, err.Error(), traceId, ""), insightProviderAuditEvent{TraceId: traceId, AdminUserId: user.GetId(), Organization: organization, Status: "error", ErrorCode: InsightProviderErrorUnavailable})
-		return
-	}
-	groups, err := object.GetGroups(organization)
-	if err != nil {
-		c.writeInsightProviderError(http.StatusInternalServerError, newInsightProviderError(InsightProviderErrorUnavailable, err.Error(), traceId, ""), insightProviderAuditEvent{TraceId: traceId, AdminUserId: user.GetId(), Organization: organization, Status: "error", ErrorCode: InsightProviderErrorUnavailable})
-		return
-	}
-	platformDepartments, err := object.GetPlatformDepartments(organization)
-	if err != nil {
-		c.writeInsightProviderError(http.StatusInternalServerError, newInsightProviderError(InsightProviderErrorUnavailable, err.Error(), traceId, ""), insightProviderAuditEvent{TraceId: traceId, AdminUserId: user.GetId(), Organization: organization, Status: "error", ErrorCode: InsightProviderErrorUnavailable})
-		return
-	}
-	sourceConnections, err := object.GetSourceConnections(organization)
-	if err != nil {
-		c.writeInsightProviderError(http.StatusInternalServerError, newInsightProviderError(InsightProviderErrorUnavailable, err.Error(), traceId, ""), insightProviderAuditEvent{TraceId: traceId, AdminUserId: user.GetId(), Organization: organization, Status: "error", ErrorCode: InsightProviderErrorUnavailable})
-		return
-	}
-	syncBatches, err := object.GetOrgSyncBatches(organization)
+	scope, groups, platformDepartments, sourceConnections, syncBatches, err := getInsightProviderOrganizationTreeSourceFunc(user, organization, user.IsGlobalAdmin() || user.IsAdmin)
 	if err != nil {
 		c.writeInsightProviderError(http.StatusInternalServerError, newInsightProviderError(InsightProviderErrorUnavailable, err.Error(), traceId, ""), insightProviderAuditEvent{TraceId: traceId, AdminUserId: user.GetId(), Organization: organization, Status: "error", ErrorCode: InsightProviderErrorUnavailable})
 		return
@@ -371,17 +356,29 @@ func buildInsightCurrentUserResponse(user *object.User, roles []string, groups [
 }
 
 func buildInsightCurrentUserResponseWithTrace(user *object.User, roles []string, groups []InsightProviderGroup, generatedAt time.Time, traceId string) (*InsightCurrentUserResponse, *InsightProviderError) {
+	organization := ""
+	if user != nil {
+		organization = user.Owner
+	}
+	return buildInsightCurrentUserResponseForOrganizationWithTrace(user, roles, groups, organization, generatedAt, traceId)
+}
+
+func buildInsightCurrentUserResponseForOrganizationWithTrace(user *object.User, roles []string, groups []InsightProviderGroup, organization string, generatedAt time.Time, traceId string) (*InsightCurrentUserResponse, *InsightProviderError) {
 	usageIdentity, providerErr := resolveInsightUsageIdentityWithTrace(user, traceId)
 	if providerErr != nil {
 		return nil, providerErr
 	}
-	version := buildInsightProviderVersionMetadata(user.Owner, generatedAt, traceId)
+	organization = strings.TrimSpace(organization)
+	if organization == "" && user != nil {
+		organization = user.Owner
+	}
+	version := buildInsightProviderVersionMetadata(organization, generatedAt, traceId)
 	return &InsightCurrentUserResponse{
 		AdminUserId:       user.GetId(),
 		Username:          user.Name,
 		DisplayName:       getInsightUserDisplayName(user),
-		Organization:      user.Owner,
-		ApiOrganizationId: resolveInsightAPIOrganizationID(user),
+		Organization:      organization,
+		ApiOrganizationId: resolveInsightAPIOrganizationIDForOrganization(organization),
 		Roles:             deduplicateStrings(roles),
 		Groups:            groups,
 		UsageIdentity:     usageIdentity,
@@ -1181,6 +1178,30 @@ func getInsightGroupLifecycleStatus(group *object.Group) string {
 }
 
 func (c *ApiController) requireInsightProviderUser(traceId string) (*object.User, *InsightProviderError) {
+	if value := c.Ctx.Input.GetData(object.AdminSecureHandoffProviderCredentialContextKey); value != nil {
+		auth, ok := value.(*object.AdminSecureHandoffProviderCredentialAuth)
+		if !ok || auth == nil || auth.User == nil || auth.Subject == "" || auth.User.GetId() != auth.Subject || strings.TrimSpace(auth.TargetOrganization) == "" || strings.TrimSpace(auth.TargetOrganization) == "built-in" {
+			return nil, newInsightProviderError(InsightProviderErrorUnauthenticated, "invalid secure handoff credential context", traceId, "")
+		}
+		// filter 只证明 exact credential/grant；audience、issuer 和 scope 仍由 typed trust snapshot 最终授权。
+		trustPolicy := getInsightProviderTrustRuntimePolicy()
+		if !isInsightProviderTrustPolicyReady(trustPolicy) {
+			return nil, newInsightProviderError(InsightProviderErrorAuthorizationFailed, "insight provider trust policy is not ready", traceId, "")
+		}
+		if !isInsightAudienceAllowedWithPolicy(trustPolicy, []string{auth.Audience}) {
+			return nil, newInsightProviderError(InsightProviderErrorAuthorizationFailed, "credential audience is not allowed for insight provider", traceId, "")
+		}
+		if !isInsightIssuerAllowedWithPolicy(trustPolicy, auth.Issuer) {
+			return nil, newInsightProviderError(InsightProviderErrorAuthorizationFailed, "credential issuer is not allowed for insight provider", traceId, "")
+		}
+		if !hasInsightRequiredScopesWithPolicy(trustPolicy, auth.Scope) {
+			return nil, newInsightProviderError(InsightProviderErrorAuthorizationFailed, "credential scope is not allowed for insight provider", traceId, "")
+		}
+		if providerErr := validateInsightProviderActiveUser(auth.User, traceId); providerErr != nil {
+			return nil, providerErr
+		}
+		return auth.User, nil
+	}
 	token := getInsightBearerToken(c.Ctx.Request.Header.Get("Authorization"))
 	if token != "" {
 		return getInsightProviderUserByBearerToken(token, c.Ctx.Request.Host, traceId)
@@ -1396,8 +1417,13 @@ func (c *ApiController) getInsightProviderTraceId() string {
 	return util.GenerateId()
 }
 
-// getInsightProviderScopeOrganization 只允许全局管理员显式选择组织；普通用户始终被限制在自身 Owner。
+// getInsightProviderScopeOrganization 对 handoff 请求只接受已验证 credential target，禁止 query 覆盖；其它全局管理员和普通用户保持原有语义。
 func (c *ApiController) getInsightProviderScopeOrganization(user *object.User) string {
+	if value := c.Ctx.Input.GetData(object.AdminSecureHandoffProviderCredentialContextKey); value != nil {
+		if auth, ok := value.(*object.AdminSecureHandoffProviderCredentialAuth); ok && auth != nil {
+			return strings.TrimSpace(auth.TargetOrganization)
+		}
+	}
 	if user != nil && user.IsGlobalAdmin() {
 		if organization := strings.TrimSpace(c.Ctx.Input.Query("organization")); organization != "" {
 			return organization
@@ -1423,6 +1449,31 @@ func getInsightProviderScopeSource(organization string) ([]*object.User, []*obje
 		return nil, nil, nil, err
 	}
 	return users, groups, platformDepartments, nil
+}
+
+// getInsightProviderOrganizationTreeSource 集中组织树的数据读取边界，便于 HTTP 合约测试注入且任一来源失败即停止构建 read model。
+func getInsightProviderOrganizationTreeSource(user *object.User, organization string, isAdmin bool) (*object.OrganizationManagementScope, []*object.Group, []*object.PlatformDepartment, []*object.SourceConnection, []*object.OrgSyncBatch, error) {
+	scope, err := (&object.OrganizationManagementScopeService{}).GetCurrentScope(user, organization, isAdmin)
+	if err != nil {
+		return nil, nil, nil, nil, nil, err
+	}
+	groups, err := object.GetGroups(organization)
+	if err != nil {
+		return nil, nil, nil, nil, nil, err
+	}
+	platformDepartments, err := object.GetPlatformDepartments(organization)
+	if err != nil {
+		return nil, nil, nil, nil, nil, err
+	}
+	sourceConnections, err := object.GetSourceConnections(organization)
+	if err != nil {
+		return nil, nil, nil, nil, nil, err
+	}
+	syncBatches, err := object.GetOrgSyncBatches(organization)
+	if err != nil {
+		return nil, nil, nil, nil, nil, err
+	}
+	return scope, groups, platformDepartments, sourceConnections, syncBatches, nil
 }
 
 func dereferenceInsightPlatformDepartments(values []*object.PlatformDepartment) []object.PlatformDepartment {
@@ -1508,6 +1559,9 @@ func resolveInsightUsageIdentityWithTrace(user *object.User, traceId string) (In
 	if identity.MappingStatus == MappingStatusMissing {
 		return resolveInsightUsageIdentityWithResolver(user, traceId, identity)
 	}
+	if identity.MappingStatus == MappingStatusInvalid || identity.MappingStatus == MappingStatusAmbiguous {
+		return InsightUsageIdentity{}, newInsightProviderError(InsightProviderErrorUnavailable, "usage identity mapping is not deterministic", traceId, identity.MappingStatus)
+	}
 	return withInsightSourceIdentity(identity, user), nil
 }
 
@@ -1521,7 +1575,7 @@ func resolveInsightUsageIdentityWithResolver(user *object.User, traceId string, 
 	resolver, runtimeConfig := newInsightUsageIdentityResolverFromConfig()
 	if resolver == nil || !resolver.Enabled() {
 		if runtimeConfig.Resolution.SavedPolicy {
-			return InsightUsageIdentity{}, newInsightProviderError(InsightProviderErrorUnavailable, "usage identity resolver unavailable", traceId, MappingStatusMissing)
+			return withInsightSourceIdentity(fallback, user), nil
 		}
 		return withInsightSourceIdentity(fallback, user), nil
 	}
@@ -1529,6 +1583,9 @@ func resolveInsightUsageIdentityWithResolver(user *object.User, traceId string, 
 	if providerErr != nil {
 		if providerErr.MappingStatus == "" {
 			providerErr.MappingStatus = MappingStatusMissing
+		}
+		if providerErr.MappingStatus == MappingStatusMissing && providerErr.Code == InsightProviderErrorUnavailable {
+			return withInsightSourceIdentity(fallback, user), nil
 		}
 		return InsightUsageIdentity{}, providerErr
 	}

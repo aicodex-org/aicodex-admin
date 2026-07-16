@@ -3,6 +3,7 @@ package controllers
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -17,6 +18,7 @@ func TestCreateInsightAdminProviderAccessPackageReturnsRedactedGrantEnvelope(t *
 	copySafeMetadata := json.RawMessage(`{"schema":"aicodex.admin.serviceCredentialGovernanceHandoff","version":"2026-06-22","generatedAt":"2026-07-09T01:00:00Z","targetConsumerAlias":"insight_business_service_access","adminOwnerAlias":"admin_identity_application_access","insightProfile":{"packageType":"copy_safe_handoff","targetConsumerAlias":"insight_business_service_access","adminOwnerAlias":"admin_identity_application_access"}}`)
 	body, _ := json.Marshal(map[string]interface{}{
 		"copySafeMetadata":     copySafeMetadata,
+		"targetOrganization":   "business-org",
 		"targetRegistrationId": "insight-registration-1",
 		"targetWorkspaceId":    "insight-workspace-1",
 		"environmentId":        "admin-runtime-1",
@@ -48,6 +50,7 @@ func TestCreateInsightAdminProviderAccessPackageReturnsRedactedGrantEnvelope(t *
 	if accessPackage.SecureHandoffGrant.Schema != object.AdminSecureHandoffGrantSchema ||
 		accessPackage.SecureHandoffGrant.Status != object.AdminSecureHandoffStatusIssued ||
 		accessPackage.SecureHandoffGrant.TargetRegistrationId != "insight-registration-1" ||
+		accessPackage.SecureHandoffGrant.TargetOrganizationAlias != "business-org" ||
 		accessPackage.SecureHandoffGrant.PackageHash == "" ||
 		accessPackage.SecureHandoffGrant.Nonce == "" {
 		t.Fatalf("secure grant envelope mismatch: %#v", accessPackage.SecureHandoffGrant)
@@ -63,6 +66,7 @@ func TestCreateInsightAdminProviderAccessPackageReturnsRedactedGrantEnvelope(t *
 }
 
 func TestCreateInsightAdminProviderAccessPackageDoesNotRequireLegacyResolverToken(t *testing.T) {
+	withAdminSecureHandoffTargetOrganizationLookup(t)
 	t.Setenv("insightUsageIdentityResolverToken", "")
 	store := object.NewMemoryAdminSecureHandoffGrantStore()
 	now := time.Date(2026, 7, 9, 2, 0, 0, 0, time.UTC)
@@ -73,8 +77,9 @@ func TestCreateInsightAdminProviderAccessPackageDoesNotRequireLegacyResolverToke
 	copySafeMetadata := json.RawMessage(`{"schema":"aicodex.admin.serviceCredentialGovernanceHandoff","version":"2026-06-22","generatedAt":"2026-07-09T02:00:00Z","targetConsumerAlias":"insight_business_service_access","adminOwnerAlias":"admin_identity_application_access","insightProfile":{"packageType":"copy_safe_handoff","targetConsumerAlias":"insight_business_service_access","adminOwnerAlias":"admin_identity_application_access","credentialReferenceStatus":"missing"}}`)
 
 	accessPackage, err := buildInsightAdminAccessPackage(insightAdminAccessPackageCreateRequest{
-		CopySafeMetadata: copySafeMetadata,
-	}, service)
+		CopySafeMetadata:   copySafeMetadata,
+		TargetOrganization: "business-org",
+	}, service, "built-in/admin")
 	if err != nil {
 		t.Fatalf("buildInsightAdminAccessPackage() error = %v, want generated grant without legacy resolver token", err)
 	}
@@ -105,6 +110,45 @@ func TestCreateInsightAdminProviderAccessPackageDoesNotRequireLegacyResolverToke
 	}
 }
 
+func TestCreateInsightAdminProviderAccessPackageRejectsInvalidTargetOrganization(t *testing.T) {
+	withAdminSecureHandoffGrantTestService(t)
+	copySafeMetadata := json.RawMessage(`{"schema":"aicodex.admin.serviceCredentialGovernanceHandoff","version":"2026-06-22"}`)
+	originalLookup := getAdminSecureHandoffTargetOrganizationFunc
+	lookupCalls := 0
+	getAdminSecureHandoffTargetOrganizationFunc = func(name string) (*object.Organization, error) {
+		lookupCalls++
+		switch name {
+		case "missing-org":
+			return nil, nil
+		case "lookup-error":
+			return nil, errors.New("organization store unavailable")
+		default:
+			return &object.Organization{Owner: "admin", Name: name}, nil
+		}
+	}
+	t.Cleanup(func() { getAdminSecureHandoffTargetOrganizationFunc = originalLookup })
+
+	for _, targetOrganization := range []string{"", "built-in", "missing-org", "lookup-error"} {
+		t.Run(targetOrganization, func(t *testing.T) {
+			body, _ := json.Marshal(map[string]interface{}{
+				"copySafeMetadata":   copySafeMetadata,
+				"targetOrganization": targetOrganization,
+			})
+			controller := newAdminSecureHandoffGrantTestController("POST", "/api/insight-admin-provider/handoff/access-package", body, "CreateInsightAdminProviderAccessPackage")
+			controller.Ctx.Input.SetData("currentUserId", "built-in/admin")
+			controller.CreateInsightAdminProviderAccessPackage()
+			resp, ok := controller.Data["json"].(*Response)
+			if !ok || resp.Status != "error" {
+				t.Fatalf("target organization %q response = %#v, want error", targetOrganization, controller.Data["json"])
+			}
+			assertAdminSecureHandoffControllerNoMaterial(t, resp, "organization store unavailable")
+		})
+	}
+	if lookupCalls != 2 {
+		t.Fatalf("organization lookup calls = %d, want only missing/error targets", lookupCalls)
+	}
+}
+
 func TestCreateInsightAdminProviderAccessPackageRejectsUnsafeMetadata(t *testing.T) {
 	withAdminSecureHandoffGrantTestService(t)
 	body, _ := json.Marshal(map[string]interface{}{
@@ -126,6 +170,7 @@ func TestAdminSecureHandoffGrantControllerLifecycleReturnsMaterialOnlyOnRedeem(t
 	createBody, _ := json.Marshal(object.AdminSecureHandoffCreateGrantRequest{
 		TargetRegistrationId: "insight-registration-2",
 		TargetWorkspaceId:    "insight-workspace-2",
+		TargetOrganization:   "business-org",
 		EnvironmentId:        "admin-runtime-2",
 		ProviderType:         object.AdminSecureHandoffProviderType,
 		Audience:             "insight-profile-import",
@@ -201,6 +246,7 @@ func TestAdminSecureHandoffGrantControllerLifecycleReturnsMaterialOnlyOnRedeem(t
 
 func withAdminSecureHandoffGrantTestService(t *testing.T) {
 	t.Helper()
+	withAdminSecureHandoffTargetOrganizationLookup(t)
 	store := object.NewMemoryAdminSecureHandoffGrantStore()
 	now := time.Date(2026, 7, 9, 1, 0, 0, 0, time.UTC)
 	originalFactory := adminSecureHandoffGrantServiceFactory
@@ -216,6 +262,20 @@ func withAdminSecureHandoffGrantTestService(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		adminSecureHandoffGrantServiceFactory = originalFactory
+	})
+}
+
+func withAdminSecureHandoffTargetOrganizationLookup(t *testing.T) {
+	t.Helper()
+	originalLookup := getAdminSecureHandoffTargetOrganizationFunc
+	getAdminSecureHandoffTargetOrganizationFunc = func(name string) (*object.Organization, error) {
+		if name != "business-org" {
+			return nil, nil
+		}
+		return &object.Organization{Owner: "admin", Name: name, DisplayName: "Business Organization"}, nil
+	}
+	t.Cleanup(func() {
+		getAdminSecureHandoffTargetOrganizationFunc = originalLookup
 	})
 }
 

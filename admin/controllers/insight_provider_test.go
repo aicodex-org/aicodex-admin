@@ -175,7 +175,7 @@ func TestInsightCurrentUserLocalMappingDoesNotCallSavedResolver(t *testing.T) {
 	}
 }
 
-func TestInsightCurrentUserSavedResolverDisabledFailsClosedBeforeOutbound(t *testing.T) {
+func TestInsightCurrentUserSavedResolverDisabledReturnsMissingDiagnostic(t *testing.T) {
 	generatedAt := time.Date(2026, 6, 22, 8, 0, 0, 0, time.UTC)
 	calls := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -208,18 +208,18 @@ func TestInsightCurrentUserSavedResolverDisabledFailsClosedBeforeOutbound(t *tes
 		},
 	}, nil, nil, generatedAt, "trace-current-user-disabled")
 
-	if got != nil {
-		t.Fatalf("response = %+v, want fail-closed error", got)
+	if providerErr != nil || got == nil {
+		t.Fatalf("response = %+v error=%+v, want successful missing diagnostic", got, providerErr)
 	}
-	if providerErr == nil || providerErr.Code != InsightProviderErrorUnavailable || providerErr.MappingStatus != MappingStatusMissing {
-		t.Fatalf("providerErr = %+v, want unavailable missing fail-closed", providerErr)
+	if got.UsageIdentity.MappingStatus != MappingStatusMissing || got.UsageIdentity.ApiUserId != "" {
+		t.Fatalf("usage identity = %+v, want missing without api user id", got.UsageIdentity)
 	}
 	if calls != 0 {
 		t.Fatalf("resolver calls = %d, want 0", calls)
 	}
 }
 
-func TestInsightUsageIdentityResolverFailClosedUsesSingleResolutionSnapshot(t *testing.T) {
+func TestInsightUsageIdentityResolverMissingDiagnosticUsesSingleResolutionSnapshot(t *testing.T) {
 	original := insightUsageIdentityResolverRuntimePolicyConfigLoader
 	configLoads := 0
 	insightUsageIdentityResolverRuntimePolicyConfigLoader = func() (*object.ServiceCredentialGovernanceConfigResponse, error) {
@@ -251,15 +251,15 @@ func TestInsightUsageIdentityResolverFailClosedUsesSingleResolutionSnapshot(t *t
 		},
 	}, "trace-resolver-snapshot", InsightUsageIdentity{MappingStatus: MappingStatusMissing})
 
-	if identity.MappingStatus != "" || providerErr == nil || providerErr.Code != InsightProviderErrorUnavailable {
-		t.Fatalf("saved disabled snapshot must fail closed: identity=%#v error=%#v", identity, providerErr)
+	if identity.MappingStatus != MappingStatusMissing || providerErr != nil {
+		t.Fatalf("saved disabled snapshot must return missing diagnostic: identity=%#v error=%#v", identity, providerErr)
 	}
 	if configLoads != 1 {
 		t.Fatalf("resolver config loads = %d, want exactly one resolution snapshot", configLoads)
 	}
 }
 
-func TestInsightCurrentUserSavedResolverExternalReferenceFailsClosedBeforeOutbound(t *testing.T) {
+func TestInsightCurrentUserSavedResolverExternalReferenceReturnsMissingDiagnostic(t *testing.T) {
 	generatedAt := time.Date(2026, 6, 22, 8, 0, 0, 0, time.UTC)
 	calls := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -293,11 +293,8 @@ func TestInsightCurrentUserSavedResolverExternalReferenceFailsClosedBeforeOutbou
 		},
 	}, nil, nil, generatedAt, "trace-current-user-external")
 
-	if got != nil {
-		t.Fatalf("response = %+v, want fail-closed error", got)
-	}
-	if providerErr == nil || providerErr.Code != InsightProviderErrorUnavailable || providerErr.MappingStatus != MappingStatusMissing {
-		t.Fatalf("providerErr = %+v, want unresolved reference fail-closed", providerErr)
+	if providerErr != nil || got == nil || got.UsageIdentity.MappingStatus != MappingStatusMissing || got.UsageIdentity.ApiUserId != "" {
+		t.Fatalf("response = %+v error=%+v, want unresolved reference missing diagnostic", got, providerErr)
 	}
 	if calls != 0 {
 		t.Fatalf("resolver calls = %d, want 0", calls)
@@ -356,7 +353,18 @@ func TestInsightCurrentUserResolverInvalidFailsClosed(t *testing.T) {
 	}
 }
 
-func TestInsightCurrentUserResolverProtocolErrorFailsClosed(t *testing.T) {
+func TestInsightCurrentUserLocalInvalidMappingFailsClosed(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 22, 8, 0, 0, 0, time.UTC)
+	user := &object.User{Owner: "org-a", Name: "invalid-local", Id: "org-a/invalid-local"}
+	installInsightPlatformApiMappingFixtures(t, "org-a", "", map[string]string{user.GetId(): "not-a-positive-integer"})
+
+	got, providerErr := buildInsightCurrentUserResponseWithTrace(user, nil, nil, generatedAt, "trace-current-user-local-invalid")
+	if got != nil || providerErr == nil || providerErr.Code != InsightProviderErrorUnavailable || providerErr.MappingStatus != MappingStatusInvalid {
+		t.Fatalf("response = %+v error=%+v, want local invalid mapping fail-closed", got, providerErr)
+	}
+}
+
+func TestInsightCurrentUserResolverUnavailableReturnsMissingDiagnostic(t *testing.T) {
 	generatedAt := time.Date(2026, 6, 22, 8, 0, 0, 0, time.UTC)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadGateway)
@@ -392,11 +400,8 @@ func TestInsightCurrentUserResolverProtocolErrorFailsClosed(t *testing.T) {
 		},
 	}, nil, nil, generatedAt, "trace-current-user-protocol")
 
-	if got != nil {
-		t.Fatalf("response = %+v, want fail-closed error", got)
-	}
-	if providerErr == nil || providerErr.Code != InsightProviderErrorUnavailable || providerErr.MappingStatus != MappingStatusMissing {
-		t.Fatalf("providerErr = %+v, want unavailable missing fail-closed", providerErr)
+	if providerErr != nil || got == nil || got.UsageIdentity.MappingStatus != MappingStatusMissing || got.UsageIdentity.ApiUserId != "" {
+		t.Fatalf("response = %+v error=%+v, want unavailable missing diagnostic", got, providerErr)
 	}
 }
 
@@ -2022,6 +2027,16 @@ func TestInsightOrganizationTreeReturnsEmptyForUserWithoutManagedGroups(t *testi
 	got := buildInsightOrganizationTree(currentUser, groups)
 	if len(got) != 0 {
 		t.Fatalf("visible nodes = %+v, want empty tree for user without managed groups", got)
+	}
+}
+
+func TestInsightProviderOrganizationTreeSourceRejectsMissingOrganization(t *testing.T) {
+	scope, groups, departments, connections, batches, err := getInsightProviderOrganizationTreeSource(nil, "", false)
+	if err == nil {
+		t.Fatal("organization-tree source without a trusted organization must fail closed")
+	}
+	if scope != nil || groups != nil || departments != nil || connections != nil || batches != nil {
+		t.Fatalf("organization-tree source results = %#v %#v %#v %#v %#v, want all nil", scope, groups, departments, connections, batches)
 	}
 }
 

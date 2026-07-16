@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"git.leagsoft.com/aicodex/aicodex-admin/object"
+	"git.leagsoft.com/aicodex/aicodex-admin/util"
 )
 
 const (
@@ -22,8 +23,13 @@ var adminSecureHandoffGrantServiceFactory = func() *object.AdminSecureHandoffGra
 	return &object.AdminSecureHandoffGrantService{}
 }
 
+var getAdminSecureHandoffTargetOrganizationFunc = func(name string) (*object.Organization, error) {
+	return object.GetOrganization(util.GetId("admin", name))
+}
+
 type insightAdminAccessPackageCreateRequest struct {
 	CopySafeMetadata     json.RawMessage `json:"copySafeMetadata"`
+	TargetOrganization   string          `json:"targetOrganization"`
 	TargetRegistrationId string          `json:"targetRegistrationId,omitempty"`
 	TargetWorkspaceId    string          `json:"targetWorkspaceId,omitempty"`
 	EnvironmentId        string          `json:"environmentId,omitempty"`
@@ -86,7 +92,7 @@ func (c *ApiController) CreateInsightAdminProviderAccessPackage() {
 		c.ResponseError(err.Error())
 		return
 	}
-	accessPackage, err := buildInsightAdminAccessPackage(request, adminSecureHandoffGrantServiceFactory())
+	accessPackage, err := buildInsightAdminAccessPackage(request, adminSecureHandoffGrantServiceFactory(), c.GetSessionUsername())
 	if err != nil {
 		c.ResponseError(err.Error())
 		return
@@ -104,6 +110,13 @@ func (c *ApiController) CreateInsightAdminProviderSecureHandoffGrant() {
 		c.ResponseError(err.Error())
 		return
 	}
+	request.Subject = c.GetSessionUsername()
+	targetOrganization, err := validateAdminSecureHandoffTargetOrganization(request.TargetOrganization)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	request.TargetOrganization = targetOrganization
 	result, err := adminSecureHandoffGrantServiceFactory().CreateGrant(request)
 	if err != nil {
 		c.ResponseError(err.Error())
@@ -190,20 +203,26 @@ func (c *ApiController) GetInsightAdminProviderSecureHandoffGrantStatus() {
 	c.ResponseOk(response)
 }
 
-func buildInsightAdminAccessPackage(request insightAdminAccessPackageCreateRequest, service *object.AdminSecureHandoffGrantService) (insightAdminAccessPackageResponse, error) {
+func buildInsightAdminAccessPackage(request insightAdminAccessPackageCreateRequest, service *object.AdminSecureHandoffGrantService, subject string) (insightAdminAccessPackageResponse, error) {
 	copySafeMetadata, err := normalizeInsightAdminAccessPackageCopySafeMetadata(request.CopySafeMetadata)
 	if err != nil {
 		return insightAdminAccessPackageResponse{}, err
 	}
 	metadataSummary := insightAdminAccessPackageMetadataSummary{}
 	_ = json.Unmarshal(copySafeMetadata, &metadataSummary)
+	targetOrganization, err := validateAdminSecureHandoffTargetOrganization(request.TargetOrganization)
+	if err != nil {
+		return insightAdminAccessPackageResponse{}, err
+	}
 	targetConsumerAlias := firstNonEmptyInsightString(metadataSummary.TargetConsumerAlias, metadataSummary.InsightProfile.TargetConsumerAlias, "insight_business_service_access")
 	adminOwnerAlias := firstNonEmptyInsightString(metadataSummary.AdminOwnerAlias, metadataSummary.InsightProfile.AdminOwnerAlias, "admin_identity_application_access")
 	generatedAt := firstNonEmptyInsightString(metadataSummary.GeneratedAt, time.Now().UTC().Format(time.RFC3339))
-	packageHash := hashInsightAdminAccessPackageMetadata(copySafeMetadata)
+	packageHash := hashInsightAdminAccessPackageMetadata(copySafeMetadata, targetOrganization)
 	grantResult, err := service.CreateGrant(object.AdminSecureHandoffCreateGrantRequest{
+		Subject:              strings.TrimSpace(subject),
 		TargetRegistrationId: firstNonEmptyInsightString(request.TargetRegistrationId, "insight-profile-import-v1"),
 		TargetWorkspaceId:    firstNonEmptyInsightString(request.TargetWorkspaceId, targetConsumerAlias),
+		TargetOrganization:   targetOrganization,
 		EnvironmentId:        firstNonEmptyInsightString(request.EnvironmentId, "admin-runtime"),
 		ProviderType:         object.AdminSecureHandoffProviderType,
 		Audience:             firstNonEmptyInsightString(request.Audience, "insight_profile_admin_handoff"),
@@ -249,9 +268,30 @@ func normalizeInsightAdminAccessPackageCopySafeMetadata(metadata json.RawMessage
 	return json.RawMessage(compacted), nil
 }
 
-func hashInsightAdminAccessPackageMetadata(metadata json.RawMessage) string {
-	sum := sha256.Sum256(metadata)
-	return "sha256:" + hex.EncodeToString(sum[:])
+func hashInsightAdminAccessPackageMetadata(metadata json.RawMessage, targetOrganization string) string {
+	// NUL 分隔避免 metadata 尾部与组织前缀产生拼接歧义，使同一 copy-safe 包只能绑定一个业务组织。
+	hasher := sha256.New()
+	_, _ = hasher.Write(metadata)
+	_, _ = hasher.Write([]byte{0})
+	_, _ = hasher.Write([]byte(targetOrganization))
+	sum := hasher.Sum(nil)
+	return "sha256:" + hex.EncodeToString(sum)
+}
+
+// validateAdminSecureHandoffTargetOrganization 重新读取 Admin 组织，避免只信任 UI 筛选或自由输入的组织名。
+func validateAdminSecureHandoffTargetOrganization(value string) (string, error) {
+	targetOrganization := strings.TrimSpace(value)
+	if targetOrganization == "" || targetOrganization == "built-in" {
+		return "", errors.New("admin secure handoff target organization is required")
+	}
+	organization, err := getAdminSecureHandoffTargetOrganizationFunc(targetOrganization)
+	if err != nil {
+		return "", errors.New("admin secure handoff target organization is unavailable")
+	}
+	if organization == nil || organization.Owner != "admin" || organization.Name != targetOrganization {
+		return "", errors.New("admin secure handoff target organization is not eligible")
+	}
+	return targetOrganization, nil
 }
 
 func buildAdminSecureHandoffGrantRedeemResponse(response object.AdminSecureHandoffGrantStatusResponse) adminSecureHandoffGrantRedeemResponse {

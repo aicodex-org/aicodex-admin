@@ -17,13 +17,19 @@ package routers
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"git.leagsoft.com/aicodex/aicodex-admin/mcpself"
 	"git.leagsoft.com/aicodex/aicodex-admin/object"
 	"git.leagsoft.com/aicodex/aicodex-admin/util"
+	"github.com/beego/beego/v2/core/logs"
 	"github.com/beego/beego/v2/server/web/context"
 )
+
+var authenticateAdminSecureHandoffProviderCredential = func(material string) (*object.AdminSecureHandoffProviderCredentialAuth, *object.AdminSecureHandoffProviderCredentialError) {
+	return (&object.AdminSecureHandoffGrantService{}).AuthenticateProviderCredential(material)
+}
 
 func AutoSigninFilter(ctx *context.Context) {
 	urlPath := ctx.Request.URL.Path
@@ -53,6 +59,18 @@ func AutoSigninFilter(ctx *context.Context) {
 	}
 
 	if accessToken != "" {
+		if isInsightAdminProviderPath(urlPath) {
+			if object.IsAdminSecureHandoffProviderRuntimeCredential(accessToken) {
+				auth, credentialErr := authenticateAdminSecureHandoffProviderCredential(accessToken)
+				if credentialErr != nil {
+					writeInsightAdminProviderFilterError(ctx, credentialErr.Code)
+					return
+				}
+				ctx.Input.SetData(object.AdminSecureHandoffProviderCredentialContextKey, auth)
+			}
+			// Provider JWTs are verified by the Provider controller instead of the generic OAuth token lookup.
+			return
+		}
 		if object.IsOrganizationSyncApiKeySecret(accessToken) {
 			auth, err := object.AuthenticateOrganizationSyncApiKey(accessToken, util.GetClientIpFromRequest(ctx.Request), ctx.Request.UserAgent())
 			if err != nil {
@@ -125,4 +143,51 @@ func AutoSigninFilter(ctx *context.Context) {
 
 		setSessionUser(ctx, userId)
 	}
+}
+
+func isInsightAdminProviderPath(path string) bool {
+	switch path {
+	case "/api/admin-provider/insight/v1/current-user",
+		"/api/admin-provider/insight/v1/current-user/scope",
+		"/api/admin-provider/insight/v1/current-user/organization-tree":
+		return true
+	default:
+		return false
+	}
+}
+
+func writeInsightAdminProviderFilterError(ctx *context.Context, code string) {
+	status := http.StatusUnauthorized
+	message := "invalid provider credential"
+	if code == object.AdminSecureHandoffProviderCredentialAuthorizationFailed {
+		status = http.StatusForbidden
+		message = "provider credential is not authorized"
+	}
+	traceId := ""
+	for _, header := range []string{"X-Trace-Id", "X-Request-Id"} {
+		if traceId = strings.TrimSpace(ctx.Request.Header.Get(header)); traceId != "" {
+			break
+		}
+	}
+	if traceId == "" {
+		traceId = util.GenerateId()
+	}
+	type providerFilterError struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+		TraceId string `json:"traceId,omitempty"`
+	}
+	type providerFilterEnvelope struct {
+		Status  string               `json:"status"`
+		TraceId string               `json:"traceId"`
+		Error   *providerFilterError `json:"error"`
+	}
+	ctx.Output.SetStatus(status)
+	_ = ctx.Output.JSON(providerFilterEnvelope{
+		Status:  "error",
+		TraceId: traceId,
+		Error:   &providerFilterError{Code: code, Message: message, TraceId: traceId},
+	}, true, false)
+	// filter拒绝不会进入controller audit；这里保持同一稳定字段集合，并只记录零计数和错误分类。
+	logs.Info("insight_admin_provider_audit traceId=%s adminUserId= organization= scopeType= groupCount=0 nodeCount=0 adminUserCount=0 apiUserCount=0 mappingStatus= readModelSource= orgVersion= freshness= status=error errorCode=%s", traceId, code)
 }
