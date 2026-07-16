@@ -24,6 +24,7 @@ type PageHarness = SyncerEditPage & {
   getCerts: (owner: string) => void;
   getSyncer: () => void;
   submitSyncerEdit: (exitAfterSave: boolean) => void;
+  updateSyncerTlsPolicy: (value: "system" | "custom-ca" | "legacy-insecure") => void;
 };
 
 jest.mock("./common/Editor", () => function EditorMock() {
@@ -120,7 +121,7 @@ function createPage(options: {mode?: "add" | "edit"; syncer?: Record<string, unk
       {name: "engineering", displayName: "Engineering"},
       {name: "platform", displayName: "Platform"},
     ],
-    certs: [{name: "syncer-cert"}],
+    certs: [{name: "syncer-cert", type: "SSL"}],
     mode: options.mode ?? "edit",
   };
   page.setState = ((patch: any, callback?: () => void) => {
@@ -262,7 +263,7 @@ test("keeps type switching defaults and never tests a connection automatically",
 });
 
 test("loads an add-mode draft from navigation state without reading or writing the backend", () => {
-  const draft = {...baseSyncer, name: "directory-draft"};
+  const draft = {...baseSyncer, name: "directory-draft", type: "Active Directory", tlsPolicy: undefined};
   const page = createPage({mode: "add", locationSyncer: draft});
   const getSyncer = jest.spyOn(SyncerBackend, "getSyncer");
   const addSyncer = jest.spyOn(SyncerBackend, "addSyncer");
@@ -270,10 +271,100 @@ test("loads an add-mode draft from navigation state without reading or writing t
 
   page.getSyncer();
 
-  expect(page.state.syncer).toEqual(draft);
+  expect(page.state.syncer).toEqual({...draft, tlsPolicy: "system"});
   expect(getCerts).toHaveBeenCalledWith("engineering");
   expect(getSyncer).not.toHaveBeenCalled();
   expect(addSyncer).not.toHaveBeenCalled();
+});
+
+test("normalizes loaded Active Directory absence to legacy_unmigrated without changing other Syncers", async() => {
+  const activeDirectory = createPage();
+  jest.spyOn(SyncerBackend, "getSyncer").mockResolvedValueOnce({
+    status: "ok",
+    data: {...baseSyncer, type: "Active Directory", tlsPolicy: undefined},
+  } as any);
+  jest.spyOn(activeDirectory, "getCerts").mockImplementation(() => undefined);
+  activeDirectory.getSyncer();
+  await flushPromises();
+  expect(activeDirectory.state.syncer.tlsPolicy).toBe("");
+
+  const database = createPage();
+  jest.spyOn(SyncerBackend, "getSyncer").mockResolvedValueOnce({status: "ok", data: {...baseSyncer}} as any);
+  jest.spyOn(database, "getCerts").mockImplementation(() => undefined);
+  database.getSyncer();
+  await flushPromises();
+  expect(database.state.syncer.tlsPolicy).toBeUndefined();
+});
+
+([
+  ["Active Directory", true],
+  ["Database", false],
+  ["Azure AD", false],
+] as Array<[string, boolean]>).forEach(([type, visible]) => {
+  test(`shows enterprise TLS controls for ${type}: ${visible}`, () => {
+    const page = createPage({syncer: {type, tlsPolicy: "system"}});
+    page.state.activeTabKey = "connection";
+    const view = render(<>{page.renderSyncerForm()}</>);
+
+    expect(view.queryByText("TLS policy") !== null).toBe(visible);
+  });
+});
+
+test("keeps legacy Active Directory policy empty on unrelated save", async() => {
+  const page = createPage({syncer: {type: "Active Directory", tlsPolicy: "", cert: ""}});
+  const updateSyncer = jest.spyOn(SyncerBackend, "updateSyncer").mockResolvedValue({status: "ok"} as any);
+  jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+
+  page.submitSyncerEdit(false);
+  await flushPromises();
+
+  expect(updateSyncer).toHaveBeenCalledWith("admin", "directory-main", expect.objectContaining({tlsPolicy: ""}));
+});
+
+([
+  [{tlsPolicy: "future-mode", cert: ""}, "supported TLS policy"],
+  [{tlsPolicy: "custom-ca", cert: ""}, "SSL certificate"],
+  [{tlsPolicy: "custom-ca", cert: "missing-ca"}, "unavailable"],
+  [{tlsPolicy: "legacy-insecure", cert: "syncer-cert"}, "Clear the custom CA certificate"],
+] as Array<[Record<string, unknown>, string]>).forEach(([tlsConfig, message]) => {
+  test(`blocks invalid Syncer TLS policy: ${String(tlsConfig.tlsPolicy)}/${String(tlsConfig.cert)}`, () => {
+    const page = createPage({syncer: {type: "Active Directory", ...tlsConfig}});
+    const updateSyncer = jest.spyOn(SyncerBackend, "updateSyncer");
+    const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+
+    page.submitSyncerEdit(false);
+
+    expect(updateSyncer).not.toHaveBeenCalled();
+    expect(showMessage).toHaveBeenCalledWith("error", expect.stringContaining(message));
+    expect(JSON.stringify(showMessage.mock.calls)).not.toContain("future-mode");
+    expect(JSON.stringify(showMessage.mock.calls)).not.toContain("missing-ca");
+  });
+});
+
+test("applies Syncer policy atomically and disables duplicate saves", async() => {
+  const page = createPage({syncer: {type: "Active Directory", tlsPolicy: "custom-ca", cert: "syncer-cert"}});
+  page.updateSyncerTlsPolicy("system");
+  expect(page.state.syncer).toEqual(expect.objectContaining({tlsPolicy: "system", cert: ""}));
+
+  let finishSave: ((value: {status: string}) => void) | undefined;
+  const pendingSave = new Promise<{status: string}>(resolve => {finishSave = resolve;});
+  const updateSyncer = jest.spyOn(SyncerBackend, "updateSyncer").mockReturnValue(pendingSave as any);
+  jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+
+  const realSetState = page.setState;
+  page.setState = jest.fn() as unknown as typeof page.setState;
+  page.submitSyncerEdit(false);
+  page.submitSyncerEdit(true);
+  expect(updateSyncer).toHaveBeenCalledTimes(1);
+  page.setState = realSetState;
+  page.state.submitting = true;
+  const footer = render(<>{page.renderEditFooter()}</>);
+  expect((footer.getByRole("button", {name: /Save$/}) as HTMLButtonElement).disabled).toBe(true);
+  expect((footer.getByRole("button", {name: "Save and return"}) as HTMLButtonElement).disabled).toBe(true);
+
+  finishSave?.({status: "ok"});
+  await flushPromises();
+  expect(page.state.submitting).toBe(false);
 });
 
 test("keeps database and SSH field handlers connected to the shared form state", () => {

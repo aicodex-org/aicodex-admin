@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import * as Setting from "../Setting";
+import type {EnterpriseTlsPolicy} from "../common/enterpriseTlsPolicy";
 
 // SyncerRecord 描述 legacy Syncer API 返回和提交的松散 payload；列表页只收紧当前使用字段，不改变后端契约。
 export interface SyncerRecord {
@@ -26,6 +27,9 @@ export interface SyncerRecord {
   user?: string;
   password?: string;
   databaseType?: string;
+  sslMode?: string;
+  cert?: string;
+  tlsPolicy?: EnterpriseTlsPolicy;
   database?: string;
   table?: string;
   tableColumns?: unknown[];

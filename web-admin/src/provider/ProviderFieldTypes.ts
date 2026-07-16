@@ -1,4 +1,5 @@
 import type {ReactNode} from "react";
+import type {EnterpriseTlsPolicy} from "../common/enterpriseTlsPolicy";
 
 export type ProviderFieldValue =
   | string
@@ -54,6 +55,7 @@ export interface ProviderConfig extends Record<string, ProviderFieldValue> {
   subType?: string;
   templateCode?: string;
   title?: string;
+  tlsPolicy?: EnterpriseTlsPolicy;
   type: string;
   userMapping?: Record<string, string>;
 }
@@ -68,6 +70,7 @@ export interface AccountConfig {
 
 export interface CertConfig {
   name: string;
+  type?: string;
   [key: string]: unknown;
 }
 

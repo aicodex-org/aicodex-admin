@@ -26,6 +26,17 @@ import type {SyncerTableColumnRecord} from "./table/SyncerTableColumnTable";
 import * as CertBackend from "./backend/CertBackend";
 import Editor from "./common/Editor";
 import LargeEditShell, {LargeEditTabs} from "./common/LargeEditShell";
+import EnterpriseTlsPolicyFields from "./common/EnterpriseTlsPolicyFields";
+import {
+  applyEnterpriseTlsPolicy,
+  getEnterpriseTlsPolicyErrorKey,
+  isEnterpriseTlsSyncer,
+  prepareEnterpriseTlsRecord,
+  projectSslCertOptions,
+  validateEnterpriseTlsPolicy
+} from "./common/enterpriseTlsPolicy";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {ExplicitEnterpriseTlsPolicy} from "./common/enterpriseTlsPolicy";
 
 const {Option} = Select;
 
@@ -67,6 +78,7 @@ interface SyncerEditProps {
 interface NamedRecord {
   name: string;
   displayName?: string;
+  type?: string;
 }
 
 type SyncerEditTabKey = "basic" | "connection" | "mapping-status";
@@ -116,10 +128,13 @@ interface SyncerEditState {
   organizations: NamedRecord[];
   mode: string;
   testDbLoading: boolean;
+  submitting: boolean;
   activeTabKey: SyncerEditTabKey;
 }
 
 class SyncerEditPage extends React.Component<SyncerEditProps, SyncerEditState> {
+  private syncerSaveInFlight = false;
+
   constructor(props: SyncerEditProps) {
     super(props);
     this.state = {
@@ -130,6 +145,7 @@ class SyncerEditPage extends React.Component<SyncerEditProps, SyncerEditState> {
       organizations: [],
       mode: props.location.mode !== undefined ? props.location.mode : "edit",
       testDbLoading: false,
+      submitting: false,
       activeTabKey: this.getInitialTabKey(),
     };
   }
@@ -141,7 +157,8 @@ class SyncerEditPage extends React.Component<SyncerEditProps, SyncerEditState> {
 
   getSyncer() {
     if (this.state.mode === "add" && this.props.location.syncer !== undefined) {
-      const syncer = this.props.location.syncer as SyncerEditRecord;
+      const draft = this.props.location.syncer as SyncerEditRecord;
+      const syncer = prepareEnterpriseTlsRecord(draft, isEnterpriseTlsSyncer(draft), true) as SyncerEditRecord;
       this.setState({syncer});
       if (syncer.organization) {
         this.getCerts(syncer.organization);
@@ -161,9 +178,9 @@ class SyncerEditPage extends React.Component<SyncerEditProps, SyncerEditState> {
           return;
         }
 
-        this.setState({
-          syncer: res.data as SyncerEditRecord,
-        });
+        const loaded = res.data as SyncerEditRecord;
+        const syncer = prepareEnterpriseTlsRecord(loaded, isEnterpriseTlsSyncer(loaded), false) as SyncerEditRecord;
+        this.setState({syncer});
 
         if (res.data && res.data.organization) {
           this.getCerts(res.data.organization);
@@ -200,7 +217,7 @@ class SyncerEditPage extends React.Component<SyncerEditProps, SyncerEditState> {
   updateSyncerField(key: string, value: LegacySyncerValue) {
     value = this.parseSyncerField(key, value);
 
-    const syncer = this.state.syncer;
+    let syncer = {...this.state.syncer};
     if (key === "organization" && syncer["organization"] !== value) {
       // the syncer changed the organization, reset the cert and reload certs
       syncer["cert"] = "";
@@ -208,9 +225,37 @@ class SyncerEditPage extends React.Component<SyncerEditProps, SyncerEditState> {
     }
 
     syncer[key] = value;
+    if (this.state.mode === "add") {
+      const isTarget = isEnterpriseTlsSyncer(syncer);
+      syncer = prepareEnterpriseTlsRecord(syncer, isTarget, true) as SyncerEditRecord;
+      if (!isTarget && key === "type") {
+        delete syncer.tlsPolicy;
+        syncer.cert = "";
+      }
+    }
     this.setState({
       syncer: syncer,
     });
+  }
+
+  updateSyncerType(value: string): void {
+    let syncer: SyncerEditRecord = {...this.state.syncer, type: value};
+    syncer.tableColumns = this.getSyncerTableColumns(syncer);
+    syncer.table = value === "Keycloak" ? "user_entity" : syncer.table;
+    if (this.state.mode === "add") {
+      const isTarget = isEnterpriseTlsSyncer(syncer);
+      syncer = prepareEnterpriseTlsRecord(syncer, isTarget, true) as SyncerEditRecord;
+      if (!isTarget) {
+        delete syncer.tlsPolicy;
+        syncer.cert = "";
+      }
+    }
+    this.setState({syncer});
+  }
+
+  updateSyncerTlsPolicy(policy: ExplicitEnterpriseTlsPolicy): void {
+    const syncer = applyEnterpriseTlsPolicy(this.state.syncer, policy) as SyncerEditRecord;
+    this.setState({syncer});
   }
 
   getSyncerTableColumns(syncer: SyncerEditRecord): SyncerTableColumnRecord[] {
@@ -910,9 +955,9 @@ class SyncerEditPage extends React.Component<SyncerEditProps, SyncerEditState> {
   renderEditFooter(): React.ReactNode {
     return (
       <React.Fragment>
-        <Button onClick={() => this.handleBack()}>{tr("general:Cancel")}</Button>
-        <Button type="primary" onClick={() => this.submitSyncerEdit(false)}>{tr("general:Save")}</Button>
-        <Button onClick={() => this.submitSyncerEdit(true)}>{tr("syncer:Save and return")}</Button>
+        <Button disabled={this.state.submitting} onClick={() => this.handleBack()}>{tr("general:Cancel")}</Button>
+        <Button type="primary" disabled={this.state.submitting} loading={this.state.submitting} onClick={() => this.submitSyncerEdit(false)}>{tr("general:Save")}</Button>
+        <Button disabled={this.state.submitting} onClick={() => this.submitSyncerEdit(true)}>{tr("syncer:Save and return")}</Button>
       </React.Fragment>
     );
   }
@@ -1019,13 +1064,7 @@ class SyncerEditPage extends React.Component<SyncerEditProps, SyncerEditState> {
               </Col>
               <Col span={22} >
                 <Select virtual={false} style={{width: "100%"}} value={this.state.syncer.type} onChange={(value => {
-                  this.updateSyncerField("type", value);
-                  const syncer = this.state.syncer;
-                  syncer["tableColumns"] = this.getSyncerTableColumns(this.state.syncer);
-                  syncer.table = (value === "Keycloak") ? "user_entity" : this.state.syncer.table;
-                  this.setState({
-                    syncer: syncer,
-                  });
+                  this.updateSyncerType(value);
                 })}>
                   {
                     ["Database", "Keycloak", "WeCom", "Azure AD", "Active Directory", "Google Workspace", "DingTalk", "Lark", "Okta", "SCIM", "AWS IAM"]
@@ -1039,6 +1078,15 @@ class SyncerEditPage extends React.Component<SyncerEditProps, SyncerEditState> {
         {activeTabKey === "connection" ? (
           <div className="admin-large-edit-form-content syncer-edit-tab-panel syncer-edit-tab-panel-connection">
             <h2 className="admin-large-edit-content-section-title syncer-edit-section-title">{tr("syncer:Connection configuration")}</h2>
+            {isEnterpriseTlsSyncer(this.state.syncer) ? (
+              <EnterpriseTlsPolicyFields
+                policy={this.state.syncer.tlsPolicy}
+                cert={this.state.syncer.cert}
+                certOptions={projectSslCertOptions(this.state.certs)}
+                onPolicyChange={policy => this.updateSyncerTlsPolicy(policy)}
+                onCertChange={cert => this.updateSyncerField("cert", cert)}
+              />
+            ) : null}
             {
               this.state.syncer.type === "WeCom" || this.state.syncer.type === "Azure AD" || this.state.syncer.type === "Active Directory" || this.state.syncer.type === "Google Workspace" || this.state.syncer.type === "DingTalk" || this.state.syncer.type === "Lark" || this.state.syncer.type === "Okta" || this.state.syncer.type === "SCIM" || this.state.syncer.type === "AWS IAM" ? null : (
                 <Row style={{marginTop: "20px"}} >
@@ -1427,7 +1475,21 @@ class SyncerEditPage extends React.Component<SyncerEditProps, SyncerEditState> {
   }
 
   submitSyncerEdit(exitAfterSave: boolean) {
+    if (this.syncerSaveInFlight || this.state.submitting) {
+      return;
+    }
     const syncer = Setting.deepCopy(this.state.syncer) as SyncerEditRecord;
+    const tlsValidationError = validateEnterpriseTlsPolicy(
+      syncer,
+      isEnterpriseTlsSyncer(syncer),
+      projectSslCertOptions(this.state.certs)
+    );
+    if (tlsValidationError !== null) {
+      Setting.showMessage("error", tr(getEnterpriseTlsPolicyErrorKey(tlsValidationError)));
+      return;
+    }
+    this.syncerSaveInFlight = true;
+    this.setState({submitting: true});
     const request = this.state.mode === "add"
       ? SyncerBackend.addSyncer(syncer)
       : SyncerBackend.updateSyncer(this.state.syncer.owner, this.state.syncerName, syncer);
@@ -1435,10 +1497,12 @@ class SyncerEditPage extends React.Component<SyncerEditProps, SyncerEditState> {
     request
       .then((res) => {
         if (res.status === "ok") {
+          this.syncerSaveInFlight = false;
           Setting.showMessage("success", this.state.mode === "add" ? tr("general:Successfully added") : tr("general:Successfully saved"));
           this.setState({
             syncerName: this.state.syncer.name,
             mode: "edit",
+            submitting: false,
           });
 
           if (exitAfterSave) {
@@ -1447,13 +1511,17 @@ class SyncerEditPage extends React.Component<SyncerEditProps, SyncerEditState> {
             this.props.history.push(`/syncers/${this.state.syncer.name}`);
           }
         } else {
+          this.syncerSaveInFlight = false;
           Setting.showMessage("error", `${this.state.mode === "add" ? tr("general:Failed to add") : tr("general:Failed to save")}: ${res.msg}`);
           if (this.state.mode !== "add") {
             this.updateSyncerField("name", this.state.syncerName);
           }
+          this.setState({submitting: false});
         }
       })
       .catch(error => {
+        this.syncerSaveInFlight = false;
+        this.setState({submitting: false});
         Setting.showMessage("error", `${tr("general:Failed to connect to server")}: ${error}`);
       });
   }

@@ -19,6 +19,7 @@ import (
 	"fmt"
 
 	"git.leagsoft.com/aicodex/aicodex-admin/i18n"
+	"git.leagsoft.com/aicodex/aicodex-admin/tlspolicy"
 	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/xorm-io/core"
 	"golang.org/x/crypto/ssh"
@@ -42,6 +43,7 @@ type Syncer struct {
 	Type         string `xorm:"varchar(100)" json:"type"`
 	DatabaseType string `xorm:"varchar(100)" json:"databaseType"`
 	SslMode      string `xorm:"varchar(100)" json:"sslMode"`
+	TlsPolicy    string `xorm:"varchar(32)" json:"tlsPolicy"` // 空值只表示尚未迁移的存量世代；新建路径必须持久化system。
 	SshType      string `xorm:"varchar(100)" json:"sshType"`
 
 	Host             string         `xorm:"varchar(100)" json:"host"`
@@ -173,6 +175,13 @@ func UpdateSyncer(id string, syncer *Syncer, isGlobalAdmin bool, lang string) (b
 	} else if !isGlobalAdmin && s.Organization != syncer.Organization {
 		return false, errors.New(i18n.Translate(lang, "auth:Unauthorized operation"))
 	}
+	syncer.TlsPolicy, err = tlspolicy.NormalizeForUpdate(syncer.TlsPolicy, s.TlsPolicy)
+	if err != nil {
+		return false, err
+	}
+	if err = validateSyncerTLSPolicyForWrite(syncer); err != nil {
+		return false, err
+	}
 
 	// Close old syncer connections before updating
 	_ = s.Close()
@@ -217,6 +226,14 @@ func updateSyncerErrorText(syncer *Syncer, line string) (bool, error) {
 }
 
 func AddSyncer(syncer *Syncer) (bool, error) {
+	var err error
+	syncer.TlsPolicy, err = tlspolicy.NormalizeForAdd(syncer.TlsPolicy)
+	if err != nil {
+		return false, err
+	}
+	if err = validateSyncerTLSPolicyForWrite(syncer); err != nil {
+		return false, err
+	}
 	affected, err := ormer.Engine.Insert(syncer)
 	if err != nil {
 		return false, err

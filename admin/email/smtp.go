@@ -15,21 +15,27 @@
 package email
 
 import (
-	"crypto/tls"
-
 	"git.leagsoft.com/aicodex/aicodex-admin/conf"
+	"git.leagsoft.com/aicodex/aicodex-admin/tlspolicy"
 	"github.com/casdoor/gomail/v2"
 )
 
 type SmtpEmailProvider struct {
 	Dialer *gomail.Dialer
+	// TLSDiagnostic 仅暴露脱敏后的连接策略状态，不包含目标或证书材料。
+	TLSDiagnostic tlspolicy.Diagnostic
 }
 
-func NewSmtpEmailProvider(userName string, password string, host string, port int, typ string, sslMode string, enableProxy bool) *SmtpEmailProvider {
-	dialer := gomail.NewDialer(host, port, userName, password)
-	if typ == "SUBMAIL" {
-		dialer.TLSConfig = &tls.Config{InsecureSkipVerify: true}
+// NewSmtpEmailProvider 把已解析的连接级 TLS policy 应用到独立 gomail dialer。
+func NewSmtpEmailProvider(userName string, password string, host string, port int, typ string, sslMode string, resolution *tlspolicy.Resolution, enableProxy bool) (*SmtpEmailProvider, error) {
+	if resolution == nil || resolution.TLSConfig == nil {
+		return nil, &tlspolicy.Error{Code: tlspolicy.ErrorCodeInvalidPolicy}
 	}
+	dialer := gomail.NewDialer(host, port, userName, password)
+	tlsConfig := resolution.TLSConfig.Clone()
+	// gomail 只会在 TLSConfig 为空时补 ServerName；自定义 config 必须显式保留主机名校验。
+	tlsConfig.ServerName = host
+	dialer.TLSConfig = tlsConfig
 
 	// Handle SSL mode: "Auto" (or empty) means don't override gomail's default behavior
 	// "Enable" means force SSL on, "Disable" means force SSL off
@@ -47,7 +53,7 @@ func NewSmtpEmailProvider(userName string, password string, host string, port in
 		}
 	}
 
-	return &SmtpEmailProvider{Dialer: dialer}
+	return &SmtpEmailProvider{Dialer: dialer, TLSDiagnostic: resolution.Diagnostic}, nil
 }
 
 func (s *SmtpEmailProvider) Send(fromAddress string, fromName string, toAddresses []string, subject string, content string) error {

@@ -15,13 +15,18 @@
 package object
 
 import (
-	"crypto/tls"
 	"fmt"
 	"strings"
 	"unicode/utf8"
 
+	"git.leagsoft.com/aicodex/aicodex-admin/tlspolicy"
 	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	goldap "github.com/go-ldap/ldap/v3"
+)
+
+var (
+	activeDirectoryDial    = goldap.Dial
+	activeDirectoryDialTLS = goldap.DialTLS
 )
 
 // convertGUIDToString converts a binary GUID byte array to a standard UUID string format
@@ -144,15 +149,19 @@ func (p *ActiveDirectorySyncerProvider) getLdapConn() (*goldap.Conn, error) {
 
 	var conn *goldap.Conn
 	var err error
+	resolution, err := ResolveSyncerTLSPolicy(p.Syncer)
+	if err != nil {
+		return nil, err
+	}
 
 	// Check if SSL is enabled (port 636 typically indicates LDAPS)
 	if port == 636 {
-		tlsConfig := &tls.Config{
-			InsecureSkipVerify: true, // TODO: Make this configurable
-		}
-		conn, err = goldap.DialTLS("tcp", fmt.Sprintf("%s:%d", host, port), tlsConfig)
+		conn, err = activeDirectoryDialTLS("tcp", fmt.Sprintf("%s:%d", host, port), resolution.TLSConfig)
 	} else {
-		conn, err = goldap.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
+		if resolution.Diagnostic.CustomCA {
+			return nil, &tlspolicy.Error{Code: tlspolicy.ErrorCodeCAConflict}
+		}
+		conn, err = activeDirectoryDial("tcp", fmt.Sprintf("%s:%d", host, port))
 	}
 
 	if err != nil {

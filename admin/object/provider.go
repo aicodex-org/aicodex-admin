@@ -24,6 +24,7 @@ import (
 	"git.leagsoft.com/aicodex/aicodex-admin/idp"
 	"git.leagsoft.com/aicodex/aicodex-admin/idv"
 	"git.leagsoft.com/aicodex/aicodex-admin/pp"
+	"git.leagsoft.com/aicodex/aicodex-admin/tlspolicy"
 	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/beego/beego/v2/server/web/context"
 	"github.com/xorm-io/core"
@@ -54,8 +55,9 @@ type Provider struct {
 
 	Host       string `xorm:"varchar(100)" json:"host"`
 	Port       int    `json:"port"`
-	DisableSsl bool   `json:"disableSsl"`                  // Deprecated: Use SslMode instead. If the provider type is WeChat, DisableSsl means EnableQRCode, if type is Google, it means sync phone number
-	SslMode    string `xorm:"varchar(100)" json:"sslMode"` // "Auto" (empty means Auto), "Enable", "Disable"
+	DisableSsl bool   `json:"disableSsl"`                   // Deprecated: Use SslMode instead. If the provider type is WeChat, DisableSsl means EnableQRCode, if type is Google, it means sync phone number
+	SslMode    string `xorm:"varchar(100)" json:"sslMode"`  // "Auto" (empty means Auto), "Enable", "Disable"
+	TlsPolicy  string `xorm:"varchar(32)" json:"tlsPolicy"` // 空值只表示尚未迁移的存量世代；新建路径必须持久化system。
 	Title      string `xorm:"varchar(100)" json:"title"`
 	Content    string `xorm:"varchar(2000)" json:"content"` // If provider type is WeChat, Content means QRCode string by Base64 encoding
 	Receiver   string `xorm:"varchar(100)" json:"receiver"`
@@ -227,6 +229,13 @@ func UpdateProvider(id string, provider *Provider) (bool, error) {
 	if IsRetiredWeb3WalletProvider(oldProvider) || IsRetiredWeb3WalletProvider(provider) {
 		return false, ErrWeb3WalletAuthRetired
 	}
+	provider.TlsPolicy, err = tlspolicy.NormalizeForUpdate(provider.TlsPolicy, oldProvider.TlsPolicy)
+	if err != nil {
+		return false, err
+	}
+	if err = validateProviderTLSPolicyForWrite(provider); err != nil {
+		return false, err
+	}
 
 	if provider.EmailRegex != "" {
 		_, err := regexp.Compile(provider.EmailRegex)
@@ -267,6 +276,14 @@ func AddProvider(provider *Provider) (bool, error) {
 	if IsRetiredWeb3WalletProvider(provider) {
 		return false, ErrWeb3WalletAuthRetired
 	}
+	var err error
+	provider.TlsPolicy, err = tlspolicy.NormalizeForAdd(provider.TlsPolicy)
+	if err != nil {
+		return false, err
+	}
+	if err = validateProviderTLSPolicyForWrite(provider); err != nil {
+		return false, err
+	}
 
 	if provider.Type == "Tencent Cloud COS" {
 		provider.Endpoint = util.GetEndPoint(provider.Endpoint)
@@ -274,7 +291,7 @@ func AddProvider(provider *Provider) (bool, error) {
 	}
 
 	if provider.EmailRegex != "" {
-		_, err := regexp.Compile(provider.EmailRegex)
+		_, err = regexp.Compile(provider.EmailRegex)
 		if err != nil {
 			return false, err
 		}

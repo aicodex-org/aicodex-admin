@@ -16,6 +16,7 @@ package controllers
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/xml"
@@ -35,6 +36,7 @@ import (
 	"git.leagsoft.com/aicodex/aicodex-admin/idp"
 	"git.leagsoft.com/aicodex/aicodex-admin/object"
 	"git.leagsoft.com/aicodex/aicodex-admin/proxy"
+	"git.leagsoft.com/aicodex/aicodex-admin/tlspolicy"
 	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	"github.com/beego/beego/v2/server/web"
 	"github.com/google/uuid"
@@ -433,12 +435,70 @@ func firstNonEmptyQuery(c *ApiController, keys ...string) string {
 	return ""
 }
 
+var resolveProviderTLSPolicy = object.ResolveProviderTLSPolicy
+
 func setHttpClient(idProvider idp.IdProvider, providerType string) {
 	if isProxyProviderType(providerType) {
 		idProvider.SetHttpClient(proxy.ProxyHttpClient)
 	} else {
 		idProvider.SetHttpClient(proxy.DefaultHttpClient)
 	}
+}
+
+// setProviderHttpClient 只为 ADFS 构造连接级 TLS client；其它 Provider 保持既有注入路径。
+func setProviderHttpClient(idProvider idp.IdProvider, provider *object.Provider) error {
+	if provider == nil {
+		return &tlspolicy.Error{Code: tlspolicy.ErrorCodeInvalidPolicy}
+	}
+	if !strings.EqualFold(provider.Type, "ADFS") {
+		setHttpClient(idProvider, provider.Type)
+		return nil
+	}
+
+	client := proxy.DefaultHttpClient
+	if isProxyProviderType(provider.Type) {
+		client = proxy.ProxyHttpClient
+	}
+
+	resolution, err := resolveProviderTLSPolicy(provider)
+	if err != nil {
+		return err
+	}
+	providerClient, err := cloneHTTPClientWithTLSPolicy(client, resolution)
+	if err != nil {
+		return err
+	}
+	idProvider.SetHttpClient(providerClient)
+	return nil
+}
+
+// cloneHTTPClientWithTLSPolicy 克隆基础client与transport，避免连接级策略修改共享代理状态。
+func cloneHTTPClientWithTLSPolicy(client *http.Client, resolution *tlspolicy.Resolution) (*http.Client, error) {
+	if client == nil || resolution == nil || resolution.TLSConfig == nil {
+		return nil, &tlspolicy.Error{Code: tlspolicy.ErrorCodeInvalidPolicy}
+	}
+	transport := client.Transport
+	if transport == nil {
+		transport = http.DefaultTransport
+	}
+	httpTransport, ok := transport.(*http.Transport)
+	if !ok {
+		return nil, &tlspolicy.Error{Code: tlspolicy.ErrorCodeTransportUnsupported}
+	}
+	clonedTransport := httpTransport.Clone()
+	clonedTLSConfig := &tls.Config{}
+	if httpTransport.TLSClientConfig != nil {
+		clonedTLSConfig = httpTransport.TLSClientConfig.Clone()
+	}
+	clonedTLSConfig.InsecureSkipVerify = resolution.TLSConfig.InsecureSkipVerify
+	clonedTLSConfig.RootCAs = nil
+	if resolution.TLSConfig.RootCAs != nil {
+		clonedTLSConfig.RootCAs = resolution.TLSConfig.RootCAs.Clone()
+	}
+	clonedTransport.TLSClientConfig = clonedTLSConfig
+	clonedClient := *client
+	clonedClient.Transport = clonedTransport
+	return &clonedClient, nil
 }
 
 func isProxyProviderType(providerType string) bool {
@@ -917,7 +977,10 @@ func (c *ApiController) Login() {
 				return
 			}
 
-			setHttpClient(idProvider, provider.Type)
+			if err = setProviderHttpClient(idProvider, provider); err != nil {
+				c.ResponseError(err.Error())
+				return
+			}
 
 			stateApplicationName := strings.Split(authForm.State, "-org-")[0]
 			if authForm.State != conf.GetConfigString("authState") && stateApplicationName != application.Name {

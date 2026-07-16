@@ -37,8 +37,19 @@ import {validateLarkProviderFields} from "./provider/LarkProviderUtils";
 import LargeEditShell, {LargeEditFieldRow, LargeEditSection} from "./common/LargeEditShell";
 import {WORKSPACE_TAB_LABEL_UPDATE_EVENT} from "./common/workspaceTabState";
 import {isRetiredWeb3WalletProvider} from "./auth/Web3WalletRetirement";
+import EnterpriseTlsPolicyFields from "./common/EnterpriseTlsPolicyFields";
+import {
+  applyEnterpriseTlsPolicy,
+  getEnterpriseTlsPolicyErrorKey,
+  isEnterpriseTlsProvider,
+  prepareEnterpriseTlsRecord,
+  projectSslCertOptions,
+  validateEnterpriseTlsPolicy
+} from "./common/enterpriseTlsPolicy";
 // eslint-disable-next-line unused-imports/no-unused-imports
 import type {AccountConfig, CertConfig, ProviderConfig, ProviderFieldName, ProviderFieldValue} from "./provider/ProviderFieldTypes";
+// eslint-disable-next-line unused-imports/no-unused-imports
+import type {ExplicitEnterpriseTlsPolicy} from "./common/enterpriseTlsPolicy";
 
 const t = i18next.t.bind(i18next) as (key: string) => string;
 
@@ -140,13 +151,18 @@ function normalizeProviderUserMapping(provider: EditableProviderConfig): Editabl
 }
 
 class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEditPageState> {
+  private providerSaveInFlight = false;
+
   constructor(props: ProviderEditPageProps) {
     super(props);
-    const draftProvider = props.location.state?.provider
+    const rawDraftProvider = props.location.state?.provider
       ? normalizeProviderUserMapping({...props.location.state.provider})
       : undefined;
     const requestedMode = props.location.state?.mode ?? props.location.mode ?? "edit";
-    const mode = requestedMode === "add" && draftProvider === undefined ? "edit" : requestedMode;
+    const mode = requestedMode === "add" && rawDraftProvider === undefined ? "edit" : requestedMode;
+    const draftProvider = rawDraftProvider === undefined
+      ? undefined
+      : prepareEnterpriseTlsRecord(rawDraftProvider, isEnterpriseTlsProvider(rawDraftProvider), mode === "add");
     this.state = {
       classes: props,
       providerName: draftProvider?.name ?? props.match.params.providerName,
@@ -179,7 +195,8 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
         }
 
         if (res.status === "ok") {
-          const provider = normalizeProviderUserMapping(res.data as EditableProviderConfig);
+          const loadedProvider = normalizeProviderUserMapping(res.data as EditableProviderConfig);
+          const provider = prepareEnterpriseTlsRecord(loadedProvider, isEnterpriseTlsProvider(loadedProvider), false);
           this.setState({
             provider: provider,
             dirty: false,
@@ -234,40 +251,56 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
 
     provider[key] = value;
 
-    if (provider["type"] === "WeChat") {
-      if (!provider["clientId"]) {
-        provider["signName"] = "media";
-        provider["disableSsl"] = true;
-      }
-      if (!provider["clientId2"]) {
-        provider["signName"] = "open";
-        provider["disableSsl"] = false;
-      }
-      if (!provider["disableSsl"]) {
-        provider["signName"] = "open";
+    let nextProvider = provider;
+    if (this.state.mode === "add") {
+      const isTarget = isEnterpriseTlsProvider(provider);
+      nextProvider = prepareEnterpriseTlsRecord(provider, isTarget, true);
+      if (!isTarget && (key === "category" || key === "type")) {
+        nextProvider = {...nextProvider};
+        delete nextProvider.tlsPolicy;
+        nextProvider.cert = "";
       }
     }
 
-    if (provider["type"] === "WeCom") {
-      if (!provider["subType"]) {
-        provider["subType"] = "Internal";
+    if (nextProvider["type"] === "WeChat") {
+      if (!nextProvider["clientId"]) {
+        nextProvider["signName"] = "media";
+        nextProvider["disableSsl"] = true;
       }
-      if (!provider["method"]) {
-        provider["method"] = "Normal";
+      if (!nextProvider["clientId2"]) {
+        nextProvider["signName"] = "open";
+        nextProvider["disableSsl"] = false;
       }
-      if (!provider["scopes"]) {
-        provider["scopes"] = "snsapi_privateinfo";
+      if (!nextProvider["disableSsl"]) {
+        nextProvider["signName"] = "open";
+      }
+    }
+
+    if (nextProvider["type"] === "WeCom") {
+      if (!nextProvider["subType"]) {
+        nextProvider["subType"] = "Internal";
+      }
+      if (!nextProvider["method"]) {
+        nextProvider["method"] = "Normal";
+      }
+      if (!nextProvider["scopes"]) {
+        nextProvider["scopes"] = "snsapi_privateinfo";
       }
     }
 
     this.setState({
-      provider: provider,
+      provider: nextProvider,
       dirty: true,
     }, () => {
       if (key === "displayName") {
-        this.publishWorkspaceTabLabel(provider);
+        this.publishWorkspaceTabLabel(nextProvider);
       }
     });
+  }
+
+  updateProviderTlsPolicy(policy: ExplicitEnterpriseTlsPolicy): void {
+    const provider = applyEnterpriseTlsPolicy(this.state.provider, policy) as EditableProviderConfig;
+    this.setState({provider, dirty: true});
   }
 
   getCurrentWorkspaceTabPath(): string {
@@ -350,7 +383,7 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
     return (
       <React.Fragment>
         <Button disabled={this.state.submitting} onClick={() => this.handleBack()}>{t("general:Cancel")}</Button>
-        <Button type="primary" loading={this.state.submitting} onClick={() => this.submitProviderEdit(false)}>{t("general:Save")}</Button>
+        <Button type="primary" disabled={this.state.submitting} loading={this.state.submitting} onClick={() => this.submitProviderEdit(false)}>{t("general:Save")}</Button>
         <Button disabled={this.state.submitting} onClick={() => this.submitProviderEdit(true)}>{t("provider:Save and return")}</Button>
       </React.Fragment>
     );
@@ -1251,6 +1284,15 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
             }
           ) : null
         }
+        {isEnterpriseTlsProvider(provider) ? (
+          <EnterpriseTlsPolicyFields
+            policy={provider.tlsPolicy}
+            cert={provider.cert}
+            certOptions={projectSslCertOptions(this.state.certs)}
+            onPolicyChange={policy => this.updateProviderTlsPolicy(policy)}
+            onCertChange={cert => this.updateProviderField("cert", cert)}
+          />
+        ) : null}
         {provider.category === "Payment" ? renderPaymentProviderFields(
           provider,
           this.updateProviderField.bind(this),
@@ -1338,15 +1380,25 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
   }
 
   submitProviderEdit(exitAfterSave: boolean) {
-    if (this.state.submitting) {
+    if (this.providerSaveInFlight || this.state.submitting) {
       return;
     }
     const provider = Setting.deepCopy(this.state.provider);
+    const tlsValidationError = validateEnterpriseTlsPolicy(
+      provider,
+      isEnterpriseTlsProvider(provider),
+      projectSslCertOptions(this.state.certs)
+    );
+    if (tlsValidationError !== null) {
+      Setting.showMessage("error", t(getEnterpriseTlsPolicyErrorKey(tlsValidationError)));
+      return;
+    }
     const validationError = this.validateWeComProvider(provider) || this.validateLarkProvider(provider);
     if (validationError) {
       Setting.showMessage("error", validationError);
       return;
     }
+    this.providerSaveInFlight = true;
     this.setState({submitting: true});
     const saveProvider = this.state.mode === "add"
       ? ProviderBackend.addProvider(provider)
@@ -1354,6 +1406,7 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
     saveProvider
       .then((res) => {
         if (res.status === "ok") {
+          this.providerSaveInFlight = false;
           Setting.showMessage("success", t("general:Successfully saved"));
           this.setState({
             owner: this.state.provider.owner,
@@ -1369,6 +1422,7 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
             this.props.history.push(`/providers/${this.state.provider.owner}/${this.state.provider.name}`);
           }
         } else {
+          this.providerSaveInFlight = false;
           Setting.showMessage("error", `${t("general:Failed to save")}: ${res.msg}`);
           if (this.state.mode !== "add") {
             this.updateProviderField("name", this.state.providerName);
@@ -1377,6 +1431,7 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
         }
       })
       .catch(error => {
+        this.providerSaveInFlight = false;
         this.setState({submitting: false});
         Setting.showMessage("error", `${t("general:Failed to connect to server")}: ${error}`);
       });

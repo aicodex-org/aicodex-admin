@@ -16,12 +16,22 @@
 
 package object
 
-import "git.leagsoft.com/aicodex/aicodex-admin/email"
+import (
+	"fmt"
+
+	"git.leagsoft.com/aicodex/aicodex-admin/email"
+)
 
 // TestSmtpServer Test the SMTP server
 func TestSmtpServer(provider *Provider) error {
-	sslMode := getSslMode(provider)
-	smtpEmailProvider := email.NewSmtpEmailProvider(provider.ClientId, provider.ClientSecret, provider.Host, provider.Port, provider.Type, sslMode, provider.EnableProxy)
+	emailProvider, err := getEmailProvider(provider)
+	if err != nil {
+		return err
+	}
+	smtpEmailProvider, ok := emailProvider.(*email.SmtpEmailProvider)
+	if !ok {
+		return fmt.Errorf("email provider is not SMTP")
+	}
 	sender, err := smtpEmailProvider.Dialer.Dial()
 	if err != nil {
 		return err
@@ -32,8 +42,10 @@ func TestSmtpServer(provider *Provider) error {
 }
 
 func SendEmail(provider *Provider, title string, content string, dest []string, sender string) error {
-	sslMode := getSslMode(provider)
-	emailProvider := email.GetEmailProvider(provider.Type, provider.ClientId, provider.ClientSecret, provider.Host, provider.Port, sslMode, provider.Endpoint, provider.Method, provider.HttpHeaders, provider.UserMapping, provider.IssuerUrl, provider.EnableProxy)
+	emailProvider, err := getEmailProvider(provider)
+	if err != nil {
+		return err
+	}
 
 	fromAddress := provider.ClientId2
 	if fromAddress == "" {
@@ -46,6 +58,19 @@ func SendEmail(provider *Provider, title string, content string, dest []string, 
 	}
 
 	return emailProvider.Send(fromAddress, fromName, dest, title, content)
+}
+
+// getEmailProvider 只为dialer-backed SMTP解析企业TLS policy，HTTP邮件Provider保持原路径。
+func getEmailProvider(provider *Provider) (email.EmailProvider, error) {
+	sslMode := getSslMode(provider)
+	if email.IsSMTPProviderType(provider.Type) {
+		resolution, err := ResolveSMTPProviderTLSPolicy(provider)
+		if err != nil {
+			return nil, err
+		}
+		return email.NewSmtpEmailProvider(provider.ClientId, provider.ClientSecret, provider.Host, provider.Port, provider.Type, sslMode, resolution, provider.EnableProxy)
+	}
+	return email.GetEmailProvider(provider.Type, provider.ClientId, provider.ClientSecret, provider.Host, provider.Port, sslMode, provider.Endpoint, provider.Method, provider.HttpHeaders, provider.UserMapping, provider.IssuerUrl, nil, provider.EnableProxy)
 }
 
 // getSslMode returns the SSL mode for the provider, with backward compatibility for DisableSsl

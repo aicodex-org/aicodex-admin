@@ -15,7 +15,6 @@
 package idp
 
 import (
-	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -36,8 +35,9 @@ type AdfsIdProvider struct {
 	Host   string
 }
 
+// NewAdfsIdProvider 创建带30秒有界fallback的ADFS Provider。
 func NewAdfsIdProvider(clientId string, clientSecret string, redirectUrl string, hostUrl string) *AdfsIdProvider {
-	idp := &AdfsIdProvider{}
+	idp := &AdfsIdProvider{Client: resolveIdPHTTPClient(nil)}
 
 	config := idp.getConfig(hostUrl)
 	config.ClientID = clientId
@@ -48,14 +48,9 @@ func NewAdfsIdProvider(clientId string, clientSecret string, redirectUrl string,
 	return idp
 }
 
+// SetHttpClient 原样保存注入client；连接级TLS策略由上游构造。
 func (idp *AdfsIdProvider) SetHttpClient(client *http.Client) {
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true,
-		},
-	}
-	idp.Client = client
-	idp.Client.Transport = tr
+	idp.Client = resolveIdPHTTPClient(client)
 }
 
 func (idp *AdfsIdProvider) getConfig(hostUrl string) *oauth2.Config {

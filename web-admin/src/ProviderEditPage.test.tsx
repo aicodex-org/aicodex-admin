@@ -24,6 +24,7 @@ type PageHarness = ProviderEditPage & {
   renderOrganizationOptions: () => React.ReactNode;
   renderWeComGuide: (provider: any) => React.ReactNode;
   renderProviderBasicSection: (provider: any) => React.ReactNode;
+  renderProviderConfigurationContent: (provider: any) => React.ReactNode;
   renderProviderCategoryOptions: () => React.ReactNode;
   getProvider: () => void;
   getOrganizations: () => void;
@@ -32,6 +33,7 @@ type PageHarness = ProviderEditPage & {
   updateUserMappingField: (key: string, value: string) => void;
   updateProviderCategory: (value: string) => void;
   updateProviderType: (value: string) => void;
+  updateProviderTlsPolicy: (value: "system" | "custom-ca" | "legacy-insecure") => void;
 };
 
 jest.mock("./provider/OAuthProviderFields", () => {
@@ -131,7 +133,7 @@ function createPage(options: {mode?: "add" | "edit"} = {}): PageHarness {
     ...page.state,
     provider: {...baseProvider},
     organizations: [{name: "admin", displayName: "Admin"}, {name: "engineering", displayName: "Engineering"}],
-    certs: [{name: "cert-main"}],
+    certs: [{name: "cert-main", type: "SSL"}],
     mode: options.mode ?? "edit",
   };
   page.setState = ((patch: any, callback?: () => void) => {
@@ -453,6 +455,95 @@ test("initializes an add draft without loading or deleting a provider", async() 
   fireEvent.click(view.getByText("Cancel"));
 
   expect(deleteProvider).not.toHaveBeenCalled();
+});
+
+test("defaults new target Provider drafts to system without migrating edit records", () => {
+  const createDraftPage = (mode: "add" | "edit", tlsPolicy?: string) => new ProviderEditPage({
+    match: {params: {organizationName: "engineering", providerName: "adfs-main"}},
+    location: {state: {mode, provider: {...baseProvider, type: "ADFS", name: "adfs-main", tlsPolicy}}},
+    history: {push: jest.fn()},
+    account: {owner: "engineering", name: "admin", isAdmin: true},
+  } as any) as unknown as PageHarness;
+
+  expect(createDraftPage("add").state.provider.tlsPolicy).toBe("system");
+  expect(createDraftPage("add", "").state.provider.tlsPolicy).toBe("system");
+  expect(createDraftPage("edit").state.provider.tlsPolicy).toBe("");
+  expect(createDraftPage("edit", "").state.provider.tlsPolicy).toBe("");
+});
+
+([
+  [{category: "OAuth", type: "ADFS"}, true],
+  [{category: "Email", type: "Default"}, true],
+  [{category: "Email", type: "SUBMAIL"}, true],
+  [{category: "Email", type: "Custom HTTP Email"}, false],
+  [{category: "Email", type: "Azure ACS"}, false],
+  [{category: "OAuth", type: "GitHub"}, false],
+] as Array<[{category: string; type: string}, boolean]>).forEach(([providerType, visible]) => {
+  test(`shows enterprise TLS controls for ${providerType.category}/${providerType.type}: ${visible}`, () => {
+    const page = createPage();
+    page.state.provider = {...page.state.provider, ...providerType, tlsPolicy: "system"};
+    const view = render(<>{page.renderProviderConfigurationContent(page.state.provider)}</>);
+
+    expect(view.queryByText("TLS policy") !== null).toBe(visible);
+  });
+});
+
+test("keeps legacy Provider policy empty until an explicit selection is saved", async() => {
+  const page = createPage();
+  page.state.provider = {...page.state.provider, type: "ADFS", tlsPolicy: "", cert: ""};
+  const updateProvider = jest.spyOn(ProviderBackend, "updateProvider").mockResolvedValue({status: "ok"} as any);
+  jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  const view = render(<>{page.renderProviderConfigurationContent(page.state.provider)}</>);
+
+  expect(view.getByText("TLS policy pending migration")).not.toBeNull();
+  page.submitProviderEdit(false);
+  await flushPromises();
+
+  expect(updateProvider).toHaveBeenCalledWith("engineering", "github-main", expect.objectContaining({tlsPolicy: ""}));
+});
+
+([
+  [{tlsPolicy: "future-mode", cert: ""}, "supported TLS policy"],
+  [{tlsPolicy: "custom-ca", cert: ""}, "SSL certificate"],
+  [{tlsPolicy: "custom-ca", cert: "missing-ca"}, "unavailable"],
+  [{tlsPolicy: "system", cert: "cert-main"}, "Clear the custom CA certificate"],
+] as Array<[Record<string, unknown>, string]>).forEach(([tlsConfig, message]) => {
+  test(`blocks invalid Provider TLS policy: ${String(tlsConfig.tlsPolicy)}/${String(tlsConfig.cert)}`, () => {
+    const page = createPage();
+    page.state.provider = {...page.state.provider, type: "ADFS", ...tlsConfig};
+    const updateProvider = jest.spyOn(ProviderBackend, "updateProvider");
+    const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+
+    page.submitProviderEdit(false);
+
+    expect(updateProvider).not.toHaveBeenCalled();
+    expect(showMessage).toHaveBeenCalledWith("error", expect.stringContaining(message));
+    expect(JSON.stringify(showMessage.mock.calls)).not.toContain("future-mode");
+    expect(JSON.stringify(showMessage.mock.calls)).not.toContain("missing-ca");
+  });
+});
+
+test("applies explicit Provider policy atomically and sends one request while saving", async() => {
+  const page = createPage();
+  page.state.provider = {...page.state.provider, type: "ADFS", tlsPolicy: "custom-ca", cert: "cert-main"};
+  page.updateProviderTlsPolicy("system");
+  expect(page.state.provider).toEqual(expect.objectContaining({tlsPolicy: "system", cert: ""}));
+
+  let finishSave: ((value: {status: string}) => void) | undefined;
+  const pendingSave = new Promise<{status: string}>(resolve => {finishSave = resolve;});
+  const updateProvider = jest.spyOn(ProviderBackend, "updateProvider").mockReturnValue(pendingSave as any);
+  jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+
+  const realSetState = page.setState;
+  page.setState = jest.fn() as unknown as typeof page.setState;
+  page.submitProviderEdit(false);
+  page.submitProviderEdit(false);
+  expect(updateProvider).toHaveBeenCalledTimes(1);
+
+  page.setState = realSetState;
+  finishSave?.({status: "ok"});
+  await flushPromises();
+  expect(page.state.submitting).toBe(false);
 });
 
 ([
