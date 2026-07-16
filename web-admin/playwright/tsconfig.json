@@ -1,0 +1,16 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "isolatedModules": false,
+    "lib": ["dom", "dom.iterable", "es2022"],
+    "module": "esnext",
+    "moduleResolution": "node",
+    "noEmit": true,
+    "target": "es2022",
+    "types": ["node", "@playwright/test"]
+  },
+  "include": [
+    "../playwright.config.ts",
+    "./**/*.ts"
+  ]
+}

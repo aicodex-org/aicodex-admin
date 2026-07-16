@@ -224,62 +224,70 @@ jobs:
       mysql:
         image: mysql:5.7
         env:
-          MYSQL_DATABASE: casdoor
+          MYSQL_DATABASE: aicodex_admin
           MYSQL_ROOT_PASSWORD: 123456
         ports:
           - 3306:3306
         options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-go@v4
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: ./admin/go.mod
-      - name: start backend
+      - name: Start disposable backend
+        env:
+          logConfig: '{"adapter":"console"}'
         run: nohup go run ./main.go > /tmp/backend.log 2>&1 &
         working-directory: ./admin
-      - name: Wait for backend to be ready
+      - name: Wait for disposable backend readiness
         run: |
-          echo "Waiting for backend server to start on port 8000..."
+          set -euo pipefail
+          echo "Waiting for disposable backend on loopback port 8000..."
           for i in {1..60}; do
-            if curl -s http://localhost:8000 > /dev/null 2>&1; then
-              echo "Backend is ready!"
-              break
+            if curl -fsS http://127.0.0.1:8000/api/health > /dev/null; then
+              echo "Disposable backend is ready."
+              exit 0
             fi
             if [ $i -eq 60 ]; then
-              echo "Backend failed to start within 60 seconds"
-              echo "Backend logs:"
-              cat /tmp/backend.log || echo "No backend logs available"
+              echo "Disposable backend failed to start within 60 seconds."
+              tail -n 200 /tmp/backend.log || true
               exit 1
             fi
-            echo "Waiting... ($i/60)"
             sleep 1
           done
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 20.19.0
           cache: "yarn"
           cache-dependency-path: ./web-admin/yarn.lock
-      - run: yarn install
+      - name: Install front-end dependencies
+        run: yarn install --frozen-lockfile
         working-directory: ./web-admin
-      - uses: cypress-io/github-action@v5
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
         with:
-          browser: chrome
-          start: yarn start
-          wait-on: "http://localhost:7002"
-          wait-on-timeout: 210
-          working-directory: ./web-admin
-
-      - uses: actions/upload-artifact@v4
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('web-admin/yarn.lock') }}
+      - name: Install Playwright Chromium
+        run: yarn playwright install --with-deps chromium
+        working-directory: ./web-admin
+      - name: Playwright E2E typecheck
+        run: yarn typecheck:e2e
+        working-directory: ./web-admin
+      - name: Run Playwright E2E
+        env:
+          AICODEX_ADMIN_E2E_DISPOSABLE_DB: "1"
+        run: yarn test:e2e
+        working-directory: ./web-admin
+      - name: Upload Playwright failure diagnostics
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: cypress-screenshots
-          path: ./web-admin/cypress/screenshots
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: cypress-videos
-          path: ./web-admin/cypress/videos
+          name: playwright-e2e-${{ github.run_id }}
+          path: ./web-admin/output/playwright
+          if-no-files-found: ignore
+          retention-days: 7
 
   tag-release:
     name: Create Tag

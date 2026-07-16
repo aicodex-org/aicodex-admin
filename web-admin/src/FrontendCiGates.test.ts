@@ -199,6 +199,24 @@ describe("web-admin CI gates", () => {
     expect(frontend).toContain("yarn run build");
   });
 
+  test("runs the complete Playwright suite against the disposable CI database", () => {
+    const e2e = readJob("e2e");
+
+    expect(e2e).not.toBe("");
+    expect(e2e).toContain("MYSQL_DATABASE: aicodex_admin");
+    expect(e2e).toContain("node-version: 20.19.0");
+    expect(e2e).toContain("yarn install --frozen-lockfile");
+    expect(e2e).toContain("yarn playwright install --with-deps chromium");
+    expect(e2e).toContain("yarn typecheck:e2e");
+    expect(e2e).toContain("AICODEX_ADMIN_E2E_DISPOSABLE_DB: \"1\"");
+    expect(e2e).toContain("yarn test:e2e");
+    expect(e2e).toContain("path: ./web-admin/output/playwright");
+    expect(e2e).toContain("retention-days: 7");
+    expect(e2e).not.toContain("cypress-io/github-action");
+    expect(e2e).not.toContain("cypress-screenshots");
+    expect(e2e).not.toContain("cypress-videos");
+  });
+
   test("resolves the browser Buffer package instead of Vite's Node builtin shim", () => {
     expect(viteConfig).toContain("buffer: \"buffer/\"");
   });

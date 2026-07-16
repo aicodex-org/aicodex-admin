@@ -1,7 +1,7 @@
 # web-admin-test-baseline-and-ci-gates Specification
 
 ## Purpose
-定义 `web-admin` 的稳定 Jest 回归基线、低脆弱性测试约束，以及 CI 必须执行的 TypeScript 与 Jest 门禁。
+定义 `web-admin` 的稳定 Jest 回归基线、低脆弱性测试约束，以及 CI 必须执行的 TypeScript、Jest 与 Playwright E2E 门禁。
 ## Requirements
 ### Requirement: web-admin 全量 Jest 基线稳定
 仓库 SHALL 提供可重复执行的非 watch Jest 入口，并且当前提交的全部 `web-admin` Jest suite SHALL 在默认单测 timeout 下通过。测试 SHALL 验证用户可观察行为、公共组件对外属性或语义 class token，不得把无语义的源码 token 顺序或已经封装的内部包装结构当作业务契约。
@@ -26,7 +26,7 @@
 - **AND** 每个场景 SHALL 在默认 timeout 下稳定通过
 
 ### Requirement: CI 显式执行前端静态与测试门禁
-GitHub Actions SHALL 在 pull request 和受控 push 中显式执行 `yarn typecheck`、`yarn typecheck:build-tooling`、增量 TypeScript gate、public scripts check/build/smoke、非修改式 production-source `yarn lint` 和 `yarn test:ci`。production-source lint SHALL 排除未进入 production build graph 的 `*.test.*`，测试行为 SHALL 继续由全量 Jest 覆盖。前端 checks SHALL 与 Go tests 并行取得结果，frontend build SHALL 仅在两类门禁成功后继续，并 SHALL 使用唯一默认 Vite production build。
+GitHub Actions SHALL 在 pull request 和受控 push 中显式执行 `yarn typecheck`、`yarn typecheck:build-tooling`、增量 TypeScript gate、public scripts check/build/smoke、非修改式 production-source `yarn lint` 和 `yarn test:ci`。production-source lint SHALL 排除未进入 production build graph 的 `*.test.*`，单元测试行为 SHALL 继续由全量 Jest 覆盖。独立 E2E job SHALL 显式执行 Playwright E2E TypeScript 检查与完整 Chromium suite，并 SHALL 使用一次性数据库；只安装浏览器、只执行 discovery 或跳过写入型测试不得视为通过。前端 checks SHALL 与 Go tests 并行取得结果，frontend build SHALL 仅在两类门禁成功后继续，并 SHALL 使用唯一默认 Vite production build；release 流程 SHALL 继续依赖 E2E job 成功。
 
 #### Scenario: Pull request 触发前端 checks
 - **WHEN** GitHub Actions 处理 pull request
@@ -44,6 +44,18 @@ GitHub Actions SHALL 在 pull request 和受控 push 中显式执行 `yarn typec
 - **WHEN** Go tests 与 frontend checks 均成功
 - **THEN** frontend job SHALL 执行 `yarn build`
 - **AND** build SHALL 生成 `web-admin/build` 供 artifact、release 与 Docker 流程消费
+
+#### Scenario: E2E job 运行 Playwright Chromium
+- **WHEN** GitHub Actions 执行 E2E job
+- **THEN** job SHALL 使用 Yarn frozen install、显式 Chromium 安装和项目 Playwright scripts
+- **AND** job SHALL 启动只连接一次性数据库的 Admin backend 与 `7002` Vite webServer
+- **AND** 22 个 Playwright test 中任一失败 SHALL 使 E2E job 失败
+- **AND** release 流程 SHALL NOT 在 E2E job 失败时继续
+
+#### Scenario: E2E 失败保留有限诊断
+- **WHEN** Playwright Chromium run 失败
+- **THEN** workflow SHALL 上传本次一次性 fixture 的 report、trace 和 screenshot
+- **AND** 工件 SHALL 有有限保留期且 verification SHALL 不复制 credential、Cookie、token、私有 URL 或原始响应体
 
 ### Requirement: 测试基线修复保持生产行为兼容
 测试工具链与基线 change SHALL 保持现有生产页面、路由、权限、后端请求契约和用户可见行为兼容。为使 Jest 脱离 React Scripts，change MAY 将当前实际使用的 Jest、Babel transform、jsdom、module mapper 与 watch plugin 固定为显式开发依赖并更新 `yarn.lock`，但 SHALL NOT 新增或升级 React、React Router、Testing Library、业务运行时依赖或 production build 工具链。

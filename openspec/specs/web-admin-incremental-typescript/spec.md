@@ -1,7 +1,7 @@
 # web-admin-incremental-typescript Specification
 
 ## Purpose
-定义 `web-admin` TypeScript 稳态规则：`src/` 业务源码不再新增 `.js` / `.jsx`，新增 React、共享逻辑、接口模型和测试默认使用 `.tsx` / `.ts` / `.test.tsx` / `.test.ts`；保留的 public raw scripts、CRACO/Node 构建入口等 runtime JS 通过生成链路、`@ts-check` 或专用 typecheck 管控。后续前端 change 以增量 TypeScript gate 和 `yarn typecheck` 防回退，Jest、build、coverage 和浏览器验证按风险选择。
+定义 `web-admin` TypeScript 稳态规则：`src/` 业务源码不再新增 `.js` / `.jsx`，新增 React、共享逻辑、接口模型和测试默认使用 `.tsx` / `.ts` / `.test.tsx` / `.test.ts`；保留的 public raw scripts、CRACO/Node 构建入口等 runtime JS 通过生成链路、`@ts-check` 或专用 typecheck 管控，Playwright E2E 资产使用独立 TypeScript 边界。后续前端 change 以增量 TypeScript gate 和 `yarn typecheck` 防回退，Jest、build、coverage 和浏览器验证按风险选择。
 ## Requirements
 ### Requirement: TypeScript 稳态工具链
 `web-admin` SHALL 支持 React 18 项目内业务源码以 `.ts` / `.tsx` 为默认实现形态，并 SHALL 使用 typed Vite 配置构建应用，同时保留必要 runtime JS 与 Jest/React Scripts 的受控验证边界。
@@ -48,26 +48,8 @@ Admin 前端 SHALL treat archived page/component migration requirements in this 
 - **THEN** validation MAY use `git diff --check`, the incremental TypeScript gate, `yarn typecheck`, and focused tests or manual inspection according to risk
 - **AND** changed-file coverage, full `yarn build`, or browser smoke SHALL be required only when the changed surface justifies that cost or when the user explicitly requests it
 
-### Requirement: Cypress E2E assets migrate conservatively to TypeScript
-Admin 前端 SHALL 支持将 `web-admin/cypress` E2E specs、support 和 Cypress config 从 legacy JavaScript 渐进迁移为 TypeScript，并保持现有 E2E 配置、测试流程、选择器和运行时行为兼容。
-
-#### Scenario: Cypress config and support files are migrated
-- **WHEN** 本 change 迁移 Cypress 配置和 support 文件
-- **THEN** `web-admin/cypress.config.js` SHALL become `web-admin/cypress.config.ts`
-- **AND** `web-admin/cypress/support/e2e.js` 和 `web-admin/cypress/support/commands.js` SHALL become `.ts`
-- **AND** Cypress custom commands such as `cy.login()` SHALL have local Cypress namespace typing for Cypress specs
-
-#### Scenario: Cypress E2E specs are migrated without behavior changes
-- **WHEN** 本 change 迁移 `web-admin/cypress/e2e/*.cy.js`
-- **THEN** all migrated specs SHALL use `.cy.ts`
-- **AND** migration SHALL preserve test names, selector usage, visited paths, assertions, fixture/account usage, Cypress `baseUrl`, retries, and historical filenames such as `orgnazition.cy.ts`
-- **AND** migration SHALL NOT modify backend API contracts, application source under `web-admin/src`, public raw scripts, CRACO config, build scripts, or runtime authentication behavior
-
-#### Scenario: Cypress TypeScript is validated separately from app typecheck
-- **WHEN** Cypress assets are ready for closeout
-- **THEN** a Cypress-specific TypeScript check SHALL cover `cypress.config.ts`, `cypress/support/**/*.ts`, and `cypress/e2e/**/*.cy.ts`
-- **AND** the main `web-admin/tsconfig.json` SHALL remain scoped to `src` unless a documented blocker proves that an app-level config change is required
-- **AND** OpenSpec strict validation, `git diff --check`, Cypress install/config verification, `yarn typecheck`, incremental TypeScript gate, and `yarn build` SHALL pass or have a documented blocker
+### Requirement: 同步器编辑页渐进迁移保持独立契约
+Admin 前端 SHALL 将同步器编辑页与字段表格的渐进 TypeScript 迁移要求保持为独立稳定契约，不得因 E2E runner 迁移而删除或弱化。
 
 #### Scenario: 同步器编辑页迁移
 - **WHEN** 后续 change 触碰身份源菜单下的同步器编辑页
@@ -1262,3 +1244,12 @@ Admin 前端 SHALL 按当前 TypeScript/TSX 稳态规则实现钉钉组织同步
 #### Scenario: 钉钉前端变更验证
 - **WHEN** 钉钉组织同步前端实现准备交付
 - **THEN** 聚焦 Jest 测试、`yarn typecheck` 和增量 TypeScript gate SHALL 对触达的 TS/TSX 路径通过
+
+### Requirement: Playwright E2E 资产使用独立 TypeScript 边界
+Admin 前端 SHALL 使用 TypeScript 维护 Playwright config、fixtures、helpers 与 specs，并 SHALL 通过专用 E2E typecheck 保持 Node/test 类型与应用 `src` 类型边界分离。
+
+#### Scenario: Playwright TypeScript 资产完成验证
+- **WHEN** Playwright E2E 资产准备交付
+- **THEN** 专用 TypeScript 配置 SHALL 覆盖 `playwright.config.ts`、fixtures、helpers 和全部 `*.spec.ts`
+- **AND** 主 `web-admin/tsconfig.json` SHALL 继续只检查应用 `src`
+- **AND** `yarn typecheck`、`yarn typecheck:build-tooling`、专用 E2E typecheck、增量 TypeScript gate、Playwright discovery 和完整 E2E SHALL 通过
