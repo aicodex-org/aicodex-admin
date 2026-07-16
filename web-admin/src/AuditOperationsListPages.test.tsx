@@ -1,6 +1,6 @@
 /* eslint-env jest */
 import React from "react";
-import {cleanup, render} from "@testing-library/react";
+import {cleanup, render, waitFor} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import i18next from "i18next";
@@ -50,6 +50,8 @@ type SessionListHarness = LegacyPage & {
   getForm: () => void;
   handleTagClose: (index: number, sessionId: string, scope: string, event: {preventDefault: () => void; stopPropagation: () => void}) => void;
   renderSessionDrawer: () => React.ReactNode;
+  openSessionDrawer: (record: Record<string, unknown>, rowIndex: number) => void;
+  closeSessionDrawer: () => void;
 };
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -410,14 +412,24 @@ describe("audit operations list pages", () => {
     expect(drawerView.getByText("session-c")).not.toBeNull();
     expect(drawerView.getByText("session-d")).not.toBeNull();
     sessionListView.unmount();
+
+    page.closeSessionDrawer();
+    expect(page.state.sessionDrawerOpen).toBe(false);
+    expect(page.state.sessionDrawerRecord).toBeNull();
+    expect(page.state.sessionDrawerRecordKey).toBe("");
+    expect(page.state.sessionDrawerRowIndex).toBeNull();
+    expect(page.state.confirmTagKey).toBeNull();
+    drawerView.rerender(<MemoryRouter>{page.renderSessionDrawer()}</MemoryRouter>);
+    await waitFor(() => expect(drawerView.queryByText("session-c")).toBeNull());
+
+    const replacementSession = {...multiSession, application: "app-reopened", sessionId: ["session-new"]};
+    page.openSessionDrawer(replacementSession, 0);
+    drawerView.rerender(<MemoryRouter>{page.renderSessionDrawer()}</MemoryRouter>);
+    expect(await drawerView.findByText("session-new")).not.toBeNull();
+    expect(drawerView.queryByText("session-c")).toBeNull();
     drawerView.unmount();
-    page.state = {
-      ...page.state,
-      sessionDrawerOpen: false,
-      sessionDrawerRecord: null,
-      sessionDrawerRecordKey: "",
-      sessionDrawerRowIndex: null,
-    };
+    page.closeSessionDrawer();
+    page.state = {...page.state, data: [multiSession]};
 
     (page as unknown as {deleteSession: (index: number, sessionId?: string) => void}).deleteSession(0, "session-a");
     await flushPromises();

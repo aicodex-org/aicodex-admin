@@ -27,6 +27,10 @@ async function flushPromises(): Promise<void> {
   await Promise.resolve();
 }
 
+function expectTableColumnHeader(container: HTMLElement, label: RegExp): void {
+  expect(Array.from(container.querySelectorAll("thead th[scope='col']")).some(cell => label.test(cell.textContent ?? ""))).toBe(true);
+}
+
 jest.mock("./auth/Provider", () => {
   const ReactFactory = require("react");
   return {
@@ -200,7 +204,7 @@ describe("ProviderListPage enterprise table polish", () => {
     expect(columns.find((column: LegacyAny) => column.key === "providerUrl")?.width).toBe("15%");
     expect(columns.find((column: LegacyAny) => column.key === "op")?.width).toBe("16%");
     expect(columns.find((column: LegacyAny) => column.key === "displayName")).toBeUndefined();
-    expect(view.getByText(/客户端ID|Client ID/)).not.toBeNull();
+    expectTableColumnHeader(view.container, /客户端ID|Client ID/);
     expect(view.queryByText(/显示名称|Display name/)).toBeNull();
   });
 

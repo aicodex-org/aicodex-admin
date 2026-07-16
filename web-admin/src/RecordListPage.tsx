@@ -252,7 +252,7 @@ class RecordListPage extends LegacyBaseListPage {
           title={t("general:Detail")}
           width={Setting.isMobile() ? "100%" : 720}
           placement="right"
-          destroyOnClose
+          destroyOnHidden
           onClose={() => this.setState({detailShow: false})}
           open={this.state.detailShow}
         >

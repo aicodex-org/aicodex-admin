@@ -30,6 +30,10 @@ type TestExpect = {
 
 const expect = jestExpect as unknown as TestExpect;
 
+function expectTableColumnHeader(container: HTMLElement, label: string): void {
+  expect(Array.from(container.querySelectorAll("thead th[scope='col']")).some(cell => cell.textContent === label)).toBe(true);
+}
+
 jest.mock("./backend/DingTalkOrganizationSyncBackend", () => {
   const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
   return {
@@ -280,14 +284,14 @@ test("starts DingTalk full sync and renders compact run impacts", async() => {
     data2: 1,
   });
 
-  render(<DingTalkOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+  const {container} = render(<DingTalkOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
   expect(await screen.findByText("成功")).toBeInTheDocument();
   expect(screen.getByText("手动")).toBeInTheDocument();
   expect(screen.getByText("已完成")).toBeInTheDocument();
-  expect(screen.getByText("部门")).toBeInTheDocument();
-  expect(screen.getByText("用户")).toBeInTheDocument();
-  expect(screen.getByText("关系")).toBeInTheDocument();
+  expectTableColumnHeader(container, "部门");
+  expectTableColumnHeader(container, "用户");
+  expectTableColumnHeader(container, "关系");
   expect(screen.getByText("新 1 / 更 2 / 禁 3")).toBeInTheDocument();
   expect(screen.getByText("新 4 / 更 5 / 禁 6")).toBeInTheDocument();
   expect(screen.getByText("更 26 / 禁 8")).toBeInTheDocument();

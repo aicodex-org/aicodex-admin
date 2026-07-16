@@ -1151,7 +1151,7 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
         onCancel={() => this.setState({dryRunPreviewModalOpen: false})}
         footer={<Button onClick={() => this.setState({dryRunPreviewModalOpen: false})}>关闭</Button>}
         width={720}
-        destroyOnClose
+        destroyOnHidden
       >
         <Spin spinning={this.state.dryRunPreviewLoading}>
           {this.state.dryRunPreviewError && (
@@ -1256,7 +1256,7 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
         onCancel={() => this.setState({dryRunHistoryModalOpen: false})}
         footer={<Button onClick={() => this.setState({dryRunHistoryModalOpen: false})}>关闭</Button>}
         width={860}
-        destroyOnClose
+        destroyOnHidden
       >
         <Space direction="vertical" size={12} style={{width: "100%"}}>
           <Button icon={<ReloadOutlined />} loading={this.state.dryRunHistoryLoading} onClick={() => this.refreshDryRunHistory()}>
@@ -1297,7 +1297,7 @@ class WecomOrganizationSyncPage extends React.Component<WecomOrganizationSyncPag
         onCancel={() => this.setState({dryRunHistoryDetailModalOpen: false})}
         footer={<Button onClick={() => this.setState({dryRunHistoryDetailModalOpen: false})}>关闭</Button>}
         width={680}
-        destroyOnClose
+        destroyOnHidden
       >
         <Spin spinning={this.state.dryRunHistoryDetailLoading}>
           {this.state.dryRunHistoryDetailError && (

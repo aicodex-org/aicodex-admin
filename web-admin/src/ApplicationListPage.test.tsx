@@ -29,6 +29,10 @@ type TestTableElement = React.ReactElement<{
   pagination?: LegacyAny;
 }>;
 
+function expectTableColumnHeader(container: HTMLElement, label: RegExp): void {
+  expect(Array.from(container.querySelectorAll("thead th[scope='col']")).some(cell => label.test(cell.textContent ?? ""))).toBe(true);
+}
+
 const account = {
   owner: "built-in",
   name: "admin",
@@ -134,8 +138,8 @@ describe("ApplicationListPage enterprise table polish", () => {
     expect(view.getByText(/重置|Reset/)).not.toBeNull();
     expect(view.getByText(/更多筛选|More filters/)).not.toBeNull();
     expect(view.getByText(/添加|Add/)).not.toBeNull();
-    expect(view.getByText(/分类|Category/)).not.toBeNull();
-    expect(view.getByText(/类型|Type/)).not.toBeNull();
+    expectTableColumnHeader(container, /分类|Category/);
+    expectTableColumnHeader(container, /类型|Type/);
     const identityCell = container.querySelector(".application-table-cell");
     expect(identityCell).not.toBeNull();
     expect(identityCell?.textContent).toContain("AICodex Portal");
@@ -240,9 +244,9 @@ describe("ApplicationListPage enterprise table polish", () => {
     expect(container.querySelector(".application-table-category")).not.toBeNull();
     expect(container.querySelector(".application-table-type")).not.toBeNull();
     expect(container.querySelector(".application-table-providers")).not.toBeNull();
-    expect(view.getByText(/分类|Category/)).not.toBeNull();
-    expect(view.getByText(/类型|Type/)).not.toBeNull();
-    expect(view.getByText(/接入配置|Access configuration/)).not.toBeNull();
+    expectTableColumnHeader(container, /分类|Category/);
+    expectTableColumnHeader(container, /类型|Type/);
+    expectTableColumnHeader(container, /接入配置|Access configuration/);
   });
 
   test("keeps backend contracts for non-default organization fetch and row actions", async() => {

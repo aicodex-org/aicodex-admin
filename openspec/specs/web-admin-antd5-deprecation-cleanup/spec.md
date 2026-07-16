@@ -2,12 +2,12 @@
 
 ## Purpose
 
-定义 Admin 前端在固定 AntD 5.24.1 上迁移 deprecated 输入组合与 overlay prop 时必须保持的等价交互、版本边界和验证要求。
+定义 Admin 前端在精确锁定的 AntD 5.29.3 上使用当前输入组合与 overlay API 时必须保持的等价交互、销毁生命周期、版本边界和验证要求。
 
 ## Requirements
 ### Requirement: 输入组合使用当前 AntD Compact API
 
-`web-admin` SHALL 使用 AntD 5.24.1 当前支持的 `Space.Compact` 表达登录、注册、用户编辑和短信测试中的相邻输入组合，并 SHALL 保持既有控件顺序、宽度、表单规则、输入回调、键盘操作和响应式行为。生产源码 SHALL NOT 在这些目标路径继续使用 `Input.Group`。
+`web-admin` SHALL 在精确锁定的 AntD 5.29.3 上使用当前支持的 `Space.Compact` 表达登录、注册、用户编辑和短信测试中的相邻输入组合，并 SHALL 保持既有控件顺序、宽度、表单规则、输入回调、键盘操作和响应式行为。生产源码 SHALL NOT 在这些目标路径继续使用 `Input.Group`。
 
 #### Scenario: 登录与注册手机号组合保持等价
 
@@ -43,20 +43,20 @@
 
 ### Requirement: 版本边界与验证保持 fail-closed
 
-本 change SHALL 保持 AntD 5.24.1、依赖锁和 `destroyOnClose` 行为不变。由于 5.24.1 不支持 `destroyOnHidden`，实现 SHALL NOT 使用类型断言、`any`、ignore directive 或未知 JSX prop 伪迁移。验证 SHALL 覆盖直接 Jest、changed production coverage、完整静态/构建门禁和脱敏浏览器 smoke，且 SHALL NOT 通过 console suppression、skip、sleep、timeout 或放宽断言制造通过。
+本 change SHALL 精确锁定 AntD 5.29.3、唯一 Yarn lock和真实 `destroyOnHidden` 类型，并 SHALL 将原先因5.24.1类型限制而 defer的11处overlay销毁语义完成迁移。实现 SHALL NOT 使用类型断言、`any`、ignore directive、双 lock或未知 JSX prop伪造兼容。既有 `Space.Compact` 与自定义 overlay `open` 契约 SHALL 保持不变。
 
-#### Scenario: 当前版本不支持 destroyOnHidden
+#### Scenario: 当前维护版本支持 destroyOnHidden
 
-- **WHEN** 开发者完成本次 deprecated API 清理
-- **THEN** 生产源码中的 `destroyOnClose` 基线计数 SHALL 保持 11
-- **AND** `destroyOnHidden` SHALL NOT 被添加到当前 5.24.1 代码
-- **AND** verification SHALL 记录 defer 到后续 AntD minor 升级评估的依据
+- **WHEN** 开发者完成 AntD 5.29.3升级和目标 prop迁移
+- **THEN** 生产源码中的 `destroyOnClose` SHALL 为0
+- **AND** `destroyOnHidden` SHALL 为11且通过实际 Modal/Drawer类型校验
+- **AND** package、lock和实际安装版本 SHALL 精确一致，不得升级 AntD 6或其它无关直接依赖
 
 #### Scenario: 完整前端质量门禁
 
-- **WHEN** change 准备归档
-- **THEN** 目标 deprecated warning SHALL 为 0
-- **AND** changed production coverage SHALL 达到 85%
-- **AND** Jest SHALL 发现至少 145 个 suite / 1371 个 test 并以 0 failure 完成
-- **AND** app/build-tooling/E2E typecheck、增量 TypeScript gate、production lint、public scripts、Vite build 与 19 files / 22 tests Playwright discovery SHALL 通过
-- **AND** 脱敏浏览器 smoke SHALL 覆盖输入组合、modal 开关、关闭/重开、窄屏、page error 与非预期 console error
+- **WHEN** change准备归档
+- **THEN** 目标 AntD runtime/deprecated warning SHALL 为0
+- **AND** changed production coverage SHALL 达到85%
+- **AND** Jest SHALL 发现至少145个 suite / 1371个 test并以0 failure完成
+- **AND** app/build-tooling/E2E typecheck、增量 TypeScript gate、production lint、public scripts、Vite build与19 files / 22 tests Playwright discovery SHALL 通过
+- **AND** 脱敏浏览器 smoke SHALL 覆盖 Captcha/Face、普通 Drawer、WeCom modal的关闭/重开、焦点、资源/异步清理和窄屏，page error与非预期 console error SHALL 为0

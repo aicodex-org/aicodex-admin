@@ -190,7 +190,7 @@ const FaceRecognitionModal = (props: LegacyAny) => {
         <Modal
           closable={false}
           maskClosable={false}
-          destroyOnClose={true}
+          destroyOnHidden={true}
           open={open && isCameraCaptured}
           title={t("login:Face Recognition")}
           width={350}
@@ -264,7 +264,7 @@ const FaceRecognitionModal = (props: LegacyAny) => {
     return <div>
       <Modal closable={false}
         maskClosable={false}
-        destroyOnClose={true}
+        destroyOnHidden={true}
         open={open}
         title={t("login:Face Recognition")}
         width={350}

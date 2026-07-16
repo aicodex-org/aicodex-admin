@@ -215,7 +215,7 @@ class SessionListPage extends LegacyBaseListPage {
         title={t("general:All session IDs")}
         width={Setting.isMobile() ? "100%" : 560}
         placement="right"
-        destroyOnClose
+        destroyOnHidden
         onClose={this.closeSessionDrawer}
         open={this.state.sessionDrawerOpen}
       >

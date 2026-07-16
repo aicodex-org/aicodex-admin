@@ -460,7 +460,7 @@ class WebhookEventListPage extends React.Component<AdminRouteProps, WebhookEvent
           title={t("webhook:Webhook Event Detail")}
           width={Setting.isMobile() ? "100%" : 720}
           placement="right"
-          destroyOnClose
+          destroyOnHidden
           onClose={this.closeDetailDrawer}
           open={this.state.detailShow}
         >

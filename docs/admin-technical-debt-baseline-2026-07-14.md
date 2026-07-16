@@ -35,7 +35,7 @@
 | SOCKS5 出站传输 | `harden-admin-socks5-proxy-transport-policy` | 默认 transport、代理 transport 和 TLS 行为已有稳定契约 |
 | IDP HTTP client | `stabilize-admin-idp-http-client-contract` | 五个目标 Provider 统一注入 client、bounded fallback、body/status/error 与凭据脱敏契约 |
 | Web3 钱包认证退役 | `retire-unused-admin-web3-wallet-auth` | 60 零存量门禁通过；创建/登录入口、专属后端和 13 个直接依赖已移除，历史记录保持受控只读兼容 |
-| AntD 5 当前 API 清理 | `remove-web-admin-antd5-input-group-and-visible-deprecations` | 4 处 `Input.Group` 与 3 个 modal wrapper / 7 个调用点已迁移到 `Space.Compact` / `open`；5.24.1 不支持的销毁 API 留待升级后评估 |
+| AntD 5 当前 API 清理 | `remove-web-admin-antd5-input-group-and-visible-deprecations`、`upgrade-web-admin-antd5-and-migrate-modal-destroy-semantics` | 4 处 `Input.Group` 与 3 个 modal wrapper / 7 个调用点已迁移到 `Space.Compact` / `open`；AntD 精确升级到 5.29.3，11 处 overlay 销毁语义已迁移到 `destroyOnHidden`，AntD 6 继续排除 |
 | CRA/IE polyfill 退役 | `retire-web-admin-cra-ie-polyfill` | React 18 + Vite `es2020` 与 production browserslist 成为浏览器支持真值；CRA production/Jest polyfill owner 已移除，`core-js`、`replaceAll` 与显式 Jest/jsdom 边界继续保留 |
 | 注册页响应式 | `fix-web-admin-signup-mobile-overflow` | Signup 固定 logo/Form/模式组已收敛到页面局部响应式边界；320/360/390px 与桌面端无页面级横向溢出，长标签、校验错误和键盘路径保持可用 |
 
@@ -103,16 +103,14 @@ Testing Library change 释放前端依赖锁后可建立新的隔离评估。重
 - 全量 class component 到 hooks。
 - 全仓 controller response/error contract 统一。
 - 全仓统一 HTTP client、全仓消除 panic 或一次性启用全部 linter。
-- AntD 5.24.1 的 11 处 `destroyOnClose` 迁移；当前 `ModalProps` 不支持 `destroyOnHidden`，必须等待 minor 升级并重新验证表单、媒体与异步清理。
 - 仅为缩短文件行数而重写历史 OpenSpec 主规格。
 
 这些方向只有在出现明确业务 blocker、升级前置或可量化维护成本时，才按单一业务域建立窄 change。不得把文件数量、行数或告警总数本身当作立项收益。
 
 ## 推荐顺序
 
-1. 完成并 closeout 当前企业 TLS 兼容策略与 React 18 Testing Library 升级。
-2. AntD minor 升级后重新评估 `destroyOnClose`；升级前保持当前 11 处销毁语义不变。
-3. 前端依赖锁释放后，基于已缩小的依赖树重新评估 Bun；评估通过前继续使用 Yarn。
+1. 保持 AntD 5.29.3、`destroyOnHidden=11` 与 React 18 Testing Library 基线，不在后续业务 change 顺手升级 AntD 6。
+2. 前端依赖锁释放后，基于已缩小的依赖树重新评估 Bun；评估通过前继续使用 Yarn。
 
 ## 维护规则
 

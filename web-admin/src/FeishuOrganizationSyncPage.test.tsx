@@ -1085,7 +1085,7 @@ test("renders handoff evidence blocked and no-run states", async() => {
   expect(screen.getAllByText("复核预览影响").length).toBeGreaterThan(0);
   expect(screen.queryByText("review_dry_run_diff")).not.toBeInTheDocument();
   expect(screen.queryByText("dry_run_diff_conflict_or_invalid")).not.toBeInTheDocument();
-  fireEvent.click(screen.getByLabelText("Close"));
+  fireEvent.click(screen.getByRole("button", {name: "Close"}));
 
   feishuBackendMock.getFeishuOrganizationSyncHandoffEvidence.mockResolvedValueOnce({
     status: "ok",

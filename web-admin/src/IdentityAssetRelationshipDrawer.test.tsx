@@ -1,7 +1,7 @@
 /* eslint-env jest */
 import React from "react";
 import {expect, jest} from "@jest/globals";
-import {cleanup, render} from "@testing-library/react";
+import {cleanup, render, waitFor} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import i18next from "i18next";
 import IdentityAssetRelationshipDrawer from "./IdentityAssetRelationshipDrawer";
@@ -67,6 +67,45 @@ describe("IdentityAssetRelationshipDrawer", () => {
 
     expect(view.getByText("暂无选中的身份资产")).not.toBeNull();
     expect(view.queryByText("对象类型")).toBeNull();
+  });
+
+  test("unmounts hidden details and reopens with the current identity asset", async() => {
+    const first = buildApplicationIdentityAssetDetail({
+      owner: "admin",
+      organization: "built-in",
+      name: "first-app",
+      displayName: "First identity app",
+      providers: [],
+    }, {pagePath: "/applications", loadedRows: 1});
+    const second = buildApplicationIdentityAssetDetail({
+      owner: "admin",
+      organization: "built-in",
+      name: "second-app",
+      displayName: "Second identity app",
+      providers: [],
+    }, {pagePath: "/applications", loadedRows: 1});
+    const onClose = jest.fn();
+    const view = render(
+      <MemoryRouter>
+        <IdentityAssetRelationshipDrawer open asset={first} onClose={onClose} />
+      </MemoryRouter>
+    );
+
+    expect(view.getByText("First identity app")).not.toBeNull();
+    view.rerender(
+      <MemoryRouter>
+        <IdentityAssetRelationshipDrawer open={false} asset={first} onClose={onClose} />
+      </MemoryRouter>
+    );
+    await waitFor(() => expect(view.queryByText("First identity app")).toBeNull());
+
+    view.rerender(
+      <MemoryRouter>
+        <IdentityAssetRelationshipDrawer open asset={second} onClose={onClose} />
+      </MemoryRouter>
+    );
+    expect(await view.findByText("Second identity app")).not.toBeNull();
+    expect(view.queryByText("First identity app")).toBeNull();
   });
 
   test("renders application boundaries, current-view relationships, evidence links, and redaction state", () => {

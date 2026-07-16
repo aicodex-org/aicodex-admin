@@ -374,7 +374,7 @@ class SiteEditPage extends React.Component<SiteEditPageProps, SiteEditPageState>
                 {i18next.t("site:Alert interval")}:
               </Col>
               <Col span={22} >
-                <InputNumber min={1} value={this.state.site.alertInterval} addonAfter={i18next.t("usage:seconds")} onChange={value => {
+                <InputNumber min={1} value={this.state.site.alertInterval} suffix={i18next.t("usage:seconds")} onChange={value => {
                   this.updateSiteField("alertInterval", value);
                 }} />
               </Col>

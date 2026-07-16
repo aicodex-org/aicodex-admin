@@ -129,6 +129,22 @@ const {fireEvent, screen} = require("@testing-library/react") as {
   };
 };
 
+function getModalCloseButton(title: string): HTMLButtonElement {
+  const modal = screen.getByText(title).closest(".ant-modal-content");
+  if (!modal) {
+    throw new Error(`Modal not found: ${title}`);
+  }
+  const button = modal.querySelector<HTMLButtonElement>(".ant-modal-close");
+  if (!button) {
+    throw new Error(`Modal close button not found: ${title}`);
+  }
+  return button;
+}
+
+function expectTableColumnHeader(container: HTMLElement, label: string): void {
+  expect(Array.from(container.querySelectorAll("thead th[scope='col']")).some(cell => cell.textContent === label)).toBe(true);
+}
+
 const mockMatchMedia = (query: string): MediaQueryList => ({
   matches: false,
   media: query,
@@ -460,7 +476,7 @@ test("renders sync run history with status, counts, and safe error summary", asy
   const {container} = render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
   expect(await screen.findByText("运行中")).toBeInTheDocument();
-  expect(screen.getByText("序号")).toBeInTheDocument();
+  expectTableColumnHeader(container, "序号");
   expect(screen.queryByText("运行 ID")).not.toBeInTheDocument();
   expect(screen.queryByText("run-running")).not.toBeInTheDocument();
   const runIndexCell = container.querySelector("tbody tr[data-row-key='run-running'] td:first-child");
@@ -476,13 +492,13 @@ test("renders sync run history with status, counts, and safe error summary", asy
   expect(screen.getByText("成功")).toBeInTheDocument();
   expect(screen.getByText("失败")).toBeInTheDocument();
   expect(screen.getByText("部分成功")).toBeInTheDocument();
-  expect(screen.getByText("状态")).toBeInTheDocument();
-  expect(screen.getByText("触发方式")).toBeInTheDocument();
+  expectTableColumnHeader(container, "状态");
+  expectTableColumnHeader(container, "触发方式");
   expect(screen.getByText("手动")).toBeInTheDocument();
   expect(screen.getByText("定时")).toBeInTheDocument();
   expect(screen.queryByText("Status")).not.toBeInTheDocument();
-  expect(screen.getByText("部门")).toBeInTheDocument();
-  expect(screen.getByText("用户")).toBeInTheDocument();
+  expectTableColumnHeader(container, "部门");
+  expectTableColumnHeader(container, "用户");
   expect(screen.queryByText("部门（新增 / 更新 / 禁用）")).not.toBeInTheDocument();
   expect(screen.queryByText("用户（新增 / 更新 / 禁用）")).not.toBeInTheDocument();
   expect(screen.getByText("已完成")).toBeInTheDocument();
@@ -612,6 +628,40 @@ test("previews WeCom sync impact in a compact modal", async() => {
   expect(screen.getAllByText("新 7 / 更 8 / 禁 9").length).toBeGreaterThan(0);
 });
 
+test("reloads WeCom preview after the hidden modal child tree is destroyed", async() => {
+  mockConfig({isEnabled: true});
+  const previewResponse = (corpAlias: string) => ({
+    status: "ok",
+    data: {
+      status: "succeeded",
+      source: {organization: "engineering", corpAlias, previewedAt: "2026-06-18T10:00:00Z"},
+      snapshotStats: {departmentCount: 1, userCount: 1, relationshipCount: 1},
+      diff: {
+        departments: {toCreate: 0, toUpdate: 0, toSoftDisable: 0},
+        users: {toCreate: 0, toUpdate: 0, toSoftDisable: 0},
+        relationships: {toCreate: 0, toUpdate: 0, toSoftDisable: 0},
+      },
+      reasonCounts: {},
+    },
+  });
+  wecomBackendMock.dryRunWecomOrganizationSyncPreview
+    .mockResolvedValueOnce(previewResponse("preview-first"))
+    .mockResolvedValueOnce(previewResponse("preview-second"));
+
+  render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+  const openPreview = await screen.findByText("预览影响");
+  fireEvent.click(openPreview);
+  expect(await screen.findByText("来源：preview-first")).toBeInTheDocument();
+
+  fireEvent.click(getModalCloseButton("预览影响结果"));
+  await waitFor(() => expect(screen.queryByText("预览影响结果")).toBeNull());
+  expect(screen.queryByText("来源：preview-first")).toBeNull();
+
+  fireEvent.click(openPreview);
+  expect(await screen.findByText("来源：preview-second")).toBeInTheDocument();
+  expect(wecomBackendMock.dryRunWecomOrganizationSyncPreview).toHaveBeenCalledTimes(2);
+});
+
 test("shows WeCom dry-run history empty and error states in a modal", async() => {
   mockConfig({isEnabled: true});
   wecomBackendMock.getWecomOrganizationSyncDryRunHistories.mockResolvedValueOnce({status: "ok", data: []});
@@ -689,6 +739,54 @@ test("opens WeCom dry-run history detail with long safe summary", async() => {
   expect(await screen.findByText(longSummary.trim())).toBeInTheDocument();
   expect(screen.getByText("脱敏：已应用")).toBeInTheDocument();
   expect(screen.getByText("保留：90 天")).toBeInTheDocument();
+});
+
+test("refreshes WeCom history and detail when hidden modals reopen", async() => {
+  mockConfig({isEnabled: true});
+  const history = {
+    name: "history-reopen",
+    status: "failed",
+    createdAt: "2026-06-18T10:00:00Z",
+    diagnosticAlias: "safe-diagnostic",
+    corpAlias: "corp-safe",
+    snapshotDepartmentCount: 1,
+    snapshotUserCount: 1,
+    snapshotRelationshipCount: 1,
+    departmentToCreate: 0,
+    departmentToUpdate: 0,
+    departmentToSoftDisable: 0,
+    userToCreate: 0,
+    userToUpdate: 0,
+    userToSoftDisable: 0,
+    relationshipToCreate: 0,
+    relationshipToUpdate: 0,
+    relationshipToSoftDisable: 0,
+    safeSummary: "safe summary",
+  };
+  wecomBackendMock.getWecomOrganizationSyncDryRunHistories.mockResolvedValue({status: "ok", data: [history]});
+  wecomBackendMock.getWecomOrganizationSyncDryRunHistory.mockResolvedValue({status: "ok", data: history});
+
+  render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+  const openHistory = await screen.findByText("预览历史");
+  fireEvent.click(openHistory);
+  expect(await screen.findByText("预览历史记录")).toBeInTheDocument();
+  expect(wecomBackendMock.getWecomOrganizationSyncDryRunHistories).toHaveBeenCalledTimes(1);
+
+  fireEvent.click(getModalCloseButton("预览历史记录"));
+  await waitFor(() => expect(screen.queryByText("预览历史记录")).toBeNull());
+  fireEvent.click(openHistory);
+  expect(await screen.findByText("预览历史记录")).toBeInTheDocument();
+  expect(wecomBackendMock.getWecomOrganizationSyncDryRunHistories).toHaveBeenCalledTimes(2);
+
+  fireEvent.click(await screen.findByText("查看详情"));
+  expect(await screen.findByText("预览历史详情")).toBeInTheDocument();
+  expect(wecomBackendMock.getWecomOrganizationSyncDryRunHistory).toHaveBeenCalledTimes(1);
+
+  fireEvent.click(getModalCloseButton("预览历史详情"));
+  await waitFor(() => expect(screen.queryByText("预览历史详情")).toBeNull());
+  fireEvent.click(await screen.findByText("查看详情"));
+  expect(await screen.findByText("预览历史详情")).toBeInTheDocument();
+  expect(wecomBackendMock.getWecomOrganizationSyncDryRunHistory).toHaveBeenCalledTimes(2);
 });
 
 test("disables start sync action while a run is already active", async() => {
@@ -775,12 +873,12 @@ test("auto refreshes while a sync run is running and stops after terminal status
       data2: 1,
     });
 
-  render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
+  const {container} = render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
   await act(async() => {
     await flushMicrotasks();
   });
-  expect(screen.getByText("序号")).toBeInTheDocument();
+  expectTableColumnHeader(container, "序号");
   expect(screen.queryByText("run-running")).not.toBeInTheDocument();
   expect(screen.getByText(/检测到运行中任务，自动每 3 秒刷新/)).toBeInTheDocument();
   expect(wecomBackendMock.getWecomOrganizationSyncRuns).toHaveBeenCalledTimes(1);

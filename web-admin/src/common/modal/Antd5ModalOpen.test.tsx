@@ -50,6 +50,13 @@ test("CaptchaModal loads only when the open prop becomes true", async() => {
   view.rerender(<CaptchaModal {...props} open={true} />);
   await waitFor(() => expect(getCaptcha).toHaveBeenCalledTimes(1));
   await waitFor(() => expect(view.getByRole("dialog")).not.toBeNull());
+
+  view.rerender(<CaptchaModal {...props} open={false} />);
+  await waitFor(() => expect(view.queryByRole("dialog")).toBeNull());
+
+  view.rerender(<CaptchaModal {...props} open={true} />);
+  await waitFor(() => expect(getCaptcha).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(view.getByRole("dialog")).not.toBeNull());
 });
 
 test("CaptchaModal opens for a non-default captcha provider", async() => {
@@ -68,10 +75,11 @@ test("CaptchaModal opens for a non-default captcha provider", async() => {
 
 test("FaceRecognitionCommonModal opens the camera and stops tracks after close", async() => {
   jest.useFakeTimers();
-  const stop = jest.fn();
-  const getUserMedia = jest.fn<Promise<MediaStream>, []>().mockResolvedValue({
-    getTracks: () => [{stop}],
-  } as unknown as MediaStream);
+  const stopFirstStream = jest.fn();
+  const stopSecondStream = jest.fn();
+  const getUserMedia = jest.fn<Promise<MediaStream>, []>()
+    .mockResolvedValueOnce({getTracks: () => [{stop: stopFirstStream}]} as unknown as MediaStream)
+    .mockResolvedValueOnce({getTracks: () => [{stop: stopSecondStream}]} as unknown as MediaStream);
   Object.defineProperty(navigator, "mediaDevices", {configurable: true, value: {getUserMedia}});
   const props = {onOk: jest.fn(), onCancel: jest.fn()};
   const view = render(<FaceRecognitionCommonModal {...props} open={true} />);
@@ -80,12 +88,28 @@ test("FaceRecognitionCommonModal opens the camera and stops tracks after close",
     await Promise.resolve();
   });
   expect(getUserMedia).toHaveBeenCalledTimes(1);
+  expect(view.getByRole("dialog")).not.toBeNull();
 
   view.rerender(<FaceRecognitionCommonModal {...props} open={false} />);
   await act(async() => {
     await Promise.resolve();
   });
-  expect(stop).toHaveBeenCalledTimes(1);
+  act(() => jest.runOnlyPendingTimers());
+  expect(stopFirstStream).toHaveBeenCalledTimes(1);
+  expect(view.queryByRole("dialog")).toBeNull();
+
+  view.rerender(<FaceRecognitionCommonModal {...props} open={true} />);
+  await act(async() => {
+    await Promise.resolve();
+  });
+  expect(getUserMedia).toHaveBeenCalledTimes(2);
+  expect(view.getByRole("dialog")).not.toBeNull();
+
+  view.rerender(<FaceRecognitionCommonModal {...props} open={false} />);
+  await act(async() => {
+    await Promise.resolve();
+  });
+  expect(stopSecondStream).toHaveBeenCalledTimes(1);
   jest.clearAllTimers();
   jest.useRealTimers();
 });
@@ -100,4 +124,14 @@ test("FaceRecognitionModal loads models through the open prop", async() => {
     expect(mockLoadFaceLandmark).toHaveBeenCalledTimes(1);
     expect(mockLoadFaceRecognition).toHaveBeenCalledTimes(1);
   });
+  expect(view.getByRole("dialog")).not.toBeNull();
+
+  view.rerender(<FaceRecognitionModal open={false} withImage={true} onOk={jest.fn()} onCancel={jest.fn()} />);
+  await waitFor(() => expect(view.queryByRole("dialog")).toBeNull());
+
+  view.rerender(<FaceRecognitionModal open={true} withImage={true} onOk={jest.fn()} onCancel={jest.fn()} />);
+  await waitFor(() => expect(view.getByRole("dialog")).not.toBeNull());
+  expect(mockLoadTinyFaceDetector).toHaveBeenCalledTimes(1);
+  expect(mockLoadFaceLandmark).toHaveBeenCalledTimes(1);
+  expect(mockLoadFaceRecognition).toHaveBeenCalledTimes(1);
 });

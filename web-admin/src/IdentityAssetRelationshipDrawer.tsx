@@ -53,7 +53,7 @@ const IdentityAssetRelationshipDrawer = ({open, asset, onClose}: Props): JSX.Ele
       width="min(640px, 100vw)"
       open={open}
       onClose={onClose}
-      destroyOnClose
+      destroyOnHidden
     >
       {!asset && (
         <Empty description={t("No selected identity asset", "No selected identity asset")} />

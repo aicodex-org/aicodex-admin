@@ -205,7 +205,7 @@ export const CaptchaModal = (props: LegacyAny) => {
       <Modal
         closable={true}
         maskClosable={false}
-        destroyOnClose={true}
+        destroyOnHidden={true}
         title={t("general:Captcha")}
         open={modalOpen}
         okText={t("general:OK")}

@@ -128,7 +128,7 @@ const FaceRecognitionCommonModal = (props: LegacyAny) => {
         Cancel
         </Button>,
       ]}
-      destroyOnClose={true}
+      destroyOnHidden={true}
       open={open}>
       <Progress percent={percent} />
       <div style={{
