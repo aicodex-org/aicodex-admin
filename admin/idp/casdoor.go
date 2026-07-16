@@ -16,11 +16,10 @@ package idp
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -62,17 +61,18 @@ type CasdoorToken struct {
 }
 
 func (idp *CasdoorIdProvider) GetToken(code string) (*oauth2.Token, error) {
-	resp, err := http.PostForm(idp.Config.Endpoint.TokenURL, url.Values{
+	params := url.Values{
 		"client_id":     {idp.Config.ClientID},
 		"client_secret": {idp.Config.ClientSecret},
 		"code":          {code},
 		"grant_type":    {"authorization_code"},
-	})
-	if err != nil {
-		return nil, err
 	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	req, err := http.NewRequest(http.MethodPost, idp.Config.Endpoint.TokenURL, strings.NewReader(params.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("Casdoor token exchange: create request failed")
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	body, err := executeIdPRequest(idp.Client, "Casdoor", "token exchange", req)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func (idp *CasdoorIdProvider) GetToken(code string) (*oauth2.Token, error) {
 
 	// check if token is expired
 	if pToken.ExpiresIn <= 0 {
-		return nil, errors.New(pToken.AccessToken)
+		return nil, fmt.Errorf("Casdoor token exchange: invalid token response")
 	}
 	token := &oauth2.Token{
 		AccessToken: pToken.AccessToken,
@@ -122,17 +122,11 @@ func (idp *CasdoorIdProvider) GetUserInfo(token *oauth2.Token) (*UserInfo, error
 	accessToken := token.AccessToken
 	request, err := http.NewRequest("GET", fmt.Sprintf("%s/api/userinfo", idp.Host), nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Casdoor load profile: create request failed")
 	}
 	// add accesstoken to bearer token
 	request.Header.Add("Authorization", fmt.Sprintf("Bearer %s", accessToken))
-	resp, err := idp.Client.Do(request)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
+	data, err := executeIdPRequest(idp.Client, "Casdoor", "load profile", request)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +137,7 @@ func (idp *CasdoorIdProvider) GetUserInfo(token *oauth2.Token) (*UserInfo, error
 	}
 
 	if cdUserinfo.Status != "" {
-		return nil, fmt.Errorf("err: %s", cdUserinfo.Msg)
+		return nil, fmt.Errorf("Casdoor load profile: provider rejected response")
 	}
 
 	userInfo := &UserInfo{

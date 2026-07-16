@@ -18,8 +18,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/nyaruka/phonenumbers"
@@ -89,7 +89,7 @@ func (idp *LarkIdProvider) GetToken(code string) (*oauth2.Token, error) {
 		RedirectURI  string `json:"redirect_uri,omitempty"`
 	}{"authorization_code", idp.Config.ClientID, idp.Config.ClientSecret, code, idp.Config.RedirectURL}
 
-	data, statusCode, err := idp.postWithBody(params, idp.Config.Endpoint.TokenURL)
+	data, err := idp.postWithBody(params, idp.Config.Endpoint.TokenURL)
 	if err != nil {
 		return nil, err
 	}
@@ -100,8 +100,11 @@ func (idp *LarkIdProvider) GetToken(code string) (*oauth2.Token, error) {
 		return nil, err
 	}
 
-	if statusCode >= http.StatusBadRequest || !isLarkTokenCodeSuccess(appToken.Code) || appToken.AccessToken == "" {
-		return nil, fmt.Errorf("Lark GetToken() error, status: %d, code: %s, msg: %s, error: %s, error_description: %s", statusCode, formatLarkTokenCode(appToken.Code), appToken.Msg, appToken.Error, appToken.ErrorDescription)
+	if !isLarkTokenCodeSuccess(appToken.Code) {
+		return nil, fmt.Errorf("Lark token exchange: provider error code %s", formatLarkTokenCode(appToken.Code))
+	}
+	if appToken.AccessToken == "" {
+		return nil, fmt.Errorf("Lark token exchange: invalid token response")
 	}
 
 	t := &oauth2.Token{
@@ -137,6 +140,7 @@ func isLarkTokenCodeSuccess(code interface{}) bool {
 	}
 }
 
+// formatLarkTokenCode 只保留可诊断的数值code，避免把第三方任意字符串字段带入普通错误。
 func formatLarkTokenCode(code interface{}) string {
 	switch value := code.(type) {
 	case nil:
@@ -144,9 +148,12 @@ func formatLarkTokenCode(code interface{}) string {
 	case float64:
 		return fmt.Sprintf("%.0f", value)
 	case string:
+		if _, err := strconv.ParseInt(value, 10, 64); err != nil {
+			return "unknown"
+		}
 		return value
 	default:
-		return fmt.Sprintf("%v", value)
+		return "unknown"
 	}
 }
 
@@ -210,13 +217,7 @@ func (idp *LarkIdProvider) GetUserInfo(token *oauth2.Token) (*UserInfo, error) {
 
 	req.Header.Set("Authorization", "Bearer "+token.AccessToken)
 
-	resp, err := idp.getHttpClient().Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	defer resp.Body.Close()
-	data, err := io.ReadAll(resp.Body)
+	data, err := executeIdPRequest(idp.Client, "Lark", "load profile", req)
 	if err != nil {
 		return nil, err
 	}
@@ -226,8 +227,8 @@ func (idp *LarkIdProvider) GetUserInfo(token *oauth2.Token) (*UserInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	if resp.StatusCode >= http.StatusBadRequest || larkUserInfo.Code != 0 {
-		return nil, fmt.Errorf("Lark GetUserInfo() error, status: %d, code: %d, msg: %s", resp.StatusCode, larkUserInfo.Code, larkUserInfo.Msg)
+	if larkUserInfo.Code != 0 {
+		return nil, fmt.Errorf("Lark load profile: provider error code %d", larkUserInfo.Code)
 	}
 
 	// Use enterprise_email as fallback when email is empty
@@ -275,30 +276,20 @@ func (idp *LarkIdProvider) GetUserInfo(token *oauth2.Token) (*UserInfo, error) {
 	return &userInfo, nil
 }
 
-func (idp *LarkIdProvider) postWithBody(body interface{}, url string) ([]byte, int, error) {
+func (idp *LarkIdProvider) postWithBody(body interface{}, url string) ([]byte, error) {
 	bs, err := json.Marshal(body)
 	if err != nil {
-		return nil, 0, err
+		return nil, fmt.Errorf("Lark token exchange: encode request failed")
 	}
 
-	resp, err := idp.getHttpClient().Post(url, "application/json;charset=UTF-8", bytes.NewReader(bs))
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(bs))
 	if err != nil {
-		return nil, 0, err
+		return nil, fmt.Errorf("Lark token exchange: create request failed")
 	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, resp.StatusCode, err
-	}
-
-	return data, resp.StatusCode, nil
+	req.Header.Set("Content-Type", "application/json;charset=UTF-8")
+	return executeIdPRequest(idp.Client, "Lark", "token exchange", req)
 }
 
 func (idp *LarkIdProvider) getHttpClient() *http.Client {
-	if idp.Client != nil {
-		return idp.Client
-	}
-
-	return http.DefaultClient
+	return resolveIdPHTTPClient(idp.Client)
 }

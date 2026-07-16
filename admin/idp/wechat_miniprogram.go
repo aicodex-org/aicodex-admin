@@ -17,7 +17,6 @@ package idp
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 
 	"golang.org/x/oauth2"
@@ -33,7 +32,7 @@ func NewWeChatMiniProgramIdProvider(clientId string, clientSecret string) *WeCha
 
 	config := idp.getConfig(clientId, clientSecret)
 	idp.Config = config
-	idp.Client = &http.Client{}
+	idp.Client = resolveIdPHTTPClient(nil)
 	return idp
 }
 
@@ -59,13 +58,13 @@ type WeChatMiniProgramSessionResponse struct {
 }
 
 func (idp *WeChatMiniProgramIdProvider) GetSessionByCode(code string) (*WeChatMiniProgramSessionResponse, error) {
+	// jscode2session 要求这些字段位于query；所有错误统一经脱敏边界返回，禁止回显完整URL。
 	sessionUri := fmt.Sprintf("https://api.weixin.qq.com/sns/jscode2session?appid=%s&secret=%s&js_code=%s&grant_type=authorization_code", idp.Config.ClientID, idp.Config.ClientSecret, code)
-	sessionResponse, err := idp.Client.Get(sessionUri)
+	request, err := http.NewRequest(http.MethodGet, sessionUri, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("WeChat Mini Program get session: create request failed")
 	}
-	defer sessionResponse.Body.Close()
-	data, err := io.ReadAll(sessionResponse.Body)
+	data, err := executeIdPRequest(idp.Client, "WeChat Mini Program", "get session", request)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +74,7 @@ func (idp *WeChatMiniProgramIdProvider) GetSessionByCode(code string) (*WeChatMi
 		return nil, err
 	}
 	if session.Errcode != 0 {
-		return nil, fmt.Errorf("err: %s", session.Errmsg)
+		return nil, fmt.Errorf("WeChat Mini Program get session: provider error code %d", session.Errcode)
 	}
 	return &session, nil
 }

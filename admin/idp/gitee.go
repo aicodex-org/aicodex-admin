@@ -15,10 +15,8 @@
 package idp
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -84,15 +82,13 @@ func (idp *GiteeIdProvider) GetToken(code string) (*oauth2.Token, error) {
 	params.Add("code", code)
 	params.Add("redirect_uri", idp.Config.RedirectURL)
 
-	accessTokenUrl := fmt.Sprintf("%s?%s", idp.Config.Endpoint.TokenURL, params.Encode())
-	bs, _ := json.Marshal(params.Encode())
-	req, _ := http.NewRequest("POST", accessTokenUrl, strings.NewReader(string(bs)))
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Safari/537.36")
-	resp, err := http.DefaultClient.Do(req)
+	req, err := http.NewRequest(http.MethodPost, idp.Config.Endpoint.TokenURL, strings.NewReader(params.Encode()))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Gitee token exchange: create request failed")
 	}
-	rbs, err := io.ReadAll(resp.Body)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Safari/537.36")
+	rbs, err := executeIdPRequest(idp.Client, "Gitee", "token exchange", req)
 	if err != nil {
 		return nil, err
 	}
@@ -183,16 +179,18 @@ func (idp *GiteeIdProvider) GetUserInfo(token *oauth2.Token) (*UserInfo, error) 
 	var gtUserInfo GiteeUserResponse
 	accessToken := token.AccessToken
 
-	u := fmt.Sprintf("https://gitee.com/api/v5/user?access_token=%s",
-		accessToken)
-
-	userinfoResp, err := idp.GetUrlResp(u)
+	req, err := http.NewRequest(http.MethodGet, "https://gitee.com/api/v5/user", nil)
+	if err != nil {
+		return nil, fmt.Errorf("Gitee load profile: create request failed")
+	}
+	req.Header.Set("Authorization", "token "+accessToken)
+	data, err := executeIdPRequest(idp.Client, "Gitee", "load profile", req)
 	if err != nil {
 		return nil, err
 	}
 
-	if err = json.Unmarshal([]byte(userinfoResp), &gtUserInfo); err != nil {
-		return nil, err
+	if err = json.Unmarshal(data, &gtUserInfo); err != nil {
+		return nil, fmt.Errorf("Gitee load profile: decode response failed")
 	}
 
 	userInfo := UserInfo{
@@ -207,23 +205,13 @@ func (idp *GiteeIdProvider) GetUserInfo(token *oauth2.Token) (*UserInfo, error) 
 }
 
 func (idp *GiteeIdProvider) GetUrlResp(url string) (string, error) {
-	resp, err := idp.Client.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return "", fmt.Errorf("Gitee GET resource: create request failed")
+	}
+	data, err := executeIdPRequest(idp.Client, "Gitee", "GET resource", req)
 	if err != nil {
 		return "", err
 	}
-
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			return
-		}
-	}(resp.Body)
-
-	buf := new(bytes.Buffer)
-	_, err = buf.ReadFrom(resp.Body)
-	if err != nil {
-		return "", err
-	}
-
-	return buf.String(), nil
+	return string(data), nil
 }

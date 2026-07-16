@@ -17,7 +17,6 @@ package idp
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -76,15 +75,12 @@ func (idp *LinkedInIdProvider) GetToken(code string) (*oauth2.Token, error) {
 	params.Add("client_secret", idp.Config.ClientSecret)
 	params.Add("code", code)
 
-	accessTokenUrl := fmt.Sprintf("%s?%s", idp.Config.Endpoint.TokenURL, params.Encode())
-	bs, _ := json.Marshal(params.Encode())
-	req, _ := http.NewRequest("POST", accessTokenUrl, strings.NewReader(string(bs)))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := http.DefaultClient.Do(req)
+	req, err := http.NewRequest(http.MethodPost, idp.Config.Endpoint.TokenURL, strings.NewReader(params.Encode()))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("LinkedIn token exchange: create request failed")
 	}
-	rbs, err := io.ReadAll(resp.Body)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rbs, err := executeIdPRequest(idp.Client, "LinkedIn", "token exchange", req)
 	if err != nil {
 		return nil, err
 	}
@@ -308,23 +304,10 @@ func (idp *LinkedInIdProvider) GetUserInfo(token *oauth2.Token) (*UserInfo, erro
 }
 
 func (idp *LinkedInIdProvider) GetUrlRespWithAuthorization(url, token string) ([]byte, error) {
-	req, _ := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("LinkedIn load profile: create request failed")
+	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			return
-		}
-	}(resp.Body)
-
-	bs, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	return bs, nil
+	return executeIdPRequest(idp.Client, "LinkedIn", "load profile", req)
 }

@@ -220,9 +220,7 @@ func TestLarkIdProviderReturnsDiagnosableErrors(t *testing.T) {
 
 		provider := newTestLarkIdProvider(server.URL, server.Client())
 		_, err := provider.GetToken("auth-code")
-		if err == nil || !strings.Contains(err.Error(), "20002") || !strings.Contains(err.Error(), "client secret is invalid") {
-			t.Fatalf("expected diagnosable token error, got %v", err)
-		}
+		assertSanitizedIdPError(t, err, []string{"client secret is invalid"}, "status 400")
 	})
 
 	t.Run("userinfo error", func(t *testing.T) {
@@ -234,8 +232,6 @@ func TestLarkIdProviderReturnsDiagnosableErrors(t *testing.T) {
 
 		provider := newTestLarkIdProvider(server.URL, server.Client())
 		_, err := provider.GetUserInfo(&oauth2.Token{AccessToken: "u-token"})
-		if err == nil || !strings.Contains(err.Error(), "99991663") || !strings.Contains(err.Error(), "permission denied") {
-			t.Fatalf("expected diagnosable userinfo error, got %v", err)
-		}
+		assertSanitizedIdPError(t, err, []string{"permission denied"}, "status 403")
 	})
 }
