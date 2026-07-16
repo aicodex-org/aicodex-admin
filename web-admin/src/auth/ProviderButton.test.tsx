@@ -1,6 +1,6 @@
 /* eslint-env jest */
 import React from "react";
-import {expect, jest} from "@jest/globals";
+import {expect, jest, test} from "@jest/globals";
 import {render} from "@testing-library/react";
 
 interface JestDomMatchers {
@@ -87,5 +87,13 @@ describe("renderProviderLogo Lark/Feishu branding", () => {
 
     expectElement(getByAltText("Sign in with Feishu")).toBeInTheDocument();
     expectElement(getByText("Sign in with Feishu")).toBeInTheDocument();
+  });
+
+  test.each([
+    {category: "Web3", type: "Custom"},
+    {category: "OAuth", type: "MetaMask"},
+    {category: "SAML", type: "Web3Onboard"},
+  ])("does not render retired wallet provider $category/$type", (provider) => {
+    expect(renderProviderLogo({...provider, name: "retired", displayName: ""}, application, null, null, "large", location)).toBeNull();
   });
 });

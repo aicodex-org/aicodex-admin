@@ -28,6 +28,7 @@ import {
   EnterpriseIdentityRiskList,
   EnterpriseIdentitySection
 } from "./common/EnterpriseIdentityConsoleLayout";
+import {isRetiredWeb3WalletProvider} from "./auth/Web3WalletRetirement";
 
 const {Text} = Typography;
 
@@ -38,9 +39,11 @@ type SummaryTone = "processing" | "warning" | "success";
 interface ApplicationProviderBinding {
   name?: unknown;
   category?: unknown;
+  type?: unknown;
   targetOrganization?: unknown;
   provider?: {
     category?: unknown;
+    type?: unknown;
   } | null;
   [key: string]: unknown;
 }
@@ -220,7 +223,8 @@ function getLoginProviderBindings(application?: ApplicationAccessRecord | null):
   return toArray(application?.providers).map(asProviderBinding).filter(providerItem => {
     const nestedProvider = isRecord(providerItem.provider) ? providerItem.provider : {};
     const category = readDisplayValue(nestedProvider.category) || readDisplayValue(providerItem.category);
-    return ["OAuth", "Web3", "SAML"].includes(category);
+    const type = readDisplayValue(nestedProvider.type) || readDisplayValue(providerItem.type);
+    return ["OAuth", "SAML"].includes(category) && !isRetiredWeb3WalletProvider({category, type});
   });
 }
 

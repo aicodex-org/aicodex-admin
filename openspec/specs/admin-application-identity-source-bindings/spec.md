@@ -1,27 +1,37 @@
 # admin-application-identity-source-bindings Specification
 
 ## Purpose
-TBD - created by archiving change add-admin-application-identity-source-bindings. Update Purpose after archive.
+定义 Application Provider 身份源绑定的目标组织解析、外部身份匹配、默认绑定规则、UI 呈现和敏感数据边界，并确保缺失或退役配置统一 fail-closed。
 ## Requirements
 ### Requirement: Application Provider identity source bindings
-Admin SHALL allow an Application to bind each login Provider to a target organization used for user lookup during Provider sign-in.
+Admin SHALL 允许 Application 将每个受支持的登录 Provider 绑定到目标组织，用于 Provider 登录期间的用户查找；Admin SHALL NOT 允许新增或重新激活已退役的 Web3 钱包认证 Provider binding。
 
-#### Scenario: Provider uses explicit target organization
-- **WHEN** an Application has a Provider binding with `targetOrganization=feishu-test`
-- **AND** the user signs in through that Provider
-- **THEN** Admin MUST look up the external identity in `feishu-test`
-- **AND** Admin MUST NOT use the Application default organization for that Provider lookup
+#### Scenario: Provider 使用显式目标组织
+- **WHEN** Application 存在受支持且配置了 `targetOrganization=feishu-test` 的 Provider binding
+- **AND** 用户通过该 Provider 登录
+- **THEN** Admin MUST 在 `feishu-test` 中查找外部身份
+- **AND** Admin MUST NOT 使用 Application 默认组织执行该 Provider 用户查找
 
-#### Scenario: Provider requires explicit target organization
-- **WHEN** an Application Provider binding does not define `targetOrganization`
-- **AND** the user signs in through that Provider
-- **THEN** Admin MUST fail closed with a diagnosable configuration error
-- **AND** Admin MUST NOT use `application.organization` as the Provider login organization
+#### Scenario: Provider 要求显式目标组织
+- **WHEN** 受支持的 Application Provider binding 未定义 `targetOrganization`
+- **AND** 用户通过该 Provider 登录
+- **THEN** Admin MUST 使用可诊断的配置错误 fail-closed
+- **AND** Admin MUST NOT 把 `application.organization` 用作 Provider 登录组织
 
-#### Scenario: Target organization is unavailable
-- **WHEN** a Provider binding references an empty, missing, or unauthorized target organization
-- **THEN** Admin MUST fail closed with a diagnosable configuration error
-- **AND** Admin MUST NOT search other organizations for a matching user
+#### Scenario: 目标组织不可用
+- **WHEN** 受支持的 Provider binding 引用了空、缺失或未授权的目标组织
+- **THEN** Admin MUST 使用可诊断的配置错误 fail-closed
+- **AND** Admin MUST NOT 在其它组织中搜索匹配用户
+
+#### Scenario: 新增或重新激活退役 Web3 binding
+- **WHEN** Application 尝试新增被分类为退役 Web3 钱包认证的 Provider，或保持/修改任一历史激活标志为 true
+- **THEN** Admin MUST 拒绝保存并返回 `PROVIDER_WEB3_WALLET_AUTH_RETIRED`
+- **AND** Admin MUST 使用服务端持有的数据分类 Provider，不得信任请求内嵌的 category/type
+
+#### Scenario: 禁用或移除退役 Web3 binding
+- **WHEN** Application 移除历史退役 Web3 binding，或将全部 login/signup/prompt 激活标志设为 false
+- **THEN** Admin MUST 允许保存
+- **AND** Admin MUST 保持既有 DTO/schema 兼容和 `canUnlink` 权限语义，不得创建或改写钱包凭据
 
 ### Requirement: Provider-specific external identity matching
 Admin SHALL apply existing Provider-specific matching rules inside the resolved Provider login organization.

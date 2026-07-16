@@ -82,7 +82,6 @@ jest.mock("./common/select/ThemeSelect", () => () => <span data-testid="theme-se
 jest.mock("./common/select/OrganizationSelect", () => () => <span data-testid="organization-select" />);
 jest.mock("./common/OpenTour", () => () => <span data-testid="open-tour" />);
 jest.mock("./account/AccountAvatar", () => () => <span data-testid="account-avatar" />);
-jest.mock("./auth/Web3Auth", () => ({clearWeb3AuthToken: () => {}}));
 jest.mock("antd/es/layout/layout", () => ({
   Content: ({children, ...props}: {children?: React.ReactNode}) => <main {...props}>{children}</main>,
   Header: ({children, ...props}: {children?: React.ReactNode}) => <header {...props}>{children}</header>,

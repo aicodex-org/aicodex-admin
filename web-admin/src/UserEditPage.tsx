@@ -55,6 +55,7 @@ import WeComProfileSyncPanel from "./account/WeComProfileSyncPanel";
 import ConsentTable from "./table/ConsentTable";
 import LargeEditShell from "./common/LargeEditShell";
 import {WORKSPACE_TAB_LABEL_UPDATE_EVENT} from "./common/workspaceTabState";
+import {isRetiredWeb3WalletProvider} from "./auth/Web3WalletRetirement";
 
 const {Option} = Select;
 
@@ -655,7 +656,22 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
   }
 
   getVisibleApplicationProviders(): ProviderItemRecord[] {
-    return (this.state.application?.providers ?? []).filter(providerItem => Setting.isProviderVisible(providerItem));
+    return (this.state.application?.providers ?? []).filter(providerItem => {
+      if (Setting.isProviderVisible(providerItem)) {
+        return true;
+      }
+      // 退役钱包 Provider 仅在用户已有非空历史值时展示，供通用 Unlink 清理；不得恢复 Link/Connect。
+      if (!isRetiredWeb3WalletProvider(providerItem.provider)) {
+        return false;
+      }
+
+      const providerType = providerItem.provider.type?.trim().toLowerCase();
+      if (providerType !== "metamask" && providerType !== "web3onboard") {
+        return false;
+      }
+      const linkedValue = this.state.user?.[providerType];
+      return linkedValue !== null && linkedValue !== undefined && String(linkedValue).trim() !== "";
+    });
   }
 
   renderThirdPartyLoginItems(): React.ReactNode {
@@ -675,7 +691,7 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
     }
 
     return visibleProviders.map((providerItem) =>
-      (providerItem.provider.category === "OAuth" || providerItem.provider.category === "Web3") ? (
+      (providerItem.provider.category === "OAuth" || isRetiredWeb3WalletProvider(providerItem.provider)) ? (
         <OAuthWidget
           key={providerItem.name}
           labelSpan={(Setting.isMobile()) ? 10 : 3}

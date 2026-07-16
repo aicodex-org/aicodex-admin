@@ -157,8 +157,8 @@ jest.mock("./account/AccountAvatar", () => function AccountAvatarMock(props: {sr
   return <img src={props.src} alt={props.alt || "avatar"} />;
 });
 
-jest.mock("./common/OAuthWidget", () => function OAuthWidgetMock(props: {onUnlinked?: () => void}) {
-  return <button type="button" data-testid="oauth-widget" onClick={() => props.onUnlinked?.()}>OAuthWidget</button>;
+jest.mock("./common/OAuthWidget", () => function OAuthWidgetMock(props: {onUnlinked?: () => void; providerItem?: {provider?: {type?: string}}}) {
+  return <button type="button" data-testid="oauth-widget" data-provider-type={props.providerItem?.provider?.type} onClick={() => props.onUnlinked?.()}>OAuthWidget</button>;
 });
 
 jest.mock("./common/SamlWidget", () => function SamlWidgetMock(props: {onUnlinked?: () => void}) {
@@ -1289,6 +1289,43 @@ test("renders an explicit empty state when the application has no visible third-
   expect(connectionsView.getByText("当前应用未配置可展示的第三方登录 Provider")).not.toBeNull();
   expect(connectionsView.container.querySelector(".user-edit-third-party-empty")).not.toBeNull();
   connectionsView.unmount();
+});
+
+test("keeps a historical wallet binding visible only when the user can unlink a non-empty value", () => {
+  (Setting.isProviderVisible as unknown as ReturnType<typeof jestValue.fn>).mockReturnValue(false);
+  const page = createPage();
+  page.state = {
+    ...page.state,
+    user: {...page.state.user, metamask: "legacy-wallet-binding"},
+    application: {
+      ...application,
+      providers: [{
+        name: "legacy-wallet",
+        canUnlink: true,
+        provider: {category: "Web3", type: "MetaMask"},
+      }, {
+        name: "unsupported-wallet",
+        canUnlink: true,
+        provider: {category: "Web3", type: "Custom"},
+      }, {
+        name: "hidden-oauth",
+        provider: {category: "OAuth", type: "GitHub"},
+      }],
+    },
+  } as PageState;
+
+  const historicalView = renderUserFormForTab(page, "connections");
+  expect(historicalView.getByTestId("oauth-widget").getAttribute("data-provider-type")).toBe("MetaMask");
+  historicalView.unmount();
+
+  page.state = {
+    ...page.state,
+    user: {...page.state.user, metamask: ""},
+  } as PageState;
+  const emptyView = renderUserFormForTab(page, "connections");
+  expect(emptyView.queryByTestId("oauth-widget")).toBeNull();
+  expect(emptyView.container.querySelector(".user-edit-third-party-empty")).not.toBeNull();
+  emptyView.unmount();
 });
 
 test("invokes configured form callbacks across migrated JSX branches", async() => {

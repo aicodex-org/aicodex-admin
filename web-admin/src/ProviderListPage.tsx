@@ -27,6 +27,7 @@ import EnterpriseListQueryToolbar from "./common/EnterpriseListQueryToolbar";
 import ListPageIdentityCell from "./common/ListPageIdentityCell";
 import ListPageRowActions from "./common/ListPageRowActions";
 import {legacyColumns} from "./types/legacyPage";
+import {isRetiredWeb3WalletProvider} from "./auth/Web3WalletRetirement";
 
 type AdminRouteProps = import("./types/legacyPage").AdminRouteProps;
 type LegacyAny = import("./types/legacyPage").LegacyAny;
@@ -378,7 +379,6 @@ class ProviderListPage extends TypedBaseListPage {
           {text: "SAML", value: "SAML"},
           {text: "SMS", value: "SMS"},
           {text: "Storage", value: "Storage"},
-          {text: "Web3", value: "Web3"},
         ],
         width: "8%",
         sorter: true,
@@ -401,7 +401,6 @@ class ProviderListPage extends TypedBaseListPage {
           {text: "SAML", value: "SAML", children: Setting.getProviderTypeOptions("SAML").map((o) => {return {text: o.id, value: o.name};})},
           {text: "SMS", value: "SMS", children: Setting.getProviderTypeOptions("SMS").map((o) => {return {text: o.id, value: o.name};})},
           {text: "Storage", value: "Storage", children: Setting.getProviderTypeOptions("Storage").map((o) => {return {text: o.id, value: o.name};})},
-          {text: "Web3", value: "Web3", children: Setting.getProviderTypeOptions("Web3").map((o) => {return {text: o.id, value: o.name};})},
         ],
         sorter: true,
         render: (text: string | undefined, record: ProviderRecord) => {
@@ -461,7 +460,9 @@ class ProviderListPage extends TypedBaseListPage {
           const canModify = Setting.isAdminUser(this.props.account) || record.owner === this.props.account.owner;
           return (
             <ListPageRowActions className="provider-row-actions">
-              <Button className="provider-row-primary-action" disabled={!canModify} size="small" type="link" icon={<EditOutlined />} onClick={() => this.props.history.push(`/providers/${record.owner}/${record.name}`)}>{t("general:Edit")}</Button>
+              {isRetiredWeb3WalletProvider(record) ? null : (
+                <Button className="provider-row-primary-action" disabled={!canModify} size="small" type="link" icon={<EditOutlined />} onClick={() => this.props.history.push(`/providers/${record.owner}/${record.name}`)}>{t("general:Edit")}</Button>
+              )}
               <Popconfirm
                 title={t("general:Sure to delete") + `: ${record.name} ?`}
                 okText={t("general:OK")}

@@ -24,6 +24,7 @@ type PageHarness = ProviderEditPage & {
   renderOrganizationOptions: () => React.ReactNode;
   renderWeComGuide: (provider: any) => React.ReactNode;
   renderProviderBasicSection: (provider: any) => React.ReactNode;
+  renderProviderCategoryOptions: () => React.ReactNode;
   getProvider: () => void;
   getOrganizations: () => void;
   getCerts: (owner: string) => void;
@@ -47,7 +48,6 @@ jest.mock("./provider/MfaProviderFields", () => ({renderMfaProviderFields: () =>
 jest.mock("./provider/SamlProviderFields", () => ({renderSamlProviderFields: () => null}));
 jest.mock("./provider/CaptchaProviderFields", () => ({renderCaptchaProviderFields: () => null}));
 jest.mock("./provider/PaymentProviderFields", () => ({renderPaymentProviderFields: () => null}));
-jest.mock("./provider/Web3ProviderFields", () => ({renderWeb3ProviderFields: () => null}));
 jest.mock("./provider/StorageProviderFields", () => ({renderStorageProviderFields: () => null}));
 jest.mock("./provider/FaceIDProviderFields", () => ({renderFaceIdProviderFields: () => null}));
 jest.mock("./provider/IDVerificationProviderFields", () => ({renderIDVerificationProviderFields: () => null}));
@@ -179,6 +179,24 @@ test("renders provider edit in the shared large edit shell without duplicate leg
     "Save and return",
   ]);
   expect(view.queryByText("Save & Exit")).toBeNull();
+});
+
+test("renders a historical wallet provider as a non-editable cleanup state", () => {
+  const page = createPage();
+  page.state.provider = {
+    ...baseProvider,
+    category: "OAuth",
+    type: "MetaMask",
+  };
+  const view = render(<>{page.renderProvider()}</>);
+  const actionButtons = Array.from(view.container.querySelectorAll(".provider-edit-action-bar button")) as HTMLButtonElement[];
+
+  expect(view.container.querySelector(".provider-edit-retired-alert")).not.toBeNull();
+  expect(view.queryByText("Basic information")).toBeNull();
+  expect(view.queryByText("Provider configuration")).toBeNull();
+  expect(actionButtons.map(button => button.textContent)).toEqual(["Back", "Delete"]);
+  expect(view.queryByText("Save")).toBeNull();
+  expect(view.queryByText("Save and return")).toBeNull();
 });
 
 test("routes edit cancel and shell back to provider list", () => {
@@ -599,7 +617,6 @@ test("keeps WeChat platform selection coherent as credentials change", () => {
   ["SAML", {type: "Keycloak"}],
   ["Payment", {type: "PayPal"}],
   ["Captcha", {type: "Default"}],
-  ["Web3", {type: "MetaMask"}],
   ["Notification", {type: "Telegram"}],
   ["Face ID", {type: "Alibaba Cloud Facebody"}],
   ["MFA", {type: "RADIUS", host: "", port: 1812}],
@@ -612,6 +629,16 @@ test("keeps WeChat platform selection coherent as credentials change", () => {
 
     expect(page.state.provider).toEqual(expect.objectContaining({category, ...expectedDefaults}));
   });
+});
+
+test("does not expose or accept the retired Web3 provider category", () => {
+  const page = createPage();
+  const initialProvider = {...page.state.provider};
+  const options = React.Children.toArray(page.renderProviderCategoryOptions()) as React.ReactElement[];
+
+  expect(options.map(option => option.props.value)).not.toContain("Web3");
+  page.updateProviderCategory("Web3");
+  expect(page.state.provider).toEqual(initialProvider);
 });
 
 ([

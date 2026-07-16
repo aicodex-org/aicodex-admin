@@ -875,6 +875,9 @@ func (c *ApiController) Login() {
 			c.ResponseError(fmt.Sprintf(c.T("auth:The provider: %s does not exist"), authForm.Provider))
 			return
 		}
+		if c.rejectRetiredWeb3WalletLogin(provider) {
+			return
+		}
 
 		providerItem := application.GetProviderItem(provider.Name)
 		if !application.IsProviderVisibleForLogin(provider.Name) {
@@ -1316,6 +1319,17 @@ func (c *ApiController) Login() {
 
 	c.Data["json"] = resp
 	c.ServeJSON()
+}
+
+// rejectRetiredWeb3WalletLogin 在加载服务端持有的 Provider 后立即执行，
+// 必须早于 Application binding 和凭据处理，确保退役类型统一 fail-closed。
+func (c *ApiController) rejectRetiredWeb3WalletLogin(provider *object.Provider) bool {
+	if !object.IsRetiredWeb3WalletProvider(provider) {
+		return false
+	}
+	// 该 alias 可安全复制且供机器识别；即使部署配置会掩码自由文本错误，也必须保持稳定。
+	c.ResponseJsonData(&Response{Status: "error", Msg: object.Web3WalletAuthRetiredErrorCode})
+	return true
 }
 
 func (c *ApiController) GetSamlLogin() {

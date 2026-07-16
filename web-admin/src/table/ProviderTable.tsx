@@ -19,6 +19,7 @@ import {CountryCodeSelect} from "../common/select/CountryCodeSelect";
 import * as Setting from "../Setting";
 import i18nextLib from "i18next";
 import * as Provider from "../auth/Provider";
+import {isRetiredWeb3WalletProvider} from "../auth/Web3WalletRetirement";
 
 const {Option} = Select;
 
@@ -115,6 +116,11 @@ class ProviderTable extends React.Component<ProviderTableProps, ProviderTableSta
 
   renderTable(table?: ProviderTableRow[] | null) {
     table = Array.isArray(table) ? table : [];
+    const resolveProvider = (record: ProviderTableRow): ProviderInfo | undefined =>
+      record.provider || Setting.getArrayItem(this.props.providers, "name", record.name);
+    // 历史退役行允许把已有 true 切到 false；一旦禁用则锁定开关，防止在 UI 中重新激活。
+    const isRetiredProviderRow = (record: ProviderTableRow): boolean =>
+      isRetiredWeb3WalletProvider(resolveProvider(record));
     let columns: LegacyColumn[] = [
       {
         title: i18next.t("general:Name"),
@@ -122,12 +128,17 @@ class ProviderTable extends React.Component<ProviderTableProps, ProviderTableSta
         key: "name",
         width: 190,
         render: (text, record, index) => {
+          const isRetiredProvider = isRetiredProviderRow(record);
           return (
             <Select virtual={false} style={{width: "100%"}}
               showSearch
               optionFilterProp="label"
               value={text}
+              disabled={isRetiredProvider}
               onChange={value => {
+                if (isRetiredProvider) {
+                  return;
+                }
                 this.updateField(table, index, "name", value);
                 const provider = Setting.getArrayItem(this.props.providers, "name", value);
                 this.updateField(table, index, "provider", provider);
@@ -138,14 +149,16 @@ class ProviderTable extends React.Component<ProviderTableProps, ProviderTableSta
                 }
               }} >
               {
-                Setting.getDeduplicatedArray(this.props.providers, table, "name").map((provider: LegacyAny, index: number) => (
-                  <Option key={index} value={provider.name} label={`${provider.name} ${provider.displayName || ""}`}>
-                    <div style={{display: "flex", alignItems: "center", gap: "8px"}}>
-                      <img width={20} height={20} src={Setting.getProviderLogoURL(provider)} alt={provider.type} />
-                      <span>{provider.displayName && provider.displayName !== provider.name ? `${provider.name} (${provider.displayName})` : provider.name}</span>
-                    </div>
-                  </Option>
-                ))
+                Setting.getDeduplicatedArray(this.props.providers, table, "name")
+                  .filter((provider: ProviderInfo) => !isRetiredWeb3WalletProvider(provider))
+                  .map((provider: LegacyAny, index: number) => (
+                    <Option key={index} value={provider.name} label={`${provider.name} ${provider.displayName || ""}`}>
+                      <div style={{display: "flex", alignItems: "center", gap: "8px"}}>
+                        <img width={20} height={20} src={Setting.getProviderLogoURL(provider)} alt={provider.type} />
+                        <span>{provider.displayName && provider.displayName !== provider.name ? `${provider.name} (${provider.displayName})` : provider.name}</span>
+                      </div>
+                    </Option>
+                  ))
               }
             </Select>
           );
@@ -221,12 +234,16 @@ class ProviderTable extends React.Component<ProviderTableProps, ProviderTableSta
         key: "canSignUp",
         width: 92,
         render: (text, record, index) => {
-          if (!["OAuth", "Web3", "SAML"].includes(record.provider?.category)) {
+          const isRetiredProvider = isRetiredProviderRow(record);
+          if (!["OAuth", "SAML"].includes(record.provider?.category) && !isRetiredProvider) {
             return null;
           }
 
           return (
-            <Switch checked={text} onChange={checked => {
+            <Switch checked={text} disabled={isRetiredProvider && !text} onChange={checked => {
+              if (isRetiredProvider && checked) {
+                return;
+              }
               this.updateField(table, index, "canSignUp", checked);
             }} />
           );
@@ -238,12 +255,16 @@ class ProviderTable extends React.Component<ProviderTableProps, ProviderTableSta
         key: "canSignIn",
         width: 92,
         render: (text, record, index) => {
-          if (!["OAuth", "Web3", "SAML"].includes(record.provider?.category)) {
+          const isRetiredProvider = isRetiredProviderRow(record);
+          if (!["OAuth", "SAML"].includes(record.provider?.category) && !isRetiredProvider) {
             return null;
           }
 
           return (
-            <Switch checked={text} onChange={checked => {
+            <Switch checked={text} disabled={isRetiredProvider && !text} onChange={checked => {
+              if (isRetiredProvider && checked) {
+                return;
+              }
               this.updateField(table, index, "canSignIn", checked);
             }} />
           );
@@ -255,7 +276,7 @@ class ProviderTable extends React.Component<ProviderTableProps, ProviderTableSta
         key: "canUnlink",
         width: 92,
         render: (text, record, index) => {
-          if (!["OAuth", "Web3", "SAML"].includes(record.provider?.category)) {
+          if (!["OAuth", "SAML"].includes(record.provider?.category) && !isRetiredProviderRow(record)) {
             return null;
           }
 
@@ -272,7 +293,7 @@ class ProviderTable extends React.Component<ProviderTableProps, ProviderTableSta
         key: "bindingRule",
         width: 126,
         render: (text, record, index) => {
-          if (!["OAuth", "Web3", "SAML"].includes(record.provider?.category)) {
+          if (isRetiredProviderRow(record) || !["OAuth", "SAML"].includes(record.provider?.category)) {
             return null;
           }
           // bindingRule 缺失表示未配置；这里仅展示运行时默认值，不把 Email 写回表单数据。
@@ -306,12 +327,16 @@ class ProviderTable extends React.Component<ProviderTableProps, ProviderTableSta
         key: "prompted",
         width: 112,
         render: (text, record, index) => {
-          if (!["OAuth", "Web3", "SAML"].includes(record.provider?.category)) {
+          const isRetiredProvider = isRetiredProviderRow(record);
+          if (!["OAuth", "SAML"].includes(record.provider?.category) && !isRetiredProvider) {
             return null;
           }
 
           return (
-            <Switch checked={text} onChange={checked => {
+            <Switch checked={text} disabled={isRetiredProvider && !text} onChange={checked => {
+              if (isRetiredProvider && checked) {
+                return;
+              }
               this.updateField(table, index, "prompted", checked);
             }} />
           );
@@ -323,7 +348,7 @@ class ProviderTable extends React.Component<ProviderTableProps, ProviderTableSta
         key: "signupGroup",
         width: 112,
         render: (text, record, index) => {
-          if (!["OAuth", "Web3"].includes(record.provider?.category)) {
+          if (isRetiredProviderRow(record) || record.provider?.category !== "OAuth") {
             return null;
           }
 

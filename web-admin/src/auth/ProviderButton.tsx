@@ -45,6 +45,7 @@ import * as AuthBackend from "./AuthBackend";
 import {WechatOfficialAccountModal} from "./Util";
 import * as Setting from "../Setting";
 import {getLarkProviderBrand, isLarkProvider} from "../provider/LarkProviderUtils";
+import {isRetiredWeb3WalletProvider} from "./Web3WalletRetirement";
 
 const t = (key: string): string => i18next.t(key) as string;
 
@@ -171,22 +172,6 @@ function goToSamlUrl(provider: AuthProvider, location: LocationLike): void {
   });
 }
 
-export function goToWeb3Url(application: AuthApplication, provider: AuthProvider, method: string): void {
-  if (provider.type === "MetaMask") {
-    import("./Web3Auth")
-      .then(module => {
-        const authViaMetaMask = module.authViaMetaMask;
-        authViaMetaMask(application, provider, method);
-      });
-  } else if (provider.type === "Web3Onboard") {
-    import("./Web3Auth")
-      .then(module => {
-        const authViaWeb3Onboard = module.authViaWeb3Onboard;
-        authViaWeb3Onboard(application, provider, method);
-      });
-  }
-}
-
 export function renderProviderLogo(
   provider: AuthProvider,
   application: AuthApplication,
@@ -195,6 +180,10 @@ export function renderProviderLogo(
   size: string,
   location: LocationLike
 ): React.ReactNode {
+  if (isRetiredWeb3WalletProvider(provider)) {
+    return null;
+  }
+
   const imageAlt = getProviderImageAlt(provider);
   const key = provider.name || provider.displayName || provider.type;
   const imageWidth = width ?? undefined;
@@ -220,12 +209,6 @@ export function renderProviderLogo(
     } else if (provider.category === "SAML") {
       return (
         <a key={key} onClick={() => goToSamlUrl(provider, location)}>
-          <img width={imageWidth} height={imageWidth} src={getProviderLogoURL(provider)} alt={imageAlt} className="provider-img" style={{margin: imageMargin}} />
-        </a>
-      );
-    } else if (provider.category === "Web3") {
-      return (
-        <a key={key} onClick={() => goToWeb3Url(application, provider, "signup")}>
           <img width={imageWidth} height={imageWidth} src={getProviderLogoURL(provider)} alt={imageAlt} className="provider-img" style={{margin: imageMargin}} />
         </a>
       );
@@ -262,16 +245,6 @@ export function renderProviderLogo(
       return (
         <div key={provider.displayName} className="provider-big-img">
           <a onClick={() => goToSamlUrl(provider, location)}>
-            {
-              getSigninButton(provider)
-            }
-          </a>
-        </div>
-      );
-    } else if (provider.category === "Web3") {
-      return (
-        <div key={provider.displayName} className="provider-big-img">
-          <a onClick={() => goToWeb3Url(application, provider, "signup")}>
             {
               getSigninButton(provider)
             }

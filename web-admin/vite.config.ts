@@ -65,7 +65,7 @@ export default defineConfig(({mode}) => {
       },
     },
     optimizeDeps: {
-      include: ["buffer", "@metamask/eth-sig-util"],
+      include: ["buffer"],
     },
     server: {
       host: "0.0.0.0",

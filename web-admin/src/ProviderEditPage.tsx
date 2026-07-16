@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import React from "react";
-import {Alert, Button, Card, Col, Input, Modal, Row, Select, Switch} from "antd";
+import {Alert, Button, Card, Col, Input, Modal, Popconfirm, Row, Select, Switch} from "antd";
 import {LinkOutlined} from "@ant-design/icons";
 import * as ProviderBackend from "./backend/ProviderBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
@@ -28,7 +28,6 @@ import {renderSamlProviderFields} from "./provider/SamlProviderFields";
 import {renderOAuthProviderFields} from "./provider/OAuthProviderFields";
 import {renderCaptchaProviderFields} from "./provider/CaptchaProviderFields";
 import {renderPaymentProviderFields} from "./provider/PaymentProviderFields";
-import {renderWeb3ProviderFields} from "./provider/Web3ProviderFields";
 import {renderStorageProviderFields} from "./provider/StorageProviderFields";
 import {renderFaceIdProviderFields} from "./provider/FaceIDProviderFields";
 import {renderIDVerificationProviderFields} from "./provider/IDVerificationProviderFields";
@@ -37,6 +36,7 @@ import {renderLarkProviderGuide} from "./provider/LarkProviderGuide";
 import {validateLarkProviderFields} from "./provider/LarkProviderUtils";
 import LargeEditShell, {LargeEditFieldRow, LargeEditSection} from "./common/LargeEditShell";
 import {WORKSPACE_TAB_LABEL_UPDATE_EVENT} from "./common/workspaceTabState";
+import {isRetiredWeb3WalletProvider} from "./auth/Web3WalletRetirement";
 // eslint-disable-next-line unused-imports/no-unused-imports
 import type {AccountConfig, CertConfig, ProviderConfig, ProviderFieldName, ProviderFieldValue} from "./provider/ProviderFieldTypes";
 
@@ -352,6 +352,23 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
         <Button disabled={this.state.submitting} onClick={() => this.handleBack()}>{t("general:Cancel")}</Button>
         <Button type="primary" loading={this.state.submitting} onClick={() => this.submitProviderEdit(false)}>{t("general:Save")}</Button>
         <Button disabled={this.state.submitting} onClick={() => this.submitProviderEdit(true)}>{t("provider:Save and return")}</Button>
+      </React.Fragment>
+    );
+  }
+
+  renderRetiredProviderFooter(): React.ReactNode {
+    return (
+      <React.Fragment>
+        <Button onClick={() => this.returnToProviderList()}>{t("general:Back")}</Button>
+        <Popconfirm
+          title={t("general:Sure to delete") + `: ${this.state.provider.name} ?`}
+          okText={t("general:OK")}
+          cancelText={t("general:Cancel")}
+          okButtonProps={{danger: true}}
+          onConfirm={() => this.deleteProvider()}
+        >
+          <Button danger>{t("general:Delete")}</Button>
+        </Popconfirm>
       </React.Fragment>
     );
   }
@@ -935,7 +952,6 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
       {id: "SAML", name: "SAML"},
       {id: "SMS", name: "SMS"},
       {id: "Storage", name: "Storage"},
-      {id: "Web3", name: "Web3"},
       {id: "Face ID", name: "Face ID"},
     ]
       .sort((a: {name: string}, b: {name: string}) => a.name.localeCompare(b.name))
@@ -943,6 +959,9 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
   }
 
   updateProviderCategory(value: string): void {
+    if (isRetiredWeb3WalletProvider({category: value})) {
+      return;
+    }
     this.updateProviderField("category", value);
     if (value === "OAuth") {
       this.updateProviderField("type", "Google");
@@ -965,8 +984,6 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
       this.updateProviderField("type", "PayPal");
     } else if (value === "Captcha") {
       this.updateProviderField("type", "Default");
-    } else if (value === "Web3") {
-      this.updateProviderField("type", "MetaMask");
     } else if (value === "Notification") {
       this.updateProviderField("type", "Telegram");
     } else if (value === "Face ID") {
@@ -1130,7 +1147,6 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
         }
         {
           (provider.category === "Captcha" && provider.type === "Default") ||
-          (provider.category === "Web3") ||
           (provider.category === "MFA") ||
           (provider.category === "Storage" && provider.type === "Local File System") ||
           (provider.category === "SMS" && provider.type === "Custom HTTP SMS") ||
@@ -1240,10 +1256,6 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
           this.updateProviderField.bind(this),
           this.state.certs
         ) : null}
-        {provider.category === "Web3" ? renderWeb3ProviderFields(
-          provider,
-          this.updateProviderField.bind(this)
-        ) : null}
         {provider.category === "Storage" ? renderStorageProviderFields(
           provider,
           this.updateProviderField.bind(this)
@@ -1268,6 +1280,36 @@ class ProviderEditPage extends React.Component<ProviderEditPageProps, ProviderEd
 
   renderProvider(): React.ReactNode {
     const provider = this.state.provider;
+
+    if (isRetiredWeb3WalletProvider(provider)) {
+      return (
+        <Card
+          className="admin-large-edit-card provider-edit-card"
+          size="small"
+          variant="borderless"
+          style={(Setting.isMobile()) ? {margin: "5px"} : {}}
+          styles={{body: {height: "100%", padding: 0}}}
+          type="inner"
+        >
+          <LargeEditShell
+            classPrefix="provider-edit"
+            backLabel={t("general:Back")}
+            breadcrumb={<React.Fragment>{t("general:Authentication Source Center")} / {t("provider:Providers")} /</React.Fragment>}
+            title={t("provider:Retired Web3 wallet provider")}
+            actions={this.renderRetiredProviderFooter()}
+            onBack={() => this.returnToProviderList()}
+          >
+            <Alert
+              className="provider-edit-retired-alert"
+              type="warning"
+              showIcon
+              message={t("provider:Web3 wallet authentication has been retired")}
+              description={t("provider:This historical provider is read-only and can only be deleted")}
+            />
+          </LargeEditShell>
+        </Card>
+      );
+    }
 
     return (
       <Card

@@ -411,14 +411,6 @@ const authInfo: Record<string, AuthInfo> = {
     scope: "user:read",
     endpoint: "https://zoom.us/oauth/authorize",
   },
-  MetaMask: {
-    scope: "",
-    endpoint: "",
-  },
-  Web3Onboard: {
-    scope: "",
-    endpoint: "",
-  },
 };
 
 export function getProviderUrl(provider: ProviderLogoRecord): string {
@@ -676,9 +668,5 @@ export function getAuthUrl(application: AuthApplication | null, provider: AuthPr
     // Telegram uses widget-based authentication
     // Redirect to a page that displays the Telegram login widget
     return `${redirectOrigin}/telegram-login?state=${state}`;
-  } else if (provider.type === "MetaMask") {
-    return `${redirectUri}?state=${state}`;
-  } else if (provider.type === "Web3Onboard") {
-    return `${redirectUri}?state=${state}`;
   }
 }

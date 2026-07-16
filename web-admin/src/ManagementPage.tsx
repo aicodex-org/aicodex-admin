@@ -104,7 +104,7 @@ import OpenTour from "./common/OpenTour";
 import OrganizationSelect from "./common/select/OrganizationSelect";
 import AccountAvatar from "./account/AccountAvatar";
 import * as AuthBackend from "./auth/AuthBackend";
-import {clearWeb3AuthToken} from "./auth/Web3Auth";
+import {clearRetiredWeb3WalletAuthTokens} from "./auth/Web3WalletRetirement";
 import {runtimeEnv} from "./config/runtimeEnv";
 import TransactionListPage from "./TransactionListPage";
 import TransactionEditPage from "./TransactionEditPage";
@@ -246,7 +246,7 @@ function ManagementPage(props: ManagementPageProps) {
         if (res.status === "ok") {
           const owner = account.owner;
           props.setLogoutState();
-          clearWeb3AuthToken();
+          clearRetiredWeb3WalletAuthTokens();
           Setting.showMessage("success", i18next.t("application:Logged out successfully"));
           const redirectUri = res.data2;
           if (redirectUri !== null && redirectUri !== undefined && redirectUri !== "") {

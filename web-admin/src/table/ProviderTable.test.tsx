@@ -294,4 +294,93 @@ describe("ProviderTable", () => {
     actionButtons[2].props.onClick();
     expect(onUpdateTable).toHaveBeenCalledWith([rows[0], rows[2]]);
   });
+
+  test("keeps retired Web3 bindings immutable except for disable unlink and delete", () => {
+    const onUpdateTable = jestValue.fn();
+    const rows = [
+      {
+        name: "legacy-wallet",
+        canSignIn: true,
+        canSignUp: true,
+        canUnlink: true,
+        prompted: true,
+        bindingRule: ["Email"],
+        signupGroup: "legacy-group",
+        provider: {name: "legacy-wallet", category: "Web3", type: "MetaMask"},
+        rule: "None",
+      },
+      {
+        name: "disabled-wallet",
+        canSignIn: false,
+        canSignUp: false,
+        canUnlink: true,
+        prompted: false,
+        provider: {name: "disabled-wallet", category: "OAuth", type: "Web3Onboard"},
+        rule: "None",
+      },
+    ];
+    const table = new ProviderTable({
+      title: "Providers",
+      table: rows,
+      providers: [
+        rows[0].provider,
+        rows[1].provider,
+        {name: "github", category: "OAuth", type: "GitHub"},
+      ],
+      application: {enableSignUp: true, organizationObj: {name: "built-in"}},
+      onUpdateTable,
+    });
+    const columns = table.renderTable(rows).props.columns;
+    const getColumn = (key: string) => columns.find((column: any) => column.key === key);
+
+    const retiredName = getColumn("name").render(rows[0].name, rows[0], 0);
+    const disabledSignIn = getColumn("canSignIn").render(false, rows[1], 1);
+    const disabledSignUp = getColumn("canSignUp").render(false, rows[1], 1);
+    const disabledPrompted = getColumn("prompted").render(false, rows[1], 1);
+    expect(retiredName.props.disabled).toBe(true);
+    expect(disabledSignIn.props.disabled).toBe(true);
+    expect(disabledSignUp.props.disabled).toBe(true);
+    expect(disabledPrompted.props.disabled).toBe(true);
+    retiredName.props.onChange("github");
+    disabledSignIn.props.onChange(true);
+    disabledSignUp.props.onChange(true);
+    disabledPrompted.props.onChange(true);
+    expect(onUpdateTable).not.toHaveBeenCalled();
+    expect(getColumn("bindingRule").render(rows[0].bindingRule, rows[0], 0)).toBeNull();
+    expect(getColumn("signupGroup").render(rows[0].signupGroup, rows[0], 0)).toBeNull();
+
+    getColumn("canSignIn").render(true, rows[0], 0).props.onChange(false);
+    getColumn("canSignUp").render(true, rows[0], 0).props.onChange(false);
+    getColumn("prompted").render(true, rows[0], 0).props.onChange(false);
+    getColumn("canUnlink").render(true, rows[0], 0).props.onChange(false);
+    expect(onUpdateTable).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({name: "legacy-wallet", canSignIn: false, canSignUp: false, prompted: false, canUnlink: false}),
+    ]));
+
+    const actionButtons = getColumn("action").render(null, rows[0], 0).props.children.map((tooltip: any) => tooltip.props.children);
+    actionButtons[2].props.onClick();
+    expect(onUpdateTable).toHaveBeenLastCalledWith([rows[1]]);
+  });
+
+  test("excludes retired Web3 providers from new binding choices", () => {
+    const rows = [{name: "github", provider: {name: "github", category: "OAuth", type: "GitHub"}, rule: "None"}];
+    const table = new ProviderTable({
+      title: "Providers",
+      table: rows,
+      providers: [
+        rows[0].provider,
+        {name: "category-wallet", category: "Web3", type: "Custom"},
+        {name: "mislabeled-wallet", category: "OAuth", type: "MetaMask"},
+        {name: "saml-mislabeled-wallet", category: "SAML", type: "Web3Onboard"},
+        {name: "lark", category: "OAuth", type: "Lark"},
+      ],
+      application: {enableSignUp: true, organizationObj: {name: "built-in"}},
+      onUpdateTable: jestValue.fn(),
+    });
+    const nameColumn = table.renderTable(rows).props.columns.find((column: any) => column.key === "name");
+    const select = nameColumn.render(rows[0].name, rows[0], 0);
+    const values = React.Children.toArray(select.props.children).map((option: any) => option.props.value);
+
+    expect(values).toEqual(["lark"]);
+  });
 });

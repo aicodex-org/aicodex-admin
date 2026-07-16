@@ -218,10 +218,14 @@ func UpdateProvider(id string, provider *Provider) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if p, err := getProvider(owner, name); err != nil {
+	oldProvider, err := getProvider(owner, name)
+	if err != nil {
 		return false, err
-	} else if p == nil {
+	} else if oldProvider == nil {
 		return false, nil
+	}
+	if IsRetiredWeb3WalletProvider(oldProvider) || IsRetiredWeb3WalletProvider(provider) {
+		return false, ErrWeb3WalletAuthRetired
 	}
 
 	if provider.EmailRegex != "" {
@@ -260,6 +264,10 @@ func UpdateProvider(id string, provider *Provider) (bool, error) {
 }
 
 func AddProvider(provider *Provider) (bool, error) {
+	if IsRetiredWeb3WalletProvider(provider) {
+		return false, ErrWeb3WalletAuthRetired
+	}
+
 	if provider.Type == "Tencent Cloud COS" {
 		provider.Endpoint = util.GetEndPoint(provider.Endpoint)
 		provider.IntranetEndpoint = util.GetEndPoint(provider.IntranetEndpoint)

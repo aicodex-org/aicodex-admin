@@ -220,4 +220,17 @@ describe("web-admin CI gates", () => {
   test("resolves the browser Buffer package instead of Vite's Node builtin shim", () => {
     expect(viteConfig).toContain("buffer: \"buffer/\"");
   });
+
+  test("keeps retired wallet authentication dependencies out of the Vite build boundary", () => {
+    expect(packageJson.dependencies["@metamask/eth-sig-util"]).toBeUndefined();
+    expect(packageJson.dependencies.ethers).toBeUndefined();
+    expect(Object.keys(packageJson.dependencies).filter(name => name.startsWith("@web3-onboard/"))).toEqual([]);
+    expect(viteConfig).not.toContain("@metamask/eth-sig-util");
+
+    expect(packageJson.dependencies.buffer).toBe("^6.0.3");
+    expect(packageJson.dependencies["react-metamask-avatar"]).toBe("^1.2.1");
+    expect(viteConfig).toContain("include: [\"buffer\"]");
+    expect(viteConfig).toContain("global: \"globalThis\"");
+    expect(viteConfig).toContain("transformMixedEsModules: true");
+  });
 });

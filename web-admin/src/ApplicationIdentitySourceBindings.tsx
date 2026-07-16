@@ -2,8 +2,9 @@ import React from "react";
 import {Alert, Select, Space, Table, Tag, Typography} from "antd";
 import i18next from "i18next";
 import * as Setting from "./Setting";
+import {isRetiredWeb3WalletProvider} from "./auth/Web3WalletRetirement";
 
-type ProviderCategory = "OAuth" | "Web3" | "SAML" | string;
+type ProviderCategory = "OAuth" | "SAML" | string;
 
 export type IdentityProvider = {
   name?: string;
@@ -43,7 +44,7 @@ type Props = {
   onChange: (providers: ApplicationProviderBinding[]) => void;
 };
 
-const loginProviderCategories = new Set(["OAuth", "Web3", "SAML"]);
+const loginProviderCategories = new Set(["OAuth", "SAML"]);
 
 function normalizeText(value?: string): string {
   return (value || "").trim();
@@ -64,10 +65,10 @@ function resolveProvider(binding: ApplicationProviderBinding, providers: Identit
 
 function isLoginProvider(binding: ApplicationProviderBinding, providers: IdentityProvider[]): boolean {
   const provider = resolveProvider(binding, providers);
-  return loginProviderCategories.has(normalizeText(provider?.category));
+  return loginProviderCategories.has(normalizeText(provider?.category)) && !isRetiredWeb3WalletProvider(provider);
 }
 
-// buildIdentitySourceBindingRows 只展示 OAuth/Web3/SAML 登录身份源；targetOrganization 为空时保持未配置状态，登录链路会 fail closed。
+// buildIdentitySourceBindingRows 只展示未退役的 OAuth/SAML 登录身份源；targetOrganization 为空时登录链路会 fail closed。
 export function buildIdentitySourceBindingRows(
   application?: IdentitySourceApplication | null,
   providers: IdentityProvider[] = []
@@ -119,8 +120,8 @@ const ApplicationIdentitySourceBindings = ({application, providers = [], organiz
         showIcon
         message={t("application:No configurable login identity sources", "暂无可配置的登录身份源")}
         description={t(
-          "application:Enable OAuth SAML or Web3 providers to bind target organizations",
-          "启用 OAuth、SAML 或 Web3 Provider 后，可在这里为每个登录身份源指定目标组织。"
+          "application:Enable OAuth or SAML providers to bind target organizations",
+          "启用 OAuth 或 SAML Provider 后，可在这里为每个登录身份源指定目标组织。"
         )}
       />
     );
@@ -143,7 +144,7 @@ const ApplicationIdentitySourceBindings = ({application, providers = [], organiz
             message={t("application:Provider target organization is required", "Provider 目标组织必填")}
             description={t(
               "application:Provider sign-in fails when target organization is missing",
-              "企业微信、飞书/Lark、钉钉、SAML 或 Web3 登录不会再沿用应用组织；请为每个登录 Provider 选择与同步配置一致的目标组织。"
+              "企业微信、飞书/Lark、钉钉或 SAML 登录不会再沿用应用组织；请为每个登录 Provider 选择与同步配置一致的目标组织。"
             )}
           />
         ) : null}

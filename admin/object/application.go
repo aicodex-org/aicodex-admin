@@ -900,6 +900,9 @@ func UpdateApplication(id string, application *Application, isGlobalAdmin bool, 
 	if !isGlobalAdmin && oldApplication.Organization != application.Organization {
 		return false, errors.New(i18n.Translate(lang, "auth:Unauthorized operation"))
 	}
+	if err = validateRetiredWeb3WalletProviderBindings(oldApplication, application); err != nil {
+		return false, err
+	}
 
 	if name == "app-built-in" {
 		application.Name = name
@@ -958,6 +961,9 @@ func AddApplication(application *Application) (bool, error) {
 	}
 	if application.Organization == "" {
 		application.Organization = "built-in"
+	}
+	if err := validateRetiredWeb3WalletProviderBindings(nil, application); err != nil {
+		return false, err
 	}
 	if application.ClientId == "" {
 		application.ClientId = util.GenerateClientId()

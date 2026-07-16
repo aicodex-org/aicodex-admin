@@ -101,4 +101,38 @@ describe("ApplicationIdentitySourceBindings", () => {
     expect(view.queryByText("沿用应用组织")).toBeNull();
     expect(view.queryByText(/secret|token|cookie/i)).toBeNull();
   });
+
+  test("excludes retired and mislabeled Web3 providers from identity source rows", () => {
+    const rows = buildIdentitySourceBindingRows(
+      {
+        providers: [
+          {name: "category-wallet"},
+          {name: "mislabeled-wallet"},
+          {name: "saml-mislabeled-wallet"},
+          {name: "lark-main", targetOrganization: "feishu-test"},
+        ],
+      },
+      [
+        {name: "category-wallet", category: "Web3", type: "Custom"},
+        {name: "mislabeled-wallet", category: "OAuth", type: "MetaMask"},
+        {name: "saml-mislabeled-wallet", category: "SAML", type: "Web3Onboard"},
+        ...providers,
+      ]
+    );
+
+    expect(rows.map(row => row.name)).toEqual(["lark-main"]);
+  });
+
+  test("does not advertise Web3 as a configurable login identity source", () => {
+    const view = render(
+      <ApplicationIdentitySourceBindings
+        application={{providers: []}}
+        providers={[]}
+        organizations={organizations}
+        onChange={() => undefined}
+      />
+    );
+
+    expect(view.queryByText(/Web3/i)).toBeNull();
+  });
 });

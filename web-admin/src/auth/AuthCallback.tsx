@@ -30,6 +30,11 @@ const reactFallbackKey = "__casdoor_callback_react";
 const reactFallbackPayloadKey = "casdoor_callback_react_fallback";
 const t = (key: string): string => i18next.t(key);
 
+/** 解析仍受支持的授权码别名，不再解引用历史钱包 storage key。 */
+export function resolveAuthCallbackCode(params: URLSearchParams, _legacyStorage?: Pick<Storage, "getItem">): string | null {
+  return params.get("code") ?? params.get("auth_code") ?? params.get("authCode");
+}
+
 class AuthCallback extends React.Component<LegacyAny, LegacyAny> {
   constructor(props: LegacyAny) {
     super(props);
@@ -223,21 +228,7 @@ class AuthCallback extends React.Component<LegacyAny, LegacyAny> {
     const params = new URLSearchParams(this.props.location.search);
     const queryString = Util.getQueryParamsFromState(params.get("state"));
     const isSteam = params.get("openid.mode");
-    let code = params.get("code");
-    // WeCom returns "auth_code=xxx" instead of "code=xxx"
-    if (code === null) {
-      code = params.get("auth_code");
-    }
-    // Dingtalk now  returns "authCode=xxx" instead of "code=xxx"
-    if (code === null) {
-      code = params.get("authCode");
-    }
-    // The code for Web3 is the JSON-serialized string of Web3AuthToken
-    // Due to the limited length of URLs, we only pass the web3AuthTokenKey
-    if (code === null) {
-      code = params.get("web3AuthTokenKey");
-      code = localStorage.getItem(code ?? "");
-    }
+    let code = resolveAuthCallbackCode(params);
     // Steam don't use code, so we should use all params as code.
     if (isSteam !== null && code === null) {
       code = this.props.location.search;

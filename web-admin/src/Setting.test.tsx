@@ -15,7 +15,7 @@ import {expect, test} from "@jest/globals";
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {StaticBaseUrl, getApiPaths, getProviderLogoURL, isProviderVisibleForSignIn, isProviderVisibleForSignUp} from "./Setting";
+import {StaticBaseUrl, getApiPaths, getProviderLogoURL, getProviderTypeOptions, isProviderVisibleForSignIn, isProviderVisibleForSignUp} from "./Setting";
 
 test("includes module-based WeCom organization API paths", () => {
   const paths = getApiPaths();
@@ -90,4 +90,20 @@ test("keeps existing OAuth and WeCom provider visibility rules unchanged", () =>
     canSignIn: true,
     provider: {category: "OAuth", type: "WeCom"},
   })).toBe(true);
+});
+
+test("keeps retired wallet providers out of visibility and creation options", () => {
+  expect(isProviderVisibleForSignIn({
+    canSignIn: true,
+    provider: {category: "Web3", type: "Custom"},
+  })).toBe(false);
+  expect(isProviderVisibleForSignIn({
+    canSignIn: true,
+    provider: {category: "OAuth", type: "MetaMask"},
+  })).toBe(false);
+  expect(isProviderVisibleForSignUp({
+    canSignUp: true,
+    provider: {category: "SAML", type: "Web3Onboard"},
+  })).toBe(false);
+  expect(getProviderTypeOptions("Web3")).toEqual([]);
 });

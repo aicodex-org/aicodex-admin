@@ -421,6 +421,31 @@ describe("ApplicationAccessCenter", () => {
     ]));
   });
 
+  test("does not treat retired or mislabeled Web3 providers as active identity sources", () => {
+    const summary = buildApplicationAccessCenterSummary([
+      {
+        owner: "admin",
+        name: "app-retired-wallets",
+        clientId: "wallet-client",
+        redirectUris: ["https://example.test/callback"],
+        scopes: ["openid"],
+        providers: [
+          {name: "category-wallet", category: "Web3"},
+          {name: "mislabeled-wallet", category: "OAuth", type: "MetaMask"},
+          {name: "nested-wallet", provider: {category: "SAML", type: "Web3Onboard"}},
+        ],
+        grantTypes: ["authorization_code"],
+      },
+    ]);
+
+    expect(summary.cards[0]).toMatchObject({
+      identitySourceStatus: "无登录身份源组织要求",
+      status: "接入完整",
+    });
+    expect(summary.metrics.identitySourceReadyApplications).toBe(1);
+    expect(summary.riskItems.map(item => item.key)).not.toContain("missing-identity-source-organization");
+  });
+
   test("renders list-first summary, risk summary, and existing configuration links", () => {
     const view = render(
       <MemoryRouter>

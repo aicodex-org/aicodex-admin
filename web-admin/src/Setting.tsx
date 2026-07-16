@@ -33,6 +33,7 @@ import * as countries from "i18n-iso-countries";
 import {getCountryLocale} from "./config/countryLocales";
 import {normalizeSupportedLanguage} from "./config/supportedLocales";
 import {resolvePublicAssetUrl, runtimeEnv} from "./config/runtimeEnv";
+import {isRetiredWeb3WalletProvider} from "./auth/Web3WalletRetirement";
 
 type LegacyAny = any;
 
@@ -746,7 +747,11 @@ export function isProviderVisible(providerItem) {
     return false;
   }
 
-  if (!["OAuth", "SAML", "Web3"].includes(providerItem.provider.category)) {
+  if (isRetiredWeb3WalletProvider(providerItem.provider)) {
+    return false;
+  }
+
+  if (!["OAuth", "SAML"].includes(providerItem.provider.category)) {
     return false;
   }
 
@@ -1411,11 +1416,6 @@ export function getProviderTypeOptions(category) {
       {id: "Aliyun Captcha", name: "Aliyun Captcha"},
       {id: "GEETEST", name: "GEETEST"},
       {id: "Cloudflare Turnstile", name: "Cloudflare Turnstile"},
-    ]);
-  } else if (category === "Web3") {
-    return ([
-      {id: "MetaMask", name: "MetaMask"},
-      {id: "Web3Onboard", name: "Web3-Onboard"},
     ]);
   } else if (category === "Notification") {
     return ([

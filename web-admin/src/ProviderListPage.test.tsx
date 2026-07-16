@@ -143,6 +143,33 @@ describe("ProviderListPage enterprise table polish", () => {
     expect(view.getByText(/删除|Delete/)).not.toBeNull();
   });
 
+  test("keeps historical wallet providers visible only for deletion", () => {
+    const retiredProvider = {
+      ...provider,
+      name: "historical-wallet",
+      displayName: "Historical Wallet",
+      category: "OAuth",
+      type: "MetaMask",
+    };
+    const page = attachPageState(new ProviderListPage({
+      account,
+      history: {push: jest.fn()},
+      match: {path: "/providers", params: {}},
+    }), {data: [retiredProvider]});
+    const root = page.renderTable([retiredProvider]);
+    const tableShell = React.Children.toArray(root.props.children).find((child: LegacyAny) => child?.props?.className?.includes("provider-list-page-table-shell")) as LegacyAny;
+    const table = React.Children.only(tableShell.props.children) as LegacyAny;
+    const columns = table.props.columns as LegacyAny[];
+    const view = render(<MemoryRouter>{root}</MemoryRouter>);
+
+    expect(view.getByText("Historical Wallet")).not.toBeNull();
+    expect(view.container.querySelector(".provider-table-name")?.getAttribute("href")).toBe("/providers/admin/historical-wallet");
+    expect(view.container.querySelector(".provider-row-primary-action")).toBeNull();
+    expect(view.getByText(/删除|Delete/)).not.toBeNull();
+    expect(columns.find(column => column.key === "category")?.filters.map((item: LegacyAny) => item.value)).not.toContain("Web3");
+    expect(columns.find(column => column.key === "type")?.filters.map((item: LegacyAny) => item.value)).not.toContain("Web3");
+  });
+
   test("keeps compact provider columns when backend form config uses legacy provider field names", () => {
     const page = attachPageState(new ProviderListPage({
       account,
