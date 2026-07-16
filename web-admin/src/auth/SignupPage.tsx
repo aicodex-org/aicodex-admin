@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import React from "react";
-import {Button, Form, Input, Popover, Radio, Result, Row, Select, message} from "antd";
+import {Button, Form, Input, Popover, Radio, Result, Row, Select, Space, message} from "antd";
 import * as Setting from "../Setting";
 import * as AuthBackend from "./AuthBackend";
 import * as ProviderButton from "./ProviderButton";
@@ -631,7 +631,7 @@ class SignupPage extends React.Component<LegacyAny, LegacyAny> {
         return (
           <React.Fragment>
             <Form.Item className="signup-phone" label={signupItem.label ? signupItem.label : t("general:Phone")} required={required}>
-              <Input.Group compact>
+              <Space.Compact block>
                 <Form.Item
                   name="countryCode"
                   noStyle
@@ -681,7 +681,7 @@ class SignupPage extends React.Component<LegacyAny, LegacyAny> {
                     onChange={e => this.setState({phone: e.target.value})}
                   />
                 </Form.Item>
-              </Input.Group>
+              </Space.Compact>
             </Form.Item>
             {
               signupItem.rule !== "No verification" &&

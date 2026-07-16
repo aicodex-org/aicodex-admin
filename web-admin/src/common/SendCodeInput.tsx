@@ -53,7 +53,7 @@ export const SendCodeInput = ({
   countryCode,
   refreshCaptcha,
 }: SendCodeInputProps) => {
-  const [visible, setVisible] = React.useState(false);
+  const [open, setOpen] = React.useState(false);
   const [buttonLeftTime, setButtonLeftTime] = React.useState(0);
   const [buttonLoading, setButtonLoading] = React.useState(false);
 
@@ -77,7 +77,7 @@ export const SendCodeInput = ({
   };
 
   const handleOk = (captchaType?: string, captchaToken?: string, clintSecret?: string) => {
-    setVisible(false);
+    setOpen(false);
     setButtonLoading(true);
     const [dest, type, applicationId, checkUser] = onButtonClickArgs;
     UserBackend.sendCode(captchaType, captchaToken, clintSecret, method, countryCode, dest, type, applicationId, checkUser).then((res: LegacyAny) => {
@@ -98,12 +98,12 @@ export const SendCodeInput = ({
   };
 
   const handleCancel = () => {
-    setVisible(false);
+    setOpen(false);
   };
 
   const handleSearch = () => {
     if (!useInlineCaptcha) {
-      setVisible(true);
+      setOpen(true);
       return;
     }
 
@@ -138,7 +138,7 @@ export const SendCodeInput = ({
           <CaptchaModal
             owner={application.owner}
             name={application.name}
-            visible={visible}
+            open={open}
             onOk={handleOk}
             onCancel={handleCancel}
             isCurrentProvider={false}

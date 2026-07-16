@@ -23,7 +23,7 @@ type LegacyAny = import("../../types/legacyPage").LegacyAny;
 const t = (key: string, options?: LegacyAny): string => String(i18next.t(key, options));
 
 export const CaptchaModal = (props: LegacyAny) => {
-  const {owner, name, visible, onOk, onUpdateToken, onCancel, isCurrentProvider, noModal, innerRef} = props;
+  const {owner, name, open: requestedOpen, onOk, onUpdateToken, onCancel, isCurrentProvider, noModal, innerRef} = props;
 
   const [captchaType, setCaptchaType] = React.useState("none");
   const [clientId, setClientId] = React.useState("");
@@ -32,20 +32,20 @@ export const CaptchaModal = (props: LegacyAny) => {
   const [clientId2, setClientId2] = React.useState("");
   const [clientSecret2, setClientSecret2] = React.useState("");
 
-  const [open, setOpen] = React.useState(false);
+  const [modalOpen, setModalOpen] = React.useState(false);
   const [captchaImg, setCaptchaImg] = React.useState("");
   const [captchaToken, setCaptchaToken] = React.useState("");
 
   const defaultInputRef = React.useRef(null);
 
   useEffect(() => {
-    if (visible || noModal) {
+    if (requestedOpen || noModal) {
       loadCaptcha();
     } else {
       handleCancel();
-      setOpen(false);
+      setModalOpen(false);
     }
-  }, [visible, noModal]);
+  }, [requestedOpen, noModal]);
 
   useEffect(() => {
     if (captchaToken !== "" && captchaType !== "Default" && !noModal) {
@@ -75,12 +75,12 @@ export const CaptchaModal = (props: LegacyAny) => {
       if (res.type === "none") {
         handleOk();
       } else if (res.type === "Default") {
-        setOpen(true);
+        setModalOpen(true);
         setClientSecret(res.captchaId);
         setCaptchaImg(res.captchaImage);
         setCaptchaType("Default");
       } else {
-        setOpen(true);
+        setModalOpen(true);
         setCaptchaType(res.type);
         setClientId(res.clientId);
         setClientSecret(res.clientSecret);
@@ -207,7 +207,7 @@ export const CaptchaModal = (props: LegacyAny) => {
         maskClosable={false}
         destroyOnClose={true}
         title={t("general:Captcha")}
-        open={open}
+        open={modalOpen}
         okText={t("general:OK")}
         cancelText={t("general:Cancel")}
         width={350}

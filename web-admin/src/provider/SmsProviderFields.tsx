@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import React from "react";
-import {Button, Col, Input, Row, Select, Switch} from "antd";
+import {Button, Col, Input, Row, Select, Space, Switch} from "antd";
 import * as Setting from "../Setting";
 import i18next from "i18next";
 import * as ProviderEditTestSms from "../common/TestSmsWidget";
@@ -156,7 +156,7 @@ export function renderSmsProviderFields(provider: ProviderConfig, updateProvider
           {Setting.getLabel(t("provider:SMS Test"), t("provider:SMS Test - Tooltip"))} :
         </Col>
         <Col span={4} >
-          <Input.Group compact>
+          <Space.Compact block>
             <CountryCodeSelect
               style={{width: "90px"}}
               initValue={provider.content}
@@ -171,7 +171,7 @@ export function renderSmsProviderFields(provider: ProviderConfig, updateProvider
               onChange={e => {
                 updateProviderField("receiver", e.target.value);
               }} />
-          </Input.Group>
+          </Space.Compact>
         </Col>
         <Col span={2} >
           <Button style={{marginLeft: "10px", marginBottom: "5px"}} type="primary"

@@ -21,7 +21,7 @@ type LegacyAny = import("../../types/legacyPage").LegacyAny;
 const t = (key: string) => String(i18next.t(key));
 
 const FaceRecognitionCommonModal = (props: LegacyAny) => {
-  const {visible, onOk, onCancel} = props;
+  const {open, onOk, onCancel} = props;
 
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
@@ -40,7 +40,7 @@ const FaceRecognitionCommonModal = (props: LegacyAny) => {
           videoRef.current.srcObject = mediaStreamRef.current;
           videoRef.current.play();
           const interval2 = setInterval(() => {
-            if (!visible) {
+            if (!open) {
               clearInterval(interval);
               setPercent(0);
             }
@@ -81,7 +81,7 @@ const FaceRecognitionCommonModal = (props: LegacyAny) => {
   }, [isCameraCaptured]);
 
   React.useEffect(() => {
-    if (visible) {
+    if (open) {
       navigator.mediaDevices
         .getUserMedia({video: {facingMode: "user"}})
         .then((stream) => {
@@ -94,7 +94,7 @@ const FaceRecognitionCommonModal = (props: LegacyAny) => {
       setIsCameraCaptured(false);
       setCapturedImageArray([]);
     }
-  }, [visible]);
+  }, [open]);
 
   const handleCameraError = (error: LegacyAny) => {
     if (error instanceof DOMException) {
@@ -129,7 +129,7 @@ const FaceRecognitionCommonModal = (props: LegacyAny) => {
         </Button>,
       ]}
       destroyOnClose={true}
-      open={visible}>
+      open={open}>
       <Progress percent={percent} />
       <div style={{
         marginTop: "20px",

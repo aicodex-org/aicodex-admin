@@ -24,7 +24,7 @@ type LegacyAny = import("../../types/legacyPage").LegacyAny;
 const t = (key: string) => String(i18next.t(key));
 
 const FaceRecognitionModal = (props: LegacyAny) => {
-  const {visible, onOk, onCancel, withImage} = props;
+  const {open, onOk, onCancel, withImage} = props;
   const [modelsLoaded, setModelsLoaded] = React.useState(false);
   const [isCameraCaptured, setIsCameraCaptured] = useState(false);
 
@@ -39,7 +39,7 @@ const FaceRecognitionModal = (props: LegacyAny) => {
   const [currentFaceIndex, setCurrentFaceIndex] = React.useState<number>();
 
   React.useEffect(() => {
-    if (!visible || modelsLoaded) {
+    if (!open || modelsLoaded) {
       return;
     }
 
@@ -59,13 +59,13 @@ const FaceRecognitionModal = (props: LegacyAny) => {
       });
     };
     loadModels();
-  }, [visible, modelsLoaded]);
+  }, [open, modelsLoaded]);
 
   React.useEffect(() => {
     if (withImage) {
       return;
     }
-    if (visible) {
+    if (open) {
       setPercent(0);
       if (modelsLoaded) {
         navigator.mediaDevices
@@ -91,7 +91,7 @@ const FaceRecognitionModal = (props: LegacyAny) => {
       detection.current = null;
       setIsCameraCaptured(false);
     };
-  }, [visible, modelsLoaded]);
+  }, [open, modelsLoaded]);
 
   React.useEffect(() => {
     if (withImage) {
@@ -127,7 +127,7 @@ const FaceRecognitionModal = (props: LegacyAny) => {
     let goodCount = 0;
     if (!detection.current) {
       detection.current = setInterval(async() => {
-        if (modelsLoaded && videoRef.current && visible) {
+        if (modelsLoaded && videoRef.current && open) {
           const faces = await faceapi.detectAllFaces(videoRef.current, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptors();
 
           count++;
@@ -191,7 +191,7 @@ const FaceRecognitionModal = (props: LegacyAny) => {
           closable={false}
           maskClosable={false}
           destroyOnClose={true}
-          open={visible && isCameraCaptured}
+          open={open && isCameraCaptured}
           title={t("login:Face Recognition")}
           width={350}
           footer={[
@@ -265,7 +265,7 @@ const FaceRecognitionModal = (props: LegacyAny) => {
       <Modal closable={false}
         maskClosable={false}
         destroyOnClose={true}
-        open={visible}
+        open={open}
         title={t("login:Face Recognition")}
         width={350}
         footer={[

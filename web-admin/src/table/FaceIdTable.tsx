@@ -183,7 +183,7 @@ class FaceIdTable extends React.Component<FaceIdTableProps, FaceIdTableState> {
             </div>
             <Suspense fallback={null}>
               <FaceRecognitionModal
-                visible={this.state.openFaceRecognitionModal}
+                open={this.state.openFaceRecognitionModal}
                 withImage={this.state.withImage}
                 onOk={(faceIdData: LegacyAny) => {
                   this.addFaceId(table, faceIdData);

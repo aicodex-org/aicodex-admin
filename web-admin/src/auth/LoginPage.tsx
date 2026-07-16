@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import React, {Suspense, lazy} from "react";
-import {Button, Checkbox, Col, Form, Input, Result, Spin, Tabs, message} from "antd";
+import {Button, Checkbox, Col, Form, Input, Result, Space, Spin, Tabs, message} from "antd";
 import {ArrowLeftOutlined, LockOutlined, UserOutlined} from "@ant-design/icons";
 import {withRouter} from "react-router-dom";
 import * as UserWebauthnBackend from "../backend/UserWebauthnBackend";
@@ -798,7 +798,7 @@ export class LoginPage extends React.Component<LegacyAny, LegacyAny> {
 
       if (this.state.loginMethod === "verificationCodePhone") {
         return <Form.Item className="signin-phone" required={true}>
-          <Input.Group compact>
+          <Space.Compact block>
             <Form.Item
               name="countryCode"
               noStyle
@@ -847,7 +847,7 @@ export class LoginPage extends React.Component<LegacyAny, LegacyAny> {
                 onChange={e => this.setState({username: e.target.value})}
               />
             </Form.Item>
-          </Input.Group>
+          </Space.Compact>
         </Form.Item>;
       }
 
@@ -984,7 +984,7 @@ export class LoginPage extends React.Component<LegacyAny, LegacyAny> {
           </Button>
           {
             this.state.loginMethod === "faceId" ?
-              this.state.haveFaceIdProvider ? <Suspense fallback={null}><FaceRecognitionCommonModal visible={this.state.openFaceRecognitionModal} onOk={(FaceIdImage: LegacyAny) => {
+              this.state.haveFaceIdProvider ? <Suspense fallback={null}><FaceRecognitionCommonModal open={this.state.openFaceRecognitionModal} onOk={(FaceIdImage: LegacyAny) => {
                 const values = this.state.values;
                 values["FaceIdImage"] = FaceIdImage;
                 this.login(values);
@@ -992,7 +992,7 @@ export class LoginPage extends React.Component<LegacyAny, LegacyAny> {
               }} onCancel={() => this.setState({openFaceRecognitionModal: false, loginLoading: false})} /></Suspense> :
                 <Suspense fallback={null}>
                   <FaceRecognitionModal
-                    visible={this.state.openFaceRecognitionModal}
+                    open={this.state.openFaceRecognitionModal}
                     onOk={(faceId: LegacyAny) => {
                       const values = this.state.values;
                       values["faceId"] = faceId;
@@ -1234,7 +1234,7 @@ export class LoginPage extends React.Component<LegacyAny, LegacyAny> {
     return <CaptchaModal
       owner={provider.owner}
       name={provider.name}
-      visible={this.state.openCaptchaModal}
+      open={this.state.openCaptchaModal}
       noModal={noModal}
       onUpdateToken={(captchaType: LegacyAny, captchaToken: LegacyAny, clientSecret: LegacyAny) => {
         this.setState({

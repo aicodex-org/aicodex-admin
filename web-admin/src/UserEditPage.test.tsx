@@ -471,7 +471,6 @@ function installConsoleErrorFilter() {
   jestValue.spyOn(testConsole, "error").mockImplementation((...args: Parameters<typeof testConsole.error>) => {
     const message = String(args[0] || "");
     if (
-      message.includes("[antd: Input.Group]") ||
       message.includes("[antd: Form.Item]") ||
       message.includes("not wrapped in act")
     ) {
@@ -543,6 +542,21 @@ test("loads user data, transactions, organizations, applications and groups", as
   page.getGroups("engineering");
   await flushPromises();
   expect(page.state.groups).toEqual([{owner: "engineering", name: "group-a", displayName: "Group A", type: "Physical"}]);
+});
+
+test("keeps the user phone controls compact and preserves update callbacks", () => {
+  const page = createPage();
+  const view = render(<>{page.renderAccountItem({name: "Phone", visible: true, modifyRule: "Self", viewRule: "Self"})}</>);
+  const compact = view.container.querySelector<HTMLElement>(".ant-space-compact");
+
+  expect(compact).not.toBeNull();
+  expect(compact?.style.width).toBe("280px");
+  expect(view.getByTestId("country-code-select").nextElementSibling).toBe(view.container.querySelector("input"));
+
+  fireEvent.change(view.getByTestId("country-code-select"), {target: {value: "CN"}});
+  fireEvent.change(view.container.querySelector("input") as HTMLInputElement, {target: {value: "13900000000"}});
+  expect(page.state.user.countryCode).toBe("CN");
+  expect(page.state.user.phone).toBe("13900000000");
 });
 
 test("publishes the user display name for its workspace tab after loading", async() => {

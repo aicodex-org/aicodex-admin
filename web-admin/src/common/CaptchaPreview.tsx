@@ -23,7 +23,7 @@ const t = (key: string, options?: LegacyAny): string => String(i18next.t(key, op
 
 export const CaptchaPreview = (props: LegacyAny) => {
   const {owner, name, provider, captchaType, subType, clientId, clientSecret, clientId2, clientSecret2, providerUrl} = props;
-  const [visible, setVisible] = React.useState(false);
+  const [open, setOpen] = React.useState(false);
 
   const clickPreview = () => {
     provider.name = name;
@@ -32,9 +32,9 @@ export const CaptchaPreview = (props: LegacyAny) => {
     provider.providerUrl = providerUrl;
     if (clientSecret !== "***") {
       provider.clientSecret = clientSecret;
-      setVisible(true);
+      setOpen(true);
     } else {
-      setVisible(true);
+      setOpen(true);
     }
   };
 
@@ -54,12 +54,12 @@ export const CaptchaPreview = (props: LegacyAny) => {
 
   const onOk = (captchaType: LegacyAny, captchaToken: LegacyAny, clientSecret: LegacyAny) => {
     UserBackend.verifyCaptcha(owner, name, captchaType, captchaToken, clientSecret).then(() => {
-      setVisible(false);
+      setOpen(false);
     });
   };
 
   const onCancel = () => {
-    setVisible(false);
+    setOpen(false);
   };
 
   return (
@@ -75,7 +75,7 @@ export const CaptchaPreview = (props: LegacyAny) => {
       <CaptchaModal
         owner={owner}
         name={name}
-        visible={visible}
+        open={open}
         onOk={onOk}
         onCancel={onCancel}
         isCurrentProvider={true}

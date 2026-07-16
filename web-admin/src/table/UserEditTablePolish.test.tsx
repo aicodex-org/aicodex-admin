@@ -83,9 +83,15 @@ describe("User edit embedded table polish", () => {
     expect(getToolbarActions(mfaToolbar).props.children.map((node: React.ReactElement) => getToolbarButtonText(node))).toEqual(["添加", "二维码", "链接"]);
 
     const faceIdTable = new FaceIdTable({title: "Face IDs", table: [], account: {owner: "built-in", name: "alice"}, onUpdateTable: jest.fn()});
+    installLocalSetState(faceIdTable);
     const faceToolbar = getToolbar((faceIdTable as LegacyAny).renderTable([]));
     expect(getToolbarTitle(faceToolbar).props.children).toBe("Face IDs");
     expect(getToolbarActions(faceToolbar).props.children[0].props.children).toBe("添加人脸ID");
+    expect(faceToolbar.props.children[2].props.children.props.open).toBe(false);
+    expect(faceToolbar.props.children[2].props.children.props.visible).toBeUndefined();
+    getToolbarActions(faceToolbar).props.children[0].props.onClick();
+    const openedFaceToolbar = getToolbar((faceIdTable as LegacyAny).renderTable([]));
+    expect(openedFaceToolbar.props.children[2].props.children.props.open).toBe(true);
 
     const webAuthnTable = new WebAuthnCredentialTable({title: "WebAuthn 凭据", table: [], isSelf: true, updateTable: jest.fn(), refresh: jest.fn()});
     const webAuthnToolbar = getToolbar(webAuthnTable.render());

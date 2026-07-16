@@ -35,6 +35,7 @@
 | SOCKS5 出站传输 | `harden-admin-socks5-proxy-transport-policy` | 默认 transport、代理 transport 和 TLS 行为已有稳定契约 |
 | IDP HTTP client | `stabilize-admin-idp-http-client-contract` | 五个目标 Provider 统一注入 client、bounded fallback、body/status/error 与凭据脱敏契约 |
 | Web3 钱包认证退役 | `retire-unused-admin-web3-wallet-auth` | 60 零存量门禁通过；创建/登录入口、专属后端和 13 个直接依赖已移除，历史记录保持受控只读兼容 |
+| AntD 5 当前 API 清理 | `remove-web-admin-antd5-input-group-and-visible-deprecations` | 4 处 `Input.Group` 与 3 个 modal wrapper / 7 个调用点已迁移到 `Space.Compact` / `open`；5.24.1 不支持的销毁 API 留待升级后评估 |
 
 TypeScript 增量迁移也已进入稳态：`web-admin/src` 不再把普通业务 `.js/.jsx` 迁移作为独立路线，后续由增量 TS gate 防止回退。
 
@@ -73,20 +74,6 @@ Change：`stabilize-admin-enterprise-tls-compatibility-policy`
 
 ## 下一批候选
 
-### P1：AntD 5 deprecated API 清理
-
-建议 change：`remove-web-admin-antd5-deprecated-api-usage`
-
-当前基线约有 9 处 `Input.Group`、7 处 `visible` 和 11 处 `destroyOnClose`。这些调用会持续产生开发与测试告警，并阻碍后续 AntD 升级。
-
-建议范围：
-
-- 按组件语义迁移到 `Space.Compact`、`open`、`destroyOnHidden` 等当前 API，不做全局样式重写。
-- 优先处理登录、用户编辑、Provider、组织同步和公共 modal；保留表单布局、焦点、关闭后清理和权限行为。
-- 用聚焦 Jest 与浏览器 smoke 验证弹窗开关、表单重置、长文本和窄屏布局。
-
-前置条件：等待 Testing Library change 释放前端测试写集，并与企业 TLS change 的 Provider/Syncer UI 写集对账。
-
 ### P2：移除 CRA/IE polyfill 残留
 
 建议先评估，不直接实施。`web-admin/src/index.tsx` 仍加载 `react-app-polyfill/ie9`，但 React 18 已不支持 IE，构建工具也已迁移到 Vite。
@@ -122,6 +109,7 @@ Testing Library change 释放前端依赖锁后可建立新的隔离评估。重
 - 全量 class component 到 hooks。
 - 全仓 controller response/error contract 统一。
 - 全仓统一 HTTP client、全仓消除 panic 或一次性启用全部 linter。
+- AntD 5.24.1 的 11 处 `destroyOnClose` 迁移；当前 `ModalProps` 不支持 `destroyOnHidden`，必须等待 minor 升级并重新验证表单、媒体与异步清理。
 - 仅为缩短文件行数而重写历史 OpenSpec 主规格。
 
 这些方向只有在出现明确业务 blocker、升级前置或可量化维护成本时，才按单一业务域建立窄 change。不得把文件数量、行数或告警总数本身当作立项收益。
@@ -129,7 +117,7 @@ Testing Library change 释放前端依赖锁后可建立新的隔离评估。重
 ## 推荐顺序
 
 1. 完成并 closeout 当前企业 TLS 兼容策略与 React 18 Testing Library 升级。
-2. 前端测试写集释放后，按页面域清理 AntD 5 deprecated API。
+2. AntD minor 升级后重新评估 `destroyOnClose`；升级前保持当前 11 处销毁语义不变。
 3. 前端依赖锁释放后，基于已缩小的依赖树重新评估 Bun；评估通过前继续使用 Yarn。
 4. 明确浏览器支持基线后决定是否移除 IE polyfill。
 

@@ -132,7 +132,7 @@ class CaptchaPage extends React.Component<CaptchaPageProps, CaptchaPageState> {
     return <CaptchaModal
       owner={provider.owner}
       name={provider.name}
-      visible={true}
+      open={true}
       onOk={(captchaType: string, captchaToken: string, clientSecret: string) => {
         const values = {
           captchaType: captchaType,

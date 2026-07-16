@@ -1290,7 +1290,7 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
             {Setting.getLabel(i18next.t("general:Phone"), i18next.t("general:Phone - Tooltip"))} :
           </Col>
           <Col style={{paddingRight: "20px"}} span={5} >
-            <Input.Group compact style={{width: "280Px"}}>
+            <Space.Compact style={{width: "280px"}}>
               <CountryCodeSelect
                 style={{width: "30%"}}
                 // disabled={!Setting.isLocalAdminUser(this.props.account) ? true : disabled}
@@ -1306,7 +1306,7 @@ export class UserEditPage extends React.Component<UserEditPageProps, UserEditPag
                 onChange={e => {
                   this.updateUserField("phone", e.target.value);
                 }} />
-            </Input.Group>
+            </Space.Compact>
           </Col>
           <Col span={Setting.isMobile() ? 24 : 5} >
             {this.isSelf() ? (<ResetModal application={this.state.application} countryCode={this.getCountryCode()} disabled={disabled} buttonText={i18next.t("user:Reset Phone...")} destType={"phone"} />) : null}
