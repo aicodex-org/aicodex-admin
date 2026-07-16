@@ -4,7 +4,7 @@
 >
 > 最近整理日期：2026-07-16
 >
-> 代码审阅基线：`hfl-test-base@310025a7`
+> 代码审阅基线：`hfl-test-base@716b7f82`
 
 ## 文档用途
 
@@ -33,6 +33,7 @@
 | 后台任务生命周期 | `stabilize-admin-background-task-lifecycle-and-graceful-shutdown` | 顶层任务启动、停止和 graceful shutdown 已形成统一边界 |
 | 组织同步 HTTP | `stabilize-admin-organization-sync-http-client-policy` | timeout、context cancellation 和 client 注入已按域收口 |
 | SOCKS5 出站传输 | `harden-admin-socks5-proxy-transport-policy` | 默认 transport、代理 transport 和 TLS 行为已有稳定契约 |
+| IDP HTTP client | `stabilize-admin-idp-http-client-contract` | 五个目标 Provider 统一注入 client、bounded fallback、body/status/error 与凭据脱敏契约 |
 
 TypeScript 增量迁移也已进入稳态：`web-admin/src` 不再把普通业务 `.js/.jsx` 迁移作为独立路线，后续由增量 TS gate 防止回退。
 
@@ -49,19 +50,9 @@ Change：`retire-unused-admin-web3-wallet-auth`
 - 第一阶段删除创建、配置和登录入口及其专属前端依赖；历史记录保持可读、可禁用和可删除。
 - 不删除数据库字段，不批量改历史数据，不借机重评 Bun。
 
-### 收口 IDP HTTP client 契约
+### 收口企业 TLS 兼容策略
 
-Change：`stabilize-admin-idp-http-client-contract`
-
-- 按 IDP 域统一注入 client、timeout、request error、response body close 和状态码处理。
-- 禁止把 client secret 放入 URL query 或普通日志。
-- 不扩大为全仓 HTTP client 重写，也不在该 change 中改变企业自签证书兼容策略。
-
-## 下一批候选
-
-### P1：企业 TLS 兼容策略
-
-建议 change：`stabilize-admin-enterprise-tls-compatibility-policy`
+Change：`stabilize-admin-enterprise-tls-compatibility-policy`
 
 当前仍有 3 处硬编码 `InsecureSkipVerify: true`：
 
@@ -71,14 +62,16 @@ Change：`stabilize-admin-idp-http-client-contract`
 
 该问题值得处理，但不能直接把默认值改成严格校验。ADFS、Active Directory 和 SMTP 的旧部署可能依赖自签证书，直接关闭兼容会造成认证、同步或邮件中断。
 
-建议范围：
+实施边界：
 
 - 定义按连接或 provider 生效的显式 TLS policy，区分系统信任、自定义 CA 和受控的不安全兼容模式。
 - 规定旧配置迁移、默认值、copy-safe 状态诊断和告警，不回显证书或连接凭据。
 - ADFS 不得覆盖上游注入的 transport；AD 同步和 SMTP 复用同一策略语义，但保持各自业务 client 边界。
 - 为默认严格、自定义 CA、显式 legacy opt-in 和无效配置补契约测试。
 
-前置条件：等待 `stabilize-admin-idp-http-client-contract` 释放 `admin/idp/adfs.go` 写集。
+前置条件已满足：`stabilize-admin-idp-http-client-contract` 已完成。TLS change 必须保持其 `SetHttpClient`、bounded fallback、body/status/error 和凭据脱敏契约。
+
+## 下一批候选
 
 ### P1：React 18 兼容 Testing Library 升级
 
@@ -150,12 +143,11 @@ Bun 1.3.14 在 Windows 隔离环境中没有形成可用且可复现的依赖树
 
 ## 推荐顺序
 
-1. 完成并 closeout 当前 Web3 退役与 IDP HTTP client 两个独立 change。
-2. IDP 写集释放后实施企业 TLS 兼容策略。
-3. 前端依赖锁释放后实施 React 18 Testing Library 升级。
-4. 随后按页面域清理 AntD 5 deprecated API；该任务可与企业 TLS 并行。
-5. 明确浏览器支持基线后决定是否移除 IE polyfill。
-6. Bun 保持关闭，直到满足重评触发条件。
+1. 完成并 closeout 当前 Web3 退役与企业 TLS 兼容策略两个独立 change。
+2. 前端依赖锁释放后实施 React 18 Testing Library 升级。
+3. 随后按页面域清理 AntD 5 deprecated API；该任务可与企业 TLS 并行。
+4. 明确浏览器支持基线后决定是否移除 IE polyfill。
+5. Bun 保持关闭，直到满足重评触发条件。
 
 ## 维护规则
 
