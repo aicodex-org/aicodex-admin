@@ -2,12 +2,13 @@
 
 import React from "react";
 import {expect as jestExpect, jest as jestValue} from "@jest/globals";
-import {render, waitFor} from "@testing-library/react";
+import {act, render, waitFor} from "@testing-library/react";
 import i18next from "i18next";
 import * as Setting from "./Setting";
 import * as DingTalkOrganizationSyncBackend from "./backend/DingTalkOrganizationSyncBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import DingTalkOrganizationSyncPage from "./DingTalkOrganizationSyncPage";
+import {type ConsoleCallSpy, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
 
 declare const jest: typeof jestValue;
 
@@ -86,9 +87,9 @@ type LooseMock = {
 };
 type DingTalkBackendMock = Record<keyof typeof DingTalkOrganizationSyncBackend, LooseMock>;
 type OrganizationBackendMock = Record<keyof typeof OrganizationBackend, LooseMock>;
-
 const dingtalkBackendMock = DingTalkOrganizationSyncBackend as unknown as DingTalkBackendMock;
 const organizationBackendMock = OrganizationBackend as unknown as OrganizationBackendMock;
+let consoleErrorSpy: ConsoleCallSpy;
 const {fireEvent, screen} = require("@testing-library/react") as {
   fireEvent: {
     click: (element: Element | null) => boolean;
@@ -118,6 +119,7 @@ const mockMatchMedia = (query: string): MediaQueryList => ({
 } as unknown as MediaQueryList);
 
 beforeEach(() => {
+  consoleErrorSpy = jestValue.spyOn(console, "error") as unknown as ConsoleCallSpy;
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: mockMatchMedia,
@@ -145,9 +147,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  const actWarnings = getReactActWarnings(consoleErrorSpy.mock.calls);
+  consoleErrorSpy.mockRestore();
   jestValue.useRealTimers();
   jestValue.restoreAllMocks();
   jestValue.clearAllMocks();
+  expect(actWarnings).toEqual([]);
 });
 
 function mockConfig(config: Record<string, unknown> = {}, response: Record<string, unknown> = {}) {
@@ -173,9 +178,13 @@ function mockConfig(config: Record<string, unknown> = {}, response: Record<strin
   });
 }
 
+async function flushMicrotasks() {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 async function flushPromises() {
-  await Promise.resolve();
-  await Promise.resolve();
+  await act(flushMicrotasks);
 }
 
 test("renders DingTalk organization sync configuration and empty formal records", async() => {
@@ -508,8 +517,10 @@ test("keeps polling running DingTalk runs and copies run ids", async() => {
   await flushPromises();
   expect(writeText).toHaveBeenCalledWith("run-running");
 
-  jestValue.advanceTimersByTime(3000);
-  await flushPromises();
+  await act(async() => {
+    jestValue.advanceTimersByTime(3000);
+    await flushMicrotasks();
+  });
   expect(dingtalkBackendMock.getDingTalkOrganizationSyncRuns).toHaveBeenCalledWith("engineering", 1, 10);
 });
 

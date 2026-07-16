@@ -470,10 +470,7 @@ function installConsoleErrorFilter() {
   const originalConsoleError = testConsole.error;
   jestValue.spyOn(testConsole, "error").mockImplementation((...args: Parameters<typeof testConsole.error>) => {
     const message = String(args[0] || "");
-    if (
-      message.includes("[antd: Form.Item]") ||
-      message.includes("not wrapped in act")
-    ) {
+    if (message.includes("[antd: Form.Item]")) {
       return;
     }
     originalConsoleError(...args);

@@ -387,13 +387,6 @@ describe("ApplicationUsageAccessPage", () => {
     });
     consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
       const serializedMessage = [message, ...args].map(item => `${item}`).join(" ");
-      if (serializedMessage.includes("not wrapped in act") && serializedMessage.includes("BaseSelect")) {
-        return;
-      }
-      if (serializedMessage.includes("current testing environment is not configured to support act")) {
-        return;
-      }
-
       consoleErrorSpy.mockRestore();
       throw new Error(serializedMessage);
     });

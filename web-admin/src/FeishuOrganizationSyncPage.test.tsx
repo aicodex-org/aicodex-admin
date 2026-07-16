@@ -2,12 +2,13 @@
 
 import React from "react";
 import {expect as jestExpect, jest as jestValue} from "@jest/globals";
-import {render} from "@testing-library/react";
+import {act, render} from "@testing-library/react";
 import FeishuOrganizationSyncPage from "./FeishuOrganizationSyncPage";
 import * as FeishuOrganizationSyncBackend from "./backend/FeishuOrganizationSyncBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as WecomOrganizationSyncBackend from "./backend/WecomOrganizationSyncBackend";
 import * as Setting from "./Setting";
+import {type ConsoleCallSpy, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
 
 declare const jest: typeof jestValue;
 
@@ -31,6 +32,7 @@ type TestExpect = {
 };
 
 const expect = jestExpect as unknown as TestExpect;
+let consoleErrorSpy: ConsoleCallSpy;
 
 jest.mock("./backend/FeishuOrganizationSyncBackend", () => {
   const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
@@ -133,6 +135,7 @@ const mockMatchMedia = (query: string): MediaQueryList => ({
 } as unknown as MediaQueryList);
 
 beforeEach(() => {
+  consoleErrorSpy = jestValue.spyOn(console, "error") as unknown as ConsoleCallSpy;
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: mockMatchMedia,
@@ -333,13 +336,18 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  const actWarnings = getReactActWarnings(consoleErrorSpy.mock.calls);
+  consoleErrorSpy.mockRestore();
   jestValue.restoreAllMocks();
   jestValue.clearAllMocks();
+  expect(actWarnings).toEqual([]);
 });
 
 async function flushPromises() {
-  await Promise.resolve();
-  await Promise.resolve();
+  await act(async() => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
 }
 
 test("restores configured Feishu organization when account owner is built-in", async() => {

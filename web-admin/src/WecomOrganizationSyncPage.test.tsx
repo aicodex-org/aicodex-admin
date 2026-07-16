@@ -21,6 +21,7 @@ import * as FeishuOrganizationSyncBackend from "./backend/FeishuOrganizationSync
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as WecomOrganizationSyncBackend from "./backend/WecomOrganizationSyncBackend";
 import WecomOrganizationSyncPage from "./WecomOrganizationSyncPage";
+import {type ConsoleCallSpy, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
 
 declare const jest: typeof jestValue;
 
@@ -107,10 +108,10 @@ type LooseMock = {
 type WecomBackendMock = Record<keyof typeof WecomOrganizationSyncBackend, LooseMock>;
 type FeishuBackendMock = Record<keyof typeof FeishuOrganizationSyncBackend, LooseMock>;
 type OrganizationBackendMock = Record<keyof typeof OrganizationBackend, LooseMock>;
-
 const wecomBackendMock = WecomOrganizationSyncBackend as unknown as WecomBackendMock;
 const feishuBackendMock = FeishuOrganizationSyncBackend as unknown as FeishuBackendMock;
 const organizationBackendMock = OrganizationBackend as unknown as OrganizationBackendMock;
+let consoleErrorSpy: ConsoleCallSpy;
 const {fireEvent, screen} = require("@testing-library/react") as {
   fireEvent: {
     click: (element: Element | null) => boolean;
@@ -157,6 +158,7 @@ const mockMatchMedia = (query: string): MediaQueryList => ({
 } as unknown as MediaQueryList);
 
 beforeEach(() => {
+  consoleErrorSpy = jestValue.spyOn(console, "error") as unknown as ConsoleCallSpy;
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: mockMatchMedia,
@@ -179,9 +181,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  const actWarnings = getReactActWarnings(consoleErrorSpy.mock.calls);
+  consoleErrorSpy.mockRestore();
   jestValue.useRealTimers();
   jestValue.restoreAllMocks();
   jestValue.clearAllMocks();
+  expect(actWarnings).toEqual([]);
 });
 
 function mockConfig(config: Record<string, unknown> = {}, response: Record<string, unknown> = {}) {
@@ -204,8 +209,10 @@ function mockConfig(config: Record<string, unknown> = {}, response: Record<strin
   });
 }
 
-function flushPromises() {
-  return new Promise(resolve => setTimeout(resolve, 0));
+async function flushPromises() {
+  await act(async() => {
+    await new Promise(resolve => setTimeout(resolve, 0));
+  });
 }
 
 async function flushMicrotasks() {

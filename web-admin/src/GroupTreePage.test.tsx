@@ -1,12 +1,14 @@
 /* eslint-env jest */
 import React from "react";
 import {expect as jestExpect, jest as jestValue} from "@jest/globals";
-import {render} from "@testing-library/react";
+import {act, render} from "@testing-library/react";
 import * as GroupBackend from "./backend/GroupBackend";
 import * as Setting from "./Setting";
 import GroupTreePage from "./GroupTreePage";
+import {type ConsoleCallSpy, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
 
 declare const jest: typeof jestValue;
+let consoleErrorSpy: ConsoleCallSpy;
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -103,11 +105,14 @@ function createPage(overrides: Partial<GroupTreePageProps> = {}) {
   return page;
 }
 
-function flushPromises() {
-  return new Promise(resolve => setTimeout(resolve, 0));
+async function flushPromises() {
+  await act(async() => {
+    await new Promise(resolve => setTimeout(resolve, 0));
+  });
 }
 
 beforeEach(() => {
+  consoleErrorSpy = jestValue.spyOn(console, "error") as unknown as ConsoleCallSpy;
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: mockMatchMedia,
@@ -125,8 +130,11 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  const actWarnings = getReactActWarnings(consoleErrorSpy.mock.calls);
+  consoleErrorSpy.mockRestore();
   jestValue.restoreAllMocks();
   jestValue.clearAllMocks();
+  expect(actWarnings).toEqual([]);
 });
 
 test("renders group tree route and embedded user list without changing backend boundary", async() => {

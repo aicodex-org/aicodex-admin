@@ -1,13 +1,15 @@
 /* eslint-env jest */
 import React from "react";
-import {cleanup, render} from "@testing-library/react";
-import {expect, jest} from "@jest/globals";
+import {cleanup, fireEvent, render} from "@testing-library/react";
+import {beforeEach, expect, jest} from "@jest/globals";
 import CertEditPage from "./CertEditPage";
 import * as CertBackend from "./backend/CertBackend";
 import * as Setting from "./Setting";
+import {type ConsoleCallSpy, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
 
 const draft = {owner: "engineering", name: "cert_draft", displayName: "Draft", scope: "JWT", type: "x509", cryptoAlgorithm: "RS256", bitSize: 2048, expireInYears: 10, certificate: "", privateKey: ""};
 const flushPromises = async(): Promise<void> => new Promise(resolve => setTimeout(resolve, 0));
+let consoleErrorSpy: ConsoleCallSpy;
 
 function createPage(mode: "add" | "edit" = "edit"): any {
   const page: any = new CertEditPage({match: {params: {organizationName: "engineering", certName: "cert_draft"}}, location: {mode, cert: draft}, history: {push: jest.fn()}, account: {owner: "engineering", isAdmin: true}} as any);
@@ -19,10 +21,17 @@ function createPage(mode: "add" | "edit" = "edit"): any {
   return page;
 }
 
+beforeEach(() => {
+  consoleErrorSpy = jest.spyOn(console, "error") as unknown as ConsoleCallSpy;
+});
+
 afterEach(() => {
   cleanup();
+  const actWarnings = getReactActWarnings(consoleErrorSpy.mock.calls);
+  consoleErrorSpy.mockRestore();
   jest.restoreAllMocks();
   window.location.hash = "";
+  expect(actWarnings).toEqual([]);
 });
 
 test("renders a shared two-tab certificate shell with one action bar", () => {
@@ -41,9 +50,9 @@ test("renders a shared two-tab certificate shell with one action bar", () => {
   const handleBack = jest.spyOn(page, "handleBack").mockImplementation(() => undefined);
   const submitCertEdit = jest.spyOn(page, "submitCertEdit").mockImplementation(() => undefined);
   const tabButtons = view.container.querySelectorAll<HTMLElement>(".cert-edit-tabs .ant-tabs-tab-btn");
-  tabButtons[1].click();
-  view.container.querySelector<HTMLButtonElement>(".cert-edit-back-button")?.click();
-  actionButtons.forEach((button: HTMLButtonElement) => button.click());
+  fireEvent.click(tabButtons[1]);
+  fireEvent.click(view.container.querySelector<HTMLButtonElement>(".cert-edit-back-button") as HTMLButtonElement);
+  actionButtons.forEach((button: HTMLButtonElement) => fireEvent.click(button));
 
   expect(page.state.activeTabKey).toBe("material");
   expect(handleBack).toHaveBeenCalledTimes(2);

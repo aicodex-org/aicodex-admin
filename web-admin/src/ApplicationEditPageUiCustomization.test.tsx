@@ -1,12 +1,13 @@
 /* eslint-env jest */
 import React from "react";
-import {afterEach, beforeAll, describe, expect, jest, test} from "@jest/globals";
-import {cleanup, render} from "@testing-library/react";
+import {afterEach, beforeAll, beforeEach, describe, expect, jest, test} from "@jest/globals";
+import {act, cleanup, render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import i18next from "i18next";
 import "./i18n";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
+import {type ConsoleCallSpy, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
 
 let ApplicationEditPage: any;
 
@@ -157,6 +158,7 @@ function getFieldSwitch(container: HTMLElement, label: RegExp): HTMLButtonElemen
 }
 
 describe("ApplicationEditPage UI customization preview", () => {
+  let consoleErrorSpy: ConsoleCallSpy;
   let SigninMethodTable: any;
   let SigninTable: any;
   let SignupTable: any;
@@ -179,7 +181,16 @@ describe("ApplicationEditPage UI customization preview", () => {
     SignupTable = require("./table/SignupTable").default;
   });
 
-  afterEach(() => cleanup());
+  beforeEach(() => {
+    consoleErrorSpy = jest.spyOn(console, "error") as unknown as ConsoleCallSpy;
+  });
+
+  afterEach(() => {
+    cleanup();
+    const actWarnings = getReactActWarnings(consoleErrorSpy.mock.calls);
+    consoleErrorSpy.mockRestore();
+    expect(actWarnings).toEqual([]);
+  });
 
   test("renders runtime-shaped UI customization tab without a white screen", () => {
     window.location.hash = "#ui-customization";
@@ -202,7 +213,7 @@ describe("ApplicationEditPage UI customization preview", () => {
     expect(() => render(<MemoryRouter>{page.renderApplication()}</MemoryRouter>)).not.toThrow();
   });
 
-  test("updates the signup switch and reflects its enabled state", () => {
+  test("updates the signup switch and reflects its enabled state", async() => {
     const page = createPage({enableSignUp: false});
     page.state.activeMenuKey = "authentication";
     const view = render(<MemoryRouter>{page.renderApplication()}</MemoryRouter>);
@@ -210,8 +221,11 @@ describe("ApplicationEditPage UI customization preview", () => {
     const signupSwitch = getFieldSwitch(view.container, /Enable signup|启用注册/);
     expect(signupSwitch.getAttribute("aria-checked")).toBe("false");
 
-    fireEvent.click(signupSwitch);
-    view.rerender(<MemoryRouter>{page.renderApplication()}</MemoryRouter>);
+    await act(async() => {
+      fireEvent.click(signupSwitch);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      view.rerender(<MemoryRouter>{page.renderApplication()}</MemoryRouter>);
+    });
 
     expect(page.state.application.enableSignUp).toBe(true);
     expect(getFieldSwitch(view.container, /Enable signup|启用注册/).getAttribute("aria-checked")).toBe("true");

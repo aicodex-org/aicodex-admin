@@ -2,9 +2,9 @@
 
 > 初始审计日期：2026-07-14
 >
-> 最近整理日期：2026-07-16
+> 最近整理日期：2026-07-17
 >
-> 代码审阅基线：`hfl-test-base@a754a5ca`
+> 代码审阅基线：`hfl-test-base@f955924d`
 
 ## 文档用途
 
@@ -38,20 +38,13 @@
 | AntD 5 当前 API 清理 | `remove-web-admin-antd5-input-group-and-visible-deprecations`、`upgrade-web-admin-antd5-and-migrate-modal-destroy-semantics` | 4 处 `Input.Group` 与 3 个 modal wrapper / 7 个调用点已迁移到 `Space.Compact` / `open`；AntD 精确升级到 5.29.3，11 处 overlay 销毁语义已迁移到 `destroyOnHidden`，AntD 6 继续排除 |
 | CRA/IE polyfill 退役 | `retire-web-admin-cra-ie-polyfill` | React 18 + Vite `es2020` 与 production browserslist 成为浏览器支持真值；CRA production/Jest polyfill owner 已移除，`core-js`、`replaceAll` 与显式 Jest/jsdom 边界继续保留 |
 | 注册页响应式 | `fix-web-admin-signup-mobile-overflow` | Signup 固定 logo/Form/模式组已收敛到页面局部响应式边界；320/360/390px 与桌面端无页面级横向溢出，长标签、校验错误和键盘路径保持可用 |
+| React 18 测试异步边界 | `upgrade-web-admin-react-testing-library-for-react-18`、`stabilize-web-admin-react18-async-test-boundaries` | RTL 已使用 `createRoot`；历史 act warning、FakeTimers/native timer 污染和局部文本 suppression 已按 owner 收口，并由 non-silent 全量 Jest 与 test-only 防回退契约保护 |
 
 TypeScript 增量迁移也已进入稳态：`web-admin/src` 不再把普通业务 `.js/.jsx` 迁移作为独立路线，后续由增量 TS gate 防止回退。
 
 ## 当前实施入口
 
 以下 change 已由独立 worker 实施。本节只标识路线占用和后续依赖，不代替主控实时台账。
-
-### 升级 React 18 Testing Library
-
-Change：`upgrade-web-admin-react-testing-library-for-react-18`
-
-- 将 `@testing-library/react` 9.3.2 升级到与 React 18.2、Jest 27 和当前 Node/TypeScript 基线兼容的维护版本。
-- 删除 29 个测试文件对 `ReactDOM.render` 告警的局部过滤，不换成全局 console ignore。
-- 保持全量 Jest discovery、Vite、Playwright 和业务运行时行为，不混入 React、Router、Jest 或 AntD 升级。
 
 ### 收口企业 TLS 兼容策略
 

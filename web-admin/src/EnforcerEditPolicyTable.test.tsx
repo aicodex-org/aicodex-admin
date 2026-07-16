@@ -1,7 +1,7 @@
 /* eslint-env jest */
 import React from "react";
 import {expect as jestExpect, jest as jestValue} from "@jest/globals";
-import {cleanup, render} from "@testing-library/react";
+import {act, cleanup, render} from "@testing-library/react";
 import {Button, Input, Select} from "antd";
 import {MemoryRouter} from "react-router-dom";
 import * as AdapterBackend from "./backend/AdapterBackend";
@@ -11,8 +11,10 @@ import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as Setting from "./Setting";
 import EnforcerEditPage from "./EnforcerEditPage";
 import PolicyTable from "./table/PolicyTable";
+import {type ConsoleCallSpy, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
 
 declare const jest: typeof jestValue;
+let consoleErrorSpy: ConsoleCallSpy;
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -198,8 +200,10 @@ const policy: PolicyRow = {
   V2: "read",
 };
 
-function flushPromises() {
-  return new Promise(resolve => setTimeout(resolve, 0));
+async function flushPromises() {
+  await act(async() => {
+    await new Promise(resolve => setTimeout(resolve, 0));
+  });
 }
 
 function createHistory() {
@@ -280,6 +284,7 @@ function findElementsByType(node: React.ReactNode, type: React.ElementType): Rea
 
 beforeEach(() => {
   cleanup();
+  consoleErrorSpy = jestValue.spyOn(console, "error") as unknown as ConsoleCallSpy;
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: () => ({
@@ -309,9 +314,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  cleanup();
+  const actWarnings = getReactActWarnings(consoleErrorSpy.mock.calls);
+  consoleErrorSpy.mockRestore();
   jestValue.restoreAllMocks();
   jestValue.clearAllMocks();
-  cleanup();
+  expect(actWarnings).toEqual([]);
 });
 
 test("migrates Casbin enforcer edit page and policy table modules to TSX", () => {
@@ -446,6 +454,7 @@ test("loads enforcer edit data and renders policy table props", async() => {
   expect((policyTable?.props as {modelCfg?: Record<string, string>; mode?: string}).modelCfg).toEqual(enforcer.modelCfg);
 
   const view = render(<MemoryRouter>{page.render()}</MemoryRouter>);
+  await flushPromises();
   expect(view.getByDisplayValue("main-enforcer")).not.toBeNull();
   expect(view.getByDisplayValue("Main Enforcer")).not.toBeNull();
   expect(view.getByDisplayValue("enforcer description")).not.toBeNull();

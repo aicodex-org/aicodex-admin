@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import React from "react";
-import {beforeAll, expect, jest, test} from "@jest/globals";
-import {render} from "@testing-library/react";
+import {afterEach, beforeAll, beforeEach, expect, jest, test} from "@jest/globals";
+import {cleanup, render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import fs from "fs";
 import path from "path";
@@ -22,6 +22,9 @@ import i18next from "i18next";
 import App, {getAdminDocumentTitle} from "./App";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
+import {type ConsoleCallSpy, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
+
+let consoleErrorSpy: ConsoleCallSpy;
 
 jest.mock("./ManagementPage", () => () => <main data-testid="management-page" />);
 
@@ -42,7 +45,18 @@ beforeAll(async() => {
   await i18next.changeLanguage("zh");
 });
 
-test("renders the admin root shell", () => {
+beforeEach(() => {
+  consoleErrorSpy = jest.spyOn(console, "error") as unknown as ConsoleCallSpy;
+});
+
+afterEach(() => {
+  cleanup();
+  const actWarnings = getReactActWarnings(consoleErrorSpy.mock.calls);
+  consoleErrorSpy.mockRestore();
+  expect(actWarnings).toEqual([]);
+});
+
+test("renders the admin root shell", async() => {
   const testGlobal = globalThis as typeof globalThis & {fetch?: typeof fetch};
   const originalFetch = testGlobal.fetch;
   // 根壳测试不验证后端回包，使用 suite-local fetch 避免重新依赖全局 CRA polyfill。
@@ -50,13 +64,15 @@ test("renders the admin root shell", () => {
 
   let container: HTMLElement;
   try {
-    ({container} = render(
+    const view = render(
       <MemoryRouter>
         <React.Suspense fallback={null}>
           <App />
         </React.Suspense>
       </MemoryRouter>
-    ));
+    );
+    await view.findByTestId("management-page");
+    container = view.container;
   } finally {
     if (originalFetch === undefined) {
       Reflect.deleteProperty(testGlobal, "fetch");

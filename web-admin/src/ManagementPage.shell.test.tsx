@@ -13,6 +13,7 @@ import * as Setting from "./Setting";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
 import {readLessWithImports} from "./testUtils/less";
+import {type ConsoleCallSpy, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
 import type {LegacyAny} from "./types/legacyPage";
 
 const mockMenuProps: Array<Record<string, unknown>> = [];
@@ -193,6 +194,8 @@ function readCssRuleBlock(source: string, selector: string) {
 const readAppLess = (): string => readLessWithImports(path.join(__dirname, "App.less"));
 
 describe("ManagementPage admin shell sidebar", () => {
+  let consoleErrorSpy: ConsoleCallSpy;
+
   beforeEach(async() => {
     localStorage.clear();
     mockMenuProps.length = 0;
@@ -201,12 +204,16 @@ describe("ManagementPage admin shell sidebar", () => {
     mockOrganizationEditLifecycle.unmounts = 0;
     jest.restoreAllMocks();
     await useTestLanguage("zh");
+    consoleErrorSpy = jest.spyOn(console, "error") as unknown as ConsoleCallSpy;
   });
 
   afterEach(() => {
     cleanup();
+    const actWarnings = getReactActWarnings(consoleErrorSpy.mock.calls);
+    consoleErrorSpy.mockRestore();
     jest.restoreAllMocks();
     localStorage.clear();
+    expect(actWarnings).toEqual([]);
   });
 
   test("renders desktop sidebar at the narrower expanded width by default", () => {
@@ -358,7 +365,9 @@ describe("ManagementPage admin shell sidebar", () => {
     expect(mockOrganizationEditLifecycle.mounts).toBe(1);
     expect(mockOrganizationEditLifecycle.unmounts).toBe(0);
 
-    history.push("/organizations/dingding6091");
+    act(() => {
+      history.push("/organizations/dingding6091");
+    });
     window.history.pushState({}, "", "/organizations/dingding6091");
     view.rerender(
       <Router history={history}>

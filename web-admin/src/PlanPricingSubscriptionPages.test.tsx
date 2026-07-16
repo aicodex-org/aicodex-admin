@@ -3,7 +3,7 @@ import React from "react";
 import * as fs from "fs";
 import * as path from "path";
 import {expect as jestExpect, jest as jestValue} from "@jest/globals";
-import {cleanup, render} from "@testing-library/react";
+import {act, cleanup, render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import PlanListPage from "./PlanListPage";
 import PlanEditPage from "./PlanEditPage";
@@ -22,8 +22,10 @@ import * as ApplicationBackend from "./backend/ApplicationBackend";
 import * as UserBackend from "./backend/UserBackend";
 import * as Setting from "./Setting";
 import type {LegacyAny} from "./types/legacyPage";
+import {type ConsoleCallSpy, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
 
 declare const jest: typeof jestValue;
+let consoleErrorSpy: ConsoleCallSpy;
 
 type PlanRecord = import("./types/businessPayment").PlanRecord;
 type PricingRecord = import("./types/businessPayment").PricingRecord;
@@ -262,8 +264,10 @@ function cloneFixture<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-function flushPromises() {
-  return new Promise(resolve => setTimeout(resolve, 0));
+async function flushPromises() {
+  await act(async() => {
+    await new Promise(resolve => setTimeout(resolve, 0));
+  });
 }
 
 async function flushAsyncWork() {
@@ -413,6 +417,7 @@ function createSubscriptionEditPage(props: Record<string, LegacyAny> = {}) {
 
 beforeEach(() => {
   cleanup();
+  consoleErrorSpy = jestValue.spyOn(console, "error") as unknown as ConsoleCallSpy;
   window.history.pushState({}, "", "/");
   Object.defineProperty(window, "matchMedia", {
     writable: true,
@@ -462,9 +467,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  cleanup();
+  const actWarnings = getReactActWarnings(consoleErrorSpy.mock.calls);
+  consoleErrorSpy.mockRestore();
   jestValue.restoreAllMocks();
   jestValue.clearAllMocks();
-  cleanup();
+  expect(actWarnings).toEqual([]);
 });
 
 test("uses TSX files for migrated plan pricing and subscription pages", () => {

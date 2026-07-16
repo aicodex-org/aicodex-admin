@@ -1,7 +1,7 @@
 /* eslint-env jest */
 import React from "react";
 import {Input, Modal, Select, Switch} from "antd";
-import {cleanup, render} from "@testing-library/react";
+import {act, cleanup, render} from "@testing-library/react";
 import {expect, jest} from "@jest/globals";
 import i18next from "i18next";
 import "./i18n";
@@ -11,10 +11,12 @@ import * as ProviderBackend from "./backend/ProviderBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as CertBackend from "./backend/CertBackend";
 import {validateWeComProviderFields} from "./provider/WeComProviderUtils";
+import {type ConsoleCallSpy, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
 
 const {fireEvent} = require("@testing-library/react") as {fireEvent: {click: (element: Element) => boolean}};
+let consoleErrorSpy: ConsoleCallSpy;
 
 type PageHarness = ProviderEditPage & {
   state: any;
@@ -93,7 +95,9 @@ async function useTestLanguage(language: string) {
 }
 
 async function flushPromises(): Promise<void> {
-  await new Promise(resolve => setTimeout(resolve, 0));
+  await act(async() => {
+    await new Promise(resolve => setTimeout(resolve, 0));
+  });
 }
 
 function collectElementsByType(node: React.ReactNode, type: React.ElementType): React.ReactElement[] {
@@ -148,6 +152,7 @@ function createPage(options: {mode?: "add" | "edit"} = {}): PageHarness {
 }
 
 beforeEach(async() => {
+  consoleErrorSpy = jest.spyOn(console, "error") as unknown as ConsoleCallSpy;
   await useTestLanguage("en");
   jest.spyOn(Setting, "isMobile").mockReturnValue(false);
   jest.spyOn(Setting, "isAdminUser").mockReturnValue(true);
@@ -155,7 +160,10 @@ beforeEach(async() => {
 
 afterEach(() => {
   cleanup();
+  const actWarnings = getReactActWarnings(consoleErrorSpy.mock.calls);
+  consoleErrorSpy.mockRestore();
   jest.restoreAllMocks();
+  expect(actWarnings).toEqual([]);
 });
 
 test("renders provider edit in the shared large edit shell without duplicate legacy actions", () => {

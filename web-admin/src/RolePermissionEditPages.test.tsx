@@ -1,7 +1,7 @@
 /* eslint-env jest */
 import React from "react";
 import {expect as jestExpect, jest as jestValue} from "@jest/globals";
-import {cleanup, render} from "@testing-library/react";
+import {act, cleanup, render} from "@testing-library/react";
 import {Button, Input, Modal, Select, Switch, Tabs} from "antd";
 import * as Setting from "./Setting";
 import * as RoleBackend from "./backend/RoleBackend";
@@ -13,8 +13,10 @@ import * as ModelBackend from "./backend/ModelBackend";
 import * as ApplicationBackend from "./backend/ApplicationBackend";
 import RoleEditPage from "./RoleEditPage";
 import PermissionEditPage from "./PermissionEditPage";
+import {type ConsoleCallSpy, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
 
 declare const jest: typeof jestValue;
+let consoleErrorSpy: ConsoleCallSpy;
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -232,8 +234,10 @@ const model: ModelRecord = {
   modelText: "[role_definition]\ng = _, _",
 };
 
-function flushPromises() {
-  return new Promise(resolve => setTimeout(resolve, 0));
+async function flushPromises() {
+  await act(async() => {
+    await new Promise(resolve => setTimeout(resolve, 0));
+  });
 }
 
 function createHistory() {
@@ -312,6 +316,7 @@ function elementProps<T>(element: React.ReactElement): T {
 
 beforeEach(() => {
   cleanup();
+  consoleErrorSpy = jestValue.spyOn(console, "error") as unknown as ConsoleCallSpy;
   localStorage.clear();
   localStorage.setItem("organization", "engineering");
   Object.defineProperty(window, "matchMedia", {
@@ -347,9 +352,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  cleanup();
+  const actWarnings = getReactActWarnings(consoleErrorSpy.mock.calls);
+  consoleErrorSpy.mockRestore();
   jestValue.restoreAllMocks();
   jestValue.clearAllMocks();
-  cleanup();
+  expect(actWarnings).toEqual([]);
 });
 
 test("migrates role and permission edit page modules to TSX files", () => {

@@ -91,6 +91,8 @@ const {fireEvent} = require("@testing-library/react") as {
     change: (element: Element | null, event: unknown) => boolean;
   };
 };
+const nativeSetTimeout = global.setTimeout;
+const nativeClearTimeout = global.clearTimeout;
 
 jest.mock("i18next", () => ({
   __esModule: true,
@@ -370,8 +372,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  jestValue.useRealTimers();
   jestValue.restoreAllMocks();
+  jestValue.useRealTimers();
   jestValue.clearAllMocks();
   cleanup();
 });
@@ -494,6 +496,11 @@ test("keeps PaymentResultPage loading, polling and error branches stable", async
   jestValue.runOnlyPendingTimers();
   await flushAsyncWork();
   expect(paymentBackendMock.notifyPayment).not.toHaveBeenCalled();
+});
+
+test("restores native timer APIs after polling assertions", () => {
+  expect(global.setTimeout).toBe(nativeSetTimeout);
+  expect(global.clearTimeout).toBe(nativeClearTimeout);
 });
 
 test("keeps PaymentListPage add, delete, fetch and renderers stable", async() => {

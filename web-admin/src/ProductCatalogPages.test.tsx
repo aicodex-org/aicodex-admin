@@ -3,7 +3,7 @@ import React from "react";
 import * as fs from "fs";
 import * as path from "path";
 import {expect as jestExpect, jest as jestValue} from "@jest/globals";
-import {cleanup, render} from "@testing-library/react";
+import {act, cleanup, render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import ProductStorePage from "./ProductStorePage";
 import ProductListPage from "./ProductListPage";
@@ -16,8 +16,10 @@ import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as FormBackend from "./backend/FormBackend";
 import * as Setting from "./Setting";
 import type {LegacyAny} from "./types/legacyPage";
+import {type ConsoleCallSpy, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
 
 declare const jest: typeof jestValue;
+let consoleErrorSpy: ConsoleCallSpy;
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -192,8 +194,10 @@ const rechargeProduct: ProductRecord = {
   disableCustomRecharge: false,
 };
 
-function flushPromises() {
-  return new Promise(resolve => setTimeout(resolve, 0));
+async function flushPromises() {
+  await act(async() => {
+    await new Promise(resolve => setTimeout(resolve, 0));
+  });
 }
 
 function createHistory() {
@@ -271,6 +275,7 @@ function createProductEditPage(props: Record<string, LegacyAny> = {}) {
 
 beforeEach(() => {
   cleanup();
+  consoleErrorSpy = jestValue.spyOn(console, "error") as unknown as ConsoleCallSpy;
   localStorage.clear();
   sessionStorage.clear();
   Object.defineProperty(window, "matchMedia", {
@@ -306,9 +311,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  cleanup();
+  const actWarnings = getReactActWarnings(consoleErrorSpy.mock.calls);
+  consoleErrorSpy.mockRestore();
   jestValue.restoreAllMocks();
   jestValue.clearAllMocks();
-  cleanup();
+  expect(actWarnings).toEqual([]);
 });
 
 test("uses TSX files for migrated product catalog pages and shared cart controls", () => {
