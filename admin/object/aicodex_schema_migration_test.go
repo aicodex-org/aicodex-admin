@@ -375,6 +375,22 @@ func TestAICodexSchemaTableCompatibilityAcceptsSQLiteAffinities(t *testing.T) {
 	}
 }
 
+func TestReplacePostgresPrimaryKeyMetadataRepairsXormPostgres18Result(t *testing.T) {
+	expected, actual := compatibleSchemaTablesForTest()
+	// PostgreSQL 18 exposes NOT NULL constraints through pg_constraint. Xorm v1.1.6
+	// can therefore overwrite the PK flag while joining all constraints for a column.
+	actual.PrimaryKeys = nil
+	tables := map[string]*schemas.Table{strings.ToLower(actual.Name): actual}
+
+	replacePostgresPrimaryKeyMetadata(tables, []postgresPrimaryKeyMetadataRow{
+		{TableName: actual.Name, ColumnName: "id"},
+	})
+
+	if issues := tableCompatibilityIssues("postgres", expected, actual); len(issues) != 0 {
+		t.Fatalf("canonical PostgreSQL primary key metadata was not applied: %v", issues)
+	}
+}
+
 func TestAICodexSchemaColumnTypesAcceptDialectBooleanStorage(t *testing.T) {
 	for _, driverName := range []string{"sqlite", "mysql", "mssql"} {
 		if !schemaColumnTypesCompatible(driverName, "boolean", true, "integer", true) {
