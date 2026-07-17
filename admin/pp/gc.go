@@ -31,6 +31,7 @@ type GcPaymentProvider struct {
 	Xmpch     string
 	SecretKey string
 	Host      string
+	client    *http.Client
 }
 
 type GcPayReqInfo struct {
@@ -116,12 +117,11 @@ func NewGcPaymentProvider(clientId string, clientSecret string, host string) *Gc
 	pp.Xmpch = clientId
 	pp.SecretKey = clientSecret
 	pp.Host = host
+	pp.client = newPaymentHTTPClient()
 	return pp
 }
 
 func (pp *GcPaymentProvider) doPost(postBytes []byte) ([]byte, error) {
-	client := &http.Client{}
-
 	var resp *http.Response
 	var err error
 
@@ -135,7 +135,7 @@ func (pp *GcPaymentProvider) doPost(postBytes []byte) ([]byte, error) {
 
 	req.Header.Set("Content-Type", contentType)
 
-	resp, err = client.Do(req)
+	resp, err = resolvePaymentHTTPClient(pp.client).Do(req)
 	if err != nil {
 		return nil, err
 	}

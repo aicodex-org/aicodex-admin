@@ -27,6 +27,7 @@ type FastSpringPaymentProvider struct {
 	ApiUsername    string
 	ApiPassword    string
 	StorefrontPath string
+	client         *http.Client
 }
 
 func NewFastSpringPaymentProvider(apiUsername string, apiPassword string, storefrontPath string) (*FastSpringPaymentProvider, error) {
@@ -34,6 +35,7 @@ func NewFastSpringPaymentProvider(apiUsername string, apiPassword string, storef
 		ApiUsername:    apiUsername,
 		ApiPassword:    apiPassword,
 		StorefrontPath: storefrontPath,
+		client:         newPaymentHTTPClient(),
 	}
 	return pp, nil
 }
@@ -141,8 +143,7 @@ func (pp *FastSpringPaymentProvider) Pay(r *PayReq) (*PayResp, error) {
 	req.SetBasicAuth(pp.ApiUsername, pp.ApiPassword)
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := resolvePaymentHTTPClient(pp.client).Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -182,8 +183,7 @@ func (pp *FastSpringPaymentProvider) Notify(body []byte, orderId string) (*Notif
 	req.SetBasicAuth(pp.ApiUsername, pp.ApiPassword)
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := resolvePaymentHTTPClient(pp.client).Do(req)
 	if err != nil {
 		return nil, err
 	}

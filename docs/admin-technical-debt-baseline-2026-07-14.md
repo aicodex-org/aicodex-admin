@@ -4,7 +4,7 @@
 >
 > 最近整理日期：2026-07-17
 >
-> 代码审阅基线：`hfl-test-base@5b66c580`
+> 事实基线：以本文所在 `hfl-test-base` 提交、对应 OpenSpec archive 与主规格为准
 
 ## 文档用途
 
@@ -39,52 +39,36 @@
 | CRA/IE polyfill 退役 | `retire-web-admin-cra-ie-polyfill` | React 18 + Vite `es2020` 与 production browserslist 成为浏览器支持真值；CRA production/Jest polyfill owner 已移除，`core-js`、`replaceAll` 与显式 Jest/jsdom 边界继续保留 |
 | 注册页响应式 | `fix-web-admin-signup-mobile-overflow` | Signup 固定 logo/Form/模式组已收敛到页面局部响应式边界；320/360/390px 与桌面端无页面级横向溢出，长标签、校验错误和键盘路径保持可用 |
 | React 18 测试异步边界 | `upgrade-web-admin-react-testing-library-for-react-18`、`stabilize-web-admin-react18-async-test-boundaries` | RTL 已使用 `createRoot`；历史 act warning、FakeTimers/native timer 污染和局部文本 suppression 已按 owner 收口，并由 non-silent 全量 Jest 与 test-only 防回退契约保护 |
+| 企业 TLS 兼容策略 | `stabilize-admin-enterprise-tls-compatibility-policy` | ADFS、Active Directory 与 SMTP 已按连接使用 system/custom CA/显式 legacy policy；存量兼容、fail-closed、诊断脱敏和前端配置链已闭环 |
+| Provider 异步与列表 identity | `stabilize-web-admin-provider-unmount-and-list-key-contract` | Provider 卸载/路由切换后的过期异步 completion 已隔离，Webhook/Role/Permission 重复项使用稳定业务复合 key |
+| Web Admin direct-eval 退役 | `retire-web-admin-unused-direct-eval-runtime` | 未使用的 `Setting.parseObject` production owner 已移除，构建中的项目自有 direct-eval warning 归零并有源码契约防回退 |
+| 外部邮件与支付 HTTP 生命周期 | `bound-admin-email-payment-http-client-lifetimes` | Azure ACS、GC Payment 与 FastSpring Pay/Notify 已建立域内整体 timeout、独立 client、注入测试 seam 与 nil fallback |
 
 TypeScript 增量迁移也已进入稳态：`web-admin/src` 不再把普通业务 `.js/.jsx` 迁移作为独立路线，后续由增量 TS gate 防止回退。
 
 ## 当前实施入口
 
-以下 change 已由独立 worker 实施。本节只标识路线占用和后续依赖，不代替主控实时台账。
-
-### 收口企业 TLS 兼容策略
-
-Change：`stabilize-admin-enterprise-tls-compatibility-policy`
-
-当前仍有 3 处硬编码 `InsecureSkipVerify: true`：
-
-- `admin/idp/adfs.go`
-- `admin/object/syncer_activedirectory.go`
-- `admin/email/smtp.go`
-
-该问题值得处理，但不能直接把默认值改成严格校验。ADFS、Active Directory 和 SMTP 的旧部署可能依赖自签证书，直接关闭兼容会造成认证、同步或邮件中断。
-
-实施边界：
-
-- 定义按连接或 provider 生效的显式 TLS policy，区分系统信任、自定义 CA 和受控的不安全兼容模式。
-- 规定旧配置迁移、默认值、copy-safe 状态诊断和告警，不回显证书或连接凭据。
-- ADFS 不得覆盖上游注入的 transport；AD 同步和 SMTP 复用同一策略语义，但保持各自业务 client 边界。
-- 为默认严格、自定义 CA、显式 legacy opt-in 和无效配置补契约测试。
-
-前置条件已满足：`stabilize-admin-idp-http-client-contract` 已完成。TLS change 必须保持其 `SetHttpClient`、bounded fallback、body/status/error 和凭据脱敏契约。
+`adopt-web-admin-bun-with-bounded-install-retry` 已作为独立 ACTIVE change 启动，但尚未归档或进入 `hfl-test-base`。在它完成全部采用门禁前，Yarn 与 `yarn.lock` 仍是仓库唯一活动 package manager 真值；路线文档不得把进行中迁移写成已采用 Bun。
 
 ## Bun package manager 决策
 
-当前结论为 `NO-GO / REEVALUATE_AFTER_FRONTEND_LOCK`，继续以 Yarn 和 `yarn.lock` 为唯一依赖真值；该状态只授权重新评估，不授权迁移。
+历史评估的最终结论仍是 NO-GO 证据：Bun 1.3.14 在 Windows 的一次 frozen lifecycle install 未形成可重复完整依赖树。该证据不再表示“永久禁止迁移”；后续补证已证明同一 workspace 的有界重试可以形成可运行 tree，因此用户已授权由独立 ACTIVE change 验证并实施受控迁移。
 
-已归档三轮评估：
+已归档的主要评估包括：
 
 - `migrate-web-admin-package-manager-to-bun`
 - `evaluate-admin-cypress-15-bun-compatibility`
 - `evaluate-admin-bun-copyfile-backend-workaround`
+- `reevaluate-web-admin-bun-package-manager-after-web3-retirement`
 
-Bun 1.3.14 在 Windows 隔离环境中没有形成可用且可复现的依赖树；`--backend=copyfile` 和降低 lifecycle 并发均未解除 cache/extraction 阶段缺文件。现在 Cypress 已由 Playwright 替代，Web3 退役又删除 13 个直接依赖和 291 个专属 lock 条目，旧失败依赖树已经发生实质变化，满足一次重新评估的触发条件。
+当前迁移只有在以下条件全部满足后，才可合入并把 Bun 写成已采用：
 
-以下触发条件中第二项已经满足：
+- Windows 上 3 个 fresh workspace 各自在最多 5 次有界 frozen 尝试内成功，耗尽时明确失败；不得使用无界 retry 或人工补包。
+- 三个 workspace 产生并复用同一 tracked `bun.lock`，依赖 tree、完整 Jest、TypeScript、lint、Vite、public scripts 与 Playwright discovery 门禁成立。
+- 在获准的 60 隔离环境完成真实 Docker 构建/部署验证，且 CI、Docker、Makefile、本地入口和文档切换为单一 Bun 真值。
+- 合入时移除 Yarn 真值，不长期保留 `yarn.lock` 或 Yarn fallback；Jest 与 Vite 的职责保持不变，不迁移到 `bun test`。
 
-- Bun 稳定版或相关 Windows 上游问题有明确修复；
-- Web3 退役后依赖树显著缩小，并能证明失败面发生变化（已满足）。
-
-Testing Library change 释放前端依赖锁后可建立新的隔离评估。重评必须先连续 3 次完成干净 frozen lifecycle install，且 lock/tree 可复现；随后才能比较冷安装、缓存安装、完整 Jest、Vite build 和 Docker build。依赖安装或 CI dependency 阶段建议至少有 20% 收益，完整 Jest 与 Vite build 不应出现超过 10% 的无依据回退。未达到门槛时不得进入实施 change，也不同时迁移到 `bun test`。
+上述条件未闭环前，不修改当前结论：Yarn 与 `yarn.lock` 仍是唯一活动真值，历史 NO-GO 样本继续作为重试上限、完整性检查和失败语义的设计依据。
 
 ## 继续延后
 
@@ -102,8 +86,8 @@ Testing Library change 释放前端依赖锁后可建立新的隔离评估。重
 
 ## 推荐顺序
 
-1. 保持 AntD 5.29.3、`destroyOnHidden`、runtime warning局部guard与React 18 Testing Library基线，不在后续业务change顺手升级AntD 6或用console过滤隐藏诊断。
-2. 前端依赖锁释放后，基于已缩小的依赖树重新评估 Bun；评估通过前继续使用 Yarn。
+1. 完成 `adopt-web-admin-bun-with-bounded-install-retry` 的 Windows fresh workspace、有界 retry、单一 lock、完整前端门禁与 60 隔离 Docker 验收；通过前继续使用 Yarn。
+2. 保持 AntD 5.29.3、`destroyOnHidden`、runtime warning 局部 guard 与 React 18 Testing Library 基线，不在后续业务 change 顺手升级 AntD 6或用 console 过滤隐藏诊断。
 
 ## 维护规则
 

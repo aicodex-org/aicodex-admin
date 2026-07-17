@@ -30,9 +30,10 @@ import (
 )
 
 const (
-	importanceNormal  = "normal"
-	sendEmailEndpoint = "/emails:send"
-	apiVersion        = "2023-03-31"
+	importanceNormal      = "normal"
+	sendEmailEndpoint     = "/emails:send"
+	apiVersion            = "2023-03-31"
+	azureACSClientTimeout = 30 * time.Second
 )
 
 type Email struct {
@@ -87,13 +88,28 @@ type CommunicationError struct {
 type AzureACSEmailProvider struct {
 	AccessKey string
 	Endpoint  string
+	client    *http.Client
 }
 
 func NewAzureACSEmailProvider(accessKey string, endpoint string) *AzureACSEmailProvider {
 	return &AzureACSEmailProvider{
 		AccessKey: accessKey,
 		Endpoint:  endpoint,
+		client:    newAzureACSHTTPClient(),
 	}
+}
+
+// newAzureACSHTTPClient 沿用同仓邮件和 connector 的 30 秒惯例，为无 deadline 外呼提供最终边界。
+func newAzureACSHTTPClient() *http.Client {
+	return &http.Client{Timeout: azureACSClientTimeout}
+}
+
+// resolveAzureACSHTTPClient 原样保留注入 client；nil 时回退到相同的有界默认策略。
+func resolveAzureACSHTTPClient(client *http.Client) *http.Client {
+	if client != nil {
+		return client
+	}
+	return newAzureACSHTTPClient()
 }
 
 func newEmail(fromAddress string, toAddress []string, subject string, content string) *Email {
@@ -144,8 +160,7 @@ func (a *AzureACSEmailProvider) Send(fromAddress string, fromName string, toAddr
 	req.Header.Set("repeatability-request-id", uuid.New().String())
 	req.Header.Set("repeatability-first-sent", time.Now().UTC().Format(http.TimeFormat))
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := resolveAzureACSHTTPClient(a.client).Do(req)
 	if err != nil {
 		return err
 	}
