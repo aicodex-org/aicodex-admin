@@ -82,7 +82,8 @@ Copy-Item .\local-dev\runtime.toml.example .\local-dev\runtime.toml
 - 后端启动命令：先执行 `go build -o <repo>\local-dev\cache\admin-server-local-dev.exe .`，再运行该固定 exe 并加载 `<repo>\deploy\app.conf`
 - 后端本机端口：`8000`
 - 前端源码目录：`web-admin/`
-- 前端启动命令：优先 `yarn start`，未安装 Yarn 时回退 `npm run start`
+- 前端启动命令：`bun run start`；缺少 Bun 1.3.14 时明确失败，不回退其它 package manager
+- Windows依赖安装命令：在未设置 `BUN_INSTALL_CACHE_DIR`的环境执行 `bun run deps:install`，复用默认持久cache；脚本不会设置或清空cache
 - 前端本机端口：`7002`
 - 前端 Node.js 版本：`^20.19.0 || >=22.12.0`，与 Vite 8 的最低运行要求一致。
 - 远端后台预览脚本：`start-frontend-remote-backend.ps1` 直接调用 `web-admin/node_modules/.bin/vite.cmd`，通过 `PORT` 与 `AICODEX_ADMIN_DEV_PROXY_TARGET` 控制端口和代理目标，并保留 workspace 进程归属校验。
@@ -108,4 +109,4 @@ Copy-Item .\local-dev\runtime.toml.example .\local-dev\runtime.toml
 - `redis connection failed`：仅在启用 Redis 时出现；检查 Redis 监听地址、端口、密码和防火墙策略。
 - 前端无法访问接口：确认 `status` 里后端 `8000` 正在监听，并查看 `local-dev/logs/backend.log`。
 - Windows 每次提示是否允许 exe 运行：确认你运行的是新版脚本。首次允许固定路径 `local-dev/cache/admin-server-local-dev.exe` 后，后续重启不应再因为 `go run` 临时 exe 反复弹窗。
-- `yarn start` / `npm run start` 失败：确认 `web-admin/` 依赖已按项目约定安装。
+- `bun run start` 失败：确认已安装Bun 1.3.14，并已在 `web-admin/`执行 `bun run deps:install`。若曾显式使用空custom cache并出现 `EPERM`/`ENOENT`，取消 `BUN_INSTALL_CACHE_DIR`后回到默认持久cache重试；不要删除用户cache或手工补包。

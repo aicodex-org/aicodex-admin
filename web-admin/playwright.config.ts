@@ -26,7 +26,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "yarn start",
+    command: "bun run start",
     url: baseURL,
     // 完整 suite 禁止复用既有 Vite，避免继承可能指向共享后台的 proxy。
     reuseExistingServer: false,

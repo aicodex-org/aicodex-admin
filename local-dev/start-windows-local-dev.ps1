@@ -409,18 +409,13 @@ function Start-ManagedCommand {
 }
 
 function Resolve-WebStartCommand {
-  # 项目约定使用 Yarn；保留 npm fallback，方便未安装 Yarn 的本机先完成最小启动验证。
-  $yarn = Get-Command 'yarn.cmd' -ErrorAction SilentlyContinue
-  if ($null -ne $yarn) {
-    return ('"{0}" start' -f $yarn.Source)
+  # package manager单一真值为固定Bun；缺失时明确失败，避免静默切换解析器。
+  $bun = Get-Command 'bun.exe' -ErrorAction SilentlyContinue
+  if ($null -ne $bun) {
+    return ('"{0}" run start' -f $bun.Source)
   }
 
-  $npm = Get-Command 'npm.cmd' -ErrorAction SilentlyContinue
-  if ($null -ne $npm) {
-    return ('"{0}" run start' -f $npm.Source)
-  }
-
-  throw 'Neither yarn.cmd nor npm.cmd was found in PATH. Install Node.js package tooling before starting web-admin.'
+  throw 'bun.exe was not found in PATH. Install Bun 1.3.14 before starting web-admin.'
 }
 
 function Set-BackendEnvironment {

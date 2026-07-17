@@ -177,7 +177,11 @@ describe("web-admin CI gates", () => {
     expect(frontendChecks).not.toMatch(/^ {4}needs:/m);
     expect(frontendChecks).toContain("uses: actions/checkout@v4");
     expect(frontendChecks).toContain("fetch-depth: 0");
-    expect(frontendChecks).toContain("yarn install --frozen-lockfile");
+    expect(frontendChecks).toContain("uses: oven-sh/setup-bun@v2");
+    expect(frontendChecks).toContain("bun-version: \"1.3.14\"");
+    expect(frontendChecks).toContain("bun run deps:install");
+    expect(frontendChecks).not.toContain("cache: \"yarn\"");
+    expect(frontendChecks).not.toContain("yarn.lock");
   });
 
   test("uses event-aware revisions for the incremental TypeScript gate", () => {
@@ -202,15 +206,17 @@ describe("web-admin CI gates", () => {
     const frontendChecks = readJob("frontend-checks");
     const frontend = readJob("frontend");
 
-    expect(frontendChecks).toContain("yarn typecheck");
-    expect(frontendChecks).toContain("yarn typecheck:build-tooling");
-    expect(frontendChecks).toContain("yarn public-scripts:check");
-    expect(frontendChecks).toContain("yarn public-scripts:build");
-    expect(frontendChecks).toContain("yarn public-scripts:smoke");
-    expect(frontendChecks).toContain("yarn lint");
-    expect(frontendChecks).toContain("yarn test:ci");
+    expect(frontendChecks).toContain("bun run typecheck");
+    expect(frontendChecks).toContain("bun run typecheck:build-tooling");
+    expect(frontendChecks).toContain("bun run public-scripts:check");
+    expect(frontendChecks).toContain("bun run public-scripts:build");
+    expect(frontendChecks).toContain("bun run public-scripts:smoke");
+    expect(frontendChecks).toContain("bun run lint");
+    expect(frontendChecks).toContain("bun run test:ci");
     expect(frontend).toContain("needs: [go-tests, frontend-checks]");
-    expect(frontend).toContain("yarn run build");
+    expect(frontend).toContain("uses: oven-sh/setup-bun@v2");
+    expect(frontend).toContain("bun run deps:install");
+    expect(frontend).toContain("bun run build");
   });
 
   test("runs the complete Playwright suite against the disposable CI database", () => {
@@ -219,16 +225,23 @@ describe("web-admin CI gates", () => {
     expect(e2e).not.toBe("");
     expect(e2e).toContain("MYSQL_DATABASE: aicodex_admin");
     expect(e2e).toContain("node-version: 20.19.0");
-    expect(e2e).toContain("yarn install --frozen-lockfile");
-    expect(e2e).toContain("yarn playwright install --with-deps chromium");
-    expect(e2e).toContain("yarn typecheck:e2e");
+    expect(e2e).toContain("uses: oven-sh/setup-bun@v2");
+    expect(e2e).toContain("bun run deps:install");
+    expect(e2e).toContain("hashFiles('web-admin/bun.lock')");
+    expect(e2e).toContain("bun x --no-install playwright install --with-deps chromium");
+    expect(e2e).toContain("bun run typecheck:e2e");
     expect(e2e).toContain("AICODEX_ADMIN_E2E_DISPOSABLE_DB: \"1\"");
-    expect(e2e).toContain("yarn test:e2e");
+    expect(e2e).toContain("bun run test:e2e");
     expect(e2e).toContain("path: ./web-admin/output/playwright");
     expect(e2e).toContain("retention-days: 7");
     expect(e2e).not.toContain("cypress-io/github-action");
     expect(e2e).not.toContain("cypress-screenshots");
     expect(e2e).not.toContain("cypress-videos");
+  });
+
+  test("keeps the workflow free of active Yarn package-manager entries", () => {
+    expect(workflow).not.toMatch(/\byarn\b/i);
+    expect(workflow).not.toContain("yarn.lock");
   });
 
   test("resolves the browser Buffer package instead of Vite's Node builtin shim", () => {

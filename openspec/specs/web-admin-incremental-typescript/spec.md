@@ -4,26 +4,26 @@
 定义 `web-admin` TypeScript 稳态规则：`src/` 业务源码不再新增 `.js` / `.jsx`，新增 React、共享逻辑、接口模型和测试默认使用 `.tsx` / `.ts` / `.test.tsx` / `.test.ts`；保留的 public raw scripts、CRACO/Node 构建入口等 runtime JS 通过生成链路、`@ts-check` 或专用 typecheck 管控，Playwright E2E 资产使用独立 TypeScript 边界。后续前端 change 以增量 TypeScript gate 和 `yarn typecheck` 防回退，Jest、build、coverage 和浏览器验证按风险选择。
 ## Requirements
 ### Requirement: TypeScript 稳态工具链
-`web-admin` SHALL 支持 React 18 项目内业务源码以 `.ts` / `.tsx` 为默认实现形态，并 SHALL 使用 typed Vite 配置构建应用，同时保留必要 runtime JS 与 Jest/React Scripts 的受控验证边界。
+`web-admin` SHALL 支持React 18项目内业务源码以 `.ts` / `.tsx`为默认实现形态，并 SHALL 使用typed Vite配置构建应用，同时保留必要runtime JS与Jest/React Scripts的受控验证边界。
 
 #### Scenario: JS 和 TSX 共存构建
-- **WHEN** 开发者在 `web-admin/src` 下新增或修改 `.ts` / `.tsx` 业务源码，同时仓库保留 public raw scripts、Node 构建入口或历史兼容 JS 入口
-- **THEN** `yarn build` SHALL 能通过 Vite 构建该混合源码树
-- **AND** `yarn typecheck:build-tooling` SHALL 检查 typed Vite config 与直接相关构建 helper
-- **AND** 本 change 不要求把 served public JS 改造成 TypeScript runtime
+- **WHEN** 开发者在 `web-admin/src`下新增或修改 `.ts` / `.tsx`业务源码，同时仓库保留public raw scripts、Node构建入口或历史兼容JS入口
+- **THEN** `bun run build` SHALL 能通过Vite构建该混合源码树
+- **AND** `bun run typecheck:build-tooling` SHALL 检查typed Vite config与直接相关构建helper
+- **AND** 本change不要求把served public JS改造成TypeScript runtime
 
 #### Scenario: TypeScript 配置不检查历史 JS
-- **WHEN** 开发者运行 TypeScript 静态检查
-- **THEN** TypeScript 配置 SHALL 允许受控 JS runtime 入口参与模块解析
-- **AND** TypeScript 配置 SHALL NOT 强制 `checkJs` 检查全部 runtime JS；需要静态验证的构建入口 SHALL 使用专用 build-tooling typecheck 或等价边界
+- **WHEN** 开发者运行TypeScript静态检查
+- **THEN** TypeScript配置 SHALL 允许受控JS runtime入口参与模块解析
+- **AND** TypeScript配置 SHALL NOT 强制 `checkJs`检查全部runtime JS；需要静态验证的构建入口 SHALL 使用专用build-tooling typecheck或等价边界
 
 ### Requirement: Typecheck 验证入口
-`web-admin` SHALL 提供 `yarn typecheck` 或等价脚本，用于执行 `tsc --noEmit`，并作为后续含 TS/TSX 前端 change 的标准验证项。
+`web-admin` SHALL 提供 `bun run typecheck`脚本，用于执行 `tsc --noEmit`，并作为后续含TS/TSX前端change的标准验证项。
 
 #### Scenario: 开发者运行类型检查
-- **WHEN** 开发者在 `web-admin` 目录运行 `yarn typecheck`
-- **THEN** 命令 SHALL 执行 TypeScript no-emit 检查
-- **AND** 命令 SHALL 在当前 TS/TSX smoke 迁移代码上返回成功
+- **WHEN** 开发者在 `web-admin`目录运行 `bun run typecheck`
+- **THEN** 命令 SHALL 执行TypeScript no-emit检查
+- **AND** 命令 SHALL 在当前TS/TSX稳态代码上返回成功
 
 ### Requirement: 后续新增代码约定
 Admin 前端后续新增 React 组件 SHALL 默认使用 `.tsx`；新增共享逻辑、接口模型和类型定义 SHALL 默认使用 `.ts`；`web-admin/src` 业务源码 SHALL NOT 新增 `.js` / `.jsx`。
@@ -1250,3 +1250,11 @@ Admin 前端 SHALL 支持将 `web-admin/src/auth` 中剩余的 WeCom 登录 pane
 - **WHEN** auth residual WeCom test migration 准备收口
 - **THEN** OpenSpec strict validation、`git diff --check`、`WeComLoginPanel.test.tsx` focused Jest、`yarn typecheck`、增量 TypeScript gate 和 `yarn build` SHALL pass for touched TSX and JS coexistence paths
 - **AND** 若迁移需要任何 WeCom 登录行为语义变化，change SHALL stop at RC/blocked instead of self-closeout
+
+### Requirement: TypeScript稳态验证命令遵循Bun单一真值
+Bun采用后，增量TypeScript主规格中仍代表当前标准执行入口的验证命令 SHALL 使用 `bun run <script>`或等价Bun入口；历史交付要求中的验证层级 SHALL 保留，但现行契约 SHALL NOT 继续要求安装或调用Yarn。已归档change中的历史命令 SHALL 保持原始证据，不做追溯改写。
+
+#### Scenario: 归档同步TypeScript主规格
+- **WHEN** 本change完成sync-specs归档
+- **THEN** 主规格中仍代表当前标准入口的Yarn命令字面量 SHALL 全部迁移为Bun runner
+- **AND** typecheck、build-tooling、incremental gate、Jest、build与浏览器验证层级 SHALL 不因runner迁移被删除或降级

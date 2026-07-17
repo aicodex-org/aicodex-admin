@@ -26,9 +26,9 @@ This is a project-custom skill for `aicodex-admin`, based on `openspec/changes/e
 
 ## Validation
 
-- Run `yarn typecheck` for every change that adds or modifies `.ts` or `.tsx`.
+- Run `bun run typecheck` for every change that adds or modifies `.ts` or `.tsx`.
 - Run focused Jest tests for touched behavior; include coverage only when the change alters logic with meaningful branch risk.
-- Run `yarn build` when routing, imports, component boundaries, package usage, or build-time behavior may be affected.
+- Run `bun run build` when routing, imports, component boundaries, package usage, or build-time behavior may be affected.
 - Use browser or Playwright verification when UI layout, navigation, language mode, permissions, or user workflows change.
 - For docs/skill-only changes, use skill validation and `git diff --check`; do not run frontend build unless source code changed.
 

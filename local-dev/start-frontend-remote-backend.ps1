@@ -572,17 +572,12 @@ function Resolve-FrontendStartCommand {
     return ('"{0}"' -f $localVite)
   }
 
-  $yarn = Get-Command 'yarn.cmd' -ErrorAction SilentlyContinue
-  if ($null -ne $yarn) {
-    return ('"{0}" vite' -f $yarn.Source)
+  $bun = Get-Command 'bun.exe' -ErrorAction SilentlyContinue
+  if ($null -ne $bun) {
+    return ('"{0}" run start' -f $bun.Source)
   }
 
-  $npm = Get-Command 'npm.cmd' -ErrorAction SilentlyContinue
-  if ($null -ne $npm) {
-    return ('"{0}" exec vite --' -f $npm.Source)
-  }
-
-  throw 'Neither local vite.cmd, yarn.cmd nor npm.cmd was found. Install web-admin dependencies before starting the frontend.'
+  throw 'Neither local vite.cmd nor bun.exe was found. Install Bun 1.3.14 and web-admin dependencies before starting the frontend.'
 }
 
 function Start-ManagedCommand {

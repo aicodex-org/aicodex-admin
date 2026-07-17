@@ -61,31 +61,31 @@ Playwright suite SHALL 保持现有 19 个 Cypress spec / 22 个 test 的用户�
 - **AND** 代码、日志、report 和 verification SHALL NOT 包含真实账号、token、Cookie、私有 URL、credential 或原始私有响应体
 
 ### Requirement: CI 真实执行 Playwright 并保留有限失败证据
-GitHub Actions SHALL 显式安装 Chromium、验证 backend/Vite readiness 并运行完整 Playwright suite；仅安装 Playwright 或只执行 discovery SHALL NOT 视为 E2E 通过。
+GitHub Actions SHALL 精确安装Bun 1.3.14、通过统一Linux frozen入口安装依赖、显式安装Chromium、验证backend/Vite readiness并运行完整Playwright suite；仅安装Playwright或只执行discovery SHALL NOT 视为E2E通过。
 
 #### Scenario: CI 执行完整 Playwright suite
-- **WHEN** E2E job 运行
-- **THEN** job SHALL 使用 Yarn frozen install、显式 Chromium 安装、E2E TypeScript 检查和完整 Playwright run
-- **AND** Chromium run SHALL 执行 22 个测试且失败时阻止依赖该 job 的 release 流程
-- **AND** CI retries SHALL 保持 2，本地 retries SHALL 保持 0，workers SHALL 保持 1
+- **WHEN** E2E job运行
+- **THEN** job SHALL 使用唯一 `bun.lock`、统一Linux frozen安装入口、显式Chromium安装、E2E TypeScript检查和完整Playwright run
+- **AND** Chromium run SHALL 执行22个测试且失败时阻止依赖该job的release流程
+- **AND** CI retries SHALL 保持2，本地retries SHALL 保持0，workers SHALL 保持1
 
 #### Scenario: CI 上传失败诊断工件
-- **WHEN** Playwright E2E 失败
-- **THEN** CI SHALL 上传 HTML report、trace 和 screenshot 的可用子集
-- **AND** 工件 SHALL 只包含一次性 fixture 数据、使用有限保留期并在无文件时安全结束上传步骤
-- **AND** verification SHALL 只记录脱敏摘要、计数和相对路径，不复制原始 trace、Cookie 或响应体
+- **WHEN** Playwright E2E失败
+- **THEN** CI SHALL 上传HTML report、trace和screenshot的可用子集
+- **AND** 工件 SHALL 只包含一次性fixture数据、使用有限保留期并在无文件时安全结束上传步骤
+- **AND** verification SHALL 只记录脱敏摘要、计数和相对路径，不复制原始trace、Cookie或响应体
 
-### Requirement: Cypress 路径一次性移除且 Yarn 保持单一真值
-迁移完成后仓库 SHALL 删除 Cypress dependency、config、support、spec、专用 TypeScript 配置和 GitHub Action，并 SHALL 保持 Yarn 与 `yarn.lock` 为唯一 package manager 真值。
+### Requirement: Cypress路径保持退役且Bun成为单一真值
+仓库 SHALL 继续删除Cypress dependency、config、support、spec、专用TypeScript配置和GitHub Action，并 SHALL 以Bun与 `bun.lock`作为唯一package manager真值。
 
-#### Scenario: 审计最终 dependency tree
-- **WHEN** 迁移完成后检查 package 与 lockfile
-- **THEN** `cypress`、`@cypress/request`、`@cypress/xvfb` 和仅由 Cypress 引入的 `bluebird` SHALL 不再出现在有效依赖路径
-- **AND** `@playwright/test` SHALL 由 `package.json` 和 frozen `yarn.lock` 确定性解析
-- **AND** change SHALL NOT 生成 Bun lock、修改 Yarn preinstall guard 或升级 React、Router、Jest、Vite、Web3
+#### Scenario: 审计最终dependency tree
+- **WHEN** package manager迁移完成后检查package与lockfile
+- **THEN** `cypress`、`@cypress/request`、`@cypress/xvfb`和仅由Cypress引入的 `bluebird` SHALL 不再出现在有效依赖路径
+- **AND** `@playwright/test` SHALL 由 `package.json`和唯一 `bun.lock`确定性解析
+- **AND** change SHALL NOT 升级React、Router、Jest、Vite或恢复Web3
 
 #### Scenario: 审计最终仓库资产
-- **WHEN** 全仓搜索 Cypress 与 Playwright 接入点
-- **THEN** 运行时 E2E 资产与 CI SHALL 只引用 Playwright
-- **AND** 历史 OpenSpec 证据 MAY 保留 Cypress 技术术语
-- **AND** Docker、标准 local-dev、Admin Go runtime、fixture/schema 和生产业务源码 SHALL 无行为修改
+- **WHEN** 全仓搜索Cypress与Playwright接入点
+- **THEN** 运行时E2E资产与CI SHALL 只引用Playwright
+- **AND** 历史OpenSpec证据 MAY 保留Cypress与Yarn技术术语
+- **AND** Admin Go runtime、fixture/schema和生产业务源码 SHALL 无行为修改

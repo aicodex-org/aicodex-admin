@@ -47,4 +47,4 @@
 - 新增组件测试默认 `.test.tsx`；新增纯逻辑测试默认 `.test.ts`。
 - `web-admin/src` 业务源码不再新增 `.js/.jsx`；保留的 public raw script、CRACO/Node 构建入口等 runtime JS 按现有生成链路或 build-tooling typecheck 管控。
 - 不再为了单个 UI change 做全量迁移、格式化或重命名；后续重点是防止业务源码回退到 JS。
-- 收口时运行 `web-admin/scripts/check-incremental-typescript-gate.mjs --base origin/hfl-test-base`，并按改动风险运行 `yarn typecheck`、聚焦 Jest、`yarn build`、coverage 和浏览器验证；coverage/build 不作为低风险 UI/文案/样式任务的机械默认项。
+- 收口时运行 `web-admin/scripts/check-incremental-typescript-gate.mjs --base origin/hfl-test-base`，并按改动风险运行 `bun run typecheck`、聚焦 Jest、`bun run build`、coverage 和浏览器验证；coverage/build 不作为低风险 UI/文案/样式任务的机械默认项。

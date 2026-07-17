@@ -1,14 +1,19 @@
+FROM --platform=$BUILDPLATFORM docker.m.daocloud.io/oven/bun:1.3.14 AS bun
+
 FROM --platform=$BUILDPLATFORM docker.m.daocloud.io/library/node:24 AS front
 WORKDIR /web-admin
 
-# Copy only dependency files first for better caching
-COPY ./web-admin/package.json ./web-admin/yarn.lock ./
-RUN yarn install --frozen-lockfile --network-timeout 1000000 \
-    && yarn cache clean
+# 保留现有Node运行边界，只从精确版本镜像注入Bun package manager。
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
+
+# 先复制依赖真值与安装器，确保依赖层只由package+bun.lock决定。
+COPY ./web-admin/package.json ./web-admin/bun.lock ./
+COPY ./web-admin/scripts/install-with-retry.cjs ./scripts/install-with-retry.cjs
+RUN bun run deps:install
 
 # Copy source files and build
 COPY ./web-admin .
-RUN NODE_OPTIONS="--max-old-space-size=4096" yarn run build
+RUN NODE_OPTIONS="--max-old-space-size=4096" bun run build
 
 FROM --platform=$BUILDPLATFORM docker.m.daocloud.io/library/golang:1.26.1 AS back
 WORKDIR /go/src/aicodex-admin/admin

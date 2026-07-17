@@ -88,7 +88,7 @@ backend-vendor: vendor fmt vet ## Build backend binary with vendor.
 
 .PHONY: frontend
 frontend: ## Build backend binary.
-	cd $(FRONTEND_DIR) && yarn && yarn run build
+	cd $(FRONTEND_DIR) && bun run deps:install && bun run build
 
 .PHONY: vendor
 vendor: ## Update vendor.

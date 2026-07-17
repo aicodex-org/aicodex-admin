@@ -228,8 +228,8 @@ EditPage
 
 ```powershell
 cd web-admin
-yarn test src/OrganizationEditPage.test.tsx --watchAll=false --runInBand
-yarn typecheck --pretty false
+bun run test -- src/OrganizationEditPage.test.tsx --watchAll=false --runInBand
+bun run typecheck --pretty false
 cd ..
 git diff --check
 ```

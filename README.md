@@ -44,9 +44,11 @@ go run ./main.go
 
 ```bash
 cd web-admin
-yarn
-yarn start
+bun run deps:install
+bun run start
 ```
+
+Windows标准安装使用Bun默认持久cache：运行前不要设置 `BUN_INSTALL_CACHE_DIR`。Linux CI/Docker由同一入口自动使用frozen install。若Windows手工空custom cache出现 `EPERM`/`ENOENT`，保留同一tree/cache有界重试，或取消该变量后恢复默认cache；不要手工补包或忽略lifecycle。
 
 ### Full Image Build
 

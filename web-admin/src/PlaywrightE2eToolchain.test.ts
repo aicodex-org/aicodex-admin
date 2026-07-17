@@ -157,15 +157,21 @@ describe("web-admin Playwright E2E toolchain", () => {
     expect(source).not.toMatch(/\btest\.describe\.(skip|only)\b/);
   });
 
-  test("removes executable Cypress assets while retaining Yarn as package truth", () => {
+  test("removes executable Cypress assets while retaining Bun as package truth", () => {
     expect(fs.existsSync(path.join(webAdminRoot, "cypress.config.ts"))).toBe(false);
     expect(fs.existsSync(path.join(webAdminRoot, "cypress"))).toBe(false);
-    expect(fs.existsSync(path.join(webAdminRoot, "bun.lock"))).toBe(false);
+    expect(fs.existsSync(path.join(webAdminRoot, "bun.lock"))).toBe(true);
     expect(fs.existsSync(path.join(webAdminRoot, "bun.lockb"))).toBe(false);
+    expect(fs.existsSync(path.join(webAdminRoot, "yarn.lock"))).toBe(false);
 
-    const lockfile = fs.readFileSync(path.join(webAdminRoot, "yarn.lock"), "utf8");
+    if (!fs.existsSync(path.join(webAdminRoot, "bun.lock"))) {
+      return;
+    }
+
+    const lockfile = fs.readFileSync(path.join(webAdminRoot, "bun.lock"), "utf8");
     expect(lockfile).not.toMatch(/^cypress@/m);
-    expect(lockfile).not.toMatch(/^"?@cypress\//m);
-    expect(lockfile).not.toMatch(/^bluebird@/m);
+    expect(lockfile).not.toContain("\"cypress\"");
+    expect(lockfile).not.toContain("\"@cypress/");
+    expect(lockfile).not.toContain("\"bluebird\"");
   });
 });

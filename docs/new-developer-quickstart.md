@@ -233,13 +233,15 @@ go run ./main.go -config ../deploy/app.conf -createDatabase=true
 
 ### 6.2 前端
 
-`web-admin` 强制使用 Yarn 安装依赖：
+`web-admin` 强制使用 Bun 1.3.14 和 tracked `bun.lock` 安装依赖：
 
 ```powershell
 cd web-admin
-yarn
-yarn start
+bun run deps:install
+bun run start
 ```
+
+Windows日常开发必须使用默认持久cache，执行前取消 `BUN_INSTALL_CACHE_DIR`；统一入口在Windows运行普通install，在Linux CI/Docker运行frozen install。Windows显式空custom cache的首次物化可能触发Bun 1.3.14已知的 `EPERM`/`ENOENT`，这不是标准安装方式。
 
 开发服务默认端口是 `7002`。CRACO 代理配置在 [`web-admin/craco.config.js`](../web-admin/craco.config.js)，会把 `/api`、`/swagger`、`/files`、OIDC discovery、CAS、SCIM 等请求转发到后端 `8000`。
 
@@ -250,7 +252,7 @@ cd admin
 go test ./...
 
 cd ../web-admin
-yarn build
+bun run build
 ```
 
 ### 6.3 Docker Compose
@@ -273,7 +275,7 @@ Compose 会启动：
 - 不要把本仓库当成 `aicodex-api`。这里主要是身份、权限、管理后台，不是模型转发网关。
 - 不要看到 Casdoor 命名就急着清理。很多命名背后是协议兼容、数据库模型或上游 SDK 约束。
 - 改登录和 Provider 时，前端发起参数、后端 `idp` 实现、回调 URL、企业微信后台可信域名必须同时对齐。
-- `web-admin` 的 `preinstall` 会拒绝 npm，安装依赖用 `yarn`。
+- `web-admin` 的 `preinstall` 会拒绝Yarn/npm；安装依赖统一使用Bun 1.3.14的 `bun run deps:install`。Windows复用默认持久cache并执行普通install，Linux CI/Docker执行frozen install，两端都校验lock与完整依赖tree。
 - 本地启动后端会同时启动 LDAP/RADIUS；如果端口冲突，先看 `deploy/app.conf` 里的 `ldapServerPort`、`ldapsServerPort`、`radiusServerPort`。
 - 语言默认值可能被前端配置、服务端 web config、cookie、本地存储或 URL 参数覆盖。排查语言问题时同时看 `Conf.js`、`i18n.js`、`deploy/app.conf`。
 - 后端 session 默认是 file provider，配置 `redisEndpoint` 后切到 Redis。登录态问题先看 session provider、cookie 名、域名和 SameSite。
