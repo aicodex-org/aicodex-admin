@@ -974,14 +974,6 @@ export function getMfaItemsByRules(user: LegacyAny, organization: LegacyAny, mfa
     .filter((mfaItem) => user.multiFactorAuths.some((mfa) => mfa.mfaType === mfaItem.name && !mfa.enabled));
 }
 
-export function parseObject(s) {
-  try {
-    return eval("(" + s + ")");
-  } catch (e) {
-    return null;
-  }
-}
-
 export function parseJson(s) {
   if (s === "") {
     return null;

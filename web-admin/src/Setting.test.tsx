@@ -15,7 +15,22 @@ import {expect, test} from "@jest/globals";
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {StaticBaseUrl, getApiPaths, getProviderLogoURL, getProviderTypeOptions, isProviderVisibleForSignIn, isProviderVisibleForSignUp} from "./Setting";
+import {StaticBaseUrl, getApiPaths, getProviderLogoURL, getProviderTypeOptions, isProviderVisibleForSignIn, isProviderVisibleForSignUp, parseJson} from "./Setting";
+
+test("keeps empty JSON input mapped to null", () => {
+  expect(parseJson("")).toBeNull();
+});
+
+test("parses valid JSON with the standard parser", () => {
+  expect(parseJson("{\"enabled\":true,\"items\":[1,2]}")).toEqual({
+    enabled: true,
+    items: [1, 2],
+  });
+});
+
+test("keeps invalid JSON as a parsing error", () => {
+  expect(() => parseJson("{enabled:true}")).toThrow(SyntaxError);
+});
 
 test("includes module-based WeCom organization API paths", () => {
   const paths = getApiPaths();
