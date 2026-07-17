@@ -46,13 +46,9 @@
 
 TypeScript 增量迁移也已进入稳态：`web-admin/src` 不再把普通业务 `.js/.jsx` 迁移作为独立路线，后续由增量 TS gate 防止回退。
 
-## 当前实施入口
-
-`adopt-web-admin-bun-with-bounded-install-retry` 已作为独立 ACTIVE change 启动，但尚未归档或进入 `hfl-test-base`。在它完成全部采用门禁前，Yarn 与 `yarn.lock` 仍是仓库唯一活动 package manager 真值；路线文档不得把进行中迁移写成已采用 Bun。
-
 ## Bun package manager 决策
 
-历史评估的最终结论仍是 NO-GO 证据：Bun 1.3.14 在 Windows 的一次 frozen lifecycle install 未形成可重复完整依赖树。该证据不再表示“永久禁止迁移”；后续补证已证明同一 workspace 的有界重试可以形成可运行 tree，因此用户已授权由独立 ACTIVE change 验证并实施受控迁移。
+最新结论仍为 NO-GO。Bun 1.3.14 候选在 Windows fresh workspace、独立空 cache、固定 tracked `bun.lock`和同一 workspace 最多5次frozen重试下仍5/5失败，最终direct manifests仅71/72并缺少 `less`。这直接否定“有界重试能在固定上限内可靠形成完整tree”的采用前提。
 
 已归档的主要评估包括：
 
@@ -60,15 +56,11 @@ TypeScript 增量迁移也已进入稳态：`web-admin/src` 不再把普通业�
 - `evaluate-admin-cypress-15-bun-compatibility`
 - `evaluate-admin-bun-copyfile-backend-workaround`
 - `reevaluate-web-admin-bun-package-manager-after-web3-retirement`
+- `adopt-web-admin-bun-with-bounded-install-retry`
 
-当前迁移只有在以下条件全部满足后，才可合入并把 Bun 写成已采用：
+Linux双源6/6成功仍是有效历史证据，但不能补偿受支持Windows路径失败。Windows前置门禁已fail-fast，因此本轮没有进入60真实Docker构建或candidate部署。Yarn与 `yarn.lock`继续作为唯一活动package manager真值。
 
-- Windows 上 3 个 fresh workspace 各自在最多 5 次有界 frozen 尝试内成功，耗尽时明确失败；不得使用无界 retry 或人工补包。
-- 三个 workspace 产生并复用同一 tracked `bun.lock`，依赖 tree、完整 Jest、TypeScript、lint、Vite、public scripts 与 Playwright discovery 门禁成立。
-- 在获准的 60 隔离环境完成真实 Docker 构建/部署验证，且 CI、Docker、Makefile、本地入口和文档切换为单一 Bun 真值。
-- 合入时移除 Yarn 真值，不长期保留 `yarn.lock` 或 Yarn fallback；Jest 与 Vite 的职责保持不变，不迁移到 `bun test`。
-
-上述条件未闭环前，不修改当前结论：Yarn 与 `yarn.lock` 仍是唯一活动真值，历史 NO-GO 样本继续作为重试上限、完整性检查和失败语义的设计依据。
+下一次重评仅在Bun新stable明确发布相关Windows修复，或另一技术方案已有独立fresh workspace可靠性证据时启动；切换registry、增加相同重试次数或重复本轮输入不构成重评触发条件。
 
 ## 继续延后
 
@@ -86,8 +78,8 @@ TypeScript 增量迁移也已进入稳态：`web-admin/src` 不再把普通业�
 
 ## 推荐顺序
 
-1. 完成 `adopt-web-admin-bun-with-bounded-install-retry` 的 Windows fresh workspace、有界 retry、单一 lock、完整前端门禁与 60 隔离 Docker 验收；通过前继续使用 Yarn。
-2. 保持 AntD 5.29.3、`destroyOnHidden`、runtime warning 局部 guard 与 React 18 Testing Library 基线，不在后续业务 change 顺手升级 AntD 6或用 console 过滤隐藏诊断。
+1. 继续使用Yarn与 `yarn.lock`，只在满足上述新stable修复或独立技术方案证据时重评Bun迁移。
+2. 保持AntD 5.29.3、`destroyOnHidden`、runtime warning局部guard与React 18 Testing Library基线，不在后续业务change顺手升级AntD 6或用console过滤隐藏诊断。
 
 ## 维护规则
 
