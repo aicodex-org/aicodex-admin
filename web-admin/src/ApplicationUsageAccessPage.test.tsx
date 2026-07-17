@@ -279,7 +279,7 @@ async function clickAndSettleMotion(element: Element): Promise<void> {
 }
 
 async function selectBusinessOrganization(view: ReturnType<typeof render>): Promise<void> {
-  const selector = await view.findByRole("combobox", {name: "目标业务组织"});
+  const selector = await view.findByRole("combobox", {name: "授权目标组织"});
   fireEvent.mouseDown(selector);
   fireEvent.click(await view.findByText("Business Organization (business-org)"));
 }
@@ -530,8 +530,8 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.queryByText("部分缺失")).toBeNull();
     expect(view.queryByText("刷新状态")).toBeNull();
     expect(view.queryByText("预检交接包")).toBeNull();
-    expect(view.getByText("复制 Insight Admin 接入包")).not.toBeNull();
-    expect((view.getByText("复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(true);
+    expect(view.getByText("生成并复制 Insight Admin 接入包")).not.toBeNull();
+    expect((view.getByText("生成并复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(true);
     expect(view.getAllByText("请补齐交接包生成前置条件后重试").length).toBeGreaterThan(0);
     expect(view.queryByText("保存配置")).toBeNull();
     expect(view.queryByText("读取配置")).toBeNull();
@@ -636,7 +636,7 @@ describe("ApplicationUsageAccessPage", () => {
 
     const view = renderPage();
     await selectBusinessOrganization(view);
-    expect(await view.findByText("材料已齐，点击复制 Insight Admin 接入包。")).not.toBeNull();
+    expect(await view.findByText("材料已齐，点击生成并复制 Insight Admin 接入包。")).not.toBeNull();
     expect(view.getByText("交接包操作")).not.toBeNull();
     expect(view.queryByText("交接能力")).toBeNull();
     expect(view.getByText("能力详情")).not.toBeNull();
@@ -644,8 +644,8 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.getByText("接入状态")).not.toBeNull();
     expect((view.getAllByText("接入包可复制")).length).toBeGreaterThan(0);
     expect(view.getByText("Provider 运行能力全部可用")).not.toBeNull();
-    expect(view.getByText("复制 Insight Admin 接入包并导入 Insight Profile")).not.toBeNull();
-    expect(view.getByText("可复制 Insight Admin 接入包")).not.toBeNull();
+    expect(view.getByText("生成并复制 Insight Admin 接入包，再导入 Insight Profile")).not.toBeNull();
+    expect(view.getByText("可生成并复制 Insight Admin 接入包")).not.toBeNull();
     expect(view.queryByLabelText("usage_identity_resolver capability status")).toBeNull();
     expect(view.queryByLabelText("gateway_organization_projection capability status")).toBeNull();
     expect(view.queryByText("admin_provider_trust")).toBeNull();
@@ -670,11 +670,11 @@ describe("ApplicationUsageAccessPage", () => {
     expect(mockSaveServiceCredentialGovernanceConfig).not.toHaveBeenCalled();
     expect(view.container.textContent).not.toContain("admin_service_credential_reference_unresolved");
     expect(mockDiagnoseServiceCredentialGovernanceConfig).not.toHaveBeenCalled();
-    const generateButton = view.getByText("复制 Insight Admin 接入包").closest("button") as HTMLButtonElement;
+    const generateButton = view.getByText("生成并复制 Insight Admin 接入包").closest("button") as HTMLButtonElement;
     expect(generateButton.disabled).toBe(false);
     expect(generateButton.className).toContain("ant-btn-primary");
 
-    clickButtonByText(view, "复制 Insight Admin 接入包");
+    clickButtonByText(view, "生成并复制 Insight Admin 接入包");
     expect((await view.findAllByText("Insight Admin 接入包已复制")).length).toBeGreaterThan(0);
     expect(mockCreateInsightAdminAccessPackage).toHaveBeenCalledTimes(1);
     expect(mockCreateInsightAdminAccessPackage).toHaveBeenCalledWith(expect.any(Object), "business-org");
@@ -704,8 +704,8 @@ describe("ApplicationUsageAccessPage", () => {
         ]),
       }),
     }));
-    expect(view.queryByText("材料已齐，点击复制 Insight Admin 接入包。")).toBeNull();
-    const regenerateButton = view.getByText("重新复制 Insight Admin 接入包").closest("button") as HTMLButtonElement;
+    expect(view.queryByText("材料已齐，点击生成并复制 Insight Admin 接入包。")).toBeNull();
+    const regenerateButton = view.getByText("重新生成并复制 Insight Admin 接入包").closest("button") as HTMLButtonElement;
     expect(regenerateButton).not.toBeNull();
     expect(regenerateButton.className).not.toContain("ant-btn-primary");
     expect(view.getByText("接入包不直接包含真实凭据；导入 Insight 后由后端完成兑换和绑定。")).not.toBeNull();
@@ -752,16 +752,64 @@ describe("ApplicationUsageAccessPage", () => {
     mockCreateInsightAdminAccessPackage.mockResolvedValueOnce(new Promise(() => {}));
 
     const view = renderPage();
-    const generateButton = view.getByText("复制 Insight Admin 接入包").closest("button") as HTMLButtonElement;
+    const generateButton = view.getByText("生成并复制 Insight Admin 接入包").closest("button") as HTMLButtonElement;
     expect(generateButton.disabled).toBe(true);
+
+    const selector = await view.findByRole("combobox", {name: "授权目标组织"});
+    expect(selector.compareDocumentPosition(generateButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(view.getByText("该组织决定 Insight 可读取的 Admin 组织与用量范围。")).not.toBeNull();
+    expect(view.getByText("请选择授权目标组织后再生成接入包")).not.toBeNull();
 
     await selectBusinessOrganization(view);
     await view.findAllByText("接入包可复制");
     expect(generateButton.disabled).toBe(false);
 
-    clickButtonByText(view, "复制 Insight Admin 接入包");
+    clickButtonByText(view, "生成并复制 Insight Admin 接入包");
     expect(generateButton.disabled).toBe(true);
-    expect((view.getByRole("combobox", {name: "目标业务组织"}) as HTMLInputElement).disabled).toBe(true);
+    expect((view.getByRole("combobox", {name: "授权目标组织"}) as HTMLInputElement).disabled).toBe(true);
+  });
+
+  test("shows the generated package target and clears the result when the target changes", async() => {
+    mockGetOrganizations.mockReset();
+    mockGetOrganizations.mockResolvedValueOnce({
+      status: "ok",
+      data: [
+        {owner: "admin", name: "built-in", displayName: "Built-in Organization"},
+        {owner: "admin", name: "business-org", displayName: "Business Organization"},
+        {owner: "admin", name: "second-org", displayName: "A second business organization with a deliberately long display name"},
+      ],
+    });
+    mockGetServiceCredentialGovernanceStatus.mockResolvedValueOnce({
+      ...governanceStatusResponse,
+      data: {
+        ...governanceStatusResponse.data,
+        groups: governanceStatusResponse.data.groups.map(group => ({
+          ...group,
+          status: "configured",
+          missingKeys: [],
+          credentialReferenceStatus: group.credentialReferenceStatus === "missing" ? "configured" : group.credentialReferenceStatus,
+          blockedReasons: [],
+        })),
+      },
+    });
+    mockGetServiceCredentialGovernanceConfig.mockResolvedValueOnce(governanceConfigResponse);
+
+    const view = renderPage();
+    await selectBusinessOrganization(view);
+    clickButtonByText(view, "生成并复制 Insight Admin 接入包");
+
+    expect(await view.findByText("本接入包授权给：Business Organization")).not.toBeNull();
+    expect(view.getByText("组织别名：business-org")).not.toBeNull();
+    expect(view.getByText("本接入包授权给：Business Organization").getAttribute("title")).toBe("Business Organization (business-org)");
+
+    const selector = view.getByRole("combobox", {name: "授权目标组织"});
+    fireEvent.mouseDown(selector);
+    fireEvent.click(await view.findByText("A second business organization with a deliberately long display name (second-org)"));
+
+    expect(view.queryByText("Insight Admin 接入包已复制")).toBeNull();
+    expect(view.queryByText("本接入包授权给：Business Organization")).toBeNull();
+    expect(view.queryByText("组织别名：business-org")).toBeNull();
+    expect(view.getByText("生成并复制 Insight Admin 接入包")).not.toBeNull();
   });
 
   test("blocks access-package generation when no eligible business organization exists", async() => {
@@ -787,12 +835,12 @@ describe("ApplicationUsageAccessPage", () => {
 
     const view = renderPage();
     expect(view.getByText("加载可用业务组织...")).not.toBeNull();
-    const selector = await view.findByRole("combobox", {name: "目标业务组织"});
+    const selector = await view.findByRole("combobox", {name: "授权目标组织"});
     const selectorRoot = selector.closest(".ant-select") as HTMLElement | null;
     expect(selectorRoot?.style.width).toBe("100%");
     expect(selectorRoot?.style.maxWidth).toBe("360px");
     expect(await view.findByText("暂无可用于接入包的业务组织")).not.toBeNull();
-    expect((view.getByText("复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(true);
+    expect((view.getByText("生成并复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(true);
     expect(mockCreateInsightAdminAccessPackage).not.toHaveBeenCalled();
   });
 
@@ -805,7 +853,7 @@ describe("ApplicationUsageAccessPage", () => {
     const view = renderPage();
     expect(await view.findByText("业务组织加载失败，请刷新后重试")).not.toBeNull();
     expect(view.container.textContent).not.toContain("organization list unavailable");
-    expect((view.getByText("复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(true);
+    expect((view.getByText("生成并复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(true);
   });
 
   test("separates a copy-ready package from two runtime capabilities that still need attention", async() => {
@@ -839,7 +887,7 @@ describe("ApplicationUsageAccessPage", () => {
     expect((await view.findAllByText("接入包可复制")).length).toBeGreaterThan(0);
     expect(view.getByText("2 项扩展能力待配置")).not.toBeNull();
     expect(view.getAllByText("可继续导入；扩展能力配置不影响接入包导入与 Profile 启用").length).toBeGreaterThan(0);
-    expect((view.getByText("复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(false);
+    expect((view.getByText("生成并复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(false);
     expect(view.queryByText("部分缺失")).toBeNull();
     expect(view.queryByText("阻断项")).toBeNull();
     expect(view.getByText("交接包不含真实凭据")).not.toBeNull();
@@ -883,7 +931,7 @@ describe("ApplicationUsageAccessPage", () => {
     const view = renderPage();
 
     expect((await view.findAllByText("接入包暂不可复制")).length).toBeGreaterThan(0);
-    expect((view.getByText("复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(true);
+    expect((view.getByText("生成并复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(true);
     expect((await view.findAllByText("请补齐交接包生成前置条件后重试")).length).toBeGreaterThan(0);
   });
 
@@ -958,7 +1006,7 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.container.textContent).not.toContain("服务凭据治理配置");
     expect(view.queryByText("接入中心")).toBeNull();
     expect(view.queryByText("预检交接包")).toBeNull();
-    expect((view.getByText("复制 Insight Admin 接入包").closest("button") as HTMLButtonElement | null)?.disabled).toBe(true);
+    expect((view.getByText("生成并复制 Insight Admin 接入包").closest("button") as HTMLButtonElement | null)?.disabled).toBe(true);
   });
 
   test("maps diagnostic status labels for all focused service credential governance outcomes", async() => {
@@ -1042,7 +1090,7 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.queryByText("可生成 copy-safe 元数据包，仍需补凭据引用。")).toBeNull();
     expect(view.queryByText("可生成元数据交接包，导入 Insight 后通过 manual/secretRef binding 绑定凭据。")).toBeNull();
     expect(view.container.textContent).not.toContain("copy-safe metadata");
-    expect(view.queryByText("材料已齐，点击复制 Insight Admin 接入包。")).toBeNull();
+    expect(view.queryByText("材料已齐，点击生成并复制 Insight Admin 接入包。")).toBeNull();
     expect(view.queryByText("部分缺失")).toBeNull();
     expect((view.getAllByText("接入包可复制")).length).toBeGreaterThan(0);
     expect(view.getByText("2 项扩展能力待配置")).not.toBeNull();
@@ -1083,7 +1131,7 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.container.textContent).not.toContain("missing_reference_alias");
     expect(view.queryByText("排障详情")).toBeNull();
     expect(view.queryByText("机器字段")).toBeNull();
-    clickButtonByText(view, "复制 Insight Admin 接入包");
+    clickButtonByText(view, "生成并复制 Insight Admin 接入包");
     expect((await view.findAllByText("Insight Admin 接入包已复制")).length).toBeGreaterThan(0);
     expect(view.getByText("接入包包含脱敏元数据和安全交接授权摘要；真实凭据只由 Insight 后端兑换。")).not.toBeNull();
     expect(view.container.textContent).not.toContain("copy-safe metadata");
@@ -1138,8 +1186,8 @@ describe("ApplicationUsageAccessPage", () => {
     expect((await view.findAllByText("接入包可复制")).length).toBeGreaterThan(0);
     expect(view.getByText("2 项扩展能力待配置")).not.toBeNull();
     expect(view.getAllByText("可继续导入；扩展能力配置不影响接入包导入与 Profile 启用").length).toBeGreaterThan(0);
-    expect((view.getByText("复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(false);
-    clickButtonByText(view, "复制 Insight Admin 接入包");
+    expect((view.getByText("生成并复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(false);
+    clickButtonByText(view, "生成并复制 Insight Admin 接入包");
 
     expect((await view.findAllByText("Insight Admin 接入包已复制")).length).toBeGreaterThan(0);
     expect(mockCreateInsightAdminAccessPackage).toHaveBeenCalledTimes(1);
@@ -1183,8 +1231,8 @@ describe("ApplicationUsageAccessPage", () => {
 
     expect(await view.findByText("交接包操作")).not.toBeNull();
     await selectBusinessOrganization(view);
-    expect((view.getByText("复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(false);
-    clickButtonByText(view, "复制 Insight Admin 接入包");
+    expect((view.getByText("生成并复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(false);
+    clickButtonByText(view, "生成并复制 Insight Admin 接入包");
 
     expect(await view.findByText("当前登录态无权生成 Insight Admin 接入包，请使用 Admin owner 权限重试。")).not.toBeNull();
     expect(view.queryByText("Admin 交接包暂不可用")).toBeNull();
@@ -1277,8 +1325,8 @@ describe("ApplicationUsageAccessPage", () => {
     await clickAndSettleMotion(view.getByText("查看技术诊断"));
     await view.findByLabelText("blocked_group owner evidence");
     expect(view.getByLabelText("ready_group owner evidence").textContent).toContain("Ready group");
-    expect((view.getByText("复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(false);
-    clickButtonByText(view, "复制 Insight Admin 接入包");
+    expect((view.getByText("生成并复制 Insight Admin 接入包").closest("button") as HTMLButtonElement).disabled).toBe(false);
+    clickButtonByText(view, "生成并复制 Insight Admin 接入包");
 
     expect((await view.findAllByText("Insight Admin 接入包已复制")).length).toBeGreaterThan(0);
     expect(view.getByText("接入包包含脱敏元数据和安全交接授权摘要；真实凭据只由 Insight 后端兑换。")).not.toBeNull();

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {CopyOutlined, DownOutlined, FileTextOutlined, UpOutlined} from "@ant-design/icons";
-import {Alert, Button, Modal, Select, Space, Tag, Typography} from "antd";
+import {Alert, Button, Modal, Select, Space, Tag, Tooltip, Typography} from "antd";
 import copy from "copy-to-clipboard";
 import i18next from "i18next";
 import React from "react";
@@ -42,6 +42,7 @@ type ServiceCredentialGovernanceLoadState = "loading" | "ready" | "error" | "emp
 type ServiceCredentialGovernanceConfigLoadState = "loading" | "ready" | "error" | "empty";
 type ServiceCredentialGovernanceHandoffState = "idle" | "loading" | "ready" | "error";
 type TargetOrganizationLoadState = "loading" | "ready" | "empty" | "error";
+type CopySafeTargetOrganization = Pick<OrganizationRecord, "name" | "displayName">;
 type ServiceCredentialGovernanceGroup = ServiceCredentialGovernanceStatusResponse["groups"][number];
 type ServiceCredentialGovernanceStatus = ServiceCredentialGovernanceGroup["status"];
 type ServiceCredentialGovernanceDiagnosticGroup = ServiceCredentialGovernanceDiagnosticResponse["groups"][number];
@@ -611,6 +612,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
   const [targetOrganizations, setTargetOrganizations] = React.useState<OrganizationRecord[]>([]);
   const [targetOrganizationLoadState, setTargetOrganizationLoadState] = React.useState<TargetOrganizationLoadState>("loading");
   const [targetOrganization, setTargetOrganization] = React.useState("");
+  const [generatedTargetOrganization, setGeneratedTargetOrganization] = React.useState<CopySafeTargetOrganization | null>(null);
   const [serviceCredentialGovernanceCapabilityDetailsOpen, setServiceCredentialGovernanceCapabilityDetailsOpen] = React.useState(false);
   const [serviceCredentialGovernanceTechnicalDiagnosticsOpen, setServiceCredentialGovernanceTechnicalDiagnosticsOpen] = React.useState(isInsightAdminProviderDiagnosticsOpenFromUrl);
   const serviceCredentialGovernanceTechnicalDiagnosticsTriggerRef = React.useRef<HTMLButtonElement>(null);
@@ -773,9 +775,15 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
     if (targetOrganizationLoadState !== "ready" || targetOrganization === "") {
       setServiceCredentialGovernanceHandoffPackage(null);
       setServiceCredentialGovernanceHandoffState("error");
-      setServiceCredentialGovernanceHandoffErrorMessage(t("Insight Admin target organization required", "请选择目标业务组织后再生成接入包"));
+      setServiceCredentialGovernanceHandoffErrorMessage(t("Insight Admin target organization required", "请选择授权目标组织后再生成接入包"));
       return;
     }
+    const selectedTargetOrganization = targetOrganizations.find(organization => organization.name === targetOrganization);
+    // 成功摘要固定使用发起生成时的 copy-safe 组织快照，避免后续选择被误读成旧包授权目标。
+    const targetOrganizationSnapshot: CopySafeTargetOrganization = {
+      name: targetOrganization,
+      displayName: selectedTargetOrganization?.displayName,
+    };
 
     const copySafeMetadata = buildServiceCredentialGovernanceHandoffPackage({
       config: serviceCredentialGovernanceConfig ?? {
@@ -785,6 +793,8 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
       },
       status: normalizeServiceCredentialGovernanceStatusForHandoff(serviceCredentialGovernance),
     });
+    setServiceCredentialGovernanceHandoffPackage(null);
+    setGeneratedTargetOrganization(null);
     setServiceCredentialGovernanceHandoffState("loading");
     setServiceCredentialGovernanceHandoffErrorMessage(null);
     createInsightAdminAccessPackage(copySafeMetadata, targetOrganization)
@@ -792,12 +802,14 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
         if (response.status !== "ok" || !response.data) {
           const errorMessage = getInsightAdminAccessPackageErrorMessage(response.msg);
           setServiceCredentialGovernanceHandoffPackage(null);
+          setGeneratedTargetOrganization(null);
           setServiceCredentialGovernanceHandoffState("error");
           setServiceCredentialGovernanceHandoffErrorMessage(errorMessage);
           Setting.showMessage("error", errorMessage);
           return;
         }
         setServiceCredentialGovernanceHandoffPackage(response.data);
+        setGeneratedTargetOrganization(targetOrganizationSnapshot);
         setServiceCredentialGovernanceHandoffState("ready");
         setServiceCredentialGovernanceHandoffErrorMessage(null);
         const copied = copy(JSON.stringify(response.data, null, 2));
@@ -806,11 +818,12 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
       .catch(() => {
         const errorMessage = t("Service credential governance handoff package unavailable", "Admin 交接包暂不可用");
         setServiceCredentialGovernanceHandoffPackage(null);
+        setGeneratedTargetOrganization(null);
         setServiceCredentialGovernanceHandoffState("error");
         setServiceCredentialGovernanceHandoffErrorMessage(errorMessage);
         Setting.showMessage("error", errorMessage);
       });
-  }, [serviceCredentialGovernance, serviceCredentialGovernanceConfig, serviceCredentialGovernanceConfigDraft, serviceCredentialGovernanceConfigLoadState, targetOrganization, targetOrganizationLoadState]);
+  }, [serviceCredentialGovernance, serviceCredentialGovernanceConfig, serviceCredentialGovernanceConfigDraft, serviceCredentialGovernanceConfigLoadState, targetOrganization, targetOrganizationLoadState, targetOrganizations]);
 
   const serviceCredentialGovernanceSummary = getServiceCredentialGovernanceSummary(serviceCredentialGovernance);
   const serviceCredentialGovernanceStatusGroups = serviceCredentialGovernance?.groups ?? [];
@@ -903,7 +916,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
   } else if (targetOrganizationLoadState === "empty") {
     serviceCredentialGovernanceNextAction = t("Insight Admin target organization empty next action", "请先创建可用业务组织");
   } else if (targetOrganizationLoadState === "ready" && targetOrganization === "") {
-    serviceCredentialGovernanceNextAction = t("Insight Admin target organization select next action", "请选择目标业务组织");
+    serviceCredentialGovernanceNextAction = t("Insight Admin target organization select next action", "请选择授权目标组织");
   } else if (serviceCredentialGovernanceCanGenerate && serviceCredentialGovernanceRuntimePendingCapabilityRows.length > 0) {
     serviceCredentialGovernanceNextAction = t(
       "Handoff copy ready runtime pending next action",
@@ -912,7 +925,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
   } else if (serviceCredentialGovernanceCanGenerate) {
     serviceCredentialGovernanceNextAction = t(
       "Handoff generate and bind next action",
-      "复制 Insight Admin 接入包并导入 Insight Profile"
+      "生成并复制 Insight Admin 接入包，再导入 Insight Profile"
     );
   } else if (serviceCredentialGovernanceLoadState === "error" || serviceCredentialGovernanceConfigLoadState === "error") {
     serviceCredentialGovernanceNextAction = t(
@@ -925,7 +938,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
     : (serviceCredentialGovernanceCanGenerate
       ? (serviceCredentialGovernanceRuntimePendingCapabilityRows.length > 0
         ? t("Handoff generation partial hint", "可继续导入；扩展能力配置不影响接入包导入与 Profile 启用")
-        : t("Handoff generation complete hint", "可复制 Insight Admin 接入包"))
+        : t("Handoff generation complete hint", "可生成并复制 Insight Admin 接入包"))
       : t("Handoff generation unavailable hint", "暂不可生成"));
   const serviceCredentialGovernancePackageBlockingRow = serviceCredentialGovernanceActionRows[0];
   const serviceCredentialGovernancePackageBlockerSummary = serviceCredentialGovernancePackageBlockingRow ? (
@@ -946,7 +959,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
     );
   }
   const serviceCredentialGovernanceConfigActions = (
-    <Space className="application-access-service-credential-workspace-actions" wrap onClick={event => event.stopPropagation()}>
+    <Space className="application-access-service-credential-workspace-actions application-access-service-credential-handoff-primary-action" wrap onClick={event => event.stopPropagation()}>
       <Button
         type={serviceCredentialGovernanceHandoffState === "ready" ? "default" : "primary"}
         icon={<FileTextOutlined />}
@@ -955,8 +968,8 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
         onClick={handleServiceCredentialGovernanceHandoffPackage}
       >
         {serviceCredentialGovernanceHandoffState === "ready"
-          ? t("Service credential handoff evidence regenerate action", "重新复制 Insight Admin 接入包")
-          : t("Service credential handoff evidence action", "复制 Insight Admin 接入包")}
+          ? t("Service credential handoff evidence regenerate action", "重新生成并复制 Insight Admin 接入包")
+          : t("Service credential handoff evidence action", "生成并复制 Insight Admin 接入包")}
       </Button>
     </Space>
   );
@@ -1124,6 +1137,18 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
     </div>
   );
   const serviceCredentialGovernanceWorkspaceTitle = t("Insight Admin Provider copy safe handoff actions title", "交接包操作");
+  const generatedTargetOrganizationDisplayName = generatedTargetOrganization?.displayName?.trim() || generatedTargetOrganization?.name || "";
+  const generatedTargetOrganizationTooltip = generatedTargetOrganization
+    ? `${generatedTargetOrganizationDisplayName} (${generatedTargetOrganization.name})`
+    : "";
+  const generatedTargetOrganizationSummary = t(
+    "Insight Admin access package authorized target summary",
+    "本接入包授权给：{organization}"
+  ).replace("{organization}", generatedTargetOrganizationDisplayName);
+  const generatedTargetOrganizationAlias = t(
+    "Insight Admin access package authorized target alias",
+    "组织别名：{alias}"
+  ).replace("{alias}", generatedTargetOrganization?.name || "");
   const serviceCredentialGovernanceWorkspace = (
     <div className="application-access-service-credential-workspace" id={INSIGHT_ADMIN_PROVIDER_HANDOFF_PACKAGE_SECTION_ID}>
       <div className="application-access-service-credential-workspace-header">
@@ -1133,7 +1158,6 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
           <Text type="secondary">{t("Handoff package credential safety note", "交接包不含真实凭据")}</Text>
         </div>
         <Space className="application-access-service-credential-workspace-actions" size={4} wrap>
-          {serviceCredentialGovernanceConfigActions}
           <Button
             ref={serviceCredentialGovernanceTechnicalDiagnosticsTriggerRef}
             type="link"
@@ -1143,30 +1167,36 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
           </Button>
         </Space>
       </div>
-      <Space className="application-access-service-credential-target-organization" direction="vertical" size={6}>
-        <Text strong>{t("Insight Admin target organization label", "目标业务组织")}</Text>
-        <Select
-          aria-label={t("Insight Admin target organization label", "目标业务组织")}
-          disabled={targetOrganizationLoadState !== "ready" || serviceCredentialGovernanceHandoffState === "loading"}
-          loading={targetOrganizationLoadState === "loading"}
-          options={targetOrganizations.map(organization => ({
-            label: `${organization.displayName || organization.name} (${organization.name})`,
-            value: organization.name,
-          }))}
-          placeholder={t("Insight Admin target organization placeholder", "选择接入包可访问的业务组织")}
-          style={{width: "100%", maxWidth: 360}}
-          value={targetOrganization || undefined}
-          onChange={value => {
-            setTargetOrganization(value);
-            setServiceCredentialGovernanceHandoffPackage(null);
-            setServiceCredentialGovernanceHandoffState("idle");
-            setServiceCredentialGovernanceHandoffErrorMessage(null);
-          }}
-        />
-        {targetOrganizationLoadState === "loading" && <Text type="secondary">{t("Insight Admin target organization loading", "加载可用业务组织...")}</Text>}
-        {targetOrganizationLoadState === "empty" && <Alert type="warning" showIcon message={t("Insight Admin target organization empty", "暂无可用于接入包的业务组织")} />}
-        {targetOrganizationLoadState === "error" && <Alert type="warning" showIcon message={t("Insight Admin target organization error", "业务组织加载失败，请刷新后重试")} />}
-      </Space>
+      <div className="application-access-service-credential-handoff-flow">
+        <Space className="application-access-service-credential-target-organization" direction="vertical" size={6}>
+          <Text strong>{t("Insight Admin target organization label", "授权目标组织")}</Text>
+          <Text type="secondary">{t("Insight Admin target organization scope description", "该组织决定 Insight 可读取的 Admin 组织与用量范围。")}</Text>
+          <Select
+            aria-label={t("Insight Admin target organization label", "授权目标组织")}
+            disabled={targetOrganizationLoadState !== "ready" || serviceCredentialGovernanceHandoffState === "loading"}
+            loading={targetOrganizationLoadState === "loading"}
+            options={targetOrganizations.map(organization => ({
+              label: `${organization.displayName || organization.name} (${organization.name})`,
+              value: organization.name,
+            }))}
+            placeholder={t("Insight Admin target organization placeholder", "选择接入包可访问的业务组织")}
+            style={{width: "100%", maxWidth: 360}}
+            value={targetOrganization || undefined}
+            onChange={value => {
+              setTargetOrganization(value);
+              setServiceCredentialGovernanceHandoffPackage(null);
+              setGeneratedTargetOrganization(null);
+              setServiceCredentialGovernanceHandoffState("idle");
+              setServiceCredentialGovernanceHandoffErrorMessage(null);
+            }}
+          />
+          {targetOrganizationLoadState === "loading" && <Text type="secondary" role="status" aria-live="polite">{t("Insight Admin target organization loading", "加载可用业务组织...")}</Text>}
+          {targetOrganizationLoadState === "ready" && targetOrganization === "" && <Text type="secondary" role="status" aria-live="polite">{t("Insight Admin target organization required", "请选择授权目标组织后再生成接入包")}</Text>}
+          {targetOrganizationLoadState === "empty" && <Alert type="warning" showIcon message={t("Insight Admin target organization empty", "暂无可用于接入包的业务组织")} />}
+          {targetOrganizationLoadState === "error" && <Alert type="warning" showIcon message={t("Insight Admin target organization error", "业务组织加载失败，请刷新后重试")} />}
+        </Space>
+        {serviceCredentialGovernanceConfigActions}
+      </div>
       <div className="application-access-service-credential-config" aria-label="Admin 交接包待补材料">
         {serviceCredentialGovernanceConfigLoadState === "loading" && (
           <Alert
@@ -1208,15 +1238,31 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
             message={serviceCredentialGovernanceRuntimePendingCapabilityRows.length > 0
               ? t("Insight Admin Provider partial handoff ready message", "Insight Admin 接入包已复制")
               : t("Insight Admin Provider handoff ready message", "Insight Admin 接入包已复制")}
-            description={serviceCredentialGovernanceRuntimePendingCapabilityRows.length > 0
-              ? t(
-                "Insight Admin Provider partial handoff ready description",
-                "接入包包含脱敏元数据和安全交接授权摘要；真实凭据只由 Insight 后端兑换。"
-              )
-              : t(
-                "Insight Admin Provider handoff ready description",
-                "接入包不直接包含真实凭据；导入 Insight 后由后端完成兑换和绑定。"
-              )}
+            description={(
+              <Space className="application-access-service-credential-handoff-success" direction="vertical" size={4}>
+                <Text>{serviceCredentialGovernanceRuntimePendingCapabilityRows.length > 0
+                  ? t(
+                    "Insight Admin Provider partial handoff ready description",
+                    "接入包包含脱敏元数据和安全交接授权摘要；真实凭据只由 Insight 后端兑换。"
+                  )
+                  : t(
+                    "Insight Admin Provider handoff ready description",
+                    "接入包不直接包含真实凭据；导入 Insight 后由后端完成兑换和绑定。"
+                  )}</Text>
+                {generatedTargetOrganization && (
+                  <div className="application-access-service-credential-authorized-target" role="status" aria-live="polite">
+                    <Tooltip title={generatedTargetOrganizationTooltip}>
+                      <Text className="application-access-service-credential-authorized-target-summary" title={generatedTargetOrganizationTooltip}>
+                        {generatedTargetOrganizationSummary}
+                      </Text>
+                    </Tooltip>
+                    <Text className="application-access-service-credential-authorized-target-alias" type="secondary" title={generatedTargetOrganization.name}>
+                      {generatedTargetOrganizationAlias}
+                    </Text>
+                  </div>
+                )}
+              </Space>
+            )}
             action={(
               <Button icon={<CopyOutlined />} size="small" onClick={handleCopyServiceCredentialGovernanceHandoffPackage}>
                 复制接入包 JSON
@@ -1230,7 +1276,7 @@ function ApplicationAccessServiceCredentialGovernancePanel({className}: Applicat
               className="enterprise-identity-console-alert"
               type="success"
               showIcon
-              message={t("Handoff metadata package ready message", "材料已齐，点击复制 Insight Admin 接入包。")}
+              message={t("Handoff metadata package ready message", "材料已齐，点击生成并复制 Insight Admin 接入包。")}
             />
           </div>
         )}
