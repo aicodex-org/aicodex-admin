@@ -15,14 +15,12 @@
 package object
 
 import (
-	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"strings"
 	"testing"
 
 	"git.leagsoft.com/aicodex/aicodex-admin/tlspolicy"
-	goldap "github.com/go-ldap/ldap/v3"
 )
 
 func TestActiveDirectoryAppliesConnectionScopedTLSPolicy(t *testing.T) {
@@ -53,13 +51,13 @@ func TestActiveDirectoryAppliesConnectionScopedTLSPolicy(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			var captured *tls.Config
-			previous := activeDirectoryDialTLS
-			activeDirectoryDialTLS = func(_ string, _ string, config *tls.Config) (*goldap.Conn, error) {
-				captured = config
+			var captured ldapConnectionRuntimePolicy
+			previous := ldapRuntimeDial
+			ldapRuntimeDial = func(policy ldapConnectionRuntimePolicy) (ldapRuntimeClient, error) {
+				captured = policy
 				return nil, errors.New("test dial stopped")
 			}
-			t.Cleanup(func() { activeDirectoryDialTLS = previous })
+			t.Cleanup(func() { ldapRuntimeDial = previous })
 
 			provider := &ActiveDirectorySyncerProvider{Syncer: &Syncer{
 				Owner:     "test",
@@ -74,14 +72,17 @@ func TestActiveDirectoryAppliesConnectionScopedTLSPolicy(t *testing.T) {
 			if _, err := provider.getLdapConn(); err == nil || !strings.Contains(err.Error(), "failed to connect") {
 				t.Fatalf("getLdapConn() error = %v, want stopped dial", err)
 			}
-			if captured == nil {
+			if captured.TLSConfig == nil {
 				t.Fatal("LDAPS dial did not receive TLS config")
 			}
-			if captured.InsecureSkipVerify != test.wantSkip {
-				t.Fatalf("InsecureSkipVerify = %t, want %t", captured.InsecureSkipVerify, test.wantSkip)
+			if captured.TLSConfig.InsecureSkipVerify != test.wantSkip {
+				t.Fatalf("InsecureSkipVerify = %t, want %t", captured.TLSConfig.InsecureSkipVerify, test.wantSkip)
 			}
-			if (captured.RootCAs != nil) != test.wantCustom {
-				t.Fatalf("custom RootCAs present = %t, want %t", captured.RootCAs != nil, test.wantCustom)
+			if (captured.TLSConfig.RootCAs != nil) != test.wantCustom {
+				t.Fatalf("custom RootCAs present = %t, want %t", captured.TLSConfig.RootCAs != nil, test.wantCustom)
+			}
+			if captured.TLSConfig.ServerName != "ad.example.test" {
+				t.Fatalf("ServerName = %q, want ad.example.test", captured.TLSConfig.ServerName)
 			}
 		})
 	}
@@ -95,20 +96,14 @@ func TestActiveDirectoryRejectsInvalidPolicyBeforeDial(t *testing.T) {
 		t.Fatalf("insert plain LDAP CA: %v", err)
 	}
 
-	previousTLS := activeDirectoryDialTLS
-	previousPlain := activeDirectoryDial
+	previousDial := ldapRuntimeDial
 	dialCalls := 0
-	activeDirectoryDialTLS = func(string, string, *tls.Config) (*goldap.Conn, error) {
-		dialCalls++
-		return nil, errors.New("must not dial")
-	}
-	activeDirectoryDial = func(string, string) (*goldap.Conn, error) {
+	ldapRuntimeDial = func(ldapConnectionRuntimePolicy) (ldapRuntimeClient, error) {
 		dialCalls++
 		return nil, errors.New("must not dial")
 	}
 	t.Cleanup(func() {
-		activeDirectoryDialTLS = previousTLS
-		activeDirectoryDial = previousPlain
+		ldapRuntimeDial = previousDial
 	})
 
 	tests := []struct {

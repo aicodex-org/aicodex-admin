@@ -15,18 +15,13 @@
 package object
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"unicode/utf8"
 
-	"git.leagsoft.com/aicodex/aicodex-admin/tlspolicy"
 	"git.leagsoft.com/aicodex/aicodex-admin/util"
 	goldap "github.com/go-ldap/ldap/v3"
-)
-
-var (
-	activeDirectoryDial    = goldap.Dial
-	activeDirectoryDialTLS = goldap.DialTLS
 )
 
 // convertGUIDToString converts a binary GUID byte array to a standard UUID string format
@@ -120,8 +115,8 @@ func (p *ActiveDirectorySyncerProvider) Close() error {
 	return nil
 }
 
-// getLdapConn establishes an LDAP connection to Active Directory
-func (p *ActiveDirectorySyncerProvider) getLdapConn() (*goldap.Conn, error) {
+// getLdapConn 通过共享 runtime policy 建立并绑定单次 Active Directory 连接。
+func (p *ActiveDirectorySyncerProvider) getLdapConn() (*ldapManagedConnection, error) {
 	// syncer.Host should be the AD server hostname/IP
 	// syncer.Port should be the LDAP port (usually 389 or 636 for LDAPS)
 	// syncer.User should be the bind DN or username
@@ -130,11 +125,6 @@ func (p *ActiveDirectorySyncerProvider) getLdapConn() (*goldap.Conn, error) {
 	host := p.Syncer.Host
 	if host == "" {
 		return nil, fmt.Errorf("host is required for Active Directory syncer")
-	}
-
-	port := p.Syncer.Port
-	if port == 0 {
-		port = 389 // Default LDAP port
 	}
 
 	user := p.Syncer.User
@@ -147,34 +137,19 @@ func (p *ActiveDirectorySyncerProvider) getLdapConn() (*goldap.Conn, error) {
 		return nil, fmt.Errorf("password is required for Active Directory syncer")
 	}
 
-	var conn *goldap.Conn
-	var err error
-	resolution, err := ResolveSyncerTLSPolicy(p.Syncer)
+	policy, err := resolveActiveDirectoryConnectionRuntimePolicy(p.Syncer)
 	if err != nil {
 		return nil, err
 	}
-
-	// Check if SSL is enabled (port 636 typically indicates LDAPS)
-	if port == 636 {
-		conn, err = activeDirectoryDialTLS("tcp", fmt.Sprintf("%s:%d", host, port), resolution.TLSConfig)
-	} else {
-		if resolution.Diagnostic.CustomCA {
-			return nil, &tlspolicy.Error{Code: tlspolicy.ErrorCodeCAConflict}
-		}
-		conn, err = activeDirectoryDial("tcp", fmt.Sprintf("%s:%d", host, port))
-	}
-
+	conn, err := connectLDAPRuntime(policy, user, password)
 	if err != nil {
+		var runtimeErr *ldapConnectionRuntimeError
+		if errors.As(err, &runtimeErr) && runtimeErr.Stage == ldapRuntimeStageBind {
+			return nil, fmt.Errorf("failed to bind to Active Directory: %w", err)
+		}
 		return nil, fmt.Errorf("failed to connect to Active Directory: %w", err)
 	}
-
-	// Bind with the provided credentials
-	err = conn.Bind(user, password)
-	if err != nil {
-		conn.Close()
-		return nil, fmt.Errorf("failed to bind to Active Directory: %w", err)
-	}
-
+	conn.finishInitialOperations()
 	return conn, nil
 }
 

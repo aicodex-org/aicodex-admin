@@ -16,7 +16,6 @@ package object
 
 import (
 	"crypto/md5"
-	"crypto/tls"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -55,9 +54,11 @@ func formatUserPhone(u *User) {
 	}
 }
 
+// LdapConn 保留既有查询入口，并把连接生命周期交给 managed runtime connection。
 type LdapConn struct {
-	Conn *goldap.Conn
-	IsAD bool
+	Conn              *goldap.Conn
+	IsAD              bool
+	runtimeConnection *ldapManagedConnection
 }
 
 //type ldapGroup struct {
@@ -101,55 +102,44 @@ type LdapGroup struct {
 }
 
 func (ldap *Ldap) GetLdapConn() (c *LdapConn, err error) {
-	var conn *goldap.Conn
-	tlsConfig := tls.Config{
-		InsecureSkipVerify: ldap.AllowSelfSignedCert,
+	policy, err := resolveGenericLDAPConnectionRuntimePolicy(ldap)
+	if err != nil {
+		return nil, err
 	}
-	if ldap.EnableSsl {
-		conn, err = goldap.DialTLS("tcp", fmt.Sprintf("%s:%d", ldap.Host, ldap.Port), &tlsConfig)
-	} else {
-		conn, err = goldap.Dial("tcp", fmt.Sprintf("%s:%d", ldap.Host, ldap.Port))
-	}
-
+	connection, err := connectLDAPRuntime(policy, ldap.Username, ldap.Password)
 	if err != nil {
 		return nil, err
 	}
 
-	err = conn.Bind(ldap.Username, ldap.Password)
+	isAD, err := isMicrosoftAD(connection.client)
 	if err != nil {
-		return nil, err
+		connection.abort()
+		return nil, newLDAPRuntimeOperationError(ldapRuntimeStageProbe, err)
 	}
-
-	isAD, err := isMicrosoftAD(conn)
-	if err != nil {
-		return nil, err
-	}
-	return &LdapConn{Conn: conn, IsAD: isAD}, nil
+	connection.finishInitialOperations()
+	return &LdapConn{Conn: connection.Conn, IsAD: isAD, runtimeConnection: connection}, nil
 }
 
-func (l *LdapConn) Close() {
-	if l.Conn == nil {
-		return
+// Close 幂等关闭 LDAP connection，且把 Unbind/Close 失败转为 copy-safe error 而不是 panic。
+func (l *LdapConn) Close() error {
+	if l == nil || l.runtimeConnection == nil {
+		return nil
 	}
-
-	err := l.Conn.Unbind()
-	if err != nil {
-		panic(err)
-	}
+	return l.runtimeConnection.Close()
 }
 
-func isMicrosoftAD(Conn *goldap.Conn) (bool, error) {
+func isMicrosoftAD(conn ldapRuntimeClient) (bool, error) {
 	SearchFilter := "(objectClass=*)"
 	SearchAttributes := []string{"vendorname", "vendorversion", "isGlobalCatalogReady", "forestFunctionality"}
 
 	searchReq := goldap.NewSearchRequest("",
 		goldap.ScopeBaseObject, goldap.NeverDerefAliases, 0, 0, false,
 		SearchFilter, SearchAttributes, nil)
-	searchResult, err := Conn.Search(searchReq)
+	searchResult, err := conn.Search(searchReq)
 	if err != nil {
 		return false, err
 	}
-	if len(searchResult.Entries) == 0 {
+	if searchResult == nil || len(searchResult.Entries) == 0 {
 		return false, nil
 	}
 	isMicrosoft := false
@@ -163,15 +153,19 @@ func isMicrosoftAD(Conn *goldap.Conn) (bool, error) {
 	var ldapServerTypes ldapServerType
 	for _, entry := range searchResult.Entries {
 		for _, attribute := range entry.Attributes {
+			if len(attribute.Values) == 0 {
+				continue
+			}
+			value := attribute.Values[0]
 			switch attribute.Name {
 			case "vendorname":
-				ldapServerTypes.Vendorname = attribute.Values[0]
+				ldapServerTypes.Vendorname = value
 			case "vendorversion":
-				ldapServerTypes.Vendorversion = attribute.Values[0]
+				ldapServerTypes.Vendorversion = value
 			case "isGlobalCatalogReady":
-				ldapServerTypes.IsGlobalCatalogReady = attribute.Values[0]
+				ldapServerTypes.IsGlobalCatalogReady = value
 			case "forestFunctionality":
-				ldapServerTypes.ForestFunctionality = attribute.Values[0]
+				ldapServerTypes.ForestFunctionality = value
 			}
 		}
 	}
