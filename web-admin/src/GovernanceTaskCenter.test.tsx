@@ -1,20 +1,13 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import React from "react";
 import {MemoryRouter} from "react-router-dom";
-import {expect, jest} from "@jest/globals";
 import {cleanup, render} from "@testing-library/react";
 import i18next from "i18next";
 import GovernanceTaskCenter from "./GovernanceTaskCenter";
 import {buildGovernanceTasks} from "./identityGovernanceTasks";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
-
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    change: (element: Element, event: {target: {value: string}}) => void;
-    click: (element: Element) => void;
-  };
-};
+import {fireEvent} from "@testing-library/react";
 
 type MockListResponse = {status: string; data?: unknown; data2?: unknown; msg?: string} | Error;
 
@@ -49,19 +42,19 @@ function resetMockBackendResponses() {
   });
 }
 
-jest.mock("./backend/AgentBackend", () => ({getAgents: () => mockReadSource("agents")}));
-jest.mock("./backend/ApplicationBackend", () => ({
+vi.mock("./backend/AgentBackend", () => ({getAgents: () => mockReadSource("agents")}));
+vi.mock("./backend/ApplicationBackend", () => ({
   getApplications: () => mockReadSource("applications"),
   getApplicationsByOrganization: () => mockReadSource("applications"),
 }));
-jest.mock("./backend/ProviderBackend", () => ({
+vi.mock("./backend/ProviderBackend", () => ({
   getGlobalProviders: () => mockReadSource("providers"),
   getProviders: () => mockReadSource("providers"),
 }));
-jest.mock("./backend/RecordBackend", () => ({getRecords: () => mockReadSource("records")}));
-jest.mock("./backend/RoleBackend", () => ({getRoles: () => mockReadSource("roles")}));
-jest.mock("./backend/TokenBackend", () => ({getTokens: () => mockReadSource("tokens")}));
-jest.mock("./backend/UserBackend", () => ({
+vi.mock("./backend/RecordBackend", () => ({getRecords: () => mockReadSource("records")}));
+vi.mock("./backend/RoleBackend", () => ({getRoles: () => mockReadSource("roles")}));
+vi.mock("./backend/TokenBackend", () => ({getTokens: () => mockReadSource("tokens")}));
+vi.mock("./backend/UserBackend", () => ({
   getGlobalUsers: () => mockReadSource("users"),
   getUsers: () => mockReadSource("users"),
 }));
@@ -128,7 +121,7 @@ describe("GovernanceTaskCenter", () => {
 
   beforeEach(async() => {
     resetMockBackendResponses();
-    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
       throw new Error(args.map(item => String(item)).join(" "));
     });
     Object.defineProperty(window, "matchMedia", {
@@ -137,11 +130,11 @@ describe("GovernanceTaskCenter", () => {
         matches: false,
         media: query,
         onchange: null,
-        addListener: jest.fn(),
-        removeListener: jest.fn(),
-        addEventListener: jest.fn(),
-        removeEventListener: jest.fn(),
-        dispatchEvent: jest.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
       }),
     });
     await useTestLanguage("zh");

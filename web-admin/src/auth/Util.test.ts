@@ -1,6 +1,6 @@
-/* eslint-env jest */
-import {expect} from "@jest/globals";
+import {afterEach, beforeEach, describe, expect, test} from "vitest";
 import React from "react";
+import i18next from "i18next";
 
 import {
   getQueryParamsFromState,
@@ -72,18 +72,24 @@ describe("OAuth state utilities", () => {
     expect(getQueryParamsFromState("casdoorOauthMissingState000000")).toBe("");
   });
 
-  test("renders authorization error message without losing i18next binding", () => {
-    const result = renderMessageLarge({}, "OAuth failed") as React.ReactElement<{
-      extra: React.ReactNode[];
-      style: React.CSSProperties;
-      subTitle: React.ReactNode;
-      title: React.ReactNode;
-    }>;
+  test("renders authorization error message without losing i18next binding", async() => {
+    const originalLanguage = i18next.language;
+    await i18next.changeLanguage("en");
+    try {
+      const result = renderMessageLarge({}, "OAuth failed") as React.ReactElement<{
+        extra: React.ReactNode[];
+        style: React.CSSProperties;
+        subTitle: React.ReactNode;
+        title: React.ReactNode;
+      }>;
 
-    expect(result.props.title).toBe("Failed to sign in");
-    expect(result.props.style.maxWidth).toBe(720);
-    expect(result.props.extra).toHaveLength(2);
-    expect(React.isValidElement(result.props.subTitle)).toBe(true);
-    expect((result.props.subTitle as React.ReactElement).props.children).toBe("OAuth failed");
+      expect(result.props.title).toBe("Failed to sign in");
+      expect(result.props.style.maxWidth).toBe(720);
+      expect(result.props.extra).toHaveLength(2);
+      expect(React.isValidElement(result.props.subTitle)).toBe(true);
+      expect((result.props.subTitle as React.ReactElement).props.children).toBe("OAuth failed");
+    } finally {
+      await i18next.changeLanguage(originalLanguage || "zh");
+    }
   });
 });

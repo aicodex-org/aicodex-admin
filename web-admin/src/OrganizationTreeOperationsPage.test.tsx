@@ -1,4 +1,4 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 // Copyright 2026 The AICodex Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,12 +15,10 @@
 
 import React from "react";
 import {act, render} from "@testing-library/react";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import * as Setting from "./Setting";
 import * as OrganizationTreeOperationsBackend from "./backend/OrganizationTreeOperationsBackend";
 import OrganizationTreeOperationsPage from "./OrganizationTreeOperationsPage";
-
-declare const jest: typeof jestValue;
+import {fireEvent, screen, waitFor} from "@testing-library/react";
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -37,50 +35,32 @@ type OrganizationSelectMockProps = {
   onChange: (value: string) => void;
 };
 
-const expect = jestExpect;
-const {fireEvent, screen, waitFor} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-    change: (element: Element | null, event: unknown) => boolean;
-  };
-  screen: {
-    findByText: (text: string | RegExp) => Promise<HTMLElement>;
-    getByText: (text: string | RegExp) => HTMLElement;
-    getAllByText: (text: string | RegExp) => HTMLElement[];
-    queryByText: (text: string | RegExp) => HTMLElement | null;
-    getByPlaceholderText: (text: string | RegExp) => HTMLElement;
-    getByTestId: (id: string) => HTMLElement;
-    getAllByTestId: (id: string) => HTMLElement[];
-  };
-  waitFor: (callback: () => unknown) => Promise<unknown>;
-};
 const treeBackendMock = OrganizationTreeOperationsBackend as unknown as OrganizationTreeOperationsBackendMock;
 
-jest.mock("./backend/OrganizationTreeOperationsBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: Pick<typeof jestValue, "fn">};
+vi.mock("./backend/OrganizationTreeOperationsBackend", () => {
   return {
-    getOrganizationTreeOperationsDiagnostics: factoryJest.fn(),
-    getOrganizationTreeOperationsMembers: factoryJest.fn(),
-    refreshOrganizationTreeOperations: factoryJest.fn(),
+    getOrganizationTreeOperationsDiagnostics: vi.fn(),
+    getOrganizationTreeOperationsMembers: vi.fn(),
+    refreshOrganizationTreeOperations: vi.fn(),
   };
 });
 
-jest.mock("./common/select/OrganizationSelect", () => (props: OrganizationSelectMockProps) => (
+vi.mock("./common/select/OrganizationSelect", () => ({default: (props: OrganizationSelectMockProps) => (
   <select data-testid="organization-select" value={props.initValue} onChange={event => props.onChange(event.target.value)}>
     <option value="org-alpha">测试组织</option>
     <option value="org-beta">备用组织</option>
   </select>
-));
+)}));
 
 const mockMatchMedia = (query: string) => ({
   matches: false,
   media: query,
   onchange: null,
-  addListener: jest.fn(),
-  removeListener: jest.fn(),
-  addEventListener: jest.fn(),
-  removeEventListener: jest.fn(),
-  dispatchEvent: jest.fn(),
+  addListener: vi.fn(),
+  removeListener: vi.fn(),
+  addEventListener: vi.fn(),
+  removeEventListener: vi.fn(),
+  dispatchEvent: vi.fn(),
 });
 
 function buildDiagnostics(overrides: Record<string, unknown> = {}) {
@@ -163,7 +143,7 @@ beforeEach(() => {
     writable: true,
     value: mockMatchMedia,
   });
-  jest.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
   treeBackendMock.getOrganizationTreeOperationsDiagnostics.mockResolvedValue({
     status: "ok",
     data: buildDiagnostics(),
@@ -227,8 +207,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  jest.restoreAllMocks();
-  jest.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
 });
 
 test("renders organization tree operations diagnostics without treating display data as authority", async() => {

@@ -1,13 +1,17 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import React from "react";
 import {act, cleanup, render} from "@testing-library/react";
-import {expect, jest} from "@jest/globals";
 import i18next from "i18next";
 import RuleListPage from "./RuleListPage";
 import * as RuleBackend from "./backend/RuleBackend";
 import * as Setting from "./Setting";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
+import * as fs from "fs";
+import * as path from "path";
+import {fireEvent} from "@testing-library/react";
+import {fileURLToPath} from "url";
+const testFileDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -50,25 +54,17 @@ function getRenderedTable(node: React.ReactNode): React.ReactElement<{columns: T
   return React.Children.only(wrapper.props.children) as React.ReactElement<{columns: TestTableColumn[]; title: () => React.ReactNode}>;
 }
 
-jest.mock("./backend/RuleBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
+vi.mock("./backend/RuleBackend", () => {
   return {
-    getRules: factoryJest.fn(),
-    getRule: factoryJest.fn(),
-    updateRule: factoryJest.fn(),
-    addRule: factoryJest.fn(),
-    deleteRule: factoryJest.fn(),
+    getRules: vi.fn(),
+    getRule: vi.fn(),
+    updateRule: vi.fn(),
+    addRule: vi.fn(),
+    deleteRule: vi.fn(),
   };
 });
 
 const ruleBackendMock = RuleBackend as unknown as RuleBackendMock;
-const fs = require("fs") as {existsSync: (filePath: string) => boolean};
-const path = require("path") as {join: (...parts: string[]) => string};
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-  };
-};
 let consoleErrorSpy: {mockRestore: () => void};
 
 const adminAccount = {owner: "admin", tag: "", isAdmin: true};
@@ -107,7 +103,7 @@ async function useTestLanguage(language: string) {
 
 function createHistory() {
   return {
-    push: jest.fn(),
+    push: vi.fn(),
   };
 }
 
@@ -141,12 +137,12 @@ async function flushPromises() {
 describe("RuleListPage", () => {
   beforeEach(async() => {
     await useTestLanguage("zh");
-    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
       throw new Error([message, ...args].map(item => `${item}`).join(" "));
     });
-    jest.spyOn(Setting, "showMessage").mockImplementation(() => {});
-    jest.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
-    jest.spyOn(Setting, "getRequestOrganization").mockReturnValue("engineering");
+    vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+    vi.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
+    vi.spyOn(Setting, "getRequestOrganization").mockReturnValue("engineering");
     ruleBackendMock.getRules.mockResolvedValue({status: "ok", data: [rule], data2: 1});
     ruleBackendMock.addRule.mockResolvedValue({status: "ok"});
     ruleBackendMock.deleteRule.mockResolvedValue({status: "ok"});
@@ -155,13 +151,13 @@ describe("RuleListPage", () => {
   afterEach(() => {
     cleanup();
     consoleErrorSpy.mockRestore();
-    jest.restoreAllMocks();
-    jest.clearAllMocks();
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   test("is migrated from JavaScript to TSX", () => {
-    expect(fs.existsSync(path.join(__dirname, "RuleListPage.tsx"))).toBe(true);
-    expect(fs.existsSync(path.join(__dirname, "RuleListPage.js"))).toBe(false);
+    expect(fs.existsSync(path.join(testFileDirectory, "RuleListPage.tsx"))).toBe(true);
+    expect(fs.existsSync(path.join(testFileDirectory, "RuleListPage.js"))).toBe(false);
   });
 
   test("fetches rules through the existing Rule API boundary", async() => {
@@ -194,7 +190,7 @@ describe("RuleListPage", () => {
 
   test("initializes legacy pagination before the first fetch", () => {
     const page = createPage();
-    page.fetch = jest.fn() as unknown as typeof page.fetch;
+    page.fetch = vi.fn() as unknown as typeof page.fetch;
 
     page.UNSAFE_componentWillMount();
 
@@ -212,7 +208,7 @@ describe("RuleListPage", () => {
 
   test("creates the legacy default User-Agent rule and refreshes the list", async() => {
     const page = createPage();
-    page.fetch = jest.fn() as unknown as typeof page.fetch;
+    page.fetch = vi.fn() as unknown as typeof page.fetch;
 
     expect(page.newRule()).toEqual(expect.objectContaining({
       owner: "engineering",
@@ -255,7 +251,7 @@ describe("RuleListPage", () => {
 
   test("deletes rules and rolls back pagination for the last row", async() => {
     const page = createPage();
-    page.fetch = jest.fn() as unknown as typeof page.fetch;
+    page.fetch = vi.fn() as unknown as typeof page.fetch;
     page.state = {
       ...page.state,
       data: [rule],
@@ -275,7 +271,7 @@ describe("RuleListPage", () => {
   test("keeps current pagination when deleting from a page with multiple rows", async() => {
     const secondRule = {...rule, name: "rule-two"};
     const page = createPage();
-    page.fetch = jest.fn() as unknown as typeof page.fetch;
+    page.fetch = vi.fn() as unknown as typeof page.fetch;
     page.state = {
       ...page.state,
       data: [rule, secondRule],
@@ -298,8 +294,8 @@ describe("RuleListPage", () => {
       match: {path: "/rules", params: {}},
     });
     installSynchronousSetState(page);
-    jest.spyOn(page, "addRule").mockImplementation(() => {});
-    jest.spyOn(page, "deleteRule").mockImplementation(() => {});
+    vi.spyOn(page, "addRule").mockImplementation(() => {});
+    vi.spyOn(page, "deleteRule").mockImplementation(() => {});
 
     const table = getRenderedTable(page.renderTable([rule]));
     const columns = table.props.columns;

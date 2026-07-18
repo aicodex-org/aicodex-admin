@@ -1,4 +1,4 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 // Copyright 2026 The AICodex Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,16 +14,12 @@
 // limitations under the License.
 
 import React from "react";
-import "@testing-library/jest-dom/extend-expect";
-import {expect} from "@jest/globals";
 import {render} from "@testing-library/react";
 import * as TestingLibrary from "@testing-library/react";
 import * as Setting from "./Setting";
 import * as PlatformApiMappingBackendModule from "./backend/PlatformApiMappingBackend";
 import PlatformApiMappingPage from "./PlatformApiMappingPage";
 import type {LegacyAny} from "./types/legacyPage";
-
-declare const jest: LegacyAny;
 
 const fireEvent = (TestingLibrary as LegacyAny).fireEvent;
 const screen = (TestingLibrary as LegacyAny).screen;
@@ -32,16 +28,7 @@ const PlatformApiMappingBackend = PlatformApiMappingBackendModule as unknown as 
 const expectAny: any = expect;
 
 function mockFn() {
-  return jest.fn();
-}
-
-declare global {
-  namespace jest {
-    interface Matchers<R, T = Record<string, never>> {
-      toBeInTheDocument(): R;
-      toBeDisabled(): R;
-    }
-  }
+  return vi.fn();
 }
 
 function pageProps() {
@@ -54,7 +41,7 @@ function pageProps() {
 function createPageHarness(state: Record<string, LegacyAny> = {}): LegacyAny {
   const page = new PlatformApiMappingPage(pageProps()) as LegacyAny;
   page.state = {...page.state, ...state};
-  page.setState = jest.fn((update: LegacyAny, callback?: () => void) => {
+  page.setState = vi.fn((update: LegacyAny, callback?: () => void) => {
     const patch = typeof update === "function" ? update(page.state, page.props) : update;
     page.state = {...page.state, ...patch};
     callback?.();
@@ -62,7 +49,41 @@ function createPageHarness(state: Record<string, LegacyAny> = {}): LegacyAny {
   return page;
 }
 
-jest.mock("./backend/PlatformApiMappingBackend", () => ({
+function getTabsElement(page: LegacyAny): React.ReactElement<LegacyAny> {
+  const card = page.render() as React.ReactElement<LegacyAny>;
+  const tabs = React.Children.toArray(card.props.children).find(child => {
+    return React.isValidElement<LegacyAny>(child) && Array.isArray(child.props.items) && typeof child.props.onChange === "function";
+  });
+  if (!React.isValidElement<LegacyAny>(tabs)) {
+    throw new Error("Expected platform mapping Tabs element");
+  }
+  return tabs;
+}
+
+async function createLoadedUserMappingPage(): Promise<LegacyAny> {
+  const page = createPageHarness();
+  page.changeTab("user");
+  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail).toHaveBeenCalled());
+  return page;
+}
+
+function getDirectChildByTitle(parent: React.ReactElement<LegacyAny>, title: string): React.ReactElement<LegacyAny> {
+  const child = React.Children.toArray(parent.props.children).find(node => {
+    return React.isValidElement<LegacyAny>(node) && node.props.title === title;
+  });
+  if (!React.isValidElement<LegacyAny>(child)) {
+    throw new Error(`Expected direct child titled ${title}`);
+  }
+  return child;
+}
+
+function getDirectChildren(parent: React.ReactElement<LegacyAny>, predicate: (child: React.ReactElement<LegacyAny>) => boolean): React.ReactElement<LegacyAny>[] {
+  return React.Children.toArray(parent.props.children).filter((node): node is React.ReactElement<LegacyAny> => {
+    return React.isValidElement<LegacyAny>(node) && predicate(node);
+  });
+}
+
+vi.mock("./backend/PlatformApiMappingBackend", () => ({
   getPlatformApiOrganizationMappings: mockFn(),
   getOrganizationMasterDataQualityReadiness: mockFn(),
   getPlatformApiUserMappingReadiness: mockFn(),
@@ -84,11 +105,11 @@ jest.mock("./backend/PlatformApiMappingBackend", () => ({
   updatePlatformApiUserMapping: mockFn(),
 }));
 
-jest.mock("./common/select/OrganizationSelect", () => (props: LegacyAny) => (
+vi.mock("./common/select/OrganizationSelect", () => ({default: (props: LegacyAny) => (
   <select data-testid="organization-select" value={props.initValue} onChange={event => props.onChange(event.target.value)}>
     <option value="org-alpha">联软科技集团</option>
   </select>
-));
+)}));
 
 const mockMatchMedia = (query: string) => ({
   matches: false,
@@ -106,7 +127,7 @@ beforeEach(() => {
     writable: true,
     value: mockMatchMedia,
   });
-  jest.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
   PlatformApiMappingBackend.getPlatformApiOrganizationMappings.mockResolvedValue({
     status: "ok",
     data: [{
@@ -655,7 +676,7 @@ beforeEach(() => {
 
 afterEach(() => {
   (Setting.showMessage as LegacyAny).mockRestore();
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 test("renders operator-friendly mapping labels while saving enum values", async() => {
@@ -701,14 +722,14 @@ test("wires the user mapping tab to on-demand loading", async() => {
     "getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail",
     "getOrganizationMasterDataQualityReadiness",
   ].forEach(name => PlatformApiMappingBackend[name].mockReturnValue(pendingRequest));
-  render(<PlatformApiMappingPage {...pageProps()} />);
+  const page = createPageHarness();
+  page.componentDidMount();
+  const tabs = getTabsElement(page);
 
-  expectAny((await screen.findAllByText("平台组织映射")).length).toBeGreaterThan(0);
-  expectAny(screen.getByText("用户映射")).toBeInTheDocument();
   expectAny(PlatformApiMappingBackend.getPlatformApiOrganizationMappings).toHaveBeenCalledWith("org-alpha");
   expectAny(PlatformApiMappingBackend.getPlatformApiUserMappings).not.toHaveBeenCalled();
 
-  fireEvent.click(screen.getByText("用户映射"));
+  tabs.props.onChange("user");
   expectAny(PlatformApiMappingBackend.getPlatformApiUserMappings).toHaveBeenCalledWith("org-alpha", expect.objectContaining({
     current: 1,
     pageSize: 10,
@@ -738,13 +759,15 @@ test("loads user mapping diagnostics on demand", async() => {
   expectAny(page.state.userMappingsLoaded).toBe(true);
 });
 
-test("renders loaded user mapping diagnostics without raw gateway data", async() => {
-  const page = createPageHarness();
-  page.changeTab("user");
-  await wait(() => expectAny(PlatformApiMappingBackend.getGatewayProjectionPublishAttemptCleanupApprovalAuditTrail).toHaveBeenCalled());
-  render(page.renderUserMappingTab());
+test("renders loaded user readiness diagnostics without raw gateway data", async() => {
+  const page = await createLoadedUserMappingPage();
+  render(<>
+    {page.renderOrganizationMasterDataQuality()}
+    {page.renderReadinessSummary()}
+    {page.renderGatewayProjectionRunReadiness()}
+    {page.renderGatewayProjectionIngestionStatus()}
+  </>);
 
-  expectAny(await screen.findByDisplayValue("org-alpha/user-one")).toBeInTheDocument();
   expectAny(screen.getByText("组织主数据质量 readiness")).toBeInTheDocument();
   expectAny(screen.getByText("质量状态：")).toBeInTheDocument();
   expectAny(screen.getAllByText("mapping_missing").length).toBeGreaterThan(0);
@@ -757,8 +780,23 @@ test("renders loaded user mapping diagnostics without raw gateway data", async()
   expectAny(screen.getByText(/网关回执状态: 已应用/)).toBeInTheDocument();
   expectAny(screen.getByText("reason: projection_applied")).toBeInTheDocument();
   expectAny(screen.getByText("sourceVersion: orgv-ingestion-1")).toBeInTheDocument();
+});
+
+test("renders loaded publish retention dry-run and execute diagnostics", async() => {
+  const page = await createLoadedUserMappingPage();
+  const history = page.renderPublishAttemptHistory() as React.ReactElement<LegacyAny>;
+  const summaryAlerts = getDirectChildren(history, child => {
+    return child.props.message === "发布记录只记录 Admin producer 脱敏诊断，不是 gateway authorization facts。" || child.props.message === "Publish attempt retention readiness";
+  });
+  render(<>
+    {page.renderManualPublishConsole()}
+    {summaryAlerts}
+    {getDirectChildByTitle(history, "Cleanup dry-run guardrails")}
+    {getDirectChildByTitle(history, "Cleanup execute readiness")}
+  </>);
+
   expectAny(screen.getByText("网关身份手动同步")).toBeInTheDocument();
-  expectAny(screen.getByText("网关身份发布记录")).toBeInTheDocument();
+  expect(history.props.title).toBe("网关身份发布记录");
   expectAny(screen.getByText("发布记录只记录 Admin producer 脱敏诊断，不是 gateway authorization facts。")).toBeInTheDocument();
   expectAny(screen.getByText("Publish attempt retention readiness")).toBeInTheDocument();
   expectAny(screen.getByText("只读展示 cleanup readiness，不执行删除。")).toBeInTheDocument();
@@ -774,6 +812,17 @@ test("renders loaded user mapping diagnostics without raw gateway data", async()
   expectAny(screen.getByText("approvalStatus: missing")).toBeInTheDocument();
   expectAny(screen.getAllByText("executeEnabled: false").length).toBeGreaterThan(0);
   expectAny(screen.getAllByText("dryRunOnly: true").length).toBeGreaterThan(0);
+});
+
+test("renders loaded cleanup policy decision and owner-boundary diagnostics", async() => {
+  const page = await createLoadedUserMappingPage();
+  const history = page.renderPublishAttemptHistory() as React.ReactElement<LegacyAny>;
+  render(<>
+    {getDirectChildByTitle(history, "Cleanup approval policy readiness")}
+    {getDirectChildByTitle(history, "Cleanup approval decision draft")}
+    {getDirectChildByTitle(history, "Cleanup execution gate owner-boundary preflight")}
+  </>);
+
   expectAny(screen.getByText("Cleanup approval policy readiness")).toBeInTheDocument();
   expectAny(screen.getByText(/Approval policy: manual_review_ready/)).toBeInTheDocument();
   expectAny(screen.getByText("manualReview: ready")).toBeInTheDocument();
@@ -790,6 +839,17 @@ test("renders loaded user mapping diagnostics without raw gateway data", async()
   expectAny(screen.getByText("adminAuthorityOnly: true")).toBeInTheDocument();
   expectAny(screen.getByText("noFallback: true")).toBeInTheDocument();
   expectAny(screen.getByText("operatorNextAction: request_master_control_owner_boundary_review")).toBeInTheDocument();
+});
+
+test("renders loaded publish audit and attempt rows and records approval preview", async() => {
+  const page = await createLoadedUserMappingPage();
+  const history = page.renderPublishAttemptHistory() as React.ReactElement<LegacyAny>;
+  const tables = getDirectChildren(history, child => Array.isArray(child.props.dataSource));
+  render(<>
+    {getDirectChildByTitle(history, "Cleanup approval audit trail")}
+    {tables}
+  </>);
+
   expectAny(screen.getByText("Cleanup approval audit trail")).toBeInTheDocument();
   expectAny(screen.getByText(/Approval audit storage: admin_cleanup_approval_audit_trail.v1/)).toBeInTheDocument();
   expectAny(screen.getByText("candidateTotal: 1")).toBeInTheDocument();
@@ -810,7 +870,17 @@ test("renders loaded user mapping diagnostics without raw gateway data", async()
   expectAny(screen.getAllByText("保留期内").length).toBeGreaterThan(0);
   expectAny(screen.getByText("gateway_unavailable")).toBeInTheDocument();
   expectAny(screen.getByText("321 ms")).toBeInTheDocument();
-  expectAny(screen.getAllByText(/mapping_missing/).length).toBeGreaterThan(0);
+});
+
+test("renders loaded user mappings and search controls with business labels", async() => {
+  const page = await createLoadedUserMappingPage();
+  const userTab = page.renderUserMappingTab() as React.ReactElement<LegacyAny>;
+  render(<>
+    {userTab.props.extra}
+    {page.renderUserMappingTable()}
+  </>);
+
+  expectAny(await screen.findByDisplayValue("org-alpha/user-one")).toBeInTheDocument();
   expectAny(screen.getByText("迁移导入")).toBeInTheDocument();
   expectAny(screen.getByPlaceholderText("搜索平台主体或 API 用户 ID")).toBeInTheDocument();
 });

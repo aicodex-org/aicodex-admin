@@ -1,29 +1,30 @@
-/* eslint-env jest */
-import {expect, jest} from "@jest/globals";
+import {describe, expect, test, vi} from "vitest";
+import React from "react";
 import fs from "fs";
 import path from "path";
+import {fileURLToPath} from "node:url";
+import ApplicationEditPage from "./ApplicationEditPage";
 import {readLessWithImports} from "./testUtils/less";
 
-const mockComponent = (testId: string) => {
-  const mockReact = require("react");
-  return () => mockReact.createElement("div", {"data-testid": testId});
-};
+const mockComponent = vi.hoisted(() => (testId: string) => () => {
+  return React.createElement("div", {"data-testid": testId});
+});
 
-jest.mock("./common/Editor", () => mockComponent("editor"));
-jest.mock("./table/SigninMethodTable", () => mockComponent("signin-method-table"));
-jest.mock("./table/SigninTable", () => mockComponent("signin-table"));
-jest.mock("./table/SignupTable", () => mockComponent("signup-table"));
-jest.mock("./common/theme/ThemeEditor", () => mockComponent("theme-editor"));
-jest.mock("./auth/SignupPage", () => mockComponent("signup-page"));
-jest.mock("./auth/LoginPage", () => mockComponent("login-page"));
-jest.mock("./auth/PromptPage", () => mockComponent("prompt-page"));
-jest.mock("antd/es/layout/layout", () => ({Content: "div", Header: "div"}));
-jest.mock("antd/es/layout/Sider", () => "aside");
+vi.mock("./common/Editor", () => ({default: mockComponent("editor")}));
+vi.mock("./table/SigninMethodTable", () => ({default: mockComponent("signin-method-table")}));
+vi.mock("./table/SigninTable", () => ({default: mockComponent("signin-table")}));
+vi.mock("./table/SignupTable", () => ({default: mockComponent("signup-table")}));
+vi.mock("./common/theme/ThemeEditor", () => ({default: mockComponent("theme-editor")}));
+vi.mock("./auth/SignupPage", () => ({default: mockComponent("signup-page")}));
+vi.mock("./auth/LoginPage", () => ({default: mockComponent("login-page")}));
+vi.mock("./auth/PromptPage", () => ({default: mockComponent("prompt-page")}));
+vi.mock("antd/es/layout/layout", () => ({Content: "div", Header: "div"}));
+vi.mock("antd/es/layout/Sider", () => ({default: "aside"}));
 
-const ApplicationEditPage = require("./ApplicationEditPage").default;
+const testDir = path.dirname(fileURLToPath(import.meta.url));
 
-const readSrc = (fileName: string): string => fs.readFileSync(path.join(__dirname, fileName), "utf8") as string;
-const readAppLess = (): string => readLessWithImports(path.join(__dirname, "App.less"));
+const readSrc = (fileName: string): string => fs.readFileSync(path.join(testDir, fileName), "utf8") as string;
+const readAppLess = (): string => readLessWithImports(path.join(testDir, "App.less"));
 const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const splitSelectorList = (selector: string): string[] => {
@@ -288,7 +289,7 @@ describe("large edit page form layout", () => {
     const page = new ApplicationEditPage({
       match: {params: {organizationName: "engineering", applicationName: "portal"}},
       location: {search: ""},
-      history: {push: jest.fn()},
+      history: {push: vi.fn()},
       account: {owner: "engineering", name: "admin"},
     } as any) as any;
 

@@ -1,5 +1,4 @@
-/* eslint-env jest */
-import {expect, jest} from "@jest/globals";
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 
 import {
   getGatewayProjectionIngestionStatus,
@@ -32,22 +31,22 @@ import {
   updatePlatformApiUserMapping
 } from "./PlatformApiMappingBackend";
 
-let fetchMock: ReturnType<typeof jest.fn>;
+let fetchMock: ReturnType<typeof vi.fn>;
 
-jest.mock("../Setting", () => ({
+vi.mock("../Setting", () => ({
   ServerUrl: "https://admin.example.invalid",
   getAcceptLanguage: () => "en",
 }));
 
 beforeEach(() => {
-  fetchMock = jest.fn(() => Promise.resolve({
+  fetchMock = vi.fn(() => Promise.resolve({
     json: () => Promise.resolve({status: "ok"}),
   }));
   global.fetch = fetchMock as unknown as typeof fetch;
 });
 
 afterEach(() => {
-  jest.resetAllMocks();
+  vi.resetAllMocks();
 });
 
 test("loads platform api mappings with explicit organization query", async() => {

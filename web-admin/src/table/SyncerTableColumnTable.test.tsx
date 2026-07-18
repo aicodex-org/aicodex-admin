@@ -1,20 +1,27 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
+import i18next from "i18next";
 import {cleanup, render} from "@testing-library/react";
-import {expect, jest} from "@jest/globals";
 import "../i18n";
 import SyncerTableColumnTable from "./SyncerTableColumnTable";
+import {fireEvent} from "@testing-library/react";
 
-const {fireEvent} = require("@testing-library/react") as {fireEvent: {click: (element: Element) => boolean}};
+let originalLanguage: string;
 
-afterEach(() => {
+beforeEach(async() => {
+  originalLanguage = i18next.language;
+  await i18next.changeLanguage("en");
+});
+
+afterEach(async() => {
   cleanup();
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
+  await i18next.changeLanguage(originalLanguage || "zh");
 });
 
 test("renders backend table columns with stable row keys", () => {
-  const consoleError = jest.spyOn(console, "error").mockImplementation(() => undefined);
-  const onUpdateTable = jest.fn();
+  const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  const onUpdateTable = vi.fn();
 
   const view = render(
     <SyncerTableColumnTable

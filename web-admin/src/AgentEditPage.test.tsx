@@ -1,12 +1,16 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import React from "react";
 import {act, cleanup, render} from "@testing-library/react";
-import {expect, jest} from "@jest/globals";
 import AgentEditPage from "./AgentEditPage";
 import * as AgentBackend from "./backend/AgentBackend";
 import * as ApplicationBackend from "./backend/ApplicationBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as Setting from "./Setting";
+import * as fs from "fs";
+import * as path from "path";
+import {fireEvent} from "@testing-library/react";
+import {fileURLToPath} from "url";
+const testFileDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -36,40 +40,29 @@ interface ElementProps {
   value?: unknown;
 }
 
-jest.mock("./backend/AgentBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
+vi.mock("./backend/AgentBackend", () => {
   return {
-    getAgent: factoryJest.fn(),
-    updateAgent: factoryJest.fn(),
-    deleteAgent: factoryJest.fn(),
+    getAgent: vi.fn(),
+    updateAgent: vi.fn(),
+    deleteAgent: vi.fn(),
   };
 });
 
-jest.mock("./backend/ApplicationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
+vi.mock("./backend/ApplicationBackend", () => {
   return {
-    getApplicationsByOrganization: factoryJest.fn(),
+    getApplicationsByOrganization: vi.fn(),
   };
 });
 
-jest.mock("./backend/OrganizationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
+vi.mock("./backend/OrganizationBackend", () => {
   return {
-    getOrganizations: factoryJest.fn(),
+    getOrganizations: vi.fn(),
   };
 });
 
 const agentBackendMock = AgentBackend as unknown as AgentBackendMock;
 const applicationBackendMock = ApplicationBackend as unknown as ApplicationBackendMock;
 const organizationBackendMock = OrganizationBackend as unknown as OrganizationBackendMock;
-const fs = require("fs") as {existsSync: (filePath: string) => boolean};
-const path = require("path") as {join: (...parts: string[]) => string};
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    change: (element: Element | null, event: unknown) => boolean;
-    click: (element: Element | null) => boolean;
-  };
-};
 let consoleErrorSpy: {mockRestore: () => void};
 
 const adminAccount = {owner: "admin", tag: "", isAdmin: true};
@@ -84,7 +77,7 @@ const agent: TestAgentRecord = {
 
 function createHistory() {
   return {
-    push: jest.fn(),
+    push: vi.fn(),
   };
 }
 
@@ -157,12 +150,12 @@ async function flushPromises() {
 
 describe("AgentEditPage", () => {
   beforeEach(() => {
-    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
       throw new Error([message, ...args].map(item => `${item}`).join(" "));
     });
-    jest.spyOn(Setting, "showMessage").mockImplementation(() => {});
-    jest.spyOn(Setting, "isMobile").mockReturnValue(false);
-    jest.spyOn(Setting, "isAdminUser").mockReturnValue(true);
+    vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+    vi.spyOn(Setting, "isMobile").mockReturnValue(false);
+    vi.spyOn(Setting, "isAdminUser").mockReturnValue(true);
     agentBackendMock.getAgent.mockResolvedValue({status: "ok", data: {...agent}});
     agentBackendMock.updateAgent.mockResolvedValue({status: "ok"});
     agentBackendMock.deleteAgent.mockResolvedValue({status: "ok"});
@@ -173,13 +166,13 @@ describe("AgentEditPage", () => {
   afterEach(() => {
     cleanup();
     consoleErrorSpy.mockRestore();
-    jest.restoreAllMocks();
-    jest.clearAllMocks();
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   test("is migrated from JavaScript to TSX", () => {
-    expect(fs.existsSync(path.join(__dirname, "AgentEditPage.tsx"))).toBe(true);
-    expect(fs.existsSync(path.join(__dirname, "AgentEditPage.js"))).toBe(false);
+    expect(fs.existsSync(path.join(testFileDirectory, "AgentEditPage.tsx"))).toBe(true);
+    expect(fs.existsSync(path.join(testFileDirectory, "AgentEditPage.js"))).toBe(false);
   });
 
   test("loads agent data and renders editable fields", async() => {
@@ -194,7 +187,7 @@ describe("AgentEditPage", () => {
   });
 
   test("publishes the agent display name for its workspace tab after loading and display-name edits", async() => {
-    const dispatchSpy = jest.spyOn(window, "dispatchEvent");
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
     const page = createPage();
 
     page.getAgent();
@@ -269,7 +262,7 @@ describe("AgentEditPage", () => {
 
   test("keeps edit form field handlers wired to agent state", () => {
     const page = createPage({mode: "add"});
-    jest.spyOn(Setting, "isMobile").mockReturnValue(true);
+    vi.spyOn(Setting, "isMobile").mockReturnValue(true);
     const handlers = new Map<unknown, ElementHandler>();
 
     visitReactNode(page.renderAgent(), (element) => {
@@ -298,7 +291,7 @@ describe("AgentEditPage", () => {
   });
 
   test("skips organization loading for non-admin accounts", () => {
-    jest.spyOn(Setting, "isAdminUser").mockReturnValue(false);
+    vi.spyOn(Setting, "isAdminUser").mockReturnValue(false);
     const page = createPage();
     organizationBackendMock.getOrganizations.mockResolvedValueOnce({status: "ok", data: [{name: "unused"}]});
 

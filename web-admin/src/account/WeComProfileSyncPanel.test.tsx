@@ -1,6 +1,5 @@
-/* eslint-env jest */
+import {afterEach, describe, expect, test, vi} from "vitest";
 import React from "react";
-import {expect, jest} from "@jest/globals";
 import {act, render} from "@testing-library/react";
 
 type LooseMock = {
@@ -13,23 +12,19 @@ type JestDomMatchers = {
   toBeInTheDocument: () => void;
 };
 
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element) => boolean;
-  };
-};
-const mockCreateWecomProfileConsentProfileSyncIntent = jest.fn() as unknown as LooseMock;
-const mockGetWecomProfileConsentIntentStatus = jest.fn() as unknown as LooseMock;
+const mockCreateWecomProfileConsentProfileSyncIntent = vi.fn() as unknown as LooseMock;
+const mockGetWecomProfileConsentIntentStatus = vi.fn() as unknown as LooseMock;
 
-jest.mock("i18next", () => ({
-  t: (key: string) => {
+vi.mock("i18next", () => {
+  const t = (key: string) => {
     const [, value] = key.split(":");
     return value || key;
-  },
-}));
+  };
+  return {default: {t}, t};
+});
 
-jest.mock("antd", () => {
-  const ReactFactory = require("react");
+vi.mock("antd", async() => {
+  const ReactFactory = await vi.importActual<typeof import("react")>("react");
   return {
     Alert: ({message}: {message: string}) => ReactFactory.createElement("div", null, message),
     Button: ({children, disabled, onClick}: {children?: React.ReactNode; disabled?: boolean; onClick?: () => void}) => ReactFactory.createElement("button", {type: "button", disabled, onClick}, children),
@@ -41,8 +36,9 @@ jest.mock("antd", () => {
 });
 
 import WeComProfileSyncPanel from "./WeComProfileSyncPanel";
+import {fireEvent} from "@testing-library/react";
 
-jest.mock("../auth/AuthBackend", () => ({
+vi.mock("../auth/AuthBackend", () => ({
   createWecomProfileConsentProfileSyncIntent: (...args: unknown[]) => mockCreateWecomProfileConsentProfileSyncIntent(...args),
   getWecomProfileConsentIntentStatus: (...args: unknown[]) => mockGetWecomProfileConsentIntentStatus(...args),
 }));
@@ -76,13 +72,13 @@ describe("WeComProfileSyncPanel", () => {
   }
 
   afterEach(() => {
-    jest.useRealTimers();
-    jest.clearAllMocks();
+    vi.useRealTimers();
+    vi.clearAllMocks();
   });
 
   test("creates sync intent, renders QR code, polls completion and refreshes profile", async() => {
-    jest.useFakeTimers();
-    const onSynced = jest.fn();
+    vi.useFakeTimers();
+    const onSynced = vi.fn();
     mockCreateWecomProfileConsentProfileSyncIntent.mockResolvedValue({
       status: "ok",
       data: {
@@ -114,7 +110,7 @@ describe("WeComProfileSyncPanel", () => {
     expectElement(getByTestId("wecom-profile-sync-qrcode")).toHaveAttribute("data-value", "https://open.weixin.qq.com/connect/oauth2/authorize?scope=snsapi_privateinfo");
 
     await act(async() => {
-      jest.advanceTimersByTime(1500);
+      vi.advanceTimersByTime(1500);
       await Promise.resolve();
     });
 
@@ -130,7 +126,7 @@ describe("WeComProfileSyncPanel", () => {
     });
 
     const {getByText} = render(
-      <WeComProfileSyncPanel application={application} onSynced={jest.fn()} />
+      <WeComProfileSyncPanel application={application} onSynced={vi.fn()} />
     );
 
     fireEvent.click(getByText("Sync WeCom profile"));
@@ -148,7 +144,7 @@ describe("WeComProfileSyncPanel", () => {
     });
 
     const {getByText} = render(
-      <WeComProfileSyncPanel application={application} onSynced={jest.fn()} />
+      <WeComProfileSyncPanel application={application} onSynced={vi.fn()} />
     );
 
     fireEvent.click(getByText("Sync WeCom profile"));
@@ -161,7 +157,7 @@ describe("WeComProfileSyncPanel", () => {
     mockCreateWecomProfileConsentProfileSyncIntent.mockRejectedValue(new Error("create intent failed"));
 
     const {getByText} = render(
-      <WeComProfileSyncPanel application={application} onSynced={jest.fn()} />
+      <WeComProfileSyncPanel application={application} onSynced={vi.fn()} />
     );
 
     fireEvent.click(getByText("Sync WeCom profile"));
@@ -172,7 +168,7 @@ describe("WeComProfileSyncPanel", () => {
 
   test("reports missing WeCom sync provider before calling backend", async() => {
     const {getByText} = render(
-      <WeComProfileSyncPanel application={{name: "app-built-in", providers: []}} onSynced={jest.fn()} />
+      <WeComProfileSyncPanel application={{name: "app-built-in", providers: []}} onSynced={vi.fn()} />
     );
 
     const syncButton = getByText("Sync WeCom profile");
@@ -196,7 +192,7 @@ describe("WeComProfileSyncPanel", () => {
       ],
     };
     const {getByText} = render(
-      <WeComProfileSyncPanel application={incompleteApplication} onSynced={jest.fn()} />
+      <WeComProfileSyncPanel application={incompleteApplication} onSynced={vi.fn()} />
     );
 
     const syncButton = getByText("Sync WeCom profile");
@@ -208,7 +204,7 @@ describe("WeComProfileSyncPanel", () => {
   });
 
   test("renders expired poll status and error text", async() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     mockCreateWecomProfileConsentProfileSyncIntent.mockResolvedValue({
       status: "ok",
       data: {
@@ -227,14 +223,14 @@ describe("WeComProfileSyncPanel", () => {
     });
 
     const {getByText, getByTestId} = render(
-      <WeComProfileSyncPanel application={application} onSynced={jest.fn()} />
+      <WeComProfileSyncPanel application={application} onSynced={vi.fn()} />
     );
 
     fireEvent.click(getByText("Sync WeCom profile"));
     await flushEffects();
 
     await act(async() => {
-      jest.advanceTimersByTime(1500);
+      vi.advanceTimersByTime(1500);
       await Promise.resolve();
     });
 
@@ -244,7 +240,7 @@ describe("WeComProfileSyncPanel", () => {
   });
 
   test("keeps QR code active while poll status is pending", async() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     mockCreateWecomProfileConsentProfileSyncIntent.mockResolvedValue({
       status: "ok",
       data: {
@@ -260,14 +256,14 @@ describe("WeComProfileSyncPanel", () => {
     });
 
     const {getByText, getByTestId} = render(
-      <WeComProfileSyncPanel application={application} onSynced={jest.fn()} />
+      <WeComProfileSyncPanel application={application} onSynced={vi.fn()} />
     );
 
     fireEvent.click(getByText("Sync WeCom profile"));
     await flushEffects();
 
     await act(async() => {
-      jest.advanceTimersByTime(1500);
+      vi.advanceTimersByTime(1500);
       await Promise.resolve();
     });
 
@@ -276,7 +272,7 @@ describe("WeComProfileSyncPanel", () => {
   });
 
   test("shows poll error returned by backend", async() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     mockCreateWecomProfileConsentProfileSyncIntent.mockResolvedValue({
       status: "ok",
       data: {
@@ -292,14 +288,14 @@ describe("WeComProfileSyncPanel", () => {
     });
 
     const {getByText, getByTestId} = render(
-      <WeComProfileSyncPanel application={application} onSynced={jest.fn()} />
+      <WeComProfileSyncPanel application={application} onSynced={vi.fn()} />
     );
 
     fireEvent.click(getByText("Sync WeCom profile"));
     await flushEffects();
 
     await act(async() => {
-      jest.advanceTimersByTime(1500);
+      vi.advanceTimersByTime(1500);
       await Promise.resolve();
     });
 
@@ -308,7 +304,7 @@ describe("WeComProfileSyncPanel", () => {
   });
 
   test("shows thrown poll errors", async() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     mockCreateWecomProfileConsentProfileSyncIntent.mockResolvedValue({
       status: "ok",
       data: {
@@ -321,14 +317,14 @@ describe("WeComProfileSyncPanel", () => {
     mockGetWecomProfileConsentIntentStatus.mockRejectedValue(new Error("poll failed"));
 
     const {getByText, getByTestId} = render(
-      <WeComProfileSyncPanel application={application} onSynced={jest.fn()} />
+      <WeComProfileSyncPanel application={application} onSynced={vi.fn()} />
     );
 
     fireEvent.click(getByText("Sync WeCom profile"));
     await flushEffects();
 
     await act(async() => {
-      jest.advanceTimersByTime(1500);
+      vi.advanceTimersByTime(1500);
       await Promise.resolve();
     });
 
@@ -348,7 +344,7 @@ describe("WeComProfileSyncPanel", () => {
     });
 
     const {getByText, getByTestId, queryByTestId} = render(
-      <WeComProfileSyncPanel application={application} onSynced={jest.fn()} />
+      <WeComProfileSyncPanel application={application} onSynced={vi.fn()} />
     );
 
     fireEvent.click(getByText("Sync WeCom profile"));

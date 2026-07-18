@@ -1,8 +1,7 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
 import * as fs from "fs";
 import * as path from "path";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {act, cleanup, render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import PlanListPage from "./PlanListPage";
@@ -23,8 +22,10 @@ import * as UserBackend from "./backend/UserBackend";
 import * as Setting from "./Setting";
 import type {LegacyAny} from "./types/legacyPage";
 import {type ConsoleCallSpy, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
+import {fireEvent} from "@testing-library/react";
+import {fileURLToPath} from "url";
+const testFileDirectory = path.dirname(fileURLToPath(import.meta.url));
 
-declare const jest: typeof jestValue;
 let consoleErrorSpy: ConsoleCallSpy;
 
 type PlanRecord = import("./types/businessPayment").PlanRecord;
@@ -73,15 +74,8 @@ const organizationBackendMock = OrganizationBackend as unknown as OrganizationBa
 const roleBackendMock = RoleBackend as unknown as RoleBackendMock;
 const applicationBackendMock = ApplicationBackend as unknown as ApplicationBackendMock;
 const userBackendMock = UserBackend as unknown as UserBackendMock;
-const expect = jestExpect;
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-    change: (element: Element | null, event: unknown) => boolean;
-  };
-};
 
-jest.mock("i18next", () => ({
+vi.mock("i18next", () => ({
   __esModule: true,
   default: {
     language: "en",
@@ -98,81 +92,72 @@ jest.mock("i18next", () => ({
   },
 }));
 
-jest.mock("copy-to-clipboard", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
-  return factoryJest.fn();
+vi.mock("copy-to-clipboard", () => {
+  return ({default: vi.fn()});
 });
 
-jest.mock("./backend/PlanBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/PlanBackend", () => {
   return {
-    addPlan: factoryJest.fn(),
-    deletePlan: factoryJest.fn(),
-    getPlan: factoryJest.fn(),
-    getPlans: factoryJest.fn(),
-    updatePlan: factoryJest.fn(),
+    addPlan: vi.fn(),
+    deletePlan: vi.fn(),
+    getPlan: vi.fn(),
+    getPlans: vi.fn(),
+    updatePlan: vi.fn(),
   };
 });
 
-jest.mock("./backend/PricingBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/PricingBackend", () => {
   return {
-    addPricing: factoryJest.fn(),
-    deletePricing: factoryJest.fn(),
-    getPricing: factoryJest.fn(),
-    getPricings: factoryJest.fn(),
-    updatePricing: factoryJest.fn(),
+    addPricing: vi.fn(),
+    deletePricing: vi.fn(),
+    getPricing: vi.fn(),
+    getPricings: vi.fn(),
+    updatePricing: vi.fn(),
   };
 });
 
-jest.mock("./backend/SubscriptionBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/SubscriptionBackend", () => {
   return {
-    addSubscription: factoryJest.fn(),
-    deleteSubscription: factoryJest.fn(),
-    getSubscription: factoryJest.fn(),
-    getSubscriptions: factoryJest.fn(),
-    updateSubscription: factoryJest.fn(),
+    addSubscription: vi.fn(),
+    deleteSubscription: vi.fn(),
+    getSubscription: vi.fn(),
+    getSubscriptions: vi.fn(),
+    updateSubscription: vi.fn(),
   };
 });
 
-jest.mock("./backend/ProviderBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/ProviderBackend", () => {
   return {
-    getProviders: factoryJest.fn(),
+    getProviders: vi.fn(),
   };
 });
 
-jest.mock("./backend/OrganizationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/OrganizationBackend", () => {
   return {
-    getOrganizations: factoryJest.fn(),
+    getOrganizations: vi.fn(),
   };
 });
 
-jest.mock("./backend/RoleBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/RoleBackend", () => {
   return {
-    getRoles: factoryJest.fn(),
+    getRoles: vi.fn(),
   };
 });
 
-jest.mock("./backend/ApplicationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/ApplicationBackend", () => {
   return {
-    getApplicationsByOrganization: factoryJest.fn(),
+    getApplicationsByOrganization: vi.fn(),
   };
 });
 
-jest.mock("./backend/UserBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/UserBackend", () => {
   return {
-    getUsers: factoryJest.fn(),
+    getUsers: vi.fn(),
   };
 });
 
-jest.mock("./pricing/SingleCard", () => {
-  const ReactFactory = require("react");
+vi.mock("./pricing/SingleCard", async() => {
+  const ReactFactory = await vi.importActual<typeof import("react")>("react");
   return {
     __esModule: true,
     default: (props: {plan?: PlanRecord; link?: string}) => ReactFactory.createElement(
@@ -186,16 +171,16 @@ jest.mock("./pricing/SingleCard", () => {
   };
 });
 
-jest.mock("./common/CustomGithubCorner", () => {
-  const ReactFactory = require("react");
+vi.mock("./common/CustomGithubCorner", async() => {
+  const ReactFactory = await vi.importActual<typeof import("react")>("react");
   return {
     __esModule: true,
     default: () => ReactFactory.createElement("span", {"data-testid": "github-corner"}, "corner"),
   };
 });
 
-jest.mock("./common/modal/PopconfirmModal", () => {
-  const ReactFactory = require("react");
+vi.mock("./common/modal/PopconfirmModal", async() => {
+  const ReactFactory = await vi.importActual<typeof import("react")>("react");
   return {
     __esModule: true,
     default: (props: {disabled?: boolean; onConfirm?: () => void; text?: string; children?: React.ReactNode}) => ReactFactory.createElement(
@@ -277,7 +262,7 @@ async function flushAsyncWork() {
 
 function createHistory() {
   return {
-    push: jestValue.fn(),
+    push: vi.fn(),
   };
 }
 
@@ -323,9 +308,9 @@ function createPlanListPage(props: Record<string, LegacyAny> = {}) {
   }) as unknown as Harness<PlanListPage>;
   installSynchronousSetState(page);
   page.state = {...page.state, data: [cloneFixture(plan)], pagination: {current: 2, pageSize: 10, total: 1}, loading: false};
-  page.getColumnSearchProps = jestValue.fn(() => ({})) as unknown as LooseMock;
-  page.getTablePaginationProps = jestValue.fn(() => false) as unknown as LooseMock;
-  page.handleTableChange = jestValue.fn() as unknown as LooseMock;
+  page.getColumnSearchProps = vi.fn(() => ({})) as unknown as LooseMock;
+  page.getTablePaginationProps = vi.fn(() => false) as unknown as LooseMock;
+  page.handleTableChange = vi.fn() as unknown as LooseMock;
   return page;
 }
 
@@ -338,9 +323,9 @@ function createPricingListPage(props: Record<string, LegacyAny> = {}) {
   }) as unknown as Harness<PricingListPage>;
   installSynchronousSetState(page);
   page.state = {...page.state, data: [cloneFixture(pricing)], pagination: {current: 2, pageSize: 10, total: 1}, loading: false};
-  page.getColumnSearchProps = jestValue.fn(() => ({})) as unknown as LooseMock;
-  page.getTablePaginationProps = jestValue.fn(() => false) as unknown as LooseMock;
-  page.handleTableChange = jestValue.fn() as unknown as LooseMock;
+  page.getColumnSearchProps = vi.fn(() => ({})) as unknown as LooseMock;
+  page.getTablePaginationProps = vi.fn(() => false) as unknown as LooseMock;
+  page.handleTableChange = vi.fn() as unknown as LooseMock;
   return page;
 }
 
@@ -353,9 +338,9 @@ function createSubscriptionListPage(props: Record<string, LegacyAny> = {}) {
   }) as unknown as Harness<SubscriptionListPage>;
   installSynchronousSetState(page);
   page.state = {...page.state, data: [cloneFixture(subscription)], pagination: {current: 2, pageSize: 10, total: 1}, loading: false};
-  page.getColumnSearchProps = jestValue.fn(() => ({})) as unknown as LooseMock;
-  page.getTablePaginationProps = jestValue.fn(() => false) as unknown as LooseMock;
-  page.handleTableChange = jestValue.fn() as unknown as LooseMock;
+  page.getColumnSearchProps = vi.fn(() => ({})) as unknown as LooseMock;
+  page.getTablePaginationProps = vi.fn(() => false) as unknown as LooseMock;
+  page.handleTableChange = vi.fn() as unknown as LooseMock;
   return page;
 }
 
@@ -417,33 +402,33 @@ function createSubscriptionEditPage(props: Record<string, LegacyAny> = {}) {
 
 beforeEach(() => {
   cleanup();
-  consoleErrorSpy = jestValue.spyOn(console, "error") as unknown as ConsoleCallSpy;
+  consoleErrorSpy = vi.spyOn(console, "error") as unknown as ConsoleCallSpy;
   window.history.pushState({}, "", "/");
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: () => ({
       matches: false,
-      addListener: jestValue.fn(),
-      removeListener: jestValue.fn(),
-      addEventListener: jestValue.fn(),
-      removeEventListener: jestValue.fn(),
-      dispatchEvent: jestValue.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
     }),
   });
-  jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "getRandomName").mockReturnValue("random");
-  jestValue.spyOn(Setting, "getRequestOrganization").mockReturnValue("built-in");
-  jestValue.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(false);
-  jestValue.spyOn(Setting, "isLocalAdminUser").mockReturnValue(true);
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(false);
-  jestValue.spyOn(Setting, "goToLinkSoft").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "getFormattedDate").mockImplementation((value: LegacyAny) => `formatted:${value}`);
-  jestValue.spyOn(Setting, "getPriceDisplay").mockImplementation(((value: LegacyAny, currency: LegacyAny) => `$${value} (${currency})`) as LegacyAny);
-  jestValue.spyOn(Setting, "getCurrencySymbol").mockReturnValue("$");
-  jestValue.spyOn(Setting, "getCurrencyText").mockReturnValue("USD");
-  jestValue.spyOn(Setting, "getTag").mockImplementation(((type: string, text: string, icon: React.ReactNode) => <span data-tag-type={type}>{icon}{text}</span>) as LegacyAny);
-  jestValue.spyOn(Setting, "getLabel").mockImplementation(((label: LegacyAny) => `${label}`) as LegacyAny);
-  jestValue.spyOn(Setting, "getOption").mockImplementation((label: string, value: string) => ({label, value}));
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "getRandomName").mockReturnValue("random");
+  vi.spyOn(Setting, "getRequestOrganization").mockReturnValue("built-in");
+  vi.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(false);
+  vi.spyOn(Setting, "isLocalAdminUser").mockReturnValue(true);
+  vi.spyOn(Setting, "isMobile").mockReturnValue(false);
+  vi.spyOn(Setting, "goToLinkSoft").mockImplementation(() => {});
+  vi.spyOn(Setting, "getFormattedDate").mockImplementation((value: LegacyAny) => `formatted:${value}`);
+  vi.spyOn(Setting, "getPriceDisplay").mockImplementation(((value: LegacyAny, currency: LegacyAny) => `$${value} (${currency})`) as LegacyAny);
+  vi.spyOn(Setting, "getCurrencySymbol").mockReturnValue("$");
+  vi.spyOn(Setting, "getCurrencyText").mockReturnValue("USD");
+  vi.spyOn(Setting, "getTag").mockImplementation(((type: string, text: string, icon: React.ReactNode) => <span data-tag-type={type}>{icon}{text}</span>) as LegacyAny);
+  vi.spyOn(Setting, "getLabel").mockImplementation(((label: LegacyAny) => `${label}`) as LegacyAny);
+  vi.spyOn(Setting, "getOption").mockImplementation((label: string, value: string) => ({label, value}));
   planBackendMock.addPlan.mockResolvedValue({status: "ok"});
   planBackendMock.deletePlan.mockResolvedValue({status: "ok"});
   planBackendMock.getPlan.mockResolvedValue({status: "ok", data: cloneFixture(plan)});
@@ -470,13 +455,13 @@ afterEach(() => {
   cleanup();
   const actWarnings = getReactActWarnings(consoleErrorSpy.mock.calls);
   consoleErrorSpy.mockRestore();
-  jestValue.restoreAllMocks();
-  jestValue.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
   expect(actWarnings).toEqual([]);
 });
 
 test("uses TSX files for migrated plan pricing and subscription pages", () => {
-  const srcDir = __dirname;
+  const srcDir = testFileDirectory;
   [
     "PlanListPage",
     "PlanEditPage",
@@ -502,7 +487,7 @@ test("keeps plan list creation fetch table actions and failure branches stable",
   expect(history.push).toHaveBeenCalledWith({pathname: "/plans/built-in/plan_random", mode: "add"});
 
   const originalFetch = page.fetch;
-  page.fetch = jestValue.fn() as unknown as LooseMock;
+  page.fetch = vi.fn() as unknown as LooseMock;
   page.deletePlan(0);
   await flushAsyncWork();
   expect(planBackendMock.deletePlan).toHaveBeenCalledWith(plan);
@@ -540,7 +525,7 @@ test("keeps plan list creation fetch table actions and failure branches stable",
   await flushAsyncWork();
   expect(Setting.showMessage).toHaveBeenCalledWith("error", "Failed to delete: delete failed");
 
-  jestValue.spyOn(Setting, "isResponseDenied").mockReturnValueOnce(true);
+  vi.spyOn(Setting, "isResponseDenied").mockReturnValueOnce(true);
   planBackendMock.getPlans.mockResolvedValueOnce({status: "error", msg: "denied"});
   page.fetch({pagination: {current: 1, pageSize: 10}});
   await flushAsyncWork();
@@ -572,7 +557,7 @@ test("keeps pricing list creation fetch plan links and permission branches stabl
   plansView.unmount();
   expect(columns.find(column => column.key === "plans")?.render?.([], pricing, 0)).toBe("(empty)");
 
-  jestValue.spyOn(Setting, "isLocalAdminUser").mockReturnValue(false);
+  vi.spyOn(Setting, "isLocalAdminUser").mockReturnValue(false);
   const actionView = render(<>{columns.find(column => column.key === "op")?.render?.(undefined, pricing, 0)}</>);
   fireEvent.click(actionView.getByText("View"));
   expect(history.push).toHaveBeenCalledWith({pathname: "/pricings/built-in/pricing_monthly", mode: "view"});
@@ -628,7 +613,7 @@ test("keeps subscription list creation status renderers and failure branches sta
 });
 
 test("publishes plan pricing and subscription display names for their workspace tabs", async() => {
-  const dispatchSpy = jestValue.spyOn(window, "dispatchEvent");
+  const dispatchSpy = vi.spyOn(window, "dispatchEvent");
   const planPage = createPlanEditPage();
   const pricingPage = createPricingEditPage();
   const subscriptionPage = createSubscriptionEditPage();
@@ -785,7 +770,7 @@ test("keeps pricing edit preview field updates save delete and PricingPage stabl
   planBackendMock.getPlan
     .mockResolvedValueOnce({status: "ok", data: {...plan, name: "plan_basic", displayName: "Basic Plan"}})
     .mockResolvedValueOnce({status: "ok", data: {...yearlyPlan, name: "plan_yearly", displayName: "Yearly Plan"}});
-  const pricingPage = new PricingPage({owner: "built-in", pricing: previewPricing, account, onUpdatePricing: jestValue.fn()}) as unknown as Harness<PricingPage>;
+  const pricingPage = new PricingPage({owner: "built-in", pricing: previewPricing, account, onUpdatePricing: vi.fn()}) as unknown as Harness<PricingPage>;
   installSynchronousSetState(pricingPage);
   pricingPage.componentDidMount();
   await flushAsyncWork();
@@ -868,7 +853,7 @@ test("covers plan pricing and subscription list permission and network branches"
   const pricingPage = createPricingListPage();
   const subscriptionPage = createSubscriptionListPage();
 
-  jestValue.spyOn(Setting, "isLocalAdminUser").mockReturnValue(false);
+  vi.spyOn(Setting, "isLocalAdminUser").mockReturnValue(false);
   const planTable = planPage.renderTable([plan]) as React.ReactElement<{children: React.ReactElement<{columns: Array<{key?: string; render?: LegacyAny}>; title: () => React.ReactNode}>}>;
   const planTableElement = React.Children.toArray(planTable.props.children)[0] as React.ReactElement<{columns: Array<{key?: string; render?: LegacyAny}>; title: () => React.ReactNode}>;
   const planToolbar = render(<>{planTableElement.props.title()}</>);
@@ -892,7 +877,7 @@ test("covers plan pricing and subscription list permission and network branches"
   planPage.fetch({pagination: {current: 1, pageSize: 10}});
   await flushAsyncWork();
   expect(Setting.showMessage).toHaveBeenCalledWith("error", "plan list failed");
-  jestValue.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValueOnce(true);
+  vi.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValueOnce(true);
   planBackendMock.getPlans.mockResolvedValueOnce({status: "ok", data: [plan], data2: 1});
   planPage.fetch({pagination: {current: 3, pageSize: 20}, type: "Monthly"});
   await flushAsyncWork();
@@ -903,7 +888,7 @@ test("covers plan pricing and subscription list permission and network branches"
   await flushAsyncWork();
   expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("pricing add network"));
   pricingBackendMock.deletePricing.mockResolvedValueOnce({status: "ok"});
-  pricingPage.fetch = jestValue.fn() as unknown as LooseMock;
+  pricingPage.fetch = vi.fn() as unknown as LooseMock;
   pricingPage.deletePricing(0);
   await flushAsyncWork();
   expect(pricingPage.fetch).toHaveBeenCalledWith(expect.objectContaining({pagination: expect.objectContaining({current: 1})}));
@@ -1069,7 +1054,7 @@ test("covers edit page null guards add and view modes plus backend failure branc
 });
 
 test("covers PricingPage loading, update, mobile, anonymous and error branches", async() => {
-  const onUpdatePricing = jestValue.fn();
+  const onUpdatePricing = vi.fn();
   window.history.pushState({}, "", "/select-plan/built-in/pricing_monthly?user=alice");
   const loadedPage = new PricingPage({
     owner: "built-in",
@@ -1119,7 +1104,7 @@ test("covers PricingPage loading, update, mobile, anonymous and error branches",
   expect(anonymousView.getByTestId("pricing-single-card").getAttribute("href")).toBe("/signup/app_main?plan=plan_basic&pricing=pricing_monthly");
   anonymousView.unmount();
 
-  jestValue.spyOn(Setting, "isMobile").mockReturnValueOnce(true);
+  vi.spyOn(Setting, "isMobile").mockReturnValueOnce(true);
   const mobileView = render(<MemoryRouter>{anonymousPage.renderCards()}</MemoryRouter>);
   expect(mobileView.getByTestId("pricing-single-card")).not.toBeNull();
   mobileView.unmount();

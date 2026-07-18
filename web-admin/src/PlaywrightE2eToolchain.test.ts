@@ -1,7 +1,11 @@
-/* eslint-env jest */
-import {expect} from "@jest/globals";
+import {describe, expect, test} from "vitest";
+import {createRequire} from "module";
 import fs from "fs";
 import path from "path";
+import {fileURLToPath} from "url";
+
+const require = createRequire(import.meta.url);
+const testFileDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 interface PackageJson {
   devDependencies: Record<string, string>;
@@ -13,7 +17,7 @@ interface RuntimeHelper {
   resolveE2EBaseURL?: (value?: string) => string;
 }
 
-const repoRoot = path.resolve(__dirname, "../..");
+const repoRoot = path.resolve(testFileDirectory, "../..");
 const webAdminRoot = path.join(repoRoot, "web-admin");
 const packageJson = JSON.parse(
   fs.readFileSync(path.join(webAdminRoot, "package.json"), "utf8")

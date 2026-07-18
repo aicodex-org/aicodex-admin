@@ -1,5 +1,4 @@
-/* eslint-env jest */
-import {beforeEach, describe, expect, test} from "@jest/globals";
+import {beforeEach, describe, expect, test} from "vitest";
 import {getAdminLoginRedirectPath} from "./adminLoginRouting";
 
 describe("getAdminLoginRedirectPath", () => {

@@ -1,6 +1,5 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import * as Setting from "./Setting";
@@ -8,8 +7,7 @@ import * as FormBackend from "./backend/FormBackend";
 import * as SyncerBackend from "./backend/SyncerBackend";
 import SyncerListPage from "./SyncerListPage";
 import type {SyncerRecord} from "./backend/SyncerBackend";
-
-declare const jest: typeof jestValue;
+import {fireEvent} from "@testing-library/react";
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -23,35 +21,27 @@ type FormBackendMock = Record<keyof typeof FormBackend, LooseMock>;
 
 const backendMock = SyncerBackend as unknown as BackendMock;
 const formBackendMock = FormBackend as unknown as FormBackendMock;
-const expect = jestExpect;
 type TestTableColumn = {
   key?: string;
   sorter?: unknown;
   render?: (text: unknown, record: SyncerRecord, index: number) => React.ReactNode;
 };
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-  };
-};
 
-jest.mock("./backend/SyncerBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/SyncerBackend", () => {
   return {
-    getSyncers: factoryJest.fn(),
-    getSyncer: factoryJest.fn(),
-    updateSyncer: factoryJest.fn(),
-    addSyncer: factoryJest.fn(),
-    testSyncerDb: factoryJest.fn(),
-    deleteSyncer: factoryJest.fn(),
-    runSyncer: factoryJest.fn(),
+    getSyncers: vi.fn(),
+    getSyncer: vi.fn(),
+    updateSyncer: vi.fn(),
+    addSyncer: vi.fn(),
+    testSyncerDb: vi.fn(),
+    deleteSyncer: vi.fn(),
+    runSyncer: vi.fn(),
   };
 });
 
-jest.mock("./backend/FormBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/FormBackend", () => {
   return {
-    getForm: factoryJest.fn(),
+    getForm: vi.fn(),
   };
 });
 
@@ -63,7 +53,7 @@ function flushPromises() {
 
 function createHistory() {
   return {
-    push: jestValue.fn(),
+    push: vi.fn(),
   };
 }
 
@@ -99,8 +89,8 @@ function renderPage() {
 beforeEach(() => {
   localStorage.clear();
   localStorage.setItem("organization", "engineering");
-  jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
   formBackendMock.getForm.mockResolvedValue({status: "ok", data: {formItems: []}});
   backendMock.getSyncers.mockResolvedValue({
     status: "ok",
@@ -113,8 +103,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  jestValue.restoreAllMocks();
-  jestValue.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
 });
 
 test("renders syncer rows and fetches the selected organization", async() => {
@@ -246,7 +236,7 @@ test("runs syncer and reports success or failure", async() => {
 
 test("deletes syncer and rolls back pagination for the last row", async() => {
   const page = createPage();
-  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  page.fetch = vi.fn() as unknown as typeof page.fetch;
   page.state = {
     ...page.state,
     data: [{owner: "admin", name: "syncer-main"}],
@@ -296,9 +286,9 @@ test("builds table columns, actions and toolbar without changing handlers", () =
     };
     callback?.();
   }) as typeof page.setState;
-  jestValue.spyOn(page, "runSyncer").mockImplementation(() => {});
-  jestValue.spyOn(page, "deleteSyncer").mockImplementation(() => {});
-  jestValue.spyOn(page, "addSyncer").mockImplementation(() => {});
+  vi.spyOn(page, "runSyncer").mockImplementation(() => {});
+  vi.spyOn(page, "deleteSyncer").mockImplementation(() => {});
+  vi.spyOn(page, "addSyncer").mockImplementation(() => {});
 
   const tableWrapper = page.renderTable([{
     owner: "admin",

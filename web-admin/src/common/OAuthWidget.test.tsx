@@ -1,10 +1,10 @@
-/* eslint-env jest */
+import {beforeEach, expect, test, vi} from "vitest";
 import React from "react";
 import {render} from "@testing-library/react";
-import {beforeEach, expect, jest} from "@jest/globals";
 import OAuthWidget from "./OAuthWidget";
 import * as AuthBackend from "../auth/AuthBackend";
 import * as Setting from "../Setting";
+import {fireEvent} from "@testing-library/react";
 
 type UnlinkMock = {
   (...args: unknown[]): unknown;
@@ -12,22 +12,19 @@ type UnlinkMock = {
   mockResolvedValue: (value: unknown) => UnlinkMock;
 };
 
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {click: (element: Element) => boolean};
-};
-
-jest.mock("../auth/AuthBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jest};
-  return {unlink: factoryJest.fn()};
+vi.mock("../auth/AuthBackend", () => {
+  return {unlink: vi.fn()};
 });
-jest.mock("../account/AccountAvatar", () => function AccountAvatarMock(props: {alt?: string}) {
-  return <span data-testid="account-avatar">{props.alt}</span>;
-});
+vi.mock("../account/AccountAvatar", () => ({
+  default: function AccountAvatarMock(props: {alt?: string}) {
+    return <span data-testid="account-avatar">{props.alt}</span>;
+  },
+}));
 
 const unlinkMock = AuthBackend.unlink as unknown as UnlinkMock;
 
 function renderWalletWidget(linkedValue: string) {
-  const onUnlinked = jest.fn();
+  const onUnlinked = vi.fn();
   const user = {id: "user-1", metamask: linkedValue, properties: {}};
   const account = {id: "user-1", isAdmin: false};
   const providerItem = {
@@ -54,11 +51,11 @@ function renderWalletWidget(linkedValue: string) {
 beforeEach(() => {
   unlinkMock.mockReset();
   unlinkMock.mockResolvedValue({status: "ok"} as never);
-  jest.spyOn(Setting, "getLanguage").mockReturnValue("en");
-  jest.spyOn(Setting, "isMobile").mockReturnValue(false);
-  jest.spyOn(Setting, "isAdminUser").mockReturnValue(false);
-  jest.spyOn(Setting, "getProviderLogo").mockReturnValue(<span>Wallet</span>);
-  jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  vi.spyOn(Setting, "getLanguage").mockReturnValue("en");
+  vi.spyOn(Setting, "isMobile").mockReturnValue(false);
+  vi.spyOn(Setting, "isAdminUser").mockReturnValue(false);
+  vi.spyOn(Setting, "getProviderLogo").mockReturnValue(<span>Wallet</span>);
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
 });
 
 test("does not render a Link action for an empty retired wallet binding", () => {

@@ -1,10 +1,11 @@
-import {expect} from "@jest/globals";
+import {describe, expect, test} from "vitest";
 import {
   ACCESS_WIZARD_STEP_IDS,
-  type AccessWizardDomain,
   buildAccessWizardPlans,
-  filterAccessWizardPlans,
+  filterAccessWizardPlans
 } from "./identityAccessWizard";
+
+type AccessWizardDomain = import("./identityAccessWizard").AccessWizardDomain;
 
 const providers = {
   pagePath: "/providers",

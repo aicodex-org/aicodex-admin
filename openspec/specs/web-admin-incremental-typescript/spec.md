@@ -1,10 +1,10 @@
 # web-admin-incremental-typescript Specification
 
 ## Purpose
-定义 `web-admin` TypeScript 稳态规则：`src/` 业务源码不再新增 `.js` / `.jsx`，新增 React、共享逻辑、接口模型和测试默认使用 `.tsx` / `.ts` / `.test.tsx` / `.test.ts`；保留的 public raw scripts、CRACO/Node 构建入口等 runtime JS 通过生成链路、`@ts-check` 或专用 typecheck 管控，Playwright E2E 资产使用独立 TypeScript 边界。后续前端 change 以增量 TypeScript gate 和 `yarn typecheck` 防回退，Jest、build、coverage 和浏览器验证按风险选择。
+定义 `web-admin` TypeScript 稳态规则：`src/` 业务源码不再新增 `.js` / `.jsx`，新增 React、共享逻辑、接口模型和测试默认使用 `.tsx` / `.ts` / `.test.tsx` / `.test.ts`；保留的public raw scripts与Node运行入口通过生成链路、`@ts-check`或专用typecheck管控，Playwright E2E资产使用独立TypeScript边界。后续前端change以Bun、增量TypeScript gate、typed Vite和Vitest单一真值防回退。
 ## Requirements
 ### Requirement: TypeScript 稳态工具链
-`web-admin` SHALL 支持React 18项目内业务源码以 `.ts` / `.tsx`为默认实现形态，并 SHALL 使用typed Vite配置构建应用，同时保留必要runtime JS与Jest/React Scripts的受控验证边界。
+`web-admin` SHALL 支持React 18项目内业务源码以 `.ts` / `.tsx`为默认实现形态，并 SHALL 使用typed Vite配置构建应用，同时保留必要runtime JS的受控验证边界；当前单元测试 SHALL 使用Vitest且不得恢复Jest/React Scripts活动真值。
 
 #### Scenario: JS 和 TSX 共存构建
 - **WHEN** 开发者在 `web-admin/src`下新增或修改 `.ts` / `.tsx`业务源码，同时仓库保留public raw scripts、Node构建入口或历史兼容JS入口
@@ -1252,9 +1252,10 @@ Admin 前端 SHALL 支持将 `web-admin/src/auth` 中剩余的 WeCom 登录 pane
 - **AND** 若迁移需要任何 WeCom 登录行为语义变化，change SHALL stop at RC/blocked instead of self-closeout
 
 ### Requirement: TypeScript稳态验证命令遵循Bun单一真值
-Bun采用后，增量TypeScript主规格中仍代表当前标准执行入口的验证命令 SHALL 使用 `bun run <script>`或等价Bun入口；历史交付要求中的验证层级 SHALL 保留，但现行契约 SHALL NOT 继续要求安装或调用Yarn。已归档change中的历史命令 SHALL 保持原始证据，不做追溯改写。
+Bun采用后，增量TypeScript主规格中仍代表当前标准执行入口的验证命令 SHALL 使用 `bun run <script>`或等价Bun入口；Vitest采用后，当前标准单元测试入口 SHALL 使用Vitest而不是Jest或`bun test`。历史交付要求中的验证层级 SHALL 保留，但已归档change中的历史命令 SHALL 保持原始证据，不作为活动Yarn或Jest runner真值。
 
 #### Scenario: 归档同步TypeScript主规格
 - **WHEN** 本change完成sync-specs归档
 - **THEN** 主规格中仍代表当前标准入口的Yarn命令字面量 SHALL 全部迁移为Bun runner
-- **AND** typecheck、build-tooling、incremental gate、Jest、build与浏览器验证层级 SHALL 不因runner迁移被删除或降级
+- **AND** 当前单元测试runner SHALL 为Vitest且不得保留Jest/Vitest双runner
+- **AND** typecheck、build-tooling、incremental gate、单元测试、coverage、build与浏览器验证层级 SHALL 不因runner迁移被删除或降级

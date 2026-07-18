@@ -1,10 +1,14 @@
-import {afterEach, expect, jest, test} from "@jest/globals";
+import {createRequire} from "module";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import {fileURLToPath} from "url";
+import {afterEach, expect, test, vi} from "vitest";
 
-const installerPath = path.resolve(__dirname, "../scripts/install-with-retry.cjs");
-const webAdminRoot = path.resolve(__dirname, "..");
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const require = createRequire(import.meta.url);
+const installerPath = path.resolve(currentDir, "../scripts/install-with-retry.cjs");
+const webAdminRoot = path.resolve(currentDir, "..");
 
 interface VerificationSummary {
   directExpected: number;
@@ -64,10 +68,11 @@ function createCompleteFixture(platform: NodeJS.Platform): string {
   const dependencies = {
     "@scope/direct": "1.0.0",
     "@playwright/test": "1.61.1",
-    jest: "27.5.1",
+    "@vitest/coverage-v8": "4.1.10",
     react: "18.2.0",
     "react-dom": "18.2.0",
     vite: "8.1.4",
+    vitest: "4.1.10",
   };
   const devDependencies = {playwright: "1.61.1", "playwright-core": "1.61.1"};
   writeJson(path.join(root, "package.json"), {
@@ -82,7 +87,7 @@ function createCompleteFixture(platform: NodeJS.Platform): string {
     writeInstalledPackage(root, name, version);
   });
   writeInstalledPackage(root, "rc-virtual-list", "3.18.2");
-  ["jest", "vite", "playwright"].forEach(name => writeCli(root, name, platform));
+  ["vitest", "vite", "playwright"].forEach(name => writeCli(root, name, platform));
   return root;
 }
 
@@ -120,7 +125,7 @@ test("exports the bounded Bun install contract", () => {
 test("rejects a Bun binary that does not match the packageManager pin before installing", async() => {
   const installer = loadInstaller();
   const root = createCompleteFixture("win32");
-  const runInstall = jest.fn();
+  const runInstall = vi.fn();
 
   await expect(
     installer.runInstallWithRetry({
@@ -146,7 +151,7 @@ test("rejects a custom Windows cache before spawning the first install", async()
   const sentinel = path.join(customCache, "keep.txt");
   fs.mkdirSync(customCache, {recursive: true});
   fs.writeFileSync(sentinel, "user evidence\n", "utf8");
-  const runInstall = jest.fn();
+  const runInstall = vi.fn();
 
   await expect(
     installer.runInstallWithRetry({
@@ -176,10 +181,10 @@ test("keeps the same workspace and succeeds after the first Windows install fail
       return {exitCode: attempt === 1 ? 1 : 0};
     },
     verifyInstalledTree: () => ({
-      directExpected: 8,
-      directVerified: 8,
+      directExpected: 9,
+      directVerified: 9,
       resolutionVerified: 1,
-      criticalEntriesVerified: 8,
+      criticalEntriesVerified: 9,
     }),
     sleep: (milliseconds: number) => delays.push(milliseconds),
     stdout: output.stdoutWriter,
@@ -265,10 +270,10 @@ test.each(["win32", "linux"] as const)(
     const root = createCompleteFixture(platform);
 
     expect(installer.verifyInstalledTree({cwd: root, platform})).toEqual({
-      directExpected: 8,
-      directVerified: 8,
+      directExpected: 9,
+      directVerified: 9,
       resolutionVerified: 1,
-      criticalEntriesVerified: 8,
+      criticalEntriesVerified: 9,
     });
   }
 );
@@ -350,8 +355,8 @@ test("rejects a missing critical CLI entry", () => {
 test("aborts immediately when an install attempt changes bun.lock", async() => {
   const installer = loadInstaller();
   const root = createCompleteFixture("win32");
-  const verifyInstalledTree = jest.fn();
-  const runInstall = jest.fn(() => {
+  const verifyInstalledTree = vi.fn();
+  const runInstall = vi.fn(() => {
     fs.appendFileSync(path.join(root, "bun.lock"), "drift\n", "utf8");
     return {exitCode: 0};
   });
@@ -374,8 +379,8 @@ test("aborts immediately when an install attempt changes bun.lock", async() => {
 test("retries a zero-exit install whose dependency tree is still incomplete", async() => {
   const installer = loadInstaller();
   const root = createCompleteFixture("win32");
-  const runInstall = jest.fn(() => ({exitCode: 0}));
-  const verifyInstalledTree = jest.fn(() => {
+  const runInstall = vi.fn(() => ({exitCode: 0}));
+  const verifyInstalledTree = vi.fn(() => {
     throw new Error("missing direct dependency manifests: react");
   });
 
@@ -417,7 +422,7 @@ test("requires a Bun packageManager pin and a bun.lock before retrying", async()
 test("treats a thrown install process error as a visible failed attempt", async() => {
   const installer = loadInstaller();
   const output = createOutput();
-  const runInstall = jest.fn(() => {
+  const runInstall = vi.fn(() => {
     throw new Error("spawn blocked");
   });
 
@@ -457,7 +462,8 @@ test("uses Bun 1.3.14 and bun.lock as the only tracked package manager truth", (
   expect(packageJson.scripts.preinstall).toBe("node scripts/install-with-retry.cjs --guard");
   expect(packageJson.scripts.prebuild).toBe("bun run public-scripts:build");
   expect(packageJson.scripts.lint).toContain("--ignore-pattern \"**/*.test.*\"");
-  expect(packageJson.scripts["test:ci"]).toContain("jest");
+  expect(packageJson.scripts.test).toBe("vitest");
+  expect(packageJson.scripts["test:ci"]).toBe("vitest run");
   expect(packageJson.scripts["test:ci"]).not.toContain("bun test");
   expect(fs.existsSync(path.join(webAdminRoot, "bun.lock"))).toBe(true);
   expect(fs.existsSync(path.join(webAdminRoot, "yarn.lock"))).toBe(false);

@@ -1,14 +1,12 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {cleanup, render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import * as Setting from "./Setting";
 import * as EnforcerBackend from "./backend/EnforcerBackend";
 import * as FormBackend from "./backend/FormBackend";
 import EnforcerListPage from "./EnforcerListPage";
-
-declare const jest: typeof jestValue;
+import {fireEvent} from "@testing-library/react";
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -62,35 +60,27 @@ type TestEnforcerListPage = Omit<EnforcerListPage, "state" | "fetch"> & {
 
 const enforcerBackendMock = EnforcerBackend as unknown as EnforcerBackendMock;
 const formBackendMock = FormBackend as unknown as FormBackendMock;
-const expect = jestExpect;
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-  };
-};
 
-jest.mock("./backend/EnforcerBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/EnforcerBackend", () => {
   return {
-    getEnforcers: factoryJest.fn(),
-    getEnforcer: factoryJest.fn(),
-    updateEnforcer: factoryJest.fn(),
-    addEnforcer: factoryJest.fn(),
-    deleteEnforcer: factoryJest.fn(),
+    getEnforcers: vi.fn(),
+    getEnforcer: vi.fn(),
+    updateEnforcer: vi.fn(),
+    addEnforcer: vi.fn(),
+    deleteEnforcer: vi.fn(),
   };
 });
 
-jest.mock("./TourConfig", () => ({
+vi.mock("./TourConfig", () => ({
   getTourVisible: () => false,
   getSteps: () => [],
   getNextUrl: () => "",
   setIsTourVisible: () => undefined,
 }));
 
-jest.mock("./backend/FormBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/FormBackend", () => {
   return {
-    getForm: factoryJest.fn(),
+    getForm: vi.fn(),
   };
 });
 
@@ -115,7 +105,7 @@ function flushPromises() {
 
 function createHistory() {
   return {
-    push: jestValue.fn(),
+    push: vi.fn(),
   };
 }
 
@@ -150,16 +140,16 @@ beforeEach(() => {
     writable: true,
     value: () => ({
       matches: false,
-      addListener: jestValue.fn(),
-      removeListener: jestValue.fn(),
-      addEventListener: jestValue.fn(),
-      removeEventListener: jestValue.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
     }),
   });
-  jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(false);
-  jestValue.spyOn(Setting, "builtInObject").mockImplementation((record: unknown) => {
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
+  vi.spyOn(Setting, "isMobile").mockReturnValue(false);
+  vi.spyOn(Setting, "builtInObject").mockImplementation((record: unknown) => {
     return (record as {owner?: string}).owner === "built-in";
   });
   formBackendMock.getForm.mockResolvedValue({status: "ok", data: {formItems: []}});
@@ -169,8 +159,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  jestValue.restoreAllMocks();
-  jestValue.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
   cleanup();
 });
 
@@ -187,8 +177,8 @@ test("renders enforcer table, links and action handlers", () => {
     match: {path: "/enforcers", params: {}},
   } as React.ComponentProps<typeof EnforcerListPage>);
   installSynchronousSetState(page);
-  jestValue.spyOn(page, "addEnforcer").mockImplementation(() => {});
-  jestValue.spyOn(page, "deleteEnforcer").mockImplementation(() => {});
+  vi.spyOn(page, "addEnforcer").mockImplementation(() => {});
+  vi.spyOn(page, "deleteEnforcer").mockImplementation(() => {});
 
   const tableWrapper = page.renderTable([enforcer]) as React.ReactElement<{children: React.ReactElement<{columns: TestTableColumn[]; title: () => React.ReactNode}>}>;
   const table = tableWrapper.props.children;
@@ -240,7 +230,7 @@ test("renders enforcer table, links and action handlers", () => {
 });
 
 test("keeps mobile action column without fixed behavior and creates enforcer through existing route", async() => {
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(true);
+  vi.spyOn(Setting, "isMobile").mockReturnValue(true);
   const history = createHistory();
   const page = new EnforcerListPage({
     account: adminAccount,
@@ -270,7 +260,7 @@ test("keeps mobile action column without fixed behavior and creates enforcer thr
 
 test("fetches enforcers with organization filters and handles denied responses", async() => {
   const page = createListPage();
-  jestValue.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(true);
+  vi.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(true);
   enforcerBackendMock.getEnforcers.mockResolvedValueOnce({status: "ok", data: [enforcer], data2: 1});
 
   page.fetch({
@@ -300,7 +290,7 @@ test("fetches enforcers with organization filters and handles denied responses",
 test("deletes enforcer, refreshes pagination and reports errors", async() => {
   const page = createListPage();
   const originalFetch = page.fetch;
-  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  page.fetch = vi.fn() as unknown as typeof page.fetch;
   page.state = {
     ...page.state,
     data: [enforcer],

@@ -1,8 +1,7 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
 import {Button, Input, InputNumber, Radio, Select, Switch} from "antd";
 import {cleanup, render} from "@testing-library/react";
-import {expect, jest} from "@jest/globals";
 import i18next from "i18next";
 import "./i18n";
 import SyncerEditPage from "./SyncerEditPage";
@@ -10,8 +9,7 @@ import * as SyncerBackend from "./backend/SyncerBackend";
 import * as Setting from "./Setting";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
-
-const {fireEvent} = require("@testing-library/react") as {fireEvent: {click: (element: Element) => boolean}};
+import {fireEvent} from "@testing-library/react";
 
 type PageHarness = SyncerEditPage & {
   state: any;
@@ -27,13 +25,13 @@ type PageHarness = SyncerEditPage & {
   updateSyncerTlsPolicy: (value: "system" | "custom-ca" | "legacy-insecure") => void;
 };
 
-jest.mock("./common/Editor", () => function EditorMock() {
+vi.mock("./common/Editor", () => ({default: function EditorMock() {
   return <pre data-testid="syncer-error-editor" />;
-});
+}}));
 
-jest.mock("./table/SyncerTableColumnTable", () => function SyncerTableColumnTableMock(props: {onUpdateTable: (value: unknown[]) => void}) {
+vi.mock("./table/SyncerTableColumnTable", () => ({default: function SyncerTableColumnTableMock(props: {onUpdateTable: (value: unknown[]) => void}) {
   return <button data-testid="syncer-table-columns" onClick={() => props.onUpdateTable([{name: "id"}])}>Update columns</button>;
-});
+}}));
 
 const baseSyncer = {
   owner: "admin",
@@ -110,7 +108,7 @@ function createPage(options: {mode?: "add" | "edit"; syncer?: Record<string, unk
   const page = new SyncerEditPage({
     match: {params: {syncerName: "directory-main"}},
     location: {mode: options.mode, syncer: options.locationSyncer},
-    history: {push: jest.fn()},
+    history: {push: vi.fn()},
     account: {owner: "engineering", name: "admin", isAdmin: true},
   } as any) as unknown as PageHarness;
 
@@ -135,13 +133,13 @@ function createPage(options: {mode?: "add" | "edit"; syncer?: Record<string, unk
 beforeEach(async() => {
   await useTestLanguage("en");
   window.location.hash = "";
-  jest.spyOn(Setting, "isMobile").mockReturnValue(false);
-  jest.spyOn(Setting, "isAdminUser").mockReturnValue(true);
+  vi.spyOn(Setting, "isMobile").mockReturnValue(false);
+  vi.spyOn(Setting, "isAdminUser").mockReturnValue(true);
 });
 
 afterEach(() => {
   cleanup();
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 test("renders Syncer in the shared tabbed edit shell without duplicate legacy actions", () => {
@@ -204,7 +202,7 @@ test("uses a lightweight empty state for missing error information and keeps rea
 
 test("keeps shell actions wired to navigation and save semantics", () => {
   const editPage = createPage();
-  const submitSyncerEdit = jest.spyOn(editPage, "submitSyncerEdit").mockImplementation(() => undefined);
+  const submitSyncerEdit = vi.spyOn(editPage, "submitSyncerEdit").mockImplementation(() => undefined);
   const editView = render(<>{editPage.renderSyncer()}</>);
 
   fireEvent.click(editView.getByText("Back"));
@@ -226,7 +224,7 @@ test("keeps shell actions wired to navigation and save semantics", () => {
 
 test("renders searchable organization display names while keeping identifiers as values", () => {
   const page = createPage();
-  const getCerts = jest.spyOn(page, "getCerts").mockImplementation(() => undefined);
+  const getCerts = vi.spyOn(page, "getCerts").mockImplementation(() => undefined);
   page.state.syncer.cert = "old-cert";
   const options = React.Children.toArray(page.renderOrganizationOptions()) as Array<React.ReactElement<any>>;
   const select = collectElementsByType(page.renderSyncer(), Select)
@@ -250,7 +248,7 @@ test("renders searchable organization display names while keeping identifiers as
 
 test("keeps type switching defaults and never tests a connection automatically", () => {
   const page = createPage();
-  const testSyncerDb = jest.spyOn(SyncerBackend, "testSyncerDb");
+  const testSyncerDb = vi.spyOn(SyncerBackend, "testSyncerDb");
   const typeSelect = collectElementsByType(page.renderSyncer(), Select)
     .find(element => (element.props as {value?: unknown}).value === "Database");
 
@@ -265,9 +263,9 @@ test("keeps type switching defaults and never tests a connection automatically",
 test("loads an add-mode draft from navigation state without reading or writing the backend", () => {
   const draft = {...baseSyncer, name: "directory-draft", type: "Active Directory", tlsPolicy: undefined};
   const page = createPage({mode: "add", locationSyncer: draft});
-  const getSyncer = jest.spyOn(SyncerBackend, "getSyncer");
-  const addSyncer = jest.spyOn(SyncerBackend, "addSyncer");
-  const getCerts = jest.spyOn(page, "getCerts").mockImplementation(() => undefined);
+  const getSyncer = vi.spyOn(SyncerBackend, "getSyncer");
+  const addSyncer = vi.spyOn(SyncerBackend, "addSyncer");
+  const getCerts = vi.spyOn(page, "getCerts").mockImplementation(() => undefined);
 
   page.getSyncer();
 
@@ -279,18 +277,18 @@ test("loads an add-mode draft from navigation state without reading or writing t
 
 test("normalizes loaded Active Directory absence to legacy_unmigrated without changing other Syncers", async() => {
   const activeDirectory = createPage();
-  jest.spyOn(SyncerBackend, "getSyncer").mockResolvedValueOnce({
+  vi.spyOn(SyncerBackend, "getSyncer").mockResolvedValueOnce({
     status: "ok",
     data: {...baseSyncer, type: "Active Directory", tlsPolicy: undefined},
   } as any);
-  jest.spyOn(activeDirectory, "getCerts").mockImplementation(() => undefined);
+  vi.spyOn(activeDirectory, "getCerts").mockImplementation(() => undefined);
   activeDirectory.getSyncer();
   await flushPromises();
   expect(activeDirectory.state.syncer.tlsPolicy).toBe("");
 
   const database = createPage();
-  jest.spyOn(SyncerBackend, "getSyncer").mockResolvedValueOnce({status: "ok", data: {...baseSyncer}} as any);
-  jest.spyOn(database, "getCerts").mockImplementation(() => undefined);
+  vi.spyOn(SyncerBackend, "getSyncer").mockResolvedValueOnce({status: "ok", data: {...baseSyncer}} as any);
+  vi.spyOn(database, "getCerts").mockImplementation(() => undefined);
   database.getSyncer();
   await flushPromises();
   expect(database.state.syncer.tlsPolicy).toBeUndefined();
@@ -312,8 +310,8 @@ test("normalizes loaded Active Directory absence to legacy_unmigrated without ch
 
 test("keeps legacy Active Directory policy empty on unrelated save", async() => {
   const page = createPage({syncer: {type: "Active Directory", tlsPolicy: "", cert: ""}});
-  const updateSyncer = jest.spyOn(SyncerBackend, "updateSyncer").mockResolvedValue({status: "ok"} as any);
-  jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  const updateSyncer = vi.spyOn(SyncerBackend, "updateSyncer").mockResolvedValue({status: "ok"} as any);
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
 
   page.submitSyncerEdit(false);
   await flushPromises();
@@ -329,8 +327,8 @@ test("keeps legacy Active Directory policy empty on unrelated save", async() => 
 ] as Array<[Record<string, unknown>, string]>).forEach(([tlsConfig, message]) => {
   test(`blocks invalid Syncer TLS policy: ${String(tlsConfig.tlsPolicy)}/${String(tlsConfig.cert)}`, () => {
     const page = createPage({syncer: {type: "Active Directory", ...tlsConfig}});
-    const updateSyncer = jest.spyOn(SyncerBackend, "updateSyncer");
-    const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+    const updateSyncer = vi.spyOn(SyncerBackend, "updateSyncer");
+    const showMessage = vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
 
     page.submitSyncerEdit(false);
 
@@ -348,11 +346,11 @@ test("applies Syncer policy atomically and disables duplicate saves", async() =>
 
   let finishSave: ((value: {status: string}) => void) | undefined;
   const pendingSave = new Promise<{status: string}>(resolve => {finishSave = resolve;});
-  const updateSyncer = jest.spyOn(SyncerBackend, "updateSyncer").mockReturnValue(pendingSave as any);
-  jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  const updateSyncer = vi.spyOn(SyncerBackend, "updateSyncer").mockReturnValue(pendingSave as any);
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
 
   const realSetState = page.setState;
-  page.setState = jest.fn() as unknown as typeof page.setState;
+  page.setState = vi.fn() as unknown as typeof page.setState;
   page.submitSyncerEdit(false);
   page.submitSyncerEdit(true);
   expect(updateSyncer).toHaveBeenCalledTimes(1);
@@ -442,11 +440,11 @@ test("reports all mocked connection-test outcomes and clears the loading state",
   const form = page.renderSyncerForm();
   const testButton = collectElementsByType(form, Button)
     .find(element => element.props.children === "Test Connection") as React.ReactElement<any>;
-  const testSyncerDb = jest.spyOn(SyncerBackend, "testSyncerDb")
+  const testSyncerDb = vi.spyOn(SyncerBackend, "testSyncerDb")
     .mockResolvedValueOnce({status: "ok"} as any)
     .mockResolvedValueOnce({status: "error", msg: "invalid credentials"} as any)
     .mockRejectedValueOnce(new Error("offline"));
-  const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  const showMessage = vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
 
   for (let i = 0; i < 3; i++) {
     testButton.props.onClick();
@@ -467,8 +465,8 @@ test("reports all mocked connection-test outcomes and clears the loading state",
 ] as Array<[boolean, string]>).forEach(([exitAfterSave, expectedPath]) => {
   test(`keeps the existing Syncer save payload and navigation for exit=${exitAfterSave}`, async() => {
     const page = createPage({syncer: {name: "directory-renamed"}});
-    const updateSyncer = jest.spyOn(SyncerBackend, "updateSyncer").mockResolvedValue({status: "ok"} as any);
-    jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+    const updateSyncer = vi.spyOn(SyncerBackend, "updateSyncer").mockResolvedValue({status: "ok"} as any);
+    vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
 
     page.submitSyncerEdit(exitAfterSave);
     await flushPromises();
@@ -485,8 +483,8 @@ test("reports all mocked connection-test outcomes and clears the loading state",
 
 test("creates add-mode Syncers only when saving and reports backend failures", async() => {
   const page = createPage({mode: "add"});
-  const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
-  const addSyncer = jest.spyOn(SyncerBackend, "addSyncer")
+  const showMessage = vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  const addSyncer = vi.spyOn(SyncerBackend, "addSyncer")
     .mockResolvedValueOnce({status: "ok"} as any);
 
   page.submitSyncerEdit(false);

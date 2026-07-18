@@ -1,4 +1,4 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 // Copyright 2026 The AICodex Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,13 +18,10 @@ import * as TestingLibrary from "@testing-library/react";
 import OrganizationSelect from "./OrganizationSelect";
 type LegacyAny = import("../../types/legacyPage").LegacyAny;
 
-declare const jest: LegacyAny;
-declare const expect: LegacyAny;
-
 const {fireEvent, render, screen, waitFor} = TestingLibrary as LegacyAny;
-const mockGetOrganizationNames = jest.fn();
+const mockGetOrganizationNames = vi.fn();
 
-jest.mock("../../backend/OrganizationBackend", () => ({
+vi.mock("../../backend/OrganizationBackend", () => ({
   getOrganizationNames: (...args: LegacyAny[]) => mockGetOrganizationNames(...args),
 }));
 
@@ -32,11 +29,11 @@ const mockMatchMedia = (query: string): LegacyAny => ({
   matches: false,
   media: query,
   onchange: null,
-  addListener: jest.fn(),
-  removeListener: jest.fn(),
-  addEventListener: jest.fn(),
-  removeEventListener: jest.fn(),
-  dispatchEvent: jest.fn(),
+  addListener: vi.fn(),
+  removeListener: vi.fn(),
+  addEventListener: vi.fn(),
+  removeEventListener: vi.fn(),
+  dispatchEvent: vi.fn(),
 });
 
 beforeEach(() => {
@@ -54,7 +51,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 function OrganizationSelectHarness() {
@@ -79,7 +76,7 @@ test("updates displayed organization when initValue changes", async() => {
 });
 
 test("excludes organizations from selectable options", async() => {
-  const handleChange = jest.fn();
+  const handleChange = vi.fn();
 
   render(<OrganizationSelect initValue="built-in" excludedOrganizations={["built-in"]} onChange={handleChange} />);
 
@@ -95,7 +92,7 @@ test("does not emit blank organization when all options are excluded", async() =
       {name: "built-in", displayName: "Built-in Organization"},
     ],
   });
-  const handleChange = jest.fn();
+  const handleChange = vi.fn();
 
   render(<OrganizationSelect initValue="built-in" excludedOrganizations={["built-in"]} onChange={handleChange} />);
 

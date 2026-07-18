@@ -1,4 +1,4 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 // Copyright 2026 The AICodex Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,20 +18,17 @@ import * as TestingLibrary from "@testing-library/react";
 import LanguageSelect from "./LanguageSelect";
 type LegacyAny = import("../../types/legacyPage").LegacyAny;
 
-declare const jest: LegacyAny;
-declare const expect: LegacyAny;
-
 const {render} = TestingLibrary as LegacyAny;
 
 const mockMatchMedia = (query: string): LegacyAny => ({
   matches: false,
   media: query,
   onchange: null,
-  addListener: jest.fn(),
-  removeListener: jest.fn(),
-  addEventListener: jest.fn(),
-  removeEventListener: jest.fn(),
-  dispatchEvent: jest.fn(),
+  addListener: vi.fn(),
+  removeListener: vi.fn(),
+  addEventListener: vi.fn(),
+  removeEventListener: vi.fn(),
+  dispatchEvent: vi.fn(),
 });
 
 beforeEach(() => {
@@ -42,12 +39,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 test("does not preload all flag icons during initial render", () => {
-  const imageConstructor = jest.fn(() => ({src: ""}));
-  jest.spyOn(window, "Image").mockImplementation(imageConstructor);
+  const imageConstructor = vi.fn(() => ({src: ""}));
+  vi.spyOn(window, "Image").mockImplementation(imageConstructor);
 
   render(<LanguageSelect />);
 

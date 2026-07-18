@@ -1,13 +1,14 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import React from "react";
-import {expect, jest} from "@jest/globals";
 import {act, cleanup, render} from "@testing-library/react";
 import i18next from "i18next";
 import en from "../locales/en/data.json";
 import zh from "../locales/zh/data.json";
+import WorkspaceTabs from "./WorkspaceTabs";
+import {fireEvent} from "@testing-library/react";
 
-jest.mock("antd", () => {
-  const React = require("react");
+vi.mock("antd", async() => {
+  const React = await vi.importActual<typeof import("react")>("react");
   return {
     Button: ({children, icon, ...props}: {children?: React.ReactNode; icon?: React.ReactNode}) => (
       <button type="button" {...props}>
@@ -38,14 +39,6 @@ jest.mock("antd", () => {
   };
 });
 
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element) => void;
-    scroll: (element: Element) => void;
-  };
-};
-const WorkspaceTabs = require("./WorkspaceTabs.tsx").default as typeof import("./WorkspaceTabs").default;
-
 const tabs = [
   {key: "/", path: "/", label: "企业认证总览", fixed: false, closable: true},
   {key: "/applications", path: "/applications", label: "接入中心", fixed: false, closable: true},
@@ -73,7 +66,7 @@ describe("WorkspaceTabs", () => {
   let consoleErrorSpy: {mockRestore: () => void};
 
   beforeEach(async() => {
-    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
       throw new Error(args.map(item => String(item)).join(" "));
     });
     await useTestLanguage("zh");
@@ -85,11 +78,11 @@ describe("WorkspaceTabs", () => {
   });
 
   test("renders desktop tabs with overview inside the scroll strip, active close affordance, and global close menu", () => {
-    const onNavigate = jest.fn();
-    const onClose = jest.fn();
-    const onCloseCurrent = jest.fn();
-    const onCloseOther = jest.fn();
-    const onCloseAll = jest.fn();
+    const onNavigate = vi.fn();
+    const onClose = vi.fn();
+    const onCloseCurrent = vi.fn();
+    const onCloseOther = vi.fn();
+    const onCloseAll = vi.fn();
     const view = render(
       <WorkspaceTabs
         tabs={tabs}
@@ -133,7 +126,7 @@ describe("WorkspaceTabs", () => {
   });
 
   test("passes draft route state back when navigating a workspace tab", () => {
-    const onNavigate = jest.fn();
+    const onNavigate = vi.fn();
     const draftState = {
       mode: "add",
       user: {
@@ -157,7 +150,7 @@ describe("WorkspaceTabs", () => {
         activePath="/applications"
         isMobile={false}
         onNavigate={onNavigate}
-        onClose={jest.fn()}
+        onClose={vi.fn()}
       />
     );
 
@@ -167,19 +160,19 @@ describe("WorkspaceTabs", () => {
   });
 
   test("renders desktop context menu with close current left right other and all actions", () => {
-    const onCloseCurrent = jest.fn();
-    const onCloseLeft = jest.fn();
-    const onCloseRight = jest.fn();
-    const onCloseOther = jest.fn();
-    const onCloseAll = jest.fn();
+    const onCloseCurrent = vi.fn();
+    const onCloseLeft = vi.fn();
+    const onCloseRight = vi.fn();
+    const onCloseOther = vi.fn();
+    const onCloseAll = vi.fn();
     const view = render(
       <WorkspaceTabs
         {...({
           tabs,
           activePath: "/applications",
           isMobile: false,
-          onNavigate: jest.fn(),
-          onClose: jest.fn(),
+          onNavigate: vi.fn(),
+          onClose: vi.fn(),
           onCloseCurrent,
           onCloseLeft,
           onCloseRight,
@@ -216,10 +209,10 @@ describe("WorkspaceTabs", () => {
 
   test("places desktop scroll controls on both sides of the scroll strip", async() => {
     const originalResizeObserver = globalThis.ResizeObserver;
-    const clientWidthSpy = jest.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(function getClientWidth(this: HTMLElement) {
+    const clientWidthSpy = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(function getClientWidth(this: HTMLElement) {
       return this.classList.contains("admin-workspace-tabs-scroll-viewport") ? 160 : 0;
     });
-    const scrollWidthSpy = jest.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function getScrollWidth(this: HTMLElement) {
+    const scrollWidthSpy = vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function getScrollWidth(this: HTMLElement) {
       return this.classList.contains("admin-workspace-tabs-scroll-viewport") ? 420 : 0;
     });
     globalThis.ResizeObserver = class {
@@ -248,11 +241,11 @@ describe("WorkspaceTabs", () => {
           ]}
           activePath="/providers"
           isMobile={false}
-          onNavigate={jest.fn()}
-          onClose={jest.fn()}
-          onCloseCurrent={jest.fn()}
-          onCloseOther={jest.fn()}
-          onCloseAll={jest.fn()}
+          onNavigate={vi.fn()}
+          onClose={vi.fn()}
+          onCloseCurrent={vi.fn()}
+          onCloseOther={vi.fn()}
+          onCloseAll={vi.fn()}
         />
       );
 
@@ -283,11 +276,11 @@ describe("WorkspaceTabs", () => {
           tabs,
           activePath: "/",
           isMobile: false,
-          onNavigate: jest.fn(),
-          onClose: jest.fn(),
-          onCloseCurrent: jest.fn(),
-          onCloseOther: jest.fn(),
-          onCloseAll: jest.fn(),
+          onNavigate: vi.fn(),
+          onClose: vi.fn(),
+          onCloseCurrent: vi.fn(),
+          onCloseOther: vi.fn(),
+          onCloseAll: vi.fn(),
         } as React.ComponentProps<typeof WorkspaceTabs>)}
       />
     );
@@ -299,15 +292,15 @@ describe("WorkspaceTabs", () => {
   test("updates desktop scroll arrows only when hidden tabs exist on that side", async() => {
     const originalResizeObserver = globalThis.ResizeObserver;
     const originalScrollBy = HTMLElement.prototype.scrollBy;
-    const scrollBy = jest.fn();
+    const scrollBy = vi.fn();
     let scrollLeft = 0;
-    const clientWidthSpy = jest.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(function getClientWidth(this: HTMLElement) {
+    const clientWidthSpy = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(function getClientWidth(this: HTMLElement) {
       return this.classList.contains("admin-workspace-tabs-scroll-viewport") ? 180 : 0;
     });
-    const scrollWidthSpy = jest.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function getScrollWidth(this: HTMLElement) {
+    const scrollWidthSpy = vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function getScrollWidth(this: HTMLElement) {
       return this.classList.contains("admin-workspace-tabs-scroll-viewport") ? 420 : 0;
     });
-    const scrollLeftSpy = jest.spyOn(HTMLElement.prototype, "scrollLeft", "get").mockImplementation(function getScrollLeft(this: HTMLElement) {
+    const scrollLeftSpy = vi.spyOn(HTMLElement.prototype, "scrollLeft", "get").mockImplementation(function getScrollLeft(this: HTMLElement) {
       return this.classList.contains("admin-workspace-tabs-scroll-viewport") ? scrollLeft : 0;
     });
     globalThis.ResizeObserver = class {
@@ -338,8 +331,8 @@ describe("WorkspaceTabs", () => {
           tabs={manyTabs}
           activePath="/tokens"
           isMobile={false}
-          onNavigate={jest.fn()}
-          onClose={jest.fn()}
+          onNavigate={vi.fn()}
+          onClose={vi.fn()}
         />
       );
 
@@ -375,7 +368,7 @@ describe("WorkspaceTabs", () => {
 
   test("scrolls the active desktop tab into view when selection changes", async() => {
     const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
-    const scrollIntoView = jest.fn();
+    const scrollIntoView = vi.fn();
     HTMLElement.prototype.scrollIntoView = scrollIntoView;
 
     const manyTabs = [
@@ -389,8 +382,8 @@ describe("WorkspaceTabs", () => {
           tabs={manyTabs}
           activePath="/records"
           isMobile={false}
-          onNavigate={jest.fn()}
-          onClose={jest.fn()}
+          onNavigate={vi.fn()}
+          onClose={vi.fn()}
         />
       );
 
@@ -408,8 +401,8 @@ describe("WorkspaceTabs", () => {
         tabs={tabs}
         activePath="/providers"
         isMobile={true}
-        onNavigate={jest.fn()}
-        onClose={jest.fn()}
+        onNavigate={vi.fn()}
+        onClose={vi.fn()}
       />
     );
 
@@ -421,8 +414,8 @@ describe("WorkspaceTabs", () => {
   });
 
   test("mobile overflow menu navigates and closes pages without changing the compact layout", () => {
-    const onNavigate = jest.fn();
-    const onClose = jest.fn();
+    const onNavigate = vi.fn();
+    const onClose = vi.fn();
     const view = render(
       <WorkspaceTabs
         tabs={tabs}
@@ -448,7 +441,7 @@ describe("WorkspaceTabs", () => {
   });
 
   test("renders all desktop tabs in the scroll strip without an overflow menu", () => {
-    const onNavigate = jest.fn();
+    const onNavigate = vi.fn();
     const manyTabs = [
       ...tabs,
       {key: "/records", path: "/records", label: "审计记录", fixed: false, closable: true},
@@ -459,7 +452,7 @@ describe("WorkspaceTabs", () => {
         activePath="/providers"
         isMobile={false}
         onNavigate={onNavigate}
-        onClose={jest.fn()}
+        onClose={vi.fn()}
       />
     );
 

@@ -1,26 +1,13 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 // eslint-disable-next-line unused-imports/no-unused-imports
 import type {ReactElement} from "react";
-import {jest, expect as jestExpect} from "@jest/globals";
 import {render} from "@testing-library/react";
 import {renderOAuthProviderFields} from "./OAuthProviderFields";
 // eslint-disable-next-line unused-imports/no-unused-imports
 import type {ProviderConfig} from "./ProviderFieldTypes";
+import {fireEvent} from "@testing-library/react";
 
-type DomMatcherResult = ReturnType<typeof jestExpect> & {
-  toBeInTheDocument: () => void;
-};
-
-const expect = jestExpect as unknown as (actual: unknown) => DomMatcherResult;
-
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    change: (element: Element, event: {target: {value: string}}) => void;
-    click: (element: Element) => void;
-  };
-};
-
-jest.mock("i18next", () => {
+vi.mock("i18next", () => {
   const mockI18next = {
     t: (key: string) => {
       const [, value] = key.split(":");
@@ -43,17 +30,17 @@ describe("renderOAuthProviderFields Lark endpoint mode guidance", () => {
       matches: false,
       media: query,
       onchange: null,
-      addListener: jest.fn(),
-      removeListener: jest.fn(),
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
-      dispatchEvent: jest.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
     } as unknown as MediaQueryList)) as typeof window.matchMedia;
-    jest.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   test("renders domestic Feishu endpoint mode details", () => {
@@ -64,7 +51,7 @@ describe("renderOAuthProviderFields Lark endpoint mode guidance", () => {
       disableSsl: false,
     };
 
-    const {container, getByText} = render(renderOAuthProviderFields(provider, jest.fn(), () => null) as ReactElement);
+    const {container, getByText} = render(renderOAuthProviderFields(provider, vi.fn(), () => null) as ReactElement);
 
     expect(getByText("Endpoint mode")).toBeInTheDocument();
     expect(container.querySelector(".provider-edit-endpoint-mode-control")).toBeInTheDocument();
@@ -85,7 +72,7 @@ describe("renderOAuthProviderFields Lark endpoint mode guidance", () => {
       disableSsl: true,
     };
 
-    const {getByText} = render(renderOAuthProviderFields(provider, jest.fn(), () => null) as ReactElement);
+    const {getByText} = render(renderOAuthProviderFields(provider, vi.fn(), () => null) as ReactElement);
 
     expect(getByText(/Global Lark/)).toBeInTheDocument();
     expect(getByText(/accounts\.larksuite\.com/)).toBeInTheDocument();
@@ -94,7 +81,7 @@ describe("renderOAuthProviderFields Lark endpoint mode guidance", () => {
   });
 
   test("updates the Google phone-number mode from the visible switch", () => {
-    const updateProviderField = jest.fn();
+    const updateProviderField = vi.fn();
     const {getByRole, getByText} = render(renderOAuthProviderFields({
       category: "OAuth",
       type: "Google",
@@ -109,7 +96,7 @@ describe("renderOAuthProviderFields Lark endpoint mode guidance", () => {
   });
 
   test("shows Azure tenant identity and updates its domain", () => {
-    const updateProviderField = jest.fn();
+    const updateProviderField = vi.fn();
     const {getByDisplayValue, getByText} = render(renderOAuthProviderFields({
       category: "OAuth",
       type: "AzureAD",
@@ -123,7 +110,7 @@ describe("renderOAuthProviderFields Lark endpoint mode guidance", () => {
   });
 
   test("edits the complete custom OAuth contract and keeps mapping and logo preview visible", () => {
-    const updateProviderField = jest.fn();
+    const updateProviderField = vi.fn();
     const {getByAltText, getByDisplayValue, getByRole, getByText} = render(renderOAuthProviderFields({
       category: "OAuth",
       type: "Custom OAuth",
@@ -147,7 +134,7 @@ describe("renderOAuthProviderFields Lark endpoint mode guidance", () => {
     fireEvent.change(getByDisplayValue("https://id.example/logo.png"), {target: {value: "https://new.example/logo.png"}});
     fireEvent.click(getByRole("switch"));
 
-    expect(updateProviderField.mock.calls).toEqual(jestExpect.arrayContaining([
+    expect(updateProviderField.mock.calls).toEqual(expect.arrayContaining([
       ["emailRegex", "@new.example$"],
       ["customAuthUrl", "https://new.example/auth"],
       ["customTokenUrl", "https://new.example/token"],
@@ -159,7 +146,7 @@ describe("renderOAuthProviderFields Lark endpoint mode guidance", () => {
   });
 
   test("keeps WeChat media controls usable only with the required credentials", () => {
-    const updateProviderField = jest.fn();
+    const updateProviderField = vi.fn();
     const {getAllByRole, getByDisplayValue, getByRole} = render(renderOAuthProviderFields({
       category: "OAuth",
       type: "WeChat",
@@ -174,7 +161,7 @@ describe("renderOAuthProviderFields Lark endpoint mode guidance", () => {
     fireEvent.change(getByDisplayValue("access-token"), {target: {value: "token-updated"}});
     fireEvent.click(getAllByRole("radio")[1]);
 
-    expect(updateProviderField.mock.calls).toEqual(jestExpect.arrayContaining([
+    expect(updateProviderField.mock.calls).toEqual(expect.arrayContaining([
       ["disableSsl", false],
       ["content", "token-updated"],
       ["signName", "media"],

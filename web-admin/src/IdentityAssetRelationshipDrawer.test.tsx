@@ -1,6 +1,5 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import React from "react";
-import {expect, jest} from "@jest/globals";
 import {cleanup, render, waitFor} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import i18next from "i18next";
@@ -34,7 +33,7 @@ describe("IdentityAssetRelationshipDrawer", () => {
   let consoleErrorSpy: {mockRestore: () => void};
 
   beforeEach(async() => {
-    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
       throw new Error(args.map(item => String(item)).join(" "));
     });
     Object.defineProperty(window, "matchMedia", {
@@ -43,11 +42,11 @@ describe("IdentityAssetRelationshipDrawer", () => {
         matches: false,
         media: query,
         onchange: null,
-        addListener: jest.fn(),
-        removeListener: jest.fn(),
-        addEventListener: jest.fn(),
-        removeEventListener: jest.fn(),
-        dispatchEvent: jest.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
       }),
     });
     await useTestLanguage("zh");
@@ -61,7 +60,7 @@ describe("IdentityAssetRelationshipDrawer", () => {
   test("renders an empty state before an identity asset is selected", () => {
     const view = render(
       <MemoryRouter>
-        <IdentityAssetRelationshipDrawer open asset={null} onClose={jest.fn()} />
+        <IdentityAssetRelationshipDrawer open asset={null} onClose={vi.fn()} />
       </MemoryRouter>
     );
 
@@ -84,7 +83,7 @@ describe("IdentityAssetRelationshipDrawer", () => {
       displayName: "Second identity app",
       providers: [],
     }, {pagePath: "/applications", loadedRows: 1});
-    const onClose = jest.fn();
+    const onClose = vi.fn();
     const view = render(
       <MemoryRouter>
         <IdentityAssetRelationshipDrawer open asset={first} onClose={onClose} />
@@ -127,7 +126,7 @@ describe("IdentityAssetRelationshipDrawer", () => {
 
     const view = render(
       <MemoryRouter>
-        <IdentityAssetRelationshipDrawer open asset={detail} onClose={jest.fn()} />
+        <IdentityAssetRelationshipDrawer open asset={detail} onClose={vi.fn()} />
       </MemoryRouter>
     );
 
@@ -161,7 +160,7 @@ describe("IdentityAssetRelationshipDrawer", () => {
 
     const view = render(
       <MemoryRouter>
-        <IdentityAssetRelationshipDrawer open asset={detail} onClose={jest.fn()} />
+        <IdentityAssetRelationshipDrawer open asset={detail} onClose={vi.fn()} />
       </MemoryRouter>
     );
 
@@ -189,7 +188,7 @@ describe("IdentityAssetRelationshipDrawer", () => {
 
     const view = render(
       <MemoryRouter>
-        <IdentityAssetRelationshipDrawer open asset={detail} onClose={jest.fn()} />
+        <IdentityAssetRelationshipDrawer open asset={detail} onClose={vi.fn()} />
       </MemoryRouter>
     );
 
@@ -215,7 +214,7 @@ describe("IdentityAssetRelationshipDrawer", () => {
 
     const view = render(
       <MemoryRouter>
-        <IdentityAssetRelationshipDrawer open asset={providerDetail} onClose={jest.fn()} />
+        <IdentityAssetRelationshipDrawer open asset={providerDetail} onClose={vi.fn()} />
       </MemoryRouter>
     );
 
@@ -228,7 +227,7 @@ describe("IdentityAssetRelationshipDrawer", () => {
         <IdentityAssetRelationshipDrawer
           open
           asset={{...providerDetail, permission: {allowed: false, reason: "restricted"}}}
-          onClose={jest.fn()}
+          onClose={vi.fn()}
         />
       </MemoryRouter>
     );

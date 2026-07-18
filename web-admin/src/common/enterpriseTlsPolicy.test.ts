@@ -1,3 +1,4 @@
+import {describe, expect, test} from "vitest";
 import {
   applyEnterpriseTlsPolicy,
   isEnterpriseTlsProvider,
@@ -6,7 +7,6 @@ import {
   projectSslCertOptions,
   validateEnterpriseTlsPolicy
 } from "./enterpriseTlsPolicy";
-import {expect} from "@jest/globals";
 
 describe("enterprise TLS policy contract", () => {
   ([

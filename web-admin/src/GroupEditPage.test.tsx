@@ -1,8 +1,7 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
 import {act, cleanup, render} from "@testing-library/react";
 import {Modal} from "antd";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import i18next from "i18next";
 import GroupEditPage from "./GroupEditPage";
 import * as GroupBackend from "./backend/GroupBackend";
@@ -11,8 +10,7 @@ import * as UserBackend from "./backend/UserBackend";
 import * as Setting from "./Setting";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
-
-declare const jest: typeof jestValue;
+import {fireEvent} from "@testing-library/react";
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -45,35 +43,26 @@ type ElementProps = {
   virtual?: boolean;
 };
 
-const expect = jestExpect;
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-  };
-};
 const groupBackendMock = GroupBackend as unknown as GroupBackendMock;
 const organizationBackendMock = OrganizationBackend as unknown as OrganizationBackendMock;
 const userBackendMock = UserBackend as unknown as UserBackendMock;
 
-jest.mock("./backend/GroupBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/GroupBackend", () => {
   return {
-    getGroup: factoryJest.fn(),
-    getGroups: factoryJest.fn(),
-    addGroup: factoryJest.fn(),
-    updateGroup: factoryJest.fn(),
-    deleteGroup: factoryJest.fn(),
+    getGroup: vi.fn(),
+    getGroups: vi.fn(),
+    addGroup: vi.fn(),
+    updateGroup: vi.fn(),
+    deleteGroup: vi.fn(),
   };
 });
 
-jest.mock("./backend/OrganizationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
-  return {getOrganizationNames: factoryJest.fn()};
+vi.mock("./backend/OrganizationBackend", () => {
+  return {getOrganizationNames: vi.fn()};
 });
 
-jest.mock("./backend/UserBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
-  return {getUsers: factoryJest.fn()};
+vi.mock("./backend/UserBackend", () => {
+  return {getUsers: vi.fn()};
 });
 
 const baseGroup = {
@@ -132,7 +121,7 @@ function flushPromises() {
 }
 
 function createHistory() {
-  return {push: jestValue.fn()};
+  return {push: vi.fn()};
 }
 
 function createPage(options: {
@@ -220,20 +209,20 @@ beforeEach(async() => {
   await useTestLanguage("en");
   sessionStorage.clear();
   setupBackend();
-  jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(false);
-  jestValue.spyOn(Setting, "isAdminUser").mockReturnValue(true);
-  jestValue.spyOn(Setting, "getLabel").mockImplementation((label: unknown) => <span>{String(label)}</span>);
-  jestValue.spyOn(Setting, "getOption").mockImplementation((label: unknown, value: unknown) => ({label, value}));
-  jestValue.spyOn(Setting, "getTags").mockImplementation((tags: string[]) => [<span key="users">{tags.join(",")}</span>]);
-  jestValue.spyOn(Setting, "deepCopy").mockImplementation((value: unknown) => JSON.parse(JSON.stringify(value)));
-  jestValue.spyOn(Setting, "myParseInt").mockImplementation((value: unknown) => Number.parseInt(String(value), 10));
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "isMobile").mockReturnValue(false);
+  vi.spyOn(Setting, "isAdminUser").mockReturnValue(true);
+  vi.spyOn(Setting, "getLabel").mockImplementation((label: unknown) => <span>{String(label)}</span>);
+  vi.spyOn(Setting, "getOption").mockImplementation((label: unknown, value: unknown) => ({label, value}));
+  vi.spyOn(Setting, "getTags").mockImplementation((tags: string[]) => [<span key="users">{tags.join(",")}</span>]);
+  vi.spyOn(Setting, "deepCopy").mockImplementation((value: unknown) => JSON.parse(JSON.stringify(value)));
+  vi.spyOn(Setting, "myParseInt").mockImplementation((value: unknown) => Number.parseInt(String(value), 10));
 });
 
 afterEach(() => {
   cleanup();
-  jestValue.restoreAllMocks();
-  jestValue.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
 });
 
 test("loads group, groups and organizations before rendering edit fields", async() => {
@@ -321,7 +310,7 @@ test("shows empty read-only member summary", () => {
 
 test("navigates to the existing group tree member context for local groups", () => {
   const page = createPage();
-  const historyPush = page.props.history.push as ReturnType<typeof jestValue.fn>;
+  const historyPush = page.props.history.push as ReturnType<typeof vi.fn>;
   const view = render(<>{page.renderGroup()}</>);
 
   fireEvent.click(view.getByText("Manage members"));
@@ -331,7 +320,7 @@ test("navigates to the existing group tree member context for local groups", () 
 
 test("publishes a display-name workspace tab label for group edit routes", async() => {
   await useTestLanguage("en");
-  const dispatchSpy = jestValue.spyOn(window, "dispatchEvent");
+  const dispatchSpy = vi.spyOn(window, "dispatchEvent");
   const page = createPage();
 
   page.publishWorkspaceTabLabel(page.state.group!);
@@ -398,7 +387,7 @@ test("keeps empty parent options and legacy parse branch stable", () => {
 
 test("keeps rendered edit controls wired to group state updates", () => {
   const page = createPage();
-  const getGroupsSpy = jestValue.spyOn(page, "getGroups");
+  const getGroupsSpy = vi.spyOn(page, "getGroups");
   const node = page.renderGroup();
 
   visitReactNode(node, (element) => {
@@ -450,7 +439,7 @@ test("blocks save before required group fields are filled", () => {
 
 test("saves group with top-group marker and navigates to renamed group", async() => {
   const page = createPage({group: {name: "group-renamed", parentId: "engineering"}});
-  const historyPush = page.props.history.push as ReturnType<typeof jestValue.fn>;
+  const historyPush = page.props.history.push as ReturnType<typeof vi.fn>;
 
   page.submitGroupEdit(false);
   await flushPromises();
@@ -468,7 +457,7 @@ test("saves group with top-group marker and navigates to renamed group", async()
 
 test("save-exit returns to group tree URL or group list", async() => {
   const page = createPage();
-  const historyPush = page.props.history.push as ReturnType<typeof jestValue.fn>;
+  const historyPush = page.props.history.push as ReturnType<typeof vi.fn>;
   sessionStorage.setItem("groupTreeUrl", "/groups/tree/engineering");
 
   page.submitGroupEdit(true);
@@ -524,7 +513,7 @@ test("creates a group once and uses update for the next save", async() => {
 
 test("deletes groups with existing return semantics and reports failures", async() => {
   const page = createPage({mode: "add"});
-  const historyPush = page.props.history.push as ReturnType<typeof jestValue.fn>;
+  const historyPush = page.props.history.push as ReturnType<typeof vi.fn>;
   sessionStorage.setItem("groupTreeUrl", "/groups/tree/engineering");
 
   page.deleteGroup();
@@ -551,12 +540,12 @@ test("deletes groups with existing return semantics and reports failures", async
 });
 
 test("confirms dirty cancel and back before leaving", async() => {
-  const confirmSpy = jestValue.spyOn(Modal, "confirm").mockImplementation((config) => {
+  const confirmSpy = vi.spyOn(Modal, "confirm").mockImplementation((config) => {
     config.onOk?.();
-    return {destroy: jestValue.fn(), update: jestValue.fn()};
+    return {destroy: vi.fn(), update: vi.fn()};
   });
   const page = createPage();
-  const historyPush = page.props.history.push as ReturnType<typeof jestValue.fn>;
+  const historyPush = page.props.history.push as ReturnType<typeof vi.fn>;
   sessionStorage.setItem("groupTreeUrl", "/groups/tree/engineering");
   page.setState({dirty: true});
 

@@ -1,6 +1,5 @@
-/* eslint-env jest */
+import {afterEach, describe, expect, test, vi} from "vitest";
 import React from "react";
-import {jest, expect as jestExpect} from "@jest/globals";
 import {act, render} from "@testing-library/react";
 
 type LooseMock = {
@@ -9,29 +8,6 @@ type LooseMock = {
   mockResolvedValueOnce: (value: unknown) => LooseMock;
   mockRejectedValue: (value: unknown) => LooseMock;
   mockReturnValue: (value: unknown) => LooseMock;
-};
-
-type DomMatcherResult = ReturnType<typeof jestExpect> & {
-  toBeInTheDocument: () => void;
-  toHaveAttribute: (name: string, value?: unknown) => void;
-  toHaveStyle: (style: string | Record<string, unknown>) => void;
-  not: ReturnType<typeof jestExpect> & {
-    toHaveBeenCalled: () => void;
-    toBeInTheDocument: () => void;
-  };
-};
-
-type TestExpect = {
-  (actual: unknown): DomMatcherResult;
-  objectContaining: typeof jestExpect.objectContaining;
-};
-
-const expect = jestExpect as unknown as TestExpect;
-
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element) => boolean;
-  };
 };
 
 type MockQrCodeProps = {
@@ -60,16 +36,16 @@ type WeComIntentTestResponse = {
   }>;
 };
 
-jest.mock("i18next", () => ({
-  t: (key: string) => {
+vi.mock("i18next", () => {
+  const t = (key: string) => {
     const [, value] = key.split(":");
     return value || key;
-  },
-}));
+  };
+  return {default: {t}, t};
+});
 
-jest.mock("antd", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jest};
-  const actual = factoryJest.requireActual("antd") as typeof import("antd");
+vi.mock("antd", async() => {
+  const actual = await vi.importActual<typeof import("antd")>("antd");
   return {
     ...actual,
     QRCode: ({value, status, size, style}: MockQrCodeProps) => (
@@ -78,7 +54,7 @@ jest.mock("antd", () => {
   };
 });
 
-jest.mock("./mfa/MfaAuthVerifyForm", () => ({
+vi.mock("./mfa/MfaAuthVerifyForm", () => ({
   MfaAuthVerifyForm: () => <div data-testid="wecom-mfa-form" />,
   NextMfa: "NextMfa",
 }));
@@ -86,20 +62,19 @@ jest.mock("./mfa/MfaAuthVerifyForm", () => ({
 import WeComLoginPanel from "./WeComLoginPanel";
 import * as AuthBackend from "./AuthBackend";
 import * as Provider from "./Provider";
+import {fireEvent} from "@testing-library/react";
 
-jest.mock("./AuthBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jest};
+vi.mock("./AuthBackend", () => {
   return {
-    createWecomProfileConsentLoginIntent: factoryJest.fn(),
-    getWecomProfileConsentIntentStatus: factoryJest.fn(),
-    completeWecomProfileConsentLoginIntent: factoryJest.fn(),
+    createWecomProfileConsentLoginIntent: vi.fn(),
+    getWecomProfileConsentIntentStatus: vi.fn(),
+    completeWecomProfileConsentLoginIntent: vi.fn(),
   };
 });
 
-jest.mock("./Provider", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jest};
+vi.mock("./Provider", () => {
   return {
-    getAuthUrl: factoryJest.fn(() => "https://login.work.weixin.qq.com/wwlogin/sso/login?appid=wx-test-appid&agentid=1000002&redirect_uri=https://example.com/callback&state=test-state&scope=snsapi_privateinfo"),
+    getAuthUrl: vi.fn(() => "https://login.work.weixin.qq.com/wwlogin/sso/login?appid=wx-test-appid&agentid=1000002&redirect_uri=https://example.com/callback&state=test-state&scope=snsapi_privateinfo"),
   };
 });
 
@@ -109,7 +84,7 @@ const completeWecomProfileConsentLoginIntentMock = AuthBackend.completeWecomProf
 const getAuthUrlMock = Provider.getAuthUrl as unknown as LooseMock;
 
 function installMockWeComWidget(): LooseMock {
-  const wwLoginMock = jest.fn() as unknown as LooseMock;
+  const wwLoginMock = vi.fn() as unknown as LooseMock;
   window.WwLogin = wwLoginMock as unknown as Window["WwLogin"];
   return wwLoginMock;
 }
@@ -144,10 +119,10 @@ describe("WeComLoginPanel", () => {
   }
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
     delete window.WwLogin;
     document.querySelectorAll("script[data-wecom-login-widget='true']").forEach(script => script.remove());
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     getAuthUrlMock.mockReturnValue(defaultWeComWidgetAuthUrl);
   });
 
@@ -364,7 +339,7 @@ describe("WeComLoginPanel", () => {
   });
 
   test("shows expired status text when polling reports expiration without detail", async() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     createWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: {
@@ -388,7 +363,7 @@ describe("WeComLoginPanel", () => {
 
     await flushEffects();
     await act(async() => {
-      jest.advanceTimersByTime(1500);
+      vi.advanceTimersByTime(1500);
       await Promise.resolve();
     });
 
@@ -451,8 +426,8 @@ describe("WeComLoginPanel", () => {
   });
 
   test("polls authorization status and completes login after authorization", async() => {
-    jest.useFakeTimers();
-    const onLoginResponse = jest.fn();
+    vi.useFakeTimers();
+    const onLoginResponse = vi.fn();
     createWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: {
@@ -481,7 +456,7 @@ describe("WeComLoginPanel", () => {
 
     await flushEffects();
     await act(async() => {
-      jest.advanceTimersByTime(1500);
+      vi.advanceTimersByTime(1500);
       await Promise.resolve();
     });
 
@@ -491,8 +466,8 @@ describe("WeComLoginPanel", () => {
   });
 
   test("shows MFA form when intent completion requires MFA", async() => {
-    jest.useFakeTimers();
-    const onLoginResponse = jest.fn();
+    vi.useFakeTimers();
+    const onLoginResponse = vi.fn();
     createWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: {
@@ -522,7 +497,7 @@ describe("WeComLoginPanel", () => {
 
     await flushEffects();
     await act(async() => {
-      jest.advanceTimersByTime(1500);
+      vi.advanceTimersByTime(1500);
       await Promise.resolve();
     });
 
@@ -531,7 +506,7 @@ describe("WeComLoginPanel", () => {
   });
 
   test("lets the user switch MFA method before completing WeCom sign-in", async() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     createWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: {
@@ -560,7 +535,7 @@ describe("WeComLoginPanel", () => {
 
     await flushEffects();
     await act(async() => {
-      jest.advanceTimersByTime(1500);
+      vi.advanceTimersByTime(1500);
       await Promise.resolve();
     });
     expect(getByTestId("wecom-mfa-form")).toBeInTheDocument();
@@ -570,7 +545,7 @@ describe("WeComLoginPanel", () => {
   });
 
   test("shows expired state when polling reports the intent expired", async() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     createWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: {
@@ -594,7 +569,7 @@ describe("WeComLoginPanel", () => {
 
     await flushEffects();
     await act(async() => {
-      jest.advanceTimersByTime(1500);
+      vi.advanceTimersByTime(1500);
       await Promise.resolve();
     });
 
@@ -603,7 +578,7 @@ describe("WeComLoginPanel", () => {
   });
 
   test("shows email permission guidance when WeCom did not return email", async() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     createWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: {
@@ -630,7 +605,7 @@ describe("WeComLoginPanel", () => {
 
     await flushEffects();
     await act(async() => {
-      jest.advanceTimersByTime(1500);
+      vi.advanceTimersByTime(1500);
       await Promise.resolve();
     });
 
@@ -639,7 +614,7 @@ describe("WeComLoginPanel", () => {
   });
 
   test("marks the QR code as scanned when polling reports completion", async() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     createWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: {
@@ -663,7 +638,7 @@ describe("WeComLoginPanel", () => {
 
     await flushEffects();
     await act(async() => {
-      jest.advanceTimersByTime(1500);
+      vi.advanceTimersByTime(1500);
       await Promise.resolve();
     });
 
@@ -671,8 +646,8 @@ describe("WeComLoginPanel", () => {
   });
 
   test("shows polling and completion errors without logging in", async() => {
-    jest.useFakeTimers();
-    const onLoginResponse = jest.fn();
+    vi.useFakeTimers();
+    const onLoginResponse = vi.fn();
     createWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: {
@@ -697,7 +672,7 @@ describe("WeComLoginPanel", () => {
 
     await flushEffects();
     await act(async() => {
-      jest.advanceTimersByTime(1500);
+      vi.advanceTimersByTime(1500);
       await Promise.resolve();
     });
     expect(getByText("poll failed")).toBeInTheDocument();
@@ -729,7 +704,7 @@ describe("WeComLoginPanel", () => {
     );
     await flushEffects();
     await act(async() => {
-      jest.advanceTimersByTime(1500);
+      vi.advanceTimersByTime(1500);
       await Promise.resolve();
     });
 
@@ -738,7 +713,7 @@ describe("WeComLoginPanel", () => {
   });
 
   test("shows an error when polling the authorization intent rejects", async() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     createWecomProfileConsentLoginIntentMock.mockResolvedValue({
       status: "ok",
       data: {
@@ -759,7 +734,7 @@ describe("WeComLoginPanel", () => {
 
     await flushEffects();
     await act(async() => {
-      jest.advanceTimersByTime(1500);
+      vi.advanceTimersByTime(1500);
       await Promise.resolve();
     });
 
@@ -871,7 +846,7 @@ describe("WeComLoginPanel", () => {
   });
 
   test("does not restart consent polling when switching to fallback before intent creation returns", async() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     const script = document.createElement("script");
     script.dataset.wecomLoginWidget = "true";
     document.head.appendChild(script);
@@ -909,7 +884,7 @@ describe("WeComLoginPanel", () => {
       await Promise.resolve();
     });
     await act(async() => {
-      jest.advanceTimersByTime(1500);
+      vi.advanceTimersByTime(1500);
       await Promise.resolve();
     });
 

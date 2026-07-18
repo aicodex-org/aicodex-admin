@@ -1,5 +1,4 @@
-/* eslint-env jest */
-import {expect, jest} from "@jest/globals";
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import {initAuthWithConfig} from "./Auth";
 import {
   completeWecomProfileConsentLoginIntent,
@@ -9,7 +8,7 @@ import {
   oAuthParamsToQuery
 } from "./AuthBackend";
 
-jest.mock("../Setting", () => ({
+vi.mock("../Setting", () => ({
   getAcceptLanguage: () => "en",
 }));
 
@@ -22,13 +21,13 @@ type MockedFetch = typeof fetch & {
 describe("WeCom profile consent AuthBackend", () => {
   beforeEach(() => {
     initAuthWithConfig({serverUrl: "https://door.example.com"});
-    global.fetch = jest.fn(() => Promise.resolve({
+    global.fetch = vi.fn(() => Promise.resolve({
       json: () => Promise.resolve({status: "ok"}),
     })) as unknown as typeof fetch;
   });
 
   afterEach(() => {
-    jest.resetAllMocks();
+    vi.resetAllMocks();
   });
 
   test("creates a login intent with the current non-sensitive login context", async() => {

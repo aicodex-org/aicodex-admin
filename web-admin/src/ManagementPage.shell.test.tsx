@@ -1,6 +1,6 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import React from "react";
-import {expect, jest} from "@jest/globals";
+import {createRequire} from "module";
 import fs from "fs";
 import path from "path";
 import {act, cleanup, render} from "@testing-library/react";
@@ -15,6 +15,17 @@ import zh from "./locales/zh/data.json";
 import {readLessWithImports} from "./testUtils/less";
 import {type ConsoleCallSpy, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
 import type {LegacyAny} from "./types/legacyPage";
+import {fireEvent} from "@testing-library/react";
+import {fileURLToPath} from "url";
+
+const testFileDirectory = path.dirname(fileURLToPath(import.meta.url));
+const require = createRequire(import.meta.url);
+const {createMemoryHistory} = require("history") as {
+  createMemoryHistory: (options: LegacyAny) => LegacyAny;
+};
+const {Router} = require("react-router-dom") as {
+  Router: React.ComponentType<LegacyAny>;
+};
 
 const mockMenuProps: Array<Record<string, unknown>> = [];
 const mockWorkspaceTabsProps: Array<{
@@ -25,9 +36,8 @@ const mockOrganizationEditLifecycle = {
   unmounts: 0,
 };
 
-jest.mock("antd", () => {
-  const React = require("react");
-  const actual = require("@jest/globals").jest.requireActual("antd");
+vi.mock("antd", async() => {
+  const actual = await vi.importActual<typeof import("antd")>("antd");
 
   return {
     ...actual,
@@ -39,16 +49,16 @@ jest.mock("antd", () => {
   };
 });
 
-jest.mock("./IdentityConsoleOverview", () => () => <main data-testid="identity-overview" />);
-jest.mock("./WecomOrganizationSyncPage", () => () => <main data-testid="wecom-org-sync-page" />);
-jest.mock("./DingTalkOrganizationSyncPage", () => () => <main data-testid="dingtalk-org-sync-page" />);
-jest.mock("./SystemInfo", () => () => <main data-testid="system-info-page" />);
-jest.mock("./ServerStorePage", () => () => <main data-testid="server-store-page" />);
-jest.mock("./OrganizationTreeOperationsPage", () => () => <main data-testid="organization-tree-operations-page" />);
-jest.mock("./OrganizationEditPage", () => {
-  const React = require("react");
+vi.mock("./IdentityConsoleOverview", () => ({default: () => <main data-testid="identity-overview" />}));
+vi.mock("./WecomOrganizationSyncPage", () => ({default: () => <main data-testid="wecom-org-sync-page" />}));
+vi.mock("./DingTalkOrganizationSyncPage", () => ({default: () => <main data-testid="dingtalk-org-sync-page" />}));
+vi.mock("./SystemInfo", () => ({default: () => <main data-testid="system-info-page" />}));
+vi.mock("./ServerStorePage", () => ({default: () => <main data-testid="server-store-page" />}));
+vi.mock("./OrganizationTreeOperationsPage", () => ({default: () => <main data-testid="organization-tree-operations-page" />}));
+vi.mock("./OrganizationEditPage", async() => {
+  const React = await vi.importActual<typeof import("react")>("react");
 
-  return function OrganizationEditPageMock() {
+  return ({default: function OrganizationEditPageMock() {
     React.useEffect(() => {
       mockOrganizationEditLifecycle.mounts += 1;
       return () => {
@@ -57,57 +67,45 @@ jest.mock("./OrganizationEditPage", () => {
     }, []);
 
     return <main data-testid="organization-edit-page" />;
-  };
+  }});
 });
-jest.mock("./GroupEditPage", () => () => <main data-testid="group-edit-page" />);
-jest.mock("./RoleEditPage", () => () => <main data-testid="role-edit-page" />);
-jest.mock("./PermissionEditPage", () => () => <main data-testid="permission-edit-page" />);
-jest.mock("./ApplicationListPage", () => () => <main data-testid="application-list-page" />);
-jest.mock("./ApplicationEditPage", () => () => <main data-testid="application-edit-page" />);
-jest.mock("./ProviderEditPage", () => () => <main data-testid="provider-edit-page" />);
-jest.mock("./CertEditPage", () => () => <main data-testid="cert-edit-page" />);
-jest.mock("./KeyEditPage", () => () => <main data-testid="key-edit-page" />);
-jest.mock("./UserEditPage", () => () => <main data-testid="user-edit-page" />);
-jest.mock("./InvitationEditPage", () => () => <main data-testid="invitation-edit-page" />);
-jest.mock("./UserEditVisualReviewPage", () => () => <main data-testid="user-edit-visual-review-page" />);
-jest.mock("./SyncerEditPage", () => () => <main data-testid="syncer-edit-page" />);
-jest.mock("./common/Editor", () => () => <pre data-testid="editor" />);
-jest.mock("./common/WorkspaceTabs", () => (props: {tabs?: Array<{path: string; label: string}>}) => {
+vi.mock("./GroupEditPage", () => ({default: () => <main data-testid="group-edit-page" />}));
+vi.mock("./RoleEditPage", () => ({default: () => <main data-testid="role-edit-page" />}));
+vi.mock("./PermissionEditPage", () => ({default: () => <main data-testid="permission-edit-page" />}));
+vi.mock("./ApplicationListPage", () => ({default: () => <main data-testid="application-list-page" />}));
+vi.mock("./ApplicationEditPage", () => ({default: () => <main data-testid="application-edit-page" />}));
+vi.mock("./ProviderEditPage", () => ({default: () => <main data-testid="provider-edit-page" />}));
+vi.mock("./CertEditPage", () => ({default: () => <main data-testid="cert-edit-page" />}));
+vi.mock("./KeyEditPage", () => ({default: () => <main data-testid="key-edit-page" />}));
+vi.mock("./UserEditPage", () => ({default: () => <main data-testid="user-edit-page" />}));
+vi.mock("./InvitationEditPage", () => ({default: () => <main data-testid="invitation-edit-page" />}));
+vi.mock("./UserEditVisualReviewPage", () => ({default: () => <main data-testid="user-edit-visual-review-page" />}));
+vi.mock("./SyncerEditPage", () => ({default: () => <main data-testid="syncer-edit-page" />}));
+vi.mock("./common/Editor", () => ({default: () => <pre data-testid="editor" />}));
+vi.mock("./common/WorkspaceTabs", () => ({default: (props: {tabs?: Array<{path: string; label: string}>}) => {
   mockWorkspaceTabsProps.push(props);
 
   return <div className="admin-workspace-tabs-shell" data-testid="workspace-tabs" />;
-});
-jest.mock("./common/notifaction/EnableMfaNotification", () => () => null);
-jest.mock("./common/select/LanguageSelect", () => () => <span data-testid="language-select" />);
-jest.mock("./common/select/ThemeSelect", () => () => <span data-testid="theme-select" />);
-jest.mock("./common/select/OrganizationSelect", () => () => <span data-testid="organization-select" />);
-jest.mock("./common/OpenTour", () => () => <span data-testid="open-tour" />);
-jest.mock("./account/AccountAvatar", () => () => <span data-testid="account-avatar" />);
-jest.mock("antd/es/layout/layout", () => ({
+}}));
+vi.mock("./common/notifaction/EnableMfaNotification", () => ({default: () => null}));
+vi.mock("./common/select/LanguageSelect", () => ({default: () => <span data-testid="language-select" />}));
+vi.mock("./common/select/ThemeSelect", () => ({default: () => <span data-testid="theme-select" />}));
+vi.mock("./common/select/OrganizationSelect", () => ({default: () => <span data-testid="organization-select" />}));
+vi.mock("./common/OpenTour", () => ({default: () => <span data-testid="open-tour" />}));
+vi.mock("./account/AccountAvatar", () => ({default: () => <span data-testid="account-avatar" />}));
+vi.mock("antd/es/layout/layout", () => ({
   Content: ({children, ...props}: {children?: React.ReactNode}) => <main {...props}>{children}</main>,
   Header: ({children, ...props}: {children?: React.ReactNode}) => <header {...props}>{children}</header>,
 }));
-jest.mock("antd/es/layout/Sider", () => function SiderMock({children, width, style, ...props}: {children?: React.ReactNode; width?: number; style?: React.CSSProperties}) {
+vi.mock("antd/es/layout/Sider", () => ({default: function SiderMock({children, width, style, ...props}: {children?: React.ReactNode; width?: number; style?: React.CSSProperties}) {
   return <aside {...props} data-width={width} style={style}>{children}</aside>;
-});
-jest.mock("antd/es/upload/Dragger", () => function DraggerMock({children}: {children?: React.ReactNode}) {
+}}));
+vi.mock("antd/es/upload/Dragger", () => ({default: function DraggerMock({children}: {children?: React.ReactNode}) {
   return <div data-testid="upload-dragger">{children}</div>;
-});
-jest.mock("antd-token-previewer/es/ColorPanel", () => function ColorPanelMock() {
+}}));
+vi.mock("antd-token-previewer/es/ColorPanel", () => ({default: function ColorPanelMock() {
   return <div data-testid="color-panel" />;
-});
-
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element) => void;
-  };
-};
-const {createMemoryHistory} = require("history") as {
-  createMemoryHistory: (options: LegacyAny) => LegacyAny;
-};
-const {Router} = require("react-router-dom") as {
-  Router: React.ComponentType<LegacyAny>;
-};
+}}));
 
 const account = {
   owner: "built-in",
@@ -159,7 +157,7 @@ function renderShell({
   accountLoading?: boolean;
 } = {}) {
   window.history.pushState({}, "", path);
-  jest.spyOn(Setting, "isMobile").mockReturnValue(isMobile);
+  vi.spyOn(Setting, "isMobile").mockReturnValue(isMobile);
   const shellAccount = accountLoading ? undefined : accountOverride;
 
   return render(
@@ -174,13 +172,13 @@ function renderShell({
         requiredEnableMfa={false}
         menuVisible={false}
         logo="/logo.png"
-        onChangeTheme={jest.fn()}
-        onClick={jest.fn()}
-        onUpdateAccount={jest.fn()}
-        onfinish={jest.fn()}
-        openAiAssistant={jest.fn()}
-        setLogoAndThemeAlgorithm={jest.fn()}
-        setLogoutState={jest.fn()}
+        onChangeTheme={vi.fn()}
+        onClick={vi.fn()}
+        onUpdateAccount={vi.fn()}
+        onfinish={vi.fn()}
+        openAiAssistant={vi.fn()}
+        setLogoAndThemeAlgorithm={vi.fn()}
+        setLogoutState={vi.fn()}
       />
     </MemoryRouter>
   );
@@ -191,7 +189,7 @@ function readCssRuleBlock(source: string, selector: string) {
   return source.match(new RegExp(`${escapedSelector}\\s*\\{([\\s\\S]*?)\\}`))?.[1] ?? "";
 }
 
-const readAppLess = (): string => readLessWithImports(path.join(__dirname, "App.less"));
+const readAppLess = (): string => readLessWithImports(path.join(testFileDirectory, "App.less"));
 
 describe("ManagementPage admin shell sidebar", () => {
   let consoleErrorSpy: ConsoleCallSpy;
@@ -202,16 +200,16 @@ describe("ManagementPage admin shell sidebar", () => {
     mockWorkspaceTabsProps.length = 0;
     mockOrganizationEditLifecycle.mounts = 0;
     mockOrganizationEditLifecycle.unmounts = 0;
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
     await useTestLanguage("zh");
-    consoleErrorSpy = jest.spyOn(console, "error") as unknown as ConsoleCallSpy;
+    consoleErrorSpy = vi.spyOn(console, "error") as unknown as ConsoleCallSpy;
   });
 
   afterEach(() => {
     cleanup();
     const actWarnings = getReactActWarnings(consoleErrorSpy.mock.calls);
     consoleErrorSpy.mockRestore();
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
     localStorage.clear();
     expect(actWarnings).toEqual([]);
   });
@@ -229,7 +227,7 @@ describe("ManagementPage admin shell sidebar", () => {
     expect(view.getByText("AICodex Admin")).not.toBeNull();
     expect(view.getByText("认证中心")).not.toBeNull();
     expect(view.container.querySelector(".admin-shell-entry")).toBeNull();
-    expect((view.container.querySelector(".admin-shell-content") as HTMLElement).style.minWidth).toBe("0");
+    expect((view.container.querySelector(".admin-shell-content") as HTMLElement).style.minWidth).toBe("0px");
     expect(view.container.querySelector(".admin-workspace-tabs-shell")).not.toBeNull();
   });
 
@@ -337,7 +335,7 @@ describe("ManagementPage admin shell sidebar", () => {
   test("remounts route content when switching between two records of the same edit route", () => {
     const history = createMemoryHistory({initialEntries: ["/organizations/feishu6091"]});
     window.history.pushState({}, "", "/organizations/feishu6091");
-    jest.spyOn(Setting, "isMobile").mockReturnValue(false);
+    vi.spyOn(Setting, "isMobile").mockReturnValue(false);
     const view = render(
       <Router history={history}>
         <ManagementPage
@@ -350,13 +348,13 @@ describe("ManagementPage admin shell sidebar", () => {
           requiredEnableMfa={false}
           menuVisible={false}
           logo="/logo.png"
-          onChangeTheme={jest.fn()}
-          onClick={jest.fn()}
-          onUpdateAccount={jest.fn()}
-          onfinish={jest.fn()}
-          openAiAssistant={jest.fn()}
-          setLogoAndThemeAlgorithm={jest.fn()}
-          setLogoutState={jest.fn()}
+          onChangeTheme={vi.fn()}
+          onClick={vi.fn()}
+          onUpdateAccount={vi.fn()}
+          onfinish={vi.fn()}
+          openAiAssistant={vi.fn()}
+          setLogoAndThemeAlgorithm={vi.fn()}
+          setLogoutState={vi.fn()}
         />
       </Router>
     );
@@ -381,13 +379,13 @@ describe("ManagementPage admin shell sidebar", () => {
           requiredEnableMfa={false}
           menuVisible={false}
           logo="/logo.png"
-          onChangeTheme={jest.fn()}
-          onClick={jest.fn()}
-          onUpdateAccount={jest.fn()}
-          onfinish={jest.fn()}
-          openAiAssistant={jest.fn()}
-          setLogoAndThemeAlgorithm={jest.fn()}
-          setLogoutState={jest.fn()}
+          onChangeTheme={vi.fn()}
+          onClick={vi.fn()}
+          onUpdateAccount={vi.fn()}
+          onfinish={vi.fn()}
+          openAiAssistant={vi.fn()}
+          setLogoAndThemeAlgorithm={vi.fn()}
+          setLogoutState={vi.fn()}
         />
       </Router>
     );
@@ -526,7 +524,7 @@ describe("ManagementPage admin shell sidebar", () => {
       expect(view.container.querySelector(".admin-shell-sider")).toBeNull();
       expect(view.queryByRole("button", {name: "展开侧边栏"})).toBeNull();
       expect(view.getByRole("button", {name: Conf.AdminCenterName})).not.toBeNull();
-      expect((view.container.querySelector(".admin-shell-content") as HTMLElement).style.minWidth).toBe("0");
+      expect((view.container.querySelector(".admin-shell-content") as HTMLElement).style.minWidth).toBe("0px");
     } finally {
       Object.defineProperty(window, "innerWidth", {configurable: true, writable: true, value: originalInnerWidth});
     }
@@ -544,7 +542,7 @@ describe("ManagementPage admin shell sidebar", () => {
   });
 
   test("App mirrors the active admin shell theme class onto document.body for portal surfaces", () => {
-    const appJs = fs.readFileSync(path.join(__dirname, "App.tsx"), "utf8") as string;
+    const appJs = fs.readFileSync(path.join(testFileDirectory, "App.tsx"), "utf8") as string;
 
     expect(appJs).toMatch(/document\.body\.classList\.remove\("admin-shell-theme-light",\s*"admin-shell-theme-dark"\)/);
     expect(appJs).toMatch(/document\.body\.classList\.add\(this\.state\.themeAlgorithm\.includes\("dark"\) \? "admin-shell-theme-dark" : "admin-shell-theme-light"\)/);

@@ -1,4 +1,4 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 // Copyright 2026 The AICodex Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +14,6 @@
 // limitations under the License.
 
 import React from "react";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {act, render, waitFor} from "@testing-library/react";
 import * as Setting from "./Setting";
 import * as FeishuOrganizationSyncBackend from "./backend/FeishuOrganizationSyncBackend";
@@ -22,62 +21,37 @@ import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as WecomOrganizationSyncBackend from "./backend/WecomOrganizationSyncBackend";
 import WecomOrganizationSyncPage from "./WecomOrganizationSyncPage";
 import {type ConsoleCallSpy, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
+import {fireEvent, screen} from "@testing-library/react";
 
-declare const jest: typeof jestValue;
-
-type DomMatcherResult = ReturnType<typeof jestExpect> & {
-  toBeInTheDocument: () => void;
-  toHaveAttribute: (attr: string, value?: unknown) => void;
-  toBeDisabled: () => void;
-  toHaveClass: (...classNames: string[]) => void;
-  not: ReturnType<typeof jestExpect> & {
-    toBeInTheDocument: () => void;
-    toHaveBeenCalled: () => void;
-    toBeNull: () => void;
-    toBeDisabled: () => void;
-  };
-};
-
-type TestExpect = {
-  (actual: unknown): DomMatcherResult;
-  objectContaining: typeof jestExpect.objectContaining;
-  stringContaining: typeof jestExpect.stringContaining;
-};
-
-const expect = jestExpect as unknown as TestExpect;
-
-jest.mock("./backend/WecomOrganizationSyncBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/WecomOrganizationSyncBackend", () => {
   return {
-    getWecomOrganizationSyncConfig: factoryJest.fn(),
-    saveWecomOrganizationSyncConfig: factoryJest.fn(),
-    testWecomOrganizationSyncConfig: factoryJest.fn(),
-    dryRunWecomOrganizationSyncPreview: factoryJest.fn(),
-    getWecomOrganizationSyncDryRunHistories: factoryJest.fn(),
-    getWecomOrganizationSyncDryRunHistory: factoryJest.fn(),
-    startWecomOrganizationSyncRun: factoryJest.fn(),
-    getWecomOrganizationSyncRuns: factoryJest.fn(),
+    getWecomOrganizationSyncConfig: vi.fn(),
+    saveWecomOrganizationSyncConfig: vi.fn(),
+    testWecomOrganizationSyncConfig: vi.fn(),
+    dryRunWecomOrganizationSyncPreview: vi.fn(),
+    getWecomOrganizationSyncDryRunHistories: vi.fn(),
+    getWecomOrganizationSyncDryRunHistory: vi.fn(),
+    startWecomOrganizationSyncRun: vi.fn(),
+    getWecomOrganizationSyncRuns: vi.fn(),
   };
 });
 
-jest.mock("./backend/FeishuOrganizationSyncBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/FeishuOrganizationSyncBackend", () => {
   return {
-    getFeishuOrganizationSyncConfig: factoryJest.fn(),
+    getFeishuOrganizationSyncConfig: vi.fn(),
   };
 });
 
-jest.mock("./backend/OrganizationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/OrganizationBackend", () => {
   return {
-    addOrganization: factoryJest.fn(),
-    updateOrganization: factoryJest.fn(),
-    deleteOrganization: factoryJest.fn(),
+    addOrganization: vi.fn(),
+    updateOrganization: vi.fn(),
+    deleteOrganization: vi.fn(),
   };
 });
 
-jest.mock("./common/select/OrganizationSelect", () => (props: {initValue?: string; excludedOrganizations?: string[]; onChange: (value: string) => void; onOrganizationsLoaded?: (organizations: Array<{name: string; displayName: string}>) => void}) => {
-  const mockReact = require("react") as {useEffect: (effect: () => void, deps?: unknown[]) => void};
+vi.mock("./common/select/OrganizationSelect", () => ({default: (props: {initValue?: string; excludedOrganizations?: string[]; onChange: (value: string) => void; onOrganizationsLoaded?: (organizations: Array<{name: string; displayName: string}>) => void}) => {
+  const mockReact = React as {useEffect: (effect: () => void, deps?: unknown[]) => void};
   mockReact.useEffect(() => {
     props.onOrganizationsLoaded?.([
       {name: "built-in", displayName: "Built-in Organization"},
@@ -97,7 +71,7 @@ jest.mock("./common/select/OrganizationSelect", () => (props: {initValue?: strin
       {organizations.map(organization => <option key={organization.value} value={organization.value}>{organization.label}</option>)}
     </select>
   );
-});
+}}));
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -112,23 +86,6 @@ const wecomBackendMock = WecomOrganizationSyncBackend as unknown as WecomBackend
 const feishuBackendMock = FeishuOrganizationSyncBackend as unknown as FeishuBackendMock;
 const organizationBackendMock = OrganizationBackend as unknown as OrganizationBackendMock;
 let consoleErrorSpy: ConsoleCallSpy;
-const {fireEvent, screen} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-    change: (element: Element | null, event: unknown) => boolean;
-    keyDown: (element: Element | null, event: unknown) => boolean;
-  };
-  screen: {
-    findByText: (text: string | RegExp) => Promise<HTMLElement>;
-    getByText: (text: string | RegExp) => HTMLElement;
-    getAllByText: (text: string | RegExp) => HTMLElement[];
-    queryByText: (text: string | RegExp) => HTMLElement | null;
-    getByAltText: (text: string) => HTMLElement;
-    getByDisplayValue: (text: string) => HTMLElement;
-    queryByDisplayValue: (text: string) => HTMLElement | null;
-    getByTestId: (testId: string) => HTMLElement;
-  };
-};
 
 function getModalCloseButton(title: string): HTMLButtonElement {
   const modal = screen.getByText(title).closest(".ant-modal-content");
@@ -142,6 +99,18 @@ function getModalCloseButton(title: string): HTMLButtonElement {
   return button;
 }
 
+async function closeModalAndWait(title: string): Promise<void> {
+  fireEvent.click(getModalCloseButton(title));
+  await waitFor(() => {
+    expect(document.querySelector(".ant-modal.ant-zoom-leave-active")).not.toBeNull();
+  });
+  document.querySelectorAll<HTMLElement>(".ant-modal, .ant-modal-mask").forEach(element => {
+    fireEvent.transitionEnd(element);
+    fireEvent.animationEnd(element);
+  });
+  await waitFor(() => expect(screen.queryByText(title)).toBeNull());
+}
+
 function expectTableColumnHeader(container: HTMLElement, label: string): void {
   expect(Array.from(container.querySelectorAll("thead th[scope='col']")).some(cell => cell.textContent === label)).toBe(true);
 }
@@ -150,23 +119,23 @@ const mockMatchMedia = (query: string): MediaQueryList => ({
   matches: false,
   media: query,
   onchange: null,
-  addListener: jestValue.fn(),
-  removeListener: jestValue.fn(),
-  addEventListener: jestValue.fn(),
-  removeEventListener: jestValue.fn(),
-  dispatchEvent: jestValue.fn(),
+  addListener: vi.fn(),
+  removeListener: vi.fn(),
+  addEventListener: vi.fn(),
+  removeEventListener: vi.fn(),
+  dispatchEvent: vi.fn(),
 } as unknown as MediaQueryList);
 
 beforeEach(() => {
-  consoleErrorSpy = jestValue.spyOn(console, "error") as unknown as ConsoleCallSpy;
+  consoleErrorSpy = vi.spyOn(console, "error") as unknown as ConsoleCallSpy;
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: mockMatchMedia,
   });
   localStorage.removeItem("organization");
   localStorage.removeItem("wecom-org-sync:lastOrganization");
-  jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
   organizationBackendMock.addOrganization.mockResolvedValue({status: "ok"});
   organizationBackendMock.updateOrganization.mockResolvedValue({status: "ok"});
   organizationBackendMock.deleteOrganization.mockResolvedValue({status: "ok"});
@@ -183,9 +152,9 @@ beforeEach(() => {
 afterEach(() => {
   const actWarnings = getReactActWarnings(consoleErrorSpy.mock.calls);
   consoleErrorSpy.mockRestore();
-  jestValue.useRealTimers();
-  jestValue.restoreAllMocks();
-  jestValue.clearAllMocks();
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
   expect(actWarnings).toEqual([]);
 });
 
@@ -277,7 +246,7 @@ test("saves scheduled sync settings from the config form", async() => {
   await screen.findByText("定时同步");
   expect(screen.queryByDisplayValue("0 2 * * *")).not.toBeInTheDocument();
   const scheduleSwitch = screen.getByText("启用定时同步").closest(".ant-space")?.querySelector("button") || null;
-  fireEvent.click(scheduleSwitch);
+  fireEvent.click(scheduleSwitch!);
   expect(screen.getByText("Cron 表达式")).toBeInTheDocument();
   expect(screen.getByText("时区")).toBeInTheDocument();
   fireEvent.change(screen.getByDisplayValue("0 2 * * *"), {target: {value: "*/15 * * * *"}});
@@ -422,8 +391,8 @@ test("filters organizations occupied by Feishu from the sync target selector", a
 });
 
 test("opens an unsaved organization draft when creating WeCom sync target organization", async() => {
-  const history = {push: jestValue.fn()};
-  const dispatchEventSpy = jestValue.spyOn(window, "dispatchEvent");
+  const history = {push: vi.fn()};
+  const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
   render(<WecomOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} history={history} />);
 
   fireEvent.click(await screen.findByText("新建组织"));
@@ -450,7 +419,7 @@ test("opens an unsaved organization draft when creating WeCom sync target organi
 });
 
 test("renders sync run history with status, counts, and safe error summary", async() => {
-  const writeText = jestValue.fn(() => Promise.resolve());
+  const writeText = vi.fn(() => Promise.resolve());
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
     value: {writeText},
@@ -524,7 +493,7 @@ test("copies WeCom run ID through keyboard, fallback, and failure paths", async(
   const originalClipboard = navigator.clipboard;
   const originalExecCommand = document.execCommand;
   const page = new WecomOrganizationSyncPage({account: {owner: "engineering", isAdmin: true}} as any);
-  const writeText = jestValue.fn(() => Promise.resolve());
+  const writeText = vi.fn(() => Promise.resolve());
 
   try {
     page.copyRunId("");
@@ -535,7 +504,7 @@ test("copies WeCom run ID through keyboard, fallback, and failure paths", async(
       value: {writeText},
     });
 
-    const event = {key: "Enter", preventDefault: jestValue.fn()} as unknown as React.KeyboardEvent<HTMLElement>;
+    const event = {key: "Enter", preventDefault: vi.fn()} as unknown as React.KeyboardEvent<HTMLElement>;
     page.handleRunIndexKeyDown(event, "run-keyboard");
 
     expect(event.preventDefault).toHaveBeenCalled();
@@ -548,7 +517,7 @@ test("copies WeCom run ID through keyboard, fallback, and failure paths", async(
     await flushPromises();
     expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("复制失败："));
 
-    const execCommand = jestValue.fn(() => true);
+    const execCommand = vi.fn(() => true);
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: undefined,
@@ -660,8 +629,7 @@ test("reloads WeCom preview after the hidden modal child tree is destroyed", asy
   fireEvent.click(openPreview);
   expect(await screen.findByText("来源：preview-first")).toBeInTheDocument();
 
-  fireEvent.click(getModalCloseButton("预览影响结果"));
-  await waitFor(() => expect(screen.queryByText("预览影响结果")).toBeNull());
+  await closeModalAndWait("预览影响结果");
   expect(screen.queryByText("来源：preview-first")).toBeNull();
 
   fireEvent.click(openPreview);
@@ -683,7 +651,7 @@ test("shows WeCom dry-run history empty and error states in a modal", async() =>
   wecomBackendMock.getWecomOrganizationSyncDryRunHistories.mockResolvedValueOnce({status: "error", msg: "history unavailable"});
   const refreshHistoryButton = screen.getByText("刷新历史").closest("button");
   await waitFor(() => expect(refreshHistoryButton).not.toBeDisabled());
-  fireEvent.click(refreshHistoryButton);
+  fireEvent.click(refreshHistoryButton!);
   await waitFor(() => expect(wecomBackendMock.getWecomOrganizationSyncDryRunHistories).toHaveBeenCalledTimes(2));
 
   expect(await screen.findByText("预览历史加载失败，请稍后重试。")).toBeInTheDocument();
@@ -779,8 +747,7 @@ test("refreshes WeCom history and detail when hidden modals reopen", async() => 
   expect(await screen.findByText("预览历史记录")).toBeInTheDocument();
   expect(wecomBackendMock.getWecomOrganizationSyncDryRunHistories).toHaveBeenCalledTimes(1);
 
-  fireEvent.click(getModalCloseButton("预览历史记录"));
-  await waitFor(() => expect(screen.queryByText("预览历史记录")).toBeNull());
+  await closeModalAndWait("预览历史记录");
   fireEvent.click(openHistory);
   expect(await screen.findByText("预览历史记录")).toBeInTheDocument();
   expect(wecomBackendMock.getWecomOrganizationSyncDryRunHistories).toHaveBeenCalledTimes(2);
@@ -789,8 +756,7 @@ test("refreshes WeCom history and detail when hidden modals reopen", async() => 
   expect(await screen.findByText("预览历史详情")).toBeInTheDocument();
   expect(wecomBackendMock.getWecomOrganizationSyncDryRunHistory).toHaveBeenCalledTimes(1);
 
-  fireEvent.click(getModalCloseButton("预览历史详情"));
-  await waitFor(() => expect(screen.queryByText("预览历史详情")).toBeNull());
+  await closeModalAndWait("预览历史详情");
   fireEvent.click(await screen.findByText("查看详情"));
   expect(await screen.findByText("预览历史详情")).toBeInTheDocument();
   expect(wecomBackendMock.getWecomOrganizationSyncDryRunHistory).toHaveBeenCalledTimes(2);
@@ -857,7 +823,7 @@ test("loads the selected history page when pagination changes", async() => {
   expect(screen.queryByText("run-page-1-0")).not.toBeInTheDocument();
 
   const page2Item = container.querySelector(".ant-pagination-item-2");
-  fireEvent.click(page2Item?.querySelector("a") || page2Item);
+  fireEvent.click((page2Item?.querySelector("a") || page2Item)!);
 
   await flushPromises();
   expect(wecomBackendMock.getWecomOrganizationSyncRuns).toHaveBeenNthCalledWith(2, "engineering", 2, 10);
@@ -866,7 +832,7 @@ test("loads the selected history page when pagination changes", async() => {
 });
 
 test("auto refreshes while a sync run is running and stops after terminal status", async() => {
-  jestValue.useFakeTimers();
+  vi.useFakeTimers();
   mockConfig({isEnabled: true});
   wecomBackendMock.getWecomOrganizationSyncRuns
     .mockResolvedValueOnce({
@@ -891,7 +857,7 @@ test("auto refreshes while a sync run is running and stops after terminal status
   expect(wecomBackendMock.getWecomOrganizationSyncRuns).toHaveBeenCalledTimes(1);
 
   await act(async() => {
-    jestValue.advanceTimersByTime(3000);
+    vi.advanceTimersByTime(3000);
     await flushMicrotasks();
   });
 
@@ -899,7 +865,7 @@ test("auto refreshes while a sync run is running and stops after terminal status
   expect(screen.getByText(/当前无运行中任务，可手动刷新同步记录/)).toBeInTheDocument();
 
   await act(async() => {
-    jestValue.advanceTimersByTime(3000);
+    vi.advanceTimersByTime(3000);
     await flushMicrotasks();
   });
 

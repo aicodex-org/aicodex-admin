@@ -1,5 +1,4 @@
-/* eslint-env jest */
-import {expect} from "@jest/globals";
+import {describe, expect, test} from "vitest";
 import zh from "./locales/zh/data.json";
 
 describe("LLM AI/Gateway Chinese labels", () => {

@@ -1,8 +1,7 @@
-/* eslint-env jest */
-import {expect, jest, test} from "@jest/globals";
+import {expect, test, vi} from "vitest";
 import AuthCallbackWithRouter, {resolveAuthCallbackCode} from "./AuthCallback";
 
-jest.mock("i18next", () => ({
+vi.mock("i18next", () => ({
   __esModule: true,
   default: {
     use() {
@@ -28,7 +27,7 @@ test("callback loading message keeps the i18next receiver bound", () => {
 });
 
 test("callback ignores retired Web3 storage token keys", () => {
-  const storage = {getItem: jest.fn(() => "must-not-be-consumed")};
+  const storage = {getItem: vi.fn(() => "must-not-be-consumed")};
   const params = new URLSearchParams("?web3AuthTokenKey=Web3AuthToken_legacy");
 
   expect(resolveAuthCallbackCode(params, storage)).toBeNull();
@@ -40,5 +39,5 @@ test.each([
   ["?auth_code=wecom-code", "wecom-code"],
   ["?authCode=dingtalk-code", "dingtalk-code"],
 ])("callback keeps supported authorization code aliases for %s", (search, expected) => {
-  expect(resolveAuthCallbackCode(new URLSearchParams(search), {getItem: jest.fn()})).toBe(expected);
+  expect(resolveAuthCallbackCode(new URLSearchParams(search), {getItem: vi.fn()})).toBe(expected);
 });

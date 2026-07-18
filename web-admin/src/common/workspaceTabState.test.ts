@@ -1,6 +1,5 @@
-/* eslint-env jest */
+import {describe, expect, test} from "vitest";
 import React from "react";
-import {expect} from "@jest/globals";
 import {
   WORKSPACE_TABS_MAX_VISIBLE,
   WORKSPACE_TABS_STORAGE_KEY,

@@ -1,5 +1,5 @@
+import {afterEach, describe, expect, test, vi} from "vitest";
 import React from "react";
-import {expect, jest as jestValue} from "@jest/globals";
 import {render} from "@testing-library/react";
 import {CloudSyncOutlined, PlayCircleOutlined, ReloadOutlined, SaveOutlined, ToolOutlined} from "@ant-design/icons";
 import {
@@ -9,24 +9,17 @@ import {
   OrganizationSyncSectionCard
 } from "./OrganizationSyncShell";
 import {readLessWithImports} from "../testUtils/less";
-
-const {fireEvent, screen} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-  };
-  screen: {
-    getByAltText: (text: string) => HTMLElement;
-    getByText: (text: string) => HTMLElement;
-  };
-};
-const path = require("path") as {join: (...parts: string[]) => string};
+import {fireEvent, screen} from "@testing-library/react";
+import * as path from "path";
+import {fileURLToPath} from "url";
+const testFileDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 function expectElement(element: HTMLElement | null): asserts element is HTMLElement {
   expect(element).not.toBeNull();
 }
 
 afterEach(() => {
-  jestValue.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 describe("OrganizationSyncPageHeader", () => {
@@ -111,7 +104,7 @@ describe("OrganizationSyncSectionCard", () => {
   });
 
   test("uses shared shell tokens for sync page cards and spacing", () => {
-    const appLess = readLessWithImports(path.join(__dirname, "../App.less"));
+    const appLess = readLessWithImports(path.join(testFileDirectory, "../App.less"));
     const pageBlock = appLess.match(/\.organization-sync-page \{([\s\S]*?)\}/)?.[1] ?? "";
     const sectionCardBlock = appLess.match(/\.organization-sync-section-card \{([\s\S]*?)\}/)?.[1] ?? "";
 
@@ -131,7 +124,7 @@ describe("OrganizationSyncSectionCard", () => {
 
 describe("OrganizationSyncRunRecordHeader", () => {
   test("renders refresh hint and refresh action without a wide table wrapper", () => {
-    const onRefresh = jestValue.fn();
+    const onRefresh = vi.fn();
     const {container} = render(
       <OrganizationSyncRunRecordHeader
         className="organization-sync-record-header"

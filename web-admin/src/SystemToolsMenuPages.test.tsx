@@ -1,6 +1,5 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
-import {expect, jest} from "@jest/globals";
 import {cleanup, fireEvent, render, waitFor} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import {Card, Input, Row, Select} from "antd";
@@ -14,13 +13,14 @@ import * as FormBackend from "./backend/FormBackend";
 import * as TicketBackend from "./backend/TicketBackend";
 import * as Setting from "./Setting";
 import * as TourConfig from "./TourConfig";
+import {buildEnterpriseNavigationGroups} from "./enterpriseNavigation";
 import type {LegacyAny} from "./types/legacyPage";
 
-jest.mock("./common/Editor", () => {
-  const React = require("react");
-  return function MockEditor() {
+vi.mock("./common/Editor", async() => {
+  const React = await vi.importActual<typeof import("react")>("react");
+  return ({default: function MockEditor() {
     return React.createElement("pre", {"data-testid": "editor"});
-  };
+  }});
 });
 
 type AdminRouteProps = import("./types/legacyPage").AdminRouteProps;
@@ -38,7 +38,7 @@ const account = {
 
 const routeProps: AdminRouteProps = {
   account,
-  history: {push: jest.fn()},
+  history: {push: vi.fn()},
   match: {path: "/", params: {}},
 };
 
@@ -60,7 +60,7 @@ function attachLegacyState(page: LegacyAny, extra: Record<string, LegacyAny> = {
     ...page.state,
     ...defaultListState(extra),
   };
-  page.setState = jest.fn((patch: LegacyAny) => {
+  page.setState = vi.fn((patch: LegacyAny) => {
     const nextState = typeof patch === "function" ? patch(page.state, page.props) : patch;
     page.state = {
       ...page.state,
@@ -142,24 +142,24 @@ beforeEach(() => {
     writable: true,
     value: () => ({
       matches: false,
-      addListener: jest.fn(),
-      removeListener: jest.fn(),
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
     }),
   });
-  jest.spyOn(Setting, "showMessage").mockImplementation(() => {});
-  jest.spyOn(Setting, "isMobile").mockReturnValue(false);
-  jest.spyOn(Setting, "getRequestOrganization").mockReturnValue("org-alpha");
-  jest.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(false);
-  jest.spyOn(Setting, "isAdminUser").mockReturnValue(true);
-  jest.spyOn(Setting, "getRandomName").mockReturnValue("fixed");
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "isMobile").mockReturnValue(false);
+  vi.spyOn(Setting, "getRequestOrganization").mockReturnValue("org-alpha");
+  vi.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(false);
+  vi.spyOn(Setting, "isAdminUser").mockReturnValue(true);
+  vi.spyOn(Setting, "getRandomName").mockReturnValue("fixed");
 });
 
 afterEach(() => {
-  jest.useRealTimers();
-  jest.restoreAllMocks();
-  jest.clearAllMocks();
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
   cleanup();
 });
 
@@ -171,8 +171,8 @@ test("migrates system tools menu page modules to TSX files", () => {
 });
 
 test("renders system information cards and cleans polling timer", () => {
-  const clearIntervalSpy = jest.spyOn(globalThis, "clearInterval");
-  const page = new (SystemInfo as LegacyAny)({...routeProps, history: {push: jest.fn()}});
+  const clearIntervalSpy = vi.spyOn(globalThis, "clearInterval");
+  const page = new (SystemInfo as LegacyAny)({...routeProps, history: {push: vi.fn()}});
   page.state = {
     ...page.state,
     loading: false,
@@ -212,7 +212,7 @@ test("renders system information cards and cleans polling timer", () => {
 });
 
 test("keeps system information lifecycle polling and tour state behavior", async() => {
-  jest.useFakeTimers();
+  vi.useFakeTimers();
   const systemInfo = {
     cpuUsage: [1.2],
     memoryUsed: 256,
@@ -223,21 +223,21 @@ test("keeps system information lifecycle polling and tour state behavior", async
     networkRecv: 128,
     networkTotal: 192,
   };
-  const getSystemInfo = jest.spyOn(SystemBackend, "getSystemInfo")
+  const getSystemInfo = vi.spyOn(SystemBackend, "getSystemInfo")
     .mockResolvedValueOnce({status: "ok", data: systemInfo})
     .mockResolvedValueOnce({status: "error", msg: "poll down"})
     .mockRejectedValueOnce(new Error("poll reject"));
-  jest.spyOn(SystemBackend, "getVersionInfo").mockResolvedValue({status: "ok", data: {version: "v2.0.0", commitOffset: 0}});
-  const getPrometheusInfo = jest.spyOn(SystemBackend, "getPrometheusInfo").mockResolvedValue({
+  vi.spyOn(SystemBackend, "getVersionInfo").mockResolvedValue({status: "ok", data: {version: "v2.0.0", commitOffset: 0}});
+  const getPrometheusInfo = vi.spyOn(SystemBackend, "getPrometheusInfo").mockResolvedValue({
     data: {apiLatency: [{path: "/api/get", latency: 1}], apiThroughput: [{path: "/api/get", throughput: 2}], totalThroughput: 2},
   });
-  jest.spyOn(TourConfig, "getTourVisible").mockReturnValue(true);
-  jest.spyOn(TourConfig, "getNextUrl").mockReturnValue("forms");
-  jest.spyOn(TourConfig, "getSteps").mockReturnValue([{id: "cpu-card"}] as LegacyAny);
-  const setIsTourVisible = jest.spyOn(TourConfig, "setIsTourVisible").mockImplementation(() => {});
-  const history = {push: jest.fn()};
+  vi.spyOn(TourConfig, "getTourVisible").mockReturnValue(true);
+  vi.spyOn(TourConfig, "getNextUrl").mockReturnValue("forms");
+  vi.spyOn(TourConfig, "getSteps").mockReturnValue([{id: "cpu-card"}] as LegacyAny);
+  const setIsTourVisible = vi.spyOn(TourConfig, "setIsTourVisible").mockImplementation(() => {});
+  const history = {push: vi.fn()};
   const page = new (SystemInfo as LegacyAny)({...routeProps, history});
-  page.setState = jest.fn((patch: LegacyAny) => {
+  page.setState = vi.fn((patch: LegacyAny) => {
     page.state = {...page.state, ...(typeof patch === "function" ? patch(page.state, page.props) : patch)};
   });
 
@@ -247,7 +247,7 @@ test("keeps system information lifecycle polling and tour state behavior", async
   expect(page.state.systemInfo).toEqual(systemInfo);
   expect(page.state.versionInfo.version).toBe("v2.0.0");
 
-  jest.advanceTimersByTime(2000);
+  vi.advanceTimersByTime(2000);
   await flushMicrotasks();
   expect(getSystemInfo).toHaveBeenCalledTimes(2);
   expect(Setting.showMessage).toHaveBeenCalledWith("error", "poll down");
@@ -268,11 +268,11 @@ test("keeps system information lifecycle polling and tour state behavior", async
 });
 
 test("keeps system information mobile rendering and fail-closed messages", async() => {
-  jest.spyOn(Setting, "isMobile").mockReturnValue(true);
-  jest.spyOn(SystemBackend, "getSystemInfo").mockRejectedValue(new Error("network down"));
-  jest.spyOn(SystemBackend, "getVersionInfo").mockResolvedValue({status: "error", msg: "version down"});
-  const page = new (SystemInfo as LegacyAny)({...routeProps, history: {push: jest.fn()}});
-  page.setState = jest.fn((patch: LegacyAny) => {
+  vi.spyOn(Setting, "isMobile").mockReturnValue(true);
+  vi.spyOn(SystemBackend, "getSystemInfo").mockRejectedValue(new Error("network down"));
+  vi.spyOn(SystemBackend, "getVersionInfo").mockResolvedValue({status: "error", msg: "version down"});
+  const page = new (SystemInfo as LegacyAny)({...routeProps, history: {push: vi.fn()}});
+  page.setState = vi.fn((patch: LegacyAny) => {
     page.state = {...page.state, ...(typeof patch === "function" ? patch(page.state, page.props) : patch)};
   });
 
@@ -302,11 +302,11 @@ test("keeps system information mobile rendering and fail-closed messages", async
 });
 
 test("keeps system information initial backend error handling", async() => {
-  jest.useFakeTimers();
-  jest.spyOn(SystemBackend, "getSystemInfo").mockResolvedValue({status: "error", msg: "system down"});
-  jest.spyOn(SystemBackend, "getVersionInfo").mockRejectedValue(new Error("version reject"));
-  const page = new (SystemInfo as LegacyAny)({...routeProps, history: {push: jest.fn()}});
-  page.setState = jest.fn((patch: LegacyAny) => {
+  vi.useFakeTimers();
+  vi.spyOn(SystemBackend, "getSystemInfo").mockResolvedValue({status: "error", msg: "system down"});
+  vi.spyOn(SystemBackend, "getVersionInfo").mockRejectedValue(new Error("version reject"));
+  const page = new (SystemInfo as LegacyAny)({...routeProps, history: {push: vi.fn()}});
+  page.setState = vi.fn((patch: LegacyAny) => {
     page.state = {...page.state, ...(typeof patch === "function" ? patch(page.state, page.props) : patch)};
   });
 
@@ -317,9 +317,9 @@ test("keeps system information initial backend error handling", async() => {
 });
 
 test("keeps form list table display, add and delete behavior", async() => {
-  const addForm = jest.spyOn(FormBackend, "addForm").mockResolvedValue({status: "ok"});
-  const deleteForm = jest.spyOn(FormBackend, "deleteForm").mockResolvedValue({status: "ok"});
-  const history = {push: jest.fn()};
+  const addForm = vi.spyOn(FormBackend, "addForm").mockResolvedValue({status: "ok"});
+  const deleteForm = vi.spyOn(FormBackend, "deleteForm").mockResolvedValue({status: "ok"});
+  const history = {push: vi.fn()};
   const page = attachLegacyState(new (FormListPage as LegacyAny)({...routeProps, history}), {
     data: [formRecord()],
     pagination: {current: 1, pageSize: 10, total: 1},
@@ -353,13 +353,13 @@ test("keeps form list table display, add and delete behavior", async() => {
 });
 
 test("keeps form list empty items and backend failure behavior", async() => {
-  const addForm = jest.spyOn(FormBackend, "addForm")
+  const addForm = vi.spyOn(FormBackend, "addForm")
     .mockResolvedValueOnce({status: "error", msg: "add denied"})
     .mockRejectedValueOnce(new Error("add down"));
-  const deleteForm = jest.spyOn(FormBackend, "deleteForm")
+  const deleteForm = vi.spyOn(FormBackend, "deleteForm")
     .mockResolvedValueOnce({status: "error", msg: "delete denied"})
     .mockRejectedValueOnce(new Error("delete down"));
-  const page = attachLegacyState(new (FormListPage as LegacyAny)({...routeProps, history: {push: jest.fn()}}), {
+  const page = attachLegacyState(new (FormListPage as LegacyAny)({...routeProps, history: {push: vi.fn()}}), {
     data: [formRecord()],
     pagination: {current: 1, pageSize: 10, total: 1},
   });
@@ -399,7 +399,7 @@ test("keeps form list empty items and backend failure behavior", async() => {
 });
 
 test("keeps form fetch contract and denied response handling", async() => {
-  const getForms = jest.spyOn(FormBackend, "getForms").mockResolvedValue({status: "ok", data: [formRecord()], data2: 1});
+  const getForms = vi.spyOn(FormBackend, "getForms").mockResolvedValue({status: "ok", data: [formRecord()], data2: 1});
   const page = attachLegacyState(new (FormListPage as LegacyAny)(routeProps));
   const params = {
     pagination: {current: 2, pageSize: 25},
@@ -416,7 +416,7 @@ test("keeps form fetch contract and denied response handling", async() => {
   expect(page.state.data).toEqual([formRecord()]);
   expect(page.state.pagination.total).toBe(1);
 
-  jest.spyOn(Setting, "isResponseDenied").mockReturnValue(true);
+  vi.spyOn(Setting, "isResponseDenied").mockReturnValue(true);
   getForms.mockResolvedValueOnce({status: "error", msg: "denied"});
   page.fetch(params);
   await flushPromises();
@@ -424,9 +424,9 @@ test("keeps form fetch contract and denied response handling", async() => {
 });
 
 test("keeps form edit type defaults, preview link and save behavior", async() => {
-  const updateForm = jest.spyOn(FormBackend, "updateForm").mockResolvedValue({status: "ok", data: true});
-  const openLink = jest.spyOn(Setting, "openLink").mockImplementation(() => {});
-  const history = {push: jest.fn()};
+  const updateForm = vi.spyOn(FormBackend, "updateForm").mockResolvedValue({status: "ok", data: true});
+  const openLink = vi.spyOn(Setting, "openLink").mockImplementation(() => {});
+  const history = {push: vi.fn()};
   const page = new (FormEditPage as LegacyAny)({
     ...routeProps,
     history,
@@ -438,7 +438,7 @@ test("keeps form edit type defaults, preview link and save behavior", async() =>
     formName: "users",
     form: formRecord(),
   };
-  page.setState = jest.fn((patch: LegacyAny) => {
+  page.setState = vi.fn((patch: LegacyAny) => {
     page.state = {...page.state, ...(typeof patch === "function" ? patch(page.state, page.props) : patch)};
   });
 
@@ -463,19 +463,19 @@ test("keeps form edit type defaults, preview link and save behavior", async() =>
 });
 
 test("keeps form edit loading, preview type routing and save failure behavior", async() => {
-  const getForm = jest.spyOn(FormBackend, "getForm").mockResolvedValue({status: "ok", data: formRecord({type: "users"})});
-  const updateForm = jest.spyOn(FormBackend, "updateForm")
+  const getForm = vi.spyOn(FormBackend, "getForm").mockResolvedValue({status: "ok", data: formRecord({type: "users"})});
+  const updateForm = vi.spyOn(FormBackend, "updateForm")
     .mockResolvedValueOnce({status: "ok", data: false})
     .mockResolvedValueOnce({status: "error", msg: "duplicate"})
     .mockRejectedValueOnce(new Error("save down"));
-  const openLink = jest.spyOn(Setting, "openLink").mockImplementation(() => {});
+  const openLink = vi.spyOn(Setting, "openLink").mockImplementation(() => {});
   const page = new (FormEditPage as LegacyAny)({
     ...routeProps,
-    history: {push: jest.fn()},
+    history: {push: vi.fn()},
     match: {params: {formName: "users"}},
     location: {},
   });
-  page.setState = jest.fn((patch: LegacyAny) => {
+  page.setState = vi.fn((patch: LegacyAny) => {
     page.state = {...page.state, ...(typeof patch === "function" ? patch(page.state, page.props) : patch)};
   });
 
@@ -516,14 +516,14 @@ test("keeps form edit loading, preview type routing and save failure behavior", 
 });
 
 test("keeps ticket list state labels, add and delete behavior", async() => {
-  const addTicket = jest.spyOn(TicketBackend, "addTicket").mockResolvedValue({status: "ok"});
-  const deleteTicket = jest.spyOn(TicketBackend, "deleteTicket").mockResolvedValue({status: "ok"});
-  const history = {push: jest.fn()};
+  const addTicket = vi.spyOn(TicketBackend, "addTicket").mockResolvedValue({status: "ok"});
+  const deleteTicket = vi.spyOn(TicketBackend, "deleteTicket").mockResolvedValue({status: "ok"});
+  const history = {push: vi.fn()};
   const page = attachLegacyState(new (TicketListPage as LegacyAny)({...routeProps, history}), {
     data: [ticketRecord()],
     pagination: {current: 2, pageSize: 10, total: 1},
   });
-  page.fetch = jest.fn();
+  page.fetch = vi.fn();
   const view = render(<MemoryRouter>{page.renderTable([ticketRecord({state: "Resolved"})])}</MemoryRouter>);
 
   expectAny(view.getByText("ticket_alpha")).not.toBeNull();
@@ -552,18 +552,18 @@ test("keeps ticket list state labels, add and delete behavior", async() => {
 });
 
 test("keeps ticket list state variants and backend failure behavior", async() => {
-  const addTicket = jest.spyOn(TicketBackend, "addTicket")
+  const addTicket = vi.spyOn(TicketBackend, "addTicket")
     .mockResolvedValueOnce({status: "error", msg: "add ticket denied"})
     .mockRejectedValueOnce(new Error("add ticket down"));
-  const deleteTicket = jest.spyOn(TicketBackend, "deleteTicket")
+  const deleteTicket = vi.spyOn(TicketBackend, "deleteTicket")
     .mockResolvedValueOnce({status: "error", msg: "delete ticket denied"})
     .mockRejectedValueOnce(new Error("delete ticket down"));
-  const getTickets = jest.spyOn(TicketBackend, "getTickets").mockResolvedValue({status: "ok", data: [ticketRecord({state: "Open"})], data2: 1});
-  const page = attachLegacyState(new (TicketListPage as LegacyAny)({...routeProps, history: {push: jest.fn()}}), {
+  const getTickets = vi.spyOn(TicketBackend, "getTickets").mockResolvedValue({status: "ok", data: [ticketRecord({state: "Open"})], data2: 1});
+  const page = attachLegacyState(new (TicketListPage as LegacyAny)({...routeProps, history: {push: vi.fn()}}), {
     data: [ticketRecord()],
     pagination: {current: 1, pageSize: 10, total: 1},
   });
-  page.fetch = jest.fn(page.fetch.bind(page));
+  page.fetch = vi.fn(page.fetch.bind(page));
   const view = render(<MemoryRouter>{page.renderTable([
     ticketRecord({name: "ticket_open", state: "Open"}),
     ticketRecord({name: "ticket_progress", state: "In Progress"}),
@@ -599,7 +599,7 @@ test("keeps ticket list state variants and backend failure behavior", async() =>
 });
 
 test("keeps ticket fetch contract and authorization handling", async() => {
-  const getTickets = jest.spyOn(TicketBackend, "getTickets").mockResolvedValue({status: "ok", data: [ticketRecord()], data2: 1});
+  const getTickets = vi.spyOn(TicketBackend, "getTickets").mockResolvedValue({status: "ok", data: [ticketRecord()], data2: 1});
   const page = attachLegacyState(new (TicketListPage as LegacyAny)(routeProps));
   const params = {
     pagination: {current: 3, pageSize: 20},
@@ -615,7 +615,7 @@ test("keeps ticket fetch contract and authorization handling", async() => {
   expect(getTickets).toHaveBeenCalledWith("org-alpha", 3, 20, "title", "help", "updatedTime", "ascend");
   expect(page.state.data).toEqual([ticketRecord()]);
 
-  jest.spyOn(Setting, "isResponseDenied").mockReturnValue(true);
+  vi.spyOn(Setting, "isResponseDenied").mockReturnValue(true);
   getTickets.mockResolvedValueOnce({status: "error", msg: "denied"});
   page.fetch(params);
   await flushPromises();
@@ -623,17 +623,17 @@ test("keeps ticket fetch contract and authorization handling", async() => {
 });
 
 test("keeps ticket edit loading, message sending and navigation behavior", async() => {
-  const getTicket = jest.spyOn(TicketBackend, "getTicket").mockResolvedValue({data: ticketRecord({messages: null})});
-  const updateTicket = jest.spyOn(TicketBackend, "updateTicket").mockResolvedValue({status: "ok"});
-  const addTicketMessage = jest.spyOn(TicketBackend, "addTicketMessage").mockResolvedValue({status: "ok"});
-  const history = {push: jest.fn()};
+  const getTicket = vi.spyOn(TicketBackend, "getTicket").mockResolvedValue({data: ticketRecord({messages: null})});
+  const updateTicket = vi.spyOn(TicketBackend, "updateTicket").mockResolvedValue({status: "ok"});
+  const addTicketMessage = vi.spyOn(TicketBackend, "addTicketMessage").mockResolvedValue({status: "ok"});
+  const history = {push: vi.fn()};
   const page = new (TicketEditPage as LegacyAny)({
     ...routeProps,
     history,
     match: {params: {organizationName: "org-alpha", ticketName: "ticket_alpha"}},
     location: {},
   });
-  page.setState = jest.fn((patch: LegacyAny) => {
+  page.setState = vi.fn((patch: LegacyAny) => {
     page.state = {...page.state, ...(typeof patch === "function" ? patch(page.state, page.props) : patch)};
   });
 
@@ -667,15 +667,15 @@ test("keeps ticket edit loading, message sending and navigation behavior", async
 });
 
 test("publishes the ticket display name for its workspace tab after loading", async() => {
-  const dispatchSpy = jest.spyOn(window, "dispatchEvent");
-  jest.spyOn(TicketBackend, "getTicket").mockResolvedValue({status: "ok", data: ticketRecord({displayName: "Tenant support"})});
+  const dispatchSpy = vi.spyOn(window, "dispatchEvent");
+  vi.spyOn(TicketBackend, "getTicket").mockResolvedValue({status: "ok", data: ticketRecord({displayName: "Tenant support"})});
   const page = new (TicketEditPage as LegacyAny)({
     ...routeProps,
-    history: {push: jest.fn()},
+    history: {push: vi.fn()},
     match: {params: {organizationName: "org-alpha", ticketName: "ticket_alpha"}},
     location: {},
   });
-  page.setState = jest.fn((patch: LegacyAny, callback?: () => void) => {
+  page.setState = vi.fn((patch: LegacyAny, callback?: () => void) => {
     page.state = {...page.state, ...(typeof patch === "function" ? patch(page.state, page.props) : patch)};
     callback?.();
   });
@@ -690,15 +690,15 @@ test("publishes the ticket display name for its workspace tab after loading", as
 });
 
 test("only republishes the ticket workspace label for top-level display name changes", () => {
-  const dispatchSpy = jest.spyOn(window, "dispatchEvent");
+  const dispatchSpy = vi.spyOn(window, "dispatchEvent");
   const page = new (TicketEditPage as LegacyAny)({
     ...routeProps,
-    history: {push: jest.fn()},
+    history: {push: vi.fn()},
     match: {params: {organizationName: "org-alpha", ticketName: "ticket_alpha"}},
     location: {},
   });
   page.state.ticket = ticketRecord();
-  page.setState = jest.fn((patch: LegacyAny, callback?: () => void) => {
+  page.setState = vi.fn((patch: LegacyAny, callback?: () => void) => {
     page.state = {...page.state, ...(typeof patch === "function" ? patch(page.state, page.props) : patch)};
     callback?.();
   });
@@ -715,24 +715,24 @@ test("only republishes the ticket workspace label for top-level display name cha
 });
 
 test("keeps ticket edit field controls, send failure and send shortcut behavior", async() => {
-  const addTicketMessage = jest.spyOn(TicketBackend, "addTicketMessage")
+  const addTicketMessage = vi.spyOn(TicketBackend, "addTicketMessage")
     .mockResolvedValueOnce({status: "error", msg: "blocked"})
     .mockRejectedValueOnce(new Error("message down"))
     .mockResolvedValueOnce({status: "ok"});
   const page = new (TicketEditPage as LegacyAny)({
     ...routeProps,
-    history: {push: jest.fn()},
+    history: {push: vi.fn()},
     match: {params: {organizationName: "org-alpha", ticketName: "ticket_alpha"}},
     location: {mode: "add"},
   });
   page.state.ticket = ticketRecord({state: "Closed", user: "another-user", messages: [{author: "admin", text: "note", timestamp: "2026-06-20T10:06:00Z", isAdmin: true}]});
-  page.setState = jest.fn((patch: LegacyAny) => {
+  page.setState = vi.fn((patch: LegacyAny) => {
     page.state = {...page.state, ...(typeof patch === "function" ? patch(page.state, page.props) : patch)};
   });
   const ticketForm = page.renderTicket();
   const renderedTicket = render(<MemoryRouter>{ticketForm}</MemoryRouter>);
   expectAny(renderedTicket.getByText(/New Ticket|新工单/)).not.toBeNull();
-  const updateTicket = jest.spyOn(TicketBackend, "updateTicket")
+  const updateTicket = vi.spyOn(TicketBackend, "updateTicket")
     .mockResolvedValueOnce({status: "ok"})
     .mockResolvedValueOnce({status: "error", msg: "save denied"})
     .mockRejectedValueOnce(new Error("save down"));
@@ -781,17 +781,17 @@ test("keeps ticket edit field controls, send failure and send shortcut behavior"
 });
 
 test("keeps ticket edit null-ticket guards", () => {
-  const addTicketMessage = jest.spyOn(TicketBackend, "addTicketMessage");
-  const updateTicket = jest.spyOn(TicketBackend, "updateTicket");
+  const addTicketMessage = vi.spyOn(TicketBackend, "addTicketMessage");
+  const updateTicket = vi.spyOn(TicketBackend, "updateTicket");
   const page = new (TicketEditPage as LegacyAny)({
     ...routeProps,
-    history: {push: jest.fn()},
+    history: {push: vi.fn()},
     match: {params: {organizationName: "org-alpha", ticketName: "ticket_alpha"}},
     location: {},
   });
   page.state.ticket = null;
 
-  page.UNSAFE_componentWillMount = jest.fn();
+  page.UNSAFE_componentWillMount = vi.fn();
   page.updateTicketField("name", "ignored");
   page.submitTicketEdit(false);
   page.sendMessage();
@@ -801,17 +801,17 @@ test("keeps ticket edit null-ticket guards", () => {
 });
 
 test("keeps ticket edit empty message and not-found behavior", async() => {
-  const history = {push: jest.fn()};
+  const history = {push: vi.fn()};
   const page = new (TicketEditPage as LegacyAny)({
     ...routeProps,
     history,
     match: {params: {organizationName: "org-alpha", ticketName: "missing"}},
     location: {},
   });
-  page.setState = jest.fn((patch: LegacyAny) => {
+  page.setState = vi.fn((patch: LegacyAny) => {
     page.state = {...page.state, ...(typeof patch === "function" ? patch(page.state, page.props) : patch)};
   });
-  jest.spyOn(TicketBackend, "getTicket").mockResolvedValue({data: null});
+  vi.spyOn(TicketBackend, "getTicket").mockResolvedValue({data: null});
 
   page.getTicket();
   await flushPromises();
@@ -824,8 +824,7 @@ test("keeps ticket edit empty message and not-found behavior", async() => {
 });
 
 test("keeps Swagger API documentation as an external navigation entry", () => {
-  const navigation = require("./enterpriseNavigation");
-  const groups = navigation.buildEnterpriseNavigationGroups({account: {...account, organization: {navItems: ["all"]}}, themeData: {colorPrimary: "#1677ff"}});
+  const groups = buildEnterpriseNavigationGroups({account: {...account, organization: {navItems: ["all"]}}, themeData: {colorPrimary: "#1677ff"}});
   const systemTools = groups.find((group: LegacyAny) => group.key === "/system-tools");
   const swagger = systemTools.children.find((item: LegacyAny) => item.key === "/swagger");
 

@@ -1,8 +1,7 @@
-/* eslint-env jest */
+import {describe, expect, test} from "vitest";
 import React from "react";
 import {render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
-import {expect} from "@jest/globals";
 import {
   EnterpriseIdentityActionGrid,
   EnterpriseIdentityConsolePage,

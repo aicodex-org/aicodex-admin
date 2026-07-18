@@ -1,23 +1,18 @@
-/* eslint-env jest */
+import {afterEach, expect, test, vi} from "vitest";
 import React from "react";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {cleanup, render} from "@testing-library/react";
 import ListPageTable from "./ListPageTable";
 import {readLessWithImports} from "../testUtils/less";
+import * as path from "path";
+import {fireEvent} from "@testing-library/react";
+import {fileURLToPath} from "url";
+const testFileDirectory = path.dirname(fileURLToPath(import.meta.url));
 
-const expect = jestExpect;
-const path = require("path") as typeof import("path");
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-  };
-};
-
-const readAppLess = (): string => readLessWithImports(path.join(__dirname, "..", "App.less"));
+const readAppLess = (): string => readLessWithImports(path.join(testFileDirectory, "..", "App.less"));
 
 afterEach(() => {
   cleanup();
-  jestValue.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 interface TestRecord {
@@ -101,7 +96,7 @@ test("renders shared pagination in the list table footer", () => {
 });
 
 test("keeps table pagination change contract from the shared footer", () => {
-  const handleChange = jestValue.fn();
+  const handleChange = vi.fn();
   const view = render(
     <ListPageTable<TestRecord>
       columns={columns}

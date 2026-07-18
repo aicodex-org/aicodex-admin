@@ -1,7 +1,6 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import React from "react";
 import {act, cleanup, render} from "@testing-library/react";
-import {expect, jest} from "@jest/globals";
 import {MemoryRouter} from "react-router-dom";
 import i18next from "i18next";
 import AgentListPage from "./AgentListPage";
@@ -10,6 +9,11 @@ import * as FormBackend from "./backend/FormBackend";
 import * as Setting from "./Setting";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
+import * as fs from "fs";
+import * as path from "path";
+import {fireEvent} from "@testing-library/react";
+import {fileURLToPath} from "url";
+const testFileDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -48,25 +52,23 @@ function getRenderedTable(node: React.ReactNode): React.ReactElement<{columns: T
   return React.Children.only(wrapper.props.children) as React.ReactElement<{columns: TestTableColumn[]; title: () => React.ReactNode}>;
 }
 
-jest.mock("./backend/AgentBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
+vi.mock("./backend/AgentBackend", () => {
   return {
-    getAgents: factoryJest.fn(),
-    getAgent: factoryJest.fn(),
-    updateAgent: factoryJest.fn(),
-    addAgent: factoryJest.fn(),
-    deleteAgent: factoryJest.fn(),
+    getAgents: vi.fn(),
+    getAgent: vi.fn(),
+    updateAgent: vi.fn(),
+    addAgent: vi.fn(),
+    deleteAgent: vi.fn(),
   };
 });
 
-jest.mock("./backend/FormBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
+vi.mock("./backend/FormBackend", () => {
   return {
-    getForm: factoryJest.fn(),
+    getForm: vi.fn(),
   };
 });
 
-jest.mock("./TourConfig", () => ({
+vi.mock("./TourConfig", () => ({
   getTourVisible: () => false,
   getSteps: () => [],
   getNextUrl: () => "",
@@ -75,13 +77,6 @@ jest.mock("./TourConfig", () => ({
 
 const agentBackendMock = AgentBackend as unknown as AgentBackendMock;
 const formBackendMock = FormBackend as unknown as FormBackendMock;
-const fs = require("fs") as {existsSync: (filePath: string) => boolean};
-const path = require("path") as {join: (...parts: string[]) => string};
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-  };
-};
 let consoleErrorSpy: {mockRestore: () => void};
 
 const adminAccount = {owner: "admin", tag: "", isAdmin: true};
@@ -118,7 +113,7 @@ async function useTestLanguage(language: string) {
 
 function createHistory() {
   return {
-    push: jest.fn(),
+    push: vi.fn(),
   };
 }
 
@@ -164,23 +159,23 @@ async function flushPromises() {
 describe("AgentListPage", () => {
   beforeEach(async() => {
     await useTestLanguage("zh");
-    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
       throw new Error([message, ...args].map(item => `${item}`).join(" "));
     });
     Object.defineProperty(window, "matchMedia", {
       writable: true,
       value: () => ({
         matches: false,
-        addListener: jest.fn(),
-        removeListener: jest.fn(),
-        addEventListener: jest.fn(),
-        removeEventListener: jest.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
       }),
     });
-    jest.spyOn(Setting, "showMessage").mockImplementation(() => {});
-    jest.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
-    jest.spyOn(Setting, "getRequestOrganization").mockReturnValue("engineering");
-    jest.spyOn(Setting, "isMobile").mockReturnValue(false);
+    vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+    vi.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
+    vi.spyOn(Setting, "getRequestOrganization").mockReturnValue("engineering");
+    vi.spyOn(Setting, "isMobile").mockReturnValue(false);
     formBackendMock.getForm.mockResolvedValue({status: "ok", data: {formItems: []}});
     agentBackendMock.getAgents.mockResolvedValue({status: "ok", data: [agent], data2: 1});
     agentBackendMock.addAgent.mockResolvedValue({status: "ok"});
@@ -190,13 +185,13 @@ describe("AgentListPage", () => {
   afterEach(() => {
     cleanup();
     consoleErrorSpy.mockRestore();
-    jest.restoreAllMocks();
-    jest.clearAllMocks();
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   test("is migrated from JavaScript to TSX", () => {
-    expect(fs.existsSync(path.join(__dirname, "AgentListPage.tsx"))).toBe(true);
-    expect(fs.existsSync(path.join(__dirname, "AgentListPage.js"))).toBe(false);
+    expect(fs.existsSync(path.join(testFileDirectory, "AgentListPage.tsx"))).toBe(true);
+    expect(fs.existsSync(path.join(testFileDirectory, "AgentListPage.js"))).toBe(false);
   });
 
   test("renders agent rows with the shared list shell", async() => {
@@ -272,7 +267,7 @@ describe("AgentListPage", () => {
 
   test("deletes agents and rolls back pagination for the last row", async() => {
     const page = createPage();
-    page.fetch = jest.fn() as unknown as typeof page.fetch;
+    page.fetch = vi.fn() as unknown as typeof page.fetch;
     page.state = {
       ...page.state,
       data: [agent],
@@ -292,7 +287,7 @@ describe("AgentListPage", () => {
   test("keeps current pagination when deleting from a page with multiple rows", async() => {
     const secondAgent = {...agent, name: "agent-two"};
     const page = createPage();
-    page.fetch = jest.fn() as unknown as typeof page.fetch;
+    page.fetch = vi.fn() as unknown as typeof page.fetch;
     page.state = {
       ...page.state,
       data: [agent, secondAgent],
@@ -348,8 +343,8 @@ describe("AgentListPage", () => {
       match: {path: "/agents", params: {}},
     });
     installSynchronousSetState(page);
-    jest.spyOn(page, "addAgent").mockImplementation(() => {});
-    jest.spyOn(page, "deleteAgent").mockImplementation(() => {});
+    vi.spyOn(page, "addAgent").mockImplementation(() => {});
+    vi.spyOn(page, "deleteAgent").mockImplementation(() => {});
 
     const table = getRenderedTable(page.renderTable([agent]));
     const columns = table.props.columns;
@@ -377,7 +372,7 @@ describe("AgentListPage", () => {
   });
 
   test("does not fix the action column on mobile", () => {
-    jest.spyOn(Setting, "isMobile").mockReturnValue(true);
+    vi.spyOn(Setting, "isMobile").mockReturnValue(true);
     const page = createPage();
 
     const table = getRenderedTable(page.renderTable([agent]));

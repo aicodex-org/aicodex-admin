@@ -1,11 +1,15 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import React from "react";
 import {act, cleanup, render} from "@testing-library/react";
-import {expect, jest} from "@jest/globals";
 import RuleEditPage from "./RuleEditPage";
 import * as RuleBackend from "./backend/RuleBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as Setting from "./Setting";
+import * as fs from "fs";
+import * as path from "path";
+import {fireEvent} from "@testing-library/react";
+import {fileURLToPath} from "url";
+const testFileDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -70,25 +74,22 @@ type RuleTableProps = {
   title?: string;
 };
 
-jest.mock("./backend/RuleBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
+vi.mock("./backend/RuleBackend", () => {
   return {
-    getRule: factoryJest.fn(),
-    updateRule: factoryJest.fn(),
+    getRule: vi.fn(),
+    updateRule: vi.fn(),
   };
 });
 
-jest.mock("./backend/OrganizationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
+vi.mock("./backend/OrganizationBackend", () => {
   return {
-    getOrganizations: factoryJest.fn(),
+    getOrganizations: vi.fn(),
   };
 });
 
 function mockCreateRuleTable(testId: string) {
   return (props: RuleTableProps) => {
-    const ReactRuntime = require("react");
-    return ReactRuntime.createElement(
+    return React.createElement(
       "button",
       {
         "data-testid": testId,
@@ -100,22 +101,14 @@ function mockCreateRuleTable(testId: string) {
   };
 }
 
-jest.mock("./table/WafRuleTable", () => ({__esModule: true, default: mockCreateRuleTable("waf-rule-table")}));
-jest.mock("./table/IpRuleTable", () => ({__esModule: true, default: mockCreateRuleTable("ip-rule-table")}));
-jest.mock("./table/UaRuleTable", () => ({__esModule: true, default: mockCreateRuleTable("ua-rule-table")}));
-jest.mock("./table/IpRateRuleTable", () => ({__esModule: true, default: mockCreateRuleTable("ip-rate-rule-table")}));
-jest.mock("./common/CompoundRule", () => ({__esModule: true, default: mockCreateRuleTable("compound-rule")}));
+vi.mock("./table/WafRuleTable", () => ({__esModule: true, default: mockCreateRuleTable("waf-rule-table")}));
+vi.mock("./table/IpRuleTable", () => ({__esModule: true, default: mockCreateRuleTable("ip-rule-table")}));
+vi.mock("./table/UaRuleTable", () => ({__esModule: true, default: mockCreateRuleTable("ua-rule-table")}));
+vi.mock("./table/IpRateRuleTable", () => ({__esModule: true, default: mockCreateRuleTable("ip-rate-rule-table")}));
+vi.mock("./common/CompoundRule", () => ({__esModule: true, default: mockCreateRuleTable("compound-rule")}));
 
 const ruleBackendMock = RuleBackend as unknown as RuleBackendMock;
 const organizationBackendMock = OrganizationBackend as unknown as OrganizationBackendMock;
-const fs = require("fs") as {existsSync: (filePath: string) => boolean};
-const path = require("path") as {join: (...parts: string[]) => string};
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    change: (element: Element | null, event: unknown) => boolean;
-    click: (element: Element | null) => boolean;
-  };
-};
 let consoleErrorSpy: {mockRestore: () => void};
 
 const adminAccount = {owner: "admin", tag: "", isAdmin: true};
@@ -132,7 +125,7 @@ const rule: TestRuleRecord = {
 
 function createHistory() {
   return {
-    push: jest.fn(),
+    push: vi.fn(),
   };
 }
 
@@ -191,11 +184,11 @@ async function flushPromises() {
 
 describe("RuleEditPage", () => {
   beforeEach(() => {
-    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
       throw new Error([message, ...args].map(item => `${item}`).join(" "));
     });
-    jest.spyOn(Setting, "showMessage").mockImplementation(() => {});
-    jest.spyOn(Setting, "isAdminUser").mockReturnValue(true);
+    vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+    vi.spyOn(Setting, "isAdminUser").mockReturnValue(true);
     ruleBackendMock.getRule.mockResolvedValue({status: "ok", data: {...rule}});
     ruleBackendMock.updateRule.mockResolvedValue({status: "ok"});
     organizationBackendMock.getOrganizations.mockResolvedValue({status: "ok", data: [{name: "engineering"}, {name: "platform"}]});
@@ -204,13 +197,13 @@ describe("RuleEditPage", () => {
   afterEach(() => {
     cleanup();
     consoleErrorSpy.mockRestore();
-    jest.restoreAllMocks();
-    jest.clearAllMocks();
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   test("is migrated from JavaScript to TSX", () => {
-    expect(fs.existsSync(path.join(__dirname, "RuleEditPage.tsx"))).toBe(true);
-    expect(fs.existsSync(path.join(__dirname, "RuleEditPage.js"))).toBe(false);
+    expect(fs.existsSync(path.join(testFileDirectory, "RuleEditPage.tsx"))).toBe(true);
+    expect(fs.existsSync(path.join(testFileDirectory, "RuleEditPage.js"))).toBe(false);
   });
 
   test("loads rule data and admin organizations", async() => {
@@ -232,7 +225,7 @@ describe("RuleEditPage", () => {
   });
 
   test("skips organization loading for non-admin accounts", () => {
-    jest.spyOn(Setting, "isAdminUser").mockReturnValue(false);
+    vi.spyOn(Setting, "isAdminUser").mockReturnValue(false);
     const page = createPage();
 
     page.getOrganizations();
@@ -323,7 +316,7 @@ describe("RuleEditPage", () => {
       errorPage.state = {...errorPage.state, ...(stateUpdate as Record<string, unknown>)};
     }) as typeof errorPage.setState;
     errorPage.state = {...createPage({owner: "platform", name: "renamed-rule"}).state};
-    jest.spyOn(errorPage, "getRule").mockImplementation(() => {});
+    vi.spyOn(errorPage, "getRule").mockImplementation(() => {});
     ruleBackendMock.updateRule.mockResolvedValueOnce({status: "error", msg: "save failed"});
 
     errorPage.submitRuleEdit();

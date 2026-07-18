@@ -1,47 +1,43 @@
-/* eslint-env jest */
+import {afterEach, beforeAll, beforeEach, describe, expect, test, vi} from "vitest";
 import React from "react";
-import {afterEach, beforeAll, beforeEach, describe, expect, jest, test} from "@jest/globals";
-import {act, cleanup, render} from "@testing-library/react";
+import {act, cleanup, fireEvent, render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import i18next from "i18next";
 import "./i18n";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
+import ApplicationEditPage from "./ApplicationEditPage";
+import SigninMethodTable from "./table/SigninMethodTable";
+import SigninTable from "./table/SigninTable";
+import SignupTable from "./table/SignupTable";
 import {type ConsoleCallSpy, getAntdWarnings, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
 
-let ApplicationEditPage: any;
-
-const {fireEvent} = require("@testing-library/react") as {fireEvent: {
-  click: (element: Element) => boolean;
-  change: (element: Element, init: {target: Record<string, unknown>}) => boolean;
-}};
-
-jest.mock("./common/Editor", () => () => <pre data-testid="editor" />);
-jest.mock("./common/theme/ThemeEditor", () => ({onThemeChange}: {onThemeChange?: (_: unknown, themeData: Record<string, unknown>) => void}) => (
+vi.mock("./common/Editor", () => ({default: () => <pre data-testid="editor" />}));
+vi.mock("./common/theme/ThemeEditor", () => ({default: ({onThemeChange}: {onThemeChange?: (_: unknown, themeData: Record<string, unknown>) => void}) => (
   <button type="button" data-testid="theme-editor" onClick={() => onThemeChange?.(undefined, {colorPrimary: "#123456"})}>
     Theme editor
   </button>
-));
-jest.mock("./common/CustomGithubCorner", () => () => null);
-jest.mock("./common/select/LanguageSelect", () => () => <span data-testid="language-select" />);
-jest.mock("./common/select/CountryCodeSelect", () => () => <span data-testid="country-code-select" />);
-jest.mock("./common/select/RegionSelect", () => () => <span data-testid="region-select" />);
-jest.mock("./common/select/AffiliationSelect", () => () => <span data-testid="affiliation-select" />);
-jest.mock("./common/OAuthWidget", () => () => <span data-testid="oauth-widget" />);
-jest.mock("./common/SendCodeInput", () => ({SendCodeInput: () => <span data-testid="send-code-input" />}));
-jest.mock("./auth/ProviderButton", () => ({renderProviderLogo: () => <span data-testid="provider-logo" />}));
-jest.mock("./auth/WeComLoginPanel", () => () => <span data-testid="wecom-login-panel" />);
-jest.mock("./auth/PromptPage", () => () => <span data-testid="prompt-preview" />);
-jest.mock("antd/es/layout/layout", () => ({
+)}));
+vi.mock("./common/CustomGithubCorner", () => ({default: () => null}));
+vi.mock("./common/select/LanguageSelect", () => ({default: () => <span data-testid="language-select" />}));
+vi.mock("./common/select/CountryCodeSelect", () => ({default: () => <span data-testid="country-code-select" />}));
+vi.mock("./common/select/RegionSelect", () => ({default: () => <span data-testid="region-select" />}));
+vi.mock("./common/select/AffiliationSelect", () => ({default: () => <span data-testid="affiliation-select" />}));
+vi.mock("./common/OAuthWidget", () => ({default: () => <span data-testid="oauth-widget" />}));
+vi.mock("./common/SendCodeInput", () => ({SendCodeInput: () => <span data-testid="send-code-input" />}));
+vi.mock("./auth/ProviderButton", () => ({renderProviderLogo: () => <span data-testid="provider-logo" />}));
+vi.mock("./auth/WeComLoginPanel", () => ({default: () => <span data-testid="wecom-login-panel" />}));
+vi.mock("./auth/PromptPage", () => ({default: () => <span data-testid="prompt-preview" />}));
+vi.mock("antd/es/layout/layout", () => ({
   Content: ({children, ...props}: {children?: React.ReactNode}) => <main {...props}>{children}</main>,
   Header: ({children, ...props}: {children?: React.ReactNode}) => <header {...props}>{children}</header>,
 }));
-jest.mock("antd/es/layout/Sider", () => function SiderMock({children, width, style, ...props}: {children?: React.ReactNode; width?: number; style?: React.CSSProperties}) {
+vi.mock("antd/es/layout/Sider", () => ({default: function SiderMock({children, width, style, ...props}: {children?: React.ReactNode; width?: number; style?: React.CSSProperties}) {
   return <aside {...props} data-width={width} style={style}>{children}</aside>;
-});
-jest.mock("./auth/AuthBackend", () => ({
-  getCaptchaStatus: require("@jest/globals").jest.fn(() => Promise.resolve({status: "ok", data: false})),
-  logout: require("@jest/globals").jest.fn(() => Promise.resolve({status: "ok"})),
+}}));
+vi.mock("./auth/AuthBackend", () => ({
+  getCaptchaStatus: vi.fn(() => Promise.resolve({status: "ok", data: false})),
+  logout: vi.fn(() => Promise.resolve({status: "ok"})),
 }));
 
 const createRuntimeApplication = () => ({
@@ -112,7 +108,7 @@ function createPage(applicationOverrides: Record<string, unknown> = {}): any {
   const page = new ApplicationEditPage({
     match: {params: {organizationName: "wecom-wwe7e01c69367e67bf", applicationName: "app-aicodex-api-60"}},
     location: {search: ""},
-    history: {push: jest.fn()},
+    history: {push: vi.fn()},
     account: {owner: "wecom-wwe7e01c69367e67bf", name: "admin"},
   } as any) as any;
 
@@ -159,9 +155,6 @@ function getFieldSwitch(container: HTMLElement, label: RegExp): HTMLButtonElemen
 
 describe("ApplicationEditPage UI customization preview", () => {
   let consoleErrorSpy: ConsoleCallSpy;
-  let SigninMethodTable: any;
-  let SigninTable: any;
-  let SignupTable: any;
 
   beforeAll(async() => {
     if (!i18next.isInitialized) {
@@ -175,14 +168,10 @@ describe("ApplicationEditPage UI customization preview", () => {
         interpolation: {escapeValue: false},
       });
     }
-    ApplicationEditPage = require("./ApplicationEditPage").default;
-    SigninMethodTable = require("./table/SigninMethodTable").default;
-    SigninTable = require("./table/SigninTable").default;
-    SignupTable = require("./table/SignupTable").default;
   });
 
   beforeEach(() => {
-    consoleErrorSpy = jest.spyOn(console, "error") as unknown as ConsoleCallSpy;
+    consoleErrorSpy = vi.spyOn(console, "error") as unknown as ConsoleCallSpy;
   });
 
   afterEach(() => {
@@ -199,7 +188,7 @@ describe("ApplicationEditPage UI customization preview", () => {
     const page = new ApplicationEditPage({
       match: {params: {organizationName: "wecom-wwe7e01c69367e67bf", applicationName: "app-aicodex-api-60"}},
       location: {search: ""},
-      history: {push: jest.fn()},
+      history: {push: vi.fn()},
       account: {owner: "wecom-wwe7e01c69367e67bf", name: "admin"},
     } as any) as any;
 
@@ -280,7 +269,7 @@ describe("ApplicationEditPage UI customization preview", () => {
   });
 
   test("keeps UI customization table columns content-aware instead of stretching the first column", () => {
-    const onUpdateTable = jest.fn();
+    const onUpdateTable = vi.fn();
     const methodTable = new SigninMethodTable({title: "登录方式", onUpdateTable}) as any;
     const signinTable = new SigninTable({title: "登录项", onUpdateTable}) as any;
     const signupTable = new SignupTable({title: "注册项", onUpdateTable}) as any;

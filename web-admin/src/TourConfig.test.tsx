@@ -1,3 +1,4 @@
+import {beforeEach, describe, expect, test, vi} from "vitest";
 import {
   TourObj,
   getNextButtonChild,
@@ -8,7 +9,6 @@ import {
   setOrgIsTourVisible,
   setTourLogo
 } from "./TourConfig";
-import {expect, jest} from "@jest/globals";
 
 describe("TourConfig enterprise identity routes", () => {
   beforeEach(() => {
@@ -44,7 +44,7 @@ describe("TourConfig enterprise identity routes", () => {
   });
 
   test("keeps legacy tour helpers working outside enterprise identity routes", () => {
-    const listener = jest.fn();
+    const listener = vi.fn();
     window.addEventListener("storageTourChanged", listener);
 
     setIsTourVisible(false);

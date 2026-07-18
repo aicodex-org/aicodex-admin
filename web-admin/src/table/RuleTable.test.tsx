@@ -1,8 +1,12 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import React from "react";
 import {cleanup, render} from "@testing-library/react";
-import {expect, jest} from "@jest/globals";
 import RuleTable from "./RuleTable";
+import * as fs from "fs";
+import * as path from "path";
+import {fireEvent} from "@testing-library/react";
+import {fileURLToPath} from "url";
+const testFileDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 interface TestRuleRecord {
   owner: string;
@@ -25,14 +29,6 @@ interface TestTableElementProps {
   title: () => React.ReactNode;
 }
 
-const fs = require("fs") as {existsSync: (filePath: string) => boolean};
-const path = require("path") as {join: (...parts: string[]) => string};
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-  };
-};
-
 let consoleErrorSpy: {mockRestore: () => void};
 
 const account = {owner: "engineering"};
@@ -44,20 +40,20 @@ const sources: TestRuleRecord[] = [
 
 function createTable(options: {
   rules?: string[] | null;
-  onUpdateRules?: ReturnType<typeof jest.fn>;
+  onUpdateRules?: (rules: string[]) => void;
 } = {}) {
   return new RuleTable({
     title: "Rules",
     account,
     sources,
     rules: options.rules === undefined ? ["engineering/rule-one", "engineering/rule-two"] : options.rules,
-    onUpdateRules: options.onUpdateRules ?? jest.fn(),
+    onUpdateRules: options.onUpdateRules ?? vi.fn<(rules: string[]) => void>(),
   });
 }
 
 describe("RuleTable", () => {
   beforeEach(() => {
-    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
       throw new Error([message, ...args].map(item => `${item}`).join(" "));
     });
   });
@@ -65,17 +61,17 @@ describe("RuleTable", () => {
   afterEach(() => {
     cleanup();
     consoleErrorSpy.mockRestore();
-    jest.restoreAllMocks();
-    jest.clearAllMocks();
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   test("is migrated from JavaScript to TSX", () => {
-    expect(fs.existsSync(path.join(__dirname, "RuleTable.tsx"))).toBe(true);
-    expect(fs.existsSync(path.join(__dirname, "RuleTable.js"))).toBe(false);
+    expect(fs.existsSync(path.join(testFileDirectory, "RuleTable.tsx"))).toBe(true);
+    expect(fs.existsSync(path.join(testFileDirectory, "RuleTable.js"))).toBe(false);
   });
 
   test("normalizes null rule arrays to an empty selection", () => {
-    const onUpdateRules = jest.fn();
+    const onUpdateRules = vi.fn();
 
     createTable({rules: null, onUpdateRules});
 
@@ -83,7 +79,7 @@ describe("RuleTable", () => {
   });
 
   test("converts table rows back to owner/name rule identifiers", () => {
-    const onUpdateRules = jest.fn();
+    const onUpdateRules = vi.fn();
     const table = createTable({onUpdateRules});
 
     table.updateTable([
@@ -95,7 +91,7 @@ describe("RuleTable", () => {
   });
 
   test("adds, deletes and reorders selected rule rows", () => {
-    const onUpdateRules = jest.fn();
+    const onUpdateRules = vi.fn();
     const table = createTable({onUpdateRules});
     const selectedRows: TestRuleRow[] = [
       {owner: "engineering", name: "rule-one"},
@@ -119,7 +115,7 @@ describe("RuleTable", () => {
   });
 
   test("keeps select and toolbar handlers wired", () => {
-    const onUpdateRules = jest.fn();
+    const onUpdateRules = vi.fn();
     const table = createTable({onUpdateRules});
     const tableElement = table.renderTable([
       {owner: "engineering", name: "rule-one"},
@@ -136,7 +132,7 @@ describe("RuleTable", () => {
   });
 
   test("keeps row action buttons and render conversion wired", () => {
-    const onUpdateRules = jest.fn();
+    const onUpdateRules = vi.fn();
     const table = createTable({onUpdateRules});
     const rows = [
       {owner: "engineering", name: "rule-one"},

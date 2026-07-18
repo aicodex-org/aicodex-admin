@@ -1,7 +1,6 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import React from "react";
 import {act, cleanup, fireEvent, render} from "@testing-library/react";
-import {expect, jest} from "@jest/globals";
 import {Input, InputNumber, Modal, Select} from "antd";
 import i18next from "i18next";
 import OrganizationEditPage from "./OrganizationEditPage";
@@ -58,38 +57,34 @@ interface ElementProps {
   options?: unknown;
 }
 
-jest.mock("./backend/OrganizationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
+vi.mock("./backend/OrganizationBackend", () => {
   return {
-    addOrganization: factoryJest.fn(),
-    getOrganization: factoryJest.fn(),
-    updateOrganization: factoryJest.fn(),
-    deleteOrganization: factoryJest.fn(),
+    addOrganization: vi.fn(),
+    getOrganization: vi.fn(),
+    updateOrganization: vi.fn(),
+    deleteOrganization: vi.fn(),
   };
 });
 
-jest.mock("./backend/ApplicationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
+vi.mock("./backend/ApplicationBackend", () => {
   return {
-    getApplicationsByOrganization: factoryJest.fn(),
+    getApplicationsByOrganization: vi.fn(),
   };
 });
 
-jest.mock("./backend/LdapBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
+vi.mock("./backend/LdapBackend", () => {
   return {
-    getLdaps: factoryJest.fn(),
+    getLdaps: vi.fn(),
   };
 });
 
-jest.mock("./backend/TransactionBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
+vi.mock("./backend/TransactionBackend", () => {
   return {
-    getTransactions: factoryJest.fn(),
+    getTransactions: vi.fn(),
   };
 });
 
-jest.mock("./table/LdapTable", () => function LdapTableMock(props: {title?: React.ReactNode; description?: React.ReactNode; onUpdateTable?: (value: unknown[]) => void}) {
+vi.mock("./table/LdapTable", () => ({default: function LdapTableMock(props: {title?: React.ReactNode; description?: React.ReactNode; onUpdateTable?: (value: unknown[]) => void}) {
   return (
     <div>
       {props.title}
@@ -97,27 +92,27 @@ jest.mock("./table/LdapTable", () => function LdapTableMock(props: {title?: Reac
       <button type="button" data-testid="ldap-table" onClick={() => props.onUpdateTable?.([{id: "ldap-1"}])}>ldap-table</button>
     </div>
   );
-});
+}}));
 
-jest.mock("./table/AccountTable", () => function AccountTableMock(props: {onUpdateTable?: (value: unknown[]) => void}) {
+vi.mock("./table/AccountTable", () => ({default: function AccountTableMock(props: {onUpdateTable?: (value: unknown[]) => void}) {
   return <button type="button" onClick={() => props.onUpdateTable?.([{name: "profile"}])}>account-table</button>;
-});
+}}));
 
-jest.mock("./table/MfaTable", () => function MfaTableMock(props: {onUpdateTable?: (value: unknown[]) => void}) {
+vi.mock("./table/MfaTable", () => ({default: function MfaTableMock(props: {onUpdateTable?: (value: unknown[]) => void}) {
   return <button type="button" onClick={() => props.onUpdateTable?.([{name: "mfa"}])}>mfa-table</button>;
-});
+}}));
 
-jest.mock("./table/TransactionTable", () => function TransactionTableMock(props: {transactions?: unknown[]}) {
+vi.mock("./table/TransactionTable", () => ({default: function TransactionTableMock(props: {transactions?: unknown[]}) {
   return <div data-testid="transaction-table">transactions:{props.transactions?.length ?? 0}</div>;
-});
+}}));
 
-jest.mock("./common/NavItemTree", () => ({
+vi.mock("./common/NavItemTree", () => ({
   NavItemTree: function NavItemTreeMock(props: {onCheck?: (checked: string[], event: unknown) => void}) {
     return <button type="button" onClick={() => props.onCheck?.(["all"], {})}>nav-tree</button>;
   },
 }));
 
-jest.mock("./common/WidgetItemTree", () => ({
+vi.mock("./common/WidgetItemTree", () => ({
   buildWidgetItemTreeData: () => [
     {key: "all", children: [{key: "tour"}, {key: "ai-assistant"}]},
   ],
@@ -126,9 +121,9 @@ jest.mock("./common/WidgetItemTree", () => ({
   },
 }));
 
-jest.mock("./common/theme/ThemeEditor", () => function ThemeEditorMock(props: {onThemeChange?: (previousTheme: unknown, nextTheme: Record<string, unknown>) => void}) {
+vi.mock("./common/theme/ThemeEditor", () => ({default: function ThemeEditorMock(props: {onThemeChange?: (previousTheme: unknown, nextTheme: Record<string, unknown>) => void}) {
   return <button type="button" onClick={() => props.onThemeChange?.({}, {primaryColor: "#ffffff"})}>theme-editor</button>;
-});
+}}));
 
 const organizationBackendMock = OrganizationBackend as unknown as OrganizationBackendMock;
 const applicationBackendMock = ApplicationBackend as unknown as ApplicationBackendMock;
@@ -198,11 +193,11 @@ function mockMatchMedia(query: string): MediaQueryList {
     matches: false,
     media: query,
     onchange: null,
-    addListener: jest.fn(),
-    removeListener: jest.fn(),
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
   } as unknown as MediaQueryList;
 }
 
@@ -218,8 +213,8 @@ function createPageInstance(options: {mode?: string; organization?: Record<strin
   };
   const page = new OrganizationEditPage({
     account: adminAccount,
-    onChangeTheme: jest.fn(),
-    history: {push: jest.fn()},
+    onChangeTheme: vi.fn(),
+    history: {push: vi.fn()},
     location: options.mode === "add"
       ? {state: {mode: "add", organization: draftOrganization}}
       : {mode: options.mode},
@@ -352,8 +347,8 @@ function renderPage(options: {
   organizationName?: string;
   accountOrganizationName?: string;
 } = {}) {
-  const history = {push: jest.fn()};
-  const onChangeTheme = jest.fn();
+  const history = {push: vi.fn()};
+  const onChangeTheme = vi.fn();
 
   const view = render(
     <OrganizationEditPage
@@ -389,26 +384,26 @@ describe("OrganizationEditPage", () => {
   beforeEach(async() => {
     await useTestLanguage("en");
     window.location.hash = "";
-    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
       throw new Error([message, ...args].map(item => `${item}`).join(" "));
     });
     Object.defineProperty(window, "matchMedia", {
       writable: true,
       value: mockMatchMedia,
     });
-    jest.spyOn(Setting, "showMessage").mockImplementation(() => {});
-    jest.spyOn(Setting, "isMobile").mockReturnValue(false);
-    jest.spyOn(Setting, "isAdminUser").mockReturnValue(true);
-    jest.spyOn(Setting, "getThemeData").mockReturnValue({theme: "engineering"});
-    jest.spyOn(Obfuscator, "checkPasswordObfuscator").mockReturnValue("");
-    jest.spyOn(Obfuscator, "getRandomKeyForObfuscator").mockReturnValue("generated-key");
+    vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+    vi.spyOn(Setting, "isMobile").mockReturnValue(false);
+    vi.spyOn(Setting, "isAdminUser").mockReturnValue(true);
+    vi.spyOn(Setting, "getThemeData").mockReturnValue({theme: "engineering"});
+    vi.spyOn(Obfuscator, "checkPasswordObfuscator").mockReturnValue("");
+    vi.spyOn(Obfuscator, "getRandomKeyForObfuscator").mockReturnValue("generated-key");
     setupBackend();
   });
 
   afterEach(() => {
     cleanup();
     consoleErrorSpy.mockRestore();
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   test("loads organization data from existing backends", async() => {
@@ -458,7 +453,7 @@ describe("OrganizationEditPage", () => {
   });
 
   test("publishes the organization display name for its workspace tab after loading and editing", async() => {
-    const dispatchSpy = jest.spyOn(window, "dispatchEvent");
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
     setupBackend({organization: {...baseOrganization, name: "dingding6091", displayName: "钉钉-自建"}});
     const page = createPageInstance();
     page.state.organizationName = "dingding6091";
@@ -494,8 +489,8 @@ describe("OrganizationEditPage", () => {
     applicationBackendMock.getApplicationsByOrganization.mockResolvedValue({status: "ok", data: []});
     ldapBackendMock.getLdaps.mockResolvedValue({status: "ok", data: []});
     transactionBackendMock.getTransactions.mockResolvedValue({status: "ok", data: []});
-    const history = {push: jest.fn()};
-    const onChangeTheme = jest.fn();
+    const history = {push: vi.fn()};
+    const onChangeTheme = vi.fn();
     const {findByDisplayValue, rerender} = render(
       <OrganizationEditPage
         account={{...adminAccount, organization: {name: "feishu6091"}}}
@@ -774,7 +769,7 @@ describe("OrganizationEditPage", () => {
   });
 
   test("switches to login security tab when password obfuscator validation fails", async() => {
-    jest.spyOn(Obfuscator, "checkPasswordObfuscator").mockReturnValueOnce("Invalid obfuscator key");
+    vi.spyOn(Obfuscator, "checkPasswordObfuscator").mockReturnValueOnce("Invalid obfuscator key");
     const {view} = renderPage();
 
     expect(await view.findByDisplayValue("Engineering")).not.toBeNull();
@@ -787,9 +782,9 @@ describe("OrganizationEditPage", () => {
   });
 
   test("asks for confirmation before leaving dirty edit pages", async() => {
-    const confirmSpy = jest.spyOn(Modal, "confirm").mockImplementation((config: Parameters<typeof Modal.confirm>[0]) => {
+    const confirmSpy = vi.spyOn(Modal, "confirm").mockImplementation((config: Parameters<typeof Modal.confirm>[0]) => {
       (config.onOk as (() => void) | undefined)?.();
-      return {destroy: jest.fn(), update: jest.fn()} as ReturnType<typeof Modal.confirm>;
+      return {destroy: vi.fn(), update: vi.fn()} as ReturnType<typeof Modal.confirm>;
     });
     const {history, view} = renderPage();
 
@@ -807,7 +802,7 @@ describe("OrganizationEditPage", () => {
   });
 
   test("saves organization, refreshes current theme, dispatches storage event, and navigates", async() => {
-    const eventSpy = jest.spyOn(window, "dispatchEvent");
+    const eventSpy = vi.spyOn(window, "dispatchEvent");
     const {history, onChangeTheme, view} = renderPage();
 
     expect(await view.findByDisplayValue("Engineering")).not.toBeNull();
@@ -869,7 +864,7 @@ describe("OrganizationEditPage", () => {
   });
 
   test("cancel in add mode leaves without mutating the draft organization", async() => {
-    const eventSpy = jest.spyOn(window, "dispatchEvent");
+    const eventSpy = vi.spyOn(window, "dispatchEvent");
     const page = renderPage({mode: "add"});
 
     expect(await page.view.findByDisplayValue("Engineering")).not.toBeNull();

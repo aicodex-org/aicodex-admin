@@ -1,6 +1,5 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import React from "react";
-import {expect, jest} from "@jest/globals";
 import {cleanup, render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import ProviderListPage from "./ProviderListPage";
@@ -8,6 +7,7 @@ import * as ProviderBackend from "./backend/ProviderBackend";
 import * as Setting from "./Setting";
 import EnterpriseListQueryToolbar from "./common/EnterpriseListQueryToolbar";
 import ListPageTable from "./common/ListPageTable";
+import {fireEvent} from "@testing-library/react";
 
 type LegacyAny = any;
 type TestTableElement = React.ReactElement<{
@@ -15,12 +15,6 @@ type TestTableElement = React.ReactElement<{
   title?: () => React.ReactNode;
   pagination?: LegacyAny;
 }>;
-
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element) => void;
-  };
-};
 
 async function flushPromises(): Promise<void> {
   await Promise.resolve();
@@ -31,8 +25,8 @@ function expectTableColumnHeader(container: HTMLElement, label: RegExp): void {
   expect(Array.from(container.querySelectorAll("thead th[scope='col']")).some(cell => label.test(cell.textContent ?? ""))).toBe(true);
 }
 
-jest.mock("./auth/Provider", () => {
-  const ReactFactory = require("react");
+vi.mock("./auth/Provider", async() => {
+  const ReactFactory = await vi.importActual<typeof import("react")>("react");
   return {
     getProviderLogoWidget: (provider: {type?: string; displayName?: string}) => ReactFactory.createElement("img", {
       className: "provider-table-provider-logo",
@@ -42,7 +36,7 @@ jest.mock("./auth/Provider", () => {
   };
 });
 
-jest.mock("./TourConfig", () => ({
+vi.mock("./TourConfig", () => ({
   getTourVisible: () => false,
   getSteps: () => [],
   getNextUrl: () => "",
@@ -81,7 +75,7 @@ function attachPageState(page: LegacyAny, extra: Record<string, LegacyAny> = {})
     isAuthorized: true,
     ...extra,
   };
-  page.setState = jest.fn((patch: LegacyAny, callback?: () => void) => {
+  page.setState = vi.fn((patch: LegacyAny, callback?: () => void) => {
     const nextState = typeof patch === "function" ? patch(page.state, page.props) : patch;
     page.state = {
       ...page.state,
@@ -96,18 +90,18 @@ function attachPageState(page: LegacyAny, extra: Record<string, LegacyAny> = {})
 
 describe("ProviderListPage enterprise table polish", () => {
   beforeEach(() => {
-    jest.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
+    vi.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
       throw new Error([message, ...args].map(item => String(item)).join(" "));
     });
   });
 
   afterEach(() => {
     cleanup();
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   test("keeps authentication source rows compact with shared list primitives", () => {
-    const history = {push: jest.fn()};
+    const history = {push: vi.fn()};
     const page = attachPageState(new ProviderListPage({
       account,
       history,
@@ -154,7 +148,7 @@ describe("ProviderListPage enterprise table polish", () => {
     };
     const page = attachPageState(new ProviderListPage({
       account,
-      history: {push: jest.fn()},
+      history: {push: vi.fn()},
       match: {path: "/providers", params: {}},
     }), {data: [retiredProvider]});
     const root = page.renderTable([retiredProvider]);
@@ -174,7 +168,7 @@ describe("ProviderListPage enterprise table polish", () => {
   test("keeps compact provider columns when backend form config uses legacy provider field names", () => {
     const page = attachPageState(new ProviderListPage({
       account,
-      history: {push: jest.fn()},
+      history: {push: vi.fn()},
       match: {path: "/providers", params: {}},
       formItems: [
         {name: "name", label: "general:Name", visible: true, width: "120"},
@@ -209,7 +203,7 @@ describe("ProviderListPage enterprise table polish", () => {
   });
 
   test("renders empty provider URL and disables row actions outside editable scope", () => {
-    jest.spyOn(Setting, "isAdminUser").mockReturnValue(false);
+    vi.spyOn(Setting, "isAdminUser").mockReturnValue(false);
     const readonlyAccount = {
       ...account,
       owner: "built-in",
@@ -218,7 +212,7 @@ describe("ProviderListPage enterprise table polish", () => {
     };
     const page = attachPageState(new ProviderListPage({
       account: readonlyAccount,
-      history: {push: jest.fn()},
+      history: {push: vi.fn()},
       match: {path: "/providers", params: {}},
     }), {
       data: [{...provider, owner: "admin", providerUrl: ""}],
@@ -240,7 +234,7 @@ describe("ProviderListPage enterprise table polish", () => {
       Object.defineProperty(window, "innerWidth", {configurable: true, value: 390});
       const page = attachPageState(new ProviderListPage({
         account,
-        history: {push: jest.fn()},
+        history: {push: vi.fn()},
         match: {path: "/providers", params: {}},
         formItems: [],
       }), {
@@ -259,14 +253,14 @@ describe("ProviderListPage enterprise table polish", () => {
   test("uses the shared toolbar query state for provider backend filtering", () => {
     const page = attachPageState(new ProviderListPage({
       account,
-      history: {push: jest.fn()},
+      history: {push: vi.fn()},
       match: {path: "/providers", params: {}},
     }), {
       pagination: {current: 3, pageSize: 20, total: 5},
       queryField: "owner",
       queryKeyword: "admin",
     });
-    page.fetch = jest.fn();
+    page.fetch = vi.fn();
 
     page.handleToolbarSearch();
 
@@ -280,7 +274,7 @@ describe("ProviderListPage enterprise table polish", () => {
   test("places identity source center title, actions and pagination on the shared list shell", () => {
     const page = attachPageState(new ProviderListPage({
       account,
-      history: {push: jest.fn()},
+      history: {push: vi.fn()},
       match: {path: "/providers", params: {}},
     }), {
       data: [provider],
@@ -311,7 +305,7 @@ describe("ProviderListPage enterprise table polish", () => {
   test("updates owner and toolbar state without changing backend contracts", () => {
     const page = attachPageState(new ProviderListPage({
       account,
-      history: {push: jest.fn()},
+      history: {push: vi.fn()},
       match: {path: "/providers", params: {}},
     }));
     page.componentDidMount();
@@ -324,14 +318,14 @@ describe("ProviderListPage enterprise table polish", () => {
   test("maps table category and type filters into provider fetch params", () => {
     const page = attachPageState(new ProviderListPage({
       account,
-      history: {push: jest.fn()},
+      history: {push: vi.fn()},
       match: {path: "/providers", params: {}},
     }), {
       pagination: {current: 1, pageSize: 20, total: 5},
       searchedColumn: "owner",
       searchText: "admin",
     });
-    page.fetch = jest.fn();
+    page.fetch = vi.fn();
 
     page.handleProviderTableChange(
       {current: 2, pageSize: 20},
@@ -353,7 +347,7 @@ describe("ProviderListPage enterprise table polish", () => {
   test("shows advanced provider filters in the shared toolbar", () => {
     const page = attachPageState(new ProviderListPage({
       account,
-      history: {push: jest.fn()},
+      history: {push: vi.fn()},
       match: {path: "/providers", params: {}},
     }), {
       data: [provider],
@@ -389,7 +383,7 @@ describe("ProviderListPage enterprise table polish", () => {
   test("maps advanced provider filters onto the existing single-field query contract", () => {
     const page = attachPageState(new ProviderListPage({
       account,
-      history: {push: jest.fn()},
+      history: {push: vi.fn()},
       match: {path: "/providers", params: {}},
     }), {
       pagination: {current: 3, pageSize: 20, total: 5},
@@ -402,7 +396,7 @@ describe("ProviderListPage enterprise table polish", () => {
         providerUrl: "",
       },
     });
-    page.fetch = jest.fn();
+    page.fetch = vi.fn();
 
     page.handleToolbarSearch();
 
@@ -416,7 +410,7 @@ describe("ProviderListPage enterprise table polish", () => {
   test("prefers the base provider keyword when base and advanced filters both have values", () => {
     const page = attachPageState(new ProviderListPage({
       account,
-      history: {push: jest.fn()},
+      history: {push: vi.fn()},
       match: {path: "/providers", params: {}},
     }), {
       pagination: {current: 3, pageSize: 20, total: 5},
@@ -430,7 +424,7 @@ describe("ProviderListPage enterprise table polish", () => {
         providerUrl: "",
       },
     });
-    page.fetch = jest.fn();
+    page.fetch = vi.fn();
 
     page.handleToolbarSearch();
 
@@ -444,7 +438,7 @@ describe("ProviderListPage enterprise table polish", () => {
   test("keeps submitted provider search params during table changes", () => {
     const page = attachPageState(new ProviderListPage({
       account,
-      history: {push: jest.fn()},
+      history: {push: vi.fn()},
       match: {path: "/providers", params: {}},
     }), {
       pagination: {current: 1, pageSize: 20, total: 5},
@@ -458,7 +452,7 @@ describe("ProviderListPage enterprise table polish", () => {
         providerUrl: "",
       },
     });
-    page.fetch = jest.fn();
+    page.fetch = vi.fn();
 
     page.handleProviderTableChange({current: 2, pageSize: 20}, {}, {field: "name", order: "ascend"});
 
@@ -474,7 +468,7 @@ describe("ProviderListPage enterprise table polish", () => {
   test("resets base and advanced provider filters together", () => {
     const page = attachPageState(new ProviderListPage({
       account,
-      history: {push: jest.fn()},
+      history: {push: vi.fn()},
       match: {path: "/providers", params: {}},
     }), {
       pagination: {current: 3, pageSize: 20, total: 5},
@@ -488,7 +482,7 @@ describe("ProviderListPage enterprise table polish", () => {
         providerUrl: "weixin",
       },
     });
-    page.fetch = jest.fn();
+    page.fetch = vi.fn();
 
     page.handleToolbarReset();
 
@@ -511,11 +505,11 @@ describe("ProviderListPage enterprise table polish", () => {
   });
 
   test("opens a provider draft without calling the add backend", async() => {
-    const history = {push: jest.fn()};
-    const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
-    jest.spyOn(Setting, "getRandomName").mockReturnValue("fixed");
-    jest.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(true);
-    const addProvider = jest.spyOn(ProviderBackend, "addProvider").mockResolvedValue({status: "ok"} as LegacyAny);
+    const history = {push: vi.fn()};
+    const showMessage = vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+    vi.spyOn(Setting, "getRandomName").mockReturnValue("fixed");
+    vi.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(true);
+    const addProvider = vi.spyOn(ProviderBackend, "addProvider").mockResolvedValue({status: "ok"} as LegacyAny);
     const page = attachPageState(new ProviderListPage({
       account,
       history,
@@ -538,17 +532,17 @@ describe("ProviderListPage enterprise table polish", () => {
   });
 
   test("deletes provider and falls back to previous page when current page becomes empty", async() => {
-    const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
-    jest.spyOn(ProviderBackend, "deleteProvider").mockResolvedValue({status: "ok"} as LegacyAny);
+    const showMessage = vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+    vi.spyOn(ProviderBackend, "deleteProvider").mockResolvedValue({status: "ok"} as LegacyAny);
     const page = attachPageState(new ProviderListPage({
       account,
-      history: {push: jest.fn()},
+      history: {push: vi.fn()},
       match: {path: "/providers", params: {}},
     }), {
       data: [provider],
       pagination: {current: 2, pageSize: 20, total: 21},
     });
-    page.fetch = jest.fn();
+    page.fetch = vi.fn();
 
     page.deleteProvider(0);
     await flushPromises();
@@ -560,37 +554,37 @@ describe("ProviderListPage enterprise table polish", () => {
   });
 
   test("surfaces delete provider backend and connection failures", async() => {
-    const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+    const showMessage = vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
     const page = attachPageState(new ProviderListPage({
       account,
-      history: {push: jest.fn()},
+      history: {push: vi.fn()},
       match: {path: "/providers", params: {}},
     }), {
       data: [provider],
       pagination: {current: 1, pageSize: 20, total: 1},
     });
-    jest.spyOn(ProviderBackend, "deleteProvider").mockResolvedValueOnce({status: "error", msg: "locked"} as LegacyAny);
+    vi.spyOn(ProviderBackend, "deleteProvider").mockResolvedValueOnce({status: "error", msg: "locked"} as LegacyAny);
 
     page.deleteProvider(0);
     await flushPromises();
     expect(showMessage).toHaveBeenCalledWith("error", expect.stringContaining("locked"));
 
-    jest.spyOn(ProviderBackend, "deleteProvider").mockRejectedValueOnce(new Error("offline"));
+    vi.spyOn(ProviderBackend, "deleteProvider").mockRejectedValueOnce(new Error("offline"));
     page.deleteProvider(0);
     await flushPromises();
     expect(showMessage).toHaveBeenCalledWith("error", expect.stringContaining("offline"));
   });
 
   test("fetches global providers with existing single-field query contract", async() => {
-    jest.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(true);
-    const getGlobalProviders = jest.spyOn(ProviderBackend, "getGlobalProviders").mockResolvedValue({
+    vi.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(true);
+    const getGlobalProviders = vi.spyOn(ProviderBackend, "getGlobalProviders").mockResolvedValue({
       status: "ok",
       data: [provider],
       data2: 1,
     } as LegacyAny);
     const page = attachPageState(new ProviderListPage({
       account,
-      history: {push: jest.fn()},
+      history: {push: vi.fn()},
       match: {path: "/providers", params: {}},
     }));
 
@@ -614,19 +608,19 @@ describe("ProviderListPage enterprise table polish", () => {
   });
 
   test("fetches organization providers with table filter overrides and handles denied or error responses", async() => {
-    jest.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(false);
-    jest.spyOn(Setting, "getRequestOrganization").mockReturnValue("built-in");
-    const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
-    const getProviders = jest.spyOn(ProviderBackend, "getProviders")
+    vi.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(false);
+    vi.spyOn(Setting, "getRequestOrganization").mockReturnValue("built-in");
+    const showMessage = vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+    const getProviders = vi.spyOn(ProviderBackend, "getProviders")
       .mockResolvedValueOnce({status: "ok", data: undefined, data2: 0} as LegacyAny)
       .mockResolvedValueOnce({status: "error", msg: "denied"} as LegacyAny)
       .mockResolvedValueOnce({status: "error", msg: "failed"} as LegacyAny);
-    const deniedSpy = jest.spyOn(Setting, "isResponseDenied")
+    const deniedSpy = vi.spyOn(Setting, "isResponseDenied")
       .mockReturnValueOnce(true)
       .mockReturnValueOnce(false);
     const page = attachPageState(new ProviderListPage({
       account,
-      history: {push: jest.fn()},
+      history: {push: vi.fn()},
       match: {path: "/providers", params: {}},
     }));
 

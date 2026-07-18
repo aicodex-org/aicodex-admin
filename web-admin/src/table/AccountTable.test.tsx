@@ -1,5 +1,4 @@
-/* eslint-env jest */
-import {expect, jest} from "@jest/globals";
+import {describe, expect, test, vi} from "vitest";
 import i18next from "i18next";
 import AccountTable from "./AccountTable";
 import en from "../locales/en/data.json";
@@ -58,7 +57,7 @@ describe("AccountTable", () => {
       {name: "Last name", visible: true, viewRule: "Public", modifyRule: "Self", tab: ""},
       {name: "Avatar", visible: true, viewRule: "Public", modifyRule: "Self", tab: ""},
     ];
-    const accountTable = new AccountTable({table, onUpdateTable: jest.fn()});
+    const accountTable = new AccountTable({table, onUpdateTable: vi.fn()});
     const tableElement = (accountTable as any).renderTable(table);
     const nameColumn = tableElement.props.columns[0];
     const selectElement = nameColumn.render("Last name", table[0], 0);
@@ -77,7 +76,7 @@ describe("AccountTable", () => {
     const table = [
       {name: "Email", visible: true, viewRule: "Public", modifyRule: "Self", tab: ""},
     ];
-    const accountTable = new AccountTable({table, onUpdateTable: jest.fn()});
+    const accountTable = new AccountTable({table, onUpdateTable: vi.fn()});
     const tableElement = (accountTable as any).renderTable(table);
     const viewRuleColumn = tableElement.props.columns[4];
     const modifyRuleColumn = tableElement.props.columns[5];
@@ -102,7 +101,7 @@ describe("AccountTable", () => {
 
   test("uses original row indexes when updating a filtered table", async() => {
     await useTestLanguage("zh");
-    const onUpdateTable = jest.fn();
+    const onUpdateTable = vi.fn();
     const table = [
       {name: "Email", visible: true, viewRule: "Public", modifyRule: "Self", tab: ""},
       {name: "Properties", visible: false, viewRule: "Public", modifyRule: "Self", tab: ""},
@@ -127,7 +126,7 @@ describe("AccountTable", () => {
       {name: "Email", visible: true, viewRule: "Public", modifyRule: "Immutable", tab: "contact", regex: ".+@.+"},
       {name: "Properties", visible: false, viewRule: "Public", modifyRule: "Self", tab: "", regex: ""},
     ];
-    const accountTable = new AccountTable({table, onUpdateTable: jest.fn()});
+    const accountTable = new AccountTable({table, onUpdateTable: vi.fn()});
 
     (accountTable as any).state = {...(accountTable as any).state, searchText: "姓氏"};
     expect((accountTable as any).getFilteredRows(table).map((row: any) => row.name)).toEqual(["Last name"]);
@@ -144,7 +143,7 @@ describe("AccountTable", () => {
 
   test("renders empty, hidden, and admin-only account fields with stable controls", async() => {
     await useTestLanguage("zh");
-    const onUpdateTable = jest.fn();
+    const onUpdateTable = vi.fn();
     const table = [
       {name: "Email", visible: true, viewRule: "Public", modifyRule: "Self", tab: "", regex: ""},
       {name: "Avatar", visible: true, viewRule: "Public", modifyRule: "Self", tab: "", regex: ""},
@@ -190,7 +189,7 @@ describe("AccountTable", () => {
 
   test("toolbar filters update state and row actions operate on original table indexes", async() => {
     await useTestLanguage("zh");
-    const onUpdateTable = jest.fn();
+    const onUpdateTable = vi.fn();
     const table = [
       {name: "Email", visible: true, viewRule: "Public", modifyRule: "Self", tab: ""},
       {name: "Properties", visible: false, viewRule: "Public", modifyRule: "Self", tab: ""},

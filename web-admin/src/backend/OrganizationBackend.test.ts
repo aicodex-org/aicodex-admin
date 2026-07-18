@@ -1,5 +1,4 @@
-/* eslint-env jest */
-import {expect, jest} from "@jest/globals";
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import * as Setting from "../Setting";
 import {
   addOrganization,
@@ -11,18 +10,18 @@ import {
   updateOrganization
 } from "./OrganizationBackend";
 
-let fetchMock: ReturnType<typeof jest.fn>;
+let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
-  fetchMock = jest.fn(() => Promise.resolve({
+  fetchMock = vi.fn(() => Promise.resolve({
     json: () => Promise.resolve({status: "ok"}),
   }));
   global.fetch = fetchMock as unknown as typeof fetch;
-  jest.spyOn(Setting, "getAcceptLanguage").mockReturnValue("zh");
+  vi.spyOn(Setting, "getAcceptLanguage").mockReturnValue("zh");
 });
 
 afterEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 test("calls organization list endpoint with the existing query contract", async() => {
@@ -96,7 +95,7 @@ test("calls organization mutation endpoints with cloned payloads", async() => {
     passwordType: "bcrypt",
     enableSoftDeletion: false,
   };
-  jest.spyOn(Setting, "deepCopy").mockImplementation((obj: unknown) => ({
+  vi.spyOn(Setting, "deepCopy").mockImplementation((obj: unknown) => ({
     ...(obj as Record<string, unknown>),
     copied: true,
   }));

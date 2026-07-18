@@ -1,7 +1,6 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 
 import React from "react";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {act, render, waitFor} from "@testing-library/react";
 import i18next from "i18next";
 import * as Setting from "./Setting";
@@ -9,55 +8,33 @@ import * as DingTalkOrganizationSyncBackend from "./backend/DingTalkOrganization
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import DingTalkOrganizationSyncPage from "./DingTalkOrganizationSyncPage";
 import {type ConsoleCallSpy, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
-
-declare const jest: typeof jestValue;
-
-type DomMatcherResult = ReturnType<typeof jestExpect> & {
-  toBeInTheDocument: () => void;
-  toHaveAttribute: (attr: string, value?: unknown) => void;
-  toBeDisabled: () => void;
-  not: ReturnType<typeof jestExpect> & {
-    toBeInTheDocument: () => void;
-    toHaveBeenCalled: () => void;
-    toBeDisabled: () => void;
-  };
-};
-
-type TestExpect = {
-  (actual: unknown): DomMatcherResult;
-  objectContaining: typeof jestExpect.objectContaining;
-  stringContaining: typeof jestExpect.stringContaining;
-};
-
-const expect = jestExpect as unknown as TestExpect;
+import {fireEvent, screen} from "@testing-library/react";
 
 function expectTableColumnHeader(container: HTMLElement, label: string): void {
   expect(Array.from(container.querySelectorAll("thead th[scope='col']")).some(cell => cell.textContent === label)).toBe(true);
 }
 
-jest.mock("./backend/DingTalkOrganizationSyncBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/DingTalkOrganizationSyncBackend", () => {
   return {
-    getDingTalkOrganizationSyncConfig: factoryJest.fn(),
-    saveDingTalkOrganizationSyncConfig: factoryJest.fn(),
-    testDingTalkOrganizationSyncConfig: factoryJest.fn(),
-    startDingTalkOrganizationSyncRun: factoryJest.fn(),
-    getDingTalkOrganizationSyncRuns: factoryJest.fn(),
-    getDingTalkOrganizationSyncRun: factoryJest.fn(),
+    getDingTalkOrganizationSyncConfig: vi.fn(),
+    saveDingTalkOrganizationSyncConfig: vi.fn(),
+    testDingTalkOrganizationSyncConfig: vi.fn(),
+    startDingTalkOrganizationSyncRun: vi.fn(),
+    getDingTalkOrganizationSyncRuns: vi.fn(),
+    getDingTalkOrganizationSyncRun: vi.fn(),
   };
 });
 
-jest.mock("./backend/OrganizationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/OrganizationBackend", () => {
   return {
-    addOrganization: factoryJest.fn(),
-    updateOrganization: factoryJest.fn(),
-    deleteOrganization: factoryJest.fn(),
+    addOrganization: vi.fn(),
+    updateOrganization: vi.fn(),
+    deleteOrganization: vi.fn(),
   };
 });
 
-jest.mock("./common/select/OrganizationSelect", () => function OrganizationSelectMock(props: {initValue?: string; excludedOrganizations?: string[]; onChange?: (value: string) => void; onOrganizationsLoaded?: (organizations: Array<{name: string; displayName: string}>) => void}) {
-  const mockReact = require("react") as {useEffect: (effect: () => void, deps?: unknown[]) => void};
+vi.mock("./common/select/OrganizationSelect", () => ({default: function OrganizationSelectMock(props: {initValue?: string; excludedOrganizations?: string[]; onChange?: (value: string) => void; onOrganizationsLoaded?: (organizations: Array<{name: string; displayName: string}>) => void}) {
+  const mockReact = React as {useEffect: (effect: () => void, deps?: unknown[]) => void};
   mockReact.useEffect(() => {
     props.onOrganizationsLoaded?.([
       {name: "built-in", displayName: "Built-in Organization"},
@@ -77,7 +54,7 @@ jest.mock("./common/select/OrganizationSelect", () => function OrganizationSelec
       {organizations.map(organization => <option key={organization.value} value={organization.value}>{organization.label}</option>)}
     </select>
   );
-});
+}}));
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -90,43 +67,27 @@ type OrganizationBackendMock = Record<keyof typeof OrganizationBackend, LooseMoc
 const dingtalkBackendMock = DingTalkOrganizationSyncBackend as unknown as DingTalkBackendMock;
 const organizationBackendMock = OrganizationBackend as unknown as OrganizationBackendMock;
 let consoleErrorSpy: ConsoleCallSpy;
-const {fireEvent, screen} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-    change: (element: Element | null, event: unknown) => boolean;
-    keyDown: (element: Element | null, event: unknown) => boolean;
-  };
-  screen: {
-    findByText: (text: string | RegExp) => Promise<HTMLElement>;
-    getByText: (text: string | RegExp) => HTMLElement;
-    getAllByText: (text: string | RegExp) => HTMLElement[];
-    queryByText: (text: string | RegExp) => HTMLElement | null;
-    getByAltText: (text: string) => HTMLElement;
-    getByDisplayValue: (text: string) => HTMLElement;
-    getByTestId: (testId: string) => HTMLElement;
-  };
-};
 
 const mockMatchMedia = (query: string): MediaQueryList => ({
   matches: false,
   media: query,
   onchange: null,
-  addListener: jestValue.fn(),
-  removeListener: jestValue.fn(),
-  addEventListener: jestValue.fn(),
-  removeEventListener: jestValue.fn(),
-  dispatchEvent: jestValue.fn(),
+  addListener: vi.fn(),
+  removeListener: vi.fn(),
+  addEventListener: vi.fn(),
+  removeEventListener: vi.fn(),
+  dispatchEvent: vi.fn(),
 } as unknown as MediaQueryList);
 
 beforeEach(() => {
-  consoleErrorSpy = jestValue.spyOn(console, "error") as unknown as ConsoleCallSpy;
+  consoleErrorSpy = vi.spyOn(console, "error") as unknown as ConsoleCallSpy;
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: mockMatchMedia,
   });
   localStorage.removeItem("dingtalk-org-sync:lastOrganization");
-  jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
   organizationBackendMock.addOrganization.mockResolvedValue({status: "ok"});
   organizationBackendMock.updateOrganization.mockResolvedValue({status: "ok"});
   organizationBackendMock.deleteOrganization.mockResolvedValue({status: "ok"});
@@ -149,9 +110,9 @@ beforeEach(() => {
 afterEach(() => {
   const actWarnings = getReactActWarnings(consoleErrorSpy.mock.calls);
   consoleErrorSpy.mockRestore();
-  jestValue.useRealTimers();
-  jestValue.restoreAllMocks();
-  jestValue.clearAllMocks();
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
   expect(actWarnings).toEqual([]);
 });
 
@@ -236,10 +197,10 @@ test("saves DingTalk sync configuration from the form", async() => {
   await screen.findByText("钉钉组织架构同步");
   fireEvent.change(screen.getByDisplayValue("ding-app"), {target: {value: "ding-next"}});
   fireEvent.change(screen.getByDisplayValue("***"), {target: {value: "next-secret"}});
-  fireEvent.click(screen.getByText("启用同步").closest(".ant-space")?.querySelector("button") || null);
-  fireEvent.click(screen.getByText("全量同步成功后软禁用缺失数据").closest(".ant-space")?.querySelector("button") || null);
+  fireEvent.click(screen.getByText("启用同步").closest(".ant-space")?.querySelector("button")!);
+  fireEvent.click(screen.getByText("全量同步成功后软禁用缺失数据").closest(".ant-space")?.querySelector("button")!);
   const scheduleSwitch = screen.getByText("启用定时同步").closest(".ant-space")?.querySelector("button") || null;
-  fireEvent.click(scheduleSwitch);
+  fireEvent.click(scheduleSwitch!);
   fireEvent.change(screen.getByDisplayValue("0 2 * * *"), {target: {value: "*/15 * * * *"}});
   fireEvent.change(screen.getByDisplayValue("Asia/Shanghai"), {target: {value: "UTC"}});
   fireEvent.click(screen.getByText("保存"));
@@ -348,8 +309,8 @@ test("shows source conflict warning, disables actions, and filters occupied orga
 });
 
 test("renders DingTalk schedule diagnostics, organization changes, and create-organization action", async() => {
-  const history = {push: jestValue.fn()};
-  const dispatchEventSpy = jestValue.spyOn(window, "dispatchEvent");
+  const history = {push: vi.fn()};
+  const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
   mockConfig({
     scheduleEnabled: true,
     scheduleCron: "*/30 * * * *",
@@ -481,8 +442,8 @@ test("pauses run refresh when the backend rejects refresh request", async() => {
 });
 
 test("keeps polling running DingTalk runs and copies run ids", async() => {
-  jestValue.useFakeTimers();
-  const writeText = jestValue.fn((_: string) => Promise.resolve());
+  vi.useFakeTimers();
+  const writeText = vi.fn((_: string) => Promise.resolve());
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
     value: {writeText},
@@ -502,7 +463,7 @@ test("keeps polling running DingTalk runs and copies run ids", async() => {
 
   render(<DingTalkOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} />);
 
-  expect(await screen.findByText("运行中")).toBeInTheDocument();
+  await vi.waitFor(() => expect(screen.getByText("运行中")).toBeInTheDocument());
   expect(screen.getByText("定时")).toBeInTheDocument();
   expect(screen.getByText("拉取数据")).toBeInTheDocument();
   expect(screen.getByText("同步进行中").closest("button")).toBeDisabled();
@@ -513,12 +474,12 @@ test("keeps polling running DingTalk runs and copies run ids", async() => {
   expect(writeText).toHaveBeenCalledWith("run-running");
   expect(Setting.showMessage).toHaveBeenCalledWith("success", "已复制运行 ID");
 
-  fireEvent.keyDown(screen.getAllByText("1")[0], {key: "Enter", preventDefault: jestValue.fn()});
+  fireEvent.keyDown(screen.getAllByText("1")[0], {key: "Enter", preventDefault: vi.fn()});
   await flushPromises();
   expect(writeText).toHaveBeenCalledWith("run-running");
 
   await act(async() => {
-    jestValue.advanceTimersByTime(3000);
+    vi.advanceTimersByTime(3000);
     await flushMicrotasks();
   });
   expect(dingtalkBackendMock.getDingTalkOrganizationSyncRuns).toHaveBeenCalledWith("engineering", 1, 10);
@@ -590,11 +551,11 @@ test("normalizes helper edge cases and copy fallback behavior", async() => {
     changeOrganization: (organization: string, remember?: boolean) => void;
   };
   updatePageAccess.state = {...updatePage.state, organization: ""};
-  updatePageAccess.changeOrganization = jestValue.fn();
+  updatePageAccess.changeOrganization = vi.fn();
   updatePage.componentDidUpdate();
   expect(updatePageAccess.changeOrganization).toHaveBeenCalledWith("engineering", false);
 
-  const execCommand = jestValue.fn();
+  const execCommand = vi.fn();
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
     value: undefined,
@@ -611,7 +572,7 @@ test("normalizes helper edge cases and copy fallback behavior", async() => {
   expect(execCommand).toHaveBeenCalledWith("copy");
   expect(Setting.showMessage).toHaveBeenCalledWith("success", "已复制运行 ID");
 
-  const writeText = jestValue.fn((_: string) => Promise.reject("clipboard denied"));
+  const writeText = vi.fn((_: string) => Promise.reject("clipboard denied"));
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
     value: {writeText},

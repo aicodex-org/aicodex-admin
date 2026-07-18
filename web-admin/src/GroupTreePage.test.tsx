@@ -1,13 +1,12 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {act, render} from "@testing-library/react";
 import * as GroupBackend from "./backend/GroupBackend";
 import * as Setting from "./Setting";
 import GroupTreePage from "./GroupTreePage";
 import {type ConsoleCallSpy, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
+import {fireEvent} from "@testing-library/react";
 
-declare const jest: typeof jestValue;
 let consoleErrorSpy: ConsoleCallSpy;
 
 type LooseMock = {
@@ -22,38 +21,26 @@ type GroupBackendMock = Record<"getGroups" | "addGroup" | "updateGroup" | "delet
 type GroupTreePageProps = React.ComponentProps<typeof GroupTreePage>;
 
 const groupBackendMock = GroupBackend as unknown as GroupBackendMock;
-const expect = jestExpect;
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    change: (element: Element | null, event: unknown) => boolean;
-    click: (element: Element | null) => boolean;
-    mouseDown: (element: Element | null) => boolean;
-    mouseEnter: (element: Element | null) => boolean;
-    mouseLeave: (element: Element | null) => boolean;
-    mouseUp: (element: Element | null) => boolean;
-  };
-};
 
-jest.mock("./backend/GroupBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/GroupBackend", () => {
   return {
-    getGroups: factoryJest.fn(),
-    addGroup: factoryJest.fn(),
-    updateGroup: factoryJest.fn(),
-    deleteGroup: factoryJest.fn(),
+    getGroups: vi.fn(),
+    addGroup: vi.fn(),
+    updateGroup: vi.fn(),
+    deleteGroup: vi.fn(),
   };
 });
 
-jest.mock("./common/select/OrganizationSelect", () => (props: {initValue?: string; onChange: (value: string) => void}) => (
+vi.mock("./common/select/OrganizationSelect", () => ({default: (props: {initValue?: string; onChange: (value: string) => void}) => (
   <select data-testid="organization-select" value={props.initValue || ""} onChange={event => props.onChange(event.target.value)}>
     <option value="engineering">engineering</option>
     <option value="sales">sales</option>
   </select>
-));
+)}));
 
-jest.mock("./UserListPage", () => (props: {organizationName?: string; groupName?: string}) => (
+vi.mock("./UserListPage", () => ({default: (props: {organizationName?: string; groupName?: string}) => (
   <div data-testid="user-list">{`${props.organizationName || ""}:${props.groupName || ""}`}</div>
-));
+)}));
 
 const treeData = [
   {
@@ -76,17 +63,17 @@ const mockMatchMedia = (query: string): MediaQueryList => ({
   matches: false,
   media: query,
   onchange: null,
-  addListener: jestValue.fn(),
-  removeListener: jestValue.fn(),
-  addEventListener: jestValue.fn(),
-  removeEventListener: jestValue.fn(),
-  dispatchEvent: jestValue.fn(),
+  addListener: vi.fn(),
+  removeListener: vi.fn(),
+  addEventListener: vi.fn(),
+  removeEventListener: vi.fn(),
+  dispatchEvent: vi.fn(),
 } as unknown as MediaQueryList);
 
 function buildProps(overrides: Partial<GroupTreePageProps> = {}): GroupTreePageProps {
   return {
     account: {owner: "engineering", isAdmin: true},
-    history: {push: jestValue.fn()},
+    history: {push: vi.fn()},
     match: {params: {organizationName: "engineering"}},
     ...overrides,
   } as GroupTreePageProps;
@@ -112,7 +99,7 @@ async function flushPromises() {
 }
 
 beforeEach(() => {
-  consoleErrorSpy = jestValue.spyOn(console, "error") as unknown as ConsoleCallSpy;
+  consoleErrorSpy = vi.spyOn(console, "error") as unknown as ConsoleCallSpy;
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: mockMatchMedia,
@@ -122,18 +109,18 @@ beforeEach(() => {
   groupBackendMock.addGroup.mockResolvedValue({status: "ok"});
   groupBackendMock.updateGroup.mockResolvedValue({status: "ok"});
   groupBackendMock.deleteGroup.mockResolvedValue({status: "ok"});
-  jestValue.spyOn(Setting, "isAdminUser").mockImplementation((account: unknown) => {
+  vi.spyOn(Setting, "isAdminUser").mockImplementation((account: unknown) => {
     return Boolean((account as {isAdmin?: boolean})?.isAdmin);
   });
-  jestValue.spyOn(Setting, "getRandomName").mockReturnValue("seed");
-  jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "getRandomName").mockReturnValue("seed");
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
 });
 
 afterEach(() => {
   const actWarnings = getReactActWarnings(consoleErrorSpy.mock.calls);
   consoleErrorSpy.mockRestore();
-  jestValue.restoreAllMocks();
-  jestValue.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
   expect(actWarnings).toEqual([]);
 });
 
@@ -142,7 +129,7 @@ test("renders group tree route and embedded user list without changing backend b
   const view = render(<GroupTreePage {...props} />);
 
   expect(await view.findByText("Root Group")).not.toBeNull();
-  expect(view.getByText("Child Group")).not.toBeNull();
+  expect(await view.findByText("Child Group")).not.toBeNull();
   expect(view.getByTestId("user-list").textContent).toBe("engineering:");
   expect(groupBackendMock.getGroups).toHaveBeenCalledWith("engineering", true);
 });
@@ -174,7 +161,7 @@ test("selects tree node and clears selected group through existing routes", asyn
     },
   });
 
-  fireEvent.click(view.container.querySelector(".ant-tree-switcher"));
+  fireEvent.click(view.container.querySelector(".ant-tree-switcher")!);
 });
 
 test("switches organization for admin user and refreshes tree data", async() => {
@@ -350,8 +337,8 @@ test("expands all returned group tree nodes when tree data changes", () => {
 
 test("refreshes tree data when organization or tree data changes", () => {
   const page = createPage();
-  const getTreeData = jestValue.spyOn(page, "getTreeData").mockImplementation(() => {});
-  const setTreeExpandedKeys = jestValue.spyOn(page, "setTreeExpandedKeys").mockImplementation(() => {});
+  const getTreeData = vi.spyOn(page, "getTreeData").mockImplementation(() => {});
+  const setTreeExpandedKeys = vi.spyOn(page, "setTreeExpandedKeys").mockImplementation(() => {});
   const previousState = {
     ...page.state,
     organizationName: "old-org",

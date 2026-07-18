@@ -1,13 +1,14 @@
-/* eslint-env jest */
+import {expect, test} from "vitest";
 
 import fs from "fs";
 import path from "path";
-import {expect} from "@jest/globals";
+import {fileURLToPath} from "url";
+const testFileDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 const modalDestroyProps: Pick<import("antd").ModalProps, "destroyOnHidden"> = {destroyOnHidden: true};
 const drawerDestroyProps: Pick<import("antd").DrawerProps, "destroyOnHidden"> = {destroyOnHidden: true};
 
-const srcRoot = path.resolve(__dirname, "../..");
+const srcRoot = path.resolve(testFileDirectory, "../..");
 const ownerPropCounts = [
   {file: "IdentityAssetRelationshipDrawer.tsx", expected: 1},
   {file: "common/modal/CaptchaModal.tsx", expected: 1},

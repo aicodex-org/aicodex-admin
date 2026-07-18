@@ -1,6 +1,5 @@
-/* eslint-env jest */
+import {describe, expect, test, vi} from "vitest";
 
-import {expect, jest} from "@jest/globals";
 import {
   buildSamlMetadataUrl,
   buildTermsOfUseResourcePath,
@@ -76,7 +75,7 @@ describe("application edit rules", () => {
   });
 
   test("only converts the legacy offset field and identifies missing required fields", () => {
-    const parseInteger = jest.fn((value: unknown) => Number.parseInt(String(value), 10));
+    const parseInteger = vi.fn((value: unknown) => Number.parseInt(String(value), 10));
 
     expect(normalizeApplicationFieldValue("offset", "12", parseInteger)).toBe(12);
     expect(normalizeApplicationFieldValue("displayName", " Portal ", parseInteger)).toBe(" Portal ");

@@ -1,6 +1,5 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import React from "react";
-import {expect, jest} from "@jest/globals";
 import {cleanup, fireEvent, render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import i18next from "i18next";
@@ -40,7 +39,7 @@ describe("IdentityEvidenceChainPage", () => {
   let consoleErrorSpy: {mockRestore: () => void};
 
   beforeEach(async() => {
-    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
       throw new Error(args.map(item => String(item)).join(" "));
     });
     Object.defineProperty(window, "matchMedia", {
@@ -49,11 +48,11 @@ describe("IdentityEvidenceChainPage", () => {
         matches: false,
         media: query,
         onchange: null,
-        addListener: jest.fn(),
-        removeListener: jest.fn(),
-        addEventListener: jest.fn(),
-        removeEventListener: jest.fn(),
-        dispatchEvent: jest.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
       }),
     });
     await useTestLanguage("zh");

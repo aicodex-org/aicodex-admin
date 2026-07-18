@@ -1,4 +1,4 @@
-/* eslint-env jest */
+import {beforeEach, expect, test, vi} from "vitest";
 // Copyright 2026 The AICodex Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,13 +13,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {expect, jest} from "@jest/globals";
 import * as WecomOrganizationSyncBackend from "./WecomOrganizationSyncBackend";
 
-let fetchMock: ReturnType<typeof jest.fn>;
+let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
-  fetchMock = jest.fn(() => Promise.resolve({
+  fetchMock = vi.fn(() => Promise.resolve({
     json: () => Promise.resolve({status: "ok"}),
   }));
   global.fetch = fetchMock as unknown as typeof fetch;

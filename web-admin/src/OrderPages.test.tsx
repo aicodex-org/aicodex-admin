@@ -1,8 +1,7 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
 import * as fs from "fs";
 import * as path from "path";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {cleanup, render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import {Descriptions} from "antd";
@@ -16,8 +15,10 @@ import * as PaymentBackend from "./backend/PaymentBackend";
 import * as Setting from "./Setting";
 import type {LegacyAny} from "./types/legacyPage";
 import {type ConsoleCallSpy, getAntdWarnings} from "./testUtils/reactAsyncWarnings";
+import {fireEvent} from "@testing-library/react";
+import {fileURLToPath} from "url";
+const testFileDirectory = path.dirname(fileURLToPath(import.meta.url));
 
-declare const jest: typeof jestValue;
 let consoleErrorSpy: ConsoleCallSpy;
 
 type LooseMock = {
@@ -81,15 +82,8 @@ const orderBackendMock = OrderBackend as unknown as OrderBackendMock;
 const productBackendMock = ProductBackend as unknown as ProductBackendMock;
 const userBackendMock = UserBackend as unknown as UserBackendMock;
 const paymentBackendMock = PaymentBackend as unknown as PaymentBackendMock;
-const expect = jestExpect;
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-    change: (element: Element | null, event: unknown) => boolean;
-  };
-};
 
-jest.mock("i18next", () => ({
+vi.mock("i18next", () => ({
   __esModule: true,
   default: {
     language: "en",
@@ -106,43 +100,39 @@ jest.mock("i18next", () => ({
   },
 }));
 
-jest.mock("./backend/OrderBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/OrderBackend", () => {
   return {
-    addOrder: factoryJest.fn(),
-    cancelOrder: factoryJest.fn(),
-    deleteOrder: factoryJest.fn(),
-    getOrder: factoryJest.fn(),
-    getOrders: factoryJest.fn(),
-    payOrder: factoryJest.fn(),
-    updateOrder: factoryJest.fn(),
+    addOrder: vi.fn(),
+    cancelOrder: vi.fn(),
+    deleteOrder: vi.fn(),
+    getOrder: vi.fn(),
+    getOrders: vi.fn(),
+    payOrder: vi.fn(),
+    updateOrder: vi.fn(),
   };
 });
 
-jest.mock("./backend/ProductBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/ProductBackend", () => {
   return {
-    getProduct: factoryJest.fn(),
-    getProducts: factoryJest.fn(),
+    getProduct: vi.fn(),
+    getProducts: vi.fn(),
   };
 });
 
-jest.mock("./backend/UserBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/UserBackend", () => {
   return {
-    getUsers: factoryJest.fn(),
+    getUsers: vi.fn(),
   };
 });
 
-jest.mock("./backend/PaymentBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/PaymentBackend", () => {
   return {
-    getPayments: factoryJest.fn(),
+    getPayments: vi.fn(),
   };
 });
 
-jest.mock("./common/modal/PopconfirmModal", () => {
-  const ReactFactory = require("react");
+vi.mock("./common/modal/PopconfirmModal", async() => {
+  const ReactFactory = await vi.importActual<typeof import("react")>("react");
   return {
     __esModule: true,
     default: (props: {disabled?: boolean; onConfirm?: () => void; text?: string; children?: React.ReactNode}) => ReactFactory.createElement(
@@ -157,8 +147,8 @@ jest.mock("./common/modal/PopconfirmModal", () => {
   };
 });
 
-jest.mock("./common/PaginateSelect", () => {
-  const ReactFactory = require("react");
+vi.mock("./common/PaginateSelect", async() => {
+  const ReactFactory = await vi.importActual<typeof import("react")>("react");
   return {
     __esModule: true,
     default: (props: {value?: string; disabled?: boolean; onChange?: (value: string) => void}) => ReactFactory.createElement(
@@ -241,7 +231,7 @@ async function flushAsyncWork() {
 
 function createHistory() {
   return {
-    push: jestValue.fn(),
+    push: vi.fn(),
   };
 }
 
@@ -273,9 +263,9 @@ function createOrderListPage(props: Record<string, LegacyAny> = {}) {
     pagination: {current: 2, pageSize: 10, total: 11},
     loading: false,
   };
-  page.getColumnSearchProps = jestValue.fn(() => ({})) as unknown as LooseMock;
-  page.getTablePaginationProps = jestValue.fn(() => false) as unknown as LooseMock;
-  page.handleTableChange = jestValue.fn() as unknown as LooseMock;
+  page.getColumnSearchProps = vi.fn(() => ({})) as unknown as LooseMock;
+  page.getTablePaginationProps = vi.fn(() => false) as unknown as LooseMock;
+  page.handleTableChange = vi.fn() as unknown as LooseMock;
   return page;
 }
 
@@ -340,33 +330,33 @@ function collectElements(node: React.ReactNode, predicate: (element: React.React
 
 beforeEach(() => {
   cleanup();
-  consoleErrorSpy = jestValue.spyOn(console, "error") as unknown as ConsoleCallSpy;
+  consoleErrorSpy = vi.spyOn(console, "error") as unknown as ConsoleCallSpy;
   window.history.pushState({}, "", "/");
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: () => ({
       matches: false,
-      addListener: jestValue.fn(),
-      removeListener: jestValue.fn(),
-      addEventListener: jestValue.fn(),
-      removeEventListener: jestValue.fn(),
-      dispatchEvent: jestValue.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
     }),
   });
-  jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "goToLink").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "goToLinkSoft").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
-  jestValue.spyOn(Setting, "getRequestOrganization").mockReturnValue("built-in");
-  jestValue.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(false);
-  jestValue.spyOn(Setting, "isLocalAdminUser").mockReturnValue(true);
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(false);
-  jestValue.spyOn(Setting, "getFormattedDate").mockImplementation((value: LegacyAny) => `formatted:${value}`);
-  jestValue.spyOn(Setting, "getLanguageText").mockImplementation((value: LegacyAny) => `${value || ""}`);
-  jestValue.spyOn(Setting, "getCurrencySymbol").mockReturnValue("$");
-  jestValue.spyOn(Setting, "getCurrencyText").mockReturnValue("USD");
-  jestValue.spyOn(Setting, "getPriceDisplay").mockImplementation(((value: LegacyAny, currency: LegacyAny) => `$${value} (${currency})`) as LegacyAny);
-  jestValue.spyOn(Setting, "getProviderLogoURL").mockReturnValue("/img/provider.png");
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "goToLink").mockImplementation(() => {});
+  vi.spyOn(Setting, "goToLinkSoft").mockImplementation(() => {});
+  vi.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
+  vi.spyOn(Setting, "getRequestOrganization").mockReturnValue("built-in");
+  vi.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(false);
+  vi.spyOn(Setting, "isLocalAdminUser").mockReturnValue(true);
+  vi.spyOn(Setting, "isMobile").mockReturnValue(false);
+  vi.spyOn(Setting, "getFormattedDate").mockImplementation((value: LegacyAny) => `formatted:${value}`);
+  vi.spyOn(Setting, "getLanguageText").mockImplementation((value: LegacyAny) => `${value || ""}`);
+  vi.spyOn(Setting, "getCurrencySymbol").mockReturnValue("$");
+  vi.spyOn(Setting, "getCurrencyText").mockReturnValue("USD");
+  vi.spyOn(Setting, "getPriceDisplay").mockImplementation(((value: LegacyAny, currency: LegacyAny) => `$${value} (${currency})`) as LegacyAny);
+  vi.spyOn(Setting, "getProviderLogoURL").mockReturnValue("/img/provider.png");
 
   orderBackendMock.addOrder.mockResolvedValue({status: "ok"});
   orderBackendMock.cancelOrder.mockResolvedValue({status: "ok"});
@@ -385,14 +375,14 @@ afterEach(() => {
   cleanup();
   const antdWarnings = getAntdWarnings(consoleErrorSpy.mock.calls);
   consoleErrorSpy.mockRestore();
-  jestValue.restoreAllMocks();
-  jestValue.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
   delete (window as unknown as {WeixinJSBridge?: LegacyAny}).WeixinJSBridge;
   expect(antdWarnings).toEqual([]);
 });
 
 test("uses TSX files for migrated order pages", () => {
-  const srcDir = __dirname;
+  const srcDir = testFileDirectory;
 
   ["OrderListPage", "OrderEditPage", "OrderPayPage"].forEach(file => {
     expect(fs.existsSync(path.join(srcDir, `${file}.tsx`))).toBe(true);
@@ -435,8 +425,8 @@ test("keeps OrderListPage add, cancel, delete and fetch behavior stable", async(
 test("keeps OrderListPage table renderers and admin actions stable", () => {
   const history = createHistory();
   const page = createOrderListPage({history});
-  page.cancelOrder = jestValue.fn() as LegacyAny;
-  page.deleteOrder = jestValue.fn() as LegacyAny;
+  page.cancelOrder = vi.fn() as LegacyAny;
+  page.deleteOrder = vi.fn() as LegacyAny;
   const table = page.renderTable([order]) as React.ReactElement<{children: React.ReactElement<{columns: Array<{key?: string; render?: LegacyAny; title?: () => React.ReactNode}>; title: () => React.ReactNode}>}>;
   const tableElement = React.Children.toArray(table.props.children)[0] as React.ReactElement<{columns: Array<{key?: string; render?: LegacyAny}>; title: () => React.ReactNode}>;
   const columns = tableElement.props.columns;
@@ -447,7 +437,7 @@ test("keeps OrderListPage table renderers and admin actions stable", () => {
 
   const productsView = render(<MemoryRouter>{columns.find(column => column.key === "products")?.render?.(order.products, order, 0)}</MemoryRouter>);
   expect(productsView.getByText("Workspace Credits")).not.toBeNull();
-  fireEvent.click(productsView.container.querySelector("button"));
+  fireEvent.click(productsView.container.querySelector("button")!);
   expect(Setting.goToLinkSoft).toHaveBeenCalledWith(page, "/products/built-in/workspace_credits");
   productsView.unmount();
 
@@ -481,7 +471,7 @@ test("keeps OrderListPage error branches and non-admin renderers stable", async(
     account: {...account, isAdmin: false},
     history,
   });
-  jestValue.spyOn(Setting, "isLocalAdminUser").mockReturnValue(false);
+  vi.spyOn(Setting, "isLocalAdminUser").mockReturnValue(false);
 
   const table = page.renderTable([makeOrder({state: "Paid", payment: "", productInfos: []})]) as React.ReactElement<{children: React.ReactElement<{columns: Array<{key?: string; render?: LegacyAny; title?: () => React.ReactNode}>; title: () => React.ReactNode}>}>;
   const tableElement = React.Children.toArray(table.props.children)[0] as React.ReactElement<{columns: Array<{key?: string; render?: LegacyAny}>; title: () => React.ReactNode}>;
@@ -549,13 +539,13 @@ test("keeps OrderListPage error branches and non-admin renderers stable", async(
   await flushAsyncWork();
   expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("delete network down"));
 
-  jestValue.spyOn(Setting, "isResponseDenied").mockReturnValueOnce(true);
+  vi.spyOn(Setting, "isResponseDenied").mockReturnValueOnce(true);
   orderBackendMock.getOrders.mockResolvedValueOnce({status: "error", msg: "denied"});
   page.fetch({pagination: {current: 1, pageSize: 10}});
   await flushAsyncWork();
   expect(page.state.isAuthorized).toBe(false);
 
-  jestValue.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValueOnce(true);
+  vi.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValueOnce(true);
   orderBackendMock.getOrders.mockResolvedValueOnce({status: "error", msg: "list failed"});
   page.fetch({pagination: {current: 3, pageSize: 20}});
   await flushAsyncWork();
@@ -564,7 +554,7 @@ test("keeps OrderListPage error branches and non-admin renderers stable", async(
 });
 
 test("publishes the order display name for its workspace tab after loading and editing", async() => {
-  const dispatchSpy = jestValue.spyOn(window, "dispatchEvent");
+  const dispatchSpy = vi.spyOn(window, "dispatchEvent");
   const page = createOrderEditPage();
 
   orderBackendMock.getOrder.mockResolvedValueOnce({status: "ok", data: makeOrder({displayName: "Workspace Order"})});
@@ -660,16 +650,16 @@ test("keeps OrderEditPage render and failure branches stable", async() => {
 test("keeps OrderEditPage guarded updates, form callbacks and modes stable", async() => {
   const history = createHistory();
   const page = createOrderEditPage({history, location: {mode: "add"}});
-  const getOrderSpy = jestValue.spyOn(page, "getOrder");
-  const getProductsSpy = jestValue.spyOn(page, "getProducts");
-  const getPaymentsSpy = jestValue.spyOn(page, "getPayments");
+  const getOrderSpy = vi.spyOn(page, "getOrder");
+  const getProductsSpy = vi.spyOn(page, "getProducts");
+  const getPaymentsSpy = vi.spyOn(page, "getPayments");
 
   page.UNSAFE_componentWillMount();
   expect(getOrderSpy).toHaveBeenCalled();
   expect(getProductsSpy).toHaveBeenCalled();
   expect(getPaymentsSpy).toHaveBeenCalled();
 
-  jestValue.spyOn(Setting, "myParseInt").mockReturnValueOnce(42);
+  vi.spyOn(Setting, "myParseInt").mockReturnValueOnce(42);
   expect(page.parseOrderField("", "42")).toBe(42);
 
   page.setState({order: null});
@@ -727,7 +717,7 @@ test("keeps OrderEditPage guarded updates, form callbacks and modes stable", asy
 
 test("keeps OrderPayPage loading, render and normal payment behavior stable", async() => {
   const page = createOrderPayPage();
-  const getProductSpy = jestValue.spyOn(page, "getProduct");
+  const getProductSpy = vi.spyOn(page, "getProduct");
 
   page.getOrder();
   await flushAsyncWork();
@@ -776,7 +766,7 @@ test("keeps OrderPayPage WeChat, QR code and failure branches stable", async() =
   page.getPaymentEnv();
   expect(page.state.paymentEnv).toBe("WechatBrowser");
 
-  const bridgeInvoke = jestValue.fn((method: string, payload: LegacyAny, callback: (res: {err_msg: string}) => void) => {
+  const bridgeInvoke = vi.fn((method: string, payload: LegacyAny, callback: (res: {err_msg: string}) => void) => {
     callback({err_msg: "get_brand_wcpay_request:ok"});
   });
   (window as unknown as {WeixinJSBridge?: LegacyAny}).WeixinJSBridge = {invoke: bridgeInvoke};
@@ -884,7 +874,7 @@ test("keeps OrderPayPage guards, provider fallbacks and rendered product variant
 
 test("keeps OrderPayPage WeChat bridge cancel, failure and delayed bridge branches stable", () => {
   const page = createOrderPayPage();
-  const addEventListenerSpy = jestValue.spyOn(document, "addEventListener");
+  const addEventListenerSpy = vi.spyOn(document, "addEventListener");
   const attachInfo = {
     appId: "app",
     timeStamp: "1",
@@ -899,7 +889,7 @@ test("keeps OrderPayPage WeChat bridge cancel, failure and delayed bridge branch
   expect(addEventListenerSpy).toHaveBeenCalledWith("WeixinJSBridgeReady", expect.any(Function), false);
 
   const bridgeCallback = addEventListenerSpy.mock.calls.find(call => call[0] === "WeixinJSBridgeReady")?.[1] as (() => void) | undefined;
-  const bridgeInvoke = jestValue.fn((method: string, payload: LegacyAny, callback: (res: {err_msg: string}) => void) => {
+  const bridgeInvoke = vi.fn((method: string, payload: LegacyAny, callback: (res: {err_msg: string}) => void) => {
     callback({err_msg: "get_brand_wcpay_request:cancel"});
   });
   (window as unknown as {WeixinJSBridge?: LegacyAny}).WeixinJSBridge = {invoke: bridgeInvoke};

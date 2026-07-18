@@ -1,13 +1,9 @@
+import {describe, expect, test, vi} from "vitest";
 import React from "react";
 import {render} from "@testing-library/react";
-import {expect} from "@jest/globals";
 import ShortcutsPage, {buildShortcutItems} from "./ShortcutsPage";
 
-declare const jest: {
-  mock: (moduleName: string, factory: () => unknown) => void;
-};
-
-jest.mock("./GridCards", () => ({
+vi.mock("./GridCards", () => ({
   __esModule: true,
   default: ({items}: {items: Array<{link: string; logo: string}>}) => (
     <div data-testid="shortcut-grid">

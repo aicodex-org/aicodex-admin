@@ -1,8 +1,7 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import React from "react";
 import {cleanup, render, waitFor} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import i18next from "i18next";
 import copy from "copy-to-clipboard";
 import * as Setting from "./Setting";
@@ -16,8 +15,7 @@ import * as TokenBackend from "./backend/TokenBackend";
 import * as VerificationBackend from "./backend/VerificationBackend";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
-
-declare const jest: typeof jestValue;
+import {fireEvent} from "@testing-library/react";
 
 type LegacyPage = React.Component & {
   state: {
@@ -65,67 +63,56 @@ type RecordBackendMock = Record<"getRecords", LooseMock>;
 type TokenBackendMock = Record<"addToken" | "deleteToken" | "getTokens", LooseMock>;
 type VerificationBackendMock = Record<"getVerifications", LooseMock>;
 
-const expect = jestExpect;
 const copyMock = copy as unknown as LooseMock;
 const sessionBackendMock = SessionBackend as unknown as SessionBackendMock;
 const recordBackendMock = RecordBackend as unknown as RecordBackendMock;
 const tokenBackendMock = TokenBackend as unknown as TokenBackendMock;
 const verificationBackendMock = VerificationBackend as unknown as VerificationBackendMock;
 const tableBodyHeightPattern = (offset: number) => new RegExp(`calc\\((100vh - ${offset}px|-${offset}px \\+ 100vh)\\)`);
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-  };
-};
 
-jest.mock("./backend/SessionBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/SessionBackend", () => {
   return {
-    deleteSession: factoryJest.fn(),
-    getSessions: factoryJest.fn(),
+    deleteSession: vi.fn(),
+    getSessions: vi.fn(),
   };
 });
 
-jest.mock("./backend/RecordBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/RecordBackend", () => {
   return {
-    getRecords: factoryJest.fn(),
+    getRecords: vi.fn(),
   };
 });
 
-jest.mock("./backend/TokenBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/TokenBackend", () => {
   return {
-    addToken: factoryJest.fn(),
-    deleteToken: factoryJest.fn(),
-    getTokens: factoryJest.fn(),
+    addToken: vi.fn(),
+    deleteToken: vi.fn(),
+    getTokens: vi.fn(),
   };
 });
 
-jest.mock("./backend/VerificationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/VerificationBackend", () => {
   return {
-    getVerifications: factoryJest.fn(),
+    getVerifications: vi.fn(),
   };
 });
 
-jest.mock("copy-to-clipboard", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("copy-to-clipboard", () => {
   return {
     __esModule: true,
-    default: factoryJest.fn(() => true),
+    default: vi.fn(() => true),
   };
 });
 
-jest.mock("./common/modal/PopconfirmModal", () => (props: {disabled?: boolean; onConfirm?: () => void}) => (
+vi.mock("./common/modal/PopconfirmModal", () => ({default: (props: {disabled?: boolean; onConfirm?: () => void}) => (
   <button type="button" data-testid="legacy-popconfirm" data-disabled={props.disabled ? "true" : "false"} onClick={() => props.onConfirm?.()}>
     delete
   </button>
-));
+)}));
 
-jest.mock("./common/Editor", () => function EditorMock(props: {height?: string; value?: string}): JSX.Element {
+vi.mock("./common/Editor", () => ({default: function EditorMock(props: {height?: string; value?: string}): JSX.Element {
   return <div data-testid="editor" data-height={props.height || ""} data-value={props.value || ""} />;
-});
+}}));
 
 const adminAccount = {
   owner: "built-in",
@@ -189,7 +176,7 @@ function installSynchronousSetState(page: LegacyPage): void {
 
 function createHistory() {
   return {
-    push: jestValue.fn(),
+    push: vi.fn(),
   };
 }
 
@@ -217,7 +204,7 @@ function createPage(Page: PageClass, path: string, rows: unknown[], total = rows
     isAuthorized: true,
   };
   if (stubFetch) {
-    page.fetch = jestValue.fn();
+    page.fetch = vi.fn();
   }
   return page;
 }
@@ -248,19 +235,19 @@ describe("audit operations list pages", () => {
     cleanup();
     const testConsole = globalThis.console;
     const originalConsoleError = testConsole.error;
-    consoleErrorSpy = jestValue.spyOn(testConsole, "error").mockImplementation((...args: unknown[]) => {
+    consoleErrorSpy = vi.spyOn(testConsole, "error").mockImplementation((...args: unknown[]) => {
       originalConsoleError(...args);
     });
     localStorage.clear();
     localStorage.setItem("organization", "built-in");
     await initI18n();
-    jestValue.spyOn(Setting, "isMobile").mockReturnValue(false);
-    jestValue.spyOn(Setting, "isAdminUser").mockReturnValue(true);
-    jestValue.spyOn(Setting, "isLocalAdminUser").mockReturnValue(false);
-    jestValue.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(false);
-    jestValue.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
-    jestValue.spyOn(Setting, "getFormattedDate").mockImplementation(value => String(value));
-    jestValue.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+    vi.spyOn(Setting, "isMobile").mockReturnValue(false);
+    vi.spyOn(Setting, "isAdminUser").mockReturnValue(true);
+    vi.spyOn(Setting, "isLocalAdminUser").mockReturnValue(false);
+    vi.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(false);
+    vi.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
+    vi.spyOn(Setting, "getFormattedDate").mockImplementation(value => String(value));
+    vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
     copyMock.mockReturnValue(true);
     sessionBackendMock.deleteSession.mockResolvedValue({status: "ok"});
     sessionBackendMock.getSessions.mockResolvedValue({status: "ok", data: [sampleSession], data2: 1});
@@ -273,7 +260,7 @@ describe("audit operations list pages", () => {
 
   afterEach(() => {
     consoleErrorSpy.mockRestore();
-    jestValue.restoreAllMocks();
+    vi.restoreAllMocks();
     cleanup();
   });
 
@@ -318,8 +305,8 @@ describe("audit operations list pages", () => {
 
   test("moves token add button and row actions into the unified list affordances", () => {
     const page = createPage(TokenListPage as unknown as PageClass, "/tokens", [sampleToken]) as TokenListHarness;
-    const addTokenSpy = jestValue.spyOn(page, "addToken").mockImplementation(() => undefined);
-    const deleteTokenSpy = jestValue.spyOn(page, "deleteToken").mockImplementation(() => undefined);
+    const addTokenSpy = vi.spyOn(page, "addToken").mockImplementation(() => undefined);
+    const deleteTokenSpy = vi.spyOn(page, "deleteToken").mockImplementation(() => undefined);
     const history = (page.props as {history: ReturnType<typeof createHistory>}).history;
     const view = render(<MemoryRouter>{page.renderTable([sampleToken])}</MemoryRouter>);
 
@@ -352,11 +339,11 @@ describe("audit operations list pages", () => {
 
   test("keeps session delete and fetch behavior while using the compact list shell", async() => {
     const page = createPage(SessionListPage as unknown as PageClass, "/sessions", [sampleSession], 1, false) as SessionListHarness;
-    const fetchSpy = jestValue.spyOn(page, "fetch");
-    const getFormSpy = jestValue.spyOn(page, "getForm").mockImplementation(() => undefined);
+    const fetchSpy = vi.spyOn(page, "fetch");
+    const getFormSpy = vi.spyOn(page, "getForm").mockImplementation(() => undefined);
     const closeEvent = {
-      preventDefault: jestValue.fn(),
-      stopPropagation: jestValue.fn(),
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
     };
 
     page.UNSAFE_componentWillMount();
@@ -554,8 +541,8 @@ describe("audit operations list pages", () => {
       },
       detailShow: true,
     };
-    const fetchSpy = jestValue.spyOn(page, "fetch").mockImplementation(() => undefined);
-    const getFormSpy = jestValue.spyOn(page, "getForm").mockImplementation(() => undefined);
+    const fetchSpy = vi.spyOn(page, "fetch").mockImplementation(() => undefined);
+    const getFormSpy = vi.spyOn(page, "getForm").mockImplementation(() => undefined);
 
     page.UNSAFE_componentWillMount();
     expect(page.state.pagination.pageSize).toBe(20);
@@ -646,7 +633,7 @@ describe("audit operations list pages", () => {
     await flushPromises();
     expect(page.state.isAuthorized).toBe(false);
 
-    jestValue.spyOn(Setting, "isMobile").mockReturnValue(true);
+    vi.spyOn(Setting, "isMobile").mockReturnValue(true);
     const mobileView = render(<MemoryRouter>{page.renderTable([{...sampleVerification, remoteAddr: "127.0.0.1: "}])}</MemoryRouter>);
     expect(mobileView.container.querySelector(".verification-list-page-table-shell")).not.toBeNull();
     expect(mobileView.getByText("127.0.0.1").closest("a")?.getAttribute("href")).toBe("https://db-ip.com/127.0.0.1");
