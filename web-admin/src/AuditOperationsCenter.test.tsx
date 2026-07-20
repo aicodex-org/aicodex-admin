@@ -1,8 +1,7 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import React from "react";
 import {render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
-import {expect, jest} from "@jest/globals";
 import i18next from "i18next";
 import AuditOperationsCenter, {buildAuditOperationsSummary} from "./AuditOperationsCenter";
 import en from "./locales/en/data.json";
@@ -52,7 +51,7 @@ describe("AuditOperationsCenter", () => {
   beforeEach(async() => {
     const testConsole = globalThis.console;
     const originalConsoleError = testConsole.error;
-    consoleErrorSpy = jest.spyOn(testConsole, "error").mockImplementation((...args: unknown[]) => {
+    consoleErrorSpy = vi.spyOn(testConsole, "error").mockImplementation((...args: unknown[]) => {
       originalConsoleError(...args);
     });
 

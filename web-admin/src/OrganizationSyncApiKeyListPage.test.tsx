@@ -1,6 +1,5 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import copy from "copy-to-clipboard";
@@ -8,8 +7,7 @@ import * as Setting from "./Setting";
 import * as FormBackend from "./backend/FormBackend";
 import * as OrganizationSyncApiKeyBackend from "./backend/OrganizationSyncApiKeyBackend";
 import OrganizationSyncApiKeyListPage from "./OrganizationSyncApiKeyListPage";
-
-declare const jest: typeof jestValue;
+import {fireEvent} from "@testing-library/react";
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -24,38 +22,28 @@ type FormBackendMock = Record<keyof typeof FormBackend, LooseMock>;
 const backendMock = OrganizationSyncApiKeyBackend as unknown as BackendMock;
 const formBackendMock = FormBackend as unknown as FormBackendMock;
 const copyMock = copy as unknown as LooseMock;
-const expect = jestExpect;
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    change: (element: Element | null, event: unknown) => boolean;
-    click: (element: Element | null) => boolean;
-  };
-};
 
-jest.mock("./backend/OrganizationSyncApiKeyBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/OrganizationSyncApiKeyBackend", () => {
   return {
-    getOrganizationSyncApiKeys: factoryJest.fn(),
-    addOrganizationSyncApiKey: factoryJest.fn(),
-    rotateOrganizationSyncApiKey: factoryJest.fn(),
-    disableOrganizationSyncApiKey: factoryJest.fn(),
-    deleteOrganizationSyncApiKey: factoryJest.fn(),
+    getOrganizationSyncApiKeys: vi.fn(),
+    addOrganizationSyncApiKey: vi.fn(),
+    rotateOrganizationSyncApiKey: vi.fn(),
+    disableOrganizationSyncApiKey: vi.fn(),
+    deleteOrganizationSyncApiKey: vi.fn(),
   };
 });
 
-jest.mock("./backend/FormBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/FormBackend", () => {
   return {
-    getForm: factoryJest.fn(),
+    getForm: vi.fn(),
   };
 });
 
-jest.mock("copy-to-clipboard", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
-  return factoryJest.fn();
+vi.mock("copy-to-clipboard", () => {
+  return ({default: vi.fn()});
 });
 
-jest.mock("./common/select/OrganizationSelect", () => (props: {initValue?: string; excludedOrganizations?: string[]; onChange: (value: string) => void}) => {
+vi.mock("./common/select/OrganizationSelect", () => ({default: (props: {initValue?: string; excludedOrganizations?: string[]; onChange: (value: string) => void}) => {
   const organizations = [
     {value: "built-in", label: "Built-in Organization"},
     {value: "engineering", label: "engineering"},
@@ -65,17 +53,17 @@ jest.mock("./common/select/OrganizationSelect", () => (props: {initValue?: strin
       {organizations.map(organization => <option key={organization.value} value={organization.value}>{organization.label}</option>)}
     </select>
   );
-});
+}}));
 
 const mockMatchMedia = (query: string): MediaQueryList => ({
   matches: false,
   media: query,
   onchange: null,
-  addListener: jestValue.fn(),
-  removeListener: jestValue.fn(),
-  addEventListener: jestValue.fn(),
-  removeEventListener: jestValue.fn(),
-  dispatchEvent: jestValue.fn(),
+  addListener: vi.fn(),
+  removeListener: vi.fn(),
+  addEventListener: vi.fn(),
+  removeEventListener: vi.fn(),
+  dispatchEvent: vi.fn(),
 } as unknown as MediaQueryList);
 
 beforeEach(() => {
@@ -84,7 +72,7 @@ beforeEach(() => {
     value: mockMatchMedia,
   });
   localStorage.clear();
-  jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
   formBackendMock.getForm.mockResolvedValue({status: "ok", data: {formItems: []}});
   backendMock.getOrganizationSyncApiKeys.mockResolvedValue({
     status: "ok",
@@ -97,8 +85,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  jestValue.restoreAllMocks();
-  jestValue.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
 });
 
 function renderPage() {

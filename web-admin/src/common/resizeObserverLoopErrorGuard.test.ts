@@ -1,5 +1,4 @@
-/* eslint-env jest */
-import {expect, jest} from "@jest/globals";
+import {afterEach, describe, expect, test, vi} from "vitest";
 import {installResizeObserverLoopErrorGuard, isResizeObserverLoopError} from "./resizeObserverLoopErrorGuard";
 
 describe("resizeObserverLoopErrorGuard", () => {
@@ -16,7 +15,7 @@ describe("resizeObserverLoopErrorGuard", () => {
   });
 
   test("prevents CRA runtime overlay from handling ResizeObserver loop noise", () => {
-    const overlayHandler = jest.fn();
+    const overlayHandler = vi.fn();
     window.onerror = overlayHandler;
 
     installResizeObserverLoopErrorGuard();
@@ -34,7 +33,7 @@ describe("resizeObserverLoopErrorGuard", () => {
   });
 
   test("delegates real runtime errors to the existing handler", () => {
-    const overlayHandler = jest.fn(() => false);
+    const overlayHandler = vi.fn(() => false);
     window.onerror = overlayHandler;
 
     installResizeObserverLoopErrorGuard();

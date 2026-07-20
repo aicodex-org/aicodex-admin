@@ -1,5 +1,4 @@
-/* eslint-env jest */
-import {expect, jest} from "@jest/globals";
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import * as Setting from "../Setting";
 import * as OrganizationBackend from "../backend/OrganizationBackend";
 import {
@@ -10,21 +9,21 @@ import {
 const fixedNow = new Date("2026-07-14T00:00:00.000Z");
 
 beforeEach(() => {
-  jest.useFakeTimers().setSystemTime(fixedNow);
-  jest.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
-  jest.spyOn(Setting, "showMessage").mockImplementation(() => {});
-  jest.spyOn(OrganizationBackend, "addOrganization").mockResolvedValue({status: "ok"});
-  jest.spyOn(OrganizationBackend, "updateOrganization").mockResolvedValue({status: "ok"});
-  jest.spyOn(OrganizationBackend, "deleteOrganization").mockResolvedValue({status: "ok"});
+  vi.useFakeTimers().setSystemTime(fixedNow);
+  vi.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(OrganizationBackend, "addOrganization").mockResolvedValue({status: "ok"});
+  vi.spyOn(OrganizationBackend, "updateOrganization").mockResolvedValue({status: "ok"});
+  vi.spyOn(OrganizationBackend, "deleteOrganization").mockResolvedValue({status: "ok"});
 });
 
 afterEach(() => {
-  jest.useRealTimers();
-  jest.restoreAllMocks();
+  vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 test("opens the organization editor with the unchanged default draft in route state", async() => {
-  const history = {push: jest.fn()};
+  const history = {push: vi.fn()};
   const expectedDraft = createDefaultOrganization();
 
   const result = openNewSyncTargetOrganization(history);
@@ -41,7 +40,7 @@ test("opens the organization editor with the unchanged default draft in route st
 });
 
 test("does not persist the target organization before the draft is saved", async() => {
-  const history = {push: jest.fn()};
+  const history = {push: vi.fn()};
 
   await openNewSyncTargetOrganization(history);
 
@@ -51,8 +50,8 @@ test("does not persist the target organization before the draft is saved", async
 });
 
 test("does not show creation messages or broadcast organization changes at the entry", async() => {
-  const history = {push: jest.fn()};
-  const dispatchEventSpy = jest.spyOn(window, "dispatchEvent");
+  const history = {push: vi.fn()};
+  const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
 
   await openNewSyncTargetOrganization(history);
 
@@ -77,10 +76,10 @@ test("fails closed without history instead of falling back to a legacy location 
 });
 
 test("fails closed asynchronously when route navigation throws", async() => {
-  const history = {push: jest.fn(() => {
+  const history = {push: vi.fn(() => {
     throw new Error("navigation failed");
   })};
-  const dispatchEventSpy = jest.spyOn(window, "dispatchEvent");
+  const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
   let result: Promise<OrganizationBackend.OrganizationRecord | null> | undefined;
 
   expect(() => {

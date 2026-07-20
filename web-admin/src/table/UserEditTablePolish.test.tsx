@@ -1,6 +1,5 @@
-/* eslint-env jest */
+import {describe, expect, test, vi} from "vitest";
 import React from "react";
-import {expect, jest} from "@jest/globals";
 import i18next from "i18next";
 import CartTable from "./CartTable";
 import ConsentTable from "./ConsentTable";
@@ -57,7 +56,7 @@ function getToolbarButtonText(node: React.ReactElement): React.ReactNode {
 }
 
 function installLocalSetState(component: LegacyAny) {
-  component.setState = jest.fn((stateOrUpdater: LegacyAny) => {
+  component.setState = vi.fn((stateOrUpdater: LegacyAny) => {
     const nextState = typeof stateOrUpdater === "function" ? stateOrUpdater(component.state, component.props) : stateOrUpdater;
     component.state = {...component.state, ...nextState};
   });
@@ -71,18 +70,18 @@ async function flushPromises() {
 describe("User edit embedded table polish", () => {
   test("keeps table titles in the toolbar while keeping actions reachable", async() => {
     await useTestLanguage("zh");
-    const managedTable = new ManagedAccountTable({title: "托管账户", table: [], applications: [], onUpdateTable: jest.fn()});
+    const managedTable = new ManagedAccountTable({title: "托管账户", table: [], applications: [], onUpdateTable: vi.fn()});
     const managedToolbar = getToolbar((managedTable as LegacyAny).renderTable([]));
     expect(getToolbarTitle(managedToolbar).props.children).toBe("托管账户");
     expect(getToolbarActions(managedToolbar).props.className).toBe("user-edit-table-toolbar-actions");
     expect(getToolbarActions(managedToolbar).props.children.props.children).toBe("添加");
 
-    const mfaAccountTable = new MfaAccountTable({title: "MFA账户", table: [], onUpdateTable: jest.fn()});
+    const mfaAccountTable = new MfaAccountTable({title: "MFA账户", table: [], onUpdateTable: vi.fn()});
     const mfaToolbar = getToolbar((mfaAccountTable as LegacyAny).renderTable([]));
     expect(getToolbarTitle(mfaToolbar).props.children).toBe("MFA账户");
     expect(getToolbarActions(mfaToolbar).props.children.map((node: React.ReactElement) => getToolbarButtonText(node))).toEqual(["添加", "二维码", "链接"]);
 
-    const faceIdTable = new FaceIdTable({title: "Face IDs", table: [], account: {owner: "built-in", name: "alice"}, onUpdateTable: jest.fn()});
+    const faceIdTable = new FaceIdTable({title: "Face IDs", table: [], account: {owner: "built-in", name: "alice"}, onUpdateTable: vi.fn()});
     installLocalSetState(faceIdTable);
     const faceToolbar = getToolbar((faceIdTable as LegacyAny).renderTable([]));
     expect(getToolbarTitle(faceToolbar).props.children).toBe("Face IDs");
@@ -93,7 +92,7 @@ describe("User edit embedded table polish", () => {
     const openedFaceToolbar = getToolbar((faceIdTable as LegacyAny).renderTable([]));
     expect(openedFaceToolbar.props.children[2].props.children.props.open).toBe(true);
 
-    const webAuthnTable = new WebAuthnCredentialTable({title: "WebAuthn 凭据", table: [], isSelf: true, updateTable: jest.fn(), refresh: jest.fn()});
+    const webAuthnTable = new WebAuthnCredentialTable({title: "WebAuthn 凭据", table: [], isSelf: true, updateTable: vi.fn(), refresh: vi.fn()});
     const webAuthnToolbar = getToolbar(webAuthnTable.render());
     expect(getToolbarTitle(webAuthnToolbar).props.children).toBe("WebAuthn 凭据");
     expect(getToolbarActions(webAuthnToolbar).props.children.props.children).toBe("添加");
@@ -101,14 +100,14 @@ describe("User edit embedded table polish", () => {
 
   test("keeps table row edits in sync without leaking internal row keys", async() => {
     await useTestLanguage("zh");
-    const onManagedUpdate = jest.fn();
+    const onManagedUpdate = vi.fn();
     const managedTable = new ManagedAccountTable({table: [], applications: [{name: "crm"}], onUpdateTable: onManagedUpdate});
     installLocalSetState(managedTable);
 
     (managedTable as LegacyAny).updateTable([{key: 7, application: "crm", signinUrl: "https://example.test", username: "alice", password: "secret"}]);
     expect(onManagedUpdate).toHaveBeenCalledWith([{application: "crm", signinUrl: "https://example.test", username: "alice", password: "secret"}]);
 
-    const onMfaAccountUpdate = jest.fn();
+    const onMfaAccountUpdate = vi.fn();
     const mfaAccountTable = new MfaAccountTable({table: [], onUpdateTable: onMfaAccountUpdate});
     installLocalSetState(mfaAccountTable);
 
@@ -122,7 +121,7 @@ describe("User edit embedded table polish", () => {
       {key: 0, application: "crm", signinUrl: "https://crm.example.test", username: "alice", password: "secret-a"},
       {key: 1, application: "portal", signinUrl: "https://portal.example.test", username: "bob", password: "secret-b"},
     ];
-    const onUpdateTable = jest.fn();
+    const onUpdateTable = vi.fn();
     const managedTable = new ManagedAccountTable({table, applications: [{name: "crm"}, {name: "portal"}], onUpdateTable});
     installLocalSetState(managedTable);
     const tableElement = (managedTable as LegacyAny).renderTable(table);
@@ -179,7 +178,7 @@ describe("User edit embedded table polish", () => {
       {key: 0, accountName: "alice", issuer: "github", origin: "totp", secretKey: "secret-a"},
       {key: 1, accountName: "bob", issuer: "", origin: "sms", secretKey: "secret-b"},
     ];
-    const onUpdateTable = jest.fn();
+    const onUpdateTable = vi.fn();
     const mfaAccountTable = new MfaAccountTable({table, onUpdateTable});
     installLocalSetState(mfaAccountTable);
     const tableElement = (mfaAccountTable as LegacyAny).renderTable(table);
@@ -232,7 +231,7 @@ describe("User edit embedded table polish", () => {
 
   test("uses localized compact columns for MFA accounts and embedded transactions", async() => {
     await useTestLanguage("zh");
-    const mfaAccountTable = new MfaAccountTable({table: [], onUpdateTable: jest.fn()});
+    const mfaAccountTable = new MfaAccountTable({table: [], onUpdateTable: vi.fn()});
     const mfaAccountElement = (mfaAccountTable as LegacyAny).renderTable([]);
     expect(mfaAccountElement.props.tableLayout).toBe("fixed");
     expect(mfaAccountElement.props.columns.map((column: LegacyAny) => column.title)).toEqual(["账号", "发行方", "来源", "密钥", "图标", "操作"]);
@@ -261,28 +260,28 @@ describe("User edit embedded table polish", () => {
   test("uses compact empty state for embedded user edit tables", async() => {
     await useTestLanguage("zh");
 
-    const managedTable = new ManagedAccountTable({title: "托管账户", table: [], applications: [], embedded: true, onUpdateTable: jest.fn()});
+    const managedTable = new ManagedAccountTable({title: "托管账户", table: [], applications: [], embedded: true, onUpdateTable: vi.fn()});
     const managedElement = (managedTable as LegacyAny).renderTable([]);
     expect(managedElement.props.className).toBe("user-edit-embedded-table");
     expect(managedElement.props.showHeader).toBe(false);
     expect(managedElement.props.locale.emptyText.props.children).toBe("暂无数据");
 
-    const mfaAccountTable = new MfaAccountTable({title: "MFA账户", table: [], embedded: true, onUpdateTable: jest.fn()});
+    const mfaAccountTable = new MfaAccountTable({title: "MFA账户", table: [], embedded: true, onUpdateTable: vi.fn()});
     const mfaAccountElement = (mfaAccountTable as LegacyAny).renderTable([]);
     expect(mfaAccountElement.props.showHeader).toBe(false);
     expect(mfaAccountElement.props.locale.emptyText.props.children).toBe("暂无数据");
 
-    const faceIdTable = new FaceIdTable({title: "Face IDs", table: [], embedded: true, account: {owner: "built-in", name: "alice"}, onUpdateTable: jest.fn()});
+    const faceIdTable = new FaceIdTable({title: "Face IDs", table: [], embedded: true, account: {owner: "built-in", name: "alice"}, onUpdateTable: vi.fn()});
     const faceIdElement = (faceIdTable as LegacyAny).renderTable([]);
     expect(faceIdElement.props.showHeader).toBe(false);
     expect(faceIdElement.props.locale.emptyText.props.children).toBe("暂无数据");
 
-    const webAuthnTable = new WebAuthnCredentialTable({title: "WebAuthn 凭据", table: [], embedded: true, isSelf: true, updateTable: jest.fn(), refresh: jest.fn()});
+    const webAuthnTable = new WebAuthnCredentialTable({title: "WebAuthn 凭据", table: [], embedded: true, isSelf: true, updateTable: vi.fn(), refresh: vi.fn()});
     const webAuthnElement = webAuthnTable.render();
     expect(webAuthnElement.props.showHeader).toBe(false);
     expect(webAuthnElement.props.locale.emptyText.props.children).toBe("暂无数据");
 
-    const consentTable = new ConsentTable({table: [], embedded: true, title: null, onUpdateTable: jest.fn()});
+    const consentTable = new ConsentTable({table: [], embedded: true, title: null, onUpdateTable: vi.fn()});
     const consentElement = (consentTable as LegacyAny).renderTable([]);
     expect(consentElement.props.showHeader).toBe(false);
     expect(consentElement.props.locale.emptyText.props.children).toBe("暂无数据");
@@ -301,7 +300,7 @@ describe("User edit embedded table polish", () => {
   test("keeps consent table i18n and removes title area when field label already names it", async() => {
     await useTestLanguage("zh");
     const table = [{application: "portal", grantedScopes: ["read", "write"]}];
-    const titledConsentTable = new ConsentTable({table, title: "授权记录", onUpdateTable: jest.fn()});
+    const titledConsentTable = new ConsentTable({table, title: "授权记录", onUpdateTable: vi.fn()});
     const titledElement = (titledConsentTable as LegacyAny).renderTable(table);
     const toolbar = getToolbar(titledElement);
     expect(toolbar.props.children.props.children).toBe("授权记录");
@@ -315,7 +314,7 @@ describe("User edit embedded table polish", () => {
     expect(actionCell.props.title).toBe("确定要撤销该授权记录吗？");
     expect(actionCell.props.children.props.children).toBe("撤销");
 
-    const embeddedConsentTable = new ConsentTable({table, title: null, onUpdateTable: jest.fn()});
+    const embeddedConsentTable = new ConsentTable({table, title: null, onUpdateTable: vi.fn()});
     const embeddedElement = (embeddedConsentTable as LegacyAny).renderTable(table);
     expect(embeddedElement.props.title).toBeUndefined();
   });
@@ -323,7 +322,7 @@ describe("User edit embedded table polish", () => {
   test("uploads Face ID images and keeps face row actions wired", async() => {
     await useTestLanguage("zh");
     const table = [{name: "face-a", faceIdData: [1, 2, 3, 4, 5, 6], imageUrl: "https://example.test/face.png"}];
-    const onUpdateTable = jest.fn();
+    const onUpdateTable = vi.fn();
     const faceIdTable = new FaceIdTable({table, account: {owner: "built-in", name: "alice"}, onUpdateTable});
     installLocalSetState(faceIdTable);
     const tableElement = (faceIdTable as LegacyAny).renderTable(table);
@@ -342,8 +341,8 @@ describe("User edit embedded table polish", () => {
     (faceIdTable as LegacyAny).addFaceImage(undefined, "https://example.test/uploaded.png");
     expect(onUpdateTable).toHaveBeenLastCalledWith(expect.arrayContaining([expect.objectContaining({imageUrl: "https://example.test/uploaded.png", faceIdData: []})]));
 
-    const uploadResourceSpy = jest.spyOn(ResourceBackend, "uploadResource").mockResolvedValue({status: "ok", data: "https://example.test/uploaded.png"} as LegacyAny);
-    const showMessageSpy = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+    const uploadResourceSpy = vi.spyOn(ResourceBackend, "uploadResource").mockResolvedValue({status: "ok", data: "https://example.test/uploaded.png"} as LegacyAny);
+    const showMessageSpy = vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
     const upload = getToolbarActions(getToolbar(tableElement)).props.children[2];
     upload.props.onChange({fileList: [{name: "face.png"}], file: new Blob(["face"])});
     await flushPromises();
@@ -358,61 +357,61 @@ describe("User edit embedded table polish", () => {
   test("handles WebAuthn registration and local delete feedback", async() => {
     await useTestLanguage("zh");
     const table = [{id: "cred-a"}, {id: "cred-b"}];
-    const updateTable = jest.fn();
-    const refresh = jest.fn();
+    const updateTable = vi.fn();
+    const refresh = vi.fn();
     const webAuthnTable = new WebAuthnCredentialTable({table, isSelf: true, updateTable, refresh});
-    const showMessageSpy = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+    const showMessageSpy = vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
 
     webAuthnTable.deleteRow(table, 0);
     expect(updateTable).toHaveBeenCalledWith([{id: "cred-b"}]);
 
-    jest.spyOn(UserWebauthnBackend, "registerWebauthnCredential").mockResolvedValueOnce({status: "ok"} as LegacyAny);
+    vi.spyOn(UserWebauthnBackend, "registerWebauthnCredential").mockResolvedValueOnce({status: "ok"} as LegacyAny);
     webAuthnTable.registerWebAuthn();
     await flushPromises();
     expect(showMessageSpy).toHaveBeenCalledWith("success", "WebAuthn 凭据添加成功");
     expect(refresh).toHaveBeenCalledTimes(1);
 
-    jest.spyOn(UserWebauthnBackend, "registerWebauthnCredential").mockResolvedValueOnce({status: "error", msg: "denied"} as LegacyAny);
+    vi.spyOn(UserWebauthnBackend, "registerWebauthnCredential").mockResolvedValueOnce({status: "error", msg: "denied"} as LegacyAny);
     webAuthnTable.registerWebAuthn();
     await flushPromises();
     expect(showMessageSpy).toHaveBeenCalledWith("error", "denied");
     expect(refresh).toHaveBeenCalledTimes(2);
 
-    jest.spyOn(UserWebauthnBackend, "registerWebauthnCredential").mockRejectedValueOnce("offline");
+    vi.spyOn(UserWebauthnBackend, "registerWebauthnCredential").mockRejectedValueOnce("offline");
     webAuthnTable.registerWebAuthn();
     await flushPromises();
     expect(showMessageSpy).toHaveBeenCalledWith("error", "连接服务器失败: offline");
 
     showMessageSpy.mockRestore();
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   test("revokes consent scopes with localized success and error feedback", async() => {
     await useTestLanguage("zh");
     const record = {application: "portal", grantedScopes: ["read", "write"]};
-    const onUpdateTable = jest.fn();
+    const onUpdateTable = vi.fn();
     const consentTable = new ConsentTable({table: [record], onUpdateTable});
-    const showMessageSpy = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+    const showMessageSpy = vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
 
-    jest.spyOn(ConsentBackend, "revokeConsent").mockResolvedValueOnce({status: "ok"} as LegacyAny);
+    vi.spyOn(ConsentBackend, "revokeConsent").mockResolvedValueOnce({status: "ok"} as LegacyAny);
     consentTable.deleteScope(record, "read");
     await flushPromises();
     expect(ConsentBackend.revokeConsent).toHaveBeenCalledWith({application: "portal", grantedScopes: ["read"]});
     expect(showMessageSpy).toHaveBeenCalledWith("success", "撤销成功");
     expect(onUpdateTable).toHaveBeenCalledTimes(1);
 
-    jest.spyOn(ConsentBackend, "revokeConsent").mockResolvedValueOnce({status: "error", msg: "denied"} as LegacyAny);
+    vi.spyOn(ConsentBackend, "revokeConsent").mockResolvedValueOnce({status: "error", msg: "denied"} as LegacyAny);
     consentTable.deleteScope(record);
     await flushPromises();
     expect(ConsentBackend.revokeConsent).toHaveBeenCalledWith({application: "portal", grantedScopes: ["read", "write"]});
     expect(showMessageSpy).toHaveBeenCalledWith("error", "denied");
 
-    jest.spyOn(ConsentBackend, "revokeConsent").mockRejectedValueOnce("offline");
+    vi.spyOn(ConsentBackend, "revokeConsent").mockRejectedValueOnce("offline");
     consentTable.deleteScope(record);
     await flushPromises();
     expect(showMessageSpy).toHaveBeenCalledWith("error", "连接服务器失败: offline");
 
     showMessageSpy.mockRestore();
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 });

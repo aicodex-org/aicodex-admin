@@ -1,14 +1,13 @@
-/* eslint-env jest */
+import {afterEach, expect, test, vi} from "vitest";
 import React from "react";
 import * as fs from "fs";
 import * as path from "path";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {cleanup, render} from "@testing-library/react";
 import CartTable from "./table/CartTable";
 import * as Setting from "./Setting";
 import type {LegacyAny} from "./types/legacyPage";
-
-declare const jest: typeof jestValue;
+import {fileURLToPath} from "url";
+const testFileDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 type CartItem = {
   owner: string;
@@ -22,9 +21,7 @@ type CartItem = {
   [key: string]: LegacyAny;
 };
 
-const expect = jestExpect;
-
-jest.mock("i18next", () => ({
+vi.mock("i18next", () => ({
   __esModule: true,
   default: {
     language: "en",
@@ -42,19 +39,19 @@ jest.mock("i18next", () => ({
 }));
 
 afterEach(() => {
-  jestValue.restoreAllMocks();
+  vi.restoreAllMocks();
   cleanup();
 });
 
 test("uses TSX file for migrated cart table", () => {
-  const tableDir = path.join(__dirname, "table");
+  const tableDir = path.join(testFileDirectory, "table");
 
   expect(fs.existsSync(path.join(tableDir, "CartTable.tsx"))).toBe(true);
   expect(fs.existsSync(path.join(tableDir, "CartTable.js"))).toBe(false);
 });
 
 test("keeps cart table item rendering row keys and currency formatting stable", () => {
-  jestValue.spyOn(Setting, "getCurrencySymbol").mockImplementation((currency: string) => `${currency}:`);
+  vi.spyOn(Setting, "getCurrencySymbol").mockImplementation((currency: string) => `${currency}:`);
   const cart: CartItem[] = [
     {
       owner: "built-in",

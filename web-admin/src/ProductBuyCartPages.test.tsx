@@ -1,8 +1,7 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
 import * as fs from "fs";
 import * as path from "path";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {cleanup, render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import ProductBuyPage from "./ProductBuyPage";
@@ -15,8 +14,10 @@ import * as UserBackend from "./backend/UserBackend";
 import * as Setting from "./Setting";
 import type {LegacyAny} from "./types/legacyPage";
 import {type ConsoleCallSpy, getAntdWarnings} from "./testUtils/reactAsyncWarnings";
+import {fireEvent} from "@testing-library/react";
+import {fileURLToPath} from "url";
+const testFileDirectory = path.dirname(fileURLToPath(import.meta.url));
 
-declare const jest: typeof jestValue;
 let consoleErrorSpy: ConsoleCallSpy;
 
 type LooseMock = {
@@ -69,15 +70,8 @@ const planBackendMock = PlanBackend as unknown as PlanBackendMock;
 const pricingBackendMock = PricingBackend as unknown as PricingBackendMock;
 const orderBackendMock = OrderBackend as unknown as OrderBackendMock;
 const userBackendMock = UserBackend as unknown as UserBackendMock;
-const expect = jestExpect;
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-    change: (element: Element | null, event: unknown) => boolean;
-  };
-};
 
-jest.mock("i18next", () => ({
+vi.mock("i18next", () => ({
   __esModule: true,
   default: {
     language: "en",
@@ -94,44 +88,39 @@ jest.mock("i18next", () => ({
   },
 }));
 
-jest.mock("./backend/ProductBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/ProductBackend", () => {
   return {
-    getProduct: factoryJest.fn(),
+    getProduct: vi.fn(),
   };
 });
 
-jest.mock("./backend/PlanBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/PlanBackend", () => {
   return {
-    getPlan: factoryJest.fn(),
+    getPlan: vi.fn(),
   };
 });
 
-jest.mock("./backend/PricingBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/PricingBackend", () => {
   return {
-    getPricing: factoryJest.fn(),
+    getPricing: vi.fn(),
   };
 });
 
-jest.mock("./backend/OrderBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/OrderBackend", () => {
   return {
-    placeOrder: factoryJest.fn(),
+    placeOrder: vi.fn(),
   };
 });
 
-jest.mock("./backend/UserBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/UserBackend", () => {
   return {
-    getUser: factoryJest.fn(),
-    updateUser: factoryJest.fn(),
+    getUser: vi.fn(),
+    updateUser: vi.fn(),
   };
 });
 
-jest.mock("./common/modal/PopconfirmModal", () => {
-  const ReactFactory = require("react");
+vi.mock("./common/modal/PopconfirmModal", async() => {
+  const ReactFactory = await vi.importActual<typeof import("react")>("react");
   return {
     __esModule: true,
     default: (props: {disabled?: boolean; onConfirm?: () => void; text?: string; children?: React.ReactNode}) => ReactFactory.createElement(
@@ -188,7 +177,7 @@ async function flushAsyncWork() {
 
 function createHistory() {
   return {
-    push: jestValue.fn(),
+    push: vi.fn(),
   };
 }
 
@@ -210,7 +199,7 @@ function createProductBuyPage(props: Record<string, LegacyAny> = {}) {
     account,
     history: createHistory(),
     match: {params: {organizationName: "built-in", productName: "workspace_credits"}},
-    onUpdatePricing: jestValue.fn(),
+    onUpdatePricing: vi.fn(),
     ...props,
   }) as unknown as Harness<ProductBuyPage>;
   installSynchronousSetState(page);
@@ -239,7 +228,7 @@ function createCartListPage(props: Record<string, LegacyAny> = {}) {
 
 beforeEach(() => {
   cleanup();
-  consoleErrorSpy = jestValue.spyOn(console, "error") as unknown as ConsoleCallSpy;
+  consoleErrorSpy = vi.spyOn(console, "error") as unknown as ConsoleCallSpy;
   localStorage.clear();
   sessionStorage.clear();
   window.history.pushState({}, "", "/");
@@ -247,17 +236,17 @@ beforeEach(() => {
     writable: true,
     value: () => ({
       matches: false,
-      addListener: jestValue.fn(),
-      removeListener: jestValue.fn(),
-      addEventListener: jestValue.fn(),
-      removeEventListener: jestValue.fn(),
-      dispatchEvent: jestValue.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
     }),
   });
-  jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "goToLink").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "getLanguageText").mockImplementation((value: LegacyAny) => `${value || ""}`);
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(false);
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "goToLink").mockImplementation(() => {});
+  vi.spyOn(Setting, "getLanguageText").mockImplementation((value: LegacyAny) => `${value || ""}`);
+  vi.spyOn(Setting, "isMobile").mockReturnValue(false);
   productBackendMock.getProduct.mockResolvedValue({status: "ok", data: product});
   pricingBackendMock.getPricing.mockResolvedValue({status: "ok", data: {owner: "built-in", name: "monthly", currency: "USD"}});
   planBackendMock.getPlan.mockResolvedValue({status: "ok", data: {owner: "built-in", name: "basic", product: "workspace_credits"}});
@@ -270,13 +259,13 @@ afterEach(() => {
   cleanup();
   const antdWarnings = getAntdWarnings(consoleErrorSpy.mock.calls);
   consoleErrorSpy.mockRestore();
-  jestValue.restoreAllMocks();
-  jestValue.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
   expect(antdWarnings).toEqual([]);
 });
 
 test("uses TSX files for migrated product buy and cart pages", () => {
-  const srcDir = __dirname;
+  const srcDir = testFileDirectory;
 
   ["ProductBuyPage", "CartListPage"].forEach(file => {
     expect(fs.existsSync(path.join(srcDir, `${file}.tsx`))).toBe(true);
@@ -286,7 +275,7 @@ test("uses TSX files for migrated product buy and cart pages", () => {
 
 test("keeps ProductBuyPage loading, pricing plan hydration and cart count behavior stable", async() => {
   window.history.pushState({}, "", "/products/built-in/workspace_credits/buy?plan=basic&user=alice&quantity=3");
-  const onUpdatePricing = jestValue.fn();
+  const onUpdatePricing = vi.fn();
   const page = createProductBuyPage({
     match: {params: {organizationName: "built-in", pricingName: "monthly"}},
     onUpdatePricing,
@@ -511,7 +500,7 @@ test("keeps CartListPage quantity update, delete, clear and place-order behavior
       cart: [{name: "workspace_credits", currency: "USD", quantity: 2, pricingName: "", planName: ""}],
     },
   });
-  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  page.fetch = vi.fn() as unknown as typeof page.fetch;
 
   page.updateCartItemQuantity(cartRecord, 3);
   await flushAsyncWork();
@@ -543,7 +532,7 @@ test("keeps CartListPage quantity update, delete, clear and place-order behavior
 test("keeps CartListPage clear, delete and quantity failure branches stable", async() => {
   const page = createCartListPage();
   const cartRecord: CartRecord = {...product, createdTime: "2026-06-20T10:00:00Z", quantity: 2, pricingName: "", planName: ""};
-  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  page.fetch = vi.fn() as unknown as typeof page.fetch;
 
   page.setState({user: {owner: "built-in", name: "admin", cart: [{name: "workspace_credits", currency: "USD", quantity: 2}]}});
   userBackendMock.updateUser.mockResolvedValueOnce({status: "error", msg: "clear failed"});

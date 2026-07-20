@@ -1,7 +1,6 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 
 import React from "react";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {Modal} from "antd";
 import {render} from "@testing-library/react";
 import {UserEditPage} from "./UserEditPage";
@@ -13,8 +12,7 @@ import * as ApplicationBackend from "./backend/ApplicationBackend";
 import * as AuthBackend from "./auth/AuthBackend";
 import * as MfaBackend from "./backend/MfaBackend";
 import * as TransactionBackend from "./backend/TransactionBackend";
-
-declare const jest: typeof jestValue;
+import {fireEvent} from "@testing-library/react";
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -46,14 +44,6 @@ type UserEditShellHarness = PageHarness & {
   handleCancel: () => void;
 };
 
-const expect = jestExpect;
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-    change: (element: Element | null, event: unknown) => boolean;
-    mouseDown: (element: Element | null) => boolean;
-  };
-};
 const userBackendMock = UserBackend as unknown as UserBackendMock;
 const groupBackendMock = GroupBackend as unknown as GroupBackendMock;
 const organizationBackendMock = OrganizationBackend as unknown as OrganizationBackendMock;
@@ -62,7 +52,7 @@ const authBackendMock = AuthBackend as unknown as AuthBackendMock;
 const mfaBackendMock = MfaBackend as unknown as MfaBackendMock;
 const transactionBackendMock = TransactionBackend as unknown as TransactionBackendMock;
 
-jest.mock("./auth/MfaSetupPage", () => ({
+vi.mock("./auth/MfaSetupPage", () => ({
   EmailMfaType: "email",
   PushMfaType: "push",
   RadiusMfaType: "radius",
@@ -70,7 +60,7 @@ jest.mock("./auth/MfaSetupPage", () => ({
   TotpMfaType: "app",
 }));
 
-jest.mock("antd/es/layout/layout", () => ({
+vi.mock("antd/es/layout/layout", () => ({
   Content: function ContentMock(props: {children?: React.ReactNode; style?: React.CSSProperties}) {
     return <main style={props.style}>{props.children}</main>;
   },
@@ -79,97 +69,90 @@ jest.mock("antd/es/layout/layout", () => ({
   },
 }));
 
-jest.mock("antd/es/layout/Sider", () => function SiderMock(props: {children?: React.ReactNode; style?: React.CSSProperties; width?: number}) {
+vi.mock("antd/es/layout/Sider", () => ({default: function SiderMock(props: {children?: React.ReactNode; style?: React.CSSProperties; width?: number}) {
   return <aside style={props.style} data-width={props.width}>{props.children}</aside>;
-});
+}}));
 
-jest.mock("./backend/UserBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/UserBackend", () => {
   return {
-    getUser: factoryJest.fn(),
-    addUser: factoryJest.fn(),
-    updateUser: factoryJest.fn(),
-    deleteUser: factoryJest.fn(),
-    verifyIdentification: factoryJest.fn(),
+    getUser: vi.fn(),
+    addUser: vi.fn(),
+    updateUser: vi.fn(),
+    deleteUser: vi.fn(),
+    verifyIdentification: vi.fn(),
   };
 });
 
-jest.mock("./backend/GroupBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
-  return {getGroups: factoryJest.fn()};
+vi.mock("./backend/GroupBackend", () => {
+  return {getGroups: vi.fn()};
 });
 
-jest.mock("./backend/OrganizationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/OrganizationBackend", () => {
   return {
-    getOrganizations: factoryJest.fn(),
-    getOrganization: factoryJest.fn(),
+    getOrganizations: vi.fn(),
+    getOrganization: vi.fn(),
   };
 });
 
-jest.mock("./backend/ApplicationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/ApplicationBackend", () => {
   return {
-    getApplicationsByOrganization: factoryJest.fn(),
-    getUserApplication: factoryJest.fn(),
+    getApplicationsByOrganization: vi.fn(),
+    getUserApplication: vi.fn(),
   };
 });
 
-jest.mock("./auth/AuthBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
-  return {getAccount: factoryJest.fn()};
+vi.mock("./auth/AuthBackend", () => {
+  return {getAccount: vi.fn()};
 });
 
-jest.mock("./backend/MfaBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/MfaBackend", () => {
   return {
-    DeleteMfa: factoryJest.fn(),
-    SetPreferredMfa: factoryJest.fn(),
+    DeleteMfa: vi.fn(),
+    SetPreferredMfa: vi.fn(),
   };
 });
 
-jest.mock("./backend/TransactionBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
-  return {getTransactions: factoryJest.fn()};
+vi.mock("./backend/TransactionBackend", () => {
+  return {getTransactions: vi.fn()};
 });
 
-jest.mock("./common/modal/PasswordModal", () => function PasswordModalMock() {
+vi.mock("./common/modal/PasswordModal", () => ({default: function PasswordModalMock() {
   return <button type="button">PasswordModal</button>;
-});
+}}));
 
-jest.mock("./common/modal/ResetModal", () => function ResetModalMock(props: {destType?: string}) {
+vi.mock("./common/modal/ResetModal", () => ({default: function ResetModalMock(props: {destType?: string}) {
   return <button type="button">{`ResetModal-${props.destType || ""}`}</button>;
-});
+}}));
 
-jest.mock("./common/modal/EnableMfaModal", () => function EnableMfaModalMock(props: {onSuccess?: () => void}) {
+vi.mock("./common/modal/EnableMfaModal", () => ({default: function EnableMfaModalMock(props: {onSuccess?: () => void}) {
   return <button type="button" onClick={() => props.onSuccess?.()}>EnableMfaModal</button>;
-});
+}}));
 
-jest.mock("./common/modal/CropperDivModal", () => function CropperDivModalMock(props: {tag?: string}) {
+vi.mock("./common/modal/CropperDivModal", () => ({default: function CropperDivModalMock(props: {tag?: string}) {
   return <button type="button">{`Cropper-${props.tag || ""}`}</button>;
-});
+}}));
 
-jest.mock("./common/modal/PopconfirmModal", () => function PopconfirmModalMock(props: {text?: string; onConfirm?: () => void}) {
+vi.mock("./common/modal/PopconfirmModal", () => ({default: function PopconfirmModalMock(props: {text?: string; onConfirm?: () => void}) {
   return <button type="button" onClick={() => props.onConfirm?.()}>{props.text || "confirm"}</button>;
-});
+}}));
 
-jest.mock("./account/AccountAvatar", () => function AccountAvatarMock(props: {src?: string; alt?: string}) {
+vi.mock("./account/AccountAvatar", () => ({default: function AccountAvatarMock(props: {src?: string; alt?: string}) {
   return <img src={props.src} alt={props.alt || "avatar"} />;
-});
+}}));
 
-jest.mock("./common/OAuthWidget", () => function OAuthWidgetMock(props: {onUnlinked?: () => void; providerItem?: {provider?: {type?: string}}}) {
+vi.mock("./common/OAuthWidget", () => ({default: function OAuthWidgetMock(props: {onUnlinked?: () => void; providerItem?: {provider?: {type?: string}}}) {
   return <button type="button" data-testid="oauth-widget" data-provider-type={props.providerItem?.provider?.type} onClick={() => props.onUnlinked?.()}>OAuthWidget</button>;
-});
+}}));
 
-jest.mock("./common/SamlWidget", () => function SamlWidgetMock(props: {onUnlinked?: () => void}) {
+vi.mock("./common/SamlWidget", () => ({default: function SamlWidgetMock(props: {onUnlinked?: () => void}) {
   return <button type="button" data-testid="saml-widget" onClick={() => props.onUnlinked?.()}>SamlWidget</button>;
-});
+}}));
 
-jest.mock("./account/WeComProfileSyncPanel", () => function WeComProfileSyncPanelMock(props: {onSynced?: () => void}) {
+vi.mock("./account/WeComProfileSyncPanel", () => ({default: function WeComProfileSyncPanelMock(props: {onSynced?: () => void}) {
   return <button type="button" data-testid="wecom-sync" onClick={() => props.onSynced?.()}>WeComProfileSyncPanel</button>;
-});
+}}));
 
-jest.mock("./common/select/CountryCodeSelect", () => ({
+vi.mock("./common/select/CountryCodeSelect", () => ({
   CountryCodeSelect: function CountryCodeSelectMock(props: {initValue?: string; onChange?: (value: string) => void}) {
     return (
       <select data-testid="country-code-select" value={props.initValue || ""} onChange={event => props.onChange?.(event.target.value)}>
@@ -181,7 +164,7 @@ jest.mock("./common/select/CountryCodeSelect", () => ({
   },
 }));
 
-jest.mock("./common/select/RegionSelect", () => function RegionSelectMock(props: {defaultValue?: string; onChange?: (value: string) => void}) {
+vi.mock("./common/select/RegionSelect", () => ({default: function RegionSelectMock(props: {defaultValue?: string; onChange?: (value: string) => void}) {
   return (
     <select data-testid="region-select" value={props.defaultValue || ""} onChange={event => props.onChange?.(event.target.value)}>
       <option value="">empty</option>
@@ -189,51 +172,51 @@ jest.mock("./common/select/RegionSelect", () => function RegionSelectMock(props:
       <option value="US">US</option>
     </select>
   );
-});
+}}));
 
-jest.mock("./common/select/AffiliationSelect", () => function AffiliationSelectMock(props: {onUpdateUserField?: (key: string, value: unknown) => void}) {
+vi.mock("./common/select/AffiliationSelect", () => ({default: function AffiliationSelectMock(props: {onUpdateUserField?: (key: string, value: unknown) => void}) {
   return <button type="button" data-testid="affiliation-select" onClick={() => props.onUpdateUserField?.("affiliation", "team-a")}>AffiliationSelect</button>;
-});
+}}));
 
-jest.mock("./table/AddressTable", () => function AddressTableMock(props: {onUpdateTable?: (value: unknown) => void}) {
+vi.mock("./table/AddressTable", () => ({default: function AddressTableMock(props: {onUpdateTable?: (value: unknown) => void}) {
   return <button type="button" data-testid="address-table" onClick={() => props.onUpdateTable?.([{city: "Shanghai"}])}>AddressTable</button>;
-});
+}}));
 
-jest.mock("./table/propertyTable", () => function PropertyTableMock(props: {onUpdateTable?: (value: unknown) => void}) {
+vi.mock("./table/propertyTable", () => ({default: function PropertyTableMock(props: {onUpdateTable?: (value: unknown) => void}) {
   return <button type="button" data-testid="property-table" onClick={() => props.onUpdateTable?.({level: "gold"})}>PropertyTable</button>;
-});
+}}));
 
-jest.mock("./table/MfaTable", () => function MfaTableMock(props: {onUpdateTable?: (value: unknown) => void}) {
+vi.mock("./table/MfaTable", () => ({default: function MfaTableMock(props: {onUpdateTable?: (value: unknown) => void}) {
   return <button type="button" data-testid="mfa-table" onClick={() => props.onUpdateTable?.([{mfaType: "totp"}])}>MfaTable</button>;
-});
+}}));
 
-jest.mock("./table/WebauthnCredentialTable", () => function WebAuthnCredentialTableMock(props: {updateTable?: (value: unknown) => void; refresh?: () => void}) {
+vi.mock("./table/WebauthnCredentialTable", () => ({default: function WebAuthnCredentialTableMock(props: {updateTable?: (value: unknown) => void; refresh?: () => void}) {
   return <button type="button" data-testid="webauthn-table" onClick={() => {props.updateTable?.([{id: "cred-1"}]); props.refresh?.();}}>WebAuthnCredentialTable</button>;
-});
+}}));
 
-jest.mock("./table/ManagedAccountTable", () => function ManagedAccountTableMock(props: {onUpdateTable?: (value: unknown) => void}) {
+vi.mock("./table/ManagedAccountTable", () => ({default: function ManagedAccountTableMock(props: {onUpdateTable?: (value: unknown) => void}) {
   return <button type="button" data-testid="managed-account-table" onClick={() => props.onUpdateTable?.([{name: "managed"}])}>ManagedAccountTable</button>;
-});
+}}));
 
-jest.mock("./table/FaceIdTable", () => function FaceIdTableMock(props: {onUpdateTable?: (value: unknown) => void}) {
+vi.mock("./table/FaceIdTable", () => ({default: function FaceIdTableMock(props: {onUpdateTable?: (value: unknown) => void}) {
   return <button type="button" data-testid="face-id-table" onClick={() => props.onUpdateTable?.([{id: "face"}])}>FaceIdTable</button>;
-});
+}}));
 
-jest.mock("./table/MfaAccountTable", () => function MfaAccountTableMock(props: {onUpdateTable?: (value: unknown) => void}) {
+vi.mock("./table/MfaAccountTable", () => ({default: function MfaAccountTableMock(props: {onUpdateTable?: (value: unknown) => void}) {
   return <button type="button" data-testid="mfa-account-table" onClick={() => props.onUpdateTable?.([{name: "mfa-account"}])}>MfaAccountTable</button>;
-});
+}}));
 
-jest.mock("./table/TransactionTable", () => function TransactionTableMock(props: {transactions?: unknown[]; embedded?: boolean}) {
+vi.mock("./table/TransactionTable", () => ({default: function TransactionTableMock(props: {transactions?: unknown[]; embedded?: boolean}) {
   return <div data-testid="transaction-table" data-embedded={props.embedded ? "true" : "false"}>{`Transactions-${props.transactions?.length || 0}`}</div>;
-});
+}}));
 
-jest.mock("./table/CartTable", () => function CartTableMock() {
+vi.mock("./table/CartTable", () => ({default: function CartTableMock() {
   return <div data-testid="cart-table">CartTable</div>;
-});
+}}));
 
-jest.mock("./table/ConsentTable", () => function ConsentTableMock(props: {onUpdateTable?: () => void}) {
+vi.mock("./table/ConsentTable", () => ({default: function ConsentTableMock(props: {onUpdateTable?: () => void}) {
   return <button type="button" data-testid="consent-table" onClick={() => props.onUpdateTable?.()}>ConsentTable</button>;
-});
+}}));
 
 const accountItems = [
   "Organization", "Groups", "ID", "Name", "Display name", "Avatar", "User type", "Password", "Email", "Phone",
@@ -325,16 +308,16 @@ function mockMatchMedia(query: string): MediaQueryList {
     matches: false,
     media: query,
     onchange: null,
-    addListener: jestValue.fn(),
-    removeListener: jestValue.fn(),
-    addEventListener: jestValue.fn(),
-    removeEventListener: jestValue.fn(),
-    dispatchEvent: jestValue.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
   } as unknown as MediaQueryList;
 }
 
 function createPage(propsOverride: Partial<PageProps> = {}): PageHarness {
-  const history = {push: jestValue.fn()};
+  const history = {push: vi.fn()};
   const props = {
     account: {...baseUser, isAdmin: true, accessToken: "token"},
     match: {params: {organizationName: "engineering", userName: "alice"}},
@@ -468,7 +451,7 @@ function invokeCallback(callback: (value?: unknown) => unknown) {
 function installConsoleErrorFilter() {
   const testConsole = globalThis.console;
   const originalConsoleError = testConsole.error;
-  jestValue.spyOn(testConsole, "error").mockImplementation((...args: Parameters<typeof testConsole.error>) => {
+  vi.spyOn(testConsole, "error").mockImplementation((...args: Parameters<typeof testConsole.error>) => {
     const message = String(args[0] || "");
     if (message.includes("[antd: Form.Item]")) {
       return;
@@ -485,15 +468,15 @@ beforeEach(() => {
     value: mockMatchMedia,
   });
   sessionStorage.clear();
-  jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "isLocalAdminUser").mockImplementation((account: unknown) => Boolean((account as {isAdmin?: boolean} | null)?.isAdmin));
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(false);
-  jestValue.spyOn(Setting, "getLabel").mockImplementation((label: unknown) => <span>{String(label)}</span>);
-  jestValue.spyOn(Setting, "getOption").mockImplementation((label: unknown, value: unknown) => ({label, value}));
-  jestValue.spyOn(Setting, "getTags").mockImplementation((tags: string[]) => [<span key="tags">{tags.join(",")}</span>]);
-  jestValue.spyOn(Setting, "deepCopy").mockImplementation((value: unknown) => JSON.parse(JSON.stringify(value)));
-  jestValue.spyOn(Setting, "myParseInt").mockImplementation((value: unknown) => Number.parseInt(String(value), 10));
-  jestValue.spyOn(Setting, "isProviderVisible").mockReturnValue(true);
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "isLocalAdminUser").mockImplementation((account: unknown) => Boolean((account as {isAdmin?: boolean} | null)?.isAdmin));
+  vi.spyOn(Setting, "isMobile").mockReturnValue(false);
+  vi.spyOn(Setting, "getLabel").mockImplementation((label: unknown) => <span>{String(label)}</span>);
+  vi.spyOn(Setting, "getOption").mockImplementation((label: unknown, value: unknown) => ({label, value}));
+  vi.spyOn(Setting, "getTags").mockImplementation((tags: string[]) => [<span key="tags">{tags.join(",")}</span>]);
+  vi.spyOn(Setting, "deepCopy").mockImplementation((value: unknown) => JSON.parse(JSON.stringify(value)));
+  vi.spyOn(Setting, "myParseInt").mockImplementation((value: unknown) => Number.parseInt(String(value), 10));
+  vi.spyOn(Setting, "isProviderVisible").mockReturnValue(true);
 
   userBackendMock.getUser.mockResolvedValue({status: "ok", data: {...baseUser}});
   userBackendMock.addUser.mockResolvedValue({status: "ok"});
@@ -512,8 +495,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  jestValue.restoreAllMocks();
-  jestValue.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
 });
 
 test("loads user data, transactions, organizations, applications and groups", async() => {
@@ -557,7 +540,7 @@ test("keeps the user phone controls compact and preserves update callbacks", () 
 });
 
 test("publishes the user display name for its workspace tab after loading", async() => {
-  const dispatchSpy = jestValue.spyOn(window, "dispatchEvent");
+  const dispatchSpy = vi.spyOn(window, "dispatchEvent");
   userBackendMock.getUser.mockResolvedValueOnce({
     status: "ok",
     data: {...baseUser, name: "feishu-user-9d79gbdc", displayName: "黄凡力"},
@@ -825,7 +808,7 @@ test("shows organization display names while keeping owner identifier as submitt
   expect(filterOption?.("sales", {label: "Sales Org", value: "sales"})).toBe(true);
 
   const view = render(<>{organizationNode}</>);
-  fireEvent.mouseDown(view.container.querySelector(".ant-select-selector"));
+  fireEvent.mouseDown(view.container.querySelector(".ant-select-selector")!);
   const salesOptions = view.getAllByText("Sales Org");
   fireEvent.click(salesOptions[salesOptions.length - 1]);
   await flushPromises();
@@ -1195,7 +1178,7 @@ test("blocks saves while organization context loads and enables them after it su
 
 test("handles user loading 404, API error and transaction load failures", async() => {
   const page = createPage();
-  const historyPush = page.props.history.push as ReturnType<typeof jestValue.fn>;
+  const historyPush = page.props.history.push as ReturnType<typeof vi.fn>;
 
   userBackendMock.getUser.mockResolvedValueOnce({status: "ok", data: null});
   page.getUser();
@@ -1220,7 +1203,7 @@ test("handles user loading 404, API error and transaction load failures", async(
 
 test("renders all configured account items and keeps table callbacks wired", () => {
   const page = createPage();
-  const getUserSpy = jestValue.spyOn(page, "getUser");
+  const getUserSpy = vi.spyOn(page, "getUser");
   const basicView = renderUserFormForTab(page, "basic");
 
   expect(basicView.getByTestId("address-table")).not.toBeNull();
@@ -1302,7 +1285,7 @@ test("renders an explicit empty state when the application has no visible third-
 });
 
 test("keeps a historical wallet binding visible only when the user can unlink a non-empty value", () => {
-  (Setting.isProviderVisible as unknown as ReturnType<typeof jestValue.fn>).mockReturnValue(false);
+  (Setting.isProviderVisible as unknown as ReturnType<typeof vi.fn>).mockReturnValue(false);
   const page = createPage();
   page.state = {
     ...page.state,
@@ -1340,7 +1323,7 @@ test("keeps a historical wallet binding visible only when the user can unlink a 
 
 test("invokes configured form callbacks across migrated JSX branches", async() => {
   const page = createPage();
-  const getUserSpy = jestValue.spyOn(page, "getUser");
+  const getUserSpy = vi.spyOn(page, "getUser");
   const callbackNames = [
     "onChange",
     "onClick",
@@ -1554,10 +1537,10 @@ test("groups user edit tab fields with organization-style section titles", () =>
 
 test("protects dirty cancel and ignores duplicate user saves while submitting", async() => {
   const page = createPage() as unknown as UserEditShellHarness;
-  const historyPush = page.props.history.push as ReturnType<typeof jestValue.fn>;
-  const confirmSpy = jestValue.spyOn(Modal, "confirm").mockImplementation((config) => {
+  const historyPush = page.props.history.push as ReturnType<typeof vi.fn>;
+  const confirmSpy = vi.spyOn(Modal, "confirm").mockImplementation((config) => {
     (config as {onOk?: () => void}).onOk?.();
-    return {destroy: jestValue.fn(), update: jestValue.fn()} as never;
+    return {destroy: vi.fn(), update: vi.fn()} as never;
   });
 
   page.state = {
@@ -1693,7 +1676,7 @@ test("keeps directory synced group membership read-only in user editor", () => {
 
 test("saves user, supports save-exit redirects and rolls owner/name back on failure", async() => {
   const page = createPage();
-  const historyPush = page.props.history.push as ReturnType<typeof jestValue.fn>;
+  const historyPush = page.props.history.push as ReturnType<typeof vi.fn>;
   page.state = {...page.state, user: {...page.state.user, owner: "sales", name: "alice-new"}};
 
   page.submitUserEdit(false);
@@ -1718,7 +1701,7 @@ test("saves user, supports save-exit redirects and rolls owner/name back on fail
 
 test("deletes user or reports delete errors", async() => {
   const page = createPage();
-  const historyPush = page.props.history.push as ReturnType<typeof jestValue.fn>;
+  const historyPush = page.props.history.push as ReturnType<typeof vi.fn>;
 
   page.deleteUser();
   await flushPromises();
@@ -1738,7 +1721,7 @@ test("deletes user or reports delete errors", async() => {
 
 test("validates identification input and refreshes user after successful verification", async() => {
   const page = createPage();
-  const getUserSpy = jestValue.spyOn(page, "getUser");
+  const getUserSpy = vi.spyOn(page, "getUser");
 
   page.state = {...page.state, user: {...page.state.user, idCard: "", idCardType: "passport", realName: "Alice Real"}};
   page.handleVerifyIdentification();
@@ -1758,9 +1741,9 @@ test("validates identification input and refreshes user after successful verific
 });
 
 test("deletes MFA and refreshes account after WeCom profile sync", async() => {
-  const onUpdateAccount = jestValue.fn();
+  const onUpdateAccount = vi.fn();
   const page = createPage({onUpdateAccount});
-  const getUserSpy = jestValue.spyOn(page, "getUser");
+  const getUserSpy = vi.spyOn(page, "getUser");
 
   page.deleteMfa();
   await flushPromises();

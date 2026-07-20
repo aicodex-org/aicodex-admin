@@ -1,5 +1,4 @@
-/* eslint-env jest */
-import {expect, jest} from "@jest/globals";
+import {afterEach, describe, expect, test, vi} from "vitest";
 import i18next from "i18next";
 import LdapTable from "./LdapTable";
 import * as LdapBackend from "../backend/LdapBackend";
@@ -46,7 +45,7 @@ function createTable() {
     title: "LDAP servers",
     table: ldapRows,
     organizationName: "engineering",
-    onUpdateTable: jest.fn(),
+    onUpdateTable: vi.fn(),
   });
 }
 
@@ -61,7 +60,7 @@ function useSynchronousSetState(component: LdapTable) {
 
 describe("LdapTable", () => {
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   test("marks immediate LDAP operations as loading and explains delete impact", async() => {
@@ -97,7 +96,7 @@ describe("LdapTable", () => {
     const addPromise = new Promise(resolve => {
       resolveAdd = resolve;
     });
-    const addSpy = jest.spyOn(LdapBackend, "addLdap").mockReturnValue(addPromise as any);
+    const addSpy = vi.spyOn(LdapBackend, "addLdap").mockReturnValue(addPromise as any);
 
     const addRequest = (ldapTable as any).addRow([...ldapRows]);
     (ldapTable as any).addRow([...ldapRows]);
@@ -113,7 +112,7 @@ describe("LdapTable", () => {
     const deletePromise = new Promise(resolve => {
       resolveDelete = resolve;
     });
-    const deleteSpy = jest.spyOn(LdapBackend, "deleteLdap").mockReturnValue(deletePromise as any);
+    const deleteSpy = vi.spyOn(LdapBackend, "deleteLdap").mockReturnValue(deletePromise as any);
 
     const deleteRequest = (ldapTable as any).deleteRow([...ldapRows], 0);
     (ldapTable as any).deleteRow([...ldapRows], 0);
@@ -128,8 +127,8 @@ describe("LdapTable", () => {
 
   test("adds LDAP servers immediately and reports success, backend errors, and thrown errors", async() => {
     await useTestLanguage("zh");
-    const onUpdateTable = jest.fn();
-    const showMessageSpy = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+    const onUpdateTable = vi.fn();
+    const showMessageSpy = vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
     const ldapTable = new LdapTable({
       title: "LDAP 服务器",
       table: ldapRows,
@@ -139,25 +138,25 @@ describe("LdapTable", () => {
     useSynchronousSetState(ldapTable);
     const addedLdap = {...ldapRows[0], id: "ldap-2", serverName: "Second LDAP Server"};
 
-    jest.spyOn(LdapBackend, "addLdap").mockResolvedValueOnce({status: "ok", data2: addedLdap} as any);
+    vi.spyOn(LdapBackend, "addLdap").mockResolvedValueOnce({status: "ok", data2: addedLdap} as any);
     await (ldapTable as any).addRow([...ldapRows]);
     expect(showMessageSpy).toHaveBeenLastCalledWith("success", "添加成功");
     expect(onUpdateTable).toHaveBeenLastCalledWith([...ldapRows, addedLdap]);
     expect((ldapTable as any).state.addingLdap).toBe(false);
 
-    jest.spyOn(LdapBackend, "addLdap").mockResolvedValueOnce({status: "error", msg: "duplicate"} as any);
+    vi.spyOn(LdapBackend, "addLdap").mockResolvedValueOnce({status: "error", msg: "duplicate"} as any);
     await (ldapTable as any).addRow([...ldapRows]);
     expect(showMessageSpy).toHaveBeenLastCalledWith("error", "添加失败: duplicate");
 
-    jest.spyOn(LdapBackend, "addLdap").mockRejectedValueOnce("network down");
+    vi.spyOn(LdapBackend, "addLdap").mockRejectedValueOnce("network down");
     await (ldapTable as any).addRow([...ldapRows]);
     expect(showMessageSpy).toHaveBeenLastCalledWith("error", "添加失败: network down");
   });
 
   test("deletes LDAP servers immediately and reports success, backend errors, and thrown errors", async() => {
     await useTestLanguage("zh");
-    const onUpdateTable = jest.fn();
-    const showMessageSpy = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+    const onUpdateTable = vi.fn();
+    const showMessageSpy = vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
     const ldapTable = new LdapTable({
       title: "LDAP 服务器",
       table: ldapRows,
@@ -166,24 +165,24 @@ describe("LdapTable", () => {
     });
     useSynchronousSetState(ldapTable);
 
-    jest.spyOn(LdapBackend, "deleteLdap").mockResolvedValueOnce({status: "ok"} as any);
+    vi.spyOn(LdapBackend, "deleteLdap").mockResolvedValueOnce({status: "ok"} as any);
     await (ldapTable as any).deleteRow([...ldapRows], 0);
     expect(showMessageSpy).toHaveBeenLastCalledWith("success", "删除成功");
     expect(onUpdateTable).toHaveBeenLastCalledWith([]);
     expect((ldapTable as any).state.deletingLdapIds["ldap-1"]).toBeUndefined();
 
-    jest.spyOn(LdapBackend, "deleteLdap").mockResolvedValueOnce({status: "error", msg: "in use"} as any);
+    vi.spyOn(LdapBackend, "deleteLdap").mockResolvedValueOnce({status: "error", msg: "in use"} as any);
     await (ldapTable as any).deleteRow([...ldapRows], 0);
     expect(showMessageSpy).toHaveBeenLastCalledWith("error", "删除失败: in use");
 
-    jest.spyOn(LdapBackend, "deleteLdap").mockRejectedValueOnce("network down");
+    vi.spyOn(LdapBackend, "deleteLdap").mockRejectedValueOnce("network down");
     await (ldapTable as any).deleteRow([...ldapRows], 0);
     expect(showMessageSpy).toHaveBeenLastCalledWith("error", "删除失败: network down");
   });
 
   test("renders compact LDAP table cells, toolbar description, and immediate operation buttons", async() => {
     await useTestLanguage("zh");
-    const goToLinkSpy = jest.spyOn(Setting, "goToLink").mockImplementation(() => undefined);
+    const goToLinkSpy = vi.spyOn(Setting, "goToLink").mockImplementation(() => undefined);
     const table = [
       ldapRows[0],
       {...ldapRows[0], id: "ldap-2", serverName: "Second LDAP Server", autoSync: 5, lastSync: "2026-07-06 10:00:00"},
@@ -193,7 +192,7 @@ describe("LdapTable", () => {
       description: "保存、同步、删除会立即生效。",
       table,
       organizationName: "engineering",
-      onUpdateTable: jest.fn(),
+      onUpdateTable: vi.fn(),
     });
     const tableElement = (ldapTable as any).renderTable(table);
     const titleNode = tableElement.props.title();
@@ -221,7 +220,7 @@ describe("LdapTable", () => {
 
   test("keeps LDAP table sorters, field updates, and empty descriptions stable", async() => {
     await useTestLanguage("zh");
-    const onUpdateTable = jest.fn();
+    const onUpdateTable = vi.fn();
     const table = [
       {...ldapRows[0], id: "ldap-b", serverName: "Beta", host: "z.example.com", baseDn: "ou=Z,dc=example,dc=com", autoSync: "10", lastSync: "2026-07-06"},
       {...ldapRows[0], id: "ldap-a", serverName: "Alpha", host: "a.example.com", baseDn: "ou=A,dc=example,dc=com", autoSync: "0", lastSync: ""},
@@ -252,14 +251,14 @@ describe("LdapTable", () => {
       table[1],
     ]);
 
-    jest.spyOn(LdapBackend, "addLdap").mockResolvedValueOnce({status: "error", msg: "duplicate"} as any);
+    vi.spyOn(LdapBackend, "addLdap").mockResolvedValueOnce({status: "error", msg: "duplicate"} as any);
     await toolbar.props.children[1].props.onClick();
     expect((ldapTable as any).state.addingLdap).toBe(false);
   });
 
   test("wires LDAP delete confirmation to the immediate delete request", async() => {
     await useTestLanguage("zh");
-    const onUpdateTable = jest.fn();
+    const onUpdateTable = vi.fn();
     const ldapTable = new LdapTable({
       title: "LDAP 服务器",
       table: ldapRows,
@@ -267,7 +266,7 @@ describe("LdapTable", () => {
       onUpdateTable,
     });
     useSynchronousSetState(ldapTable);
-    const deleteSpy = jest.spyOn(LdapBackend, "deleteLdap").mockResolvedValueOnce({status: "ok"} as any);
+    const deleteSpy = vi.spyOn(LdapBackend, "deleteLdap").mockResolvedValueOnce({status: "ok"} as any);
     const actionColumn = (ldapTable as any).renderTable([...ldapRows]).props.columns[5];
     const deleteAction = actionColumn.render(null, ldapRows[0], 0).props.children[2];
 

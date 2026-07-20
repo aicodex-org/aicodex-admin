@@ -1,6 +1,5 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import React from "react";
-import {expect, jest, test} from "@jest/globals";
 import {render} from "@testing-library/react";
 
 interface JestDomMatchers {
@@ -10,7 +9,7 @@ interface JestDomMatchers {
 
 const expectElement = (element: Element): JestDomMatchers => expect(element) as unknown as JestDomMatchers;
 
-jest.mock("i18next", () => {
+vi.mock("i18next", () => {
   const mockI18next = {
     t: (key: string): string => {
       const [, value] = key.split(":");
@@ -27,7 +26,7 @@ jest.mock("i18next", () => {
   };
 });
 
-jest.mock("./Provider", () => ({
+vi.mock("./Provider", () => ({
   getAuthUrl: () => "https://auth.example.com/callback-start",
 }));
 
@@ -38,11 +37,11 @@ describe("renderProviderLogo Lark/Feishu branding", () => {
   const location = {search: ""};
 
   beforeEach(() => {
-    jest.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   test("renders domestic Feishu branding in the small provider icon entry", () => {

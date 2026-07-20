@@ -1,6 +1,6 @@
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
 import {cleanup, fireEvent, render, screen, waitFor} from "@testing-library/react";
-import {expect, jest} from "@jest/globals";
 import i18next from "i18next";
 import "../i18n";
 import EnterpriseTlsPolicyFields from "./EnterpriseTlsPolicyFields";
@@ -29,7 +29,7 @@ beforeEach(async() => {
 
 afterEach(() => {
   cleanup();
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 test("renders legacy_unmigrated as an explicit text state without changing it", () => {
@@ -38,8 +38,8 @@ test("renders legacy_unmigrated as an explicit text state without changing it", 
       policy=""
       cert=""
       certOptions={[{name: "enterprise-ca"}]}
-      onPolicyChange={jest.fn()}
-      onCertChange={jest.fn()}
+      onPolicyChange={vi.fn()}
+      onCertChange={vi.fn()}
     />
   );
 
@@ -52,8 +52,8 @@ test("renders legacy_unmigrated as an explicit text state without changing it", 
 });
 
 test("selects custom CA through the rendered AntD controls and lists names only", async() => {
-  const onPolicyChange = jest.fn();
-  const onCertChange = jest.fn();
+  const onPolicyChange = vi.fn();
+  const onCertChange = vi.fn();
   const view = render(
     <EnterpriseTlsPolicyFields
       policy="system"
@@ -91,8 +91,8 @@ test("shows actionable errors for invalid policy and unavailable custom CA witho
       policy="future-mode"
       cert=""
       certOptions={[]}
-      onPolicyChange={jest.fn()}
-      onCertChange={jest.fn()}
+      onPolicyChange={vi.fn()}
+      onCertChange={vi.fn()}
     />
   );
   expect(screen.getByText("Select a supported TLS policy before saving.")).not.toBeNull();
@@ -103,8 +103,8 @@ test("shows actionable errors for invalid policy and unavailable custom CA witho
       policy="custom-ca"
       cert="missing-ca"
       certOptions={[]}
-      onPolicyChange={jest.fn()}
-      onCertChange={jest.fn()}
+      onPolicyChange={vi.fn()}
+      onCertChange={vi.fn()}
     />
   );
   expect(screen.getByText("The selected SSL certificate is unavailable. Select an available certificate.")).not.toBeNull();
@@ -119,8 +119,8 @@ test("keeps Chinese policy and warning copy semantically complete", async() => {
       policy="legacy-insecure"
       cert=""
       certOptions={[]}
-      onPolicyChange={jest.fn()}
-      onCertChange={jest.fn()}
+      onPolicyChange={vi.fn()}
+      onCertChange={vi.fn()}
     />
   );
 

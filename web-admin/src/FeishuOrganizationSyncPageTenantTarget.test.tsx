@@ -1,19 +1,15 @@
-/* eslint-env jest */
-import {expect, jest as jestValue} from "@jest/globals";
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
 import {render} from "@testing-library/react";
 import FeishuOrganizationSyncPage from "./FeishuOrganizationSyncPage";
 import {getFeishuBusinessOrganizationNameFromTenantKey} from "./FeishuOrganizationSyncPageUtils";
 import * as FeishuOrganizationSyncBackend from "./backend/FeishuOrganizationSyncBackend";
 import * as Setting from "./Setting";
+import {fireEvent} from "@testing-library/react";
 
-declare const jest: typeof jestValue;
-
-const {fireEvent} = require("@testing-library/react") as {fireEvent: {click: (element: Element) => void}};
-
-jest.mock("./common/select/OrganizationSelect", () => function OrganizationSelectMock(props: {initValue?: string}) {
+vi.mock("./common/select/OrganizationSelect", () => ({default: function OrganizationSelectMock(props: {initValue?: string}) {
   return <input aria-label="organization-select" value={props.initValue || ""} readOnly />;
-});
+}}));
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -25,22 +21,22 @@ type FeishuBackendMock = Record<keyof typeof FeishuOrganizationSyncBackend, Loos
 const backendMock = {} as FeishuBackendMock;
 
 function spyBackend(name: keyof typeof FeishuOrganizationSyncBackend): LooseMock {
-  return jestValue.spyOn(FeishuOrganizationSyncBackend, name) as unknown as LooseMock;
+  return vi.spyOn(FeishuOrganizationSyncBackend, name) as unknown as LooseMock;
 }
 
 const mockMatchMedia = (query: string): MediaQueryList => ({
   matches: false,
   media: query,
   onchange: null,
-  addListener: jestValue.fn(),
-  removeListener: jestValue.fn(),
-  addEventListener: jestValue.fn(),
-  removeEventListener: jestValue.fn(),
-  dispatchEvent: jestValue.fn(),
+  addListener: vi.fn(),
+  removeListener: vi.fn(),
+  addEventListener: vi.fn(),
+  removeEventListener: vi.fn(),
+  dispatchEvent: vi.fn(),
 } as unknown as MediaQueryList);
 
 beforeEach(() => {
-  jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
   backendMock.getFeishuOrganizationSyncConfig = spyBackend("getFeishuOrganizationSyncConfig");
   backendMock.saveFeishuOrganizationSyncConfig = spyBackend("saveFeishuOrganizationSyncConfig");
   backendMock.testFeishuOrganizationSyncConfig = spyBackend("testFeishuOrganizationSyncConfig");
@@ -105,7 +101,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  jestValue.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 test("normalizes Feishu business organization name from tenant key", () => {

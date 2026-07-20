@@ -1,11 +1,12 @@
-/* eslint-env jest */
-import {expect} from "@jest/globals";
+import {describe, expect, test} from "vitest";
 import fs from "fs";
 import path from "path";
 import {readLessWithImports} from "./testUtils/less";
+import {fileURLToPath} from "url";
+const testFileDirectory = path.dirname(fileURLToPath(import.meta.url));
 
-const readSrc = (fileName: string): string => fs.readFileSync(path.join(__dirname, fileName), "utf8") as string;
-const readAppLess = (): string => readLessWithImports(path.join(__dirname, "App.less"));
+const readSrc = (fileName: string): string => fs.readFileSync(path.join(testFileDirectory, fileName), "utf8") as string;
+const readAppLess = (): string => readLessWithImports(path.join(testFileDirectory, "App.less"));
 
 describe("identity object edit form layout", () => {
   const editPages = [

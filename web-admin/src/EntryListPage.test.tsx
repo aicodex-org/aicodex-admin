@@ -1,7 +1,6 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import React from "react";
 import {act, cleanup, render} from "@testing-library/react";
-import {expect, jest} from "@jest/globals";
 import {MemoryRouter} from "react-router-dom";
 import i18next from "i18next";
 import EntryListPage from "./EntryListPage";
@@ -10,6 +9,11 @@ import * as FormBackend from "./backend/FormBackend";
 import * as Setting from "./Setting";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
+import * as fs from "fs";
+import * as path from "path";
+import {fireEvent} from "@testing-library/react";
+import {fileURLToPath} from "url";
+const testFileDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -49,25 +53,23 @@ function getRenderedTable(node: React.ReactNode): React.ReactElement<{columns: T
   return React.Children.only(wrapper.props.children) as React.ReactElement<{columns: TestTableColumn[]; title: () => React.ReactNode}>;
 }
 
-jest.mock("./backend/EntryBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
+vi.mock("./backend/EntryBackend", () => {
   return {
-    getEntries: factoryJest.fn(),
-    getEntry: factoryJest.fn(),
-    updateEntry: factoryJest.fn(),
-    addEntry: factoryJest.fn(),
-    deleteEntry: factoryJest.fn(),
+    getEntries: vi.fn(),
+    getEntry: vi.fn(),
+    updateEntry: vi.fn(),
+    addEntry: vi.fn(),
+    deleteEntry: vi.fn(),
   };
 });
 
-jest.mock("./backend/FormBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
+vi.mock("./backend/FormBackend", () => {
   return {
-    getForm: factoryJest.fn(),
+    getForm: vi.fn(),
   };
 });
 
-jest.mock("./TourConfig", () => ({
+vi.mock("./TourConfig", () => ({
   getTourVisible: () => false,
   getSteps: () => [],
   getNextUrl: () => "",
@@ -76,13 +78,6 @@ jest.mock("./TourConfig", () => ({
 
 const entryBackendMock = EntryBackend as unknown as EntryBackendMock;
 const formBackendMock = FormBackend as unknown as FormBackendMock;
-const fs = require("fs") as {existsSync: (filePath: string) => boolean};
-const path = require("path") as {join: (...parts: string[]) => string};
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-  };
-};
 let consoleErrorSpy: {mockRestore: () => void};
 
 const adminAccount = {owner: "admin", tag: "", isAdmin: true};
@@ -120,7 +115,7 @@ async function useTestLanguage(language: string) {
 
 function createHistory() {
   return {
-    push: jest.fn(),
+    push: vi.fn(),
   };
 }
 
@@ -166,23 +161,23 @@ async function flushPromises() {
 describe("EntryListPage", () => {
   beforeEach(async() => {
     await useTestLanguage("zh");
-    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
       throw new Error([message, ...args].map(item => `${item}`).join(" "));
     });
     Object.defineProperty(window, "matchMedia", {
       writable: true,
       value: () => ({
         matches: false,
-        addListener: jest.fn(),
-        removeListener: jest.fn(),
-        addEventListener: jest.fn(),
-        removeEventListener: jest.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
       }),
     });
-    jest.spyOn(Setting, "showMessage").mockImplementation(() => {});
-    jest.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
-    jest.spyOn(Setting, "getRequestOrganization").mockReturnValue("engineering");
-    jest.spyOn(Setting, "isMobile").mockReturnValue(false);
+    vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+    vi.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
+    vi.spyOn(Setting, "getRequestOrganization").mockReturnValue("engineering");
+    vi.spyOn(Setting, "isMobile").mockReturnValue(false);
     formBackendMock.getForm.mockResolvedValue({status: "ok", data: {formItems: []}});
     entryBackendMock.getEntries.mockResolvedValue({status: "ok", data: [entry], data2: 1});
     entryBackendMock.addEntry.mockResolvedValue({status: "ok"});
@@ -192,13 +187,13 @@ describe("EntryListPage", () => {
   afterEach(() => {
     cleanup();
     consoleErrorSpy.mockRestore();
-    jest.restoreAllMocks();
-    jest.clearAllMocks();
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   test("is migrated from JavaScript to TSX", () => {
-    expect(fs.existsSync(path.join(__dirname, "EntryListPage.tsx"))).toBe(true);
-    expect(fs.existsSync(path.join(__dirname, "EntryListPage.js"))).toBe(false);
+    expect(fs.existsSync(path.join(testFileDirectory, "EntryListPage.tsx"))).toBe(true);
+    expect(fs.existsSync(path.join(testFileDirectory, "EntryListPage.js"))).toBe(false);
   });
 
   test("renders entry rows through the existing list API", async() => {
@@ -272,7 +267,7 @@ describe("EntryListPage", () => {
 
   test("deletes entries and rolls back pagination for the last row", async() => {
     const page = createPage();
-    page.fetch = jest.fn() as unknown as typeof page.fetch;
+    page.fetch = vi.fn() as unknown as typeof page.fetch;
     page.state = {
       ...page.state,
       data: [entry],
@@ -292,7 +287,7 @@ describe("EntryListPage", () => {
   test("keeps current pagination when deleting from a page with multiple rows", async() => {
     const secondEntry = {...entry, name: "entry-two"};
     const page = createPage();
-    page.fetch = jest.fn() as unknown as typeof page.fetch;
+    page.fetch = vi.fn() as unknown as typeof page.fetch;
     page.state = {
       ...page.state,
       data: [entry, secondEntry],
@@ -348,8 +343,8 @@ describe("EntryListPage", () => {
       match: {path: "/entries", params: {}},
     });
     installSynchronousSetState(page);
-    jest.spyOn(page, "addEntry").mockImplementation(() => {});
-    jest.spyOn(page, "deleteEntry").mockImplementation(() => {});
+    vi.spyOn(page, "addEntry").mockImplementation(() => {});
+    vi.spyOn(page, "deleteEntry").mockImplementation(() => {});
 
     const table = getRenderedTable(page.renderTable([entry]));
     const columns = table.props.columns;
@@ -377,7 +372,7 @@ describe("EntryListPage", () => {
   });
 
   test("does not fix the action column on mobile", () => {
-    jest.spyOn(Setting, "isMobile").mockReturnValue(true);
+    vi.spyOn(Setting, "isMobile").mockReturnValue(true);
     const page = createPage();
 
     const table = getRenderedTable(page.renderTable([entry]));

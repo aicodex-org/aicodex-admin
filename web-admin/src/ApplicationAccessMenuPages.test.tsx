@@ -1,6 +1,5 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
-import {expect, jest} from "@jest/globals";
 import {cleanup, render} from "@testing-library/react";
 import * as TestingLibrary from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
@@ -28,6 +27,7 @@ type AdminRouteProps = import("./types/legacyPage").AdminRouteProps;
 type TestTableElement = React.ReactElement<{
   className?: string;
   columns: LegacyAny[];
+  dataSource?: LegacyAny[];
   pagination?: LegacyAny;
   scroll?: LegacyAny;
   title?: () => React.ReactNode;
@@ -35,8 +35,8 @@ type TestTableElement = React.ReactElement<{
 }>;
 type TestToolbarElement = React.ReactElement<React.ComponentProps<typeof EnterpriseListQueryToolbar>>;
 
-jest.mock("./common/Editor", () => () => <pre data-testid="editor" />);
-jest.mock("copy-to-clipboard", () => () => true);
+vi.mock("./common/Editor", () => ({default: () => <pre data-testid="editor" />}));
+vi.mock("copy-to-clipboard", () => ({default: () => true}));
 
 const expectAny: any = expect;
 const wait = (TestingLibrary as LegacyAny).wait || (TestingLibrary as LegacyAny).waitFor;
@@ -49,7 +49,7 @@ const routeProps: AdminRouteProps = {
     isAdmin: true,
     organization: {name: "org-alpha"},
   },
-  history: {push: jest.fn()},
+  history: {push: vi.fn()},
   match: {path: "/", params: {}},
 };
 
@@ -76,7 +76,7 @@ function attachLegacyState(page: LegacyAny, extra: Record<string, LegacyAny> = {
     ...(page.state || {}),
     ...extra,
   });
-  page.setState = jest.fn((patch: LegacyAny, callback?: () => void) => {
+  page.setState = vi.fn((patch: LegacyAny, callback?: () => void) => {
     const nextState = typeof patch === "function" ? patch(page.state, page.props) : patch;
     page.state = {
       ...page.state,
@@ -179,8 +179,8 @@ function getColumnRender(table: TestTableElement, key: string): NonNullable<Lega
 }
 
 function mockOrganizationScope() {
-  jest.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(false);
-  jest.spyOn(Setting, "getRequestOrganization").mockReturnValue("org-alpha");
+  vi.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(false);
+  vi.spyOn(Setting, "getRequestOrganization").mockReturnValue("org-alpha");
 }
 
 async function settleBackendRequest(request: Promise<unknown>): Promise<void> {
@@ -195,24 +195,23 @@ beforeEach(() => {
     writable: true,
     value: () => ({
       matches: false,
-      addListener: jest.fn(),
-      removeListener: jest.fn(),
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
     }),
   });
-  jest.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
 });
 
 afterEach(() => {
-  jest.restoreAllMocks();
-  jest.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
   cleanup();
 });
 
 test("renders migrated resource list table with existing row actions", () => {
-  const page = new (ResourceListPage as LegacyAny)(routeProps) as LegacyAny;
-  const view = renderLegacyPageTable(page, page.renderTable([{
+  const row = {
     owner: "org-alpha",
     provider: "provider-main",
     application: "portal-app",
@@ -221,11 +220,17 @@ test("renders migrated resource list table with existing row actions", () => {
     fileType: "image",
     fileSize: "1024",
     url: "https://static.example.invalid/avatar.png",
-  }]));
+  };
+  const page = attachLegacyState(new (ResourceListPage as LegacyAny)(routeProps) as LegacyAny);
+  const table = getSharedListTable(page.renderTable([row]));
+  const urlCell = getColumnRender(table, "url")(row.url, row, 0);
+  const actionView = render(<MemoryRouter>{urlCell}</MemoryRouter>);
 
-  expectAny(view.getByText("provider-main")).not.toBeNull();
-  expectAny(view.getByText("portal-app")).not.toBeNull();
-  expectAny(view.getByRole("button", {name: /Copy Link|复制/i})).not.toBeNull();
+  expect(table.props.dataSource).toEqual([expect.objectContaining({
+    provider: "provider-main",
+    application: "portal-app",
+  })]);
+  expectAny(actionView.getByRole("button", {name: /Copy Link|复制/i})).not.toBeNull();
 });
 
 test("uses shared table shell and enterprise query toolbar on application access lists", () => {
@@ -313,7 +318,7 @@ test("keeps common add actions visually aligned without a page-specific plus ico
 
 test("maps application access list toolbar search and advanced filters to existing fetch params", () => {
   const resourcePage = attachLegacyState(new (ResourceListPage as LegacyAny)(routeProps) as LegacyAny);
-  resourcePage.fetch = jest.fn();
+  resourcePage.fetch = vi.fn();
   const resourceToolbar = getEnterpriseToolbar(getSharedListTable(resourcePage.renderTable([])));
   resourceToolbar.props.onFieldChange("provider");
   resourceToolbar.props.onKeywordChange("provider-main");
@@ -324,7 +329,7 @@ test("maps application access list toolbar search and advanced filters to existi
     searchText: "provider-main",
   }));
 
-  resourcePage.fetch = jest.fn();
+  resourcePage.fetch = vi.fn();
   resourcePage.handleAdvancedFilterChange("provider", "provider-advanced");
   resourceToolbar.props.onSearch();
   expectAny(resourcePage.fetch).toHaveBeenCalledWith(expect.objectContaining({
@@ -334,7 +339,7 @@ test("maps application access list toolbar search and advanced filters to existi
   }));
 
   const certPage = attachLegacyState(new (CertListPage as LegacyAny)(routeProps) as LegacyAny);
-  certPage.fetch = jest.fn();
+  certPage.fetch = vi.fn();
   const certToolbar = getEnterpriseToolbar(getSharedListTable(certPage.renderTable([])));
   certToolbar.props.onFieldChange("type");
   certToolbar.props.onKeywordChange("SSL");
@@ -345,7 +350,7 @@ test("maps application access list toolbar search and advanced filters to existi
   }));
 
   const eventPage = attachLegacyState(new WebhookEventListPage(routeProps) as LegacyAny);
-  eventPage.fetchWebhookEvents = jest.fn();
+  eventPage.fetchWebhookEvents = vi.fn();
   const eventToolbar = getEnterpriseToolbar(getSharedListTable(eventPage.renderTable()));
   eventToolbar.props.onFieldChange("status");
   eventToolbar.props.onKeywordChange("failed");
@@ -385,7 +390,7 @@ test("renders migrated cert and key list rows without exposing secrets", () => {
 });
 
 test("renders migrated webhook list row and keeps callback secret out of the table", () => {
-  const consoleError = jest.spyOn(console, "error");
+  const consoleError = vi.spyOn(console, "error");
   const page = new (WebhookListPage as LegacyAny)(routeProps) as LegacyAny;
   const row = {
     owner: "admin",
@@ -450,10 +455,10 @@ test("keeps migrated list page fetch contracts and state updates", async() => {
     sortField: "createdTime",
     sortOrder: "descend",
   };
-  const resourceBackend = jest.spyOn(ResourceBackend, "getResources").mockResolvedValue({status: "ok", data: [{owner: "org-alpha", name: "resource-alpha"}], data2: 1});
-  const certBackend = jest.spyOn(CertBackend, "getCerts").mockResolvedValue({status: "ok", data: [{owner: "org-alpha", name: "cert-alpha"}], data2: 1});
-  const keyBackend = jest.spyOn(KeyBackend, "getKeys").mockResolvedValue({status: "ok", data: [{owner: "org-alpha", name: "key-alpha"}], data2: 1});
-  const webhookBackend = jest.spyOn(WebhookBackend, "getWebhooks").mockResolvedValue({status: "ok", data: [{owner: "admin", name: "webhook-alpha"}], data2: 1});
+  const resourceBackend = vi.spyOn(ResourceBackend, "getResources").mockResolvedValue({status: "ok", data: [{owner: "org-alpha", name: "resource-alpha"}], data2: 1});
+  const certBackend = vi.spyOn(CertBackend, "getCerts").mockResolvedValue({status: "ok", data: [{owner: "org-alpha", name: "cert-alpha"}], data2: 1});
+  const keyBackend = vi.spyOn(KeyBackend, "getKeys").mockResolvedValue({status: "ok", data: [{owner: "org-alpha", name: "key-alpha"}], data2: 1});
+  const webhookBackend = vi.spyOn(WebhookBackend, "getWebhooks").mockResolvedValue({status: "ok", data: [{owner: "admin", name: "webhook-alpha"}], data2: 1});
 
   const resourcePage = attachLegacyState(new (ResourceListPage as LegacyAny)(routeProps));
   resourcePage.fetch(params);
@@ -478,8 +483,8 @@ test("keeps migrated list page fetch contracts and state updates", async() => {
 
 test("keeps migrated certificate and key add actions routed with local drafts", () => {
   mockOrganizationScope();
-  jest.spyOn(Setting, "getRandomName").mockReturnValue("fixed");
-  const history = {push: jest.fn()};
+  vi.spyOn(Setting, "getRandomName").mockReturnValue("fixed");
+  const history = {push: vi.fn()};
   const props = {...routeProps, history};
 
   const certPage = attachLegacyState(new (CertListPage as LegacyAny)(props), {owner: "org-alpha"});
@@ -501,13 +506,13 @@ test("keeps migrated certificate and key add actions routed with local drafts", 
 
 test("keeps migrated webhook add and resource delete actions wired to existing backends", async() => {
   mockOrganizationScope();
-  jest.spyOn(Setting, "getRandomName").mockReturnValue("fixed");
-  const history = {push: jest.fn()};
+  vi.spyOn(Setting, "getRandomName").mockReturnValue("fixed");
+  const history = {push: vi.fn()};
   const props = {...routeProps, history};
   const addWebhookRequest = Promise.resolve({status: "ok"});
   const deleteResourceRequest = Promise.resolve({status: "ok"});
-  const addWebhook = jest.spyOn(WebhookBackend, "addWebhook").mockReturnValue(addWebhookRequest);
-  const deleteResource = jest.spyOn(ResourceBackend, "deleteResource").mockReturnValue(deleteResourceRequest);
+  const addWebhook = vi.spyOn(WebhookBackend, "addWebhook").mockReturnValue(addWebhookRequest);
+  const deleteResource = vi.spyOn(ResourceBackend, "deleteResource").mockReturnValue(deleteResourceRequest);
 
   const webhookPage = attachLegacyState(new (WebhookListPage as LegacyAny)(props));
   webhookPage.addWebhook();
@@ -523,7 +528,7 @@ test("keeps migrated webhook add and resource delete actions wired to existing b
     data: [{owner: "org-alpha", name: "resource-alpha"}],
     pagination: {current: 2, pageSize: 10, total: 1},
   });
-  resourcePage.fetch = jest.fn();
+  resourcePage.fetch = vi.fn();
   resourcePage.deleteResource(0);
   await settleBackendRequest(deleteResourceRequest);
   expectAny(deleteResource).toHaveBeenCalledWith({owner: "org-alpha", name: "resource-alpha"});
@@ -533,7 +538,7 @@ test("keeps migrated webhook add and resource delete actions wired to existing b
 test("keeps migrated webhook event helpers and replay behavior", async() => {
   mockOrganizationScope();
   const replayRequest = Promise.resolve({status: "ok", data: "queued"});
-  const replayWebhookEvent = jest.spyOn(WebhookEventBackend, "replayWebhookEvent").mockReturnValue(replayRequest);
+  const replayWebhookEvent = vi.spyOn(WebhookEventBackend, "replayWebhookEvent").mockReturnValue(replayRequest);
   const page = attachLegacyState(new WebhookEventListPage(routeProps) as LegacyAny, {
     statusFilter: "",
     sortField: "",
@@ -541,7 +546,7 @@ test("keeps migrated webhook event helpers and replay behavior", async() => {
     detailShow: false,
     detailRecord: null,
   });
-  page.fetchWebhookEvents = jest.fn();
+  page.fetchWebhookEvents = vi.fn();
 
   expectAny(page.jsonStrFormatter("{\"a\":1}")).toContain("\n");
   expectAny(page.jsonStrFormatter("not-json")).toBe("not-json");
@@ -568,8 +573,8 @@ test("covers shared application access query helper branches", () => {
     {label: "Name", value: "name"},
     {label: "Status", value: "status", options: [{label: "Active", value: "active"}]},
   ];
-  const onChange = jest.fn();
-  const onSearch = jest.fn();
+  const onChange = vi.fn();
+  const onSearch = vi.fn();
 
   expect(getActiveApplicationAccessQueryCondition(fields, "name", "  ", {status: ""})).toBeNull();
   expect(getActiveApplicationAccessQueryCondition(fields, "name", " primary ", {status: null})).toEqual({field: "name", value: "primary"});
@@ -608,7 +613,7 @@ test("keeps reset and empty toolbar search paths on migrated lists", () => {
   ];
 
   for (const {page, defaultField} of pages) {
-    page.fetch = jest.fn();
+    page.fetch = vi.fn();
     page.state.queryField = defaultField;
     page.state.queryKeyword = "";
     page.handleToolbarSearch();
@@ -629,7 +634,7 @@ test("keeps reset and empty toolbar search paths on migrated lists", () => {
     statusFilter: "failed",
     webhookNameFilter: "webhook-alpha",
   });
-  eventPage.fetchWebhookEvents = jest.fn();
+  eventPage.fetchWebhookEvents = vi.fn();
   eventPage.handleToolbarSearch();
   expectAny(eventPage.fetchWebhookEvents).toHaveBeenCalledWith(expect.objectContaining({current: 1}), "", "attemptCount", "ascend", "");
 
@@ -645,14 +650,14 @@ test("keeps reset and empty toolbar search paths on migrated lists", () => {
 });
 
 test("keeps migrated list row callbacks and mobile scroll fallbacks", () => {
-  jest.spyOn(Setting, "isMobile").mockReturnValue(true);
-  jest.spyOn(Setting, "getFriendlyFileSize").mockReturnValue("1 KB");
-  jest.spyOn(Setting, "getShortText").mockReturnValue("https://short");
-  const history = {push: jest.fn()};
+  vi.spyOn(Setting, "isMobile").mockReturnValue(true);
+  vi.spyOn(Setting, "getFriendlyFileSize").mockReturnValue("1 KB");
+  vi.spyOn(Setting, "getShortText").mockReturnValue("https://short");
+  const history = {push: vi.fn()};
   const props = {...routeProps, history};
 
   const resourcePage = attachLegacyState(new (ResourceListPage as LegacyAny)(props) as LegacyAny);
-  resourcePage.deleteResource = jest.fn();
+  resourcePage.deleteResource = vi.fn();
   const resourceTable = getSharedListTable(resourcePage.renderTable([{owner: "org-alpha", provider: "provider-main", application: "portal-app", user: "admin", name: "clip.mp4", fileType: "video", fileSize: "1024", url: "https://static.example.invalid/clip.mp4"}]));
   expect(resourceTable.props.scroll?.x).toBe(960);
   const copyButton = getColumnRender(resourceTable, "url")("", {url: "https://static.example.invalid/clip.mp4"}, 0);
@@ -663,8 +668,8 @@ test("keeps migrated list row callbacks and mobile scroll fallbacks", () => {
   expectAny(resourcePage.deleteResource).toHaveBeenCalledWith(0);
 
   const certPage = attachLegacyState(new (CertListPage as LegacyAny)(props) as LegacyAny);
-  certPage.refreshCert = jest.fn();
-  certPage.deleteCert = jest.fn();
+  certPage.refreshCert = vi.fn();
+  certPage.deleteCert = vi.fn();
   const certTable = getSharedListTable(certPage.renderTable([{owner: "org-alpha", name: "cert-alpha", type: "SSL"}]));
   expect(certTable.props.scroll?.x).toBe(900);
   const certAction = getColumnRender(certTable, "op")("", {owner: "org-alpha", name: "cert-alpha", type: "SSL"}, 0);
@@ -674,7 +679,7 @@ test("keeps migrated list row callbacks and mobile scroll fallbacks", () => {
   expectAny(certPage.deleteCert).toHaveBeenCalledWith(0);
 
   const keyPage = attachLegacyState(new (KeyListPage as LegacyAny)(props) as LegacyAny);
-  keyPage.deleteKey = jest.fn();
+  keyPage.deleteKey = vi.fn();
   const keyTable = getSharedListTable(keyPage.renderTable([{owner: "org-alpha", name: "key-alpha"}]));
   expect(keyTable.props.scroll?.x).toBe(900);
   const keyAction = getColumnRender(keyTable, "op")("", {owner: "org-alpha", name: "key-alpha"}, 0);
@@ -684,7 +689,7 @@ test("keeps migrated list row callbacks and mobile scroll fallbacks", () => {
   expectAny(keyPage.deleteKey).toHaveBeenCalledWith(0);
 
   const webhookPage = attachLegacyState(new (WebhookListPage as LegacyAny)(props) as LegacyAny);
-  webhookPage.deleteWebhook = jest.fn();
+  webhookPage.deleteWebhook = vi.fn();
   const webhookTable = getSharedListTable(webhookPage.renderTable([{owner: "admin", name: "webhook-alpha", organization: "org-alpha", url: "https://callback.example.invalid/hook"}]));
   expect(webhookTable.props.scroll?.x).toBe(920);
   const webhookAction = getColumnRender(webhookTable, "op")("", {name: "webhook-alpha"}, 0);
@@ -699,8 +704,8 @@ test("keeps migrated list row callbacks and mobile scroll fallbacks", () => {
     sortOrder: "descend",
     replayingId: "admin/event-alpha",
   });
-  eventPage.openDetailDrawer = jest.fn();
-  eventPage.replayWebhookEvent = jest.fn();
+  eventPage.openDetailDrawer = vi.fn();
+  eventPage.replayWebhookEvent = vi.fn();
   const eventTable = getSharedListTable(eventPage.renderTable());
   expect(eventTable.props.scroll?.x).toBe(820);
   const eventAction = getColumnRender(eventTable, "action")("", {owner: "admin", name: "event-alpha"}, 0);
@@ -713,35 +718,35 @@ test("keeps migrated list row callbacks and mobile scroll fallbacks", () => {
 test("keeps migrated list backend failure and authorization handling", async() => {
   mockOrganizationScope();
   const deniedResponse = {status: "error", msg: "denied"};
-  jest.spyOn(Setting, "isResponseDenied").mockImplementation((res: LegacyAny) => res === deniedResponse);
+  vi.spyOn(Setting, "isResponseDenied").mockImplementation((res: LegacyAny) => res === deniedResponse);
 
   const resourcePage = attachLegacyState(new (ResourceListPage as LegacyAny)(routeProps) as LegacyAny);
-  jest.spyOn(ResourceBackend, "getResources").mockResolvedValue({status: "error", data: "Please login first"});
+  vi.spyOn(ResourceBackend, "getResources").mockResolvedValue({status: "error", data: "Please login first"});
   resourcePage.fetch({pagination: {current: 1, pageSize: 20, total: 0}});
   await wait(() => expect(resourcePage.state.isAuthorized).toBe(false));
 
   const certPage = attachLegacyState(new (CertListPage as LegacyAny)(routeProps) as LegacyAny);
-  jest.spyOn(CertBackend, "getGlobalCerts").mockResolvedValue({status: "ok", data: [], data2: 0});
-  jest.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValueOnce(true);
+  vi.spyOn(CertBackend, "getGlobalCerts").mockResolvedValue({status: "ok", data: [], data2: 0});
+  vi.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValueOnce(true);
   certPage.fetch({pagination: {current: 1, pageSize: 20, total: 0}, category: "tenant"});
   await wait(() => expectAny(CertBackend.getGlobalCerts).toHaveBeenCalledWith(1, 20, "category", "tenant", undefined, undefined));
 
-  jest.spyOn(CertBackend, "getCerts").mockResolvedValue(deniedResponse);
+  vi.spyOn(CertBackend, "getCerts").mockResolvedValue(deniedResponse);
   certPage.fetch({pagination: {current: 1, pageSize: 20, total: 0}});
   await wait(() => expect(certPage.state.isAuthorized).toBe(false));
 
   const keyPage = attachLegacyState(new (KeyListPage as LegacyAny)(routeProps) as LegacyAny);
-  jest.spyOn(KeyBackend, "getKeys").mockResolvedValue({status: "error", msg: "key failed"});
+  vi.spyOn(KeyBackend, "getKeys").mockResolvedValue({status: "error", msg: "key failed"});
   keyPage.fetch({pagination: {current: 1, pageSize: 20, total: 0}});
   await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", "key failed"));
 
   const webhookPage = attachLegacyState(new (WebhookListPage as LegacyAny)(routeProps) as LegacyAny);
-  jest.spyOn(WebhookBackend, "getWebhooks").mockResolvedValue(deniedResponse);
+  vi.spyOn(WebhookBackend, "getWebhooks").mockResolvedValue(deniedResponse);
   webhookPage.fetch({pagination: {current: 1, pageSize: 20, total: 0}, contentType: "application/json"});
   await wait(() => expect(webhookPage.state.isAuthorized).toBe(false));
 
   const eventPage = attachLegacyState(new WebhookEventListPage(routeProps) as LegacyAny);
-  jest.spyOn(WebhookEventBackend, "getWebhookEvents").mockResolvedValue({status: "error", msg: "event failed"});
+  vi.spyOn(WebhookEventBackend, "getWebhookEvents").mockResolvedValue({status: "error", msg: "event failed"});
   eventPage.fetchWebhookEvents({current: 1, pageSize: 20, total: 0}, "failed", "attemptCount", "descend", "webhook-alpha");
   await wait(() => expectAny(Setting.showMessage).toHaveBeenCalledWith("error", "event failed"));
 
@@ -757,14 +762,14 @@ test("keeps migrated list backend failure and authorization handling", async() =
 
 test("keeps migrated resource upload and delete failure branches", async() => {
   mockOrganizationScope();
-  const history = {push: jest.fn()};
+  const history = {push: vi.fn()};
   const props = {...routeProps, history};
   const resourcePage = attachLegacyState(new (ResourceListPage as LegacyAny)(props) as LegacyAny, {
     data: [{owner: "org-alpha", name: "resource-alpha"}],
     pagination: {current: 1, pageSize: 10, total: 1},
   });
-  resourcePage.fetch = jest.fn();
-  const uploadBackend = jest.spyOn(ResourceBackend, "uploadResource");
+  resourcePage.fetch = vi.fn();
+  const uploadBackend = vi.spyOn(ResourceBackend, "uploadResource");
   let request: Promise<LegacyAny> = Promise.resolve({status: "ok"});
   uploadBackend.mockReturnValue(request);
   resourcePage.handleUpload({fileList: [{name: "asset.png"}], file: {uid: "1"}});
@@ -780,7 +785,7 @@ test("keeps migrated resource upload and delete failure branches", async() => {
   expect(resourcePage.state.uploading).toBe(false);
   expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("upload failed"));
 
-  const deleteBackend = jest.spyOn(ResourceBackend, "deleteResource");
+  const deleteBackend = vi.spyOn(ResourceBackend, "deleteResource");
   request = Promise.resolve({status: "error", msg: "delete failed"});
   deleteBackend.mockReturnValue(request);
   (Setting.showMessage as LegacyAny).mockClear();
@@ -798,7 +803,7 @@ test("keeps migrated resource upload and delete failure branches", async() => {
 
 test("keeps migrated certificate and key delete and refresh failure branches", async() => {
   mockOrganizationScope();
-  const history = {push: jest.fn()};
+  const history = {push: vi.fn()};
   const props = {...routeProps, history};
 
   const certPage = attachLegacyState(new (CertListPage as LegacyAny)(props) as LegacyAny, {
@@ -806,8 +811,8 @@ test("keeps migrated certificate and key delete and refresh failure branches", a
     data: [{owner: "org-alpha", name: "cert-alpha", type: "SSL"}],
     pagination: {current: 2, pageSize: 10, total: 1},
   });
-  certPage.fetch = jest.fn();
-  const deleteCertBackend = jest.spyOn(CertBackend, "deleteCert");
+  certPage.fetch = vi.fn();
+  const deleteCertBackend = vi.spyOn(CertBackend, "deleteCert");
   let request: Promise<LegacyAny> = Promise.resolve({status: "ok"});
   deleteCertBackend.mockReturnValue(request);
   certPage.deleteCert(0);
@@ -828,7 +833,7 @@ test("keeps migrated certificate and key delete and refresh failure branches", a
   await settleBackendRequest(request);
   expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network"));
 
-  const refreshCertBackend = jest.spyOn(CertBackend, "refreshDomainExpire");
+  const refreshCertBackend = vi.spyOn(CertBackend, "refreshDomainExpire");
   request = Promise.resolve({status: "ok"});
   refreshCertBackend.mockReturnValue(request);
   certPage.fetch.mockClear();
@@ -854,8 +859,8 @@ test("keeps migrated certificate and key delete and refresh failure branches", a
     data: [{owner: "org-alpha", name: "key-alpha"}],
     pagination: {current: 2, pageSize: 10, total: 1},
   });
-  keyPage.fetch = jest.fn();
-  const deleteKeyBackend = jest.spyOn(KeyBackend, "deleteKey");
+  keyPage.fetch = vi.fn();
+  const deleteKeyBackend = vi.spyOn(KeyBackend, "deleteKey");
   request = Promise.resolve({status: "ok"});
   deleteKeyBackend.mockReturnValue(request);
   keyPage.deleteKey(0);
@@ -879,16 +884,16 @@ test("keeps migrated certificate and key delete and refresh failure branches", a
 
 test("keeps migrated webhook create delete and replay failure branches", async() => {
   mockOrganizationScope();
-  jest.spyOn(Setting, "getRandomName").mockReturnValue("fixed");
-  const history = {push: jest.fn()};
+  vi.spyOn(Setting, "getRandomName").mockReturnValue("fixed");
+  const history = {push: vi.fn()};
   const props = {...routeProps, history};
 
   const webhookPage = attachLegacyState(new (WebhookListPage as LegacyAny)(props) as LegacyAny, {
     data: [{owner: "admin", name: "webhook-alpha"}],
     pagination: {current: 2, pageSize: 10, total: 1},
   });
-  webhookPage.fetch = jest.fn();
-  const addWebhookBackend = jest.spyOn(WebhookBackend, "addWebhook");
+  webhookPage.fetch = vi.fn();
+  const addWebhookBackend = vi.spyOn(WebhookBackend, "addWebhook");
   let request: Promise<LegacyAny> = Promise.resolve({status: "error", msg: "add failed"});
   addWebhookBackend.mockReturnValue(request);
   (Setting.showMessage as LegacyAny).mockClear();
@@ -903,7 +908,7 @@ test("keeps migrated webhook create delete and replay failure branches", async()
   await settleBackendRequest(request);
   expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network"));
 
-  const deleteWebhookBackend = jest.spyOn(WebhookBackend, "deleteWebhook");
+  const deleteWebhookBackend = vi.spyOn(WebhookBackend, "deleteWebhook");
   request = Promise.resolve({status: "ok"});
   deleteWebhookBackend.mockReturnValue(request);
   webhookPage.deleteWebhook(0);
@@ -925,7 +930,7 @@ test("keeps migrated webhook create delete and replay failure branches", async()
   expectAny(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("network"));
 
   const eventPage = attachLegacyState(new WebhookEventListPage(props) as LegacyAny);
-  const replayBackend = jest.spyOn(WebhookEventBackend, "replayWebhookEvent");
+  const replayBackend = vi.spyOn(WebhookEventBackend, "replayWebhookEvent");
   request = Promise.resolve({status: "error", msg: "replay failed"});
   replayBackend.mockReturnValue(request);
   (Setting.showMessage as LegacyAny).mockClear();
@@ -943,8 +948,8 @@ test("keeps migrated webhook create delete and replay failure branches", async()
 
 test("keeps webhook event lifecycle detail drawer and unauthorized render branches", async() => {
   mockOrganizationScope();
-  const addEventListener = jest.spyOn(window, "addEventListener");
-  const removeEventListener = jest.spyOn(window, "removeEventListener");
+  const addEventListener = vi.spyOn(window, "addEventListener");
+  const removeEventListener = vi.spyOn(window, "removeEventListener");
   const page = attachLegacyState(new WebhookEventListPage(routeProps) as LegacyAny, {
     detailRecord: {
       owner: "admin",
@@ -959,7 +964,7 @@ test("keeps webhook event lifecycle detail drawer and unauthorized render branch
     },
     detailShow: true,
   });
-  page.fetchWebhookEvents = jest.fn();
+  page.fetchWebhookEvents = vi.fn();
   page.componentDidMount();
   expectAny(addEventListener).toHaveBeenCalledWith("storageOrganizationChanged", page.handleOrganizationChange);
   expectAny(page.fetchWebhookEvents).toHaveBeenCalled();

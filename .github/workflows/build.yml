@@ -154,7 +154,7 @@ jobs:
       - name: Production source lint
         run: bun run lint
         working-directory: ./web-admin
-      - name: Jest
+      - name: Vitest
         run: bun run test:ci
         working-directory: ./web-admin
 

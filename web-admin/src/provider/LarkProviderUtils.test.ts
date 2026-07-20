@@ -1,5 +1,4 @@
-/* eslint-env jest */
-import {expect} from "@jest/globals";
+import {describe, expect, test} from "vitest";
 
 import {
   getLarkProviderBrand,

@@ -1,6 +1,5 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {cleanup, render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import * as Setting from "./Setting";
@@ -9,8 +8,7 @@ import * as GroupBackend from "./backend/GroupBackend";
 import ListPageTable from "./common/ListPageTable";
 import GroupListPage from "./GroupListPage";
 import * as XLSX from "xlsx";
-
-declare const jest: typeof jestValue;
+import {fireEvent} from "@testing-library/react";
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -64,49 +62,39 @@ type TestGroupTableElement = React.ReactElement<{
 const backendMock = GroupBackend as unknown as BackendMock;
 const formBackendMock = FormBackend as unknown as FormBackendMock;
 const xlsxMock = XLSX as unknown as XlsxMock;
-const expect = jestExpect;
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-    change: (element: Element | null, event: {target: {value: string}}) => boolean;
-  };
-};
 
-jest.mock("./backend/GroupBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/GroupBackend", () => {
   return {
-    getGroups: factoryJest.fn(),
-    getGroup: factoryJest.fn(),
-    updateGroup: factoryJest.fn(),
-    addGroup: factoryJest.fn(),
-    deleteGroup: factoryJest.fn(),
+    getGroups: vi.fn(),
+    getGroup: vi.fn(),
+    updateGroup: vi.fn(),
+    addGroup: vi.fn(),
+    deleteGroup: vi.fn(),
   };
 });
 
-jest.mock("./backend/FormBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/FormBackend", () => {
   return {
-    getForm: factoryJest.fn(),
+    getForm: vi.fn(),
   };
 });
 
-jest.mock("./TourConfig", () => ({
+vi.mock("./TourConfig", () => ({
   getTourVisible: () => false,
   getSteps: () => [],
   getNextUrl: () => "",
   setIsTourVisible: () => undefined,
 }));
 
-jest.mock("xlsx", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("xlsx", () => {
   return {
-    read: factoryJest.fn(),
-    writeFile: factoryJest.fn(),
+    read: vi.fn(),
+    writeFile: vi.fn(),
     utils: {
-      json_to_sheet: factoryJest.fn(() => ({sheet: true})),
-      book_new: factoryJest.fn(() => ({book: true})),
-      book_append_sheet: factoryJest.fn(),
-      sheet_to_json: factoryJest.fn(),
+      json_to_sheet: vi.fn(() => ({sheet: true})),
+      book_new: vi.fn(() => ({book: true})),
+      book_append_sheet: vi.fn(),
+      sheet_to_json: vi.fn(),
     },
   };
 });
@@ -140,7 +128,7 @@ function getAdvancedFilterInputByLabel(container: HTMLElement, labelPattern: Reg
 
 function createHistory() {
   return {
-    push: jestValue.fn(),
+    push: vi.fn(),
   };
 }
 
@@ -196,7 +184,7 @@ class MockFileReader {
     MockFileReader.instances.push(this);
   }
 
-  readAsArrayBuffer = jestValue.fn();
+  readAsArrayBuffer = vi.fn();
 }
 
 beforeEach(() => {
@@ -208,19 +196,19 @@ beforeEach(() => {
     writable: true,
     value: () => ({
       matches: false,
-      addListener: jestValue.fn(),
-      removeListener: jestValue.fn(),
-      addEventListener: jestValue.fn(),
-      removeEventListener: jestValue.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
     }),
   });
   Object.defineProperty(global, "FileReader", {
     writable: true,
     value: MockFileReader,
   });
-  jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
-  jestValue.spyOn(Setting, "getGroupColumns").mockReturnValue(["Name#name", "Owner#owner"]);
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
+  vi.spyOn(Setting, "getGroupColumns").mockReturnValue(["Name#name", "Owner#owner"]);
   formBackendMock.getForm.mockResolvedValue({status: "ok", data: {formItems: []}});
   backendMock.getGroups.mockResolvedValue({status: "ok", data: [], data2: 0});
   backendMock.addGroup.mockResolvedValue({status: "ok"});
@@ -229,14 +217,14 @@ beforeEach(() => {
   xlsxMock.utils.book_new.mockReturnValue({book: true});
   xlsxMock.read.mockReturnValue({SheetNames: ["Sheet1"], Sheets: {Sheet1: {}}});
   xlsxMock.utils.sheet_to_json.mockReturnValue([{name: "group-main", owner: "engineering"}]);
-  global.fetch = jestValue.fn(() => Promise.resolve({
+  global.fetch = vi.fn(() => Promise.resolve({
     json: () => Promise.resolve({status: "ok"}),
   })) as unknown as typeof fetch;
 });
 
 afterEach(() => {
-  jestValue.restoreAllMocks();
-  jestValue.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
   cleanup();
 });
 
@@ -328,7 +316,7 @@ test("passes search, category, type filter and sorting parameters to backend", a
 
 test("deletes group and rolls back pagination for the last row", async() => {
   const page = createPage();
-  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  page.fetch = vi.fn() as unknown as typeof page.fetch;
   page.state = {
     ...page.state,
     data: [group],
@@ -389,8 +377,8 @@ test("builds table columns, toolbar and action handlers", () => {
     match: {path: "/groups", params: {}},
   });
   installSynchronousSetState(page);
-  jestValue.spyOn(page, "addGroup").mockImplementation(() => {});
-  jestValue.spyOn(page, "deleteGroup").mockImplementation(() => {});
+  vi.spyOn(page, "addGroup").mockImplementation(() => {});
+  vi.spyOn(page, "deleteGroup").mockImplementation(() => {});
 
   const tableWrapper = page.renderTable([group]) as React.ReactElement<{children: TestGroupTableElement}>;
   const table = tableWrapper.props.children;
@@ -438,7 +426,7 @@ test("builds table columns, toolbar and action handlers", () => {
 });
 
 test("keeps mobile group table horizontally scrollable without desktop vertical lock", () => {
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(true);
+  vi.spyOn(Setting, "isMobile").mockReturnValue(true);
   const page = createPage();
   const tableWrapper = page.renderTable([group]) as React.ReactElement<{children: TestGroupTableElement}>;
   const table = tableWrapper.props.children;
@@ -464,7 +452,7 @@ test("keeps the outer page stable when advanced filters expand", () => {
 
 test("uses an enterprise query toolbar instead of column header search as the primary group search entry", () => {
   const page = createPage();
-  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  page.fetch = vi.fn() as unknown as typeof page.fetch;
   page.state = {
     ...page.state,
     pagination: {...page.state.pagination, total: 258},
@@ -538,7 +526,7 @@ test("renders compact group identity and user count for table scanning", () => {
 
 test("query toolbar keeps the existing group fetch contract for keyword and reset", () => {
   const page = createPage();
-  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  page.fetch = vi.fn() as unknown as typeof page.fetch;
   page.state = {
     ...page.state,
     pagination: {...page.state.pagination, current: 3, pageSize: 20},
@@ -629,7 +617,7 @@ test("generates group import template with existing columns", () => {
 
 test("previews xlsx upload and uploads selected file", async() => {
   const page = createPage();
-  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  page.fetch = vi.fn() as unknown as typeof page.fetch;
   const file = new File(["content"], "groups.xlsx");
   const {upload} = getUploadAndModal(page);
 

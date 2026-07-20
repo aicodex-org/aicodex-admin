@@ -1,4 +1,4 @@
-/* eslint-env jest */
+import {expect, test} from "vitest";
 // Copyright 2026 The AICodex Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,10 +13,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {expect, test} from "@jest/globals";
 import fs from "fs";
 import path from "path";
 import ts from "typescript";
+import {fileURLToPath} from "url";
+const testFileDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 type RuntimeExecutionKind = "direct eval" | "Function constructor";
 
@@ -95,7 +96,7 @@ test("distinguishes runtime string execution from comments, strings and property
 });
 
 test("keeps production TypeScript free of runtime string execution", () => {
-  const sourceRoot = path.resolve(__dirname);
+  const sourceRoot = path.resolve(testFileDirectory);
   const findings = listProductionTypeScript(sourceRoot).flatMap((file) => {
     const relativePath = path.relative(sourceRoot, file).replaceAll(path.sep, "/");
     const sourceFile = parseTypeScript(file, fs.readFileSync(file, "utf8"));

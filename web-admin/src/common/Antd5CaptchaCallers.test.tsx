@@ -1,13 +1,12 @@
-/* eslint-env jest */
+import {afterEach, expect, test, vi} from "vitest";
 
 import React from "react";
-import {expect, jest} from "@jest/globals";
 import {fireEvent, render, waitFor} from "@testing-library/react";
 import {SendCodeInput} from "./SendCodeInput";
 import {CaptchaPreview} from "./CaptchaPreview";
 import * as UserBackend from "../backend/UserBackend";
 
-jest.mock("./modal/CaptchaModal", () => ({
+vi.mock("./modal/CaptchaModal", () => ({
   CaptchaModal: (props: {open?: boolean; onOk?: (captchaType: string, captchaToken: string, clientSecret: string) => void; onCancel?: () => void}) => (
     <div data-testid="captcha-modal" data-open={String(Boolean(props.open))}>
       {props.open ? (
@@ -21,11 +20,11 @@ jest.mock("./modal/CaptchaModal", () => ({
 }));
 
 afterEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 test("SendCodeInput opens, confirms and closes CaptchaModal through the open prop", async() => {
-  const sendCode = jest.spyOn(UserBackend, "sendCode").mockResolvedValue(false as never);
+  const sendCode = vi.spyOn(UserBackend, "sendCode").mockResolvedValue(false as never);
   const view = render(<SendCodeInput application={{owner: "built-in", name: "app"}} />);
   expect(view.getByTestId("captcha-modal").getAttribute("data-open")).toBe("false");
 
@@ -42,7 +41,7 @@ test("SendCodeInput opens, confirms and closes CaptchaModal through the open pro
 });
 
 test("CaptchaPreview opens, cancels and confirms CaptchaModal through the open prop", async() => {
-  const verifyCaptcha = jest.spyOn(UserBackend, "verifyCaptcha").mockResolvedValue({status: "ok"} as never);
+  const verifyCaptcha = vi.spyOn(UserBackend, "verifyCaptcha").mockResolvedValue({status: "ok"} as never);
   const view = render(<CaptchaPreview
     owner="built-in"
     name="captcha"

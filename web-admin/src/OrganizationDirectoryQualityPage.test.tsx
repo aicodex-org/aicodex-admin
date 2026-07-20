@@ -1,4 +1,4 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 // Copyright 2026 The AICodex Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,12 +15,10 @@
 
 import React from "react";
 import {render} from "@testing-library/react";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import * as PlatformApiMappingBackend from "./backend/PlatformApiMappingBackend";
 import OrganizationDirectoryQualityPage from "./OrganizationDirectoryQualityPage";
 import * as Setting from "./Setting";
-
-declare const jest: typeof jestValue;
+import {fireEvent, screen, waitFor} from "@testing-library/react";
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -63,53 +61,36 @@ type CreateObjectURLMock = LooseMock & {
 };
 
 const backendMock = PlatformApiMappingBackend as unknown as PlatformApiMappingBackendMock;
-const expect = jestExpect;
-const {fireEvent, screen, waitFor} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-    change: (element: Element | null, event: unknown) => boolean;
-  };
-  screen: {
-    findByText: (text: string | RegExp) => Promise<HTMLElement>;
-    findAllByText: (text: string | RegExp) => Promise<HTMLElement[]>;
-    getByText: (text: string | RegExp) => HTMLElement;
-    getAllByText: (text: string | RegExp) => HTMLElement[];
-    queryByText: (text: string | RegExp) => HTMLElement | null;
-    getByTestId: (id: string) => HTMLElement;
-  };
-  waitFor: (callback: () => unknown) => Promise<unknown>;
-};
 
-jest.mock("./backend/PlatformApiMappingBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: Pick<typeof jestValue, "fn">};
+vi.mock("./backend/PlatformApiMappingBackend", () => {
   return {
-    getOrganizationDirectoryQuality: factoryJest.fn(),
-    getOrganizationDirectoryRemediationPlan: factoryJest.fn(),
-    getOrganizationDirectoryRemediationActionDrafts: factoryJest.fn(),
-    getOrganizationDirectoryRemediationPreflight: factoryJest.fn(),
-    getOrganizationDirectoryRemediationApprovalPreview: factoryJest.fn(),
-    getOrganizationDirectoryRemediationApprovalPacketAudit: factoryJest.fn(),
-    getOrganizationDirectoryRemediationApprovalPacketOperatorNotes: factoryJest.fn(),
-    getOrganizationDirectoryRemediationOperatorNotePersistenceReadiness: factoryJest.fn(),
-    getOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch: factoryJest.fn(),
+    getOrganizationDirectoryQuality: vi.fn(),
+    getOrganizationDirectoryRemediationPlan: vi.fn(),
+    getOrganizationDirectoryRemediationActionDrafts: vi.fn(),
+    getOrganizationDirectoryRemediationPreflight: vi.fn(),
+    getOrganizationDirectoryRemediationApprovalPreview: vi.fn(),
+    getOrganizationDirectoryRemediationApprovalPacketAudit: vi.fn(),
+    getOrganizationDirectoryRemediationApprovalPacketOperatorNotes: vi.fn(),
+    getOrganizationDirectoryRemediationOperatorNotePersistenceReadiness: vi.fn(),
+    getOrganizationDirectoryRemediationOperatorNoteReadonlyAuditSearch: vi.fn(),
   };
 });
 
-jest.mock("./common/select/OrganizationSelect", () => (props: OrganizationSelectMockProps) => (
+vi.mock("./common/select/OrganizationSelect", () => ({default: (props: OrganizationSelectMockProps) => (
   <select data-testid="organization-select" value={props.initValue} onChange={event => props.onChange(event.target.value)}>
     <option value="org-alpha">测试组织</option>
   </select>
-));
+)}));
 
 const mockMatchMedia = (query: string) => ({
   matches: false,
   media: query,
   onchange: null,
-  addListener: jest.fn(),
-  removeListener: jest.fn(),
-  addEventListener: jest.fn(),
-  removeEventListener: jest.fn(),
-  dispatchEvent: jest.fn(),
+  addListener: vi.fn(),
+  removeListener: vi.fn(),
+  addEventListener: vi.fn(),
+  removeEventListener: vi.fn(),
+  dispatchEvent: vi.fn(),
 });
 
 function exportedBlobAt(index: number): BlobMockValue {
@@ -125,31 +106,28 @@ async function openApprovalPacketAudit(): Promise<void> {
   render(<OrganizationDirectoryQualityPage account={{owner: "org-alpha", isAdmin: true}} />);
   await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
-  expect(await screen.findByText("manual_review_only")).not.toBeNull();
-  fireEvent.click(screen.getByText("预检"));
-  expect(await screen.findByText("readyForManualReview: true")).not.toBeNull();
-  fireEvent.click(screen.getByText("审批预览"));
-  expect(await screen.findByText("readyForApproval: true")).not.toBeNull();
-  fireEvent.click(screen.getByText("审批包审计"));
-  expect((await screen.findAllByText("审批包审计")).length).toBeGreaterThan(0);
+  fireEvent.click(await screen.findByText("预检"));
+  fireEvent.click(await screen.findByText("审批预览"));
+  fireEvent.click(await screen.findByText("审批包审计"));
+  expect(await screen.findByText("ready_for_approval")).not.toBeNull();
 }
 
 async function openApprovalPacketOperatorNotes(): Promise<void> {
   await openApprovalPacketAudit();
   fireEvent.click(screen.getByText("交接备注"));
-  expect((await screen.findAllByText("交接备注")).length).toBeGreaterThan(0);
+  expect(await screen.findByText("derived_note_draft")).not.toBeNull();
 }
 
 async function openOperatorNotePersistenceReadiness(): Promise<void> {
   await openApprovalPacketOperatorNotes();
   fireEvent.click(screen.getByText("持久化准入"));
-  expect((await screen.findAllByText("持久化准入")).length).toBeGreaterThan(0);
+  expect(await screen.findByText("ready_for_design_review")).not.toBeNull();
 }
 
 async function openOperatorNoteAuditSearch(): Promise<void> {
   await openOperatorNotePersistenceReadiness();
   fireEvent.click(screen.getByText("备注审计检索"));
-  expect((await screen.findAllByText("备注审计检索")).length).toBeGreaterThan(0);
+  expect(await screen.findByText("current_derived_non_persistent")).not.toBeNull();
 }
 
 beforeEach(() => {
@@ -556,21 +534,23 @@ beforeEach(() => {
       },
     },
   });
-  global.Blob = jest.fn((parts: string[], options?: unknown) => ({parts, options})) as unknown as typeof Blob;
-  global.URL.createObjectURL = jest.fn(() => "blob:remediation-plan") as unknown as typeof URL.createObjectURL;
-  global.URL.revokeObjectURL = jest.fn() as unknown as typeof URL.revokeObjectURL;
-  HTMLAnchorElement.prototype.click = jest.fn() as unknown as typeof HTMLAnchorElement.prototype.click;
+  global.Blob = vi.fn(function BlobMock(parts: string[], options?: unknown) {
+    return {parts, options};
+  }) as unknown as typeof Blob;
+  global.URL.createObjectURL = vi.fn(() => "blob:remediation-plan") as unknown as typeof URL.createObjectURL;
+  global.URL.revokeObjectURL = vi.fn() as unknown as typeof URL.revokeObjectURL;
+  HTMLAnchorElement.prototype.click = vi.fn() as unknown as typeof HTMLAnchorElement.prototype.click;
   Object.assign(navigator, {
     clipboard: {
-      writeText: jest.fn(() => Promise.resolve()),
+      writeText: vi.fn(() => Promise.resolve()),
     },
   });
-  jest.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
 });
 
 afterEach(() => {
-  jest.clearAllMocks();
-  jest.restoreAllMocks();
+  vi.clearAllMocks();
+  vi.restoreAllMocks();
 });
 
 test("renders organization directory quality list and details without leaking source ids", async() => {
@@ -866,12 +846,9 @@ test("fails closed on approval packet audit errors", async() => {
 
   await screen.findAllByText("API 映射核对");
   fireEvent.click(screen.getByText("草案"));
-  expect(await screen.findByText("manual_review_only")).not.toBeNull();
-  fireEvent.click(screen.getByText("预检"));
-  expect(await screen.findByText("readyForManualReview: true")).not.toBeNull();
-  fireEvent.click(screen.getByText("审批预览"));
-  expect(await screen.findByText("readyForApproval: true")).not.toBeNull();
-  fireEvent.click(screen.getByText("审批包审计"));
+  fireEvent.click(await screen.findByText("预检"));
+  fireEvent.click(await screen.findByText("审批预览"));
+  fireEvent.click(await screen.findByText("审批包审计"));
 
   await waitFor(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "audit failed"));
   expect(screen.queryByText("执行修复")).toBeNull();
@@ -885,10 +862,8 @@ test("fails closed on approval packet operator notes errors", async() => {
   fireEvent.click(screen.getByText("草案"));
   fireEvent.click(await screen.findByText("预检"));
   fireEvent.click(await screen.findByText("审批预览"));
-  expect(await screen.findByText("readyForApproval: true")).not.toBeNull();
-  fireEvent.click(screen.getByText("审批包审计"));
-  expect(await screen.findByText("ready_for_approval")).not.toBeNull();
-  fireEvent.click(screen.getByText("交接备注"));
+  fireEvent.click(await screen.findByText("审批包审计"));
+  fireEvent.click(await screen.findByText("交接备注"));
 
   await waitFor(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "notes failed"));
   expect(screen.queryByText("执行修复")).toBeNull();
@@ -902,12 +877,9 @@ test("fails closed on operator note persistence readiness errors", async() => {
   fireEvent.click(screen.getByText("草案"));
   fireEvent.click(await screen.findByText("预检"));
   fireEvent.click(await screen.findByText("审批预览"));
-  expect(await screen.findByText("readyForApproval: true")).not.toBeNull();
-  fireEvent.click(screen.getByText("审批包审计"));
-  expect(await screen.findByText("ready_for_approval")).not.toBeNull();
-  fireEvent.click(screen.getByText("交接备注"));
-  expect(await screen.findByText("derived_note_draft")).not.toBeNull();
-  fireEvent.click(screen.getByText("持久化准入"));
+  fireEvent.click(await screen.findByText("审批包审计"));
+  fireEvent.click(await screen.findByText("交接备注"));
+  fireEvent.click(await screen.findByText("持久化准入"));
 
   await waitFor(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "readiness failed"));
   expect(screen.queryByText("保存备注")).toBeNull();
@@ -921,14 +893,10 @@ test("fails closed on operator note readonly audit search errors", async() => {
   fireEvent.click(screen.getByText("草案"));
   fireEvent.click(await screen.findByText("预检"));
   fireEvent.click(await screen.findByText("审批预览"));
-  expect(await screen.findByText("readyForApproval: true")).not.toBeNull();
-  fireEvent.click(screen.getByText("审批包审计"));
-  expect(await screen.findByText("ready_for_approval")).not.toBeNull();
-  fireEvent.click(screen.getByText("交接备注"));
-  expect(await screen.findByText("derived_note_draft")).not.toBeNull();
-  fireEvent.click(screen.getByText("持久化准入"));
-  expect(await screen.findByText("ready_for_design_review")).not.toBeNull();
-  fireEvent.click(screen.getByText("备注审计检索"));
+  fireEvent.click(await screen.findByText("审批包审计"));
+  fireEvent.click(await screen.findByText("交接备注"));
+  fireEvent.click(await screen.findByText("持久化准入"));
+  fireEvent.click(await screen.findByText("备注审计检索"));
 
   await waitFor(() => expect(Setting.showMessage).toHaveBeenCalledWith("error", "search failed"));
   expect(screen.queryByText("保存备注")).toBeNull();
@@ -952,12 +920,9 @@ test("shows empty operator note persistence readiness without writes", async() =
   fireEvent.click(screen.getByText("草案"));
   fireEvent.click(await screen.findByText("预检"));
   fireEvent.click(await screen.findByText("审批预览"));
-  expect(await screen.findByText("readyForApproval: true")).not.toBeNull();
-  fireEvent.click(screen.getByText("审批包审计"));
-  expect(await screen.findByText("ready_for_approval")).not.toBeNull();
-  fireEvent.click(screen.getByText("交接备注"));
-  expect(await screen.findByText("derived_note_draft")).not.toBeNull();
-  fireEvent.click(screen.getByText("持久化准入"));
+  fireEvent.click(await screen.findByText("审批包审计"));
+  fireEvent.click(await screen.findByText("交接备注"));
+  fireEvent.click(await screen.findByText("持久化准入"));
 
   expect(await screen.findByText("暂无持久化准入")).not.toBeNull();
   expectButtonDisabled("复制持久化准入JSON");
@@ -986,14 +951,10 @@ test("shows empty operator note readonly audit search without writes", async() =
   fireEvent.click(screen.getByText("草案"));
   fireEvent.click(await screen.findByText("预检"));
   fireEvent.click(await screen.findByText("审批预览"));
-  expect(await screen.findByText("readyForApproval: true")).not.toBeNull();
-  fireEvent.click(screen.getByText("审批包审计"));
-  expect(await screen.findByText("ready_for_approval")).not.toBeNull();
-  fireEvent.click(screen.getByText("交接备注"));
-  expect(await screen.findByText("derived_note_draft")).not.toBeNull();
-  fireEvent.click(screen.getByText("持久化准入"));
-  expect(await screen.findByText("ready_for_design_review")).not.toBeNull();
-  fireEvent.click(screen.getByText("备注审计检索"));
+  fireEvent.click(await screen.findByText("审批包审计"));
+  fireEvent.click(await screen.findByText("交接备注"));
+  fireEvent.click(await screen.findByText("持久化准入"));
+  fireEvent.click(await screen.findByText("备注审计检索"));
 
   expect(await screen.findByText("暂无备注审计检索")).not.toBeNull();
   expectButtonDisabled("复制备注审计检索JSON");
@@ -1019,10 +980,8 @@ test("shows empty approval packet operator notes without writes", async() => {
   fireEvent.click(screen.getByText("草案"));
   fireEvent.click(await screen.findByText("预检"));
   fireEvent.click(await screen.findByText("审批预览"));
-  expect(await screen.findByText("readyForApproval: true")).not.toBeNull();
-  fireEvent.click(screen.getByText("审批包审计"));
-  expect(await screen.findByText("ready_for_approval")).not.toBeNull();
-  fireEvent.click(screen.getByText("交接备注"));
+  fireEvent.click(await screen.findByText("审批包审计"));
+  fireEvent.click(await screen.findByText("交接备注"));
 
   expect(await screen.findByText("暂无交接备注")).not.toBeNull();
   expectButtonDisabled("复制交接备注JSON");

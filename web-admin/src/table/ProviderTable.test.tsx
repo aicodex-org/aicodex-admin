@@ -1,11 +1,9 @@
-/* eslint-env jest */
+import {beforeEach, describe, expect, test, vi} from "vitest";
 import React from "react";
 import {render} from "@testing-library/react";
-import {beforeEach, describe, expect, jest as jestValue, test} from "@jest/globals";
 import ProviderTable from "./ProviderTable";
 import i18next from "i18next";
-
-declare const jest: typeof jestValue;
+import {fireEvent, screen} from "@testing-library/react";
 
 type I18nextMock = {
   mockClear: () => void;
@@ -16,18 +14,8 @@ type StyleMatcher = {
   toHaveStyle: (style: string) => void;
 };
 
-const {fireEvent, screen} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | Node | Document | Window) => boolean;
-  };
-  screen: {
-    getByText: (text: string) => HTMLElement;
-    getAllByText: (text: string) => HTMLElement[];
-  };
-};
-jest.mock("i18next", () => {
-  const mockJest = require("@jest/globals").jest as any;
-  const mockT = mockJest.fn((mockKey: string) => {
+vi.mock("i18next", () => {
+  const mockT = vi.fn((mockKey: string) => {
     const [, value] = mockKey.split(":");
     return value || mockKey;
   });
@@ -57,21 +45,21 @@ describe("ProviderTable", () => {
     });
     Object.defineProperty(window, "matchMedia", {
       writable: true,
-      value: jestValue.fn().mockImplementation((query: unknown) => ({
+      value: vi.fn().mockImplementation((query: unknown) => ({
         matches: false,
         media: String(query),
         onchange: null,
-        addListener: jestValue.fn(),
-        removeListener: jestValue.fn(),
-        addEventListener: jestValue.fn(),
-        removeEventListener: jestValue.fn(),
-        dispatchEvent: jestValue.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
       })),
     });
   });
 
   test("adds provider row when application provider list is null", () => {
-    const onUpdateTable = jestValue.fn();
+    const onUpdateTable = vi.fn();
 
     render(
       <ProviderTable
@@ -98,7 +86,7 @@ describe("ProviderTable", () => {
   });
 
   test("shows runtime email default when binding rule is unset", () => {
-    const onUpdateTable = jestValue.fn();
+    const onUpdateTable = vi.fn();
 
     render(
       <ProviderTable
@@ -124,7 +112,7 @@ describe("ProviderTable", () => {
   });
 
   test("uses compact fixed table layout for application provider rows", () => {
-    const onUpdateTable = jestValue.fn();
+    const onUpdateTable = vi.fn();
 
     const {container} = render(
       <ProviderTable
@@ -170,7 +158,7 @@ describe("ProviderTable", () => {
         ]}
         providers={[{name: "WeCom", category: "OAuth", type: "WeCom"}]}
         application={{enableSignUp: true, organizationObj: {name: "built-in"}}}
-        onUpdateTable={jestValue.fn()}
+        onUpdateTable={vi.fn()}
       />
     );
 
@@ -182,7 +170,7 @@ describe("ProviderTable", () => {
   });
 
   test("updates provider row fields from column controls", () => {
-    const onUpdateTable = jestValue.fn();
+    const onUpdateTable = vi.fn();
     const rows = [
       {
         name: "WeCom",
@@ -254,7 +242,7 @@ describe("ProviderTable", () => {
   });
 
   test("updates provider-specific rule controls and row order actions", () => {
-    const onUpdateTable = jestValue.fn();
+    const onUpdateTable = vi.fn();
     const rows = [
       {name: "Google", provider: {category: "OAuth", type: "Google"}, rule: "None"},
       {name: "Captcha", provider: {category: "Captcha", type: "Default"}, rule: "None"},
@@ -296,7 +284,7 @@ describe("ProviderTable", () => {
   });
 
   test("keeps retired Web3 bindings immutable except for disable unlink and delete", () => {
-    const onUpdateTable = jestValue.fn();
+    const onUpdateTable = vi.fn();
     const rows = [
       {
         name: "legacy-wallet",
@@ -375,7 +363,7 @@ describe("ProviderTable", () => {
         {name: "lark", category: "OAuth", type: "Lark"},
       ],
       application: {enableSignUp: true, organizationObj: {name: "built-in"}},
-      onUpdateTable: jestValue.fn(),
+      onUpdateTable: vi.fn(),
     });
     const nameColumn = table.renderTable(rows).props.columns.find((column: any) => column.key === "name");
     const select = nameColumn.render(rows[0].name, rows[0], 0);

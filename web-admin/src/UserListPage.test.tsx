@@ -1,6 +1,5 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {cleanup, render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import * as Setting from "./Setting";
@@ -13,8 +12,7 @@ import ListPageRowActions from "./common/ListPageRowActions";
 import ListPageTable from "./common/ListPageTable";
 import UserListPage from "./UserListPage";
 import * as XLSX from "xlsx";
-
-declare const jest: typeof jestValue;
+import {fireEvent} from "@testing-library/react";
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -75,69 +73,58 @@ const userBackendMock = UserBackend as unknown as UserBackendMock;
 const organizationBackendMock = OrganizationBackend as unknown as OrganizationBackendMock;
 const formBackendMock = FormBackend as unknown as FormBackendMock;
 const xlsxMock = XLSX as unknown as XlsxMock;
-const expect = jestExpect;
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-    change: (element: Element | null, event: {target: {value: string}}) => boolean;
-    error: (element: Element | null) => boolean;
-  };
-};
 
-jest.mock("./backend/UserBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/UserBackend", () => {
   return {
-    getGlobalUsers: factoryJest.fn(),
-    getUsers: factoryJest.fn(),
-    getUser: factoryJest.fn(),
-    updateUser: factoryJest.fn(),
-    addUser: factoryJest.fn(),
-    deleteUser: factoryJest.fn(),
-    getAddressOptions: factoryJest.fn(),
-    getAffiliationOptions: factoryJest.fn(),
-    setPassword: factoryJest.fn(),
-    sendCode: factoryJest.fn(),
-    verifyCaptcha: factoryJest.fn(),
-    resetEmailOrPhone: factoryJest.fn(),
-    impersonateUser: factoryJest.fn(),
-    exitImpersonateUser: factoryJest.fn(),
-    getCaptcha: factoryJest.fn(),
-    verifyCode: factoryJest.fn(),
-    checkUserPassword: factoryJest.fn(),
-    removeUserFromGroup: factoryJest.fn(),
-    verifyIdentification: factoryJest.fn(),
+    getGlobalUsers: vi.fn(),
+    getUsers: vi.fn(),
+    getUser: vi.fn(),
+    updateUser: vi.fn(),
+    addUser: vi.fn(),
+    deleteUser: vi.fn(),
+    getAddressOptions: vi.fn(),
+    getAffiliationOptions: vi.fn(),
+    setPassword: vi.fn(),
+    sendCode: vi.fn(),
+    verifyCaptcha: vi.fn(),
+    resetEmailOrPhone: vi.fn(),
+    impersonateUser: vi.fn(),
+    exitImpersonateUser: vi.fn(),
+    getCaptcha: vi.fn(),
+    verifyCode: vi.fn(),
+    checkUserPassword: vi.fn(),
+    removeUserFromGroup: vi.fn(),
+    verifyIdentification: vi.fn(),
   };
 });
 
-jest.mock("./backend/OrganizationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/OrganizationBackend", () => {
   return {
-    getOrganizations: factoryJest.fn(),
-    getOrganization: factoryJest.fn(),
-    updateOrganization: factoryJest.fn(),
-    addOrganization: factoryJest.fn(),
-    deleteOrganization: factoryJest.fn(),
-    getDefaultApplication: factoryJest.fn(),
-    getOrganizationNames: factoryJest.fn(),
+    getOrganizations: vi.fn(),
+    getOrganization: vi.fn(),
+    updateOrganization: vi.fn(),
+    addOrganization: vi.fn(),
+    deleteOrganization: vi.fn(),
+    getDefaultApplication: vi.fn(),
+    getOrganizationNames: vi.fn(),
   };
 });
 
-jest.mock("./backend/FormBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/FormBackend", () => {
   return {
-    getForm: factoryJest.fn(),
+    getForm: vi.fn(),
   };
 });
 
-jest.mock("./TourConfig", () => ({
+vi.mock("./TourConfig", () => ({
   getTourVisible: () => false,
   getSteps: () => [],
   getNextUrl: () => "",
   setIsTourVisible: () => undefined,
 }));
 
-jest.mock("./OrganizationIdentityCenter", () => {
-  const ReactFactory = require("react");
+vi.mock("./OrganizationIdentityCenter", async() => {
+  const ReactFactory = await vi.importActual<typeof import("react")>("react");
   const MockOrganizationIdentityCenter = ({children, currentOrganization, loadedCount, total}: {children?: unknown; currentOrganization?: string; loadedCount?: number; total?: number}) => ReactFactory.createElement(
     "div",
     {
@@ -146,7 +133,7 @@ jest.mock("./OrganizationIdentityCenter", () => {
       "data-loaded-count": loadedCount,
       "data-total": total,
     },
-    children
+    children as React.ReactNode
   );
   return {
     __esModule: true,
@@ -154,24 +141,23 @@ jest.mock("./OrganizationIdentityCenter", () => {
   };
 });
 
-jest.mock("./account/AccountAvatar", () => {
-  const ReactFactory = require("react");
+vi.mock("./account/AccountAvatar", async() => {
+  const ReactFactory = await vi.importActual<typeof import("react")>("react");
   return {
     __esModule: true,
     default: (props: {src?: string; alt?: string}) => ReactFactory.createElement("img", {"data-testid": "account-avatar", src: props.src, alt: props.alt}),
   };
 });
 
-jest.mock("xlsx", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("xlsx", () => {
   return {
-    read: factoryJest.fn(),
-    writeFile: factoryJest.fn(),
+    read: vi.fn(),
+    writeFile: vi.fn(),
     utils: {
-      json_to_sheet: factoryJest.fn(() => ({sheet: true})),
-      book_new: factoryJest.fn(() => ({book: true})),
-      book_append_sheet: factoryJest.fn(),
-      sheet_to_json: factoryJest.fn(),
+      json_to_sheet: vi.fn(() => ({sheet: true})),
+      book_new: vi.fn(() => ({book: true})),
+      book_append_sheet: vi.fn(),
+      sheet_to_json: vi.fn(),
     },
   };
 });
@@ -227,7 +213,7 @@ function getAdvancedFilterInputByLabel(container: HTMLElement, labelPattern: Reg
 
 function createHistory() {
   return {
-    push: jestValue.fn(),
+    push: vi.fn(),
   };
 }
 
@@ -300,7 +286,7 @@ class MockFileReader {
     MockFileReader.instances.push(this);
   }
 
-  readAsArrayBuffer = jestValue.fn();
+  readAsArrayBuffer = vi.fn();
 }
 
 beforeEach(() => {
@@ -313,22 +299,22 @@ beforeEach(() => {
     writable: true,
     value: () => ({
       matches: false,
-      addListener: jestValue.fn(),
-      removeListener: jestValue.fn(),
-      addEventListener: jestValue.fn(),
-      removeEventListener: jestValue.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
     }),
   });
   Object.defineProperty(global, "FileReader", {
     writable: true,
     value: MockFileReader,
   });
-  jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
-  jestValue.spyOn(Setting, "getRandomNumber").mockReturnValue("123456");
-  jestValue.spyOn(Setting, "getUserColumns").mockReturnValue(["Name#name", "Owner#owner"]);
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(false);
-  jestValue.spyOn(Setting, "goToLinkSoft").mockImplementation(() => {});
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
+  vi.spyOn(Setting, "getRandomNumber").mockReturnValue("123456");
+  vi.spyOn(Setting, "getUserColumns").mockReturnValue(["Name#name", "Owner#owner"]);
+  vi.spyOn(Setting, "isMobile").mockReturnValue(false);
+  vi.spyOn(Setting, "goToLinkSoft").mockImplementation(() => {});
   formBackendMock.getForm.mockResolvedValue({status: "ok", data: {formItems: []}});
   organizationBackendMock.getOrganization.mockResolvedValue({status: "ok", data: organization});
   userBackendMock.getUsers.mockResolvedValue({status: "ok", data: [], data2: 0});
@@ -341,14 +327,14 @@ beforeEach(() => {
   xlsxMock.utils.book_new.mockReturnValue({book: true});
   xlsxMock.read.mockReturnValue({SheetNames: ["Sheet1"], Sheets: {Sheet1: {}}});
   xlsxMock.utils.sheet_to_json.mockReturnValue([{name: "alice", owner: "engineering"}]);
-  global.fetch = jestValue.fn(() => Promise.resolve({
+  global.fetch = vi.fn(() => Promise.resolve({
     json: () => Promise.resolve({status: "ok"}),
   })) as unknown as typeof fetch;
 });
 
 afterEach(() => {
-  jestValue.restoreAllMocks();
-  jestValue.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
   cleanup();
 });
 
@@ -505,7 +491,7 @@ test("keeps add disabled when organization lookup succeeds without data", async(
 
 test("deletes users and removes users from groups", async() => {
   const page = createPage({groupName: "platform"});
-  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  page.fetch = vi.fn() as unknown as typeof page.fetch;
   page.state = {
     ...page.state,
     data: [user],
@@ -576,7 +562,7 @@ test("reports organization detail and impersonation failures", async() => {
 
 test("redirects and reloads after successful impersonation", async() => {
   const page = createPage();
-  jestValue.spyOn(console, "error").mockImplementation(() => {});
+  vi.spyOn(console, "error").mockImplementation(() => {});
 
   page.impersonateUser("engineering/alice");
   await flushPromises();
@@ -590,8 +576,8 @@ test("updates organization context and refetches when route props change", async
   const page = createPage({
     match: {path: "/organizations/:organizationName/users", params: {organizationName: "engineering"}},
   });
-  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
-  page.getOrganization = jestValue.fn() as unknown as typeof page.getOrganization;
+  page.fetch = vi.fn() as unknown as typeof page.fetch;
+  page.getOrganization = vi.fn() as unknown as typeof page.getOrganization;
   const previousProps = {
     ...page.props,
     match: {path: "/users", params: {}},
@@ -646,10 +632,10 @@ test("renders unauthorized state when user list request is denied", async() => {
 test("builds table actions for edit, impersonation, remove and delete", () => {
   const history = createHistory();
   const page = createPage({history, groupName: "platform"});
-  jestValue.spyOn(page, "addUser").mockImplementation(() => {});
-  jestValue.spyOn(page, "impersonateUser").mockImplementation(() => {});
-  jestValue.spyOn(page, "deleteUser").mockImplementation(() => {});
-  jestValue.spyOn(page, "removeUserFromGroup").mockImplementation(() => {});
+  vi.spyOn(page, "addUser").mockImplementation(() => {});
+  vi.spyOn(page, "impersonateUser").mockImplementation(() => {});
+  vi.spyOn(page, "deleteUser").mockImplementation(() => {});
+  vi.spyOn(page, "removeUserFromGroup").mockImplementation(() => {});
 
   const table = getTableFromRender(page);
   const columns = table.props.columns;
@@ -708,7 +694,7 @@ test("builds table actions for edit, impersonation, remove and delete", () => {
 
 test("renders advanced user filters and maps them to the existing single-field query contract", () => {
   const page = createPage();
-  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  page.fetch = vi.fn() as unknown as typeof page.fetch;
   page.state = {
     ...page.state,
     pagination: {...page.state.pagination, current: 3, pageSize: 20},
@@ -756,7 +742,7 @@ test("renders advanced user filters and maps them to the existing single-field q
 
 test("uses toolbar query state with existing fetch parameters", () => {
   const page = createPage();
-  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  page.fetch = vi.fn() as unknown as typeof page.fetch;
   page.state = {
     ...page.state,
     queryField: "email",
@@ -780,7 +766,7 @@ test("uses toolbar query state with existing fetch parameters", () => {
 
 test("keeps compact table scroll and sorting compatible with existing fetch contract", () => {
   const page = createPage();
-  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  page.fetch = vi.fn() as unknown as typeof page.fetch;
   page.state = {
     ...page.state,
     searchText: "alice",
@@ -939,7 +925,7 @@ test("keeps non-tree destructive actions available but disabled for protected us
 
 test("generates upload template and previews xlsx upload", async() => {
   const page = createPage();
-  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  page.fetch = vi.fn() as unknown as typeof page.fetch;
   const file = new File(["content"], "users.xlsx");
   const {upload} = getUploadAndModal(page);
 
@@ -1016,7 +1002,7 @@ test("reports upload preview and upload result errors", async() => {
   expect(page.state.showUploadModal).toBe(false);
 
   page.state = {...page.state, file};
-  global.fetch = jestValue.fn(() => Promise.reject(new Error("upload failed"))) as unknown as typeof fetch;
+  global.fetch = vi.fn(() => Promise.reject(new Error("upload failed"))) as unknown as typeof fetch;
   const {modal} = getUploadAndModal(page);
   modal.props.onOk();
   await flushPromises();

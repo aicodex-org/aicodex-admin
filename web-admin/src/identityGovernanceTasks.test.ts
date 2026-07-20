@@ -1,10 +1,11 @@
+import {describe, expect, test} from "vitest";
 import {
   buildGovernanceTasks,
-  filterGovernanceTasks,
-  type GovernanceTask,
-  type GovernanceTaskSourceDataset,
+  filterGovernanceTasks
 } from "./identityGovernanceTasks";
-import {expect} from "@jest/globals";
+
+type GovernanceTask = import("./identityGovernanceTasks").GovernanceTask;
+type GovernanceTaskSourceDataset = import("./identityGovernanceTasks").GovernanceTaskSourceDataset;
 
 const applications: GovernanceTaskSourceDataset = {
   pagePath: "/applications",

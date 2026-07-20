@@ -1,5 +1,4 @@
-/* eslint-env jest */
-import {expect, jest} from "@jest/globals";
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import * as Setting from "../Setting";
 import * as FeishuOrganizationSyncBackend from "./FeishuOrganizationSyncBackend";
 import {
@@ -7,10 +6,10 @@ import {
   saveFeishuOrganizationSyncConfig
 } from "./FeishuOrganizationSyncBackend";
 
-let fetchMock: ReturnType<typeof jest.fn>;
+let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
-  fetchMock = jest.fn(() => Promise.resolve({
+  fetchMock = vi.fn(() => Promise.resolve({
     json: () => Promise.resolve({
       status: "ok",
       data: {
@@ -26,11 +25,11 @@ beforeEach(() => {
     }),
   }));
   global.fetch = fetchMock as unknown as typeof fetch;
-  jest.spyOn(Setting, "getAcceptLanguage").mockReturnValue("zh");
+  vi.spyOn(Setting, "getAcceptLanguage").mockReturnValue("zh");
 });
 
 afterEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 test("passes Feishu organization sync source status through config APIs", async() => {
@@ -129,7 +128,7 @@ test("calls Feishu organization sync handoff evidence endpoint", async() => {
 });
 
 test("passes Feishu organization sync diagnostics payload through run detail", async() => {
-  fetchMock = jest.fn(() => Promise.resolve({
+  fetchMock = vi.fn(() => Promise.resolve({
     json: () => Promise.resolve({
       status: "ok",
       data: {

@@ -1,8 +1,7 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import React from "react";
 import {Input, Modal, Select, Switch} from "antd";
 import {act, cleanup, render} from "@testing-library/react";
-import {expect, jest} from "@jest/globals";
 import i18next from "i18next";
 import "./i18n";
 import ProviderEditPage from "./ProviderEditPage";
@@ -14,8 +13,8 @@ import {validateWeComProviderFields} from "./provider/WeComProviderUtils";
 import {type ConsoleCallSpy, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
+import {fireEvent} from "@testing-library/react";
 
-const {fireEvent} = require("@testing-library/react") as {fireEvent: {click: (element: Element) => boolean}};
 let consoleErrorSpy: ConsoleCallSpy;
 
 type PageHarness = ProviderEditPage & {
@@ -45,24 +44,24 @@ type Deferred<T> = {
   reject: (reason?: unknown) => void;
 };
 
-jest.mock("./provider/OAuthProviderFields", () => {
-  const ReactFactory = require("react");
+vi.mock("./provider/OAuthProviderFields", async() => {
+  const ReactFactory = await vi.importActual<typeof import("react")>("react");
   return {
     renderOAuthProviderFields: () => ReactFactory.createElement("div", {"data-testid": "oauth-provider-fields"}, "OAuth fields"),
   };
 });
 
-jest.mock("./provider/NotificationProviderFields", () => ({renderNotificationProviderFields: () => null}));
-jest.mock("./provider/EmailProviderFields", () => ({renderEmailProviderFields: () => null}));
-jest.mock("./provider/SmsProviderFields", () => ({renderSmsProviderFields: () => null}));
-jest.mock("./provider/MfaProviderFields", () => ({renderMfaProviderFields: () => null}));
-jest.mock("./provider/SamlProviderFields", () => ({renderSamlProviderFields: () => null}));
-jest.mock("./provider/CaptchaProviderFields", () => ({renderCaptchaProviderFields: () => null}));
-jest.mock("./provider/PaymentProviderFields", () => ({renderPaymentProviderFields: () => null}));
-jest.mock("./provider/StorageProviderFields", () => ({renderStorageProviderFields: () => null}));
-jest.mock("./provider/FaceIDProviderFields", () => ({renderFaceIdProviderFields: () => null}));
-jest.mock("./provider/IDVerificationProviderFields", () => ({renderIDVerificationProviderFields: () => null}));
-jest.mock("./provider/LarkProviderGuide", () => ({renderLarkProviderGuide: () => null}));
+vi.mock("./provider/NotificationProviderFields", () => ({renderNotificationProviderFields: () => null}));
+vi.mock("./provider/EmailProviderFields", () => ({renderEmailProviderFields: () => null}));
+vi.mock("./provider/SmsProviderFields", () => ({renderSmsProviderFields: () => null}));
+vi.mock("./provider/MfaProviderFields", () => ({renderMfaProviderFields: () => null}));
+vi.mock("./provider/SamlProviderFields", () => ({renderSamlProviderFields: () => null}));
+vi.mock("./provider/CaptchaProviderFields", () => ({renderCaptchaProviderFields: () => null}));
+vi.mock("./provider/PaymentProviderFields", () => ({renderPaymentProviderFields: () => null}));
+vi.mock("./provider/StorageProviderFields", () => ({renderStorageProviderFields: () => null}));
+vi.mock("./provider/FaceIDProviderFields", () => ({renderFaceIdProviderFields: () => null}));
+vi.mock("./provider/IDVerificationProviderFields", () => ({renderIDVerificationProviderFields: () => null}));
+vi.mock("./provider/LarkProviderGuide", () => ({renderLarkProviderGuide: () => null}));
 
 const baseProvider = {
   owner: "engineering",
@@ -149,7 +148,7 @@ function createProviderProps(owner = "engineering", name = "github-main") {
   return {
     match: {params: {organizationName: owner, providerName: name}},
     location: {mode: "edit" as const},
-    history: {push: jest.fn()},
+    history: {push: vi.fn()},
     account: {owner, name: "admin", email: "admin@example.test", isAdmin: true},
   };
 }
@@ -183,7 +182,7 @@ function createPage(options: {mode?: "add" | "edit"} = {}): PageHarness {
     location: options.mode === "add"
       ? {state: {mode: "add", provider: {...baseProvider}}}
       : {mode: options.mode},
-    history: {push: jest.fn()},
+    history: {push: vi.fn()},
     account: {owner: "engineering", name: "admin", email: "admin@example.test", isAdmin: true},
   } as any) as unknown as PageHarness;
 
@@ -207,10 +206,10 @@ function createPage(options: {mode?: "add" | "edit"} = {}): PageHarness {
 }
 
 beforeEach(async() => {
-  consoleErrorSpy = jest.spyOn(console, "error") as unknown as ConsoleCallSpy;
+  consoleErrorSpy = vi.spyOn(console, "error") as unknown as ConsoleCallSpy;
   await useTestLanguage("en");
-  jest.spyOn(Setting, "isMobile").mockReturnValue(false);
-  jest.spyOn(Setting, "isAdminUser").mockReturnValue(true);
+  vi.spyOn(Setting, "isMobile").mockReturnValue(false);
+  vi.spyOn(Setting, "isAdminUser").mockReturnValue(true);
 });
 
 afterEach(() => {
@@ -218,7 +217,7 @@ afterEach(() => {
   const actWarnings = getReactActWarnings(consoleErrorSpy.mock.calls);
   const lifecycleWarnings = getProviderLifecycleWarnings(consoleErrorSpy.mock.calls);
   consoleErrorSpy.mockRestore();
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
   expect(actWarnings).toEqual([]);
   expect(lifecycleWarnings).toEqual([]);
 });
@@ -278,12 +277,12 @@ test("routes edit cancel and shell back to provider list", () => {
 });
 
 test("publishes the provider display name for its workspace tab after loading and editing", async() => {
-  const dispatchSpy = jest.spyOn(window, "dispatchEvent");
+  const dispatchSpy = vi.spyOn(window, "dispatchEvent");
   const page = createPage();
   page.state.owner = "admin";
   page.state.providerName = "dingding";
   page.props.match.params.organizationName = "admin";
-  jest.spyOn(ProviderBackend, "getProvider").mockResolvedValue({
+  vi.spyOn(ProviderBackend, "getProvider").mockResolvedValue({
     status: "ok",
     data: {...baseProvider, owner: "admin", name: "dingding", displayName: "钉钉-自建"},
   } as any);
@@ -313,13 +312,13 @@ test("publishes the provider display name for its workspace tab after loading an
 ]).forEach(({mode, actionLabel}) => {
   test(`confirms before ${actionLabel} leaves a dirty ${mode} provider without mutations`, () => {
     const page = createPage({mode});
-    const addProvider = jest.spyOn(ProviderBackend, "addProvider");
-    const updateProvider = jest.spyOn(ProviderBackend, "updateProvider");
-    const deleteProvider = jest.spyOn(ProviderBackend, "deleteProvider");
+    const addProvider = vi.spyOn(ProviderBackend, "addProvider");
+    const updateProvider = vi.spyOn(ProviderBackend, "updateProvider");
+    const deleteProvider = vi.spyOn(ProviderBackend, "deleteProvider");
     let confirmOptions: {onOk?: () => void} | undefined;
-    const confirm = jest.spyOn(Modal, "confirm").mockImplementation(options => {
+    const confirm = vi.spyOn(Modal, "confirm").mockImplementation(options => {
       confirmOptions = options as {onOk?: () => void};
-      return {destroy: jest.fn(), update: jest.fn()} as any;
+      return {destroy: vi.fn(), update: vi.fn()} as any;
     });
 
     page.updateProviderField("displayName", "Changed Provider");
@@ -346,10 +345,10 @@ test("publishes the provider display name for its workspace tab after loading an
 
 test("confirms before leaving after a provider mapping edit", () => {
   const page = createPage();
-  const addProvider = jest.spyOn(ProviderBackend, "addProvider");
-  const updateProvider = jest.spyOn(ProviderBackend, "updateProvider");
-  const deleteProvider = jest.spyOn(ProviderBackend, "deleteProvider");
-  const confirm = jest.spyOn(Modal, "confirm").mockImplementation(() => ({destroy: jest.fn(), update: jest.fn()}) as any);
+  const addProvider = vi.spyOn(ProviderBackend, "addProvider");
+  const updateProvider = vi.spyOn(ProviderBackend, "updateProvider");
+  const deleteProvider = vi.spyOn(ProviderBackend, "deleteProvider");
+  const confirm = vi.spyOn(Modal, "confirm").mockImplementation(() => ({destroy: vi.fn(), update: vi.fn()}) as any);
 
   page.updateUserMappingField("email", "mail");
   page.handleBack();
@@ -364,7 +363,7 @@ test("confirms before leaving after a provider mapping edit", () => {
 
 test("keeps shared footer save actions wired to the existing provider submit method", () => {
   const page = createPage();
-  const submitProviderEdit = jest.spyOn(page, "submitProviderEdit").mockImplementation(() => undefined);
+  const submitProviderEdit = vi.spyOn(page, "submitProviderEdit").mockImplementation(() => undefined);
   const view = render(<>{page.renderProvider()}</>);
 
   fireEvent.click(view.getByText("Save"));
@@ -474,7 +473,7 @@ test("keeps subtype, app-id and notification receiver fields available for suppo
 
 test("updates every user, email and SMS mapping field through rendered controls", () => {
   const page = createPage() as any;
-  const updateMapping = jest.spyOn(page, "updateUserMappingField");
+  const updateMapping = vi.spyOn(page, "updateUserMappingField");
   [page.renderUserMappingInput(), page.renderEmailMappingInput(), page.renderSmsMappingInput()].forEach(node => {
     collectElementsByType(node, Input).forEach(input => {
       elementProps<{onChange: (event: {target: {value: string}}) => void}>(input).onChange({target: {value: "mapped"}});
@@ -487,16 +486,16 @@ test("updates every user, email and SMS mapping field through rendered controls"
 });
 
 test("initializes an add draft without loading or deleting a provider", async() => {
-  const getProvider = jest.spyOn(ProviderBackend, "getProvider").mockResolvedValue({status: "ok", data: baseProvider} as any);
+  const getProvider = vi.spyOn(ProviderBackend, "getProvider").mockResolvedValue({status: "ok", data: baseProvider} as any);
   const organizationsRequest = Promise.resolve({status: "ok", data: []});
   const certsRequest = Promise.resolve({status: "ok", data: []} as any);
-  jest.spyOn(OrganizationBackend, "getOrganizations").mockReturnValue(organizationsRequest);
-  jest.spyOn(CertBackend, "getCerts").mockReturnValue(certsRequest);
+  vi.spyOn(OrganizationBackend, "getOrganizations").mockReturnValue(organizationsRequest);
+  vi.spyOn(CertBackend, "getCerts").mockReturnValue(certsRequest);
   const draft = {...baseProvider, userMapping: undefined};
   const props = {
     match: {params: {organizationName: draft.owner, providerName: draft.name}},
     location: {state: {mode: "add", provider: draft}},
-    history: {push: jest.fn()},
+    history: {push: vi.fn()},
     account: {owner: draft.owner, name: "admin", isAdmin: true},
   } as any;
   const pageRef = React.createRef<ProviderEditPage>();
@@ -515,14 +514,14 @@ test("initializes an add draft without loading or deleting a provider", async() 
   const nextDraftPage = new ProviderEditPage({
     match: {params: {organizationName: draft.owner, providerName: "next-draft"}},
     location: {state: {mode: "add", provider: {...draft, name: "next-draft", userMapping: undefined}}},
-    history: {push: jest.fn()},
+    history: {push: vi.fn()},
     account: {owner: draft.owner, name: "admin", isAdmin: true},
   } as any) as unknown as PageHarness;
   expect(nextDraftPage.state.provider.userMapping.id).toBe("id");
   mountedPage.unmount();
 
   const addPage = createPage({mode: "add"});
-  const deleteProvider = jest.spyOn(addPage, "deleteProvider").mockImplementation(() => undefined);
+  const deleteProvider = vi.spyOn(addPage, "deleteProvider").mockImplementation(() => undefined);
   const view = render(<>{addPage.renderProvider()}</>);
 
   fireEvent.click(view.getByText("Cancel"));
@@ -533,11 +532,11 @@ test("initializes an add draft without loading or deleting a provider", async() 
 test("ignores stale Provider route responses and keeps the latest route state", async() => {
   const firstProvider = createDeferred<any>();
   const secondProvider = createDeferred<any>();
-  jest.spyOn(ProviderBackend, "getProvider")
+  vi.spyOn(ProviderBackend, "getProvider")
     .mockReturnValueOnce(firstProvider.promise)
     .mockReturnValueOnce(secondProvider.promise);
-  jest.spyOn(OrganizationBackend, "getOrganizations").mockReturnValue(neverResolvingPromise());
-  jest.spyOn(CertBackend, "getCerts").mockReturnValue(neverResolvingPromise());
+  vi.spyOn(OrganizationBackend, "getOrganizations").mockReturnValue(neverResolvingPromise());
+  vi.spyOn(CertBackend, "getCerts").mockReturnValue(neverResolvingPromise());
   const firstProps = createProviderProps("engineering", "github-main");
   const secondProps = createProviderProps("platform", "gitlab-main");
   const pageRef = React.createRef<ProviderEditPage>();
@@ -558,12 +557,12 @@ test("ignores stale Provider route responses and keeps the latest route state", 
 test("keeps the latest certificate owner when certificate responses finish out of order", async() => {
   const providerRequest = Promise.resolve({status: "ok", data: baseProvider} as any);
   const organizationsRequest = Promise.resolve({status: "ok", data: []});
-  jest.spyOn(ProviderBackend, "getProvider").mockReturnValue(providerRequest);
-  jest.spyOn(OrganizationBackend, "getOrganizations").mockReturnValue(organizationsRequest);
+  vi.spyOn(ProviderBackend, "getProvider").mockReturnValue(providerRequest);
+  vi.spyOn(OrganizationBackend, "getOrganizations").mockReturnValue(organizationsRequest);
   const initialCerts = createDeferred<any>();
   const oldOwnerCerts = createDeferred<any>();
   const currentOwnerCerts = createDeferred<any>();
-  jest.spyOn(CertBackend, "getCerts")
+  vi.spyOn(CertBackend, "getCerts")
     .mockReturnValueOnce(initialCerts.promise)
     .mockReturnValueOnce(oldOwnerCerts.promise)
     .mockReturnValueOnce(currentOwnerCerts.promise);
@@ -585,12 +584,12 @@ test("keeps the latest certificate owner when certificate responses finish out o
 });
 
 test("does not navigate or report completion after pending Provider work is unmounted", async() => {
-  jest.spyOn(ProviderBackend, "getProvider").mockReturnValue(neverResolvingPromise());
-  jest.spyOn(OrganizationBackend, "getOrganizations").mockReturnValue(neverResolvingPromise());
-  jest.spyOn(CertBackend, "getCerts").mockReturnValue(neverResolvingPromise());
+  vi.spyOn(ProviderBackend, "getProvider").mockReturnValue(neverResolvingPromise());
+  vi.spyOn(OrganizationBackend, "getOrganizations").mockReturnValue(neverResolvingPromise());
+  vi.spyOn(CertBackend, "getCerts").mockReturnValue(neverResolvingPromise());
   const deleteRequest = createDeferred<any>();
-  jest.spyOn(ProviderBackend, "deleteProvider").mockReturnValue(deleteRequest.promise);
-  const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  vi.spyOn(ProviderBackend, "deleteProvider").mockReturnValue(deleteRequest.promise);
+  const showMessage = vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
   const props = createProviderProps();
   const pageRef = React.createRef<ProviderEditPage>();
   const view = render(<ProviderEditPage ref={pageRef} {...props} />);
@@ -604,12 +603,12 @@ test("does not navigate or report completion after pending Provider work is unmo
 });
 
 test("does not finish stale SAML metadata loading after unmount", async() => {
-  jest.spyOn(ProviderBackend, "getProvider").mockReturnValue(neverResolvingPromise());
-  jest.spyOn(OrganizationBackend, "getOrganizations").mockReturnValue(neverResolvingPromise());
-  jest.spyOn(CertBackend, "getCerts").mockReturnValue(neverResolvingPromise());
+  vi.spyOn(ProviderBackend, "getProvider").mockReturnValue(neverResolvingPromise());
+  vi.spyOn(OrganizationBackend, "getOrganizations").mockReturnValue(neverResolvingPromise());
+  vi.spyOn(CertBackend, "getCerts").mockReturnValue(neverResolvingPromise());
   const metadataRequest = createDeferred<Response>();
-  global.fetch = jest.fn(() => metadataRequest.promise) as unknown as typeof fetch;
-  const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  global.fetch = vi.fn(() => metadataRequest.promise) as unknown as typeof fetch;
+  const showMessage = vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
   const pageRef = React.createRef<ProviderEditPage>();
   const view = render(<ProviderEditPage ref={pageRef} {...createProviderProps()} />);
   const page = pageRef.current as PageHarness;
@@ -627,17 +626,17 @@ test("does not finish stale SAML metadata loading after unmount", async() => {
 test("ignores a stale save after route change and releases the save lock for the current route", async() => {
   const firstLoad = Promise.resolve({status: "ok", data: baseProvider} as any);
   const secondLoad = createDeferred<any>();
-  jest.spyOn(ProviderBackend, "getProvider")
+  vi.spyOn(ProviderBackend, "getProvider")
     .mockReturnValueOnce(firstLoad)
     .mockReturnValueOnce(secondLoad.promise);
-  jest.spyOn(OrganizationBackend, "getOrganizations").mockReturnValue(neverResolvingPromise());
-  jest.spyOn(CertBackend, "getCerts").mockReturnValue(neverResolvingPromise());
+  vi.spyOn(OrganizationBackend, "getOrganizations").mockReturnValue(neverResolvingPromise());
+  vi.spyOn(CertBackend, "getCerts").mockReturnValue(neverResolvingPromise());
   const staleSave = createDeferred<any>();
   const currentSave = Promise.resolve({status: "ok"} as any);
-  const updateProvider = jest.spyOn(ProviderBackend, "updateProvider")
+  const updateProvider = vi.spyOn(ProviderBackend, "updateProvider")
     .mockReturnValueOnce(staleSave.promise)
     .mockReturnValueOnce(currentSave);
-  const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  const showMessage = vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
   const firstProps = createProviderProps("engineering", "github-main");
   const secondProps = createProviderProps("platform", "gitlab-main");
   secondProps.history = firstProps.history;
@@ -673,10 +672,10 @@ test("restores SAML metadata loading after current success and failure", async()
   page.state.requestUrl = "https://metadata.example.invalid";
   const successRequest = createDeferred<Response>();
   const failureRequest = createDeferred<Response>();
-  global.fetch = jest.fn()
+  global.fetch = vi.fn()
     .mockReturnValueOnce(successRequest.promise)
     .mockReturnValueOnce(failureRequest.promise) as unknown as typeof fetch;
-  const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  const showMessage = vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
 
   page.fetchSamlMetadata();
   expect(page.state.metadataLoading).toBe(true);
@@ -696,7 +695,7 @@ test("defaults new target Provider drafts to system without migrating edit recor
   const createDraftPage = (mode: "add" | "edit", tlsPolicy?: string) => new ProviderEditPage({
     match: {params: {organizationName: "engineering", providerName: "adfs-main"}},
     location: {state: {mode, provider: {...baseProvider, type: "ADFS", name: "adfs-main", tlsPolicy}}},
-    history: {push: jest.fn()},
+    history: {push: vi.fn()},
     account: {owner: "engineering", name: "admin", isAdmin: true},
   } as any) as unknown as PageHarness;
 
@@ -726,8 +725,8 @@ test("defaults new target Provider drafts to system without migrating edit recor
 test("keeps legacy Provider policy empty until an explicit selection is saved", async() => {
   const page = createPage();
   page.state.provider = {...page.state.provider, type: "ADFS", tlsPolicy: "", cert: ""};
-  const updateProvider = jest.spyOn(ProviderBackend, "updateProvider").mockResolvedValue({status: "ok"} as any);
-  jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  const updateProvider = vi.spyOn(ProviderBackend, "updateProvider").mockResolvedValue({status: "ok"} as any);
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
   const view = render(<>{page.renderProviderConfigurationContent(page.state.provider)}</>);
 
   expect(view.getByText("TLS policy pending migration")).not.toBeNull();
@@ -746,8 +745,8 @@ test("keeps legacy Provider policy empty until an explicit selection is saved", 
   test(`blocks invalid Provider TLS policy: ${String(tlsConfig.tlsPolicy)}/${String(tlsConfig.cert)}`, () => {
     const page = createPage();
     page.state.provider = {...page.state.provider, type: "ADFS", ...tlsConfig};
-    const updateProvider = jest.spyOn(ProviderBackend, "updateProvider");
-    const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+    const updateProvider = vi.spyOn(ProviderBackend, "updateProvider");
+    const showMessage = vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
 
     page.submitProviderEdit(false);
 
@@ -766,11 +765,11 @@ test("applies explicit Provider policy atomically and sends one request while sa
 
   let finishSave: ((value: {status: string}) => void) | undefined;
   const pendingSave = new Promise<{status: string}>(resolve => {finishSave = resolve;});
-  const updateProvider = jest.spyOn(ProviderBackend, "updateProvider").mockReturnValue(pendingSave as any);
-  jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  const updateProvider = vi.spyOn(ProviderBackend, "updateProvider").mockReturnValue(pendingSave as any);
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
 
   const realSetState = page.setState;
-  page.setState = jest.fn() as unknown as typeof page.setState;
+  page.setState = vi.fn() as unknown as typeof page.setState;
   page.submitProviderEdit(false);
   page.submitProviderEdit(false);
   expect(updateProvider).toHaveBeenCalledTimes(1);
@@ -788,7 +787,7 @@ test("applies explicit Provider policy atomically and sends one request while sa
 ] as Array<[string, Record<string, string> | undefined, Record<string, string>]>).forEach(([type, userMapping, expectedMapping]) => {
   test(`loads ${type} providers with the mapping required by their editor`, async() => {
     const page = createPage();
-    jest.spyOn(ProviderBackend, "getProvider").mockResolvedValue({
+    vi.spyOn(ProviderBackend, "getProvider").mockResolvedValue({
       status: "ok",
       data: {...baseProvider, type, userMapping},
     } as any);
@@ -802,8 +801,8 @@ test("applies explicit Provider policy atomically and sends one request while sa
 
 test("redirects missing providers and surfaces load failures", async() => {
   const page = createPage();
-  const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
-  const getProvider = jest.spyOn(ProviderBackend, "getProvider")
+  const showMessage = vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  const getProvider = vi.spyOn(ProviderBackend, "getProvider")
     .mockResolvedValueOnce({status: "ok", data: null} as any)
     .mockResolvedValueOnce({status: "error", data: baseProvider, msg: "not allowed"} as any);
 
@@ -819,11 +818,11 @@ test("redirects missing providers and surfaces load failures", async() => {
 
 test("loads organizations and certificates only through their allowed boundaries", async() => {
   const page = createPage();
-  const getOrganizations = jest.spyOn(OrganizationBackend, "getOrganizations").mockResolvedValue({
+  const getOrganizations = vi.spyOn(OrganizationBackend, "getOrganizations").mockResolvedValue({
     status: "ok",
     data: [{name: "engineering", displayName: "Engineering"}],
   });
-  const getCerts = jest.spyOn(CertBackend, "getCerts").mockResolvedValue({
+  const getCerts = vi.spyOn(CertBackend, "getCerts").mockResolvedValue({
     status: "ok",
     data: [{name: "cert-engineering"}],
   } as any);
@@ -835,7 +834,7 @@ test("loads organizations and certificates only through their allowed boundaries
   expect(page.state.organizations).toEqual([{name: "engineering", displayName: "Engineering"}]);
   expect(page.state.certs).toEqual([{name: "cert-engineering"}]);
 
-  jest.spyOn(Setting, "isAdminUser").mockReturnValue(false);
+  vi.spyOn(Setting, "isAdminUser").mockReturnValue(false);
   page.getOrganizations();
   expect(getOrganizations).toHaveBeenCalledTimes(1);
 
@@ -847,7 +846,7 @@ test("loads organizations and certificates only through their allowed boundaries
 
 test("keeps owner, numeric and provider-specific defaults consistent while editing", () => {
   const page = createPage();
-  const getCerts = jest.spyOn(page, "getCerts").mockImplementation(() => undefined);
+  const getCerts = vi.spyOn(page, "getCerts").mockImplementation(() => undefined);
   page.state.provider.cert = "old-cert";
 
   page.updateProviderField("owner", "platform");
@@ -877,7 +876,7 @@ test("wires every shared basic field and organization search to the provider sta
     scopes: "snsapi_privateinfo",
     disableSsl: false,
   };
-  jest.spyOn(page, "getCerts").mockImplementation(() => undefined);
+  vi.spyOn(page, "getCerts").mockImplementation(() => undefined);
   const section = page.renderProviderBasicSection(page.state.provider);
   const inputs = collectElementsByType(section, Input);
   const selects = collectElementsByType(section, Select);
@@ -983,7 +982,7 @@ test("does not expose or accept the retired Web3 provider category", () => {
   test(`applies meaningful defaults when switching ${category} providers to ${type}`, () => {
     const page = createPage();
     page.state.provider.category = category;
-    jest.spyOn(Setting, "getFullServerUrl").mockReturnValue("https://admin.example.test");
+    vi.spyOn(Setting, "getFullServerUrl").mockReturnValue("https://admin.example.test");
 
     page.updateProviderType(type);
 
@@ -993,7 +992,7 @@ test("does not expose or accept the retired Web3 provider category", () => {
 
 test("enforces required user mappings while allowing optional mappings to be cleared", () => {
   const page = createPage();
-  const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  const showMessage = vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
 
   page.updateUserMappingField("id", "");
   expect(page.state.provider.userMapping.id).toBe("id");
@@ -1014,8 +1013,8 @@ test("enforces required user mappings while allowing optional mappings to be cle
 test("blocks invalid Lark credentials before saving", () => {
   const page = createPage();
   page.state.provider = {...page.state.provider, type: "Lark", clientId: "", clientSecret: ""};
-  const updateProvider = jest.spyOn(ProviderBackend, "updateProvider");
-  const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  const updateProvider = vi.spyOn(ProviderBackend, "updateProvider");
+  const showMessage = vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
 
   page.submitProviderEdit(false);
 
@@ -1030,8 +1029,8 @@ test("blocks invalid Lark credentials before saving", () => {
   test(`saves valid providers and follows the ${exitAfterSave ? "return" : "stay"} mode`, async() => {
     const page = createPage();
     page.state.provider = {...page.state.provider, owner: "platform", name: "github-renamed"};
-    const updateProvider = jest.spyOn(ProviderBackend, "updateProvider").mockResolvedValue({status: "ok"} as any);
-    const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+    const updateProvider = vi.spyOn(ProviderBackend, "updateProvider").mockResolvedValue({status: "ok"} as any);
+    const showMessage = vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
 
     page.submitProviderEdit(exitAfterSave);
     await flushPromises();
@@ -1048,8 +1047,8 @@ test("blocks invalid Lark credentials before saving", () => {
 
 test("restores the persisted name on save rejection and surfaces connection failures", async() => {
   const page = createPage();
-  const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
-  jest.spyOn(ProviderBackend, "updateProvider")
+  const showMessage = vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  vi.spyOn(ProviderBackend, "updateProvider")
     .mockResolvedValueOnce({status: "error", msg: "duplicate name"} as any)
     .mockRejectedValueOnce(new Error("offline"));
   page.state.provider.name = "duplicate";
@@ -1066,7 +1065,7 @@ test("restores the persisted name on save rejection and surfaces connection fail
 
 test("keeps an edited provider draft name when add is rejected", async() => {
   const page = createPage({mode: "add"});
-  jest.spyOn(ProviderBackend, "addProvider").mockResolvedValueOnce({status: "error", msg: "duplicate"} as any);
+  vi.spyOn(ProviderBackend, "addProvider").mockResolvedValueOnce({status: "error", msg: "duplicate"} as any);
   page.state.provider.name = "custom-draft";
 
   page.submitProviderEdit(false);
@@ -1077,8 +1076,8 @@ test("keeps an edited provider draft name when add is rejected", async() => {
 
 test("creates a provider once and uses update for the next save", async() => {
   const page = createPage({mode: "add"});
-  const addProvider = jest.spyOn(ProviderBackend, "addProvider").mockResolvedValue({status: "ok"} as any);
-  const updateProvider = jest.spyOn(ProviderBackend, "updateProvider").mockResolvedValue({status: "ok"} as any);
+  const addProvider = vi.spyOn(ProviderBackend, "addProvider").mockResolvedValue({status: "ok"} as any);
+  const updateProvider = vi.spyOn(ProviderBackend, "updateProvider").mockResolvedValue({status: "ok"} as any);
 
   page.submitProviderEdit(false);
   await flushPromises();
@@ -1093,8 +1092,8 @@ test("creates a provider once and uses update for the next save", async() => {
 
 test("handles explicit deletion success, backend rejection and connection failure", async() => {
   const page = createPage();
-  const showMessage = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
-  jest.spyOn(ProviderBackend, "deleteProvider")
+  const showMessage = vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  vi.spyOn(ProviderBackend, "deleteProvider")
     .mockResolvedValueOnce({status: "ok"} as any)
     .mockResolvedValueOnce({status: "error", msg: "in use"} as any)
     .mockRejectedValueOnce(new Error("offline"));

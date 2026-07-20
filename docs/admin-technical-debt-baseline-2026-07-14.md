@@ -2,7 +2,7 @@
 
 > 初始审计日期：2026-07-14
 >
-> 最近整理日期：2026-07-17
+> 最近整理日期：2026-07-18
 >
 > 事实基线：以本文所在 `hfl-test-base` 提交、对应 OpenSpec archive 与主规格为准
 
@@ -22,13 +22,13 @@
 
 | 方向 | 已完成 change | 结果 |
 |---|---|---|
-| 前端测试与 CI 基线 | `stabilize-web-admin-test-baseline-and-ci-gates` | TypeScript、Jest、lint、build 与浏览器门禁形成稳定入口 |
+| 前端测试与 CI 基线 | `stabilize-web-admin-test-baseline-and-ci-gates`、`migrate-web-admin-jest-to-vitest` | TypeScript、Vitest、lint、build 与浏览器门禁形成稳定入口；单测保持157个文件且不少于1503个测试 |
 | Go correctness | `enable-incremental-go-correctness-gates` | `gofumpt`、`govet` 和固定 golangci-lint 基线可执行 |
 | Go 测试隔离与 fixture | `stabilize-admin-go-test-baseline-and-fixtures` | hermetic suite、integration 边界和 AICodex-owned schema registry 已建立 |
 | AICodex 表迁移 | `establish-aicodex-owned-schema-migration-baseline` | 自有表具备版本化 migration 基线，legacy Casdoor 表继续保留原边界 |
 | Insight runtime config | `consolidate-insight-runtime-config-resolution` | resolver、provider trust、Gateway projection 使用 typed resolution 和 copy-safe diagnostics |
 | 前端构建 | `migrate-web-admin-build-toolchain-to-vite` | CRA/CRACO 已由 Vite 替代，继续输出 `web-admin/build` |
-| Jest 工具链 | `decouple-web-admin-jest-from-react-scripts` | Jest 已显式配置，不再依赖 React Scripts |
+| 单元测试工具链 | `decouple-web-admin-jest-from-react-scripts`、`migrate-web-admin-jest-to-vitest` | Vitest 4.1.10已接管唯一runner；Jest 27、测试专属Babel transform和Jest support/config已退役 |
 | 浏览器 E2E | `migrate-admin-e2e-from-cypress-to-playwright` | Cypress 已移除；Playwright 保持 19 个 spec / 22 个 Chromium test |
 | 后台任务生命周期 | `stabilize-admin-background-task-lifecycle-and-graceful-shutdown` | 顶层任务启动、停止和 graceful shutdown 已形成统一边界 |
 | 组织同步 HTTP | `stabilize-admin-organization-sync-http-client-policy` | timeout、context cancellation 和 client 注入已按域收口 |
@@ -36,9 +36,9 @@
 | IDP HTTP client | `stabilize-admin-idp-http-client-contract` | 五个目标 Provider 统一注入 client、bounded fallback、body/status/error 与凭据脱敏契约 |
 | Web3 钱包认证退役 | `retire-unused-admin-web3-wallet-auth` | 60 零存量门禁通过；创建/登录入口、专属后端和 13 个直接依赖已移除，历史记录保持受控只读兼容 |
 | AntD 5 当前 API 清理 | `remove-web-admin-antd5-input-group-and-visible-deprecations`、`upgrade-web-admin-antd5-and-migrate-modal-destroy-semantics`、`eliminate-web-admin-antd-runtime-warning-owners` | 4 处 `Input.Group` 与 3 个 modal wrapper / 7 个调用点已迁移到 `Space.Compact` / `open`；AntD 精确升级到 5.29.3，11 处 overlay销毁语义使用`destroyOnHidden`；InputNumber/Card/Typography/Descriptions/Table/Spin/Collapse的47条production owner warning已按当前API收口并由局部non-silent guard保护，AntD 6继续排除 |
-| CRA/IE polyfill 退役 | `retire-web-admin-cra-ie-polyfill` | React 18 + Vite `es2020` 与 production browserslist 成为浏览器支持真值；CRA production/Jest polyfill owner 已移除，`core-js`、`replaceAll` 与显式 Jest/jsdom 边界继续保留 |
+| CRA/IE polyfill 退役 | `retire-web-admin-cra-ie-polyfill` | React 18 + Vite `es2020` 与 production browserslist 成为浏览器支持真值；CRA production/Jest polyfill owner 已移除，`core-js`、`replaceAll` 与显式 Vitest/jsdom 边界继续保留 |
 | 注册页响应式 | `fix-web-admin-signup-mobile-overflow` | Signup 固定 logo/Form/模式组已收敛到页面局部响应式边界；320/360/390px 与桌面端无页面级横向溢出，长标签、校验错误和键盘路径保持可用 |
-| React 18 测试异步边界 | `upgrade-web-admin-react-testing-library-for-react-18`、`stabilize-web-admin-react18-async-test-boundaries` | RTL 已使用 `createRoot`；历史 act warning、FakeTimers/native timer 污染和局部文本 suppression 已按 owner 收口，并由 non-silent 全量 Jest 与 test-only 防回退契约保护 |
+| React 18 测试异步边界 | `upgrade-web-admin-react-testing-library-for-react-18`、`stabilize-web-admin-react18-async-test-boundaries` | RTL 已使用 `createRoot`；历史 act warning、FakeTimers/native timer 污染和局部文本 suppression 已按 owner 收口，并由 non-silent 全量 Vitest 与 test-only 防回退契约保护 |
 | 企业 TLS 兼容策略 | `stabilize-admin-enterprise-tls-compatibility-policy` | ADFS、Active Directory 与 SMTP 已按连接使用 system/custom CA/显式 legacy policy；存量兼容、fail-closed、诊断脱敏和前端配置链已闭环 |
 | Provider 异步与列表 identity | `stabilize-web-admin-provider-unmount-and-list-key-contract` | Provider 卸载/路由切换后的过期异步 completion 已隔离，Webhook/Role/Permission 重复项使用稳定业务复合 key |
 | Web Admin direct-eval 退役 | `retire-web-admin-unused-direct-eval-runtime` | 未使用的 `Setting.parseObject` production owner 已移除，构建中的项目自有 direct-eval warning 归零并有源码契约防回退 |
@@ -48,7 +48,7 @@ TypeScript 增量迁移也已进入稳态：`web-admin/src` 不再把普通业�
 
 ## Bun package manager 决策
 
-最新结论仍为 NO-GO。Bun 1.3.14 候选在 Windows fresh workspace、独立空 cache、固定 tracked `bun.lock`和同一 workspace 最多5次frozen重试下仍5/5失败，最终direct manifests仅71/72并缺少 `less`。这直接否定“有界重试能在固定上限内可靠形成完整tree”的采用前提。
+当前活动真值为Bun 1.3.14、`packageManager: bun@1.3.14`与唯一tracked `web-admin/bun.lock`。Windows使用未设置 `BUN_INSTALL_CACHE_DIR`的默认持久cache执行标准安装，Linux CI/Docker通过同一 `bun run deps:install`入口执行frozen install；安装后动态校验全部direct dependency、resolution、关键package与Vitest/Vite/Playwright CLI，不保留Yarn/npm fallback或双lock。
 
 已归档的主要评估包括：
 
@@ -58,9 +58,9 @@ TypeScript 增量迁移也已进入稳态：`web-admin/src` 不再把普通业�
 - `reevaluate-web-admin-bun-package-manager-after-web3-retirement`
 - `adopt-web-admin-bun-with-bounded-install-retry`
 
-Linux双源6/6成功仍是有效历史证据，但不能补偿受支持Windows路径失败。Windows前置门禁已fail-fast，因此本轮没有进入60真实Docker构建或candidate部署。Yarn与 `yarn.lock`继续作为唯一活动package manager真值。
+上述归档中的Windows空cache失败、Linux双源成功和Bun NO-GO结论仍是当时输入下的有效历史证据，但不再代表当前活动package manager真值。后续采用change已基于默认持久cache、唯一lock、平台化普通/frozen入口和fail-closed完整性检查完成重新决策；历史archive不回写。
 
-下一次重评仅在Bun新stable明确发布相关Windows修复，或另一技术方案已有独立fresh workspace可靠性证据时启动；切换registry、增加相同重试次数或重复本轮输入不构成重评触发条件。
+后续若调整Bun版本、cache策略、lock格式或安装重试边界，必须以独立change重新验证Windows默认cache与Linux frozen入口，不得通过切换package manager、手工补包或忽略lifecycle绕过完整性检查。
 
 ## 继续延后
 
@@ -78,7 +78,7 @@ Linux双源6/6成功仍是有效历史证据，但不能补偿受支持Windows�
 
 ## 推荐顺序
 
-1. 继续使用Yarn与 `yarn.lock`，只在满足上述新stable修复或独立技术方案证据时重评Bun迁移。
+1. 保持Bun 1.3.14、唯一 `bun.lock`、Windows默认持久cache与Linux frozen入口；不恢复Yarn/npm fallback或双lock。
 2. 保持AntD 5.29.3、`destroyOnHidden`、runtime warning局部guard与React 18 Testing Library基线，不在后续业务change顺手升级AntD 6或用console过滤隐藏诊断。
 
 ## 维护规则

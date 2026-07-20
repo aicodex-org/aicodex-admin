@@ -333,6 +333,26 @@ const (
 	aicodexOwnedSchemaStateCompatible
 )
 
+type postgresPrimaryKeyMetadataRow struct {
+	TableName  string `xorm:"table_name"`
+	ColumnName string `xorm:"column_name"`
+}
+
+// replacePostgresPrimaryKeyMetadata 用 PostgreSQL 的 canonical PK constraint
+// 覆盖 Xorm metadata，避免其它 column constraint 污染 IsPrimaryKey 结果。
+func replacePostgresPrimaryKeyMetadata(tables map[string]*schemas.Table, rows []postgresPrimaryKeyMetadataRow) {
+	for _, table := range tables {
+		table.PrimaryKeys = nil
+	}
+	for _, row := range rows {
+		table := tables[strings.ToLower(row.TableName)]
+		if table == nil {
+			continue
+		}
+		table.PrimaryKeys = append(table.PrimaryKeys, row.ColumnName)
+	}
+}
+
 func hasAICodexSchemaMigrationVersion(records []AicodexSchemaMigration, version int) bool {
 	for _, record := range records {
 		if record.Version == version {
@@ -372,7 +392,7 @@ func validateAICodexSchemaMigrationHistory(migrations []aicodexSchemaMigration, 
 // inspectAICodexOwnedSchema 在取得 migration lock 前完成只读 adoption/drift preflight。
 // 持锁后 executor 会重读 history，并在同一 transaction session 再确认目标表存在。
 func inspectAICodexOwnedSchema(engine *xorm.Engine, baselineWasRecorded bool) (aicodexOwnedSchemaState, error) {
-	metas, err := engine.DBMetas()
+	actualByName, err := schemaTablesForCompatibility(engine)
 	if err != nil {
 		return aicodexOwnedSchemaStateEmpty, newAICodexSchemaMigrationError(
 			aicodexSchemaMigrationCodeIncompatibleSchema,
@@ -380,7 +400,6 @@ func inspectAICodexOwnedSchema(engine *xorm.Engine, baselineWasRecorded bool) (a
 			err,
 		)
 	}
-	actualByName := schemaTablesByName(metas)
 	models := aicodexOwnedSchemaModels()
 	present := 0
 	missing := make([]string, 0)
@@ -444,11 +463,11 @@ func inspectModelTableCompatibility(engine *xorm.Engine, model interface{}) ([]s
 	if err != nil {
 		return nil, err
 	}
-	metas, err := engine.DBMetas()
+	actualByName, err := schemaTablesForCompatibility(engine)
 	if err != nil {
 		return nil, err
 	}
-	actual := schemaTablesByName(metas)[strings.ToLower(engine.TableName(model))]
+	actual := actualByName[strings.ToLower(engine.TableName(model))]
 	if actual == nil {
 		return []string{fmt.Sprintf("table %s is missing", engine.TableName(model))}, nil
 	}
@@ -461,6 +480,34 @@ func schemaTablesByName(tables []*schemas.Table) map[string]*schemas.Table {
 		byName[strings.ToLower(table.Name)] = table
 	}
 	return byName
+}
+
+// schemaTablesForCompatibility 修正 Xorm v1.1.6 在 PostgreSQL 18 上可能被
+// NOT NULL constraint 覆盖的主键元数据；其它列与索引仍沿用方言原生 metadata。
+func schemaTablesForCompatibility(engine *xorm.Engine) (map[string]*schemas.Table, error) {
+	metas, err := engine.DBMetas()
+	if err != nil {
+		return nil, err
+	}
+	tables := schemaTablesByName(metas)
+	if !strings.EqualFold(engine.DriverName(), "postgres") {
+		return tables, nil
+	}
+
+	var primaryKeys []postgresPrimaryKeyMetadataRow
+	err = engine.SQL(`SELECT t.relname AS table_name, a.attname AS column_name
+FROM pg_constraint c
+JOIN pg_class t ON t.oid = c.conrelid
+JOIN pg_namespace n ON n.oid = t.relnamespace
+JOIN unnest(c.conkey) WITH ORDINALITY AS k(attnum, ordinality) ON true
+JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
+WHERE c.contype = 'p' AND n.nspname = current_schema()
+ORDER BY t.relname, k.ordinality`).Find(&primaryKeys)
+	if err != nil {
+		return nil, err
+	}
+	replacePostgresPrimaryKeyMetadata(tables, primaryKeys)
+	return tables, nil
 }
 
 // tableCompatibilityIssues 只接受可证明的非破坏兼容：额外普通索引/列可以保留，

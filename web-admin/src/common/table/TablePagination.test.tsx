@@ -1,3 +1,4 @@
+import {expect, test} from "vitest";
 // Copyright 2026 The AICodex Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,8 +15,6 @@
 
 import {getDefaultTablePagination, getTablePaginationProps} from "./TablePagination";
 type LegacyAny = import("../../types/legacyPage").LegacyAny;
-
-declare const expect: LegacyAny;
 
 test("provides the shared default table pagination state", () => {
   expect(getDefaultTablePagination()).toEqual(expect.objectContaining({

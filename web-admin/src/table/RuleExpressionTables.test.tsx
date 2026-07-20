@@ -1,6 +1,5 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
-import {expect, jest} from "@jest/globals";
 import {cleanup, render} from "@testing-library/react";
 import type {LegacyAny} from "../types/legacyPage";
 import WafRuleTable from "./WafRuleTable";
@@ -9,14 +8,12 @@ import UaRuleTable from "./UaRuleTable";
 import IpRateRuleTable from "./IpRateRuleTable";
 import type {RuleExpressionRow} from "./ruleExpressionRow";
 import {getRuleExpressionText} from "./ruleExpressionRow";
+import * as fs from "fs";
+import * as path from "path";
+import {fireEvent} from "@testing-library/react";
+import {fileURLToPath} from "url";
+const testFileDirectory = path.dirname(fileURLToPath(import.meta.url));
 
-const fs = require("fs") as {existsSync: (filePath: string) => boolean};
-const path = require("path") as {join: (...parts: string[]) => string};
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-  };
-};
 let consoleErrorSpy: {mockRestore: () => void};
 
 type CompleteRuleExpressionRow = RuleExpressionRow & {
@@ -64,7 +61,7 @@ function createTable(
   table: CompleteRuleExpressionRow[] = [],
   title = "Rule Table"
 ) {
-  const onUpdateTable = jest.fn() as unknown as UpdateTableMock;
+  const onUpdateTable = vi.fn() as unknown as UpdateTableMock;
   const page = new Component({title, table, onUpdateTable}) as RuleTableComponent;
   return {page, onUpdateTable};
 }
@@ -83,7 +80,7 @@ function clickButtonAt(container: HTMLElement, index: number) {
 }
 
 beforeEach(() => {
-  consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
+  consoleErrorSpy = vi.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
     throw new Error([message, ...args].map(item => `${item}`).join(" "));
   });
 });
@@ -91,13 +88,13 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   consoleErrorSpy.mockRestore();
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 test("migrates all governance rule expression tables from JavaScript to TSX", () => {
   ["WafRuleTable", "IpRuleTable", "UaRuleTable", "IpRateRuleTable"].forEach(fileName => {
-    expect(fs.existsSync(path.join(__dirname, `${fileName}.tsx`))).toBe(true);
-    expect(fs.existsSync(path.join(__dirname, `${fileName}.js`))).toBe(false);
+    expect(fs.existsSync(path.join(testFileDirectory, `${fileName}.tsx`))).toBe(true);
+    expect(fs.existsSync(path.join(testFileDirectory, `${fileName}.js`))).toBe(false);
   });
 });
 
@@ -105,7 +102,7 @@ test("accepts backend-compatible open rule expression rows", () => {
   const rows: RuleExpressionRow[] = [
     {name: "backend row", operator: "match", value: "SecRule one", backendOnly: 1},
   ];
-  const onUpdateTable = jest.fn() as unknown as UpdateTableMock;
+  const onUpdateTable = vi.fn() as unknown as UpdateTableMock;
   const page = new WafRuleTable({title: "Rule Table", table: rows, onUpdateTable}) as RuleTableComponent;
 
   page.updateField(rows, 0, "value", "SecRule two");
@@ -123,7 +120,7 @@ test("accepts RuleEditPage passthrough props without changing table behavior", (
     {name: "backend row", operator: "match", value: "one", backendOnly: 1},
   ];
   const account = {owner: "admin"};
-  const onUpdateTable = jest.fn() as unknown as UpdateTableMock;
+  const onUpdateTable = vi.fn() as unknown as UpdateTableMock;
 
   expect(new WafRuleTable({
     title: "WAF",

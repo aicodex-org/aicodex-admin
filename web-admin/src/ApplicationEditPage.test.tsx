@@ -1,8 +1,7 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 
 import React from "react";
 import {cleanup, render} from "@testing-library/react";
-import {expect, jest} from "@jest/globals";
 import {InputNumber, Modal, message} from "antd";
 import i18next from "i18next";
 import copy from "copy-to-clipboard";
@@ -17,13 +16,9 @@ import * as Setting from "./Setting";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
 import {type ConsoleCallSpy, getAntdWarnings} from "./testUtils/reactAsyncWarnings";
+import {fireEvent} from "@testing-library/react";
 
 let consoleErrorSpy: ConsoleCallSpy;
-
-const {fireEvent} = require("@testing-library/react") as {fireEvent: {
-  click: (element: Element) => boolean;
-  change: (element: Element, init: {target: Record<string, unknown>}) => boolean;
-}};
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -48,70 +43,64 @@ type PageHarness = ApplicationEditPage & {
   handleBack: () => void;
 };
 
-jest.mock("./backend/ApplicationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
+vi.mock("./backend/ApplicationBackend", () => {
   return {
-    getApplication: factoryJest.fn(),
-    addApplication: factoryJest.fn(),
-    updateApplication: factoryJest.fn(),
-    deleteApplication: factoryJest.fn(),
-    getSamlMetadata: factoryJest.fn(),
+    getApplication: vi.fn(),
+    addApplication: vi.fn(),
+    updateApplication: vi.fn(),
+    deleteApplication: vi.fn(),
+    getSamlMetadata: vi.fn(),
   };
 });
 
-jest.mock("./backend/ProviderBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
-  return {getProviders: factoryJest.fn()};
+vi.mock("./backend/ProviderBackend", () => {
+  return {getProviders: vi.fn()};
 });
 
-jest.mock("./backend/OrganizationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
-  return {getOrganizations: factoryJest.fn()};
+vi.mock("./backend/OrganizationBackend", () => {
+  return {getOrganizations: vi.fn()};
 });
 
-jest.mock("./backend/CertBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
-  return {getCerts: factoryJest.fn()};
+vi.mock("./backend/CertBackend", () => {
+  return {getCerts: vi.fn()};
 });
 
-jest.mock("./backend/ResourceBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
-  return {uploadResource: factoryJest.fn()};
+vi.mock("./backend/ResourceBackend", () => {
+  return {uploadResource: vi.fn()};
 });
 
-jest.mock("copy-to-clipboard", () => {
-  const {jest: factoryJest} = require("@jest/globals");
-  return factoryJest.fn();
+vi.mock("copy-to-clipboard", () => {
+  return ({default: vi.fn()});
 });
 
-jest.mock("./common/Editor", () => function EditorMock() {
+vi.mock("./common/Editor", () => ({default: function EditorMock() {
   return <pre data-testid="editor" />;
-});
+}}));
 
-jest.mock("./common/theme/ThemeEditor", () => function ThemeEditorMock(props: {onThemeChange?: (theme: unknown) => void}) {
+vi.mock("./common/theme/ThemeEditor", () => ({default: function ThemeEditorMock(props: {onThemeChange?: (theme: unknown) => void}) {
   return <button type="button" data-testid="theme-editor" onClick={() => props.onThemeChange?.({colorPrimary: "#1677ff"})}>ThemeEditor</button>;
-});
+}}));
 
-jest.mock("./auth/SignupPage", () => function SignupPageMock() {
+vi.mock("./auth/SignupPage", () => ({default: function SignupPageMock() {
   return <div data-testid="signup-preview">SignupPage</div>;
-});
+}}));
 
-jest.mock("./auth/LoginPage", () => function LoginPageMock() {
+vi.mock("./auth/LoginPage", () => ({default: function LoginPageMock() {
   return <div data-testid="login-preview">LoginPage</div>;
-});
+}}));
 
-jest.mock("./auth/PromptPage", () => function PromptPageMock() {
+vi.mock("./auth/PromptPage", () => ({default: function PromptPageMock() {
   return <div data-testid="prompt-preview">PromptPage</div>;
-});
+}}));
 
-jest.mock("antd/es/layout/layout", () => ({
+vi.mock("antd/es/layout/layout", () => ({
   Content: ({children, ...props}: {children?: React.ReactNode}) => <main {...props}>{children}</main>,
   Header: ({children, ...props}: {children?: React.ReactNode}) => <header {...props}>{children}</header>,
 }));
 
-jest.mock("antd/es/layout/Sider", () => function SiderMock({children, width, style, ...props}: {children?: React.ReactNode; width?: number; style?: React.CSSProperties}) {
+vi.mock("antd/es/layout/Sider", () => ({default: function SiderMock({children, width, style, ...props}: {children?: React.ReactNode; width?: number; style?: React.CSSProperties}) {
   return <aside {...props} data-width={width} style={style}>{children}</aside>;
-});
+}}));
 
 const applicationBackendMock = ApplicationBackend as unknown as ApplicationBackendMock;
 const providerBackendMock = ProviderBackend as unknown as ProviderBackendMock;
@@ -160,11 +149,11 @@ function mockMatchMedia(query: string): MediaQueryList {
     matches: false,
     media: query,
     onchange: null,
-    addListener: jest.fn(),
-    removeListener: jest.fn(),
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
   } as unknown as MediaQueryList;
 }
 
@@ -199,7 +188,7 @@ function createPage(options: {mode?: string; application?: Record<string, unknow
     location: options.mode === "add" && !options.legacyAdd
       ? {state: {mode: "add", application: draftApplication}, search: ""}
       : {mode: options.legacyAdd ? "add" : options.mode, search: ""},
-    history: {push: jest.fn()},
+    history: {push: vi.fn()},
     account: {owner: "engineering", name: "admin"},
   } as any) as unknown as PageHarness;
 
@@ -284,18 +273,18 @@ function findRenderedElements(node: React.ReactNode, predicate: (element: React.
 }
 
 beforeEach(async() => {
-  consoleErrorSpy = jest.spyOn(console, "error") as unknown as ConsoleCallSpy;
+  consoleErrorSpy = vi.spyOn(console, "error") as unknown as ConsoleCallSpy;
   await useTestLanguage("en");
   window.location.hash = "";
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: mockMatchMedia,
   });
-  jest.spyOn(Setting, "isMobile").mockReturnValue(false);
-  jest.spyOn(Setting, "showMessage").mockImplementation(() => {});
-  jest.spyOn(message, "error").mockImplementation((() => undefined) as unknown as typeof message.error);
-  jest.spyOn(Setting, "deepCopy").mockImplementation((value: unknown) => JSON.parse(JSON.stringify(value)));
-  jest.spyOn(Setting, "myParseInt").mockImplementation((value: unknown) => Number.parseInt(String(value), 10));
+  vi.spyOn(Setting, "isMobile").mockReturnValue(false);
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(message, "error").mockImplementation((() => undefined) as unknown as typeof message.error);
+  vi.spyOn(Setting, "deepCopy").mockImplementation((value: unknown) => JSON.parse(JSON.stringify(value)));
+  vi.spyOn(Setting, "myParseInt").mockImplementation((value: unknown) => Number.parseInt(String(value), 10));
   applicationBackendMock.getApplication.mockResolvedValue({status: "ok", data: {...baseApplication}});
   applicationBackendMock.addApplication.mockResolvedValue({status: "ok"});
   applicationBackendMock.updateApplication.mockResolvedValue({status: "ok"});
@@ -312,17 +301,17 @@ afterEach(() => {
   cleanup();
   const antdWarnings = getAntdWarnings(consoleErrorSpy.mock.calls);
   consoleErrorSpy.mockRestore();
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
   expect(antdWarnings).toEqual([]);
 });
 
 test("loads add-draft dependencies without reading a missing application", async() => {
   const draft = {...baseApplication, providers: [{name: "provider-main"}]};
-  const getApplication = jest.spyOn(ApplicationBackend, "getApplication");
+  const getApplication = vi.spyOn(ApplicationBackend, "getApplication");
   const page = new ApplicationEditPage({
     match: {params: {organizationName: draft.organization, applicationName: draft.name}},
     location: {state: {mode: "add", application: draft}, search: ""},
-    history: {push: jest.fn()},
+    history: {push: vi.fn()},
     account: {owner: draft.organization, name: "admin"},
   } as any) as unknown as PageHarness;
   Object.defineProperty(page, "setState", {
@@ -672,7 +661,7 @@ test("renders UI customization image URLs on the standard field axis", () => {
 });
 
 test("publishes the application display name for its workspace tab after loading and editing", async() => {
-  const dispatchSpy = jest.spyOn(window, "dispatchEvent");
+  const dispatchSpy = vi.spyOn(window, "dispatchEvent");
   const page = createPage({application: {displayName: "AICodex Portal"}});
   applicationBackendMock.getApplication.mockResolvedValue({
     status: "ok",
@@ -700,9 +689,9 @@ test("publishes the application display name for its workspace tab after loading
 
 test("marks application dirty on field updates and confirms before canceling", () => {
   const page = createPage();
-  const confirmSpy = jest.spyOn(Modal, "confirm").mockImplementation((config: Parameters<typeof Modal.confirm>[0]) => {
+  const confirmSpy = vi.spyOn(Modal, "confirm").mockImplementation((config: Parameters<typeof Modal.confirm>[0]) => {
     (config.onOk as (() => void) | undefined)?.();
-    return {destroy: jest.fn(), update: jest.fn()} as ReturnType<typeof Modal.confirm>;
+    return {destroy: vi.fn(), update: vi.fn()} as ReturnType<typeof Modal.confirm>;
   });
 
   page.updateApplicationField("displayName", "Portal Updated");
@@ -1281,9 +1270,9 @@ test("handles upload validation, preview copies and return actions through visib
   expect(copyMock).toHaveBeenCalledWith(expect.stringContaining("/signup/oauth/authorize"));
   expect(copyMock).toHaveBeenCalledWith(expect.stringContaining("/prompt/portal"));
 
-  const confirmSpy = jest.spyOn(Modal, "confirm").mockImplementation((config: Parameters<typeof Modal.confirm>[0]) => {
+  const confirmSpy = vi.spyOn(Modal, "confirm").mockImplementation((config: Parameters<typeof Modal.confirm>[0]) => {
     (config.onOk as (() => void) | undefined)?.();
-    return {destroy: jest.fn(), update: jest.fn()} as ReturnType<typeof Modal.confirm>;
+    return {destroy: vi.fn(), update: vi.fn()} as ReturnType<typeof Modal.confirm>;
   });
   page.state.dirty = true;
   page.handleBack();
@@ -1292,8 +1281,8 @@ test("handles upload validation, preview copies and return actions through visib
   expect(page.props.history.push).toHaveBeenCalledWith("/applications");
 });
 
-test("renders conditional configuration controls for agent OAuth, SAML and UI customization drafts", () => {
-  const page = createPage({
+const createConditionalConfigurationPage = () => {
+  return createPage({
     application: {
       category: "Agent",
       type: "MCP",
@@ -1315,22 +1304,29 @@ test("renders conditional configuration controls for agent OAuth, SAML and UI cu
       footerHtml: "<footer>Help</footer>",
     },
   });
+};
 
+test("renders conditional agent OIDC/OAuth configuration controls", () => {
+  const page = createConditionalConfigurationPage();
   page.state.activeMenuKey = "oidc-oauth";
-  let view = render(<>{page.renderApplication()}</>);
+  const view = render(<>{page.renderApplication()}</>);
   expect(view.getByText("OIDC/OAuth settings")).not.toBeNull();
   expect(view.getAllByText("Scopes").length).toBeGreaterThan(0);
   expect(view.getAllByText("Token attributes").length).toBeGreaterThan(0);
-  view.unmount();
+});
 
+test("renders conditional SAML configuration controls", () => {
+  const page = createConditionalConfigurationPage();
   page.state.activeMenuKey = "saml";
-  view = render(<>{page.renderApplication()}</>);
+  const view = render(<>{page.renderApplication()}</>);
   expect(view.getByText("SAML settings")).not.toBeNull();
   expect(view.queryByText("SAML attributes")).toBeNull();
-  view.unmount();
+});
 
+test("renders conditional UI customization drafts", () => {
+  const page = createConditionalConfigurationPage();
   page.state.activeMenuKey = "ui-customization";
-  view = render(<>{page.renderApplication()}</>);
+  const view = render(<>{page.renderApplication()}</>);
   expect(view.getByDisplayValue("<aside>Support</aside>")).not.toBeNull();
   expect(view.getByDisplayValue("<header>Portal</header>")).not.toBeNull();
   expect(view.getByDisplayValue("<footer>Help</footer>")).not.toBeNull();

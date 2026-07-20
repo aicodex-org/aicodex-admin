@@ -1,9 +1,8 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import React from "react";
 import {act, render} from "@testing-library/react";
 import {message} from "antd";
 import {MemoryRouter} from "react-router-dom";
-import {expect, jest} from "@jest/globals";
 import i18next from "i18next";
 import ApplicationUsageAccessPage from "./ApplicationUsageAccessPage";
 import {
@@ -27,8 +26,9 @@ import {
 } from "./ApplicationAccessServiceCredentialGovernancePanel";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
+import {fireEvent} from "@testing-library/react";
 
-jest.setTimeout(15000);
+vi.setConfig({testTimeout: 15000});
 
 type LooseMock = {
   (...args: unknown[]): Promise<unknown>;
@@ -39,24 +39,16 @@ type LooseMock = {
   mockResolvedValueOnce: (value: unknown) => LooseMock;
 };
 
-const mockGetServiceCredentialGovernanceStatus = jest.fn() as unknown as LooseMock;
-const mockGetServiceCredentialGovernanceConfig = jest.fn() as unknown as LooseMock;
-const mockSaveServiceCredentialGovernanceConfig = jest.fn() as unknown as LooseMock;
-const mockDiagnoseServiceCredentialGovernanceConfig = jest.fn() as unknown as LooseMock;
-const mockBuildServiceCredentialGovernanceHandoffPackage = jest.fn();
-const mockCreateInsightAdminAccessPackage = jest.fn() as unknown as LooseMock;
-const mockGetOrganizations = jest.fn() as unknown as LooseMock;
-const mockCopyToClipboard = jest.fn((..._args: unknown[]) => true);
+const mockGetServiceCredentialGovernanceStatus = vi.fn() as unknown as LooseMock;
+const mockGetServiceCredentialGovernanceConfig = vi.fn() as unknown as LooseMock;
+const mockSaveServiceCredentialGovernanceConfig = vi.fn() as unknown as LooseMock;
+const mockDiagnoseServiceCredentialGovernanceConfig = vi.fn() as unknown as LooseMock;
+const mockBuildServiceCredentialGovernanceHandoffPackage = vi.fn();
+const mockCreateInsightAdminAccessPackage = vi.fn() as unknown as LooseMock;
+const mockGetOrganizations = vi.fn() as unknown as LooseMock;
+const mockCopyToClipboard = vi.fn((..._args: unknown[]) => true);
 
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    change: (element: Element | null, event: unknown) => boolean;
-    click: (element: Element | null) => boolean;
-    mouseDown: (element: Element | null) => boolean;
-  };
-};
-
-jest.mock("./backend/ApplicationAccessServiceCredentialGovernanceBackend", () => {
+vi.mock("./backend/ApplicationAccessServiceCredentialGovernanceBackend", () => {
   return {
     getServiceCredentialGovernanceStatus: (...args: unknown[]) => mockGetServiceCredentialGovernanceStatus(...args),
     getServiceCredentialGovernanceConfig: (...args: unknown[]) => mockGetServiceCredentialGovernanceConfig(...args),
@@ -67,11 +59,11 @@ jest.mock("./backend/ApplicationAccessServiceCredentialGovernanceBackend", () =>
   };
 });
 
-jest.mock("./backend/OrganizationBackend", () => ({
+vi.mock("./backend/OrganizationBackend", () => ({
   getOrganizations: (...args: unknown[]) => mockGetOrganizations(...args),
 }));
 
-jest.mock("copy-to-clipboard", () => (...args: unknown[]) => mockCopyToClipboard(...args));
+vi.mock("copy-to-clipboard", () => ({default: (...args: unknown[]) => mockCopyToClipboard(...args)}));
 
 async function useTestLanguage(language: string) {
   if (!i18next.isInitialized) {
@@ -409,7 +401,7 @@ describe("ApplicationUsageAccessPage", () => {
         nextAction: "导入 Insight Profile 后由 Insight 后端兑换安全交接授权并完成凭据绑定",
       },
     });
-    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
       const serializedMessage = [message, ...args].map(item => `${item}`).join(" ");
       consoleErrorSpy.mockRestore();
       throw new Error(serializedMessage);
@@ -422,7 +414,7 @@ describe("ApplicationUsageAccessPage", () => {
       await settleMotionFrames();
     });
     consoleErrorSpy.mockRestore();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test("maps service credential machine states to operator-facing summaries", () => {
@@ -513,7 +505,7 @@ describe("ApplicationUsageAccessPage", () => {
     expect(view.queryByText("/current-user/organization-tree")).toBeNull();
     expect(view.queryByText("当前状态")).toBeNull();
     expect(view.queryByText("补齐 Admin env/config，重启后刷新本页")).toBeNull();
-    expect(view.getAllByText("接入包暂不可复制").length).toBeGreaterThan(0);
+    expect((await view.findAllByText("接入包暂不可复制")).length).toBeGreaterThan(0);
     expect(view.getByText("交接包不含真实凭据")).not.toBeNull();
     expect(view.queryByLabelText("关键阻断")).toBeNull();
     expect(view.queryByText("交接包可生成；导入 Insight Profile 后通过 manual/secretRef binding 绑定 resolver 凭据。交接包只包含元数据，不传递真实凭据。")).toBeNull();

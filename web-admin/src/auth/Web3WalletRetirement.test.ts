@@ -1,5 +1,4 @@
-/* eslint-env jest */
-import {expect, jest, test} from "@jest/globals";
+import {expect, test, vi} from "vitest";
 import {clearRetiredWeb3WalletAuthTokens, isRetiredWeb3WalletProvider} from "./Web3WalletRetirement";
 
 test.each([
@@ -20,8 +19,8 @@ test("clears only legacy wallet token keys without reading their values", () => 
     get length() {
       return keys.length;
     },
-    key: jest.fn((index: number) => keys[index] ?? null),
-    removeItem: jest.fn(),
+    key: vi.fn((index: number) => keys[index] ?? null),
+    removeItem: vi.fn(),
   };
 
   clearRetiredWeb3WalletAuthTokens(storage);

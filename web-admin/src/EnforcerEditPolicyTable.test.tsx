@@ -1,6 +1,5 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {act, cleanup, render} from "@testing-library/react";
 import {Button, Input, Select} from "antd";
 import {MemoryRouter} from "react-router-dom";
@@ -13,7 +12,6 @@ import EnforcerEditPage from "./EnforcerEditPage";
 import PolicyTable from "./table/PolicyTable";
 import {type ConsoleCallSpy, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
 
-declare const jest: typeof jestValue;
 let consoleErrorSpy: ConsoleCallSpy;
 
 type LooseMock = {
@@ -137,45 +135,34 @@ const adapterBackendMock = AdapterBackend as unknown as AdapterBackendMock;
 const enforcerBackendMock = EnforcerBackend as unknown as EnforcerBackendMock;
 const modelBackendMock = ModelBackend as unknown as ModelBackendMock;
 const organizationBackendMock = OrganizationBackend as unknown as OrganizationBackendMock;
-const expect = jestExpect;
 
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    change: (element: Element | null, event: unknown) => boolean;
-  };
-};
-
-jest.mock("./backend/AdapterBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/AdapterBackend", () => {
   return {
-    getAdapters: factoryJest.fn(),
-    getPolicies: factoryJest.fn(),
-    UpdatePolicy: factoryJest.fn(),
-    AddPolicy: factoryJest.fn(),
-    RemovePolicy: factoryJest.fn(),
+    getAdapters: vi.fn(),
+    getPolicies: vi.fn(),
+    UpdatePolicy: vi.fn(),
+    AddPolicy: vi.fn(),
+    RemovePolicy: vi.fn(),
   };
 });
 
-jest.mock("./backend/EnforcerBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/EnforcerBackend", () => {
   return {
-    getEnforcer: factoryJest.fn(),
-    updateEnforcer: factoryJest.fn(),
-    deleteEnforcer: factoryJest.fn(),
+    getEnforcer: vi.fn(),
+    updateEnforcer: vi.fn(),
+    deleteEnforcer: vi.fn(),
   };
 });
 
-jest.mock("./backend/ModelBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/ModelBackend", () => {
   return {
-    getModels: factoryJest.fn(),
+    getModels: vi.fn(),
   };
 });
 
-jest.mock("./backend/OrganizationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/OrganizationBackend", () => {
   return {
-    getOrganizations: factoryJest.fn(),
+    getOrganizations: vi.fn(),
   };
 });
 
@@ -208,7 +195,7 @@ async function flushPromises() {
 
 function createHistory() {
   return {
-    push: jestValue.fn(),
+    push: vi.fn(),
   };
 }
 
@@ -284,21 +271,21 @@ function findElementsByType(node: React.ReactNode, type: React.ElementType): Rea
 
 beforeEach(() => {
   cleanup();
-  consoleErrorSpy = jestValue.spyOn(console, "error") as unknown as ConsoleCallSpy;
+  consoleErrorSpy = vi.spyOn(console, "error") as unknown as ConsoleCallSpy;
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: () => ({
       matches: false,
-      addListener: jestValue.fn(),
-      removeListener: jestValue.fn(),
-      addEventListener: jestValue.fn(),
-      removeEventListener: jestValue.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
     }),
   });
-  jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(false);
-  jestValue.spyOn(Setting, "isAdminUser").mockReturnValue(true);
-  jestValue.spyOn(Setting, "builtInObject").mockImplementation((record: unknown) => {
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "isMobile").mockReturnValue(false);
+  vi.spyOn(Setting, "isAdminUser").mockReturnValue(true);
+  vi.spyOn(Setting, "builtInObject").mockImplementation((record: unknown) => {
     return (record as {owner?: string}).owner === "built-in";
   });
   adapterBackendMock.getAdapters.mockResolvedValue({status: "ok", data: [{owner: "engineering", name: "db-adapter"}]});
@@ -317,8 +304,8 @@ afterEach(() => {
   cleanup();
   const actWarnings = getReactActWarnings(consoleErrorSpy.mock.calls);
   consoleErrorSpy.mockRestore();
-  jestValue.restoreAllMocks();
-  jestValue.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
   expect(actWarnings).toEqual([]);
 });
 
@@ -461,7 +448,7 @@ test("loads enforcer edit data and renders policy table props", async() => {
 });
 
 test("publishes the enforcer display name for its workspace tab after loading and display-name edits", async() => {
-  const dispatchSpy = jestValue.spyOn(window, "dispatchEvent");
+  const dispatchSpy = vi.spyOn(window, "dispatchEvent");
   const page = createEditPage();
   enforcerBackendMock.getEnforcer.mockResolvedValueOnce({status: "ok", data: {...enforcer}});
 
@@ -674,7 +661,7 @@ test("keeps enforcer edit callbacks and fallback branches wired", async() => {
   page.updateEnforcerField("name", "ignored");
   expect(page.state.enforcer).toBeNull();
 
-  jestValue.spyOn(Setting, "myParseInt").mockReturnValue(7);
+  vi.spyOn(Setting, "myParseInt").mockReturnValue(7);
   expect(page.parseEnforcerField("", "7")).toBe(7);
 
   page.state = {
@@ -735,7 +722,7 @@ test("keeps enforcer edit callbacks and fallback branches wired", async() => {
 });
 
 test("keeps enforcer edit mobile, empty response and built-in fallback branches", async() => {
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(true);
+  vi.spyOn(Setting, "isMobile").mockReturnValue(true);
   const page = createEditPage();
 
   organizationBackendMock.getOrganizations.mockResolvedValueOnce({status: "ok", data: undefined});

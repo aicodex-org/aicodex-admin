@@ -1,8 +1,9 @@
-import {expect, test} from "@jest/globals";
 import fs from "fs";
 import path from "path";
+import {fileURLToPath} from "url";
+import {expect, test} from "vitest";
 
-const repoRoot = path.resolve(__dirname, "../..");
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
 const read = (relativePath: string): string =>
   fs.readFileSync(path.join(repoRoot, relativePath), "utf8");

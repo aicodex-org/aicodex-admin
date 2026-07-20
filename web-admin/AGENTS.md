@@ -6,13 +6,13 @@
 - 新增 React 页面、工作台、业务组件、展示组件默认使用 `.tsx`。
 - 新增纯逻辑、类型定义、接口模型、请求/响应结构、数据转换工具默认使用 `.ts`。
 - 不再为“清 JS 存量”单独派发大批量 TS 迁移；后续业务任务只需保证不新增 `src/` 下的 `.js` / `.jsx`。
-- `public/` 下直接 served 的 raw JS、React Scripts/Jest 或 Node 运行入口等需要 JS 形态的文件可以保留；若已有 TS 源生成链路或 `@ts-check`/专用 typecheck，不要为了零 JS 数字改造运行入口。
+- `public/` 下直接 served 的 raw JS 或 Node 运行入口等需要 JS 形态的文件可以保留；若已有 TS 源生成链路或 `@ts-check`/专用 typecheck，不要为了零 JS 数字改造运行入口。
 - 避免无解释的 `any`；优先使用明确接口、局部类型别名、`unknown` + 类型收窄或可辨识联合类型。
 
 ## 测试文件规则
 
 - 新增 `.tsx` 组件对应测试默认使用 `.test.tsx`。
-- 测试里包含 JSX、`render(<Component />)` 或需要校验 React 组件行为时，不要新建 `.test.js`；除非报告中明确记录 Jest/TypeScript blocker、替代验证和后续处理路径。
+- 测试里包含 JSX、`render(<Component />)` 或需要校验 React 组件行为时，不要新建 `.test.js`；除非报告中明确记录 Vitest/TypeScript blocker、替代验证和后续处理路径。
 - 新增 `.ts` 纯逻辑对应测试默认使用 `.test.ts`。
 - 既有保留的 runtime `.js` 入口若有对应测试，可按该入口的运行方式保留；新增业务测试默认使用 `.test.ts` / `.test.tsx`。
 
@@ -35,12 +35,15 @@
 
 - `web-admin` 以Bun 1.3.14和tracked `bun.lock`为唯一package manager真值。Windows安装使用未设置 `BUN_INSTALL_CACHE_DIR`的默认持久cache与 `bun run deps:install`；Linux CI/Docker由同一入口执行frozen install。不得使用Yarn/npm fallback、双lock、手工补包或忽略lifecycle。
 
+- `web-admin` 以Vitest 4.1.10作为唯一单元测试runner。`bun run test`提供watch入口，`bun run test:ci`执行non-watch、non-silent、single-worker、file-serial全量测试；聚焦测试使用 `bun x vitest run <test-path>`，不得改用 `bun test`、恢复Jest或通过silent/skip/only隐藏诊断。
+- 需要coverage时使用 `bun x vitest run --coverage`；V8 provider覆盖production `src` JS/JSX/TS/TSX、排除声明和测试文件，并输出text、JSON、LCOV与Clover。React act、fake timer、AntD与jsdom/runtime warning应保持可观察，不在全局setup/config添加console过滤。
+
 - 新 change 启动或前端收口时，在 `web-admin` 下运行：
   `node scripts/check-incremental-typescript-gate.mjs --base origin/hfl-test-base`
   该门禁很轻量，主要拦截新增 `src/` 业务 `.js/.jsx`、新增 JSX `.test.js`、新增纯逻辑 `.js`，防止 TypeScript 稳态回退。
 - 任何 `.ts` / `.tsx` 改动必须在 `web-admin` 下运行 `bun run typecheck`。
 - 修改 Vite 或构建工具配置时运行 `bun run typecheck:build-tooling`；构建入口变更还需运行非修改 `bun run lint`、`bun run build` 和浏览器 smoke。
-- 前端 UI 或行为改动按风险运行聚焦 Jest、`bun run build` 和浏览器/Playwright 验证；coverage 只用于高风险逻辑、既有覆盖率门槛或用户明确要求，不作为普通 UI/文案/样式任务的默认硬门禁。
+- 前端 UI 或行为改动按风险运行聚焦 Vitest、`bun run build` 和浏览器/Playwright 验证；coverage 只用于高风险逻辑、既有覆盖率门槛或用户明确要求，不作为普通 UI/文案/样式任务的默认硬门禁。
 - 只涉及前端 UI、样式、文案、纯前端路由或前端状态渲染的改动，默认优先启动本地 React 预览并代理到 60 测试后台，先做浏览器 smoke：检查目标路由渲染、tab/弹窗/表格交互、console/page error、页面级横向溢出和关键内容宽度；截图或 JSON 证据保存到 ignored 目录。Windows / PowerShell 环境可用 `local-dev/start-frontend-remote-backend.ps1`；其它平台可用等价 Vite dev server，并通过 `AICODEX_ADMIN_DEV_PROXY_TARGET` 或 `AICODEX_ADMIN_PROXY_TARGET` 指向 60 测试后台。该方式不启动本地 Go 后端，报告只写“60 测试后台”或脱敏别名，不记录完整后台 URL、Cookie、token 或响应体。
 - 涉及 `admin/**` 后端代码、API 契约、保存 payload、权限/认证语义、Cookie/域名/OIDC/SAML callback、数据库、部署配置或服务重启的改动，不能只依赖本地前端代理预览作为最终验收；可以先用它快速看 UI，但最终必须按风险补后端或 60 部署后的真实链路验证。
 - 只改文案、样式、低风险 TS 类型或文档时，可以使用 `incremental gate + typecheck + 聚焦测试/人工检查` 的轻量组合；不需要机械追加全量 build 或 coverage，除非改动触及构建、路由入口、共享组件或发布产物。

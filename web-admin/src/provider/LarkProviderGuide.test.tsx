@@ -1,17 +1,10 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 // eslint-disable-next-line unused-imports/no-unused-imports
 import type {ReactElement} from "react";
-import {jest, expect as jestExpect} from "@jest/globals";
 import {render} from "@testing-library/react";
 import {renderLarkProviderGuide} from "./LarkProviderGuide";
 
-type DomMatcherResult = ReturnType<typeof jestExpect> & {
-  toBeInTheDocument: () => void;
-};
-
-const expect = jestExpect as unknown as (actual: unknown) => DomMatcherResult;
-
-jest.mock("i18next", () => {
+vi.mock("i18next", () => {
   const mockI18next = {
     t: (key: string) => {
       const [, value] = key.split(":");
@@ -34,17 +27,17 @@ describe("renderLarkProviderGuide", () => {
       matches: false,
       media: query,
       onchange: null,
-      addListener: jest.fn(),
-      removeListener: jest.fn(),
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
-      dispatchEvent: jest.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
     } as unknown as MediaQueryList)) as typeof window.matchMedia;
-    jest.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   test("renders Feishu/Lark shared type and callback guidance", () => {

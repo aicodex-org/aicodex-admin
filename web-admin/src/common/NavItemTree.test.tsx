@@ -1,4 +1,4 @@
-/* eslint-env jest */
+import {beforeEach, describe, expect, test} from "vitest";
 import i18next from "i18next";
 import {buildEnterpriseNavigationConfigTreeData} from "../enterpriseNavigation";
 import {expectEnterprisePrimaryMenuLabels} from "../enterpriseNavigationLabelRules.testUtils";
@@ -6,8 +6,6 @@ import en from "../locales/en/data.json";
 import zh from "../locales/zh/data.json";
 import {NavItemTree} from "./NavItemTree";
 type LegacyAny = import("../types/legacyPage").LegacyAny;
-
-declare const expect: LegacyAny;
 
 function getGroup(treeData: LegacyAny, title: string): LegacyAny {
   return treeData[0].children.find((group: LegacyAny) => group.title === title);

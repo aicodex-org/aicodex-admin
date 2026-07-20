@@ -1,5 +1,5 @@
+import {beforeEach, describe, expect, test} from "vitest";
 import React from "react";
-import {expect} from "@jest/globals";
 import {render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import i18next from "i18next";

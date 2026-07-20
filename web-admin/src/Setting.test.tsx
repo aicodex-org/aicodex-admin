@@ -1,5 +1,4 @@
-/* eslint-env jest */
-import {expect, test} from "@jest/globals";
+import {expect, test} from "vitest";
 
 // Copyright 2026 The AICodex Authors. All Rights Reserved.
 //

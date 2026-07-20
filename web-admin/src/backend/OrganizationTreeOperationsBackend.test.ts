@@ -1,16 +1,10 @@
-/* eslint-env jest */
+import {beforeEach, expect, test, vi} from "vitest";
 
-import {expect as jestExpect} from "@jest/globals";
 import {
   getOrganizationTreeOperationsDiagnostics,
   getOrganizationTreeOperationsMembers,
   refreshOrganizationTreeOperations
 } from "./OrganizationTreeOperationsBackend";
-
-declare const jest: {
-  fn: () => unknown;
-  mock: (moduleName: string, factory: () => unknown) => void;
-};
 
 type FetchMock = {
   (...args: unknown[]): Promise<{json: () => Promise<unknown>}>;
@@ -19,14 +13,12 @@ type FetchMock = {
   mock: {calls: unknown[][]};
 };
 
-const expect = jestExpect;
-
-jest.mock("../Setting", () => ({
+vi.mock("../Setting", () => ({
   ServerUrl: "https://admin.example",
   getAcceptLanguage: () => "zh-CN",
 }));
 
-const fetchMock = jest.fn() as unknown as FetchMock;
+const fetchMock = vi.fn() as unknown as FetchMock;
 
 beforeEach(() => {
   fetchMock.mockClear();
