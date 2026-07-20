@@ -1,3 +1,5 @@
+name: ${COMPOSE_PROJECT_NAME:-aicodex-admin}
+
 x-logging-defaults: &logging-defaults
   driver: json-file
   options:
@@ -6,16 +8,21 @@ x-logging-defaults: &logging-defaults
 
 services:
   aicodex-admin:
-    restart: always
+    restart: ${AICODEX_ADMIN_RESTART_POLICY:-always}
     image: ${AICODEX_ADMIN_IMAGE:-aicodex-admin:latest}
     entrypoint: /bin/sh -c 'exec ./server --createDatabase=${AICODEX_CREATE_DATABASE:-false}'
+    env_file: [.env]
     environment:
       RUNNING_IN_DOCKER: "true"
       driverName: ${AICODEX_DB_DRIVER:-postgres}
       dbName: ${AICODEX_DB_NAME:-aicodex_admin}
       dataSourceName: "user=${AICODEX_DB_USER:?set AICODEX_DB_USER in env file} password=${AICODEX_DB_PASSWORD:?set AICODEX_DB_PASSWORD in env file} host=${AICODEX_DB_HOST:?set AICODEX_DB_HOST in env file} port=${AICODEX_DB_PORT:-5432} sslmode=${AICODEX_DB_SSLMODE:-disable} dbname=${AICODEX_DB_NAME:-aicodex_admin} ${AICODEX_DB_EXTRA_OPTIONS:-}"
+      origin: ${AICODEX_ADMIN_ORIGIN:-}
+      originFrontend: ${AICODEX_ADMIN_ORIGIN_FRONTEND:-}
       # 默认语言只影响首次访问或无痕窗口，用户仍可在页面上手动切换语言。
       defaultLanguage: ${AICODEX_ADMIN_DEFAULT_LANGUAGE:-zh}
+      # 非空时强制使用指定语言，并隐藏用户侧语言切换入口。
+      forceLanguage: ${AICODEX_ADMIN_FORCE_LANGUAGE:-}
       # Insight provider 校验 bearer token 时使用这些白名单，生产环境必须显式配置 audience。
       insightProviderAllowedAudiences: ${AICODEX_INSIGHT_PROVIDER_ALLOWED_AUDIENCES:-}
       insightProviderAllowedIssuers: ${AICODEX_INSIGHT_PROVIDER_ALLOWED_ISSUERS:-}
@@ -26,6 +33,18 @@ services:
       insightUsageIdentityResolverCaller: ${AICODEX_INSIGHT_USAGE_IDENTITY_RESOLVER_CALLER:-aicodex-admin}
       insightUsageIdentityResolverMaxItems: ${AICODEX_INSIGHT_USAGE_IDENTITY_RESOLVER_MAX_ITEMS:-200}
       insightUsageIdentityResolverTimeoutMs: ${AICODEX_INSIGHT_USAGE_IDENTITY_RESOLVER_TIMEOUT_MS:-5000}
+      # Gateway 组织投影发布与定时刷新配置，键名与 app.conf 保持一致。
+      gatewayOrganizationProjectionEnabled: ${AICODEX_GATEWAY_ORGANIZATION_PROJECTION_ENABLED:-false}
+      gatewayOrganizationProjectionEndpoint: ${AICODEX_GATEWAY_ORGANIZATION_PROJECTION_ENDPOINT:-}
+      gatewayOrganizationProjectionToken: ${AICODEX_GATEWAY_ORGANIZATION_PROJECTION_TOKEN:-}
+      gatewayOrganizationProjectionCaller: ${AICODEX_GATEWAY_ORGANIZATION_PROJECTION_CALLER:-aicodex-admin}
+      gatewayOrganizationProjectionTimeoutMs: ${AICODEX_GATEWAY_ORGANIZATION_PROJECTION_TIMEOUT_MS:-5000}
+      gatewayOrganizationProjectionFreshnessTTLSeconds: ${AICODEX_GATEWAY_ORGANIZATION_PROJECTION_FRESHNESS_TTL_SECONDS:-1800}
+      gatewayOrganizationProjectionMaxRetries: ${AICODEX_GATEWAY_ORGANIZATION_PROJECTION_MAX_RETRIES:-1}
+      gatewayOrganizationProjectionRefreshEnabled: ${AICODEX_GATEWAY_ORGANIZATION_PROJECTION_REFRESH_ENABLED:-}
+      gatewayOrganizationProjectionRefreshIntervalSeconds: ${AICODEX_GATEWAY_ORGANIZATION_PROJECTION_REFRESH_INTERVAL_SECONDS:-900}
+      gatewayOrganizationProjectionRefreshInitialDelaySeconds: ${AICODEX_GATEWAY_ORGANIZATION_PROJECTION_REFRESH_INITIAL_DELAY_SECONDS:-60}
+      gatewayOrganizationProjectionRefreshBatchSize: ${AICODEX_GATEWAY_ORGANIZATION_PROJECTION_REFRESH_BATCH_SIZE:-50}
     ports:
       - "${AICODEX_ADMIN_HTTP_PORT:-8000}:8000"
     volumes:
@@ -34,4 +53,10 @@ services:
       # 应用文件日志和临时文件落到运行目录，避免容器重建后丢失应用日志。
       - ${AICODEX_ADMIN_LOG_DIR:-./runtime/logs}:/logs
       - ${AICODEX_ADMIN_TMP_DIR:-./runtime/tmp}:/tmp
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -T 5 -O /dev/null http://127.0.0.1:8000/ || exit 1"]
+      start_period: 20s
+      interval: 10s
+      timeout: 5s
+      retries: 12
     logging: *logging-defaults
