@@ -72,7 +72,7 @@ TypeScript 增量迁移也已进入稳态：`web-admin/src` 不再把普通业�
 - 全量 class component 到 hooks。
 - 全仓 controller response/error contract 统一。
 - 全仓统一 HTTP client、全仓消除 panic 或一次性启用全部 linter。
-- Vitest文件并行、CI sharding或AntD/icons dependency optimizer直接采用。`optimize-web-admin-vitest-parallelism-and-ci-runtime` profiling中，单worker ESM optimizer曾把完整file-only shuffle降至`873.621s`，但正式实施首轮又在批准的5个owner之外暴露`OrganizationTreeOperationsPage.test.tsx`默认timeout，因而按fail-closed规则NO-GO并保持当前未优化的single-worker/file-serial真值。后续若重新立项，必须先定义新的owner治理边界并重跑默认顺序、shuffle与coverage，不得提高timeout或把系统热cache数字当成CI承诺。
+- Vitest文件并行、CI sharding或AntD/icons dependency optimizer直接采用。`adopt-web-admin-vitest-esm-optimizer-with-long-tail-stabilization`已用唯一 `react-dom` exclude消除第二renderer问题，第一次默认全量达到`823.598s`、157 files / 1511 tests且0 failure，但第二次默认轮在未授权owner `ApplicationEditPageUiCustomization.test.tsx` 出现5349ms默认timeout；候选因此再次按fail-closed规则NO-GO并完整回退，当前未优化的single-worker/file-serial真值不变。后续若重新立项，必须把实际长尾owner纳入明确写集并重跑两次默认、shuffle与coverage，不得提高timeout或把单次绿灯、系统热cache数字当成CI承诺。
 - 仅为缩短文件行数而重写历史 OpenSpec 主规格。
 
 这些方向只有在出现明确业务 blocker、升级前置或可量化维护成本时，才按单一业务域建立窄 change。不得把文件数量、行数或告警总数本身当作立项收益。

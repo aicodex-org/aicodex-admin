@@ -36,7 +36,7 @@
 - `web-admin` 以Bun 1.3.14和tracked `bun.lock`为唯一package manager真值。Windows安装使用未设置 `BUN_INSTALL_CACHE_DIR`的默认持久cache与 `bun run deps:install`；Linux CI/Docker由同一入口执行frozen install。不得使用Yarn/npm fallback、双lock、手工补包或忽略lifecycle。
 
 - `web-admin` 以Vitest 4.1.10作为唯一单元测试runner。`bun run test`提供watch入口，`bun run test:ci`执行non-watch、non-silent、single-worker、file-serial全量测试；聚焦测试使用 `bun x vitest run <test-path>`，不得改用 `bun test`、恢复Jest或通过silent/skip/only隐藏诊断。
-- 当前Vitest真值不启用 `test.deps.optimizer.client`，也不为 `antd` / `@ant-design/icons` 增加测试专用ESM根alias。该候选虽显著降低profiling耗时，但正式完整门禁暴露了批准owner范围外的默认timeout，已按fail-closed规则NO-GO；后续重新评估必须建立独立change，不得通过提高timeout、扩大批量测试写集或顺手增加workers绕过。Vitest大版本升级时还须专项回归 `vi.mock("antd/es/*")` 与dependency optimizer协作。
+- 当前Vitest真值不启用 `test.deps.optimizer.client`，也不为 `antd` / `@ant-design/icons` 增加测试专用ESM根alias。`adopt-web-admin-vitest-esm-optimizer-with-long-tail-stabilization`已证明exact ESM roots +唯一 `react-dom` exclude可把首个默认全量降至约824秒且module graph专项通过，但第二次默认轮在未授权owner `ApplicationEditPageUiCustomization.test.tsx` 出现5349ms默认timeout，已按fail-closed规则再次NO-GO并完整回退。后续重新评估必须建立独立change、明确纳入实际长尾owner，并完成两次默认、shuffle与coverage；不得提高timeout、扩大未书面批准的测试写集或顺手增加workers。Vitest大版本升级时还须专项回归 `vi.mock("antd/es/*")` 与dependency optimizer协作。
 - 需要coverage时使用 `bun x vitest run --coverage`；V8 provider覆盖production `src` JS/JSX/TS/TSX、排除声明和测试文件，并输出text、JSON、LCOV与Clover。React act、fake timer、AntD与jsdom/runtime warning应保持可观察，不在全局setup/config添加console过滤。
 
 - 新 change 启动或前端收口时，在 `web-admin` 下运行：
