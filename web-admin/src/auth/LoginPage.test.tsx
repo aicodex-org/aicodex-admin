@@ -1,7 +1,6 @@
-/* eslint-env jest */
+import {describe, expect, test} from "vitest";
 
 import React from "react";
-import {expect} from "@jest/globals";
 import {Space} from "antd";
 import {LoginPage} from "./LoginPage";
 // eslint-disable-next-line unused-imports/no-unused-imports

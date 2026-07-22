@@ -1,7 +1,6 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 
 import React from "react";
-import {expect, jest} from "@jest/globals";
 import {getAuthUrl, getProviderLogoWidget} from "./Provider";
 import * as Util from "./Util";
 
@@ -16,12 +15,12 @@ describe("Provider.getAuthUrl Lark authorization URL", () => {
       },
       configurable: true,
     });
-    jest.spyOn(Util, "getStateFromQueryParams").mockReturnValue("state value");
+    vi.spyOn(Util, "getStateFromQueryParams").mockReturnValue("state value");
     localStorage.clear();
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   const application = {
@@ -73,12 +72,12 @@ describe("Provider.getAuthUrl WeCom authorization URL", () => {
       },
       configurable: true,
     });
-    jest.spyOn(Util, "getStateFromQueryParams").mockReturnValue("state value");
+    vi.spyOn(Util, "getStateFromQueryParams").mockReturnValue("state value");
     localStorage.clear();
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   test("keeps provider scope for internal normal QR login", () => {

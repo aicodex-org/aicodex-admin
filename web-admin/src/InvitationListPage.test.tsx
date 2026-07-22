@@ -1,14 +1,12 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import * as Setting from "./Setting";
 import * as FormBackend from "./backend/FormBackend";
 import * as InvitationBackend from "./backend/InvitationBackend";
 import InvitationListPage from "./InvitationListPage";
-
-declare const jest: typeof jestValue;
+import {fireEvent} from "@testing-library/react";
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -25,34 +23,25 @@ type TestTableColumn = {
   render?: (text: unknown, record: unknown, index: number) => React.ReactNode;
 };
 
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-  };
-};
-
 const backendMock = InvitationBackend as unknown as BackendMock;
 const formBackendMock = FormBackend as unknown as FormBackendMock;
-const expect = jestExpect;
 
-jest.mock("./backend/InvitationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/InvitationBackend", () => {
   return {
-    getInvitations: factoryJest.fn(),
-    getInvitation: factoryJest.fn(),
-    getInvitationCodeInfo: factoryJest.fn(),
-    updateInvitation: factoryJest.fn(),
-    addInvitation: factoryJest.fn(),
-    deleteInvitation: factoryJest.fn(),
-    verifyInvitation: factoryJest.fn(),
-    sendInvitation: factoryJest.fn(),
+    getInvitations: vi.fn(),
+    getInvitation: vi.fn(),
+    getInvitationCodeInfo: vi.fn(),
+    updateInvitation: vi.fn(),
+    addInvitation: vi.fn(),
+    deleteInvitation: vi.fn(),
+    verifyInvitation: vi.fn(),
+    sendInvitation: vi.fn(),
   };
 });
 
-jest.mock("./backend/FormBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/FormBackend", () => {
   return {
-    getForm: factoryJest.fn(),
+    getForm: vi.fn(),
   };
 });
 
@@ -81,7 +70,7 @@ function flushPromises() {
 
 function createHistory() {
   return {
-    push: jestValue.fn(),
+    push: vi.fn(),
   };
 }
 
@@ -117,9 +106,9 @@ function renderPage() {
 beforeEach(() => {
   localStorage.clear();
   localStorage.setItem("organization", "engineering");
-  jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
-  jestValue.spyOn(Math, "random").mockReturnValue(0.123456789);
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
+  vi.spyOn(Math, "random").mockReturnValue(0.123456789);
   formBackendMock.getForm.mockResolvedValue({status: "ok", data: {formItems: []}});
   backendMock.getInvitations.mockResolvedValue({
     status: "ok",
@@ -131,8 +120,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  jestValue.restoreAllMocks();
-  jestValue.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
 });
 
 test("renders invitation rows and fetches the selected organization", async() => {
@@ -240,7 +229,7 @@ test("uses existing pagination and normalizes string totals when params are omit
 
 test("deletes invitation and rolls back pagination for the last row", async() => {
   const page = createPage();
-  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  page.fetch = vi.fn() as unknown as typeof page.fetch;
   page.state = {
     ...page.state,
     data: [invitation],
@@ -282,8 +271,8 @@ test("builds table columns, actions and toolbar without changing handlers", () =
     history,
     match: {path: "/invitations", params: {}},
   });
-  jestValue.spyOn(page, "deleteInvitation").mockImplementation(() => {});
-  jestValue.spyOn(page, "addInvitation").mockImplementation(() => {});
+  vi.spyOn(page, "deleteInvitation").mockImplementation(() => {});
+  vi.spyOn(page, "addInvitation").mockImplementation(() => {});
 
   const tableWrapper = page.renderTable([invitation]) as React.ReactElement<{children: React.ReactElement<{columns: TestTableColumn[]; title: () => React.ReactNode}>}>;
   const table = tableWrapper.props.children;
@@ -321,7 +310,7 @@ test("builds table columns, actions and toolbar without changing handlers", () =
 });
 
 test("uses a non-fixed action column on mobile", () => {
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(true);
+  vi.spyOn(Setting, "isMobile").mockReturnValue(true);
   const page = createPage();
 
   const tableWrapper = page.renderTable([invitation]) as React.ReactElement<{children: React.ReactElement<{columns: TestTableColumn[]}>}>;

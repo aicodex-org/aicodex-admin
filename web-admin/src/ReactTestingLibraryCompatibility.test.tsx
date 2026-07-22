@@ -1,19 +1,30 @@
+import {afterEach, describe, expect, test, vi} from "vitest";
 import React, {useState} from "react";
-import * as ReactDOMClient from "react-dom/client";
+import {createRequire} from "node:module";
 import {act, cleanup, render, screen} from "@testing-library/react";
-import {expect, jest} from "@jest/globals";
+
+const requireFromTest = createRequire(import.meta.url);
 
 describe("React 18 Testing Library compatibility", () => {
   afterEach(() => {
     cleanup();
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
-  test("uses createRoot by default and cleanup unmounts the rendered tree", () => {
-    jest.isolateModules(() => {
-      const isolatedReactDOMClient = require("react-dom/client") as typeof ReactDOMClient;
-      const createRootSpy = jest.spyOn(isolatedReactDOMClient, "createRoot");
-      const isolatedTestingLibrary = require("@testing-library/react/pure") as typeof import("@testing-library/react/pure");
+  test("uses createRoot by default and cleanup unmounts the rendered tree", async() => {
+    vi.resetModules();
+    const reactDOMClient = requireFromTest("react-dom/client") as typeof import("react-dom/client");
+    const mutableReactDOMClient = reactDOMClient as {createRoot: typeof reactDOMClient.createRoot};
+    const originalCreateRoot = reactDOMClient.createRoot;
+    const createRootSpy = vi.fn(originalCreateRoot);
+    const pureModulePath = requireFromTest.resolve("@testing-library/react/pure");
+    const pureImplementationPath = requireFromTest.resolve("@testing-library/react/dist/pure");
+    mutableReactDOMClient.createRoot = createRootSpy;
+    delete requireFromTest.cache[pureModulePath];
+    delete requireFromTest.cache[pureImplementationPath];
+
+    try {
+      const isolatedTestingLibrary = requireFromTest("@testing-library/react/pure") as typeof import("@testing-library/react/pure");
       const rendered = isolatedTestingLibrary.render(<div>React 18 root</div>);
 
       expect(createRootSpy).toHaveBeenCalledTimes(1);
@@ -21,7 +32,11 @@ describe("React 18 Testing Library compatibility", () => {
 
       isolatedTestingLibrary.cleanup();
       expect(rendered.container.childElementCount).toBe(0);
-    });
+    } finally {
+      mutableReactDOMClient.createRoot = originalCreateRoot;
+      delete requireFromTest.cache[pureModulePath];
+      delete requireFromTest.cache[pureImplementationPath];
+    }
   });
 
   test("act commits synchronous and asynchronous state updates", async() => {

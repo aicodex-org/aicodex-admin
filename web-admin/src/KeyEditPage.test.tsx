@@ -1,7 +1,6 @@
-/* eslint-env jest */
+import {afterEach, expect, test, vi} from "vitest";
 import React from "react";
 import {cleanup, render} from "@testing-library/react";
-import {expect, jest} from "@jest/globals";
 import KeyEditPage from "./KeyEditPage";
 import * as KeyBackend from "./backend/KeyBackend";
 import * as Setting from "./Setting";
@@ -10,7 +9,7 @@ const draft = {owner: "engineering", name: "key_draft", displayName: "Draft", ty
 const flushPromises = async(): Promise<void> => new Promise(resolve => setTimeout(resolve, 0));
 
 function createPage(mode: "add" | "edit" = "edit"): any {
-  const page: any = new KeyEditPage({match: {params: {organizationName: "engineering", keyName: "key_draft"}}, location: {mode, keyDraft: draft}, history: {push: jest.fn()}, account: {owner: "engineering", isAdmin: true}} as any);
+  const page: any = new KeyEditPage({match: {params: {organizationName: "engineering", keyName: "key_draft"}}, location: {mode, keyDraft: draft}, history: {push: vi.fn()}, account: {owner: "engineering", isAdmin: true}} as any);
   page.state = {...page.state, key: {...draft}, organizations: [], applications: [], users: []};
   page.setState = (patch: any, callback?: () => void) => {
     page.state = {...page.state, ...(typeof patch === "function" ? patch(page.state, page.props) : patch)};
@@ -21,11 +20,11 @@ function createPage(mode: "add" | "edit" = "edit"): any {
 
 afterEach(() => {
   cleanup();
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 test("renders a shared single-body key shell with two sections", () => {
-  jest.spyOn(Setting, "isMobile").mockReturnValue(false);
+  vi.spyOn(Setting, "isMobile").mockReturnValue(false);
   const page = createPage();
   const view = render(<>{page.renderKey()}</>);
   expect(view.container.querySelector(".key-edit-shell")).not.toBeNull();
@@ -36,8 +35,8 @@ test("renders a shared single-body key shell with two sections", () => {
   const actionButtons = view.container.querySelectorAll<HTMLButtonElement>(".key-edit-action-bar button");
   expect(actionButtons).toHaveLength(3);
 
-  const handleBack = jest.spyOn(page, "handleBack").mockImplementation(() => undefined);
-  const submitKeyEdit = jest.spyOn(page, "submitKeyEdit").mockImplementation(() => undefined);
+  const handleBack = vi.spyOn(page, "handleBack").mockImplementation(() => undefined);
+  const submitKeyEdit = vi.spyOn(page, "submitKeyEdit").mockImplementation(() => undefined);
   view.container.querySelector<HTMLButtonElement>(".key-edit-back-button")?.click();
   actionButtons.forEach((button: HTMLButtonElement) => button.click());
 
@@ -47,7 +46,7 @@ test("renders a shared single-body key shell with two sections", () => {
 });
 
 test("renders searchable organization display names while retaining technical identifiers", () => {
-  jest.spyOn(Setting, "isMobile").mockReturnValue(false);
+  vi.spyOn(Setting, "isMobile").mockReturnValue(false);
   const page = createPage();
   page.state.key.owner = "feishu6091";
   page.state.organizations = [
@@ -67,10 +66,10 @@ test("renders searchable organization display names while retaining technical id
 
 test("creates an add-mode key only on save and reloads generated credentials", async() => {
   const page = createPage("add");
-  const addKey = jest.spyOn(KeyBackend, "addKey").mockResolvedValue({status: "ok"} as any);
-  const updateKey = jest.spyOn(KeyBackend, "updateKey");
-  const getKey = jest.spyOn(page, "getKey").mockImplementation(() => undefined);
-  jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  const addKey = vi.spyOn(KeyBackend, "addKey").mockResolvedValue({status: "ok"} as any);
+  const updateKey = vi.spyOn(KeyBackend, "updateKey");
+  const getKey = vi.spyOn(page, "getKey").mockImplementation(() => undefined);
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
   page.submitKeyEdit(false);
   await flushPromises();
   expect(addKey).toHaveBeenCalledWith(expect.objectContaining({name: "key_draft"}));
@@ -82,9 +81,9 @@ test("creates an add-mode key only on save and reloads generated credentials", a
 
 test("loads an add-mode key draft without requesting generated credentials", () => {
   const page = createPage("add");
-  const getKey = jest.spyOn(KeyBackend, "getKey");
-  const getApplications = jest.spyOn(page, "getApplicationsByOrganization").mockImplementation(() => undefined);
-  const getUsers = jest.spyOn(page, "getUsersByOrganization").mockImplementation(() => undefined);
+  const getKey = vi.spyOn(KeyBackend, "getKey");
+  const getApplications = vi.spyOn(page, "getApplicationsByOrganization").mockImplementation(() => undefined);
+  const getUsers = vi.spyOn(page, "getUsersByOrganization").mockImplementation(() => undefined);
 
   page.getKey();
 
@@ -96,7 +95,7 @@ test("loads an add-mode key draft without requesting generated credentials", () 
 
 test("returns from an unsaved key draft without deleting it", () => {
   const page = createPage("add");
-  const deleteKey = jest.spyOn(KeyBackend, "deleteKey");
+  const deleteKey = vi.spyOn(KeyBackend, "deleteKey");
 
   page.handleBack();
 
@@ -106,9 +105,9 @@ test("returns from an unsaved key draft without deleting it", () => {
 
 test("keeps key edit mode on update and supports save-and-return", async() => {
   const page = createPage("edit");
-  const addKey = jest.spyOn(KeyBackend, "addKey");
-  const updateKey = jest.spyOn(KeyBackend, "updateKey").mockResolvedValue({status: "ok"} as any);
-  jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  const addKey = vi.spyOn(KeyBackend, "addKey");
+  const updateKey = vi.spyOn(KeyBackend, "updateKey").mockResolvedValue({status: "ok"} as any);
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
 
   page.submitKeyEdit(true);
   await flushPromises();
@@ -121,10 +120,10 @@ test("keeps key edit mode on update and supports save-and-return", async() => {
 test("prevents duplicate key saves and restores submission after failure", async() => {
   const page = createPage("add");
   let resolveRequest: ((value: any) => void) | undefined;
-  const addKey = jest.spyOn(KeyBackend, "addKey").mockImplementation(() => new Promise(resolve => {
+  const addKey = vi.spyOn(KeyBackend, "addKey").mockImplementation(() => new Promise(resolve => {
     resolveRequest = resolve;
   }) as any);
-  jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
 
   page.submitKeyEdit(false);
   page.submitKeyEdit(false);
@@ -138,9 +137,9 @@ test("prevents duplicate key saves and restores submission after failure", async
 
 test("reloads a newly created key only after switching to edit mode", async() => {
   const page = createPage("add");
-  jest.spyOn(KeyBackend, "addKey").mockResolvedValue({status: "ok"} as any);
-  jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
-  const getKey = jest.spyOn(page, "getKey").mockImplementation(() => undefined);
+  vi.spyOn(KeyBackend, "addKey").mockResolvedValue({status: "ok"} as any);
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  const getKey = vi.spyOn(page, "getKey").mockImplementation(() => undefined);
   const synchronousSetState = page.setState;
   let successCallback: (() => void) | undefined;
   let setStateCalls = 0;

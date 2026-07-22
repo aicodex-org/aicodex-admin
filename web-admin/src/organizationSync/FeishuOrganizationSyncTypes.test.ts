@@ -1,4 +1,4 @@
-import {expect} from "@jest/globals";
+import {describe, expect, test} from "vitest";
 import {getFeishuEndpointContextText} from "./FeishuOrganizationSyncTypes";
 
 describe("Feishu organization sync typed helpers", () => {

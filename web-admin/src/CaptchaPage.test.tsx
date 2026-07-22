@@ -1,7 +1,6 @@
-/* eslint-env jest */
+import {expect, test} from "vitest";
 
 import React from "react";
-import {expect} from "@jest/globals";
 import CaptchaPage from "./CaptchaPage";
 
 test("passes the always-on captcha state through the open prop", () => {

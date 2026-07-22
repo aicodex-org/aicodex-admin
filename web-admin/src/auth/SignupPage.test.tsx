@@ -1,7 +1,6 @@
-/* eslint-env jest */
+import {expect, test, vi} from "vitest";
 
 import React from "react";
-import {expect, jest} from "@jest/globals";
 import {Form, Radio, Space} from "antd";
 import SignupPageWithRouter from "./SignupPage";
 import * as Setting from "../Setting";
@@ -78,7 +77,7 @@ function createApplication() {
   };
 }
 
-function createPage(application = createApplication(), history: Record<string, unknown> = {push: jest.fn()}) {
+function createPage(application = createApplication(), history: Record<string, unknown> = {push: vi.fn()}) {
   return new SignupPage({
     application,
     history,
@@ -103,7 +102,7 @@ test("scopes the signup shell and form for viewport-constrained sizing", () => {
 
 test("keeps signup mode controls fluid and account actions wrappable", () => {
   const application = createApplication();
-  const historyPush = jest.fn();
+  const historyPush = vi.fn();
   const page = createPage(application, {push: historyPush});
   const modeNode = page.renderFormItem(application, {
     name: "Email or Phone",
@@ -127,7 +126,7 @@ test("keeps signup mode controls fluid and account actions wrappable", () => {
   expect(actionSpace?.props.wrap).toBe(true);
   expect(loginLink?.props.href).toBe("/login");
 
-  const preventDefault = jest.fn();
+  const preventDefault = vi.fn();
   (loginLink?.props.onClick as (event: {preventDefault: () => void}) => void)({preventDefault});
   expect(preventDefault).toHaveBeenCalledTimes(1);
   expect(historyPush).toHaveBeenCalledWith("/login");
@@ -160,7 +159,7 @@ test("preserves the stored OAuth sign-in link for keyboard and pointer activatio
   const application = createApplication();
   const page = createPage(application);
   const storedLink = "/login/oauth/authorize?client_id=fixture";
-  const goToLinkSoft = jest.spyOn(Setting, "goToLinkSoft").mockImplementation(() => undefined);
+  const goToLinkSoft = vi.spyOn(Setting, "goToLinkSoft").mockImplementation(() => undefined);
   sessionStorage.setItem("signinUrl", storedLink);
 
   try {
@@ -169,7 +168,7 @@ test("preserves the stored OAuth sign-in link for keyboard and pointer activatio
       visible: true,
     });
     const loginLink = findReactElement(actionNode, element => element.props.className === "signup-link");
-    const preventDefault = jest.fn();
+    const preventDefault = vi.fn();
 
     expect(loginLink?.props.href).toBe(storedLink);
     (loginLink?.props.onClick as (event: {preventDefault: () => void}) => void)({preventDefault});

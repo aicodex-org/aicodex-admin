@@ -1,12 +1,16 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import React from "react";
 import {act, cleanup, render} from "@testing-library/react";
-import {expect, jest} from "@jest/globals";
 import ServerEditPage from "./ServerEditPage";
 import * as ServerBackend from "./backend/ServerBackend";
 import * as ApplicationBackend from "./backend/ApplicationBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as Setting from "./Setting";
+import * as fs from "fs";
+import * as path from "path";
+import {fireEvent} from "@testing-library/react";
+import {fileURLToPath} from "url";
+const testFileDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -46,50 +50,39 @@ interface ElementProps {
   tools?: TestToolRecord[];
 }
 
-jest.mock("./ToolTable", () => {
-  const React = require("react");
-  return function MockToolTable(props: {onUpdateTable: (value: TestToolRecord[]) => void}) {
+vi.mock("./ToolTable", async() => {
+  const React = await vi.importActual<typeof import("react")>("react");
+  return ({default: function MockToolTable(props: {onUpdateTable: (value: TestToolRecord[]) => void}) {
     return React.createElement("button", {
       type: "button",
       onClick: () => props.onUpdateTable([{name: "lookup", description: "Lookup", isAllowed: false}]),
     }, "Mock ToolTable");
+  }});
+});
+
+vi.mock("./backend/ServerBackend", () => {
+  return {
+    getServer: vi.fn(),
+    updateServer: vi.fn(),
+    deleteServer: vi.fn(),
   };
 });
 
-jest.mock("./backend/ServerBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
+vi.mock("./backend/ApplicationBackend", () => {
   return {
-    getServer: factoryJest.fn(),
-    updateServer: factoryJest.fn(),
-    deleteServer: factoryJest.fn(),
+    getApplicationsByOrganization: vi.fn(),
   };
 });
 
-jest.mock("./backend/ApplicationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
+vi.mock("./backend/OrganizationBackend", () => {
   return {
-    getApplicationsByOrganization: factoryJest.fn(),
-  };
-});
-
-jest.mock("./backend/OrganizationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
-  return {
-    getOrganizations: factoryJest.fn(),
+    getOrganizations: vi.fn(),
   };
 });
 
 const serverBackendMock = ServerBackend as unknown as ServerBackendMock;
 const applicationBackendMock = ApplicationBackend as unknown as ApplicationBackendMock;
 const organizationBackendMock = OrganizationBackend as unknown as OrganizationBackendMock;
-const fs = require("fs") as {existsSync: (filePath: string) => boolean};
-const path = require("path") as {join: (...parts: string[]) => string};
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    change: (element: Element | null, event: unknown) => boolean;
-    click: (element: Element | null) => boolean;
-  };
-};
 let consoleErrorSpy: {mockRestore: () => void};
 
 const adminAccount = {owner: "admin", tag: "", isAdmin: true};
@@ -105,7 +98,7 @@ const server: TestServerRecord = {
 
 function createHistory() {
   return {
-    push: jest.fn(),
+    push: vi.fn(),
   };
 }
 
@@ -178,16 +171,16 @@ async function flushPromises() {
 
 describe("ServerEditPage", () => {
   beforeEach(() => {
-    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
       if (`${message}`.includes("Invalid DOM property")) {
         return;
       }
 
       throw new Error([message, ...args].map(item => `${item}`).join(" "));
     });
-    jest.spyOn(Setting, "showMessage").mockImplementation(() => {});
-    jest.spyOn(Setting, "isMobile").mockReturnValue(false);
-    jest.spyOn(Setting, "isAdminUser").mockReturnValue(true);
+    vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+    vi.spyOn(Setting, "isMobile").mockReturnValue(false);
+    vi.spyOn(Setting, "isAdminUser").mockReturnValue(true);
     serverBackendMock.getServer.mockResolvedValue({status: "ok", data: {...server}});
     serverBackendMock.updateServer.mockResolvedValue({status: "ok"});
     serverBackendMock.deleteServer.mockResolvedValue({status: "ok"});
@@ -198,13 +191,13 @@ describe("ServerEditPage", () => {
   afterEach(() => {
     cleanup();
     consoleErrorSpy.mockRestore();
-    jest.restoreAllMocks();
-    jest.clearAllMocks();
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   test("is migrated from JavaScript to TSX", () => {
-    expect(fs.existsSync(path.join(__dirname, "ServerEditPage.tsx"))).toBe(true);
-    expect(fs.existsSync(path.join(__dirname, "ServerEditPage.js"))).toBe(false);
+    expect(fs.existsSync(path.join(testFileDirectory, "ServerEditPage.tsx"))).toBe(true);
+    expect(fs.existsSync(path.join(testFileDirectory, "ServerEditPage.js"))).toBe(false);
   });
 
   test("loads server data and renders editable fields", async() => {
@@ -219,7 +212,7 @@ describe("ServerEditPage", () => {
   });
 
   test("publishes the server display name for its workspace tab after loading", async() => {
-    const dispatchSpy = jest.spyOn(window, "dispatchEvent");
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
     const page = createPage();
     serverBackendMock.getServer.mockResolvedValue({status: "ok", data: {...server, displayName: "Search MCP"}});
 
@@ -233,7 +226,7 @@ describe("ServerEditPage", () => {
   });
 
   test("only republishes the server workspace label for top-level display name changes", () => {
-    const dispatchSpy = jest.spyOn(window, "dispatchEvent");
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
     const page = createPage();
 
     page.updateServerField("name", "server-two");
@@ -298,7 +291,7 @@ describe("ServerEditPage", () => {
 
   test("keeps edit form field handlers and ToolTable updates wired to server state", () => {
     const page = createPage({mode: "add"});
-    jest.spyOn(Setting, "isMobile").mockReturnValue(true);
+    vi.spyOn(Setting, "isMobile").mockReturnValue(true);
     const handlers = new Map<unknown, ElementHandler>();
     let toolUpdate: ((value: TestToolRecord[]) => void) | undefined;
 
@@ -333,7 +326,7 @@ describe("ServerEditPage", () => {
   });
 
   test("skips organization loading for non-admin accounts", () => {
-    jest.spyOn(Setting, "isAdminUser").mockReturnValue(false);
+    vi.spyOn(Setting, "isAdminUser").mockReturnValue(false);
     const page = createPage();
     organizationBackendMock.getOrganizations.mockResolvedValueOnce({status: "ok", data: [{name: "unused"}]});
 

@@ -1,7 +1,6 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import React from "react";
 import {act, cleanup, render} from "@testing-library/react";
-import {expect, jest} from "@jest/globals";
 import SiteEditPage from "./SiteEditPage";
 import * as SiteBackend from "./backend/SiteBackend";
 import * as RuleBackend from "./backend/RuleBackend";
@@ -10,6 +9,11 @@ import * as ApplicationBackend from "./backend/ApplicationBackend";
 import * as ProviderBackend from "./backend/ProviderBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as Setting from "./Setting";
+import * as fs from "fs";
+import * as path from "path";
+import {fireEvent} from "@testing-library/react";
+import {fileURLToPath} from "url";
+const testFileDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -52,58 +56,52 @@ interface TestSiteRecord {
   [key: string]: unknown;
 }
 
-jest.mock("./backend/SiteBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
+vi.mock("./backend/SiteBackend", () => {
   return {
-    getGlobalSites: factoryJest.fn(),
-    getSites: factoryJest.fn(),
-    getSite: factoryJest.fn(),
-    updateSite: factoryJest.fn(),
-    addSite: factoryJest.fn(),
-    deleteSite: factoryJest.fn(),
+    getGlobalSites: vi.fn(),
+    getSites: vi.fn(),
+    getSite: vi.fn(),
+    updateSite: vi.fn(),
+    addSite: vi.fn(),
+    deleteSite: vi.fn(),
   };
 });
 
-jest.mock("./backend/RuleBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
+vi.mock("./backend/RuleBackend", () => {
   return {
-    getRules: factoryJest.fn(),
+    getRules: vi.fn(),
   };
 });
 
-jest.mock("./backend/CertBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
+vi.mock("./backend/CertBackend", () => {
   return {
-    getCerts: factoryJest.fn(),
+    getCerts: vi.fn(),
   };
 });
 
-jest.mock("./backend/ApplicationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
+vi.mock("./backend/ApplicationBackend", () => {
   return {
-    getApplicationsByOrganization: factoryJest.fn(),
+    getApplicationsByOrganization: vi.fn(),
   };
 });
 
-jest.mock("./backend/ProviderBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
+vi.mock("./backend/ProviderBackend", () => {
   return {
-    getProviders: factoryJest.fn(),
+    getProviders: vi.fn(),
   };
 });
 
-jest.mock("./backend/OrganizationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
+vi.mock("./backend/OrganizationBackend", () => {
   return {
-    getOrganizations: factoryJest.fn(),
+    getOrganizations: vi.fn(),
   };
 });
 
-jest.mock("./table/RuleTable", () => {
-  const ReactForMock = require("react");
-  return function MockRuleTable(props: {title: string}) {
+vi.mock("./table/RuleTable", async() => {
+  const ReactForMock = await vi.importActual<typeof import("react")>("react");
+  return ({default: function MockRuleTable(props: {title: string}) {
     return ReactForMock.createElement("div", {"data-testid": "rule-table"}, props.title);
-  };
+  }});
 });
 
 const siteBackendMock = SiteBackend as unknown as SiteBackendMock;
@@ -112,13 +110,6 @@ const certBackendMock = CertBackend as unknown as CertBackendMock;
 const applicationBackendMock = ApplicationBackend as unknown as ApplicationBackendMock;
 const providerBackendMock = ProviderBackend as unknown as ProviderBackendMock;
 const organizationBackendMock = OrganizationBackend as unknown as OrganizationBackendMock;
-const fs = require("fs") as {existsSync: (filePath: string) => boolean};
-const path = require("path") as {join: (...parts: string[]) => string};
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    change: (element: Element | null, event: unknown) => boolean;
-  };
-};
 
 type ElementWithProps = React.ReactElement<Record<string, unknown>>;
 
@@ -152,7 +143,7 @@ const site: TestSiteRecord = {
 
 function createHistory() {
   return {
-    push: jest.fn(),
+    push: vi.fn(),
   };
 }
 
@@ -244,11 +235,11 @@ async function flushPromises() {
 
 describe("SiteEditPage", () => {
   beforeEach(() => {
-    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
       throw new Error([message, ...args].map(item => `${item}`).join(" "));
     });
-    jest.spyOn(Setting, "showMessage").mockImplementation(() => {});
-    jest.spyOn(Setting, "isAdminUser").mockReturnValue(true);
+    vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+    vi.spyOn(Setting, "isAdminUser").mockReturnValue(true);
     siteBackendMock.getSite.mockResolvedValue({status: "ok", data: {...site}});
     siteBackendMock.updateSite.mockResolvedValue({status: "ok"});
     certBackendMock.getCerts.mockResolvedValue({status: "ok", data: [{name: "cert-one"}]});
@@ -265,13 +256,13 @@ describe("SiteEditPage", () => {
   afterEach(() => {
     cleanup();
     consoleErrorSpy.mockRestore();
-    jest.restoreAllMocks();
-    jest.clearAllMocks();
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   test("is migrated from JavaScript to TSX", () => {
-    expect(fs.existsSync(path.join(__dirname, "SiteEditPage.tsx"))).toBe(true);
-    expect(fs.existsSync(path.join(__dirname, "SiteEditPage.js"))).toBe(false);
+    expect(fs.existsSync(path.join(testFileDirectory, "SiteEditPage.tsx"))).toBe(true);
+    expect(fs.existsSync(path.join(testFileDirectory, "SiteEditPage.js"))).toBe(false);
   });
 
   test("loads site, rule, cert, application, provider and organization data", async() => {
@@ -295,7 +286,7 @@ describe("SiteEditPage", () => {
   });
 
   test("publishes the site display name for its workspace tab after loading", async() => {
-    const dispatchSpy = jest.spyOn(window, "dispatchEvent");
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
     const page = createPage();
     siteBackendMock.getSite.mockResolvedValue({status: "ok", data: {...site, displayName: "Admin Gateway"}});
 
@@ -309,7 +300,7 @@ describe("SiteEditPage", () => {
   });
 
   test("only republishes the site workspace label for top-level display name changes", () => {
-    const dispatchSpy = jest.spyOn(window, "dispatchEvent");
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
     const page = createPage();
 
     page.updateSiteField("name", "site-two");
@@ -325,12 +316,12 @@ describe("SiteEditPage", () => {
 
   test("calls the legacy data loaders during unsafe mount", () => {
     const page = createPage();
-    jest.spyOn(page, "getOrganizations").mockImplementation(() => {});
-    jest.spyOn(page, "getSite").mockImplementation(() => {});
-    jest.spyOn(page, "getCerts").mockImplementation(() => {});
-    jest.spyOn(page, "getRules").mockImplementation(() => {});
-    jest.spyOn(page, "getApplications").mockImplementation(() => {});
-    jest.spyOn(page, "getAlertProviders").mockImplementation(() => {});
+    vi.spyOn(page, "getOrganizations").mockImplementation(() => {});
+    vi.spyOn(page, "getSite").mockImplementation(() => {});
+    vi.spyOn(page, "getCerts").mockImplementation(() => {});
+    vi.spyOn(page, "getRules").mockImplementation(() => {});
+    vi.spyOn(page, "getApplications").mockImplementation(() => {});
+    vi.spyOn(page, "getAlertProviders").mockImplementation(() => {});
 
     page.UNSAFE_componentWillMount();
 
@@ -445,7 +436,7 @@ describe("SiteEditPage", () => {
     expect(React.isValidElement(unloadedPage.render())).toBe(true);
 
     const loadedPage = createPage();
-    jest.spyOn(loadedPage, "renderSite");
+    vi.spyOn(loadedPage, "renderSite");
     loadedPage.render();
     expect(loadedPage.renderSite).toHaveBeenCalled();
   });
@@ -470,7 +461,7 @@ describe("SiteEditPage", () => {
       history,
       siteOverride: {owner: "platform", name: "site-two", displayName: "Site Two"},
     });
-    page.getSite = jest.fn() as unknown as typeof page.getSite;
+    page.getSite = vi.fn() as unknown as typeof page.getSite;
 
     page.submitSiteEdit();
     await flushPromises();

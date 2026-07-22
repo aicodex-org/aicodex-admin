@@ -1,33 +1,26 @@
-/* eslint-env jest */
+import {afterEach, expect, test, vi} from "vitest";
 import React from "react";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {Button} from "antd";
 import {cleanup, render} from "@testing-library/react";
 import EnterpriseListQueryToolbar from "./EnterpriseListQueryToolbar";
 import LegacyListPageToolbar from "./LegacyListPageToolbar";
 import {readLessWithImports} from "../testUtils/less";
+import {fireEvent} from "@testing-library/react";
+import * as path from "path";
+import {fileURLToPath} from "url";
+const testFileDirectory = path.dirname(fileURLToPath(import.meta.url));
 
-const expect = jestExpect;
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-    change: (element: Element | null, event: {target: {value: string}}) => boolean;
-    mouseDown: (element: Element | null) => boolean;
-  };
-};
-const path = require("path") as typeof import("path");
-
-const readAppLess = (): string => readLessWithImports(path.join(__dirname, "..", "App.less"));
+const readAppLess = (): string => readLessWithImports(path.join(testFileDirectory, "..", "App.less"));
 
 afterEach(() => {
   cleanup();
-  jestValue.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 test("groups query controls, advanced filters and create actions without mixing action slots", () => {
-  const onSearch = jestValue.fn();
-  const onReset = jestValue.fn();
-  const onKeywordChange = jestValue.fn();
+  const onSearch = vi.fn();
+  const onReset = vi.fn();
+  const onKeywordChange = vi.fn();
   const view = render(
     <EnterpriseListQueryToolbar
       title="群组"
@@ -38,7 +31,7 @@ test("groups query controls, advanced filters and create actions without mixing 
       ]}
       selectedField="name"
       keyword="platform"
-      onFieldChange={jestValue.fn()}
+      onFieldChange={vi.fn()}
       onKeywordChange={onKeywordChange}
       onSearch={onSearch}
       onReset={onReset}
@@ -76,10 +69,10 @@ test("does not render advanced filter toggle when advanced filters are empty", (
       fields={[{label: "名称", value: "name"}]}
       selectedField="name"
       keyword=""
-      onFieldChange={jestValue.fn()}
-      onKeywordChange={jestValue.fn()}
-      onSearch={jestValue.fn()}
-      onReset={jestValue.fn()}
+      onFieldChange={vi.fn()}
+      onKeywordChange={vi.fn()}
+      onSearch={vi.fn()}
+      onReset={vi.fn()}
     />
   );
 
@@ -95,10 +88,10 @@ test("does not render advanced filter toggle for empty advanced filter fragments
       fields={[{label: "名称", value: "name"}]}
       selectedField="name"
       keyword=""
-      onFieldChange={jestValue.fn()}
-      onKeywordChange={jestValue.fn()}
-      onSearch={jestValue.fn()}
-      onReset={jestValue.fn()}
+      onFieldChange={vi.fn()}
+      onKeywordChange={vi.fn()}
+      onSearch={vi.fn()}
+      onReset={vi.fn()}
       advancedFilters={<>{""}</>}
     />
   );
@@ -115,10 +108,10 @@ test("can place contextual helper content on the side of query controls", () => 
       fields={[{label: "名称", value: "name"}]}
       selectedField="name"
       keyword=""
-      onFieldChange={jestValue.fn()}
-      onKeywordChange={jestValue.fn()}
-      onSearch={jestValue.fn()}
-      onReset={jestValue.fn()}
+      onFieldChange={vi.fn()}
+      onKeywordChange={vi.fn()}
+      onSearch={vi.fn()}
+      onReset={vi.fn()}
       showHeader={false}
       contextPlacement="side"
       context={<span>目录健康: 3 项待关注</span>}
@@ -142,10 +135,10 @@ test("can place contextual helper content in the header meta area", () => {
       fields={[{label: "名称", value: "name"}]}
       selectedField="name"
       keyword=""
-      onFieldChange={jestValue.fn()}
-      onKeywordChange={jestValue.fn()}
-      onSearch={jestValue.fn()}
-      onReset={jestValue.fn()}
+      onFieldChange={vi.fn()}
+      onKeywordChange={vi.fn()}
+      onSearch={vi.fn()}
+      onReset={vi.fn()}
       contextPlacement="header"
       context={<span>目录健康: 3 项待关注</span>}
       actions={<button type="button">添加</button>}
@@ -171,10 +164,10 @@ test("can stack contextual helper content below header actions on the right", ()
       fields={[{label: "名称", value: "name"}]}
       selectedField="name"
       keyword=""
-      onFieldChange={jestValue.fn()}
-      onKeywordChange={jestValue.fn()}
-      onSearch={jestValue.fn()}
-      onReset={jestValue.fn()}
+      onFieldChange={vi.fn()}
+      onKeywordChange={vi.fn()}
+      onSearch={vi.fn()}
+      onReset={vi.fn()}
       contextPlacement="headerBelow"
       context={<span>目录健康: 3 项待关注</span>}
       actions={<button type="button">添加</button>}
@@ -204,10 +197,10 @@ test("can place header actions at the top right without requiring helper context
       fields={[{label: "名称", value: "name"}]}
       selectedField="name"
       keyword=""
-      onFieldChange={jestValue.fn()}
-      onKeywordChange={jestValue.fn()}
-      onSearch={jestValue.fn()}
-      onReset={jestValue.fn()}
+      onFieldChange={vi.fn()}
+      onKeywordChange={vi.fn()}
+      onSearch={vi.fn()}
+      onReset={vi.fn()}
       actionsPlacement="topRight"
       actions={<button type="button">添加</button>}
     />
@@ -230,8 +223,8 @@ test("legacy list toolbar keeps total only in pagination area", () => {
       searchedColumn: "name",
       searchText: "",
     },
-    setState: jestValue.fn(),
-    fetch: jestValue.fn(),
+    setState: vi.fn(),
+    fetch: vi.fn(),
   };
   const view = render(
     <LegacyListPageToolbar
@@ -256,8 +249,8 @@ test("legacy list toolbar normalizes empty and numeric keywords for the shared t
       searchedColumn: undefined,
       searchText: undefined,
     },
-    setState: jestValue.fn(),
-    fetch: jestValue.fn(),
+    setState: vi.fn(),
+    fetch: vi.fn(),
   };
   const emptyView = render(
     <LegacyListPageToolbar
@@ -284,8 +277,8 @@ test("legacy list toolbar normalizes empty and numeric keywords for the shared t
       searchedColumn: "displayName",
       searchText: 42,
     },
-    setState: jestValue.fn(),
-    fetch: jestValue.fn(),
+    setState: vi.fn(),
+    fetch: vi.fn(),
   };
   const numericView = render(
     <LegacyListPageToolbar
@@ -313,14 +306,14 @@ test("legacy list toolbar keeps legacy single-field query semantics across advan
       searchText: "seed",
     },
   };
-  const setStateMock = jestValue.fn((state: Record<string, unknown>, callback?: () => void) => {
+  const setStateMock = vi.fn((state: Record<string, unknown>, callback?: () => void) => {
     hostState.current = {
       ...hostState.current,
       ...state,
     };
     callback?.();
   });
-  const fetchMock = jestValue.fn();
+  const fetchMock = vi.fn();
 
   function LegacyHarness(): JSX.Element {
     const [, setVersion] = React.useState(0);

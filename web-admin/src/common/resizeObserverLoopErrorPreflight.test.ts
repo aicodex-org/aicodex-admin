@@ -1,5 +1,4 @@
-/* eslint-env jest */
-import {expect, jest} from "@jest/globals";
+import {describe, expect, test, vi} from "vitest";
 import {installResizeObserverLoopErrorPreflight} from "./resizeObserverLoopErrorPreflight";
 
 function createResizeObserverErrorEvent(): Event {
@@ -18,7 +17,7 @@ function createResizeObserverErrorEvent(): Event {
 describe("resizeObserverLoopErrorPreflight", () => {
   test("wraps early error listeners before runtime observers see ResizeObserver noise", () => {
     const targetWindow = new EventTarget() as Window & typeof globalThis;
-    const overlayHandler = jest.fn();
+    const overlayHandler = vi.fn();
 
     installResizeObserverLoopErrorPreflight(targetWindow);
     targetWindow.addEventListener("error", overlayHandler);
@@ -33,7 +32,7 @@ describe("resizeObserverLoopErrorPreflight", () => {
 
   test("keeps non-ResizeObserver errors visible to existing listeners", () => {
     const targetWindow = new EventTarget() as Window & typeof globalThis;
-    const overlayHandler = jest.fn();
+    const overlayHandler = vi.fn();
 
     installResizeObserverLoopErrorPreflight(targetWindow);
     targetWindow.addEventListener("error", overlayHandler);
@@ -52,7 +51,7 @@ describe("resizeObserverLoopErrorPreflight", () => {
 
   test("removes wrapped error listeners through the original listener reference", () => {
     const targetWindow = new EventTarget() as Window & typeof globalThis;
-    const overlayHandler = jest.fn();
+    const overlayHandler = vi.fn();
 
     installResizeObserverLoopErrorPreflight(targetWindow);
     targetWindow.addEventListener("error", overlayHandler);
@@ -65,7 +64,7 @@ describe("resizeObserverLoopErrorPreflight", () => {
 
   test("supports object style error listeners", () => {
     const targetWindow = new EventTarget() as Window & typeof globalThis;
-    const listener = {handleEvent: jest.fn()};
+    const listener = {handleEvent: vi.fn()};
 
     installResizeObserverLoopErrorPreflight(targetWindow);
     targetWindow.addEventListener("error", listener);
@@ -78,7 +77,7 @@ describe("resizeObserverLoopErrorPreflight", () => {
 
   test("passes through non-error listener registration and removal", () => {
     const targetWindow = new EventTarget() as Window & typeof globalThis;
-    const listener = jest.fn();
+    const listener = vi.fn();
 
     installResizeObserverLoopErrorPreflight(targetWindow);
     targetWindow.addEventListener("click", listener);

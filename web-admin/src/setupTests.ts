@@ -12,11 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// jest-dom adds custom jest matchers for asserting on DOM nodes.
+// jest-dom adds custom Vitest matchers for asserting on DOM nodes.
 // allows you to do things like:
 // expect(element).toHaveTextContent(/react/i)
 // learn more: https://github.com/testing-library/jest-dom
-import "@testing-library/jest-dom/extend-expect";
+import "@testing-library/jest-dom/vitest";
+import {cleanup} from "@testing-library/react";
+import {afterEach} from "vitest";
+
+// globals=false 时RTL无法自行发现afterEach，需显式注册标准DOM清理。
+afterEach(cleanup);
 
 if (!window.matchMedia) {
   window.matchMedia = (query: string): MediaQueryList => ({

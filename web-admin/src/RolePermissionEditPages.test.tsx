@@ -1,6 +1,5 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {act, cleanup, render} from "@testing-library/react";
 import {Button, Input, Modal, Select, Switch, Tabs} from "antd";
 import * as Setting from "./Setting";
@@ -15,7 +14,6 @@ import RoleEditPage from "./RoleEditPage";
 import PermissionEditPage from "./PermissionEditPage";
 import {type ConsoleCallSpy, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
 
-declare const jest: typeof jestValue;
 let consoleErrorSpy: ConsoleCallSpy;
 
 type LooseMock = {
@@ -113,7 +111,6 @@ type PermissionPageHarness = InstanceType<typeof PermissionEditPage> & {
   };
 };
 
-const expect = jestExpect;
 const roleBackendMock = RoleBackend as unknown as RoleBackendMock;
 const permissionBackendMock = PermissionBackend as unknown as PermissionBackendMock;
 const organizationBackendMock = OrganizationBackend as unknown as OrganizationBackendMock;
@@ -122,82 +119,75 @@ const groupBackendMock = GroupBackend as unknown as GroupBackendMock;
 const modelBackendMock = ModelBackend as unknown as ModelBackendMock;
 const applicationBackendMock = ApplicationBackend as unknown as ApplicationBackendMock;
 
-jest.mock("./backend/RoleBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/RoleBackend", () => {
   return {
-    getRoles: factoryJest.fn(),
-    getRole: factoryJest.fn(),
-    updateRole: factoryJest.fn(),
-    addRole: factoryJest.fn(),
-    deleteRole: factoryJest.fn(),
+    getRoles: vi.fn(),
+    getRole: vi.fn(),
+    updateRole: vi.fn(),
+    addRole: vi.fn(),
+    deleteRole: vi.fn(),
   };
 });
 
-jest.mock("./backend/PermissionBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/PermissionBackend", () => {
   return {
-    getPermissions: factoryJest.fn(),
-    getPermissionsBySubmitter: factoryJest.fn(),
-    getPermission: factoryJest.fn(),
-    updatePermission: factoryJest.fn(),
-    addPermission: factoryJest.fn(),
-    deletePermission: factoryJest.fn(),
+    getPermissions: vi.fn(),
+    getPermissionsBySubmitter: vi.fn(),
+    getPermission: vi.fn(),
+    updatePermission: vi.fn(),
+    addPermission: vi.fn(),
+    deletePermission: vi.fn(),
   };
 });
 
-jest.mock("./backend/OrganizationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/OrganizationBackend", () => {
   return {
-    getOrganizations: factoryJest.fn(),
+    getOrganizations: vi.fn(),
   };
 });
 
-jest.mock("./backend/UserBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/UserBackend", () => {
   return {
-    getUsers: factoryJest.fn(),
+    getUsers: vi.fn(),
   };
 });
 
-jest.mock("./backend/GroupBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/GroupBackend", () => {
   return {
-    getGroups: factoryJest.fn(),
+    getGroups: vi.fn(),
   };
 });
 
-jest.mock("./backend/ModelBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/ModelBackend", () => {
   return {
-    getModels: factoryJest.fn(),
-    getModel: factoryJest.fn(),
+    getModels: vi.fn(),
+    getModel: vi.fn(),
   };
 });
 
-jest.mock("./backend/ApplicationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/ApplicationBackend", () => {
   return {
-    getApplicationsByOrganization: factoryJest.fn(),
+    getApplicationsByOrganization: vi.fn(),
   };
 });
 
-jest.mock("./TourConfig", () => ({
+vi.mock("./TourConfig", () => ({
   getTourVisible: () => false,
   getSteps: () => [],
   getNextUrl: () => "",
   setIsTourVisible: () => undefined,
 }));
 
-jest.mock("./common/PaginateSelect", () => {
-  const ReactFactory = require("react");
-  return function MockPaginateSelect(props: {value?: unknown[]; disabled?: boolean; onChange?: (value: unknown[]) => void}) {
+vi.mock("./common/PaginateSelect", async() => {
+  const ReactFactory = await vi.importActual<typeof import("react")>("react");
+  return ({default: function MockPaginateSelect(props: {value?: unknown[]; disabled?: boolean; onChange?: (value: unknown[]) => void}) {
     return ReactFactory.createElement("button", {
       type: "button",
       "data-testid": "paginate-select",
       "data-disabled": props.disabled ? "true" : "false",
       onClick: () => props.onChange?.(["mocked/value"]),
     }, Array.isArray(props.value) ? props.value.join(",") : "");
-  };
+  }});
 });
 
 const adminAccount: Account = {owner: "built-in", name: "admin", tag: "", isAdmin: true};
@@ -242,7 +232,7 @@ async function flushPromises() {
 
 function createHistory() {
   return {
-    push: jestValue.fn(),
+    push: vi.fn(),
   };
 }
 
@@ -316,24 +306,24 @@ function elementProps<T>(element: React.ReactElement): T {
 
 beforeEach(() => {
   cleanup();
-  consoleErrorSpy = jestValue.spyOn(console, "error") as unknown as ConsoleCallSpy;
+  consoleErrorSpy = vi.spyOn(console, "error") as unknown as ConsoleCallSpy;
   localStorage.clear();
   localStorage.setItem("organization", "engineering");
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: () => ({
       matches: false,
-      addListener: jestValue.fn(),
-      removeListener: jestValue.fn(),
-      addEventListener: jestValue.fn(),
-      removeEventListener: jestValue.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
     }),
   });
-  jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(false);
-  jestValue.spyOn(Setting, "isAdminUser").mockImplementation((account: unknown) => Boolean((account as Account).isAdmin));
-  jestValue.spyOn(Setting, "isLocalAdminUser").mockImplementation((account: unknown) => Boolean((account as Account).isAdmin));
-  jestValue.spyOn(Setting, "getApiPaths").mockReturnValue(["/api/main"]);
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "isMobile").mockReturnValue(false);
+  vi.spyOn(Setting, "isAdminUser").mockImplementation((account: unknown) => Boolean((account as Account).isAdmin));
+  vi.spyOn(Setting, "isLocalAdminUser").mockImplementation((account: unknown) => Boolean((account as Account).isAdmin));
+  vi.spyOn(Setting, "getApiPaths").mockReturnValue(["/api/main"]);
   roleBackendMock.getRole.mockResolvedValue({status: "ok", data: role});
   roleBackendMock.addRole.mockResolvedValue({status: "ok"});
   roleBackendMock.updateRole.mockResolvedValue({status: "ok"});
@@ -355,8 +345,8 @@ afterEach(() => {
   cleanup();
   const actWarnings = getReactActWarnings(consoleErrorSpy.mock.calls);
   consoleErrorSpy.mockRestore();
-  jestValue.restoreAllMocks();
-  jestValue.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
   expect(actWarnings).toEqual([]);
 });
 
@@ -479,7 +469,7 @@ test("renders role edit controls and selector callbacks", () => {
   paginateSelects[0].dispatchEvent(new MouseEvent("click", {bubbles: true}));
   expect(page.state.role?.users).toEqual(["mocked/value"]);
 
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(true);
+  vi.spyOn(Setting, "isMobile").mockReturnValue(true);
   expect(page.renderRole()).not.toBeNull();
 });
 
@@ -513,9 +503,9 @@ test("blocks role save before required fields are filled", () => {
 });
 
 test("confirms dirty role cancel and back before leaving", async() => {
-  const confirmSpy = jestValue.spyOn(Modal, "confirm").mockImplementation((config) => {
+  const confirmSpy = vi.spyOn(Modal, "confirm").mockImplementation((config) => {
     config.onOk?.();
-    return {destroy: jestValue.fn(), update: jestValue.fn()};
+    return {destroy: vi.fn(), update: vi.fn()};
   });
   const page = createRolePage();
   const history = page.props.history as ReturnType<typeof createHistory>;
@@ -744,9 +734,9 @@ test("blocks permission save before required fields are filled", () => {
 });
 
 test("confirms dirty permission cancel and back before leaving", async() => {
-  const confirmSpy = jestValue.spyOn(Modal, "confirm").mockImplementation((config) => {
+  const confirmSpy = vi.spyOn(Modal, "confirm").mockImplementation((config) => {
     config.onOk?.();
-    return {destroy: jestValue.fn(), update: jestValue.fn()};
+    return {destroy: vi.fn(), update: vi.fn()};
   });
   const page = createPermissionPage();
   const history = page.props.history as ReturnType<typeof createHistory>;
@@ -887,7 +877,7 @@ test("keeps permission approval and resource type edit branches", () => {
 });
 
 test("renders mobile edit layouts and alternate route prop branches", async() => {
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(true);
+  vi.spyOn(Setting, "isMobile").mockReturnValue(true);
 
   const rolePage = new RoleEditPage({
     account: adminAccount,
@@ -1074,9 +1064,9 @@ test("keeps permission form handlers, fetch adapters and API resource branches",
     },
   };
 
-  jestValue.spyOn(Modal, "confirm").mockImplementation((config) => {
+  vi.spyOn(Modal, "confirm").mockImplementation((config) => {
     config.onOk?.();
-    return {destroy: jestValue.fn(), update: jestValue.fn()};
+    return {destroy: vi.fn(), update: vi.fn()};
   });
 
   for (const button of collectElementsByType(permissionView, Button)) {

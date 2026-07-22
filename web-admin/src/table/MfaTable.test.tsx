@@ -1,5 +1,4 @@
-/* eslint-env jest */
-import {expect, jest} from "@jest/globals";
+import {describe, expect, test, vi} from "vitest";
 import i18next from "i18next";
 import MfaTable from "./MfaTable";
 import * as Setting from "../Setting";
@@ -37,7 +36,7 @@ describe("MfaTable", () => {
       {name: "App", rule: "Optional"},
       {name: "Push", rule: "Optional"},
     ];
-    const mfaTable = new MfaTable({title: "认证方式", table, onUpdateTable: jest.fn()});
+    const mfaTable = new MfaTable({title: "认证方式", table, onUpdateTable: vi.fn()});
     const tableElement = (mfaTable as any).renderTable(table);
     const toolbar = tableElement.props.title();
     const titleNode = toolbar.props.children[0];
@@ -63,7 +62,7 @@ describe("MfaTable", () => {
       {name: "Phone", rule: "Optional"},
       {name: "Email", rule: "Optional"},
     ];
-    const mfaTable = new MfaTable({title: "认证方式", table, onUpdateTable: jest.fn()});
+    const mfaTable = new MfaTable({title: "认证方式", table, onUpdateTable: vi.fn()});
     const tableElement = (mfaTable as any).renderTable(table);
     const actionColumn = tableElement.props.columns[2];
     const firstRowActions = actionColumn.render(undefined, table[0], 0);
@@ -90,8 +89,8 @@ describe("MfaTable", () => {
       {name: "Phone", rule: "Optional"},
       {name: "Email", rule: "Optional"},
     ];
-    const onUpdateTable = jest.fn();
-    const showMessageSpy = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+    const onUpdateTable = vi.fn();
+    const showMessageSpy = vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
     const mfaTable = new MfaTable({table, onUpdateTable});
 
     mfaTable.deleteRow(table, 0);
@@ -103,7 +102,7 @@ describe("MfaTable", () => {
 
   test("adds, moves, and updates MFA rows through the table actions", async() => {
     await useTestLanguage("zh");
-    const onUpdateTable = jest.fn();
+    const onUpdateTable = vi.fn();
     const table = [
       {name: "sms", rule: "Optional"},
       {name: "email", rule: "Prompted"},
@@ -159,8 +158,8 @@ describe("MfaTable", () => {
 
   test("keeps only one required MFA method", async() => {
     await useTestLanguage("zh");
-    const onUpdateTable = jest.fn();
-    const showMessageSpy = jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+    const onUpdateTable = vi.fn();
+    const showMessageSpy = vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
     const table = [
       {name: "sms", rule: MfaRuleRequired},
       {name: "email", rule: "Optional"},
@@ -181,7 +180,7 @@ describe("MfaTable", () => {
       {name: "Please select a MFA method", rule: "Optional"},
       {name: "sms", rule: "Optional"},
     ];
-    const mfaTable = new MfaTable({table, onUpdateTable: jest.fn()});
+    const mfaTable = new MfaTable({table, onUpdateTable: vi.fn()});
     const nameColumn = (mfaTable as any).renderTable(table).props.columns[0];
     const selectElement = nameColumn.render("Please select a MFA method", table[0], 0);
     const optionValues = selectElement.props.children.map((option: any) => option.props.value);

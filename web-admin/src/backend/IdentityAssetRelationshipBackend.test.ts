@@ -1,11 +1,10 @@
-/* eslint-env jest */
-import {expect, jest} from "@jest/globals";
+import {beforeEach, expect, test, vi} from "vitest";
 import {getIdentityAssetRelationshipAggregation} from "./IdentityAssetRelationshipBackend";
 
-let fetchMock: ReturnType<typeof jest.fn>;
+let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
-  fetchMock = jest.fn(() => Promise.resolve({
+  fetchMock = vi.fn(() => Promise.resolve({
     json: () => Promise.resolve({status: "ok"}),
   }));
   global.fetch = fetchMock as unknown as typeof fetch;

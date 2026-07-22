@@ -1,6 +1,5 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {cleanup, render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import * as Setting from "./Setting";
@@ -12,8 +11,7 @@ import RoleListPage from "./RoleListPage";
 import PermissionListPage from "./PermissionListPage";
 import ListPageTable from "./common/ListPageTable";
 import * as XLSX from "xlsx";
-
-declare const jest: typeof jestValue;
+import {fireEvent} from "@testing-library/react";
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -113,64 +111,54 @@ type PermissionPageHarness = InstanceType<typeof PermissionListPage> & {
   fetch: (params: {pagination: TestPagination; [key: string]: unknown}) => void;
 };
 
-const expect = jestExpect;
 const roleBackendMock = RoleBackend as unknown as RoleBackendMock;
 const permissionBackendMock = PermissionBackend as unknown as PermissionBackendMock;
 const formBackendMock = FormBackend as unknown as FormBackendMock;
 const xlsxMock = XLSX as unknown as XlsxMock;
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-  };
-};
 
-jest.mock("./backend/RoleBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/RoleBackend", () => {
   return {
-    getRoles: factoryJest.fn(),
-    getRole: factoryJest.fn(),
-    updateRole: factoryJest.fn(),
-    addRole: factoryJest.fn(),
-    deleteRole: factoryJest.fn(),
+    getRoles: vi.fn(),
+    getRole: vi.fn(),
+    updateRole: vi.fn(),
+    addRole: vi.fn(),
+    deleteRole: vi.fn(),
   };
 });
 
-jest.mock("./backend/PermissionBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/PermissionBackend", () => {
   return {
-    getPermissions: factoryJest.fn(),
-    getPermissionsBySubmitter: factoryJest.fn(),
-    getPermission: factoryJest.fn(),
-    updatePermission: factoryJest.fn(),
-    addPermission: factoryJest.fn(),
-    deletePermission: factoryJest.fn(),
+    getPermissions: vi.fn(),
+    getPermissionsBySubmitter: vi.fn(),
+    getPermission: vi.fn(),
+    updatePermission: vi.fn(),
+    addPermission: vi.fn(),
+    deletePermission: vi.fn(),
   };
 });
 
-jest.mock("./backend/FormBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/FormBackend", () => {
   return {
-    getForm: factoryJest.fn(),
+    getForm: vi.fn(),
   };
 });
 
-jest.mock("./TourConfig", () => ({
+vi.mock("./TourConfig", () => ({
   getTourVisible: () => false,
   getSteps: () => [],
   getNextUrl: () => "",
   setIsTourVisible: () => undefined,
 }));
 
-jest.mock("xlsx", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("xlsx", () => {
   return {
-    read: factoryJest.fn(),
-    writeFile: factoryJest.fn(),
+    read: vi.fn(),
+    writeFile: vi.fn(),
     utils: {
-      json_to_sheet: factoryJest.fn(() => ({sheet: true})),
-      book_new: factoryJest.fn(() => ({book: true})),
-      book_append_sheet: factoryJest.fn(),
-      sheet_to_json: factoryJest.fn(),
+      json_to_sheet: vi.fn(() => ({sheet: true})),
+      book_new: vi.fn(() => ({book: true})),
+      book_append_sheet: vi.fn(),
+      sheet_to_json: vi.fn(),
     },
   };
 });
@@ -218,7 +206,7 @@ class MockFileReader {
     MockFileReader.instances.push(this);
   }
 
-  readAsArrayBuffer = jestValue.fn();
+  readAsArrayBuffer = vi.fn();
 }
 
 function flushPromises() {
@@ -227,7 +215,7 @@ function flushPromises() {
 
 function createHistory() {
   return {
-    push: jestValue.fn(),
+    push: vi.fn(),
   };
 }
 
@@ -362,21 +350,21 @@ beforeEach(() => {
     writable: true,
     value: () => ({
       matches: false,
-      addListener: jestValue.fn(),
-      removeListener: jestValue.fn(),
-      addEventListener: jestValue.fn(),
-      removeEventListener: jestValue.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
     }),
   });
   Object.defineProperty(global, "FileReader", {
     writable: true,
     value: MockFileReader,
   });
-  jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(false);
-  jestValue.spyOn(Setting, "getRoleColumns").mockReturnValue(["Name#name", "Owner#owner"]);
-  jestValue.spyOn(Setting, "getPermissionColumns").mockReturnValue(["Name#name", "Effect#effect"]);
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
+  vi.spyOn(Setting, "isMobile").mockReturnValue(false);
+  vi.spyOn(Setting, "getRoleColumns").mockReturnValue(["Name#name", "Owner#owner"]);
+  vi.spyOn(Setting, "getPermissionColumns").mockReturnValue(["Name#name", "Effect#effect"]);
   formBackendMock.getForm.mockResolvedValue({status: "ok", data: {formItems: []}});
   roleBackendMock.getRoles.mockResolvedValue({status: "ok", data: [role], data2: 1});
   roleBackendMock.addRole.mockResolvedValue({status: "ok"});
@@ -389,14 +377,14 @@ beforeEach(() => {
   xlsxMock.utils.book_new.mockReturnValue({book: true});
   xlsxMock.read.mockReturnValue({SheetNames: ["Sheet1"], Sheets: {Sheet1: {}}});
   xlsxMock.utils.sheet_to_json.mockReturnValue([{name: "row-main", owner: "engineering"}]);
-  global.fetch = jestValue.fn(() => Promise.resolve({
+  global.fetch = vi.fn(() => Promise.resolve({
     json: () => Promise.resolve({status: "ok"}),
   })) as unknown as typeof fetch;
 });
 
 afterEach(() => {
-  jestValue.restoreAllMocks();
-  jestValue.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
   cleanup();
 });
 
@@ -450,7 +438,7 @@ test("creates default role and permission records and navigates to add routes", 
 });
 
 test("keeps role table columns, links, toolbar and delete refresh behavior", async() => {
-  const consoleError = jestValue.spyOn(console, "error");
+  const consoleError = vi.spyOn(console, "error");
   const history = createHistory();
   const page = new RoleListPage({
     account,
@@ -458,8 +446,8 @@ test("keeps role table columns, links, toolbar and delete refresh behavior", asy
     match: {path: "/roles", params: {}},
   } as ConstructorParameters<typeof RoleListPage>[0]) as RolePageHarness;
   installSynchronousSetState(page);
-  jestValue.spyOn(page, "addRole").mockImplementation(() => undefined);
-  page.fetch = jestValue.fn() as unknown as RolePageHarness["fetch"];
+  vi.spyOn(page, "addRole").mockImplementation(() => undefined);
+  page.fetch = vi.fn() as unknown as RolePageHarness["fetch"];
   page.state = {
     ...page.state,
     data: [role],
@@ -515,7 +503,7 @@ test("keeps role table columns, links, toolbar and delete refresh behavior", asy
 });
 
 test("keeps permission table columns, links, tags and delete refresh behavior", async() => {
-  const consoleError = jestValue.spyOn(console, "error");
+  const consoleError = vi.spyOn(console, "error");
   const history = createHistory();
   const page = new PermissionListPage({
     account,
@@ -523,8 +511,8 @@ test("keeps permission table columns, links, tags and delete refresh behavior", 
     match: {path: "/permissions", params: {}},
   } as ConstructorParameters<typeof PermissionListPage>[0]) as PermissionPageHarness;
   installSynchronousSetState(page);
-  jestValue.spyOn(page, "addPermission").mockImplementation(() => undefined);
-  page.fetch = jestValue.fn() as unknown as PermissionPageHarness["fetch"];
+  vi.spyOn(page, "addPermission").mockImplementation(() => undefined);
+  page.fetch = vi.fn() as unknown as PermissionPageHarness["fetch"];
   page.state = {
     ...page.state,
     data: [permission],
@@ -590,7 +578,7 @@ test("keeps permission table columns, links, tags and delete refresh behavior", 
 });
 
 test("keeps remaining role column renderers without mobile fixed behavior", () => {
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(true);
+  vi.spyOn(Setting, "isMobile").mockReturnValue(true);
   const page = createRolePage();
   const columns = getRoleColumns(page);
 
@@ -605,7 +593,7 @@ test("keeps remaining role column renderers without mobile fixed behavior", () =
 });
 
 test("keeps remaining permission column renderers without mobile fixed behavior", () => {
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(true);
+  vi.spyOn(Setting, "isMobile").mockReturnValue(true);
   const page = createPermissionPage();
   const columns = getPermissionColumns(page);
 
@@ -660,7 +648,7 @@ test("keeps role and permission fetch parameters and authorization fallback", as
 });
 
 test("keeps permission submitter fetch branch for non-local-admin users", async() => {
-  jestValue.spyOn(Setting, "isLocalAdminUser").mockReturnValue(false);
+  vi.spyOn(Setting, "isLocalAdminUser").mockReturnValue(false);
   const page = createPermissionPage({...account, isAdmin: false});
 
   page.fetch({pagination: {...page.state.pagination, current: 1, pageSize: 20}});
@@ -716,12 +704,12 @@ test("keeps role delete, fallback and upload failure branches", async() => {
   MockFileReader.instances[MockFileReader.instances.length - 1].onerror?.({message: "read failed"});
   expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("read failed"));
 
-  global.fetch = jestValue.fn(() => Promise.reject(new Error("upload failed"))) as unknown as typeof fetch;
+  global.fetch = vi.fn(() => Promise.reject(new Error("upload failed"))) as unknown as typeof fetch;
   modal.props.onOk();
   await flushPromises();
   expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("upload failed"));
 
-  global.fetch = jestValue.fn(() => Promise.reject("plain upload failed")) as unknown as typeof fetch;
+  global.fetch = vi.fn(() => Promise.reject("plain upload failed")) as unknown as typeof fetch;
   modal.props.onOk();
   await flushPromises();
   expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("plain upload failed"));
@@ -763,11 +751,11 @@ test("keeps permission delete, fallback and upload failure branches", async() =>
   await flushPromises();
   expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("delete failed"));
 
-  page.fetch = jestValue.fn() as unknown as PermissionPageHarness["fetch"];
+  page.fetch = vi.fn() as unknown as PermissionPageHarness["fetch"];
   page.uploadPermissionFile({status: "ok"});
   expect(page.fetch).toHaveBeenCalledWith({pagination: page.state.pagination});
 
-  global.fetch = jestValue.fn(() => Promise.reject(new Error("upload failed"))) as unknown as typeof fetch;
+  global.fetch = vi.fn(() => Promise.reject(new Error("upload failed"))) as unknown as typeof fetch;
   modal.props.onOk();
   await flushPromises();
   expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("upload failed"));
@@ -801,7 +789,7 @@ test("generates role and permission import templates with existing columns", () 
 
 test("previews and uploads role xlsx data", async() => {
   const page = createRolePage();
-  page.fetch = jestValue.fn() as unknown as RolePageHarness["fetch"];
+  page.fetch = vi.fn() as unknown as RolePageHarness["fetch"];
   const file = new File(["content"], "roles.xlsx");
   const {upload} = getRoleUploadAndModal(page);
 

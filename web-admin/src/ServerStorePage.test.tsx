@@ -1,7 +1,6 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import React from "react";
 import {act, cleanup, render} from "@testing-library/react";
-import {expect, jest} from "@jest/globals";
 import i18next from "i18next";
 import ServerStorePage from "./ServerStorePage";
 import * as ServerBackend from "./backend/ServerBackend";
@@ -9,6 +8,11 @@ import * as Setting from "./Setting";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
 import {readLessWithImports} from "./testUtils/less";
+import * as fs from "fs";
+import * as path from "path";
+import {fireEvent} from "@testing-library/react";
+import {fileURLToPath} from "url";
+const testFileDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -62,22 +66,14 @@ interface ElementProps {
   placeholder?: unknown;
 }
 
-jest.mock("./backend/ServerBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
+vi.mock("./backend/ServerBackend", () => {
   return {
-    getOnlineServers: factoryJest.fn(),
-    addServer: factoryJest.fn(),
+    getOnlineServers: vi.fn(),
+    addServer: vi.fn(),
   };
 });
 
 const serverBackendMock = ServerBackend as unknown as ServerBackendMock;
-const fs = require("fs") as {existsSync: (filePath: string) => boolean; readFileSync: (filePath: string, encoding: string) => string};
-const path = require("path") as {join: (...parts: string[]) => string};
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-  };
-};
 let consoleErrorSpy: {mockRestore: () => void};
 
 const account = {owner: "admin", tag: ""};
@@ -131,7 +127,7 @@ async function useTestLanguage(language: string) {
 
 function createHistory() {
   return {
-    push: jest.fn(),
+    push: vi.fn(),
   };
 }
 
@@ -186,22 +182,22 @@ async function flushPromises() {
 describe("ServerStorePage", () => {
   beforeEach(async() => {
     await useTestLanguage("zh");
-    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
       throw new Error([message, ...args].map(item => `${item}`).join(" "));
     });
     Object.defineProperty(window, "matchMedia", {
       writable: true,
       value: () => ({
         matches: false,
-        addListener: jest.fn(),
-        removeListener: jest.fn(),
-        addEventListener: jest.fn(),
-        removeEventListener: jest.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
       }),
     });
-    jest.spyOn(Setting, "showMessage").mockImplementation(() => {});
-    jest.spyOn(Setting, "getRequestOrganization").mockReturnValue("engineering");
-    jest.spyOn(Setting, "getRandomName").mockReturnValue("fallback");
+    vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+    vi.spyOn(Setting, "getRequestOrganization").mockReturnValue("engineering");
+    vi.spyOn(Setting, "getRandomName").mockReturnValue("fallback");
     serverBackendMock.getOnlineServers.mockResolvedValue({status: "ok", data: {servers: rawOnlineServers}});
     serverBackendMock.addServer.mockResolvedValue({status: "ok"});
   });
@@ -209,13 +205,13 @@ describe("ServerStorePage", () => {
   afterEach(() => {
     cleanup();
     consoleErrorSpy.mockRestore();
-    jest.restoreAllMocks();
-    jest.clearAllMocks();
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   test("is migrated from JavaScript to TSX", () => {
-    expect(fs.existsSync(path.join(__dirname, "ServerStorePage.tsx"))).toBe(true);
-    expect(fs.existsSync(path.join(__dirname, "ServerStorePage.js"))).toBe(false);
+    expect(fs.existsSync(path.join(testFileDirectory, "ServerStorePage.tsx"))).toBe(true);
+    expect(fs.existsSync(path.join(testFileDirectory, "ServerStorePage.js"))).toBe(false);
   });
 
   test("renders online MCP servers through the existing store API", async() => {
@@ -238,7 +234,7 @@ describe("ServerStorePage", () => {
   });
 
   test("uses shared shell tokens instead of page-local dark surfaces", () => {
-    const appLess = readLessWithImports(path.join(__dirname, "App.less"));
+    const appLess = readLessWithImports(path.join(testFileDirectory, "App.less"));
     const pageBlock = appLess.match(/\.server-store-page \{([\s\S]*?)\}/)?.[1] ?? "";
     const headerBlock = appLess.match(/\.server-store-page-header-shell \{([\s\S]*?)\}/)?.[1] ?? "";
     const toolbarBlock = appLess.match(/\.server-store-page-toolbar \{([\s\S]*?)\}/)?.[1] ?? "";
@@ -393,7 +389,7 @@ describe("ServerStorePage", () => {
     expect(page.state.onlineNameFilter).toBe("alpha");
     expect(page.state.onlineTagFilter).toEqual(["search"]);
 
-    jest.spyOn(page, "createServerFromOnline").mockImplementation(() => {});
+    vi.spyOn(page, "createServerFromOnline").mockImplementation(() => {});
     const cardView = render(<>{page.renderServerCard(server)}</>);
     fireEvent.click(getButtonByNormalizedText(cardView.container, "添加"));
     expect(page.createServerFromOnline).toHaveBeenCalledWith(server);

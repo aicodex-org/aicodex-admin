@@ -1,8 +1,7 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
 import * as fs from "fs";
 import * as path from "path";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {act, cleanup, render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import ProductStorePage from "./ProductStorePage";
@@ -17,8 +16,10 @@ import * as FormBackend from "./backend/FormBackend";
 import * as Setting from "./Setting";
 import type {LegacyAny} from "./types/legacyPage";
 import {type ConsoleCallSpy, getAntdWarnings, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
+import {fireEvent} from "@testing-library/react";
+import {fileURLToPath} from "url";
+const testFileDirectory = path.dirname(fileURLToPath(import.meta.url));
 
-declare const jest: typeof jestValue;
 let consoleErrorSpy: ConsoleCallSpy;
 
 type LooseMock = {
@@ -67,20 +68,8 @@ const userBackendMock = UserBackend as unknown as UserBackendMock;
 const providerBackendMock = ProviderBackend as unknown as ProviderBackendMock;
 const organizationBackendMock = OrganizationBackend as unknown as OrganizationBackendMock;
 const formBackendMock = FormBackend as unknown as FormBackendMock;
-const expect = jestExpect;
-const {fireEvent, screen} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-    change: (element: Element | null, event: unknown) => boolean;
-  };
-  screen: {
-    getByText: (text: string | RegExp) => HTMLElement;
-    getAllByText: (text: string | RegExp) => HTMLElement[];
-    queryByText: (text: string | RegExp) => HTMLElement | null;
-  };
-};
 
-jest.mock("i18next", () => ({
+vi.mock("i18next", () => ({
   __esModule: true,
   default: {
     language: "en",
@@ -97,48 +86,43 @@ jest.mock("i18next", () => ({
   },
 }));
 
-jest.mock("./backend/ProductBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/ProductBackend", () => {
   return {
-    getProducts: factoryJest.fn(),
-    getProduct: factoryJest.fn(),
-    addProduct: factoryJest.fn(),
-    updateProduct: factoryJest.fn(),
-    deleteProduct: factoryJest.fn(),
+    getProducts: vi.fn(),
+    getProduct: vi.fn(),
+    addProduct: vi.fn(),
+    updateProduct: vi.fn(),
+    deleteProduct: vi.fn(),
   };
 });
 
-jest.mock("./backend/UserBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/UserBackend", () => {
   return {
-    getUser: factoryJest.fn(),
-    updateUser: factoryJest.fn(),
+    getUser: vi.fn(),
+    updateUser: vi.fn(),
   };
 });
 
-jest.mock("./backend/ProviderBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/ProviderBackend", () => {
   return {
-    getProviders: factoryJest.fn(),
+    getProviders: vi.fn(),
   };
 });
 
-jest.mock("./backend/OrganizationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/OrganizationBackend", () => {
   return {
-    getOrganizations: factoryJest.fn(),
+    getOrganizations: vi.fn(),
   };
 });
 
-jest.mock("./backend/FormBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/FormBackend", () => {
   return {
-    getForm: factoryJest.fn(),
+    getForm: vi.fn(),
   };
 });
 
-jest.mock("./ProductBuyPage", () => {
-  const ReactFactory = require("react");
+vi.mock("./ProductBuyPage", async() => {
+  const ReactFactory = await vi.importActual<typeof import("react")>("react");
   return {
     __esModule: true,
     default: (props: {product?: ProductRecord}) => ReactFactory.createElement(
@@ -149,8 +133,8 @@ jest.mock("./ProductBuyPage", () => {
   };
 });
 
-jest.mock("./common/modal/PopconfirmModal", () => {
-  const ReactFactory = require("react");
+vi.mock("./common/modal/PopconfirmModal", async() => {
+  const ReactFactory = await vi.importActual<typeof import("react")>("react");
   return {
     __esModule: true,
     default: (props: {disabled?: boolean; onConfirm?: () => void}) => ReactFactory.createElement(
@@ -202,7 +186,7 @@ async function flushPromises() {
 
 function createHistory() {
   return {
-    push: jestValue.fn(),
+    push: vi.fn(),
   };
 }
 
@@ -275,29 +259,29 @@ function createProductEditPage(props: Record<string, LegacyAny> = {}) {
 
 beforeEach(() => {
   cleanup();
-  consoleErrorSpy = jestValue.spyOn(console, "error") as unknown as ConsoleCallSpy;
+  consoleErrorSpy = vi.spyOn(console, "error") as unknown as ConsoleCallSpy;
   localStorage.clear();
   sessionStorage.clear();
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: () => ({
       matches: false,
-      addListener: jestValue.fn(),
-      removeListener: jestValue.fn(),
-      addEventListener: jestValue.fn(),
-      removeEventListener: jestValue.fn(),
-      dispatchEvent: jestValue.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
     }),
   });
-  jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "getRequestOrganization").mockReturnValue("built-in");
-  jestValue.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(false);
-  jestValue.spyOn(Setting, "isAdminUser").mockReturnValue(true);
-  jestValue.spyOn(Setting, "isLocalAdminUser").mockReturnValue(true);
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(false);
-  jestValue.spyOn(Setting, "goToLinkSoft").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "getRandomName").mockReturnValue("random");
-  jestValue.spyOn(Setting, "getLanguageText").mockImplementation((value: LegacyAny) => `${value || ""}`);
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "getRequestOrganization").mockReturnValue("built-in");
+  vi.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(false);
+  vi.spyOn(Setting, "isAdminUser").mockReturnValue(true);
+  vi.spyOn(Setting, "isLocalAdminUser").mockReturnValue(true);
+  vi.spyOn(Setting, "isMobile").mockReturnValue(false);
+  vi.spyOn(Setting, "goToLinkSoft").mockImplementation(() => {});
+  vi.spyOn(Setting, "getRandomName").mockReturnValue("random");
+  vi.spyOn(Setting, "getLanguageText").mockImplementation((value: LegacyAny) => `${value || ""}`);
   formBackendMock.getForm.mockResolvedValue({status: "ok", data: {formItems: []}});
   productBackendMock.getProducts.mockResolvedValue({status: "ok", data: [product, rechargeProduct], data2: 2});
   productBackendMock.addProduct.mockResolvedValue({status: "ok"});
@@ -315,14 +299,14 @@ afterEach(() => {
   const actWarnings = getReactActWarnings(consoleErrorSpy.mock.calls);
   const antdWarnings = getAntdWarnings(consoleErrorSpy.mock.calls);
   consoleErrorSpy.mockRestore();
-  jestValue.restoreAllMocks();
-  jestValue.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
   expect(actWarnings).toEqual([]);
   expect(antdWarnings).toEqual([]);
 });
 
 test("uses TSX files for migrated product catalog pages and shared cart controls", () => {
-  const srcDir = __dirname;
+  const srcDir = testFileDirectory;
   const files = [
     "ProductStorePage",
     "ProductListPage",
@@ -337,10 +321,10 @@ test("uses TSX files for migrated product catalog pages and shared cart controls
 });
 
 test("keeps quantity stepper and floating cart button interactions stable", () => {
-  const onIncrease = jestValue.fn();
-  const onDecrease = jestValue.fn();
-  const onChange = jestValue.fn();
-  const onCartClick = jestValue.fn();
+  const onIncrease = vi.fn();
+  const onDecrease = vi.fn();
+  const onChange = vi.fn();
+  const onCartClick = vi.fn();
 
   const view = render(
     <>
@@ -487,7 +471,7 @@ test("keeps product list creation, deletion, authorization and table actions sta
   expect(productBackendMock.addProduct).toHaveBeenCalledWith(expect.objectContaining({name: "product_random"}));
   expect(history.push).toHaveBeenCalledWith({pathname: "/products/built-in/product_random", mode: "add"});
 
-  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  page.fetch = vi.fn() as unknown as typeof page.fetch;
   page.deleteProduct(0);
   await flushPromises();
   expect(productBackendMock.deleteProduct).toHaveBeenCalledWith(product);
@@ -497,7 +481,7 @@ test("keeps product list creation, deletion, authorization and table actions sta
 
   const fetchPage = createProductListPage();
   productBackendMock.getProducts.mockResolvedValueOnce({status: "error", msg: "denied"});
-  jestValue.spyOn(Setting, "isResponseDenied").mockReturnValueOnce(true);
+  vi.spyOn(Setting, "isResponseDenied").mockReturnValueOnce(true);
   fetchPage.fetch({pagination: {current: 1, pageSize: 20}});
   await flushPromises();
   expect(fetchPage.state.isAuthorized).toBe(false);
@@ -574,7 +558,7 @@ test("keeps product list column renderers, fetch results and failure paths stabl
 
 test("keeps product list default organization, mobile and disabled action branches stable", async() => {
   const history = createHistory();
-  jestValue.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(true);
+  vi.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(true);
   const page = createProductListPage({history, account: {...account, isAdmin: false}});
 
   productBackendMock.getProducts.mockResolvedValueOnce({status: "ok", data: [product], data2: 1});
@@ -582,8 +566,8 @@ test("keeps product list default organization, mobile and disabled action branch
   await flushPromises();
   expect(productBackendMock.getProducts).toHaveBeenCalledWith("", 1, 5, "name", "workspace", undefined, undefined);
 
-  jestValue.spyOn(Setting, "isLocalAdminUser").mockReturnValue(false);
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(true);
+  vi.spyOn(Setting, "isLocalAdminUser").mockReturnValue(false);
+  vi.spyOn(Setting, "isMobile").mockReturnValue(true);
   const table = page.renderTable([{...product, tag: "auto_created_product_for_plan"}]) as React.ReactElement<{children: React.ReactElement<{columns: Array<{key?: string; fixed?: string; render?: LegacyAny}>; title: () => React.ReactNode}>}>;
   const tableElement = table.props.children;
   const actionColumn = tableElement.props.columns.find(column => column.key === "op");
@@ -601,7 +585,7 @@ test("keeps product list default organization, mobile and disabled action branch
 });
 
 test("publishes the product display name for its workspace tab after loading and editing", async() => {
-  const dispatchSpy = jestValue.spyOn(window, "dispatchEvent");
+  const dispatchSpy = vi.spyOn(window, "dispatchEvent");
   const page = createProductEditPage();
 
   productBackendMock.getProduct.mockResolvedValueOnce({status: "ok", data: {...product, displayName: "Workspace Credits"}});
@@ -662,8 +646,8 @@ test("keeps product edit loading, provider filtering, rendering and field update
 
 test("keeps product edit form handlers, modes and provider errors stable", async() => {
   const page = createProductEditPage();
-  jestValue.spyOn(page, "submitProductEdit").mockImplementation(() => undefined);
-  jestValue.spyOn(page, "deleteProduct").mockImplementation(() => undefined);
+  vi.spyOn(page, "submitProductEdit").mockImplementation(() => undefined);
+  vi.spyOn(page, "deleteProduct").mockImplementation(() => undefined);
 
   page.state = {...page.state, mode: "add", product: {...product}};
   const addView = render(<MemoryRouter>{page.renderProduct()}</MemoryRouter>);

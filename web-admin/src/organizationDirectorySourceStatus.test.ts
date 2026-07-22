@@ -1,18 +1,18 @@
-import {afterEach, describe, expect, it, jest} from "@jest/globals";
+import {afterEach, describe, expect, it, vi} from "vitest";
 import {getDirectorySourceUiStatus, getOrganizationDirectorySourceStatus} from "./organizationDirectorySourceStatus";
 
 const originalFetch = global.fetch;
 
 function mockFetchJson(response: unknown) {
-  const json = jest.fn(async() => response);
-  const fetchMock = jest.fn(async(_input: RequestInfo | URL, _init?: RequestInit) => ({json} as unknown as Response));
+  const json = vi.fn(async() => response);
+  const fetchMock = vi.fn(async(_input: RequestInfo | URL, _init?: RequestInit) => ({json} as unknown as Response));
   global.fetch = fetchMock as unknown as typeof fetch;
   return fetchMock;
 }
 
 afterEach(() => {
   global.fetch = originalFetch;
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 describe("organizationDirectorySourceStatus", () => {

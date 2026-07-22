@@ -1,24 +1,20 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
-import {expect, jest} from "@jest/globals";
 import {cleanup, render} from "@testing-library/react";
 import type {LegacyAny} from "../types/legacyPage";
 import CompoundRule from "./CompoundRule";
 import * as RuleBackend from "../backend/RuleBackend";
+import * as fs from "fs";
+import * as path from "path";
+import {fireEvent} from "@testing-library/react";
+import {fileURLToPath} from "url";
+const testFileDirectory = path.dirname(fileURLToPath(import.meta.url));
 
-const fs = require("fs") as {existsSync: (filePath: string) => boolean};
-const path = require("path") as {join: (...parts: string[]) => string};
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-  };
-};
 let consoleErrorSpy: {mockRestore: () => void};
 
-jest.mock("../backend/RuleBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
+vi.mock("../backend/RuleBackend", () => {
   return {
-    getRules: factoryJest.fn(),
+    getRules: vi.fn(),
   };
 });
 
@@ -88,7 +84,7 @@ function getRulesMock() {
 }
 
 function createCompoundRule(table: RuleExpressionRow[] = [], owner = "org-alpha", ruleName = "self-rule") {
-  const onUpdateTable = jest.fn() as unknown as UpdateTableMock;
+  const onUpdateTable = vi.fn() as unknown as UpdateTableMock;
   const page = new (CompoundRule as unknown as new(props: CompoundRuleProps) => React.Component<CompoundRuleProps, CompoundRuleState>)({
     title: "Compound Rules",
     table,
@@ -96,7 +92,7 @@ function createCompoundRule(table: RuleExpressionRow[] = [], owner = "org-alpha"
     ruleName,
     onUpdateTable,
   }) as CompoundRuleComponent;
-  page.setState = jest.fn((patch: Partial<CompoundRuleState>) => {
+  page.setState = vi.fn((patch: Partial<CompoundRuleState>) => {
     (page as LegacyAny).state = {...page.state, ...patch};
   }) as LegacyAny;
 
@@ -121,7 +117,7 @@ function selectOptionValues(selectElement: React.ReactElement<LegacyAny> | undef
 }
 
 beforeEach(() => {
-  consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
+  consoleErrorSpy = vi.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
     throw new Error([message, ...args].map(item => `${item}`).join(" "));
   });
 });
@@ -129,19 +125,19 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   consoleErrorSpy.mockRestore();
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 test("migrates CompoundRule from JavaScript to TSX", () => {
-  expect(fs.existsSync(path.join(__dirname, "CompoundRule.tsx"))).toBe(true);
-  expect(fs.existsSync(path.join(__dirname, "CompoundRule.js"))).toBe(false);
+  expect(fs.existsSync(path.join(testFileDirectory, "CompoundRule.tsx"))).toBe(true);
+  expect(fs.existsSync(path.join(testFileDirectory, "CompoundRule.js"))).toBe(false);
 });
 
 test("accepts RuleEditPage backend-compatible expression rows", () => {
   const rows: BackendRuleExpressionRow[] = [
     {operator: "and", value: "org-alpha/first", backendOnly: 1},
   ];
-  const onUpdateTable = jest.fn() as unknown as (table: BackendRuleExpressionRow[]) => void;
+  const onUpdateTable = vi.fn() as unknown as (table: BackendRuleExpressionRow[]) => void;
 
   expect(new CompoundRule({
     title: "Compound Rules",

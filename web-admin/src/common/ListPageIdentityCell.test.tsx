@@ -1,41 +1,32 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {cleanup, render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import copy from "copy-to-clipboard";
 import * as Setting from "../Setting";
 import ListPageIdentityCell from "./ListPageIdentityCell";
-
-declare const jest: typeof jestValue;
+import {fireEvent} from "@testing-library/react";
 
 type LooseMock = {
   (...args: unknown[]): unknown;
   mockReturnValue: (value: unknown) => LooseMock;
 };
 
-const expect = jestExpect;
 const copyMock = copy as unknown as LooseMock;
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-  };
-};
 
-jest.mock("copy-to-clipboard", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
-  return factoryJest.fn();
+vi.mock("copy-to-clipboard", () => {
+  return {default: vi.fn()};
 });
 
 beforeEach(() => {
   copyMock.mockReturnValue(true);
-  jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
 });
 
 afterEach(() => {
   cleanup();
-  jestValue.restoreAllMocks();
-  jestValue.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
 });
 
 test("renders identity content and copies the secondary identifier through the weak action", () => {

@@ -1,8 +1,7 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import React from "react";
 import {render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
-import {expect, jest} from "@jest/globals";
 import i18next from "i18next";
 import ApplicationAccessCenter, {buildApplicationAccessCenterSummary} from "./ApplicationAccessCenter";
 import {
@@ -258,10 +257,10 @@ describe("ApplicationAccessCenter", () => {
   beforeEach(async() => {
     await useTestLanguage("zh");
     Object.defineProperty(global, "fetch", {
-      value: jest.fn(() => new Promise(() => {})),
+      value: vi.fn(() => new Promise(() => {})),
       writable: true,
     });
-    const spy = jest.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
+    const spy = vi.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
       consoleErrorSpy.mockRestore();
       throw new Error([message, ...args].map(item => `${item}`).join(" "));
     });
@@ -270,7 +269,7 @@ describe("ApplicationAccessCenter", () => {
 
   afterEach(() => {
     consoleErrorSpy.mockRestore();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test("builds read-only access summary without exposing client secrets", () => {

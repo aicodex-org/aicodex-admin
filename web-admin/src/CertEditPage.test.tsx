@@ -1,7 +1,6 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
 import {cleanup, fireEvent, render} from "@testing-library/react";
-import {beforeEach, expect, jest} from "@jest/globals";
 import CertEditPage from "./CertEditPage";
 import * as CertBackend from "./backend/CertBackend";
 import * as Setting from "./Setting";
@@ -12,7 +11,7 @@ const flushPromises = async(): Promise<void> => new Promise(resolve => setTimeou
 let consoleErrorSpy: ConsoleCallSpy;
 
 function createPage(mode: "add" | "edit" = "edit"): any {
-  const page: any = new CertEditPage({match: {params: {organizationName: "engineering", certName: "cert_draft"}}, location: {mode, cert: draft}, history: {push: jest.fn()}, account: {owner: "engineering", isAdmin: true}} as any);
+  const page: any = new CertEditPage({match: {params: {organizationName: "engineering", certName: "cert_draft"}}, location: {mode, cert: draft}, history: {push: vi.fn()}, account: {owner: "engineering", isAdmin: true}} as any);
   page.state = {...page.state, cert: {...draft}, organizations: []};
   page.setState = (patch: any, callback?: () => void) => {
     page.state = {...page.state, ...(typeof patch === "function" ? patch(page.state, page.props) : patch)};
@@ -22,20 +21,20 @@ function createPage(mode: "add" | "edit" = "edit"): any {
 }
 
 beforeEach(() => {
-  consoleErrorSpy = jest.spyOn(console, "error") as unknown as ConsoleCallSpy;
+  consoleErrorSpy = vi.spyOn(console, "error") as unknown as ConsoleCallSpy;
 });
 
 afterEach(() => {
   cleanup();
   const actWarnings = getReactActWarnings(consoleErrorSpy.mock.calls);
   consoleErrorSpy.mockRestore();
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
   window.location.hash = "";
   expect(actWarnings).toEqual([]);
 });
 
 test("renders a shared two-tab certificate shell with one action bar", () => {
-  jest.spyOn(Setting, "isMobile").mockReturnValue(false);
+  vi.spyOn(Setting, "isMobile").mockReturnValue(false);
   const page = createPage();
   const view = render(<>{page.renderCert()}</>);
   expect(view.container.querySelector(".cert-edit-shell")).not.toBeNull();
@@ -47,8 +46,8 @@ test("renders a shared two-tab certificate shell with one action bar", () => {
   const actionButtons = view.container.querySelectorAll<HTMLButtonElement>(".cert-edit-action-bar button");
   expect(actionButtons).toHaveLength(3);
 
-  const handleBack = jest.spyOn(page, "handleBack").mockImplementation(() => undefined);
-  const submitCertEdit = jest.spyOn(page, "submitCertEdit").mockImplementation(() => undefined);
+  const handleBack = vi.spyOn(page, "handleBack").mockImplementation(() => undefined);
+  const submitCertEdit = vi.spyOn(page, "submitCertEdit").mockImplementation(() => undefined);
   const tabButtons = view.container.querySelectorAll<HTMLElement>(".cert-edit-tabs .ant-tabs-tab-btn");
   fireEvent.click(tabButtons[1]);
   fireEvent.click(view.container.querySelector<HTMLButtonElement>(".cert-edit-back-button") as HTMLButtonElement);
@@ -73,8 +72,8 @@ test("uses the certificate display name in the page title with a technical-name 
 });
 
 test("renders certificate organization display names with one shared admin option", () => {
-  jest.spyOn(Setting, "isMobile").mockReturnValue(false);
-  jest.spyOn(Setting, "isAdminUser").mockReturnValue(true);
+  vi.spyOn(Setting, "isMobile").mockReturnValue(false);
+  vi.spyOn(Setting, "isAdminUser").mockReturnValue(true);
   const page = createPage();
   page.state.cert.owner = "feishu6091";
   page.state.organizations = [
@@ -96,10 +95,10 @@ test("renders certificate organization display names with one shared admin optio
 
 test("creates an add-mode certificate only on save and reloads generated material", async() => {
   const page = createPage("add");
-  const addCert = jest.spyOn(CertBackend, "addCert").mockResolvedValue({status: "ok"} as any);
-  const updateCert = jest.spyOn(CertBackend, "updateCert");
-  const getCert = jest.spyOn(page, "getCert").mockImplementation(() => undefined);
-  jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  const addCert = vi.spyOn(CertBackend, "addCert").mockResolvedValue({status: "ok"} as any);
+  const updateCert = vi.spyOn(CertBackend, "updateCert");
+  const getCert = vi.spyOn(page, "getCert").mockImplementation(() => undefined);
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
   page.submitCertEdit(false);
   await flushPromises();
   expect(addCert).toHaveBeenCalledWith(expect.objectContaining({name: "cert_draft"}));
@@ -111,7 +110,7 @@ test("creates an add-mode certificate only on save and reloads generated materia
 
 test("loads an add-mode certificate draft without requesting generated material", () => {
   const page = createPage("add");
-  const getCert = jest.spyOn(CertBackend, "getCert");
+  const getCert = vi.spyOn(CertBackend, "getCert");
 
   page.getCert();
 
@@ -120,9 +119,9 @@ test("loads an add-mode certificate draft without requesting generated material"
 });
 
 test("publishes the certificate display name for its workspace tab after loading and editing", async() => {
-  const dispatchSpy = jest.spyOn(window, "dispatchEvent");
+  const dispatchSpy = vi.spyOn(window, "dispatchEvent");
   const page = createPage("edit");
-  jest.spyOn(CertBackend, "getCert").mockResolvedValue({
+  vi.spyOn(CertBackend, "getCert").mockResolvedValue({
     status: "ok",
     data: {...draft, displayName: "Built-in Cert"},
   } as any);
@@ -144,7 +143,7 @@ test("publishes the certificate display name for its workspace tab after loading
 
 test("returns from an unsaved certificate draft without deleting it", () => {
   const page = createPage("add");
-  const deleteCert = jest.spyOn(CertBackend, "deleteCert");
+  const deleteCert = vi.spyOn(CertBackend, "deleteCert");
 
   page.handleBack();
 
@@ -154,9 +153,9 @@ test("returns from an unsaved certificate draft without deleting it", () => {
 
 test("keeps certificate edit mode on update and supports save-and-return", async() => {
   const page = createPage("edit");
-  const addCert = jest.spyOn(CertBackend, "addCert");
-  const updateCert = jest.spyOn(CertBackend, "updateCert").mockResolvedValue({status: "ok"} as any);
-  jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  const addCert = vi.spyOn(CertBackend, "addCert");
+  const updateCert = vi.spyOn(CertBackend, "updateCert").mockResolvedValue({status: "ok"} as any);
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
 
   page.submitCertEdit(true);
   await flushPromises();
@@ -169,10 +168,10 @@ test("keeps certificate edit mode on update and supports save-and-return", async
 test("prevents duplicate certificate saves and restores submission after failure", async() => {
   const page = createPage("add");
   let resolveRequest: ((value: any) => void) | undefined;
-  const addCert = jest.spyOn(CertBackend, "addCert").mockImplementation(() => new Promise(resolve => {
+  const addCert = vi.spyOn(CertBackend, "addCert").mockImplementation(() => new Promise(resolve => {
     resolveRequest = resolve;
   }) as any);
-  jest.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => undefined);
 
   page.submitCertEdit(false);
   page.submitCertEdit(false);

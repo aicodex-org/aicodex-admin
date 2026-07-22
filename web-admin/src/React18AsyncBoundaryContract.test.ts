@@ -1,12 +1,14 @@
-/* eslint-env jest */
+import {expect, test} from "vitest";
 import * as fs from "fs";
 import * as path from "path";
-import {expect, test} from "@jest/globals";
 import {
   findReactActWarningSuppressions,
   getAntdWarnings,
   getReactActWarnings
 } from "./testUtils/reactAsyncWarnings";
+import {fileURLToPath} from "url";
+const testFilePath = fileURLToPath(import.meta.url);
+const testFileDirectory = path.dirname(testFilePath);
 
 function listTestSources(directory: string): string[] {
   return fs.readdirSync(directory, {withFileTypes: true}).flatMap(entry => {
@@ -14,14 +16,14 @@ function listTestSources(directory: string): string[] {
     if (entry.isDirectory()) {
       return listTestSources(entryPath);
     }
-    return /\.test\.tsx?$/.test(entry.name) && entryPath !== __filename ? [entryPath] : [];
+    return /\.test\.tsx?$/.test(entry.name) && entryPath !== testFilePath ? [entryPath] : [];
   });
 }
 
 test("does not suppress React act diagnostics with a text-matched return", () => {
-  const suppressions = listTestSources(__dirname).flatMap(filePath => {
+  const suppressions = listTestSources(testFileDirectory).flatMap(filePath => {
     return findReactActWarningSuppressions(fs.readFileSync(filePath, "utf8"))
-      .map(line => `${path.relative(__dirname, filePath)}:${line}`);
+      .map(line => `${path.relative(testFileDirectory, filePath)}:${line}`);
   });
 
   expect(suppressions).toEqual([]);

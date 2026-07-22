@@ -1,73 +1,48 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 
 import React from "react";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
-import {act, render} from "@testing-library/react";
+import {act, render, waitFor} from "@testing-library/react";
 import FeishuOrganizationSyncPage from "./FeishuOrganizationSyncPage";
 import * as FeishuOrganizationSyncBackend from "./backend/FeishuOrganizationSyncBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as WecomOrganizationSyncBackend from "./backend/WecomOrganizationSyncBackend";
 import * as Setting from "./Setting";
 import {type ConsoleCallSpy, getAntdWarnings, getReactActWarnings} from "./testUtils/reactAsyncWarnings";
+import {fireEvent, screen} from "@testing-library/react";
 
-declare const jest: typeof jestValue;
-
-type DomMatcherResult = ReturnType<typeof jestExpect> & {
-  toBeInTheDocument: () => void;
-  toHaveAttribute: (attr: string, value?: unknown) => void;
-  toHaveStyle: (style: string | Record<string, unknown>) => void;
-  toHaveTextContent: (text: string | RegExp) => void;
-  toBeDisabled: () => void;
-  not: ReturnType<typeof jestExpect> & {
-    toBeInTheDocument: () => void;
-    toHaveBeenCalled: () => void;
-    toBeDisabled: () => void;
-  };
-};
-
-type TestExpect = {
-  (actual: unknown): DomMatcherResult;
-  objectContaining: typeof jestExpect.objectContaining;
-  stringContaining: typeof jestExpect.stringContaining;
-};
-
-const expect = jestExpect as unknown as TestExpect;
 let consoleErrorSpy: ConsoleCallSpy;
 
-jest.mock("./backend/FeishuOrganizationSyncBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/FeishuOrganizationSyncBackend", () => {
   return {
-    getFeishuOrganizationSyncConfig: factoryJest.fn(),
-    saveFeishuOrganizationSyncConfig: factoryJest.fn(),
-    testFeishuOrganizationSyncConfig: factoryJest.fn(),
-    dryRunFeishuOrganizationSyncPreview: factoryJest.fn(),
-    getFeishuOrganizationSyncDryRunHistories: factoryJest.fn(),
-    getFeishuOrganizationSyncDryRunHistory: factoryJest.fn(),
-    getFeishuOrganizationSyncUserBindingConflicts: factoryJest.fn(),
-    getFeishuOrganizationSyncHandoffEvidence: factoryJest.fn(),
-    startFeishuOrganizationSyncRun: factoryJest.fn(),
-    getFeishuOrganizationSyncRuns: factoryJest.fn(),
+    getFeishuOrganizationSyncConfig: vi.fn(),
+    saveFeishuOrganizationSyncConfig: vi.fn(),
+    testFeishuOrganizationSyncConfig: vi.fn(),
+    dryRunFeishuOrganizationSyncPreview: vi.fn(),
+    getFeishuOrganizationSyncDryRunHistories: vi.fn(),
+    getFeishuOrganizationSyncDryRunHistory: vi.fn(),
+    getFeishuOrganizationSyncUserBindingConflicts: vi.fn(),
+    getFeishuOrganizationSyncHandoffEvidence: vi.fn(),
+    startFeishuOrganizationSyncRun: vi.fn(),
+    getFeishuOrganizationSyncRuns: vi.fn(),
   };
 });
 
-jest.mock("./backend/WecomOrganizationSyncBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/WecomOrganizationSyncBackend", () => {
   return {
-    getWecomOrganizationSyncConfig: factoryJest.fn(),
+    getWecomOrganizationSyncConfig: vi.fn(),
   };
 });
 
-jest.mock("./backend/OrganizationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/OrganizationBackend", () => {
   return {
-    addOrganization: factoryJest.fn(),
-    updateOrganization: factoryJest.fn(),
-    deleteOrganization: factoryJest.fn(),
+    addOrganization: vi.fn(),
+    updateOrganization: vi.fn(),
+    deleteOrganization: vi.fn(),
   };
 });
 
-jest.mock("./common/select/OrganizationSelect", () => function OrganizationSelectMock(props: {initValue?: string; excludedOrganizations?: string[]; onChange?: (value: string) => void; onOrganizationsLoaded?: (organizations: Array<{name: string; displayName: string}>) => void}) {
-  const mockReact = require("react") as {useEffect: (effect: () => void, deps?: unknown[]) => void};
+vi.mock("./common/select/OrganizationSelect", () => ({default: function OrganizationSelectMock(props: {initValue?: string; excludedOrganizations?: string[]; onChange?: (value: string) => void; onOrganizationsLoaded?: (organizations: Array<{name: string; displayName: string}>) => void}) {
+  const mockReact = React as {useEffect: (effect: () => void, deps?: unknown[]) => void};
   mockReact.useEffect(() => {
     props.onOrganizationsLoaded?.([
       {name: "built-in", displayName: "Built-in Organization"},
@@ -87,7 +62,7 @@ jest.mock("./common/select/OrganizationSelect", () => function OrganizationSelec
       {organizations.map(organization => <option key={organization.value} value={organization.value}>{organization.label}</option>)}
     </select>
   );
-});
+}}));
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -102,47 +77,27 @@ type OrganizationBackendMock = Record<keyof typeof OrganizationBackend, LooseMoc
 const feishuBackendMock = FeishuOrganizationSyncBackend as unknown as FeishuBackendMock;
 const wecomBackendMock = WecomOrganizationSyncBackend as unknown as WecomBackendMock;
 const organizationBackendMock = OrganizationBackend as unknown as OrganizationBackendMock;
-const {fireEvent, screen} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-    change: (element: Element | null, event: unknown) => boolean;
-    keyDown: (element: Element | null, event: unknown) => boolean;
-  };
-  screen: {
-    findByText: (text: string | RegExp) => Promise<HTMLElement>;
-    getByText: (text: string | RegExp) => HTMLElement;
-    getAllByText: (text: string | RegExp) => HTMLElement[];
-    queryByText: (text: string | RegExp) => HTMLElement | null;
-    getByAltText: (text: string | RegExp) => HTMLElement;
-    getByLabelText: (text: string | RegExp) => HTMLElement;
-    getByDisplayValue: (text: string | RegExp) => HTMLElement;
-    queryByDisplayValue: (text: string | RegExp) => HTMLElement | null;
-    getByRole: (role: string, options?: {name?: string | RegExp}) => HTMLElement;
-    queryByRole: (role: string, options?: {name?: string | RegExp}) => HTMLElement | null;
-    findAllByText: (text: string | RegExp) => Promise<HTMLElement[]>;
-  };
-};
 
 const mockMatchMedia = (query: string): MediaQueryList => ({
   matches: false,
   media: query,
   onchange: null,
-  addListener: jestValue.fn(),
-  removeListener: jestValue.fn(),
-  addEventListener: jestValue.fn(),
-  removeEventListener: jestValue.fn(),
-  dispatchEvent: jestValue.fn(),
+  addListener: vi.fn(),
+  removeListener: vi.fn(),
+  addEventListener: vi.fn(),
+  removeEventListener: vi.fn(),
+  dispatchEvent: vi.fn(),
 } as unknown as MediaQueryList);
 
 beforeEach(() => {
-  consoleErrorSpy = jestValue.spyOn(console, "error") as unknown as ConsoleCallSpy;
+  consoleErrorSpy = vi.spyOn(console, "error") as unknown as ConsoleCallSpy;
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: mockMatchMedia,
   });
   localStorage.removeItem("feishu-org-sync:lastOrganization");
-  jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
   organizationBackendMock.addOrganization.mockResolvedValue({status: "ok"});
   organizationBackendMock.updateOrganization.mockResolvedValue({status: "ok"});
   organizationBackendMock.deleteOrganization.mockResolvedValue({status: "ok"});
@@ -339,8 +294,8 @@ afterEach(() => {
   const actWarnings = getReactActWarnings(consoleErrorSpy.mock.calls);
   const antdWarnings = getAntdWarnings(consoleErrorSpy.mock.calls);
   consoleErrorSpy.mockRestore();
-  jestValue.restoreAllMocks();
-  jestValue.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
   expect(actWarnings).toEqual([]);
   expect(antdWarnings).toEqual([]);
 });
@@ -367,8 +322,8 @@ test("restores configured Feishu organization when account owner is built-in", a
 });
 
 test("opens an unsaved organization draft when creating Feishu sync target organization", async() => {
-  const history = {push: jestValue.fn()};
-  const dispatchEventSpy = jestValue.spyOn(window, "dispatchEvent");
+  const history = {push: vi.fn()};
+  const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
   render(<FeishuOrganizationSyncPage account={{owner: "engineering", isAdmin: true}} history={history} />);
 
   fireEvent.click(await screen.findByText("新建组织"));
@@ -573,7 +528,7 @@ test("expands Feishu schedule fields only after enabling scheduled sync", async(
   expect(screen.queryByDisplayValue("0 2 * * *")).not.toBeInTheDocument();
 
   const scheduleSwitch = screen.getByText("启用定时同步").closest(".ant-space")?.querySelector("button");
-  fireEvent.click(scheduleSwitch || null);
+  fireEvent.click(scheduleSwitch!);
 
   expect(screen.getByText("Cron 表达式")).toBeInTheDocument();
   expect(screen.getByText("时区")).toBeInTheDocument();
@@ -864,20 +819,23 @@ test("keeps dry-run history off the main page and opens it in a modal", async() 
 
   expect(await screen.findByText("查看预览历史")).toBeInTheDocument();
   expect(screen.queryByText("最近 1 次 dry-run 预览")).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", {name: /collapsed Dry-run 历史/})).not.toBeInTheDocument();
-  expect(screen.queryByRole("columnheader", {name: "记录 ID"})).not.toBeInTheDocument();
+  expect(document.body.querySelector("button[aria-label*='Dry-run 历史']")).not.toBeInTheDocument();
+  expect(Array.from(document.body.querySelectorAll("th[scope='col']"))
+    .some(column => column.textContent === "记录 ID")).toBe(false);
 
   fireEvent.click(screen.getByText("查看预览历史"));
 
-  expect(screen.getByRole("dialog", {name: "Dry-run 历史"})).toBeInTheDocument();
+  const dialog = screen.getByText("Dry-run 历史").closest<HTMLElement>("[role='dialog']");
+  expect(dialog).not.toBeNull();
   expect(document.body.querySelector(".ant-drawer")).not.toBeInTheDocument();
-  expect(screen.getByRole("columnheader", {name: "记录 ID"})).toBeInTheDocument();
-  expect(screen.getByText("通讯录权限不足")).toBeInTheDocument();
-  expect(screen.getByText("permission denied user_id=***")).toBeInTheDocument();
+  expect(Array.from(dialog!.querySelectorAll("th[scope='col']"))
+    .some(column => column.textContent === "记录 ID")).toBe(true);
+  expect(dialog).toHaveTextContent("通讯录权限不足");
+  expect(dialog).toHaveTextContent("permission denied user_id=***");
 });
 
 test("renders sync runs without forcing horizontal table scroll", async() => {
-  const writeText = jestValue.fn((text: string) => Promise.resolve(text));
+  const writeText = vi.fn((text: string) => Promise.resolve(text));
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
     value: {writeText},
@@ -911,8 +869,8 @@ test("renders sync runs without forcing horizontal table scroll", async() => {
   expect(runIndexCell?.textContent).toBe("1");
   expect(container.querySelector(".ant-typography-copy")).not.toBeInTheDocument();
   const runIndexButton = runIndexCell?.querySelector("[role='button']") || null;
-  fireEvent.click(runIndexButton);
-  fireEvent.keyDown(runIndexButton, {key: " "});
+  fireEvent.click(runIndexButton!);
+  fireEvent.keyDown(runIndexButton!, {key: " "});
   expect(writeText).toHaveBeenCalledWith("feishu-sync-run-1781681971079340586");
   expect(screen.queryByText("运行 ID")).not.toBeInTheDocument();
   expect(screen.getByText("触发方式")).toBeInTheDocument();
@@ -933,7 +891,7 @@ test("copies Feishu run ID through keyboard, fallback, and failure paths", async
   const originalClipboard = navigator.clipboard;
   const originalExecCommand = document.execCommand;
   const page = new FeishuOrganizationSyncPage({account: {owner: "engineering", isAdmin: true}});
-  const writeText = jestValue.fn((text: string) => Promise.resolve(text));
+  const writeText = vi.fn((text: string) => Promise.resolve(text));
 
   try {
     page.copyRunId("");
@@ -944,7 +902,7 @@ test("copies Feishu run ID through keyboard, fallback, and failure paths", async
       value: {writeText},
     });
 
-    const event = {key: "Enter", preventDefault: jestValue.fn()};
+    const event = {key: "Enter", preventDefault: vi.fn()};
     page.handleRunIndexKeyDown(event as unknown as React.KeyboardEvent<HTMLElement>, "run-keyboard");
 
     expect(event.preventDefault).toHaveBeenCalled();
@@ -957,7 +915,7 @@ test("copies Feishu run ID through keyboard, fallback, and failure paths", async
     await flushPromises();
     expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("复制失败："));
 
-    const execCommand = jestValue.fn(() => true);
+    const execCommand = vi.fn(() => true);
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: undefined,
@@ -984,7 +942,7 @@ test("copies Feishu run ID through keyboard, fallback, and failure paths", async
 });
 
 test("copies handoff evidence JSON without raw tenant identifiers", async() => {
-  const writeText = jestValue.fn((text: string) => Promise.resolve(text));
+  const writeText = vi.fn((text: string) => Promise.resolve(text));
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
     value: {writeText},
@@ -1003,7 +961,7 @@ test("copies handoff evidence JSON without raw tenant identifiers", async() => {
 });
 
 test("copies handoff acceptance checklist JSON and Markdown without raw tenant identifiers", async() => {
-  const writeText = jestValue.fn((text: string) => Promise.resolve(text));
+  const writeText = vi.fn((text: string) => Promise.resolve(text));
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
     value: {writeText},
@@ -1028,9 +986,9 @@ test("copies handoff acceptance checklist JSON and Markdown without raw tenant i
 });
 
 test("exports handoff acceptance checklist JSON and Markdown", async() => {
-  const createObjectURL = jestValue.fn(() => "blob:feishu-checklist");
-  const revokeObjectURL = jestValue.fn();
-  const clickSpy = jestValue.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  const createObjectURL = vi.fn(() => "blob:feishu-checklist");
+  const revokeObjectURL = vi.fn();
+  const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
   Object.defineProperty(URL, "createObjectURL", {
     configurable: true,
     value: createObjectURL,
@@ -1095,7 +1053,7 @@ test("renders handoff evidence blocked and no-run states", async() => {
   expect(screen.getAllByText("复核预览影响").length).toBeGreaterThan(0);
   expect(screen.queryByText("review_dry_run_diff")).not.toBeInTheDocument();
   expect(screen.queryByText("dry_run_diff_conflict_or_invalid")).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", {name: "Close"}));
+  fireEvent.click(document.body.querySelector(".ant-modal-close")!);
 
   feishuBackendMock.getFeishuOrganizationSyncHandoffEvidence.mockResolvedValueOnce({
     status: "ok",
@@ -1245,7 +1203,7 @@ test("pauses refresh and auxiliary panels on backend rejections", async() => {
 
 test("handles sync start success, duplicate running task, api error and rejection", async() => {
   const page = createFeishuPageHarness();
-  const refreshSpy = jestValue.fn();
+  const refreshSpy = vi.fn();
   page.refresh = refreshSpy;
 
   feishuBackendMock.startFeishuOrganizationSyncRun.mockResolvedValueOnce({status: "ok", data: {name: "run-ok"}});
@@ -1274,7 +1232,7 @@ test("handles sync start success, duplicate running task, api error and rejectio
 
 test("clears transient panels when organization changes", () => {
   const page = createFeishuPageHarness();
-  const refreshSpy = jestValue.fn();
+  const refreshSpy = vi.fn();
   page.refresh = refreshSpy;
   page.state = {
     ...page.state,
@@ -1309,9 +1267,9 @@ test("clears transient panels when organization changes", () => {
 });
 
 test("schedules and clears run refresh polling for running syncs", () => {
-  jestValue.useFakeTimers();
+  vi.useFakeTimers();
   const page = createFeishuPageHarness();
-  const refreshRunsSpy = jestValue.fn();
+  const refreshRunsSpy = vi.fn();
   Object.defineProperty(page, "refreshRuns", {
     configurable: true,
     value: refreshRunsSpy,
@@ -1321,14 +1279,14 @@ test("schedules and clears run refresh polling for running syncs", () => {
   expect(refreshRunsSpy).not.toHaveBeenCalled();
 
   page.syncRunRefreshLoop("engineering", [{status: "running", name: "run-1"}]);
-  jestValue.runOnlyPendingTimers();
+  vi.runOnlyPendingTimers();
   expect(refreshRunsSpy).toHaveBeenCalledWith("engineering");
 
   page.syncRunRefreshLoop("other", [{status: "running", name: "run-2"}]);
-  jestValue.runOnlyPendingTimers();
+  vi.runOnlyPendingTimers();
   expect(refreshRunsSpy).toHaveBeenCalledTimes(1);
 
-  jestValue.useRealTimers();
+  vi.useRealTimers();
 });
 
 test("reports preview, save and connection-test failure branches", async() => {
@@ -1437,10 +1395,10 @@ test("formats fallback labels and redacted handoff checklist exports", () => {
 
 test("renders full handoff checklist and uses fallback copy/export helpers", () => {
   const page = new FeishuOrganizationSyncPage({account: {owner: "engineering", isAdmin: true}});
-  const execCommand = jestValue.fn(() => true);
-  const createObjectURL = jestValue.fn(() => "blob:feishu-binding");
-  const revokeObjectURL = jestValue.fn();
-  const clickSpy = jestValue.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  const execCommand = vi.fn(() => true);
+  const createObjectURL = vi.fn(() => "blob:feishu-binding");
+  const revokeObjectURL = vi.fn();
+  const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
 
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
@@ -1499,7 +1457,7 @@ test("renders full handoff checklist and uses fallback copy/export helpers", () 
   expect(Setting.showMessage).toHaveBeenCalledWith("success", "已复制交接资料 JSON");
 });
 
-test("destroys compact handoff audit details after the panel is hidden", () => {
+test("destroys compact handoff audit details after the panel is hidden", async() => {
   const page = new FeishuOrganizationSyncPage({account: {owner: "engineering", isAdmin: true}});
   const checklist = {
     version: "feishu-handoff-acceptance-checklist-v1",
@@ -1519,5 +1477,11 @@ test("destroys compact handoff audit details after the panel is hidden", () => {
   expect(screen.getByText("需要管理员复核脱敏交接资料。")).toBeInTheDocument();
 
   fireEvent.click(screen.getByText("详细清单和安全别名"));
-  expect(screen.queryByText("需要管理员复核脱敏交接资料。")).not.toBeInTheDocument();
+  await waitFor(() => {
+    expect(document.querySelector(".ant-motion-collapse-leave-active")).not.toBeNull();
+  });
+  fireEvent.transitionEnd(document.querySelector(".ant-motion-collapse-leave-active")!, {propertyName: "height"});
+  await waitFor(() => {
+    expect(screen.queryByText("需要管理员复核脱敏交接资料。")).not.toBeInTheDocument();
+  });
 });

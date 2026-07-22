@@ -1,8 +1,7 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
 import * as fs from "fs";
 import * as path from "path";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {cleanup, render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import TransactionListPage from "./TransactionListPage";
@@ -15,8 +14,9 @@ import * as ApplicationBackend from "./backend/ApplicationBackend";
 import * as UserBackend from "./backend/UserBackend";
 import * as Setting from "./Setting";
 import type {LegacyAny} from "./types/legacyPage";
-
-declare const jest: typeof jestValue;
+import {fireEvent} from "@testing-library/react";
+import {fileURLToPath} from "url";
+const testFileDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -47,15 +47,8 @@ const transactionBackendMock = TransactionBackend as unknown as TransactionBacke
 const organizationBackendMock = OrganizationBackend as unknown as OrganizationBackendMock;
 const applicationBackendMock = ApplicationBackend as unknown as ApplicationBackendMock;
 const userBackendMock = UserBackend as unknown as UserBackendMock;
-const expect = jestExpect;
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-    change: (element: Element | null, event: unknown) => boolean;
-  };
-};
 
-jest.mock("i18next", () => ({
+vi.mock("i18next", () => ({
   __esModule: true,
   default: {
     language: "en",
@@ -72,40 +65,36 @@ jest.mock("i18next", () => ({
   },
 }));
 
-jest.mock("./backend/TransactionBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/TransactionBackend", () => {
   return {
-    addTransaction: factoryJest.fn(),
-    deleteTransaction: factoryJest.fn(),
-    getTransaction: factoryJest.fn(),
-    getTransactions: factoryJest.fn(),
-    updateTransaction: factoryJest.fn(),
+    addTransaction: vi.fn(),
+    deleteTransaction: vi.fn(),
+    getTransaction: vi.fn(),
+    getTransactions: vi.fn(),
+    updateTransaction: vi.fn(),
   };
 });
 
-jest.mock("./backend/OrganizationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/OrganizationBackend", () => {
   return {
-    getOrganizations: factoryJest.fn(),
+    getOrganizations: vi.fn(),
   };
 });
 
-jest.mock("./backend/ApplicationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/ApplicationBackend", () => {
   return {
-    getApplicationsByOrganization: factoryJest.fn(),
+    getApplicationsByOrganization: vi.fn(),
   };
 });
 
-jest.mock("./backend/UserBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/UserBackend", () => {
   return {
-    getUsers: factoryJest.fn(),
+    getUsers: vi.fn(),
   };
 });
 
-jest.mock("./common/modal/PopconfirmModal", () => {
-  const ReactFactory = require("react");
+vi.mock("./common/modal/PopconfirmModal", async() => {
+  const ReactFactory = await vi.importActual<typeof import("react")>("react");
   return {
     __esModule: true,
     default: (props: {disabled?: boolean; onConfirm?: () => void; text?: string; children?: React.ReactNode}) => ReactFactory.createElement(
@@ -120,8 +109,8 @@ jest.mock("./common/modal/PopconfirmModal", () => {
   };
 });
 
-jest.mock("./common/PaginateSelect", () => {
-  const ReactFactory = require("react");
+vi.mock("./common/PaginateSelect", async() => {
+  const ReactFactory = await vi.importActual<typeof import("react")>("react");
   return {
     __esModule: true,
     default: (props: {
@@ -184,7 +173,7 @@ async function flushAsyncWork() {
 
 function createHistory() {
   return {
-    push: jestValue.fn(),
+    push: vi.fn(),
   };
 }
 
@@ -236,9 +225,9 @@ function createTransactionListPage(props: Record<string, LegacyAny> = {}) {
   }) as unknown as Harness<TransactionListPage>;
   installSynchronousSetState(page);
   page.state = {...page.state, data: [cloneFixture(transaction)], pagination: {current: 2, pageSize: 10, total: 1}, loading: false};
-  page.getColumnSearchProps = jestValue.fn(() => ({})) as unknown as LooseMock;
-  page.getTablePaginationProps = jestValue.fn(() => false) as unknown as LooseMock;
-  page.handleTableChange = jestValue.fn() as unknown as LooseMock;
+  page.getColumnSearchProps = vi.fn(() => ({})) as unknown as LooseMock;
+  page.getTablePaginationProps = vi.fn(() => false) as unknown as LooseMock;
+  page.handleTableChange = vi.fn() as unknown as LooseMock;
   return page;
 }
 
@@ -268,25 +257,25 @@ beforeEach(() => {
     writable: true,
     value: () => ({
       matches: false,
-      addListener: jestValue.fn(),
-      removeListener: jestValue.fn(),
-      addEventListener: jestValue.fn(),
-      removeEventListener: jestValue.fn(),
-      dispatchEvent: jestValue.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
     }),
   });
-  jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "getRequestOrganization").mockReturnValue("built-in");
-  jestValue.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(false);
-  jestValue.spyOn(Setting, "isLocalAdminUser").mockReturnValue(true);
-  jestValue.spyOn(Setting, "isAdminUser").mockReturnValue(true);
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(false);
-  jestValue.spyOn(Setting, "isAnonymousUserName").mockImplementation((value: string) => value === "anonymous");
-  jestValue.spyOn(Setting, "getFormattedDate").mockImplementation((value: LegacyAny) => `formatted:${value}`);
-  jestValue.spyOn(Setting, "getPriceDisplay").mockImplementation(((value: LegacyAny, currency: LegacyAny) => `$${value} (${currency})`) as LegacyAny);
-  jestValue.spyOn(Setting, "getLabel").mockImplementation(((label: LegacyAny) => `${label}`) as LegacyAny);
-  jestValue.spyOn(Setting, "getOption").mockImplementation((label: string, value: string) => ({label, value}));
-  jestValue.spyOn(Setting, "scrollToDiv").mockImplementation(() => {});
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "getRequestOrganization").mockReturnValue("built-in");
+  vi.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(false);
+  vi.spyOn(Setting, "isLocalAdminUser").mockReturnValue(true);
+  vi.spyOn(Setting, "isAdminUser").mockReturnValue(true);
+  vi.spyOn(Setting, "isMobile").mockReturnValue(false);
+  vi.spyOn(Setting, "isAnonymousUserName").mockImplementation((value: string) => value === "anonymous");
+  vi.spyOn(Setting, "getFormattedDate").mockImplementation((value: LegacyAny) => `formatted:${value}`);
+  vi.spyOn(Setting, "getPriceDisplay").mockImplementation(((value: LegacyAny, currency: LegacyAny) => `$${value} (${currency})`) as LegacyAny);
+  vi.spyOn(Setting, "getLabel").mockImplementation(((label: LegacyAny) => `${label}`) as LegacyAny);
+  vi.spyOn(Setting, "getOption").mockImplementation((label: string, value: string) => ({label, value}));
+  vi.spyOn(Setting, "scrollToDiv").mockImplementation(() => {});
   transactionBackendMock.addTransaction.mockResolvedValue({status: "ok", data: "tx_new"});
   transactionBackendMock.deleteTransaction.mockResolvedValue({status: "ok"});
   transactionBackendMock.getTransaction.mockResolvedValue({status: "ok", data: cloneFixture(transaction)});
@@ -298,13 +287,13 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  jestValue.restoreAllMocks();
-  jestValue.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
   cleanup();
 });
 
 test("uses TSX files for migrated transaction pages and table", () => {
-  const srcDir = __dirname;
+  const srcDir = testFileDirectory;
   [
     "TransactionListPage",
     "TransactionEditPage",
@@ -332,7 +321,7 @@ test("keeps transaction list creation recharge fetch table actions and failures 
   expect(history.push).toHaveBeenLastCalledWith({pathname: "/transactions/built-in/tx_new", mode: "recharge"});
 
   const actualFetch = page.fetch;
-  page.fetch = jestValue.fn() as unknown as LooseMock;
+  page.fetch = vi.fn() as unknown as LooseMock;
   page.deleteTransaction(0);
   await flushAsyncWork();
   expect(transactionBackendMock.deleteTransaction).toHaveBeenCalledWith(expect.objectContaining({name: "tx_123"}));
@@ -344,7 +333,7 @@ test("keeps transaction list creation recharge fetch table actions and failures 
   await flushAsyncWork();
   expect(transactionBackendMock.getTransactions).toHaveBeenLastCalledWith("built-in", 3, 20, "type", "chat_1", undefined, undefined);
 
-  jestValue.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValueOnce(true);
+  vi.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValueOnce(true);
   transactionBackendMock.getTransactions.mockResolvedValueOnce({status: "ok", data: [cloneFixture(transaction)], data2: 1});
   page.fetch({pagination: {current: 1, pageSize: 10}, searchedColumn: "provider", searchText: "provider_chatgpt"});
   await flushAsyncWork();
@@ -372,7 +361,7 @@ test("keeps transaction list creation recharge fetch table actions and failures 
   page.fetch({pagination: {current: 1, pageSize: 10}});
   await flushAsyncWork();
   expect(Setting.showMessage).toHaveBeenCalledWith("error", "list denied");
-  jestValue.spyOn(Setting, "isResponseDenied").mockReturnValueOnce(true);
+  vi.spyOn(Setting, "isResponseDenied").mockReturnValueOnce(true);
   transactionBackendMock.getTransactions.mockResolvedValueOnce({status: "error", msg: "denied"});
   page.fetch({pagination: {current: 1, pageSize: 10}});
   await flushAsyncWork();
@@ -501,14 +490,14 @@ test("keeps transaction edit loading recharge form save delete and null guards s
 });
 
 test("keeps transaction table columns links search and action behavior stable", () => {
-  const edit = jestValue.fn();
-  const remove = jestValue.fn();
+  const edit = vi.fn();
+  const remove = vi.fn();
   const columns = getTransactionTableColumns({
     includeOrganization: true,
     includeUser: true,
     includeTag: true,
     includeActions: true,
-    getColumnSearchProps: jestValue.fn(() => ({})),
+    getColumnSearchProps: vi.fn(() => ({})),
     account,
     onEdit: edit,
     onDelete: remove,
@@ -526,7 +515,7 @@ test("keeps transaction table columns links search and action behavior stable", 
   expectRenderedLink(columns.find(column => column.key === "provider")?.render?.("provider_chatgpt", {...transaction, domain: ""}, 0), "provider_chatgpt", "/providers/built-in/provider_chatgpt");
   expectRenderedLink(columns.find(column => column.key === "payment")?.render?.("payment_123", transaction, 0), "payment_123", "/payments/built-in/payment_123");
   expect(columns.find(column => column.key === "amount")?.render?.(12.5, transaction, 0)).toBe("$12.5 (USD)");
-  const clientColumns = getTransactionTableColumns({getColumnSearchProps: jestValue.fn(() => ({}))});
+  const clientColumns = getTransactionTableColumns({getColumnSearchProps: vi.fn(() => ({}))});
   expect(clientColumns.find(column => column.key === "name")?.sorter?.({name: "b"}, {name: "a"})).toBeGreaterThan(0);
   const plainColumns = getTransactionTableColumns();
   expect(plainColumns.find(column => column.key === "name")?.sorter).toBe(false);
@@ -543,7 +532,7 @@ test("keeps transaction table columns links search and action behavior stable", 
   expect(remove).toHaveBeenCalledWith(7);
   action.unmount();
 
-  jestValue.spyOn(Setting, "isLocalAdminUser").mockReturnValueOnce(false);
+  vi.spyOn(Setting, "isLocalAdminUser").mockReturnValueOnce(false);
   const readonlyAction = render(<MemoryRouter>{columns.find(column => column.key === "op")?.render?.("", transaction, 1)}</MemoryRouter>);
   expect((readonlyAction.getByText("Delete") as HTMLButtonElement).disabled).toBe(true);
   fireEvent.click(readonlyAction.getByText("View"));
@@ -573,15 +562,15 @@ test("keeps transaction table columns links search and action behavior stable", 
 
   const tableInstance = new TransactionTable({transactions: [transaction]}) as unknown as Harness<TransactionTable>;
   installSynchronousSetState(tableInstance);
-  (tableInstance as unknown as {searchInput: {select: () => void}}).searchInput = {select: jestValue.fn()};
+  (tableInstance as unknown as {searchInput: {select: () => void}}).searchInput = {select: vi.fn()};
   const searchProps = tableInstance.getColumnSearchProps("name");
   expect(searchProps.onFilter("tx", transaction)).toBe(true);
   expect(searchProps.onFilter("missing", {owner: "built-in"})).toBe(false);
   expect(searchProps.filterIcon(true)).not.toBeNull();
-  const confirm = jestValue.fn();
-  const clearFilters = jestValue.fn();
+  const confirm = vi.fn();
+  const clearFilters = vi.fn();
   const dropdown = render(searchProps.filterDropdown({
-    setSelectedKeys: jestValue.fn(),
+    setSelectedKeys: vi.fn(),
     selectedKeys: ["tx"],
     confirm,
     clearFilters,
@@ -593,9 +582,9 @@ test("keeps transaction table columns links search and action behavior stable", 
   fireEvent.click(dropdown.getByText("Filter"));
   expect(tableInstance.state.searchedColumn).toBe("name");
   dropdown.unmount();
-  tableInstance.handleSearch(["alice"], jestValue.fn(), "user");
+  tableInstance.handleSearch(["alice"], vi.fn(), "user");
   expect(tableInstance.state.searchText).toBe("alice");
-  tableInstance.handleReset(jestValue.fn());
+  tableInstance.handleReset(vi.fn());
   expect(tableInstance.state.searchText).toBe("");
   searchProps.filterDropdownProps.onOpenChange(false);
   searchProps.filterDropdownProps.onOpenChange(true);

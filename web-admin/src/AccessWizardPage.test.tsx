@@ -1,19 +1,13 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import React from "react";
 import {MemoryRouter} from "react-router-dom";
-import {expect, jest} from "@jest/globals";
 import {cleanup, render} from "@testing-library/react";
 import i18next from "i18next";
 import AccessWizardPage from "./AccessWizardPage";
 import {buildAccessWizardPlans} from "./identityAccessWizard";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
-
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element) => void;
-  };
-};
+import {fireEvent} from "@testing-library/react";
 
 type MockListResponse = {status: string; data?: unknown; data2?: unknown; msg?: string} | Error;
 
@@ -40,12 +34,12 @@ function resetMockBackendResponses() {
   });
 }
 
-jest.mock("./backend/AgentBackend", () => ({getAgents: () => mockReadSource("agents")}));
-jest.mock("./backend/ApplicationBackend", () => ({
+vi.mock("./backend/AgentBackend", () => ({getAgents: () => mockReadSource("agents")}));
+vi.mock("./backend/ApplicationBackend", () => ({
   getApplications: () => mockReadSource("applications"),
   getApplicationsByOrganization: () => mockReadSource("applications"),
 }));
-jest.mock("./backend/ProviderBackend", () => ({
+vi.mock("./backend/ProviderBackend", () => ({
   getGlobalProviders: () => mockReadSource("providers"),
   getProviders: () => mockReadSource("providers"),
 }));
@@ -126,7 +120,7 @@ describe("AccessWizardPage", () => {
 
   beforeEach(async() => {
     resetMockBackendResponses();
-    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
       throw new Error(args.map(item => String(item)).join(" "));
     });
     Object.defineProperty(window, "matchMedia", {
@@ -135,11 +129,11 @@ describe("AccessWizardPage", () => {
         matches: false,
         media: query,
         onchange: null,
-        addListener: jest.fn(),
-        removeListener: jest.fn(),
-        addEventListener: jest.fn(),
-        removeEventListener: jest.fn(),
-        dispatchEvent: jest.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
       }),
     });
     await useTestLanguage("zh");

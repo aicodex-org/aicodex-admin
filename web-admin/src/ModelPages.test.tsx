@@ -1,6 +1,5 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {cleanup, render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import * as Setting from "./Setting";
@@ -10,8 +9,7 @@ import * as FormBackend from "./backend/FormBackend";
 import CasbinEditor from "./CasbinEditor";
 import ModelEditPage from "./ModelEditPage";
 import ModelListPage from "./ModelListPage";
-
-declare const jest: typeof jestValue;
+import {act, fireEvent} from "@testing-library/react";
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -71,53 +69,41 @@ type TestModelListPage = Omit<ModelListPage, "state" | "fetch"> & {
 const modelBackendMock = ModelBackend as unknown as ModelBackendMock;
 const organizationBackendMock = OrganizationBackend as unknown as OrganizationBackendMock;
 const formBackendMock = FormBackend as unknown as FormBackendMock;
-const expect = jestExpect;
-const mockIframeUpdateModelText = jestValue.fn();
+const mockIframeUpdateModelText = vi.fn();
 let mockIframeModelText = "advanced model text";
 let mockDispatchIgnoredMessage = false;
 
-const {act, fireEvent} = require("@testing-library/react") as {
-  act: (callback: () => Promise<void> | void) => Promise<void>;
-  fireEvent: {
-    change: (element: Element | null, event: unknown) => boolean;
-    click: (element: Element | null) => boolean;
-  };
-};
-
-jest.mock("./backend/ModelBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/ModelBackend", () => {
   return {
-    getModels: factoryJest.fn(),
-    getModel: factoryJest.fn(),
-    updateModel: factoryJest.fn(),
-    addModel: factoryJest.fn(),
-    deleteModel: factoryJest.fn(),
+    getModels: vi.fn(),
+    getModel: vi.fn(),
+    updateModel: vi.fn(),
+    addModel: vi.fn(),
+    deleteModel: vi.fn(),
   };
 });
 
-jest.mock("./backend/OrganizationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/OrganizationBackend", () => {
   return {
-    getOrganizations: factoryJest.fn(),
+    getOrganizations: vi.fn(),
   };
 });
 
-jest.mock("./backend/FormBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/FormBackend", () => {
   return {
-    getForm: factoryJest.fn(),
+    getForm: vi.fn(),
   };
 });
 
-jest.mock("./TourConfig", () => ({
+vi.mock("./TourConfig", () => ({
   getTourVisible: () => false,
   getSteps: () => [],
   getNextUrl: () => "",
   setIsTourVisible: () => undefined,
 }));
 
-jest.mock("./IframeEditor", () => {
-  const ReactFactory = require("react");
+vi.mock("./IframeEditor", async() => {
+  const ReactFactory = await vi.importActual<typeof import("react")>("react");
   const MockIframeEditor = ReactFactory.forwardRef((props: {initialModelText?: string; onModelTextChange?: (value: string) => void}, ref: React.Ref<unknown>) => {
     ReactFactory.useImperativeHandle(ref, () => ({
       getModelText: () => {
@@ -141,14 +127,14 @@ jest.mock("./IframeEditor", () => {
   };
 });
 
-jest.mock("./common/Editor", () => (props: {value?: string; readOnly?: boolean; onChange?: (value: string) => void}) => (
+vi.mock("./common/Editor", () => ({default: (props: {value?: string; readOnly?: boolean; onChange?: (value: string) => void}) => (
   <textarea
     data-testid="basic-editor"
     readOnly={props.readOnly}
     value={props.value || ""}
     onChange={event => props.onChange?.(event.target.value)}
   />
-));
+)}));
 
 const adminAccount: Account = {owner: "built-in", tag: "", isAdmin: true};
 const model: TestModelRecord = {
@@ -171,7 +157,7 @@ function flushPromises() {
 
 function createHistory() {
   return {
-    push: jestValue.fn(),
+    push: vi.fn(),
   };
 }
 
@@ -237,18 +223,18 @@ beforeEach(() => {
     writable: true,
     value: () => ({
       matches: false,
-      addListener: jestValue.fn(),
-      removeListener: jestValue.fn(),
-      addEventListener: jestValue.fn(),
-      removeEventListener: jestValue.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
     }),
   });
   mockIframeModelText = "advanced model text";
   mockDispatchIgnoredMessage = false;
   mockIframeUpdateModelText.mockClear();
-  jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(false);
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
+  vi.spyOn(Setting, "isMobile").mockReturnValue(false);
   formBackendMock.getForm.mockResolvedValue({status: "ok", data: {formItems: []}});
   modelBackendMock.getModels.mockResolvedValue({status: "ok", data: [model], data2: 1});
   modelBackendMock.getModel.mockResolvedValue({status: "ok", data: model});
@@ -259,8 +245,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  jestValue.restoreAllMocks();
-  jestValue.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
   cleanup();
 });
 
@@ -274,7 +260,7 @@ test("migrates Casbin model page modules to TSX files", () => {
 });
 
 test("syncs advanced iframe text into basic editor when switching tabs", async() => {
-  const onModelTextChange = jestValue.fn();
+  const onModelTextChange = vi.fn();
   const view = render(<CasbinEditor model={model} onModelTextChange={onModelTextChange} />);
 
   await act(async() => {
@@ -288,7 +274,7 @@ test("syncs advanced iframe text into basic editor when switching tabs", async()
 });
 
 test("updates basic editor text and keeps built-in models read only", async() => {
-  const onModelTextChange = jestValue.fn();
+  const onModelTextChange = vi.fn();
   const view = render(<CasbinEditor model={model} onModelTextChange={onModelTextChange} />);
 
   await act(async() => {
@@ -307,7 +293,7 @@ test("updates basic editor text and keeps built-in models read only", async() =>
 
 test("ignores unrelated iframe messages and preserves built-in advanced text", async() => {
   mockDispatchIgnoredMessage = true;
-  const onModelTextChange = jestValue.fn();
+  const onModelTextChange = vi.fn();
   const view = render(<CasbinEditor model={builtInModel} onModelTextChange={onModelTextChange} />);
 
   await act(async() => {
@@ -327,8 +313,8 @@ test("renders model table and keeps toolbar and action handlers", () => {
     match: {path: "/models", params: {}},
   } as React.ComponentProps<typeof ModelListPage>);
   installSynchronousSetState(page);
-  jestValue.spyOn(page, "addModel").mockImplementation(() => {});
-  jestValue.spyOn(page, "deleteModel").mockImplementation(() => {});
+  vi.spyOn(page, "addModel").mockImplementation(() => {});
+  vi.spyOn(page, "deleteModel").mockImplementation(() => {});
 
   const tableWrapper = page.renderTable([model]) as React.ReactElement<{children: React.ReactElement<{columns: TestTableColumn[]; title: () => React.ReactNode}>}>;
   const table = tableWrapper.props.children;
@@ -405,7 +391,7 @@ test("renders list column links and sends filtered fetch parameters", async() =>
 });
 
 test("keeps mobile table and edit layout branches compatible without fixed action columns", () => {
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(true);
+  vi.spyOn(Setting, "isMobile").mockReturnValue(true);
   const listPage = createListPage();
   const tableWrapper = listPage.renderTable([model]) as React.ReactElement<{children: React.ReactElement<{columns: TestTableColumn[]}>}>;
   expect(tableWrapper.props.children.props.columns[5].fixed).toBeUndefined();
@@ -453,7 +439,7 @@ test("creates model and navigates to the add route", async() => {
 test("deletes model, refreshes pagination and reports list errors", async() => {
   const page = createListPage();
   const originalFetch = page.fetch;
-  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  page.fetch = vi.fn() as unknown as typeof page.fetch;
   page.state = {
     ...page.state,
     data: [model] as TestModelRecord[],
@@ -531,7 +517,7 @@ test("loads model and organizations before rendering edit form", async() => {
 });
 
 test("publishes the model display name for its workspace tab after loading and display-name edits", async() => {
-  const dispatchSpy = jestValue.spyOn(window, "dispatchEvent");
+  const dispatchSpy = vi.spyOn(window, "dispatchEvent");
   const page = createEditPage();
   modelBackendMock.getModel.mockResolvedValueOnce({status: "ok", data: {...model}});
 

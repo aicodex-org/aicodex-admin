@@ -1,52 +1,22 @@
-/* eslint-env jest */
+import {beforeEach, describe, expect, test, vi} from "vitest";
 import React from "react";
 import {MemoryRouter} from "react-router-dom";
 import {render} from "@testing-library/react";
-import {expect as jestExpect} from "@jest/globals";
 import IdentityConsoleOverview from "./IdentityConsoleOverview";
 import * as DashboardBackend from "./backend/DashboardBackend";
 import {getOrganizationSyncProviderLogoUrl} from "./organizationSync/OrganizationSyncTypes";
-
-declare const jest: {
-  mock: (moduleName: string) => void;
-};
-const {screen} = require("@testing-library/react") as {
-  screen: {
-    getByText: (text: string | RegExp) => HTMLElement;
-    queryByText: (text: string | RegExp) => HTMLElement | null;
-    getAllByText: (text: string | RegExp) => HTMLElement[];
-    queryAllByText: (text: string | RegExp) => HTMLElement[];
-    findByText: (text: string | RegExp) => Promise<HTMLElement>;
-    findAllByText: (text: string | RegExp) => Promise<HTMLElement[]>;
-  };
-};
+import {screen} from "@testing-library/react";
 
 type LooseMock = {
   mockReset: () => void;
   mockResolvedValue: (value: unknown) => LooseMock;
 };
 
-type DomMatcherResult = ReturnType<typeof jestExpect> & {
-  toBeInTheDocument: () => void;
-  toHaveAttribute: (attr: string, value?: unknown) => void;
-  not: ReturnType<typeof jestExpect> & {
-    toBeInTheDocument: () => void;
-  };
-};
-
-type TestExpect = {
-  (actual: unknown): DomMatcherResult;
-  objectContaining: typeof jestExpect.objectContaining;
-  stringContaining: typeof jestExpect.stringContaining;
-};
-
-const expect = jestExpect as unknown as TestExpect;
-
 const dashboardBackendMock = DashboardBackend as unknown as {
   getDashboard: LooseMock;
 };
 
-jest.mock("./backend/DashboardBackend");
+vi.mock("./backend/DashboardBackend");
 
 const adminAccount = {
   owner: "built-in",

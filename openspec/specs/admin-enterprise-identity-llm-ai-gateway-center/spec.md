@@ -1,7 +1,8 @@
 # admin-enterprise-identity-llm-ai-gateway-center Specification
 
 ## Purpose
-TBD - created by archiving change improve-admin-enterprise-llm-ai-gateway-center. Update Purpose after archive.
+定义 Admin 身份控制台中 LLM AI/Gateway 对象的入口、只读摘要、敏感信息边界、TSX 行为兼容、标准列表页壳与编辑表单布局契约。
+
 ## Requirements
 ### Requirement: LLM AI 网关中心工作台
 Admin 企业认证中心 SHALL 在原 `/agents` 路由提供列表优先的 AI Agent 入口页，使管理员能够直接查看、查询和操作 AI Agent 列表；LLM AI 网关其它对象入口 SHALL 继续通过左侧菜单、顶部页签或既有路由触达，不得在 Agent 列表上方重复渲染中心式快捷入口墙。
@@ -116,7 +117,7 @@ Admin 企业认证中心 SHALL 支持将 LLM AI/Gateway 菜单下的 MCP Server 
 #### Scenario: MCP Server 迁移验证
 - **WHEN** 本 change 迁移 MCP Server 页面
 - **THEN** 对应 React 测试 SHALL 使用 `.test.tsx` 并覆盖列表页渲染、新增、删除、MCP Store 跳转、编辑页加载、保存、保存并退出、取消新增、删除和 ToolTable 更新关键路径
-- **AND** 验证 SHALL 包含增量 TypeScript gate、`yarn typecheck`、聚焦 Jest/coverage、`yarn build` 或等价导入边界验证
+- **AND** 验证 SHALL 包含增量 TypeScript gate、`bun run typecheck`、聚焦Vitest/coverage、`bun run build`或等价导入边界验证
 
 ### Requirement: 站点范围页面 TSX 迁移保持行为兼容
 Admin 企业认证中心 SHALL 支持将 LLM AI/Gateway 菜单下的站点范围管理页迁移为 TSX，并保持 `/sites` 列表、`/sites/:organizationName/:siteName` 编辑路径和站点规则选择表格的现有管理员行为兼容。

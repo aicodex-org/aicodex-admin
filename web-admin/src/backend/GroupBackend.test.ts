@@ -1,5 +1,4 @@
-/* eslint-env jest */
-import {expect, jest} from "@jest/globals";
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import * as Setting from "../Setting";
 import {
   addGroup,
@@ -9,18 +8,18 @@ import {
   updateGroup
 } from "./GroupBackend";
 
-let fetchMock: ReturnType<typeof jest.fn>;
+let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
-  fetchMock = jest.fn(() => Promise.resolve({
+  fetchMock = vi.fn(() => Promise.resolve({
     json: () => Promise.resolve({status: "ok"}),
   }));
   global.fetch = fetchMock as unknown as typeof fetch;
-  jest.spyOn(Setting, "getAcceptLanguage").mockReturnValue("zh");
+  vi.spyOn(Setting, "getAcceptLanguage").mockReturnValue("zh");
 });
 
 afterEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 test("calls group list endpoint with the existing query contract", async() => {

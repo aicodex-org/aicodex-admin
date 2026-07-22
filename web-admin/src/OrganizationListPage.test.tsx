@@ -1,6 +1,5 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {cleanup, render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import * as Setting from "./Setting";
@@ -9,8 +8,7 @@ import * as OrganizationBackend from "./backend/OrganizationBackend";
 import OrganizationListPage from "./OrganizationListPage";
 import EnterpriseListQueryToolbar from "./common/EnterpriseListQueryToolbar";
 import ListPageTable from "./common/ListPageTable";
-
-declare const jest: typeof jestValue;
+import {fireEvent} from "@testing-library/react";
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -58,43 +56,34 @@ type TestIdentityCenterProps = {
 
 const backendMock = OrganizationBackend as unknown as BackendMock;
 const formBackendMock = FormBackend as unknown as FormBackendMock;
-const expect = jestExpect;
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-    change: (element: Element | null, event: {target: {value: string}}) => boolean;
-  };
-};
 
-jest.mock("./backend/OrganizationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/OrganizationBackend", () => {
   return {
-    getOrganizations: factoryJest.fn(),
-    getOrganization: factoryJest.fn(),
-    updateOrganization: factoryJest.fn(),
-    addOrganization: factoryJest.fn(),
-    deleteOrganization: factoryJest.fn(),
-    getDefaultApplication: factoryJest.fn(),
-    getOrganizationNames: factoryJest.fn(),
+    getOrganizations: vi.fn(),
+    getOrganization: vi.fn(),
+    updateOrganization: vi.fn(),
+    addOrganization: vi.fn(),
+    deleteOrganization: vi.fn(),
+    getDefaultApplication: vi.fn(),
+    getOrganizationNames: vi.fn(),
   };
 });
 
-jest.mock("./backend/FormBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/FormBackend", () => {
   return {
-    getForm: factoryJest.fn(),
+    getForm: vi.fn(),
   };
 });
 
-jest.mock("./TourConfig", () => ({
+vi.mock("./TourConfig", () => ({
   getTourVisible: () => false,
   getSteps: () => [],
   getNextUrl: () => "",
   setIsTourVisible: () => undefined,
 }));
 
-jest.mock("./OrganizationIdentityCenter", () => {
-  const ReactFactory = require("react");
+vi.mock("./OrganizationIdentityCenter", async() => {
+  const ReactFactory = await vi.importActual<typeof import("react")>("react");
   const MockOrganizationIdentityCenter = ({children, currentOrganization, loadedCount, total}: {children?: unknown; currentOrganization?: string; loadedCount?: number; total?: number}) => ReactFactory.createElement(
     "div",
     {
@@ -103,7 +92,7 @@ jest.mock("./OrganizationIdentityCenter", () => {
       "data-loaded-count": loadedCount,
       "data-total": total,
     },
-    children
+    children as React.ReactNode
   );
   return {
     __esModule: true,
@@ -132,7 +121,7 @@ function flushPromises() {
 
 function createHistory() {
   return {
-    push: jestValue.fn(),
+    push: vi.fn(),
   };
 }
 
@@ -182,15 +171,15 @@ beforeEach(() => {
     writable: true,
     value: () => ({
       matches: false,
-      addListener: jestValue.fn(),
-      removeListener: jestValue.fn(),
-      addEventListener: jestValue.fn(),
-      removeEventListener: jestValue.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
     }),
   });
-  jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(false);
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
+  vi.spyOn(Setting, "isMobile").mockReturnValue(false);
   formBackendMock.getForm.mockResolvedValue({status: "ok", data: {formItems: []}});
   backendMock.getOrganizations.mockResolvedValue({status: "ok", data: [], data2: 0});
   backendMock.addOrganization.mockResolvedValue({status: "ok"});
@@ -198,8 +187,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  jestValue.restoreAllMocks();
-  jestValue.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
   cleanup();
 });
 
@@ -220,7 +209,7 @@ test("renders organization rows and fetches the selected organization", async() 
 
 test("creates a default organization, navigates to edit page, and waits for save before success message", async() => {
   const history = createHistory();
-  const storageListener = jestValue.fn();
+  const storageListener = vi.fn();
   window.addEventListener("storageOrganizationsChanged", storageListener);
   const page = new OrganizationListPage({
     account: adminAccount,
@@ -290,9 +279,9 @@ test("passes search, password type query and sorting parameters to backend", asy
 
 test("deletes organization and rolls back pagination for the last row", async() => {
   const page = createPage();
-  const storageListener = jestValue.fn();
+  const storageListener = vi.fn();
   window.addEventListener("storageOrganizationsChanged", storageListener);
-  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  page.fetch = vi.fn() as unknown as typeof page.fetch;
   page.state = {
     ...page.state,
     data: [organization],
@@ -355,8 +344,8 @@ test("builds table columns, toolbar and action handlers", () => {
     match: {path: "/organizations", params: {}},
   });
   installSynchronousSetState(page);
-  jestValue.spyOn(page, "addOrganization").mockImplementation(() => {});
-  jestValue.spyOn(page, "deleteOrganization").mockImplementation(() => {});
+  vi.spyOn(page, "addOrganization").mockImplementation(() => {});
+  vi.spyOn(page, "deleteOrganization").mockImplementation(() => {});
 
   const tableWrapper = page.renderTable([organization]) as React.ReactElement<TestIdentityCenterProps>;
   const table = tableWrapper.props.children;
@@ -446,7 +435,7 @@ test("disables fixed organization table columns in compact viewport", () => {
 });
 
 test("disables fixed organization table columns when mobile mode is active", () => {
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(true);
+  vi.spyOn(Setting, "isMobile").mockReturnValue(true);
   const page = createPage(adminAccount);
 
   const tableWrapper = page.renderTable([organization]) as React.ReactElement<TestIdentityCenterProps>;
@@ -461,8 +450,8 @@ test("disables fixed organization table columns when mobile mode is active", () 
 
 test("uses shared query toolbar for organization search controls and directory context", () => {
   const page = createPage(adminAccount);
-  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
-  jestValue.spyOn(page, "addOrganization").mockImplementation(() => {});
+  page.fetch = vi.fn() as unknown as typeof page.fetch;
+  vi.spyOn(page, "addOrganization").mockImplementation(() => {});
   page.state = {
     ...page.state,
     pagination: {...page.state.pagination, current: 3, pageSize: 20, total: 18},
@@ -518,7 +507,7 @@ test("uses shared query toolbar for organization search controls and directory c
 
 test("moves password type filtering out of the table header and into query controls", () => {
   const page = createPage(adminAccount);
-  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  page.fetch = vi.fn() as unknown as typeof page.fetch;
 
   const tableWrapper = page.renderTable([organization]) as React.ReactElement<TestIdentityCenterProps>;
   const table = tableWrapper.props.children;
@@ -578,8 +567,8 @@ test("renders compact organization identity and source summary for table scannin
 
 test("passes create action through shared query toolbar actions", () => {
   const page = createPage(adminAccount);
-  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
-  jestValue.spyOn(page, "addOrganization").mockImplementation(() => {});
+  page.fetch = vi.fn() as unknown as typeof page.fetch;
+  vi.spyOn(page, "addOrganization").mockImplementation(() => {});
 
   const identityCenter = page.renderTable([organization]) as React.ReactElement<TestIdentityCenterProps>;
   const toolbar = identityCenter.props.children.props.title() as React.ReactElement<TestToolbarProps>;
@@ -592,7 +581,7 @@ test("passes create action through shared query toolbar actions", () => {
   const addButton = actionView.getByText(/添\s*加|Add/).closest("button");
   expect(addButton).not.toBeNull();
   expect((addButton as HTMLButtonElement).disabled).toBe(false);
-  fireEvent.click(addButton);
+  fireEvent.click(addButton!);
   expect(page.addOrganization).toHaveBeenCalled();
   actionView.unmount();
 
@@ -680,7 +669,7 @@ test("applies organization advanced filters with AND semantics and filtered tota
 
 test("keeps ordinary table changes on the existing single-field fetch path", () => {
   const page = createPage(adminAccount);
-  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  page.fetch = vi.fn() as unknown as typeof page.fetch;
   page.state = {
     ...page.state,
     searchText: "platform",
@@ -819,7 +808,7 @@ test("reports advanced filter request errors and denied responses", async() => {
 
 test("resets base and advanced organization filters together", () => {
   const page = createPage(adminAccount);
-  page.fetch = jestValue.fn() as unknown as typeof page.fetch;
+  page.fetch = vi.fn() as unknown as typeof page.fetch;
   const toolbar = page.renderListToolbar() as React.ReactElement<TestToolbarProps>;
   const advancedView = render(<>{toolbar.props.advancedFilters}</>);
 

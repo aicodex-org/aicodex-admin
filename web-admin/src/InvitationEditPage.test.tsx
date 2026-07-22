@@ -1,7 +1,7 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
 import {act, cleanup, render} from "@testing-library/react";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
+import copy from "copy-to-clipboard";
 import i18next from "i18next";
 import InvitationEditPage from "./InvitationEditPage";
 import * as InvitationBackend from "./backend/InvitationBackend";
@@ -11,8 +11,7 @@ import * as GroupBackend from "./backend/GroupBackend";
 import * as Setting from "./Setting";
 import en from "./locales/en/data.json";
 import zh from "./locales/zh/data.json";
-
-declare const jest: typeof jestValue;
+import {fireEvent} from "@testing-library/react";
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -30,7 +29,12 @@ type GroupBackendMock = Record<"getGroups", LooseMock>;
 
 type PageProps = {
   account?: unknown;
-  history: {push: ReturnType<typeof jestValue.fn>};
+  history: {
+    push: (location: string | {
+      pathname: string;
+      state?: {mode: string; invitation: InvitationBackend.InvitationRecord};
+    }) => void;
+  };
   location: {mode?: string; invitation?: TestInvitationRecord};
   match: {params: {organizationName: string; invitationName: string}};
   organizationName?: string;
@@ -87,47 +91,36 @@ type ElementProps = {
   options?: Array<{label: React.ReactNode; value: string}>;
 };
 
-const expect = jestExpect;
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-  };
-};
-
-const copyMock = jestValue.fn();
+const copyMock = vi.fn();
+const copyModule = vi.mocked(copy);
 const invitationBackendMock = InvitationBackend as unknown as InvitationBackendMock;
 const organizationBackendMock = OrganizationBackend as unknown as OrganizationBackendMock;
 const applicationBackendMock = ApplicationBackend as unknown as ApplicationBackendMock;
 const groupBackendMock = GroupBackend as unknown as GroupBackendMock;
 
-jest.mock("copy-to-clipboard", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
-  return factoryJest.fn();
+vi.mock("copy-to-clipboard", () => {
+  return ({default: vi.fn()});
 });
 
-jest.mock("./backend/InvitationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/InvitationBackend", () => {
   return {
-    addInvitation: factoryJest.fn(),
-    getInvitation: factoryJest.fn(),
-    updateInvitation: factoryJest.fn(),
-    sendInvitation: factoryJest.fn(),
+    addInvitation: vi.fn(),
+    getInvitation: vi.fn(),
+    updateInvitation: vi.fn(),
+    sendInvitation: vi.fn(),
   };
 });
 
-jest.mock("./backend/OrganizationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
-  return {getOrganizations: factoryJest.fn()};
+vi.mock("./backend/OrganizationBackend", () => {
+  return {getOrganizations: vi.fn()};
 });
 
-jest.mock("./backend/ApplicationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
-  return {getApplicationsByOrganization: factoryJest.fn()};
+vi.mock("./backend/ApplicationBackend", () => {
+  return {getApplicationsByOrganization: vi.fn()};
 });
 
-jest.mock("./backend/GroupBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
-  return {getGroups: factoryJest.fn()};
+vi.mock("./backend/GroupBackend", () => {
+  return {getGroups: vi.fn()};
 });
 
 const baseInvitation: TestInvitationRecord = {
@@ -182,7 +175,7 @@ function flushPromises() {
 }
 
 function createHistory() {
-  return {push: jestValue.fn()};
+  return {push: vi.fn()};
 }
 
 function createPage(options: {
@@ -244,21 +237,20 @@ beforeEach(async() => {
   await useTestLanguage("en");
   setupBackend();
   copyMock.mockClear();
-  const copyModule = require("copy-to-clipboard") as typeof copyMock;
   copyModule.mockImplementation(copyMock);
-  jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(false);
-  jestValue.spyOn(Setting, "isAdminUser").mockReturnValue(true);
-  jestValue.spyOn(Setting, "getLabel").mockImplementation((label: unknown) => <span>{String(label)}</span>);
-  jestValue.spyOn(Setting, "getOption").mockImplementation((label: unknown, value: unknown) => ({label, value}));
-  jestValue.spyOn(Setting, "deepCopy").mockImplementation((value: unknown) => JSON.parse(JSON.stringify(value)));
-  jestValue.spyOn(Setting, "myParseInt").mockImplementation((value: unknown) => Number.parseInt(String(value), 10));
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "isMobile").mockReturnValue(false);
+  vi.spyOn(Setting, "isAdminUser").mockReturnValue(true);
+  vi.spyOn(Setting, "getLabel").mockImplementation((label: unknown) => <span>{String(label)}</span>);
+  vi.spyOn(Setting, "getOption").mockImplementation((label: unknown, value: unknown) => ({label, value}));
+  vi.spyOn(Setting, "deepCopy").mockImplementation((value: unknown) => JSON.parse(JSON.stringify(value)));
+  vi.spyOn(Setting, "myParseInt").mockImplementation((value: unknown) => Number.parseInt(String(value), 10));
 });
 
 afterEach(() => {
   cleanup();
-  jestValue.restoreAllMocks();
-  jestValue.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
 });
 
 test("loads invitation, organizations, applications and groups", async() => {
@@ -290,10 +282,10 @@ test("redirects to 404 when invitation detail is missing", async() => {
 
 test("keeps lifecycle loading and non-success group responses compatible", async() => {
   const page = createPage();
-  const getInvitationSpy = jestValue.spyOn(page, "getInvitation").mockImplementation(() => undefined);
-  const getOrganizationsSpy = jestValue.spyOn(page, "getOrganizations").mockImplementation(() => undefined);
-  const getApplicationsSpy = jestValue.spyOn(page, "getApplicationsByOrganization").mockImplementation(() => undefined);
-  const getGroupsSpy = jestValue.spyOn(page, "getGroupsByOrganization").mockImplementation(() => undefined);
+  const getInvitationSpy = vi.spyOn(page, "getInvitation").mockImplementation(() => undefined);
+  const getOrganizationsSpy = vi.spyOn(page, "getOrganizations").mockImplementation(() => undefined);
+  const getApplicationsSpy = vi.spyOn(page, "getApplicationsByOrganization").mockImplementation(() => undefined);
+  const getGroupsSpy = vi.spyOn(page, "getGroupsByOrganization").mockImplementation(() => undefined);
 
   page.UNSAFE_componentWillMount();
 
@@ -312,8 +304,8 @@ test("keeps lifecycle loading and non-success group responses compatible", async
 
 test("keeps rendered edit controls wired to invitation state updates", () => {
   const page = createPage();
-  const getApplicationsSpy = jestValue.spyOn(page, "getApplicationsByOrganization");
-  const getGroupsSpy = jestValue.spyOn(page, "getGroupsByOrganization");
+  const getApplicationsSpy = vi.spyOn(page, "getApplicationsByOrganization");
+  const getGroupsSpy = vi.spyOn(page, "getGroupsByOrganization");
 
   visitReactNode(page.renderInvitation(), (element) => {
     const props = element.props;
@@ -537,7 +529,7 @@ test("loads a route draft locally and never writes when cancelling or returning"
   } as PageProps;
   const page = new InvitationEditPage(props) as PageHarness;
   // 仅验证生命周期是否跳过详情读取，避免未挂载实例处理辅助 GET 回调。
-  page.setState = jestValue.fn() as unknown as PageHarness["setState"];
+  page.setState = vi.fn() as unknown as PageHarness["setState"];
 
   expect(page.state.invitation).toEqual(draft);
   page.UNSAFE_componentWillMount();

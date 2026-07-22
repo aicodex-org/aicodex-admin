@@ -1,7 +1,6 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import React from "react";
 import {MemoryRouter} from "react-router-dom";
-import {expect, jest} from "@jest/globals";
 import {cleanup, render} from "@testing-library/react";
 import ApplicationListPage from "./ApplicationListPage";
 import * as ApplicationBackend from "./backend/ApplicationBackend";
@@ -10,12 +9,12 @@ import * as Setting from "./Setting";
 import EnterpriseListQueryToolbar from "./common/EnterpriseListQueryToolbar";
 import ListPageTable from "./common/ListPageTable";
 
-jest.mock("./backend/ApplicationBackend");
-jest.mock("./backend/FormBackend");
-jest.mock("./table/SignupTable", () => ({
+vi.mock("./backend/ApplicationBackend");
+vi.mock("./backend/FormBackend");
+vi.mock("./table/SignupTable", () => ({
   SignupTableDefaultCssMap: {},
 }));
-jest.mock("./TourConfig", () => ({
+vi.mock("./TourConfig", () => ({
   getTourVisible: () => false,
   getSteps: () => [],
   getNextUrl: () => "",
@@ -73,7 +72,7 @@ function attachPageState(page: LegacyAny, extra: Record<string, LegacyAny> = {})
     isAuthorized: true,
     ...extra,
   };
-  page.setState = jest.fn((patch: LegacyAny) => {
+  page.setState = vi.fn((patch: LegacyAny) => {
     const nextState = typeof patch === "function" ? patch(page.state, page.props) : patch;
     page.state = {
       ...page.state,
@@ -93,10 +92,10 @@ describe("ApplicationListPage enterprise table polish", () => {
       writable: true,
       value: () => ({
         matches: false,
-        addListener: jest.fn(),
-        removeListener: jest.fn(),
-        addEventListener: jest.fn(),
-        removeEventListener: jest.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
       }),
     });
     (FormBackend.getForm as unknown as {mockResolvedValue: (value: unknown) => void}).mockResolvedValue({status: "ok", data: {formItems: []}});
@@ -104,17 +103,17 @@ describe("ApplicationListPage enterprise table polish", () => {
     (ApplicationBackend.getApplicationsByOrganization as unknown as {mockResolvedValue: (value: unknown) => void}).mockResolvedValue({status: "ok", data: [application], data2: 1});
     (ApplicationBackend.addApplication as unknown as {mockResolvedValue: (value: unknown) => void}).mockResolvedValue({status: "ok"});
     (ApplicationBackend.deleteApplication as unknown as {mockResolvedValue: (value: unknown) => void}).mockResolvedValue({status: "ok"});
-    jest.spyOn(Setting, "showMessage").mockImplementation(() => {});
+    vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
-    jest.clearAllMocks();
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
     cleanup();
   });
 
   test("keeps application rows compact with small logos and secondary row operations", async() => {
-    const history = {push: jest.fn()};
+    const history = {push: vi.fn()};
     const page = attachPageState(new (ApplicationListPage as LegacyAny)({
       account,
       history,
@@ -137,7 +136,7 @@ describe("ApplicationListPage enterprise table polish", () => {
     expect(view.getByText(/查询|Search|Query/)).not.toBeNull();
     expect(view.getByText(/重置|Reset/)).not.toBeNull();
     expect(view.getByText(/更多筛选|More filters/)).not.toBeNull();
-    expect(view.getByText(/添加|Add/)).not.toBeNull();
+    expect(view.getByText(/添\s*加|Add/)).not.toBeNull();
     expectTableColumnHeader(container, /分类|Category/);
     expectTableColumnHeader(container, /类型|Type/);
     const identityCell = container.querySelector(".application-table-cell");
@@ -162,14 +161,14 @@ describe("ApplicationListPage enterprise table polish", () => {
   test("uses the shared toolbar query state for backend list filtering", () => {
     const page = attachPageState(new (ApplicationListPage as LegacyAny)({
       account,
-      history: {push: jest.fn()},
+      history: {push: vi.fn()},
       match: {path: "/applications", params: {}},
     }), {
       pagination: {current: 3, pageSize: 20, total: 4},
       queryField: "organization",
       queryKeyword: "built-in",
     });
-    page.fetch = jest.fn();
+    page.fetch = vi.fn();
 
     page.handleToolbarSearch();
 
@@ -183,7 +182,7 @@ describe("ApplicationListPage enterprise table polish", () => {
   test("places access center title, actions and pagination on the shared list shell", () => {
     const page = attachPageState(new (ApplicationListPage as LegacyAny)({
       account,
-      history: {push: jest.fn()},
+      history: {push: vi.fn()},
       match: {path: "/applications", params: {}},
     }), {
       data: [application],
@@ -213,7 +212,7 @@ describe("ApplicationListPage enterprise table polish", () => {
   test("keeps compact identity columns when backend form config uses legacy application field names", () => {
     const page = attachPageState(new (ApplicationListPage as LegacyAny)({
       account,
-      history: {push: jest.fn()},
+      history: {push: vi.fn()},
       match: {path: "/applications", params: {}},
       formItems: [
         {name: "name", label: "general:Name", visible: true, width: "150"},
@@ -250,10 +249,10 @@ describe("ApplicationListPage enterprise table polish", () => {
   });
 
   test("keeps backend contracts for non-default organization fetch and row actions", async() => {
-    jest.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(false);
-    jest.spyOn(Setting, "getRequestOrganization").mockReturnValue("org-alpha");
-    jest.spyOn(Setting, "getRandomName").mockReturnValue("fixed");
-    const history = {push: jest.fn()};
+    vi.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(false);
+    vi.spyOn(Setting, "getRequestOrganization").mockReturnValue("org-alpha");
+    vi.spyOn(Setting, "getRandomName").mockReturnValue("fixed");
+    const history = {push: vi.fn()};
     const page = attachPageState(new (ApplicationListPage as LegacyAny)({
       account: {...account, owner: "org-alpha", organization: {name: "org-alpha"}},
       history,
@@ -299,7 +298,7 @@ describe("ApplicationListPage enterprise table polish", () => {
       clientSecret: "",
     })})}));
 
-    page.fetch = jest.fn();
+    page.fetch = vi.fn();
     page.deleteApplication(0);
     await flushPromises();
     expect(ApplicationBackend.deleteApplication).toHaveBeenCalledWith(expect.objectContaining({name: "portal"}));

@@ -1,6 +1,5 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {cleanup, render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import {Button, Input, InputNumber, Select, Switch} from "antd";
@@ -10,8 +9,7 @@ import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as FormBackend from "./backend/FormBackend";
 import AdapterListPage from "./AdapterListPage";
 import AdapterEditPage from "./AdapterEditPage";
-
-declare const jest: typeof jestValue;
+import {fireEvent} from "@testing-library/react";
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -87,59 +85,48 @@ type TableColumn = {
   render?: (text: unknown, record: AdapterRecord, index: number) => React.ReactNode;
 };
 
-const expect = jestExpect;
 const adapterBackendMock = AdapterBackend as unknown as AdapterBackendMock;
 const organizationBackendMock = OrganizationBackend as unknown as OrganizationBackendMock;
 const formBackendMock = FormBackend as unknown as FormBackendMock;
 
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-    change: (element: Element | null, event: unknown) => boolean;
-  };
-};
-
-jest.mock("./backend/AdapterBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/AdapterBackend", () => {
   return {
-    getAdapters: factoryJest.fn(),
-    getAdapter: factoryJest.fn(),
-    updateAdapter: factoryJest.fn(),
-    addAdapter: factoryJest.fn(),
-    deleteAdapter: factoryJest.fn(),
-    getPolicies: factoryJest.fn(),
-    UpdatePolicy: factoryJest.fn(),
-    AddPolicy: factoryJest.fn(),
-    RemovePolicy: factoryJest.fn(),
+    getAdapters: vi.fn(),
+    getAdapter: vi.fn(),
+    updateAdapter: vi.fn(),
+    addAdapter: vi.fn(),
+    deleteAdapter: vi.fn(),
+    getPolicies: vi.fn(),
+    UpdatePolicy: vi.fn(),
+    AddPolicy: vi.fn(),
+    RemovePolicy: vi.fn(),
   };
 });
 
-jest.mock("./backend/OrganizationBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/OrganizationBackend", () => {
   return {
-    getOrganizations: factoryJest.fn(),
+    getOrganizations: vi.fn(),
   };
 });
 
-jest.mock("./backend/FormBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/FormBackend", () => {
   return {
-    getForm: factoryJest.fn(),
+    getForm: vi.fn(),
   };
 });
 
-jest.mock("./TourConfig", () => ({
+vi.mock("./TourConfig", () => ({
   getTourVisible: () => false,
   getSteps: () => [],
   getNextUrl: () => "",
   setIsTourVisible: () => undefined,
 }));
 
-jest.mock("./common/modal/PopconfirmModal", () => (props: {disabled?: boolean; onConfirm?: () => void}) => (
+vi.mock("./common/modal/PopconfirmModal", () => ({default: (props: {disabled?: boolean; onConfirm?: () => void}) => (
   <button type="button" data-testid="popconfirm" data-disabled={props.disabled ? "true" : "false"} onClick={() => props.onConfirm?.()}>
     delete
   </button>
-));
+)}));
 
 const adminAccount: Account = {owner: "built-in", tag: "", isAdmin: true};
 const adapter: AdapterRecord = {
@@ -174,7 +161,7 @@ function flushPromises() {
 
 function createHistory() {
   return {
-    push: jestValue.fn(),
+    push: vi.fn(),
   };
 }
 
@@ -239,16 +226,16 @@ beforeEach(() => {
     writable: true,
     value: () => ({
       matches: false,
-      addListener: jestValue.fn(),
-      removeListener: jestValue.fn(),
-      addEventListener: jestValue.fn(),
-      removeEventListener: jestValue.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
     }),
   });
-  jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(false);
-  jestValue.spyOn(Setting, "isAdminUser").mockImplementation((account: unknown) => Boolean((account as Account).isAdmin));
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
+  vi.spyOn(Setting, "isMobile").mockReturnValue(false);
+  vi.spyOn(Setting, "isAdminUser").mockImplementation((account: unknown) => Boolean((account as Account).isAdmin));
   formBackendMock.getForm.mockResolvedValue({status: "ok", data: {formItems: []}});
   adapterBackendMock.getAdapters.mockResolvedValue({status: "ok", data: [adapter], data2: 1});
   adapterBackendMock.getAdapter.mockResolvedValue({status: "ok", data: adapter});
@@ -260,8 +247,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  jestValue.restoreAllMocks();
-  jestValue.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
   cleanup();
 });
 
@@ -308,7 +295,7 @@ test("keeps adapter list add, fetch and delete behavior", async() => {
     data: [adapter],
     pagination: {...page.state.pagination, current: 2},
   };
-  const fetchSpy = jestValue.fn();
+  const fetchSpy = vi.fn();
   page.fetch = fetchSpy as unknown as typeof page.fetch;
   page.deleteAdapter(0);
   await flushPromises();
@@ -321,8 +308,8 @@ test("keeps adapter list add, fetch and delete behavior", async() => {
 test("renders adapter list table actions and reports list errors", async() => {
   const history = createHistory();
   const page = createListPage(adminAccount, history);
-  jestValue.spyOn(page, "addAdapter").mockImplementation(() => {});
-  jestValue.spyOn(page, "deleteAdapter").mockImplementation(() => {});
+  vi.spyOn(page, "addAdapter").mockImplementation(() => {});
+  vi.spyOn(page, "deleteAdapter").mockImplementation(() => {});
 
   const tableWrapper = page.renderTable([adapter]) as React.ReactElement<{children: React.ReactElement<{columns: TableColumn[]; title: () => React.ReactNode}>}>;
   const table = tableWrapper.props.children;
@@ -347,7 +334,7 @@ test("renders adapter list table actions and reports list errors", async() => {
   fireEvent.click(actionView.getByText(/编\s*辑|Edit/));
   expect(history.push).toHaveBeenCalledWith("/adapters/engineering/adapter-main");
   fireEvent.click(actionView.getByText(/删\s*除|Delete/));
-  fireEvent.click(actionView.baseElement.querySelector(".ant-popconfirm-buttons .ant-btn-primary"));
+  fireEvent.click(actionView.baseElement.querySelector(".ant-popconfirm-buttons .ant-btn-primary")!);
   expect(page.deleteAdapter).toHaveBeenCalledWith(0);
   actionView.unmount();
 
@@ -380,7 +367,7 @@ test("keeps adapter list column renderers and mutation error behavior", async() 
   expect(ownerView.getByText("engineering").closest("a")?.getAttribute("href")).toBe("/organizations/engineering");
   ownerView.unmount();
 
-  const formattedDateSpy = jestValue.spyOn(Setting, "getFormattedDate").mockReturnValue("formatted-created-time");
+  const formattedDateSpy = vi.spyOn(Setting, "getFormattedDate").mockReturnValue("formatted-created-time");
   expect(columns[2].render?.(adapter.createdTime, adapter, 0)).toBe("formatted-created-time");
   expect(formattedDateSpy).toHaveBeenCalledWith(adapter.createdTime);
 
@@ -419,7 +406,7 @@ test("keeps adapter list column renderers and mutation error behavior", async() 
 test("keeps adapter list mobile and default-organization branch behavior without fixed action columns", async() => {
   const page = createListPage();
 
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(true);
+  vi.spyOn(Setting, "isMobile").mockReturnValue(true);
   const mobileTable = page.renderTable([adapter]) as React.ReactElement<{children: React.ReactElement<{columns: TableColumn[]}>}>;
   const mobileColumns = mobileTable.props.children.props.columns;
   expect(mobileColumns.find(column => column.key === "op")?.fixed).toBeUndefined();
@@ -435,7 +422,7 @@ test("keeps adapter list mobile and default-organization branch behavior without
     data: [adapter, externalAdapter],
     pagination: {...page.state.pagination, current: 1},
   };
-  const fetchSpy = jestValue.fn();
+  const fetchSpy = vi.fn();
   page.fetch = fetchSpy as unknown as typeof page.fetch;
   page.deleteAdapter(0);
   await flushPromises();
@@ -444,7 +431,7 @@ test("keeps adapter list mobile and default-organization branch behavior without
   }));
 
   const defaultOrganizationPage = createListPage();
-  jestValue.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(true);
+  vi.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(true);
   defaultOrganizationPage.fetch({pagination: {...defaultOrganizationPage.state.pagination, current: 1, pageSize: 10}});
   await flushPromises();
   expect(adapterBackendMock.getAdapters).toHaveBeenLastCalledWith("", 1, 10, undefined, undefined, undefined, undefined);
@@ -482,8 +469,8 @@ test("keeps adapter edit null guards, button actions and network errors", async(
     organizations: [{name: "engineering"}],
   };
 
-  const submitSpy = jestValue.spyOn(page, "submitAdapterEdit").mockImplementation(() => {});
-  const deleteSpy = jestValue.spyOn(page, "deleteAdapter").mockImplementation(() => {});
+  const submitSpy = vi.spyOn(page, "submitAdapterEdit").mockImplementation(() => {});
+  const deleteSpy = vi.spyOn(page, "deleteAdapter").mockImplementation(() => {});
   const editButtons = collectElementsByType(page.renderAdapter(), Button);
   elementProps<{onClick: () => void}>(editButtons[0]).onClick();
   elementProps<{onClick: () => void}>(editButtons[1]).onClick();
@@ -544,7 +531,7 @@ test("keeps adapter edit mobile, constructor and empty-response branch behavior"
   await flushPromises();
   expect(page.state.adapter).toBeNull();
 
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(true);
+  vi.spyOn(Setting, "isMobile").mockReturnValue(true);
   page.state = {
     ...page.state,
     adapter: {...externalAdapter},

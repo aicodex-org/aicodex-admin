@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "allowJs": false,
+    "jsx": "react-jsx",
     "module": "esnext",
     "moduleResolution": "bundler",
     "noEmit": true,
@@ -9,5 +10,12 @@
     "types": ["node"],
     "skipLibCheck": true
   },
-  "include": ["vite.config.ts", "src/vite-env.d.ts", "src/config/runtimeEnv.ts"]
+  "include": [
+    "vite.config.ts",
+    "vitest.config.ts",
+    "config/vitest/**/*.ts",
+    "config/vitest/**/*.tsx",
+    "src/vite-env.d.ts",
+    "src/config/runtimeEnv.ts"
+  ]
 }

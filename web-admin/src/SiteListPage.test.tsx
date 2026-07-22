@@ -1,11 +1,15 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import React from "react";
 import {act, cleanup, render} from "@testing-library/react";
-import {expect, jest} from "@jest/globals";
 import SiteListPage from "./SiteListPage";
 import * as SiteBackend from "./backend/SiteBackend";
 import * as FormBackend from "./backend/FormBackend";
 import * as Setting from "./Setting";
+import * as fs from "fs";
+import * as path from "path";
+import {fireEvent} from "@testing-library/react";
+import {fileURLToPath} from "url";
+const testFileDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 type LooseMock = {
   (...args: unknown[]): unknown;
@@ -61,26 +65,24 @@ interface TestTableElementProps {
   title: () => React.ReactNode;
 }
 
-jest.mock("./backend/SiteBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
+vi.mock("./backend/SiteBackend", () => {
   return {
-    getGlobalSites: factoryJest.fn(),
-    getSites: factoryJest.fn(),
-    getSite: factoryJest.fn(),
-    updateSite: factoryJest.fn(),
-    addSite: factoryJest.fn(),
-    deleteSite: factoryJest.fn(),
+    getGlobalSites: vi.fn(),
+    getSites: vi.fn(),
+    getSite: vi.fn(),
+    updateSite: vi.fn(),
+    addSite: vi.fn(),
+    deleteSite: vi.fn(),
   };
 });
 
-jest.mock("./backend/FormBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals");
+vi.mock("./backend/FormBackend", () => {
   return {
-    getForm: factoryJest.fn(),
+    getForm: vi.fn(),
   };
 });
 
-jest.mock("./TourConfig", () => ({
+vi.mock("./TourConfig", () => ({
   getTourVisible: () => false,
   getSteps: () => [],
   getNextUrl: () => "",
@@ -89,13 +91,6 @@ jest.mock("./TourConfig", () => ({
 
 const siteBackendMock = SiteBackend as unknown as SiteBackendMock;
 const formBackendMock = FormBackend as unknown as FormBackendMock;
-const fs = require("fs") as {existsSync: (filePath: string) => boolean};
-const path = require("path") as {join: (...parts: string[]) => string};
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-  };
-};
 
 let consoleErrorSpy: {mockRestore: () => void};
 
@@ -132,7 +127,7 @@ const site: TestSiteRecord = {
 
 function createHistory() {
   return {
-    push: jest.fn(),
+    push: vi.fn(),
   };
 }
 
@@ -178,14 +173,14 @@ async function flushPromises() {
 
 describe("SiteListPage", () => {
   beforeEach(() => {
-    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation((message?: unknown, ...args: unknown[]) => {
       throw new Error([message, ...args].map(item => `${item}`).join(" "));
     });
-    jest.spyOn(Setting, "showMessage").mockImplementation(() => {});
-    jest.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
-    jest.spyOn(Setting, "getRequestOrganization").mockReturnValue("engineering");
-    jest.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(false);
-    jest.spyOn(Setting, "getVersionInfo").mockReturnValue(null);
+    vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+    vi.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
+    vi.spyOn(Setting, "getRequestOrganization").mockReturnValue("engineering");
+    vi.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(false);
+    vi.spyOn(Setting, "getVersionInfo").mockReturnValue(null);
     formBackendMock.getForm.mockResolvedValue({status: "ok", data: {formItems: []}});
     siteBackendMock.getGlobalSites.mockResolvedValue({status: "ok", data: [site], data2: 1});
     siteBackendMock.getSites.mockResolvedValue({status: "ok", data: [site], data2: 1});
@@ -196,18 +191,18 @@ describe("SiteListPage", () => {
   afterEach(() => {
     cleanup();
     consoleErrorSpy.mockRestore();
-    jest.restoreAllMocks();
-    jest.clearAllMocks();
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   test("is migrated from JavaScript to TSX", () => {
-    expect(fs.existsSync(path.join(__dirname, "SiteListPage.tsx"))).toBe(true);
-    expect(fs.existsSync(path.join(__dirname, "SiteListPage.js"))).toBe(false);
+    expect(fs.existsSync(path.join(testFileDirectory, "SiteListPage.tsx"))).toBe(true);
+    expect(fs.existsSync(path.join(testFileDirectory, "SiteListPage.js"))).toBe(false);
   });
 
   test("creates a default site and refreshes the list after add", async() => {
     const page = createPage();
-    page.fetch = jest.fn() as unknown as typeof page.fetch;
+    page.fetch = vi.fn() as unknown as typeof page.fetch;
 
     expect(page.newSite()).toEqual(expect.objectContaining({
       owner: "engineering",
@@ -233,7 +228,7 @@ describe("SiteListPage", () => {
 
   test("initializes legacy pagination before the first fetch", () => {
     const page = createPage();
-    page.fetch = jest.fn() as unknown as typeof page.fetch;
+    page.fetch = vi.fn() as unknown as typeof page.fetch;
 
     page.UNSAFE_componentWillMount();
 
@@ -265,7 +260,7 @@ describe("SiteListPage", () => {
   });
 
   test("uses the global site API when the default organization is selected", async() => {
-    jest.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(true);
+    vi.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(true);
     const page = createPage();
 
     page.fetch();
@@ -277,7 +272,7 @@ describe("SiteListPage", () => {
 
   test("deletes sites and rolls back pagination for the last row", async() => {
     const page = createPage();
-    page.fetch = jest.fn() as unknown as typeof page.fetch;
+    page.fetch = vi.fn() as unknown as typeof page.fetch;
     page.state = {
       ...page.state,
       data: [site],
@@ -296,7 +291,7 @@ describe("SiteListPage", () => {
 
   test("keeps pagination when deleting does not empty a later page", async() => {
     const page = createPage();
-    page.fetch = jest.fn() as unknown as typeof page.fetch;
+    page.fetch = vi.fn() as unknown as typeof page.fetch;
     page.state = {
       ...page.state,
       data: [site, {...site, name: "site-two"}],
@@ -363,8 +358,8 @@ describe("SiteListPage", () => {
       match: {path: "/sites", params: {}},
     });
     installSynchronousSetState(page);
-    jest.spyOn(page, "addSite").mockImplementation(() => {});
-    jest.spyOn(page, "deleteSite").mockImplementation(() => {});
+    vi.spyOn(page, "addSite").mockImplementation(() => {});
+    vi.spyOn(page, "deleteSite").mockImplementation(() => {});
 
     const table = getRenderedTable(page);
     const actionColumn = table.props.columns.find(column => column.key === "action");

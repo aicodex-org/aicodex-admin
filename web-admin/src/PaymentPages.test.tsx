@@ -1,8 +1,7 @@
-/* eslint-env jest */
+import {afterEach, beforeEach, expect, test, vi} from "vitest";
 import React from "react";
 import * as fs from "fs";
 import * as path from "path";
-import {expect as jestExpect, jest as jestValue} from "@jest/globals";
 import {cleanup, render} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
 import PaymentResultPage from "./PaymentResultPage";
@@ -15,8 +14,10 @@ import * as UserBackend from "./backend/UserBackend";
 import * as Setting from "./Setting";
 import type {LegacyAny} from "./types/legacyPage";
 import {type ConsoleCallSpy, getAntdWarnings} from "./testUtils/reactAsyncWarnings";
+import {fireEvent} from "@testing-library/react";
+import {fileURLToPath} from "url";
+const testFileDirectory = path.dirname(fileURLToPath(import.meta.url));
 
-declare const jest: typeof jestValue;
 let consoleErrorSpy: ConsoleCallSpy;
 
 type LooseMock = {
@@ -86,17 +87,10 @@ const paymentBackendMock = PaymentBackend as unknown as PaymentBackendMock;
 const pricingBackendMock = PricingBackend as unknown as PricingBackendMock;
 const subscriptionBackendMock = SubscriptionBackend as unknown as SubscriptionBackendMock;
 const userBackendMock = UserBackend as unknown as UserBackendMock;
-const expect = jestExpect;
-const {fireEvent} = require("@testing-library/react") as {
-  fireEvent: {
-    click: (element: Element | null) => boolean;
-    change: (element: Element | null, event: unknown) => boolean;
-  };
-};
 const nativeSetTimeout = global.setTimeout;
 const nativeClearTimeout = global.clearTimeout;
 
-jest.mock("i18next", () => ({
+vi.mock("i18next", () => ({
   __esModule: true,
   default: {
     language: "en",
@@ -113,49 +107,45 @@ jest.mock("i18next", () => ({
   },
 }));
 
-jest.mock("./backend/PaymentBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/PaymentBackend", () => {
   return {
-    addPayment: factoryJest.fn(),
-    deletePayment: factoryJest.fn(),
-    getPayment: factoryJest.fn(),
-    getPayments: factoryJest.fn(),
-    invoicePayment: factoryJest.fn(),
-    notifyPayment: factoryJest.fn(),
-    updatePayment: factoryJest.fn(),
+    addPayment: vi.fn(),
+    deletePayment: vi.fn(),
+    getPayment: vi.fn(),
+    getPayments: vi.fn(),
+    invoicePayment: vi.fn(),
+    notifyPayment: vi.fn(),
+    updatePayment: vi.fn(),
   };
 });
 
-jest.mock("./backend/PricingBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/PricingBackend", () => {
   return {
-    getPricing: factoryJest.fn(),
+    getPricing: vi.fn(),
   };
 });
 
-jest.mock("./backend/SubscriptionBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/SubscriptionBackend", () => {
   return {
-    getSubscription: factoryJest.fn(),
+    getSubscription: vi.fn(),
   };
 });
 
-jest.mock("./backend/UserBackend", () => {
-  const {jest: factoryJest} = require("@jest/globals") as {jest: typeof jestValue};
+vi.mock("./backend/UserBackend", () => {
   return {
-    getUser: factoryJest.fn(),
+    getUser: vi.fn(),
   };
 });
 
-jest.mock("./auth/Provider", () => {
-  const ReactFactory = require("react");
+vi.mock("./auth/Provider", async() => {
+  const ReactFactory = await vi.importActual<typeof import("react")>("react");
   return {
     getProviderLogoWidget: (provider: {type?: string}) => ReactFactory.createElement("span", null, `provider:${provider.type}`),
   };
 });
 
-jest.mock("./common/modal/PopconfirmModal", () => {
-  const ReactFactory = require("react");
+vi.mock("./common/modal/PopconfirmModal", async() => {
+  const ReactFactory = await vi.importActual<typeof import("react")>("react");
   return {
     __esModule: true,
     default: (props: {disabled?: boolean; onConfirm?: () => void; text?: string; children?: React.ReactNode}) => ReactFactory.createElement(
@@ -228,7 +218,7 @@ async function flushAsyncWork() {
 
 function createHistory() {
   return {
-    push: jestValue.fn(),
+    push: vi.fn(),
   };
 }
 
@@ -250,7 +240,7 @@ function createPaymentResultPage(props: Record<string, LegacyAny> = {}) {
     account,
     history: createHistory(),
     match: {params: {organizationName: "built-in", paymentName: "payment_123"}},
-    onUpdatePricing: jestValue.fn(),
+    onUpdatePricing: vi.fn(),
     ...props,
   }) as unknown as Harness<PaymentResultPage>;
   installSynchronousSetState(page);
@@ -280,9 +270,9 @@ function createPaymentListPage(props: Record<string, LegacyAny> = {}) {
     pagination: {current: 2, pageSize: 10, total: 11},
     loading: false,
   };
-  page.getColumnSearchProps = jestValue.fn(() => ({})) as unknown as LooseMock;
-  page.getTablePaginationProps = jestValue.fn(() => false) as unknown as LooseMock;
-  page.handleTableChange = jestValue.fn() as unknown as LooseMock;
+  page.getColumnSearchProps = vi.fn(() => ({})) as unknown as LooseMock;
+  page.getTablePaginationProps = vi.fn(() => false) as unknown as LooseMock;
+  page.handleTableChange = vi.fn() as unknown as LooseMock;
   return page;
 }
 
@@ -326,41 +316,41 @@ function collectElements(node: React.ReactNode, predicate: (element: React.React
 
 beforeEach(() => {
   cleanup();
-  consoleErrorSpy = jestValue.spyOn(console, "error") as unknown as ConsoleCallSpy;
+  consoleErrorSpy = vi.spyOn(console, "error") as unknown as ConsoleCallSpy;
   window.history.pushState({}, "", "/");
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: () => ({
       matches: false,
-      addListener: jestValue.fn(),
-      removeListener: jestValue.fn(),
-      addEventListener: jestValue.fn(),
-      removeEventListener: jestValue.fn(),
-      dispatchEvent: jestValue.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
     }),
   });
-  jestValue.spyOn(Setting, "showMessage").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "goToLinkSoft").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "openLinkSafe").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "scrollToDiv").mockImplementation(() => {});
-  jestValue.spyOn(Setting, "renderHelmet").mockReturnValue(null);
-  jestValue.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
-  jestValue.spyOn(Setting, "getRequestOrganization").mockReturnValue("built-in");
-  jestValue.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(false);
-  jestValue.spyOn(Setting, "isLocalAdminUser").mockReturnValue(true);
-  jestValue.spyOn(Setting, "isMobile").mockReturnValue(false);
-  jestValue.spyOn(Setting, "getFormattedDate").mockImplementation((value: LegacyAny) => `formatted:${value}`);
-  jestValue.spyOn(Setting, "getCurrencySymbol").mockReturnValue("$");
-  jestValue.spyOn(Setting, "getCurrencyText").mockReturnValue("USD");
-  jestValue.spyOn(Setting, "getPriceDisplay").mockImplementation(((value: LegacyAny, currency: LegacyAny) => `$${value} (${currency})`) as LegacyAny);
-  jestValue.spyOn(Setting, "getProviderTypeOptions").mockReturnValue([{id: "PayPal", name: "PayPal"}]);
-  jestValue.spyOn(Setting, "getLabel").mockImplementation(((label: LegacyAny) => `${label}`) as LegacyAny);
-  jestValue.spyOn(Setting, "isValidPersonName").mockReturnValue(true);
-  jestValue.spyOn(Setting, "isValidIdCard").mockReturnValue(true);
-  jestValue.spyOn(Setting, "isValidEmail").mockReturnValue(true);
-  jestValue.spyOn(Setting, "isValidPhone").mockReturnValue(true);
-  jestValue.spyOn(Setting, "isValidInvoiceTitle").mockReturnValue(true);
-  jestValue.spyOn(Setting, "isValidTaxId").mockReturnValue(true);
+  vi.spyOn(Setting, "showMessage").mockImplementation(() => {});
+  vi.spyOn(Setting, "goToLinkSoft").mockImplementation(() => {});
+  vi.spyOn(Setting, "openLinkSafe").mockImplementation(() => {});
+  vi.spyOn(Setting, "scrollToDiv").mockImplementation(() => {});
+  vi.spyOn(Setting, "renderHelmet").mockReturnValue(null);
+  vi.spyOn(Setting, "getRandomName").mockReturnValue("abc123");
+  vi.spyOn(Setting, "getRequestOrganization").mockReturnValue("built-in");
+  vi.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValue(false);
+  vi.spyOn(Setting, "isLocalAdminUser").mockReturnValue(true);
+  vi.spyOn(Setting, "isMobile").mockReturnValue(false);
+  vi.spyOn(Setting, "getFormattedDate").mockImplementation((value: LegacyAny) => `formatted:${value}`);
+  vi.spyOn(Setting, "getCurrencySymbol").mockReturnValue("$");
+  vi.spyOn(Setting, "getCurrencyText").mockReturnValue("USD");
+  vi.spyOn(Setting, "getPriceDisplay").mockImplementation(((value: LegacyAny, currency: LegacyAny) => `$${value} (${currency})`) as LegacyAny);
+  vi.spyOn(Setting, "getProviderTypeOptions").mockReturnValue([{id: "PayPal", name: "PayPal"}]);
+  vi.spyOn(Setting, "getLabel").mockImplementation(((label: LegacyAny) => `${label}`) as LegacyAny);
+  vi.spyOn(Setting, "isValidPersonName").mockReturnValue(true);
+  vi.spyOn(Setting, "isValidIdCard").mockReturnValue(true);
+  vi.spyOn(Setting, "isValidEmail").mockReturnValue(true);
+  vi.spyOn(Setting, "isValidPhone").mockReturnValue(true);
+  vi.spyOn(Setting, "isValidInvoiceTitle").mockReturnValue(true);
+  vi.spyOn(Setting, "isValidTaxId").mockReturnValue(true);
 
   paymentBackendMock.addPayment.mockResolvedValue({status: "ok"});
   paymentBackendMock.deletePayment.mockResolvedValue({status: "ok"});
@@ -378,14 +368,14 @@ afterEach(() => {
   cleanup();
   const antdWarnings = getAntdWarnings(consoleErrorSpy.mock.calls);
   consoleErrorSpy.mockRestore();
-  jestValue.restoreAllMocks();
-  jestValue.useRealTimers();
-  jestValue.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.useRealTimers();
+  vi.clearAllMocks();
   expect(antdWarnings).toEqual([]);
 });
 
 test("uses TSX files for migrated payment pages", () => {
-  const srcDir = __dirname;
+  const srcDir = testFileDirectory;
 
   ["PaymentResultPage", "PaymentListPage", "PaymentEditPage"].forEach(file => {
     expect(fs.existsSync(path.join(srcDir, `${file}.tsx`))).toBe(true);
@@ -437,8 +427,8 @@ test("keeps PaymentResultPage result states and navigation stable", () => {
 });
 
 test("keeps PaymentResultPage loading, polling and error branches stable", async() => {
-  jestValue.useFakeTimers();
-  const onUpdatePricing = jestValue.fn();
+  vi.useFakeTimers();
+  const onUpdatePricing = vi.fn();
   window.history.pushState({}, "", "/?subscription=sub_123");
   const page = createPaymentResultPage({
     onUpdatePricing,
@@ -461,7 +451,7 @@ test("keeps PaymentResultPage loading, polling and error branches stable", async
   expect(page.state.paymentName).toBe("payment_123");
   expect(page.state.timeout).not.toBeNull();
 
-  jestValue.runOnlyPendingTimers();
+  vi.runOnlyPendingTimers();
   await flushAsyncWork();
   expect(paymentBackendMock.notifyPayment).toHaveBeenCalledWith("built-in", "payment_123");
 
@@ -485,7 +475,7 @@ test("keeps PaymentResultPage loading, polling and error branches stable", async
   await page.getPayment();
   expect(Setting.showMessage).toHaveBeenCalledWith("error", "pricing failed");
 
-  const clearTimeoutSpy = jestValue.spyOn(global, "clearTimeout");
+  const clearTimeoutSpy = vi.spyOn(global, "clearTimeout");
   page.setState({timeout: setTimeout(() => {}, 1000)});
   page.componentWillUnmount();
   expect(clearTimeoutSpy).toHaveBeenCalled();
@@ -505,7 +495,7 @@ test("keeps PaymentResultPage loading, polling and error branches stable", async
   paymentBackendMock.getPayment.mockResolvedValueOnce({status: "ok", data: makePayment({state: "Created", type: "Wire"})});
   page.setState({pricingName: null, subscriptionName: null, paymentName: "payment_123", payment: null});
   await page.getPayment();
-  jestValue.runOnlyPendingTimers();
+  vi.runOnlyPendingTimers();
   await flushAsyncWork();
   expect(paymentBackendMock.notifyPayment).not.toHaveBeenCalled();
 });
@@ -553,7 +543,7 @@ test("keeps PaymentListPage add, delete, fetch and renderers stable", async() =>
 
   const productsView = render(<MemoryRouter>{columns.find(column => column.key === "products")?.render?.(payment.products, payment, 0)}</MemoryRouter>);
   expect(productsView.getByText("Workspace Credits")).not.toBeNull();
-  fireEvent.click(productsView.container.querySelector("button"));
+  fireEvent.click(productsView.container.querySelector("button")!);
   expect(Setting.goToLinkSoft).toHaveBeenCalledWith(page, "/products/built-in/workspace_credits");
   productsView.unmount();
 
@@ -575,7 +565,7 @@ test("keeps PaymentListPage add, delete, fetch and renderers stable", async() =>
 test("keeps PaymentListPage permission and error branches stable", async() => {
   const history = createHistory();
   const page = createPaymentListPage({account: {...account, isAdmin: false}, history});
-  jestValue.spyOn(Setting, "isLocalAdminUser").mockReturnValue(false);
+  vi.spyOn(Setting, "isLocalAdminUser").mockReturnValue(false);
 
   const table = page.renderTable([payment]) as React.ReactElement<{children: React.ReactElement<{columns: Array<{key?: string; render?: LegacyAny}>; title: () => React.ReactNode}>}>;
   const tableElement = React.Children.toArray(table.props.children)[0] as React.ReactElement<{columns: Array<{key?: string; render?: LegacyAny}>; title: () => React.ReactNode}>;
@@ -610,13 +600,13 @@ test("keeps PaymentListPage permission and error branches stable", async() => {
   await flushAsyncWork();
   expect(Setting.showMessage).toHaveBeenCalledWith("error", expect.stringContaining("delete network down"));
 
-  jestValue.spyOn(Setting, "isResponseDenied").mockReturnValueOnce(true);
+  vi.spyOn(Setting, "isResponseDenied").mockReturnValueOnce(true);
   paymentBackendMock.getPayments.mockResolvedValueOnce({status: "error", msg: "denied"});
   page.fetch({pagination: {current: 1, pageSize: 10}});
   await flushAsyncWork();
   expect(page.state.isAuthorized).toBe(false);
 
-  jestValue.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValueOnce(true);
+  vi.spyOn(Setting, "isDefaultOrganizationSelected").mockReturnValueOnce(true);
   paymentBackendMock.getPayments.mockResolvedValueOnce({status: "error", msg: "list failed"});
   page.fetch({pagination: {current: 3, pageSize: 20}});
   await flushAsyncWork();
@@ -625,7 +615,7 @@ test("keeps PaymentListPage permission and error branches stable", async() => {
 });
 
 test("publishes the payment display name for its workspace tab and keeps read-only updates silent", async() => {
-  const dispatchSpy = jestValue.spyOn(window, "dispatchEvent");
+  const dispatchSpy = vi.spyOn(window, "dispatchEvent");
   const page = createPaymentEditPage();
 
   paymentBackendMock.getPayment.mockResolvedValueOnce({status: "ok", data: makePayment({displayName: "Workspace Payment"})});
@@ -709,7 +699,7 @@ test("keeps PaymentEditPage loading, invoice actions, save and delete behavior s
 
 test("keeps PaymentEditPage form callbacks, validation and failure branches stable", async() => {
   const page = createPaymentEditPage({location: {mode: "add"}});
-  jestValue.spyOn(Setting, "myParseInt").mockReturnValueOnce(7);
+  vi.spyOn(Setting, "myParseInt").mockReturnValueOnce(7);
   expect(page.parsePaymentField("", "7")).toBe(7);
 
   const tree = page.renderPayment();
@@ -742,23 +732,23 @@ test("keeps PaymentEditPage form callbacks, validation and failure branches stab
   page.setState({payment: makePayment({state: "Created"})});
   expect(page.checkError()).toBe("Please pay the order first!");
   page.setState({payment: makePayment()});
-  jestValue.spyOn(Setting, "isValidPersonName").mockReturnValueOnce(false);
+  vi.spyOn(Setting, "isValidPersonName").mockReturnValueOnce(false);
   expect(page.checkError()).toBe("Please input your real name!");
-  jestValue.spyOn(Setting, "isValidIdCard").mockReturnValueOnce(false);
+  vi.spyOn(Setting, "isValidIdCard").mockReturnValueOnce(false);
   expect(page.checkError()).toBe("Please input the correct ID card number!");
-  jestValue.spyOn(Setting, "isValidEmail").mockReturnValueOnce(false);
+  vi.spyOn(Setting, "isValidEmail").mockReturnValueOnce(false);
   expect(page.checkError()).toBe("The input is not valid Email!");
-  jestValue.spyOn(Setting, "isValidPhone").mockReturnValueOnce(false);
+  vi.spyOn(Setting, "isValidPhone").mockReturnValueOnce(false);
   expect(page.checkError()).toBe("The input is not valid Phone!");
   page.setState({payment: makePayment({invoiceTitle: "Other"})});
   expect(page.checkError()).toBe("The input is not invoice title!");
   page.setState({payment: makePayment({invoiceTaxId: "tax"})});
   expect(page.checkError()).toBe("The input is not invoice Tax ID!");
   page.setState({payment: makePayment({invoiceType: "Organization", invoiceTitle: ""})});
-  jestValue.spyOn(Setting, "isValidInvoiceTitle").mockReturnValueOnce(false);
+  vi.spyOn(Setting, "isValidInvoiceTitle").mockReturnValueOnce(false);
   expect(page.checkError()).toBe("The input is not invoice title!");
   page.setState({payment: makePayment({invoiceType: "Organization", invoiceTitle: "Company", invoiceTaxId: ""})});
-  jestValue.spyOn(Setting, "isValidTaxId").mockReturnValueOnce(false);
+  vi.spyOn(Setting, "isValidTaxId").mockReturnValueOnce(false);
   expect(page.checkError()).toBe("The input is not invoice Tax ID!");
 
   const view = render(<MemoryRouter>{page.render()}</MemoryRouter>);

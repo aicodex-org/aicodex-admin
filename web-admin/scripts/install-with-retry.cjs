@@ -10,14 +10,15 @@ const RETRY_DELAY_MS = 5000;
 const CRITICAL_PACKAGES = [
   "react",
   "react-dom",
-  "jest",
+  "vitest",
+  "@vitest/coverage-v8",
   "vite",
   "@playwright/test",
   "playwright",
   "playwright-core",
   "rc-virtual-list",
 ];
-const CRITICAL_CLIS = ["jest", "vite", "playwright"];
+const CRITICAL_CLIS = ["vitest", "vite", "playwright"];
 
 function writeLine(stream, message) {
   stream.write(`${message}\n`);

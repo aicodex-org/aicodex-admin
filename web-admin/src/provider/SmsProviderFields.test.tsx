@@ -1,25 +1,25 @@
-/* eslint-env jest */
+import {expect, test, vi} from "vitest";
 
 import React from "react";
-import {expect, jest} from "@jest/globals";
 import {fireEvent, render} from "@testing-library/react";
 import {renderSmsProviderFields} from "./SmsProviderFields";
 import * as Setting from "../Setting";
-import type {ProviderFieldValue} from "./ProviderFieldTypes";
 
-jest.mock("../common/select/CountryCodeSelect", () => ({
+type ProviderFieldValue = import("./ProviderFieldTypes").ProviderFieldValue;
+
+vi.mock("../common/select/CountryCodeSelect", () => ({
   CountryCodeSelect: (props: {style?: React.CSSProperties; initValue?: string; onChange?: (value: string) => void}) => (
     <button type="button" data-testid="country-code" style={props.style} onClick={() => props.onChange?.("CN")}>{props.initValue}</button>
   ),
 }));
 
-jest.mock("../common/TestSmsWidget", () => ({sendTestSms: () => undefined}));
+vi.mock("../common/TestSmsWidget", () => ({sendTestSms: () => undefined}));
 
 test("keeps SMS test phone controls compact and wired", () => {
-  jest.spyOn(Setting, "isMobile").mockReturnValue(false);
-  jest.spyOn(Setting, "getLabel").mockImplementation((label: unknown) => <span>{String(label)}</span>);
-  jest.spyOn(Setting, "isValidPhone").mockReturnValue(true);
-  const updateProviderField = jest.fn<void, [string, ProviderFieldValue]>();
+  vi.spyOn(Setting, "isMobile").mockReturnValue(false);
+  vi.spyOn(Setting, "getLabel").mockImplementation((label: unknown) => <span>{String(label)}</span>);
+  vi.spyOn(Setting, "isValidPhone").mockReturnValue(true);
+  const updateProviderField = vi.fn<(field: string, value: ProviderFieldValue) => void>();
   const provider: Parameters<typeof renderSmsProviderFields>[0] = {
     type: "Twilio SMS",
     signName: "Example",
