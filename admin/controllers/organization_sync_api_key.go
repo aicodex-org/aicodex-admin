@@ -16,18 +16,29 @@ package controllers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"git.leagsoft.com/aicodex/aicodex-admin/object"
 	"git.leagsoft.com/aicodex/aicodex-admin/util"
+	"github.com/beego/beego/v2/core/logs"
 )
 
 type organizationSyncExportResponse struct {
 	Organization *object.Organization                  `json:"organization"`
 	Groups       []*object.OrganizationSyncExportGroup `json:"groups"`
 	Applications []*object.Application                 `json:"applications"`
+}
+
+var organizationSyncLegacyExportBuilder = func(organization string) (*object.OrganizationSyncSnapshot, error) {
+	return object.GetOrganizationSyncSnapshot(organization)
+}
+
+var organizationSyncV2ExportBuilder = func(organization string, sourceConnectionID string, now time.Time) (*object.OrganizationSyncContractV2Snapshot, error) {
+	return object.GetOrganizationSyncContractV2Snapshot(organization, sourceConnectionID, now)
 }
 
 func (c *ApiController) getOrganizationSyncApiKeyAuth() *object.OrganizationSyncApiKeyAuth {
@@ -295,16 +306,44 @@ func (c *ApiController) ExportOrganizationSyncSnapshot() {
 	if !ok {
 		return
 	}
-	resp, err := c.buildOrganizationSyncExportResponse(organization)
-	if err != nil {
-		c.ResponseError(err.Error())
+	contractVersion := strings.TrimSpace(c.Ctx.Input.Query("contractVersion"))
+	if contractVersion == "" || strings.EqualFold(contractVersion, "legacy") {
+		resp, err := c.buildOrganizationSyncExportResponse(organization)
+		if err != nil {
+			c.ResponseError(err.Error())
+			return
+		}
+		c.ResponseOk(resp)
 		return
 	}
+	if !strings.EqualFold(contractVersion, object.OrganizationSyncContractV2) {
+		logOrganizationSyncV2Export(organization, "", "", "", 0, 0, "failed", object.OrganizationSyncContractErrorUnsupportedVersion)
+		c.ResponseError(object.OrganizationSyncContractErrorUnsupportedVersion)
+		return
+	}
+	sourceConnectionID := strings.TrimSpace(c.Ctx.Input.Query("sourceConnectionId"))
+	resp, err := organizationSyncV2ExportBuilder(organization, sourceConnectionID, time.Now().UTC())
+	if err != nil {
+		errorCode := organizationSyncV2SafeErrorCode(err)
+		logOrganizationSyncV2Export(organization, sourceConnectionID, "", "", 0, 0, "failed", errorCode)
+		c.ResponseError(errorCode)
+		return
+	}
+	logOrganizationSyncV2Export(
+		organization,
+		resp.SourceConnectionID,
+		resp.SourceOrgVersion,
+		resp.BatchID,
+		resp.Diagnostics.MemberRelationCount,
+		resp.Diagnostics.DepartmentLeaderCount+resp.Diagnostics.DirectLeaderCount,
+		"success",
+		"",
+	)
 	c.ResponseOk(resp)
 }
 
 func (c *ApiController) buildOrganizationSyncExportResponse(organization string) (*organizationSyncExportResponse, error) {
-	snapshot, err := object.GetOrganizationSyncSnapshot(organization)
+	snapshot, err := organizationSyncLegacyExportBuilder(organization)
 	if err != nil {
 		return nil, err
 	}
@@ -313,4 +352,26 @@ func (c *ApiController) buildOrganizationSyncExportResponse(organization string)
 		Groups:       snapshot.Groups,
 		Applications: snapshot.Applications,
 	}, nil
+}
+
+func organizationSyncV2SafeErrorCode(err error) string {
+	var contractErr *object.OrganizationSyncContractError
+	if errors.As(err, &contractErr) && strings.TrimSpace(contractErr.Code) != "" {
+		return contractErr.Code
+	}
+	return object.OrganizationSyncContractErrorInternal
+}
+
+func logOrganizationSyncV2Export(organization string, sourceConnectionID string, sourceVersion string, batchID string, memberCount int, leaderCount int, status string, errorCode string) {
+	logs.Info(
+		"organization_sync_export_v2 organization=%s sourceConnectionId=%s sourceVersion=%s batchId=%s memberRelationCount=%d leaderRelationCount=%d status=%s errorCode=%s",
+		strings.TrimSpace(organization),
+		strings.TrimSpace(sourceConnectionID),
+		strings.TrimSpace(sourceVersion),
+		strings.TrimSpace(batchID),
+		memberCount,
+		leaderCount,
+		strings.TrimSpace(status),
+		strings.TrimSpace(errorCode),
+	)
 }

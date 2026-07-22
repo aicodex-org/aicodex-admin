@@ -15,10 +15,12 @@
 package controllers
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"git.leagsoft.com/aicodex/aicodex-admin/object"
 	webcontext "github.com/beego/beego/v2/server/web/context"
@@ -75,6 +77,97 @@ func TestRequireOrganizationSyncApiKeyOrganizationAllowsBoundOrganization(t *tes
 	}
 	if organization != "engineering" {
 		t.Fatalf("organization = %q, want engineering", organization)
+	}
+}
+
+func TestExportOrganizationSyncSnapshotNegotiatesLegacyAndV2(t *testing.T) {
+	previousLegacy := organizationSyncLegacyExportBuilder
+	previousV2 := organizationSyncV2ExportBuilder
+	t.Cleanup(func() {
+		organizationSyncLegacyExportBuilder = previousLegacy
+		organizationSyncV2ExportBuilder = previousV2
+	})
+	legacyCalls := 0
+	v2Calls := 0
+	organizationSyncLegacyExportBuilder = func(organization string) (*object.OrganizationSyncSnapshot, error) {
+		legacyCalls++
+		return &object.OrganizationSyncSnapshot{Organization: &object.Organization{Name: organization}, Groups: []*object.OrganizationSyncExportGroup{}, Applications: []*object.Application{}}, nil
+	}
+	organizationSyncV2ExportBuilder = func(organization string, sourceConnectionID string, _ time.Time) (*object.OrganizationSyncContractV2Snapshot, error) {
+		v2Calls++
+		if organization != "engineering" || sourceConnectionID != "src-wecom" {
+			t.Fatalf("v2 scope = %q/%q", organization, sourceConnectionID)
+		}
+		return &object.OrganizationSyncContractV2Snapshot{
+			ContractVersion: object.OrganizationSyncContractV2, SourceConnectionID: sourceConnectionID,
+			SourceOrgVersion: "orgv-42", BatchID: "batch-42",
+			Diagnostics: object.OrganizationSyncContractV2Diagnostics{MemberRelationCount: 2, DepartmentLeaderCount: 1},
+		}, nil
+	}
+
+	legacy, _ := newOrganizationSyncApiKeyTestController(t, http.MethodGet, "/api/organization-sync/export", "")
+	setOrganizationSyncApiKeyTestAuth(legacy, "engineering")
+	legacy.ExportOrganizationSyncSnapshot()
+	legacyResp := legacy.Data["json"].(*Response)
+	if legacyResp.Status != "ok" || legacyCalls != 1 || v2Calls != 0 {
+		t.Fatalf("legacy response=%#v legacyCalls=%d v2Calls=%d", legacyResp, legacyCalls, v2Calls)
+	}
+	if _, ok := legacyResp.Data.(*organizationSyncExportResponse); !ok {
+		t.Fatalf("legacy shape changed: %T", legacyResp.Data)
+	}
+
+	v2, _ := newOrganizationSyncApiKeyTestController(t, http.MethodGet, "/api/organization-sync/export?contractVersion=v2&sourceConnectionId=src-wecom", "")
+	setOrganizationSyncApiKeyTestAuth(v2, "engineering")
+	v2.ExportOrganizationSyncSnapshot()
+	v2Resp := v2.Data["json"].(*Response)
+	if v2Resp.Status != "ok" || legacyCalls != 1 || v2Calls != 1 {
+		t.Fatalf("v2 response=%#v legacyCalls=%d v2Calls=%d", v2Resp, legacyCalls, v2Calls)
+	}
+	v2Data, ok := v2Resp.Data.(*object.OrganizationSyncContractV2Snapshot)
+	if !ok || v2Data.ContractVersion != "v2" || v2Data.SourceConnectionID != "src-wecom" {
+		t.Fatalf("v2 payload = %#v", v2Resp.Data)
+	}
+}
+
+func TestExportOrganizationSyncSnapshotRejectsUnknownVersionAndV2SourceConflict(t *testing.T) {
+	previousV2 := organizationSyncV2ExportBuilder
+	t.Cleanup(func() { organizationSyncV2ExportBuilder = previousV2 })
+	v2Calls := 0
+	organizationSyncV2ExportBuilder = func(string, string, time.Time) (*object.OrganizationSyncContractV2Snapshot, error) {
+		v2Calls++
+		return nil, &object.OrganizationSyncContractError{Code: object.OrganizationSyncContractErrorSourceSelection}
+	}
+
+	unknown, _ := newOrganizationSyncApiKeyTestController(t, http.MethodGet, "/api/organization-sync/export?contractVersion=v3", "")
+	setOrganizationSyncApiKeyTestAuth(unknown, "engineering")
+	unknown.ExportOrganizationSyncSnapshot()
+	unknownResp := unknown.Data["json"].(*Response)
+	if unknownResp.Status != "error" || unknownResp.Msg != object.OrganizationSyncContractErrorUnsupportedVersion || v2Calls != 0 {
+		t.Fatalf("unknown response=%#v calls=%d", unknownResp, v2Calls)
+	}
+
+	conflict, _ := newOrganizationSyncApiKeyTestController(t, http.MethodGet, "/api/organization-sync/export?contractVersion=v2", "")
+	setOrganizationSyncApiKeyTestAuth(conflict, "engineering")
+	conflict.ExportOrganizationSyncSnapshot()
+	conflictResp := conflict.Data["json"].(*Response)
+	if conflictResp.Status != "error" || conflictResp.Msg != object.OrganizationSyncContractErrorSourceSelection || v2Calls != 1 {
+		t.Fatalf("conflict response=%#v calls=%d", conflictResp, v2Calls)
+	}
+}
+
+func TestExportOrganizationSyncSnapshotDoesNotExposeInternalV2Error(t *testing.T) {
+	previousV2 := organizationSyncV2ExportBuilder
+	t.Cleanup(func() { organizationSyncV2ExportBuilder = previousV2 })
+	organizationSyncV2ExportBuilder = func(string, string, time.Time) (*object.OrganizationSyncContractV2Snapshot, error) {
+		return nil, errors.New("database connection contains sensitive details")
+	}
+
+	controller, _ := newOrganizationSyncApiKeyTestController(t, http.MethodGet, "/api/organization-sync/export?contractVersion=v2", "")
+	setOrganizationSyncApiKeyTestAuth(controller, "engineering")
+	controller.ExportOrganizationSyncSnapshot()
+	response := controller.Data["json"].(*Response)
+	if response.Status != "error" || response.Msg != object.OrganizationSyncContractErrorInternal {
+		t.Fatalf("internal failure response = %#v", response)
 	}
 }
 
@@ -145,4 +238,10 @@ func newOrganizationSyncApiKeyTestController(t *testing.T, method string, target
 	controller := &ApiController{}
 	controller.Init(ctx, "ApiController", "OrganizationSyncApiKeyTest", controller)
 	return controller, recorder
+}
+
+func setOrganizationSyncApiKeyTestAuth(controller *ApiController, organization string) {
+	controller.Ctx.Input.SetData(object.OrganizationSyncApiKeyContextKey, &object.OrganizationSyncApiKeyAuth{
+		Owner: organization, Name: "gateway-sync", Organization: organization,
+	})
 }
