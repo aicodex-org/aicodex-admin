@@ -59,8 +59,12 @@ vet: ## Run go vet against code.
 ut: test-go-hermetic-cover ## Run the hermetic Go suite with coverage.
 
 .PHONY: test-go-hermetic
-test-go-hermetic: ## Run Go tests without external databases or providers.
+test-go-hermetic: mobile-oidc-compose-contract-check ## Run Go tests without external databases or providers.
 	cd $(GO_DIR) && go test -count=1 -tags skipCi ./...
+
+.PHONY: mobile-oidc-compose-contract-check
+mobile-oidc-compose-contract-check: ## Verify Admin deployment provisions the fixed iOS OIDC public client.
+	bash deploy/mobile_oidc_compose_contract_test.sh
 
 .PHONY: test-go-hermetic-cover
 test-go-hermetic-cover: ## Run hermetic Go tests and write coverage under ignored tmp/.

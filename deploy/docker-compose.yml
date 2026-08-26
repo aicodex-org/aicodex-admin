@@ -29,6 +29,9 @@ services:
       insightUsageIdentityResolverCaller: ${AICODEX_INSIGHT_USAGE_IDENTITY_RESOLVER_CALLER:-aicodex-admin}
       insightUsageIdentityResolverMaxItems: ${AICODEX_INSIGHT_USAGE_IDENTITY_RESOLVER_MAX_ITEMS:-200}
       insightUsageIdentityResolverTimeoutMs: ${AICODEX_INSIGHT_USAGE_IDENTITY_RESOLVER_TIMEOUT_MS:-5000}
+      # 固定 iOS public client 使用 Authorization Code + PKCE，不包含 client secret。
+      AICODEX_IOS_OIDC_CLIENT_ENABLED: ${AICODEX_IOS_OIDC_CLIENT_ENABLED:-true}
+      AICODEX_IOS_OIDC_REDIRECT_URIS: ${AICODEX_IOS_OIDC_REDIRECT_URIS:-mt.aicodex.ios:/oauth2redirect}
     ports:
       - "8000:8000"
     volumes:

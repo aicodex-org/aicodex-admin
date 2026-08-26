@@ -13,6 +13,10 @@ AICODEX_ADMIN_DEFAULT_LANGUAGE=zh
 # 留空时允许用户切换语言；设置为 zh 或 en 时强制使用指定语言。
 AICODEX_ADMIN_FORCE_LANGUAGE=
 
+# AICodex iOS 固定 public OIDC client。客户端不使用 client secret，仅允许 Authorization Code + PKCE。
+AICODEX_IOS_OIDC_CLIENT_ENABLED=true
+AICODEX_IOS_OIDC_REDIRECT_URIS=mt.aicodex.ios:/oauth2redirect
+
 # 可选的宿主机路径；相对路径以 deploy/ 目录为基准解析。
 AICODEX_ADMIN_UPLOAD_DIR=./data/upload-files
 AICODEX_ADMIN_LOG_DIR=./runtime/logs

@@ -33,6 +33,9 @@ services:
       insightUsageIdentityResolverCaller: ${AICODEX_INSIGHT_USAGE_IDENTITY_RESOLVER_CALLER:-aicodex-admin}
       insightUsageIdentityResolverMaxItems: ${AICODEX_INSIGHT_USAGE_IDENTITY_RESOLVER_MAX_ITEMS:-200}
       insightUsageIdentityResolverTimeoutMs: ${AICODEX_INSIGHT_USAGE_IDENTITY_RESOLVER_TIMEOUT_MS:-5000}
+      # 固定 iOS public client 使用 Authorization Code + PKCE；生产部署必须显式决定是否启用。
+      AICODEX_IOS_OIDC_CLIENT_ENABLED: ${AICODEX_IOS_OIDC_CLIENT_ENABLED:?set AICODEX_IOS_OIDC_CLIENT_ENABLED in env file}
+      AICODEX_IOS_OIDC_REDIRECT_URIS: ${AICODEX_IOS_OIDC_REDIRECT_URIS:-mt.aicodex.ios:/oauth2redirect}
       # Gateway 组织投影发布与定时刷新配置，键名与 app.conf 保持一致。
       gatewayOrganizationProjectionEnabled: ${AICODEX_GATEWAY_ORGANIZATION_PROJECTION_ENABLED:-false}
       gatewayOrganizationProjectionEndpoint: ${AICODEX_GATEWAY_ORGANIZATION_PROJECTION_ENDPOINT:-}
