@@ -33,6 +33,7 @@ type Token struct {
 	User         string `xorm:"varchar(100)" json:"user"`
 
 	Code             string `xorm:"varchar(100) index" json:"code"`
+	CodeHash         string `xorm:"varchar(100) index" json:"codeHash"`
 	AccessToken      string `xorm:"mediumtext" json:"accessToken"`
 	RefreshToken     string `xorm:"mediumtext" json:"refreshToken"`
 	AccessTokenHash  string `xorm:"varchar(100) index" json:"accessTokenHash"`
@@ -44,6 +45,16 @@ type Token struct {
 	CodeIsUsed       bool   `json:"codeIsUsed"`
 	CodeExpireIn     int64  `json:"codeExpireIn"`
 	Resource         string `xorm:"varchar(255)" json:"resource"` // RFC 8707 Resource Indicator
+	RedirectUri      string `xorm:"varchar(1000)" json:"-"`
+	Nonce            string `xorm:"varchar(255)" json:"-"`
+	Provider         string `xorm:"varchar(100)" json:"-"`
+	SigninMethod     string `xorm:"varchar(100)" json:"-"`
+
+	// Issued* values only exist for the duration of the token response. Native
+	// public clients persist hashes in the Token table, never raw credentials.
+	IssuedAccessToken  string `xorm:"-" json:"-"`
+	IssuedIdToken      string `xorm:"-" json:"-"`
+	IssuedRefreshToken string `xorm:"-" json:"-"`
 }
 
 func GetTokenCount(owner, organization, field, value string) (int64, error) {
@@ -83,57 +94,55 @@ func getToken(owner string, name string) (*Token, error) {
 }
 
 func getTokenByCode(code string) (*Token, error) {
-	token := Token{Code: code}
-	existed, err := ormer.Engine.Get(&token)
+	return getTokenByHashedOrLegacyCredential("code_hash", "code", code)
+}
+
+func GetTokenByAccessToken(accessToken string) (*Token, error) {
+	return getTokenByHashedOrLegacyCredential("access_token_hash", "access_token", accessToken)
+}
+
+func GetTokenByRefreshToken(refreshToken string) (*Token, error) {
+	return getTokenByHashedOrLegacyCredential("refresh_token_hash", "refresh_token", refreshToken)
+}
+
+// getTokenByHashedOrLegacyCredential implements the read-both phase of the
+// token credential migration. Hash lookup is always preferred. A raw lookup
+// exists only for pre-migration rows and immediately backfills the hash so the
+// compatibility path converges instead of creating permanent raw-token debt.
+func getTokenByHashedOrLegacyCredential(hashColumn string, rawColumn string, credential string) (*Token, error) {
+	if ormer == nil || ormer.Engine == nil || credential == "" {
+		return nil, nil
+	}
+	token := Token{}
+	existed, err := ormer.Engine.Where(hashColumn+" = ?", getTokenHash(credential)).Get(&token)
 	if err != nil {
 		return nil, err
 	}
-
 	if existed {
 		return &token, nil
 	}
 
-	return nil, nil
-}
-
-func GetTokenByAccessToken(accessToken string) (*Token, error) {
-	token := Token{AccessTokenHash: getTokenHash(accessToken)}
-	existed, err := ormer.Engine.Get(&token)
-	if err != nil {
+	token = Token{}
+	existed, err = ormer.Engine.Where(rawColumn+" = ?", credential).Get(&token)
+	if err != nil || !existed {
 		return nil, err
 	}
-
-	if !existed {
-		return nil, nil
-	}
-	return &token, nil
-}
-
-func GetTokenByRefreshToken(refreshToken string) (*Token, error) {
-	token := Token{RefreshTokenHash: getTokenHash(refreshToken)}
-	existed, err := ormer.Engine.Get(&token)
-	if err != nil {
+	if err = backfillTokenCredentialHashes(ormer.Engine, &token); err != nil {
 		return nil, err
-	}
-
-	if !existed {
-		return nil, nil
 	}
 	return &token, nil
 }
 
 func GetTokenByTokenValue(tokenValue, tokenTypeHint string) (*Token, error) {
-	switch tokenTypeHint {
-	case "access_token", "access-token":
-		token, err := GetTokenByAccessToken(tokenValue)
-		if err != nil {
-			return nil, err
-		}
-		if token != nil {
-			return token, nil
-		}
-	case "refresh_token", "refresh-token":
-		token, err := GetTokenByRefreshToken(tokenValue)
+	lookups := []func(string) (*Token, error){GetTokenByAccessToken, GetTokenByRefreshToken}
+	if tokenTypeHint == "refresh_token" || tokenTypeHint == "refresh-token" {
+		lookups[0], lookups[1] = lookups[1], lookups[0]
+	}
+	// RFC 7009 defines token_type_hint only as a lookup optimization. If the
+	// hinted class misses, the other supported token classes must still be
+	// checked.
+	for _, lookup := range lookups {
+		token, err := lookup(tokenValue)
 		if err != nil {
 			return nil, err
 		}
@@ -145,8 +154,26 @@ func GetTokenByTokenValue(tokenValue, tokenTypeHint string) (*Token, error) {
 	return nil, nil
 }
 
-func updateUsedByCode(token *Token) (bool, error) {
-	affected, err := ormer.Engine.Where("code=?", token.Code).Cols("code_is_used").Update(token)
+func consumeAuthorizationCode(token *Token) (bool, error) {
+	if token == nil {
+		return false, nil
+	}
+
+	query := ormer.Engine.ID(core.PK{token.Owner, token.Name}).Where("code_is_used = ?", false)
+	if token.CodeHash != "" {
+		query = query.And("code_hash = ?", token.CodeHash)
+	} else {
+		query = query.And("code = ?", token.Code)
+	}
+
+	token.CodeIsUsed = true
+	affected, err := query.Cols(
+		"code_is_used",
+		"access_token",
+		"refresh_token",
+		"access_token_hash",
+		"refresh_token_hash",
+	).Update(token)
 	if err != nil {
 		return false, err
 	}
@@ -176,12 +203,42 @@ func getTokenHash(input string) string {
 }
 
 func (token *Token) popularHashes() {
+	if token.CodeHash == "" && token.Code != "" {
+		token.CodeHash = getTokenHash(token.Code)
+	}
 	if token.AccessTokenHash == "" && token.AccessToken != "" {
 		token.AccessTokenHash = getTokenHash(token.AccessToken)
 	}
 	if token.RefreshTokenHash == "" && token.RefreshToken != "" {
 		token.RefreshTokenHash = getTokenHash(token.RefreshToken)
 	}
+}
+
+func (token *Token) accessTokenForResponse() string {
+	if token != nil && token.IssuedAccessToken != "" {
+		return token.IssuedAccessToken
+	}
+	if token == nil {
+		return ""
+	}
+	return token.AccessToken
+}
+
+func (token *Token) idTokenForResponse() string {
+	if token != nil && token.IssuedIdToken != "" {
+		return token.IssuedIdToken
+	}
+	return token.accessTokenForResponse()
+}
+
+func (token *Token) refreshTokenForResponse() string {
+	if token != nil && token.IssuedRefreshToken != "" {
+		return token.IssuedRefreshToken
+	}
+	if token == nil {
+		return ""
+	}
+	return token.RefreshToken
 }
 
 func UpdateToken(id string, token *Token, isGlobalAdmin bool) (bool, error) {
@@ -225,6 +282,52 @@ func DeleteToken(token *Token) (bool, error) {
 	}
 
 	return affected != 0, nil
+}
+
+// rotateRefreshTokenAtomically implements single-winner refresh rotation. The
+// conditional delete locks/consumes the presented refresh session inside the
+// same transaction that inserts its replacement, so replay and concurrent
+// losers cannot delete or invalidate the winner's new session.
+func rotateRefreshTokenAtomically(oldToken *Token, newToken *Token, presentedRefreshToken string) (bool, error) {
+	if oldToken == nil || newToken == nil || presentedRefreshToken == "" {
+		return false, nil
+	}
+
+	newToken.popularHashes()
+	session := ormer.Engine.NewSession()
+	defer session.Close()
+	if err := session.Begin(); err != nil {
+		return false, err
+	}
+	rollback := true
+	defer func() {
+		if rollback {
+			_ = session.Rollback()
+		}
+	}()
+
+	affected, err := session.ID(core.PK{oldToken.Owner, oldToken.Name}).
+		Where("refresh_token_hash = ?", getTokenHash(presentedRefreshToken)).
+		Delete(&Token{})
+	if err != nil {
+		return false, err
+	}
+	if affected == 0 {
+		return false, nil
+	}
+
+	affected, err = session.Insert(newToken)
+	if err != nil {
+		return false, err
+	}
+	if affected == 0 {
+		return false, fmt.Errorf("failed to persist rotated refresh session")
+	}
+	if err := session.Commit(); err != nil {
+		return false, err
+	}
+	rollback = false
+	return true, nil
 }
 
 func ExpireTokenByUser(owner, username string) (bool, error) {

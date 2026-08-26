@@ -33,6 +33,7 @@ func InitDb() {
 		initBuiltInLdap()
 	}
 	initAICodexDesktopApplication()
+	initAICodexIOSApplication()
 
 	existed = initBuiltInApiModel()
 	if !existed {

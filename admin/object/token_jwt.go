@@ -532,6 +532,9 @@ func getStableAdminSubject(user *User) string {
 }
 
 func getTokenOrganization(application *Application, user *User) string {
+	if application != nil && application.IsShared && user != nil && strings.TrimSpace(user.Owner) != "" {
+		return strings.TrimSpace(user.Owner)
+	}
 	if application != nil && strings.TrimSpace(application.Organization) != "" {
 		return strings.TrimSpace(application.Organization)
 	}
@@ -692,6 +695,64 @@ func generateJwtToken(application *Application, user *User, provider string, sig
 	refreshTokenString, err = refreshToken.SignedString(key)
 
 	return tokenString, refreshTokenString, name, err
+}
+
+// generateIdToken signs an OIDC ID Token that is intentionally distinct from
+// the OAuth access token. Its audience is the native client, while the access
+// token audience remains the RFC 8707 resource indicator.
+func generateIdToken(application *Application, user *User, provider string, signinMethod string, nonce string, scope string, host string) (string, error) {
+	if application == nil || user == nil {
+		return "", fmt.Errorf("application and user are required")
+	}
+
+	now := time.Now()
+	expiresAt := now.Add(time.Duration(application.ExpireInHours * float64(time.Hour)))
+	_, originBackend := getOriginFromHost(host)
+	claims := jwt.MapClaims{
+		"iss":                originBackend,
+		"sub":                getStableAdminSubject(user),
+		"aud":                []string{application.ClientId},
+		"exp":                expiresAt.Unix(),
+		"nbf":                now.Unix(),
+		"iat":                now.Unix(),
+		"auth_time":          now.Unix(),
+		"jti":                util.GetId(application.Owner, util.GenerateId()),
+		"azp":                application.ClientId,
+		"client_id":          application.ClientId,
+		"organization":       getTokenOrganization(application, user),
+		"tokenType":          "id-token",
+		"nonce":              nonce,
+		"name":               user.DisplayName,
+		"picture":            user.Avatar,
+		"email":              user.Email,
+		"email_verified":     user.EmailVerified,
+		"preferred_username": user.Name,
+	}
+	if provider != "" {
+		claims["provider"] = provider
+	}
+	if signinMethod != "" {
+		claims["signinMethod"] = signinMethod
+	}
+
+	method := jwt.SigningMethodRS256
+	if application.TokenSigningMethod == "RS512" {
+		method = jwt.SigningMethodRS512
+	}
+	token := jwt.NewWithClaims(method, claims)
+	cert, err := getCertByApplication(application)
+	if err != nil {
+		return "", err
+	}
+	if cert == nil || cert.PrivateKey == "" {
+		return "", fmt.Errorf("signing certificate is unavailable for application %s", application.GetId())
+	}
+	key, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(cert.PrivateKey))
+	if err != nil {
+		return "", err
+	}
+	token.Header["kid"] = cert.Name
+	return token.SignedString(key)
 }
 
 func ParseJwtTokenWithoutValidation(token string) (*jwt.Token, error) {

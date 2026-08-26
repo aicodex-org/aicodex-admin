@@ -15,13 +15,13 @@ const (
 	AICodexDesktopApplicationClientID    = "aicodex-desktop"
 	AICodexDesktopApplicationRedirectURI = "aicodex://auth/aicodex/callback"
 	AICodexGatewayRuntimeScope           = "aicodex.gateway"
-	aicodexDesktopPkceRequiredMessage    = "PKCE S256 code challenge is required for AICodex desktop public client"
-	aicodexDesktopPkceVerifierMessage    = "PKCE code verifier is invalid for AICodex desktop public client"
+	publicClientPkceRequiredMessage      = "PKCE S256 code challenge is required for this public client"
+	publicClientPkceVerifierMessage      = "PKCE code verifier is invalid for this public client"
 )
 
 var (
-	aicodexDesktopPkceChallengePattern = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`)
-	aicodexDesktopPkceVerifierPattern  = regexp.MustCompile(`^[A-Za-z0-9._~-]{43,128}$`)
+	publicClientPkceChallengePattern = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`)
+	publicClientPkceVerifierPattern  = regexp.MustCompile(`^[A-Za-z0-9._~-]{43,128}$`)
 )
 
 var aicodexDesktopIdentityScopes = []string{
@@ -75,6 +75,8 @@ func newAICodexDesktopApplication() *Application {
 		GrantTypes:           append([]string{}, aicodexDesktopGrantTypes...),
 		Tags:                 []string{"aicodex", "desktop", "oidc"},
 		ClientId:             AICodexDesktopApplicationClientID,
+		PublicClient:         true,
+		PkceRequired:         true,
 		RedirectUris:         []string{AICodexDesktopApplicationRedirectURI},
 		TokenFormat:          "JWT-Standard",
 		TokenSigningMethod:   "RS256",
@@ -115,7 +117,7 @@ func initAICodexDesktopApplication() {
 
 	if ensureAICodexDesktopApplicationContract(application) {
 		if applicationId != "" && applicationId != application.GetId() {
-			if err := replaceAICodexDesktopLegacyApplication(applicationId, application); err != nil {
+			if err := replaceFixedOIDCApplication(applicationId, application); err != nil {
 				panic(err)
 			}
 			return
@@ -134,7 +136,7 @@ func initAICodexDesktopApplication() {
 	}
 }
 
-func replaceAICodexDesktopLegacyApplication(oldApplicationId string, application *Application) error {
+func replaceFixedOIDCApplication(oldApplicationId string, application *Application) error {
 	oldOwner, oldName, err := util.GetOwnerAndNameFromIdWithError(oldApplicationId)
 	if err != nil {
 		return err
@@ -223,6 +225,18 @@ func ensureAICodexDesktopApplicationContract(application *Application) bool {
 		application.ClientId = AICodexDesktopApplicationClientID
 		changed = true
 	}
+	if !application.PublicClient {
+		application.PublicClient = true
+		changed = true
+	}
+	if !application.PkceRequired {
+		application.PkceRequired = true
+		changed = true
+	}
+	if application.ClientSecret != "" {
+		application.ClientSecret = ""
+		changed = true
+	}
 	if !aicodexDesktopStringSliceContains(application.RedirectUris, AICodexDesktopApplicationRedirectURI) {
 		application.RedirectUris = append(application.RedirectUris, AICodexDesktopApplicationRedirectURI)
 		changed = true
@@ -298,29 +312,33 @@ func isAICodexDesktopApplication(application *Application) bool {
 	return application != nil && application.ClientId == AICodexDesktopApplicationClientID
 }
 
-func isAICodexDesktopPkceChallengeMissing(application *Application, challenge string) bool {
-	return isAICodexDesktopApplication(application) && strings.TrimSpace(challenge) == ""
+func isPublicClientPkceRequired(application *Application) bool {
+	return application != nil && application.PublicClient && application.PkceRequired
 }
 
-func validateAICodexDesktopPkceRequest(application *Application, challengeMethod string, challenge string) string {
-	if !isAICodexDesktopApplication(application) {
+func isPublicClientPkceChallengeMissing(application *Application, challenge string) bool {
+	return isPublicClientPkceRequired(application) && strings.TrimSpace(challenge) == ""
+}
+
+func validatePublicClientPkceRequest(application *Application, challengeMethod string, challenge string) string {
+	if !isPublicClientPkceRequired(application) {
 		return ""
 	}
 	if strings.TrimSpace(challengeMethod) != "S256" {
-		return aicodexDesktopPkceRequiredMessage
+		return publicClientPkceRequiredMessage
 	}
-	if !aicodexDesktopPkceChallengePattern.MatchString(strings.TrimSpace(challenge)) {
-		return aicodexDesktopPkceRequiredMessage
+	if !publicClientPkceChallengePattern.MatchString(strings.TrimSpace(challenge)) {
+		return publicClientPkceRequiredMessage
 	}
 	return ""
 }
 
-func validateAICodexDesktopPkceVerifier(application *Application, verifier string) string {
-	if !isAICodexDesktopApplication(application) {
+func validatePublicClientPkceVerifier(application *Application, verifier string) string {
+	if !isPublicClientPkceRequired(application) {
 		return ""
 	}
-	if !aicodexDesktopPkceVerifierPattern.MatchString(strings.TrimSpace(verifier)) {
-		return aicodexDesktopPkceVerifierMessage
+	if !publicClientPkceVerifierPattern.MatchString(strings.TrimSpace(verifier)) {
+		return publicClientPkceVerifierMessage
 	}
 	return ""
 }

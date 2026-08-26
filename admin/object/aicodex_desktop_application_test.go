@@ -14,6 +14,9 @@ func TestNewAICodexDesktopApplicationHasFixedOIDCContract(t *testing.T) {
 	if application.ClientId != AICodexDesktopApplicationClientID {
 		t.Fatalf("clientId=%q, want %q", application.ClientId, AICodexDesktopApplicationClientID)
 	}
+	if !application.PublicClient || !application.PkceRequired || application.ClientSecret != "" {
+		t.Fatalf("desktop public-client policy mismatch: public=%v pkce=%v secretPresent=%v", application.PublicClient, application.PkceRequired, application.ClientSecret != "")
+	}
 	if !application.IsRedirectUriValid(AICodexDesktopApplicationRedirectURI) {
 		t.Fatalf("desktop redirect URI should be accepted")
 	}
@@ -131,16 +134,16 @@ func TestAICodexDesktopApplicationDiscoveryContract(t *testing.T) {
 
 func TestAICodexDesktopApplicationRequiresPkceChallenge(t *testing.T) {
 	application := newAICodexDesktopApplication()
-	if !isAICodexDesktopPkceChallengeMissing(application, "") {
+	if !isPublicClientPkceChallengeMissing(application, "") {
 		t.Fatal("expected fixed desktop client to require a PKCE challenge")
 	}
-	if !isAICodexDesktopPkceChallengeMissing(application, "   ") {
+	if !isPublicClientPkceChallengeMissing(application, "   ") {
 		t.Fatal("expected blank PKCE challenge to be rejected")
 	}
-	if isAICodexDesktopPkceChallengeMissing(application, "pkce-challenge") {
+	if isPublicClientPkceChallengeMissing(application, "pkce-challenge") {
 		t.Fatal("expected non-empty PKCE challenge to pass")
 	}
-	if isAICodexDesktopPkceChallengeMissing(&Application{ClientId: "other-client"}, "") {
+	if isPublicClientPkceChallengeMissing(&Application{ClientId: "other-client"}, "") {
 		t.Fatal("ordinary applications must not inherit the fixed desktop PKCE rule")
 	}
 }
@@ -149,19 +152,19 @@ func TestAICodexDesktopApplicationRequiresS256PkceRequest(t *testing.T) {
 	application := newAICodexDesktopApplication()
 	validChallenge := pkceChallenge(strings.Repeat("a", 43))
 
-	if message := validateAICodexDesktopPkceRequest(application, "S256", validChallenge); message != "" {
+	if message := validatePublicClientPkceRequest(application, "S256", validChallenge); message != "" {
 		t.Fatalf("valid desktop PKCE request should pass, got %q", message)
 	}
-	if message := validateAICodexDesktopPkceRequest(application, "", validChallenge); message == "" {
+	if message := validatePublicClientPkceRequest(application, "", validChallenge); message == "" {
 		t.Fatal("expected missing challenge method to fail for desktop public client")
 	}
-	if message := validateAICodexDesktopPkceRequest(application, "plain", validChallenge); message == "" {
+	if message := validatePublicClientPkceRequest(application, "plain", validChallenge); message == "" {
 		t.Fatal("expected non-S256 challenge method to fail for desktop public client")
 	}
-	if message := validateAICodexDesktopPkceRequest(application, "S256", "pkce-challenge"); message == "" {
+	if message := validatePublicClientPkceRequest(application, "S256", "pkce-challenge"); message == "" {
 		t.Fatal("expected malformed S256 challenge to fail for desktop public client")
 	}
-	if message := validateAICodexDesktopPkceRequest(&Application{ClientId: "other-client"}, "", ""); message != "" {
+	if message := validatePublicClientPkceRequest(&Application{ClientId: "other-client"}, "", ""); message != "" {
 		t.Fatalf("ordinary applications must not inherit desktop PKCE validation, got %q", message)
 	}
 }
@@ -169,22 +172,22 @@ func TestAICodexDesktopApplicationRequiresS256PkceRequest(t *testing.T) {
 func TestAICodexDesktopApplicationRequiresValidPkceVerifier(t *testing.T) {
 	application := newAICodexDesktopApplication()
 
-	if message := validateAICodexDesktopPkceVerifier(application, strings.Repeat("a", 43)); message != "" {
+	if message := validatePublicClientPkceVerifier(application, strings.Repeat("a", 43)); message != "" {
 		t.Fatalf("valid desktop PKCE verifier should pass, got %q", message)
 	}
-	if message := validateAICodexDesktopPkceVerifier(application, ""); message == "" {
+	if message := validatePublicClientPkceVerifier(application, ""); message == "" {
 		t.Fatal("expected empty verifier to fail for desktop public client")
 	}
-	if message := validateAICodexDesktopPkceVerifier(application, strings.Repeat("a", 42)); message == "" {
+	if message := validatePublicClientPkceVerifier(application, strings.Repeat("a", 42)); message == "" {
 		t.Fatal("expected short verifier to fail for desktop public client")
 	}
-	if message := validateAICodexDesktopPkceVerifier(application, strings.Repeat("a", 129)); message == "" {
+	if message := validatePublicClientPkceVerifier(application, strings.Repeat("a", 129)); message == "" {
 		t.Fatal("expected long verifier to fail for desktop public client")
 	}
-	if message := validateAICodexDesktopPkceVerifier(application, strings.Repeat("a", 42)+"!"); message == "" {
+	if message := validatePublicClientPkceVerifier(application, strings.Repeat("a", 42)+"!"); message == "" {
 		t.Fatal("expected verifier with invalid characters to fail for desktop public client")
 	}
-	if message := validateAICodexDesktopPkceVerifier(&Application{ClientId: "other-client"}, ""); message != "" {
+	if message := validatePublicClientPkceVerifier(&Application{ClientId: "other-client"}, ""); message != "" {
 		t.Fatalf("ordinary applications must not inherit desktop verifier validation, got %q", message)
 	}
 }

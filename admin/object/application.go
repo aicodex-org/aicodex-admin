@@ -132,6 +132,8 @@ type Application struct {
 
 	ClientId                string     `xorm:"varchar(100)" json:"clientId"`
 	ClientSecret            string     `xorm:"varchar(100)" json:"clientSecret"`
+	PublicClient            bool       `json:"publicClient"`
+	PkceRequired            bool       `json:"pkceRequired"`
 	ClientCert              string     `xorm:"varchar(100)" json:"clientCert"`
 	RedirectUris            []string   `xorm:"varchar(1000)" json:"redirectUris"`
 	ForcedRedirectOrigin    string     `xorm:"varchar(100)" json:"forcedRedirectOrigin"`

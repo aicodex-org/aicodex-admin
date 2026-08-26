@@ -492,6 +492,9 @@ func (a *Ormer) createTable() {
 	if err != nil {
 		panic(err)
 	}
+	if _, err = migrateTokenCredentialStorage(a.Engine); err != nil {
+		panic(err)
+	}
 
 	err = a.Engine.Sync2(new(Product))
 	if err != nil {

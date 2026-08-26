@@ -160,6 +160,7 @@ func (c *ApiController) DeleteToken() {
 // @Success 401 {object} object.TokenError The Response object
 // @router /login/oauth/access_token [post]
 func (c *ApiController) GetOAuthToken() {
+	startedAt := time.Now()
 	clientId := c.Ctx.Input.Query("client_id")
 	clientSecret := c.Ctx.Input.Query("client_secret")
 	assertion := c.Ctx.Input.Query("assertion")
@@ -167,6 +168,7 @@ func (c *ApiController) GetOAuthToken() {
 	clientAssertionType := c.Ctx.Input.Query("client_assertion_type")
 	grantType := c.Ctx.Input.Query("grant_type")
 	code := c.Ctx.Input.Query("code")
+	redirectUri := c.Ctx.Input.Query("redirect_uri")
 	verifier := c.Ctx.Input.Query("code_verifier")
 	scope := c.Ctx.Input.Query("scope")
 	nonce := c.Ctx.Input.Query("nonce")
@@ -207,6 +209,9 @@ func (c *ApiController) GetOAuthToken() {
 			}
 			if code == "" {
 				code = tokenRequest.Code
+			}
+			if redirectUri == "" {
+				redirectUri = tokenRequest.RedirectUri
 			}
 			if verifier == "" {
 				verifier = tokenRequest.Verifier
@@ -291,10 +296,33 @@ func (c *ApiController) GetOAuthToken() {
 		username = deviceAuthCacheCast.UserName
 	}
 
-	token, err := object.GetOAuthToken(grantType, clientId, clientSecret, code, verifier, scope, nonce, username, password, host, refreshToken, tag, avatar, c.GetAcceptLanguage(), subjectToken, subjectTokenType, assertion, clientAssertion, clientAssertionType, audience, resource)
+	token, err := object.GetOAuthToken(grantType, clientId, clientSecret, code, verifier, scope, nonce, username, password, host, refreshToken, tag, avatar, c.GetAcceptLanguage(), subjectToken, subjectTokenType, assertion, clientAssertion, clientAssertionType, audience, resource, redirectUri)
 	if err != nil {
+		if clientId == object.AICodexIOSApplicationClientID {
+			switch grantType {
+			case "authorization_code":
+				recordNativeOIDCAudit(startedAt, nativeOIDCAuditEvent{Name: "native_oidc.authorization.completed", Check: "authorization_code_exchange", Result: "failed", ErrorCode: object.EndpointError, CodePresent: code != ""})
+			case "refresh_token":
+				recordNativeOIDCAudit(startedAt, nativeOIDCAuditEvent{Name: "native_oidc.refresh.completed", Check: "rotation", Result: "failed", ErrorCode: object.EndpointError, RefreshTokenPresent: refreshToken != ""})
+			}
+		}
 		c.ResponseError(err.Error())
 		return
+	}
+	if clientId == object.AICodexIOSApplicationClientID {
+		event := nativeOIDCTokenResult(token)
+		switch grantType {
+		case "authorization_code":
+			event.Name = "native_oidc.authorization.completed"
+			event.Check = "authorization_code_exchange"
+			event.CodePresent = code != ""
+			recordNativeOIDCAudit(startedAt, event)
+		case "refresh_token":
+			event.Name = "native_oidc.refresh.completed"
+			event.Check = "rotation"
+			event.RefreshTokenPresent = refreshToken != ""
+			recordNativeOIDCAudit(startedAt, event)
+		}
 	}
 
 	c.Data["json"] = token
@@ -316,6 +344,7 @@ func (c *ApiController) GetOAuthToken() {
 // @Success 401 {object} object.TokenError The Response object
 // @router /login/oauth/refresh_token [post]
 func (c *ApiController) RefreshToken() {
+	startedAt := time.Now()
 	grantType := c.Ctx.Input.Query("grant_type")
 	refreshToken := c.Ctx.Input.Query("refresh_token")
 	scope := c.Ctx.Input.Query("scope")
@@ -337,18 +366,93 @@ func (c *ApiController) RefreshToken() {
 
 	ok, application, clientId, _, err := c.ValidateOAuth(true)
 	if err != nil || !ok {
+		if clientId == object.AICodexIOSApplicationClientID {
+			recordNativeOIDCAudit(startedAt, nativeOIDCAuditEvent{Name: "native_oidc.refresh.completed", Check: "rotation", Result: "rejected", ErrorCode: object.InvalidClient, RefreshTokenPresent: refreshToken != ""})
+		}
 		return
 	}
 
 	refreshToken2, err := object.RefreshToken(application, grantType, refreshToken, scope, clientId, clientSecret, host)
 	if err != nil {
+		if clientId == object.AICodexIOSApplicationClientID {
+			recordNativeOIDCAudit(startedAt, nativeOIDCAuditEvent{Name: "native_oidc.refresh.completed", Check: "rotation", Result: "failed", ErrorCode: object.EndpointError, RefreshTokenPresent: refreshToken != ""})
+		}
 		c.ResponseError(err.Error())
 		return
+	}
+	if clientId == object.AICodexIOSApplicationClientID {
+		event := nativeOIDCTokenResult(refreshToken2)
+		event.Name = "native_oidc.refresh.completed"
+		event.Check = "rotation"
+		// This is intentionally only a presence bit. invalid_grant covers a
+		// replay/concurrent loser without exposing the presented credential.
+		event.RefreshTokenPresent = refreshToken != ""
+		recordNativeOIDCAudit(startedAt, event)
 	}
 
 	c.Data["json"] = refreshToken2
 	c.SetTokenErrorHttpStatus()
 	c.ServeJSON()
+}
+
+// RevokeOAuthToken revokes an OAuth session according to RFC 7009. A
+// successful response is deliberately empty regardless of whether the token
+// was already invalid, so callers cannot probe token ownership or validity.
+// @router /login/oauth/revoke [post]
+func (c *ApiController) RevokeOAuthToken() {
+	startedAt := time.Now()
+	clientId := c.Ctx.Input.Query("client_id")
+	clientSecret := c.Ctx.Input.Query("client_secret")
+	tokenValue := c.Ctx.Input.Query("token")
+	tokenTypeHint := c.Ctx.Input.Query("token_type_hint")
+
+	if len(c.Ctx.Input.RequestBody) != 0 {
+		var request struct {
+			ClientId      string `json:"client_id"`
+			ClientSecret  string `json:"client_secret"`
+			Token         string `json:"token"`
+			TokenTypeHint string `json:"token_type_hint"`
+		}
+		if err := json.Unmarshal(c.Ctx.Input.RequestBody, &request); err == nil {
+			if clientId == "" {
+				clientId = request.ClientId
+			}
+			if clientSecret == "" {
+				clientSecret = request.ClientSecret
+			}
+			if tokenValue == "" {
+				tokenValue = request.Token
+			}
+			if tokenTypeHint == "" {
+				tokenTypeHint = request.TokenTypeHint
+			}
+		}
+	}
+	if clientId == "" && clientSecret == "" {
+		clientId, clientSecret, _ = c.Ctx.Request.BasicAuth()
+	}
+
+	tokenError, err := object.RevokeOAuthToken(clientId, clientSecret, tokenValue, tokenTypeHint)
+	if err != nil {
+		if clientId == object.AICodexIOSApplicationClientID {
+			recordNativeOIDCAudit(startedAt, nativeOIDCAuditEvent{Name: "native_oidc.revocation.completed", Check: "rfc7009", Result: "failed", ErrorCode: object.EndpointError, RefreshTokenPresent: tokenValue != ""})
+		}
+		c.ResponseError(err.Error())
+		return
+	}
+	if tokenError != nil {
+		if clientId == object.AICodexIOSApplicationClientID {
+			recordNativeOIDCAudit(startedAt, nativeOIDCAuditEvent{Name: "native_oidc.revocation.completed", Check: "rfc7009", Result: "rejected", ErrorCode: tokenError.Error, RefreshTokenPresent: tokenValue != ""})
+		}
+		c.Data["json"] = tokenError
+		c.SetTokenErrorHttpStatus()
+		c.ServeJSON()
+		return
+	}
+	if clientId == object.AICodexIOSApplicationClientID {
+		recordNativeOIDCAudit(startedAt, nativeOIDCAuditEvent{Name: "native_oidc.revocation.completed", Check: "rfc7009", Result: "success", RefreshTokenPresent: tokenValue != ""})
+	}
+	c.Ctx.Output.SetStatus(200)
 }
 
 func (c *ApiController) ResponseTokenError(errorMsg string, errorDescription string) {
@@ -453,23 +557,14 @@ func (c *ApiController) IntrospectToken() {
 	}
 
 	tokenTypeHint := c.Ctx.Input.Query("token_type_hint")
-	var token *object.Token
-	if tokenTypeHint != "" {
-		token, err = object.GetTokenByTokenValue(tokenValue, tokenTypeHint)
-		if err != nil {
-			c.ResponseTokenError(object.InvalidRequest, err.Error())
-			return
-		}
-		if token == nil || token.ExpiresIn <= 0 {
-			respondWithInactiveToken()
-			return
-		}
-
-		if token.ExpiresIn <= 0 {
-			c.Data["json"] = &object.IntrospectionResponse{Active: false}
-			c.ServeJSON()
-			return
-		}
+	token, err := object.GetTokenByTokenValue(tokenValue, tokenTypeHint)
+	if err != nil {
+		c.ResponseTokenError(object.InvalidRequest, err.Error())
+		return
+	}
+	if token == nil || token.ExpiresIn <= 0 || token.Owner != application.Owner || token.Application != application.Name {
+		respondWithInactiveToken()
+		return
 	}
 
 	var introspectionResponse object.IntrospectionResponse

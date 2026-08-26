@@ -44,10 +44,11 @@ const (
 )
 
 const (
-	authorizationCodeInvalidErrorDescription = "authorization code is invalid"
-	authorizationCodeUsedErrorDescription    = "authorization code has already been used"
-	authorizationCodeWrongClientDescription  = "authorization code is invalid for client"
-	codeVerifierInvalidErrorDescription      = "code verifier is invalid"
+	authorizationCodeInvalidErrorDescription  = "authorization code is invalid"
+	authorizationCodeUsedErrorDescription     = "authorization code has already been used"
+	authorizationCodeWrongClientDescription   = "authorization code is invalid for client"
+	authorizationCodeWrongRedirectDescription = "authorization code is invalid for redirect_uri"
+	codeVerifierInvalidErrorDescription       = "code verifier is invalid"
 )
 
 var DeviceAuthMap = sync.Map{}
@@ -145,6 +146,39 @@ func ExpireTokenByAccessToken(accessToken string) (bool, *Application, *Token, e
 	return affected != 0, application, token, nil
 }
 
+// RevokeOAuthToken implements RFC 7009 revocation semantics. Unknown tokens
+// and tokens owned by another client are indistinguishable successful no-ops,
+// preventing the endpoint from becoming a token probing oracle.
+func RevokeOAuthToken(clientId string, clientSecret string, tokenValue string, tokenTypeHint string) (*TokenError, error) {
+	application, err := GetApplicationByClientId(clientId)
+	if err != nil {
+		return nil, err
+	}
+	if application == nil {
+		return &TokenError{Error: InvalidClient, ErrorDescription: "client_id is invalid"}, nil
+	}
+	if application.PublicClient {
+		if clientSecret != "" {
+			return &TokenError{Error: InvalidClient, ErrorDescription: "public clients must not send a client_secret"}, nil
+		}
+	} else if application.ClientSecret != clientSecret {
+		return &TokenError{Error: InvalidClient, ErrorDescription: "client authentication failed"}, nil
+	}
+	if strings.TrimSpace(tokenValue) == "" {
+		return &TokenError{Error: InvalidRequest, ErrorDescription: "token is required"}, nil
+	}
+
+	token, err := GetTokenByTokenValue(tokenValue, tokenTypeHint)
+	if err != nil {
+		return nil, err
+	}
+	if token == nil || !isRefreshTokenBoundToApplication(token, application) {
+		return nil, nil
+	}
+	_, err = DeleteToken(token)
+	return nil, err
+}
+
 func CheckOAuthLogin(clientId string, responseType string, redirectUri string, scope string, state string, organization string, lang string) (string, *Application, error) {
 	if responseType != "code" && responseType != "token" && responseType != "id_token" {
 		return fmt.Sprintf(i18n.Translate(lang, "token:Grant_type: %s is not supported in this application"), responseType), nil, nil
@@ -233,6 +267,9 @@ func GetOAuthCode(userId string, clientId string, provider string, signinMethod 
 			Code:    "",
 		}, nil
 	}
+	if message := validateAICodexIOSAuthorizationRequest(application, responseType, nonce); message != "" {
+		return &Code{Message: message, Code: ""}, nil
+	}
 	if err := ValidateApplicationApiMappingGate(application, user); err != nil {
 		return &Code{
 			Message: err.Error(),
@@ -257,27 +294,36 @@ func GetOAuthCode(userId string, clientId string, provider string, signinMethod 
 			Code:    "",
 		}, nil
 	}
+	if message := validateAICodexIOSResource(application, resource); message != "" {
+		return &Code{Message: message, Code: ""}, nil
+	}
 
 	if challenge == "null" {
 		challenge = ""
 	}
-	if message := validateAICodexDesktopPkceRequest(application, challengeMethod, challenge); message != "" {
+	if message := validatePublicClientPkceRequest(application, challengeMethod, challenge); message != "" {
 		return &Code{
 			Message: message,
 			Code:    "",
 		}, nil
 	}
-	if isAICodexDesktopApplication(application) {
+	if isPublicClientPkceRequired(application) {
 		challenge = strings.TrimSpace(challenge)
 	}
 
-	err = ExtendUserWithRolesAndPermissions(user)
-	if err != nil {
-		return nil, err
-	}
-	accessToken, refreshToken, tokenName, err := generateJwtToken(application, user, provider, signinMethod, nonce, scope, resource, host)
-	if err != nil {
-		return nil, err
+	authorizationCode := util.GenerateClientId()
+	accessToken := ""
+	refreshToken := ""
+	tokenName := util.GenerateId()
+	if application.Name != AICodexIOSApplicationName {
+		err = ExtendUserWithRolesAndPermissions(user)
+		if err != nil {
+			return nil, err
+		}
+		accessToken, refreshToken, tokenName, err = generateJwtToken(application, user, provider, signinMethod, nonce, scope, resource, host)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	token := &Token{
@@ -287,7 +333,7 @@ func GetOAuthCode(userId string, clientId string, provider string, signinMethod 
 		Application:   application.Name,
 		Organization:  user.Owner,
 		User:          user.Name,
-		Code:          util.GenerateClientId(),
+		Code:          authorizationCode,
 		AccessToken:   accessToken,
 		RefreshToken:  refreshToken,
 		ExpiresIn:     int(application.ExpireInHours * float64(hourSeconds)),
@@ -297,6 +343,14 @@ func GetOAuthCode(userId string, clientId string, provider string, signinMethod 
 		CodeIsUsed:    false,
 		CodeExpireIn:  time.Now().Add(time.Minute * 5).Unix(),
 		Resource:      resource,
+		RedirectUri:   redirectUri,
+		Nonce:         nonce,
+		Provider:      provider,
+		SigninMethod:  signinMethod,
+	}
+	if application.Name == AICodexIOSApplicationName {
+		token.CodeHash = getTokenHash(authorizationCode)
+		token.Code = ""
 	}
 	_, err = AddToken(token)
 	if err != nil {
@@ -305,11 +359,11 @@ func GetOAuthCode(userId string, clientId string, provider string, signinMethod 
 
 	return &Code{
 		Message: "",
-		Code:    token.Code,
+		Code:    authorizationCode,
 	}, nil
 }
 
-func GetOAuthToken(grantType string, clientId string, clientSecret string, code string, verifier string, scope string, nonce string, username string, password string, host string, refreshToken string, tag string, avatar string, lang string, subjectToken string, subjectTokenType string, assertion string, clientAssertion string, clientAssertionType string, audience string, resource string) (interface{}, error) {
+func GetOAuthToken(grantType string, clientId string, clientSecret string, code string, verifier string, scope string, nonce string, username string, password string, host string, refreshToken string, tag string, avatar string, lang string, subjectToken string, subjectTokenType string, assertion string, clientAssertion string, clientAssertionType string, audience string, resource string, redirectUri string) (interface{}, error) {
 	var (
 		application *Application
 		err         error
@@ -358,7 +412,7 @@ func GetOAuthToken(grantType string, clientId string, clientSecret string, code 
 	var tokenError *TokenError
 	switch grantType {
 	case "authorization_code": // Authorization Code Grant
-		token, tokenError, err = GetAuthorizationCodeToken(application, clientSecret, code, verifier, resource)
+		token, tokenError, err = GetAuthorizationCodeToken(application, clientSecret, code, verifier, resource, redirectUri, host)
 	case "password": //	Resource Owner Password Credentials Grant
 		token, tokenError, err = GetPasswordToken(application, username, password, scope, host)
 	case "client_credentials": // Client Credentials Grant
@@ -395,17 +449,23 @@ func GetOAuthToken(grantType string, clientId string, clientSecret string, code 
 		return tokenError, nil
 	}
 
-	token.CodeIsUsed = true
-
-	_, err = updateUsedByCode(token)
-	if err != nil {
-		return nil, err
+	if grantType == "authorization_code" && code != "guest-user" {
+		consumed, consumeErr := consumeAuthorizationCode(token)
+		if consumeErr != nil {
+			return nil, consumeErr
+		}
+		if !consumed {
+			return &TokenError{
+				Error:            InvalidGrant,
+				ErrorDescription: authorizationCodeUsedErrorDescription,
+			}, nil
+		}
 	}
 
 	tokenWrapper := &TokenWrapper{
-		AccessToken:  token.AccessToken,
-		IdToken:      token.AccessToken,
-		RefreshToken: token.RefreshToken,
+		AccessToken:  token.accessTokenForResponse(),
+		IdToken:      token.idTokenForResponse(),
+		RefreshToken: token.refreshTokenForResponse(),
 		TokenType:    token.TokenType,
 		ExpiresIn:    token.ExpiresIn,
 		Scope:        token.Scope,
@@ -471,40 +531,19 @@ func RefreshToken(application *Application, grantType string, refreshToken strin
 		return tokenError, nil
 	}
 
-	cert, err := getCertByApplication(application)
-	if err != nil {
-		return nil, err
-	}
-	if cert == nil {
-		return &TokenError{
-			Error:            InvalidGrant,
-			ErrorDescription: fmt.Sprintf("cert: %s cannot be found", application.Cert),
-		}, nil
-	}
-
-	var oldTokenScope string
-	if application.TokenFormat == "JWT-Standard" {
-		oldToken, err := ParseStandardJwtToken(refreshToken, cert)
-		if err != nil {
-			return &TokenError{
-				Error:            InvalidGrant,
-				ErrorDescription: fmt.Sprintf("parse refresh token error: %s", err.Error()),
-			}, nil
-		}
-		oldTokenScope = oldToken.Scope
-	} else {
-		oldToken, err := ParseJwtToken(refreshToken, cert)
-		if err != nil {
-			return &TokenError{
-				Error:            InvalidGrant,
-				ErrorDescription: fmt.Sprintf("parse refresh token error: %s", err.Error()),
-			}, nil
-		}
-		oldTokenScope = oldToken.Scope
-	}
-
+	// The persisted refresh-session hash and its client/user/org/resource
+	// bindings are authoritative. Re-verifying the old JWT with the
+	// application's current certificate makes every planned signing-key
+	// rotation invalidate otherwise active refresh sessions. The current
+	// certificate is still required below when the replacement token is signed.
+	oldTokenScope := token.Scope
 	if scope == "" {
 		scope = oldTokenScope
+	} else if !oauthScopeSubset(scope, oldTokenScope) {
+		return &TokenError{
+			Error:            InvalidScope,
+			ErrorDescription: "requested refresh scope exceeds the original grant",
+		}, nil
 	}
 
 	// generate a new token
@@ -534,7 +573,7 @@ func RefreshToken(application *Application, grantType string, refreshToken strin
 		return nil, err
 	}
 
-	newAccessToken, newRefreshToken, tokenName, err := generateJwtToken(application, user, "", "", "", scope, "", host)
+	newAccessToken, newRefreshToken, tokenName, err := generateJwtToken(application, user, "", "", "", scope, token.Resource, host)
 	if err != nil {
 		return &TokenError{
 			Error:            EndpointError,
@@ -555,26 +594,59 @@ func RefreshToken(application *Application, grantType string, refreshToken strin
 		ExpiresIn:    int(application.ExpireInHours * float64(hourSeconds)),
 		Scope:        scope,
 		TokenType:    "Bearer",
+		Resource:     token.Resource,
 	}
-	_, err = AddToken(newToken)
-	if err != nil {
-		return nil, err
+	if application.Name == AICodexIOSApplicationName {
+		newIdToken, idTokenErr := generateIdToken(application, user, "", "", "", scope, host)
+		if idTokenErr != nil {
+			return &TokenError{
+				Error:            EndpointError,
+				ErrorDescription: fmt.Sprintf("generate id token error: %s", idTokenErr.Error()),
+			}, nil
+		}
+		newToken.IssuedAccessToken = newAccessToken
+		newToken.IssuedIdToken = newIdToken
+		newToken.IssuedRefreshToken = newRefreshToken
+		newToken.AccessTokenHash = getTokenHash(newAccessToken)
+		newToken.RefreshTokenHash = getTokenHash(newRefreshToken)
+		newToken.AccessToken = ""
+		newToken.RefreshToken = ""
+		newToken.Code = ""
 	}
 
-	_, err = DeleteToken(token)
+	rotated, err := rotateRefreshTokenAtomically(token, newToken, refreshToken)
 	if err != nil {
 		return nil, err
+	}
+	if !rotated {
+		return &TokenError{
+			Error:            InvalidGrant,
+			ErrorDescription: "refresh token is invalid or revoked",
+		}, nil
 	}
 
 	tokenWrapper := &TokenWrapper{
-		AccessToken:  newToken.AccessToken,
-		IdToken:      newToken.AccessToken,
-		RefreshToken: newToken.RefreshToken,
+		AccessToken:  newToken.accessTokenForResponse(),
+		IdToken:      newToken.idTokenForResponse(),
+		RefreshToken: newToken.refreshTokenForResponse(),
 		TokenType:    newToken.TokenType,
 		ExpiresIn:    newToken.ExpiresIn,
 		Scope:        newToken.Scope,
 	}
 	return tokenWrapper, nil
+}
+
+func oauthScopeSubset(requested string, granted string) bool {
+	grantedSet := make(map[string]struct{}, len(strings.Fields(granted)))
+	for _, item := range strings.Fields(granted) {
+		grantedSet[item] = struct{}{}
+	}
+	for _, item := range strings.Fields(requested) {
+		if _, ok := grantedSet[item]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func isRefreshTokenBoundToApplication(token *Token, application *Application) bool {
@@ -864,7 +936,7 @@ func generateGuestUsername() string {
 
 // GetAuthorizationCodeToken
 // Authorization code flow
-func GetAuthorizationCodeToken(application *Application, clientSecret string, code string, verifier string, resource string) (*Token, *TokenError, error) {
+func GetAuthorizationCodeToken(application *Application, clientSecret string, code string, verifier string, resource string, redirectUri string, host ...string) (*Token, *TokenError, error) {
 	if code == "" {
 		return nil, &TokenError{
 			Error:            InvalidRequest,
@@ -903,21 +975,27 @@ func GetAuthorizationCodeToken(application *Application, clientSecret string, co
 			ErrorDescription: authorizationCodeWrongClientDescription,
 		}, nil
 	}
-
-	if isAICodexDesktopPkceChallengeMissing(application, token.CodeChallenge) {
+	if isAICodexIOSApplication(application) && (redirectUri == "" || redirectUri != token.RedirectUri) {
 		return nil, &TokenError{
-			Error:            InvalidRequest,
-			ErrorDescription: aicodexDesktopPkceRequiredMessage,
+			Error:            InvalidGrant,
+			ErrorDescription: authorizationCodeWrongRedirectDescription,
 		}, nil
 	}
 
-	if message := validateAICodexDesktopPkceVerifier(application, verifier); message != "" {
+	if isPublicClientPkceChallengeMissing(application, token.CodeChallenge) {
+		return nil, &TokenError{
+			Error:            InvalidRequest,
+			ErrorDescription: publicClientPkceRequiredMessage,
+		}, nil
+	}
+
+	if message := validatePublicClientPkceVerifier(application, verifier); message != "" {
 		return nil, &TokenError{
 			Error:            InvalidGrant,
 			ErrorDescription: message,
 		}, nil
 	}
-	if isAICodexDesktopApplication(application) {
+	if isPublicClientPkceRequired(application) {
 		verifier = strings.TrimSpace(verifier)
 	}
 
@@ -964,6 +1042,49 @@ func GetAuthorizationCodeToken(application *Application, clientSecret string, co
 			Error:            InvalidGrant,
 			ErrorDescription: fmt.Sprintf("authorization code has expired, nowUnix: [%s], token.CodeExpireIn: [%s]", time.Unix(nowUnix, 0).Format(time.RFC3339), time.Unix(token.CodeExpireIn, 0).Format(time.RFC3339)),
 		}, nil
+	}
+
+	if application.Name == AICodexIOSApplicationName {
+		user, userErr := getUser(token.Organization, token.User)
+		if userErr != nil {
+			return nil, nil, userErr
+		}
+		if user == nil || user.IsForbidden {
+			return nil, &TokenError{
+				Error:            InvalidGrant,
+				ErrorDescription: "authorization code user is unavailable",
+			}, nil
+		}
+		if contextErr := ValidateApplicationUserTokenContext(application, user); contextErr != nil {
+			return nil, &TokenError{
+				Error:            InvalidGrant,
+				ErrorDescription: contextErr.Error(),
+			}, nil
+		}
+		if extendErr := ExtendUserWithRolesAndPermissions(user); extendErr != nil {
+			return nil, nil, extendErr
+		}
+
+		tokenHost := ""
+		if len(host) != 0 {
+			tokenHost = host[0]
+		}
+		accessToken, refreshToken, _, issueErr := generateJwtToken(application, user, token.Provider, token.SigninMethod, token.Nonce, token.Scope, token.Resource, tokenHost)
+		if issueErr != nil {
+			return nil, nil, issueErr
+		}
+		idToken, issueErr := generateIdToken(application, user, token.Provider, token.SigninMethod, token.Nonce, token.Scope, tokenHost)
+		if issueErr != nil {
+			return nil, nil, issueErr
+		}
+
+		token.IssuedAccessToken = accessToken
+		token.IssuedIdToken = idToken
+		token.IssuedRefreshToken = refreshToken
+		token.AccessTokenHash = getTokenHash(accessToken)
+		token.RefreshTokenHash = getTokenHash(refreshToken)
+		token.AccessToken = ""
+		token.RefreshToken = ""
 	}
 	return token, nil, nil
 }
